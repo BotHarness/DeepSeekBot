@@ -295,7 +295,8 @@ export const zh = {
   'pairing.approvedCount': '已配对 {count} 人',
   'pairing.hint':
     '启用限制后，未配对的 Lark 私聊和群 @ 自动申请普通聊天角色；管理授权仍用私聊 /pair。申请 10 分钟后过期，审核后须发送新问题。',
-  'pairing.empty': '尚无配对申请。先绑定已连接的 Lark 身份，并为应用启用私聊事件。',
+  'pairing.empty':
+    '尚无配对申请。接收器就绪后，受限私聊或群 @ 会申请聊天角色；管理配对请在私聊发送 /pair。',
   'pairing.refresh': '刷新申请',
   'pairing.actor': '申请人',
   'pairing.account': '接收账号',
@@ -2988,7 +2989,7 @@ export const en = {
   'pairing.hint':
     'When restricted, unpaired Lark DMs and group mentions request an ordinary chat role automatically; management requests still use /pair in a DM. Requests expire after 10 minutes. Send a new question after approval.',
   'pairing.empty':
-    'No pairing requests. Bind a connected Lark identity first and enable private-message events for the app.',
+    'No pairing requests. With a ready receiver, restricted DMs or group mentions request a chat role; management pairing uses /pair in a DM.',
   'pairing.refresh': 'Refresh requests',
   'pairing.actor': 'Applicant',
   'pairing.account': 'Receiving account',
