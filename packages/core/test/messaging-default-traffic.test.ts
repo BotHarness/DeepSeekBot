@@ -254,6 +254,178 @@ async function ordinaryRole(fx: Awaited<ReturnType<typeof fixture>>) {
 function fresh(event: MessagingInboundEvent): MessagingInboundEvent {
   return { ...event, at: new Date(Date.now() + 50).toISOString() };
 }
+function asActor(event: MessagingInboundEvent, actorId: string): MessagingInboundEvent {
+  return {
+    ...event,
+    actor: { kind: 'user', id: actorId, name: actorId },
+    reply: { ...event.reply, actorId },
+  };
+}
+
+it('queries pageable current people, configured conversations and observed paired people without changing authority', async () => {
+  const fx = await fixture();
+  const role = await ordinaryRole(fx);
+  const approve = async (actorId: string) => {
+    await fx.receive(fresh(asActor(dm(`request-${actorId}`), actorId)));
+    const request = fx.core.externalMessaging.pairing
+      .list('ada')
+      .find((p) => p.actorId === actorId)!;
+    await fx.core.externalMessaging.reviewPairing('ada', {
+      kind: 'approve',
+      id: request.id,
+      expectedRevision: request.revision,
+      roleId: role.id,
+      expectedRoleRevision: role.revision,
+    });
+  };
+  await approve('ou_owner');
+  await approve('ou_unobserved');
+  expect(fx.runs).toEqual([]);
+  await fx.receive(fresh(mention('directory-anchor')));
+  const sourceEventId = fx.sourceId('om-directory-anchor');
+  const query = fx.runs.at(-1)!.externalMessaging!.directory!;
+  const before = {
+    admissions: fx.admissions().length,
+    replies: fx.replies.length,
+    runs: fx.runs.length,
+  };
+  const first = query({ kind: 'people', limit: 1 });
+  expect(first.rows).toHaveLength(1);
+  expect(first.nextCursor).toBeDefined();
+  const second = query({ kind: 'people', limit: 1, cursor: first.nextCursor! });
+  expect(second.rows).toHaveLength(1);
+  expect(second.nextCursor).toBeUndefined();
+  expect([...first.rows, ...second.rows]).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ actorId: 'ou_owner', role }),
+      expect.objectContaining({ actorId: 'ou_unobserved', role }),
+    ]),
+  );
+  expect(() => query({ kind: 'conversations', cursor: first.nextCursor! })).toThrow(
+    'directory-cursor-invalid',
+  );
+  expect(() => query({ kind: 'people', limit: 51 })).toThrow();
+  expect(() => query({ kind: 'observed-people' })).toThrow('directory-source-required');
+  expect(() => query({ kind: 'observed-people', sourceEventId: 'guessed' })).toThrow(
+    'source-unavailable',
+  );
+  const conversations = query({ kind: 'conversations', limit: 1 });
+  expect(conversations.nextCursor).toBeDefined();
+  expect(
+    query({ kind: 'conversations', limit: 1, cursor: conversations.nextCursor! }).rows,
+  ).toHaveLength(1);
+  expect(query({ kind: 'conversations' }).rows).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        bindingId: fx.identity.id,
+        conversation: expect.objectContaining({ id: 'oc_team' }),
+        state: 'allowed',
+      }),
+    ]),
+  );
+  const observed = query({ kind: 'observed-people', sourceEventId });
+  expect(observed.rows).toEqual([
+    expect.objectContaining({
+      actorId: 'ou_owner',
+      role,
+      firstObservedAt: expect.any(String),
+      lastObservedAt: expect.any(String),
+    }),
+  ]);
+  expect(observed.coverage).toMatchObject({
+    incomplete: true,
+    currentPlatformMembership: false,
+    scanTruncated: false,
+  });
+  expect(fx.admissions()).toHaveLength(before.admissions);
+  expect(fx.replies).toHaveLength(before.replies);
+  expect(fx.runs).toHaveLength(before.runs);
+  const request = fx.core.externalMessaging.pairing
+    .list('ada')
+    .find((p) => p.actorId === 'ou_owner')!;
+  await fx.core.externalMessaging.reviewPairing('ada', {
+    kind: 'revoke',
+    id: request.id,
+    expectedRevision: request.revision,
+  });
+  expect(query({ kind: 'people' }).rows).toEqual([
+    expect.objectContaining({ actorId: 'ou_unobserved' }),
+  ]);
+  expect(query({ kind: 'observed-people', sourceEventId }).rows).toEqual([]);
+  expect(fx.core.registry.create({ slug: 'grace', displayName: 'Grace' }).ok).toBe(true);
+  expect(fx.core.externalMessaging.directory('grace', { kind: 'people' }).rows).toEqual([]);
+  expect(() =>
+    fx.core.externalMessaging.directory('grace', { kind: 'observed-people', sourceEventId }),
+  ).toThrow('source-unavailable');
+});
+
+it('observations respect shared-source access and purge without treating other App identities as paired people', async () => {
+  const fx = await fixture();
+  const role = await ordinaryRole(fx);
+  for (const actorId of ['ou_owner', 'ou_colleague']) {
+    await fx.receive(fresh(asActor(dm(`request-${actorId}`), actorId)));
+    const request = fx.core.externalMessaging.pairing
+      .list('ada')
+      .find((p) => p.actorId === actorId)!;
+    await fx.core.externalMessaging.reviewPairing('ada', {
+      kind: 'approve',
+      id: request.id,
+      expectedRevision: request.revision,
+      roleId: role.id,
+      expectedRoleRevision: role.revision,
+    });
+  }
+  await fx.receive(fresh(mention('purge-anchor')));
+  await fx.receive(fresh(asActor(mention('purge-colleague'), 'ou_colleague')));
+  const anchor = fx.sourceId('om-purge-anchor');
+  const colleague = fx.sourceId('om-purge-colleague');
+  expect(
+    fx.core.externalMessaging.directory('ada', { kind: 'observed-people', sourceEventId: anchor })
+      .rows,
+  ).toHaveLength(2);
+  expect(fx.core.registry.create({ slug: 'grace', displayName: 'Grace' }).ok).toBe(true);
+  const group = fx.core.channels.createGroup({
+    name: 'Shared QA evidence',
+    members: ['ada', 'grace'],
+  });
+  fx.core.externalMessaging.inbound.share('ada', colleague, group.id);
+  expect(fx.core.externalMessaging.inbound.readShared('grace', colleague).event.actor.id).toBe(
+    'ou_colleague',
+  );
+  expect(() =>
+    fx.core.externalMessaging.directory('grace', {
+      kind: 'observed-people',
+      sourceEventId: colleague,
+    }),
+  ).toThrow('directory-scope-unavailable');
+  fx.core.channels.deleteGroup(group.id);
+  const preview = fx.core.contentPurge.preview(group.id, [colleague]);
+  fx.core.contentPurge.confirm(group.id, preview.sourceEventIds, preview.token);
+  expect(
+    fx.core.externalMessaging.directory('ada', { kind: 'observed-people', sourceEventId: anchor })
+      .rows,
+  ).toEqual([expect.objectContaining({ actorId: 'ou_owner' })]);
+  expect(() =>
+    fx.core.externalMessaging.directory('ada', {
+      kind: 'observed-people',
+      sourceEventId: colleague,
+    }),
+  ).toThrow('content-purged');
+  await fx.core.externalMessaging.identity('ada', {
+    kind: 'unbind',
+    id: fx.identity.id,
+    expectedRevision: fx.identity.revision,
+  });
+  const replacement = await fx.core.externalMessaging.identity('ada', {
+    kind: 'bind',
+    providerId: 'dsh-im/feishu',
+    accountRef: 'lark-app',
+    fingerprint,
+  });
+  expect(replacement.id).not.toBe(fx.identity.id);
+  expect(fx.core.externalMessaging.directory('ada', { kind: 'people' }).rows).toEqual([]);
+  expect(fx.core.externalMessaging.directory('ada', { kind: 'conversations' }).rows).toEqual([]);
+});
 
 it('unknown Lark requests are bounded controls; Web ordinary-role review asks again and only fresh messages run', async () => {
   const fx = await fixture();

@@ -1132,6 +1132,7 @@ describe('DSH Bot Agent adapter', () => {
       'stop_assignment',
       'channel_list',
       'bridge_sender_permissions',
+      'bridge_directory',
       'bridge_targets',
       'bridge_post',
       'bridge_outbox',
@@ -1600,6 +1601,17 @@ it('routes external Tools through the active owning Orchestrator without a local
     queriedAt: '2026-10-11T00:00:00Z',
     status: 'visitor' as const,
   }));
+  const directoryRead = vi.fn(() => ({
+    kind: 'observed-people' as const,
+    queriedAt: '2026-10-11T00:00:00Z',
+    policyRevision: 1,
+    rows: [],
+    coverage: {
+      kind: 'retained-authorized-observations' as const,
+      incomplete: true,
+      currentPlatformMembership: false as const,
+    },
+  }));
   let latePost: (() => Promise<unknown>) | undefined;
   const signal = new AbortController().signal;
   const contextRead = vi.fn<NonNullable<OrchestratorAgentRun['externalMessaging']>['context']>(
@@ -1627,6 +1639,17 @@ it('routes external Tools through the active owning Orchestrator without a local
         await permissions.execute({ source_event_id: 'source-1' }, {} as ToolRunContext);
         expect(permissionsRead).toHaveBeenCalledTimes(2);
         expect(permissionsRead).toHaveBeenCalledWith('source-1');
+        const directory = tools.find((tool) => tool.name === 'bridge_directory');
+        if (!directory) throw new Error('directory tool unavailable');
+        await directory.execute(
+          { kind: 'observed-people', source_event_id: 'source-1', limit: 1 },
+          {} as ToolRunContext,
+        );
+        expect(directoryRead).toHaveBeenCalledWith({
+          kind: 'observed-people',
+          sourceEventId: 'source-1',
+          limit: 1,
+        });
         const contextTool = tools.find((tool) => tool.name === 'bridge_context');
         if (!contextTool) throw new Error('context tool unavailable');
         await contextTool.execute(
@@ -1703,6 +1726,7 @@ it('routes external Tools through the active owning Orchestrator without a local
     message: 'External turn',
     externalMessaging: {
       senderPermissions: permissionsRead,
+      directory: directoryRead,
       targets: async () => [],
       post: async () => {
         throw new Error('post ownership sentinel');

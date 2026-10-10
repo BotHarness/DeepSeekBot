@@ -48,11 +48,33 @@ future eligibility and invalidates queued unauthorized Admissions without rewrit
 We rejected extending administrator `/pair` grants into implicit chat eligibility, conversation-wide
 identity grants and approval-time replay: each conflates independent authorities or preserves an
 instruction before its sender is eligible. Configuration stays in the Bot DM Channel sidebar;
-Profile remains a shareable identity. The three read-only directories, Role editing/reassignment
+Profile remains a shareable identity. Role editing/reassignment
 and explicit open-group passive context remain later slices with the Human gates in
 [#1374](https://github.com/BotHarness/DeepSeekBot/issues/1374),
 [#1375](https://github.com/BotHarness/DeepSeekBot/issues/1375) and
 [#1376](https://github.com/BotHarness/DeepSeekBot/issues/1376).
+
+## Read-only directories
+
+The #1374 slice adds `bridge_directory` at the existing Orchestrator capability seam, with
+three bounded/pageable views owned by Messaging: current effective ordinary paired people and
+Roles; known/configured external conversations and their states; and paired people observed in
+the conversation anchored by an accessible canonical Source Event. Directory reads do not
+approve, assign, change reception policy, mark Admissions observed, or authorize new targets.
+They are requested Tool Results, not an automatically injected directory or permission cache.
+The actual requester of a new role-governed question still needs the #1373 current-permission
+lookup; a listed person's Role cannot authorize impersonation.
+
+Observation reads use current authorized retained-source access, including joined shared
+placements rather than only original source ownership, and intersect it with current pairing in
+the exact Bot/App/Binding namespace. Unbinding/rebinding does not inherit old observations.
+Each query examines at most 1000 recent matching retained Source Events, reports truncation and
+observation times, and excludes content made inaccessible by purge or current membership.
+The view is always incomplete and never a complete or current platform membership list: silent
+or departed members and platform reach cannot be inferred. A known configured target is not a
+new send authorization. Pages re-read current authority; cursors are query-scoped, short-lived
+continuation positions, not snapshots or capabilities. Group answers remain visible to the whole
+group. The complete first-flow Human feedback in #1374 remains the gate for #1375 and #1376.
 
 This appends Operational Database generation 78. Back up before upgrade; an older writer cannot
 reopen the upgraded Profile. Rollback needs the matching pre-upgrade backup or forward repair.
