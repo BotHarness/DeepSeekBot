@@ -1667,6 +1667,7 @@ export function createInboundMessaging(options: {
     if (!options.pairing || provider.id !== 'dsh-im/feishu' || event.channel !== 'feishu')
       return false;
     signal.throwIfAborted();
+    const explicit = /^\/pair(?:\s|$)/.test(event.text.trim());
     const row = database.read((db) =>
       db
         .prepare(
@@ -1674,13 +1675,12 @@ export function createInboundMessaging(options: {
         )
         .get(provider.id, event.botId, event.fingerprint),
     ) as { id: string } | undefined;
-    if (!row) return true;
+    if (!row) return explicit;
     const lease = controls.get(row.id);
-    if (!lease || lease.controller.signal.aborted) return true;
+    if (!lease || lease.controller.signal.aborted) return explicit;
     const identity = database.read((db) => readMessagingIdentity(db, row.id));
     const restricted = database.read((db) => readSenderPolicy(db, identity.botSlug).restricted);
     const intentional = event.conversation.kind === 'dm' || event.mentionedAccount;
-    const explicit = /^\/pair(?:\s|$)/.test(event.text.trim());
     if (restricted && intentional && !explicit) {
       const allowedConversation = database.read((db) => {
         if (readBlock(db, identity.botSlug, identity.fingerprint, event.conversation)) return false;

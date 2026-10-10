@@ -134,7 +134,8 @@ function IdentitiesForBot({
         onClose={() => setPanel(undefined)}
         title={t('pairing.title')}
         closeLabel={t('common.close')}
-        className="bh-sidebar-modal bh-external-panel-modal"
+        className="bh-sidebar-modal bh-external-panel-modal bh-pairing-modal"
+        contentClassName="bh-pairing-content"
       >
         <PairingSettings
           requests={pairings}

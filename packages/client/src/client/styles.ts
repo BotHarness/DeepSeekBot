@@ -2938,8 +2938,8 @@ canvas.bh-banner-art { image-rendering: pixelated; }
 .bh-modal-footer > button { white-space: nowrap; }
 .bh-modal-footer-gap { flex: 1; }
 .bh-sidebar-modal { width: min(440px, calc(100vw - 32px)); }
-.bh-external-identity-modal { max-height: calc(100dvh - 32px); }
-.bh-external-identity-content { min-height: 0; overflow-y: auto; }
+.bh-external-identity-modal, .bh-pairing-modal { max-height: calc(100dvh - 32px); }
+.bh-external-identity-content, .bh-pairing-content { min-height: 0; overflow-y: auto; }
 .bh-sidebar-modal-form, .bh-im-grant-body { display: flex; flex-direction: column; gap: 12px; min-width: 0; font-size: 13px; }
 .bh-sidebar-modal-form p, .bh-im-grant-body p { margin: 0; }
 .bh-sidebar-modal-form ul:not(.bh-card-list) { margin: 0; padding-left: 18px; }
