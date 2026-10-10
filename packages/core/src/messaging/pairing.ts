@@ -267,6 +267,7 @@ export function createBotPairing(
           if (approved.n >= pairingDefaults.maxApprovedPerBot)
             throw new MessagingError('pairing-capacity');
         }
+        const reviewedAt = now().toISOString();
         const next: PairingRequest = {
           ...value,
           status:
@@ -281,7 +282,7 @@ export function createBotPairing(
             ? { roleId: input.roleId, roleRevision: input.expectedRoleRevision! }
             : {}),
           revision: value.revision + 1,
-          reviewedAt: now().toISOString(),
+          reviewedAt,
           reviewedBy: 'authenticated-web',
         };
         db.prepare('UPDATE messaging_pairings SET status = ?, body = ? WHERE id = ?').run(
@@ -297,8 +298,8 @@ export function createBotPairing(
               AND json_extract(payload_json, '$.external.event.botId') = ?
               AND json_extract(payload_json, '$.external.event.fingerprint') = ?
               AND json_extract(payload_json, '$.external.event.actor.id') = ?)`).run(
-            next.reviewedAt,
-            next.reviewedAt,
+            reviewedAt,
+            reviewedAt,
             botSlug,
             binding.accountRef,
             binding.fingerprint,
