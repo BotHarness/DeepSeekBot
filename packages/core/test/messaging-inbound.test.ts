@@ -2227,24 +2227,33 @@ it('queues immediate ordinary traffic behind the active turn without steer and i
     },
   });
   const id = await collectSharedOrdinary(fx);
-  fx.core.channels.setGroupWakePolicy(id, 'ada', { mode: 'all', count: 1, intervalSeconds: 60 });
-  fx.core.channels.setGroupWakePolicy(id, 'bea', {
-    mode: 'digest',
-    count: 100,
-    intervalSeconds: 1,
-  });
-  await fx.receive(ordinaryEvent('busy-one'));
-  await started;
-  await fx.receive(ordinaryEvent('busy-two'));
-  await tick();
-  expect(fx.runs.map((r) => r.bot.slug)).toEqual(['ada']);
-  expect(steer).not.toHaveBeenCalled();
-  await new Promise((r) => setTimeout(r, 1100));
-  expect(fx.runs.map((r) => r.bot.slug)).toEqual(['ada', 'bea']);
-  finish();
-  await fx.idle();
-  expect(fx.runs.map((r) => r.bot.slug)).toEqual(['ada', 'bea', 'ada']);
-  expect(fx.runs[2]?.message).toContain('busy-two');
+  vi.useFakeTimers({ toFake: ['Date'] });
+  const clock = Date.now();
+  try {
+    fx.core.channels.setGroupWakePolicy(id, 'ada', { mode: 'all', count: 1, intervalSeconds: 60 });
+    fx.core.channels.setGroupWakePolicy(id, 'bea', {
+      mode: 'digest',
+      count: 100,
+      intervalSeconds: 1,
+    });
+    await fx.receive(ordinaryEvent('busy-one'));
+    await started;
+    await fx.receive(ordinaryEvent('busy-two'));
+    await tick();
+    expect(fx.runs.map((r) => r.bot.slug)).toEqual(['ada']);
+    expect(steer).not.toHaveBeenCalled();
+    vi.setSystemTime(clock + 1100);
+    await new Promise((r) => setTimeout(r, 1100));
+    expect(fx.runs.map((r) => r.bot.slug)).toEqual(['ada', 'bea']);
+    finish();
+    await fx.idle();
+    expect(fx.runs.map((r) => r.bot.slug)).toEqual(['ada', 'bea', 'ada']);
+    expect(fx.runs[2]?.message).toContain('busy-two');
+  } finally {
+    finish();
+    await fx.idle();
+    vi.useRealTimers();
+  }
 });
 
 it('retains pending ordinary facts across restart, policy revisions, silent collection and membership removal', async () => {
