@@ -74,6 +74,7 @@ export function PairingSettings({
             roles={roles}
             busy={busy}
             review={review}
+            {...(senderAccess ? { senderAccess } : {})}
             t={t}
           />
         ))
@@ -86,12 +87,14 @@ function PairingRow({
   roles,
   busy,
   review,
+  senderAccess,
   t,
 }: {
   request: PairingRequest;
   roles: ExternalUserRole[];
   busy: boolean;
   review(input: PairingReviewInput): Promise<void>;
+  senderAccess?(input: SenderAccessInput): Promise<void>;
   t: BotHarnessTranslate;
 }): ReactElement {
   const [selected, setSelected] = useState<PairingCapability[]>([]);
@@ -165,7 +168,9 @@ function PairingRow({
                 ...roles.map((role) => ({
                   value: role.id,
                   label: role.name,
-                  hint: t('pairing.ordinary'),
+                  hint: role.capabilities.length
+                    ? role.capabilities.map((capability) => t(labels[capability])).join(' · ')
+                    : t('pairing.ordinary'),
                 })),
               ]}
             />
@@ -238,6 +243,38 @@ function PairingRow({
           >
             {t('pairing.revoke')}
           </Button>
+          {request.status === 'approved' && request.purpose === 'conversation' && senderAccess ? (
+            <>
+              <Combobox
+                label={t('pairing.role')}
+                toggleLabel={t('pairing.role')}
+                value={roleId}
+                fallbackValue=""
+                disabled={busy}
+                searchable={false}
+                onSelect={setRoleId}
+                options={[
+                  { value: '', label: t('pairing.selectRole') },
+                  ...roles.map((role) => ({ value: role.id, label: role.name })),
+                ]}
+              />
+              <Button
+                size="sm"
+                disabled={busy || !selectedRole || selectedRole.id === request.roleId}
+                onClick={() =>
+                  selectedRole &&
+                  void senderAccess({
+                    ...input,
+                    kind: 'reassign-role',
+                    roleId: selectedRole.id,
+                    expectedRoleRevision: selectedRole.revision,
+                  })
+                }
+              >
+                {t('pairing.reassignRole')}
+              </Button>
+            </>
+          ) : null}
         </>
       ) : null}
     </article>
@@ -294,12 +331,118 @@ function RoleSettings({
         </Button>
       </fieldset>
       {roles.map((role) => (
-        <article className="bh-im-pairing-request" key={role.id}>
-          <strong>{role.name}</strong>
-          <p>{role.behavior}</p>
-          <Tag>{t('pairing.ordinary')}</Tag>
-        </article>
+        <RoleEditor
+          key={`${role.id}:${role.revision}`}
+          role={role}
+          busy={busy}
+          change={change}
+          t={t}
+        />
       ))}
     </>
+  );
+}
+function RoleEditor({
+  role,
+  busy,
+  change,
+  t,
+}: {
+  role: ExternalUserRole;
+  busy: boolean;
+  change(input: SenderAccessInput): Promise<void>;
+  t: BotHarnessTranslate;
+}): ReactElement {
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(role.name);
+  const [behavior, setBehavior] = useState(role.behavior);
+  const [selected, setSelected] = useState<PairingCapability[]>(role.capabilities);
+  return (
+    <article className="bh-im-pairing-request">
+      {editing ? (
+        <fieldset disabled={busy} className="bh-im-role-form">
+          <legend>{t('pairing.editRole')}</legend>
+          <label className="bh-im-field">
+            <span>{t('pairing.roleName')}</span>
+            <Input value={name} maxLength={80} onChange={(event) => setName(event.target.value)} />
+          </label>
+          <label className="bh-im-field">
+            <span>{t('pairing.behavior')}</span>
+            <Input
+              value={behavior}
+              maxLength={2000}
+              onChange={(event) => setBehavior(event.target.value)}
+            />
+          </label>
+          <fieldset className="bh-im-pairing-capabilities">
+            <legend>{t('pairing.roleCapabilities')}</legend>
+            {(['approve', 'reject'] as const).map((capability) => (
+              <Checkbox
+                key={capability}
+                label={t(labels[capability])}
+                checked={selected.includes(capability)}
+                disabled={busy}
+                onChange={(checked) =>
+                  setSelected((value) =>
+                    checked ? [...value, capability] : value.filter((item) => item !== capability),
+                  )
+                }
+              />
+            ))}
+          </fieldset>
+          <p className="bh-muted">{t('pairing.privateRoleApproval')}</p>
+          <div className="bh-im-actions">
+            <Button
+              size="sm"
+              variant="primary"
+              disabled={busy || !name.trim() || !behavior.trim()}
+              onClick={() =>
+                void change({
+                  kind: 'edit-role',
+                  id: role.id,
+                  expectedRevision: role.revision,
+                  name,
+                  behavior,
+                  capabilities: selected.filter(
+                    (capability): capability is 'approve' | 'reject' =>
+                      capability === 'approve' || capability === 'reject',
+                  ),
+                })
+              }
+            >
+              {t('pairing.saveRole')}
+            </Button>
+            <Button
+              size="sm"
+              variant="toolbar"
+              disabled={busy}
+              onClick={() => {
+                setName(role.name);
+                setBehavior(role.behavior);
+                setSelected(role.capabilities);
+                setEditing(false);
+              }}
+            >
+              {t('pairing.cancelRole')}
+            </Button>
+          </div>
+        </fieldset>
+      ) : (
+        <>
+          <strong>{role.name}</strong>
+          <p>{role.behavior}</p>
+          {role.capabilities.length ? (
+            role.capabilities.map((capability) => (
+              <Tag key={capability}>{t(labels[capability])}</Tag>
+            ))
+          ) : (
+            <Tag>{t('pairing.ordinary')}</Tag>
+          )}
+          <Button size="sm" variant="toolbar" disabled={busy} onClick={() => setEditing(true)}>
+            {t('pairing.editRole')}
+          </Button>
+        </>
+      )}
+    </article>
   );
 }

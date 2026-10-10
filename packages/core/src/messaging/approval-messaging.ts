@@ -154,6 +154,7 @@ export function createApprovalMessaging(options: {
       paired.bindingId !== identity.id ||
       paired.revision !== value.pairingRevision ||
       paired.status !== 'approved' ||
+      (paired.purpose === 'conversation' && paired.conversationKind !== 'dm') ||
       !paired.capabilities.some((c) => c === 'approve' || c === 'reject')
     )
       throw new MessagingError('approval-route-unavailable');
@@ -595,6 +596,7 @@ export function createApprovalMessaging(options: {
             context.identity.id,
             event.actorId,
             event.action === 'allowed-once' ? 'approve' : 'reject',
+            value.route.pairingId,
           );
           return (
             context.identity.providerId === providerId &&
@@ -636,6 +638,7 @@ export function createApprovalMessaging(options: {
                     context.identity.id,
                     event.actorId,
                     event.action === 'allowed-once' ? 'approve' : 'reject',
+                    value.route.pairingId,
                   );
                   return paired.id === actor.pairingId && paired.revision === actor.pairingRevision;
                 } catch {

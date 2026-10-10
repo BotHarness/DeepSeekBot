@@ -76,6 +76,7 @@ export interface BotPairing {
     bindingId: string,
     actorId: string,
     capability: PairingCapability,
+    pairingId?: string,
   ): PairingRequest;
 }
 export const pairingDefaults = Object.freeze({
@@ -117,6 +118,13 @@ export function createBotPairing(
       if (!(error instanceof MessagingError)) throw error;
       if (value.status === 'pending' || value.status === 'approved')
         return { ...value, status: 'revoked' };
+    }
+    if (value.status === 'approved' && value.purpose === 'conversation') {
+      const role = database.read((db) =>
+        externalUserRoles(db, value.botSlug).find((item) => item.id === value.roleId),
+      );
+      if (!role) return { ...value, status: 'unavailable', capabilities: [] };
+      return { ...value, capabilities: role.capabilities, roleRevision: role.revision };
     }
     return value;
   };
@@ -336,13 +344,13 @@ export function createBotPairing(
         return true;
       });
     },
-    assert(botSlug, bindingId, actorId, capability) {
+    assert(botSlug, bindingId, actorId, capability, pairingId) {
       const row = database.read((db) =>
         db
           .prepare(
-            "SELECT body FROM messaging_pairings WHERE bot_slug = ? AND binding_id = ? AND actor_id = ? AND purpose = 'management' AND status = 'approved'",
+            "SELECT body FROM messaging_pairings WHERE bot_slug = ? AND binding_id = ? AND actor_id = ? AND status = 'approved' AND ((? IS NULL AND purpose = 'management') OR id = ?)",
           )
-          .get(botSlug, bindingId, actorId),
+          .get(botSlug, bindingId, actorId, pairingId ?? null, pairingId ?? null),
       ) as { body: string } | undefined;
       if (!row) throw new MessagingError('pairing-unauthorized');
       const value = current(read(row));

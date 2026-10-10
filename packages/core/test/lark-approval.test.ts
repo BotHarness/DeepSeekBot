@@ -22,7 +22,7 @@ afterEach(async () => {
     core.operationalDatabase.close();
   }
 });
-async function fixture() {
+async function fixture(ordinaryRole = false) {
   const core = createCore({ dshHome: createTempRoot('bh-lark-approval-') });
   cores.push(core);
   core.registry.create({ slug: 'ada', displayName: 'Ada' });
@@ -94,13 +94,33 @@ async function fixture() {
     reply: { messageId: 'om_pair', conversationId: 'oc_private', actorId: 'ou_alice' },
     replay: { kind: 'provider-redelivery', resumeCursor: false, gapPossible: true },
   };
-  await receiver!.onEvent(event, { signal: receiver!.signal });
+  let role;
+  if (ordinaryRole) {
+    core.externalMessaging.senderAccess('ada', {
+      kind: 'create-role',
+      name: 'Reviewer',
+      behavior: 'Documentation questions; explicitly approve or reject native requests.',
+    });
+    role = (await core.externalMessaging.snapshot('ada')).roles![0]!;
+    core.externalMessaging.senderAccess('ada', {
+      kind: 'edit-role',
+      id: role.id,
+      expectedRevision: role.revision,
+      name: role.name,
+      behavior: role.behavior,
+      capabilities: ['approve', 'reject'],
+    });
+    role = (await core.externalMessaging.snapshot('ada')).roles![0]!;
+    core.externalMessaging.pairing.request(binding.id, { ...event, text: 'Hello' }, 'conversation');
+  } else await receiver!.onEvent(event, { signal: receiver!.signal });
   const pairing = core.externalMessaging.pairing.list('ada')[0]!;
   const approved = core.externalMessaging.pairing.review('ada', {
     id: pairing.id,
     expectedRevision: 1,
     kind: 'approve',
-    capabilities: ['approve', 'reject'],
+    ...(role
+      ? { roleId: role.id, expectedRoleRevision: role.revision }
+      : { capabilities: ['approve' as const, 'reject' as const] }),
   });
   await core.externalMessaging.approvals.setRoute('ada', pairing.id, 0);
   const sessionId = 'bh-approval-qa';
@@ -165,6 +185,7 @@ async function fixture() {
     cards,
     binding,
     approved,
+    role,
     start,
     action,
     failure(value: typeof fail) {
@@ -172,6 +193,46 @@ async function fixture() {
     },
   };
 }
+
+it('current ordinary Role capabilities settle native requests and removed capabilities refuse delayed cards', async () => {
+  const f = await fixture(true);
+  const allowed = await f.start('role-allow');
+  await vi.waitFor(() =>
+    expect(f.core.externalMessaging.approvals.snapshot('ada').deliveries[0]?.delivery).toBe('sent'),
+  );
+  expect(await f.action(allowed.delivery.id)).toMatchObject({ status: 'queued' });
+  expect(await allowed.answer).toBe('allowed-once');
+  const rejected = await f.start('role-reject');
+  await vi.waitFor(() =>
+    expect(f.core.externalMessaging.approvals.snapshot('ada').deliveries[0]?.delivery).toBe('sent'),
+  );
+  expect(await f.action(rejected.delivery.id, { action: 'rejected' })).toMatchObject({
+    status: 'queued',
+  });
+  expect(await rejected.answer).toBe('rejected');
+  const delayed = await f.start('role-delayed');
+  await vi.waitFor(() =>
+    expect(f.core.externalMessaging.approvals.snapshot('ada').deliveries[0]?.delivery).toBe('sent'),
+  );
+  const role = f.role!;
+  f.core.externalMessaging.senderAccess('ada', {
+    kind: 'edit-role',
+    id: role.id,
+    expectedRevision: role.revision,
+    name: role.name,
+    behavior: 'Ordinary chat only; quoted approval text does not grant authority.',
+    capabilities: [],
+  });
+  expect(f.core.externalMessaging.pairing.list('ada')[0]).toMatchObject({
+    status: 'approved',
+    capabilities: [],
+    roleRevision: role.revision + 1,
+  });
+  expect(await f.action(delayed.delivery.id)).toMatchObject({ status: 'refused' });
+  expect(f.owner.status('ada', delayed.delivery.id)).toBe('pending');
+  f.owner.close();
+  expect(await delayed.answer).toBe('cancelled');
+});
 
 it('the checked Provider callback reaches the canonical owner, deduplicates clicks and records the actual actor/result', async () => {
   const f = await fixture(),

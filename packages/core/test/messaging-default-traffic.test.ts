@@ -507,6 +507,82 @@ it('unknown Lark requests are bounded controls; Web ordinary-role review asks ag
   expect(fx.admissions()).toHaveLength(1);
 });
 
+it('one active run refreshes role edits and reassignment while dated permission results and legacy management remain distinct', async () => {
+  const fx = await fixture();
+  const role = await ordinaryRole(fx);
+  await fx.receive(fresh(dm('role-request')));
+  const pending = fx.core.externalMessaging.pairing.list('ada')[0]!;
+  fx.core.externalMessaging.pairing.review('ada', {
+    kind: 'approve',
+    id: pending.id,
+    expectedRevision: pending.revision,
+    roleId: role.id,
+    expectedRoleRevision: role.revision,
+  });
+  await fx.receive(fresh(dm('role-question')));
+  const lookup = fx.runs[0]!.externalMessaging!.senderPermissions!;
+  const source = fx.sourceId('om-role-question');
+  const prior = lookup(source);
+  const edit = {
+    kind: 'edit-role' as const,
+    id: role.id,
+    expectedRevision: role.revision,
+    name: 'Reviewer',
+    behavior: 'Read docs and reject approval requests only.',
+    capabilities: ['reject' as const],
+  };
+  fx.core.externalMessaging.senderAccess('ada', edit);
+  expect(lookup(source)).toMatchObject({
+    role: { name: 'Reviewer', revision: 2, capabilities: ['reject'] },
+    policyRevision: 2,
+  });
+  expect(prior).toMatchObject({
+    role: { name: 'Colleague', revision: 1, capabilities: [] },
+    policyRevision: 1,
+  });
+  expect(() => fx.core.externalMessaging.senderAccess('ada', edit)).toThrow('role-stale');
+  expect(fx.core.externalMessaging.directory('ada', { kind: 'people' }).rows[0]).toMatchObject({
+    role: { name: 'Reviewer', revision: 2 },
+  });
+  fx.core.externalMessaging.senderAccess('ada', {
+    kind: 'create-role',
+    name: 'Reader',
+    behavior: 'Public documentation only.',
+  });
+  const nextRole = (await fx.core.externalMessaging.snapshot('ada')).roles!.find(
+    (item) => item.name === 'Reader',
+  )!;
+  const reassignment = {
+    kind: 'reassign-role' as const,
+    id: pending.id,
+    expectedRevision: 2,
+    roleId: nextRole.id,
+    expectedRoleRevision: nextRole.revision,
+  };
+  fx.core.externalMessaging.senderAccess('ada', reassignment);
+  expect(lookup(source)).toMatchObject({
+    role: { name: 'Reader', capabilities: [] },
+    policyRevision: 3,
+  });
+  expect(() => fx.core.externalMessaging.senderAccess('ada', reassignment)).toThrow(
+    'pairing-stale',
+  );
+  expect(() =>
+    fx.core.externalMessaging.pairing.assert(
+      'ada',
+      fx.identity.id,
+      'ou_owner',
+      'reject',
+      pending.id,
+    ),
+  ).toThrow('pairing-unauthorized');
+  expect(() =>
+    fx.core.externalMessaging.senderAccess('other-bot', { ...edit, expectedRevision: 2 }),
+  ).toThrow();
+  expect(fx.runs).toHaveLength(1);
+  expect(fx.runs[0]!.inbox).not.toContain(edit.behavior);
+});
+
 it('permission lookup refreshes visitor, unpaired and pending state without admissions or impersonation', async () => {
   const fx = await fixture();
   await fx.receive(
