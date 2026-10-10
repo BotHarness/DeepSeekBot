@@ -23,6 +23,8 @@ Pixel Avatars can be an elf, dwarf, orc or talking flower with beards, medieval 
 
 ### Added
 
+- Bot DM settings can edit ordinary Lark role behavior and explicit Allow once/Reject capabilities or reassign a paired person; permission queries read current revisions and delayed private approval decisions re-check current authority ([#1375](https://github.com/BotHarness/DeepSeekBot/issues/1375)).
+
 - PersonaBots can query current paired people and roles, configured external conversations, and paired people observed in one authorized conversation through bounded read-only directories; observations explicitly remain incomplete and do not represent current group membership ([#1374](https://github.com/BotHarness/DeepSeekBot/issues/1374)).
 
 - Bot DM settings offer ordinary Lark roles and optional reviewed chat pairing: unpaired DMs and mentions wait without waking the model, approval asks for a new question, and revocation closes future access. The model receives trusted sender references and can query current permissions on demand; existing management pairing stays separate. Independent test Apps can be configured once and reused across worktrees ([#1373](https://github.com/BotHarness/DeepSeekBot/issues/1373), [shared test App guide](docs/agents/im-test-apps.md), [ADR-0164](docs/adr/0164-lark-chat-pairing-is-reviewed-current-binding-authority.md)).

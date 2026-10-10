@@ -283,6 +283,13 @@ export const zh = {
   'pairing.roleName': '角色名称',
   'pairing.behavior': '自然语言行为权限',
   'pairing.ordinary': '普通聊天 · 无管理能力',
+  'pairing.editRole': '编辑角色',
+  'pairing.saveRole': '保存角色',
+  'pairing.cancelRole': '取消编辑',
+  'pairing.reassignRole': '分配所选角色',
+  'pairing.roleCapabilities': '显式管理能力',
+  'pairing.privateRoleApproval':
+    '批准一次和拒绝适用于现有私聊审批路径。请选择从私聊配对的人员；群管理目的地由独立功能提供。行为文字不会授予这些能力。',
   'pairing.restricted': 'Lark 聊天请求必须经过配对',
   'pairing.policyLimit':
     '行为权限是模型的 prompt 策略，不隔离邮件、代码或 Shell 资源。群回复对全群可见；聊天资格与管理权限独立。',
@@ -2976,6 +2983,13 @@ export const en = {
   'pairing.roleName': 'Role name',
   'pairing.behavior': 'Behavior permissions',
   'pairing.ordinary': 'Ordinary chat · no management capabilities',
+  'pairing.editRole': 'Edit role',
+  'pairing.saveRole': 'Save role',
+  'pairing.cancelRole': 'Cancel editing',
+  'pairing.reassignRole': 'Assign selected role',
+  'pairing.roleCapabilities': 'Explicit management capabilities',
+  'pairing.privateRoleApproval':
+    'Allow once and Reject apply to the existing private approval route. Select a person paired from a DM; group management destinations are separate. Behavior text does not grant these capabilities.',
   'pairing.restricted': 'Require pairing for Lark conversation requests',
   'pairing.policyLimit':
     'Behavior permissions are prompt policies; they do not isolate email, code or Shell resources. Group replies are visible to the group. Chat eligibility and management powers are independent.',

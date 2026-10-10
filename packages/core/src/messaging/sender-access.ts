@@ -27,6 +27,25 @@ export const senderAccessInput = z.discriminatedUnion('kind', [
     .strict(),
   z
     .object({
+      kind: z.literal('edit-role'),
+      id: z.string().uuid(),
+      expectedRevision: z.number().int().positive(),
+      name: z.string().trim().min(1).max(80),
+      behavior: z.string().trim().min(1).max(2000),
+      capabilities: z.array(z.enum(['approve', 'reject'])).max(2),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal('reassign-role'),
+      id: z.string().uuid(),
+      expectedRevision: z.number().int().positive(),
+      roleId: z.string().uuid(),
+      expectedRoleRevision: z.number().int().positive(),
+    })
+    .strict(),
+  z
+    .object({
       kind: z.literal('policy'),
       restricted: z.boolean(),
       expectedRevision: z.number().int().nonnegative(),
@@ -174,6 +193,59 @@ export function changeSenderAccess(
     );
     return;
   }
+  if (input.kind === 'edit-role') {
+    const role = externalUserRoles(db, botSlug).find((item) => item.id === input.id);
+    if (!role || role.revision !== input.expectedRevision) throw new MessagingError('role-stale');
+    const next: ExternalUserRole = {
+      ...role,
+      name: input.name,
+      behavior: input.behavior,
+      capabilities: [...new Set(input.capabilities)],
+      revision: role.revision + 1,
+    };
+    db.prepare('UPDATE messaging_external_roles SET body = ? WHERE id = ? AND bot_slug = ?').run(
+      JSON.stringify(next),
+      next.id,
+      botSlug,
+    );
+    bumpSenderPolicy(db, botSlug);
+    return;
+  }
+  if (input.kind === 'reassign-role') {
+    const row = db
+      .prepare('SELECT body FROM messaging_pairings WHERE id = ? AND bot_slug = ?')
+      .get(input.id, botSlug) as { body: string } | undefined;
+    if (!row) throw new MessagingError('pairing-unavailable');
+    const pairing = JSON.parse(row.body) as PairingRequest;
+    const binding = readMessagingIdentity(db, pairing.bindingId);
+    if (
+      pairing.purpose !== 'conversation' ||
+      pairing.status !== 'approved' ||
+      pairing.revision !== input.expectedRevision ||
+      binding.botSlug !== botSlug ||
+      binding.revokedAt ||
+      !binding.enabled
+    )
+      throw new MessagingError('pairing-stale');
+    const role = externalUserRoles(db, botSlug).find((item) => item.id === input.roleId);
+    if (!role || role.revision !== input.expectedRoleRevision)
+      throw new MessagingError('role-stale');
+    db.prepare('UPDATE messaging_pairings SET body = ? WHERE id = ? AND bot_slug = ?').run(
+      JSON.stringify({
+        ...pairing,
+        roleId: role.id,
+        roleRevision: role.revision,
+        capabilities: [],
+        revision: pairing.revision + 1,
+        reassignedAt: new Date().toISOString(),
+        reviewedBy: 'authenticated-web',
+      }),
+      pairing.id,
+      botSlug,
+    );
+    bumpSenderPolicy(db, botSlug);
+    return;
+  }
   const policy = readSenderPolicy(db, botSlug);
   if (policy.revision !== input.expectedRevision) throw new MessagingError('sender-policy-stale');
   db.prepare(
@@ -190,6 +262,12 @@ export function changeSenderAccess(
           "UPDATE inbox_admissions SET attempt_state = 'handled', ignored_at = ?, handled_at = ?, wake_count = NULL, wake_interval_ms = NULL WHERE bot_slug = ? AND source_event_id = ?",
         ).run(new Date().toISOString(), new Date().toISOString(), botSlug, row.source_event_id);
   }
+}
+function bumpSenderPolicy(db: DatabaseSync, botSlug: string): void {
+  const policy = readSenderPolicy(db, botSlug);
+  db.prepare(
+    'INSERT INTO messaging_sender_policies (bot_slug, restricted, revision) VALUES (?, ?, ?) ON CONFLICT(bot_slug) DO UPDATE SET revision = excluded.revision',
+  ).run(botSlug, policy.restricted ? 1 : 0, policy.revision + 1);
 }
 export function currentSenderRole(
   db: DatabaseSync,

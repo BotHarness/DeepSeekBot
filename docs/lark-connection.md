@@ -321,6 +321,20 @@ _Close/reopen and same-Profile restart retained configuration/history; select th
 
 ## Handle tool approvals in a management DM
 
+The #1375 candidate also lets you edit a Role in **IM roles and pairing** and explicitly select
+Allow once/Reject capabilities, or assign another Role to an approved ordinary person. Empty
+capabilities mean chat without management power. Save checks current revisions; refresh after a
+stale-change error. Subsequent permission and directory queries show current state without
+rewriting earlier model history. Role text alone cannot approve a tool.
+
+For an ordinary Role-based private approval destination, use a person whose approved pairing
+originated in a DM, then choose that person in **Lark approval notifications**. The existing
+private-origin check is retained; a group pairing does not create a management destination.
+Removing a capability or revoking/reassigning the person refuses delayed decisions. If
+reassignment invalidates the route, explicitly select/save its new current destination again.
+Legacy `/pair` management grants remain independent and do not enable ordinary chat by themselves.
+Questions, saved-rule controls, group destinations and pairing-code issuance are separate work.
+
 This slice supports Lark private **Allow once** and **Reject** cards through a qualified Provider. Group approvals, native question forms, saved automatic rules and non-blocking native waits are separate slices. The released dsh-im package number alone does not imply card capability; an unavailable Provider remains unavailable.
 
 1. Enable the app's **Events & callbacks → Callback configuration → Long connection** and add `card.action.trigger`, then publish the version. Retain the existing message read/send scopes and add `im:chat:read` so the sender can verify a private conversation. A maintainer must authorize these app changes.

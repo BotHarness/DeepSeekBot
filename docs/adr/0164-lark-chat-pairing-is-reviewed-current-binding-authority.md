@@ -49,7 +49,7 @@ We rejected extending administrator `/pair` grants into implicit chat eligibilit
 identity grants and approval-time replay: each conflates independent authorities or preserves an
 instruction before its sender is eligible. Configuration stays in the Bot DM Channel sidebar;
 Profile remains a shareable identity. Role editing/reassignment
-and explicit open-group passive context remain later slices with the Human gates in
+and explicit open-group passive context follow the Human gates in
 [#1374](https://github.com/BotHarness/DeepSeekBot/issues/1374),
 [#1375](https://github.com/BotHarness/DeepSeekBot/issues/1375) and
 [#1376](https://github.com/BotHarness/DeepSeekBot/issues/1376).
@@ -80,3 +80,27 @@ This appends Operational Database generation 78. Back up before upgrade; an olde
 reopen the upgraded Profile. Rollback needs the matching pre-upgrade backup or forward repair.
 Real Lark qualification uses a reusable independent test App and isolated Host with a freshly
 coordinated exclusive receiver window; a previously saved idle confirmation is not a lease.
+
+## Current Role changes and private management decisions
+
+The #1375 slice edits a Role's name, behavior and explicitly selected `approve`/`reject`
+capabilities, or reassigns one approved person to one current Role, through revision-checked
+authenticated sidebar commands. Empty capabilities remain valid; `answer` and `save-rules`
+are not offered as implemented Role actions. A successful mutation advances the policy revision;
+Role edits advance the Role revision and reassignment advances the pairing revision. Queries in
+the same native Session read current authority while prior Tool Results remain unchanged.
+
+The qualified private approval route may select either a legacy explicit management pairing or
+an approved ordinary pairing originating in a DM whose current Role has the relevant capability.
+The existing route's verified private origin remains required; a group pairing does not create a
+private or group management destination. Delivery and decision checks re-read current Role
+capabilities rather than copying them into a standing grant. The exact selected pairing, current
+Binding, actual authenticated actor, destination/receipt, native request lifetime and offered
+operation remain independent fences. Reassignment invalidates older route revisions; capability
+removal refuses a delayed card and invalidates its yet-unused approval. Existing legacy grants
+keep their explicit capabilities and do not establish ordinary conversation eligibility.
+
+No mutation rewrites model history or claims to interrupt an already running arbitrary Shell
+operation. Role text remains prompt behavior, while supported control decisions are Host checked.
+The one-time reviewed pairing-code proposal remains a future extension until its issuance and
+reviewer command contract is specified; public request references remain non-authorizing locators.
