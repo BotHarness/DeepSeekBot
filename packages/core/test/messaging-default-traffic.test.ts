@@ -439,6 +439,60 @@ it('ordinary group text creates no pairing request or wake contribution for a re
   expect(fx.runs).toEqual([]);
 });
 
+it.each(['restrict', 'revoke'] as const)(
+  'pending collected messages close with a supported durable state on %s',
+  async (action) => {
+    const fx = await fixture();
+    let pairing;
+    if (action === 'revoke') {
+      const role = await ordinaryRole(fx);
+      await fx.receive(fresh(dm('pending-pair')));
+      pairing = fx.core.externalMessaging.pairing.list('ada')[0]!;
+      fx.core.externalMessaging.pairing.review('ada', {
+        kind: 'approve',
+        id: pairing.id,
+        expectedRevision: pairing.revision,
+        roleId: role.id,
+        expectedRoleRevision: role.revision,
+      });
+    }
+    await fx.receive(fresh(mention('pending-bootstrap')));
+    const {
+      revision,
+      changedAt: _at,
+      ...preferences
+    } = fx.core.externalMessaging.defaults('feishu');
+    await fx.core.externalMessaging.setDefaults({
+      ...preferences,
+      expectedRevision: revision,
+      collection: 'all',
+      wake: 'digest',
+      count: 100,
+      intervalSeconds: 86400,
+    });
+    await fx.receive(fresh(mention('pending-collected', false)));
+    const source = fx.sourceId('om-pending-collected');
+    expect(
+      fx.query(`SELECT attempt_state FROM inbox_admissions WHERE source_event_id = '${source}'`),
+    ).toEqual([{ attempt_state: 'pending' }]);
+    const runs = fx.runs.length;
+    if (pairing)
+      fx.core.externalMessaging.pairing.review('ada', {
+        kind: 'revoke',
+        id: pairing.id,
+        expectedRevision: 2,
+      });
+    else await ordinaryRole(fx);
+    expect(
+      fx.query(
+        `SELECT attempt_state, wake_count, wake_interval_ms, ignored_at IS NOT NULL AS ignored FROM inbox_admissions WHERE source_event_id = '${source}'`,
+      ),
+    ).toEqual([{ attempt_state: 'handled', wake_count: null, wake_interval_ms: null, ignored: 1 }]);
+    await fx.restart();
+    expect(fx.runs).toHaveLength(runs);
+  },
+);
+
 it('automatic pairing acknowledges intake before a checked reply enters the Provider transition queue', async () => {
   const fx = await fixture();
   await ordinaryRole(fx);

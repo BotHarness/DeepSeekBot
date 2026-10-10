@@ -187,8 +187,8 @@ export function changeSenderAccess(
     for (const row of pending)
       if (!sourceSenderAllowed(db, botSlug, row.source_event_id))
         db.prepare(
-          "UPDATE inbox_admissions SET attempt_state = 'ignored', wake_count = NULL, wake_interval_ms = NULL WHERE bot_slug = ? AND source_event_id = ?",
-        ).run(botSlug, row.source_event_id);
+          "UPDATE inbox_admissions SET attempt_state = 'handled', ignored_at = ?, handled_at = ?, wake_count = NULL, wake_interval_ms = NULL WHERE bot_slug = ? AND source_event_id = ?",
+        ).run(new Date().toISOString(), new Date().toISOString(), botSlug, row.source_event_id);
   }
 }
 export function currentSenderRole(

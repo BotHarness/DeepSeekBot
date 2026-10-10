@@ -291,12 +291,14 @@ export function createBotPairing(
         );
         if (input.kind === 'revoke' && value.purpose === 'conversation') {
           const binding = readMessagingIdentity(db, value.bindingId);
-          db.prepare(`UPDATE inbox_admissions SET attempt_state = 'ignored', wake_count = NULL, wake_interval_ms = NULL
+          db.prepare(`UPDATE inbox_admissions SET attempt_state = 'handled', ignored_at = ?, handled_at = ?, wake_count = NULL, wake_interval_ms = NULL
             WHERE bot_slug = ? AND attempt_state IN ('pending', 'retryable') AND source_event_id IN
             (SELECT source_event_id FROM source_events WHERE source_kind = 'bridge-message'
               AND json_extract(payload_json, '$.external.event.botId') = ?
               AND json_extract(payload_json, '$.external.event.fingerprint') = ?
               AND json_extract(payload_json, '$.external.event.actor.id') = ?)`).run(
+            next.reviewedAt,
+            next.reviewedAt,
             botSlug,
             binding.accountRef,
             binding.fingerprint,
