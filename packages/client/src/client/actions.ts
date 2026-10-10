@@ -13,10 +13,12 @@ import type {
   PersonaBotDeletion,
 } from '../../../core/src/bots/deletion.js';
 import type { PairingRequest, PairingReviewInput } from '../../../core/src/messaging/pairing.js';
+import type { SenderAccessInput } from '../../../core/src/messaging/sender-access.js';
 import {
   gitInstalling,
   loadGitAvailability,
   reviewPairing,
+  changeExternalSenderAccess,
   startGitInstall,
   setApprovalRoute,
   testApprovalRoute,
@@ -312,6 +314,7 @@ export interface BridgeActions {
   approvalTest(slug: string): Promise<void>;
   approvalRetry(slug: string, id: string): Promise<void>;
   pairingReview(slug: string, input: PairingReviewInput): Promise<PairingRequest>;
+  senderAccess(slug: string, input: SenderAccessInput): Promise<void>;
   messagingIdentity(slug: string, input: MessagingIdentityInput): Promise<MessagingIdentity>;
   messagingConversation(slug: string, input: MessagingConversationInput): Promise<void>;
   appSetup?: ProviderAppSetup;
@@ -1982,6 +1985,7 @@ export function createActions(
     approvalTest: (slug) => testApprovalRoute(call, slug),
     approvalRetry: (slug, id) => retryApprovalNotification(call, slug, id),
     pairingReview: (slug, input) => reviewPairing(call, slug, input),
+    senderAccess: (slug, input) => changeExternalSenderAccess(call, slug, input),
     messagingIdentity: (slug, input) => manageMessagingIdentity(call, slug, input),
     messagingConversation: (slug, input) => manageMessagingConversation(call, slug, input),
     messagingSnapshot: (slug) => loadMessagingSnapshot(call, slug),

@@ -6,6 +6,7 @@ import { createDshImProvider, type DshImOutboundService } from '../src/messaging
 import type { MessagingInboundEvent, MessagingReplyRoute } from '../src/messaging/provider.js';
 import type { OrchestratorAgentRun, BotAgentAdapter } from '../src/runtime/bot-runtime.js';
 import type { MessagingIdentityInput } from '../src/messaging/identity.js';
+import { createBridgeMethods } from '../src/bridge/methods.js';
 import { createTempRoot } from './helpers.js';
 
 const fingerprint = 'c'.repeat(64);
@@ -170,12 +171,13 @@ async function fixture(
     get subscriptions() {
       return subscriptions;
     },
-    async receive(event: MessagingInboundEvent) {
+    async receive(event: MessagingInboundEvent, afterIntake?: () => void) {
       if (!consumer) throw new Error('Not subscribed');
       const result = await consumer.onEvent(
         { ...event, channel: platform },
         { signal: consumer.signal },
       );
+      afterIntake?.();
       await settle();
       return result;
     },
@@ -228,6 +230,228 @@ async function fixture(
     },
   };
 }
+
+async function ordinaryRole(fx: Awaited<ReturnType<typeof fixture>>) {
+  const methods = createBridgeMethods({ ...fx.core });
+  expect(
+    await methods.senderAccess({
+      slug: 'ada',
+      input: {
+        kind: 'create-role',
+        name: 'Colleague',
+        behavior: 'Answer questions about public documentation. Do not change code.',
+      },
+    }),
+  ).toEqual({ ok: true, value: undefined });
+  expect(
+    await methods.senderAccess({
+      slug: 'ada',
+      input: { kind: 'policy', restricted: true, expectedRevision: 0 },
+    }),
+  ).toEqual({ ok: true, value: undefined });
+  return (await fx.core.externalMessaging.snapshot('ada')).roles![0]!;
+}
+function fresh(event: MessagingInboundEvent): MessagingInboundEvent {
+  return { ...event, at: new Date(Date.now() + 50).toISOString() };
+}
+
+it('unknown Lark requests are bounded controls; Web ordinary-role review asks again and only fresh messages run', async () => {
+  const fx = await fixture();
+  const role = await ordinaryRole(fx);
+  const blocked = fresh(dm('unknown', { text: 'PRIVATE BLOCKED BODY' }));
+  await fx.receive(blocked);
+  await fx.receive(blocked);
+  expect(fx.runs).toHaveLength(0);
+  expect(fx.admissions()).toEqual([]);
+  expect(fx.query('SELECT * FROM source_events')).toEqual([]);
+  expect(fx.query('SELECT * FROM assignments')).toEqual([]);
+  const request = fx.core.externalMessaging.pairing.list('ada')[0]!;
+  expect(request).toMatchObject({
+    purpose: 'conversation',
+    status: 'pending',
+    capabilities: [],
+    attempts: 1,
+  });
+  expect(JSON.stringify(request)).not.toContain(blocked.text);
+  expect(fx.replies).toHaveLength(1);
+  expect(fx.replies[0]!.text).not.toContain(blocked.text);
+  const methods = createBridgeMethods({ ...fx.core });
+  const review = {
+    kind: 'approve' as const,
+    id: request.id,
+    expectedRevision: request.revision,
+    roleId: role.id,
+    expectedRoleRevision: role.revision,
+  };
+  expect(await methods.pairingReview({ slug: 'ada', input: review })).toMatchObject({
+    ok: true,
+    value: { pairing: { roleId: role.id, capabilities: [] } },
+  });
+  expect(fx.replies.at(-1)!.text).toContain('send your question again');
+  expect(fx.runs).toHaveLength(0);
+  await fx.receive(blocked);
+  expect(fx.admissions()).toEqual([]);
+  await fx.receive(fresh(dm('new')));
+  expect(fx.runs).toHaveLength(1);
+  expect(fx.runs[0]!.inbox).toContain('Colleague');
+  expect(fx.runs[0]!.inbox).toContain(role.behavior);
+  expect(fx.runs[0]!.inbox).not.toContain(blocked.text);
+  expect(() =>
+    fx.core.externalMessaging.pairing.assert('ada', fx.identity.id, 'ou_owner', 'approve'),
+  ).toThrow('pairing-unauthorized');
+  await fx.core.externalMessaging.reply('ada', fx.sourceId('om-new'), 'Fresh reply');
+  expect(fx.replies.at(-1)).toMatchObject({
+    route: { messageId: 'om-new', conversationId: 'oc_owner' },
+    text: 'Fresh reply',
+  });
+  const paired = fx.core.externalMessaging.pairing.list('ada')[0]!;
+  await methods.pairingReview({
+    slug: 'ada',
+    input: { kind: 'revoke', id: paired.id, expectedRevision: paired.revision },
+  });
+  await fx.receive(fresh(dm('revoked')));
+  expect(fx.runs).toHaveLength(1);
+  expect(fx.admissions()).toHaveLength(1);
+});
+
+it('ordinary pairing survives restart and reuses only the same app identity across allowed conversations', async () => {
+  const fx = await fixture();
+  const role = await ordinaryRole(fx);
+  await fx.receive(fresh(mention('group')));
+  const request = fx.core.externalMessaging.pairing.list('ada')[0]!;
+  await fx.core.externalMessaging.reviewPairing('ada', {
+    kind: 'approve',
+    id: request.id,
+    expectedRevision: 1,
+    roleId: role.id,
+    expectedRoleRevision: 1,
+  });
+  await fx.restart();
+  await fx.receive(fresh(dm('after-restart')));
+  expect(fx.runs).toHaveLength(1);
+  expect(fx.admissions()).toEqual([{ reason: 'human-dm', messageId: 'om-after-restart' }]);
+  const current = (await fx.core.externalMessaging.snapshot('ada')).identities![0]!;
+  await fx.core.externalMessaging.identity('ada', {
+    kind: 'unbind',
+    id: current.id,
+    expectedRevision: current.revision,
+  });
+  await fx.core.externalMessaging.identity('ada', {
+    kind: 'bind',
+    providerId: 'dsh-im/feishu',
+    accountRef: 'lark-app',
+    fingerprint,
+  });
+  await fx.settle();
+  await fx.receive(fresh(dm('rebound')));
+  expect(fx.runs).toHaveLength(1);
+  expect(
+    fx.core.externalMessaging.pairing.list('ada').filter((item) => item.status === 'pending'),
+  ).toHaveLength(1);
+});
+
+it('failed re-ask notification preserves approval and stale review never launches or replays a request', async () => {
+  const fx = await fixture();
+  const role = await ordinaryRole(fx);
+  await fx.receive(fresh(dm('failure')));
+  const request = fx.core.externalMessaging.pairing.list('ada')[0]!;
+  fx.prepareReply(async () => {
+    throw new Error('offline');
+  });
+  const input = {
+    kind: 'approve' as const,
+    id: request.id,
+    expectedRevision: 1,
+    roleId: role.id,
+    expectedRoleRevision: 1,
+  };
+  const approved = await fx.core.externalMessaging.reviewPairing('ada', input);
+  expect(approved.status).toBe('approved');
+  expect(approved.notifications?.at(-1)).toMatchObject({ outcome: 'unconfirmed', attempts: 1 });
+  await expect(fx.core.externalMessaging.reviewPairing('ada', input)).rejects.toThrow(
+    'pairing-stale',
+  );
+  expect(fx.runs).toEqual([]);
+  expect(fx.admissions()).toEqual([]);
+  fx.prepareReply(async () => {});
+  await fx.receive(fresh(dm('later')));
+  expect(fx.runs).toHaveLength(1);
+});
+
+it('ordinary group text creates no pairing request or wake contribution for a restricted Bot', async () => {
+  const fx = await fixture();
+  await ordinaryRole(fx);
+  for (let n = 0; n < 8; n++) await fx.receive(fresh(mention(`ordinary-${n}`, false)));
+  expect(fx.core.externalMessaging.pairing.list('ada')).toEqual([]);
+  expect(fx.admissions()).toEqual([]);
+  expect(fx.runs).toEqual([]);
+});
+
+it('automatic pairing acknowledges intake before a checked reply enters the Provider transition queue', async () => {
+  const fx = await fixture();
+  await ordinaryRole(fx);
+  let intakeReturned = false;
+  fx.prepareReply(async () => {
+    if (!intakeReturned) throw new Error('provider-transition-still-locked');
+  });
+  await fx.receive(fresh(dm('queue-fence')), () => {
+    intakeReturned = true;
+  });
+  expect(fx.replies).toHaveLength(1);
+  expect(fx.core.externalMessaging.pairing.list('ada')[0]!.notifications?.[0]?.outcome).toBe(
+    'accepted',
+  );
+  expect(fx.admissions()).toEqual([]);
+});
+
+it('restricted chatting preserves explicit management pairing without granting ordinary chat eligibility', async () => {
+  const fx = await fixture();
+  await ordinaryRole(fx);
+  await fx.receive(fresh({ ...dm('management'), text: '/pair' }));
+  const management = fx.core.externalMessaging.pairing.list('ada')[0]!;
+  expect(management.purpose ?? 'management').toBe('management');
+  await fx.core.externalMessaging.reviewPairing('ada', {
+    kind: 'approve',
+    id: management.id,
+    expectedRevision: management.revision,
+    capabilities: ['approve'],
+  });
+  expect(() =>
+    fx.core.externalMessaging.pairing.assert('ada', fx.identity.id, 'ou_owner', 'approve'),
+  ).not.toThrow();
+  await fx.receive(fresh(dm('still-needs-chat-role')));
+  expect(fx.runs).toEqual([]);
+  expect(fx.admissions()).toEqual([]);
+  expect(
+    fx.core.externalMessaging.pairing.list('ada').filter((item) => item.purpose === 'conversation'),
+  ).toMatchObject([{ status: 'pending', capabilities: [] }]);
+});
+
+it('chat review refuses a different Bot role and an outdated role revision', async () => {
+  const fx = await fixture();
+  const ownRole = await ordinaryRole(fx);
+  expect(fx.core.registry.create({ slug: 'grace', displayName: 'Grace' }).ok).toBe(true);
+  fx.core.externalMessaging.senderAccess('grace', {
+    kind: 'create-role',
+    name: 'Other Bot role',
+    behavior: 'Another Bot policy',
+  });
+  const foreignRole = (await fx.core.externalMessaging.snapshot('grace')).roles![0]!;
+  await fx.receive(fresh(dm('role-review')));
+  const request = fx.core.externalMessaging.pairing.list('ada')[0]!;
+  for (const role of [foreignRole, { ...ownRole, revision: ownRole.revision + 1 }])
+    await expect(
+      fx.core.externalMessaging.reviewPairing('ada', {
+        kind: 'approve',
+        id: request.id,
+        expectedRevision: request.revision,
+        roleId: role.id,
+        expectedRoleRevision: role.revision,
+      }),
+    ).rejects.toThrow('role-stale');
+  expect(fx.core.externalMessaging.pairing.list('ada')[0]!.status).toBe('pending');
+  expect(fx.runs).toEqual([]);
+});
 
 it('a bound Lark app admits a DM to the Inbox with no saved target and replies in the same DM', async () => {
   const fx = await fixture();

@@ -289,6 +289,12 @@ PersonaBot Profile 的 IM 连接经现有 Typert/API Gateway 选择账号和已�
 
 首次能力只能由认证 Web Human 显式勾选并按当前申请 revision 审核；定位码不能兑换权限，首位申请者不会自动成为管理员。能力仅覆盖当前 Bot 的批准、拒绝、回答及保存规则资格，不扩展 VPS、原生 DSH API、其他 Bot 或审批人管理。每次使用重查当前 Binding、Bot、真实 actor、能力和状态；暂停期间不可用，永久撤销后重新配对必须重新审核。该切片交付配对与 Web 审核，IM 审批／提问控件仍由后续切片接入原生权威。参数、恢复及审计边界见 [ADR-0136](../adr/0136-lark-pairing-is-reviewed-bot-scoped-operational-authority.md)。
 
+### Lark 普通角色与自动申请（ADR-0164）
+
+[#1373](https://github.com/BotHarness/DeepSeekBot/issues/1373) 沿用 Messaging owner 与 Operational Database，新增普通 External User Role、默认关闭的发送者限制和 `conversation` purpose 配对；既有 `management` purpose 的 `/pair` 显式能力保持独立。普通角色先支持自然语言行为权限与空管理能力，不新增 DSH 原生 RBAC，也不宣称隔离邮件、代码或任意 Shell 资源。配对按当前 PersonaBot、App Binding/fingerprint 与 Provider 认证的 Lark open ID 限定，可跨允许的 DM/群复用，但不跨 Bot/App/平台或重新绑定继承。Host 在默认接收、显式 Bridge、会话接入、共享来源及模型消费处逐 Bot 校验资格；不同作者的角色不合并。
+
+未配对的受限 DM/群 @ 先持久提交有界审核元数据，不保存旧指令正文、不建立请求 Source Event/Inbox Admission、wake 或 Task。认证 Web Human 在 Bot DM Channel sidebar 经既有 API Gateway/Client seam 选择角色并按 revision 审核。批准先提交，再通过当前独占 Consumer 的受检查回复能力发送固定重问通知；只允许新的有效消息进入原有模型回复/Outbox 路径。通知尝试在外部调用前记录，未知结果不盲重试；接收回调先返回，避免与 Provider 账号队列死锁。撤销立即关闭后续资格及尚未执行的相关 Admission，既有历史保留。Generation 78、迁移和边界详见 [ADR-0164](../adr/0164-lark-chat-pairing-is-reviewed-current-binding-authority.md)。三个只读目录与完整首轮真人反馈仍由 #1374 交付，角色编辑/重新分配与显式开放群/被动上下文分别保留 #1375/#1376 的真人依赖。
+
 ### Lark 私聊审批（ADR-0141）
 
 [#1029](https://github.com/BotHarness/BotHarness/issues/1029) 将已提交的工具审批发往 Web 显式选择的已配对管理私聊；通知路由及回执由 Messaging owner 在现有 Operational Database generation 60 保存，完整请求／决定仍归 canonical Channel 与 native Session。通知、决定接受、原生执行结果和卡片更新分别投影。现有独占 Consumer fanout 单独处理官方 SDK 卡片操作，不建立普通 Source Event、Inbox 或 Memory。公开的受检查 Provider capability 负责原始私聊／实际发送人、自己的卡片回执和平台写入前 fence；Host 校验实际点击者的当前 Bot／Binding／fingerprint／配对能力与 revision、目的地、request↔receipt、完整操作及原生执行者。允许一次／拒绝重入现有工具审批 broker，Web 与 IM 共用一位胜出者，执行前再次核验撤权与完整参数。回调确认不等于批准，批准不等于成功执行；重启使旧卡片失效，未知发送结果不重发。该切片不保存规则、不处理群审批／原生问题，也不释放 native wait。见 [ADR-0141](../adr/0141-lark-private-approvals-rejoin-the-native-owner-through-checked-controls.md)。

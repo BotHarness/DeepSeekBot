@@ -138,6 +138,9 @@ function IdentitiesForBot({
       >
         <PairingSettings
           requests={pairings}
+          roles={snapshot?.roles ?? []}
+          {...(snapshot?.senderPolicy ? { policy: snapshot.senderPolicy } : {})}
+          senderAccess={(input) => operate(() => actions.senderAccess(slug, input), 'pairing')}
           receivers={snapshot?.pairingReceivers ?? []}
           busy={busy}
           failed={scopeFailed === 'pairing'}

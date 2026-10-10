@@ -2973,6 +2973,8 @@ canvas.bh-banner-art { image-rendering: pixelated; }
 .bh-im-pairing-request dd { margin: 0; }
 .bh-im-pairing-capabilities { display: flex; flex-wrap: wrap; gap: 12px; border: none; padding: 0; margin: 0; }
 .bh-im-pairing-capabilities legend { margin-bottom: 8px; }
+.bh-im-role-form { display: flex; flex-direction: column; gap: 12px; border: none; padding: 0; margin: 0; }
+.bh-im-role-form legend { margin-bottom: 8px; }
 .bh-im-pairing-capabilities label { display: flex; align-items: center; gap: 6px; }
 .bh-im-threads td { overflow-wrap: anywhere; }
 .bh-identity-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }

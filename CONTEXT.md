@@ -478,6 +478,14 @@ _Avoid_: IM account (in UI copy), connector, integration
 The messages an enabled external identity Binding admits without any per-conversation consent: direct messages to the App and group messages the qualified Provider reports as mentioning it. Where the App can be reached is decided on the platform; ordinary group text, followed threads and Channel syncs stay explicit.
 _Avoid_: all messages, authorized traffic, open intake
 
+**External User Role**:
+A PersonaBot's policy for a paired external IM person, containing natural-language behavior permissions and explicit Host-checked management capabilities, which may be empty. The behavior policy guides the model; ordinary chatting and management authority do not implicitly grant one another.
+_Avoid_: native DSH role, resource ACL, administrator (for every role)
+
+**Chat pairing**:
+A Human-reviewed association of one external person with a Role for one PersonaBot and its current authenticated App Binding. It is reusable across allowed conversations in that scope, with a fresh question required after approval; it does not transfer to another Bot, App, platform or replacement Binding.
+_Avoid_: conversation membership, account-wide administrator, saved pending instruction
+
 **Conversation entry**:
 The per-conversation anchor of one Binding's traffic, stored as a Messaging Grant. An _implicit_ entry is recorded on the first admitted default-traffic message or first proactive post; an _explicit_ entry comes from a saved send target. A _held_ entry waits for the Human (Ask me first, or a bound was reached) and keeps only metadata. A _blocked_ conversation has a durable block keyed by Bot, App fingerprint, kind and ID that refuses it until **Allow again**. Muting an entry keeps admission but never wakes the Bot.
 _Avoid_: authorization (for implicit entries), delivery target, subscription

@@ -276,11 +276,25 @@ export const zh = {
   'approvalIm.status.execution-failed': '执行失败',
   'approvalIm.status.execution-unknown': '执行结果未确认',
   'approvalIm.status.test': '测试，无操作',
-  'pairing.title': 'IM 管理员配对',
+  'pairing.title': 'IM 角色与配对',
+  'pairing.role': '普通聊天角色',
+  'pairing.selectRole': '选择一个角色',
+  'pairing.createRole': '创建普通角色',
+  'pairing.roleName': '角色名称',
+  'pairing.behavior': '自然语言行为权限',
+  'pairing.ordinary': '普通聊天 · 无管理能力',
+  'pairing.restricted': 'Lark 聊天请求必须经过配对',
+  'pairing.policyLimit':
+    '行为权限是模型的 prompt 策略，不隔离邮件、代码或 Shell 资源。群回复对全群可见；聊天资格与管理权限独立。',
+  'pairing.conversationAccess': '普通聊天配对申请',
+  'pairing.managementAccess': '已有管理授权（独立于普通聊天资格）',
+  'pairing.approveRole': '批准此角色',
+  'pairing.noticeUnconfirmed':
+    '配对已批准，但重问通知未确认送达。请申请人发送新问题；旧请求不会执行。',
   'pairing.pendingCount': '{count} 个待处理',
   'pairing.approvedCount': '已配对 {count} 人',
   'pairing.hint':
-    '在当前 Bot 的 Lark 私聊发送 /pair，再在此审核真实账号。申请 10 分钟后过期。配对不会授予 VPS、API 或其他 Bot 的权限。',
+    '启用限制后，未配对的 Lark 私聊和群 @ 自动申请普通聊天角色；管理授权仍用私聊 /pair。申请 10 分钟后过期，审核后须发送新问题。',
   'pairing.empty': '尚无配对申请。先绑定已连接的 Lark 身份，并为应用启用私聊事件。',
   'pairing.refresh': '刷新申请',
   'pairing.actor': '申请人',
@@ -1104,7 +1118,7 @@ export const zh = {
   'identity.tutorial.wechatUrl': 'https://botharness.ai/zh/docs/wechat-connection/',
   'identity.tutorial.more': '更多平台',
   'identity.tutorial.moreUrl': 'https://botharness.ai/zh/docs/channel-sidebar/external-identities/',
-  'identity.empty': '尚未绑定应用。绑定后，私聊和 @ 这个应用的消息会进入这个 Bot 的收件箱。',
+  'identity.empty': '尚未绑定应用。绑定后，私聊和 @ 消息遵循这个 Bot 的接收与配对设置。',
   'identity.emptyShort': '还没有绑定应用',
   'identity.app': '应用',
   'identity.conversationCount': '{count} 个会话',
@@ -1204,7 +1218,7 @@ export const zh = {
   'conversation.seen': '{count} 条消息 · 最近 {time}',
   'conversation.blockedAt': '屏蔽于 {time}',
   'conversation.limit': '活跃会话已达上限。请先屏蔽不再需要的会话，再允许新的会话。',
-  'identity.ready': '已就绪：发给 {app} 的私聊和群里 @ 它的消息，现在会进入这个 Bot 的收件箱。',
+  'identity.ready': '已就绪：发给 {app} 的私聊和群里 @ 它的消息遵循这个 Bot 的接收与配对设置。',
   'identity.connecting': '正在连接 {app}…',
   'identity.offline': '{app} 暂时收不到消息。请在 IM 设置中检查它的连接状态。',
   'identity.done': '完成',
@@ -1248,7 +1262,7 @@ export const zh = {
   'identity.providerHint':
     '这里列出所有已在 IM 设置中连接的应用，以及各自绑定的 Bot。一个应用只属于一个 Bot。',
   'identity.bindHint':
-    '绑定后，私聊这个应用和在群里 @ 它的消息会直接进入这个 Bot 的收件箱，Bot 在原会话回复，不需要保存目标或授权会话。个人微信只接收扫码者本人的私聊。',
+    '绑定后，私聊和群里 @ 消息遵循这个 Bot 的接收与配对设置，Bot 在原会话回复。个人微信只接收扫码者本人的私聊。',
   'identity.bindHintQq':
     '这是通过腾讯官方授权接入的 QQ Bot 应用。绑定后，在 QQ 群里 @ 这个应用的文字消息会直接进入这个 Bot 的收件箱，Bot 以自己的应用身份在原群回复，不需要保存目标或授权会话。',
   'identity.reconnectHint':
@@ -2954,11 +2968,25 @@ export const en = {
   'approvalIm.status.execution-failed': 'Execution failed',
   'approvalIm.status.execution-unknown': 'Execution unconfirmed',
   'approvalIm.status.test': 'Test; no operation',
-  'pairing.title': 'IM administrator pairing',
+  'pairing.title': 'IM roles and pairing',
+  'pairing.role': 'Conversation role',
+  'pairing.selectRole': 'Select one role',
+  'pairing.createRole': 'Create ordinary role',
+  'pairing.roleName': 'Role name',
+  'pairing.behavior': 'Behavior permissions',
+  'pairing.ordinary': 'Ordinary chat · no management capabilities',
+  'pairing.restricted': 'Require pairing for Lark conversation requests',
+  'pairing.policyLimit':
+    'Behavior permissions are prompt policies; they do not isolate email, code or Shell resources. Group replies are visible to the group. Chat eligibility and management powers are independent.',
+  'pairing.conversationAccess': 'Conversation pairing request',
+  'pairing.managementAccess': 'Existing management grant (separate from conversation access)',
+  'pairing.approveRole': 'Approve this role',
+  'pairing.noticeUnconfirmed':
+    'Pairing is approved, but the re-ask notice is unconfirmed. Ask the applicant to send a new question; the old request will not run.',
   'pairing.pendingCount': '{count} pending',
   'pairing.approvedCount': '{count} paired',
   'pairing.hint':
-    'Send /pair in this Bot’s Lark DM, then review the real account here. Requests expire after 10 minutes. Pairing grants no VPS, API or other-Bot access.',
+    'When restricted, unpaired Lark DMs and group mentions request an ordinary chat role automatically; management requests still use /pair in a DM. Requests expire after 10 minutes. Send a new question after approval.',
   'pairing.empty':
     'No pairing requests. Bind a connected Lark identity first and enable private-message events for the app.',
   'pairing.refresh': 'Refresh requests',
@@ -3827,7 +3855,7 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'identity.tutorial.more': 'More platforms',
   'identity.tutorial.moreUrl': 'https://botharness.ai/docs/channel-sidebar/external-identities/',
   'identity.empty':
-    'No app bound yet. Once bound, DMs and @mentions to the app reach this Bot’s Inbox.',
+    'No app bound yet. Bind an app to receive DMs and @mentions under this Bot’s reception and pairing settings.',
   'identity.emptyShort': 'No app bound yet',
   'identity.app': 'App',
   'identity.conversationCount': '{count} conversation(s)',
@@ -3938,7 +3966,8 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'conversation.blockedAt': 'Blocked {time}',
   'conversation.limit':
     'Too many active conversations. Block ones you no longer need, then allow new ones.',
-  'identity.ready': 'Ready: DMs and @mentions to {app} now reach this Bot’s Inbox.',
+  'identity.ready':
+    'Connected: DMs and @mentions to {app} follow this Bot’s reception and pairing settings.',
   'identity.readyQq':
     'Official QQ Bot app ready: group @mentions to {app} now reach this Bot’s Inbox.',
   'identity.connecting': 'Connecting {app}…',
@@ -3987,7 +4016,7 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'identity.providerHint':
     'Every app connected in IM settings is listed here with the Bot it is bound to. An app belongs to one Bot only.',
   'identity.bindHint':
-    'Once bound, DMs to the app and @mentions of it in groups go straight to this Bot’s Inbox, and the Bot replies in place. No saved targets or conversation authorization needed. Personal WeChat only receives DMs from the person who scanned it.',
+    'Once bound, DMs and group @mentions follow this Bot’s reception and pairing settings; replies stay in the original conversation. Personal WeChat only receives DMs from the person who scanned it.',
   'identity.bindHintQq':
     'This QQ Bot app connects through Tencent’s official authorization. Once bound, text @mentions to this app in QQ groups reach this Bot’s Inbox. The Bot replies in the original group through its own app. No saved targets or conversation authorization needed.',
   'identity.reconnectHint':

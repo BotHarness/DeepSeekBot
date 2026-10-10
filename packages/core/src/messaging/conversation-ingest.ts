@@ -4,6 +4,7 @@ import type { ChannelRecord } from '../channels/channel.js';
 import type { BotSourcePolicyStore } from '../runtime/source-policy.js';
 import type { ConversationRef } from './conversations.js';
 import { MessagingError } from './provider.js';
+import { sourceSenderAllowed } from './sender-access.js';
 
 export interface ConversationIngestWake {
   mode: 'mentions' | 'digest' | 'all';
@@ -161,7 +162,7 @@ export function admitIngestMembers(
 ): string[] {
   const admitted: string[] = [];
   for (const botSlug of channel.members) {
-    if (!isBotActive(botSlug)) continue;
+    if (!isBotActive(botSlug) || !sourceSenderAllowed(db, botSlug, sourceEventId)) continue;
     const rule = sourcePolicy.resolveIn(db, botSlug, 'group-ordinary');
     const custom = channel.wakePolicies?.[botSlug];
     const policy = custom ?? { ...ingest.wake, revision: ingest.revision };

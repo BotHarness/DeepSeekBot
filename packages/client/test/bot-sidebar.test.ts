@@ -161,6 +161,7 @@ function stubActions(): BridgeActions {
     approvalTest: vi.fn(async () => {}),
     approvalRetry: vi.fn(async () => {}),
     pairingReview: vi.fn(),
+    senderAccess: vi.fn(),
     messagingIdentity: vi.fn(),
     messagingConversation: vi.fn(),
     messagingSnapshot: vi.fn(async () => ({ accounts: [], grants: [], intents: [] })),

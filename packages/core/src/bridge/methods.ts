@@ -8,6 +8,7 @@ import {
   type PurgePreview,
 } from '../purge/contracts.js';
 import { pairingReviewInput, type PairingRequest } from '../messaging/pairing.js';
+import { senderAccessInput } from '../messaging/sender-access.js';
 import type { GroupMemberWakePolicy } from '../channels/channel.js';
 import {
   parseAllBotMention,
@@ -385,6 +386,7 @@ export interface BridgeMethods {
     BridgeResult<{ delivery: import('../messaging/approval-messaging.js').ApprovalDelivery }>
   >;
   pairingReview(payload: unknown): Promise<BridgeResult<{ pairing: PairingRequest }>>;
+  senderAccess(payload: unknown): Promise<BridgeResult<void>>;
   channelBridges(payload: unknown): Promise<BridgeResult<ChannelBridgeSnapshot>>;
   channelIngests(payload: unknown): Promise<BridgeResult<ConversationIngestSnapshot>>;
   channelIngest(payload: unknown): Promise<BridgeResult<{ updated: true }>>;
@@ -1229,6 +1231,16 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         delivery: await service.approvals.retry(input.data.slug, input.data.id),
       }));
     },
+    senderAccess(payload) {
+      const input = z
+        .object({ slug: z.string().min(1), input: senderAccessInput })
+        .strict()
+        .safeParse(payload);
+      if (!input.success) return Promise.resolve(invalidInput('Invalid sender access'));
+      return messagingCall(async (service) =>
+        service.senderAccess(input.data.slug, input.data.input),
+      );
+    },
     pairingReview(payload) {
       const input = z
         .object({ slug: z.string().min(1), input: pairingReviewInput })
@@ -1236,7 +1248,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         .safeParse(payload);
       if (!input.success) return Promise.resolve(invalidInput('Invalid pairing review'));
       return messagingCall(async (service) => ({
-        pairing: service.pairing.review(input.data.slug, input.data.input),
+        pairing: await service.reviewPairing(input.data.slug, input.data.input),
       }));
     },
     messagingIdentity(payload) {

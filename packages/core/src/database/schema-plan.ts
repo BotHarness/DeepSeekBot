@@ -1986,6 +1986,23 @@ const INBOX_HISTORY_MIGRATION: SchemaMigration = {
   },
 };
 
+const EXTERNAL_USER_ROLE_MIGRATION: SchemaMigration = {
+  generation: 78,
+  module: 'messaging',
+  description:
+    'Keep ordinary conversation roles separate from explicit management grants in Messaging',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE messaging_external_roles (id TEXT PRIMARY KEY, bot_slug TEXT NOT NULL, body TEXT NOT NULL CHECK (json_valid(body)));
+      CREATE INDEX messaging_external_roles_bot ON messaging_external_roles(bot_slug);
+      CREATE TABLE messaging_sender_policies (bot_slug TEXT PRIMARY KEY, restricted INTEGER NOT NULL CHECK (restricted IN (0, 1)), revision INTEGER NOT NULL);
+      ALTER TABLE messaging_pairings ADD COLUMN purpose TEXT NOT NULL DEFAULT 'management' CHECK (purpose IN ('management', 'conversation'));
+      DROP INDEX messaging_pairings_current;
+      CREATE UNIQUE INDEX messaging_pairings_current ON messaging_pairings(binding_id, actor_id, purpose) WHERE status IN ('pending', 'approved');
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -2063,4 +2080,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   BOT_SELF_RECORD_MIGRATION,
   MEMORY_COMMIT_RECORD_MIGRATION,
   INBOX_HISTORY_MIGRATION,
+  EXTERNAL_USER_ROLE_MIGRATION,
 ]);
