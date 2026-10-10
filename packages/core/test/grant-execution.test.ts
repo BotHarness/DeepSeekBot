@@ -116,6 +116,7 @@ describe('Workspace Grant execution boundary', () => {
     const session = { id: 'botharness-orchestrator', header: { cwd: '/tmp/memory' } } as never;
     for (const tool of [
       'bridge_sender_permissions',
+      'bridge_directory',
       'bridge_attachment_save',
       'bridge_reply_file',
     ]) {

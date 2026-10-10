@@ -7,6 +7,7 @@ import {
 import { waitForAssignment, type AssignmentWaitOutcome } from './assignment-wait.js';
 import { externalMemberWake } from '../messaging/defaults.js';
 import { trustedSenderReference, type SenderPermissions } from '../messaging/sender-access.js';
+import type { MessagingDirectoryQuery, MessagingDirectoryPage } from '../messaging/directory.js';
 import type {
   ThreadReceptionInput,
   ThreadReceptionPolicy,
@@ -223,6 +224,7 @@ export interface OrchestratorAgentRun {
   inboundChannelId: string | undefined;
   externalMessaging?: {
     senderPermissions?(sourceEventId: string): SenderPermissions;
+    directory?(query: MessagingDirectoryQuery): MessagingDirectoryPage;
     targets?(): Promise<
       Array<{ grantId: string; platform: string; accountName: string; targetName: string }>
     >;
@@ -3133,6 +3135,7 @@ class BotRuntimeImplementation implements BotRuntime {
           : {
               externalMessaging: {
                 senderPermissions: (id) => this.#externalMessaging!.senderPermissions(bot.slug, id),
+                directory: (query) => this.#externalMessaging!.directory(bot.slug, query),
                 targets: async () => {
                   const snapshot = await this.#externalMessaging!.snapshot(bot.slug);
                   return snapshot.grants

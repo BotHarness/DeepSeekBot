@@ -1163,6 +1163,49 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       );
       registerTool(
         defineTool({
+          name: 'bridge_directory',
+          description:
+            'Read one bounded current directory for this Bot: people lists effective ordinary chat pairings/current roles; conversations lists known configured conversation states, not new target authority; observed-people lists currently paired people observed in the conversation of an accessible trusted source_event_id. Observations come only from retained authorized sources in a bounded scan: incomplete, never complete/current platform membership. Querying a row grants no impersonation, management, send or resource authority. Use bridge_sender_permissions for the actual requester of a new role-governed question. Group replies remain visible to the whole group. Follow nextCursor with unchanged query; refresh dated results rather than treating them as current authority.',
+          parameters: {
+            kind: {
+              type: 'string',
+              enum: ['people', 'conversations', 'observed-people'],
+              required: true,
+            },
+            source_event_id: {
+              type: 'string',
+              description:
+                'Required only for observed-people: trusted accessible source anchoring the selected external conversation.',
+            },
+            cursor: {
+              type: 'string',
+              description: 'Opaque nextCursor from the same directory query.',
+            },
+            limit: { type: 'integer', description: 'Page size 1–50, default 20.' },
+          },
+          output: {
+            schema: { type: 'string' },
+            render: (_args, value) => [{ type: 'text', text: value }],
+          },
+          execute: async (args) => {
+            const active = this.#runs.get(run.sessionId);
+            if (active?.role !== 'orchestrator' || !active.run.externalMessaging?.directory)
+              throw new Error('bridge_directory: unavailable');
+            return JSON.stringify(
+              active.run.externalMessaging.directory({
+                kind: args.kind,
+                ...(args.source_event_id === undefined
+                  ? {}
+                  : { sourceEventId: args.source_event_id }),
+                ...(args.cursor === undefined ? {} : { cursor: args.cursor }),
+                ...(args.limit === undefined ? {} : { limit: args.limit }),
+              }),
+            );
+          },
+        }),
+      );
+      registerTool(
+        defineTool({
           name: 'bridge_targets',
           description:
             'List your currently authorized external report targets, including qualified WeChat paired-owner DMs, own identity and grant_id. Does not grant any new authorization.',

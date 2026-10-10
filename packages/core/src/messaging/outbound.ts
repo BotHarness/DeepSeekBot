@@ -4,6 +4,11 @@ import {
   type ApprovalMessagingSnapshot,
 } from './approval-messaging.js';
 import {
+  createMessagingDirectory,
+  type MessagingDirectoryQuery,
+  type MessagingDirectoryPage,
+} from './directory.js';
+import {
   createBotPairing,
   type BotPairing,
   type PairingRequest,
@@ -250,6 +255,7 @@ export interface OutboundMessaging {
   pairing: BotPairing;
   senderAccess(botSlug: string, input: SenderAccessInput): void;
   senderPermissions(botSlug: string, sourceEventId: string): SenderPermissions;
+  directory(botSlug: string, query: MessagingDirectoryQuery): MessagingDirectoryPage;
   reviewPairing(botSlug: string, input: PairingReviewInput): Promise<PairingRequest>;
   inbound: InboundMessaging;
   defaults<Platform extends string = 'feishu'>(platform?: Platform): MessagingDefaults<Platform>;
@@ -796,6 +802,10 @@ export function createOutboundMessaging(options: {
           return { queriedAt: result.queriedAt, status: 'unavailable', reason: 'binding-replaced' };
         return result;
       });
+    },
+    directory(botSlug, query) {
+      active(botSlug);
+      return createMessagingDirectory(database, inbound.readShared)(botSlug, query);
     },
     async reviewPairing(botSlug, input) {
       const request = pairing.review(botSlug, input);
