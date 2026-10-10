@@ -9,6 +9,8 @@ Pixel Avatars can be an elf, dwarf, orc or talking flower with beards, medieval 
 
 ### Breaking Changes
 
+- Ordinary Lark roles add Profile schema Generation 78. Back up before upgrading; rollback requires a compatible writer or restoration of the pre-upgrade backup ([#1373](https://github.com/BotHarness/DeepSeekBot/issues/1373)).
+
 - Inbox history adds Profile schema Generation 77 with a rebuildable FTS5 trigram index. Back up before upgrading; reopening an upgraded Profile requires a compatible binary or restoration of the pre-upgrade backup ([#1278](https://github.com/BotHarness/DeepSeekBot/issues/1278)).
 
 - Memory commit records add Profile schema Generation 76 (a per-Bot commit cursor and a one-record-per-commit index). Back up before upgrading; reopening an upgraded Profile requires a compatible binary or restoration of the pre-upgrade backup ([#1277](https://github.com/BotHarness/DeepSeekBot/issues/1277)).
@@ -20,6 +22,8 @@ Pixel Avatars can be an elf, dwarf, orc or talking flower with beards, medieval 
 - QQ reception intervals add Profile schema Generation 74 and reuse the existing receive boundary; back up before upgrading and repair forward after upgrade ([#1153](https://github.com/BotHarness/BotHarness/issues/1153)).
 
 ### Added
+
+- Bot DM settings offer ordinary Lark roles and optional reviewed chat pairing: unpaired DMs and mentions wait without waking the model, approval asks for a new question, and revocation closes future access. The model receives trusted sender references and can query current permissions on demand; existing management pairing stays separate. Independent test Apps can be configured once and reused across worktrees ([#1373](https://github.com/BotHarness/DeepSeekBot/issues/1373), [shared test App guide](docs/agents/im-test-apps.md), [ADR-0164](docs/adr/0164-lark-chat-pairing-is-reviewed-current-binding-authority.md)).
 
 - Window Companions offer optional, quiet text-paced babble and grab, fast-drag, throw and first-impact landing sounds, off by default for each Profile, and a damped angular spring makes drag reversals and settling continuous without adding model tools or TTS. Idle companions hide the empty status bubble and fade action controls in on hover or keyboard focus; pointer focus after dragging no longer keeps reading open. Long message bubbles follow the latest revealed text without scrollbars; scrolling upward preserves the reading position until returning to the bottom. Dismissing the final card shows waiting replies and lets later arrivals display even while the character retains keyboard focus ([#1173](https://github.com/BotHarness/DeepSeekBot/issues/1173)).
 

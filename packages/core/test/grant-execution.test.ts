@@ -114,7 +114,11 @@ describe('Workspace Grant execution boundary', () => {
   it('keeps checked external file operations internal while retaining Shell approval', () => {
     const state = fixture();
     const session = { id: 'botharness-orchestrator', header: { cwd: '/tmp/memory' } } as never;
-    for (const tool of ['bridge_attachment_save', 'bridge_reply_file']) {
+    for (const tool of [
+      'bridge_sender_permissions',
+      'bridge_attachment_save',
+      'bridge_reply_file',
+    ]) {
       expect(requiresHumanToolApproval(tool)).toBe(false);
       expect(
         grantToolExecutionDenial(state.core, session, state.policy, state.approval, tool, {}),

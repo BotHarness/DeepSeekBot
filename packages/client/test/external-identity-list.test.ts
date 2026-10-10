@@ -378,7 +378,7 @@ it.each(['feishu', 'qq'] as const)(
       expect(tutorial?.textContent).toBe('Lark / 飞书');
       expect(tutorial?.target).toBe('_blank');
       expect(tutorial?.rel).toBe('noopener noreferrer');
-      expect(container.textContent).toContain('不需要保存目标或授权会话');
+      expect(container.textContent).toContain('接收与配对设置');
       await chooseOption('应用', `dsh-im/${platform}:lark-app`, container);
       const confirm = [
         ...container.querySelectorAll<HTMLButtonElement>('[role="dialog"] button'),

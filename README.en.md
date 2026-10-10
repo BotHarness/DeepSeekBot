@@ -222,6 +222,8 @@ Choose a fresh `--home` directory for an isolated DSH Profile. The helper uses t
 
 The helper can inject a machine-local DeepSeek key or use the isolated Profile's credentials; keep secrets outside the repository. For model setup, optional IM installation, and the Client/Host development loop, use [the local-instance guide](docs/client-bridge.md#7-本地开发环路dsh-020-rc1).
 
+Configure reusable independent Lark test Apps once with `node scripts/dev-im-test-apps.mjs setup`; every worktree, branch and session reads the same machine-local credentials. Coordinate an exclusive receiver window before each test; see the [shared test App guide](docs/agents/im-test-apps.md).
+
 <a id="docs"></a>
 
 ## Documentation and development

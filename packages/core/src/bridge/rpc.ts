@@ -2,6 +2,7 @@ import type { PartLibraryEntry } from '../bots/part-library.js';
 import type { OnboardingSnapshot, TutorialAction } from '../onboarding/service.js';
 import type { HttpsFallback } from '../memory/clone.js';
 import type { PairingRequest, PairingReviewInput } from '../messaging/pairing.js';
+import type { SenderAccessInput } from '../messaging/sender-access.js';
 import type { ChannelHistoryItem, PurgeSource, PurgePreview } from '../purge/contracts.js';
 import type { GroupMemberWakePolicy } from '../channels/channel.js';
 import type { AllBotPreview, AllBotMention } from '../channels/all-bot-mention.js';
@@ -243,6 +244,9 @@ export class BotharnessBridgeService extends TypertRemoteService {
   }
   pairingReview(slug: string, input: PairingReviewInput): Promise<{ pairing: PairingRequest }> {
     return unwrapAsync(this.methods.pairingReview({ slug, input }));
+  }
+  senderAccess(slug: string, input: SenderAccessInput): Promise<void> {
+    return unwrapAsync(this.methods.senderAccess({ slug, input }));
   }
   messagingIdentity(
     slug: string,
@@ -1159,6 +1163,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'approvalTest',
   'approvalRetry',
   'pairingReview',
+  'senderAccess',
   'messagingApps',
   'messagingSnapshot',
   'messagingTargets',

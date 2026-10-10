@@ -6,6 +6,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import type { ChannelRecord } from '../channels/channel.js';
 import { type BotSourcePolicyStore } from '../runtime/source-policy.js';
 import type { ThreadReceptionPolicy } from './thread-policy.js';
+import { sourceSenderAllowed } from './sender-access.js';
 
 export function admitBridgeMembers(
   db: DatabaseSync,
@@ -22,7 +23,7 @@ export function admitBridgeMembers(
 ): string[] {
   const admitted: string[] = [];
   for (const botSlug of channel.members) {
-    if (!isBotActive(botSlug)) continue;
+    if (!isBotActive(botSlug) || !sourceSenderAllowed(db, botSlug, sourceEventId)) continue;
     const rule = sourcePolicy.resolveIn(db, botSlug, 'group-ordinary');
     const defaults = messagingDefaults(db, path?.grant.platform);
     const { policy } = externalMemberWake(channel, botSlug, rule, defaults);

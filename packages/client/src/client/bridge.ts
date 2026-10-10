@@ -2,6 +2,7 @@ import { isPixelBannerRecipe, type PixelBannerRecipe } from '@botharness/pixel-b
 import { parseToolApprovalActor } from '../../../core/src/workspaces/tool-approval-actor.js';
 import type {} from '@deepseek-ai/dsh-api-session-controller/client';
 import type { PairingRequest, PairingReviewInput } from '../../../core/src/messaging/pairing.js';
+import type { SenderAccessInput } from '../../../core/src/messaging/sender-access.js';
 import { parsePublicAttention } from './activity-attention.js';
 import {
   isAvatarAppearance,
@@ -3814,6 +3815,13 @@ export async function reviewPairing(
   )
     throw new BridgeCallError('invalid-response', 'Invalid pairing review');
   return pairing as unknown as PairingRequest;
+}
+export async function changeExternalSenderAccess(
+  call: BridgeCall,
+  slug: string,
+  input: SenderAccessInput,
+): Promise<void> {
+  await unwrap(call, 'senderAccess', { slug, input });
 }
 export type { MessagingApp } from '../../../core/src/messaging/outbound.js';
 

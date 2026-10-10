@@ -95,6 +95,7 @@ const BOT_TOOL_NAMES = new Set([
   'stop_assignment',
   'channel_list',
   'channel_read',
+  'bridge_sender_permissions',
   'bridge_targets',
   'bridge_post',
   'bridge_outbox',

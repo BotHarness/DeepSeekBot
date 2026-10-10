@@ -1131,6 +1131,7 @@ describe('DSH Bot Agent adapter', () => {
       'wait_for_assignment',
       'stop_assignment',
       'channel_list',
+      'bridge_sender_permissions',
       'bridge_targets',
       'bridge_post',
       'bridge_outbox',
@@ -1595,6 +1596,10 @@ describe('DSH Bot Agent adapter', () => {
 it('routes external Tools through the active owning Orchestrator without a local inbound Channel', async () => {
   const replies: string[][] = [];
   const reads: string[] = [];
+  const permissionsRead = vi.fn(() => ({
+    queriedAt: '2026-10-11T00:00:00Z',
+    status: 'visitor' as const,
+  }));
   let latePost: (() => Promise<unknown>) | undefined;
   const signal = new AbortController().signal;
   const contextRead = vi.fn<NonNullable<OrchestratorAgentRun['externalMessaging']>['context']>(
@@ -1610,6 +1615,18 @@ it('routes external Tools through the active owning Orchestrator without a local
     { kind: 'completed' },
     {
       onTurn: async (_session, tools) => {
+        const permissions = tools.find((tool) => tool.name === 'bridge_sender_permissions');
+        if (!permissions) throw new Error('permission tool unavailable');
+        expect(
+          JSON.parse(
+            String(
+              await permissions.execute({ source_event_id: 'source-1' }, {} as ToolRunContext),
+            ),
+          ),
+        ).toEqual({ queriedAt: '2026-10-11T00:00:00Z', status: 'visitor' });
+        await permissions.execute({ source_event_id: 'source-1' }, {} as ToolRunContext);
+        expect(permissionsRead).toHaveBeenCalledTimes(2);
+        expect(permissionsRead).toHaveBeenCalledWith('source-1');
         const contextTool = tools.find((tool) => tool.name === 'bridge_context');
         if (!contextTool) throw new Error('context tool unavailable');
         await contextTool.execute(
@@ -1685,6 +1702,7 @@ it('routes external Tools through the active owning Orchestrator without a local
     inbox: 'External Inbox',
     message: 'External turn',
     externalMessaging: {
+      senderPermissions: permissionsRead,
       targets: async () => [],
       post: async () => {
         throw new Error('post ownership sentinel');

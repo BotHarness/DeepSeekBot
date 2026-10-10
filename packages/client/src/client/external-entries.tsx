@@ -134,10 +134,14 @@ function IdentitiesForBot({
         onClose={() => setPanel(undefined)}
         title={t('pairing.title')}
         closeLabel={t('common.close')}
-        className="bh-sidebar-modal bh-external-panel-modal"
+        className="bh-sidebar-modal bh-external-panel-modal bh-pairing-modal"
+        contentClassName="bh-pairing-content"
       >
         <PairingSettings
           requests={pairings}
+          roles={snapshot?.roles ?? []}
+          {...(snapshot?.senderPolicy ? { policy: snapshot.senderPolicy } : {})}
+          senderAccess={(input) => operate(() => actions.senderAccess(slug, input), 'pairing')}
           receivers={snapshot?.pairingReceivers ?? []}
           busy={busy}
           failed={scopeFailed === 'pairing'}
