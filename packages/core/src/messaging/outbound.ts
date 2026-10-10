@@ -13,6 +13,8 @@ import {
   changeSenderAccess,
   externalUserRoles,
   readSenderPolicy,
+  readSenderPermissions,
+  type SenderPermissions,
   type SenderAccessInput,
   type SenderPolicy,
   type ExternalUserRole,
@@ -247,6 +249,7 @@ export interface OutboundMessaging {
   beginProcessing(botSlug: string, sourceEventIds: readonly string[]): MessagingProcessing;
   pairing: BotPairing;
   senderAccess(botSlug: string, input: SenderAccessInput): void;
+  senderPermissions(botSlug: string, sourceEventId: string): SenderPermissions;
   reviewPairing(botSlug: string, input: PairingReviewInput): Promise<PairingRequest>;
   inbound: InboundMessaging;
   defaults<Platform extends string = 'feishu'>(platform?: Platform): MessagingDefaults<Platform>;
@@ -771,6 +774,28 @@ export function createOutboundMessaging(options: {
     senderAccess(botSlug, input) {
       active(botSlug);
       transaction((db) => changeSenderAccess(db, botSlug, input), ['pairing', 'bot-inbox']);
+    },
+    senderPermissions(botSlug, sourceEventId) {
+      active(botSlug);
+      if (typeof sourceEventId !== 'string' || !sourceEventId || sourceEventId.length > 200)
+        throw new MessagingError('source-unavailable');
+      const source = inbound.readShared(botSlug, sourceEventId);
+      return database.read((db) => {
+        const result = readSenderPermissions(db, botSlug, source.event, new Date());
+        const sourceGrant = db
+          .prepare('SELECT body FROM messaging_grants WHERE id = ?')
+          .get(source.grantId) as { body: string } | undefined;
+        const authority = sourceGrant
+          ? (JSON.parse(sourceGrant.body) as MessagingGrant)
+          : undefined;
+        if (
+          authority?.botSlug === botSlug &&
+          authority.bindingId &&
+          authority.bindingId !== result.sender?.bindingId
+        )
+          return { queriedAt: result.queriedAt, status: 'unavailable', reason: 'binding-replaced' };
+        return result;
+      });
     },
     async reviewPairing(botSlug, input) {
       const request = pairing.review(botSlug, input);

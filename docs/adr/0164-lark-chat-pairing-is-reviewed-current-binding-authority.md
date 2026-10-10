@@ -19,10 +19,23 @@ or Inbox Admission. The request stores trusted routing/actor metadata and bounde
 never the original instruction or attachment content. It creates no request Admission, wake, Task
 or model call. Approval checks the current request and Role revisions and commits the decision
 before sending a fixed re-ask notice; there is no replay of the blocked request. Only a new valid
-message can enter the existing intake path. Its author's current Role is assembled separately
-from untrusted text, checked again at consumption, and never combined with another author's
-permissions. Natural-language restrictions are accepted prompt behavior policy, not enforced
+message can enter the existing intake path. Host admission is checked again at consumption.
+Each author's compact trusted Bot/App/actor/source references are separate from untrusted text;
+role text and permission snapshots are not automatically injected into Inbox turns or system prompts.
+The read-only `bridge_sender_permissions` Tool resolves an accessible canonical Source Event
+through the Messaging owner and reads the current Binding, pairing, Role and policy revision,
+returning a query time and explicit unavailable/unpaired/revoked status where appropriate. It
+does not approve anyone, mark an Admission observed or authorize acting as the queried person.
+Stable behavior guidance asks the model to refresh this lookup for the actual requester of a
+new permission-sensitive operation and defer that operation if identity or lookup is unresolved;
+ordinary chatting need not call it. Historical Tool Results are dated evidence, not live authority.
+Different authors' permissions are never combined. Natural-language restrictions are prompt behavior policy, not enforced
 access controls for mail, code or arbitrary Shell resources.
+
+The 2026-10-11 confirmed specification revision replaces the earlier automatic current-Role
+injection design with this on-demand lookup. Deterministic admission and supported Host management
+checks remain independent of model compliance. No full per-message directory or permission cache
+is introduced, and a query of an old accessible source still reads current canonical state.
 
 Control notices use the existing checked Provider reply capability, fenced by current
 Binding/Consumer/actor route and request revision. A pending notice is scheduled after the intake

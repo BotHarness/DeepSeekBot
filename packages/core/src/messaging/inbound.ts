@@ -22,11 +22,11 @@ import {
 import type { MessagingIdentity } from './identity.js';
 import type { BotPairing, PairingRequest } from './pairing.js';
 import {
-  currentSenderRole,
+  trustedSenderReference,
   readSenderPolicy,
   senderAdmissionAllowed,
   sourceSenderAllowed,
-  type SenderRoleContext,
+  type TrustedSenderReference,
 } from './sender-access.js';
 import { recordLocalReception } from './reception-history.js';
 import { readMessagingIdentity } from './identity.js';
@@ -139,7 +139,7 @@ export interface ExternalContextQuery {
   afterCount?: number;
 }
 export interface ExternalSource {
-  senderRole?: SenderRoleContext;
+  sender?: TrustedSenderReference;
   id: string;
   body: string;
   at: string;
@@ -1147,9 +1147,9 @@ export function createInboundMessaging(options: {
           )
         : undefined;
     const report = database.read((db) => relatedReport(db, value, retained.event.reply));
-    const senderRole = database.read((db) => currentSenderRole(db, botSlug, retained.event));
+    const sender = database.read((db) => trustedSenderReference(db, botSlug, retained.event));
     return {
-      ...(senderRole ? { senderRole } : {}),
+      ...(sender ? { sender } : {}),
       ...(report ? { report } : {}),
       ...(quote ? { quote } : {}),
       ...(contextMessages.length === 0 ? {} : { contextMessages }),

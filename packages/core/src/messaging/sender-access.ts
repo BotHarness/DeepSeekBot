@@ -45,6 +45,97 @@ export interface SenderRoleContext {
   policyRevision: number;
   role: ExternalUserRole;
 }
+export interface TrustedSenderReference {
+  botSlug: string;
+  bindingId: string;
+  providerId: string;
+  accountRef: string;
+  fingerprint: string;
+  actorId: string;
+  namespace: 'lark-app-open-id';
+}
+export interface SenderPermissions {
+  queriedAt: string;
+  status:
+    | 'paired'
+    | 'visitor'
+    | 'unpaired'
+    | 'pending'
+    | 'rejected'
+    | 'expired'
+    | 'revoked'
+    | 'unavailable';
+  sender?: TrustedSenderReference;
+  policyRevision?: number;
+  role?: ExternalUserRole;
+  reason?: string;
+}
+export function trustedSenderReference(
+  db: DatabaseSync,
+  botSlug: string,
+  event: Omit<MessagingInboundEvent, 'text'>,
+): TrustedSenderReference | undefined {
+  if (
+    event.channel !== 'feishu' ||
+    event.actor.kind !== 'user' ||
+    !/^ou_[A-Za-z0-9]+$/.test(event.actor.id)
+  )
+    return undefined;
+  const row = db
+    .prepare(
+      'SELECT id FROM messaging_bindings WHERE bot_slug = ? AND provider_id = ? AND account_ref = ? AND fingerprint = ? AND revoked_at IS NULL',
+    )
+    .get(botSlug, 'dsh-im/feishu', event.botId, event.fingerprint) as { id: string } | undefined;
+  if (!row) return undefined;
+  return {
+    botSlug,
+    bindingId: row.id,
+    providerId: 'dsh-im/feishu',
+    accountRef: event.botId,
+    fingerprint: event.fingerprint,
+    actorId: event.actor.id,
+    namespace: 'lark-app-open-id',
+  };
+}
+export function readSenderPermissions(
+  db: DatabaseSync,
+  botSlug: string,
+  event: Omit<MessagingInboundEvent, 'text'>,
+  at: Date,
+): SenderPermissions {
+  const queriedAt = at.toISOString();
+  const sender = trustedSenderReference(db, botSlug, event);
+  if (!sender) return { queriedAt, status: 'unavailable', reason: 'no-current-scoped-identity' };
+  const policy = readSenderPolicy(db, botSlug);
+  const base = { queriedAt, sender, policyRevision: policy.revision };
+  if (!readMessagingIdentity(db, sender.bindingId).enabled)
+    return { ...base, status: 'unavailable', reason: 'identity-disabled' };
+  const rows = db
+    .prepare(
+      "SELECT body FROM messaging_pairings WHERE bot_slug = ? AND binding_id = ? AND actor_id = ? AND purpose = 'conversation' ORDER BY rowid DESC",
+    )
+    .all(botSlug, sender.bindingId, sender.actorId) as { body: string }[];
+  const pairings = rows.map((row) => JSON.parse(row.body) as PairingRequest);
+  const approved = pairings.find((pairing) => pairing.status === 'approved');
+  if (approved) {
+    const role = externalUserRoles(db, botSlug).find((role) => role.id === approved.roleId);
+    return role
+      ? { ...base, status: 'paired', role }
+      : { ...base, status: 'unavailable', reason: 'role-unavailable' };
+  }
+  const latest = pairings[0];
+  if (latest)
+    return {
+      ...base,
+      status:
+        latest.status === 'pending' && Date.parse(latest.expiresAt) <= at.getTime()
+          ? 'expired'
+          : latest.status === 'approved'
+            ? 'unavailable'
+            : latest.status,
+    };
+  return { ...base, status: policy.restricted ? 'unpaired' : 'visitor' };
+}
 export function readSenderPolicy(db: DatabaseSync, botSlug: string): SenderPolicy {
   const row = db
     .prepare('SELECT restricted, revision FROM messaging_sender_policies WHERE bot_slug = ?')

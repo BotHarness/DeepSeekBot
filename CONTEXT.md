@@ -479,7 +479,7 @@ The messages an enabled external identity Binding admits without any per-convers
 _Avoid_: all messages, authorized traffic, open intake
 
 **External User Role**:
-A PersonaBot's policy for a paired external IM person, containing natural-language behavior permissions and explicit Host-checked management capabilities, which may be empty. The behavior policy guides the model; ordinary chatting and management authority do not implicitly grant one another.
+A PersonaBot's policy for a paired external IM person, containing natural-language behavior permissions and explicit Host-checked management capabilities, which may be empty. The behavior policy guides the model through an on-demand current-permission lookup, not automatic per-message role injection; ordinary chatting and management authority do not implicitly grant one another.
 _Avoid_: native DSH role, resource ACL, administrator (for every role)
 
 **Chat pairing**:
