@@ -29,6 +29,22 @@ Chinese and English are welcome. Support and review are asynchronous and best-ef
 
 Search existing issues and discussions. For bugs, include versions, environment, reproduction steps, expected and actual behavior, and sanitized evidence. You need not diagnose source code first; explain any reproduction blocker. For ideas, describe the user problem and current workaround. Once work is scoped, link its discussion, issue and PR rather than keeping duplicate task state.
 
+### A sanitized example
+
+The following is illustrative only; it is not an observed DeepSeekBot bug:
+
+```text
+Environment: [OS / application version / relevant configuration]
+Steps to reproduce:
+1. [Action 1]
+2. [Action 2]
+Expected: [Expected result]
+Actual: [Observed result]
+Sanitized evidence: [Redacted screenshot or log excerpt, if available]
+```
+
+Replace the placeholders with details you can safely share. Remove API keys, tokens, login URLs, personal information and private conversation content from screenshots or logs. You do not need to diagnose the source code before reporting a reproducible bug.
+
 ## Local development
 
 Use the current toolchain and commands in [AGENTS.md](AGENTS.md#commands), the [README development entry](README.en.md#docs) and the [isolated local instance guide](docs/client-bridge.md#7-本地开发环路dsh-020-rc1), currently in Chinese. Use an isolated Profile, keep credentials machine-local, and leave other contributors' running instances alone.
