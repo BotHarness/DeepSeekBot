@@ -33,6 +33,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   Tag: ({ children }: { children: ReactNode }) => createElement('span', null, children),
   Modal: () => null,
   Input: (props: InputHTMLAttributes<HTMLInputElement>) => createElement('input', props),
+  Tooltip: ({ children }: { children: ReactNode }) => children,
   IconChevronDownOutlineRegular: ({ size }: { size?: number }) =>
     createElement('svg', { 'data-icon': 'sidebar-chevron', width: size, height: size }),
   IconCloseOutlineRegular: () => null,

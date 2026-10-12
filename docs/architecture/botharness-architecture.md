@@ -217,6 +217,8 @@ Memory Service 拥有 repository identity 和 lifecycle、可信 Session ownersh
 
 Memory 外部打开沿用 ADR-0100 的交互，#574 实现当前 Memory 首片：显示路径的区域可点击弹出菜单，密集文件树提供右键菜单和键盘／触屏可到达的入口，合适位置提供带 Tooltip 的图标按钮。普通文件选择仍进内置阅读，目录选择仍展开。首片覆盖 Workspace 的 Memory Repository 路径及当前 Memory 文件／目录，#575 扩展已授权的普通 Workspace 路径，后续扩展 PR #435 的消息附件 chips，不识别任意正文路径。Memory Service 在 Host 从 PersonaBot 仓库根解析相对路径，沿用 `.git`、越界与符号链接检查；其他来源由各自 owning module 解析，不开放通用任意路径 authority。Client 沿用 DSH Typert／API Gateway seam 消费原生打开能力，不运行拼接 Shell 命令。目录菜单取 DSH 探测到的应用，文件菜单取默认和注册关联应用，首片不加自定义程序或持久默认应用设置。
 
+默认打开遵循 [ADR-0178](../adr/0178-file-open-defaults-are-explicit-client-preferences.md)（#1461）：Memory 当前文件阅读器、聊天普通文件卡及 Workspace 的 Memory Repository／已授权目录行共用一个 application-defined split button——应用图标与「打开」主按钮加独立下拉，下拉即原文件菜单。主动作优先 Human 的显式偏好，其次 DSH 报告的系统默认；pinned DSH 只为文件关联报告系统默认，目录在 Human 设置前没有可信默认项，此时主按钮说明原因并展开选择，不使用列表首项。下拉里的一次性选择不修改偏好；「设为默认」「恢复系统默认」写入同一个 Client 偏好 owner（`file-open-preferences`），文件按扩展名、目录单独，存于浏览器 `localStorage`，并以 Host 提供的 Profile 身份作键；身份未就绪时不读取任何偏好，写入失败如实报错。偏好只保存 Host 曾报告的应用标识，不授予路径权限、不修改 OS 关联、不跨设备同步。每次手势都由对应 file owner 重新解析目标并重新查询可用应用，已卸载或不再报告的应用不会被启动，也不会被静默替换。派发成功只表示请求已发送到 Host，不代表窗口已出现。Evolution diff 的「打开当前文件」仍是 #1462 的待实现目标。
+
 普通 Workspace 路径复用同一 Client 菜单，但提交 PersonaBot slug 与 Grant ID，由 application-defined Workspace Grant Store 的 `requireActive` 在 Host 检查拥有者、撤销状态和当前 DSH Workspace Registry 身份，重新解析 canonical 目录。显示路径不承担 authority；失效、移动、未注册或缺失目录会拒绝。打开前再次校验，菜单只列 Host 探测到的目录应用，能力不可用时只保留复制 Host 路径。打开不修改 Grant、Session cwd 或访问权限，也不创建 Session；不提供目录下载（#575）。
 
 原生打开始终作用于 DSH Host 所在电脑，Tailscale／Cloudflare Tunnel 只提供连接而不证明 Client 与 Host 同机。菜单明确目标和能力不可用原因；文件另提供下载到浏览器设备及复制 Host 路径，二进制／超大文件不因内置预览受限而失去打开和下载能力。下载后的编辑不自动回写远端，首片不做目录下载或历史 Memory 文件导出。

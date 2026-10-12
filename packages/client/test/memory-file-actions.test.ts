@@ -20,6 +20,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
     IconPlayOutlineRegular: stub,
     IconPauseOutlineRegular: stub,
     IconChevronDownOutlineRegular: stub,
+    IconFolderOpenOutlineRegular: stub,
     IconFolderCloseRegular: stub,
     IconFolderOpenRegular: stub,
     Tooltip: ({ children }: { children: ReactNode }) => children,

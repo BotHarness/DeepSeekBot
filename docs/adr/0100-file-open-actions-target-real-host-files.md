@@ -9,6 +9,8 @@ Humans need to open Memory directories and files in their file manager or editor
 
 ## Opening and presentation
 
+Follow-up: [ADR-0178](0178-file-open-defaults-are-explicit-client-preferences.md) supersedes this first slice's menu-first external-open presentation and deferral of persistent default-application preferences. It adds explicit Client-local defaults and current-file actions from Evolution diffs, without changing the real-file or Host-authorization boundaries below.
+
 The first tracer bullet covers the Memory Repository path in Workspace and current directories and files in Memory files. A displayed path can open an action menu on click. Dense file lists use context menus; suitable surfaces also offer an accessible icon button with a Tooltip and menu. Context menus retain a keyboard or touch-accessible entry. Ordinary file selection continues to open the built-in reader, and directory selection continues to expand its tree.
 
 Directories offer the installed directory applications reported by DSH, including the platform file manager and supported editors. Files offer reveal, the system default application, and their registered application handlers. No custom executable selector or persistent BotHarness application preference is added. If a later slice adds a default-application shortcut, it may use a divided button with the application logo on the left and a more-actions menu on the right.

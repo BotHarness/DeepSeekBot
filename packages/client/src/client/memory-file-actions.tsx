@@ -1,12 +1,18 @@
 import { useMemo, type ReactElement } from 'react';
 import type { BridgeActions } from './actions.js';
 import type { BotHarnessTranslate } from './locale.js';
-import { HostFileActionButton, useHostFileMenu, type HostFileCommands } from './host-file-menu.js';
+import {
+  HostFileActionButton,
+  HostFileOpenButton,
+  useHostFileMenu,
+  type HostFileCommands,
+} from './host-file-menu.js';
 
 export type MemoryFileCommands = Pick<
   BridgeActions,
   'memoryFileTarget' | 'memoryFileApplications' | 'memoryFileOpen' | 'memoryFileDownload'
->;
+> &
+  Partial<Pick<BridgeActions, 'fileOpenPreferences'>>;
 
 function memoryCommands(actions: MemoryFileCommands): HostFileCommands {
   return {
@@ -14,6 +20,7 @@ function memoryCommands(actions: MemoryFileCommands): HostFileCommands {
     applications: actions.memoryFileApplications,
     open: actions.memoryFileOpen,
     download: actions.memoryFileDownload,
+    preferences: actions.fileOpenPreferences,
   };
 }
 
@@ -43,4 +50,19 @@ export function MemoryFileActionButton({
 }): ReactElement {
   const commands = useMemo(() => memoryCommands(actions), [actions]);
   return <HostFileActionButton actions={commands} {...props} />;
+}
+
+export function MemoryFileOpenButton({
+  actions,
+  ...props
+}: {
+  actions: MemoryFileCommands;
+  slug: string;
+  path: string;
+  name: string;
+  compact?: boolean;
+  t: BotHarnessTranslate;
+}): ReactElement {
+  const commands = useMemo(() => memoryCommands(actions), [actions]);
+  return <HostFileOpenButton actions={commands} {...props} />;
 }

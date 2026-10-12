@@ -8,7 +8,7 @@ import {
 } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { BridgeActions } from './actions.js';
 import { channelAttachmentUrl } from './bridge.js';
-import { useHostFileMenu, type HostFileCommands } from './host-file-menu.js';
+import { HostFileOpenButton, useHostFileMenu, type HostFileCommands } from './host-file-menu.js';
 import type { BotHarnessTranslate } from './locale.js';
 import type { ChannelAttachmentRef } from './store.js';
 import { MessageAudio } from './message-audio.js';
@@ -24,13 +24,14 @@ export function MessageAttachment({
   channelId?: string | undefined;
   messageId: string;
   actions?:
-    | Pick<
+    | (Pick<
         BridgeActions,
         | 'messageAttachmentTarget'
         | 'messageAttachmentApplications'
         | 'messageAttachmentOpen'
         | 'messageAttachmentDownload'
-      >
+      > &
+        Partial<Pick<BridgeActions, 'fileOpenPreferences'>>)
     | undefined;
   t: BotHarnessTranslate;
 }): ReactElement {
@@ -45,6 +46,7 @@ export function MessageAttachment({
             open: (owner, id, choice) =>
               actions.messageAttachmentOpen(owner, messageId, id, choice),
             download: (owner, id) => actions.messageAttachmentDownload(owner, messageId, id),
+            preferences: actions.fileOpenPreferences,
           },
     [actions, messageId],
   );
@@ -143,6 +145,18 @@ export function MessageAttachment({
             >
               {contents}
             </button>
+          )}
+          {id === undefined || channelId === undefined || commands === undefined ? null : (
+            <>
+              <span className="bh-message-file-divider" aria-hidden="true" />
+              <HostFileOpenButton
+                actions={commands}
+                slug={channelId}
+                path={id}
+                name={ref.name}
+                t={t}
+              />
+            </>
           )}
           {downloadAction}
         </div>
