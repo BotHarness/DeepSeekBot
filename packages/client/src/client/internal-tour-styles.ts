@@ -18,8 +18,8 @@ export const INTERNAL_TOUR_CSS = `
 .bh-internal-tour .driver-popover-progress-text { flex: 0 0 auto; white-space: nowrap; }
 .bh-internal-tour .driver-popover-navigation-btns { align-items: center; gap: 6px; min-width: 0; }
 .bh-internal-tour .driver-popover-navigation-btns button+button { margin-left: 0; }
-.bh-internal-tour .driver-popover-footer .bh-internal-tour-navigation { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 28px; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 6px; background: transparent; text-shadow: none; color: var(--bh-tour-muted); }
-.bh-internal-tour .driver-popover-footer .bh-internal-tour-navigation:hover,.bh-internal-tour .driver-popover-footer .bh-internal-tour-navigation:focus-visible { background: var(--bh-tour-hover); color: var(--bh-tour-text); }
+.bh-internal-tour .driver-popover-footer .bh-internal-tour-navigation { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 28px; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 6px; background: var(--bh-tour-hover); text-shadow: none; color: var(--bh-tour-text); }
+.bh-internal-tour .driver-popover-footer .bh-internal-tour-navigation:hover,.bh-internal-tour .driver-popover-footer .bh-internal-tour-navigation:focus-visible { background: var(--dsw-alias-interactive-bg-active); }
 .bh-internal-tour .driver-popover-footer .bh-internal-tour-skip { border: 0; background: none; text-shadow: none; padding: 3px 0; margin-right: auto; white-space: nowrap; color: var(--bh-tour-muted); }
 .bh-internal-tour .driver-popover-footer .bh-internal-tour-skip:hover,.bh-internal-tour .driver-popover-footer .bh-internal-tour-skip:focus-visible { color: var(--bh-tour-text); text-decoration: underline; }
 @media (prefers-reduced-motion: reduce) { .driver-fade .driver-overlay, .driver-fade .driver-popover { animation: none; } }

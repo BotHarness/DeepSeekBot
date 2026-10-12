@@ -327,7 +327,7 @@ export function OnboardingChecklist({
           <span className="bh-onboarding-checklist-pager">
             <button
               type="button"
-              className="bh-onboarding-checklist-close"
+              className="bh-onboarding-checklist-page"
               aria-label={t('onboarding.checklist.prev')}
               title={t('onboarding.checklist.prev')}
               disabled={index === 0}
@@ -354,7 +354,7 @@ export function OnboardingChecklist({
             </span>
             <button
               type="button"
-              className="bh-onboarding-checklist-close"
+              className="bh-onboarding-checklist-page"
               aria-label={t('onboarding.checklist.next')}
               title={t('onboarding.checklist.next')}
               disabled={index === total - 1}

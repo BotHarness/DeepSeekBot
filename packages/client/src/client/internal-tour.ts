@@ -28,7 +28,7 @@ const FIRST_STEP_TIMEOUT_MS = 4000;
 const TOUR_ICON_PATHS = {
   previous: 'm15 18-6-6 6-6',
   next: 'm9 18 6-6-6-6',
-  done: 'M20 6 9 17l-5-5',
+  done: 'm16 9-5.5 5.5L8 12',
 };
 
 function setNavigationIcon(
@@ -44,6 +44,15 @@ function setNavigationIcon(
   svg.setAttribute('fill', 'none');
   svg.setAttribute('aria-hidden', 'true');
   const path = doc.createElementNS('http://www.w3.org/2000/svg', 'path');
+  if (pathData === TOUR_ICON_PATHS.done) {
+    const circle = doc.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    circle.setAttribute('cx', '12');
+    circle.setAttribute('cy', '12');
+    circle.setAttribute('r', '10');
+    circle.setAttribute('stroke', 'currentColor');
+    circle.setAttribute('stroke-width', '2');
+    svg.append(circle);
+  }
   path.setAttribute('d', pathData);
   path.setAttribute('stroke', 'currentColor');
   path.setAttribute('stroke-width', '2');
