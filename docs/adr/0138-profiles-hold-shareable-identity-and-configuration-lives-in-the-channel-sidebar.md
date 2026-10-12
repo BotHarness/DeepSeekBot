@@ -26,4 +26,4 @@ The PersonaBot Profile view had grown into a settings page. Below the name and a
 
 - `CONTEXT.md` renames Role badge to **Bot Tag** and Bot description to **Bot Bio**, adds **Profile Banner**, **Approver** and **Approval destination**, and says the UI calls a Bridge an External connector and a Wake Policy 唤醒策略 / Wake policy.
 - UI copy stops showing internal terms such as Human, PersonaBot and Source Event; that sweep is tracked separately from the layout work.
-- (Amended by ADR-0181: Wake policy, External identities, External connectors and Group management are Channel settings sections, opened from the Channel, rather than Channel sidebar entries.)
+- (Amended by ADR-0183: Wake policy, External identities, External connectors and Group management are Channel settings sections, opened from the Channel, rather than Channel sidebar entries.)

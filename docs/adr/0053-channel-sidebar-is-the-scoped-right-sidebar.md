@@ -32,4 +32,4 @@ This region is BotHarness's own, rendered inside the Bot mode panel. It is not D
 - Whether any entry may take over the Channel body is deferred; until then every entry renders inside the Channel sidebar, which supersedes ADR-0029's "Memory replaces the center body" wording. (Answered by ADR-0085: no Channel sidebar entry takes over the Channel body; a PersonaBot Profile view may occupy it as a mode rather than an entry.)
 - Expanded/collapsed state lives in client-local presentation storage per Channel/PersonaBot and never enters Host authority or a Soul.
 - The first tracer delivers the shell with two real entries (group members; DM Assignments) and stops for Human verification. Computer migrates from its overlay into an entry later; Bot Inbox and Memory follow their own authorities.
-- (Amended by ADR-0181: on desktop the Channel sidebar shows registered tabs that group entries, and configuration entries move to Channel settings; the narrow overlay keeps this stack.)
+- (Amended by ADR-0183: on desktop the Channel sidebar shows registered tabs that group entries, and configuration entries move to Channel settings; the narrow overlay keeps this stack.)
