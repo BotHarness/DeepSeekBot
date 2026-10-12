@@ -153,6 +153,7 @@ export function OnboardingChecklist({
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
   const client = useSyncExternalStore(store.subscribe, store.getSnapshot);
   const [position, setPosition] = useState<Position>({ placement: 'sheet' });
+  const [page, setPage] = useState<number | undefined>(undefined);
   const mount = useMountedResource<HTMLDivElement>(
     (panel) => {
       setPosition(anchorPosition());
@@ -170,6 +171,7 @@ export function OnboardingChecklist({
       document.addEventListener('pointerdown', onPointerDown);
       document.addEventListener('keydown', onKeyDown);
       return () => {
+        setPage(undefined);
         window.removeEventListener('resize', reposition);
         document.removeEventListener('pointerdown', onPointerDown);
         document.removeEventListener('keydown', onKeyDown);
@@ -180,9 +182,69 @@ export function OnboardingChecklist({
   if (!state.checklistOpen || state.receipt === undefined || typeof document === 'undefined')
     return null;
   const evidence = state.evidence;
+  const completed = state.receipt.completed;
   const total = CHECKLIST_ITEMS.length;
   const done = checklistDone(evidence);
   const busy = state.busy || client.conversation.sending;
+  const itemState = (item: ChecklistItem): 'done' | 'locked' | 'todo' =>
+    evidence?.[item] === true
+      ? 'done'
+      : CHECKLIST_NEEDS_CONVERSATION.has(item) && !completed
+        ? 'locked'
+        : 'todo';
+  const renderItem = (item: ChecklistItem): ReactElement => {
+    const status = itemState(item);
+    const action = itemAction(item, controller, t);
+    return (
+      <li key={item} className="bh-onboarding-checklist-item" data-item={item} data-state={status}>
+        <span className="bh-onboarding-checklist-mark" aria-hidden>
+          {status === 'done' ? (
+            <svg
+              viewBox="0 0 24 24"
+              width="12"
+              height="12"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+            >
+              <path d="M20 6 9 17l-5-5" />
+            </svg>
+          ) : null}
+        </span>
+        <span className="bh-onboarding-checklist-text">
+          <span className="bh-onboarding-checklist-name">
+            {t(`onboarding.checklist.${item}.title` as BotHarnessKey)}
+          </span>
+          <span className="bh-note">
+            {status === 'locked'
+              ? t('onboarding.checklist.locked')
+              : t(`onboarding.checklist.${item}.hint` as BotHarnessKey)}
+          </span>
+        </span>
+        {status === 'done' ? (
+          <span className="bh-onboarding-checklist-status">{t('onboarding.checklist.done')}</span>
+        ) : (
+          <Button
+            variant="outline"
+            disabled={status === 'locked' || busy || action === undefined}
+            onClick={action}
+          >
+            {t(`onboarding.checklist.${item}.action` as BotHarnessKey)}
+          </Button>
+        )}
+      </li>
+    );
+  };
+  const compact = position.placement === 'sheet';
+  const nextIndex = Math.max(
+    0,
+    CHECKLIST_ITEMS.findIndex((item) => itemState(item) === 'todo'),
+  );
+  const index = Math.min(page ?? nextIndex, total - 1);
+  const pageItem = CHECKLIST_ITEMS[index]!;
   return createPortal(
     <div
       ref={mount}
@@ -197,7 +259,7 @@ export function OnboardingChecklist({
       <header className="bh-onboarding-checklist-header">
         <div className="bh-onboarding-checklist-heading">
           <strong>{t('onboarding.checklist.title')}</strong>
-          <span className="bh-note">{t('onboarding.checklist.subtitle')}</span>
+          {compact ? null : <span className="bh-note">{t('onboarding.checklist.subtitle')}</span>}
         </div>
         <button
           type="button"
@@ -206,8 +268,19 @@ export function OnboardingChecklist({
           title={t('common.close')}
           onClick={() => controller.closeChecklist()}
         >
-          <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden>
-            <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.25" />
+          <svg
+            viewBox="0 0 24 24"
+            width="16"
+            height="16"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden
+          >
+            <path d="M18 6 6 18" />
+            <path d="m6 6 12 12" />
           </svg>
         </button>
       </header>
@@ -224,71 +297,85 @@ export function OnboardingChecklist({
       >
         <span style={{ width: `${(done / total) * 100}%` }} />
       </div>
-      {TIERS.map((tier) => (
-        <section key={tier} className="bh-onboarding-checklist-tier">
-          <h3>{t(`onboarding.checklist.tier.${tier}` as BotHarnessKey)}</h3>
-          <ul>
-            {CHECKLIST_ITEMS.filter((item) => CHECKLIST_TIER[item] === tier).map((item) => {
-              const complete = evidence?.[item] === true;
-              const locked =
-                !complete && CHECKLIST_NEEDS_CONVERSATION.has(item) && !state.receipt?.completed;
-              const action = itemAction(item, controller, t);
-              return (
-                <li
-                  key={item}
-                  className="bh-onboarding-checklist-item"
-                  data-item={item}
-                  data-state={complete ? 'done' : locked ? 'locked' : 'todo'}
-                >
-                  <span className="bh-onboarding-checklist-mark" aria-hidden>
-                    {complete ? (
-                      <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden>
-                        <path
-                          d="M3 8.5l3 3 7-7"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                        />
-                      </svg>
-                    ) : null}
-                  </span>
-                  <span className="bh-onboarding-checklist-text">
-                    <span className="bh-onboarding-checklist-name">
-                      {t(`onboarding.checklist.${item}.title` as BotHarnessKey)}
-                    </span>
-                    <span className="bh-note">
-                      {locked
-                        ? t('onboarding.checklist.locked')
-                        : t(`onboarding.checklist.${item}.hint` as BotHarnessKey)}
-                    </span>
-                  </span>
-                  {complete ? (
-                    <span className="bh-onboarding-checklist-status">
-                      {t('onboarding.checklist.done')}
-                    </span>
-                  ) : (
-                    <Button
-                      variant="outline"
-                      disabled={locked || busy || action === undefined}
-                      onClick={action}
-                    >
-                      {t(`onboarding.checklist.${item}.action` as BotHarnessKey)}
-                    </Button>
-                  )}
-                </li>
-              );
+      {compact ? (
+        <section className="bh-onboarding-checklist-tier" data-page={pageItem}>
+          <h3>
+            {t(`onboarding.checklist.tier.${CHECKLIST_TIER[pageItem]}` as BotHarnessKey)}
+            {' · '}
+            {t('onboarding.checklist.page', {
+              current: String(index + 1),
+              total: String(total),
             })}
-          </ul>
+          </h3>
+          <ul>{renderItem(pageItem)}</ul>
         </section>
-      ))}
+      ) : (
+        TIERS.map((tier) => (
+          <section key={tier} className="bh-onboarding-checklist-tier">
+            <h3>{t(`onboarding.checklist.tier.${tier}` as BotHarnessKey)}</h3>
+            <ul>
+              {CHECKLIST_ITEMS.filter((item) => CHECKLIST_TIER[item] === tier).map(renderItem)}
+            </ul>
+          </section>
+        ))
+      )}
       <p className="bh-note bh-onboarding-checklist-exit">
-        {t(
-          position.placement === 'sheet'
-            ? 'onboarding.checklist.exitHintMobile'
-            : 'onboarding.checklist.exitHint',
-        )}
+        {t(compact ? 'onboarding.checklist.exitHintMobile' : 'onboarding.checklist.exitHint')}
       </p>
       <footer className="bh-onboarding-checklist-footer">
+        {compact ? (
+          <span className="bh-onboarding-checklist-pager">
+            <button
+              type="button"
+              className="bh-onboarding-checklist-close"
+              aria-label={t('onboarding.checklist.prev')}
+              title={t('onboarding.checklist.prev')}
+              disabled={index === 0}
+              onClick={() => setPage(index - 1)}
+            >
+              <svg
+                viewBox="0 0 24 24"
+                width="16"
+                height="16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                <path d="m15 18-6-6 6-6" />
+              </svg>
+            </button>
+            <span className="bh-onboarding-checklist-dots" aria-hidden>
+              {CHECKLIST_ITEMS.map((item, dot) => (
+                <span key={item} data-state={itemState(item)} data-current={dot === index} />
+              ))}
+            </span>
+            <button
+              type="button"
+              className="bh-onboarding-checklist-close"
+              aria-label={t('onboarding.checklist.next')}
+              title={t('onboarding.checklist.next')}
+              disabled={index === total - 1}
+              onClick={() => setPage(index + 1)}
+            >
+              <svg
+                viewBox="0 0 24 24"
+                width="16"
+                height="16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                <path d="m9 18 6-6-6-6" />
+              </svg>
+            </button>
+          </span>
+        ) : null}
         <Button variant="ghost" onClick={() => controller.skipTutorial()}>
           {t('onboarding.checklist.skip')}
         </Button>

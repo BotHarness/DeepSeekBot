@@ -182,6 +182,7 @@ export class OnboardingController {
   summonCompanion(): void {
     const target = this.target();
     if (!target || !this.companion) return;
+    this.closeChecklistForAction();
     void this.companion.start().then(() => {
       this.companion?.select(target.slug);
       this.syncCompanionEvidence();

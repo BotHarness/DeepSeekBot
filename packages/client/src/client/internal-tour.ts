@@ -26,9 +26,9 @@ export interface InternalTourOptions {
 const FIRST_STEP_TIMEOUT_MS = 4000;
 
 const TOUR_ICON_PATHS = {
-  previous: 'M10 4L6.70711 7.29289C6.31658 7.68342 6.31658 8.31658 6.70711 8.70711L10 12',
-  next: 'M6 12L9.29289 8.70711C9.68342 8.31658 9.68342 7.68342 9.29289 7.29289L6 4',
-  done: 'M2.25 8.5L5.49732 11.7473C5.90519 12.1552 6.57263 12.1344 6.95426 11.7018L13.75 4',
+  previous: 'm15 18-6-6 6-6',
+  next: 'm9 18 6-6-6-6',
+  done: 'M20 6 9 17l-5-5',
 };
 
 function setNavigationIcon(
@@ -38,7 +38,7 @@ function setNavigationIcon(
   pathData: string,
 ): void {
   const svg = doc.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  svg.setAttribute('viewBox', '0 0 16 16');
+  svg.setAttribute('viewBox', '0 0 24 24');
   svg.setAttribute('width', '16');
   svg.setAttribute('height', '16');
   svg.setAttribute('fill', 'none');
@@ -46,7 +46,9 @@ function setNavigationIcon(
   const path = doc.createElementNS('http://www.w3.org/2000/svg', 'path');
   path.setAttribute('d', pathData);
   path.setAttribute('stroke', 'currentColor');
-  path.setAttribute('stroke-width', '1');
+  path.setAttribute('stroke-width', '2');
+  path.setAttribute('stroke-linecap', 'round');
+  path.setAttribute('stroke-linejoin', 'round');
   svg.append(path);
   button.replaceChildren(svg);
   button.classList.add('bh-internal-tour-navigation');

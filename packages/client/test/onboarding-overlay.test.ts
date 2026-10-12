@@ -42,10 +42,17 @@ beforeEach(() => {
   root = createRoot(container);
   store.setMode('bot');
   store.setConversation({ sending: false });
+  const nav = document.createElement('nav');
+  const row = document.createElement('span');
+  row.dataset['bhOnboardingLauncher'] = 'row';
+  row.getBoundingClientRect = () => ({ width: 18, right: 240, top: 80 }) as DOMRect;
+  nav.append(row);
+  document.body.append(nav);
 });
 afterEach(async () => {
   await act(async () => root.unmount());
   container.remove();
+  document.querySelector('nav')?.remove();
 });
 function harness(tutorial: OnboardingSnapshot['tutorial'], completed = false) {
   const shared: OnboardingSnapshot = {
@@ -241,4 +248,22 @@ it('does not count a profile-only Memory commit as the Bot remembering something
   await act(async () => controller.refreshEvidence());
   await flush();
   expect(itemState('memory')).toBe('done');
+});
+it('shows one task per page in the mobile sheet and starts on the next open task', async () => {
+  document.querySelector('nav')?.remove();
+  const { render } = harness('not-started');
+  await render();
+  await flush();
+  expect(checklist()?.dataset['placement']).toBe('sheet');
+  expect(
+    [...checklist()!.querySelectorAll<HTMLElement>('[data-item]')].map(
+      (node) => node.dataset['item'],
+    ),
+  ).toEqual(['conversation']);
+  const next = checklist()!.querySelector<HTMLButtonElement>(
+    `[aria-label="${zhTranslate('onboarding.checklist.next')}"]`,
+  )!;
+  await act(async () => next.click());
+  expect(itemState('memory')).toBe('locked');
+  expect(checklist()!.querySelectorAll('[data-item]')).toHaveLength(1);
 });

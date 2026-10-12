@@ -151,6 +151,15 @@ html[data-botharness-motion='reduce'] .bh-onboarding-enter-dot { animation: none
 .bh-onboarding-checklist-status { font-size: 12px; color: var(--dsw-alias-label-secondary); }
 .bh-onboarding-checklist-exit { margin: 0; font-size: 12px; line-height: 16px; }
 .bh-onboarding-checklist-footer { display: flex; justify-content: space-between; gap: 8px; }
+.bh-onboarding-checklist[data-placement='sheet'] { gap: 10px; padding: 12px 14px; }
+.bh-onboarding-checklist[data-placement='sheet'] .bh-onboarding-checklist-item { padding: 4px 0; }
+.bh-onboarding-checklist[data-placement='sheet'] .bh-onboarding-checklist-footer { align-items: center; justify-content: flex-end; }
+.bh-onboarding-checklist-pager { display: inline-flex; align-items: center; gap: 4px; margin-right: auto; }
+.bh-onboarding-checklist-pager .bh-onboarding-checklist-close:disabled { opacity: 0.35; cursor: default; }
+.bh-onboarding-checklist-dots { display: inline-flex; gap: 5px; }
+.bh-onboarding-checklist-dots > span { width: 6px; height: 6px; border-radius: 50%; background: var(--bh-onboarding-border); }
+.bh-onboarding-checklist-dots > span[data-state='done'] { background: color-mix(in srgb, var(--bh-accent) 45%, transparent); }
+.bh-onboarding-checklist-dots > span[data-current='true'] { background: var(--bh-accent); }
 .bh-onboarding-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .bh-bubble:has(> .bh-onboarding-welcome) { padding: 0; background: transparent; }
 .bh-onboarding-welcome { display: grid; gap: 12px; width: 380px; max-width: 100%; white-space: normal; line-height: 20px; border: 1px solid var(--bh-onboarding-border); border-radius: 16px; background: var(--dsw-alias-bg-module-platform); overflow: hidden; }
