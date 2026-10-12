@@ -278,9 +278,9 @@ describe('PersonaBot Profile surface', () => {
       );
       expect(container.querySelectorAll('.bh-profile-avatar-button').length).toBe(1);
       expect(container.querySelectorAll('.bh-profile-card').length).toBe(3);
-      const sidebarLabels = [
-        ...container.querySelectorAll('.bh-channel-sidebar .bh-channel-sidebar-entry-label'),
-      ].map((label) => label.textContent);
+      const sidebarLabels = [...container.querySelectorAll('.bh-channel-sidebar [role="tab"]')].map(
+        (tab) => tab.getAttribute('aria-label') ?? tab.textContent,
+      );
       expect(sidebarLabels).toContain('模型');
       expect(sidebarLabels).toContain('唤醒策略');
       expect(sidebarLabels).toContain('外部身份');

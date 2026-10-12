@@ -964,6 +964,13 @@ describe('Memory Git graph sidebar', () => {
       store.setSessions({ status: 'ready', items: [], error: undefined });
       root.render(createElement(BotMain, { actions, channelSidebar: registry }));
     });
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('[role="tab"][aria-label="记忆演化"]')!.click();
+      await Promise.resolve();
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
 
     const evolution = Array.from(container.querySelectorAll('.bh-channel-sidebar-entry')).find(
       (section) =>
@@ -1062,6 +1069,12 @@ describe('Memory Git graph sidebar', () => {
       Array.from(container.querySelectorAll<HTMLButtonElement>('button'))
         .find((button) => button.getAttribute('aria-label') === '返回对话')
         ?.click();
+    });
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('[role="tab"][aria-label="记忆文件"]')!.click();
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
     });
     await act(async () => {
       container.querySelector<HTMLButtonElement>('.bh-memory-file-tree [role="treeitem"]')?.click();
