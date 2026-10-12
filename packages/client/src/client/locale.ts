@@ -2334,7 +2334,7 @@ export const zh = {
   'fileAction.defaultSystem': '当前默认：{app}（系统默认）',
   'fileAction.defaultNone': '没有可信的默认应用，请选择一个',
   'fileAction.defaultInvalid': '默认应用 {app} 在 Host 上不可用，请重新选择',
-  'fileAction.setDefault': '设为{scope}的默认应用…',
+  'fileAction.setDefault': '设置{scope}的默认应用…',
   'fileAction.restoreDefault': '恢复系统默认',
   'fileAction.back': '返回',
   'fileAction.scopeDirectory': '文件夹',

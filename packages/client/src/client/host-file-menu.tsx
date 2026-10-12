@@ -1,8 +1,13 @@
 import { useRef, useState, type MouseEvent, type KeyboardEvent, type ReactElement } from 'react';
 import {
   IconChevronDownOutlineRegular,
+  IconChevronLeftOutlineRegular,
+  IconCopyOutlineRegular,
+  IconDownloadOutlineRegular,
   IconEllipsisOutlineRegular,
   IconFolderOpenOutlineRegular,
+  IconRefreshOutlineRegular,
+  IconSettingsOutlineRegular,
   Menu,
   Tooltip,
   writeClipboard,
@@ -182,7 +187,14 @@ function HostFileMenu({
       icon: <ApplicationIcon app={app} />,
     })),
     ...(target?.kind === 'file' && options?.available === true
-      ? [{ id: 'reveal', label: t('fileAction.reveal'), disabled: busy }]
+      ? [
+          {
+            id: 'reveal',
+            label: t('fileAction.reveal'),
+            disabled: busy,
+            icon: <IconFolderOpenOutlineRegular size={16} />,
+          },
+        ]
       : []),
     ...(preferences === undefined || scope === undefined || applications.length === 0
       ? []
@@ -203,16 +215,40 @@ function HostFileMenu({
                 id: 'set-default',
                 label: t('fileAction.setDefault', { scope: scopeText(scope, t) }),
                 disabled: busy,
+                icon: <IconSettingsOutlineRegular size={16} />,
               },
               ...(preference === undefined
                 ? []
-                : [{ id: 'restore', label: t('fileAction.restoreDefault'), disabled: busy }]),
+                : [
+                    {
+                      id: 'restore',
+                      label: t('fileAction.restoreDefault'),
+                      disabled: busy,
+                      icon: <IconRefreshOutlineRegular size={16} />,
+                    },
+                  ]),
             ]),
     { type: 'separator', id: 'transfer-separator' },
     ...(target?.kind === 'file' && actions.download !== undefined
-      ? [{ id: 'download', label: t('fileAction.download'), disabled: busy }]
+      ? [
+          {
+            id: 'download',
+            label: t('fileAction.download'),
+            disabled: busy,
+            icon: <IconDownloadOutlineRegular size={16} />,
+          },
+        ]
       : []),
-    ...(target === undefined ? [] : [{ id: 'copy', label: t('fileAction.copy'), disabled: busy }]),
+    ...(target === undefined
+      ? []
+      : [
+          {
+            id: 'copy',
+            label: t('fileAction.copy'),
+            disabled: busy,
+            icon: <IconCopyOutlineRegular size={16} />,
+          },
+        ]),
     ...(error === undefined || target === undefined
       ? []
       : [{ type: 'label' as const, id: 'error', text: error }]),
@@ -235,7 +271,12 @@ function HostFileMenu({
             icon: <ApplicationIcon app={app} />,
           })),
           { type: 'separator', id: 'default-back-separator' },
-          { id: 'back', label: t('fileAction.back'), disabled: busy },
+          {
+            id: 'back',
+            label: t('fileAction.back'),
+            disabled: busy,
+            icon: <IconChevronLeftOutlineRegular size={16} />,
+          },
           ...errorItems,
         ];
   const select = async (id: string): Promise<void> => {
