@@ -108,6 +108,49 @@ export const CSS =
 
 .bh-onboarding-notice { position: fixed; left: 50%; bottom: 96px; transform: translateX(-50%); z-index: 1000; display: flex; align-items: center; gap: 8px; max-width: min(560px, calc(100vw - 32px)); padding: 8px 12px; border: 1px solid var(--bh-onboarding-border); border-radius: 12px; background: var(--bh-onboarding-surface); box-shadow: 0 8px 24px color-mix(in srgb, var(--dsw-alias-label-primary) 12%, transparent); }
 .bh-onboarding-notice-text { min-width: 0; overflow-wrap: anywhere; }
+/* Onboarding launcher: a progress ring inside the Bot-mode row (no row of its own).
+   It rests at the row's right edge, steps left when the row reveals the Activity
+   Center and gear, and once settled only appears with them on hover. */
+.bh-onboarding-launcher { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 6px; color: var(--dsw-alias-label-secondary); cursor: pointer; transition: right 120ms var(--ds-ease-in-out), opacity 120ms var(--ds-ease-in-out), background 120ms var(--ds-ease-in-out); }
+.bh-onboarding-launcher[data-bh-onboarding-launcher='row'] { position: absolute; top: 50%; right: 10px; z-index: 1; transform: translateY(-50%); }
+button:has(.bh-panel-glyph):is(:hover, :focus-within) .bh-onboarding-launcher[data-bh-onboarding-launcher='row'],
+nav:has(> .bh-panel-activity[data-unread='true']) .bh-onboarding-launcher[data-bh-onboarding-launcher='row'] { right: 74px; }
+.bh-onboarding-launcher[data-settled='true']:not([data-open='true']) { opacity: 0; pointer-events: none; }
+button:has(.bh-panel-glyph):is(:hover, :focus-within) .bh-onboarding-launcher[data-settled='true'] { opacity: 1; pointer-events: auto; }
+.bh-onboarding-launcher:hover, .bh-onboarding-launcher[data-open='true'] { background: var(--dsw-alias-interactive-bg-hover); }
+.bh-onboarding-launcher:focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary); outline-offset: 1px; }
+.bh-onboarding-launcher[data-bh-onboarding-launcher='header'] { width: 36px; height: 36px; border-radius: 10px; }
+.bh-onboarding-launcher[data-bh-onboarding-launcher='header'][data-settled='true'] { display: none; }
+.bh-onboarding-ring circle { fill: none; stroke-width: 2; }
+.bh-onboarding-ring-track { stroke: var(--dsw-alias-border-l2); }
+.bh-onboarding-ring-value { stroke: var(--dsw-alias-state-business-primary); stroke-linecap: round; transition: stroke-dashoffset 240ms var(--ds-ease-in-out); }
+.bh-onboarding-enter { position: absolute; top: 50%; right: 10px; z-index: 1; display: inline-flex; align-items: center; gap: 6px; transform: translateY(-50%); font-size: 12px; line-height: 16px; color: var(--dsw-alias-state-business-primary); pointer-events: none; }
+.bh-onboarding-enter-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: bh-onboarding-pulse 1.6s ease-in-out infinite; }
+@keyframes bh-onboarding-pulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 45%, transparent); } 50% { box-shadow: 0 0 0 4px transparent; } }
+html[data-botharness-motion='reduce'] .bh-onboarding-enter-dot { animation: none; }
+.bh-onboarding-checklist { position: fixed; z-index: 1000; display: grid; gap: 12px; width: 340px; max-height: calc(100vh - 24px); overflow: auto; padding: 16px; border: 1px solid var(--bh-onboarding-border); border-radius: 14px; background: var(--bh-onboarding-surface); color: var(--bh-onboarding-label); box-shadow: 0 12px 32px color-mix(in srgb, var(--dsw-alias-label-primary) 14%, transparent); line-height: 20px; }
+.bh-onboarding-checklist[data-placement='sheet'] { left: 12px; right: 12px; bottom: 12px; width: auto; max-height: calc(100vh - 96px); }
+.bh-onboarding-checklist-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.bh-onboarding-checklist-heading { display: grid; gap: 2px; min-width: 0; }
+.bh-onboarding-checklist-heading strong { font-size: 15px; }
+.bh-onboarding-checklist-close { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 6px; color: var(--dsw-alias-label-secondary); background: transparent; cursor: pointer; }
+.bh-onboarding-checklist-close:hover { background: var(--bh-hover); }
+.bh-onboarding-checklist-progress { height: 4px; border-radius: 2px; background: var(--bh-onboarding-border); overflow: hidden; }
+.bh-onboarding-checklist-progress > span { display: block; height: 100%; border-radius: inherit; background: var(--bh-accent); transition: width 240ms var(--ds-ease-in-out); }
+.bh-onboarding-checklist-tier { display: grid; gap: 4px; }
+.bh-onboarding-checklist-tier h3 { margin: 0; font-size: 12px; font-weight: 500; line-height: 16px; color: var(--dsw-alias-label-secondary); }
+.bh-onboarding-checklist-tier ul { display: grid; margin: 0; padding: 0; list-style: none; }
+.bh-onboarding-checklist-item { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 8px 0; }
+.bh-onboarding-checklist-item + .bh-onboarding-checklist-item { border-top: 1px solid var(--bh-onboarding-border); }
+.bh-onboarding-checklist-mark { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border: 1.5px solid var(--bh-onboarding-border); border-radius: 50%; }
+.bh-onboarding-checklist-item[data-state='done'] .bh-onboarding-checklist-mark { border-color: var(--bh-accent); background: var(--bh-accent); color: var(--bh-onboarding-surface); }
+.bh-onboarding-checklist-item[data-state='done'] .bh-onboarding-checklist-name { color: var(--dsw-alias-label-secondary); }
+.bh-onboarding-checklist-item[data-state='locked'] { opacity: 0.6; }
+.bh-onboarding-checklist-text { display: grid; gap: 2px; min-width: 0; }
+.bh-onboarding-checklist-text .bh-note { font-size: 12px; line-height: 16px; }
+.bh-onboarding-checklist-status { font-size: 12px; color: var(--dsw-alias-label-secondary); }
+.bh-onboarding-checklist-exit { margin: 0; font-size: 12px; line-height: 16px; }
+.bh-onboarding-checklist-footer { display: flex; justify-content: space-between; gap: 8px; }
 .bh-onboarding-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .bh-bubble:has(> .bh-onboarding-welcome) { padding: 0; background: transparent; }
 .bh-onboarding-welcome { display: grid; gap: 12px; width: 380px; max-width: 100%; white-space: normal; line-height: 20px; border: 1px solid var(--bh-onboarding-border); border-radius: 16px; background: var(--dsw-alias-bg-module-platform); overflow: hidden; }

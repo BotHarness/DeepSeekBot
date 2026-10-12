@@ -149,7 +149,7 @@ it('initializes the local companion only once and respects its later removal acr
   other.dispose();
 });
 
-it('shares active tutorial progress without reopening highlights in another client', async () => {
+it('shares active tutorial progress without reopening the checklist in another client', async () => {
   const { actions, controller } = harness();
   actions.onboarding.mockResolvedValue({
     ...receipt,
@@ -158,12 +158,13 @@ it('shares active tutorial progress without reopening highlights in another clie
   await controller.enter();
   expect(controller.getSnapshot()).toMatchObject({
     guideOpen: false,
+    checklistOpen: false,
     receipt: { tutorial: 'active' },
   });
   await controller.refresh(undefined, 'continue');
-  expect(controller.getSnapshot().guideOpen).toBe(true);
-  controller.pauseGuide();
-  expect(controller.getSnapshot().guideOpen).toBe(false);
+  expect(controller.getSnapshot()).toMatchObject({ checklistOpen: true, guideOpen: false });
+  controller.closeChecklist();
+  expect(controller.getSnapshot().checklistOpen).toBe(false);
   expect(actions.onboarding).toHaveBeenLastCalledWith(undefined, 'pause');
 });
 
@@ -233,20 +234,24 @@ it('does not pause a shared tutorial when an observing client leaves Bot mode or
   await first.controller.enter();
   await first.controller.refresh(undefined, 'start');
   await observer.controller.enter();
-  expect(observer.controller.getSnapshot().guideOpen).toBe(false);
+  expect(observer.controller.getSnapshot()).toMatchObject({
+    guideOpen: false,
+    checklistOpen: false,
+  });
   onboarding.mockClear();
   observer.controller.pauseGuide();
+  observer.controller.closeChecklist();
   observer.controller.chooseModel('dm-ada', 'ada');
   expect(await observer.controller.prepareSend('dm-ada', 'ada', 'Hello')).toBe(true);
   expect(onboarding).not.toHaveBeenCalled();
   await first.controller.refresh();
   expect(first.controller.getSnapshot()).toMatchObject({
-    guideOpen: true,
+    checklistOpen: true,
     receipt: { tutorial: 'active' },
   });
   onboarding.mockClear();
-  first.controller.pauseGuide();
-  first.controller.pauseGuide();
+  first.controller.closeChecklist();
+  first.controller.closeChecklist();
   expect(onboarding).toHaveBeenCalledExactlyOnceWith(undefined, 'pause');
 });
 
@@ -267,13 +272,16 @@ it('allows explicit tutorial replay after completion without reopening it in a n
   const { actions, controller } = harness();
   actions.onboarding.mockResolvedValue({ ...receipt, completed: true, tutorial: 'active' });
   await controller.enter();
-  expect(controller.getSnapshot().guideOpen).toBe(false);
+  expect(controller.getSnapshot().checklistOpen).toBe(false);
   await controller.refresh(undefined, 'restart');
-  expect(controller.getSnapshot()).toMatchObject({ guideOpen: true, receipt: { completed: true } });
+  expect(controller.getSnapshot()).toMatchObject({
+    checklistOpen: true,
+    receipt: { completed: true },
+  });
   await controller.refresh();
-  expect(controller.getSnapshot().guideOpen).toBe(true);
-  controller.pauseGuide();
-  expect(controller.getSnapshot().guideOpen).toBe(false);
+  expect(controller.getSnapshot().checklistOpen).toBe(true);
+  controller.closeChecklist();
+  expect(controller.getSnapshot().checklistOpen).toBe(false);
   expect(actions.onboarding).toHaveBeenLastCalledWith(undefined, 'pause');
 });
 

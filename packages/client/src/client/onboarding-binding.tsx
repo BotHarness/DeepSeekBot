@@ -5,6 +5,7 @@ import { ExternalIdentityList } from './external-identity-list.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMessagingSnapshot } from './messaging-store.js';
 import { onboardingFor } from './onboarding.js';
+import { useMountedResource } from './mounted-resource.js';
 import { store } from './store.js';
 
 function BindingDialog({
@@ -71,6 +72,9 @@ export function OnboardingAppBinding({
   const client = useSyncExternalStore(store.subscribe, store.getSnapshot);
   const [open, setOpen] = useState(false);
   const channel = client.conversation.channel;
+  const experienceMount = useMountedResource<HTMLSpanElement>(() => {
+    if (controller.consumeExperience('im')) setOpen(true);
+  }, [state.experience]);
   if (
     !state.receipt?.completed ||
     channel?.id !== channelId ||
@@ -81,6 +85,7 @@ export function OnboardingAppBinding({
     return null;
   return (
     <>
+      <span ref={experienceMount} hidden />
       <Button
         variant="outline"
         aria-haspopup="dialog"

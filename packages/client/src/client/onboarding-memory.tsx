@@ -14,6 +14,7 @@ import { MemoryEntry } from './memory-entry.js';
 import { MemoryFilesEntry } from './memory-files-entry.js';
 import { Modal } from './modal.js';
 import { onboardingFor } from './onboarding.js';
+import { useMountedResource } from './mounted-resource.js';
 import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
 import { store } from './store.js';
 
@@ -44,6 +45,12 @@ export function OnboardingMemory({
   const inputId = useId();
   const client = useSyncExternalStore(store.subscribe, store.getSnapshot);
   const channel = client.conversation.channel;
+  const experienceMount = useMountedResource<HTMLSpanElement>(() => {
+    if (!controller.consumeExperience('memory')) return;
+    setPreference('');
+    setPage('preference');
+    setOpen(true);
+  }, [state.experience]);
   if (
     !navigation ||
     !state.receipt?.completed ||
@@ -75,6 +82,7 @@ export function OnboardingMemory({
   };
   return (
     <>
+      <span ref={experienceMount} hidden />
       <Button
         variant="outline"
         onClick={() => {

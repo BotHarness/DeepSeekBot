@@ -18,6 +18,8 @@ import { onboardingFor, requestBotCreation } from './onboarding.js';
 import { store } from './store.js';
 import type { WindowCompanions } from './window-companions.js';
 import { startInternalTour, type InternalTourSpec } from './internal-tour.js';
+import { OnboardingChecklist, markBotModeEntered } from './onboarding-checklist-view.js';
+import { checklistSettled } from './onboarding-checklist.js';
 
 export function OnboardingModelDialog({
   actions,
@@ -377,6 +379,11 @@ function onboardingTourSteps(t: BotHarnessTranslate): InternalTourSpec[] {
       title: t('onboarding.tour.companion.title'),
       description: t('onboarding.tour.companion.hint'),
     },
+    {
+      selector: '[data-bh-tour="bot-mode"]',
+      title: t('onboarding.tour.exit.title'),
+      description: t('onboarding.tour.exit.hint'),
+    },
   ];
 }
 
@@ -390,9 +397,11 @@ export function OnboardingOverlay({
   t: BotHarnessTranslate;
 }): ReactElement {
   const controller = onboardingFor(actions);
+  controller.attachCompanion(companion);
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
   const enter = (): Promise<void> =>
     controller.enter(companion).then(() => {
+      void controller.refreshEvidence();
       const receipt = controller.getSnapshot().receipt;
       if (receipt !== undefined && !receipt.completed && receipt.tutorial === 'not-started')
         void controller.refresh(undefined, 'start', undefined, true);
@@ -400,6 +409,7 @@ export function OnboardingOverlay({
   const mount = useMountedResource<HTMLSpanElement>(() => {
     let active = true;
     let key = '';
+    markBotModeEntered();
     void enter();
     const unsubscribe = store.subscribe(() => {
       const snapshot = store.getSnapshot();
@@ -416,11 +426,24 @@ export function OnboardingOverlay({
       if (active && store.getSnapshot().mode === 'bot' && !controller.getSnapshot().busy)
         void controller.refresh(store.getSnapshot().conversation.channel?.botSlug);
     }, 5000);
+    const evidenceTimer = setInterval(() => {
+      const snapshot = controller.getSnapshot();
+      if (
+        active &&
+        store.getSnapshot().mode === 'bot' &&
+        !checklistSettled(snapshot.receipt, snapshot.evidence)
+      )
+        void controller.refreshEvidence();
+    }, 20_000);
+    const unsubscribeCompanion = companion?.subscribe(() => controller.syncCompanionEvidence());
     return () => {
       active = false;
       controller.pauseGuide();
+      controller.closeChecklist();
       unsubscribe();
+      unsubscribeCompanion?.();
       clearInterval(timer);
+      clearInterval(evidenceTimer);
     };
   }, [actions, companion]);
   const tourMount = useMountedResource<HTMLSpanElement>(() => {
@@ -441,7 +464,7 @@ export function OnboardingOverlay({
         controller.pauseGuide();
       },
       onFinished: () => {
-        controller.pauseGuide();
+        controller.finishTour();
       },
       onSkip: () => {
         void controller.refresh(undefined, 'skip');
@@ -458,6 +481,7 @@ export function OnboardingOverlay({
     <>
       <span ref={mount} hidden aria-hidden="true" />
       <span ref={tourMount} hidden />
+      <OnboardingChecklist actions={actions} t={t} />
       {state.error && !state.modelOpen && !state.sendOpen ? (
         <div role="alert" className="bh-root bh-onboarding-notice">
           <span className="bh-onboarding-notice-text">{state.error}</span>

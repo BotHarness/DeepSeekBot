@@ -54,12 +54,14 @@ function harness(tutorial: OnboardingSnapshot['tutorial'], completed = false) {
     preparation: 'ready',
     tutorial,
     channelId: 'dm-ada',
+    defaultBotSlug: 'ada',
   };
   const actions = {
     onboarding: vi.fn(async (_slug?: string, action?: TutorialAction) => {
       if (action === 'start') shared.tutorial = 'active';
       if (action === 'pause') shared.tutorial = 'paused';
       if (action === 'skip') shared.tutorial = 'skipped';
+      if (action === 'continue' || action === 'restart') shared.tutorial = 'active';
       return { ...shared };
     }),
     load: vi.fn(async () => {}),
@@ -84,6 +86,18 @@ function harness(tutorial: OnboardingSnapshot['tutorial'], completed = false) {
     modelPlanState: vi.fn(async () => ({ revision: 0 })),
     onboardingModel: vi.fn(async () => {}),
     send: vi.fn(async () => true),
+    memoryHistory: vi.fn(async () => [] as { causeKind: string; sha: string }[]),
+    memoryWorkingChanges: vi.fn(async () => [] as { path: string }[]),
+    memoryGitCommitDiff: vi.fn(async (_channelId: string, sha: string) => ({
+      sha,
+      files:
+        sha === 'profile'
+          ? [{ path: '.botharness/bot.json', status: 'M' }]
+          : [{ path: 'MEMORY.md', status: 'M' }],
+      diff: '',
+    })),
+    messagingSnapshot: vi.fn(async () => ({ accounts: [], grants: [], intents: [] })),
+    botSchedules: vi.fn(async () => [] as unknown[]),
   };
   const bridge = actions as unknown as BridgeActions;
   const render = async () => {
@@ -94,16 +108,83 @@ function harness(tutorial: OnboardingSnapshot['tutorial'], completed = false) {
   };
   return { actions, bridge, render, controller: onboardingFor(bridge) };
 }
-it('auto-starts the interface walkthrough on the first Bot-mode entry', async () => {
+function checklist(): HTMLElement | null {
+  return document.querySelector('.bh-onboarding-checklist');
+}
+function itemState(item: string): string | undefined {
+  return (
+    checklist()?.querySelector<HTMLElement>(`[data-item="${item}"]`)?.dataset['state'] ?? undefined
+  );
+}
+async function flush(): Promise<void> {
+  await act(async () => {
+    for (let index = 0; index < 5; index += 1) await Promise.resolve();
+  });
+}
+it('opens the getting-started checklist on the first Bot-mode entry instead of a full-screen tour', async () => {
   const { actions, render, controller } = harness('not-started');
   await render();
+  await flush();
   expect(actions.onboarding).toHaveBeenCalledWith(undefined, 'start');
-  expect(actions.load).toHaveBeenCalled();
   expect(actions.openChannel).toHaveBeenCalledWith('dm-ada');
   expect(controller.getSnapshot()).toMatchObject({
-    guideOpen: true,
+    checklistOpen: true,
+    guideOpen: false,
     receipt: { tutorial: 'active' },
   });
+  expect(tour).not.toHaveBeenCalled();
+  expect(checklist()?.getAttribute('aria-label')).toBe(zhTranslate('onboarding.checklist.title'));
+  expect(
+    [...checklist()!.querySelectorAll<HTMLElement>('[data-item]')].map(
+      (node) => node.dataset['item'],
+    ),
+  ).toEqual(['model', 'conversation', 'memory', 'im', 'schedule', 'companion']);
+  expect(itemState('model')).toBe('done');
+  expect(itemState('conversation')).toBe('todo');
+  expect(itemState('memory')).toBe('locked');
+  expect(itemState('im')).toBe('locked');
+  expect(itemState('schedule')).toBe('locked');
+  expect(itemState('companion')).toBe('todo');
+});
+it.each(['paused', 'skipped'] as const)(
+  'stays quiet when the shared tutorial is %s',
+  async (tutorial) => {
+    const { actions, render, controller } = harness(tutorial);
+    await render();
+    await flush();
+    expect(actions.onboarding).not.toHaveBeenCalledWith(undefined, 'start');
+    expect(controller.getSnapshot().checklistOpen).toBe(false);
+    expect(checklist()).toBeNull();
+  },
+);
+it('reads each experience from its own authority after the first reply', async () => {
+  const { actions, render, controller } = harness('paused', true);
+  actions.memoryHistory.mockResolvedValue([
+    { causeKind: 'source-event', sha: 'profile' },
+    { causeKind: 'source-event', sha: 'note' },
+    { causeKind: 'repository-init', sha: 'init' },
+  ]);
+  actions.botSchedules.mockResolvedValue([{ id: 'daily' }]);
+  await render();
+  await flush();
+  await act(async () => controller.openChecklist());
+  await flush();
+  expect(actions.onboarding).toHaveBeenCalledWith(undefined, 'continue');
+  expect(actions.memoryHistory).toHaveBeenCalledWith('dm-ada');
+  expect(actions.messagingSnapshot).toHaveBeenCalledWith('ada');
+  expect(actions.botSchedules).toHaveBeenCalledWith('ada');
+  expect(itemState('conversation')).toBe('done');
+  expect(itemState('memory')).toBe('done');
+  expect(itemState('im')).toBe('todo');
+  expect(itemState('schedule')).toBe('done');
+});
+it('starts the interface walkthrough from the checklist and ends it on the Bot-mode entry', async () => {
+  const { render, controller } = harness('not-started');
+  await render();
+  await flush();
+  await act(async () => controller.startTour());
+  await flush();
+  expect(controller.getSnapshot()).toMatchObject({ guideOpen: true, checklistOpen: false });
   expect(tour).toHaveBeenCalledOnce();
   const specs = tour.mock.calls[0]![0] as { selector: string }[];
   expect(specs.map((spec) => spec.selector)).toEqual([
@@ -115,51 +196,49 @@ it('auto-starts the interface walkthrough on the first Bot-mode entry', async ()
     '[data-bh-tour="composer"]',
     '[data-bh-tour="channel-sidebar"]',
     '[data-bh-tour="companion"]',
+    '[data-bh-tour="bot-mode"]',
   ]);
-  const options = tour.mock.calls[0]![1] as {
-    skipLabel: string;
-    onSkip(): void;
-    onClosed(): void;
-  };
-  expect(options.skipLabel).toBe(zhTranslate('onboarding.skip'));
-  await act(async () => {
-    options.onSkip();
-  });
-  expect(actions.onboarding).toHaveBeenCalledWith(undefined, 'skip');
-  expect(controller.getSnapshot().guideOpen).toBe(false);
-});
-it.each(['paused', 'skipped'] as const)(
-  'stays quiet when the shared tutorial is %s',
-  async (tutorial) => {
-    const { actions, render } = harness(tutorial);
-    await render();
-    expect(actions.onboarding).not.toHaveBeenCalledWith(undefined, 'start');
-    expect(tour).not.toHaveBeenCalled();
-  },
-);
-it('stays quiet when onboarding is already complete', async () => {
-  const { actions, render } = harness('active', true);
-  await render();
-  expect(actions.onboarding).not.toHaveBeenCalledWith(undefined, 'start');
-  expect(tour).not.toHaveBeenCalled();
-});
-it('pauses the shared receipt when the walkthrough is closed', async () => {
-  const { actions, render, controller } = harness('not-started');
-  await render();
-  const options = tour.mock.calls[0]![1] as { onClosed(): void };
-  await act(async () => {
-    options.onClosed();
-  });
-  expect(actions.onboarding).toHaveBeenCalledWith(undefined, 'pause');
-  expect(controller.getSnapshot().guideOpen).toBe(false);
-});
-it('pauses the shared receipt when the walkthrough is finished', async () => {
-  const { actions, render, controller } = harness('not-started');
-  await render();
   const options = tour.mock.calls[0]![1] as { onFinished(): void };
   await act(async () => {
     options.onFinished();
   });
+  expect(controller.getSnapshot()).toMatchObject({ guideOpen: false, checklistOpen: true });
+});
+it('pauses the shared receipt when the checklist is closed and skips from its footer', async () => {
+  const { actions, render, controller } = harness('not-started');
+  await render();
+  await flush();
+  await act(async () => {
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+  });
+  await flush();
   expect(actions.onboarding).toHaveBeenCalledWith(undefined, 'pause');
-  expect(controller.getSnapshot().guideOpen).toBe(false);
+  expect(controller.getSnapshot().checklistOpen).toBe(false);
+  await act(async () => controller.openChecklist());
+  await flush();
+  const skip = [...checklist()!.querySelectorAll('button')].find(
+    (button) => button.textContent === zhTranslate('onboarding.checklist.skip'),
+  );
+  await act(async () => skip!.click());
+  await flush();
+  expect(actions.onboarding).toHaveBeenLastCalledWith(undefined, 'skip');
+  expect(checklist()).toBeNull();
+});
+it('does not count a profile-only Memory commit as the Bot remembering something', async () => {
+  const { actions, render, controller } = harness('paused', true);
+  actions.memoryHistory.mockResolvedValue([
+    { causeKind: 'source-event', sha: 'profile' },
+    { causeKind: 'repository-init', sha: 'init' },
+  ]);
+  await render();
+  await flush();
+  await act(async () => controller.openChecklist());
+  await flush();
+  expect(actions.memoryGitCommitDiff).toHaveBeenCalledWith('dm-ada', 'profile');
+  expect(actions.memoryGitCommitDiff).not.toHaveBeenCalledWith('dm-ada', 'init');
+  expect(itemState('memory')).toBe('todo');
+  actions.memoryWorkingChanges.mockResolvedValue([{ path: 'notes/preferences.md' }]);
+  await act(async () => controller.refreshEvidence());
+  await flush();
+  expect(itemState('memory')).toBe('done');
 });

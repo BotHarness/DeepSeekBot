@@ -1,3 +1,4 @@
+import { createElement } from 'react';
 import type { Context as ClientContext } from '@deepseek-ai/cordis';
 import type {} from '@deepseek-ai/dsh-client-locale/client';
 import type { InputTriggerSource } from '@deepseek-ai/dsh-client-ui-input-trigger/client';
@@ -46,6 +47,7 @@ import { MobileBotPanel } from './mobile-bot-panel.js';
 import { mobileBotViewport, subscribeMobileBotViewport } from './mobile-viewport.js';
 import { clearConversationDrafts } from './conversation-draft.js';
 import { BotSidebar, createBotPanelEntry } from './bot-sidebar.js';
+import { OnboardingEnterHint, OnboardingLauncher } from './onboarding-checklist-view.js';
 import { createChannelSidebarBuiltins } from './channel-sidebar-builtins.js';
 import { webBotModeShortcut, webShortcutBlocked } from './channel-shortcuts.js';
 import { createChannelSidebarRegistry } from './channel-sidebar.js';
@@ -554,6 +556,11 @@ export function apply(ctx: ClientContext): void {
           void actions.openActivityCenter();
         },
         () => actions.refreshHumanInboxStatus(),
+        {
+          launcher: (translate) =>
+            createElement(OnboardingLauncher, { actions, t: translate, placement: 'row' }),
+          enterHint: (translate) => createElement(OnboardingEnterHint, { t: translate }),
+        },
       ),
     ),
   );

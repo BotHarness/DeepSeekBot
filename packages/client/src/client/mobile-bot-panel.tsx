@@ -15,6 +15,7 @@ import { store } from './store.js';
 import { MOBILE_BOT_CSS } from './mobile-bot-styles.js';
 import { useMobileBotViewport } from './mobile-viewport.js';
 import { InboxIcon } from './inbox-icon.js';
+import { OnboardingLauncher } from './onboarding-checklist-view.js';
 import { BotIcon } from './bot-icon.js';
 
 export function mountMobileBotShell(node: HTMLElement): () => void {
@@ -130,7 +131,12 @@ function MobileNavigation(props: MobileBotPanelProps): ReactElement {
         {prefs === undefined ? null : (
           <BotSidebar
             wide
-            headerEnd={exitButton}
+            headerEnd={
+              <>
+                <OnboardingLauncher actions={actions} t={t} placement="header" />
+                {exitButton}
+              </>
+            }
             actions={actions}
             companion={companion}
             useBotModePrefs={useBotModePrefs}
