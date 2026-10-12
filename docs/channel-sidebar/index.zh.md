@@ -27,6 +27,7 @@
 | [唤醒策略](/zh/docs/channel-sidebar/wake-policy) ¹           | 按来源设置这个 Bot 立即唤醒、汇总后唤醒或只记录。                             |
 | [外部身份](/zh/docs/channel-sidebar/external-identities) ¹   | 绑定这个 Bot 在 Lark / 飞书、Slack、微信的发言身份；IM 管理员配对与审批通知。 |
 | [外部连接器](/zh/docs/channel-sidebar/external-connectors) ¹ | 修改、暂停同步到 Channel 的会话；高级的保存发送目标。                         |
+| [私有账户](/zh/docs/channel-sidebar/private-accounts) ¹      | 查看、替换和删除这个 Bot 向你要过的账户，不显示值。                           |
 
 | 本地群聊中的项目                                             | 可以做什么                                        |
 | ------------------------------------------------------------ | ------------------------------------------------- |

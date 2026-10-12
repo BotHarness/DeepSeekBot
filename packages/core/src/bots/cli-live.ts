@@ -389,7 +389,11 @@ export async function runLiveCli(
   if (command.startsWith('ask-secret-')) {
     try {
       if (command === 'ask-secret-accounts') {
-        const result = await rpc<{ status?: unknown; accounts?: unknown }>('privateAccounts', {
+        const result = await rpc<{
+          status?: unknown;
+          accounts?: unknown;
+          replaceable?: unknown;
+        }>('privateAccounts', {
           slug: target,
         });
         if (
@@ -427,7 +431,11 @@ export async function runLiveCli(
             replacementMessageId: optional(row['replacementMessageId']),
           };
         });
-        return { status: result.status, accounts };
+        return {
+          status: result.status,
+          accounts,
+          ...(typeof result.replaceable === 'boolean' ? { replaceable: result.replaceable } : {}),
+        };
       }
       if (command === 'ask-secret-status' || command === 'ask-secret-account-status') {
         const result = await rpc<{ status?: unknown }>(

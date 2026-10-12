@@ -1,0 +1,138 @@
+// @vitest-environment jsdom
+import { act, createElement, type ButtonHTMLAttributes, type PropsWithChildren } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).comboboxPrimitives(),
+  Button: ({
+    variant: _variant,
+    size: _size,
+    icon: _icon,
+    ...props
+  }: ButtonHTMLAttributes<HTMLButtonElement> & {
+    variant?: string;
+    size?: string;
+    icon?: unknown;
+  }) => createElement('button', props),
+  Tag: ({ children }: PropsWithChildren) => createElement('span', { className: 'tag' }, children),
+  Tooltip: ({ children }: PropsWithChildren) => children,
+  Modal: () => null,
+  Menu: () => null,
+  IconCheckOutlineRegular: () => null,
+  IconCloseOutlineRegular: () => null,
+  IconRefreshOutlineRegular: () => null,
+  IconEllipsisOutlineRegular: () => null,
+  relativeTime: () => ({ unit: 'now', n: 0 }),
+}));
+
+import type { BridgeActions } from '../src/client/actions.js';
+import { zhTranslate } from '../src/client/locale.js';
+import type { PrivateAccountList } from '../src/client/private-accounts.js';
+import { PrivateAccountsSection } from '../src/client/private-accounts-section.js';
+
+const CARD = '11111111-1111-4111-8111-111111111111';
+const row = {
+  account: 'synthetic',
+  purpose: 'Check the controlled service',
+  fields: [
+    { id: 'api_key', label: 'API key', required: true },
+    { id: 'private_url', label: 'Private URL', required: false },
+  ],
+  status: 'configured' as const,
+  configuredAt: '2026-10-12T00:00:00.000Z',
+  channelId: 'dm-ada',
+  messageId: CARD,
+};
+
+let root: Root;
+let host: HTMLDivElement;
+let list: PrivateAccountList;
+let actions: BridgeActions;
+
+beforeEach(() => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  host = document.createElement('div');
+  document.body.append(host);
+  root = createRoot(host);
+  list = { status: 'ready', accounts: [row], replaceable: true };
+  actions = {
+    privateAccounts: vi.fn(async () => list),
+    privateInputReplace: vi.fn(async () => '22222222-2222-4222-8222-222222222222'),
+    privateAccountRevoke: vi.fn(async () => ({
+      accepted: true,
+      stopped: 1,
+      completed: 0,
+      uncertain: 0,
+    })),
+    openChannelAtMessage: vi.fn(async () => undefined),
+  } as unknown as BridgeActions;
+});
+
+afterEach(async () => {
+  await act(async () => root.unmount());
+  document.body.replaceChildren();
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
+
+const render = () =>
+  act(async () =>
+    root.render(
+      createElement(PrivateAccountsSection, {
+        scope: 'personabot',
+        channelId: 'dm-ada',
+        botSlug: 'ada',
+        actions,
+        t: zhTranslate,
+      }),
+    ),
+  );
+const button = (label: string) =>
+  [...host.querySelectorAll('button')].find((candidate) => candidate.textContent === label)!;
+
+it('lists accounts with labels and status, then replaces and removes through the card IDs', async () => {
+  await render();
+  expect(actions.privateAccounts).toHaveBeenCalledWith('ada');
+  const card = host.querySelector('.bh-card-row')!;
+  expect(card.querySelector('.bh-card-title')?.textContent).toBe('synthetic');
+  expect(card.textContent).toContain(zhTranslate('privateAccounts.status.configured'));
+  expect(card.textContent).toContain('Check the controlled service');
+  expect(card.textContent).toContain('API key · Private URL（可选）');
+
+  await act(async () => button(zhTranslate('privateInput.replace')).click());
+  expect(actions.privateInputReplace).toHaveBeenCalledWith('dm-ada', CARD);
+
+  const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+  await act(async () => button(zhTranslate('privateAccounts.remove')).click());
+  expect(confirm.mock.calls[0]?.[0]).toBe(
+    zhTranslate('privateAccounts.removeConfirm', { account: 'synthetic' }),
+  );
+  expect(actions.privateAccountRevoke).not.toHaveBeenCalled();
+  confirm.mockReturnValue(true);
+  list = { status: 'ready', accounts: [], replaceable: true };
+  await act(async () => button(zhTranslate('privateAccounts.remove')).click());
+  expect(actions.privateAccountRevoke).toHaveBeenCalledWith('dm-ada', CARD);
+  expect(host.textContent).toContain(
+    zhTranslate('privateInput.stopSummary', { stopped: 1, completed: 0, uncertain: 0 }),
+  );
+  expect(host.querySelector('.bh-card-row')).toBeNull();
+  expect(host.textContent).toContain(zhTranslate('privateAccounts.empty'));
+});
+
+it('disables Replace when execution is off and keeps Remove', async () => {
+  list = { status: 'ready', accounts: [row], replaceable: false };
+  await render();
+  expect(button(zhTranslate('privateInput.replace')).disabled).toBe(true);
+  expect(button(zhTranslate('privateAccounts.remove')).disabled).toBe(false);
+  expect(host.textContent).toContain(zhTranslate('privateAccounts.locked'));
+});
+
+it('says the list cannot be read instead of showing it as empty', async () => {
+  list = { status: 'unavailable', accounts: [], replaceable: false };
+  await render();
+  expect(host.querySelector('[role="alert"]')?.textContent).toBe(
+    zhTranslate('privateAccounts.unavailable'),
+  );
+  expect(host.textContent).not.toContain(zhTranslate('privateAccounts.empty'));
+});

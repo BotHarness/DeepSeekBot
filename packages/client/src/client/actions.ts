@@ -31,6 +31,7 @@ import {
 import { prependChannelJournal } from './channel-live.js';
 import type { GroupMemberWakePolicy } from '../../../core/src/channels/channel.js';
 import type { ChannelAssignmentSummary } from '../../../core/src/runtime/bot-runtime.js';
+import { parsePrivateAccountList, type PrivateAccountList } from './private-accounts.js';
 import type {
   MarketplaceDetail,
   MarketplaceEntry,
@@ -590,7 +591,8 @@ export interface BridgeActions {
     channelId: string,
     messageId: string,
   ): Promise<import('../../../core/src/credentials/contracts.js').PrivateAccountStatus>;
-  privateInputReplace?(channelId: string, messageId: string): Promise<void>;
+  privateInputReplace?(channelId: string, messageId: string): Promise<string>;
+  privateAccounts?(slug: string): Promise<PrivateAccountList>;
   privateAccountRevoke?(
     channelId: string,
     messageId: string,
@@ -1363,8 +1365,17 @@ export function createActions(
     },
     privateInputReplace: async (channelId, messageId) => {
       const result = await call('privateInputReplace', { channelId, messageId });
-      if (!result.ok || typeof (result.value as { messageId?: unknown }).messageId !== 'string')
+      const replacement = result.ok
+        ? (result.value as { messageId?: unknown }).messageId
+        : undefined;
+      if (typeof replacement !== 'string')
         throw new Error('Private input replacement is unavailable');
+      return replacement;
+    },
+    privateAccounts: async (slug) => {
+      const result = await call('privateAccounts', { slug });
+      if (!result.ok) throw new Error('Private accounts are unavailable');
+      return parsePrivateAccountList(result.value);
     },
     privateAccountRevoke: async (channelId, messageId) => {
       const result = await call('privateAccountRevoke', { channelId, messageId });

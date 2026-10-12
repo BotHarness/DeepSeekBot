@@ -340,15 +340,18 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return replacement === undefined ? {} : { messageId: replacement };
   }
 
-  async privateAccounts(
-    slug: string,
-  ): Promise<{ status: 'ready' | 'unavailable'; accounts: PrivateAccountSummary[] }> {
+  async privateAccounts(slug: string): Promise<{
+    status: 'ready' | 'unavailable';
+    accounts: PrivateAccountSummary[];
+    replaceable: boolean;
+  }> {
     this.requirePrivateOwner();
     const accounts =
       typeof slug === 'string' ? await this.privateInputs?.accounts(true, slug) : undefined;
+    const replaceable = (await this.privateInputs?.replaceable().catch(() => false)) ?? false;
     return accounts === undefined
-      ? { status: 'unavailable', accounts: [] }
-      : { status: 'ready', accounts };
+      ? { status: 'unavailable', accounts: [], replaceable: false }
+      : { status: 'ready', accounts, replaceable };
   }
 
   async privateAccountRevoke(channelId: string, messageId: string) {

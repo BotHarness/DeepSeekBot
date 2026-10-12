@@ -1022,6 +1022,10 @@ export class PrivateInputs {
     }
   }
 
+  async replaceable(): Promise<boolean> {
+    return !this.#closed && this.deps.credentials() !== undefined && (await this.deps.qualified());
+  }
+
   async replace(owner: boolean, channelId: string, messageId: string): Promise<string | undefined> {
     if (!owner || !(await this.deps.qualified())) return undefined;
     await this.recover();

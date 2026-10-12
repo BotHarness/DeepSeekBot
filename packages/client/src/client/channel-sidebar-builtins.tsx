@@ -42,6 +42,7 @@ import { externalPlatformLabel, externalSenderLabel } from './bridge-source-labe
 import { GroupAvatarCropModal } from './group-avatar-crop.js';
 import { MembersEntry, MembersHeaderAction } from './group-member-controls.js';
 import { GroupWorkEntry } from './group-work-entry.js';
+import { PrivateAccountsSection } from './private-accounts-section.js';
 import { BotSchedulesEntry, BotSchedulesHeaderAction, ScheduleDialog } from './schedules-entry.js';
 import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
 import { SessionsEntry, type NativeSessionCatalog } from './sessions-entry.js';
@@ -963,6 +964,15 @@ export function createChannelSidebarBuiltins(
       order: 28,
       scope: 'personabot',
       component: ExternalConnectorsEntry,
+    },
+    {
+      id: 'private-accounts',
+      surface: 'settings',
+      icon: 'shield-check',
+      label: t('entry.privateAccounts'),
+      order: 29,
+      scope: 'personabot',
+      component: PrivateAccountsSection,
     },
     {
       id: 'group-work',
