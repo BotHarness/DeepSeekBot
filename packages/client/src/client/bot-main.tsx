@@ -1510,6 +1510,7 @@ function ConversationView({
                   actions={actions}
                   channelId={channelId}
                   sha={activeMemoryView.sha}
+                  botSlug={channel?.botSlug}
                   t={t}
                   onClose={closeMemoryView}
                 />
@@ -1529,6 +1530,7 @@ function ConversationView({
                   actions={actions}
                   channelId={channelId}
                   change={activeMemoryView.change}
+                  botSlug={channel?.botSlug}
                   t={t}
                   onClose={closeMemoryView}
                 />

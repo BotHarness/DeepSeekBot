@@ -490,6 +490,8 @@ export function HostFileOpenButton({
   path,
   name,
   compact = false,
+  label,
+  hint,
   t,
 }: {
   actions: HostFileCommands;
@@ -497,11 +499,14 @@ export function HostFileOpenButton({
   path: string;
   name: string;
   compact?: boolean;
+  label?: string;
+  hint?: string;
   t: BotHarnessTranslate;
 }): ReactElement {
   const menu = useHostFileMenu(actions, slug, t, 5000);
   const [loaded, setLoaded] = useState<{ target: HostFileTarget; options: HostFileOptions }>();
   const [busy, setBusy] = useState(false);
+  const [loadError, setLoadError] = useState<string>();
   const [, setPreferenceRevision] = useState(0);
   const preferences = actions.preferences;
   const mount = useMountedResource<HTMLSpanElement>(
@@ -512,9 +517,13 @@ export function HostFileOpenButton({
           try {
             const target = await actions.target(slug, path);
             const options = await actions.applications(slug, path);
-            if (active) setLoaded({ target, options });
-          } catch {
-            if (active) setLoaded(undefined);
+            if (!active) return;
+            setLoaded({ target, options });
+            setLoadError(undefined);
+          } catch (failure) {
+            if (!active) return;
+            setLoaded(undefined);
+            setLoadError(reason(failure));
           }
         })();
       };
@@ -546,9 +555,9 @@ export function HostFileOpenButton({
       ? undefined
       : resolveFileOpenDefault(loaded.options, readPreference(preferences, loaded.target));
   const app = current !== undefined && 'application' in current ? current.application : undefined;
-  const title =
+  const state =
     loaded === undefined || current === undefined
-      ? t('fileAction.openHost')
+      ? (loadError ?? t('fileAction.openHost'))
       : !loaded.options.available
         ? t(
             loaded.target.kind === 'directory'
@@ -562,6 +571,7 @@ export function HostFileOpenButton({
             : current.source === 'invalid'
               ? t('fileAction.defaultInvalid', { app: current.preference.name })
               : t('fileAction.defaultNone');
+  const title = hint === undefined ? state : `${state} · ${hint}`;
   const openDefault = async (anchor: HTMLElement): Promise<void> => {
     if (busy) return;
     setBusy(true);
@@ -571,12 +581,15 @@ export function HostFileOpenButton({
       const options = await actions.applications(slug, path);
       await preferences?.ready().catch(() => undefined);
       setLoaded({ target, options });
+      setLoadError(undefined);
       const fresh = resolveFileOpenDefault(options, readPreference(preferences, target));
       if ('application' in fresh) {
         await actions.open(slug, path, { application: fresh.application.id });
         menu.notify({ message: t('fileAction.dispatched'), tone: 'status' });
       } else menu.openAt(path, anchor);
     } catch (failure) {
+      setLoaded(undefined);
+      setLoadError(reason(failure));
       menu.notify({ message: reason(failure), tone: 'alert' });
     } finally {
       setBusy(false);
@@ -588,7 +601,7 @@ export function HostFileOpenButton({
         ref={mount}
         className="bh-file-open"
         data-compact={compact ? '' : undefined}
-        data-default={current?.source}
+        data-default={current?.source ?? (loadError === undefined ? undefined : 'unavailable')}
       >
         <Tooltip label={title} side="bottom" delayMs={500}>
           <button
@@ -597,6 +610,7 @@ export function HostFileOpenButton({
             aria-label={`${title}: ${name}`}
             disabled={busy}
             onClick={(event) => {
+              event.preventDefault();
               event.stopPropagation();
               void openDefault(event.currentTarget);
             }}
@@ -606,7 +620,7 @@ export function HostFileOpenButton({
             ) : (
               <ApplicationIcon app={app} />
             )}
-            {compact ? null : <span>{t('fileAction.open')}</span>}
+            {compact ? null : <span>{label ?? t('fileAction.open')}</span>}
           </button>
         </Tooltip>
         <Tooltip label={t('fileAction.chooseApp')} side="bottom" delayMs={500}>

@@ -31,6 +31,9 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
     IconChevronRightOutlineRegular: stub,
     IconChevronDownOutline14: stub,
     IconChevronDownOutlineRegular: stub,
+    IconFolderOpenOutlineRegular: stub,
+    IconDownloadOutlineRegular: stub,
+    IconSettingsOutlineRegular: stub,
     IconCloseFill14: stub,
     IconCopyOutline16: stub,
     IconCopyOutlineRegular: stub,
@@ -147,7 +150,24 @@ describe('Channel Notices in a Group', () => {
     const openChannel = vi.fn(async () => undefined);
     const openAround = vi.fn(async () => undefined);
     const noticeActions = new Proxy(
-      { openChannel, openAround, listWorkspaceGrants: vi.fn(async () => []) },
+      {
+        fileOpenPreferences: {
+          ready: async () => {},
+          get: () => undefined,
+          set: () => {},
+          clear: () => {},
+          subscribe: () => () => {},
+        },
+        memoryFileTarget: vi.fn(async (_slug: string, path: string) => ({
+          path: '/host/memory/' + path,
+          relativePath: path,
+          kind: 'file' as const,
+        })),
+        memoryFileApplications: vi.fn(async () => ({ available: false, applications: [] })),
+        openChannel,
+        openAround,
+        listWorkspaceGrants: vi.fn(async () => []),
+      },
       {
         get: (target, key: string) => Reflect.get(target, key) ?? vi.fn(async () => undefined),
       },
@@ -258,7 +278,23 @@ describe('Channel Notices in a Group', () => {
 
   function proxyActions(overrides: Record<string, unknown>): BridgeActions {
     return new Proxy(
-      { listWorkspaceGrants: vi.fn(async () => []), ...overrides },
+      {
+        fileOpenPreferences: {
+          ready: async () => {},
+          get: () => undefined,
+          set: () => {},
+          clear: () => {},
+          subscribe: () => () => {},
+        },
+        memoryFileTarget: vi.fn(async (_slug: string, path: string) => ({
+          path: '/host/memory/' + path,
+          relativePath: path,
+          kind: 'file' as const,
+        })),
+        memoryFileApplications: vi.fn(async () => ({ available: false, applications: [] })),
+        listWorkspaceGrants: vi.fn(async () => []),
+        ...overrides,
+      },
       {
         get: (target, key: string) => Reflect.get(target, key) ?? vi.fn(async () => undefined),
       },

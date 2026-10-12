@@ -65,6 +65,9 @@ import {
 import type { HostFileApplication, HostFileTarget } from '../src/client/host-file-actions.js';
 import { HostFileOpenButton, type HostFileCommands } from '../src/client/host-file-menu.js';
 import { zhTranslate } from '../src/client/locale.js';
+import { BridgeCallError } from '../src/client/bridge.js';
+import { MemoryCurrentFileOpenButton } from '../src/client/memory-file-actions.js';
+import { MemoryDiffFile } from '../src/client/memory-reader-parts.js';
 
 function memoryStorage(failWrites = false) {
   const values = new Map<string, string>();
@@ -324,5 +327,114 @@ describe('shared default-open split button', () => {
       'Workspace Grant is missing or revoked',
     );
     expect(commands.open).toHaveBeenCalledTimes(1);
+  });
+});
+
+function memoryActions(present: () => boolean) {
+  const target = vi.fn(async (_slug: string, path: string): Promise<HostFileTarget> => {
+    if (path.includes('..')) throw new BridgeCallError('invalid-input', 'Memory path escapes');
+    if (!present()) throw new BridgeCallError('not-found', 'Memory file or directory is missing');
+    return { path: '/host/memory/' + path, relativePath: path, kind: 'file' };
+  });
+  return {
+    memoryFileTarget: target,
+    memoryFileApplications: vi.fn(async (slug: string, path: string) => {
+      await target(slug, path);
+      return { available: true, applications: [app('system', true)] };
+    }),
+    memoryFileOpen: vi.fn(async (slug: string, path: string) => {
+      await target(slug, path);
+    }),
+    memoryFileDownload: vi.fn(async () => {}),
+  };
+}
+async function mountCurrent(
+  actions: ReturnType<typeof memoryActions>,
+  path: string,
+  deletion?: 'commit' | 'working',
+) {
+  await act(async () =>
+    root.render(
+      createElement(MemoryDiffFile, {
+        path,
+        status: deletion === undefined ? 'A' : 'D',
+        diff: '',
+        label: 'diff',
+        binaryLabel: 'binary',
+        emptyLabel: 'empty',
+        oldLineLabel: 'old',
+        newLineLabel: 'new',
+        action: createElement(MemoryCurrentFileOpenButton, {
+          actions,
+          slug: 'ada',
+          path,
+          deletion,
+          t: zhTranslate,
+        }),
+      }),
+    ),
+  );
+}
+
+describe('Evolution diff: open the current file', () => {
+  it('names the current file, opens the path as it is now and never toggles the diff', async () => {
+    const actions = memoryActions(() => true);
+    await mountCurrent(actions, 'notes/renamed.md');
+    expect(main().textContent).toBe('打开当前文件');
+    expect(main().getAttribute('aria-label')).toContain('不是所选变更里的版本');
+    await click(main());
+    expect(actions.memoryFileOpen).toHaveBeenCalledWith('ada', 'notes/renamed.md', {
+      application: 'system',
+    });
+    expect(container.querySelector('details')?.open).toBe(true);
+    await click(more());
+    expect(document.querySelector('[role="menu"]')).not.toBeNull();
+    expect(container.querySelector('details')?.open).toBe(true);
+  });
+  it('a path the commit deleted reports the present absence with that evidence and launches nothing', async () => {
+    const actions = memoryActions(() => false);
+    await mountCurrent(actions, 'old.md', 'commit');
+    expect(main().getAttribute('aria-label')).toContain('这个路径现在没有文件');
+    await click(main());
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe(
+      '这个路径现在没有文件；不会从历史内容重建。此提交将该路径标记为删除。',
+    );
+    expect(actions.memoryFileOpen).not.toHaveBeenCalled();
+  });
+  it('a missing path without deletion evidence is not attributed to a deletion', async () => {
+    const actions = memoryActions(() => false);
+    await mountCurrent(actions, 'gone.md');
+    await click(main());
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe(
+      '这个路径现在没有文件；不会从历史内容重建。',
+    );
+  });
+  it('a file recreated after a historical deletion opens despite the D marker', async () => {
+    const actions = memoryActions(() => true);
+    await mountCurrent(actions, 'old.md', 'commit');
+    expect(main().getAttribute('aria-label')).toContain('在 Host 上用 SYSTEM 打开');
+    await click(main());
+    expect(actions.memoryFileOpen).toHaveBeenCalledWith('ada', 'old.md', { application: 'system' });
+  });
+  it('resolves again at the gesture: a branch switch or late removal after render is reported', async () => {
+    let present = true;
+    const actions = memoryActions(() => present);
+    await mountCurrent(actions, 'note.md', 'working');
+    present = false;
+    await click(main());
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      '当前工作区变更将该路径标记为删除。',
+    );
+    expect(actions.memoryFileOpen).not.toHaveBeenCalled();
+    present = true;
+    await click(main());
+    expect(actions.memoryFileOpen).toHaveBeenCalledTimes(1);
+  });
+  it('keeps the Memory owner refusal for a rejected path', async () => {
+    const actions = memoryActions(() => true);
+    await mountCurrent(actions, '../outside.md');
+    await click(main());
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe('Memory path escapes');
+    expect(actions.memoryFileOpen).not.toHaveBeenCalled();
   });
 });
