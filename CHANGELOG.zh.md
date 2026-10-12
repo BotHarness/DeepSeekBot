@@ -143,6 +143,10 @@
 
 ### Changed
 
+- 群聊输入框下方只显示一个工作区数量，即所有成员 Bot 可用工作区去重后的总数，不再逐个列出 Bot；私聊仍显示该 Bot 的工作区数（[#1515](https://github.com/BotHarness/DeepSeekBot/pull/1515)）。
+
+- 新手引导改为上手清单，从侧栏「Bot 模式」那一行里的进度环打开（移动端在退出按钮旁），不再占用垂直空间。清单包括配置模型、发出第一条消息，以及让它记住你、连接聊天软件、设一个每日任务、召唤窗口伙伴；每一项都可以直接操作，完成状态读取各功能自己的数据。界面导览从清单里启动，最后一步说明怎样退出 Bot 模式；第一次进入之前，「Bot 模式」那一行会显示一个「试试看」提示（[#1496](https://github.com/BotHarness/DeepSeekBot/issues/1496)，[ADR-0180](docs/adr/0180-onboarding-is-a-checklist-launched-from-the-bot-mode-row.md)）。
+
 - 私聊和群聊里，一组消息比可视区域高时，旁边的头像会停在消息列表底边，滚动时始终能看到是谁在说话（[#1491](https://github.com/BotHarness/DeepSeekBot/pull/1491)）。
 
 - Channel 输入框下方统一显示实际生效的完整模型名，不附加 provider 或继承来源标记；移动端仅保留模型选择入口，桌面端继续显示工作区与 token 用量（[#1479](https://github.com/BotHarness/DeepSeekBot/issues/1479)）。
@@ -222,6 +226,8 @@
 - 窄屏下消息气泡不再被常驻的回复和复制按钮挤占横向空间，这两个操作收进气泡的长按菜单；桌面端的悬停显示和右键菜单保持不变（[#1346](https://github.com/BotHarness/DeepSeekBot/issues/1346)）。
 
 ### Documentation
+
+- 中英文 README 精简为面向用户的结构：宣传片和像素头像放在前面，安装和 Bot 市场链接到官网，能力集中在一张表里（含 Slack、Discord、飞书 / Lark、QQ、微信以及电脑与浏览器操作），并新增一节对比 DeepSeekBot（简称 DSB）与另一个独立项目 DS Bot（npm `ds-bot`）（[#1516](https://github.com/BotHarness/DeepSeekBot/pull/1516)）。
 
 - 更新中英文 GitHub README，补齐已发布的 1.2.0 和 1.2.1 亮点、安装兼容说明与当前应用绑定入口，移除过时的未发布预告（[#1464](https://github.com/BotHarness/DeepSeekBot/issues/1464)）。
 

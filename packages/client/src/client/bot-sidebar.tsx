@@ -139,11 +139,13 @@ export function BotPanelIcon({
   openSettings,
   openActivityCenter,
   refreshStatus,
+  tutorial,
   t,
 }: BotPanelEntryProps & {
   onExit: () => void;
   openActivityCenter: () => void;
   refreshStatus: () => Promise<void>;
+  tutorial?: BotPanelTutorial | undefined;
 }): ReactElement {
   const icon = useBotModePrefs((prefs) => prefs.botIcon);
   const [row, setRow] = useState<HTMLElement | null>(null);
@@ -170,6 +172,7 @@ export function BotPanelIcon({
       setRow(button);
       button?.style.setProperty('--bh-bot-texture', `url("${botBackdropUri(icon)}")`);
       if (button === null) return;
+      button.setAttribute('data-bh-tour', 'bot-mode');
       const priorGridRow = button.style.gridRow;
       const siblings = Array.from(button.parentElement?.children ?? []).filter(
         (node) => !node.classList.contains('bh-human-inbox-entry'),
@@ -177,13 +180,21 @@ export function BotPanelIcon({
       button.style.gridRow = String(siblings.indexOf(button) + 1);
       const onKeyDown = (event: KeyboardEvent): void => {
         if (event.key !== 'Enter' && event.key !== ' ') return;
-        if ((event.target as Element | null)?.closest('.bh-panel-gear') !== null) return;
+        if (
+          (event.target as Element | null)?.closest('.bh-panel-gear, .bh-onboarding-launcher') !==
+          null
+        )
+          return;
         event.preventDefault();
         event.stopPropagation();
         onExit();
       };
       const onClick = (event: MouseEvent): void => {
-        if ((event.target as Element | null)?.closest('.bh-panel-gear') !== null) return;
+        if (
+          (event.target as Element | null)?.closest('.bh-panel-gear, .bh-onboarding-launcher') !==
+          null
+        )
+          return;
         event.preventDefault();
         event.stopPropagation();
         onExit();
@@ -243,6 +254,9 @@ export function BotPanelIcon({
             panelList,
           )
         : null}
+      {row !== null && wide && tutorial !== undefined
+        ? createPortal(active ? tutorial.launcher(t) : tutorial.enterHint(t), row)
+        : null}
       {active && row !== null
         ? createPortal(
             <>
@@ -276,10 +290,16 @@ export function BotPanelIcon({
   );
 }
 
+export interface BotPanelTutorial {
+  launcher(t: BotHarnessTranslate): ReactNode;
+  enterHint(t: BotHarnessTranslate): ReactNode;
+}
+
 export function createBotPanelEntry(
   onExit: () => void,
   openActivityCenter: () => void,
   refreshStatus: () => Promise<void>,
+  tutorial?: BotPanelTutorial,
 ): (props: BotPanelEntryProps) => ReactElement {
   return function BotPanelEntry({ size, active, useBotModePrefs, openSettings, t }) {
     return (
@@ -289,6 +309,7 @@ export function createBotPanelEntry(
         onExit={onExit}
         openActivityCenter={openActivityCenter}
         refreshStatus={refreshStatus}
+        tutorial={tutorial}
         useBotModePrefs={useBotModePrefs}
         openSettings={openSettings}
         t={t}

@@ -143,6 +143,10 @@ Pixel Avatars can be an elf, dwarf, orc or talking flower with beards, medieval 
 
 ### Changed
 
+- A Group Channel's composer footer shows one workspace count, the distinct workspaces its member Bots can use together, instead of each Bot's own count; a DM still shows its Bot's count ([#1515](https://github.com/BotHarness/DeepSeekBot/pull/1515)).
+
+- Onboarding is now a getting-started checklist opened from a progress ring in the Bot-mode sidebar row (beside the exit button on mobile), so it takes no vertical space. It covers choosing a model and sending the first message, then letting the Bot remember you, connecting a chat app, setting a daily task and summoning the Window Companion, each with a direct action and a check read from that feature's own data. The interface walkthrough starts from the checklist and ends by showing how to leave Bot mode, and a quiet "Try it" chip marks the Bot-mode row until you first enter it ([#1496](https://github.com/BotHarness/DeepSeekBot/issues/1496), [ADR-0180](docs/adr/0180-onboarding-is-a-checklist-launched-from-the-bot-mode-row.md)).
+
 - In a DM or Group Channel, the avatar beside a message group stays at the bottom edge of the timeline while a group taller than the view scrolls past, so you can always see who is speaking ([#1491](https://github.com/BotHarness/DeepSeekBot/pull/1491)).
 
 - Channel footers show the full effective model name without provider or inheritance labels; mobile layouts keep only the model selector, while desktop workspace and token controls remain available ([#1479](https://github.com/BotHarness/DeepSeekBot/issues/1479)).
@@ -222,6 +226,8 @@ Pixel Avatars can be an elf, dwarf, orc or talking flower with beards, medieval 
 - On narrow screens, message bubbles are no longer squeezed by the always-visible reply and copy buttons; those actions move into the long-press message menu, while desktop hover and right-click behavior is unchanged ([#1346](https://github.com/BotHarness/DeepSeekBot/issues/1346)).
 
 ### Documentation
+
+- Both READMEs are shorter and user-focused: the video and pixel avatars come first, installation and the Bot Marketplace link to the website, features sit in one table (including Slack, Discord, Lark / Feishu, QQ and WeChat, and computer and browser use), and a new section compares DeepSeekBot (short name DSB) with the separate DS Bot (npm `ds-bot`) project ([#1516](https://github.com/BotHarness/DeepSeekBot/pull/1516)).
 
 - Updated the bilingual GitHub README for released 1.2.0 and 1.2.1 highlights, installation compatibility and the current app-binding path; removed the outdated unreleased preview ([#1464](https://github.com/BotHarness/DeepSeekBot/issues/1464)).
 

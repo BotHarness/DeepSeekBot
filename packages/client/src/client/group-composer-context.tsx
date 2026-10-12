@@ -85,7 +85,7 @@ export function GroupComposerContextView({
 }): ReactElement {
   const mobile = useMobileBotViewport();
   const [selected, setSelected] = useState<string[]>();
-  const [facts, setFacts] = useState<Record<string, WorkspaceGrantView[] | undefined>>({});
+  const [facts, setFacts] = useState<Record<string, WorkspaceGrantView[] | null | undefined>>({});
   const [workspaces, setWorkspaces] = useState<WorkspaceOption[]>([]);
   const [preview, setPreview] = useState<{
     path: string;
@@ -100,7 +100,7 @@ export function GroupComposerContextView({
   const eligible = (selected ?? members.map((bot) => bot.slug)).filter((slug) =>
     members.some((bot) => bot.slug === slug),
   );
-  const signature = eligible.join('|');
+  const signature = members.map((bot) => bot.slug).join('|');
   const mount = useMountedResource<HTMLDivElement>(() => {
     current.current += 1;
     return () => {
@@ -119,20 +119,20 @@ export function GroupComposerContextView({
             }));
         },
         () => {
-          if (factRequest.current === generation)
-            setFacts((value) => ({ ...value, [slug]: undefined }));
+          if (factRequest.current === generation) setFacts((value) => ({ ...value, [slug]: null }));
         },
       );
     };
-    for (const slug of eligible) refresh(slug);
-    if (eligible.length > 0)
+    const slugs = members.map((bot) => bot.slug);
+    for (const slug of slugs) refresh(slug);
+    if (slugs.length > 0)
       void actions.listWorkspaceOptions().then(
         (rows) => {
           if (factRequest.current === generation) setWorkspaces(rows);
         },
         () => {},
       );
-    const disposers = eligible.map((slug) =>
+    const disposers = slugs.map((slug) =>
       subscribeWorkspaceGrantChanges(slug, () => refresh(slug)),
     );
     return () => {
@@ -190,15 +190,10 @@ export function GroupComposerContextView({
       if (current.current === generation) setBusy(false);
     });
   };
-  const chip =
-    eligible.length === 0
-      ? t('groupGrant.select')
-      : eligible
-          .map(
-            (slug) =>
-              `${members.find((bot) => bot.slug === slug)!.displayName} · ${facts[slug] === undefined ? t('composerContext.unavailable') : t('composerContext.workspaces', { count: facts[slug]!.length })}`,
-          )
-          .join(' / ');
+  const chip = groupWorkspaceChip(
+    members.map((bot) => facts[bot.slug]),
+    t,
+  );
   const retry = results.some((row) => row.status === 'unknown' || row.status === 'failed');
   return (
     <div ref={mount}>
@@ -351,4 +346,15 @@ export function GroupComposerContextView({
       ) : null}
     </div>
   );
+}
+
+export function groupWorkspaceChip(
+  facts: (WorkspaceGrantView[] | null | undefined)[],
+  t: BotHarnessTranslate,
+): string {
+  if (facts.length === 0) return t('groupGrant.select');
+  if (facts.some((grants) => grants === null)) return t('composerContext.unavailable');
+  if (facts.some((grants) => grants === undefined)) return t('composerContext.loading');
+  const ids = new Set(facts.flatMap((grants) => grants!.map((grant) => grant.workspaceId)));
+  return t('composerContext.workspaces', { count: ids.size });
 }

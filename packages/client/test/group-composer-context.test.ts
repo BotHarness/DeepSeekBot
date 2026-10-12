@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 import {
   GroupComposerContextView,
+  groupWorkspaceChip,
   useGroupComposerContext,
 } from '../src/client/group-composer-context.js';
 import { BridgeCallError, type WorkspaceGrantView } from '../src/client/bridge.js';
@@ -86,9 +87,7 @@ it('hides the Group workspace footer on mobile and restores its facts and action
       mobile = false;
       for (const listener of listeners) listener();
     });
-    expect(container.querySelector('.bh-composer-context')!.textContent).toContain(
-      'Ada · 1 个工作区',
-    );
+    expect(container.querySelector('.bh-composer-context')!.textContent).toBe('1 个工作区');
     expect(container.querySelector<HTMLElement>('.bh-composer-context')!.hidden).toBe(false);
     await act(async () =>
       container.querySelector<HTMLButtonElement>('.bh-composer-context button')!.click(),
@@ -99,6 +98,56 @@ it('hides the Group workspace footer on mobile and restores its facts and action
     container.remove();
     vi.unstubAllGlobals();
   }
+});
+
+it('counts the union of member workspaces by DSH Workspace id without naming Bots', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  const workspace = (botSlug: string, workspaceId: string): WorkspaceGrantView => ({
+    ...grant,
+    id: `${botSlug}-${workspaceId}`,
+    botSlug,
+    workspaceId,
+    workspacePath: `/${workspaceId}`,
+    path: `/${workspaceId}`,
+  });
+  const container = document.createElement('div');
+  document.body.append(container);
+  const root = createRoot(container);
+  const actions = {
+    listWorkspaceGrants: async (slug: string) =>
+      slug === 'ada'
+        ? [workspace('ada', 'a'), workspace('ada', 'b')]
+        : [workspace('bea', 'b'), workspace('bea', 'c')],
+    listWorkspaceOptions: async () => [],
+  } as unknown as BridgeActions;
+  try {
+    await act(async () =>
+      root.render(
+        createElement(GroupComposerContextView, {
+          channelId: 'group-union',
+          members: [ada, bea],
+          actions,
+          t: zhTranslate,
+          open: false,
+          onOpen() {},
+          onClose() {},
+        }),
+      ),
+    );
+    const chip = container.querySelector('.bh-composer-context')!.textContent;
+    expect(chip).toBe('3 个工作区');
+    expect(chip).not.toContain('Ada');
+  } finally {
+    await act(async () => root.unmount());
+    container.remove();
+  }
+  expect(groupWorkspaceChip([[workspace('ada', 'a')], undefined], zhTranslate)).toBe(
+    zhTranslate('composerContext.loading'),
+  );
+  expect(groupWorkspaceChip([[workspace('ada', 'a')], null], zhTranslate)).toBe(
+    zhTranslate('composerContext.unavailable'),
+  );
+  expect(groupWorkspaceChip([[], []], zhTranslate)).toBe('0 个工作区');
 });
 
 it('defaults to all Bots, allows narrowing, and preserves independent partial results when membership changes', async () => {
@@ -303,7 +352,14 @@ it('offers only the shared workspace shortcut in Group and resets scope on Chann
   } as unknown as BridgeActions;
   function Harness() {
     context = useGroupComposerContext({
-      channel: { id, name: id, type: 'group', members: ['ada'], createdAt: '', updatedAt: '' },
+      channel: {
+        id,
+        name: id,
+        type: 'group',
+        members: ['ada'],
+        createdAt: '',
+        updatedAt: '',
+      },
       members: [ada],
       actions,
       t: zhTranslate,

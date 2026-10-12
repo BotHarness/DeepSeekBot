@@ -4,6 +4,11 @@ import { errorMessage, type ModelRouteView } from './bridge.js';
 import { store } from './store.js';
 import { invalidateModelPlan } from './model-plan-store.js';
 import type { WindowCompanions } from './window-companions.js';
+import {
+  loadChecklistEvidence,
+  type ChecklistEvidence,
+  type ChecklistTarget,
+} from './onboarding-checklist.js';
 
 export interface PendingWelcomeRequest {
   channelId: string;
@@ -17,6 +22,9 @@ export interface OnboardingViewState {
   modelTarget?: { channelId: string; slug: string } | undefined;
   sendOpen: boolean;
   guideOpen: boolean;
+  checklistOpen: boolean;
+  evidence?: ChecklistEvidence | undefined;
+  experience?: 'memory' | 'im' | undefined;
   busy: boolean;
   error?: string | undefined;
 }
@@ -25,6 +33,7 @@ export class OnboardingController {
     modelOpen: false,
     sendOpen: false,
     guideOpen: false,
+    checklistOpen: false,
     busy: false,
   };
   private listeners = new Set<() => void>();
@@ -56,16 +65,14 @@ export class OnboardingController {
       const receipt = await this.actions.onboarding(slug, action);
       const first = this.state.receipt === undefined;
       const justCompleted = receipt.completed && !this.state.receipt?.completed;
+      const opening = action === 'start' || action === 'continue' || action === 'restart';
       this.update({
         receipt,
         error: undefined,
-        guideOpen:
-          justCompleted || receipt.tutorial !== 'active'
-            ? false
-            : action === 'start' || action === 'continue' || action === 'restart'
-              ? true
-              : this.state.guideOpen,
+        guideOpen: justCompleted || receipt.tutorial !== 'active' ? false : this.state.guideOpen,
+        checklistOpen: receipt.tutorial !== 'active' ? false : opening || this.state.checklistOpen,
       });
+      if (opening || (justCompleted && !first)) void this.refreshEvidence();
       if (first) {
         try {
           const saved = sessionStorage.getItem(`botharness/onboarding-draft/${receipt.profileId}`);
@@ -93,6 +100,106 @@ export class OnboardingController {
       this.update({ error: errorMessage(error) });
     }
   }
+  private companion: WindowCompanions | undefined;
+  attachCompanion(companion: WindowCompanions | undefined): void {
+    this.companion = companion;
+  }
+  target(): ChecklistTarget | undefined {
+    const receipt = this.state.receipt;
+    if (!receipt?.channelId) return undefined;
+    const slug =
+      receipt.defaultBotSlug ??
+      store.getSnapshot().channels.find((channel) => channel.id === receipt.channelId)?.botSlug;
+    return slug ? { slug, channelId: receipt.channelId } : undefined;
+  }
+  async refreshEvidence(): Promise<void> {
+    const receipt = this.state.receipt;
+    if (!receipt) return;
+    const target = this.target();
+    const present = target !== undefined && this.companion?.get(target.slug) !== undefined;
+    const evidence = await loadChecklistEvidence(this.actions, receipt, target, present);
+    this.update({ evidence });
+  }
+  openChecklist(): void {
+    const receipt = this.state.receipt;
+    if (receipt === undefined || receipt.tutorial === 'not-started') {
+      void this.refresh(undefined, 'start');
+      return;
+    }
+    if (receipt.tutorial === 'paused') {
+      void this.refresh(undefined, 'continue');
+      return;
+    }
+    if (receipt.tutorial === 'skipped') {
+      void this.refresh(undefined, 'restart');
+      return;
+    }
+    this.update({ checklistOpen: true });
+    void this.refreshEvidence();
+  }
+  closeChecklist(): void {
+    if (!this.state.checklistOpen) return;
+    this.update({ checklistOpen: false });
+    if (this.state.receipt?.tutorial === 'active' && !this.state.guideOpen)
+      void this.refresh(undefined, 'pause');
+  }
+  closeChecklistForAction(): void {
+    this.update({ checklistOpen: false });
+  }
+  skipTutorial(): void {
+    this.update({ checklistOpen: false, guideOpen: false });
+    void this.refresh(undefined, 'skip');
+  }
+  async startTour(): Promise<void> {
+    const target = this.target();
+    this.closeChecklistForAction();
+    if (target && store.getSnapshot().conversation.channel?.id !== target.channelId)
+      await this.actions.openChannel(target.channelId);
+    if (this.state.receipt?.tutorial !== 'active') await this.refresh(undefined, 'continue');
+    this.update({ guideOpen: true, checklistOpen: false });
+  }
+  async openExperience(kind: 'memory' | 'im'): Promise<void> {
+    const target = this.target();
+    if (!target) return;
+    this.update({ checklistOpen: false });
+    if (store.getSnapshot().conversation.channel?.id !== target.channelId)
+      await this.actions.openChannel(target.channelId);
+    this.update({ experience: kind });
+  }
+  consumeExperience(kind: 'memory' | 'im'): boolean {
+    if (this.state.experience !== kind) return false;
+    this.update({ experience: undefined });
+    return true;
+  }
+  syncCompanionEvidence(): void {
+    const target = this.target();
+    const evidence = this.state.evidence;
+    if (!target || !evidence) return;
+    const present = this.companion?.get(target.slug) !== undefined;
+    if (present !== evidence.companion)
+      this.update({ evidence: { ...evidence, companion: present } });
+  }
+  summonCompanion(): void {
+    const target = this.target();
+    if (!target || !this.companion) return;
+    this.closeChecklistForAction();
+    void this.companion.start().then(() => {
+      this.companion?.select(target.slug);
+      this.syncCompanionEvidence();
+    });
+  }
+  async focusConversation(): Promise<void> {
+    const target = this.target();
+    this.closeChecklistForAction();
+    if (target && store.getSnapshot().conversation.channel?.id !== target.channelId)
+      await this.actions.openChannel(target.channelId);
+    requestAnimationFrame(() => {
+      const input = document.querySelector<HTMLElement>(
+        '[data-bh-tour="composer"] textarea, [data-bh-tour="composer"] [contenteditable="true"]',
+      );
+      input?.focus();
+    });
+  }
   private savePending(pending: PendingWelcomeRequest | undefined): void {
     this.update({ pending });
     try {
@@ -106,6 +213,9 @@ export class OnboardingController {
   markSubmitted(channelId: string, body: string): void {
     if (this.state.pending?.channelId === channelId && this.state.pending.body === body)
       this.savePending(undefined);
+  }
+  finishTour(): void {
+    this.update({ guideOpen: false, checklistOpen: this.state.receipt?.tutorial === 'active' });
   }
   pauseGuide(): void {
     const wasOpen = this.state.guideOpen;
