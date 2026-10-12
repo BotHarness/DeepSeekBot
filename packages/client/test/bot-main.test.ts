@@ -32,6 +32,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
     IconPinOutlineRegular: stub,
     IconTrashOutlineRegular: stub,
     FileTypeIcon: stub,
+    fileSizeText: (size: number) => `${size} B`,
     ImageLightbox: stub,
     Input: stub,
     Menu: stub,
@@ -247,6 +248,8 @@ describe('Bot main Sessions pane', () => {
       root.render(
         createElement(BotMain, {
           actions: {
+            profileActivity: vi.fn().mockRejectedValue(new Error('Unavailable')),
+            listWorkspaceGrants: async () => [],
             modelPlanState: async () => undefined,
             botSourcePolicies: async () => [],
           } as unknown as BridgeActions,
@@ -728,6 +731,70 @@ describe('Bot main Sessions pane', () => {
   });
 });
 
+describe('DM usage refresh', () => {
+  it('retains the current snapshot while a committed-message refresh is pending', async () => {
+    const previous = store.getSnapshot();
+    const bot = {
+      slug: 'usage-refresh',
+      displayName: 'Usage refresh',
+      roles: [],
+      aggregateState: 'idle',
+      workspaces: [],
+      createdAt: '2026-10-11T00:00:00.000Z',
+    };
+    const channel = {
+      id: 'dm-usage-refresh',
+      type: 'dm' as const,
+      name: bot.displayName,
+      members: [bot.slug],
+      botSlug: bot.slug,
+      createdAt: bot.createdAt,
+      updatedAt: bot.createdAt,
+    };
+    const profileActivity = vi
+      .fn()
+      .mockResolvedValueOnce({ slug: bot.slug, modelUsageStatus: 'ready', modelUsageRows: [] })
+      .mockImplementationOnce(() => new Promise(() => {}));
+    const actions = {
+      profileActivity,
+      modelPlanState: async () => ({}),
+      modelCatalog: async () => ({ models: [] }),
+      listWorkspaceGrants: async () => [],
+      botSourcePolicies: async () => [],
+      markRead: async () => undefined,
+    } as unknown as BridgeActions;
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    store.setRoster([bot], [channel]);
+    store.select({ kind: 'bot', slug: bot.slug });
+    store.setConversation({ status: 'ready', channel, messages: [], sending: false });
+    const node = document.createElement('div');
+    document.body.append(node);
+    const root = createRoot(node);
+    try {
+      await act(async () =>
+        root.render(createElement(BotMain, { actions, channelSidebar: sidebarRegistry() })),
+      );
+      const before = node.querySelector('.bh-composer-usage')!.textContent;
+      expect(before).toContain('0');
+      await act(async () => {
+        store.setConversation({
+          messages: [
+            { id: 'usage-committed', at: bot.createdAt, author: { kind: 'human' }, body: 'Hello' },
+          ],
+        });
+      });
+      expect(profileActivity).toHaveBeenCalledTimes(2);
+      expect(node.querySelector('.bh-composer-usage')!.textContent).toBe(before);
+    } finally {
+      await act(async () => root.unmount());
+      node.remove();
+      store.setRoster(previous.bots, previous.channels);
+      store.select(previous.selection);
+      store.setConversation(previous.conversation);
+    }
+  });
+});
+
 describe('Bot main question developer details', () => {
   it('reacts to the shared Bot settings preference without remounting the question', async () => {
     const previous = store.getSnapshot();
@@ -758,6 +825,9 @@ describe('Bot main question developer details', () => {
       },
     };
     const actions = {
+      profileActivity: vi.fn().mockRejectedValue(new Error('Unavailable')),
+      modelPlanState: async () => ({}),
+      listWorkspaceGrants: async () => [],
       userQuestionStatus: vi.fn().mockResolvedValue('pending'),
       markRead: vi.fn().mockResolvedValue(undefined),
     } as unknown as BridgeActions;

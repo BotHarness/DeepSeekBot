@@ -76,6 +76,7 @@ import type {
   OwnedSessionSummary,
   OwnedSessionBot,
   ProfileActivity,
+  ProfileSessionUsage,
 } from './methods.js';
 import type { ChannelActivityToday } from '../channels/activity-today.js';
 import type { GroupProfileActivity } from '../channels/profile-activity.js';
@@ -201,9 +202,37 @@ export class BotharnessBridgeService extends TypertRemoteService {
     };
   }
 
-  privateInputCancel(channelId: string, messageId: string): { accepted: boolean } {
+  async privateInputCancel(channelId: string, messageId: string): Promise<{ accepted: boolean }> {
     this.requirePrivateOwner();
-    return { accepted: this.privateInputs?.cancel(true, channelId, messageId) ?? false };
+    return { accepted: (await this.privateInputs?.cancel(true, channelId, messageId)) ?? false };
+  }
+
+  async privateAccountStatus(channelId: string, messageId: string) {
+    this.requirePrivateOwner();
+    return (
+      this.privateInputs?.accountStatus(true, channelId, messageId) ?? {
+        status: 'unavailable',
+        references: {},
+      }
+    );
+  }
+
+  async privateInputReplace(channelId: string, messageId: string): Promise<{ messageId?: string }> {
+    this.requirePrivateOwner();
+    const replacement = await this.privateInputs?.replace(true, channelId, messageId);
+    return replacement === undefined ? {} : { messageId: replacement };
+  }
+
+  async privateAccountRevoke(channelId: string, messageId: string) {
+    this.requirePrivateOwner();
+    return (
+      this.privateInputs?.revoke(true, channelId, messageId) ?? {
+        accepted: false,
+        stopped: 0,
+        completed: 0,
+        uncertain: 0,
+      }
+    );
   }
 
   private requirePrivateOwner(): void {
@@ -872,12 +901,18 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.workspaceFileTarget({ slug, grantId }));
   }
 
-  grants(slug: string): { grants: WorkspaceGrant[] } {
-    return unwrap(this.methods.grants({ slug }));
+  grants(slug: string, scope?: { channelId: string; path: string }): { grants: WorkspaceGrant[] } {
+    return unwrap(this.methods.grants({ slug, ...(scope === undefined ? {} : { scope }) }));
   }
 
-  grantCreate(slug: string, workspaceId: string): Promise<{ grant: WorkspaceGrant }> {
-    return unwrapAsync(this.methods.grantCreate({ slug, workspaceId }));
+  grantCreate(
+    slug: string,
+    workspaceId: string,
+    scope?: { channelId: string; path: string },
+  ): Promise<{ grant: WorkspaceGrant; created?: boolean }> {
+    return unwrapAsync(
+      this.methods.grantCreate({ slug, workspaceId, ...(scope === undefined ? {} : { scope }) }),
+    );
   }
 
   grantRevoke(slug: string, grantId: string): { grant: WorkspaceGrant } {
@@ -1036,6 +1071,10 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.profileActivity({ channelId, before, weeks }));
   }
 
+  async profileSessionUsage(channelId: string): Promise<ProfileSessionUsage> {
+    return unwrap(await this.methods.profileSessionUsage({ channelId }));
+  }
+
   groupProfileActivity(channelId: string): GroupProfileActivity {
     return unwrap(this.methods.groupProfileActivity({ channelId }));
   }
@@ -1187,6 +1226,9 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'privateInputStatus',
   'privateInputSubmit',
   'privateInputCancel',
+  'privateAccountStatus',
+  'privateInputReplace',
+  'privateAccountRevoke',
   'messagingDefaults',
   'messagingDefaultsSet',
   'channelBridges',
@@ -1307,6 +1349,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'memorySave',
   'memoryRepair',
   'profileActivity',
+  'profileSessionUsage',
   'overviewMemory',
   'overviewUsage',
   'profileUsage',

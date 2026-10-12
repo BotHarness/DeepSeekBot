@@ -17,6 +17,7 @@ import type {
 import type { BotHarnessTranslate } from './locale.js';
 import type { ProfileCardDescriptor, ProfileCardViewProps } from './profile-cards.js';
 import { ModelUsageBreakdown } from './model-usage-breakdown.js';
+import { profileTokenSummaryText } from './profile-token-summary.js';
 import { useProfileChartTokens } from './profile-chart-theme.js';
 
 export const PROFILE_ACTIVITY_WEEKS = 26;
@@ -563,7 +564,6 @@ function TokenUsageCard({
     [colors, rows],
   );
   const total = windowTotals.cached + windowTotals.uncached + windowTotals.output;
-  const reportedTotal = profileUsageTotal(activity, total);
   if (!compact)
     return (
       <ModelUsageBreakdown
@@ -580,8 +580,7 @@ function TokenUsageCard({
       <div className="bh-profile-card-total">
         {t('profile.tokens.window', {
           weeks,
-          count:
-            reportedTotal === null ? t('profile.usage.unknown') : formatTokenCount(reportedTotal),
+          count: profileTokenSummaryText(activity, t),
         })}
       </div>
       <Chart
@@ -623,15 +622,6 @@ function usageIsEntirelyUnknown(activity: ProfileActivity | undefined): boolean 
         row.cacheReadTokens === null &&
         row.cacheWriteTokens === null,
     )
-  );
-}
-
-function profileUsageTotal(activity: ProfileActivity | undefined, fallback: number): number | null {
-  const rows = activity?.modelUsageRows ?? [];
-  if (rows.length === 0) return fallback;
-  return rows.reduce<number | null>(
-    (sum, row) => (sum === null || row.totalTokens === null ? null : sum + row.totalTokens),
-    0,
   );
 }
 

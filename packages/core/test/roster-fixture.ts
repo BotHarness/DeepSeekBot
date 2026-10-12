@@ -1,7 +1,3 @@
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { afterEach } from 'vitest';
 import { z } from 'zod';
 import { attachOperationalModule, type OperationalDatabaseOwner } from '../src/database/owner.js';
 import {
@@ -11,6 +7,7 @@ import {
 } from '../src/roster/store.js';
 
 import { registryDatabase } from './registry-fixture.js';
+import { createTempRoot, trackTestOwner } from './helpers.js';
 
 import type { Domain, DomainGlobal, DomainSpec, KvTable } from '@deepseek-ai/dsh-storage-domain';
 
@@ -113,7 +110,6 @@ export function createFakeRosterDomain(
   };
 }
 
-const rosterRoots: string[] = [];
 const rosterOwners = new WeakMap<RosterStore, OperationalDatabaseOwner>();
 const changeBaselines = new WeakMap<RosterStore, number>();
 const storedArrangement = z.object({
@@ -122,13 +118,10 @@ const storedArrangement = z.object({
 });
 
 export function createTestRosterStore(options: Partial<RosterStoreOptions> = {}): RosterStore {
-  const root =
+  const database =
     options.database === undefined
-      ? mkdtempSync(join(tmpdir(), 'botharness-roster-db-'))
-      : undefined;
-  if (root !== undefined) rosterRoots.push(root);
-  const database = options.database ?? (root === undefined ? undefined : registryDatabase(root));
-  if (database === undefined) throw new Error('Missing test database');
+      ? registryDatabase(createTempRoot('botharness-roster-db-'))
+      : trackTestOwner(options.database);
   const store = createRosterStore({ ...options, database });
   rosterOwners.set(store, database);
   const attach = store.attach.bind(store);
@@ -165,6 +158,3 @@ function totalChanges(store: RosterStore): number {
 export function storedWriteCount(store: RosterStore): number {
   return totalChanges(store) - (changeBaselines.get(store) ?? 0);
 }
-afterEach(() => {
-  for (const root of rosterRoots.splice(0)) rmSync(root, { recursive: true, force: true });
-});

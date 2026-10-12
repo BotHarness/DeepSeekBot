@@ -15,6 +15,7 @@ export interface HumanAttentionItem {
   kind:
     | 'group-join-request'
     | 'user-question'
+    | 'private-input'
     | 'tool-approval'
     | 'workspace-grant-request'
     | 'bot-dm-message'
@@ -154,6 +155,29 @@ const ACTION_ATTENTION_CTE = `WITH attention AS (
                 WHERE decision.channel_id = e.channel_id
                   AND json_extract(decision.payload_json,
                     '$.toolApprovalDecision.requestMessageId') = e.message_id
+             )
+          UNION ALL
+          SELECT 'private:' || e.source_event_id AS id,
+                 'action' AS category, 'private-input' AS kind,
+                 e.created_at, c.channel_id,
+                 json_extract(c.record_json, '$.name') AS channel_name,
+                 e.bot_slug, json_extract(e.payload_json, '$.privateInputRequest.account') || ' · ' || e.body AS summary,
+                 NULL AS request_id, e.message_id,
+                 NULL AS assignment_session_id, e.source_event_id
+            FROM source_events e
+            JOIN channel_placements p ON p.source_event_id = e.source_event_id
+            JOIN channel_records c ON c.channel_id = p.channel_id
+           WHERE json_extract(c.record_json, '$.type') = 'dm'
+             AND json_extract(c.record_json, '$.botSlug') = e.bot_slug
+             AND json_extract(c.record_json, '$.deletedAt') IS NULL
+             AND e.source_kind = 'bot-message'
+             AND json_extract(e.payload_json, '$.privateInputRequest') IS NOT NULL
+             AND e.message_id IN (SELECT value FROM json_each(?))
+             AND NOT EXISTS (
+               SELECT 1 FROM source_events resolution
+                WHERE resolution.channel_id = e.channel_id
+                  AND json_extract(resolution.payload_json,
+                    '$.privateInputResolution.requestMessageId') = e.message_id
              )
           UNION ALL
           SELECT 'grant:' || e.source_event_id AS id,
@@ -338,6 +362,7 @@ export function createHumanAttentionQuery(
   database: OperationalDatabaseModulePort,
   activeQuestionMessageIds: () => readonly string[] = () => [],
   activeToolApprovalMessageIds: () => readonly string[] = () => [],
+  activePrivateInputMessageIds: () => readonly string[] = () => [],
 ): HumanAttentionQuery {
   return {
     item(id, sourceKey) {
@@ -689,6 +714,7 @@ SELECT 'handled:' || request.source_event_id AS id,
             .all(
               JSON.stringify(activeQuestionMessageIds()),
               JSON.stringify(activeToolApprovalMessageIds()),
+              JSON.stringify(activePrivateInputMessageIds()),
               category,
               input.itemId ?? null,
               input.itemId ?? null,
@@ -760,6 +786,7 @@ SELECT 'handled:' || request.source_event_id AS id,
             .all(
               JSON.stringify(activeQuestionMessageIds()),
               JSON.stringify(activeToolApprovalMessageIds()),
+              JSON.stringify(activePrivateInputMessageIds()),
             ) as { bot_slug: string; count: number }[],
       );
       return {

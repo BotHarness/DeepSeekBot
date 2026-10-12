@@ -145,6 +145,13 @@ function IdentitiesForBot({
         <PairingSettings
           requests={pairings}
           roles={snapshot?.roles ?? []}
+          groups={snapshot?.permissionGroups ?? []}
+          behaviorPermissions={snapshot?.behaviorPermissions ?? []}
+          bindings={(snapshot?.identities ?? [])
+            .filter(
+              (binding) => binding.enabled && !binding.revokedAt && binding.platform === 'feishu',
+            )
+            .map((binding) => ({ id: binding.id, name: binding.name }))}
           {...(snapshot?.senderPolicy ? { policy: snapshot.senderPolicy } : {})}
           senderAccess={(input) =>
             operate(() => actions.senderAccess(slug, input), 'pairing', true)

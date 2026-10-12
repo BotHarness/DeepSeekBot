@@ -12,6 +12,8 @@
 [![QQ 群：1125565676](https://img.shields.io/badge/QQ-1125565676-12B7F5)](#community)
 [![GitHub stars](https://img.shields.io/github/stars/BotHarness/DeepSeekBot?style=flat)](https://github.com/BotHarness/DeepSeekBot)
 
+<a href="https://www.producthunt.com/products/deepseekbot?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-deepseekbot" target="_blank" rel="noopener noreferrer"><img alt="DeepSeekBot - Open-source Grok Bot alternative built on DeepSeek Harness | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1276820&amp;theme=light&amp;t=1791733459461"></a>
+
 **开源的 GrokBot 平替。一组有各自身份、人格和记忆的 bots，一起做事。**
 
 [官网](https://deepseekbot.app) · [宣传片](#video) · [安装](#install) · [能力](#features) · [截图](#screenshots) · [版本亮点](#releases) · [Bot 市场](#marketplace) · [社区](#community) · [文档](https://botharness.ai)
@@ -42,13 +44,15 @@ DeepSeekBot 是 BotHarness 开发的 MIT 开源 GrokBot 平替，作为 `deepsee
 
 ## 安装
 
-**桌面端**：打开 DeepSeek Harness 桌面端，点「插件 → 添加插件」，在「包名或地址」里输入 `deepseekbot`，保持「npm 官方源」，点「安装」。显示「已安装」后点「立即启用」（提示重启时重启当前 Profile），侧栏会出现「Bot 模式」。还没装 DSH？先[下载桌面端](https://www.deepseek.com/en/harness/)。
+**桌面端**：打开 DeepSeek Harness 桌面端，点「插件 → 添加插件」，在「包名或地址」里输入 `deepseekbot@1.2.1`，保持「npm 官方源」，点「安装」。显示「已安装」后点「立即启用」（提示重启时重启当前 Profile），侧栏会出现「Bot 模式」。还没装 DSH？先[下载桌面端](https://www.deepseek.com/en/harness/)。
 
-**开发者（命令行）**：需要 Node 22 以上，支持 DSH `0.2.0-rc.1` 起的 0.2 系列。
+请使用上面的完整版本号，不要改成裸包名或 `@latest`：pnpm 的新版本冷却策略可能选择较旧版本。若提示供应链审批，只确认经过验证的精确版本；不要全局关闭保护或跳过 DSH 兼容检查。安装后核对实际版本，截图或预览卡片不代表实际安装结果。详见[安装与恢复说明](docs/installation.zh.md)。
+
+**开发者（命令行）**：需要 Node 22 以上；1.2.1 的 DSH 版本声明为 `>=0.1.7-0`，未来版本的运行兼容性仍需单独验证。
 
 ```bash
 npm i -g @deepseek-ai/dsh@0.2.0-rc.1
-dsh plugin --profile web add deepseekbot
+dsh plugin --profile web add deepseekbot@1.2.1
 dsh web
 ```
 
@@ -249,7 +253,7 @@ pnpm dev:client    # 隔离本地 DSH Profile 的 Client 自动构建
 pnpm docs:dev      # 文档预览：http://localhost:4321
 ```
 
-独立 Lark 测试 App 可配置一次并跨 worktree、branch 和 session 复用：`node scripts/dev-im-test-apps.mjs setup`。凭据只保存在机器本地，每次测试前仍须协调独占接收窗口；见[共享测试 App 指南](docs/agents/im-test-apps.md)。
+独立 Lark 测试 App 可配置一次并跨 worktree、branch 和 session 复用：`node scripts/dev-im-test-apps.mjs setup`；Slack 使用独立 QA1／QA2／QA3 槽，运行 `node scripts/dev-im-test-apps.mjs setup slack`。凭据保存在同一机器本地共享文件中，`list slack` 只列出 Slack 配置元数据；每次测试前仍须协调独占接收窗口。见[共享测试 App 指南](docs/agents/im-test-apps.md)。
 
 稳定的本地文档域名：`pnpm dev` → `https://docs.botharness.localhost`（首次可能请求信任本地 CA）；免 sudo 方式为 `PORTLESS_PORT=8788 PORTLESS_HTTPS=0 pnpm dev`。文档页从仓库源文件生成，请修改源文件。Slides 位于 `apps/presentations`，用 `pnpm slides:dev` 迭代。
 

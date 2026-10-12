@@ -147,7 +147,7 @@ describe('Channel Notices in a Group', () => {
     const openChannel = vi.fn(async () => undefined);
     const openAround = vi.fn(async () => undefined);
     const noticeActions = new Proxy(
-      { openChannel, openAround },
+      { openChannel, openAround, listWorkspaceGrants: vi.fn(async () => []) },
       {
         get: (target, key: string) => Reflect.get(target, key) ?? vi.fn(async () => undefined),
       },
@@ -257,9 +257,12 @@ describe('Channel Notices in a Group', () => {
   }
 
   function proxyActions(overrides: Record<string, unknown>): BridgeActions {
-    return new Proxy(overrides, {
-      get: (target, key: string) => Reflect.get(target, key) ?? vi.fn(async () => undefined),
-    }) as unknown as BridgeActions;
+    return new Proxy(
+      { listWorkspaceGrants: vi.fn(async () => []), ...overrides },
+      {
+        get: (target, key: string) => Reflect.get(target, key) ?? vi.fn(async () => undefined),
+      },
+    ) as unknown as BridgeActions;
   }
 
   it('renders a Memory commit line and sends a Group click to the Bot DM commit', async () => {

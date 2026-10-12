@@ -10,6 +10,58 @@ import { createWorkspaceGrantStore, type DshWorkspace } from '../src/workspaces/
 import { createTempRoot, FIXED_NOW } from './helpers.js';
 
 describe('Workspace Grant store', () => {
+  it('rechecks scoped eligibility after async directory validation and reports only committed new Grants', async () => {
+    const home = createTempRoot('botharness-group-grants-');
+    const path = join(home, 'project');
+    mkdirSync(path);
+    const owner = mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN });
+    let eligible = true;
+    let release: (() => void) | undefined;
+    let defer = false;
+    let creations = 0;
+    const workspace: DshWorkspace = {
+      id: 'project',
+      path,
+      title: 'Project',
+      status: async () => {
+        if (defer)
+          await new Promise<void>((resolve) => {
+            release = resolve;
+          });
+        return 'ok';
+      },
+    };
+    const grants = createWorkspaceGrantStore({
+      database: attachOperationalModule(owner, 'workspace-grants'),
+      workspaces: () => ({ get: () => workspace, list: () => [workspace] }),
+    });
+    const confirmation = {
+      validate: () => {
+        if (!eligible) throw new Error('Member departed or Bot deleted');
+      },
+      onCreated: () => {
+        creations += 1;
+      },
+    };
+    try {
+      const first = await grants.create('selected', 'project', confirmation);
+      expect(first.orchestratorWrite).toBe(false);
+      expect((await grants.create('selected', 'project', confirmation)).id).toBe(first.id);
+      expect(creations).toBe(1);
+      defer = true;
+      const pending = grants.create('departing', 'project', confirmation);
+      eligible = false;
+      release!();
+      await expect(pending).rejects.toThrow('Member departed');
+      expect(grants.list('departing')).toEqual([]);
+      expect(grants.list('unselected')).toEqual([]);
+      expect(grants.list('selected')).toHaveLength(1);
+      expect(creations).toBe(1);
+    } finally {
+      owner.close();
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
   it('upgrades existing read-only Grants without silently granting write permission', () => {
     const home = createTempRoot('botharness-grant-upgrade-');
     const path = join(home, 'project');

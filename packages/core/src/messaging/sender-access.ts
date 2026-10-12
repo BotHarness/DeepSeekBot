@@ -8,10 +8,18 @@ import type { MessagingGrant } from './outbound.js';
 import { readBlock } from './conversations.js';
 import { groupReceptionPolicy } from './group-policy.js';
 import { channelBridgeRoutes } from './channel-bridge.js';
+import { behaviorPermissionInputs, changeBehaviorPermission } from './behavior-permissions.js';
 import { messagingDefaults } from './defaults.js';
 import { threadReceptionPolicy } from './thread-policy.js';
 import { matchingIngests } from './conversation-ingest.js';
 import { bridgeChannel } from './channel-target.js';
+import { chatPairingApplies, chatSenderIdentity, type ChatSenderNamespace } from './chat-sender.js';
+import {
+  permissionGroupInputs,
+  changePermissionGroups,
+  effectivePairingPermissions,
+  type EffectivePermissions,
+} from './permission-groups.js';
 
 export interface ExternalUserRole {
   id: string;
@@ -19,6 +27,7 @@ export interface ExternalUserRole {
   name: string;
   behavior: string;
   capabilities: PairingCapability[];
+  delegableCapabilities?: PairingCapability[];
   revision: number;
   createdAt?: string;
   updatedAt?: string;
@@ -28,6 +37,8 @@ export interface SenderPolicy {
   revision: number;
 }
 export const senderAccessInput = z.discriminatedUnion('kind', [
+  ...behaviorPermissionInputs,
+  ...permissionGroupInputs,
   z
     .object({
       kind: z.literal('create-role'),
@@ -42,7 +53,11 @@ export const senderAccessInput = z.discriminatedUnion('kind', [
       expectedRevision: z.number().int().positive(),
       name: z.string().trim().min(1).max(80),
       behavior: z.string().trim().min(1).max(2000),
-      capabilities: z.array(z.enum(['approve', 'reject'])).max(2),
+      capabilities: z.array(z.enum(['approve', 'reject', 'review-pairing'])).max(3),
+      delegableCapabilities: z
+        .array(z.enum(['approve', 'reject', 'review-pairing']))
+        .max(3)
+        .optional(),
     })
     .strict(),
   z
@@ -68,7 +83,7 @@ export interface SenderRoleContext {
   providerId: string;
   fingerprint: string;
   actorId: string;
-  namespace: 'lark-app-open-id';
+  namespace: ChatSenderNamespace;
   pairingId: string;
   pairingRevision: number;
   policyRevision: number;
@@ -81,7 +96,7 @@ export interface TrustedSenderReference {
   accountRef: string;
   fingerprint: string;
   actorId: string;
-  namespace: 'lark-app-open-id';
+  namespace: ChatSenderNamespace;
 }
 export interface SenderPermissions {
   queriedAt: string;
@@ -98,32 +113,29 @@ export interface SenderPermissions {
   policyRevision?: number;
   role?: ExternalUserRole;
   reason?: string;
+  effectivePermissions?: EffectivePermissions;
 }
 export function trustedSenderReference(
   db: DatabaseSync,
   botSlug: string,
   event: Omit<MessagingInboundEvent, 'text'>,
 ): TrustedSenderReference | undefined {
-  if (
-    event.channel !== 'feishu' ||
-    event.actor.kind !== 'user' ||
-    !/^ou_[A-Za-z0-9]+$/.test(event.actor.id)
-  )
-    return undefined;
+  const scoped = chatSenderIdentity(event);
+  if (!scoped) return undefined;
   const row = db
     .prepare(
       'SELECT id FROM messaging_bindings WHERE bot_slug = ? AND provider_id = ? AND account_ref = ? AND fingerprint = ? AND revoked_at IS NULL',
     )
-    .get(botSlug, 'dsh-im/feishu', event.botId, event.fingerprint) as { id: string } | undefined;
+    .get(botSlug, scoped.providerId, event.botId, event.fingerprint) as { id: string } | undefined;
   if (!row) return undefined;
   return {
     botSlug,
     bindingId: row.id,
-    providerId: 'dsh-im/feishu',
+    providerId: scoped.providerId,
     accountRef: event.botId,
     fingerprint: event.fingerprint,
     actorId: event.actor.id,
-    namespace: 'lark-app-open-id',
+    namespace: scoped.namespace,
   };
 }
 export function readSenderPermissions(
@@ -148,8 +160,28 @@ export function readSenderPermissions(
   const approved = pairings.find((pairing) => pairing.status === 'approved');
   if (approved) {
     const role = externalUserRoles(db, botSlug).find((role) => role.id === approved.roleId);
+    const effectivePermissions = effectivePairingPermissions(
+      db,
+      botSlug,
+      sender.bindingId,
+      sender.actorId,
+    );
     return role
-      ? { ...base, status: 'paired', role }
+      ? {
+          ...base,
+          status: 'paired',
+          role,
+          effectivePermissions: {
+            ...effectivePermissions,
+            ...(effectivePermissions.behaviorPermissions
+              ? {
+                  behaviorPermissions: effectivePermissions.behaviorPermissions.map(
+                    ({ excludes: _excludes, ...behavior }) => behavior,
+                  ),
+                }
+              : {}),
+          },
+        }
       : { ...base, status: 'unavailable', reason: 'role-unavailable' };
   }
   const latest = pairings[0];
@@ -188,6 +220,25 @@ export function changeSenderAccess(
   raw: SenderAccessInput,
 ): void {
   const input = senderAccessInput.parse(raw);
+  if (
+    input.kind === 'create-behavior-permission' ||
+    input.kind === 'edit-behavior-permission' ||
+    input.kind === 'delete-behavior-permission'
+  ) {
+    changeBehaviorPermission(db, botSlug, input);
+    bumpSenderPolicy(db, botSlug);
+    return;
+  }
+  if (
+    input.kind === 'create-group' ||
+    input.kind === 'edit-group' ||
+    input.kind === 'delete-group' ||
+    input.kind === 'person-permissions'
+  ) {
+    changePermissionGroups(db, botSlug, input);
+    bumpSenderPolicy(db, botSlug);
+    return;
+  }
   if (input.kind === 'create-role') {
     if (externalUserRoles(db, botSlug).length >= 50) throw new MessagingError('role-capacity');
     const at = new Date().toISOString();
@@ -216,6 +267,9 @@ export function changeSenderAccess(
       name: input.name,
       behavior: input.behavior,
       capabilities: [...new Set(input.capabilities)],
+      delegableCapabilities: [
+        ...new Set(input.delegableCapabilities ?? role.delegableCapabilities ?? []),
+      ],
       revision: role.revision + 1,
       updatedAt: new Date().toISOString(),
     };
@@ -272,7 +326,7 @@ export function changeSenderAccess(
   if (input.restricted) {
     const pending = db
       .prepare(`SELECT a.source_event_id FROM inbox_admissions a JOIN source_events e USING(source_event_id)
-      WHERE a.bot_slug = ? AND a.attempt_state IN ('pending', 'retryable') AND e.source_kind = 'bridge-message' AND json_extract(e.payload_json, '$.external.platform') = 'feishu'`)
+      WHERE a.bot_slug = ? AND a.attempt_state IN ('pending', 'retryable') AND e.source_kind = 'bridge-message'`)
       .all(botSlug) as { source_event_id: string }[];
     for (const row of pending)
       if (!sourceSenderAllowed(db, botSlug, row.source_event_id))
@@ -292,25 +346,15 @@ export function currentSenderRole(
   botSlug: string,
   event: Omit<MessagingInboundEvent, 'text'>,
 ): SenderRoleContext | undefined {
-  if (
-    event.channel !== 'feishu' ||
-    event.actor.kind !== 'user' ||
-    !/^ou_[A-Za-z0-9]+$/.test(event.actor.id)
-  )
-    return undefined;
-  const binding = db
-    .prepare(
-      'SELECT id FROM messaging_bindings WHERE bot_slug = ? AND provider_id = ? AND account_ref = ? AND fingerprint = ? AND revoked_at IS NULL',
-    )
-    .get(botSlug, 'dsh-im/feishu', event.botId, event.fingerprint) as { id: string } | undefined;
-  if (!binding) return undefined;
-  const identity = readMessagingIdentity(db, binding.id);
+  const sender = trustedSenderReference(db, botSlug, event);
+  if (!sender) return undefined;
+  const identity = readMessagingIdentity(db, sender.bindingId);
   if (!identity.enabled) return undefined;
   const row = db
     .prepare(
       "SELECT body FROM messaging_pairings WHERE bot_slug = ? AND binding_id = ? AND actor_id = ? AND purpose = 'conversation' AND status = 'approved'",
     )
-    .get(botSlug, binding.id, event.actor.id) as { body: string } | undefined;
+    .get(botSlug, sender.bindingId, event.actor.id) as { body: string } | undefined;
   if (!row) return undefined;
   const pairing = JSON.parse(row.body) as PairingRequest;
   const role = externalUserRoles(db, botSlug).find((role) => role.id === pairing.roleId);
@@ -323,11 +367,11 @@ export function currentSenderRole(
   )
     return undefined;
   return {
-    bindingId: binding.id,
+    bindingId: sender.bindingId,
     providerId: identity.providerId,
     fingerprint: identity.fingerprint,
     actorId: event.actor.id,
-    namespace: 'lark-app-open-id',
+    namespace: sender.namespace,
     pairingId: pairing.id,
     pairingRevision: pairing.revision,
     policyRevision: readSenderPolicy(db, botSlug).revision,
@@ -340,7 +384,7 @@ export function senderAdmissionAllowed(
   event: Omit<MessagingInboundEvent, 'text'>,
 ): boolean {
   return (
-    event.channel !== 'feishu' ||
+    !chatPairingApplies(event) ||
     !readSenderPolicy(db, botSlug).restricted ||
     currentSenderRole(db, botSlug, event) !== undefined ||
     ((event.conversation.kind === 'dm' || event.mentionedAccount) &&

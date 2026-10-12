@@ -2,6 +2,18 @@
 
 Use this runbook when a coding agent cannot open, operate or capture an isolated local Web Client. Keep three independent results: **Host transport**, **browser navigation**, and **rendered interaction**. A successful result in one does not certify the others.
 
+## IM QA with two Human accounts in one organization
+
+One Lark organization can contain two signed-in Human accounts in the same browser. An App's connected Provider and another account's visible QA1 chat do not prove that the browser is using the Human account designated for QA2. Membership, App visibility, private conversations and pairing authority are account-specific.
+
+Before sending a test, inspect the current account indicator or account menu and the exact designated Bot conversation. Reuse the existing login. If the browser shows only QA1, or Search only finds messages while the QA2 conversation is absent, first check the selected Human account; do not infer that the App credentials or receiver are broken. Switch to the authorized account using the normal account UI, or let the Human select it. Inspect the fresh page and exact Bot header again after switching. A previously captured locator or conversation list may now be stale.
+
+Keep one independent App per simultaneous receiver window. Two Human accounts are not two Apps and do not authorize starting a second receiver for the same App. Use the [shared test App slots](im-test-apps.md), confirm the designated Profile and current receiver owner, and leave the other session's QA1 App and Host untouched.
+
+Send one uniquely marked test message only after verifying the account and destination. Inspect its actual visible response and correlate it with the owning Host's canonical Source Event, Admission and Outbox receipt. Capture only the designated conversation, excluding the account menu and unrelated chats. Browser login tokens and account-specific IDs stay local unless they are necessary, public-safe evidence explicitly authorized for sharing.
+
+In the #1385 Lark QA2 run, the first selected Human account showed only QA1 and message-only search. The Human switched to the other already signed-in account in the same organization, where the existing QA2 Bot conversation was available. The real request then completed IM → Owner Web private input → existing approval → protected CLI HTTP 200 → original IM reply. This was an account-selection correction, not a receiver restart, permission change or secret reconfiguration. The collaborative browser later lost its desktop Host again; preserve the successful functional observation separately from that subsequent capture failure.
+
 ## Qualification loop
 
 1. Read the Human's current browser/site authorization and use an explicitly authorized origin. Match scheme, hostname and port: `http://127.0.0.1:4175` and `http://localhost:6701` are distinct origins. A settings screenshot is evidence of the displayed preference, not proof that tool navigation has succeeded. If the origin needs a new permission, ask the Human to authorize that exact destination; reuse authorization already given in this task.

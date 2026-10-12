@@ -50,6 +50,11 @@ export type DshUsageSessionLogReader = (
   sessionId: string,
 ) => Promise<DshUsageSessionLog | undefined>;
 
+export interface SessionUsageSummary {
+  totalTokens: number | null;
+  status: 'ready' | 'unknown' | 'partial' | 'unavailable';
+}
+
 export interface UsageProjection {
   handleSessionEvent(sessionId: string, event: DshSessionEvent): void;
 
@@ -63,6 +68,13 @@ export interface UsageProjection {
   activity(botSlug: string, sinceIso: string): UsageDayRow[];
 
   query(botSlug: string, filter: UsageFilter): UsageQueryResult;
+
+  sessionSummary(
+    botSlug: string,
+    sessionId: string,
+    sinceIso: string,
+    readLog: DshUsageSessionLogReader,
+  ): Promise<SessionUsageSummary>;
 
   overview(period: UsageOverviewPeriod, after?: string): UsageOverviewResult;
 
@@ -352,6 +364,98 @@ export function createUsageProjection(options: {
   };
 
   return {
+    async sessionSummary(botSlug, sessionId, sinceIso, readLog) {
+      const root = ownership.resolve(sessionId);
+      const available = (): boolean => {
+        if (root === undefined || root.botSlug !== botSlug || root.parentSessionId !== undefined)
+          return false;
+        if (!ownership.contentAvailable(sessionId)) return false;
+        const current = ownership.resolve(sessionId);
+        if (current?.botSlug !== botSlug || current.createdAt !== root.createdAt) return false;
+        const createdAt = options.botCreatedAt?.(botSlug);
+        if (
+          options.botCreatedAt !== undefined &&
+          (createdAt === undefined || Date.parse(root.createdAt) < Date.parse(createdAt))
+        )
+          return false;
+        const fingerprint = createHmac('sha256', fingerprintKey.fingerprint_key)
+          .update(JSON.stringify([sessionId]))
+          .digest('hex');
+        return database.read(
+          (connection) =>
+            connection
+              .prepare('SELECT 1 FROM usage_retired_roots WHERE fingerprint = ?')
+              .get(fingerprint) === undefined,
+        );
+      };
+      if (!available()) return { totalTokens: null, status: 'unavailable' };
+      const descendants = ownership.descendantsOf(sessionId);
+      const sessions = [root!, ...descendants.slice(0, 20)];
+      let incomplete = descendants.length > 20;
+      let unknown = false;
+      let known = false;
+      let totalTokens = 0;
+      const sinceDay = usageLocalDay(Date.parse(sinceIso));
+      const today = usageLocalDay((options.now?.() ?? new Date()).getTime());
+      for (const session of sessions) {
+        if (session.botSlug !== botSlug || !ownership.contentAvailable(session.sessionId)) {
+          incomplete = true;
+          continue;
+        }
+        let log: DshUsageSessionLog | undefined;
+        try {
+          log = await readLog(session.sessionId);
+        } catch {
+          incomplete = true;
+        }
+        if (log === undefined) {
+          incomplete = true;
+          continue;
+        }
+        if (
+          !Number.isSafeInteger(log.inheritedEventCount) ||
+          log.inheritedEventCount < 0 ||
+          log.inheritedEventCount > log.events.length ||
+          !ownership.contentAvailable(session.sessionId) ||
+          ownership.resolve(session.sessionId)?.botSlug !== botSlug
+        ) {
+          incomplete = true;
+          continue;
+        }
+        const seen = new Set<number>();
+        for (const event of log.events.slice(log.inheritedEventCount)) {
+          if (event.type !== 'assistant/message' && event.type !== 'assistant/attempt') continue;
+          if (event.surfaceOp !== undefined && event.surfaceOp !== 'append') continue;
+          if (
+            event.seq === undefined ||
+            !Number.isSafeInteger(event.seq) ||
+            event.seq < 0 ||
+            seen.has(event.seq)
+          )
+            continue;
+          seen.add(event.seq);
+          if (!Number.isFinite(event.time)) continue;
+          const day = usageLocalDay(event.time);
+          if (day < sinceDay || day > today) continue;
+          const baseline = baselineByBot.get(botSlug);
+          if (baseline !== undefined && event.time <= baseline) {
+            incomplete = true;
+            continue;
+          }
+          const total = reportedBuckets(event).totalTokens;
+          if (total === undefined) unknown = true;
+          else {
+            known = true;
+            totalTokens += total;
+          }
+        }
+      }
+      if (!available()) return { totalTokens: null, status: 'unavailable' };
+      if (!Number.isSafeInteger(totalTokens)) return { totalTokens: null, status: 'unknown' };
+      if ((unknown || incomplete) && !known)
+        return { totalTokens: null, status: incomplete ? 'unavailable' : 'unknown' };
+      return { totalTokens, status: unknown || incomplete ? 'partial' : 'ready' };
+    },
     primeSession(sessionId, events) {
       for (const event of events) observe(sessionId, event);
     },

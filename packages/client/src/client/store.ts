@@ -262,6 +262,7 @@ export interface HumanAttentionItem {
   kind:
     | 'group-join-request'
     | 'user-question'
+    | 'private-input'
     | 'tool-approval'
     | 'workspace-grant-request'
     | 'bot-dm-message'

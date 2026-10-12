@@ -12,6 +12,7 @@ export function parsePublicAttention(value: unknown): PersonaBotAttention | unde
   const attention: PersonaBotAttention = { approvalCount };
   for (const key of [
     'questionCount',
+    'privateInputCount',
     'waitingHumanCount',
     'blockedCount',
     'workspaceGrantCount',
@@ -32,6 +33,7 @@ export function attentionCount(attention: PersonaBotAttention | undefined): numb
   return (
     (attention?.approvalCount ?? 0) +
     (attention?.questionCount ?? 0) +
+    (attention?.privateInputCount ?? 0) +
     (attention?.waitingHumanCount ?? 0) +
     (attention?.blockedCount ?? 0) +
     (attention?.workspaceGrantCount ?? 0)

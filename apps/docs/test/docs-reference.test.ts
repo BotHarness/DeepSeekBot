@@ -13,6 +13,14 @@ describe("generated developer reference", () => {
   it("extracts the core config from its schema and defaults", () => {
     expect(reference.config).toEqual([
       {
+        name: 'privateInputWebUrl',
+        type: 'string',
+        default: undefined,
+        description:
+          'Explicit credential-free Web origin for IM private input links; never use a login token URL.',
+        source: 'packages/core/src/plugin.ts',
+      },
+      {
         name: "privateInputMcpServers",
         type: "LinuxMcpServer[]",
         default: [],

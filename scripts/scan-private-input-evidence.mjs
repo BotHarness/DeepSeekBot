@@ -6,12 +6,21 @@ import { zstdDecompressSync } from 'node:zlib';
 const home = resolve(process.argv[2] ?? '');
 if (process.argv.length !== 3)
   throw new Error('Usage: node scripts/scan-private-input-evidence.mjs <isolated-DSH_HOME>');
-const canaries = [
-  'SYNTHETIC-1380-key-A',
-  'SYNTHETIC-1380-secret-A',
-  'SYNTHETIC-1380-url-A',
-  'http://127.0.0.1:31381/status?marker=SYNTHETIC-1380-url-A',
-];
+const canaries = process.env.BOTHARNESS_PRIVATE_CANARY_FILE
+  ? JSON.parse(readFileSync(process.env.BOTHARNESS_PRIVATE_CANARY_FILE, 'utf8'))
+  : [
+      'SYNTHETIC-1380-key-A',
+      'SYNTHETIC-1380-secret-A',
+      'SYNTHETIC-1380-url-A',
+      'http://127.0.0.1:31381/status?marker=SYNTHETIC-1380-url-A',
+    ];
+if (
+  !Array.isArray(canaries) ||
+  canaries.length === 0 ||
+  canaries.length > 32 ||
+  !canaries.every((value) => typeof value === 'string' && value.length > 0 && value.length <= 16384)
+)
+  throw new Error('Invalid synthetic canary list');
 const patterns = [
   ...new Set(
     canaries.flatMap((value) => [

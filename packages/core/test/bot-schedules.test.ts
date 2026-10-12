@@ -447,12 +447,62 @@ describe('Bot Schedule Run now', () => {
 });
 
 describe('Bot Schedule firing', () => {
+  it('does not inherit private input interaction from a previous Human turn in the same Session', async () => {
+    const observations: Array<{ sessionId: string; interactive: boolean }> = [];
+    const core = createCore({
+      dshHome: createTempRoot('bh-schedule-private-origin-'),
+      agents: {
+        async runOrchestrator(run) {
+          observations.push({
+            sessionId: run.sessionId,
+            interactive: core.runtime.canRequestPrivateInput?.(run.sessionId) === true,
+          });
+        },
+        async runAssignment() {},
+        requestAssignment() {
+          throw new Error('No Assignment expected');
+        },
+        async close() {},
+      },
+    });
+    try {
+      core.registry.create({ slug: 'ada', displayName: 'Ada' });
+      const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
+      const admission = core.runtime.admitDmMessage({
+        channelId: dm.id,
+        messageId: 'interactive-origin',
+        body: 'Configure a private account',
+      });
+      if (!admission.admitted) throw new Error(admission.reason);
+      await admission.settled;
+      const schedule = core.schedules.create(
+        'ada',
+        {
+          title: 'Background private check',
+          prompt: `Use the account and reply in ${dm.id}`,
+          trigger: { kind: 'every', everySeconds: 3600 },
+        },
+        'human',
+      );
+      core.schedules.runNow('ada', schedule.id);
+      await core.runtime.whenIdle();
+      expect(observations.map((run) => run.interactive)).toEqual([true, false]);
+      expect(new Set(observations.map((run) => run.sessionId)).size).toBe(1);
+      expect(core.schedules.history('ada', schedule.id)[0]).toMatchObject({ state: 'handled' });
+    } finally {
+      core.schedules.close();
+      await core.runtime.close();
+      core.operationalDatabase.close();
+    }
+  });
+
   it('wakes the Orchestrator through the Bot Inbox and records the handling Session', async () => {
     const runs: OrchestratorAgentRun[] = [];
     const core = createCore({
       dshHome: createTempRoot('bh-schedule-wake-'),
       agents: {
         async runOrchestrator(run) {
+          expect(core.runtime.canRequestPrivateInput?.(run.sessionId)).toBe(false);
           runs.push(run);
         },
         async runAssignment() {},

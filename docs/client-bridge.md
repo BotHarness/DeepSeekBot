@@ -170,6 +170,12 @@ Windows 与 WSL 的 `~/.config/botharness/dev.env` 分属不同的用户目录�
 
 ## 8. 新消息附件的真实文件
 
+富文本输入中的换行使用真实 `<br>` 节点；末尾空行的占位节点仅用于保持光标与视觉位置，不计入正文或引用偏移。行内附件之后按 Shift+Enter，再输入文字或粘贴多行文本时，正文仍保留对应换行。
+
+附件卡片的角标编号只出现在 Composer 中；已发送消息仅在正文的行内引用块中保留编号，附件预览卡片和消息气泡不再重复显示角标。
+
+Composer 保留顶部附件预览，并在文件选择／粘贴的光标处插入行内引用；顶部附件的引用按钮可在另一位置再次插入。卡片右下角和行内引用展示相同的附件序号，按当前附件列表从 1 编号，移除附件后自动重排，重复引用沿用同一序号；序号只是展示投影，不写入附件身份。粘贴在捕获阶段收集浏览器提供的文件和图片（兼容 `clipboardData.files` 与 `items`），去重后沿用原上传路径；纯文本仍正常粘贴，不根据剪贴板文件路径读取本机文件。引用以正文中的 `[转义文件名](attachment:编码文件身份)` 保留，同名文件按 `fileId` 区分，上传中沿用 `file:<uploadId>`，不会新增持久附件权威。Client 只将当前草稿／消息实际持有的附件投影为不可拆分的引用块；未匹配的标记保持普通正文。删除引用不删除附件，移除附件则删除草稿中该文件的全部引用。发送后引用可定位消息的附件卡片；读取／打开仍经过原有 Channel／message 归属校验，标记本身不授权文件访问。
+
 `messageAttachmentTarget({channelId,messageId,fileId})` 由 Messaging 校验当前消息归属并返回 `{target:{path,relativePath,kind:'file'}}`，供 Human Client 使用现有 DSH 原生能力。下载 GET `/api/botharness/attachment?channelId=...&messageId=...&fileId=...` 每次验证同样归属，并以 `no-store` 返回当前字节；单独路径、文件名或 hash 不能启动新附件。旧 hash GET 必须同时携带原 Channel／message 归属；唯一匹配时读取迁移后的当前文件，缺失归属或含糊匹配拒绝。未转换依赖仍使用校验后的 CAS。Host 启动在 generation 39 的 Messaging 绑定中预留身份、验证转换并激活，保留原消息 envelope。POST upload 的可选 `uploadId` 是 Composer item UUID，响应新 `{fileId,name,mime,size}`。上传重试回执不覆盖外部编辑。消息读取投影当前元数据，发送幂等比较稳定身份与名称。详见[文件指南](file-open.zh.md)。
 
 ### External-only Lark report QA (#639)

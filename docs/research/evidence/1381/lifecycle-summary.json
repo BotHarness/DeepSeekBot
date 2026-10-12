@@ -1,0 +1,152 @@
+{
+  "source": "Real pinned RC1 Host; canonical SQLite Channel and native Credentials Service; allowlisted projection",
+  "requests": [
+    {
+      "id": "5e643897-b412-4595-9411-42ab7017224b",
+      "account": "lifecycle-A",
+      "sessionId": "botharness-4b46f9f5-0f2c-4db4-86d4-13c895d7a2bc",
+      "expiresAt": "2026-10-11T06:12:23.359Z",
+      "resolutionCount": 1,
+      "resolution": {
+        "requestMessageId": "5e643897-b412-4595-9411-42ab7017224b",
+        "state": "configured",
+        "references": {
+          "endpoint": "private:1b3e98c3-c314-44dc-b995-c9533e342c12:endpoint",
+          "api_key": "private:1b3e98c3-c314-44dc-b995-c9533e342c12:api_key",
+          "api_secret": "private:1b3e98c3-c314-44dc-b995-c9533e342c12:api_secret"
+        }
+      }
+    },
+    {
+      "id": "86cb2e04-5e8e-4644-9b3d-f8cb2335d615",
+      "account": "lifecycle-B",
+      "sessionId": "botharness-7e915326-7a75-4aa1-bd35-f94de4925350",
+      "expiresAt": "2026-10-11T06:12:49.721Z",
+      "resolutionCount": 1,
+      "resolution": {
+        "requestMessageId": "86cb2e04-5e8e-4644-9b3d-f8cb2335d615",
+        "state": "cancelled",
+        "references": {}
+      }
+    },
+    {
+      "id": "0e09dbad-26e7-485c-b9ba-ee0baf51aee1",
+      "account": "lifecycle-B-stop",
+      "sessionId": "botharness-7e915326-7a75-4aa1-bd35-f94de4925350",
+      "expiresAt": "2026-10-11T06:21:55.084Z",
+      "resolutionCount": 1,
+      "resolution": {
+        "requestMessageId": "0e09dbad-26e7-485c-b9ba-ee0baf51aee1",
+        "state": "configured",
+        "references": {
+          "endpoint": "private:094e9fd2-bbe3-43d0-8fe9-f715dfc7729f:endpoint",
+          "api_key": "private:094e9fd2-bbe3-43d0-8fe9-f715dfc7729f:api_key",
+          "api_secret": "private:094e9fd2-bbe3-43d0-8fe9-f715dfc7729f:api_secret"
+        }
+      }
+    },
+    {
+      "id": "0f822382-1ec2-4c66-94b3-bfba98c5b0ef",
+      "account": "lifecycle-B-native-stop",
+      "sessionId": "botharness-7e915326-7a75-4aa1-bd35-f94de4925350",
+      "expiresAt": "2026-10-11T06:25:03.981Z",
+      "resolutionCount": 1,
+      "resolution": {
+        "requestMessageId": "0f822382-1ec2-4c66-94b3-bfba98c5b0ef",
+        "state": "expired",
+        "references": {}
+      }
+    },
+    {
+      "id": "000574f6-cfec-4167-ae95-9266f02a9536",
+      "account": "lifecycle-B-restart",
+      "sessionId": "botharness-7e915326-7a75-4aa1-bd35-f94de4925350",
+      "expiresAt": "2026-10-11T06:26:16.638Z",
+      "resolutionCount": 1,
+      "resolution": {
+        "requestMessageId": "000574f6-cfec-4167-ae95-9266f02a9536",
+        "state": "expired",
+        "references": {}
+      }
+    }
+  ],
+  "credentialRecords": [
+    {
+      "key": "botharness-private/grant-1b3e98c3-c314-44dc-b995-c9533e342c12",
+      "kind": "grant",
+      "version": 2,
+      "account": "lifecycle-A",
+      "requestMessageId": "5e643897-b412-4595-9411-42ab7017224b",
+      "fieldCount": 3
+    },
+    {
+      "key": "botharness-private/grant-094e9fd2-bbe3-43d0-8fe9-f715dfc7729f",
+      "kind": "grant",
+      "version": 2,
+      "account": "lifecycle-B-stop",
+      "requestMessageId": "0e09dbad-26e7-485c-b9ba-ee0baf51aee1",
+      "fieldCount": 3
+    }
+  ],
+  "privateResolutionInboxAdmissions": 0,
+  "ownerLateSubmission": {
+    "nativeStopped": {
+      "accepted": false
+    },
+    "lostOnRestart": {
+      "accepted": false
+    }
+  },
+  "concurrentOwnerTabs": {
+    "requestId": "5e643897-b412-4595-9411-42ab7017224b",
+    "finalStatusBoth": "configured",
+    "nonemptyInputsBoth": 0
+  },
+  "fixture": {
+    "baseline": {
+      "requests": 5,
+      "authenticated": 5
+    },
+    "afterFirstApproval": {
+      "requests": 6,
+      "authenticated": 6
+    },
+    "afterStopAndRestartBeforeNewInstruction": {
+      "requests": 6,
+      "authenticated": 6
+    },
+    "afterExplicitReuseApproval": {
+      "requests": 7,
+      "authenticated": 7
+    }
+  },
+  "browser": {
+    "pageErrors": 0,
+    "viewport": {
+      "width": 1280,
+      "height": 800
+    }
+  },
+  "modelWire": {
+    "requests": 18,
+    "totalBodyBytes": 2342250,
+    "canaryMatches": 0
+  },
+  "persistedScan": {
+    "files": 1150,
+    "sessionEvents": 153,
+    "requestHeaders": 3,
+    "toolResults": 11,
+    "spillFiles": 0,
+    "nativeStoreContainsSyntheticValues": true,
+    "violations": []
+  },
+  "omitted": [
+    "raw credential values",
+    "full native records",
+    "full Session text/reasoning",
+    "authentication headers/tokens",
+    "local paths",
+    "HTTP response bodies/headers"
+  ]
+}

@@ -13,16 +13,28 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   Button: ({
     children,
     variant: _variant,
+    size: _size,
+    icon,
     ...props
-  }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string; children: ReactNode }) =>
-    createElement('button', props, children),
+  }: ButtonHTMLAttributes<HTMLButtonElement> & {
+    variant?: string;
+    size?: string;
+    icon?: ReactNode;
+    children: ReactNode;
+  }) => createElement('button', props, icon, children),
   Input: (props: InputHTMLAttributes<HTMLInputElement>) => createElement('input', props),
   MarkdownText: () => null,
   StateDot: () => null,
+  Tag: ({ children }: { children: ReactNode }) => createElement('span', {}, children),
   Modal: () => null,
   Switch: () => null,
   IconChevronDownOutlineRegular: () => null,
   IconCloseOutlineRegular: () => null,
+  IconRefreshOutlineRegular: () => null,
+  IconInfoOutlineRegular: () => null,
+  IconCheckOutlineRegular: () => null,
+  Tooltip: ({ children, label }: { children: ReactNode; label: string }) =>
+    createElement('span', { 'data-help-text': label }, children),
   IconFolderOpenOutlineRegular: () => null,
 }));
 
@@ -118,12 +130,111 @@ describe('private input card', () => {
       ],
     },
   };
+  it('offers replacement and revocation without restoring inputs and ignores a stale configured poll after revocation', async () => {
+    vi.useFakeTimers();
+    try {
+      let stale!: (value: { status: 'configured'; references: Record<string, string> }) => void;
+      const actions = {
+        privateInputStatus: vi.fn().mockResolvedValue('configured'),
+        privateAccountStatus: vi
+          .fn()
+          .mockResolvedValueOnce({ status: 'configured', references: {} })
+          .mockImplementationOnce(
+            () =>
+              new Promise((resolve) => {
+                stale = resolve;
+              }),
+          )
+          .mockResolvedValue({ status: 'revoked', references: {} }),
+        privateInputReplace: vi.fn().mockResolvedValue(undefined),
+        privateAccountRevoke: vi
+          .fn()
+          .mockResolvedValue({ accepted: true, stopped: 1, completed: 0, uncertain: 0 }),
+      } as unknown as BridgeActions;
+      await act(async () => render(actions, undefined, card));
+      expect(container.querySelector('input')).toBeNull();
+      expect(button('替换')?.textContent).toBe('替换');
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2500);
+      });
+      await act(async () => button('撤销')?.click());
+      await act(async () => stale({ status: 'configured', references: {} }));
+      expect(button('替换')).toBeUndefined();
+      expect(container.textContent).toContain('本地访问已撤销');
+      expect(container.textContent).toContain('已停止 1');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('converges a duplicate-tab revocation refusal to the canonical terminal state', async () => {
+    const actions = {
+      privateInputStatus: vi.fn().mockResolvedValue('configured'),
+      privateAccountStatus: vi
+        .fn()
+        .mockResolvedValueOnce({ status: 'configured', references: {} })
+        .mockResolvedValue({ status: 'revoked', references: {} }),
+      privateAccountRevoke: vi.fn().mockRejectedValue(new Error('already changed')),
+    } as unknown as BridgeActions;
+    await act(async () => render(actions, undefined, card));
+    await act(async () => button('撤销')?.click());
+    expect(container.textContent).toContain('本地访问已撤销');
+    expect(container.querySelector('[role=alert]')).toBeNull();
+    expect(button('撤销')).toBeUndefined();
+  });
+
+  it('opens a blank replacement with the concise action without revoking the configured account', async () => {
+    const actions = {
+      privateInputStatus: vi.fn().mockResolvedValue('configured'),
+      privateAccountStatus: vi.fn().mockResolvedValue({ status: 'configured', references: {} }),
+      privateInputReplace: vi.fn().mockResolvedValue(undefined),
+      privateAccountRevoke: vi.fn(),
+    } as unknown as BridgeActions;
+    await act(async () => render(actions, undefined, card));
+    expect(button('替换')?.textContent).toBe('替换');
+    expect(button('撤销')?.textContent).toBe('撤销');
+    await act(async () => button('替换')?.click());
+    expect(actions.privateInputReplace).toHaveBeenCalledWith(channel.id, card.id);
+    expect(actions.privateAccountRevoke).not.toHaveBeenCalled();
+    expect(container.querySelector('input')).toBeNull();
+  });
+
+  it('keeps the account and state visible while supplementary details belong to an accessible help control', async () => {
+    const actions = {
+      privateInputStatus: vi.fn().mockResolvedValue('configured'),
+      privateInputSubmit: vi.fn(),
+    } as unknown as BridgeActions;
+    await act(async () =>
+      render(actions, undefined, {
+        ...card,
+        privateInputRequest: {
+          ...card.privateInputRequest!,
+          expiresAt: '2026-10-11T08:30:00.000Z',
+          replacesMessageId: 'previous-private-request',
+        },
+      }),
+    );
+    expect(container.textContent).toContain('controlled');
+    expect(container.textContent).toContain('已提交');
+    expect(container.textContent).not.toContain('仅 Host 保存原值');
+    expect(container.textContent).not.toContain('旧值不会被取回');
+    const help = container.querySelector<HTMLButtonElement>('button[aria-label="私密信息的说明"]');
+    expect(help).not.toBeNull();
+    expect(help?.getAttribute('type')).toBe('button');
+    const details = help?.closest('[data-help-text]')?.getAttribute('data-help-text');
+    expect(details).toContain('仅 Host 保存原值');
+    expect(details).toContain('旧值不会被取回');
+    expect(details).toContain('有效期至');
+    await act(async () => help?.click());
+    expect(actions.privateInputSubmit).not.toHaveBeenCalled();
+    expect(container.textContent).toContain('已提交');
+  });
 
   it('clears multiple private fields before awaiting the direct submission', async () => {
     let finish!: () => void;
     let submitted: Record<string, string> | undefined;
     const actions = {
-      privateInputStatus: vi.fn().mockResolvedValue('pending'),
+      privateInputStatus: vi.fn().mockResolvedValueOnce('pending').mockResolvedValue('configured'),
       privateInputSubmit: vi.fn((_channel, _message, values: Record<string, string>) => {
         submitted = { ...values };
         expect([...container.querySelectorAll('input')].every((input) => input.value === '')).toBe(
@@ -147,7 +258,7 @@ describe('private input card', () => {
     expect(actions.send).not.toHaveBeenCalled();
     await act(async () => finish());
     expect(container.querySelector('input')).toBeNull();
-    expect(container.textContent).toContain('已配置私密信息');
+    expect(container.textContent).toContain('已提交');
     expect(container.textContent).not.toContain('synthetic secret');
   });
 
@@ -166,6 +277,138 @@ describe('private input card', () => {
       true,
     );
     expect(container.textContent).toContain('未能完成请求');
+    expect(container.textContent).not.toContain('synthetic secret');
+  });
+
+  it('converges a duplicate-tab refusal to configured without retaining an error', async () => {
+    const actions = {
+      privateInputStatus: vi.fn().mockResolvedValueOnce('pending').mockResolvedValue('configured'),
+      privateInputSubmit: vi.fn().mockRejectedValue(new Error('Already settled')),
+    } as unknown as BridgeActions;
+    await act(async () => render(actions, undefined, card));
+    for (const input of container.querySelectorAll('input')) input.value = 'synthetic secret';
+    await act(async () => button('私密提交')?.click());
+    expect(container.querySelector('input')).toBeNull();
+    expect(container.textContent).toContain('已提交');
+    expect(container.textContent).not.toContain('未能完成请求');
+    expect(container.textContent).not.toContain('synthetic secret');
+  });
+
+  it('keeps a committed terminal status when an older pending poll arrives later', async () => {
+    vi.useFakeTimers();
+    try {
+      let stale!: (status: 'pending') => void;
+      const actions = {
+        privateInputStatus: vi
+          .fn()
+          .mockResolvedValueOnce('pending')
+          .mockImplementationOnce(
+            () =>
+              new Promise<'pending'>((resolve) => {
+                stale = resolve;
+              }),
+          )
+          .mockResolvedValue('configured'),
+        privateInputSubmit: vi.fn().mockResolvedValue(undefined),
+      } as unknown as BridgeActions;
+      await act(async () => render(actions, undefined, card));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2500);
+      });
+      for (const input of container.querySelectorAll('input')) input.value = 'synthetic secret';
+      await act(async () => button('私密提交')?.click());
+      expect(container.textContent).toContain('已提交');
+      await act(async () => stale('pending'));
+      expect(container.querySelector('input')).toBeNull();
+      expect(container.textContent).toContain('已提交');
+      expect(container.textContent).not.toContain('synthetic secret');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('ignores an old pending poll rejection after configured settlement', async () => {
+    vi.useFakeTimers();
+    try {
+      let reject!: (error: Error) => void;
+      const actions = {
+        privateInputStatus: vi
+          .fn()
+          .mockResolvedValueOnce('pending')
+          .mockImplementationOnce(
+            () =>
+              new Promise((_resolve, failure) => {
+                reject = failure;
+              }),
+          )
+          .mockResolvedValue('configured'),
+        privateInputSubmit: vi.fn().mockResolvedValue(undefined),
+      } as unknown as BridgeActions;
+      await act(async () => render(actions, undefined, card));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2500);
+      });
+      for (const input of container.querySelectorAll('input')) input.value = 'synthetic secret';
+      await act(async () => button('私密提交')?.click());
+      await act(async () => reject(new Error('Stale status failure')));
+      expect(container.textContent).toContain('已提交');
+      expect(container.textContent).not.toContain('未能完成请求');
+      expect(container.querySelector('input')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('keeps a replacement form editable and does not let an old submit clear its fields', async () => {
+    let finish!: () => void;
+    const original = {
+      privateInputStatus: vi.fn().mockResolvedValue('pending'),
+      privateInputSubmit: vi.fn(
+        () =>
+          new Promise<void>((resolve) => {
+            finish = resolve;
+          }),
+      ),
+    } as unknown as BridgeActions;
+    await act(async () => render(original, undefined, card));
+    for (const input of container.querySelectorAll('input')) input.value = 'synthetic old secret';
+    await act(async () => button('私密提交')?.click());
+    const replacement = {
+      privateInputStatus: vi.fn().mockResolvedValueOnce('pending').mockResolvedValue('configured'),
+      privateInputSubmit: vi.fn().mockResolvedValue(undefined),
+    } as unknown as BridgeActions;
+    await act(async () => render(replacement, undefined, { ...card, id: 'replacement-card' }));
+    expect(button('私密提交')?.disabled).toBe(false);
+    const fields = [...container.querySelectorAll('input')];
+    for (const input of fields) input.value = 'synthetic replacement secret';
+    await act(async () => finish());
+    expect(fields.every((input) => input.value === 'synthetic replacement secret')).toBe(true);
+    await act(async () => button('私密提交')?.click());
+    expect(replacement.privateInputSubmit).toHaveBeenCalledTimes(1);
+    expect(container.textContent).toContain('已提交');
+    expect(fields.every((input) => input.value === '')).toBe(true);
+  });
+
+  it('clears cancelled fields and reloads an expired card as metadata only', async () => {
+    const actions = {
+      privateInputStatus: vi.fn().mockResolvedValueOnce('pending').mockResolvedValue('cancelled'),
+      privateInputCancel: vi.fn().mockResolvedValue(undefined),
+      privateInputSubmit: vi.fn(),
+    } as unknown as BridgeActions;
+    await act(async () => render(actions, undefined, card));
+    const inputs = [...container.querySelectorAll('input')];
+    for (const input of inputs) input.value = 'synthetic secret';
+    await act(async () => button('取消')?.click());
+    expect(actions.privateInputCancel).toHaveBeenCalledTimes(1);
+    expect(inputs.every((input) => input.value === '')).toBe(true);
+    expect(container.querySelector('input')).toBeNull();
+    expect(container.textContent).toContain('已取消');
+    const expired = {
+      privateInputStatus: vi.fn().mockResolvedValue('expired'),
+    } as unknown as BridgeActions;
+    await act(async () => render(expired, undefined, { ...card, id: 'lost-card' }));
+    expect(container.querySelector('input')).toBeNull();
+    expect(container.textContent).toContain('已过期');
     expect(container.textContent).not.toContain('synthetic secret');
   });
 });

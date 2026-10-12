@@ -44,7 +44,14 @@ export class WorkspaceGrantError extends Error {
 }
 export interface WorkspaceGrantStore {
   list(botSlug: string): WorkspaceGrant[];
-  create(botSlug: string, workspaceId: string): Promise<WorkspaceGrant>;
+  create(
+    botSlug: string,
+    workspaceId: string,
+    confirmation?: {
+      validate(): void;
+      onCreated(): void;
+    },
+  ): Promise<WorkspaceGrant>;
   revoke(botSlug: string, grantId: string): WorkspaceGrant;
   requireActive(botSlug: string, grantId: string): WorkspaceGrant;
   setOrchestratorWrite(botSlug: string, grantId: string, enabled: boolean): WorkspaceGrant;
@@ -118,7 +125,7 @@ export function createWorkspaceGrantStore(options: {
       ) as unknown as GrantRow[];
       return rows.map(toRecord);
     },
-    async create(botSlug, workspaceId) {
+    async create(botSlug, workspaceId, confirmation) {
       const activeAtStart = database.read(
         (connection) =>
           connection
@@ -146,6 +153,16 @@ export function createWorkspaceGrantStore(options: {
         );
       }
       const at = now().toISOString();
+      let created = false;
+      let refusal = 'Workspace Grant was revoked while authorization was pending';
+      confirmation?.validate();
+      const current = lookup().get(workspaceId);
+      if (current?.path !== workspace.path || !isCurrentDirectory(workspace.path)) {
+        throw new WorkspaceGrantError(
+          'unavailable-workspace',
+          'Workspace changed while authorization was pending',
+        );
+      }
       const row = database.transaction(
         (connection) => {
           const existing = connection
@@ -166,13 +183,20 @@ export function createWorkspaceGrantStore(options: {
           ) {
             return undefined;
           }
-          if (existing !== undefined) return existing;
+          if (existing !== undefined) {
+            if (existing.workspace_path !== workspace.path) {
+              refusal = 'Existing Workspace Grant no longer matches the directory';
+              return undefined;
+            }
+            return existing;
+          }
           const id = createId();
           connection
             .prepare(
               'INSERT INTO workspace_grants (id, bot_slug, workspace_id, workspace_path, workspace_title, created_at) VALUES (?, ?, ?, ?, ?, ?)',
             )
             .run(id, botSlug, workspaceId, workspace.path, workspace.title, at);
+          created = true;
           return connection
             .prepare('SELECT * FROM workspace_grants WHERE id = ?')
             .get(id) as unknown as GrantRow;
@@ -180,11 +204,9 @@ export function createWorkspaceGrantStore(options: {
         ['workspace-grants'],
       );
       if (row === undefined) {
-        throw new WorkspaceGrantError(
-          'invalid-grant',
-          'Workspace Grant was revoked while authorization was pending',
-        );
+        throw new WorkspaceGrantError('invalid-grant', refusal);
       }
+      if (created) confirmation?.onCreated();
       return toRecord(row);
     },
     revoke(botSlug, grantId) {

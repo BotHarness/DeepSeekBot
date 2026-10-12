@@ -194,6 +194,69 @@ async function fixture(ordinaryRole = false) {
   };
 }
 
+it('current group grants execute Allow once/Reject and a new group Deny refuses an already delivered native card', async () => {
+  const f = await fixture(true);
+  const role = f.role!;
+  f.core.externalMessaging.senderAccess('ada', {
+    kind: 'edit-role',
+    id: role.id,
+    expectedRevision: role.revision,
+    name: role.name,
+    behavior: role.behavior,
+    capabilities: [],
+  });
+  f.core.externalMessaging.senderAccess('ada', {
+    kind: 'create-group',
+    bindingId: f.binding.id,
+    name: 'Reviewers',
+    allow: ['approve', 'reject'],
+    deny: [],
+    memberIds: [f.approved.id],
+  });
+  const allowed = await f.start('group-allow');
+  await vi.waitFor(() =>
+    expect(
+      f.core.externalMessaging.approvals
+        .snapshot('ada')
+        .deliveries.find((delivery) => delivery.id === allowed.delivery.id)?.delivery,
+    ).toBe('sent'),
+  );
+  expect(await f.action(allowed.delivery.id)).toMatchObject({ status: 'queued' });
+  expect(await allowed.answer).toBe('allowed-once');
+  const rejected = await f.start('group-reject');
+  await vi.waitFor(() =>
+    expect(
+      f.core.externalMessaging.approvals
+        .snapshot('ada')
+        .deliveries.find((delivery) => delivery.id === rejected.delivery.id)?.delivery,
+    ).toBe('sent'),
+  );
+  expect(await f.action(rejected.delivery.id, { action: 'rejected' })).toMatchObject({
+    status: 'queued',
+  });
+  expect(await rejected.answer).toBe('rejected');
+  const delayed = await f.start('group-delayed');
+  await vi.waitFor(() =>
+    expect(
+      f.core.externalMessaging.approvals
+        .snapshot('ada')
+        .deliveries.find((delivery) => delivery.id === delayed.delivery.id)?.delivery,
+    ).toBe('sent'),
+  );
+  f.core.externalMessaging.senderAccess('ada', {
+    kind: 'create-group',
+    bindingId: f.binding.id,
+    name: 'Suspended approval',
+    allow: [],
+    deny: ['approve'],
+    memberIds: [f.approved.id],
+  });
+  expect(await f.action(delayed.delivery.id)).toMatchObject({ status: 'refused' });
+  expect(f.owner.status('ada', delayed.delivery.id)).toBe('pending');
+  expect(await f.owner.decide('ada', delayed.delivery.id, 'allowed-once')).toBe(true);
+  expect(await delayed.answer).toBe('allowed-once');
+});
+
 it('current ordinary Role capabilities settle native requests and removed capabilities refuse delayed cards', async () => {
   const f = await fixture(true);
   const allowed = await f.start('role-allow');

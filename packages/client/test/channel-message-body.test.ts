@@ -8,6 +8,7 @@ import { MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { BridgeActions } from '../src/client/actions.js';
 import { ChannelMessageBody } from '../src/client/channel-message-body.js';
+import { attachmentReferenceText } from '../src/client/attachment-refs.js';
 import { parseChannelMessage } from '../src/client/bridge.js';
 import { zhTranslate } from '../src/client/locale.js';
 import { WORKSPACE_GRANTS_CHANGED } from '../src/client/workspace-grants-entry.js';
@@ -70,6 +71,31 @@ function render(
 beforeEach(() => vi.mocked(MarkdownText).mockClear());
 
 describe('Channel message body', () => {
+  it('shows a sent inline reference only for an attachment owned by that message', () => {
+    const ref = { fileId: 'file:report', name: 'report.txt', mime: 'text/plain', size: 5 };
+    const text = attachmentReferenceText({
+      id: 'report',
+      file: { name: ref.name, size: ref.size },
+      ref,
+      status: 'ready',
+    });
+    const html = render({ kind: 'human' }, `use ${text}`, { attachments: [ref] });
+    expect(html).toContain('定位附件 report.txt');
+    expect(html).toContain('class="bh-attachment-ordinal">1</span>');
+    expect(html).not.toContain('bh-message-attachment-ordinal');
+    expect(html).not.toContain('attachment:file%3Areport');
+    expect(render({ kind: 'human' }, `use ${text}`)).not.toContain('定位附件 report.txt');
+    expect(render({ kind: 'human' }, `use ${text}`)).toContain('attachment:file%3Areport');
+  });
+  it.each(['text/plain', 'image/png', 'audio/mpeg'])(
+    'omits corner numbers from sent %s attachment cards',
+    (mime) => {
+      const attachments = [{ fileId: 'file:report', name: 'report', mime, size: 5 }];
+      const html = render({ kind: 'human' }, 'attached', { attachments });
+      expect(html).toContain('bh-message-attachment');
+      expect(html).not.toContain('bh-message-attachment-ordinal');
+    },
+  );
   it.each([
     ['discord', '<@123>', '<@123>next <@123> <@999>', '@QA <Bot>next @QA <Bot> <@999>'],
     ['feishu', '@_user_1', '@_user_1 @_user_10 @_user_1', '@QA <Bot> @_user_10 @QA <Bot>'],

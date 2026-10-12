@@ -305,6 +305,7 @@ function stubActions(): BridgeActions {
     importLibraryParts: vi.fn(async () => ({ added: [], refused: 0 })),
     importLibraryImage: vi.fn(async () => ({ error: 'unavailable' })),
     profileUsage: vi.fn(),
+    profileSessionUsage: vi.fn(),
     profileActivity: vi.fn(async () => ({
       slug: '',
       weeks: 26,
@@ -360,6 +361,9 @@ function stubActions(): BridgeActions {
     }),
     listWorkspaceOptions: vi.fn(async () => []),
     listWorkspaceGrants: vi.fn(async () => []),
+    authorizeGroupWorkspacePath: vi.fn(),
+    resolveWorkspaceFolder: vi.fn(),
+    readGroupWorkspaceGrant: vi.fn(),
     createWorkspaceGrant: vi.fn(async () => ({
       id: 'grant-1',
       path: '/project',

@@ -186,13 +186,39 @@ finish() {
 
 TOTAL_STAGES=3
 umask 077
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="${BASH_SOURCE[0]%/*}"
+[[ "$SCRIPT_DIR" != "${BASH_SOURCE[0]}" ]] || SCRIPT_DIR=.
 ENV_FILE="${BOTHARNESS_IM_TEST_APPS_ENV:-$(node -p "require('node:path').join(require('node:os').homedir(), '.config', 'botharness', 'im-test-apps.env').replaceAll(String.fromCharCode(92), '/')")}"
 node "$SCRIPT_DIR/dev-im-test-apps.mjs" protect "$ENV_FILE"
-touch "$ENV_FILE"
-chmod 600 "$ENV_FILE"
 # Keep write_env's replacement files inside the protected shared directory.
-export TMPDIR="$(dirname "$ENV_FILE")"
+export TMPDIR="${ENV_FILE%/*}"
+
+# The shared template stays unchanged. Avoid launching grep/tail for every prompt
+# and tput for every stage on Windows; use one literal, private file snapshot.
+declare -A IM_TEST_APP_VALUES=()
+while IFS= read -r line || [[ -n "$line" ]]; do
+  if [[ "$line" =~ ^(BH_IM_QA_SLOT|BH_LARK_QA[123]_[A-Z_]+)=(.*)$ ]]; then
+    IM_TEST_APP_VALUES["${BASH_REMATCH[1]}"]="${BASH_REMATCH[2]}"
+  fi
+done < "$ENV_FILE"
+_existing() {
+  [[ -v "IM_TEST_APP_VALUES[$1]" ]] || return 1
+  printf '%s' "${IM_TEST_APP_VALUES[$1]}"
+}
+_clear() {
+  [[ -t 1 ]] || return 0
+  printf '\033[2J\033[H'
+}
+write_values() {
+  local entry key
+  printf '%s\n' "$@" | node "$SCRIPT_DIR/dev-im-test-apps.mjs" save
+  for entry in "$@"; do
+    key="${entry%%=*}"
+    IM_TEST_APP_VALUES["$key"]="${entry#*=}"
+    WRITTEN_ENV+=("$key")
+  done
+  printf '  ✓ 已保存本阶段配置。\n'
+}
 
 banner "BotHarness 独立 Lark 测试 App 配置"
 
@@ -200,7 +226,8 @@ stage "选择固定测试槽与独立 App"
 say "使用 QA1、QA2 或 QA3 固定槽；每个槽只对应一个独立测试 App。跨 worktree、branch 和 session 复用，不必重新创建。"
 say "再次运行时按 Enter 保留现有名称和凭据；历史空闲确认不代表当前窗口。"
 say "本向导不启动接收器、不停止其他 Host、不配置生产 App。"
-open_url "https://open.larksuite.com/app"
+say "本向导只显示链接；请在已有浏览器中手动打开。"
+say "https://open.larksuite.com/app"
 step "扫码登录，选择已有独立测试 App；或创建 Company-built app。"
 step "不要复用已有活跃任务的 Onboarding QA #824，也不要选择生产 DeepSeekBot。"
 ask BH_IM_QA_SLOT "测试槽 [QA1/QA2/QA3]:"
@@ -210,14 +237,12 @@ ask "${prefix}_NAME" "App 的控制台显示名称:"
 name_key="${prefix}_NAME"
 [[ -n "${!name_key}" && ! "${!name_key}" =~ [[:cntrl:]] ]] || { warn "App 名称不能包含控制字符；请重新输入。"; exit 1; }
 confirm "确认这是独立测试 App，并且当前没有任何其他接收器运行？" || exit 1
-write_env BH_IM_QA_SLOT "$BH_IM_QA_SLOT"
-write_env "$name_key" "${!name_key}"
-write_env "${prefix}_DOMAIN" "lark"
 # An operator statement, not an automatic lock or continuing receiver lease.
-write_env "${prefix}_RECEIVER_CHECKED_AT" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+write_values "BH_IM_QA_SLOT=$BH_IM_QA_SLOT" "$name_key=${!name_key}" \
+  "${prefix}_DOMAIN=lark" "${prefix}_RECEIVER_CHECKED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 stage "私密保存 App 凭据"
-open_url "https://open.larksuite.com/app"
+say "手动打开：https://open.larksuite.com/app"
 step "进入所选 App → Credentials & Basic Info。App ID 与 App Secret 必须来自同一 App。"
 ask "${prefix}_APP_ID" "复制 App ID（cli_ 开头）:"
 id_key="${prefix}_APP_ID"
@@ -225,25 +250,23 @@ id_key="${prefix}_APP_ID"
 ask_secret "${prefix}_APP_SECRET" "复制 App Secret（隐藏输入）:"
 secret_key="${prefix}_APP_SECRET"
 [[ "${!secret_key}" =~ ^[A-Za-z0-9_-]+$ ]] || { warn "App Secret 为空或格式无效。"; exit 1; }
-write_env "$id_key" "${!id_key}"
-write_env "$secret_key" "${!secret_key}"
-chmod 600 "$ENV_FILE"
+write_values "$id_key=${!id_key}" "$secret_key=${!secret_key}"
 note "凭据仅保存在机器本地；请勿 source 此文件（名称可能含空格）。由配置加载器按键值读取。"
 
 stage "核对 Bot、最小权限和消息事件"
-open_url "https://open.larksuite.com/app/${!id_key}"
+say "手动打开：https://open.larksuite.com/app/${!id_key}"
 step "Add Features → 添加 Bot 能力。"
 step "Permissions & Scopes → Tenant token：核对群 @ 接收 im:message.group_at_msg:readonly、发送 im:message:send_as_bot 和读取 im:message:readonly。"
 step "DM 接收权限以消息事件页面当前列出的应用身份权限为准。普通群消息和完整群历史权限不属于本次最小配对验证。"
-open_url "https://open.larksuite.com/document/server-docs/im-v1/message/events/receive"
+say "消息事件参考：https://open.larksuite.com/document/server-docs/im-v1/message/events/receive"
 step "Events & Callbacks → Event Configuration：使用 Persistent connection，订阅 im.message.receive_v1。"
 note "若平台要求已建立长连接后才能保存事件：先保存此配置，等本次隔离 Host 就绪后完成事件步骤。不要临时启动第二个 SDK receiver。"
 step "Version Management & Release → 创建并发布测试版本，完成组织审批与测试用户可用范围。"
 step "把应用 Bot 加入专用测试群；使用你的正常 Lark 客户端发送后续真实 DM/群 @。"
 if confirm "上述配置已完成并发布？"; then
-  write_env "${prefix}_CONSOLE_READY" "yes"
+  write_values "${prefix}_CONSOLE_READY=yes"
 else
-  write_env "${prefix}_CONSOLE_READY" "pending"
+  write_values "${prefix}_CONSOLE_READY=pending"
   SKIPPED+=("完成长连接事件配置、测试版本发布与测试群添加")
 fi
 say "完成后告诉代理所选 QA 槽；无需发送 App Secret。启动前仍须重新核验接收器独占。"

@@ -16,11 +16,11 @@ afterEach(async () => {
     core.operationalDatabase.close();
   }
 });
-function dm(id: string): MessagingInboundEvent {
+function dm(id: string, platform: 'feishu' | 'slack' = 'feishu'): MessagingInboundEvent {
   return {
     version: 1,
-    channel: 'feishu',
-    botId: 'lark-app',
+    channel: platform,
+    botId: platform === 'slack' ? 'slack-app' : 'lark-app',
     fingerprint,
     eventId: `ev-${id}`,
     messageId: `om-${id}`,
@@ -34,7 +34,11 @@ function dm(id: string): MessagingInboundEvent {
     replay: { kind: 'provider-redelivery', resumeCursor: false, gapPossible: true },
   };
 }
-async function fixture(options: { capability?: boolean; version?: boolean } = {}) {
+async function fixture(
+  options: { capability?: boolean; version?: boolean; platform?: 'feishu' | 'slack' } = {},
+) {
+  const platform = options.platform ?? 'feishu';
+  const botId = platform === 'slack' ? 'slack-app' : 'lark-app';
   const home = createTempRoot('botharness-feedback-');
   const reactions: { messageId: string; reaction: string }[] = [];
   const replies: string[] = [];
@@ -61,12 +65,12 @@ async function fixture(options: { capability?: boolean; version?: boolean } = {}
     replyReceiptVersion: 1,
     replyFenceVersion: 1,
     ...(options.version === false ? {} : { reactionVersion: 1 as const }),
-    listBots: async () => [{ botId: 'lark-app', channel: 'feishu' }],
+    listBots: async () => [{ botId, channel: platform }],
     listTargets: async () => [],
     describeBot: async (botId) => ({
       version: 1,
       botId,
-      channel: 'feishu',
+      channel: platform,
       connected: true,
       account: { fingerprint, name: 'QA' },
       capabilities: [
@@ -114,7 +118,7 @@ async function fixture(options: { capability?: boolean; version?: boolean } = {}
       return { accepted: true as const };
     }),
   };
-  const register = () => core.externalMessaging.register(createDshImProvider(transport)!);
+  const register = () => core.externalMessaging.register(createDshImProvider(transport, platform)!);
   let dispose = register();
   const idle = async () => {
     for (let i = 0; i < 4; i++) await tick();
@@ -123,8 +127,8 @@ async function fixture(options: { capability?: boolean; version?: boolean } = {}
   };
   await core.externalMessaging.identity('ada', {
     kind: 'bind',
-    providerId: 'dsh-im/feishu',
-    accountRef: 'lark-app',
+    providerId: `dsh-im/${platform}`,
+    accountRef: botId,
     fingerprint,
   });
   await idle();
@@ -198,6 +202,173 @@ it('checked DM admission and accepted source reply produce two source-specific r
       ],
     },
   });
+});
+
+it.each(['dm', 'group'] as const)(
+  'Slack %s feedback follows admission and the accepted original-source reply, without replay',
+  async (kind) => {
+    const fx = await fixture({ platform: 'slack' });
+    const event = {
+      ...dm('slack-source', 'slack'),
+      conversation: { kind, id: 'oc_owner' },
+      mentionedAccount: kind === 'group',
+      reply: {
+        messageId: 'om-slack-source',
+        conversationId: 'oc_owner',
+        actorId: 'ou_owner',
+        ...(kind === 'group' ? { rootId: 'slack-thread-root' } : {}),
+      },
+    };
+    expect(
+      (await createDshImProvider(fx.transport, 'slack')!.accounts())[0]?.reactionSupported,
+    ).toBe(true);
+    await fx.receive(event);
+    await fx.idle();
+    expect(fx.reactions).toEqual([{ messageId: 'om-slack-source', reaction: 'received' }]);
+    expect(
+      await fx.core.externalMessaging.reply('ada', fx.sourceId(event.messageId), 'Answer'),
+    ).toMatchObject({ state: 'provider-accepted' });
+    await fx.idle();
+    expect(fx.transport.reactionChecked).toHaveBeenLastCalledWith(
+      'slack-app',
+      event.reply,
+      'answered',
+      expect.objectContaining({ expectedFingerprint: fingerprint }),
+    );
+    await fx.receive({ ...event, eventId: 'slack-redelivery' });
+    await fx.restart();
+    await fx.receive({ ...event, eventId: 'slack-reconnect' });
+    await fx.idle();
+    expect(fx.reactions).toEqual([
+      { messageId: 'om-slack-source', reaction: 'received' },
+      { messageId: 'om-slack-source', reaction: 'answered' },
+    ]);
+    expect(fx.replies).toEqual(['om-slack-source']);
+  },
+);
+
+it.each([{ version: false }, { capability: false }])(
+  'Slack without checked reaction support retains intake and replies: %j',
+  async (options) => {
+    const fx = await fixture({ ...options, platform: 'slack' });
+    await fx.receive(dm('slack-source', 'slack'));
+    await fx.idle();
+    await fx.core.externalMessaging.reply('ada', fx.sourceId('om-slack-source'), 'Answer');
+    await fx.idle();
+    expect(fx.runs).toBe(1);
+    expect(fx.replies).toEqual(['om-slack-source']);
+    expect(fx.reactions).toEqual([]);
+    expect((await fx.core.externalMessaging.snapshot('ada')).feedback?.[0]?.attempts).toMatchObject(
+      {
+        received: { state: 'unavailable' },
+        answered: { state: 'unavailable' },
+      },
+    );
+  },
+);
+
+it('Slack muted and context-only sources have no feedback, including explicit muted replies', async () => {
+  const fx = await fixture({ platform: 'slack' });
+  await fx.receive(dm('first', 'slack'));
+  await fx.idle();
+  const grant = (await fx.core.externalMessaging.snapshot('ada')).grants[0]!;
+  await fx.core.externalMessaging.conversation('ada', {
+    kind: 'mute',
+    grantId: grant.id,
+    expectedRevision: grant.preferenceRevision ?? 0,
+    muted: true,
+  });
+  await fx.receive(dm('muted', 'slack'));
+  await fx.idle();
+  await fx.core.externalMessaging.reply('ada', fx.sourceId('om-muted'), 'Explicit reply');
+  await fx.receive({
+    ...dm('ordinary', 'slack'),
+    conversation: { kind: 'group', id: 'context-only-channel' },
+    reply: {
+      messageId: 'om-ordinary',
+      conversationId: 'context-only-channel',
+      actorId: 'ou_owner',
+    },
+  });
+  await fx.idle();
+  expect(fx.runs).toBe(1);
+  expect(fx.reactions).toEqual([{ messageId: 'om-first', reaction: 'received' }]);
+});
+
+it('Slack feedback rechecks mute at dispatch after a pending capability call', async () => {
+  const fx = await fixture({ platform: 'slack' });
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  fx.transport.reactionChecked = vi.fn(async (_id, _route, _reaction, input) => {
+    await gate;
+    expect(input.beforeSend()).toBe(false);
+    throw Object.assign(new Error('source muted'), { code: 'stale-route' });
+  });
+  await fx.receive(dm('slack-source', 'slack'));
+  await fx.idle();
+  const grant = (await fx.core.externalMessaging.snapshot('ada')).grants[0]!;
+  await fx.core.externalMessaging.conversation('ada', {
+    kind: 'mute',
+    grantId: grant.id,
+    expectedRevision: grant.preferenceRevision ?? 0,
+    muted: true,
+  });
+  release();
+  await fx.idle();
+  expect(fx.reactions).toEqual([]);
+  expect(
+    (await fx.core.externalMessaging.snapshot('ada')).feedback?.[0]?.attempts.received,
+  ).toMatchObject({ state: 'failed' });
+});
+
+it('Slack silence, failed or uncertain replies and proactive sends never claim an answer', async () => {
+  const fx = await fixture({ platform: 'slack' });
+  for (const name of ['silence', 'failed', 'unknown', 'notice']) {
+    await fx.receive(dm(name, 'slack'));
+  }
+  await fx.idle();
+  fx.transport.replyChecked = async (_id, route) => {
+    if (route.messageId === 'om-failed')
+      throw Object.assign(new Error('denied'), { code: 'stale-route' });
+    throw new Error('unknown transport result');
+  };
+  for (const name of ['failed', 'unknown']) {
+    await fx.core.externalMessaging.reply('ada', fx.sourceId(`om-${name}`), 'Answer');
+  }
+  const grant = (await fx.core.externalMessaging.snapshot('ada')).grants[0]!;
+  await fx.core.externalMessaging.send(
+    'ada',
+    grant.id,
+    'slack-notice',
+    'Notice',
+    fx.sourceId('om-notice'),
+  );
+  await fx.idle();
+  expect(fx.reactions).toHaveLength(4);
+  expect(fx.reactions.every((reaction) => reaction.reaction === 'received')).toBe(true);
+});
+
+it('Slack reaction failure is isolated and is not retried after redelivery or restart', async () => {
+  const fx = await fixture({ platform: 'slack' });
+  fx.transport.reactionChecked = vi.fn(async () => {
+    throw Object.assign(new Error('scope denied'), { code: 'reaction-permission-denied' });
+  });
+  const event = dm('slack-source', 'slack');
+  await fx.receive(event);
+  await fx.idle();
+  expect(
+    await fx.core.externalMessaging.reply('ada', fx.sourceId(event.messageId), 'Answer'),
+  ).toMatchObject({ state: 'provider-accepted' });
+  await fx.idle();
+  expect(fx.transport.reactionChecked).toHaveBeenCalledTimes(2);
+  await fx.receive({ ...event, eventId: 'slack-redelivery' });
+  await fx.restart();
+  await fx.receive({ ...event, eventId: 'slack-reconnect' });
+  await fx.idle();
+  expect(fx.transport.reactionChecked).toHaveBeenCalledTimes(2);
+  expect(fx.replies).toHaveLength(1);
 });
 
 it('retains the first admission notification while its new reply connection is still starting', async () => {

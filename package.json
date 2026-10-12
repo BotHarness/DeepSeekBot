@@ -7,7 +7,7 @@
   "scripts": {
     "build": "tsdown",
     "typecheck": "tsc --noEmit",
-    "lint": "oxlint && node scripts/check-source-policy.mjs && pnpm changelog:check && node scripts/check-adr-numbers.mjs",
+    "lint": "oxlint && node scripts/check-source-policy.mjs && pnpm changelog:check && node scripts/check-adr-numbers.mjs && pnpm install:check",
     "lint:fix": "oxlint --fix",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
@@ -16,6 +16,8 @@
     "changelog:check": "node scripts/check-release-ledger.mjs && node scripts/check-dsh-skill-release-ledger.mjs",
     "skill:changelog:check": "node scripts/check-dsh-skill-release-ledger.mjs",
     "release:draft": "node scripts/release-draft.mjs",
+    "install:sync": "node scripts/sync-install-guidance.mjs",
+    "install:check": "node scripts/sync-install-guidance.mjs --check",
     "diagrams": "node scripts/render-diagrams.mjs",
     "sync:skill": "node scripts/sync-skill.mjs",
     "og:font": "node scripts/subset-og-font.mjs",

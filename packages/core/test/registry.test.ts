@@ -2,11 +2,10 @@ import { mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createTestRegistry } from './registry-fixture.js';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import { isValidSlug } from '../src/index.js';
 import { isPersonaBotRecord } from '../src/bots/persona-bot.js';
@@ -16,21 +15,11 @@ import { DEFAULT_ILLUSTRATED_RECIPE, avatarSvg } from '../src/bots/avatar-appear
 import { DEFAULT_LINE_RECIPE } from '../src/bots/avatar-line.js';
 import { ensureMemoryRepository } from '../src/memory/repository.js';
 
-const roots: string[] = [];
-const FIXED_NOW = (): Date => new Date('2026-09-17T00:00:00.000Z');
+import { createTempRoot, FIXED_NOW } from './helpers.js';
 
 function createRoot(): string {
-  const root = mkdtempSync(join(tmpdir(), 'botharness-registry-'));
-  roots.push(root);
-  return root;
+  return createTempRoot('botharness-registry-');
 }
-
-afterEach(() => {
-  while (roots.length > 0) {
-    const root = roots.pop();
-    if (root !== undefined) rmSync(root, { recursive: true, force: true });
-  }
-});
 
 describe('isValidSlug', () => {
   it('accepts kebab-case slugs and rejects hostile ones', () => {

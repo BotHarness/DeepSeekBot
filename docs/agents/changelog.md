@@ -12,6 +12,10 @@ parity; Human review owns notability, accuracy, and prose quality.
 
 ## Artifact boundaries
 
+Public install instructions use the published stable identity in `scripts/install-release.json`, not the development package version or npm's moving `latest` tag. After publishing and verifying registry bytes and qualification evidence, update that identity, run `pnpm install:sync` and `pnpm install:check`, and review the resulting README/guide changes. The check runs in lint and rejects drift. Never advance this file during prerelease preparation or before publication.
+
+In the product Site checkout, run `BOTHARNESS=<this-qualified-checkout> pnpm install:sync` to copy the identity and synchronize only the bilingual installation guides. Site copy buttons and CLI instructions derive from this identity. Ship the two PRs through their normal review gates; this is a repeatable release-sync command, not an automatic publication or npm candidate-selection bypass. Registry candidate selection/upgrade E2E and the DSH-owned preview/install mismatch remain separate gates.
+
 | Artifact                                  | Owns                                                                                                                        |
 | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | Release Ledger                            | The observable differences delivered by each DeepSeekBot release.                                                           |
@@ -150,6 +154,16 @@ instruction authority; Chinese belongs in the human-facing references and releas
 3. Give the ledger release one summary sentence.
 4. Derive the GitHub Release draft from that version, then add up to three optional Highlights and
    contributors when they genuinely help, followed by the full comparison link.
+   Every DeepSeekBot Release, including prereleases, starts with version-specific short links:
+   `https://deepseekbot.app/r/v<version>` for the official website, `/install` for the Chinese
+   installation guide, and `/install/en` for English. The Site Worker expands them with
+   `utm_source=github`, `utm_medium=release`, `utm_campaign=deepseekbot_v<version>` and
+   `utm_content=website|install_zh|install_en`. Keep these entry points before technical notes;
+   `release:draft` inserts them automatically. Deploy and verify the Site redirect contract
+   before publishing short links; use direct destination URLs with the same UTMs until then.
+   These are announcement navigation, not additional change entries. Existing `ref` links and
+   analytics consent remain unchanged; routing tests are not traffic or conversion evidence.
+   The independent DSH Skill release is unchanged.
 5. Obtain explicit Human publishing approval before creating a tag, publishing an artifact, or
    creating the GitHub Release.
 

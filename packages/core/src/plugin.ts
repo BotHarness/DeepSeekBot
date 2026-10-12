@@ -126,6 +126,7 @@ import {
 import { ChannelToolApproval } from './workspaces/tool-approval.js';
 import { ChannelUserQuestions } from './channels/user-questions.js';
 import { mountPrivateInputs } from './credentials/mount.js';
+import type { PrivateInputs } from './credentials/private-inputs.js';
 import {
   createAssignmentAccessStore,
   type AssignmentAccessStore,
@@ -204,6 +205,7 @@ export function handleCompactionEvent(
 export interface BotHarnessConfig {
   enabled: boolean;
   privateInputExecution?: boolean;
+  privateInputWebUrl?: string;
   privateInputMcpServers?: LinuxMcpServer[];
 
   agentPreset?: string;
@@ -222,6 +224,9 @@ export const DEFAULT_CONFIG: BotHarnessConfig = {
 };
 
 export const Config: Schema<BotHarnessConfig> = Schema.object({
+  privateInputWebUrl: Schema.string().description(
+    'Explicit credential-free Web origin for IM private input links; never use a login token URL.',
+  ),
   privateInputMcpServers: Schema.array(
     Schema.object({
       serverName: Schema.string()
@@ -344,6 +349,7 @@ export function createCore(
     onOutputCommitted?: (event: PersonaBotOutputCommitted) => void;
     activeQuestionMessageIds?: () => readonly string[];
     activeToolApprovalMessageIds?: () => readonly string[];
+    activePrivateInputMessageIds?: () => readonly string[];
     capture?: TelemetryCapture;
   } = {},
 ): BotHarnessCore {
@@ -553,6 +559,7 @@ export function createCore(
     humanAttentionDatabase,
     options.activeQuestionMessageIds,
     options.activeToolApprovalMessageIds,
+    options.activePrivateInputMessageIds,
   );
   const humanAttentionDecisions = createHumanAttentionDecisions(humanAttentionDatabase);
   if (operationalDatabase.mode === 'ready') {
@@ -988,6 +995,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   });
   let userQuestions: ChannelUserQuestions | undefined;
   let toolApproval: ChannelToolApproval | undefined;
+  let privateInputs: PrivateInputs | undefined;
   const core = createCore({
     dshHome,
     companionProfileDir: (ctx.get('profileContext') as { dir: string } | undefined)?.dir,
@@ -995,6 +1003,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       emitPersonaBotOutputCommitted(ctx, event, (message) => ctx.logger.warn(message)),
     activeQuestionMessageIds: () => userQuestions?.activeMessageIds() ?? [],
     activeToolApprovalMessageIds: () => toolApproval?.activeMessageIds() ?? [],
+    activePrivateInputMessageIds: () => privateInputs?.activeMessageIds() ?? [],
     capture: (event, properties) => telemetry.capture(event, properties),
     warn: (message) => ctx.logger.warn(message),
     agents: agentAdapter,
@@ -1060,12 +1069,13 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   ctx.effect(() => () => core.live.close(), 'botharness: Channel live hub');
   ctx.effect(() => () => core.companions.close(), 'botharness: Window Companion feed');
   ctx.provide('botharness', core);
-  const privateInputs = mountPrivateInputs(
+  privateInputs = mountPrivateInputs(
     ctx,
     core,
     config.privateInputExecution === true,
     privateExecution,
     linuxMcp,
+    config.privateInputWebUrl,
   );
   ctx.effect(() => () => core.externalMessaging.close(), 'botharness: external messaging');
   ctx.inject(['dshIm'], (child) => {
@@ -1433,6 +1443,18 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     ownership: core.ownership,
     memory: core.memory,
     ...(core.usage === undefined ? {} : { usage: core.usage }),
+    readUsageSessionLog: async (sessionId) => {
+      const query = ctx.get('sessionQuery') as unknown as
+        | {
+            readSession(
+              id: string,
+            ): Promise<{ events: readonly DshSessionEvent[]; inheritedEventCount?: number }>;
+          }
+        | undefined;
+      if (query === undefined) return undefined;
+      const snapshot = await query.readSession(sessionId);
+      return { events: snapshot.events, inheritedEventCount: snapshot.inheritedEventCount ?? 0 };
+    },
     roster: core.roster,
     runtime: core.runtime,
     attention: core.attention,

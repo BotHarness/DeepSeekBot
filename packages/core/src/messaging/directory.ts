@@ -7,6 +7,8 @@ import { readMessagingIdentity } from './identity.js';
 import type { PairingRequest } from './pairing.js';
 import { MessagingError } from './provider.js';
 import { externalUserRoles, readSenderPolicy, trustedSenderReference } from './sender-access.js';
+import { effectivePairingPermissions } from './permission-groups.js';
+import { chatSenderNamespace } from './chat-sender.js';
 
 const querySchema = z
   .object({
@@ -50,19 +52,26 @@ function people(db: DatabaseSync, botSlug: string) {
     const pairing = JSON.parse(row.body) as PairingRequest;
     const identity = readMessagingIdentity(db, pairing.bindingId);
     const role = roles.get(pairing.roleId ?? '');
-    if (!identity.enabled || !role || identity.platform !== 'feishu') return [];
+    const namespace = chatSenderNamespace(identity.platform);
+    if (!identity.enabled || !role || !namespace) return [];
     return [
       {
         key: `${identity.id}/${pairing.actorId}`,
         bindingId: identity.id,
         platform: identity.platform,
         accountName: identity.name,
-        namespace: 'lark-app-open-id',
+        namespace,
         actorId: pairing.actorId,
         ...(pairing.actorName ? { actorName: pairing.actorName } : {}),
         pairingId: pairing.id,
         pairingRevision: pairing.revision,
         role,
+        effectivePermissions: effectivePairingPermissions(
+          db,
+          botSlug,
+          identity.id,
+          pairing.actorId,
+        ),
       },
     ];
   });

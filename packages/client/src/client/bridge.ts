@@ -48,6 +48,8 @@ import {
 } from '../../../core/src/marketplace/client.js';
 import { parseChallenge, type AltchaChallenge } from '../../../core/src/marketplace/altcha.js';
 import type { OverviewUsage } from '../../../core/src/bridge/methods.js';
+import type { ProfileSessionUsage } from '../../../core/src/bridge/methods.js';
+export type { ProfileSessionUsage } from '../../../core/src/bridge/methods.js';
 import type { UsageOverviewPeriod } from '../../../core/src/usage/overview.js';
 import type { ChannelActivityToday } from '../../../core/src/channels/activity-today.js';
 import type { GroupReceptionInput } from '../../../core/src/messaging/group-policy.js';
@@ -1447,11 +1449,22 @@ function parsePrivateInputCard(value: unknown): NonNullable<ChannelMessage['priv
   if (
     record === undefined ||
     Object.keys(record).some(
-      (key) => !['sessionId', 'account', 'purpose', 'fields'].includes(key),
+      (key) =>
+        !['sessionId', 'account', 'purpose', 'fields', 'expiresAt', 'replacesMessageId'].includes(
+          key,
+        ),
     ) ||
-    typeof record['sessionId'] !== 'string' ||
+    (record['sessionId'] === undefined
+      ? typeof record['replacesMessageId'] !== 'string'
+      : typeof record['sessionId'] !== 'string') ||
+    (record['replacesMessageId'] !== undefined &&
+      (typeof record['replacesMessageId'] !== 'string' ||
+        !/^[0-9a-f-]{36}$/.test(record['replacesMessageId']))) ||
     typeof record['account'] !== 'string' ||
     typeof record['purpose'] !== 'string' ||
+    (record['expiresAt'] !== undefined &&
+      (typeof record['expiresAt'] !== 'string' ||
+        !Number.isFinite(Date.parse(record['expiresAt'])))) ||
     !Array.isArray(record['fields']) ||
     record['fields'].length < 1 ||
     record['fields'].length > 8
@@ -1473,10 +1486,14 @@ function parsePrivateInputCard(value: unknown): NonNullable<ChannelMessage['priv
   if (new Set(fields.map((field) => field.id)).size !== fields.length)
     throw new Error('Invalid private input fields');
   return {
-    sessionId: record['sessionId'],
+    ...(typeof record['sessionId'] === 'string' ? { sessionId: record['sessionId'] } : {}),
+    ...(typeof record['replacesMessageId'] === 'string'
+      ? { replacesMessageId: record['replacesMessageId'] }
+      : {}),
     account: record['account'],
     purpose: record['purpose'],
     fields,
+    ...(typeof record['expiresAt'] === 'string' ? { expiresAt: record['expiresAt'] } : {}),
   };
 }
 
@@ -2694,6 +2711,35 @@ export async function createWorkspaceGrant(
   return grant;
 }
 
+export async function createGroupWorkspaceGrant(
+  call: BridgeCall,
+  slug: string,
+  workspaceId: string,
+  channelId: string,
+  path: string,
+): Promise<{ grant: WorkspaceGrantView; created: boolean }> {
+  const result = asRecord(
+    await unwrap(call, 'grantCreate', { slug, workspaceId, scope: { channelId, path } }),
+  );
+  const grant = parseWorkspaceGrant(result?.['grant']);
+  if (grant === undefined || typeof result?.['created'] !== 'boolean')
+    throw new Error('invalid scoped grantCreate response');
+  return { grant, created: result['created'] };
+}
+
+export async function readGroupWorkspaceGrant(
+  call: BridgeCall,
+  slug: string,
+  channelId: string,
+  path: string,
+): Promise<WorkspaceGrantView | undefined> {
+  const result = asRecord(await unwrap(call, 'grants', { slug, scope: { channelId, path } }));
+  if (!Array.isArray(result?.['grants'])) throw new Error('invalid scoped grants response');
+  const grants = result['grants'].map(parseWorkspaceGrant);
+  if (grants.some((grant) => grant === undefined)) throw new Error('invalid scoped grant readback');
+  return grants[0];
+}
+
 export async function setWorkspaceGrantWrite(
   call: BridgeCall,
   slug: string,
@@ -2817,6 +2863,7 @@ function parseHumanAttentionPage(value: unknown): HumanAttentionPage {
     if (
       item['kind'] !== 'group-join-request' &&
       item['kind'] !== 'user-question' &&
+      item['kind'] !== 'private-input' &&
       item['kind'] !== 'tool-approval' &&
       item['kind'] !== 'workspace-grant-request' &&
       item['kind'] !== 'bot-dm-message' &&
@@ -2854,6 +2901,13 @@ function parseHumanAttentionPage(value: unknown): HumanAttentionPage {
       return undefined;
     if (item['requestId'] !== undefined && typeof item['requestId'] !== 'string') return undefined;
     if (item['messageId'] !== undefined && typeof item['messageId'] !== 'string') return undefined;
+    if (
+      item['kind'] === 'private-input' &&
+      (item['category'] !== 'action' ||
+        typeof item['messageId'] !== 'string' ||
+        typeof item['sourceEventId'] !== 'string')
+    )
+      return undefined;
     if (
       item['kind'] === 'channel-unread' &&
       (!Number.isSafeInteger(item['unreadCount']) ||
@@ -3460,6 +3514,39 @@ export async function loadProfileUsage(
   )
     throw new Error('invalid Profile usage');
   return value as unknown as UsageQueryResult;
+}
+
+export async function loadProfileSessionUsage(
+  call: BridgeCall,
+  channelId: string,
+): Promise<ProfileSessionUsage> {
+  const value = asRecord(await unwrap(call, 'profileSessionUsage', { channelId }));
+  if (
+    value === undefined ||
+    typeof value['slug'] !== 'string' ||
+    value['weeks'] !== 26 ||
+    typeof value['since'] !== 'string' ||
+    !Number.isFinite(Date.parse(value['since'])) ||
+    !Array.isArray(value['rows']) ||
+    value['rows'].length > 6 ||
+    !value['rows'].every((item) => {
+      const row = asRecord(item);
+      return (
+        row !== undefined &&
+        typeof row['sessionId'] === 'string' &&
+        ['orchestrator', 'assignment'].includes(String(row['role'])) &&
+        typeof row['label'] === 'string' &&
+        row['label'].length <= 160 &&
+        typeof row['updatedAt'] === 'string' &&
+        Number.isFinite(Date.parse(row['updatedAt'])) &&
+        ['ready', 'unknown', 'partial', 'unavailable'].includes(String(row['status'])) &&
+        (row['totalTokens'] === null ||
+          (Number.isSafeInteger(row['totalTokens']) && Number(row['totalTokens']) >= 0))
+      );
+    })
+  )
+    throw new Error('invalid Profile Session usage');
+  return value as unknown as ProfileSessionUsage;
 }
 
 export interface ProfileActivityWindow {

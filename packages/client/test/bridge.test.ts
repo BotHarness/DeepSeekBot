@@ -10,6 +10,7 @@ import {
   loadMemoryGitCommitDiff,
   loadSessionBotOwner,
   loadActivityOverview,
+  loadProfileSessionUsage,
   botExists,
   parseBotSummary,
   parseChannelMessages,
@@ -61,6 +62,41 @@ const DM = {
 };
 
 describe('bridge transport', () => {
+  it('parses bounded read-only Session usage and rejects invalid counts, roles and windows', async () => {
+    const value = {
+      slug: 'ada',
+      weeks: 26,
+      since: '2026-04-13T00:00:00.000Z',
+      rows: [
+        {
+          sessionId: 'root',
+          role: 'orchestrator',
+          label: 'orchestrator',
+          updatedAt: '2026-10-12T00:00:00.000Z',
+          totalTokens: 1000,
+          status: 'ready',
+        },
+      ],
+    };
+    const handler = vi.fn(() => value);
+    expect(
+      await loadProfileSessionUsage(bridgeCall({ profileSessionUsage: handler }), 'dm-ada'),
+    ).toEqual(value);
+    expect(handler).toHaveBeenCalledWith({ channelId: 'dm-ada' });
+    for (const malformed of [
+      { ...value, weeks: 1 },
+      { ...value, rows: Array(7).fill(value.rows[0]) },
+      ...[-1, 1.5, Infinity].map((totalTokens) => ({
+        ...value,
+        rows: [{ ...value.rows[0], totalTokens }],
+      })),
+      { ...value, rows: [{ ...value.rows[0], role: 'group' }] },
+    ]) {
+      await expect(
+        loadProfileSessionUsage(bridgeCall({ profileSessionUsage: () => malformed }), 'dm-ada'),
+      ).rejects.toThrow('invalid Profile Session usage');
+    }
+  });
   it('proves Bot existence from a complete identity list and rejects malformed results', async () => {
     expect(await botExists(bridgeCall({ list: () => ({ bots: [{ slug: 'ada' }] }) }), 'ada')).toBe(
       true,

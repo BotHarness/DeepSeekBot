@@ -48,6 +48,9 @@ export const LIVE_COMMANDS = [
     description: 'submit confidential field JSON from stdin through the authenticated Owner',
   },
   { command: 'ask-secret-cancel', description: 'cancel a private input request as Owner' },
+  { command: 'ask-secret-account-status', description: 'inspect current private account access' },
+  { command: 'ask-secret-replace', description: 'open a blank replacement private input card' },
+  { command: 'ask-secret-revoke', description: 'revoke local private account access as Owner' },
   {
     command: 'user-question-answer',
     description: 'answer a formal Human question with JSON from stdin',
@@ -298,6 +301,9 @@ export async function runLiveCli(
       'ask-secret-status',
       'ask-secret-submit',
       'ask-secret-cancel',
+      'ask-secret-account-status',
+      'ask-secret-replace',
+      'ask-secret-revoke',
     ].includes(command) &&
     !messageId?.trim()
   )
@@ -378,14 +384,54 @@ export async function runLiveCli(
   const { rpc } = await connectLiveHost(values, io, signal);
   if (command.startsWith('ask-secret-')) {
     try {
-      if (command === 'ask-secret-status') {
-        const result = await rpc<{ status?: unknown }>('privateInputStatus', {
+      if (command === 'ask-secret-status' || command === 'ask-secret-account-status') {
+        const result = await rpc<{ status?: unknown }>(
+          command === 'ask-secret-status' ? 'privateInputStatus' : 'privateAccountStatus',
+          {
+            channelId: target,
+            messageId,
+          },
+        );
+        const statuses =
+          command === 'ask-secret-status'
+            ? ['pending', 'configured', 'cancelled', 'expired']
+            : ['configured', 'revoked', 'superseded', 'unavailable'];
+        if (typeof result.status !== 'string' || !statuses.includes(result.status))
+          throw new Error('Invalid private status');
+        return { status: result.status };
+      }
+      if (command === 'ask-secret-replace') {
+        const result = await rpc<{ messageId?: unknown }>('privateInputReplace', {
           channelId: target,
           messageId,
         });
-        if (!['pending', 'configured', 'cancelled', 'expired'].includes(String(result.status)))
-          throw new Error('Invalid private status');
-        return { status: result.status };
+        if (
+          typeof result.messageId !== 'string' ||
+          !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu.test(result.messageId)
+        )
+          throw new Error('Invalid replacement card');
+        return { messageId: result.messageId };
+      }
+      if (command === 'ask-secret-revoke') {
+        const result = await rpc<{
+          accepted?: unknown;
+          stopped?: unknown;
+          completed?: unknown;
+          uncertain?: unknown;
+        }>('privateAccountRevoke', { channelId: target, messageId });
+        if (
+          result.accepted !== true ||
+          [result.stopped, result.completed, result.uncertain].some(
+            (count) => typeof count !== 'number' || !Number.isSafeInteger(count) || count < 0,
+          )
+        )
+          throw new Error('Invalid revocation result');
+        return {
+          accepted: true,
+          stopped: result.stopped,
+          completed: result.completed,
+          uncertain: result.uncertain,
+        };
       }
       const method = command === 'ask-secret-submit' ? 'privateInputSubmit' : 'privateInputCancel';
       const result = await rpc<{ accepted?: unknown }>(method, {

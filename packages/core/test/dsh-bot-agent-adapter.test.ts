@@ -1004,7 +1004,15 @@ describe('DSH Bot Agent adapter', () => {
   });
 
   it('runs independent scoped Orchestrator and Assignment roots and owns their handles', async () => {
-    const host = new FakeAgentHost();
+    const host = new FakeAgentHost(
+      { kind: 'completed' },
+      {
+        onSessionEvent: (session, event) => {
+          if (session.id === 'orchestrator-ada' && event.type === 'turn/start')
+            expect(adapter.steerOrchestrator?.(BOT.slug, '请继续回复当前 Channel')).toBe(true);
+        },
+      },
+    );
     const preparedWorkspaces: string[] = [];
     const adapter = createDshBotAgentAdapter({
       agents: host,
@@ -1177,6 +1185,39 @@ describe('DSH Bot Agent adapter', () => {
     const channelSend = host.scopes
       .get('orchestrator-ada')
       ?.tools.find((tool) => tool.name === 'channel_send');
+    const rolePrompt = host.scopes.get('orchestrator-ada')?.sections[0]?.text ?? '';
+    expect(rolePrompt).toContain('## Reply delivery contract');
+    expect(rolePrompt.indexOf('## Reply delivery contract')).toBeLessThan(
+      rolePrompt.indexOf('Use three complementary sources'),
+    );
+    expect(rolePrompt).toContain('Reading content or images does not send an answer');
+    expect(rolePrompt).toContain('Never imitate an earlier assistant-only answer');
+    expect(rolePrompt).toContain('If the Human explicitly asks for no reply');
+    expect(rolePrompt).toContain('External IM uses bridge_reply or bridge_reply_file');
+    expect(rolePrompt).toContain('retry an uncertain send blindly');
+    expect(channelSend?.description).toContain('Assistant final text is private Session output');
+    expect(channelSend?.description).toContain('A request for "no tools"');
+    const deliveryPrompt = host.scopes
+      .get('orchestrator-ada')
+      ?.sections.find((section) => section.name === 'botharness:reply-delivery')?.text;
+    expect(deliveryPrompt).toContain('MUST deliver any intended Human-facing answer');
+    expect(deliveryPrompt).toContain('纯文本 final 不会发送给用户');
+    expect(deliveryPrompt).toContain('If no reply is wanted, remain silent');
+    const received = host.received.get('orchestrator-ada')?.[0]?.content;
+    expect(received).toHaveLength(2);
+    expect(received?.[0]).toEqual({ type: 'text', text: '请核对发布状态' });
+    expect(received?.[1]).toMatchObject({
+      type: 'text',
+      text: expect.stringContaining('[Host reply transport reminder]'),
+    });
+    expect(host.received.get('assignment-1')?.[0]?.content).toHaveLength(1);
+    expect(host.steered.get('orchestrator-ada')?.[0]?.content).toEqual([
+      { type: 'text', text: '请继续回复当前 Channel' },
+      {
+        type: 'text',
+        text: expect.stringContaining('[Host reply transport reminder]'),
+      },
+    ]);
     expect(channelSend?.parameters).toMatchObject({
       properties: { body: expect.any(Object), channel_id: expect.any(Object) },
       required: ['body'],

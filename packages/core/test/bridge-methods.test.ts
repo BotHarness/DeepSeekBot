@@ -12,7 +12,11 @@ import { createBridgeMethods } from '../src/bridge/methods.js';
 
 import { createChannelStore, type ChannelStore } from '../src/channels/store.js';
 import type { MemoryService } from '../src/memory/service.js';
-import type { UsageProjection } from '../src/usage/usage.js';
+import {
+  createUsageProjection,
+  type UsageProjection,
+  type DshUsageSessionLogReader,
+} from '../src/usage/usage.js';
 import { createModelPresetStore } from '../src/models/presets.js';
 import type { ModelCatalog } from '../src/models/catalog.js';
 import { createModelRouteReadiness } from '../src/models/readiness.js';
@@ -44,6 +48,7 @@ function setup(
   memory?: MemoryService,
   usage?: UsageProjection,
   modelCatalog?: ModelCatalog,
+  readUsageSessionLog?: DshUsageSessionLogReader,
 ) {
   const root = mkdtempSync(join(tmpdir(), 'botharness-bridge-'));
   roots.push(root);
@@ -87,6 +92,7 @@ function setup(
       ...(grants === undefined ? {} : { grants }),
       ...(memory === undefined ? {} : { memory }),
       ...(usage === undefined ? {} : { usage }),
+      ...(readUsageSessionLog === undefined ? {} : { readUsageSessionLog }),
       ...(runtimeFactory === undefined ? {} : { runtime: runtimeFactory(channels) }),
       ...(developerMode === undefined ? {} : { developerMode }),
       createBotId: () => botIds[botIdIndex++] ?? 'bot-test-' + botIdIndex,
@@ -100,6 +106,105 @@ afterEach(() => {
 });
 
 describe('bridge methods', () => {
+  it('scopes Group authorization to a current member and the confirmed path', async () => {
+    const grant = {
+      id: 'grant',
+      botSlug: 'ada',
+      workspaceId: 'project',
+      workspacePath: '/project',
+      workspaceTitle: 'Project',
+      createdAt: '',
+    };
+    const create = vi.fn<WorkspaceGrantStore['create']>(async (_slug, _workspace, options) => {
+      options?.validate();
+      options?.onCreated();
+      return grant;
+    });
+    const grants: WorkspaceGrantStore = {
+      list: () => [],
+      create,
+      revoke: () => grant,
+      requireActive: () => grant,
+      setOrchestratorWrite: () => grant,
+      availableWorkspaces: () => [{ id: 'project', path: '/project', title: 'Project' }],
+    };
+    const { registry, channels, methods } = setup(
+      [],
+      ['ada', 'bea'],
+      undefined,
+      createTestOwnership(),
+      grants,
+    );
+    registry.create({ slug: 'ada', displayName: 'Ada' });
+    registry.create({ slug: 'bea', displayName: 'Bea' });
+    const group = channels.createGroup({ name: 'Team', members: ['ada'] });
+    const input = {
+      slug: 'ada',
+      workspaceId: 'project',
+      scope: { channelId: group.id, path: '/project' },
+    };
+    expect(await methods.grantCreate({ ...input, slug: 'bea' })).toMatchObject({ ok: false });
+    expect(
+      await methods.grantCreate({ ...input, scope: { ...input.scope, path: '/other' } }),
+    ).toMatchObject({ ok: false });
+    expect(create).not.toHaveBeenCalled();
+    expect(await methods.grantCreate(input)).toMatchObject({
+      ok: true,
+      value: { grant, created: true },
+    });
+    expect(create).toHaveBeenCalledTimes(1);
+    registry.setPaused('ada', true);
+    expect(await methods.grantCreate(input)).toMatchObject({ ok: false });
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+  it('bounds read-only Session usage to the current DM Bot and rejects Group and missing scopes', async () => {
+    const ownership = createTestOwnership({
+      first: { botSlug: 'ada', rootRole: 'orchestrator' },
+      assignment: { botSlug: 'ada', rootRole: 'assignment' },
+      other: { botSlug: 'outsider', rootRole: 'orchestrator' },
+    });
+    ownership.claim({
+      sessionId: 'latest',
+      botSlug: 'ada',
+      rootRole: 'orchestrator',
+      at: '2026-10-12T00:00:00.000Z',
+    });
+    const usageHome = mkdtempSync(join(tmpdir(), 'botharness-session-usage-'));
+    roots.push(usageHome);
+    const owner = mountOperationalDatabase({
+      dshHome: usageHome,
+      schemaPlan: BOT_HARNESS_SCHEMA_PLAN,
+    });
+    modelOwners.push(owner);
+    const usage = createUsageProjection({ ownership, database: owner });
+    const read = vi.fn(async () => ({ events: [], inheritedEventCount: 0 }));
+    const { registry, channels, methods } = setup(
+      [],
+      ['ada'],
+      undefined,
+      ownership,
+      undefined,
+      undefined,
+      undefined,
+      usage,
+      undefined,
+      read,
+    );
+    registry.create({ slug: 'ada', displayName: 'Ada' });
+    const dm = channels.getOrCreateDm('ada', 'Ada')!;
+    const result = await methods.profileSessionUsage({ channelId: dm.id, slug: 'outsider' });
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('Expected scoped usage');
+    expect(result.value.slug).toBe('ada');
+    expect(result.value.weeks).toBe(26);
+    expect(result.value.rows.map((row) => row.sessionId)).toEqual(['latest', 'assignment']);
+    expect(read.mock.calls).toHaveLength(2);
+    const group = channels.createGroup({ name: 'Group', members: ['ada'] });
+    expect((await methods.profileSessionUsage({ channelId: group.id })).ok).toBe(false);
+    expect((await methods.profileSessionUsage({ channelId: 'missing' })).ok).toBe(false);
+    expect((await methods.profileSessionUsage({})).ok).toBe(false);
+    expect(read.mock.calls).toHaveLength(2);
+  });
   it('does not expand pasted text, DM selections, empty previews or forged recipient lists', async () => {
     const { registry, channels, methods } = setup();
     registry.create({ slug: 'ada', displayName: 'Ada' });

@@ -818,10 +818,18 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
       (message['author'] as ChannelMessageAuthor)?.kind !== 'bot'
     )
       return false;
-    const { sessionId, ...declaration } = privateRequest as Record<string, unknown>;
+    const { sessionId, expiresAt, replacesMessageId, ...declaration } = privateRequest as Record<
+      string,
+      unknown
+    >;
     if (
-      typeof sessionId !== 'string' ||
-      sessionId.length === 0 ||
+      (sessionId === undefined
+        ? replacesMessageId === undefined
+        : typeof sessionId !== 'string' || sessionId.length === 0) ||
+      (replacesMessageId !== undefined &&
+        (typeof replacesMessageId !== 'string' || !/^[0-9a-f-]{36}$/.test(replacesMessageId))) ||
+      (expiresAt !== undefined &&
+        (typeof expiresAt !== 'string' || !Number.isFinite(Date.parse(expiresAt)))) ||
       !privateRequestSchema.safeParse(declaration).success
     )
       return false;
@@ -841,10 +849,11 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
       ) ||
       typeof resolution.requestMessageId !== 'string' ||
       message['replyTo'] !== resolution.requestMessageId ||
-      !['configured', 'cancelled'].includes(String(resolution.state)) ||
+      !['configured', 'cancelled', 'expired'].includes(String(resolution.state)) ||
       typeof resolution.references !== 'object' ||
       resolution.references === null ||
       Array.isArray(resolution.references) ||
+      (resolution.state !== 'configured' && Object.keys(resolution.references).length > 0) ||
       !Object.values(resolution.references).every(
         (ref) =>
           typeof ref === 'string' && /^private:[0-9a-f-]{36}:[a-z][a-z0-9_]{0,47}$/.test(ref),

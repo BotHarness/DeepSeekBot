@@ -46,15 +46,16 @@
     "@deepseek-ai/dsh-user-approval": "0.2.0-rc.1",
     "@deepseek-ai/dsh-user-questions": "0.2.0-rc.1",
     "@deepseek-ai/schemastery": "3.18.4",
+    "@modelcontextprotocol/client": "2.0.0",
     "yaml": "^2.9.1",
     "zod": "^4.4.3"
   },
   "peerDependencies": {
-    "@deepseek-ai/dsh-scope": "0.2.0-rc.1",
-    "@deepseek-ai/dsh-tools": "0.2.0-rc.1"
+    "@deepseek-ai/dsh-scope": ">=0.1.7-0",
+    "@deepseek-ai/dsh-tools": ">=0.1.7-0"
   },
   "engines": {
-    "dsh": ">=0.2.0-rc.1 <0.3.0-0",
+    "dsh": ">=0.1.7-0",
     "node": ">=22.16"
   },
   "dsh": {

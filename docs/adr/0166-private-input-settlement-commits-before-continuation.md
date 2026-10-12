@@ -1,0 +1,21 @@
+---
+Status: Proposed
+Date: 2026-10-11
+Issues: [#1378](https://github.com/BotHarness/DeepSeekBot/issues/1378), [#1381](https://github.com/BotHarness/DeepSeekBot/issues/1381)
+---
+
+# Private input settlement commits before continuation
+
+The application-defined `PrivateInputs` owner retains the real live Agent, PersonaBot creation identity, account, declared fields and Host deadline for each request. Channel request/resolution metadata is its durable nonsecret history; original values remain exclusively in native Credentials Service. The Owner bridge carries private submissions directly, while Human Inbox and Bot attention project committed requests that still have live authority. Inbox actions navigate to the existing Web Chat card rather than creating a second private form or an ordinary reply path.
+
+Each pending request admits at most one submit operation. Cancellation can invalidate a submit before its resolution commits. Stop, ownership loss, Host disposal and the fifteen-minute Host deadline invalidate the request independently of Owner polling. The Channel store's idempotent append evaluates a trusted `canCommit` predicate at its synchronous persistence boundary: inside the canonical SQLite transaction, or inside the legacy file store's serialized write. The same resolution ID has one durable winner. A configured result returns references only after that commit; cancellation and expiry commit empty-reference outcomes before settling their waiters. If persistence is unavailable, the waiter fails closed with no usable references; a later Host reconciles the uncommitted card.
+
+Native credential storage and Channel persistence cannot share a transaction. New version-two application grants therefore include the request and Channel locator. A consumer requires the exact committed configured resolution, declaration and complete reference set as well as PersonaBot/account authorization. A written grant without that proof cannot be consumed, even if cleanup also fails. Startup reconciliation expires lost pending cards without recreating a Promise, then removes orphan version-two grants. Configured grants survive; version-one grants from #1380 retain their established compatibility contract. The native record is still one atomic multi-field grant, not a second credential store.
+
+The configured resolution is the settlement linearization point. A cancellation after that commit loses; a stopped Agent still receives no references or credential-bearing continuation. A write whose response fails after commit is recognized from canonical Channel state rather than deleting the successfully configured grant. Owner submission retries and simultaneous tabs cannot create another grant for the same live request. Private resolution messages do not create Inbox Admissions, so expiry/recovery cannot wake a stopped Orchestrator through an ordinary Human message.
+
+Client inputs remain uncontrolled password fields. Values clear before submission and on cancellation, terminal status, unmount and request replacement. Each mounted form owns its asynchronous callbacks; an old response cannot clear or settle a replacement form. Terminal status is monotonic within that mount, so a delayed pending poll cannot reopen a completed card. Reload restores metadata and canonical status only.
+
+Rejected alternatives include restoring pending Promises from history, returning references before Channel commit, masking output from an uncommitted grant, marking cancellation complete before persistence, and turning a terminal private resolution into an ordinary Bot wake. These either confuse live and durable authority or permit a partial operation to appear usable. Rotation/revocation, active credential-use stopping, Schedule, secret-consuming MCP and IM remain separate slices.
+
+Rollback to the #1380 binary preserves version-one references but cannot consume version-two grants or fully interpret the new expired-card metadata. Restore the isolated pre-upgrade Profile backup or repair forward; do not downgrade to an unfenced binary while private grants exist. The existing opt-in execution boundary and its trusted Owner/Host Plugin/Docker assumptions remain [ADR-0164](0164-private-input-candidate-separates-native-storage-from-qualified-execution.md).

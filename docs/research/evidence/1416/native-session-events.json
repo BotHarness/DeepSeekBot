@@ -1,0 +1,296 @@
+{
+  "source": "DSH 0.2.0-rc.1 native Session Persistence",
+  "sessionId": "botharness-8591c98c-0581-4355-9ae3-4f386dfaa43f",
+  "nativeEventsRead": 288,
+  "omitted": [
+    "Human/assistant text",
+    "reasoning",
+    "commands",
+    "HTTP headers/bodies",
+    "approval reasons",
+    "paths",
+    "raw values"
+  ],
+  "events": [
+    {
+      "seq": 214,
+      "time": "2026-10-11T10:36:05.572Z",
+      "type": "tool/call",
+      "callId": "call_df520aa9b2214905b3be0b65",
+      "name": "ask_secret",
+      "fields": [
+        {
+          "id": "endpoint",
+          "required": true
+        },
+        {
+          "id": "api_key",
+          "required": true
+        },
+        {
+          "id": "api_secret",
+          "required": true
+        }
+      ]
+    },
+    {
+      "seq": 215,
+      "time": "2026-10-11T10:36:47.418Z",
+      "type": "tool/result",
+      "callId": "call_df520aa9b2214905b3be0b65",
+      "name": "ask_secret",
+      "isError": false,
+      "value": {
+        "status": "configured",
+        "references": {
+          "endpoint": "private:09536673-5021-4d71-9023-b857554b0ec7:endpoint",
+          "api_key": "private:09536673-5021-4d71-9023-b857554b0ec7:api_key",
+          "api_secret": "private:09536673-5021-4d71-9023-b857554b0ec7:api_secret"
+        }
+      }
+    },
+    {
+      "seq": 219,
+      "time": "2026-10-11T10:36:51.445Z",
+      "type": "tool/call",
+      "callId": "call_a2eae4a3bfbd412dbf3ca46a",
+      "name": "protected_cli",
+      "consumer": "http-status-v1",
+      "references": {
+        "endpoint": "private:09536673-5021-4d71-9023-b857554b0ec7:endpoint",
+        "api_key": "private:09536673-5021-4d71-9023-b857554b0ec7:api_key",
+        "api_secret": "private:09536673-5021-4d71-9023-b857554b0ec7:api_secret"
+      }
+    },
+    {
+      "seq": 220,
+      "time": "2026-10-11T10:36:51.448Z",
+      "type": "approval/asked",
+      "id": "3b89b1e1-92c6-4a19-bee6-1b3e613fea12",
+      "callId": "call_a2eae4a3bfbd412dbf3ca46a",
+      "toolName": "protected_cli"
+    },
+    {
+      "seq": 221,
+      "time": "2026-10-11T10:36:51.449Z",
+      "type": "approval/decided",
+      "id": "3b89b1e1-92c6-4a19-bee6-1b3e613fea12",
+      "outcome": "allowed-once"
+    },
+    {
+      "seq": 222,
+      "time": "2026-10-11T10:36:52.309Z",
+      "type": "tool/result",
+      "callId": "call_a2eae4a3bfbd412dbf3ca46a",
+      "name": "protected_cli",
+      "isError": false,
+      "value": {
+        "consumer": "http-status-v1",
+        "successful": true,
+        "httpStatus": 200
+      }
+    },
+    {
+      "seq": 226,
+      "time": "2026-10-11T10:36:54.295Z",
+      "type": "tool/call",
+      "callId": "call_64ce4e9570084cf1a7cc22e1",
+      "name": "channel_send"
+    },
+    {
+      "seq": 227,
+      "time": "2026-10-11T10:36:54.313Z",
+      "type": "tool/result",
+      "callId": "call_64ce4e9570084cf1a7cc22e1",
+      "name": "channel_send",
+      "isError": false,
+      "value": {
+        "messageId": "30702c63-918b-45ec-af60-d57509786fe2"
+      }
+    },
+    {
+      "seq": 239,
+      "time": "2026-10-11T10:37:51.173Z",
+      "type": "tool/call",
+      "callId": "call_a42b0bfca7bb4c3597627de8",
+      "name": "ask_secret",
+      "fields": [
+        {
+          "id": "endpoint",
+          "required": true
+        },
+        {
+          "id": "api_key",
+          "required": true
+        },
+        {
+          "id": "api_secret",
+          "required": true
+        }
+      ]
+    },
+    {
+      "seq": 240,
+      "time": "2026-10-11T10:37:51.701Z",
+      "type": "tool/result",
+      "callId": "call_a42b0bfca7bb4c3597627de8",
+      "name": "ask_secret",
+      "isError": false,
+      "value": {
+        "status": "configured",
+        "references": {
+          "endpoint": "private:2caa8466-e299-4483-834b-3b19181fb4b3:endpoint",
+          "api_key": "private:2caa8466-e299-4483-834b-3b19181fb4b3:api_key",
+          "api_secret": "private:2caa8466-e299-4483-834b-3b19181fb4b3:api_secret"
+        }
+      }
+    },
+    {
+      "seq": 244,
+      "time": "2026-10-11T10:37:55.546Z",
+      "type": "tool/call",
+      "callId": "call_50f1d89137f540ab8c95f5e9",
+      "name": "protected_cli",
+      "consumer": "http-status-v1",
+      "references": {
+        "endpoint": "private:2caa8466-e299-4483-834b-3b19181fb4b3:endpoint",
+        "api_key": "private:2caa8466-e299-4483-834b-3b19181fb4b3:api_key",
+        "api_secret": "private:2caa8466-e299-4483-834b-3b19181fb4b3:api_secret"
+      }
+    },
+    {
+      "seq": 245,
+      "time": "2026-10-11T10:37:55.547Z",
+      "type": "approval/asked",
+      "id": "b43dc65f-34b5-4b04-92df-fef83a461a5e",
+      "callId": "call_50f1d89137f540ab8c95f5e9",
+      "toolName": "protected_cli"
+    },
+    {
+      "seq": 246,
+      "time": "2026-10-11T10:37:55.548Z",
+      "type": "approval/decided",
+      "id": "b43dc65f-34b5-4b04-92df-fef83a461a5e",
+      "outcome": "allowed-once"
+    },
+    {
+      "seq": 247,
+      "time": "2026-10-11T10:37:56.155Z",
+      "type": "tool/result",
+      "callId": "call_50f1d89137f540ab8c95f5e9",
+      "name": "protected_cli",
+      "isError": false,
+      "value": {
+        "consumer": "http-status-v1",
+        "successful": true,
+        "httpStatus": 200
+      }
+    },
+    {
+      "seq": 251,
+      "time": "2026-10-11T10:37:57.782Z",
+      "type": "tool/call",
+      "callId": "call_54f2642a03754062aaabf065",
+      "name": "channel_send"
+    },
+    {
+      "seq": 252,
+      "time": "2026-10-11T10:37:57.799Z",
+      "type": "tool/result",
+      "callId": "call_54f2642a03754062aaabf065",
+      "name": "channel_send",
+      "isError": false,
+      "value": {
+        "messageId": "3ce00de2-2112-4a4d-8845-d11912bf481e"
+      }
+    },
+    {
+      "seq": 264,
+      "time": "2026-10-11T10:38:55.800Z",
+      "type": "tool/call",
+      "callId": "call_6c02fd28427c4e35aa75ff7e",
+      "name": "protected_cli",
+      "consumer": "http-status-v1",
+      "references": {
+        "endpoint": "private:2caa8466-e299-4483-834b-3b19181fb4b3:endpoint",
+        "api_key": "private:2caa8466-e299-4483-834b-3b19181fb4b3:api_key",
+        "api_secret": "private:2caa8466-e299-4483-834b-3b19181fb4b3:api_secret"
+      }
+    },
+    {
+      "seq": 265,
+      "time": "2026-10-11T10:38:55.802Z",
+      "type": "approval/asked",
+      "id": "f04e5b70-daff-46a7-a53f-50278a538bd4",
+      "callId": "call_6c02fd28427c4e35aa75ff7e",
+      "toolName": "protected_cli"
+    },
+    {
+      "seq": 266,
+      "time": "2026-10-11T10:38:55.802Z",
+      "type": "approval/decided",
+      "id": "f04e5b70-daff-46a7-a53f-50278a538bd4",
+      "outcome": "allowed-once"
+    },
+    {
+      "seq": 267,
+      "time": "2026-10-11T10:38:56.331Z",
+      "type": "tool/result",
+      "callId": "call_6c02fd28427c4e35aa75ff7e",
+      "name": "protected_cli",
+      "isError": true
+    },
+    {
+      "seq": 271,
+      "time": "2026-10-11T10:39:00.501Z",
+      "type": "tool/call",
+      "callId": "call_83bf373c85e340c199751112",
+      "name": "channel_send"
+    },
+    {
+      "seq": 272,
+      "time": "2026-10-11T10:39:00.519Z",
+      "type": "tool/result",
+      "callId": "call_83bf373c85e340c199751112",
+      "name": "channel_send",
+      "isError": false,
+      "value": {
+        "messageId": "4594ad6b-7cec-4e3b-87ee-5185f376f66d"
+      }
+    },
+    {
+      "seq": 284,
+      "time": "2026-10-11T10:39:09.667Z",
+      "type": "tool/call",
+      "callId": "call_e00ae52e4ca14af69d64e902",
+      "name": "ask_secret",
+      "fields": [
+        {
+          "id": "endpoint",
+          "required": true
+        },
+        {
+          "id": "api_key",
+          "required": true
+        },
+        {
+          "id": "api_secret",
+          "required": true
+        }
+      ]
+    },
+    {
+      "seq": 285,
+      "time": "2026-10-11T10:41:02.452Z",
+      "type": "tool/result",
+      "callId": "call_e00ae52e4ca14af69d64e902",
+      "name": "ask_secret",
+      "isError": false,
+      "value": {
+        "status": "cancelled",
+        "references": {}
+      }
+    }
+  ],
+  "scope": "1416 qualification time window; full text omitted"
+}

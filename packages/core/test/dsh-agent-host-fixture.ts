@@ -60,6 +60,8 @@ export class FakeAgentHost implements DshAgentHost {
   readonly disposed: string[] = [];
   readonly scopes = new Map<string, FakeScope>();
   readonly sessions: FakeSession[] = [];
+  readonly received = new Map<string, UserMessage[]>();
+  readonly steered = new Map<string, UserMessage[]>();
   readonly #cwdBySession = new Map<string, string | undefined>();
   readonly #live = new Map<string, Agent>();
 
@@ -110,6 +112,7 @@ export class FakeAgentHost implements DshAgentHost {
     };
     const messages: Message[] = [];
     const events: FakeEvent[] = [];
+    const effects = new Set<() => void>();
     const session: FakeSession = {
       id: sessionId,
       header: {
@@ -135,6 +138,9 @@ export class FakeAgentHost implements DshAgentHost {
       id: sessionId,
       session,
       followup: (message: UserMessage) => {
+        const received = this.received.get(sessionId) ?? [];
+        received.push(message);
+        this.received.set(sessionId, received);
         messages.push(message);
         const currentTurn = ++turn;
         session.append('turn/start', { turn: currentTurn });
@@ -157,10 +163,22 @@ export class FakeAgentHost implements DshAgentHost {
           });
         });
       },
+      steer: (message: UserMessage) => {
+        const steered = this.steered.get(sessionId) ?? [];
+        steered.push(message);
+        this.steered.set(sessionId, steered);
+      },
       whenIdle: () => pending,
     };
     const fakeContext = {
       get: (_name: string) => undefined,
+      effect: (setup: () => () => void) => {
+        const dispose = setup();
+        effects.add(dispose);
+        return () => {
+          if (effects.delete(dispose)) dispose();
+        };
+      },
       on: (event: string, listener: (...args: unknown[]) => unknown) => {
         scope.listeners.set(event, listener);
         return () => void scope.listeners.delete(event);
@@ -211,6 +229,8 @@ export class FakeAgentHost implements DshAgentHost {
       dispose: async () => {
         this.disposed.push(sessionId);
         this.#live.delete(sessionId);
+        for (const dispose of effects) dispose();
+        effects.clear();
       },
     };
   }

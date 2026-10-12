@@ -380,7 +380,7 @@ describe('own-Bot Inbox history', () => {
     for (let i = 0; i < 2; i++) {
       const core = createCore({ dshHome: home });
       try {
-        expect(core.operationalDatabase.generation).toBe(78);
+        expect(core.operationalDatabase.generation).toBe(BOT_HARNESS_SCHEMA_PLAN.targetGeneration);
         expect(core.inboxHistory.list('ada', { query: '星期五' }).items).toMatchObject([
           { sourceEventId: 'legacy', state: 'handled' },
         ]);

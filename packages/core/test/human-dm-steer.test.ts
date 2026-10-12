@@ -8,6 +8,75 @@ import type { BotAgentAdapter } from '../src/runtime/bot-runtime.js';
 import { createTempRoot } from './helpers.js';
 
 describe('Human DM steering', () => {
+  it.each(['accepted', 'refused', 'throws'])(
+    'grants private interaction to a scheduled turn only when Human steering is %s',
+    async (outcome) => {
+      let ready!: () => void;
+      let release!: () => void;
+      const started = new Promise<void>((resolve) => {
+        ready = resolve;
+      });
+      const held = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      let sessionId = '';
+      const core = createCore({
+        dshHome: createTempRoot('bh-schedule-steer-private-'),
+        agents: {
+          async runOrchestrator(run) {
+            sessionId = run.sessionId;
+            ready();
+            await held;
+          },
+          steerOrchestrator() {
+            expect(core.runtime.canRequestPrivateInput?.(sessionId)).toBe(false);
+            if (outcome === 'throws') throw new Error('Steering refused with an exception');
+            return outcome === 'accepted';
+          },
+          async runAssignment() {},
+          requestAssignment() {
+            throw new Error('No Assignment expected');
+          },
+          async close() {},
+        },
+      });
+      try {
+        core.registry.create({ slug: 'ada', displayName: 'Ada' });
+        const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
+        const schedule = core.schedules.create(
+          'ada',
+          {
+            title: 'Background check',
+            prompt: 'Use a private account',
+            trigger: { kind: 'every', everySeconds: 3600 },
+            enabled: false,
+          },
+          'human',
+        );
+        core.schedules.runNow('ada', schedule.id);
+        await started;
+        expect(core.runtime.canRequestPrivateInput?.(sessionId)).toBe(false);
+        await core.channels.appendMessage(dm.id, {
+          id: 'steered-human',
+          at: new Date().toISOString(),
+          author: { kind: 'human' },
+          body: 'Configure the account',
+        });
+        core.runtime.admitDmMessage({
+          channelId: dm.id,
+          messageId: 'steered-human',
+          body: 'Configure the account',
+        });
+        expect(core.runtime.canRequestPrivateInput?.(sessionId)).toBe(outcome === 'accepted');
+      } finally {
+        release();
+        core.schedules.close();
+        await core.runtime.close();
+        core.operationalDatabase.close();
+      }
+    },
+  );
+
   it.each(['accepted', 'refused', 'interrupted', 'admission-failed'])(
     'observes an external Memory edit when active steering is %s',
     async (outcome) => {

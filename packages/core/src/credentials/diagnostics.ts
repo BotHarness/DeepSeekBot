@@ -6,5 +6,10 @@ export type PrivateInputLog = (
     sessionId?: string;
     durationMs?: number;
     program?: string;
+    initiator?: 'replacement' | 'revocation';
+    active?: number;
+    stopped?: number;
+    completed?: number;
+    uncertain?: number;
   },
 ) => void;

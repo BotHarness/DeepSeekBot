@@ -9,6 +9,8 @@ import { useMemo, useRef, useState, type ReactElement } from 'react';
 
 import {
   Button,
+  FileTypeIcon,
+  fileSizeText,
   MarkdownText,
   StateDot,
   type MarkdownLabels,
@@ -20,6 +22,7 @@ import { openModelsSettings } from './bot-settings-open.js';
 import { currentMentionLabel } from './actor-names.js';
 import type { ChannelHumanMember } from './store.js';
 import { referenceRuns } from './channel-refs.js';
+import { attachmentReferenceRuns, messageAttachmentReferences } from './attachment-refs.js';
 import type { BridgeActions, HostDirectoryListing } from './actions.js';
 import { FolderBrowser } from './workspace-grants-entry.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -96,28 +99,6 @@ function SessionFailureNotice({
           {t('failure.assignmentContext', { context: failure.context })}
         </div>
       )}
-      {needsModels ? (
-        <Button variant="outline" onClick={() => openModelsSettings()}>
-          {t('failure.openModels')}
-        </Button>
-      ) : null}
-      {failure.requestMessageId && actions && channelId ? (
-        <Button
-          variant="outline"
-          disabled={busy}
-          onClick={() => {
-            setBusy(true);
-            setError(undefined);
-            void actions
-              .retryMessage(channelId, failure.requestMessageId!)
-              .catch((cause) => setError(errorMessage(cause)))
-              .finally(() => setBusy(false));
-          }}
-        >
-          {t('onboarding.retryMessage')}
-        </Button>
-      ) : null}
-      {error ? <p role="alert">{error}</p> : null}
       <details className="bh-session-failure-details">
         <summary>{t('failure.details')}</summary>
         <div>
@@ -130,6 +111,32 @@ function SessionFailureNotice({
         <div className="bh-session-failure-raw">{failure.detail}</div>
         <code>{failure.sessionId}</code>
       </details>
+      {needsModels || (failure.requestMessageId && actions && channelId) ? (
+        <div className="bh-message-card-actions">
+          {needsModels ? (
+            <Button variant="outline" onClick={() => openModelsSettings()}>
+              {t('failure.openModels')}
+            </Button>
+          ) : null}
+          {failure.requestMessageId && actions && channelId ? (
+            <Button
+              variant="outline"
+              disabled={busy}
+              onClick={() => {
+                setBusy(true);
+                setError(undefined);
+                void actions
+                  .retryMessage(channelId, failure.requestMessageId!)
+                  .catch((cause) => setError(errorMessage(cause)))
+                  .finally(() => setBusy(false));
+              }}
+            >
+              {t('onboarding.retryMessage')}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+      {error ? <p role="alert">{error}</p> : null}
     </div>
   );
 }
@@ -214,6 +221,18 @@ export function GrantRequestCard({
       open(true);
     }
   }, [workspacePickerRequest]);
+  const chooseButton = (
+    <Button
+      variant="primary"
+      size={compact ? 'sm' : 'md'}
+      disabled={busy || opening}
+      onClick={() => open()}
+    >
+      {opening
+        ? t('grant.loading')
+        : t(compact ? 'humanInbox.grant.handle' : 'grant.requestChoose')}
+    </Button>
+  );
   return (
     <div
       className={compact ? 'bh-human-inbox-grant-action' : 'bh-grant-request-card'}
@@ -229,17 +248,10 @@ export function GrantRequestCard({
         <div className="bh-note" role="status">
           {t('grant.requestResolved')}
         </div>
+      ) : compact ? (
+        chooseButton
       ) : (
-        <Button
-          variant="primary"
-          size={compact ? 'sm' : 'md'}
-          disabled={busy || opening}
-          onClick={() => open()}
-        >
-          {opening
-            ? t('grant.loading')
-            : t(compact ? 'humanInbox.grant.handle' : 'grant.requestChoose')}
-        </Button>
+        <div className="bh-message-card-actions">{chooseButton}</div>
       )}
       {error === undefined ? null : (
         <div className="bh-error" role="alert">
@@ -507,6 +519,35 @@ export function ChannelMessageBody({
       </button>
     );
   };
+  const attachedFiles = messageAttachmentReferences(message.attachments ?? []);
+  const renderAttachmentText = (text: string) =>
+    attachmentReferenceRuns(text, attachedFiles).map((part, index) => {
+      const item = part.attachment;
+      if (item === undefined) return <span key={index}>{part.text}</span>;
+      return (
+        <button
+          key={index}
+          type="button"
+          className="bh-inline-mention bh-composer-inline-attachment"
+          aria-label={t('composer.locateAttachment', { name: item.file.name })}
+          onClick={(event) => {
+            const attachmentIndex = attachedFiles.findIndex(
+              (candidate) => candidate.id === item.id,
+            );
+            const card = event.currentTarget
+              .closest('.bh-bubble-content')
+              ?.querySelector('.bh-message-attachments')?.children[attachmentIndex];
+            card?.scrollIntoView({ block: 'nearest' });
+            card?.querySelector<HTMLElement>('button, a')?.focus();
+          }}
+        >
+          <span className="bh-attachment-ordinal">{attachedFiles.indexOf(item) + 1}</span>
+          <FileTypeIcon path={item.file.name} size={16} />
+          <span className="bh-composer-inline-attachment-name">{item.file.name}</span>
+          <span className="bh-composer-inline-attachment-size">{fileSizeText(item.file.size)}</span>
+        </button>
+      );
+    });
   return (
     <div className="bh-bubble-content">
       {message.body.length === 0 ? null : format === 'text' ? (
@@ -532,7 +573,7 @@ export function ChannelMessageBody({
                     mentions={message.bridgeOrigin?.mentions ?? []}
                   />
                 ) : (
-                  run.text
+                  renderAttachmentText(run.text)
                 )}
               </span>
             ),

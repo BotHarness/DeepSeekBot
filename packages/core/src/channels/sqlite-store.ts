@@ -489,6 +489,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     once: boolean,
     preview?: AllBotPreview,
     origin?: ChannelMessageOrigin,
+    canCommit?: () => boolean,
   ) => {
     const channel = readRecord(id);
     if (channel === undefined) return once ? { status: 'missing' as const } : undefined;
@@ -610,9 +611,14 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
         : undefined;
     const actionRevision =
       noticeChannel === undefined ? undefined : allMessages(noticeChannel.id).length + 1;
+    let refused = false;
     try {
       database.transaction(
         (db) => {
+          if (canCommit?.() === false) {
+            refused = true;
+            return;
+          }
           if (preview !== undefined) {
             const currentChannel = readRecord(id);
             if (currentChannel === undefined) throw new Error('Group Channel no longer available');
@@ -691,31 +697,33 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
             `)
               .get(targetSlug, rootId) !== undefined;
           const candidateRecipients =
-            durable.author.kind === 'human'
-              ? channel.type === 'dm' && channel.botSlug !== undefined
-                ? [{ botSlug: channel.botSlug, reason: 'human-dm' }]
-                : [...new Set(mentions.map((item) => item.botSlug))].map((botSlug) => ({
-                    botSlug,
-                    reason: 'group-mention',
-                  }))
-              : channel.type === 'group' &&
-                  senderSlug !== undefined &&
-                  durable.botCausation !== undefined &&
-                  durable.botCausation.hop <= MAX_BOT_HOPS
-                ? [...new Set(mentions.map((item) => item.botSlug))]
-                    .filter(
-                      (targetSlug) =>
-                        targetSlug !== senderSlug &&
-                        !botAlreadyAdmitted(targetSlug, durable.botCausation!.rootSourceEventId),
-                    )
-                    .map((botSlug) => ({ botSlug, reason: 'group-mention' }))
-                : botDm &&
-                    recipient !== undefined &&
+            durable.privateInputResolution !== undefined
+              ? []
+              : durable.author.kind === 'human'
+                ? channel.type === 'dm' && channel.botSlug !== undefined
+                  ? [{ botSlug: channel.botSlug, reason: 'human-dm' }]
+                  : [...new Set(mentions.map((item) => item.botSlug))].map((botSlug) => ({
+                      botSlug,
+                      reason: 'group-mention',
+                    }))
+                : channel.type === 'group' &&
+                    senderSlug !== undefined &&
                     durable.botCausation !== undefined &&
-                    durable.botCausation.hop <= MAX_BOT_HOPS &&
-                    !botAlreadyAdmitted(recipient, durable.botCausation.rootSourceEventId)
-                  ? [{ botSlug: recipient, reason: 'bot-dm' }]
-                  : [];
+                    durable.botCausation.hop <= MAX_BOT_HOPS
+                  ? [...new Set(mentions.map((item) => item.botSlug))]
+                      .filter(
+                        (targetSlug) =>
+                          targetSlug !== senderSlug &&
+                          !botAlreadyAdmitted(targetSlug, durable.botCausation!.rootSourceEventId),
+                      )
+                      .map((botSlug) => ({ botSlug, reason: 'group-mention' }))
+                  : botDm &&
+                      recipient !== undefined &&
+                      durable.botCausation !== undefined &&
+                      durable.botCausation.hop <= MAX_BOT_HOPS &&
+                      !botAlreadyAdmitted(recipient, durable.botCausation.rootSourceEventId)
+                    ? [{ botSlug: recipient, reason: 'bot-dm' }]
+                    : [];
           const recipients = candidateRecipients.filter((item) => isBotActive(item.botSlug));
           const immediate = new Set(recipients.map((item) => item.botSlug));
           const ordinaryAllowed =
@@ -823,6 +831,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
         throw error.cause;
       throw error;
     }
+    if (refused) return { status: 'conflict' as const };
     const committed = project([...previous, durable], durable);
     const deliveries = admissionStatuses(sourceEventId);
     const humanReceipts = humanReceiptsFor(committed, revision, humanMembers(id));
@@ -2149,8 +2158,8 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       if (channel === undefined) throw new Error('Group Channel not found');
       return allBotPreview(channel, isBotActive, options.botDisplayName ?? (() => undefined));
     },
-    async appendMessageOnce(id, message, preview, origin) {
-      const result = append(id, message, true, preview, origin);
+    async appendMessageOnce(id, message, preview, origin, canCommit) {
+      const result = append(id, message, true, preview, origin, canCommit);
       return result ?? { status: 'missing' };
     },
     readMessages(id, readOptions) {

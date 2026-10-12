@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
+import { act, createElement, type InputHTMLAttributes, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -32,13 +32,260 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
     }),
   Tag: ({ children }: { children: ReactNode }) => createElement('span', null, children),
   Modal: () => null,
-  Input: () => null,
-  IconChevronDownOutlineRegular: () => null,
+  Input: (props: InputHTMLAttributes<HTMLInputElement>) => createElement('input', props),
+  IconChevronDownOutlineRegular: ({ size }: { size?: number }) =>
+    createElement('svg', { 'data-icon': 'sidebar-chevron', width: size, height: size }),
   IconCloseOutlineRegular: () => null,
   IconFolderOpenOutlineRegular: () => null,
 }));
 
 describe('Workspace Grant sidebar', () => {
+  it('reuses the Channel sidebar summary row and chevron while keeping native disclosure', async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    const actions = {
+      listWorkspaceGrants: vi.fn(async () => []),
+      listWorkspaceOptions: vi.fn(async () => [
+        { id: 'registered', title: 'Registered project', path: '/registered' },
+      ]),
+      memoryDirectory: vi.fn(async () => undefined),
+      listToolApprovalRules: vi.fn(async () => []),
+      assignmentAccess: vi.fn(async () => ({ mode: 'workspace-write' })),
+      authorizeWorkspacePath: vi.fn(),
+      createWorkspaceGrant: vi.fn(),
+    } as unknown as BridgeActions;
+    try {
+      await act(async () =>
+        root.render(
+          createElement(WorkspaceGrantsEntry, {
+            scope: 'personabot',
+            botSlug: 'ada',
+            channelId: 'dm-ada',
+            actions,
+            t: zhTranslate,
+            composerOnly: true,
+          }),
+        ),
+      );
+      const summaries = container.querySelectorAll('details > summary');
+      expect(summaries).toHaveLength(2);
+      for (const summary of summaries) {
+        expect(summary.classList.contains('bh-channel-sidebar-entry-head')).toBe(true);
+        expect(summary.querySelector('.bh-channel-sidebar-entry-label')).not.toBeNull();
+        const chevron = summary.querySelector('.bh-channel-sidebar-entry-chevron');
+        expect(chevron?.getAttribute('aria-hidden')).toBe('true');
+        expect(chevron?.querySelector('svg')?.getAttribute('width')).toBe('14');
+      }
+      const manual = summaries[0]!.parentElement as HTMLDetailsElement;
+      expect(manual.open).toBe(false);
+      await act(async () => (summaries[0] as HTMLElement).click());
+      expect(manual.open).toBe(true);
+      await act(async () => (summaries[0] as HTMLElement).click());
+      expect(manual.open).toBe(false);
+      expect(actions.authorizeWorkspacePath).not.toHaveBeenCalled();
+      expect(actions.createWorkspaceGrant).not.toHaveBeenCalled();
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+    }
+  });
+
+  it.each(['manual', 'native'] as const)(
+    'keeps the %s directory preview visible without publishing a Grant change',
+    async (kind) => {
+      Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+      const container = document.createElement('div');
+      document.body.append(container);
+      const root = createRoot(container);
+      const listWorkspaceGrants = vi.fn(async () => []);
+      const authorizeWorkspacePath = vi
+        .fn()
+        .mockRejectedValue(new Error('Result unknown; read back'));
+      const actions = {
+        listWorkspaceGrants,
+        listWorkspaceOptions: vi.fn(async () => []),
+        memoryDirectory: vi.fn(async () => undefined),
+        listToolApprovalRules: vi.fn(async () => []),
+        assignmentAccess: vi.fn(async () => ({ mode: 'workspace-write' })),
+        listHostFolders:
+          kind === 'manual'
+            ? vi.fn(async () => ({
+                path: '/resolved/folder',
+                entries: [],
+                crumbs: [],
+                home: '/',
+                truncated: false,
+              }))
+            : vi.fn().mockRejectedValue({ rpcError: { code: 'directory-picker/unavailable' } }),
+        pickWorkspaceFolder: vi.fn(async () => '/native/alias'),
+        resolveWorkspaceFolder: vi.fn(async () => ({
+          id: 'folder',
+          path: '/resolved/folder',
+          title: 'Folder',
+        })),
+        authorizeWorkspacePath,
+      } as unknown as BridgeActions;
+      try {
+        await act(async () =>
+          root.render(
+            createElement(WorkspaceGrantsEntry, {
+              scope: 'personabot',
+              channelId: 'dm',
+              botSlug: `preview-${kind}`,
+              actions,
+              t: zhTranslate,
+              composerOnly: true,
+            }),
+          ),
+        );
+        if (kind === 'manual') {
+          const input = container.querySelector('input')!;
+          await act(async () => {
+            Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+              input,
+              '/typed/alias',
+            );
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+          });
+          await act(async () =>
+            Array.from(container.querySelectorAll<HTMLButtonElement>('button'))
+              .find((button) => button.textContent === zhTranslate('grant.authorize'))!
+              .click(),
+          );
+          expect(actions.resolveWorkspaceFolder).toHaveBeenCalledWith('/typed/alias');
+        } else {
+          await act(async () =>
+            Array.from(container.querySelectorAll<HTMLButtonElement>('button'))
+              .find((button) => button.textContent === zhTranslate('grant.addFolder'))!
+              .click(),
+          );
+          expect(actions.pickWorkspaceFolder).toHaveBeenCalledOnce();
+          expect(actions.resolveWorkspaceFolder).toHaveBeenCalledWith('/native/alias');
+        }
+        expect(container.querySelector('.bh-workspace-grant-confirm')!.textContent).toContain(
+          '/resolved/folder',
+        );
+        expect(listWorkspaceGrants).toHaveBeenCalledTimes(1);
+        expect(authorizeWorkspacePath).not.toHaveBeenCalled();
+        await act(async () =>
+          container.querySelector<HTMLButtonElement>('.bh-workspace-grant-confirm button')!.click(),
+        );
+        expect(authorizeWorkspacePath).toHaveBeenCalledExactlyOnceWith(
+          `preview-${kind}`,
+          '/resolved/folder',
+        );
+        expect(container.querySelector('[role="alert"]')!.textContent).toContain('Result unknown');
+        expect(listWorkspaceGrants.mock.calls.length).toBeGreaterThan(1);
+        expect(container.querySelector('[role="switch"]')).toBeNull();
+      } finally {
+        await act(async () => root.unmount());
+        container.remove();
+      }
+    },
+  );
+  it('composer requires scoped confirmation, cancellation writes nothing and existing Grants are reused', async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    const grants: Array<{
+      id: string;
+      botSlug: string;
+      workspaceId: string;
+      workspacePath: string;
+      workspaceTitle: string;
+      createdAt: string;
+    }> = [];
+    const createWorkspaceGrant = vi.fn(async () => {
+      const grant = {
+        id: 'composer-grant',
+        botSlug: 'grant-composer',
+        workspaceId: 'project',
+        workspacePath: '/resolved/project',
+        workspaceTitle: 'Project',
+        createdAt: '',
+      };
+      grants.push(grant);
+      return grant;
+    });
+    const actions = {
+      listWorkspaceGrants: vi.fn(async () => grants),
+      listWorkspaceOptions: vi.fn(async () => [
+        { id: 'project', path: '/resolved/project', title: 'Project' },
+      ]),
+      listHostFolders: vi.fn(async () => ({
+        path: '/resolved/project',
+        crumbs: [],
+        entries: [],
+        truncated: false,
+      })),
+      resolveWorkspaceFolder: vi.fn(async () => ({
+        id: 'project',
+        path: '/resolved/project',
+        title: 'Project',
+      })),
+      memoryDirectory: vi.fn(async () => undefined),
+      listToolApprovalRules: vi.fn(async () => []),
+      assignmentAccess: vi.fn(async () => ({ mode: 'workspace-write' })),
+      createWorkspaceGrant,
+      setAssignmentAccess: vi.fn(),
+      setWorkspaceGrantWrite: vi.fn(),
+    } as unknown as BridgeActions;
+    const authorize = () =>
+      Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find(
+        (button) => !button.disabled && button.textContent === zhTranslate('grant.authorize'),
+      )!;
+    try {
+      await act(async () =>
+        root.render(
+          createElement(WorkspaceGrantsEntry, {
+            scope: 'personabot',
+            channelId: 'dm',
+            botSlug: 'grant-composer',
+            botName: 'Composer Bot',
+            actions,
+            t: zhTranslate,
+            composerOnly: true,
+          }),
+        ),
+      );
+      expect(container.querySelector('[role="switch"]')).toBeNull();
+      await act(async () =>
+        Array.from(container.querySelectorAll<HTMLButtonElement>('.bh-workspace-folder-toggle'))
+          .at(-1)!
+          .click(),
+      );
+      await act(async () => authorize().click());
+      expect(container.textContent).toContain('确认授权给 Composer Bot');
+      expect(container.textContent).toContain('已解析目录：/resolved/project');
+      expect(createWorkspaceGrant).not.toHaveBeenCalled();
+      await act(async () =>
+        Array.from(container.querySelectorAll<HTMLButtonElement>('button'))
+          .find((button) => button.textContent === zhTranslate('approval.cancel'))!
+          .click(),
+      );
+      expect(createWorkspaceGrant).not.toHaveBeenCalled();
+      await act(async () => authorize().click());
+      await act(async () =>
+        container.querySelector<HTMLButtonElement>('.bh-workspace-grant-confirm button')!.click(),
+      );
+      expect(createWorkspaceGrant).toHaveBeenCalledExactlyOnceWith('grant-composer', 'project');
+      expect(container.querySelector('.bh-workspace-grant-confirm')).toBeNull();
+      expect(container.querySelector('[role="switch"]')).toBeNull();
+      expect(
+        Array.from(container.querySelectorAll('button')).filter(
+          (button) => !button.disabled && button.textContent === zhTranslate('grant.authorize'),
+        ),
+      ).toHaveLength(0);
+      expect(actions.setAssignmentAccess).not.toHaveBeenCalled();
+      expect(actions.setWorkspaceGrantWrite).not.toHaveBeenCalled();
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+    }
+  });
   it('keeps write permission off until the Host confirms and preserves it when revocation fails', async () => {
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
     const container = document.createElement('div');

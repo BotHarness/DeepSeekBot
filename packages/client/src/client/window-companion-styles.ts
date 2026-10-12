@@ -14,6 +14,8 @@ export const WINDOW_COMPANION_CSS = `
 }
 .bh-companion-chip { display: inline-flex; align-items: center; gap: 2px; }
 .bh-channel-island-wrap > .bh-companion-pin { margin-left: 2px; }
+.bh-channel-island-wrap > .bh-companion-pin { width: 34px; height: 34px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 999px; background: var(--dsw-alias-bg-module-platform); box-shadow: 0 3px 12px color-mix(in srgb, var(--dsw-alias-label-primary) 12%, transparent); }
+.bh-channel-island-wrap > .bh-companion-pin:hover { background: color-mix(in srgb, var(--dsw-alias-label-primary) 8%, var(--dsw-alias-bg-module-platform)); }
 .bh-companion-pin { display: inline-grid; place-items: center; width: 26px; height: 26px; padding: 0; border: 0; background: transparent; color: var(--bh-overview-muted); border-radius: var(--bh-overview-radius-control); cursor: pointer; opacity: 0; transition: opacity 150ms ease; }
 .bh-companion-chip:hover .bh-companion-pin, .bh-channel-island-wrap:hover > .bh-companion-pin, .bh-companion-pin:focus-visible, .bh-companion-pin[aria-pressed='true'] { opacity: 1; }
 .bh-companion-pin:focus-visible { outline: 2px solid var(--bh-accent); outline-offset: 2px; }

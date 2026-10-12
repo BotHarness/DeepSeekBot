@@ -127,6 +127,8 @@ import {
   revokeToolApprovalRule,
   type ToolApprovalRuleView,
   createWorkspaceGrant,
+  createGroupWorkspaceGrant,
+  readGroupWorkspaceGrant,
   revokeWorkspaceGrant,
   setWorkspaceGrantWrite,
   loadToolApprovalStatus,
@@ -159,6 +161,8 @@ import {
   loadMemoryGitGraph,
   loadMemoryGitCommitDiff,
   loadProfileActivity,
+  loadProfileSessionUsage,
+  type ProfileSessionUsage,
   loadProfileUsage,
   loadOverviewMemory,
   loadOverviewUsage,
@@ -373,6 +377,17 @@ export interface BridgeActions {
   pickWorkspaceFolder(): Promise<string | null>;
   addWorkspaceFolder(slug: string): Promise<WorkspaceGrantView | undefined>;
   authorizeWorkspacePath(slug: string, path: string): Promise<WorkspaceGrantView>;
+  resolveWorkspaceFolder(path: string): Promise<WorkspaceOption>;
+  authorizeGroupWorkspacePath(
+    channelId: string,
+    slug: string,
+    path: string,
+  ): Promise<{ grant: WorkspaceGrantView; created: boolean }>;
+  readGroupWorkspaceGrant(
+    channelId: string,
+    slug: string,
+    path: string,
+  ): Promise<WorkspaceGrantView | undefined>;
   memoryDirectory(slug: string): Promise<string | undefined>;
   load(signal?: AbortSignal): Promise<void>;
   deletionPreview(slug: string): Promise<PersonaBotDeletionPreview>;
@@ -477,6 +492,7 @@ export interface BridgeActions {
   memoryGitGraph(channelId: string, offset: number): Promise<MemoryGitGraph>;
   memoryGitCommitDiff(channelId: string, sha: string): Promise<MemoryGitCommitDiff>;
   profileActivity(channelId: string, window?: ProfileActivityWindow): Promise<ProfileActivity>;
+  profileSessionUsage(channelId: string): Promise<ProfileSessionUsage>;
   overviewMemory(
     after?: string,
   ): Promise<import('../../../core/src/memory/overview.js').OverviewMemory>;
@@ -552,6 +568,15 @@ export interface BridgeActions {
     values: Record<string, string>,
   ): Promise<void>;
   privateInputCancel?(channelId: string, messageId: string): Promise<void>;
+  privateAccountStatus?(
+    channelId: string,
+    messageId: string,
+  ): Promise<import('../../../core/src/credentials/contracts.js').PrivateAccountStatus>;
+  privateInputReplace?(channelId: string, messageId: string): Promise<void>;
+  privateAccountRevoke?(
+    channelId: string,
+    messageId: string,
+  ): Promise<import('../../../core/src/credentials/contracts.js').PrivateRevocationResult>;
   toolApprovalExecutionState?(
     channelId: string,
     messageId: string,
@@ -1229,6 +1254,22 @@ export function createActions(
       const workspace = await folderAccess.createWorkspace({ path });
       return createWorkspaceGrant(call, slug, workspace.workspaceId);
     },
+    async resolveWorkspaceFolder(path) {
+      if (folderAccess === undefined) throw new Error('DSH Workspace controller is unavailable');
+      const workspace = await folderAccess.createWorkspace({ path });
+      const resolved = (await loadWorkspaceOptions(call)).find(
+        (row) => row.id === workspace.workspaceId,
+      );
+      if (resolved === undefined) throw new Error('Resolved DSH Workspace is unavailable');
+      return resolved;
+    },
+    async authorizeGroupWorkspacePath(channelId, slug, path) {
+      if (folderAccess === undefined) throw new Error('DSH Workspace controller is unavailable');
+      const workspace = await folderAccess.createWorkspace({ path });
+      return createGroupWorkspaceGrant(call, slug, workspace.workspaceId, channelId, path);
+    },
+    readGroupWorkspaceGrant: (channelId, slug, path) =>
+      readGroupWorkspaceGrant(call, slug, channelId, path),
     async memoryDirectory(slug) {
       const result = await call('get', { slug });
       if (!result.ok) throw new BridgeCallError(result.error.code, result.error.message);
@@ -1265,6 +1306,43 @@ export function createActions(
       const result = await call('privateInputCancel', { channelId, messageId });
       if (!result.ok || (result.value as { accepted?: unknown }).accepted !== true)
         throw new Error('Private input cancellation was not accepted');
+    },
+    privateAccountStatus: async (channelId, messageId) => {
+      const result = await call('privateAccountStatus', { channelId, messageId });
+      if (!result.ok) throw new Error('Private account status is unavailable');
+      const value =
+        result.value as import('../../../core/src/credentials/contracts.js').PrivateAccountStatus;
+      if (
+        !['configured', 'revoked', 'superseded', 'unavailable'].includes(value.status) ||
+        typeof value.references !== 'object' ||
+        value.references === null ||
+        !Object.values(value.references).every(
+          (reference) =>
+            typeof reference === 'string' &&
+            /^private:[0-9a-f-]{36}:[a-z][a-z0-9_]{0,47}$/.test(reference),
+        )
+      )
+        throw new Error('Private account status is invalid');
+      return value;
+    },
+    privateInputReplace: async (channelId, messageId) => {
+      const result = await call('privateInputReplace', { channelId, messageId });
+      if (!result.ok || typeof (result.value as { messageId?: unknown }).messageId !== 'string')
+        throw new Error('Private input replacement is unavailable');
+    },
+    privateAccountRevoke: async (channelId, messageId) => {
+      const result = await call('privateAccountRevoke', { channelId, messageId });
+      if (!result.ok) throw new Error('Private account revocation is unavailable');
+      const value =
+        result.value as import('../../../core/src/credentials/contracts.js').PrivateRevocationResult;
+      if (
+        value.accepted !== true ||
+        ![value.stopped, value.completed, value.uncertain].every(
+          (count) => Number.isSafeInteger(count) && count >= 0,
+        )
+      )
+        throw new Error('Private account revocation was not accepted');
+      return value;
     },
     toolApprovalExecutionState: (channelId, messageId) =>
       loadToolApprovalExecutionState(call, channelId, messageId),
@@ -1985,6 +2063,7 @@ export function createActions(
     memoryGitGraph: (channelId, offset) => loadMemoryGitGraph(call, channelId, offset),
     memoryGitCommitDiff: (channelId, sha) => loadMemoryGitCommitDiff(call, channelId, sha),
     profileActivity: (channelId, window) => loadProfileActivity(call, channelId, window),
+    profileSessionUsage: (channelId) => loadProfileSessionUsage(call, channelId),
     overviewMemory: (after) => loadOverviewMemory(call, after),
     overviewUsage: (period, after) => loadOverviewUsage(call, period, after),
     marketplaceList: (query) => loadMarketplacePage(call, query),

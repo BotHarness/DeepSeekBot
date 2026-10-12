@@ -85,7 +85,21 @@ function rememberWorkspace(
 
 const WORKSPACE_ACTION_TIMEOUT_MS = 15_000;
 
-function withWorkspaceActionDeadline<T>(promise: Promise<T>, timeoutMessage: string): Promise<T> {
+export function FolderSectionSummary({ children }: { children: ReactNode }): ReactElement {
+  return (
+    <summary className="bh-channel-sidebar-entry-head">
+      <span className="bh-channel-sidebar-entry-chevron" aria-hidden="true">
+        <IconChevronDownOutlineRegular size={14} />
+      </span>
+      <span className="bh-channel-sidebar-entry-label">{children}</span>
+    </summary>
+  );
+}
+
+export function withWorkspaceActionDeadline<T>(
+  promise: Promise<T>,
+  timeoutMessage: string,
+): Promise<T> {
   return new Promise((resolve, reject) => {
     const timer = window.setTimeout(
       () => reject(new Error(timeoutMessage)),
@@ -112,7 +126,7 @@ function approvalRulePath(rule: ToolApprovalRuleView): string {
   return rule.scopeKey;
 }
 
-function FolderRow({
+export function FolderRow({
   name,
   path,
   icon = 'folder-key',
@@ -122,6 +136,7 @@ function FolderRow({
   disabled,
   detail,
   pathAction,
+  initiallyExpanded = false,
 }: {
   name: string;
   path: string;
@@ -132,8 +147,9 @@ function FolderRow({
   disabled?: boolean;
   detail?: ReactNode;
   pathAction?: ReactNode;
+  initiallyExpanded?: boolean;
 }): ReactElement {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(initiallyExpanded);
   const detailId = useId();
   return (
     <SidebarCardRow
@@ -331,7 +347,13 @@ export function WorkspaceGrantsEntry({
   actions,
   t,
   developerMode = false,
-}: ChannelSidebarEntryProps & { developerMode?: boolean }): ReactElement {
+  composerOnly = false,
+  botName,
+}: ChannelSidebarEntryProps & {
+  developerMode?: boolean;
+  composerOnly?: boolean;
+  botName?: string;
+}): ReactElement {
   const slug = botSlug ?? '';
   const subscribeChanges = useCallback(
     (listener: () => void) => subscribeWorkspaceGrantChanges(slug, listener),
@@ -349,6 +371,7 @@ export function WorkspaceGrantsEntry({
   const [rules, setRules] = useState<ToolApprovalRuleView[]>(cached?.rules ?? []);
   const [access, setAccess] = useState<AssignmentAccessPresetView | undefined>(cached?.access);
   const [confirmDanger, setConfirmDanger] = useState(false);
+  const [pendingGrant, setPendingGrant] = useState<{ path: string; workspaceId?: string }>();
   const [memoryDir, setMemoryDir] = useState<string | undefined>(cached?.memoryDir);
   const [manualOpen, setManualOpen] = useState(false);
   const [manualPath, setManualPath] = useState('');
@@ -413,6 +436,7 @@ export function WorkspaceGrantsEntry({
     setBrowserListing(undefined);
     setBusy(undefined);
     setConfirmDanger(false);
+    setPendingGrant(undefined);
     if (botSlug === undefined) return;
     setLoading(cachedWorkspace(actions, botSlug) === undefined);
     setError(undefined);
@@ -438,7 +462,17 @@ export function WorkspaceGrantsEntry({
         });
         await withWorkspaceActionDeadline(operation, t('grant.operationTimeout'));
       } catch (cause) {
-        if (activeSlug.current === botSlug) setError(errorMessage(cause));
+        if (activeSlug.current === botSlug) {
+          setError(errorMessage(cause));
+          if (composerOnly) {
+            try {
+              await refresh(botSlug);
+            } catch (readback) {
+              if (activeSlug.current === botSlug)
+                setError(`${errorMessage(cause)} · ${errorMessage(readback)}`);
+            }
+          }
+        }
       } finally {
         if (activeSlug.current === botSlug) setBusy(undefined);
       }
@@ -458,9 +492,14 @@ export function WorkspaceGrantsEntry({
         if (activeSlug.current !== botSlug) return;
         if (pickerUnavailable(cause)) {
           try {
-            const grant = await actions.addWorkspaceFolder(botSlug);
-            if (grant !== undefined) showGrant(grant);
-            await refresh(botSlug);
+            if (composerOnly) {
+              const path = await actions.pickWorkspaceFolder();
+              if (path !== null && activeSlug.current === botSlug) setPendingGrant({ path });
+            } else {
+              const grant = await actions.addWorkspaceFolder(botSlug);
+              if (grant !== undefined) showGrant(grant);
+              await refresh(botSlug);
+            }
           } catch (nativeCause) {
             if (activeSlug.current === botSlug) setError(errorMessage(nativeCause));
           }
@@ -471,6 +510,27 @@ export function WorkspaceGrantsEntry({
         if (activeSlug.current === botSlug) setBusy(undefined);
       }
     })();
+  };
+
+  const previewFolder = (): void => {
+    if (botSlug === undefined || busy !== undefined) return;
+    setBusy('preview-folder');
+    setError(undefined);
+    void withWorkspaceActionDeadline(
+      actions.listHostFolders(manualPath.trim()),
+      t('grant.loadTimeout'),
+    )
+      .then(
+        (resolved) => {
+          if (activeSlug.current === botSlug) setPendingGrant({ path: resolved.path });
+        },
+        (cause: unknown) => {
+          if (activeSlug.current === botSlug) setError(errorMessage(cause));
+        },
+      )
+      .finally(() => {
+        if (activeSlug.current === botSlug) setBusy(undefined);
+      });
   };
 
   if (botSlug === undefined) return <div className="bh-note">{t('grant.noBot')}</div>;
@@ -531,27 +591,29 @@ export function WorkspaceGrantsEntry({
             }
             disabled={busy !== undefined}
             detail={
-              <label className="bh-assignment-access-row">
-                <span>{t('grant.orchestratorWrite')}</span>
-                <Switch
-                  checked={grant.orchestratorWrite === true}
-                  disabled={busy !== undefined}
-                  label={t('grant.orchestratorWrite') + ': ' + grant.workspaceTitle}
-                  onChange={(enabled) =>
-                    mutate(grant.id, async () => {
-                      const updated = await actions.setWorkspaceGrantWrite(
-                        botSlug,
-                        grant.id,
-                        enabled,
-                      );
-                      const current = cachedWorkspace(actions, botSlug)?.grants ?? grants;
-                      const next = current.map((row) => (row.id === updated.id ? updated : row));
-                      rememberWorkspace(actions, botSlug, { grants: next });
-                      if (activeSlug.current === botSlug) setGrants(next);
-                    })
-                  }
-                />
-              </label>
+              composerOnly ? undefined : (
+                <label className="bh-assignment-access-row">
+                  <span>{t('grant.orchestratorWrite')}</span>
+                  <Switch
+                    checked={grant.orchestratorWrite === true}
+                    disabled={busy !== undefined}
+                    label={t('grant.orchestratorWrite') + ': ' + grant.workspaceTitle}
+                    onChange={(enabled) =>
+                      mutate(grant.id, async () => {
+                        const updated = await actions.setWorkspaceGrantWrite(
+                          botSlug,
+                          grant.id,
+                          enabled,
+                        );
+                        const current = cachedWorkspace(actions, botSlug)?.grants ?? grants;
+                        const next = current.map((row) => (row.id === updated.id ? updated : row));
+                        rememberWorkspace(actions, botSlug, { grants: next });
+                        if (activeSlug.current === botSlug) setGrants(next);
+                      })
+                    }
+                  />
+                </label>
+              )
             }
             removeLabel={t('grant.removeFolder') + ': ' + grant.workspaceTitle}
             remove={() =>
@@ -568,21 +630,33 @@ export function WorkspaceGrantsEntry({
           />
         ))}
       </SidebarCardList>
-      <Button variant="outline" disabled={busy !== undefined} onClick={openFolderBrowser}>
-        {t('grant.addFolder')}
-      </Button>
+      {composerOnly ? (
+        <WorkspaceFolderPicker
+          actions={actions}
+          t={t}
+          disabled={busy !== undefined}
+          workspaces={available}
+          onChoose={(path, workspaceId) =>
+            setPendingGrant({ path, ...(workspaceId === undefined ? {} : { workspaceId }) })
+          }
+        />
+      ) : (
+        <Button variant="outline" disabled={busy !== undefined} onClick={openFolderBrowser}>
+          {t('grant.addFolder')}
+        </Button>
+      )}
       {busy === undefined ? null : (
         <div className="bh-note" role="status">
           {t('grant.working')}
         </div>
       )}
-      {developerMode ? (
+      {developerMode && !composerOnly ? (
         <details
           className="bh-workspace-folder-secondary"
           open={manualOpen}
           onToggle={(event) => setManualOpen(event.currentTarget.open)}
         >
-          <summary>{t('grant.enterPath')}</summary>
+          <FolderSectionSummary>{t('grant.enterPath')}</FolderSectionSummary>
           <div className="bh-workspace-folder-manual">
             <div className="bh-note">{t('grant.pathHelp')}</div>
             <Input
@@ -594,24 +668,28 @@ export function WorkspaceGrantsEntry({
             <Button
               variant="outline"
               disabled={busy !== undefined || manualPath.trim().length === 0}
-              onClick={() =>
+              onClick={() => {
+                if (composerOnly) {
+                  previewFolder();
+                  return;
+                }
                 mutate('manual-folder', async () => {
                   showGrant(await actions.authorizeWorkspacePath(botSlug, manualPath.trim()));
                   if (activeSlug.current === botSlug) {
                     setManualPath('');
                     setManualOpen(false);
                   }
-                })
-              }
+                });
+              }}
             >
               {t('grant.authorize')}
             </Button>
           </div>
         </details>
       ) : null}
-      {!developerMode || available.length === 0 ? null : (
+      {!developerMode || composerOnly || available.length === 0 ? null : (
         <details className="bh-workspace-folder-secondary">
-          <summary>{t('grant.registeredFolders')}</summary>
+          <FolderSectionSummary>{t('grant.registeredFolders')}</FolderSectionSummary>
           <SidebarCardList className="bh-workspace-folder-table">
             {available.map((workspace) => (
               <FolderRow
@@ -622,11 +700,14 @@ export function WorkspaceGrantsEntry({
                   <Button
                     variant="outline"
                     disabled={busy !== undefined}
-                    onClick={() =>
-                      mutate(workspace.id, async () =>
-                        showGrant(await actions.createWorkspaceGrant(botSlug, workspace.id)),
-                      )
-                    }
+                    onClick={() => {
+                      if (composerOnly)
+                        setPendingGrant({ path: workspace.path, workspaceId: workspace.id });
+                      else
+                        mutate(workspace.id, async () =>
+                          showGrant(await actions.createWorkspaceGrant(botSlug, workspace.id)),
+                        );
+                    }}
                   >
                     {t('grant.authorize')}
                   </Button>
@@ -638,9 +719,9 @@ export function WorkspaceGrantsEntry({
       )}
       {!developerMode || revoked.length === 0 ? null : (
         <details className="bh-workspace-folder-secondary">
-          <summary>
+          <FolderSectionSummary>
             {t('grant.history')} ({revoked.length})
-          </summary>
+          </FolderSectionSummary>
           <SidebarCardList className="bh-workspace-folder-table">
             {revoked.map((grant) => (
               <FolderRow key={grant.id} name={grant.workspaceTitle} path={grant.workspacePath} />
@@ -648,122 +729,326 @@ export function WorkspaceGrantsEntry({
           </SidebarCardList>
         </details>
       )}
-      <SidebarCardList className="bh-assignment-access-card">
-        <SidebarCardRow
-          icon="lock"
-          title={t('access.title')}
-          meta={t('access.description')}
-          state={access?.mode}
-          trailing={
-            <Switch
-              checked={access?.mode === 'danger-full-access'}
-              disabled={loading || busy !== undefined}
-              onChange={(checked) => {
-                if (checked) {
-                  setConfirmDanger(true);
-                } else {
-                  setConfirmDanger(false);
-                  mutate('safe-access', () =>
-                    actions.setAssignmentAccess(botSlug, 'workspace-write', false),
-                  );
-                }
-              }}
-              label={t('access.title')}
-            />
-          }
-        />
-      </SidebarCardList>
-      {access?.mode === 'danger-full-access' ? (
-        <div className="bh-access-warning" role="status">
-          {t('access.activeWarning')}
-        </div>
-      ) : null}
-      {confirmDanger ? (
-        <div className="bh-access-warning" role="group" aria-label={t('access.confirmTitle')}>
-          <div className="bh-grant-request-title">{t('access.confirmTitle')}</div>
-          <div className="bh-note">{t('access.confirmRisk')}</div>
-          <div className="bh-tool-approval-actions">
-            <Button
-              variant="primary"
-              disabled={busy !== undefined}
-              onClick={() =>
-                mutate('danger-access', async () => {
-                  await actions.setAssignmentAccess(botSlug, 'danger-full-access', true);
-                  if (activeSlug.current === botSlug) setConfirmDanger(false);
-                })
+      {composerOnly ? null : (
+        <>
+          <SidebarCardList className="bh-assignment-access-card">
+            <SidebarCardRow
+              icon="lock"
+              title={t('access.title')}
+              meta={t('access.description')}
+              state={access?.mode}
+              trailing={
+                <Switch
+                  checked={access?.mode === 'danger-full-access'}
+                  disabled={loading || busy !== undefined}
+                  onChange={(checked) => {
+                    if (checked) {
+                      setConfirmDanger(true);
+                    } else {
+                      setConfirmDanger(false);
+                      mutate('safe-access', () =>
+                        actions.setAssignmentAccess(botSlug, 'workspace-write', false),
+                      );
+                    }
+                  }}
+                  label={t('access.title')}
+                />
               }
-            >
-              {t('access.confirmEnable')}
-            </Button>
-            <Button
-              variant="outline"
-              disabled={busy !== undefined}
-              onClick={() => setConfirmDanger(false)}
-            >
-              {t('approval.cancel')}
-            </Button>
-          </div>
-        </div>
-      ) : null}
-      {rules.filter((rule) => rule.revokedAt === undefined).length === 0 ? null : (
-        <details className="bh-workspace-folder-secondary">
-          <summary>{t('approval.rulesTitle')}</summary>
-          <div className="bh-workspace-folder-table">
-            {rules
-              .filter((rule) => rule.revokedAt === undefined)
-              .map((rule) => (
-                <div key={rule.id} className="bh-workspace-folder-row">
-                  <div className="bh-workspace-folder-main">
-                    <span className="bh-workspace-folder-toggle">
-                      {rule.kind === 'exact'
-                        ? t('approval.exactRule', { tool: rule.toolName })
-                        : t('approval.allRule')}
-                      {' · '}
-                      {rule.role === 'assignment'
-                        ? t('approval.assignment')
-                        : t('approval.orchestrator')}
-                    </span>
-                    <button
-                      type="button"
-                      className="bh-workspace-folder-remove"
-                      aria-label={t('approval.revokeRule')}
-                      disabled={busy !== undefined}
-                      onClick={() =>
-                        mutate(rule.id, () => actions.revokeToolApprovalRule(botSlug, rule.id))
-                      }
-                    >
-                      <IconCloseOutlineRegular />
-                    </button>
-                  </div>
-                  <details className="bh-workspace-folder-secondary">
-                    <summary>{t('approval.ruleDetails')}</summary>
-                    <div className="bh-note">
-                      {t('approval.cwd', { path: approvalRulePath(rule) })}
+            />
+          </SidebarCardList>
+          {access?.mode === 'danger-full-access' ? (
+            <div className="bh-access-warning" role="status">
+              {t('access.activeWarning')}
+            </div>
+          ) : null}
+          {confirmDanger ? (
+            <div className="bh-access-warning" role="group" aria-label={t('access.confirmTitle')}>
+              <div className="bh-grant-request-title">{t('access.confirmTitle')}</div>
+              <div className="bh-note">{t('access.confirmRisk')}</div>
+              <div className="bh-tool-approval-actions">
+                <Button
+                  variant="primary"
+                  disabled={busy !== undefined}
+                  onClick={() =>
+                    mutate('danger-access', async () => {
+                      await actions.setAssignmentAccess(botSlug, 'danger-full-access', true);
+                      if (activeSlug.current === botSlug) setConfirmDanger(false);
+                    })
+                  }
+                >
+                  {t('access.confirmEnable')}
+                </Button>
+                <Button
+                  variant="outline"
+                  disabled={busy !== undefined}
+                  onClick={() => setConfirmDanger(false)}
+                >
+                  {t('approval.cancel')}
+                </Button>
+              </div>
+            </div>
+          ) : null}
+          {rules.filter((rule) => rule.revokedAt === undefined).length === 0 ? null : (
+            <details className="bh-workspace-folder-secondary">
+              <FolderSectionSummary>{t('approval.rulesTitle')}</FolderSectionSummary>
+              <div className="bh-workspace-folder-table">
+                {rules
+                  .filter((rule) => rule.revokedAt === undefined)
+                  .map((rule) => (
+                    <div key={rule.id} className="bh-workspace-folder-row">
+                      <div className="bh-workspace-folder-main">
+                        <span className="bh-workspace-folder-toggle">
+                          {rule.kind === 'exact'
+                            ? t('approval.exactRule', { tool: rule.toolName })
+                            : t('approval.allRule')}
+                          {' · '}
+                          {rule.role === 'assignment'
+                            ? t('approval.assignment')
+                            : t('approval.orchestrator')}
+                        </span>
+                        <button
+                          type="button"
+                          className="bh-workspace-folder-remove"
+                          aria-label={t('approval.revokeRule')}
+                          disabled={busy !== undefined}
+                          onClick={() =>
+                            mutate(rule.id, () => actions.revokeToolApprovalRule(botSlug, rule.id))
+                          }
+                        >
+                          <IconCloseOutlineRegular />
+                        </button>
+                      </div>
+                      <details className="bh-workspace-folder-secondary">
+                        <FolderSectionSummary>{t('approval.ruleDetails')}</FolderSectionSummary>
+                        <div className="bh-note">
+                          {t('approval.cwd', { path: approvalRulePath(rule) })}
+                        </div>
+                        {rule.kind === 'exact' ? (
+                          <pre className="bh-tool-approval-input">{rule.input}</pre>
+                        ) : null}
+                      </details>
                     </div>
-                    {rule.kind === 'exact' ? (
-                      <pre className="bh-tool-approval-input">{rule.input}</pre>
-                    ) : null}
-                  </details>
-                </div>
-              ))}
-          </div>
-        </details>
+                  ))}
+              </div>
+            </details>
+          )}
+        </>
+      )}
+      {pendingGrant === undefined ? null : (
+        <WorkspaceGrantConfirmation
+          title={t('composerContext.confirmGrant', { name: botName ?? botSlug })}
+        >
+          <p>{t('composerContext.grantScope', { path: pendingGrant.path })}</p>
+          <Button
+            disabled={busy !== undefined}
+            onClick={() =>
+              mutate('confirm-folder', async () => {
+                const grant =
+                  pendingGrant.workspaceId === undefined
+                    ? await actions.authorizeWorkspacePath(botSlug, pendingGrant.path)
+                    : await actions.createWorkspaceGrant(botSlug, pendingGrant.workspaceId);
+                showGrant(grant);
+                if (activeSlug.current === botSlug) {
+                  setPendingGrant(undefined);
+                  setBrowserListing(undefined);
+                  setManualPath('');
+                }
+              })
+            }
+          >
+            {t('grant.authorize')}
+          </Button>
+          <Button disabled={busy !== undefined} onClick={() => setPendingGrant(undefined)}>
+            {t('approval.cancel')}
+          </Button>
+        </WorkspaceGrantConfirmation>
       )}
       {browserListing === undefined ? null : (
         <FolderBrowser
           initial={browserListing}
           actions={actions}
           onCancel={() => setBrowserListing(undefined)}
-          onChoose={(path) =>
+          onChoose={(path) => {
+            if (composerOnly) {
+              if (activeSlug.current === botSlug) {
+                setPendingGrant({ path });
+                setBrowserListing(undefined);
+              }
+              return;
+            }
             mutate('browse-folder', async () => {
               showGrant(await actions.authorizeWorkspacePath(botSlug, path));
               if (activeSlug.current === botSlug) setBrowserListing(undefined);
-            })
-          }
+            });
+          }}
           busy={busy !== undefined}
           t={t}
         />
       )}
+    </div>
+  );
+}
+
+export function WorkspaceFolderPicker({
+  actions,
+  t,
+  disabled,
+  workspaces,
+  onChoose,
+}: {
+  actions: ChannelSidebarEntryProps['actions'];
+  t: ChannelSidebarEntryProps['t'];
+  disabled: boolean;
+  workspaces: WorkspaceOption[];
+  onChoose(path: string, workspaceId?: string): void;
+}): ReactElement {
+  const [manualPath, setManualPath] = useState('');
+  const [listing, setListing] = useState<HostDirectoryListing>();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string>();
+  const active = useRef(false);
+  const mount = useMountedResource<HTMLDivElement>(() => {
+    active.current = true;
+    return () => {
+      active.current = false;
+    };
+  }, []);
+  const resolve = (load: () => Promise<string | null>, workspaceId?: string): void => {
+    if (busy || disabled) return;
+    setBusy(true);
+    setError(undefined);
+    void withWorkspaceActionDeadline(
+      (async () => {
+        const path = await load();
+        if (path === null) return;
+        const resolved = await actions.resolveWorkspaceFolder(path);
+        if (!active.current) return;
+        onChoose(resolved.path, workspaceId);
+      })(),
+      t('grant.loadTimeout'),
+    )
+      .catch((cause: unknown) => {
+        if (active.current) setError(errorMessage(cause));
+      })
+      .finally(() => {
+        if (active.current) setBusy(false);
+      });
+  };
+  const browse = (): void => {
+    if (busy || disabled) return;
+    setBusy(true);
+    setError(undefined);
+    void withWorkspaceActionDeadline(actions.listHostFolders(), t('grant.loadTimeout'))
+      .then((value) => {
+        if (active.current) setListing(value);
+      })
+      .catch(async (cause: unknown) => {
+        if (!active.current) return;
+        if (!pickerUnavailable(cause)) {
+          setError(errorMessage(cause));
+          return;
+        }
+        try {
+          const path = await withWorkspaceActionDeadline(
+            actions.pickWorkspaceFolder(),
+            t('grant.loadTimeout'),
+          );
+          if (active.current && path !== null) {
+            const resolved = await withWorkspaceActionDeadline(
+              actions.resolveWorkspaceFolder(path),
+              t('grant.loadTimeout'),
+            );
+            if (active.current) onChoose(resolved.path);
+          }
+        } catch (nativeCause) {
+          if (active.current) setError(errorMessage(nativeCause));
+        }
+      })
+      .finally(() => {
+        if (active.current) setBusy(false);
+      });
+  };
+  return (
+    <div ref={mount}>
+      <Button variant="outline" disabled={disabled || busy} onClick={browse}>
+        {t('grant.addFolder')}
+      </Button>
+      {error === undefined ? null : (
+        <div className="bh-error" role="alert">
+          {error}
+        </div>
+      )}
+      <details className="bh-workspace-folder-secondary">
+        <FolderSectionSummary>{t('grant.enterPath')}</FolderSectionSummary>
+        <div className="bh-workspace-folder-manual">
+          <div className="bh-note">{t('grant.pathHelp')}</div>
+          <Input
+            aria-label={t('grant.pathLabel')}
+            placeholder={t('grant.pathPlaceholder')}
+            value={manualPath}
+            disabled={disabled || busy}
+            onChange={(event) => setManualPath(event.target.value)}
+          />
+          <Button
+            variant="outline"
+            disabled={disabled || busy || manualPath.trim().length === 0}
+            onClick={() => resolve(async () => manualPath.trim())}
+          >
+            {t('grant.authorize')}
+          </Button>
+        </div>
+      </details>
+      {workspaces.length === 0 ? null : (
+        <details className="bh-workspace-folder-secondary">
+          <FolderSectionSummary>{t('grant.registeredFolders')}</FolderSectionSummary>
+          <SidebarCardList className="bh-workspace-folder-table">
+            {workspaces.map((workspace) => (
+              <FolderRow
+                key={workspace.id}
+                name={workspace.title}
+                path={workspace.path}
+                detail={
+                  <Button
+                    variant="outline"
+                    disabled={disabled || busy}
+                    onClick={() => resolve(async () => workspace.path, workspace.id)}
+                  >
+                    {t('grant.authorize')}
+                  </Button>
+                }
+              />
+            ))}
+          </SidebarCardList>
+        </details>
+      )}
+      {listing === undefined ? null : (
+        <FolderBrowser
+          initial={listing}
+          actions={actions}
+          t={t}
+          busy={disabled || busy}
+          onCancel={() => setListing(undefined)}
+          onChoose={(path) => {
+            setListing(undefined);
+            resolve(async () => path);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+export function WorkspaceGrantConfirmation({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}): ReactElement {
+  return (
+    <div className="bh-workspace-grant-confirm" role="group" aria-label={title}>
+      <strong>{title}</strong>
+      {children}
     </div>
   );
 }

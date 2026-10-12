@@ -16,6 +16,8 @@ export function PairingTable<Row extends { id: string }>({
   data,
   columns,
   selectedId,
+  selectedIds,
+  disabled = false,
   select,
   label,
   empty,
@@ -24,7 +26,9 @@ export function PairingTable<Row extends { id: string }>({
   data: Row[];
   columns: ColumnDef<Row>[];
   selectedId?: string | undefined;
-  select(row: Row): void;
+  selectedIds?: string[] | undefined;
+  disabled?: boolean | undefined;
+  select?: ((row: Row) => void) | undefined;
   label: string;
   empty: string;
   t: BotHarnessTranslate;
@@ -38,11 +42,13 @@ export function PairingTable<Row extends { id: string }>({
     state: {
       globalFilter: filter,
       sorting,
-      rowSelection: selectedId ? { [selectedId]: true } : {},
+      rowSelection: Object.fromEntries(
+        (selectedIds ?? (selectedId ? [selectedId] : [])).map((id) => [id, true]),
+      ),
     },
     onGlobalFilterChange: setFilter,
     onSortingChange: setSorting,
-    enableMultiRowSelection: false,
+    enableMultiRowSelection: !!selectedIds,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -63,9 +69,11 @@ export function PairingTable<Row extends { id: string }>({
           <thead>
             {table.getHeaderGroups().map((group) => (
               <tr key={group.id}>
-                <th scope="col">
-                  <span className="bh-sr-only">{t('pairing.selection')}</span>
-                </th>
+                {select ? (
+                  <th scope="col">
+                    <span className="bh-sr-only">{t('pairing.selection')}</span>
+                  </th>
+                ) : null}
                 {group.headers.map((header) => (
                   <th
                     key={header.id}
@@ -103,21 +111,25 @@ export function PairingTable<Row extends { id: string }>({
           <tbody>
             {visible.map((row) => (
               <tr key={row.id} data-selected={row.getIsSelected() || undefined}>
-                <td>
-                  <Checkbox
-                    label={t('pairing.selectEntry', {
-                      name: String(row.getValue(columns[0]?.id ?? 'name') ?? row.id),
-                    })}
-                    checked={row.getIsSelected()}
-                    onChange={() => select(row.original)}
-                  />
-                </td>
+                {select ? (
+                  <td>
+                    <Checkbox
+                      label={t('pairing.selectEntry', {
+                        name: String(row.getValue(columns[0]?.id ?? 'name') ?? row.id),
+                      })}
+                      checked={row.getIsSelected()}
+                      disabled={disabled}
+                      onChange={() => select(row.original)}
+                    />
+                  </td>
+                ) : null}
                 {row.getVisibleCells().map((cell, index) => (
                   <td key={cell.id}>
-                    {index === 0 ? (
+                    {index === 0 && select ? (
                       <button
                         type="button"
                         className="bh-pairing-name"
+                        disabled={disabled}
                         onClick={() => select(row.original)}
                       >
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}

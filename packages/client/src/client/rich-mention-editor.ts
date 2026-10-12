@@ -2,6 +2,7 @@ import type { AllBotPreview } from '../../../core/src/channels/all-bot-mention.j
 import type { SelectedMention } from './mentions.js';
 import { referenceRuns, type SelectedChannelRef } from './channel-refs.js';
 import type { BotSummary } from './store.js';
+import { attachmentReferenceRuns, type ComposerAttachmentReference } from './attachment-refs.js';
 
 export interface MentionAvatarMount {
   target: HTMLElement;
@@ -44,6 +45,9 @@ function token(
 }
 
 function rawLength(node: Node): number {
+  if (node instanceof HTMLBRElement && node.dataset.richPlaceholder !== undefined) return 0;
+  if (node instanceof HTMLElement && node.dataset.attachmentText !== undefined)
+    return node.dataset.attachmentText.length;
   const mention = token(node);
   if (mention !== undefined) return mention.label.length + 1;
   if (node.nodeType === Node.TEXT_NODE) return node.textContent?.length ?? 0;
@@ -53,19 +57,69 @@ function rawLength(node: Node): number {
   return length;
 }
 
+function richTextNodes(document: Document, text: string): Node[] {
+  return text.split('\n').flatMap((line, index) => {
+    const nodes: Node[] = index === 0 ? [] : [document.createElement('br')];
+    if (line.length > 0) nodes.push(document.createTextNode(line));
+    return nodes;
+  });
+}
+
+function syncTrailingLine(editor: HTMLElement): void {
+  for (const placeholder of editor.querySelectorAll('br[data-rich-placeholder]'))
+    placeholder.remove();
+  while (editor.lastChild?.nodeType === Node.TEXT_NODE && editor.lastChild.textContent === '')
+    editor.lastChild.remove();
+  if (editor.lastChild instanceof HTMLBRElement) {
+    const placeholder = editor.ownerDocument.createElement('br');
+    placeholder.dataset.richPlaceholder = '';
+    editor.append(placeholder);
+  }
+}
+
 export function renderRichMentionDraft(
   editor: HTMLElement,
   value: string,
   mentions: readonly SelectedMention[],
   bots: readonly BotSummary[],
   refs: readonly SelectedChannelRef[] = [],
+  attachments: readonly ComposerAttachmentReference[] = [],
 ): MentionAvatarMount[] {
   const document = editor.ownerDocument;
   const nodes: Node[] = [];
   const mounts: MentionAvatarMount[] = [];
   for (const run of referenceRuns(value, mentions, refs)) {
     if (run.mention === undefined && run.channelRef === undefined) {
-      nodes.push(document.createTextNode(run.text));
+      for (const part of attachmentReferenceRuns(run.text, attachments)) {
+        if (part.attachment === undefined) {
+          nodes.push(...richTextNodes(document, part.text));
+          continue;
+        }
+        const item = part.attachment;
+        const badge = document.createElement('span');
+        badge.className = 'bh-inline-mention bh-composer-inline-attachment';
+        badge.contentEditable = 'false';
+        badge.dataset.attachmentText = part.text;
+        badge.dataset.attachmentId = item.id;
+        badge.dataset.status = item.status;
+        badge.setAttribute('aria-busy', String(item.status === 'uploading'));
+        badge.title = item.file.name;
+        const icon = document.createElement('span');
+        icon.dataset.attachmentIcon = item.id;
+        icon.setAttribute('aria-hidden', 'true');
+        const label = document.createElement('span');
+        const ordinal = document.createElement('span');
+        ordinal.className = 'bh-attachment-ordinal';
+        ordinal.textContent = String(attachments.indexOf(item) + 1);
+        label.className = 'bh-composer-inline-attachment-name';
+        label.textContent = item.file.name;
+        const size = document.createElement('span');
+        size.className = 'bh-composer-inline-attachment-size';
+        const bytes = item.ref?.size ?? item.file.size;
+        size.textContent = bytes < 1024 ? `${bytes} B` : `${Math.ceil(bytes / 1024)} KB`;
+        badge.append(ordinal, icon, label, size);
+        nodes.push(badge);
+      }
       continue;
     }
     if (run.channelRef !== undefined) {
@@ -111,6 +165,7 @@ export function renderRichMentionDraft(
     });
   }
   editor.replaceChildren(...nodes);
+  syncTrailingLine(editor);
   return mounts;
 }
 
@@ -119,6 +174,10 @@ export function readRichMentionDraft(editor: HTMLElement): RichMentionDraft {
   const mentions: SelectedMention[] = [];
   const channelRefs: SelectedChannelRef[] = [];
   const append = (node: Node): void => {
+    if (node instanceof HTMLElement && node.dataset.attachmentText !== undefined) {
+      value += node.dataset.attachmentText;
+      return;
+    }
     const mention = token(node);
     if (mention !== undefined) {
       const start = value.length;
@@ -147,7 +206,7 @@ export function readRichMentionDraft(editor: HTMLElement): RichMentionDraft {
       return;
     }
     if (node instanceof HTMLBRElement) {
-      value += '\n';
+      if (node.dataset.richPlaceholder === undefined) value += '\n';
       return;
     }
     for (const child of node.childNodes) append(child);
@@ -196,8 +255,11 @@ function offsetAt(editor: HTMLElement, target: Node, offset: number): number {
       return true;
     }
     const mention = token(node);
-    if (mention !== undefined) {
-      count += mention.label.length + 1;
+    if (
+      mention !== undefined ||
+      (node instanceof HTMLElement && node.dataset.attachmentText !== undefined)
+    ) {
+      count += rawLength(node);
       return node.contains(target);
     }
     if (node.nodeType === Node.TEXT_NODE || node instanceof HTMLBRElement) {
@@ -237,7 +299,11 @@ function pointAt(editor: HTMLElement, desired: number): { node: Node; offset: nu
       }
       if (child.nodeType === Node.TEXT_NODE)
         return { node: child, offset: Math.min(remaining, length) };
-      if (token(child) !== undefined || child instanceof HTMLBRElement)
+      if (
+        token(child) !== undefined ||
+        (child instanceof HTMLElement && child.dataset.attachmentText !== undefined) ||
+        child instanceof HTMLBRElement
+      )
         return { node: parent, offset: index + (remaining > 0 ? 1 : 0) };
       return visit(child);
     }
@@ -270,9 +336,16 @@ export function insertRichPlainText(editor: HTMLElement, text: string): void {
     range.collapse(false);
   }
   range.deleteContents();
-  const node = editor.ownerDocument.createTextNode(text);
-  range.insertNode(node);
-  range.setStart(node, text.length);
+  const nodes = richTextNodes(editor.ownerDocument, text);
+  const fragment = editor.ownerDocument.createDocumentFragment();
+  fragment.append(...nodes);
+  const last = nodes.at(-1);
+  range.insertNode(fragment);
+  if (last !== undefined) {
+    if (last.nodeType === Node.TEXT_NODE) range.setStart(last, last.textContent?.length ?? 0);
+    else range.setStartAfter(last);
+  }
+  syncTrailingLine(editor);
   range.collapse(true);
   selection.removeAllRanges();
   selection.addRange(range);

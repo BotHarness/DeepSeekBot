@@ -661,6 +661,9 @@ importers:
       '@deepseek-ai/schemastery':
         specifier: 3.18.4
         version: 3.18.4
+      '@modelcontextprotocol/client':
+        specifier: 2.0.0
+        version: 2.0.0
       yaml:
         specifier: ^2.9.1
         version: 2.9.1

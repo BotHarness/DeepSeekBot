@@ -26,6 +26,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   IconPaperclipOutlineRegular: () => null,
   IconSendOutlineRegular: () => null,
   ImageLightbox: () => null,
+  fileSizeText: (size: number) => `${size} B`,
 }));
 
 import {
@@ -254,10 +255,10 @@ describe('Channel composer', () => {
       }),
     );
 
-    expect(markup).toContain('class="bh-composer-image-attachment"');
+    expect(markup).toContain('class="bh-composer-attachment-card bh-composer-image-attachment"');
     expect(markup).toContain('class="bh-composer-image-preview"');
     expect(markup).toContain('aria-haspopup="dialog"');
-    expect(markup).toContain('class="bh-composer-file-attachment"');
+    expect(markup).toContain('class="bh-composer-attachment-card bh-composer-file-attachment"');
     expect(markup).toContain(
       'data-file-type-icon="a-very-long-report-name-that-needs-truncation.docx"',
     );

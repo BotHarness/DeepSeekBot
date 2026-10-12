@@ -1,0 +1,141 @@
+{
+  "source": "allowlisted local qualification",
+  "fixture": {
+    "requests": 7,
+    "authenticated": 5,
+    "completed": 5,
+    "disconnected": 2,
+    "versions": [1, 4]
+  },
+  "wire": {
+    "requests": 48,
+    "bodyBytes": 6851124,
+    "canaryMatches": 0
+  },
+  "scanner": {
+    "files": 1098,
+    "sessionEvents": 365,
+    "requestHeaders": 2,
+    "toolResults": 34,
+    "spillFiles": 0,
+    "nativeStoreContainsSyntheticValues": true,
+    "violations": []
+  },
+  "lifecycle": [
+    {
+      "messageId": "f04f8cd3-f682-46f6-b4c0-d2fd5147342e",
+      "account": "auth-failure-demo",
+      "fieldIds": ["endpoint", "api_key", "api_secret"],
+      "replacesMessageId": "6d6d413d-0352-4f19-ae0c-1ec1935d33d4",
+      "hasNativeSession": false
+    },
+    {
+      "requestMessageId": "6d6d413d-0352-4f19-ae0c-1ec1935d33d4",
+      "state": "configured",
+      "references": {
+        "endpoint": "private:bc576b2d-0158-4922-8983-03f6fbac749d:endpoint",
+        "api_key": "private:bc576b2d-0158-4922-8983-03f6fbac749d:api_key",
+        "api_secret": "private:bc576b2d-0158-4922-8983-03f6fbac749d:api_secret"
+      }
+    },
+    {
+      "messageId": "6d6d413d-0352-4f19-ae0c-1ec1935d33d4",
+      "account": "auth-failure-demo",
+      "fieldIds": ["endpoint", "api_key", "api_secret"],
+      "hasNativeSession": true
+    },
+    {
+      "phase": "local-revocation",
+      "stopped": 1,
+      "completed": 0,
+      "uncertain": 0
+    },
+    {
+      "requestMessageId": "55893aee-3e29-4d6f-a799-6dca3a9ad4da",
+      "state": "configured",
+      "references": {
+        "endpoint": "private:83dc3aab-e628-478d-94fd-b29d5f6d9027:endpoint",
+        "api_key": "private:83dc3aab-e628-478d-94fd-b29d5f6d9027:api_key",
+        "api_secret": "private:83dc3aab-e628-478d-94fd-b29d5f6d9027:api_secret"
+      }
+    },
+    {
+      "messageId": "55893aee-3e29-4d6f-a799-6dca3a9ad4da",
+      "account": "auth-failure-demo",
+      "fieldIds": ["endpoint", "api_key", "api_secret"],
+      "replacesMessageId": "485a5ef3-575c-4c0f-9365-3ecde7dbc0e7",
+      "hasNativeSession": false
+    },
+    {
+      "requestMessageId": "485a5ef3-575c-4c0f-9365-3ecde7dbc0e7",
+      "state": "configured",
+      "references": {
+        "endpoint": "private:a6c3b97f-13a0-438e-ab6a-d8f579242a06:endpoint",
+        "api_key": "private:a6c3b97f-13a0-438e-ab6a-d8f579242a06:api_key",
+        "api_secret": "private:a6c3b97f-13a0-438e-ab6a-d8f579242a06:api_secret"
+      }
+    },
+    {
+      "messageId": "485a5ef3-575c-4c0f-9365-3ecde7dbc0e7",
+      "account": "auth-failure-demo",
+      "fieldIds": ["endpoint", "api_key", "api_secret"],
+      "hasNativeSession": true
+    },
+    {
+      "phase": "local-revocation",
+      "stopped": 1,
+      "completed": 0,
+      "uncertain": 0
+    },
+    {
+      "requestMessageId": "8961f8b3-9096-4ab6-b979-ff25eb126f02",
+      "state": "configured",
+      "references": {
+        "endpoint": "private:29d5051a-cee9-48b0-a94e-56bd809dc5fa:endpoint",
+        "api_key": "private:29d5051a-cee9-48b0-a94e-56bd809dc5fa:api_key",
+        "api_secret": "private:29d5051a-cee9-48b0-a94e-56bd809dc5fa:api_secret"
+      }
+    },
+    {
+      "messageId": "8961f8b3-9096-4ab6-b979-ff25eb126f02",
+      "account": "rotation-demo",
+      "fieldIds": ["endpoint", "api_key", "api_secret"],
+      "replacesMessageId": "96d0a3a0-bfa4-4d2b-a058-8f174aaf41a3",
+      "hasNativeSession": false
+    },
+    {
+      "requestMessageId": "6394b21d-7529-49fb-ba69-3d240a466f87",
+      "state": "expired",
+      "references": {}
+    },
+    {
+      "messageId": "6394b21d-7529-49fb-ba69-3d240a466f87",
+      "account": "rotation-demo",
+      "fieldIds": ["endpoint", "api_key", "api_secret"],
+      "replacesMessageId": "96d0a3a0-bfa4-4d2b-a058-8f174aaf41a3",
+      "hasNativeSession": false
+    },
+    {
+      "requestMessageId": "96d0a3a0-bfa4-4d2b-a058-8f174aaf41a3",
+      "state": "configured",
+      "references": {
+        "endpoint": "private:29eb6e9f-e3e6-4d6c-8c73-686f1cbc7b77:endpoint",
+        "api_key": "private:29eb6e9f-e3e6-4d6c-8c73-686f1cbc7b77:api_key",
+        "api_secret": "private:29eb6e9f-e3e6-4d6c-8c73-686f1cbc7b77:api_secret"
+      }
+    },
+    {
+      "messageId": "96d0a3a0-bfa4-4d2b-a058-8f174aaf41a3",
+      "account": "rotation-demo",
+      "fieldIds": ["endpoint", "api_key", "api_secret"],
+      "hasNativeSession": true
+    }
+  ],
+  "limitations": [
+    "Windows full-suite attempt incomplete; isolated unchanged registry cleanup reproduced EPERM",
+    "Transient first replacement qualification failure has unconfirmed cause",
+    "Spill files zero in this new run; earlier qualified boundary evidence remains separate",
+    "No production or Linux-server deployment",
+    "Screenshots use separate base/candidate Profiles with differing opaque IDs, times, previous chats and roster"
+  ]
+}

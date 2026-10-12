@@ -1,0 +1,93 @@
+{
+  "source": "DSH 0.2.0-rc.1 native Session Persistence",
+  "sessionId": "botharness-d7a53d54-935d-4835-91c2-7a214d907c00",
+  "nativeEventsRead": 44,
+  "omitted": [
+    "Human/assistant text",
+    "reasoning",
+    "commands",
+    "HTTP headers/bodies",
+    "approval reasons",
+    "paths",
+    "raw values"
+  ],
+  "events": [
+    {
+      "seq": 11,
+      "time": "2026-10-11T12:38:52.500Z",
+      "type": "request/header"
+    },
+    {
+      "seq": 17,
+      "time": "2026-10-11T12:38:58.504Z",
+      "type": "tool/call",
+      "callId": "call_00_LxaOihtMLMxCx7lbXLLa8247",
+      "name": "channel_send"
+    },
+    {
+      "seq": 18,
+      "time": "2026-10-11T12:38:58.529Z",
+      "type": "tool/result",
+      "callId": "call_00_LxaOihtMLMxCx7lbXLLa8247",
+      "name": "channel_send",
+      "isError": false,
+      "value": {
+        "messageId": "e4ed0539-93b7-4d65-af0f-24ace22d1289"
+      }
+    },
+    {
+      "seq": 30,
+      "time": "2026-10-11T12:40:27.525Z",
+      "type": "tool/call",
+      "callId": "call_00_eZtEuk6DoMwmPAgaQecf9971",
+      "name": "mcp__private_status__authenticated_status",
+      "consumer": "mcp-http-status-v1",
+      "references": {
+        "endpoint": "private:1e63f15e-b746-4a42-b2f4-7e579cf30ad7:endpoint",
+        "api_key": "private:1e63f15e-b746-4a42-b2f4-7e579cf30ad7:api_key",
+        "api_secret": "private:1e63f15e-b746-4a42-b2f4-7e579cf30ad7:api_secret"
+      }
+    },
+    {
+      "seq": 31,
+      "time": "2026-10-11T12:40:27.526Z",
+      "type": "approval/asked",
+      "id": "ce4489cb-af82-44b4-b382-dfded879c915",
+      "callId": "call_00_eZtEuk6DoMwmPAgaQecf9971",
+      "toolName": "mcp__private_status__authenticated_status"
+    },
+    {
+      "seq": 32,
+      "time": "2026-10-11T12:41:34.753Z",
+      "type": "approval/decided",
+      "id": "ce4489cb-af82-44b4-b382-dfded879c915",
+      "outcome": "allowed-once"
+    },
+    {
+      "seq": 33,
+      "time": "2026-10-11T12:41:36.363Z",
+      "type": "tool/result",
+      "callId": "call_00_eZtEuk6DoMwmPAgaQecf9971",
+      "name": "mcp__private_status__authenticated_status",
+      "isError": true
+    },
+    {
+      "seq": 37,
+      "time": "2026-10-11T12:41:39.710Z",
+      "type": "tool/call",
+      "callId": "call_00_T8l42qlFSuYgBZ16Rx5N5732",
+      "name": "channel_send"
+    },
+    {
+      "seq": 38,
+      "time": "2026-10-11T12:41:39.743Z",
+      "type": "tool/result",
+      "callId": "call_00_T8l42qlFSuYgBZ16Rx5N5732",
+      "name": "channel_send",
+      "isError": false,
+      "value": {
+        "messageId": "7f25cfea-0999-44a9-886f-79a9dc8114df"
+      }
+    }
+  ]
+}

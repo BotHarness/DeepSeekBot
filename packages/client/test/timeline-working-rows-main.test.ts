@@ -133,8 +133,8 @@ const group: ChannelSummary = {
   updatedAt: AT,
 };
 const actions = new Proxy(
-  {},
-  { get: () => vi.fn(async () => undefined) },
+  { listWorkspaceGrants: vi.fn(async () => []) },
+  { get: (target, key) => Reflect.get(target, key) ?? vi.fn(async () => undefined) },
 ) as unknown as BridgeActions;
 
 async function open(channel: ChannelSummary, bots: BotSummary[]): Promise<HTMLElement> {

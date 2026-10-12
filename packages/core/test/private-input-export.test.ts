@@ -2,6 +2,68 @@ import { describe, expect, it } from 'vitest';
 import { projectPrivateInputEvents } from '../../../scripts/export-private-input-evidence.mjs';
 
 describe('public native Session evidence', () => {
+  it('retains native RC1 approval outcomes without exporting unknown values or decision reasons', () => {
+    const secret = 'PRIVATE-decision-reason';
+    const outcomes = ['allowed-once', 'rejected', 'cancelled', 'unavailable', secret];
+    const result = projectPrivateInputEvents(
+      outcomes.map((outcome, seq) => ({
+        seq,
+        time: 1_791_691_200_000 + seq,
+        type: 'approval/decided',
+        data: { id: '76a6fe17-1111-2222-3333-444444444444', outcome, reason: secret },
+      })),
+    );
+    expect(result.map((event) => event.outcome)).toEqual([
+      ...outcomes.slice(0, 4),
+      'decision-recorded',
+    ]);
+    expect(JSON.stringify(result)).not.toContain(secret);
+  });
+
+  it('exports the qualified MCP references and bounded outcome without additional protocol data', () => {
+    const reference = 'private:76a6fe17-1111-2222-3333-444444444444:api_key';
+    const result = projectPrivateInputEvents([
+      {
+        seq: 1,
+        time: 1_791_691_200_000,
+        type: 'tool/call',
+        data: {
+          callId: 'mcp_private',
+          name: 'mcp__private_status__authenticated_status',
+          arguments: { account: 'PRIVATE-account', api_key: reference },
+        },
+      },
+      {
+        seq: 2,
+        time: 1_791_691_200_001,
+        type: 'tool/result',
+        data: {
+          message: {
+            toolCallId: 'mcp_private',
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  consumer: 'mcp-http-status-v1',
+                  httpStatus: 200,
+                  successful: true,
+                  extra: 'PRIVATE-output',
+                }),
+              },
+            ],
+          },
+        },
+      },
+    ]);
+    expect(result[0]).toMatchObject({
+      consumer: 'mcp-http-status-v1',
+      references: { api_key: reference },
+    });
+    expect(result[1]).toMatchObject({
+      value: { consumer: 'mcp-http-status-v1', successful: true, httpStatus: 200 },
+    });
+    expect(JSON.stringify(result)).not.toContain('PRIVATE-');
+  });
   it('exports native truncation/Spill existence without publishing the file path or output', () => {
     const result = projectPrivateInputEvents([
       {

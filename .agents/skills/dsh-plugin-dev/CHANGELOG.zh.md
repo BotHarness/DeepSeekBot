@@ -9,6 +9,18 @@ artifact；DSH 版本与上游 revision 记录这些内容是基于什么版本�
 
 ### Documentation
 
+- 在[本地开发指南](../dsh-dev/SKILL.md)记录有界 Windows→Linux Profile 路径迁移及非 root 工作区权限前提，以 pinned DSH `0.2.0-rc.1` 和真实隔离 Linux Host 核验；DSH／Cordis Context 与 Skill 行为不变（[#1386](https://github.com/BotHarness/DeepSeekBot/issues/1386)，[复验](../../../docs/research/2026-10-12-private-input-linux-qualification.md)）。
+
+- 记录受保护私密引用 MCP 消费路径、native 适配器／SDK 边界及可信服务器限制；DSH/Cordis Context 与 Skill 行为不变（[#1384](https://github.com/BotHarness/DeepSeekBot/issues/1384)，[指南](../../../docs/dev/guides/private-input-mcp.md)）。
+
+- 记录 Owner CLI 私密输入生命周期的等价操作，复用现有已认证 Host carrier；DSH／Cordis Context 与 Skill 行为保持不变（[#1416](https://github.com/BotHarness/DeepSeekBot/issues/1416)，[指南](../../../docs/dev/guides/private-input-cli.md)）。
+
+- 在[本地开发指南](../dsh-dev/SKILL.md)记录真实模型路由匹配、Request 请求体覆盖与 Windows 探针导入，已用 pinned RC1 Go 请求及被动探针回归验证；DSH/Cordis Context 不变（[#1383](https://github.com/BotHarness/DeepSeekBot/issues/1383)）。
+
+- 在[本地开发指南](../dsh-dev/SKILL.md)记录凭据提交后响应失败及启动恢复的写入顺序，通过 pinned RC1 原生 Provider 和私密账号回归测试核验；DSH／Cordis Context 不变（[#1382](https://github.com/BotHarness/DeepSeekBot/issues/1382)）。
+
+- 在[本地开发指南](../dsh-dev/SKILL.md)记录 RC1 新 Profile 初始化、原生 credential record 对象归属和恢复排空，通过 pinned 原生 Provider 与真实私密输入 Host 核验；DSH／Cordis 词汇及 Skill 行为不变（[#1381](https://github.com/BotHarness/DeepSeekBot/issues/1381)）。
+
 - 在[本地开发指南](../dsh-dev/SKILL.md)记录浏览器依赖延迟读取 Node 环境变量的问题、构建期浏览器常量及真实原生弹窗复验路径，通过 DSH 0.2.0 RC1 核验（[#1373](https://github.com/BotHarness/DeepSeekBot/issues/1373)）。
 
 - 在[本地开发指南](../dsh-dev/SKILL.md)记录 RC1 原生 MCP stdio 生命周期、共享 Scope 模块身份、Windows Subprocess argv 和 Registry 继承可见性陷阱，以并发原生 Agent Scope 和真实 Docker 核验；DSH／Cordis 词汇及 Skill 行为保持不变（[#1380](https://github.com/BotHarness/DeepSeekBot/issues/1380)）。

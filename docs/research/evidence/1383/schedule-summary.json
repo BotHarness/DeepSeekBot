@@ -1,0 +1,173 @@
+{
+  "source": "allowlisted local Windows qualification; pinned DSH 0.2.0-rc.1",
+  "fixture": {
+    "requests": 4,
+    "authenticated": 3,
+    "completed": 4,
+    "disconnected": 0,
+    "versions": [2, 1]
+  },
+  "wire": {
+    "requests": 30,
+    "bodyUnavailable": 0,
+    "canaryMatches": 0
+  },
+  "native": {
+    "sessionId": "botharness-8591c98c-0581-4355-9ae3-4f386dfaa43f",
+    "eventsRead": 208,
+    "projectedEvents": 53
+  },
+  "schedules": [
+    {
+      "id": "a3aa12b9-fcba-4671-a271-acbf26ac7673",
+      "title": "Restart secret reference acceptance",
+      "creator": "personabot",
+      "enabled": false,
+      "kind": "at"
+    },
+    {
+      "id": "25435467-b3ee-4d38-ae7c-245384d10ff0",
+      "title": "Missing private configuration",
+      "creator": "human",
+      "enabled": false,
+      "kind": "every"
+    },
+    {
+      "id": "67721963-cc96-47a7-bc8b-57113db5997b",
+      "title": "Current private references",
+      "creator": "human",
+      "enabled": false,
+      "kind": "every"
+    }
+  ],
+  "firings": [
+    {
+      "id": "d0074f22-aa2a-4b3b-b642-136684e6aa0c",
+      "scheduleId": "a3aa12b9-fcba-4671-a271-acbf26ac7673",
+      "trigger": "planned",
+      "occurrenceAt": "2026-10-11T09:43:00.000Z",
+      "firedAt": "2026-10-11T09:43:00.014Z",
+      "sourceEventId": "7ce0a25f-3430-4913-a9e1-d5cb210bd340",
+      "state": "handled",
+      "sessionId": "botharness-8591c98c-0581-4355-9ae3-4f386dfaa43f"
+    },
+    {
+      "id": "93f8ecdd-d5cf-4b32-9fd5-9013b8ae1ef9",
+      "scheduleId": "25435467-b3ee-4d38-ae7c-245384d10ff0",
+      "trigger": "manual",
+      "occurrenceAt": "2026-10-11T09:43:21.993Z",
+      "firedAt": "2026-10-11T09:43:21.993Z",
+      "sourceEventId": "cbdb2f34-93a7-42fb-8cfb-bf8261951991",
+      "state": "handled",
+      "sessionId": "botharness-8591c98c-0581-4355-9ae3-4f386dfaa43f"
+    },
+    {
+      "id": "bc1c70ec-ee24-4f62-a0d8-a9069cab2771",
+      "scheduleId": "a3aa12b9-fcba-4671-a271-acbf26ac7673",
+      "trigger": "manual",
+      "occurrenceAt": "2026-10-11T09:51:30.444Z",
+      "firedAt": "2026-10-11T09:51:30.444Z",
+      "sourceEventId": "5ab820d9-7033-4428-834c-b70650d43650",
+      "state": "handled",
+      "sessionId": "botharness-8591c98c-0581-4355-9ae3-4f386dfaa43f"
+    },
+    {
+      "id": "eb9c5ff5-3d1c-4558-bebc-d8355d197fd2",
+      "scheduleId": "a3aa12b9-fcba-4671-a271-acbf26ac7673",
+      "trigger": "manual",
+      "occurrenceAt": "2026-10-11T09:52:37.622Z",
+      "firedAt": "2026-10-11T09:52:37.622Z",
+      "sourceEventId": "661e7ffe-2f0e-4ba8-b31a-4705f115f288",
+      "state": "handled",
+      "sessionId": "botharness-8591c98c-0581-4355-9ae3-4f386dfaa43f"
+    },
+    {
+      "id": "254224c0-7c31-4515-98fd-21f9ed5d6f58",
+      "scheduleId": "67721963-cc96-47a7-bc8b-57113db5997b",
+      "trigger": "manual",
+      "occurrenceAt": "2026-10-11T09:53:29.626Z",
+      "firedAt": "2026-10-11T09:53:29.626Z",
+      "sourceEventId": "5a40ce2b-3db9-46a6-9df8-77ab737eefb7",
+      "state": "handled",
+      "sessionId": "botharness-8591c98c-0581-4355-9ae3-4f386dfaa43f"
+    },
+    {
+      "id": "b3508279-8dbe-418c-afcc-543031857060",
+      "scheduleId": "67721963-cc96-47a7-bc8b-57113db5997b",
+      "trigger": "manual",
+      "occurrenceAt": "2026-10-11T09:55:59.070Z",
+      "firedAt": "2026-10-11T09:55:59.070Z",
+      "sourceEventId": "e576b380-1f72-4282-ab2c-48443c3737a4",
+      "state": "handled",
+      "sessionId": "botharness-8591c98c-0581-4355-9ae3-4f386dfaa43f"
+    },
+    {
+      "id": "2244d2fd-7a95-4519-b3da-2b899deb3846",
+      "scheduleId": "a3aa12b9-fcba-4671-a271-acbf26ac7673",
+      "trigger": "manual",
+      "occurrenceAt": "2026-10-11T09:56:00.383Z",
+      "firedAt": "2026-10-11T09:56:00.383Z",
+      "sourceEventId": "58a5e7c2-61f8-47ca-855a-31fd984a38cd",
+      "state": "handled",
+      "sessionId": "botharness-8591c98c-0581-4355-9ae3-4f386dfaa43f"
+    }
+  ],
+  "privateCards": [
+    {
+      "id": "c65f2752-c7a2-4f0a-a71b-f8600dfed0ac",
+      "account": "schedule-demo",
+      "fieldIds": ["endpoint", "api_key", "api_secret"],
+      "ownerReplacement": true
+    },
+    {
+      "id": "cde74f7f-c83d-4e79-9474-02e80c9362e3",
+      "account": "schedule-demo",
+      "fieldIds": ["endpoint", "api_key", "api_secret"],
+      "ownerReplacement": false
+    }
+  ],
+  "limitations": [
+    "Fixed trusted http-status-v1 consumer only",
+    "No production or Linux-server deployment",
+    "Windows full suite incomplete; focused and Linux CI results reported separately",
+    "Before and After are separate Profiles, so opaque IDs, avatars and prior history differ"
+  ],
+  "finalScan": {
+    "files": 207357,
+    "sessionEvents": 212,
+    "requestHeaders": 3,
+    "toolResults": 19,
+    "spillFiles": 2,
+    "nativeStoreContainsSyntheticValues": false,
+    "violations": []
+  },
+  "retainedHostLogs": {
+    "logs": [
+      {
+        "bytes": 83,
+        "canaryMatches": 0
+      },
+      {
+        "bytes": 83,
+        "canaryMatches": 0
+      }
+    ],
+    "coverage": "retained pre-planned-restart and post-revocation-restart Host logs; intervening launcher log overwritten"
+  },
+  "checks": {
+    "focused": {
+      "files": 6,
+      "passed": 62
+    },
+    "steering": {
+      "passed": 3
+    },
+    "lint": "passed",
+    "format": "passed",
+    "typecheck": "passed",
+    "build": "passed",
+    "windowsFullSuite": "incomplete after timing failures",
+    "humanQA": "pending",
+    "linuxServer": "not run"
+  }
+}

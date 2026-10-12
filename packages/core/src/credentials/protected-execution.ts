@@ -107,7 +107,7 @@ export class ProtectedExecution {
   async authenticatedStatus(
     values: Record<string, string>,
     signal: AbortSignal,
-  ): Promise<{ consumer: string; successful: boolean; httpStatus: number }> {
+  ): Promise<{ consumer: string; successful: boolean; httpStatus: number; action?: string }> {
     if (Object.keys(values).sort().join(',') !== 'api_key,api_secret,endpoint')
       throw new Error('http-status-v1 requires endpoint, api_key and api_secret references');
     if (signal.aborted || this.#closed) throw new Error('Protected credential execution cancelled');
@@ -131,6 +131,12 @@ export class ProtectedExecution {
       consumer: 'http-status-v1',
       successful: httpStatus >= 200 && httpStatus < 300,
       httpStatus,
+      ...([401, 403].includes(httpStatus)
+        ? {
+            action:
+              'Replace private information in Web Chat and retry; remote authorization may also need repair.',
+          }
+        : {}),
     };
   }
 

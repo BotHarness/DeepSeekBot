@@ -12,6 +12,8 @@ import type {} from '@deepseek-ai/dsh-api-session-controller/client';
 import type { SessionId } from '@deepseek-ai/dsh-session/types';
 
 import { BOT_MODE_NAMESPACE, type BotModeSettings } from '../bot-mode-settings.js';
+import { privateInputLocator } from '../../../core/src/credentials/web-locator.js';
+import { watchPrivateInputNavigation } from './private-input-navigation.js';
 import { createNativeHostFiles } from './host-file-actions.js';
 import { createActions, type BridgeActions } from './actions.js';
 import { ProviderAppSetup } from './provider-app-setup.js';
@@ -39,7 +41,10 @@ import {
 import { ReleaseNotesController } from './release-notes.js';
 import { TelemetryNoticeController } from './telemetry-notice.js';
 import './bot-settings-slot.js';
-import { BotMain, BotPanel } from './bot-main.js';
+import { BotMain } from './bot-main.js';
+import { MobileBotPanel } from './mobile-bot-panel.js';
+import { mobileBotViewport, subscribeMobileBotViewport } from './mobile-viewport.js';
+import { clearConversationDrafts } from './conversation-draft.js';
 import { BotSidebar, createBotPanelEntry } from './bot-sidebar.js';
 import { createChannelSidebarBuiltins } from './channel-sidebar-builtins.js';
 import { webBotModeShortcut, webShortcutBlocked } from './channel-shortcuts.js';
@@ -113,6 +118,7 @@ function installStyles(): () => void {
 }
 
 export function apply(ctx: ClientContext): void {
+  ctx.effect(() => clearConversationDrafts);
   const storage = defaultStorage();
   const hmrView =
     typeof window === 'undefined'
@@ -568,9 +574,12 @@ export function apply(ctx: ClientContext): void {
           prefs,
           releaseNotes,
           telemetryNotice,
+          ...botModePrefsFace(prefs),
+          exitBotMode: () => ctx.layout.selectPanel(null),
+          openBotSettings: () => botSettings.open(),
         }),
       },
-      BotPanel,
+      MobileBotPanel,
     );
     if (restoreBotMode) {
       restoreBotMode = false;
@@ -649,6 +658,10 @@ export function apply(ctx: ClientContext): void {
         BotSidebar,
       ),
     store,
+    {
+      enabled: () => !mobileBotViewport(),
+      subscribe: subscribeMobileBotViewport,
+    },
   );
   registerModeShadow(
     ctx,
@@ -709,7 +722,21 @@ export function apply(ctx: ClientContext): void {
 
   const viewToRestore =
     hmrView ?? (lastView?.mode === 'bot' ? { selection: lastView.selection } : undefined);
-  if (viewToRestore !== undefined) {
+  const privateLocator =
+    typeof window === 'undefined' ? undefined : privateInputLocator(window.location.hash);
+  if (privateLocator !== undefined) {
+    ctx.effect(
+      () =>
+        watchPrivateInputNavigation(store, privateLocator, (channelId, messageId) => {
+          ctx.layout.selectPanel(PANEL_ID);
+          void actions.openChannelAtMessage(channelId, messageId).catch(() => {
+            ctx.logger.warn('botharness: private input card locator unavailable');
+          });
+        }),
+      'botharness: private input Chat locator',
+    );
+  }
+  if (privateLocator === undefined && viewToRestore !== undefined) {
     ctx.effect(() => {
       let restored = false;
       const restore = (): void => {

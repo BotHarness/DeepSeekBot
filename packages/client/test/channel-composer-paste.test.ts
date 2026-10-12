@@ -15,6 +15,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
     createElement('button', props, children),
   FileTypeIcon: ({ path }: { path: string }) =>
     createElement('span', { 'data-file-type-icon': path }),
+  fileSizeText: (size: number) => `${size} B`,
   IconCloseOutlineRegular: () => null,
   IconPaperclipOutlineRegular: () => null,
   IconSendOutlineRegular: () => null,
@@ -103,7 +104,7 @@ describe('Channel composer clipboard attachments', () => {
     const file = new File(['image'], 'screenshot.png', { type: 'image/png' });
     const event = paste(container.querySelector('textarea')!, [file]);
     expect(event.defaultPrevented).toBe(true);
-    expect(onAddFiles).toHaveBeenCalledWith([file]);
+    expect(onAddFiles).toHaveBeenCalledWith([file], { start: 0, end: 0 });
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
@@ -128,7 +129,7 @@ describe('Channel composer clipboard attachments', () => {
     const file = new File(['report'], 'report.pdf', { type: 'application/pdf' });
     const event = paste(container.querySelector('[contenteditable="true"]')!, [file]);
     expect(event.defaultPrevented).toBe(true);
-    expect(onAddFiles).toHaveBeenCalledWith([file]);
+    expect(onAddFiles).toHaveBeenCalledWith([file], undefined);
   });
 
   it('accepts a clipboard image exposed only through items', async () => {
@@ -152,7 +153,7 @@ describe('Channel composer clipboard attachments', () => {
     const file = new File(['image'], 'capture.png', { type: 'image/png' });
     const event = paste(container.querySelector('textarea')!, [file], '', true);
     expect(event.defaultPrevented).toBe(true);
-    expect(onAddFiles).toHaveBeenCalledWith([file]);
+    expect(onAddFiles).toHaveBeenCalledWith([file], { start: 0, end: 0 });
   });
 
   it('queues the same clipboard file again on a repeated paste', async () => {
@@ -177,8 +178,47 @@ describe('Channel composer clipboard attachments', () => {
     const target = container.querySelector('textarea')!;
     paste(target, [file]);
     paste(target, [file]);
-    expect(onAddFiles).toHaveBeenNthCalledWith(1, [file]);
-    expect(onAddFiles).toHaveBeenNthCalledWith(2, [file]);
+    expect(onAddFiles).toHaveBeenNthCalledWith(1, [file], { start: 0, end: 0 });
+    expect(onAddFiles).toHaveBeenNthCalledWith(2, [file], { start: 0, end: 0 });
+  });
+
+  it('collects files from both clipboard lists once and stops shell paste handlers', async () => {
+    const onAddFiles = vi.fn();
+    await act(async () =>
+      root.render(
+        createElement(ChannelComposer, {
+          value: '',
+          placeholder: 'Message',
+          sending: false,
+          onAddFiles,
+          onChange: vi.fn(),
+          onSubmit: vi.fn(),
+        }),
+      ),
+    );
+    const file = new File(['document'], 'notes.txt', { type: 'text/plain' });
+    const image = new File(['image'], 'capture.png', { type: 'image/png' });
+    const shellPaste = vi.fn();
+    container.addEventListener('paste', shellPaste);
+    const event = new Event('paste', { bubbles: true, cancelable: true });
+    Object.defineProperty(event, 'clipboardData', {
+      value: {
+        files: [file],
+        items: [file, image].map((item) => ({ kind: 'file', getAsFile: () => item })),
+        getData: () => '',
+      },
+    });
+    container.querySelector('textarea')!.dispatchEvent(event);
+    expect(onAddFiles).toHaveBeenCalledWith([file, image], { start: 0, end: 0 });
+    expect(event.defaultPrevented).toBe(true);
+    expect(shellPaste).not.toHaveBeenCalled();
+    const sameNameFile = new File(['different'], file.name, {
+      type: file.type,
+      lastModified: file.lastModified,
+    });
+    paste(container.querySelector('textarea')!, [file, sameNameFile], '', true);
+    expect(onAddFiles).toHaveBeenNthCalledWith(2, [file, sameNameFile], { start: 0, end: 0 });
+    container.removeEventListener('paste', shellPaste);
   });
 
   it('opens and closes a full image preview while mixed files stay independent', async () => {
@@ -215,6 +255,17 @@ describe('Channel composer clipboard attachments', () => {
     expect(container.querySelector('.bh-composer-image-attachment')).not.toBeNull();
     expect(container.querySelector('.bh-composer-file-attachment')).not.toBeNull();
     expect(container.querySelector('[data-file-type-icon$=".docx"]')).not.toBeNull();
+    expect(container.querySelector('.bh-composer-image-reference')?.textContent).toBe('1');
+    expect(container.querySelector('.bh-composer-file-reference')?.textContent).toBe('2');
+    expect(container.querySelectorAll('.bh-composer-attachment-card')).toHaveLength(2);
+    expect(
+      container.querySelector('.bh-composer-image-attachment .bh-composer-attachment-name')
+        ?.textContent,
+    ).toBe('capture.png');
+    expect(
+      container.querySelector('.bh-composer-image-attachment .bh-composer-attachment-size')
+        ?.textContent,
+    ).toBe('5 B');
 
     await act(async () => {
       (container.querySelector('.bh-composer-image-preview') as HTMLButtonElement).click();
@@ -238,6 +289,7 @@ describe('Channel composer clipboard attachments', () => {
     expect(onRemoveAttachment).toHaveBeenCalledWith('document-1');
 
     await render(false);
+    expect(container.querySelector('.bh-composer-file-reference')?.textContent).toBe('1');
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:capture.png');
   });
 

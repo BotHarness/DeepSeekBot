@@ -484,6 +484,30 @@ _避免使用_：原生 DSH 角色、资源 ACL、把所有角色称为管理员
 Human 审核后，将外部人员与一个 PersonaBot 及其当前已认证 App Binding 下的角色关联。可在该范围内允许的会话中复用，批准后须重新提问；不继承到其他 Bot、App、平台或重新建立的 Binding。
 _避免使用_：会话成员资格、账号级管理员、待执行旧指令
 
+**Pairing Reviewer**：
+当前已配对、拥有显式普通 Chat pairing 审核能力的外部人员，范围限定同一 PersonaBot 与 App Binding。群申请可见不代表所有人能审核；配对审核也不授予回答 Questions 或批准原生执行的能力。
+_避免使用_：所有群成员、原生执行审批人、自动首位管理员
+
+**Management Delegation Ceiling**：
+Pairing Reviewer 当前可通过 Role 授予的显式管理能力集合，包含该 Role 的再次委派能力。它与审核人可使用的能力分别解析，来源是当前 Role、授权组和个人例外；显式委派 Deny 优先。
+_避免使用_：自身权限隐式允许委派、资源 ACL、跨 App 管理员
+
+**External Authorization Group**：
+一个 PersonaBot 与 App Binding 下，为当前已配对外部人员持续提供显式管理 Allow／Deny 及可复用行为权限项的授权组；人员可属于多个授权组，同时保留一个主行为 Role。成员关系不授予聊天资格，撤销后重新配对不继承旧成员关系。
+_避免使用_：Channel Group、平台会话群、复制 Role、原生 DSH RBAC
+
+**Behavior permission item**：
+一个可命名、可复用的外部人员行为描述，供同一 PersonaBot 的多个授权组引用并允许或拒绝。同项显式 Deny 优先；生效策略在主 Role 约束内指导模型，不是资源 ACL 或管理能力。
+_避免使用_：原生权限、复制 Role、强制 Shell 策略、语义冲突证明
+
+**Declared behavior exclusion**：
+Human 为同一 PersonaBot 的两个 Behavior permission item 明确声明的双向不兼容关系。不能为同一配对人员同时有效允许这两项；明确拒绝其中一项即可消除不兼容。这代表人工声明的策略意图，不证明任意自然语言策略一致。
+_避免使用_：自动推断文字矛盾、资源隔离、按组顺序决定优先级
+
+**Person permission exception**：
+绑定一次当前 Chat pairing 的显式管理 Allow／Deny，与其 Role 及授权组贡献共同生效；任意适用的显式 Deny 优先。它不会授予已认证 Web Human 的来源身份。
+_避免使用_：Super Admin 配对、行为 Role 覆盖、永久平台用户授权
+
 **Conversation entry**：
 一个 Binding 的单个会话流量所挂靠的锚点，存为 Messaging Grant。_隐式_ 条目在第一条被接收的默认流量消息或第一次主动发送时记录；_显式_ 条目来自保存的发送目标。_等待处理_ 的条目等 Human 决定（先问我，或达到上限），只保留元数据。_已屏蔽_ 的会话有一个按 Bot、应用指纹、会话类型和 ID 记录的持久屏蔽，直到 **再次允许** 前都会被拒绝。静音的条目照常接收，但不会唤醒 Bot。
 _避免使用_：授权（指隐式条目时）、投递目标、订阅

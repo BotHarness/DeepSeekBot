@@ -61,6 +61,75 @@ function faultAt(
 }
 
 describe('operational database owner', () => {
+  it('generation 79 adds empty groups without rewriting existing Role or pairing grants and refuses an older writer', () => {
+    const dshHome = createTempRoot('bh-group-upgrade-');
+    const priorPlan = defineSchemaPlan(
+      BOT_HARNESS_SCHEMA_PLAN.migrations.filter((migration) => migration.generation <= 78),
+    );
+    const prior = mountOperationalDatabase({ dshHome, schemaPlan: priorPlan });
+    const seed = attachOperationalModule(prior, 'messaging');
+    const role = JSON.stringify({
+      id: 'role',
+      botSlug: 'ada',
+      name: 'Reviewer',
+      behavior: 'Review',
+      capabilities: ['approve'],
+      revision: 6,
+    });
+    const pairing = JSON.stringify({
+      id: 'pair',
+      botSlug: 'ada',
+      bindingId: 'binding',
+      actorId: 'ou_alice',
+      purpose: 'management',
+      status: 'approved',
+      capabilities: ['reject', 'save-rules'],
+      revision: 4,
+    });
+    seed.transaction((db) => {
+      db.prepare(
+        'INSERT INTO messaging_bindings (id, bot_slug, provider_id, platform, account_ref, fingerprint, created_at, display_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      ).run(
+        'binding',
+        'ada',
+        'dsh-im/feishu',
+        'feishu',
+        'qa',
+        'a'.repeat(64),
+        FIXED_NOW().toISOString(),
+        'QA',
+      );
+      db.prepare('INSERT INTO messaging_external_roles (id, bot_slug, body) VALUES (?, ?, ?)').run(
+        'role',
+        'ada',
+        role,
+      );
+      db.prepare(
+        'INSERT INTO messaging_pairings (id, bot_slug, binding_id, actor_id, purpose, status, body) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      ).run('pair', 'ada', 'binding', 'ou_alice', 'management', 'approved', pairing);
+    });
+    prior.close();
+    const upgraded = mountOperationalDatabase({ dshHome, schemaPlan: BOT_HARNESS_SCHEMA_PLAN });
+    expect(upgraded.mode).toBe('ready');
+    const read = attachOperationalModule(upgraded, 'messaging');
+    expect(
+      read.read((db) =>
+        db.prepare('SELECT body FROM messaging_external_roles WHERE id = ?').get('role'),
+      ),
+    ).toEqual({ body: role });
+    expect(
+      read.read((db) => db.prepare('SELECT body FROM messaging_pairings WHERE id = ?').get('pair')),
+    ).toEqual({ body: pairing });
+    expect(
+      read.read((db) => db.prepare('SELECT * FROM messaging_permission_groups').all()),
+    ).toEqual([]);
+    upgraded.close();
+    const oldWriter = mountOperationalDatabase({ dshHome, schemaPlan: priorPlan });
+    expect(oldWriter.mode).toBe('recovery');
+    expect(oldWriter.diagnostics().recovery?.code).toBe('upgrade-required');
+    oldWriter.close();
+  });
+
   it('upgrades the current main Profile without changing QQ and WeChat reception authority', () => {
     const dshHome = createTempRoot('botharness-qq-main-upgrade-');
     const priorPlan = defineSchemaPlan(

@@ -7,18 +7,30 @@ import semver from 'semver';
 import { providerRuntimeDigest } from './dev-im-provider.mjs';
 import { pnpmCommand } from './dev-package-manager.mjs';
 
+export const productDshRange = '>=0.1.7-0';
+export const productDshVersions = Object.freeze([
+  '0.1.7-alpha.1',
+  '0.1.7-alpha.2',
+  '0.1.7-rc.1',
+  '0.1.7-rc.2',
+  '0.2.0-rc.1',
+  '0.2.0-rc.2',
+  '0.2.1-alpha.1',
+  '0.2.1-alpha.2',
+]);
+
 export const productImProvider = Object.freeze({
   name: '@botharness/im-provider',
-  version: '4.32.0-botharness.17',
+  version: '4.32.0-botharness.19',
   sourceManifestSha256: '501e62d558eceb2b42ad9cd03fc0910e09581fd6531ec68e074fe5a16225ed1e',
   sourceLockSha256: 'c7f16baaa5bb1ab3bbb607b59a10327f0af010c61e1ea1ab4a72d7d08af9ffe9',
   upstream: Object.freeze({
     package: '@xmanrui/dsh-im',
     packageVersion: '4.32.0',
-    source: 'bddd7d93e1c1b969ce137721c2494f6d72bfa8bc',
+    source: '602baa37fa327f7069545aaadbbd34db8a8f4636',
     dsh: '0.2.0-rc.1',
     runtimeFiles: 412,
-    runtimeSha256: 'c2047738952dc155f95eb1b23cd56ba96bb7585a7e343e3916ee7da63b282548',
+    runtimeSha256: '98ba54de21ff7b73390b6222d67ab530efd36e1a26df952be178e3bafc4ab9e5',
   }),
 });
 
@@ -133,10 +145,18 @@ export function providerManifest(original) {
       'README.en.md',
       'PROVENANCE.json',
     ],
-    engines: { node: '>=22', dsh: productImProvider.upstream.dsh },
+    engines: { node: '>=22', dsh: productDshRange },
+    peerDependencies: Object.fromEntries(
+      Object.entries(manifest.peerDependencies ?? {}).map(([name, range]) => [
+        name,
+        name === '@deepseek-ai/dsh' || name.startsWith('@deepseek-ai/dsh-')
+          ? productDshRange
+          : range,
+      ]),
+    ),
     dsh: {
       ...manifest.dsh,
-      compatibility: { dsh: productImProvider.upstream.dsh, profiles: ['web'] },
+      compatibility: { dsh: productDshRange, profiles: ['web'] },
     },
     botharness: { managedByProduct: true, upstreamSource: productImProvider.upstream.source },
   };

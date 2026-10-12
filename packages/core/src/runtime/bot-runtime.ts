@@ -32,6 +32,7 @@ import { authorizedPathRoot } from '../workspaces/grant-native-tools.js';
 import { mentionPeople, withMentionNames } from '../messaging/mention-text.js';
 import type { MessagingInboundEvent } from '../messaging/provider.js';
 import type { OutboxIntent, OutboundMessaging } from '../messaging/outbound.js';
+import type { PrivateInputOrigin } from '../credentials/im-origin.js';
 import type { MessagingProcessing } from '../messaging/typing.js';
 import type {
   ExternalSource,
@@ -460,6 +461,11 @@ export type DmMessageAdmission =
   | { admitted: false; reason: DmAdmissionFailure };
 
 export interface BotRuntime {
+  canRequestPrivateInput?(sessionId: string, sourceEventId?: string): boolean;
+  bindPrivateInputOrigin?(
+    sessionId: string,
+    sourceEventId?: string,
+  ): PrivateInputOrigin | undefined;
   beginAssignmentApprovalWait?(
     sessionId: string,
     callId: string,
@@ -944,7 +950,10 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #activeTurns = new Map<string, Promise<void>>();
   readonly #typingTurns = new Map<string, MessagingProcessing>();
   readonly #typingAssignments = new Map<string, MessagingProcessing>();
-  readonly #turnSources = new Map<string, Set<string>>();
+  readonly #turnSources = new Map<
+    string,
+    { sessionId: string; eventIds: Set<string>; acceptedEventIds: Set<string> }
+  >();
   readonly #activeMemoryEvents = new Map<
     string,
     { eventIds: string[]; preserveObservation: boolean }
@@ -1250,6 +1259,7 @@ class BotRuntimeImplementation implements BotRuntime {
         return;
       }
       if (delivered) {
+        this.#acceptTurnSources(botSlug, [...included, ...contextIds]);
         this.#typingTurns.get(botSlug)?.add(included);
         for (const row of context?.rows ?? [])
           this.#observeAdmission(row.source_event_id, botSlug, context!.channelId, row.message_id);
@@ -1451,6 +1461,10 @@ class BotRuntimeImplementation implements BotRuntime {
         this.#channels.admissionChanged?.(channelId, admission.messageId);
       return false;
     }
+    this.#acceptTurnSources(
+      botSlug,
+      admissions.map((admission) => admission.sourceEventId),
+    );
     for (const admission of admissions)
       this.#observeAdmission(admission.sourceEventId, botSlug, channelId, admission.messageId);
     const settlement = active.then(
@@ -1662,6 +1676,10 @@ class BotRuntimeImplementation implements BotRuntime {
         this.#channels.admissionChanged?.(channelId, admission.messageId);
       return false;
     }
+    this.#acceptTurnSources(
+      botSlug,
+      admissions.map((admission) => admission.sourceEventId),
+    );
     for (const admission of admissions)
       this.#observeAdmission(admission.sourceEventId, botSlug, channelId, admission.messageId);
 
@@ -2465,9 +2483,14 @@ class BotRuntimeImplementation implements BotRuntime {
     ].join('\n');
   }
 
+  #acceptTurnSources(botSlug: string, sourceEventIds: readonly string[]): void {
+    const turn = this.#turnSources.get(botSlug);
+    for (const id of sourceEventIds) turn?.acceptedEventIds.add(id);
+  }
+
   #markAdmissionsSideEffect(botSlug: string, sourceEventIds: string[]): void {
     if (sourceEventIds.length === 0) return;
-    for (const id of sourceEventIds) this.#turnSources.get(botSlug)?.add(id);
+    for (const id of sourceEventIds) this.#turnSources.get(botSlug)?.eventIds.add(id);
     this.#database.transaction(
       (database) => {
         for (const id of sourceEventIds) {
@@ -2616,12 +2639,101 @@ class BotRuntimeImplementation implements BotRuntime {
     if (changed) this.#channels.admissionChanged?.(channelId, messageId);
   }
 
+  canRequestPrivateInput(sessionId: string, selected?: string): boolean {
+    const owner = this.#ownership.resolve(sessionId);
+    if (
+      this.#closed ||
+      owner?.rootRole !== 'orchestrator' ||
+      !this.#ownership.contentAvailable(sessionId)
+    )
+      return false;
+    const turn = this.#turnSources.get(owner.botSlug);
+    if (turn?.sessionId !== sessionId) return false;
+    try {
+      if (this.bindPrivateInputOrigin(sessionId, selected) !== undefined) return true;
+    } catch {
+      return false;
+    }
+    return this.#database.read((db) => {
+      const human = db.prepare(
+        `SELECT e.channel_id FROM source_events e
+         JOIN inbox_admissions a ON a.source_event_id = e.source_event_id
+         WHERE e.source_event_id = ? AND a.bot_slug = ? AND e.source_kind = 'human-message'
+           AND a.reason IN ('human-dm', 'group-mention', 'group-ordinary')`,
+      );
+      return [...turn.acceptedEventIds].some((id) => {
+        const source = human.get(id, owner.botSlug);
+        if (
+          typeof source?.channel_id !== 'string' ||
+          this.#channels.get(source.channel_id) === undefined
+        )
+          return false;
+        try {
+          requireSourceEffects(db, id, owner.botSlug);
+          return true;
+        } catch {
+          return false;
+        }
+      });
+    });
+  }
+
+  bindPrivateInputOrigin(sessionId: string, selected?: string): PrivateInputOrigin | undefined {
+    const owner = this.#ownership.resolve(sessionId);
+    const turn = owner === undefined ? undefined : this.#turnSources.get(owner.botSlug);
+    if (owner?.rootRole !== 'orchestrator' || turn?.sessionId !== sessionId) {
+      if (selected !== undefined) throw new Error('Private input IM source is unavailable');
+      return undefined;
+    }
+    const ids = this.#database.read((db) => {
+      const query = db.prepare('SELECT source_kind FROM source_events WHERE source_event_id = ?');
+      return [...turn.acceptedEventIds].filter(
+        (id) => query.get(id)?.source_kind === 'bridge-message',
+      );
+    });
+    if (ids.length === 0 && selected === undefined) return undefined;
+    const id = selected ?? (ids.length === 1 ? ids[0] : undefined);
+    if (id === undefined || !ids.includes(id) || this.#externalMessaging === undefined)
+      throw new Error('Select one live accepted IM source_event_id for private input');
+    const messaging = this.#externalMessaging;
+    const bot = this.#registry.get(owner.botSlug);
+    if (bot === undefined) throw new Error('Private input IM source is unavailable');
+    const signal = messaging.inbound.sourceSignal(owner.botSlug, id);
+    const applies = () => this.#turnSources.get(owner.botSlug) === turn;
+    const current = () => {
+      const currentOwner = this.#ownership.resolve(sessionId);
+      const currentBot = this.#registry.get(owner.botSlug);
+      if (
+        this.#closed ||
+        signal.aborted ||
+        currentBot?.createdAt !== bot.createdAt ||
+        currentBot.paused === true ||
+        currentOwner?.rootRole !== 'orchestrator' ||
+        currentOwner.botSlug !== owner.botSlug ||
+        !this.#ownership.contentAvailable(sessionId) ||
+        !applies() ||
+        !turn.acceptedEventIds.has(id) ||
+        !messaging.inbound.available(owner.botSlug, id)
+      )
+        return false;
+      try {
+        this.#database.read((db) => requireSourceEffects(db, id, owner.botSlug));
+        return true;
+      } catch {
+        return false;
+      }
+    };
+    if (!current()) throw new Error('Private input IM source is unavailable');
+    return { sourceEventId: id, signal, applies, current };
+  }
+
   bindNativeQuestionInput(
     sessionId: string,
     channelId: string,
   ): ((deliver: () => boolean) => Promise<boolean>) | undefined {
     const owner = this.#ownership.resolve(sessionId);
-    const sources = owner === undefined ? undefined : this.#turnSources.get(owner.botSlug);
+    const turn = owner === undefined ? undefined : this.#turnSources.get(owner.botSlug);
+    const sources = turn?.sessionId === sessionId ? turn.acceptedEventIds : undefined;
     const sourceEventId = sources?.values().next().value;
     if (owner?.rootRole !== 'orchestrator' || sourceEventId === undefined) return undefined;
     const sourceIds = [...(sources ?? [])];
@@ -3025,7 +3137,11 @@ class BotRuntimeImplementation implements BotRuntime {
       ...reportEventIds,
       ...nativeSourceIds,
     ]);
-    this.#turnSources.set(bot.slug, turnSources);
+    this.#turnSources.set(bot.slug, {
+      sessionId: orchestrator.sessionId,
+      eventIds: turnSources,
+      acceptedEventIds: new Set(turnSources),
+    });
     const typingSources = [sourceEventId, ...inboxUnits.map((unit) => unit.sourceEventId)];
     for (const unit of inboxUnits) {
       if (!unit.assignmentSessionId) continue;
@@ -3420,7 +3536,8 @@ class BotRuntimeImplementation implements BotRuntime {
     } finally {
       await processing?.stop();
       if (this.#typingTurns.get(bot.slug) === processing) this.#typingTurns.delete(bot.slug);
-      if (this.#turnSources.get(bot.slug) === turnSources) this.#turnSources.delete(bot.slug);
+      if (this.#turnSources.get(bot.slug)?.eventIds === turnSources)
+        this.#turnSources.delete(bot.slug);
       if (observeMemory) this.#activeMemoryEvents.delete(bot.slug);
       this.#originalAttachments.clear(orchestrator.sessionId);
     }
@@ -4744,7 +4861,7 @@ class BotRuntimeImplementation implements BotRuntime {
   }
 
   #turnSourceIn(botSlug: string, channelId: string): string | undefined {
-    const sources = [...(this.#turnSources.get(botSlug) ?? [])];
+    const sources = [...(this.#turnSources.get(botSlug)?.eventIds ?? [])];
     if (sources.length === 0) return undefined;
     const row = this.#database.read(
       (database) =>

@@ -9,6 +9,7 @@ import type {
   MessagingHistoryQuery,
   MessagingHistoryPage,
   MessagingApprovalCard,
+  MessagingPairingCard,
   MessagingApprovalAck,
   MessagingTypingState,
   MessagingTypingLease,
@@ -35,10 +36,11 @@ export interface DshImOutboundService {
     options: { expectedFingerprint: string; signal: AbortSignal; beforeSend(): boolean },
   ): Promise<{ accepted: true }>;
   approvalCardVersion?: 1;
+  pairingCardVersion?: 1;
   approvalCardChecked?(
     botId: string,
     route: MessagingReplyRoute | MessagingReceipt,
-    card: MessagingApprovalCard,
+    card: MessagingApprovalCard | MessagingPairingCard,
     options: {
       expectedFingerprint: string;
       signal: AbortSignal;
@@ -368,7 +370,7 @@ export function createDshImProvider(
       name: info.account.name ?? ref,
       fingerprint: info.account.fingerprint,
       connected: info.connected,
-      ...(platform === 'feishu'
+      ...(['feishu', 'slack'].includes(platform)
         ? {
             reactionSupported:
               host.reactionVersion === 1 &&
@@ -469,7 +471,7 @@ export function createDshImProvider(
       return result.flatMap((item) => (item.status === 'fulfilled' ? [item.value] : []));
     },
     targets,
-    ...(platform === 'feishu' &&
+    ...(['feishu', 'slack'].includes(platform) &&
     host.reactionVersion === 1 &&
     typeof host.reactionChecked === 'function'
       ? {
@@ -572,6 +574,9 @@ export function createDshImProvider(
               throw new MessagingError('rebind-required');
             if (
               !info.connected ||
+              (input.card.kind === 'pairing' &&
+                (host.pairingCardVersion !== 1 ||
+                  !info.capabilities.includes('pairing-card-checked'))) ||
               ![
                 'approval-card-checked',
                 'approval-card-update-checked',
@@ -739,20 +744,46 @@ export function createDshImProvider(
               input.onAction
                 ? {
                     onAction: async (raw: unknown, context: { signal: AbortSignal }) => {
-                      const event = z
-                        .object({
-                          version: z.literal(1),
-                          channel: z.literal('feishu'),
-                          botId: identifier,
-                          fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
-                          actorId: identifier,
-                          conversationId: identifier,
-                          messageId: identifier,
-                          requestId: z.string().uuid(),
-                          action: z.enum(['allowed-once', 'rejected']),
-                        })
-                        .strict()
-                        .parse(raw);
+                      const event = (
+                        typeof raw === 'object' &&
+                        raw !== null &&
+                        'kind' in raw &&
+                        raw.kind === 'pairing'
+                          ? z
+                              .object({
+                                kind: z.literal('pairing'),
+                                version: z.literal(1),
+                                channel: z.literal('feishu'),
+                                botId: identifier,
+                                fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+                                actorId: identifier,
+                                conversationId: identifier,
+                                messageId: identifier,
+                                requestId: z.string().uuid(),
+                                action: z.enum([
+                                  'select-role',
+                                  'approve-pairing',
+                                  'reject-pairing',
+                                  'next-roles',
+                                  'previous-roles',
+                                ]),
+                                roleId: z.string().uuid().optional(),
+                              })
+                              .strict()
+                          : z
+                              .object({
+                                version: z.literal(1),
+                                channel: z.literal('feishu'),
+                                botId: identifier,
+                                fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+                                actorId: identifier,
+                                conversationId: identifier,
+                                messageId: identifier,
+                                requestId: z.string().uuid(),
+                                action: z.enum(['allowed-once', 'rejected']),
+                              })
+                              .strict()
+                      ).parse(raw);
                       context.signal.throwIfAborted();
                       if (
                         event.botId !== input.accountRef ||

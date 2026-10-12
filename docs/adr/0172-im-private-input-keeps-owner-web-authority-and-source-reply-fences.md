@@ -1,0 +1,23 @@
+---
+Status: Proposed
+Date: 2026-10-11
+Issues: [#1378](https://github.com/BotHarness/DeepSeekBot/issues/1378), [#1385](https://github.com/BotHarness/DeepSeekBot/issues/1385)
+---
+
+# IM private input keeps Owner Web authority and Source reply fences
+
+An authorized external conversation may cause a PersonaBot Orchestrator to call `ask_secret`. The application-defined Runtime binds that request to a current accepted bridge-message Source Event and the actual live native Agent. One external source is selected automatically; an ambiguous turn requires an explicit `source_event_id` from its accepted sources. Historical Session text, a model-supplied destination or a Web locator cannot supply this authority.
+
+The same account's current-turn source associations are retained independently. If two distinct sources select that account in one turn, protected consumption refuses the ambiguity instead of using the most recent association. Later turns discard previous turn associations and acquire their own current authority.
+
+`PrivateInputs` opens the same multi-field card in the requesting PersonaBot's existing Human DM. Submission still uses the authenticated Owner Peer through native Typert/API Gateway, native Credentials Service grants and the canonical Channel configured resolution. No IM text, attachment, quote or group card becomes a private submission endpoint. There is no new page, grant store, schema generation, receiver or Pairing policy.
+
+The Host sends a static Owner-action notice through the existing Messaging routing and Outbox owner. Its separately deduplicated request ID does not settle the ordinary final reply. The configured Web origin must be explicit HTTP(S), without userinfo, query, path or login token. Its fragment carries only existing Channel and card IDs. The Client uses that locator to select Bot mode and load the existing Chat around the card; the locator neither authenticates the reader nor authorizes submission. The URL is suitable only for the Owner's actual deployment reachability; a loopback URL works on the local development machine.
+
+Process-local source leases recheck live Session/turn identity, PersonaBot creation identity, pause state, Source content and current Messaging Binding authority. Source cancellation expires the pending card and aborts active private uses; a consumer that finishes after authority loss cannot return its result. Account replacement/revocation aborts registered private-result reply leases. Messaging checks these leases again before the native Provider text reply begins, alongside its existing source and routing fences. Provider effects that have already begun remain potentially irreversible. An unavailable or uncertain notice is not automatically retried, and the live request expires rather than claiming delivery.
+
+The protected Profile qualifies only the exact application-registered `bridge_read`, `bridge_reply`, `bridge_sender_permissions` and `bridge_outbox` Tool Definitions. A same-name substitution or another `bridge_*` tool receives no exemption. Ordinary CLI/MCP continue in the isolated Linux Execution World from ADR-0164; fixed protected consumers keep their bounded status protocol. Adding Messaging tools is not authorization for arbitrary Host capabilities or raw credential-bearing execution.
+
+Configured credentials remain scoped to PersonaBot creation identity plus account and can be reused in a later independently authorized turn or Schedule. The original IM lease applies only to its actual turn; it is not a permanent dependency on that old conversation. Pending waiters do not survive Host restart, so existing recovery expires their cards. Final replies contain only authorized nonsecret outcomes, never references or private configuration details; the Messaging reply boundary also rejects opaque private-reference strings.
+
+Qualification uses an independent Lark QA2 App, the existing qualified Provider in external-consumer mode, a real PersonaBot and a synthetic controlled HTTP service. Web submission, existing Allow once, authenticated HTTP 200 and the original Lark reply were observed. Native Session Persistence and passive model-wire metadata support this observation, with canary scans of the captured surfaces. Discord rendering, Lark group rendering and Linux server acceptance are not inferred from this DM run; #1386 owns the server qualification. Raw Sessions and credential-bearing transport data remain machine-local; public evidence contains only allowlisted facts.

@@ -42,6 +42,7 @@ export function projectPrivateInputEvents(events) {
         'bash',
         'channel_send',
         'mcp__linux_demo__workspace_probe',
+        'mcp__private_status__authenticated_status',
       ].includes(data.name)
     ) {
       const callId = identifier(data.callId);
@@ -63,10 +64,11 @@ export function projectPrivateInputEvents(events) {
                 : [],
             )
           : undefined;
-      const references =
-        data.name === 'protected_cli'
-          ? refs({ endpoint: args.endpoint, api_key: args.api_key, api_secret: args.api_secret })
-          : undefined;
+      const references = ['protected_cli', 'mcp__private_status__authenticated_status'].includes(
+        data.name,
+      )
+        ? refs({ endpoint: args.endpoint, api_key: args.api_key, api_secret: args.api_secret })
+        : undefined;
       return [
         {
           ...base,
@@ -75,7 +77,12 @@ export function projectPrivateInputEvents(events) {
           ...(declaration ? { fields: declaration } : {}),
           ...(references
             ? {
-                consumer: args.consumer === 'http-status-v1' ? args.consumer : 'unsupported',
+                consumer:
+                  data.name === 'mcp__private_status__authenticated_status'
+                    ? 'mcp-http-status-v1'
+                    : args.consumer === 'http-status-v1'
+                      ? args.consumer
+                      : 'unsupported',
                 references,
               }
             : {}),
@@ -98,8 +105,9 @@ export function projectPrivateInputEvents(events) {
       if (name === 'ask_secret' && ['configured', 'cancelled', 'expired'].includes(parsed?.status))
         value = { status: parsed.status, references: refs(parsed.references) };
       if (
-        name === 'protected_cli' &&
-        parsed?.consumer === 'http-status-v1' &&
+        ((name === 'protected_cli' && parsed?.consumer === 'http-status-v1') ||
+          (name === 'mcp__private_status__authenticated_status' &&
+            parsed?.consumer === 'mcp-http-status-v1')) &&
         Number.isInteger(parsed.httpStatus) &&
         parsed.httpStatus >= 100 &&
         parsed.httpStatus <= 599
@@ -163,7 +171,15 @@ export function projectPrivateInputEvents(events) {
         {
           ...base,
           id: data.id,
-          outcome: ['allowed-once', 'denied', 'cancelled', 'allow', 'deny'].includes(data.outcome)
+          outcome: [
+            'allowed-once',
+            'rejected',
+            'cancelled',
+            'unavailable',
+            'denied',
+            'allow',
+            'deny',
+          ].includes(data.outcome)
             ? data.outcome
             : 'decision-recorded',
         },

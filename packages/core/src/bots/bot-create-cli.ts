@@ -167,6 +167,9 @@ Usage:
   deepseekbot ask-secret-status <channel> --message-id <card-id>
   deepseekbot ask-secret-submit <channel> --message-id <card-id> --values-stdin
   deepseekbot ask-secret-cancel <channel> --message-id <card-id>
+  deepseekbot ask-secret-account-status <channel> --message-id <configured-card-id>
+  deepseekbot ask-secret-replace <channel> --message-id <configured-card-id>
+  deepseekbot ask-secret-revoke <channel> --message-id <configured-card-id>
   deepseekbot release-info [--since <version>]
   deepseekbot workspace-options
   deepseekbot grant-create <id> --workspace <workspace-id>

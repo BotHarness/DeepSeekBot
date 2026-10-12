@@ -14,6 +14,36 @@ Where the Bot can speak is decided by Slack: the channels the app was invited to
 
 ## 1. Prepare your environment
 
+### Reviewed ordinary DM pairing (#1415)
+
+The #1415 source candidate reuses **Bot DM → Channel sidebar → IM roles and pairing** for Slack DMs. Enable **Require pairing for Lark conversations and Slack DMs**, create an ordinary Role, and let the unknown person send a DM to the bound app. Their first message produces only a fixed review notice and a metadata-only request. In **Requests**, assign the existing Role and approve. The fixed approval notice asks them to send a new question; only that new DM reaches the model. **People** shows the current Role and supports revocation; a new message after revocation cannot start model work until newly reviewed.
+
+The switch is Bot-wide and remains off by default. If it was already enabled for Lark, this candidate also restricts Slack DMs. Pairing belongs to one current Bot/App/Binding and verified workspace actor, survives restart and does not transfer on rebinding. Role/group behavior is prompt policy, not a hard mail, filesystem or Shell permission. Slack group pairing and native management controls are separate; `/pair` does not create a Slack management grant in this preview.
+
+The isolated source candidate completed real Slack pending → Web Role approval → ask-again → fresh same-App answer → revocation → restart checks, with matching Source Event, Admission and Outbox facts; the Human accepted this interaction. Existing Provider messaging/reaction screenshots below qualify their own earlier scope. Use an independent App and an explicitly coordinated exclusive receiver window. Before reverting to older code, disable the Slack Binding if it relies on the new restriction. See [ADR-0174](adr/0174-slack-dm-chat-pairing-reuses-current-binding-authority.md).
+
+![Actual unknown Slack DM receiving the fixed waiting-for-review notice](/guides/slack/16-dm-pending-notice.png)
+
+_The initial DM creates a review request; its instruction does not run._
+
+![Actual Web Requests tab with the pending Slack applicant and an ordinary Role selected](/guides/slack/15-dm-role-review.png)
+
+_In the Bot DM sidebar, open **IM roles and pairing → Requests**, refresh if needed, inspect the applicant and receiving App, then choose an existing Role. **Approve this role** sends a fixed ask-again notice; it does not run the initial instruction._
+
+![Actual approved Slack person with an ordinary Role and no management capabilities](/guides/slack/18-dm-approved-person.png)
+
+_The current paired person appears in **People**. Ordinary chat eligibility does not grant management powers. The test Role has none._
+
+![Actual new Slack question answered after the fixed approval notice](/guides/slack/17-dm-fresh-answer.png)
+
+_Only the new question ran: the original DM received 9797, the current Role and empty management capabilities. The reply matched this isolated Host's Source Event, handled Admission and accepted Outbox. The three read-only directories were also checked: current paired people, known external conversations and paired people observed in this conversation; the last is not a complete or current member list._
+
+![Actual revoked and post-restart Slack questions receiving only pending notices](/guides/slack/19-dm-revoke-restart.png)
+
+_Use **People → Revoke authority** to withdraw ordinary chat eligibility. The next question creates a new request instead of running; restarting the same Profile preserves that refusal. Approving the new request again still requires a fresh question and does not replay the blocked messages. This source-candidate evidence does not announce a published npm product or qualify Slack groups/native management controls._
+
+For reusable independent test Apps, run `node scripts/dev-im-test-apps.mjs setup slack` in an interactive terminal. The three-stage wizard saves separate Slack QA1/QA2/QA3 slots in the same private machine-local registry used by Lark; it preserves existing Lark configuration and never starts a receiver. `list slack` shows only metadata. See the [shared QA setup guide](https://github.com/BotHarness/DeepSeekBot/blob/main/docs/agents/im-test-apps.md#reusable-slack-qa-apps).
+
 You need a Slack workspace that allows application installation, permission to create an app (or an administrator's help), and a public test channel. Create a PersonaBot in BotHarness and confirm that it can answer a local DM before testing Slack.
 
 Use a BotHarness product with its qualified IM Provider included. Do not separately install an arbitrary dsh-im version or start a second receiver for the same app.
@@ -49,6 +79,27 @@ Under **Basic Information → App-Level Tokens**, generate an App Token with **`
 _The existing QA app has Socket Mode enabled. This page does not display its App Token._
 
 ### Bot permissions and events
+
+For **ordinary DM pairing**, check these **Bot Token Scopes** before connecting:
+
+| Bot scope    | Used for                                                                                |
+| ------------ | --------------------------------------------------------------------------------------- |
+| `im:history` | Receive the subscribed `message.im` events from the app's DMs                           |
+| `im:read`    | Check the original DM with `conversations.info`; receiving events alone is insufficient |
+| `chat:write` | Send the review notice, ask-again notification and replies                              |
+| `users:read` | Resolve the verified sender's display name                                              |
+
+Enable **Socket Mode** with an App-level Token containing `connections:write`. In **Event Subscriptions → Subscribe to bot events**, add **`message.im`**. In **App Home**, enable the **Messages Tab** and allow users to send messages from it. These are separate settings: a Bot scope does not create an event subscription or enable the message composer. Slack documents the [`message.im` event and its `im:history` requirement](https://docs.slack.dev/reference/events/message.im/) and [`im:read` for DM information](https://docs.slack.dev/reference/scopes/im.read/).
+
+After adding a Bot scope, select **Reinstall to your workspace**, review the requested access and complete installation. Confirm that the installed Bot Token has the new scope before retrying. In the #1415 QA setup, `im:history` was already granted but `im:read` was missing; adding it and reinstalling enabled the original-DM check. Keep both tokens local. Slack App permissions allow the integration to receive and send; the Bot's **IM roles and pairing** settings separately decide who may chat with that PersonaBot.
+
+The channel/file scopes below support additional features; they are not all prerequisites for the ordinary DM pairing path.
+
+![Actual QA Bot Token scopes, including chat:write, im:history and im:read after reinstallation](/guides/slack/13-dm-bot-scopes.png)
+
+![Actual DM scopes and users:read; User Token scopes remain empty](/guides/slack/14-dm-scope-detail.png)
+
+_These cropped settings captures show the configured QA App, including its existing optional scopes. They do not qualify the pairing runtime. No OAuth token is shown._
 
 Under **OAuth & Permissions → Bot Token Scopes**, check permissions by purpose:
 
@@ -138,6 +189,19 @@ A Bot may explicitly follow or leave one native Slack topic. Human can inspect o
 
 Slack can address channels directly, so a saved send target is never required. The **External connectors → Save a send target (advanced)** fallback stays for apps that can't.
 
+## 7. Optional: received and answered feedback
+
+The [#1161](https://github.com/BotHarness/DeepSeekBot/issues/1161) candidate uses an optional checked Provider capability; installing the existing Provider pin alone does not enable it. The isolated candidate has passed live channel and DM checks with native screenshots, a same-source DM transition recording and matching canonical facts. Human QA and published Provider qualification remain pending. Do not infer other platforms or every failure path from these successful examples.
+
+With a compatible Provider and an approved, installed **Bot** `reactions:write` scope:
+
+- **👀** follows a committed Inbox Admission, not Socket Mode delivery alone.
+- **✅** follows the accepted reply to that exact source message. The app then removes its own 👀 from that source, never another person's reaction or the thread root. If cleanup is uncertain, both reactions can remain; the attempt is not retried automatically.
+- Muted and context-only sources get no feedback. Silence, delegation, waits, unrelated output and failed or uncertain replies do not get ✅. These are app reactions, not Human read receipts.
+- Reaction failure or missing support does not block intake, model execution or replies. Reconnect, restart and later scope changes do not replay old feedback attempts.
+
+Approve scope changes and reinstall the app before testing; signing into Slack as a Human does not grant the bot this permission. For DM QA, also verify the app's installed IM scopes, `message.im` subscription and a fresh bound-app DM. Keep one receiver per test app and use a dedicated test channel. Verify both the visible reaction on the original Human message and its corresponding Inbox/Outbox facts.
+
 ## Troubleshooting
 
 | Symptom                           | Check and next step                                                                                                                                       |
@@ -149,4 +213,4 @@ Slack can address channels directly, so a saved send target is never required. T
 | Source handled, but no reply      | Inspect source/Outbox state and native thread. The Bot may choose silence or have lost its own identity/Grant. An uncertain send is not blindly retried.  |
 | Reconnect or restart needed       | Retain the same Profile; run only one receiver for this app. Resume and verify a new message. Reconnection does not backfill missed history.              |
 
-This guide covers qualified **public-channel** mentions, ordinary text, bounded context, native topic following, explicit shared-Channel routing, mentioned-file processing and explicit reports. Private channels/Slack DMs, unmentioned file-share intake, edits/deletions, workspace-wide search, automatic gap backfill and a scheduled morning-report service are outside this qualification. Slack read indicators are not BotHarness receipt evidence. For provider-specific boundaries and future adapters, see the [IM integration guide](/dev/guides/im-provider-integration/).
+This guide covers qualified **public-channel** mentions, ordinary text, bounded context, native topic following, explicit shared-Channel routing, mentioned-file processing and explicit reports, plus the bounded source-candidate ordinary DM pairing path above. Private channels, Slack group pairing/native management controls, unmentioned file-share intake, edits/deletions, workspace-wide search, automatic gap backfill and a scheduled morning-report service are outside this qualification. Slack read indicators are not BotHarness receipt evidence. For provider-specific boundaries and future adapters, see the [IM integration guide](/dev/guides/im-provider-integration/).

@@ -1,0 +1,234 @@
+{
+  "date": "2026-10-11",
+  "cliRevision": "a01a058a8704f3860aa77682d7ac4a29e6f0c150",
+  "hostRevision": "fadc565729f407c3c16c2ad130e8ffba61604ea7",
+  "profile": "isolated opt-in protected Profile",
+  "entries": [
+    {
+      "command": "send-initial",
+      "exitCode": 1,
+      "receipt": {
+        "channelId": "dm-bot-15c1944198614d7a9c151d4051bbdf5a",
+        "messageId": "human-9fa8a142-8b88-42f4-b72b-1a119c58a8fe"
+      },
+      "errorCode": "reply-timeout"
+    },
+    {
+      "command": "ask-secret-submit",
+      "messageId": "25d9a774-34d2-4c97-8f2a-c3876c93722a",
+      "exitCode": 0,
+      "result": {
+        "accepted": true
+      }
+    },
+    {
+      "command": "ask-secret-status",
+      "messageId": "25d9a774-34d2-4c97-8f2a-c3876c93722a",
+      "exitCode": 0,
+      "result": {
+        "status": "configured"
+      }
+    },
+    {
+      "command": "ask-secret-account-status",
+      "messageId": "25d9a774-34d2-4c97-8f2a-c3876c93722a",
+      "exitCode": 0,
+      "result": {
+        "status": "configured"
+      }
+    },
+    {
+      "command": "send-status",
+      "exitCode": 0,
+      "state": "handled",
+      "replies": [
+        {
+          "id": "30702c63-918b-45ec-af60-d57509786fe2",
+          "body": "CLI-INITIAL 200"
+        }
+      ]
+    },
+    {
+      "command": "ask-secret-replace",
+      "messageId": "25d9a774-34d2-4c97-8f2a-c3876c93722a",
+      "exitCode": 0,
+      "result": {
+        "messageId": "a880d0b1-4ecd-4a8f-9028-0640d38ef4b6"
+      }
+    },
+    {
+      "command": "ask-secret-cancel",
+      "messageId": "a880d0b1-4ecd-4a8f-9028-0640d38ef4b6",
+      "exitCode": 0,
+      "result": {
+        "accepted": true
+      }
+    },
+    {
+      "command": "ask-secret-replace",
+      "messageId": "25d9a774-34d2-4c97-8f2a-c3876c93722a",
+      "exitCode": 0,
+      "result": {
+        "messageId": "5afca3ad-1f8a-4f59-a403-fb7cbd142844"
+      }
+    },
+    {
+      "command": "ask-secret-status",
+      "messageId": "25d9a774-34d2-4c97-8f2a-c3876c93722a",
+      "exitCode": 0,
+      "result": {
+        "status": "configured"
+      }
+    },
+    {
+      "command": "ask-secret-account-status",
+      "messageId": "25d9a774-34d2-4c97-8f2a-c3876c93722a",
+      "exitCode": 0,
+      "result": {
+        "status": "configured"
+      }
+    },
+    {
+      "command": "ask-secret-submit",
+      "messageId": "5afca3ad-1f8a-4f59-a403-fb7cbd142844",
+      "exitCode": 0,
+      "result": {
+        "accepted": true
+      }
+    },
+    {
+      "command": "ask-secret-status",
+      "messageId": "25d9a774-34d2-4c97-8f2a-c3876c93722a",
+      "exitCode": 0,
+      "result": {
+        "status": "configured"
+      }
+    },
+    {
+      "command": "ask-secret-account-status",
+      "messageId": "25d9a774-34d2-4c97-8f2a-c3876c93722a",
+      "exitCode": 0,
+      "result": {
+        "status": "superseded"
+      }
+    },
+    {
+      "command": "ask-secret-status",
+      "messageId": "5afca3ad-1f8a-4f59-a403-fb7cbd142844",
+      "exitCode": 0,
+      "result": {
+        "status": "configured"
+      }
+    },
+    {
+      "command": "ask-secret-account-status",
+      "messageId": "5afca3ad-1f8a-4f59-a403-fb7cbd142844",
+      "exitCode": 0,
+      "result": {
+        "status": "configured"
+      }
+    },
+    {
+      "command": "send-current",
+      "exitCode": 0,
+      "state": "handled",
+      "replies": [
+        {
+          "id": "3ce00de2-2112-4a4d-8845-d11912bf481e",
+          "body": "CLI-CURRENT 200"
+        }
+      ]
+    },
+    {
+      "command": "fixture",
+      "counts": {
+        "requests": 6,
+        "authenticated": 5,
+        "completed": 6,
+        "disconnected": 0,
+        "versions": [3, 2]
+      }
+    },
+    {
+      "command": "ask-secret-revoke",
+      "messageId": "5afca3ad-1f8a-4f59-a403-fb7cbd142844",
+      "exitCode": 0,
+      "result": {
+        "accepted": true,
+        "stopped": 0,
+        "completed": 1,
+        "uncertain": 0
+      }
+    },
+    {
+      "command": "ask-secret-status",
+      "messageId": "25d9a774-34d2-4c97-8f2a-c3876c93722a",
+      "exitCode": 0,
+      "result": {
+        "status": "configured"
+      }
+    },
+    {
+      "command": "ask-secret-account-status",
+      "messageId": "25d9a774-34d2-4c97-8f2a-c3876c93722a",
+      "exitCode": 0,
+      "result": {
+        "status": "revoked"
+      }
+    },
+    {
+      "command": "ask-secret-status",
+      "messageId": "5afca3ad-1f8a-4f59-a403-fb7cbd142844",
+      "exitCode": 0,
+      "result": {
+        "status": "configured"
+      }
+    },
+    {
+      "command": "ask-secret-account-status",
+      "messageId": "5afca3ad-1f8a-4f59-a403-fb7cbd142844",
+      "exitCode": 0,
+      "result": {
+        "status": "revoked"
+      }
+    },
+    {
+      "command": "send-denied",
+      "exitCode": 0,
+      "state": "handled",
+      "replies": [
+        {
+          "id": "4594ad6b-7cec-4e3b-87ee-5185f376f66d",
+          "body": "CLI-REVOKED refused: credential grant is unavailable for this Bot and account — no status obtained, no retry performed."
+        }
+      ]
+    },
+    {
+      "command": "fixture",
+      "counts": {
+        "requests": 6,
+        "authenticated": 5,
+        "completed": 6,
+        "disconnected": 0,
+        "versions": [3, 2]
+      }
+    },
+    {
+      "command": "send-cancel",
+      "exitCode": 1,
+      "receipt": {
+        "channelId": "dm-bot-15c1944198614d7a9c151d4051bbdf5a",
+        "messageId": "human-39a583ea-96b1-40ab-944f-dfc648a77336"
+      },
+      "errorCode": "reply-timeout"
+    },
+    {
+      "command": "ask-secret-cancel",
+      "messageId": "69b362bc-d502-4da1-a243-f7c592bd69a2",
+      "exitCode": 0,
+      "result": {
+        "accepted": true
+      }
+    }
+  ]
+}

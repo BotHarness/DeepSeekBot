@@ -14,6 +14,36 @@ Bot 能在哪里发言由 Slack 决定：应用被邀请进了哪些频道、安
 
 ## 1. 准备环境
 
+### 经审核的普通私聊配对（#1415）
+
+#1415 源码候选在 **Bot 私聊 → Channel sidebar → IM 角色与配对** 中复用 Slack 私聊审核。启用 **Lark 聊天与 Slack 私聊请求必须经过配对**，创建普通角色，再让未知人员私聊已绑定应用。第一条消息只产生固定审核提示和不含旧指令的申请；在 **申请** 中选择已有角色并批准。固定通知要求重新提问，只有新的私聊进入模型。**人员** 显示当前角色并支持撤销；撤销后新消息必须重新审核才能启动模型。
+
+限制按 Bot 生效，默认关闭。之前已为 Lark 启用的限制在此候选中也覆盖 Slack 私聊。配对限定当前 Bot／App／Binding 与经验证的 Workspace 人员，重启后保留，重新绑定不继承。Role／Group 行为文字是 prompt 策略，不是邮件、文件或 Shell 的强制权限。Slack 群配对和原生管理控件仍独立推进；此预览中的 `/pair` 不创建 Slack 管理授权。
+
+隔离源码候选已完成真实 Slack 申请 → Web 选择 Role 并批准 → 通知重问 → 新问题原 App 回复 → 撤销 → 重启检查，来源事件、Admission 和 Outbox 与实际回复一致；Human 已接受这轮交互。下方既有 Provider 收发／反应截图只证明各自原有范围。使用独立 App，并明确协调独占接收窗口；若依赖新限制，回退旧代码前应停用对应 Slack Binding。详见 [ADR-0174](adr/0174-slack-dm-chat-pairing-reuses-current-binding-authority.md)。
+
+![未知人员的真实 Slack 私聊收到固定等待审核提示](/guides/slack/16-dm-pending-notice.png)
+
+_第一条私聊只创建审核申请，不执行其中的指令。_
+
+![真实 Web 申请页显示 Slack 申请人，并已选中普通 Role](/guides/slack/15-dm-role-review.png)
+
+_在 Bot 私聊侧栏打开 **IM 角色与配对 → 申请**，必要时刷新，核对申请人与接收 App，再选择已有 Role。**批准此角色** 只发送固定重新提问通知，不执行第一条指令。_
+
+![真实 Slack 配对人员具有普通 Role，管理能力为空](/guides/slack/18-dm-approved-person.png)
+
+_当前配对人员显示在 **人员** 页。普通聊天资格不会自动授予管理权限；本次测试 Role 没有管理能力。_
+
+![真实批准通知之后的新 Slack 问题获得回复](/guides/slack/17-dm-fresh-answer.png)
+
+_只有新问题执行：原私聊返回 9797、当前 Role 和空管理能力，回复与隔离 Host 的来源事件、已处理 Admission 和已接受 Outbox 一致。三个只读目录也已核对：有效配对人员、已知外部会话、本会话观察过的配对人员；最后一个不是完整或当前成员名单。_
+
+![真实撤销及重启后的 Slack 问题只收到申请提示](/guides/slack/19-dm-revoke-restart.png)
+
+_通过 **人员 → 撤销授权** 取消普通聊天资格。下一条问题只创建申请，不执行；重启同一 Profile 后仍保留拦截。重新批准也须重新提问，不回放已拦截的消息。该源码候选证据不代表 npm 产品已发布，也不验证 Slack 群或原生管理控件。_
+
+复用独立测试 App 时，在交互终端运行 `node scripts/dev-im-test-apps.mjs setup slack`。三步向导把独立 Slack QA1／QA2／QA3 保存到 Lark 已使用的本机私密共享配置，保留既有 Lark 数据且不启动接收器；`list slack` 只显示元数据。详见[共享 QA 配置指南](https://github.com/BotHarness/DeepSeekBot/blob/main/docs/agents/im-test-apps.md#reusable-slack-qa-apps)。
+
 你需要一个允许安装应用的 Slack 工作区、创建应用的权限（或管理员协助），以及一个公共测试频道。在 BotHarness 中创建 Bot，先确认它能回答本地 DM，再测试 Slack。
 
 使用包含已验证 IM Provider 的 BotHarness 产品。不要额外安装任意版本的 dsh-im，也不要为同一应用启动第二个收件实例。
@@ -49,6 +79,27 @@ Manifest 是起始配置，不是凭据。连接前，按下面的说明核对�
 _这是现有 QA 应用的配置状态，页面不展示 App Token。_
 
 ### Bot 权限与事件
+
+测试**普通私聊配对**前，先核对以下 **Bot Token Scopes（机器人令牌权限）**：
+
+| Bot 权限     | 用途                                                     |
+| ------------ | -------------------------------------------------------- |
+| `im:history` | 接收已订阅的 `message.im` 私聊消息事件                   |
+| `im:read`    | 用 `conversations.info` 核对原始私聊；仅能接收事件还不够 |
+| `chat:write` | 发送审核提示、重新提问通知和回复                         |
+| `users:read` | 解析已验证发送者的显示名                                 |
+
+启用 **Socket Mode**，App-level Token 包含 `connections:write`。在 **Event Subscriptions → Subscribe to bot events** 添加 **`message.im`**；在 **App Home** 启用 **Messages Tab**，并允许用户从此标签页发送消息。这几项需要分别配置：Bot 权限不会自动添加事件订阅或开启输入框。Slack 官方说明见 [`message.im` 及其 `im:history` 要求](https://docs.slack.dev/reference/events/message.im/)和[读取私聊信息的 `im:read`](https://docs.slack.dev/reference/scopes/im.read/)。
+
+新增 Bot 权限后，点击 **Reinstall to your workspace**，核对授权内容并完成重新安装；确认已安装的 Bot Token 获得新权限后再重试。#1415 的 QA 配置原有 `im:history`，但缺少 `im:read`；补充后重新安装，原始私聊核对才通过。两种 Token 都只在本机保存。Slack App 权限负责让集成收发消息；Bot 的 **IM 角色与配对** 设置另外决定谁可以与这个 PersonaBot 聊天。
+
+下方频道和文件权限用于其他功能，并非普通私聊配对必须全部申请。
+
+![重新安装后真实 QA App 的 Bot 权限，包含 chat:write、im:history 和 im:read](/guides/slack/13-dm-bot-scopes.png)
+
+![真实私聊权限与 users:read；User Token 权限仍为空](/guides/slack/14-dm-scope-detail.png)
+
+_以上裁剪截图展示 QA App 的实际配置，也包含其原有可选权限；配置截图不代表配对运行验收通过，未展示 OAuth Token。_
 
 进入 **OAuth & Permissions → Bot Token Scopes**，按用途核对：
 
@@ -138,6 +189,19 @@ Bot 可以显式跟进或退出一个原生 Slack 话题；Human 可在 **话题
 
 Slack 可以直接发往频道，所以永远不需要保存发送目标。**外部连接器 → 保存发送目标（高级）** 只作为不支持直接发往会话的应用的后备。
 
+## 7. 可选：收到与已回答反馈
+
+[#1161](https://github.com/BotHarness/DeepSeekBot/issues/1161) 候选使用可选的 checked Provider 能力；仅安装现有 Provider pin 不会开启它。隔离候选已完成真实频道和 DM 检查，包含原生截图、同源 DM 状态变化录屏及对应权威事实。Human QA 与已发布 Provider 的资格验证仍待完成；成功示例不能推断其他平台或所有失败路径。
+
+使用兼容 Provider，并经批准安装 **Bot** 的 `reactions:write` 权限后：
+
+- **👀** 仅在 Inbox Admission 提交后出现，不以 Socket Mode 投递成功为准。
+- **✅** 仅在该来源的真实回复被平台接受后出现；随后应用移除自己在该原消息上的 👀，不操作其他人的反应或话题根消息。清理结果不确定时两种反应可能并存，不会自动重试。
+- 静音及仅上下文消息不产生反馈。静默结束、委派、等待、无关输出、失败或结果不确定的回复不产生 ✅。这是应用反应，不是 Human 已读回执。
+- 缺少能力或反应失败不会阻塞收件、模型执行或回复；重连、重启及之后补充权限不会重放历史反馈尝试。
+
+权限变更需先批准并重新安装应用；Human 登录 Slack 不会授予 Bot 此权限。DM 测试还需确认应用已安装的 IM 权限、`message.im` 订阅，并发送新消息到已绑定应用的私聊。每个测试应用只运行一个接收器，使用专用测试频道，同时核对原始 Human 消息上的真实反应和对应 Inbox／Outbox 事实。
+
 ## 排查问题
 
 | 现象                   | 检查与处理                                                                                                           |
@@ -149,4 +213,4 @@ Slack 可以直接发往频道，所以永远不需要保存发送目标。**外
 | 来源已处理却没有回复   | 查看来源／Outbox 状态与原生话题。Bot 可能选择不回复，或自身身份／授权已失效；结果不确定的发送不会盲目重试。          |
 | 需要重连或重启         | 保留同一个 Profile，同一应用只运行一个收件实例；恢复后验证新消息。重连不自动补收缺失历史。                           |
 
-本指南涵盖已验证的 **公共频道** @消息、普通文本、有界上下文、原生话题跟进、显式共享频道投递、带 @ 文件处理和显式报告。私有频道／Slack DM、无 @ 文件分享收件、编辑／删除同步、工作区全局搜索、断线历史补收与定时晨报服务不在本次资格验证范围。Slack 的已读标记不是 BotHarness 收件证据。平台边界与后续适配流程见 [IM 接入指南](/zh/dev/guides/im-provider-integration/)。
+本指南涵盖已验证的 **公共频道** @消息、普通文本、有界上下文、原生话题跟进、显式共享频道投递、带 @ 文件处理和显式报告，以及上方有界源码候选的普通私聊配对。私有频道、Slack 群配对／原生管理控件、无 @ 文件分享收件、编辑／删除同步、工作区全局搜索、断线历史补收与定时晨报服务不在本次资格验证范围。Slack 的已读标记不是 BotHarness 收件证据。平台边界与后续适配流程见 [IM 接入指南](/zh/dev/guides/im-provider-integration/)。

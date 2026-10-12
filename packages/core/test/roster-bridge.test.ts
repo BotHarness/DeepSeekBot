@@ -1,11 +1,9 @@
 import { storedState, storedSection, storedWriteCount } from './roster-fixture.js';
 import { createTestRosterStore } from './roster-fixture.js';
 import { registryDatabase, createTestRegistry } from './registry-fixture.js';
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import { createBridgeMethods, type BridgeMethods } from '../src/bridge/methods.js';
 
@@ -13,17 +11,10 @@ import { createChannelStore } from '../src/channels/store.js';
 import type { RosterStore } from '../src/roster/store.js';
 import { createBotStateTracker } from '../src/state/bot-state.js';
 import { createFakeRosterDomain, type FakeRosterDomain } from './roster-fixture.js';
-import { createTestOwnership } from './helpers.js';
-
-const roots: string[] = [];
-
-afterEach(() => {
-  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
-});
+import { createTempRoot, createTestOwnership } from './helpers.js';
 
 function setup(): { methods: BridgeMethods; roster: RosterStore; fake: FakeRosterDomain } {
-  const root = mkdtempSync(join(tmpdir(), 'botharness-roster-bridge-'));
-  roots.push(root);
+  const root = createTempRoot('botharness-roster-bridge-');
   const roster = createTestRosterStore({ database: registryDatabase(root) });
   const fake = createFakeRosterDomain();
   const methods = createBridgeMethods({

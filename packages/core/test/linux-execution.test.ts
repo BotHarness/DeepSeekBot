@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { randomUUID } from 'node:crypto';
@@ -20,10 +20,12 @@ describe('Linux workspace authority', () => {
       const root = join(parent, 'workspace');
       mkdirSync(home);
       mkdirSync(root);
+      chmodSync(root, 0o777);
       mkdirSync(join(root, '.git'));
       const canary = 'SYNTHETIC-host-authority-canary-1380';
       const privateFile = join(home, '.credentials.yaml');
       writeFileSync(privateFile, canary);
+      chmodSync(privateFile, 0o600);
       const execution = new ProtectedExecution(() => undefined);
       const name = 'botharness-private-command-' + randomUUID();
       const cleanup = execution.trackContainer(name);
@@ -43,6 +45,7 @@ describe('Linux workspace authority', () => {
           env: { ...process.env, DEEPSEEK_API_KEY: canary },
         });
         expect(stdout).toContain('mounted-proof');
+        expect(readFileSync(join(root, 'proof.txt'), 'utf8')).toBe('mounted-proof');
         expect(stdout).toContain('/workspace');
         expect(stdout).toContain('uid=65534');
         expect(stdout).toContain('host-file-unavailable');

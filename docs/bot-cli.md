@@ -83,6 +83,12 @@ deepseekbot tool-approval-decide <channel-id> --message-id <card-id> --outcome a
 deepseekbot tool-approval-decide <channel-id> --message-id <card-id> --outcome rejected
 deepseekbot user-question-status <channel-id> --message-id <card-id>
 deepseekbot user-question-answer <channel-id> --message-id <card-id> --answer-stdin
+deepseekbot ask-secret-status <channel-id> --message-id <card-id>
+deepseekbot ask-secret-submit <channel-id> --message-id <card-id> --values-stdin
+deepseekbot ask-secret-cancel <channel-id> --message-id <card-id>
+deepseekbot ask-secret-account-status <channel-id> --message-id <configured-card-id>
+deepseekbot ask-secret-replace <channel-id> --message-id <configured-card-id>
+deepseekbot ask-secret-revoke <channel-id> --message-id <configured-card-id>
 deepseekbot release-info [--since <version>]
 deepseekbot workspace-options
 deepseekbot grant-create <bot-id> --workspace <workspace-id>
@@ -91,6 +97,8 @@ deepseekbot grant-create <bot-id> --workspace <workspace-id>
 `send` establishes the registered Bot's DM and returns `receipt`, the committed Human `message`, `sourceEventId`, processing `state`, and `replies` associated with that exact request and Bot-owned Session. Other requests, approval/question cards, notices and failures do not count as replies. A real reply verifies the selected model and key together. The deadline defaults to 120 seconds and accepts up to 600. No send is automatically retried. Failures after starting the send include its receipt: inspect `send-status` before resubmitting. A supplied `human-<UUID>` ID with the same body lets the Host deduplicate; a changed body fails coded. Handled-without-reply returns `reply-not-produced`; repair-needed processing returns `send-needs-repair`.
 
 Question answer stdin is `{"answers":[{"id":"question-id","selected":["Blue"],"custom":"optional text"}]}`; read IDs and options from live channel history. Host owners apply decisions once and return coded refusals for repeated or competing decisions. Tool approval exposes allow-once and reject. Question status preserves pending/submitted/answered/expired distinctions. Release commands only read lifecycle information. Workspace grants take IDs from `workspace-options`.
+
+Private input uses the authenticated Owner and the same inline cards as Web Chat. Read `privateInputRequest.fields` and the card ID from `channel-messages`, then feed a JSON object of those field IDs and confidential strings to `ask-secret-submit --values-stdin` from a trusted source. Keep values out of arguments, shell history and ordinary messages. Submission and cancellation return only `{accepted:true}`; no command reads original values back. `ask-secret-status` returns request settlement, while `ask-secret-account-status` reports current access, including revoked or superseded. Replacement returns a new blank card's `{messageId}` for a separate stdin submission; revocation returns `{accepted:true,stopped,completed,uncertain}` and withdraws local access, without undoing remote effects. Private-operation refusals use the static `private-input-not-accepted` error instead of forwarding Host payloads. Mutations never retry automatically; inspect status and history after an uncertain transport outcome. See the [private input guide](dev/guides/private-input-cli.md) for the opt-in execution boundary and runnable qualification.
 
 Host-down commands fail `host-unreachable` without submitting a message. Expired tokens fail `host-unauthorized`; malformed responses fail `host-protocol-error`. Bridge and gateway codes pass through unchanged. Stdout remains one JSON document (`--compact` is available); authentication values are never printed or saved.
 

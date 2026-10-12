@@ -1,0 +1,145 @@
+{
+  "platform": "Windows Host with isolated Linux ordinary execution; DSH 0.2.0-rc.1",
+  "runtimeRevisions": {
+    "initial": "ad4e09f9aafb1ee5a642d9e5a83c7b38a2a6715c",
+    "explicitParameterGuard": "2bffd6c7",
+    "cancellationClarification": "ffef9348"
+  },
+  "modelWire": {
+    "requests": 46,
+    "bodiesAvailable": 46,
+    "bodiesUnavailable": 0,
+    "canaryMatches": 0,
+    "patterns": ["raw", "base64", "URL-encoded"]
+  },
+  "earlierFullProfileScan": {
+    "files": 207395,
+    "sessionEvents": 240,
+    "requestHeaders": 3,
+    "toolResults": 23,
+    "spillFiles": 0,
+    "nativeStoreContainsSyntheticValues": true,
+    "violations": []
+  },
+  "finalRuntimeScan": {
+    "files": 1110,
+    "sessionEvents": 322,
+    "requestHeaders": 4,
+    "toolResults": 31,
+    "spillFiles": 2,
+    "nativeStoreContainsSyntheticValues": true,
+    "violations": [],
+    "excludes": [
+      "ax-cli installed code, scanned by earlier full Profile snapshot",
+      ".credentials.yaml expected secret authority"
+    ]
+  },
+  "activeRevocation": {
+    "before": {
+      "requests": 5,
+      "authenticated": 4,
+      "completed": 4,
+      "disconnected": 1
+    },
+    "stop": {
+      "accepted": true,
+      "stopped": 1,
+      "completed": 0,
+      "uncertain": 0
+    },
+    "after": {
+      "requests": 6,
+      "authenticated": 5,
+      "completed": 4,
+      "disconnected": 2
+    },
+    "remoteEffects": "unknown",
+    "botReportedRemoteEffectsUnknown": true
+  },
+  "cases": [
+    {
+      "case": "allow once",
+      "session": "main",
+      "callSeq": 35,
+      "resultSeq": 38,
+      "httpStatus": 200
+    },
+    {
+      "case": "reject",
+      "session": "main",
+      "callSeq": 60,
+      "resultSeq": 63,
+      "fixtureRequestDelta": 0
+    },
+    {
+      "case": "broad existing allowance",
+      "session": "main",
+      "callSeq": 78,
+      "resultSeq": 81,
+      "httpStatus": 200
+    },
+    {
+      "case": "wrong account",
+      "session": "main",
+      "callSeq": 108,
+      "resultSeq": 111,
+      "fixtureRequestDelta": 0
+    },
+    {
+      "case": "remote stale credentials",
+      "session": "main",
+      "callSeq": 128,
+      "resultSeq": 131,
+      "httpStatus": 401
+    },
+    {
+      "case": "same broad allowance after restart",
+      "session": "main",
+      "callSeq": 152,
+      "resultSeq": 155,
+      "httpStatus": 200
+    },
+    {
+      "case": "unsupported extra command",
+      "session": "main",
+      "callSeq": 173,
+      "resultSeq": 176,
+      "fixtureRequestDelta": 0
+    },
+    {
+      "case": "initial active stop, before clearer failure contract",
+      "session": "main",
+      "callSeq": 182,
+      "resultSeq": 185,
+      "botIncorrectlyClaimedNoRequest": true
+    },
+    {
+      "case": "active stop, clearer failure contract",
+      "session": "main",
+      "callSeq": 224,
+      "resultSeq": 227,
+      "botReportedRemoteEffectsUnknown": true
+    },
+    {
+      "case": "revoked new use",
+      "session": "main",
+      "callSeq": 244,
+      "resultSeq": 247,
+      "fixtureRequestDelta": 0
+    },
+    {
+      "case": "wrong Bot actual Host guard",
+      "session": "wrong-bot",
+      "callSeq": 30,
+      "resultSeq": 33,
+      "fixtureRequestDelta": 0
+    }
+  ],
+  "limits": [
+    "Synthetic canaries and observed model route only; not all transforms or providers",
+    "Snapshots have different capture times; later Human-QA writes are outside these scans",
+    "Earlier launcher logs were overwritten on restart; historical log coverage is incomplete",
+    "Full native Sessions, model payloads and login authentication stay local",
+    "No Linux-server, production deployment, external email or production IM receiver qualification"
+  ]
+}

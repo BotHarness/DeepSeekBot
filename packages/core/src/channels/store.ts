@@ -363,6 +363,7 @@ export interface ChannelStore {
     message: ChannelMessage,
     preview?: AllBotPreview,
     origin?: ChannelMessageOrigin,
+    canCommit?: () => boolean,
   ): Promise<ChannelAppendOnceResult>;
   readPosition(id: string): ChannelReadPosition | undefined;
   markRead(id: string, messageId: string): Promise<ChannelReadPosition | undefined>;
@@ -858,7 +859,7 @@ export function createChannelStore(options: ChannelStoreOptions): ChannelStore {
         options.botDisplayName ?? (() => undefined),
       );
     },
-    appendMessageOnce(id, message, preview, origin) {
+    appendMessageOnce(id, message, preview, origin, canCommit) {
       return enqueue(id, () => {
         const record = read(id);
         if (record === undefined) return { status: 'missing' };
@@ -871,6 +872,7 @@ export function createChannelStore(options: ChannelStoreOptions): ChannelStore {
             message: projectReply(existing, messageIndex(priorMessages)),
           };
         }
+        if (canCommit?.() === false) return { status: 'conflict' };
         if (preview !== undefined) {
           if (message.author.kind !== 'human') throw new Error('All Bots requires a Human sender');
           assertAllBotPreview(

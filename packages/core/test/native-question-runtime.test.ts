@@ -42,11 +42,14 @@ async function fixture(
       sessions.push(run.sessionId);
       if (run.acceptNativeInput !== undefined) {
         expect(run.message).toBe('');
+        expect(runtime.canRequestPrivateInput?.(run.sessionId)).toBe(true);
         beforeNative?.(run);
         if (!run.acceptNativeInput()) return;
         await native.done;
         await run.channels.send({ body: 'Actual native answer reply' });
       } else {
+        expect(runtime.canRequestPrivateInput?.(run.sessionId)).toBe(true);
+        expect(runtime.canRequestPrivateInput?.('unowned')).toBe(false);
         bound = runtime.bindNativeQuestionInput?.(run.sessionId, dm.id);
         expect(runtime.bindNativeQuestionInput?.(run.sessionId, 'dm-other')).toBeUndefined();
         ready.release();
@@ -100,6 +103,7 @@ describe('native question answer uses the owning Orchestrator runtime', () => {
     expect(state.channels.readMessages(state.dm.id)).toHaveLength(0);
     state.native.release();
     await state.runtime.whenIdle();
+    expect(state.runtime.canRequestPrivateInput?.(state.sessions[0]!)).toBe(false);
     expect(state.channels.readMessages(state.dm.id)[0]?.body).toBe('Actual native answer reply');
     const events = attachOperationalModule(state.owner, 'native-question-test').read((db) =>
       db.prepare('SELECT COUNT(*) AS count FROM source_events').get(),

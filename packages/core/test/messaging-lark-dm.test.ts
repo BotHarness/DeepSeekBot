@@ -5,6 +5,7 @@ import { createDshImProvider, type DshImOutboundService } from '../src/messaging
 import type { MessagingInboundEvent, MessagingReplyRoute } from '../src/messaging/provider.js';
 import { attachOperationalModule } from '../src/database/owner.js';
 import { createTempRoot } from './helpers.js';
+import { privateInputWebUrl } from '../src/credentials/web-locator.js';
 
 const cores: BotHarnessCore[] = [];
 afterEach(async () => {
@@ -19,6 +20,8 @@ it('Lark exact private chat uses canonical Inbox without mentions and replies th
   const fingerprint = 'd'.repeat(64);
   let consumer: Parameters<NonNullable<DshImOutboundService['consumeInbound']>>[1] | undefined;
   let runs = 0;
+  let noticePending = true;
+  let expireNoticeAtSend = false;
   let core: BotHarnessCore;
   const replies: { account: string; route: MessagingReplyRoute; text: string }[] = [];
   core = createCore({
@@ -30,6 +33,42 @@ it('Lark exact private chat uses canonical Inbox without mentions and replies th
           .list({ botSlug: 'ada' })
           .items.find((item) => item.sourceKind === 'bridge-message');
         expect(source).toBeDefined();
+        const origin = core.runtime.bindPrivateInputOrigin?.(run.sessionId, source!.id);
+        expect(origin?.current()).toBe(true);
+        expect(core.runtime.canRequestPrivateInput?.(run.sessionId, source!.id)).toBe(true);
+        expect(() =>
+          core.runtime.bindPrivateInputOrigin?.(run.sessionId, 'historical-source'),
+        ).toThrow();
+        const cardId = '11111111-1111-4111-8111-111111111111';
+        const link = privateInputWebUrl('http://127.0.0.1:31393', 'dm-ada', cardId);
+        const notice = await core.externalMessaging.privateInputNotice(
+          'ada',
+          source!.id,
+          cardId,
+          link,
+          origin!,
+        );
+        expect(
+          await core.externalMessaging.privateInputNotice('ada', source!.id, cardId, link, origin!),
+        ).toEqual(notice);
+        expireNoticeAtSend = true;
+        const staleNotice = await core.externalMessaging
+          .privateInputNotice('ada', source!.id, '22222222-2222-4222-8222-222222222222', link, {
+            signal: origin!.signal,
+            current: () => noticePending,
+          })
+          .then(
+            () => 'sent',
+            () => 'refused',
+          );
+        expect(staleNotice).toBe('refused');
+        expireNoticeAtSend = false;
+        await expect(
+          run.externalMessaging!.reply(
+            source!.id,
+            'private:11111111-1111-4111-8111-111111111111:api_key',
+          ),
+        ).rejects.toThrow('private-reference-not-deliverable');
         await run.externalMessaging!.reply(source!.id, 'LARK-DM-QA-OK');
       },
       async runAssignment() {},
@@ -86,6 +125,11 @@ it('Lark exact private chat uses canonical Inbox without mentions and replies th
     },
     qualifyReplyChecked: async (_account, route) => route,
     replyChecked: async (account, route, text, options) => {
+      if (expireNoticeAtSend) {
+        noticePending = false;
+        expect(options.beforeSend?.()).toBe(false);
+        throw new Error('cancelled');
+      }
       expect(options.beforeSend?.()).toBe(true);
       replies.push({ account, route, text });
       return {
@@ -236,7 +280,11 @@ it('Lark exact private chat uses canonical Inbox without mentions and replies th
   await core.runtime.whenIdle();
   await tick();
   expect(runs).toBe(1);
-  expect(replies).toEqual([{ account: 'feishu-qa', route: source.reply, text: 'LARK-DM-QA-OK' }]);
+  expect(replies).toHaveLength(2);
+  expect(replies[0]).toMatchObject({ account: 'feishu-qa', route: source.reply });
+  expect(replies[0]!.text).toContain('#botharness-private-input=');
+  expect(replies[0]!.text).not.toContain('api_key');
+  expect(replies[1]).toEqual({ account: 'feishu-qa', route: source.reply, text: 'LARK-DM-QA-OK' });
   expect(core.attention.list({ botSlug: 'ada' }).items[0]).toMatchObject({
     externalOrigin: {
       platform: 'feishu',
@@ -266,7 +314,7 @@ it('Lark exact private chat uses canonical Inbox without mentions and replies th
   expect(
     db.read((database) => database.prepare('SELECT * FROM inbox_admissions').all()),
   ).toHaveLength(1);
-  expect(replies).toHaveLength(1);
+  expect(replies).toHaveLength(2);
   expect(core.externalMessaging.history('ada')[0]?.receipt).toMatchObject({
     messageId: 'dsh-feishu-qa-client',
   });

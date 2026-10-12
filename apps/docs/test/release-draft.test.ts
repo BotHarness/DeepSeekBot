@@ -46,7 +46,11 @@ describe("GitHub Release draft preparation", () => {
         tagged: false,
         installable: false,
       },
-      body: `Published a clearer compatibility guide for DeepSeekBot operators.
+      body: `- **官网 / Website:** [DeepSeekBot](https://deepseekbot.app/r/v0.2.1)
+- **安装教程 / Installation:** [中文](https://deepseekbot.app/r/v0.2.1/install) · [English](https://deepseekbot.app/r/v0.2.1/install/en)
+- **精确安装版本 / Exact install spec:** \`deepseekbot@0.2.1\`
+
+Published a clearer compatibility guide for DeepSeekBot operators.
 
 > Documentation-only patch: runtime behavior is unchanged.
 
@@ -73,6 +77,30 @@ describe("GitHub Release draft preparation", () => {
     });
   });
 
+  it("starts stable product releases with user entry points", () => {
+    const version = "0.2.1";
+    const draft = prepareReleaseDraft({
+      artifact: "deepseekbot",
+      version,
+      tag: `v${version}`,
+      githubReleaseVersion: version,
+      installableVersion: version,
+      tagged: true,
+      installable: true,
+      comparisonUrl: `https://github.com/BotHarness/BotHarness/compare/v0.2.0...v${version}`,
+      englishLedger: fixture("deepseekbot.md").replaceAll("0.2.1", version),
+      chineseLedger: fixture("deepseekbot.zh.md").replaceAll("0.2.1", version),
+    });
+
+    expect(
+      draft.body.startsWith(`- **官网 / Website:** [DeepSeekBot](https://deepseekbot.app/r/v${version})`),
+    ).toBe(true);
+    expect(draft.body).toContain(`[中文](https://deepseekbot.app/r/v${version}/install)`);
+    expect(draft.body).toContain(`[English](https://deepseekbot.app/r/v${version}/install/en)`);
+    expect(draft.body).toContain(`Exact install spec:** \`deepseekbot@${version}\``);
+    expect(draft.body.indexOf("安装教程")).toBeLessThan(draft.body.indexOf("Published a clearer"));
+  });
+
   it("keeps DSH Skill SemVer and verified upstream provenance independent", () => {
     const draft = prepareReleaseDraft({
       artifact: "dsh-skill",
@@ -94,6 +122,7 @@ describe("GitHub Release draft preparation", () => {
 
     expect(draft.prerelease).toBe(true);
     expect(draft.name).toBe("DSH Skill v1.2.0-rc.1");
+    expect(draft.body).not.toContain("deepseekbot.app");
     expect(draft.body).toContain("**Skill version:** `1.2.0-rc.1`");
     expect(draft.body).toContain("**Verified against DSH:** `dsh 0.1.6-alpha.2`");
     expect(draft.body).toContain(
@@ -265,6 +294,12 @@ describe("GitHub Release draft preparation", () => {
       chineseLedger,
     });
 
+    expect(
+      draft.body.startsWith("- **官网 / Website:** [DeepSeekBot](https://deepseekbot.app/r/v0.3.0-rc.1)"),
+    ).toBe(true);
+    expect(draft.body).toContain("[中文](https://deepseekbot.app/r/v0.3.0-rc.1/install)");
+    expect(draft.body).toContain("[English](https://deepseekbot.app/r/v0.3.0-rc.1/install/en)");
+    expect(draft.body).toContain("Exact install spec:** `deepseekbot@0.3.0-rc.1`");
     expect(draft.body).toContain("Documentation-only release: runtime behavior is unchanged.");
     expect(draft.body).not.toContain("Documentation-only patch");
   });

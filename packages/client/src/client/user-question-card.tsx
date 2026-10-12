@@ -214,9 +214,11 @@ export function UserQuestionCard({
         </div>
       ))}
       {status === 'pending' ? (
-        <Button variant="primary" disabled={disabled} onClick={submit}>
-          {t('question.submit')}
-        </Button>
+        <div className="bh-message-card-actions">
+          <Button variant="primary" disabled={disabled} onClick={submit}>
+            {t('question.submit')}
+          </Button>
+        </div>
       ) : (
         <div className="bh-note" role="status">
           {status === 'answered' ? (

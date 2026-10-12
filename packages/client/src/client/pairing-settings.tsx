@@ -4,6 +4,15 @@ import { Combobox } from './combobox.js';
 import { MessagingHelp } from './messaging-help.js';
 import { Modal } from './modal.js';
 import { PairingTable } from './pairing-table.js';
+import { BehaviorPermissionsPanel } from './behavior-permission-settings.js';
+import type { BehaviorPermission } from '../../../core/src/messaging/behavior-policy.js';
+import {
+  GroupDetails,
+  GroupDialog,
+  PersonPermissions,
+  type GroupBinding,
+} from './permission-group-settings.js';
+import type { ExternalPermissionGroup } from '../../../core/src/messaging/permission-groups.js';
 import type { ColumnDef } from '@tanstack/react-table';
 import type {
   ExternalUserRole,
@@ -17,12 +26,13 @@ import type {
 } from '../../../core/src/messaging/pairing.js';
 import type { BotHarnessTranslate } from './locale.js';
 
-const capabilities = ['approve', 'reject', 'answer', 'save-rules'] as const;
+const capabilities = ['approve', 'reject', 'answer', 'save-rules', 'review-pairing'] as const;
 const labels = {
   approve: 'pairing.approveCapability',
   reject: 'pairing.rejectCapability',
   answer: 'pairing.answerCapability',
   'save-rules': 'pairing.rulesCapability',
+  'review-pairing': 'pairing.reviewCapability',
 } as const;
 
 function auditColumn<Row extends { createdAt?: string; updatedAt?: string }>(
@@ -69,6 +79,9 @@ export function PairingSettings({
   requests,
   receivers = [],
   roles = [],
+  groups = [],
+  behaviorPermissions = [],
+  bindings = [],
   policy,
   senderAccess,
   busy,
@@ -79,6 +92,9 @@ export function PairingSettings({
 }: {
   requests: PairingRequest[];
   roles?: ExternalUserRole[];
+  groups?: ExternalPermissionGroup[];
+  behaviorPermissions?: BehaviorPermission[];
+  bindings?: GroupBinding[];
   policy?: SenderPolicy;
   senderAccess?(input: SenderAccessInput): Promise<void>;
   receivers?: { name: string; status: 'off' | 'connecting' | 'receiving' | 'unavailable' }[];
@@ -89,9 +105,9 @@ export function PairingSettings({
   t: BotHarnessTranslate;
 }): ReactElement {
   const id = useId();
-  const [tab, setTab] = useState<'people' | 'roles' | 'requests'>(
-    requests.some((request) => request.status === 'pending') ? 'requests' : 'people',
-  );
+  const [tab, setTab] = useState<
+    'people' | 'roles' | 'groups' | 'requests' | 'behaviorPermissions'
+  >(requests.some((request) => request.status === 'pending') ? 'requests' : 'people');
   const [selectedId, setSelectedId] = useState<string>();
   const [creating, setCreating] = useState(false);
   const people = requests.filter(
@@ -103,6 +119,25 @@ export function PairingSettings({
     tab === 'people' ? people : requests.filter((request) => !people.includes(request));
   const selected = entries.find((request) => request.id === selectedId) ?? entries[0];
   const selectedRole = roles.find((role) => role.id === selectedId) ?? roles[0];
+  const selectedGroup = groups.find((group) => group.id === selectedId) ?? groups[0];
+  const groupColumns: ColumnDef<ExternalPermissionGroup>[] = [
+    { id: 'name', accessorKey: 'name', header: t('pairing.groupName') },
+    {
+      id: 'app',
+      accessorFn: (group) =>
+        bindings.find((binding) => binding.id === group.bindingId)?.name ?? group.bindingId,
+      header: t('pairing.account'),
+    },
+    {
+      id: 'people',
+      accessorFn: (group) =>
+        people.filter(
+          (person) => person.status === 'approved' && group.memberIds.includes(person.id),
+        ).length,
+      header: t('pairing.people'),
+    },
+    auditColumn<ExternalPermissionGroup>(t),
+  ];
   const requestColumns: ColumnDef<PairingRequest>[] = [
     {
       id: 'name',
@@ -184,6 +219,7 @@ export function PairingSettings({
         onChange={(value) => {
           setTab(value);
           setSelectedId(undefined);
+          setCreating(false);
         }}
         items={[
           {
@@ -199,10 +235,22 @@ export function PairingSettings({
             panelId: `${id}-panel-roles`,
           },
           {
+            value: 'groups',
+            label: `${t('pairing.groups')} (${groups.length})`,
+            id: `${id}-groups`,
+            panelId: `${id}-panel-groups`,
+          },
+          {
             value: 'requests',
             label: `${t('pairing.requests')} (${requests.filter((request) => request.status === 'pending').length})`,
             id: `${id}-requests`,
             panelId: `${id}-panel-requests`,
+          },
+          {
+            value: 'behaviorPermissions',
+            label: `${t('pairing.behaviorPermissions')} (${behaviorPermissions.length})`,
+            id: `${id}-behaviorPermissions`,
+            panelId: `${id}-panel-behaviorPermissions`,
           },
         ]}
       />
@@ -221,71 +269,128 @@ export function PairingSettings({
                 ? 'pairing.scope'
                 : tab === 'roles'
                   ? 'pairing.policyLimit'
-                  : 'pairing.hint',
+                  : tab === 'groups'
+                    ? 'pairing.groupHelp'
+                    : tab === 'behaviorPermissions'
+                      ? 'pairing.behaviorHelp'
+                      : 'pairing.hint',
             )}
             t={t}
           />
           <span className="bh-pairing-toolbar-gap" />
-          {senderAccess ? (
+          {senderAccess && tab !== 'behaviorPermissions' ? (
             <Button size="sm" variant="toolbar" disabled={busy} onClick={() => setCreating(true)}>
-              {t('pairing.createRole')}
+              {t(tab === 'groups' ? 'pairing.createGroup' : 'pairing.createRole')}
             </Button>
           ) : null}
         </div>
-        <div className="bh-pairing-workspace">
-          {tab === 'roles' ? (
-            <PairingTable
-              key="roles"
-              data={roles}
-              columns={roleColumns}
-              selectedId={selectedRole?.id}
-              select={(role) => setSelectedId(role.id)}
-              label={t('pairing.roles')}
-              empty={t('pairing.noRoles')}
-              t={t}
-            />
-          ) : (
-            <PairingTable
-              key={tab}
-              data={entries}
-              columns={requestColumns}
-              selectedId={selected?.id}
-              select={(request) => setSelectedId(request.id)}
-              label={t(`pairing.${tab}`)}
-              empty={t(tab === 'people' ? 'pairing.noPeople' : 'pairing.noRequests')}
-              t={t}
-            />
-          )}
-          <aside className="bh-pairing-detail" aria-label={t('pairing.details')}>
-            {tab === 'roles' ? (
-              selectedRole ? (
-                <RoleDetails
-                  key={`${selectedRole.id}:${selectedRole.revision}`}
-                  role={selectedRole}
-                  busy={busy}
-                  change={senderAccess}
-                  t={t}
-                />
-              ) : (
-                <p className="bh-muted">{t('pairing.noRoles')}</p>
-              )
-            ) : selected ? (
-              <PairingRow
-                key={`${selected.id}:${selected.revision}`}
-                request={selected}
-                roles={roles}
-                busy={busy}
-                review={review}
-                {...(senderAccess ? { senderAccess } : {})}
+        {tab === 'behaviorPermissions' ? (
+          <BehaviorPermissionsPanel
+            items={behaviorPermissions}
+            groups={groups}
+            people={people}
+            busy={busy}
+            change={senderAccess}
+            t={t}
+          />
+        ) : (
+          <div className="bh-pairing-workspace">
+            {tab === 'groups' ? (
+              <PairingTable
+                key="groups"
+                data={groups}
+                columns={groupColumns}
+                selectedId={selectedGroup?.id}
+                select={(group) => setSelectedId(group.id)}
+                label={t('pairing.groups')}
+                empty={t('pairing.noGroups')}
+                t={t}
+              />
+            ) : tab === 'roles' ? (
+              <PairingTable
+                key="roles"
+                data={roles}
+                columns={roleColumns}
+                selectedId={selectedRole?.id}
+                select={(role) => setSelectedId(role.id)}
+                label={t('pairing.roles')}
+                empty={t('pairing.noRoles')}
                 t={t}
               />
             ) : (
-              <p className="bh-muted">{t('pairing.selectPerson')}</p>
+              <PairingTable
+                key={tab}
+                data={entries}
+                columns={requestColumns}
+                selectedId={selected?.id}
+                select={(request) => setSelectedId(request.id)}
+                label={t(`pairing.${tab}`)}
+                empty={t(tab === 'people' ? 'pairing.noPeople' : 'pairing.noRequests')}
+                t={t}
+              />
             )}
-          </aside>
-        </div>
+            <aside className="bh-pairing-detail" aria-label={t('pairing.details')}>
+              {tab === 'groups' ? (
+                selectedGroup ? (
+                  <GroupDetails
+                    key={`${selectedGroup.id}:${selectedGroup.revision}`}
+                    group={selectedGroup}
+                    behaviorPermissions={behaviorPermissions}
+                    groups={groups}
+                    people={people}
+                    bindings={bindings}
+                    busy={busy}
+                    change={senderAccess}
+                    t={t}
+                  />
+                ) : (
+                  <p className="bh-muted">{t('pairing.noGroups')}</p>
+                )
+              ) : tab === 'roles' ? (
+                selectedRole ? (
+                  <RoleDetails
+                    key={`${selectedRole.id}:${selectedRole.revision}`}
+                    role={selectedRole}
+                    busy={busy}
+                    change={senderAccess}
+                    t={t}
+                  />
+                ) : (
+                  <p className="bh-muted">{t('pairing.noRoles')}</p>
+                )
+              ) : selected ? (
+                <PairingRow
+                  key={`${selected.id}:${selected.revision}:${policy?.revision}`}
+                  request={selected}
+                  selectGroup={(id) => {
+                    setSelectedId(id);
+                    setTab('groups');
+                  }}
+                  roles={roles}
+                  busy={busy}
+                  review={review}
+                  {...(senderAccess ? { senderAccess } : {})}
+                  t={t}
+                />
+              ) : (
+                <p className="bh-muted">{t('pairing.selectPerson')}</p>
+              )}
+            </aside>
+          </div>
+        )}
       </div>
-      {creating && senderAccess ? (
+      {creating && senderAccess && tab === 'groups' ? (
+        <GroupDialog
+          behaviorPermissions={behaviorPermissions}
+          groups={groups}
+          people={people}
+          bindings={bindings}
+          busy={busy}
+          change={senderAccess}
+          close={() => setCreating(false)}
+          t={t}
+        />
+      ) : creating && senderAccess ? (
         <RoleDialog
           key={roles.map((role) => `${role.id}:${role.revision}`).join(',')}
           busy={busy}
@@ -299,6 +404,7 @@ export function PairingSettings({
 }
 function PairingRow({
   request,
+  selectGroup,
   roles,
   busy,
   review,
@@ -306,6 +412,7 @@ function PairingRow({
   t,
 }: {
   request: PairingRequest;
+  selectGroup(id: string): void;
   roles: ExternalUserRole[];
   busy: boolean;
   review(input: PairingReviewInput): Promise<void>;
@@ -467,6 +574,13 @@ function PairingRow({
           </Button>
           {request.status === 'approved' && request.purpose === 'conversation' && senderAccess ? (
             <>
+              <PersonPermissions
+                request={request}
+                selectGroup={selectGroup}
+                busy={busy}
+                change={senderAccess}
+                t={t}
+              />
               <Combobox
                 label={t('pairing.role')}
                 toggleLabel={t('pairing.role')}
@@ -530,6 +644,14 @@ function RoleDetails({
           <Tag>{t('pairing.ordinary')}</Tag>
         )}
       </div>
+      {role.delegableCapabilities?.length ? (
+        <div className="bh-im-pairing-capabilities">
+          <span>{t('pairing.delegable')}</span>
+          {role.delegableCapabilities.map((capability) => (
+            <Tag key={capability}>{t(labels[capability])}</Tag>
+          ))}
+        </div>
+      ) : null}
       {change ? (
         <Button size="sm" variant="toolbar" disabled={busy} onClick={() => setEditing(true)}>
           {t('pairing.editRole')}
@@ -564,10 +686,16 @@ function RoleDialog({
 }): ReactElement {
   const [name, setName] = useState(role?.name ?? '');
   const [behavior, setBehavior] = useState(role?.behavior ?? '');
-  const [selected, setSelected] = useState<('approve' | 'reject')[]>(
+  const [selected, setSelected] = useState<('approve' | 'reject' | 'review-pairing')[]>(
     (role?.capabilities ?? []).filter(
-      (capability): capability is 'approve' | 'reject' =>
-        capability === 'approve' || capability === 'reject',
+      (capability): capability is 'approve' | 'reject' | 'review-pairing' =>
+        capability === 'approve' || capability === 'reject' || capability === 'review-pairing',
+    ),
+  );
+  const [delegable, setDelegable] = useState<('approve' | 'reject' | 'review-pairing')[]>(
+    (role?.delegableCapabilities ?? []).filter(
+      (cap): cap is 'approve' | 'reject' | 'review-pairing' =>
+        cap === 'approve' || cap === 'reject' || cap === 'review-pairing',
     ),
   );
   const [failed, setFailed] = useState(false);
@@ -583,6 +711,7 @@ function RoleDialog({
               name,
               behavior,
               capabilities: selected,
+              delegableCapabilities: delegable,
             }
           : { kind: 'create-role', name, behavior },
       );
@@ -650,7 +779,7 @@ function RoleDialog({
                 />
               </span>
             </legend>
-            {(['approve', 'reject'] as const).map((capability) => (
+            {(['approve', 'reject', 'review-pairing'] as const).map((capability) => (
               <Checkbox
                 key={capability}
                 label={t(labels[capability])}
@@ -674,6 +803,31 @@ function RoleDialog({
             />
           </div>
         )}
+        {role ? (
+          <fieldset className="bh-im-pairing-capabilities" disabled={busy}>
+            <legend className="bh-im-actions">
+              {t('pairing.delegable')}
+              <MessagingHelp
+                title={t('pairing.delegable')}
+                text={t('pairing.delegationHelp')}
+                t={t}
+              />
+            </legend>
+            {(['approve', 'reject', 'review-pairing'] as const).map((capability) => (
+              <Checkbox
+                key={capability}
+                label={`${t('pairing.delegateAllow')} · ${t(labels[capability])}`}
+                checked={delegable.includes(capability)}
+                disabled={busy}
+                onChange={(checked) =>
+                  setDelegable((value) =>
+                    checked ? [...value, capability] : value.filter((item) => item !== capability),
+                  )
+                }
+              />
+            ))}
+          </fieldset>
+        ) : null}
         {failed ? (
           <p className="bh-error" role="alert">
             {t('pairing.error')}

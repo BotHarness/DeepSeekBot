@@ -1,0 +1,40 @@
+{
+  "date": "2026-10-11",
+  "cliRevision": "a01a058a8704f3860aa77682d7ac4a29e6f0c150",
+  "hostRevision": "fadc565729f407c3c16c2ad130e8ffba61604ea7",
+  "canonicalOwner": true,
+  "genericFields": ["endpoint", "api_key", "api_secret"],
+  "serviceBefore1416": {
+    "requests": 4,
+    "authenticated": 3
+  },
+  "serviceAfterRevocation": {
+    "requests": 6,
+    "authenticated": 5,
+    "completed": 6,
+    "disconnected": 0,
+    "versions": [3, 2]
+  },
+  "modelWire": {
+    "scope": "cumulative task-owned Host; 30 request bodies preceded CLI acceptance",
+    "records": 44,
+    "bodyAvailable": 44,
+    "unavailable": 0,
+    "canaryMatches": 0
+  },
+  "scan": {
+    "scope": "after revoked-reference refusal, before final pending-card cancellation; cumulative Profile and retained native Spill",
+    "files": 207359,
+    "sessionEvents": 289,
+    "requestHeaders": 3,
+    "toolResults": 27,
+    "spillFiles": 2,
+    "nativeStoreContainsSyntheticValues": true,
+    "violations": []
+  },
+  "nativeProjection": {
+    "read": 288,
+    "selected": 24
+  },
+  "retainedLogCoverage": "Current retained Host logs scanned; earlier overwritten launch logs are not reconstructed."
+}

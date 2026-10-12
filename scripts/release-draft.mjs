@@ -94,7 +94,18 @@ function documentationReleaseKind(releases, release) {
 }
 
 function releaseBody(release, artifact, metadata) {
-  const parts = [release.summary];
+  const parts = [];
+
+  if (artifact === 'deepseekbot') {
+    const releaseUrl = `https://deepseekbot.app/r/v${release.identity}`;
+    parts.push(
+      `- **官网 / Website:** [DeepSeekBot](${releaseUrl})\n` +
+        `- **安装教程 / Installation:** [中文](${releaseUrl}/install) · [English](${releaseUrl}/install/en)\n` +
+        `- **精确安装版本 / Exact install spec:** \`deepseekbot@${release.identity}\``,
+    );
+  }
+
+  parts.push(release.summary);
 
   if (artifact === 'deepseekbot' && metadata.documentationReleaseKind) {
     const label = metadata.documentationReleaseKind === 'patch' ? 'patch' : 'release';

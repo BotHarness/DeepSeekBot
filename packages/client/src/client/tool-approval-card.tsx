@@ -181,6 +181,19 @@ export function ToolApprovalCard({
             : 'approval.risk',
         )}
       </div>
+      {executionState === 'waiting-human' ||
+      executionState === 'waiting-capacity' ||
+      executionState === 'needs-repair' ? (
+        <div role="status" className="bh-note">
+          {t(
+            executionState === 'waiting-human'
+              ? 'approval.waitingHumanCapacity'
+              : executionState === 'waiting-capacity'
+                ? 'approval.waitingCapacity'
+                : 'approval.needsRepair',
+          )}
+        </div>
+      ) : null}
       {effectiveDecision !== undefined ? (
         <div role="status" className="bh-note">
           {effectiveDecision === 'rejected'
@@ -190,7 +203,7 @@ export function ToolApprovalCard({
               : t('approval.ruleSaved')}
         </div>
       ) : status === 'pending' && !confirmAll ? (
-        <div className="bh-tool-approval-actions">
+        <div className="bh-tool-approval-actions bh-message-card-actions">
           <Button variant="primary" disabled={disabled} onClick={() => decide('allowed-once')}>
             {t('approval.allowOnce')}
           </Button>
@@ -218,40 +231,37 @@ export function ToolApprovalCard({
         </div>
       )}
       {companionTarget && status === 'unavailable' ? (
-        <Button
-          variant="outline"
-          disabled={!qualified()}
-          onClick={() => setRetry((value) => value + 1)}
-        >
-          {t('companion.retryRequest')}
-        </Button>
-      ) : null}
-      {confirmAll && status === 'pending' ? (
-        <div className="bh-tool-approval-confirm" role="group" aria-label={t('approval.allowAll')}>
-          <div className="bh-note">{t('approval.allowAllRisk')}</div>
+        <div className="bh-message-card-actions">
           <Button
-            variant="primary"
-            disabled={disabled}
-            onClick={() => decide('allowed-always-all')}
+            variant="outline"
+            disabled={!qualified()}
+            onClick={() => setRetry((value) => value + 1)}
           >
-            {t('approval.confirmAll')}
-          </Button>
-          <Button variant="outline" disabled={busy} onClick={() => setConfirmAll(false)}>
-            {t('approval.cancel')}
+            {t('companion.retryRequest')}
           </Button>
         </div>
       ) : null}
-      {executionState === 'waiting-human' ||
-      executionState === 'waiting-capacity' ||
-      executionState === 'needs-repair' ? (
-        <div role="status" className="bh-note">
-          {t(
-            executionState === 'waiting-human'
-              ? 'approval.waitingHumanCapacity'
-              : executionState === 'waiting-capacity'
-                ? 'approval.waitingCapacity'
-                : 'approval.needsRepair',
-          )}
+      {confirmAll && status === 'pending' ? (
+        <div className="bh-message-card-actions">
+          <div
+            className="bh-tool-approval-confirm"
+            role="group"
+            aria-label={t('approval.allowAll')}
+          >
+            <div className="bh-note">{t('approval.allowAllRisk')}</div>
+            <div className="bh-tool-approval-actions bh-message-card-actions">
+              <Button
+                variant="primary"
+                disabled={disabled}
+                onClick={() => decide('allowed-always-all')}
+              >
+                {t('approval.confirmAll')}
+              </Button>
+              <Button variant="outline" disabled={busy} onClick={() => setConfirmAll(false)}>
+                {t('approval.cancel')}
+              </Button>
+            </div>
+          </div>
         </div>
       ) : null}
       {error === undefined ? null : (

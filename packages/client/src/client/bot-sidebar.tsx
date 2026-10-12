@@ -1,10 +1,12 @@
 import { ChannelHistory } from './channel-history.js';
+import { attachmentReferenceLabels } from './attachment-refs.js';
 import {
   useRef,
   useState,
   useSyncExternalStore,
   type MouseEvent as ReactMouseEvent,
   type ReactElement,
+  type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
 
@@ -296,6 +298,7 @@ export function createBotPanelEntry(
 }
 
 interface SidebarProps {
+  headerEnd?: ReactNode;
   companion?: WindowCompanions | undefined;
   wide: boolean;
   actions: BridgeActions;
@@ -368,7 +371,9 @@ function channelPreview(
       { name: message.memberDeparture.displayName },
     );
   const body =
-    message.body.replace(/\s+/gu, ' ').trim() ||
+    attachmentReferenceLabels(message.body, message.attachments ?? [])
+      .replace(/\s+/gu, ' ')
+      .trim() ||
     message.attachments?.[0]?.name ||
     t('roster.latestActivity');
   const author =
@@ -765,6 +770,7 @@ type FlatBlockView =
   | { kind: 'loose'; channels: ChannelSummary[] };
 
 export function BotSidebar({
+  headerEnd,
   companion,
   wide,
   actions,
@@ -1727,6 +1733,7 @@ export function BotSidebar({
             }}
           />
         </div>
+        {headerEnd}
       </div>
       {state.status === 'loading' && state.bots.length === 0 ? (
         <LoadingSkeleton kind="roster" label={t('roster.loading')} />

@@ -17,6 +17,7 @@ export type { PersonaBotSessionActivity } from './tool-activity.js';
 export interface PersonaBotAttention {
   approvalCount: number;
   questionCount?: number;
+  privateInputCount?: number;
   waitingHumanCount?: number;
   blockedCount?: number;
   workspaceGrantCount?: number;
@@ -59,6 +60,7 @@ export interface BotStateTracker {
     }[],
   ): void;
   setQuestionCount(slug: string, count: number): void;
+  setPrivateInputCount(slug: string, count: number): void;
   setApprovalCount(slug: string, count: number): void;
   setSessionState(
     slug: string,
@@ -108,6 +110,7 @@ export function createBotStateTracker(): BotStateTracker {
   const bots = new Map<string, Map<string, SessionState>>();
   const approvalCounts = new Map<string, number>();
   const questionCounts = new Map<string, number>();
+  const privateInputCounts = new Map<string, number>();
   const durableAttention = new Map<
     string,
     {
@@ -120,12 +123,17 @@ export function createBotStateTracker(): BotStateTracker {
   const attentionOf = (slug: string): PersonaBotAttention | undefined => {
     const count = approvalCounts.get(slug);
     const questionCount = questionCounts.get(slug);
+    const privateInputCount = privateInputCounts.get(slug);
     const durable = durableAttention.get(slug);
-    return count === undefined && questionCount === undefined && durable === undefined
+    return count === undefined &&
+      questionCount === undefined &&
+      privateInputCount === undefined &&
+      durable === undefined
       ? undefined
       : {
           approvalCount: count ?? 0,
           ...(questionCount === undefined ? {} : { questionCount }),
+          ...(privateInputCount === undefined ? {} : { privateInputCount }),
           ...(durable?.waitingHumanCount ? { waitingHumanCount: durable.waitingHumanCount } : {}),
           ...(durable?.blockedCount ? { blockedCount: durable.blockedCount } : {}),
           ...(durable?.informationalCount
@@ -341,6 +349,14 @@ export function createBotStateTracker(): BotStateTracker {
       if ((questionCounts.get(slug) ?? 0) === count) return;
       if (count === 0) questionCounts.delete(slug);
       else questionCounts.set(slug, count);
+      revision += 1;
+      notify(slug, 'attention-changed');
+    },
+    setPrivateInputCount(slug, count) {
+      if (!Number.isSafeInteger(count) || count < 0) return;
+      if ((privateInputCounts.get(slug) ?? 0) === count) return;
+      if (count === 0) privateInputCounts.delete(slug);
+      else privateInputCounts.set(slug, count);
       revision += 1;
       notify(slug, 'attention-changed');
     },

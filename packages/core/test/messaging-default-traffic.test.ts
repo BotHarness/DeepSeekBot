@@ -263,6 +263,170 @@ function asActor(event: MessagingInboundEvent, actorId: string): MessagingInboun
   };
 }
 
+function slackDm(
+  id: string,
+  overrides: Partial<MessagingInboundEvent> = {},
+): MessagingInboundEvent {
+  return fresh(
+    dm(id, {
+      channel: 'slack',
+      actor: { kind: 'user', id: 'UQAUSER1', name: 'Slack applicant' },
+      conversation: { kind: 'dm', id: 'DQA1' },
+      reply: { messageId: `om-${id}`, conversationId: 'DQA1', actorId: 'UQAUSER1' },
+      ...overrides,
+    }),
+  );
+}
+
+it('Slack ordinary DM pairing only executes a fresh reviewed request and queries scoped current permissions after restart', async () => {
+  const fx = await fixture('slack');
+  const role = await ordinaryRole(fx);
+  const blocked = slackDm('slack-unknown', { text: 'PRIVATE UNAPPROVED SLACK REQUEST' });
+  await fx.receive(blocked);
+  await fx.receive(blocked);
+  expect(fx.runs).toHaveLength(0);
+  expect(fx.admissions()).toEqual([]);
+  expect(fx.query('SELECT * FROM source_events')).toEqual([]);
+  expect(fx.query('SELECT * FROM assignments')).toEqual([]);
+  const request = fx.core.externalMessaging.pairing.list('ada')[0]!;
+  expect(request).toMatchObject({
+    purpose: 'conversation',
+    status: 'pending',
+    attempts: 1,
+    capabilities: [],
+  });
+  expect(JSON.stringify(request)).not.toContain(blocked.text);
+  expect(fx.replies).toHaveLength(1);
+  expect(fx.replies[0]!.text).not.toContain(blocked.text);
+  expect((await fx.core.externalMessaging.snapshot('ada')).pairingReceivers).toHaveLength(1);
+  const methods = createBridgeMethods({ ...fx.core });
+  const review = {
+    kind: 'approve' as const,
+    id: request.id,
+    expectedRevision: request.revision,
+    roleId: role.id,
+    expectedRoleRevision: role.revision,
+  };
+  expect(await methods.pairingReview({ slug: 'ada', input: review })).toMatchObject({
+    ok: true,
+    value: { pairing: { roleId: role.id, capabilities: [] } },
+  });
+  expect(fx.replies.at(-1)!.text).toContain('send your question again');
+  expect(fx.runs).toHaveLength(0);
+  await fx.restart();
+  await fx.receive(blocked);
+  expect(fx.admissions()).toEqual([]);
+  await fx.receive(slackDm('slack-new'));
+  expect(fx.runs).toHaveLength(1);
+  expect(fx.runs[0]!.inbox).toContain('slack-workspace-user-id');
+  expect(fx.runs[0]!.inbox).not.toContain(role.behavior);
+  expect(fx.runs[0]!.inbox).not.toContain(blocked.text);
+  const source = fx.sourceId('om-slack-new');
+  expect(fx.core.externalMessaging.senderPermissions('ada', source)).toMatchObject({
+    status: 'paired',
+    role,
+    sender: {
+      actorId: 'UQAUSER1',
+      providerId: 'dsh-im/slack',
+      namespace: 'slack-workspace-user-id',
+    },
+  });
+  expect(fx.core.externalMessaging.directory('ada', { kind: 'people' }).rows).toEqual([
+    expect.objectContaining({ actorId: 'UQAUSER1', namespace: 'slack-workspace-user-id', role }),
+  ]);
+  await fx.core.externalMessaging.reply('ada', source, 'Fresh Slack answer');
+  expect(fx.replies.at(-1)).toMatchObject({
+    route: { conversationId: 'DQA1', actorId: 'UQAUSER1', messageId: 'om-slack-new' },
+    text: 'Fresh Slack answer',
+  });
+  const approved = fx.core.externalMessaging.pairing.list('ada')[0]!;
+  expect(
+    await createBridgeMethods({ ...fx.core }).pairingReview({
+      slug: 'ada',
+      input: { kind: 'revoke', id: approved.id, expectedRevision: approved.revision },
+    }),
+  ).toMatchObject({ ok: true });
+  expect(fx.core.externalMessaging.senderPermissions('ada', source)).toMatchObject({
+    status: 'revoked',
+  });
+  await fx.receive(slackDm('slack-revoked'));
+  expect(fx.runs).toHaveLength(1);
+  expect(fx.admissions()).toHaveLength(1);
+  expect(fx.core.externalMessaging.directory('ada', { kind: 'people' }).rows).toEqual([]);
+});
+
+it('Slack ordinary pairing refuses untrusted routes and does not enable native management or group pairing', async () => {
+  const fx = await fixture('slack');
+  await ordinaryRole(fx);
+  for (const bad of [
+    slackDm('slack-name', { actor: { kind: 'user', id: 'display-name', name: 'UQAUSER1' } }),
+    slackDm('slack-copied', {
+      reply: { messageId: 'om-slack-copied', conversationId: 'DOTHER', actorId: 'UQAUSER1' },
+    }),
+    slackDm('slack-other-app', { botId: 'other-app' }),
+    slackDm('slack-other-workspace', { fingerprint: 'd'.repeat(64) }),
+  ]) {
+    await fx.receive(bad).catch(() => undefined);
+    expect(fx.runs).toHaveLength(0);
+    expect(fx.admissions()).toEqual([]);
+    expect(fx.core.externalMessaging.pairing.list('ada')).toEqual([]);
+  }
+  await fx.receive(slackDm('slack-control', { text: '/pair' }));
+  expect(fx.runs).toHaveLength(0);
+  expect(fx.core.externalMessaging.pairing.list('ada')).toEqual([]);
+  const group = slackDm('slack-group', {
+    conversation: { kind: 'group', id: 'CQA1' },
+    mentionedAccount: true,
+    reply: { messageId: 'om-slack-group', conversationId: 'CQA1', actorId: 'UQAUSER1' },
+  });
+  expect(() =>
+    fx.core.externalMessaging.pairing.request(fx.identity.id, group, 'conversation'),
+  ).toThrow('untrusted-pairing');
+  expect(() =>
+    fx.core.externalMessaging.pairing.request(
+      fx.identity.id,
+      slackDm('slack-management', { text: '/pair' }),
+      'management',
+    ),
+  ).toThrow('untrusted-pairing');
+});
+
+it('Slack replacement Binding and a fresh re-pair never inherit the old ordinary authorization', async () => {
+  const fx = await fixture('slack');
+  const role = await ordinaryRole(fx);
+  await fx.receive(slackDm('slack-before-rebind'));
+  const first = fx.core.externalMessaging.pairing.list('ada')[0]!;
+  fx.core.externalMessaging.pairing.review('ada', {
+    kind: 'approve',
+    id: first.id,
+    expectedRevision: first.revision,
+    roleId: role.id,
+    expectedRoleRevision: role.revision,
+  });
+  const current = (await fx.core.externalMessaging.snapshot('ada')).identities![0]!;
+  await fx.core.externalMessaging.identity('ada', {
+    kind: 'unbind',
+    id: current.id,
+    expectedRevision: current.revision,
+  });
+  await fx.core.externalMessaging.identity('ada', {
+    kind: 'bind',
+    providerId: 'dsh-im/slack',
+    accountRef: 'lark-app',
+    fingerprint,
+  });
+  await fx.settle();
+  await fx.receive(slackDm('slack-after-rebind'));
+  expect(fx.runs).toHaveLength(0);
+  const pending = fx.core.externalMessaging.pairing
+    .list('ada')
+    .find((p) => p.status === 'pending')!;
+  expect(pending.bindingId).not.toBe(first.bindingId);
+  expect(pending.roleId).toBeUndefined();
+  expect(pending.permissionExceptions).toBeUndefined();
+  expect(fx.core.externalMessaging.directory('ada', { kind: 'people' }).rows).toEqual([]);
+});
+
 it('queries pageable current people, configured conversations and observed paired people without changing authority', async () => {
   const fx = await fixture();
   const role = await ordinaryRole(fx);

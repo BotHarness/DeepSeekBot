@@ -3,7 +3,7 @@ import type { Agent } from '@deepseek-ai/dsh-agent';
 import { createScope } from '@deepseek-ai/dsh-scope';
 import { ToolRuntime, type ToolDefinition } from '@deepseek-ai/dsh-tools';
 import { ToolCallId } from '@deepseek-ai/dsh-llm';
-import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
+import { chmodSync, readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { createTempRoot } from './helpers.js';
@@ -20,7 +20,9 @@ describe('ordinary native MCP in Linux', () => {
       mkdirSync(home);
       for (const root of roots) {
         mkdirSync(root);
+        chmodSync(root, 0o755);
         writeFileSync(join(root, 'proof.txt'), 'proof-' + root.at(-1));
+        chmodSync(join(root, 'proof.txt'), 0o644);
       }
       const ctx = new Context();
       const execution = new ProtectedExecution(() => undefined);

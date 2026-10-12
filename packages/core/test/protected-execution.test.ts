@@ -72,6 +72,22 @@ node -e "fetch('http://127.0.0.1:31381/evidence').then(()=>console.log('network-
       expect(authenticated).toBe(true);
       expect(result).toEqual({ consumer: 'http-status-v1', successful: true, httpStatus: 200 });
       expect(JSON.stringify(result)).not.toContain(canary);
+      const refused = await execution.authenticatedStatus(
+        {
+          endpoint: `http://127.0.0.1:${address.port}/private?marker=${canary}`,
+          api_key: canary + '-stale',
+          api_secret: canary + '-secret',
+        },
+        new AbortController().signal,
+      );
+      expect(refused).toEqual({
+        consumer: 'http-status-v1',
+        successful: false,
+        httpStatus: 401,
+        action:
+          'Replace private information in Web Chat and retry; remote authorization may also need repair.',
+      });
+      expect(JSON.stringify(refused)).not.toContain(canary);
       await expect(
         execution.authenticatedStatus(
           { endpoint: canary, api_key: canary, api_secret: canary },

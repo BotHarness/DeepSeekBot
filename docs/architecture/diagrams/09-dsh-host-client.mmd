@@ -28,3 +28,8 @@ flowchart TB
   UsageAction --> Gateway
   Remote --> UsageRPC["overviewUsage<br/>application-defined RPC"]
   UsageRPC --> UsageOwner["Retained Usage owner<br/>global totals / daily buckets / Bot pages"]
+  Composer["DM composer<br/>用量浮层 / 明确详情按钮"] --> SessionAction["actions.profileSessionUsage"]
+  SessionAction --> Gateway
+  Remote --> SessionRPC["profileSessionUsage<br/>DM-scoped read-only RPC"]
+  SessionRPC --> UsageOwner
+  UsageOwner --> SessionQuery["native Session Query<br/>同口径 / ownership fence / 无统计写入"]

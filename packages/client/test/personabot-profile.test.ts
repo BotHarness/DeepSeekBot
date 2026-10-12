@@ -156,6 +156,7 @@ describe('PersonaBot Profile surface', () => {
       tokenTotals: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
     }));
     const actions = {
+      listWorkspaceGrants: vi.fn(async () => []),
       modelCatalog: vi.fn(async () => ({ models: [] })),
       modelPresets: vi.fn(async () => []),
       modelPlanState: vi.fn(async () => ({
@@ -245,6 +246,10 @@ describe('PersonaBot Profile surface', () => {
       await act(async () => click(container, '.bh-profile-expand'));
       expect(container.querySelector('.bh-profile-popover')).toBeNull();
       expect(container.querySelector('.bh-profile-view')).not.toBeNull();
+      expect(container.querySelector<HTMLElement>('.bh-topbar')?.dataset['channelDetail']).toBe(
+        'true',
+      );
+      expect(container.querySelector<HTMLElement>('.bh-chat-top-fade')?.style.display).toBe('none');
       const sections = container.querySelectorAll('.bh-profile-view > .bh-profile-section');
       expect([...sections].map((section) => section.getAttribute('aria-label'))).toEqual([
         '活动概览',
@@ -360,6 +365,9 @@ describe('PersonaBot Profile surface', () => {
         document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
       });
       expect(container.querySelector('.bh-profile-view')).toBeNull();
+      expect(
+        container.querySelector<HTMLElement>('.bh-topbar')?.dataset['channelDetail'],
+      ).toBeUndefined();
       expect(container.querySelector('.bh-chat-body')).not.toBeNull();
 
       await act(async () => click(container, '.bh-channel-island'));
