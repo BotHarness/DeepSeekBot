@@ -8,10 +8,10 @@ import {
 } from './avatar-appearance.js';
 
 export type BotPrimaryColor =
-  | { mode: 'automatic'; fallback?: string }
-  | { mode: 'custom'; color: string; fallback?: string };
+  | { mode: 'automatic'; fallback?: string; retained?: string }
+  | { mode: 'custom'; color: string; fallback?: string; retained?: string };
 
-export type BotPrimaryColorSource = 'custom' | 'hair' | 'fallback';
+export type BotPrimaryColorSource = 'custom' | 'hair' | 'fallback' | 'retained';
 
 export interface ResolvedBotPrimaryColor {
   mode: BotPrimaryColor['mode'];
@@ -55,10 +55,12 @@ export function normalizeSourceColor(value: unknown): string | undefined {
 export function isBotPrimaryColor(value: unknown): value is BotPrimaryColor {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
   const record = value as Record<string, unknown>;
-  const fallback = record['fallback'];
-  if (fallback !== undefined && (typeof fallback !== 'string' || !SOURCE_COLOR.test(fallback)))
-    return false;
-  const keys = Object.keys(record).filter((key) => key !== 'fallback');
+  for (const key of ['fallback', 'retained']) {
+    const carried = record[key];
+    if (carried !== undefined && (typeof carried !== 'string' || !SOURCE_COLOR.test(carried)))
+      return false;
+  }
+  const keys = Object.keys(record).filter((key) => key !== 'fallback' && key !== 'retained');
   if (record['mode'] === 'automatic') return keys.length === 1;
   return (
     record['mode'] === 'custom' &&
@@ -96,6 +98,8 @@ export function mainHairColor(recipe: AvatarRecipe | undefined): string | undefi
 
 export function resolveBotPrimaryColor(subject: BotPresentationSubject): ResolvedBotPrimaryColor {
   const policy = subject.primaryColor;
+  if (policy?.retained !== undefined)
+    return { mode: policy.mode, source: 'retained', color: policy.retained };
   if (policy?.mode === 'custom') return { mode: 'custom', source: 'custom', color: policy.color };
   const hair = mainHairColor(resolvedAvatarRecipe(subject));
   if (hair !== undefined) return { mode: 'automatic', source: 'hair', color: hair };
@@ -119,4 +123,26 @@ export function nextBotPrimaryColor(
   const color = typeof record['color'] === 'string' ? record['color'] : undefined;
   if (color === undefined || !/^#[0-9a-fA-F]{6}$/u.test(color)) return false;
   return { mode: 'custom', color: color.toLowerCase(), ...carried };
+}
+
+export function retainedBotPrimaryColor(subject: BotPresentationSubject): BotPrimaryColor {
+  const { retained: _retained, ...policy } = subject.primaryColor ?? { mode: 'automatic' as const };
+  const current = { ...subject, primaryColor: policy as BotPrimaryColor };
+  return { ...(policy as BotPrimaryColor), retained: resolveBotPrimaryColor(current).color };
+}
+
+export function historicalBotPrimaryColor(
+  slug: string,
+  policy: BotPrimaryColor | undefined,
+): BotPrimaryColor {
+  if (policy?.retained !== undefined) return policy;
+  return { ...(policy ?? { mode: 'automatic' }), retained: fallbackPrimaryColor(slug) };
+}
+
+export function currentBotPrimaryColor(
+  policy: BotPrimaryColor | undefined,
+): BotPrimaryColor | undefined {
+  if (policy?.retained === undefined) return policy;
+  const { retained: _retained, ...current } = policy;
+  return current.mode === 'automatic' && current.fallback === undefined ? undefined : current;
 }

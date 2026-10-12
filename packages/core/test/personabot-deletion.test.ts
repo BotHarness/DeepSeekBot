@@ -18,6 +18,9 @@ import {
   createPersonaBotDeletions,
   type PersonaBotDeletionDependencies,
 } from '../src/bots/deletion.js';
+import { seededAvatarFor } from '../src/bots/avatar-appearance.js';
+import { fallbackPrimaryColor, resolveBotPrimaryColor } from '../src/bots/primary-color.js';
+import { attachOperationalModule } from '../src/database/owner.js';
 import { createCore } from '../src/plugin.js';
 import { createBridgeMethods } from '../src/bridge/methods.js';
 
@@ -328,5 +331,150 @@ describe('confirmed terminal PersonaBot deletion', () => {
       await methods.channelSend({ channelId: channel.id, body: 'late delivery' }),
     ).toMatchObject({ ok: false });
     expect(f.core.channels.latestMessage(channel.id)).toBeUndefined();
+  });
+  it('retains the last resolved Bot Primary Color for deleted Bots while live Bots keep following theirs', async () => {
+    const image =
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/ZFsAAAAASUVORK5CYII=';
+    const f = fixture();
+    const recipe = { ...seededAvatarFor('Same name', undefined), hairColor: '#3fc1b8' };
+    for (const slug of ['custom', 'hair', 'image', 'seeded', 'legacy', 'live']) f.create(slug);
+    expect(f.core.registry.setPrimaryColor('custom', { mode: 'custom', color: '#1d1b22' }).ok).toBe(
+      true,
+    );
+    expect(f.core.registry.setAppearance('hair', recipe).ok).toBe(true);
+    expect(f.core.registry.update('image', { avatar: image }).ok).toBe(true);
+    expect(f.core.registry.setAppearance('live', recipe).ok).toBe(true);
+    const seeded = resolveBotPrimaryColor(f.core.registry.get('seeded')!).color;
+    const methods = createBridgeMethods({ ...f.core, deletions: f.core.deletions });
+    const listed = (source = methods) => {
+      const result = source.list({});
+      if (!result.ok) throw new Error('list failed');
+      return Object.fromEntries(result.value.bots.map((bot) => [bot.slug, bot]));
+    };
+    const at = Date.now();
+    for (const slug of ['custom', 'live']) {
+      f.core.ownership.claim({
+        sessionId: `usage-${slug}`,
+        botSlug: slug,
+        rootRole: 'orchestrator',
+        provenance: 'created',
+        at: new Date(at).toISOString(),
+      });
+      f.core.usage!.handleSessionEvent(`usage-${slug}`, {
+        type: 'assistant/message',
+        seq: 1,
+        time: at,
+        data: {
+          message: { source: { provider: 'actual', model: 'used' } },
+          usage: { inputTokens: 7, outputTokens: 0, totalTokens: 7 },
+        },
+      });
+    }
+    const usageRows = (source = methods) => {
+      const result = source.overviewUsage({ period: 'today' });
+      if (!result.ok) throw new Error(result.error.message);
+      return Object.fromEntries(result.value.bots.map((bot) => [bot.slug, bot]));
+    };
+    expect(usageRows()['custom']).toMatchObject({
+      current: true,
+      primaryColor: '#1d1b22',
+      totalTokens: 7,
+    });
+    const before = listed();
+    expect(before['custom']!.primaryColor).toEqual({ mode: 'custom', color: '#1d1b22' });
+    expect(before['hair']!.primaryColor).toBeUndefined();
+
+    for (const slug of ['custom', 'hair', 'image', 'seeded', 'legacy']) {
+      const reviewed = f.core.deletions.preview(slug);
+      expect(
+        await methods.deletionConfirm({ slug, token: reviewed.token, eraseMemory: false }),
+      ).toMatchObject({ ok: true, value: { deletion: { phase: 'complete' } } });
+    }
+    attachOperationalModule(f.core.operationalDatabase, 'bot-registry').transaction(
+      (database) => {
+        const row = database.prepare('SELECT body FROM persona_bots WHERE slug = ?').get('legacy');
+        const body = JSON.parse(String(row!['body'])) as Record<string, unknown>;
+        delete body['primaryColor'];
+        database
+          .prepare('UPDATE persona_bots SET body = ? WHERE slug = ?')
+          .run(JSON.stringify(body), 'legacy');
+      },
+      ['bot-registry'],
+    );
+
+    const expected = {
+      custom: { mode: 'custom', color: '#1d1b22', retained: '#1d1b22' },
+      hair: { mode: 'automatic', retained: '#3fc1b8' },
+      image: { mode: 'automatic', retained: fallbackPrimaryColor('image') },
+      seeded: { mode: 'automatic', retained: seeded },
+      legacy: { mode: 'automatic', retained: fallbackPrimaryColor('legacy') },
+    };
+    const check = (bots: ReturnType<typeof listed>): void => {
+      for (const [slug, policy] of Object.entries(expected)) {
+        expect(bots[slug], slug).toMatchObject({ deleted: true, primaryColor: policy });
+        expect(resolveBotPrimaryColor(bots[slug]!)).toMatchObject({
+          source: 'retained',
+          color: policy.retained,
+        });
+      }
+      expect(bots['live']!.deleted).toBeUndefined();
+      expect(bots['live']!.primaryColor).toBeUndefined();
+    };
+    check(listed());
+    expect(usageRows()['custom']).toMatchObject({
+      current: false,
+      displayName: 'Same name',
+      primaryColor: '#1d1b22',
+      totalTokens: 7,
+    });
+    expect(usageRows()['live']).toMatchObject({ current: true, primaryColor: '#3fc1b8' });
+    expect(f.core.registry.getHistorical('legacy')?.primaryColor).toBeUndefined();
+    expect(f.core.registry.retainedRecordBody('custom')).toBeUndefined();
+    expect(f.core.registry.setPrimaryColor('hair', { mode: 'custom', color: '#000000' }).ok).toBe(
+      false,
+    );
+
+    expect(f.core.registry.setAppearance('live', { ...recipe, hairColor: '#c4452f' }).ok).toBe(
+      true,
+    );
+    expect(resolveBotPrimaryColor(listed()['live']!)).toMatchObject({
+      source: 'hair',
+      color: '#c4452f',
+    });
+
+    await f.core.runtime.close();
+    f.core.externalMessaging.close();
+    f.core.operationalDatabase.close();
+    cores.splice(cores.indexOf(f.core), 1);
+    const restarted = createCore({ dshHome: f.home });
+    cores.push(restarted);
+    const again = createBridgeMethods({ ...restarted, deletions: restarted.deletions });
+    check(listed(again));
+    expect(usageRows(again)['custom']).toMatchObject({
+      current: false,
+      primaryColor: '#1d1b22',
+      totalTokens: 7,
+    });
+  });
+
+  it('keeps a retained color inert if the Bot is still live', () => {
+    const f = fixture();
+    f.create('kept');
+    const body = f.core.registry.retainedRecordBody('kept')!;
+    attachOperationalModule(f.core.operationalDatabase, 'bot-registry').transaction(
+      (database) => {
+        database.prepare('UPDATE persona_bots SET body = ? WHERE slug = ?').run(body, 'kept');
+      },
+      ['bot-registry'],
+    );
+    expect(f.core.registry.get('kept')?.primaryColor?.retained).toBeDefined();
+    const methods = createBridgeMethods({ ...f.core, deletions: f.core.deletions });
+    const result = methods.list({});
+    if (!result.ok) throw new Error('list failed');
+    expect(result.value.bots[0]!.primaryColor).toBeUndefined();
+    expect(f.core.registry.setPrimaryColor('kept', { mode: 'custom', color: '#abcdef' }).ok).toBe(
+      true,
+    );
+    expect(f.core.registry.get('kept')?.primaryColor).toEqual({ mode: 'custom', color: '#abcdef' });
   });
 });

@@ -116,7 +116,12 @@ import {
   partFileName,
 } from '../bots/part-file.js';
 import type { AvatarAppearance, RetainedAvatarAppearance } from '../bots/avatar-appearance.js';
-import type { BotPrimaryColor } from '../bots/primary-color.js';
+import {
+  currentBotPrimaryColor,
+  historicalBotPrimaryColor,
+  resolveBotPrimaryColor,
+  type BotPrimaryColor,
+} from '../bots/primary-color.js';
 import { ChannelMentionTargetError, ChannelReplyTargetError } from '../channels/store.js';
 import { ChannelAttachmentError } from '../attachments/store.js';
 import { isChannelAttachmentRef } from '../attachments/ref.js';
@@ -296,7 +301,14 @@ export interface ProfileActivityReasonDay extends ProfileActivityDay {
 }
 
 export interface OverviewUsage extends Omit<UsageOverviewResult, 'bots'> {
-  bots: Array<UsageOverviewBuckets & { slug: string; displayName: string; current: boolean }>;
+  bots: Array<
+    UsageOverviewBuckets & {
+      slug: string;
+      displayName: string;
+      current: boolean;
+      primaryColor: string;
+    }
+  >;
 }
 
 export interface ProfileTokenBuckets {
@@ -921,7 +933,9 @@ function summarize(record: PersonaBotRecord, snapshot: BotStateSnapshot): Person
     roles: record.roles ?? (record.tag === undefined ? [] : [record.tag]),
     standingLimits: { ...(record.standingLimits ?? DEFAULT_STANDING_LIMITS) },
     ...(record.appearance === undefined ? {} : { appearance: record.appearance }),
-    ...(record.primaryColor === undefined ? {} : { primaryColor: { ...record.primaryColor } }),
+    ...(currentBotPrimaryColor(record.primaryColor) === undefined
+      ? {}
+      : { primaryColor: currentBotPrimaryColor(record.primaryColor)! }),
     ...(record.description === undefined ? {} : { description: record.description }),
     ...(record.avatar === undefined
       ? {}
@@ -1908,7 +1922,13 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         })
         .map((record) => ({
           ...summarize(record, deps.states.snapshot(record.slug)),
-          ...(deps.registry.get(record.slug) === undefined ? { deleted: true, paused: true } : {}),
+          ...(deps.registry.get(record.slug) === undefined
+            ? {
+                deleted: true,
+                paused: true,
+                primaryColor: historicalBotPrimaryColor(record.slug, record.primaryColor),
+              }
+            : {}),
         }));
       return { ok: true, value: { bots } };
     },
@@ -4407,10 +4427,18 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
             ...result,
             bots: result.bots.map((row) => {
               const bot = deps.registry.get(row.slug);
+              const historical = deps.registry.getHistorical(row.slug);
               return {
                 ...row,
-                displayName: deps.registry.getHistorical(row.slug)?.displayName ?? row.slug,
+                displayName: historical?.displayName ?? row.slug,
                 current: bot !== undefined,
+                primaryColor:
+                  bot === undefined
+                    ? historicalBotPrimaryColor(row.slug, historical?.primaryColor).retained!
+                    : resolveBotPrimaryColor({
+                        ...bot,
+                        primaryColor: currentBotPrimaryColor(bot.primaryColor),
+                      }).color,
               };
             }),
           },

@@ -287,7 +287,7 @@ export function paintBotName(element: HTMLElement | null, source: string | undef
 }
 
 export function botNameSource(
-  bot: (Parameters<typeof botPresentationSubject>[0] & { deleted?: boolean }) | undefined,
+  bot: Parameters<typeof botPresentationSubject>[0] | undefined,
 ): string | undefined {
-  return bot === undefined || bot.deleted ? undefined : botPrimaryColorOf(bot).color;
+  return bot === undefined ? undefined : botPrimaryColorOf(bot).color;
 }

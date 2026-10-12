@@ -1,3 +1,4 @@
+import { paintBotName } from './bot-primary-color.js';
 import type {} from '@deepseek-ai/dsh-api-session-controller/client';
 import { useRef, useState, type ReactElement } from 'react';
 import {
@@ -200,7 +201,12 @@ export function OverviewUsageView({
                         data-usage-bot={bot.slug}
                       >
                         <span className="bh-overview-usage-bot-name" title={bot.displayName}>
-                          <span>{bot.displayName}</span>
+                          <span
+                            ref={(element) => paintBotName(element, bot.primaryColor)}
+                            data-usage-bot-name=""
+                          >
+                            {bot.displayName}
+                          </span>
                           {!bot.current ? <span>{t('overviewUsage.retained')}</span> : null}
                         </span>
                         <strong>{count(bot.totalTokens)}</strong>

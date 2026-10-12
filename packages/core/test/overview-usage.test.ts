@@ -1,3 +1,4 @@
+import { fallbackPrimaryColor, resolveBotPrimaryColor } from '../src/bots/primary-color.js';
 import { createTestRosterStore } from './roster-fixture.js';
 import { createTestRegistry } from './registry-fixture.js';
 import { join } from 'node:path';
@@ -104,6 +105,51 @@ it('reads today and seven-day observed usage through Overview without inventing 
   expect(profile.ok && profile.value.periodTotal).toBe(155);
   expect(result.value.end).toBe(usageLocalDay(time));
   expect(methods.overviewUsage({ period: 'forever' }).ok).toBe(false);
+});
+
+it('reports each usage row with its current Bot Primary Color source, or the ID fallback', () => {
+  const { methods, fold, usage, ownership, registry, time } = setup();
+  fold({ inputTokens: 100, outputTokens: 40, totalTokens: 140 });
+  for (const slug of ['gone', 'unknown']) {
+    ownership.claim({
+      sessionId: slug,
+      botSlug: slug,
+      rootRole: 'orchestrator',
+      provenance: 'created',
+      at: new Date(time).toISOString(),
+    });
+    usage.handleSessionEvent(slug, {
+      type: 'assistant/message',
+      seq: 1,
+      time,
+      data: {
+        message: { source: { provider: 'actual', model: 'used' } },
+        usage: { inputTokens: 5, outputTokens: 0, totalTokens: 5 },
+      },
+    });
+  }
+  expect(registry.create({ slug: 'gone', displayName: 'Gone' }).ok).toBe(true);
+  expect(registry.setPrimaryColor('gone', { mode: 'custom', color: '#1d1b22' }).ok).toBe(true);
+  const rows = () => {
+    const result = methods.overviewUsage({ period: 'today' });
+    if (!result.ok) throw new Error(result.error.message);
+    return Object.fromEntries(result.value.bots.map((bot) => [bot.slug, bot]));
+  };
+  const live = rows();
+  expect(live['ada']).toMatchObject({
+    current: true,
+    primaryColor: resolveBotPrimaryColor(registry.get('ada')!).color,
+    totalTokens: 140,
+  });
+  expect(live['gone']).toMatchObject({ current: true, primaryColor: '#1d1b22', totalTokens: 5 });
+  expect(live['unknown']).toMatchObject({
+    current: false,
+    primaryColor: fallbackPrimaryColor('unknown'),
+  });
+
+  expect(registry.setPrimaryColor('ada', { mode: 'custom', color: '#abcdef' }).ok).toBe(true);
+  const after = rows();
+  expect(after['ada']).toMatchObject({ current: true, primaryColor: '#abcdef', totalTokens: 140 });
 });
 
 it('keeps global totals independent of Bot pages and excludes days outside the Host-local range', () => {

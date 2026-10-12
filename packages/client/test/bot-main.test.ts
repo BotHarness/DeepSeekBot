@@ -599,7 +599,10 @@ describe('Bot main Sessions pane', () => {
       { id: 'human-1', at, author: { kind: 'human' }, body: 'hello' },
       { id: 'bot-1', at, author: { kind: 'bot', slug: 'ada' }, body: 'an existing reply' },
     ];
-    const bot = (primaryColor?: { mode: 'custom'; color: string }, deleted = false) => ({
+    const bot = (
+      primaryColor?: { mode: 'custom'; color: string; retained?: string },
+      deleted = false,
+    ) => ({
       slug: 'ada',
       displayName: 'Ada',
       roles: [],
@@ -653,11 +656,9 @@ describe('Bot main Sessions pane', () => {
       expect(groupBot!.getAttribute('data-bot-name-color')).toBe('#ffffff');
       document.body.removeAttribute('data-ds-dark-theme');
       expect(authors(white, group)[1]!.getAttribute('data-bot-name-color')).toBe(light);
-      expect(
-        authors(bot({ mode: 'custom', color: '#ffffff' }, true), group)[1]!.hasAttribute(
-          'data-bot-name-color',
-        ),
-      ).toBe(false);
+      const gone = bot({ mode: 'custom', color: '#ffffff', retained: '#1d1b22' }, true);
+      expect(authors(gone, group)[1]!.getAttribute('data-bot-name-color')).toBe('#1d1b22');
+      expect(authors(gone, dm)[1]!.getAttribute('data-bot-name-color')).toBe('#1d1b22');
     } finally {
       document.body.removeAttribute('data-ds-dark-theme');
       store.setRoster(previous.bots, previous.channels);

@@ -25,7 +25,11 @@ import {
   type UpdatePersonaBotResult,
 } from './persona-bot.js';
 import { isBotBanner, seededBotBanner } from './bot-banner.js';
-import { isBotPrimaryColor, nextBotPrimaryColor } from './primary-color.js';
+import {
+  isBotPrimaryColor,
+  nextBotPrimaryColor,
+  retainedBotPrimaryColor,
+} from './primary-color.js';
 import {
   readSharedBanner,
   readSharedPresentation,
@@ -99,6 +103,7 @@ export interface PersonaBotRegistry {
   setAppearance(slug: string, recipe: unknown): UpdatePersonaBotResult;
   setBanner(slug: string, banner: unknown): UpdatePersonaBotResult;
   setPrimaryColor(slug: string, choice: unknown): UpdatePersonaBotResult;
+  retainedRecordBody(slug: string): string | undefined;
   setPaused(slug: string, paused: boolean): UpdatePersonaBotResult;
   setComputerAccess(slug: string, enabled: boolean): UpdatePersonaBotResult;
   setBrowserAccess(slug: string, enabled: boolean): UpdatePersonaBotResult;
@@ -648,6 +653,13 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       write(updated);
       syncDescriptor(updated);
       return { ok: true, record: updated };
+    },
+    retainedRecordBody(slug) {
+      const record = active(slug);
+      if (record === undefined) return undefined;
+      return JSON.stringify(
+        recordSnapshot({ ...record, primaryColor: retainedBotPrimaryColor(record) }),
+      );
     },
     setPaused(slug, paused) {
       const record = active(slug);
