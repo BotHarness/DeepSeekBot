@@ -21,6 +21,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   ImageLightbox: () => null,
 }));
 
+import { botNameColor } from '../src/client/bot-primary-color.js';
 import { ChannelComposer } from '../src/client/channel-composer.js';
 import { attachmentReferenceText } from '../src/client/attachment-refs.js';
 import { deleteSelectedMention } from '../src/client/mentions.js';
@@ -171,6 +172,90 @@ describe('rich mention editor', () => {
       expect(badge?.querySelector('img')?.getAttribute('src')).toBe('/avatars/ada.png');
       expect(editor?.querySelector('textarea')).toBeNull();
     } finally {
+      await act(async () => root.unmount());
+      container.remove();
+    }
+  });
+
+  it('colors composer Bot tokens and candidate names from the saved Bot Primary Color', async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    const candidate = (slug: string, color?: string) => ({
+      slug,
+      displayName: 'Ada',
+      roles: [],
+      aggregateState: 'idle',
+      workspaces: [],
+      createdAt: '2026-10-12T00:00:00.000Z',
+      ...(color === undefined ? {} : { primaryColor: { mode: 'custom' as const, color } }),
+    });
+    const changes: Array<[string, unknown]> = [];
+    const show = (value: string, ada: ReturnType<typeof candidate>) =>
+      act(async () => {
+        root.render(
+          createElement(ChannelComposer, {
+            value,
+            mentions:
+              value === '@'
+                ? []
+                : [
+                    { botSlug: 'ada', label: 'Ada', start: 0, end: 4 },
+                    { botSlug: 'bea', label: 'Ada', start: 5, end: 9 },
+                  ],
+            mentionCandidates: [ada, candidate('bea', '#000000')],
+            placeholder: 'Message',
+            sending: false,
+            onChange: (next: string, mentions: unknown) => changes.push([next, mentions]),
+            onSubmit: () => undefined,
+          }),
+        );
+      });
+    const token = (slug: string) =>
+      container.querySelector<HTMLElement>(
+        `.bh-composer-inline-mention[data-bot-id="${slug}"] > span:last-child`,
+      )!;
+    try {
+      await show('@Ada @Ada hi #Team', candidate('ada', '#ffffff'));
+      expect(token('ada').dataset['botNameColor']).toBe(botNameColor('#ffffff', '#ffffff'));
+      expect(token('ada').dataset['botNameColor']).not.toBe('#ffffff');
+      expect(token('bea').dataset['botNameColor']).toBe('#000000');
+      expect(token('bea').style.color).not.toBe('');
+
+      document.body.setAttribute('data-ds-dark-theme', '');
+      await act(async () => new Promise((done) => setTimeout(done, 0)));
+      expect(token('ada').dataset['botNameColor']).toBe('#ffffff');
+      expect(token('bea').dataset['botNameColor']).not.toBe('#000000');
+      document.body.removeAttribute('data-ds-dark-theme');
+      await act(async () => new Promise((done) => setTimeout(done, 0)));
+
+      await show('@Ada @Ada hi #Team', candidate('ada', '#d9475a'));
+      expect(token('ada').dataset['botNameColor']).toBe(botNameColor('#d9475a', '#ffffff'));
+      const editor = container.querySelector<HTMLElement>('.bh-composer-rich-input')!;
+      expect(readRichMentionDraft(editor).mentions.map((mention) => mention.botSlug)).toEqual([
+        'ada',
+        'bea',
+      ]);
+
+      await show('@', candidate('ada', '#d9475a'));
+      const input = container.querySelector<HTMLElement>('.bh-composer-rich-input')!;
+      setRichSelection(input, 1);
+      await act(async () => {
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        document.dispatchEvent(new Event('selectionchange'));
+      });
+      const names = [
+        ...container.querySelectorAll<HTMLElement>(
+          '.bh-mention-option-copy strong[data-bot-name-color]',
+        ),
+      ];
+      expect(names.map((name) => name.dataset['botNameColor'])).toEqual([
+        botNameColor('#d9475a', '#ffffff'),
+        '#000000',
+      ]);
+    } finally {
+      document.body.removeAttribute('data-ds-dark-theme');
       await act(async () => root.unmount());
       container.remove();
     }

@@ -76,6 +76,8 @@ describe('Bot name color', () => {
   it('parses the colors a browser reports and leaves unreadable input alone', () => {
     expect(parseColor('rgba(0, 0, 0, 0)')).toEqual({ rgb: [0, 0, 0], alpha: 0 });
     expect(parseColor('rgb(10 20 30 / 50%)')).toEqual({ rgb: [10, 20, 30], alpha: 0.5 });
+    expect(parseColor('color(srgb 1 0 0.2 / 0.14)')).toEqual({ rgb: [255, 0, 51], alpha: 0.14 });
+    expect(parseColor('color(display-p3 1 0 0)')).toBeUndefined();
     expect(toHex([255, 0, 16])).toBe('#ff0010');
     expect(parseColor('transparent')).toBeUndefined();
     expect(botNameColor('#ff0000', 'transparent')).toBe('#ff0000');

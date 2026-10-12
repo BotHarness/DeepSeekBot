@@ -2,6 +2,7 @@ import type { AllBotPreview } from '../../../core/src/channels/all-bot-mention.j
 import type { SelectedMention } from './mentions.js';
 import { referenceRuns, type SelectedChannelRef } from './channel-refs.js';
 import type { BotSummary } from './store.js';
+import { botNameSource, paintBotName } from './bot-primary-color.js';
 import { attachmentReferenceRuns, type ComposerAttachmentReference } from './attachment-refs.js';
 
 export interface MentionAvatarMount {
@@ -88,6 +89,7 @@ export function renderRichMentionDraft(
   const document = editor.ownerDocument;
   const nodes: Node[] = [];
   const mounts: MentionAvatarMount[] = [];
+  const named: Array<[HTMLElement, string | undefined]> = [];
   for (const run of referenceRuns(value, mentions, refs)) {
     if (run.mention === undefined && run.channelRef === undefined) {
       for (const part of attachmentReferenceRuns(run.text, attachments)) {
@@ -157,6 +159,7 @@ export function renderRichMentionDraft(
     label.textContent = mention.label;
     badge.append(avatar, label);
     nodes.push(badge);
+    named.push([label, botNameSource(bot)]);
     mounts.push({
       target: avatar,
       botSlug: mention.botSlug,
@@ -166,6 +169,7 @@ export function renderRichMentionDraft(
   }
   editor.replaceChildren(...nodes);
   syncTrailingLine(editor);
+  for (const [label, source] of named) paintBotName(label, source);
   return mounts;
 }
 

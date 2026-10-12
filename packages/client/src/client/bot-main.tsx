@@ -59,7 +59,7 @@ import {
   type NativeChatFailureText,
 } from './channel-message-body.js';
 import { BridgeSourceAuthor } from './bridge-source-author.js';
-import { botNameColor, botPrimaryColorOf, useConversationSurface } from './bot-primary-color.js';
+import { botNameColor, botNameSource, useConversationSurface } from './bot-primary-color.js';
 import { ChannelDeliveryReceipt } from './channel-delivery-receipt.js';
 import { MessageCopyAction } from './message-copy-action.js';
 import { isBotDmChannel, isHumanReadOnlyDmChannel } from './channel-kind.js';
@@ -381,10 +381,9 @@ function MessageGroupView({
       : bots.find((candidate) => candidate.slug === currentDmBotSlug);
   const displayBot = authorBot ?? welcomeBot;
   const surface = useConversationSurface();
+  const nameSource = first.bridgeOrigin ? undefined : botNameSource(displayBot);
   const nameColor =
-    currentDmBotSlug === undefined || displayBot === undefined || displayBot.deleted
-      ? undefined
-      : botNameColor(botPrimaryColorOf(displayBot).color, surface.background);
+    nameSource === undefined ? undefined : botNameColor(nameSource, surface.background);
   const avatar =
     displayBot === undefined ? undefined : (
       <PersonaBotAvatar

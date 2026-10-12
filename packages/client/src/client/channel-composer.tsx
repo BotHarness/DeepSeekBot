@@ -55,6 +55,7 @@ import {
   setRichSelection,
   type MentionAvatarMount,
 } from './rich-mention-editor.js';
+import { botNameSource, paintBotName } from './bot-primary-color.js';
 import type { BotSummary, ChannelSummary } from './store.js';
 import {
   activeChannelRefQuery,
@@ -731,7 +732,7 @@ export function ChannelComposer({
   const avatarKey = mentions
     .map((mention) => {
       const bot = mentionCandidates.find((candidate) => candidate.slug === mention.botSlug);
-      return [mention.botSlug, bot?.displayName, bot?.avatar].join(':');
+      return [mention.botSlug, bot?.displayName, bot?.avatar, botNameSource(bot)].join(':');
     })
     .join('|');
   const attachmentKey = attachments
@@ -1125,7 +1126,9 @@ export function ChannelComposer({
                   t={t}
                 />
                 <span className="bh-mention-option-copy">
-                  <strong>{candidate.displayName}</strong>
+                  <strong ref={(element) => paintBotName(element, botNameSource(candidate))}>
+                    {candidate.displayName}
+                  </strong>
                   {candidate.roles.length > 0 ? <small>{candidate.roles.join(' · ')}</small> : null}
                 </span>
               </button>

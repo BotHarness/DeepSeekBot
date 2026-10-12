@@ -601,9 +601,9 @@ Custom Part 是有界像素网格，每格引用外形颜色或固定色并带�
 
 [ADR-0177](../adr/0177-bot-primary-color-is-portable-identity-not-theme-state.md) 将 application-defined Bot Primary Color 定义为 PersonaBot 的视觉身份来源，而不是 DSH-native Service、SessionEvent、Client 偏好或全局主题品牌 token。现有 PersonaBot Host owner 管理自动／自定义模式与可移植兜底来源；Client 共享来源解析，再针对实际背景与 light/dark 派生名字颜色。自动模式采用当前 Avatar 的主 `hairColor`，没有可用主发色（上传图片、无头发、line family 或不支持的外形）时使用按 PersonaBot ID 确定的兜底色；自定义覆盖独立于 Avatar Appearance。主题切换不修改 Avatar 或身份来源。
 
-已实现（#1471）：PersonaBot Registry 记录的可选 `primaryColor` 字段保存来源策略（缺失即自动，无 schema generation 变化）；`botPrimaryColorSet` bridge 方法沿用 DM 范围的既有授权，校验后保存，自动模式保留已携带的兜底来源。`primary-color` 模块提供 Avatar renderer 与主色解析共用的外形解析，二者不会各自实现默认头像算法。Bot Profile 的头像弹窗提供独立的 Bot 主色设置（自动／自定义、预设、取色器、HEX）与本地 light/dark 预览，Host 保存成功后才更新共享呈现；取消或失败不发布草稿。DM 的 Bot 作者名按实测背景派生名字色：保持色相与色度，只调整明度，直到对比度不低于 4.5:1，黑白灰保持无彩色。
+已实现（#1471）：PersonaBot Registry 记录的可选 `primaryColor` 字段保存来源策略（缺失即自动，无 schema generation 变化）；`botPrimaryColorSet` bridge 方法沿用 DM 范围的既有授权，校验后保存，自动模式保留已携带的兜底来源。`primary-color` 模块提供 Avatar renderer 与主色解析共用的外形解析，二者不会各自实现默认头像算法。Bot Profile 的头像弹窗提供独立的 Bot 主色设置（自动／自定义、预设、取色器、HEX）与本地 light/dark 预览，Host 保存成功后才更新共享呈现；取消或失败不发布草稿。DM 的 Bot 作者名按实测背景派生名字色：保持色相与色度，只调整明度，直到对比度不低于 4.5:1，黑白灰保持无彩色。群聊（#1472）沿用同一来源解析：群聊与 DM 的 Bot 作者名、@ 候选名、输入框中选中的 Bot 提及和已发送的 Bot 提及各自按自身实测背景（含半透明提及底色与对方气泡）派生名字色；只给名字文字着色，提及底色、气泡、正文、Human 名字、Channel 引用和“所有 Bot”保持原样，主题切换时重新测量。
 
-尚未实现：群聊输入／候选／已发送 Bot 提及与群聊作者名（#1472）、分享／导入携带模式与兜底来源（#1473）、删除后历史归属保留最后来源（#1474）、按 Bot 区分的用量图表（#1476）与单 Bot 活跃度（#1475）。这些仍是 ADR-0177 的已接受目标，不是运行时事实；完整范围与验收见[设计记录](../research/2026-10-12-bot-primary-color-design.md)。
+尚未实现：分享／导入携带模式与兜底来源（#1473）、删除后历史归属保留最后来源（#1474）、按 Bot 区分的用量图表（#1476）与单 Bot 活跃度（#1475）。这些仍是 ADR-0177 的已接受目标，不是运行时事实；完整范围与验收见[设计记录](../research/2026-10-12-bot-primary-color-design.md)。
 
 ## 6 · 持久化、导出与恢复边界
 

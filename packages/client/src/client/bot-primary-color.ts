@@ -11,6 +11,7 @@ export type Rgb = readonly [number, number, number];
 export type ThemeName = 'light' | 'dark';
 
 export const NAME_CONTRAST = 4.5;
+const NAME_TARGET = 4.6;
 
 export const REFERENCE_SURFACES: Record<ThemeName, { background: string; label: string }> = {
   light: { background: '#ffffff', label: '#0f1115' },
@@ -24,10 +25,13 @@ export function parseColor(value: string): { rgb: Rgb; alpha: number } | undefin
     const number = Number.parseInt(hex[1]!, 16);
     return { rgb: [number >> 16, (number >> 8) & 255, number & 255], alpha: 1 };
   }
-  const functional = /^rgba?\(([^)]+)\)$/u.exec(text);
+  const functional = /^(rgba?|color)\(([^)]+)\)$/u.exec(text);
   if (functional === null) return undefined;
-  const parts = functional[1]!.split(/[\s,/]+/u).filter((part) => part.length > 0);
-  const channels = parts.slice(0, 3).map(Number);
+  const tokens = functional[2]!.split(/[\s,/]+/u).filter((part) => part.length > 0);
+  const srgb = functional[1] === 'color';
+  if (srgb && tokens[0] !== 'srgb') return undefined;
+  const parts = srgb ? tokens.slice(1) : tokens;
+  const channels = parts.slice(0, 3).map((part) => Number(part) * (srgb ? 255 : 1));
   if (channels.length !== 3 || channels.some((channel) => !Number.isFinite(channel)))
     return undefined;
   const rawAlpha = parts[3];
@@ -118,10 +122,10 @@ export function botNameColor(source: string, background: string): string {
   const from = parseColor(source)?.rgb;
   const surface = parseColor(background)?.rgb;
   if (from === undefined || surface === undefined) return source;
-  if (contrastRatio(from, surface) >= NAME_CONTRAST) return toHex(from);
+  if (contrastRatio(from, surface) >= NAME_TARGET) return toHex(from);
   const [lightness, chroma, hue] = toOklch(from);
   const at = (target: number): Rgb => parseColor(toHex(inGamut(target, chroma, hue)))?.rgb ?? from;
-  const reads = (target: number): boolean => contrastRatio(at(target), surface) >= NAME_CONTRAST;
+  const reads = (target: number): boolean => contrastRatio(at(target), surface) >= NAME_TARGET;
   const reach = (target: number): Rgb | undefined => {
     if (!reads(target)) return undefined;
     let near = lightness;
@@ -245,4 +249,45 @@ export function useConversationSurface(): {
     queueMicrotask(measureSurface);
   }, []);
   return { background, probe: attach };
+}
+
+let painter: MutationObserver | undefined;
+
+function paint(element: HTMLElement): void {
+  const source = element.dataset['botNameSource'];
+  if (source === undefined) return;
+  const color = botNameColor(
+    source,
+    renderedBackground(element) ?? REFERENCE_SURFACES[currentTheme()].background,
+  );
+  element.dataset['botNameColor'] = color;
+  element.style.color = color;
+}
+
+export function paintBotName(element: HTMLElement | null, source: string | undefined): void {
+  if (element === null) return;
+  if (source === undefined) {
+    if (element.dataset['botNameSource'] === undefined) return;
+    delete element.dataset['botNameSource'];
+    delete element.dataset['botNameColor'];
+    element.style.removeProperty('color');
+    return;
+  }
+  element.dataset['botNameSource'] = source;
+  paint(element);
+  if (painter !== undefined || typeof MutationObserver !== 'function') return;
+  painter = new MutationObserver(() => {
+    document.querySelectorAll<HTMLElement>('[data-bot-name-source]').forEach(paint);
+  });
+  painter.observe(document.body, { attributes: true, attributeFilter: ['data-ds-dark-theme'] });
+  painter.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['class', 'style'],
+  });
+}
+
+export function botNameSource(
+  bot: (Parameters<typeof botPresentationSubject>[0] & { deleted?: boolean }) | undefined,
+): string | undefined {
+  return bot === undefined || bot.deleted ? undefined : botPrimaryColorOf(bot).color;
 }

@@ -10,6 +10,13 @@ import type { BridgeActions } from '../src/client/actions.js';
 import { ChannelMessageBody } from '../src/client/channel-message-body.js';
 import { attachmentReferenceText } from '../src/client/attachment-refs.js';
 import { parseChannelMessage } from '../src/client/bridge.js';
+import {
+  botNameColor,
+  contrastRatio,
+  parseColor,
+  REFERENCE_SURFACES,
+} from '../src/client/bot-primary-color.js';
+import { seededAvatarFor } from '../../core/src/bots/avatar-appearance.js';
 import { zhTranslate } from '../src/client/locale.js';
 import { WORKSPACE_GRANTS_CHANGED } from '../src/client/workspace-grants-entry.js';
 import { store, type ChannelMessage } from '../src/client/store.js';
@@ -315,6 +322,91 @@ describe('Channel message body', () => {
     expect(vi.mocked(MarkdownText).mock.calls[0]?.[0]).toMatchObject({
       text: '**please check**',
     });
+  });
+
+  it('colors sent Bot mentions by PersonaBot ID and leaves Human and Group references neutral', async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    const openBot = vi.fn(async () => undefined);
+    const at = '2026-10-12T00:00:00.000Z';
+    const bot = (slug: string, primaryColor?: { mode: 'custom'; color: string }) => ({
+      slug,
+      displayName: 'Ada',
+      roles: [],
+      aggregateState: 'idle',
+      workspaces: [],
+      createdAt: at,
+      ...(primaryColor === undefined ? {} : { primaryColor }),
+    });
+    const show = (ada: ReturnType<typeof bot>) =>
+      act(async () => {
+        root.render(
+          createElement(ChannelMessageBody, {
+            message: {
+              id: 'm-colors',
+              at,
+              author: { kind: 'human' },
+              body: '@Ada @Ada @Human #Team done',
+              mentions: [
+                { botSlug: 'ada', label: 'Ada', start: 0, end: 4 },
+                { botSlug: 'bea', label: 'Ada', start: 5, end: 9 },
+              ],
+              humanMentions: [{ humanId: 'local-human', label: 'Human', start: 10, end: 16 }],
+              channelRefs: [{ channelId: 'team', label: 'Team', start: 17, end: 22 }],
+            },
+            bots: [ada, bot('bea', { mode: 'custom', color: '#000000' })],
+            t: zhTranslate,
+            actions: { openBot } as unknown as BridgeActions,
+          }),
+        );
+      });
+    const name = (slug: string) =>
+      container.querySelector<HTMLElement>(`[data-bot-id="${slug}"] > span:last-child`)!.dataset[
+        'botNameColor'
+      ]!;
+    const contrast = (color: string, theme: 'light' | 'dark') =>
+      contrastRatio(parseColor(color)!.rgb, parseColor(REFERENCE_SURFACES[theme].background)!.rgb);
+    try {
+      await show(bot('ada', { mode: 'custom', color: '#ffffff' }));
+      expect(name('ada')).not.toBe('#ffffff');
+      expect(contrast(name('ada'), 'light')).toBeGreaterThanOrEqual(4.5);
+      expect(name('bea')).toBe('#000000');
+      const neutral = container.querySelectorAll<HTMLElement>(
+        '.bh-inline-mention:not([data-bot-id])',
+      );
+      expect(neutral).toHaveLength(2);
+      for (const item of neutral) {
+        expect(item.dataset['botNameColor']).toBeUndefined();
+        expect(item.style.color).toBe('');
+      }
+      for (const chip of container.querySelectorAll<HTMLElement>('[data-bot-id]'))
+        expect(chip.style.color).toBe('');
+
+      document.body.setAttribute('data-ds-dark-theme', '');
+      await act(async () => new Promise((done) => setTimeout(done, 0)));
+      expect(name('ada')).toBe('#ffffff');
+      expect(name('bea')).not.toBe('#000000');
+      expect(contrast(name('bea'), 'dark')).toBeGreaterThanOrEqual(4.5);
+      document.body.removeAttribute('data-ds-dark-theme');
+      await act(async () => new Promise((done) => setTimeout(done, 0)));
+
+      await show(bot('ada'));
+      expect(name('ada')).toBe(
+        botNameColor(seededAvatarFor('Ada', undefined).hairColor, '#ffffff'),
+      );
+      expect(name('bea')).toBe('#000000');
+
+      await act(async () =>
+        container.querySelector<HTMLButtonElement>('button[data-bot-id="bea"]')!.click(),
+      );
+      expect(openBot).toHaveBeenCalledExactlyOnceWith('bea');
+    } finally {
+      document.body.removeAttribute('data-ds-dark-theme');
+      await act(async () => root.unmount());
+      container.remove();
+    }
   });
 
   it('shows mixed Bot/Human targets without turning the Human into a Bot DM link', () => {

@@ -582,7 +582,7 @@ describe('Bot main Sessions pane', () => {
       store.setConversation(previous.conversation);
     }
   });
-  it('colors DM Bot author names from the saved Bot Primary Color and nothing else', () => {
+  it('colors DM and Group Bot author names from the saved Bot Primary Color and nothing else', () => {
     const previous = store.getSnapshot();
     const at = '2026-10-12T00:00:00.000Z';
     const dm = {
@@ -599,7 +599,7 @@ describe('Bot main Sessions pane', () => {
       { id: 'human-1', at, author: { kind: 'human' }, body: 'hello' },
       { id: 'bot-1', at, author: { kind: 'bot', slug: 'ada' }, body: 'an existing reply' },
     ];
-    const bot = (primaryColor?: { mode: 'custom'; color: string }) => ({
+    const bot = (primaryColor?: { mode: 'custom'; color: string }, deleted = false) => ({
       slug: 'ada',
       displayName: 'Ada',
       roles: [],
@@ -607,6 +607,7 @@ describe('Bot main Sessions pane', () => {
       workspaces: [],
       createdAt: at,
       ...(primaryColor === undefined ? {} : { primaryColor }),
+      ...(deleted ? { deleted: true } : {}),
     });
     const authors = (
       summary: ReturnType<typeof bot>,
@@ -647,8 +648,16 @@ describe('Bot main Sessions pane', () => {
       expect(dark.style.color).not.toBe('');
       expect(contrast('#ffffff', 'dark')).toBeGreaterThanOrEqual(4.5);
 
-      for (const author of authors(white, group))
-        expect(author.hasAttribute('data-bot-name-color')).toBe(false);
+      const [groupHuman, groupBot] = authors(white, group);
+      expect(groupHuman!.hasAttribute('data-bot-name-color')).toBe(false);
+      expect(groupBot!.getAttribute('data-bot-name-color')).toBe('#ffffff');
+      document.body.removeAttribute('data-ds-dark-theme');
+      expect(authors(white, group)[1]!.getAttribute('data-bot-name-color')).toBe(light);
+      expect(
+        authors(bot({ mode: 'custom', color: '#ffffff' }, true), group)[1]!.hasAttribute(
+          'data-bot-name-color',
+        ),
+      ).toBe(false);
     } finally {
       document.body.removeAttribute('data-ds-dark-theme');
       store.setRoster(previous.bots, previous.channels);
