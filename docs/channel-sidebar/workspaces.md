@@ -1,6 +1,6 @@
 # Workspace Grants
 
-Open **Bot DM → Channel sidebar → Workspace Grants**. Grants belong to this Bot. A folder shown in DSH’s left Workspace list is not automatically a grant to every Bot.
+Open **Bot DM → Channel settings → Workspace Grants** (the chat header's **···** menu → **Channel settings…**). Grants belong to this Bot. A folder shown in DSH’s left Workspace list is not automatically a grant to every Bot.
 
 ## Review the folders
 

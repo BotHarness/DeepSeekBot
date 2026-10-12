@@ -89,6 +89,7 @@ describe('Channel sidebar preferences', () => {
       splitRatios: {},
       entryOrders: { personabot: [], channel: [] },
       hiddenEntries: { personabot: [], channel: [] },
+      shownEntries: { personabot: [], channel: [] },
     });
     expect(prefs.isSidebarCollapsed('personabot:ada')).toBe(false);
     expect(prefs.isEntryExpanded('personabot:ada', 'assignments')).toBe(false);
@@ -139,6 +140,7 @@ describe('Channel sidebar preferences', () => {
       splitRatios: {},
       entryOrders: { personabot: [], channel: [] },
       hiddenEntries: { personabot: [], channel: [] },
+      shownEntries: { personabot: [], channel: [] },
     });
   });
 

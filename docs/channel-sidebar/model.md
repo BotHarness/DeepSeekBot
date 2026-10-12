@@ -1,6 +1,6 @@
 # Model
 
-Open **Bot DM → Channel sidebar → Model**. Two cards show the models this Bot uses. The collapsed header shows the main model's `model · effort`, so you can check it without expanding.
+Open **Bot DM → Channel settings → Model** (the chat header's **···** menu → **Channel settings…**). Two cards show the models this Bot uses.
 
 ![The Model entry in a Bot DM with the main model and task model cards](/guides/channel-sidebar/14-model-zh.webp)
 

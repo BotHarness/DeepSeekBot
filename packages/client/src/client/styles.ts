@@ -4727,6 +4727,9 @@ html[data-botharness-motion='reduce'] .bh-composer-footer {
   outline-offset: -2px;
 }
 .bh-channel-sidebar-tab-badge { display: inline-flex; font-size: 12px; }
+.bh-channel-sidebar-tab-badge:empty { display: none; }
+.bh-channel-sidebar-tab-badge > * + * { display: none; }
+.bh-channel-sidebar-live-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--dsw-alias-state-success-primary, var(--bh-accent)); }
 .bh-channel-sidebar-views { position: relative; display: inline-flex; flex: none; }
 .bh-channel-sidebar-views-menu {
   position: fixed;

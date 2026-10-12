@@ -78,6 +78,8 @@ interface ChannelSidebarRegistryLike {
     readonly scope: 'channel' | 'personabot';
     readonly component: ComponentType<ChannelSidebarEntryProps>;
     readonly headerAction?: ComponentType<ChannelSidebarEntryProps>;
+    readonly badge?: ComponentType<ChannelSidebarEntryProps>;
+    readonly tab?: string;
   }): () => void;
 }
 
@@ -145,9 +147,23 @@ interface ReadableStore<T> {
   getSnapshot(): T;
 }
 
-function createBotInfoStore(
-  botSlug: string | undefined,
-): ReadableStore<BotInfoView> & { refresh(): void; setAccess(enabled: boolean): void } {
+type BotInfoStore = ReadableStore<BotInfoView> & {
+  refresh(): void;
+  setAccess(enabled: boolean): void;
+};
+
+const botInfoStores = new Map<string, BotInfoStore>();
+
+function botInfoStore(botSlug: string | undefined): BotInfoStore {
+  const key = botSlug ?? '';
+  const existing = botInfoStores.get(key);
+  if (existing !== undefined) return existing;
+  const created = createBotInfoStore(botSlug);
+  botInfoStores.set(key, created);
+  return created;
+}
+
+function createBotInfoStore(botSlug: string | undefined): BotInfoStore {
   let info: BotInfoView = {
     displayName: undefined,
     browserAccess: undefined,
@@ -155,7 +171,7 @@ function createBotInfoStore(
     profiles: [],
   };
   const listeners = new Set<() => void>();
-  let started = false;
+  let loadedAt = Number.NEGATIVE_INFINITY;
   const load = (): void => {
     const rpc = connectionRpc;
     if (rpc === undefined || botSlug === undefined) return;
@@ -203,8 +219,8 @@ function createBotInfoStore(
       for (const listener of listeners) listener();
     },
     subscribe(listener) {
-      if (!started) {
-        started = true;
+      if (listeners.size === 0 && Date.now() - loadedAt > 5000) {
+        loadedAt = Date.now();
         load();
       }
       listeners.add(listener);
@@ -295,14 +311,13 @@ function BrowserHeaderAction({
   setExpandable,
   setExpanded,
 }: ChannelSidebarEntryProps): ReactElement {
-  const [store] = useState(() => createBotInfoStore(botSlug));
+  const store = botInfoStore(botSlug);
   const [busy, setBusy] = useState(false);
   const inFlight = useRef(false);
   const [error, setError] = useState(false);
   const subscribe = (listener: () => void): (() => void) => {
     const sync = (): void => {
-      const access = store.getSnapshot().browserAccess === true;
-      setExpandable?.(access);
+      setExpandable?.(store.getSnapshot().browserAccess !== undefined);
     };
     const unsubscribe = store.subscribe(() => {
       sync();
@@ -330,7 +345,6 @@ function BrowserHeaderAction({
         const value = result.value as { bot?: { browserAccess?: unknown } };
         const applied = value.bot?.browserAccess === true;
         store.setAccess(applied);
-        setExpandable?.(applied);
         setExpanded?.(applied);
       })
       .catch(() => {
@@ -378,7 +392,7 @@ function BrowserHeaderAction({
 
 function BrowserBody({ botSlug, t }: ChannelSidebarEntryProps): ReactElement {
   const [store] = useState(() => createObservationStore(botSlug));
-  const [infoStore] = useState(() => createBotInfoStore(botSlug));
+  const infoStore = botInfoStore(botSlug);
   const observation = useSyncExternalStore(store.subscribe, store.getSnapshot);
   const info = useSyncExternalStore(infoStore.subscribe, infoStore.getSnapshot);
   const [follow, setFollow] = useState(true);
@@ -892,7 +906,22 @@ function BrowserBody({ botSlug, t }: ChannelSidebarEntryProps): ReactElement {
 
 function createBrowserBody(t: BrowserTranslate): ComponentType<ChannelSidebarEntryProps> {
   return function BrowserBodyView(props: Omit<ChannelSidebarEntryProps, 't'>): ReactElement {
+    const store = botInfoStore(props.botSlug);
+    const info = useSyncExternalStore(store.subscribe, store.getSnapshot);
+    if (info.browserAccess === false)
+      return <div className="bh-browser-note">{t('entry.access.description')}</div>;
     return <BrowserBody {...props} t={t} />;
+  };
+}
+
+function createBrowserBadge(t: BrowserTranslate): ComponentType<ChannelSidebarEntryProps> {
+  return function BrowserBadge({ botSlug }: Omit<ChannelSidebarEntryProps, 't'>) {
+    const store = botInfoStore(botSlug);
+    const info = useSyncExternalStore(store.subscribe, store.getSnapshot);
+    if (info.browserAccess !== true) return null;
+    return (
+      <span className="bh-channel-sidebar-live-dot" role="img" aria-label={t('entry.access.on')} />
+    );
   };
 }
 
@@ -903,6 +932,7 @@ function createBrowserHeader(t: BrowserTranslate): ComponentType<ChannelSidebarE
 }
 
 export function apply(ctx: BrowserClientContext): void {
+  botInfoStores.clear();
   const t = ctx.locale.bind(LOCALE_NS);
   registerBrowserSettings(ctx, t);
   ctx.effect(() => {
@@ -928,6 +958,8 @@ export function apply(ctx: BrowserClientContext): void {
           scope: 'personabot',
           component: createBrowserBody(t),
           headerAction: createBrowserHeader(t),
+          badge: createBrowserBadge(t),
+          tab: 'screen',
         }),
       'botharness-browser: channel sidebar entry',
     );

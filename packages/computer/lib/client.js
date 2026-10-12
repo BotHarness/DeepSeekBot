@@ -847,6 +847,7 @@ window.__ModuleLoader__.load({
 			"entry.screen.title": "{name} 的屏幕",
 			"entry.shared": "这台电脑由本 profile 的所有 PersonaBot 共享：各自拥有自己的窗口，共享登录态与文件。",
 			"entry.access.title": "Computer Access",
+			"entry.access.on": "Computer Access 已开启",
 			"entry.access.enable": "启用 Computer Access",
 			"entry.access.disable": "停用 Computer Access",
 			"entry.access.description": "开启后，该 Bot 的会话可以操作这台电脑",
@@ -952,6 +953,7 @@ window.__ModuleLoader__.load({
 			"entry.screen.title": "{name}'s screen",
 			"entry.shared": "This Computer is shared by every PersonaBot in the profile: each keeps its own window and they share logins and files.",
 			"entry.access.title": "Computer Access",
+			"entry.access.on": "Computer Access is on",
 			"entry.access.enable": "Enable Computer Access",
 			"entry.access.disable": "Disable Computer Access",
 			"entry.access.description": "This PersonaBot's sessions may act on the Computer",
@@ -2675,11 +2677,37 @@ window.__ModuleLoader__.load({
 		}
 		function createComputerEntry(t) {
 			return function ComputerEntryWithLocale(props) {
+				const { computerAccess } = useBotInfo(props.botSlug);
+				if (computerAccess === false) return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+					className: "bh-computer-access-off",
+					style: noteStyle,
+					children: t("entry.access.description")
+				});
 				return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ComputerEntry, {
 					...props,
 					t
 				});
 			};
+		}
+		function createComputerBadge(t) {
+			return function ComputerBadge({ botSlug }) {
+				const { computerAccess } = useBotInfo(botSlug);
+				if (computerAccess !== true) return null;
+				return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+					className: "bh-channel-sidebar-live-dot",
+					role: "img",
+					"aria-label": t("entry.access.on")
+				});
+			};
+		}
+		const botInfoStores = /* @__PURE__ */ new Map();
+		function botInfoStore(botSlug) {
+			const key = botSlug ?? "";
+			const existing = botInfoStores.get(key);
+			if (existing !== void 0) return existing;
+			const created = createBotInfoStore(botSlug);
+			botInfoStores.set(key, created);
+			return created;
 		}
 		function createBotInfoStore(botSlug) {
 			let info = {
@@ -2687,7 +2715,7 @@ window.__ModuleLoader__.load({
 				computerAccess: void 0
 			};
 			const listeners = /* @__PURE__ */ new Set();
-			let started = false;
+			let loadedAt = Number.NEGATIVE_INFINITY;
 			const load = () => {
 				const rpc = connectionRpc;
 				if (rpc === void 0 || botSlug === void 0) return;
@@ -2711,8 +2739,8 @@ window.__ModuleLoader__.load({
 					for (const listener of listeners) listener();
 				},
 				subscribe(listener) {
-					if (!started) {
-						started = true;
+					if (listeners.size === 0 && Date.now() - loadedAt > 5e3) {
+						loadedAt = Date.now();
 						load();
 					}
 					listeners.add(listener);
@@ -2724,7 +2752,7 @@ window.__ModuleLoader__.load({
 			};
 		}
 		function useBotInfo(botSlug) {
-			const [store] = (0, react.useState)(() => createBotInfoStore(botSlug));
+			const store = botInfoStore(botSlug);
 			const info = (0, react.useSyncExternalStore)(store.subscribe, store.getSnapshot);
 			return {
 				displayName: info.displayName ?? botSlug,
@@ -2732,14 +2760,13 @@ window.__ModuleLoader__.load({
 			};
 		}
 		function ComputerHeaderAction({ botSlug, t, setExpandable, setExpanded }) {
-			const [store] = (0, react.useState)(() => createBotInfoStore(botSlug));
+			const store = botInfoStore(botSlug);
 			const [busy, setBusy] = (0, react.useState)(false);
 			const inFlight = (0, react.useRef)(false);
 			const [error, setError] = (0, react.useState)(false);
 			const subscribe = (listener) => {
 				const sync = () => {
-					const access = store.getSnapshot().computerAccess === true;
-					setExpandable?.(access);
+					setExpandable?.(store.getSnapshot().computerAccess !== void 0);
 				};
 				const unsubscribe = store.subscribe(() => {
 					sync();
@@ -2766,7 +2793,6 @@ window.__ModuleLoader__.load({
 					}
 					const applied = result.value.bot?.computerAccess === true;
 					store.setAccess(applied);
-					setExpandable?.(applied);
 					setExpanded?.(applied);
 				}).catch(() => {
 					setError(true);
@@ -2926,6 +2952,7 @@ window.__ModuleLoader__.load({
 			});
 		}
 		function apply(ctx) {
+			botInfoStores.clear();
 			const settingsPrefs = new ComputerSettingsPrefs();
 			ctx.inject(["configForms"], (settingsCtx) => {
 				const scope = settingsCtx.configForms.get(COMPUTER_SETTINGS_NAMESPACE);
@@ -2975,7 +3002,9 @@ window.__ModuleLoader__.load({
 					order: 40,
 					scope: "personabot",
 					component: createComputerEntry(t),
-					headerAction: createComputerHeader(t)
+					headerAction: createComputerHeader(t),
+					badge: createComputerBadge(t),
+					tab: "screen"
 				}), "botharness-computer: channel sidebar entry");
 			});
 		}
@@ -2987,6 +3016,7 @@ window.__ModuleLoader__.load({
 		exports.StreamOverlay = StreamOverlay;
 		exports.ViewerTitleBar = ViewerTitleBar;
 		exports.apply = apply;
+		exports.createComputerBadge = createComputerBadge;
 		exports.createComputerEntry = createComputerEntry;
 		exports.createComputerHeader = createComputerHeader;
 		exports.inject = inject;

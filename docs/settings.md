@@ -11,9 +11,9 @@ This guide covers non-IM settings in the public **deepseekbot** package on DSH *
 | Native Agent tools and working style                          | Settings → Agent presets.                                                   |
 | Bot icon, motion, sorting, concurrency, your name             | Bot settings beside Bot mode, or Settings → Bot settings.                   |
 | One Bot's name and avatar                                     | Its DM header name/avatar → View details.                                   |
-| One Bot's models and wake policy                              | Model and Wake policy in the right sidebar of its DM.                       |
+| One Bot's models and wake policy                              | Model and Wake policy in its DM's Channel settings (header ··· menu).       |
 | Right sidebar layout and session views                        | Gear at the top of Channel sidebar.                                         |
-| One Bot's work folders and task permissions                   | Workspace grants in the right sidebar.                                      |
+| One Bot's work folders and task permissions                   | Workspace grants in the DM's Channel settings.                              |
 | An existing DSH Session's model and permissions               | Open it from Sessions in the right sidebar and inspect its native controls. |
 
 ## Complete environment backup and restore
@@ -157,7 +157,7 @@ Local Groups allow an ordinary-message override for each Bot under **Group heade
 
 The [Channel sidebar chapter](/docs/channel-sidebar) provides step-by-step feature guides; see [Display and layout](/docs/channel-sidebar/display) for tabs, ordering and visibility.
 
-Open the right sidebar's gear menu, **Channel sidebar settings**. Its first item, **Channel settings…**, opens the chat's Wake policy, External identities, External connectors or Group management; the other items are browser display preferences that do not change durable Bot memory or task authorization.
+Open the right sidebar's gear menu, **Channel sidebar settings**. Its first item, **Channel settings…**, opens the chat's Model, Workspace Grants, Wake policy, External identities, External connectors or Group management; the other items are browser display preferences that do not change durable Bot memory or task authorization.
 
 ![Sidebar layout, memory terminology, and session view menus](/guides/settings/settings-sidebar-zh.webp)
 
@@ -172,7 +172,7 @@ Open the right sidebar's gear menu, **Channel sidebar settings**. Its first item
 
 ## Workspace grants and task permissions
 
-Expand **Workspace grants** for the target Bot. Memory Repository is its memory directory. Use **Add folder** to choose extra task folders on the DSH Host; a remote browser does not substitute its own local paths.
+Open **Workspace grants** in the target Bot DM's **Channel settings** (header **···** menu → **Channel settings…**). Memory Repository is its memory directory. Use **Add folder** to choose extra task folders on the DSH Host; a remote browser does not substitute its own local paths.
 
 ![Workspace grants with no extra folder authorization](/guides/settings/settings-workspace-grants-zh.webp)
 

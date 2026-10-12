@@ -1,6 +1,6 @@
 # Schedules
 
-Open **Bot DM → Channel sidebar → Schedules**. A schedule belongs to one PersonaBot. When it is due, BotHarness drops the schedule’s instruction into that Bot’s [Bot Inbox](/docs/channel-sidebar/bot-inbox) and wakes its Orchestrator, which decides what to do with it like any other incoming item.
+Open **Bot DM → Channel sidebar → Schedules**. The Schedules tab is hidden by default; turn it on from the sidebar's **+ Views** menu. A schedule belongs to one PersonaBot. When it is due, BotHarness drops the schedule’s instruction into that Bot’s [Bot Inbox](/docs/channel-sidebar/bot-inbox) and wakes its Orchestrator, which decides what to do with it like any other incoming item.
 
 ![Schedules in a Bot DM, with cadence, last firing and creator on each row](/guides/channel-sidebar/12-schedules-zh.webp)
 

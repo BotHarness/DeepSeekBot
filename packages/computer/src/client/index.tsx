@@ -132,6 +132,8 @@ interface ChannelSidebarRegistryLike {
     readonly scope: 'channel' | 'personabot';
     readonly component: ComponentType<ChannelSidebarEntryProps>;
     readonly headerAction?: ComponentType<ChannelSidebarEntryProps>;
+    readonly badge?: ComponentType<ChannelSidebarEntryProps>;
+    readonly tab?: string;
   }): () => void;
 }
 
@@ -480,7 +482,26 @@ export function createComputerEntry(
   t: ComputerTranslate,
 ): (props: ChannelSidebarEntryProps) => ReactElement {
   return function ComputerEntryWithLocale(props: ChannelSidebarEntryProps): ReactElement {
+    const { computerAccess } = useBotInfo(props.botSlug);
+    if (computerAccess === false)
+      return (
+        <div className="bh-computer-access-off" style={noteStyle}>
+          {t('entry.access.description')}
+        </div>
+      );
     return <ComputerEntry {...props} t={t} />;
+  };
+}
+
+export function createComputerBadge(
+  t: ComputerTranslate,
+): (props: ChannelSidebarEntryProps) => ReactElement | null {
+  return function ComputerBadge({ botSlug }: ChannelSidebarEntryProps): ReactElement | null {
+    const { computerAccess } = useBotInfo(botSlug);
+    if (computerAccess !== true) return null;
+    return (
+      <span className="bh-channel-sidebar-live-dot" role="img" aria-label={t('entry.access.on')} />
+    );
   };
 }
 
@@ -494,12 +515,28 @@ interface ReadableStore<T> {
   getSnapshot(): T;
 }
 
+const botInfoStores = new Map<
+  string,
+  ReadableStore<BotInfo> & { setAccess(enabled: boolean): void }
+>();
+
+function botInfoStore(
+  botSlug: string | undefined,
+): ReadableStore<BotInfo> & { setAccess(enabled: boolean): void } {
+  const key = botSlug ?? '';
+  const existing = botInfoStores.get(key);
+  if (existing !== undefined) return existing;
+  const created = createBotInfoStore(botSlug);
+  botInfoStores.set(key, created);
+  return created;
+}
+
 function createBotInfoStore(
   botSlug: string | undefined,
 ): ReadableStore<BotInfo> & { setAccess(enabled: boolean): void } {
   let info: BotInfo = { displayName: undefined, computerAccess: undefined };
   const listeners = new Set<() => void>();
-  let started = false;
+  let loadedAt = Number.NEGATIVE_INFINITY;
   const load = (): void => {
     const rpc = connectionRpc;
     if (rpc === undefined || botSlug === undefined) return;
@@ -529,8 +566,8 @@ function createBotInfoStore(
       for (const listener of listeners) listener();
     },
     subscribe(listener) {
-      if (!started) {
-        started = true;
+      if (listeners.size === 0 && Date.now() - loadedAt > 5000) {
+        loadedAt = Date.now();
         load();
       }
       listeners.add(listener);
@@ -543,7 +580,7 @@ function createBotInfoStore(
 }
 
 function useBotInfo(botSlug: string | undefined): BotInfo {
-  const [store] = useState(() => createBotInfoStore(botSlug));
+  const store = botInfoStore(botSlug);
   const info = useSyncExternalStore(store.subscribe, store.getSnapshot);
   return { displayName: info.displayName ?? botSlug, computerAccess: info.computerAccess };
 }
@@ -554,14 +591,13 @@ function ComputerHeaderAction({
   setExpandable,
   setExpanded,
 }: ChannelSidebarEntryProps & { t: ComputerTranslate }): ReactElement {
-  const [store] = useState(() => createBotInfoStore(botSlug));
+  const store = botInfoStore(botSlug);
   const [busy, setBusy] = useState(false);
   const inFlight = useRef(false);
   const [error, setError] = useState(false);
   const subscribe = (listener: () => void): (() => void) => {
     const sync = (): void => {
-      const access = store.getSnapshot().computerAccess === true;
-      setExpandable?.(access);
+      setExpandable?.(store.getSnapshot().computerAccess !== undefined);
     };
     const unsubscribe = store.subscribe(() => {
       sync();
@@ -589,7 +625,6 @@ function ComputerHeaderAction({
         const value = result.value as { bot?: { computerAccess?: unknown } };
         const applied = value.bot?.computerAccess === true;
         store.setAccess(applied);
-        setExpandable?.(applied);
         setExpanded?.(applied);
       })
       .catch(() => {
@@ -786,6 +821,7 @@ function ComputerEntry({
 }
 
 export function apply(ctx: ClientContext): void {
+  botInfoStores.clear();
   const settingsPrefs = new ComputerSettingsPrefs();
   ctx.inject(['configForms'], (settingsCtx) => {
     const scope = settingsCtx.configForms.get<ComputerSettings>(
@@ -846,6 +882,8 @@ export function apply(ctx: ClientContext): void {
           scope: 'personabot',
           component: createComputerEntry(t),
           headerAction: createComputerHeader(t),
+          badge: createComputerBadge(t),
+          tab: 'screen',
         }),
       'botharness-computer: channel sidebar entry',
     );

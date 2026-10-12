@@ -240,6 +240,41 @@ describe('Channel sidebar tabs', () => {
     expect(newPrefs().getSnapshot().splitRatios['memory']).toBe(0.85);
   });
 
+  it('hides a default-hidden tab until it is shown from the views menu', () => {
+    render([entry('a', 1), { ...entry('schedules', 2), defaultHidden: true }]);
+    expect(tabNames()).toEqual(['a']);
+    openViews();
+    expect(viewItem('schedules').getAttribute('aria-checked')).toBe('false');
+    act(() => viewItem('schedules').click());
+    expect(tabNames()).toEqual(['a', 'schedules']);
+    expect(newPrefs().getSnapshot().shownEntries.personabot).toEqual(['schedules']);
+    act(() => viewItem('schedules').click());
+    expect(tabNames()).toEqual(['a']);
+    expect(newPrefs().getSnapshot().shownEntries.personabot).toEqual([]);
+  });
+
+  it('shows entry badges on a registered tab without its own badge', () => {
+    const dot = () => createElement('span', { 'data-dot': '' });
+    const screenTab: ChannelSidebarTab = {
+      id: 'screen',
+      label: 'Screen',
+      order: 3,
+      scope: 'personabot',
+    };
+    const tabs = resolveChannelSidebarTabs(
+      [screenTab],
+      [
+        { ...entry('computer', 40, 'screen'), badge: dot },
+        { ...entry('browser', 41, 'screen'), badge: dot },
+        { ...entry('model', 50), badge: dot },
+      ],
+    );
+    expect(tabs.map((tab) => [tab.id, tab.badges.length])).toEqual([
+      ['screen', 2],
+      ['model', 0],
+    ]);
+  });
+
   it('places a newly registered tab at its default position inside a saved order', () => {
     expect(mergeSavedOrder(['conversation', 'memory', 'a', 'b'], ['b', 'a', 'gone'])).toEqual([
       'conversation',

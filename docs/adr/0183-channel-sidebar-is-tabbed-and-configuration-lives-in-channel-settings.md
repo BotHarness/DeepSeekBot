@@ -26,6 +26,6 @@ Date: 2026-10-12
 ## Consequences
 
 - ADR-0053's "never tabs" and "one stack of collapsible entries" no longer describe desktop. Entries inside a tab render without a collapse chevron. The narrow overlay keeps ADR-0053's behaviour.
-- ADR-0138's "configuration moves to the Channel sidebar as separate collapsible entries" now reads "configuration is a Channel settings section". Its Profile rule is unchanged. Model and Workspace Grants stay sidebar entries until a later slice of #1518 removes or relocates them.
+- ADR-0138's "configuration moves to the Channel sidebar as separate collapsible entries" now reads "configuration is a Channel settings section". Its Profile rule is unchanged. Model and Workspace Grants are Channel settings sections too, so their controls stay reachable instead of being removed. Schedules is a tab hidden by default (`defaultHidden`) that the Human turns on from + Views. Computer and Browser share a **Screen** tab whose icon shows a dot while either access is on; when access is off the pane says so instead of disappearing.
 - Private accounts ([#1521](https://github.com/BotHarness/DeepSeekBot/issues/1521)) arrive as a Channel settings section through the same `surface: 'settings'` seam.
 - `CONTEXT.md` adds **Channel sidebar tab**, **Channel settings** and **Channel settings section**, and narrows **Channel sidebar entry**.

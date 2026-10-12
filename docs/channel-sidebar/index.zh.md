@@ -8,7 +8,7 @@
 
 1. 进入 **Bot 模式**，从左侧列表打开一个 Bot 私聊或本地群聊。
 2. 右栏关闭时，点击右侧边缘的 **展开 Channel sidebar**。
-3. 宽窗口中，点击侧栏顶部的标签页：**会话**（会话与 Bot 收件箱）、**记忆**（记忆文件与记忆演化），其他项目各占一个标签页；鼠标悬停图标可看到名称。窄窗口中侧栏以覆盖面板显示可折叠的项目，点击项目标题展开或收起。
+3. 宽窗口中，点击侧栏顶部的标签页：**会话**（会话与 Bot 收件箱）、**记忆**（记忆文件与记忆演化）、**屏幕**（安装 Computer、Browser 插件后出现），其他项目各占一个标签页；鼠标悬停图标可看到名称。窄窗口中侧栏以覆盖面板显示可折叠的项目，点击项目标题展开或收起。
 4. 切换聊天后，查看对应 Bot 或群聊的资源。操作前先核对聊天顶部的名称。
 
 ![Bot 私聊右侧的 Channel sidebar](/guides/channel-sidebar/01-sidebar-overview-zh.webp)
@@ -21,9 +21,9 @@
 | [记忆演化](/zh/docs/channel-sidebar/memory-evolution)        | 查看未提交改动、Git 历史、分支与恢复检查点。                                  |
 | [会话](/zh/docs/channel-sidebar/sessions)                    | 在 DSH 中打开这个 Bot 的 Orchestrator 与 Assignment Session。                 |
 | [Bot 收件箱](/zh/docs/channel-sidebar/bot-inbox)             | 检查 Bot 收到的来源消息与任务报告。                                           |
-| [工作区授权](/zh/docs/channel-sidebar/workspaces)            | 查看并明确授权这个 Bot 可以使用的 Host 文件夹。                               |
+| [工作区授权](/zh/docs/channel-sidebar/workspaces) ¹          | 查看并明确授权这个 Bot 可以使用的 Host 文件夹。                               |
 | [定时任务](/zh/docs/channel-sidebar/schedules)               | 按频率唤醒这个 Bot、立即运行某个任务，并锁定以防 Bot 修改。                   |
-| [模型](/zh/docs/channel-sidebar/model)                       | 查看并修改这个 Bot 日常对话与新任务使用的模型。                               |
+| [模型](/zh/docs/channel-sidebar/model) ¹                     | 查看并修改这个 Bot 日常对话与新任务使用的模型。                               |
 | [唤醒策略](/zh/docs/channel-sidebar/wake-policy) ¹           | 按来源设置这个 Bot 立即唤醒、汇总后唤醒或只记录。                             |
 | [外部身份](/zh/docs/channel-sidebar/external-identities) ¹   | 绑定这个 Bot 在 Lark / 飞书、Slack、微信的发言身份；IM 管理员配对与审批通知。 |
 | [外部连接器](/zh/docs/channel-sidebar/external-connectors) ¹ | 修改、暂停同步到 Channel 的会话；高级的保存发送目标。                         |
@@ -40,6 +40,6 @@
 
 ## 为什么看不到某个项目
 
-Bot 专属项目不出现在群聊中；群管理不出现在 Bot 私聊中。Bot 收件箱在已有记录或正在加载、发生错误时显示。你也可能在 **+ 视图** 菜单中隐藏过某个标签页（或在窄窗口覆盖面板的 **编辑侧边栏** 中隐藏过某个项目）。唤醒策略、外部身份、外部连接器和群管理在频道设置中，不在侧栏。
+Bot 专属项目不出现在群聊中；群管理不出现在 Bot 私聊中。Bot 收件箱在已有记录或正在加载、发生错误时显示。**定时任务** 默认隐藏，可在 **+ 视图** 菜单中勾选显示。你也可能在该菜单中隐藏过某个标签页（或在窄窗口覆盖面板的 **编辑侧边栏** 中隐藏过某个项目）。模型、工作区授权、唤醒策略、外部身份、外部连接器和群管理在频道设置中，不在侧栏。
 
 可选插件可以增加其他项目。公共 npm 包不包含 Browser、Computer 包，所以没有对应入口是正常情况。安装并启用这些包后，分别按[分享浏览器标签页](/zh/docs/daily-browser)或 [Computer 导出与迁移](/zh/docs/computer-export)核对前提和操作。IM 应用连接另有独立的配置流程；连接后，由「外部身份」和「外部连接器」管理这个 Bot 如何使用它。

@@ -23,6 +23,7 @@ export interface ChannelSidebarPrefsSnapshot {
   memoryTerminology: MemoryTerminology;
   entryOrders: Readonly<Record<ChannelSidebarScope, readonly string[]>>;
   hiddenEntries: Readonly<Record<ChannelSidebarScope, readonly string[]>>;
+  shownEntries: Readonly<Record<ChannelSidebarScope, readonly string[]>>;
   selectedTabs: Readonly<Record<string, string>>;
   splitRatios: Readonly<Record<string, number>>;
 }
@@ -39,6 +40,7 @@ export interface ChannelSidebarPrefs {
     scope: ChannelSidebarScope,
     order: readonly string[],
     hidden: readonly string[],
+    shown?: readonly string[],
   ): void;
   setSelectedTab(scopeKey: string, tabId: string): void;
   setSplitRatio(tabId: string, ratio: number): void;
@@ -55,6 +57,7 @@ const EMPTY: ChannelSidebarPrefsSnapshot = Object.freeze({
   memoryTerminology: 'memory',
   entryOrders: Object.freeze({ personabot: Object.freeze([]), channel: Object.freeze([]) }),
   hiddenEntries: Object.freeze({ personabot: Object.freeze([]), channel: Object.freeze([]) }),
+  shownEntries: Object.freeze({ personabot: Object.freeze([]), channel: Object.freeze([]) }),
   selectedTabs: Object.freeze({}),
   splitRatios: Object.freeze({}),
 });
@@ -139,6 +142,9 @@ export function createChannelSidebarPrefs(storage: ConfigStorage | undefined): C
       const hidden = parsed['hiddenEntries'];
       const hiddenEntries =
         hidden !== null && typeof hidden === 'object' ? (hidden as Record<string, unknown>) : {};
+      const shown = parsed['shownEntries'];
+      const shownEntries =
+        shown !== null && typeof shown === 'object' ? (shown as Record<string, unknown>) : {};
       const order = (scope: ChannelSidebarScope) => entryIds(entryOrders[scope]);
       return {
         collapsedSidebars: Object.freeze(stringList(parsed['collapsedSidebars'])),
@@ -152,6 +158,10 @@ export function createChannelSidebarPrefs(storage: ConfigStorage | undefined): C
         hiddenEntries: Object.freeze({
           personabot: entryIds(hiddenEntries['personabot']),
           channel: entryIds(hiddenEntries['channel']),
+        }),
+        shownEntries: Object.freeze({
+          personabot: entryIds(shownEntries['personabot']),
+          channel: entryIds(shownEntries['channel']),
         }),
         selectedTabs: selectedTabMap(parsed['selectedTabs']),
         splitRatios: splitRatioMap(parsed['splitRatios']),
@@ -174,6 +184,7 @@ export function createChannelSidebarPrefs(storage: ConfigStorage | undefined): C
             memoryTerminology: next.memoryTerminology,
             entryOrders: next.entryOrders,
             hiddenEntries: next.hiddenEntries,
+            shownEntries: next.shownEntries,
             selectedTabs: next.selectedTabs,
             splitRatios: next.splitRatios,
           }),
@@ -194,18 +205,22 @@ export function createChannelSidebarPrefs(storage: ConfigStorage | undefined): C
     scope: ChannelSidebarScope,
     order: readonly string[],
     hidden: readonly string[],
+    shown: readonly string[] = snapshot.shownEntries[scope],
   ): void => {
     const nextOrder = entryIds(order);
     const nextHidden = entryIds(hidden);
+    const nextShown = entryIds(shown);
     if (
       sameIds(nextOrder, snapshot.entryOrders[scope]) &&
-      sameIds(nextHidden, snapshot.hiddenEntries[scope])
+      sameIds(nextHidden, snapshot.hiddenEntries[scope]) &&
+      sameIds(nextShown, snapshot.shownEntries[scope])
     )
       return;
     publish({
       ...snapshot,
       entryOrders: Object.freeze({ ...snapshot.entryOrders, [scope]: nextOrder }),
       hiddenEntries: Object.freeze({ ...snapshot.hiddenEntries, [scope]: nextHidden }),
+      shownEntries: Object.freeze({ ...snapshot.shownEntries, [scope]: nextShown }),
     });
   };
 

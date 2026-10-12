@@ -77,6 +77,7 @@ export interface ChannelSidebarEntry {
   visible?: (state: ClientState) => boolean;
   tab?: string;
   surface?: 'settings';
+  defaultHidden?: boolean;
 }
 
 export interface ChannelSidebarTab {
@@ -86,13 +87,15 @@ export interface ChannelSidebarTab {
   order?: number;
   scope: ChannelSidebarScope;
   badge?: ComponentType<ChannelSidebarEntryProps>;
+  defaultHidden?: boolean;
 }
 
 export interface ResolvedChannelSidebarTab {
   id: string;
   label: string;
   icon?: string | undefined;
-  badge?: ComponentType<ChannelSidebarEntryProps> | undefined;
+  badges: readonly ComponentType<ChannelSidebarEntryProps>[];
+  defaultHidden: boolean;
   entries: readonly ChannelSidebarEntry[];
 }
 
@@ -115,7 +118,16 @@ export function resolveChannelSidebarTabs(
     const id = owner?.id ?? entry.id;
     const existing = groups.get(id);
     if (existing !== undefined) {
-      existing.tab = { ...existing.tab, entries: [...existing.tab.entries, entry] };
+      existing.tab = {
+        ...existing.tab,
+        badges:
+          owner?.badge === undefined && entry.badge !== undefined
+            ? [...existing.tab.badges, entry.badge]
+            : existing.tab.badges,
+        defaultHidden:
+          owner?.defaultHidden ?? (existing.tab.defaultHidden && entry.defaultHidden === true),
+        entries: [...existing.tab.entries, entry],
+      };
       continue;
     }
     groups.set(id, {
@@ -124,7 +136,15 @@ export function resolveChannelSidebarTabs(
         id,
         label: owner?.label ?? entry.label,
         icon: owner === undefined ? entry.icon : owner.icon,
-        badge: owner === undefined ? undefined : owner.badge,
+        badges:
+          owner === undefined
+            ? []
+            : owner.badge !== undefined
+              ? [owner.badge]
+              : entry.badge === undefined
+                ? []
+                : [entry.badge],
+        defaultHidden: owner?.defaultHidden ?? entry.defaultHidden === true,
         entries: [entry],
       },
     });

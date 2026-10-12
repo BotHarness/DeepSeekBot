@@ -132,7 +132,12 @@ beforeEach(async () => {
           },
         },
         connection: {
-          rpc: { call: async () => ({ ok: true, value: { bots: [{ slug: 'qa' }] } }) },
+          rpc: {
+            call: async () => ({
+              ok: true,
+              value: { bots: [{ slug: 'qa', browserAccess: true }] },
+            }),
+          },
         },
       } as unknown as BrowserClientContext);
     },

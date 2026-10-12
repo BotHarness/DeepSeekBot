@@ -23,6 +23,7 @@ export const zh = {
   'entry.shared':
     '这台电脑由本 profile 的所有 PersonaBot 共享：各自拥有自己的窗口，共享登录态与文件。',
   'entry.access.title': 'Computer Access',
+  'entry.access.on': 'Computer Access 已开启',
   'entry.access.enable': '启用 Computer Access',
   'entry.access.disable': '停用 Computer Access',
   'entry.access.description': '开启后，该 Bot 的会话可以操作这台电脑',
@@ -135,6 +136,7 @@ export const en: Record<keyof typeof zh, string> = {
   'entry.shared':
     'This Computer is shared by every PersonaBot in the profile: each keeps its own window and they share logins and files.',
   'entry.access.title': 'Computer Access',
+  'entry.access.on': 'Computer Access is on',
   'entry.access.enable': 'Enable Computer Access',
   'entry.access.disable': 'Disable Computer Access',
   'entry.access.description': "This PersonaBot's sessions may act on the Computer",

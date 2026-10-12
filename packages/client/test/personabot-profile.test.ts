@@ -281,7 +281,7 @@ describe('PersonaBot Profile surface', () => {
       const sidebarLabels = [...container.querySelectorAll('.bh-channel-sidebar [role="tab"]')].map(
         (tab) => tab.getAttribute('aria-label') ?? tab.textContent,
       );
-      expect(sidebarLabels).toContain('模型');
+      expect(sidebarLabels).not.toContain('模型');
       expect(sidebarLabels).not.toContain('唤醒策略');
       expect(sidebarLabels).not.toContain('外部身份');
       expect(sidebarLabels).not.toContain('外部连接器');

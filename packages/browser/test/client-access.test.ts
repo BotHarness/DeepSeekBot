@@ -149,7 +149,7 @@ describe('Browser Access Power control', () => {
       expect(button().getAttribute('aria-pressed')).toBe('false');
       expect(host.querySelector('[role=alert]')).toBeNull();
       expect(view.expanded.at(-1)).toBe(false);
-      expect(view.expandable.at(-1)).toBe(false);
+      expect(view.expandable.at(-1)).toBe(true);
       expect(call.mock.calls.map((c) => c[1])).toEqual([
         'botharness/list',
         'botharness/browserAccessSet',
@@ -166,7 +166,7 @@ describe('Browser Access Power control', () => {
     await view.render();
     await act(async () => button().click());
     expect(button().getAttribute('aria-pressed')).toBe('false');
-    expect(view.expandable.at(-1)).toBe(false);
+    expect(view.expandable.at(-1)).toBe(true);
     expect(view.expanded.at(-1)).toBe(false);
   });
   it('disables access until a selected Bot has a confirmed permission', async () => {
@@ -243,7 +243,7 @@ describe('Browser Access Power control', () => {
     await act(async () => authorization({ ok: true, value: { bot: { browserAccess: false } } }));
     expect(host.textContent).not.toContain('Permission-gated content');
     expect(host.querySelector<HTMLButtonElement>('.bh-channel-sidebar-entry-head')?.disabled).toBe(
-      true,
+      false,
     );
     expect(call.mock.calls.map((c) => c[1])).toEqual([
       'botharness/list',

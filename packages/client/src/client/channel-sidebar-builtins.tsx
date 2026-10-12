@@ -836,6 +836,7 @@ export function createChannelSidebarBuiltinTabs(
       scope: 'personabot',
     },
     { id: 'memory', icon: 'files', label: t('tab.memory'), order: 2, scope: 'personabot' },
+    { id: 'screen', icon: 'monitor', label: t('tab.screen'), order: 3, scope: 'personabot' },
   ];
 }
 
@@ -907,6 +908,7 @@ export function createChannelSidebarBuiltins(
     },
     {
       id: 'schedules',
+      defaultHidden: true,
       icon: 'alarm-clock',
       label: t('entry.schedules'),
       order: 16,
@@ -916,6 +918,7 @@ export function createChannelSidebarBuiltins(
     },
     {
       id: 'workspace-grants',
+      surface: 'settings',
       icon: 'folder-key',
       label: t('entry.workspaceGrants'),
       order: 20,
@@ -924,6 +927,7 @@ export function createChannelSidebarBuiltins(
     },
     {
       id: 'model',
+      surface: 'settings',
       icon: 'cpu',
       label: t('entry.model'),
       order: 25,

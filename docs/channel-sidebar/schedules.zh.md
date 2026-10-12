@@ -1,6 +1,6 @@
 # 定时任务
 
-打开 **Bot 私聊 → Channel sidebar → 定时任务**。定时任务属于某一个 PersonaBot。到点时，BotHarness 会把任务说明放进这个 Bot 的 [Bot 收件箱](/zh/docs/channel-sidebar/bot-inbox)并唤醒它的 Orchestrator，由 Orchestrator 像处理其他收件一样决定怎么做。
+打开 **Bot 私聊 → Channel sidebar → 定时任务**。定时任务标签页默认隐藏，先在侧栏 **+ 视图** 菜单中勾选显示。定时任务属于某一个 PersonaBot。到点时，BotHarness 会把任务说明放进这个 Bot 的 [Bot 收件箱](/zh/docs/channel-sidebar/bot-inbox)并唤醒它的 Orchestrator，由 Orchestrator 像处理其他收件一样决定怎么做。
 
 ![Bot 私聊中的定时任务，每行显示频率、最近触发状态和创建者](/guides/channel-sidebar/12-schedules-zh.webp)
 

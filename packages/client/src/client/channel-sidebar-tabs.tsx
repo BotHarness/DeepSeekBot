@@ -46,7 +46,11 @@ export function ChannelSidebarTabs({
     snapshot.entryOrders[scope],
   );
   const ordered = order.flatMap((id) => tabs.filter((tab) => tab.id === id));
-  const hidden = snapshot.hiddenEntries[scope];
+  const shownDefaults = snapshot.shownEntries[scope];
+  const defaultHidden = tabs
+    .filter((tab) => tab.defaultHidden && !shownDefaults.includes(tab.id))
+    .map((tab) => tab.id);
+  const hidden = [...new Set([...snapshot.hiddenEntries[scope], ...defaultHidden])];
   const visible = ordered.filter((tab) => !hidden.includes(tab.id));
   const shown = visible.length > 0 ? visible : ordered.slice(0, 1);
   const active = shown.find((tab) => tab.id === snapshot.selectedTabs[scopeKey]) ?? shown[0];
@@ -69,7 +73,6 @@ export function ChannelSidebarTabs({
         >
           {shown.map((tab, index) => {
             const selected = tab.id === active?.id;
-            const Badge = tab.badge;
             return (
               <Tooltip key={tab.id} label={tab.label} side="bottom" delayMs={500}>
                 <button
@@ -106,9 +109,11 @@ export function ChannelSidebarTabs({
                   {selected ? (
                     <span className="bh-channel-sidebar-tab-label">{tab.label}</span>
                   ) : null}
-                  {Badge === undefined ? null : (
+                  {tab.badges.length === 0 ? null : (
                     <span className="bh-channel-sidebar-tab-badge">
-                      <Badge {...entryProps} />
+                      {tab.badges.map((Badge, badgeIndex) => (
+                        <Badge key={badgeIndex} {...entryProps} />
+                      ))}
                     </span>
                   )}
                 </button>
@@ -119,7 +124,14 @@ export function ChannelSidebarTabs({
         <ChannelSidebarViewsMenu
           tabs={ordered}
           hidden={hidden}
-          onChange={(nextOrder, nextHidden) => prefs.setEntryLayout(scope, nextOrder, nextHidden)}
+          onChange={(nextOrder, nextHidden) =>
+            prefs.setEntryLayout(scope, nextOrder, nextHidden, [
+              ...shownDefaults.filter((id) => !tabs.some((tab) => tab.id === id)),
+              ...tabs
+                .filter((tab) => tab.defaultHidden && !nextHidden.includes(tab.id))
+                .map((tab) => tab.id),
+            ])
+          }
           t={t}
         />
         {onOpenSettings !== undefined || entries.some((entry) => entry.settings !== undefined) ? (
