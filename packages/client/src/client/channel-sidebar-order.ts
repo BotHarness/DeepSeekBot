@@ -25,3 +25,12 @@ export function insertEntryBefore(
   const index = before === undefined ? next.length : next.indexOf(before);
   return [...next.slice(0, index), id, ...next.slice(index)];
 }
+
+export function mergeSavedOrder(
+  registered: readonly string[],
+  saved: readonly string[],
+): readonly string[] {
+  const known = saved.filter((id, index) => registered.includes(id) && saved.indexOf(id) === index);
+  let next = 0;
+  return registered.map((id) => (known.includes(id) ? known[next++]! : id));
+}

@@ -27,6 +27,7 @@ import {
   type ChannelSidebarPrefs,
 } from '../src/client/channel-sidebar-prefs.js';
 import { zhTranslate } from '../src/client/locale.js';
+import { mergeSavedOrder } from '../src/client/channel-sidebar-order.js';
 
 const scopeKey = channelSidebarScopeKey('personabot', 'dm-ada', 'ada');
 const entryProps = {
@@ -216,6 +217,36 @@ describe('Channel sidebar tabs', () => {
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     });
     expect(host.querySelector('[role="menu"]')).toBeNull();
+  });
+
+  it('splits a two-entry tab into top and bottom panes with a remembered ratio', () => {
+    render(
+      [entry('memory-files', 5, 'memory'), entry('memory-evolution', 6, 'memory')],
+      [memoryTab],
+    );
+    const panes = [...host.querySelectorAll<HTMLElement>('[data-split-pane]')];
+    expect(
+      panes.map((pane) => pane.querySelector('[data-body]')?.getAttribute('data-body')),
+    ).toEqual(['memory-files', 'memory-evolution']);
+    const handle = host.querySelector<HTMLElement>('[role="separator"]')!;
+    expect(handle.getAttribute('aria-valuenow')).toBe('50');
+    act(() => {
+      handle.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+    });
+    expect(handle.getAttribute('aria-valuenow')).toBe('55');
+    act(() => {
+      handle.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }));
+    });
+    expect(newPrefs().getSnapshot().splitRatios['memory']).toBe(0.85);
+  });
+
+  it('places a newly registered tab at its default position inside a saved order', () => {
+    expect(mergeSavedOrder(['conversation', 'memory', 'a', 'b'], ['b', 'a', 'gone'])).toEqual([
+      'conversation',
+      'memory',
+      'b',
+      'a',
+    ]);
   });
 
   it('keeps existing hidden and ordered entries as hidden and ordered tabs', () => {

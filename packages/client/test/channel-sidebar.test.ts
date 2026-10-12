@@ -86,6 +86,7 @@ describe('Channel sidebar preferences', () => {
       width: 320,
       memoryTerminology: 'memory',
       selectedTabs: {},
+      splitRatios: {},
       entryOrders: { personabot: [], channel: [] },
       hiddenEntries: { personabot: [], channel: [] },
     });
@@ -135,6 +136,7 @@ describe('Channel sidebar preferences', () => {
       width: 320,
       memoryTerminology: 'memory',
       selectedTabs: {},
+      splitRatios: {},
       entryOrders: { personabot: [], channel: [] },
       hiddenEntries: { personabot: [], channel: [] },
     });

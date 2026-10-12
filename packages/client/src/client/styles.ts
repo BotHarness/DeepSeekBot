@@ -4729,6 +4729,65 @@ html[data-botharness-motion='reduce'] .bh-composer-footer {
 .bh-channel-sidebar-views-grip { display: inline-flex; padding: 0 8px; color: var(--dsw-alias-label-tertiary); cursor: grab; }
 .bh-channel-sidebar-views-hint { padding: 6px 8px 4px; color: var(--dsw-alias-label-tertiary); font-size: 12px; line-height: 18px; }
 .bh-channel-sidebar-tab-panel { padding-top: 2px; }
+.bh-channel-sidebar-split {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-bottom: 0;
+}
+.bh-channel-sidebar-split-panes {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+.bh-channel-sidebar-split-pane {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.bh-channel-sidebar-split-pane[data-split-pane='top'] { flex: var(--bh-split-top) 1 0; }
+.bh-channel-sidebar-split-pane[data-split-pane='bottom'] {
+  flex: var(--bh-split-bottom) 1 0;
+  border-top: 1px solid var(--dsw-alias-border-l2);
+}
+.bh-channel-sidebar-split-pane > .bh-channel-sidebar-entry {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+.bh-channel-sidebar-split-pane .bh-channel-sidebar-entry-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding-bottom: 8px;
+}
+.bh-channel-sidebar-split-panes:has(> .bh-channel-sidebar-split-pane > .bh-channel-sidebar-entry:not(:has(> .bh-channel-sidebar-entry-body))) > .bh-channel-sidebar-split-pane {
+  flex: 1 1 0;
+}
+.bh-channel-sidebar-split-pane:has(> .bh-channel-sidebar-entry:not(:has(> .bh-channel-sidebar-entry-body))) {
+  flex: 0 0 auto !important;
+}
+.bh-channel-sidebar-split-panes:has(> .bh-channel-sidebar-split-pane > .bh-channel-sidebar-entry:not(:has(> .bh-channel-sidebar-entry-body))) .bh-channel-sidebar-split-handle {
+  display: none;
+}
+.bh-channel-sidebar-split-handle {
+  position: absolute;
+  top: -4px;
+  left: 0;
+  right: 0;
+  z-index: 1;
+  height: 7px;
+  cursor: row-resize;
+  touch-action: none;
+}
+.bh-channel-sidebar-split-handle:hover,
+.bh-channel-sidebar-split-handle:focus-visible {
+  outline: none;
+  background: linear-gradient(transparent 2px, var(--dsw-alias-state-business-primary) 2px, var(--dsw-alias-state-business-primary) 4px, transparent 4px);
+}
 .bh-channel-sidebar-entry-head-static { cursor: default; }
 .bh-channel-sidebar-entry-head-static:hover { background: transparent; }
 .bh-channel-sidebar-head .bh-sidebar-settings-menu {

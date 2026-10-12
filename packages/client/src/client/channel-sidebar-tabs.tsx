@@ -2,10 +2,21 @@ import { useId, useRef, useState, useSyncExternalStore, type ReactElement } from
 
 import { MenuSurface, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives';
 
-import type { ChannelSidebarEntryProps, ResolvedChannelSidebarTab } from './channel-sidebar.js';
+import type {
+  ChannelSidebarEntry,
+  ChannelSidebarEntryProps,
+  ResolvedChannelSidebarTab,
+} from './channel-sidebar.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
-import { insertEntryBefore, moveEntry, resolveEntryOrder } from './channel-sidebar-order.js';
-import { channelSidebarPrefs, type ChannelSidebarPrefs } from './channel-sidebar-prefs.js';
+import { insertEntryBefore, mergeSavedOrder, moveEntry } from './channel-sidebar-order.js';
+import {
+  channelSidebarPrefs,
+  clampSplitRatio,
+  DEFAULT_SPLIT_RATIO,
+  MAX_SPLIT_RATIO,
+  MIN_SPLIT_RATIO,
+  type ChannelSidebarPrefs,
+} from './channel-sidebar-prefs.js';
 import { ChannelSidebarSettings } from './channel-sidebar-settings.js';
 import { ChannelSidebarEntrySection } from './channel-sidebar-view.js';
 import { useMountedResource } from './mounted-resource.js';
@@ -28,7 +39,7 @@ export function ChannelSidebarTabs({
   const tabIdPrefix = useId();
   const list = useRef<HTMLDivElement | null>(null);
   const { scope, t } = entryProps;
-  const order = resolveEntryOrder(
+  const order = mergeSavedOrder(
     tabs.map((tab) => tab.id),
     snapshot.entryOrders[scope],
   );
@@ -121,24 +132,131 @@ export function ChannelSidebarTabs({
         <div
           key={active.id}
           id={panelId}
-          className="bh-channel-sidebar-entries bh-channel-sidebar-tab-panel"
+          className={`bh-channel-sidebar-entries bh-channel-sidebar-tab-panel${active.entries.length === 2 ? ' bh-channel-sidebar-split' : ''}`}
           role="tabpanel"
           aria-labelledby={domId(active.id)}
           data-tab-panel={active.id}
         >
-          {active.entries.map((entry) => (
-            <ChannelSidebarEntrySection
-              key={entry.id}
-              entry={entry}
-              expanded
-              collapsible={false}
-              onToggle={noop}
+          {active.entries.length === 2 ? (
+            <ChannelSidebarSplit
+              entries={active.entries}
+              ratio={snapshot.splitRatios[active.id] ?? DEFAULT_SPLIT_RATIO}
+              onRatio={(ratio) => prefs.setSplitRatio(active.id, ratio)}
               entryProps={entryProps}
             />
-          ))}
+          ) : (
+            active.entries.map((entry) => (
+              <ChannelSidebarEntrySection
+                key={entry.id}
+                entry={entry}
+                expanded
+                collapsible={false}
+                onToggle={noop}
+                entryProps={entryProps}
+              />
+            ))
+          )}
         </div>
       )}
     </>
+  );
+}
+
+function ChannelSidebarSplit({
+  entries,
+  ratio,
+  onRatio,
+  entryProps,
+}: {
+  entries: readonly ChannelSidebarEntry[];
+  ratio: number;
+  onRatio(ratio: number): void;
+  entryProps: ChannelSidebarEntryProps;
+}): ReactElement {
+  const container = useRef<HTMLDivElement | null>(null);
+  const [draft, setDraft] = useState<number | undefined>();
+  const current = clampSplitRatio(draft ?? ratio);
+  const percent = Math.round(current * 100);
+  const ratioAt = (clientY: number): number => {
+    const rect = container.current?.getBoundingClientRect();
+    if (rect === undefined || rect.height <= 0) return current;
+    return clampSplitRatio((clientY - rect.top) / rect.height);
+  };
+  return (
+    <div
+      ref={container}
+      className="bh-channel-sidebar-split-panes"
+      style={{
+        ['--bh-split-top' as string]: String(current),
+        ['--bh-split-bottom' as string]: String(1 - current),
+      }}
+    >
+      {entries.map((entry, index) => (
+        <div
+          key={entry.id}
+          className="bh-channel-sidebar-split-pane"
+          data-split-pane={index === 0 ? 'top' : 'bottom'}
+        >
+          {index === 1 ? (
+            <div
+              className="bh-channel-sidebar-split-handle"
+              role="separator"
+              tabIndex={0}
+              aria-orientation="horizontal"
+              aria-label={entryProps.t('sidebar.split.resize')}
+              aria-valuemin={Math.round(MIN_SPLIT_RATIO * 100)}
+              aria-valuemax={Math.round(MAX_SPLIT_RATIO * 100)}
+              aria-valuenow={percent}
+              onKeyDown={(event) => {
+                const step = event.shiftKey ? 0.1 : 0.05;
+                const next =
+                  event.key === 'ArrowUp'
+                    ? current - step
+                    : event.key === 'ArrowDown'
+                      ? current + step
+                      : event.key === 'Home'
+                        ? MIN_SPLIT_RATIO
+                        : event.key === 'End'
+                          ? MAX_SPLIT_RATIO
+                          : undefined;
+                if (next === undefined) return;
+                event.preventDefault();
+                onRatio(next);
+              }}
+              onDoubleClick={() => onRatio(DEFAULT_SPLIT_RATIO)}
+              onPointerDown={(event) => {
+                if (event.button !== 0) return;
+                event.preventDefault();
+                const handle = event.currentTarget;
+                handle.setPointerCapture?.(event.pointerId);
+                let latest = current;
+                const onMove = (move: PointerEvent): void => {
+                  latest = ratioAt(move.clientY);
+                  setDraft(latest);
+                };
+                const onUp = (): void => {
+                  handle.removeEventListener('pointermove', onMove);
+                  handle.removeEventListener('pointerup', onUp);
+                  handle.removeEventListener('pointercancel', onUp);
+                  setDraft(undefined);
+                  onRatio(latest);
+                };
+                handle.addEventListener('pointermove', onMove);
+                handle.addEventListener('pointerup', onUp);
+                handle.addEventListener('pointercancel', onUp);
+              }}
+            />
+          ) : null}
+          <ChannelSidebarEntrySection
+            entry={entry}
+            expanded
+            collapsible={false}
+            onToggle={noop}
+            entryProps={entryProps}
+          />
+        </div>
+      ))}
+    </div>
   );
 }
 

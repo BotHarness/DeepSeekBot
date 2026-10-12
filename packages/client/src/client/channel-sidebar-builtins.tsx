@@ -26,7 +26,11 @@ import {
   isGroupConversation,
 } from './group-entries.js';
 import { useClientState } from './bot-sidebar.js';
-import type { ChannelSidebarEntry, ChannelSidebarEntryProps } from './channel-sidebar.js';
+import type {
+  ChannelSidebarEntry,
+  ChannelSidebarEntryProps,
+  ChannelSidebarTab,
+} from './channel-sidebar.js';
 import { formatRelativeTime } from './labels.js';
 import { LoadingSkeleton } from './loading-skeleton.js';
 import { MemoryEntry } from './memory-entry.js';
@@ -820,6 +824,21 @@ function ModelBadge({ botSlug, actions }: ChannelSidebarEntryProps): ReactElemen
   );
 }
 
+export function createChannelSidebarBuiltinTabs(
+  t: BotHarnessTranslate,
+): readonly ChannelSidebarTab[] {
+  return [
+    {
+      id: 'conversation',
+      icon: 'messages-square',
+      label: t('tab.conversation'),
+      order: 1,
+      scope: 'personabot',
+    },
+    { id: 'memory', icon: 'files', label: t('tab.memory'), order: 2, scope: 'personabot' },
+  ];
+}
+
 export function createChannelSidebarBuiltins(
   t: BotHarnessTranslate,
   prefs?: BotModePrefs,
@@ -845,6 +864,7 @@ export function createChannelSidebarBuiltins(
   return [
     {
       id: 'memory-files',
+      tab: 'memory',
       icon: 'files',
       label: t('entry.memoryFiles'),
       order: 5,
@@ -853,6 +873,7 @@ export function createChannelSidebarBuiltins(
     },
     {
       id: 'memory-evolution',
+      tab: 'memory',
       icon: 'git-branch',
       label: t('entry.memoryEvolution'),
       order: 6,
@@ -862,6 +883,7 @@ export function createChannelSidebarBuiltins(
     },
     {
       id: 'sessions',
+      tab: 'conversation',
       icon: 'messages-square',
       label: t('entry.sessions'),
       order: 10,
@@ -871,6 +893,7 @@ export function createChannelSidebarBuiltins(
     },
     {
       id: 'bot-inbox',
+      tab: 'conversation',
       icon: 'inbox',
       label: t('entry.botInbox'),
       order: 15,

@@ -47,7 +47,10 @@ import { MobileBotPanel } from './mobile-bot-panel.js';
 import { mobileBotViewport, subscribeMobileBotViewport } from './mobile-viewport.js';
 import { clearConversationDrafts } from './conversation-draft.js';
 import { BotSidebar, createBotPanelEntry } from './bot-sidebar.js';
-import { createChannelSidebarBuiltins } from './channel-sidebar-builtins.js';
+import {
+  createChannelSidebarBuiltinTabs,
+  createChannelSidebarBuiltins,
+} from './channel-sidebar-builtins.js';
 import { webBotModeShortcut, webShortcutBlocked } from './channel-shortcuts.js';
 import { createChannelSidebarRegistry } from './channel-sidebar.js';
 import { createProfileCardBuiltins } from './profile-cards-builtins.js';
@@ -269,9 +272,12 @@ export function apply(ctx: ClientContext): void {
     let disposers: (() => void)[] = [];
     const reconcile = (): void => {
       for (const dispose of disposers) dispose();
-      disposers = createChannelSidebarBuiltins(t, prefs, nativeSessions).map((entry) =>
-        channelSidebar.register(entry),
-      );
+      disposers = [
+        ...createChannelSidebarBuiltinTabs(t).map((tab) => channelSidebar.registerTab(tab)),
+        ...createChannelSidebarBuiltins(t, prefs, nativeSessions).map((entry) =>
+          channelSidebar.register(entry),
+        ),
+      ];
     };
     reconcile();
     const unsubscribe = ctx.locale.subscribe(reconcile);
