@@ -14,13 +14,13 @@
 
 <a href="https://www.producthunt.com/products/deepseekbot?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-deepseekbot" target="_blank" rel="noopener noreferrer"><img alt="DeepSeekBot - Open-source Grok Bot alternative built on DeepSeek Harness | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1276820&amp;theme=light&amp;t=1791733459461"></a>
 
-**开源的 GrokBot 平替。一组有各自身份、人格和记忆的 bots，一起做事。**
+**DeepSeekBot（DSB）：开源的 GrokBot 平替。一组有各自身份、人格和记忆的 bots，一起做事。**
 
-[官网](https://deepseekbot.app) · [宣传片](#video) · [安装](#install) · [能力](#features) · [截图](#screenshots) · [版本亮点](#releases) · [Bot 市场](#marketplace) · [社区](#community) · [文档](https://botharness.ai)
+[官网](https://deepseekbot.app) · [宣传片](#video) · [安装](#install) · [能力](#features) · [截图](#screenshots) · [版本亮点](#releases) · [Bot 市场](#marketplace) · [社区](#community) · [与 DS Bot 的区别](#deepseek-bot-projects) · [文档](https://botharness.ai)
 
 </div>
 
-DeepSeekBot 是 BotHarness 开发的 MIT 开源 GrokBot 平替，作为 `deepseekbot` 插件安装到 [DeepSeek Harness（DSH）](https://github.com/deepseek-ai/deepseek-harness)：Bot 名册、私聊与 Group、看得见的 Git Memory、任务委派，以及 Bot 自己的 IM 身份。创建负责研究、设计或实现的 **PersonaBots**，分别私聊，或把它们带进 Group 协作；每个 Bot 保留自己的文件与历史，跨对话、Session 和 Workspace 延续。
+DeepSeekBot（简称 **DSB**，是 DeepSeekBot 的缩写，才不是“大啥比”，哼）是 BotHarness 开发的 MIT 开源 GrokBot 平替，作为 `deepseekbot` 插件安装到 [DeepSeek Harness（DSH）](https://github.com/deepseek-ai/deepseek-harness)：Bot 名册、私聊与 Group、看得见的 Git Memory、任务委派，以及 Bot 自己的 IM 身份。创建负责研究、设计或实现的 **PersonaBots**，分别私聊，或把它们带进 Group 协作；每个 Bot 保留自己的文件与历史，跨对话、Session 和 Workspace 延续。
 
 - **GrokBot 的开源平替**，MIT 开源
 - **基于 DeepSeek Harness**，你在 DSH 里接入的任何模型 provider 都能用
@@ -28,7 +28,7 @@ DeepSeekBot 是 BotHarness 开发的 MIT 开源 GrokBot 平替，作为 `deepsee
 - **连接飞书 / Lark、Slack、Discord 和微信**，Bot 用自己的身份发言
 - **定时任务与 Bot 市场**：让 Bot 按时做事，一键安装或分享别人做好的 Bot
 
-本仓库维护 **DeepSeekBot** 产品及其 BotHarness 插件层。正式品牌连写为 DeepSeekBot；模型调用使用你自己的服务商额度，持续后台任务需要运行 DSH 的宿主保持在线。
+本仓库维护 **DeepSeekBot** 产品及其 BotHarness 插件层。正式品牌连写为 DeepSeekBot，简称 DSB。它和名字很像的 DS Bot（npm `ds-bot`）是两个独立项目，区别见[下文](#deepseek-bot-projects)。模型调用使用你自己的服务商额度，持续后台任务需要运行 DSH 的宿主保持在线。
 
 <a id="video"></a>
 
@@ -76,11 +76,32 @@ dsh web
 | **更新提示**                | 安装或升级后显示这一版的更新内容；Bot 设置里能看到当前版本，检查 npm 上的新版本并一键安装、重启。                          |
 | **Computer 与 Browser use** | 开发中组件：操作共享桌面或受管浏览器，可实时观看与暂停。正式 npm 1.2.0 不含这两个 Bundle。                                 |
 
+<a id="deepseek-bot-projects"></a>
+
+## DeepSeekBot（DSB）与 DS Bot（ds-bot）：两个项目，不同重心
+
+名字很像，但这是两个独立的开源项目：都运行在 DeepSeek Harness（DSH）上，都不是 DeepSeek 公司官方产品。
+
+- **DeepSeekBot（DSB）**，即本仓库，由 BotHarness 维护：让每个 Bot 成为一位能**走出 DSH 窗口**的长期同事。重心是可审阅的 Git 记忆、Bot 自己的飞书 / Slack / Discord / 微信身份、定时任务、任务委派和 Bot 市场。
+- **DS Bot**，即 [Fei2411/DeepSeek-Bot](https://github.com/Fei2411/DeepSeek-Bot)（npm `ds-bot`，项目 README 中也写作 DeepSeek Bot）：把 **DSH 本身变成一个 Bot 聊天应用**。重心是由主 Bot「Chief」通过对话带你建好团队、群管理员默认统筹回复以控制 token 消耗，以及按时间、Bot 和模型查看用量。
+
+|             | DeepSeekBot（DSB）                                                         | DS Bot（ds-bot）                                                |
+| ----------- | -------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| 仓库        | [BotHarness/DeepSeekBot](https://github.com/BotHarness/DeepSeekBot)        | [Fei2411/DeepSeek-Bot](https://github.com/Fei2411/DeepSeek-Bot) |
+| 安装包      | npm [`deepseekbot`](https://www.npmjs.com/package/deepseekbot)             | npm [`ds-bot`](https://www.npmjs.com/package/ds-bot)            |
+| 许可        | MIT                                                                        | Apache-2.0                                                      |
+| 记忆        | 每个 Bot 一个 Git 工作树：文件、commit、diff，可推到 GitHub 在多台机器共享 | Markdown 记忆，每轮后自动审查；个人与团队两级                   |
+| 多 Bot 协作 | Group 中需要谁就 @ 谁；Assignments 委派独立任务并保留报告                  | 主 Bot 管理团队；群管理员默认回复，再按需叫其他 Bot             |
+| DSH 之外    | Bot 以自己的身份进入飞书 / Lark、Slack、Discord、微信                      | 提供 GitHub connector                                           |
+| 其他        | 定时任务、Bot 市场、Bot 导入导出、像素头像                                 | 定时任务、Usage 用量页                                          |
+
+**怎么选**：想让 Bot 在 IM 里以自己的身份工作、想用 Git 审阅和同步记忆，试试 DeepSeekBot；想在 DSH 里由主 Bot 一步步带着建团队、关注 token 用量，试试 DS Bot。两者都开源，欢迎都去读读源码：[DeepSeekBot](https://github.com/BotHarness/DeepSeekBot) · [DS Bot](https://github.com/Fei2411/DeepSeek-Bot)。更详细的对比见[官网文章](https://deepseekbot.app/blog/deepseekbot-vs-ds-bot/)。
+
 ## DeepSeek Bot 常见问题
 
 ### 这是哪个 DeepSeek Bot 项目？
 
-这里是 **BotHarness 的 DeepSeekBot**：安装包为 [`deepseekbot`](https://www.npmjs.com/package/deepseekbot)，官网为 [deepseekbot.app](https://deepseekbot.app)。FeiZhuLulu 的 [DS Bot](https://github.com/FeiZhuLulu/DeepSeek-Bot) 使用 `ds-bot`，是另一个独立项目；DS Bot 不是本产品的简称。两者均基于 DSH，均非 DeepSeek 公司官方产品。[查看 DeepSeekBot 与 DS Bot 的选型对比](https://deepseekbot.app/blog/deepseekbot-vs-ds-bot/)。
+这里是 **BotHarness 的 DeepSeekBot（DSB）**：安装包为 [`deepseekbot`](https://www.npmjs.com/package/deepseekbot)，官网为 [deepseekbot.app](https://deepseekbot.app)。DS Bot 使用 `ds-bot`，是另一个独立项目，不是本产品的简称或旧版本。两者的重心对比见[上文](#deepseek-bot-projects)。
 
 ### DeepSeekBot 只能使用 DeepSeek 模型吗？
 
@@ -286,6 +307,7 @@ apps/presentations    介绍与其他 Slides
 
 - [Grok Bot](https://x.ai/bot)：持久 Bot，以及像同事一样沟通和委派工作的产品灵感。
 - [Rakazo](https://github.com/elie222/rakazo)：持久 AI 队友、对话与记忆体验参考。
+- [DS Bot](https://github.com/Fei2411/DeepSeek-Bot)：同样运行在 DSH 上的另一个 Bot 插件，重心不同，值得一读。
 - [deepseek-harness-workbench-plugin](https://github.com/loadingvx/deepseek-harness-workbench-plugin)：Memory Git graph 分支线、提交列表与 diff 呈现参考。
 - [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)：上游插件宿主。
 - [dsh-im](https://github.com/xmanrui/dsh-im)、[dsh-lark-link](https://github.com/amlyczz/dsh-lark-link) 与 [dsh-lark-bridge](https://github.com/imetn/dsh-lark-bridge)：IM 接入基础与可靠性、路由参考。

@@ -14,13 +14,13 @@
 
 <a href="https://www.producthunt.com/products/deepseekbot?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-deepseekbot" target="_blank" rel="noopener noreferrer"><img alt="DeepSeekBot - Open-source Grok Bot alternative built on DeepSeek Harness | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1276820&amp;theme=light&amp;t=1791733459461"></a>
 
-**The open-source Grok Bot alternative. A crew of bots, each with its own identity, persona and memory, working together.**
+**DeepSeekBot (DSB): the open-source Grok Bot alternative. A crew of bots, each with its own identity, persona and memory, working together.**
 
-[Website](https://deepseekbot.app/en/) · [Video](#video) · [Install](#install) · [Features](#features) · [Screenshots](#screenshots) · [Releases](#releases) · [Bot Marketplace](#marketplace) · [Community](#community) · [Docs](https://botharness.ai)
+[Website](https://deepseekbot.app/en/) · [Video](#video) · [Install](#install) · [Features](#features) · [Screenshots](#screenshots) · [Releases](#releases) · [Bot Marketplace](#marketplace) · [Community](#community) · [vs. DS Bot](#deepseek-bot-projects) · [Docs](https://botharness.ai)
 
 </div>
 
-DeepSeekBot is BotHarness’s MIT-licensed, open-source Grok Bot alternative for [DeepSeek Harness (DSH)](https://github.com/deepseek-ai/deepseek-harness). Install the `deepseekbot` plugin for a Bot roster, DMs and Groups, Git Memory you can see, delegation, and IM identities of the Bots' own. Create **PersonaBots** for research, design or engineering; talk to them one to one or bring them into a Group. Each Bot keeps its own files and history across conversations, Sessions and Workspaces.
+DeepSeekBot (**DSB** for short) is BotHarness’s MIT-licensed, open-source Grok Bot alternative for [DeepSeek Harness (DSH)](https://github.com/deepseek-ai/deepseek-harness). Install the `deepseekbot` plugin for a Bot roster, DMs and Groups, Git Memory you can see, delegation, and IM identities of the Bots' own. Create **PersonaBots** for research, design or engineering; talk to them one to one or bring them into a Group. Each Bot keeps its own files and history across conversations, Sessions and Workspaces.
 
 - **Open-source Grok Bot alternative**, MIT licensed
 - **Built on DeepSeek Harness**: any model provider you connect in DSH works
@@ -28,7 +28,7 @@ DeepSeekBot is BotHarness’s MIT-licensed, open-source Grok Bot alternative for
 - **Lark / Feishu, Slack, Discord and WeChat**: Bots speak under their own identity
 - **Schedules and a Bot Marketplace**: Bots that do things on time, and Bots you can install or share in one click
 
-This repository maintains **DeepSeekBot** and its BotHarness plugin layer. The brand is written as DeepSeekBot, one word. Model calls use your own provider quota, and ongoing background tasks require the machine running DSH to stay online.
+This repository maintains **DeepSeekBot** and its BotHarness plugin layer. The brand is written as DeepSeekBot, one word, short name DSB. It is a different project from the similarly named DS Bot (npm `ds-bot`); see [how they differ](#deepseek-bot-projects). Model calls use your own provider quota, and ongoing background tasks require the machine running DSH to stay online.
 
 <a id="video"></a>
 
@@ -76,11 +76,32 @@ Open **Bot mode**, follow the first-time guide to create a PersonaBot and comple
 | **Update notes**             | After an install or update, Bot mode shows what changed; Bot settings show your version, check npm for a newer one, and install it and restart in one click. |
 | **Computer and Browser use** | Development components: drive a shared desktop or managed browser with a live view and pause controls. The npm 1.2.0 package does not include these Bundles. |
 
+<a id="deepseek-bot-projects"></a>
+
+## DeepSeekBot (DSB) and DS Bot (ds-bot): two projects, different focus
+
+The names are close, but these are two independent open-source projects. Both run on DeepSeek Harness (DSH), and neither is an official DeepSeek product.
+
+- **DeepSeekBot (DSB)**, this repository, by BotHarness, makes each Bot a long-lived colleague that **works beyond the DSH window**: Git memory you can review, the Bot's own Lark / Slack / Discord / WeChat identity, schedules, delegated Assignments and a Bot Marketplace.
+- **DS Bot**, [Fei2411/DeepSeek-Bot](https://github.com/Fei2411/DeepSeek-Bot) (npm `ds-bot`, also written DeepSeek Bot in its README), **turns DSH itself into a bot chat app**: a main Bot, Chief, sets up your team through conversation, a group admin answers first to keep token use down, and a Usage page shows tokens by time, Bot and model.
+
+|              | DeepSeekBot (DSB)                                                                                  | DS Bot (ds-bot)                                                                       |
+| ------------ | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Repository   | [BotHarness/DeepSeekBot](https://github.com/BotHarness/DeepSeekBot)                                | [Fei2411/DeepSeek-Bot](https://github.com/Fei2411/DeepSeek-Bot)                       |
+| Package      | npm [`deepseekbot`](https://www.npmjs.com/package/deepseekbot)                                     | npm [`ds-bot`](https://www.npmjs.com/package/ds-bot)                                  |
+| License      | MIT                                                                                                | Apache-2.0                                                                            |
+| Memory       | One Git working tree per Bot: files, commits and diffs; push to GitHub to share it across machines | Markdown memory reviewed after each turn; personal and team levels                    |
+| Several Bots | @ whoever you need in a Group; Assignments delegate separate tasks with their own reports          | A main Bot manages the team; a group admin answers by default and calls in other Bots |
+| Beyond DSH   | Bots join Lark / Feishu, Slack, Discord and WeChat under their own identity                        | GitHub connector                                                                      |
+| Also         | Schedules, Bot Marketplace, Bot import and export, pixel avatars                                   | Schedules, Usage page                                                                 |
+
+**Which one?** If you want Bots to work in your IM under their own identity, or to review and sync memory with Git, try DeepSeekBot. If you want a main Bot to walk you through building a team inside DSH and keep an eye on token use, try DS Bot. Both are open source, so read both codebases: [DeepSeekBot](https://github.com/BotHarness/DeepSeekBot) · [DS Bot](https://github.com/Fei2411/DeepSeek-Bot). For a longer comparison, see [the article on our website](https://deepseekbot.app/en/blog/deepseekbot-vs-ds-bot/).
+
 ## DeepSeek Bot FAQ
 
 ### Which DeepSeek Bot project is this?
 
-This is **DeepSeekBot by BotHarness**: npm package [`deepseekbot`](https://www.npmjs.com/package/deepseekbot), website [deepseekbot.app](https://deepseekbot.app/en/). [DS Bot by FeiZhuLulu](https://github.com/FeiZhuLulu/DeepSeek-Bot) uses `ds-bot` and is a separate project; DS Bot is not a short name for this product. Both run on DSH and are independent of DeepSeek. [Compare DeepSeekBot and DS Bot](https://deepseekbot.app/en/blog/deepseekbot-vs-ds-bot/).
+This is **DeepSeekBot (DSB) by BotHarness**: npm package [`deepseekbot`](https://www.npmjs.com/package/deepseekbot), website [deepseekbot.app](https://deepseekbot.app/en/). DS Bot uses `ds-bot` and is a separate project, not a short name or an older version of this one. See [how the two differ](#deepseek-bot-projects).
 
 ### Does DeepSeekBot require DeepSeek models?
 
@@ -286,6 +307,7 @@ Questions, ideas and the Bots you build are all welcome.
 
 - [Grok Bot](https://x.ai/bot): persistent Bots that people can message and delegate work to like teammates.
 - [Rakazo](https://github.com/elie222/rakazo): persistent AI teammates, conversations, and memory.
+- [DS Bot](https://github.com/Fei2411/DeepSeek-Bot): another Bot plugin for DSH with a different focus, worth a read.
 - [deepseek-harness-workbench-plugin](https://github.com/loadingvx/deepseek-harness-workbench-plugin): Memory Git graph rails, commit lists, and diff presentation.
 - [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness): the upstream plugin host.
 - [dsh-im](https://github.com/xmanrui/dsh-im), [dsh-lark-link](https://github.com/amlyczz/dsh-lark-link), and [dsh-lark-bridge](https://github.com/imetn/dsh-lark-bridge): IM integration foundations and reliability/routing references.
