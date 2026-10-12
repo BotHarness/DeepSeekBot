@@ -3317,6 +3317,12 @@ button.bh-profile-heat-cell:focus-visible {
 .bh-usage-legend i[data-series="uncached"] { background: var(--bh-chart-read-dim); }
 .bh-usage-legend i[data-series="output"] { background: var(--bh-chart-output); }
 .bh-usage-legend i[data-series="unclassified"] { background: var(--dsw-alias-label-tertiary); }
+.bh-usage-tone-legend { gap: 12px; font-weight: 400; }
+.bh-usage-tone-legend i { background: var(--dsw-alias-label-primary); }
+.bh-usage-tone-legend i[data-tone="uncached"] { opacity: 0.62; }
+.bh-usage-tone-legend i[data-tone="output"] { opacity: 0.36; }
+.bh-usage-identity-chart { min-width: 0; }
+.bh-usage-identity-marker { display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 2px; }
 .bh-usage-details summary { cursor: pointer; padding: 12px 0; color: var(--dsw-alias-label-secondary); }
 .bh-usage-details summary:hover, .bh-usage-details summary:focus-visible { color: var(--dsw-alias-label-primary); }
 .bh-usage-details > div { display: grid; gap: 12px; }

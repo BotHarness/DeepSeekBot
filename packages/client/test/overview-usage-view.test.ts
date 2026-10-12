@@ -4,9 +4,20 @@ import { act, createElement, type ButtonHTMLAttributes, type ReactNode } from 'r
 import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 vi.mock('../src/client/model-usage-charts.js', () => ({
-  UsageChart: ({ rows }: { rows: Array<{ key: string }> }) =>
-    createElement('div', { 'data-trend': rows.length }),
+  UsageChart: ({
+    rows,
+    kind,
+  }: {
+    rows: Array<{ key: string; identityColor?: string }>;
+    kind: string;
+  }) =>
+    createElement('div', {
+      'data-trend': rows.length,
+      'data-chart-kind': kind,
+      'data-identity': rows.map((row) => `${row.key}=${row.identityColor ?? ''}`).join(','),
+    }),
   UsageLegend: () => null,
+  UsageToneLegend: () => createElement('div', { 'data-tone-legend': '' }),
   UsageMeasures: () => null,
 }));
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
@@ -91,6 +102,13 @@ it('switches to seven days, opens Bot Profile and disposes read-only polling', a
     expect(name.dataset['botNameSource']).toBe('#e2b04a');
     expect(name.dataset['botNameColor']).toBe(botNameColor('#e2b04a', '#ffffff'));
     expect(name.style.color).not.toBe('');
+    expect(container.querySelector('[data-chart-kind=model]')?.getAttribute('data-identity')).toBe(
+      'ada=#e2b04a',
+    );
+    expect(
+      container.querySelector('[data-chart-kind=daily]')?.getAttribute('data-identity'),
+    ).not.toContain('#');
+    expect(container.querySelectorAll('[data-tone-legend]')).toHaveLength(1);
     expect(container.querySelector('[data-trend]')?.getAttribute('data-trend')).toBe('1');
     await act(async () =>
       container.querySelector<HTMLButtonElement>('[data-usage-period=week]')!.click(),

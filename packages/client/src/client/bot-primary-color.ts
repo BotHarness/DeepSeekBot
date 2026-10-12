@@ -118,14 +118,14 @@ function inGamut(lightness: number, chroma: number, hue: number): Rgb {
   return fromOklch(lightness, low, hue) ?? [0, 0, 0];
 }
 
-export function botNameColor(source: string, background: string): string {
+function readable(source: string, background: string, minimum: number): string {
   const from = parseColor(source)?.rgb;
   const surface = parseColor(background)?.rgb;
   if (from === undefined || surface === undefined) return source;
-  if (contrastRatio(from, surface) >= NAME_TARGET) return toHex(from);
+  if (contrastRatio(from, surface) >= minimum) return toHex(from);
   const [lightness, chroma, hue] = toOklch(from);
   const at = (target: number): Rgb => parseColor(toHex(inGamut(target, chroma, hue)))?.rgb ?? from;
-  const reads = (target: number): boolean => contrastRatio(at(target), surface) >= NAME_TARGET;
+  const reads = (target: number): boolean => contrastRatio(at(target), surface) >= minimum;
   const reach = (target: number): Rgb | undefined => {
     if (!reads(target)) return undefined;
     let near = lightness;
@@ -140,6 +140,31 @@ export function botNameColor(source: string, background: string): string {
   const preferred = luminance(surface) > 0.18 ? 0 : 1;
   const adjusted = reach(preferred) ?? reach(1 - preferred);
   return adjusted === undefined ? toHex(from) : toHex(adjusted);
+}
+
+export function botNameColor(source: string, background: string): string {
+  return readable(source, background, NAME_TARGET);
+}
+
+export const CHART_CONTRAST = 3;
+export const CHART_TONE_LEVELS = { cached: 1, uncached: 0.62, output: 0.36 } as const;
+export type ChartTone = keyof typeof CHART_TONE_LEVELS;
+
+export function botChartColor(source: string, background: string): string {
+  return readable(source, background, CHART_CONTRAST + 0.1);
+}
+
+export function botChartTones(source: string, background: string): Record<ChartTone, string> {
+  const base = parseColor(botChartColor(source, background))?.rgb;
+  const surface = parseColor(background)?.rgb;
+  if (base === undefined || surface === undefined)
+    return { cached: source, uncached: source, output: source };
+  const tone = (level: number): string => toHex(blend(base, level, surface));
+  return {
+    cached: tone(CHART_TONE_LEVELS.cached),
+    uncached: tone(CHART_TONE_LEVELS.uncached),
+    output: tone(CHART_TONE_LEVELS.output),
+  };
 }
 
 export function botPresentationSubject(

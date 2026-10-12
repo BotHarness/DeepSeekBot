@@ -1,4 +1,4 @@
-import { useMemo, type ReactElement } from 'react';
+import { useMemo, useState, type ReactElement } from 'react';
 
 import { barX, barY, defineChart, dot, stack } from '@tanstack/charts';
 import { scaleLinear } from '@tanstack/charts/scales/linear';
@@ -8,11 +8,18 @@ import { Chart } from '@tanstack/charts/react/tooltip';
 
 import type { ProfileModelUsageRow } from './bridge.js';
 import type { BotHarnessTranslate } from './locale.js';
+import {
+  botChartTones,
+  REFERENCE_SURFACES,
+  renderedBackground,
+  type ChartTone,
+} from './bot-primary-color.js';
 import { useProfileChartTokens } from './profile-chart-theme.js';
 
 export type UsageSummary = Omit<ProfileModelUsageRow, 'day' | 'purpose' | 'provider' | 'model'> & {
   key: string;
   label: string;
+  identityColor?: string;
 };
 type UsageSeries = 'cached' | 'uncached' | 'output' | 'unclassified';
 type ChartDatum = UsageSummary & { series?: UsageSeries; tokens?: number; ratio?: number };
@@ -125,10 +132,28 @@ function segments(rows: UsageSummary[]): ChartDatum[] {
         },
         { ...row, series: 'output' as const, tokens: row.outputTokens },
       ];
-    return row.totalTokens === null
-      ? []
-      : [{ ...row, series: 'unclassified' as const, tokens: row.totalTokens }];
+    return [{ ...row, series: 'unclassified' as const, tokens: row.totalTokens ?? 0 }];
   });
+}
+
+export function UsageToneLegend({ t }: { t: BotHarnessTranslate }): ReactElement {
+  return (
+    <div className="bh-usage-legend bh-usage-tone-legend">
+      <span>{t('overviewUsage.botTones')}</span>
+      <span>
+        <i data-tone="cached" />
+        {t('profile.usage.cacheRead')}
+      </span>
+      <span>
+        <i data-tone="uncached" />
+        {t('profile.usage.otherInput')}
+      </span>
+      <span>
+        <i data-tone="output" />
+        {t('profile.tokens.output')}
+      </span>
+    </div>
+  );
 }
 
 export function UsageChart({
@@ -143,6 +168,25 @@ export function UsageChart({
   label: string;
 }): ReactElement {
   const colors = useProfileChartTokens();
+  const [host, setHost] = useState<HTMLDivElement | null>(null);
+  const identity = kind === 'model' && rows.some((row) => row.identityColor !== undefined);
+  const tones = useMemo(() => {
+    if (!identity) return undefined;
+    const surface =
+      (host === null ? undefined : renderedBackground(host)) ??
+      REFERENCE_SURFACES[
+        typeof document !== 'undefined' && document.body.hasAttribute('data-ds-dark-theme')
+          ? 'dark'
+          : 'light'
+      ].background;
+    return new Map(
+      rows.flatMap((row) =>
+        row.identityColor === undefined
+          ? []
+          : [[row.key, botChartTones(row.identityColor, surface)] as const],
+      ),
+    );
+  }, [identity, host, rows, colors]);
   const definition = useMemo(() => {
     const theme = {
       foreground: colors.foreground,
@@ -186,7 +230,17 @@ export function UsageChart({
                 x: 'tokens',
                 y: 'key',
                 z: 'series',
-                color: 'series',
+                ...(tones === undefined
+                  ? { color: 'series' as const }
+                  : {
+                      fill: (datum: ChartDatum) =>
+                        (datum.series === undefined || datum.series === 'unclassified'
+                          ? undefined
+                          : tones.get(datum.key)?.[datum.series as ChartTone]) ??
+                        (datum.series === 'unclassified'
+                          ? colors.muted
+                          : colors[datum.series ?? 'cached']),
+                    }),
                 layout: stack({ order: ['cached', 'uncached', 'output', 'unclassified'] }),
                 radius: 2,
                 maxThickness: 18,
@@ -214,8 +268,8 @@ export function UsageChart({
       tooltip,
       theme,
     });
-  }, [colors, rows, kind]);
-  return (
+  }, [colors, rows, kind, tones]);
+  const chart = (
     <Chart
       definition={definition}
       ariaLabel={label}
@@ -226,7 +280,16 @@ export function UsageChart({
         const row = rows.find((entry) => entry.key === datum?.key);
         return row === undefined ? null : (
           <div className="bh-profile-chart-tip">
-            <strong>{row.label}</strong>
+            <strong>
+              {tones?.get(row.key) === undefined ? null : (
+                <i
+                  className="bh-usage-identity-marker"
+                  data-usage-identity={row.key}
+                  style={{ background: tones.get(row.key)!.cached }}
+                />
+              )}
+              {row.label}
+            </strong>
             <span>
               {t('profile.usage.total')}: {count(row.totalTokens, t)} tokens
             </span>
@@ -240,5 +303,20 @@ export function UsageChart({
         );
       }}
     />
+  );
+  return identity ? (
+    <div
+      ref={setHost}
+      className="bh-usage-identity-chart"
+      data-usage-tones={
+        tones === undefined
+          ? undefined
+          : JSON.stringify(Object.fromEntries([...tones].map(([key, value]) => [key, value])))
+      }
+    >
+      {chart}
+    </div>
+  ) : (
+    chart
   );
 }
