@@ -223,7 +223,7 @@ Pixel Avatars can be an elf, dwarf, orc or talking flower with beards, medieval 
 
 ### Documentation
 
-- Both READMEs add a section comparing DeepSeekBot (short name DSB) with the separate DS Bot (npm `ds-bot`) project: each project's focus, a fact table, which one to try and links to both codebases ([#1516](https://github.com/BotHarness/DeepSeekBot/pull/1516)).
+- Both READMEs are shorter and user-focused: the video and pixel avatars come first, installation and the Bot Marketplace link to the website, features sit in one table (including Slack, Discord, Lark / Feishu, QQ and WeChat, and computer and browser use), and a new section compares DeepSeekBot (short name DSB) with the separate DS Bot (npm `ds-bot`) project ([#1516](https://github.com/BotHarness/DeepSeekBot/pull/1516)).
 
 - Updated the bilingual GitHub README for released 1.2.0 and 1.2.1 highlights, installation compatibility and the current app-binding path; removed the outdated unreleased preview ([#1464](https://github.com/BotHarness/DeepSeekBot/issues/1464)).
 
