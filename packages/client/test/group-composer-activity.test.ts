@@ -79,19 +79,18 @@ const information: PersonaBotFacepileItem = {
 };
 const quiet: PersonaBotFacepileItem = { personaBotId: 'quiet', name: 'Quiet', state: 'idle' };
 
-it('orders active members consistently before independent attention and preserves Host facts', () => {
+it('orders active members consistently and leaves informational-only members out', () => {
   const members = [quiet, information, thinking, working];
   const first = groupComposerActivity(members, zhTranslate);
   const shuffled = groupComposerActivity([working, thinking, information, quiet], zhTranslate);
   expect(first).toEqual(shuffled);
-  expect(first?.items.map((item) => item.personaBotId)).toEqual(['nova', 'orbit', 'info']);
+  expect(first?.items.map((item) => item.personaBotId)).toEqual(['nova', 'orbit']);
   expect(first?.items[0]).toBe(working);
-  expect(first?.items[2]).toBe(information);
   expect(information.state).toBe('idle');
   expect(members).toEqual([quiet, information, thinking, working]);
   expect(first?.summary).toContain('Nova <QA> 正在执行');
   expect(first?.summary).toContain('Orbit 正在思考');
-  expect(first?.summary).toContain('另有 1 个');
+  expect(first?.summary).not.toContain('Info');
   expect(first?.summary).not.toContain('Session-only');
 });
 
@@ -103,9 +102,9 @@ it('does not present idle members or empty attention metadata as running work', 
     ),
   ).toBeUndefined();
   expect(groupComposerActivity([], zhTranslate)).toBeUndefined();
-  const result = groupComposerActivity([information], zhTranslate);
-  expect(result?.items[0]?.state).toBe('idle');
-  expect(result?.summary).toContain('Info');
+  expect(groupComposerActivity([information], zhTranslate)).toBeUndefined();
+  const approval = { ...information, attention: { approvalCount: 1, informationalCount: 1 } };
+  expect(groupComposerActivity([approval], zhTranslate)?.items).toEqual([approval]);
 });
 
 it('renders one named row per Bot from its shared aggregate instead of flattening Sessions', () => {

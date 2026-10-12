@@ -1,5 +1,5 @@
 import { useState, type ReactElement } from 'react';
-import { Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Button, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import { ApprovalSettings } from './approval-settings.js';
 import { useClientState } from './bot-sidebar.js';
@@ -173,7 +173,15 @@ function IdentitiesForBot({
         onClose={() => setPanel(undefined)}
         title={t('approvalIm.title')}
         closeLabel={t('common.close')}
-        className="bh-sidebar-modal bh-external-panel-modal"
+        className="bh-sidebar-modal bh-external-panel-modal bh-management-modal"
+        contentClassName="bh-management-content"
+        footer={
+          <div className="bh-modal-footer">
+            <Button size="sm" variant="toolbar" onClick={() => setPanel(undefined)}>
+              {t('common.close')}
+            </Button>
+          </div>
+        }
       >
         <ApprovalSettings
           key={`approval-${snapshot?.approvals?.routeRevision ?? 0}`}
@@ -188,6 +196,13 @@ function IdentitiesForBot({
           retry={(id) => operate(() => actions.approvalRetry(slug, id), 'approval')}
           refresh={() => operate(async () => undefined, 'approval')}
           openSession={actions.openSession}
+          failureAlerts={{
+            ...(snapshot?.failureAlerts ? { snapshot: snapshot.failureAlerts } : {}),
+            save: (enabled, revision) =>
+              operate(() => actions.failureAlertsSet(slug, enabled, revision), 'approval'),
+            test: () => operate(() => actions.failureAlertsTest(slug), 'approval'),
+            retry: (id) => operate(() => actions.failureAlertsRetry(slug, id), 'approval'),
+          }}
         />
       </Modal>
     </div>

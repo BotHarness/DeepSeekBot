@@ -1154,6 +1154,10 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
         'messageId',
         'senderId',
       ].every((key) => typeof origin[key] === 'string' && origin[key].length > 0) ||
+      ['accountRef', 'accountName'].some(
+        (key) =>
+          origin[key] !== undefined && (typeof origin[key] !== 'string' || !origin[key].trim()),
+      ) ||
       (origin['threadId'] !== undefined &&
         (typeof origin['threadId'] !== 'string' || origin['threadId'].length === 0))
     )
@@ -1166,22 +1170,41 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
     if (
       !bridgeOrigin ||
       !media ||
-      Object.keys(media).some((key) => !['items', 'parts'].includes(key)) ||
+      Object.keys(media).some((key) => !['items', 'parts', 'voice'].includes(key)) ||
       !Array.isArray(media['items']) ||
       media['items'].length > 32
     )
       return;
+    if (media['voice'] !== undefined) {
+      const voice = asRecord(media['voice']);
+      if (
+        bridgeOrigin.platform !== 'qq' ||
+        !voice ||
+        Object.keys(voice).some((key) => !['transcript', 'durationMs'].includes(key)) ||
+        (voice['transcript'] !== 'platform' && voice['transcript'] !== 'unavailable') ||
+        (voice['durationMs'] !== undefined &&
+          (typeof voice['durationMs'] !== 'number' ||
+            !Number.isSafeInteger(voice['durationMs']) ||
+            voice['durationMs'] < 0))
+      )
+        return;
+    }
     const ids = new Set<string>();
     for (const raw of media['items']) {
       const item = asRecord(raw);
       if (
         !item ||
-        item['kind'] !== 'image' ||
+        (item['kind'] === 'audio' && !media['voice']) ||
+        (item['kind'] !== 'image' && item['kind'] !== 'file' && item['kind'] !== 'audio') ||
         typeof item['id'] !== 'string' ||
         !/^[a-f0-9]{64}$/.test(item['id']) ||
         typeof item['name'] !== 'string' ||
         ids.has(item['id']) ||
-        Object.keys(item).some((key) => !['id', 'kind', 'name'].includes(key))
+        (item['sizeBytes'] !== undefined &&
+          (typeof item['sizeBytes'] !== 'number' ||
+            !Number.isSafeInteger(item['sizeBytes']) ||
+            item['sizeBytes'] < 0)) ||
+        Object.keys(item).some((key) => !['id', 'kind', 'name', 'sizeBytes'].includes(key))
       )
         return;
       ids.add(item['id']);
@@ -3250,7 +3273,7 @@ export interface GroupProfileAuthorActivity {
   author: ChannelAuthor;
   bridgeOrigin?: Pick<
     NonNullable<ChannelMessage['bridgeOrigin']>,
-    'platform' | 'conversationId' | 'conversationName'
+    'platform' | 'conversationId' | 'conversationName' | 'accountRef' | 'accountName'
   >;
   total: number;
   days: ProfileActivityDay[];
@@ -3654,7 +3677,11 @@ export async function loadGroupProfileActivity(
           (asRecord(entry['bridgeOrigin']) !== undefined &&
             ['platform', 'conversationId', 'conversationName'].every(
               (key) => typeof asRecord(entry['bridgeOrigin'])![key] === 'string',
-            )))
+            ) &&
+            ['accountRef', 'accountName'].every((key) => {
+              const value = asRecord(entry['bridgeOrigin'])![key];
+              return value === undefined || (typeof value === 'string' && value.trim().length > 0);
+            })))
       );
     })
   )
@@ -3941,6 +3968,25 @@ export async function retryApprovalNotification(
   id: string,
 ): Promise<void> {
   await unwrap(call, 'approvalRetry', { slug, id });
+}
+
+export async function setFailureAlerts(
+  call: BridgeCall,
+  slug: string,
+  enabled: boolean,
+  expectedRevision: number,
+): Promise<void> {
+  await unwrap(call, 'failureAlertsSet', { slug, enabled, expectedRevision });
+}
+export async function testFailureAlerts(call: BridgeCall, slug: string): Promise<void> {
+  await unwrap(call, 'failureAlertsTest', { slug });
+}
+export async function retryFailureAlerts(
+  call: BridgeCall,
+  slug: string,
+  id: string,
+): Promise<void> {
+  await unwrap(call, 'failureAlertsRetry', { slug, id });
 }
 
 export async function reviewPairing(

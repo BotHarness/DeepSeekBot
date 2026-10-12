@@ -2,6 +2,7 @@ import { useState, type ReactElement } from 'react';
 import type { BridgeActions } from './actions.js';
 import type { MemoryGitCommitDiff } from './bridge.js';
 import type { BotHarnessTranslate } from './locale.js';
+import { MemoryCurrentFileOpenButton } from './memory-file-actions.js';
 import {
   MemoryDiffFile,
   MemoryViewIconButton,
@@ -13,12 +14,14 @@ export function MemoryCommitView({
   actions,
   channelId,
   sha,
+  botSlug,
   onClose,
   t,
 }: {
   actions: BridgeActions;
   channelId: string;
   sha: string;
+  botSlug?: string | undefined;
   onClose: () => void;
   t: BotHarnessTranslate;
 }): ReactElement {
@@ -80,6 +83,17 @@ export function MemoryCommitView({
               emptyLabel={t('memory.noTextDiff')}
               oldLineLabel={t('memory.oldLine')}
               newLineLabel={t('memory.newLine')}
+              action={
+                botSlug === undefined ? undefined : (
+                  <MemoryCurrentFileOpenButton
+                    actions={actions}
+                    slug={botSlug}
+                    path={file.path}
+                    deletion={file.status === 'D' ? 'commit' : undefined}
+                    t={t}
+                  />
+                )
+              }
             />
           ))}
         </>

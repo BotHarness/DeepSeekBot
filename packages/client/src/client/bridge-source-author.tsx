@@ -20,6 +20,8 @@ export function BridgeSourceDetails({
 }): ReactElement {
   const rows = [
     [t('im.platformLabel'), externalPlatformLabel(origin.platform, t)],
+    ...(origin.accountName ? [[t('im.receivingApp'), origin.accountName]] : []),
+    ...(origin.accountRef ? [[t('im.receivingAppRef'), origin.accountRef]] : []),
     [t('im.conversationLabel'), origin.conversationName],
     [t('im.conversationId'), origin.conversationId],
     ...(origin.senderName ? [[t('im.senderNameLabel'), origin.senderName]] : []),

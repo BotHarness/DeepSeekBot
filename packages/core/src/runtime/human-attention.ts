@@ -760,6 +760,10 @@ SELECT 'handled:' || request.source_event_id AS id,
                  sum(kind = 'assignment-report') AS informationalCount
             FROM attention
            WHERE kind IN ('assignment-waiting-human', 'assignment-blocked', 'workspace-grant-request', 'assignment-report')
+             AND NOT (kind = 'assignment-report' AND EXISTS (SELECT 1 FROM inbox_admissions handled
+               WHERE handled.source_event_id = attention.source_event_id
+                 AND handled.bot_slug = attention.bot_slug
+                 AND handled.attempt_state = 'handled'))
              AND NOT EXISTS (SELECT 1 FROM human_inbox_dismissals d
                WHERE d.human_id = '${LOCAL_HUMAN_ID}' AND d.item_id = attention.id
                  AND d.source_key = coalesce(attention.source_event_id, ''))

@@ -83,6 +83,7 @@ import {
   TimelineWorkingRowsView,
 } from './timeline-working-rows.js';
 import { groupComposerActivity } from './group-composer-activity.js';
+import { attentionCount } from './activity-attention.js';
 import {
   EMPTY_PROFILE_CARDS,
   loadPinnedProfileCards,
@@ -782,7 +783,7 @@ function ConversationView({
   const composerFacepile: PersonaBotFacepileItem[] =
     bot === undefined
       ? activeFacepile
-      : botActivity === undefined || (botActivity === 'idle' && bot.attention === undefined)
+      : botActivity === undefined || (botActivity === 'idle' && attentionCount(bot.attention) === 0)
         ? []
         : [
             {
@@ -1510,6 +1511,7 @@ function ConversationView({
                   actions={actions}
                   channelId={channelId}
                   sha={activeMemoryView.sha}
+                  botSlug={channel?.botSlug}
                   t={t}
                   onClose={closeMemoryView}
                 />
@@ -1529,6 +1531,7 @@ function ConversationView({
                   actions={actions}
                   channelId={channelId}
                   change={activeMemoryView.change}
+                  botSlug={channel?.botSlug}
                   t={t}
                   onClose={closeMemoryView}
                 />

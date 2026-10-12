@@ -30,14 +30,25 @@ export function sessionStateForEvent(event: DshSessionEvent): SessionState | und
   }
 }
 
+function outsideClosedTurn(turnOpen: boolean | undefined, event: DshSessionEvent): boolean {
+  return turnOpen === false && event.type !== 'turn/start' && event.type !== 'turn/end';
+}
+
+function nextTurnOpen(turnOpen: boolean | undefined, event: DshSessionEvent): boolean | undefined {
+  if (event.type === 'turn/start') return true;
+  if (event.type === 'turn/end') return false;
+  return turnOpen;
+}
+
 export function deriveSessionState(events: readonly DshSessionEvent[]): SessionState | undefined {
-  for (let index = events.length - 1; index >= 0; index -= 1) {
-    const event = events[index];
-    if (event === undefined) continue;
-    const state = sessionStateForEvent(event);
-    if (state !== undefined) return state;
+  let state: SessionState | undefined;
+  let turnOpen: boolean | undefined;
+  for (const event of events) {
+    const next = outsideClosedTurn(turnOpen, event) ? undefined : sessionStateForEvent(event);
+    turnOpen = nextTurnOpen(turnOpen, event);
+    if (next !== undefined) state = next;
   }
-  return undefined;
+  return state;
 }
 
 export interface DshActivitySessionHeader {
@@ -84,6 +95,7 @@ export function createDshActivityProjection(options: {
   const now = options.now ?? (() => new Date());
 
   const names = new Map<string, string>();
+  const turnOpen = new Map<string, boolean>();
   const pending = new Map<string, Map<string, PersonaBotToolActivity>>();
   const project = (sessionId: string, event: DshSessionEvent): SessionState | undefined => {
     if (event.type === 'session/title') {
@@ -95,6 +107,10 @@ export function createDshActivityProjection(options: {
       else names.delete(sessionId);
     }
     const detailRef = options.details?.observe(sessionId, event);
+    const open = turnOpen.get(sessionId);
+    const next = nextTurnOpen(open, event);
+    if (next !== undefined) turnOpen.set(sessionId, next);
+    if (outsideClosedTurn(open, event)) return undefined;
     const state = sessionStateForEvent(event);
     if (state === undefined) return undefined;
     let calls = pending.get(sessionId);
@@ -213,6 +229,7 @@ export function createDshActivityProjection(options: {
       options.details?.revokeSession(sessionId);
       pending.delete(sessionId);
       names.delete(sessionId);
+      turnOpen.delete(sessionId);
       states.clearSession(owner.botSlug, sessionId);
     },
     rebuild(sessions) {
@@ -239,6 +256,7 @@ export function createDshActivityProjection(options: {
         }
         pending.delete(session.id);
         names.delete(session.id);
+        turnOpen.delete(session.id);
         let state: SessionState | undefined;
         for (const event of session.snapshotEvents()) state = project(session.id, event) ?? state;
         if (state === undefined) continue;

@@ -407,6 +407,17 @@ export interface BridgeMethods {
   onboardingModel(payload: unknown): Promise<BridgeResult<{ revision: number }>>;
   channelRetry(payload: unknown): Promise<BridgeResult<{ accepted: true }>>;
   approvalRoute(payload: unknown): Promise<BridgeResult<{ updated: true }>>;
+  failureAlertsSet(payload: unknown): Promise<BridgeResult<{ updated: true }>>;
+  failureAlertsTest(
+    payload: unknown,
+  ): Promise<
+    BridgeResult<{ delivery: import('../messaging/failure-alerts.js').FailureAlertDelivery }>
+  >;
+  failureAlertsRetry(
+    payload: unknown,
+  ): Promise<
+    BridgeResult<{ delivery: import('../messaging/failure-alerts.js').FailureAlertDelivery }>
+  >;
   approvalTest(
     payload: unknown,
   ): Promise<
@@ -1230,6 +1241,41 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (!input.success) return Promise.resolve(invalidInput('Invalid external source'));
       return messagingCall(async (service) => ({
         source: service.inbound.read(input.data.slug, input.data.sourceEventId),
+      }));
+    },
+    failureAlertsSet(payload) {
+      const input = z
+        .object({
+          slug: z.string().min(1),
+          enabled: z.boolean(),
+          expectedRevision: z.number().int().nonnegative(),
+        })
+        .strict()
+        .safeParse(payload);
+      if (!input.success) return Promise.resolve(invalidInput('Invalid failure-alert settings'));
+      return messagingCall(async (service) => {
+        service.failureAlerts.set(input.data.slug, input.data.enabled, input.data.expectedRevision);
+        return { updated: true as const };
+      });
+    },
+    failureAlertsTest(payload) {
+      const input = z
+        .object({ slug: z.string().min(1) })
+        .strict()
+        .safeParse(payload);
+      if (!input.success) return Promise.resolve(invalidInput('Invalid Bot'));
+      return messagingCall(async (service) => ({
+        delivery: await service.failureAlerts.test(input.data.slug),
+      }));
+    },
+    failureAlertsRetry(payload) {
+      const input = z
+        .object({ slug: z.string().min(1), id: z.string().uuid() })
+        .strict()
+        .safeParse(payload);
+      if (!input.success) return Promise.resolve(invalidInput('Invalid notification'));
+      return messagingCall(async (service) => ({
+        delivery: await service.failureAlerts.retry(input.data.slug, input.data.id),
       }));
     },
     approvalRoute(payload) {

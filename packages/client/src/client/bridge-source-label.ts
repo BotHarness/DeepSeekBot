@@ -10,10 +10,12 @@ export function externalPlatformLabel(platform: string, t: BotHarnessTranslate):
 }
 
 export function bridgeSourceLabel(
-  origin: { platform: string; conversationName: string },
+  origin: { platform: string; conversationName: string; accountName?: string },
   t: BotHarnessTranslate,
 ): string {
   const platform = externalPlatformLabel(origin.platform, t);
+  if (origin.platform === 'qq' && origin.accountName?.trim())
+    return `${platform} · ${origin.accountName} · ${origin.conversationName}`;
   return `${platform} ${origin.conversationName}`;
 }
 

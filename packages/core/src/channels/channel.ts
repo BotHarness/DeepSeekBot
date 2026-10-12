@@ -264,12 +264,15 @@ export interface ChannelMessage {
   privateInputResolution?: PrivateInputResolution;
   attachments?: ChannelAttachmentRef[];
   bridgeMedia?: {
-    items: { id: string; kind: 'image'; name: string }[];
+    voice?: Pick<import('../messaging/provider.js').MessagingVoice, 'transcript' | 'durationMs'>;
+    items: { id: string; kind: 'image' | 'file' | 'audio'; name: string; sizeBytes?: number }[];
     parts?: import('../messaging/provider.js').MessagingContentPart[];
   };
   bridgeOrigin?: {
     sourceEventId: string;
     platform: string;
+    accountRef?: string;
+    accountName?: string;
     conversationId: string;
     conversationName: string;
     messageId: string;
@@ -773,6 +776,10 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
     )
       return false;
     const origin = bridgeOrigin as Record<string, unknown>;
+    for (const key of ['accountRef', 'accountName']) {
+      if (origin[key] !== undefined && (typeof origin[key] !== 'string' || !origin[key].trim()))
+        return false;
+    }
     for (const key of [
       'sourceEventId',
       'platform',

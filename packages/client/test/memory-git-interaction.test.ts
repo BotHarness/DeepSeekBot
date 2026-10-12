@@ -31,6 +31,8 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
     IconChevronRightOutlineRegular: stub,
     IconChevronDownOutline14: stub,
     IconChevronDownOutlineRegular: stub,
+    IconFolderOpenOutlineRegular: stub,
+    IconSettingsOutlineRegular: stub,
     IconCloseFill14: stub,
     IconCopyOutline16: stub,
     IconCopyOutlineRegular: stub,
@@ -883,6 +885,19 @@ describe('Memory Git graph sidebar', () => {
     const actions = new Proxy(
       {
         listWorkspaceGrants: vi.fn(async () => []),
+        memoryFileTarget: vi.fn(async (_slug: string, path: string) => ({
+          path: '/host/memory/' + path,
+          relativePath: path,
+          kind: 'file' as const,
+        })),
+        memoryFileApplications: vi.fn(async () => ({ available: false, applications: [] })),
+        fileOpenPreferences: {
+          ready: async () => {},
+          get: () => undefined,
+          set: () => {},
+          clear: () => {},
+          subscribe: () => () => {},
+        },
         memorySnapshot: vi
           .fn()
           .mockResolvedValue({ head: SHA, files: ['note.md'], provisional: false }),

@@ -8,6 +8,7 @@ import type {
   ToolApprovalNotice,
 } from '../workspaces/tool-approval.js';
 import type { BotPairing, PairingRequest } from './pairing.js';
+import { boundedMessagingDelivery } from './bounded-delivery.js';
 import { assertMessagingIdentity, type MessagingIdentity } from './identity.js';
 import {
   MessagingError,
@@ -68,6 +69,12 @@ export interface ApprovalMessagingSnapshot {
   deliveries: (ApprovalDelivery & { savedRuleStatus?: 'active' | 'revoked' | 'unavailable' })[];
 }
 export interface ApprovalMessaging {
+  managementDestination(botSlug: string): {
+    route: ApprovalRoute;
+    identity: MessagingIdentity;
+    paired: PairingRequest;
+    provider: MessagingProvider;
+  };
   attach(owner: ChannelToolApproval, channels: ChannelStore): () => void;
   snapshot(botSlug: string): ApprovalMessagingSnapshot;
   setRoute(botSlug: string, pairingId: string | undefined, expectedRevision: number): Promise<void>;
@@ -339,19 +346,8 @@ export function createApprovalMessaging(options: {
       return;
     }
   };
-  const bounded = async <T>(run: (signal: AbortSignal) => Promise<T>): Promise<T> => {
-    const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]);
-    return Promise.race([
-      run(signal),
-      new Promise<never>((_, reject) =>
-        signal.addEventListener(
-          'abort',
-          () => reject(new MessagingProviderError('provider-result-unknown', 'unknown')),
-          { once: true },
-        ),
-      ),
-    ]);
-  };
+  const bounded = <T>(run: (signal: AbortSignal) => Promise<T>): Promise<T> =>
+    boundedMessagingDelivery(controller.signal, run);
   const trace = (
     initiator: string,
     phase: string,
@@ -592,6 +588,11 @@ export function createApprovalMessaging(options: {
       ).run();
     });
   const service: ApprovalMessaging = {
+    managementDestination(botSlug) {
+      const selected = route(botSlug);
+      if (!selected) throw new MessagingError('approval-route-unavailable');
+      return { route: selected, ...resolve(selected) };
+    },
     attach(nextOwner, nextChannels) {
       detach?.();
       owner = nextOwner;

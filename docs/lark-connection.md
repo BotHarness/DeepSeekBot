@@ -343,7 +343,7 @@ stale-change error. Subsequent permission and directory queries show current sta
 rewriting earlier model history. Role text alone cannot approve a tool.
 
 For an ordinary Role-based private approval destination, use a person whose approved pairing
-originated in a DM, then choose that person in **Lark approval notifications**. The existing
+originated in a DM, then choose that person in **Management notifications**. The existing
 private-origin check is retained; a group pairing does not create a management destination.
 Removing a capability or revoking/reassigning the person refuses delayed decisions. If
 reassignment invalidates the route, explicitly select/save its new current destination again.
@@ -354,7 +354,7 @@ This slice supports Lark private **Allow once** and **Reject** cards through a q
 
 1. Enable the app's **Events & callbacks → Callback configuration → Long connection** and add `card.action.trigger`, then publish the version. Retain the existing message read/send scopes and add `im:chat:read` so the sender can verify a private conversation. A maintainer must authorize these app changes.
 2. Send `/pair` in the Bot's Lark DM. In **External identities → IM administrator pairing**, inspect the real applicant/account and explicitly grant **Approve** and/or **Reject**. Pairing does not create ordinary DM intake or grant VPS/API access.
-3. In the sidebar's **External identities → Lark approval notifications**, choose that person's name and receiving account, then **Save destination**. Select **Send test card**; it has no approval buttons and grants nothing.
+3. In the sidebar's **External identities → Management notifications**, choose that person's name and receiving account, then **Save destination**. Select **Send test card**; it has no approval buttons and grants nothing.
 4. A subsequent native tool approval sends its complete operation to that management DM, with **Allow once** and **Reject**. Check the proposed operation before deciding. A truncated card asks you to inspect the complete operation in Web. The card's acknowledgement only confirms receipt of your click; the final native decision and result are separate.
 5. Refresh notifications in that dialog and use **Open native session and complete operation** to inspect the actual native result. **Decision accepted** is not proof that a tool ran. Rejected, revoked, expired, duplicate or mismatched actions cannot approve a new call.
 
@@ -454,6 +454,19 @@ through the same idempotent revoke command; this did not execute a call.
 Exact source heads and native sequences are recorded in
 [#1033](https://github.com/BotHarness/DeepSeekBot/issues/1033). This qualification does not publish
 or upgrade the Provider artifact. Group destinations remain separate.
+
+## Work-failure alerts (source candidate)
+
+In **Bot DM sidebar → Management notifications**, use the existing paired management DM destination and enable **Work-failure alerts**. The setting is off by default and revision-checked. **Test failure alerts** sends a clearly labelled test notice; it does not pretend that work failed. Refresh the same settings view to inspect recent delivery state or open the original Session.
+
+The wide dialog uses the same native components as IM roles and pairing. Its left column contains the destination and event/test controls; its right column has **Work failures** and **Tool approvals** delivery tables. Search by event, state or notification reference, sort by recorded time, and select a row to inspect its reference, attempts and original Session. Explanations open from the info icons. On narrow screens, the columns stack and the dialog body scrolls while the close control remains reachable.
+
+This candidate still configures one qualified Lark DM. [#1492](https://github.com/BotHarness/DeepSeekBot/issues/1492) tracks multiple independently authorized destinations and delivery states; group and other-IM qualification remain separate. The generic management-notifications entry does not claim those providers are available yet.
+The first source candidate sends a fixed failure notice after the Runtime commits its owned Session failure to the Channel Store. It includes execution role, Session identity and a notification reference. Error details, prompts, tool arguments and credentials stay in Web. Speaking in a source conversation does not select the alert destination, and receiving this notice grants no decision permissions.
+
+A current qualified private destination, checked reply source, receipt and final-send fence are required. Route disable, pairing revoke, App replacement, Bot pause or conversation Block prevents later dispatch. A definite unsent failure can retry at most three times; an unknown outcome requires platform inspection and cannot be resent. Restart does not replay queued or ambiguous alerts. Enabling alerts does not backfill historical failures.
+
+The source candidate's first private-Lark slice passed real-platform QA and Human feedback. It does not qualify group destinations, other Providers or Host/VPS-down monitoring, and this verification does not imply a published release. Back up the Profile before Generation 83 upgrades. See [#1041](https://github.com/BotHarness/DeepSeekBot/issues/1041) for exact-head evidence and the runnable review path.
 
 ## Receipt and answer feedback (candidate)
 

@@ -134,6 +134,33 @@ it('leaves charts without Bot identity on their token-type colors', async () => 
   expect(Object.values(botChartTones('#e2b04a', LIGHT))).not.toContain(model[0]);
 });
 
+it("paints one Bot's daily chart in its tones when the chart itself has an identity", async () => {
+  const days = [row('2026-10-11'), row('2026-10-12', undefined, 40)];
+  await act(async () =>
+    root.render(
+      createElement(UsageChart, {
+        rows: days,
+        kind: 'daily',
+        label: 'Daily',
+        identityColor: '#e2b04a',
+        t: zhTranslate,
+      }),
+    ),
+  );
+  const tones = botChartTones('#e2b04a', LIGHT);
+  expect(container.querySelector('.bh-usage-identity-chart')).not.toBeNull();
+  for (const day of ['2026-10-11', '2026-10-12']) {
+    expect(series(day)).toEqual(['cached', 'uncached', 'output']);
+    expect(fills(day)).toEqual([tones.cached, tones.uncached, tones.output]);
+  }
+  await act(async () =>
+    root.render(
+      createElement(UsageChart, { rows: days, kind: 'daily', label: 'Daily', t: zhTranslate }),
+    ),
+  );
+  expect(fills('2026-10-11')).not.toEqual([tones.cached, tones.uncached, tones.output]);
+});
+
 it('labels the tone levels with the token categories', async () => {
   await act(async () => root.render(createElement(UsageToneLegend, { t: zhTranslate })));
   expect(

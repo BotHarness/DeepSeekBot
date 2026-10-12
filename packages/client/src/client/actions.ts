@@ -24,6 +24,9 @@ import {
   setApprovalRoute,
   testApprovalRoute,
   retryApprovalNotification,
+  setFailureAlerts,
+  testFailureAlerts,
+  retryFailureAlerts,
 } from './bridge.js';
 import type { GroupMemberWakePolicy } from '../../../core/src/channels/channel.js';
 import type {
@@ -282,6 +285,7 @@ import {
   type HostFileOpen,
   type NativeHostFiles,
 } from './host-file-actions.js';
+import { createFileOpenPreferences, type FileOpenPreferences } from './file-open-preferences.js';
 
 const GIT_INSTALL_POLL_MS = 500;
 
@@ -320,6 +324,9 @@ export interface BridgeActions {
   approvalRoute(slug: string, pairingId: string | null, expectedRevision: number): Promise<void>;
   approvalTest(slug: string): Promise<void>;
   approvalRetry(slug: string, id: string): Promise<void>;
+  failureAlertsSet(slug: string, enabled: boolean, expectedRevision: number): Promise<void>;
+  failureAlertsTest(slug: string): Promise<void>;
+  failureAlertsRetry(slug: string, id: string): Promise<void>;
   pairingReview(slug: string, input: PairingReviewInput): Promise<PairingRequest>;
   senderAccess(slug: string, input: SenderAccessInput): Promise<void>;
   messagingIdentity(slug: string, input: MessagingIdentityInput): Promise<MessagingIdentity>;
@@ -485,6 +492,7 @@ export interface BridgeActions {
   memoryFileApplications(slug: string, path: string): Promise<HostFileOptions>;
   memoryFileOpen(slug: string, path: string, choice: HostFileOpen): Promise<void>;
   memoryFileDownload(slug: string, path: string): Promise<void>;
+  fileOpenPreferences: FileOpenPreferences;
   memorySnapshot(channelId: string): Promise<MemorySnapshot>;
   memoryFile(
     channelId: string,
@@ -765,6 +773,7 @@ export function createActions(
     createWorkspace(input: { path: string }): Promise<{ workspaceId: string }>;
     openSession?(sessionId: string): void;
     nativeFiles?: NativeHostFiles;
+    fileOpenPreferences?: FileOpenPreferences;
   },
   navigationStorage: ConfigStorage | undefined = defaultStorage(),
 ): BridgeActions {
@@ -774,6 +783,8 @@ export function createActions(
     writeActivityCenterTab(navigationStorage, view);
   };
   let openingFile = false;
+  const fileOpenPreferences =
+    folderAccess?.fileOpenPreferences ?? createFileOpenPreferences({ storage: undefined });
   const failedByChannel = new Map<string, ChannelMessage[]>();
   const localFailedFor = (id: string): ChannelMessage[] => failedByChannel.get(id) ?? [];
   const remainingFailures = (
@@ -2039,6 +2050,7 @@ export function createActions(
         openingFile = false;
       }
     },
+    fileOpenPreferences,
     memoryFileTarget: (slug, path) => loadMemoryFileTarget(call, slug, path),
     async memoryFileApplications(slug, path) {
       const target = await loadMemoryFileTarget(call, slug, path);
@@ -2103,6 +2115,10 @@ export function createActions(
       setApprovalRoute(call, slug, pairingId, expectedRevision),
     approvalTest: (slug) => testApprovalRoute(call, slug),
     approvalRetry: (slug, id) => retryApprovalNotification(call, slug, id),
+    failureAlertsSet: (slug, enabled, expectedRevision) =>
+      setFailureAlerts(call, slug, enabled, expectedRevision),
+    failureAlertsTest: (slug) => testFailureAlerts(call, slug),
+    failureAlertsRetry: (slug, id) => retryFailureAlerts(call, slug, id),
     pairingReview: (slug, input) => reviewPairing(call, slug, input),
     senderAccess: (slug, input) => changeExternalSenderAccess(call, slug, input),
     messagingIdentity: (slug, input) => manageMessagingIdentity(call, slug, input),

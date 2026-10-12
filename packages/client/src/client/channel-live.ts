@@ -1,4 +1,8 @@
-import { subscribeMessagingDefaults } from './messaging-defaults-live.js';
+import {
+  subscribeMessagingDefaults,
+  openSharedChannel,
+  type ChannelEventSource,
+} from './messaging-defaults-live.js';
 import { parseContentRedactions } from './content-redactions.js';
 import { parseChannelMessage } from './bridge.js';
 import type { BridgeActions } from './actions.js';
@@ -142,11 +146,11 @@ function parseDraftBaseline(
 
 export function mountChannelLive(
   store: ClientStore,
-  actions: BridgeActions,
-  makeSource: (url: string) => EventSource = (url) => new EventSource(url),
+  actions: Pick<BridgeActions, 'refreshChannelMessages'>,
+  makeSource: (url: string) => ChannelEventSource = openSharedChannel,
 ): () => void {
   let activeChannelId: string | undefined;
-  let source: EventSource | undefined;
+  let source: ChannelEventSource | undefined;
   let recovering = false;
   let disposed = false;
   let baselineSeen = false;
@@ -239,7 +243,14 @@ export function mountChannelLive(
       channelId: channel.id,
       after: String(snapshot.conversation.revision),
     });
-    const next = makeSource('/api/botharness/stream?' + query.toString());
+    let next: ChannelEventSource;
+    try {
+      next = makeSource('/api/botharness/stream?' + query.toString());
+    } catch {
+      close();
+      console.warn('botharness: Channel live stream construction refused');
+      return;
+    }
     source = next;
     next.addEventListener(EVENT_NAME, (event) => {
       if (!(event instanceof MessageEvent)) return;

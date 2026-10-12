@@ -96,6 +96,7 @@ beforeAll(async () => {
     TextDecoder,
     AbortController,
     AbortSignal,
+    EventTarget,
     console,
   };
   vm.createContext(sandbox);

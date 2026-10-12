@@ -12,9 +12,7 @@ export function groupComposerActivity(
   const items = members
     .filter(
       (item) =>
-        (item.state !== undefined && item.state !== 'idle') ||
-        attentionCount(item.attention) > 0 ||
-        (item.attention?.informationalCount ?? 0) > 0,
+        (item.state !== undefined && item.state !== 'idle') || attentionCount(item.attention) > 0,
     )
     .sort(
       (left, right) =>

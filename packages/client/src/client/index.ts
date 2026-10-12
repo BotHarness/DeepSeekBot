@@ -16,6 +16,7 @@ import { BOT_MODE_NAMESPACE, type BotModeSettings } from '../bot-mode-settings.j
 import { privateInputLocator } from '../../../core/src/credentials/web-locator.js';
 import { watchPrivateInputNavigation } from './private-input-navigation.js';
 import { createNativeHostFiles } from './host-file-actions.js';
+import { createFileOpenPreferences } from './file-open-preferences.js';
 import { createActions, type BridgeActions } from './actions.js';
 import { ProviderAppSetup } from './provider-app-setup.js';
 import { BotModePrefs, botModePrefsFace } from './bot-mode-prefs.js';
@@ -129,8 +130,22 @@ export function apply(ctx: ClientContext): void {
   const t = ctx.locale.bind(LOCALE_NS);
   const nativeChatT = ctx.locale.bind('chat');
   const call = createBridgeCall(ctx);
+  const profileContext = async (): Promise<{ profileId: string }> => {
+    const response = await fetch('/api/botharness/companion', { credentials: 'same-origin' });
+    if (!response.ok) throw new Error('Companion context unavailable');
+    const value: unknown = await response.json();
+    if (
+      typeof value !== 'object' ||
+      value === null ||
+      !('profileId' in value) ||
+      typeof value.profileId !== 'string'
+    )
+      throw new Error('Invalid Companion context');
+    return { profileId: value.profileId };
+  };
   const actions: BridgeActions = createActions(call, store, {
     nativeFiles: createNativeHostFiles(ctx.remote.session),
+    fileOpenPreferences: createFileOpenPreferences({ storage, context: profileContext }),
     pickDirectory: () => {
       const picker = ctx.get('uiWorkspace');
       if (picker === undefined) throw new Error('DSH folder picker is unavailable');
@@ -157,19 +172,7 @@ export function apply(ctx: ClientContext): void {
     storage,
     exists: (botId) => botExists(call, botId),
     onActivity: (snapshot) => store.applyActivity(snapshot),
-    context: async () => {
-      const response = await fetch('/api/botharness/companion', { credentials: 'same-origin' });
-      if (!response.ok) throw new Error('Companion context unavailable');
-      const value: unknown = await response.json();
-      if (
-        typeof value !== 'object' ||
-        value === null ||
-        !('profileId' in value) ||
-        typeof value.profileId !== 'string'
-      )
-        throw new Error('Invalid Companion context');
-      return { profileId: value.profileId };
-    },
+    context: profileContext,
     source: (url) => new EventSource(url),
     update: async (value) => {
       const response = await fetch('/api/botharness/companion', {

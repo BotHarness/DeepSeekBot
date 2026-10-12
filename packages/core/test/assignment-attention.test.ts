@@ -82,13 +82,24 @@ async function fixture(home = createTempRoot('botharness-assignment-attention-')
     await run.report({ state, summary: 'Private report text', expectsReply });
     return { access, run };
   }
+  function reopenReportDelivery() {
+    attachOperationalModule(core.operationalDatabase, 'report-delivery-test').transaction(
+      (db) =>
+        db
+          .prepare(
+            "UPDATE inbox_admissions SET attempt_state = 'running' WHERE reason = 'assignment-report'",
+          )
+          .run(),
+      ['bot-inbox'],
+    );
+  }
   async function close() {
     await live.adapter.close();
     await core.runtime.whenIdle();
     await core.runtime.close();
     core.operationalDatabase.close();
   }
-  return { home, core, live, methods, dm, start, close };
+  return { home, core, live, methods, dm, start, reopenReportDelivery, close };
 }
 
 describe('shared Assignment Human attention', () => {
@@ -269,6 +280,7 @@ describe('shared informational Assignment attention', () => {
     try {
       f.core.states.setSessionState('ada', 'orch', 'thinking', undefined, 'orchestrator');
       const completed = await f.start('completed', false);
+      f.reopenReportDelivery();
       expect(f.core.states.snapshot('ada')).toMatchObject({
         state: 'thinking',
         attention: { approvalCount: 0, informationalCount: 1 },
@@ -282,6 +294,7 @@ describe('shared informational Assignment attention', () => {
       expect(f.core.states.version()).toEqual(revision);
       const second = await f.start('completed', false);
       const waiting = await f.start('waiting-human');
+      f.reopenReportDelivery();
       expect(f.core.states.snapshot('ada').attention).toEqual({
         approvalCount: 0,
         informationalCount: 2,
@@ -329,11 +342,41 @@ describe('shared informational Assignment attention', () => {
       await f.close();
     }
   }, 60000);
+  it('clears information once the Orchestrator has handled the completed report', async () => {
+    const f = await fixture();
+    try {
+      const completed = await f.start('completed', false);
+      f.reopenReportDelivery();
+      expect(f.core.states.snapshot('ada').attention).toEqual({
+        approvalCount: 0,
+        informationalCount: 1,
+      });
+      attachOperationalModule(f.core.operationalDatabase, 'report-delivery-test').transaction(
+        (db) =>
+          db
+            .prepare(
+              "UPDATE inbox_admissions SET attempt_state = 'handled' WHERE reason = 'assignment-report'",
+            )
+            .run(),
+        ['bot-inbox'],
+      );
+      expect(f.core.states.snapshot('ada').attention).toBeUndefined();
+      expect(
+        f.core.humanAttention
+          .list({ category: 'info' })
+          .items.some((item) => item.assignmentSessionId === completed.run.sessionId),
+      ).toBe(true);
+      f.live.finish(completed.run.sessionId);
+    } finally {
+      await f.close();
+    }
+  }, 60000);
   it('reconstructs undismissed information at idle after restart without recreating a live Session', async () => {
     const before = await fixture();
     const first = await before.start('completed', false);
     before.live.finish(first.run.sessionId);
     await before.core.runtime.whenIdle();
+    before.reopenReportDelivery();
     const info = before.core.humanAttention.list({ category: 'info' }).items[0]!;
     await before.close();
     const after = await fixture(before.home);

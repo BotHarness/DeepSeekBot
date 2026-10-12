@@ -3,7 +3,11 @@ import type { BridgeActions } from './actions.js';
 import type { MemoryWorkingChange, MemoryWorkingDiff } from './bridge.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { MemoryDiffFile, MemoryViewIconButton } from './memory-reader-parts.js';
-import { MemoryFileActionButton } from './memory-file-actions.js';
+import {
+  MemoryCurrentFileOpenButton,
+  MemoryFileActionButton,
+  MemoryFileOpenButton,
+} from './memory-file-actions.js';
 import { channelSidebarPrefs } from './channel-sidebar-prefs.js';
 import { memoryChangeBadge } from './memory-working-presentation.js';
 import { useMountedResource } from './mounted-resource.js';
@@ -97,7 +101,7 @@ export function MemoryFileView({
           )}
         </strong>
         {botSlug === undefined ? null : (
-          <MemoryFileActionButton actions={actions} slug={botSlug} path={path} t={t} />
+          <MemoryFileOpenButton actions={actions} slug={botSlug} path={path} name={path} t={t} />
         )}
         <MemoryViewIconButton
           action="refresh"
@@ -127,9 +131,10 @@ export function MemoryWorkingView({
   actions,
   channelId,
   change,
+  botSlug,
   onClose,
   t,
-}: CommonProps & { change: MemoryWorkingChange }): ReactElement {
+}: CommonProps & { change: MemoryWorkingChange; botSlug?: string | undefined }): ReactElement {
   const [revision, setRevision] = useState(0);
   const [detail, setDetail] = useState<MemoryWorkingDiff>();
   const [error, setError] = useState<string>();
@@ -234,6 +239,17 @@ export function MemoryWorkingView({
           emptyLabel={t('memory.noTextDiff')}
           oldLineLabel={t('memory.oldLine')}
           newLineLabel={t('memory.newLine')}
+          action={
+            botSlug === undefined ? undefined : (
+              <MemoryCurrentFileOpenButton
+                actions={actions}
+                slug={botSlug}
+                path={change.path}
+                deletion={detail.status === 'D' ? 'working' : undefined}
+                t={t}
+              />
+            )
+          }
         />
       )}
     </div>

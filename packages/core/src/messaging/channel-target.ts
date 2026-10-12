@@ -68,13 +68,43 @@ export function projectBridgeMessage(source: ExternalSource, body: string): Chan
     at: source.at,
     body,
     format: 'text',
-    ...(source.event.attachments?.some((item) => item.mediaType?.startsWith('image/'))
+    ...((source.platform === 'qq' && source.event.voice) ||
+    source.event.attachments?.some(
+      (item) =>
+        item.mediaType?.startsWith('image/') ||
+        (source.platform === 'qq' && item.mediaType === 'application/octet-stream'),
+    )
       ? {
           bridgeMedia: {
-            items: source.event.attachments
-              .filter((item) => item.mediaType?.startsWith('image/'))
-              .map((item) => ({ id: item.id, kind: 'image' as const, name: item.name })),
+            items: (source.event.attachments ?? [])
+              .filter(
+                (item) =>
+                  item.mediaType?.startsWith('image/') ||
+                  (source.platform === 'qq' &&
+                    (item.mediaType === 'application/octet-stream' ||
+                      (source.event.voice && item.mediaType === 'audio/unknown'))),
+              )
+              .map((item) => ({
+                id: item.id,
+                kind: item.mediaType?.startsWith('image/')
+                  ? ('image' as const)
+                  : item.mediaType === 'audio/unknown'
+                    ? ('audio' as const)
+                    : ('file' as const),
+                name: item.name,
+                ...(item.sizeBytes === undefined ? {} : { sizeBytes: item.sizeBytes }),
+              })),
             ...(source.event.contentParts ? { parts: source.event.contentParts } : {}),
+            ...(source.platform === 'qq' && source.event.voice
+              ? {
+                  voice: {
+                    transcript: source.event.voice.transcript,
+                    ...(source.event.voice.durationMs === undefined
+                      ? {}
+                      : { durationMs: source.event.voice.durationMs }),
+                  },
+                }
+              : {}),
           },
         }
       : {}),
@@ -82,6 +112,9 @@ export function projectBridgeMessage(source: ExternalSource, body: string): Chan
     bridgeOrigin: {
       sourceEventId: source.id,
       platform: source.platform,
+      ...(source.platform === 'qq'
+        ? { accountRef: source.event.botId, accountName: source.accountName }
+        : {}),
       conversationId: source.event.conversation.id,
       conversationName: source.conversationName,
       messageId: source.event.messageId,

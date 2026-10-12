@@ -26,7 +26,7 @@ import type {
   AssignmentAccessPresetView,
 } from './bridge.js';
 import { errorMessage } from './bridge.js';
-import { MemoryFileActionButton } from './memory-file-actions.js';
+import { MemoryFileActionButton, MemoryFileOpenButton } from './memory-file-actions.js';
 import { WorkspaceFileActionButton } from './workspace-file-actions.js';
 import { Modal } from './modal.js';
 import { LoadingSkeleton } from './loading-skeleton.js';
@@ -557,14 +557,24 @@ export function WorkspaceGrantsEntry({
           path={memoryDir ?? ''}
           pathAction={
             memoryDir === undefined ? undefined : (
-              <MemoryFileActionButton
-                actions={actions}
-                slug={botSlug}
-                path=""
-                text={memoryDir}
-                className="bh-workspace-folder-path"
-                t={t}
-              />
+              <span className="bh-file-path-open">
+                <MemoryFileActionButton
+                  actions={actions}
+                  slug={botSlug}
+                  path=""
+                  text={memoryDir}
+                  className="bh-workspace-folder-path"
+                  t={t}
+                />
+                <MemoryFileOpenButton
+                  actions={actions}
+                  slug={botSlug}
+                  path=""
+                  name={memoryDir}
+                  compact
+                  t={t}
+                />
+              </span>
             )
           }
         />

@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createBotStateTracker } from '../src/state/bot-state.js';
 import type { ChannelMessage } from '../src/channels/channel.js';
@@ -37,6 +37,127 @@ afterEach(() => {
 });
 
 describe('Channel post-commit stream', () => {
+  it('combines authoritative Channel replay with roster, purge and activity and cancels every owner', async () => {
+    const store = createChannelStore({ rootDir: root() });
+    const channel = store.createGroup({ name: 'Shared', members: ['ada'] });
+    await store.appendMessage(channel.id, message('actual-placement'));
+    const listeners = new Set<() => void>();
+    const hub = createChannelLiveHub(
+      store,
+      {
+        snapshot: () => ({ generation: 'host', revision: 0, bots: [] }),
+        onChange: (listener) => {
+          listeners.add(listener);
+          return () => {
+            listeners.delete(listener);
+          };
+        },
+      },
+      () => [{ sourceEventId: 'source', channelId: channel.id, messageId: 'purged' }],
+    );
+    hubs.push(hub);
+    const request = new Request(
+      `http://localhost${CHANNEL_STREAM_PATH}?channelId=${channel.id}&after=0&roster=1&activity=1`,
+    );
+    const response = hub.open(request);
+    expect(response.status).toBe(200);
+    const reader = response.body!.getReader();
+    const frames: string[] = [];
+    hub.publishRosterCommitted();
+    try {
+      for (let count = 0; count < 10; count++) {
+        const chunk = await Promise.race([
+          reader.read(),
+          new Promise<undefined>((resolve) => setTimeout(resolve, 200)),
+        ]);
+        if (chunk === undefined || chunk.done) break;
+        frames.push(new TextDecoder().decode(chunk.value));
+        if (
+          ['channel/message', 'roster/changed', 'content/purged', 'activity/snapshot'].every(
+            (type) => frames.join('').includes('event: ' + type),
+          )
+        )
+          break;
+      }
+      const text = frames.join('');
+      expect(text).toContain('actual-placement');
+      expect(text).toContain('id: 1');
+      for (const type of ['roster/changed', 'content/purged', 'activity/snapshot'])
+        expect(text).toContain('event: ' + type);
+      expect(listeners.size).toBe(1);
+    } finally {
+      await reader.cancel();
+    }
+    expect(listeners.size).toBe(0);
+    const invalid = hub.open(
+      new Request(`http://localhost${CHANNEL_STREAM_PATH}?channelId=missing&roster=1&activity=1`),
+    );
+    expect(invalid.status).toBe(404);
+    expect(listeners.size).toBe(0);
+  });
+  it('does not accumulate multiplexed heartbeats behind an unread baseline', async () => {
+    vi.useFakeTimers();
+    const hub = createChannelLiveHub(createChannelStore({ rootDir: root() }), {
+      snapshot: () => ({ generation: 'host', revision: 0, bots: [] }),
+      onChange: () => () => {},
+    });
+    hubs.push(hub);
+    const reader = hub
+      .open(new Request(`http://localhost${CHANNEL_STREAM_PATH}?scope=roster&activity=1`))
+      .body!.getReader();
+    try {
+      await vi.advanceTimersByTimeAsync(120_000);
+      expect(new TextDecoder().decode((await reader.read()).value)).toContain('retry:');
+      expect(new TextDecoder().decode((await reader.read()).value)).toContain('activity/snapshot');
+    } finally {
+      await reader.cancel();
+      vi.useRealTimers();
+    }
+  });
+  it('multiplexes bounded activity with roster and purge baselines and releases its subscription', async () => {
+    let revision = 0;
+    const listeners = new Set<() => void>();
+    const hub = createChannelLiveHub(
+      createChannelStore({ rootDir: root() }),
+      {
+        snapshot: () => ({ generation: 'host', revision, bots: [{ slug: 'ada', state: 'idle' }] }),
+        onChange: (listener) => {
+          listeners.add(listener);
+          return () => {
+            listeners.delete(listener);
+          };
+        },
+      },
+      () => [{ sourceEventId: 'source', channelId: 'shared', messageId: 'purged' }],
+    );
+    hubs.push(hub);
+    const reader = hub
+      .open(new Request(`http://localhost${CHANNEL_STREAM_PATH}?scope=roster&activity=1`))
+      .body!.getReader();
+    const read = async () => new TextDecoder().decode((await reader.read()).value);
+    try {
+      expect(await read()).toContain('retry:');
+      expect(await read()).toContain('event: content/purged');
+      const initial = await Promise.race([
+        read(),
+        new Promise<undefined>((resolve) => setTimeout(resolve, 100)),
+      ]);
+      expect(initial).toContain('event: activity/snapshot');
+      expect(initial).toContain('"revision":0');
+      expect(listeners.size).toBe(1);
+      for (let next = 1; next <= 100; next++) {
+        revision = next;
+        for (const listener of listeners) listener();
+      }
+      expect(await read()).toContain('"revision":1');
+      expect(await read()).toContain('"revision":100');
+      hub.publishRosterCommitted();
+      expect(await read()).toContain('event: roster/changed');
+    } finally {
+      await reader.cancel();
+    }
+    expect(listeners.size).toBe(0);
+  });
   it('replays bodyless purge selectors on connection and reconnect, including shared placements', async () => {
     let placements = Array.from({ length: 101 }, (_, index) => ({
       sourceEventId: 'source',

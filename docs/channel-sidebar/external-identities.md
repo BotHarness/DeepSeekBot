@@ -16,12 +16,12 @@ Open **+ Bind app** for direct links to the website tutorials for [Lark / Feishu
 
 ## Read the rows
 
-| Row                             | What it shows and does                                                                                                                                               |
-| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| One row per bound app           | Local display name, a status chip (**Available**, **Paused**, **Unavailable** or **Rebind required**) and “platform · N conversation(s)”. The Switch pauses the app. |
-| **+ Bind app**                  | Bind a connected app to this Bot.                                                                                                                                    |
-| **IM administrator pairing**    | Shows “N pending” and “N paired”. Opens the pairing review dialog; see [Connect a Bot to Lark / Feishu](/docs/lark-connection).                                      |
-| **Lark approval notifications** | Shows the destination, or **Automatic notifications off**. Opens the approval notification dialog.                                                                   |
+| Row                          | What it shows and does                                                                                                                                               |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| One row per bound app        | Local display name, a status chip (**Available**, **Paused**, **Unavailable** or **Rebind required**) and “platform · N conversation(s)”. The Switch pauses the app. |
+| **+ Bind app**               | Bind a connected app to this Bot.                                                                                                                                    |
+| **IM administrator pairing** | Shows “N pending” and “N paired”. Opens the pairing review dialog; see [Connect a Bot to Lark / Feishu](/docs/lark-connection).                                      |
+| **Management notifications** | Shows the destination, or **Automatic notifications off**. Opens the approval notification dialog.                                                                   |
 
 ## Bind an app
 

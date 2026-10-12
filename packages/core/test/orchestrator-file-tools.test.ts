@@ -142,6 +142,7 @@ describe('Agent-scoped native file Policy', () => {
     const ctx = new Context();
     const reads: string[] = [];
     let active = true;
+    let supportsImage = true;
     const base = {
       defaultMode: 'workspace-write',
       workspaceRoot: '/memory',
@@ -169,7 +170,9 @@ describe('Agent-scoped native file Policy', () => {
           },
         });
         c.provide('llm', {
-          resolveModelInfo: async () => ({ inputModalities: ['text', 'image'] }),
+          resolveModelInfo: async () => ({
+            inputModalities: supportsImage ? ['text', 'image'] : ['text'],
+          }),
         });
         c.provide('attachments', {
           imageLimits: {
@@ -225,6 +228,10 @@ describe('Agent-scoped native file Policy', () => {
         expect.arrayContaining([expect.objectContaining({ type: 'image' })]),
       );
       expect(reads).toEqual(['/authorized/result.png']);
+      supportsImage = false;
+      expect((await execute('unsupported-model')).isError).toBe(true);
+      expect(reads).toHaveLength(1);
+      supportsImage = true;
       active = false;
       expect((await execute('revoked')).isError).toBe(true);
       expect(reads).toHaveLength(1);

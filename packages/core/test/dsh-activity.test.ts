@@ -27,6 +27,69 @@ describe('DSH activity projection', () => {
     expect(deriveSessionState([])).toBeUndefined();
   });
 
+  it('keeps a Channel reply turn active until turn/end, without flickering idle between steps', () => {
+    const states = createBotStateTracker();
+    const ownership = createTestOwnership({ root: { botSlug: 'ada', rootRole: 'orchestrator' } });
+    const activity = createDshActivityProjection({ ownership, states });
+    const seen = (
+      [
+        ['turn/start', { turn: 1 }],
+        ['step/start', {}],
+        ['user/message', {}],
+        ['assistant/message', {}],
+        ['tool/call', { name: 'channel_send', callId: 'send' }],
+        ['tool/result', { message: { toolCallId: 'send' } }],
+        ['step/end', {}],
+        ['step/start', {}],
+        ['assistant/message', {}],
+        ['tool/call', { name: 'write', callId: 'memory' }],
+        ['tool/result', { message: { toolCallId: 'memory' } }],
+        ['step/start', {}],
+        ['assistant/message', {}],
+        ['step/end', {}],
+        ['turn/end', { turn: 1, reason: { kind: 'completed' } }],
+      ] as const
+    ).map(([type, data]) => {
+      activity.handleSessionEvent('root', { type, time: 1, data });
+      return states.snapshot('ada').state;
+    });
+
+    expect(seen.slice(0, -1)).not.toContain('idle');
+    expect(seen.at(-1)).toBe('idle');
+  });
+
+  it('does not reopen activity for events DSH appends after turn/end', () => {
+    const compaction = [
+      event('compaction/start'),
+      event('compaction/summary'),
+      event('user/message'),
+      event('compaction/end'),
+    ];
+    const log = [event('turn/start'), event('assistant/message'), event('turn/end'), ...compaction];
+    expect(deriveSessionState(log)).toBe('done');
+    expect(deriveSessionState([...log, event('turn/start')])).toBe('thinking');
+
+    const states = createBotStateTracker();
+    const ownership = createTestOwnership({ root: { botSlug: 'ada', rootRole: 'orchestrator' } });
+    const activity = createDshActivityProjection({ ownership, states });
+    for (const item of log) activity.handleSessionEvent('root', item);
+    expect(states.snapshot('ada')).toMatchObject({ state: 'idle', sessions: { root: 'done' } });
+
+    activity.rebuild([{ id: 'root', header: {}, snapshotEvents: () => log }]);
+    expect(states.snapshot('ada')).toMatchObject({ state: 'idle', sessions: { root: 'done' } });
+
+    activity.handleSessionEvent('root', event('turn/start'));
+    expect(states.snapshot('ada').state).toBe('thinking');
+  });
+
+  it('keeps projecting a turn whose start it did not observe', () => {
+    const states = createBotStateTracker();
+    const ownership = createTestOwnership({ root: { botSlug: 'ada', rootRole: 'orchestrator' } });
+    const activity = createDshActivityProjection({ ownership, states });
+    activity.handleSessionEvent('root', event('tool/result'));
+    expect(states.snapshot('ada').state).toBe('thinking');
+  });
+
   it('attributes a fork and a Subagent to the owning parent through lineage', () => {
     const states = createBotStateTracker();
     const ownership = createTestOwnership({

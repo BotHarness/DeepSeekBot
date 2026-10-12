@@ -160,6 +160,9 @@ function stubActions(): BridgeActions {
     approvalRoute: vi.fn(async () => {}),
     approvalTest: vi.fn(async () => {}),
     approvalRetry: vi.fn(async () => {}),
+    failureAlertsSet: vi.fn(async () => {}),
+    failureAlertsTest: vi.fn(async () => {}),
+    failureAlertsRetry: vi.fn(async () => {}),
     pairingReview: vi.fn(),
     senderAccess: vi.fn(),
     messagingIdentity: vi.fn(),
@@ -277,6 +280,13 @@ function stubActions(): BridgeActions {
     memoryFileApplications: vi.fn(),
     memoryFileOpen: vi.fn(),
     memoryFileDownload: vi.fn(),
+    fileOpenPreferences: {
+      ready: vi.fn(async () => {}),
+      get: vi.fn(),
+      set: vi.fn(),
+      clear: vi.fn(),
+      subscribe: vi.fn(() => () => {}),
+    },
     memorySnapshot: vi.fn(async () => ({
       head: null,
       files: [],

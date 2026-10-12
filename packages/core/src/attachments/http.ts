@@ -86,8 +86,9 @@ export function createAttachmentHttp(
     channelId: string;
     sourceEventId: string;
     attachmentId: string;
+    representation?: 'playback';
     signal: AbortSignal;
-  }) => Promise<{ ref: ChannelAttachmentRef; body: ReadableStream<Uint8Array> }>,
+  }) => Promise<{ ref: ChannelAttachmentRef; body: ReadableStream<Uint8Array>; inline?: boolean }>,
 ): (request: Request) => Promise<Response> {
   return async (request) => {
     const url = new URL(request.url);
@@ -132,23 +133,28 @@ export function createAttachmentHttp(
         !sourceEventId ||
         !attachmentId ||
         !channelMedia ||
+        (url.searchParams.has('representation') &&
+          url.searchParams.get('representation') !== 'playback') ||
         [...url.searchParams.keys()].some(
-          (key) => !['channelId', 'sourceEventId', 'attachmentId'].includes(key),
+          (key) => !['channelId', 'sourceEventId', 'attachmentId', 'representation'].includes(key),
         )
       )
         return new Response('Channel media source is required', { status: 400 });
       try {
-        const { ref, body } = await channelMedia({
+        const { ref, body, inline } = await channelMedia({
           channelId,
           sourceEventId,
           attachmentId,
+          ...(url.searchParams.has('representation')
+            ? { representation: 'playback' as const }
+            : {}),
           signal: request.signal,
         });
         return new Response(body, {
           headers: {
             'content-type': ref.mime,
             'content-length': String(ref.size),
-            'content-disposition': filenameDisposition(ref.name, true),
+            'content-disposition': filenameDisposition(ref.name, inline === true),
             'x-content-type-options': 'nosniff',
             'cache-control': 'no-store',
           },

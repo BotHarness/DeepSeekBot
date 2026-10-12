@@ -1,4 +1,4 @@
-import type { ReactElement } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 import {
   IconBranchOutlineRegular,
   IconChevronDownOutlineRegular,
@@ -52,6 +52,7 @@ export function MemoryDiffFile({
   emptyLabel,
   oldLineLabel,
   newLineLabel,
+  action,
 }: {
   path: string;
   status: string;
@@ -63,6 +64,7 @@ export function MemoryDiffFile({
   emptyLabel: string;
   oldLineLabel: string;
   newLineLabel: string;
+  action?: ReactNode;
 }): ReactElement {
   const model = parseMemoryDiff(diff);
   const added = model.lines.filter((line) => line.kind === 'add').length;
@@ -83,6 +85,7 @@ export function MemoryDiffFile({
             <span className="bh-memory-diff-stat-remove">-{removed}</span>
           </span>
         ) : null}
+        {action === undefined ? null : <span className="bh-memory-diff-file-action">{action}</span>}
       </summary>
       {binary || model.binary ? (
         <div className="bh-memory-diff-empty">{binaryLabel}</div>
