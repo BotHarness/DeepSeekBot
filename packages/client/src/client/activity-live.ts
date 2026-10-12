@@ -6,6 +6,7 @@ import { parsePublicAttention } from './activity-attention.js';
 import { parsePublicToolActivity } from './activity-detail.js';
 import { PERSONA_BOT_ACTIVITY_STATES } from './avatar.js';
 import type { ClientStore, PersonaBotActivitySnapshot } from './store.js';
+import { openRosterActivity, type ActivityEventSource } from './messaging-defaults-live.js';
 
 export function parseActivitySnapshot(data: string): PersonaBotActivitySnapshot | undefined {
   try {
@@ -110,12 +111,11 @@ export function parseActivitySnapshot(data: string): PersonaBotActivitySnapshot 
 
 export function mountActivityLive(
   store: ClientStore,
-  makeSource: (url: string) => EventSource | undefined = (url) =>
-    typeof EventSource === 'undefined' ? undefined : new EventSource(url),
+  makeSource: (url: string) => ActivityEventSource | undefined = () => openRosterActivity(),
   readSnapshot: (signal: AbortSignal) => Promise<unknown> = async () => undefined,
   demand?: { enabled(): boolean; subscribe(changed: () => void): () => void },
 ): () => void {
-  let source: EventSource | undefined;
+  let source: ActivityEventSource | undefined;
   let disposed = false;
   let active = false;
   let healthy = false;
@@ -178,7 +178,7 @@ export function mountActivityLive(
   };
   const connect = (): void => {
     if (source !== undefined) return;
-    let next: EventSource | undefined;
+    let next: ActivityEventSource | undefined;
     try {
       next = makeSource('/api/botharness/stream?scope=activity');
     } catch {

@@ -9,7 +9,12 @@ import {
 import { useMountedResource } from './mounted-resource.js';
 import type { UsageFilter, UsageQueryResult, ProfileModelUsageRow } from './bridge.js';
 import type { BotHarnessTranslate } from './locale.js';
-import { UsageChart, UsageLegend, type UsageSummary } from './model-usage-charts.js';
+import {
+  UsageChart,
+  UsageLegend,
+  UsageToneLegend,
+  type UsageSummary,
+} from './model-usage-charts.js';
 
 const bucketKeys = [
   'inputTokens',
@@ -59,8 +64,10 @@ export function ModelUsageBreakdown({
   loadUsage,
   today,
   firstDay,
+  identityColor,
   t,
 }: {
+  identityColor?: string | undefined;
   loadUsage?: (filter: UsageFilter) => Promise<UsageQueryResult>;
   rows: readonly ProfileModelUsageRow[];
   status: 'ready' | 'unavailable';
@@ -316,8 +323,18 @@ export function ModelUsageBreakdown({
             <p className="bh-profile-empty">{t('profile.usage.periodEmpty')}</p>
           ) : view === 'daily' ? (
             <div className="bh-usage-daily">
-              <UsageLegend rows={series} t={t} />
-              <UsageChart rows={series} kind="daily" label={t('profile.usage.daily')} t={t} />
+              {identityColor === undefined ? (
+                <UsageLegend rows={series} t={t} />
+              ) : (
+                <UsageToneLegend t={t} />
+              )}
+              <UsageChart
+                rows={series}
+                kind="daily"
+                label={t('profile.usage.daily')}
+                identityColor={identityColor}
+                t={t}
+              />
               <div className="bh-usage-axis-labels">
                 <span>{start}</span>
                 <span>{end}</span>

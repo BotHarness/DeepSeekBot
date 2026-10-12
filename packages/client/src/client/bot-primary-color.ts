@@ -300,9 +300,14 @@ export function paintBotName(element: HTMLElement | null, source: string | undef
   }
   element.dataset['botNameSource'] = source;
   paint(element);
+  watchTheme();
+}
+
+function watchTheme(): void {
   if (painter !== undefined || typeof MutationObserver !== 'function') return;
   painter = new MutationObserver(() => {
     document.querySelectorAll<HTMLElement>('[data-bot-name-source]').forEach(paint);
+    document.querySelectorAll<HTMLElement>('[data-bot-scale-source]').forEach(paintScale);
   });
   painter.observe(document.body, { attributes: true, attributeFilter: ['data-ds-dark-theme'] });
   painter.observe(document.documentElement, {
@@ -315,4 +320,29 @@ export function botNameSource(
   bot: Parameters<typeof botPresentationSubject>[0] | undefined,
 ): string | undefined {
   return bot === undefined ? undefined : botPrimaryColorOf(bot).color;
+}
+
+function paintScale(element: HTMLElement): void {
+  const source = element.dataset['botScaleSource'];
+  if (source === undefined) return;
+  const color = botChartColor(
+    source,
+    renderedBackground(element) ?? REFERENCE_SURFACES[currentTheme()].background,
+  );
+  element.dataset['botScaleColor'] = color;
+  element.style.setProperty('--bh-bot-color', color);
+}
+
+export function paintBotScale(element: HTMLElement | null, source: string | undefined): void {
+  if (element === null) return;
+  if (source === undefined) {
+    if (element.dataset['botScaleSource'] === undefined) return;
+    delete element.dataset['botScaleSource'];
+    delete element.dataset['botScaleColor'];
+    element.style.removeProperty('--bh-bot-color');
+    return;
+  }
+  element.dataset['botScaleSource'] = source;
+  paintScale(element);
+  watchTheme();
 }

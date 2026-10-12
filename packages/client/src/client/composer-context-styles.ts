@@ -40,7 +40,7 @@ export const COMPOSER_CONTEXT_CSS = `
 .bh-composer-usage-row strong {font-weight:500;flex-shrink:0;font-variant-numeric:tabular-nums;}
 .bh-composer-usage-session + .bh-composer-usage-session {margin-top:8px;}
 .bh-composer-usage-meter {height:5px;overflow:hidden;border-radius:999px;background:var(--dsw-alias-interactive-bg-hover);}
-.bh-composer-usage-meter span {display:block;height:100%;border-radius:inherit;background:var(--dsw-alias-label-secondary);}
+.bh-composer-usage-meter span {display:block;height:100%;border-radius:inherit;background:var(--bh-bot-color,var(--dsw-alias-label-secondary));}
 .bh-composer-usage-footer {margin-top:4px;padding-top:12px;border-top:1px solid var(--dsw-alias-border-l2);}
 .bh-composer-usage-popover .bh-composer-usage-details {width:100%;min-height:40px;padding:10px 12px;border-radius:8px;box-sizing:border-box;}
 `;

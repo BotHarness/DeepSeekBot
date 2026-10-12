@@ -22,6 +22,56 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
 import { BridgeSourceAuthor } from '../src/client/bridge-source-author.js';
 import { zhTranslate } from '../src/client/locale.js';
 
+it('distinguishes two QQ applications in one Channel and exposes their receiving accounts without interpreting markup', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  const container = document.createElement('div');
+  document.body.append(container);
+  const root = createRoot(container);
+  try {
+    await act(async () =>
+      root.render(
+        createElement(
+          'div',
+          null,
+          ...['QA <img>', 'QA 2'].map((accountName, index) =>
+            createElement(BridgeSourceAuthor, {
+              key: accountName,
+              origin: {
+                platform: 'qq',
+                accountName,
+                accountRef: `qq-${index}`,
+                conversationName: 'Same group',
+                conversationId: `group-${index}`,
+                sourceEventId: `source-${index}`,
+                senderId: 'member',
+                senderName: 'Member',
+                messageId: `message-${index}`,
+              },
+              t: zhTranslate,
+            }),
+          ),
+        ),
+      ),
+    );
+    const authors = [...container.querySelectorAll('button')];
+    expect(authors.map((button) => button.textContent)).toEqual([
+      'Member · 【QQ · QA <img> · Same group】',
+      'Member · 【QQ · QA 2 · Same group】',
+    ]);
+    expect(container.querySelector('img')).toBeNull();
+    await act(async () => authors[1]!.click());
+    const values = [...container.querySelectorAll('[role=dialog] dd')].map(
+      (value) => value.textContent,
+    );
+    expect(values).toContain('QA 2');
+    expect(values).toContain('qq-1');
+    expect(values).not.toContain('qq-0');
+  } finally {
+    await act(async () => root.unmount());
+    container.remove();
+  }
+});
+
 it('opens only the selected source details, restores compact presentation on close, and supports a thread', async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   const container = document.createElement('div');

@@ -1,0 +1,46 @@
+{
+  "issue": 1451,
+  "baseSha": "36ae449e2cf3c83f3c7804799c2ad8f81ce7a5c0",
+  "runtimeSha": "dab3fa85de2e5a3e9e22305fec9b5e9dd85c4e31",
+  "dsh": "0.2.0-rc.1",
+  "node": "24.21.0",
+  "transport": "HTTP/1.1",
+  "focusedTests": 50,
+  "before": {
+    "elapsedMs": 6003,
+    "failure": "TimeoutError",
+    "loading": false,
+    "state": "failed"
+  },
+  "after": [
+    {
+      "elapsedMs": 1224,
+      "identityCount": 1,
+      "loading": false,
+      "rpcOk": true,
+      "state": "passed",
+      "status": 200
+    },
+    {
+      "elapsedMs": 690,
+      "identityCount": 1,
+      "loading": false,
+      "rpcOk": true,
+      "state": "passed",
+      "status": 200
+    }
+  ],
+  "ownEchoQualified": false,
+  "qqPostRestart": {
+    "marker": "QQ_FRONTIER_QA2_20261012_WEB_D_OK",
+    "humanVisibleConfirmed": true,
+    "inboxCount": 1,
+    "inboxHandled": true,
+    "sourceAvailable": true,
+    "sourceLinked": true,
+    "ownAppReplyCount": 1,
+    "providerAccepted": true,
+    "nativeReceipts": 1,
+    "latestReplyAt": "2026-10-11T22:45:19.420Z"
+  }
+}

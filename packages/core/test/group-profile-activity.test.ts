@@ -14,6 +14,36 @@ afterEach(() => {
 });
 
 describe('Group Profile activity', () => {
+  it('keeps QQ receiving apps distinct even when names and conversation locators match', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'botharness-group-profile-'));
+    roots.push(root);
+    const channels = createChannelStore({ rootDir: root });
+    const group = channels.createGroup({ name: 'QQ apps', members: ['ada', 'bea'] });
+    for (const accountRef of ['qq-a', 'qq-b']) {
+      await channels.appendMessage(group.id, {
+        id: accountRef,
+        at: '2026-10-04T11:00:00.000Z',
+        author: { kind: 'bridged', source: 'Same sender' },
+        body: 'Same content',
+        bridgeOrigin: {
+          platform: 'qq',
+          accountRef,
+          accountName: 'Same name',
+          conversationId: 'same-locator',
+          conversationName: 'Same group',
+          senderId: 'member',
+          sourceEventId: `source-${accountRef}`,
+          messageId: 'same-native-id',
+        },
+      });
+    }
+    const activity = groupProfileActivity(channels, group.id, new Date('2026-10-04T12:00:00.000Z'));
+    expect(activity.authors).toHaveLength(2);
+    expect(activity.authors.map((entry) => [entry.bridgeOrigin?.accountRef, entry.total])).toEqual([
+      ['qq-a', 1],
+      ['qq-b', 1],
+    ]);
+  });
   it('counts committed messages across pages by local day and author', async () => {
     const root = mkdtempSync(join(tmpdir(), 'botharness-group-profile-'));
     roots.push(root);

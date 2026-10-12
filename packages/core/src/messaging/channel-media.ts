@@ -14,6 +14,7 @@ interface MediaRequest {
   channelId: string;
   sourceEventId: string;
   attachmentId: string;
+  representation?: 'playback';
   signal: AbortSignal;
 }
 
@@ -26,13 +27,33 @@ function authority(db: DatabaseSync, input: MediaRequest, active: (slug: string)
     .get(input.channelId, input.sourceEventId) as { payload_json: string } | undefined;
   const source = row && (JSON.parse(row.payload_json) as { external?: ExternalSource }).external;
   const attachment = source?.event.attachments?.find((item) => item.id === input.attachmentId);
-  if (!source || !attachment || !attachment.mediaType?.startsWith('image/'))
+  if (
+    !source ||
+    !attachment ||
+    !(
+      attachment.mediaType?.startsWith('image/') ||
+      (source.platform === 'qq' &&
+        (attachment.mediaType === 'application/octet-stream' ||
+          (source.event.voice && attachment.mediaType === 'audio/unknown')))
+    )
+  )
     throw new MessagingError('source-unavailable');
   const rows = db
     .prepare(`SELECT g.body, p.route_id FROM messaging_source_paths p
     JOIN messaging_grants g ON g.id = p.grant_id
     WHERE p.channel_id = ? AND p.source_event_id = ? ORDER BY g.id, p.route_id`)
     .all(input.channelId, input.sourceEventId) as { body: string; route_id: string }[];
+  if (!rows.length) {
+    const row = db.prepare('SELECT body FROM messaging_grants WHERE id = ?').get(source.grantId) as
+      | { body: string }
+      | undefined;
+    const grant = row && (JSON.parse(row.body) as MessagingGrant);
+    if (row && grant?.origin === 'implicit') {
+      for (const route of channelBridgeRoutes(grant)) {
+        if (route.channelId === input.channelId) rows.push({ body: row.body, route_id: route.id });
+      }
+    }
+  }
   const candidates = rows.flatMap((row) => {
     const grant = JSON.parse(row.body) as MessagingGrant;
     const route = channelBridgeRoutes(grant).find((item) => item.id === row.route_id);
@@ -76,6 +97,12 @@ export function createChannelMediaAccess(options: {
   attachments: AttachmentStore;
   active(slug: string): boolean;
   provider(id: string): { provider: MessagingProvider; assertCurrent(): void };
+  prepareAudio?(
+    botSlug: string,
+    sourceEventId: string,
+    attachmentId: string,
+    signal: AbortSignal,
+  ): Promise<import('../attachments/ref.js').ChannelAttachmentRef>;
   warn?: (message: string) => void;
 }) {
   let active = 0;
@@ -210,6 +237,18 @@ export function createChannelMediaAccess(options: {
         );
       }
       validate();
+      if (input.representation === 'playback') {
+        if (
+          !initial.source.event.voice ||
+          initial.attachment.mediaType !== 'audio/unknown' ||
+          !options.prepareAudio
+        )
+          throw new MessagingError('audio-codec-unsupported');
+        ref = await limited(signal, () =>
+          options.prepareAudio!(value.botSlug, input.sourceEventId, input.attachmentId, signal),
+        );
+        validate();
+      }
       acquiring = false;
       options.database.transaction((db) =>
         db
@@ -221,7 +260,10 @@ export function createChannelMediaAccess(options: {
         await downloaded.body.cancel();
         throw new ChannelAttachmentError('Attachment exceeds limit', 'too-large');
       }
-      if (!['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(downloaded.ref.mime)) {
+      if (
+        initial.attachment.mediaType?.startsWith('image/') &&
+        !['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(downloaded.ref.mime)
+      ) {
         await downloaded.body.cancel();
         throw new MessagingError('media-format-unsupported');
       }
@@ -260,7 +302,13 @@ export function createChannelMediaAccess(options: {
           log('cancelled');
         },
       });
-      return { ref: downloaded.ref, body };
+      return {
+        ref: downloaded.ref,
+        body,
+        inline:
+          input.representation === 'playback' ||
+          initial.attachment.mediaType?.startsWith('image/') === true,
+      };
     } catch (error) {
       cleanup();
       controller.abort(error);

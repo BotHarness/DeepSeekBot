@@ -1,3 +1,4 @@
+import { botNameSource, paintBotScale } from './bot-primary-color.js';
 import { useMemo, useRef, useState, type ReactElement } from 'react';
 
 import { useMountedResource } from './mounted-resource.js';
@@ -16,6 +17,7 @@ import type {
 } from './bridge.js';
 import type { BotHarnessTranslate } from './locale.js';
 import type { ProfileCardDescriptor, ProfileCardViewProps } from './profile-cards.js';
+import { useIdentityTones } from './model-usage-charts.js';
 import { ModelUsageBreakdown } from './model-usage-breakdown.js';
 import { profileTokenSummaryText } from './profile-token-summary.js';
 import { useProfileChartTokens } from './profile-chart-theme.js';
@@ -105,8 +107,10 @@ export function ProfileHeatmap({
   firstDay,
   compact = false,
   loadOlder,
+  identityColor,
   t,
 }: {
+  identityColor?: string | undefined;
   counts: ReadonlyMap<string, number>;
   details?: ReadonlyMap<string, readonly string[]> | undefined;
   label: string;
@@ -219,7 +223,11 @@ export function ProfileHeatmap({
   };
   const tipLines = hovered === undefined ? [] : (allDetails.get(hovered.day) ?? []);
   return (
-    <div className="bh-profile-heat" data-compact={compact ? 'true' : undefined}>
+    <div
+      ref={(element) => paintBotScale(element, identityColor)}
+      className="bh-profile-heat"
+      data-compact={compact ? 'true' : undefined}
+    >
       <div
         ref={measure}
         className="bh-profile-heat-scroll"
@@ -344,6 +352,7 @@ function olderPage(
 }
 
 function EventActivityCard({
+  bot,
   activity,
   compact,
   loadActivity,
@@ -361,6 +370,7 @@ function EventActivityCard({
         today={activity?.today}
         firstDay={activity?.createdDay}
         compact={compact}
+        identityColor={botNameSource(bot)}
         loadOlder={olderPage(loadActivity, (page) => ({
           counts: countByDay(page.events),
           details: reasonDetails(page.events, t),
@@ -372,6 +382,7 @@ function EventActivityCard({
 }
 
 function MemoryActivityCard({
+  bot,
   activity,
   compact,
   loadActivity,
@@ -388,6 +399,7 @@ function MemoryActivityCard({
         today={activity?.today}
         firstDay={activity?.createdDay}
         compact={compact}
+        identityColor={botNameSource(bot)}
         loadOlder={olderPage(loadActivity, (page) => ({ counts: countByDay(page.memoryCommits) }))}
         t={t}
       />
@@ -490,6 +502,7 @@ function TokenTip({ totals, t }: { totals: TokenDayTotals; t: BotHarnessTranslat
 }
 
 function TokenUsageCard({
+  bot,
   loadUsage,
   activity,
   t,
@@ -533,6 +546,9 @@ function TokenUsageCard({
     [dayTotals, days],
   );
   const colors = useProfileChartTokens();
+  const identityColor = botNameSource(bot);
+  const identity = useIdentityTones(identityColor, colors);
+  const palette = identity.tones ?? colors;
   const definition = useMemo(
     () =>
       defineChart({
@@ -557,11 +573,11 @@ function TokenUsageCard({
           muted: colors.muted,
           grid: colors.grid,
           background: 'transparent',
-          palette: [colors.cached, colors.uncached, colors.output],
+          palette: [palette.cached, palette.uncached, palette.output],
         },
         tooltip,
       }),
-    [colors, rows],
+    [colors, rows, palette],
   );
   const total = windowTotals.cached + windowTotals.uncached + windowTotals.output;
   if (!compact)
@@ -572,11 +588,16 @@ function TokenUsageCard({
         status={activity?.modelUsageStatus ?? 'unavailable'}
         today={activity?.today ?? localDayKey(new Date())}
         firstDay={trailingProfileDays(activity?.today, weeks * 7)[0]!}
+        identityColor={identityColor}
         t={t}
       />
     );
   return (
-    <div className="bh-profile-card-body">
+    <div
+      ref={identity.host}
+      className="bh-profile-card-body"
+      data-usage-tones={identity.tones === undefined ? undefined : JSON.stringify(identity.tones)}
+    >
       <div className="bh-profile-card-total">
         {t('profile.tokens.window', {
           weeks,

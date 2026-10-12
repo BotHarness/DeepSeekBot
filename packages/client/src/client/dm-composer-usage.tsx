@@ -6,6 +6,7 @@ import {
 } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { BridgeActions } from './actions.js';
 import type { ProfileActivity, ProfileSessionUsage } from './bridge.js';
+import { botNameSource, paintBotName, paintBotScale } from './bot-primary-color.js';
 import type { BotSummary } from './store.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
@@ -88,6 +89,7 @@ export function DmComposerUsagePopover({
     },
     [actions, channelId, bot.slug],
   );
+  const source = botNameSource(bot);
   const rows = result?.rows ?? [];
   const knownTotal = rows.reduce(
     (total, row) =>
@@ -129,7 +131,7 @@ export function DmComposerUsagePopover({
         </button>
       </div>
       <div className="bh-composer-usage-total">
-        <span>{bot.displayName}</span>
+        <span ref={(element) => paintBotName(element, source)}>{bot.displayName}</span>
         <strong>
           {t('composerContext.tokens', { count: profileTokenSummaryText(activity, t, true) })}
         </strong>
@@ -171,6 +173,7 @@ export function DmComposerUsagePopover({
                       </div>
                       {sessionShare(row) === undefined ? null : (
                         <div
+                          ref={(element) => paintBotScale(element, source)}
                           className="bh-composer-usage-meter"
                           role="meter"
                           aria-label={t('composerContext.sessionShare')}

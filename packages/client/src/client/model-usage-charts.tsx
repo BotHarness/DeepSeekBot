@@ -156,12 +156,37 @@ export function UsageToneLegend({ t }: { t: BotHarnessTranslate }): ReactElement
   );
 }
 
+function chartSurface(host: HTMLElement | null): string {
+  return (
+    (host === null ? undefined : renderedBackground(host)) ??
+    REFERENCE_SURFACES[
+      typeof document !== 'undefined' && document.body.hasAttribute('data-ds-dark-theme')
+        ? 'dark'
+        : 'light'
+    ].background
+  );
+}
+
+export function useIdentityTones(
+  source: string | undefined,
+  revision: unknown,
+): { host: (element: HTMLElement | null) => void; tones: Record<ChartTone, string> | undefined } {
+  const [element, setElement] = useState<HTMLElement | null>(null);
+  const tones = useMemo(
+    () => (source === undefined ? undefined : botChartTones(source, chartSurface(element))),
+    [source, element, revision],
+  );
+  return { host: setElement, tones };
+}
+
 export function UsageChart({
   rows,
   kind,
   t,
   label,
+  identityColor,
 }: {
+  identityColor?: string | undefined;
   rows: UsageSummary[];
   kind: 'daily' | 'model' | 'cache';
   t: BotHarnessTranslate;
@@ -169,24 +194,19 @@ export function UsageChart({
 }): ReactElement {
   const colors = useProfileChartTokens();
   const [host, setHost] = useState<HTMLDivElement | null>(null);
-  const identity = kind === 'model' && rows.some((row) => row.identityColor !== undefined);
+  const identity =
+    (kind === 'model' && rows.some((row) => row.identityColor !== undefined)) ||
+    (kind === 'daily' && identityColor !== undefined);
   const tones = useMemo(() => {
     if (!identity) return undefined;
-    const surface =
-      (host === null ? undefined : renderedBackground(host)) ??
-      REFERENCE_SURFACES[
-        typeof document !== 'undefined' && document.body.hasAttribute('data-ds-dark-theme')
-          ? 'dark'
-          : 'light'
-      ].background;
+    const surface = chartSurface(host);
     return new Map(
-      rows.flatMap((row) =>
-        row.identityColor === undefined
-          ? []
-          : [[row.key, botChartTones(row.identityColor, surface)] as const],
-      ),
+      rows.flatMap((row) => {
+        const source = kind === 'daily' ? identityColor : row.identityColor;
+        return source === undefined ? [] : [[row.key, botChartTones(source, surface)] as const];
+      }),
     );
-  }, [identity, host, rows, colors]);
+  }, [identity, host, rows, colors, kind, identityColor]);
   const definition = useMemo(() => {
     const theme = {
       foreground: colors.foreground,
@@ -216,6 +236,14 @@ export function UsageChart({
       });
     }
     const data = segments(rows);
+    const fill =
+      tones === undefined
+        ? undefined
+        : (datum: ChartDatum): string =>
+            (datum.series === undefined || datum.series === 'unclassified'
+              ? undefined
+              : tones.get(datum.key)?.[datum.series as ChartTone]) ??
+            (datum.series === 'unclassified' ? colors.muted : colors[datum.series ?? 'cached']);
     const magnitude = {
       scale: scaleLinear,
       domain: [0, Math.max(1, ...rows.map((row) => row.totalTokens ?? 0))],
@@ -230,17 +258,7 @@ export function UsageChart({
                 x: 'tokens',
                 y: 'key',
                 z: 'series',
-                ...(tones === undefined
-                  ? { color: 'series' as const }
-                  : {
-                      fill: (datum: ChartDatum) =>
-                        (datum.series === undefined || datum.series === 'unclassified'
-                          ? undefined
-                          : tones.get(datum.key)?.[datum.series as ChartTone]) ??
-                        (datum.series === 'unclassified'
-                          ? colors.muted
-                          : colors[datum.series ?? 'cached']),
-                    }),
+                ...(fill === undefined ? { color: 'series' as const } : { fill }),
                 layout: stack({ order: ['cached', 'uncached', 'output', 'unclassified'] }),
                 radius: 2,
                 maxThickness: 18,
@@ -251,7 +269,7 @@ export function UsageChart({
                 x: 'key',
                 y: 'tokens',
                 z: 'series',
-                color: 'series',
+                ...(fill === undefined ? { color: 'series' as const } : { fill }),
                 layout: stack({ order: ['cached', 'uncached', 'output', 'unclassified'] }),
                 radius: 2,
                 maxThickness: 18,

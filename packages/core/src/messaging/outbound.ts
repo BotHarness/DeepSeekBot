@@ -1,3 +1,4 @@
+import { decodeQqVoice } from '../attachments/qq-audio.js';
 import type { ToolApprovalActor } from '../workspaces/tool-approval-actor.js';
 import {
   createApprovalMessaging,
@@ -294,6 +295,7 @@ export interface OutboundMessaging {
     channelId: string;
     sourceEventId: string;
     attachmentId: string;
+    representation?: 'playback';
     signal: AbortSignal;
   }): Promise<{ ref: ChannelAttachmentRef; body: ReadableStream<Uint8Array> }>;
   prepareAudio(
@@ -742,6 +744,8 @@ export function createOutboundMessaging(options: {
         database,
         attachments: options.attachments,
         active: options.isBotActive,
+        prepareAudio: (botSlug, sourceEventId, attachmentId, signal) =>
+          service.prepareAudio(botSlug, sourceEventId, attachmentId, signal),
         provider(id) {
           const entry = provider(id);
           return { provider: entry.provider, assertCurrent: () => current(id, entry.token) };
@@ -1352,7 +1356,7 @@ export function createOutboundMessaging(options: {
         throw new MessagingError('source-unavailable');
       const source = inbound.read(botSlug, sourceEventId);
       if (
-        source.platform !== 'weixin' ||
+        (source.platform !== 'weixin' && source.platform !== 'qq') ||
         !source.event.voice ||
         !source.event.attachments?.some(
           (file) => file.id === attachmentId && file.mediaType?.startsWith('audio/'),
@@ -1403,7 +1407,14 @@ export function createOutboundMessaging(options: {
         validate();
         const digest = createHash('sha256')
           .update(bytes)
-          .update(JSON.stringify([sourceEventId, attachmentId, source.event.voice, 'silk-wav-v1']))
+          .update(
+            JSON.stringify([
+              sourceEventId,
+              attachmentId,
+              source.event.voice,
+              source.platform === 'qq' ? 'qq-silk-wav-v1' : 'silk-wav-v1',
+            ]),
+          )
           .digest('hex')
           .slice(0, 32);
         const uploadId = [
@@ -1418,7 +1429,10 @@ export function createOutboundMessaging(options: {
           name: 'voice.wav',
           signal: combined,
           load: async () => {
-            const wav = await decodeWeChatVoice(bytes, source.event.voice!, combined);
+            const wav =
+              source.platform === 'qq'
+                ? await decodeQqVoice(bytes, combined)
+                : await decodeWeChatVoice(bytes, source.event.voice!, combined);
             validate();
             return (async function* () {
               validate();

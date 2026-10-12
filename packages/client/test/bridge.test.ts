@@ -281,6 +281,38 @@ describe('bridge parsers', () => {
     expect(messages[0]?.author).toEqual({ kind: 'bot', slug: 'ada' });
   });
 
+  it('retains optional QQ receiving-app attribution and refuses malformed fields without rejecting legacy sources', () => {
+    const base = {
+      id: 'legacy',
+      at: '2026-10-08T00:00:00Z',
+      body: 'text',
+      author: { kind: 'bridged', source: 'member' },
+      bridgeOrigin: {
+        platform: 'qq',
+        conversationId: 'group',
+        conversationName: 'Group',
+        messageId: 'native',
+        senderId: 'member',
+        sourceEventId: 'source',
+      },
+    };
+    const app = {
+      ...base,
+      id: 'app',
+      bridgeOrigin: { ...base.bridgeOrigin, accountRef: 'qq-a', accountName: 'QA' },
+    };
+    const messages = parseChannelMessages({
+      messages: [
+        base,
+        app,
+        { ...app, id: 'bad-name', bridgeOrigin: { ...app.bridgeOrigin, accountName: {} } },
+        { ...app, id: 'bad-ref', bridgeOrigin: { ...app.bridgeOrigin, accountRef: ' ' } },
+      ],
+    });
+    expect(messages.map((message) => message.id)).toEqual(['legacy', 'app']);
+    expect(messages[1]?.bridgeOrigin).toMatchObject({ accountRef: 'qq-a', accountName: 'QA' });
+  });
+
   it('preserves stable Human mentions and rejects forged offsets or authors', () => {
     const message = {
       id: 'mention',

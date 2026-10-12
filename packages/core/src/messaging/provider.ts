@@ -303,7 +303,7 @@ export interface MessagingProvider {
     file: { id: string; name: string; bytes: Uint8Array; mediaType?: string };
     signal: AbortSignal;
     beforeSend?: () => boolean;
-  }): Promise<{ accepted: true }>;
+  }): Promise<{ accepted: true; receipt?: MessagingReceipt }>;
   post?(input: {
     accountRef: string;
     targetRef: string;

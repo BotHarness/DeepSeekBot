@@ -12,7 +12,7 @@ export interface GroupProfileAuthorActivity {
   author: ChannelMessage['author'];
   bridgeOrigin?: Pick<
     NonNullable<ChannelMessage['bridgeOrigin']>,
-    'platform' | 'conversationId' | 'conversationName'
+    'platform' | 'conversationId' | 'conversationName' | 'accountRef' | 'accountName'
   >;
   total: number;
   days: GroupProfileActivityDay[];
@@ -40,7 +40,12 @@ function authorKey({
   bridgeOrigin,
 }: Pick<GroupProfileAuthorActivity, 'author' | 'bridgeOrigin'>): string {
   if (author.kind === 'bridged' && bridgeOrigin)
-    return JSON.stringify(['bridged-source', bridgeOrigin.platform, bridgeOrigin.conversationId]);
+    return JSON.stringify([
+      'bridged-source',
+      bridgeOrigin.platform,
+      bridgeOrigin.accountRef ?? null,
+      bridgeOrigin.conversationId,
+    ]);
   return author.kind === 'bot'
     ? `bot:${author.slug}`
     : author.kind === 'bridged'
@@ -78,8 +83,15 @@ export function groupProfileActivity(
         days: new Map<string, number>(),
       };
       if (message.author.kind === 'bridged' && message.bridgeOrigin && !entry.bridgeOrigin) {
-        const { platform, conversationId, conversationName } = message.bridgeOrigin;
-        entry.bridgeOrigin = { platform, conversationId, conversationName };
+        const { platform, conversationId, conversationName, accountRef, accountName } =
+          message.bridgeOrigin;
+        entry.bridgeOrigin = {
+          platform,
+          conversationId,
+          conversationName,
+          ...(accountRef ? { accountRef } : {}),
+          ...(accountName ? { accountName } : {}),
+        };
       }
       entry.total += 1;
       entry.days.set(day, (entry.days.get(day) ?? 0) + 1);

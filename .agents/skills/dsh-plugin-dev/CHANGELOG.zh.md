@@ -9,6 +9,8 @@ artifact；DSH 版本与上游 revision 记录这些内容是基于什么版本�
 
 ### Documentation
 
+- 在 [Client 诊断指南](../../../docs/dev/guides/client-startup-diagnostics.md)记录原生 RC1 两个文档的 HTTP/1 请求阻塞复现，以及 Roster／Activity 共用传输的生命周期；DSH／Cordis Context 与 Decision Tree 保持不变（[#1451](https://github.com/BotHarness/DeepSeekBot/issues/1451)）。
+
 - 在[本地开发指南](../dsh-dev/SKILL.md)记录有界 Windows→Linux Profile 路径迁移及非 root 工作区权限前提，以 pinned DSH `0.2.0-rc.1` 和真实隔离 Linux Host 核验；DSH／Cordis Context 与 Skill 行为不变（[#1386](https://github.com/BotHarness/DeepSeekBot/issues/1386)，[复验](../../../docs/research/2026-10-12-private-input-linux-qualification.md)）。
 
 - 记录受保护私密引用 MCP 消费路径、native 适配器／SDK 边界及可信服务器限制；DSH/Cordis Context 与 Skill 行为不变（[#1384](https://github.com/BotHarness/DeepSeekBot/issues/1384)，[指南](../../../docs/dev/guides/private-input-mcp.md)）。
@@ -26,6 +28,8 @@ artifact；DSH 版本与上游 revision 记录这些内容是基于什么版本�
 - 在[本地开发指南](../dsh-dev/SKILL.md)记录 RC1 原生 MCP stdio 生命周期、共享 Scope 模块身份、Windows Subprocess argv 和 Registry 继承可见性陷阱，以并发原生 Agent Scope 和真实 Docker 核验；DSH／Cordis 词汇及 Skill 行为保持不变（[#1380](https://github.com/BotHarness/DeepSeekBot/issues/1380)）。
 
 - 在[本地开发指南](../dsh-dev/SKILL.md)记录 Windows 原生冷装中重复 localhost 开发刷新 SSE 导致进度不可见、显式刷新 opt-in、首窗口 CDP 就绪问题，以及 mark-of-web／隔离 binary 的实测结果，通过 DSH 0.2.0 RC1 与 Chrome 154.0.8037.57 核验（[#1339](https://github.com/BotHarness/DeepSeekBot/issues/1339)）。
+
+- 在[调试指南](../dsh-dev/references/debugging-playbook.md)记录经核验的 Cordis 诊断 exporter／Patch 插入要求、QQ 延迟就绪后的恢复检查及原因未明的原生 Client locale 截图失败，通过 DSH 0.2.0 RC1 检查；平台词汇与 Skill 行为不变（[#1156](https://github.com/BotHarness/DeepSeekBot/issues/1156)）。
 
 - 在[调试指南](../dsh-dev/references/debugging-playbook.md)记录隔离 RC2 timed question 的前台／持续问题区别、原生稍后回答接口复验、原始应用卡片不兼容及实测发现的应用运行生命周期陷阱；生产 RC1、DSH／Cordis Context 与 Decision Tree 保持不变（[#1220](https://github.com/BotHarness/DeepSeekBot/issues/1220), [report](../../../docs/research/1220-native-timed-question-experiment.md)）。
 

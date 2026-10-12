@@ -3183,16 +3183,16 @@ button.bh-profile-heat-cell:focus-visible {
   outline-offset: 1px;
 }
 .bh-profile-heat-cell[data-level='1'] {
-  background: color-mix(in srgb, var(--bh-accent) 28%, var(--dsw-alias-interactive-bg-hover));
+  background: color-mix(in srgb, var(--bh-bot-color, var(--bh-accent)) 28%, var(--dsw-alias-interactive-bg-hover));
 }
 .bh-profile-heat-cell[data-level='2'] {
-  background: color-mix(in srgb, var(--bh-accent) 50%, var(--dsw-alias-interactive-bg-hover));
+  background: color-mix(in srgb, var(--bh-bot-color, var(--bh-accent)) 50%, var(--dsw-alias-interactive-bg-hover));
 }
 .bh-profile-heat-cell[data-level='3'] {
-  background: color-mix(in srgb, var(--bh-accent) 72%, var(--dsw-alias-interactive-bg-hover));
+  background: color-mix(in srgb, var(--bh-bot-color, var(--bh-accent)) 72%, var(--dsw-alias-interactive-bg-hover));
 }
 .bh-profile-heat-cell[data-level='4'] {
-  background: var(--bh-accent);
+  background: var(--bh-bot-color, var(--bh-accent));
 }
 .bh-profile-heat-cell[data-level='future'] {
   background: transparent;

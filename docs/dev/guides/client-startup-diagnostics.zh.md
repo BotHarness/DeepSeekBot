@@ -1,5 +1,11 @@
 # 验收 UI 前主动读取 Client 启动诊断
 
+## 两个文档的请求阻塞（#1451）
+
+Pinned RC1 的 HTTP/1 Host 上，两个同时打开的 Bot mode 文档分别建立 Channel、Roster、Activity SSE，可能耗尽浏览器共用的连接预算。真实复现中，单页的认证 messagingSnapshot 请求正常；打开第二个原生页面后，同一请求在六秒后超时，模型／消息／身份保持 Loading；让第二页进入 about:blank 后恢复，期间没有重启 Host，CLI 与 QQ 接收仍正常。两个文档均报告可见，因此只暂停隐藏页面不足以解决这次复现。先前原生 Client runner 异常的因果归属仍单独保留。
+
+现在每个文档的选中 Channel、Roster 与 Activity 共用一条物理 EventSource，仍走既有认证 stream 路线。选中 Channel 时使用 `channelId`、`after`、`roster=1`、`activity=1`，没有选中 Channel 时使用 `scope=roster&activity=1`。Pinned 原生 client-hmr 仍持有独立 `/plugins/events` 连接，因此真实双文档复验表明，仅合并 Roster／Activity 还不足够。Owning Channel live hub 从同一 Activity Projection 推送，慢读取者的更新合并为当前快照，背压时跳过心跳写入。各逻辑 Activity 消费者独立持有生命周期并复用当前健康基线；任何传输错误均清除可回放基线，让迟到消费者保留过期状态与 HTTP 恢复，直到新的传输数据到达。最后一个逻辑消费者离开时关闭物理流。Channel 选择变化会调整查询；新连接构造被拒绝时保留旧健康传输，清理不会抛出错误，替换后旧流的 callback 被忽略。Host 组合既有权威 Channel 与 Roster 流，每个读取者最多持有一块正在转交的数据，断开时取消两者；撤销 selectors 和 Channel revision／Last-Event-ID 回放仍从原有权威生成。此修复不改变 Owner 认证、Channel authority 或 API Gateway 注册。见 [#1451](https://github.com/BotHarness/DeepSeekBot/issues/1451)。
+
 每次启动隔离 DSH、重建／重载 Client，以及执行改变页面的交互后，都由 agent 主动读取真实浏览器 console 和 DOM，不等 Human 复制报错。
 
 ```bash

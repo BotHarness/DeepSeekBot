@@ -2,6 +2,7 @@
 import { act, createElement, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { parseChannelMessage } from '../src/client/bridge.js';
 import { BridgeImage } from '../src/client/bridge-image.js';
 import { ChannelMessageBody } from '../src/client/channel-message-body.js';
 import { zhTranslate } from '../src/client/locale.js';
@@ -204,3 +205,46 @@ it.each([
   expect(container.textContent).toContain(text);
   expect(createUrl).not.toHaveBeenCalled();
 });
+
+it.each([2048, undefined])(
+  'QQ file cards retain their known metadata without inventing size: %s',
+  async (sizeBytes) => {
+    const id = 'b'.repeat(64);
+    const message = parseChannelMessage({
+      id: 'source',
+      at: '2026-10-08T00:00:00Z',
+      body: 'Process file',
+      author: { kind: 'bridged', source: 'Alex' },
+      bridgeOrigin: {
+        sourceEventId: 'source',
+        platform: 'qq',
+        conversationId: 'app-group',
+        conversationName: 'QA',
+        messageId: 'native-source',
+        senderId: 'actor',
+      },
+      bridgeMedia: {
+        items: [
+          {
+            id,
+            kind: 'file',
+            name: 'input.csv',
+            ...(sizeBytes === undefined ? {} : { sizeBytes }),
+          },
+        ],
+      },
+    });
+    expect(message).toBeDefined();
+    if (!message) throw new Error('Valid file metadata rejected');
+    const container = await render(
+      createElement(ChannelMessageBody, { channelId: 'channel', t: zhTranslate, message }),
+    );
+    const link = container.querySelector<HTMLAnchorElement>('a[download]');
+    expect(link?.textContent).toContain('input.csv');
+    expect(link?.textContent).toContain('文件');
+    expect(link?.textContent?.includes('2 KB')).toBe(sizeBytes !== undefined);
+    expect(link?.getAttribute('href')).toContain('sourceEventId=source');
+    expect(link?.getAttribute('href')).toContain('attachmentId=' + id);
+    expect(fetchImage).not.toHaveBeenCalled();
+  },
+);
