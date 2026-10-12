@@ -26,7 +26,11 @@ import {
 } from './persona-bot.js';
 import { isBotBanner, seededBotBanner } from './bot-banner.js';
 import { isBotPrimaryColor, nextBotPrimaryColor } from './primary-color.js';
-import { readSharedBanner, readSharedPresentation } from './shared-presentation.js';
+import {
+  readSharedBanner,
+  readSharedPresentation,
+  readSharedPrimaryColor,
+} from './shared-presentation.js';
 import { isValidSlug } from './slug.js';
 import { recordMemoryOwnership } from './deletion.js';
 import type { HttpsFallback, MemoryCloneResult } from '../memory/clone.js';
@@ -469,10 +473,15 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       capture('bot_created');
       const shared = readSharedPresentation(defaultMemoryDir(input.slug));
       const banner = readSharedBanner(defaultMemoryDir(input.slug));
+      const primaryColor = readSharedPrimaryColor(defaultMemoryDir(input.slug));
       const presentation =
-        shared === undefined && banner === undefined
+        shared === undefined && banner === undefined && primaryColor === undefined
           ? undefined
-          : { ...shared, ...(banner === undefined ? {} : { banner }) };
+          : {
+              ...shared,
+              ...(banner === undefined ? {} : { banner }),
+              ...(primaryColor === undefined ? {} : { primaryColor }),
+            };
       if (presentation === undefined) {
         syncDescriptor(result.record, true);
         return result;
@@ -637,6 +646,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       const { primaryColor: _previous, ...rest } = record;
       const updated = next === undefined ? rest : { ...rest, primaryColor: next };
       write(updated);
+      syncDescriptor(updated);
       return { ok: true, record: updated };
     },
     setPaused(slug, paused) {

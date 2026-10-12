@@ -10,7 +10,9 @@ import {
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
+import { seededAvatarFor } from '../src/bots/avatar-appearance.js';
 import { syncBotDescriptor } from '../src/bots/bot-descriptor-sync.js';
+import { fallbackPrimaryColor, resolveBotPrimaryColor } from '../src/bots/primary-color.js';
 import {
   BOT_ZIP_HISTORY_PATH,
   BOT_ZIP_MAX_BYTES,
@@ -390,6 +392,142 @@ describe('Bot Zip import', () => {
     expect(git(copyDir, 'rev-list', '--count', 'HEAD').trim()).toBe('1');
     expect(git(copyDir, 'status', '--porcelain').trim()).toBe('');
     expect(registry.get('ada')).toBeDefined();
+  });
+
+  it('carries the Bot Primary Color policy to a fresh identity for Custom, hair and fallback', async () => {
+    const root = tempRoot();
+    const registry = registryAt(root);
+    const http = httpFor(registry);
+    const roundTrip = async (slug: string): Promise<string> => {
+      const exported = await http(new Request(`http://host/api/botharness/bot-zip?slug=${slug}`));
+      expect(exported.status).toBe(200);
+      const archive = new Uint8Array(await exported.arrayBuffer());
+      const descriptor = JSON.parse(
+        readZip(Buffer.from(archive), LIMITS)
+          .find((entry) => entry.path === '.botharness/bot.json')!
+          .data.toString('utf8'),
+      ) as { primaryColor: Record<string, unknown> };
+      expect(
+        Object.keys(descriptor.primaryColor).every((key) =>
+          ['mode', 'color', 'fallback'].includes(key),
+        ),
+      ).toBe(true);
+      const imported = await http(importRequest(archive));
+      expect(imported.status).toBe(200);
+      return ((await imported.json()) as { bot: { slug: string } }).bot.slug;
+    };
+    const resolved = (slug: string) => resolveBotPrimaryColor(registry.get(slug)!);
+    const recipe = { ...seededAvatarFor('Hair', undefined), hairColor: '#3fc1b8' };
+    const source = ['img', 'pic', 'photo', 'image'].find(
+      (slug) =>
+        fallbackPrimaryColor(slug) !== fallbackPrimaryColor('zip-bot-3') &&
+        fallbackPrimaryColor(slug) !== fallbackPrimaryColor('zip-bot-2'),
+    )!;
+    expect(source).toBeDefined();
+
+    expect(registry.create({ slug: 'cus', displayName: 'Custom' }).ok).toBe(true);
+    expect(registry.setPrimaryColor('cus', { mode: 'custom', color: '#1d1b22' }).ok).toBe(true);
+    const custom = await roundTrip('cus');
+    expect(custom).toBe('zip-bot-1');
+    expect(registry.get(custom)?.primaryColor).toEqual({
+      mode: 'custom',
+      color: '#1d1b22',
+      fallback: fallbackPrimaryColor('cus'),
+    });
+    expect(registry.setAppearance(custom, recipe).ok).toBe(true);
+    expect(registry.update(custom, { avatar: PNG_URL }).ok).toBe(true);
+    expect(resolved(custom)).toEqual({ mode: 'custom', source: 'custom', color: '#1d1b22' });
+
+    expect(registry.create({ slug: 'hair', displayName: 'Hair' }).ok).toBe(true);
+    expect(registry.setAppearance('hair', recipe).ok).toBe(true);
+    const haired = await roundTrip('hair');
+    expect(registry.get(haired)?.primaryColor).toEqual({
+      mode: 'automatic',
+      fallback: fallbackPrimaryColor('hair'),
+    });
+    expect(resolved(haired)).toEqual({ mode: 'automatic', source: 'hair', color: '#3fc1b8' });
+
+    expect(registry.create({ slug: source, displayName: 'Image', avatar: PNG_URL }).ok).toBe(true);
+    const before = resolved(source);
+    expect(before).toEqual({
+      mode: 'automatic',
+      source: 'fallback',
+      color: fallbackPrimaryColor(source),
+    });
+    const pictured = await roundTrip(source);
+    expect(pictured).toBe('zip-bot-3');
+    expect(registry.get(pictured)?.primaryColor).toEqual({
+      mode: 'automatic',
+      fallback: before.color,
+    });
+    expect(resolved(pictured)).toEqual(before);
+    expect(registryAt(root).get(pictured)?.primaryColor).toEqual({
+      mode: 'automatic',
+      fallback: before.color,
+    });
+
+    expect(registry.setAppearance(pictured, recipe).ok).toBe(true);
+    expect(resolved(pictured)).toMatchObject({ source: 'hair', color: '#3fc1b8' });
+    expect(registry.setPrimaryColor(pictured, { mode: 'custom', color: '#abcdef' }).ok).toBe(true);
+    expect(registry.setPrimaryColor(pictured, { mode: 'automatic' }).ok).toBe(true);
+    expect(registry.update(pictured, { avatar: PNG_URL }).ok).toBe(true);
+    expect(resolved(pictured)).toEqual(before);
+    const again = await roundTrip(pictured);
+    expect(resolved(again)).toEqual(before);
+  });
+
+  it('imports archives without a color policy as Automatic and drops a malformed one', async () => {
+    const root = tempRoot();
+    const registry = registryAt(root);
+    const http = httpFor(registry);
+    const archive = (descriptor: Record<string, unknown>) =>
+      writeZip([
+        { path: 'SOUL.md', data: Buffer.from('# Hi\n') },
+        { path: '.botharness/bot.json', data: Buffer.from(JSON.stringify(descriptor)) },
+        { path: '.botharness/avatar.png', data: PNG },
+      ]);
+    const legacy = { name: 'Legacy', avatar: { image: '.botharness/avatar.png' } };
+
+    expect((await http(importRequest(archive(legacy)))).status).toBe(200);
+    const old = registry.get('zip-bot-1')!;
+    expect(old.displayName).toBe('Legacy');
+    expect(old.primaryColor).toBeUndefined();
+    expect(resolveBotPrimaryColor(old)).toEqual({
+      mode: 'automatic',
+      source: 'fallback',
+      color: fallbackPrimaryColor('zip-bot-1'),
+    });
+
+    for (const primaryColor of [
+      { mode: 'custom', color: 'red' },
+      { mode: 'custom', color: '#1d1b22', light: '#000000', dark: '#ffffff' },
+      { mode: 'automatic', color: '#1d1b22' },
+      { mode: 'theme' },
+      '#1d1b22',
+    ]) {
+      const response = await http(importRequest(archive({ ...legacy, primaryColor })));
+      expect(response.status).toBe(200);
+      const slug = ((await response.json()) as { bot: { slug: string } }).bot.slug;
+      const record = registry.get(slug)!;
+      expect(record.primaryColor, JSON.stringify(primaryColor)).toBeUndefined();
+      expect(resolveBotPrimaryColor(record).mode).toBe('automatic');
+      expect(registryAt(root).get(slug)).toEqual(record);
+    }
+
+    const upper = await http(
+      importRequest(
+        archive({
+          ...legacy,
+          primaryColor: { mode: 'custom', color: '#ABCDEF', fallback: '#123ABC' },
+        }),
+      ),
+    );
+    const slug = ((await upper.json()) as { bot: { slug: string } }).bot.slug;
+    expect(registry.get(slug)?.primaryColor).toEqual({
+      mode: 'custom',
+      color: '#abcdef',
+      fallback: '#123abc',
+    });
   });
 
   it('answers bad uploads with clear errors and creates nothing', async () => {

@@ -1,3 +1,4 @@
+import { fallbackPrimaryColor } from '../src/bots/primary-color.js';
 import { seededBannerRecipe } from '@botharness/pixel-banner';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -78,6 +79,7 @@ describe('Bot descriptor sync', () => {
       bio: '帮你排行程、比酒店',
       avatar: { recipe: canonicalAvatarRecipe(seededAvatarRecipeV2('旅行规划师')) },
       banner: { recipe: seededBannerRecipe('旅行规划师') },
+      primaryColor: { mode: 'automatic', fallback: fallbackPrimaryColor('travel') },
     });
     expect(existsSync(join(memoryDir, '.botharness/banner.png'))).toBe(true);
     expect(parseBotDescriptor(JSON.stringify(descriptor))).toBeDefined();
@@ -106,11 +108,24 @@ describe('Bot descriptor sync', () => {
     });
     expect(commits()).toBe(before + 2);
 
+    expect(registry.setPrimaryColor('scribe', { mode: 'custom', color: '#1d1b22' }).ok).toBe(true);
+    expect(descriptorOf(memoryDir)['primaryColor']).toEqual({
+      mode: 'custom',
+      color: '#1d1b22',
+      fallback: fallbackPrimaryColor('scribe'),
+    });
+    expect(registry.setPrimaryColor('scribe', { mode: 'automatic' }).ok).toBe(true);
+    expect(descriptorOf(memoryDir)['primaryColor']).toEqual({
+      mode: 'automatic',
+      fallback: fallbackPrimaryColor('scribe'),
+    });
+    expect(commits()).toBe(before + 4);
+
     registry.update('scribe', { avatar: PNG_URL });
     expect(descriptorOf(memoryDir)['avatar']).toEqual({ image: '.botharness/avatar.png' });
     expect(readFileSync(join(memoryDir, '.botharness/avatar.png'))).toEqual(PNG);
     expect(readSharedPresentation(memoryDir)?.avatar).toBe(PNG_URL);
-    expect(commits()).toBe(before + 3);
+    expect(commits()).toBe(before + 5);
 
     registry.update('scribe', { avatar: '' });
     expect(existsSync(join(memoryDir, '.botharness/avatar.png'))).toBe(false);
@@ -169,6 +184,7 @@ describe('Bot descriptor sync', () => {
       name: 'Shared',
       avatar: { image: 'assets/avatar.png' },
       banner: { recipe: seededBannerRecipe('Shared') },
+      primaryColor: { mode: 'automatic', fallback: fallbackPrimaryColor('shared') },
     });
     expect(existsSync(join(memoryDir, '.botharness/avatar.png'))).toBe(false);
   });

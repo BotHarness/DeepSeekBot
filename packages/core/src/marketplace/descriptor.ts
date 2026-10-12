@@ -9,12 +9,17 @@ export type BotDescriptorAvatar = { recipe: Record<string, unknown> } | { image:
 
 export type BotDescriptorBanner = { recipe: { scene: string; seed: number } } | { image: string };
 
+export type BotDescriptorPrimaryColor =
+  | { mode: 'automatic'; fallback?: string }
+  | { mode: 'custom'; color: string; fallback?: string };
+
 export interface BotDescriptor {
   name?: string;
   tags?: string[];
   bio?: string;
   avatar?: BotDescriptorAvatar;
   banner?: BotDescriptorBanner;
+  primaryColor?: BotDescriptorPrimaryColor;
 }
 
 const IMAGE_PATH = /\.(png|jpe?g|webp)$/iu;
@@ -71,6 +76,22 @@ function parseBanner(value: unknown): BotDescriptorBanner | undefined | false {
   return false;
 }
 
+const SOURCE_COLOR = /^#[0-9a-f]{6}$/iu;
+
+function parsePrimaryColor(value: unknown): BotDescriptorPrimaryColor | undefined | false {
+  if (value === undefined) return undefined;
+  const source = record(value);
+  if (source === undefined) return false;
+  const { mode, color, fallback, ...rest } = source;
+  if (Object.keys(rest).length > 0) return false;
+  if (fallback !== undefined && (typeof fallback !== 'string' || !SOURCE_COLOR.test(fallback)))
+    return false;
+  const carried = fallback === undefined ? {} : { fallback: fallback.toLowerCase() };
+  if (mode === 'automatic') return color === undefined ? { mode, ...carried } : false;
+  if (mode !== 'custom' || typeof color !== 'string' || !SOURCE_COLOR.test(color)) return false;
+  return { mode, color: color.toLowerCase(), ...carried };
+}
+
 function parseTags(value: unknown): string[] | undefined | false {
   if (value === undefined) return undefined;
   if (!Array.isArray(value) || value.length > MAX_DESCRIPTOR_TAGS) return false;
@@ -123,5 +144,8 @@ export function parseBotDescriptor(text: string): BotDescriptor | undefined {
   const banner = parseBanner(source['banner']);
   if (banner === false) return undefined;
   if (banner !== undefined) descriptor.banner = banner;
+  const primaryColor = parsePrimaryColor(source['primaryColor']);
+  if (primaryColor === false) return undefined;
+  if (primaryColor !== undefined) descriptor.primaryColor = primaryColor;
   return descriptor;
 }

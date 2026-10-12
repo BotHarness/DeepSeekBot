@@ -16,6 +16,7 @@ import { canonicalRecipe, isAvatarRecipe, seededAvatarFor } from './avatar-appea
 import { BOT_BANNER_FILE, botBannerPng, seededBotBanner } from './bot-banner.js';
 import type { PersonaBotRecord } from './persona-bot.js';
 import { readSharedPresentation } from './shared-presentation.js';
+import { fallbackPrimaryColor, type BotPrimaryColor } from './primary-color.js';
 
 const DESCRIPTOR_DIR = '.botharness';
 const AVATAR_EXTENSIONS = { png: 'png', jpeg: 'jpg', webp: 'webp' } as const;
@@ -76,6 +77,16 @@ function sameAvatar(memoryDir: string, record: PersonaBotRecord): boolean {
   );
 }
 
+export function portablePrimaryColor(
+  record: Pick<PersonaBotRecord, 'slug' | 'primaryColor'>,
+): BotPrimaryColor {
+  const policy = record.primaryColor;
+  const fallback = policy?.fallback ?? fallbackPrimaryColor(record.slug);
+  return policy?.mode === 'custom'
+    ? { mode: 'custom', color: policy.color, fallback }
+    : { mode: 'automatic', fallback };
+}
+
 export function syncBotDescriptor(
   memoryDir: string,
   record: PersonaBotRecord,
@@ -93,6 +104,7 @@ export function syncBotDescriptor(
   delete descriptor['bio'];
   delete descriptor['avatar'];
   delete descriptor['banner'];
+  delete descriptor['primaryColor'];
 
   const name = clip(record.displayName, MAX_DESCRIPTOR_NAME_LENGTH);
   if (name.length > 0) descriptor['name'] = name;
@@ -119,6 +131,7 @@ export function syncBotDescriptor(
   const banner = record.banner ?? seededBotBanner(record.displayName || record.slug);
   descriptor['banner'] =
     'recipe' in banner ? { recipe: banner.recipe } : { image: BOT_BANNER_FILE };
+  descriptor['primaryColor'] = portablePrimaryColor(record);
 
   const text = `${JSON.stringify(descriptor, null, 2)}\n`;
   if (

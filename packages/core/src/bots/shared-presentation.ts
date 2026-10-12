@@ -15,6 +15,7 @@ import {
 } from './bot-banner.js';
 import { deriveAvatarAppearance } from './avatar-snapshot.js';
 import { isPersonaBotAvatar, MAX_PERSONA_BOT_AVATAR_BYTES } from './persona-bot.js';
+import { isBotPrimaryColor, type BotPrimaryColor } from './primary-color.js';
 
 const IMAGE_TYPES: Record<string, string> = {
   png: 'image/png',
@@ -64,4 +65,11 @@ export function readSharedBanner(memoryDir: string): BotBanner | undefined {
   if (!banner.image.toLowerCase().endsWith('.png')) return undefined;
   const bytes = readInside(memoryDir, banner.image, MAX_BOT_BANNER_BYTES);
   return bytes === undefined ? undefined : botBannerFromPng(bytes);
+}
+
+export function readSharedPrimaryColor(memoryDir: string): BotPrimaryColor | undefined {
+  const file = readInside(memoryDir, BOT_DESCRIPTOR_PATH, MAX_DESCRIPTOR_BYTES);
+  if (file === undefined) return undefined;
+  const policy = parseBotDescriptor(file.toString('utf8'))?.primaryColor;
+  return isBotPrimaryColor(policy) ? policy : undefined;
 }
