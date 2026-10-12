@@ -1,6 +1,6 @@
 ---
 Status: Accepted
-Amended by: [ADR-0179](0179-onboarding-is-a-checklist-launched-from-the-bot-mode-row.md) — first entry opens a getting-started checklist from a progress ring in the Bot-mode row; the walkthrough starts from it.
+Amended by: [ADR-0180](0180-onboarding-is-a-checklist-launched-from-the-bot-mode-row.md) — first entry opens a getting-started checklist from a progress ring in the Bot-mode row; the walkthrough starts from it.
 Date: 2026-10-09
 Issues: [#1295](https://github.com/BotHarness/BotHarness/issues/1295), [#1301](https://github.com/BotHarness/BotHarness/issues/1301)
 ---
