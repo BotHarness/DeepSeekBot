@@ -128,7 +128,7 @@ Pixel Avatars can be an elf, dwarf, orc or talking flower with beards, medieval 
 
 ### Documentation
 
-- Added bilingual human contributor guides and community entry points for questions, ideas, examples and focused issues or PRs; runtime behavior is unchanged ([contributor guide](CONTRIBUTING.md), [#1396](https://github.com/BotHarness/DeepSeekBot/issues/1396)).
+- Added bilingual human contributor guides and community entry points for questions, ideas, examples and focused issues or PRs, including copyable, illustrative bug-report examples with redaction guidance; runtime behavior is unchanged ([contributor guide](CONTRIBUTING.md), [#1396](https://github.com/BotHarness/DeepSeekBot/issues/1396), [#1403](https://github.com/BotHarness/DeepSeekBot/issues/1403)).
 
 - Clarified DeepSeekBot’s project identity, canonical installation links and distinction from DS Bot in both READMEs, with published npm versus current-source Browser/Computer scope ([#1399](https://github.com/BotHarness/DeepSeekBot/issues/1399)).
 
