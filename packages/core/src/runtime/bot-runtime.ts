@@ -3040,6 +3040,17 @@ class BotRuntimeImplementation implements BotRuntime {
     await this.#agents.close();
   }
 
+  #admissionHandled(sourceEventId: string, botSlug: string): boolean {
+    const row = this.#database.read((database) =>
+      database
+        .prepare(
+          `SELECT attempt_state FROM inbox_admissions WHERE source_event_id = ? AND bot_slug = ?`,
+        )
+        .get(sourceEventId, botSlug),
+    ) as { attempt_state: string } | undefined;
+    return row?.attempt_state === 'handled';
+  }
+
   async #runHumanDmTurn(
     bot: PersonaBotRecord,
     channelId: string,
@@ -3051,6 +3062,7 @@ class BotRuntimeImplementation implements BotRuntime {
       throw new Error(`Source Event ${claim.sourceEventId} requires reconciliation before replay`);
     }
     if (!claim.shouldRun) return;
+    if (this.#admissionHandled(claim.sourceEventId, bot.slug)) return;
 
     const timestamp = this.#now().toISOString();
     const orchestrator = this.#ensureOrchestrator(bot, timestamp);

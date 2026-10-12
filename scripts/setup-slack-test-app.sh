@@ -192,16 +192,18 @@ ENV_FILE="${BOTHARNESS_IM_TEST_APPS_ENV:-$(node -p "require('node:path').join(re
 node "$SCRIPT_DIR/dev-im-test-apps.mjs" protect "$ENV_FILE"
 export TMPDIR="${ENV_FILE%/*}"
 
-declare -A IM_TEST_APP_VALUES=()
+# Keys are validated identifiers, so each value lives in its own prefixed variable.
+# macOS ships bash 3.2, which has no associative arrays.
 while IFS= read -r line || [[ -n "$line" ]]; do
   [[ "$line" != '# BH_SLACK_'* ]] || line="${line:2}"
   if [[ "$line" =~ ^(BH_SLACK_QA_SLOT|BH_SLACK_QA[123]_[A-Z_]+)=(.*)$ ]]; then
-    IM_TEST_APP_VALUES["${BASH_REMATCH[1]}"]="${BASH_REMATCH[2]}"
+    printf -v "IM_TEST_APP_VALUE_${BASH_REMATCH[1]}" '%s' "${BASH_REMATCH[2]}"
   fi
 done < "$ENV_FILE"
 _existing() {
-  [[ -v "IM_TEST_APP_VALUES[$1]" ]] || return 1
-  printf '%s' "${IM_TEST_APP_VALUES[$1]}"
+  local name="IM_TEST_APP_VALUE_$1"
+  [[ -n "${!name+set}" ]] || return 1
+  printf '%s' "${!name}"
 }
 _clear() {
   [[ -t 1 ]] || return 0
@@ -209,7 +211,7 @@ _clear() {
 }
 write_env() {
   printf '%s=%s\n' "$1" "$2" | node "$SCRIPT_DIR/dev-im-test-apps.mjs" save
-  IM_TEST_APP_VALUES["$1"]="$2"
+  printf -v "IM_TEST_APP_VALUE_$1" '%s' "$2"
   WRITTEN_ENV+=("$1")
   printf '  ✓ 已保存 %s。\n' "$1"
 }

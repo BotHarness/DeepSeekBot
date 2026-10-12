@@ -195,15 +195,17 @@ export TMPDIR="${ENV_FILE%/*}"
 
 # The shared template stays unchanged. Avoid launching grep/tail for every prompt
 # and tput for every stage on Windows; use one literal, private file snapshot.
-declare -A IM_TEST_APP_VALUES=()
+# Keys are validated identifiers, so each value lives in its own prefixed variable.
+# macOS ships bash 3.2, which has no associative arrays.
 while IFS= read -r line || [[ -n "$line" ]]; do
   if [[ "$line" =~ ^(BH_IM_QA_SLOT|BH_LARK_QA[123]_[A-Z_]+)=(.*)$ ]]; then
-    IM_TEST_APP_VALUES["${BASH_REMATCH[1]}"]="${BASH_REMATCH[2]}"
+    printf -v "IM_TEST_APP_VALUE_${BASH_REMATCH[1]}" '%s' "${BASH_REMATCH[2]}"
   fi
 done < "$ENV_FILE"
 _existing() {
-  [[ -v "IM_TEST_APP_VALUES[$1]" ]] || return 1
-  printf '%s' "${IM_TEST_APP_VALUES[$1]}"
+  local name="IM_TEST_APP_VALUE_$1"
+  [[ -n "${!name+set}" ]] || return 1
+  printf '%s' "${!name}"
 }
 _clear() {
   [[ -t 1 ]] || return 0
@@ -214,7 +216,7 @@ write_values() {
   printf '%s\n' "$@" | node "$SCRIPT_DIR/dev-im-test-apps.mjs" save
   for entry in "$@"; do
     key="${entry%%=*}"
-    IM_TEST_APP_VALUES["$key"]="${entry#*=}"
+    printf -v "IM_TEST_APP_VALUE_$key" '%s' "${entry#*=}"
     WRITTEN_ENV+=("$key")
   done
   printf '  ✓ 已保存本阶段配置。\n'

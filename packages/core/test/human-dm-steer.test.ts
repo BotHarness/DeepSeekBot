@@ -433,9 +433,11 @@ describe('Human DM steering', () => {
       releaseTurn = resolve;
     });
     const steered: string[] = [];
+    const turns: string[] = [];
     let allowSteer = false;
     const agents: BotAgentAdapter = {
-      async runOrchestrator() {
+      async runOrchestrator(run) {
+        turns.push(String(run.message));
         markStarted();
         await released;
       },
@@ -499,6 +501,15 @@ describe('Human DM steering', () => {
       expect(steered[0]).not.toContain('remain pending for later turns');
       releaseTurn();
       await core.runtime.whenIdle();
+      expect(turns).toHaveLength(1);
+      expect(turns[0]).toContain('Start');
+      expect(
+        attachOperationalModule(core.operationalDatabase, 'bot-inbox').read((database) =>
+          database
+            .prepare('SELECT attempt_state, COUNT(*) AS count FROM inbox_admissions GROUP BY 1')
+            .all(),
+        ),
+      ).toEqual([{ attempt_state: 'handled', count: 32 }]);
     } finally {
       releaseTurn();
       await core.runtime.close();
