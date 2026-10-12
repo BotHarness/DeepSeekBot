@@ -61,6 +61,7 @@ function setNavigationIcon(
   svg.append(path);
   button.replaceChildren(svg);
   button.classList.add('bh-internal-tour-navigation');
+  button.classList.toggle('bh-internal-tour-done', pathData === TOUR_ICON_PATHS.done);
   button.setAttribute('aria-label', label);
   button.title = label;
 }
