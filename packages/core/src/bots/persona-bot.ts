@@ -9,6 +9,7 @@ import {
   type RetainedAvatarAppearance,
 } from './avatar-appearance.js';
 import { isBotBanner, type BotBanner } from './bot-banner.js';
+import { isBotPrimaryColor, type BotPrimaryColor } from './primary-color.js';
 
 export interface PersonaBotRecord {
   slug: string;
@@ -20,6 +21,7 @@ export interface PersonaBotRecord {
   avatar?: string;
   appearance?: AvatarAppearance | RetainedAvatarAppearance;
   banner?: BotBanner;
+  primaryColor?: BotPrimaryColor;
   avatarSeed?: 2;
   model?: string;
   modelPlan?: PersonaBotModelPlan;
@@ -138,6 +140,8 @@ export function isPersonaBotRecord(value: unknown, slug: string): value is Perso
   )
     return false;
   if (record['banner'] !== undefined && !isBotBanner(record['banner'])) return false;
+  if (record['primaryColor'] !== undefined && !isBotPrimaryColor(record['primaryColor']))
+    return false;
   if (record['avatarSeed'] !== undefined && record['avatarSeed'] !== 2) return false;
   if (!Array.isArray(record['workspaces'])) return false;
   if (!record['workspaces'].every((entry) => typeof entry === 'string')) return false;

@@ -597,6 +597,14 @@ Custom Part 是有界像素网格，每格引用外形颜色或固定色并带�
 
 目前已实现：哥布林、精灵、矮人、兽人和花物种，左右侧发分片，胡子，中世纪服装与头饰，全域种子（#1210、#1212–#1214），第一条 Custom Part 路径（#1211），自绘头发（#1238），自绘其他部件（#1240）、部件文件分享（#1215），完整绘制工具（#1216），每片头发单独配色与内置头饰（#1217），普通 PNG 导入和派生编辑（#1219），以及带毛色花纹的动物物种（#1218）。asset version 4 新增前发、后发和呆毛颜色、单根呆毛，以及与配饰并存、可放内置头饰或 Custom Part 的头饰位；只有 Human 编辑这些项时编辑器才把 recipe 升到 version 4，并把作为配饰戴着的头饰移入头饰位。自绘的前发、侧发或后发会替换对应的内置部件，原来的选择仍会保留；其中发色的像素会像内置头发一样上阴影，所以编辑时从当前样式压平成的格子开始。自绘头饰的 recipe 是 asset version 3。Part Library 是 `avatar-part-library` 模块的 `avatar_part_library` 表（schema generation 73），以部件内容哈希为键，并保存名称、来源和父部件。Client 编辑器通过 `partLibraryList`、`partLibraryAdd`、`partLibraryExport` 和 `partLibraryImport` 四个桥接方法使用它；`part-file` 把单个部件编码为 ×8 预览 PNG，部件数据放在 `botharness-part` tEXt 块中，整个部件库导出为这种 PNG 的 zip，导入时校验每个块的 CRC 并按内容去重；导入 Bot 时其外形穿戴的部件以 `imported-bot` 来源加入部件库，作者为该 Bot 的显示名；编辑器提供带变亮／变暗明暗笔的铅笔、橡皮、四连通填充、按 Shift 锁定角度和正方形的直线与矩形、限定在区域内并带 4×4 或 2×2 Bayer 抖动的明暗渐变、可重新随机的 ±1 明暗杂色、Alt 点击或长按吸管、所有工具的中线镜像、前后两层、每次操作一步撤销（触屏双指撤销、三指重做）、触屏偏移光标和 1× 预览；每个工具的格子都由 BotPixel 计算，结果仍是外形颜色加明暗档位。外形嵌入部件副本，因此部件会随 `.botharness/bot.json` 和 Bot Zip 一起带走。`part-image` 解码部件尺寸（或整数倍放大）的普通 PNG，经 `partLibraryImport` 报告颜色数，`partLibraryImportImage` 保留最常见的颜色（最近色、不抖动），以 `imported-image` 来源存为固定颜色的格子；带部件库父部件保存的部件来源为 `derived`，并以 `parentAuthor` 记录父部件作者。
 
+### 5.5 · Bot 主色（部分已实现）
+
+[ADR-0177](../adr/0177-bot-primary-color-is-portable-identity-not-theme-state.md) 将 application-defined Bot Primary Color 定义为 PersonaBot 的视觉身份来源，而不是 DSH-native Service、SessionEvent、Client 偏好或全局主题品牌 token。现有 PersonaBot Host owner 管理自动／自定义模式与可移植兜底来源；Client 共享来源解析，再针对实际背景与 light/dark 派生名字颜色。自动模式采用当前 Avatar 的主 `hairColor`，没有可用主发色（上传图片、无头发、line family 或不支持的外形）时使用按 PersonaBot ID 确定的兜底色；自定义覆盖独立于 Avatar Appearance。主题切换不修改 Avatar 或身份来源。
+
+已实现（#1471）：PersonaBot Registry 记录的可选 `primaryColor` 字段保存来源策略（缺失即自动，无 schema generation 变化）；`botPrimaryColorSet` bridge 方法沿用 DM 范围的既有授权，校验后保存，自动模式保留已携带的兜底来源。`primary-color` 模块提供 Avatar renderer 与主色解析共用的外形解析，二者不会各自实现默认头像算法。Bot Profile 的头像弹窗提供独立的 Bot 主色设置（自动／自定义、预设、取色器、HEX）与本地 light/dark 预览，Host 保存成功后才更新共享呈现；取消或失败不发布草稿。DM 的 Bot 作者名按实测背景派生名字色：保持色相与色度，只调整明度，直到对比度不低于 4.5:1，黑白灰保持无彩色。
+
+尚未实现：群聊输入／候选／已发送 Bot 提及与群聊作者名（#1472）、分享／导入携带模式与兜底来源（#1473）、删除后历史归属保留最后来源（#1474）、按 Bot 区分的用量图表（#1476）与单 Bot 活跃度（#1475）。这些仍是 ADR-0177 的已接受目标，不是运行时事实；完整范围与验收见[设计记录](../research/2026-10-12-bot-primary-color-design.md)。
+
 ## 6 · 持久化、导出与恢复边界
 
 ```mermaid

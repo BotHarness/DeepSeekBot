@@ -2663,6 +2663,32 @@ canvas.bh-banner-art { image-rendering: pixelated; }
 .bh-profile-bio-count { align-self: flex-end; font-variant-numeric: tabular-nums; }
 .bh-personabot-hint[data-invalid="true"] { color: var(--dsw-alias-state-error-primary); }
 .bh-profile-avatar-modal { width: min(760px, calc(100vw - 32px)); }
+.bh-primary-color-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; padding: 8px 10px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 10px; }
+.bh-primary-color-row-swatch { flex: 0 0 auto; width: 24px; height: 24px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 50%; }
+.bh-primary-color-row-copy { display: flex; flex: 1; min-width: 0; flex-direction: column; }
+.bh-primary-color-row-title { font-size: 13px; color: var(--dsw-alias-label-primary); }
+.bh-primary-color-modal { width: min(520px, calc(100vw - 32px)); }
+.bh-primary-color-editor { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.bh-primary-color-editor > p { margin: 0; }
+.bh-primary-color-custom { display: flex; flex-direction: column; gap: 10px; }
+.bh-primary-color-custom > p { margin: 0; }
+.bh-primary-color-hex { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.bh-primary-color-hex-input { width: 96px; height: 28px; padding: 0 8px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 6px; background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary); font: inherit; font-family: var(--dsw-font-markdown-code-block-font-family); }
+.bh-primary-color-hex-input[aria-invalid='true'] { border-color: var(--dsw-alias-state-error-primary); }
+.bh-primary-color-editor :focus-visible { outline: 2px solid var(--dsw-alias-label-primary); outline-offset: 2px; }
+.bh-primary-color-preview { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+/* The panes show both themes at once, so their colours are the measured reference surfaces
+   passed in as data (bot-primary-color.ts), not the active theme's tokens. */
+.bh-primary-color-pane { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 10px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 10px; background: var(--bh-primary-preview-surface); color: var(--bh-primary-preview-label); }
+.bh-primary-color-pane-title { font-size: 11px; opacity: 0.6; }
+.bh-primary-color-sample { display: flex; align-items: flex-start; gap: 8px; min-width: 0; }
+.bh-primary-color-sample-copy { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.bh-primary-color-author { font-size: 11px; color: var(--bh-primary-preview-name); overflow-wrap: anywhere; }
+.bh-primary-color-line { font-size: 13px; overflow-wrap: anywhere; }
+.bh-primary-color-mention { padding: 2px 8px; border-radius: 6px; background: color-mix(in srgb, currentColor 10%, transparent); color: var(--bh-primary-preview-name); }
+.bh-primary-color-chart { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; }
+.bh-primary-color-chart-swatch { width: 28px; height: 10px; border-radius: 3px; background: var(--bh-primary-preview-swatch); box-shadow: 0 0 0 1px color-mix(in srgb, currentColor 18%, transparent); }
+@media (max-width: 480px) { .bh-primary-color-preview { grid-template-columns: minmax(0, 1fr); } }
 .bh-profile-avatar-modal .bh-avatar-section { margin: 0; padding: 0; border: 0; }
 .bh-profile-avatar-modal .bh-avatar-section > .bh-profile-section-title { display: none; }
 .bh-profile-view-identity {

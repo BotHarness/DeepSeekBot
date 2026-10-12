@@ -17,6 +17,8 @@ import type { BotHarnessTranslate } from './locale.js';
 import { Modal } from './modal.js';
 import { NameInput } from './name-input.js';
 import { BannerCropModal, PersonaBotAvatarCropModal } from './personabot-avatar-crop.js';
+import { botPrimaryColorOf } from './bot-primary-color.js';
+import { PrimaryColorModal } from './primary-color-editor.js';
 import type { BotBannerView, BotSummary, ChannelSummary } from './store.js';
 import {
   MAX_BOT_BIO_LENGTH,
@@ -193,6 +195,7 @@ function AvatarModal({
     BridgeActions,
     | 'setBotAppearance'
     | 'setBotAvatar'
+    | 'setBotPrimaryColor'
     | 'loadPartLibrary'
     | 'addLibraryPart'
     | 'exportLibraryParts'
@@ -205,6 +208,8 @@ function AvatarModal({
   const [file, setFile] = useState<File>();
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [coloring, setColoring] = useState(false);
+  const primary = botPrimaryColorOf(bot);
   const input = useRef<HTMLInputElement | null>(null);
   const removeImage = async (): Promise<void> => {
     setBusy(true);
@@ -220,6 +225,22 @@ function AvatarModal({
       closeLabel={t('common.close')}
       className="bh-profile-avatar-modal"
     >
+      <div className="bh-primary-color-row" data-primary-color-source={primary.source}>
+        <span
+          className="bh-primary-color-row-swatch"
+          style={{ background: primary.color }}
+          aria-hidden="true"
+        />
+        <span className="bh-primary-color-row-copy">
+          <span className="bh-primary-color-row-title">{t('profile.primaryColor.title')}</span>
+          <span className="bh-personabot-hint">
+            {t(`profile.primaryColor.summary.${primary.source}`)}
+          </span>
+        </span>
+        <Button size="sm" variant="outline" onClick={() => setColoring(true)}>
+          {t('profile.primaryColor.edit')}
+        </Button>
+      </div>
       <AvatarAppearanceEditor
         key={`avatar-${bot.slug}`}
         bot={bot}
@@ -252,6 +273,15 @@ function AvatarModal({
         <div className="bh-error" role="alert">
           {t('profile.avatar.failed')}
         </div>
+      ) : null}
+      {coloring ? (
+        <PrimaryColorModal
+          bot={bot}
+          channel={channel}
+          actions={actions}
+          t={t}
+          onClose={() => setColoring(false)}
+        />
       ) : null}
       {file === undefined ? null : (
         <PersonaBotAvatarCropModal

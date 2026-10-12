@@ -6,6 +6,7 @@ import type { ActivityOverview } from '../../../core/src/bridge/methods.js';
 import type { PersonaBotToolActivity } from '../../../core/src/state/tool-activity.js';
 import type { PersonaBotActivityState } from './avatar.js';
 import type { AvatarAppearance } from '../../../core/src/bots/avatar-appearance.js';
+import type { BotPrimaryColor } from '../../../core/src/bots/primary-color.js';
 import type { GitAvailability } from './bridge.js';
 import type { RosterConfig } from './roster-config.js';
 import type { RosterSection, TopOrderEntry } from './roster.js';
@@ -33,6 +34,7 @@ export interface BotSummary {
   appearance?: AvatarAppearance;
   appearanceUnsupported?: true;
   banner?: BotBannerView;
+  primaryColor?: BotPrimaryColor;
   avatarSeed?: 2;
   paused?: boolean;
   deleted?: boolean;

@@ -56,6 +56,7 @@ import type { GroupReceptionInput } from '../../../core/src/messaging/group-poli
 import type { MessagingConversationInput } from '../../../core/src/messaging/conversations.js';
 import { isPartLibraryEntry, type PartLibraryEntry } from '../../../core/src/bots/part-library.js';
 import type { PixelCustomPart } from '../../../core/src/bots/avatar-appearance.js';
+import { isBotPrimaryColor } from '../../../core/src/bots/primary-color.js';
 import type { ActivityOverview } from '../../../core/src/bridge/methods.js';
 import type { ExternalSource } from '../../../core/src/messaging/inbound.js';
 import type {
@@ -584,6 +585,8 @@ async function unwrap(
   return result.value;
 }
 
+export type BotPrimaryColorChoice = { mode: 'automatic' } | { mode: 'custom'; color: string };
+
 export function parseBotSummary(value: unknown): BotSummary | undefined {
   const record = asRecord(value);
   if (record === undefined) return undefined;
@@ -613,6 +616,7 @@ export function parseBotSummary(value: unknown): BotSummary | undefined {
         ? { appearanceUnsupported: true as const }
         : {}),
     ...(parseBanner(record['banner']) ?? {}),
+    ...(isBotPrimaryColor(record['primaryColor']) ? { primaryColor: record['primaryColor'] } : {}),
     ...(record['avatarSeed'] === 2 ? { avatarSeed: 2 as const } : {}),
     ...(typeof record['paused'] === 'boolean' ? { paused: record['paused'] } : {}),
     ...(record['deleted'] === true ? { deleted: true } : {}),
@@ -2060,6 +2064,17 @@ export async function setBotAppearance(
   const value = asRecord(await unwrap(call, 'botAppearanceSet', { channelId, recipe }));
   const bot = parseBotSummary(value?.['bot']);
   if (bot === undefined) throw new Error('invalid botAppearanceSet response');
+  return bot;
+}
+
+export async function setBotPrimaryColor(
+  call: BridgeCall,
+  channelId: string,
+  primaryColor: BotPrimaryColorChoice,
+): Promise<BotSummary> {
+  const value = asRecord(await unwrap(call, 'botPrimaryColorSet', { channelId, primaryColor }));
+  const bot = parseBotSummary(value?.['bot']);
+  if (bot === undefined) throw new Error('invalid botPrimaryColorSet response');
   return bot;
 }
 

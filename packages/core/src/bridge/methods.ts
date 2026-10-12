@@ -116,6 +116,7 @@ import {
   partFileName,
 } from '../bots/part-file.js';
 import type { AvatarAppearance, RetainedAvatarAppearance } from '../bots/avatar-appearance.js';
+import type { BotPrimaryColor } from '../bots/primary-color.js';
 import { ChannelMentionTargetError, ChannelReplyTargetError } from '../channels/store.js';
 import { ChannelAttachmentError } from '../attachments/store.js';
 import { isChannelAttachmentRef } from '../attachments/ref.js';
@@ -267,6 +268,7 @@ export interface PersonaBotSummary {
   avatar?: string;
   appearance?: AvatarAppearance | RetainedAvatarAppearance;
   banner?: BotBannerSummary;
+  primaryColor?: BotPrimaryColor;
   avatarSeed?: 2;
   paused?: boolean;
   deleted?: boolean;
@@ -567,6 +569,7 @@ export interface BridgeMethods {
   botAvatarSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
   botBannerSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
   botAppearanceSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
+  botPrimaryColorSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
   partLibraryList(): BridgeResult<{ parts: PartLibraryEntry[] }>;
   partLibraryAdd(payload: unknown): BridgeResult<{ entry: PartLibraryEntry }>;
   partLibraryExport(payload: unknown): BridgeResult<{ fileName: string; data: string }>;
@@ -918,6 +921,7 @@ function summarize(record: PersonaBotRecord, snapshot: BotStateSnapshot): Person
     roles: record.roles ?? (record.tag === undefined ? [] : [record.tag]),
     standingLimits: { ...(record.standingLimits ?? DEFAULT_STANDING_LIMITS) },
     ...(record.appearance === undefined ? {} : { appearance: record.appearance }),
+    ...(record.primaryColor === undefined ? {} : { primaryColor: { ...record.primaryColor } }),
     ...(record.description === undefined ? {} : { description: record.description }),
     ...(record.avatar === undefined
       ? {}
@@ -2479,6 +2483,21 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         return result.reason === 'not-found'
           ? unknownBot(scope.botSlug)
           : invalidInput('invalid banner');
+      return { ok: true, value: detailOf(result.record) };
+    },
+    botPrimaryColorSet(payload) {
+      const scope = dmMemory(payload);
+      if (!('botSlug' in scope)) return scope;
+      const result = deps.registry.setPrimaryColor(
+        scope.botSlug,
+        asObject(payload)['primaryColor'],
+      );
+      if (!result.ok)
+        return result.reason === 'not-found'
+          ? unknownBot(scope.botSlug)
+          : invalidInput(
+              "primaryColor must be { mode: 'automatic' } or { mode: 'custom', color: '#rrggbb' }",
+            );
       return { ok: true, value: detailOf(result.record) };
     },
     botAvatarSet(payload) {

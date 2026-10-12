@@ -58,6 +58,10 @@ _避免使用_：profile picture、skin
 形象家族：一类 Avatar 外形，其中相互兼容的外形选项可由 Human 组合。各家族以自身视觉语言表达同一 Bot state；某个外形选项只有在明确兼容时才跨家族共享。
 _避免使用_：Soul、Bot type、mode、skin
 
+**Bot Primary Color**：
+Bot 主色：PersonaBot 的视觉身份色，默认跟随 Avatar 的主发色或稳定兜底色，Human 也可独立于 Avatar 指定自定义颜色。名字和图表使用适配主题的变体表达同一身份；它不是品牌色、活动色或结果状态色。
+_避免使用_：主题强调色、状态色、唯一 Bot 颜色、固定的初始发色
+
 **Avatar Appearance**：
 保存外形：PersonaBot 保存的视觉选择：Avatar Family、Avatar Species、兼容部件（含 Custom Part）、颜色和可编辑几何。各 Binding 使用同一组选择，暂时的动作或形变结束后恢复；它们独立于 Soul 和当前 Bot state。
 _避免使用_：Soul、pose、mood、skin

@@ -49,6 +49,13 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
 
 import type { BridgeActions } from '../src/client/actions.js';
 import { BotModePrefs } from '../src/client/bot-mode-prefs.js';
+import {
+  botNameColor,
+  contrastRatio,
+  parseColor,
+  REFERENCE_SURFACES,
+} from '../src/client/bot-primary-color.js';
+import { seededAvatarFor } from '../../core/src/bots/avatar-appearance.js';
 import { BotMain, committedMessageIds, resolvedGrantRequestIds } from '../src/client/bot-main.js';
 import { createChannelSidebarBuiltins } from '../src/client/channel-sidebar-builtins.js';
 import { createChannelSidebarRegistry } from '../src/client/channel-sidebar.js';
@@ -570,6 +577,80 @@ describe('Bot main Sessions pane', () => {
       expect(author).toBeGreaterThan(-1);
       expect(time).toBeGreaterThan(author);
     } finally {
+      store.setRoster(previous.bots, previous.channels);
+      store.select(previous.selection);
+      store.setConversation(previous.conversation);
+    }
+  });
+  it('colors DM Bot author names from the saved Bot Primary Color and nothing else', () => {
+    const previous = store.getSnapshot();
+    const at = '2026-10-12T00:00:00.000Z';
+    const dm = {
+      id: 'dm-ada',
+      type: 'dm' as const,
+      name: 'Ada',
+      members: ['ada'],
+      botSlug: 'ada',
+      createdAt: at,
+      updatedAt: at,
+    };
+    const group = { ...dm, id: 'group-team', type: 'group' as const, name: 'Team' };
+    const messages: ChannelMessage[] = [
+      { id: 'human-1', at, author: { kind: 'human' }, body: 'hello' },
+      { id: 'bot-1', at, author: { kind: 'bot', slug: 'ada' }, body: 'an existing reply' },
+    ];
+    const bot = (primaryColor?: { mode: 'custom'; color: string }) => ({
+      slug: 'ada',
+      displayName: 'Ada',
+      roles: [],
+      aggregateState: 'idle' as const,
+      workspaces: [],
+      createdAt: at,
+      ...(primaryColor === undefined ? {} : { primaryColor }),
+    });
+    const authors = (
+      summary: ReturnType<typeof bot>,
+      channel: typeof dm | typeof group,
+    ): HTMLElement[] => {
+      store.setRoster([summary], [channel]);
+      store.select(
+        channel.type === 'dm'
+          ? { kind: 'bot', slug: 'ada' }
+          : { kind: 'channel', channelId: channel.id },
+      );
+      store.setConversation({ status: 'ready', channel, sending: false, messages });
+      const host = document.createElement('div');
+      host.innerHTML = renderToStaticMarkup(
+        createElement(BotMain, { actions: {} as BridgeActions, channelSidebar: sidebarRegistry() }),
+      );
+      expect(host.querySelector('.bh-message-group [style*="color"]:not(.bh-bubble-author)')).toBe(
+        null,
+      );
+      return [...host.querySelectorAll<HTMLElement>('.bh-bubble-author')];
+    };
+    const contrast = (name: string, theme: 'light' | 'dark') =>
+      contrastRatio(parseColor(name)!.rgb, parseColor(REFERENCE_SURFACES[theme].background)!.rgb);
+    try {
+      const [human, automatic] = authors(bot(), dm);
+      expect(human!.hasAttribute('data-bot-name-color')).toBe(false);
+      expect(human!.getAttribute('style')).toBeNull();
+      const hair = seededAvatarFor('Ada', undefined).hairColor;
+      expect(automatic!.getAttribute('data-bot-name-color')).toBe(botNameColor(hair, '#ffffff'));
+
+      const white = bot({ mode: 'custom', color: '#ffffff' });
+      const light = authors(white, dm)[1]!.getAttribute('data-bot-name-color')!;
+      expect(light).not.toBe('#ffffff');
+      expect(contrast(light, 'light')).toBeGreaterThanOrEqual(4.5);
+      document.body.setAttribute('data-ds-dark-theme', '');
+      const dark = authors(white, dm)[1]!;
+      expect(dark.getAttribute('data-bot-name-color')).toBe('#ffffff');
+      expect(dark.style.color).not.toBe('');
+      expect(contrast('#ffffff', 'dark')).toBeGreaterThanOrEqual(4.5);
+
+      for (const author of authors(white, group))
+        expect(author.hasAttribute('data-bot-name-color')).toBe(false);
+    } finally {
+      document.body.removeAttribute('data-ds-dark-theme');
       store.setRoster(previous.bots, previous.channels);
       store.select(previous.selection);
       store.setConversation(previous.conversation);

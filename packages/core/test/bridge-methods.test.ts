@@ -8,6 +8,8 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createAttachmentStore } from '../src/attachments/store.js';
+import { seededAvatarFor } from '../src/bots/avatar-appearance.js';
+import { fallbackPrimaryColor, resolveBotPrimaryColor } from '../src/bots/primary-color.js';
 import { createBridgeMethods } from '../src/bridge/methods.js';
 
 import { createChannelStore, type ChannelStore } from '../src/channels/store.js';
@@ -2448,6 +2450,88 @@ describe('bridge methods', () => {
     expect(methods.botAvatarSet({ channelId: dm.id, avatar: null }).ok).toBe(true);
     expect(registry.get('ada')?.appearance).toBeUndefined();
     expect(registry.get('ada')?.avatar).toBeUndefined();
+  });
+
+  it('saves a Bot Primary Color through the DM and keeps it across rename, Avatar edits and restart', () => {
+    const image =
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/ZFsAAAAASUVORK5CYII=';
+    const { root, registry, channels, methods } = setup();
+    expect(registry.create({ slug: 'ada', displayName: 'Ada' }).ok).toBe(true);
+    const dm = channels.getOrCreateDm('ada', 'Ada')!;
+    const group = channels.createGroup({ name: 'Team', members: ['ada'] });
+    const subject = () => registry.get('ada')!;
+    const listed = () => {
+      const result = methods.list({});
+      if (!result.ok) throw new Error('list failed');
+      return result.value.bots.find((bot) => bot.slug === 'ada')!;
+    };
+
+    expect(subject().primaryColor).toBeUndefined();
+    expect(listed().primaryColor).toBeUndefined();
+    expect(resolveBotPrimaryColor(subject())).toEqual({
+      mode: 'automatic',
+      source: 'hair',
+      color: seededAvatarFor('Ada', subject().avatarSeed).hairColor,
+    });
+
+    const custom = { mode: 'custom', color: '#1D1B22' };
+    expect(methods.botPrimaryColorSet({ channelId: dm.id, primaryColor: custom })).toMatchObject({
+      ok: true,
+      value: { bot: { primaryColor: { mode: 'custom', color: '#1d1b22' } } },
+    });
+    const saved = { mode: 'custom', color: '#1d1b22' };
+    expect(subject().primaryColor).toEqual(saved);
+    expect(listed().primaryColor).toEqual(saved);
+
+    for (const invalid of [
+      null,
+      'custom',
+      { mode: 'custom' },
+      { mode: 'custom', color: 'red' },
+      { mode: 'custom', color: 'url(https://evil)' },
+      { mode: 'custom', color: '#1d1b22', fallback: '#ffffff' },
+      { mode: 'automatic', color: '#1d1b22' },
+      { mode: 'theme', color: '#1d1b22' },
+    ]) {
+      expect(methods.botPrimaryColorSet({ channelId: dm.id, primaryColor: invalid })).toMatchObject(
+        { ok: false, error: { code: 'invalid-input' } },
+      );
+      expect(subject().primaryColor).toEqual(saved);
+    }
+    expect(
+      methods.botPrimaryColorSet({ channelId: group.id, primaryColor: { mode: 'automatic' } }),
+    ).toMatchObject({ ok: false, error: { code: 'invalid-input' } });
+    expect(
+      methods.botPrimaryColorSet({ channelId: 'missing', primaryColor: { mode: 'automatic' } }),
+    ).toMatchObject({ ok: false, error: { code: 'not-found' } });
+    expect(subject().primaryColor).toEqual(saved);
+
+    expect(registry.update('ada', { displayName: 'Ada Lovelace' }).ok).toBe(true);
+    const recipe = { ...seededAvatarFor('Ada', undefined), hairColor: '#3fc1b8' };
+    expect(methods.botAppearanceSet({ channelId: dm.id, recipe }).ok).toBe(true);
+    expect(methods.botAvatarSet({ channelId: dm.id, avatar: image }).ok).toBe(true);
+    expect(subject().primaryColor).toEqual(saved);
+    expect(resolveBotPrimaryColor(subject())).toMatchObject({ source: 'custom', color: '#1d1b22' });
+
+    const reopened = createTestRegistry({ rootDir: root });
+    expect(reopened.get('ada')?.primaryColor).toEqual(saved);
+
+    expect(
+      methods.botPrimaryColorSet({ channelId: dm.id, primaryColor: { mode: 'automatic' } }),
+    ).toMatchObject({ ok: true });
+    expect(subject().primaryColor).toBeUndefined();
+    expect(createTestRegistry({ rootDir: root }).get('ada')?.primaryColor).toBeUndefined();
+    const fallback = resolveBotPrimaryColor(subject());
+    expect(fallback).toEqual({
+      mode: 'automatic',
+      source: 'fallback',
+      color: fallbackPrimaryColor('ada'),
+    });
+    expect(registry.update('ada', { displayName: 'Renamed' }).ok).toBe(true);
+    expect(resolveBotPrimaryColor(subject())).toEqual(fallback);
+
+    expect(methods.botAppearanceSet({ channelId: dm.id, recipe }).ok).toBe(true);
+    expect(resolveBotPrimaryColor(subject())).toMatchObject({ source: 'hair', color: '#3fc1b8' });
   });
 
   it('sets a banner scene inside the DM and resets it to the name-seeded one', () => {

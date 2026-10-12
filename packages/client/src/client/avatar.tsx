@@ -13,12 +13,12 @@ import { blobatar } from 'blobatar';
 import { zhTranslate, type BotHarnessTranslate } from './locale.js';
 import {
   isAvatarAppearance,
-  seededAvatarFor,
   type AvatarAppearance,
   type PixelMouthState,
   type RetainedAvatarAppearance,
   pixelSymbolFor,
 } from '../../../core/src/bots/avatar-appearance.js';
+import { resolvedAvatarRecipe } from '../../../core/src/bots/primary-color.js';
 import { IllustratedAvatar } from './illustrated-avatar.js';
 import { createAvatarAnchor, type AvatarAnchor } from './avatar-anchor.js';
 import { useMountedResource } from './mounted-resource.js';
@@ -361,7 +361,10 @@ export function PersonaBotAvatar({
   const composed = isAvatarAppearance(appearance);
   const seeded = !composed && (src === undefined || src.length === 0);
   const seededRecipe = useMemo(
-    () => (seeded ? seededAvatarFor(name || personaBotId, avatarSeed) : undefined),
+    () =>
+      seeded
+        ? resolvedAvatarRecipe({ slug: personaBotId, displayName: name, avatarSeed })
+        : undefined,
     [seeded, name, personaBotId, avatarSeed],
   );
   const mediaKind = composed ? 'composed' : seeded ? 'seeded' : 'image';

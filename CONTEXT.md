@@ -58,6 +58,10 @@ _Avoid_: profile picture, skin
 A category of Avatar forms with compatible appearance choices that a Human can combine. Each family expresses the same Bot state in its own visual language; an appearance choice is shared across families only when it is explicitly compatible.
 _Avoid_: Soul, Bot type, mode, skin
 
+**Bot Primary Color**:
+A PersonaBot's visual identity color, automatically following its Avatar's main hair color or a stable fallback, unless a Human chooses a custom color independently of the Avatar. Names and charts express the same identity through theme-appropriate variants; it is not a brand, activity or outcome color.
+_Avoid_: theme accent, status color, unique Bot color, fixed initial hair color
+
 **Avatar Appearance**:
 A PersonaBot's saved visual choices: its Avatar Family, Avatar Species, compatible parts including Custom Parts, colors and editable geometry. The same choices apply across Bindings and return after temporary motion or deformation; they are independent of Persona and current Bot state.
 _Avoid_: Soul, pose, mood, skin

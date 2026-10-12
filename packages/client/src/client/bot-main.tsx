@@ -59,6 +59,7 @@ import {
   type NativeChatFailureText,
 } from './channel-message-body.js';
 import { BridgeSourceAuthor } from './bridge-source-author.js';
+import { botNameColor, botPrimaryColorOf, useConversationSurface } from './bot-primary-color.js';
 import { ChannelDeliveryReceipt } from './channel-delivery-receipt.js';
 import { MessageCopyAction } from './message-copy-action.js';
 import { isBotDmChannel, isHumanReadOnlyDmChannel } from './channel-kind.js';
@@ -379,6 +380,11 @@ function MessageGroupView({
       ? undefined
       : bots.find((candidate) => candidate.slug === currentDmBotSlug);
   const displayBot = authorBot ?? welcomeBot;
+  const surface = useConversationSurface();
+  const nameColor =
+    currentDmBotSlug === undefined || displayBot === undefined || displayBot.deleted
+      ? undefined
+      : botNameColor(botPrimaryColorOf(displayBot).color, surface.background);
   const avatar =
     displayBot === undefined ? undefined : (
       <PersonaBotAvatar
@@ -414,7 +420,12 @@ function MessageGroupView({
           {first.bridgeOrigin ? (
             <BridgeSourceAuthor origin={first.bridgeOrigin} t={t} />
           ) : (
-            <div className="bh-bubble-author">
+            <div
+              className="bh-bubble-author"
+              ref={nameColor === undefined ? undefined : surface.probe}
+              data-bot-name-color={nameColor}
+              style={nameColor === undefined ? undefined : { color: nameColor }}
+            >
               {welcomeBot?.displayName ?? authorLabel(first, bots, t, humanName)}
             </div>
           )}

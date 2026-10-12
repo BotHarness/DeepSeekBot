@@ -1,0 +1,32 @@
+---
+Status: Accepted
+Date: 2026-10-12
+Issues: [#1469](https://github.com/BotHarness/DeepSeekBot/issues/1469), [#1470](https://github.com/BotHarness/DeepSeekBot/issues/1470), [#1471](https://github.com/BotHarness/DeepSeekBot/issues/1471)
+---
+
+# Bot Primary Color is portable identity, not theme state
+
+PersonaBot names and Bot-oriented charts need one visual identity tied to the pixel Avatar, including when the Human uploads an image instead. We choose one Bot Primary Color source policy with automatic and custom modes, separate from Avatar Appearance and theme-derived presentation. The [design interview](../research/2026-10-12-bot-primary-color-design.md) records the Human-confirmed scope and acceptance cases. Spec #1469 and its tickets cite this decision as ADR-0162, its number in the local draft; it is published as ADR-0177 because another record took 0162 first.
+
+## Decision
+
+- Every PersonaBot can use automatic mode (the default) or a Human-selected custom source color. Automatic mode follows the current pixel Avatar's main `hairColor` when available; local hair-piece colors, pixel area, animation and temporary occlusion do not choose the identity. Custom mode survives renaming, Avatar edits and image replacement. Returning to automatic uses the current Avatar, not its initial appearance.
+- An uploaded image, a hairless Avatar, line family or unavailable hair-color data uses a deterministic PersonaBot-ID fallback without image sampling or a mandatory color-selection step. Valid black, white and gray source colors remain valid; theme adaptation does not replace them with unrelated chromatic hues.
+- Sharing and import carry the mode, custom source when present and stable automatic fallback source. Importing into a new PersonaBot ID preserves the existing fallback color without converting automatic mode to custom. ID-derived fallback generation applies when no carried fallback exists; a future usable main hair color can still take precedence in automatic mode. Theme-derived variants never travel as identity data.
+- While a PersonaBot exists, historical names and charts use its current identity color. PersonaBot Deletion retains its last resolved source color with historical attribution; older retained identities without a color use an ID fallback. There are no per-message or per-statistics-time color snapshots.
+- Bot Primary Color is application-defined PersonaBot presentation data owned by the existing PersonaBot Host module, not a DSH-native Service, SessionEvent, browser preference or global brand token. Consumers share source resolution and derive presentation for actual backgrounds and light/dark themes; the Avatar renderer itself is not recolored by the theme.
+- Name text targets at least 4.5:1 contrast against its actual background. Charts derive suitable line, fill and intensity variants from the same source. Different PersonaBots may have the same color; names, Avatars, legends and applicable line/marker distinctions remain necessary. No chart-local reallocation changes a Bot's identity.
+- Editing uses the Bot Profile's Avatar/appearance area with a separate Bot Primary Color control, automatic/custom choice, a small preset set, a color picker and HEX input. Local light/dark previews show the Avatar, mention, author name and chart swatch. Save commits before other surfaces update; Cancel leaves saved identity unchanged, and a failed Save retains the draft. Existing Avatar upload need not be refactored into the same transaction.
+- Bot comparisons use each Bot's color; token subdivisions use fixed tone levels and order plus labels and tooltips. Charts primarily comparing token types or models retain their existing category colors, using Bot color only for associated identity markers. Single-Bot activity uses its color intensity with a neutral zero. Error and warning colors remain outcome semantics; Human/Bot/Other aggregate charts do not assign the Bot category one PersonaBot's color.
+
+## Boundaries and alternatives
+
+The owning Host validates and persists identity changes through existing authorized PersonaBot capability boundaries. Client previews are local drafts, never a second identity authority. Exact fields, migrations and remote method signatures must be selected and verified during implementation; this ADR does not declare an unimplemented platform API.
+
+Persisting a complete light/dark palette would couple identity to one theme and require updating saved identities when presentation changes. Sampling image pixels would make backgrounds, hats and image composition choose identity instead of the Human's primary-color policy. Rehashing imported IDs would unexpectedly recolor image Avatars, while freezing the initial hair color would disconnect names from later Avatar edits. We reject all four, as well as allocating unique colors by chart position.
+
+The source-policy and retained/portable identity choices are durable contracts; palette constants and adjustment algorithms are replaceable presentation details. Implementation must not claim the feature complete until saving, theme adaptation, history, sharing/import and the agreed name/chart surfaces are verified.
+
+## Implementation status
+
+[#1471](https://github.com/BotHarness/DeepSeekBot/issues/1471) delivers the first slice: the PersonaBot Registry record stores the source policy as an optional `primaryColor` field (absent means automatic), the DM-scoped `botPrimaryColorSet` bridge method validates and saves a choice, the Bot Profile's Avatar dialog edits it with a local light/dark preview, and DM Bot author names use the name variant derived for their rendered background. The record can hold a carried automatic fallback and the resolver honors it, but nothing writes one yet. Group Channel mentions and author names, sharing and import, retained attribution after PersonaBot Deletion and charts remain the later slices under [#1470](https://github.com/BotHarness/DeepSeekBot/issues/1470).

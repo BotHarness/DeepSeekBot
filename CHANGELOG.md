@@ -33,6 +33,8 @@ Pixel Avatars can be an elf, dwarf, orc or talking flower with beards, medieval 
 
 ### Added
 
+- A PersonaBot now has a Bot Primary Color: Automatic follows its Avatar's main hair color (or a fixed fallback for uploaded images), and the Avatar dialog in its Profile lets you pick a Custom color with a light/dark preview. Its name on DM messages uses that color, adjusted to stay readable in each theme; Group Channels, sharing and charts follow later ([#1471](https://github.com/BotHarness/DeepSeekBot/issues/1471), [ADR-0177](docs/adr/0177-bot-primary-color-is-portable-identity-not-theme-state.md)).
+
 - Authorized Lark DM reviewers can separately confirm exact or all-opaque tool rules, inspect the same scope and status in Web, and lose future automatic approvals when current creator authority is revoked. All-opaque requires a qualified version-2 Provider/account and its own high-risk confirmation. IM-only Bots can receive approval cards before anyone opens their Web DM. External rules never auto-approve Web-only native Session authorizations; bilingual tutorials include real sanitized workflow screenshots ([#1033](https://github.com/BotHarness/DeepSeekBot/issues/1033), [Lark guide](docs/lark-connection.md#save-an-exact-rule-in-a-management-dm)).
 
 - Group composer workspace shortcuts reuse DM directory cards, permission badges and native modal geometry to default to all currently eligible Bots with optional subset selection, confirm their directory and existing access, and report independent per-Bot Grant creation, reuse, failure and unknown-outcome readback without granting unselected members access ([#1433](https://github.com/BotHarness/DeepSeekBot/issues/1433)).
