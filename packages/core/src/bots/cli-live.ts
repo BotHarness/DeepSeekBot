@@ -52,6 +52,10 @@ export const LIVE_COMMANDS = [
   { command: 'ask-secret-replace', description: 'open a blank replacement private input card' },
   { command: 'ask-secret-revoke', description: 'revoke local private account access as Owner' },
   {
+    command: 'ask-secret-accounts',
+    description: "list a Bot's private accounts as Owner, without values",
+  },
+  {
     command: 'user-question-answer',
     description: 'answer a formal Human question with JSON from stdin',
   },
@@ -384,6 +388,47 @@ export async function runLiveCli(
   const { rpc } = await connectLiveHost(values, io, signal);
   if (command.startsWith('ask-secret-')) {
     try {
+      if (command === 'ask-secret-accounts') {
+        const result = await rpc<{ status?: unknown; accounts?: unknown }>('privateAccounts', {
+          slug: target,
+        });
+        if (
+          (result.status !== 'ready' && result.status !== 'unavailable') ||
+          !Array.isArray(result.accounts)
+        )
+          throw new Error('Invalid private accounts');
+        const optional = (value: unknown) => (typeof value === 'string' ? value : undefined);
+        const accounts = result.accounts.map((entry: unknown) => {
+          const row = record(entry);
+          const status = row['status'];
+          if (
+            typeof row['account'] !== 'string' ||
+            (status !== 'configured' && status !== 'replacing' && status !== 'unavailable') ||
+            !Array.isArray(row['fields'])
+          )
+            throw new Error('Invalid private account');
+          return {
+            account: row['account'],
+            purpose: optional(row['purpose']),
+            fields: row['fields'].map((value: unknown) => {
+              const field = record(value);
+              if (
+                typeof field['id'] !== 'string' ||
+                typeof field['label'] !== 'string' ||
+                typeof field['required'] !== 'boolean'
+              )
+                throw new Error('Invalid private field');
+              return { id: field['id'], label: field['label'], required: field['required'] };
+            }),
+            status,
+            configuredAt: optional(row['configuredAt']),
+            channelId: optional(row['channelId']),
+            messageId: optional(row['messageId']),
+            replacementMessageId: optional(row['replacementMessageId']),
+          };
+        });
+        return { status: result.status, accounts };
+      }
       if (command === 'ask-secret-status' || command === 'ask-secret-account-status') {
         const result = await rpc<{ status?: unknown }>(
           command === 'ask-secret-status' ? 'privateInputStatus' : 'privateAccountStatus',

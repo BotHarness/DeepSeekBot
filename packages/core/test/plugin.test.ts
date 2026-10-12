@@ -341,6 +341,7 @@ describe('plugin entry', () => {
       'privateAccountStatus',
       'privateInputReplace',
       'privateAccountRevoke',
+      'privateAccounts',
       'messagingDefaults',
       'messagingDefaultsSet',
       'channelBridges',

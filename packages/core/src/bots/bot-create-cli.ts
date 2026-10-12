@@ -170,6 +170,7 @@ Usage:
   deepseekbot ask-secret-account-status <channel> --message-id <configured-card-id>
   deepseekbot ask-secret-replace <channel> --message-id <configured-card-id>
   deepseekbot ask-secret-revoke <channel> --message-id <configured-card-id>
+  deepseekbot ask-secret-accounts <id>
   deepseekbot release-info [--since <version>]
   deepseekbot workspace-options
   deepseekbot grant-create <id> --workspace <workspace-id>

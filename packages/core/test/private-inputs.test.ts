@@ -401,6 +401,64 @@ describe('private input native authority and reference contract', () => {
     await f.close();
   });
 
+  it('lists only one Bot’s private accounts without values and erases a revoked account at once', async () => {
+    const f = await fixture();
+    expect(await f.owner.accounts(true, 'ada')).toEqual([]);
+    const configure = async (agent: Agent, channelId: string) => {
+      const cards = () =>
+        f.channels.readMessages(channelId).filter((message) => message.privateInputRequest);
+      const before = new Set(cards().map((message) => message.id));
+      const wait = f.owner.ask(agent, declaration, new AbortController().signal);
+      await vi.waitFor(() => expect(cards().length).toBe(before.size + 1));
+      const messageId = cards().find((message) => !before.has(message.id))!.id;
+      expect(await f.owner.submit(true, { channelId, messageId, values: { ...values } })).toBe(
+        true,
+      );
+      return { messageId, result: await wait };
+    };
+    const ada = await configure(f.agent, 'dm-ada');
+    await configure(f.bea, 'dm-bea');
+    expect(await f.owner.accounts(false, 'ada')).toBeUndefined();
+    const listed = await f.owner.accounts(true, 'ada');
+    expect(listed).toEqual([
+      {
+        account: 'synthetic',
+        purpose: declaration.purpose,
+        fields: declaration.fields,
+        status: 'configured',
+        configuredAt: expect.any(String),
+        channelId: 'dm-ada',
+        messageId: ada.messageId,
+      },
+    ]);
+    const serialized = JSON.stringify(listed);
+    for (const value of Object.values(values)) expect(serialized).not.toContain(value);
+    expect(serialized).not.toContain(Object.values(ada.result.references)[0]!.split(':')[1]);
+
+    const replacementId = await f.owner.replace(true, 'dm-ada', ada.messageId);
+    expect(await f.owner.accounts(true, 'ada')).toMatchObject([
+      { status: 'replacing', messageId: ada.messageId, replacementMessageId: replacementId },
+    ]);
+    expect(await f.owner.cancel(true, 'dm-ada', replacementId!)).toBe(true);
+    expect((await f.owner.accounts(true, 'ada'))?.[0]?.status).toBe('configured');
+
+    const grants = async () =>
+      (await f.credentials.listRecords()).filter((entry) =>
+        /^botharness-private\/grant-/.test(entry.key),
+      );
+    expect(await grants()).toHaveLength(2);
+    expect((await f.owner.revoke(true, 'dm-ada', ada.messageId)).accepted).toBe(true);
+    expect(await f.owner.accounts(true, 'ada')).toEqual([]);
+    expect(await grants()).toHaveLength(1);
+    expect((await f.owner.accounts(true, 'bea'))?.map((row) => row.account)).toEqual(['synthetic']);
+
+    const again = await configure(f.agent, 'dm-ada');
+    expect(await f.owner.accounts(true, 'ada')).toMatchObject([
+      { account: 'synthetic', status: 'configured', messageId: again.messageId },
+    ]);
+    await f.close();
+  });
+
   it('revocation stops an active consumer and invalidates a pending replacement without affecting another Bot', async () => {
     const f = await fixture();
     const a = f.owner.ask(f.agent, declaration, new AbortController().signal);
@@ -715,6 +773,8 @@ describe('private input native authority and reference contract', () => {
       await expect(remote[method]('dm-ada', 'missing')).rejects.toThrow(/authenticated Owner/);
       await expect(forged[method]('dm-ada', 'missing')).rejects.toThrow(/authenticated Owner/);
     }
+    await expect(remote.privateAccounts('ada')).rejects.toThrow(/authenticated Owner/);
+    await expect(forged.privateAccounts('ada')).rejects.toThrow(/authenticated Owner/);
     await f.close();
   });
 

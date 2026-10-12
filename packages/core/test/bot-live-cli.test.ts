@@ -383,6 +383,45 @@ describe('live CLI over the authenticated DSH carrier', () => {
     },
   );
 
+  it('lists private accounts with only declared, value-free fields', async () => {
+    const row = {
+      account: 'synthetic',
+      purpose: 'Check the controlled service',
+      fields: [{ id: 'api_key', label: 'API key', required: true, value: 'CANARY' }],
+      status: 'configured',
+      configuredAt: '2026-10-12T00:00:00.000Z',
+      channelId: 'dm-ada',
+      messageId: 'private-card',
+      references: { api_key: 'CANARY' },
+    };
+    const live = await host(() => ({
+      ok: true,
+      value: { status: 'ready', accounts: [row], secret: 'CANARY' },
+    }));
+    const result = await invoke(['ask-secret-accounts', 'ada'], live.url);
+    expect(result.code).toBe(0);
+    expect(result.json).toEqual({
+      status: 'ready',
+      accounts: [
+        {
+          account: 'synthetic',
+          purpose: 'Check the controlled service',
+          fields: [{ id: 'api_key', label: 'API key', required: true }],
+          status: 'configured',
+          configuredAt: '2026-10-12T00:00:00.000Z',
+          channelId: 'dm-ada',
+          messageId: 'private-card',
+        },
+      ],
+    });
+    expect(result.text).not.toContain('CANARY');
+    expect(live.calls).toEqual([{ method: 'privateAccounts', args: { slug: 'ada' } }]);
+    const refused = await host(() => ({ ok: false, error: { code: 'CANARY', message: 'CANARY' } }));
+    const failed = await invoke(['ask-secret-accounts', 'ada'], refused.url);
+    expect(failed.json.error.code).toBe('private-input-not-accepted');
+    expect(failed.text).not.toContain('CANARY');
+  });
+
   it.each(['ask-secret-account-status', 'ask-secret-replace', 'ask-secret-revoke'])(
     'requires a card and suppresses raw Owner refusal payloads for %s',
     async (command) => {

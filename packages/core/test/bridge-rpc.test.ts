@@ -84,6 +84,7 @@ describe('bridge typert service', () => {
       'privateAccountStatus',
       'privateInputReplace',
       'privateAccountRevoke',
+      'privateAccounts',
       'messagingDefaults',
       'messagingDefaultsSet',
       'channelBridges',

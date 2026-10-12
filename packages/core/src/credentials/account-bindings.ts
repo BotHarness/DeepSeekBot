@@ -64,6 +64,26 @@ export class PrivateAccountBindings {
     return parsed.data;
   }
 
+  async list(botSlug: string, botCreatedAt: string): Promise<PrivateAccountBinding[]> {
+    const provider = this.credentials();
+    if (provider === undefined) throw new Error('Private account authority is unavailable');
+    const bindings: PrivateAccountBinding[] = [];
+    for (const entry of await provider.listRecords()) {
+      if (entry.kind !== 'grant' || !/^botharness-private\/account-[0-9a-f]{64}$/.test(entry.key))
+        continue;
+      const record = await provider.readRecord(entry.key);
+      const parsed = bindingSchema.safeParse(record?.kind === 'grant' ? record.payload : undefined);
+      if (
+        parsed.success &&
+        parsed.data.botSlug === botSlug &&
+        parsed.data.botCreatedAt === botCreatedAt &&
+        this.key(parsed.data) === entry.key
+      )
+        bindings.push(parsed.data);
+    }
+    return bindings;
+  }
+
   async commit(
     scope: PrivateAccountScope,
     expectedRevision: string | undefined,

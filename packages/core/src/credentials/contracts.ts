@@ -30,6 +30,16 @@ export interface PrivateAccountStatus {
   status: 'configured' | 'revoked' | 'superseded' | 'unavailable';
   references: Record<string, string>;
 }
+export interface PrivateAccountSummary {
+  account: string;
+  purpose?: string;
+  fields: { id: string; label: string; required: boolean }[];
+  status: 'configured' | 'replacing' | 'unavailable';
+  configuredAt?: string;
+  channelId?: string;
+  messageId?: string;
+  replacementMessageId?: string;
+}
 export interface PrivateRevocationResult {
   accepted: boolean;
   stopped: number;
