@@ -17,6 +17,7 @@ import type {
   MessagingDefaultsInput,
 } from '../../../core/src/messaging/defaults.js';
 import type { GroupMemberWakePolicy } from '../../../core/src/channels/channel.js';
+import type { ChannelAssignmentSummary } from '../../../core/src/runtime/bot-runtime.js';
 import type { AllBotPreview, AllBotMention } from '../../../core/src/channels/all-bot-mention.js';
 
 import type {
@@ -2262,6 +2263,33 @@ export async function removeGroupMember(
   const channel = parseChannelRecord(value?.['channel']);
   if (channel === undefined) throw new Error('invalid channelGroupMemberRemove response');
   return channel;
+}
+
+const ASSIGNMENT_ACTIVITIES = ['working', 'idle', 'error', 'stopping', 'stopped'];
+const ASSIGNMENT_REPORT_STATES = ['progress', 'completed', 'blocked', 'waiting-human', 'failed'];
+
+export async function loadChannelAssignments(
+  call: BridgeCall,
+  channelId: string,
+): Promise<ChannelAssignmentSummary[]> {
+  const value = asRecord(await unwrap(call, 'channelAssignments', { channelId }));
+  const assignments = value?.['assignments'];
+  if (
+    !Array.isArray(assignments) ||
+    assignments.some(
+      (row) =>
+        typeof row?.sessionId !== 'string' ||
+        typeof row.botSlug !== 'string' ||
+        typeof row.purpose !== 'string' ||
+        !ASSIGNMENT_ACTIVITIES.includes(row.activity) ||
+        typeof row.updatedAt !== 'string' ||
+        (row.latestReport !== undefined &&
+          (!ASSIGNMENT_REPORT_STATES.includes(row.latestReport?.state) ||
+            typeof row.latestReport.summary !== 'string')),
+    )
+  )
+    throw new Error('invalid channelAssignments response');
+  return assignments;
 }
 
 export async function loadGroupWakePolicies(

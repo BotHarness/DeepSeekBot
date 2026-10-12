@@ -30,6 +30,7 @@ These pages use DSH **0.2.0-rc.1** and the public **deepseekbot** package. First
 
 | In a local group                                                   | What you can do                                                         |
 | ------------------------------------------------------------------ | ----------------------------------------------------------------------- |
+| [Work](/docs/channel-sidebar/groups#see-the-groups-work)           | See the Assignments this group asked for and open their Sessions.       |
 | [Members and group management](/docs/channel-sidebar/groups) ¹     | Inspect members, invite a Bot, handle join requests and edit the group. |
 | [Wake policy](/docs/channel-sidebar/wake-policy) ¹                 | Choose, per member Bot, how ordinary messages in this group wake it.    |
 | [External connectors](/docs/channel-sidebar/external-connectors) ¹ | Connect, edit and pause external conversations synced into this group.  |

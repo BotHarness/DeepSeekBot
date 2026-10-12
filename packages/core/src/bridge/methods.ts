@@ -234,6 +234,7 @@ import type {
   AssignmentDetail,
   AssignmentSummary,
   BotRuntime,
+  ChannelAssignmentSummary,
   DmAdmissionFailure,
 } from '../runtime/bot-runtime.js';
 import type {
@@ -520,6 +521,7 @@ export interface BridgeMethods {
   humanAttentionDismiss(payload: unknown): BridgeResult<{ accepted: boolean }>;
   humanAttentionIgnore(payload: unknown): BridgeResult<{ accepted: boolean }>;
   assignments(payload: unknown): BridgeResult<{ assignments: AssignmentSummary[] }>;
+  channelAssignments(payload: unknown): BridgeResult<{ assignments: ChannelAssignmentSummary[] }>;
   assignment(payload: unknown): BridgeResult<{ assignment: AssignmentDetail }>;
   workspaceOptions(
     payload: unknown,
@@ -3860,6 +3862,23 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       return {
         ok: true,
         value: { assignments: deps.runtime?.listAssignments(slug) ?? [] },
+      };
+    },
+    channelAssignments(payload) {
+      const parsed = z.object({ channelId: z.string().min(1) }).safeParse(asObject(payload));
+      if (!parsed.success) return invalidInput('invalid Group channel');
+      const channel = deps.channels.get(parsed.data.channelId);
+      if (
+        channel?.type !== 'group' ||
+        channel.deletedAt ||
+        !deps.channels
+          .listHumanMembers(channel.id)
+          .some((member) => member.humanId === 'local-human')
+      )
+        return invalidInput('Group channel unavailable');
+      return {
+        ok: true,
+        value: { assignments: deps.runtime?.listChannelAssignments?.(channel.id) ?? [] },
       };
     },
     assignment(payload) {

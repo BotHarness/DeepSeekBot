@@ -152,6 +152,16 @@ export interface AssignmentSummary {
   updatedAt: string;
 }
 
+export interface ChannelAssignmentSummary {
+  sessionId: string;
+  botSlug: string;
+  purpose: string;
+  activity: AssignmentActivity;
+  latestReport?: AssignmentReport;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AssignmentDetail extends AssignmentSummary {
   botSlug: string;
   sourceEventId: string;
@@ -505,6 +515,7 @@ export interface BotRuntime {
   admitGroupJoinRequest?(ownerDmChannelId: string, requestId: string): void;
   admitGroupJoinDecision?(requesterDmChannelId: string, requestId: string): void;
   listAssignments(botSlug: string): AssignmentSummary[];
+  listChannelAssignments?(channelId: string): ChannelAssignmentSummary[];
   getAssignment(botSlug: string, sessionId: string): AssignmentDetail | undefined;
 
   admitExternalSource?(botSlug: string, sourceEventId: string): void;
@@ -2895,6 +2906,38 @@ class BotRuntimeImplementation implements BotRuntime {
       } = assignmentFromRow(row);
       const executionWait = this.#approvalCapacity.state(row.session_id);
       return { ...summary, ...(executionWait === undefined ? {} : { executionWait }) };
+    });
+  }
+
+  listChannelAssignments(channelId: string): ChannelAssignmentSummary[] {
+    const rows = this.#database.read((database) =>
+      database
+        .prepare(
+          `SELECT a.session_id, a.source_event_id, a.bot_slug, a.purpose, a.activity, a.stop_state,
+                  a.latest_report_state, a.latest_report_summary, a.latest_report_at,
+                  a.continuity_key, a.open_ask_source_event_id, a.open_ask_at,
+                  a.grant_id, a.workspace_id, a.primary_cwd, a.permission_mode,
+                  a.approval_policy, a.preset_revision, a.created_at, a.updated_at,
+                  a.model_route_json
+             FROM assignments a
+             JOIN source_events s ON s.source_event_id = a.source_event_id
+            WHERE s.channel_id = ?
+            ORDER BY a.updated_at DESC, a.session_id ASC
+            LIMIT 200`,
+        )
+        .all(channelId),
+    ) as unknown as AssignmentRow[];
+    return rows.map((row) => {
+      const assignment = assignmentFromRow(row);
+      return {
+        sessionId: assignment.sessionId,
+        botSlug: assignment.botSlug,
+        purpose: assignment.purpose,
+        activity: assignment.activity,
+        ...(assignment.latestReport === undefined ? {} : { latestReport: assignment.latestReport }),
+        createdAt: assignment.createdAt,
+        updatedAt: assignment.updatedAt,
+      };
     });
   }
 

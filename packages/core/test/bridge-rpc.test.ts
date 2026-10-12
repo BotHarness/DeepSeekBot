@@ -175,6 +175,7 @@ describe('bridge typert service', () => {
       'humanAttentionIgnore',
       'humanAttentionDismiss',
       'assignments',
+      'channelAssignments',
       'assignment',
       'workspaceOptions',
       'messageAttachmentTarget',

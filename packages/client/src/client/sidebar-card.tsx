@@ -26,6 +26,7 @@ export function SidebarCardList({
 
 export interface SidebarCardRowProps {
   icon?: string | undefined;
+  leading?: ReactNode | undefined;
   selection?: { checked: boolean; multiple?: boolean } | undefined;
   iconLabel?: string | undefined;
   title: ReactNode;
@@ -48,6 +49,7 @@ export interface SidebarCardRowProps {
 
 export function SidebarCardRow({
   icon,
+  leading,
   iconLabel,
   selection,
   title,
@@ -69,6 +71,7 @@ export function SidebarCardRow({
 }: SidebarCardRowProps): ReactElement {
   const body = (
     <>
+      {leading === undefined ? null : <span className="bh-card-leading">{leading}</span>}
       {icon === undefined ? null : (
         <span
           className="bh-card-icon"

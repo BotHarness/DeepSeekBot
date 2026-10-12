@@ -1,12 +1,16 @@
 # Members and group management
 
-Open a **local group → Channel sidebar**. Group Channels show **Members**, rather than a particular Bot’s Memory, Sessions or Workspace Grants. **Group management** is a section of the group’s **Channel settings**: open **··· → Channel settings…** in the chat header, or the sidebar gear, **Channel sidebar settings → Channel settings…**. The dialog is titled “_name_ group settings”. These controls manage the local BotHarness group; they are not the membership settings of a Lark or Slack group.
+Open a **local group → Channel sidebar**. Group Channels show **Work** and **Members**, rather than a particular Bot’s Memory, Sessions or Workspace Grants. **Group management** is a section of the group’s **Channel settings**: open **··· → Channel settings…** in the chat header, or the sidebar gear, **Channel sidebar settings → Channel settings…**. The dialog is titled “_name_ group settings”. These controls manage the local BotHarness group; they are not the membership settings of a Lark or Slack group.
 
 ## Open or create a group
 
 Choose an existing group in the left roster. To create one, use **New → Create channel**, enter a **Channel name** and click **Create**. A new channel can have no Bots; invite members from its sidebar after creation.
 
 ![A real local tutorial group in the earlier stacked sidebar layout](/guides/channel-sidebar/07-group-management-zh.webp)
+
+## See the group's work
+
+The **Work** tab lists the Assignments this group asked its Bots for, newest first, in four groups: **Waiting on you** (the latest report asks you something or is blocked), **Working**, **Idle** and **Done** (completed, failed or stopped; collapsed until you open it). Each row shows the purpose, the latest report summary, the Bot and when it last changed. Click a row to open that Assignment's Session in DSH. The list refreshes when new messages arrive in the group. Before the group has asked for any work, the tab says so in one line.
 
 ## Work with members
 

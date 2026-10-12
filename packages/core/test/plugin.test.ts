@@ -432,6 +432,7 @@ describe('plugin entry', () => {
       'humanAttentionIgnore',
       'humanAttentionDismiss',
       'assignments',
+      'channelAssignments',
       'assignment',
       'workspaceOptions',
       'messageAttachmentTarget',

@@ -1171,33 +1171,40 @@ window.__ModuleLoader__.load({
 				children
 			});
 		}
-		function SidebarCardRow({ icon, iconLabel, selection, title, titleClassName, hint, chips, meta, trailing, detail, onClick, disabled, muted, mainClassName, dialog, expanded, controls, state, anchor }) {
-			const body = /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [icon === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-				className: "bh-card-icon",
-				role: iconLabel === void 0 ? void 0 : "img",
-				"aria-label": iconLabel,
-				title: iconLabel,
-				children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ChannelSidebarIcon, {
-					name: icon,
-					size: 16
-				})
-			}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
-				className: "bh-card-body",
-				children: [
-					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-						className: titleClassName === void 0 ? "bh-card-title" : "bh-card-title " + titleClassName,
-						children: title
-					}),
-					chips === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-						className: "bh-card-chips",
-						children: chips
-					}),
-					meta === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-						className: "bh-card-meta",
-						children: meta
+		function SidebarCardRow({ icon, leading, iconLabel, selection, title, titleClassName, hint, chips, meta, trailing, detail, onClick, disabled, muted, mainClassName, dialog, expanded, controls, state, anchor }) {
+			const body = /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
+				leading === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+					className: "bh-card-leading",
+					children: leading
+				}),
+				icon === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+					className: "bh-card-icon",
+					role: iconLabel === void 0 ? void 0 : "img",
+					"aria-label": iconLabel,
+					title: iconLabel,
+					children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ChannelSidebarIcon, {
+						name: icon,
+						size: 16
 					})
-				]
-			})] });
+				}),
+				/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+					className: "bh-card-body",
+					children: [
+						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+							className: titleClassName === void 0 ? "bh-card-title" : "bh-card-title " + titleClassName,
+							children: title
+						}),
+						chips === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+							className: "bh-card-chips",
+							children: chips
+						}),
+						meta === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+							className: "bh-card-meta",
+							children: meta
+						})
+					]
+				})
+			] });
 			const className = mainClassName === void 0 ? "bh-card-main" : "bh-card-main " + mainClassName;
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("li", {
 				className: "bh-card-row",

@@ -214,12 +214,13 @@ it('registers both group entries between members and group management, shown onl
     .filter((entry) => entry.scope === 'channel')
     .sort((left, right) => (left.order ?? 0) - (right.order ?? 0));
   expect(entries.map((entry) => entry.id)).toEqual([
+    'group-work',
     'members',
     'group-wake-policy',
     'group-external-connectors',
     'group-management',
   ]);
-  const wake = entries[1]!;
+  const wake = entries[2]!;
   store.setConversation({ channel: GROUP });
   expect(wake.visible?.(store.getSnapshot())).toBe(true);
   store.setConversation({ channel: { ...GROUP, id: 'dm', type: 'dm' } });

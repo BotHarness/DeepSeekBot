@@ -29,6 +29,7 @@ import {
   retryFailureAlerts,
 } from './bridge.js';
 import type { GroupMemberWakePolicy } from '../../../core/src/channels/channel.js';
+import type { ChannelAssignmentSummary } from '../../../core/src/runtime/bot-runtime.js';
 import type {
   MarketplaceDetail,
   MarketplaceEntry,
@@ -114,6 +115,7 @@ import {
   removeGroupMember,
   setGroupWakePolicy,
   loadGroupWakePolicies,
+  loadChannelAssignments,
   deleteGroupChannel,
   createPersonaBot,
   type CreatedBot,
@@ -677,6 +679,7 @@ export interface BridgeActions {
   decideGroupJoin(channelId: string, requestId: string, accept: boolean): Promise<boolean>;
   removeGroupMember(channelId: string, botSlug: string): Promise<boolean>;
   groupWakePolicies(channelId: string): Promise<GroupMemberWakePolicy[]>;
+  channelAssignments(channelId: string): Promise<ChannelAssignmentSummary[]>;
   setGroupWakePolicy(
     channelId: string,
     botSlug: string,
@@ -2570,6 +2573,9 @@ export function createActions(
         console.warn('botharness: Group member removal failed', error);
         return false;
       }
+    },
+    channelAssignments(channelId) {
+      return loadChannelAssignments(call, channelId);
     },
     groupWakePolicies(channelId) {
       return loadGroupWakePolicies(call, channelId);

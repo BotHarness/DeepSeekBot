@@ -411,6 +411,7 @@ describe('PersonaBot Profile surface', () => {
           createElement(BotMain, {
             actions: {
               allBotPreview: vi.fn(async () => ({ revision: '0'.repeat(64), recipients: [] })),
+              channelAssignments: vi.fn(async () => []),
             } as unknown as BridgeActions,
             channelSidebar: sidebarRegistry(),
             t: zhTranslate,
