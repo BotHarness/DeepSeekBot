@@ -1,16 +1,16 @@
 # Members and group management
 
-Open a **local group → Channel sidebar**. Group Channels show **Members** and **Group management**, rather than a particular Bot’s Memory, Sessions or Workspace Grants. These controls manage the local BotHarness group; they are not the membership settings of a Lark or Slack group.
+Open a **local group → Channel sidebar**. Group Channels show **Members**, rather than a particular Bot’s Memory, Sessions or Workspace Grants. **Group management** is a section of the group’s **Channel settings**: open **··· → Channel settings…** in the chat header, or the sidebar gear, **Channel sidebar settings → Channel settings…**. The dialog is titled “_name_ group settings”. These controls manage the local BotHarness group; they are not the membership settings of a Lark or Slack group.
 
 ## Open or create a group
 
 Choose an existing group in the left roster. To create one, use **New → Create channel**, enter a **Channel name** and click **Create**. A new channel can have no Bots; invite members from its sidebar after creation.
 
-![A real local tutorial group with its members and management controls](/guides/channel-sidebar/07-group-management-zh.webp)
+![A real local tutorial group in the earlier stacked sidebar layout](/guides/channel-sidebar/07-group-management-zh.webp)
 
 ## Work with members
 
-Expand **Members** to see the Human, participating PersonaBots and the creator marker when present. Click a Bot to open its DM. Its **…** menu offers **Open DM**, **Message attention settings**, and **Remove from group**; removal asks for confirmation.
+Open the **Members** tab (or expand **Members** in the narrow overlay) to see the Human, participating PersonaBots and the creator marker when present. Click a Bot to open its DM. Its **…** menu offers **Open DM**, **Message attention settings**, and **Remove from group**; removal asks for confirmation.
 
 Click **Invite member** beside the entry title to search for an available Bot and send an invitation. Already-present, paused, or pending-invitation Bots are excluded. The Profile’s **Auto-accept Group invitations** setting determines the result: when enabled an invitation can be accepted immediately; otherwise wait for the Bot to accept or decline. A pending invitation is not membership: check both its result and the actual member list.
 
@@ -20,7 +20,7 @@ The **Invitations and join requests** control lists pending and historical recor
 
 ## Choose a member’s attention policy
 
-Use **Manage Bot → Message attention settings**, or click the Bot's card in the group's **Wake policy** entry. This policy belongs to one Bot in this local group.
+Use **Manage Bot → Message attention settings**, or click the Bot's card in the group’s **Channel settings → Wake policy** section. This policy belongs to one Bot in this local group.
 
 | Choice                   | Effect                                                                                  |
 | ------------------------ | --------------------------------------------------------------------------------------- |
@@ -36,7 +36,7 @@ For a digest, set **Message count** and **Maximum wait (seconds)**, then use **S
 
 ## Edit the group
 
-Expand **Group management** to change the group name and click **Save**, or choose a PNG/JPEG/WebP avatar and complete the crop/save flow. Removing an uploaded avatar restores the fallback group image.
+Open **Channel settings… → Group management** to change the group name and click **Save**, or choose a PNG/JPEG/WebP avatar and complete the crop/save flow. Removing an uploaded avatar restores the fallback group image.
 
 **More Group management actions → Disband group** opens a confirmation. This removes members’ access to this group; hiding a roster entry or closing the sidebar does not disband it. The tutorial demonstrates the management interface without removing members or disbanding the example group.
 

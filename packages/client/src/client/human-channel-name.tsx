@@ -98,14 +98,22 @@ export function HumanChannelNameMenu({
   channel,
   actions,
   t,
+  onOpenSettings,
 }: {
   channel: ChannelSummary;
   actions: BridgeActions;
   t: BotHarnessTranslate;
+  onOpenSettings?: (() => void) | undefined;
 }): ReactElement | null {
   const [menuOpen, setMenuOpen] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
-  if (channel.humanNickname === undefined) return null;
+  const items = [
+    ...(onOpenSettings === undefined ? [] : [{ id: 'settings', label: t('channelSettings.open') }]),
+    ...(channel.humanNickname === undefined
+      ? []
+      : [{ id: 'nickname', label: t('humanNickname.title') }]),
+  ];
+  if (items.length === 0) return null;
   return (
     <span className="bh-channel-options">
       <Menu
@@ -125,11 +133,12 @@ export function HumanChannelNameMenu({
             <IconEllipsisOutlineRegular size={16} />
           </button>
         }
-        items={[{ id: 'nickname', label: t('humanNickname.title') }]}
+        items={items}
         onClose={() => setMenuOpen(false)}
-        onSelect={() => {
+        onSelect={(id) => {
           setMenuOpen(false);
-          setDialogOpen(true);
+          if (id === 'settings') onOpenSettings?.();
+          else setDialogOpen(true);
         }}
       />
       {dialogOpen ? (

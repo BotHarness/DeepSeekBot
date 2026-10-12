@@ -1,8 +1,8 @@
 # Wake policy
 
-Open **Bot DM → Channel sidebar → Wake policy**. The wake policy decides, for each kind of incoming message, whether this Bot wakes up right away, waits for a digest, or only records it. The collapsed header shows how ordinary Group messages are handled, for example **Groups · Digest · 5 messages / 30s**.
+Open **Bot DM → ··· → Channel settings… → Wake policy** (or the Channel sidebar gear, **Channel sidebar settings → Channel settings…**). The wake policy decides, for each kind of incoming message, whether this Bot wakes up right away, waits for a digest, or only records it.
 
-![The Wake policy entry with one row per source](/guides/channel-sidebar/16-wake-policy-zh.webp)
+![The Wake policy rows, one per source](/guides/channel-sidebar/16-wake-policy-zh.webp)
 
 ## Read the rows
 
@@ -25,6 +25,6 @@ Each row is one source. The second line is the current rule; **Customized** mean
 
 ## In a local group
 
-Open the group and expand **Wake policy** in the Channel sidebar. Each member Bot has a card: the second line is its rule in this group, plus a line for each external platform whose rule differs. **Channel override** marks a rule set for this group; without it the Bot's own default applies. Click a card to choose the rule and thresholds, or **Restore** to use the Bot's default again; see [Members and group management](/docs/channel-sidebar/groups).
+Open the group and choose **··· → Channel settings… → Wake policy**. Each member Bot has a card: the second line is its rule in this group, plus a line for each external platform whose rule differs. **Channel override** marks a rule set for this group; without it the Bot's own default applies. Click a card to choose the rule and thresholds, or **Restore** to use the Bot's default again; see [Members and group management](/docs/channel-sidebar/groups).
 
 The wake policy does not change the model, API provider or workspace permissions.

@@ -933,6 +933,7 @@ export function createChannelSidebarBuiltins(
     },
     {
       id: 'wake-policy',
+      surface: 'settings',
       icon: 'bell-ring',
       label: t('entry.wakePolicy'),
       order: 26,
@@ -942,6 +943,7 @@ export function createChannelSidebarBuiltins(
     },
     {
       id: 'external-identities',
+      surface: 'settings',
       icon: 'id-card',
       label: t('entry.externalIdentities'),
       order: 27,
@@ -950,6 +952,7 @@ export function createChannelSidebarBuiltins(
     },
     {
       id: 'external-connectors',
+      surface: 'settings',
       icon: 'plug',
       label: t('entry.externalConnectors'),
       order: 28,
@@ -968,6 +971,7 @@ export function createChannelSidebarBuiltins(
     },
     {
       id: 'group-wake-policy',
+      surface: 'settings',
       icon: 'bell-ring',
       label: t('entry.wakePolicy'),
       order: 12,
@@ -977,6 +981,7 @@ export function createChannelSidebarBuiltins(
     },
     {
       id: 'group-external-connectors',
+      surface: 'settings',
       icon: 'plug',
       label: t('entry.externalConnectors'),
       order: 14,
@@ -986,6 +991,7 @@ export function createChannelSidebarBuiltins(
     },
     {
       id: 'group-management',
+      surface: 'settings',
       icon: 'settings-2',
       label: t('entry.groupManagement'),
       order: 20,

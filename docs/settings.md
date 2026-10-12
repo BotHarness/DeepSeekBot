@@ -155,19 +155,20 @@ Local Groups allow an ordinary-message override for each Bot under **Group heade
 
 ## Channel sidebar display settings
 
-The [Channel sidebar chapter](/docs/channel-sidebar) provides step-by-step feature guides; see [Display and layout](/docs/channel-sidebar/display) for ordering, visibility and save/cancel behavior.
+The [Channel sidebar chapter](/docs/channel-sidebar) provides step-by-step feature guides; see [Display and layout](/docs/channel-sidebar/display) for tabs, ordering and visibility.
 
-Open the right sidebar's gear menu. These browser display preferences do not change durable Bot memory or task authorization.
+Open the right sidebar's gear menu, **Channel sidebar settings**. Its first item, **Channel settings…**, opens the chat's Wake policy, External identities, External connectors or Group management; the other items are browser display preferences that do not change durable Bot memory or task authorization.
 
 ![Sidebar layout, memory terminology, and session view menus](/guides/settings/settings-sidebar-zh.webp)
 
-| Field                          | Default / effect                                                                                            |
-| ------------------------------ | ----------------------------------------------------------------------------------------------------------- |
-| Edit sidebar                   | Drag entries into order, select visible entries, then finish. Bot DMs and Groups can use different layouts. |
-| Memory evolution → Terminology | Memory terms by default; Git terms rename the same underlying commit view.                                  |
-| Sessions → Scope               | Current by default; All expands the filter for that Bot's session view.                                     |
-| Sessions → Layout              | Flat by default; optionally group by workspace.                                                             |
-| Sidebar width                  | 320 px by default; drag the divider within 260–560 px. Sidebar/entry expanded states are retained too.      |
+| Field                          | Default / effect                                                                                                             |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| + Views (beside the tabs)      | Tick the tabs to show and drag them into order; applies at once. Bot DMs and Groups can use different layouts.               |
+| Edit sidebar (narrow overlay)  | Drag entries into order, select visible entries, then finish.                                                                |
+| Memory evolution → Terminology | Memory terms by default; Git terms rename the same underlying commit view.                                                   |
+| Sessions → Scope               | Current by default; All expands the filter for that Bot's session view.                                                      |
+| Sessions → Layout              | Flat by default; optionally group by workspace.                                                                              |
+| Sidebar width                  | 320 px by default; drag the divider within 260–560 px. The selected tab, split heights and expanded states are retained too. |
 
 ## Workspace grants and task permissions
 

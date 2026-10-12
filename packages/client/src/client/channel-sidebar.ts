@@ -76,6 +76,7 @@ export interface ChannelSidebarEntry {
   badge?: ComponentType<ChannelSidebarEntryProps>;
   visible?: (state: ClientState) => boolean;
   tab?: string;
+  surface?: 'settings';
 }
 
 export interface ChannelSidebarTab {

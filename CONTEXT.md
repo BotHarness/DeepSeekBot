@@ -775,7 +775,7 @@ The DSH-native left column of the client, which in Bot mode renders the Roster. 
 _Avoid_: left sidebar, main sidebar, navigation
 
 **Channel sidebar**:
-The right-side region of the Bot mode panel, scoped to the currently selected Channel: a group Channel shows its membership and Channel management entries, and a PersonaBot DM shows that PersonaBot's own entries such as Assignments, Memory, its Bot Inbox, and its operational configuration: Model Plan, Wake Policy, external identities, External connectors and approvals. It is not the DSH session-scoped native right column.
+The right-side region of the Bot mode panel, scoped to the currently selected Channel: a group Channel shows its membership entries, and a PersonaBot DM shows that PersonaBot's own entries such as Sessions, Memory and its Bot Inbox. On desktop it shows Channel sidebar tabs; on narrow layouts it is a stack of collapsible entries. Operational configuration is not shown here; it lives in Channel settings. It is not the DSH session-scoped native right column.
 _Avoid_: PersonaBot navigation, right panel, session panel, inspector, workbench
 
 **Channel body**:
@@ -783,15 +783,27 @@ The center region of the Bot mode panel: the selected Channel's header, primary 
 _Avoid_: main pane, conversation view, chat panel
 
 **Channel sidebar entry**:
-One registered, collapsible item of a Channel sidebar: a stable id, label, order, scope, and a renderer that may display information, offer controls, or both. An unavailable entry is absent rather than a placeholder.
+One registered item of a Channel sidebar: a stable id, label, order, scope, and a renderer that may display information, offer controls, or both. On desktop it renders inside a Channel sidebar tab; on narrow layouts it collapses on its own. An entry registered as a settings surface is a Channel settings section instead. An unavailable entry is absent rather than a placeholder.
 _Avoid_: widget, card, tab, destination, Channel section
 
+**Channel sidebar tab**:
+One icon tab of the desktop Channel sidebar, grouping one or more Channel sidebar entries (Sessions holds Sessions and Bot Inbox; Memory holds Memory files and Memory evolution). An entry that names no registered tab is its own tab. A tab with two visible entries splits into top and bottom panes. The Human orders and hides tabs from the + Views menu; those are browser-local presentation preferences.
+_Avoid_: view, page, rail item
+
+**Channel settings**:
+The per-Channel modal for operational configuration of the current Channel: in a PersonaBot DM its Wake Policy, external identities and External connectors; in a group its Wake Policy, External connectors and Group management. It opens from the Channel sidebar gear menu and the Channel header's "···" menu, and is organised into Channel settings sections.
+_Avoid_: Bot Settings, Profile settings, sidebar settings
+
+**Channel settings section**:
+One section of Channel settings: a Channel sidebar entry registered with the settings surface, so it never renders in the Channel sidebar itself.
+_Avoid_: settings tab, settings entry
+
 **PersonaBot Profile**:
-The per-PersonaBot surface for its shareable identity and its read-only activity: the identity travels with the PersonaBot when it is shared (Display name, Avatar, Profile Banner, Bot Tags, Bot Bio), and the activity is token usage derived from its owned Sessions, event activity from its Bot Inbox Admissions, and Memory commit activity. Operational configuration such as its Model Plan, Wake Policy, external identities, Bridges and approvals is never part of it; that lives in the Channel sidebar. It appears compactly as a Profile popover from the PersonaBot's avatar in a DM header, and expands into a Profile view in the Channel body.
+The per-PersonaBot surface for its shareable identity and its read-only activity: the identity travels with the PersonaBot when it is shared (Display name, Avatar, Profile Banner, Bot Tags, Bot Bio), and the activity is token usage derived from its owned Sessions, event activity from its Bot Inbox Admissions, and Memory commit activity. Operational configuration such as its Model Plan, Wake Policy, external identities, Bridges and approvals is never part of it; that lives in the Channel sidebar and Channel settings. It appears compactly as a Profile popover from the PersonaBot's avatar in a DM header, and expands into a Profile view in the Channel body.
 _Avoid_: account, dashboard, bot page, profile (bare), settings page
 
 **Group Profile**:
-The per-Group Channel surface for the Group's name and avatar and its activity from committed Channel messages. It shows message counts by day and by author, distinguishing Human and PersonaBot authors; Group configuration such as member Wake Policy and Bridges lives in the Channel sidebar. The Group header opens its popover and expanded Channel-body view; DM Channels have only their PersonaBot Profile.
+The per-Group Channel surface for the Group's name and avatar and its activity from committed Channel messages. It shows message counts by day and by author, distinguishing Human and PersonaBot authors; Group configuration such as member Wake Policy and Bridges lives in Channel settings. The Group header opens its popover and expanded Channel-body view; DM Channels have only their PersonaBot Profile.
 _Avoid_: PersonaBot token usage, Group management sidebar, DM Channel Profile
 
 **Approver**:
@@ -819,7 +831,7 @@ The RPC surface through which the Web Client reads PersonaBots and invokes separ
 _Avoid_: remote, IPC, gateway
 
 **Bot Settings**:
-The BotHarness-owned modal (Bot 设置) for profile-wide BotHarness configuration, organised into Bot Settings sections in its own sidebar. Configuration of one PersonaBot or one Channel never lives here; that is a Channel sidebar entry. DSH's own settings modal is called DSH settings; its Bot 设置 item only points into Bot Settings, while App credentials remain in DSH settings.
+The BotHarness-owned modal (Bot 设置) for profile-wide BotHarness configuration, organised into Bot Settings sections in its own sidebar. Configuration of one PersonaBot or one Channel never lives here; that is Channel settings or a Channel sidebar entry. DSH's own settings modal is called DSH settings; its Bot 设置 item only points into Bot Settings, while App credentials remain in DSH settings.
 _Avoid_: Settings UI, settings page, preferences, admin panel, dashboard, web console
 
 **Bot Settings section**:

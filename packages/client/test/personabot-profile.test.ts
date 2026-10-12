@@ -282,9 +282,9 @@ describe('PersonaBot Profile surface', () => {
         (tab) => tab.getAttribute('aria-label') ?? tab.textContent,
       );
       expect(sidebarLabels).toContain('模型');
-      expect(sidebarLabels).toContain('唤醒策略');
-      expect(sidebarLabels).toContain('外部身份');
-      expect(sidebarLabels).toContain('外部连接器');
+      expect(sidebarLabels).not.toContain('唤醒策略');
+      expect(sidebarLabels).not.toContain('外部身份');
+      expect(sidebarLabels).not.toContain('外部连接器');
       expect(container.querySelectorAll('.bh-profile-pin[aria-pressed="true"]').length).toBe(2);
 
       const headerButton = (label: string) =>

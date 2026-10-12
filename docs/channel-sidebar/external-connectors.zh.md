@@ -1,8 +1,8 @@
 # 外部连接器
 
-打开 **Bot 私聊 → Channel sidebar → 外部连接器**。这里列出同步到这个 Bot 的 Channel 的外部会话，并保留一个高级操作。收消息和回复都不需要它：[绑定应用](/zh/docs/channel-sidebar/external-identities)即可，会话也在那里管理。以后，Webhook 等单向输入流也会放在这里。
+打开 **Bot 私聊 → ··· → 频道设置… → 外部连接器**（也可从 Channel sidebar 齿轮 **Channel sidebar 设置 → 频道设置…** 进入）。这里列出同步到这个 Bot 的 Channel 的外部会话，并保留一个高级操作。收消息和回复都不需要它：[绑定应用](/zh/docs/channel-sidebar/external-identities)即可，会话也在那里管理。以后，Webhook 等单向输入流也会放在这里。
 
-![外部连接器分区：一个已同步的会话和高级发送目标行](/guides/channel-sidebar/20b-external-connectors-zh.webp)
+![外部连接器：一个已同步的会话和高级发送目标行](/guides/channel-sidebar/20b-external-connectors-zh.webp)
 
 ## 读懂每一行
 
@@ -33,7 +33,7 @@ Lark、Slack 和 Discord 应用可以直接发往会话，永远不需要这一�
 
 ## 把外部会话接入群频道
 
-群频道可以像接 webhook 一样，接收一个外部群里的所有消息。打开这个群，在频道侧栏展开 **外部连接器**，点 **接入外部会话**：
+群频道可以像接 webhook 一样，接收一个外部群里的所有消息。打开这个群，选择 **··· → 频道设置… → 外部连接器**，点 **接入外部会话**：
 
 1. 选择 **应用**。这里列出成员 Bot 已绑定的所有应用，并注明平台和使用它的 Bot。
 2. 选择 **会话**。列表里是这个应用已知的群，比如有人 @ 过它的群。如果找不到你的群，先在那个群里 @ 一次应用。
@@ -43,4 +43,4 @@ Lark、Slack 和 Discord 应用可以直接发往会话，永远不需要这一�
 
 在第一条消息到达之前，这一行显示 **等待第一条消息**，之后显示 **正在接收** 和最后一条消息的时间。应用需要能收到群里的普通消息：飞书需要开通 `im:message.group_msg` 权限。用开关可以暂停；在编辑窗口里点 **删除** 后不再接收新消息，已接入的消息保留。
 
-本地群聊的 **外部连接器** 项列出这个群的连接器，点任意一行打开编辑弹窗。平台配置：[Lark / 飞书](/zh/docs/lark-connection)、[Slack](/zh/docs/slack-connection)、[个人微信](/zh/docs/wechat-connection)。返回[侧栏总览](/zh/docs/channel-sidebar)。
+本地群聊的 **外部连接器** 分区列出这个群的连接器，点任意一行打开编辑弹窗。平台配置：[Lark / 飞书](/zh/docs/lark-connection)、[Slack](/zh/docs/slack-connection)、[个人微信](/zh/docs/wechat-connection)。返回[侧栏总览](/zh/docs/channel-sidebar)。

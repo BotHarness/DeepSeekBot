@@ -27,11 +27,13 @@ export function ChannelSidebarTabs({
   tabs,
   entryProps,
   scopeKey,
+  onOpenSettings,
   prefs = channelSidebarPrefs,
 }: {
   tabs: readonly ResolvedChannelSidebarTab[];
   entryProps: ChannelSidebarEntryProps;
   scopeKey: string;
+  onOpenSettings?: (() => void) | undefined;
   prefs?: ChannelSidebarPrefs;
 }): ReactElement {
   const snapshot = useSyncExternalStore(prefs.subscribe, prefs.getSnapshot, prefs.getSnapshot);
@@ -120,8 +122,12 @@ export function ChannelSidebarTabs({
           onChange={(nextOrder, nextHidden) => prefs.setEntryLayout(scope, nextOrder, nextHidden)}
           t={t}
         />
-        {entries.some((entry) => entry.settings !== undefined) ? (
-          <ChannelSidebarSettings entries={entries} entryProps={entryProps} />
+        {onOpenSettings !== undefined || entries.some((entry) => entry.settings !== undefined) ? (
+          <ChannelSidebarSettings
+            entries={entries}
+            entryProps={entryProps}
+            onOpenSettings={onOpenSettings}
+          />
         ) : null}
       </div>
       {active === undefined ? (
@@ -234,16 +240,18 @@ function ChannelSidebarSplit({
                   latest = ratioAt(move.clientY);
                   setDraft(latest);
                 };
-                const onUp = (): void => {
+                const finish = (commit: boolean): void => {
                   handle.removeEventListener('pointermove', onMove);
                   handle.removeEventListener('pointerup', onUp);
-                  handle.removeEventListener('pointercancel', onUp);
+                  handle.removeEventListener('pointercancel', onCancel);
                   setDraft(undefined);
-                  onRatio(latest);
+                  if (commit) onRatio(latest);
                 };
+                const onUp = (): void => finish(true);
+                const onCancel = (): void => finish(false);
                 handle.addEventListener('pointermove', onMove);
                 handle.addEventListener('pointerup', onUp);
-                handle.addEventListener('pointercancel', onUp);
+                handle.addEventListener('pointercancel', onCancel);
               }}
             />
           ) : null}

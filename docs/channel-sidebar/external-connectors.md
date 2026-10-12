@@ -1,8 +1,8 @@
 # External connectors
 
-Open **Bot DM → Channel sidebar → External connectors**. It lists the external conversations synced into this Bot’s Channels and keeps one advanced action. You don’t need it to receive or reply: [binding an app](/docs/channel-sidebar/external-identities) is enough, and its conversations are managed there. Later, one-way input streams such as webhooks will also live here.
+Open **Bot DM → ··· → Channel settings… → External connectors** (or the Channel sidebar gear, **Channel sidebar settings → Channel settings…**). It lists the external conversations synced into this Bot’s Channels and keeps one advanced action. You don’t need it to receive or reply: [binding an app](/docs/channel-sidebar/external-identities) is enough, and its conversations are managed there. Later, one-way input streams such as webhooks will also live here.
 
-![The External connectors entry with a synced conversation and the advanced send target row](/guides/channel-sidebar/20b-external-connectors-en.webp)
+![External connectors with a synced conversation and the advanced send target row](/guides/channel-sidebar/20b-external-connectors-en.webp)
 
 ## Read the rows
 
@@ -11,7 +11,7 @@ Open **Bot DM → Channel sidebar → External connectors**. It lists the extern
 | One row per sync                  | Sync name, a state chip (**Receiving**, **Connecting**, **Paused** or **Unavailable**; plus **Bot Inbox only** when it does not add DM history) and “platform · external conversation · condition”. The Switch pauses or resumes intake. |
 | **Save a send target (advanced)** | Only for apps that can’t list or address conversations: save one target the Bot can post to proactively. Receiving and replying don’t need it.                                                                                           |
 
-When nothing is synced, the entry says **No external sources connected**. Adding a sync here, from any connected app whether or not a Bot has it bound, is being redesigned.
+When nothing is synced, the section says **No external sources connected**. Adding a sync here, from any connected app whether or not a Bot has it bound, is being redesigned.
 
 **Syncs decide what is received; the Bot’s [Wake policy](/docs/channel-sidebar/wake-policy) decides when it is processed.**
 
@@ -33,7 +33,7 @@ Lark, Slack and Discord apps post to conversations directly, so they never need 
 
 ## Connect an external conversation to a group Channel
 
-A group Channel can take in everything said in an external group, the way a webhook feeds it. Open the group, expand **External connectors** in the Channel sidebar and click **Connect an external conversation**:
+A group Channel can take in everything said in an external group, the way a webhook feeds it. Open the group, choose **··· → Channel settings… → External connectors** and click **Connect an external conversation**:
 
 1. Choose an **App**. Every app a member Bot has bound is listed, with the platform and the Bot that uses it.
 2. Choose a **Conversation**. The list shows the groups that app already knows, for example a group where someone has @mentioned it. If yours is missing, @ the app once in that group.
@@ -43,4 +43,4 @@ From then on every message from that group appears in the Channel. With **Contex
 
 The row shows **Waiting for the first message** until one arrives, then **Receiving** and the time of the last message. The app must receive ordinary group messages: Lark needs the `im:message.group_msg` scope. Use the Switch to pause, and **Delete** in the edit dialog to stop new messages; messages already in the Channel stay.
 
-In a local group the same **External connectors** entry lists the group's connectors; each row opens its edit dialog. Platform setup: [Lark / Feishu](/docs/lark-connection), [Slack](/docs/slack-connection), [personal WeChat](/docs/wechat-connection). [All sidebar features](/docs/channel-sidebar).
+In a local group the same **External connectors** section lists the group's connectors; each row opens its edit dialog. Platform setup: [Lark / Feishu](/docs/lark-connection), [Slack](/docs/slack-connection), [personal WeChat](/docs/wechat-connection). [All sidebar features](/docs/channel-sidebar).

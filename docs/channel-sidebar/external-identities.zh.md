@@ -2,17 +2,17 @@
 
 首个 [官方 QQ Bot 应用接入路径](/zh/docs/qq-connection) 接收群里的文字 @ 提及并在原群回复；就绪状态指群提及接收。QQ 私聊、普通群消息和媒体另需对应能力，被动答复受平台五分钟窗口约束。
 
-打开 **Bot 私聊 → Channel sidebar → 外部身份**。这里列出绑定给这个 Bot 的外部应用（Lark / 飞书、Slack、Discord、微信等）。一个应用只属于一个 Bot，其他 Bot 不能借用。一个 Bot 可以绑定多个应用，同一平台也可以绑定多个（例如两个飞书应用）：每个应用各自的私聊和 @ 都进入同一个收件箱，Bot 通过收到消息的那个应用回复。应用按平台分组列出。
+打开 **Bot 私聊 → ··· → 频道设置… → 外部身份**（也可从 Channel sidebar 齿轮 **Channel sidebar 设置 → 频道设置…** 进入）。这里列出绑定给这个 Bot 的外部应用（Lark / 飞书、Slack、Discord、微信等）。一个应用只属于一个 Bot，其他 Bot 不能借用。一个 Bot 可以绑定多个应用，同一平台也可以绑定多个（例如两个飞书应用）：每个应用各自的私聊和 @ 都进入同一个收件箱，Bot 通过收到消息的那个应用回复。应用按平台分组列出。
 
 **绑定应用就够了。** 绑定后，私聊这个应用、或在它所在的群里 @ 它，消息会直接进入这个 Bot 的收件箱，Bot 在原会话回复。不需要保存投递目标，也不需要授权会话或打开收件开关。谁能联系到这个应用，由各平台的设置决定，例如飞书的可用范围、群成员和应用权限，或 Discord 的频道权限。
 
 Slack 和 Discord 同样适用：私聊应用、或在它所在的频道里 @ 它。个人微信只接收扫码者本人的私聊，其他联系人和微信群不会进入收件箱。
 
-![外部身份分区，每个已绑定应用一行](/guides/channel-sidebar/18-external-identities-zh.webp)
+![外部身份，每个已绑定应用一行](/guides/channel-sidebar/18-external-identities-zh.webp)
 
 ## 连接教程
 
-点击 **+ 绑定应用**，弹窗提供官网 [Lark / 飞书](/zh/docs/lark-connection)、[Slack](/zh/docs/slack-connection) 和 [微信](/zh/docs/wechat-connection) 教程的直达链接。**更多平台** 打开本页，包含 Discord 的接入与绑定说明。每个链接末尾都有右上箭头，教程在新标签页打开，绑定弹窗保留。应用创建、权限和发布等详细步骤放在官网教程中，侧栏不再单独提供 Lark 配置引导卡片。
+点击 **+ 绑定应用**，弹窗提供官网 [Lark / 飞书](/zh/docs/lark-connection)、[Slack](/zh/docs/slack-connection) 和 [微信](/zh/docs/wechat-connection) 教程的直达链接。**更多平台** 打开本页，包含 Discord 的接入与绑定说明。每个链接末尾都有右上箭头，教程在新标签页打开，绑定弹窗保留。应用创建、权限和发布等详细步骤放在官网教程中，频道设置中不再单独提供 Lark 配置引导卡片。
 
 ## 读懂每一行
 
