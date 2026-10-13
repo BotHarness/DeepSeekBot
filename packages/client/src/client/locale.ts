@@ -191,11 +191,13 @@ export const zh = {
   'onboarding.tour.settings.title': 'Bot 设置',
   'onboarding.tour.settings.hint': '模型、IM 应用、窗口伙伴和数据等全局设置都在这里。',
   'onboarding.tour.header.title': '会话头部',
-  'onboarding.tour.header.hint': '点 Bot 头像查看资料；右侧按钮打开会话菜单（重命名、删除等）。',
+  'onboarding.tour.header.hint':
+    '点 Bot 头像查看资料；右侧 ··· 打开聊天菜单，「频道设置…」里可以改模型、唤醒策略和 IM 连接。',
   'onboarding.tour.composer.title': '输入框',
   'onboarding.tour.composer.hint': '在这里输入消息；左侧添加附件，右侧按钮发送。',
-  'onboarding.tour.sidebar.title': '右侧栏',
-  'onboarding.tour.sidebar.hint': '这里查看 Bot 的记忆文件和记忆演化；不需要时可以折叠。',
+  'onboarding.tour.sidebar.title': 'Channel sidebar',
+  'onboarding.tour.sidebar.hint':
+    '跟随当前聊天：「会话」查看 Bot 的会话和收件箱，「记忆」查看记忆文件和演化；+ 添加更多视图，不需要时可以收起。',
   'onboarding.tour.companion.title': '窗口伙伴',
   'onboarding.tour.companion.hint': 'Bot 的悬浮形象；可以拖动、点击打开私聊，或随时移除。',
   'onboarding.tour.exit.title': 'Bot 模式入口',
@@ -3330,13 +3332,13 @@ export const en = {
     'Models, IM apps, the Window Companion, data and other profile-wide settings live here.',
   'onboarding.tour.header.title': 'Conversation header',
   'onboarding.tour.header.hint':
-    'Open the Bot profile from its avatar; the button on the right opens the channel menu (rename, delete).',
+    'Open the Bot profile from its avatar; ··· on the right opens the chat menu, where Channel settings… changes the model, wake policy and IM connections.',
   'onboarding.tour.composer.title': 'Message box',
   'onboarding.tour.composer.hint':
     'Type here to send; add attachments on the left and send from the right.',
   'onboarding.tour.sidebar.title': 'Channel sidebar',
   'onboarding.tour.sidebar.hint':
-    "Inspect this Bot's memory files and history here; collapse it when you don't need it.",
+    "Follows the open chat: Sessions shows this Bot's sessions and inbox, Memory its files and history; + adds more views, and you can collapse it anytime.",
   'onboarding.tour.companion.title': 'Window companion',
   'onboarding.tour.companion.hint':
     "The Bot's floating face; drag it, click to open the DM, or remove it anytime.",

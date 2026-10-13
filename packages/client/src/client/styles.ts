@@ -164,7 +164,8 @@ export const CSS =
 .bh-onboarding-launcher { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 6px; color: var(--dsw-alias-label-secondary); cursor: pointer; transition: right 120ms var(--ds-ease-in-out), opacity 120ms var(--ds-ease-in-out), background 120ms var(--ds-ease-in-out); }
 .bh-onboarding-launcher[data-bh-onboarding-launcher='row'] { position: absolute; top: 50%; right: 10px; z-index: 1; transform: translateY(-50%); }
 button:has(.bh-panel-glyph):is(:hover, :focus-within) .bh-onboarding-launcher[data-bh-onboarding-launcher='row'],
-nav:has(> .bh-panel-activity[data-unread='true']) .bh-onboarding-launcher[data-bh-onboarding-launcher='row'] { right: 74px; }
+nav:has(> .bh-panel-activity[data-unread='true']) .bh-onboarding-launcher[data-bh-onboarding-launcher='row'],
+nav:has(:is(.bh-panel-activity, .bh-panel-gear).driver-active-element) .bh-onboarding-launcher[data-bh-onboarding-launcher='row'] { right: 74px; }
 .bh-onboarding-launcher[data-settled='true']:not([data-open='true']) { opacity: 0; pointer-events: none; }
 button:has(.bh-panel-glyph):is(:hover, :focus-within) .bh-onboarding-launcher[data-settled='true'] { opacity: 1; pointer-events: auto; }
 .bh-onboarding-launcher:hover, .bh-onboarding-launcher[data-open='true'] { background: var(--dsw-alias-interactive-bg-hover); }
@@ -623,7 +624,8 @@ button:has(.bh-panel-glyph)::before {
 }
 
 button:has(.bh-panel-glyph):hover .bh-panel-gear,
-button:has(.bh-panel-glyph):focus-within .bh-panel-gear {
+button:has(.bh-panel-glyph):focus-within .bh-panel-gear,
+.bh-panel-gear.driver-active-element {
   opacity: 1;
   pointer-events: auto;
 }
@@ -7048,6 +7050,7 @@ nav:has(> .bh-panel-activity[data-wide='true']) > button:has(.bh-panel-glyph) { 
 .bh-panel-activity[data-wide='true'][data-unread='false'] { opacity: 0; pointer-events: none; }
 button:has(.bh-panel-glyph):is(:hover, :focus-within) ~ .bh-panel-activity[data-wide='true'][data-unread='false'][data-active='true'],
 .bh-panel-activity[data-wide='true'][data-unread='false'][data-active='true']:is(:hover, :focus-visible) { opacity: 1; pointer-events: auto; }
+.bh-panel-activity[data-wide='true'][data-unread='false'].driver-active-element { opacity: 1; }
 .bh-panel-activity:hover { background: var(--bh-hover); color: var(--bh-overview-label); }
 .bh-panel-activity[aria-current='page'] { background: var(--bh-selected); color: var(--bh-overview-label); }
 .bh-panel-activity:focus-visible { outline: 2px solid var(--bh-overview-label); outline-offset: 2px; }
