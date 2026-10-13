@@ -3,6 +3,7 @@ import { parseContentRedactions } from './content-redactions.js';
 
 const listeners = new Set<() => void>();
 const purgeListeners = new Set<(placements: PurgedPlacement[]) => void>();
+const latestListeners = new Set<(value: unknown) => void>();
 const redactions = new Map<string, PurgedPlacement>();
 export type LiveSource = Pick<EventTarget, 'addEventListener'> & {
   readonly readyState: number;
@@ -12,6 +13,7 @@ export interface TypedLive {
   roster(handlers: {
     baseline(placements: PurgedPlacement[]): void;
     changed(): void;
+    latest(value: unknown): void;
     purged(placements: PurgedPlacement[]): void;
     interrupted(): void;
   }): () => void;
@@ -45,6 +47,10 @@ function recordPurged(placements: PurgedPlacement[]): void {
     for (const callback of [...purgeListeners]) callback(placements.slice(offset, offset + 100));
 }
 
+function publishLatest(value: unknown): void {
+  for (const callback of [...latestListeners]) callback(value);
+}
+
 function syncTyped(): void {
   if (typed === undefined) return;
   if (listeners.size && stopRoster === undefined)
@@ -55,6 +61,7 @@ function syncTyped(): void {
         notify();
       },
       changed: () => notify(),
+      latest: publishLatest,
       purged: recordPurged,
       interrupted: () => undefined,
     });
@@ -163,6 +170,13 @@ function ensureSource(): void {
   next.addEventListener('open', () => {
     if (source === next) notify();
   });
+  next.addEventListener('roster/latest', (event) => {
+    if (source !== next || !(event instanceof MessageEvent) || typeof event.data !== 'string')
+      return;
+    try {
+      publishLatest(JSON.parse(event.data));
+    } catch {}
+  });
   next.addEventListener('content/purged', (event) => {
     if (source !== next) return;
     const placements = parseContentRedactions(event);
@@ -270,8 +284,10 @@ const notify = () => {
 export function subscribeMessagingDefaults(
   listener: () => void,
   onPurge?: (placements: PurgedPlacement[]) => void,
+  onLatest?: (value: unknown) => void,
 ): () => void {
   listeners.add(listener);
+  if (onLatest) latestListeners.add(onLatest);
   if (onPurge) {
     purgeListeners.add(onPurge);
     queueMicrotask(() => {
@@ -285,6 +301,7 @@ export function subscribeMessagingDefaults(
   return () => {
     listeners.delete(listener);
     if (onPurge) purgeListeners.delete(onPurge);
+    if (onLatest) latestListeners.delete(onLatest);
     releaseUnusedSource();
   };
 }

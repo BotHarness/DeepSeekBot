@@ -101,6 +101,61 @@ describe('live frames on the native stream carrier', () => {
     expect((await ended).done).toBe(true);
   });
 
+  it("carries each Channel's latest non-notice message on the roster, newest per Channel", async () => {
+    const hub = createChannelLiveHub(createChannelStore({ rootDir: root() }));
+    hubs.push(hub);
+    const abort = new AbortController();
+    const frames = hub.followRoster(abort.signal)[Symbol.asyncIterator]();
+    await frames.next();
+    const message = (id: string, extra: object = {}) => ({
+      id,
+      at: '2026-10-13T00:00:00.000Z',
+      author: { kind: 'human' as const },
+      body: id,
+      ...extra,
+    });
+    hub.publishCommitted({ channelId: 'a', revision: 1, message: message('a-1') });
+    hub.publishCommitted({ channelId: 'b', revision: 1, message: message('b-1') });
+    hub.publishCommitted({ channelId: 'a', revision: 2, message: message('a-2') });
+    hub.publishCommitted({
+      channelId: 'a',
+      revision: 3,
+      message: message('a-notice', { memoryCommit: {} }),
+    } as never);
+    expect((await frames.next()).value).toEqual({
+      type: 'latest',
+      channelId: 'b',
+      message: message('b-1'),
+    });
+    expect((await frames.next()).value).toEqual({
+      type: 'latest',
+      channelId: 'a',
+      message: message('a-2'),
+    });
+    const pending = frames.next();
+    abort.abort();
+    expect((await pending).done).toBe(true);
+  });
+
+  it('sends the latest Channel message as a roster SSE event', async () => {
+    const hub = createChannelLiveHub(createChannelStore({ rootDir: root() }));
+    hubs.push(hub);
+    const abort = new AbortController();
+    const frames = openLiveFrames((request) => hub.open(request), 'scope=roster', '', abort.signal);
+    await frames.next();
+    const message = {
+      id: 'm1',
+      at: '2026-10-13T00:00:00.000Z',
+      author: { kind: 'human' as const },
+      body: 'hello',
+    };
+    hub.publishCommitted({ channelId: 'c1', revision: 1, message });
+    const frame = (await frames.next()).value;
+    expect(frame.event).toBe('roster/latest');
+    expect(JSON.parse(frame.data)).toEqual({ channelId: 'c1', message });
+    abort.abort();
+  });
+
   it('follows Activity as a baseline and coalesced replacement snapshots', async () => {
     let revision = 0;
     const listeners = new Set<() => void>();

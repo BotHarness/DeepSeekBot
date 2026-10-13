@@ -253,6 +253,50 @@ describe('Roster live Client', () => {
   });
 });
 
+describe('Roster live Client latest messages', () => {
+  it('moves a listed Channel preview forward without a roster refresh', () => {
+    const store = createStore();
+    store.setMode('bot');
+    const other = { ...CHANNEL, id: 'group-other', name: 'Other' };
+    store.setRoster([], [CHANNEL, other]);
+    const refreshRoster = vi.fn(async () => undefined);
+    const sources: FakeSource[] = [];
+    const dispose = mountRosterLive(store, { refreshRoster } as unknown as BridgeActions, (url) => {
+      const source = new FakeSource(url);
+      sources.push(source);
+      return source as unknown as EventSource;
+    });
+    const latest = (channelId: string, id: string, at: string): void =>
+      sources[0]?.listeners.get('roster/latest')?.(
+        new MessageEvent('roster/latest', {
+          data: JSON.stringify({
+            channelId,
+            message: { id, at, author: { kind: 'human' }, body: id },
+          }),
+        }),
+      );
+    const preview = () =>
+      store.getSnapshot().channels.find((item) => item.id === CHANNEL.id)?.latestMessage?.id;
+    try {
+      latest(CHANNEL.id, 'message-278', '2026-10-13T00:00:02.000Z');
+      expect(preview()).toBe('message-278');
+      expect(store.getSnapshot().channels.find((item) => item.id === CHANNEL.id)?.updatedAt).toBe(
+        '2026-10-13T00:00:02.000Z',
+      );
+      latest(CHANNEL.id, 'older', '2026-10-13T00:00:01.000Z');
+      expect(preview()).toBe('message-278');
+      latest('unknown', 'stray', '2026-10-13T00:00:03.000Z');
+      expect(store.getSnapshot().channels.map((item) => item.id)).not.toContain('unknown');
+      expect(
+        store.getSnapshot().channels.find((item) => item.id === other.id)?.latestMessage,
+      ).toBeUndefined();
+      expect(refreshRoster).not.toHaveBeenCalled();
+    } finally {
+      dispose();
+    }
+  });
+});
+
 describe('Channel live Client', () => {
   it('advances loaded Human receipts from one bounded read-position event', () => {
     const { store, sources, dispose } = setup();

@@ -599,6 +599,17 @@ export function mountRosterLive(
     if (timer !== undefined) clearTimeout(timer);
     timer = setTimeout(refresh, 60);
   };
+  const applyLatest = (value: unknown): void => {
+    if (typeof value !== 'object' || value === null) return;
+    const { channelId, message: raw } = value as Record<string, unknown>;
+    const message = parseChannelMessage(raw);
+    if (typeof channelId !== 'string' || message === undefined) return;
+    const channel = store.getSnapshot().channels.find((item) => item.id === channelId);
+    const previous = channel?.latestMessage;
+    if (channel === undefined || previous?.id === message.id) return;
+    if (previous !== undefined && previous.at > message.at) return;
+    store.upsertChannel({ ...channel, updatedAt: message.at, latestMessage: message });
+  };
   const onDragStart = (): void => {
     dragging = true;
   };
@@ -616,16 +627,26 @@ export function mountRosterLive(
         const source = makeSource('/api/botharness/stream?scope=roster');
         source.onopen = schedule;
         source.addEventListener('roster/changed', schedule);
+        source.addEventListener('roster/latest', (event) => {
+          if (!(event instanceof MessageEvent) || typeof event.data !== 'string') return;
+          try {
+            applyLatest(JSON.parse(event.data));
+          } catch {}
+        });
         source.addEventListener('content/purged', (event) => {
           store.purgeContent(parseContentRedactions(event));
           schedule();
         });
         stopSource = () => source.close();
       } else
-        stopSource = subscribeMessagingDefaults(schedule, (placements) => {
-          store.purgeContent(placements);
-          schedule();
-        });
+        stopSource = subscribeMessagingDefaults(
+          schedule,
+          (placements) => {
+            store.purgeContent(placements);
+            schedule();
+          },
+          applyLatest,
+        );
       return;
     }
     stopSource?.();

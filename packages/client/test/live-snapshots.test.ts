@@ -81,6 +81,7 @@ it('consumes a baseline then increments through the Gateway snapshot stream', as
   const handlers = {
     baseline: vi.fn(),
     changed: vi.fn(),
+    latest: vi.fn(),
     purged: vi.fn(),
     interrupted: vi.fn(),
   };
@@ -88,10 +89,18 @@ it('consumes a baseline then increments through the Gateway snapshot stream', as
   const placements = [{ sourceEventId: 'source', channelId: 'channel', messageId: 'message' }];
   roster.push({ type: 'baseline', placements });
   roster.push({ type: 'changed' });
+  const message = {
+    id: 'm1',
+    at: '2026-10-13T00:00:00.000Z',
+    author: { kind: 'human' },
+    body: 'hi',
+  };
+  roster.push({ type: 'latest', channelId: 'channel', message });
   roster.push({ type: 'purged', placements });
   await settle();
   expect(handlers.baseline).toHaveBeenCalledWith(placements);
   expect(handlers.changed).toHaveBeenCalledTimes(1);
+  expect(handlers.latest).toHaveBeenCalledWith({ channelId: 'channel', message });
   expect(handlers.purged).toHaveBeenCalledWith(placements);
   stop();
   await settle();
@@ -128,7 +137,8 @@ it('gives roster and Activity their own typed streams and leaves only the Channe
   });
   const listener = vi.fn();
   const purged = vi.fn();
-  const unsubscribe = subscribeMessagingDefaults(listener, purged);
+  const latest = vi.fn();
+  const unsubscribe = subscribeMessagingDefaults(listener, purged, latest);
   const feed = openRosterActivity()!;
   const snapshots: string[] = [];
   feed.addEventListener('activity/snapshot', (event) =>
@@ -140,6 +150,9 @@ it('gives roster and Activity their own typed streams and leaves only the Channe
     const placements = [{ sourceEventId: 'source', channelId: 'channel', messageId: 'message' }];
     roster!.baseline(placements);
     roster!.changed();
+    expect(listener).toHaveBeenCalledTimes(2);
+    roster!.latest({ channelId: 'channel' });
+    expect(latest).toHaveBeenCalledWith({ channelId: 'channel' });
     expect(listener).toHaveBeenCalledTimes(2);
     expect(purged).toHaveBeenCalledWith(placements);
     activity!.snapshot('{"revision":1}');

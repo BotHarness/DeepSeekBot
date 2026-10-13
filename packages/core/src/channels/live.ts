@@ -1,5 +1,6 @@
 import type { PersonaBotActivitySnapshot } from '../state/bot-state.js';
 import type { PurgedPlacement } from '../purge/contracts.js';
+import { isChannelNotice } from './channel-notice.js';
 import type { ChannelDraft, ChannelDraftEvent } from './draft.js';
 import type { ChannelMessage } from './channel.js';
 import type { ChannelMessageCommit, ChannelStore } from './store.js';
@@ -14,6 +15,7 @@ export const CHANNEL_DRAFT_BASELINE_EVENT = 'channel/draft-baseline';
 export const CHANNEL_DRAFT_SETTLED_EVENT = 'channel/draft-settled';
 export const CHANNEL_DRAFT_ABANDONED_EVENT = 'channel/draft-abandoned';
 export const ROSTER_CHANGED_EVENT = 'roster/changed';
+export const ROSTER_LATEST_EVENT = 'roster/latest';
 export const CONTENT_PURGED_EVENT = 'content/purged';
 
 export interface PublishedDraft extends ChannelDraft {
@@ -42,6 +44,7 @@ interface Subscriber {
 export type RosterLiveFrame =
   | { type: 'baseline'; placements: PurgedPlacement[] }
   | { type: 'changed' }
+  | { type: 'latest'; channelId: string; message: ChannelMessage }
   | { type: 'purged'; placements: PurgedPlacement[] };
 
 export type ActivityLiveFrame =
@@ -280,6 +283,7 @@ export function createChannelLiveHub(
   };
   interface RosterSubscriber {
     push(): void;
+    latest(channelId: string, message: ChannelMessage): void;
     purge(placements: PurgedPlacement[]): void;
     close(): void;
   }
@@ -332,6 +336,18 @@ export function createChannelLiveHub(
             if (ended) return;
             try {
               controller.enqueue(encoder.encode(`event: ${ROSTER_CHANGED_EVENT}\ndata: {}\n\n`));
+            } catch {
+              this.close();
+            }
+          },
+          latest(channelId, message) {
+            if (ended) return;
+            try {
+              controller.enqueue(
+                encoder.encode(
+                  `event: ${ROSTER_LATEST_EVENT}\ndata: ${JSON.stringify({ channelId, message })}\n\n`,
+                ),
+              );
             } catch {
               this.close();
             }
@@ -392,6 +408,16 @@ export function createChannelLiveHub(
       push() {
         if (ended) return;
         if (queue.at(-1)?.type !== 'changed') queue.push({ type: 'changed' });
+        wake?.();
+      },
+      latest(channelId, message) {
+        if (ended) return;
+        const stale = queue.findIndex(
+          (frame) => frame.type === 'latest' && frame.channelId === channelId,
+        );
+        if (stale !== -1) queue.splice(stale, 1);
+        queue.push({ type: 'latest', channelId, message });
+        if (queue.length > ROSTER_LIVE_QUEUE_LIMIT) this.close();
         wake?.();
       },
       close() {
@@ -679,6 +705,9 @@ export function createChannelLiveHub(
     },
     publishCommitted(commit) {
       for (const subscriber of subscribers.get(commit.channelId) ?? []) subscriber.push(commit);
+      if (!isChannelNotice(commit.message))
+        for (const subscriber of rosterSubscribers)
+          subscriber.latest(commit.channelId, commit.message);
       if (commit.message.author.kind !== 'bot') return;
       const botSlug = commit.message.author.slug;
       const candidates = [...(drafts.get(commit.channelId)?.values() ?? [])].filter(
