@@ -1,8 +1,8 @@
 import type { ReactElement } from 'react';
 
 import { useClientState } from './bot-sidebar.js';
-import { ChannelBridgeList } from './channel-bridge-list.js';
-import type { ChannelSidebarEntryProps } from './channel-sidebar.js';
+import { ChannelBridgeAttention, ChannelBridgeList } from './channel-bridge-list.js';
+import type { ChannelSettingsAttentionProps, ChannelSidebarEntryProps } from './channel-sidebar.js';
 import { ConversationIngestRows } from './conversation-ingest-list.js';
 import { GroupWakePolicyList } from './group-wake-policy-list.js';
 import type { ClientState } from './store.js';
@@ -37,6 +37,14 @@ export function GroupWakePolicyEntry({
       t={t}
     />
   );
+}
+
+export function GroupConnectorsAttention({
+  channelId,
+  actions,
+  report,
+}: ChannelSettingsAttentionProps): ReactElement {
+  return <ChannelBridgeAttention channelId={channelId} actions={actions} report={report} />;
 }
 
 export function GroupConnectorsEntry({

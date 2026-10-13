@@ -6159,6 +6159,27 @@ button.bh-bot-nav > svg {
   white-space: nowrap;
   text-overflow: ellipsis;
 }
+.bh-channel-settings-attention-dot {
+  flex: none;
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--dsw-alias-state-error-primary);
+}
+.bh-channel-settings-attention-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.bh-channel-options-dot {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+}
+.bh-channel-options .bh-channel-sidebar-entry-action {
+  position: relative;
+}
 .bh-bot-settings-content {
   flex: 1;
   min-width: 0;

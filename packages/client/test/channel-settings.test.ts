@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
+import { act, createElement, useEffect, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
@@ -28,9 +28,11 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   MenuSurface: ({ children, ...props }: { children: ReactNode }) =>
     createElement('div', props, children),
 }));
-import { ChannelSettingsDialog } from '../src/client/channel-settings.js';
+import { ChannelSettingsAttention, ChannelSettingsDialog } from '../src/client/channel-settings.js';
+import { ChannelBridgeAttention } from '../src/client/channel-bridge-list.js';
 import {
   ChannelSettings,
+  channelSettingsAttentionSections,
   channelSettingsSections,
   isChannelSettingsSection,
 } from '../src/client/channel-settings-state.js';
@@ -38,6 +40,7 @@ import { ChannelSidebarTabs } from '../src/client/channel-sidebar-tabs.js';
 import {
   createChannelSidebarRegistry,
   resolveChannelSidebarTabs,
+  type ChannelSettingsAttentionProps,
   type ChannelSidebarEntry,
   type ChannelSidebarEntryProps,
 } from '../src/client/channel-sidebar.js';
@@ -190,5 +193,115 @@ describe('Channel settings', () => {
     );
     act(() => controller.open('wake-policy'));
     expect(host.querySelector('[data-body]')?.getAttribute('data-body')).toBe('wake-policy');
+  });
+
+  it('marks the sections that report attention and clears them when the channel goes away', () => {
+    const registry = createChannelSidebarRegistry();
+    let failing = true;
+    const Probe = ({ report }: ChannelSettingsAttentionProps) => {
+      const on = failing;
+      useEffect(() => report(on));
+      return null;
+    };
+    registry.register(entry('wake-policy', 2, { surface: 'settings', label: '唤醒策略' }));
+    registry.register(
+      entry('external-connectors', 3, {
+        surface: 'settings',
+        label: '外部连接',
+        attention: Probe,
+      }),
+    );
+    const controller = new ChannelSettings();
+    const render = (state: ClientState) =>
+      act(() =>
+        root.render(
+          createElement(
+            'div',
+            null,
+            createElement(ChannelSettingsAttention, {
+              registry,
+              state,
+              actions: {} as BridgeActions,
+              t: zhTranslate,
+              controller,
+            }),
+            createElement(ChannelSettingsDialog, {
+              registry,
+              state,
+              actions: {} as BridgeActions,
+              t: zhTranslate,
+              controller,
+              prefs,
+            }),
+          ),
+        ),
+      );
+    render(dmState());
+    expect(controller.attentionOf('dm-ada')).toEqual(['external-connectors']);
+    const sections = channelSettingsSections(registry.entries('personabot'), dmState());
+    expect(
+      channelSettingsAttentionSections(sections, controller.attentionOf('dm-ada')).map(
+        (section) => section.id,
+      ),
+    ).toEqual(['external-connectors']);
+    act(() => controller.open('external-connectors'));
+    const marked = host.querySelector('[data-settings-section="external-connectors"]')!;
+    expect(
+      marked.querySelector('.bh-channel-settings-attention-dot')?.getAttribute('aria-label'),
+    ).toBe('需要处理');
+    expect(
+      host.querySelector(
+        '[data-settings-section="wake-policy"] .bh-channel-settings-attention-dot',
+      ),
+    ).toBeNull();
+    expect(host.querySelector('[data-body]')?.getAttribute('data-body')).toBe(
+      'external-connectors',
+    );
+    failing = false;
+    render({ ...dmState() });
+    expect(controller.attentionOf('dm-ada')).toEqual([]);
+    failing = true;
+    render({ ...dmState() });
+    expect(controller.attentionOf('dm-ada')).toEqual(['external-connectors']);
+    act(() => root.render(createElement('div')));
+    expect(controller.attentionOf('dm-ada')).toEqual([]);
+  });
+
+  it('reports a connector that is on but unavailable, and re-reads it on demand', async () => {
+    const row = (
+      availability: string,
+      reception: string,
+      enabled = true,
+    ): Record<string, unknown> => ({
+      grantId: availability + reception,
+      enabled,
+      availability,
+      reception,
+    });
+    let bridges = [row('available', 'receiving'), row('unavailable', 'off', false)];
+    const actions = { channelBridges: vi.fn(async () => ({ bridges })) };
+    const reported: boolean[] = [];
+    await act(async () =>
+      root.render(
+        createElement(ChannelBridgeAttention, {
+          channelId: 'dm-ada',
+          actions: actions as unknown as BridgeActions,
+          report: (on: boolean) => reported.push(on),
+        }),
+      ),
+    );
+    expect(reported).toEqual([false]);
+    bridges = [row('available', 'receiving'), row('rebind-required', 'off')];
+    await act(async () =>
+      root.render(
+        createElement(ChannelBridgeAttention, {
+          channelId: 'group-1',
+          actions: actions as unknown as BridgeActions,
+          report: (on: boolean) => reported.push(on),
+        }),
+      ),
+    );
+    expect(actions.channelBridges).toHaveBeenLastCalledWith('group-1');
+    expect(reported).toEqual([false, true]);
   });
 });

@@ -77,8 +77,12 @@ import { toolApprovalReplyPreview } from './approval-text.js';
 import type { NativeSessionCatalog } from './sessions-entry.js';
 import { ActivityCenterView } from './activity-center-view.js';
 import { resolveChannelSidebarContext, type ChannelSidebarRegistry } from './channel-sidebar.js';
-import { ChannelSettingsDialog } from './channel-settings.js';
-import { channelSettings, channelSettingsSections } from './channel-settings-state.js';
+import { ChannelSettingsAttention, ChannelSettingsDialog } from './channel-settings.js';
+import {
+  channelSettings,
+  channelSettingsAttentionSections,
+  channelSettingsSections,
+} from './channel-settings-state.js';
 import { ChannelSidebar, useChannelSidebar } from './channel-sidebar-view.js';
 import { MemoryCommitView } from './memory-commit-view.js';
 import { MemoryFileView, MemoryWorkingView } from './memory-current-view.js';
@@ -740,7 +744,17 @@ function ConversationView({
     () => channelSidebar.entries(settingsScope),
     () => channelSidebar.entries(settingsScope),
   );
-  const hasChannelSettings = channelSettingsSections(settingsEntries, state).length > 0;
+  const settingsSections = channelSettingsSections(settingsEntries, state);
+  const hasChannelSettings = settingsSections.length > 0;
+  const settingsAttentionIds = useSyncExternalStore(
+    channelSettings.subscribe,
+    () => channelSettings.attentionOf(resolveChannelSidebarContext(state)?.channel?.id),
+    () => channelSettings.attentionOf(resolveChannelSidebarContext(state)?.channel?.id),
+  );
+  const settingsAttention = channelSettingsAttentionSections(
+    settingsSections,
+    settingsAttentionIds,
+  );
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const draftScope = conversationDraftKey(state);
   const recovery = useComposerRecovery(draftScope, state, actions);
@@ -1642,7 +1656,12 @@ function ConversationView({
                 channel={channel}
                 actions={actions}
                 t={t}
-                onOpenSettings={hasChannelSettings ? () => channelSettings.open() : undefined}
+                onOpenSettings={
+                  hasChannelSettings
+                    ? () => channelSettings.open(settingsAttention[0]?.id)
+                    : undefined
+                }
+                settingsAttention={settingsAttention.length > 0}
               />
             )}
             {onMobileBack !== undefined ? (
@@ -2345,6 +2364,7 @@ function ConversationView({
           )}
         </section>
         <ChannelSettingsDialog registry={channelSidebar} state={state} actions={actions} t={t} />
+        <ChannelSettingsAttention registry={channelSidebar} state={state} actions={actions} t={t} />
         <ChannelSidebar
           registry={channelSidebar}
           state={state}

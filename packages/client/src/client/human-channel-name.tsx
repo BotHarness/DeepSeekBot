@@ -106,11 +106,13 @@ export function HumanChannelNameMenu({
   actions,
   t,
   onOpenSettings,
+  settingsAttention = false,
 }: {
   channel: ChannelSummary;
   actions: BridgeActions;
   t: BotHarnessTranslate;
   onOpenSettings?: (() => void) | undefined;
+  settingsAttention?: boolean;
 }): ReactElement | null {
   const [menuOpen, setMenuOpen] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -121,7 +123,25 @@ export function HumanChannelNameMenu({
     () => hiddenDmActionsSnapshot(dmBotSlug),
   );
   const channelItems = [
-    ...(onOpenSettings === undefined ? [] : [{ id: 'settings', label: t('channelSettings.open') }]),
+    ...(onOpenSettings === undefined
+      ? []
+      : [
+          {
+            id: 'settings',
+            label: settingsAttention ? (
+              <span className="bh-channel-settings-attention-label">
+                {t('channelSettings.open')}
+                <span
+                  className="bh-channel-settings-attention-dot"
+                  role="img"
+                  aria-label={t('channelSettings.needsAttention')}
+                />
+              </span>
+            ) : (
+              t('channelSettings.open')
+            ),
+          },
+        ]),
     ...(channel.humanNickname === undefined
       ? []
       : [{ id: 'nickname', label: t('humanNickname.title') }]),
@@ -153,12 +173,19 @@ export function HumanChannelNameMenu({
           <button
             type="button"
             className="bh-channel-sidebar-entry-action"
-            aria-label={t('humanNickname.menu')}
+            aria-label={
+              settingsAttention && onOpenSettings !== undefined
+                ? `${t('humanNickname.menu')} · ${t('channelSettings.needsAttention')}`
+                : t('humanNickname.menu')
+            }
             aria-haspopup="menu"
             aria-expanded={menuOpen}
             onClick={() => setMenuOpen((open) => !open)}
           >
             <IconEllipsisOutlineRegular size={16} />
+            {settingsAttention && onOpenSettings !== undefined ? (
+              <span className="bh-channel-settings-attention-dot bh-channel-options-dot" />
+            ) : null}
           </button>
         }
         items={items}

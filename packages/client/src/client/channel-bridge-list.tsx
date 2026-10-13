@@ -1,7 +1,7 @@
 import { externalPlatformLabel } from './bridge-source-label.js';
 import { subscribeMessagingDefaults } from './messaging-defaults-live.js';
 import type {} from '@deepseek-ai/dsh-api-session-controller/client';
-import { useRef, useState, type ReactElement, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import { Button, Input, Switch, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 import type {
   ChannelBridgeInput,
@@ -25,6 +25,46 @@ function stateKey(row: ChannelBridgeRow) {
         : row.reception === 'connecting'
           ? 'bridge.state.connecting'
           : 'bridge.state.unavailable';
+}
+
+export function bridgeNeedsAttention(row: ChannelBridgeRow): boolean {
+  return row.enabled && stateKey(row) === 'bridge.state.unavailable';
+}
+
+export function ChannelBridgeAttention({
+  channelId,
+  actions,
+  report,
+}: {
+  channelId: string;
+  actions: Pick<BridgeActions, 'channelBridges'>;
+  report(needsAttention: boolean): void;
+}): null {
+  const reportRef = useRef(report);
+  reportRef.current = report;
+  useEffect(() => {
+    let current = true;
+    let request = 0;
+    const read = (): void => {
+      const sequence = ++request;
+      void Promise.resolve()
+        .then(() => actions.channelBridges(channelId))
+        .then(
+          (snapshot) => {
+            if (current && sequence === request)
+              reportRef.current(snapshot.bridges.some(bridgeNeedsAttention));
+          },
+          () => undefined,
+        );
+    };
+    read();
+    const unsubscribe = subscribeMessagingDefaults(read);
+    return () => {
+      current = false;
+      unsubscribe();
+    };
+  }, [actions, channelId]);
+  return null;
 }
 
 function conditionKey(row: ChannelBridgeRow) {

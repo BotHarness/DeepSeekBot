@@ -31,6 +31,8 @@ Lark, Slack and Discord apps post to conversations directly, so they never need 
 
 ![The send target dialog](/guides/channel-sidebar/22-conversation-authorization-zh.webp)
 
+When an enabled connector is not available or stops receiving, the chat header’s **···** button and its **Channel settings…** row show a red dot. **Channel settings** then opens straight on **External connectors**, which is marked with the same dot, so you can fix or turn off the connector.
+
 ## Connect an external conversation to a group Channel
 
 A group Channel can take in everything said in an external group, the way a webhook feeds it. Open the group, choose **··· → Channel settings… → External connectors** and click **Connect an external conversation**:

@@ -1,4 +1,4 @@
-import { useState, useSyncExternalStore, type ReactElement } from 'react';
+import { useEffect, useState, useSyncExternalStore, type ReactElement } from 'react';
 
 import {
   IconChevronDownOutlineRegular,
@@ -10,6 +10,7 @@ import type { BridgeActions } from './actions.js';
 import { PersonaBotAvatar } from './avatar.js';
 import {
   resolveChannelSidebarContext,
+  type ChannelSidebarEntry,
   type ChannelSidebarEntryProps,
   type ChannelSidebarRegistry,
 } from './channel-sidebar.js';
@@ -76,6 +77,11 @@ export function ChannelSettingsDialog({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [refreshRevision, setRefreshRevision] = useState(0);
   const channel = context?.channel;
+  const attention = useSyncExternalStore(
+    controller.subscribe,
+    () => controller.attentionOf(channel?.id),
+    () => controller.attentionOf(channel?.id),
+  );
   if (!snapshot.open || context === undefined || channel === undefined) return null;
   const sections = channelSettingsSections(entries, state);
   if (sections.length === 0) return null;
@@ -171,6 +177,13 @@ export function ChannelSettingsDialog({
                 onClick={() => select(section.id)}
               >
                 <span className="bh-bot-settings-nav-label">{section.label}</span>
+                {attention.includes(section.id) ? (
+                  <span
+                    className="bh-channel-settings-attention-dot"
+                    role="img"
+                    aria-label={t('channelSettings.needsAttention')}
+                  />
+                ) : null}
               </button>
             ))}
           </div>
@@ -184,7 +197,21 @@ export function ChannelSettingsDialog({
               open={pickerOpen}
               portal
               align="start"
-              items={sections.map((section) => ({ id: section.id, label: section.label }))}
+              items={sections.map((section) => ({
+                id: section.id,
+                label: attention.includes(section.id) ? (
+                  <span className="bh-channel-settings-attention-label">
+                    {section.label}
+                    <span
+                      className="bh-channel-settings-attention-dot"
+                      role="img"
+                      aria-label={t('channelSettings.needsAttention')}
+                    />
+                  </span>
+                ) : (
+                  section.label
+                ),
+              }))}
               selectedId={active.id}
               onSelect={(id) => {
                 setPickerOpen(false);
@@ -226,5 +253,72 @@ export function ChannelSettingsDialog({
         </div>
       </div>
     </Modal>
+  );
+}
+
+function AttentionProbe({
+  section,
+  props,
+  controller,
+}: {
+  section: ChannelSidebarEntry;
+  props: ChannelSidebarEntryProps;
+  controller: ChannelSettings;
+}): ReactElement | null {
+  const { channelId } = props;
+  useEffect(
+    () => () => controller.reportAttention(channelId, section.id, false),
+    [controller, channelId, section.id],
+  );
+  const Probe = section.attention;
+  if (Probe === undefined) return null;
+  return (
+    <Probe {...props} report={(on) => controller.reportAttention(channelId, section.id, on)} />
+  );
+}
+
+export function ChannelSettingsAttention({
+  registry,
+  state,
+  actions,
+  t,
+  controller = channelSettings,
+}: {
+  registry: ChannelSidebarRegistry;
+  state: ClientState;
+  actions: BridgeActions;
+  t: BotHarnessTranslate;
+  controller?: ChannelSettings;
+}): ReactElement | null {
+  const context = resolveChannelSidebarContext(state);
+  const scope = context?.scope ?? 'channel';
+  const entries = useSyncExternalStore(
+    registry.subscribe,
+    () => registry.entries(scope),
+    () => registry.entries(scope),
+  );
+  const channel = context?.channel;
+  if (context === undefined || channel === undefined) return null;
+  const props: ChannelSidebarEntryProps = {
+    scope,
+    channelId: channel.id,
+    conversationRevision: state.conversation.revision,
+    botSlug: context.botSlug,
+    actions,
+    t,
+  };
+  return (
+    <>
+      {channelSettingsSections(entries, state)
+        .filter((section) => section.attention !== undefined)
+        .map((section) => (
+          <AttentionProbe
+            key={`${channel.id}:${section.id}`}
+            section={section}
+            props={props}
+            controller={controller}
+          />
+        ))}
+    </>
   );
 }

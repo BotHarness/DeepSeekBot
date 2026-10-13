@@ -21,8 +21,13 @@ import { AssignmentConcurrencySetting } from './assignment-concurrency-setting.j
 import { channelSettings } from './channel-settings-state.js';
 import { useMountedResource } from './mounted-resource.js';
 import { WakePolicyBadge, WakePolicyEntry } from './wake-policy-entry.js';
-import { ExternalConnectorsEntry, ExternalIdentitiesEntry } from './external-entries.js';
 import {
+  ExternalConnectorsAttention,
+  ExternalConnectorsEntry,
+  ExternalIdentitiesEntry,
+} from './external-entries.js';
+import {
+  GroupConnectorsAttention,
   GroupConnectorsEntry,
   GroupWakePolicyEntry,
   isGroupConversation,
@@ -1128,6 +1133,7 @@ export function createChannelSidebarBuiltins(
       order: 28,
       scope: 'personabot',
       component: ExternalConnectorsEntry,
+      attention: ExternalConnectorsAttention,
     },
     {
       id: 'private-accounts',
@@ -1174,6 +1180,7 @@ export function createChannelSidebarBuiltins(
       order: 14,
       scope: 'channel',
       component: GroupConnectorsEntry,
+      attention: GroupConnectorsAttention,
       visible: isGroupConversation,
     },
     {

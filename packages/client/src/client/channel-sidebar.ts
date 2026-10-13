@@ -64,6 +64,10 @@ export interface ChannelSidebarSettingsProps extends ChannelSidebarEntryProps {
   onPreview?: (() => void) | undefined;
 }
 
+export interface ChannelSettingsAttentionProps extends ChannelSidebarEntryProps {
+  report(needsAttention: boolean): void;
+}
+
 export interface ChannelSidebarEntry {
   id: string;
   label: string;
@@ -77,6 +81,7 @@ export interface ChannelSidebarEntry {
   visible?: (state: ClientState) => boolean;
   tab?: string;
   surface?: 'settings';
+  attention?: ComponentType<ChannelSettingsAttentionProps>;
   defaultHidden?: boolean;
 }
 
