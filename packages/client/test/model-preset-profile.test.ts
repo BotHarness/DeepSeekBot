@@ -456,8 +456,9 @@ describe('Model entry', () => {
       applyModelPreset,
     } as unknown as BridgeActions);
     await openEditor(host);
+    await act(async () => button('Advanced: let tasks pick a model').click());
     await choose('Add an allowed model', 'kimi', 'Kimi K2');
-    expect(document.querySelector('.bh-model-allowed')?.textContent).toContain('Kimi K2');
+    expect(document.querySelector('.bh-model-cards')?.textContent).toContain('Kimi K2');
     await act(async () => button('Save as preset').click());
     const name = document.querySelector<HTMLInputElement>('input[aria-label="Preset name"]')!;
     await act(async () => {
@@ -469,8 +470,8 @@ describe('Model entry', () => {
     });
     await act(async () => button('Save preset').click());
     expect(createModelPreset).toHaveBeenCalledExactlyOnceWith('My setup', route, route, [
-      { provider: 'deepseek', model: 'pro', allowedEfforts: [''], defaultEffort: '' },
       { provider: 'kimi', model: 'k2', allowedEfforts: [''], defaultEffort: '' },
+      { provider: 'deepseek', model: 'pro', allowedEfforts: [''], defaultEffort: '' },
     ]);
     expect(applyModelPreset).toHaveBeenCalledExactlyOnceWith('ada', 'mine');
     expect(document.querySelector('[role="dialog"]')).toBeNull();
@@ -478,7 +479,7 @@ describe('Model entry', () => {
     expect(cards(host)).toContain('+1 allowed');
   });
 
-  it('saves a trimmed usage note for the default and each allowed task model', async () => {
+  it('switches the task model to advanced cards with notes, efforts and a chosen default', async () => {
     const route = { provider: 'deepseek', model: 'pro' };
     const plan: ModelPlanView = {
       revision: 2,
@@ -496,12 +497,24 @@ describe('Model entry', () => {
       setModelPlan,
     } as unknown as BridgeActions);
     await openEditor(host);
-    const advanced = document.querySelector<HTMLDetailsElement>('details.bh-model-advanced')!;
-    expect(advanced.open).toBe(false);
-    expect(advanced.querySelector('summary')?.textContent).toContain(
-      'Advanced: let tasks pick a model',
-    );
+    const toggle = button('Advanced: let tasks pick a model');
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(combobox('Task model').value).toBe('Pro');
+    await act(async () => toggle.click());
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(document.querySelector('input[role="combobox"][aria-label="Task model"]')).toBeNull();
+
     await choose('Add an allowed model', 'kimi', 'Kimi K2');
+    await choose('Add an allowed model', 'flash', 'Flash');
+    const card = (name: string) =>
+      [...document.querySelectorAll<HTMLElement>('li.bh-model-card')].find(
+        (item) => item.querySelector('strong')?.textContent === name,
+      )!;
+    expect(
+      [...document.querySelectorAll('li.bh-model-card strong')].map((item) => item.textContent),
+    ).toEqual(['Flash', 'Kimi K2', 'Pro']);
+    expect(card('Pro').textContent).toContain('Default');
+
     const type = async (label: string, value: string) => {
       const input = document.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`)!;
       await act(async () => {
@@ -514,23 +527,94 @@ describe('Model entry', () => {
     };
     await type('When to use Pro', '  Hard debugging  ');
     await type('When to use Kimi K2', 'Quick lookups');
+    await type('When to use Flash', '   ');
+    const high = [...card('Flash').querySelectorAll('label')].find(
+      (label) => label.textContent === 'High',
+    )!;
+    await act(async () => high.querySelector('input')!.click());
+    await act(async () =>
+      card('Flash')
+        .querySelector<HTMLButtonElement>(
+          '[aria-label="Flash · Default effort"] button:last-child',
+        )!
+        .click(),
+    );
+    await act(async () => card('Flash').querySelector<HTMLButtonElement>('button')!.click());
+    expect(card('Flash').textContent).toContain('Default');
+    expect(card('Pro').querySelector('[aria-label="Remove Pro"]')).not.toBeNull();
+
     await act(async () => button('Save').click());
-    expect(setModelPlan).toHaveBeenCalledExactlyOnceWith('ada', 2, route, route, [
-      {
-        provider: 'deepseek',
-        model: 'pro',
-        allowedEfforts: [''],
-        defaultEffort: '',
-        note: 'Hard debugging',
-      },
-      {
-        provider: 'kimi',
-        model: 'k2',
-        allowedEfforts: [''],
-        defaultEffort: '',
-        note: 'Quick lookups',
-      },
-    ]);
+    expect(setModelPlan).toHaveBeenCalledExactlyOnceWith(
+      'ada',
+      2,
+      route,
+      { provider: 'deepseek', model: 'flash', reasoningEffort: 'high' },
+      [
+        {
+          provider: 'deepseek',
+          model: 'flash',
+          allowedEfforts: ['', 'high'],
+          defaultEffort: 'high',
+        },
+        {
+          provider: 'kimi',
+          model: 'k2',
+          allowedEfforts: [''],
+          defaultEffort: '',
+          note: 'Quick lookups',
+        },
+        {
+          provider: 'deepseek',
+          model: 'pro',
+          allowedEfforts: [''],
+          defaultEffort: '',
+          note: 'Hard debugging',
+        },
+      ],
+    );
+  });
+
+  it('opens a saved model set in advanced mode and saves one model after switching back to simple', async () => {
+    const pro = { provider: 'deepseek', model: 'pro' };
+    const plan: ModelPlanView = {
+      revision: 3,
+      sourcePresetId: '',
+      sourcePresetName: '',
+      orchestrator: pro,
+      assignmentDefault: { provider: 'deepseek', model: 'flash', reasoningEffort: 'low' },
+      assignmentModels: [
+        {
+          provider: 'deepseek',
+          model: 'flash',
+          allowedEfforts: ['low', 'high'],
+          defaultEffort: 'low',
+        },
+        { provider: 'deepseek', model: 'pro', allowedEfforts: [''], defaultEffort: '' },
+      ],
+      appliedAt: '',
+    };
+    const setModelPlan = vi.fn(async () => plan);
+    const host = await render({
+      modelPlanState: vi.fn(async () => ({ plan })),
+      modelPresets: vi.fn(async () => []),
+      modelCatalog: vi.fn(async () => ({ models: catalog })),
+      setModelPlan,
+    } as unknown as BridgeActions);
+    await openEditor(host);
+    const toggle = button('Advanced: let tasks pick a model');
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(document.querySelectorAll('li.bh-model-card')).toHaveLength(2);
+    await act(async () => toggle.click());
+    expect(document.querySelector('li.bh-model-card')).toBeNull();
+    expect(combobox('Task model').value).toBe('Flash');
+    await act(async () => button('Save').click());
+    expect(setModelPlan).toHaveBeenCalledExactlyOnceWith(
+      'ada',
+      3,
+      pro,
+      { provider: 'deepseek', model: 'flash', reasoningEffort: 'low' },
+      [{ provider: 'deepseek', model: 'flash', allowedEfforts: ['low'], defaultEffort: 'low' }],
+    );
   });
 
   it('keeps a saved plan when an older editor load finishes later', async () => {
