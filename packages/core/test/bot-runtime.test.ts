@@ -1580,8 +1580,10 @@ it('starts a new Orchestrator Session when DSH archived the current one', async 
   const first = runs[0]!.sessionId;
   expect(runs.map((run) => run.sessionId)).toEqual([first, first]);
   expect(runs[1]!.resume).toBe(true);
+  expect(runtime.currentOrchestratorSessionId?.('ada')).toBe(first);
 
   archived.add(first);
+  expect(runtime.currentOrchestratorSessionId?.('ada')).toBeUndefined();
   await say('human-3', 'hello again');
   const replacement = runs[2]!;
   expect(replacement.sessionId).not.toBe(first);
@@ -1590,6 +1592,7 @@ it('starts a new Orchestrator Session when DSH archived the current one', async 
 
   await say('human-4', 'and again');
   expect(runs[3]).toEqual({ sessionId: replacement.sessionId, resume: true });
+  expect(runtime.currentOrchestratorSessionId?.('ada')).toBe(replacement.sessionId);
   await runtime.close();
   owner.close();
 });

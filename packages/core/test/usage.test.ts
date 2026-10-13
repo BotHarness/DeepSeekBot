@@ -155,6 +155,41 @@ describe('Usage projection', () => {
     expect(usage.activity('ada', SINCE)).toHaveLength(1);
   });
 
+  it('keeps a replaced Orchestrator Session in the Bot totals and counts its successor separately', async () => {
+    const { usage, ownership } = usageProjection({
+      archived: { botSlug: 'ada', rootRole: 'orchestrator' },
+    });
+    ownership.claim({
+      sessionId: 'replacement',
+      botSlug: 'ada',
+      rootRole: 'orchestrator',
+      at: '2026-10-12T00:00:00.000Z',
+    });
+    const logs = {
+      archived: [event('assistant/message', TURN_END - 2000)],
+      replacement: [event('assistant/message', TURN_END - 1000)],
+    };
+    for (const [sessionId, events] of Object.entries(logs))
+      for (const entry of events) usage.handleSessionEvent(sessionId, entry);
+
+    expect(usage.activity('ada', SINCE)).toMatchObject([
+      { purpose: 'orchestrator', inputTokens: 200, outputTokens: 80, totalTokens: 310 },
+    ]);
+    const readLog = async (sessionId: string) => ({
+      events: logs[sessionId as keyof typeof logs] ?? [],
+      inheritedEventCount: 0,
+    });
+    expect(await usage.sessionSummary('ada', 'replacement', SINCE, readLog)).toEqual({
+      totalTokens: 155,
+      status: 'ready',
+    });
+    expect(await usage.rebuild(['archived', 'replacement'], readLog)).toMatchObject({
+      folded: 0,
+      failed: 0,
+    });
+    expect(usage.activity('ada', SINCE)).toMatchObject([{ totalTokens: 310 }]);
+  });
+
   it('attributes fork-owned work to its trusted root role', () => {
     const { usage, ownership } = usageProjection({
       'session-root': { botSlug: 'ada', rootRole: 'orchestrator' },

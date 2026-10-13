@@ -250,6 +250,53 @@ describe('bridge methods', () => {
     expect((await methods.profileSessionUsage({})).ok).toBe(false);
     expect(read.mock.calls).toHaveLength(2);
   });
+  it('reports the Orchestrator Session the runtime resumes, not an archived newer one', async () => {
+    const ownership = createTestOwnership({
+      resumed: { botSlug: 'ada', rootRole: 'orchestrator' },
+    });
+    ownership.claim({
+      sessionId: 'archived',
+      botSlug: 'ada',
+      rootRole: 'orchestrator',
+      at: '2026-10-12T00:00:00.000Z',
+    });
+    const usageHome = mkdtempSync(join(tmpdir(), 'botharness-session-usage-'));
+    roots.push(usageHome);
+    const owner = mountOperationalDatabase({
+      dshHome: usageHome,
+      schemaPlan: BOT_HARNESS_SCHEMA_PLAN,
+    });
+    modelOwners.push(owner);
+    const usage = createUsageProjection({ ownership, database: owner });
+    const read = vi.fn(async () => ({ events: [], inheritedEventCount: 0 }));
+    let current: string | undefined = 'resumed';
+    const runtime = {
+      listAssignments: () => [],
+      currentOrchestratorSessionId: () => current,
+    } as unknown as BotRuntime;
+    const { registry, channels, methods } = setup(
+      [],
+      ['ada'],
+      () => runtime,
+      ownership,
+      undefined,
+      undefined,
+      undefined,
+      usage,
+      undefined,
+      read,
+    );
+    registry.create({ slug: 'ada', displayName: 'Ada' });
+    const dm = channels.getOrCreateDm('ada', 'Ada')!;
+    const rows = async () => {
+      const result = await methods.profileSessionUsage({ channelId: dm.id });
+      if (!result.ok) throw new Error('Expected scoped usage');
+      return result.value.rows.map((row) => row.sessionId);
+    };
+    expect(await rows()).toEqual(['resumed']);
+    current = undefined;
+    expect(await rows()).toEqual([]);
+  });
   it('does not expand pasted text, DM selections, empty previews or forged recipient lists', async () => {
     const { registry, channels, methods } = setup();
     registry.create({ slug: 'ada', displayName: 'Ada' });

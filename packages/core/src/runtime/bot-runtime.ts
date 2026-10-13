@@ -555,6 +555,7 @@ export interface BotRuntime {
   admitGroupJoinRequest?(ownerDmChannelId: string, requestId: string): void;
   admitGroupJoinDecision?(requesterDmChannelId: string, requestId: string): void;
   listAssignments(botSlug: string): AssignmentSummary[];
+  currentOrchestratorSessionId?(botSlug: string): string | undefined;
   listChannelAssignments?(channelId: string): ChannelAssignmentSummary[];
   getAssignment(botSlug: string, sessionId: string): AssignmentDetail | undefined;
 
@@ -3083,6 +3084,16 @@ class BotRuntimeImplementation implements BotRuntime {
     return run;
   }
 
+  currentOrchestratorSessionId(botSlug: string): string | undefined {
+    return this.#ownership
+      .rootsFor(botSlug, 'orchestrator')
+      .find(
+        (root) =>
+          this.#ownership.contentAvailable(root.sessionId) &&
+          this.#sessionArchived?.(root.sessionId) !== true,
+      )?.sessionId;
+  }
+
   listAssignments(botSlug: string): AssignmentSummary[] {
     const rows = this.#database.read((database) =>
       database
@@ -5385,14 +5396,8 @@ class BotRuntimeImplementation implements BotRuntime {
   }
 
   #ensureOrchestrator(bot: PersonaBotRecord, at: string): { sessionId: string; resume: boolean } {
-    const existing = this.#ownership
-      .rootsFor(bot.slug, 'orchestrator')
-      .find(
-        (root) =>
-          this.#ownership.contentAvailable(root.sessionId) &&
-          this.#sessionArchived?.(root.sessionId) !== true,
-      );
-    if (existing !== undefined) return { sessionId: existing.sessionId, resume: true };
+    const existing = this.currentOrchestratorSessionId(bot.slug);
+    if (existing !== undefined) return { sessionId: existing, resume: true };
     const sessionId = this.#createSessionId();
     const cwdReference = this.#orchestratorCwdReference(bot);
     this.#ownership.claim({

@@ -4638,8 +4638,16 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
           (deps.runtime?.listAssignments(slug) ?? []).map((entry) => [entry.sessionId, entry]),
         );
         const roots = deps.ownership.rootsFor(slug);
+        const resumed =
+          deps.runtime?.currentOrchestratorSessionId === undefined
+            ? undefined
+            : (deps.runtime.currentOrchestratorSessionId(slug) ?? null);
         const orchestrator = roots
-          .filter((root) => root.rootRole === 'orchestrator')
+          .filter(
+            (root) =>
+              root.rootRole === 'orchestrator' &&
+              (resumed === undefined || root.sessionId === resumed),
+          )
           .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
           .slice(0, 1);
         const updatedAt = (root: (typeof roots)[number]) =>
