@@ -1171,7 +1171,7 @@ window.__ModuleLoader__.load({
 				children
 			});
 		}
-		function SidebarCardRow({ icon, leading, iconLabel, selection, title, titleClassName, hint, chips, meta, trailing, detail, onClick, disabled, muted, mainClassName, dialog, expanded, controls, state, anchor }) {
+		function SidebarCardRow({ icon, leading, iconLabel, selection, title, titleClassName, badge, summary, flipKey, hint, chips, meta, trailing, detail, onClick, disabled, muted, mainClassName, dialog, expanded, controls, state, anchor }) {
 			const body = /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
 				leading === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 					className: "bh-card-leading",
@@ -1190,9 +1190,22 @@ window.__ModuleLoader__.load({
 				/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
 					className: "bh-card-body",
 					children: [
-						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+						badge === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 							className: titleClassName === void 0 ? "bh-card-title" : "bh-card-title " + titleClassName,
 							children: title
+						}) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+							className: "bh-card-title-row",
+							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+								className: titleClassName === void 0 ? "bh-card-title" : "bh-card-title " + titleClassName,
+								children: title
+							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+								className: "bh-card-badge",
+								children: badge
+							})]
+						}),
+						summary === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+							className: "bh-card-summary",
+							children: summary
 						}),
 						chips === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 							className: "bh-card-chips",
@@ -1212,6 +1225,7 @@ window.__ModuleLoader__.load({
 				"data-state": state,
 				"data-selected": selection?.checked === true ? "true" : void 0,
 				"data-anchor": anchor,
+				"data-flip-key": flipKey,
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 					className: "bh-card-line",
 					children: [selection?.multiple === true ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
