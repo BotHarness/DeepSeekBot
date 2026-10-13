@@ -4038,6 +4038,7 @@ class BotRuntimeImplementation implements BotRuntime {
           sourceEventId,
           markSideEffect,
           orchestrator.sessionId,
+          readAdmissions,
         ),
       });
       if (observeMemory) {
@@ -4130,6 +4131,7 @@ class BotRuntimeImplementation implements BotRuntime {
     sourceEventId: string,
     markAttemptSideEffect: () => void = () => this.#markSideEffectStarted(sourceEventId),
     orchestratorSessionId?: string,
+    readAdmissions?: Set<string>,
   ): OrchestratorAssignmentAccess {
     const markSideEffect = markAttemptSideEffect;
     return {
@@ -4192,6 +4194,10 @@ class BotRuntimeImplementation implements BotRuntime {
             this.#waitOptions.beginAssignmentWait?.(bot.slug, orchestratorSessionId) ?? (() => {}),
           signal: AbortSignal.any([signal, this.#waitLifetime.signal]),
           timeoutMs,
+        }).then((outcome) => {
+          if (outcome.outcome !== 'timeout' && readAdmissions !== undefined)
+            this.#claimAssignmentNotices(bot.slug, sessionId, readAdmissions);
+          return outcome;
         });
       },
       stop: (sessionId) => this.#stopAssignment(bot, sessionId, markSideEffect),
@@ -6859,6 +6865,36 @@ class BotRuntimeImplementation implements BotRuntime {
     return this.#channels
       .list()
       .find((channel) => channel.type === 'dm' && channel.botSlug === botSlug);
+  }
+
+  #claimAssignmentNotices(botSlug: string, sessionId: string, readAdmissions: Set<string>): void {
+    const at = this.#now().toISOString();
+    const claimed = this.#database.transaction(
+      (db) =>
+        db
+          .prepare(`UPDATE inbox_admissions SET observed_at = COALESCE(observed_at, ?),
+          attempt_state = 'running', last_error = NULL
+          WHERE bot_slug = ? AND reason IN ('assignment-report', 'assignment-lifecycle')
+            AND attempt_state IN ('pending', 'retryable')
+            AND source_event_id IN (SELECT source_event_id FROM source_events
+              WHERE bot_slug = ? AND assignment_session_id = ?)
+          RETURNING source_event_id`)
+          .all(at, botSlug, botSlug, sessionId) as unknown as Array<{ source_event_id: string }>,
+      ['bot-inbox'],
+    );
+    if (claimed.length === 0) return;
+    const ids = claimed.map((row) => row.source_event_id);
+    this.#database.transaction(
+      (db) =>
+        db
+          .prepare(
+            `UPDATE source_events SET observed_at = COALESCE(observed_at, ?)
+              WHERE source_event_id IN (${ids.map(() => '?').join(', ')})`,
+          )
+          .run(at, ...ids),
+      ['bot-inbox'],
+    );
+    for (const id of ids) readAdmissions.add(id);
   }
 
   #observeExternalRead(botSlug: string, ids: string[], readAdmissions: Set<string>): void {
