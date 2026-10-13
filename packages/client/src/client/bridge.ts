@@ -2705,6 +2705,7 @@ export async function sendChannelMessage(
 export interface AssignmentAccessPresetView {
   botSlug: string;
   mode: 'workspace-write' | 'danger-full-access';
+  scope?: 'chat' | 'assignments';
   revision: number;
   changedAt?: string;
 }
@@ -2727,9 +2728,15 @@ export async function setAssignmentAccess(
   slug: string,
   mode: AssignmentAccessPresetView['mode'],
   acknowledgeRisk: boolean,
+  scope?: 'chat' | 'assignments',
 ): Promise<AssignmentAccessPresetView> {
   const response = asRecord(
-    await unwrap(call, 'assignmentAccessSet', { slug, mode, acknowledgeRisk }),
+    await unwrap(call, 'assignmentAccessSet', {
+      slug,
+      mode,
+      acknowledgeRisk,
+      ...(scope === undefined ? {} : { scope }),
+    }),
   );
   const preset = asRecord(response?.['preset']);
   if (preset?.['botSlug'] !== slug || preset['mode'] !== mode)

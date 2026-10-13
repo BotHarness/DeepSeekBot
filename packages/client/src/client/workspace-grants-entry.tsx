@@ -766,9 +766,37 @@ export function WorkspaceGrantsEntry({
               }
             />
           </SidebarCardList>
+          <div className="bh-access-hint">{t('access.hint')}</div>
           {access?.mode === 'danger-full-access' ? (
-            <div className="bh-access-warning" role="status">
-              {t('access.activeWarning')}
+            <div className="bh-access-warning bh-access-warning-active" role="status">
+              {t(
+                access.scope === 'assignments'
+                  ? 'access.activeWarningAssignments'
+                  : 'access.activeWarning',
+              )}
+            </div>
+          ) : null}
+          {access?.mode === 'danger-full-access' ? (
+            <div className="bh-access-scope" role="radiogroup" aria-label={t('access.scopeTitle')}>
+              <div className="bh-note">{t('access.scopeTitle')}</div>
+              {(['chat', 'assignments'] as const).map((scope) => (
+                <label key={scope} className="bh-access-scope-option">
+                  <input
+                    type="radio"
+                    name={'bh-access-scope-' + botSlug}
+                    checked={(access.scope ?? 'chat') === scope}
+                    disabled={loading || busy !== undefined}
+                    onChange={() =>
+                      mutate('access-scope', () =>
+                        actions.setAssignmentAccess(botSlug, 'danger-full-access', true, scope),
+                      )
+                    }
+                  />
+                  <span>
+                    {t(scope === 'chat' ? 'access.scopeChat' : 'access.scopeAssignments')}
+                  </span>
+                </label>
+              ))}
             </div>
           ) : null}
           {confirmDanger ? (

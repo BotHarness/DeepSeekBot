@@ -1104,8 +1104,9 @@ export class BotharnessBridgeService extends TypertRemoteService {
     slug: string,
     mode: AssignmentAccessMode,
     acknowledgeRisk: boolean,
+    scope?: 'chat' | 'assignments',
   ): { preset: AssignmentAccessPreset } {
-    return unwrap(this.methods.assignmentAccessSet({ slug, mode, acknowledgeRisk }));
+    return unwrap(this.methods.assignmentAccessSet({ slug, mode, acknowledgeRisk, scope }));
   }
 
   toolApprovalRules(slug: string): { rules: ToolApprovalRule[] } {

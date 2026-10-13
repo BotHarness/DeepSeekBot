@@ -31,7 +31,9 @@ import type {} from '@deepseek-ai/dsh-agent';
 import type {} from '@deepseek-ai/dsh-session';
 import type {} from '@deepseek-ai/dsh-system-prompt';
 import type {} from '@deepseek-ai/dsh-tools';
-import type { ApprovalService } from '@deepseek-ai/dsh-user-approval';
+import { setApprovalPolicy, type ApprovalService } from '@deepseek-ai/dsh-user-approval';
+import { setSandboxMode } from '@deepseek-ai/dsh-sandbox-policy';
+import { randomUUID } from 'node:crypto';
 import Schema from '@deepseek-ai/schemastery';
 
 import { installOrchestratorFileTools } from './workspaces/orchestrator-file-tools.js';
@@ -130,6 +132,7 @@ import {
 import {
   grantExecutionDenial,
   grantToolExecutionDenial,
+  orchestratorPermission,
   isSafeMemoryDirectoryListing,
   requiresHumanToolApproval,
 } from './workspaces/grant-execution.js';
@@ -1092,6 +1095,51 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   const permissionDenial = (session: import('@deepseek-ai/dsh-session').Session) =>
     grantExecutionDenial(core, session, ctx.get('sandboxPolicy'), ctx.get('approval'));
 
+  const appliedPermission = new Map<string, string>();
+  ctx.effect(() => () => appliedPermission.clear(), 'botharness: Orchestrator permission record');
+  const alignOrchestratorPermission = (agent: import('@deepseek-ai/dsh-agent').Agent): void => {
+    const session = agent.session;
+    const owner = core.ownership.resolve(session.id);
+    const policy = ctx.get('sandboxPolicy') as
+      | import('@deepseek-ai/dsh-sandbox-policy').SandboxPolicyService
+      | undefined;
+    const approval = ctx.get('approval') as ApprovalService | undefined;
+    if (
+      owner?.rootRole !== 'orchestrator' ||
+      owner.provenance === 'subagent' ||
+      owner.parentSessionId !== undefined ||
+      policy === undefined ||
+      approval === undefined
+    )
+      return;
+    const expected = orchestratorPermission(core, owner.botSlug);
+    const key = expected.mode + '+' + expected.approval;
+    if (
+      policy.resolve({ session }).mode === expected.mode &&
+      approval.overrideOf(session) === expected.approval
+    ) {
+      appliedPermission.set(session.id, key);
+      return;
+    }
+    const changedOutside = appliedPermission.get(session.id) === key;
+    setSandboxMode(session, expected.mode);
+    setApprovalPolicy(session, expected.approval);
+    appliedPermission.set(session.id, key);
+    if (!changedOutside) return;
+    ctx.logger.warn(
+      'botharness: restored the permission mode of an Orchestrator Session that was changed outside the PersonaBot access setting',
+    );
+    const channel = core.channels.getOrCreateDm(owner.botSlug);
+    if (channel !== undefined)
+      void core.channels
+        .appendMessage(channel.id, {
+          id: randomUUID(),
+          at: new Date().toISOString(),
+          author: { kind: 'bot', slug: owner.botSlug },
+          body: '这个会话的权限模式被单独改动过，Host 已把它恢复。聊天会话的权限由此 Bot 工作区设置里的“完全访问”开关决定，不能在会话里单独修改。',
+        })
+        .catch(() => undefined);
+  };
   ctx.on(
     'agent/pre-step',
     async ({ agent, signal }, next) => {
@@ -1100,6 +1148,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       } catch {
         return { kind: 'reject' };
       }
+      alignOrchestratorPermission(agent);
       return permissionDenial(agent.session) === undefined ? next() : { kind: 'reject' };
     },
     { global: true },
@@ -1300,7 +1349,12 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           ? core.runtime.getAssignment(owner.botSlug, owner.sessionId)?.permission
           : undefined;
       const eachUse = execution.name === 'secret_cli';
-      if (snapshot?.mode === 'danger-full-access' && !eachUse) return next();
+      const fullAccess =
+        snapshot?.mode === 'danger-full-access' ||
+        (owner?.rootRole === 'orchestrator' &&
+          owner.provenance !== 'subagent' &&
+          orchestratorPermission(core, owner.botSlug).mode === 'danger-full-access');
+      if (fullAccess && !eachUse) return next();
       const approval = ctx.get('approval') as ApprovalService | undefined;
       const untrack = toolApproval.track(execution, eachUse ? 'each-use' : 'operation');
       if (approval === undefined || untrack === undefined) {
@@ -1311,18 +1365,25 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           ? core.runtime.askNotice?.(agent.session.id, execution.name)
           : undefined;
         if (notice !== undefined) return { kind: 'deny', reason: notice };
-        const outcome = await approval.request({
-          agent,
-          toolName: execution.name,
-          callId: execution.callId,
-          reason:
-            execution.name === 'channel_attachment_open'
-              ? 'This PersonaBot wants to edit the selected original attachment. All references to this file will show its current contents.'
-              : eachUse
-                ? 'This PersonaBot wants to run a command-line tool with a secret you entered. The program receives the secret and could reveal it. Check the program and every argument.'
-                : 'This tool call may access files outside the authorized folder.',
-          signal: execution.signal,
-        });
+        const outcome = eachUse
+          ? ((await toolApproval.ask({
+              agent,
+              toolName: execution.name,
+              callId: execution.callId,
+              signal: execution.signal,
+            })) ?? 'unavailable')
+          : await approval.request({
+              agent,
+              toolName: execution.name,
+              callId: execution.callId,
+              reason:
+                execution.name === 'channel_attachment_open'
+                  ? 'This PersonaBot wants to edit the selected original attachment. All references to this file will show its current contents.'
+                  : eachUse
+                    ? 'This PersonaBot wants to run a command-line tool with a secret you entered. The program receives the secret and could reveal it. Check the program and every argument.'
+                    : 'This tool call may access files outside the authorized folder.',
+              signal: execution.signal,
+            });
         if (outcome !== 'allowed-once') {
           return { kind: 'deny', reason: 'Human approval was ' + outcome };
         }

@@ -8,8 +8,20 @@ import type { ApprovalService } from '@deepseek-ai/dsh-user-approval';
 import type { BotHarnessCore } from '../plugin.js';
 import { NATIVE_FILE_TOOL_NAMES, nativeFileToolDenial } from './grant-native-tools.js';
 
+type AccessCore = { assignmentAccess?: Pick<BotHarnessCore['assignmentAccess'], 'get'> };
+
+export function orchestratorPermission(
+  core: AccessCore,
+  botSlug: string,
+): { mode: 'workspace-write' | 'danger-full-access'; approval: 'ask' | 'never' } {
+  const preset = core.assignmentAccess?.get(botSlug);
+  return preset?.mode === 'danger-full-access' && preset.scope === 'chat'
+    ? { mode: 'danger-full-access', approval: 'never' }
+    : { mode: 'workspace-write', approval: 'ask' };
+}
+
 export function grantExecutionDenial(
-  core: Pick<BotHarnessCore, 'ownership' | 'runtime' | 'grants' | 'registry'>,
+  core: Pick<BotHarnessCore, 'ownership' | 'runtime' | 'grants' | 'registry'> & AccessCore,
   session: Session,
   policy: SandboxPolicyService | undefined,
   approval: ApprovalService | undefined,
@@ -41,10 +53,13 @@ export function grantExecutionDenial(
   const mode = policy.resolve({ session }).mode;
   const approvalPolicy = approval.overrideOf(session);
   if (owner.rootRole === 'orchestrator') {
-    if (mode !== 'workspace-write' || approvalPolicy !== (delegatedSubagent ? 'never' : 'ask')) {
-      return delegatedSubagent
-        ? 'Orchestrator Subagent requires workspace-write and never approval'
-        : 'Orchestrator Session requires workspace-write and ask';
+    if (delegatedSubagent) {
+      if (mode !== 'workspace-write' || approvalPolicy !== 'never')
+        return 'Orchestrator Subagent requires workspace-write and never approval';
+    } else {
+      const expected = orchestratorPermission(core, owner.botSlug);
+      if (mode !== expected.mode || approvalPolicy !== expected.approval)
+        return "Orchestrator Session permission differs from this PersonaBot's access setting";
     }
     const memoryCwd = core.registry.memoryDirFor(owner.botSlug);
     return memoryCwd !== undefined && session.header.cwd === memoryCwd
@@ -187,7 +202,8 @@ export function isSafeMemoryDirectoryListing(
 }
 
 export function grantToolExecutionDenial(
-  core: Pick<BotHarnessCore, 'ownership' | 'runtime' | 'grants' | 'registry' | 'hostTools'>,
+  core: Pick<BotHarnessCore, 'ownership' | 'runtime' | 'grants' | 'registry' | 'hostTools'> &
+    AccessCore,
   session: Session,
   policy: SandboxPolicyService | undefined,
   approval: ApprovalService | undefined,
@@ -218,6 +234,12 @@ export function grantToolExecutionDenial(
     owner?.rootRole === 'assignment' &&
     core.runtime.getAssignment(owner.botSlug, owner.sessionId)?.permission?.mode ===
       'danger-full-access'
+  )
+    return undefined;
+  if (
+    owner?.rootRole === 'orchestrator' &&
+    owner.provenance !== 'subagent' &&
+    orchestratorPermission(core, owner.botSlug).mode === 'danger-full-access'
   )
     return undefined;
   if (NATIVE_FILE_TOOL_NAMES.has(name)) return nativeFileToolDenial(core, session, name, args);

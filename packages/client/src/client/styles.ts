@@ -6501,6 +6501,10 @@ html[data-botharness-motion='full'] .bh-motion-preview-sample i:nth-child(3) {
 .bh-tool-approval-confirm, .bh-access-warning { display: grid; gap: 8px; padding: 10px; border: 0.5px solid var(--dsw-alias-border-l3); border-radius: 8px; }
 .bh-tool-approval-confirm { --bh-message-card-gap: var(--bh-chat-card-inset); width: 100%; gap: var(--bh-message-card-gap); padding: var(--bh-chat-card-inset); }
 .bh-assignment-access-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.bh-access-hint { padding: 0 2px; color: var(--dsw-alias-state-error-primary); font-size: 12px; font-weight: 600; line-height: 1.5; }
+.bh-access-scope { display: grid; gap: 6px; padding: 0 2px; }
+.bh-access-scope-option { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--dsw-alias-label-primary); }
+.bh-access-warning-active { border-color: var(--dsw-alias-state-error-primary); color: var(--dsw-alias-state-error-primary); font-weight: 600; }
 
 .bh-memory-history {
   gap: 0;

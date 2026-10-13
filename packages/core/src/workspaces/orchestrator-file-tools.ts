@@ -51,6 +51,7 @@ export async function installOrchestratorFileTools(
           (execution.name !== 'bash' && !NATIVE_FILE_TOOL_NAMES.has(execution.name))
         )
           return next();
+        if (base.resolve({ session: agent.session }).mode === 'danger-full-access') return next();
         const workspaceRoot = rootFor(execution.name, execution.arguments);
         return callPolicy.run({ ...base.resolve({ session: agent.session }), workspaceRoot }, next);
       });
