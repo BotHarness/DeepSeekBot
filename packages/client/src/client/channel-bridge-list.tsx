@@ -49,13 +49,11 @@ export function ChannelBridgeAttention({
       const sequence = ++request;
       void Promise.resolve()
         .then(() => actions.channelBridges(channelId))
-        .then(
-          (snapshot) => {
-            if (current && sequence === request)
-              reportRef.current(snapshot.bridges.some(bridgeNeedsAttention));
-          },
-          () => undefined,
-        );
+        .then((snapshot) => {
+          if (current && sequence === request)
+            reportRef.current(snapshot.bridges.some(bridgeNeedsAttention));
+        })
+        .catch(() => undefined);
     };
     read();
     const unsubscribe = subscribeMessagingDefaults(read);
