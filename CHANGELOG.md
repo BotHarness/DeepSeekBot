@@ -38,6 +38,8 @@ Pixel Avatars can be an elf, dwarf, orc or talking flower with beards, medieval 
 
 ### Added
 
+- A message's right-click menu can export a local diagnostic bundle: a zip with that Channel from the message onward plus 30 minutes on each side, the involved Bots' DMs, Inbox admissions and native Session events (tool calls included, from the start of any turn already running), and a merged timeline. Standard redaction hides local folders, tokens, secret fields, request headers and emails; Memory files, attachments and other Channels are never included, and nothing is uploaded ([#1533](https://github.com/BotHarness/DeepSeekBot/issues/1533), [ADR-0185](docs/adr/0185-diagnostic-bundles-are-local-redacted-read-only-exports.md)).
+
 - DM and Group composers retain device-local drafts across Channel switches and browser reloads, validate restored references, and expose concurrent-tab conflicts and storage failures; unuploaded file bytes are not retained ([#1459](https://github.com/BotHarness/DeepSeekBot/issues/1459), [ADR-0184](docs/adr/0184-client-local-composer-recovery-is-not-message-authority.md)).
 
 - A PersonaBot's DM now shows what it did elsewhere: each post in a Group or Bot DM leaves a short linked line with an excerpt, consecutive posts in one Channel collapse into one line, and Memory updates made in a Group also appear in the DM with their place. The DM's top-right settings menu hides each kind for that Bot; nothing unread or waking is added ([#1517](https://github.com/BotHarness/DeepSeekBot/pull/1517), [ADR-0182](docs/adr/0182-the-bot-dm-is-the-bot-timeline.md)).

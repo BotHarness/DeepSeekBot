@@ -664,6 +664,8 @@ Settings 只经现有 Connection Fetch seam 预览、下载、检查文件与操
 
 Disaster Restore 将全部原生 Session 引用设为内容不可用，保留历史归属；中断 Assignment／Inbox／Outbox 均不重放。Bot、触发器、外部绑定、Service Grant、Workspace 与持久工具授权挂起，Browser／Computer access 关闭。目标 Human 配置明确 Model Plan、本地凭证并授权该 Plan revision，再确认同身份双活风险后显式激活；新 Orchestrator ownership 与恢复收据同一事务建立，执行使用新原生 Session。后续 Plan 变化再次阻止执行，所有实际模型调用仍经当前 catalog 验证，不能静默回退。激活仅开放本地 Bot 执行，外部 authority 与 Workspace 仍须独立重新授权。[操作与限制](../settings.md#complete-environment-backup-and-restore)。
 
+Diagnostic Bundle（[ADR-0185](../adr/0185-diagnostic-bundles-are-local-redacted-read-only-exports.md)，#1533）是另一条只读导出：消息右键菜单经 Connection Fetch 预览并下载一个本地 zip，范围从所选消息到现在、前后各多 30 分钟，带上参与 Bot 的 Human DM、所导出 Channel 内的 Inbox 收件、其拥有的 Orchestrator／Assignment／Subagent Session 原生事件（起点处正在运行的 turn 从 `turn/start` 算起）和合并时间线。`DiagnosticsExport` 只通过 Channel store、Inbox history、Session Ownership 与原生 `sessionQuery` 读取，标准脱敏后只在内存中保留预览结果，不写盘、不建表、不上传；Memory、Workspace、附件内容、凭据与其他 Channel 不进入导出。
+
 图中的 Attachment files 表示新附件真实文件及记录，Messaging 绑定将已转换旧引用解析到当前真实文件，legacy CAS 仅服务未转换依赖。hash 相同不恢复共享，缺少归属或含糊的旧调用明确失败。后续 Backup／Export 要包含当前被引用的文件与身份映射，引用感知清理及显式 Purge 也必须涵盖这些真实文件；一次明确导出保存当前字节，不建立持续附件版本归档。
 
 ### 删除与清除（已接受设计，待实现）

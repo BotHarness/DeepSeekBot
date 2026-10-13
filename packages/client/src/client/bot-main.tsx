@@ -112,6 +112,7 @@ import {
   type ChannelSummary,
   type ClientState,
 } from './store.js';
+import { DiagnosticBundleDialog } from './diagnostic-bundle.js';
 import { useMountedResource } from './mounted-resource.js';
 import type { ReleaseNotesController } from './release-notes.js';
 import { ReleaseNotesAnnouncement } from './release-notes-view.js';
@@ -544,12 +545,14 @@ function MessageGroupView({
 function MessageActionMenu({
   onLocate,
   onReply,
+  onExportDiagnostics,
   request,
   onClose,
   t,
 }: {
   onLocate(messageId: string): void;
   onReply(message: ChannelMessage): void;
+  onExportDiagnostics?(message: ChannelMessage): void;
   request: MessageMenuRequest;
   onClose(): void;
   t: BotHarnessTranslate;
@@ -582,13 +585,19 @@ function MessageActionMenu({
             : [{ id: 'reply', label: t('message.reply') }]),
           { id: 'locate', label: t('message.locate') },
           { id: 'copy', label: t('message.copy'), icon: <IconCopyOutlineRegular /> },
+          ...(onExportDiagnostics === undefined ||
+          request.message.pending === true ||
+          request.message.streaming === true ||
+          request.message.failed !== undefined
+            ? []
+            : [{ id: 'diagnostics', label: t('message.exportDiagnostics') }]),
         ]}
         onSelect={(id) => {
           if (id === 'reply') onReply(request.message);
           else if (id === 'locate') onLocate(request.message.id);
           else if (id === 'copy') {
             void navigator.clipboard?.writeText(request.message.body);
-          }
+          } else if (id === 'diagnostics') onExportDiagnostics?.(request.message);
           onClose();
         }}
         onClose={onClose}
@@ -726,6 +735,9 @@ function ConversationView({
   const [unseen, setUnseen] = useState(0);
   const [atLatest, setAtLatest] = useState(true);
   const [messageMenu, setMessageMenu] = useState<MessageMenuRequest | undefined>();
+  const [diagnosticsTarget, setDiagnosticsTarget] = useState<
+    { channelId: string; messageId: string } | undefined
+  >();
   const [profilePopoverOpen, setProfilePopoverOpen] = useState(false);
   const [profileViewOpen, setProfileViewOpen] = useState(
     state.selection?.kind === 'bot' && state.selection.profile === true,
@@ -1997,9 +2009,23 @@ function ConversationView({
                     if (channelId !== undefined) void actions.openAround(channelId, messageId);
                   }}
                   onReply={(message) => setReplyTarget(message)}
+                  {...(channelId === undefined
+                    ? {}
+                    : {
+                        onExportDiagnostics: (message: ChannelMessage) =>
+                          setDiagnosticsTarget({ channelId, messageId: message.id }),
+                      })}
                   onClose={() => {
                     setMessageMenu(undefined);
                   }}
+                />
+              )}
+              {diagnosticsTarget === undefined ? null : (
+                <DiagnosticBundleDialog
+                  channelId={diagnosticsTarget.channelId}
+                  messageId={diagnosticsTarget.messageId}
+                  t={t}
+                  onClose={() => setDiagnosticsTarget(undefined)}
                 />
               )}
             </>

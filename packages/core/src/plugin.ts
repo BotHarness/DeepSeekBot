@@ -12,6 +12,11 @@ import {
 import { createOutboundMessaging, type OutboundMessaging } from './messaging/outbound.js';
 import { createProfileRecovery, type ProfileRecovery } from './portability/recovery.js';
 import { createProfileBackupHttp, PROFILE_BACKUP_PATH } from './portability/http.js';
+import {
+  createDiagnosticBundleHttp,
+  DIAGNOSTIC_BUNDLE_PATH,
+  DIAGNOSTIC_BUNDLE_PREVIEW_PATH,
+} from './diagnostics/bundle-http.js';
 import { mountContentPurge } from './purge/owner.js';
 import type { ContentPurge } from './purge/contracts.js';
 import { createDshImProvider } from './messaging/dsh-im.js';
@@ -1728,6 +1733,45 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
             fetch: profileBackupHttp,
           }),
         'botharness: complete environment backup ' + suffix,
+      );
+    const dshVersion = installedDshVersion();
+    const diagnosticBundleHttp = createDiagnosticBundleHttp({
+      source: {
+        channels: core.channels,
+        inboxHistory: core.inboxHistory,
+        ownership: core.ownership,
+        botName: (slug) => core.registry.get(slug)?.displayName,
+        readSession: async (sessionId) => {
+          const query = ctx.get('sessionQuery') as unknown as
+            | { readSession(id: string): Promise<{ events: readonly DshSessionEvent[] }> }
+            | undefined;
+          if (query !== undefined) return (await query.readSession(sessionId)).events;
+          return dshSessions.get(sessionId)?.snapshotEvents();
+        },
+        environment: {
+          version: runningRelease.version,
+          ...(dshVersion === undefined ? {} : { dshVersion }),
+          platform: process.platform,
+          arch: process.arch,
+          node: process.version,
+        },
+      },
+      homes: [
+        { path: dshHome, label: '$DSH_HOME' },
+        { path: homedir(), label: '~' },
+      ],
+      log: (message) => ctx.logger.info(message),
+    });
+    for (const path of [DIAGNOSTIC_BUNDLE_PATH, DIAGNOSTIC_BUNDLE_PREVIEW_PATH])
+      connectionCtx.effect(
+        () =>
+          connection.fetch.register({
+            path,
+            methods: ['POST'],
+            requestBody: 'buffered',
+            fetch: diagnosticBundleHttp,
+          }),
+        'botharness: diagnostic bundle ' + path,
       );
     connectionCtx.effect(
       () =>
