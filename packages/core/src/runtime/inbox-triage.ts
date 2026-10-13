@@ -206,8 +206,14 @@ export function createInboxTriage(
     filter: InboxOpenFilter,
     name: string,
     snoozed: 'exclude' | 'include' | 'only' = 'exclude',
+    inTurn: readonly string[] = [],
   ): OpenRow[] => {
     const predicates = filterPredicates(name, filter);
+    const turnSql =
+      inTurn.length === 0
+        ? ''
+        : ` OR (a.source_event_id IN (${inTurn.map(() => '?').join(', ')}) AND a.resolved_at IS NULL
+              AND a.ignored_at IS NULL AND a.attempt_state <> 'needs-repair')`;
     const snoozeSql =
       snoozed === 'exclude'
         ? `AND NOT ${SNOOZED_SQL}`
@@ -224,11 +230,11 @@ export function createInboxTriage(
                CASE WHEN ${SNOOZED_SQL} THEN a.snoozed_until END AS snoozed_until
           FROM inbox_admissions a
           JOIN source_events e ON e.source_event_id = a.source_event_id
-         WHERE a.bot_slug = ? AND ${OPEN_ADMISSION_SQL} ${snoozeSql}
+         WHERE a.bot_slug = ? AND (${OPEN_ADMISSION_SQL}${turnSql}) ${snoozeSql}
            ${predicates.sql.map((predicate) => `AND ${predicate}`).join('\n')}
          ORDER BY e.created_at DESC, e.source_event_id DESC
       `)
-          .all(botSlug, ...predicates.values) as unknown as OpenRow[],
+          .all(botSlug, ...inTurn, ...predicates.values) as unknown as OpenRow[],
     );
   };
 
@@ -344,9 +350,24 @@ export function createInboxTriage(
         notify(ids);
       };
       const seen = (input: string[], name: string) => {
-        const ids = [...new Set(input)];
-        if (ids.length === 0 || ids.length > MAX_RESOLVE_IDS)
+        const given = [...new Set(input)];
+        if (given.length === 0 || given.length > MAX_RESOLVE_IDS)
           throw new Error(`${name}: pass 1–${MAX_RESOLVE_IDS} ids`);
+        const byMessage = new Map(
+          (
+            database.read((db) =>
+              db
+                .prepare(
+                  `SELECT a.source_event_id, e.message_id
+                     FROM inbox_admissions a
+                     JOIN source_events e ON e.source_event_id = a.source_event_id
+                    WHERE a.bot_slug = ? AND e.message_id IN (${given.map(() => '?').join(', ')})`,
+                )
+                .all(botSlug, ...given),
+            ) as unknown as Array<{ source_event_id: string; message_id: string }>
+          ).map((row) => [row.message_id, row.source_event_id]),
+        );
+        const ids = [...new Set(given.map((id) => byMessage.get(id) ?? id))];
         const rows = database.read(
           (db) =>
             db
@@ -393,6 +414,7 @@ export function createInboxTriage(
             input,
             'inbox_list',
             input.includeSnoozed === true ? 'include' : 'exclude',
+            current(),
           );
           const snoozedCount =
             input.includeSnoozed === true
@@ -435,8 +457,11 @@ export function createInboxTriage(
             write(resolved, input.outcome, note);
             return { outcome: 'resolved', resolved, alreadyResolved };
           }
-          if (input.filter === undefined) throw new Error('inbox_resolve: pass ids or a filter');
-          const rows = openRows(botSlug, input.filter, 'inbox_resolve');
+          if (input.filter === undefined)
+            throw new Error(
+              `inbox_resolve: pass ids or a filter${current().length === 0 ? '' : `; this turn's items are ${current().join(', ')}`}`,
+            );
+          const rows = openRows(botSlug, input.filter, 'inbox_resolve', 'exclude', current());
           if (rows.length > MAX_FILTER_RESOLVE)
             throw new Error(
               `inbox_resolve: the filter matches ${rows.length} items; narrow it to at most ${MAX_FILTER_RESOLVE}`,
@@ -469,8 +494,11 @@ export function createInboxTriage(
               throw new Error(`inbox_snooze: already resolved: ${resolved.join(', ')}`);
             ids = checked.ids;
           } else {
-            if (input.filter === undefined) throw new Error('inbox_snooze: pass ids or a filter');
-            const rows = openRows(botSlug, input.filter, 'inbox_snooze');
+            if (input.filter === undefined)
+              throw new Error(
+                `inbox_snooze: pass ids or a filter${current().length === 0 ? '' : `; this turn's items are ${current().join(', ')}`}`,
+              );
+            const rows = openRows(botSlug, input.filter, 'inbox_snooze', 'exclude', current());
             if (rows.length > MAX_FILTER_RESOLVE)
               throw new Error(
                 `inbox_snooze: the filter matches ${rows.length} items; narrow it to at most ${MAX_FILTER_RESOLVE}`,

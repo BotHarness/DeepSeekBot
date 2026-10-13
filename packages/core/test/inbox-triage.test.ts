@@ -30,7 +30,9 @@ describe('Orchestrator-resolved Bot Inbox', () => {
       const first = await f.send('Please review PR 12');
       const second = await f.send('Also check the PR 12 changelog');
       let page: ReturnType<NonNullable<OrchestratorAgentRun['triage']>['list']> | undefined;
+      let inTurn = '';
       const third = await f.send('Thanks, that is all for PR 12', (run) => {
+        inTurn = run.triage!.current()[0]!;
         page = run.triage!.list();
         return run.triage!.resolve({
           ids: [first, second],
@@ -38,11 +40,12 @@ describe('Orchestrator-resolved Bot Inbox', () => {
           note: 'Reviewed PR 12',
         });
       });
+      expect(inTurn).toBe(third);
       expect(page).toMatchObject({
-        total: 2,
-        groups: [{ channelId: f.dm.id, count: 2, ids: [second, first] }],
+        total: 3,
+        groups: [{ channelId: f.dm.id, count: 3, ids: [third, second, first] }],
       });
-      expect(page!.groups[0]!.latest).toContain('PR 12 changelog');
+      expect(page!.groups[0]!.latest).toContain('that is all for PR 12');
       expect(f.results[0]).toMatchObject({
         outcome: 'resolved',
         resolved: [first, second].sort(),
@@ -99,9 +102,9 @@ describe('Orchestrator-resolved Bot Inbox', () => {
         return { preview, stale, done };
       });
       const { preview, stale, done } = f.results[0] as Record<string, unknown>;
-      expect(preview).toMatchObject({ outcome: 'confirm', count: 2, token: expect.any(String) });
-      expect(stale).toMatchObject({ outcome: 'confirm', count: 2 });
-      expect(done).toMatchObject({ outcome: 'resolved', resolved: [a, b].sort() });
+      expect(preview).toMatchObject({ outcome: 'confirm', count: 3, token: expect.any(String) });
+      expect(stale).toMatchObject({ outcome: 'confirm', count: 3 });
+      expect(done).toMatchObject({ outcome: 'resolved', resolved: expect.arrayContaining([a, b]) });
       expect(f.state(a)).toBe('ignored');
       expect(f.state(b)).toBe('ignored');
     } finally {

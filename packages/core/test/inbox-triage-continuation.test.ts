@@ -54,6 +54,21 @@ describe('Orchestrator triage continuation', () => {
     }
   }, 60000);
 
+  it('resolves the current item by the Message ID shown in its turn header', async () => {
+    const f = await fixture({ triageContinuation: true });
+    try {
+      const id = await f.send('FYI the deploy finished', (run) => {
+        const messageId = 'human-1';
+        expect(() => run.triage!.resolve({ outcome: 'done' })).toThrow(/this turn's items are/);
+        return run.triage!.resolve({ ids: [messageId], outcome: 'done' });
+      });
+      expect(f.results[0]).toMatchObject({ outcome: 'resolved', resolved: [id] });
+      expect(f.runs).toHaveLength(1);
+    } finally {
+      await f.close();
+    }
+  }, 60000);
+
   it('leaves a stalled item alone until something new arrives', async () => {
     const f = await fixture({ triageContinuation: true });
     try {
