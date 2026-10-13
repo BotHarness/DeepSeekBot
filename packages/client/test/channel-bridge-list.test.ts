@@ -1,16 +1,10 @@
 // @vitest-environment jsdom
-import {
-  act,
-  createElement,
-  type ButtonHTMLAttributes,
-  type PropsWithChildren,
-  type ReactNode,
-} from 'react';
+import { act, createElement, type PropsWithChildren } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).comboboxPrimitives(),
-  Button: (props: ButtonHTMLAttributes<HTMLButtonElement>) => createElement('button', props),
+  ...(await import('./primitive-mocks.js')).dialogPrimitives(),
   Tag: ({ children }: PropsWithChildren) => createElement('span', null, children),
   Switch: ({
     checked,
@@ -24,22 +18,22 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
     onChange(value: boolean): void;
   }) =>
     createElement('button', {
+      type: 'button',
       role: 'switch',
       'aria-checked': checked,
       'aria-label': label,
       disabled,
       onClick: () => onChange(!checked),
     }),
-  Modal: ({
-    open,
-    children,
-    title,
-    footer,
-  }: PropsWithChildren<{ open: boolean; title: string; footer?: ReactNode }>) =>
-    open ? createElement('div', { role: 'dialog', 'aria-label': title }, children, footer) : null,
 }));
 import { ChannelBridgeList } from '../src/client/channel-bridge-list.js';
-import { comboboxOption, openCombobox } from './primitive-mocks.js';
+import {
+  buttonNamed,
+  comboboxOption,
+  dialog,
+  fieldNamed,
+  openCombobox,
+} from './primitive-mocks.js';
 import { zhTranslate } from '../src/client/locale.js';
 import type { ChannelBridgeSnapshot } from '../../core/src/messaging/channel-bridge.js';
 it('Bridge Switch failures refresh committed state and stale edits preserve the draft with exact authority revisions', async () => {
@@ -202,6 +196,79 @@ it('WeChat DM connector edits expose only supported paired-owner intake', async 
       collection: 'all',
       collectionInheritance: 'custom',
     });
+  } finally {
+    await act(async () => root.unmount());
+    container.remove();
+  }
+});
+
+it('deletes a connector from the edit dialog only after a separate confirmation', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  const snapshot: ChannelBridgeSnapshot = {
+    channelId: 'group',
+    sources: [],
+    bridges: [
+      {
+        routeId: 'route',
+        grantId: 'grant',
+        grantRevision: 9,
+        botSlug: 'ada',
+        platform: 'feishu',
+        accountName: 'QA receiving account',
+        conversationName: 'QA group',
+        ordinaryDelivery: 'verified',
+        name: 'QA intake',
+        enabled: true,
+        collection: 'mentions',
+        revision: 3,
+        availability: 'available',
+        reception: 'receiving',
+      },
+    ],
+  };
+  const actions = {
+    channelBridges: vi.fn(async () => snapshot),
+    channelBridge: vi.fn(async () => {}),
+  };
+  const container = document.createElement('div');
+  document.body.append(container);
+  const root = createRoot(container);
+  const edit = () =>
+    act(async () =>
+      container.querySelector<HTMLButtonElement>('[title="编辑外部连接器：QA intake"]')!.click(),
+    );
+  try {
+    await act(async () =>
+      root.render(
+        createElement(ChannelBridgeList, {
+          channelId: 'group',
+          channelName: 'Shared work',
+          botNames: new Map([['ada', 'Ada']]),
+          actions,
+          t: zhTranslate,
+        }),
+      ),
+    );
+    await edit();
+    expect(fieldNamed(zhTranslate('bridge.name')).value).toBe('QA intake');
+    expect(dialog().textContent).toContain('QA receiving account');
+    await act(async () => buttonNamed('删除外部连接器：QA intake', dialog()).click());
+    expect(dialog().getAttribute('aria-label')).toBe(zhTranslate('bridge.delete'));
+    expect(dialog().textContent).toContain(zhTranslate('bridge.deleteImpact'));
+    await act(async () => buttonNamed(zhTranslate('common.cancel'), dialog()).click());
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    expect(actions.channelBridge).not.toHaveBeenCalled();
+    await edit();
+    await act(async () => buttonNamed('删除外部连接器：QA intake', dialog()).click());
+    await act(async () => buttonNamed(zhTranslate('bridge.confirmDelete'), dialog()).click());
+    expect(actions.channelBridge).toHaveBeenCalledExactlyOnceWith('group', {
+      kind: 'delete',
+      grantId: 'grant',
+      expectedGrantRevision: 9,
+      routeId: 'route',
+      expectedRevision: 3,
+    });
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
   } finally {
     await act(async () => root.unmount());
     container.remove();

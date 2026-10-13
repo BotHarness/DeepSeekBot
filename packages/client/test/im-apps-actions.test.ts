@@ -1,30 +1,12 @@
 // @vitest-environment jsdom
-import {
-  act,
-  createElement,
-  type ButtonHTMLAttributes,
-  type PropsWithChildren,
-  type ReactNode,
-} from 'react';
+import { act, createElement, type PropsWithChildren } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).comboboxPrimitives(),
-  Button: (props: ButtonHTMLAttributes<HTMLButtonElement>) => createElement('button', props),
+  ...(await import('./primitive-mocks.js')).dialogPrimitives(),
   Tag: ({ children }: PropsWithChildren) => createElement('span', null, children),
-  Modal: ({
-    open,
-    title,
-    children,
-    footer,
-  }: {
-    open: boolean;
-    title: string;
-    children?: ReactNode;
-    footer?: ReactNode;
-  }) =>
-    open ? createElement('div', { role: 'dialog', 'aria-label': title }, children, footer) : null,
   Menu: () => null,
   closeTopModal: () => undefined,
   IconCloseOutlineRegular: () => null,
@@ -35,7 +17,7 @@ import { createImApps, ImAppsSection, type ImAppsFace } from '../src/client/im-a
 import { zhTranslate } from '../src/client/locale.js';
 import { BotSettings } from '../src/client/bot-settings.js';
 import { createStore } from '../src/client/store.js';
-import { comboboxOption, openCombobox } from './primitive-mocks.js';
+import { chooseOption, comboboxOption, dialog, openCombobox } from './primitive-mocks.js';
 
 let host: HTMLDivElement;
 let root: Root;
@@ -176,6 +158,69 @@ it('keeps the dialog open with a readable error when an action fails', async () 
   });
   expect(document.querySelector('[role="alert"]')?.textContent).toBe('操作没有完成，请重试。');
   expect(host.querySelector('[data-im-app]')?.textContent).toContain('Ada');
+});
+
+it('submits the bind dialog with Enter and closes it with Cancel without binding', async () => {
+  const bind = vi.fn(async () => undefined);
+  await render({
+    load: async () => ({ apps: [app({ ref: 'a', name: 'Lark Sales' })], setups: [] }),
+    bind,
+  });
+  await act(async () => {
+    button('绑定 Lark Sales').click();
+  });
+  await act(async () => {
+    button('取消', dialog()).click();
+  });
+  expect(document.querySelector('[role="dialog"]')).toBeNull();
+  expect(bind).not.toHaveBeenCalled();
+  await act(async () => {
+    button('绑定 Lark Sales').click();
+  });
+  await act(async () => dialog().querySelector('form')!.requestSubmit());
+  expect(bind).not.toHaveBeenCalled();
+  await chooseOption('Bot', 'ada', dialog());
+  await act(async () => dialog().querySelector('form')!.requestSubmit());
+  expect(bind).toHaveBeenCalledWith(expect.objectContaining({ ref: 'a' }), 'ada');
+});
+
+it('walks Create app from choosing a PersonaBot to the setup form and back', async () => {
+  await render({
+    load: async () => ({
+      apps: [],
+      setups: [
+        {
+          version: 1,
+          providerId: 'dsh-im/feishu',
+          platform: 'feishu',
+          kind: 'credentials',
+          endpoint: 'dsh-im/app-setup',
+        } as never,
+      ],
+    }),
+    appSetup: { descriptor: () => undefined, current: () => undefined } as never,
+  });
+  await act(async () => {
+    button('创建应用').click();
+  });
+  expect(dialog().getAttribute('aria-label')).toBe('创建应用');
+  expect(dialog().textContent).toContain(zhTranslate('imApps.createHint'));
+  expect(button(zhTranslate('imApps.next'), dialog()).disabled).toBe(true);
+  await chooseOption('Bot', 'bo', dialog());
+  await act(async () => {
+    button(zhTranslate('imApps.next'), dialog()).click();
+  });
+  expect(dialog().getAttribute('aria-label')).toBe('创建应用');
+  expect(dialog().querySelector('input[role="combobox"][aria-label="平台"]')).not.toBeNull();
+  expect(button('创建并绑定', dialog()).disabled).toBe(false);
+  await act(async () => {
+    button(zhTranslate('appSetup.back'), dialog()).click();
+  });
+  expect(button(zhTranslate('imApps.next'), dialog()).disabled).toBe(false);
+  await act(async () => {
+    button('取消', dialog()).click();
+  });
+  expect(document.querySelector('[role="dialog"]')).toBeNull();
 });
 
 it('offers Create app only when the Host advertises setup', async () => {

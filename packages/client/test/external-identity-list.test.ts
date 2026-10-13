@@ -1,19 +1,13 @@
 // @vitest-environment jsdom
-import {
-  act,
-  createElement,
-  type ButtonHTMLAttributes,
-  type PropsWithChildren,
-  type ReactNode,
-} from 'react';
+import { act, createElement, type PropsWithChildren } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 import type { MessagingSnapshot } from '../../core/src/messaging/outbound.js';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).comboboxPrimitives(),
+  ...(await import('./primitive-mocks.js')).dialogPrimitives(),
   IconInfoOutlineRegular: () => null,
   Tooltip: ({ children }: PropsWithChildren) => children,
-  Button: (props: ButtonHTMLAttributes<HTMLButtonElement>) => createElement('button', props),
   Tag: ({ children }: PropsWithChildren) => createElement('span', null, children),
   Switch: ({
     checked,
@@ -27,23 +21,24 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
     onChange(value: boolean): void;
   }) =>
     createElement('button', {
+      type: 'button',
       role: 'switch',
       'aria-checked': checked,
       'aria-label': label,
       disabled,
       onClick: () => onChange(!checked),
     }),
-  Modal: ({
-    open,
-    children,
-    title,
-    footer,
-  }: PropsWithChildren<{ open: boolean; title: string; footer?: ReactNode }>) =>
-    open ? createElement('div', { role: 'dialog', 'aria-label': title }, children, footer) : null,
 }));
 import { ExternalIdentityList } from '../src/client/external-identity-list.js';
 import { zhTranslate } from '../src/client/locale.js';
-import { chooseOption, openCombobox } from './primitive-mocks.js';
+import {
+  buttonNamed,
+  chooseOption,
+  dialog,
+  fieldNamed,
+  openCombobox,
+  typeInto,
+} from './primitive-mocks.js';
 
 it('shows only the selected Lark identity feedback and keeps unknown distinct from platform acceptance', async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -402,9 +397,8 @@ it.each(['feishu', 'qq'] as const)(
           ? '已就绪：群里 @ Support app 的消息'
           : '已就绪：发给 Support app 的私聊和群里 @ 它的消息',
       );
-      const done = [...container.querySelectorAll<HTMLButtonElement>('button')].find(
-        (b) => b.textContent === '完成',
-      )!;
+      expect(() => buttonNamed('取消', dialog())).toThrow();
+      const done = buttonNamed('完成', dialog());
       await act(async () => done.click());
       expect(container.textContent).toContain(`${platform === 'qq' ? 'QQ' : '飞书'} · 1 个会话`);
       const edit = container.querySelector<HTMLButtonElement>('[title="编辑身份：Support app"]')!;
@@ -585,25 +579,13 @@ it('creates and binds a Lark app in the current dialog without sending credentia
     );
     expect(create).toBeDefined();
     await act(async () => create!.click());
-    const fill = async (label: string, value: string) =>
-      act(async () => {
-        const input = container.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`)!;
-        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
-          input,
-          value,
-        );
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-      });
-    await fill('App ID', 'cli_created');
-    await fill('App Secret', 'private-ui-sentinel');
-    await act(async () =>
-      [...container.querySelectorAll<HTMLButtonElement>('button')]
-        .find((button) => button.textContent === '创建并绑定')!
-        .click(),
-    );
-    expect(container.querySelector<HTMLInputElement>('input[aria-label="App ID"]')?.disabled).toBe(
-      true,
-    );
+    expect(dialog().getAttribute('aria-label')).toBe('绑定应用');
+    await typeInto(fieldNamed('App ID'), 'cli_created');
+    await typeInto(fieldNamed('App Secret'), 'private-ui-sentinel');
+    expect(fieldNamed('App Secret').type).toBe('password');
+    await act(async () => buttonNamed('创建并绑定', dialog()).click());
+    expect(fieldNamed('App ID').disabled).toBe(true);
+    expect(buttonNamed('正在处理…', dialog()).getAttribute('aria-busy')).toBe('true');
     await act(async () => releaseStart());
     expect(providerCalls).toEqual(['dsh-im/app-setup', 'dsh-im/app-setup']);
     expect(mutate).toHaveBeenCalledWith({
@@ -716,14 +698,11 @@ it('resumes WeChat QR pairing in the bind dialog and binds only after authentica
     await click('创建应用');
     expect(methods.filter((method) => method === 'setup.start')).toHaveLength(1);
     expect(container.textContent).toContain('请输入微信显示的配对码');
-    await act(async () => {
-      const input = container.querySelector<HTMLInputElement>('input[aria-label="配对码"]')!;
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
-        input,
-        '123456',
-      );
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-    });
+    expect(buttonNamed('提交配对码', dialog()).disabled).toBe(true);
+    await typeInto(fieldNamed('配对码'), '12');
+    expect(buttonNamed('提交配对码', dialog()).disabled).toBe(true);
+    await typeInto(fieldNamed('配对码'), '123456');
+    expect(buttonNamed('提交配对码', dialog()).disabled).toBe(false);
     await click('提交配对码');
     expect(mutate).not.toHaveBeenCalled();
     await act(async () => vi.advanceTimersByTimeAsync(1000));
@@ -789,6 +768,9 @@ it('keeps cancellation final when the resumed QR poll returns after the cancel c
           botSlug: 'ada',
           descriptors: [descriptor],
           t: zhTranslate,
+          title: '创建应用',
+          labels: { close: '关闭', cancel: '取消' },
+          onCancel: vi.fn(),
           onCreated: vi.fn(async () => undefined),
           onBack: vi.fn(),
         }),
@@ -810,5 +792,140 @@ it('keeps cancellation final when the resumed QR poll returns after the cancel c
     await act(async () => root.unmount());
     container.remove();
     vi.useRealTimers();
+  }
+});
+
+it('saves the edit dialog with Enter and moves Reconnect and Unbind into their own confirmations', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  const identity = {
+    id: 'binding',
+    botSlug: 'ada',
+    providerId: 'dsh-im/feishu',
+    platform: 'feishu',
+    accountRef: 'app',
+    fingerprint: 'a'.repeat(64),
+    name: 'QA Bot',
+    enabled: true,
+    revision: 4,
+    createdAt: '2026-10-02T00:00:00Z',
+    availability: 'available' as const,
+    newConversations: 'auto' as const,
+    grantCount: 2,
+    scopes: ['QA group'],
+  };
+  const mutate = vi.fn(async () => undefined);
+  const container = document.createElement('div');
+  document.body.append(container);
+  const root = createRoot(container);
+  const edit = () =>
+    act(async () =>
+      container.querySelector<HTMLButtonElement>('[title="编辑身份：QA Bot"]')!.click(),
+    );
+  try {
+    await act(async () =>
+      root.render(
+        createElement(ExternalIdentityList, {
+          snapshot: { accounts: [], identities: [identity], grants: [], intents: [] },
+          t: zhTranslate,
+          refresh: vi.fn(async () => undefined),
+          mutate,
+          conversation: vi.fn(),
+          rules: vi.fn(),
+        }),
+      ),
+    );
+    await edit();
+    expect(dialog().getAttribute('aria-label')).toBe(zhTranslate('identity.editTitle'));
+    await typeInto(fieldNamed(zhTranslate('identity.displayName')), '  ');
+    expect(buttonNamed('保存身份', dialog()).disabled).toBe(true);
+    await typeInto(fieldNamed(zhTranslate('identity.displayName')), 'Renamed');
+    await act(async () => dialog().querySelector('form')!.requestSubmit());
+    expect(mutate).toHaveBeenLastCalledWith(
+      expect.objectContaining({ kind: 'update', id: 'binding', name: 'Renamed' }),
+    );
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
+
+    await edit();
+    await act(async () => buttonNamed('重新连接身份：QA Bot', dialog()).click());
+    expect(dialog().getAttribute('aria-label')).toBe(zhTranslate('identity.reconnect'));
+    expect(dialog().textContent).toContain(zhTranslate('identity.reconnectHint'));
+    await act(async () => buttonNamed(zhTranslate('identity.reconnect'), dialog()).click());
+    expect(mutate).toHaveBeenLastCalledWith({
+      kind: 'reconnect',
+      id: 'binding',
+      expectedRevision: 4,
+    });
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
+
+    await edit();
+    await act(async () => buttonNamed('解绑身份：QA Bot', dialog()).click());
+    expect(dialog().getAttribute('aria-label')).toBe(zhTranslate('identity.unbind'));
+    expect(dialog().textContent).toContain(zhTranslate('identity.impact', { count: 2 }));
+    expect(dialog().textContent).toContain('QA group');
+    await act(async () => buttonNamed('取消', dialog()).click());
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    expect(mutate).toHaveBeenCalledTimes(2);
+
+    await edit();
+    await act(async () => buttonNamed('解绑身份：QA Bot', dialog()).click());
+    await act(async () => buttonNamed(zhTranslate('identity.confirmUnbind'), dialog()).click());
+    expect(mutate).toHaveBeenLastCalledWith({ kind: 'unbind', id: 'binding', expectedRevision: 4 });
+  } finally {
+    await act(async () => root.unmount());
+    container.remove();
+  }
+});
+
+it('returns from the create-app form to the bind dialog and dismisses with the caller label', async () => {
+  const { ProviderAppSetup } = await import('../src/client/provider-app-setup.js');
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  const onClose = vi.fn();
+  const container = document.createElement('div');
+  document.body.append(container);
+  const root = createRoot(container);
+  try {
+    await act(async () =>
+      root.render(
+        createElement(ExternalIdentityList, {
+          snapshot: {
+            accounts: [],
+            grants: [],
+            intents: [],
+            appSetups: [
+              {
+                version: 1,
+                providerId: 'dsh-im/feishu',
+                platform: 'feishu',
+                kind: 'credentials',
+                endpoint: 'dsh-im/app-setup',
+              },
+            ],
+          },
+          t: zhTranslate,
+          refresh: vi.fn(async () => undefined),
+          mutate: vi.fn(),
+          conversation: vi.fn(),
+          rules: vi.fn(),
+          appSetup: {
+            client: new ProviderAppSetup({ call: vi.fn() as never }),
+            botSlug: 'ada',
+          },
+          bindDialog: { onClose, dismissLabel: '稍后', description: '先绑定一个应用' },
+        }),
+      ),
+    );
+    expect(dialog().textContent).toContain('先绑定一个应用');
+    expect(buttonNamed('绑定应用', dialog()).disabled).toBe(true);
+    await act(async () => buttonNamed('创建应用', dialog()).click());
+    expect(fieldNamed('App ID')).toBeDefined();
+    await act(async () => buttonNamed(zhTranslate('appSetup.back'), dialog()).click());
+    expect(() => fieldNamed('App ID')).toThrow();
+    expect(buttonNamed('绑定应用', dialog())).toBeDefined();
+    await act(async () => buttonNamed('稍后', dialog()).click());
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
+  } finally {
+    await act(async () => root.unmount());
+    container.remove();
   }
 });

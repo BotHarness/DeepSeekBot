@@ -3,29 +3,35 @@ import { act, createElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  Button: (props: { children?: ReactNode; disabled?: boolean; onClick?: () => void }) =>
-    createElement('button', { disabled: props.disabled, onClick: props.onClick }, props.children),
-  IconCloseOutlineRegular: () => createElement('span'),
-  IconChevronDownOutlineRegular: () => createElement('span'),
-  IconChevronRightOutlineRegular: () => createElement('span'),
-  SegmentedControl: () => createElement('span'),
-  Tag: (props: { children?: ReactNode }) => createElement('span', null, props.children),
-  Modal: (props: {
-    title: string;
-    description?: string;
-    children?: ReactNode;
-    footer?: ReactNode;
-  }) =>
-    createElement(
-      'section',
-      { role: 'dialog' },
-      createElement('h1', null, props.title),
-      createElement('p', null, props.description),
-      props.children,
-      props.footer,
-    ),
-}));
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
+  const { dialogPrimitives } = await import('./primitive-mocks.js');
+  const { createElement: element } = await import('react');
+  return {
+    ...dialogPrimitives(),
+    Checkbox: (props: {
+      checked: boolean;
+      disabled?: boolean;
+      label: string;
+      onChange(next: boolean): void;
+    }) =>
+      element(
+        'label',
+        null,
+        element('input', {
+          type: 'checkbox',
+          checked: props.checked,
+          disabled: props.disabled,
+          onChange: (event: { target: HTMLInputElement }) => props.onChange(event.target.checked),
+        }),
+        props.label,
+      ),
+    IconCloseOutlineRegular: () => element('span'),
+    IconChevronDownOutlineRegular: () => element('span'),
+    IconChevronRightOutlineRegular: () => element('span'),
+    SegmentedControl: () => element('span'),
+    Tag: (props: { children?: ReactNode }) => element('span', null, props.children),
+  };
+});
 
 import type { BridgeActions } from '../src/client/actions.js';
 import { BridgeCallError } from '../src/client/bridge.js';
@@ -39,6 +45,7 @@ import {
 } from '../src/client/bot-zip.js';
 import { en, zhTranslate, type BotHarnessTranslate } from '../src/client/locale.js';
 import type { BotSummary } from '../src/client/store.js';
+import { buttonNamed } from './primitive-mocks.js';
 
 const enTranslate: BotHarnessTranslate = (key, params) => {
   const english: Readonly<Record<string, string>> = en;
@@ -68,9 +75,7 @@ async function mount(element: ReturnType<typeof createElement>): Promise<HTMLDiv
 }
 
 function button(host: HTMLElement, text: string): HTMLButtonElement {
-  const found = [...host.querySelectorAll('button')].find((item) => item.textContent === text);
-  if (found === undefined) throw new Error(`No button ${text}`);
-  return found;
+  return buttonNamed(text, host);
 }
 
 async function chooseFile(host: HTMLElement, file: File): Promise<void> {
@@ -150,8 +155,9 @@ const LISTING = {
 };
 
 function checkbox(host: HTMLElement, name: string): HTMLInputElement {
-  const label = [...host.querySelectorAll('label')].find(
-    (item) => item.querySelector('.bh-bot-zip-tree-name')?.textContent === name,
+  const tree = host.querySelector('[role="tree"]');
+  const label = [...(tree?.querySelectorAll('label') ?? [])].find(
+    (item) => item.textContent === name,
   );
   const input = label?.querySelector<HTMLInputElement>('input[type="checkbox"]');
   if (input === null || input === undefined) throw new Error(`No checkbox ${name}`);
@@ -264,7 +270,9 @@ describe('Export zip', () => {
   it('offers Git history only when every file is ticked', async () => {
     const { host, exportBotZip } = await openExport();
     const history = (): HTMLInputElement =>
-      host.querySelector<HTMLInputElement>('.bh-bot-zip-history input')!;
+      [...host.querySelectorAll('label')]
+        .find((label) => label.textContent === '包含 Git 历史')!
+        .querySelector('input')!;
 
     expect(host.textContent).toContain('包含 Git 历史');
     expect(history().checked).toBe(false);
@@ -326,5 +334,48 @@ describe('Share from the App Sidebar', () => {
     await act(async () => button(host, '取消').click());
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(host.querySelector('[role="dialog"]')).toBeNull();
+  });
+});
+
+describe('Bot Zip dialogs', () => {
+  it('imports the chosen zip on Enter and cancels without importing', async () => {
+    const importBotZip = vi.fn(async () => BOT);
+    const onCancel = vi.fn();
+    const host = await mount(
+      createElement(ImportBotZipModal, {
+        actions: { importBotZip } as unknown as BridgeActions,
+        t: zhTranslate,
+        onCancel,
+        onImported: vi.fn(),
+      }),
+    );
+    const form = host.querySelector('form')!;
+    await act(async () => form.requestSubmit());
+    expect(importBotZip).not.toHaveBeenCalled();
+    await chooseFile(host, new File(['x'], 'Ada.zip'));
+    await act(async () => form.requestSubmit());
+    expect(importBotZip).toHaveBeenCalledTimes(1);
+
+    await act(async () => button(host, '取消').click());
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the export dialog open with the reason when packing fails', async () => {
+    const botZipFiles = vi.fn(async () => LISTING);
+    const exportBotZip = vi.fn(async () => {
+      throw new BridgeCallError('too-large', 'x');
+    });
+    const host = await mount(
+      createElement(BotZipShareButton, {
+        bot: BOT,
+        actions: { botZipFiles, exportBotZip } as unknown as BridgeActions,
+        t: zhTranslate,
+      }),
+    );
+    await act(async () => button(host, '分享').click());
+    await act(async () => button(host, '导出').click());
+    expect(host.querySelector('[role="dialog"]')).not.toBeNull();
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain('导出失败');
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain('100 MB');
   });
 });

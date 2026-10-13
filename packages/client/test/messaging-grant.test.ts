@@ -83,7 +83,14 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
 
 import { MessagingGrantRow } from '../src/client/messaging-grant.js';
 import { ExternalIdentitiesEntry } from '../src/client/external-entries.js';
-import { chooseOption, combobox, comboboxOption, openCombobox } from './primitive-mocks.js';
+import {
+  chooseOption,
+  combobox,
+  comboboxOption,
+  fieldNamed,
+  openCombobox,
+  typeInto,
+} from './primitive-mocks.js';
 import { zhTranslate } from '../src/client/locale.js';
 
 async function renderGrant(
@@ -700,6 +707,12 @@ it('shows per-Thread state, refuses unverified follow and saves the exact Human 
     await act(async () => manage().click());
     await chooseOption(zhTranslate('im.threadParticipation'), 'follow');
     expect(submit().disabled).toBe(false);
+    await chooseOption(zhTranslate('im.ordinaryWake'), 'digest');
+    await typeInto(fieldNamed(zhTranslate('im.digestCount')), '0');
+    expect(submit().disabled).toBe(true);
+    await typeInto(fieldNamed(zhTranslate('im.digestCount')), '5');
+    expect(submit().disabled).toBe(false);
+    await chooseOption(zhTranslate('im.ordinaryWake'), 'inherit');
     await act(async () => submit().click());
     expect(save).toHaveBeenCalledExactlyOnceWith('source-one', {
       mode: 'follow',

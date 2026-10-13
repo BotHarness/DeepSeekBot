@@ -1,13 +1,24 @@
 import { useState, type ReactElement } from 'react';
 import { Combobox } from './combobox.js';
-import { Button, Input, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+import * as stylex from '@stylexjs/stylex';
+import { Button, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 import type {
   ThreadReceptionInput,
   ThreadReceptionView,
 } from '../../../core/src/messaging/thread-policy.js';
 import type { BotHarnessTranslate } from './locale.js';
-import { Modal } from './modal.js';
+import { Field, TextField } from './ds/field.js';
+import { FormDialog } from './ds/form-dialog.js';
+import { space } from './ds/tokens.stylex.js';
 import { MessagingHelp } from './messaging-help.js';
+
+const styles = stylex.create({
+  heading: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: space.x2,
+  },
+});
 
 export function ThreadReceptionSettings({
   policies,
@@ -82,27 +93,59 @@ export function ThreadReceptionSettings({
           ))}
         </tbody>
       </table>
-      <Modal
-        open={selected !== undefined}
-        onClose={() => {
-          if (!busy) setSelected(undefined);
-        }}
-        title={t('im.threadManage')}
-        closeLabel={t('common.close')}
-      >
-        {selected ? (
-          <>
-            <p>{selected.preview ?? selected.threadId}</p>
-            {failed ? <p role="alert">{t('im.error')}</p> : null}
-            <div className="bh-im-field">
-              <span className="bh-im-heading">
-                <span>{t('im.threadParticipation')}</span>
+      {selected ? (
+        <FormDialog
+          title={t('im.threadManage')}
+          description={selected.preview ?? selected.threadId}
+          labels={{ close: t('common.close'), cancel: t('common.cancel') }}
+          submitLabel={t('im.threadSave')}
+          submitDisabled={
+            (mode === 'follow' && selected.ordinaryDelivery !== 'verified') ||
+            (wake === 'digest' &&
+              (!Number.isInteger(count) ||
+                count < 1 ||
+                count > 100 ||
+                !Number.isInteger(seconds) ||
+                seconds < 1 ||
+                seconds > 86400))
+          }
+          busy={busy}
+          error={failed ? t('im.error') : undefined}
+          onCancel={() => {
+            if (!busy) setSelected(undefined);
+          }}
+          onSubmit={() =>
+            void (async () => {
+              if (
+                await save(selected.anchorSourceEventId, {
+                  mode,
+                  expectedRevision: selected.revision,
+                  wake:
+                    mode === 'follow' && wake !== 'inherit'
+                      ? { wake, count, intervalSeconds: seconds }
+                      : null,
+                })
+              )
+                setSelected(undefined);
+              else setFailed(true);
+            })()
+          }
+        >
+          <Field
+            label={
+              <span {...stylex.props(styles.heading)}>
+                {t('im.threadParticipation')}
                 <MessagingHelp
                   title={t('im.threadParticipation')}
                   text={t('im.threadHumanOverride')}
                   t={t}
                 />
               </span>
+            }
+            hint={selected.ordinaryDelivery !== 'verified' ? t('im.threadUnverified') : undefined}
+            group
+          >
+            {() => (
               <Combobox
                 searchable={false}
                 label={t('im.threadParticipation')}
@@ -115,9 +158,10 @@ export function ThreadReceptionSettings({
                   label: t(`im.threadMode.${value}`),
                 }))}
               />
-            </div>
-            <div className="bh-im-field">
-              <span>{t('im.ordinaryWake')}</span>
+            )}
+          </Field>
+          <Field label={t('im.ordinaryWake')} group>
+            {() => (
               <Combobox
                 searchable={false}
                 label={t('im.ordinaryWake')}
@@ -132,70 +176,32 @@ export function ThreadReceptionSettings({
                   }),
                 )}
               />
-            </div>
-            {wake === 'digest' && mode === 'follow' ? (
-              <>
-                <label className="bh-im-field">
-                  <span>{t('im.digestCount')}</span>
-                  <Input
-                    type="number"
-                    min={1}
-                    max={100}
-                    value={count}
-                    disabled={busy}
-                    onChange={(e) => setCount(Number(e.target.value))}
-                  />
-                </label>
-                <label className="bh-im-field">
-                  <span>{t('im.digestSeconds')}</span>
-                  <Input
-                    type="number"
-                    min={1}
-                    max={86400}
-                    value={seconds}
-                    disabled={busy}
-                    onChange={(e) => setSeconds(Number(e.target.value))}
-                  />
-                </label>
-              </>
-            ) : null}
-            {selected.ordinaryDelivery !== 'verified' ? <p>{t('im.threadUnverified')}</p> : null}
-            <Button
-              size="sm"
-              variant="primary"
-              disabled={
-                busy ||
-                (mode === 'follow' && selected.ordinaryDelivery !== 'verified') ||
-                (wake === 'digest' &&
-                  (!Number.isInteger(count) ||
-                    count < 1 ||
-                    count > 100 ||
-                    !Number.isInteger(seconds) ||
-                    seconds < 1 ||
-                    seconds > 86400))
-              }
-              onClick={() =>
-                void (async () => {
-                  if (
-                    await save(selected.anchorSourceEventId, {
-                      mode,
-                      expectedRevision: selected.revision,
-                      wake:
-                        mode === 'follow' && wake !== 'inherit'
-                          ? { wake, count, intervalSeconds: seconds }
-                          : null,
-                    })
-                  )
-                    setSelected(undefined);
-                  else setFailed(true);
-                })()
-              }
-            >
-              {t('im.threadSave')}
-            </Button>
-          </>
-        ) : null}
-      </Modal>
+            )}
+          </Field>
+          {wake === 'digest' && mode === 'follow' ? (
+            <>
+              <TextField
+                label={t('im.digestCount')}
+                type="number"
+                min={1}
+                max={100}
+                value={String(count)}
+                disabled={busy}
+                onChange={(value) => setCount(Number(value))}
+              />
+              <TextField
+                label={t('im.digestSeconds')}
+                type="number"
+                min={1}
+                max={86400}
+                value={String(seconds)}
+                disabled={busy}
+                onChange={(value) => setSeconds(Number(value))}
+              />
+            </>
+          ) : null}
+        </FormDialog>
+      ) : null}
     </section>
   );
 }
