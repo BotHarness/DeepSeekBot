@@ -9,7 +9,7 @@ const resolveOldest = (run: OrchestratorAgentRun) => {
 
 describe('Orchestrator triage continuation', () => {
   it('wakes again while an item stays open and stops when a round makes no progress', async () => {
-    const f = await fixture();
+    const f = await fixture({ triageContinuation: true });
     try {
       const item = await f.send('Please review PR 12');
       expect(f.runs).toHaveLength(2);
@@ -24,7 +24,7 @@ describe('Orchestrator triage continuation', () => {
   }, 60000);
 
   it('keeps waking while each round resolves something', async () => {
-    const f = await fixture();
+    const f = await fixture({ triageContinuation: true });
     try {
       const first = await f.send('First ask');
       const second = await f.send('Second ask', () => undefined, resolveOldest);
@@ -43,7 +43,7 @@ describe('Orchestrator triage continuation', () => {
   }, 60000);
 
   it('does not wake again when the turn resolves everything it saw', async () => {
-    const f = await fixture();
+    const f = await fixture({ triageContinuation: true });
     try {
       await f.send('FYI the build is green', (run) =>
         run.triage!.resolve({ ids: run.triage!.current(), outcome: 'done' }),
@@ -55,7 +55,7 @@ describe('Orchestrator triage continuation', () => {
   }, 60000);
 
   it('leaves a stalled item alone until something new arrives', async () => {
-    const f = await fixture();
+    const f = await fixture({ triageContinuation: true });
     try {
       await f.send('Waiting on legal');
       expect(f.runs).toHaveLength(2);

@@ -357,6 +357,7 @@ export function createCore(
     workspaces?: () => DshWorkspaceLookup | undefined;
     sessionArchive?: () => NativeSessionArchive | undefined;
     autoAcceptGroupInvitations?: () => boolean;
+    triageContinuation?: boolean;
     onOutputCommitted?: (event: PersonaBotOutputCommitted) => void;
     activeQuestionMessageIds?: () => readonly string[];
     activeToolApprovalMessageIds?: () => readonly string[];
@@ -726,6 +727,7 @@ export function createCore(
     ...(options.warn === undefined ? {} : { warn: options.warn }),
   });
   runtime = createBotRuntime({
+    triageContinuation: options.triageContinuation === true,
     inboxHistory,
     requireExecution: (slug) => profileRecovery.requireExecution(slug),
     schedules,
@@ -1038,6 +1040,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   let privateInputs: PrivateInputs | undefined;
   const core = createCore({
     dshHome,
+    triageContinuation: true,
     companionProfileDir: (ctx.get('profileContext') as { dir: string } | undefined)?.dir,
     onOutputCommitted: (event) =>
       emitPersonaBotOutputCommitted(ctx, event, (message) => ctx.logger.warn(message)),

@@ -571,6 +571,7 @@ export interface BotRuntime {
 
 export interface BotRuntimeOptions {
   inboxHistory?: InboxHistoryQuery;
+  triageContinuation?: boolean;
   requireExecution?: (botSlug: string) => void;
   beginAssignmentWait?: (botSlug: string, orchestratorSessionId: string) => () => void;
   externalMessaging?: OutboundMessaging;
@@ -1099,6 +1100,7 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #sessionArchive: (() => NativeSessionArchive | undefined) | undefined;
   readonly #approvalCapacity: AssignmentApprovalCapacity;
   readonly #warn: ((message: string) => void) | undefined;
+  readonly #triageContinuation: boolean;
   readonly #tails = new Map<string, Promise<unknown>>();
   readonly #activeTurns = new Map<string, Promise<void>>();
   readonly #typingTurns = new Map<string, MessagingProcessing>();
@@ -1181,6 +1183,7 @@ class BotRuntimeImplementation implements BotRuntime {
       typeof configuredLimit === 'function' ? configuredLimit : () => configuredLimit;
     this.#sessionArchive = options.sessionArchive;
     this.#warn = options.warn;
+    this.#triageContinuation = options.triageContinuation === true;
     this.#approvalCapacity = new AssignmentApprovalCapacity({
       valid: (sessionId) => this.#assignmentExecutionAvailable(sessionId),
       available: () => this.#assignmentCapacityRefusal('awakened') === undefined,
@@ -1249,7 +1252,7 @@ class BotRuntimeImplementation implements BotRuntime {
   }
 
   #queueTriage(botSlug: string): void {
-    if (this.#closed || this.#triageQueued.has(botSlug)) return;
+    if (!this.#triageContinuation || this.#closed || this.#triageQueued.has(botSlug)) return;
     this.#triageQueued.add(botSlug);
     void this.#enqueue(botSlug, () => this.#runTriageTurn(botSlug)).catch(() => undefined);
   }
