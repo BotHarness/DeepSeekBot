@@ -825,10 +825,12 @@ function assignmentFromRow(row: AssignmentRow): AssignmentDetail {
     ...(openAsk === undefined ? {} : { openAsk }),
     ...(permissionFromRow(row) === undefined ? {} : { permission: permissionFromRow(row)! }),
     ...(modelRouteFromRow(row) === undefined ? {} : { modelRoute: modelRouteFromRow(row)! }),
-    ...(row.archived_at === null || row.archived_at === undefined
-      ? {}
-      : { archivedAt: row.archived_at }),
+    ...(isArchivedRow(row) ? { archivedAt: row.archived_at } : {}),
   };
+}
+
+function isArchivedRow(row: AssignmentRow): row is AssignmentRow & { archived_at: string } {
+  return typeof row.archived_at === 'string';
 }
 
 export const DEFAULT_ASSIGNMENT_CONCURRENCY_LIMIT = 8;
@@ -850,19 +852,16 @@ function encodeDirectoryCursor(assignment: AssignmentSummary): string {
 }
 
 function decodeDirectoryCursor(cursor: string): { updatedAt: string; sessionId: string } {
+  let parsed: unknown;
   try {
-    const parsed = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as unknown;
-    if (
-      typeof parsed === 'object' &&
-      parsed !== null &&
-      typeof (parsed as { u?: unknown }).u === 'string' &&
-      typeof (parsed as { s?: unknown }).s === 'string'
-    )
-      return { updatedAt: (parsed as { u: string }).u, sessionId: (parsed as { s: string }).s };
+    parsed = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'));
   } catch {
-    throw new Error('Invalid Assignment Directory cursor; restart from the first page');
+    parsed = undefined;
   }
-  throw new Error('Invalid Assignment Directory cursor; restart from the first page');
+  const fields = parsed as { u?: unknown; s?: unknown } | null | undefined;
+  if (typeof fields?.u !== 'string' || typeof fields.s !== 'string')
+    throw new Error('Invalid Assignment Directory cursor; restart from the first page');
+  return { updatedAt: fields.u, sessionId: fields.s };
 }
 
 export function queryAssignmentDirectory(
@@ -1117,6 +1116,7 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #inboxFactoryRetries = new Map<string, { attempts: number; timer?: NodeJS.Timeout }>();
   readonly #assignmentRuns = new Map<string, Promise<void>>();
   readonly #assignmentAcceptances = new Set<string>();
+  readonly #assignmentArchives = new Set<string>();
   readonly #assignmentNotices = new Set<Promise<void>>();
   readonly #waitLifetime = new AbortController();
   readonly #waitOptions: Pick<BotRuntimeOptions, 'database' | 'beginAssignmentWait'>;
@@ -5506,13 +5506,13 @@ class BotRuntimeImplementation implements BotRuntime {
   ): AssignmentRequestOutcome {
     const row = this.#assignmentRow(bot.slug, input.sessionId);
     if (row === undefined) throw new Error(`Unknown Assignment Session: ${input.sessionId}`);
+    if (isArchivedRow(row) || this.#assignmentArchives.has(input.sessionId)) {
+      throw new Error(
+        `Assignment Session ${input.sessionId} is archived; call unarchive_assignment before sending it a request`,
+      );
+    }
     if (row.stop_state !== 'running') {
       throw new Error(`Assignment Session ${input.sessionId} is stopped or stopping`);
-    }
-    if (row.archived_at !== null && row.archived_at !== undefined) {
-      throw new Error(
-        `Assignment Session ${input.sessionId} is archived; unarchive_assignment it before sending a request`,
-      );
     }
     const permission = permissionFromRow(row);
     if (permission === undefined || this.#grants === undefined) {
@@ -5729,7 +5729,7 @@ class BotRuntimeImplementation implements BotRuntime {
   ): Promise<AssignmentArchiveOutcome> {
     const row = this.#assignmentRow(bot.slug, sessionId);
     if (row === undefined) throw new Error(`Unknown Assignment Session: ${sessionId}`);
-    if (row.archived_at !== null && row.archived_at !== undefined)
+    if (isArchivedRow(row))
       return {
         outcome: 'archived',
         assignment: this.#requireAssignmentSummary(bot.slug, sessionId),
@@ -5750,28 +5750,36 @@ class BotRuntimeImplementation implements BotRuntime {
       );
     const archive = this.#sessionArchive?.();
     if (archive === undefined) throw new Error('DSH Session archive is unavailable');
-    markSideEffect();
+    if (this.#assignmentArchives.has(sessionId))
+      return active(
+        `Assignment Session ${sessionId} is already being archived; inspect it shortly.`,
+      );
+    this.#assignmentArchives.add(sessionId);
     try {
-      await archive.archiveSession(sessionId);
-    } catch (error) {
-      if (error instanceof Error && error.name === 'WorkspaceActiveSessionError')
-        return active(
-          `DSH reports Session ${sessionId} still has running work; nothing was archived. Stop it first, then retry.`,
-        );
-      throw error;
+      markSideEffect();
+      try {
+        await archive.archiveSession(sessionId);
+      } catch (error) {
+        if (error instanceof Error && error.name === 'WorkspaceActiveSessionError')
+          return active(
+            `DSH reports Session ${sessionId} still has running work; nothing was archived. Stop it first, then retry.`,
+          );
+        throw error;
+      }
+      this.#database.transaction(
+        (database) => {
+          database
+            .prepare(
+              `UPDATE assignments SET archived_at = ?, continuity_key = NULL
+                WHERE bot_slug = ? AND session_id = ? AND archived_at IS NULL`,
+            )
+            .run(this.#now().toISOString(), bot.slug, sessionId);
+        },
+        ['assignments'],
+      );
+    } finally {
+      this.#assignmentArchives.delete(sessionId);
     }
-    const at = this.#now().toISOString();
-    this.#database.transaction(
-      (database) => {
-        database
-          .prepare(
-            `UPDATE assignments SET archived_at = ?, continuity_key = NULL, updated_at = ?
-              WHERE bot_slug = ? AND session_id = ? AND archived_at IS NULL`,
-          )
-          .run(at, at, bot.slug, sessionId);
-      },
-      ['assignments'],
-    );
     return { outcome: 'archived', assignment: this.#requireAssignmentSummary(bot.slug, sessionId) };
   }
 
@@ -5782,20 +5790,19 @@ class BotRuntimeImplementation implements BotRuntime {
   ): Promise<{ outcome: 'unarchived'; assignment: AssignmentSummary }> {
     const row = this.#assignmentRow(bot.slug, sessionId);
     if (row === undefined) throw new Error(`Unknown Assignment Session: ${sessionId}`);
-    if (row.archived_at !== null && row.archived_at !== undefined) {
+    if (isArchivedRow(row)) {
       const archive = this.#sessionArchive?.();
       if (archive === undefined) throw new Error('DSH Session archive is unavailable');
       markSideEffect();
       await archive.unarchiveSession(sessionId);
-      const at = this.#now().toISOString();
       this.#database.transaction(
         (database) => {
           database
             .prepare(
-              `UPDATE assignments SET archived_at = NULL, updated_at = ?
+              `UPDATE assignments SET archived_at = NULL
                 WHERE bot_slug = ? AND session_id = ? AND archived_at IS NOT NULL`,
             )
-            .run(at, bot.slug, sessionId);
+            .run(bot.slug, sessionId);
         },
         ['assignments'],
       );

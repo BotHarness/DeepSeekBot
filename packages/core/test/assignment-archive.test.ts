@@ -38,7 +38,7 @@ function agents() {
   return { adapter, runs, access: () => access, finish: (id: string) => finishes.get(id)?.() };
 }
 
-async function fixture(options: { nativeRefusal?: Error } = {}) {
+async function fixture(options: { nativeRefusal?: Error; nativeGate?: Promise<void> } = {}) {
   const home = createTempRoot('botharness-assignment-archive-');
   const live = agents();
   const archived = new Set<string>();
@@ -50,6 +50,7 @@ async function fixture(options: { nativeRefusal?: Error } = {}) {
       async archiveSession(id) {
         nativeCalls.push(`archive:${id}`);
         if (options.nativeRefusal !== undefined) throw options.nativeRefusal;
+        await options.nativeGate;
         archived.add(id);
       },
       async unarchiveSession(id) {
@@ -152,6 +153,27 @@ describe('Orchestrator Assignment archive', () => {
       expect(restored.assignment.archivedAt).toBeUndefined();
       expect(f.archived.has(id)).toBe(false);
       expect(f.access.query!({}).assignments.map((a) => a.sessionId)).toEqual([id]);
+    } finally {
+      await f.close();
+    }
+  }, 60000);
+
+  it('refuses a wake that races an archive in flight', async () => {
+    let open!: () => void;
+    const f = await fixture({ nativeGate: new Promise<void>((resolve) => (open = resolve)) });
+    try {
+      const id = f.create('Racing archive', 'racing');
+      await f.settle(id);
+      const archiving = f.access.archive!(id);
+      expect(() => f.access.request({ sessionId: id, mode: 'next-turn', text: 'Wake up' })).toThrow(
+        /archived/,
+      );
+      expect(() =>
+        f.access.create({ grantId: TEST_GRANT_ID, purpose: 'Reuse', key: 'racing' }),
+      ).toThrow(/archived/);
+      open();
+      await expect(archiving).resolves.toMatchObject({ outcome: 'archived' });
+      expect(f.core.runtime.getAssignment('ada', id)).toMatchObject({ activity: 'idle' });
     } finally {
       await f.close();
     }

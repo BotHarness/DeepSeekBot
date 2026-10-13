@@ -741,7 +741,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
         defineTool({
           name: 'create_assignment',
           description:
-            'Start one independent Assignment Session and return its Session id immediately. Call list_assignment_models before selecting an explicit provider/model/effort; omitted choices use the Human-selected default. Pass a continuity key to continue the same direction of work in the keyed Assignment instead of creating another one; omit the key for a different direction.',
+            'Start one independent Assignment Session and return its Session id immediately. First search list_assignments with query: work serving the same goal or deliverable belongs in the Assignment already doing it. Call list_assignment_models before selecting an explicit provider/model/effort; omitted choices use the Human-selected default. Pass a continuity key to continue the same direction of work in the keyed Assignment instead of creating another one; omit the key for a different direction.',
           parameters: {
             purpose: {
               type: 'string',
@@ -908,7 +908,8 @@ class DshBotAgentAdapter implements BotAgentAdapter {
               throw new Error('list_assignments: Orchestrator run is unavailable');
             }
             const access = active.run.assignments;
-            if (access.query === undefined) return JSON.stringify(access.list());
+            if (access.query === undefined)
+              throw new Error('list_assignments: Assignment Directory is unavailable');
             return JSON.stringify(
               access.query({
                 ...(args.query === undefined ? {} : { query: args.query }),

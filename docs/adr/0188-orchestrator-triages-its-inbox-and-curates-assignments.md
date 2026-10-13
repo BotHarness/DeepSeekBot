@@ -82,6 +82,8 @@ The line equating "finished turn" with "handled" is removed. The inbox is descri
 
 ## Consequences
 
+- Delivery follows the tracer-bullet slices in #1561. The Assignment archive, the Assignment Directory query and the default limit of 8 ship first. The inbox states, tools, review wake and prompt section follow, and each slice updates CONTEXT.md and the living architecture as it lands.
+
 - CONTEXT.md:
   - "Attention Decision" changes from handling following successful turn completion to explicit resolve or snooze.
   - "Bot Inbox" gains open, resolved and snoozed.
