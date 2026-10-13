@@ -498,9 +498,12 @@ describe('Assignment collaboration', () => {
         attachOperationalModule(owner, 'failed-semantic-before'),
         channels,
       );
-      const before = attention
-        .list({ botSlug: 'ada' })
-        .items.filter((item) => item.assignmentSessionId === run.sessionId);
+      const reports = () =>
+        attention
+          .list({ botSlug: 'ada' })
+          .items.filter((item) => item.assignmentSessionId === run.sessionId);
+      await vi.waitFor(() => expect(reports()[0]?.state).not.toBe('processing'));
+      const before = reports();
       expect(before).toHaveLength(1);
       expect(before[0]).toMatchObject({
         sourceKind: 'assignment-report',

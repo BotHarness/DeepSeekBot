@@ -2444,7 +2444,8 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#setObserved(collected.eventIds, timestamp, botSlug);
     let orchestrator: { sessionId: string; resume: boolean } | undefined;
     try {
-      orchestrator = this.#ensureOrchestrator(bot, timestamp);
+      const started = this.#ensureOrchestrator(bot, timestamp);
+      orchestrator = started;
       const sections = [
         ...claimed.items.map((item) =>
           this.#inboundChannelMessage(item.channelId, item.messageId, item.body),
@@ -2459,19 +2460,22 @@ class BotRuntimeImplementation implements BotRuntime {
         attentionCount > 1
           ? `[Bot Inbox harvest] ${attentionCount} attention items are ready. Handle them together where useful and in parallel where independent; long-running work belongs in Assignment Sessions.`
           : undefined;
-      await this.#runOrchestratorTurn(
-        bot,
-        orchestrator,
-        sourceEventId,
-        externalOnly && externalChannelId === undefined ? undefined : primaryChannelId,
-        [preamble, ...sections].filter((part): part is string => part !== undefined).join('\n\n'),
-        collected.units,
-        collected.eventIds.length > 0,
-        () => this.#markAdmissionsSideEffect(botSlug, includedIds),
-        collected.eventIds,
-        [...new Set([...includedIds, ...collected.eventIds])],
-      );
-      this.#markReportsHandled(collected.eventIds, botSlug, orchestrator.sessionId);
+      const ran = await this.#runOnLiveOrchestrator(bot, started, (session) => {
+        orchestrator = session;
+        return this.#runOrchestratorTurn(
+          bot,
+          session,
+          sourceEventId,
+          externalOnly && externalChannelId === undefined ? undefined : primaryChannelId,
+          [preamble, ...sections].filter((part): part is string => part !== undefined).join('\n\n'),
+          collected.units,
+          collected.eventIds.length > 0,
+          () => this.#markAdmissionsSideEffect(botSlug, includedIds),
+          collected.eventIds,
+          [...new Set([...includedIds, ...collected.eventIds])],
+        );
+      });
+      this.#markReportsHandled(collected.eventIds, botSlug, ran.sessionId);
       this.#settleHarvestHandled(botSlug, includedIds);
       for (const digest of claimed.digests) {
         this.#digestRetryAt.delete(`${botSlug}:${digest.channelId}`);
@@ -3549,23 +3553,26 @@ class BotRuntimeImplementation implements BotRuntime {
     if (this.#admissionHandled(claim.sourceEventId, bot.slug)) return;
 
     const timestamp = this.#now().toISOString();
-    const orchestrator = this.#ensureOrchestrator(bot, timestamp);
+    let orchestrator = this.#ensureOrchestrator(bot, timestamp);
 
     const collected = this.#collectInbox(bot.slug);
     this.#setObserved(collected.eventIds, timestamp, bot.slug);
     try {
       this.#observeAdmission(claim.sourceEventId, bot.slug, channelId, messageId);
-      await this.#runOrchestratorTurn(
-        bot,
-        orchestrator,
-        claim.sourceEventId,
-        channelId,
-        this.#inboundChannelMessage(channelId, messageId, body),
-        collected.units,
-        this.#channels.message(channelId, messageId)?.memorySwitchTarget !== undefined,
-        undefined,
-        collected.eventIds,
-      );
+      await this.#runOnLiveOrchestrator(bot, orchestrator, (session) => {
+        orchestrator = session;
+        return this.#runOrchestratorTurn(
+          bot,
+          session,
+          claim.sourceEventId,
+          channelId,
+          this.#inboundChannelMessage(channelId, messageId, body),
+          collected.units,
+          this.#channels.message(channelId, messageId)?.memorySwitchTarget !== undefined,
+          undefined,
+          collected.eventIds,
+        );
+      });
     } catch (error) {
       this.#setObserved(collected.eventIds, null, bot.slug);
       this.#markSourceEventFailed(claim.sourceEventId);
@@ -5591,6 +5598,52 @@ class BotRuntimeImplementation implements BotRuntime {
       throw new Error(`PersonaBot ${botSlug} is not a member of Channel ${channelId}`);
     }
     return channel;
+  }
+
+  async #runOnLiveOrchestrator(
+    bot: PersonaBotRecord,
+    orchestrator: { sessionId: string; resume: boolean },
+    run: (orchestrator: { sessionId: string; resume: boolean }) => Promise<void>,
+  ): Promise<{ sessionId: string; resume: boolean }> {
+    try {
+      await run(orchestrator);
+      return orchestrator;
+    } catch (error) {
+      if (
+        this.#closed ||
+        this.#sessionArchived?.(orchestrator.sessionId) !== true ||
+        this.#turnSideEffectStarted(bot.slug)
+      )
+        throw error;
+      const replacement = this.#ensureOrchestrator(bot, this.#now().toISOString());
+      if (replacement.sessionId === orchestrator.sessionId) throw error;
+      this.#warn?.(
+        JSON.stringify({
+          component: 'bot-runtime',
+          event: 'orchestrator-archived-mid-turn',
+          botSlug: bot.slug,
+          archivedSessionId: orchestrator.sessionId,
+          sessionId: replacement.sessionId,
+        }),
+      );
+      await run(replacement);
+      return replacement;
+    }
+  }
+
+  #turnSideEffectStarted(botSlug: string): boolean {
+    return (
+      this.#database.read((database) =>
+        database
+          .prepare(
+            `SELECT 1 FROM inbox_admissions
+              WHERE bot_slug = ? AND attempt_state = 'running'
+                AND side_effect_started_at IS NOT NULL
+              LIMIT 1`,
+          )
+          .get(botSlug),
+      ) !== undefined
+    );
   }
 
   #ensureOrchestrator(bot: PersonaBotRecord, at: string): { sessionId: string; resume: boolean } {
