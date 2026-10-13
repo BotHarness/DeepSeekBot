@@ -2,7 +2,7 @@
 import { act, createElement, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-type Item = { id: string; label: string; submenu?: readonly Item[] };
+type Item = { id: string; type?: string; label?: string; text?: string };
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   Button: () => null,
   Input: () => null,
@@ -21,22 +21,19 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
     onSelect(id: string): void;
   }) => {
     const row = (item: Item): ReactNode =>
-      createElement(
-        'button',
-        {
-          key: item.id,
-          role: 'menuitem',
-          'aria-checked': selectedIds.includes(item.id),
-          onClick: () => onSelect(item.id),
-        },
-        item.label,
-      );
-    return createElement(
-      'div',
-      null,
-      anchor,
-      open ? items.flatMap((item) => [row(item), ...(item.submenu ?? []).map(row)]) : null,
-    );
+      item.type !== undefined
+        ? createElement('span', { key: item.id }, item.text)
+        : createElement(
+            'button',
+            {
+              key: item.id,
+              role: 'menuitem',
+              'aria-checked': selectedIds.includes(item.id),
+              onClick: () => onSelect(item.id),
+            },
+            item.label,
+          );
+    return createElement('div', null, anchor, open ? items.map(row) : null);
   },
 }));
 vi.mock('../src/client/modal.js', () => ({ Modal: () => null }));
@@ -95,7 +92,7 @@ describe('channel header menu', () => {
   });
   it('toggles which of the Bot actions elsewhere its DM shows, per Bot', () => {
     render(dm);
-    expect(item('dmTrace.menu')).toBeDefined();
+    expect(host.textContent).toContain('dmTrace.menu');
     expect(item('dmTrace.kind.posts')?.getAttribute('aria-checked')).toBe('true');
     act(() => item('dmTrace.kind.posts')!.click());
     expect(hiddenDmActionsSnapshot('header-qa')).toEqual(['posts']);
@@ -107,7 +104,7 @@ describe('channel header menu', () => {
   });
   it('leaves Bot actions out of group Channels', () => {
     render({ ...dm, type: 'group', botSlug: undefined } as unknown as ChannelSummary);
-    expect(item('dmTrace.menu')).toBeUndefined();
+    expect(host.textContent).not.toContain('dmTrace.menu');
     expect(item('humanNickname.title')).toBeDefined();
   });
 });

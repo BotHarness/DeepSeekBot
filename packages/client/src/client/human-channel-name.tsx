@@ -4,6 +4,7 @@ import {
   Input,
   Menu,
   IconEllipsisOutlineRegular,
+  type MenuEntry,
 } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { BridgeActions } from './actions.js';
 import type { ChannelSummary } from './store.js';
@@ -119,22 +120,25 @@ export function HumanChannelNameMenu({
     () => hiddenDmActionsSnapshot(dmBotSlug),
     () => hiddenDmActionsSnapshot(dmBotSlug),
   );
-  const items = [
+  const channelItems = [
     ...(onOpenSettings === undefined ? [] : [{ id: 'settings', label: t('channelSettings.open') }]),
     ...(channel.humanNickname === undefined
       ? []
       : [{ id: 'nickname', label: t('humanNickname.title') }]),
+  ];
+  const items: MenuEntry[] = [
+    ...channelItems,
     ...(dmBotSlug === undefined
       ? []
       : [
-          {
-            id: 'dm-actions',
-            label: t('dmTrace.menu'),
-            submenu: DM_ACTION_KINDS.map((kind) => ({
-              id: `dm:${kind}`,
-              label: t(`dmTrace.kind.${kind}`),
-            })),
-          },
+          ...(channelItems.length === 0
+            ? []
+            : [{ type: 'separator' as const, id: 'dm-separator' }]),
+          { type: 'label' as const, id: 'dm-label', text: t('dmTrace.menu') },
+          ...DM_ACTION_KINDS.map((kind) => ({
+            id: `dm:${kind}`,
+            label: t(`dmTrace.kind.${kind}`),
+          })),
         ]),
   ];
   if (items.length === 0) return null;
