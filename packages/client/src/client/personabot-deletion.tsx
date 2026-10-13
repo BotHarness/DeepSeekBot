@@ -1,12 +1,37 @@
-import { useState, type ReactElement } from 'react';
+import { useState, type ReactElement, type ReactNode } from 'react';
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { PersonaBotDeletionPreview } from '../../../core/src/bots/deletion.js';
 import type { BridgeActions } from './actions.js';
+import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import type { HostFileOptions } from './host-file-actions.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { Modal } from './modal.js';
 import { useMountedResource } from './mounted-resource.js';
+
+function DeletionNotice({
+  icon,
+  title,
+  tone,
+  children,
+}: {
+  icon: string;
+  title: string;
+  tone?: 'danger';
+  children: ReactNode;
+}): ReactElement {
+  return (
+    <div className="bh-bot-deletion-notice" data-tone={tone}>
+      <span className="bh-bot-deletion-notice-icon" aria-hidden="true">
+        <ChannelSidebarIcon name={icon} size={16} />
+      </span>
+      <div className="bh-bot-deletion-notice-text">
+        <strong className="bh-bot-deletion-notice-title">{title}</strong>
+        {children}
+      </div>
+    </div>
+  );
+}
 
 export function PersonaBotDeletionView({
   slug,
@@ -61,84 +86,104 @@ export function PersonaBotDeletionView({
         <p>{t('deletion.loading')}</p>
       ) : (
         <>
-          <p>
-            {preview.displayName} · {slug}
+          <p className="bh-bot-deletion-lead">
+            {state === undefined
+              ? t('deletion.lead', { name: preview.displayName })
+              : t('deletion.history')}
           </p>
-          <p>{t(state === undefined ? 'deletion.description' : 'deletion.history')}</p>
-          <p className="bh-bot-deletion-path">{preview.memoryDir}</p>
-          <p>{t('deletion.hostFolder')}</p>
-          <div className="bh-bot-deletion-actions">
-            <Button
-              variant="outline"
-              disabled={busy || state?.memory === 'erased'}
-              onClick={() => void perform(() => actions.deletionFolderOpen(slug))}
-            >
-              {t('deletion.openFolder')}
-            </Button>
-            <Button
-              variant="ghost"
-              disabled={busy || state?.memory === 'erased'}
-              onClick={() =>
-                void perform(async () => {
-                  const options = await actions.deletionFolderApplications(slug);
-                  setHandlers(options);
-                  if (!options.available) throw new Error(t('deletion.noHandler'));
-                })
-              }
-            >
-              {t('deletion.otherApp')}
-            </Button>
-            {handlers?.applications.map((app) => (
-              <Button
-                key={app.id}
-                variant="ghost"
-                disabled={busy}
-                onClick={() =>
-                  void perform(() => actions.deletionFolderOpen(slug, { application: app.id }))
-                }
-              >
-                {app.name}
-              </Button>
-            ))}
-          </div>
-          <details>
-            <summary>{t('deletion.dependencies')}</summary>
-            <dl>
-              <dt>{t('deletion.sessions')}</dt>
-              <dd>{preview.dependencies.sessions.length}</dd>
-              <dt>{t('deletion.authorizations')}</dt>
-              <dd>{preview.dependencies.grants.length + preview.dependencies.identities.length}</dd>
-              <dt>{t('deletion.channels')}</dt>
-              <dd>{preview.dependencies.channels.length}</dd>
-              <dt>{t('deletion.workspaces')}</dt>
-              <dd>{preview.dependencies.workspaces.join('\n') || '—'}</dd>
-            </dl>
-          </details>
-          {state === undefined ? (
+          <section className="bh-bot-deletion-notices" aria-label={t('deletion.notice')}>
+            {state === undefined ? (
+              <>
+                <h3 className="bh-bot-deletion-heading">{t('deletion.notice')}</h3>
+                <DeletionNotice icon="lock" tone="danger" title={t('deletion.secretsTitle')}>
+                  {t('deletion.secretsBody')}
+                </DeletionNotice>
+                <DeletionNotice icon="plug" title={t('deletion.authorityTitle')}>
+                  {t('deletion.authorityBody', {
+                    sessions: preview.dependencies.sessions.length,
+                    grants:
+                      preview.dependencies.grants.length + preview.dependencies.identities.length,
+                  })}
+                </DeletionNotice>
+                <DeletionNotice icon="messages-square" title={t('deletion.retainTitle')}>
+                  {t('deletion.retainBody', { channels: preview.dependencies.channels.length })}
+                  {preview.dependencies.workspaces.map((workspace) => (
+                    <span key={workspace} className="bh-bot-deletion-path">
+                      {workspace}
+                    </span>
+                  ))}
+                </DeletionNotice>
+              </>
+            ) : null}
+            <DeletionNotice icon="files" title={t('deletion.memoryTitle')}>
+              <span className="bh-bot-deletion-path">{preview.memoryDir}</span>
+              <span className="bh-bot-deletion-actions">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  title={t('deletion.hostFolder')}
+                  disabled={busy || state?.memory === 'erased'}
+                  onClick={() => void perform(() => actions.deletionFolderOpen(slug))}
+                >
+                  {t('deletion.openFolder')}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={busy || state?.memory === 'erased'}
+                  onClick={() =>
+                    void perform(async () => {
+                      const options = await actions.deletionFolderApplications(slug);
+                      setHandlers(options);
+                      if (!options.available) throw new Error(t('deletion.noHandler'));
+                    })
+                  }
+                >
+                  {t('deletion.otherApp')}
+                </Button>
+                {handlers?.applications.map((app) => (
+                  <Button
+                    key={app.id}
+                    variant="ghost"
+                    size="sm"
+                    disabled={busy}
+                    onClick={() =>
+                      void perform(() => actions.deletionFolderOpen(slug, { application: app.id }))
+                    }
+                  >
+                    {app.name}
+                  </Button>
+                ))}
+              </span>
+              {state === undefined ? (
+                <>
+                  <label className="bh-bot-deletion-choice">
+                    <input
+                      type="checkbox"
+                      checked={erase}
+                      disabled={busy || !preview.eraseAvailable}
+                      onChange={(event) => setErase(event.target.checked)}
+                    />
+                    {t('deletion.eraseMemory')}
+                  </label>
+                  {preview.refusal === undefined ? null : <span>{preview.refusal}</span>}
+                  <span>{t(erase ? 'deletion.eraseScope' : 'deletion.retainScope')}</span>
+                </>
+              ) : (
+                <span>
+                  {t(
+                    state.memory === 'erased'
+                      ? 'deletion.erased'
+                      : state.memory === 'pending'
+                        ? 'deletion.pending'
+                        : 'deletion.retained',
+                  )}
+                </span>
+              )}
+            </DeletionNotice>
+          </section>
+          {state === undefined ? null : (
             <>
-              <label className="bh-bot-deletion-choice">
-                <input
-                  type="checkbox"
-                  checked={erase}
-                  disabled={busy || !preview.eraseAvailable}
-                  onChange={(event) => setErase(event.target.checked)}
-                />
-                {t('deletion.eraseMemory')}
-              </label>
-              {preview.refusal === undefined ? null : <p>{preview.refusal}</p>}
-              <p>{t(erase ? 'deletion.eraseScope' : 'deletion.retainScope')}</p>
-            </>
-          ) : (
-            <>
-              <p>
-                {t(
-                  state.memory === 'erased'
-                    ? 'deletion.erased'
-                    : state.memory === 'pending'
-                      ? 'deletion.pending'
-                      : 'deletion.retained',
-                )}
-              </p>
               {state.failure === undefined ? null : (
                 <p className="bh-modal-error" role="alert">
                   {state.failure}

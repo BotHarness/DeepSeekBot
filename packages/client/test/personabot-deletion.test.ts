@@ -96,6 +96,22 @@ async function fixture() {
 }
 
 describe('PersonaBot deletion Memory consent', () => {
+  it('leads with what stops and lists each notice as its own card', async () => {
+    const f = await fixture();
+    try {
+      expect(f.host.querySelector('.bh-bot-deletion-lead')?.textContent).toBe(
+        '删除后，Ada 会永久停止运行，无法撤销。',
+      );
+      const titles = Array.from(f.host.querySelectorAll('.bh-bot-deletion-notice-title')).map(
+        (node) => node.textContent,
+      );
+      expect(titles).toEqual(['密钥会立即删除', '运行和授权会停止', '历史会保留', '记忆文件']);
+      expect(f.host.textContent).toContain('1 个会话停止运行，0 项授权与身份绑定被撤销。');
+    } finally {
+      await f.dispose();
+    }
+  });
+
   it('starts unchecked, opening the folder does not opt in, and reopening resets a previous choice', async () => {
     const f = await fixture();
     try {
