@@ -114,7 +114,7 @@ export function ChannelSettingsDialog({
       ? state.bots.find((candidate) => candidate.slug === context.botSlug)
       : undefined;
   const caption = (
-    <div className="bh-channel-settings-caption">
+    <div className="bh-channel-settings-caption" aria-label={title}>
       <span className="bh-channel-settings-caption-avatar" aria-hidden="true">
         {scope === 'personabot' ? (
           <PersonaBotAvatar
@@ -134,7 +134,16 @@ export function ChannelSettingsDialog({
           '#'
         )}
       </span>
-      <span className="bh-channel-settings-caption-title">{title}</span>
+      <span className="bh-channel-settings-caption-text">
+        <span className="bh-channel-settings-caption-title" title={channel.name}>
+          {channel.name}
+        </span>
+        <span className="bh-channel-settings-caption-kind">
+          {scope === 'personabot'
+            ? t('channelSettings.captionBot')
+            : t('channelSettings.captionGroup')}
+        </span>
+      </span>
     </div>
   );
   const Section = active.component;

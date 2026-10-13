@@ -6154,6 +6154,16 @@ button.bh-bot-nav > svg {
   color: var(--dsw-alias-label-secondary);
   font-weight: 600;
 }
+.bh-channel-settings-caption-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.bh-channel-settings-caption-kind {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--dsw-alias-label-secondary);
+}
 .bh-channel-settings-caption-title {
   min-width: 0;
   display: -webkit-box;
