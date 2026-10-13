@@ -1,6 +1,6 @@
 # Display and layout
 
-In a Bot DM or local group, open the **Channel sidebar** and click its gear, **Channel sidebar settings**. The first item, **Channel settings…**, opens the chat’s [Channel settings](/docs/channel-sidebar#choose-a-feature) dialog; the rest affect presentation, not the Bot’s model, Memory contents or execution permissions.
+In a Bot DM or local group, the **Channel sidebar**’s display options sit next to what they change. They affect presentation, not the Bot’s model, Memory contents or execution permissions. The chat’s [Channel settings](/docs/channel-sidebar#choose-a-feature) dialog opens from the chat header’s **···** menu → **Channel settings…**.
 
 ## Width and tabs
 
@@ -32,12 +32,16 @@ Hidden tabs and entries keep their data. Bot and Channel layouts have separate o
 
 ## Feature display settings
 
-| Gear-menu option               | Choices and effect                                           |
-| ------------------------------ | ------------------------------------------------------------ |
-| Memory evolution · Terminology | **Memory** or **Git** labels/grouping; no repository change. |
+Each feature keeps its options in a gear at the right of its section title, and choices apply immediately:
 
-**Sessions** and **Bot Inbox** have their own gear in the section title instead: Sessions chooses the session view and layout, Bot Inbox chooses between **By time** and **By source**.
+| Section title    | Choices and effect                                                    |
+| ---------------- | --------------------------------------------------------------------- |
+| Sessions         | Session view (current or all) and layout (by status or by workspace). |
+| Bot Inbox        | **By time** or **By source**.                                         |
+| Memory evolution | Terminology: **Memory** or **Git** labels/grouping; no repo change.   |
 
-These menu selections apply immediately. In the narrow overlay they are separate from the **Edit sidebar** draft’s **Done/Cancel** buttons, and opening a feature settings submenu can temporarily preview that entry; closing the menu restores its ordinary disclosure state.
+In a Bot DM, the chat header’s **···** menu → **Show what this Bot did elsewhere** chooses which of the Bot’s posts in groups or Bot DMs and Memory updates appear in this DM. It only changes local display.
+
+The narrow overlay’s gear keeps **Edit sidebar**, plus any options an optional plugin registers.
 
 For details, read [Memory evolution](/docs/channel-sidebar/memory-evolution) and [Sessions](/docs/channel-sidebar/sessions). Optional plugins may add their own display settings when available. [All sidebar features](/docs/channel-sidebar).

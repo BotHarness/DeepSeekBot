@@ -1,6 +1,6 @@
 # Wake policy
 
-Open **Bot DM → ··· → Channel settings… → Wake policy** (or the Channel sidebar gear, **Channel sidebar settings → Channel settings…**). The wake policy decides, for each kind of incoming message, whether this Bot wakes up right away, waits for a digest, or only records it.
+Open **Bot DM → ··· → Channel settings… → Wake policy**. The wake policy decides, for each kind of incoming message, whether this Bot wakes up right away, waits for a digest, or only records it.
 
 ![The Wake policy rows, one per source](/guides/channel-sidebar/16-wake-policy-zh.webp)
 

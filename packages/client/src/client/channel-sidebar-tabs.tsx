@@ -27,13 +27,11 @@ export function ChannelSidebarTabs({
   tabs,
   entryProps,
   scopeKey,
-  onOpenSettings,
   prefs = channelSidebarPrefs,
 }: {
   tabs: readonly ResolvedChannelSidebarTab[];
   entryProps: ChannelSidebarEntryProps;
   scopeKey: string;
-  onOpenSettings?: (() => void) | undefined;
   prefs?: ChannelSidebarPrefs;
 }): ReactElement {
   const snapshot = useSyncExternalStore(prefs.subscribe, prefs.getSnapshot, prefs.getSnapshot);
@@ -134,12 +132,8 @@ export function ChannelSidebarTabs({
           }
           t={t}
         />
-        {onOpenSettings !== undefined || entries.some((entry) => entry.settings !== undefined) ? (
-          <ChannelSidebarSettings
-            entries={entries}
-            entryProps={entryProps}
-            onOpenSettings={onOpenSettings}
-          />
+        {entries.some((entry) => entry.settings !== undefined) ? (
+          <ChannelSidebarSettings entries={entries} entryProps={entryProps} />
         ) : null}
       </div>
       {active === undefined ? (

@@ -987,19 +987,14 @@ describe('Memory Git graph sidebar', () => {
       'main',
     );
     expect(evolution?.querySelector('.bh-memory-terminology')).toBeNull();
-    expect(container.querySelector('.bh-sidebar-settings')?.getAttribute('aria-haspopup')).toBe(
-      'menu',
-    );
+    expect(container.querySelector('.bh-sidebar-settings')).toBeNull();
+    const terminology = () =>
+      evolution!.querySelector<HTMLButtonElement>('[aria-label="记忆演化视图选项"]')!;
+    expect(terminology().getAttribute('aria-haspopup')).toBe('menu');
     await act(async () => {
-      container.querySelector<HTMLButtonElement>('.bh-sidebar-settings')?.click();
+      terminology().click();
     });
-    expect(container.querySelector('[role="menu"]')?.textContent).not.toContain('Git');
-    await act(async () => {
-      container
-        .querySelector<HTMLButtonElement>('.bh-sidebar-settings-trigger')
-        ?.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
-    });
-    expect(container.querySelector('[role="menu"]')?.textContent).toContain('Git');
+    expect(evolution?.querySelector('[role="menu"]')?.textContent).toContain('Git');
     await act(async () => {
       Array.from(container.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'))
         .find((item) => item.textContent === 'Git')
@@ -1007,17 +1002,15 @@ describe('Memory Git graph sidebar', () => {
     });
     expect(channelSidebarPrefs.getSnapshot().memoryTerminology).toBe('git');
     expect(evolution?.querySelector('.bh-memory-change-badge')?.textContent).toBe('M');
-    expect(container.querySelectorAll('[role="menu"]')).toHaveLength(2);
+    await act(async () => {
+      if (evolution?.querySelector('[role="menu"]') === null) terminology().click();
+    });
     await act(async () => {
       Array.from(container.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'))
         .find((item) => item.textContent === '记忆')
         ?.click();
     });
     expect(channelSidebarPrefs.getSnapshot().memoryTerminology).toBe('memory');
-    expect(container.querySelectorAll('[role="menu"]')).toHaveLength(2);
-    await act(async () => {
-      container.querySelector<HTMLButtonElement>('.bh-sidebar-settings')?.click();
-    });
 
     const chat = container.querySelector<HTMLElement>('.bh-chat-body');
     const composer = container.querySelector<HTMLTextAreaElement>('textarea');

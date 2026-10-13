@@ -1,6 +1,6 @@
 # Members and group management
 
-Open a **local group → Channel sidebar**. Group Channels show **Work** and **Members**, rather than a particular Bot’s Memory, Sessions or Workspace Grants. **Group management** is a section of the group’s **Channel settings**: open **··· → Channel settings…** in the chat header, or the sidebar gear, **Channel sidebar settings → Channel settings…**. The dialog is titled “_name_ group settings”. These controls manage the local BotHarness group; they are not the membership settings of a Lark or Slack group.
+Open a **local group → Channel sidebar**. Group Channels show **Work** and **Members**, rather than a particular Bot’s Memory, Sessions or Workspace Grants. **Group management** is a section of the group’s **Channel settings**: open **··· → Channel settings…** in the chat header. The dialog is titled “_name_ group settings”. These controls manage the local BotHarness group; they are not the membership settings of a Lark or Slack group.
 
 ## Open or create a group
 

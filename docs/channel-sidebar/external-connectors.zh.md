@@ -1,6 +1,6 @@
 # 外部连接器
 
-打开 **Bot 私聊 → ··· → 频道设置… → 外部连接器**（也可从 Channel sidebar 齿轮 **Channel sidebar 设置 → 频道设置…** 进入）。这里列出同步到这个 Bot 的 Channel 的外部会话，并保留一个高级操作。收消息和回复都不需要它：[绑定应用](/zh/docs/channel-sidebar/external-identities)即可，会话也在那里管理。以后，Webhook 等单向输入流也会放在这里。
+打开 **Bot 私聊 → ··· → 频道设置… → 外部连接器**。这里列出同步到这个 Bot 的 Channel 的外部会话，并保留一个高级操作。收消息和回复都不需要它：[绑定应用](/zh/docs/channel-sidebar/external-identities)即可，会话也在那里管理。以后，Webhook 等单向输入流也会放在这里。
 
 ![外部连接器：一个已同步的会话和高级发送目标行](/guides/channel-sidebar/20b-external-connectors-zh.webp)
 

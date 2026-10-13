@@ -36,7 +36,7 @@ These pages use DSH **0.2.0-rc.1** and the public **deepseekbot** package. First
 | [Wake policy](/docs/channel-sidebar/wake-policy) ¹                 | Choose, per member Bot, how ordinary messages in this group wake it.    |
 | [External connectors](/docs/channel-sidebar/external-connectors) ¹ | Connect, edit and pause external conversations synced into this group.  |
 
-¹ A **Channel settings** section, not a sidebar entry. Open it from the chat header’s **···** menu or the sidebar gear, **Channel sidebar settings → Channel settings…**. In a group, Members stays in the sidebar; Group management is in Channel settings.
+¹ A **Channel settings** section, not a sidebar entry. Open it from the chat header’s **···** menu → **Channel settings…**. In a group, Members stays in the sidebar; Group management is in Channel settings.
 
 [Display and layout](/docs/channel-sidebar/display) explains width, tabs, the Views menu, visibility and feature-specific display options. [Settings guide](/docs/settings) covers the rest of the non-IM settings.
 

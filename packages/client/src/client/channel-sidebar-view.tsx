@@ -36,12 +36,7 @@ import { useMountedResource } from './mounted-resource.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { insertEntryBefore, moveEntry, resolveEntryOrder } from './channel-sidebar-order.js';
 import { ChannelSidebarSettings } from './channel-sidebar-settings.js';
-import {
-  channelSettings,
-  channelSettingsSections,
-  isChannelSettingsSection,
-  type ChannelSettings,
-} from './channel-settings-state.js';
+import { isChannelSettingsSection } from './channel-settings-state.js';
 
 function matchesNarrow(): boolean {
   return typeof window !== 'undefined' && typeof window.matchMedia === 'function'
@@ -228,13 +223,11 @@ export function ChannelSidebarContents({
   registered = entries,
   entryProps,
   controller,
-  onOpenSettings,
   prefs = channelSidebarPrefs,
 }: {
   entries: readonly ChannelSidebarEntry[];
   registered?: readonly ChannelSidebarEntry[];
   entryProps: ChannelSidebarEntryProps;
-  onOpenSettings?: (() => void) | undefined;
   controller: Pick<ChannelSidebarController, 'isEntryExpanded' | 'toggleEntry'>;
   prefs?: ChannelSidebarPrefs;
 }): ReactElement {
@@ -422,7 +415,6 @@ export function ChannelSidebarContents({
           entryProps={entryProps}
           editing={editing}
           onPreview={setPreviewEntry}
-          onOpenSettings={onOpenSettings}
           onEdit={() => setDraft({ order, hidden })}
         />
       </div>
@@ -640,9 +632,7 @@ export function ChannelSidebar({
   selectedMemoryFilePath,
   onMemoryWorkingSelect,
   selectedMemoryWorking,
-  settings = channelSettings,
 }: {
-  settings?: Pick<ChannelSettings, 'open'>;
   registry: ChannelSidebarRegistry;
   state: ClientState;
   actions: BridgeActions;
@@ -711,8 +701,6 @@ export function ChannelSidebar({
     entryProps === undefined
       ? []
       : sidebarEntries.filter((entry) => entry.visible?.(state) ?? true);
-  const onOpenSettings =
-    channelSettingsSections(entries, state).length > 0 ? () => settings.open() : undefined;
   const dockedWidth = clampChannelSidebarWidth(controller.width);
   const panel = (
     <div
@@ -777,7 +765,6 @@ export function ChannelSidebar({
           tabs={resolveChannelSidebarTabs(tabs, visibleEntries)}
           entryProps={entryProps}
           scopeKey={controller.scopeKey}
-          onOpenSettings={onOpenSettings}
         />
       ) : (
         <ChannelSidebarContents
@@ -786,7 +773,6 @@ export function ChannelSidebar({
           registered={sidebarEntries}
           entryProps={entryProps}
           controller={controller}
-          onOpenSettings={onOpenSettings}
         />
       )}
     </div>

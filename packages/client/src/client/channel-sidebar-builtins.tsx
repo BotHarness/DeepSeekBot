@@ -35,7 +35,6 @@ import { formatRelativeTime } from './labels.js';
 import { LoadingSkeleton } from './loading-skeleton.js';
 import { MemoryEntry } from './memory-entry.js';
 import { MemoryFilesEntry } from './memory-files-entry.js';
-import { MemoryDisplaySettings } from './channel-sidebar-settings.js';
 import { Modal } from './modal.js';
 import { ExternalSourceContent } from './external-source-content.js';
 import { externalPlatformLabel, externalSenderLabel } from './bridge-source-label.js';
@@ -51,6 +50,7 @@ import {
   type NativeSessionCatalog,
 } from './sessions-entry.js';
 import { SidebarViewMenu } from './sidebar-view-menu.js';
+import { channelSidebarPrefs } from './channel-sidebar-prefs.js';
 import { inboxLayoutSnapshot, setInboxLayout, subscribeInboxLayout } from './inbox-view-prefs.js';
 import type { BotHarnessTranslate } from './locale.js';
 import type { BotAttentionItem, ChannelSummary } from './store.js';
@@ -823,6 +823,26 @@ function BotInboxHeaderAction({ t }: ChannelSidebarEntryProps): ReactElement {
   );
 }
 
+function MemoryHeaderAction({ t }: ChannelSidebarEntryProps): ReactElement {
+  const terminology = useSyncExternalStore(
+    channelSidebarPrefs.subscribe,
+    () => channelSidebarPrefs.getSnapshot().memoryTerminology,
+    () => channelSidebarPrefs.getSnapshot().memoryTerminology,
+  );
+  return (
+    <SidebarViewMenu
+      label={t('memory.menu')}
+      items={[
+        { type: 'label', id: 'terminology-label', text: t('memory.terminology') },
+        { id: 'memory', label: t('memory.terms.memory') },
+        { id: 'git', label: t('memory.terms.git') },
+      ]}
+      selectedIds={[terminology]}
+      onSelect={(id) => channelSidebarPrefs.setMemoryTerminology(id === 'git' ? 'git' : 'memory')}
+    />
+  );
+}
+
 function BotInboxBadge(): ReactElement {
   const items = useClientState().botInbox.items;
   return (
@@ -926,7 +946,7 @@ export function createChannelSidebarBuiltins(
       order: 6,
       scope: 'personabot',
       component: MemoryEvolutionEntry,
-      settings: MemoryDisplaySettings,
+      headerAction: MemoryHeaderAction,
     },
     {
       id: 'sessions',

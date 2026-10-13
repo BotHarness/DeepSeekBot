@@ -120,8 +120,7 @@ describe('Channel settings', () => {
     ]);
   });
 
-  it('opens the dialog from the sidebar gear menu', () => {
-    const open = vi.fn();
+  it('keeps the sidebar tab row free of a settings gear when no entry has view settings', () => {
     act(() =>
       root.render(
         createElement(ChannelSidebarTabs, {
@@ -134,19 +133,11 @@ describe('Channel settings', () => {
             t: zhTranslate,
           } as unknown as ChannelSidebarEntryProps,
           scopeKey: channelSidebarScopeKey('personabot', 'dm-ada', 'ada'),
-          onOpenSettings: open,
           prefs,
         }),
       ),
     );
-    act(() =>
-      host.querySelector<HTMLButtonElement>('[aria-label="Channel sidebar 设置"]')!.click(),
-    );
-    const item = [...host.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')].find(
-      (button) => button.textContent === '频道设置…',
-    );
-    act(() => item!.click());
-    expect(open).toHaveBeenCalledOnce();
+    expect(host.querySelector('[aria-label="Channel sidebar 设置"]')).toBeNull();
   });
 
   it('switches sections and remembers the last one per scope', () => {

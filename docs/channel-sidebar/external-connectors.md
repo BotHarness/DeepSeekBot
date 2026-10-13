@@ -1,6 +1,6 @@
 # External connectors
 
-Open **Bot DM → ··· → Channel settings… → External connectors** (or the Channel sidebar gear, **Channel sidebar settings → Channel settings…**). It lists the external conversations synced into this Bot’s Channels and keeps one advanced action. You don’t need it to receive or reply: [binding an app](/docs/channel-sidebar/external-identities) is enough, and its conversations are managed there. Later, one-way input streams such as webhooks will also live here.
+Open **Bot DM → ··· → Channel settings… → External connectors**. It lists the external conversations synced into this Bot’s Channels and keeps one advanced action. You don’t need it to receive or reply: [binding an app](/docs/channel-sidebar/external-identities) is enough, and its conversations are managed there. Later, one-way input streams such as webhooks will also live here.
 
 ![External connectors with a synced conversation and the advanced send target row](/guides/channel-sidebar/20b-external-connectors-en.webp)
 

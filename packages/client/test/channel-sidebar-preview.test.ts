@@ -47,7 +47,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   }) => createElement('button', { role: 'menuitem', onClick: onSelect }, icon, children),
 }));
 import { ChannelSidebarContents } from '../src/client/channel-sidebar-view.js';
-import { MemoryDisplaySettings } from '../src/client/channel-sidebar-settings.js';
+import { TerminologySettings } from './support/terminology-settings.js';
 import {
   channelSidebarPrefs,
   createChannelSidebarPrefs,
@@ -139,7 +139,7 @@ beforeEach(() => {
       id: 'memory-evolution',
       label: 'Memory',
       scope: 'personabot',
-      settings: MemoryDisplaySettings,
+      settings: TerminologySettings,
       component: MemoryBody,
     },
     {

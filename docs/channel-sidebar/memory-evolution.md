@@ -20,7 +20,7 @@ Open **Bot DM → Channel sidebar → Memory evolution**. This entry separates t
 | HEAD and branch labels                  | The checked-out commit and references in the Git graph.                                                                  |
 | Recorded / Git commit / Needs repair    | BotHarness checkpoint annotations on Git history; they do not establish who authored the files or approve their content. |
 
-Change the terminology through **Channel sidebar display settings → Memory evolution · Display terminology**. This changes labels and grouping, not repository contents.
+Change the terminology with the gear in the **Memory evolution** title → **Terminology**. This changes labels and grouping, not repository contents.
 
 ## Request a branch switch
 
