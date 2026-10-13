@@ -977,7 +977,6 @@ export const zh = {
   'section.delete.description':
     '将把“{name}”从名册中移除。其中的频道会移出分组、变为未分组频道，不会被删除。',
   'section.create.title': '创建频道分组',
-  'section.create.description': '新频道分组只影响本机名册的分组显示。',
   'section.name.label': '分组名称',
   'section.name.placeholder': '分组名称',
   'bot.rename.title': '重命名 Bot',
@@ -987,8 +986,6 @@ export const zh = {
   'channel.name.placeholder': '频道名称',
   'channel.create.title': '创建频道',
   'channel.create.inSection': '在「{name}」中创建频道',
-  'channel.create.description':
-    '创建频道后，可邀请 Bot，并在频道侧栏的「外部连接器」中接入外部来源。',
   'create.failed': '创建失败：{error}',
   'bot.create.title': '创建 Bot',
   'bot.create.inSection': '在「{name}」中创建 Bot',
@@ -4183,7 +4180,6 @@ export const en = {
   'section.delete.description':
     'Removes “{name}” from the roster. Its channels leave the section and become unsectioned; they are not deleted.',
   'section.create.title': 'Create channel section',
-  'section.create.description': 'A new section only affects how this roster groups its channels.',
   'section.name.label': 'Section name',
   'section.name.placeholder': 'Section name',
   'bot.rename.title': 'Rename Bot',
@@ -4193,8 +4189,6 @@ export const en = {
   'channel.name.placeholder': 'Channel name',
   'channel.create.title': 'Create channel',
   'channel.create.inSection': 'Create a channel in “{name}”',
-  'channel.create.description':
-    'Create a channel, then invite Bots and connect external sources under External connectors in its Channel sidebar.',
   'create.failed': 'Create failed: {error}',
   'bot.create.title': 'Create Bot',
   'bot.create.inSection': 'Create a Bot in “{name}”',

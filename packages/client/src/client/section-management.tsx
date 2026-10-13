@@ -51,8 +51,17 @@ export function sectionMenuItems(
     { id: 'move-up', label: t('section.moveUp'), disabled: !canMoveUp },
     { id: 'move-down', label: t('section.moveDown'), disabled: !canMoveDown },
     { type: 'separator', id: 'section-action-separator' },
-    { id: 'rename', label: t('section.rename'), icon: <IconEditOutlineRegular /> },
-    { id: 'delete', label: t('section.delete'), icon: <IconTrashOutlineRegular />, danger: true },
+    {
+      id: 'rename',
+      label: t('section.rename'),
+      icon: <IconEditOutlineRegular />,
+    },
+    {
+      id: 'delete',
+      label: t('section.delete'),
+      icon: <IconTrashOutlineRegular />,
+      danger: true,
+    },
   ];
 }
 
@@ -212,7 +221,6 @@ export function CreateSectionModal({
   return (
     <FormDialog
       title={t('section.create.title')}
-      description={t('section.create.description')}
       labels={dialogLabels(t)}
       submitLabel={t('common.create')}
       submitDisabled={trimmed.length === 0}
@@ -267,7 +275,6 @@ export function CreateChannelModal({
           ? t('channel.create.title')
           : t('channel.create.inSection', { name: sectionName })
       }
-      description={t('channel.create.description')}
       labels={dialogLabels(t)}
       submitLabel={t('common.create')}
       submitDisabled={trimmed.length === 0}

@@ -22,6 +22,7 @@ const styles = stylex.create({
   muted: { borderColor: color.border, backgroundColor: color.surface },
   warning: { borderColor: color.warningEdge, backgroundColor: color.warningSoft },
   danger: { borderColor: color.dangerEdge, backgroundColor: color.dangerSoft },
+  borderless: { borderWidth: 0 },
   title: {
     margin: 0,
     fontSize: text.bodySize,
@@ -38,17 +39,23 @@ export function Callout({
   tone = 'muted',
   title,
   role,
+  borderless = false,
   children,
   data,
 }: {
   readonly tone?: CalloutTone;
   readonly title?: ReactNode;
   readonly role?: 'alert' | 'status' | 'note';
+  readonly borderless?: boolean;
   readonly children?: ReactNode;
   readonly data?: Readonly<Record<`data-${string}`, string>>;
 }): ReactElement {
   return (
-    <div role={role} {...data} {...stylex.props(styles.callout, styles[tone])}>
+    <div
+      role={role}
+      {...data}
+      {...stylex.props(styles.callout, styles[tone], borderless && styles.borderless)}
+    >
       {title === undefined ? null : (
         <p
           {...stylex.props(

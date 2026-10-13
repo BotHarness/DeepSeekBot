@@ -86,6 +86,7 @@ function DeletionNotice({
   return (
     <Callout
       tone={tone ?? 'muted'}
+      borderless
       title={
         <span {...stylex.props(styles.noticeTitle)}>
           <span
