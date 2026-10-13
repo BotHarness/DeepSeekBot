@@ -1123,6 +1123,10 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #pendingHarvests = new Set<string>();
   readonly #digestTimers = new Map<string, NodeJS.Timeout>();
   readonly #snoozeTimers = new Map<string, NodeJS.Timeout>();
+  readonly #triageQueued = new Set<string>();
+  readonly #triageRunning = new Set<string>();
+  readonly #triageBaseline = new Map<string, number>();
+  readonly #triageStalled = new Map<string, Set<string>>();
   readonly #groupAdmissionRetries = new Map<string, NodeJS.Timeout>();
   readonly #digestRetryAt = new Map<string, number>();
   readonly #digestFailureCount = new Map<string, number>();
@@ -1242,6 +1246,71 @@ class BotRuntimeImplementation implements BotRuntime {
     }, delay);
     timer.unref();
     this.#snoozeTimers.set(botSlug, timer);
+  }
+
+  #queueTriage(botSlug: string): void {
+    if (this.#closed || this.#triageQueued.has(botSlug)) return;
+    this.#triageQueued.add(botSlug);
+    void this.#enqueue(botSlug, () => this.#runTriageTurn(botSlug)).catch(() => undefined);
+  }
+
+  async #runTriageTurn(botSlug: string): Promise<void> {
+    this.#triageQueued.delete(botSlug);
+    const bot = this.#registry.get(botSlug);
+    if (this.#closed || bot === undefined || bot.paused === true) return;
+    const ids = this.#inboxTriage.openIds(botSlug);
+    const baseline = this.#triageBaseline.get(botSlug);
+    this.#triageBaseline.delete(botSlug);
+    if (ids.length === 0) {
+      this.#triageStalled.delete(botSlug);
+      return;
+    }
+    if (baseline !== undefined && ids.length >= baseline) {
+      this.#triageStalled.set(botSlug, new Set(ids));
+      return;
+    }
+    const stalled = this.#triageStalled.get(botSlug);
+    if (stalled !== undefined && ids.every((id) => stalled.has(id))) return;
+    this.#triageStalled.delete(botSlug);
+    const anchor = ids[0]!;
+    const channel = this.#database.read((database) =>
+      database
+        .prepare(
+          `SELECT ${channelSql('e')} AS channel_id FROM source_events e WHERE e.source_event_id = ?`,
+        )
+        .get(anchor),
+    ) as { channel_id: string | null } | undefined;
+    const channelId = channel?.channel_id ?? this.#dmChannel(botSlug)?.id;
+    const body = `[Triage] ${ids.length} item${ids.length === 1 ? ' is' : 's are'} still open after your last turn. Give each one a destination: act on it now, resolve it with inbox_resolve once it is done or needs nothing more, snooze it with inbox_snooze when it waits on someone or a later time, or ignore noise. Check a completed Assignment report against what you asked for before resolving it. You are woken again while open items remain, unless a round leaves the open count unchanged.`;
+    this.#triageBaseline.set(botSlug, ids.length);
+    this.#triageRunning.add(botSlug);
+    try {
+      const orchestrator = this.#ensureOrchestrator(bot, this.#now().toISOString());
+      await this.#runOrchestratorTurn(
+        bot,
+        orchestrator,
+        anchor,
+        channelId,
+        body,
+        [],
+        false,
+        () => undefined,
+        [],
+        [],
+      );
+    } catch (error) {
+      this.#triageBaseline.delete(botSlug);
+      this.#warn?.(
+        JSON.stringify({
+          component: 'bot-runtime',
+          event: 'triage-turn-failed',
+          botSlug,
+          error: String(error).slice(0, 500),
+        }),
+      );
+    } finally {
+      this.#triageRunning.delete(botSlug);
+    }
   }
 
   async #runSnoozeReturnTurn(botSlug: string): Promise<void> {
@@ -3964,6 +4033,8 @@ class BotRuntimeImplementation implements BotRuntime {
       this.#markReportsHandled(memoryEventIds);
       this.#settleHarvestHandled(bot.slug, [...readAdmissions]);
       this.#notifyReadAdmissions(readAdmissions);
+      if (!this.#triageRunning.has(bot.slug)) this.#triageBaseline.delete(bot.slug);
+      this.#queueTriage(bot.slug);
     } catch (error) {
       this.#setObserved(memoryEventIds, null);
       this.#settleHarvestFailure(bot.slug, [...readAdmissions], String(error));

@@ -80,6 +80,7 @@ export interface OrchestratorInboxTriage {
 
 export interface InboxTriage {
   openSummary(botSlug: string, limit?: number): string;
+  openIds(botSlug: string): string[];
   access(input: {
     botSlug: string;
     sessionId: string;
@@ -266,6 +267,9 @@ export function createInboxTriage(
   };
 
   return {
+    openIds(botSlug) {
+      return openRows(botSlug, {}, 'inbox').map((row) => row.source_event_id);
+    },
     openSummary(botSlug, limit = 5) {
       const rows = openRows(botSlug, {}, 'inbox');
       const snoozedCount = openRows(botSlug, {}, 'inbox', 'only').length;

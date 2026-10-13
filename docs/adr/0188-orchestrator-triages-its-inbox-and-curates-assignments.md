@@ -51,18 +51,19 @@ Turn context:
 
 Waking:
 
-- Only new Source Events and returning snoozes wake the Orchestrator.
-- An item that stays open never re-wakes it by itself.
+- New Source Events and returning snoozes wake the Orchestrator.
+- Triage continuation replaces the earlier 4-hour and 24-hour review safety net. After any successful Orchestrator turn, if unsnoozed open items remain, the Host queues one `[Triage]` turn, anchored on the newest open item, asking the Orchestrator to give each item a destination: act, resolve, snooze or ignore.
+  - Each triage turn records the open count it started with. If the next check finds the count not lower, triage stops and the Host remembers that set of open items.
+  - A stalled set does not wake again on its own. A later turn re-triggers triage only when an open item outside that set appears.
+  - A paused Bot is not woken; a failed triage turn is logged and not retried.
+  - The continuation is in-memory and not a Source Event; a Host restart forgets the stalled set, and the next turn re-checks.
 
-Host safety net against forgetting:
+### Assignment results: the delegator accepts
 
-- An open, unsnoozed item gets a review wake when both hold:
-  - it has been open for more than 4 hours;
-  - the Orchestrator has had no other wake in that window.
-- The review wake carries a digest of such items.
-- A second review follows after a further 24 hours.
-- After 2 reviews the item is raised in the Human Inbox as possibly dropped by the Bot, and the Host stops waking for it.
-- A review wake whose digest is unchanged since the previous one is skipped, so it cannot loop.
+- The Orchestrator delegated the Assignment, so it accepts the result; there is no new acceptance state.
+- A `completed` report stays open until the Orchestrator checks it against what it asked for. If the result falls short, the Orchestrator sends it back with `send_assignment_request` saying what is missing and keeps the item open; it resolves the item once the result meets the ask.
+- The Orchestrator reports the outcome to a Human only when the original request asked for a report or the Human is waiting on it.
+- Waiting on a time or on another piece of work uses what already exists: `bot_schedule_*`, `inbox_snooze`, Assignment reports that wake the Orchestrator, and `wait_for_assignment`. Assignments gain no wakeup mechanism of their own.
 
 ### Assignments: the Orchestrator archives explicitly
 
@@ -89,7 +90,7 @@ The line equating "finished turn" with "handled" is removed. The inbox is descri
 
 ## Consequences
 
-- Delivery follows the tracer-bullet slices in #1561. The Assignment archive, the Assignment Directory query and the default limit of 8 ship first. The inbox states, tools, review wake and prompt section follow, and each slice updates CONTEXT.md and the living architecture as it lands.
+- Delivery follows the tracer-bullet slices in #1561. The Assignment archive, the Assignment Directory query and the default limit of 8 ship first. The inbox states, tools, snooze, triage continuation and prompt section follow, and each slice updates CONTEXT.md and the living architecture as it lands.
 
 - CONTEXT.md:
   - "Attention Decision" changes from handling following successful turn completion to explicit resolve or snooze.
@@ -102,7 +103,9 @@ The line equating "finished turn" with "handled" is removed. The inbox is descri
 ## Rejected
 
 - **Turn-end auto-handling with Host-side exceptions for capacity refusals.** The model, not code, decides whether something is done.
-- **Every open item re-wakes the Orchestrator.** This loops. The bounded review wake covers forgetting instead.
+- **Every open item re-wakes the Orchestrator without a bound.** This loops. Triage continuation re-wakes only while each round lowers the open count.
+- **A 4-hour and 24-hour review wake for forgotten items.** Replaced by triage continuation, which settles open items right after the turn instead of hours later.
+- **Bot-private Tasks or Goals, and a separate acceptance state on Assignments.** Assignments already are the unit of delegated work, existing schedules and reports cover waiting, and the Orchestrator accepts what it delegated.
 - **The Bot creates its own Bot Schedule to remember an item.** The reminder must live on the item, or the Bot has to remember to remember.
 - **Automatic archiving on stop or completion.**
 - **A per-Bot concurrency limit.**

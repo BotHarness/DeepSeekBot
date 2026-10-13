@@ -28,8 +28,8 @@ export async function inboxFixture() {
   if (dm === undefined) throw new Error('Missing DM');
   const probe = attachOperationalModule(core.operationalDatabase, 'inbox-test');
   let sequence = 0;
-  async function send(body: string, hook?: TurnHook) {
-    if (hook !== undefined) hooks.push(hook);
+  async function send(body: string, ...turns: TurnHook[]) {
+    hooks.push(...turns);
     sequence += 1;
     const messageId = `human-${sequence}`;
     const admission = core.runtime.admitDmMessage({ channelId: dm!.id, messageId, body });

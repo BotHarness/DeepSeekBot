@@ -527,7 +527,7 @@ A Binding's choice for a conversation that has no entry yet: `auto` (Admit autom
 _Avoid_: whitelist, approval mode, auto-reply
 
 **Bot Inbox**:
-The PersonaBot-level view of Source Events admitted for its attention, whether or not an event belongs to a Channel. It is not a second content store: reading is an explicit act, and ignoring is allowed. An admitted item is unread until a turn observes it, then open until the Orchestrator resolves it as done or ignored; finishing a turn resolves nothing. A snoozed item is open but hidden until its time, or until a new event arrives in the same conversation, and then wakes the Orchestrator (ADR-0188).
+The PersonaBot-level view of Source Events admitted for its attention, whether or not an event belongs to a Channel. It is not a second content store: reading is an explicit act, and ignoring is allowed. An admitted item is unread until a turn observes it, then open until the Orchestrator resolves it as done or ignored; finishing a turn resolves nothing. A snoozed item is open but hidden until its time, or until a new event arrives in the same conversation, and then wakes the Orchestrator. While unsnoozed open items remain after a turn, the Host wakes the Orchestrator again to triage them, until a round makes no progress (ADR-0188).
 _Avoid_: queue, mailbox, backlog
 
 **Inbox Admission**:

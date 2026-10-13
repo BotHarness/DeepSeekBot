@@ -525,7 +525,7 @@ Binding 对尚无条目的会话的处理方式：`auto`（自动接收，默认
 _避免使用_：白名单、审批模式、自动回复
 
 **Bot Inbox**：
-PersonaBot 层级的 view，包含被 admit 供其 attention 的 Source Event，无论 event 是否属于某个 Channel。它不是第二个 content store：读取是一项显式行为，也允许 ignore。被 admit 的条目在 turn observe 之前是 unread，之后保持 open，直到 Orchestrator 以 done 或 ignored resolve 它；turn 结束本身不 resolve 任何条目。被 snooze 的条目仍是 open，但会隐藏到设定时间，或直到同一对话里出现新 event，然后唤醒 Orchestrator（ADR-0188）。
+PersonaBot 层级的 view，包含被 admit 供其 attention 的 Source Event，无论 event 是否属于某个 Channel。它不是第二个 content store：读取是一项显式行为，也允许 ignore。被 admit 的条目在 turn observe 之前是 unread，之后保持 open，直到 Orchestrator 以 done 或 ignored resolve 它；turn 结束本身不 resolve 任何条目。被 snooze 的条目仍是 open，但会隐藏到设定时间，或直到同一对话里出现新 event，然后唤醒 Orchestrator。回合结束后若仍有未 snooze 的 open 条目，Host 会再次唤醒 Orchestrator 分拣，直到某一轮没有进展（ADR-0188）。
 _避免使用_：queue、mailbox、backlog
 
 **Inbox Admission**：
