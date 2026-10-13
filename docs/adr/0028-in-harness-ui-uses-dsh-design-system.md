@@ -20,4 +20,4 @@ Icon-set gaps are filled by **vendoring external glyphs** as first-party compone
 
 ## Update (2026-10-13)
 
-ADR-0193 adds the DeepSeekBot design system on top of this record: StyleX tokens and components that resolve to `--dsw-*` and compose DSH primitives. It is a semantic layer over DSH, not a second design system, so the rule above stands.
+ADR-0194 adds the DeepSeekBot design system on top of this record: StyleX tokens and components that resolve to `--dsw-*` and compose DSH primitives. It is a semantic layer over DSH, not a second design system, so the rule above stands.
