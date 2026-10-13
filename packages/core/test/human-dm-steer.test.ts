@@ -162,8 +162,9 @@ describe('Human DM steering', () => {
         await send('next-turn');
         await core.runtime.whenIdle();
         expect(inboxes).toHaveLength(outcome === 'refused' ? 3 : 2);
-        if (outcome === 'accepted') expect(inboxes[1]).not.toContain('external.md');
-        else expect(inboxes[1]).toContain('external.md');
+        const delivered = inboxes[1]!.split('[Open Inbox]')[0]!;
+        if (outcome === 'accepted') expect(delivered).not.toContain('external.md');
+        else expect(delivered).toContain('external.md');
         expect(inboxes.join('')).not.toContain('External private content');
         expect(
           core.attention
@@ -174,7 +175,7 @@ describe('Human DM steering', () => {
           core.attention
             .list({ botSlug: 'ada' })
             .items.find((item) => item.reason === 'memory-change')?.state,
-        ).toBe('handled');
+        ).toBe('open');
       } finally {
         releaseTurn();
         await core.runtime.close();
