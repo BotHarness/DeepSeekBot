@@ -20,6 +20,11 @@ import { createFileOpenPreferences } from './file-open-preferences.js';
 import { createActions, type BridgeActions } from './actions.js';
 import { ProviderAppSetup } from './provider-app-setup.js';
 import { BotModePrefs, botModePrefsFace } from './bot-mode-prefs.js';
+import {
+  createBotSessionVisibility,
+  mountBotSessionVisibility,
+  type WorkspaceListSnapshot,
+} from './bot-session-visibility.js';
 import { subscribeBotColorScheme, readBotColorScheme } from './bot-color-scheme.js';
 import { botIconMarkup } from './bot-icon.js';
 import { installBotNavIcon } from './bot-icon-nav.js';
@@ -63,6 +68,7 @@ import {
   loadJournalPage,
   connectionRpc,
   loadActivitySnapshot,
+  loadBotSessionIds,
   loadSessionBotOwner,
   botExists,
 } from './bridge.js';
@@ -283,6 +289,28 @@ export function apply(ctx: ClientContext): void {
     subscribe: (listener: () => void) => ctx.sessions.list.subscribe(listener),
     getSnapshot: () => ctx.sessions.list.getSnapshot(),
   };
+  ctx.effect(() => {
+    if ((ctx as { sessions?: { list?: unknown } }).sessions?.list === undefined) return () => {};
+    const workspaceList = ((ctx as { workspaces?: { list?: unknown } }).workspaces
+      ?.list as unknown as
+      | {
+          subscribe(listener: () => void): () => void;
+          getSnapshot(): WorkspaceListSnapshot | undefined;
+        }
+      | undefined) ?? { subscribe: () => () => {}, getSnapshot: () => undefined };
+    const visibility = createBotSessionVisibility({
+      sessions: nativeSessions,
+      workspaces: workspaceList,
+      prefs: prefs.source,
+      loadBotSessionIds: () => loadBotSessionIds(call),
+      warn: (message, error) => ctx.logger.warn(message, error),
+    });
+    const unmount = mountBotSessionVisibility(visibility);
+    return () => {
+      unmount();
+      visibility.dispose();
+    };
+  }, 'botharness: Bot Session visibility');
   const channelSidebar = createChannelSidebarRegistry();
   ctx.provide('channelSidebar', channelSidebar);
   const profileCards = createProfileCardRegistry();

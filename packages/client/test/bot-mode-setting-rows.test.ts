@@ -45,6 +45,7 @@ function snapshot(patch?: Partial<BotModePrefsSnapshot>): BotModePrefsSnapshot {
     autoAcceptGroupInvites: true,
     assignmentConcurrencyLimit: 3,
     developerMode: false,
+    showBotSessions: false,
     effectiveMotion: 'full',
     sortMode: 'updated',
     sortModes: {},

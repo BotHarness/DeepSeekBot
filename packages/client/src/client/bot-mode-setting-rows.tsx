@@ -231,6 +231,27 @@ export function DeveloperModeSetting({
   );
 }
 
+export function BotSessionsVisibilitySetting({
+  t,
+  useBotModePrefs,
+  setShowBotSessions,
+}: BotModeSettingRowProps): ReactElement {
+  const prefs = useBotModePrefs((value) => value);
+  return (
+    <div className="bh-settings-row bh-bot-sessions-row">
+      <div className="bh-settings-row-text">
+        <div className="bh-settings-row-title">{t('botSessions.row.title')}</div>
+        <div className="bh-settings-row-desc">{t('botSessions.row.description')}</div>
+      </div>
+      <Switch
+        checked={prefs.showBotSessions}
+        onChange={setShowBotSessions}
+        label={t('botSessions.row.title')}
+      />
+    </div>
+  );
+}
+
 export function GroupAutoAcceptSetting({
   t,
   useBotModePrefs,

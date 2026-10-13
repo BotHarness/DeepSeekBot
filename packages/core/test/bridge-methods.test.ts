@@ -2254,6 +2254,32 @@ describe('bridge methods', () => {
     });
   });
 
+  it('lists the root Sessions of every current PersonaBot for the native Session list', () => {
+    const ownership = createTestOwnership({
+      'session-orchestrator': { botSlug: 'ada', rootRole: 'orchestrator' },
+      'session-assignment': { botSlug: 'ada', rootRole: 'assignment' },
+      'session-gone': { botSlug: 'bob', rootRole: 'orchestrator' },
+    });
+    ownership.claim({
+      sessionId: 'session-child',
+      botSlug: 'ada',
+      rootRole: 'assignment',
+      parentSessionId: 'session-assignment',
+      provenance: 'subagent',
+      at: '2026-09-19T00:00:01.000Z',
+    });
+    const { methods } = setup([], ['ada'], undefined, ownership);
+    methods.create({ slug: 'ada', displayName: 'Ada' });
+
+    const result = methods.botSessionIds({});
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect([...result.value.sessionIds].sort()).toEqual([
+      'session-assignment',
+      'session-orchestrator',
+    ]);
+  });
+
   it('rejects malformed or unknown session reads', () => {
     const { methods } = setup();
 

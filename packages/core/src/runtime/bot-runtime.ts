@@ -574,6 +574,8 @@ export interface BotRuntimeOptions {
 
   orchestratorCwd?: (bot: PersonaBotRecord) => string | undefined;
 
+  sessionArchived?: (sessionId: string) => boolean;
+
   assignmentConcurrencyLimit?: number | (() => number);
 
   warn?: (message: string) => void;
@@ -955,6 +957,7 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #readAssignmentReportPage: BotRuntimeOptions['readAssignmentReportPage'];
   readonly #now: () => Date;
   readonly #createSessionId: () => string;
+  readonly #sessionArchived: ((sessionId: string) => boolean) | undefined;
   readonly #createEventId: () => string;
   readonly #createMessageId: () => string;
   readonly #assignmentConcurrencyLimit: () => number;
@@ -1005,6 +1008,7 @@ class BotRuntimeImplementation implements BotRuntime {
       createSessionOwnership(attachOperationalModule(options.database, 'session-ownership'));
     this.#workspaceRoot = options.workspaceRoot;
     this.#orchestratorCwd = options.orchestratorCwd;
+    this.#sessionArchived = options.sessionArchived;
     this.#registry = options.registry;
     this.#requireExecution = options.requireExecution;
     this.#channels = options.channels;
@@ -5214,7 +5218,11 @@ class BotRuntimeImplementation implements BotRuntime {
   #ensureOrchestrator(bot: PersonaBotRecord, at: string): { sessionId: string; resume: boolean } {
     const existing = this.#ownership
       .rootsFor(bot.slug, 'orchestrator')
-      .find((root) => this.#ownership.contentAvailable(root.sessionId));
+      .find(
+        (root) =>
+          this.#ownership.contentAvailable(root.sessionId) &&
+          this.#sessionArchived?.(root.sessionId) !== true,
+      );
     if (existing !== undefined) return { sessionId: existing.sessionId, resume: true };
     const sessionId = this.#createSessionId();
     const cwdReference = this.#orchestratorCwdReference(bot);

@@ -748,6 +748,8 @@ export function createCore(
     assignmentAccess,
     workspaceRoot: join(dshHome, 'botharness', 'runtime-workspaces'),
     orchestratorCwd,
+    sessionArchived: (sessionId) =>
+      options.workspaces?.()?.archivedSessionIds?.includes(sessionId) === true,
     ...(options.warn === undefined ? {} : { warn: options.warn }),
   });
   if (operationalDatabase.mode === 'ready') runtime.reconcileMemoryChangesOnStartup?.();

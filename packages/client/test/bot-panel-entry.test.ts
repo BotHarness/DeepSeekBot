@@ -44,6 +44,7 @@ const useBotModePrefs = ((selector: (value: BotModePrefsSnapshot) => unknown) =>
     autoAcceptGroupInvites: true,
     assignmentConcurrencyLimit: 3,
     developerMode: false,
+    showBotSessions: false,
     effectiveMotion: 'full',
     sortMode: 'updated',
     sortModes: {},

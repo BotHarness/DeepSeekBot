@@ -32,6 +32,7 @@ export interface DshWorkspace {
 export interface DshWorkspaceLookup {
   get(id: string): DshWorkspace | undefined;
   list(): DshWorkspace[];
+  readonly archivedSessionIds?: readonly string[];
 }
 export class WorkspaceGrantError extends Error {
   constructor(

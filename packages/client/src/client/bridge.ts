@@ -3211,6 +3211,15 @@ export async function loadSessionBotOwner(
   return parseSessionBotOwner(await unwrap(call, 'sessionOwner', { sessionId }, signal));
 }
 
+export async function loadBotSessionIds(call: BridgeCall, signal?: AbortSignal): Promise<string[]> {
+  const value = await unwrap(call, 'botSessionIds', {}, signal);
+  const ids =
+    typeof value === 'object' && value !== null
+      ? (value as { sessionIds?: unknown }).sessionIds
+      : [];
+  return Array.isArray(ids) ? ids.filter((id): id is string => typeof id === 'string') : [];
+}
+
 export async function loadSessions(
   call: BridgeCall,
   slug: string,

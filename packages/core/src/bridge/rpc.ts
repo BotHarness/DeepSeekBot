@@ -1155,6 +1155,10 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.sessionOwner({ sessionId }));
   }
 
+  botSessionIds(): { sessionIds: string[] } {
+    return unwrap(this.methods.botSessionIds({}));
+  }
+
   memoryFileTarget(slug: string, path: string): { target: MemoryFileTarget } {
     return unwrap(this.methods.memoryFileTarget({ slug, path }));
   }
@@ -1513,6 +1517,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'userQuestionAnswer',
   'sessions',
   'sessionOwner',
+  'botSessionIds',
   'memoryFileTarget',
   'memorySnapshot',
   'memoryFile',

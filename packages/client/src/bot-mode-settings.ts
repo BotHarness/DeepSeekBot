@@ -22,6 +22,10 @@ export const BOT_MODE_GROUP_AUTO_ACCEPT_FIELD = 'autoAcceptGroupInvites';
 
 export const DEFAULT_BOT_MODE_GROUP_AUTO_ACCEPT = true;
 
+export const BOT_MODE_SHOW_BOT_SESSIONS_FIELD = 'showBotSessions';
+
+export const DEFAULT_BOT_MODE_SHOW_BOT_SESSIONS = false;
+
 export const BOT_MODE_SORT_MODES = ['updated', 'manual'] as const;
 
 export const BOT_MODE_MOTION_PREFERENCES = ['system', 'reduce', 'full'] as const;
@@ -58,6 +62,7 @@ export interface BotModeSettings {
   assignmentConcurrencyLimit?: number;
   autoAcceptGroupInvites?: boolean;
   developerMode: boolean;
+  showBotSessions?: boolean;
   motionPreference: BotModeMotionPreference;
   botIcon: BotModeIcon;
   sortMode: BotModeSortMode;

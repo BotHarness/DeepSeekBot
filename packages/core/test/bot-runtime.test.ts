@@ -1531,3 +1531,65 @@ it('requests a folder in the DM and resumes the same Orchestrator after Human au
   await runtime.close();
   owner.close();
 });
+
+it('starts a new Orchestrator Session when DSH archived the current one', async () => {
+  const home = createTempRoot('botharness-archived-orchestrator-');
+  const registry = createTestRegistry({ rootDir: join(home, 'bots'), now: FIXED_NOW });
+  expect(registry.create({ slug: 'ada', displayName: 'Ada' }).ok).toBe(true);
+  const channels = createChannelStore({ rootDir: join(home, 'channels'), now: FIXED_NOW });
+  const dm = channels.getOrCreateDm('ada', 'Ada')!;
+  const owner = mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN });
+  const archived = new Set<string>();
+  const runs: Array<{ sessionId: string; resume: boolean }> = [];
+  let nextSession = 0;
+  const runtime = createBotRuntime({
+    database: owner,
+    registry,
+    channels,
+    sessionArchived: (sessionId) => archived.has(sessionId),
+    agents: {
+      runOrchestrator: async (run) => {
+        runs.push({ sessionId: run.sessionId, resume: run.resume });
+      },
+      runAssignment: async () => undefined,
+      requestAssignment: () => ({
+        delivery: 'followup' as const,
+        accepted: Promise.resolve(),
+        done: Promise.resolve(),
+      }),
+      close: async () => undefined,
+    },
+    now: FIXED_NOW,
+    createSessionId: () => `session-${++nextSession}`,
+    createEventId: () => `event-${++nextSession}`,
+    createMessageId: () => `message-${++nextSession}`,
+  });
+  const say = async (id: string, body: string): Promise<void> => {
+    await channels.appendMessage(dm.id, {
+      id,
+      at: FIXED_NOW().toISOString(),
+      author: { kind: 'human' },
+      body,
+    });
+    await admit(runtime, { channelId: dm.id, messageId: id, body });
+    await runtime.whenIdle();
+  };
+
+  await say('human-1', 'hello');
+  await say('human-2', 'still there?');
+  const first = runs[0]!.sessionId;
+  expect(runs.map((run) => run.sessionId)).toEqual([first, first]);
+  expect(runs[1]!.resume).toBe(true);
+
+  archived.add(first);
+  await say('human-3', 'hello again');
+  const replacement = runs[2]!;
+  expect(replacement.sessionId).not.toBe(first);
+  expect(replacement.resume).toBe(false);
+  expect(ownershipRows(owner).filter((row) => row.root_role === 'orchestrator')).toHaveLength(2);
+
+  await say('human-4', 'and again');
+  expect(runs[3]).toEqual({ sessionId: replacement.sessionId, resume: true });
+  await runtime.close();
+  owner.close();
+});

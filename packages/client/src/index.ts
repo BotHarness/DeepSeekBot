@@ -11,6 +11,7 @@ import {
   DEFAULT_BOT_MODE_DEVELOPER,
   DEFAULT_BOT_MODE_GROUP_AUTO_ACCEPT,
   DEFAULT_BOT_MODE_MOTION,
+  DEFAULT_BOT_MODE_SHOW_BOT_SESSIONS,
   DEFAULT_BOT_MODE_SORT,
   type BotModeIcon,
   type BotModeMotionPreference,
@@ -24,6 +25,7 @@ export interface Config {
   assignmentConcurrencyLimit: Volatile<number>;
   autoAcceptGroupInvites: Volatile<boolean>;
   developerMode: Volatile<boolean>;
+  showBotSessions: Volatile<boolean>;
   botIcon: Volatile<BotModeIcon>;
   motionPreference: Volatile<BotModeMotionPreference>;
   sortMode: Volatile<BotModeSortMode>;
@@ -39,6 +41,7 @@ export const Config: Schema<Partial<BotModeSettings>, Config> = Schema.object({
     .volatile(),
   autoAcceptGroupInvites: Schema.boolean().default(DEFAULT_BOT_MODE_GROUP_AUTO_ACCEPT).volatile(),
   developerMode: Schema.boolean().default(DEFAULT_BOT_MODE_DEVELOPER).volatile(),
+  showBotSessions: Schema.boolean().default(DEFAULT_BOT_MODE_SHOW_BOT_SESSIONS).volatile(),
   botIcon: Schema.union([...BOT_MODE_ICONS])
     .default(DEFAULT_BOT_MODE_ICON)
     .volatile(),
