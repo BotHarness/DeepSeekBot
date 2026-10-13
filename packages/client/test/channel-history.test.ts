@@ -116,6 +116,12 @@ describe('ended Channel history consent', () => {
       expect(f.actions.channelPurgeConfirm).not.toHaveBeenCalled();
       expect(f.onClose).not.toHaveBeenCalled();
       expect(f.host.textContent).toContain('synthetic-only');
+      await act(async () => f.source().click());
+      await f.click('预览内容清除范围');
+      const close = f.host.querySelector<HTMLButtonElement>('button[aria-label="关闭"]')!;
+      await act(async () => close.click());
+      expect(f.onClose).toHaveBeenCalledTimes(1);
+      expect(f.actions.channelPurgeConfirm).not.toHaveBeenCalled();
     } finally {
       await f.dispose();
     }

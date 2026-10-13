@@ -263,6 +263,8 @@ describe('editable creation starting points', () => {
         expect(caption.textContent).toContain(
           'Git 输出：git@github.com: Permission denied (publickey).',
         );
+        expect(() => buttonNamed('取消', host)).toThrow();
+        expect(host.querySelector('[data-https-fallback-done]')?.textContent).toBe('完成');
         await act(async () => buttonNamed('完成', host).click());
         expect(open).toHaveBeenCalledWith(expect.objectContaining({ slug: 'bot' }), undefined);
         expect(onCreated).toHaveBeenCalledOnce();

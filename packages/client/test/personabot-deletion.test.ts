@@ -208,6 +208,7 @@ describe('PersonaBot deletion dialog actions', () => {
     try {
       expect(host.textContent).toContain('记忆文件保留在上方位置。');
       expect(host.querySelector('input[type="checkbox"]')).toBeNull();
+      expect(() => buttonNamed('取消', host)).toThrow();
       const form = dialog().querySelector('form');
       await act(async () => form?.requestSubmit());
       expect(onClose).toHaveBeenCalledTimes(1);
