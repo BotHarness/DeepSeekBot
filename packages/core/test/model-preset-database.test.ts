@@ -8,7 +8,11 @@ import {
   type OperationalDatabaseOwner,
 } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
-import { createModelPresetStore, type ModelPreset } from '../src/models/presets.js';
+import {
+  createModelPresetStore,
+  isAssignmentModelOption,
+  type ModelPreset,
+} from '../src/models/presets.js';
 
 const homes: string[] = [];
 const owners: OperationalDatabaseOwner[] = [];
@@ -78,6 +82,40 @@ describe('Model Preset owning database persistence', () => {
     expect(reopened.list()).toEqual([updated]);
     rmSync(file);
     expect(reopened.get(legacy.id)).toEqual(updated);
+  });
+
+  it('keeps a usage note on an allowed Assignment model across a cold reopen', () => {
+    const root = home();
+    const owner = mount(root);
+    const assignmentModels = [
+      { ...legacy.assignmentModels![0]!, note: 'Use for hard debugging' },
+      {
+        provider: 'kimi',
+        model: 'k2',
+        allowedEfforts: [''],
+        defaultEffort: '',
+        note: 'Quick lookups',
+      },
+    ];
+    const created = createModelPresetStore({ rootDir: root, database: owner }).create({
+      name: 'Notes',
+      orchestrator: route,
+      assignmentDefault: route,
+      assignmentModels,
+    });
+    owner.close();
+    expect(
+      createModelPresetStore({ rootDir: root, database: mount(root) }).get(created.id)
+        ?.assignmentModels,
+    ).toEqual(assignmentModels);
+  });
+
+  it('rejects a blank or oversized usage note', () => {
+    const option = { provider: 'kimi', model: 'k2', allowedEfforts: [''], defaultEffort: '' };
+    expect(isAssignmentModelOption({ ...option, note: 'Quick lookups' })).toBe(true);
+    expect(isAssignmentModelOption({ ...option, note: '   ' })).toBe(false);
+    expect(isAssignmentModelOption({ ...option, note: 'x'.repeat(501) })).toBe(false);
+    expect(isAssignmentModelOption({ ...option, note: 3 })).toBe(false);
   });
 
   it('does not let diagnostics failure change the committed import outcome', () => {

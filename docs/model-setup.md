@@ -42,13 +42,13 @@ This page configures one Bot. Global **Bot settings** contain appearance, sortin
 
 Pick models directly in the dialog; no preset is needed.
 
-| Field / action      | Purpose                                                                                                           |
-| ------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| Main model          | The Bot's model for receiving messages, coordinating work, and everyday conversation. Type to filter the list.    |
-| Task model          | The default for delegated tasks when no other model is chosen.                                                    |
-| Reasoning effort    | An effort supported by the selected model. **Default** leaves it unspecified. Models may offer different options. |
-| Allowed task models | Other models a task may pick, and the efforts each one allows.                                                    |
-| Save                | Save these settings for this Bot. They apply from the next turn.                                                  |
+| Field / action   | Purpose                                                                                                                                                                                                                                                                                |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Main model       | The Bot's model for receiving messages, coordinating work, and everyday conversation. Type to filter the list.                                                                                                                                                                         |
+| Task model       | The default for delegated tasks when no other model is chosen.                                                                                                                                                                                                                         |
+| Reasoning effort | An effort supported by the selected model. **Default** leaves it unspecified. Models may offer different options.                                                                                                                                                                      |
+| Advanced         | Collapsed by default. Add other models a task may pick, tick the efforts each allows, and write an optional note on when to use each model, including the default. The Orchestrator reads the notes when it picks a model for a new task, so it can use a cheaper model where it fits. |
+| Save             | Save these settings for this Bot. They apply from the next turn.                                                                                                                                                                                                                       |
 
 ![The Model dialog opened from the sidebar](/guides/channel-sidebar/15-model-dialog-zh.webp)
 

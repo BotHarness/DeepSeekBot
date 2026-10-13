@@ -82,6 +82,15 @@ function draftOf(
   };
 }
 
+function withNote(
+  option: AssignmentModelOptionView,
+  note: string | undefined,
+): AssignmentModelOptionView {
+  const { note: _previous, ...rest } = option;
+  const trimmed = note?.trim() ?? '';
+  return trimmed === '' ? rest : { ...rest, note: trimmed };
+}
+
 function finalAllowed(draft: ModelDraft): AssignmentModelOptionView[] {
   const effort = draft.assignment.effort;
   const others = draft.allowed.filter((option) => modelKey(option) !== draft.assignment.key);
@@ -91,8 +100,11 @@ function finalAllowed(draft: ModelDraft): AssignmentModelOptionView[] {
     ? existing.allowedEfforts
     : [...(existing?.allowedEfforts ?? []), effort];
   return [
-    { provider: route.provider, model: route.model, allowedEfforts, defaultEffort: effort },
-    ...others,
+    withNote(
+      { provider: route.provider, model: route.model, allowedEfforts, defaultEffort: effort },
+      existing?.note,
+    ),
+    ...others.map((option) => withNote(option, option.note)),
   ];
 }
 
@@ -326,107 +338,160 @@ export function ModelPresetProfile({
     </>
   );
 
+  const noteInput = (key: string, name: string) => {
+    if (draft === undefined) return null;
+    const option = draft.allowed.find((item) => modelKey(item) === key);
+    return (
+      <Input
+        aria-label={t('modelPreset.noteLabel', { model: name })}
+        placeholder={t('modelPreset.notePlaceholder')}
+        value={option?.note ?? ''}
+        maxLength={500}
+        disabled={busy}
+        onChange={(event) => {
+          const note = event.target.value;
+          if (option !== undefined) {
+            edit({
+              allowed: draft.allowed.map((item) =>
+                modelKey(item) === key ? { ...item, note } : item,
+              ),
+            });
+            return;
+          }
+          const route = routeOfKey(key, draft.assignment.effort);
+          edit({
+            allowed: [
+              ...draft.allowed,
+              {
+                provider: route.provider,
+                model: route.model,
+                allowedEfforts: [draft.assignment.effort],
+                defaultEffort: draft.assignment.effort,
+                note,
+              },
+            ],
+          });
+        }}
+      />
+    );
+  };
+  const defaultName =
+    catalog?.find((item) => modelKey(item) === draft?.assignment.key)?.modelName ??
+    (draft === undefined ? '' : routeOfKey(draft.assignment.key, '').model);
   const allowedEditor =
     draft === undefined || catalog === undefined ? null : (
-      <div className="bh-model-allowed">
-        <div className="bh-model-picker-heading">
-          <strong>{t('modelPreset.allowedTitle')}</strong>
+      <details
+        className="bh-model-advanced"
+        open={draft.allowed.length > 1 || draft.allowed.some((item) => item.note !== undefined)}
+      >
+        <summary className="bh-model-picker-heading">
+          <strong>{t('modelPreset.advanced')}</strong>
           <span>{t('modelPreset.allowedHint')}</span>
-        </div>
-        {draft.allowed
-          .filter((option) => modelKey(option) !== draft.assignment.key)
-          .map((option) => {
-            const key = modelKey(option);
-            const entry = catalog.find((item) => modelKey(item) === key);
-            const name = entry?.modelName ?? option.model;
-            return (
-              <div key={key} className="bh-model-allowed-row">
-                <div className="bh-model-allowed-name">
-                  <span>{name}</span>
-                  <span className="bh-model-allowed-provider">
-                    {entry?.providerName ?? option.provider}
-                  </span>
-                  <Button
-                    variant="ghost"
-                    disabled={busy}
-                    aria-label={t('modelPreset.removeAllowed', { model: name })}
-                    onClick={() =>
-                      edit({ allowed: draft.allowed.filter((item) => modelKey(item) !== key) })
-                    }
-                  >
-                    ×
-                  </Button>
-                </div>
-                <div
-                  className="bh-model-allowed-efforts"
-                  aria-label={t('modelPreset.allowedEfforts')}
-                >
-                  {[
-                    { id: '', name: t('modelPreset.providerDefault') },
-                    ...(entry?.efforts ?? []),
-                  ].map((effort) => (
-                    <Checkbox
-                      key={effort.id}
-                      label={effort.name}
-                      checked={option.allowedEfforts.includes(effort.id)}
-                      disabled={
-                        busy ||
-                        (option.allowedEfforts.length === 1 &&
-                          option.allowedEfforts.includes(effort.id))
+        </summary>
+        <div className="bh-model-allowed">
+          <div className="bh-model-allowed-row">
+            <div className="bh-model-allowed-name">
+              <span>{defaultName}</span>
+              <Tag tone="neutral">{t('modelPreset.defaultModel')}</Tag>
+            </div>
+            {noteInput(draft.assignment.key, defaultName)}
+          </div>
+          {draft.allowed
+            .filter((option) => modelKey(option) !== draft.assignment.key)
+            .map((option) => {
+              const key = modelKey(option);
+              const entry = catalog.find((item) => modelKey(item) === key);
+              const name = entry?.modelName ?? option.model;
+              return (
+                <div key={key} className="bh-model-allowed-row">
+                  <div className="bh-model-allowed-name">
+                    <span>{name}</span>
+                    <span className="bh-model-allowed-provider">
+                      {entry?.providerName ?? option.provider}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      disabled={busy}
+                      aria-label={t('modelPreset.removeAllowed', { model: name })}
+                      onClick={() =>
+                        edit({ allowed: draft.allowed.filter((item) => modelKey(item) !== key) })
                       }
-                      onChange={(checked) => {
-                        const allowedEfforts = checked
-                          ? [...option.allowedEfforts, effort.id]
-                          : option.allowedEfforts.filter((id) => id !== effort.id);
-                        if (allowedEfforts.length === 0) return;
-                        edit({
-                          allowed: draft.allowed.map((item) =>
-                            modelKey(item) === key
-                              ? {
-                                  ...item,
-                                  allowedEfforts,
-                                  defaultEffort: allowedEfforts.includes(item.defaultEffort)
-                                    ? item.defaultEffort
-                                    : allowedEfforts[0]!,
-                                }
-                              : item,
-                          ),
-                        });
-                      }}
-                    />
-                  ))}
+                    >
+                      ×
+                    </Button>
+                  </div>
+                  <div
+                    className="bh-model-allowed-efforts"
+                    aria-label={t('modelPreset.allowedEfforts')}
+                  >
+                    {[
+                      { id: '', name: t('modelPreset.providerDefault') },
+                      ...(entry?.efforts ?? []),
+                    ].map((effort) => (
+                      <Checkbox
+                        key={effort.id}
+                        label={effort.name}
+                        checked={option.allowedEfforts.includes(effort.id)}
+                        disabled={
+                          busy ||
+                          (option.allowedEfforts.length === 1 &&
+                            option.allowedEfforts.includes(effort.id))
+                        }
+                        onChange={(checked) => {
+                          const allowedEfforts = checked
+                            ? [...option.allowedEfforts, effort.id]
+                            : option.allowedEfforts.filter((id) => id !== effort.id);
+                          if (allowedEfforts.length === 0) return;
+                          edit({
+                            allowed: draft.allowed.map((item) =>
+                              modelKey(item) === key
+                                ? {
+                                    ...item,
+                                    allowedEfforts,
+                                    defaultEffort: allowedEfforts.includes(item.defaultEffort)
+                                      ? item.defaultEffort
+                                      : allowedEfforts[0]!,
+                                  }
+                                : item,
+                            ),
+                          });
+                        }}
+                      />
+                    ))}
+                  </div>
+                  {noteInput(key, name)}
                 </div>
-              </div>
-            );
-          })}
-        <Combobox
-          value=""
-          options={modelOptions.filter(
-            (option) => !draft.allowed.some((item) => modelKey(item) === option.value),
-          )}
-          onSelect={(key) => {
-            const entry = catalog.find((item) => modelKey(item) === key);
-            if (entry === undefined) return;
-            const effort = entry.defaultEffort ?? '';
-            edit({
-              allowed: [
-                ...draft.allowed,
-                {
-                  provider: entry.provider,
-                  model: entry.model,
-                  allowedEfforts: [effort],
-                  defaultEffort: effort,
-                },
-              ],
-            });
-          }}
-          label={t('modelPreset.addAllowed')}
-          toggleLabel={t('modelPreset.showModels')}
-          placeholder={t('modelPreset.addAllowed')}
-          emptyLabel={t('modelPreset.noMatch')}
-          disabled={busy}
-        />
-      </div>
+              );
+            })}
+          <Combobox
+            value=""
+            options={modelOptions.filter(
+              (option) => !draft.allowed.some((item) => modelKey(item) === option.value),
+            )}
+            onSelect={(key) => {
+              const entry = catalog.find((item) => modelKey(item) === key);
+              if (entry === undefined) return;
+              const effort = entry.defaultEffort ?? '';
+              edit({
+                allowed: [
+                  ...draft.allowed,
+                  {
+                    provider: entry.provider,
+                    model: entry.model,
+                    allowedEfforts: [effort],
+                    defaultEffort: effort,
+                  },
+                ],
+              });
+            }}
+            label={t('modelPreset.addAllowed')}
+            toggleLabel={t('modelPreset.showModels')}
+            placeholder={t('modelPreset.addAllowed')}
+            emptyLabel={t('modelPreset.noMatch')}
+            disabled={busy}
+          />
+        </div>
+      </details>
     );
 
   return (

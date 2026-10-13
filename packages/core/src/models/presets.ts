@@ -15,7 +15,10 @@ export interface AssignmentModelOption {
   model: string;
   allowedEfforts: string[];
   defaultEffort: string;
+  note?: string;
 }
+
+export const ASSIGNMENT_MODEL_NOTE_MAX = 500;
 
 export interface ModelPreset {
   id: string;
@@ -98,7 +101,11 @@ export function isAssignmentModelOption(value: unknown): value is AssignmentMode
     efforts.every((effort) => typeof effort === 'string') &&
     new Set(efforts).size === efforts.length &&
     typeof option['defaultEffort'] === 'string' &&
-    efforts.includes(option['defaultEffort'])
+    efforts.includes(option['defaultEffort']) &&
+    (option['note'] === undefined ||
+      (typeof option['note'] === 'string' &&
+        option['note'].trim().length > 0 &&
+        option['note'].length <= ASSIGNMENT_MODEL_NOTE_MAX))
   );
 }
 
@@ -231,6 +238,7 @@ function presetRecord(preset: ModelPreset): ModelPreset {
             model: option.model,
             allowedEfforts: [...option.allowedEfforts],
             defaultEffort: option.defaultEffort,
+            ...(option.note === undefined ? {} : { note: option.note }),
           })),
         }),
   };

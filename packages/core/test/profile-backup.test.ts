@@ -227,6 +227,7 @@ it('preserves independent model snapshots, Assignment choices and template revis
       model: reasoning.model,
       allowedEfforts: ['low', 'high'],
       defaultEffort: 'high',
+      note: 'Use for hard debugging',
     },
   ];
   const template = core.modelPresets.create({

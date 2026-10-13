@@ -478,6 +478,61 @@ describe('Model entry', () => {
     expect(cards(host)).toContain('+1 allowed');
   });
 
+  it('saves a trimmed usage note for the default and each allowed task model', async () => {
+    const route = { provider: 'deepseek', model: 'pro' };
+    const plan: ModelPlanView = {
+      revision: 2,
+      sourcePresetId: '',
+      sourcePresetName: '',
+      orchestrator: route,
+      assignmentDefault: route,
+      appliedAt: '',
+    };
+    const setModelPlan = vi.fn(async () => plan);
+    const host = await render({
+      modelPlanState: vi.fn(async () => ({ plan })),
+      modelPresets: vi.fn(async () => []),
+      modelCatalog: vi.fn(async () => ({ models: catalog })),
+      setModelPlan,
+    } as unknown as BridgeActions);
+    await openEditor(host);
+    const advanced = document.querySelector<HTMLDetailsElement>('details.bh-model-advanced')!;
+    expect(advanced.open).toBe(false);
+    expect(advanced.querySelector('summary')?.textContent).toContain(
+      'Advanced: let tasks pick a model',
+    );
+    await choose('Add an allowed model', 'kimi', 'Kimi K2');
+    const type = async (label: string, value: string) => {
+      const input = document.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`)!;
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+          input,
+          value,
+        );
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+    };
+    await type('When to use Pro', '  Hard debugging  ');
+    await type('When to use Kimi K2', 'Quick lookups');
+    await act(async () => button('Save').click());
+    expect(setModelPlan).toHaveBeenCalledExactlyOnceWith('ada', 2, route, route, [
+      {
+        provider: 'deepseek',
+        model: 'pro',
+        allowedEfforts: [''],
+        defaultEffort: '',
+        note: 'Hard debugging',
+      },
+      {
+        provider: 'kimi',
+        model: 'k2',
+        allowedEfforts: [''],
+        defaultEffort: '',
+        note: 'Quick lookups',
+      },
+    ]);
+  });
+
   it('keeps a saved plan when an older editor load finishes later', async () => {
     const route = { provider: 'deepseek', model: 'pro' };
     let plan: ModelPlanView = {

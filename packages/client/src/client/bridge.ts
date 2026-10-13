@@ -144,6 +144,7 @@ export interface AssignmentModelOptionView {
   model: string;
   allowedEfforts: string[];
   defaultEffort: string;
+  note?: string;
 }
 
 export interface ModelCatalogEntryView {

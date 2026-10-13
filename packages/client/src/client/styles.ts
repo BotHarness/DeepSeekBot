@@ -5078,9 +5078,26 @@ html[data-botharness-motion='reduce'] .bh-composer-footer {
   padding-bottom: 14px;
   border-bottom: 1px solid var(--dsw-alias-border-l2);
 }
-.bh-model-allowed {
+.bh-model-advanced {
   padding-top: 14px;
   border-top: 1px solid var(--dsw-alias-border-l2);
+}
+.bh-model-advanced > summary {
+  cursor: pointer;
+  list-style: none;
+}
+.bh-model-advanced > summary::-webkit-details-marker {
+  display: none;
+}
+.bh-model-advanced > summary > strong::before {
+  content: '▸ ';
+  color: var(--dsw-alias-label-secondary);
+}
+.bh-model-advanced[open] > summary > strong::before {
+  content: '▾ ';
+}
+.bh-model-advanced[open] > .bh-model-allowed {
+  margin-top: 8px;
 }
 .bh-model-allowed-row {
   display: flex;

@@ -223,6 +223,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
                 model: option.model,
                 allowedEfforts: [...option.allowedEfforts],
                 defaultEffort: option.defaultEffort,
+                ...(option.note === undefined ? {} : { note: option.note }),
               })),
             }),
       };

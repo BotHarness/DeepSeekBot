@@ -712,7 +712,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
         defineTool({
           name: 'list_assignment_models',
           description:
-            'Read the Human-approved provider/model and effort choices for new Assignments, including each model’s default effort and the overall default model. Call before selecting a non-default route.',
+            'Read the Human-approved provider/model and effort choices for new Assignments, including each model’s default effort, the overall default model, and any Human note on when to use a model. Call before selecting a non-default route, and follow the notes to pick the cheapest choice that fits the task.',
           parameters: {},
           output: {
             schema: { type: 'string' },
