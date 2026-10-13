@@ -229,6 +229,7 @@ export function PersonaBotDeletionView({
       }}
       title={t('deletion.title')}
       closeLabel={t('common.cancel')}
+      className="bh-sidebar-modal bh-bot-deletion-modal"
       footer={
         <>
           <Button variant="outline" disabled={busy} onClick={onClose}>

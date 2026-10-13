@@ -2737,6 +2737,7 @@ canvas.bh-banner-art { image-rendering: pixelated; }
 .bh-primary-color-row-copy { display: flex; flex: 1; min-width: 0; flex-direction: column; }
 .bh-primary-color-row-title { font-size: 13px; color: var(--dsw-alias-label-primary); }
 .bh-primary-color-modal { width: min(520px, calc(100vw - 32px)); }
+.bh-sidebar-modal.bh-bot-deletion-modal { width: min(560px, calc(100vw - 32px)); }
 .bh-primary-color-editor { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .bh-primary-color-editor > p { margin: 0; }
 .bh-primary-color-custom { display: flex; flex-direction: column; gap: 10px; }
