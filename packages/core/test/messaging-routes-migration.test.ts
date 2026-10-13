@@ -36,7 +36,9 @@ it('preserves canonical content and admission snapshots while allowing distinct 
   const current = mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN });
   expect(current.mode).toBe('ready');
   const port = attachOperationalModule(current, 'test');
-  expect(port.read((db) => db.prepare('SELECT * FROM inbox_admissions').all())).toEqual(before);
+  expect(port.read((db) => db.prepare('SELECT * FROM inbox_admissions').all())).toMatchObject(
+    before,
+  );
   port.transaction((db) =>
     db.prepare("INSERT INTO channel_placements VALUES ('two',1,'source','source')").run(),
   );

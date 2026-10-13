@@ -1,0 +1,177 @@
+import { describe, expect, it } from 'vitest';
+import { attachOperationalModule } from '../src/database/owner.js';
+import { createCore } from '../src/plugin.js';
+import type { BotAgentAdapter, OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
+import { createTempRoot } from './helpers.js';
+
+type TurnHook = (run: OrchestratorAgentRun) => unknown;
+
+async function fixture() {
+  const home = createTempRoot('botharness-inbox-triage-');
+  const runs: OrchestratorAgentRun[] = [];
+  const hooks: TurnHook[] = [];
+  const results: unknown[] = [];
+  const adapter: BotAgentAdapter = {
+    async runOrchestrator(run) {
+      runs.push(run);
+      const hook = hooks.shift();
+      if (hook !== undefined) results.push(await hook(run));
+    },
+    async runAssignment() {},
+    requestAssignment() {
+      throw new Error('No Assignment expected');
+    },
+    async close() {},
+  };
+  const core = createCore({ dshHome: home, agents: adapter });
+  core.registry.create({ slug: 'ada', displayName: 'Ada' });
+  const dm = core.channels.getOrCreateDm('ada', 'Ada');
+  if (dm === undefined) throw new Error('Missing DM');
+  const probe = attachOperationalModule(core.operationalDatabase, 'inbox-triage-test');
+  let sequence = 0;
+  async function send(body: string, hook?: TurnHook) {
+    if (hook !== undefined) hooks.push(hook);
+    sequence += 1;
+    const messageId = `human-${sequence}`;
+    const admission = core.runtime.admitDmMessage({ channelId: dm!.id, messageId, body });
+    if (!admission.admitted) throw new Error('Not admitted');
+    await admission.settled;
+    await core.runtime.whenIdle();
+    const row = probe.read((db) =>
+      db.prepare('SELECT source_event_id FROM source_events WHERE message_id = ?').get(messageId),
+    ) as { source_event_id: string } | undefined;
+    if (row === undefined) throw new Error('Missing Source Event');
+    return row.source_event_id;
+  }
+  function state(id: string) {
+    return core.attention.list({ botSlug: 'ada', limit: 100 }).items.find((item) => item.id === id)
+      ?.state;
+  }
+  async function close() {
+    await core.runtime.close();
+    core.operationalDatabase.close();
+  }
+  return { core, dm, runs, results, send, state, close };
+}
+
+describe('Orchestrator-resolved Bot Inbox', () => {
+  it('leaves an item open after a turn and summarizes older open items in the next turn', async () => {
+    const f = await fixture();
+    try {
+      const first = await f.send('Please review PR 12 before Friday');
+      expect(f.state(first)).toBe('open');
+      expect(f.runs[0]!.inbox).not.toContain('[Open Inbox]');
+
+      const second = await f.send('Unrelated: book the team dinner');
+      expect(f.state(first)).toBe('open');
+      expect(f.state(second)).toBe('open');
+      const block = f.runs[1]!.inbox;
+      expect(block).toContain('[Open Inbox] 1 item');
+      expect(block).toContain('Please review PR 12');
+      expect(block).toContain(first);
+      expect(block).toContain('inbox_list');
+      expect(block).not.toContain('book the team dinner');
+    } finally {
+      await f.close();
+    }
+  }, 60000);
+
+  it('lists open items grouped by conversation and resolves them by id', async () => {
+    const f = await fixture();
+    try {
+      const first = await f.send('Please review PR 12');
+      const second = await f.send('Also check the PR 12 changelog');
+      let page: ReturnType<NonNullable<OrchestratorAgentRun['triage']>['list']> | undefined;
+      const third = await f.send('Thanks, that is all for PR 12', (run) => {
+        page = run.triage!.list();
+        return run.triage!.resolve({
+          ids: [first, second],
+          outcome: 'done',
+          note: 'Reviewed PR 12',
+        });
+      });
+      expect(page).toMatchObject({
+        total: 2,
+        groups: [{ channelId: f.dm.id, count: 2, ids: [second, first] }],
+      });
+      expect(page!.groups[0]!.latest).toContain('PR 12 changelog');
+      expect(f.results[0]).toMatchObject({
+        outcome: 'resolved',
+        resolved: [first, second].sort(),
+        alreadyResolved: [],
+      });
+      expect(f.state(first)).toBe('handled');
+      expect(f.state(second)).toBe('handled');
+      expect(f.state(third)).toBe('open');
+      await f.send('What did you do about PR 12?', (run) => run.inboxHistory!({ limit: 10 }));
+      const history = f.results[1] as {
+        items: Array<{ sourceEventId: string; resolutionNote?: string }>;
+      };
+      expect(history.items.find((item) => item.sourceEventId === first)?.resolutionNote).toBe(
+        'Reviewed PR 12',
+      );
+    } finally {
+      await f.close();
+    }
+  }, 60000);
+
+  it('resolves the item that woke the current turn so it never becomes open', async () => {
+    const f = await fixture();
+    try {
+      let id = '';
+      id = await f.send('FYI the build is green', (run) =>
+        run.triage!.resolve({ ids: [run.triage!.current()[0]!], outcome: 'done' }),
+      );
+      expect(f.results[0]).toMatchObject({ outcome: 'resolved', resolved: [id] });
+      expect(f.state(id)).toBe('handled');
+    } finally {
+      await f.close();
+    }
+  }, 60000);
+
+  it('resolves a filter only after confirming the matched count', async () => {
+    const f = await fixture();
+    try {
+      const a = await f.send('Newsletter one');
+      const b = await f.send('Newsletter two');
+      await f.send('Clear the newsletters', async (run) => {
+        const preview = run.triage!.resolve({ filter: { channelId: f.dm.id }, outcome: 'ignored' });
+        if (preview.outcome !== 'confirm') throw new Error('Expected a confirmation');
+        const stale = run.triage!.resolve({
+          filter: { channelId: f.dm.id },
+          outcome: 'done',
+          confirm: preview.token,
+        });
+        const done = run.triage!.resolve({
+          filter: { channelId: f.dm.id },
+          outcome: 'ignored',
+          confirm: preview.token,
+          note: 'Newsletters need no action',
+        });
+        return { preview, stale, done };
+      });
+      const { preview, stale, done } = f.results[0] as Record<string, unknown>;
+      expect(preview).toMatchObject({ outcome: 'confirm', count: 2, token: expect.any(String) });
+      expect(stale).toMatchObject({ outcome: 'confirm', count: 2 });
+      expect(done).toMatchObject({ outcome: 'resolved', resolved: [a, b].sort() });
+      expect(f.state(a)).toBe('ignored');
+      expect(f.state(b)).toBe('ignored');
+    } finally {
+      await f.close();
+    }
+  }, 60000);
+
+  it('refuses ids that are not this Bot’s seen admissions', async () => {
+    const f = await fixture();
+    try {
+      await f.send('Hello', (run) => {
+        expect(() => run.triage!.resolve({ ids: ['missing'], outcome: 'done' })).toThrow(/missing/);
+        expect(() => run.triage!.resolve({ outcome: 'done' })).toThrow(/ids or a filter/);
+        expect(() => run.triage!.list({ limit: 0 })).toThrow();
+      });
+      expect(f.results).toHaveLength(1);
+    } finally {
+      await f.close();
+    }
+  }, 60000);
+});

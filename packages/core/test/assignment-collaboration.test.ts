@@ -302,7 +302,7 @@ describe('Assignment collaboration', () => {
       const notice = items.find((i) => i.sourceKind === 'assignment-lifecycle')!;
       expect(items.filter((i) => i.sourceKind === 'assignment-lifecycle')).toHaveLength(1);
       expect(report).toMatchObject({
-        state: 'handled',
+        state: 'open',
         authorKind: 'bot',
         authorBotSlug: 'ada',
         sourceAvailable: true,
@@ -332,7 +332,7 @@ describe('Assignment collaboration', () => {
         createBotAttentionQuery(port, channels)
           .list({ botSlug: 'ada' })
           .items.find((i) => i.id === notice.id)?.state,
-      ).toBe('handled');
+      ).toBe('open');
     } finally {
       await close();
     }
@@ -407,7 +407,7 @@ describe('Assignment collaboration', () => {
         expect(notice).toMatchObject({
           authorKind: 'system',
           assignmentTurn: 1,
-          state: 'handled',
+          state: 'open',
           sourceAvailable: true,
         });
         expect(notice.relatedReportSourceEventId).toBeUndefined();
@@ -416,7 +416,7 @@ describe('Assignment collaboration', () => {
         );
         expect(before.find((i) => i.id === original.id)).toMatchObject({
           ...original,
-          state: 'handled',
+          state: 'open',
           assignmentReportState: 'progress',
         });
         expect(agents.inboxTurns).toHaveLength(1);
@@ -471,7 +471,9 @@ describe('Assignment collaboration', () => {
         });
         if (!reviewed.admitted) throw new Error('Review admission rejected');
         await reviewed.settled;
-        expect(recoveredAgents.allInboxTurns.at(-1)).not.toContain(notice.id);
+        expect(recoveredAgents.allInboxTurns.at(-1)?.split('[Open Inbox]')[0]).not.toContain(
+          notice.id,
+        );
         expect(recoveredAgents.started).toHaveLength(0);
       } finally {
         await recovered?.close();
@@ -506,7 +508,7 @@ describe('Assignment collaboration', () => {
         assignmentSessionId: run.sessionId,
         assignmentTurn: 1,
         authorKind: 'bot',
-        state: 'handled',
+        state: 'open',
         summary: 'Required input is unavailable',
       });
       expect(agents.inboxTurns[0]).toContain(before[0]!.id);
@@ -643,7 +645,7 @@ describe('Assignment collaboration', () => {
         createBotAttentionQuery(attachOperationalModule(reopenedOwner, 'late-result'), channels)
           .list({ botSlug: 'ada' })
           .items.find((i) => i.id === noticeId)?.state,
-      ).toBe('handled');
+      ).toBe('open');
     } finally {
       await reopenedRuntime.close();
       reopenedOwner.close();
@@ -1833,12 +1835,12 @@ describe('Assignment collaboration', () => {
     ).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          state: 'handled',
+          state: 'open',
           assignmentReportState: 'completed',
           assignmentSessionId: sessionId,
         }),
         expect.objectContaining({
-          state: 'handled',
+          state: 'open',
           assignmentReportState: 'progress',
           assignmentSessionId: sessionId,
         }),
@@ -2303,11 +2305,11 @@ describe('Assignment collaboration', () => {
         if (hasReport)
           expect(after.find((i) => i.id === before[0]!.id)).toMatchObject({
             ...before[0],
-            state: 'handled',
+            state: 'open',
           });
         expect(notice).toMatchObject({
           authorKind: 'system',
-          state: 'handled',
+          state: 'open',
           sourceAvailable: true,
         });
         expect(notice.assignmentTurn).toBeUndefined();
@@ -2506,7 +2508,7 @@ describe('Assignment collaboration', () => {
       expect(
         attention.list({ botSlug: 'ada' }).items.find((item) => item.id === reportId),
       ).toMatchObject({
-        state: 'handled',
+        state: 'open',
         assignmentReportState: 'completed',
       });
     } finally {
@@ -2712,7 +2714,7 @@ describe('Assignment collaboration', () => {
       const final = attention.list({ botSlug: 'ada' }).items;
       expect(final.find((item) => item.id === repairSourceId)).toEqual(repairSource);
       expect(final.find((item) => item.summary === 'Later informational update')).toMatchObject({
-        state: 'handled',
+        state: 'open',
       });
     } finally {
       await reopenedRuntime.close();

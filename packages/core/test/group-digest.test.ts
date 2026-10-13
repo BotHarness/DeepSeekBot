@@ -729,7 +729,7 @@ describe('Group ordinary-message digest', () => {
       expect(resumedAttention).toHaveLength(2);
       expect(resumedAttention).toEqual(
         expect.arrayContaining([
-          expect.objectContaining({ sourceMessageId: 'mention-after-silent', state: 'handled' }),
+          expect.objectContaining({ sourceMessageId: 'mention-after-silent', state: 'open' }),
           expect.objectContaining({ sourceMessageId: 'quiet', state: 'pending' }),
         ]),
       );

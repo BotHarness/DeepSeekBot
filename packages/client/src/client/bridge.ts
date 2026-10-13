@@ -2976,6 +2976,7 @@ function parseBotAttentionItem(value: unknown): BotAttentionItem | undefined {
       'observed',
       'deferred',
       'needs-repair',
+      'open',
       'handled',
       'ignored',
     ].includes(String(row['state']))

@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import type { SQLInputValue } from 'node:sqlite';
 import type { ChannelStore } from '../channels/store.js';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
-import type { BotAttentionState } from './attention.js';
+import { ATTENTION_STATE_SQL, type BotAttentionState } from './attention.js';
 
 export interface InboxHistoryInput {
   query?: string;
@@ -24,6 +24,7 @@ export interface InboxHistoryItem {
   channelId?: string;
   channelName?: string;
   causeSourceEventId?: string;
+  resolutionNote?: string;
   snippet: string;
 }
 
@@ -46,6 +47,7 @@ interface HistoryRow {
   state: BotAttentionState;
   channel_id: string | null;
   cause_source_event_id: string | null;
+  resolution_note: string | null;
   snippet: string;
 }
 
@@ -67,16 +69,8 @@ const FIELDS = `
   coalesce(e.channel_id, (SELECT p.channel_id FROM channel_placements p
     WHERE p.source_event_id = e.source_event_id ORDER BY p.channel_id LIMIT 1)) AS channel_id,
   ${CAUSE} AS cause_source_event_id,
-  CASE
-    WHEN a.attempt_state = 'needs-repair' THEN 'needs-repair'
-    WHEN a.ignored_at IS NOT NULL AND a.attempt_state = 'handled' THEN 'ignored'
-    WHEN a.attempt_state = 'handled' THEN 'handled'
-    WHEN a.attempt_state = 'running' THEN 'processing'
-    WHEN a.attempt_state = 'retryable' OR
-      (a.reason = 'group-ordinary' AND a.wake_count IS NOT NULL AND a.attempt_state = 'pending')
-      THEN 'deferred'
-    ELSE 'pending'
-  END AS state
+  a.resolution_note,
+  ${ATTENTION_STATE_SQL} AS state
 `;
 
 function cursorDecode(value: string): HistoryCursor {
@@ -153,6 +147,7 @@ export function createInboxHistoryQuery(
     ...(row.cause_source_event_id === null
       ? {}
       : { causeSourceEventId: row.cause_source_event_id }),
+    ...(row.resolution_note === null ? {} : { resolutionNote: row.resolution_note }),
     snippet: Array.from(row.snippet).slice(0, 300).join(''),
   });
 

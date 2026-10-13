@@ -70,6 +70,7 @@ const INBOX_STATE_TONE = {
   observed: 'info',
   deferred: 'neutral',
   'needs-repair': 'danger',
+  open: 'outline',
   handled: 'success',
   ignored: 'quiet',
 } as const;

@@ -359,6 +359,7 @@ export type BotAttentionStatus =
   | 'observed'
   | 'deferred'
   | 'needs-repair'
+  | 'open'
   | 'handled'
   | 'ignored';
 

@@ -24,14 +24,17 @@ An Inbox Admission is in one of three primary states:
 
 A snoozed item is open but hidden until it returns.
 
-A turn ending no longer resolves anything. It moves what the turn observed from unread to open. This applies uniformly to every source, including Assignment progress reports and Host lifecycle notices. Bot Self-Records keep being admitted already resolved (ADR-0154).
+A turn ending no longer resolves anything. It moves what the turn observed from unread to open. This applies uniformly to every source addressed to the Bot: Human and Bot DMs, Group mentions, Bot Schedule firings, Assignment reports and Host lifecycle notices. Ambient Group messages that do not mention the Bot and Memory change observations stay context: a successful turn still marks them handled, so they never crowd the open list. Group invitations and join requests keep their own pending decision on the Group and settle when the Bot answers them, so they never open either. Bot Self-Records keep being admitted already resolved (ADR-0154).
+
+The existing attempt state stays the execution fact (pending, running, retryable, needs repair, handled by a successful turn). Resolution is stored beside it on the Inbox Admission: when a turn first observed it, when and by which Orchestrator Session it was resolved, the outcome and the note. Admissions handled before this change are not reopened.
 
 New Orchestrator tools:
 
 - `inbox_list`: lists open items. Filters are source kind, Channel, Assignment, author and time. Items in the same thread or Channel conversation are grouped into one row with a count. Paging uses an opaque cursor.
 - `inbox_resolve`: takes either `ids[]` or a filter, plus `outcome` (`done | ignored`) and a short `note` that is kept in the Inbox diary.
   - A filter call first returns a count and a confirmation token. Only a second call with that token resolves the items. This is the "mark all read" path.
-  - It replaces `inbox_ignore`.
+  - An id may also name an item of the current turn, which is then resolved before it ever becomes open.
+  - `inbox_ignore` stays as the by-message-id shortcut for one Channel message, including one not yet observed; it records the same ignored outcome.
 - `inbox_snooze`: takes `ids[]` or a filter, `until` and `note`.
   - The item leaves the open list.
   - At `until` it returns as unread and wakes the Orchestrator. It returns early if a new Source Event arrives in the same thread or Channel conversation.

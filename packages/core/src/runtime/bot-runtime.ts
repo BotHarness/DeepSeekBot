@@ -47,6 +47,11 @@ import {
   type InboxHistoryPage,
   type InboxHistoryQuery,
 } from './inbox-history.js';
+import {
+  createInboxTriage,
+  type InboxTriage,
+  type OrchestratorInboxTriage,
+} from './inbox-triage.js';
 import { join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 
@@ -260,6 +265,7 @@ export interface OrchestratorAssignmentAccess {
 
 export interface OrchestratorAgentRun {
   inboxHistory?(input?: InboxHistoryInput): InboxHistoryPage;
+  triage?: OrchestratorInboxTriage;
   acceptNativeInput?: () => boolean;
   requireContent?(): void;
   sessionId: string;
@@ -1070,6 +1076,7 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #registry: PersonaBotRegistry;
   readonly #channels: ChannelStore;
   readonly #inboxHistory: InboxHistoryQuery;
+  readonly #inboxTriage: InboxTriage;
   readonly #sourcePolicy: BotSourcePolicyStore;
   readonly #schedules: BotRuntimeOptions['schedules'];
   readonly #agents: BotAgentAdapter;
@@ -1143,6 +1150,7 @@ class BotRuntimeImplementation implements BotRuntime {
         options.channels,
         options.now,
       );
+    this.#inboxTriage = createInboxTriage(this.#database, options.channels, options.now);
     this.#sourcePolicy =
       options.sourcePolicy ?? createBotSourcePolicyStore(this.#database, options.now);
     this.#schedules = options.schedules;
@@ -1868,11 +1876,14 @@ class BotRuntimeImplementation implements BotRuntime {
         UPDATE inbox_admissions
            SET attempt_state = ?,
                handled_at = CASE WHEN ? THEN ? ELSE handled_at END,
+               opened_at = CASE WHEN ? THEN COALESCE(opened_at, ?) ELSE opened_at END,
                last_error = CASE WHEN ? THEN NULL ELSE 'Steered Orchestrator turn failed' END
          WHERE source_event_id = ? AND bot_slug = ? AND attempt_state = 'running'
       `)
             .run(
               succeeded ? 'handled' : 'needs-repair',
+              succeeded ? 1 : 0,
+              this.#now().toISOString(),
               succeeded ? 1 : 0,
               this.#now().toISOString(),
               succeeded ? 1 : 0,
@@ -2683,10 +2694,11 @@ class BotRuntimeImplementation implements BotRuntime {
         for (const id of sourceEventIds)
           database
             .prepare(`
-          UPDATE inbox_admissions SET attempt_state = 'handled', handled_at = ?
+          UPDATE inbox_admissions
+             SET attempt_state = 'handled', handled_at = ?, opened_at = COALESCE(opened_at, ?)
            WHERE source_event_id = ? AND bot_slug = ? AND attempt_state = 'running'
         `)
-            .run(this.#now().toISOString(), id, botSlug);
+            .run(this.#now().toISOString(), this.#now().toISOString(), id, botSlug);
       },
       ['bot-inbox'],
     );
@@ -3371,10 +3383,10 @@ class BotRuntimeImplementation implements BotRuntime {
         database
           .prepare(`
           UPDATE inbox_admissions
-             SET handled_at = ?, attempt_state = 'handled'
+             SET handled_at = ?, attempt_state = 'handled', opened_at = COALESCE(opened_at, ?)
            WHERE source_event_id = ? AND bot_slug = ?
         `)
-          .run(handledAt, claim.sourceEventId, bot.slug);
+          .run(handledAt, handledAt, claim.sourceEventId, bot.slug);
       },
       ['source-event', 'bot-inbox'],
     );
@@ -3498,7 +3510,12 @@ class BotRuntimeImplementation implements BotRuntime {
         : { units: [], eventIds: [] };
       memoryEventIds = memoryInbox.eventIds;
       const units = [...inboxUnits, ...memoryInbox.units];
-      const inbox = units.length === 0 ? '' : renderInbox(units);
+      const inbox = [
+        units.length === 0 ? '' : renderInbox(units),
+        this.#inboxTriage.openSummary(bot.slug),
+      ]
+        .filter((part) => part.length > 0)
+        .join('\n\n');
       this.#setObserved(memoryEventIds, this.#now().toISOString());
       if (observeMemory)
         this.#activeMemoryEvents.set(bot.slug, {
@@ -3679,6 +3696,13 @@ class BotRuntimeImplementation implements BotRuntime {
               },
             }),
         inboxHistory: (input) => this.#inboxHistory.list(bot.slug, input),
+        triage: this.#inboxTriage.access({
+          botSlug: bot.slug,
+          sessionId: orchestrator.sessionId,
+          current: () => [...turnSources, ...readAdmissions],
+          changed: (changedChannelId, messageId) =>
+            this.#channels.admissionChanged?.(changedChannelId, messageId),
+        }),
         channels: this.#channelAccess(
           bot.slug,
           channelId,
@@ -4774,6 +4798,9 @@ class BotRuntimeImplementation implements BotRuntime {
               .prepare(`
                 UPDATE inbox_admissions
                    SET ignored_at = ?, ignored_by_session_id = ?,
+                       resolved_at = COALESCE(resolved_at, ?),
+                       resolution = COALESCE(resolution, 'ignored'),
+                       resolved_by_session_id = COALESCE(resolved_by_session_id, ?),
                        observed_at = COALESCE(observed_at, ?),
                        attempt_state = CASE
                          WHEN attempt_state IN ('pending', 'retryable', 'running') THEN 'handled'
@@ -4783,7 +4810,16 @@ class BotRuntimeImplementation implements BotRuntime {
                          ELSE handled_at END
                  WHERE source_event_id = ? AND bot_slug = ? AND ignored_at IS NULL
               `)
-              .run(ignoredAt, sessionId, ignoredAt, ignoredAt, row.source_event_id, botSlug);
+              .run(
+                ignoredAt,
+                sessionId,
+                ignoredAt,
+                sessionId,
+                ignoredAt,
+                ignoredAt,
+                row.source_event_id,
+                botSlug,
+              );
             return { sourceEventId: row.source_event_id, ignoredAt, alreadyIgnored: false };
           },
           ['bot-inbox'],
@@ -6691,13 +6727,20 @@ class BotRuntimeImplementation implements BotRuntime {
       (database) => {
         database
           .prepare(`
-            UPDATE inbox_admissions SET attempt_state = 'handled', handled_at = ?
+            UPDATE inbox_admissions
+               SET attempt_state = 'handled', handled_at = ?, opened_at = COALESCE(opened_at, ?)
              WHERE reason IN ('assignment-report', 'assignment-lifecycle', 'memory-change', 'schedule', 'group-mention', 'group-ordinary', 'human-dm')
                AND attempt_state = 'running'
                AND (? IS NULL OR bot_slug = ?)
                AND source_event_id IN (${placeholders})
           `)
-          .run(this.#now().toISOString(), botSlug ?? null, botSlug ?? null, ...sourceEventIds);
+          .run(
+            this.#now().toISOString(),
+            this.#now().toISOString(),
+            botSlug ?? null,
+            botSlug ?? null,
+            ...sourceEventIds,
+          );
         if (sessionId !== undefined)
           database
             .prepare(`

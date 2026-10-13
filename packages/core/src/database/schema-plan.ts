@@ -2075,6 +2075,25 @@ const ASSIGNMENT_ARCHIVE_MIGRATION: SchemaMigration = {
   },
 };
 
+const INBOX_RESOLUTION_MIGRATION: SchemaMigration = {
+  generation: 85,
+  module: 'bot-inbox',
+  description: 'Keep Inbox Admissions open until the Orchestrator resolves them (ADR-0188)',
+  migrate(database) {
+    database.exec(`
+      ALTER TABLE inbox_admissions ADD COLUMN opened_at TEXT;
+      ALTER TABLE inbox_admissions ADD COLUMN resolved_at TEXT;
+      ALTER TABLE inbox_admissions ADD COLUMN resolution TEXT
+        CHECK (resolution IS NULL OR resolution IN ('done', 'ignored'));
+      ALTER TABLE inbox_admissions ADD COLUMN resolution_note TEXT;
+      ALTER TABLE inbox_admissions ADD COLUMN resolved_by_session_id TEXT;
+      CREATE INDEX inbox_admissions_open
+        ON inbox_admissions (bot_slug, opened_at)
+        WHERE opened_at IS NOT NULL AND resolved_at IS NULL AND ignored_at IS NULL;
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -2159,4 +2178,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   EXTERNAL_TOOL_RULE_CREATOR_MIGRATION,
   FAILURE_ALERT_MIGRATION,
   ASSIGNMENT_ARCHIVE_MIGRATION,
+  INBOX_RESOLUTION_MIGRATION,
 ]);

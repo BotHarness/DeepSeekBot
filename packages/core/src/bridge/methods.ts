@@ -3534,9 +3534,15 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         return invalidInput('cursor must be a Source Event ID');
       if (
         state !== undefined &&
-        !['pending', 'processing', 'observed', 'deferred', 'needs-repair', 'handled'].includes(
-          String(state),
-        )
+        ![
+          'pending',
+          'processing',
+          'observed',
+          'deferred',
+          'needs-repair',
+          'open',
+          'handled',
+        ].includes(String(state))
       )
         return invalidInput('unknown Bot attention state');
       try {

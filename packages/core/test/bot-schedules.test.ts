@@ -566,7 +566,7 @@ describe('Bot Schedule firing', () => {
         core.attention.list({ botSlug: 'ada' }).items.find((item) => item.reason === 'schedule'),
       ).toMatchObject({
         sourceKind: 'schedule',
-        state: 'handled',
+        state: 'open',
         summary: 'Hourly check',
         scheduleId: schedule.id,
         sourceAvailable: true,

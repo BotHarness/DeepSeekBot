@@ -137,9 +137,9 @@ describe('Bot-scoped attention projection', () => {
       });
       core.runtime.admitGroupMessage(group.id, 'mention-1');
       await core.runtime.whenIdle();
-      expect(methods.botAttention({ slug: 'ada', state: 'handled' })).toMatchObject({
+      expect(methods.botAttention({ slug: 'ada', state: 'open' })).toMatchObject({
         ok: true,
-        value: { items: [{ state: 'handled' }] },
+        value: { items: [{ state: 'open' }] },
       });
       expect(methods.botAttention({ slug: 'ada', state: 'pending' })).toMatchObject({
         ok: true,
@@ -155,7 +155,7 @@ describe('Bot-scoped attention projection', () => {
     const resumed = createCore({ dshHome: home, agents: adapter() });
     try {
       expect(resumed.attention.list({ botSlug: 'ada' })).toMatchObject({
-        items: [{ state: 'handled', sourceChannelId: groupId, sourceAvailable: true }],
+        items: [{ state: 'open', sourceChannelId: groupId, sourceAvailable: true }],
       });
       resumed.channels.deleteGroup(groupId);
       expect(resumed.attention.list({ botSlug: 'ada' })).toMatchObject({

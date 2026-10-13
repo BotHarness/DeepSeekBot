@@ -415,7 +415,7 @@ describe('Group mention tracer', () => {
           .list({ botSlug: 'ada' })
           .items.filter((item) => item.sourceMessageId === 'group-steer')
           .map((item) => item.state),
-      ).toEqual(['handled']);
+      ).toEqual(['open']);
     } finally {
       releaseTurn();
       await core.runtime.close();

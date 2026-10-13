@@ -299,7 +299,7 @@ it('requires Human receive authorization, commits before ACK, runs the real Inbo
   ).toEqual([{ last_error: null }]);
   const item = fx.core.attention.list({ botSlug: 'ada' }).items[0];
   expect(item).toMatchObject({
-    state: 'handled',
+    state: 'open',
     authorKind: 'bridged',
     externalOrigin: {
       conversationName: 'QA team',
@@ -482,7 +482,7 @@ it('recovers pending committed events only after its exclusive provider lease re
   await fx.restart();
   await fx.idle();
   expect(fx.runs).toHaveLength(1);
-  expect(fx.core.attention.list({ botSlug: 'ada' }).items[0]).toMatchObject({ state: 'handled' });
+  expect(fx.core.attention.list({ botSlug: 'ada' }).items[0]).toMatchObject({ state: 'open' });
 });
 
 it('uses existing group-mention steer when an Orchestrator is already active', async () => {
@@ -509,8 +509,8 @@ it('uses existing group-mention steer when an Orchestrator is already active', a
   await fx.idle();
   expect(fx.runs).toHaveLength(1);
   expect(fx.core.attention.list({ botSlug: 'ada' }).items.map((item) => item.state)).toEqual([
-    'handled',
-    'handled',
+    'open',
+    'open',
   ]);
 });
 
