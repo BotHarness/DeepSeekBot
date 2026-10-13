@@ -201,7 +201,8 @@ export const zh = {
   'onboarding.tour.companion.title': '窗口伙伴',
   'onboarding.tour.companion.hint': 'Bot 的悬浮形象；可以拖动、点击打开私聊，或随时移除。',
   'onboarding.tour.exit.title': 'Bot 模式入口',
-  'onboarding.tour.exit.hint': '再点一次这里就回到 DSH；旁边的进度环随时打开上手清单。',
+  'onboarding.tour.exit.hint':
+    '再点一次这里就回到 DSH；鼠标悬停时，旁边的进度环可以随时打开上手清单。',
   'onboarding.launcher.label': '上手清单',
   'onboarding.launcher.progress': '上手清单 · 已完成 {done}/{total}',
   'onboarding.checklist.title': '上手 DeepSeekBot',
@@ -3344,7 +3345,7 @@ export const en = {
     "The Bot's floating face; drag it, click to open the DM, or remove it anytime.",
   'onboarding.tour.exit.title': 'Bot mode',
   'onboarding.tour.exit.hint':
-    'Click here again to go back to DSH; the progress ring next to it opens the getting-started list anytime.',
+    'Click here again to go back to DSH; hover it to find the progress ring that reopens the getting-started list.',
   'onboarding.launcher.label': 'Getting started',
   'onboarding.launcher.progress': 'Getting started · {done}/{total} done',
   'onboarding.checklist.title': 'Get started with DeepSeekBot',

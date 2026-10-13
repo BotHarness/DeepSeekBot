@@ -10,7 +10,7 @@ ADR-0155 replaced the persistent onboarding strip with a floating interface walk
 
 ## Decision
 
-- **Launcher without vertical cost.** On desktop, a progress ring sits inside the existing Bot-mode sidebar row, which already reserves room on its right for the Activity Center and the gear. The ring rests at the right edge and steps left when hover reveals those controls. On mobile, it sits beside the exit button in the list header. The ring stays visible until the checklist is settled, meaning every item is done or the tutorial was skipped. After that, it appears only when the row is hovered. Bot Settings → General stays as the fallback entry.
+- **Launcher without vertical cost.** On desktop, a progress ring sits inside the existing Bot-mode sidebar row, which already reserves room on its right for the Activity Center and the gear. Like those controls, the ring appears only when the row is hovered or focused, while its checklist is open, or while the walkthrough highlights the row (amended 2026-10-13: it no longer stays visible until the checklist is settled). On mobile, it sits beside the exit button in the list header and hides once the checklist is settled, meaning every item is done or the tutorial was skipped. Bot Settings → General stays as the fallback entry.
 - **Checklist tiers.**
   - Required: choose a model, send the first message.
   - Recommended: let it remember you (Memory, the aha moment), connect a chat app, set a daily task.
