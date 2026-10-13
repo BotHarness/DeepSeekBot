@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { createBridgeMethods } from '../src/bridge/methods.js';
 import { createCore } from '../src/plugin.js';
 import type {
   AssignmentAgentRun,
@@ -233,6 +234,43 @@ describe('Orchestrator Assignment Directory query', () => {
 
       expect(() => f.access.query!({ limit: 0 })).toThrow();
       expect(() => f.access.query!({ cursor: 'not-a-cursor' })).toThrow();
+    } finally {
+      await f.close();
+    }
+  }, 60000);
+});
+
+describe('Human Assignment archive from the Sessions view', () => {
+  it('lists archive and report state, then archives and restores through the bridge', async () => {
+    const f = await fixture();
+    try {
+      const methods = createBridgeMethods({ ...f.core });
+      const id = f.create('Ship the release notes');
+      const run = f.live.runs.find((item) => item.sessionId === id)!;
+      await run.report({ state: 'waiting-human', summary: 'Which version?' });
+      await expect(
+        methods.sessionArchiveSet({ slug: 'ada', sessionId: id, archived: true }),
+      ).resolves.toMatchObject({ ok: false });
+      await f.settle(id);
+      const listed = () => {
+        const result = methods.sessions({ slug: 'ada' });
+        if (!result.ok) throw new Error('sessions failed');
+        return result.value.sessions.find((session) => session.sessionId === id);
+      };
+      expect(listed()).toMatchObject({
+        assignmentReportState: 'waiting-human',
+        assignmentPurpose: 'Ship the release notes',
+      });
+      expect(listed()?.assignmentArchived).toBeUndefined();
+      await expect(
+        methods.sessionArchiveSet({ slug: 'ada', sessionId: id, archived: true }),
+      ).resolves.toEqual({ ok: true, value: { archived: true } });
+      expect(listed()).toMatchObject({ assignmentArchived: true });
+      await expect(
+        methods.sessionArchiveSet({ slug: 'ada', sessionId: id, archived: false }),
+      ).resolves.toEqual({ ok: true, value: { archived: false } });
+      expect(listed()?.assignmentArchived).toBeUndefined();
+      expect(f.nativeCalls).toEqual([`archive:${id}`, `unarchive:${id}`]);
     } finally {
       await f.close();
     }

@@ -1,8 +1,9 @@
 import { defaultStorage, type ConfigStorage } from './roster-config.js';
+import { ASSIGNMENT_SECTIONS, type AssignmentSection } from './session-rows.js';
 
 export type SessionScope = 'current' | 'all';
 export type SessionLayout = 'status' | 'workspace';
-export type SessionStatusSection = 'working' | 'idle';
+export type SessionStatusSection = AssignmentSection;
 
 export interface SessionViewPreference {
   scope: SessionScope;
@@ -45,8 +46,8 @@ export function readSessionViewPreference(
     scope: record?.['scope'] === 'all' ? 'all' : 'current',
     layout: record?.['layout'] === 'workspace' ? 'workspace' : 'status',
     collapsedSections: Array.isArray(sections)
-      ? (['working', 'idle'] as const).filter((section) => sections.includes(section))
-      : [],
+      ? ASSIGNMENT_SECTIONS.filter((section) => sections.includes(section))
+      : ['resolved'],
     collapsedWorkspaces: Array.isArray(collapsed)
       ? [
           ...new Set(

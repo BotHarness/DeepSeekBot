@@ -15,6 +15,36 @@ export interface PersonaBotSessionRow {
   cwd: string | undefined;
   updatedAt: number;
   status: 'running' | 'stopping' | 'attention' | 'stopped' | 'idle' | 'unavailable';
+  section?: AssignmentSection;
+  needs?: AssignmentNeed;
+  archived?: true;
+  triageOpenCount?: number;
+}
+
+export type AssignmentNeed = 'approval' | 'error' | 'waiting-human' | 'blocked' | 'failed';
+
+export type AssignmentSection = 'needs-input' | 'working' | 'idle' | 'resolved';
+
+export const ASSIGNMENT_SECTIONS: readonly AssignmentSection[] = [
+  'needs-input',
+  'working',
+  'idle',
+  'resolved',
+];
+
+function assignmentSection(
+  owned: OwnedSessionSummary,
+  status: PersonaBotSessionRow['status'],
+): { section: AssignmentSection; needs?: AssignmentNeed } {
+  if (owned.assignmentArchived === true || status === 'stopped') return { section: 'resolved' };
+  if (owned.assignmentExecutionWait === 'waiting-human')
+    return { section: 'needs-input', needs: 'approval' };
+  if (status === 'attention') return { section: 'needs-input', needs: 'error' };
+  if (status === 'running' || status === 'stopping') return { section: 'working' };
+  const report = owned.assignmentReportState;
+  if (report === 'waiting-human' || report === 'blocked' || report === 'failed')
+    return { section: 'needs-input', needs: report };
+  return { section: 'idle' };
 }
 
 function rowStatus(
@@ -42,13 +72,10 @@ export function personaBotSessionRows(
   const rows = owned.flatMap((item) => {
     const native = nativeById[item.sessionId];
     const status = rowStatus(item, native);
+    const placement = item.role === 'assignment' ? assignmentSection(item, status) : undefined;
+    const section = placement?.section;
     const current =
-      item.sessionId === latestOrchestrator ||
-      status === 'running' ||
-      status === 'stopping' ||
-      status === 'attention' ||
-      (item.role === 'assignment' && status === 'idle') ||
-      (item.assignmentActivity === 'working' && native === undefined);
+      item.sessionId === latestOrchestrator || (section !== undefined && section !== 'resolved');
     if (view === 'current' && !current) return [];
     return [
       {
@@ -57,10 +84,16 @@ export function personaBotSessionRows(
         ...(item.role === 'assignment' && item.assignmentAccessMode !== undefined
           ? { assignmentAccessMode: item.assignmentAccessMode }
           : {}),
-        title: native?.displayTitle || item.sessionId,
+        title: native?.displayTitle || item.assignmentPurpose || item.sessionId,
         cwd: native?.cwd ?? item.cwdReference,
         updatedAt: native?.updatedAt ?? Date.parse(item.createdAt),
         status,
+        ...(section === undefined ? {} : { section }),
+        ...(placement?.needs === undefined ? {} : { needs: placement.needs }),
+        ...(item.assignmentArchived === true ? { archived: true as const } : {}),
+        ...(item.triageOpenCount === undefined || status !== 'running'
+          ? {}
+          : { triageOpenCount: item.triageOpenCount }),
       },
     ];
   });

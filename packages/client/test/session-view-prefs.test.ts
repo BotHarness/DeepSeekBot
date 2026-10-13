@@ -47,7 +47,7 @@ describe('PersonaBot Session view preferences', () => {
       scope: 'current',
       layout: 'status',
       collapsedWorkspaces: [],
-      collapsedSections: [],
+      collapsedSections: ['resolved'],
     });
     expect(changes).toEqual(['a', 'a']);
     unsubscribe();
@@ -87,7 +87,7 @@ describe('PersonaBot Session view preferences', () => {
       scope: 'current',
       layout: 'status',
       collapsedWorkspaces: [],
-      collapsedSections: [],
+      collapsedSections: ['resolved'],
     });
   });
 

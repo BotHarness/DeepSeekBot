@@ -268,6 +268,7 @@ function stubActions(): BridgeActions {
     dismissFailedMessage: vi.fn(() => false),
     openSession: vi.fn(() => undefined),
     refreshSessions: vi.fn(async () => undefined),
+    setSessionArchived: vi.fn(async () => undefined),
     messageAttachmentTarget: vi.fn(async () => ({
       path: '/attachment',
       relativePath: 'attachment',

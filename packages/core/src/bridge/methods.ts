@@ -236,11 +236,13 @@ import type {
 import type {
   AssignmentActivity,
   AssignmentDetail,
+  AssignmentReportState,
   AssignmentSummary,
   BotRuntime,
   ChannelAssignmentSummary,
   DmAdmissionFailure,
 } from '../runtime/bot-runtime.js';
+import type { AssignmentExecutionWait } from '../runtime/assignment-approval-capacity.js';
 import type {
   AggregatedState,
   BotStateSnapshot,
@@ -382,7 +384,12 @@ export interface OwnedSessionSummary {
   cwdReference?: string;
   assignmentActivity?: AssignmentActivity;
   assignmentAccessMode?: AssignmentAccessMode;
+  assignmentReportState?: AssignmentReportState;
+  assignmentExecutionWait?: AssignmentExecutionWait;
+  assignmentArchived?: true;
+  assignmentPurpose?: string;
   currentOrchestrator?: boolean;
+  triageOpenCount?: number;
 }
 
 export interface OwnedSessionBot {
@@ -558,6 +565,7 @@ export interface BridgeMethods {
   ): BridgeResult<{ status: 'pending' | 'submitted' | 'answered' | 'expired' }>;
   userQuestionAnswer(payload: unknown): Promise<BridgeResult<{ accepted: boolean }>>;
   sessions(payload: unknown): BridgeResult<{ sessions: OwnedSessionSummary[] }>;
+  sessionArchiveSet(payload: unknown): Promise<BridgeResult<{ archived: boolean }>>;
   sessionOwner(payload: unknown): BridgeResult<{ owner: OwnedSessionBot | null }>;
   botSessionIds(payload: unknown): BridgeResult<{ sessionIds: string[] }>;
   messageAttachmentTarget(payload: unknown): BridgeResult<{ target: MemoryFileTarget }>;
@@ -4373,6 +4381,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         deps.runtime?.currentOrchestratorSessionId === undefined
           ? undefined
           : (deps.runtime.currentOrchestratorSessionId(slug) ?? null);
+      const triage = deps.runtime?.triageOpenCount?.(slug);
       const sessions = deps.ownership.rootsFor(slug).map((root) => {
         const assignment = assignments.get(root.sessionId);
         return {
@@ -4382,14 +4391,41 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
           ...(resumed === undefined || root.rootRole !== 'orchestrator'
             ? {}
             : { currentOrchestrator: root.sessionId === resumed }),
+          ...(triage === undefined || root.rootRole !== 'orchestrator' || root.sessionId !== resumed
+            ? {}
+            : { triageOpenCount: triage }),
           ...(root.cwdReference === undefined ? {} : { cwdReference: root.cwdReference }),
           ...(assignment === undefined ? {} : { assignmentActivity: assignment.activity }),
           ...(assignment?.permission === undefined
             ? {}
             : { assignmentAccessMode: assignment.permission.mode }),
+          ...(assignment?.latestReport === undefined
+            ? {}
+            : { assignmentReportState: assignment.latestReport.state }),
+          ...(assignment?.executionWait === undefined
+            ? {}
+            : { assignmentExecutionWait: assignment.executionWait }),
+          ...(assignment?.archivedAt === undefined ? {} : { assignmentArchived: true as const }),
+          ...(assignment === undefined ? {} : { assignmentPurpose: assignment.purpose }),
         };
       });
       return { ok: true, value: { sessions } };
+    },
+    async sessionArchiveSet(payload) {
+      const input = asObject(payload);
+      const slug = asSlug(payload);
+      const sessionId = asNonBlank(input, 'sessionId');
+      const archived = input?.['archived'];
+      if (slug === undefined || sessionId === undefined || typeof archived !== 'boolean')
+        return invalidInput('slug, sessionId and archived are required');
+      if (deps.registry.get(slug) === undefined) return unknownBot(slug);
+      if (deps.runtime?.setAssignmentArchived === undefined)
+        return invalidInput('Assignment archive is unavailable');
+      if (deps.runtime.getAssignment(slug, sessionId) === undefined)
+        return invalidInput('Unknown Assignment Session');
+      const outcome = await deps.runtime.setAssignmentArchived(slug, sessionId, archived);
+      if (outcome.outcome === 'refused') return invalidInput(outcome.message);
+      return { ok: true, value: { archived: outcome.outcome === 'archived' } };
     },
     sessionOwner(payload) {
       const sessionId = asNonBlank(asObject(payload), 'sessionId');

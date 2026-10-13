@@ -1,0 +1,16 @@
+{
+  "name": "@botharness/im-provider",
+  "version": "4.32.0-botharness.20",
+  "filename": "botharness-im-provider-4.32.0-botharness.20.tgz",
+  "tag": "v-im-provider-4.32.0-botharness.20",
+  "distTag": "next",
+  "integrity": "sha512-cJ9kE1H+uytTDh1s9Tg8uJtho6y08wLvc9zqks1S+SrEb7HOfNoW/l4l6BKjtZXtW1KwigN0Ezlrl/siym9nfw==",
+  "providerSource": "0e5b447f45e4a44d4089eac16cc1fa5673dbd66d",
+  "productSource": "eed59148046e1992a492eea20a7309d14ca9ef69",
+  "runtimeFiles": 422,
+  "runtimeSha256": "1bda59905abe9b761ce7c0d113acdc4b4523d96bc0293b212c4708d0c8dbb733",
+  "candidateReleaseId": 411906592,
+  "candidateAssetId": 637662769,
+  "candidateTag": "im-provider-candidate-4.32.0-botharness.20",
+  "qualification": "https://github.com/BotHarness/DeepSeekBot/blob/eed59148046e1992a492eea20a7309d14ca9ef69/docs/evidence/issue-1115/provider20-qualification.md"
+}

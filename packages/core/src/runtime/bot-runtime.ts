@@ -558,8 +558,14 @@ export interface BotRuntime {
   admitGroupJoinDecision?(requesterDmChannelId: string, requestId: string): void;
   listAssignments(botSlug: string): AssignmentSummary[];
   currentOrchestratorSessionId?(botSlug: string): string | undefined;
+  triageOpenCount?(botSlug: string): number | undefined;
   listChannelAssignments?(channelId: string): ChannelAssignmentSummary[];
   getAssignment(botSlug: string, sessionId: string): AssignmentDetail | undefined;
+  setAssignmentArchived?(
+    botSlug: string,
+    sessionId: string,
+    archived: boolean,
+  ): Promise<AssignmentArchiveOutcome | { outcome: 'unarchived'; assignment: AssignmentSummary }>;
 
   admitExternalSource?(botSlug: string, sourceEventId: string): void;
   admitScheduleFiring?(botSlug: string): void;
@@ -1127,7 +1133,7 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #digestTimers = new Map<string, NodeJS.Timeout>();
   readonly #snoozeTimers = new Map<string, NodeJS.Timeout>();
   readonly #triageQueued = new Set<string>();
-  readonly #triageRunning = new Set<string>();
+  readonly #triageRunning = new Map<string, number>();
   readonly #triageBaseline = new Map<string, number>();
   readonly #triageStalled = new Map<string, Set<string>>();
   readonly #groupAdmissionRetries = new Map<string, NodeJS.Timeout>();
@@ -1287,7 +1293,7 @@ class BotRuntimeImplementation implements BotRuntime {
     const channelId = channel?.channel_id ?? this.#dmChannel(botSlug)?.id;
     const body = `[Triage] ${ids.length} item${ids.length === 1 ? ' is' : 's are'} still open after your last turn. Give each one a destination: act on it now, resolve it with inbox_resolve once it is done or needs nothing more, snooze it with inbox_snooze when it waits on someone or a later time, or ignore noise. Check a completed Assignment report against what you asked for before resolving it. You are woken again while open items remain, unless a round leaves the open count unchanged.`;
     this.#triageBaseline.set(botSlug, ids.length);
-    this.#triageRunning.add(botSlug);
+    this.#triageRunning.set(botSlug, ids.length);
     try {
       const orchestrator = this.#ensureOrchestrator(bot, this.#now().toISOString());
       await this.#runOrchestratorTurn(
@@ -3351,6 +3357,22 @@ class BotRuntimeImplementation implements BotRuntime {
     });
   }
 
+  async setAssignmentArchived(
+    botSlug: string,
+    sessionId: string,
+    archived: boolean,
+  ): Promise<AssignmentArchiveOutcome | { outcome: 'unarchived'; assignment: AssignmentSummary }> {
+    const bot = this.#registry.get(botSlug);
+    if (bot === undefined) throw new Error(`Unknown PersonaBot: ${botSlug}`);
+    return archived
+      ? this.#archiveAssignment(bot, sessionId, () => {})
+      : this.#unarchiveAssignment(bot, sessionId, () => {});
+  }
+
+  triageOpenCount(botSlug: string): number | undefined {
+    return this.#triageRunning.get(botSlug);
+  }
+
   getAssignment(botSlug: string, sessionId: string): AssignmentDetail | undefined {
     const row = this.#database.read((database) =>
       database
@@ -4038,6 +4060,7 @@ class BotRuntimeImplementation implements BotRuntime {
           sourceEventId,
           markSideEffect,
           orchestrator.sessionId,
+          readAdmissions,
         ),
       });
       if (observeMemory) {
@@ -4130,6 +4153,7 @@ class BotRuntimeImplementation implements BotRuntime {
     sourceEventId: string,
     markAttemptSideEffect: () => void = () => this.#markSideEffectStarted(sourceEventId),
     orchestratorSessionId?: string,
+    readAdmissions?: Set<string>,
   ): OrchestratorAssignmentAccess {
     const markSideEffect = markAttemptSideEffect;
     return {
@@ -4192,6 +4216,10 @@ class BotRuntimeImplementation implements BotRuntime {
             this.#waitOptions.beginAssignmentWait?.(bot.slug, orchestratorSessionId) ?? (() => {}),
           signal: AbortSignal.any([signal, this.#waitLifetime.signal]),
           timeoutMs,
+        }).then((outcome) => {
+          if (outcome.outcome !== 'timeout' && readAdmissions !== undefined)
+            this.#claimAssignmentNotices(bot.slug, sessionId, readAdmissions);
+          return outcome;
         });
       },
       stop: (sessionId) => this.#stopAssignment(bot, sessionId, markSideEffect),
@@ -6859,6 +6887,36 @@ class BotRuntimeImplementation implements BotRuntime {
     return this.#channels
       .list()
       .find((channel) => channel.type === 'dm' && channel.botSlug === botSlug);
+  }
+
+  #claimAssignmentNotices(botSlug: string, sessionId: string, readAdmissions: Set<string>): void {
+    const at = this.#now().toISOString();
+    const claimed = this.#database.transaction(
+      (db) =>
+        db
+          .prepare(`UPDATE inbox_admissions SET observed_at = COALESCE(observed_at, ?),
+          attempt_state = 'running', last_error = NULL
+          WHERE bot_slug = ? AND reason IN ('assignment-report', 'assignment-lifecycle')
+            AND attempt_state IN ('pending', 'retryable')
+            AND source_event_id IN (SELECT source_event_id FROM source_events
+              WHERE bot_slug = ? AND assignment_session_id = ?)
+          RETURNING source_event_id`)
+          .all(at, botSlug, botSlug, sessionId) as unknown as Array<{ source_event_id: string }>,
+      ['bot-inbox'],
+    );
+    if (claimed.length === 0) return;
+    const ids = claimed.map((row) => row.source_event_id);
+    this.#database.transaction(
+      (db) =>
+        db
+          .prepare(
+            `UPDATE source_events SET observed_at = COALESCE(observed_at, ?)
+              WHERE source_event_id IN (${ids.map(() => '?').join(', ')})`,
+          )
+          .run(at, ...ids),
+      ['bot-inbox'],
+    );
+    for (const id of ids) readAdmissions.add(id);
   }
 
   #observeExternalRead(botSlug: string, ids: string[], readAdmissions: Set<string>): void {
