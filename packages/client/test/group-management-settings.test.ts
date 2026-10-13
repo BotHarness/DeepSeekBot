@@ -51,8 +51,8 @@ it('shows avatar and name as settings rows and renames once on Enter then blur',
   const actions = { renameChannel, setGroupAvatar: vi.fn() } as unknown as BridgeActions;
   await render(createElement(GroupManagementSettings, { actions, t, group: GROUP }));
 
-  const titles = [...host.querySelectorAll('[role="group"]')].map((row) =>
-    document.getElementById(row.getAttribute('aria-labelledby') ?? '')?.textContent,
+  const titles = [...host.querySelectorAll('[role="group"]')].map(
+    (row) => document.getElementById(row.getAttribute('aria-labelledby') ?? '')?.textContent,
   );
   expect(titles).toEqual([t('group.avatar'), t('group.name')]);
   expect(host.querySelector('form')).toBeNull();
