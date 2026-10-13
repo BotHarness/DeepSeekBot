@@ -1084,6 +1084,82 @@ describe('DSH Bot Agent adapter', () => {
     await adapter.close();
   });
 
+  it('releases a replaced Orchestrator handle but keeps a running one', async () => {
+    let releaseDuringTurn: Promise<void> | undefined;
+    const host = new FakeAgentHost(
+      { kind: 'completed' },
+      {
+        onSessionEvent: (session, event) => {
+          if (session.id === 'orchestrator-new' && event.type === 'turn/start')
+            releaseDuringTurn = adapter.releaseSession!('orchestrator-new');
+        },
+      },
+    );
+    const adapter = createDshBotAgentAdapter({
+      agents: host,
+      defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+      orchestratorCwd: () => '/memory/ada',
+      ensureWorkspace: () => undefined,
+    });
+    const run = (sessionId: string): OrchestratorAgentRun => ({
+      sessionId,
+      resume: false,
+      bot: BOT,
+      inboundChannelId: 'dm-test',
+      inbox: '',
+      message: '请核对发布状态',
+      channels: {
+        ...groupTools,
+        contacts: () => ({ outputLimit: 12_000, contacts: [] }),
+        sendToBot: async () => {
+          throw new Error('unexpected Bot DM');
+        },
+        ignore: () => ({
+          sourceEventId: 'source-1',
+          ignoredAt: BOT.createdAt,
+          alreadyIgnored: false,
+        }),
+        read: () => [],
+        requestGrant: async () => undefined as never,
+        send: async (input) => ({
+          id: 'bot-1',
+          at: BOT.createdAt,
+          author: { kind: 'bot', slug: BOT.slug },
+          body: input.body,
+        }),
+      },
+      assignments: {
+        create: () => ({ outcome: 'created', assignment: ASSIGNMENT }),
+        grants: () => [],
+        list: () => [],
+        inspect: () => undefined,
+        stop: async () => ({
+          sessionId: 'test',
+          purpose: 'test',
+          activity: 'stopped',
+          createdAt: '',
+          updatedAt: '',
+        }),
+        request: () => ({ assignment: ASSIGNMENT, delivery: 'followup' }),
+      },
+    });
+    try {
+      await adapter.runOrchestrator(run('orchestrator-old'));
+      await adapter.runOrchestrator(run('orchestrator-new'));
+      expect(releaseDuringTurn).toBeDefined();
+      await releaseDuringTurn;
+      expect(host.disposed).toEqual([]);
+
+      await adapter.releaseSession!('orchestrator-old');
+      await adapter.releaseSession!('orchestrator-old');
+      await adapter.releaseSession!('never-opened');
+      expect(host.disposed).toEqual(['orchestrator-old']);
+    } finally {
+      await adapter.close();
+    }
+    expect(host.disposed.sort()).toEqual(['orchestrator-new', 'orchestrator-old']);
+  });
+
   it('runs independent scoped Orchestrator and Assignment roots and owns their handles', async () => {
     const host = new FakeAgentHost(
       { kind: 'completed' },

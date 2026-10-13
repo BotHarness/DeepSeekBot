@@ -489,6 +489,7 @@ export interface BotAgentAdapter {
   requestAssignment(run: AssignmentAgentRun): AssignmentRequestDelivery;
   stopAssignment?(sessionId: string): Promise<void>;
   stopBot?(botSlug: string, sessionIds: string[]): Promise<void>;
+  releaseSession?(sessionId: string): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -5750,7 +5751,33 @@ class BotRuntimeImplementation implements BotRuntime {
 
   #ensureOrchestrator(bot: PersonaBotRecord, at: string): { sessionId: string; resume: boolean } {
     const existing = this.currentOrchestratorSessionId(bot.slug);
-    if (existing !== undefined) return { sessionId: existing, resume: true };
+    const orchestrator =
+      existing === undefined
+        ? { sessionId: this.#claimOrchestrator(bot, at), resume: false }
+        : { sessionId: existing, resume: true };
+    this.#releaseReplacedOrchestrators(bot.slug, orchestrator.sessionId);
+    return orchestrator;
+  }
+
+  #releaseReplacedOrchestrators(botSlug: string, current: string): void {
+    const release = this.#agents.releaseSession?.bind(this.#agents);
+    if (release === undefined) return;
+    for (const root of this.#ownership.rootsFor(botSlug, 'orchestrator')) {
+      if (root.sessionId === current) continue;
+      void release(root.sessionId).catch(() =>
+        this.#warn?.(
+          JSON.stringify({
+            component: 'bot-runtime',
+            event: 'orchestrator-release-failed',
+            botSlug,
+            sessionId: root.sessionId,
+          }),
+        ),
+      );
+    }
+  }
+
+  #claimOrchestrator(bot: PersonaBotRecord, at: string): string {
     const sessionId = this.#createSessionId();
     const cwdReference = this.#orchestratorCwdReference(bot);
     this.#ownership.claim({
@@ -5760,7 +5787,7 @@ class BotRuntimeImplementation implements BotRuntime {
       ...(cwdReference === undefined ? {} : { cwdReference }),
       at,
     });
-    return { sessionId, resume: false };
+    return sessionId;
   }
 
   #orchestratorCwdReference(bot: PersonaBotRecord): string | undefined {

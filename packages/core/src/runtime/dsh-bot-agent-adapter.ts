@@ -513,6 +513,17 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     }
   }
 
+  async releaseSession(sessionId: string): Promise<void> {
+    if (this.#runs.has(sessionId)) return;
+    const handle = this.#handles.get(sessionId);
+    if (handle === undefined) return;
+    this.#handles.delete(sessionId);
+    this.#orchestratorSelections.delete(sessionId);
+    this.#orchestratorBridgeTools.delete(sessionId);
+    this.#assignmentSelections.delete(sessionId);
+    await handle.dispose();
+  }
+
   async stopAssignment(sessionId: string): Promise<void> {
     this.#stopping.add(sessionId);
     const handle = this.#handles.get(sessionId);

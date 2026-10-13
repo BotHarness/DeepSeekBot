@@ -1610,6 +1610,7 @@ it('starts a new Orchestrator Session when DSH archived the current one', async 
   const owner = mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN });
   const archived = new Set<string>();
   const runs: Array<{ sessionId: string; resume: boolean }> = [];
+  const released: string[] = [];
   let nextSession = 0;
   const runtime = createBotRuntime({
     database: owner,
@@ -1619,6 +1620,9 @@ it('starts a new Orchestrator Session when DSH archived the current one', async 
     agents: {
       runOrchestrator: async (run) => {
         runs.push({ sessionId: run.sessionId, resume: run.resume });
+      },
+      releaseSession: async (sessionId) => {
+        released.push(sessionId);
       },
       runAssignment: async () => undefined,
       requestAssignment: () => ({
@@ -1650,6 +1654,7 @@ it('starts a new Orchestrator Session when DSH archived the current one', async 
   expect(runs.map((run) => run.sessionId)).toEqual([first, first]);
   expect(runs[1]!.resume).toBe(true);
   expect(runtime.currentOrchestratorSessionId?.('ada')).toBe(first);
+  expect(released).toEqual([]);
 
   archived.add(first);
   expect(runtime.currentOrchestratorSessionId?.('ada')).toBeUndefined();
@@ -1658,6 +1663,8 @@ it('starts a new Orchestrator Session when DSH archived the current one', async 
   expect(replacement.sessionId).not.toBe(first);
   expect(replacement.resume).toBe(false);
   expect(ownershipRows(owner).filter((row) => row.root_role === 'orchestrator')).toHaveLength(2);
+  expect(released).toContain(first);
+  expect(released).not.toContain(replacement.sessionId);
 
   await say('human-4', 'and again');
   expect(runs[3]).toEqual({ sessionId: replacement.sessionId, resume: true });
