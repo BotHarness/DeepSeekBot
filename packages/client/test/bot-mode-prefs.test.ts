@@ -31,7 +31,7 @@ function fakeHost(initial: Partial<BotModeScopeSnapshot> = {}) {
     value: {
       botIcon: 'mascot' as const,
       autoAcceptGroupInvites: true,
-      assignmentConcurrencyLimit: 3,
+      assignmentConcurrencyLimit: 8,
       developerMode: false,
       motionPreference: 'system',
       sortMode: 'updated',
@@ -90,7 +90,7 @@ describe('BOT-mode policy store', () => {
       motionPreference: 'system',
       botIcon: 'mascot' as const,
       autoAcceptGroupInvites: true,
-      assignmentConcurrencyLimit: 3,
+      assignmentConcurrencyLimit: 8,
       developerMode: false,
       effectiveMotion: 'full',
       sortMode: 'updated',
@@ -168,7 +168,7 @@ describe('BOT-mode policy store', () => {
       motionPreference: 'reduce',
       botIcon: 'mascot' as const,
       autoAcceptGroupInvites: true,
-      assignmentConcurrencyLimit: 3,
+      assignmentConcurrencyLimit: 8,
       developerMode: false,
       effectiveMotion: 'reduce',
     });
