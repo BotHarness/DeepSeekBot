@@ -193,13 +193,16 @@ export function DangerTextButton({
   children,
   onClick,
   disabled,
+  label,
 }: {
   readonly children: ReactNode;
   readonly onClick: () => void;
   readonly disabled?: boolean;
+  readonly label?: string;
 }): ReactElement {
   return (
     <Button
+      aria-label={label}
       type="button"
       variant="ghost"
       disabled={disabled}
