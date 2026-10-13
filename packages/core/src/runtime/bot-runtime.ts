@@ -560,6 +560,11 @@ export interface BotRuntime {
   currentOrchestratorSessionId?(botSlug: string): string | undefined;
   listChannelAssignments?(channelId: string): ChannelAssignmentSummary[];
   getAssignment(botSlug: string, sessionId: string): AssignmentDetail | undefined;
+  setAssignmentArchived?(
+    botSlug: string,
+    sessionId: string,
+    archived: boolean,
+  ): Promise<AssignmentArchiveOutcome | { outcome: 'unarchived'; assignment: AssignmentSummary }>;
 
   admitExternalSource?(botSlug: string, sourceEventId: string): void;
   admitScheduleFiring?(botSlug: string): void;
@@ -3349,6 +3354,18 @@ class BotRuntimeImplementation implements BotRuntime {
         updatedAt: assignment.updatedAt,
       };
     });
+  }
+
+  async setAssignmentArchived(
+    botSlug: string,
+    sessionId: string,
+    archived: boolean,
+  ): Promise<AssignmentArchiveOutcome | { outcome: 'unarchived'; assignment: AssignmentSummary }> {
+    const bot = this.#registry.get(botSlug);
+    if (bot === undefined) throw new Error(`Unknown PersonaBot: ${botSlug}`);
+    return archived
+      ? this.#archiveAssignment(bot, sessionId, () => {})
+      : this.#unarchiveAssignment(bot, sessionId, () => {});
   }
 
   getAssignment(botSlug: string, sessionId: string): AssignmentDetail | undefined {

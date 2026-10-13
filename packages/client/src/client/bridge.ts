@@ -1606,6 +1606,8 @@ export function parseOwnedSessionSummaries(value: unknown): OwnedSessionSummary[
       return [];
     const cwdReference = record['cwdReference'];
     const currentOrchestrator = record['currentOrchestrator'];
+    const reportState = record['assignmentReportState'];
+    const executionWait = record['assignmentExecutionWait'];
     return [
       {
         sessionId,
@@ -1619,6 +1621,24 @@ export function parseOwnedSessionSummaries(value: unknown): OwnedSessionSummary[
         ...(role === 'assignment' &&
         (accessMode === 'workspace-write' || accessMode === 'danger-full-access')
           ? { assignmentAccessMode: accessMode }
+          : {}),
+        ...(role === 'assignment' &&
+        (reportState === 'progress' ||
+          reportState === 'completed' ||
+          reportState === 'blocked' ||
+          reportState === 'waiting-human' ||
+          reportState === 'failed')
+          ? { assignmentReportState: reportState }
+          : {}),
+        ...(role === 'assignment' &&
+        (executionWait === 'waiting-human' || executionWait === 'waiting-capacity')
+          ? { assignmentExecutionWait: executionWait }
+          : {}),
+        ...(role === 'assignment' && record['assignmentArchived'] === true
+          ? { assignmentArchived: true as const }
+          : {}),
+        ...(role === 'assignment' && typeof record['assignmentPurpose'] === 'string'
+          ? { assignmentPurpose: record['assignmentPurpose'] }
           : {}),
       },
     ];
@@ -3232,6 +3252,16 @@ export async function loadSessions(
   signal?: AbortSignal,
 ): Promise<OwnedSessionSummary[]> {
   return parseOwnedSessionSummaries(await unwrap(call, 'sessions', { slug }, signal));
+}
+
+export async function setSessionArchived(
+  call: BridgeCall,
+  slug: string,
+  sessionId: string,
+  archived: boolean,
+): Promise<boolean> {
+  const value = asRecord(await unwrap(call, 'sessionArchiveSet', { slug, sessionId, archived }));
+  return value?.['archived'] === true;
 }
 
 export async function loadRoster(call: BridgeCall, signal?: AbortSignal): Promise<RosterSnapshot> {

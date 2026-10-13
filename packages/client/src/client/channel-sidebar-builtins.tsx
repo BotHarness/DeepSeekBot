@@ -1161,7 +1161,15 @@ export function createChannelSidebarBuiltins(
   },
 ): readonly ChannelSidebarEntry[] {
   function SessionsWithNative(props: ChannelSidebarEntryProps): ReactElement {
-    return <SessionsEntry {...props} nativeSessions={nativeSessions} />;
+    const readLimit = () => prefs?.source.getSnapshot().assignmentConcurrencyLimit;
+    const assignmentLimit = useSyncExternalStore(
+      prefs?.source.subscribe ?? inactiveSubscribe,
+      readLimit,
+      readLimit,
+    );
+    return (
+      <SessionsEntry {...props} nativeSessions={nativeSessions} assignmentLimit={assignmentLimit} />
+    );
   }
 
   function WorkspaceGrantsWithPrefs(props: ChannelSidebarEntryProps): ReactElement {

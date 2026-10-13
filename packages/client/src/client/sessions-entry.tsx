@@ -1,8 +1,9 @@
-import { useSyncExternalStore, type ReactElement } from 'react';
+import { useState, useSyncExternalStore, type ReactElement } from 'react';
 
 import {
   IconChevronDownOutlineRegular,
   Tag,
+  Tooltip,
   type MenuEntry,
 } from '@deepseek-ai/dsh-client-ui-primitives';
 
@@ -11,6 +12,7 @@ import { useClientState } from './bot-sidebar.js';
 import { formatRelativeTime } from './labels.js';
 import { LoadingSkeleton } from './loading-skeleton.js';
 import {
+  ASSIGNMENT_SECTIONS,
   groupSessionRowsByWorkspace,
   personaBotSessionRows,
   type NativeSessionSummary,
@@ -38,7 +40,12 @@ const STATUS_TONE = {
   unavailable: 'quiet',
 } as const;
 
-const WORKING = new Set<PersonaBotSessionRow['status']>(['running', 'stopping', 'attention']);
+const IMPLIED_STATUS = {
+  'needs-input': undefined,
+  working: 'running',
+  idle: 'idle',
+  resolved: undefined,
+} as const;
 
 export interface NativeSessionCatalog {
   refresh?(): Promise<void>;
@@ -66,7 +73,13 @@ function SessionsPanel({
   actions,
   t,
   nativeSessions,
-}: ChannelSidebarEntryProps & { nativeSessions: NativeSessionCatalog }): ReactElement {
+  assignmentLimit,
+}: ChannelSidebarEntryProps & {
+  nativeSessions: NativeSessionCatalog;
+  assignmentLimit?: number | undefined;
+}): ReactElement {
+  const [archiving, setArchiving] = useState<string>();
+  const [archiveError, setArchiveError] = useState<string>();
   const client = useClientState();
   const owned = client.sessions;
   const native = useSyncExternalStore(
@@ -93,6 +106,8 @@ function SessionsPanel({
     }));
   };
   const rows = personaBotSessionRows(owned.items, native.byId, preference.scope);
+  const statusRows =
+    preference.layout === 'status' ? personaBotSessionRows(owned.items, native.byId, 'all') : rows;
   const groups = groupSessionRowsByWorkspace(rows);
   const bot = client.bots.find((candidate) => candidate.slug === botSlug);
   const flip = useFlipList<HTMLDivElement>();
@@ -142,10 +157,56 @@ function SessionsPanel({
         disabled={native.byId[row.sessionId] === undefined}
         onClick={() => void actions.openSession(row.sessionId)}
         badge={
-          row.status === implied ? undefined : (
+          row.needs !== undefined ? (
+            <Tag tone={row.needs === 'error' || row.needs === 'failed' ? 'danger' : 'warning'}>
+              {t(`sessions.needs.${row.needs}`)}
+            </Tag>
+          ) : row.archived === true ? (
+            <Tag tone="quiet">{t('sessions.status.archived')}</Tag>
+          ) : row.status === implied ? undefined : (
             <Tag tone={STATUS_TONE[row.status]}>{statusLabel[row.status]}</Tag>
           )
         }
+        {...(row.role !== 'assignment' ||
+        row.section === 'working' ||
+        botSlug === undefined ||
+        (native.byId[row.sessionId] === undefined && row.archived !== true)
+          ? {}
+          : {
+              trailing: (
+                <Tooltip
+                  label={t(row.archived === true ? 'sessions.unarchive' : 'sessions.archive')}
+                  side="top"
+                  portal
+                  delayMs={400}
+                >
+                  <button
+                    type="button"
+                    className="bh-card-action bh-session-archive"
+                    disabled={archiving !== undefined}
+                    aria-label={t(
+                      row.archived === true ? 'sessions.unarchiveNamed' : 'sessions.archiveNamed',
+                      { title: row.title },
+                    )}
+                    onClick={() => {
+                      setArchiving(row.sessionId);
+                      setArchiveError(undefined);
+                      void actions
+                        .setSessionArchived(botSlug, row.sessionId, row.archived !== true)
+                        .catch((error: unknown) =>
+                          setArchiveError(error instanceof Error ? error.message : String(error)),
+                        )
+                        .finally(() => setArchiving(undefined));
+                    }}
+                  >
+                    <ChannelSidebarIcon
+                      name={row.archived === true ? 'archive-restore' : 'archive'}
+                      size={14}
+                    />
+                  </button>
+                </Tooltip>
+              ),
+            })}
         {...(row.assignmentAccessMode === 'danger-full-access'
           ? {
               chips: (
@@ -169,19 +230,13 @@ function SessionsPanel({
   const byRecent = (left: PersonaBotSessionRow, right: PersonaBotSessionRow): number =>
     right.updatedAt - left.updatedAt || left.sessionId.localeCompare(right.sessionId);
   const orchestrators = rows.filter((row) => row.role === 'orchestrator').sort(byRecent);
-  const assignments = rows.filter((row) => row.role === 'assignment').sort(byRecent);
-  const sections = [
-    {
-      id: 'working' as const,
-      implied: 'running' as const,
-      rows: assignments.filter((row) => WORKING.has(row.status)),
-    },
-    {
-      id: 'idle' as const,
-      implied: 'idle' as const,
-      rows: assignments.filter((row) => !WORKING.has(row.status)),
-    },
-  ];
+  const assignments = statusRows.filter((row) => row.role === 'assignment').sort(byRecent);
+  const sections = ASSIGNMENT_SECTIONS.map((id) => ({
+    id,
+    implied: IMPLIED_STATUS[id],
+    rows: assignments.filter((row) => row.section === id),
+  }));
+  const runningCount = assignments.filter((row) => row.status === 'running').length;
   const toggleSection = (id: SessionStatusSection): void => {
     updateSessionViewPreference(slug, (current) => ({
       ...current,
@@ -193,10 +248,11 @@ function SessionsPanel({
   const heading = (
     key: string,
     name: string,
-    count: number,
+    count: number | string,
     expanded: boolean,
     toggle: () => void,
     title?: string,
+    countLabel?: string,
   ): ReactElement => (
     <button
       type="button"
@@ -211,7 +267,9 @@ function SessionsPanel({
         className={expanded ? '' : 'bh-session-workspace-chevron-collapsed'}
       />
       <span className="bh-session-workspace-name">{name}</span>
-      <span className="bh-session-workspace-count">{count}</span>
+      <span className="bh-session-workspace-count" title={countLabel}>
+        {count}
+      </span>
     </button>
   );
 
@@ -223,15 +281,20 @@ function SessionsPanel({
       {owned.status === 'error' && owned.error !== undefined ? (
         <div className="bh-error">{t('sessions.error', { error: owned.error })}</div>
       ) : null}
-      {owned.status === 'ready' && rows.length === 0 ? (
+      {owned.status === 'ready' && rows.length === 0 && assignments.length === 0 ? (
         <div className="bh-note">{t('sessions.empty')}</div>
       ) : null}
+      {archiveError === undefined ? null : (
+        <div className="bh-error" role="alert">
+          {archiveError}
+        </div>
+      )}
       <div className="bh-sessions-groups" ref={flip}>
         {preference.layout === 'status' ? (
           <>
             {orchestrators.length === 0 ? null : (
               <SidebarCardList label={t('sessions.role.orchestrator')}>
-                {orchestrators.map((row) => renderRow(row, true))}
+                {orchestrators.map((row) => renderRow(row, true, 'idle'))}
               </SidebarCardList>
             )}
             {sections.map((section) => {
@@ -244,9 +307,22 @@ function SessionsPanel({
                   className="bh-session-workspace-group"
                   data-section={section.id}
                 >
-                  {heading(section.id, name, section.rows.length, expanded, () =>
-                    toggleSection(section.id),
-                  )}
+                  {section.id === 'working' && assignmentLimit !== undefined
+                    ? heading(
+                        section.id,
+                        name,
+                        `${runningCount} / ${assignmentLimit}`,
+                        expanded,
+                        () => toggleSection(section.id),
+                        undefined,
+                        t('sessions.limit.running', {
+                          count: runningCount,
+                          limit: assignmentLimit,
+                        }),
+                      )
+                    : heading(section.id, name, section.rows.length, expanded, () =>
+                        toggleSection(section.id),
+                      )}
                   {expanded ? (
                     <SidebarCardList label={name}>
                       {section.rows.map((row) => renderRow(row, true, section.implied))}
@@ -326,7 +402,10 @@ export function SessionsHeaderAction({
 }
 
 export function SessionsEntry(
-  props: ChannelSidebarEntryProps & { nativeSessions: NativeSessionCatalog },
+  props: ChannelSidebarEntryProps & {
+    nativeSessions: NativeSessionCatalog;
+    assignmentLimit?: number | undefined;
+  },
 ): ReactElement {
   return <SessionsPanel key={props.botSlug ?? 'none'} {...props} />;
 }

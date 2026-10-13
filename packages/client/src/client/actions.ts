@@ -162,6 +162,7 @@ import {
   type TimelinePage,
   type TimelinePageRequest,
   loadSessions,
+  setSessionArchived,
   loadBots,
   loadMemorySnapshot,
   loadMemoryFile,
@@ -494,6 +495,7 @@ export interface BridgeActions {
   dismissFailedMessage(channelId: string, messageId: string): boolean;
   openSession(sessionId: string): void;
   refreshSessions(slug: string): Promise<void>;
+  setSessionArchived(slug: string, sessionId: string, archived: boolean): Promise<void>;
   messageAttachmentTarget(
     channelId: string,
     messageId: string,
@@ -2363,6 +2365,12 @@ export function createActions(
       folderAccess.openSession(sessionId);
     },
     async refreshSessions(slug) {
+      const selection = currentSelection();
+      if (selection === undefined || selectedBotSlug(selection) !== slug) return;
+      await loadSessionsFor(slug, selection);
+    },
+    async setSessionArchived(slug, sessionId, archived) {
+      await setSessionArchived(call, slug, sessionId, archived);
       const selection = currentSelection();
       if (selection === undefined || selectedBotSlug(selection) !== slug) return;
       await loadSessionsFor(slug, selection);

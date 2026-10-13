@@ -34,7 +34,7 @@ function catalog(
   return { subscribe: () => () => {}, getSnapshot: () => snapshot };
 }
 
-it('pins the Orchestrator on top and splits Assignments into Working and Idle, newest first', async () => {
+it('pins the Orchestrator on top and groups Assignments by needs input, working, idle and resolved', async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   const previous = store.getSnapshot().sessions;
   updateSessionViewPreference('sessions-qa', (current) => ({ ...current, scope: 'all' }));
@@ -51,6 +51,19 @@ it('pins the Orchestrator on top and splits Assignments into Working and Idle, n
         createdAt: '2026-10-01T00:00:00Z',
         assignmentActivity: 'error',
       },
+      {
+        sessionId: 'a-ask',
+        role: 'assignment',
+        createdAt: '2026-10-01T00:00:00Z',
+        assignmentReportState: 'waiting-human',
+      },
+      {
+        sessionId: 'a-done',
+        role: 'assignment',
+        createdAt: '2026-10-01T00:00:00Z',
+        assignmentArchived: true,
+        assignmentPurpose: 'Ship the release notes',
+      },
     ],
   });
   const native = catalog({
@@ -59,18 +72,24 @@ it('pins the Orchestrator on top and splits Assignments into Working and Idle, n
     'a-new': { displayTitle: 'New idle', updatedAt: 30, running: false },
     'a-run': { displayTitle: 'Running', updatedAt: 20, running: true },
     'a-fail': { displayTitle: 'Failed', updatedAt: 40, running: false },
+    'a-ask': { displayTitle: 'Question', updatedAt: 50, running: false },
   });
   const container = document.createElement('div');
   document.body.append(container);
   const root = createRoot(container);
+  const setSessionArchived = vi.fn(async () => undefined);
   const props = {
     scope: 'personabot',
     channelId: 'dm-ada',
     botSlug: 'sessions-qa',
-    actions: { refreshSessions: vi.fn(async () => undefined) } as unknown as BridgeActions,
+    actions: {
+      refreshSessions: vi.fn(async () => undefined),
+      setSessionArchived,
+    } as unknown as BridgeActions,
     t: zhTranslate,
     nativeSessions: native,
-  } as ChannelSidebarEntryProps & { nativeSessions: NativeSessionCatalog };
+    assignmentLimit: 8,
+  } as ChannelSidebarEntryProps & { nativeSessions: NativeSessionCatalog; assignmentLimit: number };
   try {
     await act(async () => root.render(createElement(SessionsEntry, props)));
     await act(async () =>
@@ -89,15 +108,44 @@ it('pins the Orchestrator on top and splits Assignments into Working and Idle, n
     expect(lists[0]!.querySelector('.bh-session-orchestrator')?.getAttribute('aria-label')).toBe(
       'Orchestrator',
     );
+    expect(
+      [...container.querySelectorAll<HTMLElement>('[data-section]')].map(
+        (node) => node.dataset['section'],
+      ),
+    ).toEqual(['needs-input', 'working', 'idle', 'resolved']);
+    const needs = container.querySelector('[data-section="needs-input"]')!;
     const working = container.querySelector('[data-section="working"]')!;
     const idle = container.querySelector('[data-section="idle"]')!;
-    expect(titles(working)).toEqual(['Failed', 'Running']);
+    const resolved = container.querySelector('[data-section="resolved"]')!;
+    expect(titles(needs)).toEqual(['Question', 'Failed']);
+    expect(titles(working)).toEqual(['Running']);
     expect(titles(idle)).toEqual(['New idle', 'Old idle']);
+    expect(resolved.querySelector('.bh-card-list')).toBeNull();
+    expect(working.querySelector('.bh-session-workspace-count')?.textContent).toBe('1 / 8');
     expect(container.textContent).not.toContain('Assignment');
+    expect(lists[0]!.querySelector('.bh-card-badge')).toBeNull();
     expect(working.querySelector('[data-flip-key="a-run"] .bh-card-badge')).toBeNull();
-    expect(working.querySelector('[data-flip-key="a-fail"] .bh-card-badge')?.textContent).toBe(
-      '需要关注',
+    expect(working.querySelector('.bh-session-archive')).toBeNull();
+    expect(needs.querySelector('[data-flip-key="a-fail"] .bh-card-badge')?.textContent).toBe(
+      '出错',
     );
+    expect(needs.querySelector('[data-flip-key="a-ask"] .bh-card-badge')?.textContent).toBe(
+      '等你回复',
+    );
+    await act(async () =>
+      idle.querySelector<HTMLButtonElement>('[data-flip-key="a-new"] .bh-session-archive')!.click(),
+    );
+    expect(setSessionArchived).toHaveBeenCalledWith('sessions-qa', 'a-new', true);
+    await act(async () =>
+      resolved.querySelector<HTMLButtonElement>('.bh-session-workspace-heading')!.click(),
+    );
+    expect(titles(container.querySelector('[data-section="resolved"]')!)).toEqual(['Ship the release notes']);
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>('[data-flip-key="a-done"] .bh-session-archive')!
+        .click(),
+    );
+    expect(setSessionArchived).toHaveBeenCalledWith('sessions-qa', 'a-done', false);
     await act(async () =>
       idle.querySelector<HTMLButtonElement>('.bh-session-workspace-heading')!.click(),
     );

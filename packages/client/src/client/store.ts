@@ -251,6 +251,10 @@ export interface OwnedSessionSummary {
   cwdReference?: string;
   assignmentActivity?: 'working' | 'idle' | 'error' | 'stopping' | 'stopped';
   assignmentAccessMode?: 'workspace-write' | 'danger-full-access';
+  assignmentReportState?: 'progress' | 'completed' | 'blocked' | 'waiting-human' | 'failed';
+  assignmentExecutionWait?: 'waiting-human' | 'waiting-capacity';
+  assignmentArchived?: true;
+  assignmentPurpose?: string;
   currentOrchestrator?: boolean;
 }
 
