@@ -79,7 +79,7 @@ export function FormDialog({
   readonly labels: DialogLabels;
   readonly submitLabel: string;
   readonly onCancel: () => void;
-  readonly onSubmit: () => void;
+  readonly onSubmit?: (() => void) | undefined;
   readonly submitDisabled?: boolean;
   readonly busy?: boolean;
   readonly danger?: boolean;
@@ -95,7 +95,7 @@ export function FormDialog({
   const blocked = submitDisabled || busy;
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!blocked) onSubmit();
+    if (!blocked) onSubmit?.();
   };
   return (
     <Modal
@@ -118,17 +118,19 @@ export function FormDialog({
               {labels.cancel}
             </Button>
           ) : null}
-          <Button
-            {...submitData}
-            type="submit"
-            form={formId}
-            variant="primary"
-            disabled={blocked}
-            aria-busy={busy || undefined}
-            className={danger ? (stylex.props(styles.danger).className ?? '') : undefined}
-          >
-            {submitLabel}
-          </Button>
+          {onSubmit === undefined ? null : (
+            <Button
+              {...submitData}
+              type="submit"
+              form={formId}
+              variant="primary"
+              disabled={blocked}
+              aria-busy={busy || undefined}
+              className={danger ? (stylex.props(styles.danger).className ?? '') : undefined}
+            >
+              {submitLabel}
+            </Button>
+          )}
         </div>
       }
     >

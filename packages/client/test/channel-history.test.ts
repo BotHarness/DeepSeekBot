@@ -84,7 +84,7 @@ describe('ended Channel history consent', () => {
       expect(f.host.querySelector('[data-history-channel-id="group-qa"]')?.textContent).toContain(
         'Synthetic QA',
       );
-      expect(buttonNamed('预览内容清除范围').disabled).toBe(true);
+      expect(() => buttonNamed('预览内容清除范围')).toThrow();
       await f.click('查看历史');
       expect(f.actions.channelHistorySources).toHaveBeenCalledWith('group-qa', undefined);
       expect(buttonNamed('预览内容清除范围').disabled).toBe(true);

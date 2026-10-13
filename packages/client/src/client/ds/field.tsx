@@ -41,7 +41,7 @@ const styles = stylex.create({
     lineHeight: text.metaLine,
     overflowWrap: 'anywhere',
   },
-  input: { width: '100%' },
+  input: { boxSizing: 'border-box', width: '100%', minWidth: 0 },
   mono: { fontFamily: 'var(--dsw-font-mono, ui-monospace, monospace)' },
   textarea: {
     boxSizing: 'border-box',
@@ -54,7 +54,7 @@ const styles = stylex.create({
     borderColor: { default: color.border, ':focus-visible': color.fg },
     borderRadius: radius.row,
     outline: 'none',
-    backgroundColor: color.base,
+    backgroundColor: 'transparent',
     color: color.fg,
     fontFamily: 'inherit',
     fontSize: text.bodySize,

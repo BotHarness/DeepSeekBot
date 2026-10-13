@@ -431,7 +431,7 @@ export function ChannelHistory({
       scroll
       labels={{ close: t('common.close'), cancel: t('common.close') }}
       submitLabel={t('purge.preview')}
-      submitDisabled={channel === undefined || !selected.length}
+      submitDisabled={!selected.length}
       busy={busy}
       error={error}
       secondary={
@@ -454,13 +454,15 @@ export function ChannelHistory({
       onCancel={() => {
         if (!busy) onClose();
       }}
-      onSubmit={() => {
-        if (channel === undefined) return;
-        void perform(async () => {
-          setPreview(await actions.channelPurgePreview(channel.id, selected));
-          setComplete(false);
-        });
-      }}
+      onSubmit={
+        channel === undefined
+          ? undefined
+          : () =>
+              void perform(async () => {
+                setPreview(await actions.channelPurgePreview(channel.id, selected));
+                setComplete(false);
+              })
+      }
     >
       {body}
     </FormDialog>
