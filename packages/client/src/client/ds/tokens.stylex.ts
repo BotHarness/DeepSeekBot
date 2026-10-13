@@ -19,6 +19,7 @@ export const text = stylex.defineConsts({
   headingSize: '16px',
   headingLine: '24px',
   strong: '500',
+  heavy: '600',
 });
 
 export const radius = stylex.defineConsts({

@@ -24,7 +24,7 @@ const styles = stylex.create({
     margin: 0,
     fontSize: text.titleSize,
     lineHeight: text.titleLine,
-    fontWeight: text.strong,
+    fontWeight: text.heavy,
   },
   text: { margin: 0, overflowWrap: 'anywhere' },
   actions: {
@@ -232,7 +232,7 @@ export function ProfileBackupSettings({ t }: ProfileBackupSettingsProps): ReactE
             <p {...stylex.props(styles.text)}>{t('backup.sessions')}</p>
             <p {...stylex.props(styles.text)}>{t('backup.purge')}</p>
             <div {...stylex.props(styles.actions)}>
-              <Button disabled={busy} onClick={() => void prepare()}>
+              <Button variant="outline" size="sm" disabled={busy} onClick={() => void prepare()}>
                 {t('backup.prepare')}
               </Button>
             </div>
@@ -246,7 +246,7 @@ export function ProfileBackupSettings({ t }: ProfileBackupSettingsProps): ReactE
                     sessions: String(preview.sessions.count),
                   })}
                 </p>
-                <Button disabled={busy} onClick={() => void download()}>
+                <Button variant="outline" size="sm" disabled={busy} onClick={() => void download()}>
                   {t('backup.download')}
                 </Button>
               </div>
@@ -272,7 +272,12 @@ export function ProfileBackupSettings({ t }: ProfileBackupSettingsProps): ReactE
                 event.currentTarget.value = '';
               }}
             />
-            <Button disabled={busy} onClick={() => file.current?.click()}>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={busy}
+              onClick={() => file.current?.click()}
+            >
               {t('backup.select')}
             </Button>
             {inspection ? (
@@ -313,7 +318,12 @@ export function ProfileBackupSettings({ t }: ProfileBackupSettingsProps): ReactE
                 label={t('backup.acknowledge')}
               />
               <div {...stylex.props(styles.actions)}>
-                <Button disabled={busy} onClick={() => void run(refresh)}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={busy}
+                  onClick={() => void run(refresh)}
+                >
                   {t('backup.refresh')}
                 </Button>
               </div>
@@ -342,12 +352,16 @@ export function ProfileBackupSettings({ t }: ProfileBackupSettingsProps): ReactE
                   </p>
                   <div {...stylex.props(styles.actions)}>
                     <Button
+                      variant="outline"
+                      size="sm"
                       disabled={busy || !bot.route}
                       onClick={() => void act(bot.slug, 'authorize')}
                     >
                       {t('backup.authorize')}
                     </Button>
                     <Button
+                      variant="outline"
+                      size="sm"
                       disabled={busy || !!bot.reason || !acknowledged || bot.activated}
                       onClick={() => void act(bot.slug, 'activate')}
                     >
@@ -362,6 +376,8 @@ export function ProfileBackupSettings({ t }: ProfileBackupSettingsProps): ReactE
             <div role="status" {...stylex.props(styles.actions)}>
               <span>{t('backup.working')}</span>
               <Button
+                variant="outline"
+                size="sm"
                 onClick={() => {
                   active.current?.abort();
                   setBusy(false);
