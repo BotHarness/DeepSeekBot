@@ -1,7 +1,7 @@
 import { externalPlatformLabel } from './bridge-source-label.js';
 import { subscribeMessagingDefaults } from './messaging-defaults-live.js';
 import type {} from '@deepseek-ai/dsh-api-session-controller/client';
-import { useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
+import { useRef, useState, type ReactElement, type ReactNode } from 'react';
 import { Button, Input, Switch, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 import type {
   ChannelBridgeInput,
@@ -39,10 +39,10 @@ export function ChannelBridgeAttention({
   channelId: string;
   actions: Pick<BridgeActions, 'channelBridges'>;
   report(needsAttention: boolean): void;
-}): null {
+}): ReactElement {
   const reportRef = useRef(report);
   reportRef.current = report;
-  useEffect(() => {
+  const mount = useMountedResource<HTMLSpanElement>(() => {
     let current = true;
     let request = 0;
     const read = (): void => {
@@ -64,7 +64,7 @@ export function ChannelBridgeAttention({
       unsubscribe();
     };
   }, [actions, channelId]);
-  return null;
+  return <span hidden ref={mount} />;
 }
 
 function conditionKey(row: ChannelBridgeRow) {

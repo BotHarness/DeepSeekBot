@@ -1,4 +1,4 @@
-import { useEffect, useState, useSyncExternalStore, type ReactElement } from 'react';
+import { useState, useSyncExternalStore, type ReactElement } from 'react';
 
 import {
   IconChevronDownOutlineRegular,
@@ -17,6 +17,7 @@ import {
 import { channelSidebarPrefs, type ChannelSidebarPrefs } from './channel-sidebar-prefs.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { Modal } from './modal.js';
+import { useMountedResource } from './mounted-resource.js';
 import type { ClientState } from './store.js';
 import {
   channelSettings,
@@ -266,14 +267,16 @@ function AttentionProbe({
   controller: ChannelSettings;
 }): ReactElement | null {
   const { channelId } = props;
-  useEffect(
+  const mount = useMountedResource<HTMLSpanElement>(
     () => () => controller.reportAttention(channelId, section.id, false),
     [controller, channelId, section.id],
   );
   const Probe = section.attention;
   if (Probe === undefined) return null;
   return (
-    <Probe {...props} report={(on) => controller.reportAttention(channelId, section.id, on)} />
+    <span hidden ref={mount}>
+      <Probe {...props} report={(on) => controller.reportAttention(channelId, section.id, on)} />
+    </span>
   );
 }
 

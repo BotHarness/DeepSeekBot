@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, createElement, useEffect, type ReactNode } from 'react';
+import { act, createElement, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
@@ -200,8 +200,11 @@ describe('Channel settings', () => {
     let failing = true;
     const Probe = ({ report }: ChannelSettingsAttentionProps) => {
       const on = failing;
-      useEffect(() => report(on));
-      return null;
+      return createElement('span', {
+        ref: (node: HTMLSpanElement | null) => {
+          if (node !== null) report(on);
+        },
+      });
     };
     registry.register(entry('wake-policy', 2, { surface: 'settings', label: '唤醒策略' }));
     registry.register(
