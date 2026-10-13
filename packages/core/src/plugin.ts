@@ -111,9 +111,11 @@ import { createMemoryService, type MemoryService } from './memory/service.js';
 import { createRosterStore, type RosterStore } from './roster/store.js';
 import {
   createBotRuntime,
+  DEFAULT_ASSIGNMENT_CONCURRENCY_LIMIT,
   type AssignmentEventTail,
   type BotAgentAdapter,
   type BotRuntime,
+  type NativeSessionArchive,
 } from './runtime/bot-runtime.js';
 import { createBotAttentionQuery, type BotAttentionQuery } from './runtime/attention.js';
 import { createInboxHistoryQuery, type InboxHistoryQuery } from './runtime/inbox-history.js';
@@ -353,6 +355,7 @@ export function createCore(
       offset: number,
     ) => Promise<AssignmentReportPage>;
     workspaces?: () => DshWorkspaceLookup | undefined;
+    sessionArchive?: () => NativeSessionArchive | undefined;
     autoAcceptGroupInvitations?: () => boolean;
     onOutputCommitted?: (event: PersonaBotOutputCommitted) => void;
     activeQuestionMessageIds?: () => readonly string[];
@@ -726,7 +729,9 @@ export function createCore(
     inboxHistory,
     requireExecution: (slug) => profileRecovery.requireExecution(slug),
     schedules,
-    assignmentConcurrencyLimit: () => assignmentLimits.at(-1)?.read() ?? 3,
+    assignmentConcurrencyLimit: () =>
+      assignmentLimits.at(-1)?.read() ?? DEFAULT_ASSIGNMENT_CONCURRENCY_LIMIT,
+    ...(options.sessionArchive === undefined ? {} : { sessionArchive: options.sessionArchive }),
     beginAssignmentWait: (slug, sessionId) => states.beginAssignmentWait(slug, sessionId),
     database: operationalDatabase,
     externalMessaging,
@@ -1071,6 +1076,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       return readAssignmentReportPage(query, sessionId, acceptedSummary, offset);
     },
     workspaces: () => ctx.get('workspaceRegistry') as unknown as DshWorkspaceLookup | undefined,
+    sessionArchive: () =>
+      ctx.get('workspaceRegistry') as unknown as NativeSessionArchive | undefined,
   });
   publishDraft = (event) => core.live.publishDraft(event);
   ctx.effect(() => () => core.operationalDatabase.close(), 'botharness: operational database');

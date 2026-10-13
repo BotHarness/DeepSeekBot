@@ -2066,6 +2066,15 @@ const FAILURE_ALERT_MIGRATION: SchemaMigration = {
   },
 };
 
+const ASSIGNMENT_ARCHIVE_MIGRATION: SchemaMigration = {
+  generation: 84,
+  module: 'assignments',
+  description: 'Mirror the DSH Session archive on Orchestrator-archived Assignments (ADR-0188)',
+  migrate(database) {
+    database.exec('ALTER TABLE assignments ADD COLUMN archived_at TEXT');
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -2149,4 +2158,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   BEHAVIOR_PERMISSION_MIGRATION,
   EXTERNAL_TOOL_RULE_CREATOR_MIGRATION,
   FAILURE_ALERT_MIGRATION,
+  ASSIGNMENT_ARCHIVE_MIGRATION,
 ]);

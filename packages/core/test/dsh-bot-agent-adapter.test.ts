@@ -1134,6 +1134,8 @@ describe('DSH Bot Agent adapter', () => {
       'request_workspace_grant',
       'list_workspace_grants',
       'list_assignments',
+      'archive_assignment',
+      'unarchive_assignment',
       'inspect_assignment',
       'send_assignment_request',
       'wait_for_assignment',
@@ -2043,6 +2045,129 @@ describe('Bot Schedule Tools', () => {
       expect(updated).toEqual([{ enabled: false }]);
       expect(denial).toContain('bot_schedule_create');
       expect(allowed).toBeUndefined();
+    } finally {
+      await adapter.close();
+    }
+  });
+});
+
+describe('Assignment Directory Tools', () => {
+  it('forward list filters and archive decisions to the Orchestrator run', async () => {
+    const calls: Array<Promise<unknown>> = [];
+    const queries: unknown[] = [];
+    const archived: string[] = [];
+    const host = new FakeAgentHost(
+      { kind: 'completed' },
+      {
+        onAgentCreated: () => {
+          const scope = host.scopes.get('orchestrator-ada');
+          const tool = (name: string) => {
+            const found = scope?.tools.find((candidate) => candidate.name === name);
+            if (found === undefined) throw new Error(`${name} not registered`);
+            return found;
+          };
+          calls.push(
+            tool('list_assignments').execute(
+              {
+                query: 'release',
+                activity: ['idle'],
+                include_archived: true,
+                limit: 5,
+                cursor: 'c1',
+              },
+              {} as ToolRunContext,
+            ),
+          );
+          calls.push(
+            tool('archive_assignment').execute({ session_id: 'a-1' }, {} as ToolRunContext),
+          );
+          calls.push(
+            tool('archive_assignment').execute({ session_id: 'busy' }, {} as ToolRunContext),
+          );
+          calls.push(
+            tool('unarchive_assignment').execute({ session_id: 'a-1' }, {} as ToolRunContext),
+          );
+        },
+      },
+    );
+    const adapter = createDshBotAgentAdapter({
+      agents: host,
+      defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+      orchestratorCwd: () => '/memory/ada',
+      ensureWorkspace: () => undefined,
+    });
+    await adapter.runOrchestrator({
+      sessionId: 'orchestrator-ada',
+      resume: false,
+      bot: BOT,
+      message: 'Tidy up finished work',
+      inboundChannelId: 'dm-test',
+      inbox: '',
+      channels: {
+        ...groupTools,
+        contacts: () => ({ outputLimit: 12_000, contacts: [] }),
+        sendToBot: async () => {
+          throw new Error('unexpected Bot DM');
+        },
+        ignore: () => {
+          throw new Error('unexpected ignore');
+        },
+        read: () => [],
+        requestGrant: async () => {
+          throw new Error('unexpected Grant request');
+        },
+        send: async (input) => ({
+          id: 'bot-1',
+          at: BOT.createdAt,
+          author: { kind: 'bot', slug: BOT.slug },
+          body: input.body,
+        }),
+      },
+      assignments: {
+        create: () => ({ outcome: 'created', assignment: ASSIGNMENT }),
+        grants: () => [],
+        list: () => [],
+        query: (input) => {
+          queries.push(input);
+          return { assignments: [ASSIGNMENT], nextCursor: 'c2' };
+        },
+        archive: async (sessionId) => {
+          if (sessionId === 'busy')
+            return {
+              outcome: 'refused',
+              code: 'assignment-active',
+              assignment: { ...ASSIGNMENT, sessionId, activity: 'working' },
+              message: 'still active',
+            };
+          archived.push(sessionId);
+          return {
+            outcome: 'archived',
+            assignment: { ...ASSIGNMENT, sessionId, archivedAt: BOT.createdAt },
+          };
+        },
+        unarchive: async (sessionId) => ({
+          outcome: 'unarchived',
+          assignment: { ...ASSIGNMENT, sessionId },
+        }),
+        inspect: () => undefined,
+        stop: async () => ASSIGNMENT,
+        request: () => {
+          throw new Error('unexpected Assignment request');
+        },
+      },
+    });
+    try {
+      const results = (await Promise.all(calls)).map((value) => JSON.parse(String(value)));
+      expect(queries).toEqual([
+        { query: 'release', activity: ['idle'], includeArchived: true, limit: 5, cursor: 'c1' },
+      ]);
+      expect(results).toMatchObject([
+        { assignments: [{ sessionId: ASSIGNMENT.sessionId }], nextCursor: 'c2' },
+        { outcome: 'archived', sessionId: 'a-1', archivedAt: BOT.createdAt },
+        { outcome: 'refused', code: 'assignment-active', sessionId: 'busy', activity: 'working' },
+        { outcome: 'unarchived', sessionId: 'a-1' },
+      ]);
+      expect(archived).toEqual(['a-1']);
     } finally {
       await adapter.close();
     }

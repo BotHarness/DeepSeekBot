@@ -142,7 +142,7 @@ The delivered answer path settles the captured open ask only after native Inbox 
 
 The profile-wide **Assignment Concurrency Limit** defaults to `3` and counts only independent Assignment Sessions actively executing. Excess create or idle-wake attempts fail immediately with structured machine fields plus an LLM-readable explanation. Assignment creates no queue, intent, or dormant DSH Session for a rejected attempt.
 
-Human edits this limit through Bot mode Settings. The native DSH Settings schema declares an integer volatile field (1–32, default 3), persisted by the Profile Config Editor. The Host half of the UI Plugin binds its live Volatile reader to the application-defined Assignment Runtime for the lifetime of its Fiber. Each create or idle-wake admission reads the current value; the Client never supplies a limit to an Assignment Tool. Lowering the value does not cancel existing execution, and no new work is admitted until active use falls below it.
+Human edits this limit through Bot mode Settings. The native DSH Settings schema declares an integer volatile field (1–32, default 8), persisted by the Profile Config Editor. The Host half of the UI Plugin binds its live Volatile reader to the application-defined Assignment Runtime for the lifetime of its Fiber. Each create or idle-wake admission reads the current value; the Client never supplies a limit to an Assignment Tool. Lowering the value does not cancel existing execution, and no new work is admitted until active use falls below it.
 
 ## Optional Memory capability
 

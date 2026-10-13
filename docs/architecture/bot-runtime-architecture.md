@@ -141,7 +141,7 @@ Assignment Report 携带有意义的 progress、blocked/waiting state、result �
 
 Profile-wide **Assignment Concurrency Limit** 默认是 `3`，只计算正在执行的独立 Assignment Session。超过上限的 create 或 idle-wake attempt 立即失败，并返回结构化 machine field 和 LLM 可读说明。被拒绝的 attempt 不创建 queue、intent 或 dormant DSH Session。
 
-Human 在 Bot 模式设置中调整此上限。DSH 原生 Settings schema 声明 integer volatile field（1–32，默认 3），由 Profile Config Editor 持久化。UI Plugin 的 Host 半侧将 live Volatile reader 绑定到 application-defined Assignment Runtime，绑定随 Fiber dispose 释放。每次 create 或 idle-wake 准入读取当前值，Client 不向 Assignment Tool 传递上限。降低上限不中止已有执行；只有 active use 低于新值后才允许启动新工作。
+Human 在 Bot 模式设置中调整此上限。DSH 原生 Settings schema 声明 integer volatile field（1–32，默认 8），由 Profile Config Editor 持久化。UI Plugin 的 Host 半侧将 live Volatile reader 绑定到 application-defined Assignment Runtime，绑定随 Fiber dispose 释放。每次 create 或 idle-wake 准入读取当前值，Client 不向 Assignment Tool 传递上限。降低上限不中止已有执行；只有 active use 低于新值后才允许启动新工作。
 
 ## Optional Memory capability
 

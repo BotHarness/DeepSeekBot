@@ -1,7 +1,7 @@
 flowchart LR
   Inbox["Bot Inbox / Attention"] --> O["One active Orchestrator Session"]
   O -->|"list / inspect"| Dir["Durable Assignment Directory"]
-  O -->|"create_assignment"| Gate{"Global active Assignments < limit?<br/>default 3"}
+  O -->|"create_assignment"| Gate{"Global active Assignments < limit?<br/>default 8"}
   Gate -- "no" --> Error["Structured + LLM-readable failure<br/>no queue, no intent"]
   Gate -- "yes" --> Runtime["Assignment Runtime"]
   O -->|"send_assignment_request / stop_assignment"| Runtime

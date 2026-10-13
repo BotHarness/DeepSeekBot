@@ -133,8 +133,12 @@ _避免使用_：Work Session、Worker Session、Executor Session、task Session
 _避免使用_：worker、PersonaBot、Orchestrator、Assignment Session
 
 **Assignment Directory**：
-一种以 PersonaBot 为作用域的持久 read model，当前 Orchestrator 通过它显式列出并寻址自己拥有的 Assignment Session，包括 purpose、Continuity Key、Workspace、源自 DSH 的活动状态与 last-run facts、依赖关系、最新语义报告以及后代活动聚合。它将 execution facts 与 reported outcomes 分开，由 Session Ownership 和 DSH facts 重建，并在需要时查询，而不是完整注入每个 turn。列表支持筛选、排序与 opaque-cursor pagination，且绝不会把 DSH Subagent 扁平化为顶层 Assignment。
+一种以 PersonaBot 为作用域的持久 read model，当前 Orchestrator 通过它显式列出并寻址自己拥有的 Assignment Session，包括 purpose、Continuity Key、Workspace、源自 DSH 的活动状态与 last-run facts、依赖关系、最新语义报告以及后代活动聚合。它将 execution facts 与 reported outcomes 分开，由 Session Ownership 和 DSH facts 重建，并在需要时查询，而不是完整注入每个 turn。列表支持筛选、文本搜索、排序与 opaque-cursor pagination，默认隐藏 Archived Assignment，且绝不会把 DSH Subagent 扁平化为顶层 Assignment。
 _避免使用_：task list、AgentHandle map、cwd scan、Orchestrator memory
+
+**Archived Assignment**：
+Orchestrator 在 Assignment 结束执行后，通过 DSH 原生 Session archive 显式归档的 Assignment。它离开默认的 Assignment Directory 列表和原生 Session 列表，释放自己的 Continuity Key，拒绝 Assignment Request，并保留历史；取消归档即可恢复。不会有任何机制自动归档 Assignment（ADR-0188）。
+_避免使用_：deleted Assignment、stopped Assignment、auto-archive、hidden flag
 
 **Continuity Key**：
 显式分配给一条持续工作线、在 PersonaBot 内稳定的 key。它最多命名一个可恢复的 Assignment Session，并且仅当 ownership、Workspace mapping、model 与 dependency requirement 仍然匹配时才可选中该 Session。当前持有者必须先变为 idle/completed，或被显式停止并 supersede，key 才能转移。
@@ -161,7 +165,7 @@ _避免使用_：blocking call、direct Orchestrator message、question queue
 _避免使用_：Assignment Report、fabricated agent message、per-turn directory snapshot
 
 **Assignment Concurrency Limit**：
-整个 Profile 中可并发执行的独立 Assignment Session 数量上限。v1 中它是由 Human 配置的一项 BotHarness 全局设置；超过上限的 create 或 wake 尝试会立即失败，返回 machine-readable fields 与 LLM-readable explanation，同时不会创建 queue、intent 或 DSH Session。
+整个 Profile 中可并发执行的独立 Assignment Session 数量上限。v1 中它是由 Human 配置的一项 BotHarness 全局设置，默认 8；超过上限的 create 或 wake 尝试会立即失败，返回 machine-readable fields 与 LLM-readable explanation，同时不会创建 queue、intent 或 DSH Session。
 _避免使用_：dispatch queue、per-Bot quota、hidden model budget、total Session count
 
 **Workspace**：

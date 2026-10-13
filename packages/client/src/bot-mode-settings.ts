@@ -1,5 +1,5 @@
 export const BOT_MODE_ASSIGNMENT_LIMIT_FIELD = 'assignmentConcurrencyLimit';
-export const DEFAULT_ASSIGNMENT_CONCURRENCY_LIMIT = 3;
+export const DEFAULT_ASSIGNMENT_CONCURRENCY_LIMIT = 8;
 export function isAssignmentConcurrencyLimit(value: unknown): value is number {
   return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 32;
 }

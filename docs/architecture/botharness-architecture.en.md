@@ -394,7 +394,7 @@ Pause/Resume invalidates that Bot’s actionable observation in the existing pro
 flowchart LR
   Inbox["Bot Inbox / Attention"] --> O["One active Orchestrator Session"]
   O -->|"list / inspect"| Dir["Durable Assignment Directory"]
-  O -->|"create_assignment"| Gate{"Global active Assignments < limit?<br/>default 3"}
+  O -->|"create_assignment"| Gate{"Global active Assignments < limit?<br/>default 8"}
   Gate -- "no" --> Error["Structured + LLM-readable failure<br/>no queue, no intent"]
   Gate -- "yes" --> Runtime["Assignment Runtime"]
   O -->|"send_assignment_request / stop_assignment"| Runtime
@@ -413,7 +413,7 @@ An Assignment Session is an independent DSH root whose canonical identity is the
 
 An addressed answer clears only its captured open ask after native Inbox acceptance. Pending followup scheduling is not proof of delivery. A proven preparation failure preserves the original ask, permission/model snapshots and idle retry path; ambiguous native send or restart remains repair-visible without replay. Human DM receipt does not hide unresolved actions or create Handled history; after a proven failure the original source accepts an explicit Human retry. Older settlement cannot remove a newer ask (#812).
 
-The Assignment Runtime's concurrency limit covers all PersonaBots on the Host (default 3), including new creation, addressed idle wake and Continuity Key reuse. Before waking an idle Assignment, the Runtime synchronously reserves its existing Directory row as working, then enters the DSH adapter. Updating already-running work needs no additional slot. Full capacity returns `assignment-capacity`, the active count, limit and retryable flag without delivery, ask clearing or model/permission changes. Stopping work holds its slot until stop is confirmed; after a slot is released, the Orchestrator may retry the same Session. This does not add a waiting queue (#811).
+The Assignment Runtime's concurrency limit covers all PersonaBots on the Host (default 8), including new creation, addressed idle wake and Continuity Key reuse. Before waking an idle Assignment, the Runtime synchronously reserves its existing Directory row as working, then enters the DSH adapter. Updating already-running work needs no additional slot. Full capacity returns `assignment-capacity`, the active count, limit and retryable flag without delivery, ask clearing or model/permission changes. Stopping work holds its slot until stop is confirmed; after a slot is released, the Orchestrator may retry the same Session. This does not add a waiting queue (#811).
 
 The bounded #1037 slice releases a live running permit during Human tool approval only for an Assignment without descendants, active tool bodies or prepared approved calls. Its durable activity remains working; process-local executionWait distinguishes waiting-human and waiting-capacity. Up to 32 waiting Assignment Sessions share a separate bound. A committed Human decision awaits a current running permit before the original native outcome or next model step continues; execution repeats ownership, Grant, Source Event and exact-operation checks. New create/idle-wake requests still refuse at capacity. Abort, stop and cold recovery never replay the original call. Same-Orchestrator permission continuation and Group privacy remain separately gated. See [ADR-0045](../adr/0045-orchestrator-manages-assignments-through-a-durable-directory.md#live-approval-waits-and-running-permits).
 

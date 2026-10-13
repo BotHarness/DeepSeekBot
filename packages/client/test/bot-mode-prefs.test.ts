@@ -553,7 +553,7 @@ describe('Assignment limit persistence', () => {
         settle = resolve;
       });
     const pending = prefs.setAssignmentConcurrencyLimit(5);
-    expect(prefs.source.getSnapshot().assignmentConcurrencyLimit).toBe(3);
+    expect(prefs.source.getSnapshot().assignmentConcurrencyLimit).toBe(8);
     scope.push({ value: { ...scope.host.getSnapshot().value!, assignmentConcurrencyLimit: 5 } });
     settle!(true);
     expect(await pending).toBe(true);
@@ -589,6 +589,6 @@ describe('Assignment limit persistence', () => {
       throw new Error('Host unavailable');
     };
     await expect(prefs.setAssignmentConcurrencyLimit(2)).rejects.toThrow('Host unavailable');
-    expect(prefs.source.getSnapshot().assignmentConcurrencyLimit).toBe(3);
+    expect(prefs.source.getSnapshot().assignmentConcurrencyLimit).toBe(8);
   });
 });

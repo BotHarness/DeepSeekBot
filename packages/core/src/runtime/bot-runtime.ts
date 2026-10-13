@@ -149,8 +149,36 @@ export interface AssignmentSummary {
   openAsk?: AssignmentOpenAsk;
   permission?: AssignmentPermissionSnapshot;
   modelRoute?: ModelRoute;
+  archivedAt?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface AssignmentDirectoryQuery {
+  query?: string;
+  activity?: AssignmentActivity[];
+  includeArchived?: boolean;
+  limit?: number;
+  cursor?: string;
+}
+
+export interface AssignmentDirectoryPage {
+  assignments: AssignmentSummary[];
+  nextCursor?: string;
+}
+
+export type AssignmentArchiveOutcome =
+  | { outcome: 'archived'; assignment: AssignmentSummary }
+  | {
+      outcome: 'refused';
+      code: 'assignment-active';
+      assignment: AssignmentSummary;
+      message: string;
+    };
+
+export interface NativeSessionArchive {
+  archiveSession(sessionId: string): Promise<void>;
+  unarchiveSession(sessionId: string): Promise<void>;
 }
 
 export interface ChannelAssignmentSummary {
@@ -225,6 +253,9 @@ export interface OrchestratorAssignmentAccess {
     model?: ModelRoute;
   }): AssignmentRequestOutcome;
   stop(sessionId: string): Promise<AssignmentSummary>;
+  query?(input: AssignmentDirectoryQuery): AssignmentDirectoryPage;
+  archive?(sessionId: string): Promise<AssignmentArchiveOutcome>;
+  unarchive?(sessionId: string): Promise<{ outcome: 'unarchived'; assignment: AssignmentSummary }>;
 }
 
 export interface OrchestratorAgentRun {
@@ -576,6 +607,8 @@ export interface BotRuntimeOptions {
 
   assignmentConcurrencyLimit?: number | (() => number);
 
+  sessionArchive?: () => NativeSessionArchive | undefined;
+
   warn?: (message: string) => void;
   now?: () => Date;
   createSessionId?: () => string;
@@ -604,6 +637,7 @@ interface AssignmentRow {
   approval_policy: string | null;
   preset_revision: number | null;
   model_route_json: string | null;
+  archived_at?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -791,6 +825,99 @@ function assignmentFromRow(row: AssignmentRow): AssignmentDetail {
     ...(openAsk === undefined ? {} : { openAsk }),
     ...(permissionFromRow(row) === undefined ? {} : { permission: permissionFromRow(row)! }),
     ...(modelRouteFromRow(row) === undefined ? {} : { modelRoute: modelRouteFromRow(row)! }),
+    ...(row.archived_at === null || row.archived_at === undefined
+      ? {}
+      : { archivedAt: row.archived_at }),
+  };
+}
+
+export const DEFAULT_ASSIGNMENT_CONCURRENCY_LIMIT = 8;
+const ASSIGNMENT_DIRECTORY_DEFAULT_LIMIT = 20;
+const ASSIGNMENT_DIRECTORY_MAX_LIMIT = 50;
+const ASSIGNMENT_ACTIVITIES: readonly AssignmentActivity[] = [
+  'working',
+  'idle',
+  'error',
+  'stopping',
+  'stopped',
+];
+
+function encodeDirectoryCursor(assignment: AssignmentSummary): string {
+  return Buffer.from(
+    JSON.stringify({ u: assignment.updatedAt, s: assignment.sessionId }),
+    'utf8',
+  ).toString('base64url');
+}
+
+function decodeDirectoryCursor(cursor: string): { updatedAt: string; sessionId: string } {
+  try {
+    const parsed = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as unknown;
+    if (
+      typeof parsed === 'object' &&
+      parsed !== null &&
+      typeof (parsed as { u?: unknown }).u === 'string' &&
+      typeof (parsed as { s?: unknown }).s === 'string'
+    )
+      return { updatedAt: (parsed as { u: string }).u, sessionId: (parsed as { s: string }).s };
+  } catch {
+    throw new Error('Invalid Assignment Directory cursor; restart from the first page');
+  }
+  throw new Error('Invalid Assignment Directory cursor; restart from the first page');
+}
+
+export function queryAssignmentDirectory(
+  assignments: readonly AssignmentSummary[],
+  input: AssignmentDirectoryQuery,
+): AssignmentDirectoryPage {
+  const limit = input.limit ?? ASSIGNMENT_DIRECTORY_DEFAULT_LIMIT;
+  if (!Number.isInteger(limit) || limit < 1 || limit > ASSIGNMENT_DIRECTORY_MAX_LIMIT)
+    throw new Error(
+      `Assignment Directory limit must be an integer from 1 to ${ASSIGNMENT_DIRECTORY_MAX_LIMIT}`,
+    );
+  const activity = input.activity === undefined ? undefined : new Set(input.activity);
+  for (const value of activity ?? [])
+    if (!ASSIGNMENT_ACTIVITIES.includes(value))
+      throw new Error(`Unknown Assignment activity filter: ${String(value)}`);
+  const text = input.query?.trim().toLocaleLowerCase();
+  const after = input.cursor === undefined ? undefined : decodeDirectoryCursor(input.cursor);
+  const matches = assignments.filter((assignment) => {
+    if (input.includeArchived !== true && assignment.archivedAt !== undefined) return false;
+    if (activity !== undefined && !activity.has(assignment.activity)) return false;
+    if (text !== undefined && text !== '') {
+      const haystack = [
+        assignment.purpose,
+        assignment.continuityKey ?? '',
+        assignment.latestReport?.summary ?? '',
+      ]
+        .join('\n')
+        .toLocaleLowerCase();
+      if (!haystack.includes(text)) return false;
+    }
+    if (after !== undefined)
+      return (
+        assignment.updatedAt < after.updatedAt ||
+        (assignment.updatedAt === after.updatedAt && assignment.sessionId > after.sessionId)
+      );
+    return true;
+  });
+  const ordered = [...matches].sort((left, right) =>
+    left.updatedAt === right.updatedAt
+      ? left.sessionId < right.sessionId
+        ? -1
+        : left.sessionId > right.sessionId
+          ? 1
+          : 0
+      : left.updatedAt < right.updatedAt
+        ? 1
+        : -1,
+  );
+  const page = ordered.slice(0, limit);
+  const last = page.at(-1);
+  return {
+    assignments: page,
+    ...(ordered.length > limit && last !== undefined
+      ? { nextCursor: encodeDirectoryCursor(last) }
+      : {}),
   };
 }
 
@@ -958,6 +1085,7 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #createEventId: () => string;
   readonly #createMessageId: () => string;
   readonly #assignmentConcurrencyLimit: () => number;
+  readonly #sessionArchive: (() => NativeSessionArchive | undefined) | undefined;
   readonly #approvalCapacity: AssignmentApprovalCapacity;
   readonly #warn: ((message: string) => void) | undefined;
   readonly #tails = new Map<string, Promise<unknown>>();
@@ -1028,9 +1156,11 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#createSessionId = options.createSessionId ?? (() => `botharness-${randomUUID()}`);
     this.#createEventId = options.createEventId ?? (() => randomUUID());
     this.#createMessageId = options.createMessageId ?? (() => randomUUID());
-    const configuredLimit = options.assignmentConcurrencyLimit ?? 3;
+    const configuredLimit =
+      options.assignmentConcurrencyLimit ?? DEFAULT_ASSIGNMENT_CONCURRENCY_LIMIT;
     this.#assignmentConcurrencyLimit =
       typeof configuredLimit === 'function' ? configuredLimit : () => configuredLimit;
+    this.#sessionArchive = options.sessionArchive;
     this.#warn = options.warn;
     this.#approvalCapacity = new AssignmentApprovalCapacity({
       valid: (sessionId) => this.#assignmentExecutionAvailable(sessionId),
@@ -2946,7 +3076,7 @@ class BotRuntimeImplementation implements BotRuntime {
                   continuity_key, open_ask_source_event_id, open_ask_at,
                   grant_id, workspace_id, primary_cwd, permission_mode,
                   approval_policy, preset_revision, created_at, updated_at
-                  , model_route_json, (SELECT body FROM source_events WHERE source_event_id = assignments.open_ask_source_event_id) AS open_ask_summary
+                  , model_route_json, archived_at, (SELECT body FROM source_events WHERE source_event_id = assignments.open_ask_source_event_id) AS open_ask_summary
              FROM assignments
             WHERE bot_slug = ?
             ORDER BY updated_at DESC, session_id ASC`,
@@ -3005,7 +3135,7 @@ class BotRuntimeImplementation implements BotRuntime {
                   continuity_key, open_ask_source_event_id, open_ask_at,
                   grant_id, workspace_id, primary_cwd, permission_mode,
                   approval_policy, preset_revision, created_at, updated_at
-                  , model_route_json, (SELECT body FROM source_events WHERE source_event_id = assignments.open_ask_source_event_id) AS open_ask_summary
+                  , model_route_json, archived_at, (SELECT body FROM source_events WHERE source_event_id = assignments.open_ask_source_event_id) AS open_ask_summary
              FROM assignments
             WHERE bot_slug = ? AND session_id = ?`,
         )
@@ -3760,6 +3890,9 @@ class BotRuntimeImplementation implements BotRuntime {
       },
       grants: () => this.#grants?.list(bot.slug) ?? [],
       list: () => this.listAssignments(bot.slug),
+      query: (input) => queryAssignmentDirectory(this.listAssignments(bot.slug), input),
+      archive: (sessionId) => this.#archiveAssignment(bot, sessionId, markSideEffect),
+      unarchive: (sessionId) => this.#unarchiveAssignment(bot, sessionId, markSideEffect),
       inspect: (sessionId) => this.getAssignment(bot.slug, sessionId),
       tail: async (sessionId) => {
         if (this.getAssignment(bot.slug, sessionId) === undefined)
@@ -5376,6 +5509,11 @@ class BotRuntimeImplementation implements BotRuntime {
     if (row.stop_state !== 'running') {
       throw new Error(`Assignment Session ${input.sessionId} is stopped or stopping`);
     }
+    if (row.archived_at !== null && row.archived_at !== undefined) {
+      throw new Error(
+        `Assignment Session ${input.sessionId} is archived; unarchive_assignment it before sending a request`,
+      );
+    }
     const permission = permissionFromRow(row);
     if (permission === undefined || this.#grants === undefined) {
       throw new Error('Assignment has no valid Workspace Grant snapshot');
@@ -5582,6 +5720,90 @@ class BotRuntimeImplementation implements BotRuntime {
     );
     if (stopped) this.#scheduleHarvest(bot.slug);
     return this.#requireAssignmentSummary(bot.slug, sessionId);
+  }
+
+  async #archiveAssignment(
+    bot: PersonaBotRecord,
+    sessionId: string,
+    markSideEffect: () => void,
+  ): Promise<AssignmentArchiveOutcome> {
+    const row = this.#assignmentRow(bot.slug, sessionId);
+    if (row === undefined) throw new Error(`Unknown Assignment Session: ${sessionId}`);
+    if (row.archived_at !== null && row.archived_at !== undefined)
+      return {
+        outcome: 'archived',
+        assignment: this.#requireAssignmentSummary(bot.slug, sessionId),
+      };
+    const active = (message: string): AssignmentArchiveOutcome => ({
+      outcome: 'refused',
+      code: 'assignment-active',
+      assignment: this.#requireAssignmentSummary(bot.slug, sessionId),
+      message,
+    });
+    if (
+      row.activity === 'working' ||
+      row.stop_state === 'requested' ||
+      this.#assignmentAcceptances.has(sessionId)
+    )
+      return active(
+        `Assignment Session ${sessionId} is still active; nothing was archived. Wait for it to settle or call stop_assignment first.`,
+      );
+    const archive = this.#sessionArchive?.();
+    if (archive === undefined) throw new Error('DSH Session archive is unavailable');
+    markSideEffect();
+    try {
+      await archive.archiveSession(sessionId);
+    } catch (error) {
+      if (error instanceof Error && error.name === 'WorkspaceActiveSessionError')
+        return active(
+          `DSH reports Session ${sessionId} still has running work; nothing was archived. Stop it first, then retry.`,
+        );
+      throw error;
+    }
+    const at = this.#now().toISOString();
+    this.#database.transaction(
+      (database) => {
+        database
+          .prepare(
+            `UPDATE assignments SET archived_at = ?, continuity_key = NULL, updated_at = ?
+              WHERE bot_slug = ? AND session_id = ? AND archived_at IS NULL`,
+          )
+          .run(at, at, bot.slug, sessionId);
+      },
+      ['assignments'],
+    );
+    return { outcome: 'archived', assignment: this.#requireAssignmentSummary(bot.slug, sessionId) };
+  }
+
+  async #unarchiveAssignment(
+    bot: PersonaBotRecord,
+    sessionId: string,
+    markSideEffect: () => void,
+  ): Promise<{ outcome: 'unarchived'; assignment: AssignmentSummary }> {
+    const row = this.#assignmentRow(bot.slug, sessionId);
+    if (row === undefined) throw new Error(`Unknown Assignment Session: ${sessionId}`);
+    if (row.archived_at !== null && row.archived_at !== undefined) {
+      const archive = this.#sessionArchive?.();
+      if (archive === undefined) throw new Error('DSH Session archive is unavailable');
+      markSideEffect();
+      await archive.unarchiveSession(sessionId);
+      const at = this.#now().toISOString();
+      this.#database.transaction(
+        (database) => {
+          database
+            .prepare(
+              `UPDATE assignments SET archived_at = NULL, updated_at = ?
+                WHERE bot_slug = ? AND session_id = ? AND archived_at IS NOT NULL`,
+            )
+            .run(at, bot.slug, sessionId);
+        },
+        ['assignments'],
+      );
+    }
+    return {
+      outcome: 'unarchived',
+      assignment: this.#requireAssignmentSummary(bot.slug, sessionId),
+    };
   }
 
   #publishAssignmentRefusal(row: AssignmentRow, error: unknown): void {

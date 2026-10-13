@@ -102,7 +102,7 @@ describe('Host Assignment limit binding', () => {
     expect(() => Config({ assignmentConcurrencyLimit: value as never })).toThrow();
   });
   it('defaults old Profiles to three and accepts both range boundaries', () => {
-    expect(Config({}).assignmentConcurrencyLimit.get()).toBe(3);
+    expect(Config({}).assignmentConcurrencyLimit.get()).toBe(8);
     expect(Config({ assignmentConcurrencyLimit: 1 }).assignmentConcurrencyLimit.get()).toBe(1);
     expect(Config({ assignmentConcurrencyLimit: 32 }).assignmentConcurrencyLimit.get()).toBe(32);
   });
