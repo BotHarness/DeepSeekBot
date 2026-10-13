@@ -4059,3 +4059,14 @@ it('refuses an edited source on a continuation with source-conflict and preserve
     reason: 'source-conflict',
   });
 });
+
+it('changing the app post limit keeps its authenticated inbound subscription usable', async () => {
+  const fx = await fixture();
+  await fx.enable();
+  const binding = (await fx.core.externalMessaging.snapshot('ada')).identities![0]!;
+  await fx.core.externalMessaging.setPostLimit('ada', binding.id, binding.revision, 1);
+  const result = await fx.receive(event({ eventId: 'quota-event' }));
+  expect(result.accepted).toBe(true);
+  await fx.idle();
+  expect(fx.runs).toHaveLength(1);
+});

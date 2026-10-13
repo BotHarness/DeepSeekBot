@@ -73,6 +73,7 @@ export interface HumanAttentionQuery {
   }>;
   actionCount(): number;
   actionSummary(): { count: number; botSlugs: string[] };
+  openTimedQuestionCards(): Array<{ channelId: string; messageId: string }>;
 }
 
 interface AttentionRow {
@@ -747,6 +748,28 @@ SELECT 'handled:' || request.source_event_id AS id,
             }
           : {}),
       };
+    },
+    openTimedQuestionCards() {
+      return database.read(
+        (db) =>
+          db
+            .prepare(`
+          SELECT p.channel_id AS channelId, e.message_id AS messageId
+            FROM source_events e
+            JOIN channel_placements p ON p.source_event_id = e.source_event_id
+           WHERE e.source_kind = 'bot-message'
+             AND e.message_id IS NOT NULL
+             AND json_extract(e.payload_json, '$.userQuestionRequest.callId') IS NOT NULL
+             AND NOT EXISTS (
+               SELECT 1 FROM source_events resolution
+                 JOIN channel_placements rp ON rp.source_event_id = resolution.source_event_id
+                WHERE rp.channel_id = p.channel_id
+                  AND json_extract(resolution.payload_json,
+                    '$.userQuestionResolution.requestMessageId') = e.message_id
+             )
+           ORDER BY e.created_at, e.source_event_id`)
+            .all() as Array<{ channelId: string; messageId: string }>,
+      );
     },
     durableAttention() {
       return database.read(

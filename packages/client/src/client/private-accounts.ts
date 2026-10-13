@@ -4,6 +4,16 @@ export interface PrivateAccountList {
   status: 'ready' | 'unavailable';
   accounts: PrivateAccountSummary[];
   replaceable: boolean;
+  mcpServers?: PrivateMcpServer[];
+}
+
+export interface PrivateMcpServer {
+  serverName: string;
+  account: string;
+  program: string;
+  args: string[];
+  approvedAt: string;
+  connected: boolean;
 }
 
 const STATUSES = ['configured', 'replacing', 'unavailable'];
@@ -63,5 +73,30 @@ export function parsePrivateAccountList(value: unknown): PrivateAccountList {
         : { replacementMessageId: row.replacementMessageId }),
     };
   });
-  return { status: list.status, accounts, replaceable: list.replaceable };
+  const mcpServers = (Array.isArray(list.mcpServers) ? list.mcpServers : []).map(
+    (entry: unknown): PrivateMcpServer => {
+      const row = entry as Partial<PrivateMcpServer> | null;
+      if (
+        row === null ||
+        typeof row !== 'object' ||
+        typeof row.serverName !== 'string' ||
+        typeof row.account !== 'string' ||
+        typeof row.program !== 'string' ||
+        !Array.isArray(row.args) ||
+        !row.args.every((arg) => typeof arg === 'string') ||
+        typeof row.approvedAt !== 'string' ||
+        typeof row.connected !== 'boolean'
+      )
+        throw new Error('Private accounts are invalid');
+      return {
+        serverName: row.serverName,
+        account: row.account,
+        program: row.program,
+        args: [...row.args],
+        approvedAt: row.approvedAt,
+        connected: row.connected,
+      };
+    },
+  );
+  return { status: list.status, accounts, replaceable: list.replaceable, mcpServers };
 }

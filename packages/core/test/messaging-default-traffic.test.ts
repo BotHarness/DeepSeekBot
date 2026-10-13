@@ -1707,6 +1707,44 @@ it('QQ blocking during native preparation fences dispatch through replyChecked',
   expect((await fx.core.externalMessaging.snapshot('ada')).blockedConversations).toHaveLength(1);
 });
 
+it('editing a proactive quota preserves a prepared source reply and its exclusive receiver', async () => {
+  const fx = await fixture('qq');
+  await fx.receive(qqMention('quota-reply'));
+  let prepared!: () => void;
+  let resume!: () => void;
+  const preparing = new Promise<void>((resolve) => {
+    prepared = resolve;
+  });
+  const gate = new Promise<void>((resolve) => {
+    resume = resolve;
+  });
+  fx.prepareReply(async () => {
+    prepared();
+    await gate;
+  });
+  const pending = fx.core.externalMessaging.reply(
+    'ada',
+    fx.sourceId('om-quota-reply'),
+    'Still reply',
+  );
+  await preparing;
+  const subscriptions = fx.subscriptions;
+  try {
+    const updated = await fx.core.externalMessaging.setPostLimit(
+      'ada',
+      fx.identity.id,
+      fx.identity.postLimitRevision!,
+      1,
+    );
+    expect(updated.revision).toBe(fx.identity.revision);
+    expect(fx.subscriptions).toBe(subscriptions);
+  } finally {
+    resume();
+  }
+  expect((await pending).state).toBe('provider-accepted');
+  expect(fx.replies).toMatchObject([{ text: 'Still reply' }]);
+});
+
 it('a muted entry is admitted silently without a run and can still be answered', async () => {
   const fx = await fixture();
   await fx.receive(mention('ask'));
@@ -1769,6 +1807,48 @@ it('ask mode holds a new conversation without a Source Event until it is allowed
   expect(fx.admissions()).toEqual([]);
   await fx.receive({ ...mention('third'), at: new Date(Date.now() + 1000).toISOString() });
   expect(fx.admissions()).toEqual([{ reason: 'group-mention', messageId: 'om-third' }]);
+});
+
+it('a held conversation permits an explicit reachable post without replaying held traffic', async () => {
+  const fx = await fixture();
+  const describeBot = fx.service.describeBot;
+  fx.service.reachableConversationVersion = 1;
+  fx.service.describeBot = async (botId) => {
+    const description = await describeBot!(botId);
+    return {
+      ...description,
+      capabilities: [...description.capabilities, 'reachable-conversations-checked'],
+    };
+  };
+  fx.service.listReachableConversations = async () => ({
+    version: 1,
+    conversations: [{ id: 'oc_team', kind: 'group', name: 'Team' }],
+    hasMore: false,
+  });
+  const posts: string[] = [];
+  fx.service.postConversationChecked = async (_account, conversationId, text, options) => {
+    expect(options.beforeSend()).toBe(true);
+    posts.push(text);
+    return { sent: true, receipt: { version: 1, messageId: 'om_explicit', conversationId } };
+  };
+  fx.replaceProvider();
+  await fx.settle();
+  await fx.update({ newConversations: 'ask' });
+  await fx.receive(mention('held'));
+  expect((await fx.core.externalMessaging.snapshot('ada')).heldConversations).toHaveLength(1);
+  expect(
+    await fx.core.externalMessaging.postConversation(
+      'ada',
+      fx.identity.id,
+      'oc_team',
+      'explicit-held-post',
+      'Explicit report',
+    ),
+  ).toMatchObject({ state: 'provider-accepted' });
+  expect(posts).toEqual(['Explicit report']);
+  expect(fx.query('SELECT count(*) AS n FROM source_events')).toEqual([{ n: 0 }]);
+  expect(fx.admissions()).toEqual([]);
+  expect(fx.runs).toEqual([]);
 });
 
 it('blocking a held conversation keeps it out of the Inbox', async () => {

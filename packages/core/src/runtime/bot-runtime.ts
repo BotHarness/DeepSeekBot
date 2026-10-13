@@ -284,6 +284,24 @@ export interface OrchestratorAgentRun {
       Array<{ grantId: string; platform: string; accountName: string; targetName: string }>
     >;
     post?(grantId: string, requestId: string, text: string): ReturnType<OutboundMessaging['post']>;
+    reachable?(
+      bindingId?: string,
+      cursor?: string,
+    ): Promise<
+      Array<{
+        bindingId: string;
+        platform: string;
+        accountName: string;
+        page?: import('../messaging/provider.js').MessagingReachablePage;
+        reason?: string;
+      }>
+    >;
+    postConversation?(
+      bindingId: string,
+      conversationId: string,
+      requestId: string,
+      text: string,
+    ): ReturnType<OutboundMessaging['postConversation']>;
     outbox?(
       intentId?: string,
     ): OutboxIntent | Array<Omit<OutboxIntent, 'text'> & { preview: string }>;
@@ -489,6 +507,7 @@ export interface BotAgentAdapter {
   requestAssignment(run: AssignmentAgentRun): AssignmentRequestDelivery;
   stopAssignment?(sessionId: string): Promise<void>;
   stopBot?(botSlug: string, sessionIds: string[]): Promise<void>;
+  releaseSession?(sessionId: string): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -537,6 +556,12 @@ export interface BotRuntime {
     sessionId: string,
     channelId: string,
   ): ((deliver: () => boolean) => Promise<boolean>) | undefined;
+  recoverNativeQuestionInput?(
+    sessionId: string,
+    channelId: string,
+    requestMessageId: string,
+  ): ((deliver: () => boolean) => Promise<boolean>) | undefined;
+  nativeQuestionAvailable?(sessionId: string, channelId: string): boolean;
   originalAttachmentRoot?(
     sessionId: string,
     path: string,
@@ -3184,7 +3209,68 @@ class BotRuntimeImplementation implements BotRuntime {
     const sources = turn?.sessionId === sessionId ? turn.acceptedEventIds : undefined;
     const sourceEventId = sources?.values().next().value;
     if (owner?.rootRole !== 'orchestrator' || sourceEventId === undefined) return undefined;
-    const sourceIds = [...(sources ?? [])];
+    return this.#nativeQuestionInput(
+      owner.botSlug,
+      sessionId,
+      channelId,
+      sourceEventId,
+      [...(sources ?? [])],
+      () => this.#markSideEffectStarted(sourceEventId),
+    );
+  }
+
+  recoverNativeQuestionInput(
+    sessionId: string,
+    channelId: string,
+    requestMessageId: string,
+  ): ((deliver: () => boolean) => Promise<boolean>) | undefined {
+    const owner = this.#ownership.resolve(sessionId);
+    if (owner?.rootRole !== 'orchestrator') return undefined;
+    const row = this.#database.read((db) =>
+      db
+        .prepare(`
+          SELECT e.source_event_id FROM source_events e
+           WHERE e.message_id = ? AND e.bot_slug = ? AND e.source_kind = 'bot-message'
+             AND ${channelSql('e')} = ?
+        `)
+        .get(requestMessageId, owner.botSlug, channelId),
+    ) as { source_event_id: string } | undefined;
+    if (row === undefined || !this.nativeQuestionAvailable(sessionId, channelId)) return undefined;
+    return this.#nativeQuestionInput(
+      owner.botSlug,
+      sessionId,
+      channelId,
+      row.source_event_id,
+      [row.source_event_id],
+      () => undefined,
+    );
+  }
+
+  nativeQuestionAvailable(sessionId: string, channelId: string): boolean {
+    const owner = this.#ownership.resolve(sessionId);
+    const bot = owner === undefined ? undefined : this.#registry.get(owner.botSlug);
+    const channel = this.#channels.get(channelId);
+    return (
+      !this.#closed &&
+      bot !== undefined &&
+      owner?.rootRole === 'orchestrator' &&
+      this.#ownership.contentAvailable(sessionId) &&
+      this.#sessionArchived?.(sessionId) !== true &&
+      (channel?.type === 'group'
+        ? channel.members.includes(owner.botSlug)
+        : channel?.botSlug === owner.botSlug)
+    );
+  }
+
+  #nativeQuestionInput(
+    botSlug: string,
+    sessionId: string,
+    channelId: string,
+    sourceEventId: string,
+    sourceIds: readonly string[],
+    markAttemptSideEffect: () => void,
+  ): ((deliver: () => boolean) => Promise<boolean>) | undefined {
+    const owner = { botSlug };
     const held = (): boolean => {
       const channel = this.#channels.get(channelId);
       return channel?.type === 'group'
@@ -3223,7 +3309,7 @@ class BotRuntimeImplementation implements BotRuntime {
             '',
             [],
             false,
-            () => this.#markSideEffectStarted(sourceEventId),
+            markAttemptSideEffect,
             [],
             [],
             () => {
@@ -3801,6 +3887,57 @@ class BotRuntimeImplementation implements BotRuntime {
                 },
                 senderPermissions: (id) => this.#externalMessaging!.senderPermissions(bot.slug, id),
                 directory: (query) => this.#externalMessaging!.directory(bot.slug, query),
+                reachable: async (bindingId, cursor) => {
+                  const snapshot = await this.#externalMessaging!.snapshot(bot.slug);
+                  const identities = (snapshot.identities ?? []).filter(
+                    (identity) =>
+                      !identity.revokedAt &&
+                      identity.enabled &&
+                      identity.availability === 'available' &&
+                      (bindingId === undefined || identity.id === bindingId),
+                  );
+                  if (bindingId && !identities.length) throw new Error('identity-unavailable');
+                  if (cursor && !bindingId) throw new Error('bad-request');
+                  return Promise.all(
+                    identities.map(async (identity) => {
+                      const app = {
+                        bindingId: identity.id,
+                        platform: identity.platform,
+                        accountName: identity.name,
+                      };
+                      try {
+                        return {
+                          ...app,
+                          page: await this.#externalMessaging!.reachable(
+                            bot.slug,
+                            identity.id,
+                            cursor,
+                          ),
+                        };
+                      } catch (error) {
+                        return {
+                          ...app,
+                          reason:
+                            error instanceof Error &&
+                            'code' in error &&
+                            typeof error.code === 'string'
+                              ? error.code
+                              : 'provider-unavailable',
+                        };
+                      }
+                    }),
+                  );
+                },
+                postConversation: (bindingId, conversationId, requestId, text) => {
+                  markSideEffect();
+                  return this.#externalMessaging!.postConversation(
+                    bot.slug,
+                    bindingId,
+                    conversationId,
+                    requestId,
+                    text,
+                  );
+                },
                 targets: async () => {
                   const snapshot = await this.#externalMessaging!.snapshot(bot.slug);
                   return snapshot.grants
@@ -5683,7 +5820,33 @@ class BotRuntimeImplementation implements BotRuntime {
 
   #ensureOrchestrator(bot: PersonaBotRecord, at: string): { sessionId: string; resume: boolean } {
     const existing = this.currentOrchestratorSessionId(bot.slug);
-    if (existing !== undefined) return { sessionId: existing, resume: true };
+    const orchestrator =
+      existing === undefined
+        ? { sessionId: this.#claimOrchestrator(bot, at), resume: false }
+        : { sessionId: existing, resume: true };
+    this.#releaseReplacedOrchestrators(bot.slug, orchestrator.sessionId);
+    return orchestrator;
+  }
+
+  #releaseReplacedOrchestrators(botSlug: string, current: string): void {
+    const release = this.#agents.releaseSession?.bind(this.#agents);
+    if (release === undefined) return;
+    for (const root of this.#ownership.rootsFor(botSlug, 'orchestrator')) {
+      if (root.sessionId === current) continue;
+      void release(root.sessionId).catch(() =>
+        this.#warn?.(
+          JSON.stringify({
+            component: 'bot-runtime',
+            event: 'orchestrator-release-failed',
+            botSlug,
+            sessionId: root.sessionId,
+          }),
+        ),
+      );
+    }
+  }
+
+  #claimOrchestrator(bot: PersonaBotRecord, at: string): string {
     const sessionId = this.#createSessionId();
     const cwdReference = this.#orchestratorCwdReference(bot);
     this.#ownership.claim({
@@ -5693,7 +5856,7 @@ class BotRuntimeImplementation implements BotRuntime {
       ...(cwdReference === undefined ? {} : { cwdReference }),
       at,
     });
-    return { sessionId, resume: false };
+    return sessionId;
   }
 
   #orchestratorCwdReference(bot: PersonaBotRecord): string | undefined {

@@ -15,9 +15,13 @@ function updatedAtTime(updatedAt: string): number {
   return Number.isNaN(parsed) ? Number.NEGATIVE_INFINITY : parsed;
 }
 
+function recencyTime(channel: ChannelSummary): number {
+  return updatedAtTime(channel.latestMessage?.at ?? channel.updatedAt);
+}
+
 function byRecency(left: ChannelSummary, right: ChannelSummary): number {
-  const leftTime = updatedAtTime(left.updatedAt);
-  const rightTime = updatedAtTime(right.updatedAt);
+  const leftTime = recencyTime(left);
+  const rightTime = recencyTime(right);
   if (leftTime !== rightTime) return rightTime - leftTime;
   if (left.id === right.id) return 0;
   return left.id < right.id ? -1 : 1;
@@ -185,6 +189,32 @@ export function completeFlatEntries(
     entries.push({ kind: 'channel', id });
   }
   return entries;
+}
+
+export function orderFlatEntries(
+  entries: readonly TopOrderEntry[],
+  channels: ReadonlyMap<string, ChannelSummary>,
+  mode: BotModeSortMode,
+): TopOrderEntry[] {
+  if (mode === 'manual') return [...entries];
+  const ordered: TopOrderEntry[] = [];
+  let run: ChannelSummary[] = [];
+  const flush = (): void => {
+    for (const channel of [...run].sort(byRecency))
+      ordered.push({ kind: 'channel', id: channel.id });
+    run = [];
+  };
+  for (const entry of entries) {
+    const channel = entry.kind === 'channel' ? channels.get(entry.id) : undefined;
+    if (channel !== undefined) {
+      run.push(channel);
+      continue;
+    }
+    flush();
+    ordered.push(entry);
+  }
+  flush();
+  return ordered;
 }
 
 function flatEntryKey(entry: TopOrderEntry): string {

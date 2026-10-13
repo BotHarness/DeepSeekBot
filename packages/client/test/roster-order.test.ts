@@ -6,6 +6,7 @@ import {
   commitScopeReorder,
   completeFlatEntries,
   moveWithinOrder,
+  orderFlatEntries,
   orderScopeChannels,
   planChannelMove,
   planFlatInsert,
@@ -15,7 +16,7 @@ import {
   rowDropHalf,
 } from '../src/client/roster-order.js';
 import { reconcileOrder } from '../src/client/roster.js';
-import type { ChannelSummary } from '../src/client/store.js';
+import { createStore, type ChannelSummary } from '../src/client/store.js';
 
 function channel(id: string, updatedAt: string, patch?: Partial<ChannelSummary>): ChannelSummary {
   return {
@@ -675,5 +676,45 @@ describe('loose flat inserts', () => {
     expect(
       planFlatInsert(entries, 'ghost', false, { kind: 'section', id: 's1', side: 'before' }),
     ).toBeUndefined();
+  });
+});
+
+describe('recency order for loose rows', () => {
+  const message = (at: string) => ({ id: at, at, author: { kind: 'human' as const }, body: at });
+  const a = channel('a', '2026-10-13T09:00:00.000Z', {
+    latestMessage: message('2026-10-13T01:00:00.000Z'),
+  });
+  const b = channel('b', '2026-10-13T02:00:00.000Z', {
+    latestMessage: message('2026-10-13T02:00:00.000Z'),
+  });
+  const c = channel('c', '2026-10-13T03:00:00.000Z');
+  const byId = new Map([a, b, c].map((item) => [item.id, item]));
+  const entries = [
+    { kind: 'channel' as const, id: 'a' },
+    { kind: 'channel' as const, id: 'b' },
+    { kind: 'section' as const, id: 's' },
+    { kind: 'channel' as const, id: 'c' },
+    { kind: 'channel' as const, id: 'missing' },
+  ];
+
+  it('sorts each loose run by its latest message, leaving sections in place', () => {
+    expect(orderFlatEntries(entries, byId, 'updated')).toEqual([
+      { kind: 'channel', id: 'b' },
+      { kind: 'channel', id: 'a' },
+      { kind: 'section', id: 's' },
+      { kind: 'channel', id: 'c' },
+      { kind: 'channel', id: 'missing' },
+    ]);
+    expect(orderFlatEntries(entries, byId, 'manual')).toEqual(entries);
+  });
+
+  it('updates a listed Channel in place instead of moving it first', () => {
+    const store = createStore();
+    store.setRoster([], [a, b, c]);
+    store.upsertChannel({ ...c, name: 'renamed' });
+    expect(store.getSnapshot().channels.map((item) => item.id)).toEqual(['a', 'b', 'c']);
+    expect(store.getSnapshot().channels[2]?.name).toBe('renamed');
+    store.upsertChannel(channel('d', '2026-10-13T04:00:00.000Z'));
+    expect(store.getSnapshot().channels.map((item) => item.id)).toEqual(['d', 'a', 'b', 'c']);
   });
 });

@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { execFileSync, spawn } from 'node:child_process';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import semver from 'semver';
@@ -10,6 +10,7 @@ import {
   parseProductComposition,
   verifyProductComposition,
 } from './packaged-profile.mjs';
+import { providerReleasePlan, verifyProviderArchive } from './npm-provider-release.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 export const publicationOrder = [
@@ -142,7 +143,7 @@ export function verifyRelease(directory, expected = {}) {
       encoding: 'utf8',
     })
       .trim()
-      .split('\n');
+      .split(/\r?\n/);
     if (files.some((path) => !path.startsWith('package/') || path.split('/').includes('..')))
       throw new Error('Unsafe tarball path');
     const manifest = JSON.parse(tarText(directory, artifact, 'package.json'));
@@ -215,6 +216,56 @@ async function registryVersion(name, version) {
   if (response.status === 404) return undefined;
   if (!response.ok) throw new Error(`Registry read failed (${response.status}): ${name}`);
   return response.json();
+}
+
+export async function reusePublishedProvider(
+  directory,
+  {
+    read = registryVersion,
+    download = async (url) => {
+      const parsed = new URL(url);
+      if (parsed.protocol !== 'https:' || parsed.hostname !== 'registry.npmjs.org')
+        throw new Error('Unexpected Provider archive origin');
+      const response = await fetch(parsed, { signal: AbortSignal.timeout(30_000) });
+      if (!response.ok) throw new Error(`Provider archive download failed: ${response.status}`);
+      return Buffer.from(await response.arrayBuffer());
+    },
+    plan = providerReleasePlan,
+  } = {},
+) {
+  const inventory = verifiedProductArtifacts(directory);
+  const artifact = inventory.artifacts.find((value) => value.name === productImProvider.name);
+  const remote = await read(artifact.name, artifact.version);
+  if (!remote) return false;
+  if (
+    plan.name !== artifact.name ||
+    plan.version !== artifact.version ||
+    plan.providerSource !== productImProvider.upstream.source ||
+    plan.runtimeFiles !== inventory.providerRuntime.runtimeFiles ||
+    plan.runtimeSha256 !== inventory.providerRuntime.runtimeSha256
+  )
+    throw new Error('Published Provider differs from the locally qualified runtime');
+  existingArtifact({ ...artifact, integrity: plan.integrity }, remote);
+  const bytes = await download(remote.dist.tarball);
+  if (`sha512-${createHash('sha512').update(bytes).digest('base64')}` !== plan.integrity)
+    throw new Error('Downloaded Provider differs from the qualified archive');
+  const temporary = join(directory, `${artifact.filename}.registry-readback`);
+  try {
+    writeFileSync(temporary, bytes);
+    const entry = (path) =>
+      JSON.parse(execFileSync('tar', ['-xOf', temporary, `package/${path}`], { encoding: 'utf8' }));
+    verifyProviderArchive(
+      { bytes, manifest: entry('package.json'), provenance: entry('PROVENANCE.json') },
+      plan,
+    );
+    writeFileSync(join(directory, artifact.filename), bytes);
+    artifact.integrity = plan.integrity;
+    const { directory: _directory, ...manifest } = inventory;
+    writeFileSync(join(directory, 'artifacts.json'), `${JSON.stringify(manifest, null, 2)}\n`);
+  } finally {
+    rmSync(temporary, { force: true });
+  }
+  return true;
 }
 
 export async function awaitPublished(
@@ -295,6 +346,7 @@ async function main() {
       providerSource: resolve(args.get('--provider-source')),
       version,
     });
+    await reusePublishedProvider(directory);
     const sourceState = readReleaseSourceState(root);
     if (sourceState.sourceDirty)
       console.warn(JSON.stringify({ code: 'release-source-dirty', ...sourceState }));

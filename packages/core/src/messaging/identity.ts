@@ -11,6 +11,8 @@ export interface MessagingIdentity {
   fingerprint: string;
   name: string;
   enabled: boolean;
+  postLimit?: number | null;
+  postLimitRevision?: number;
   typingEnabled?: boolean;
   typingInheritance?: 'inherit' | 'custom';
   receiveAfter?: string;
@@ -59,6 +61,8 @@ interface BindingRow {
   fingerprint: string;
   display_name: string;
   enabled: number;
+  post_limit: number | null;
+  post_limit_revision: number;
   enabled_inherited: number;
   typing_enabled: number;
   typing_inherited: number;
@@ -82,6 +86,8 @@ export function readMessagingIdentity(db: DatabaseSync, id: string): MessagingId
     accountRef: r.account_ref,
     fingerprint: r.fingerprint,
     name: r.display_name,
+    postLimit: r.post_limit,
+    postLimitRevision: r.post_limit_revision,
     enabled:
       r.enabled_inherited === 1
         ? messagingDefaults(db, r.platform).identityEnabled

@@ -22,7 +22,7 @@ The native `standard` preset is not modified, so ordinary DSH sessions in the sa
 ## Not covered
 
 - Tool approvals still hold the turn. DSH has no pending outcome for an approval, and #1220 rules out a second executor, replay, or cancel-and-restart as substitutes. This stays deferred until upstream supports it.
-- A pending timed question does not survive a Host restart; the process-local correlation from #1227 is unchanged.
+- ~~A pending timed question does not survive a Host restart; the process-local correlation from #1227 is unchanged.~~ Superseded by the amendment below.
 - The Group privacy acceptance in #1038 is not claimed by this decision.
 
 ## Rejected
@@ -30,3 +30,13 @@ The native `standard` preset is not modified, so ordinary DSH sessions in the sa
 - Patching `tool-ask-user` inside the native `standard` preset from the product bundle. It would change question behaviour for every DSH session in the Profile.
 - A switch that writes the timed configuration into the user's Profile patch. The default would stay blocking.
 - Waiting for an upstream per-plugin override.
+
+## Amendment: a timed question card survives its Agent and the Host (#1038)
+
+DSH keeps a timed question in the Session log: the `userQuestions` projection shows it `continued` once the call returned pending or the process that owned it ended, and an answer may be steered into the resumed root Agent. The card in the Channel was still tied to the asking Agent in Host memory, so a restart or an Agent disposal made it expire although DSH would still accept the answer.
+
+- The card is addressed by Session and call id. Reading and answering the native question resolve the Session's live root Agent, or the stored Session, at that moment.
+- Agent disposal no longer cancels a timed card. Host shutdown no longer writes a cancellation on it; a blocking card is still cancelled in both cases.
+- On start the Host re-opens unresolved timed cards whose Session the same Bot's Orchestrator still owns, whose native question is still there, and whose Channel the Bot still holds. A card DSH settled while the Host was down is recorded as answered.
+- A late answer to a recovered card runs through the Bot's turn queue like a live one, resumes the Orchestrator Session, and is delivered only if the native question is `continued` after the resume. The card's own Source Event anchors that turn, because the turn that asked is gone. An archived Session, revoked content or a lost Channel membership refuses it.
+- A turn that the Human stops drops the native question; the card is then cancelled.

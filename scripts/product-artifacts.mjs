@@ -18,16 +18,16 @@ export const productDshVersions = Object.freeze([
 
 export const productImProvider = Object.freeze({
   name: '@botharness/im-provider',
-  version: '4.32.0-botharness.19',
-  sourceManifestSha256: '501e62d558eceb2b42ad9cd03fc0910e09581fd6531ec68e074fe5a16225ed1e',
-  sourceLockSha256: 'c7f16baaa5bb1ab3bbb607b59a10327f0af010c61e1ea1ab4a72d7d08af9ffe9',
+  version: '4.32.0-botharness.20',
+  sourceManifestSha256: '3331e8f771a91abf396eb4e7ed5c0acc4c3b504cdccc7d715e37062708384cc2',
+  sourceLockSha256: '3476c34c7d4515000d2617beaf2568b2a794b60de9b350cd8eafb7a2bf21adef',
   upstream: Object.freeze({
     package: '@xmanrui/dsh-im',
     packageVersion: '4.32.0',
-    source: '602baa37fa327f7069545aaadbbd34db8a8f4636',
+    source: '0e5b447f45e4a44d4089eac16cc1fa5673dbd66d',
     dsh: '0.2.0-rc.1',
-    runtimeFiles: 412,
-    runtimeSha256: '98ba54de21ff7b73390b6222d67ab530efd36e1a26df952be178e3bafc4ab9e5',
+    runtimeFiles: 421,
+    runtimeSha256: '8ce0cccd66187db4b028c5bb414ea8d1623ea8e4c564ddd5adf02b14a10f2b86',
   }),
 });
 
@@ -217,6 +217,7 @@ export function stageProvider(source, target, repoRoot) {
     ),
   );
   symlinkSync(join(source, 'node_modules'), join(target, 'node_modules'), 'dir');
+  writeJson(join(target, 'tsconfig.json'), { compilerOptions: { alwaysStrict: true } });
   const env = { ...process.env, DSH_IM_CLIENT_ID: productImProvider.name };
   run(process.execPath, ['plugin-src/client/build.mjs'], { cwd: target, env });
   run(process.execPath, ['plugin-src/host/build.mjs'], { cwd: target, env });

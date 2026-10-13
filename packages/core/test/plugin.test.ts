@@ -23,7 +23,11 @@ interface Stubs {
   tools: { register: ReturnType<typeof vi.fn>; guard: ReturnType<typeof vi.fn> };
   systemPrompt: { section: ReturnType<typeof vi.fn> };
   sessions: { list: ReturnType<typeof vi.fn>; get: ReturnType<typeof vi.fn> };
-  agents: { create: ReturnType<typeof vi.fn>; resume: ReturnType<typeof vi.fn> };
+  agents: {
+    create: ReturnType<typeof vi.fn>;
+    resume: ReturnType<typeof vi.fn>;
+    list: ReturnType<typeof vi.fn>;
+  };
   skills: { register: ReturnType<typeof vi.fn> };
 }
 
@@ -48,7 +52,7 @@ function createStubContext(): { ctx: Context; stubs: Stubs } {
     tools: { register: vi.fn(() => () => undefined), guard: vi.fn(() => () => undefined) },
     systemPrompt: { section: vi.fn(() => () => undefined) },
     sessions: { list: vi.fn(() => []), get: vi.fn() },
-    agents: { create: vi.fn(), resume: vi.fn() },
+    agents: { create: vi.fn(), resume: vi.fn(), list: vi.fn(() => []) },
     skills: { register: vi.fn(() => () => undefined) },
   };
   ctx.provide('tools', stubs.tools);
@@ -214,13 +218,26 @@ describe('plugin entry', () => {
       cwdReference: '/srv/shared',
       at: '2026-09-21T00:00:00.000Z',
     });
+    createSessionOwnership(attachOperationalModule(seeded, 'session-ownership')).claim({
+      sessionId: 'stale-1',
+      botSlug: 'ada',
+      rootRole: 'assignment',
+      cwdReference: '/srv/shared',
+      at: '2026-09-21T00:00:00.000Z',
+    });
     seeded.close();
 
     const { ctx, stubs } = createStubContext();
     const log = (type: string) => [{ type, time: 1, data: {} }];
+    stubs.agents.list.mockReturnValue([{ session: { id: 'owned-1' }, status: 'running' }]);
     stubs.sessions.list.mockReturnValue([
       {
         id: 'owned-1',
+        header: { cwd: '/srv/shared', createdAt: 0 },
+        snapshotEvents: () => log('tool/call'),
+      },
+      {
+        id: 'stale-1',
         header: { cwd: '/srv/shared', createdAt: 0 },
         snapshotEvents: () => log('tool/call'),
       },
@@ -234,24 +251,39 @@ describe('plugin entry', () => {
     apply(ctx, { enabled: true });
     const core = ctx.get('botharness') as BotHarnessCore | undefined;
 
-    expect(core?.states.snapshot('ada').sessions).toEqual({ 'owned-1': 'working' });
+    expect(core?.states.snapshot('ada').sessions).toEqual({
+      'owned-1': 'working',
+      'stale-1': 'done',
+    });
+
+    ctx.emit('agent/status', {
+      agent: { session: { id: 'owned-1' } },
+      status: 'idle',
+    } as never);
+    expect(core?.states.snapshot('ada').sessions).toMatchObject({ 'owned-1': 'done' });
+    ctx.emit(
+      'session/event',
+      { id: 'owned-1' } as never,
+      { type: 'turn/start', time: 2, data: {} } as never,
+    );
+    expect(core?.states.snapshot('ada').sessions).toMatchObject({ 'owned-1': 'thinking' });
 
     ctx.emit(
       'session/event',
       { id: 'owned-1' } as never,
       { type: 'turn/end', time: 2, data: {} } as never,
     );
-    expect(core?.states.snapshot('ada').sessions).toEqual({ 'owned-1': 'done' });
+    expect(core?.states.snapshot('ada').sessions).toMatchObject({ 'owned-1': 'done' });
 
     ctx.emit(
       'session/event',
       { id: 'unowned-1' } as never,
       { type: 'tool/call', time: 3, data: {} } as never,
     );
-    expect(core?.states.snapshot('ada').sessions).toEqual({ 'owned-1': 'done' });
+    expect(core?.states.snapshot('ada').sessions).toMatchObject({ 'owned-1': 'done' });
 
     ctx.emit('agent/disposed', { agent: { session: { id: 'owned-1' } } } as never);
-    expect(core?.states.snapshot('ada').sessions).toEqual({});
+    expect(core?.states.snapshot('ada').sessions).toEqual({ 'stale-1': 'done' });
   });
 
   it('closes the operational database last with the plugin fiber', async () => {
@@ -342,6 +374,7 @@ describe('plugin entry', () => {
       'privateInputReplace',
       'privateAccountRevoke',
       'privateAccounts',
+      'privateMcpServerRemove',
       'messagingDefaults',
       'messagingDefaultsSet',
       'channelBridges',
@@ -365,6 +398,10 @@ describe('plugin entry', () => {
       'messagingApps',
       'messagingSnapshot',
       'messagingTargets',
+      'messagingReachable',
+      'messagingPostConversation',
+      'messagingPostRequest',
+      'messagingPostLimit',
       'messagingAuthorize',
       'messagingRevoke',
       'messagingConversation',

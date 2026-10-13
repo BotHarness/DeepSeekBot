@@ -110,8 +110,10 @@ export function ExternalIdentityList({
   botName = (slug) => slug,
   bindDialog,
   appSetup,
+  post,
 }: {
   snapshot: MessagingSnapshot | undefined;
+  post?(identity: MessagingIdentityView): void;
   t: BotHarnessTranslate;
   mutate(input: MessagingIdentityInput): Promise<void>;
   conversation(input: MessagingConversationInput): Promise<void>;
@@ -569,6 +571,20 @@ export function ExternalIdentityList({
           onSubmit={() => void operate(save, true)}
           secondary={
             <>
+              {post ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={busy || !selected.enabled}
+                  onClick={() => {
+                    const identity = selected;
+                    close();
+                    post(identity);
+                  }}
+                >
+                  {t('proactive.title')}
+                </Button>
+              ) : null}
               <Button
                 type="button"
                 variant="outline"

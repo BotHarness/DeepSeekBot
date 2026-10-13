@@ -391,8 +391,6 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       });
     try {
       await this.#prepareModelRoute?.(run.bot.slug, 'orchestrator');
-      if (run.acceptNativeInput !== undefined && this.#handles.get(run.sessionId) === undefined)
-        throw new Error('Native question requires its existing live Orchestrator');
       const handle = await this.#orchestratorHandle(run);
       if (this.#stoppedBots.has(run.bot.slug)) throw new Error('PersonaBot is deleted');
       this.#orchestratorBridgeTools.get(run.sessionId)?.(
@@ -513,6 +511,17 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       this.#orchestratorBridgeTools.delete(id);
       this.#assignmentSelections.delete(id);
     }
+  }
+
+  async releaseSession(sessionId: string): Promise<void> {
+    if (this.#runs.has(sessionId)) return;
+    const handle = this.#handles.get(sessionId);
+    if (handle === undefined) return;
+    this.#handles.delete(sessionId);
+    this.#orchestratorSelections.delete(sessionId);
+    this.#orchestratorBridgeTools.delete(sessionId);
+    this.#assignmentSelections.delete(sessionId);
+    await handle.dispose();
   }
 
   async stopAssignment(sessionId: string): Promise<void> {
@@ -1405,14 +1414,48 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       );
       registerBridgeTool(
         defineTool({
+          name: 'bridge_reachable_groups',
+          description:
+            'List groups your own bound apps can currently speak in, even without a saved target or earlier mention. Use binding_id and conversation id for bridge_post. A list is not a lasting permission grant; sending checks platform and local authorization again. Older Providers return a reason; use bridge_targets for saved targets.',
+          parameters: {
+            binding_id: {
+              type: 'string',
+              description: 'Optional exact owned binding id; required when continuing a page.',
+            },
+            cursor: { type: 'string', description: 'Opaque cursor from the selected app page.' },
+          },
+          output: {
+            schema: { type: 'string' },
+            render: (_args, value) => [{ type: 'text', text: value }],
+          },
+          execute: async (args) => {
+            const active = this.#runs.get(run.sessionId);
+            if (active?.role !== 'orchestrator' || !active.run.externalMessaging?.reachable)
+              throw new Error('bridge_reachable_groups: unavailable');
+            return JSON.stringify(
+              await active.run.externalMessaging.reachable(args.binding_id, args.cursor),
+            );
+          },
+        }),
+      );
+      registerBridgeTool(
+        defineTool({
           name: 'bridge_post',
           description:
-            'Explicitly post one requested external-only report to a grant_id from bridge_targets using your own authorized identity. Persists canonical Outbox content and checked platform correspondence, with no local Channel/DM mirror. Same request_id and content are idempotent; unknown outcome must not be retried with a new id.',
+            'Explicitly post one requested external-only report using either grant_id from bridge_targets OR binding_id plus conversation_id from bridge_reachable_groups. Only your own current app identity, permission and hourly post limit may authorize it. Persists canonical Outbox content and checked platform correspondence, with no local Channel/DM mirror. Same request_id and content are idempotent; unknown outcome must not be retried with a new id. Explain post-rate-limited and retain the result when refused.',
           parameters: {
             grant_id: {
               type: 'string',
-              required: true,
-              description: 'Exact existing authorized grant_id from bridge_targets.',
+              description:
+                'Exact existing authorized grant_id; omit when using binding_id and conversation_id.',
+            },
+            binding_id: {
+              type: 'string',
+              description: 'Exact owned app binding id from bridge_reachable_groups.',
+            },
+            conversation_id: {
+              type: 'string',
+              description: 'Native group id from that app page; supply together with binding_id.',
             },
             request_id: {
               type: 'string',
@@ -1432,7 +1475,23 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           },
           execute: async (args) => {
             const active = this.#runs.get(run.sessionId);
-            if (active?.role !== 'orchestrator' || !active.run.externalMessaging?.post)
+            if (active?.role !== 'orchestrator' || !active.run.externalMessaging)
+              throw new Error('bridge_post: unavailable');
+            if (args.binding_id !== undefined || args.conversation_id !== undefined) {
+              if (!args.binding_id || !args.conversation_id || args.grant_id !== undefined)
+                throw new Error('bridge_post: choose exactly one target');
+              if (!active.run.externalMessaging.postConversation)
+                throw new Error('bridge_post: unavailable');
+              return JSON.stringify(
+                await active.run.externalMessaging.postConversation(
+                  args.binding_id,
+                  args.conversation_id,
+                  args.request_id,
+                  withoutMentionMarkup(args.text),
+                ),
+              );
+            }
+            if (!args.grant_id || !active.run.externalMessaging.post)
               throw new Error('bridge_post: unavailable');
             return JSON.stringify(
               await active.run.externalMessaging.post(

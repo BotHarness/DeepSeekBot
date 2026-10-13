@@ -280,7 +280,7 @@ describe('native timed question card continuation', () => {
     expect(await state.answerer.answer('ada', state.id, { answers: [] })).toBe(false);
     expect(state.port.answer).not.toHaveBeenCalled();
     expect(await state.answerer.answer('ada', state.id, state.answer)).toBe(true);
-    expect(state.port.answer).toHaveBeenCalledWith(state.agent, 'original', state.answer);
+    expect(state.port.answer).toHaveBeenCalledWith(sessionId, 'original', state.answer);
     expect(state.answerer.status('ada', state.id)).toBe('submitted');
     expect(state.answerer.requests('ada')).toMatchObject([
       { messageId: state.id, callId: 'original' },
@@ -312,9 +312,8 @@ describe('native timed question card continuation', () => {
     state.answerer.close();
   });
 
-  it('fails closed for a stale Agent, changed ownership and a missing native question', async () => {
+  it('fails closed for changed ownership and a missing native question', async () => {
     for (const invalidate of [
-      (state: Awaited<ReturnType<typeof continued>>) => state.setLive(false),
       (state: Awaited<ReturnType<typeof continued>>) => state.setNative(undefined),
       (state: Awaited<ReturnType<typeof continued>>) => {
         vi.spyOn(state.ownership, 'resolve').mockReturnValue(undefined);
@@ -327,6 +326,195 @@ describe('native timed question card continuation', () => {
       expect(state.port.answer).not.toHaveBeenCalled();
       expect(state.states.snapshot('ada').attention).toBeUndefined();
     }
+  });
+});
+
+describe('timed question cards outlive their asking Agent', () => {
+  function recoveringPort(native: () => ReturnType<TimedQuestionPort['read']>) {
+    const delivered: string[][] = [];
+    const port = {
+      read: vi.fn(() => native()),
+      answer: vi.fn(() => true),
+      available: vi.fn(() => true),
+      bind: vi.fn(() => undefined),
+      recover: vi.fn((sessionId: string, channel: string, messageId: string) => {
+        delivered.push([sessionId, channel, messageId]);
+        return async (deliver: () => boolean) => deliver();
+      }),
+    } satisfies TimedQuestionPort;
+    return { port, delivered };
+  }
+
+  async function askTimed(state: ReturnType<typeof fixture>, callId = 'original') {
+    const controller = new AbortController();
+    const wait = state.answerer.ask({
+      agent: state.agent,
+      questions,
+      signal: controller.signal,
+      wait: { callId, timed: true },
+    } as Parameters<ChannelUserQuestions['ask']>[0]);
+    void wait.catch(() => undefined);
+    await vi.waitFor(() => expect(state.channels.readMessages(channelId)).toHaveLength(1));
+    return { controller, id: state.channels.readMessages(channelId)[0]!.id };
+  }
+
+  const answer = { answers: [{ id: 'memory-branch', selected: ['history-qa'] }] };
+
+  it('keeps the card open across a Host restart and answers it through the resumed Session', async () => {
+    let native: ReturnType<TimedQuestionPort['read']> = { state: 'open' };
+    const before = recoveringPort(() => native);
+    const state = fixture('orchestrator', before.port);
+    const { id } = await askTimed(state);
+    state.answerer.close();
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(state.channels.readMessages(channelId)).toHaveLength(1);
+
+    const states = createBotStateTracker();
+    const after = recoveringPort(() => native);
+    const restarted = new ChannelUserQuestions(
+      state.channels,
+      state.ownership,
+      () => false,
+      vi.fn(),
+      (slug, count) => states.setQuestionCount(slug, count),
+      after.port,
+    );
+    expect(restarted.status('ada', id)).toBe('expired');
+    await restarted.recover([{ channelId, messageId: id }]);
+    expect(restarted.status('ada', id)).toBe('pending');
+    expect(restarted.requests('ada')).toMatchObject([{ messageId: id, callId: 'original' }]);
+    expect(restarted.activeMessageIds()).toEqual([id]);
+    expect(states.snapshot('ada').attention?.questionCount).toBe(1);
+
+    after.port.recover.mockImplementationOnce((sessionId, channel, messageId) => {
+      after.delivered.push([sessionId, channel, messageId]);
+      return async (deliver) => {
+        native = { state: 'continued' };
+        return deliver();
+      };
+    });
+    expect(await restarted.answer('ada', id, answer)).toBe(true);
+    expect(after.delivered).toEqual([[sessionId, channelId, id]]);
+    expect(after.port.answer).toHaveBeenCalledWith(sessionId, 'original', answer);
+    expect(restarted.status('ada', id)).toBe('submitted');
+    native = { state: 'answered', answer };
+    await restarted.reconcileSession(sessionId);
+    expect(
+      state.channels.readMessages(channelId).find((item) => item.userQuestionResolution)
+        ?.userQuestionResolution,
+    ).toEqual({
+      requestMessageId: id,
+      state: 'answered',
+      answers: answer.answers,
+    });
+    expect(restarted.status('ada', id)).toBe('answered');
+    expect(states.snapshot('ada').attention).toBeUndefined();
+  });
+
+  it('records a native answer settled while the Host was down', async () => {
+    const { port } = recoveringPort(() => ({ state: 'answered', answer }));
+    const state = fixture('orchestrator', port);
+    const message = await state.channels.appendMessage(channelId, {
+      id: 'recovered-card',
+      at: new Date().toISOString(),
+      author: { kind: 'bot', slug: 'ada' },
+      body: questions[0]!.question,
+      userQuestionRequest: { sessionId, callId: 'original', questions },
+    });
+    expect(message).toBeDefined();
+    await state.answerer.recover([{ channelId, messageId: 'recovered-card' }]);
+    expect(state.answerer.status('ada', 'recovered-card')).toBe('answered');
+    expect(state.answerer.activeMessageIds()).toEqual([]);
+  });
+
+  it('recovers nothing for a missing native question, another owner, an unavailable Session or a blocking card', async () => {
+    for (const setup of [
+      (port: ReturnType<typeof recoveringPort>['port']) => port.read.mockReturnValue(undefined),
+      (port: ReturnType<typeof recoveringPort>['port']) => port.available.mockReturnValue(false),
+      (_port: unknown, state: ReturnType<typeof fixture>) =>
+        vi.spyOn(state.ownership, 'resolve').mockReturnValue(undefined),
+    ]) {
+      const { port } = recoveringPort(() => ({ state: 'continued' }));
+      const state = fixture('orchestrator', port);
+      await state.channels.appendMessage(channelId, {
+        id: 'card',
+        at: new Date().toISOString(),
+        author: { kind: 'bot', slug: 'ada' },
+        body: 'card',
+        userQuestionRequest: { sessionId, callId: 'original', questions },
+      });
+      setup(port, state);
+      await state.answerer.recover([{ channelId, messageId: 'card' }]);
+      expect(state.answerer.activeMessageIds()).toEqual([]);
+      expect(state.channels.readMessages(channelId)).toHaveLength(1);
+      expect(state.states.snapshot('ada').attention).toBeUndefined();
+    }
+    const { port } = recoveringPort(() => ({ state: 'continued' }));
+    const state = fixture('orchestrator', port);
+    await state.channels.appendMessage(channelId, {
+      id: 'blocking',
+      at: new Date().toISOString(),
+      author: { kind: 'bot', slug: 'ada' },
+      body: 'blocking',
+      userQuestionRequest: { sessionId, questions },
+    });
+    await state.answerer.recover([{ channelId, messageId: 'blocking' }]);
+    expect(state.answerer.activeMessageIds()).toEqual([]);
+  });
+
+  it('keeps a timed card answerable when its Agent is disposed or goes stale', async () => {
+    for (const end of [
+      (state: ReturnType<typeof fixture>) => state.answerer.cancelSession(sessionId),
+      (state: ReturnType<typeof fixture>) => state.setLive(false),
+    ]) {
+      let native: ReturnType<TimedQuestionPort['read']> = { state: 'continued' };
+      const { port, delivered } = recoveringPort(() => native);
+      const state = fixture('orchestrator', port);
+      const { id } = await askTimed(state);
+      end(state);
+      expect(state.answerer.status('ada', id)).toBe('pending');
+      expect(state.states.snapshot('ada').attention?.questionCount).toBe(1);
+      expect(await state.answerer.answer('ada', id, answer)).toBe(true);
+      expect(delivered).toEqual([[sessionId, channelId, id]]);
+      expect(port.answer).toHaveBeenCalledWith(sessionId, 'original', answer);
+      native = undefined;
+      state.answerer.discardReply(sessionId, 'original');
+      expect(state.answerer.status('ada', id)).toBe('expired');
+    }
+  });
+
+  it('cancels the card when a stopped turn drops the native question', async () => {
+    let native: ReturnType<TimedQuestionPort['read']> = { state: 'open' };
+    const { port } = recoveringPort(() => native);
+    const state = fixture('orchestrator', port);
+    const { controller, id } = await askTimed(state);
+    controller.abort(new Error('turn stopped'));
+    expect(state.answerer.status('ada', id)).toBe('pending');
+    expect(await state.answerer.answer('ada', id, answer)).toBe(false);
+    native = undefined;
+    await state.answerer.reconcileSession(sessionId);
+    await vi.waitFor(() =>
+      expect(
+        state.channels.readMessages(channelId).find((item) => item.userQuestionResolution)
+          ?.userQuestionResolution?.state,
+      ).toBe('cancelled'),
+    );
+    expect(state.answerer.activeMessageIds()).toEqual([]);
+  });
+
+  it('still cancels a blocking card on Host shutdown', async () => {
+    const state = fixture();
+    const wait = state.answerer.ask({ agent: state.agent, questions });
+    const rejected = expect(wait).rejects.toThrow(/cancelled/);
+    await vi.waitFor(() => expect(state.channels.readMessages(channelId)).toHaveLength(1));
+    state.answerer.close();
+    await rejected;
+    await vi.waitFor(() =>
+      expect(
+        state.channels.readMessages(channelId).find((item) => item.userQuestionResolution)
+          ?.userQuestionResolution?.state,
+      ).toBe('cancelled'),
+    );
   });
 });
 

@@ -3,6 +3,8 @@ import { onboardingNewsAvailable } from './onboarding/search.js';
 import { nativeTimedQuestions } from './channels/native-timed-questions.js';
 import { credentialStoreDenial } from './credentials/store-guard.js';
 import { secretCommandDenial } from './credentials/secret-command.js';
+import { rememberedStarts, secretMcpDenial } from './credentials/secret-mcp.js';
+import { createSecretMcpStore } from './credentials/secret-mcp-store.js';
 import { createBotOnboarding, type BotOnboarding } from './onboarding/service.js';
 import { createPartLibrary, type PartLibrary } from './bots/part-library.js';
 import {
@@ -1011,7 +1013,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     activeQuestionMessageIds: () => userQuestions?.activeMessageIds() ?? [],
     activeToolApprovalMessageIds: () => toolApproval?.activeMessageIds() ?? [],
     activePrivateInputMessageIds: () => privateInputs?.activeMessageIds() ?? [],
-    erasePrivateAccounts: async (slug) => privateInputs?.eraseBot(slug),
+    erasePrivateAccounts: async (slug) => {
+      await privateInputs?.mcpServers?.erase(slug);
+      await privateInputs?.eraseBot(slug);
+    },
     capture: (event, properties) => telemetry.capture(event, properties),
     warn: (message) => ctx.logger.warn(message),
     agents: agentAdapter,
@@ -1083,7 +1088,17 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     ctx.logger.warn(
       'botharness: privateInputExecution is set, but the Docker-protected Profile was removed. This Profile runs as an ordinary Profile: secret input stays available, and Agent tools are no longer fenced by a container.',
     );
-  privateInputs = mountPrivateInputs(ctx, core, privateExecution, config.privateInputWebUrl);
+  const secretMcpStore = createSecretMcpStore(
+    attachOperationalModule(core.operationalDatabase, 'secret-mcp'),
+  );
+  privateInputs = mountPrivateInputs(
+    ctx,
+    core,
+    privateExecution,
+    config.privateInputWebUrl,
+    undefined,
+    secretMcpStore,
+  );
   ctx.effect(() => () => core.externalMessaging.close(), 'botharness: external messaging');
   ctx.inject(['dshIm'], (child) => {
     for (const platform of ['feishu', 'slack', 'discord', 'weixin', 'qq'] as const) {
@@ -1199,10 +1214,19 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     (agent) => ctx.agents.get(agent.id) === agent,
     (message) => ctx.logger.warn(message),
     (slug, count) => core.states.setQuestionCount(slug, count),
-    nativeTimedQuestions(ctx, core.runtime),
+    nativeTimedQuestions(
+      ctx,
+      core.runtime,
+      (ctx as unknown as { sessions: DshSessionStore }).sessions,
+    ),
     (sessionId) => core.runtime.askChannel?.(sessionId),
   );
   ctx.effect(() => () => userQuestions.close(), 'botharness: Channel user questions');
+  ctx.inject(['sessionProjections', 'sessionQuery', 'userQuestions'], () => {
+    void userQuestions
+      .recover(core.humanAttention.openTimedQuestionCards())
+      .catch(() => ctx.logger.warn('user-question-recovery-failed'));
+  });
   ctx.effect(
     () => core.companions.attachQuestions(userQuestions),
     'botharness: companion question observation',
@@ -1235,6 +1259,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       if (execution.name === 'secret_cli') {
         const commandDenial = secretCommandDenial(execution.arguments);
         if (commandDenial !== undefined) return { kind: 'deny', reason: commandDenial };
+      }
+      if (execution.name === 'secret_mcp_connect') {
+        const serverDenial = secretMcpDenial(execution.arguments);
+        if (serverDenial !== undefined) return { kind: 'deny', reason: serverDenial };
       }
       if (isSafeMemoryDirectoryListing(core, agent.session, execution.name, execution.arguments))
         return next();
@@ -1348,7 +1376,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         owner?.rootRole === 'assignment'
           ? core.runtime.getAssignment(owner.botSlug, owner.sessionId)?.permission
           : undefined;
-      const eachUse = execution.name === 'secret_cli';
+      const eachUse = execution.name === 'secret_cli' || execution.name === 'secret_mcp_connect';
       const fullAccess =
         snapshot?.mode === 'danger-full-access' ||
         (owner?.rootRole === 'orchestrator' &&
@@ -1356,7 +1384,11 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           orchestratorPermission(core, owner.botSlug).mode === 'danger-full-access');
       if (fullAccess && !eachUse) return next();
       const approval = ctx.get('approval') as ApprovalService | undefined;
-      const untrack = toolApproval.track(execution, eachUse ? 'each-use' : 'operation');
+      const untrack = toolApproval.track(
+        execution,
+        eachUse ? 'each-use' : 'operation',
+        execution.name === 'secret_mcp_connect',
+      );
       if (approval === undefined || untrack === undefined) {
         return { kind: 'deny', reason: 'The tool call cannot be presented for Human approval' };
       }
@@ -1389,6 +1421,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         }
         if (!toolApproval.validAfterDecision(agent, execution.callId))
           return { kind: 'deny', reason: 'Approval rule scope changed' };
+        if (toolApproval.remembered(agent, execution.callId)) rememberedStarts.add(execution.token);
         const guard = toolApproval.executionGuard(agent, execution.callId);
         if (!guard || !guard(execution.name, execution.arguments))
           return { kind: 'deny', reason: 'Approval authority changed before execution' };
@@ -1878,6 +1911,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     details: toolDetails,
     ownership: core.ownership,
     states: core.states,
+    running: (sessionId) =>
+      ctx.agents
+        .list()
+        .some((agent) => agent.session.id === sessionId && agent.status === 'running'),
     describeCall: (sessionId, name, args) => {
       const agent = ctx.agents.list().find((candidate) => candidate.session.id === sessionId);
       if (agent === undefined) return undefined;
@@ -1936,6 +1973,13 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           () => core.registry.get(owner.botSlug)?.modelPlan,
         );
       }
+    },
+    { global: true },
+  );
+  ctx.on(
+    'agent/status',
+    ({ agent, status }) => {
+      if (status === 'idle') activity.handleAgentIdle(agent.session.id);
     },
     { global: true },
   );

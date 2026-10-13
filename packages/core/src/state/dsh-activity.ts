@@ -77,6 +77,8 @@ export interface DshActivityProjection {
 
   handleSessionDisposed(sessionId: string): void;
 
+  handleAgentIdle(sessionId: string): void;
+
   rebuild(sessions: readonly DshActivitySession[]): DshActivityRebuildReport;
 }
 
@@ -84,6 +86,7 @@ export function createDshActivityProjection(options: {
   ownership: SessionOwnership;
   states: BotStateTracker;
   now?: () => Date;
+  running?: (sessionId: string) => boolean;
   details?: ToolDetailIndex;
   describeCall?(
     sessionId: string,
@@ -223,6 +226,22 @@ export function createDshActivityProjection(options: {
       }
       return attributed;
     },
+    handleAgentIdle(sessionId) {
+      const owner = ownership.resolve(sessionId);
+      if (owner === undefined) return;
+      const state = states.snapshot(owner.botSlug).sessions[sessionId];
+      if (state !== 'thinking' && state !== 'working') return;
+      pending.delete(sessionId);
+      turnOpen.set(sessionId, false);
+      states.setSessionState(
+        owner.botSlug,
+        sessionId,
+        'done',
+        undefined,
+        owner.provenance === 'subagent' ? 'subagent' : owner.rootRole,
+        names.get(sessionId),
+      );
+    },
     handleSessionDisposed(sessionId) {
       const owner = ownership.resolve(sessionId);
       if (owner === undefined) return;
@@ -260,6 +279,14 @@ export function createDshActivityProjection(options: {
         let state: SessionState | undefined;
         for (const event of session.snapshotEvents()) state = project(session.id, event) ?? state;
         if (state === undefined) continue;
+        if (
+          (state === 'thinking' || state === 'working') &&
+          options.running?.(session.id) === false
+        ) {
+          pending.delete(session.id);
+          turnOpen.set(session.id, false);
+          state = 'done';
+        }
         const activity = activityForSession(session.id, owner);
         rows.push({
           slug: owner.botSlug,

@@ -80,6 +80,10 @@ import {
   loadChannelIngests,
   manageChannelIngest,
   loadMessagingSnapshot,
+  loadMessagingReachable,
+  postMessagingConversation,
+  readMessagingPostRequest,
+  setMessagingPostLimit,
   manageMessagingIdentity,
   manageMessagingConversation,
   loadMessagingTargets,
@@ -355,6 +359,31 @@ export interface BridgeActions {
   messagingConversation(slug: string, input: MessagingConversationInput): Promise<void>;
   appSetup?: ProviderAppSetup;
   messagingSnapshot(slug: string): Promise<MessagingSnapshot>;
+  messagingReachable?(
+    slug: string,
+    bindingId: string,
+    cursor?: string,
+  ): Promise<import('../../../core/src/messaging/provider.js').MessagingReachablePage>;
+  messagingPostConversation?(
+    slug: string,
+    bindingId: string,
+    conversationId: string,
+    requestId: string,
+    text: string,
+  ): Promise<OutboxIntent>;
+  messagingPostRequest?(
+    slug: string,
+    bindingId: string,
+    conversationId: string,
+    requestId: string,
+    text: string,
+  ): Promise<OutboxIntent | undefined>;
+  messagingPostLimit?(
+    slug: string,
+    bindingId: string,
+    expectedRevision: number,
+    limit: number | null,
+  ): Promise<void>;
   messagingTargets(providerId: string, accountRef: string): Promise<MessagingTarget[]>;
   messagingAuthorize(input: {
     botSlug: string;
@@ -633,6 +662,7 @@ export interface BridgeActions {
   ): Promise<import('../../../core/src/credentials/contracts.js').PrivateAccountStatus>;
   privateInputReplace?(channelId: string, messageId: string): Promise<string>;
   privateAccounts?(slug: string): Promise<PrivateAccountList>;
+  privateMcpServerRemove?(slug: string, serverName: string): Promise<boolean>;
   privateAccountRevoke?(
     channelId: string,
     messageId: string,
@@ -1522,6 +1552,11 @@ export function createActions(
       if (!result.ok) throw new Error('Private accounts are unavailable');
       return parsePrivateAccountList(result.value);
     },
+    privateMcpServerRemove: async (slug, serverName) => {
+      const result = await call('privateMcpServerRemove', { slug, serverName });
+      if (!result.ok) throw new Error('MCP server removal is unavailable');
+      return (result.value as { removed?: unknown }).removed === true;
+    },
     privateAccountRevoke: async (channelId, messageId) => {
       const result = await call('privateAccountRevoke', { channelId, messageId });
       if (!result.ok) throw new Error('Private account revocation is unavailable');
@@ -2333,6 +2368,14 @@ export function createActions(
     messagingIdentity: (slug, input) => manageMessagingIdentity(call, slug, input),
     messagingConversation: (slug, input) => manageMessagingConversation(call, slug, input),
     messagingSnapshot: (slug) => loadMessagingSnapshot(call, slug),
+    messagingReachable: (slug, bindingId, cursor) =>
+      loadMessagingReachable(call, slug, bindingId, cursor),
+    messagingPostConversation: (slug, bindingId, conversationId, requestId, text) =>
+      postMessagingConversation(call, slug, bindingId, conversationId, requestId, text),
+    messagingPostRequest: (slug, bindingId, conversationId, requestId, text) =>
+      readMessagingPostRequest(call, slug, bindingId, conversationId, requestId, text),
+    messagingPostLimit: (slug, bindingId, expectedRevision, limit) =>
+      setMessagingPostLimit(call, slug, bindingId, expectedRevision, limit),
     messagingTargets: (providerId, accountRef) =>
       loadMessagingTargets(call, providerId, accountRef),
     messagingAuthorize: (input) => authorizeMessaging(call, input),

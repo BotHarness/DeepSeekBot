@@ -346,14 +346,27 @@ export class BotharnessBridgeService extends TypertRemoteService {
     status: 'ready' | 'unavailable';
     accounts: PrivateAccountSummary[];
     replaceable: boolean;
+    mcpServers: ReturnType<NonNullable<PrivateInputs['mcpServers']>['list']>;
   }> {
     this.requirePrivateOwner();
     const accounts =
       typeof slug === 'string' ? await this.privateInputs?.accounts(true, slug) : undefined;
     const replaceable = (await this.privateInputs?.replaceable().catch(() => false)) ?? false;
+    const mcpServers =
+      typeof slug === 'string' ? (this.privateInputs?.mcpServers?.list(slug) ?? []) : [];
     return accounts === undefined
-      ? { status: 'unavailable', accounts: [], replaceable: false }
-      : { status: 'ready', accounts, replaceable };
+      ? { status: 'unavailable', accounts: [], replaceable: false, mcpServers }
+      : { status: 'ready', accounts, replaceable, mcpServers };
+  }
+
+  async privateMcpServerRemove(slug: string, serverName: string): Promise<{ removed: boolean }> {
+    this.requirePrivateOwner();
+    return {
+      removed:
+        typeof slug === 'string' && typeof serverName === 'string'
+          ? ((await this.privateInputs?.mcpServers?.remove(slug, serverName)) ?? false)
+          : false,
+    };
   }
 
   async privateAccountRevoke(channelId: string, messageId: string) {
@@ -476,6 +489,47 @@ export class BotharnessBridgeService extends TypertRemoteService {
   }
   messagingSnapshot(slug: string): Promise<MessagingSnapshot> {
     return unwrapAsync(this.methods.messagingSnapshot({ slug }));
+  }
+  messagingReachable(
+    slug: string,
+    bindingId: string,
+    cursor?: string,
+  ): Promise<import('../messaging/provider.js').MessagingReachablePage> {
+    return unwrapAsync(
+      this.methods.messagingReachable({ slug, bindingId, ...(cursor ? { cursor } : {}) }),
+    );
+  }
+  messagingPostRequest(
+    slug: string,
+    bindingId: string,
+    conversationId: string,
+    requestId: string,
+    text: string,
+  ): Promise<{ intent: OutboxIntent | null }> {
+    return unwrapAsync(
+      this.methods.messagingPostRequest({ slug, bindingId, conversationId, requestId, text }),
+    );
+  }
+  messagingPostConversation(
+    slug: string,
+    bindingId: string,
+    conversationId: string,
+    requestId: string,
+    text: string,
+  ): Promise<{ intent: OutboxIntent }> {
+    return unwrapAsync(
+      this.methods.messagingPostConversation({ slug, bindingId, conversationId, requestId, text }),
+    );
+  }
+  messagingPostLimit(
+    slug: string,
+    bindingId: string,
+    expectedRevision: number,
+    limit: number | null,
+  ): Promise<{ identity: MessagingIdentity }> {
+    return unwrapAsync(
+      this.methods.messagingPostLimit({ slug, bindingId, expectedRevision, limit }),
+    );
   }
   messagingTargets(
     providerId: string,
@@ -1445,6 +1499,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'privateInputReplace',
   'privateAccountRevoke',
   'privateAccounts',
+  'privateMcpServerRemove',
   'messagingDefaults',
   'messagingDefaultsSet',
   'channelBridges',
@@ -1468,6 +1523,10 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'messagingApps',
   'messagingSnapshot',
   'messagingTargets',
+  'messagingReachable',
+  'messagingPostConversation',
+  'messagingPostRequest',
+  'messagingPostLimit',
   'messagingAuthorize',
   'messagingRevoke',
   'messagingConversation',

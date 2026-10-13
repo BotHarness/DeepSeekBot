@@ -98,6 +98,7 @@ import {
   MessagingProviderError,
   type MessagingProvider,
   type MessagingAccount,
+  type MessagingReachablePage,
   type MessagingTarget,
   type MessagingReceipt,
   type MessagingReplyRoute,
@@ -324,6 +325,27 @@ export interface OutboundMessaging {
   setups(): Promise<(import('./provider.js').MessagingSetup & { providerId: string })[]>;
   channelBridges(channelId: string): Promise<ChannelBridgeSnapshot>;
   targets(providerId: string, accountRef: string): Promise<MessagingTarget[]>;
+  reachable(botSlug: string, bindingId: string, cursor?: string): Promise<MessagingReachablePage>;
+  setPostLimit(
+    botSlug: string,
+    bindingId: string,
+    expectedRevision: number,
+    limit: number | null,
+  ): Promise<MessagingIdentity>;
+  postConversation(
+    botSlug: string,
+    bindingId: string,
+    conversationId: string,
+    requestId: string,
+    text: string,
+  ): Promise<OutboxIntent>;
+  postRequest(
+    botSlug: string,
+    bindingId: string,
+    conversationId: string,
+    requestId: string,
+    text: string,
+  ): OutboxIntent | undefined;
   authorize(input: {
     botSlug: string;
     providerId: string;
@@ -502,6 +524,32 @@ export function createOutboundMessaging(options: {
     if (!row) throw new MessagingError('intent-unavailable');
     return JSON.parse(row.body) as StoredIntent;
   };
+  const postRequest = (
+    botSlug: string,
+    bindingId: string,
+    conversationId: string,
+    requestId: string,
+    text: string,
+  ): StoredIntent | undefined => {
+    if (!/^[A-Za-z0-9_-]{8,128}$/.test(requestId) || !text.trim() || text.length > 4000)
+      throw new MessagingError('invalid-input');
+    const row = database.read((db) =>
+      db.prepare('SELECT id FROM messaging_outbox WHERE request_id = ?').get(requestId),
+    ) as { id: string } | undefined;
+    if (!row) return undefined;
+    const value = readIntent(row.id);
+    if (
+      value.botSlug !== botSlug ||
+      value.report?.conversationId !== conversationId ||
+      value.payloadHash !==
+        createHash('sha256')
+          .update(JSON.stringify(['report', text]))
+          .digest('hex') ||
+      grant(botSlug, value.grantId).bindingId !== bindingId
+    )
+      throw new MessagingError('request-conflict');
+    return value;
+  };
   const settle = (
     id: string,
     state: OutboxState,
@@ -599,6 +647,21 @@ export function createOutboundMessaging(options: {
       },
     };
   };
+  const assertConversationAllowed = (
+    value: MessagingGrant,
+    scope: MessagingTarget['receiveScope'],
+  ) => {
+    if (
+      scope &&
+      database.read((db) =>
+        readBlock(db, value.botSlug, value.fingerprint, {
+          kind: scope.kind,
+          id: scope.conversationId,
+        }),
+      )
+    )
+      throw new MessagingError('conversation-blocked');
+  };
   const check = async (value: MessagingGrant) => {
     active(value.botSlug);
     if (value.revokedAt !== undefined) throw new MessagingError('grant-revoked');
@@ -630,7 +693,21 @@ export function createOutboundMessaging(options: {
       suspend(value);
       throw new MessagingError('rebind-required');
     }
+    assertConversationAllowed(value, inspected.target.receiveScope);
     return { ...entry, inspected, identityRevision: identity.revision };
+  };
+  const checkPostLimit = (db: DatabaseSync, bindingId: string, reserved = false) => {
+    const identity = readMessagingIdentity(db, bindingId);
+    if (identity.postLimit === null) return;
+    const limit = identity.postLimit ?? 60;
+    const cutoff = new Date(new Date(now()).getTime() - 3600000).toISOString();
+    const row = db
+      .prepare(
+        "SELECT COUNT(*) AS count FROM messaging_outbox_attempts a JOIN messaging_outbox o ON o.id = a.intent_id JOIN messaging_grants g ON g.id = o.grant_id WHERE g.binding_id = ? AND a.started_at > ? AND json_type(o.body, '$.sourceEventId') IS NULL",
+      )
+      .get(bindingId, cutoff) as { count: number };
+    if (reserved ? row.count > limit : row.count >= limit)
+      throw new MessagingError('post-rate-limited');
   };
   const pairing = createBotPairing(
     database,
@@ -1557,9 +1634,146 @@ export function createOutboundMessaging(options: {
           if (attempt.token === token) attempt.controller.abort();
       };
     },
+    async setPostLimit(botSlug, bindingId, expectedRevision, limit) {
+      if (limit !== null && (!Number.isSafeInteger(limit) || limit < 1 || limit > 10000))
+        throw new MessagingError('bad-request');
+      transaction(
+        (db) => {
+          active(botSlug);
+          const identity = enabledBinding(bindingId);
+          if (identity.botSlug !== botSlug) throw new MessagingError('identity-unavailable');
+          if (identity.postLimitRevision !== expectedRevision)
+            throw new MessagingError('identity-changed');
+          db.prepare(
+            'UPDATE messaging_bindings SET post_limit = ?, post_limit_revision = post_limit_revision + 1 WHERE id = ?',
+          ).run(limit, bindingId);
+        },
+        ['bindings'],
+      );
+      return binding(bindingId);
+    },
+    async reachable(botSlug, bindingId, cursor) {
+      active(botSlug);
+      const identity = enabledBinding(bindingId);
+      if (identity.botSlug !== botSlug) throw new MessagingError('identity-unavailable');
+      const entry = provider(identity.providerId);
+      if (!entry.provider.reachable || !entry.provider.postConversation)
+        throw new MessagingError('capability-unavailable');
+      const page = await bounded(
+        entry.provider.reachable({
+          accountRef: identity.accountRef,
+          fingerprint: identity.fingerprint,
+          signal: AbortSignal.timeout(options.timeoutMs ?? 15000),
+          ...(cursor ? { cursor } : {}),
+        }),
+      );
+      active(botSlug);
+      current(identity.providerId, entry.token);
+      enabledBinding(bindingId, identity.revision);
+      return page;
+    },
+    async postConversation(botSlug, bindingId, conversationId, requestId, text) {
+      active(botSlug);
+      const prior = postRequest(botSlug, bindingId, conversationId, requestId, text);
+      if (prior) return prior;
+      const identity = enabledBinding(bindingId);
+      if (identity.botSlug !== botSlug) throw new MessagingError('identity-unavailable');
+      const entry = provider(identity.providerId);
+      if (!entry.provider.reachable || !entry.provider.postConversation)
+        throw new MessagingError('capability-unavailable');
+      const targets = await bounded(entry.provider.targets(identity.accountRef));
+      const matching = targets.filter(
+        (target) =>
+          target.receiveScope?.kind === 'group' &&
+          target.receiveScope.conversationId === conversationId,
+      );
+      const findExisting = (db: DatabaseSync) => {
+        const rows = db
+          .prepare('SELECT body FROM messaging_grants WHERE binding_id = ? AND revoked_at IS NULL')
+          .all(bindingId) as { body: string }[];
+        return rows
+          .map((row) => JSON.parse(row.body) as MessagingGrant)
+          .find(
+            (value) =>
+              (value.receiveScope?.kind === 'group' &&
+                value.receiveScope.conversationId === conversationId) ||
+              (value.origin !== 'implicit' &&
+                matching.some(
+                  (target) =>
+                    target.ref === value.targetRef && target.digest === value.targetDigest,
+                )),
+          );
+      };
+      const existing = database.read(findExisting);
+      if (existing) return service.post(botSlug, existing.id, requestId, text);
+      let found: MessagingReachablePage['conversations'][number] | undefined;
+      let cursor: string | undefined;
+      const seen = new Set<string>();
+      do {
+        const page = await service.reachable(botSlug, bindingId, cursor);
+        found = page.conversations.find((value) => value.id === conversationId);
+        if (found || !page.hasMore) break;
+        if (!page.cursor || seen.has(page.cursor) || seen.size >= 20)
+          throw new MessagingError('provider-unavailable');
+        cursor = page.cursor;
+        seen.add(cursor);
+      } while (!found);
+      if (!found) throw new MessagingError('send-permission-denied');
+      const conversation = { kind: 'group' as const, id: conversationId };
+      const created = transaction(
+        (db) => {
+          active(botSlug);
+          current(identity.providerId, entry.token);
+          enabledBinding(bindingId, identity.revision);
+          if (readBlock(db, botSlug, identity.fingerprint, conversation))
+            throw new MessagingError('grant-revoked');
+          const repeated = findExisting(db);
+          if (repeated) return repeated.id;
+          if (admissionBound(db, bindingId, new Date(now())) === 'active-limit')
+            throw new MessagingError('conversation-limit');
+          const at = now();
+          const value: MessagingGrant = {
+            id: randomUUID(),
+            bindingId,
+            botSlug,
+            providerId: identity.providerId,
+            platform: identity.platform,
+            accountRef: identity.accountRef,
+            accountName: identity.name,
+            fingerprint: identity.fingerprint,
+            targetRef: '',
+            targetDigest: '',
+            targetName: found!.name,
+            revision: 1,
+            createdAt: at,
+            receiveAfter: at,
+            receiveScope: { kind: 'group', conversationId },
+            origin: 'implicit',
+          };
+          db.prepare(
+            'INSERT INTO messaging_grants (id, binding_id, bot_slug, revision, created_at, body) VALUES (?, ?, ?, ?, ?, ?)',
+          ).run(value.id, bindingId, botSlug, 1, at, JSON.stringify(value));
+          initializeGroupReceptionPolicy(db, value.id);
+          removeHeld(db, bindingId, conversation);
+          return value.id;
+        },
+        ['grants'],
+      );
+      inbound.startEntry(created);
+      return service.post(botSlug, created, requestId, text);
+    },
+    postRequest(botSlug, bindingId, conversationId, requestId, text) {
+      active(botSlug);
+      return postRequest(botSlug, bindingId, conversationId, requestId, text);
+    },
     async post(botSlug, grantId, requestId, text) {
       const value = grant(botSlug, grantId);
-      if (value.origin === 'implicit' || provider(value.providerId).provider.post === undefined)
+      if (
+        value.origin === 'implicit'
+          ? provider(value.providerId).provider.postConversation === undefined
+          : provider(value.providerId).provider.post === undefined &&
+            provider(value.providerId).provider.postConversation === undefined
+      )
         throw new MessagingError('capability-unavailable');
       return service.send(botSlug, grantId, requestId, text, undefined, undefined, true);
     },
@@ -1767,8 +1981,10 @@ export function createOutboundMessaging(options: {
             try {
               const checked = await check(value);
               canPost =
-                value.origin !== 'implicit' &&
-                checked.provider.post !== undefined &&
+                (value.origin === 'implicit'
+                  ? checked.provider.postConversation !== undefined
+                  : checked.provider.post !== undefined ||
+                    checked.provider.postConversation !== undefined) &&
                 checked.inspected.target.receiveScope !== undefined;
               canReceive =
                 checked.provider.consume !== undefined &&
@@ -2264,7 +2480,7 @@ export function createOutboundMessaging(options: {
           ? undefined
           : sourceForReply(botSlug, sourceEventId, acceptedGrant);
       if (file && source?.grantId !== grantId) throw new MessagingError('capability-unavailable');
-      if (acceptedGrant.origin === 'implicit' && source === undefined)
+      if (acceptedGrant.origin === 'implicit' && source === undefined && !report)
         throw new MessagingError('capability-unavailable');
       const acceptedEntry = await check(acceptedGrant);
       const acceptedIdentity = acceptedEntry.identityRevision;
@@ -2278,7 +2494,8 @@ export function createOutboundMessaging(options: {
               AbortSignal.timeout(options.timeoutMs ?? 15000),
             )
           : undefined;
-      const conversationId = acceptedEntry.inspected.target.receiveScope?.conversationId;
+      const postScope = acceptedEntry.inspected.target.receiveScope;
+      const conversationId = postScope?.conversationId;
       if (report && !conversationId) throw new MessagingError('capability-unavailable');
       const id = transaction(
         (db) => {
@@ -2290,6 +2507,7 @@ export function createOutboundMessaging(options: {
             currentGrant.revision !== acceptedGrant.revision
           )
             throw new MessagingError('grant-revoked');
+          if (report) assertConversationAllowed(currentGrant, postScope);
           if (sourceEventId !== undefined) sourceForReply(botSlug, sourceEventId, currentGrant);
           const existing = db
             .prepare('SELECT id FROM messaging_outbox WHERE request_id = ?')
@@ -2362,6 +2580,7 @@ export function createOutboundMessaging(options: {
       }
       const beganAt = Date.now();
       let started = false;
+      let postFenceReason: string | undefined;
       let timer: ReturnType<typeof setTimeout> | undefined;
       const controller = new AbortController();
       const noticeAuthority = privateNotices.get(requestId);
@@ -2390,6 +2609,7 @@ export function createOutboundMessaging(options: {
             const intent = readIntent(id.id);
             if (intent.state !== 'pending') throw new MessagingError('grant-revoked');
             const at = now();
+            if (sourceEventId === undefined) checkPostLimit(db, acceptedGrant.bindingId);
             db.prepare('UPDATE messaging_outbox SET state = ?, body = ? WHERE id = ?').run(
               'in-flight',
               JSON.stringify({ ...intent, state: 'in-flight' }),
@@ -2429,6 +2649,32 @@ export function createOutboundMessaging(options: {
           );
           timer = setTimeout(() => controller.abort(), options.timeoutMs ?? 15000);
         });
+        const beforePost = () => {
+          try {
+            active(botSlug);
+            current(acceptedGrant.providerId, entry.token);
+            const latest = grant(botSlug, grantId);
+            const currentIdentity = binding(acceptedGrant.bindingId);
+            if (
+              latest.revokedAt ||
+              latest.revision !== acceptedGrant.revision ||
+              currentIdentity.revokedAt
+            )
+              throw new MessagingError('grant-revoked');
+            enabledBinding(acceptedGrant.bindingId, acceptedIdentity);
+            assertConversationAllowed(latest, postScope);
+            database.read((db) => checkPostLimit(db, acceptedGrant.bindingId, true));
+            return !controller.signal.aborted;
+          } catch (error) {
+            postFenceReason =
+              error instanceof MessagingError
+                ? error.code === 'conversation-blocked'
+                  ? 'grant-revoked'
+                  : error.code
+                : 'provider-unavailable';
+            return false;
+          }
+        };
         const result = await Promise.race([
           file !== undefined && sourceEventId !== undefined
             ? (async () => {
@@ -2529,34 +2775,30 @@ export function createOutboundMessaging(options: {
                     });
                   })()
               : report
-                ? entry.provider.post === undefined
-                  ? Promise.reject(
-                      new MessagingProviderError('capability-unavailable', 'not-started'),
-                    )
-                  : entry.provider.post({
+                ? entry.provider.postConversation !== undefined &&
+                  (acceptedGrant.origin === 'implicit' || entry.provider.post === undefined)
+                  ? entry.provider.postConversation({
                       accountRef: acceptedGrant.accountRef,
-                      targetRef: acceptedGrant.targetRef,
                       fingerprint: acceptedGrant.fingerprint,
-                      targetDigest: acceptedGrant.targetDigest,
                       conversationId: conversationId!,
                       text,
                       signal: controller.signal,
-                      beforeSend: () => {
-                        try {
-                          active(botSlug);
-                          current(acceptedGrant.providerId, entry.token);
-                          enabledBinding(acceptedGrant.bindingId, acceptedIdentity);
-                          const latest = grant(botSlug, grantId);
-                          return (
-                            !controller.signal.aborted &&
-                            !latest.revokedAt &&
-                            latest.revision === acceptedGrant.revision
-                          );
-                        } catch {
-                          return false;
-                        }
-                      },
+                      beforeSend: beforePost,
                     })
+                  : entry.provider.post === undefined
+                    ? Promise.reject(
+                        new MessagingProviderError('capability-unavailable', 'not-started'),
+                      )
+                    : entry.provider.post({
+                        accountRef: acceptedGrant.accountRef,
+                        targetRef: acceptedGrant.targetRef,
+                        fingerprint: acceptedGrant.fingerprint,
+                        targetDigest: acceptedGrant.targetDigest,
+                        conversationId: conversationId!,
+                        text,
+                        signal: controller.signal,
+                        beforeSend: beforePost,
+                      })
                 : entry.provider.send({
                     accountRef: acceptedGrant.accountRef,
                     targetRef: acceptedGrant.targetRef,
@@ -2585,11 +2827,13 @@ export function createOutboundMessaging(options: {
           !started ||
           (error instanceof MessagingProviderError && error.disposition === 'not-started');
         const reason =
-          error instanceof MessagingError || error instanceof MessagingProviderError
-            ? error.code
-            : 'provider-result-unknown';
+          definite && postFenceReason !== undefined
+            ? postFenceReason
+            : error instanceof MessagingError || error instanceof MessagingProviderError
+              ? error.code
+              : 'provider-result-unknown';
         const state =
-          reason === 'grant-revoked' && !started
+          reason === 'grant-revoked' && (!started || (report && definite))
             ? 'grant-revoked'
             : definite
               ? 'failed'

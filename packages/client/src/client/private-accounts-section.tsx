@@ -86,6 +86,13 @@ function PrivateAccountsPanel({ botSlug, actions, t }: ChannelSidebarEntryProps)
         );
     });
   };
+  const removeServer = (serverName: string) => {
+    if (botSlug === undefined) return;
+    if (!window.confirm(t('privateAccounts.mcpRemoveConfirm', { server: serverName }))) return;
+    void run('mcp:' + serverName, async () => {
+      await actions.privateMcpServerRemove?.(botSlug, serverName);
+    });
+  };
   const cancel = (row: PrivateAccountSummary) =>
     run(row.account, async () => {
       await actions.privateInputCancel?.(row.channelId!, row.replacementMessageId!);
@@ -226,6 +233,63 @@ function PrivateAccountsPanel({ botSlug, actions, t }: ChannelSidebarEntryProps)
               />
             );
           })}
+        </SidebarCardList>
+      ) : null}
+      {load.status === 'ready' && (load.list.mcpServers ?? []).length > 0 ? (
+        <div className="bh-note">{t('privateAccounts.mcpTitle')}</div>
+      ) : null}
+      {load.status === 'ready' && (load.list.mcpServers ?? []).length > 0 ? (
+        <SidebarCardList label={t('privateAccounts.mcpTitle')}>
+          {(load.list.mcpServers ?? []).map((server) => (
+            <SidebarCardRow
+              key={server.serverName}
+              icon="plug"
+              title={server.serverName}
+              state={server.connected ? 'connected' : 'stopped'}
+              chips={
+                <Tag tone={server.connected ? 'success' : 'quiet'}>
+                  {t(
+                    server.connected
+                      ? 'privateAccounts.mcpConnected'
+                      : 'privateAccounts.mcpStopped',
+                  )}
+                </Tag>
+              }
+              meta={
+                <>
+                  <span className="bh-card-meta-line">
+                    {t('privateAccounts.mcpCommand', {
+                      command: [server.program, ...server.args].join(' '),
+                    })}
+                  </span>
+                  <span className="bh-card-meta-line">
+                    {t('privateAccounts.mcpAccount', { account: server.account })}
+                  </span>
+                  <span
+                    className="bh-card-meta-line"
+                    title={new Date(server.approvedAt).toLocaleString()}
+                  >
+                    {t('privateAccounts.mcpApprovedAt', {
+                      time: formatRelativeTime(Date.parse(server.approvedAt), now, t),
+                    })}
+                  </span>
+                </>
+              }
+              detail={
+                <div className="bh-private-account-actions">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={busy !== undefined}
+                    onClick={() => removeServer(server.serverName)}
+                  >
+                    {t('privateAccounts.mcpRemove')}
+                  </Button>
+                </div>
+              }
+            />
+          ))}
         </SidebarCardList>
       ) : null}
       {notice === undefined ? null : (

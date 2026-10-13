@@ -68,6 +68,18 @@ type PrivateUse = {
   origin?: PrivateInputOrigin;
 };
 export class PrivateInputs {
+  mcpServers?: {
+    list(botSlug: string): Array<{
+      serverName: string;
+      account: string;
+      program: string;
+      args: string[];
+      approvedAt: string;
+      connected: boolean;
+    }>;
+    remove(botSlug: string, serverName: string): Promise<boolean>;
+    erase(botSlug: string): Promise<void>;
+  };
   readonly #pending = new Map<string, Pending>();
   readonly #timer: ReturnType<typeof setInterval>;
   #recovery: Promise<void> | undefined;

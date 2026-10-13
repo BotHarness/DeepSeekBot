@@ -2122,6 +2122,39 @@ const ASSIGNMENT_ACCESS_SCOPE_MIGRATION: SchemaMigration = {
   },
 };
 
+const SECRET_MCP_SERVER_MIGRATION: SchemaMigration = {
+  generation: 88,
+  module: 'secret-mcp',
+  description: 'Remember Human-approved secret MCP servers per PersonaBot (ADR-0196)',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE bot_secret_mcp_servers (
+        bot_slug TEXT NOT NULL,
+        server_name TEXT NOT NULL,
+        account TEXT NOT NULL,
+        program TEXT NOT NULL,
+        args TEXT NOT NULL,
+        env TEXT NOT NULL,
+        reference_set TEXT NOT NULL,
+        approved_at TEXT NOT NULL,
+        PRIMARY KEY (bot_slug, server_name)
+      );
+    `);
+  },
+};
+
+const PROACTIVE_POST_LIMIT_MIGRATION: SchemaMigration = {
+  generation: 89,
+  module: 'messaging',
+  description: 'Persist per-app proactive post limits and independent quota revisions',
+  migrate(database) {
+    database.exec(`
+      ALTER TABLE messaging_bindings ADD COLUMN post_limit INTEGER DEFAULT 60 CHECK (post_limit IS NULL OR post_limit >= 1);
+      ALTER TABLE messaging_bindings ADD COLUMN post_limit_revision INTEGER NOT NULL DEFAULT 1 CHECK (post_limit_revision >= 1);
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -2209,4 +2242,6 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   INBOX_RESOLUTION_MIGRATION,
   INBOX_SNOOZE_MIGRATION,
   ASSIGNMENT_ACCESS_SCOPE_MIGRATION,
+  SECRET_MCP_SERVER_MIGRATION,
+  PROACTIVE_POST_LIMIT_MIGRATION,
 ]);

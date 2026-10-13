@@ -103,6 +103,7 @@ import {
   orderScopeChannels,
   planChannelMove,
   planFlatInsert,
+  orderFlatEntries,
   resolvePinnedChannelIds,
   resolvedSortMode,
   resolveBlockDropTarget,
@@ -908,11 +909,15 @@ export function BotSidebar({
   });
   const sectionedIds = new Set(state.roster.sections.flatMap((section) => section.channelIds));
   const rosterChannelIds = flatRosterChannelIds(state.channels, allPinnedChannelSet);
-  const flatEntries = completeFlatEntries(
-    state.roster.topOrder,
-    state.roster.sections.map((section) => section.id),
-    rosterChannelIds,
-    sectionedIds,
+  const flatEntries = orderFlatEntries(
+    completeFlatEntries(
+      state.roster.topOrder,
+      state.roster.sections.map((section) => section.id),
+      rosterChannelIds,
+      sectionedIds,
+    ),
+    new Map(state.channels.map((channel) => [channel.id, channel])),
+    prefs.sortMode,
   );
   const sectionOrder = (
     section: RosterSection,

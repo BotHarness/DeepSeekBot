@@ -16,7 +16,9 @@ import {
   publishInWaves,
   releaseVersion,
   verifyRelease,
+  reusePublishedProvider,
 } from '../npm-prerelease.mjs';
+import { providerReleasePlan } from '../npm-provider-release.mjs';
 import { productImProvider } from '../product-artifacts.mjs';
 
 const roots = [];
@@ -43,11 +45,13 @@ function fixture(productVersion = '0.1.0-alpha.1') {
         "- insert:\n    - id: xmanrui-dsh-im\n      name: '@botharness/im-provider'\n    - id: botharness-core\n      name: '@botharness/core'\n    - id: botharness-client\n      name: '@botharness/ui'\n    - id: botharness-browser\n      name: '@botharness/browser'\n    - id: computer-use\n      name: '@deepseek-ai/dsh-computer-use'\n    - id: botharness-computer\n      name: '@botharness/computer'\n",
       );
     }
-    if (name === productImProvider.name)
+    if (name === productImProvider.name) {
+      manifest.botharness = { managedByProduct: true };
       writeFileSync(
         join(dir, 'package/PROVENANCE.json'),
         JSON.stringify({ source: productImProvider.upstream.source, compiledOutput: runtime }),
       );
+    }
     writeFileSync(join(dir, 'package/package.json'), JSON.stringify(manifest));
     writeFileSync(join(dir, 'package/index.js'), 'export const apply = () => {};');
     writeFileSync(join(dir, 'package/LICENSE'), 'MIT');
@@ -86,6 +90,71 @@ function fixture(productVersion = '0.1.0-alpha.1') {
 }
 
 describe('reviewed npm prerelease', () => {
+  function providerReadbackFixture() {
+    const { root } = fixture();
+    const inventory = JSON.parse(readFileSync(join(root, 'artifacts.json')));
+    const artifact = inventory.artifacts.find((value) => value.name === productImProvider.name);
+    const bytes = readFileSync(join(root, artifact.filename));
+    const plan = {
+      ...providerReleasePlan,
+      integrity: artifact.integrity,
+      runtimeFiles: inventory.providerRuntime.runtimeFiles,
+      runtimeSha256: inventory.providerRuntime.runtimeSha256,
+    };
+    const remote = {
+      name: artifact.name,
+      version: artifact.version,
+      dist: { integrity: plan.integrity, tarball: 'https://registry.npmjs.org/qualified.tgz' },
+    };
+    const rebuilt = Buffer.concat([bytes, Buffer.from([0])]);
+    writeFileSync(join(root, artifact.filename), rebuilt);
+    artifact.integrity = `sha512-${createHash('sha512').update(rebuilt).digest('base64')}`;
+    writeFileSync(join(root, 'artifacts.json'), JSON.stringify(inventory));
+    return { root, artifact, bytes, plan, remote, rebuilt };
+  }
+
+  it('reuses the exact published Provider instead of a byte-different rebuild with the same runtime', async () => {
+    const { root, artifact, bytes, plan, remote } = providerReadbackFixture();
+    const read = vi.fn(async () => remote);
+    const download = vi.fn(async () => bytes);
+    expect(() => existingArtifact(artifact, remote)).toThrow('different bytes');
+    await expect(reusePublishedProvider(root, { read, download, plan })).resolves.toBe(true);
+    expect(read).toHaveBeenCalledWith(productImProvider.name, productImProvider.version);
+    expect(readFileSync(join(root, artifact.filename))).toEqual(bytes);
+    expect(
+      JSON.parse(readFileSync(join(root, 'artifacts.json'))).artifacts.find(
+        (value) => value.name === artifact.name,
+      ).integrity,
+    ).toBe(plan.integrity);
+    expect(existingArtifact({ ...artifact, integrity: plan.integrity }, remote)).toBe(true);
+  });
+
+  it.each(['registry', 'archive', 'runtime'])(
+    'refuses a conflicting published Provider %s without replacing the local archive',
+    async (conflict) => {
+      const { root, artifact, bytes, plan, remote, rebuilt } = providerReadbackFixture();
+      if (conflict === 'registry') remote.dist.integrity = 'different';
+      if (conflict === 'runtime') plan.runtimeSha256 = 'b'.repeat(64);
+      await expect(
+        reusePublishedProvider(root, {
+          plan,
+          read: async () => remote,
+          download: async () => (conflict === 'archive' ? rebuilt : bytes),
+        }),
+      ).rejects.toThrow(/differs|different bytes/);
+      expect(readFileSync(join(root, artifact.filename))).toEqual(rebuilt);
+    },
+  );
+
+  it('keeps first-publication preparation when the pinned Provider is absent from registry', async () => {
+    const { root, artifact, rebuilt } = providerReadbackFixture();
+    const download = vi.fn();
+    await expect(
+      reusePublishedProvider(root, { read: async () => undefined, download }),
+    ).resolves.toBe(false);
+    expect(download).not.toHaveBeenCalled();
+    expect(readFileSync(join(root, artifact.filename))).toEqual(rebuilt);
+  });
   it.each(['0.0.0', '0.0.0-test.824', 'v0.1.0-alpha.1', 'latest', ''])(
     'refuses unintended public version %s',
     (v) => expect(() => releaseVersion(v)).toThrow(),

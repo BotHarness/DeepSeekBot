@@ -19,6 +19,13 @@ export interface MessagingTypingLease {
   stop(): Promise<void>;
 }
 
+export interface MessagingReachablePage {
+  version: 1;
+  conversations: { id: string; kind: 'group'; name: string }[];
+  hasMore: boolean;
+  cursor?: string;
+}
+
 export interface MessagingTarget {
   ref: string;
   name: string;
@@ -304,6 +311,20 @@ export interface MessagingProvider {
     signal: AbortSignal;
     beforeSend?: () => boolean;
   }): Promise<{ accepted: true; receipt?: MessagingReceipt }>;
+  reachable?(input: {
+    accountRef: string;
+    fingerprint: string;
+    signal: AbortSignal;
+    cursor?: string;
+  }): Promise<MessagingReachablePage>;
+  postConversation?(input: {
+    accountRef: string;
+    fingerprint: string;
+    conversationId: string;
+    text: string;
+    signal: AbortSignal;
+    beforeSend: () => boolean;
+  }): Promise<{ accepted: true; receipt: MessagingReceipt }>;
   post?(input: {
     accountRef: string;
     targetRef: string;

@@ -4453,6 +4453,76 @@ export async function revokeMessaging(
 ): Promise<void> {
   await unwrap(call, 'messagingRevoke', { slug, grantId });
 }
+export async function loadMessagingReachable(
+  call: BridgeCall,
+  slug: string,
+  bindingId: string,
+  cursor?: string,
+): Promise<import('../../../core/src/messaging/provider.js').MessagingReachablePage> {
+  const page = asRecord(
+    await unwrap(call, 'messagingReachable', { slug, bindingId, ...(cursor ? { cursor } : {}) }),
+  );
+  if (
+    !page ||
+    page['version'] !== 1 ||
+    !Array.isArray(page['conversations']) ||
+    typeof page['hasMore'] !== 'boolean'
+  )
+    throw new BridgeCallError('invalid-response', 'Invalid group page');
+  return page as unknown as import('../../../core/src/messaging/provider.js').MessagingReachablePage;
+}
+export async function readMessagingPostRequest(
+  call: BridgeCall,
+  slug: string,
+  bindingId: string,
+  conversationId: string,
+  requestId: string,
+  text: string,
+): Promise<OutboxIntent | undefined> {
+  const record = asRecord(
+    await unwrap(call, 'messagingPostRequest', {
+      slug,
+      bindingId,
+      conversationId,
+      requestId,
+      text,
+    }),
+  );
+  if (record?.['intent'] === null) return undefined;
+  if (!record || !asRecord(record['intent']))
+    throw new BridgeCallError('invalid-response', 'Invalid intent');
+  return record['intent'] as OutboxIntent;
+}
+export async function postMessagingConversation(
+  call: BridgeCall,
+  slug: string,
+  bindingId: string,
+  conversationId: string,
+  requestId: string,
+  text: string,
+): Promise<OutboxIntent> {
+  const record = asRecord(
+    await unwrap(call, 'messagingPostConversation', {
+      slug,
+      bindingId,
+      conversationId,
+      requestId,
+      text,
+    }),
+  );
+  if (!record || !asRecord(record['intent']))
+    throw new BridgeCallError('invalid-response', 'Invalid intent');
+  return record['intent'] as OutboxIntent;
+}
+export async function setMessagingPostLimit(
+  call: BridgeCall,
+  slug: string,
+  bindingId: string,
+  expectedRevision: number,
+  limit: number | null,
+): Promise<void> {
+  await unwrap(call, 'messagingPostLimit', { slug, bindingId, expectedRevision, limit });
+}
 export async function sendMessaging(
   call: BridgeCall,
   slug: string,

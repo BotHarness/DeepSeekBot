@@ -4,12 +4,13 @@ Since [ADR-0189](../../adr/0189-secret-input-is-available-in-ordinary-profiles.m
 
 ## What the Bot can do
 
-| Tool            | What it does                                                                                                                                                                                                |
-| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ask_secret`    | Posts an input card in the Channel the request came from. Only the Owner can fill it. The Bot gets back `private:<id>:<field>` references, never values.                                                    |
-| `secret_http`   | Calls an HTTP API. The Host sends the request to the endpoint the Owner typed into the card; the Bot chooses a path under it, the method, and `{{field}}` placeholders for secrets in headers, query, body. |
-| `protected_cli` | The fixed `http-status-v1` check: one GET, returns only the status code.                                                                                                                                    |
-| `secret_cli`    | Runs one installed command-line tool with secrets in its environment. The Host starts the program without a shell, in the Bot's working folder, inside the Shell sandbox, with a clean environment.         |
+| Tool                 | What it does                                                                                                                                                                                                |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ask_secret`         | Posts an input card in the Channel the request came from. Only the Owner can fill it. The Bot gets back `private:<id>:<field>` references, never values.                                                    |
+| `secret_http`        | Calls an HTTP API. The Host sends the request to the endpoint the Owner typed into the card; the Bot chooses a path under it, the method, and `{{field}}` placeholders for secrets in headers, query, body. |
+| `protected_cli`      | The fixed `http-status-v1` check: one GET, returns only the status code.                                                                                                                                    |
+| `secret_cli`         | Runs one installed command-line tool with secrets in its environment. The Host starts the program without a shell, in the Bot's working folder, inside the Shell sandbox, with a clean environment.         |
+| `secret_mcp_connect` | Starts an MCP server for this Bot's chat Session with secrets in its environment; its tools appear as `mcp__<server_name>__<tool>`. `secret_mcp_disconnect` stops it or lists what is connected.            |
 
 Every consumer needs Human execution approval. The approval card shows references and placeholders, not values. A `secret_cli` call needs its own approval every time: the card offers allow once and reject only, and no saved rule covers it ([ADR-0191](../../adr/0191-a-bot-runs-a-command-line-tool-with-owner-secrets-per-approved-call.md)).
 
@@ -42,6 +43,19 @@ then run: mytool status
 ```
 
 The Bot calls `secret_cli` with `program: mytool`, `args: ["status"]` and `env: [{ name: "MYTOOL_TOKEN", value: "{{token}}" }]`. Expect an approval card that names the program and arguments and has no save-rule buttons; after approval the Bot reports the exit code and output with the token shown as `[secret]`. Asking it to run `sh -c 'echo $MYTOOL_TOKEN'` this way is refused without a card.
+
+## MCP servers
+
+Ask the Bot to connect a server that reads its credential from the environment, for example:
+
+```text
+Connect the GitHub MCP server: npx -y @modelcontextprotocol/server-github, which reads
+GITHUB_PERSONAL_ACCESS_TOKEN. Ask me for the token with ask_secret first.
+```
+
+The Bot calls `secret_mcp_connect`. Expect an approval card that names the launcher and arguments, says the program keeps running, and offers allow once, allow and remember, and reject. After approval the Bot lists the server's tools; each tool call then asks in the usual way. With allow once the server stops on `secret_mcp_disconnect`, when the account is revoked, or when the Host restarts, and reconnecting needs a new approval. With allow and remember it is started again whenever this Bot's chat Session starts, and is listed under Secrets in the Bot's settings, where it can be removed ([ADR-0196](../../adr/0196-approved-secret-mcp-servers-can-be-remembered.md)). It is not available to Assignments ([ADR-0195](../../adr/0195-a-bot-starts-an-mcp-server-with-owner-secrets-per-approved-start.md)).
+
+For a local check without a real service, start `node scripts/ask-secret-fixture.mjs 31381` and ask the Bot to connect `node <repo>/scripts/secret-mcp-fixture.mjs` with `STATUS_ENDPOINT`, `STATUS_API_KEY` and `STATUS_API_SECRET`, then call `check_status` (expect 200) and `describe_setup` (expect the key shown as `[secret]`).
 
 ## Owner CLI
 

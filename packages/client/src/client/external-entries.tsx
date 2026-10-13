@@ -1,5 +1,7 @@
 import { useState, type ReactElement } from 'react';
 import { Button, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+import { ReachablePostDialog } from './reachable-post.js';
+import type { MessagingIdentityView } from '../../../core/src/messaging/identity.js';
 
 import { ApprovalSettings } from './approval-settings.js';
 import { useClientState } from './bot-sidebar.js';
@@ -29,6 +31,7 @@ function IdentitiesForBot({
     ...(dm ? [{ id: dm.id, name: t('bridge.dmTarget', { name: bot?.displayName ?? slug }) }] : []),
     ...(snapshot?.channelTargets ?? []),
   ];
+  const [postIdentity, setPostIdentity] = useState<MessagingIdentityView>();
   const [panel, setPanel] = useState<'pairing' | 'approval'>();
   const [busy, setBusy] = useState(false);
   const [scopeFailed, setScopeFailed] = useState<'pairing' | 'approval'>();
@@ -64,7 +67,28 @@ function IdentitiesForBot({
           {t('im.error')}
         </p>
       ) : null}
+      {postIdentity ? (
+        <ReachablePostDialog
+          key={postIdentity.id}
+          slug={slug}
+          identity={postIdentity}
+          recoveryScope={
+            state.composerIdentity === undefined
+              ? undefined
+              : JSON.stringify([
+                  state.composerIdentity.hostId,
+                  state.composerIdentity.profileId,
+                  state.composerIdentity.humanId,
+                ])
+          }
+          actions={actions}
+          t={t}
+          refresh={refresh}
+          onClose={() => setPostIdentity(undefined)}
+        />
+      ) : null}
       <ExternalIdentityList
+        post={setPostIdentity}
         appSetup={actions.appSetup ? { client: actions.appSetup, botSlug: slug } : undefined}
         snapshot={snapshot}
         refresh={refresh}

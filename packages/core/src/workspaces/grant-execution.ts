@@ -115,6 +115,7 @@ const BOT_TOOL_NAMES = new Set([
   'bridge_sender_permissions',
   'bridge_directory',
   'bridge_targets',
+  'bridge_reachable_groups',
   'bridge_post',
   'bridge_outbox',
   'bridge_read',
@@ -158,6 +159,7 @@ const BOT_TOOL_NAMES = new Set([
 
   'ask_user_question',
   'ask_secret',
+  'secret_mcp_disconnect',
   'memory_switch_branch',
   'memory_continue_from_commit',
   'report_to_orchestrator',

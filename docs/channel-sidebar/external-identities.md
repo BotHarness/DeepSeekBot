@@ -67,6 +67,18 @@ To keep a busy app from flooding the Inbox, at most 20 new conversations per app
 
 ![The app’s conversation list](/guides/channel-sidebar/19c-app-conversations-en.webp)
 
+## Post to a group
+
+An available app has a **Post to group** action. With a compatible Provider, the picker lists groups the app can currently speak in, including groups with no previous mention or saved target. Choose the group and enter a message; native permission and local authorization are checked again before dispatch. An older Provider shows an update hint; its existing saved-target action remains available.
+
+The app starts with a limit of 60 proactive posts per rolling hour. Change that limit in the dialog, or leave it blank to disable it. Started unknown outcomes count toward the limit. A block prevents posting; mute and waiting do not create permission by themselves or prohibit an explicitly authorized post.
+
+The result distinguishes platform acceptance, a definite refusal and an unknown outcome. For an unknown outcome, inspect the original group and Outbox instead of sending the message again. The first post creates a conversation entry; it does not create a local DM or inbound message.
+
+Closing and reopening the picker retains unresolved requests. If a response was lost, an explicit retry keeps the original request ID; an unknown outcome remains blocked for the same group and message. After a definite result, clicking **Post to group** again is a new requested post. A failed conversation-list refresh does not change an accepted send result.
+
+The rebuilt Lark slice passed a fresh-group first post and a blocked zero-send check on 2026-10-13; the same qualified Provider `.20` is published on `next` and its downloaded archive is byte-identical to the accepted package. This capability does not establish QQ proactive permission or own Echo.
+
 ## Edit, reconnect or unbind
 
 Click an app row to open **Edit identity**.

@@ -4,12 +4,13 @@
 
 ## Bot 可以做什么
 
-| 工具            | 作用                                                                                                                                                         |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `ask_secret`    | 在请求所在的 Channel 发出输入卡片。只有 Owner 能填写。Bot 拿到的是 `private:<id>:<字段>` 引用，拿不到值。                                                    |
-| `secret_http`   | 调用 HTTP 接口。请求由 Host 发往 Owner 在卡片里填写的地址；Bot 只能指定该地址下的路径、方法，以及用 `{{字段}}` 标出密钥在请求头、查询参数或请求体中的位置。  |
-| `protected_cli` | 固定的 `http-status-v1` 检查：发一次 GET，只返回状态码。                                                                                                     |
-| `secret_cli`    | 带着密钥运行一个已安装的命令行工具，密钥只放进它的环境变量。Host 不经 shell 直接启动程序，工作目录是 Bot 的工作文件夹，受 Shell 沙箱约束，环境变量是干净的。 |
+| 工具                 | 作用                                                                                                                                                                 |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ask_secret`         | 在请求所在的 Channel 发出输入卡片。只有 Owner 能填写。Bot 拿到的是 `private:<id>:<字段>` 引用，拿不到值。                                                            |
+| `secret_http`        | 调用 HTTP 接口。请求由 Host 发往 Owner 在卡片里填写的地址；Bot 只能指定该地址下的路径、方法，以及用 `{{字段}}` 标出密钥在请求头、查询参数或请求体中的位置。          |
+| `protected_cli`      | 固定的 `http-status-v1` 检查：发一次 GET，只返回状态码。                                                                                                             |
+| `secret_cli`         | 带着密钥运行一个已安装的命令行工具，密钥只放进它的环境变量。Host 不经 shell 直接启动程序，工作目录是 Bot 的工作文件夹，受 Shell 沙箱约束，环境变量是干净的。         |
+| `secret_mcp_connect` | 为这个 Bot 的聊天会话启动一个 MCP 服务，密钥放进它的环境变量；它的工具以 `mcp__<server_name>__<工具>` 出现。`secret_mcp_disconnect` 用来断开，或列出当前连着的服务。 |
 
 每个使用方都需要 Human 执行审批。审批卡上只有引用和占位符，没有值。`secret_cli` 每次调用都要单独批准：卡片只有“仅批准这一次”和“拒绝”，已保存的规则不会覆盖它（[ADR-0191](../../adr/0191-a-bot-runs-a-command-line-tool-with-owner-secrets-per-approved-call.md)）。
 
@@ -42,6 +43,19 @@
 ```
 
 Bot 会用 `program: mytool`、`args: ["status"]`、`env: [{ name: "MYTOOL_TOKEN", value: "{{token}}" }]` 调用 `secret_cli`。预期：审批卡写明程序和参数，没有保存规则的按钮；批准后 Bot 报告退出码和输出，token 显示为 `[secret]`。让它用这种方式运行 `sh -c 'echo $MYTOOL_TOKEN'` 会在弹出卡片之前被拒绝。
+
+## MCP 服务
+
+让 Bot 接上一个从环境变量读取凭据的服务，例如：
+
+```text
+接上 GitHub 的 MCP 服务：npx -y @modelcontextprotocol/server-github，它读取
+GITHUB_PERSONAL_ACCESS_TOKEN。请先用 ask_secret 向我要这个 token。
+```
+
+Bot 会调用 `secret_mcp_connect`。预期：审批卡写明启动程序和参数，说明这个程序会持续运行，并提供“仅批准这一次”“批准并记住”“拒绝”三个选择。批准后 Bot 列出该服务的工具；之后每次调用工具按平常的方式询问。选“仅批准这一次”时，服务在 `secret_mcp_disconnect`、账号被撤销或 Host 重启时停止，重新连接需要再次批准。选“批准并记住”时，这个 Bot 的聊天会话每次启动都会自动把它启动起来，并显示在 Bot 设置的“密钥”里，可以在那里移除（[ADR-0196](../../adr/0196-approved-secret-mcp-servers-can-be-remembered.md)）。派出的事项用不了它（[ADR-0195](../../adr/0195-a-bot-starts-an-mcp-server-with-owner-secrets-per-approved-start.md)）。
+
+不依赖真实服务的本地验证：启动 `node scripts/ask-secret-fixture.mjs 31381`，让 Bot 用 `STATUS_ENDPOINT`、`STATUS_API_KEY`、`STATUS_API_SECRET` 接上 `node <仓库>/scripts/secret-mcp-fixture.mjs`，然后调用 `check_status`（应为 200）和 `describe_setup`（key 应显示为 `[secret]`）。
 
 ## Owner CLI
 
