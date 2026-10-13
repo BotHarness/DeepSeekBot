@@ -34,17 +34,20 @@ describe('PersonaBot Session view preferences', () => {
       ...current,
       layout: 'workspace',
       collapsedWorkspaces: ['cwd:/projects/a'],
+      collapsedSections: [],
     }));
 
     expect(sessionViewPreferenceSnapshot('menu-bot-a')).toEqual({
       scope: 'all',
       layout: 'workspace',
       collapsedWorkspaces: ['cwd:/projects/a'],
+      collapsedSections: [],
     });
     expect(sessionViewPreferenceSnapshot('menu-bot-b')).toEqual({
       scope: 'current',
-      layout: 'flat',
+      layout: 'status',
       collapsedWorkspaces: [],
+      collapsedSections: [],
     });
     expect(changes).toEqual(['a', 'a']);
     unsubscribe();
@@ -55,35 +58,43 @@ describe('PersonaBot Session view preferences', () => {
     const storage = memoryStorage();
     writeSessionViewPreference(
       'bot-a',
-      { scope: 'all', layout: 'workspace', collapsedWorkspaces: ['cwd:/projects/a'] },
+      {
+        scope: 'all',
+        layout: 'workspace',
+        collapsedWorkspaces: ['cwd:/projects/a'],
+        collapsedSections: [],
+      },
       storage,
     );
     writeSessionViewPreference(
       'bot-b',
-      { scope: 'current', layout: 'workspace', collapsedWorkspaces: [] },
+      { scope: 'current', layout: 'workspace', collapsedWorkspaces: [], collapsedSections: [] },
       storage,
     );
     expect(readSessionViewPreference('bot-a', storage)).toEqual({
       scope: 'all',
       layout: 'workspace',
       collapsedWorkspaces: ['cwd:/projects/a'],
+      collapsedSections: [],
     });
     expect(readSessionViewPreference('bot-b', storage)).toEqual({
       scope: 'current',
       layout: 'workspace',
       collapsedWorkspaces: [],
+      collapsedSections: [],
     });
     expect(readSessionViewPreference('bot-c', storage)).toEqual({
       scope: 'current',
-      layout: 'flat',
+      layout: 'status',
       collapsedWorkspaces: [],
+      collapsedSections: [],
     });
   });
 
   it('falls back safely when storage is malformed or denied', () => {
     const storage = memoryStorage();
     storage.values.set(SESSION_VIEW_PREFERENCES_KEY, '{invalid');
-    expect(readSessionViewPreference('bot-a', storage).layout).toBe('flat');
+    expect(readSessionViewPreference('bot-a', storage).layout).toBe('status');
     storage.values.set(
       SESSION_VIEW_PREFERENCES_KEY,
       JSON.stringify({
@@ -91,6 +102,7 @@ describe('PersonaBot Session view preferences', () => {
           scope: 'unexpected',
           layout: 'workspace',
           collapsedWorkspaces: ['cwd:/a', 'cwd:/a', 12],
+          collapsedSections: [],
         },
       }),
     );
@@ -98,6 +110,7 @@ describe('PersonaBot Session view preferences', () => {
       scope: 'current',
       layout: 'workspace',
       collapsedWorkspaces: ['cwd:/a'],
+      collapsedSections: [],
     });
     expect(() =>
       writeSessionViewPreference('bot-a', readSessionViewPreference('bot-a', storage), {

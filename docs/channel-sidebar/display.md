@@ -32,11 +32,11 @@ Hidden tabs and entries keep their data. Bot and Channel layouts have separate o
 
 ## Feature display settings
 
-| Gear-menu option               | Choices and effect                                             |
-| ------------------------------ | -------------------------------------------------------------- |
-| Memory evolution · Terminology | **Memory** or **Git** labels/grouping; no repository change.   |
-| Sessions · Session view        | **Current** or **All** for the selected Bot’s owned Sessions.  |
-| Sessions · Layout              | **Flat** or **By workspace**; groups do not relocate Sessions. |
+| Gear-menu option               | Choices and effect                                           |
+| ------------------------------ | ------------------------------------------------------------ |
+| Memory evolution · Terminology | **Memory** or **Git** labels/grouping; no repository change. |
+
+**Sessions** and **Bot Inbox** have their own gear in the section title instead: Sessions chooses the session view and layout, Bot Inbox chooses between **By time** and **By source**.
 
 These menu selections apply immediately. In the narrow overlay they are separate from the **Edit sidebar** draft’s **Done/Cancel** buttons, and opening a feature settings submenu can temporarily preview that entry; closing the menu restores its ordinary disclosure state.
 

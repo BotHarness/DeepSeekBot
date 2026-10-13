@@ -4,23 +4,25 @@ Open **Bot DM → Channel sidebar → Bot Inbox**. This is the selected Bot’s 
 
 ## Inspect an item
 
-1. Expand **Bot Inbox**, then expand a source group. Groups can represent a Channel, a task or an external conversation.
-2. Read the item summary, author, timestamp and processing state.
+1. Expand **Bot Inbox**. By default every item is listed newest first.
+2. Each card shows who it came from and when on the first line, with the processing state at the top right, and up to two lines of content below.
 3. Click an available source item: Channel messages open the original chat around the message; Assignment reports open the corresponding Session; external items open a source-detail view.
-4. Open **Handled or ignored** inside a group to inspect its history. Use **Load more** when offered.
+4. Use **Load more** when offered.
+
+To group items by where they came from, click the gear in the **Bot Inbox** title and choose **Show → By source**. Groups can represent a Channel, a task or an external conversation; a group opens on its own when it has unhandled items. The choice is remembered in this browser.
 
 ![The Bot Inbox with real received tutorial messages and handled history](/guides/channel-sidebar/05-bot-inbox-zh.webp)
 
 ## Read the states correctly
 
-| State             | How to read it                                        |
-| ----------------- | ----------------------------------------------------- |
-| Pending           | Received and awaiting handling.                       |
-| Observed          | Recorded as viewed by the Bot.                        |
-| Processing        | The Bot is handling it.                               |
-| Deferred          | Handling was deferred.                                |
-| Needs repair      | The processing path needs attention.                  |
-| Handled / Ignored | Historical items, collapsed into the group’s history. |
+| State             | How to read it                                  |
+| ----------------- | ----------------------------------------------- |
+| Pending           | Received and awaiting handling.                 |
+| Observed          | Recorded as viewed by the Bot.                  |
+| Processing        | The Bot is handling it.                         |
+| Deferred          | Handling was deferred.                          |
+| Needs repair      | The processing path needs attention.            |
+| Handled / Ignored | Historical items, listed with the rest by time. |
 
 The header count excludes handled and ignored records in the loaded view. It is not a count of unread messages for the Human. Opening a source to inspect it is not a manual instruction to mark it handled, and a delivery badge is not proof that the Bot completed your request.
 

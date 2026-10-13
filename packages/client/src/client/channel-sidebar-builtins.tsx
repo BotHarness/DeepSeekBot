@@ -35,7 +35,7 @@ import { formatRelativeTime } from './labels.js';
 import { LoadingSkeleton } from './loading-skeleton.js';
 import { MemoryEntry } from './memory-entry.js';
 import { MemoryFilesEntry } from './memory-files-entry.js';
-import { MemoryDisplaySettings, SessionsDisplaySettings } from './channel-sidebar-settings.js';
+import { MemoryDisplaySettings } from './channel-sidebar-settings.js';
 import { Modal } from './modal.js';
 import { ExternalSourceContent } from './external-source-content.js';
 import { externalPlatformLabel, externalSenderLabel } from './bridge-source-label.js';
@@ -45,7 +45,13 @@ import { GroupWorkEntry } from './group-work-entry.js';
 import { PrivateAccountsSection } from './private-accounts-section.js';
 import { BotSchedulesEntry, BotSchedulesHeaderAction, ScheduleDialog } from './schedules-entry.js';
 import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
-import { SessionsEntry, type NativeSessionCatalog } from './sessions-entry.js';
+import {
+  SessionsEntry,
+  SessionsHeaderAction,
+  type NativeSessionCatalog,
+} from './sessions-entry.js';
+import { SidebarViewMenu } from './sidebar-view-menu.js';
+import { inboxLayoutSnapshot, setInboxLayout, subscribeInboxLayout } from './inbox-view-prefs.js';
 import type { BotHarnessTranslate } from './locale.js';
 import type { BotAttentionItem, ChannelSummary } from './store.js';
 
@@ -260,10 +266,12 @@ function MembersBadge(): ReactElement {
 
 function BotInboxItemRow({
   item,
+  source,
   actions,
   t,
 }: {
   item: BotAttentionItem;
+  source?: string | undefined;
   actions: ChannelSidebarEntryProps['actions'];
   t: BotHarnessTranslate;
 }): ReactElement {
@@ -435,12 +443,52 @@ function BotInboxItemRow({
     ? (external.event.attachments?.filter((file) => file.mediaType?.startsWith('video/')) ?? [])
     : [];
   const unavailable = !memoryChange && !item.sourceAvailable;
+  const chips = [
+    item.externalOrigin?.voice ? (
+      <Tag
+        key="voice"
+        tone={item.externalOrigin.voice.transcript === 'platform' ? 'info' : 'warning'}
+      >
+        {t(
+          item.externalOrigin.voice.transcript === 'platform'
+            ? 'im.voiceTranscriptPlatform'
+            : 'im.voiceTranscriptUnavailable',
+        )}
+      </Tag>
+    ) : null,
+    item.assignmentReportState === undefined ? null : (
+      <Tag key="report" tone="outline">
+        {t(`inbox.report.${item.assignmentReportState}`)}
+      </Tag>
+    ),
+  ].filter((chip) => chip !== null);
+  const origin =
+    item.externalOrigin === undefined
+      ? source
+      : `${item.externalOrigin.accountName} · ${item.externalOrigin.conversationName}`;
   const row = (
     <SidebarCardRow
       icon={inboxIcon(item)}
       iconLabel={author}
-      title={summary || t('inbox.system')}
-      titleClassName="bh-inbox-item-summary"
+      title={
+        <>
+          <span
+            className="bh-inbox-item-author"
+            title={origin === undefined ? author : `${author} · ${origin}`}
+          >
+            {author}
+            {origin === undefined ? null : (
+              <span className="bh-inbox-item-origin"> · {origin}</span>
+            )}
+          </span>
+          <span className="bh-inbox-item-time">
+            {formatRelativeTime(Date.parse(item.createdAt), Date.now(), t)}
+          </span>
+        </>
+      }
+      titleClassName="bh-inbox-item-head"
+      badge={<Tag tone={INBOX_STATE_TONE[item.state]}>{t(`inbox.state.${item.state}`)}</Tag>}
+      summary={summary || t('inbox.system')}
       hint={summary}
       mainClassName={memoryChange ? 'bh-inbox-item bh-inbox-item-info' : 'bh-inbox-item'}
       state={item.state}
@@ -448,39 +496,8 @@ function BotInboxItemRow({
       disabled={!item.sourceAvailable}
       dialog={item.scheduleId !== undefined || item.externalOrigin !== undefined}
       {...(memoryChange ? {} : { onClick: () => void open() })}
-      chips={
-        <>
-          {item.externalOrigin?.voice ? (
-            <Tag tone={item.externalOrigin.voice.transcript === 'platform' ? 'info' : 'warning'}>
-              {t(
-                item.externalOrigin.voice.transcript === 'platform'
-                  ? 'im.voiceTranscriptPlatform'
-                  : 'im.voiceTranscriptUnavailable',
-              )}
-            </Tag>
-          ) : null}
-          <Tag tone={INBOX_STATE_TONE[item.state]}>{t(`inbox.state.${item.state}`)}</Tag>
-          {item.assignmentReportState === undefined ? null : (
-            <Tag tone="outline">{t(`inbox.report.${item.assignmentReportState}`)}</Tag>
-          )}
-        </>
-      }
-      meta={
-        <>
-          <span className="bh-inbox-item-author" title={author}>
-            {author}
-          </span>
-          {item.externalOrigin === undefined ? null : (
-            <span className="bh-inbox-item-origin">
-              {item.externalOrigin.accountName} · {item.externalOrigin.conversationName}
-            </span>
-          )}
-          <span className="bh-inbox-item-time">
-            {formatRelativeTime(Date.parse(item.createdAt), Date.now(), t)}
-          </span>
-          {unavailable ? <span>{t('inbox.sourceUnavailable')}</span> : null}
-        </>
-      }
+      {...(chips.length === 0 ? {} : { chips: <>{chips}</> })}
+      {...(unavailable ? { meta: <span>{t('inbox.sourceUnavailable')}</span> } : {})}
     />
   );
   return (
@@ -672,18 +689,17 @@ function BotInboxGroup({
   actions: ChannelSidebarEntryProps['actions'];
   t: BotHarnessTranslate;
 }): ReactElement {
-  const active = items.filter((item) => item.state !== 'handled' && item.state !== 'ignored');
-  const history = items.filter((item) => item.state === 'handled' || item.state === 'ignored');
-  const activeSignature = active
+  const activeSignature = items
+    .filter((item) => item.state !== 'handled' && item.state !== 'ignored')
     .map((item) => item.id + ':' + item.state)
     .sort()
     .join('|');
   const [expansion, setExpansion] = useState({
     signature: activeSignature,
-    expanded: active.length > 0,
+    expanded: activeSignature !== '',
   });
   const expanded =
-    activeSignature !== expansion.signature && active.length > 0 ? true : expansion.expanded;
+    activeSignature !== expansion.signature && activeSignature !== '' ? true : expansion.expanded;
   return (
     <details
       className="bh-inbox-group"
@@ -699,32 +715,22 @@ function BotInboxGroup({
         </span>
         <Tag tone="neutral">{items.length}</Tag>
       </summary>
-      {active.length === 0 ? null : (
-        <SidebarCardList label={name}>
-          {active.map((item) => (
-            <BotInboxItemRow key={item.id} item={item} actions={actions} t={t} />
-          ))}
-        </SidebarCardList>
-      )}
-      {history.length > 0 ? (
-        <details className="bh-inbox-history">
-          <summary>
-            <IconChevronDownOutlineRegular className="bh-inbox-group-chevron" size={14} />
-            <span>{t('inbox.handledHistory', { count: history.length })}</span>
-          </summary>
-          <SidebarCardList label={t('inbox.handledHistory', { count: history.length })}>
-            {history.map((item) => (
-              <BotInboxItemRow key={item.id} item={item} actions={actions} t={t} />
-            ))}
-          </SidebarCardList>
-        </details>
-      ) : null}
+      <SidebarCardList label={name}>
+        {items.map((item) => (
+          <BotInboxItemRow key={item.id} item={item} actions={actions} t={t} />
+        ))}
+      </SidebarCardList>
     </details>
   );
 }
 function BotInboxEntry({ actions, t, botSlug }: ChannelSidebarEntryProps): ReactElement {
   const state = useClientState();
   const inbox = state.botInbox;
+  const layout = useSyncExternalStore(
+    subscribeInboxLayout,
+    inboxLayoutSnapshot,
+    inboxLayoutSnapshot,
+  );
   const sourceName = (item: BotAttentionItem): string | undefined => {
     const channel = state.channels.find((channel) => channel.id === item.sourceChannelId);
     if (channel?.type === 'dm') {
@@ -732,24 +738,26 @@ function BotInboxEntry({ actions, t, botSlug }: ChannelSidebarEntryProps): React
     }
     return item.sourceChannelName ?? channel?.name;
   };
+  const sourceKey = (item: BotAttentionItem): string =>
+    item.assignmentSessionId === undefined
+      ? (item.sourceChannelId ??
+        (item.externalOrigin === undefined
+          ? `system:${item.reason}`
+          : `external:${item.externalOrigin.platform}:${item.externalOrigin.conversationId}`))
+      : `assignment:${item.assignmentSessionId}`;
+  const sourceLabel = (item: BotAttentionItem): string =>
+    item.assignmentPurpose ??
+    item.externalOrigin?.conversationName ??
+    sourceName(item) ??
+    item.sourceChannelId ??
+    t(item.assignmentSessionId === undefined ? 'inbox.system' : 'inbox.assignment');
+  const items = [...inbox.items].sort(
+    (left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt),
+  );
   const groups = new Map<string, { name: string; items: BotAttentionItem[] }>();
-  for (const item of inbox.items) {
-    const key =
-      item.assignmentSessionId === undefined
-        ? (item.sourceChannelId ??
-          (item.externalOrigin === undefined
-            ? `system:${item.reason}`
-            : `external:${item.externalOrigin.platform}:${item.externalOrigin.conversationId}`))
-        : `assignment:${item.assignmentSessionId}`;
-    const group = groups.get(key) ?? {
-      name:
-        item.assignmentPurpose ??
-        item.externalOrigin?.conversationName ??
-        sourceName(item) ??
-        item.sourceChannelId ??
-        t(item.assignmentSessionId === undefined ? 'inbox.system' : 'inbox.assignment'),
-      items: [],
-    };
+  for (const item of items) {
+    const key = sourceKey(item);
+    const group = groups.get(key) ?? { name: sourceLabel(item), items: [] };
     group.items.push(item);
     groups.set(key, group);
   }
@@ -763,9 +771,25 @@ function BotInboxEntry({ actions, t, botSlug }: ChannelSidebarEntryProps): React
           {t('inbox.error', { error: inbox.error ?? '' })}
         </div>
       ) : null}
-      {[...groups.entries()].map(([key, group]) => (
-        <BotInboxGroup key={key} name={group.name} items={group.items} actions={actions} t={t} />
-      ))}
+      {layout === 'time' ? (
+        items.length === 0 ? null : (
+          <SidebarCardList label={t('entry.botInbox')}>
+            {items.map((item) => (
+              <BotInboxItemRow
+                key={item.id}
+                item={item}
+                source={sourceLabel(item)}
+                actions={actions}
+                t={t}
+              />
+            ))}
+          </SidebarCardList>
+        )
+      ) : (
+        [...groups.entries()].map(([key, group]) => (
+          <BotInboxGroup key={key} name={group.name} items={group.items} actions={actions} t={t} />
+        ))
+      )}
       {inbox.nextCursor !== undefined && botSlug !== undefined ? (
         <button
           type="button"
@@ -776,6 +800,26 @@ function BotInboxEntry({ actions, t, botSlug }: ChannelSidebarEntryProps): React
         </button>
       ) : null}
     </>
+  );
+}
+
+function BotInboxHeaderAction({ t }: ChannelSidebarEntryProps): ReactElement {
+  const layout = useSyncExternalStore(
+    subscribeInboxLayout,
+    inboxLayoutSnapshot,
+    inboxLayoutSnapshot,
+  );
+  return (
+    <SidebarViewMenu
+      label={t('inbox.menu')}
+      items={[
+        { type: 'label', id: 'layout-label', text: t('inbox.layout') },
+        { id: 'time', label: t('inbox.layout.time') },
+        { id: 'source', label: t('inbox.layout.source') },
+      ]}
+      selectedIds={[layout]}
+      onSelect={(id) => setInboxLayout(id === 'source' ? 'source' : 'time')}
+    />
   );
 }
 
@@ -892,7 +936,7 @@ export function createChannelSidebarBuiltins(
       order: 10,
       scope: 'personabot',
       component: SessionsWithNative,
-      settings: SessionsDisplaySettings,
+      headerAction: SessionsHeaderAction,
     },
     {
       id: 'bot-inbox',
@@ -903,6 +947,7 @@ export function createChannelSidebarBuiltins(
       scope: 'personabot',
       component: BotInboxEntry,
       badge: BotInboxBadge,
+      headerAction: BotInboxHeaderAction,
       visible: (state) =>
         state.botInbox.status === 'loading' ||
         state.botInbox.status === 'error' ||

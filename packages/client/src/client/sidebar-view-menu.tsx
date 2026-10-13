@@ -1,0 +1,47 @@
+import { useState, type ReactElement } from 'react';
+import { Menu, Tooltip, type MenuEntry } from '@deepseek-ai/dsh-client-ui-primitives';
+
+import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
+
+export function SidebarViewMenu({
+  label,
+  items,
+  selectedIds,
+  onSelect,
+}: {
+  label: string;
+  items: readonly MenuEntry[];
+  selectedIds: readonly string[];
+  onSelect(id: string): void;
+}): ReactElement {
+  const [open, setOpen] = useState(false);
+  return (
+    <Menu
+      open={open}
+      portal
+      dense
+      align="end"
+      anchor={
+        <Tooltip label={label} side="bottom" delayMs={500}>
+          <button
+            type="button"
+            className="bh-channel-sidebar-entry-action"
+            aria-label={label}
+            aria-haspopup="menu"
+            aria-expanded={open}
+            onClick={() => setOpen((value) => !value)}
+          >
+            <ChannelSidebarIcon name="settings" size={14} />
+          </button>
+        </Tooltip>
+      }
+      items={items}
+      selectedIds={selectedIds}
+      onSelect={(id) => {
+        setOpen(false);
+        onSelect(id);
+      }}
+      onClose={() => setOpen(false)}
+    />
+  );
+}

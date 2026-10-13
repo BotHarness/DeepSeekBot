@@ -28,11 +28,6 @@ import {
   subscribeHiddenDmActions,
   toggleHiddenDmAction,
 } from './dm-actions.js';
-import {
-  sessionViewPreferenceSnapshot,
-  subscribeSessionViewPreference,
-  updateSessionViewPreference,
-} from './session-view-prefs.js';
 
 const SubmenuContext = createContext<{
   active: string | undefined;
@@ -101,55 +96,6 @@ function SettingsSubmenu({
         </MenuSurface>
       ) : null}
     </div>
-  );
-}
-
-export function SessionsDisplaySettings({
-  botSlug,
-  t,
-  onPreview,
-}: ChannelSidebarSettingsProps): ReactElement {
-  const slug = botSlug ?? '';
-  const preference = useSyncExternalStore(
-    (listener) => subscribeSessionViewPreference(slug, listener),
-    () => sessionViewPreferenceSnapshot(slug),
-    () => sessionViewPreferenceSnapshot(slug),
-  );
-  return (
-    <>
-      <SettingsSubmenu
-        label={t('entry.sessions') + ' · ' + t('sessions.view')}
-        onPreview={onPreview}
-      >
-        {(['current', 'all'] as const).map((scope) => (
-          <MenuItemButton
-            key={scope}
-            icon={preference.scope === scope ? <ChannelSidebarIcon name="check" /> : undefined}
-            onSelect={() => {
-              updateSessionViewPreference(slug, (current) => ({ ...current, scope }));
-            }}
-          >
-            {t(scope === 'current' ? 'sessions.current' : 'sessions.all')}
-          </MenuItemButton>
-        ))}
-      </SettingsSubmenu>
-      <SettingsSubmenu
-        label={t('entry.sessions') + ' · ' + t('sessions.layout')}
-        onPreview={onPreview}
-      >
-        {(['flat', 'workspace'] as const).map((layout) => (
-          <MenuItemButton
-            key={layout}
-            icon={preference.layout === layout ? <ChannelSidebarIcon name="check" /> : undefined}
-            onSelect={() => {
-              updateSessionViewPreference(slug, (current) => ({ ...current, layout }));
-            }}
-          >
-            {t(layout === 'flat' ? 'sessions.layout.flat' : 'sessions.layout.workspace')}
-          </MenuItemButton>
-        ))}
-      </SettingsSubmenu>
-    </>
   );
 }
 

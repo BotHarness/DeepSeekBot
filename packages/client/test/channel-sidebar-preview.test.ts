@@ -47,10 +47,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   }) => createElement('button', { role: 'menuitem', onClick: onSelect }, icon, children),
 }));
 import { ChannelSidebarContents } from '../src/client/channel-sidebar-view.js';
-import {
-  SessionsDisplaySettings,
-  MemoryDisplaySettings,
-} from '../src/client/channel-sidebar-settings.js';
+import { MemoryDisplaySettings } from '../src/client/channel-sidebar-settings.js';
 import {
   channelSidebarPrefs,
   createChannelSidebarPrefs,
@@ -149,7 +146,6 @@ beforeEach(() => {
       id: 'sessions',
       label: 'Sessions',
       scope: 'personabot',
-      settings: SessionsDisplaySettings,
       component: SessionsBody,
     },
     {
@@ -191,25 +187,6 @@ describe('temporary sidebar settings preview', () => {
     click('sidebar.settings');
     expect(expanded()).toEqual(['files', 'sessions']);
     expect(host.querySelector('[role=menu]')).toBeNull();
-  });
-  it('keeps one submenu open and previews Sessions for both range and layout with immediate persisted choices', () => {
-    render();
-    click('sidebar.settings');
-    hover('entry.memoryEvolution · memory.terminology');
-    hover('entry.sessions · sessions.view');
-    expect(expanded()).toEqual(['sessions']);
-    expect(host.textContent).not.toContain('memory.terms.git');
-    click('sessions.all');
-    expect(host.textContent).toContain('sessions-all-flat');
-    click('sessions.current');
-    expect(host.textContent).toContain('sessions-current-flat');
-    hover('entry.sessions · sessions.layout');
-    click('sessions.layout.workspace');
-    expect(host.textContent).toContain('sessions-current-workspace');
-    expect(host.querySelectorAll('[role=menu]')).toHaveLength(2);
-    click('sidebar.settings');
-    expect(expanded()).toEqual(['files', 'sessions']);
-    expect(sessionViewPreferenceSnapshot('ada').layout).toBe('workspace');
   });
   it('supports keyboard entry and keeps focus within the menus until Escape restores the prior state', () => {
     vi.useFakeTimers();

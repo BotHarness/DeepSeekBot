@@ -31,6 +31,9 @@ export interface SidebarCardRowProps {
   iconLabel?: string | undefined;
   title: ReactNode;
   titleClassName?: string | undefined;
+  badge?: ReactNode | undefined;
+  summary?: ReactNode | undefined;
+  flipKey?: string | undefined;
   hint?: string | undefined;
   chips?: ReactNode | undefined;
   meta?: ReactNode | undefined;
@@ -54,6 +57,9 @@ export function SidebarCardRow({
   selection,
   title,
   titleClassName,
+  badge,
+  summary,
+  flipKey,
   hint,
   chips,
   meta,
@@ -83,13 +89,27 @@ export function SidebarCardRow({
         </span>
       )}
       <span className="bh-card-body">
-        <span
-          className={
-            titleClassName === undefined ? 'bh-card-title' : 'bh-card-title ' + titleClassName
-          }
-        >
-          {title}
-        </span>
+        {badge === undefined ? (
+          <span
+            className={
+              titleClassName === undefined ? 'bh-card-title' : 'bh-card-title ' + titleClassName
+            }
+          >
+            {title}
+          </span>
+        ) : (
+          <span className="bh-card-title-row">
+            <span
+              className={
+                titleClassName === undefined ? 'bh-card-title' : 'bh-card-title ' + titleClassName
+              }
+            >
+              {title}
+            </span>
+            <span className="bh-card-badge">{badge}</span>
+          </span>
+        )}
+        {summary === undefined ? null : <span className="bh-card-summary">{summary}</span>}
         {chips === undefined ? null : <span className="bh-card-chips">{chips}</span>}
         {meta === undefined ? null : <span className="bh-card-meta">{meta}</span>}
       </span>
@@ -103,6 +123,7 @@ export function SidebarCardRow({
       data-state={state}
       data-selected={selection?.checked === true ? 'true' : undefined}
       data-anchor={anchor}
+      data-flip-key={flipKey}
     >
       <div className="bh-card-line">
         {selection?.multiple === true ? (
