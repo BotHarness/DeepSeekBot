@@ -262,6 +262,29 @@ describe('Channel tool approval', () => {
     broker.close();
   });
 
+  it('remembers a rememberable each-use call without saving a rule', async () => {
+    const state = fixture();
+    const rules = {
+      match: vi.fn(() => undefined),
+      createPending: vi.fn(),
+      activate: vi.fn(),
+      revoke: vi.fn(),
+      list: vi.fn(),
+    } as unknown as import('../src/workspaces/tool-approval-rules.js').ToolApprovalRuleStore;
+    const broker = new ChannelToolApproval(state.channels, state.ownership, rules);
+    broker.track(state.execution(), 'each-use', true);
+    const answer = broker.ask({ agent: state.agent, toolName: 'bash', callId: 'call-1' });
+    await vi.waitFor(() => expect(state.messages).toHaveLength(1));
+    const request = state.messages[0]!;
+    expect(broker.remembered(state.agent, 'call-1')).toBe(false);
+    expect(await broker.decide(botSlug, request.id, 'allowed-always-all')).toBe(false);
+    expect(await broker.decide(botSlug, request.id, 'allowed-always-exact')).toBe(true);
+    expect(await answer).toBe('allowed-once');
+    expect(broker.remembered(state.agent, 'call-1')).toBe(true);
+    expect(rules.createPending).not.toHaveBeenCalled();
+    broker.close();
+  });
+
   it('declines requests that do not match the exact tracked Agent and tool', async () => {
     const state = fixture();
     state.broker.track(state.execution());

@@ -3,7 +3,8 @@ import { onboardingNewsAvailable } from './onboarding/search.js';
 import { nativeTimedQuestions } from './channels/native-timed-questions.js';
 import { credentialStoreDenial } from './credentials/store-guard.js';
 import { secretCommandDenial } from './credentials/secret-command.js';
-import { secretMcpDenial } from './credentials/secret-mcp.js';
+import { rememberedStarts, secretMcpDenial } from './credentials/secret-mcp.js';
+import { createSecretMcpStore } from './credentials/secret-mcp-store.js';
 import { createBotOnboarding, type BotOnboarding } from './onboarding/service.js';
 import { createPartLibrary, type PartLibrary } from './bots/part-library.js';
 import {
@@ -1012,7 +1013,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     activeQuestionMessageIds: () => userQuestions?.activeMessageIds() ?? [],
     activeToolApprovalMessageIds: () => toolApproval?.activeMessageIds() ?? [],
     activePrivateInputMessageIds: () => privateInputs?.activeMessageIds() ?? [],
-    erasePrivateAccounts: async (slug) => privateInputs?.eraseBot(slug),
+    erasePrivateAccounts: async (slug) => {
+      await privateInputs?.mcpServers?.erase(slug);
+      await privateInputs?.eraseBot(slug);
+    },
     capture: (event, properties) => telemetry.capture(event, properties),
     warn: (message) => ctx.logger.warn(message),
     agents: agentAdapter,
@@ -1084,7 +1088,17 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     ctx.logger.warn(
       'botharness: privateInputExecution is set, but the Docker-protected Profile was removed. This Profile runs as an ordinary Profile: secret input stays available, and Agent tools are no longer fenced by a container.',
     );
-  privateInputs = mountPrivateInputs(ctx, core, privateExecution, config.privateInputWebUrl);
+  const secretMcpStore = createSecretMcpStore(
+    attachOperationalModule(core.operationalDatabase, 'secret-mcp'),
+  );
+  privateInputs = mountPrivateInputs(
+    ctx,
+    core,
+    privateExecution,
+    config.privateInputWebUrl,
+    undefined,
+    secretMcpStore,
+  );
   ctx.effect(() => () => core.externalMessaging.close(), 'botharness: external messaging');
   ctx.inject(['dshIm'], (child) => {
     for (const platform of ['feishu', 'slack', 'discord', 'weixin', 'qq'] as const) {
@@ -1370,7 +1384,11 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           orchestratorPermission(core, owner.botSlug).mode === 'danger-full-access');
       if (fullAccess && !eachUse) return next();
       const approval = ctx.get('approval') as ApprovalService | undefined;
-      const untrack = toolApproval.track(execution, eachUse ? 'each-use' : 'operation');
+      const untrack = toolApproval.track(
+        execution,
+        eachUse ? 'each-use' : 'operation',
+        execution.name === 'secret_mcp_connect',
+      );
       if (approval === undefined || untrack === undefined) {
         return { kind: 'deny', reason: 'The tool call cannot be presented for Human approval' };
       }
@@ -1403,6 +1421,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         }
         if (!toolApproval.validAfterDecision(agent, execution.callId))
           return { kind: 'deny', reason: 'Approval rule scope changed' };
+        if (toolApproval.remembered(agent, execution.callId)) rememberedStarts.add(execution.token);
         const guard = toolApproval.executionGuard(agent, execution.callId);
         if (!guard || !guard(execution.name, execution.arguments))
           return { kind: 'deny', reason: 'Approval authority changed before execution' };

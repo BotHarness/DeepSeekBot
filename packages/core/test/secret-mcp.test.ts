@@ -1,8 +1,11 @@
 import type { Agent } from '@deepseek-ai/dsh-agent';
+import { spawnSync } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
 
 import { SecretCommandRefusal } from '../src/credentials/secret-command.js';
 import {
+  SECRET_MCP_KEEP,
+  SECRET_MCP_LAUNCHER,
   SecretMcpServers,
   secretMcpDenial,
   secretMcpEnv,
@@ -68,5 +71,34 @@ describe('Host-started MCP server with Owner secrets', () => {
     expect(servers.mask(agent, 'mcp__github__search', 'SYNTHETIC-value')).toBe('SYNTHETIC-value');
     expect(await servers.stop(agent, 'github')).toBe(false);
     await servers.close();
+  });
+
+  it('starts the server with only the named variables, whatever the launcher itself inherited', () => {
+    const result = spawnSync(
+      process.execPath,
+      [
+        '-e',
+        SECRET_MCP_LAUNCHER,
+        '--',
+        process.execPath,
+        '-e',
+        'process.stdout.write(Object.keys(process.env).sort().join(","))',
+      ],
+      {
+        encoding: 'utf8',
+        env: {
+          PATH: process.env['PATH'],
+          DEMO_TOKEN: 'SYNTHETIC-demo-token',
+          AMBIENT_HOST_SETTING: 'ambient',
+          [SECRET_MCP_KEEP]: 'PATH,DEMO_TOKEN',
+        },
+      },
+    );
+    expect(result.status).toBe(0);
+    const names = result.stdout.split(',');
+    expect(names).toContain('DEMO_TOKEN');
+    expect(names).toContain('PATH');
+    expect(names).not.toContain('AMBIENT_HOST_SETTING');
+    expect(names).not.toContain(SECRET_MCP_KEEP);
   });
 });

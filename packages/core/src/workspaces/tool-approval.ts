@@ -41,6 +41,8 @@ type TrackedCall = ToolApprovalRequestCard & {
   agent: Agent;
   scopeKey: string;
   automatic?: boolean;
+  rememberable?: boolean;
+  remembered?: boolean;
   execution: ToolExecution;
   authorized?: () => boolean;
 };
@@ -123,6 +125,7 @@ export class ChannelToolApproval {
   track(
     execution: ToolExecution,
     externalDecision: 'operation' | 'web-only' | 'each-use' = 'operation',
+    rememberable = false,
   ): (() => void) | undefined {
     const agent = execution.agent;
     if (agent === undefined) return undefined;
@@ -151,6 +154,7 @@ export class ChannelToolApproval {
       scopeKey,
       execution,
       externalDecision,
+      ...(rememberable ? { rememberable } : {}),
     });
     return () => {
       if (this.#tracked.get(key)?.agent === agent) {
@@ -320,6 +324,11 @@ export class ChannelToolApproval {
     };
   }
 
+  remembered(agent: Agent, callId: string): boolean {
+    const tracked = this.#tracked.get(callKey(agent.session.id, callId));
+    return tracked?.agent === agent && tracked.remembered === true;
+  }
+
   willPrompt(agent: Agent, callId: string): boolean {
     const tracked = this.#tracked.get(callKey(agent.session.id, callId));
     return (
@@ -391,9 +400,14 @@ export class ChannelToolApproval {
       Date.parse(pending.notice.expiresAt) <= Date.now()
     )
       return false;
+    const eachUse = pending.notice.externalDecision === 'each-use';
+    const remember =
+      eachUse &&
+      outcome === 'allowed-always-exact' &&
+      this.#tracked.get(callKey(pending.sessionId, pending.callId))?.rememberable === true;
     if (
-      pending.notice.externalDecision === 'each-use' &&
-      (external !== undefined || !['allowed-once', 'rejected'].includes(outcome))
+      eachUse &&
+      (external !== undefined || (!remember && !['allowed-once', 'rejected'].includes(outcome)))
     )
       return false;
     if (
@@ -433,8 +447,9 @@ export class ChannelToolApproval {
         this.#settle(messageId, 'unavailable');
         return false;
       }
-      const kind =
-        outcome === 'allowed-always-exact'
+      const kind = eachUse
+        ? undefined
+        : outcome === 'allowed-always-exact'
           ? 'exact'
           : outcome === 'allowed-always-all'
             ? 'all-opaque'
@@ -467,9 +482,11 @@ export class ChannelToolApproval {
         body:
           outcome === 'rejected'
             ? '已拒绝这一次工具调用'
-            : kind === undefined
-              ? '已批准这一次工具调用'
-              : '已保存自动批准规则并批准这一次调用',
+            : remember
+              ? '已批准并记住这个服务'
+              : kind === undefined
+                ? '已批准这一次工具调用'
+                : '已保存自动批准规则并批准这一次调用',
         replyTo: messageId,
         toolApprovalDecision: {
           requestMessageId: messageId,
@@ -504,6 +521,7 @@ export class ChannelToolApproval {
       if (external && outcome !== 'rejected')
         tracked.authorized = () =>
           external.authorized() && (!kind || external.rule?.authorized() === true);
+      if (remember) tracked.remembered = true;
       this.#settle(messageId, outcome === 'rejected' ? 'rejected' : 'allowed-once');
       return true;
     } finally {

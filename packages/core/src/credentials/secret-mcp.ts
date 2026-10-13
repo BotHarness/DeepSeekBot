@@ -13,6 +13,19 @@ import {
 } from './secret-command.js';
 
 export const SECRET_MCP_START_TIMEOUT_MS = 120_000;
+export const rememberedStarts = new Set<symbol>();
+export const SECRET_MCP_KEEP = 'BOTHARNESS_MCP_KEEP';
+export const SECRET_MCP_LAUNCHER = [
+  "const { spawn } = require('node:child_process');",
+  "const keep = (process.env.BOTHARNESS_MCP_KEEP || '').split(',');",
+  'const env = {};',
+  'for (const name of keep) if (name && process.env[name] !== undefined) env[name] = process.env[name];',
+  'const argv = process.argv.slice(1);',
+  "const child = spawn(argv[0], argv.slice(1), { env, stdio: 'inherit' });",
+  "for (const signal of ['SIGTERM', 'SIGINT', 'SIGHUP']) process.on(signal, () => child.kill(signal));",
+  "child.on('error', () => process.exit(127));",
+  "child.on('exit', (code, signal) => process.exit(code === null ? (signal ? 1 : 0) : code));",
+].join('\n');
 
 const SHELLS = new Set([
   'sh',
@@ -117,6 +130,7 @@ type ToolRegistry = {
 };
 
 interface Running {
+  botSlug: string;
   account: string;
   secrets: string[];
   tools: string[];
@@ -154,7 +168,13 @@ export class SecretMcpServers {
   async start(
     ctx: Context,
     agent: Agent,
-    plan: { serverName: string; account: string; argv: readonly string[]; cwd: string },
+    plan: {
+      botSlug: string;
+      serverName: string;
+      account: string;
+      argv: readonly string[];
+      cwd: string;
+    },
     env: Record<string, string>,
     secrets: readonly string[],
     timeoutMs = SECRET_MCP_START_TIMEOUT_MS,
@@ -167,9 +187,9 @@ export class SecretMcpServers {
     const fiber = ctx.plugin(mcpClient, {
       transport: 'stdio',
       serverName: plan.serverName,
-      command: plan.argv[0],
-      args: plan.argv.slice(1),
-      env,
+      command: process.execPath,
+      args: ['-e', SECRET_MCP_LAUNCHER, '--', ...plan.argv],
+      env: { ...env, [SECRET_MCP_KEEP]: Object.keys(env).join(',') },
       cwd: plan.cwd,
       toolCallTimeoutMs: 60_000,
       failOnStartupError: true,
@@ -194,6 +214,7 @@ export class SecretMcpServers {
     }
     const prefix = `mcp__${plan.serverName}__`;
     const running: Running = {
+      botSlug: plan.botSlug,
       account: plan.account,
       secrets: [...secrets],
       tools: tools
@@ -222,6 +243,25 @@ export class SecretMcpServers {
     if (running === undefined) return false;
     await running.stop();
     return true;
+  }
+
+  connected(botSlug: string): Set<string> {
+    const names = new Set<string>();
+    for (const servers of this.#running.values())
+      for (const [serverName, running] of servers)
+        if (running.botSlug === botSlug) names.add(serverName);
+    return names;
+  }
+
+  async stopFor(botSlug: string, serverName?: string): Promise<number> {
+    const matches = [...this.#running.values()].flatMap((servers) =>
+      [...servers].filter(
+        ([name, running]) =>
+          running.botSlug === botSlug && (serverName === undefined || name === serverName),
+      ),
+    );
+    await Promise.allSettled(matches.map(([, running]) => running.stop()));
+    return matches.length;
   }
 
   async close(): Promise<void> {

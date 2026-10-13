@@ -162,6 +162,7 @@
 - 删除了密钥输入中需要 Docker 的 opt-in 受保护 Profile（`privateInputExecution`、容器内 Shell 和容器内 MCP 服务）。密钥输入、通过 HTTP 和命令行使用密钥、替换、撤销以及 Owner CLI 都不受影响，也不需要 Docker。仍然设置该选项的 Profile 会按普通 Profile 启动并记录一条警告。（[#1585](https://github.com/BotHarness/DeepSeekBot/issues/1585)、[ADR-0192](docs/adr/0192-the-docker-protected-profile-is-removed.md)）
 - 给 Bot 开启完全访问后，现在对它自己的聊天会话也生效：开关打开期间，Bot 执行命令不再逐次询问，也不会在工作区之外被拦下；关闭后恢复受限模式。可以把范围改成“仅新事项”，升级前已经开启完全访问的 Bot 会保持这个较窄的范围。开关处有红色警告，因为此时群聊或 IM 里别人发来的内容可能诱导 Bot 执行操作。带密钥运行命令行工具仍然每次询问。（[#1588](https://github.com/BotHarness/DeepSeekBot/issues/1588)、[ADR-0193](docs/adr/0193-full-access-also-unconfines-the-orchestrator.md)）
 - Bot 可以带着你在卡片里填写的密钥，接上一个从环境变量读取凭据的 MCP 服务，并使用它的工具。每次启动都要单独批准，不能保存成规则；让 Bot 断开、撤销密钥或重启后，服务就会停止。（[#1571](https://github.com/BotHarness/DeepSeekBot/issues/1571)、[ADR-0195](docs/adr/0195-a-bot-starts-an-mcp-server-with-owner-secrets-per-approved-start.md)）
+- Bot 请求带密钥连接 MCP 服务时，现在可以选择“批准并记住”：之后这个 Bot 的聊天每次启动都会自动重新连接，不再询问。已记住的服务显示在 Bot 设置的“密钥”里，可以在那里移除。（[#1606](https://github.com/BotHarness/DeepSeekBot/issues/1606)、[ADR-0196](docs/adr/0196-approved-secret-mcp-servers-can-be-remembered.md)）
 
 - Bot 的提问卡不再卡住 Bot：45 秒内没有回答时，Bot 会继续处理别的消息，之后仍然可以在原卡片上作答。PersonaBot 现在使用产品自带的预设，开启了 DSH 的限时提问。工具审批仍需等待决定（[#1038](https://github.com/BotHarness/DeepSeekBot/issues/1038)、[ADR-0187](docs/adr/0187-personabots-use-a-product-preset-with-timed-questions.md)）。
 

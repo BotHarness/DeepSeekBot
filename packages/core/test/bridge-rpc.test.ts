@@ -85,6 +85,7 @@ describe('bridge typert service', () => {
       'privateInputReplace',
       'privateAccountRevoke',
       'privateAccounts',
+      'privateMcpServerRemove',
       'messagingDefaults',
       'messagingDefaultsSet',
       'channelBridges',

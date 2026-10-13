@@ -633,6 +633,7 @@ export interface BridgeActions {
   ): Promise<import('../../../core/src/credentials/contracts.js').PrivateAccountStatus>;
   privateInputReplace?(channelId: string, messageId: string): Promise<string>;
   privateAccounts?(slug: string): Promise<PrivateAccountList>;
+  privateMcpServerRemove?(slug: string, serverName: string): Promise<boolean>;
   privateAccountRevoke?(
     channelId: string,
     messageId: string,
@@ -1521,6 +1522,11 @@ export function createActions(
       const result = await call('privateAccounts', { slug });
       if (!result.ok) throw new Error('Private accounts are unavailable');
       return parsePrivateAccountList(result.value);
+    },
+    privateMcpServerRemove: async (slug, serverName) => {
+      const result = await call('privateMcpServerRemove', { slug, serverName });
+      if (!result.ok) throw new Error('MCP server removal is unavailable');
+      return (result.value as { removed?: unknown }).removed === true;
     },
     privateAccountRevoke: async (channelId, messageId) => {
       const result = await call('privateAccountRevoke', { channelId, messageId });

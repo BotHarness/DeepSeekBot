@@ -122,6 +122,41 @@ it('lists secrets with purpose, status and configured time, then replaces and re
   expect(host.textContent).toContain(zhTranslate('privateAccounts.empty'));
 });
 
+it('lists remembered MCP servers and removes one after confirmation', async () => {
+  const remove = vi.fn(async () => true);
+  (actions as unknown as { privateMcpServerRemove: typeof remove }).privateMcpServerRemove = remove;
+  list = {
+    status: 'ready',
+    accounts: [],
+    replaceable: true,
+    mcpServers: [
+      {
+        serverName: 'github',
+        account: 'GitHub token',
+        program: 'npx',
+        args: ['-y', '@modelcontextprotocol/server-github'],
+        approvedAt: '2026-10-13T00:00:00.000Z',
+        connected: true,
+      },
+    ],
+  };
+  await render();
+  expect(host.textContent).toContain(zhTranslate('privateAccounts.mcpTitle'));
+  const card = host.querySelector('.bh-card-row')!;
+  expect(card.querySelector('.bh-card-title')?.textContent).toBe('github');
+  expect(card.textContent).toContain(zhTranslate('privateAccounts.mcpConnected'));
+  expect(card.textContent).toContain('npx -y @modelcontextprotocol/server-github');
+  expect(card.textContent).toContain('GitHub token');
+  const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+  await act(async () => button(zhTranslate('privateAccounts.mcpRemove')).click());
+  expect(remove).not.toHaveBeenCalled();
+  confirm.mockReturnValue(true);
+  list = { status: 'ready', accounts: [], replaceable: true, mcpServers: [] };
+  await act(async () => button(zhTranslate('privateAccounts.mcpRemove')).click());
+  expect(remove).toHaveBeenCalledWith('ada', 'github');
+  expect(host.querySelector('.bh-card-row')).toBeNull();
+});
+
 it('disables Replace when execution is off and keeps Remove', async () => {
   list = { status: 'ready', accounts: [row], replaceable: false };
   await render();

@@ -346,14 +346,27 @@ export class BotharnessBridgeService extends TypertRemoteService {
     status: 'ready' | 'unavailable';
     accounts: PrivateAccountSummary[];
     replaceable: boolean;
+    mcpServers: ReturnType<NonNullable<PrivateInputs['mcpServers']>['list']>;
   }> {
     this.requirePrivateOwner();
     const accounts =
       typeof slug === 'string' ? await this.privateInputs?.accounts(true, slug) : undefined;
     const replaceable = (await this.privateInputs?.replaceable().catch(() => false)) ?? false;
+    const mcpServers =
+      typeof slug === 'string' ? (this.privateInputs?.mcpServers?.list(slug) ?? []) : [];
     return accounts === undefined
-      ? { status: 'unavailable', accounts: [], replaceable: false }
-      : { status: 'ready', accounts, replaceable };
+      ? { status: 'unavailable', accounts: [], replaceable: false, mcpServers }
+      : { status: 'ready', accounts, replaceable, mcpServers };
+  }
+
+  async privateMcpServerRemove(slug: string, serverName: string): Promise<{ removed: boolean }> {
+    this.requirePrivateOwner();
+    return {
+      removed:
+        typeof slug === 'string' && typeof serverName === 'string'
+          ? ((await this.privateInputs?.mcpServers?.remove(slug, serverName)) ?? false)
+          : false,
+    };
   }
 
   async privateAccountRevoke(channelId: string, messageId: string) {
@@ -1445,6 +1458,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'privateInputReplace',
   'privateAccountRevoke',
   'privateAccounts',
+  'privateMcpServerRemove',
   'messagingDefaults',
   'messagingDefaultsSet',
   'channelBridges',
