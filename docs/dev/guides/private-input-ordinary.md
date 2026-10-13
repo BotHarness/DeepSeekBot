@@ -53,7 +53,7 @@ Connect the GitHub MCP server: npx -y @modelcontextprotocol/server-github, which
 GITHUB_PERSONAL_ACCESS_TOKEN. Ask me for the token with ask_secret first.
 ```
 
-The Bot calls `secret_mcp_connect`. Expect an approval card that names the launcher and arguments, has no save-rule buttons and says the program keeps running. After approval the Bot lists the server's tools; each tool call then asks in the usual way. The server stops on `secret_mcp_disconnect`, when the account is revoked, or when the Host restarts; reconnecting needs a new approval. It is not available to Assignments ([ADR-0194](../../adr/0194-a-bot-starts-an-mcp-server-with-owner-secrets-per-approved-start.md)).
+The Bot calls `secret_mcp_connect`. Expect an approval card that names the launcher and arguments, has no save-rule buttons and says the program keeps running. After approval the Bot lists the server's tools; each tool call then asks in the usual way. The server stops on `secret_mcp_disconnect`, when the account is revoked, or when the Host restarts; reconnecting needs a new approval. It is not available to Assignments ([ADR-0195](../../adr/0195-a-bot-starts-an-mcp-server-with-owner-secrets-per-approved-start.md)).
 
 For a local check without a real service, start `node scripts/ask-secret-fixture.mjs 31381` and ask the Bot to connect `node <repo>/scripts/secret-mcp-fixture.mjs` with `STATUS_ENDPOINT`, `STATUS_API_KEY` and `STATUS_API_SECRET`, then call `check_status` (expect 200) and `describe_setup` (expect the key shown as `[secret]`).
 
