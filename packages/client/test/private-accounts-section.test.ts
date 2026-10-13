@@ -91,14 +91,16 @@ const render = () =>
 const button = (label: string) =>
   [...host.querySelectorAll('button')].find((candidate) => candidate.textContent === label)!;
 
-it('lists accounts with labels and status, then replaces and removes through the card IDs', async () => {
+it('lists secrets with purpose, status and configured time, then replaces and removes through the card IDs', async () => {
   await render();
   expect(actions.privateAccounts).toHaveBeenCalledWith('ada');
   const card = host.querySelector('.bh-card-row')!;
   expect(card.querySelector('.bh-card-title')?.textContent).toBe('synthetic');
   expect(card.textContent).toContain(zhTranslate('privateAccounts.status.configured'));
-  expect(card.textContent).toContain('Check the controlled service');
-  expect(card.textContent).toContain('API key · Private URL（可选）');
+  const lines = [...card.querySelectorAll('.bh-card-meta-line')].map((line) => line.textContent);
+  expect(lines[0]).toBe('用途：Check the controlled service');
+  expect(lines[1]).toBe('字段：API key · Private URL（可选）');
+  expect(lines[2]).toMatch(/^配置时间：/);
 
   await act(async () => button(zhTranslate('privateInput.replace')).click());
   expect(actions.privateInputReplace).toHaveBeenCalledWith('dm-ada', CARD);

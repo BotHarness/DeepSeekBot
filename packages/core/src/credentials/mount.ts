@@ -185,7 +185,12 @@ export function mountPrivateInputs(
             description:
               'Reuse configured private references, or ask the authenticated Owner for private strings in an interactive conversation. Declare account, purpose and dynamic fields. Web and scheduled runs must omit source_event_id; configured accounts can be reused without an IM source or new input. For an accepted IM Source Event the Host sends the Owner an existing Web Chat card link; never collect private values in IM text, attachments, quoted messages or ordinary questions. Returns opaque references only. Do not send references or private configuration details to IM; report only the authorized nonsecret operation result with bridge_reply to the same source. Private input does not approve execution. Unattended runs cannot open input cards. A failed handoff may already have sent its notice; report missing private configuration and do not retry.',
             parameters: {
-              account: { type: 'string', required: true, description: 'Nonsecret account label.' },
+              account: {
+                type: 'string',
+                required: true,
+                description:
+                  'Nonsecret name of the secret the Owner will recognise later, naming the service and credential kind, for example "GitHub personal access token".',
+              },
               source_event_id: {
                 type: 'string',
                 description:
@@ -194,7 +199,8 @@ export function mountPrivateInputs(
               purpose: {
                 type: 'string',
                 required: true,
-                description: 'Why the private information is needed.',
+                description:
+                  'Why the secret is needed in this situation: which credential or API key it is, which service it is for and what the Bot will do with it. Shown to the Owner on the card and later in Channel settings.',
               },
               fields: {
                 type: 'array',

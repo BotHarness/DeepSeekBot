@@ -15,19 +15,19 @@ These pages use DSH **0.2.0-rc.1** and the public **deepseekbot** package. First
 
 ## Choose a feature
 
-| In a Bot DM                                                        | What you can do                                                                                       |
-| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
-| [Memory files](/docs/channel-sidebar/memory-files)                 | Browse the current repository tree and read a file in the center.                                     |
-| [Memory evolution](/docs/channel-sidebar/memory-evolution)         | Inspect uncommitted changes, Git history, branches and recovery checkpoints.                          |
-| [Sessions](/docs/channel-sidebar/sessions)                         | Open this Bot’s Orchestrator and Assignment Sessions in DSH.                                          |
-| [Bot Inbox](/docs/channel-sidebar/bot-inbox)                       | Inspect source messages and Assignment reports that the Bot has received.                             |
-| [Workspace Grants](/docs/channel-sidebar/workspaces) ¹             | Review and explicitly authorize the Host folders available to this Bot.                               |
-| [Schedules](/docs/channel-sidebar/schedules)                       | Wake this Bot on a cadence, run a schedule now, and lock it from Bot edits.                           |
-| [Model](/docs/channel-sidebar/model) ¹                             | Check and change the models this Bot uses for chat and new Assignments.                               |
-| [Wake policy](/docs/channel-sidebar/wake-policy) ¹                 | Choose, per source, whether this Bot wakes right away, after a digest, or not.                        |
-| [External identities](/docs/channel-sidebar/external-identities) ¹ | Bind who this Bot speaks as on Lark / Feishu, Slack or WeChat; IM pairing and approval notifications. |
-| [External connectors](/docs/channel-sidebar/external-connectors) ¹ | Edit and pause conversations synced into a Channel; advanced saved send targets.                      |
-| [Private accounts](/docs/channel-sidebar/private-accounts) ¹       | See, replace and remove the accounts this Bot asked you for, without showing values.                  |
+| In a Bot DM                                                        | What you can do                                                                                        |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| [Memory files](/docs/channel-sidebar/memory-files)                 | Browse the current repository tree and read a file in the center.                                      |
+| [Memory evolution](/docs/channel-sidebar/memory-evolution)         | Inspect uncommitted changes, Git history, branches and recovery checkpoints.                           |
+| [Sessions](/docs/channel-sidebar/sessions)                         | Open this Bot’s Orchestrator and Assignment Sessions in DSH.                                           |
+| [Bot Inbox](/docs/channel-sidebar/bot-inbox)                       | Inspect source messages and Assignment reports that the Bot has received.                              |
+| [Workspace Grants](/docs/channel-sidebar/workspaces) ¹             | Review and explicitly authorize the Host folders available to this Bot.                                |
+| [Schedules](/docs/channel-sidebar/schedules)                       | Wake this Bot on a cadence, run a schedule now, and lock it from Bot edits.                            |
+| [Model](/docs/channel-sidebar/model) ¹                             | Check and change the models this Bot uses for chat and new Assignments.                                |
+| [Wake policy](/docs/channel-sidebar/wake-policy) ¹                 | Choose, per source, whether this Bot wakes right away, after a digest, or not.                         |
+| [External identities](/docs/channel-sidebar/external-identities) ¹ | Bind who this Bot speaks as on Lark / Feishu, Slack or WeChat; IM pairing and approval notifications.  |
+| [External connectors](/docs/channel-sidebar/external-connectors) ¹ | Edit and pause conversations synced into a Channel; advanced saved send targets.                       |
+| [Secrets](/docs/channel-sidebar/private-accounts) ¹                | See, replace and remove the API keys and other secrets this Bot asked you for, without showing values. |
 
 | In a local group                                                   | What you can do                                                         |
 | ------------------------------------------------------------------ | ----------------------------------------------------------------------- |

@@ -145,21 +145,28 @@ function PrivateAccountsPanel({ botSlug, actions, t }: ChannelSidebarEntryProps)
                 meta={
                   <>
                     {row.purpose === undefined ? null : (
-                      <span className="bh-private-account-purpose">{row.purpose}</span>
+                      <span className="bh-card-meta-line bh-private-account-purpose">
+                        {t('privateAccounts.purpose', { purpose: row.purpose })}
+                      </span>
                     )}
                     {row.fields.length === 0 ? null : (
-                      <span className="bh-private-account-fields">
-                        {row.fields
-                          .map((field) =>
-                            field.required
-                              ? field.label
-                              : t('privateAccounts.optional', { label: field.label }),
-                          )
-                          .join(' · ')}
+                      <span className="bh-card-meta-line bh-private-account-fields">
+                        {t('privateAccounts.fields', {
+                          fields: row.fields
+                            .map((field) =>
+                              field.required
+                                ? field.label
+                                : t('privateAccounts.optional', { label: field.label }),
+                            )
+                            .join(' · '),
+                        })}
                       </span>
                     )}
                     {row.configuredAt === undefined ? null : (
-                      <span title={new Date(row.configuredAt).toLocaleString()}>
+                      <span
+                        className="bh-card-meta-line"
+                        title={new Date(row.configuredAt).toLocaleString()}
+                      >
                         {t('privateAccounts.setAt', {
                           time: formatRelativeTime(Date.parse(row.configuredAt), now, t),
                         })}
