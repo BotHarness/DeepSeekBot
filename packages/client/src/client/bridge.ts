@@ -1605,12 +1605,16 @@ export function parseOwnedSessionSummaries(value: unknown): OwnedSessionSummary[
     )
       return [];
     const cwdReference = record['cwdReference'];
+    const currentOrchestrator = record['currentOrchestrator'];
     return [
       {
         sessionId,
         role,
         createdAt,
         ...(typeof cwdReference === 'string' ? { cwdReference } : {}),
+        ...(role === 'orchestrator' && typeof currentOrchestrator === 'boolean'
+          ? { currentOrchestrator }
+          : {}),
         ...(activity === undefined ? {} : { assignmentActivity: activity }),
         ...(role === 'assignment' &&
         (accessMode === 'workspace-write' || accessMode === 'danger-full-access')

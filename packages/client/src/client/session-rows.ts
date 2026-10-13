@@ -34,9 +34,11 @@ export function personaBotSessionRows(
   nativeById: Readonly<Record<string, NativeSessionSummary>>,
   view: 'current' | 'all',
 ): PersonaBotSessionRow[] {
-  const latestOrchestrator = owned
-    .filter((item) => item.role === 'orchestrator')
-    .sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0]?.sessionId;
+  const orchestrators = owned.filter((item) => item.role === 'orchestrator');
+  const latestOrchestrator = orchestrators.some((item) => item.currentOrchestrator !== undefined)
+    ? orchestrators.find((item) => item.currentOrchestrator === true)?.sessionId
+    : orchestrators.sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0]
+        ?.sessionId;
   const rows = owned.flatMap((item) => {
     const native = nativeById[item.sessionId];
     const status = rowStatus(item, native);

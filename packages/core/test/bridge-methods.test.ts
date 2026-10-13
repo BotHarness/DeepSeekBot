@@ -2177,6 +2177,27 @@ describe('bridge methods', () => {
     expect(result.value.sessions.map((session) => session.sessionId)).not.toContain('session-3');
   });
 
+  it('marks which Orchestrator Session the runtime resumes', () => {
+    const ownership = createTestOwnership({
+      resumed: { botSlug: 'ada', rootRole: 'orchestrator' },
+      archived: { botSlug: 'ada', rootRole: 'orchestrator' },
+      work: { botSlug: 'ada', rootRole: 'assignment' },
+    });
+    const runtime = {
+      listAssignments: () => [],
+      currentOrchestratorSessionId: () => 'resumed',
+    } as unknown as BotRuntime;
+    const { methods } = setup([], ['ada'], () => runtime, ownership);
+    methods.create({ slug: 'ada', displayName: 'Ada' });
+
+    const result = methods.sessions({ slug: 'ada' });
+    if (!result.ok) throw new Error('Expected Sessions');
+    const flags = Object.fromEntries(
+      result.value.sessions.map((session) => [session.sessionId, session.currentOrchestrator]),
+    );
+    expect(flags).toEqual({ resumed: true, archived: false, work: undefined });
+  });
+
   it('projects each Assignment access snapshot independently of the Bot default', () => {
     const ownership = createTestOwnership({
       'session-orchestrator': { botSlug: 'ada', rootRole: 'orchestrator' },

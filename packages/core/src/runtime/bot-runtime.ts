@@ -3125,6 +3125,7 @@ class BotRuntimeImplementation implements BotRuntime {
             current?.rootRole !== 'orchestrator' ||
             current.botSlug !== owner.botSlug ||
             !this.#ownership.contentAvailable(sessionId) ||
+            this.#sessionArchived?.(sessionId) === true ||
             !held()
           )
             return;
@@ -3152,6 +3153,7 @@ class BotRuntimeImplementation implements BotRuntime {
                 currentOwner?.rootRole !== 'orchestrator' ||
                 currentOwner.botSlug !== owner.botSlug ||
                 !this.#ownership.contentAvailable(sessionId) ||
+                this.#sessionArchived?.(sessionId) === true ||
                 !held()
               ) {
                 accept(false);

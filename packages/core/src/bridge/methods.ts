@@ -380,6 +380,7 @@ export interface OwnedSessionSummary {
   cwdReference?: string;
   assignmentActivity?: AssignmentActivity;
   assignmentAccessMode?: AssignmentAccessMode;
+  currentOrchestrator?: boolean;
 }
 
 export interface OwnedSessionBot {
@@ -4353,12 +4354,19 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
           assignment,
         ]),
       );
+      const resumed =
+        deps.runtime?.currentOrchestratorSessionId === undefined
+          ? undefined
+          : (deps.runtime.currentOrchestratorSessionId(slug) ?? null);
       const sessions = deps.ownership.rootsFor(slug).map((root) => {
         const assignment = assignments.get(root.sessionId);
         return {
           sessionId: root.sessionId,
           role: root.rootRole,
           createdAt: root.createdAt,
+          ...(resumed === undefined || root.rootRole !== 'orchestrator'
+            ? {}
+            : { currentOrchestrator: root.sessionId === resumed }),
           ...(root.cwdReference === undefined ? {} : { cwdReference: root.cwdReference }),
           ...(assignment === undefined ? {} : { assignmentActivity: assignment.activity }),
           ...(assignment?.permission === undefined

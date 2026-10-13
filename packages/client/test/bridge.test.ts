@@ -410,6 +410,7 @@ describe('bridge parsers', () => {
             role: 'orchestrator',
             createdAt: BOT.createdAt,
             assignmentAccessMode: 'danger-full-access',
+            currentOrchestrator: true,
           },
           {
             sessionId: 'assignment-1',
@@ -418,12 +419,18 @@ describe('bridge parsers', () => {
             cwdReference: '/srv/ada',
             assignmentActivity: 'stopped',
             assignmentAccessMode: 'danger-full-access',
+            currentOrchestrator: true,
           },
           { sessionId: 'child', role: 'subagent', createdAt: BOT.createdAt },
         ],
       }),
     ).toEqual([
-      { sessionId: 'orchestrator-1', role: 'orchestrator', createdAt: BOT.createdAt },
+      {
+        sessionId: 'orchestrator-1',
+        role: 'orchestrator',
+        createdAt: BOT.createdAt,
+        currentOrchestrator: true,
+      },
       {
         sessionId: 'assignment-1',
         role: 'assignment',
