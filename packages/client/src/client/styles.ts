@@ -24,9 +24,9 @@ export const CSS =
 .bh-diagnostic-items li > span:last-child { flex: none; color: var(--dsw-alias-label-secondary); font-variant-numeric: tabular-nums; }
 .bh-diagnostic-meta { margin: 8px 0 0; font-size: 12px; color: var(--dsw-alias-label-secondary); }
 .bh-diagnostic-meta[data-diagnostic-scope] { margin-top: 2px; padding-left: 24px; }
-.bh-selection-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 16px 16px; padding: 10px 12px 10px 16px; border-radius: 12px; background: var(--dsw-alias-bg-module-platform); color: var(--dsw-alias-label-primary); font-size: 13px; }
-.bh-selection-count { min-width: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
-.bh-selection-actions { display: flex; flex: none; gap: 8px; }
+.bh-selection-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 16px 16px; padding: 10px 12px 10px 16px; border-radius: 12px; background: var(--dsw-alias-bg-module-platform); color: var(--dsw-alias-label-primary); }
+.bh-selection-count { min-width: 0; font-size: 13px; line-height: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.bh-selection-actions { display: flex; flex: none; gap: 8px; font-size: 14px; line-height: normal; }
 .bh-message-group:has(.bh-bubble-selecting) { position: relative; padding-left: 32px; }
 .bh-bubble-wrap.bh-bubble-selecting { position: static; cursor: pointer; user-select: none; }
 .bh-bubble-wrap.bh-bubble-selecting:focus-visible { outline: none; }
