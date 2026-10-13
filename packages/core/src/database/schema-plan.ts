@@ -2110,6 +2110,18 @@ const INBOX_SNOOZE_MIGRATION: SchemaMigration = {
   },
 };
 
+const ASSIGNMENT_ACCESS_SCOPE_MIGRATION: SchemaMigration = {
+  generation: 87,
+  module: 'assignment-access',
+  description: 'Record whether full access also covers the Orchestrator (ADR-0193)',
+  migrate(database) {
+    database.exec(`
+      ALTER TABLE bot_assignment_access ADD COLUMN scope TEXT NOT NULL DEFAULT 'assignments'
+        CHECK (scope IN ('chat', 'assignments'));
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -2196,4 +2208,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   ASSIGNMENT_ARCHIVE_MIGRATION,
   INBOX_RESOLUTION_MIGRATION,
   INBOX_SNOOZE_MIGRATION,
+  ASSIGNMENT_ACCESS_SCOPE_MIGRATION,
 ]);

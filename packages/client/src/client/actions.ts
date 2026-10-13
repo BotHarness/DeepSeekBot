@@ -610,6 +610,7 @@ export interface BridgeActions {
     slug: string,
     mode: AssignmentAccessPresetView['mode'],
     acknowledgeRisk: boolean,
+    scope?: 'chat' | 'assignments',
   ): Promise<AssignmentAccessPresetView>;
   listToolApprovalRules(slug: string): Promise<ToolApprovalRuleView[]>;
   revokeToolApprovalRule(slug: string, id: string): Promise<void>;
@@ -1463,8 +1464,8 @@ export function createActions(
     setWorkspaceGrantWrite: (slug, grantId, enabled) =>
       setWorkspaceGrantWrite(call, slug, grantId, enabled),
     assignmentAccess: (slug) => loadAssignmentAccess(call, slug),
-    setAssignmentAccess: (slug, mode, acknowledgeRisk) =>
-      setAssignmentAccess(call, slug, mode, acknowledgeRisk),
+    setAssignmentAccess: (slug, mode, acknowledgeRisk, scope) =>
+      setAssignmentAccess(call, slug, mode, acknowledgeRisk, scope),
     listToolApprovalRules: (slug) => loadToolApprovalRules(call, slug),
     revokeToolApprovalRule: (slug, id) => revokeToolApprovalRule(call, slug, id),
     toolApprovalStatus: (channelId, messageId) =>

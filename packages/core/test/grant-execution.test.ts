@@ -8,6 +8,7 @@ import {
   grantExecutionDenial,
   isSafeMemoryDirectoryListing,
   grantToolExecutionDenial,
+  orchestratorPermission,
   requiresHumanToolApproval,
 } from '../src/workspaces/grant-execution.js';
 
@@ -462,7 +463,7 @@ describe('Workspace Grant execution boundary', () => {
     state.resolvePolicy.mockReturnValue({ mode: 'danger-full-access' });
     const orchestrator = { id: 'botharness-orchestrator', header: { cwd: '/tmp/memory' } } as never;
     expect(grantExecutionDenial(state.core, orchestrator, state.policy, state.approval)).toMatch(
-      /workspace-write/,
+      /differs from this PersonaBot's access setting/,
     );
     const ordinary = { id: 'native-dsh', header: { cwd } } as never;
     expect(
@@ -473,5 +474,56 @@ describe('Workspace Grant execution boundary', () => {
         sandbox_permissions: 'danger-full-access',
       }),
     ).toBeUndefined();
+  });
+  it('runs the Orchestrator unconfined only while the PersonaBot access setting is full access', () => {
+    const state = fixture();
+    const orchestrator = { id: 'botharness-orchestrator', header: { cwd: '/tmp/memory' } } as never;
+    let mode: 'workspace-write' | 'danger-full-access' = 'danger-full-access';
+    let scope: 'chat' | 'assignments' = 'assignments';
+    const core = {
+      ...(state.core as object),
+      assignmentAccess: { get: () => ({ botSlug, mode, scope, revision: 1 }) },
+    } as never;
+    expect(orchestratorPermission(core, botSlug)).toEqual({
+      mode: 'workspace-write',
+      approval: 'ask',
+    });
+    expect(grantExecutionDenial(core, orchestrator, state.policy, state.approval)).toBeUndefined();
+    scope = 'chat';
+    expect(orchestratorPermission(core, botSlug)).toEqual({
+      mode: 'danger-full-access',
+      approval: 'never',
+    });
+    expect(grantExecutionDenial(core, orchestrator, state.policy, state.approval)).toMatch(
+      /differs from this PersonaBot's access setting/,
+    );
+    state.resolvePolicy.mockReturnValue({ mode: 'danger-full-access' });
+    state.overrideOf.mockReturnValue('never');
+    expect(grantExecutionDenial(core, orchestrator, state.policy, state.approval)).toBeUndefined();
+    expect(
+      grantToolExecutionDenial(core, orchestrator, state.policy, state.approval, 'bash', {
+        command: 'touch /outside/project/file',
+      }),
+    ).toBeUndefined();
+    expect(
+      grantToolExecutionDenial(core, orchestrator, state.policy, state.approval, 'write', {
+        file_path: '/outside/project/file',
+        content: 'x',
+      }),
+    ).toBeUndefined();
+    expect(
+      grantToolExecutionDenial(core, orchestrator, state.policy, state.approval, 'bash', {
+        command: 'pwd',
+        sandbox_permissions: 'danger-full-access',
+      }),
+    ).toMatch(/escalation/);
+    mode = 'workspace-write';
+    expect(orchestratorPermission(core, botSlug)).toEqual({
+      mode: 'workspace-write',
+      approval: 'ask',
+    });
+    expect(grantExecutionDenial(core, orchestrator, state.policy, state.approval)).toMatch(
+      /differs from this PersonaBot's access setting/,
+    );
   });
 });

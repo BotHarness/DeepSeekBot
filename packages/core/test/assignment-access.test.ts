@@ -14,10 +14,15 @@ describe('per-Bot Assignment access preset', () => {
       createAssignmentAccessStore(attachOperationalModule(owner, 'assignment-access'));
     try {
       const oldSnapshot = store().get('ada');
-      expect(oldSnapshot).toEqual({ botSlug: 'ada', mode: 'workspace-write', revision: 0 });
+      expect(oldSnapshot).toEqual({
+        botSlug: 'ada',
+        mode: 'workspace-write',
+        scope: 'chat',
+        revision: 0,
+      });
       expect(store().get('bob').mode).toBe('workspace-write');
       const dangerous = store().set('ada', 'danger-full-access');
-      expect(dangerous).toMatchObject({ mode: 'danger-full-access', revision: 1 });
+      expect(dangerous).toMatchObject({ mode: 'danger-full-access', scope: 'chat', revision: 1 });
       expect(store().set('ada', 'danger-full-access')).toEqual(dangerous);
       owner.close();
       owner = mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN });
@@ -41,6 +46,28 @@ describe('per-Bot Assignment access preset', () => {
     } finally {
       owner.close();
       rmSync(home, { recursive: true, force: true });
+    }
+  });
+
+  it('switches the scope of full access between the chat Session and Assignments only', () => {
+    const home = createTempRoot('botharness-access-scope-');
+    const owner = mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN });
+    const store = createAssignmentAccessStore(attachOperationalModule(owner, 'assignment-access'));
+    try {
+      expect(store.set('ada', 'danger-full-access')).toMatchObject({ scope: 'chat', revision: 1 });
+      const narrowed = store.set('ada', 'danger-full-access', 'assignments');
+      expect(narrowed).toMatchObject({ scope: 'assignments', revision: 2 });
+      expect(store.set('ada', 'danger-full-access', 'assignments')).toEqual(narrowed);
+      expect(store.get('ada')).toEqual(narrowed);
+      expect(store.set('ada', 'danger-full-access', 'chat')).toMatchObject({
+        scope: 'chat',
+        revision: 3,
+      });
+      expect(() => store.set('ada', 'danger-full-access', 'everything' as never)).toThrow(
+        TypeError,
+      );
+    } finally {
+      owner.close();
     }
   });
 });

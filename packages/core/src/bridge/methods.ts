@@ -4213,6 +4213,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
           preset: deps.assignmentAccess?.get(slug) ?? {
             botSlug: slug,
             mode: 'workspace-write',
+            scope: 'chat',
             revision: 0,
           },
         },
@@ -4229,7 +4230,10 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (deps.registry.get(slug) === undefined) return unknownBot(slug);
       if (deps.assignmentAccess === undefined)
         return invalidInput('Assignment access is unavailable');
-      return { ok: true, value: { preset: deps.assignmentAccess.set(slug, mode) } };
+      const scope = source['scope'];
+      if (scope !== undefined && scope !== 'chat' && scope !== 'assignments')
+        return invalidInput('scope must be chat or assignments');
+      return { ok: true, value: { preset: deps.assignmentAccess.set(slug, mode, scope) } };
     },
     toolApprovalRules(payload) {
       const slug = asSlug(payload);
