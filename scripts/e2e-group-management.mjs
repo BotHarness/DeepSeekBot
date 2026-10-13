@@ -120,9 +120,9 @@ if (process.argv[2] === '--remove-member') {
         )
         ?.click();
     });
-    await page.waitForSelector('.bh-member-policy-modal');
+    await page.waitForSelector('[data-member-wake-mode]');
     await page.evaluate(() => {
-      Array.from(document.querySelectorAll('.bh-member-policy-modal button'))
+      Array.from(document.querySelectorAll('[data-member-wake-mode]'))
         .find((button) => ['静默收件', 'Silent inbox'].includes(button.textContent?.trim() ?? ''))
         ?.click();
     });
@@ -422,11 +422,11 @@ try {
     throw new Error('Group avatar was not saved as WebP');
 
   await page.click('button[aria-label="Invite member"], button[aria-label="邀请新群员"]');
-  await page.waitForSelector('.bh-group-invite-modal');
-  await page.type('#bh-group-invite-search', target.displayName.slice(0, 8));
+  await page.waitForSelector('[data-group-invite]');
+  await page.type('[data-group-invite-search]', target.displayName.slice(0, 8));
   await sleep(350);
   await page.evaluate((name) => {
-    Array.from(document.querySelectorAll('.bh-group-invite-option'))
+    Array.from(document.querySelectorAll('[data-group-invite-option]'))
       .find((button) => button.textContent?.includes(name))
       ?.click();
   }, target.displayName);

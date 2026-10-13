@@ -1,18 +1,14 @@
 // @vitest-environment jsdom
-import { act, createElement, type ButtonHTMLAttributes, type PropsWithChildren } from 'react';
+import { act, createElement, type PropsWithChildren } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { seededBannerRecipe } from '@botharness/pixel-banner';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
+  const { dialogPrimitives } = await import('./primitive-mocks.js');
   const stub = () => null;
   return {
-    Button: ({
-      variant: _variant,
-      size: _size,
-      ...props
-    }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string; size?: string }) =>
-      createElement('button', { type: 'button', ...props }),
+    ...dialogPrimitives(),
     IconCloseOutlineRegular: stub,
     IconEllipsisOutlineRegular: stub,
     IconTrashOutlineRegular: stub,
@@ -20,15 +16,6 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
     Menu: stub,
     Tag: ({ children }: PropsWithChildren) => createElement('span', null, children),
     Tooltip: ({ children }: PropsWithChildren) => children,
-    Modal: ({
-      open,
-      title,
-      children,
-      footer,
-    }: PropsWithChildren<{ open: boolean; title: string; footer?: unknown }>) =>
-      open
-        ? createElement('div', { role: 'dialog', 'aria-label': title }, children, footer as never)
-        : null,
   };
 });
 
@@ -37,6 +24,7 @@ import { parseBotSummary } from '../src/client/bridge.js';
 import { zhTranslate } from '../src/client/locale.js';
 import { ProfileHeader } from '../src/client/profile-header.js';
 import type { BotSummary, ChannelSummary } from '../src/client/store.js';
+import { buttonNamed, dialog } from './primitive-mocks.js';
 
 const AT = '2026-10-08T00:00:00Z';
 const CHANNEL: ChannelSummary = {
@@ -91,10 +79,13 @@ function bot(banner?: BotSummary['banner']): BotSummary {
   };
 }
 
-function button(label: string): HTMLButtonElement {
-  const found = [...host.querySelectorAll('button')].find((item) => item.textContent === label);
-  expect(found, label).toBeDefined();
-  return found!;
+const button = (label: string): HTMLButtonElement => buttonNamed(label, host);
+
+function scenes(): HTMLButtonElement[] {
+  const group = dialog().querySelector(
+    `[role="radiogroup"][aria-label="${zhTranslate('profile.banner.scene')}"]`,
+  );
+  return [...(group?.querySelectorAll<HTMLButtonElement>('[role="radio"]') ?? [])];
 }
 
 async function render(summary: BotSummary, actions: Partial<BridgeActions>) {
@@ -121,8 +112,8 @@ it('shows the name-seeded banner and saves a picked scene, a reroll or a reset',
   expect(painted).toHaveBeenCalled();
 
   await act(async () => button('更换横幅').click());
-  const scenes = [...host.querySelectorAll<HTMLButtonElement>('.bh-banner-scene')];
-  expect(scenes.map((scene) => scene.textContent)).toEqual([
+  expect(dialog().getAttribute('aria-label')).toBe(zhTranslate('profile.banner.title'));
+  expect(scenes().map((scene) => scene.textContent)).toEqual([
     '春',
     '夏',
     '秋',
@@ -134,9 +125,10 @@ it('shows the name-seeded banner and saves a picked scene, a reroll or a reset',
     '星空',
     '太空',
   ]);
-  expect(scenes.filter((scene) => scene.getAttribute('aria-checked') === 'true')).toHaveLength(1);
-  await act(async () => scenes[9]!.click());
-  expect(host.querySelector('.bh-banner-preview canvas')?.getAttribute('data-scene')).toBe('space');
+  expect(scenes().filter((scene) => scene.getAttribute('aria-checked') === 'true')).toHaveLength(1);
+  await act(async () => scenes()[9]!.click());
+  expect(scenes()[9]!.getAttribute('aria-checked')).toBe('true');
+  expect(dialog().querySelector('canvas')?.getAttribute('data-scene')).toBe('space');
   await act(async () => button('保存').click());
   expect(setBotBanner).toHaveBeenLastCalledWith('dm-ada', {
     recipe: { scene: 'space', seed: seeded.seed },

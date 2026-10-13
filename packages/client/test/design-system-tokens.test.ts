@@ -16,6 +16,21 @@ function stylexSources(): { name: string; source: string }[] {
     .filter(({ source }) => source.includes('@stylexjs/stylex'));
 }
 
+function styleBlocks(source: string): { text: string; start: number }[] {
+  const blocks: { text: string; start: number }[] = [];
+  let from = source.indexOf('stylex.create(');
+  while (from >= 0) {
+    const end = source.indexOf('\n});', from);
+    const stop = end < 0 ? source.length : end;
+    blocks.push({
+      text: source.slice(from, stop),
+      start: source.slice(0, from).split('\n').length - 1,
+    });
+    from = source.indexOf('stylex.create(', stop);
+  }
+  return blocks;
+}
+
 const SCALED =
   /\b(fontSize|lineHeight|fontWeight|gap|rowGap|columnGap|padding\w*|margin\w*|borderRadius)\s*:\s*(['"])(?!0\2)/;
 const LITERAL_COLOUR = /#[0-9a-fA-F]{3,8}\b|\brgba?\(|\bhsla?\(/;
@@ -32,11 +47,13 @@ describe('design-system tokens', () => {
     const offenders = stylexSources()
       .filter(({ name }) => name !== 'ds/tokens.stylex.ts')
       .flatMap(({ name, source }) =>
-        source
-          .split('\n')
-          .map((line, index) => ({ line, index }))
-          .filter(({ line }) => SCALED.test(line) || LITERAL_COLOUR.test(line))
-          .map(({ line, index }) => `${name}:${index + 1} ${line.trim()}`),
+        styleBlocks(source).flatMap(({ text, start }) =>
+          text
+            .split('\n')
+            .map((line, index) => ({ line, index }))
+            .filter(({ line }) => SCALED.test(line) || LITERAL_COLOUR.test(line))
+            .map(({ line, index }) => `${name}:${start + index + 1} ${line.trim()}`),
+        ),
       );
     expect(offenders).toEqual([]);
   });

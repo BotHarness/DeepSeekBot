@@ -65,6 +65,7 @@ import { WorkspaceGrantsEntry } from '../src/client/workspace-grants-entry.js';
 import { publishWorkspaceGrantChange } from '../src/client/workspace-grant-events.js';
 import type { BotSourcePolicyView } from '../src/client/bridge.js';
 import type { BotSummary, ChannelSummary } from '../src/client/store.js';
+import { buttonNamed, fieldNamed, typeInto } from './primitive-mocks.js';
 
 let host: HTMLDivElement;
 let root: Root;
@@ -327,11 +328,9 @@ describe('mounted request ownership', () => {
     await act(async () =>
       host.querySelector<HTMLButtonElement>('.bh-wake-policy-entry button.bh-card-main')?.click(),
     );
-    const count = host.querySelector<HTMLInputElement>('.bh-profile-policy-digest input')!;
-    await act(async () => {
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(count, '8');
-      count.dispatchEvent(new Event('input', { bubbles: true }));
-    });
+    expect(fieldNamed(zhTranslate('sourcePolicy.digestCount')).value).toBe('5');
+    expect(fieldNamed(zhTranslate('sourcePolicy.digestInterval')).value).toBe('30');
+    await typeInto(fieldNamed(zhTranslate('sourcePolicy.digestCount')), '8');
     await act(async () =>
       [...host.querySelectorAll<HTMLButtonElement>('button')]
         .find((button) => button.textContent === zhTranslate('profile.save'))
@@ -343,11 +342,55 @@ describe('mounted request ownership', () => {
       digestCount: 8,
       digestIntervalSeconds: 30,
     });
-    expect(host.querySelector('.bh-wake-policy-edit')).toBeNull();
+    expect(host.querySelector('form')).toBeNull();
     expect(host.querySelector('.bh-wake-policy-entry')?.textContent).toContain('已修改');
     expect(host.querySelector('.bh-channel-sidebar-summary')?.textContent).toBe(
       '群聊 · 汇总 · 8 条 / 30 秒',
     );
+  });
+
+  it('rejects an out-of-range digest and restores the default from the Wake policy dialog', async () => {
+    const ordinary: BotSourcePolicyView = {
+      sourceClass: 'group-ordinary',
+      admission: 'admit',
+      wake: 'digest',
+      delivery: 'steer',
+      digestCount: 5,
+      digestIntervalSeconds: 30,
+      revision: 2,
+      lastActor: { kind: 'human' },
+      changedAt: '2026-10-07T00:00:00.000Z',
+      overrideActive: true,
+      recentWakeCount: 0,
+    };
+    const actions = {
+      botSourcePolicies: vi.fn(async () => [ordinary]),
+      setBotSourcePolicy: vi.fn(async () => undefined),
+      resetBotSourcePolicy: vi.fn(async () => undefined),
+    } as unknown as BridgeActions;
+    await act(async () =>
+      root.render(
+        createElement(WakePolicyEntry, {
+          scope: 'personabot' as const,
+          channelId: 'dm-dora',
+          botSlug: 'dora',
+          actions,
+          t: zhTranslate,
+        }),
+      ),
+    );
+    await act(async () =>
+      host.querySelector<HTMLButtonElement>('.bh-wake-policy-entry button.bh-card-main')?.click(),
+    );
+    await typeInto(fieldNamed(zhTranslate('sourcePolicy.digestInterval')), '0');
+    await act(async () => host.querySelector('form')!.requestSubmit());
+    expect(actions.setBotSourcePolicy).not.toHaveBeenCalled();
+    expect(host.querySelector('form [role="alert"]')?.textContent).toBe(
+      zhTranslate('sourcePolicy.saveFailed'),
+    );
+    await act(async () => buttonNamed(zhTranslate('sourcePolicy.reset'), host).click());
+    expect(actions.resetBotSourcePolicy).toHaveBeenCalledWith('dora', 'group-ordinary');
+    expect(host.querySelector('form')).toBeNull();
   });
 
   it.each<BotSourcePolicyView['lastActor']>([

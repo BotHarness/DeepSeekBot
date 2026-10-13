@@ -1,16 +1,33 @@
 import { useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
-import { Button, IconInfoOutlineRegular, Input, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+import * as stylex from '@stylexjs/stylex';
+import { Button, IconInfoOutlineRegular, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { BridgeActions } from './actions.js';
 import type { BotSourcePolicyEdit, BotSourcePolicyView } from './bridge.js';
 import type { ChannelSidebarEntryProps } from './channel-sidebar.js';
 import { Combobox } from './combobox.js';
+import { Field, TextField } from './ds/field.js';
+import { FormDialog } from './ds/form-dialog.js';
+import { space } from './ds/tokens.stylex.js';
 import { LoadingSkeleton } from './loading-skeleton.js';
 import type { BotHarnessTranslate } from './locale.js';
-import { Modal } from './modal.js';
 import { useMountedResource } from './mounted-resource.js';
 import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
 import { editable, rule, SourcePolicyDetails, sourceName } from './source-policy.js';
+
+const styles = stylex.create({
+  stack: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x4,
+    minWidth: 0,
+  },
+  pair: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+    gap: space.x4,
+  },
+});
 
 const policiesBySlug = new Map<string, readonly BotSourcePolicyView[]>();
 const policyListeners = new Set<() => void>();
@@ -135,11 +152,11 @@ function SourcePolicyEditModal({
 
   const immediate =
     sourceClass === 'human-dm' || sourceClass === 'bot-dm' || sourceClass === 'group-mention';
+  const wakeLabel = t(
+    sourceClass === 'group-ordinary' ? 'sourcePolicy.groupEditTitle' : 'sourcePolicy.editTitle',
+  );
   return (
-    <Modal
-      open
-      onClose={onClose}
-      closeLabel={t('common.close')}
+    <FormDialog
       title={t(
         sourceClass === 'group-ordinary'
           ? 'sourcePolicy.groupEditTitle'
@@ -154,96 +171,83 @@ function SourcePolicyEditModal({
             ? 'sourcePolicy.editDescription'
             : 'sourcePolicy.immediateEditDescription',
       )}
-      footer={
-        <>
-          <Button variant="outline" disabled={busy} onClick={() => void change(true)}>
-            {t('sourcePolicy.reset')}
-          </Button>
-          <Button variant="primary" disabled={busy} onClick={() => void change(false)}>
-            {t('profile.save')}
-          </Button>
-        </>
+      labels={{ close: t('common.close'), cancel: t('common.cancel') }}
+      submitLabel={t('profile.save')}
+      busy={busy}
+      error={saveError ? t('sourcePolicy.saveFailed') : undefined}
+      onCancel={onClose}
+      onSubmit={() => void change(false)}
+      secondary={
+        <Button type="button" variant="ghost" disabled={busy} onClick={() => void change(true)}>
+          {t('sourcePolicy.reset')}
+        </Button>
       }
     >
-      <div ref={mount} className="bh-wake-policy-edit">
-        <span className="bh-wake-policy-edit-source">{sourceName(policy, t)}</span>
-        {immediate ? (
-          <Combobox
-            searchable={false}
-            label={t('sourcePolicy.immediateEditTitle')}
-            toggleLabel={t('sourcePolicy.immediateEditTitle')}
-            value={deliveryDraft}
-            disabled={busy}
-            options={[
-              { value: 'steer', label: t('sourcePolicy.deliverySteerOption') },
-              { value: 'turn', label: t('sourcePolicy.deliveryTurnOption') },
-            ]}
-            onSelect={(value) => setDeliveryDraft(value === 'turn' ? 'turn' : 'steer')}
-          />
-        ) : (
-          <Combobox
-            searchable={false}
-            label={t(
-              sourceClass === 'group-ordinary'
-                ? 'sourcePolicy.groupEditTitle'
-                : 'sourcePolicy.editTitle',
-            )}
-            toggleLabel={t(
-              sourceClass === 'group-ordinary'
-                ? 'sourcePolicy.groupEditTitle'
-                : 'sourcePolicy.editTitle',
-            )}
-            value={wakeDraft}
-            disabled={busy}
-            options={
-              sourceClass === 'assignment-report'
-                ? [
-                    { value: 'conditional', label: t('sourcePolicy.conditionalOption') },
-                    { value: 'immediate', label: t('sourcePolicy.immediateOption') },
-                  ]
-                : [
-                    { value: 'immediate', label: t('sourcePolicy.groupAllOption') },
-                    { value: 'digest', label: t('sourcePolicy.groupDigestOption') },
-                    { value: 'mentions', label: t('sourcePolicy.groupMentionsOption') },
-                    { value: 'silent', label: t('sourcePolicy.groupSilentOption') },
-                  ]
-            }
-            onSelect={(value) => setWakeDraft(value as BotSourcePolicyView['wake'])}
-          />
-        )}
+      <div ref={mount} {...stylex.props(styles.stack)}>
+        <Field label={sourceName(policy, t)}>
+          {() =>
+            immediate ? (
+              <Combobox
+                searchable={false}
+                label={t('sourcePolicy.immediateEditTitle')}
+                toggleLabel={t('sourcePolicy.immediateEditTitle')}
+                value={deliveryDraft}
+                disabled={busy}
+                options={[
+                  { value: 'steer', label: t('sourcePolicy.deliverySteerOption') },
+                  { value: 'turn', label: t('sourcePolicy.deliveryTurnOption') },
+                ]}
+                onSelect={(value) => setDeliveryDraft(value === 'turn' ? 'turn' : 'steer')}
+              />
+            ) : (
+              <Combobox
+                searchable={false}
+                label={wakeLabel}
+                toggleLabel={wakeLabel}
+                value={wakeDraft}
+                disabled={busy}
+                options={
+                  sourceClass === 'assignment-report'
+                    ? [
+                        { value: 'conditional', label: t('sourcePolicy.conditionalOption') },
+                        { value: 'immediate', label: t('sourcePolicy.immediateOption') },
+                      ]
+                    : [
+                        { value: 'immediate', label: t('sourcePolicy.groupAllOption') },
+                        { value: 'digest', label: t('sourcePolicy.groupDigestOption') },
+                        { value: 'mentions', label: t('sourcePolicy.groupMentionsOption') },
+                        { value: 'silent', label: t('sourcePolicy.groupSilentOption') },
+                      ]
+                }
+                onSelect={(value) => setWakeDraft(value as BotSourcePolicyView['wake'])}
+              />
+            )
+          }
+        </Field>
         {sourceClass === 'group-ordinary' && wakeDraft === 'digest' && (
-          <div className="bh-profile-policy-digest">
-            <label>
-              {t('sourcePolicy.digestCount')}
-              <Input
-                type="number"
-                min={1}
-                max={100}
-                value={digestCountDraft}
-                disabled={busy}
-                onChange={(event) => setDigestCountDraft(Number(event.target.value))}
-              />
-            </label>
-            <label>
-              {t('sourcePolicy.digestInterval')}
-              <Input
-                type="number"
-                min={1}
-                max={3600}
-                value={digestIntervalDraft}
-                disabled={busy}
-                onChange={(event) => setDigestIntervalDraft(Number(event.target.value))}
-              />
-            </label>
-          </div>
-        )}
-        {saveError && (
-          <div className="bh-modal-error" role="alert">
-            {t('sourcePolicy.saveFailed')}
+          <div {...stylex.props(styles.pair)}>
+            <TextField
+              label={t('sourcePolicy.digestCount')}
+              type="number"
+              min={1}
+              max={100}
+              value={String(digestCountDraft)}
+              disabled={busy}
+              onChange={(value) => setDigestCountDraft(Number(value))}
+            />
+            <TextField
+              label={t('sourcePolicy.digestInterval')}
+              type="number"
+              min={1}
+              max={3600}
+              value={String(digestIntervalDraft)}
+              disabled={busy}
+              onChange={(value) => setDigestIntervalDraft(Number(value))}
+            />
           </div>
         )}
       </div>
-    </Modal>
+    </FormDialog>
   );
 }
 

@@ -1,68 +1,107 @@
 // @vitest-environment jsdom
-import {
-  act,
-  createElement,
-  type ButtonHTMLAttributes,
-  type InputHTMLAttributes,
-  type PropsWithChildren,
-} from 'react';
-import { createRoot } from 'react-dom/client';
-import { expect, it, vi } from 'vitest';
+import { act, createElement, type ReactElement } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
+  const { dialogPrimitives } = await import('./primitive-mocks.js');
+  return dialogPrimitives();
+});
+
 import { MemberWakePolicyModal } from '../src/client/group-member-controls.js';
-import { zhTranslate } from '../src/client/locale.js';
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  Button: (props: ButtonHTMLAttributes<HTMLButtonElement>) => createElement('button', props),
-  Input: (props: InputHTMLAttributes<HTMLInputElement>) => createElement('input', props),
-}));
-vi.mock('../src/client/modal.js', () => ({
-  Modal: ({ children, footer }: PropsWithChildren<{ footer: React.ReactNode }>) =>
-    createElement('div', null, children, footer),
-}));
-it('restores saved inheritance even when the current threshold draft is invalid', async () => {
+import { zhTranslate as t } from '../src/client/locale.js';
+import type { ChannelSummary } from '../src/client/store.js';
+import { buttonNamed, dialog, fieldNamed, typeInto } from './primitive-mocks.js';
+
+const GROUP: ChannelSummary = {
+  id: 'team',
+  type: 'group',
+  name: 'Team',
+  createdAt: '2026-10-03T00:00:00Z',
+  updatedAt: '2026-10-03T00:00:00Z',
+  members: ['ada'],
+  wakePolicies: { ada: { mode: 'digest', count: 2, intervalSeconds: 120, revision: 1 } },
+};
+
+let host: HTMLDivElement;
+let root: Root;
+
+beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-  const setGroupWakePolicy = vi.fn(async () => true),
-    onClose = vi.fn();
-  const container = document.createElement('div');
-  document.body.append(container);
-  const root = createRoot(container);
-  try {
-    await act(async () =>
-      root.render(
-        createElement(MemberWakePolicyModal, {
-          group: {
-            id: 'team',
-            type: 'group',
-            name: 'Team',
-            createdAt: '2026-10-03T00:00:00Z',
-            updatedAt: '2026-10-03T00:00:00Z',
-            members: ['ada'],
-            wakePolicies: { ada: { mode: 'digest', count: 2, intervalSeconds: 120, revision: 1 } },
-          },
-          slug: 'ada',
-          name: 'Ada',
-          t: zhTranslate,
-          actions: { setGroupWakePolicy },
-          onClose,
-        }),
-      ),
-    );
-    const input = container.querySelector<HTMLInputElement>('input')!;
-    await act(async () => {
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, '0');
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-    });
-    const buttons = [...container.querySelectorAll('button')];
-    expect(buttons.find((b) => b.textContent === '保存提醒设置')!.disabled).toBe(true);
-    await act(async () => buttons.find((b) => b.textContent === '恢复继承')!.click());
-    expect(setGroupWakePolicy).toHaveBeenCalledWith('team', 'ada', {
-      mode: 'digest',
-      count: 2,
-      intervalSeconds: 120,
-      inherit: true,
-    });
-    expect(onClose).toHaveBeenCalledTimes(1);
-  } finally {
-    await act(async () => root.unmount());
-    container.remove();
-  }
+  host = document.createElement('div');
+  document.body.append(host);
+  root = createRoot(host);
+});
+
+afterEach(() => {
+  act(() => root.unmount());
+  host.remove();
+});
+
+async function render(node: ReactElement): Promise<void> {
+  await act(async () => root.render(node));
+}
+
+async function open(setGroupWakePolicy = vi.fn(async () => true)) {
+  const onClose = vi.fn();
+  await render(
+    createElement(MemberWakePolicyModal, {
+      group: GROUP,
+      slug: 'ada',
+      name: 'Ada',
+      t,
+      actions: { setGroupWakePolicy },
+      onClose,
+    }),
+  );
+  return { setGroupWakePolicy, onClose };
+}
+
+it('restores saved inheritance even when the current threshold draft is invalid', async () => {
+  const { setGroupWakePolicy, onClose } = await open();
+  expect(dialog().getAttribute('aria-label')).toBe(t('members.policy.title', { bot: 'Ada' }));
+  await typeInto(fieldNamed(t('members.wake.count')), '0');
+  expect(buttonNamed(t('members.wake.save')).disabled).toBe(true);
+  await act(async () => buttonNamed(t('defaults.restore')).click());
+  expect(setGroupWakePolicy).toHaveBeenCalledWith('team', 'ada', {
+    mode: 'digest',
+    count: 2,
+    intervalSeconds: 120,
+    inherit: true,
+  });
+  expect(onClose).toHaveBeenCalledTimes(1);
+});
+
+it('saves the chosen mode and digest thresholds on Enter', async () => {
+  const { setGroupWakePolicy, onClose } = await open();
+  expect(fieldNamed(t('members.wake.count')).value).toBe('2');
+  expect(fieldNamed(t('members.wake.seconds')).value).toBe('120');
+  await typeInto(fieldNamed(t('members.wake.count')), '7');
+  await typeInto(fieldNamed(t('members.wake.seconds')), '45');
+  await act(async () => dialog().querySelector('form')!.requestSubmit());
+  expect(setGroupWakePolicy).toHaveBeenCalledWith('team', 'ada', {
+    mode: 'digest',
+    count: 7,
+    intervalSeconds: 45,
+  });
+  expect(onClose).toHaveBeenCalledTimes(1);
+});
+
+it('hides digest thresholds for other modes and reports a failed save', async () => {
+  const { setGroupWakePolicy, onClose } = await open(vi.fn(async () => false));
+  const mentions = buttonNamed(t('members.wake.mentions'));
+  await act(async () => mentions.click());
+  expect(mentions.getAttribute('aria-pressed')).toBe('true');
+  expect(buttonNamed(t('members.wake.digest')).getAttribute('aria-pressed')).toBe('false');
+  expect(() => fieldNamed(t('members.wake.count'))).toThrow();
+  await act(async () => buttonNamed(t('members.wake.save')).click());
+  expect(setGroupWakePolicy).toHaveBeenCalledWith('team', 'ada', {
+    mode: 'mentions',
+    count: 2,
+    intervalSeconds: 120,
+  });
+  expect(onClose).not.toHaveBeenCalled();
+  expect(dialog().querySelector('[role="alert"]')?.textContent).toBe(t('members.error'));
+  await act(async () => buttonNamed(t('common.cancel')).click());
+  expect(onClose).toHaveBeenCalledTimes(1);
 });

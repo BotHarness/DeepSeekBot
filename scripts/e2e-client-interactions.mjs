@@ -168,12 +168,12 @@ try {
     });
     await page.waitForSelector('.bh-member-menu-button');
     await page.click('button[aria-label="Invite member"], button[aria-label="邀请新群员"]');
-    await page.waitForSelector('.bh-group-invite-modal');
+    await page.waitForSelector('[data-group-invite]');
     await page.keyboard.press('Escape');
-    await page.waitForSelector('.bh-group-invite-modal', { hidden: true });
+    await page.waitForSelector('[data-group-invite]', { hidden: true });
     await select(second.id);
     await select(first.id);
-    assert.equal(await page.$('.bh-group-invite-modal'), null);
+    assert.equal(await page.$('[data-group-invite]'), null);
     await page.waitForSelector('.bh-member-menu-button');
     await page.click('.bh-member-menu-button');
     await page.waitForSelector('[role="menu"]');

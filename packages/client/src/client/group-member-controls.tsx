@@ -1,10 +1,10 @@
 import { useRef, useState, type ReactElement } from 'react';
+import * as stylex from '@stylexjs/stylex';
 
 import {
   Button,
   IconEllipsisOutlineRegular,
   IconPlusOutlineRegular,
-  Input,
   Menu,
   Tag,
   Tooltip,
@@ -16,11 +16,86 @@ import { PersonaBotAvatar } from './avatar.js';
 import { useClientState } from './bot-sidebar.js';
 import type { ChannelSidebarEntryProps } from './channel-sidebar.js';
 import { useDelayedSearch } from './delayed-search.js';
+import { Field, TextField } from './ds/field.js';
+import { FormDialog } from './ds/form-dialog.js';
+import { Note } from './ds/note.js';
+import { color, radius, size, space, text } from './ds/tokens.stylex.js';
 import { humanLabel } from './actor-names.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { Modal } from './modal.js';
 import { personaBotActivity } from './persona-activity.js';
 import type { BotSummary, ChannelSummary } from './store.js';
+
+const styles = stylex.create({
+  results: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x1,
+    minWidth: 0,
+    maxHeight: '280px',
+    overflowY: 'auto',
+  },
+  option: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: space.x3,
+    width: '100%',
+    minWidth: 0,
+    minHeight: size.nav,
+    paddingInline: space.x3,
+    borderWidth: 0,
+    borderRadius: radius.row,
+    backgroundColor: { default: 'transparent', ':hover': color.hover },
+    color: color.fg,
+    fontFamily: 'inherit',
+    fontSize: text.bodySize,
+    lineHeight: text.bodyLine,
+    textAlign: 'start',
+    cursor: 'pointer',
+    outline: { default: 'none', ':focus-visible': `2px solid ${color.accent}` },
+    outlineOffset: '-2px',
+  },
+  optionOn: {
+    backgroundColor: { default: color.selected, ':hover': color.selected },
+  },
+  optionName: {
+    minWidth: 0,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  choices: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+    gap: space.x3,
+  },
+  choice: {
+    minHeight: size.row,
+    paddingInline: space.x4,
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: color.border,
+    borderRadius: radius.row,
+    backgroundColor: { default: 'transparent', ':hover': color.hover },
+    color: color.fg,
+    fontFamily: 'inherit',
+    fontSize: text.bodySize,
+    lineHeight: text.bodyLine,
+    cursor: 'pointer',
+    outline: { default: 'none', ':focus-visible': `2px solid ${color.accent}` },
+    outlineOffset: '1px',
+  },
+  choiceOn: {
+    borderColor: color.accent,
+    backgroundColor: { default: color.selected, ':hover': color.selected },
+    fontWeight: text.strong,
+  },
+  pair: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+    gap: space.x4,
+  },
+});
 
 function memberName(bots: readonly BotSummary[], slug: string): string {
   return bots.find((bot) => bot.slug === slug)?.displayName ?? slug;
@@ -84,63 +159,58 @@ function InviteMemberModal({
     }
   };
   return (
-    <Modal
-      open
-      onClose={onClose}
-      closeLabel={t('common.close')}
+    <FormDialog
       title={t('group.invite')}
-      footer={
-        <>
-          <Button variant="outline" onClick={onClose}>
-            {t('common.cancel')}
-          </Button>
-          <Button variant="primary" disabled={!selected || busy} onClick={() => void invite()}>
-            {t('group.invite')}
-          </Button>
-        </>
-      }
+      labels={{ close: t('common.close'), cancel: t('common.cancel') }}
+      submitLabel={t('group.invite')}
+      submitDisabled={!selected}
+      busy={busy}
+      error={error ? t('members.error') : undefined}
+      onCancel={onClose}
+      onSubmit={() => void invite()}
     >
-      <div className="bh-group-invite-modal" ref={cancelOnUnmount}>
-        <label htmlFor="bh-group-invite-search">{t('group.inviteSearch')}</label>
-        <Input
-          id="bh-group-invite-search"
-          value={query}
-          placeholder={t('group.inviteSearch')}
-          onChange={(event) => updateQuery(event.target.value)}
-        />
-        <div className="bh-group-invite-results">
-          {filtered.length === 0 ? (
-            <div className="bh-note">{t('group.inviteEmpty')}</div>
-          ) : (
-            filtered.map((bot) => (
-              <button
-                type="button"
-                key={bot.slug}
-                className="bh-group-invite-option"
-                aria-pressed={selected === bot.slug}
-                onClick={() => setSelected(bot.slug)}
-              >
-                <PersonaBotAvatar
-                  t={t}
-                  personaBotId={bot.slug}
-                  name={bot.displayName}
-                  src={bot.avatar}
-                  appearance={bot.appearance}
-                  avatarSeed={bot.avatarSeed}
-                  size={28}
-                />
-                <span>{bot.displayName}</span>
-              </button>
-            ))
-          )}
-        </div>
-        {error ? (
-          <div className="bh-error" role="alert">
-            {t('members.error')}
-          </div>
-        ) : null}
+      <TextField
+        label={t('group.inviteSearch')}
+        data-group-invite-search=""
+        value={query}
+        placeholder={t('group.inviteSearch')}
+        onChange={updateQuery}
+        initialFocus
+      />
+      <div
+        ref={cancelOnUnmount}
+        role="group"
+        aria-label={t('group.inviteSelect')}
+        data-group-invite=""
+        {...stylex.props(styles.results)}
+      >
+        {filtered.length === 0 ? (
+          <Note>{t('group.inviteEmpty')}</Note>
+        ) : (
+          filtered.map((bot) => (
+            <button
+              type="button"
+              key={bot.slug}
+              data-group-invite-option={bot.slug}
+              aria-pressed={selected === bot.slug}
+              onClick={() => setSelected(bot.slug)}
+              {...stylex.props(styles.option, selected === bot.slug && styles.optionOn)}
+            >
+              <PersonaBotAvatar
+                t={t}
+                personaBotId={bot.slug}
+                name={bot.displayName}
+                src={bot.avatar}
+                appearance={bot.appearance}
+                avatarSeed={bot.avatarSeed}
+                size={28}
+              />
+              <span {...stylex.props(styles.optionName)}>{bot.displayName}</span>
+            </button>
+          ))
+        )}
       </div>
-    </Modal>
+    </FormDialog>
   );
 }
 
@@ -352,7 +422,6 @@ export function MemberWakePolicyModal({
   const [seconds, setSeconds] = useState(saved?.intervalSeconds ?? 30);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
-  const prefix = `bh-wake-${group.id}-${slug}`;
   const valid =
     Number.isSafeInteger(count) &&
     count >= 1 &&
@@ -378,68 +447,60 @@ export function MemberWakePolicyModal({
     }
   };
   return (
-    <Modal
-      open
-      onClose={onClose}
-      closeLabel={t('common.close')}
+    <FormDialog
       title={t('members.policy.title', { bot: name })}
-      footer={
-        <div className="bh-modal-footer">
-          <Button variant="outline" disabled={busy} onClick={() => void save(true)}>
-            {t('defaults.restore')}
-          </Button>
-          <Button variant="outline" onClick={onClose}>
-            {t('common.cancel')}
-          </Button>
-          <Button variant="primary" disabled={busy || !valid} onClick={() => void save()}>
-            {t('members.wake.save')}
-          </Button>
-        </div>
+      labels={{ close: t('common.close'), cancel: t('common.cancel') }}
+      submitLabel={t('members.wake.save')}
+      submitDisabled={!valid}
+      busy={busy}
+      error={error ? t('members.error') : undefined}
+      onCancel={onClose}
+      onSubmit={() => void save()}
+      secondary={
+        <Button type="button" variant="ghost" disabled={busy} onClick={() => void save(true)}>
+          {t('defaults.restore')}
+        </Button>
       }
     >
-      <div className="bh-member-policy-modal">
-        <div className="bh-member-wake-choices" role="group" aria-label={t('members.wake')}>
-          {(['all', 'mentions', 'digest', 'silent'] as const).map((option) => (
-            <button
-              type="button"
-              key={option}
-              className="bh-group-manage-button"
-              aria-pressed={mode === option}
-              onClick={() => setMode(option)}
-            >
-              {t(`members.wake.${option}`)}
-            </button>
-          ))}
+      <Field label={t('members.wake')} group>
+        {() => (
+          <div {...stylex.props(styles.choices)}>
+            {(['all', 'mentions', 'digest', 'silent'] as const).map((option) => (
+              <button
+                type="button"
+                key={option}
+                data-member-wake-mode={option}
+                aria-pressed={mode === option}
+                onClick={() => setMode(option)}
+                {...stylex.props(styles.choice, mode === option && styles.choiceOn)}
+              >
+                {t(`members.wake.${option}`)}
+              </button>
+            ))}
+          </div>
+        )}
+      </Field>
+      {mode === 'digest' ? (
+        <div {...stylex.props(styles.pair)}>
+          <TextField
+            label={t('members.wake.count')}
+            type="number"
+            min={1}
+            max={100}
+            value={String(count)}
+            onChange={(value) => setCount(Number(value))}
+          />
+          <TextField
+            label={t('members.wake.seconds')}
+            type="number"
+            min={1}
+            max={3600}
+            value={String(seconds)}
+            onChange={(value) => setSeconds(Number(value))}
+          />
         </div>
-        {mode === 'digest' ? (
-          <div className="bh-member-wake-values">
-            <label htmlFor={prefix + '-count'}>{t('members.wake.count')}</label>
-            <Input
-              id={prefix + '-count'}
-              type="number"
-              min={1}
-              max={100}
-              value={count}
-              onChange={(event) => setCount(Number(event.target.value))}
-            />
-            <label htmlFor={prefix + '-seconds'}>{t('members.wake.seconds')}</label>
-            <Input
-              id={prefix + '-seconds'}
-              type="number"
-              min={1}
-              max={3600}
-              value={seconds}
-              onChange={(event) => setSeconds(Number(event.target.value))}
-            />
-          </div>
-        ) : null}
-        {error ? (
-          <div className="bh-error" role="alert">
-            {t('members.error')}
-          </div>
-        ) : null}
-      </div>
-    </Modal>
+      ) : null}
+    </FormDialog>
   );
 }
 

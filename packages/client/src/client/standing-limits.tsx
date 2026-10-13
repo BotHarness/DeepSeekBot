@@ -1,9 +1,12 @@
-import { useId, useState, type ReactElement } from 'react';
+import { useState, type ReactElement } from 'react';
+import * as stylex from '@stylexjs/stylex';
 import { Button, Input, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { BridgeActions } from './actions.js';
 import { errorMessage } from './bridge.js';
-import { Modal } from './modal.js';
+import { Field } from './ds/field.js';
+import { FormDialog } from './ds/form-dialog.js';
+import { color, text, space } from './ds/tokens.stylex.js';
 import { SidebarCardRow } from './sidebar-card.js';
 import type { BotHarnessTranslate } from './locale.js';
 import type { BotSummary, StandingLimitsView } from './store.js';
@@ -12,6 +15,33 @@ export const DEFAULT_STANDING_LIMITS: StandingLimitsView = { soul: 5000, coreMem
 export const MIN_STANDING_LIMIT = 500;
 export const MAX_STANDING_LIMIT = 50_000;
 const CHARACTERS_PER_ENGLISH_WORD = 6;
+
+const styles = stylex.create({
+  label: {
+    display: 'inline-flex',
+    alignItems: 'baseline',
+    gap: space.x3,
+  },
+  file: {
+    color: color.subtle,
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+    fontWeight: 400,
+  },
+  control: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: space.x3,
+    minWidth: 0,
+  },
+  input: { flexGrow: 1, minWidth: 0 },
+  unit: {
+    flexShrink: 0,
+    color: color.subtle,
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+  },
+});
 
 const formatCount = (value: number): string => value.toLocaleString('en-US');
 
@@ -38,31 +68,17 @@ function LimitField({
   onChange: (value: string) => void;
   t: BotHarnessTranslate;
 }): ReactElement {
-  const id = useId();
   const parsed = parseLimit(value);
   return (
-    <div className="bh-standing-limit-field">
-      <label className="bh-standing-limit-label" htmlFor={id}>
-        <span>{label}</span>
-        <code>{file}</code>
-      </label>
-      <div className="bh-standing-limit-input">
-        <Input
-          id={id}
-          type="number"
-          min={MIN_STANDING_LIMIT}
-          max={MAX_STANDING_LIMIT}
-          step={100}
-          value={value}
-          disabled={disabled}
-          aria-describedby={`${id}-hint`}
-          aria-invalid={invalid ? true : undefined}
-          onChange={(event) => onChange(event.target.value)}
-        />
-        <span className="bh-standing-limit-unit">{t('standingLimits.unit')}</span>
-      </div>
-      <div className="bh-settings-row-desc" id={`${id}-hint`}>
-        {parsed === undefined
+    <Field
+      label={
+        <span {...stylex.props(styles.label)}>
+          <span>{label}</span>
+          <code {...stylex.props(styles.file)}>{file}</code>
+        </span>
+      }
+      hint={
+        parsed === undefined
           ? t('standingLimits.range', {
               min: formatCount(MIN_STANDING_LIMIT),
               max: formatCount(MAX_STANDING_LIMIT),
@@ -70,9 +86,27 @@ function LimitField({
           : t('standingLimits.size', {
               chinese: formatCount(parsed),
               words: formatCount(Math.round(parsed / CHARACTERS_PER_ENGLISH_WORD / 10) * 10),
-            })}
-      </div>
-    </div>
+            })
+      }
+    >
+      {(control) => (
+        <span {...stylex.props(styles.control)}>
+          <Input
+            {...control}
+            aria-invalid={invalid ? true : undefined}
+            className={stylex.props(styles.input).className ?? ''}
+            type="number"
+            min={MIN_STANDING_LIMIT}
+            max={MAX_STANDING_LIMIT}
+            step={100}
+            value={value}
+            disabled={disabled}
+            onChange={(event) => onChange(event.target.value)}
+          />
+          <span {...stylex.props(styles.unit)}>{t('standingLimits.unit')}</span>
+        </span>
+      )}
+    </Field>
   );
 }
 
@@ -154,20 +188,23 @@ export function StandingLimitsRow({
         dialog
         onClick={start}
       />
-      <Modal
-        className="bh-sidebar-modal"
-        open={open}
-        onClose={() => {
-          if (!busy) setOpen(false);
-        }}
-        title={t('standingLimits.title')}
-        description={t('standingLimits.description')}
-        closeLabel={t('common.close')}
-        footer={
-          <div className="bh-modal-footer">
+      {open ? (
+        <FormDialog
+          title={t('standingLimits.title')}
+          description={t('standingLimits.description')}
+          labels={{ close: t('common.close'), cancel: t('common.cancel') }}
+          submitLabel={t(busy ? 'standingLimits.saving' : 'standingLimits.save')}
+          submitDisabled={!changed}
+          busy={busy}
+          error={error}
+          onCancel={() => {
+            if (!busy) setOpen(false);
+          }}
+          onSubmit={() => void submit()}
+          secondary={
             <Button
               type="button"
-              variant="outline"
+              variant="ghost"
               disabled={
                 busy ||
                 (soul === String(DEFAULT_STANDING_LIMITS.soul) &&
@@ -180,28 +217,7 @@ export function StandingLimitsRow({
             >
               {t('standingLimits.reset')}
             </Button>
-            <span className="bh-modal-footer-gap" />
-            <Button variant="outline" disabled={busy} onClick={() => setOpen(false)}>
-              {t('common.cancel')}
-            </Button>
-            <Button
-              type="button"
-              variant="primary"
-              disabled={busy || !changed}
-              onClick={() => void submit()}
-            >
-              {t(busy ? 'standingLimits.saving' : 'standingLimits.save')}
-            </Button>
-          </div>
-        }
-      >
-        <form
-          className="bh-standing-limits-form"
-          noValidate
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (changed) void submit();
-          }}
+          }
         >
           <LimitField
             label={t('standingLimits.soul')}
@@ -221,13 +237,8 @@ export function StandingLimitsRow({
             onChange={edit(setCoreMemory)}
             t={t}
           />
-          {error && (
-            <span className="bh-assignment-limit-error" role="alert">
-              {error}
-            </span>
-          )}
-        </form>
-      </Modal>
+        </FormDialog>
+      ) : null}
     </>
   );
 }

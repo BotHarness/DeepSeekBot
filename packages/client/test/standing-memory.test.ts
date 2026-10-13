@@ -158,13 +158,25 @@ describe('Standing memory', () => {
     );
     expect(host.textContent).toContain('SOUL.md 5,000 · MEMORY.md 3,000');
     await act(async () => host.querySelector<HTMLButtonElement>('.bh-card-main')!.click());
-    const inputs = [...host.querySelectorAll<HTMLInputElement>('input')];
-    const save = (): HTMLButtonElement =>
-      [...host.querySelectorAll<HTMLButtonElement>('button')].find(
-        (button) => button.textContent === zhTranslate('standingLimits.save'),
+    const limit = (file: string): HTMLInputElement => {
+      const label = [...host.querySelectorAll('label')].find((candidate) =>
+        candidate.textContent?.includes(file),
       )!;
+      return document.getElementById(label.htmlFor) as HTMLInputElement;
+    };
+    const button = (name: string): HTMLButtonElement =>
+      [...host.querySelectorAll<HTMLButtonElement>('button')].find(
+        (candidate) => candidate.textContent === name,
+      )!;
+    const save = (): HTMLButtonElement => button(zhTranslate('standingLimits.save'));
+    expect(host.querySelector('[role="dialog"]')?.getAttribute('aria-label')).toBe(
+      zhTranslate('standingLimits.title'),
+    );
+    expect(limit('SOUL.md').value).toBe('5000');
+    expect(limit('MEMORY.md').value).toBe('3000');
     expect(host.textContent).toContain('约 5,000 个汉字，或约 830 个英文单词');
     expect(save().disabled).toBe(true);
+    expect(button(zhTranslate('standingLimits.reset')).disabled).toBe(true);
 
     const type = async (input: HTMLInputElement, value: string): Promise<void> => {
       const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
@@ -173,17 +185,66 @@ describe('Standing memory', () => {
         input.dispatchEvent(new Event('input', { bubbles: true }));
       });
     };
-    await type(inputs[1]!, '100');
+    await type(limit('MEMORY.md'), '100');
     expect(host.textContent).toContain('请输入 500 到 50,000 之间的整数');
+    expect(limit('MEMORY.md').getAttribute('aria-invalid')).toBe('true');
     expect(save().disabled).toBe(true);
+    await act(async () => host.querySelector('form')!.requestSubmit());
+    expect(setStandingLimits).not.toHaveBeenCalled();
 
-    await type(inputs[1]!, '1200');
+    await type(limit('SOUL.md'), '6000');
+    await act(async () => button(zhTranslate('standingLimits.reset')).click());
+    expect(limit('SOUL.md').value).toBe('5000');
+    expect(limit('MEMORY.md').value).toBe('3000');
+
+    await type(limit('MEMORY.md'), '1200');
+    expect(limit('MEMORY.md').hasAttribute('aria-invalid')).toBe(false);
     expect(save().disabled).toBe(false);
-    await act(async () => save().click());
+    await act(async () => host.querySelector('form')!.requestSubmit());
     expect(setStandingLimits).toHaveBeenCalledWith('ada', { soul: 5000, coreMemory: 1200 });
     expect(host.querySelector('[role="dialog"]')).toBeNull();
     expect(host.textContent).toContain('SOUL.md 5,000 · MEMORY.md 1,200');
     expect(host.textContent).toContain(zhTranslate('standingLimits.customized'));
+    act(() => root.unmount());
+    host.remove();
+  });
+
+  it('keeps the dialog open and shows the bridge error when saving fails', async () => {
+    const setStandingLimits = vi.fn(async () => {
+      throw new Error('limits refused');
+    });
+    const actions = { setStandingLimits } as unknown as BridgeActions;
+    const host = document.createElement('div');
+    document.body.append(host);
+    const root = createRoot(host);
+    await act(async () =>
+      root.render(
+        createElement(
+          'ul',
+          null,
+          createElement(StandingLimitsRow, { bot, actions, t: zhTranslate }),
+        ),
+      ),
+    );
+    await act(async () => host.querySelector<HTMLButtonElement>('.bh-card-main')!.click());
+    const label = [...host.querySelectorAll('label')].find((candidate) =>
+      candidate.textContent?.includes('SOUL.md'),
+    )!;
+    const soul = document.getElementById(label.htmlFor) as HTMLInputElement;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(soul, '900');
+      soul.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () => host.querySelector('form')!.requestSubmit());
+    expect(setStandingLimits).toHaveBeenCalledWith('ada', { soul: 900, coreMemory: 3000 });
+    expect(host.querySelector('[role="dialog"]')).not.toBeNull();
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain('limits refused');
+    await act(async () =>
+      [...host.querySelectorAll<HTMLButtonElement>('button')]
+        .find((button) => button.textContent === zhTranslate('common.cancel'))!
+        .click(),
+    );
+    expect(host.querySelector('[role="dialog"]')).toBeNull();
     act(() => root.unmount());
     host.remove();
   });
