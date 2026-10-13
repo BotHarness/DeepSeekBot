@@ -151,7 +151,7 @@ function inboxFilter(args: {
 const ORCHESTRATOR_PROMPT = `You are the Orchestrator for one PersonaBot, and your working directory is its Memory Repository.
 ## You coordinate work from an inbox
 Your Bot Inbox collects events from different people, other Bots, external IM, Bot Schedules, Host notices and your own Assignments. You can orchestrate and coordinate a lot of work: answer yourself, ask or hand off to a person or Bot colleague, fold an item into an Assignment already serving the same goal, or open a new Assignment. Not everything needs an Assignment; a question, a memory update or a reply stays with you. Items belong together when they serve the same goal or deliverable, such as the same PR or the same feature, whoever sent them. Each turn, triage what is new and decide what each item needs.
-Finishing a turn resolves nothing. An item you have seen stays open until you call inbox_resolve, and the [Open Inbox] block shows the unresolved conversations at the start of each turn; inbox_list reviews all of them. Resolve with outcome done once an item is answered, finished, or needs nothing more from you, including an FYI you took as context. Use outcome ignored only for spam, misdelivery or truly irrelevant content. Resolve in bulk when it fits: pass several ids, or pass a filter, read the returned count and sample, and repeat the same call with its confirm token. Keep an item open while you still owe a next step, for example when the Assignment Concurrency Limit refused a create or you are waiting for someone. Ambient Group messages that do not mention you never stay open. inbox_history remains the diary of everything past.
+Finishing a turn resolves nothing. An item you have seen stays open until you call inbox_resolve, and the [Open Inbox] block shows the unresolved conversations at the start of each turn; inbox_list reviews all of them. Resolve with outcome done once an item is answered, finished, or needs nothing more from you, including an FYI you took as context. Use outcome ignored only for spam, misdelivery or truly irrelevant content. Resolve in bulk when it fits: pass several ids, or pass a filter, read the returned count and sample, and repeat the same call with its confirm token. Keep an item open while you still owe a next step, for example when the Assignment Concurrency Limit refused a create or you are waiting for someone; when it only matters again later, snooze it with inbox_snooze and a note, and it comes back on its own. inbox_history remains the diary of everything past.
 ## Reply delivery contract
 Your assistant text is private Session output, NOT a reply in the Channel. Whenever you intend to answer a Human, call channel_send with the actual answer in body; omit channel_id to reply in the current inbound Channel. A greeting, acknowledgment, short answer, clarification question, or image description needs this delivery Tool too. Reading content or images does not send an answer.
 If the Human asks for "just reply", "only say X", or "no tools", avoid unnecessary work Tools, but still use channel_send to deliver the requested reply. Never imitate an earlier assistant-only answer: it did not reach the Channel. If the Human explicitly asks for no reply, or a Group/FYI message needs no answer, finish silently instead. External IM uses bridge_reply or bridge_reply_file to its trusted source, not channel_send to the Human DM.
@@ -1987,6 +1987,10 @@ class DshBotAgentAdapter implements BotAgentAdapter {
             'Review open Bot Inbox items: ones a turn has seen and you have not resolved. Items in the same Channel conversation or Assignment are grouped with a count and up to 20 ids, newest conversation first. Read-only. Filters narrow by source kind, Channel, Assignment, author and time; reuse the same filters with nextCursor.',
           parameters: {
             ...INBOX_FILTER_PARAMETERS,
+            include_snoozed: {
+              type: 'boolean',
+              description: 'Also list snoozed items, with their snoozedUntil.',
+            },
             limit: { type: 'integer', description: '1–50 conversations; default 20.' },
             cursor: {
               type: 'string',
@@ -2004,6 +2008,9 @@ class DshBotAgentAdapter implements BotAgentAdapter {
             return JSON.stringify(
               active.run.triage.list({
                 ...inboxFilter(args),
+                ...(args.include_snoozed === undefined
+                  ? {}
+                  : { includeSnoozed: args.include_snoozed }),
                 ...(args.limit === undefined ? {} : { limit: args.limit }),
                 ...(args.cursor === undefined ? {} : { cursor: args.cursor }),
               }),
@@ -2048,6 +2055,53 @@ class DshBotAgentAdapter implements BotAgentAdapter {
             return JSON.stringify(
               active.run.triage.resolve({
                 outcome: args.outcome,
+                ...(args.ids === undefined ? {} : { ids: args.ids }),
+                ...(Object.keys(filter).length === 0 ? {} : { filter }),
+                ...(args.note === undefined ? {} : { note: args.note }),
+                ...(args.confirm === undefined ? {} : { confirm: args.confirm }),
+              }),
+            );
+          },
+        }),
+      );
+      registerTool(
+        defineTool({
+          name: 'inbox_snooze',
+          description:
+            'Hide open Bot Inbox items until a time, with an optional note for when they come back. At that time they return and wake you; a new event in the same Channel conversation or Assignment brings them back early. Snoozing again never moves the return earlier. Pass ids, or filter fields with the same count-then-confirm flow as inbox_resolve.',
+          parameters: {
+            ids: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Source Event ids to snooze, 1–200. Do not combine with filter fields.',
+            },
+            ...INBOX_FILTER_PARAMETERS,
+            until_time: {
+              type: 'string',
+              required: true,
+              description: 'ISO timestamp in the future, within 30 days, when the items return.',
+            },
+            note: {
+              type: 'string',
+              description: 'What to do when they return, at most 500 characters.',
+            },
+            confirm: {
+              type: 'string',
+              description: 'Token from the previous filter call, to snooze that exact set.',
+            },
+          },
+          output: {
+            schema: { type: 'string' },
+            render: (_args, value) => [{ type: 'text', text: value }],
+          },
+          execute: async (args) => {
+            const active = this.#runs.get(run.sessionId);
+            if (active?.role !== 'orchestrator' || active.run.triage === undefined)
+              throw new Error('inbox_snooze: the Orchestrator inbox is unavailable');
+            const filter = inboxFilter(args);
+            return JSON.stringify(
+              active.run.triage.snooze({
+                until: args.until_time,
                 ...(args.ids === undefined ? {} : { ids: args.ids }),
                 ...(Object.keys(filter).length === 0 ? {} : { filter }),
                 ...(args.note === undefined ? {} : { note: args.note }),

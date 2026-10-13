@@ -332,8 +332,8 @@ describe('Group ordinary-message digest', () => {
       expect(switched).toHaveLength(2);
       expect(switched).toEqual(
         expect.arrayContaining([
-          expect.objectContaining({ sourceMessageId: 'after-switch', state: 'handled' }),
-          expect.objectContaining({ sourceMessageId: 'before-switch', state: 'handled' }),
+          expect.objectContaining({ sourceMessageId: 'after-switch', state: 'open' }),
+          expect.objectContaining({ sourceMessageId: 'before-switch', state: 'open' }),
         ]),
       );
     } finally {

@@ -525,7 +525,7 @@ Binding 对尚无条目的会话的处理方式：`auto`（自动接收，默认
 _避免使用_：白名单、审批模式、自动回复
 
 **Bot Inbox**：
-PersonaBot 层级的 view，包含被 admit 供其 attention 的 Source Event，无论 event 是否属于某个 Channel。它不是第二个 content store：读取是一项显式行为，也允许 ignore。发给 Bot 的条目在 turn observe 之前是 unread，之后保持 open，直到 Orchestrator 以 done 或 ignored resolve 它；turn 结束本身不 resolve 任何条目（ADR-0188）。
+PersonaBot 层级的 view，包含被 admit 供其 attention 的 Source Event，无论 event 是否属于某个 Channel。它不是第二个 content store：读取是一项显式行为，也允许 ignore。被 admit 的条目在 turn observe 之前是 unread，之后保持 open，直到 Orchestrator 以 done 或 ignored resolve 它；turn 结束本身不 resolve 任何条目。被 snooze 的条目仍是 open，但会隐藏到设定时间，或直到同一对话里出现新 event，然后唤醒 Orchestrator（ADR-0188）。
 _避免使用_：queue、mailbox、backlog
 
 **Inbox Admission**：
@@ -549,7 +549,7 @@ _避免使用_：bridge、wake policy、model trigger、scheduler
 _避免使用_：all bot state、model instruction、settings（单独使用）
 
 **Attention Decision**：
-一项可审计的 PersonaBot fact，表示某个 Inbox Admission 已被 observe、defer、ignore 或 handle；pending state 从这些 fact 中派生，而不是作为 delivery lifecycle 存储。对发给 Bot 的条目，handle 只会让它变成 open；关闭它的决定是 Orchestrator 显式的 resolve（outcome 为 done 或 ignored，并附 note）。
+一项可审计的 PersonaBot fact，表示某个 Inbox Admission 已被 observe、defer、ignore 或 handle；pending state 从这些 fact 中派生，而不是作为 delivery lifecycle 存储。handle 只会让条目变成 open；关闭它的决定是 Orchestrator 显式的 resolve（outcome 为 done 或 ignored，并附 note）。
 _避免使用_：mailbox status、Agent delivery state、consumed flag
 
 **Observation**：

@@ -25,6 +25,8 @@ export interface InboxHistoryItem {
   channelName?: string;
   causeSourceEventId?: string;
   resolutionNote?: string;
+  snoozedUntil?: string;
+  snoozeNote?: string;
   snippet: string;
 }
 
@@ -48,6 +50,8 @@ interface HistoryRow {
   channel_id: string | null;
   cause_source_event_id: string | null;
   resolution_note: string | null;
+  snoozed_until: string | null;
+  snooze_note: string | null;
   snippet: string;
 }
 
@@ -69,7 +73,7 @@ const FIELDS = `
   coalesce(e.channel_id, (SELECT p.channel_id FROM channel_placements p
     WHERE p.source_event_id = e.source_event_id ORDER BY p.channel_id LIMIT 1)) AS channel_id,
   ${CAUSE} AS cause_source_event_id,
-  a.resolution_note,
+  a.resolution_note, a.snoozed_until, a.snooze_note,
   ${ATTENTION_STATE_SQL} AS state
 `;
 
@@ -148,6 +152,8 @@ export function createInboxHistoryQuery(
       ? {}
       : { causeSourceEventId: row.cause_source_event_id }),
     ...(row.resolution_note === null ? {} : { resolutionNote: row.resolution_note }),
+    ...(row.snoozed_until === null ? {} : { snoozedUntil: row.snoozed_until }),
+    ...(row.snooze_note === null ? {} : { snoozeNote: row.snooze_note }),
     snippet: Array.from(row.snippet).slice(0, 300).join(''),
   });
 

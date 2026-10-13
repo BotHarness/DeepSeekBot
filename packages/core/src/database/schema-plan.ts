@@ -2094,6 +2094,22 @@ const INBOX_RESOLUTION_MIGRATION: SchemaMigration = {
   },
 };
 
+const INBOX_SNOOZE_MIGRATION: SchemaMigration = {
+  generation: 86,
+  module: 'bot-inbox',
+  description: 'Let the Orchestrator snooze open Inbox Admissions until a time (ADR-0188)',
+  migrate(database) {
+    database.exec(`
+      ALTER TABLE inbox_admissions ADD COLUMN snoozed_until TEXT;
+      ALTER TABLE inbox_admissions ADD COLUMN snoozed_at TEXT;
+      ALTER TABLE inbox_admissions ADD COLUMN snooze_note TEXT;
+      CREATE INDEX inbox_admissions_snoozed
+        ON inbox_admissions (bot_slug, snoozed_until)
+        WHERE snoozed_until IS NOT NULL AND resolved_at IS NULL;
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -2179,4 +2195,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   FAILURE_ALERT_MIGRATION,
   ASSIGNMENT_ARCHIVE_MIGRATION,
   INBOX_RESOLUTION_MIGRATION,
+  INBOX_SNOOZE_MIGRATION,
 ]);

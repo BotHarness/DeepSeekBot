@@ -1160,6 +1160,7 @@ describe('DSH Bot Agent adapter', () => {
       'inbox_history',
       'inbox_list',
       'inbox_resolve',
+      'inbox_snooze',
       'inbox_ignore',
       'channel_attachment_open',
       'channel_attachment_save',

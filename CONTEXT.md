@@ -527,7 +527,7 @@ A Binding's choice for a conversation that has no entry yet: `auto` (Admit autom
 _Avoid_: whitelist, approval mode, auto-reply
 
 **Bot Inbox**:
-The PersonaBot-level view of Source Events admitted for its attention, whether or not an event belongs to a Channel. It is not a second content store: reading is an explicit act, and ignoring is allowed. An item addressed to the Bot is unread until a turn observes it, then open until the Orchestrator resolves it as done or ignored; finishing a turn resolves nothing (ADR-0188).
+The PersonaBot-level view of Source Events admitted for its attention, whether or not an event belongs to a Channel. It is not a second content store: reading is an explicit act, and ignoring is allowed. An admitted item is unread until a turn observes it, then open until the Orchestrator resolves it as done or ignored; finishing a turn resolves nothing. A snoozed item is open but hidden until its time, or until a new event arrives in the same conversation, and then wakes the Orchestrator (ADR-0188).
 _Avoid_: queue, mailbox, backlog
 
 **Inbox Admission**:
@@ -551,7 +551,7 @@ A versioned Host rule or authorization whose exact revision must participate in 
 _Avoid_: all bot state, model instruction, settings (bare)
 
 **Attention Decision**:
-An auditable PersonaBot fact that an Inbox Admission was observed, deferred, ignored, or handled; pending state is derived from these facts rather than stored as a delivery lifecycle. Observation records what actually reached the Bot, while handling follows successful completion of the turn that included it. For items addressed to the Bot, handling only opens them: the Orchestrator's explicit resolve, with outcome done or ignored and a note, is the decision that closes them. Observation is an internal audit/detail fact, not an additional primary Inbox status.
+An auditable PersonaBot fact that an Inbox Admission was observed, deferred, ignored, or handled; pending state is derived from these facts rather than stored as a delivery lifecycle. Observation records what actually reached the Bot, while handling follows successful completion of the turn that included it. Handling only opens an item: the Orchestrator's explicit resolve, with outcome done or ignored and a note, is the decision that closes them. Observation is an internal audit/detail fact, not an additional primary Inbox status.
 _Avoid_: mailbox status, Agent delivery state, consumed flag
 
 **Observation**:

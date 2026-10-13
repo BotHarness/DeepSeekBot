@@ -3542,6 +3542,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
           'deferred',
           'needs-repair',
           'open',
+          'snoozed',
           'handled',
         ].includes(String(state))
       )

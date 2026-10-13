@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import type { SQLInputValue } from 'node:sqlite';
 import type { ChannelStore } from '../channels/store.js';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
-import { OPEN_ADMISSION_SQL } from './attention.js';
+import { channelSql, conversationSql, OPEN_ADMISSION_SQL, SNOOZED_SQL } from './attention.js';
 
 export type InboxResolution = 'done' | 'ignored';
 
@@ -16,6 +16,7 @@ export interface InboxOpenFilter {
 }
 
 export interface InboxListInput extends InboxOpenFilter {
+  includeSnoozed?: boolean;
   limit?: number;
   cursor?: string;
 }
@@ -31,10 +32,12 @@ export interface InboxOpenGroup {
   oldestAt: string;
   latestAt: string;
   latest: string;
+  snoozedUntil?: string;
 }
 
 export interface InboxListPage {
   total: number;
+  snoozed: number;
   groups: InboxOpenGroup[];
   nextCursor?: string;
 }
@@ -51,10 +54,28 @@ export type InboxResolveOutcome =
   | { outcome: 'resolved'; resolved: string[]; alreadyResolved: string[] }
   | { outcome: 'confirm'; count: number; token: string; sample: string[] };
 
+export interface InboxSnoozeInput {
+  ids?: string[];
+  filter?: InboxOpenFilter;
+  until: string;
+  note?: string;
+  confirm?: string;
+}
+
+export type InboxSnoozeOutcome =
+  | {
+      outcome: 'snoozed';
+      snoozed: string[];
+      snoozedUntil: string;
+      items: Array<{ id: string; snoozedUntil: string }>;
+    }
+  | { outcome: 'confirm'; count: number; token: string; sample: string[] };
+
 export interface OrchestratorInboxTriage {
   current(): string[];
   list(input?: InboxListInput): InboxListPage;
   resolve(input: InboxResolveInput): InboxResolveOutcome;
+  snooze(input: InboxSnoozeInput): InboxSnoozeOutcome;
 }
 
 export interface InboxTriage {
@@ -64,6 +85,7 @@ export interface InboxTriage {
     sessionId: string;
     current: () => string[];
     changed: (channelId: string, messageId: string) => void;
+    snoozed: () => void;
   }): OrchestratorInboxTriage;
 }
 
@@ -76,20 +98,16 @@ interface OpenRow {
   conversation: string;
   created_at: string;
   body: string;
+  snoozed_until: string | null;
 }
 
 const MAX_GROUP_IDS = 20;
 const MAX_RESOLVE_IDS = 200;
 const MAX_FILTER_RESOLVE = 500;
+const MAX_SNOOZE_MS = 30 * 24 * 60 * 60 * 1000;
 
-const CHANNEL_SQL = `COALESCE(e.channel_id, (SELECT p.channel_id FROM channel_placements p
-  WHERE p.source_event_id = e.source_event_id ORDER BY p.channel_id LIMIT 1))`;
-const CONVERSATION_SQL = `CASE
-    WHEN e.assignment_session_id IS NOT NULL THEN 'assignment:' || e.assignment_session_id
-    WHEN ${CHANNEL_SQL} IS NOT NULL THEN 'channel:' || ${CHANNEL_SQL}
-    WHEN e.source_kind = 'schedule' THEN 'schedule:' || COALESCE(json_extract(e.payload_json, '$.schedule.id'), e.source_event_id)
-    ELSE 'event:' || e.source_event_id
-  END`;
+const CHANNEL_SQL = channelSql('e');
+const CONVERSATION_SQL = conversationSql('e');
 
 function oneLine(text: string, max: number): string {
   const flat = text.replace(/\s+/g, ' ').trim();
@@ -152,9 +170,9 @@ function filterPredicates(
   return { sql, values };
 }
 
-function confirmToken(botSlug: string, outcome: InboxResolution, ids: string[]): string {
+function confirmToken(botSlug: string, action: string, ids: string[]): string {
   return createHash('sha256')
-    .update(JSON.stringify({ botSlug, outcome, ids: [...ids].sort() }))
+    .update(JSON.stringify({ botSlug, action, ids: [...ids].sort() }))
     .digest('base64url')
     .slice(0, 24);
 }
@@ -182,18 +200,30 @@ export function createInboxTriage(
   channels: ChannelStore,
   now: () => Date = () => new Date(),
 ): InboxTriage {
-  const openRows = (botSlug: string, filter: InboxOpenFilter, name: string): OpenRow[] => {
+  const openRows = (
+    botSlug: string,
+    filter: InboxOpenFilter,
+    name: string,
+    snoozed: 'exclude' | 'include' | 'only' = 'exclude',
+  ): OpenRow[] => {
     const predicates = filterPredicates(name, filter);
+    const snoozeSql =
+      snoozed === 'exclude'
+        ? `AND NOT ${SNOOZED_SQL}`
+        : snoozed === 'only'
+          ? `AND ${SNOOZED_SQL}`
+          : '';
     return database.read(
       (db) =>
         db
           .prepare(`
         SELECT e.source_event_id, e.source_kind, ${CHANNEL_SQL} AS channel_id, e.message_id,
                e.assignment_session_id, ${CONVERSATION_SQL} AS conversation,
-               e.created_at, e.body
+               e.created_at, e.body,
+               CASE WHEN ${SNOOZED_SQL} THEN a.snoozed_until END AS snoozed_until
           FROM inbox_admissions a
           JOIN source_events e ON e.source_event_id = a.source_event_id
-         WHERE a.bot_slug = ? AND ${OPEN_ADMISSION_SQL}
+         WHERE a.bot_slug = ? AND ${OPEN_ADMISSION_SQL} ${snoozeSql}
            ${predicates.sql.map((predicate) => `AND ${predicate}`).join('\n')}
          ORDER BY e.created_at DESC, e.source_event_id DESC
       `)
@@ -225,6 +255,7 @@ export function createInboxTriage(
         oldestAt: row.created_at,
         latestAt: row.created_at,
         latest: oneLine(row.body, 160),
+        ...(row.snoozed_until === null ? {} : { snoozedUntil: row.snoozed_until }),
       });
     }
     return [...groups.values()].sort(
@@ -237,6 +268,7 @@ export function createInboxTriage(
   return {
     openSummary(botSlug, limit = 5) {
       const rows = openRows(botSlug, {}, 'inbox');
+      const snoozedCount = openRows(botSlug, {}, 'inbox', 'only').length;
       if (rows.length === 0) return '';
       const groups = group(rows);
       const lines = groups.slice(0, limit).map((entry) => {
@@ -249,15 +281,17 @@ export function createInboxTriage(
         const more = entry.count > 1 ? ` (+${entry.count - 1} more in this conversation)` : '';
         return `- [Source Event ${entry.ids[0]}] ${where}, ${entry.latestAt}: ${oneLine(entry.latest, 120)}${more}`;
       });
-      const rest =
-        groups.length > limit ? [`- …and ${groups.length - limit} more conversations.`] : [];
+      const rest = [
+        ...(groups.length > limit ? [`- …and ${groups.length - limit} more conversations.`] : []),
+        ...(snoozedCount > 0 ? [`- ${snoozedCount} more snoozed, hidden until they return.`] : []),
+      ];
       return [
         `[Open Inbox] ${rows.length} item${rows.length === 1 ? '' : 's'} you have seen but not resolved, newest conversations first. Review them with inbox_list; resolve finished ones with inbox_resolve.`,
         ...lines,
         ...rest,
       ].join('\n');
     },
-    access({ botSlug, sessionId, current, changed }) {
+    access({ botSlug, sessionId, current, changed, snoozed }) {
       const notify = (ids: string[]) => {
         if (ids.length === 0) return;
         const rows = database.read(
@@ -305,13 +339,61 @@ export function createInboxTriage(
         );
         notify(ids);
       };
+      const seen = (input: string[], name: string) => {
+        const ids = [...new Set(input)];
+        if (ids.length === 0 || ids.length > MAX_RESOLVE_IDS)
+          throw new Error(`${name}: pass 1–${MAX_RESOLVE_IDS} ids`);
+        const rows = database.read(
+          (db) =>
+            db
+              .prepare(
+                `SELECT source_event_id, attempt_state, opened_at, resolved_at
+                   FROM inbox_admissions
+                  WHERE bot_slug = ? AND source_event_id IN (${ids.map(() => '?').join(', ')})`,
+              )
+              .all(botSlug, ...ids) as unknown as Array<{
+              source_event_id: string;
+              attempt_state: string;
+              opened_at: string | null;
+              resolved_at: string | null;
+            }>,
+        );
+        const byId = new Map(rows.map((row) => [row.source_event_id, row]));
+        const inTurn = new Set(current());
+        const unseen = ids.filter((id) => {
+          const row = byId.get(id);
+          if (row === undefined) return true;
+          if (row.attempt_state === 'needs-repair') return true;
+          return row.opened_at === null && row.attempt_state !== 'handled' && !inTurn.has(id);
+        });
+        if (unseen.length > 0)
+          throw new Error(
+            `${name}: not actionable (missing, unseen or needing repair): ${unseen.join(', ')}`,
+          );
+        return { ids, byId };
+      };
+      const confirmation = (rows: OpenRow[], token: string) => ({
+        outcome: 'confirm' as const,
+        count: rows.length,
+        token,
+        sample: rows.slice(0, 5).map((row) => `${row.source_event_id}: ${oneLine(row.body, 100)}`),
+      });
       return {
         current,
         list(input = {}) {
           const limit = input.limit ?? 20;
           if (!Number.isSafeInteger(limit) || limit < 1 || limit > 50)
             throw new Error('inbox_list: limit must be 1–50');
-          const rows = openRows(botSlug, input, 'inbox_list');
+          const rows = openRows(
+            botSlug,
+            input,
+            'inbox_list',
+            input.includeSnoozed === true ? 'include' : 'exclude',
+          );
+          const snoozedCount =
+            input.includeSnoozed === true
+              ? rows.filter((row) => row.snoozed_until !== null).length
+              : openRows(botSlug, input, 'inbox_list', 'only').length;
           const groups = group(rows);
           const cursor = input.cursor === undefined ? undefined : decodeCursor(input.cursor);
           const start =
@@ -327,6 +409,7 @@ export function createInboxTriage(
           const last = page[page.length - 1];
           return {
             total: rows.length,
+            snoozed: snoozedCount,
             groups: page,
             ...(remaining.length > limit && last !== undefined
               ? { nextCursor: encodeCursor({ at: last.latestAt, conversation: last.conversation }) }
@@ -342,36 +425,7 @@ export function createInboxTriage(
           if (input.ids !== undefined && input.filter !== undefined)
             throw new Error('inbox_resolve: pass ids or a filter, not both');
           if (input.ids !== undefined) {
-            const ids = [...new Set(input.ids)];
-            if (ids.length === 0 || ids.length > MAX_RESOLVE_IDS)
-              throw new Error(`inbox_resolve: pass 1–${MAX_RESOLVE_IDS} ids`);
-            const rows = database.read(
-              (db) =>
-                db
-                  .prepare(
-                    `SELECT source_event_id, attempt_state, opened_at, resolved_at
-                       FROM inbox_admissions
-                      WHERE bot_slug = ? AND source_event_id IN (${ids.map(() => '?').join(', ')})`,
-                  )
-                  .all(botSlug, ...ids) as unknown as Array<{
-                  source_event_id: string;
-                  attempt_state: string;
-                  opened_at: string | null;
-                  resolved_at: string | null;
-                }>,
-            );
-            const byId = new Map(rows.map((row) => [row.source_event_id, row]));
-            const inTurn = new Set(current());
-            const unseen = ids.filter((id) => {
-              const row = byId.get(id);
-              if (row === undefined) return true;
-              if (row.attempt_state === 'needs-repair') return true;
-              return row.opened_at === null && row.attempt_state !== 'handled' && !inTurn.has(id);
-            });
-            if (unseen.length > 0)
-              throw new Error(
-                `inbox_resolve: not resolvable (missing, unseen or needing repair): ${unseen.join(', ')}`,
-              );
+            const { ids, byId } = seen(input.ids, 'inbox_resolve');
             const alreadyResolved = ids.filter((id) => byId.get(id)!.resolved_at !== null).sort();
             const resolved = ids.filter((id) => byId.get(id)!.resolved_at === null).sort();
             write(resolved, input.outcome, note);
@@ -385,18 +439,89 @@ export function createInboxTriage(
             );
           const ids = rows.map((row) => row.source_event_id);
           const token = confirmToken(botSlug, input.outcome, ids);
-          if (input.confirm !== token || ids.length === 0)
-            return {
-              outcome: 'confirm',
-              count: ids.length,
-              token,
-              sample: rows
-                .slice(0, 5)
-                .map((row) => `${row.source_event_id}: ${oneLine(row.body, 100)}`),
-            };
+          if (input.confirm !== token || ids.length === 0) return confirmation(rows, token);
           const resolved = [...ids].sort();
           write(resolved, input.outcome, note);
           return { outcome: 'resolved', resolved, alreadyResolved: [] };
+        },
+        snooze(input) {
+          const until = Date.parse(input.until);
+          const at = now().getTime();
+          if (Number.isNaN(until)) throw new Error('inbox_snooze: until must be an ISO timestamp');
+          if (until <= at) throw new Error('inbox_snooze: until must be in the future');
+          if (until - at > MAX_SNOOZE_MS)
+            throw new Error('inbox_snooze: until must be within 30 days');
+          const untilIso = new Date(until).toISOString();
+          const note = input.note?.trim();
+          if (note !== undefined && Array.from(note).length > 500)
+            throw new Error('inbox_snooze: note must be at most 500 characters');
+          if (input.ids !== undefined && input.filter !== undefined)
+            throw new Error('inbox_snooze: pass ids or a filter, not both');
+          let ids: string[];
+          if (input.ids !== undefined) {
+            const checked = seen(input.ids, 'inbox_snooze');
+            const resolved = checked.ids.filter((id) => checked.byId.get(id)!.resolved_at !== null);
+            if (resolved.length > 0)
+              throw new Error(`inbox_snooze: already resolved: ${resolved.join(', ')}`);
+            ids = checked.ids;
+          } else {
+            if (input.filter === undefined) throw new Error('inbox_snooze: pass ids or a filter');
+            const rows = openRows(botSlug, input.filter, 'inbox_snooze');
+            if (rows.length > MAX_FILTER_RESOLVE)
+              throw new Error(
+                `inbox_snooze: the filter matches ${rows.length} items; narrow it to at most ${MAX_FILTER_RESOLVE}`,
+              );
+            const matched = rows.map((row) => row.source_event_id);
+            const token = confirmToken(botSlug, `snooze:${untilIso}`, matched);
+            if (input.confirm !== token || matched.length === 0) return confirmation(rows, token);
+            ids = matched;
+          }
+          const stamp = new Date(at).toISOString();
+          const hidden = new Set(
+            openRows(botSlug, {}, 'inbox_snooze', 'only').map((row) => row.source_event_id),
+          );
+          const items = database.transaction(
+            (db) =>
+              [...ids].sort().map((id) => {
+                db.prepare(`
+                  UPDATE inbox_admissions
+                     SET snoozed_until = CASE
+                           WHEN ? = 1 AND snoozed_until > ? AND snoozed_until > ?
+                             THEN snoozed_until
+                           ELSE ? END,
+                         snoozed_at = ?,
+                         snooze_note = COALESCE(?, snooze_note)
+                   WHERE source_event_id = ? AND bot_slug = ? AND resolved_at IS NULL
+                `).run(
+                  hidden.has(id) ? 1 : 0,
+                  stamp,
+                  untilIso,
+                  untilIso,
+                  stamp,
+                  note ?? null,
+                  id,
+                  botSlug,
+                );
+                const row = db
+                  .prepare(
+                    'SELECT snoozed_until FROM inbox_admissions WHERE source_event_id = ? AND bot_slug = ?',
+                  )
+                  .get(id, botSlug) as { snoozed_until: string };
+                return { id, snoozedUntil: row.snoozed_until };
+              }),
+            ['bot-inbox'],
+          );
+          notify(ids);
+          snoozed();
+          return {
+            outcome: 'snoozed',
+            snoozed: items.map((item) => item.id),
+            snoozedUntil: items
+              .map((item) => item.snoozedUntil)
+              .sort()
+              .at(-1)!,
+            items,
+          };
         },
       };
     },

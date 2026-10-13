@@ -47,6 +47,7 @@ import {
   type InboxHistoryPage,
   type InboxHistoryQuery,
 } from './inbox-history.js';
+import { channelSql, OPEN_ADMISSION_SQL, SNOOZED_SQL } from './attention.js';
 import {
   createInboxTriage,
   type InboxTriage,
@@ -1120,6 +1121,7 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #steerSettlements = new Set<Promise<void>>();
   readonly #pendingHarvests = new Set<string>();
   readonly #digestTimers = new Map<string, NodeJS.Timeout>();
+  readonly #snoozeTimers = new Map<string, NodeJS.Timeout>();
   readonly #groupAdmissionRetries = new Map<string, NodeJS.Timeout>();
   readonly #digestRetryAt = new Map<string, number>();
   readonly #digestFailureCount = new Map<string, number>();
@@ -1207,6 +1209,123 @@ class BotRuntimeImplementation implements BotRuntime {
       }
       this.#recoverPendingDigests();
       this.#recoverPendingAssignmentReports();
+      for (const bot of this.#registry.list()) this.#armSnooze(bot.slug);
+    }
+  }
+
+  #armSnooze(botSlug: string): void {
+    const prior = this.#snoozeTimers.get(botSlug);
+    if (prior !== undefined) clearTimeout(prior);
+    this.#snoozeTimers.delete(botSlug);
+    const bot = this.#registry.get(botSlug);
+    if (this.#closed || bot === undefined) return;
+    const next = this.#database.read((database) =>
+      database
+        .prepare(`
+          SELECT MIN(snoozed_until) AS next FROM inbox_admissions
+           WHERE bot_slug = ? AND snoozed_until IS NOT NULL AND resolved_at IS NULL
+        `)
+        .get(botSlug),
+    ) as { next: string | null } | undefined;
+    if (next?.next == null) return;
+    const delay = Math.min(
+      2_147_483_647,
+      Math.max(bot.paused === true ? 60_000 : 1, Date.parse(next.next) - this.#now().getTime()),
+    );
+    const timer = setTimeout(() => {
+      this.#snoozeTimers.delete(botSlug);
+      if (this.#closed) return;
+      void this.#enqueue(botSlug, () => this.#runSnoozeReturnTurn(botSlug))
+        .finally(() => this.#armSnooze(botSlug))
+        .catch(() => undefined);
+    }, delay);
+    timer.unref();
+    this.#snoozeTimers.set(botSlug, timer);
+  }
+
+  async #runSnoozeReturnTurn(botSlug: string): Promise<void> {
+    if (this.#closed) return;
+    const bot = this.#registry.get(botSlug);
+    if (bot === undefined || bot.paused === true) return;
+    const timestamp = this.#now().toISOString();
+    const due = this.#database.transaction(
+      (database) => {
+        const rows = database
+          .prepare(`
+            SELECT a.source_event_id, a.snoozed_until, a.snooze_note, e.body,
+                   ${channelSql('e')} AS channel_id,
+                   CASE WHEN ${OPEN_ADMISSION_SQL} AND ${SNOOZED_SQL} THEN 1 ELSE 0 END AS hidden
+              FROM inbox_admissions a
+              JOIN source_events e ON e.source_event_id = a.source_event_id
+             WHERE a.bot_slug = ? AND a.snoozed_until IS NOT NULL AND a.snoozed_until <= ?
+               AND a.resolved_at IS NULL
+             ORDER BY a.snoozed_until, e.created_at
+          `)
+          .all(botSlug, timestamp) as unknown as Array<{
+          source_event_id: string;
+          snoozed_until: string;
+          snooze_note: string | null;
+          body: string;
+          channel_id: string | null;
+          hidden: number;
+        }>;
+        for (const row of rows)
+          database
+            .prepare(
+              'UPDATE inbox_admissions SET snoozed_until = NULL WHERE source_event_id = ? AND bot_slug = ?',
+            )
+            .run(row.source_event_id, botSlug);
+        return rows.filter((row) => row.hidden === 1);
+      },
+      ['bot-inbox'],
+    );
+    const anchor = due[0];
+    if (anchor === undefined) return;
+    const channelId = anchor.channel_id ?? this.#dmChannel(botSlug)?.id;
+    const body = [
+      `[Snooze returned] ${due.length} item${due.length === 1 ? '' : 's'} you snoozed ${due.length === 1 ? 'is' : 'are'} back. Decide what each needs now, then resolve it, act on it, or snooze it again.`,
+      ...due.map(
+        (row) =>
+          `- [Source Event ${row.source_event_id}] snoozed until ${row.snoozed_until}${row.snooze_note === null ? '' : `, note: ${JSON.stringify(row.snooze_note)}`}: ${JSON.stringify(row.body.replace(/\s+/g, ' ').slice(0, 300))}`,
+      ),
+    ].join('\n');
+    try {
+      const orchestrator = this.#ensureOrchestrator(bot, timestamp);
+      await this.#runOrchestratorTurn(
+        bot,
+        orchestrator,
+        anchor.source_event_id,
+        channelId,
+        body,
+        [],
+        false,
+        () => undefined,
+        [],
+        [],
+      );
+    } catch (error) {
+      const retryAt = new Date(this.#now().getTime() + 300_000).toISOString();
+      this.#database.transaction(
+        (database) => {
+          for (const row of due)
+            database
+              .prepare(`
+                UPDATE inbox_admissions SET snoozed_until = ?
+                 WHERE source_event_id = ? AND bot_slug = ? AND resolved_at IS NULL
+                   AND snoozed_until IS NULL
+              `)
+              .run(retryAt, row.source_event_id, botSlug);
+        },
+        ['bot-inbox'],
+      );
+      this.#warn?.(
+        JSON.stringify({
+          component: 'bot-runtime',
+          event: 'snooze-return-failed',
+          botSlug,
+          error: String(error).slice(0, 500),
+        }),
+      );
     }
   }
 
@@ -3299,6 +3418,8 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#typingAssignments.clear();
     for (const timer of this.#digestTimers.values()) clearTimeout(timer);
     this.#digestTimers.clear();
+    for (const timer of this.#snoozeTimers.values()) clearTimeout(timer);
+    this.#snoozeTimers.clear();
     for (const timer of this.#groupAdmissionRetries.values()) clearTimeout(timer);
     this.#groupAdmissionRetries.clear();
     this.#digestRetryAt.clear();
@@ -3706,6 +3827,7 @@ class BotRuntimeImplementation implements BotRuntime {
           current: () => [...turnSources, ...readAdmissions],
           changed: (changedChannelId, messageId) =>
             this.#channels.admissionChanged?.(changedChannelId, messageId),
+          snoozed: () => this.#armSnooze(bot.slug),
         }),
         channels: this.#channelAccess(
           bot.slug,
@@ -5996,7 +6118,7 @@ class BotRuntimeImplementation implements BotRuntime {
       activeCount,
       limit,
       retryable: true,
-      message: `Assignment Concurrency Limit ${limit} reached; retryable: true. Nothing was ${action}. Wait for active work to settle before retrying.`,
+      message: `Assignment Concurrency Limit ${limit} reached; retryable: true. Nothing was ${action}. Wait for active work to settle before retrying; keep the item that asked for this open, or snooze it with inbox_snooze until then, and do not resolve it.`,
     };
   }
 

@@ -24,7 +24,7 @@ An Inbox Admission is in one of three primary states:
 
 A snoozed item is open but hidden until it returns.
 
-A turn ending no longer resolves anything. It moves what the turn observed from unread to open. This applies uniformly to every source addressed to the Bot: Human and Bot DMs, Group mentions, Bot Schedule firings, Assignment reports and Host lifecycle notices. Ambient Group messages that do not mention the Bot and Memory change observations stay context: a successful turn still marks them handled, so they never crowd the open list. Group invitations and join requests keep their own pending decision on the Group and settle when the Bot answers them, so they never open either. Bot Self-Records keep being admitted already resolved (ADR-0154).
+A turn ending no longer resolves anything. It moves what the turn observed from unread to open. Which events enter the Bot Inbox, and which of them wake the Orchestrator, stays the job of the existing wake and source policies; this decision adds no second rule based on mentions or source kinds. Whatever a successful turn observed is open until the Bot decides, because a turn having run does not mean the matter is settled. Bot Self-Records keep being admitted already resolved (ADR-0154).
 
 The existing attempt state stays the execution fact (pending, running, retryable, needs repair, handled by a successful turn). Resolution is stored beside it on the Inbox Admission: when a turn first observed it, when and by which Orchestrator Session it was resolved, the outcome and the note. Admissions handled before this change are not reopened.
 
@@ -37,8 +37,12 @@ New Orchestrator tools:
   - `inbox_ignore` stays as the by-message-id shortcut for one Channel message, including one not yet observed; it records the same ignored outcome.
 - `inbox_snooze`: takes `ids[]` or a filter, `until` and `note`.
   - The item leaves the open list.
-  - At `until` it returns as unread and wakes the Orchestrator. It returns early if a new Source Event arrives in the same thread or Channel conversation.
-  - Re-snoozing never moves the return time earlier.
+  - At `until` it returns and wakes the Orchestrator. It returns early if a new Source Event arrives in the same Channel conversation or Assignment.
+  - Re-snoozing never moves the return time earlier, and a snooze is limited to 30 days.
+  - A filter uses the same count-then-confirm flow as `inbox_resolve`.
+  - The return wake is not a new Source Event. A Host timer runs one Orchestrator turn anchored on the earliest returning item, listing every item that came back with its note; the items stay open. If that turn fails, the items are snoozed again for five minutes. An item that already came back early returns silently.
+  - The Host arms the timer at startup and after every snooze, so a return due while the Host was down fires when it starts.
+  - A capacity refusal tells the Orchestrator to keep the triggering item open or snooze it, never to resolve it.
 
 Turn context:
 
