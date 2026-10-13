@@ -79,6 +79,7 @@ export function dialogPrimitives() {
       onClose,
       children,
       footer,
+      className,
     }: {
       open: boolean;
       title: string;
@@ -87,11 +88,12 @@ export function dialogPrimitives() {
       onClose(): void;
       children?: unknown;
       footer?: unknown;
+      className?: string;
     }) =>
       open
         ? createElement(
             'div',
-            { role: 'dialog', 'aria-label': title },
+            { role: 'dialog', 'aria-label': title, className },
             createElement('h2', null, title),
             description === undefined ? null : createElement('p', null, description),
             createElement('button', { type: 'button', 'aria-label': closeLabel, onClick: onClose }),

@@ -19,14 +19,41 @@ import { useDelayedSearch } from './delayed-search.js';
 import { Field, TextField } from './ds/field.js';
 import { FormDialog } from './ds/form-dialog.js';
 import { Note } from './ds/note.js';
+import { PanelDialog } from './ds/panel-dialog.js';
 import { color, radius, size, space, text } from './ds/tokens.stylex.js';
 import { humanLabel } from './actor-names.js';
 import type { BotHarnessTranslate } from './locale.js';
-import { Modal } from './modal.js';
 import { personaBotActivity } from './persona-activity.js';
 import type { BotSummary, ChannelSummary } from './store.js';
 
 const styles = stylex.create({
+  attentionHeading: {
+    margin: 0,
+    color: color.muted,
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+    fontWeight: text.strong,
+  },
+  attentionItem: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: space.x3,
+    paddingBlock: space.x2,
+  },
+  attentionName: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 0,
+    minWidth: '100px',
+    overflowWrap: 'anywhere',
+  },
+  attentionActions: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    gap: space.x3,
+    width: '100%',
+  },
   results: {
     display: 'flex',
     flexDirection: 'column',
@@ -244,90 +271,98 @@ function GroupAttentionModal({
     }
   };
   return (
-    <Modal
-      open
+    <PanelDialog
+      size="small"
+      scroll
       onClose={onClose}
       closeLabel={t('common.close')}
       title={t('members.attention.title')}
+      data={{ 'data-group-attention': '' }}
     >
-      <div className="bh-group-attention-modal">
-        <h3>{t('members.invites')}</h3>
-        {group.invitations?.length ? (
-          group.invitations.map((invitation) => (
-            <div className="bh-group-attention-item" key={invitation.id}>
-              <PersonaBotAvatar
-                t={t}
-                personaBotId={invitation.targetBotSlug}
-                name={memberName(bots, invitation.targetBotSlug)}
-                src={bots.find((bot) => bot.slug === invitation.targetBotSlug)?.avatar}
-                size={28}
-              />
-              <span className="bh-name">{memberName(bots, invitation.targetBotSlug)}</span>
-              <Tag tone="neutral">{invitationLabels[invitation.status]}</Tag>
-              {invitation.status === 'pending' ? (
+      <h3 {...stylex.props(styles.attentionHeading)}>{t('members.invites')}</h3>
+      {group.invitations?.length ? (
+        group.invitations.map((invitation) => (
+          <div
+            data-group-attention-item=""
+            {...stylex.props(styles.attentionItem)}
+            key={invitation.id}
+          >
+            <PersonaBotAvatar
+              t={t}
+              personaBotId={invitation.targetBotSlug}
+              name={memberName(bots, invitation.targetBotSlug)}
+              src={bots.find((bot) => bot.slug === invitation.targetBotSlug)?.avatar}
+              size={28}
+            />
+            <span {...stylex.props(styles.attentionName)}>
+              {memberName(bots, invitation.targetBotSlug)}
+            </span>
+            <Tag tone="neutral">{invitationLabels[invitation.status]}</Tag>
+            {invitation.status === 'pending' ? (
+              <button
+                type="button"
+                className="bh-group-manage-button"
+                disabled={busy}
+                onClick={() => void apply(actions.cancelGroupInvitation(group.id, invitation.id))}
+              >
+                {t('members.cancel')}
+              </button>
+            ) : null}
+          </div>
+        ))
+      ) : (
+        <Note>{t('members.attention.emptyInvites')}</Note>
+      )}
+      <h3 {...stylex.props(styles.attentionHeading)}>{t('members.joinRequests')}</h3>
+      {group.joinRequests?.length ? (
+        group.joinRequests.map((request) => (
+          <div
+            data-group-attention-item=""
+            {...stylex.props(styles.attentionItem)}
+            key={request.id}
+          >
+            <PersonaBotAvatar
+              t={t}
+              personaBotId={request.requesterBotSlug}
+              name={memberName(bots, request.requesterBotSlug)}
+              src={bots.find((bot) => bot.slug === request.requesterBotSlug)?.avatar}
+              size={28}
+            />
+            <span {...stylex.props(styles.attentionName)}>
+              {memberName(bots, request.requesterBotSlug)}
+            </span>
+            <Tag tone="neutral">
+              {request.status === 'pending'
+                ? t('members.joinPending')
+                : invitationLabels[request.status]}
+            </Tag>
+            {request.status === 'pending' ? (
+              <span {...stylex.props(styles.attentionActions)}>
                 <button
                   type="button"
                   className="bh-group-manage-button"
                   disabled={busy}
-                  onClick={() => void apply(actions.cancelGroupInvitation(group.id, invitation.id))}
+                  onClick={() => void apply(actions.decideGroupJoin(group.id, request.id, true))}
                 >
-                  {t('members.cancel')}
+                  {t('members.approve')}
                 </button>
-              ) : null}
-            </div>
-          ))
-        ) : (
-          <div className="bh-note">{t('members.attention.emptyInvites')}</div>
-        )}
-        <h3>{t('members.joinRequests')}</h3>
-        {group.joinRequests?.length ? (
-          group.joinRequests.map((request) => (
-            <div className="bh-group-attention-item" key={request.id}>
-              <PersonaBotAvatar
-                t={t}
-                personaBotId={request.requesterBotSlug}
-                name={memberName(bots, request.requesterBotSlug)}
-                src={bots.find((bot) => bot.slug === request.requesterBotSlug)?.avatar}
-                size={28}
-              />
-              <span className="bh-name">{memberName(bots, request.requesterBotSlug)}</span>
-              <Tag tone="neutral">
-                {request.status === 'pending'
-                  ? t('members.joinPending')
-                  : invitationLabels[request.status]}
-              </Tag>
-              {request.status === 'pending' ? (
-                <span className="bh-group-attention-actions">
-                  <button
-                    type="button"
-                    className="bh-group-manage-button"
-                    disabled={busy}
-                    onClick={() => void apply(actions.decideGroupJoin(group.id, request.id, true))}
-                  >
-                    {t('members.approve')}
-                  </button>
-                  <button
-                    type="button"
-                    className="bh-group-manage-button"
-                    disabled={busy}
-                    onClick={() => void apply(actions.decideGroupJoin(group.id, request.id, false))}
-                  >
-                    {t('members.reject')}
-                  </button>
-                </span>
-              ) : null}
-            </div>
-          ))
-        ) : (
-          <div className="bh-note">{t('members.attention.emptyRequests')}</div>
-        )}
-        {error ? (
-          <div className="bh-error" role="alert">
-            {t('members.error')}
+                <button
+                  type="button"
+                  className="bh-group-manage-button"
+                  disabled={busy}
+                  onClick={() => void apply(actions.decideGroupJoin(group.id, request.id, false))}
+                >
+                  {t('members.reject')}
+                </button>
+              </span>
+            ) : null}
           </div>
-        ) : null}
-      </div>
-    </Modal>
+        ))
+      ) : (
+        <Note>{t('members.attention.emptyRequests')}</Note>
+      )}
+      {error ? <Note tone="danger">{t('members.error')}</Note> : null}
+    </PanelDialog>
   );
 }
 

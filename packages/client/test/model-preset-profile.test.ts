@@ -255,7 +255,7 @@ describe('Model entry', () => {
     } as unknown as BridgeActions);
     expect(cards(host)).toContain('Inherit global');
     await openEditor(host);
-    expect(document.querySelector('.bh-model-preset-source')).toBeNull();
+    expect(document.querySelector('[data-model-preset-source]')).toBeNull();
 
     await choose('Main model', 'flash', 'Flash');
     await act(async () =>
@@ -382,11 +382,11 @@ describe('Model entry', () => {
     expect(cards(host)).toContain('Daily');
 
     await openEditor(host);
-    expect(document.querySelector('.bh-model-preset-source')?.textContent).toContain(
+    expect(document.querySelector('[data-model-preset-source]')?.textContent).toContain(
       'Using preset “Daily”',
     );
     await choose('Fill from a preset', 'dee', 'Deep');
-    expect(document.querySelector('.bh-model-preset-source')?.textContent).toContain(
+    expect(document.querySelector('[data-model-preset-source]')?.textContent).toContain(
       'Using preset “Deep”',
     );
     await act(async () => button('Save').click());
@@ -401,7 +401,9 @@ describe('Model entry', () => {
         .querySelector<HTMLButtonElement>('[aria-label="Main model · Reasoning effort"] button')!
         .click(),
     );
-    expect(document.querySelector('.bh-model-preset-source')?.textContent).toContain('No preset');
+    expect(document.querySelector('[data-model-preset-source]')?.textContent).toContain(
+      'No preset',
+    );
     await act(async () => button('Save').click());
     expect(setModelPlan).toHaveBeenCalledWith(
       'ada',

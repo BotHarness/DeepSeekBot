@@ -170,11 +170,8 @@ describe('client styles', () => {
     );
   });
 
-  it('keeps hidden-channel content inside the native Modal body box', () => {
-    expect(source).toMatch(/\.bh-hidden-manager \{[^}]*gap: 0;[^}]*min-width: 0/);
-    expect(source).toMatch(
-      /\.bh-hidden-manager > :last-child \{[^}]*gap: 8px;[^}]*margin-top: 12px/,
-    );
+  it('keeps hidden-channel rows inside the shared dialog body', () => {
+    expect(source).not.toContain('.bh-hidden-manager');
     expect(source).toMatch(/\.bh-hidden-search \{[^}]*box-sizing: border-box;[^}]*width: 100%/);
     expect(source).toMatch(
       /\.bh-hidden-row \{[^}]*box-sizing: border-box;[^}]*gap: 8px;[^}]*min-height: 40px;[^}]*padding: 2px 4px/,

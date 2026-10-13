@@ -1,8 +1,11 @@
 import { useId, useState, type ReactElement } from 'react';
 import { Button, Checkbox, Input, SegmentedTabs, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+import * as stylex from '@stylexjs/stylex';
 import { Combobox } from './combobox.js';
 import { MessagingHelp } from './messaging-help.js';
-import { Modal } from './modal.js';
+import { Field, TextAreaField, TextField } from './ds/field.js';
+import { FormDialog } from './ds/form-dialog.js';
+import { space } from './ds/tokens.stylex.js';
 import { PairingTable } from './pairing-table.js';
 import { BehaviorPermissionsPanel } from './behavior-permission-settings.js';
 import type { BehaviorPermission } from '../../../core/src/messaging/behavior-policy.js';
@@ -671,6 +674,20 @@ function RoleDetails({
   );
 }
 
+const roleStyles = stylex.create({
+  inline: {
+    display: 'inline-flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: space.x2,
+  },
+  choices: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: space.x4,
+  },
+});
+
 function RoleDialog({
   role,
   busy,
@@ -728,119 +745,123 @@ function RoleDialog({
     }
   };
   return (
-    <Modal
-      open
+    <FormDialog
+      size="standard"
+      title={t(role ? 'pairing.editRole' : 'pairing.createRole')}
+      labels={{ close: t('common.close'), cancel: t('common.cancel') }}
+      submitLabel={t(role ? 'pairing.saveRole' : 'pairing.createRole')}
+      onCancel={close}
       onClose={() => {
         if (!busy) close();
       }}
-      title={t(role ? 'pairing.editRole' : 'pairing.createRole')}
-      closeLabel={t('common.close')}
-      className="bh-sidebar-modal bh-pairing-role-modal"
-      contentClassName="bh-pairing-content"
-      footer={
-        <div className="bh-modal-footer">
-          <Button size="sm" variant="toolbar" disabled={busy} onClick={close}>
-            {t('common.cancel')}
-          </Button>
-          <Button
-            size="sm"
-            variant="primary"
-            disabled={busy || !name.trim() || !behavior.trim()}
-            onClick={() => void submit()}
-          >
-            {t(role ? 'pairing.saveRole' : 'pairing.createRole')}
-          </Button>
-        </div>
-      }
+      onSubmit={() => void submit()}
+      submitDisabled={!name.trim() || !behavior.trim()}
+      busy={busy}
+      error={failed ? t('pairing.error') : undefined}
     >
-      <fieldset disabled={busy} className="bh-im-role-form">
-        <label className="bh-im-field">
-          <span>{t('pairing.roleName')}</span>
-          <Input
-            data-modal-autofocus
-            value={name}
-            maxLength={80}
-            onChange={(event) => setName(event.target.value)}
-          />
-        </label>
-        <label className="bh-im-field">
-          <span className="bh-im-actions">
+      <TextField
+        label={t('pairing.roleName')}
+        initialFocus
+        value={name}
+        maxLength={80}
+        disabled={busy}
+        onChange={setName}
+      />
+      <TextAreaField
+        label={
+          <span {...stylex.props(roleStyles.inline)}>
             {t('pairing.behavior')}
             <MessagingHelp title={t('pairing.behavior')} text={t('pairing.policyLimit')} t={t} />
           </span>
-          <textarea
-            value={behavior}
-            maxLength={2000}
-            onChange={(event) => setBehavior(event.target.value)}
-          />
-        </label>
-        {role ? (
-          <fieldset className="bh-im-pairing-capabilities" disabled={busy}>
-            <legend>
-              <span className="bh-im-actions">
-                {t('pairing.roleCapabilities')}
-                <MessagingHelp
-                  title={t('pairing.roleCapabilities')}
-                  text={t('pairing.privateRoleApproval')}
-                  t={t}
-                />
-              </span>
-            </legend>
-            {(['approve', 'reject', 'review-pairing', 'save-rules'] as const).map((capability) => (
-              <Checkbox
-                key={capability}
-                label={t(labels[capability])}
-                checked={selected.includes(capability)}
-                disabled={busy}
-                onChange={(checked) =>
-                  setSelected((value) =>
-                    checked ? [...value, capability] : value.filter((item) => item !== capability),
-                  )
-                }
+        }
+        value={behavior}
+        maxLength={2000}
+        disabled={busy}
+        onChange={setBehavior}
+      />
+      {role ? (
+        <Field
+          group
+          label={
+            <span {...stylex.props(roleStyles.inline)}>
+              {t('pairing.roleCapabilities')}
+              <MessagingHelp
+                title={t('pairing.roleCapabilities')}
+                text={t('pairing.privateRoleApproval')}
+                t={t}
               />
-            ))}
-          </fieldset>
-        ) : (
-          <div className="bh-im-actions">
-            <Tag>{t('pairing.ordinary')}</Tag>
-            <MessagingHelp
-              title={t('pairing.createRole')}
-              text={t('pairing.managementAccess')}
-              t={t}
-            />
-          </div>
-        )}
-        {role ? (
-          <fieldset className="bh-im-pairing-capabilities" disabled={busy}>
-            <legend className="bh-im-actions">
+            </span>
+          }
+        >
+          {() => (
+            <div {...stylex.props(roleStyles.choices)}>
+              {(['approve', 'reject', 'review-pairing', 'save-rules'] as const).map(
+                (capability) => (
+                  <Checkbox
+                    key={capability}
+                    label={t(labels[capability])}
+                    checked={selected.includes(capability)}
+                    disabled={busy}
+                    onChange={(checked) =>
+                      setSelected((value) =>
+                        checked
+                          ? [...value, capability]
+                          : value.filter((item) => item !== capability),
+                      )
+                    }
+                  />
+                ),
+              )}
+            </div>
+          )}
+        </Field>
+      ) : (
+        <div {...stylex.props(roleStyles.inline)}>
+          <Tag>{t('pairing.ordinary')}</Tag>
+          <MessagingHelp
+            title={t('pairing.createRole')}
+            text={t('pairing.managementAccess')}
+            t={t}
+          />
+        </div>
+      )}
+      {role ? (
+        <Field
+          group
+          label={
+            <span {...stylex.props(roleStyles.inline)}>
               {t('pairing.delegable')}
               <MessagingHelp
                 title={t('pairing.delegable')}
                 text={t('pairing.delegationHelp')}
                 t={t}
               />
-            </legend>
-            {(['approve', 'reject', 'review-pairing', 'save-rules'] as const).map((capability) => (
-              <Checkbox
-                key={capability}
-                label={`${t('pairing.delegateAllow')} · ${t(labels[capability])}`}
-                checked={delegable.includes(capability)}
-                disabled={busy}
-                onChange={(checked) =>
-                  setDelegable((value) =>
-                    checked ? [...value, capability] : value.filter((item) => item !== capability),
-                  )
-                }
-              />
-            ))}
-          </fieldset>
-        ) : null}
-        {failed ? (
-          <p className="bh-error" role="alert">
-            {t('pairing.error')}
-          </p>
-        ) : null}
-      </fieldset>
-    </Modal>
+            </span>
+          }
+        >
+          {() => (
+            <div {...stylex.props(roleStyles.choices)}>
+              {(['approve', 'reject', 'review-pairing', 'save-rules'] as const).map(
+                (capability) => (
+                  <Checkbox
+                    key={capability}
+                    label={`${t('pairing.delegateAllow')} · ${t(labels[capability])}`}
+                    checked={delegable.includes(capability)}
+                    disabled={busy}
+                    onChange={(checked) =>
+                      setDelegable((value) =>
+                        checked
+                          ? [...value, capability]
+                          : value.filter((item) => item !== capability),
+                      )
+                    }
+                  />
+                ),
+              )}
+            </div>
+          )}
+        </Field>
+      ) : null}
+    </FormDialog>
   );
 }

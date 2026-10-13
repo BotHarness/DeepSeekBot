@@ -64,7 +64,7 @@ describe('Profile Avatar Appearance editing', () => {
     try {
       await render(base);
       const rows = () => [...container.querySelectorAll('.bh-avatar-methods > .bh-card-row')];
-      expect(container.querySelector('.bh-profile-section-title')?.textContent).toBe('头像');
+      expect(container.querySelector('section')?.getAttribute('aria-label')).toBe('头像');
       expect(rows().map((row) => row.querySelector('.bh-card-title')?.textContent)).toEqual([
         '设计像素头像',
         '上传图片',

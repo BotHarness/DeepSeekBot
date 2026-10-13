@@ -2,12 +2,12 @@ import { useMemo, type ReactElement } from 'react';
 
 import { Button, Input } from '@deepseek-ai/dsh-client-ui-primitives';
 
+import { PanelDialog } from './ds/panel-dialog.js';
 import { PersonaBotAvatar, type PersonaBotActivityState } from './avatar.js';
 import { isBotDmChannel } from './channel-kind.js';
 import { useDelayedSearch } from './delayed-search.js';
 import { HashIcon } from './hash-icon.js';
 import type { BotHarnessTranslate } from './locale.js';
-import { Modal } from './modal.js';
 import type { BotSummary, ChannelSummary } from './store.js';
 
 export interface HiddenChannelItem {
@@ -71,14 +71,13 @@ export function HiddenChannelsModal({
   );
 
   return (
-    <Modal
-      open
+    <PanelDialog
+      size="small"
       onClose={onClose}
       closeLabel={t('common.close')}
       title={t('hidden.modal.title')}
       description={t('hidden.modal.description')}
-      contentClassName="bh-hidden-manager"
-      footer={
+      actions={
         <Button variant="outline" onClick={onClose}>
           {t('common.close')}
         </Button>
@@ -141,6 +140,6 @@ export function HiddenChannelsModal({
           </div>
         ) : null}
       </div>
-    </Modal>
+    </PanelDialog>
   );
 }

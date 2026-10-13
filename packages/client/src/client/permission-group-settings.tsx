@@ -1,5 +1,6 @@
 import { useId, useState, type ReactElement } from 'react';
-import { Button, Checkbox, Input, SegmentedTabs, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Button, Checkbox, SegmentedTabs, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+import * as stylex from '@stylexjs/stylex';
 import type { ColumnDef } from '@tanstack/react-table';
 import type {
   ExternalPermissionGroup,
@@ -11,7 +12,10 @@ import type { SenderAccessInput } from '../../../core/src/messaging/sender-acces
 import type { BotHarnessTranslate } from './locale.js';
 import { Combobox } from './combobox.js';
 import { MessagingHelp } from './messaging-help.js';
-import { Modal } from './modal.js';
+import { TextField } from './ds/field.js';
+import { FormDialog } from './ds/form-dialog.js';
+import { Note } from './ds/note.js';
+import { PanelDialog } from './ds/panel-dialog.js';
 import { PairingTable } from './pairing-table.js';
 import {
   BehaviorSelection,
@@ -50,6 +54,10 @@ function choices(value: PermissionChoices) {
     delegateDeny: (value.delegateDeny ?? []).filter(editable),
   };
 }
+const groupStyles = stylex.create({
+  plain: { margin: 0 },
+});
+
 export type GroupBinding = { id: string; name: string };
 
 function PermissionEditor({
@@ -224,49 +232,32 @@ export function PersonPermissions({
         {t('pairing.personExceptions')}
       </Button>
       {editing ? (
-        <Modal
-          open
+        <FormDialog
+          size="standard"
+          title={t('pairing.personExceptions')}
+          labels={{ close: t('common.close'), cancel: t('common.cancel') }}
+          submitLabel={t('pairing.savePermissions')}
+          onCancel={() => setEditing(false)}
           onClose={() => {
             if (!busy) setEditing(false);
           }}
-          title={t('pairing.personExceptions')}
-          closeLabel={t('common.close')}
-          className="bh-sidebar-modal bh-pairing-role-modal"
-          contentClassName="bh-pairing-content"
-          footer={
-            <div className="bh-modal-footer">
-              <Button size="sm" variant="toolbar" disabled={busy} onClick={() => setEditing(false)}>
-                {t('common.cancel')}
-              </Button>
-              <Button
-                size="sm"
-                variant="primary"
-                disabled={busy}
-                onClick={() => {
-                  setFailed(false);
-                  void change({
-                    kind: 'person-permissions',
-                    id: request.id,
-                    expectedRevision: request.revision,
-                    ...choices(value),
-                  })
-                    .then(() => setEditing(false))
-                    .catch(() => setFailed(true));
-                }}
-              >
-                {t('pairing.savePermissions')}
-              </Button>
-            </div>
-          }
+          onSubmit={() => {
+            setFailed(false);
+            void change({
+              kind: 'person-permissions',
+              id: request.id,
+              expectedRevision: request.revision,
+              ...choices(value),
+            })
+              .then(() => setEditing(false))
+              .catch(() => setFailed(true));
+          }}
+          busy={busy}
+          error={failed ? t('pairing.error') : undefined}
         >
           <strong>{request.actorName ?? request.actorId}</strong>
           <PermissionEditor value={value} change={setValue} busy={busy} t={t} />
-          {failed ? (
-            <p role="alert" className="bh-error">
-              {t('pairing.error')}
-            </p>
-          ) : null}
-        </Modal>
+        </FormDialog>
       ) : null}
     </>
   );
@@ -358,47 +349,32 @@ export function GroupDetails({
         </div>
       ) : null}
       {deleting && change ? (
-        <Modal
-          open
+        <FormDialog
+          size="standard"
+          danger
+          title={t('pairing.deleteGroup')}
+          labels={{ close: t('common.close'), cancel: t('common.cancel') }}
+          submitLabel={t('pairing.deleteGroup')}
+          onCancel={() => setDeleting(false)}
           onClose={() => {
             if (!busy) setDeleting(false);
           }}
-          title={t('pairing.deleteGroup')}
-          closeLabel={t('common.close')}
-          className="bh-sidebar-modal bh-pairing-role-modal"
-          contentClassName="bh-pairing-content"
-          footer={
-            <div className="bh-modal-footer">
-              <Button
-                size="sm"
-                variant="toolbar"
-                disabled={busy}
-                onClick={() => setDeleting(false)}
-              >
-                {t('common.cancel')}
-              </Button>
-              <Button
-                size="sm"
-                variant="primary"
-                disabled={busy || deleteIncompatible}
-                onClick={() => {
-                  setDeleteFailed(false);
-                  void change({
-                    kind: 'delete-group',
-                    id: group.id,
-                    expectedRevision: group.revision,
-                  })
-                    .then(() => setDeleting(false))
-                    .catch(() => setDeleteFailed(true));
-                }}
-              >
-                {t('pairing.deleteGroup')}
-              </Button>
-            </div>
-          }
+          onSubmit={() => {
+            setDeleteFailed(false);
+            void change({
+              kind: 'delete-group',
+              id: group.id,
+              expectedRevision: group.revision,
+            })
+              .then(() => setDeleting(false))
+              .catch(() => setDeleteFailed(true));
+          }}
+          submitDisabled={deleteIncompatible}
+          busy={busy}
+          error={deleteFailed ? t('pairing.error') : undefined}
         >
           <strong>{group.name}</strong>
-          <p>{t('pairing.deleteGroupWarning')}</p>
+          <p {...stylex.props(groupStyles.plain)}>{t('pairing.deleteGroupWarning')}</p>
           <BehaviorCompatibility
             items={behaviorPermissions}
             groups={afterDeletion}
@@ -413,12 +389,7 @@ export function GroupDetails({
               t={t}
             />
           ) : null}
-          {deleteFailed ? (
-            <p role="alert" className="bh-error">
-              {t('pairing.error')}
-            </p>
-          ) : null}
-        </Modal>
+        </FormDialog>
       ) : null}
       {editing && change ? (
         <GroupDialog
@@ -542,41 +513,38 @@ export function GroupDialog({
     }
   };
   return (
-    <Modal
-      open
+    <PanelDialog
+      size="wide"
+      fill
       onClose={() => {
         if (!busy) close();
       }}
       title={t(group ? 'pairing.editGroup' : 'pairing.createGroup')}
       closeLabel={t('common.close')}
-      className="bh-sidebar-modal bh-pairing-modal bh-group-editor-modal"
-      contentClassName="bh-pairing-content bh-group-editor-content"
-      footer={
-        <div className="bh-modal-footer">
-          <Button size="sm" variant="toolbar" disabled={busy} onClick={close}>
+      data={{ 'data-pairing-panel': '', 'data-group-editor': '' }}
+      actions={
+        <>
+          <Button variant="outline" disabled={busy} onClick={close}>
             {t('common.cancel')}
           </Button>
           <Button
-            size="sm"
             variant="primary"
             disabled={busy || !name.trim() || !bindingId || members.length > 100 || incompatible}
             onClick={() => void submit()}
           >
             {t('pairing.saveGroup')}
           </Button>
-        </div>
+        </>
       }
     >
       <fieldset disabled={busy} className="bh-group-editor-header">
-        <label className="bh-im-field">
-          <span>{t('pairing.groupName')}</span>
-          <Input
-            data-modal-autofocus
-            value={name}
-            maxLength={80}
-            onChange={(event) => setName(event.target.value)}
-          />
-        </label>
+        <TextField
+          label={t('pairing.groupName')}
+          initialFocus
+          value={name}
+          maxLength={80}
+          onChange={setName}
+        />
         <Combobox
           label={t('pairing.account')}
           toggleLabel={t('pairing.account')}
@@ -676,11 +644,7 @@ export function GroupDialog({
           />
         </aside>
       </div>
-      {failed ? (
-        <p role="alert" className="bh-error">
-          {t('pairing.error')}
-        </p>
-      ) : null}
-    </Modal>
+      {failed ? <Note tone="danger">{t('pairing.error')}</Note> : null}
+    </PanelDialog>
   );
 }

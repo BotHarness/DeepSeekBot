@@ -6,6 +6,7 @@ import {
   SegmentedControl,
   Tag,
 } from '@deepseek-ai/dsh-client-ui-primitives';
+import * as stylex from '@stylexjs/stylex';
 
 import type { BridgeActions } from './actions.js';
 import type {
@@ -18,8 +19,10 @@ import type {
 } from './bridge.js';
 import { errorMessage } from './bridge.js';
 import { Combobox, type ComboboxOption } from './combobox.js';
+import { Note } from './ds/note.js';
+import { PanelDialog } from './ds/panel-dialog.js';
+import { color, space } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
-import { Modal } from './modal.js';
 import { ModelPicker } from './model-picker.js';
 import {
   invalidateModelPlan,
@@ -29,6 +32,26 @@ import {
 } from './model-plan-store.js';
 import { useMountedResource } from './mounted-resource.js';
 import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
+
+const styles = stylex.create({
+  source: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x3,
+    minWidth: 0,
+    paddingBottom: space.x4,
+    borderBottomWidth: '1px',
+    borderBottomStyle: 'solid',
+    borderBottomColor: color.border,
+  },
+  savePreset: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: space.x3,
+    minWidth: 0,
+  },
+  grow: { flexGrow: 1, minWidth: 0 },
+});
 
 export function routeLabel(route: ModelRouteView, defaultLabel: string): string {
   return `${route.model} · ${route.reasoningEffort ?? defaultLabel}`;
@@ -668,73 +691,74 @@ export function ModelPresetProfile({
       </SidebarCardList>
       {editorOpen ? null : messages}
       {editorOpen && (
-        <Modal
-          open
-          className="bh-model-editor-modal"
+        <PanelDialog
+          size="medium"
+          scroll
           onClose={() => setEditorOpen(false)}
           closeLabel={t('common.close')}
           title={t('modelPreset.title')}
-          footer={
-            <div className="bh-model-editor-footer">
-              <Button
-                variant="ghost"
-                disabled={!canSave || presetName !== undefined}
-                onClick={() => setPresetName('')}
-              >
-                {t('modelPreset.saveAs')}
-              </Button>
-              <span className="bh-model-editor-footer-gap" />
+          secondary={
+            <Button
+              variant="ghost"
+              disabled={!canSave || presetName !== undefined}
+              onClick={() => setPresetName('')}
+            >
+              {t('modelPreset.saveAs')}
+            </Button>
+          }
+          actions={
+            <>
               <Button variant="outline" disabled={busy} onClick={() => setEditorOpen(false)}>
                 {t('common.cancel')}
               </Button>
               <Button variant="primary" disabled={!canSave} onClick={() => void save()}>
                 {t('modelPreset.save')}
               </Button>
-            </div>
+            </>
           }
         >
-          <div className="bh-model-preset-editor">
-            {catalog === undefined ? (
-              <span className="bh-note">{t('modelPreset.loading')}</span>
-            ) : catalog.length === 0 || draft === undefined ? (
-              <span className="bh-note">{t('modelPreset.emptyCatalog')}</span>
-            ) : (
-              <>
-                {presets.length > 0 && (
-                  <div className="bh-model-preset-source">
-                    <Combobox
-                      value={draft.presetId}
-                      options={presetOptions}
-                      onSelect={(id) => {
-                        const preset = presets.find((item) => item.id === id);
-                        if (preset !== undefined) setDraft(draftOf(preset, preset.id));
-                      }}
-                      label={t('modelPreset.fromPreset')}
-                      toggleLabel={t('modelPreset.showPresets')}
-                      placeholder={t('modelPreset.fromPreset')}
-                      emptyLabel={t('modelPreset.noMatch')}
-                      disabled={busy}
-                    />
-                    <span className="bh-note">
-                      {currentPreset === undefined
-                        ? t('modelPreset.noPreset')
-                        : t('modelPreset.usingPreset', { name: currentPreset.name })}
-                    </span>
-                  </div>
-                )}
-                <ModelPicker
-                  title={t('modelPreset.orchestrator')}
-                  hint={t('modelPreset.orchestratorHint')}
-                  choice={draft.orchestrator}
-                  catalog={catalog}
-                  options={modelOptions}
-                  onChange={(orchestrator) => edit({ orchestrator })}
-                  disabled={busy}
-                  t={t}
-                />
-                {taskEditor}
-                {presetName !== undefined && (
-                  <div className="bh-model-save-preset">
+          {catalog === undefined ? (
+            <Note>{t('modelPreset.loading')}</Note>
+          ) : catalog.length === 0 || draft === undefined ? (
+            <Note>{t('modelPreset.emptyCatalog')}</Note>
+          ) : (
+            <>
+              {presets.length > 0 && (
+                <div data-model-preset-source="" {...stylex.props(styles.source)}>
+                  <Combobox
+                    value={draft.presetId}
+                    options={presetOptions}
+                    onSelect={(id) => {
+                      const preset = presets.find((item) => item.id === id);
+                      if (preset !== undefined) setDraft(draftOf(preset, preset.id));
+                    }}
+                    label={t('modelPreset.fromPreset')}
+                    toggleLabel={t('modelPreset.showPresets')}
+                    placeholder={t('modelPreset.fromPreset')}
+                    emptyLabel={t('modelPreset.noMatch')}
+                    disabled={busy}
+                  />
+                  <Note>
+                    {currentPreset === undefined
+                      ? t('modelPreset.noPreset')
+                      : t('modelPreset.usingPreset', { name: currentPreset.name })}
+                  </Note>
+                </div>
+              )}
+              <ModelPicker
+                title={t('modelPreset.orchestrator')}
+                hint={t('modelPreset.orchestratorHint')}
+                choice={draft.orchestrator}
+                catalog={catalog}
+                options={modelOptions}
+                onChange={(orchestrator) => edit({ orchestrator })}
+                disabled={busy}
+                t={t}
+              />
+              {taskEditor}
+              {presetName !== undefined && (
+                <div {...stylex.props(styles.savePreset)}>
+                  <span {...stylex.props(styles.grow)}>
                     <Input
                       aria-label={t('modelPreset.name')}
                       placeholder={t('modelPreset.name')}
@@ -747,27 +771,23 @@ export function ModelPresetProfile({
                           void saveAsPreset();
                       }}
                     />
-                    <Button
-                      variant="outline"
-                      disabled={!canSave || presetName.trim() === ''}
-                      onClick={() => void saveAsPreset()}
-                    >
-                      {t('modelPreset.savePreset')}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      disabled={busy}
-                      onClick={() => setPresetName(undefined)}
-                    >
-                      {t('common.cancel')}
-                    </Button>
-                  </div>
-                )}
-              </>
-            )}
-            {messages}
-          </div>
-        </Modal>
+                  </span>
+                  <Button
+                    variant="outline"
+                    disabled={!canSave || presetName.trim() === ''}
+                    onClick={() => void saveAsPreset()}
+                  >
+                    {t('modelPreset.savePreset')}
+                  </Button>
+                  <Button variant="ghost" disabled={busy} onClick={() => setPresetName(undefined)}>
+                    {t('common.cancel')}
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
+          {messages}
+        </PanelDialog>
       )}
     </div>
   );

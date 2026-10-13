@@ -825,11 +825,7 @@ export function AvatarAppearanceEditor({
     );
   };
   return (
-    <section
-      className="bh-profile-section bh-avatar-section"
-      aria-label={t('profile.avatar.section')}
-    >
-      <h2 className="bh-profile-section-title">{t('profile.avatar.section')}</h2>
+    <section aria-label={t('profile.avatar.section')}>
       <div className="bh-avatar-editor">
         <div className="bh-avatar-editor-preview" data-avatar-preview>
           <PersonaBotAvatar

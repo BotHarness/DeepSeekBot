@@ -18,9 +18,9 @@ import { BotZipShareButton } from './bot-zip.js';
 import { Field, TextField } from './ds/field.js';
 import { FormDialog } from './ds/form-dialog.js';
 import { Note } from './ds/note.js';
+import { PanelDialog } from './ds/panel-dialog.js';
 import { color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
-import { Modal } from './modal.js';
 import { BannerCropModal, PersonaBotAvatarCropModal } from './personabot-avatar-crop.js';
 import { botPrimaryColorOf } from './bot-primary-color.js';
 import { PrimaryColorModal } from './primary-color-editor.js';
@@ -296,12 +296,11 @@ function AvatarModal({
     setFailed(!updated);
   };
   return (
-    <Modal
-      open
+    <PanelDialog
+      size="medium"
       onClose={onClose}
       title={t('profile.avatar.section')}
       closeLabel={t('common.close')}
-      className="bh-profile-avatar-modal"
     >
       <div data-primary-color-source={primary.source} {...stylex.props(styles.colorRow)}>
         <span
@@ -371,7 +370,7 @@ function AvatarModal({
           }}
         />
       )}
-    </Modal>
+    </PanelDialog>
   );
 }
 

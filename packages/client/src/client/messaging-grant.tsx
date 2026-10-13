@@ -1,5 +1,9 @@
 import { externalPlatformLabel } from './bridge-source-label.js';
-import { Modal } from './modal.js';
+import * as stylex from '@stylexjs/stylex';
+import { DangerTextButton } from './ds/form-dialog.js';
+import { Note } from './ds/note.js';
+import { PanelDialog } from './ds/panel-dialog.js';
+import { space, text } from './ds/tokens.stylex.js';
 import { MessagingHelp } from './messaging-help.js';
 import type { OutboxIntent } from '../../../core/src/messaging/outbound.js';
 import { ThreadReceptionSettings } from './thread-reception-settings.js';
@@ -16,6 +20,18 @@ import { Combobox } from './combobox.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMessagingSnapshot } from './messaging-store.js';
 import { SidebarCardRow } from './sidebar-card.js';
+
+const grantStyles = stylex.create({
+  subject: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: space.x2,
+    margin: 0,
+    fontWeight: text.strong,
+    overflowWrap: 'anywhere',
+  },
+});
 
 export function MessagingGrantRow({
   slug,
@@ -158,39 +174,22 @@ export function MessagingGrantRow({
         }}
         trailing={<span ref={mount} hidden />}
       />
-      <Modal
-        open={open}
-        onClose={() => {
-          if (report !== undefined) setReport(undefined);
-          else setOpen(false);
-        }}
-        title={report ? t('im.reportTitle') : t('im.title')}
-        {...(report ? {} : { description: t('im.summary') })}
-        closeLabel={t('common.close')}
-        className={
-          report
-            ? 'bh-sidebar-modal bh-external-source-modal'
-            : 'bh-sidebar-modal bh-im-grant-modal'
-        }
-        footer={
-          <div className="bh-modal-footer">
-            {report ? (
-              <Button variant="outline" onClick={() => setReport(undefined)}>
-                {t('im.back')}
-              </Button>
-            ) : (
-              <>
-                <Button
-                  variant="outline"
-                  disabled={busy}
-                  onClick={() => void operate(async () => undefined)}
-                >
-                  {t('im.refresh')}
-                </Button>
-                {grant ? (
-                  <Button
-                    variant="outline"
-                    className="bh-im-danger-outline"
+      {open ? (
+        <PanelDialog
+          size={report ? 'medium' : 'small'}
+          onClose={() => {
+            if (report !== undefined) setReport(undefined);
+            else setOpen(false);
+          }}
+          title={report ? t('im.reportTitle') : t('im.title')}
+          {...(report ? {} : { description: t('im.summary') })}
+          closeLabel={t('common.close')}
+          {...(report ? {} : { data: { 'data-im-grant': '' } })}
+          {...(report || !grant
+            ? {}
+            : {
+                secondary: (
+                  <DangerTextButton
                     disabled={busy}
                     onClick={() =>
                       void operate(async () => {
@@ -199,333 +198,342 @@ export function MessagingGrantRow({
                     }
                   >
                     {t('im.revoke')}
-                  </Button>
-                ) : null}
-              </>
-            )}
-          </div>
-        }
-      >
-        {report ? null : (
-          <div className="bh-im-grant-body">
-            {failed ? (
-              <p className="bh-error" role="alert">
-                {t('im.error')}
-              </p>
-            ) : null}
-            {grant ? (
-              <p className="bh-sidebar-modal-subject">
-                {platformName} · {grant.targetName} · {grant.accountName}
-                {availability === undefined ? null : <Tag tone="neutral">{availability}</Tag>}
-              </p>
-            ) : null}
-            {snapshot === undefined ? (
-              <p>{t('im.loading')}</p>
-            ) : grant ? (
-              <>
-                {grant.channelBridge || grant.bridgeRoutes ? (
-                  <p>{t('bridge.managed')}</p>
-                ) : grant.canReceive === true || grant.receiveScope !== undefined ? (
-                  <>
-                    <div className="bh-im-field">
-                      <span className="bh-im-heading">
-                        <span>{t('im.localTarget')}</span>
-                        <MessagingHelp
-                          title={t('im.localTarget')}
-                          text={
-                            grant.receiveTargetChannelId
-                              ? t('im.channelTargetHint')
-                              : t(
-                                  grant.platform === 'weixin'
-                                    ? 'im.receiveHintDM'
-                                    : 'im.receiveHint',
-                                )
-                          }
-                          t={t}
-                        />
-                      </span>
-                      <Combobox
-                        label={t('im.localTarget')}
-                        toggleLabel={t('im.localTarget')}
-                        value={grant.receiveTargetChannelId ?? ''}
-                        fallbackValue=""
-                        disabled={busy || grant.platform === 'weixin'}
-                        onSelect={(value) => {
-                          const channelId = value || null;
-                          void operate(() =>
-                            actions.messagingChannelTarget(slug, grant.id, channelId),
-                          );
-                        }}
-                        options={[
-                          { value: '', label: t('im.inboxTarget') },
-                          ...(grant.receiveTargetChannelId &&
-                          !snapshot.channelTargets?.some(
-                            (target) => target.id === grant.receiveTargetChannelId,
-                          )
-                            ? [
-                                {
-                                  value: grant.receiveTargetChannelId,
-                                  label: t('im.targetUnavailable'),
-                                },
-                              ]
-                            : []),
-                          ...(snapshot.channelTargets ?? []).map((target) => ({
-                            value: target.id,
-                            label: target.name,
-                          })),
-                        ]}
-                      />
-                    </div>
-                    <p className="bh-im-status" role="status">
-                      {grant.platform === 'weixin'
-                        ? t(
-                            grant.reception === 'receiving'
-                              ? 'im.receptionDM'
-                              : 'im.receptionDMOff',
-                          )
-                        : t(`im.reception.${grant.reception ?? 'off'}`)}
-                    </p>
-                    {grant.receiveScope && grant.groupPolicy ? (
-                      <GroupReceptionSettings
-                        key={`${grant.id}:${grant.groupPolicy.revision}:${grant.groupPolicy.defaultRevision ?? 0}`}
-                        policy={grant.groupPolicy}
-                        verified={grant.ordinaryDelivery === 'verified'}
-                        busy={busy}
-                        t={t}
-                        save={(input) =>
-                          operate(() => actions.messagingGroupPolicy(slug, grant.id, input))
-                        }
-                      />
-                    ) : null}
-                    <Button
-                      size="sm"
-                      variant="primary"
-                      className={grant.receiveScope === undefined ? undefined : 'bh-im-danger'}
-                      disabled={
-                        busy ||
-                        (grant.receiveScope === undefined && grant.availability !== 'available')
-                      }
-                      onClick={() =>
-                        void operate(async () => {
-                          await actions.messagingReceive(
-                            slug,
-                            grant.id,
-                            grant.receiveScope === undefined,
-                          );
-                        })
-                      }
-                    >
-                      {t(
-                        grant.receiveScope === undefined
-                          ? grant.platform === 'weixin'
-                            ? 'im.receiveEnableDM'
-                            : 'im.receiveEnable'
-                          : grant.platform === 'weixin'
-                            ? 'im.receiveDisableDM'
-                            : 'im.receiveDisable',
-                      )}
-                    </Button>
-                  </>
-                ) : null}
-                {grant.threadPolicies?.length ? (
-                  <ThreadReceptionSettings
-                    policies={grant.threadPolicies}
-                    busy={busy}
-                    t={t}
-                    save={async (sourceEventId, input) => {
-                      let saved = false;
-                      await operate(async () => {
-                        await actions.messagingThreadPolicy(slug, sourceEventId, input);
-                        saved = true;
-                      });
-                      return saved;
-                    }}
-                  />
-                ) : null}
-                {grant.platform === 'weixin' && !grant.canPost ? (
-                  <p>{t('im.weixinReplyOnly')}</p>
-                ) : (
-                  <>
-                    {grant.platform === 'weixin' ? <p>{t('im.weixinProactive')}</p> : null}
-                    <label className="bh-im-field">
-                      <span>{t('im.message')}</span>
-                      <textarea
-                        aria-label={t('im.message')}
-                        value={text}
-                        maxLength={4000}
-                        disabled={busy}
-                        onChange={(event) => setText(event.target.value)}
-                      />
-                    </label>
-                    <Button
-                      size="sm"
-                      variant="primary"
-                      className="bh-im-submit"
-                      disabled={busy || !text.trim() || grant.availability !== 'available'}
-                      onClick={() => void send()}
-                    >
-                      {t('im.send')}
-                    </Button>
-                  </>
-                )}
-              </>
-            ) : snapshot.accounts.length === 0 ? (
-              <p>{t('im.setup')}</p>
+                  </DangerTextButton>
+                ),
+              })}
+          actions={
+            report ? (
+              <Button variant="outline" onClick={() => setReport(undefined)}>
+                {t('im.back')}
+              </Button>
             ) : (
-              <>
-                <label className="bh-im-field">
-                  <span>{t('im.account')}</span>
-                  <Combobox
-                    label={t('im.account')}
-                    toggleLabel={t('im.account')}
-                    placeholder={t('im.select')}
-                    value={accountKey}
-                    disabled={busy}
-                    onSelect={(value) => void chooseAccount(value)}
-                    options={snapshot.accounts
-                      .filter(
-                        (item) =>
-                          snapshot.identities === undefined ||
-                          snapshot.identities.some(
-                            (i) =>
-                              i.providerId === item.providerId &&
-                              i.accountRef === item.ref &&
-                              i.enabled,
-                          ),
-                      )
-                      .map((item) => ({
-                        value: `${item.providerId}:${item.ref}`,
-                        label: item.name,
-                        hint: externalPlatformLabel(item.platform, t),
-                        disabled: !item.connected,
-                      }))}
-                  />
-                </label>
-                <div className="bh-im-field">
-                  <span className="bh-im-heading">
-                    <span>{t('im.target')}</span>
-                    <MessagingHelp title={t('im.target')} text={t('im.grant')} t={t} />
-                  </span>
-                  <Combobox
-                    label={t('im.target')}
-                    toggleLabel={t('im.target')}
-                    placeholder={t('im.select')}
-                    value={targetRef}
-                    disabled={busy || !account}
-                    onSelect={setTargetRef}
-                    options={targets.map((item) => ({ value: item.ref, label: item.name }))}
-                  />
-                </div>
-                <Button
-                  size="sm"
-                  variant="primary"
-                  className="bh-im-submit"
-                  disabled={busy || !account || !targetRef}
-                  onClick={() => void authorize()}
-                >
-                  {t('im.authorize')}
-                </Button>
-              </>
-            )}
-            {snapshot?.intents.length ? (
-              <section className="bh-im-history" aria-label={t('im.history')}>
-                <strong>{t('im.history')}</strong>
-                {snapshot.intents.slice(0, 5).map((intent) => (
-                  <div key={intent.id} className="bh-im-outcome">
-                    <Tag tone="neutral">{stateLabel(intent.state)}</Tag>
-                    {intent.report || intent.reply ? (
+              <Button
+                variant="outline"
+                disabled={busy}
+                onClick={() => void operate(async () => undefined)}
+              >
+                {t('im.refresh')}
+              </Button>
+            )
+          }
+        >
+          {report ? null : (
+            <>
+              {failed ? <Note tone="danger">{t('im.error')}</Note> : null}
+              {grant ? (
+                <p {...stylex.props(grantStyles.subject)}>
+                  {platformName} · {grant.targetName} · {grant.accountName}
+                  {availability === undefined ? null : <Tag tone="neutral">{availability}</Tag>}
+                </p>
+              ) : null}
+              {snapshot === undefined ? (
+                <p>{t('im.loading')}</p>
+              ) : grant ? (
+                <>
+                  {grant.channelBridge || grant.bridgeRoutes ? (
+                    <p>{t('bridge.managed')}</p>
+                  ) : grant.canReceive === true || grant.receiveScope !== undefined ? (
+                    <>
+                      <div className="bh-im-field">
+                        <span className="bh-im-heading">
+                          <span>{t('im.localTarget')}</span>
+                          <MessagingHelp
+                            title={t('im.localTarget')}
+                            text={
+                              grant.receiveTargetChannelId
+                                ? t('im.channelTargetHint')
+                                : t(
+                                    grant.platform === 'weixin'
+                                      ? 'im.receiveHintDM'
+                                      : 'im.receiveHint',
+                                  )
+                            }
+                            t={t}
+                          />
+                        </span>
+                        <Combobox
+                          label={t('im.localTarget')}
+                          toggleLabel={t('im.localTarget')}
+                          value={grant.receiveTargetChannelId ?? ''}
+                          fallbackValue=""
+                          disabled={busy || grant.platform === 'weixin'}
+                          onSelect={(value) => {
+                            const channelId = value || null;
+                            void operate(() =>
+                              actions.messagingChannelTarget(slug, grant.id, channelId),
+                            );
+                          }}
+                          options={[
+                            { value: '', label: t('im.inboxTarget') },
+                            ...(grant.receiveTargetChannelId &&
+                            !snapshot.channelTargets?.some(
+                              (target) => target.id === grant.receiveTargetChannelId,
+                            )
+                              ? [
+                                  {
+                                    value: grant.receiveTargetChannelId,
+                                    label: t('im.targetUnavailable'),
+                                  },
+                                ]
+                              : []),
+                            ...(snapshot.channelTargets ?? []).map((target) => ({
+                              value: target.id,
+                              label: target.name,
+                            })),
+                          ]}
+                        />
+                      </div>
+                      <p className="bh-im-status" role="status">
+                        {grant.platform === 'weixin'
+                          ? t(
+                              grant.reception === 'receiving'
+                                ? 'im.receptionDM'
+                                : 'im.receptionDMOff',
+                            )
+                          : t(`im.reception.${grant.reception ?? 'off'}`)}
+                      </p>
+                      {grant.receiveScope && grant.groupPolicy ? (
+                        <GroupReceptionSettings
+                          key={`${grant.id}:${grant.groupPolicy.revision}:${grant.groupPolicy.defaultRevision ?? 0}`}
+                          policy={grant.groupPolicy}
+                          verified={grant.ordinaryDelivery === 'verified'}
+                          busy={busy}
+                          t={t}
+                          save={(input) =>
+                            operate(() => actions.messagingGroupPolicy(slug, grant.id, input))
+                          }
+                        />
+                      ) : null}
                       <Button
-                        type="button"
-                        variant="outline"
-                        aria-label={t(intent.reply ? 'im.inspectReply' : 'im.inspectReport', {
-                          name: (intent.reply ?? intent.report)!.targetName,
-                        })}
-                        onClick={() => setReport(intent)}
+                        size="sm"
+                        variant="primary"
+                        className={grant.receiveScope === undefined ? undefined : 'bh-im-danger'}
+                        disabled={
+                          busy ||
+                          (grant.receiveScope === undefined && grant.availability !== 'available')
+                        }
+                        onClick={() =>
+                          void operate(async () => {
+                            await actions.messagingReceive(
+                              slug,
+                              grant.id,
+                              grant.receiveScope === undefined,
+                            );
+                          })
+                        }
                       >
-                        {intent.text.slice(0, 100)}
-                        {intent.text.length > 100 ? '…' : ''}
+                        {t(
+                          grant.receiveScope === undefined
+                            ? grant.platform === 'weixin'
+                              ? 'im.receiveEnableDM'
+                              : 'im.receiveEnable'
+                            : grant.platform === 'weixin'
+                              ? 'im.receiveDisableDM'
+                              : 'im.receiveDisable',
+                        )}
                       </Button>
-                    ) : (
-                      <span>{intent.text}</span>
-                    )}
-                    {intent.state === 'unknown-outcome' ? <p>{t('im.noRetry')}</p> : null}
+                    </>
+                  ) : null}
+                  {grant.threadPolicies?.length ? (
+                    <ThreadReceptionSettings
+                      policies={grant.threadPolicies}
+                      busy={busy}
+                      t={t}
+                      save={async (sourceEventId, input) => {
+                        let saved = false;
+                        await operate(async () => {
+                          await actions.messagingThreadPolicy(slug, sourceEventId, input);
+                          saved = true;
+                        });
+                        return saved;
+                      }}
+                    />
+                  ) : null}
+                  {grant.platform === 'weixin' && !grant.canPost ? (
+                    <p>{t('im.weixinReplyOnly')}</p>
+                  ) : (
+                    <>
+                      {grant.platform === 'weixin' ? <p>{t('im.weixinProactive')}</p> : null}
+                      <label className="bh-im-field">
+                        <span>{t('im.message')}</span>
+                        <textarea
+                          aria-label={t('im.message')}
+                          value={text}
+                          maxLength={4000}
+                          disabled={busy}
+                          onChange={(event) => setText(event.target.value)}
+                        />
+                      </label>
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        className="bh-im-submit"
+                        disabled={busy || !text.trim() || grant.availability !== 'available'}
+                        onClick={() => void send()}
+                      >
+                        {t('im.send')}
+                      </Button>
+                    </>
+                  )}
+                </>
+              ) : snapshot.accounts.length === 0 ? (
+                <p>{t('im.setup')}</p>
+              ) : (
+                <>
+                  <label className="bh-im-field">
+                    <span>{t('im.account')}</span>
+                    <Combobox
+                      label={t('im.account')}
+                      toggleLabel={t('im.account')}
+                      placeholder={t('im.select')}
+                      value={accountKey}
+                      disabled={busy}
+                      onSelect={(value) => void chooseAccount(value)}
+                      options={snapshot.accounts
+                        .filter(
+                          (item) =>
+                            snapshot.identities === undefined ||
+                            snapshot.identities.some(
+                              (i) =>
+                                i.providerId === item.providerId &&
+                                i.accountRef === item.ref &&
+                                i.enabled,
+                            ),
+                        )
+                        .map((item) => ({
+                          value: `${item.providerId}:${item.ref}`,
+                          label: item.name,
+                          hint: externalPlatformLabel(item.platform, t),
+                          disabled: !item.connected,
+                        }))}
+                    />
+                  </label>
+                  <div className="bh-im-field">
+                    <span className="bh-im-heading">
+                      <span>{t('im.target')}</span>
+                      <MessagingHelp title={t('im.target')} text={t('im.grant')} t={t} />
+                    </span>
+                    <Combobox
+                      label={t('im.target')}
+                      toggleLabel={t('im.target')}
+                      placeholder={t('im.select')}
+                      value={targetRef}
+                      disabled={busy || !account}
+                      onSelect={setTargetRef}
+                      options={targets.map((item) => ({ value: item.ref, label: item.name }))}
+                    />
                   </div>
-                ))}
-              </section>
-            ) : null}
-          </div>
-        )}
-        {report ? (
-          <div className="bh-external-source-content">
-            <header className="bh-external-route">
-              <div className="bh-external-route-head">
-                <span className="bh-external-platform">
-                  {origin ? externalPlatformLabel(origin.platform, t) : ''}
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    className="bh-im-submit"
+                    disabled={busy || !account || !targetRef}
+                    onClick={() => void authorize()}
+                  >
+                    {t('im.authorize')}
+                  </Button>
+                </>
+              )}
+              {snapshot?.intents.length ? (
+                <section className="bh-im-history" aria-label={t('im.history')}>
+                  <strong>{t('im.history')}</strong>
+                  {snapshot.intents.slice(0, 5).map((intent) => (
+                    <div key={intent.id} className="bh-im-outcome">
+                      <Tag tone="neutral">{stateLabel(intent.state)}</Tag>
+                      {intent.report || intent.reply ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          aria-label={t(intent.reply ? 'im.inspectReply' : 'im.inspectReport', {
+                            name: (intent.reply ?? intent.report)!.targetName,
+                          })}
+                          onClick={() => setReport(intent)}
+                        >
+                          {intent.text.slice(0, 100)}
+                          {intent.text.length > 100 ? '…' : ''}
+                        </Button>
+                      ) : (
+                        <span>{intent.text}</span>
+                      )}
+                      {intent.state === 'unknown-outcome' ? <p>{t('im.noRetry')}</p> : null}
+                    </div>
+                  ))}
+                </section>
+              ) : null}
+            </>
+          )}
+          {report ? (
+            <div className="bh-external-source-content">
+              <header className="bh-external-route">
+                <div className="bh-external-route-head">
+                  <span className="bh-external-platform">
+                    {origin ? externalPlatformLabel(origin.platform, t) : ''}
+                  </span>
+                  <Tag tone="neutral">{stateLabel(report.state)}</Tag>
+                </div>
+                <strong>{origin?.targetName}</strong>
+                <span>{t('im.sentAs', { name: origin?.accountName ?? report.botSlug })}</span>
+                <p className="bh-external-context-hint">{t('im.externalOnly')}</p>
+              </header>
+              <article className="bh-external-message">
+                <span className="bh-external-avatar" aria-hidden="true">
+                  ↗
                 </span>
-                <Tag tone="neutral">{stateLabel(report.state)}</Tag>
-              </div>
-              <strong>{origin?.targetName}</strong>
-              <span>{t('im.sentAs', { name: origin?.accountName ?? report.botSlug })}</span>
-              <p className="bh-external-context-hint">{t('im.externalOnly')}</p>
-            </header>
-            <article className="bh-external-message">
-              <span className="bh-external-avatar" aria-hidden="true">
-                ↗
-              </span>
-              <div className="bh-external-message-main">
-                <header className="bh-external-message-head">
-                  <strong>{origin?.accountName}</strong>
-                  <time dateTime={report.createdAt}>
-                    {new Date(report.createdAt).toLocaleString()}
-                  </time>
-                </header>
-                <div className="bh-external-message-text">{report.text}</div>
-              </div>
-            </article>
-            {report.state === 'unknown-outcome' ? (
-              <p className="bh-external-notice">{t('im.noRetry')}</p>
-            ) : null}
-            {report.reason === 'private-context-unavailable' ||
-            report.reason === 'private-context-rejected' ? (
-              <p className="bh-external-context-hint">{t('im.weixinContextRequired')}</p>
-            ) : null}
-            {report.echo ? <p>{t('im.echoConfirmed')}</p> : null}
-            <details className="bh-external-details">
-              <summary>{t('im.originDetails')}</summary>
-              <div className="bh-external-detail-body">
-                <p>
-                  {t('im.outboxId')}: {report.id}
-                </p>
-                <p>
-                  {t('im.externalMessageId')}:{' '}
-                  {report.receipt?.identityKind === 'client-acknowledgement'
-                    ? (report.receipt.serverMessageId ?? t('im.notAvailable'))
-                    : (report.receipt?.messageId ?? t('im.notAvailable'))}
-                </p>
-                {report.receipt?.identityKind === 'client-acknowledgement' ? (
+                <div className="bh-external-message-main">
+                  <header className="bh-external-message-head">
+                    <strong>{origin?.accountName}</strong>
+                    <time dateTime={report.createdAt}>
+                      {new Date(report.createdAt).toLocaleString()}
+                    </time>
+                  </header>
+                  <div className="bh-external-message-text">{report.text}</div>
+                </div>
+              </article>
+              {report.state === 'unknown-outcome' ? (
+                <p className="bh-external-notice">{t('im.noRetry')}</p>
+              ) : null}
+              {report.reason === 'private-context-unavailable' ||
+              report.reason === 'private-context-rejected' ? (
+                <p className="bh-external-context-hint">{t('im.weixinContextRequired')}</p>
+              ) : null}
+              {report.echo ? <p>{t('im.echoConfirmed')}</p> : null}
+              <details className="bh-external-details">
+                <summary>{t('im.originDetails')}</summary>
+                <div className="bh-external-detail-body">
                   <p>
-                    {t('im.clientAcknowledgement')}: {report.receipt.messageId}
+                    {t('im.outboxId')}: {report.id}
                   </p>
-                ) : null}
-                <p>
-                  {t('im.conversationId')}: {origin?.conversationId}
-                </p>
-                {report.sourceEventId ? (
                   <p>
-                    {t('im.sourceEventId')}: {report.sourceEventId}
+                    {t('im.externalMessageId')}:{' '}
+                    {report.receipt?.identityKind === 'client-acknowledgement'
+                      ? (report.receipt.serverMessageId ?? t('im.notAvailable'))
+                      : (report.receipt?.messageId ?? t('im.notAvailable'))}
                   </p>
-                ) : null}
-                {report.reply?.route.threadId ? (
+                  {report.receipt?.identityKind === 'client-acknowledgement' ? (
+                    <p>
+                      {t('im.clientAcknowledgement')}: {report.receipt.messageId}
+                    </p>
+                  ) : null}
                   <p>
-                    {t('im.threadId')}: {report.reply.route.threadId}
+                    {t('im.conversationId')}: {origin?.conversationId}
                   </p>
-                ) : null}
-                {report.reason ? <p>{report.reason}</p> : null}
-              </div>
-            </details>
-          </div>
-        ) : null}
-      </Modal>
+                  {report.sourceEventId ? (
+                    <p>
+                      {t('im.sourceEventId')}: {report.sourceEventId}
+                    </p>
+                  ) : null}
+                  {report.reply?.route.threadId ? (
+                    <p>
+                      {t('im.threadId')}: {report.reply.route.threadId}
+                    </p>
+                  ) : null}
+                  {report.reason ? <p>{report.reason}</p> : null}
+                </div>
+              </details>
+            </div>
+          ) : null}
+        </PanelDialog>
+      ) : null}
     </>
   );
 }

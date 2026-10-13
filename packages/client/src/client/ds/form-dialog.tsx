@@ -8,6 +8,7 @@ import { color, dialog, space, text } from './tokens.stylex.js';
 const styles = stylex.create({
   small: { width: dialog.small, maxWidth: '100%' },
   standard: { width: dialog.standard, maxWidth: '100%' },
+  medium: { width: dialog.medium, maxWidth: '100%' },
   wide: { width: dialog.wide, maxWidth: '100%' },
   form: {
     display: 'flex',
@@ -47,7 +48,7 @@ const styles = stylex.create({
   },
 });
 
-export type DialogSize = 'small' | 'standard' | 'wide';
+export type DialogSize = 'small' | 'standard' | 'medium' | 'wide';
 
 export interface DialogLabels {
   readonly close: string;

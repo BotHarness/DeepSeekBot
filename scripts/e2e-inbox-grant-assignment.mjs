@@ -227,9 +227,9 @@ try {
     await shot('grant-dark');
     await theme(false);
     await click('.bh-human-inbox-reply button', '选择文件夹并授权');
-    await page.waitForSelector('.bh-folder-browser');
+    await page.waitForSelector('[data-folder-browser]');
     const initialFolder = await page.$eval(
-      '.bh-folder-browser-crumb[aria-current="location"]',
+      '[data-folder-browser-crumb][aria-current="location"]',
       (node) => node.textContent,
     );
     const folderName = 'InboxActionQA-' + stamp;
@@ -240,23 +240,23 @@ try {
       'QA release plan: route is chosen by the Human.\n',
     );
     if (initialFolder !== basename(userHome)) {
-      await click('.bh-folder-browser-crumb', basename(userHome));
+      await click('[data-folder-browser-crumb]', basename(userHome));
     }
     await click('.bh-human-inbox-reply button', '刷新上下文').catch(() => undefined);
-    if (!(await page.$('.bh-folder-browser'))) {
+    if (!(await page.$('[data-folder-browser]'))) {
       await click('.bh-human-inbox-reply button', '选择文件夹并授权');
-      await page.waitForSelector('.bh-folder-browser');
+      await page.waitForSelector('[data-folder-browser]');
     }
-    await click('.bh-folder-browser-item', folderName);
+    await click('[data-folder-browser-item]', folderName);
     await page.waitForFunction(
       (name) =>
-        document.querySelector('.bh-folder-browser-crumb[aria-current="location"]')?.textContent ===
-        name,
+        document.querySelector('[data-folder-browser-crumb][aria-current="location"]')
+          ?.textContent === name,
       {},
       folderName,
     );
     await shot('folder-picker');
-    await click('.bh-folder-browser button', '授权此工作区');
+    await click('[role="dialog"]:has([data-folder-browser]) button', '授权此工作区');
     const approved = await waitFor(
       async () =>
         (await rpc('channelMessages', { channelId: grant.dm.id })).messages.find(

@@ -12,7 +12,7 @@ import type { BotHarnessTranslate } from './locale.js';
 import type { WindowCompanions } from './window-companions.js';
 import { ModelPresetProfile } from './model-preset-profile.js';
 import { modelPlanOf, rememberModelPlan, subscribeModelPlans } from './model-plan-store.js';
-import { Modal } from './modal.js';
+import { PanelDialog } from './ds/panel-dialog.js';
 import { useMountedResource } from './mounted-resource.js';
 import { WorkspaceGrantsEntry } from './workspace-grants-entry.js';
 import {
@@ -311,8 +311,9 @@ function DmComposerContextView({
         />
       ) : null}
       {panel === undefined ? null : (
-        <Modal
-          open
+        <PanelDialog
+          size="standard"
+          fill
           title={`${t(panel === 'model' ? 'entry.model' : 'entry.workspaceGrants')} · ${bot.displayName}`}
           closeLabel={t('approval.cancel')}
           onClose={onClose}
@@ -330,7 +331,7 @@ function DmComposerContextView({
               composerOnly
             />
           )}
-        </Modal>
+        </PanelDialog>
       )}
     </>
   );

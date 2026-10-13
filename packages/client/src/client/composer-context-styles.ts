@@ -1,6 +1,4 @@
 export const COMPOSER_CONTEXT_CSS = `
-.bh-group-grant-modal.bh-group-grant-modal {max-width:calc(100vw - 32px);max-height:calc(100dvh - 32px);}
-.bh-group-grant-content {min-height:0;overflow-y:auto;max-height:calc(100dvh - 32px);}
 .bh-group-grant-members {display:flex;flex-wrap:wrap;gap:8px;padding:0;border:0;min-width:0;}
 .bh-group-grant-members legend {padding:0;margin-bottom:8px;font-weight:500;}
 .bh-group-grant-members label {display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--dsw-alias-border-l2);border-radius:8px;overflow-wrap:anywhere;cursor:pointer;}

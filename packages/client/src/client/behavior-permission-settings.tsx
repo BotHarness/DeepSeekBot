@@ -3,7 +3,6 @@ import {
   Button,
   Checkbox,
   IconChevronDownOutlineRegular,
-  Input,
   Tag,
 } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { ColumnDef } from '@tanstack/react-table';
@@ -20,7 +19,9 @@ import type { PairingRequest } from '../../../core/src/messaging/pairing.js';
 import type { SenderAccessInput } from '../../../core/src/messaging/sender-access.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { PairingTable } from './pairing-table.js';
-import { Modal } from './modal.js';
+import { TextAreaField, TextField } from './ds/field.js';
+import { Note } from './ds/note.js';
+import { PanelDialog } from './ds/panel-dialog.js';
 import { MessagingHelp } from './messaging-help.js';
 
 export function configuredBehaviorConflicts(
@@ -483,22 +484,21 @@ function BehaviorPermissionDialog({
     : items;
   const incompatible = configuredBehaviorConflicts(proposed, groups, people).length > 0;
   return (
-    <Modal
-      open
+    <PanelDialog
+      size="wide"
+      fill
       onClose={() => {
         if (!busy) close();
       }}
       title={t(item ? 'pairing.editBehaviorPermission' : 'pairing.createBehaviorPermission')}
       closeLabel={t('common.close')}
-      className="bh-sidebar-modal bh-pairing-modal bh-group-editor-modal"
-      contentClassName="bh-pairing-content"
-      footer={
-        <div className="bh-modal-footer">
-          <Button size="sm" variant="toolbar" disabled={busy} onClick={close}>
+      data={{ 'data-pairing-panel': '', 'data-group-editor': '' }}
+      actions={
+        <>
+          <Button variant="outline" disabled={busy} onClick={close}>
             {t('common.cancel')}
           </Button>
           <Button
-            size="sm"
             variant="primary"
             disabled={busy || !name.trim() || !behavior.trim() || incompatible}
             onClick={() => {
@@ -538,35 +538,36 @@ function BehaviorPermissionDialog({
           >
             {t('pairing.saveBehaviorPermission')}
           </Button>
-        </div>
+        </>
       }
     >
       <div className="bh-pairing-workspace">
         <section className="bh-im-role-form">
-          <label className="bh-im-field">
-            <span>{t('pairing.behaviorName')}</span>
-            <Input
-              data-modal-autofocus
-              value={name}
-              maxLength={80}
-              disabled={busy}
-              onChange={(event) => setName(event.target.value)}
-            />
-          </label>
-          <label className="bh-im-field">
-            <span className="bh-im-actions">
-              {t('pairing.behavior')}
-              <MessagingHelp title={t('pairing.behavior')} text={t('pairing.behaviorHelp')} t={t} />
-            </span>
-            <textarea
-              className="bh-im-textarea"
-              value={behavior}
-              maxLength={1000}
-              rows={4}
-              disabled={busy}
-              onChange={(event) => setBehavior(event.target.value)}
-            />
-          </label>
+          <TextField
+            label={t('pairing.behaviorName')}
+            initialFocus
+            value={name}
+            maxLength={80}
+            disabled={busy}
+            onChange={setName}
+          />
+          <TextAreaField
+            label={
+              <span className="bh-im-actions">
+                {t('pairing.behavior')}
+                <MessagingHelp
+                  title={t('pairing.behavior')}
+                  text={t('pairing.behaviorHelp')}
+                  t={t}
+                />
+              </span>
+            }
+            value={behavior}
+            maxLength={1000}
+            rows={4}
+            disabled={busy}
+            onChange={setBehavior}
+          />
         </section>
         <section className="bh-im-role-form bh-behavior-exclusions">
           <div className="bh-im-actions">
@@ -610,11 +611,7 @@ function BehaviorPermissionDialog({
           t={t}
         />
       ) : null}
-      {failed ? (
-        <p role="alert" className="bh-error">
-          {t('pairing.error')}
-        </p>
-      ) : null}
-    </Modal>
+      {failed ? <Note tone="danger">{t('pairing.error')}</Note> : null}
+    </PanelDialog>
   );
 }
