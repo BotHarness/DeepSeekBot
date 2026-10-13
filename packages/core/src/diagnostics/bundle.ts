@@ -18,6 +18,7 @@ export const DIAGNOSTIC_BUNDLE_LIMITS = {
   maxMessagesPerChannel: 5_000,
   maxAdmissionsPerBot: 2_000,
   maxSessions: 64,
+  maxSelectedMessages: 200,
   maxEventsPerSession: 20_000,
   maxBytes: 128 * 1024 * 1024,
 } as const;
@@ -43,6 +44,7 @@ export interface DiagnosticBundleSelection {
   channelId: string;
   fromMessageId: string;
   toMessageId?: string;
+  messageIds?: readonly string[];
   paddingMinutes?: number;
 }
 
@@ -116,6 +118,7 @@ interface TimelineEntry {
   kind: string;
   channelId?: string;
   messageId?: string;
+  selected?: boolean;
   sourceEventId?: string;
   bot?: string;
   sessionId?: string;
@@ -327,6 +330,10 @@ export async function collectDiagnosticBundle(
     typeof selection.channelId !== 'string' ||
     typeof selection.fromMessageId !== 'string' ||
     (selection.toMessageId !== undefined && typeof selection.toMessageId !== 'string') ||
+    (selection.messageIds !== undefined &&
+      (!Array.isArray(selection.messageIds) ||
+        selection.messageIds.length > DIAGNOSTIC_BUNDLE_LIMITS.maxSelectedMessages ||
+        selection.messageIds.some((id) => typeof id !== 'string'))) ||
     !Number.isInteger(padding) ||
     padding < 0 ||
     padding > DIAGNOSTIC_BUNDLE_LIMITS.maxPaddingMinutes
@@ -342,6 +349,14 @@ export async function collectDiagnosticBundle(
       : source.channels.message(selected.id, selection.toMessageId);
   if (fromMessage === undefined || (selection.toMessageId !== undefined && !toMessage))
     throw new DiagnosticBundleError('message-not-found', 'Message is not in this Channel');
+  const marked = new Set([
+    fromMessage.id,
+    ...(toMessage === undefined ? [] : [toMessage.id]),
+    ...(selection.messageIds ?? []),
+  ]);
+  for (const id of marked)
+    if (source.channels.message(selected.id, id) === undefined)
+      throw new DiagnosticBundleError('message-not-found', 'Message is not in this Channel');
   let first = Date.parse(fromMessage.at);
   let last = toMessage === undefined ? now : Date.parse(toMessage.at);
   if (!Number.isFinite(first) || !Number.isFinite(last))
@@ -454,7 +469,10 @@ export async function collectDiagnosticBundle(
 
   const timeline: TimelineEntry[] = [
     ...channels.flatMap((channel) =>
-      channel.messages.map((message) => channelTimelineEntry(channel, message)),
+      channel.messages.map((message) => ({
+        ...channelTimelineEntry(channel, message),
+        ...(channel.id === selected.id && marked.has(message.id) ? { selected: true } : {}),
+      })),
     ),
     ...admissions.map((item): TimelineEntry => ({
       at: item.at,
@@ -536,6 +554,7 @@ export async function collectDiagnosticBundle(
       channelId: selected.id,
       fromMessageId: fromMessage.id,
       ...(toMessage === undefined ? {} : { toMessageId: toMessage.id }),
+      messageIds: [...marked],
       paddingMinutes: padding,
     },
     ...summary,
@@ -606,7 +625,8 @@ uploads it; share it only with people you trust to read your conversations.
 请只分享给你信任的人。
 
 - \`manifest.json\`: versions, selected messages, effective time range, Bots and Sessions, omissions.
-- \`timeline.jsonl\`: one time-ordered index across Channels, Inbox admissions and Session events.
+- \`timeline.jsonl\`: one time-ordered index across Channels, Inbox admissions and Session events;
+  messages the user selected carry \`"selected": true\`.
 - \`channels/<id>.jsonl\`: messages of the selected Channel and the involved Bots' DMs.
 - \`admissions.jsonl\`: Bot Inbox admissions in the range.
 - \`sessions/<id>.jsonl\`: native DSH Session events (tool calls, results, model text) in the range.

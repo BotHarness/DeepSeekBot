@@ -267,6 +267,38 @@ describe('Diagnostic Bundle', () => {
     ).rejects.toThrow(DiagnosticBundleError);
   });
 
+  it('marks every selected message and rejects selections from other Channels', async () => {
+    const { source } = fixture();
+    const bundle = await collectDiagnosticBundle(
+      source,
+      {
+        channelId: 'group-1',
+        fromMessageId: 'g-before',
+        toMessageId: 'g-ask',
+        messageIds: ['g-before', 'g-ask'],
+      },
+      createDiagnosticRedactor({ homes }),
+    );
+    const output = files(bundle.entries);
+    expect(JSON.parse(output['manifest.json']!).selection.messageIds).toEqual([
+      'g-before',
+      'g-ask',
+    ]);
+    const selected = output['timeline.jsonl']!.trim()
+      .split('\n')
+      .map((line) => JSON.parse(line))
+      .filter((entry) => entry.selected === true)
+      .map((entry) => entry.messageId);
+    expect(selected).toEqual(['g-before', 'g-ask']);
+    await expect(
+      collectDiagnosticBundle(
+        source,
+        { channelId: 'group-1', fromMessageId: 'g-ask', messageIds: ['g-ask', 'other-1'] },
+        createDiagnosticRedactor({ homes }),
+      ),
+    ).rejects.toThrow(DiagnosticBundleError);
+  });
+
   it('downloads exactly the previewed bundle once', async () => {
     const { source, reads } = fixture();
     const http = createDiagnosticBundleHttp({ source, homes, now: () => ms(10) });

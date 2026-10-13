@@ -49,6 +49,9 @@ export function createDiagnosticBundleHttp(options: DiagnosticBundleHttpOptions)
           ...(value['toMessageId'] === undefined
             ? {}
             : { toMessageId: value['toMessageId'] as string }),
+          ...(value['messageIds'] === undefined
+            ? {}
+            : { messageIds: value['messageIds'] as string[] }),
           ...(value['paddingMinutes'] === undefined
             ? {}
             : { paddingMinutes: value['paddingMinutes'] as number }),
