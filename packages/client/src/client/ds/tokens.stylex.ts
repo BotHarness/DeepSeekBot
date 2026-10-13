@@ -38,6 +38,7 @@ export const size = stylex.defineConsts({
 
 export const dialog = stylex.defineConsts({
   small: 'min(440px, calc(100vw - 32px))',
+  bodyMax: 'min(60vh, 520px)',
   standard: 'min(560px, calc(100vw - 32px))',
   wide: 'min(1060px, calc(100vw - 32px))',
 });
@@ -52,6 +53,12 @@ export const color = stylex.defineConsts({
   accent: 'var(--dsw-alias-state-business-primary)',
   danger: 'var(--dsw-alias-state-error-primary)',
   onDanger: 'var(--dsw-alias-label-primary-foreground)',
+  dangerEdge: 'var(--dsw-alias-state-error-secondary)',
+  dangerSoft: 'var(--dsw-alias-interactive-bg-hover-danger)',
+  warning: 'var(--dsw-alias-state-warn-primary)',
+  warningEdge: 'var(--dsw-alias-state-warn-secondary)',
+  warningSoft: 'var(--dsw-alias-state-warn-tertiary)',
   success: 'var(--dsw-alias-state-success-primary)',
   surface: 'var(--dsw-alias-bg-module-platform)',
+  base: 'var(--dsw-alias-bg-base)',
 });

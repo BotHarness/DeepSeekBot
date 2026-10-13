@@ -35,6 +35,7 @@ const styles = stylex.create({
     width: '100%',
   },
   spacer: { flexGrow: 1 },
+  scroll: { maxHeight: dialog.bodyMax, overflowY: 'auto', overscrollBehavior: 'contain' },
   danger: {
     backgroundColor: { default: color.danger, ':hover': color.danger },
     borderColor: 'transparent',
@@ -66,6 +67,10 @@ export function FormDialog({
   danger = false,
   error,
   secondary,
+  onClose,
+  showCancel = true,
+  scroll = false,
+  submitData,
   children,
 }: {
   readonly title: string;
@@ -80,6 +85,10 @@ export function FormDialog({
   readonly danger?: boolean;
   readonly error?: ReactNode;
   readonly secondary?: ReactNode;
+  readonly onClose?: () => void;
+  readonly showCancel?: boolean;
+  readonly scroll?: boolean;
+  readonly submitData?: Readonly<Record<`data-${string}`, string>>;
   readonly children?: ReactNode;
 }): ReactElement {
   const formId = useId();
@@ -91,7 +100,7 @@ export function FormDialog({
   return (
     <Modal
       open
-      onClose={onCancel}
+      onClose={onClose ?? onCancel}
       closeLabel={labels.close}
       title={title}
       {...(description === undefined ? {} : { description })}
@@ -104,10 +113,13 @@ export function FormDialog({
               <span {...stylex.props(styles.spacer)} />
             </>
           )}
-          <Button type="button" variant="outline" disabled={busy} onClick={onCancel}>
-            {labels.cancel}
-          </Button>
+          {showCancel ? (
+            <Button type="button" variant="outline" disabled={busy} onClick={onCancel}>
+              {labels.cancel}
+            </Button>
+          ) : null}
           <Button
+            {...submitData}
             type="submit"
             form={formId}
             variant="primary"
@@ -120,7 +132,12 @@ export function FormDialog({
         </div>
       }
     >
-      <form id={formId} noValidate onSubmit={submit} {...stylex.props(styles.form)}>
+      <form
+        id={formId}
+        noValidate
+        onSubmit={submit}
+        {...stylex.props(styles.form, scroll && styles.scroll)}
+      >
         {children}
         {error === undefined || error === null || error === false ? null : (
           <p role="alert" {...stylex.props(styles.error)}>

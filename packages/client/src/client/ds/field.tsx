@@ -1,8 +1,14 @@
-import { useId, type InputHTMLAttributes, type ReactElement, type ReactNode } from 'react';
+import {
+  useId,
+  type InputHTMLAttributes,
+  type ReactElement,
+  type ReactNode,
+  type TextareaHTMLAttributes,
+} from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { Input } from '@deepseek-ai/dsh-client-ui-primitives';
 
-import { color, space, text } from './tokens.stylex.js';
+import { color, radius, space, text } from './tokens.stylex.js';
 
 const styles = stylex.create({
   field: {
@@ -36,6 +42,25 @@ const styles = stylex.create({
     overflowWrap: 'anywhere',
   },
   input: { width: '100%' },
+  mono: { fontFamily: 'var(--dsw-font-mono, ui-monospace, monospace)' },
+  textarea: {
+    boxSizing: 'border-box',
+    width: '100%',
+    minHeight: '80px',
+    paddingBlock: space.x3,
+    paddingInline: space.x4,
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: { default: color.border, ':focus-visible': color.fg },
+    borderRadius: radius.row,
+    outline: 'none',
+    backgroundColor: color.base,
+    color: color.fg,
+    fontFamily: 'inherit',
+    fontSize: text.bodySize,
+    lineHeight: text.bodyLine,
+    resize: 'vertical',
+  },
   stack: {
     display: 'flex',
     flexDirection: 'column',
@@ -117,6 +142,7 @@ export function TextField({
   onChange,
   initialFocus = false,
   selectOnFocus = false,
+  monospace = false,
   ...rest
 }: {
   readonly label: ReactNode;
@@ -126,6 +152,7 @@ export function TextField({
   readonly onChange: (value: string) => void;
   readonly initialFocus?: boolean;
   readonly selectOnFocus?: boolean;
+  readonly monospace?: boolean;
 } & Omit<
   InputHTMLAttributes<HTMLInputElement>,
   'value' | 'onChange' | 'id' | 'className' | 'children'
@@ -137,12 +164,47 @@ export function TextField({
           {...rest}
           {...control}
           {...(initialFocus ? { 'data-modal-autofocus': '' } : {})}
-          className={stylex.props(styles.input).className ?? ''}
+          className={stylex.props(styles.input, monospace && styles.mono).className ?? ''}
           value={value}
           onFocus={(event) => {
             if (selectOnFocus) event.currentTarget.select();
             rest.onFocus?.(event);
           }}
+          onChange={(event) => onChange(event.currentTarget.value)}
+        />
+      )}
+    </Field>
+  );
+}
+
+export function TextAreaField({
+  label,
+  hint,
+  error,
+  value,
+  onChange,
+  initialFocus = false,
+  ...rest
+}: {
+  readonly label: ReactNode;
+  readonly hint?: ReactNode;
+  readonly error?: ReactNode;
+  readonly value: string;
+  readonly onChange: (value: string) => void;
+  readonly initialFocus?: boolean;
+} & Omit<
+  TextareaHTMLAttributes<HTMLTextAreaElement>,
+  'value' | 'onChange' | 'id' | 'className' | 'children'
+>): ReactElement {
+  return (
+    <Field label={label} hint={hint} error={error}>
+      {(control) => (
+        <textarea
+          {...rest}
+          {...control}
+          {...(initialFocus ? { 'data-modal-autofocus': '' } : {})}
+          {...stylex.props(styles.textarea)}
+          value={value}
           onChange={(event) => onChange(event.currentTarget.value)}
         />
       )}

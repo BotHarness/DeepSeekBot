@@ -13,9 +13,10 @@ const styles = stylex.create({
   muted: { color: color.muted },
   danger: { color: color.danger },
   success: { color: color.success },
+  warning: { color: color.warning },
 });
 
-export type NoteTone = 'muted' | 'danger' | 'success';
+export type NoteTone = 'muted' | 'danger' | 'success' | 'warning';
 
 export function Note({
   tone = 'muted',
