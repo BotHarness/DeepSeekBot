@@ -374,6 +374,9 @@ export interface BotAttentionItem {
   observedAt?: string;
   handledAt?: string;
   ignoredAt?: string;
+  resolutionNote?: string;
+  snoozedUntil?: string;
+  snoozeNote?: string;
   sourceKind: string;
   sourceChannelId?: string;
   sourceChannelName?: string;

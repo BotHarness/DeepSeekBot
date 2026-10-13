@@ -23,6 +23,11 @@ describe('Orchestrator inbox snooze', () => {
       expect(list).toMatchObject({ snoozed: 1 });
       expect(JSON.stringify(list)).not.toContain(item);
       expect(f.state(item)).toBe('snoozed');
+      const row = f.core.attention
+        .list({ botSlug: 'ada', limit: 100 })
+        .items.find((entry) => entry.id === item);
+      expect(row).toMatchObject({ snoozeNote: 'After lunch' });
+      expect(row?.snoozedUntil).toEqual(expect.any(String));
 
       const turns = f.runs.length;
       await vi.waitFor(() => expect(f.runs.length).toBe(turns + 1), { timeout: 10000 });

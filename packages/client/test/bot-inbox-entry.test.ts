@@ -367,7 +367,7 @@ it('lists every source newest first by default with a compact author, time and s
         }),
       ),
     );
-    expect(container.querySelector('.bh-inbox-group')).toBeNull();
+    expect(container.querySelector('.bh-inbox-group:not(.bh-inbox-section)')).toBeNull();
     const rows = [...container.querySelectorAll('.bh-card-row')];
     expect(rows.map((row) => row.querySelector('.bh-card-summary')?.textContent)).toEqual([
       'Newer pending note',
@@ -856,5 +856,98 @@ it('loads checked video into its bubble without autoplay, retries refusals and p
     else Reflect.deleteProperty(URL, 'createObjectURL');
     if (originalRevoke) Object.defineProperty(URL, 'revokeObjectURL', originalRevoke);
     else Reflect.deleteProperty(URL, 'revokeObjectURL');
+  }
+});
+
+it('puts open items first, snoozed by return time next, and folds done items with their notes', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  const previous = store.getSnapshot().botInbox;
+  store.setBotInbox({
+    status: 'ready',
+    items: [
+      {
+        ...item,
+        id: 'done',
+        state: 'handled',
+        createdAt: '2026-09-28T00:00:00.000Z',
+        summary: 'Done item',
+        resolutionNote: 'Shipped the fix',
+      },
+      {
+        ...item,
+        id: 'later',
+        state: 'snoozed',
+        summary: 'Later item',
+        snoozedUntil: '2026-10-02T00:00:00.000Z',
+      },
+      {
+        ...item,
+        id: 'sooner',
+        state: 'snoozed',
+        summary: 'Sooner item',
+        snoozedUntil: '2026-10-01T00:00:00.000Z',
+        snoozeNote: 'After the vendor replies',
+      },
+      { ...item, id: 'open', state: 'open', summary: 'Open item' },
+    ],
+    error: undefined,
+  });
+  const entries = createChannelSidebarBuiltins(zhTranslate);
+  const entry = entries.find((e) => e.id === 'bot-inbox')!;
+  const Badge = entry.badge!;
+  const container = document.createElement('div');
+  document.body.append(container);
+  const root = createRoot(container);
+  const entryProps = {
+    scope: 'personabot' as const,
+    channelId: 'dm-ada',
+    botSlug: 'ada',
+    actions: {} as BridgeActions,
+    t: zhTranslate,
+  };
+  try {
+    await act(async () =>
+      root.render(
+        createElement(
+          'div',
+          null,
+          createElement('span', { className: 'badge' }, createElement(Badge, entryProps)),
+          createElement(ChannelSidebarEntrySection, {
+            entry,
+            expanded: true,
+            onToggle: () => undefined,
+            entryProps,
+          }),
+        ),
+      ),
+    );
+    expect(container.querySelector('.badge')?.textContent).toBe('1');
+    const rows = [...container.querySelectorAll('.bh-card-row')];
+    expect(rows.map((row) => row.querySelector('.bh-card-summary')?.textContent)).toEqual([
+      'Open item',
+      'Sooner item',
+      'Later item',
+      'Done item',
+    ]);
+    const sections = [...container.querySelectorAll<HTMLDetailsElement>('.bh-inbox-section')];
+    expect(sections.map((section) => [section.dataset['section'], section.open])).toEqual([
+      ['snoozed', true],
+      ['done', false],
+    ]);
+    expect(rows[1]?.textContent).toContain('After the vendor replies');
+    expect(rows[1]?.querySelector('.bh-inbox-item-return')?.textContent).toContain('回来');
+    expect(rows[3]?.textContent).toContain('Shipped the fix');
+
+    store.setBotInbox({
+      status: 'ready',
+      items: [{ ...item, id: 'only-snoozed', state: 'snoozed' }],
+      error: undefined,
+    });
+    await act(async () => undefined);
+    expect(container.querySelector('.badge')?.textContent).toBe('');
+  } finally {
+    await act(async () => root.unmount());
+    container.remove();
+    store.setBotInbox(previous);
   }
 });

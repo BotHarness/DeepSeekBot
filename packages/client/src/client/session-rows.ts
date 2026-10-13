@@ -47,6 +47,7 @@ export function personaBotSessionRows(
       status === 'running' ||
       status === 'stopping' ||
       status === 'attention' ||
+      (item.role === 'assignment' && status === 'idle') ||
       (item.assignmentActivity === 'working' && native === undefined);
     if (view === 'current' && !current) return [];
     return [

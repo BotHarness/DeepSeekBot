@@ -55,6 +55,20 @@ describe('PersonaBot Session projection', () => {
     expect(rows[1]?.cwd).toBe('/projects/a');
   });
 
+  it('keeps idle Assignments in the current view so the Idle section shows them', () => {
+    const idle = [
+      ...owned,
+      { sessionId: 'idle', role: 'assignment' as const, createdAt, cwdReference: '/projects/d' },
+    ];
+    const rows = personaBotSessionRows(
+      idle,
+      { ...native, idle: { displayTitle: 'Done task', updatedAt: 50, running: false } },
+      'current',
+    );
+    expect(rows.map((row) => [row.sessionId, row.status])).toContainEqual(['idle', 'idle']);
+    expect(rows.map((row) => row.sessionId)).not.toContain('stopped');
+  });
+
   it('pins the Orchestrator the runtime resumes, not a newer archived one', () => {
     const replaced = [
       { ...owned[0]!, sessionId: 'resumed', currentOrchestrator: true },

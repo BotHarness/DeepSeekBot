@@ -7795,6 +7795,9 @@ button.bh-card-main:disabled {cursor:default;}
 .bh-inbox-item-head .bh-inbox-item-author {min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .bh-inbox-item-head .bh-inbox-item-origin {color:var(--dsw-alias-label-secondary);font-weight:400;}
 .bh-inbox-item-head .bh-inbox-item-time {flex:none;color:var(--dsw-alias-label-secondary);font-size:12px;font-weight:400;}
+.bh-inbox-item-return {flex:none;}
+.bh-inbox-item-note {display:-webkit-box;overflow:hidden;flex-basis:100%;-webkit-box-orient:vertical;-webkit-line-clamp:2;}
+.bh-inbox-section + .bh-inbox-section, .bh-card-list + .bh-inbox-section {margin-top:8px;}
 .bh-session-orchestrator {display:grid;place-items:center;}
 .bh-session-orchestrator-icon {display:grid;width:20px;height:20px;margin-top:0;place-items:center;border-radius:6px;background:var(--bh-bot-color, var(--dsw-alias-label-primary));color:var(--dsw-alias-bg-base);}
 .bh-sessions-groups {display:flex;flex-direction:column;gap:8px;}

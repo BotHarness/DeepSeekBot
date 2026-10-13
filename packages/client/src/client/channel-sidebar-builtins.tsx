@@ -62,6 +62,12 @@ import { SidebarViewMenu } from './sidebar-view-menu.js';
 import { channelSidebarPrefs } from './channel-sidebar-prefs.js';
 import { memoryViewSnapshot, setMemoryView, subscribeMemoryView } from './memory-view-prefs.js';
 import { inboxLayoutSnapshot, setInboxLayout, subscribeInboxLayout } from './inbox-view-prefs.js';
+import {
+  INBOX_SECTIONS,
+  inboxSections,
+  openInboxCount,
+  type InboxSection,
+} from './inbox-sections.js';
 import type { BotHarnessTranslate } from './locale.js';
 import type { BotAttentionItem, ChannelSummary } from './store.js';
 
@@ -474,6 +480,29 @@ function BotInboxItemRow({
       </Tag>
     ),
   ].filter((chip) => chip !== null);
+  const returnAt =
+    item.snoozedUntil === undefined
+      ? undefined
+      : new Date(item.snoozedUntil).toLocaleString(undefined, {
+          month: 'numeric',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+  const note = item.state === 'snoozed' ? item.snoozeNote : item.resolutionNote;
+  const meta = [
+    unavailable ? <span key="unavailable">{t('inbox.sourceUnavailable')}</span> : null,
+    returnAt === undefined ? null : (
+      <span key="return" className="bh-inbox-item-return">
+        {t('inbox.snoozedUntil', { time: returnAt })}
+      </span>
+    ),
+    note === undefined ? null : (
+      <span key="note" className="bh-inbox-item-note" title={note}>
+        {note}
+      </span>
+    ),
+  ].filter((part) => part !== null);
   const origin =
     item.externalOrigin === undefined
       ? source
@@ -509,7 +538,7 @@ function BotInboxItemRow({
       dialog={item.scheduleId !== undefined || item.externalOrigin !== undefined}
       {...(memoryChange ? {} : { onClick: () => void open() })}
       {...(chips.length === 0 ? {} : { chips: <>{chips}</> })}
-      {...(unavailable ? { meta: <span>{t('inbox.sourceUnavailable')}</span> } : {})}
+      {...(meta.length === 0 ? {} : { meta: <>{meta}</> })}
     />
   );
   return (
@@ -728,8 +757,50 @@ function BotInboxGroup({
         <Tag tone="neutral">{items.length}</Tag>
       </summary>
       <SidebarCardList label={name}>
-        {items.map((item) => (
+        {INBOX_SECTIONS.flatMap((section) => inboxSections(items)[section]).map((item) => (
           <BotInboxItemRow key={item.id} item={item} actions={actions} t={t} />
+        ))}
+      </SidebarCardList>
+    </details>
+  );
+}
+
+function BotInboxSection({
+  section,
+  items,
+  sourceLabel,
+  actions,
+  t,
+}: {
+  section: Exclude<InboxSection, 'active'>;
+  items: BotAttentionItem[];
+  sourceLabel: (item: BotAttentionItem) => string;
+  actions: ChannelSidebarEntryProps['actions'];
+  t: BotHarnessTranslate;
+}): ReactElement {
+  const [expanded, setExpanded] = useState(section !== 'done');
+  const name = t(`inbox.section.${section}`);
+  return (
+    <details
+      className="bh-inbox-group bh-inbox-section"
+      data-section={section}
+      open={expanded}
+      onToggle={(event) => setExpanded(event.currentTarget.open)}
+    >
+      <summary className="bh-inbox-group-head">
+        <IconChevronDownOutlineRegular className="bh-inbox-group-chevron" size={14} />
+        <span className="bh-inbox-group-name">{name}</span>
+        <Tag tone="neutral">{items.length}</Tag>
+      </summary>
+      <SidebarCardList label={name}>
+        {items.map((item) => (
+          <BotInboxItemRow
+            key={item.id}
+            item={item}
+            source={sourceLabel(item)}
+            actions={actions}
+            t={t}
+          />
         ))}
       </SidebarCardList>
     </details>
@@ -763,11 +834,9 @@ function BotInboxEntry({ actions, t, botSlug }: ChannelSidebarEntryProps): React
     sourceName(item) ??
     item.sourceChannelId ??
     t(item.assignmentSessionId === undefined ? 'inbox.system' : 'inbox.assignment');
-  const items = [...inbox.items].sort(
-    (left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt),
-  );
+  const sections = inboxSections(inbox.items);
   const groups = new Map<string, { name: string; items: BotAttentionItem[] }>();
-  for (const item of items) {
+  for (const item of INBOX_SECTIONS.flatMap((section) => sections[section])) {
     const key = sourceKey(item);
     const group = groups.get(key) ?? { name: sourceLabel(item), items: [] };
     group.items.push(item);
@@ -784,19 +853,33 @@ function BotInboxEntry({ actions, t, botSlug }: ChannelSidebarEntryProps): React
         </div>
       ) : null}
       {layout === 'time' ? (
-        items.length === 0 ? null : (
-          <SidebarCardList label={t('entry.botInbox')}>
-            {items.map((item) => (
-              <BotInboxItemRow
-                key={item.id}
-                item={item}
-                source={sourceLabel(item)}
+        <>
+          {sections.active.length === 0 ? null : (
+            <SidebarCardList label={t('inbox.section.active')}>
+              {sections.active.map((item) => (
+                <BotInboxItemRow
+                  key={item.id}
+                  item={item}
+                  source={sourceLabel(item)}
+                  actions={actions}
+                  t={t}
+                />
+              ))}
+            </SidebarCardList>
+          )}
+          {(['snoozed', 'done'] as const).map((section) =>
+            sections[section].length === 0 ? null : (
+              <BotInboxSection
+                key={section}
+                section={section}
+                items={sections[section]}
+                sourceLabel={sourceLabel}
                 actions={actions}
                 t={t}
               />
-            ))}
-          </SidebarCardList>
-        )
+            ),
+          )}
+        </>
       ) : (
         [...groups.entries()].map(([key, group]) => (
           <BotInboxGroup key={key} name={group.name} items={group.items} actions={actions} t={t} />
@@ -916,13 +999,9 @@ function MemoryHeaderAction({
   );
 }
 
-function BotInboxBadge(): ReactElement {
-  const items = useClientState().botInbox.items;
-  return (
-    <Tag tone="neutral">
-      {items.filter((item) => item.state !== 'handled' && item.state !== 'ignored').length}
-    </Tag>
-  );
+function BotInboxBadge(): ReactElement | null {
+  const count = openInboxCount(useClientState().botInbox.items);
+  return count === 0 ? null : <Tag tone="neutral">{count}</Tag>;
 }
 
 function ModelEntry({ botSlug, actions, t }: ChannelSidebarEntryProps): ReactElement {

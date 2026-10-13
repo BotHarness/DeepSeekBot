@@ -54,6 +54,11 @@ describe('Orchestrator-resolved Bot Inbox', () => {
       expect(f.state(first)).toBe('handled');
       expect(f.state(second)).toBe('handled');
       expect(f.state(third)).toBe('open');
+      expect(
+        f.core.attention
+          .list({ botSlug: 'ada', limit: 100 })
+          .items.find((item) => item.id === first),
+      ).toMatchObject({ resolutionNote: 'Reviewed PR 12' });
       await f.send('What did you do about PR 12?', (run) => run.inboxHistory!({ limit: 10 }));
       const history = f.results[1] as {
         items: Array<{ sourceEventId: string; resolutionNote?: string }>;

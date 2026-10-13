@@ -61,6 +61,9 @@ export interface BotAttentionItem {
   observedAt?: string;
   handledAt?: string;
   ignoredAt?: string;
+  resolutionNote?: string;
+  snoozedUntil?: string;
+  snoozeNote?: string;
   sourceKind: string;
   sourceChannelId?: string;
   sourceChannelName?: string;
@@ -108,6 +111,9 @@ interface AttentionRow {
   observed_at: string | null;
   handled_at: string | null;
   ignored_at: string | null;
+  resolution_note: string | null;
+  snoozed_until: string | null;
+  snooze_note: string | null;
   source_kind: string;
   channel_id: string | null;
   message_id: string | null;
@@ -161,7 +167,8 @@ export function createBotAttentionQuery(
             .prepare(`
         WITH attention AS (
           SELECT a.source_event_id, a.bot_slug, a.reason, a.attempt_state,
-                 a.observed_at, a.handled_at, a.ignored_at, e.source_kind,
+                 a.observed_at, a.handled_at, a.ignored_at, a.resolution_note,
+                 a.snoozed_until, a.snooze_note, e.source_kind,
                  CASE WHEN e.source_kind = 'bridge-message' THEN p.channel_id ELSE e.channel_id END AS channel_id,
                  e.message_id, p.message_id AS placed_message_id,
                  e.assignment_session_id,
@@ -239,6 +246,13 @@ export function createBotAttentionQuery(
           ...(row.observed_at === null ? {} : { observedAt: row.observed_at }),
           ...(row.handled_at === null ? {} : { handledAt: row.handled_at }),
           ...(row.ignored_at === null ? {} : { ignoredAt: row.ignored_at }),
+          ...(row.resolution_note === null ? {} : { resolutionNote: row.resolution_note }),
+          ...(row.state === 'snoozed' && row.snoozed_until !== null
+            ? { snoozedUntil: row.snoozed_until }
+            : {}),
+          ...(row.state === 'snoozed' && row.snooze_note !== null
+            ? { snoozeNote: row.snooze_note }
+            : {}),
           sourceKind: row.source_kind,
           ...(row.channel_id === null ? {} : { sourceChannelId: row.channel_id }),
           ...(channel === undefined ? {} : { sourceChannelName: channel.name }),
