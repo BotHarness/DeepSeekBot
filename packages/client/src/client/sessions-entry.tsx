@@ -1,6 +1,10 @@
 import { useSyncExternalStore, type ReactElement } from 'react';
 
-import { IconChevronDownOutlineRegular, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+import {
+  IconChevronDownOutlineRegular,
+  Tag,
+  type MenuEntry,
+} from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { ChannelSidebarEntryProps } from './channel-sidebar.js';
 import { useClientState } from './bot-sidebar.js';
@@ -280,7 +284,15 @@ function SessionsPanel({
   );
 }
 
-export function SessionsHeaderAction({ botSlug, t }: ChannelSidebarEntryProps): ReactElement {
+export function SessionsHeaderAction({
+  botSlug,
+  t,
+  extraItems = [],
+  onExtraSelect,
+}: ChannelSidebarEntryProps & {
+  extraItems?: readonly MenuEntry[];
+  onExtraSelect?: (id: string) => void;
+}): ReactElement {
   const slug = botSlug ?? '';
   const preference = useSessionViewPreference(slug);
   return (
@@ -294,10 +306,15 @@ export function SessionsHeaderAction({ botSlug, t }: ChannelSidebarEntryProps): 
         { type: 'label', id: 'layout-label', text: t('sessions.layout') },
         { id: 'layout:status', label: t('sessions.layout.status') },
         { id: 'layout:workspace', label: t('sessions.layout.workspace') },
+        ...extraItems,
       ]}
       selectedIds={['scope:' + preference.scope, 'layout:' + preference.layout]}
       onSelect={(id) => {
         const [kind, value] = id.split(':');
+        if (kind !== 'scope' && kind !== 'layout') {
+          onExtraSelect?.(id);
+          return;
+        }
         updateSessionViewPreference(slug, (current) =>
           kind === 'scope'
             ? { ...current, scope: value === 'all' ? 'all' : 'current' }

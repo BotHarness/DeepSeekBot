@@ -33,4 +33,9 @@ Use the gear in the **Sessions** title:
 
 These settings change the list presentation. They do not move a Session, grant a folder, stop an Agent or change a model. If a task seems missing, try **All** and check that you opened the intended Bot.
 
+The same menu shows the settings that shape new Sessions:
+
+- **Model** lists this Bot’s **Main model** and **Task model** with their reasoning effort. Click either to open **Channel settings → Model** and change them.
+- **Assignment concurrency limit** shows how many tasks may run at once. Click it to change the limit (1–32). The limit is shared by all Bots; lowering it does not stop running work.
+
 For choosing future Bot/task models, use [API and Bot models](/docs/model-setup); for file access, use [Workspace Grants](/docs/channel-sidebar/workspaces). [Sidebar overview](/docs/channel-sidebar).

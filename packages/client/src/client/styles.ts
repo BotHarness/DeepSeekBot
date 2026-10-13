@@ -7738,6 +7738,10 @@ button.bh-card-main:disabled {cursor:default;}
 .bh-session-orchestrator {display:grid;place-items:center;}
 .bh-session-orchestrator-icon {display:grid;width:20px;height:20px;margin-top:0;place-items:center;border-radius:6px;background:var(--bh-bot-color, var(--dsw-alias-label-primary));color:var(--dsw-alias-bg-base);}
 .bh-sessions-groups {display:flex;flex-direction:column;gap:8px;}
+.bh-sessions-header-action {display:contents;}
+.bh-assignment-limit-dialog .bh-settings-row {flex-direction:column;align-items:stretch;gap:12px;padding:0;border-bottom:0;}
+.bh-assignment-limit-dialog .bh-settings-row-text {padding-right:0;}
+.bh-assignment-limit-dialog .bh-settings-row-title {position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;}
 .bh-sessions-groups > .bh-card-list + .bh-card-list {margin-top:0;}
 .bh-card-glyph {display:inline-grid;place-items:center;color:var(--dsw-alias-label-secondary);}
 .bh-card-meta {display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px;min-width:0;color:var(--dsw-alias-label-secondary);font-size:12px;line-height:16px;overflow-wrap:anywhere;}

@@ -16,7 +16,9 @@ import type { BotModePrefs } from './bot-mode-prefs.js';
 import { WorkspaceGrantsEntry } from './workspace-grants-entry.js';
 import { ModelPresetProfile } from './model-preset-profile.js';
 import { modelPlanOf, rememberModelPlan, subscribeModelPlans } from './model-plan-store.js';
-import type { ModelPlanStateView } from './bridge.js';
+import type { ModelPlanStateView, ModelPlanView } from './bridge.js';
+import { AssignmentConcurrencySetting } from './assignment-concurrency-setting.js';
+import { channelSettings } from './channel-settings-state.js';
 import { useMountedResource } from './mounted-resource.js';
 import { WakePolicyBadge, WakePolicyEntry } from './wake-policy-entry.js';
 import { ExternalConnectorsEntry, ExternalIdentitiesEntry } from './external-entries.js';
@@ -857,7 +859,10 @@ function ModelEntry({ botSlug, actions, t }: ChannelSidebarEntryProps): ReactEle
   return <ModelPresetProfile key={botSlug} slug={botSlug} actions={actions} t={t} />;
 }
 
-function ModelBadge({ botSlug, actions }: ChannelSidebarEntryProps): ReactElement {
+function useModelPlan(
+  botSlug: string | undefined,
+  actions: ChannelSidebarEntryProps['actions'],
+): [ModelPlanView | null | undefined, (element: HTMLSpanElement | null) => void] {
   const plan = useSyncExternalStore(
     subscribeModelPlans,
     () => modelPlanOf(botSlug),
@@ -876,16 +881,107 @@ function ModelBadge({ botSlug, actions }: ChannelSidebarEntryProps): ReactElemen
       active = false;
     };
   }, [actions, botSlug, plan === undefined]);
-  const route = plan?.orchestrator;
+  return [plan, mount];
+}
+
+function routeLabel(route: ModelPlanView['orchestrator'] | undefined): string {
+  if (route === undefined) return '…';
+  return route.reasoningEffort === undefined
+    ? route.model
+    : `${route.model} · ${route.reasoningEffort}`;
+}
+
+function ModelBadge({ botSlug, actions }: ChannelSidebarEntryProps): ReactElement {
+  const [plan, mount] = useModelPlan(botSlug, actions);
+  const route = plan?.orchestrator ?? undefined;
   return (
     <span ref={mount} className="bh-channel-sidebar-summary">
-      {route === undefined ? null : (
-        <Tag tone="neutral">
-          {route.reasoningEffort === undefined
-            ? route.model
-            : `${route.model} · ${route.reasoningEffort}`}
-        </Tag>
-      )}
+      {route === undefined ? null : <Tag tone="neutral">{routeLabel(route)}</Tag>}
+    </span>
+  );
+}
+
+function AssignmentLimitDialog({
+  prefs,
+  t,
+  onClose,
+}: {
+  prefs: BotModePrefs;
+  t: BotHarnessTranslate;
+  onClose: () => void;
+}): ReactElement {
+  const snapshot = useSyncExternalStore(
+    prefs.source.subscribe,
+    prefs.source.getSnapshot,
+    prefs.source.getSnapshot,
+  );
+  return (
+    <Modal
+      open
+      title={t('assignmentLimit.title')}
+      className="bh-assignment-limit-dialog"
+      onClose={onClose}
+      closeLabel={t('common.close')}
+    >
+      <AssignmentConcurrencySetting
+        t={t}
+        limit={snapshot.assignmentConcurrencyLimit}
+        writable={snapshot.status === 'ready' && snapshot.mode === 'host'}
+        save={(limit) => prefs.setAssignmentConcurrencyLimit(limit)}
+      />
+    </Modal>
+  );
+}
+
+function SessionsHeaderWithSettings({
+  prefs,
+  ...props
+}: ChannelSidebarEntryProps & { prefs: BotModePrefs | undefined }): ReactElement {
+  const { botSlug, actions, t } = props;
+  const [plan, mount] = useModelPlan(botSlug, actions);
+  const readLimit = () => prefs?.source.getSnapshot().assignmentConcurrencyLimit;
+  const limit = useSyncExternalStore(
+    prefs?.source.subscribe ?? inactiveSubscribe,
+    readLimit,
+    readLimit,
+  );
+  const [limitOpen, setLimitOpen] = useState(false);
+  const extraItems: MenuEntry[] = [
+    ...(botSlug === undefined
+      ? []
+      : [
+          { type: 'separator' as const, id: 'model-separator' },
+          { type: 'label' as const, id: 'model-label', text: t('entry.model') },
+          {
+            id: 'model:orchestrator',
+            label: `${t('modelPreset.orchestrator')} · ${plan === null ? t('onboarding.inherit') : routeLabel(plan?.orchestrator)}`,
+          },
+          {
+            id: 'model:assignment',
+            label: `${t('modelPreset.assignment')} · ${plan === null ? t('onboarding.inherit') : routeLabel(plan?.assignmentDefault)}`,
+          },
+        ]),
+    ...(prefs === undefined || limit === undefined
+      ? []
+      : [
+          { type: 'separator' as const, id: 'limit-separator' },
+          { type: 'label' as const, id: 'limit-label', text: t('assignmentLimit.title') },
+          { id: 'limit:edit', label: t('sessions.limit.value', { count: limit }) },
+        ]),
+  ];
+  return (
+    <span ref={mount} className="bh-sessions-header-action">
+      <SessionsHeaderAction
+        {...props}
+        extraItems={extraItems}
+        onExtraSelect={(id) => {
+          if (id === 'limit:edit') setLimitOpen(true);
+          else channelSettings.open('model');
+        }}
+      />
+      {limitOpen && prefs !== undefined ? (
+        <AssignmentLimitDialog prefs={prefs} t={t} onClose={() => setLimitOpen(false)} />
+      ) : null}
     </span>
   );
 }
@@ -925,6 +1021,9 @@ export function createChannelSidebarBuiltins(
     );
     return <WorkspaceGrantsEntry {...props} developerMode={developerMode} />;
   }
+  function SessionsHeader(props: ChannelSidebarEntryProps): ReactElement {
+    return <SessionsHeaderWithSettings {...props} prefs={prefs} />;
+  }
   function MemoryEvolutionEntry(props: ChannelSidebarEntryProps): ReactElement {
     return <MemoryEntry {...props} showFiles={false} />;
   }
@@ -956,7 +1055,7 @@ export function createChannelSidebarBuiltins(
       order: 10,
       scope: 'personabot',
       component: SessionsWithNative,
-      headerAction: SessionsHeaderAction,
+      headerAction: SessionsHeader,
     },
     {
       id: 'bot-inbox',
