@@ -7,7 +7,6 @@ import { color, dialog, space, text } from './tokens.stylex.js';
 
 const styles = stylex.create({
   small: { width: dialog.small, maxWidth: '100%' },
-  standard: { width: dialog.standard, maxWidth: '100%' },
   medium: { width: dialog.medium, maxWidth: '100%' },
   wide: { width: dialog.wide, maxWidth: '100%' },
   body: {
@@ -37,7 +36,7 @@ const styles = stylex.create({
 export function PanelDialog({
   title,
   description,
-  size = 'standard',
+  size = 'medium',
   closeLabel,
   onClose,
   actions,

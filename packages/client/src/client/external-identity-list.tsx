@@ -560,7 +560,7 @@ export function ExternalIdentityList({
       ) : mode === 'edit' && selected ? (
         <FormDialog
           title={t('identity.editTitle')}
-          size="standard"
+          size="small"
           scroll
           labels={labels}
           submitLabel={t(busy ? 'identity.pending' : 'identity.save')}

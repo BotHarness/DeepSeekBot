@@ -79,8 +79,8 @@ describe('PanelDialog', () => {
     expect(names.indexOf('Save as')).toBeLessThan(names.indexOf('Save'));
   });
 
-  it('sizes the medium width between standard and wide', () => {
-    const widthClass = (size: 'standard' | 'medium' | 'wide') => {
+  it('gives small, medium and wide distinct widths', () => {
+    const widthClass = (size: 'small' | 'medium' | 'wide') => {
       render(
         createElement(PanelDialog, {
           title: size,
@@ -91,7 +91,7 @@ describe('PanelDialog', () => {
       );
       return dialog().className;
     };
-    const classes = new Set([widthClass('standard'), widthClass('medium'), widthClass('wide')]);
+    const classes = new Set([widthClass('small'), widthClass('medium'), widthClass('wide')]);
     expect(classes.size).toBe(3);
   });
 });

@@ -233,7 +233,7 @@ export function PersonPermissions({
       </Button>
       {editing ? (
         <FormDialog
-          size="standard"
+          size="medium"
           title={t('pairing.personExceptions')}
           labels={{ close: t('common.close'), cancel: t('common.cancel') }}
           submitLabel={t('pairing.savePermissions')}
@@ -350,7 +350,7 @@ export function GroupDetails({
       ) : null}
       {deleting && change ? (
         <FormDialog
-          size="standard"
+          size="small"
           danger
           title={t('pairing.deleteGroup')}
           labels={{ close: t('common.close'), cancel: t('common.cancel') }}

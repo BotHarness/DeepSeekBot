@@ -746,7 +746,7 @@ function RoleDialog({
   };
   return (
     <FormDialog
-      size="standard"
+      size="medium"
       title={t(role ? 'pairing.editRole' : 'pairing.createRole')}
       labels={{ close: t('common.close'), cancel: t('common.cancel') }}
       submitLabel={t(role ? 'pairing.saveRole' : 'pairing.createRole')}

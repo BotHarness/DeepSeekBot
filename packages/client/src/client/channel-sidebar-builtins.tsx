@@ -853,7 +853,7 @@ function MemoryHeaderAction({
       />
       {!backups ? null : (
         <PanelDialog
-          size="standard"
+          size="small"
           onClose={() => setBackups(false)}
           closeLabel={t('common.close')}
           title={t('memory.backups.title')}

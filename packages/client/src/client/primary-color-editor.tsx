@@ -283,7 +283,7 @@ export function PrimaryColorModal({
   return (
     <FormDialog
       title={t('profile.primaryColor.title')}
-      size="standard"
+      size="small"
       labels={{ close: t('common.close'), cancel: t('common.cancel') }}
       submitLabel={t('profile.save')}
       submitDisabled={invalid}

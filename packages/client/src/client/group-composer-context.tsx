@@ -206,7 +206,7 @@ export function GroupComposerContextView({
       </div>
       {open ? (
         <PanelDialog
-          size="standard"
+          size="medium"
           fill
           title={t('entry.workspaceGrants')}
           closeLabel={t('approval.cancel')}

@@ -281,7 +281,7 @@ export function DiagnosticBundleDialog({
     <FormDialog
       title={t('diagnostics.title')}
       description={t('diagnostics.intro')}
-      size="standard"
+      size="medium"
       scroll
       labels={labels}
       {...(downloaded === undefined

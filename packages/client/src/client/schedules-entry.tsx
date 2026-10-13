@@ -476,7 +476,7 @@ function ScheduleEditor({
   return (
     <FormDialog
       title={editing === undefined ? t('schedule.add') : t('schedule.edit')}
-      size="standard"
+      size="medium"
       labels={{ close: t('schedule.close'), cancel: t('schedule.cancel') }}
       submitLabel={editing === undefined ? t('schedule.create') : t('schedule.save')}
       submitDisabled={!valid}

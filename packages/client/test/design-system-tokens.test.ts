@@ -67,5 +67,7 @@ describe('design-system tokens', () => {
     expect(px('space')).toEqual([2, 4, 8, 12, 16, 24]);
     expect(px('radius')).toEqual([6, 8, 10]);
     expect(px('size')).toEqual([26, 28, 32, 40]);
+    const widths = [...block('dialog').matchAll(/min\((\d+)px/g)].map((match) => Number(match[1]));
+    expect(widths).toEqual([440, 760, 1060]);
   });
 });

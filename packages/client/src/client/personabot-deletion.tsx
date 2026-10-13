@@ -302,7 +302,7 @@ export function PersonaBotDeletionView({
     return (
       <FormDialog
         title={t('deletion.title')}
-        size="standard"
+        size="small"
         labels={labels}
         submitLabel={t('common.close')}
         showCancel={false}
@@ -317,7 +317,7 @@ export function PersonaBotDeletionView({
   return (
     <FormDialog
       title={t('deletion.title')}
-      size="standard"
+      size="small"
       labels={labels}
       submitLabel={t(erase ? 'deletion.confirmErase' : 'deletion.confirmRetain')}
       submitDisabled={preview === undefined || (erase && !preview.eraseAvailable)}

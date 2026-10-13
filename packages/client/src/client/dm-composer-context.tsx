@@ -312,7 +312,7 @@ function DmComposerContextView({
       ) : null}
       {panel === undefined ? null : (
         <PanelDialog
-          size="standard"
+          size="medium"
           fill
           title={`${t(panel === 'model' ? 'entry.model' : 'entry.workspaceGrants')} · ${bot.displayName}`}
           closeLabel={t('approval.cancel')}

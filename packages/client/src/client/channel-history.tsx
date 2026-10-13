@@ -395,7 +395,7 @@ export function ChannelHistory({
     return (
       <FormDialog
         title={t('purge.history')}
-        size="standard"
+        size="medium"
         scroll
         onClose={() => {
           if (!busy) onClose();
@@ -427,7 +427,7 @@ export function ChannelHistory({
   return (
     <FormDialog
       title={t('purge.history')}
-      size="standard"
+      size="medium"
       scroll
       labels={{ close: t('common.close'), cancel: t('common.close') }}
       submitLabel={t('purge.preview')}

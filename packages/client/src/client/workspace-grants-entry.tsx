@@ -328,7 +328,7 @@ export function FolderBrowser({
 
   return (
     <PanelDialog
-      size="standard"
+      size="medium"
       title={t('grant.browseTitle')}
       description={t('grant.browseHelp')}
       closeLabel={t('common.close')}
