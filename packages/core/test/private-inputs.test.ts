@@ -459,6 +459,51 @@ describe('private input native authority and reference contract', () => {
     await f.close();
   });
 
+  it('erases every private account of a deleted Bot and cancels its open requests', async () => {
+    const f = await fixture();
+    const configure = async (agent: Agent, channelId: string) => {
+      const before = f.channels.readMessages(channelId).length;
+      const wait = f.owner.ask(agent, declaration, new AbortController().signal);
+      await vi.waitFor(() => expect(f.channels.readMessages(channelId).length).toBe(before + 1));
+      const messageId = f.channels.readMessages(channelId)[0]!.id;
+      await f.owner.submit(true, { channelId, messageId, values: { ...values } });
+      return wait;
+    };
+    await configure(f.agent, 'dm-ada');
+    await configure(f.bea, 'dm-bea');
+    const open = f.owner.ask(
+      f.agent,
+      { ...declaration, account: 'second' },
+      new AbortController().signal,
+    );
+    await vi.waitFor(() =>
+      expect(
+        f.channels
+          .readMessages('dm-ada')
+          .filter((message) => message.privateInputRequest?.account === 'second'),
+      ).toHaveLength(1),
+    );
+    const owners = async () => {
+      const slugs: string[] = [];
+      for (const entry of await f.credentials.listRecords()) {
+        if (!entry.key.startsWith('botharness-private/')) continue;
+        const record = await f.credentials.readRecord(entry.key);
+        const payload = record?.kind === 'grant' ? (record.payload as { botSlug?: string }) : {};
+        if (payload.botSlug !== undefined) slugs.push(payload.botSlug);
+      }
+      return slugs.sort();
+    };
+    expect(await owners()).toEqual(['ada', 'ada', 'bea', 'bea']);
+
+    expect(await f.owner.eraseBot('ada')).toBe(1);
+    expect((await open).status).toBe('cancelled');
+    expect(await f.owner.accounts(true, 'ada')).toEqual([]);
+    expect(await owners()).toEqual(['bea', 'bea']);
+    expect((await f.owner.accounts(true, 'bea'))?.map((row) => row.status)).toEqual(['configured']);
+    expect(await f.owner.eraseBot('ada')).toBe(0);
+    await f.close();
+  });
+
   it('revocation stops an active consumer and invalidates a pending replacement without affecting another Bot', async () => {
     const f = await fixture();
     const a = f.owner.ask(f.agent, declaration, new AbortController().signal);

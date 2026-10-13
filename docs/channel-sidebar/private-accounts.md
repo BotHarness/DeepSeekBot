@@ -22,4 +22,6 @@ Click **Replace**. A blank card for the same secret and fields opens in the sect
 
 Click **Remove** and confirm. Local use stops at once and the stored values are erased immediately. The result lists how many running uses were stopped, had already completed, or are uncertain. Removing does not revoke the token at the provider; rotate it there if it may have leaked. The Bot can ask for the same secret again later.
 
+Deleting the Bot erases all of its secrets the same way, at once, and the deletion confirmation says so.
+
 The same list is available from the command line with `deepseekbot ask-secret-accounts <bot-id>`; see the [CLI reference](/docs/bot-cli).

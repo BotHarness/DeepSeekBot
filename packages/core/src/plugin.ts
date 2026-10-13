@@ -353,6 +353,7 @@ export function createCore(
     activeQuestionMessageIds?: () => readonly string[];
     activeToolApprovalMessageIds?: () => readonly string[];
     activePrivateInputMessageIds?: () => readonly string[];
+    erasePrivateAccounts?: (slug: string) => Promise<unknown>;
     capture?: TelemetryCapture;
   } = {},
 ): BotHarnessCore {
@@ -797,6 +798,7 @@ export function createCore(
       for (const rule of toolRules.list(slug)) toolRules.revoke(slug, rule.id);
       await runtime?.stopBot?.(slug);
       await externalMessaging.disableBot(slug);
+      await options.erasePrivateAccounts?.(slug);
     },
     changed: () => live?.publishRosterCommitted(),
     log: (event) => options.warn?.(JSON.stringify(event)),
@@ -1030,6 +1032,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     activeQuestionMessageIds: () => userQuestions?.activeMessageIds() ?? [],
     activeToolApprovalMessageIds: () => toolApproval?.activeMessageIds() ?? [],
     activePrivateInputMessageIds: () => privateInputs?.activeMessageIds() ?? [],
+    erasePrivateAccounts: async (slug) => privateInputs?.eraseBot(slug),
     capture: (event, properties) => telemetry.capture(event, properties),
     warn: (message) => ctx.logger.warn(message),
     agents: agentAdapter,

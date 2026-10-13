@@ -1175,6 +1175,48 @@ export class PrivateInputs {
     return { accepted: true, ...summary };
   }
 
+  async eraseBot(botSlug: string): Promise<number> {
+    const bot = this.deps.registry.getHistorical(botSlug);
+    const credentials = this.deps.credentials();
+    if (bot === undefined || credentials === undefined) return 0;
+    await this.recover();
+    for (const [id, pending] of this.#pending)
+      if (pending.botSlug === bot.slug && pending.botCreatedAt === bot.createdAt)
+        await this.#stop(id, pending, 'cancelled');
+    let erased = 0;
+    for (const listed of await this.#accounts.list(bot.slug, bot.createdAt)) {
+      const scope = { botSlug: bot.slug, botCreatedAt: bot.createdAt, account: listed.account };
+      await this.#accounts.serial(scope, async () => {
+        const binding = await this.#accounts.read(scope);
+        if (binding === undefined) return;
+        await this.#stopUses(scope, 'revocation');
+        if (binding.grantId !== null) {
+          await credentials.deleteRecord(
+            credentialKey('botharness-private', 'grant-' + binding.grantId),
+          );
+          erased += 1;
+        }
+        await credentials.deleteRecord(this.#accounts.key(scope));
+      });
+    }
+    for (const entry of await credentials.listRecords()) {
+      if (entry.kind !== 'grant' || !/^botharness-private\/grant-[0-9a-f-]{36}$/.test(entry.key))
+        continue;
+      const record = await credentials.readRecord(entry.key);
+      const grant = storedGrant.safeParse(record?.kind === 'grant' ? record.payload : undefined);
+      if (
+        grant.success &&
+        grant.data.botSlug === bot.slug &&
+        grant.data.botCreatedAt === bot.createdAt
+      ) {
+        await credentials.deleteRecord(entry.key);
+        erased += 1;
+      }
+    }
+    this.deps.log('bot-accounts-erased', { botSlug: bot.slug, completed: erased });
+    return erased;
+  }
+
   async close(): Promise<void> {
     this.#closed = true;
     clearInterval(this.#timer);

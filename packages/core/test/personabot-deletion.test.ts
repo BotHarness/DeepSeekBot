@@ -299,6 +299,27 @@ describe('confirmed terminal PersonaBot deletion', () => {
     });
   });
 
+  it('erases the Bot’s private accounts while stopping and retries an incomplete erase', async () => {
+    const home = realpathSync(mkdtempSync(join(tmpdir(), 'bh1521-test-')));
+    homes.push(home);
+    const erase = vi.fn(async (_slug: string): Promise<unknown> => {
+      throw new Error('Private account authority is unavailable');
+    });
+    const core = createCore({ dshHome: home, erasePrivateAccounts: erase });
+    cores.push(core);
+    expect(
+      core.registry.create({ slug: 'a', displayName: 'Same name', persona: '# Soul\n' }).ok,
+    ).toBe(true);
+    const reviewed = core.deletions.preview('a');
+    expect(await core.deletions.confirm('a', reviewed.token, false)).toMatchObject({
+      phase: 'incomplete',
+      failure: 'Private account authority is unavailable',
+    });
+    erase.mockResolvedValueOnce(2);
+    expect(await core.deletions.retry('a')).toMatchObject({ phase: 'complete' });
+    expect(erase.mock.calls.map(([slug]) => slug)).toEqual(['a', 'a']);
+  });
+
   it('folder inspection never creates a missing directory or accepts deletion', () => {
     const f = fixture();
     const path = f.create();

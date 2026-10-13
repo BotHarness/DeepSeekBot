@@ -742,7 +742,8 @@ export const zh = {
   'common.cancel': '取消',
   'deletion.loading': '正在读取删除范围…',
   'deletion.title': '删除 Bot',
-  'deletion.description': '停止此 Bot 的运行并撤销授权。会话、消息和历史归属会保留。',
+  'deletion.description':
+    '停止此 Bot 的运行并撤销授权。它的密钥（API key、令牌等）会立即删除，无法恢复，但不会在服务商那里撤销。会话、消息和历史归属会保留。',
   'deletion.history': '此身份已停用，无法重新启动。保留的历史和记忆仍属于原 Bot。',
   'deletion.hostFolder': '文件夹将在运行 BotHarness 的电脑上打开。',
   'deletion.openFolder': '打开记忆文件夹',
@@ -3795,7 +3796,7 @@ export const en = {
   'deletion.loading': 'Loading deletion scope…',
   'deletion.title': 'Delete Bot',
   'deletion.description':
-    'Stop this Bot and revoke its authority. Sessions, messages and historical attribution remain.',
+    'Stop this Bot and revoke its authority. Its secrets (API keys, tokens and similar) are erased at once and cannot be recovered; they are not revoked at the provider. Sessions, messages and historical attribution remain.',
   'deletion.history':
     'This identity is terminally disabled. Retained history and Memory still belong to the original Bot.',
   'deletion.hostFolder': 'The folder opens on the computer running BotHarness.',
