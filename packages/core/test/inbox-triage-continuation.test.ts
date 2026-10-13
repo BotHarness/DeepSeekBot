@@ -69,6 +69,62 @@ describe('Orchestrator triage continuation', () => {
     }
   }, 60000);
 
+  it('maps a Message ID shared by two channels to the item in this turn', async () => {
+    const f = await fixture();
+    try {
+      const group = f.core.channels.createGroup({ name: 'Crew', members: ['ada'] });
+      await f.core.channels.appendMessage(group.id, {
+        id: 'human-1',
+        at: new Date().toISOString(),
+        author: { kind: 'human' },
+        body: '@Ada the build is red',
+        mentions: [{ botSlug: 'ada', label: 'Ada', start: 0, end: 4 }],
+      });
+      f.core.runtime.admitGroupMessage(group.id, 'human-1');
+      await f.core.runtime.whenIdle();
+      const groupItem = f.core.attention
+        .list({ botSlug: 'ada', limit: 100 })
+        .items.find((item) => item.sourceChannelId === group.id)!.id;
+      await f.send('FYI the deploy finished', (run) =>
+        run.triage!.resolve({ ids: ['human-1'], outcome: 'done' }),
+      );
+      const dmItem = f.core.attention
+        .list({ botSlug: 'ada', limit: 100 })
+        .items.find((item) => item.sourceChannelId === f.dm.id)!.id;
+      expect(f.results[0]).toMatchObject({ outcome: 'resolved', resolved: [dmItem] });
+      expect(f.state(groupItem)).toBe('open');
+    } finally {
+      await f.close();
+    }
+  }, 60000);
+
+  it('rejects a Message ID that matches open items in two channels', async () => {
+    const f = await fixture();
+    try {
+      await f.send('Waiting on legal');
+      const group = f.core.channels.createGroup({ name: 'Crew', members: ['ada'] });
+      await f.core.channels.appendMessage(group.id, {
+        id: 'human-1',
+        at: new Date().toISOString(),
+        author: { kind: 'human' },
+        body: '@Ada the build is red',
+        mentions: [{ botSlug: 'ada', label: 'Ada', start: 0, end: 4 }],
+      });
+      f.core.runtime.admitGroupMessage(group.id, 'human-1');
+      await f.core.runtime.whenIdle();
+      await f.send('Anything else?', (run) => {
+        try {
+          return run.triage!.resolve({ ids: ['human-1'], outcome: 'done' });
+        } catch (error) {
+          return (error as Error).message;
+        }
+      });
+      expect(f.results[0]).toMatch(/matches several items/);
+    } finally {
+      await f.close();
+    }
+  }, 60000);
+
   it('leaves a stalled item alone until something new arrives', async () => {
     const f = await fixture({ triageContinuation: true });
     try {
