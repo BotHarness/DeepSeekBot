@@ -1617,6 +1617,12 @@ export function parseOwnedSessionSummaries(value: unknown): OwnedSessionSummary[
         ...(role === 'orchestrator' && typeof currentOrchestrator === 'boolean'
           ? { currentOrchestrator }
           : {}),
+        ...(role === 'orchestrator' &&
+        typeof record['triageOpenCount'] === 'number' &&
+        Number.isSafeInteger(record['triageOpenCount']) &&
+        record['triageOpenCount'] > 0
+          ? { triageOpenCount: record['triageOpenCount'] }
+          : {}),
         ...(activity === undefined ? {} : { assignmentActivity: activity }),
         ...(role === 'assignment' &&
         (accessMode === 'workspace-write' || accessMode === 'danger-full-access')

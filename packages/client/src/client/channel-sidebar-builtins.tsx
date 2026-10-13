@@ -398,7 +398,7 @@ function BotInboxItemRow({
       ? `${externalPlatformLabel(item.externalOrigin.platform, t)} · ${externalSenderLabel(item.externalOrigin, t)}`
       : memoryChange
         ? t('inbox.memoryChange')
-        : item.sourceKind === 'assignment-report'
+        : item.sourceKind === 'assignment-report' || item.sourceKind === 'assignment-lifecycle'
           ? t('inbox.assignment')
           : item.sourceKind === 'schedule'
             ? t('inbox.schedule')
@@ -529,7 +529,7 @@ function BotInboxItemRow({
       }
       titleClassName="bh-inbox-item-head"
       badge={<Tag tone={INBOX_STATE_TONE[item.state]}>{t(`inbox.state.${item.state}`)}</Tag>}
-      summary={summary || t('inbox.system')}
+      summary={summary || item.assignmentPurpose || t('inbox.system')}
       hint={summary}
       mainClassName={memoryChange ? 'bh-inbox-item bh-inbox-item-info' : 'bh-inbox-item'}
       state={item.state}

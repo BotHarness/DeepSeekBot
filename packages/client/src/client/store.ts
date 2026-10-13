@@ -256,6 +256,7 @@ export interface OwnedSessionSummary {
   assignmentArchived?: true;
   assignmentPurpose?: string;
   currentOrchestrator?: boolean;
+  triageOpenCount?: number;
 }
 
 export type HumanInboxCategory = 'action' | 'info' | 'unread' | 'replies' | 'handled';

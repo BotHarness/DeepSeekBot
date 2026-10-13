@@ -18,6 +18,7 @@ export interface PersonaBotSessionRow {
   section?: AssignmentSection;
   needs?: AssignmentNeed;
   archived?: true;
+  triageOpenCount?: number;
 }
 
 export type AssignmentNeed = 'approval' | 'error' | 'waiting-human' | 'blocked' | 'failed';
@@ -90,6 +91,9 @@ export function personaBotSessionRows(
         ...(section === undefined ? {} : { section }),
         ...(placement?.needs === undefined ? {} : { needs: placement.needs }),
         ...(item.assignmentArchived === true ? { archived: true as const } : {}),
+        ...(item.triageOpenCount === undefined || status !== 'running'
+          ? {}
+          : { triageOpenCount: item.triageOpenCount }),
       },
     ];
   });

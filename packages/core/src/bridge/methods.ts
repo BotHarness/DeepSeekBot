@@ -389,6 +389,7 @@ export interface OwnedSessionSummary {
   assignmentArchived?: true;
   assignmentPurpose?: string;
   currentOrchestrator?: boolean;
+  triageOpenCount?: number;
 }
 
 export interface OwnedSessionBot {
@@ -4376,6 +4377,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         deps.runtime?.currentOrchestratorSessionId === undefined
           ? undefined
           : (deps.runtime.currentOrchestratorSessionId(slug) ?? null);
+      const triage = deps.runtime?.triageOpenCount?.(slug);
       const sessions = deps.ownership.rootsFor(slug).map((root) => {
         const assignment = assignments.get(root.sessionId);
         return {
@@ -4385,6 +4387,9 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
           ...(resumed === undefined || root.rootRole !== 'orchestrator'
             ? {}
             : { currentOrchestrator: root.sessionId === resumed }),
+          ...(triage === undefined || root.rootRole !== 'orchestrator' || root.sessionId !== resumed
+            ? {}
+            : { triageOpenCount: triage }),
           ...(root.cwdReference === undefined ? {} : { cwdReference: root.cwdReference }),
           ...(assignment === undefined ? {} : { assignmentActivity: assignment.activity }),
           ...(assignment?.permission === undefined

@@ -125,6 +125,25 @@ describe('Orchestrator triage continuation', () => {
     }
   }, 60000);
 
+  it('reports how many open items a running triage turn is working through', async () => {
+    const f = await fixture({ triageContinuation: true });
+    try {
+      let during: number | undefined;
+      await f.send(
+        'Waiting on legal',
+        () => undefined,
+        () => {
+          during = f.core.runtime.triageOpenCount?.('ada');
+        },
+      );
+      expect(f.runs).toHaveLength(2);
+      expect(during).toBe(1);
+      expect(f.core.runtime.triageOpenCount?.('ada')).toBeUndefined();
+    } finally {
+      await f.close();
+    }
+  }, 60000);
+
   it('leaves a stalled item alone until something new arrives', async () => {
     const f = await fixture({ triageContinuation: true });
     try {

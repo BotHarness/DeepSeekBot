@@ -157,7 +157,9 @@ function SessionsPanel({
         disabled={native.byId[row.sessionId] === undefined}
         onClick={() => void actions.openSession(row.sessionId)}
         badge={
-          row.needs !== undefined ? (
+          row.triageOpenCount !== undefined ? (
+            <Tag tone="info">{t('sessions.triage', { count: row.triageOpenCount })}</Tag>
+          ) : row.needs !== undefined ? (
             <Tag tone={row.needs === 'error' || row.needs === 'failed' ? 'danger' : 'warning'}>
               {t(`sessions.needs.${row.needs}`)}
             </Tag>

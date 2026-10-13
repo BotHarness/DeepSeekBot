@@ -558,6 +558,7 @@ export interface BotRuntime {
   admitGroupJoinDecision?(requesterDmChannelId: string, requestId: string): void;
   listAssignments(botSlug: string): AssignmentSummary[];
   currentOrchestratorSessionId?(botSlug: string): string | undefined;
+  triageOpenCount?(botSlug: string): number | undefined;
   listChannelAssignments?(channelId: string): ChannelAssignmentSummary[];
   getAssignment(botSlug: string, sessionId: string): AssignmentDetail | undefined;
   setAssignmentArchived?(
@@ -1132,7 +1133,7 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #digestTimers = new Map<string, NodeJS.Timeout>();
   readonly #snoozeTimers = new Map<string, NodeJS.Timeout>();
   readonly #triageQueued = new Set<string>();
-  readonly #triageRunning = new Set<string>();
+  readonly #triageRunning = new Map<string, number>();
   readonly #triageBaseline = new Map<string, number>();
   readonly #triageStalled = new Map<string, Set<string>>();
   readonly #groupAdmissionRetries = new Map<string, NodeJS.Timeout>();
@@ -1292,7 +1293,7 @@ class BotRuntimeImplementation implements BotRuntime {
     const channelId = channel?.channel_id ?? this.#dmChannel(botSlug)?.id;
     const body = `[Triage] ${ids.length} item${ids.length === 1 ? ' is' : 's are'} still open after your last turn. Give each one a destination: act on it now, resolve it with inbox_resolve once it is done or needs nothing more, snooze it with inbox_snooze when it waits on someone or a later time, or ignore noise. Check a completed Assignment report against what you asked for before resolving it. You are woken again while open items remain, unless a round leaves the open count unchanged.`;
     this.#triageBaseline.set(botSlug, ids.length);
-    this.#triageRunning.add(botSlug);
+    this.#triageRunning.set(botSlug, ids.length);
     try {
       const orchestrator = this.#ensureOrchestrator(bot, this.#now().toISOString());
       await this.#runOrchestratorTurn(
@@ -3366,6 +3367,10 @@ class BotRuntimeImplementation implements BotRuntime {
     return archived
       ? this.#archiveAssignment(bot, sessionId, () => {})
       : this.#unarchiveAssignment(bot, sessionId, () => {});
+  }
+
+  triageOpenCount(botSlug: string): number | undefined {
+    return this.#triageRunning.get(botSlug);
   }
 
   getAssignment(botSlug: string, sessionId: string): AssignmentDetail | undefined {

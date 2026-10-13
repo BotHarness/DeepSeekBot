@@ -889,6 +889,17 @@ it('puts open items first, snoozed by return time next, and folds done items wit
         snoozeNote: 'After the vendor replies',
       },
       { ...item, id: 'open', state: 'open', summary: 'Open item' },
+      {
+        ...item,
+        id: 'lifecycle',
+        state: 'open',
+        summary: '',
+        sourceKind: 'assignment-lifecycle',
+        authorKind: 'system',
+        assignmentSessionId: 'a-1',
+        assignmentPurpose: 'Ship the release notes',
+        createdAt: '2026-09-25T00:00:00.000Z',
+      },
     ],
     error: undefined,
   });
@@ -921,8 +932,16 @@ it('puts open items first, snoozed by return time next, and folds done items wit
         ),
       ),
     );
-    expect(container.querySelector('.badge')?.textContent).toBe('1');
-    const rows = [...container.querySelectorAll('.bh-card-row')];
+    expect(container.querySelector('.badge')?.textContent).toBe('2');
+    const rows = [...container.querySelectorAll('.bh-card-row')].filter(
+      (row) => !row.textContent?.includes('Ship the release notes'),
+    );
+    const lifecycle = [...container.querySelectorAll('.bh-card-row')].find((row) =>
+      row.textContent?.includes('Ship the release notes'),
+    );
+    expect(lifecycle?.querySelector('.bh-inbox-item-author')?.textContent).toBe(
+      zhTranslate('inbox.assignment') + ' · Ship the release notes',
+    );
     expect(rows.map((row) => row.querySelector('.bh-card-summary')?.textContent)).toEqual([
       'Open item',
       'Sooner item',

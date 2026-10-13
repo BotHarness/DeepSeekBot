@@ -41,7 +41,12 @@ it('pins the Orchestrator on top and groups Assignments by needs input, working,
   store.setSessions({
     status: 'ready',
     items: [
-      { sessionId: 'orc', role: 'orchestrator', createdAt: '2026-10-01T00:00:00Z' },
+      {
+        sessionId: 'orc',
+        role: 'orchestrator',
+        createdAt: '2026-10-01T00:00:00Z',
+        triageOpenCount: 3,
+      },
       { sessionId: 'a-old', role: 'assignment', createdAt: '2026-10-01T00:00:00Z' },
       { sessionId: 'a-new', role: 'assignment', createdAt: '2026-10-01T00:00:00Z' },
       { sessionId: 'a-run', role: 'assignment', createdAt: '2026-10-01T00:00:00Z' },
@@ -124,6 +129,20 @@ it('pins the Orchestrator on top and groups Assignments by needs input, working,
     expect(working.querySelector('.bh-session-workspace-count')?.textContent).toBe('1 / 8');
     expect(container.textContent).not.toContain('Assignment');
     expect(lists[0]!.querySelector('.bh-card-badge')).toBeNull();
+    await act(async () =>
+      root.render(
+        createElement(SessionsEntry, {
+          ...props,
+          nativeSessions: catalog({
+            ...native.getSnapshot().byId,
+            orc: { displayTitle: 'Main', updatedAt: 1, running: true },
+          }),
+        }),
+      ),
+    );
+    expect(
+      container.querySelector('.bh-sessions-groups > .bh-card-list .bh-card-badge')?.textContent,
+    ).toBe('整理收件箱 · 3');
     expect(working.querySelector('[data-flip-key="a-run"] .bh-card-badge')).toBeNull();
     expect(working.querySelector('.bh-session-archive')).toBeNull();
     expect(needs.querySelector('[data-flip-key="a-fail"] .bh-card-badge')?.textContent).toBe(
@@ -139,7 +158,9 @@ it('pins the Orchestrator on top and groups Assignments by needs input, working,
     await act(async () =>
       resolved.querySelector<HTMLButtonElement>('.bh-session-workspace-heading')!.click(),
     );
-    expect(titles(container.querySelector('[data-section="resolved"]')!)).toEqual(['Ship the release notes']);
+    expect(titles(container.querySelector('[data-section="resolved"]')!)).toEqual([
+      'Ship the release notes',
+    ]);
     await act(async () =>
       container
         .querySelector<HTMLButtonElement>('[data-flip-key="a-done"] .bh-session-archive')!
