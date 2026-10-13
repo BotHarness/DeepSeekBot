@@ -2,7 +2,6 @@ import { useRef, useState, type ReactElement } from 'react';
 import {
   Button,
   Checkbox,
-  IconChevronDownOutlineRegular,
   Input,
   SegmentedControl,
   Tag,
@@ -176,6 +175,7 @@ export function ModelPresetProfile({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [editorOpen, setEditorOpen] = useState(false);
+  const [modeSwitched, setModeSwitched] = useState(false);
 
   const acceptPlan = (
     current: ModelPlanView | undefined,
@@ -268,6 +268,7 @@ export function ModelPresetProfile({
     setDraft(undefined);
     setPresetName(undefined);
     setError(undefined);
+    setModeSwitched(false);
     setEditorOpen(true);
     void load();
   };
@@ -507,13 +508,44 @@ export function ModelPresetProfile({
     );
   };
 
+  const modeControl =
+    draft === undefined ? null : (
+      <SegmentedControl
+        id="bh-model-task-mode"
+        value={draft.advanced ? 'advanced' : 'simple'}
+        options={[
+          { value: 'simple', label: t('modelPreset.modeSimple') },
+          { value: 'advanced', label: t('modelPreset.modeAdvanced') },
+        ]}
+        onChange={(mode) => {
+          setModeSwitched(true);
+          setDraft((current) =>
+            current === undefined || current.advanced === (mode === 'advanced')
+              ? current
+              : current.advanced
+                ? { ...withAdvanced(current, false), presetId: '' }
+                : withAdvanced(current, true),
+          );
+        }}
+        label={t('modelPreset.mode')}
+        disabled={busy}
+      />
+    );
+
   const taskEditor =
     draft === undefined || catalog === undefined ? null : (
-      <section className="bh-model-task" aria-label={t('modelPreset.assignment')}>
+      <section
+        className="bh-model-task"
+        aria-label={t('modelPreset.assignment')}
+        data-mode-switched={modeSwitched || undefined}
+      >
         {draft.advanced ? (
-          <div className="bh-model-picker-heading">
-            <strong>{t('modelPreset.assignment')}</strong>
-            <span>{t('modelPreset.allowedHint')}</span>
+          <div className="bh-model-picker-heading-row">
+            <div className="bh-model-picker-heading">
+              <strong>{t('modelPreset.assignment')}</strong>
+              <span>{t('modelPreset.allowedHint')}</span>
+            </div>
+            {modeControl}
           </div>
         ) : (
           <ModelPicker
@@ -532,32 +564,10 @@ export function ModelPresetProfile({
               })
             }
             disabled={busy}
+            action={modeControl}
             t={t}
           />
         )}
-        <button
-          type="button"
-          className="bh-channel-sidebar-entry-head bh-model-mode-toggle"
-          aria-expanded={draft.advanced}
-          disabled={busy}
-          onClick={() =>
-            setDraft((current) =>
-              current === undefined
-                ? current
-                : current.advanced
-                  ? { ...withAdvanced(current, false), presetId: '' }
-                  : withAdvanced(current, true),
-            )
-          }
-        >
-          <span
-            className={`bh-channel-sidebar-entry-chevron${draft.advanced ? '' : ' bh-chevron-collapsed'}`}
-            aria-hidden="true"
-          >
-            <IconChevronDownOutlineRegular size={14} />
-          </span>
-          <span className="bh-channel-sidebar-entry-label">{t('modelPreset.advanced')}</span>
-        </button>
         {draft.advanced && (
           <div className="bh-model-allowed">
             <Combobox

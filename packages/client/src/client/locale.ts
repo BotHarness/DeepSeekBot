@@ -1727,7 +1727,9 @@ export const zh = {
   'modelPreset.allowedTitle': '可选的执行模型',
   'modelPreset.allowedHint':
     '分派任务时，Orchestrator 可以按你写的说明从这些模型里挑选；没有指定时使用标为「默认」的模型。',
-  'modelPreset.advanced': '进阶：让任务按需选择模型',
+  'modelPreset.mode': '执行模型模式',
+  'modelPreset.modeSimple': '简单',
+  'modelPreset.modeAdvanced': '进阶',
   'modelPreset.defaultModel': '默认',
   'modelPreset.makeDefault': '设为默认',
   'modelPreset.defaultEffort': '默认强度',
@@ -4922,7 +4924,9 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'modelPreset.allowedTitle': 'Allowed task models',
   'modelPreset.allowedHint':
     'When delegating, the Orchestrator can pick one of these by your notes; otherwise it uses the one marked Default.',
-  'modelPreset.advanced': 'Advanced: let tasks pick a model',
+  'modelPreset.mode': 'Task model mode',
+  'modelPreset.modeSimple': 'Simple',
+  'modelPreset.modeAdvanced': 'Advanced',
   'modelPreset.defaultModel': 'Default',
   'modelPreset.makeDefault': 'Make default',
   'modelPreset.defaultEffort': 'Default effort',

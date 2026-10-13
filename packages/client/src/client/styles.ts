@@ -5087,16 +5087,33 @@ html[data-botharness-motion='reduce'] .bh-composer-footer {
   gap: 8px;
   min-width: 0;
 }
-.bh-model-mode-toggle {
+.bh-model-picker-heading-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+.bh-model-picker-heading-row > .bh-model-picker-heading {
+  flex: 1;
+  min-width: 0;
+}
+.bh-model-picker-heading-row > :last-child {
   flex: none;
-  margin: 0 -8px;
-  font-weight: 500;
 }
-.bh-model-mode-toggle > .bh-channel-sidebar-entry-label {
-  font-size: 13px;
+.bh-model-task[data-mode-switched='true'] > .bh-model-allowed,
+.bh-model-task[data-mode-switched='true'] > .bh-model-picker > :not(.bh-model-picker-heading-row) {
+  animation: bh-model-mode-enter 180ms var(--ds-ease-in-out);
 }
-.bh-model-mode-toggle:disabled {
-  cursor: default;
+@keyframes bh-model-mode-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+html[data-botharness-motion='reduce'] .bh-model-task > .bh-model-allowed,
+html[data-botharness-motion='reduce'] .bh-model-task > .bh-model-picker > * {
+  animation: none;
 }
 .bh-model-card {
   display: flex;

@@ -456,7 +456,7 @@ describe('Model entry', () => {
       applyModelPreset,
     } as unknown as BridgeActions);
     await openEditor(host);
-    await act(async () => button('Advanced: let tasks pick a model').click());
+    await act(async () => button('Advanced').click());
     await choose('Add an allowed model', 'kimi', 'Kimi K2');
     expect(document.querySelector('.bh-model-cards')?.textContent).toContain('Kimi K2');
     await act(async () => button('Save as preset').click());
@@ -497,11 +497,14 @@ describe('Model entry', () => {
       setModelPlan,
     } as unknown as BridgeActions);
     await openEditor(host);
-    const toggle = button('Advanced: let tasks pick a model');
-    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    const mode = (name: string) =>
+      document.querySelector<HTMLButtonElement>(
+        `[aria-label="Task model mode"] [role="tab"]:${name === 'Simple' ? 'first' : 'last'}-child`,
+      )!;
+    expect(mode('Simple').getAttribute('aria-selected')).toBe('true');
     expect(combobox('Task model').value).toBe('Pro');
-    await act(async () => toggle.click());
-    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    await act(async () => mode('Advanced').click());
+    expect(mode('Advanced').getAttribute('aria-selected')).toBe('true');
     expect(document.querySelector('input[role="combobox"][aria-label="Task model"]')).toBeNull();
 
     await choose('Add an allowed model', 'kimi', 'Kimi K2');
@@ -601,10 +604,9 @@ describe('Model entry', () => {
       setModelPlan,
     } as unknown as BridgeActions);
     await openEditor(host);
-    const toggle = button('Advanced: let tasks pick a model');
-    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(button('Advanced').getAttribute('aria-selected')).toBe('true');
     expect(document.querySelectorAll('li.bh-model-card')).toHaveLength(2);
-    await act(async () => toggle.click());
+    await act(async () => button('Simple').click());
     expect(document.querySelector('li.bh-model-card')).toBeNull();
     expect(combobox('Task model').value).toBe('Flash');
     await act(async () => button('Save').click());

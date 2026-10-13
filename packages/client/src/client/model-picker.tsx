@@ -1,4 +1,4 @@
-import { useId, type ReactElement } from 'react';
+import { useId, type ReactElement, type ReactNode } from 'react';
 import { SegmentedControl } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { ModelCatalogEntryView } from './bridge.js';
 import { Combobox, type ComboboxOption } from './combobox.js';
@@ -17,6 +17,7 @@ export function ModelPicker({
   options,
   onChange,
   disabled,
+  action,
   t,
 }: {
   title: string;
@@ -26,6 +27,7 @@ export function ModelPicker({
   options: readonly ComboboxOption[];
   onChange: (choice: ModelChoice) => void;
   disabled: boolean;
+  action?: ReactNode;
   t: BotHarnessTranslate;
 }): ReactElement {
   const id = useId();
@@ -34,12 +36,22 @@ export function ModelPicker({
     { value: '', label: t('modelPreset.providerDefault') },
     ...(entry?.efforts ?? []).map((effort) => ({ value: effort.id, label: effort.name })),
   ];
+  const heading = (
+    <div className="bh-model-picker-heading">
+      <strong>{title}</strong>
+      <span>{hint}</span>
+    </div>
+  );
   return (
     <div className="bh-model-picker">
-      <div className="bh-model-picker-heading">
-        <strong>{title}</strong>
-        <span>{hint}</span>
-      </div>
+      {action === undefined ? (
+        heading
+      ) : (
+        <div className="bh-model-picker-heading-row">
+          {heading}
+          {action}
+        </div>
+      )}
       <Combobox
         value={entry === undefined ? '' : choice.key}
         options={options}
