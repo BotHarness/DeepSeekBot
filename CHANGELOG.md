@@ -6,7 +6,11 @@ Unreleased entries arrive as [change fragments](changes/README.md) and are folde
 
 ## [Unreleased]
 
-Pixel Avatars can be an elf, dwarf, orc or talking flower with beards, medieval outfits and headwear, you can draw your own headpiece and hair pieces into a Part Library, and new PersonaBots start from a face seeded across every species; a compatible Provider can create a Lark application or show a WeChat pairing QR in the binding dialog.
+No changes since 1.3.0 yet.
+
+## [1.3.0] - 2026-10-14
+
+Bots get a Channel settings dialog, an icon-tab Channel sidebar and a StyleX design system for Bot settings; the Orchestrator triages, snoozes and resolves its own Bot Inbox and groups Assignments by state; Bots can use Owner secrets through approved CLI and MCP starts; messages can be multi-selected and exported as an image, text or a local diagnostic bundle; composers keep drafts and recall sent input; a Bot Primary Color colors its name, charts and heatmaps; Pixel Avatars add elves, dwarves, orcs, talking flowers and animals with a drawable Part Library; Memory can be restored to any graph commit; Lark, Slack, QQ and WeChat gain pairing review, app creation and authority controls; and DeepSeekBot now requires DSH 0.2.0 or later.
 
 ### Breaking Changes
 
@@ -36,6 +40,8 @@ Pixel Avatars can be an elf, dwarf, orc or talking flower with beards, medieval 
 - The Part Library adds Profile schema Generation 73. Back up before upgrading; reopening an upgraded Profile requires a compatible binary or restoration of the pre-upgrade backup ([#1211](https://github.com/BotHarness/DeepSeekBot/issues/1211)).
 
 - QQ reception intervals add Profile schema Generation 74 and reuse the existing receive boundary; back up before upgrading and repair forward after upgrade ([#1153](https://github.com/BotHarness/BotHarness/issues/1153)).
+
+- Per-app proactive post limits add Profile schema Generation 89. Back up before upgrading; rollback requires a compatible writer or the pre-upgrade backup. Earlier experimental #1115 generation 75/77/84/87/88 Profiles must remain isolated because their migration histories differ ([#1115](https://github.com/BotHarness/DeepSeekBot/issues/1115)).
 
 ### Added
 
@@ -119,7 +125,6 @@ Pixel Avatars can be an elf, dwarf, orc or talking flower with beards, medieval 
 
 - Bot settings has an **IM apps** section listing every app on Lark, Slack, Discord, QQ and WeChat with the Bot that uses it, and a link to DSH settings for credentials ([#1263](https://github.com/BotHarness/DeepSeekBot/issues/1263), [ADR-0153](docs/adr/0153-bot-settings-is-a-botharness-owned-modal.md)).
 - From **IM apps**, an unbound app can be bound to a Bot, a bound app unbound after confirmation, and a Lark or WeChat app created for a chosen Bot when the Provider supports setup ([#1264](https://github.com/BotHarness/DeepSeekBot/issues/1264)).
-- A Group without its own avatar shows up to four of its PersonaBots' faces in the sidebar, rail and pinned grid instead of `#`; the faces stay still and don't show what each Bot is doing ([#1270](https://github.com/BotHarness/DeepSeekBot/issues/1270)).
 - While a PersonaBot thinks or works, a row under the latest message shows its avatar turning into the tool it is using and the same short status as the composer; a Group shows up to two working Bots, and the Bot's reply replaces its row as it streams in. While you're at the latest message, the status above the composer fades out, and it comes back when you scroll up into history ([#1271](https://github.com/BotHarness/DeepSeekBot/issues/1271)).
 
 - Added QQ quoted-voice intake with native platform-transcript provenance, original-audio downloads and on-demand bounded SILK playback in the Channel; one maintained-runtime application passed real voice → model → original-group text reply, Human confirmation and actual Client keyboard playback ([#1159](https://github.com/BotHarness/DeepSeekBot/issues/1159), [guide](docs/qq-connection.md)).
@@ -154,6 +159,18 @@ Pixel Avatars can be an elf, dwarf, orc or talking flower with beards, medieval 
 - The same CLI now reads and writes Bot Memory headlessly: `memory-snapshot`, `memory-file`, `memory-history`, and `memory-diff` read the memory store, and `memory-save` writes one file and commits it with compare-and-swap heads and idempotent edit ids; conflicts and bad shas fail coded. See the [bot CLI guide](docs/bot-cli.md) ([#1311](https://github.com/BotHarness/DeepSeekBot/issues/1311)).
 - The local Bot Browser now offers human takeover like the Computer viewer: a live Host-served view with click, scroll, and keyboard entry (small screens default to trackpad mode), and an ask-permission handoff where the bot mints a single-use link with instructions, waits for Done or Could-not-finish, verifies the page state, and resumes. Typed secrets stay in the live view and never reach chat or logs; every handoff leaves an audit trail with its session recording ([#1322](https://github.com/BotHarness/DeepSeekBot/issues/1322), [ADR-0163](docs/adr/0163-local-browser-takeover-reuses-computer-viewer-family.md)).
 - Fresh `deepseekbot` installs now ship the Browser and Computer bundles with Core, Client and the qualified IM Provider, so new Profiles browse and use a computer with no extra installs; IM accounts start disconnected until app credentials are added, and per-Bot Browser/Computer Access stays off until enabled. Existing Profiles gain the new defaults on update; remove a formerly separate Browser or Computer Bundle entry first, keeping its stored data ([#1328](https://github.com/BotHarness/DeepSeekBot/issues/1328), [ADR-0160](docs/adr/0160-deepseekbot-default-bundles-browser-computer-and-im-provider.md)).
+
+- A compatible Provider can list reachable Lark, Slack and Discord groups and post without a saved target; the app's picker, rolling-hour limit and existing Outbox retain blocks, final authorization and unknown outcomes. Older Providers show an update hint while saved targets remain available; the qualified Provider `.20` is published on `next` with its exact archive verified ([#1115](https://github.com/BotHarness/DeepSeekBot/issues/1115)).
+
+- Added a red dot on the Channel header's ··· menu and its Channel settings row when an enabled External connector is unavailable, and Channel settings now opens on that section ([#1518](https://github.com/BotHarness/DeepSeekBot/issues/1518)).
+
+- Memory evolution can restore Memory to any Git graph commit from inside that commit's block, after saving any uncommitted files as a backup commit; any commit can be given a version name, stored as a Git tag, and Memory evolution can switch to a list of named versions; the section header gains Evolution, Versions and Branches tabs; the restore adds a new commit, the Memory file list refreshes right away, and the recovery list moves to the gear menu as Restore from an automatic backup ([#1558](https://github.com/BotHarness/DeepSeekBot/pull/1558)).
+
+- PersonaBots can now archive and restore their finished Assignments, search their Assignment list by purpose, key or latest report, and page through it, so a long-running Bot keeps a small, relevant view of its work. The default Assignment concurrency limit rises from 3 to 8 ([#1561](https://github.com/BotHarness/DeepSeekBot/issues/1561)).
+
+- A PersonaBot can now snooze Bot Inbox items it cannot act on yet with `inbox_snooze`. They leave its open list and come back, waking it with its note, at the chosen time or as soon as something new arrives in the same conversation. The Bot Inbox view shows them as Snoozed ([#1561](https://github.com/BotHarness/DeepSeekBot/issues/1561)).
+
+- Added Delete Bot to the sidebar Channel menu (right-click, or long-press on Android) and the Channel header's ··· menu, and every sidebar menu row now has an icon ([#1564](https://github.com/BotHarness/DeepSeekBot/pull/1564)).
 
 ### Changed
 
@@ -191,9 +208,25 @@ Pixel Avatars can be an elf, dwarf, orc or talking flower with beards, medieval 
 - Bot settings open in their own window from the gear in the Bot panel, with a sidebar of General, Models & execution, Messaging, Computer, Browser, Window companions, Data & privacy, Advanced and About instead of one long page among other plugins' settings; **Bot settings** in DSH settings switches straight to it, and the telemetry notice and Window Companion menu open their own section ([#1260](https://github.com/BotHarness/DeepSeekBot/issues/1260), [#1261](https://github.com/BotHarness/DeepSeekBot/issues/1261), [ADR-0153](docs/adr/0153-bot-settings-is-a-botharness-owned-modal.md)).
 - In a narrow window, Bot settings shows its sections in a dropdown at the top instead of a side rail ([#1262](https://github.com/BotHarness/DeepSeekBot/issues/1262)).
 
-- Channel attachment cards now share one 320px card rhythm: audio attachments play through a custom bubble player instead of falling back to a file row, and file cards stack the name over a human-readable size with a divider and a direct download action ([#1290](https://github.com/BotHarness/DeepSeekBot/issues/1290)).
+- Window Companions stay smoother while several Bots work and type at once. Companions now share one animation frame and measure before they write, and an avatar no longer rebuilds its figure each time it switches between thinking and working. In a five-Bot test with real replies, frames longer than 50 ms dropped by about 70% ([#1167](https://github.com/BotHarness/DeepSeekBot/issues/1167)).
 
-- Your own message headers now mirror the bubble side: the name hugs the right edge with the timestamp to its left, matching the left-side Bot order ([#1298](https://github.com/BotHarness/DeepSeekBot/issues/1298)).
+- Under **Recently updated**, ungrouped Channels in the sidebar now sort by their latest message, so a Channel with a new message rises to the top of its group of rows. Opening a Channel no longer moves it to the top on its own ([#1530](https://github.com/BotHarness/DeepSeekBot/issues/1530)).
+
+- A PersonaBot no longer treats every message as handled just because a turn finished. Items that reached it stay open until it resolves them, it sees its unresolved conversations at the start of each turn, and it can review them with `inbox_list` and clear many at once with `inbox_resolve`. The Bot Inbox view shows these items as Open ([#1561](https://github.com/BotHarness/DeepSeekBot/issues/1561)).
+
+- The Bot Inbox in the Channel sidebar now lists items that need attention first, then snoozed items ordered by when they return, then a folded Done group. Each row shows the Bot's resolution note, or for a snoozed item its return time and note. The tab badge counts only items that need attention and hides at zero. The Sessions tab now shows idle Assignments in its Idle group by default ([#1561](https://github.com/BotHarness/DeepSeekBot/issues/1561)).
+
+- A PersonaBot that leaves Bot Inbox items open after a turn is woken again to triage them: act, resolve, snooze or ignore each one. It stops once a round makes no progress and starts again only when something new opens. When an Assignment reports completed, the PersonaBot checks the result against what it asked for and sends it back if it falls short ([#1561](https://github.com/BotHarness/DeepSeekBot/issues/1561)).
+
+- The Sessions tab now groups Assignments as Needs input, Working, Idle and Resolved. Needs input covers a pending tool approval, an error, or a report that waits on you, is blocked or failed. Resolved holds archived and stopped Assignments and is folded by default. Each idle or resolved row has an Archive or Unarchive button, and the Working heading shows how many Assignments run against the limit. The Orchestrator row no longer shows an Idle tag, and while a triage turn runs it reads “Triaging n open”. Assignment lifecycle items in the Bot Inbox now show as from the Assignment instead of System ([#1561](https://github.com/BotHarness/DeepSeekBot/issues/1561)).
+
+- Bot Orchestrator and Assignment sessions no longer appear in DeepSeek Harness's own session list by default; turn on Bot settings › General › Show Bot sessions in the session list to see them ([#1567](https://github.com/BotHarness/DeepSeekBot/issues/1567)).
+
+- Window Companions now speak through one compact bubble. A reply plays one or two sentences at a time instead of stacking up to three cards. Hover to pause and read the whole message, and a counter shows how many more are queued. Tool approvals and questions show one request at a time with compact buttons; working directory, raw input and option notes fold under Details. The activity line above the avatar is gone, because the avatar already shows what the Bot is doing; a disconnected companion is dimmed instead. The bubble now has a rounded outline with a tail pointing at the avatar, pops in for each new message and shows a typing caret, and question options are numbered rows. The avatar turns its face toward the way it walks, and stops to face you while it speaks ([#1576](https://github.com/BotHarness/DeepSeekBot/issues/1576)).
+
+- Each Bot request carries about 5k fewer input tokens. A Bot without an IM connection no longer lists the 15 external IM tools or their instructions, and they appear on the next turn after the Bot is connected. The native subagent tools that a Bot could not call are gone; Bots keep delegating through bot_subagent. The reminder tool no longer repeats rules already in the Bot's instructions ([#1583](https://github.com/BotHarness/DeepSeekBot/pull/1583)).
+
+- Bot settings now follows the compact look of the Channel sidebar. Every section uses the same rows: a title, one line of description and one control. Choices open as a small menu instead of a browser select box, and changes apply as soon as you make them. Messaging shows one platform at a time without the table or revision number, the Assignment limit and companion retention use a stepper, your default name saves when you press Enter or leave the field, and IM apps explains what to do when no app exists yet. Channel settings shares the same dialog frame ([#1591](https://github.com/BotHarness/DeepSeekBot/issues/1591)).
 
 ### Fixed
 
@@ -236,8 +269,6 @@ Pixel Avatars can be an elf, dwarf, orc or talking flower with beards, medieval 
 
 - Public private-input Session evidence retains native RC1 rejected and unavailable approval outcomes while excluding decision reasons and unknown values ([#1386](https://github.com/BotHarness/DeepSeekBot/issues/1386)).
 
-- Core and product-managed IM Provider declarations use the minimum DSH version `>=0.1.7-0`, including previews, without an exact RC1 lock or future-version ceiling. Future versions are admitted by metadata, not automatically runtime-qualified; the 1.2.1 maintenance installation matrix is separate from this development tree ([#1425](https://github.com/BotHarness/DeepSeekBot/issues/1425)).
-
 - The reusable Lark QA App setup wizard prints links for manual navigation and reduces Windows prompt delays by caching defaults, avoiding terminal subprocesses, and saving each stage atomically while preserving other Apps ([#1385](https://github.com/BotHarness/DeepSeekBot/issues/1385)).
 
 - Lark tool-approval cards now show settled execution or rejection without stale action buttons by using shared updates in the qualified Provider ([#1406](https://github.com/BotHarness/DeepSeekBot/issues/1406)).
@@ -274,6 +305,30 @@ Pixel Avatars can be an elf, dwarf, orc or talking flower with beards, medieval 
 
 - On narrow screens, message bubbles are no longer squeezed by the always-visible reply and copy buttons; those actions move into the long-press message menu, while desktop hover and right-click behavior is unchanged ([#1346](https://github.com/BotHarness/DeepSeekBot/issues/1346)).
 
+- A question card that a Bot left open while it went on with other work now survives a Host restart. The card stays answerable in its DM or Group and in the Human Inbox, and the answer resumes the Bot's own conversation where it asked. Before, the card silently expired after a restart. A card also stays answerable when DSH releases the Bot's agent between tasks ([#1038](https://github.com/BotHarness/DeepSeekBot/issues/1038)).
+
+- A Channel's sidebar preview and time now follow new messages even when that Channel is not open, including messages you send from another window. Each new message updates only that Channel's row, so the sidebar no longer waits for an unrelated refresh ([#1530](https://github.com/BotHarness/DeepSeekBot/issues/1530)).
+
+- A PersonaBot can now resolve or snooze the message that woke it in the same turn: `inbox_resolve` and `inbox_snooze` accept the Message ID shown in the turn header, and `inbox_list` includes the items the current turn is handling. Before, the Bot could not find those items, so every message cost an extra triage turn ([#1561](https://github.com/BotHarness/DeepSeekBot/issues/1561)).
+
+- When the Orchestrator gets an Assignment report through `wait_for_assignment`, that report and its lifecycle notices now belong to the current turn. The Orchestrator can accept and resolve them there, and no separate report turn follows ([#1561](https://github.com/BotHarness/DeepSeekBot/issues/1561)).
+
+- When a Bot's Orchestrator Session is archived in DeepSeek Harness while the Bot is replying, the Bot now replays the message on a new Orchestrator Session instead of failing, as long as the interrupted turn had not acted yet ([#1567](https://github.com/BotHarness/DeepSeekBot/issues/1567)).
+
+- Fixed a PersonaBot going silent after its Orchestrator Session was archived in DeepSeek Harness; the Bot now starts a new Orchestrator Session on its next message ([#1567](https://github.com/BotHarness/DeepSeekBot/issues/1567)).
+
+- The DM token usage panel's "Current Orchestrator Session" row now shows the Session the Bot actually resumes, so it follows a replacement Orchestrator Session instead of an archived one. Usage from replaced Orchestrator Sessions stays in the Bot's totals ([#1567](https://github.com/BotHarness/DeepSeekBot/issues/1567)).
+
+- When a Bot moves to a new Orchestrator Session, BotHarness now releases the Agent it held for the replaced Session instead of keeping it in memory until the Bot stops ([#1567](https://github.com/BotHarness/DeepSeekBot/issues/1567)).
+
+- After a Bot replaces an archived Orchestrator Session, the Sessions list pins the Session the Bot actually resumes, and an answer to a question asked in the archived Session is refused instead of starting a turn DeepSeek Harness rejects ([#1567](https://github.com/BotHarness/DeepSeekBot/issues/1567)).
+
+- A Bot no longer stays stuck on "thinking" or "working" when a Session log stops in the middle of a turn, for example after a crash or when the turn ends without a closing event. The state now settles to idle once DeepSeek Harness reports that the Session is not running ([#1567](https://github.com/BotHarness/DeepSeekBot/issues/1567)).
+
+- A Bot tidying its own inbox or archiving finished Assignments no longer asks the Human for tool approval, so the next message to that Bot is not held behind an unanswered card ([#1575](https://github.com/BotHarness/DeepSeekBot/issues/1575)).
+
+- The onboarding tour now describes the Channel sidebar tabs and points to Channel settings in the ··· menu, and its Activity Center and Bot settings steps show the buttons they highlight. The getting-started progress ring in the Bot mode row now appears only on hover, like the Activity Center and settings buttons ([#1584](https://github.com/BotHarness/DeepSeekBot/pull/1584)).
+
 ### Documentation
 
 - Documented a qualified 2-core, 4 GB source deployment with strict SSH, CLI installation, tailnet HTTPS, real QQ replies before and after Host restart, an original-group A/B image with private identity redacted, and an actual native binding clip with bilingual subtitles; the complete tutorial film remains pending ([#1438](https://github.com/BotHarness/DeepSeekBot/issues/1438), [walkthrough](docs/vps-qq-tutorial.md), [Profile installer](docs/agents/source-profile-install.md)).
@@ -299,6 +354,24 @@ Pixel Avatars can be an elf, dwarf, orc or talking flower with beards, medieval 
 - Documented how a PersonaBot's Memory commits and its own BotHarness-tool actions will be kept as Channel Notices in the conversation that caused them and as searchable Bot Inbox history that never wakes it; runtime behavior is unchanged ([ADR-0154](docs/adr/0154-bot-self-records-keep-memory-commits-and-bot-actions-in-the-timeline-and-inbox.md), [#1272](https://github.com/BotHarness/DeepSeekBot/issues/1272)).
 
 - Documented five-companion foreground frame, concurrent-output and stream-recovery/Client-reload measurements, ten-cycle heap observations, same-version/Profile walking studies with separate main-renderer stage observations and an explicitly interrupted current-version comparison, separate Windows GPU-process counters and actual browser-process restart checks, with repeatable protocols, confirmed scoped budgets and explicit remaining qualification; no SVG-specific GPU attribution or overall performance acceptance is claimed ([report](docs/research/2026-10-09-window-companion-performance.md), [#1167](https://github.com/BotHarness/DeepSeekBot/issues/1167)).
+
+## [1.2.1] - 2026-10-12
+
+Install DeepSeekBot on compatible DSH 0.1.7 and 0.2 Hosts, with clearer Group identities and attachment cards; the unfinished 1.3 data migrations are not included.
+
+### Added
+
+- Groups without a custom avatar show up to four static member faces in the sidebar, rail and pinned grid ([#1270](https://github.com/BotHarness/DeepSeekBot/issues/1270)).
+
+### Changed
+
+- Audio and file attachments share a compact card layout, with inline audio controls and a direct file download action ([#1290](https://github.com/BotHarness/DeepSeekBot/issues/1290)).
+- Your own message header places the name on the right and the timestamp on its left ([#1298](https://github.com/BotHarness/DeepSeekBot/issues/1298)).
+- Group Channel headers use the same avatar as the sidebar, without individual Bot Window Companion Pin buttons; Bot DM companion controls and Channel pinning remain available ([#1439](https://github.com/BotHarness/DeepSeekBot/issues/1439)).
+
+### Fixed
+
+- Core and product-managed IM Provider compatibility declarations now use a DSH minimum of `>=0.1.7-0`, including previews, without an exact-version lock or future-version ceiling. A repeatable packaged installation matrix checks published DSH versions from 0.1.7-alpha.1 through 0.2.1-alpha.2 without compatibility exemptions; future versions are allowed by the declaration, not yet runtime-qualified ([#1425](https://github.com/BotHarness/DeepSeekBot/issues/1425)).
 
 ## [1.2.0] - 2026-10-08
 
