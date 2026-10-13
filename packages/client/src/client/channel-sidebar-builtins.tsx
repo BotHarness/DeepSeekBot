@@ -5,7 +5,6 @@ import {
   Button,
   IconEllipsisOutlineRegular,
   IconChevronDownOutlineRegular,
-  Input,
   Menu,
   Tag,
   Tooltip,
@@ -47,7 +46,7 @@ import { MemoryFilesEntry } from './memory-files-entry.js';
 import { Modal } from './modal.js';
 import { ExternalSourceContent } from './external-source-content.js';
 import { externalPlatformLabel, externalSenderLabel } from './bridge-source-label.js';
-import { GroupAvatarCropModal } from './group-avatar-crop.js';
+import { DisbandGroupDialog, GroupManagementSettings } from './group-management-settings.js';
 import { MembersEntry, MembersHeaderAction } from './group-member-controls.js';
 import { GroupWorkEntry } from './group-work-entry.js';
 import { PrivateAccountsSection } from './private-accounts-section.js';
@@ -69,7 +68,7 @@ import {
   type InboxSection,
 } from './inbox-sections.js';
 import type { BotHarnessTranslate } from './locale.js';
-import type { BotAttentionItem, ChannelSummary } from './store.js';
+import type { BotAttentionItem } from './store.js';
 
 const inactiveSubscribe = (): (() => void) => () => {};
 
@@ -99,101 +98,8 @@ function inboxIcon(item: BotAttentionItem): string {
 function GroupManagementEntry(props: ChannelSidebarEntryProps): ReactElement {
   const group = useClientState().conversation.channel;
   if (group?.type !== 'group') return <></>;
-  return <GroupManagementForChannel key={group.id} {...props} group={group} />;
-}
-
-function GroupManagementForChannel({
-  actions,
-  t,
-  group,
-}: ChannelSidebarEntryProps & { group: ChannelSummary }): ReactElement {
-  const [nameState, setNameState] = useState({ source: group.name, draft: group.name });
-  if (nameState.source !== group.name) {
-    setNameState({ source: group.name, draft: group.name });
-  }
-  const name = nameState.source === group.name ? nameState.draft : group.name;
-  const [cropFile, setCropFile] = useState<File>();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(false);
-  const apply = async (result: Promise<boolean>): Promise<boolean> => {
-    setBusy(true);
-    try {
-      const ok = await result;
-      setError(!ok);
-      return ok;
-    } finally {
-      setBusy(false);
-    }
-  };
   return (
-    <div className="bh-group-management">
-      <div className="bh-group-setting">
-        <div className="bh-group-invitations-title">{t('group.avatar')}</div>
-        <div className="bh-group-avatar-setting">
-          {group.avatar ? <img src={group.avatar} alt="" /> : <span aria-hidden="true">#</span>}
-          <label className="bh-group-manage-button">
-            {t('group.avatarChoose')}
-            <input
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              disabled={busy}
-              onChange={(event) => {
-                const file = event.currentTarget.files?.[0];
-                if (file) setCropFile(file);
-                event.currentTarget.value = '';
-              }}
-            />
-          </label>
-          {group.avatar ? (
-            <button
-              type="button"
-              className="bh-group-manage-button"
-              disabled={busy}
-              onClick={() => void apply(actions.setGroupAvatar(group.id, null))}
-            >
-              {t('group.avatarRemove')}
-            </button>
-          ) : null}
-        </div>
-      </div>
-      <form
-        className="bh-group-setting"
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (name.trim() !== group.name) void apply(actions.renameChannel(group.id, name.trim()));
-        }}
-      >
-        <label htmlFor="bh-group-name">{t('group.name')}</label>
-        <div className="bh-group-setting-row">
-          <Input
-            id="bh-group-name"
-            value={name}
-            maxLength={120}
-            onChange={(event) => setNameState({ source: group.name, draft: event.target.value })}
-          />
-          <button
-            type="submit"
-            className="bh-group-manage-button"
-            disabled={busy || !name.trim() || name.trim() === group.name}
-          >
-            {t('group.save')}
-          </button>
-        </div>
-      </form>
-      {cropFile ? (
-        <GroupAvatarCropModal
-          file={cropFile}
-          t={t}
-          onClose={() => setCropFile(undefined)}
-          onSave={(avatar) => apply(actions.setGroupAvatar(group.id, avatar))}
-        />
-      ) : null}
-      {error ? (
-        <div className="bh-error" role="alert">
-          {t('members.error')}
-        </div>
-      ) : null}
-    </div>
+    <GroupManagementSettings key={group.id} actions={props.actions} t={props.t} group={group} />
   );
 }
 
@@ -209,19 +115,8 @@ function GroupManagementHeaderForChannel({
   const group = useClientState().conversation.channel;
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(false);
   if (group?.type !== 'group' || group.id !== channelId) return <></>;
   const items: readonly MenuEntry[] = [{ id: 'disband', label: t('members.delete') }];
-  const disband = async (): Promise<void> => {
-    setBusy(true);
-    try {
-      if (await actions.deleteGroupChannel(group.id)) setConfirmOpen(false);
-      else setError(true);
-    } finally {
-      setBusy(false);
-    }
-  };
   return (
     <>
       <Menu
@@ -250,29 +145,12 @@ function GroupManagementHeaderForChannel({
         onClose={() => setMenuOpen(false)}
       />
       {confirmOpen ? (
-        <Modal
-          open
+        <DisbandGroupDialog
+          group={group}
+          actions={actions}
+          t={t}
           onClose={() => setConfirmOpen(false)}
-          closeLabel={t('common.close')}
-          title={t('members.delete')}
-          description={t('members.deleteConfirm', { name: group.name })}
-          footer={
-            <>
-              <Button variant="outline" onClick={() => setConfirmOpen(false)}>
-                {t('common.cancel')}
-              </Button>
-              <Button variant="primary" disabled={busy} onClick={() => void disband()}>
-                {t('members.delete')}
-              </Button>
-            </>
-          }
-        >
-          {error ? (
-            <div className="bh-error" role="alert">
-              {t('members.error')}
-            </div>
-          ) : null}
-        </Modal>
+        />
       ) : null}
     </>
   );

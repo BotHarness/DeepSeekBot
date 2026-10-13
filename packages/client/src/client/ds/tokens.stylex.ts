@@ -36,6 +36,12 @@ export const size = stylex.defineConsts({
   nav: '40px',
 });
 
+export const dialog = stylex.defineConsts({
+  small: 'min(440px, calc(100vw - 32px))',
+  standard: 'min(560px, calc(100vw - 32px))',
+  wide: 'min(1060px, calc(100vw - 32px))',
+});
+
 export const color = stylex.defineConsts({
   fg: 'var(--dsw-alias-label-primary)',
   muted: 'var(--dsw-alias-label-secondary)',
@@ -45,6 +51,7 @@ export const color = stylex.defineConsts({
   selected: 'var(--dsw-alias-interactive-bg-active)',
   accent: 'var(--dsw-alias-state-business-primary)',
   danger: 'var(--dsw-alias-state-error-primary)',
+  onDanger: 'var(--dsw-alias-label-primary-foreground)',
   success: 'var(--dsw-alias-state-success-primary)',
   surface: 'var(--dsw-alias-bg-module-platform)',
 });
