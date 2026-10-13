@@ -161,6 +161,7 @@ it('pins the Orchestrator on top and groups Assignments by needs input, working,
     expect(titles(container.querySelector('[data-section="resolved"]')!)).toEqual([
       'Ship the release notes',
     ]);
+    expect(container.querySelector('[data-flip-key="a-done"] .bh-card-badge')).toBeNull();
     await act(async () =>
       container
         .querySelector<HTMLButtonElement>('[data-flip-key="a-done"] .bh-session-archive')!

@@ -44,7 +44,7 @@ const IMPLIED_STATUS = {
   'needs-input': undefined,
   working: 'running',
   idle: 'idle',
-  resolved: undefined,
+  resolved: 'any',
 } as const;
 
 export interface NativeSessionCatalog {
@@ -122,7 +122,7 @@ function SessionsPanel({
   const renderRow = (
     row: PersonaBotSessionRow,
     showWorkspace: boolean,
-    implied?: PersonaBotSessionRow['status'],
+    implied?: PersonaBotSessionRow['status'] | 'any',
   ): ReactElement => {
     const role =
       row.role === 'orchestrator' ? t('sessions.role.orchestrator') : t('sessions.role.assignment');
@@ -163,9 +163,7 @@ function SessionsPanel({
             <Tag tone={row.needs === 'error' || row.needs === 'failed' ? 'danger' : 'warning'}>
               {t(`sessions.needs.${row.needs}`)}
             </Tag>
-          ) : row.archived === true ? (
-            <Tag tone="quiet">{t('sessions.status.archived')}</Tag>
-          ) : row.status === implied ? undefined : (
+          ) : implied === 'any' || row.status === implied ? undefined : (
             <Tag tone={STATUS_TONE[row.status]}>{statusLabel[row.status]}</Tag>
           )
         }
