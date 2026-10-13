@@ -7,6 +7,7 @@ import {
 } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { BridgeActions } from './actions.js';
+import { PersonaBotAvatar } from './avatar.js';
 import {
   resolveChannelSidebarContext,
   type ChannelSidebarEntryProps,
@@ -108,6 +109,34 @@ export function ChannelSettingsDialog({
     scope === 'personabot'
       ? t('channelSettings.titleBot', { name: channel.name })
       : t('channelSettings.titleGroup', { name: channel.name });
+  const bot =
+    scope === 'personabot'
+      ? state.bots.find((candidate) => candidate.slug === context.botSlug)
+      : undefined;
+  const caption = (
+    <div className="bh-channel-settings-caption">
+      <span className="bh-channel-settings-caption-avatar" aria-hidden="true">
+        {scope === 'personabot' ? (
+          <PersonaBotAvatar
+            t={t}
+            personaBotId={context.botSlug ?? channel.id}
+            name={channel.name}
+            src={bot?.avatar}
+            appearance={bot?.appearance}
+            avatarSeed={bot?.avatarSeed}
+            state="idle"
+            still
+            size={28}
+          />
+        ) : channel.avatar ? (
+          <img className="bh-group-avatar-image" src={channel.avatar} alt="" />
+        ) : (
+          '#'
+        )}
+      </span>
+      <span className="bh-channel-settings-caption-title">{title}</span>
+    </div>
+  );
   const Section = active.component;
   const HeaderAction = active.headerAction;
   return (
@@ -120,7 +149,7 @@ export function ChannelSettingsDialog({
     >
       {narrow ? null : (
         <nav className="bh-bot-settings-nav" aria-label={title}>
-          <div className="bh-bot-settings-nav-title">{title}</div>
+          {caption}
           <div className="bh-bot-settings-nav-list">
             {sections.map((section) => (
               <button
@@ -139,6 +168,7 @@ export function ChannelSettingsDialog({
         </nav>
       )}
       <div className="bh-bot-settings-content" data-narrow={narrow ? '' : undefined}>
+        {narrow ? caption : null}
         <div className="bh-bot-settings-header">
           {narrow ? (
             <Menu

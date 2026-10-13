@@ -6133,6 +6133,42 @@ button.bh-bot-nav > svg {
 .bh-channel-settings-options {
   padding-top: 4px;
 }
+.bh-channel-settings-caption {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: var(--bh-bot-settings-radius-md);
+  background: var(--dsw-alias-bg-module-platform);
+}
+.bh-channel-settings-caption-avatar {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  overflow: hidden;
+  color: var(--dsw-alias-label-secondary);
+  font-weight: 600;
+}
+.bh-channel-settings-caption-title {
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+  color: var(--bh-bot-settings-label);
+}
+.bh-bot-settings-content[data-narrow] > .bh-channel-settings-caption {
+  margin: 16px 16px 0;
+}
 .bh-bot-settings-content[data-narrow] .bh-bot-settings-header {
   align-items: center;
   padding: 16px 14px 8px 16px;

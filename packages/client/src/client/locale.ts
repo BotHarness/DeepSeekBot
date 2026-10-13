@@ -4228,7 +4228,7 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'tab.memory': 'Memory',
   'tab.screen': 'Screen',
   'channelSettings.open': 'Channel settings…',
-  'channelSettings.titleBot': 'Settings for {name}',
+  'channelSettings.titleBot': "{name}'s settings",
   'channelSettings.titleGroup': '{name} group settings',
   'sidebar.views': 'Views',
   'sidebar.views.hint': 'Drag or press Alt + ↑/↓ to reorder',

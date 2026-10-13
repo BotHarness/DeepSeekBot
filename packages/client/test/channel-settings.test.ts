@@ -173,6 +173,8 @@ describe('Channel settings', () => {
     act(() => controller.open());
     const dialog = host.querySelector('[role="dialog"]')!;
     expect(dialog.getAttribute('aria-label')).toBe('Ada 的设置');
+    expect(dialog.querySelector('.bh-channel-settings-caption')?.textContent).toBe('Ada 的设置');
+    expect(dialog.querySelector('.bh-channel-settings-caption-avatar')).not.toBeNull();
     expect(
       [...dialog.querySelectorAll('[data-settings-section]')].map((n) => n.textContent),
     ).toEqual(['唤醒策略', '外部身份']);
