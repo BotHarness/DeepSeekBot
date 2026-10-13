@@ -126,12 +126,11 @@ const setName = async (name) => {
   await page.click('#bh-human-default-name', { clickCount: 3 });
   await page.keyboard.press('Backspace');
   if (name) await page.type('#bh-human-default-name', name);
-  await page.waitForSelector('.bh-human-name-save:not(:disabled)');
   console.log(
     'Save DOM: ' +
       JSON.stringify(
         await page.evaluate(() =>
-          [...document.querySelectorAll('.bh-human-name-setting button')].map((b) => ({
+          [...document.querySelectorAll('[data-human-name-setting] button')].map((b) => ({
             text: b.textContent,
             type: b.type,
             disabled: b.disabled,
@@ -140,11 +139,11 @@ const setName = async (name) => {
         ),
       ),
   );
-  await page.click('.bh-human-name-save');
+  await page.press('#bh-human-default-name', 'Enter');
   await page.waitForFunction(
     () =>
       document
-        .querySelector('.bh-human-name-setting [role="status"]')
+        .querySelector('[data-human-name-setting] [role="status"]')
         ?.textContent?.includes('已保存'),
     { polling: 100 },
   );
@@ -199,7 +198,7 @@ try {
   } else {
     await settings();
     if ((await rpc('humanIdentity')).defaultDisplayName !== null) {
-      await clickText('.bh-human-name-setting button', '恢复默认');
+      await clickText('[data-human-name-setting] button', '恢复默认');
       await page.waitForFunction(
         () => document.querySelector('#bh-human-default-name')?.value === '',
         { polling: 100 },
@@ -331,7 +330,7 @@ try {
     await capture('after-narrow');
     await page.setViewport({ width: 1440, height: 900, deviceScaleFactor: 1 });
     await settings();
-    await clickText('.bh-human-name-setting button', '恢复默认');
+    await clickText('[data-human-name-setting] button', '恢复默认');
     await page.waitForFunction(
       () => document.querySelector('#bh-human-default-name')?.value === '',
     );
@@ -374,12 +373,14 @@ try {
           .evaluate(() => ({
             input: document.querySelector('#bh-human-default-name')?.value,
             disabled: document.querySelector('#bh-human-default-name')?.disabled,
-            buttons: [...document.querySelectorAll('.bh-human-name-setting button')].map((b) => ({
-              text: b.textContent,
-              disabled: b.disabled,
-            })),
-            status: document.querySelector('.bh-human-name-setting [role=status]')?.textContent,
-            error: document.querySelector('.bh-human-name-setting [role=alert]')?.textContent,
+            buttons: [...document.querySelectorAll('[data-human-name-setting] button')].map(
+              (b) => ({
+                text: b.textContent,
+                disabled: b.disabled,
+              }),
+            ),
+            status: document.querySelector('[data-human-name-setting] [role=status]')?.textContent,
+            error: document.querySelector('[data-human-name-setting] [role=alert]')?.textContent,
           }))
           .catch(() => null),
       ),

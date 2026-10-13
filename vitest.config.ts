@@ -1,7 +1,10 @@
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 
+import { stylexPlugin } from './scripts/stylex-plugin.mjs';
+
 export default defineConfig({
+  plugins: [stylexPlugin({ rootDir: fileURLToPath(new URL('.', import.meta.url)) })],
   oxc: { jsx: { runtime: 'automatic', importSource: 'react' } },
   resolve: {
     alias: {

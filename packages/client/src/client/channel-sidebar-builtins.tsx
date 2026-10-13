@@ -1078,6 +1078,7 @@ function AssignmentLimitDialog({
         limit={snapshot.assignmentConcurrencyLimit}
         writable={snapshot.status === 'ready' && snapshot.mode === 'host'}
         save={(limit) => prefs.setAssignmentConcurrencyLimit(limit)}
+        variant="dialog"
       />
     </Modal>
   );

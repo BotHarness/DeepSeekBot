@@ -121,9 +121,7 @@ function mount(settings: BotSettings, rows: readonly BotSettingsSectionRow[] = R
 }
 
 function navLabels(): string[] {
-  return [...document.querySelectorAll('nav .bh-bot-settings-nav-cell')].map(
-    (button) => button.textContent ?? '',
-  );
+  return [...document.querySelectorAll('nav button')].map((button) => button.textContent ?? '');
 }
 
 function current(): string | null {
@@ -186,7 +184,7 @@ it('switches sections from the sidebar and reopens at the last section viewed', 
   act(() => {
     settings.open();
   });
-  const about = [...document.querySelectorAll('nav .bh-bot-settings-nav-cell')].find(
+  const about = [...document.querySelectorAll('nav button')].find(
     (button) => button.textContent === '关于',
   );
   act(() => {
@@ -273,7 +271,7 @@ it('renders only the rail in wide frames', () => {
     settings.open();
   });
   expect(document.querySelector('nav')).not.toBeNull();
-  expect(document.querySelector('.bh-bot-settings-picker')).toBeNull();
+  expect(document.querySelector<HTMLButtonElement>('button[aria-haspopup="menu"]')).toBeNull();
   expect(document.querySelector('[data-modal-autofocus]')?.textContent).toBe('通用');
   vi.unstubAllGlobals();
 });
@@ -287,7 +285,7 @@ it('renders only a section dropdown in narrow frames and switches sections from 
   });
   expect(document.querySelector('nav')).toBeNull();
   expect(document.querySelector('h2')).toBeNull();
-  const picker = document.querySelector<HTMLButtonElement>('.bh-bot-settings-picker');
+  const picker = document.querySelector<HTMLButtonElement>('button[aria-haspopup="menu"]');
   expect(picker?.textContent).toBe('模型与运行');
   expect(picker?.hasAttribute('data-modal-autofocus')).toBe(true);
   expect(picker?.getAttribute('aria-haspopup')).toBe('menu');
@@ -310,7 +308,9 @@ it('renders only a section dropdown in narrow frames and switches sections from 
     about?.click();
   });
   expect(shownSection()).toBe('about');
-  expect(document.querySelector('.bh-bot-settings-picker')?.textContent).toBe('关于');
+  expect(
+    document.querySelector<HTMLButtonElement>('button[aria-haspopup="menu"]')?.textContent,
+  ).toBe('关于');
   expect(document.querySelector('[role="menuitem"]')).toBeNull();
   vi.unstubAllGlobals();
 });

@@ -128,7 +128,7 @@ it('binds an unbound App to a chosen PersonaBot and reloads the list', async () 
   });
   expect(bind).toHaveBeenCalledWith(expect.objectContaining({ ref: 'a' }), 'bo');
   expect(document.querySelector('[role="dialog"]')).toBeNull();
-  expect(host.querySelector('.bh-im-apps-row')?.textContent).toContain('Bo');
+  expect(host.querySelector('[data-im-app]')?.textContent).toContain('Bo');
 });
 
 it('does not offer binding for a bound or disconnected App, and unbinds after confirmation', async () => {
@@ -175,7 +175,7 @@ it('keeps the dialog open with a readable error when an action fails', async () 
     button('解绑', dialog).click();
   });
   expect(document.querySelector('[role="alert"]')?.textContent).toBe('操作没有完成，请重试。');
-  expect(host.querySelector('.bh-im-apps-row')?.textContent).toContain('Ada');
+  expect(host.querySelector('[data-im-app]')?.textContent).toContain('Ada');
 });
 
 it('offers Create app only when the Host advertises setup', async () => {

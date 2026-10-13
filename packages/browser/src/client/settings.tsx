@@ -40,7 +40,9 @@ function ConfigChoice({
   return (
     <>
       <div className="bh-settings-row">
-        <div className="bh-settings-row-title">{title}</div>
+        <div className="bh-settings-row-text">
+          <div className="bh-settings-row-title">{title}</div>
+        </div>
         <Menu
           portal
           align="end"

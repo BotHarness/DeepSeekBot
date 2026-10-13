@@ -17,3 +17,7 @@ The DSH Web Client ships a real design system: three token layers (`--dsw-static
 ## Update (2026-09-19)
 
 Icon-set gaps are filled by **vendoring external glyphs** as first-party components — Lucide (ISC), starting with hash and group chat, each with an attribution header, plus `packages/client/THIRD_PARTY_NOTICES.md` — not by adding a component library or a runtime icon dependency. The rule above stands unchanged for our own UI: DSH tokens and primitives, no second design system (ADR-0032).
+
+## Update (2026-10-13)
+
+ADR-0193 adds the DeepSeekBot design system on top of this record: StyleX tokens and components that resolve to `--dsw-*` and compose DSH primitives. It is a semantic layer over DSH, not a second design system, so the rule above stands.

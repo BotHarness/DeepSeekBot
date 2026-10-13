@@ -1,11 +1,11 @@
-import { useId, useState, useSyncExternalStore, type ReactElement } from 'react';
+import { useState, useSyncExternalStore, type ReactElement } from 'react';
 import {
-  Input,
-  Button,
   Switch,
   IconPinFillRegular,
   IconPinOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives';
+import { NumberStepper } from './ds/number-stepper.js';
+import { SettingsRow } from './ds/settings-row.js';
 import type { BotHarnessTranslate } from './locale.js';
 import type { WindowCompanions } from './window-companions.js';
 import { WindowCompanionView, type WindowCompanionViewProps } from './window-companion-view.js';
@@ -120,62 +120,38 @@ export function CompanionSettings({
   t: BotHarnessTranslate;
 }): ReactElement {
   const state = useSyncExternalStore(companion.subscribe, companion.getSnapshot);
-  const id = useId();
-  const [error, setError] = useState(false);
   return (
     <>
-      <div className="bh-settings-row">
-        <div className="bh-settings-row-text">
-          <div className="bh-settings-row-title">{t('companion.speechSound')}</div>
-          <div className="bh-settings-row-desc">{t('companion.speechSoundHint')}</div>
-        </div>
-        <Switch
-          checked={state.speechSound}
-          onChange={(enabled: boolean) => companion.configureSpeechSound(enabled)}
-          disabled={!state.ready}
-          label={t('companion.speechSound')}
-        />
-      </div>
-      <form
-        className="bh-settings-row bh-companion-settings"
-        key={`${state.capacity.layers}:${state.capacity.retention}`}
-        onSubmit={(event) => {
-          event.preventDefault();
-          const data = new FormData(event.currentTarget);
-          const retention = Number(data.get('retention'));
-          if (!Number.isInteger(retention) || retention < 1 || retention > 100) {
-            setError(true);
-            return;
-          }
-          companion.configureCapacity({ layers: state.capacity.layers, retention });
-          setError(false);
-        }}
-      >
-        <div className="bh-settings-row-text">
-          <div className="bh-settings-row-title">{t('companion.settings')}</div>
-          <div className="bh-settings-row-desc">{t('companion.capacityHint')}</div>
-          {error ? <div role="alert">{t('companion.capacityError')}</div> : null}
-        </div>
-        <div className="bh-companion-capacity-controls">
-          <label htmlFor={`${id}-retention`}>
-            {t('companion.retention')}
-            <Input
-              id={`${id}-retention`}
-              name="retention"
-              type="number"
-              min={1}
-              max={100}
-              step={1}
-              required
-              defaultValue={state.capacity.retention}
-              disabled={!state.ready}
-            />
-          </label>
-          <Button type="submit" size="sm" variant="primary" disabled={!state.ready}>
-            {t('companion.save')}
-          </Button>
-        </div>
-      </form>
+      <SettingsRow
+        title={t('companion.speechSound')}
+        description={t('companion.speechSoundHint')}
+        control={
+          <Switch
+            checked={state.speechSound}
+            onChange={(enabled: boolean) => companion.configureSpeechSound(enabled)}
+            disabled={!state.ready}
+            label={t('companion.speechSound')}
+          />
+        }
+      />
+      <SettingsRow
+        title={t('companion.retention')}
+        description={t('companion.capacityHint')}
+        control={
+          <NumberStepper
+            label={t('companion.retention')}
+            value={state.capacity.retention}
+            min={1}
+            max={100}
+            disabled={!state.ready}
+            decreaseLabel={t('common.decrease')}
+            increaseLabel={t('common.increase')}
+            onChange={(retention) =>
+              companion.configureCapacity({ layers: state.capacity.layers, retention })
+            }
+          />
+        }
+      />
     </>
   );
 }

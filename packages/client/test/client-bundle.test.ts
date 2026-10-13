@@ -140,6 +140,23 @@ describe('@botharness/ui browser bundle', () => {
     expect(nonBaselineShell).toEqual([]);
   });
 
+  it('compiles StyleX at build time and ships every class it uses in the plugin stylesheet', () => {
+    expect(bundleCode).not.toContain('@bh-stylex-css');
+    expect(bundleCode).not.toMatch(/require\("@stylexjs\//);
+    expect(bundleCode).not.toMatch(/Unexpected 'stylex\.\w+' call at runtime/);
+    const classes = new Set(
+      [...bundleCode.matchAll(/"(bhx[a-z0-9]+(?: bhx[a-z0-9]+)*)"/g)].flatMap((match) =>
+        match[1]!.split(' '),
+      ),
+    );
+    expect(classes.size).toBeGreaterThan(40);
+    const missing = [...classes].filter((name) => !bundleCode.includes(`.${name}`));
+    expect(missing).toEqual([]);
+    expect(bundleCode).toMatch(
+      /\.bhx[a-z0-9]+(?::not\(#\\\\#\))+\{color:var\(--dsw-alias-label-primary\)\}/,
+    );
+  });
+
   it('exposes the plugin and registers the bot-mode panel plus the @ mention source', () => {
     const plugin = loadedEntry().factory(shellRequire);
     expect(plugin['name']).toBe('botharness-client');

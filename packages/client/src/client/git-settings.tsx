@@ -3,6 +3,7 @@ import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 
 import { loadGitAvailability, type BridgeCall, type GitAvailability } from './bridge.js';
 import { useMountedResource } from './mounted-resource.js';
+import { SettingsRow, SettingsValue } from './ds/settings-row.js';
 
 export type GitSettingsProps = PropsLocale<'botharness'> & InjectFace<{ call: BridgeCall }>;
 
@@ -33,16 +34,14 @@ export function GitSettings({ call, t }: GitSettingsProps): ReactElement {
           ? t('git.settings.tooOld', { version: git.version ?? '?' })
           : t('git.settings.unavailable');
   return (
-    <div
-      className="bh-settings-row"
-      ref={mount}
-      data-git-setting={git === undefined ? 'loading' : git.available ? git.source : git.reason}
-    >
-      <div className="bh-settings-row-text">
-        <div className="bh-settings-row-title">{t('git.settings.title')}</div>
-        <div className="bh-settings-row-desc">{t('git.settings.description')}</div>
-      </div>
-      <div className="bh-settings-row-value">{state}</div>
-    </div>
+    <SettingsRow
+      rootRef={mount}
+      title={t('git.settings.title')}
+      description={t('git.settings.description')}
+      data={{
+        'data-git-setting': git === undefined ? 'loading' : git.available ? git.source : git.reason,
+      }}
+      control={<SettingsValue>{state}</SettingsValue>}
+    />
   );
 }

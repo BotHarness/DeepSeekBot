@@ -8,6 +8,7 @@ import type { ModelCatalogEntryView, ModelRouteView } from './bridge.js';
 import { errorMessage } from './bridge.js';
 import { ModelPicker } from './model-picker.js';
 import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
+import { SettingsRow } from './ds/settings-row.js';
 import { Modal } from './modal.js';
 import { OnboardingMemory } from './onboarding-memory.js';
 import { OnboardingAppBinding } from './onboarding-binding.js';
@@ -573,22 +574,23 @@ export function OnboardingSetting({
         ? 'onboarding.start'
         : 'onboarding.continue';
   return (
-    <div className="bh-settings-row">
-      <div className="bh-settings-row-text">
-        <div className="bh-settings-row-title">{t('onboarding.settings.title')}</div>
-        <div className="bh-settings-row-desc">{t('onboarding.settings.description')}</div>
-      </div>
-      <Button
-        variant="outline"
-        disabled={state.busy}
-        onClick={() => {
-          closeBotSettings();
-          void controller.refresh(undefined, action, undefined, true);
-        }}
-      >
-        {t(label)}
-      </Button>
-    </div>
+    <SettingsRow
+      title={t('onboarding.settings.title')}
+      description={t('onboarding.settings.description')}
+      control={
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={state.busy}
+          onClick={() => {
+            closeBotSettings();
+            void controller.refresh(undefined, action, undefined, true);
+          }}
+        >
+          {t(label)}
+        </Button>
+      }
+    />
   );
 }
 
@@ -613,14 +615,16 @@ export function DefaultModelSettings({
       );
   }, [actions]);
   return (
-    <div ref={mount} className="bh-settings-row">
-      <div className="bh-settings-row-text">
-        <div className="bh-settings-row-title">{t('onboarding.defaultTitle')}</div>
-        <div className="bh-settings-row-desc">{t('onboarding.defaultDescription')}</div>
-      </div>
-      <Button variant="outline" onClick={() => setOpen(true)}>
-        {label || t('onboarding.model')}
-      </Button>
+    <SettingsRow
+      rootRef={mount}
+      title={t('onboarding.defaultTitle')}
+      description={t('onboarding.defaultDescription')}
+      control={
+        <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+          {label || t('onboarding.model')}
+        </Button>
+      }
+    >
       {open ? (
         <OnboardingModelDialog
           actions={actions}
@@ -635,6 +639,6 @@ export function DefaultModelSettings({
           }}
         />
       ) : null}
-    </div>
+    </SettingsRow>
   );
 }

@@ -11,6 +11,7 @@ import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 
 import type { ReleaseNote } from '../../../core/src/release/notes.js';
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
+import { SettingsRow } from './ds/settings-row.js';
 import { Modal } from './modal.js';
 import { useMountedResource } from './mounted-resource.js';
 import type {
@@ -309,40 +310,42 @@ export function ReleaseSettings({ releaseNotes, t }: ReleaseSettingsProps): Reac
   const installing = install.status === 'installing';
   return (
     <div className="bh-release-settings" ref={mount} data-release-settings>
-      <div className="bh-settings-row bh-release-row">
-        <div className="bh-settings-row-text">
-          <div className="bh-settings-row-title">{t('release.row.title')}</div>
-          <div className="bh-settings-row-desc" role="status" aria-live="polite">
+      <SettingsRow
+        title={t('release.row.title')}
+        description={
+          <span role="status" aria-live="polite">
             {statusText(snapshot, t)}
-          </div>
-        </div>
-        <div className="bh-release-actions">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              openSite(t);
-            }}
-          >
-            {t('release.changelog')}
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={
-              installing ||
-              update.status === 'checking' ||
-              update.status === 'development' ||
-              update.status === 'restart-required'
-            }
-            onClick={() => {
-              void releaseNotes.checkUpdate(true);
-            }}
-          >
-            {t('release.check')}
-          </Button>
-        </div>
-      </div>
+          </span>
+        }
+        control={
+          <>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                openSite(t);
+              }}
+            >
+              {t('release.changelog')}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={
+                installing ||
+                update.status === 'checking' ||
+                update.status === 'development' ||
+                update.status === 'restart-required'
+              }
+              onClick={() => {
+                void releaseNotes.checkUpdate(true);
+              }}
+            >
+              {t('release.check')}
+            </Button>
+          </>
+        }
+      />
       {update.status === 'available' ? (
         <div className="bh-release-update" data-release-update={update.latest}>
           <div className="bh-release-update-head">

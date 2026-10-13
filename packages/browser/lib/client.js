@@ -1848,8 +1848,11 @@ window.__ModuleLoader__.load({
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 				className: "bh-settings-row",
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-					className: "bh-settings-row-title",
-					children: title
+					className: "bh-settings-row-text",
+					children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+						className: "bh-settings-row-title",
+						children: title
+					})
 				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Menu, {
 					portal: true,
 					align: "end",

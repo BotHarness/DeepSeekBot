@@ -14,6 +14,7 @@ import {
 } from './bot-mode-setting-rows.js';
 import type { BotModePrefsFace } from './bot-mode-prefs.js';
 import type { BridgeCall } from './bridge.js';
+import { SettingsRows, SettingsSection } from './ds/settings-row.js';
 import { GitSettings } from './git-settings.js';
 import { HumanNameSettings } from './human-name-settings.js';
 import { MessagingDefaultsSettings } from './messaging-defaults-settings.js';
@@ -29,7 +30,7 @@ import { CompanionSettings } from './window-companions-view.js';
 type SectionProps<Face extends object> = PropsLocale<'botharness'> & InjectFace<Face>;
 
 function Rows({ children }: { children: ReactNode }): ReactElement {
-  return <div className="bh-settings-rows">{children}</div>;
+  return <SettingsRows>{children}</SettingsRows>;
 }
 
 export type GeneralSectionFace = BotModePrefsFace & {
@@ -78,8 +79,10 @@ export function MessagingSection(
 ): ReactElement {
   return (
     <Rows>
+      <SettingsSection>
+        <GroupAutoAcceptSetting {...props} />
+      </SettingsSection>
       <MessagingDefaultsSettings call={props.call} t={props.t} />
-      <GroupAutoAcceptSetting {...props} />
     </Rows>
   );
 }

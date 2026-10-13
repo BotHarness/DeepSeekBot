@@ -1,4 +1,9 @@
+import { fileURLToPath } from 'node:url';
 import { defineConfig, type UserConfig } from 'tsdown';
+
+import { stylexPlugin } from './scripts/stylex-plugin.mjs';
+
+const ROOT_DIR = fileURLToPath(new URL('.', import.meta.url));
 
 const CLIENT_ID = '@botharness/ui';
 
@@ -27,6 +32,7 @@ function clientBundle(id: string, entry: string[], outDir: string): UserConfig {
     clean: true,
     sourcemap: true,
     external: PLATFORM_MODULES,
+    plugins: [stylexPlugin({ rootDir: ROOT_DIR })],
     outputOptions: {
       entryFileNames: 'client.js',
       banner: `window.__ModuleLoader__.load({

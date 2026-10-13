@@ -9,6 +9,9 @@ import { openExternalBindingSettings } from './bot-settings-open.js';
 import { externalPlatformLabel } from './bridge-source-label.js';
 import { loadMessagingApps, type BridgeCall, type MessagingApp } from './bridge.js';
 import { Combobox } from './combobox.js';
+import { EmptyState } from './ds/empty-state.js';
+import { Note } from './ds/note.js';
+import { SettingsRow, SettingsRows, SettingsValue } from './ds/settings-row.js';
 import { CreateAppForm } from './create-app-form.js';
 import { Modal } from './modal.js';
 import { useMountedResource } from './mounted-resource.js';
@@ -184,83 +187,98 @@ export function ImAppsSection({
   const canCreate =
     imApps.appSetup !== undefined && loaded.status === 'ready' && loaded.setups.length > 0;
   return (
-    <div ref={mount} className="bh-settings-rows">
-      <div className="bh-settings-row">
-        <div className="bh-settings-row-text">
-          <div className="bh-settings-row-desc">{t('imApps.description')}</div>
-          {notice === 'settings-unavailable' ? (
-            <div className="bh-settings-row-desc" role="status">
-              {t('imApps.settingsUnavailable')}
-            </div>
-          ) : null}
-        </div>
-        {canCreate ? (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              open({ kind: 'create', creating: false });
-            }}
-          >
-            {t('imApps.create')}
-          </Button>
-        ) : null}
-        <Button variant="outline" size="sm" onClick={imApps.manage}>
-          {t('imApps.manage')}
-        </Button>
-      </div>
+    <SettingsRows rootRef={mount}>
+      <SettingsRow
+        title={t('imApps.allApps')}
+        description={t('imApps.description')}
+        control={
+          <>
+            {canCreate && loaded.status === 'ready' && loaded.apps.length > 0 ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  open({ kind: 'create', creating: false });
+                }}
+              >
+                {t('imApps.create')}
+              </Button>
+            ) : null}
+            <Button variant="outline" size="sm" onClick={imApps.manage}>
+              {t('imApps.manage')}
+            </Button>
+          </>
+        }
+      >
+        {notice === 'settings-unavailable' ? <Note>{t('imApps.settingsUnavailable')}</Note> : null}
+      </SettingsRow>
       {loaded.status === 'loading' ? null : loaded.status === 'failed' ? (
-        <div className="bh-settings-row" role="status">
-          <div className="bh-settings-row-desc">{t('imApps.loadFailed')}</div>
-        </div>
+        <EmptyState status title={t('imApps.loadFailed')} />
       ) : loaded.apps.length === 0 ? (
-        <div className="bh-settings-row">
-          <div className="bh-settings-row-desc">{t('imApps.empty')}</div>
-        </div>
+        <EmptyState
+          title={t('imApps.empty')}
+          description={t('imApps.emptyHint')}
+          action={
+            canCreate ? (
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => {
+                  open({ kind: 'create', creating: false });
+                }}
+              >
+                {t('imApps.create')}
+              </Button>
+            ) : undefined
+          }
+        />
       ) : (
-        loaded.apps.map((app) => (
-          <div key={`${app.providerId}:${app.ref}`} className="bh-settings-row bh-im-apps-row">
-            <div className="bh-settings-row-text">
-              <div className="bh-settings-row-title">{app.name}</div>
-              <div className="bh-settings-row-desc">
-                {externalPlatformLabel(app.platform, t)} ·{' '}
-                {t(app.connected ? 'imApps.connected' : 'imApps.disconnected')}
-              </div>
-            </div>
-            {app.boundBotSlug === undefined ? (
-              <>
-                <Tag>{t('imApps.unbound')}</Tag>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={!app.connected || app.unsupported !== undefined}
-                  aria-label={t('imApps.bindFor', { app: app.name })}
-                  onClick={() => {
-                    open({ kind: 'bind', app });
-                  }}
-                >
-                  {t('imApps.bind')}
-                </Button>
-              </>
-            ) : (
-              <>
-                <span className="bh-im-apps-bot">{botName(app.boundBotSlug)}</span>
-                {bots.some((bot) => bot.slug === app.boundBotSlug) ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    aria-label={t('imApps.unbindFor', { app: app.name })}
-                    onClick={() => {
-                      open({ kind: 'unbind', app });
-                    }}
-                  >
-                    {t('imApps.unbind')}
-                  </Button>
-                ) : null}
-              </>
-            )}
-          </div>
-        ))
+        <>
+          {loaded.apps.map((app) => (
+            <SettingsRow
+              key={`${app.providerId}:${app.ref}`}
+              data={{ 'data-im-app': app.ref }}
+              title={app.name}
+              description={`${externalPlatformLabel(app.platform, t)} · ${t(
+                app.connected ? 'imApps.connected' : 'imApps.disconnected',
+              )}`}
+              control={
+                app.boundBotSlug === undefined ? (
+                  <>
+                    <Tag>{t('imApps.unbound')}</Tag>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={!app.connected || app.unsupported !== undefined}
+                      aria-label={t('imApps.bindFor', { app: app.name })}
+                      onClick={() => {
+                        open({ kind: 'bind', app });
+                      }}
+                    >
+                      {t('imApps.bind')}
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <SettingsValue>{botName(app.boundBotSlug)}</SettingsValue>
+                    {bots.some((bot) => bot.slug === app.boundBotSlug) ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        aria-label={t('imApps.unbindFor', { app: app.name })}
+                        onClick={() => {
+                          open({ kind: 'unbind', app });
+                        }}
+                      >
+                        {t('imApps.unbind')}
+                      </Button>
+                    ) : null}
+                  </>
+                )
+              }
+            />
+          ))}
+        </>
       )}
       <Modal
         open={dialog?.kind === 'bind'}
@@ -371,6 +389,6 @@ export function ImAppsSection({
           )}
         </div>
       </Modal>
-    </div>
+    </SettingsRows>
   );
 }

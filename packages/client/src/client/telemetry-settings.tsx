@@ -1,4 +1,5 @@
 import { useRef, useState, type ReactElement } from 'react';
+import * as stylex from '@stylexjs/stylex';
 import { Switch } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 
@@ -11,6 +12,16 @@ import {
 } from './bridge.js';
 import type { BotHarnessKey } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
+import { Note } from './ds/note.js';
+import { SettingsRow } from './ds/settings-row.js';
+import { color } from './ds/tokens.stylex.js';
+
+const styles = stylex.create({
+  link: {
+    color: color.accent,
+    textDecoration: { default: 'none', ':hover': 'underline' },
+  },
+});
 
 export type TelemetrySettingsProps = PropsLocale<'botharness'> & InjectFace<{ call: BridgeCall }>;
 
@@ -63,32 +74,38 @@ export function TelemetrySettings({ call, t }: TelemetrySettingsProps): ReactEle
   };
   const lockedBy = status?.lockedBy;
   return (
-    <div className="bh-settings-row bh-telemetry-row" ref={mount} data-telemetry-setting>
-      <div className="bh-settings-row-text">
-        <div className="bh-settings-row-title">{t('telemetry.row.title')}</div>
-        <div className="bh-settings-row-desc">
+    <SettingsRow
+      rootRef={mount}
+      title={t('telemetry.row.title')}
+      description={
+        <>
           {t('telemetry.row.description')}{' '}
-          <a href={t('telemetry.notice.privacyUrl')} target="_blank" rel="noopener noreferrer">
+          <a
+            href={t('telemetry.notice.privacyUrl')}
+            target="_blank"
+            rel="noopener noreferrer"
+            {...stylex.props(styles.link)}
+          >
             {t('telemetry.row.privacy')}
           </a>
-        </div>
-        {lockedBy === undefined ? null : (
-          <div className="bh-settings-row-desc" data-telemetry-lock={lockedBy}>
-            {t(LOCK_NOTES[lockedBy])}
-          </div>
-        )}
-        {error ? (
-          <div className="bh-telemetry-row-error" role="alert">
-            {t('telemetry.row.error')}
-          </div>
-        ) : null}
-      </div>
-      <Switch
-        checked={status?.enabled ?? false}
-        onChange={(enabled: boolean) => void toggle(enabled)}
-        disabled={status === undefined || busy || lockedBy !== undefined}
-        label={t('telemetry.row.title')}
-      />
-    </div>
+        </>
+      }
+      data={{ 'data-telemetry-setting': '' }}
+      control={
+        <Switch
+          checked={status?.enabled ?? false}
+          onChange={(enabled: boolean) => void toggle(enabled)}
+          disabled={status === undefined || busy || lockedBy !== undefined}
+          label={t('telemetry.row.title')}
+        />
+      }
+    >
+      {lockedBy === undefined ? null : (
+        <span data-telemetry-lock={lockedBy}>
+          <Note>{t(LOCK_NOTES[lockedBy])}</Note>
+        </span>
+      )}
+      {error ? <Note tone="danger">{t('telemetry.row.error')}</Note> : null}
+    </SettingsRow>
   );
 }

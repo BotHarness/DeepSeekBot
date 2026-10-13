@@ -1,6 +1,7 @@
 import { useRef, useState, type ReactElement } from 'react';
 import { Button, Checkbox } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
+import { SettingsRow } from './ds/settings-row.js';
 import { Modal } from './modal.js';
 import { useMountedResource } from './mounted-resource.js';
 
@@ -149,12 +150,17 @@ export function ProfileBackupSettings({ t }: ProfileBackupSettingsProps): ReactE
       if (!signal.aborted) setRecovery(value);
     });
   return (
-    <div ref={mount} className="bh-settings-row" data-profile-backup-setting>
-      <div className="bh-settings-row-text">
-        <div className="bh-settings-row-title">{t('backup.title')}</div>
-        <div className="bh-settings-row-desc">{t('backup.description')}</div>
-      </div>
-      <Button onClick={show}>{t('backup.open')}</Button>
+    <SettingsRow
+      rootRef={mount}
+      title={t('backup.title')}
+      description={t('backup.description')}
+      data={{ 'data-profile-backup-setting': '' }}
+      control={
+        <Button variant="outline" size="sm" onClick={show}>
+          {t('backup.open')}
+        </Button>
+      }
+    >
       <Modal
         open={open}
         onClose={close}
@@ -307,6 +313,6 @@ export function ProfileBackupSettings({ t }: ProfileBackupSettingsProps): ReactE
           {error ? <p role="alert">{t('backup.error', { code: error })}</p> : null}
         </div>
       </Modal>
-    </div>
+    </SettingsRow>
   );
 }

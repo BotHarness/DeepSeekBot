@@ -1,11 +1,5 @@
 import { useState, useSyncExternalStore, type ReactElement } from 'react';
 
-import {
-  IconChevronDownOutlineRegular,
-  IconCloseOutlineRegular,
-  Menu,
-} from '@deepseek-ai/dsh-client-ui-primitives';
-
 import type { BridgeActions } from './actions.js';
 import { PersonaBotAvatar } from './avatar.js';
 import {
@@ -15,8 +9,8 @@ import {
   type ChannelSidebarRegistry,
 } from './channel-sidebar.js';
 import { channelSidebarPrefs, type ChannelSidebarPrefs } from './channel-sidebar-prefs.js';
+import { SettingsDialog } from './ds/settings-dialog.js';
 import type { BotHarnessTranslate } from './locale.js';
-import { Modal } from './modal.js';
 import { useMountedResource } from './mounted-resource.js';
 import type { ClientState } from './store.js';
 import {
@@ -25,24 +19,6 @@ import {
   channelSettingsSections,
   type ChannelSettings,
 } from './channel-settings-state.js';
-
-const NARROW_FRAME_QUERY = '(max-width: 648px)';
-
-function narrowFrameQuery(): MediaQueryList | undefined {
-  return typeof matchMedia === 'function' ? matchMedia(NARROW_FRAME_QUERY) : undefined;
-}
-
-function subscribeNarrowFrame(listener: () => void): () => void {
-  const query = narrowFrameQuery();
-  query?.addEventListener('change', listener);
-  return () => {
-    query?.removeEventListener('change', listener);
-  };
-}
-
-function isNarrowFrame(): boolean {
-  return narrowFrameQuery()?.matches ?? false;
-}
 
 const noop = (): void => {};
 
@@ -74,8 +50,6 @@ export function ChannelSettingsDialog({
     () => registry.entries(scope),
   );
   const prefSnapshot = useSyncExternalStore(prefs.subscribe, prefs.getSnapshot, prefs.getSnapshot);
-  const narrow = useSyncExternalStore(subscribeNarrowFrame, isNarrowFrame, () => false);
-  const [pickerOpen, setPickerOpen] = useState(false);
   const [refreshRevision, setRefreshRevision] = useState(0);
   const channel = context?.channel;
   const attention = useSyncExternalStore(
@@ -96,7 +70,6 @@ export function ChannelSettingsDialog({
     prefs.setSelectedTab(channelSettingsSectionKey(scope), id);
   };
   const close = (): void => {
-    setPickerOpen(false);
     controller.close();
   };
   const entryProps: ChannelSidebarEntryProps = {
@@ -156,104 +129,28 @@ export function ChannelSettingsDialog({
   const Section = active.component;
   const HeaderAction = active.headerAction;
   return (
-    <Modal
-      open
-      headless
-      onClose={close}
+    <SettingsDialog
       title={title}
-      className="bh-root bh-bot-settings bh-channel-settings"
+      caption={caption}
+      sections={sections.map((section) => ({
+        id: section.id,
+        label: section.label,
+        attention: attention.includes(section.id),
+      }))}
+      activeId={active.id}
+      onSelect={select}
+      onClose={close}
+      headerAction={HeaderAction === undefined ? undefined : <HeaderAction {...entryProps} />}
+      labels={{
+        nav: title,
+        close: t('common.close'),
+        picker: (section) => t('botSettings.picker', { section }),
+        attention: t('channelSettings.needsAttention'),
+      }}
+      className="bh-root bh-channel-settings"
     >
-      {narrow ? null : (
-        <nav className="bh-bot-settings-nav" aria-label={title}>
-          {caption}
-          <div className="bh-bot-settings-nav-list">
-            {sections.map((section) => (
-              <button
-                key={section.id}
-                type="button"
-                className="bh-bot-settings-nav-cell"
-                data-settings-section={section.id}
-                aria-current={section.id === active.id ? 'page' : undefined}
-                data-modal-autofocus={section.id === active.id ? '' : undefined}
-                onClick={() => select(section.id)}
-              >
-                <span className="bh-bot-settings-nav-label">{section.label}</span>
-                {attention.includes(section.id) ? (
-                  <span
-                    className="bh-channel-settings-attention-dot"
-                    role="img"
-                    aria-label={t('channelSettings.needsAttention')}
-                  />
-                ) : null}
-              </button>
-            ))}
-          </div>
-        </nav>
-      )}
-      <div className="bh-bot-settings-content" data-narrow={narrow ? '' : undefined}>
-        {narrow ? caption : null}
-        <div className="bh-bot-settings-header">
-          {narrow ? (
-            <Menu
-              open={pickerOpen}
-              portal
-              align="start"
-              items={sections.map((section) => ({
-                id: section.id,
-                label: attention.includes(section.id) ? (
-                  <span className="bh-channel-settings-attention-label">
-                    {section.label}
-                    <span
-                      className="bh-channel-settings-attention-dot"
-                      role="img"
-                      aria-label={t('channelSettings.needsAttention')}
-                    />
-                  </span>
-                ) : (
-                  section.label
-                ),
-              }))}
-              selectedId={active.id}
-              onSelect={(id) => {
-                setPickerOpen(false);
-                select(id);
-              }}
-              onClose={() => setPickerOpen(false)}
-              anchor={
-                <button
-                  type="button"
-                  className="bh-settings-selector bh-bot-settings-picker"
-                  aria-label={t('botSettings.picker', { section: active.label })}
-                  aria-haspopup="menu"
-                  aria-expanded={pickerOpen}
-                  data-modal-autofocus=""
-                  onClick={() => setPickerOpen((value) => !value)}
-                >
-                  {active.label}
-                  <IconChevronDownOutlineRegular className="bh-settings-chevron" />
-                </button>
-              }
-            />
-          ) : (
-            <h2 className="bh-bot-settings-title">{active.label}</h2>
-          )}
-          <span className="bh-channel-settings-header-actions">
-            {HeaderAction === undefined ? null : <HeaderAction {...entryProps} />}
-            <button
-              type="button"
-              className="bh-bot-settings-close"
-              aria-label={t('common.close')}
-              onClick={close}
-            >
-              <IconCloseOutlineRegular size={14} />
-            </button>
-          </span>
-        </div>
-        <div className="bh-bot-settings-options bh-channel-settings-options" key={active.id}>
-          <Section {...entryProps} />
-        </div>
-      </div>
-    </Modal>
+      <Section {...entryProps} />
+    </SettingsDialog>
   );
 }
 

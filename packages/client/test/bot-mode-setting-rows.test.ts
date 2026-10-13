@@ -134,7 +134,7 @@ describe('Bot mode setting rows', () => {
     expect(markup).toContain('Bot 列表排序');
     expect(markup).toContain('设置 Bot 模式列表的默认排序方式');
     expect(markup).toContain('手动排序');
-    expect(markup).toContain('bh-settings-selector');
+    expect(markup).toContain('aria-haspopup="menu"');
     expect(lastMenu()['selectedId']).toBe('manual');
     expect(
       (lastMenu()['items'] as readonly Record<string, unknown>[]).map((item) => item['id']),
@@ -202,13 +202,10 @@ describe('Bot mode setting rows', () => {
     const markup = renderSection(snapshot({ botIcon: 'blob' }), undefined, undefined, setBotIcon);
     expect(markup).toContain('Bot 图标');
     expect(markup).toContain('生成形象');
-    expect(markup).toContain('bh-icon-grid');
-    expect(markup).toContain('data-selected="true"');
-    expect(markup.match(/bh-icon-card(?!-)/g)?.length).toBe(4);
-
-    const cards = [...markup.matchAll(/<button[^>]*class="bh-icon-card"[^>]*>/g)].map((m) => m[0]);
+    expect(markup).toContain('role="radiogroup" aria-label="Bot 图标"');
+    const cards = [...markup.matchAll(/<button[^>]*role="radio"[^>]*>/g)].map((m) => m[0]);
     expect(cards).toHaveLength(4);
-    expect(cards.filter((card) => card.includes('data-selected="true"'))).toHaveLength(1);
+    expect(cards.filter((card) => card.includes('aria-checked="true"'))).toHaveLength(1);
   });
 });
 

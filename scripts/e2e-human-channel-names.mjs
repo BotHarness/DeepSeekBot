@@ -139,12 +139,11 @@ const setName = async (name) => {
   await page.keyboard.up(selectAllModifier);
   await page.keyboard.press('Backspace');
   if (name) await page.type('#bh-human-default-name', name);
-  await page.waitForSelector('.bh-human-name-save:not(:disabled)');
   console.log(
     'Save DOM: ' +
       JSON.stringify(
         await page.evaluate(() =>
-          [...document.querySelectorAll('.bh-human-name-setting button')].map((b) => ({
+          [...document.querySelectorAll('[data-human-name-setting] button')].map((b) => ({
             text: b.textContent,
             type: b.type,
             disabled: b.disabled,
@@ -153,11 +152,11 @@ const setName = async (name) => {
         ),
       ),
   );
-  await page.click('.bh-human-name-save');
+  await page.press('#bh-human-default-name', 'Enter');
   await page.waitForFunction(
     () =>
       document
-        .querySelector('.bh-human-name-setting [role="status"]')
+        .querySelector('[data-human-name-setting] [role="status"]')
         ?.textContent?.includes('已保存'),
     { polling: 100 },
   );

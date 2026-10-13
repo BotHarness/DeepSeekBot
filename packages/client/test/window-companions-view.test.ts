@@ -345,17 +345,16 @@ it('pins independently, exposes right-click controls and applies global bounded 
     expect(narrowAda.left).toBeGreaterThanOrEqual(8);
     expect(narrowGrace.right).toBeLessThanOrEqual(352);
     expect(narrowAda.top <= narrowGrace.bottom || narrowGrace.top <= narrowAda.bottom).toBe(true);
-    const input = node.querySelector<HTMLInputElement>('[name="retention"]')!;
+    const input = node.querySelector<HTMLInputElement>(
+      'input[role="spinbutton"][aria-label="每个伙伴保留数量"]',
+    )!;
     await act(() => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, '2');
       input.dispatchEvent(new Event('input', { bubbles: true }));
-      input.dispatchEvent(new Event('change', { bubbles: true }));
     });
-    await act(() =>
-      node
-        .querySelector('form')!
-        .dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })),
-    );
+    await act(() => {
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    });
     expect(owner.getSnapshot().capacity).toEqual({ layers: 2, retention: 2 });
     expect(owner.get('grace')!.getSnapshot().capacity.retention).toBe(2);
     const speech = node.querySelector<HTMLButtonElement>('[role="switch"]')!;

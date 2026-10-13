@@ -23,8 +23,6 @@ export const WINDOW_COMPANION_CSS = `
 .bh-companion-chip:hover .bh-companion-pin, .bh-channel-island-wrap:hover > .bh-companion-pin, .bh-companion-pin:focus-visible, .bh-companion-pin[aria-pressed='true'] { opacity: 1; }
 .bh-companion-pin:focus-visible { outline: 2px solid var(--bh-accent); outline-offset: 2px; }
 .bh-companion-pin:disabled { cursor: default; }
-.bh-companion-capacity-controls { display: flex; align-items: end; flex-wrap: wrap; gap: 8px; }
-.bh-companion-capacity-controls label { display: grid; gap: 4px; max-width: 150px; }
 .bh-companion { position: absolute; width: 96px; height: 96px; pointer-events: auto; }
 .bh-companion-tether { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
 .bh-companion-tether path { fill: none; stroke: var(--bh-companion-ink); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 0 6; }

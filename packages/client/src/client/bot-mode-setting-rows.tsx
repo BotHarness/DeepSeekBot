@@ -1,10 +1,10 @@
-import { useState, type ReactElement } from 'react';
+import type { ReactElement } from 'react';
+import * as stylex from '@stylexjs/stylex';
 
-import { IconChevronDownOutlineRegular, Menu, Switch } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Switch } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 
 import {
-  isBotModeIcon,
   isBotModeMotionPreference,
   isBotModeSortMode,
   type BotModeIcon,
@@ -14,6 +14,9 @@ import {
 import { AssignmentConcurrencySetting } from './assignment-concurrency-setting.js';
 import { BotIcon } from './bot-icon.js';
 import type { BotModePrefsFace } from './bot-mode-prefs.js';
+import { Select } from './ds/select.js';
+import { SettingsRow } from './ds/settings-row.js';
+import { color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessKey } from './locale.js';
 
 export type BotModeSettingRowProps = PropsLocale<'botharness'> & InjectFace<BotModePrefsFace>;
@@ -36,6 +39,48 @@ const MOTION_OPTIONS: readonly { id: BotModeMotionPreference; label: BotHarnessK
   { id: 'full', label: 'motion.full' },
 ];
 
+const styles = stylex.create({
+  grid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(112px, 1fr))',
+    gap: space.x3,
+    marginTop: space.x3,
+  },
+  card: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: space.x2,
+    minWidth: 0,
+    paddingBlock: space.x3,
+    paddingInline: space.x2,
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: { default: color.border, ':is([aria-checked=true])': color.accent },
+    borderRadius: radius.card,
+    backgroundColor: {
+      default: 'transparent',
+      ':hover': color.hover,
+      ':is([aria-checked=true])': color.selected,
+    },
+    color: { default: color.muted, ':hover': color.fg, ':is([aria-checked=true])': color.fg },
+    fontFamily: 'inherit',
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+    cursor: 'pointer',
+    outline: { default: 'none', ':focus-visible': `2px solid ${color.accent}` },
+  },
+  art: {
+    pointerEvents: 'none',
+  },
+  cardLabel: {
+    maxWidth: '100%',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+});
+
 export function BotIconCard({
   option,
   label,
@@ -52,14 +97,15 @@ export function BotIconCard({
       type="button"
       role="radio"
       aria-checked={selected}
-      className="bh-icon-card"
-      data-selected={selected ? 'true' : undefined}
       onClick={() => {
         onSelect(option);
       }}
+      {...stylex.props(styles.card)}
     >
-      <BotIcon icon={option} size={40} className="bh-icon-card-art" />
-      <span className="bh-icon-card-label">{label}</span>
+      <span {...stylex.props(styles.art)}>
+        <BotIcon icon={option} size={28} />
+      </span>
+      <span {...stylex.props(styles.cardLabel)}>{label}</span>
     </button>
   );
 }
@@ -71,14 +117,8 @@ export function BotIconSetting({
 }: BotModeSettingRowProps): ReactElement {
   const botIcon = useBotModePrefs((value) => value.botIcon);
   return (
-    <>
-      <div className="bh-settings-row bh-icon-row">
-        <div className="bh-settings-row-text">
-          <div className="bh-settings-row-title">{t('icon.row.title')}</div>
-          <div className="bh-settings-row-desc">{t('icon.row.description')}</div>
-        </div>
-      </div>
-      <div className="bh-icon-grid" role="radiogroup" aria-label={t('icon.row.title')}>
+    <SettingsRow title={t('icon.row.title')} description={t('icon.row.description')}>
+      <div role="radiogroup" aria-label={t('icon.row.title')} {...stylex.props(styles.grid)}>
         {ICON_OPTIONS.map((option) => (
           <BotIconCard
             key={option.id}
@@ -89,7 +129,7 @@ export function BotIconSetting({
           />
         ))}
       </div>
-    </>
+    </SettingsRow>
   );
 }
 
@@ -99,64 +139,36 @@ export function MotionSetting({
   setMotionPreference,
 }: BotModeSettingRowProps): ReactElement {
   const prefs = useBotModePrefs((value) => value);
-  const [motionOpen, setMotionOpen] = useState(false);
-  const motionLabel: BotHarnessKey =
-    prefs.motionPreference === 'reduce'
-      ? 'motion.reduce'
-      : prefs.motionPreference === 'full'
-        ? 'motion.full'
-        : 'motion.system';
   const effectiveLabel: BotHarnessKey =
     prefs.effectiveMotion === 'reduce' ? 'motion.preview.reduce' : 'motion.preview.full';
   const memoryOnly = prefs.status === 'unavailable' && prefs.mode === 'memory';
   return (
-    <div className="bh-settings-row bh-motion-row">
-      <div className="bh-settings-row-text">
-        <div className="bh-settings-row-title">{t('motion.row.title')}</div>
-        <div className="bh-settings-row-desc">
-          {t(memoryOnly ? 'motion.row.memory' : 'motion.row.description')}
-        </div>
-        <div className="bh-motion-preview" role="status" aria-live="polite">
-          <span className="bh-motion-preview-sample" aria-hidden="true">
-            <i />
-            <i />
-            <i />
-          </span>
-          <span>
-            {t('motion.preview.label')} · {t(effectiveLabel)}
-          </span>
-        </div>
+    <SettingsRow
+      title={t('motion.row.title')}
+      description={t(memoryOnly ? 'motion.row.memory' : 'motion.row.description')}
+      data={{ 'data-setting': 'motion' }}
+      control={
+        <Select
+          label={t('motion.menu.label')}
+          value={prefs.motionPreference}
+          options={MOTION_OPTIONS.map((option) => ({ value: option.id, label: t(option.label) }))}
+          onChange={(id) => {
+            if (isBotModeMotionPreference(id)) setMotionPreference(id);
+          }}
+        />
+      }
+    >
+      <div className="bh-motion-preview" role="status" aria-live="polite">
+        <span className="bh-motion-preview-sample" aria-hidden="true">
+          <i />
+          <i />
+          <i />
+        </span>
+        <span>
+          {t('motion.preview.label')} · {t(effectiveLabel)}
+        </span>
       </div>
-      <Menu
-        open={motionOpen}
-        portal
-        align="end"
-        items={MOTION_OPTIONS.map((option) => ({ id: option.id, label: t(option.label) }))}
-        selectedId={prefs.motionPreference}
-        onSelect={(id) => {
-          setMotionOpen(false);
-          if (isBotModeMotionPreference(id)) setMotionPreference(id);
-        }}
-        onClose={() => {
-          setMotionOpen(false);
-        }}
-        anchor={
-          <button
-            type="button"
-            className="bh-settings-selector"
-            aria-label={t('motion.menu.label')}
-            aria-haspopup="menu"
-            aria-expanded={motionOpen}
-            onClick={() => {
-              setMotionOpen((value) => !value);
-            }}
-          >
-            {t(motionLabel)}
-            <IconChevronDownOutlineRegular className="bh-settings-chevron" />
-          </button>
-        }
-      />
-    </div>
+    </SettingsRow>
   );
 }
 
@@ -166,47 +178,22 @@ export function SortSetting({
   setSortMode,
 }: BotModeSettingRowProps): ReactElement {
   const prefs = useBotModePrefs((value) => value);
-  const [sortOpen, setSortOpen] = useState(false);
-  const sortLabel: BotHarnessKey = prefs.sortMode === 'manual' ? 'sort.manual' : 'sort.updated';
   const memoryOnly = prefs.status === 'unavailable' && prefs.mode === 'memory';
   return (
-    <div className="bh-settings-row bh-sort-row">
-      <div className="bh-settings-row-text">
-        <div className="bh-settings-row-title">{t('sort.row.title')}</div>
-        <div className="bh-settings-row-desc">
-          {t(memoryOnly ? 'sort.row.memory' : 'sort.row.description')}
-        </div>
-      </div>
-      <Menu
-        open={sortOpen}
-        portal
-        align="end"
-        items={SORT_OPTIONS.map((option) => ({ id: option.id, label: t(option.label) }))}
-        selectedId={prefs.sortMode}
-        onSelect={(id) => {
-          setSortOpen(false);
-          if (isBotModeSortMode(id)) setSortMode(id);
-        }}
-        onClose={() => {
-          setSortOpen(false);
-        }}
-        anchor={
-          <button
-            type="button"
-            className="bh-settings-selector"
-            aria-label={t('sort.menu.label')}
-            aria-haspopup="menu"
-            aria-expanded={sortOpen}
-            onClick={() => {
-              setSortOpen((value) => !value);
-            }}
-          >
-            {t(sortLabel)}
-            <IconChevronDownOutlineRegular className="bh-settings-chevron" />
-          </button>
-        }
-      />
-    </div>
+    <SettingsRow
+      title={t('sort.row.title')}
+      description={t(memoryOnly ? 'sort.row.memory' : 'sort.row.description')}
+      control={
+        <Select
+          label={t('sort.menu.label')}
+          value={prefs.sortMode}
+          options={SORT_OPTIONS.map((option) => ({ value: option.id, label: t(option.label) }))}
+          onChange={(id) => {
+            if (isBotModeSortMode(id)) setSortMode(id);
+          }}
+        />
+      }
+    />
   );
 }
 
@@ -217,17 +204,17 @@ export function DeveloperModeSetting({
 }: BotModeSettingRowProps): ReactElement {
   const prefs = useBotModePrefs((value) => value);
   return (
-    <div className="bh-settings-row bh-developer-row">
-      <div className="bh-settings-row-text">
-        <div className="bh-settings-row-title">{t('developer.row.title')}</div>
-        <div className="bh-settings-row-desc">{t('developer.row.description')}</div>
-      </div>
-      <Switch
-        checked={prefs.developerMode}
-        onChange={setDeveloperMode}
-        label={t('developer.row.title')}
-      />
-    </div>
+    <SettingsRow
+      title={t('developer.row.title')}
+      description={t('developer.row.description')}
+      control={
+        <Switch
+          checked={prefs.developerMode}
+          onChange={setDeveloperMode}
+          label={t('developer.row.title')}
+        />
+      }
+    />
   );
 }
 
@@ -238,17 +225,17 @@ export function BotSessionsVisibilitySetting({
 }: BotModeSettingRowProps): ReactElement {
   const prefs = useBotModePrefs((value) => value);
   return (
-    <div className="bh-settings-row bh-bot-sessions-row">
-      <div className="bh-settings-row-text">
-        <div className="bh-settings-row-title">{t('botSessions.row.title')}</div>
-        <div className="bh-settings-row-desc">{t('botSessions.row.description')}</div>
-      </div>
-      <Switch
-        checked={prefs.showBotSessions}
-        onChange={setShowBotSessions}
-        label={t('botSessions.row.title')}
-      />
-    </div>
+    <SettingsRow
+      title={t('botSessions.row.title')}
+      description={t('botSessions.row.description')}
+      control={
+        <Switch
+          checked={prefs.showBotSessions}
+          onChange={setShowBotSessions}
+          label={t('botSessions.row.title')}
+        />
+      }
+    />
   );
 }
 
@@ -259,18 +246,18 @@ export function GroupAutoAcceptSetting({
 }: BotModeSettingRowProps): ReactElement {
   const prefs = useBotModePrefs((value) => value);
   return (
-    <div className="bh-settings-row bh-group-auto-accept-row">
-      <div className="bh-settings-row-text">
-        <div className="bh-settings-row-title">{t('groupAutoAccept.row.title')}</div>
-        <div className="bh-settings-row-desc">{t('groupAutoAccept.row.description')}</div>
-      </div>
-      <Switch
-        checked={prefs.autoAcceptGroupInvites}
-        onChange={setAutoAcceptGroupInvites}
-        disabled={prefs.status !== 'ready' || prefs.mode !== 'host'}
-        label={t('groupAutoAccept.row.title')}
-      />
-    </div>
+    <SettingsRow
+      title={t('groupAutoAccept.row.title')}
+      description={t('groupAutoAccept.row.description')}
+      control={
+        <Switch
+          checked={prefs.autoAcceptGroupInvites}
+          onChange={setAutoAcceptGroupInvites}
+          disabled={prefs.status !== 'ready' || prefs.mode !== 'host'}
+          label={t('groupAutoAccept.row.title')}
+        />
+      }
+    />
   );
 }
 

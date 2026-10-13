@@ -282,8 +282,8 @@ async function setPreference(preference) {
   await page.setViewport({ width: 1500, height: 1000 });
   await page.waitForSelector('.bh-panel-gear');
   await page.click('.bh-panel-gear');
-  await page.waitForSelector('.bh-motion-row .bh-settings-selector');
-  await page.click('.bh-motion-row .bh-settings-selector');
+  await page.waitForSelector('[data-setting="motion"] button[aria-haspopup="menu"]');
+  await page.click('[data-setting="motion"] button[aria-haspopup="menu"]');
   const labels = {
     system: ['Follow system', '跟随系统'],
     reduce: ['Reduce motion', '减少动效'],
@@ -305,7 +305,7 @@ async function setPreference(preference) {
     labels,
   );
   await page.keyboard.press('Escape');
-  await page.waitForFunction(() => !document.querySelector('.bh-motion-row'));
+  await page.waitForFunction(() => !document.querySelector('[data-setting="motion"]'));
 }
 async function measure(g, preference, systemReduced, theme, width) {
   const expected = preference === 'system' ? (systemReduced ? 'reduce' : 'full') : preference;

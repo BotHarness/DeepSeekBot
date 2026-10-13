@@ -1,4 +1,5 @@
 import { useRef, useState, type ReactElement } from 'react';
+import * as stylex from '@stylexjs/stylex';
 import { Button, Input } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 import {
@@ -7,9 +8,20 @@ import {
   type BridgeCall,
   type LocalHumanIdentity,
 } from './bridge.js';
+import { Note } from './ds/note.js';
+import { SettingsRow } from './ds/settings-row.js';
 import { subscribeMessagingDefaults } from './messaging-defaults-live.js';
 import type { ClientStore } from './store.js';
 import { useMountedResource } from './mounted-resource.js';
+
+const styles = stylex.create({
+  field: {
+    boxSizing: 'border-box',
+    width: '200px',
+    maxWidth: '100%',
+    minWidth: 0,
+  },
+});
 
 export type HumanNameSettingsProps = PropsLocale<'botharness'> &
   InjectFace<{
@@ -94,65 +106,59 @@ export function HumanNameSettings({
       if (mounted.current) setBusy(false);
     }
   };
+  const current = identity?.defaultDisplayName ?? '';
+  const commit = (): void => {
+    if (identity === undefined || draft.trim() === current) return;
+    void save(draft.trim() || null);
+  };
   return (
-    <div className="bh-human-name-setting" ref={mount}>
-      <div className="bh-settings-row-text">
-        <label className="bh-settings-row-title" htmlFor="bh-human-default-name">
-          {t('humanName.title')}
-        </label>
-        <div className="bh-settings-row-desc">{t('humanName.description')}</div>
-      </div>
-      <div className="bh-human-name-controls">
-        <Input
-          id="bh-human-default-name"
-          value={draft}
-          placeholder={t('humanName.placeholder')}
-          maxLength={128}
-          onKeyDown={(event) => {
-            if (event.key !== 'Enter' || event.nativeEvent.isComposing) return;
-            event.preventDefault();
-            void save(draft.trim() || null);
-          }}
-          disabled={busy || identity === undefined}
-          onChange={(event) => {
-            dirty.current = true;
-            setDraft(event.target.value);
-            setSaved(false);
-          }}
-        />
-        <Button
-          type="button"
-          className="bh-human-name-save"
-          onClick={() => void save(draft.trim() || null)}
-          variant="primary"
-          disabled={
-            busy || identity === undefined || draft.trim() === (identity.defaultDisplayName ?? '')
-          }
-        >
-          {t('humanName.save')}
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          disabled={busy || identity === undefined || identity.defaultDisplayName === null}
-          onClick={() => void save(null)}
-        >
-          {t('humanName.clear')}
-        </Button>
-      </div>
+    <SettingsRow
+      rootRef={mount}
+      title={<label htmlFor="bh-human-default-name">{t('humanName.title')}</label>}
+      description={t('humanName.description')}
+      data={{ 'data-human-name-setting': '' }}
+      control={
+        <>
+          {identity?.defaultDisplayName === null || identity === undefined ? null : (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={busy}
+              onClick={() => void save(null)}
+            >
+              {t('humanName.clear')}
+            </Button>
+          )}
+          <Input
+            className={stylex.props(styles.field).className ?? ''}
+            id="bh-human-default-name"
+            value={draft}
+            placeholder={t('humanName.placeholder')}
+            maxLength={128}
+            onKeyDown={(event) => {
+              if (event.key !== 'Enter' || event.nativeEvent.isComposing) return;
+              event.preventDefault();
+              commit();
+            }}
+            onBlur={commit}
+            disabled={busy || identity === undefined}
+            onChange={(event) => {
+              dirty.current = true;
+              setDraft(event.target.value);
+              setSaved(false);
+            }}
+          />
+        </>
+      }
+    >
       {error ? (
-        <p className="bh-error" role="alert">
-          {t('humanName.error')}
-        </p>
+        <Note tone="danger">{t('humanName.error')}</Note>
       ) : identity === undefined ? (
-        <p className="bh-note" role="status">
-          {t('humanName.loading')}
-        </p>
+        <Note>{t('humanName.loading')}</Note>
       ) : saved ? (
-        <p className="bh-note" role="status">
-          {t('humanName.saved')}
-        </p>
+        <Note tone="success">{t('humanName.saved')}</Note>
       ) : null}
-    </div>
+    </SettingsRow>
   );
 }

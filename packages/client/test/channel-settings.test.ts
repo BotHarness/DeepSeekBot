@@ -249,14 +249,8 @@ describe('Channel settings', () => {
     ).toEqual(['external-connectors']);
     act(() => controller.open('external-connectors'));
     const marked = host.querySelector('[data-settings-section="external-connectors"]')!;
-    expect(
-      marked.querySelector('.bh-channel-settings-attention-dot')?.getAttribute('aria-label'),
-    ).toBe('需要处理');
-    expect(
-      host.querySelector(
-        '[data-settings-section="wake-policy"] .bh-channel-settings-attention-dot',
-      ),
-    ).toBeNull();
+    expect(marked.querySelector('[role="img"]')?.getAttribute('aria-label')).toBe('需要处理');
+    expect(host.querySelector('[data-settings-section="wake-policy"] [role="img"]')).toBeNull();
     expect(host.querySelector('[data-body]')?.getAttribute('data-body')).toBe(
       'external-connectors',
     );

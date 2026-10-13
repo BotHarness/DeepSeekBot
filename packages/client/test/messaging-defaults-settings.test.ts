@@ -1,18 +1,50 @@
 // @vitest-environment jsdom
-import { act, createElement, type ButtonHTMLAttributes } from 'react';
+import { act, createElement, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { expect, it, vi } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import { MessagingDefaultsSettings } from '../src/client/messaging-defaults-settings.js';
 import { en, zhTranslate } from '../src/client/locale.js';
 import type { BridgeCall } from '../src/client/bridge.js';
+
 const enTranslate: typeof zhTranslate = (key, params) => {
   let message = Object.entries(en).find(([name]) => name === key)?.[1] ?? key;
   for (const [name, value] of Object.entries(params ?? {}))
     message = message.replaceAll(`{${name}}`, String(value));
   return message;
 };
+
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   Button: (props: ButtonHTMLAttributes<HTMLButtonElement>) => createElement('button', props),
+  IconChevronDownOutlineRegular: () => null,
+  Menu: ({
+    open,
+    anchor,
+    items,
+    onSelect,
+  }: {
+    open: boolean;
+    anchor: ReactNode;
+    items: readonly { id: string; label: ReactNode }[];
+    onSelect(id: string): void;
+  }) =>
+    createElement(
+      'span',
+      null,
+      anchor,
+      open
+        ? createElement(
+            'span',
+            { role: 'menu' },
+            items.map((item) =>
+              createElement(
+                'button',
+                { key: item.id, role: 'menuitem', onClick: () => onSelect(item.id) },
+                item.label,
+              ),
+            ),
+          )
+        : null,
+    ),
   Switch: ({
     checked,
     label,
@@ -29,283 +61,228 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
       onChange: () => onChange(!checked),
     }),
 }));
-it.each([zhTranslate, enTranslate])(
-  'shows only qualified owner-DM and typing defaults for WeChat (%#)',
-  async (t) => {
-    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-    const saves: unknown[] = [];
-    const call: BridgeCall = async (method, payload) => {
-      if (method === 'messagingDefaults')
-        return {
-          ok: true,
-          value: {
-            platform: payload.platform ?? 'feishu',
-            revision: 0,
-            changedAt: '',
-            collection: payload.platform === 'weixin' ? 'all' : 'mentions',
-            wake: payload.platform === 'weixin' ? 'immediate' : 'digest',
-            count: 5,
-            intervalSeconds: 30,
-            identityEnabled: true,
-            typingEnabled: true,
-            newConversations: 'auto',
-          },
-        };
-      if (method === 'messagingDefaultsSet') {
-        saves.push(payload);
-        return { ok: true, value: undefined };
-      }
-      throw new Error(method);
-    };
-    const container = document.createElement('div');
-    document.body.append(container);
-    const root = createRoot(container);
-    try {
-      await act(async () => root.render(createElement(MessagingDefaultsSettings, { call, t })));
-      const platform = container.querySelector<HTMLSelectElement>(
-        `[aria-label="${t('defaults.platform')}"]`,
-      )!;
-      await act(async () => {
-        platform.value = 'weixin';
-        platform.dispatchEvent(new Event('change', { bubbles: true }));
-      });
-      const region = container.querySelector<HTMLElement>(
-        '[role="region"][aria-label="WeChat / 微信"]',
-      )!;
-      expect(region.hidden).toBe(false);
-      expect(region.querySelector('select')).toBeNull();
-      expect(region.textContent).toContain(t('defaults.weixinScope'));
-      expect(region.textContent).not.toContain(t('defaults.authorization'));
-      expect(region.querySelectorAll('input[type="checkbox"]')).toHaveLength(2);
-      await act(async () =>
-        region
-          .querySelector<HTMLButtonElement>(`[aria-label="${t('defaults.enableTyping')}"]`)!
-          .click(),
-      );
-      await act(async () =>
-        [...region.querySelectorAll('button')]
-          .find((b) => b.textContent === t('defaults.save'))!
-          .click(),
-      );
-      expect(saves).toEqual([
-        {
-          input: {
-            platform: 'weixin',
-            expectedRevision: 0,
-            collection: 'all',
-            wake: 'immediate',
-            count: 5,
-            intervalSeconds: 30,
-            identityEnabled: true,
-            typingEnabled: false,
-            newConversations: 'auto',
-          },
-        },
-      ]);
-    } finally {
-      await act(async () => root.unmount());
-      container.remove();
-    }
-  },
-);
 
-it('keeps a dirty draft at its captured revision, refuses a stale save, and refreshes explicitly', async () => {
-  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-  let remote = {
-    platform: 'feishu',
+type Remote = {
+  platform: string;
+  collection: 'mentions' | 'all';
+  wake: 'digest' | 'immediate' | 'mentions' | 'silent';
+  count: number;
+  intervalSeconds: number;
+  identityEnabled: boolean;
+  typingEnabled?: boolean;
+  newConversations?: 'auto' | 'ask';
+  revision: number;
+  changedAt: string;
+};
+
+function remoteFor(platform: string, revision = 0): Remote {
+  return {
+    platform,
     collection: 'mentions',
     wake: 'digest',
     count: 5,
     intervalSeconds: 30,
     identityEnabled: true,
-    revision: 1,
-    changedAt: '2026-10-03T00:00:00Z',
+    ...(platform === 'weixin' ? { typingEnabled: true } : {}),
+    newConversations: 'auto',
+    revision,
+    changedAt: '',
   };
-  let stream: EventTarget | undefined;
-  class Events extends EventTarget {
-    constructor() {
-      super();
-      stream = this;
-    }
-    close() {}
+}
+
+let stream: EventTarget | undefined;
+
+class Events extends EventTarget {
+  constructor() {
+    super();
+    stream = this;
   }
+  close() {}
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  document.body.innerHTML = '';
+});
+
+async function mount(call: BridgeCall, t = zhTranslate) {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   vi.stubGlobal('EventSource', Events);
-  const saves: unknown[] = [];
-  const call: BridgeCall = async (method, payload) => {
-    if (method === 'messagingDefaults')
-      return {
-        ok: true,
-        value: {
-          ...remote,
-          platform: payload.platform ?? 'feishu',
-          ...(payload.platform === 'weixin' ? { typingEnabled: true } : {}),
-        },
-      };
-    if (method === 'messagingDefaultsSet') {
-      saves.push(payload);
-      return { ok: false, error: { code: 'defaults-stale', message: 'stale', details: {} } };
-    }
-    throw new Error(method);
-  };
   const container = document.createElement('div');
   document.body.append(container);
   const root = createRoot(container);
-  try {
+  await act(async () => root.render(createElement(MessagingDefaultsSettings, { call, t })));
+  const button = (label: string) =>
+    container.querySelector<HTMLButtonElement>(`[aria-label="${label}"]`);
+  return {
+    container,
+    button,
+    pick: async (label: string, option: string) => {
+      await act(async () => button(label)!.click());
+      await act(async () =>
+        [...container.querySelectorAll<HTMLButtonElement>('[role=menuitem]')]
+          .find((item) => item.textContent === option)!
+          .click(),
+      );
+    },
+    stepperValue: (label: string) =>
+      container.querySelector<HTMLInputElement>(`input[role=spinbutton][aria-label="${label}"]`)
+        ?.value,
+    unmount: async () => {
+      await act(async () => root.unmount());
+    },
+  };
+}
+
+it.each([zhTranslate, enTranslate])(
+  'shows only the WeChat rows and saves the typing switch as soon as it flips (%#)',
+  async (t) => {
+    const saves: unknown[] = [];
+    const call: BridgeCall = async (method, payload) => {
+      if (method === 'messagingDefaults')
+        return { ok: true, value: remoteFor(String(payload.platform ?? 'feishu')) };
+      if (method === 'messagingDefaultsSet') {
+        saves.push(payload);
+        return { ok: true, value: { ...remoteFor('weixin', 1), typingEnabled: false } };
+      }
+      throw new Error(method);
+    };
+    const ui = await mount(call, t);
+    await ui.pick(t('defaults.platform'), 'WeChat / 微信');
+    expect(ui.container.textContent).toContain(t('defaults.weixinNote'));
+    expect(ui.button(t('defaults.collection'))).toBeNull();
+    expect(ui.button(t('defaults.wake'))).toBeNull();
+    expect(ui.container.querySelectorAll('input[type="checkbox"]')).toHaveLength(2);
+    expect(ui.container.textContent).not.toMatch(/revision|版本/i);
     await act(async () =>
-      root.render(createElement(MessagingDefaultsSettings, { call, t: zhTranslate })),
+      ui.container
+        .querySelector<HTMLInputElement>(`[aria-label="${t('defaults.enableTyping')}"]`)!
+        .click(),
     );
-    const collection = container.querySelector<HTMLSelectElement>(
-      'select[aria-label="默认收件条件"]',
-    )!;
-    await act(async () => {
-      collection.value = 'all';
-      collection.dispatchEvent(new Event('change', { bubbles: true }));
-    });
-    remote = { ...remote, count: 2, revision: 2 };
-    await act(async () => stream!.dispatchEvent(new Event('roster/changed')));
-    expect(collection.value).toBe('all');
-    const save = [...container.querySelectorAll('button')].find(
-      (b) => b.textContent === '保存平台默认设置',
-    )!;
-    await act(async () => save.click());
     expect(saves).toEqual([
       {
         input: {
-          platform: 'feishu',
-          expectedRevision: 1,
-          newConversations: 'auto',
-          collection: 'all',
+          platform: 'weixin',
+          expectedRevision: 0,
+          collection: 'mentions',
           wake: 'digest',
           count: 5,
           intervalSeconds: 30,
           identityEnabled: true,
+          typingEnabled: false,
+          newConversations: 'auto',
         },
       },
     ]);
-    expect(container.querySelector('[role=alert]')?.textContent).toContain('已被其他操作修改');
-    await act(async () =>
-      [...container.querySelectorAll('button')].find((b) => b.textContent === '刷新')!.click(),
-    );
-    expect(collection.value).toBe('mentions');
-    expect((container.querySelector('input[type=number]') as HTMLInputElement).value).toBe('2');
-  } finally {
-    await act(async () => root.unmount());
-    container.remove();
-    vi.unstubAllGlobals();
-  }
-});
-
-it.each(['slack', 'discord'] as const)(
-  'keeps platform drafts and live revisions separate while switching and saving %s',
-  async (targetPlatform) => {
-    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-    const base = {
-      collection: 'mentions' as const,
-      wake: 'digest' as const,
-      count: 5,
-      intervalSeconds: 30,
-      identityEnabled: true,
-      revision: 0,
-      changedAt: '',
-    };
-    const remote: Record<string, typeof base & { platform: string; typingEnabled?: boolean }> = {
-      feishu: { ...base, platform: 'feishu' },
-      slack: { ...base, platform: 'slack' },
-      discord: { ...base, platform: 'discord' },
-      weixin: { ...base, platform: 'weixin', typingEnabled: true },
-    };
-    let stream: EventTarget | undefined;
-    class Events extends EventTarget {
-      constructor() {
-        super();
-        stream = this;
-      }
-      close() {}
-    }
-    vi.stubGlobal('EventSource', Events);
-    const saves: unknown[] = [];
-    const call: BridgeCall = async (method, payload) => {
-      if (method === 'messagingDefaults')
-        return { ok: true, value: remote[String(payload.platform ?? 'feishu')] };
-      if (method === 'messagingDefaultsSet') {
-        saves.push(payload);
-        const input = payload.input as Record<string, unknown>;
-        const platform = String(input.platform);
-        remote[platform] = {
-          ...remote[platform]!,
-          count: Number(input.count),
-          revision: remote[platform]!.revision + 1,
-        };
-        return { ok: true, value: remote[platform] };
-      }
-      throw new Error(method);
-    };
-    const container = document.createElement('div');
-    document.body.append(container);
-    const root = createRoot(container);
-    try {
-      await act(async () =>
-        root.render(createElement(MessagingDefaultsSettings, { call, t: zhTranslate })),
-      );
-      const platform = container.querySelector<HTMLSelectElement>(
-        'select[aria-label="默认设置的平台"]',
-      )!;
-      const lark = container.querySelector<HTMLElement>('[role=region][aria-label="Lark / 飞书"]')!;
-      const slack = container.querySelector<HTMLElement>(
-        `[role=region][aria-label="${targetPlatform === 'slack' ? 'Slack' : 'Discord'}"]`,
-      )!;
-      const collection = lark.querySelector<HTMLSelectElement>('select')!;
-      await act(async () => {
-        collection.value = 'all';
-        collection.dispatchEvent(new Event('change', { bubbles: true }));
-        platform.value = targetPlatform;
-        platform.dispatchEvent(new Event('change', { bubbles: true }));
-      });
-      expect(slack.hidden).toBe(false);
-      expect(lark.hidden).toBe(true);
-      remote[targetPlatform] = { ...remote[targetPlatform]!, count: 2, revision: 1 };
-      await act(async () => stream!.dispatchEvent(new Event('roster/changed')));
-      expect(slack.querySelector<HTMLInputElement>('input[type=number]')!.value).toBe('2');
-      expect(collection.value).toBe('all');
-      expect(lark.textContent).toContain('当前全局版本：0');
-      await act(async () => {
-        const input = slack.querySelector<HTMLInputElement>('input[type=number]')!;
-        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, '3');
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-      });
-      await act(async () =>
-        [...slack.querySelectorAll('button')]
-          .find((b) => b.textContent === '保存平台默认设置')!
-          .click(),
-      );
-      expect(saves).toEqual([
-        {
-          input: {
-            platform: targetPlatform,
-            expectedRevision: 1,
-            newConversations: 'auto',
-            collection: 'mentions',
-            wake: 'digest',
-            count: 3,
-            intervalSeconds: 30,
-            identityEnabled: true,
-          },
-        },
-      ]);
-      expect(remote.feishu!.revision).toBe(0);
-      await act(async () => {
-        platform.value = 'feishu';
-        platform.dispatchEvent(new Event('change', { bubbles: true }));
-      });
-      expect(collection.value).toBe('all');
-      expect(
-        [...lark.querySelectorAll('button')].find((b) => b.textContent === '保存平台默认设置')!
-          .disabled,
-      ).toBe(false);
-    } finally {
-      await act(async () => root.unmount());
-      container.remove();
-      vi.unstubAllGlobals();
-    }
+    await ui.unmount();
   },
 );
+
+it('applies a choice immediately, and refreshes to the latest values when the save is stale', async () => {
+  let remote = remoteFor('feishu', 1);
+  const saves: unknown[] = [];
+  const call: BridgeCall = async (method, payload) => {
+    if (method === 'messagingDefaults') return { ok: true, value: remote };
+    if (method === 'messagingDefaultsSet') {
+      saves.push(payload);
+      remote = { ...remote, count: 2, revision: 2 };
+      return { ok: false, error: { code: 'defaults-stale', message: 'stale', details: {} } };
+    }
+    throw new Error(method);
+  };
+  const ui = await mount(call);
+  await ui.pick('默认收件条件', '所有普通文字消息');
+  expect(saves).toEqual([
+    {
+      input: {
+        platform: 'feishu',
+        expectedRevision: 1,
+        newConversations: 'auto',
+        collection: 'all',
+        wake: 'digest',
+        count: 5,
+        intervalSeconds: 30,
+        identityEnabled: true,
+      },
+    },
+  ]);
+  expect(ui.container.querySelector('[role=alert]')?.textContent).toBe(
+    zhTranslate('defaults.stale'),
+  );
+  expect(ui.button('默认收件条件')?.textContent).toBe('仅收 @ 接收身份');
+  expect(ui.stepperValue('默认汇总条数')).toBe('2');
+  await ui.unmount();
+});
+
+it('follows live changes, saves stepper changes at the latest revision and hides the threshold outside digests', async () => {
+  const remote: Record<string, Remote> = {
+    feishu: remoteFor('feishu'),
+    slack: remoteFor('slack'),
+  };
+  const saves: Record<string, unknown>[] = [];
+  const call: BridgeCall = async (method, payload) => {
+    if (method === 'messagingDefaults')
+      return { ok: true, value: remote[String(payload.platform ?? 'feishu')] };
+    if (method === 'messagingDefaultsSet') {
+      const input = payload.input as Record<string, unknown>;
+      saves.push(input);
+      const platform = String(input.platform);
+      remote[platform] = {
+        ...remote[platform]!,
+        ...(input as Partial<Remote>),
+        revision: remote[platform]!.revision + 1,
+      };
+      return { ok: true, value: remote[platform] };
+    }
+    throw new Error(method);
+  };
+  const ui = await mount(call);
+  await ui.pick('默认设置的平台', 'Slack');
+  remote.slack = { ...remote.slack!, count: 7, revision: 4 };
+  await act(async () => stream!.dispatchEvent(new Event('roster/changed')));
+  expect(ui.stepperValue('默认汇总条数')).toBe('7');
+  const increase = ui.container.querySelector<HTMLElement>(
+    '[role=group][aria-label="默认汇总条数"]',
+  )!;
+  await act(async () =>
+    [...increase.querySelectorAll('button')]
+      .find((b) => b.getAttribute('aria-label') === '增加')!
+      .click(),
+  );
+  expect(saves.at(-1)).toMatchObject({ platform: 'slack', expectedRevision: 4, count: 8 });
+  expect(remote.feishu!.revision).toBe(0);
+  await ui.pick('普通消息默认处理方式', '每条消息安排下一轮');
+  expect(saves.at(-1)).toMatchObject({ platform: 'slack', expectedRevision: 5, wake: 'immediate' });
+  expect(ui.stepperValue('默认汇总条数')).toBeUndefined();
+  await ui.unmount();
+});
+
+it('queues a change made while a save is in flight and sends it with the returned revision', async () => {
+  let remote = remoteFor('feishu', 3);
+  const saves: Record<string, unknown>[] = [];
+  let release: (() => void) | undefined;
+  const call: BridgeCall = async (method, payload) => {
+    if (method === 'messagingDefaults') return { ok: true, value: remote };
+    if (method === 'messagingDefaultsSet') {
+      const input = payload.input as Record<string, unknown>;
+      saves.push(input);
+      if (saves.length === 1) await new Promise<void>((resolve) => (release = resolve));
+      remote = { ...remote, ...(input as Partial<Remote>), revision: remote.revision + 1 };
+      return { ok: true, value: remote };
+    }
+    throw new Error(method);
+  };
+  const ui = await mount(call);
+  await ui.pick('默认收件条件', '所有普通文字消息');
+  await ui.pick('新会话', '先问我');
+  expect(saves).toHaveLength(1);
+  await act(async () => release!());
+  expect(saves).toHaveLength(2);
+  expect(saves[1]).toMatchObject({
+    expectedRevision: 4,
+    collection: 'all',
+    newConversations: 'ask',
+  });
+  expect(ui.button('新会话')?.textContent).toBe('先问我');
+  await ui.unmount();
+});

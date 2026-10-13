@@ -75,7 +75,7 @@ async function render(
 }
 
 function rows(): string[] {
-  return [...host.querySelectorAll('.bh-im-apps-row')].map((row) => row.textContent ?? '');
+  return [...host.querySelectorAll('[data-im-app]')].map((row) => row.textContent ?? '');
 }
 
 it('lists Apps from every platform with their PersonaBot or an unbound marker', async () => {
