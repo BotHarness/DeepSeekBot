@@ -132,6 +132,80 @@ it('follows revealed message tails independently and preserves upward reading un
   }
 });
 
+it('measures every revealed tail before scrolling any of them in one commit', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  vi.stubGlobal('requestAnimationFrame', () => 1);
+  vi.stubGlobal('cancelAnimationFrame', () => {});
+  const events = new EventTarget();
+  const companion = new WindowCompanion({
+    context: async () => ({ profileId: 'qa' }),
+    source: () => ({ addEventListener: events.addEventListener.bind(events), close() {} }),
+  });
+  const send = (type: string, value: unknown) =>
+    events.dispatchEvent(new MessageEvent(type, { data: JSON.stringify(value) }));
+  await companion.start();
+  companion.select('ada');
+  send('companion/baseline', {
+    profileId: 'qa',
+    bot: { slug: 'ada', name: 'Ada', paused: false },
+    activity: { generation: 'host', revision: 0, bots: [] },
+  });
+  const node = document.createElement('div');
+  document.body.append(node);
+  const root = createRoot(node);
+  const order: string[] = [];
+  const height = vi
+    .spyOn(HTMLElement.prototype, 'scrollHeight', 'get')
+    .mockImplementation(function (this: HTMLElement) {
+      if (!this.matches('.bh-companion-card p')) return 0;
+      order.push('measure');
+      return 180;
+    });
+  const viewport = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(54);
+  const scroll = vi.spyOn(HTMLElement.prototype, 'scrollTop', 'set').mockImplementation(function (
+    this: HTMLElement,
+  ) {
+    if (this.matches('.bh-companion-card p')) order.push('scroll');
+  });
+  try {
+    await act(() =>
+      root.render(
+        createElement(WindowCompanionView, {
+          companion,
+          openDm() {},
+          openAttention() {},
+          openChannel() {},
+          t: zhTranslate,
+        }),
+      ),
+    );
+    await act(() => {
+      for (const letter of ['A', 'B', 'C'])
+        send('companion/message', {
+          generation: 'host',
+          botId: 'ada',
+          channelId: 'dm',
+          channelName: 'Ada',
+          messageId: letter,
+          body: letter.repeat(200),
+          source: 'own-dm',
+        });
+      companion.advance(350);
+    });
+    order.length = 0;
+    await act(() => companion.advance(350));
+    expect(order).toEqual(['measure', 'measure', 'measure', 'scroll', 'scroll', 'scroll']);
+  } finally {
+    await act(() => root.unmount());
+    companion.dispose();
+    node.remove();
+    height.mockRestore();
+    viewport.mockRestore();
+    scroll.mockRestore();
+    vi.unstubAllGlobals();
+  }
+});
+
 it('sounds only fresh playback and silences a Bot on background, stale sync, archive and unmount', async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   vi.useFakeTimers();

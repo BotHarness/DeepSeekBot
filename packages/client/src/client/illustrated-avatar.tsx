@@ -170,7 +170,7 @@ export function IllustratedAvatar({
     return { duration: 4400 + random() * 1600, phase: random() * 0.75 };
   }, [personaBotId]);
   const speech = surface === 'companion' && recipe.family === 'illustrated';
-  const turning = !still && state === 'thinking' && size > 64;
+  const turning = !still && (state === 'thinking' || state === 'working') && size > 64;
   const markup = useMemo(
     () =>
       avatarSvg(recipe, {
@@ -428,7 +428,7 @@ export function IllustratedAvatar({
             }
             const turns = [...node.querySelectorAll<SVGGElement>('[data-avatar-turn]')];
             const body = node.querySelector<SVGGElement>('.bh-illustrated-body');
-            if (turns.length && body) {
+            if (state === 'thinking' && turns.length && body) {
               const schedule = turnSchedule((markup.length % 97) / 15.4);
               const frames = (delta: number): Keyframe[] =>
                 schedule.map((value, index) => ({

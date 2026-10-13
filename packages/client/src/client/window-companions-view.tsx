@@ -10,6 +10,7 @@ import type { BotHarnessTranslate } from './locale.js';
 import type { WindowCompanions } from './window-companions.js';
 import { WindowCompanionView, type WindowCompanionViewProps } from './window-companion-view.js';
 import { CompanionBubbles } from './companion-bubbles.js';
+import { CompanionFrames } from './companion-frames.js';
 import { CompanionSound } from './companion-sound.js';
 import { useMountedResource } from './mounted-resource.js';
 import type { BotModePrefs } from './bot-mode-prefs.js';
@@ -65,6 +66,7 @@ export function WindowCompanionsView({
     () => false,
   );
   const [bubbles] = useState(() => new CompanionBubbles());
+  const [frames] = useState(() => new CompanionFrames());
   const [sound] = useState(() => new CompanionSound());
   const audioMount = useMountedResource<HTMLSpanElement>(() => {
     const sync = () => {
@@ -101,6 +103,7 @@ export function WindowCompanionsView({
           {...props}
           companion={child}
           bubbles={bubbles}
+          frames={frames}
           sound={sound}
           onRemove={(botId) => companion.remove(botId)}
         />

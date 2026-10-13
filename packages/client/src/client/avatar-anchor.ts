@@ -6,13 +6,18 @@ export function createAvatarAnchor(node: HTMLElement): AvatarAnchor {
   const head = node.querySelector<SVGGraphicsElement>('.bh-illustrated-head');
   const svg = head?.ownerSVGElement;
   let local: { x: number; y: number } | undefined;
-  try {
-    const box = head?.getBBox();
-    if (box && box.width > 0 && box.height > 0) local = { x: box.x + box.width / 2, y: box.y };
-  } catch {}
+  let measured = false;
+  const measure = () => {
+    measured = true;
+    try {
+      const box = head?.getBBox();
+      if (box && box.width > 0 && box.height > 0) local = { x: box.x + box.width / 2, y: box.y };
+    } catch {}
+  };
   return {
     read() {
       if (!node.isConnected) return;
+      if (!measured) measure();
       if (local && head?.isConnected && svg) {
         try {
           const target = svg.hasAttribute('data-pixel-cover') ? svg : head;

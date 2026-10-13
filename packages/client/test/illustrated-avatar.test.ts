@@ -671,3 +671,55 @@ it('fences resolved obsolete animations when motion policy changes before their 
     else Reflect.deleteProperty(Element.prototype, 'animate');
   }
 });
+
+it('keeps one parsed figure while a large avatar alternates thinking and working, and drops turn layers when idle', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  const node = document.createElement('div');
+  document.body.append(node);
+  const root = createRoot(node);
+  const loops: Element[] = [];
+  const animate = vi.fn(function (
+    this: Element,
+    _frames: Keyframe[],
+    options: KeyframeAnimationOptions,
+  ) {
+    if (options.iterations === Infinity) loops.push(this);
+    return { cancel: vi.fn(), finished: Promise.resolve() };
+  });
+  const previous = Object.getOwnPropertyDescriptor(Element.prototype, 'animate');
+  Object.defineProperty(Element.prototype, 'animate', { configurable: true, value: animate });
+  Object.defineProperty(document, 'hidden', { configurable: true, value: false });
+  const render = (state: 'thinking' | 'working' | 'idle') =>
+    act(async () =>
+      root.render(
+        createElement(PersonaBotAvatar, {
+          personaBotId: 'ada',
+          name: 'Ada',
+          size: 96,
+          state,
+          surface: 'companion',
+          appearance: { recipe: DEFAULT_ILLUSTRATED_RECIPE, revision: 'a'.repeat(64) },
+        }),
+      ),
+    );
+  try {
+    await render('thinking');
+    const figure = node.querySelector('svg');
+    expect(loops.filter((target) => target.hasAttribute('data-avatar-turn'))).toHaveLength(4);
+    loops.length = 0;
+    await render('working');
+    expect(node.querySelector('svg')).toBe(figure);
+    expect(loops.some((target) => target.hasAttribute('data-avatar-turn'))).toBe(false);
+    expect(loops.map((target) => target.getAttribute('class'))).toContain('bh-illustrated-head');
+    await render('thinking');
+    expect(node.querySelector('svg')).toBe(figure);
+    await render('idle');
+    expect(node.querySelector('[data-avatar-turn]')).toBeNull();
+  } finally {
+    await act(() => root.unmount());
+    if (previous) Object.defineProperty(Element.prototype, 'animate', previous);
+    else Reflect.deleteProperty(Element.prototype, 'animate');
+    Reflect.deleteProperty(document, 'hidden');
+    node.remove();
+  }
+});

@@ -21,6 +21,7 @@ import type { CompanionBot } from '../../../core/src/companions/feed.js';
 import type { CompanionViewState, WindowCompanion } from './window-companion.js';
 import { CompanionMotion, type CompanionPoint } from './companion-motion.js';
 import { CompanionBubbles, type BubblePlacement } from './companion-bubbles.js';
+import { CompanionFrames, type CompanionFrameTask } from './companion-frames.js';
 import { isAvatarAppearance } from '../../../core/src/bots/avatar-appearance.js';
 import { companionMessageIdentity } from '../../../core/src/companions/sources.js';
 import { companionBabble, type CompanionSound } from './companion-sound.js';
@@ -43,11 +44,24 @@ const statusVisible = (state: CompanionViewState): boolean =>
     state.sync !== 'live',
   );
 
+const tails = new Set<HTMLElement>();
+const followTails = (): void => {
+  const targets = [...tails]
+    .filter((node) => node.isConnected)
+    .map((node) => [node, Math.max(0, node.scrollHeight - node.clientHeight)] as const);
+  tails.clear();
+  for (const [node, top] of targets) node.scrollTop = top;
+};
+const followTail = (node: HTMLElement): void => {
+  if (!tails.size) queueMicrotask(followTails);
+  tails.add(node);
+};
+
 function CompanionMessageText({ text, context }: { text: string; context: boolean }): ReactElement {
   const following = useRef(true);
   const viewport = useMountedResource<HTMLParagraphElement>(
     (node) => {
-      if (following.current) node.scrollTop = Math.max(0, node.scrollHeight - node.clientHeight);
+      if (following.current) followTail(node);
     },
     [text, context],
   );
@@ -74,6 +88,7 @@ export interface WindowCompanionViewProps {
   t: BotHarnessTranslate;
   onRemove?(botId: string): void;
   bubbles?: CompanionBubbles | undefined;
+  frames?: CompanionFrames | undefined;
   openSettings?(): void;
   sound?: CompanionSound | undefined;
   actions?: BridgeActions | undefined;
@@ -86,6 +101,7 @@ export function WindowCompanionView({
   t,
   onRemove,
   bubbles,
+  frames,
   openSettings,
   sound,
   actions,
@@ -124,6 +140,8 @@ export function WindowCompanionView({
   }, []);
   const [localBubbles] = useState(() => new CompanionBubbles());
   const bubbleOwner = bubbles ?? localBubbles;
+  const [localFrames] = useState(() => new CompanionFrames());
+  const frameOwner = frames ?? localFrames;
   const [bubble, setBubble] = useState<BubblePlacement | undefined>(undefined);
   const root = useRef<HTMLDivElement | null>(null);
   const character = useRef<HTMLButtonElement | null>(null);
@@ -216,7 +234,6 @@ export function WindowCompanionView({
   const mount = useMountedResource<HTMLDivElement>(
     (node) => {
       root.current = node;
-      let frame = 0;
       let previous = performance.now();
       let elapsed = 0;
       let measured = false;
@@ -296,8 +313,8 @@ export function WindowCompanionView({
         }
         presentPoint.current(next);
       };
+      let sampled: ReturnType<AvatarAnchor['read']>;
       const tick = (now: number) => {
-        frame = 0;
         const milliseconds = Math.max(0, now - previous);
         const motionMilliseconds = Math.max(0, now - motionFrameAt.current);
         motionFrameAt.current = now;
@@ -327,10 +344,6 @@ export function WindowCompanionView({
             !reduced,
           );
           const previousPoint = motion.point;
-          const sampled =
-            statusVisible(state) || state.cards.length || state.requests.length
-              ? anchor.current?.read()
-              : undefined;
           const next = motion.advance(motionMilliseconds, reduced, walking, direction.current);
           placeBubble(next, sampled);
           if (walking && (next.x <= 8 || next.x >= Math.max(8, next.width - 104)))
@@ -338,18 +351,30 @@ export function WindowCompanionView({
           if (next !== previousPoint) setPoint(next);
           if (previousPoint.phase !== 'rest' && next.phase === 'rest') persistPosition();
         }
-        if (!document.hidden && stageVisible) frame = requestAnimationFrame(tick);
+        sampled = undefined;
+        if (document.hidden || !stageVisible) frameOwner.stop(task);
+      };
+      const task: CompanionFrameTask = {
+        read: () => {
+          const state = latest.current;
+          sampled =
+            !document.hidden &&
+            stageVisible &&
+            (statusVisible(state) || state.cards.length || state.requests.length)
+              ? anchor.current?.read()
+              : undefined;
+        },
+        write: tick,
       };
       const visibility = () => {
         audible.current = !document.hidden && stageVisible && visible;
         if (document.hidden || !stageVisible || !visible)
           sound?.stop(latest.current.selection?.botId);
-        cancelAnimationFrame(frame);
-        frame = 0;
+        frameOwner.stop(task);
         previous = performance.now();
         motionFrameAt.current = previous;
         elapsed = 0;
-        if (!document.hidden && stageVisible) frame = requestAnimationFrame(tick);
+        if (!document.hidden && stageVisible) frameOwner.start(task);
       };
       const observer =
         typeof IntersectionObserver === 'undefined'
@@ -382,7 +407,7 @@ export function WindowCompanionView({
         audible.current = false;
         unsubscribeAudio();
         sound?.stop(latest.current.selection?.botId ?? view.selection?.botId);
-        cancelAnimationFrame(frame);
+        frameOwner.stop(task);
         observer?.disconnect();
         policy.disconnect();
         window.removeEventListener('resize', measure);
@@ -395,7 +420,7 @@ export function WindowCompanionView({
         root.current = null;
       };
     },
-    [companion, view.selection?.botId, bubbleOwner, sound],
+    [companion, view.selection?.botId, bubbleOwner, frameOwner, sound],
   );
   if (!view.selection || !view.bot) return null;
   const { selection, bot, activity } = view;

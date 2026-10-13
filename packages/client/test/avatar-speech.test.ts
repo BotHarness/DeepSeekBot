@@ -202,3 +202,69 @@ it('retains unsupported snapshots and non-pixel families without inventing mouth
     await act(() => root.unmount());
   }
 });
+
+it('changes the mouth from its retained opacities without computed-style reads or observer churn', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  const node = document.createElement('div');
+  document.body.append(node);
+  const root = createRoot(node);
+  const observers = vi.fn();
+  vi.stubGlobal(
+    'IntersectionObserver',
+    class {
+      constructor() {
+        observers();
+      }
+      observe() {}
+      disconnect() {}
+    },
+  );
+  const fades: { from: unknown; to: unknown }[] = [];
+  const previousAnimate = Object.getOwnPropertyDescriptor(Element.prototype, 'animate');
+  Object.defineProperty(Element.prototype, 'animate', {
+    configurable: true,
+    value: function (this: Element, frames: Keyframe[]) {
+      if (this.hasAttribute('data-avatar-mouth'))
+        fades.push({ from: frames[0]?.opacity, to: frames[1]?.opacity });
+      return { cancel() {}, finished: new Promise<void>(() => undefined) };
+    },
+  });
+  Object.defineProperty(document, 'hidden', { configurable: true, value: false });
+  const render = (mouth: PixelMouthState) =>
+    act(() =>
+      root.render(
+        createElement(PersonaBotAvatar, {
+          personaBotId: 'ada',
+          name: 'Ada',
+          size: 96,
+          state: 'idle',
+          surface: 'companion',
+          mouth,
+          appearance: { recipe: DEFAULT_ILLUSTRATED_RECIPE, revision: 'a'.repeat(64) },
+        }),
+      ),
+    );
+  try {
+    await render('saved');
+    const created = observers.mock.calls.length;
+    const computed = vi.spyOn(window, 'getComputedStyle');
+    await render('half-open');
+    await render('open');
+    await render('saved');
+    expect(computed).not.toHaveBeenCalled();
+    expect(observers).toHaveBeenCalledTimes(created);
+    expect(fades).toContainEqual({ from: '0', to: '1' });
+    expect(fades).toContainEqual({ from: '1', to: '0' });
+    expect(
+      node.querySelector('[data-avatar-mouth-state]')?.getAttribute('data-avatar-mouth-state'),
+    ).toBe('saved');
+  } finally {
+    await act(() => root.unmount());
+    if (previousAnimate) Object.defineProperty(Element.prototype, 'animate', previousAnimate);
+    else Reflect.deleteProperty(Element.prototype, 'animate');
+    Reflect.deleteProperty(document, 'hidden');
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    node.remove();
+  }
+});
