@@ -33,6 +33,7 @@ describe('shortcut list', () => {
     expect(row('help')?.textContent).toBe('Show keyboard shortcuts?orCtrl/');
     expect(row('recall')?.textContent).toContain('When the composer is empty');
     expect(row('quick-switcher')?.textContent).toBe('Quick switcherCtrlK');
+    expect(row('search')?.textContent).toBe('Search this conversationCtrlF');
     expect(row('unread-step')?.textContent).toBe(
       'Previous or next unread conversationSkips muted conversationsAlt⇧↑orAlt⇧↓',
     );
