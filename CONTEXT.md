@@ -794,12 +794,12 @@ _Avoid_: widget, card, tab, destination, Channel section
 One icon tab of the desktop Channel sidebar, grouping one or more Channel sidebar entries (Sessions holds Sessions and Bot Inbox; Memory holds Memory files and Memory evolution). An entry that names no registered tab is its own tab. A tab with two visible entries splits into top and bottom panes. The Human orders and hides tabs from the + Views menu; those are browser-local presentation preferences.
 _Avoid_: view, page, rail item
 
-**Bot layout**:
+**Bot mode layout**:
 The desktop Bot mode surface (960 px and wider): one dockable layout in which the Human drags, docks, tabs, floats, resizes, closes and reopens Dock panels, saved per browser with a Reset (proposed, ADR-0203). Narrow layouts and phones keep the responsive layout.
 _Avoid_: workbench, panel layout, dock
 
 **Dock panel**:
-One registered unit of the Bot layout: a stable id, title, icon, scope (`channel` panels follow the active Channel, `global` panels do not), a default position and a renderer. The App Sidebar panel, the Channel body and every Channel sidebar entry are Dock panels; other plugins register more through the `dockPanels` Service. A Dock panel is a UI Consumer only; a plugin's data lives in its own Service and Provider (proposed, ADR-0203).
+One registered unit of the Bot mode layout: a stable id, title, icon, scope (`channel` panels follow the active Channel, `global` panels do not), a default position and a renderer. The App Sidebar panel, the Channel body and every Channel sidebar entry are Dock panels; other plugins register more through the `dockPanels` Service. A Dock panel is a UI Consumer only; a plugin's data lives in its own Service and Provider (proposed, ADR-0203).
 _Avoid_: widget, view, pane, DSH main panel
 
 **Channel settings**:

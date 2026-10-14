@@ -11,11 +11,15 @@ DeepSeekBot can already do far more than DSH's native shell shows, and Humans wi
 
 ### Scope
 
-- **Desktop Bot mode only.** The Bot layout exists only while the Client is in Bot mode at 960 px or wider. Outside Bot mode, DSH's native shell is unchanged. Below 960 px the Client falls back to today's responsive layout, where the Channel sidebar is an overlay of collapsible entries. The saved layout is kept and returns when the window widens again. Phones keep their current layout.
+- **Desktop Bot mode only.** The Bot mode layout exists only while the Client is in Bot mode at 960 px or wider. Outside Bot mode, DSH's native shell is unchanged. Below 960 px the Client falls back to today's responsive layout, where the Channel sidebar is an overlay of collapsible entries. The saved layout is kept and returns when the window widens again. Phones keep their current layout.
+
+### Execution stays on DSH
+
+- **The Bot mode layout is presentation only.** It changes where things appear on screen. It does not change how work runs. A PersonaBot is still an abstraction on top of DSH Sessions: the Orchestrator Session, Assignment Sessions and every Bot tool call run through DSH's Session execution and its plugin ecosystem. The Human talks to a Bot rather than to a raw Session, but each turn still runs in a DSH Session. A Dock panel, including one from a third-party plugin, reaches the Host only through DSH Services and the existing Host↔Client seam, and never through a second execution path.
 
 ### The App Sidebar is taken over in Bot mode
 
-- **BotHarness renders the whole Bot mode surface.** In Bot mode the Client shadows the DSH `sidebar` single slot at a higher priority so the native left column gives up its width. The Client then renders the Bot layout across the full width, in the `main` panel it already shadows. Leaving Bot mode disposes the shadow and the native App Sidebar returns. The first slice must verify this against the pinned DSH release before building on it: the `sidebar` shadow is legal and frees the column, `ctx.layout` geometry still works, and the Bot mode exit stays reachable.
+- **BotHarness renders the whole Bot mode surface.** In Bot mode the Client shadows the DSH `sidebar` single slot at a higher priority so the native left column gives up its width. The Client then renders the Bot mode layout across the full width, in the `main` panel it already shadows. Leaving Bot mode disposes the shadow and the native App Sidebar returns. The first slice must verify this against the pinned DSH release before building on it: the `sidebar` shadow is legal and frees the column, `ctx.layout` geometry still works, and the Bot mode exit stays reachable.
 - **The App Sidebar is one Dock panel that keeps native content.** The **App Sidebar panel** renders the same DSH sub-slots that the native column renders: `sidebar.toggle.badge`, `sidebar.brand.mark`, `sidebar.brand.name`, `sidebar.panellist`, `sidebar.workspaces` (where the Roster is, as today), `sidebar.settings` and `sidebar.footer.action`. Contributions from other plugins to those slots keep appearing. The panel can be moved, resized and docked like any other panel. Splitting it into several panels is deferred.
 - **We also ask DSH for a layout API.** We will file an upstream request for a supported way for a plugin to own or rearrange the shell columns. If DSH ships one, the takeover moves onto it and this shadow is removed.
 
@@ -38,7 +42,7 @@ DeepSeekBot can already do far more than DSH's native shell shows, and Humans wi
 
 ### Data belongs to the plugin's own capability seam
 
-- **A Dock panel is only a UI Consumer.** A plugin that keeps data, such as goals or to-dos, follows DSH's Capability seam (`Consumer → Service Definition → Provider`). It defines its own Service and a Host Provider that persists the data. The Dock panel and the plugin's Bot tools are both Consumers of that Service. BotHarness adds no generic panel store, and the Bot layout never holds plugin data.
+- **A Dock panel is only a UI Consumer.** A plugin that keeps data, such as goals or to-dos, follows DSH's Capability seam (`Consumer → Service Definition → Provider`). It defines its own Service and a Host Provider that persists the data. The Dock panel and the plugin's Bot tools are both Consumers of that Service. BotHarness adds no generic panel store, and the Bot mode layout never holds plugin data.
 - **CLI parity applies to the plugin's Host surface, not to the layout.** The layout is browser-local presentation, with no bridge method, Host route or Bot tool, so it has no CLI command. A plugin's own bridge methods, routes and Bot tools follow [CLI parity (AX)](../../AGENTS.md#cli-parity-ax) as usual.
 
 ### The Human arranges the layout
@@ -74,6 +78,6 @@ These are tracer-bullet slices. Each one ends in a state the Human can run and j
 ## Consequences
 
 - On desktop, this supersedes ADR-0183's tab strip, its top and bottom split, and the + Views menu. ADR-0183 continues to govern Channel settings and the narrow overlay. ADR-0053's entry Registry rules carry over to Dock panels.
-- The dsh-ui rule "shadow only `sidebar.workspaces` and `main key=conversation`" gains an exception for the `sidebar` slot in desktop Bot mode. Because a DSH change to the `sidebar` slot or its sub-slots can now break Bot mode, the pinned-release end-to-end tests must cover the takeover.
+- Bot mode now owns its whole shell structure, so DeepSeekBot moves closer to being a standalone product that runs on DSH. The dsh-ui rule "shadow only `sidebar.workspaces` and `main key=conversation`" was BotHarness's own convention, not a DSH constraint, and is retired for desktop Bot mode. DSH tokens, primitives and the inset contract still apply inside every Dock panel. Because a DSH change to the `sidebar` slot or its sub-slots can now break Bot mode, the pinned-release end-to-end tests must cover the takeover.
 - dockview adds to the Client bundle, and its CSS must be fully mapped to DSH tokens.
 - `verify-deepseekbot`'s feature map, `CONTEXT.md` and the living architecture are updated when each slice lands.
