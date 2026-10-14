@@ -63,7 +63,7 @@ export const RULES = [
   related('apps/mobile/{app,src,test,scripts}/**', 'Mobile app source, tests and scripts'),
   related('apps/mobile/{app.json,eas.json,metro.config.js}', 'Mobile app config'),
   none(
-    'apps/mobile/{README.md,AGENTS.md,CLAUDE.md,.gitignore}',
+    'apps/mobile/{README.md,AGENTS.md,CLAUDE.md,DESIGN.md,.gitignore}',
     'Mobile app prose, agent rules and ignores',
   ),
   related('scripts/test/**', 'Script tests'),

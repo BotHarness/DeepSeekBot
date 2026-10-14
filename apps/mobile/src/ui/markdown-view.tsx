@@ -2,16 +2,21 @@ import { Fragment, useMemo } from 'react';
 import { Linking, Platform, ScrollView, Text, View, type TextStyle } from 'react-native';
 
 import { parseMarkdown, type Block, type Inline } from './markdown';
-import { useTheme, type Theme } from './theme';
+import { edge, radius, space } from './design/tokens';
+import { useDesignTheme, type DesignTheme } from './design/theme';
 
 const mono = Platform.select({ ios: 'Menlo', default: 'monospace' });
 
 export function MarkdownView({ source, color }: { source: string; color?: string }) {
-  const theme = useTheme();
+  const theme = useDesignTheme();
   const blocks = useMemo(() => parseMarkdown(source), [source]);
-  const base: TextStyle = { color: color ?? theme.ink, fontSize: 16, lineHeight: 22 };
+  const base: TextStyle = {
+    color: color ?? theme.color.fg,
+    fontSize: theme.type.body.size,
+    lineHeight: theme.type.body.line,
+  };
   return (
-    <View style={{ gap: 8 }}>
+    <View style={{ gap: space.x3 }}>
       {blocks.map((block, index) => (
         <BlockView key={index} block={block} base={base} theme={theme} />
       ))}
@@ -19,7 +24,7 @@ export function MarkdownView({ source, color }: { source: string; color?: string
   );
 }
 
-function BlockView({ block, base, theme }: { block: Block; base: TextStyle; theme: Theme }) {
+function BlockView({ block, base, theme }: { block: Block; base: TextStyle; theme: DesignTheme }) {
   switch (block.type) {
     case 'paragraph':
       return (
@@ -34,9 +39,9 @@ function BlockView({ block, base, theme }: { block: Block; base: TextStyle; them
           accessibilityRole="header"
           style={{
             ...base,
-            fontWeight: '700',
-            fontSize: block.level <= 1 ? 20 : block.level === 2 ? 18 : 16,
-            lineHeight: block.level <= 1 ? 26 : 24,
+            fontWeight: theme.weight.strong,
+            fontSize: theme.type.title.size,
+            lineHeight: theme.type.title.line,
           }}
         >
           <Inlines nodes={block.children} theme={theme} />
@@ -47,12 +52,17 @@ function BlockView({ block, base, theme }: { block: Block; base: TextStyle; them
       return (
         <ScrollView
           horizontal
-          style={{ backgroundColor: theme.codeSurface, borderRadius: 8 }}
-          contentContainerStyle={{ padding: 10 }}
+          style={{ backgroundColor: theme.color.hover, borderRadius: radius.sm }}
+          contentContainerStyle={{ padding: space.x3 }}
         >
           <Text
             selectable
-            style={{ color: base.color, fontFamily: mono, fontSize: 13, lineHeight: 19 }}
+            style={{
+              color: base.color,
+              fontFamily: mono,
+              fontSize: theme.type.meta.size,
+              lineHeight: theme.type.meta.line,
+            }}
           >
             {block.text}
           </Text>
@@ -61,13 +71,18 @@ function BlockView({ block, base, theme }: { block: Block; base: TextStyle; them
     case 'quote':
       return (
         <View
-          style={{ borderLeftWidth: 3, borderLeftColor: theme.border, paddingLeft: 10, gap: 8 }}
+          style={{
+            borderLeftWidth: edge.focus,
+            borderLeftColor: theme.color.border,
+            paddingLeft: space.x3,
+            gap: space.x3,
+          }}
         >
           {block.children.map((child, index) => (
             <BlockView
               key={index}
               block={child}
-              base={{ ...base, color: theme.inkSoft }}
+              base={{ ...base, color: theme.color.muted }}
               theme={theme}
             />
           ))}
@@ -75,13 +90,13 @@ function BlockView({ block, base, theme }: { block: Block; base: TextStyle; them
       );
     case 'list':
       return (
-        <View style={{ gap: 4 }}>
+        <View style={{ gap: space.x2 }}>
           {block.items.map((item, index) => (
-            <View key={index} style={{ flexDirection: 'row', gap: 6 }}>
+            <View key={index} style={{ flexDirection: 'row', gap: space.x2 }}>
               <Text style={{ ...base, minWidth: block.ordered ? 22 : 12 }}>
                 {block.ordered ? `${block.start + index}.` : '•'}
               </Text>
-              <View style={{ flex: 1, gap: 6 }}>
+              <View style={{ flex: 1, gap: space.x2 }}>
                 {item.map((child, childIndex) => (
                   <BlockView key={childIndex} block={child} base={base} theme={theme} />
                 ))}
@@ -91,11 +106,19 @@ function BlockView({ block, base, theme }: { block: Block; base: TextStyle; them
         </View>
       );
     case 'rule':
-      return <View style={{ height: 1, backgroundColor: theme.border, marginVertical: 4 }} />;
+      return (
+        <View
+          style={{
+            height: edge.hairline,
+            backgroundColor: theme.color.divider,
+            marginVertical: space.x2,
+          }}
+        />
+      );
   }
 }
 
-function Inlines({ nodes, theme }: { nodes: readonly Inline[]; theme: Theme }) {
+function Inlines({ nodes, theme }: { nodes: readonly Inline[]; theme: DesignTheme }) {
   return (
     <>
       {nodes.map((node, index) => (
@@ -105,7 +128,7 @@ function Inlines({ nodes, theme }: { nodes: readonly Inline[]; theme: Theme }) {
   );
 }
 
-function InlineView({ node, theme }: { node: Inline; theme: Theme }) {
+function InlineView({ node, theme }: { node: Inline; theme: DesignTheme }) {
   switch (node.type) {
     case 'text':
       return <Fragment>{node.text}</Fragment>;
@@ -113,13 +136,11 @@ function InlineView({ node, theme }: { node: Inline; theme: Theme }) {
       return <Fragment>{'\n'}</Fragment>;
     case 'code':
       return (
-        <Text style={{ fontFamily: mono, fontSize: 14, backgroundColor: theme.codeSurface }}>
-          {node.text}
-        </Text>
+        <Text style={{ fontFamily: mono, backgroundColor: theme.color.hover }}>{node.text}</Text>
       );
     case 'strong':
       return (
-        <Text style={{ fontWeight: '700' }}>
+        <Text style={{ fontWeight: theme.weight.strong }}>
           <Inlines nodes={node.children} theme={theme} />
         </Text>
       );
@@ -139,7 +160,7 @@ function InlineView({ node, theme }: { node: Inline; theme: Theme }) {
       return (
         <Text
           accessibilityRole="link"
-          style={{ color: theme.accent, textDecorationLine: 'underline' }}
+          style={{ color: theme.color.accent, textDecorationLine: 'underline' }}
           onPress={() => void Linking.openURL(node.href).catch(() => undefined)}
         >
           <Inlines nodes={node.children} theme={theme} />

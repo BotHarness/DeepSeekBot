@@ -15,6 +15,10 @@ Load `expo-overview` first for any Expo or EAS task; it routes to the right skil
 
 Read docs for SDK 57 (`https://docs.expo.dev/versions/v57.0.0/...`), not `latest`.
 
+## Design rules
+
+Screens follow [DESIGN.md](./DESIGN.md): the Host-as-workspace structure, the screen anatomy, and the code rules. No literal colours, type, spacing, radii or edge widths outside `src/ui/design/` (`test/style-guard.test.ts`); text through `src/ui/primitives/text`; new visual elements land in `src/ui/primitives`, `chat` or `shell` before a screen uses them.
+
 ## Hard rules
 
 - **Native projects are generated.** `ios/` and `android/` are not committed (CNG). Change native configuration through `app.json` and config plugins, never by editing generated native files.

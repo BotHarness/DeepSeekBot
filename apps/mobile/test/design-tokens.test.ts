@@ -48,6 +48,7 @@ describe('mobile design tokens', () => {
     const web = webConsts('radius');
     for (const role of ['xs', 'sm', 'md', 'lg'] as const) expect(px(web[role]!)).toBe(radius[role]);
     expect(px(webConsts('border')['focus']!)).toBe(edge.focus);
+    expect(px(webConsts('border')['hairline']!)).toBe(edge.hairline);
   });
 });
 
