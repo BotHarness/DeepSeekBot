@@ -154,6 +154,47 @@ Renaming a Bot DM renames that Bot, as in the Web UI. `group-avatar-set` reads a
 
 `group-delete` and `channel-purge-confirm` cannot be undone and need `--confirm`. `channel-history` lists deleted groups whose content can still be purged. Purging works in two steps like the history page: `channel-purge-preview` lists the messages, Bot admissions, files and effects the chosen Source Events would remove and returns a short-lived `token`; `channel-purge-confirm` reads `{"token": …}` from stdin for the same Source Events and fails coded when the scope changed. Pick Source Events from `channel-history-sources`, which pages with the `before` cursor it returns.
 
+### Bot profile, roster and Part Library
+
+These commands set a Bot's look and wake rules, arrange the sidebar and manage Custom Parts through the same Host calls as the Web UI ([#1702](https://github.com/BotHarness/DeepSeekBot/issues/1702)):
+
+```bash
+deepseekbot bot-avatar-set <bot-id> --file ./avatar.png
+deepseekbot bot-banner-set <bot-id> --file ./banner.png
+printf '{"scene":"…","seed":7}' | deepseekbot bot-banner-set <bot-id> --recipe-stdin
+deepseekbot bot-banner-set <bot-id> --clear
+deepseekbot bot-appearance-set <bot-id> --recipe-stdin < recipe.json
+deepseekbot bot-primary-color-set <bot-id> --color '#3366ff'
+deepseekbot bot-primary-color-set <bot-id> --automatic
+deepseekbot bot-source-policies <bot-id>
+deepseekbot bot-source-policy-set <bot-id> --source-class group-ordinary --wake digest --digest-count 5 --digest-interval 600
+deepseekbot bot-source-policy-set <bot-id> --source-class human-dm --delivery turn
+deepseekbot bot-source-policy-reset <bot-id> --source-class group-ordinary
+deepseekbot bot-standing-limits-set <bot-id> --soul 4000 --core-memory 8000
+deepseekbot developer-mode-set --enabled
+deepseekbot roster
+deepseekbot roster-section-create "Work bots"
+deepseekbot roster-batch move <channel-id> <channel-id> --section <section-id>
+deepseekbot roster-batch pin <channel-id>
+deepseekbot roster-pins-set <channel-id> <channel-id>
+deepseekbot roster-hidden-set
+deepseekbot roster-section-rename <section-id> --name "Play"
+deepseekbot roster-section-reorder <section-id> <section-id>
+deepseekbot roster-top-reorder section:<section-id> channel:<channel-id>
+deepseekbot roster-section-remove <section-id> --confirm
+deepseekbot human-identity
+deepseekbot human-name-set --name "Vain"
+deepseekbot channel-human-name-set <channel-id> --nickname "Boss"
+deepseekbot part-library
+deepseekbot part-library-import --file ./parts.zip
+deepseekbot part-library-import-image --file ./hat.png --slot <slot> --colors 4 --name Hat
+deepseekbot part-library-add --part-stdin --name Bob < part.json
+deepseekbot part-library-export --out /tmp/part-library.zip
+deepseekbot part-library-export --part-id <part-id> --out /tmp/part.png
+```
+
+Images are read from a file path: an avatar is a PNG, JPEG or WebP; a banner is a 3:1 PNG; `--clear` returns the avatar to its default and the banner to the seeded scene. `bot-appearance-set` takes the same pixel recipe as the avatar editor and redraws the avatar from it. `--source-class` is `assignment-report` (`--wake conditional|immediate`), `group-ordinary` (`--wake immediate|digest|mentions|silent` with `--digest-count` and `--digest-interval` seconds), or `human-dm`, `bot-dm` and `group-mention` (`--delivery steer|turn`). Roster commands take Channel ids (`dm-<bot-id>` for a DM); `roster-pins-set` and `roster-hidden-set` replace the whole list, so pass no ids to clear it, and `roster-batch move` without `--section` moves to the top level. `roster-section-remove` needs `--confirm` and moves the section's Channels to the top level. With `--host` or `DEEPSEEKBOT_HOST`, `human-name-set` and `channel-human-name-set` use the Host; with `--home` they keep their offline path. `part-library-export` writes the part PNG, or a zip of the whole library, to `--out` and prints its file name and size; `--part-stdin` exports a worn part given as JSON.
+
 ### IM apps from the CLI
 
 ```bash

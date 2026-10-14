@@ -149,6 +149,47 @@ deepseekbot channel-purge-preview <channel> --source-event <id> | jq '{token}' \
 
 `group-delete` 和 `channel-purge-confirm` 无法撤销，必须带 `--confirm`。`channel-history` 列出已删除、内容仍可清除的群组。清除与历史页面一样分两步：`channel-purge-preview` 列出所选 Source Event 将删除的消息、Bot 受理记录、文件和后续效果，并返回短时有效的 `token`；`channel-purge-confirm` 从标准输入读取 `{"token": …}`，针对同一组 Source Event 执行，范围变化时以错误码拒绝。Source Event 从 `channel-history-sources` 中选取，它用返回的 `before` 游标分页。
 
+### Bot 资料、侧边栏与部件库
+
+这些命令设置 Bot 的外观和唤醒规则、整理侧边栏、管理自定义部件，走的是 Web 界面所用的同一组 Host 调用（[#1702](https://github.com/BotHarness/DeepSeekBot/issues/1702)）：
+
+```bash
+deepseekbot bot-avatar-set <bot-id> --file ./avatar.png
+deepseekbot bot-banner-set <bot-id> --file ./banner.png
+printf '{"scene":"…","seed":7}' | deepseekbot bot-banner-set <bot-id> --recipe-stdin
+deepseekbot bot-banner-set <bot-id> --clear
+deepseekbot bot-appearance-set <bot-id> --recipe-stdin < recipe.json
+deepseekbot bot-primary-color-set <bot-id> --color '#3366ff'
+deepseekbot bot-primary-color-set <bot-id> --automatic
+deepseekbot bot-source-policies <bot-id>
+deepseekbot bot-source-policy-set <bot-id> --source-class group-ordinary --wake digest --digest-count 5 --digest-interval 600
+deepseekbot bot-source-policy-set <bot-id> --source-class human-dm --delivery turn
+deepseekbot bot-source-policy-reset <bot-id> --source-class group-ordinary
+deepseekbot bot-standing-limits-set <bot-id> --soul 4000 --core-memory 8000
+deepseekbot developer-mode-set --enabled
+deepseekbot roster
+deepseekbot roster-section-create "Work bots"
+deepseekbot roster-batch move <channel-id> <channel-id> --section <section-id>
+deepseekbot roster-batch pin <channel-id>
+deepseekbot roster-pins-set <channel-id> <channel-id>
+deepseekbot roster-hidden-set
+deepseekbot roster-section-rename <section-id> --name "Play"
+deepseekbot roster-section-reorder <section-id> <section-id>
+deepseekbot roster-top-reorder section:<section-id> channel:<channel-id>
+deepseekbot roster-section-remove <section-id> --confirm
+deepseekbot human-identity
+deepseekbot human-name-set --name "Vain"
+deepseekbot channel-human-name-set <channel-id> --nickname "Boss"
+deepseekbot part-library
+deepseekbot part-library-import --file ./parts.zip
+deepseekbot part-library-import-image --file ./hat.png --slot <slot> --colors 4 --name Hat
+deepseekbot part-library-add --part-stdin --name Bob < part.json
+deepseekbot part-library-export --out /tmp/part-library.zip
+deepseekbot part-library-export --part-id <part-id> --out /tmp/part.png
+```
+
+图片从文件路径读取：头像可以是 PNG、JPEG 或 WebP；横幅是 3:1 的 PNG；`--clear` 把头像恢复默认、把横幅恢复为按名字生成的场景。`bot-appearance-set` 接受与头像编辑器相同的像素配方，并据此重绘头像。`--source-class` 取 `assignment-report`（`--wake conditional|immediate`）、`group-ordinary`（`--wake immediate|digest|mentions|silent`，配合 `--digest-count` 和以秒计的 `--digest-interval`），或 `human-dm`、`bot-dm`、`group-mention`（`--delivery steer|turn`）。侧边栏命令使用 Channel id（私聊为 `dm-<bot-id>`）；`roster-pins-set` 和 `roster-hidden-set` 整体替换列表，不传 id 即清空；`roster-batch move` 不带 `--section` 时移到顶层。`roster-section-remove` 必须带 `--confirm`，分组里的 Channel 会移到顶层。设置了 `--host` 或 `DEEPSEEKBOT_HOST` 时，`human-name-set` 和 `channel-human-name-set` 走 Host；带 `--home` 时仍走离线路径。`part-library-export` 把部件 PNG 或整个部件库的 zip 写入 `--out`，并输出文件名和大小；`--part-stdin` 导出以 JSON 给出的已穿戴部件。
+
 ### 用命令行管理 IM 应用
 
 ```bash

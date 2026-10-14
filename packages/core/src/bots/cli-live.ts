@@ -60,6 +60,13 @@ import {
   runScheduleCommand,
   type ScheduleValues,
 } from './cli-schedules.js';
+import {
+  PROFILE_COMMANDS,
+  PROFILE_OPTIONS,
+  isProfileCommand,
+  runProfileCommand,
+  type ProfileValues,
+} from './cli-profile.js';
 export { CliLiveError } from './cli-live-error.js';
 
 export const LIVE_OPTIONS = {
@@ -71,6 +78,7 @@ export const LIVE_OPTIONS = {
   ...INBOX_OPTIONS,
   ...SCHEDULE_OPTIONS,
   ...BROWSER_COMPUTER_OPTIONS,
+  ...PROFILE_OPTIONS,
   host: { type: 'string' },
   'token-file': { type: 'string' },
   timeout: { type: 'string' },
@@ -148,6 +156,7 @@ export const LIVE_COMMANDS = [
   ...HOST_ADMIN_COMMANDS,
   ...INBOX_COMMANDS,
   ...BROWSER_COMPUTER_COMMANDS,
+  ...PROFILE_COMMANDS,
   {
     command: 'send',
     description: 'send a Human DM and collect its committed Bot reply from a live Host',
@@ -276,7 +285,8 @@ interface LiveValues
     HostAdminValues,
     InboxValues,
     ScheduleValues,
-    BrowserComputerValues {
+    BrowserComputerValues,
+    ProfileValues {
   host?: string;
   'token-file'?: string;
   timeout?: string;
@@ -607,6 +617,11 @@ export async function runLiveCli(
     return runBrowserComputerCommand(command, rest, values, io, () =>
       connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
     );
+  if (isProfileCommand(command))
+    return runProfileCommand(command, rest, values, io, async () => {
+      const signal = AbortSignal.timeout(timeoutMs(values.timeout));
+      return (await connectLiveHost(values, io, signal)).rpc;
+    });
   if (command === 'bot-trace') {
     if (rest.length !== 1 || !rest[0]?.trim()) usage('bot-trace needs exactly one bot id.');
     const turns = values.turns === undefined ? undefined : Number(values.turns);
