@@ -2,6 +2,7 @@ import type { IncomingMessage } from 'node:http';
 
 import type { BrowserViewerHost } from './viewer.js';
 import type { BotBrowserRuntimes } from './runtimes.js';
+import { createFrameFeeds } from './frame-feed.js';
 import type { TakeoverCompletion, TakeoverService } from './takeover.js';
 
 export const LOCAL_VIEWER_PREFIX = '/botharness-browser/viewer/local';
@@ -368,22 +369,37 @@ const T = ${JSON.stringify(VIEWER_STRINGS[locale]).replace(/</g, '\\u003c')};
         return;
       }
       say('');
-      void poll();
+      if (frameMode !== 'stream') void poll();
     } catch {
       say(T.inputUnavailable);
+    }
+  }
+  let frameSeq = '';
+  let frameMode = 'snapshot';
+  let looping = false;
+  async function loop() {
+    if (looping) return;
+    looping = true;
+    for (;;) {
+      const delay = await poll();
+      if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
   async function poll() {
     if (slug === '') {
       say(T.missingSlug);
-      return;
+      return 1000;
     }
     try {
-      const response = await fetch('frame?slug=' + encodeURIComponent(slug) + '&t=' + Date.now(), { cache: 'no-store' });
+      const response = await fetch('frame?slug=' + encodeURIComponent(slug) + '&t=' + Date.now() + (frameSeq === '' ? '' : '&after=' + frameSeq), { cache: 'no-store' });
+      if (response.status === 204) return 0;
       if (!response.ok) {
+        frameSeq = '';
         say(response.status === 404 ? T.browserNotRunning : T.frameUnavailable + ' (' + response.status + ')');
-        return;
+        return 1000;
       }
+      frameSeq = response.headers.get('x-frame-seq') ?? '';
+      frameMode = response.headers.get('x-frame-mode') === 'stream' ? 'stream' : 'snapshot';
       const blob = await response.blob();
       const headerW = Number(response.headers.get('x-viewport-width'));
       const headerH = Number(response.headers.get('x-viewport-height'));
@@ -400,8 +416,10 @@ const T = ${JSON.stringify(VIEWER_STRINGS[locale]).replace(/</g, '\\u003c')};
         if (typeof bitmap.close === 'function') bitmap.close();
       }
       place();
+      return frameMode === 'stream' ? 0 : 1000;
     } catch {
       say(T.frameUnavailable);
+      return 1000;
     }
   }
   if (modeBtn) modeBtn.addEventListener('click', () => {
@@ -786,8 +804,7 @@ const T = ${JSON.stringify(VIEWER_STRINGS[locale]).replace(/</g, '\\u003c')};
   }
   paint();
   void loadHandoff();
-  void poll();
-  setInterval(() => void poll(), 1000);
+  void loop();
 })();
 </script>
 </body>
@@ -845,8 +862,12 @@ export function registerLocalViewer(options: {
   note: (detail: string) => void;
   takeover: TakeoverService;
   rejection: (headers: Headers) => number | undefined;
+  frameWaitMs?: number;
 }): () => void {
-  return options.host.register({
+  const feeds = createFrameFeeds(
+    options.frameWaitMs === undefined ? {} : { waitMs: options.frameWaitMs },
+  );
+  const release = options.host.register({
     kind: 'prefix',
     path: LOCAL_VIEWER_PREFIX,
     async handler(request, response) {
@@ -1122,17 +1143,28 @@ export function registerLocalViewer(options: {
           response.end('no browser tab');
           return;
         }
-        const shot = await runtime.captureScreenshot(tabId).catch(() => undefined);
-        if (shot === undefined) {
+        const afterText = url.searchParams.get('after');
+        const after =
+          afterText !== null && /^\d{1,15}$/u.test(afterText) ? Number(afterText) : undefined;
+        const next = await feeds.next(slug, tabId, runtime, after);
+        if (next === undefined) {
+          if (after !== undefined && runtime.isRunning()) {
+            response.writeHead(204, { 'cache-control': 'no-store' });
+            response.end();
+            return;
+          }
           response.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
           response.end('frame unavailable');
           return;
         }
+        const shot = next.frame;
         const body = Buffer.from(shot.data, 'base64');
         response.writeHead(200, {
           'content-type': shot.mimeType,
           'content-length': String(body.length),
           'cache-control': 'no-store',
+          'x-frame-seq': String(next.seq),
+          'x-frame-mode': next.mode,
           ...(shot.viewport === undefined
             ? {}
             : {
@@ -1152,4 +1184,8 @@ export function registerLocalViewer(options: {
       response.end(page);
     },
   });
+  return () => {
+    release();
+    void feeds.close();
+  };
 }

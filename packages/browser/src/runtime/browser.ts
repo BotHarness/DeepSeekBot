@@ -127,6 +127,14 @@ export interface BotBrowserRuntime {
       }
     | undefined
   >;
+  streamFrames?(
+    tabId: string,
+    onFrame: (frame: {
+      data: string;
+      mimeType: string;
+      viewport?: { width: number; height: number };
+    }) => void,
+  ): Promise<() => Promise<void>>;
   openWindow(targetId?: string): Promise<BrowserTab>;
   currentUrl(): string | undefined;
   binaryPath(): string | undefined;
@@ -1078,6 +1086,53 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
 
   const focusEmulated = new Set<string>();
 
+  const streamFrames = async (
+    tabId: string,
+    onFrame: (frame: {
+      data: string;
+      mimeType: string;
+      viewport?: { width: number; height: number };
+    }) => void,
+  ): Promise<() => Promise<void>> => {
+    const sessionId = await attach(tabId);
+    const live = client;
+    if (live === undefined) throw new Error('The Bot Browser is not running');
+    await live
+      .send('Emulation.setFocusEmulationEnabled', { enabled: true }, sessionId)
+      .catch(() => undefined);
+    const unsubscribe = live.subscribe('Page.screencastFrame', sessionId, (params) => {
+      const ack = params['sessionId'];
+      if (typeof ack === 'number')
+        void live.send('Page.screencastFrameAck', { sessionId: ack }, sessionId).catch(() => {});
+      const data = params['data'];
+      if (typeof data !== 'string' || data === '') return;
+      const metadata = asObject(params['metadata']);
+      const width = metadata?.['deviceWidth'];
+      const height = metadata?.['deviceHeight'];
+      onFrame({
+        data,
+        mimeType: 'image/jpeg',
+        ...(typeof width === 'number' && typeof height === 'number' && width > 0 && height > 0
+          ? { viewport: { width, height } }
+          : {}),
+      });
+    });
+    try {
+      await live.send(
+        'Page.startScreencast',
+        { format: 'jpeg', quality: 60, everyNthFrame: 1 },
+        sessionId,
+      );
+    } catch (error) {
+      unsubscribe();
+      throw error;
+    }
+    return async () => {
+      unsubscribe();
+      await live.send('Page.stopScreencast', {}, sessionId).catch(() => undefined);
+    };
+  };
+
   const captureScreenshot = async (
     tabId: string,
   ): Promise<{ data: string; mimeType: string } | undefined> => {
@@ -1254,6 +1309,7 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
     tabInfo,
     closeTab,
     captureScreenshot,
+    streamFrames,
     openWindow,
     currentUrl: () => lastUrl,
     binaryPath: () => binary,

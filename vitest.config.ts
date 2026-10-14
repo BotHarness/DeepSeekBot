@@ -21,6 +21,7 @@ export default defineConfig({
       'packages/*/test/**/*.test.{ts,tsx}',
       'apps/docs/test/**/*.test.ts',
       'apps/mobile/test/**/*.test.ts',
+      'apps/mobile/test/**/*.test.tsx',
       'scripts/test/**/*.test.mjs',
     ],
   },

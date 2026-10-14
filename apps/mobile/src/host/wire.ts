@@ -6,6 +6,65 @@ export interface WireMessage {
   body: string;
 }
 
+export type WireAuthor =
+  | { kind: 'human' }
+  | { kind: 'bot'; slug: string }
+  | { kind: 'bridged'; source: string }
+  | { kind: 'system' };
+
+export interface ChannelWireMessage extends WireMessage {
+  author: WireAuthor;
+  attachments?: readonly unknown[];
+  bridgeMedia?: { items: readonly unknown[] };
+  toolApprovalRequest?: unknown;
+  userQuestionRequest?: unknown;
+  privateInputRequest?: unknown;
+  sessionFailure?: unknown;
+  grantRequest?: true;
+}
+
+export interface JournalEntry {
+  channelId: string;
+  message: ChannelWireMessage;
+  revision: number;
+}
+
+export interface JournalPage {
+  entries: JournalEntry[];
+  olderCursor: string | null;
+  hasOlder: boolean;
+}
+
+export interface WireDraft {
+  channelId: string;
+  draftId: string;
+  attemptId: string;
+  botSlug: string;
+  body: string;
+  revision: number;
+}
+
+export type ChannelNotification =
+  | { kind: 'admission'; channelId: string; messageId: string }
+  | { kind: 'human-read'; channelId: string; humanId: string; revision: number }
+  | { kind: 'draft-baseline'; channelId: string; revision: number; drafts: WireDraft[] }
+  | { kind: 'draft'; draft: WireDraft }
+  | {
+      kind: 'draft-settled' | 'draft-abandoned';
+      event: { channelId: string; draftId: string; attemptId: string; revision: number };
+    };
+
+export type ChannelLiveFrame =
+  | { type: 'opened'; cursor: number; page?: JournalPage }
+  | { type: 'entry'; entry: JournalEntry }
+  | { type: 'notification'; notification: ChannelNotification };
+
+export interface SendStatus {
+  sourceEventId: string;
+  state: string;
+  replies: ChannelWireMessage[];
+}
+
 export interface PersonaBotSummary {
   slug: string;
   displayName: string;

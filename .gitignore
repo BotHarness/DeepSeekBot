@@ -80,3 +80,4 @@ apps/docs/src/content/docs-zh/docs/vps-qq-tutorial.mdx
 
 # PR Lens writes its previews here. They are rebuilt on demand.
 .pr-lens/
+.agents/skills/eas-workflows/scripts/.cache/

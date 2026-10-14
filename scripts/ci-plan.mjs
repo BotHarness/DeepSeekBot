@@ -62,7 +62,10 @@ export const RULES = [
   none('apps/presentations/**', 'Slides embedded in the docs site', true),
   related('apps/mobile/{app,src,test,scripts}/**', 'Mobile app source, tests and scripts'),
   related('apps/mobile/{app.json,eas.json,metro.config.js}', 'Mobile app config'),
-  none('apps/mobile/{README.md,.gitignore}', 'Mobile app prose and ignores'),
+  none(
+    'apps/mobile/{README.md,AGENTS.md,CLAUDE.md,.gitignore}',
+    'Mobile app prose, agent rules and ignores',
+  ),
   related('scripts/test/**', 'Script tests'),
   related('scripts/fixtures/**', 'Script test fixtures'),
   related('scripts/product-provider/**', 'Product provider scripts'),

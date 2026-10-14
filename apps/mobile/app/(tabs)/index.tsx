@@ -117,16 +117,20 @@ export default function RosterScreen() {
 
 function BotRow({ bot }: { bot: RosterBot }) {
   const theme = useTheme();
+  const router = useRouter();
   const color = stateColor(theme, bot.state);
   return (
-    <View
-      style={{
+    <Pressable
+      onPress={() => router.push({ pathname: '/dm/[slug]', params: { slug: bot.slug } })}
+      style={({ pressed }) => ({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 12,
         paddingHorizontal: 16,
         paddingVertical: 10,
-      }}
+        backgroundColor: pressed ? theme.codeSurface : 'transparent',
+      })}
+      accessibilityRole="button"
       accessibilityLabel={`${bot.displayName}, ${bot.paused ? t.paused : t.state[bot.state]}`}
     >
       <BotAvatar bot={bot} size={44} />
@@ -147,7 +151,7 @@ function BotRow({ bot }: { bot: RosterBot }) {
           </Text>
         ) : null}
       </View>
-    </View>
+    </Pressable>
   );
 }
 

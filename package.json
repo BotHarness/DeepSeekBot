@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "build": "tsdown",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && pnpm --filter @botharness/mobile typecheck",
     "lint": "oxlint && node scripts/check-source-policy.mjs && pnpm changelog:check && node scripts/check-adr-numbers.mjs && node scripts/sync-bot-preset.mjs --check && node scripts/ci-plan.mjs --check && pnpm install:check",
     "lint:fix": "oxlint --fix",
     "format": "oxfmt --write .",
@@ -26,6 +26,8 @@
     "sync:development-status": "node scripts/development-status.mjs",
     "dev": "pnpm --filter docs exec portless",
     "dev:instance": "node scripts/dev-instance.mjs",
+    "verify:app": "node scripts/verify-app.mjs",
+    "e2e:smoke": "node scripts/e2e-personabot-create.mjs --with-dm",
     "dev:client": "tsdown --config tsdown.client.config.ts --config-loader unrun --watch",
     "slides:dev": "pnpm --filter @botharness/presentations dev",
     "slides:build": "node scripts/sync-slides.mjs",

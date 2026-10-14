@@ -1368,6 +1368,56 @@ describe('runtime lifecycle', () => {
     expect(base.calls.map((call) => call.method)).toContain('Emulation.setFocusEmulationEnabled');
   });
 
+  it('streams screencast frames with acknowledgements and stops the screencast', async () => {
+    const child = fakeChild();
+    spawnMock.mockReturnValue(child.proc as never);
+    const base = fakeClient();
+    const listeners = new Map<string, (params: Record<string, unknown>) => void>();
+    const client: CdpClient = {
+      send: (method, params, sessionId) => base.send(method, params, sessionId),
+      subscribe: (method, sessionId, listener) => {
+        listeners.set(`${method}@${sessionId}`, listener);
+        return () => listeners.delete(`${method}@${sessionId}`);
+      },
+      close: () => base.close(),
+    };
+    const runtime = createBotBrowserRuntime({
+      userDataDir: '/tmp/browser-test',
+      platform: 'linux',
+      env: {},
+      fileExists: (path) => path === '/usr/bin/google-chrome',
+      connect: async () => client,
+    });
+    const ensuring = runtime.ensure();
+    child.ready();
+    await ensuring;
+    await runtime.open('https://example.com');
+    const frames: unknown[] = [];
+    const stop = await runtime.streamFrames!('tab-1', (frame) => frames.push(frame));
+    expect(base.send).toHaveBeenCalledWith(
+      'Page.startScreencast',
+      expect.objectContaining({ format: 'jpeg' }),
+      'session-1',
+    );
+    listeners.get('Page.screencastFrame@session-1')?.({
+      data: 'YmFy',
+      sessionId: 41,
+      metadata: { deviceWidth: 1280, deviceHeight: 720 },
+    });
+    expect(frames).toEqual([
+      { data: 'YmFy', mimeType: 'image/jpeg', viewport: { width: 1280, height: 720 } },
+    ]);
+    expect(base.send).toHaveBeenCalledWith(
+      'Page.screencastFrameAck',
+      { sessionId: 41 },
+      'session-1',
+    );
+    await stop();
+    expect(listeners.has('Page.screencastFrame@session-1')).toBe(false);
+    expect(base.calls.map((call) => call.method)).toContain('Page.stopScreencast');
+    await runtime.stop();
+  });
+
   it('retries input preparation after a best-effort screenshot focus failure', async () => {
     const child = fakeChild();
     spawnMock.mockReturnValue(child.proc as never);

@@ -11,6 +11,7 @@
     "export": "expo export --platform ios --platform android --output-dir dist",
     "export:web": "expo export --platform web --output-dir dist-web",
     "eas:dev": "eas build --profile development",
+    "expo:doctor": "expo-doctor",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "generate:palette": "node scripts/generate-palette.mjs"
   },
@@ -19,6 +20,7 @@
     "expo": "57.0.28",
     "expo-constants": "~57.0.21",
     "expo-dev-client": "~57.0.20",
+    "expo-file-system": "~57.0.7",
     "expo-linking": "~57.0.12",
     "expo-router": "~57.0.26",
     "expo-secure-store": "~57.0.4",
@@ -36,6 +38,7 @@
   "devDependencies": {
     "@deepseek-ai/dsh-api-gateway": "0.2.0-rc.2",
     "@types/react": "~19.2.0",
-    "@types/react-dom": "~19.3.0"
+    "@types/react-dom": "~19.2.3",
+    "expo-doctor": "1.20.4"
   }
 }

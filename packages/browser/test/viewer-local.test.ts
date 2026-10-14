@@ -11,6 +11,7 @@ function fixture(options?: {
   access?: boolean;
   rejected?: number;
   takeover?: boolean;
+  stream?: boolean;
 }) {
   const running = options?.running ?? true;
   const shot = options?.shot ?? {
@@ -44,7 +45,26 @@ function fixture(options?: {
   const takeover: TakeoverService = createTakeoverService();
   let route!: Parameters<Parameters<typeof registerLocalViewer>[0]['host']['register']>[0];
   const release = vi.fn();
+  let pushFrame: ((frame: { data: string; mimeType: string }) => void) | undefined;
+  const stopStream = vi.fn(async () => undefined);
+  const streamFrames = vi.fn(
+    async (_tabId: string, onFrame: (frame: { data: string; mimeType: string }) => void) => {
+      pushFrame = onFrame;
+      return stopStream;
+    },
+  );
+  const captureScreenshot = vi.fn(async () => shot);
+  const runtime = {
+    isRunning: () => running,
+    captureScreenshot,
+    ...(options?.stream === true ? { streamFrames } : {}),
+    clickAt,
+    scroll,
+    insertText,
+    pressKey,
+  };
   const dispose = registerLocalViewer({
+    frameWaitMs: 50,
     host: {
       register: (next) => {
         route = next;
@@ -52,16 +72,7 @@ function fixture(options?: {
       },
       registerUpgrade: () => release,
     },
-    runtimes: {
-      for: () => ({
-        isRunning: () => running,
-        captureScreenshot: vi.fn(async () => shot),
-        clickAt,
-        scroll,
-        insertText,
-        pressKey,
-      }),
-    } as never,
+    runtimes: { for: () => runtime } as never,
     currentTab: () => (running ? 'tab-1' : undefined),
     isTakeover: () => options?.takeover ?? true,
     touch,
@@ -89,7 +100,23 @@ function fixture(options?: {
     );
     return response;
   };
-  return { dispose, release, call, clickAt, scroll, insertText, pressKey, note, touch, takeover };
+  return {
+    dispose,
+    release,
+    call,
+    clickAt,
+    scroll,
+    insertText,
+    pressKey,
+    note,
+    touch,
+    takeover,
+    captureScreenshot,
+    streamFrames,
+    stopStream,
+    push: (label: string) =>
+      pushFrame?.({ data: Buffer.from(label).toString('base64'), mimeType: 'image/jpeg' }),
+  };
 }
 
 describe('local browser viewer stream', () => {
@@ -168,6 +195,45 @@ describe('local browser viewer stream', () => {
       }),
     );
     expect(Buffer.isBuffer(response.end.mock.calls[0]?.[0])).toBe(true);
+    f.dispose();
+  });
+
+  it('serves pushed frames in order and waits for a newer one', async () => {
+    const f = fixture({ stream: true });
+    const first = f.call(`${LOCAL_VIEWER_PREFIX}/frame?slug=qa`);
+    await vi.waitFor(() =>
+      expect(f.streamFrames).toHaveBeenCalledWith('tab-1', expect.any(Function)),
+    );
+    f.push('one');
+    const one = await first;
+    const headers = one.writeHead.mock.calls[0]?.[1] as Record<string, string>;
+    expect(one.writeHead.mock.calls[0]?.[0]).toBe(200);
+    expect(headers['x-frame-mode']).toBe('stream');
+    expect(String(one.end.mock.calls[0]?.[0])).toBe('one');
+    const waiting = f.call(`${LOCAL_VIEWER_PREFIX}/frame?slug=qa&after=${headers['x-frame-seq']}`);
+    f.push('two');
+    const two = await waiting;
+    expect(String(two.end.mock.calls[0]?.[0])).toBe('two');
+    const twoHeaders = two.writeHead.mock.calls[0]?.[1] as Record<string, string>;
+    const idle = await f.call(
+      `${LOCAL_VIEWER_PREFIX}/frame?slug=qa&after=${twoHeaders['x-frame-seq']}`,
+    );
+    expect(idle.writeHead).toHaveBeenCalledWith(
+      204,
+      expect.objectContaining({ 'cache-control': 'no-store' }),
+    );
+    expect(f.captureScreenshot).not.toHaveBeenCalled();
+    f.dispose();
+    await vi.waitFor(() => expect(f.stopStream).toHaveBeenCalled());
+  });
+
+  it('marks screenshot frames so the page keeps a gentle polling pace', async () => {
+    const f = fixture();
+    const response = await f.call(`${LOCAL_VIEWER_PREFIX}/frame?slug=qa`);
+    expect(response.writeHead).toHaveBeenCalledWith(
+      200,
+      expect.objectContaining({ 'x-frame-mode': 'snapshot', 'x-frame-seq': expect.any(String) }),
+    );
     f.dispose();
   });
 

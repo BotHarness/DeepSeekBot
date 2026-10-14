@@ -18,8 +18,11 @@ import type {
 import type { ToolApprovalDecision as HostDecision } from '../../../packages/core/src/workspaces/tool-approval.js';
 import type {
   ActivityLiveFrame as HostActivity,
+  ChannelLiveFrame as HostChannelFrame,
   RosterLiveFrame as HostRoster,
 } from '../../../packages/core/src/channels/live.js';
+import type { ChannelSendStatus as HostSendStatus } from '../../../packages/core/src/channels/store.js';
+import type { ChannelJournalPage as HostJournalPage } from '../../../packages/core/src/channels/timeline.js';
 import type { AggregatedState as HostState } from '../../../packages/core/src/state/bot-state.js';
 import type {
   ActivityLiveFrame,
@@ -33,6 +36,9 @@ import type {
   ToolApprovalOutcome,
   ToolApprovalStatus,
   UserQuestionStatus,
+  ChannelLiveFrame,
+  JournalPage,
+  SendStatus,
   MuxClientFrame,
   MuxServerFrame,
   PersonaBotSummary,
@@ -52,6 +58,9 @@ export type WireContract = [
   Assert<Accepts<ChannelListItem, HostChannel>>,
   Assert<Accepts<RosterLiveFrame, HostRoster>>,
   Assert<Accepts<ActivityLiveFrame, HostActivity>>,
+  Assert<Accepts<ChannelLiveFrame, HostChannelFrame>>,
+  Assert<Accepts<JournalPage, HostJournalPage>>,
+  Assert<Accepts<SendStatus, HostSendStatus>>,
   Assert<Accepts<AggregatedState, HostState>>,
   Assert<Accepts<HostState, AggregatedState>>,
   Assert<Accepts<MuxServerFrame, RemoteStreamServerMessage>>,

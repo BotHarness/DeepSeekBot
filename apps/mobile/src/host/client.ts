@@ -51,6 +51,12 @@ export interface HostSnapshot {
   roster?: RosterView;
 }
 
+export interface StreamHandlers {
+  item(value: unknown): void;
+  interrupted(reason: string): void;
+  refused(error: { code: string; message: string }): void;
+}
+
 export interface HostClient {
   getSnapshot(): HostSnapshot;
   subscribe(listener: () => void): () => void;
@@ -60,6 +66,7 @@ export interface HostClient {
   refresh(): Promise<void>;
   call<T>(method: string, args?: Record<string, unknown>): Promise<T>;
   onLive(listener: (source: 'roster' | 'activity') => void): () => void;
+  follow(endpoint: string, args: Record<string, unknown>, handlers: StreamHandlers): () => void;
 }
 
 export interface HostClientOptions {
@@ -89,6 +96,14 @@ export class MethodRefused extends Error {
   ) {
     super(message);
   }
+}
+
+interface Follower {
+  endpoint: string;
+  args: Record<string, unknown>;
+  handlers: StreamHandlers;
+  streamId?: string | undefined;
+  reopen?: ReturnType<typeof setTimeout> | undefined;
 }
 
 const defaultBackoff = (attempt: number): number => Math.min(15_000, 500 * 2 ** (attempt - 1));
@@ -133,6 +148,9 @@ export function createHostClient(options: HostClientOptions): HostClient {
   let retryTimer: ReturnType<typeof setTimeout> | undefined;
   let reloading: Promise<void> | undefined;
   let reloadAgain = false;
+  const followers = new Set<Follower>();
+  let liveSocket: { generation: number; send(frame: MuxClientFrame): void } | undefined;
+  let streams = new Map<string, { item(value: unknown): void; end(frame: MuxServerFrame): void }>();
 
   const publish = (connection: ConnectionState = snapshot.connection): void => {
     snapshot = {
@@ -305,6 +323,46 @@ export function createHostClient(options: HostClientOptions): HostClient {
     }
   };
 
+  const openFollower = (follower: Follower): void => {
+    const carrier = liveSocket;
+    if (carrier === undefined || carrier.generation !== generation) return;
+    const streamId = id();
+    follower.streamId = streamId;
+    streams.set(streamId, {
+      item: (value) => follower.handlers.item(value),
+      end: (frame) => {
+        follower.streamId = undefined;
+        if (!followers.has(follower)) return;
+        if (frame.type === 'error') {
+          followers.delete(follower);
+          follower.handlers.refused({ code: frame.error.code, message: frame.error.message });
+          return;
+        }
+        follower.handlers.interrupted('stream ended');
+        follower.reopen = setTimeout(() => {
+          follower.reopen = undefined;
+          if (followers.has(follower) && follower.streamId === undefined) openFollower(follower);
+        }, 1_000);
+      },
+    });
+    carrier.send({
+      type: 'open',
+      streamId,
+      endpoint: follower.endpoint,
+      payload: { args: follower.args },
+    });
+  };
+
+  const interruptFollowers = (reason: string): void => {
+    liveSocket = undefined;
+    for (const follower of followers) {
+      clearTimeout(follower.reopen);
+      if (follower.streamId === undefined) continue;
+      follower.streamId = undefined;
+      follower.handlers.interrupted(reason);
+    }
+  };
+
   const connectOnce = async (current: number): Promise<void> => {
     if (!session) await login();
     const baselines = { roster: false, activity: false };
@@ -319,10 +377,17 @@ export function createHostClient(options: HostClientOptions): HostClient {
       resolveClosed = resolve;
     });
     let opened = false;
-    const streams = new Map<string, (value: unknown) => void>();
+    streams = new Map();
+    const endCore = (frame: MuxServerFrame): void => {
+      const reason =
+        frame.type === 'error' ? `${frame.error.code}: ${frame.error.message}` : 'stream ended';
+      rejectReady(new Unreachable(reason));
+      socket?.close();
+      resolveClosed(reason);
+    };
     const follow = (endpoint: string, onItem: (value: unknown) => void): void => {
       const streamId = id();
-      streams.set(streamId, onItem);
+      streams.set(streamId, { item: onItem, end: endCore });
       const frame: MuxClientFrame = { type: 'open', streamId, endpoint, payload: { args: {} } };
       socket?.send(JSON.stringify(frame));
     };
@@ -330,6 +395,8 @@ export function createHostClient(options: HostClientOptions): HostClient {
       open: () => {
         if (current !== generation) return;
         opened = true;
+        const carrier = socket;
+        liveSocket = { generation: current, send: (frame) => carrier?.send(JSON.stringify(frame)) };
         follow('botharness/followRoster', (value) => {
           const frame = value as RosterLiveFrame;
           if (frame.type === 'baseline') {
@@ -350,6 +417,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
             if (baselines.roster) resolveReady();
           }
         });
+        for (const follower of followers) openFollower(follower);
       },
       message: (text) => {
         if (current !== generation) return;
@@ -359,19 +427,16 @@ export function createHostClient(options: HostClientOptions): HostClient {
         } catch {
           return;
         }
-        const onItem = streams.get(frame.streamId);
-        if (onItem === undefined) return;
-        if (frame.type === 'item') onItem(frame.value);
+        const stream = streams.get(frame.streamId);
+        if (stream === undefined) return;
+        if (frame.type === 'item') stream.item(frame.value);
         else {
           streams.delete(frame.streamId);
-          const reason =
-            frame.type === 'error' ? `${frame.error.code}: ${frame.error.message}` : 'stream ended';
-          rejectReady(new Unreachable(reason));
-          socket?.close();
-          resolveClosed(reason);
+          stream.end(frame);
         }
       },
       closed: (reason) => {
+        if (current === generation) interruptFollowers(reason || 'The live connection closed.');
         rejectReady(new Unreachable(reason || 'The live connection closed.'));
         resolveClosed(reason);
       },
@@ -453,6 +518,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
     },
     stop() {
       running = false;
+      interruptFollowers('stopped');
       generation += 1;
       clearTimeout(retryTimer);
       wake?.();
@@ -481,6 +547,19 @@ export function createHostClient(options: HostClientOptions): HostClient {
     onLive(listener) {
       liveListeners.add(listener);
       return () => liveListeners.delete(listener);
+    },
+    follow(endpoint, args, handlers) {
+      const follower: Follower = { endpoint, args, handlers };
+      followers.add(follower);
+      openFollower(follower);
+      return () => {
+        if (!followers.delete(follower)) return;
+        clearTimeout(follower.reopen);
+        const streamId = follower.streamId;
+        if (streamId === undefined) return;
+        streams.delete(streamId);
+        liveSocket?.send({ type: 'cancel', streamId });
+      };
     },
   };
 }

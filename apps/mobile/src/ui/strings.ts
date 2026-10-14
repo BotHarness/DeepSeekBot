@@ -89,6 +89,21 @@ const en = {
         : minutes < 1440
           ? `${Math.floor(minutes / 60)} h ago`
           : `${Math.floor(minutes / 1440)} d ago`,
+  messagePlaceholder: 'Message',
+  send: 'Send',
+  sent: 'Sent',
+  notSent: 'Not sent',
+  retrySend: 'Tap to retry',
+  typing: 'Replying…',
+  olderLoading: 'Loading earlier messages…',
+  beginning: 'This is the beginning of your DM.',
+  offline: 'Offline. Showing saved messages.',
+  liveInterrupted: 'Reconnecting to this DM…',
+  dmRefused: 'This DM is not available on your computer.',
+  attachments: (count: number) =>
+    `${count === 1 ? '1 attachment' : `${count} attachments`}. Open in the full client to view.`,
+  card: 'Open the full client on your computer to respond to this.',
+  noBot: 'This PersonaBot is not on your computer anymore.',
 };
 
 const zh: typeof en = {
@@ -177,6 +192,20 @@ const zh: typeof en = {
         : minutes < 1440
           ? `${Math.floor(minutes / 60)} 小时前`
           : `${Math.floor(minutes / 1440)} 天前`,
+  messagePlaceholder: '发消息',
+  send: '发送',
+  sent: '已送达',
+  notSent: '未发送',
+  retrySend: '点按重试',
+  typing: '正在回复…',
+  olderLoading: '正在加载更早的消息…',
+  beginning: '这是你们私信的开始。',
+  offline: '离线中，显示的是已保存的消息。',
+  liveInterrupted: '正在重新连接这个私信…',
+  dmRefused: '你的电脑上已经没有这个私信。',
+  attachments: (count: number) => `${count} 个附件，请在完整客户端中查看。`,
+  card: '请在电脑上的完整客户端中处理这条消息。',
+  noBot: '你的电脑上已经没有这个 PersonaBot。',
 };
 
 const locale = Intl.DateTimeFormat().resolvedOptions().locale;

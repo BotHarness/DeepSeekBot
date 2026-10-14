@@ -65,6 +65,7 @@ jobs:
       - run: pnpm lint
       - run: pnpm format:check
       - run: pnpm typecheck
+      - run: pnpm --filter @botharness/mobile expo:doctor
       - run: pnpm build
       - run: git diff --exit-code -- packages/computer/lib/client.js packages/computer/lib/client.js.map packages/browser/lib/client.js packages/browser/lib/client.js.map
 
@@ -131,9 +132,29 @@ jobs:
       - run: pnpm slides:build
       - run: pnpm vitest run "$DOCS_SITE_TEST"
 
+  e2e-smoke:
+    name: e2e smoke (isolated DSH Host)
+    needs: plan
+    if: needs.plan.outputs.tests != 'none'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm e2e:smoke
+
   verify:
     name: lint, format, typecheck, test, build, docs
-    needs: [plan, static, test-full, test-affected, docs-site]
+    needs: [plan, static, test-full, test-affected, docs-site, e2e-smoke]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5

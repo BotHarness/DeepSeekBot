@@ -15,6 +15,10 @@ const light = {
   danger: '#dc2626',
   warningSurface: '#fef3c7',
   dangerSurface: '#fee2e2',
+  codeSurface: 'rgba(15, 23, 42, 0.06)',
+  humanBubble: '#2563eb',
+  humanInk: '#ffffff',
+  botBubble: '#ffffff',
 };
 
 const dark: typeof light = {
@@ -30,6 +34,10 @@ const dark: typeof light = {
   danger: '#f87171',
   warningSurface: '#3a2a07',
   dangerSurface: '#3b1212',
+  codeSurface: 'rgba(255, 255, 255, 0.08)',
+  humanBubble: '#1d4ed8',
+  humanInk: '#ffffff',
+  botBubble: '#1e293b',
 };
 
 export type Theme = typeof light;
