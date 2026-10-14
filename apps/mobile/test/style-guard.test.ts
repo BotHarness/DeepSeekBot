@@ -18,7 +18,8 @@ const LEGACY = new Set([
   'src/ui/request-parts.tsx',
 ]);
 
-const LITERAL_COLOR = /['"`](?:#[0-9a-f]{3,8}|rgba?\(|hsla?\()/i;
+const LITERAL_COLOR =
+  /['"`](?:#[0-9a-f]{3,8}|rgba?\(|hsla?\()|[cC]olor\s*:\s*['"`](?!transparent['"`])[a-z]+['"`]/i;
 const LITERAL_SCALE =
   /\b(?:fontSize|lineHeight|fontWeight|letterSpacing|gap|rowGap|columnGap|padding\w*|margin\w*|border\w*Radius|borderRadius|border\w*Width)\s*:\s*(?:-?[1-9]|['"`]\d)/;
 

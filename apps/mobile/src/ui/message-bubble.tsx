@@ -62,7 +62,7 @@ export function MessageBubble({
         </Text>
       ) : null}
       {message.card ? (
-        <Text variant="meta" tone="muted" style={{ fontStyle: 'italic' }}>
+        <Text variant="meta" tone={human ? ink : 'muted'} style={{ fontStyle: 'italic' }}>
           {t.card}
         </Text>
       ) : null}

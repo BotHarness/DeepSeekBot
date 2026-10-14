@@ -84,6 +84,16 @@ describe('resolveTheme', () => {
   });
 });
 
+function contrastOf(a: string, b: string): number {
+  const lum = (hex: string) =>
+    [16, 8, 0]
+      .map((shift) => ((Number.parseInt(hex.slice(1), 16) >> shift) & 0xff) / 255)
+      .map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4))
+      .reduce((sum, c, index) => sum + c * [0.2126, 0.7152, 0.0722][index]!, 0);
+  const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x) as [number, number];
+  return (hi + 0.05) / (lo + 0.05);
+}
+
 describe('Bot colour on the Human bubble', () => {
   const bot = { slug: 'ada', displayName: 'Ada', state: 'idle' as const, paused: false };
 
@@ -92,18 +102,28 @@ describe('Bot colour on the Human bubble', () => {
       '#2f9e8f',
     );
     expect(botColor(bot)).toMatch(/^#[0-9a-f]{6}$/);
-    expect(botColor(bot)).toBe(botColor({ ...bot, displayName: 'Ada' }));
   });
 
-  it('keeps a saturated colour and picks readable text on it', () => {
-    expect(withAccent(palette.light, '#d9475a')).toMatchObject({
-      accent: '#d9475a',
-      onAccent: '#ffffff',
-    });
+  it('keeps message text at 4.5:1 on every Bot colour', () => {
+    for (const scheme of [palette.light, palette.dark])
+      for (const source of ['#d9475a', '#3f8fd0', '#5f9e45', '#e07a3f', '#888888', '#c79a2b']) {
+        const { accent, onAccent } = withAccent(scheme, source);
+        expect(contrastOf(accent, onAccent), `${source} → ${accent}`).toBeGreaterThanOrEqual(4.5);
+      }
+  });
+
+  it('keeps a light colour as is with dark text, and darkens a mid-tone under white text', () => {
     expect(withAccent(palette.dark, '#c79a2b')).toMatchObject({
       accent: '#c79a2b',
       onAccent: '#0f1115',
     });
+    expect(withAccent(palette.light, '#5b2ecc')).toMatchObject({
+      accent: '#5b2ecc',
+      onAccent: '#ffffff',
+    });
+    const red = withAccent(palette.light, '#d9475a');
+    expect(red.onAccent).toBe('#ffffff');
+    expect(red.accent).not.toBe('#d9475a');
   });
 
   it('lifts a colour that would vanish into the chat background', () => {

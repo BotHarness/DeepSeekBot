@@ -44,7 +44,8 @@ function contrast(a: string, b: string): number {
 const INK_LIGHT = '#ffffff';
 const INK_DARK = '#0f1115';
 const SEPARATION = 1.3;
-const LIGHT_INK_FLOOR = 3;
+const BODY_CONTRAST = 4.5;
+const LIGHT_SURFACE = 3;
 
 function mix(from: string, to: string, amount: number): string {
   const a = rgb(from);
@@ -65,15 +66,25 @@ export function withAccent(
   source: string | undefined,
 ): Record<ColorRole, string> {
   if (source === undefined || !HEX.test(source)) return color;
-  const steps = Array.from({ length: 21 }, (_, step) => step / 20);
-  const amount =
+  const steps = Array.from({ length: 41 }, (_, step) => step / 40);
+  const separated = mix(
+    source.toLowerCase(),
+    color.fg,
     steps.find((step) =>
       [color.base, color.surface].every(
         (behind) => contrast(mix(source.toLowerCase(), color.fg, step), behind) >= SEPARATION,
       ),
-    ) ?? 1;
-  const accent = mix(source.toLowerCase(), color.fg, amount);
-  const onAccent = contrast(accent, INK_LIGHT) >= LIGHT_INK_FLOOR ? INK_LIGHT : INK_DARK;
+    ) ?? 1,
+  );
+  if (contrast(separated, INK_LIGHT) < LIGHT_SURFACE)
+    return { ...color, accent: separated, onAccent: INK_DARK };
+  const accent = mix(
+    separated,
+    '#000000',
+    steps.find((step) => contrast(mix(separated, '#000000', step), INK_LIGHT) >= BODY_CONTRAST) ??
+      1,
+  );
+  const onAccent = INK_LIGHT;
   return { ...color, accent, onAccent };
 }
 
