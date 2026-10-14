@@ -403,14 +403,16 @@ async function shot(options, paths) {
   } catch (error) {
     const failure = join(paths.evidence, `${label}.failure.png`);
     await page?.screenshot({ path: failure, waitForFonts: false }).catch(() => undefined);
-    const snapshot = await page?.accessibility
-      .snapshot({ interestingOnly: true })
-      .catch(() => null);
-    writeFileSync(
-      join(paths.evidence, `${label}.failure.aria.txt`),
-      `${renderAria(snapshot).join('\n')}\n`,
-    );
-    writeFileSync(join(paths.evidence, `${label}.console.txt`), consoleLines.join('\n'));
+    try {
+      const snapshot = await page?.accessibility
+        .snapshot({ interestingOnly: true })
+        .catch(() => null);
+      writeFileSync(
+        join(paths.evidence, `${label}.failure.aria.txt`),
+        `${renderAria(snapshot).join('\n')}\n`,
+      );
+      writeFileSync(join(paths.evidence, `${label}.console.txt`), consoleLines.join('\n'));
+    } catch {}
     throw new Error(`${error.message} after [${steps.join('; ')}]; see ${failure}`);
   } finally {
     await browser.close();
