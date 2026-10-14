@@ -211,9 +211,10 @@ async function launch(options, paths) {
     timeout: 600_000,
     maxBuffer: 4 * 1024 * 1024,
   });
-  const start = result.stdout.indexOf('{');
+  if (result.error) throw new Error(`dev-instance.mjs did not complete: ${result.error.message}`);
+  const start = (result.stdout ?? '').indexOf('{');
   if (result.status !== 0 || start < 0) {
-    process.stderr.write(result.stderr);
+    process.stderr.write(result.stderr ?? '');
     throw new Error(`dev-instance.mjs failed with status ${result.status}`);
   }
   const instance = JSON.parse(result.stdout.slice(start));

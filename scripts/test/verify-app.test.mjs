@@ -55,10 +55,11 @@ describe('verify-app arguments', () => {
 
 describe('verify-app paths', () => {
   it('keeps state in the worktree and the Host home in the temp dir', () => {
+    const dir = join('/repo', '.humanlayer', 'verify', 'task-1');
     expect(verifyPaths('task-1', '/repo')).toEqual({
-      dir: '/repo/.humanlayer/verify/task-1',
-      instance: '/repo/.humanlayer/verify/task-1/instance.json',
-      evidence: '/repo/.humanlayer/verify/task-1/evidence',
+      dir,
+      instance: join(dir, 'instance.json'),
+      evidence: join(dir, 'evidence'),
       home: join(tmpdir(), 'bh-verify-task-1'),
     });
   });
