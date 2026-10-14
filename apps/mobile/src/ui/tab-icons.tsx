@@ -26,3 +26,17 @@ export function InboxIcon({ color, size }: { color: ColorValue; size: number }) 
     </Svg>
   );
 }
+
+export function BellIcon({ color, size }: { color: ColorValue; size: number }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15L6 16Zm4 4a2 2 0 0 0 4 0"
+        stroke={color}
+        strokeWidth={1.8}
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
+    </Svg>
+  );
+}

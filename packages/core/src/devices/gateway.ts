@@ -10,6 +10,7 @@ export const DEVICE_PAIR_PATH = `${DEVICE_GATEWAY_PREFIX}/pair`;
 export const DEVICE_MUX_PATH = `${DEVICE_GATEWAY_PREFIX}/api/remote.mux`;
 export const DEVICE_WEB_PREFIX = `${DEVICE_GATEWAY_PREFIX}/web`;
 export const DEVICE_WEB_MUX_PATH = `${DEVICE_WEB_PREFIX}/api/remote.mux`;
+export const DEVICE_PUSH_PREFIX = `${DEVICE_GATEWAY_PREFIX}/push`;
 export const DEVICE_WEB_COOKIE = 'botharness-device-web';
 const WEB_SESSION_TTL_MS = 12 * 60 * 60 * 1000;
 const MAX_WEB_SESSIONS = 256;
@@ -49,6 +50,12 @@ export interface DeviceGatewayOptions {
   authenticatedUrl: (baseUrl: string) => string;
   now?: () => number;
   log?: (message: string) => void;
+  push?: (request: {
+    method: string;
+    path: string;
+    deviceId: string;
+    body: Record<string, unknown>;
+  }) => Promise<{ status: number; body: unknown }>;
 }
 
 export interface DeviceGateway {
@@ -221,6 +228,34 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
     );
   };
 
+  const devicePush = async (
+    request: IncomingMessage,
+    response: ServerResponse,
+    path: string,
+  ): Promise<void> => {
+    const admission = pairing.admit(header(request, 'authorization'));
+    if (!admission.ok) return refuse(response, 401, admission.code);
+    let body: Record<string, unknown> = {};
+    if (request.method === 'POST') {
+      const text = await readSmall(request, PAIR_BODY_LIMIT);
+      try {
+        const value = JSON.parse(text ?? '{}') as unknown;
+        if (typeof value === 'object' && value !== null) body = value as Record<string, unknown>;
+      } catch {}
+    }
+    const answer = await options.push!({
+      method: request.method ?? 'GET',
+      path,
+      deviceId: admission.device.id,
+      body,
+    });
+    response.writeHead(answer.status, {
+      'content-type': 'application/json',
+      'cache-control': 'no-store',
+    });
+    response.end(JSON.stringify(answer.body));
+  };
+
   const forward = async (
     request: IncomingMessage,
     response: ServerResponse,
@@ -319,6 +354,11 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
       const path = new URL(request.url ?? '/', 'http://device').pathname;
       if (crossOrigin(request)) return refuse(response, 403, 'origin-refused');
       if (path === DEVICE_PAIR_PATH) return pair(request, response);
+      if (
+        options.push !== undefined &&
+        (path === DEVICE_PUSH_PREFIX || path.startsWith(`${DEVICE_PUSH_PREFIX}/`))
+      )
+        return devicePush(request, response, path);
       if (path.startsWith(`${DEVICE_GATEWAY_PREFIX}/api/`))
         return forward(
           request,

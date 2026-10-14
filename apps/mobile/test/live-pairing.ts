@@ -1,4 +1,4 @@
-import type { SavedHost } from '../src/host/saved-host';
+import type { SavedHost } from '../src/host/hosts';
 import { parsePairingLink, redeemPairing } from '../src/host/pairing';
 import { nodeCarrier } from './node-carrier';
 

@@ -16,6 +16,7 @@ import { BotAvatar } from '../../src/ui/bot-avatar';
 import { ConnectionBanner } from '../../src/ui/connection-banner';
 import { OpenFullClientButton } from '../../src/ui/open-full-client';
 import { t } from '../../src/ui/strings';
+import { BellIcon } from '../../src/ui/tab-icons';
 import { stateColor, useTheme } from '../../src/ui/theme';
 
 type Row = { kind: 'bot'; bot: RosterBot } | { kind: 'channel'; channel: RosterChannel };
@@ -61,6 +62,19 @@ export default function RosterScreen() {
     <>
       <Tabs.Screen
         options={{
+          headerLeft: () => (
+            <Pressable
+              onPress={() => router.push('/hosts')}
+              accessibilityRole="button"
+              accessibilityLabel={t.switchComputer(saved.hostName)}
+              hitSlop={8}
+              style={{ paddingHorizontal: 16 }}
+            >
+              <Text style={{ color: theme.ink, fontSize: 16, fontWeight: '600' }} numberOfLines={1}>
+                {`${saved.hostName} ▾`}
+              </Text>
+            </Pressable>
+          ),
           headerRight: () => (
             <View
               style={{
@@ -71,6 +85,14 @@ export default function RosterScreen() {
               }}
             >
               <OpenFullClientButton target={{ kind: 'home' }} />
+              <Pressable
+                onPress={() => router.push('/notifications')}
+                accessibilityRole="button"
+                accessibilityLabel={t.notifications}
+                hitSlop={8}
+              >
+                <BellIcon color={theme.accent} size={24} />
+              </Pressable>
               <Pressable
                 onPress={() => void hostSession.unpair()}
                 accessibilityRole="button"

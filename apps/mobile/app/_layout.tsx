@@ -1,37 +1,44 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { usePushRouting } from '../src/host/push-routing';
 import { t } from '../src/ui/strings';
 import { useTheme } from '../src/ui/theme';
 
 export default function RootLayout() {
   const theme = useTheme();
+  const routing = usePushRouting();
   return (
     <SafeAreaProvider>
-      <StatusBar style="auto" />
-      <Stack
-        screenOptions={{
-          headerStyle: { backgroundColor: theme.background },
-          headerTintColor: theme.ink,
-          headerShadowVisible: false,
-          contentStyle: { backgroundColor: theme.background },
-        }}
-      >
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="dm/[slug]" options={{ title: '' }} />
-        <Stack.Screen name="pair" options={{ title: t.pairTitle, presentation: 'modal' }} />
-        <Stack.Screen name="inbox/[id]" options={{ title: t.inbox }} />
-        <Stack.Screen
-          name="full-client"
-          options={{
-            title: t.fullClient,
-            presentation: 'fullScreenModal',
-            headerShown: false,
-            gestureEnabled: false,
+      <View ref={routing} style={{ flex: 1 }}>
+        <StatusBar style="auto" />
+        <Stack
+          screenOptions={{
+            headerStyle: { backgroundColor: theme.background },
+            headerTintColor: theme.ink,
+            headerShadowVisible: false,
+            contentStyle: { backgroundColor: theme.background },
           }}
-        />
-      </Stack>
+        >
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="dm/[slug]" options={{ title: '' }} />
+          <Stack.Screen name="pair" options={{ title: t.pairTitle, presentation: 'modal' }} />
+          <Stack.Screen name="inbox/[id]" options={{ title: t.inbox }} />
+          <Stack.Screen name="notifications" options={{ title: t.notifications }} />
+          <Stack.Screen name="hosts" options={{ title: t.computers, presentation: 'modal' }} />
+          <Stack.Screen
+            name="full-client"
+            options={{
+              title: t.fullClient,
+              presentation: 'fullScreenModal',
+              headerShown: false,
+              gestureEnabled: false,
+            }}
+          />
+        </Stack>
+      </View>
     </SafeAreaProvider>
   );
 }
