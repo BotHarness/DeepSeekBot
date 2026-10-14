@@ -15,6 +15,9 @@ Channel state (mentions, deliveries, replies), not on wording. The model is a bl
 catch a feature that silently breaks an older model-driven flow. They cost tokens: run them on a
 schedule or when the areas a scenario names change, not on every pull request.
 
+Every attempt records the tokens its Bots spent (uncached input, output, cache read, cache write)
+from the Host's usage records, so a design change can be judged on cost as well as pass rate.
+
 Options:
   --name <n>            verify-app instance to use (default llm-e2e).
   --launch              Launch that instance first (after pnpm build) and stop it afterwards.
@@ -22,12 +25,23 @@ Options:
   --changed-from <ref>  Run only scenarios whose areas changed since this Git ref.
   --attempts <n>        Attempts per scenario, 1-5 (default 2). A scenario passes when any
                         attempt passes; the report keeps every attempt so flakiness stays visible.
+  --runs <n>            Run each scenario exactly n times, 1-20, without stopping at the first
+                        pass, to measure pass rate and token spread. Replaces --attempts.
+  --model <route>       provider/model[@effort] for every scenario Bot (repeatable). Each model
+                        runs every selected scenario. Default: the Host's default model.
+  --baseline <path>     A previous report; print pass-rate and token deltas against it.
+  --compare <a> <b>     Print the deltas between two saved reports (baseline a, current b), then
+                        exit without launching anything.
+  --settle <s>          Seconds token totals must stay unchanged before an attempt's usage is
+                        read as final (default 12, max 120).
   --timeout <s>         Seconds to wait for each scenario's expected state (default 240).
-  --report <path>       Write the JSON report here (default .humanlayer/llm-e2e/<time>.json).
+  --report <path>       Write the JSON report here (default .humanlayer/llm-e2e/<time>.json),
+                        and a Markdown summary next to it (same name, .md).
   --list                Print the scenarios and their areas, then exit.
 
 The Host needs a model credential: DEEPSEEK_API_KEY in the environment, or the AX opencode-go
-selection from docs/agents/ax-model.md. Exit status is 1 when any selected scenario fails.`;
+selection from docs/agents/ax-model.md. Exit status is 1 when a selected scenario has no passing
+attempt or run on some model.`;
 
 const RUNTIME_AREAS = [
   'packages/core/src/runtime/',
@@ -130,11 +144,17 @@ export function parseScenarioArgs(argv) {
     scenarios: [],
     changedFrom: undefined,
     attempts: 2,
+    runs: undefined,
+    models: [],
+    baseline: undefined,
+    compare: undefined,
+    settleSeconds: 12,
     timeoutSeconds: 240,
     report: undefined,
     list: false,
     help: false,
   };
+  let attemptsGiven = false;
   for (let index = 0; index < argv.length; index += 1) {
     const flag = argv[index];
     const value = () => {
@@ -162,9 +182,37 @@ export function parseScenarioArgs(argv) {
         options.changedFrom = value();
         break;
       case '--attempts':
+        attemptsGiven = true;
         options.attempts = Number(value());
         if (!Number.isInteger(options.attempts) || options.attempts < 1 || options.attempts > 5)
           throw new Error('--attempts must be an integer from 1 to 5');
+        break;
+      case '--runs':
+        options.runs = Number(value());
+        if (!Number.isInteger(options.runs) || options.runs < 1 || options.runs > 20)
+          throw new Error('--runs must be an integer from 1 to 20');
+        break;
+      case '--model': {
+        const route = parseModelRoute(value());
+        if (options.models.some((entry) => modelLabel(entry) === modelLabel(route)))
+          throw new Error(`--model ${modelLabel(route)} is given twice`);
+        options.models.push(route);
+        break;
+      }
+      case '--baseline':
+        options.baseline = value();
+        break;
+      case '--compare':
+        options.compare = [value(), value()];
+        break;
+      case '--settle':
+        options.settleSeconds = Number(value());
+        if (
+          !Number.isInteger(options.settleSeconds) ||
+          options.settleSeconds < 0 ||
+          options.settleSeconds > 120
+        )
+          throw new Error('--settle must be an integer from 0 to 120');
         break;
       case '--timeout':
         options.timeoutSeconds = Number(value());
@@ -185,7 +233,21 @@ export function parseScenarioArgs(argv) {
         throw new Error(`unknown option ${flag}`);
     }
   }
+  if (attemptsGiven && options.runs !== undefined)
+    throw new Error('--runs replaces --attempts; pass one of them');
   return options;
+}
+
+export function parseModelRoute(spec) {
+  const match = /^([^/@\s]+)\/([^@\s]+)(?:@([a-z0-9-]+))?$/u.exec(spec);
+  if (!match) throw new Error(`--model must be provider/model[@effort], got ${spec}`);
+  const [, provider, model, reasoningEffort] = match;
+  return { provider, model, ...(reasoningEffort ? { reasoningEffort } : {}) };
+}
+
+export function modelLabel(route) {
+  if (route === undefined) return 'host-default';
+  return `${route.provider}/${route.model}${route.reasoningEffort ? `@${route.reasoningEffort}` : ''}`;
 }
 
 export function selectScenarios(options, changedFiles) {
@@ -210,7 +272,143 @@ function changedSince(ref) {
 
 const delay = (ms) => new Promise((done) => setTimeout(done, ms));
 
-function createContext(instance, scenario, timeoutSeconds, log) {
+export const TOKEN_BUCKETS = ['inputTokens', 'outputTokens', 'cacheReadTokens', 'cacheWriteTokens'];
+
+export function sumUsageRows(rows) {
+  const usage = {
+    inputTokens: 0,
+    outputTokens: 0,
+    cacheReadTokens: 0,
+    cacheWriteTokens: 0,
+  };
+  let complete = true;
+  const routes = new Set();
+  for (const row of rows) {
+    routes.add(`${row.provider}/${row.model}`);
+    for (const bucket of TOKEN_BUCKETS) {
+      if (typeof row[bucket] === 'number') usage[bucket] += row[bucket];
+      else complete = false;
+    }
+  }
+  usage.totalTokens = TOKEN_BUCKETS.reduce((total, bucket) => total + usage[bucket], 0);
+  return { ...usage, complete, routes: [...routes].sort() };
+}
+
+function cacheHitRate(tokens) {
+  const prompt = tokens.inputTokens + tokens.cacheReadTokens + tokens.cacheWriteTokens;
+  return prompt > 0 ? Number((tokens.cacheReadTokens / prompt).toFixed(4)) : null;
+}
+
+export function summarizeAttempts(attempts) {
+  const passed = attempts.filter((attempt) => attempt.result === 'pass').length;
+  const measured = attempts.filter((attempt) => attempt.usage !== undefined);
+  const mean = Object.fromEntries(
+    [...TOKEN_BUCKETS, 'totalTokens'].map((bucket) => [
+      bucket,
+      measured.length === 0
+        ? null
+        : Math.round(
+            measured.reduce((total, attempt) => total + attempt.usage[bucket], 0) / measured.length,
+          ),
+    ]),
+  );
+  const totals = measured.map((attempt) => attempt.usage.totalTokens);
+  return {
+    runs: attempts.length,
+    passed,
+    passRate: attempts.length === 0 ? null : Number((passed / attempts.length).toFixed(4)),
+    meanTokens: mean,
+    minTotalTokens: totals.length ? Math.min(...totals) : null,
+    maxTotalTokens: totals.length ? Math.max(...totals) : null,
+    cacheHitRate: mean.totalTokens === null ? null : cacheHitRate(mean),
+    usageComplete: measured.length === attempts.length && measured.every((a) => a.usage.complete),
+  };
+}
+
+const entryKey = (entry) => `${entry.id} ${entry.model}`;
+
+export function compareReports(baseline, current) {
+  const before = new Map(baseline.scenarios.map((entry) => [entryKey(entry), entry]));
+  const after = new Map(current.scenarios.map((entry) => [entryKey(entry), entry]));
+  const keys = [...new Set([...before.keys(), ...after.keys()])];
+  return keys.map((key) => {
+    const a = before.get(key)?.stats;
+    const b = after.get(key)?.stats;
+    const [id, model] = key.split(' ');
+    const row = { id, model, baseline: a ?? null, current: b ?? null };
+    if (a && b) {
+      row.passRateDelta =
+        a.passRate === null || b.passRate === null
+          ? null
+          : Number((b.passRate - a.passRate).toFixed(4));
+      row.tokenDelta = Object.fromEntries(
+        [...TOKEN_BUCKETS, 'totalTokens'].map((bucket) => {
+          const x = a.meanTokens[bucket];
+          const y = b.meanTokens[bucket];
+          return [bucket, x === null || y === null ? null : y - x];
+        }),
+      );
+      const x = a.meanTokens.totalTokens;
+      const y = b.meanTokens.totalTokens;
+      row.totalTokensChange = x && y !== null ? Number(((y - x) / x).toFixed(4)) : null;
+    }
+    return row;
+  });
+}
+
+const count = (value) => (value === null || value === undefined ? '–' : value.toLocaleString('en'));
+const percent = (value) =>
+  value === null || value === undefined ? '–' : `${Math.round(value * 100)}%`;
+const signed = (value, format = count) =>
+  value === null || value === undefined ? '–' : `${value > 0 ? '+' : ''}${format(value)}`;
+
+export function renderMarkdown(report, comparison) {
+  const lines = [
+    `# Real-model scenarios: ${report.result}`,
+    '',
+    `Commit \`${report.commit.slice(0, 12)}\`. Tokens are the mean per run across every Bot in the scenario; input is uncached input.`,
+    '',
+    '| Scenario | Model | Passed | Input | Output | Cache read | Cache write | Total | Cache hit |',
+    '| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |',
+  ];
+  for (const entry of report.scenarios) {
+    const { stats } = entry;
+    const tokens = stats.meanTokens;
+    lines.push(
+      `| ${entry.id} | ${entry.model} | ${stats.passed}/${stats.runs} | ${count(tokens.inputTokens)} | ${count(tokens.outputTokens)} | ${count(tokens.cacheReadTokens)} | ${count(tokens.cacheWriteTokens)} | ${count(tokens.totalTokens)}${stats.usageComplete ? '' : ' (partial)'} | ${percent(stats.cacheHitRate)} |`,
+    );
+  }
+  if (comparison !== undefined) {
+    lines.push(
+      '',
+      `## Against baseline \`${comparison.baselineCommit?.slice(0, 12) ?? 'unknown'}\``,
+      '',
+      '| Scenario | Model | Pass rate | Δ input | Δ output | Δ cache read | Δ cache write | Δ total |',
+      '| --- | --- | --- | ---: | ---: | ---: | ---: | ---: |',
+    );
+    for (const row of comparison.rows) {
+      if (!row.baseline || !row.current) {
+        lines.push(
+          `| ${row.id} | ${row.model} | ${row.baseline ? 'not run now' : 'new'} | | | | | |`,
+        );
+        continue;
+      }
+      const delta = row.tokenDelta;
+      lines.push(
+        `| ${row.id} | ${row.model} | ${percent(row.baseline.passRate)} → ${percent(row.current.passRate)} | ${signed(delta.inputTokens)} | ${signed(delta.outputTokens)} | ${signed(delta.cacheReadTokens)} | ${signed(delta.cacheWriteTokens)} | ${signed(delta.totalTokens)} (${signed(row.totalTokensChange, percent)}) |`,
+      );
+    }
+  }
+  return `${lines.join('\n')}\n`;
+}
+
+function localDay(date = new Date()) {
+  const month = `${date.getMonth() + 1}`.padStart(2, '0');
+  const day = `${date.getDate()}`.padStart(2, '0');
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
+function createContext(instance, scenario, timeoutSeconds, log, presetId) {
   const slugs = {};
   const call = (method, args) => rpc(instance, `botharness/${method}`, args);
   let messageCache = new Map();
@@ -224,13 +422,52 @@ function createContext(instance, scenario, timeoutSeconds, log) {
         });
         if (typeof created.bot?.slug !== 'string') throw new Error(`could not create ${key}`);
         slugs[key] = created.bot.slug;
+        await call('channelDm', {
+          slug: created.bot.slug,
+          displayName: cast.displayName,
+        });
+        if (presetId !== undefined)
+          await call('modelPresetApply', { slug: created.bot.slug, presetId });
       }
       log.bots = Object.fromEntries(Object.entries(slugs));
+    },
+    async usageRows(start) {
+      const filter = { start, end: localDay() };
+      const rows = [];
+      let ready = true;
+      for (const slug of Object.values(slugs)) {
+        const result = await call('profileUsage', {
+          channelId: `dm-${slug}`,
+          filter,
+        });
+        if (result.freshness !== 'ready') ready = false;
+        rows.push(...result.rows);
+      }
+      return { rows, ready };
+    },
+    async settledUsage(start, settleSeconds) {
+      const deadline = Date.now() + (settleSeconds + 60) * 1000;
+      let last;
+      let stableSince = Date.now();
+      for (;;) {
+        const { rows, ready } = await ctx.usageRows(start);
+        const usage = sumUsageRows(rows);
+        if (last === undefined || last.totalTokens !== usage.totalTokens || !ready)
+          stableSince = Date.now();
+        last = usage;
+        if (ready && Date.now() - stableSince >= settleSeconds * 1000)
+          return { ...usage, settled: true };
+        if (Date.now() >= deadline) return { ...usage, settled: false };
+        await delay(3000);
+      }
     },
     slug: (key) => slugs[key],
     isBot: (message, key) => message.author.kind === 'bot' && message.author.slug === slugs[key],
     async dm(key) {
-      const dm = await call('channelDm', { slug: slugs[key], displayName: CAST[key].displayName });
+      const dm = await call('channelDm', {
+        slug: slugs[key],
+        displayName: CAST[key].displayName,
+      });
       return dm.channel.id;
     },
     async mentionsOnlyGroup(keys) {
@@ -264,7 +501,11 @@ function createContext(instance, scenario, timeoutSeconds, log) {
         body += `@${label} `;
       }
       body += text;
-      await call('channelSend', { channelId, body, ...(mentions.length ? { mentions } : {}) });
+      await call('channelSend', {
+        channelId,
+        body,
+        ...(mentions.length ? { mentions } : {}),
+      });
       if (!log.channels.includes(channelId)) log.channels.push(channelId);
     },
     messages: (channelId) => messageCache.get(channelId) ?? [],
@@ -308,11 +549,14 @@ function summarize(message) {
   };
 }
 
-async function runScenario(instance, scenario, options) {
+async function runScenario(instance, scenario, options, route, presetId) {
   const attempts = [];
-  for (let attempt = 1; attempt <= options.attempts; attempt += 1) {
+  const model = modelLabel(route);
+  const total = options.runs ?? options.attempts;
+  for (let attempt = 1; attempt <= total; attempt += 1) {
     const log = { attempt, channels: [], startedAt: new Date().toISOString() };
-    const ctx = createContext(instance, scenario, options.timeoutSeconds, log);
+    const ctx = createContext(instance, scenario, options.timeoutSeconds, log, presetId);
+    const startDay = localDay();
     try {
       await ctx.setup();
       await scenario.run(ctx);
@@ -321,6 +565,17 @@ async function runScenario(instance, scenario, options) {
       log.result = 'fail';
       log.error = error instanceof Error ? error.message : String(error);
     }
+    try {
+      if (log.bots !== undefined)
+        log.usage = await ctx.settledUsage(startDay, options.settleSeconds);
+    } catch (error) {
+      log.usageError = error instanceof Error ? error.message : String(error);
+    }
+    if (
+      route !== undefined &&
+      log.usage?.routes.some((entry) => entry !== `${route.provider}/${route.model}`)
+    )
+      log.routeMismatch = log.usage.routes;
     log.transcript = Object.fromEntries(
       log.channels.map((channelId) => [channelId, ctx.messages(channelId).map(summarize)]),
     );
@@ -328,17 +583,46 @@ async function runScenario(instance, scenario, options) {
       log.proof.found = [log.proof.found].flat().map((message) => summarize(message));
     log.finishedAt = new Date().toISOString();
     attempts.push(log);
+    const tokens = log.usage
+      ? ` ${log.usage.totalTokens} tokens (in ${log.usage.inputTokens}, out ${log.usage.outputTokens}, cache read ${log.usage.cacheReadTokens}, cache write ${log.usage.cacheWriteTokens})`
+      : '';
     console.error(
-      `${scenario.id} attempt ${attempt}: ${log.result}${log.error ? ` (${log.error})` : ''}`,
+      `${scenario.id} [${model}] ${options.runs ? 'run' : 'attempt'} ${attempt}: ${log.result}${log.error ? ` (${log.error})` : ''}${tokens}`,
     );
-    if (log.result === 'pass') break;
+    if (log.result === 'pass' && options.runs === undefined) break;
   }
   return {
     id: scenario.id,
     summary: scenario.summary,
+    model,
+    ...(route === undefined ? {} : { route }),
     result: attempts.some((attempt) => attempt.result === 'pass') ? 'pass' : 'fail',
+    stats: summarizeAttempts(attempts),
     attempts,
   };
+}
+
+async function presetFor(instance, route) {
+  const call = (method, args) => rpc(instance, `botharness/${method}`, args);
+  const { models } = await call('modelCatalog', {});
+  const known = models.find(
+    (entry) => entry.provider === route.provider && entry.model === route.model,
+  );
+  if (!known)
+    throw new Error(
+      `${modelLabel(route)} is not in the Host model catalog; available: ${models.map((entry) => `${entry.provider}/${entry.model}`).join(', ')}`,
+    );
+  if (
+    route.reasoningEffort !== undefined &&
+    !known.efforts?.some((effort) => effort.id === route.reasoningEffort)
+  )
+    throw new Error(`${modelLabel(route)}: effort ${route.reasoningEffort} is not offered`);
+  const { preset } = await call('modelPresetCreate', {
+    name: `LLM e2e ${modelLabel(route)} ${Date.now()}`,
+    orchestrator: route,
+    assignmentDefault: route,
+  });
+  return preset.id;
 }
 
 function verifyApp(args) {
@@ -358,6 +642,14 @@ async function main() {
     console.log(usage);
     return;
   }
+  if (options.compare !== undefined) {
+    const [baseline, current] = options.compare.map((path) =>
+      JSON.parse(readFileSync(path, 'utf8')),
+    );
+    const rows = compareReports(baseline, current);
+    console.log(renderMarkdown(current, { baselineCommit: baseline.commit, rows }));
+    return;
+  }
   if (options.list) {
     console.log(
       JSON.stringify(
@@ -368,6 +660,8 @@ async function main() {
     );
     return;
   }
+  const baseline =
+    options.baseline === undefined ? undefined : JSON.parse(readFileSync(options.baseline, 'utf8'));
   const changed = options.changedFrom === undefined ? undefined : changedSince(options.changedFrom);
   const selected = selectScenarios(options, changed);
   if (selected.length === 0) {
@@ -387,10 +681,17 @@ async function main() {
       throw new Error(`no instance at ${paths.instance}; pass --launch or run verify-app launch`);
     const instance = JSON.parse(readFileSync(paths.instance, 'utf8'));
     const results = [];
-    for (const scenario of selected) results.push(await runScenario(instance, scenario, options));
+    const routes = options.models.length > 0 ? options.models : [undefined];
+    for (const route of routes) {
+      const presetId = route === undefined ? undefined : await presetFor(instance, route);
+      for (const scenario of selected)
+        results.push(await runScenario(instance, scenario, options, route, presetId));
+    }
     const report = {
       result: results.every((item) => item.result === 'pass') ? 'pass' : 'fail',
       model: instance.secret,
+      models: routes.map(modelLabel),
+      mode: options.runs === undefined ? { attempts: options.attempts } : { runs: options.runs },
       commit: execFileSync('git', ['rev-parse', 'HEAD'], {
         cwd: repoRoot,
         encoding: 'utf8',
@@ -408,15 +709,30 @@ async function main() {
         ),
     );
     mkdirSync(dirname(reportPath), { recursive: true });
+    const comparison =
+      baseline === undefined
+        ? undefined
+        : {
+            baselineCommit: baseline.commit,
+            rows: compareReports(baseline, report),
+          };
+    if (comparison !== undefined) report.comparison = comparison;
     writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
+    const summaryPath = reportPath.replace(/\.json$/u, '') + '.md';
+    writeFileSync(summaryPath, renderMarkdown(report, comparison));
     console.log(
       JSON.stringify(
         {
           result: report.result,
           report: reportPath,
-          scenarios: results.map(({ id, result, attempts }) => ({
+          summary: summaryPath,
+          scenarios: results.map(({ id, model, result, stats, attempts }) => ({
             id,
+            model,
             result,
+            passed: `${stats.passed}/${stats.runs}`,
+            meanTokens: stats.meanTokens,
+            cacheHitRate: stats.cacheHitRate,
             attempts: attempts.map((attempt) => attempt.result),
           })),
         },

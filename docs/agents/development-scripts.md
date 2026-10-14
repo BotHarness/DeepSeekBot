@@ -90,6 +90,25 @@ node scripts/e2e-llm-scenarios.mjs --launch --changed-from origin/main  # only w
 
 A scenario passes when any of its `--attempts` (default 2) passes; the JSON report under `.humanlayer/llm-e2e/` keeps every attempt and its transcript, so a flaky flow stays visible. The Host needs a model credential (see [AX shared default model](ax-model.md)); in a cloud container whose proxy injects `opencode.ai`, run `OPENCODE_GO_API_KEY=proxy-injected node scripts/dev-model.mjs setup --from-env` once.
 
+### Tokens and models
+
+Each attempt also records what its Bots spent, read from the Host's usage records (the same numbers as `deepseekbot bot-usage`): uncached input, output, cache-read and cache-write tokens. Use this to judge a design change on cost and on how each model copes, not only on pass/fail:
+
+```bash
+# Measure: 5 independent runs per scenario on each model (no retry), saved as the baseline.
+node scripts/e2e-llm-scenarios.mjs --launch --runs 5 \
+  --model opencode-go/deepseek-v4-flash --model opencode-go/glm-5.3-flash@low \
+  --report .humanlayer/llm-e2e/baseline.json
+# After the change: same runs, with deltas against the baseline.
+node scripts/e2e-llm-scenarios.mjs --launch --runs 5 \
+  --model opencode-go/deepseek-v4-flash --model opencode-go/glm-5.3-flash@low \
+  --baseline .humanlayer/llm-e2e/baseline.json
+# Compare two saved reports without running anything.
+node scripts/e2e-llm-scenarios.mjs --compare before.json after.json
+```
+
+`--model provider/model[@effort]` applies a Model Preset to every scenario Bot; the route must be in the Host's model catalog (`deepseekbot model-catalog`), and an attempt whose usage shows a different route is flagged `routeMismatch`. `--runs` counts every run, so the pass rate is measured; `--attempts` keeps retrying until one passes and suits a gate. Each report gets a Markdown table next to it (`.md`, and the workflow's job summary) with pass rate, mean tokens per run in each bucket and the cache-hit rate (cache read over all prompt tokens); with `--baseline` it adds the pass-rate change and token delta per scenario and model. Usage is read after the totals stop moving for `--settle` seconds (default 12), since Bots keep working after the asserted state; a run whose usage never settled says `settled: false`. A bucket the provider did not report makes that run's usage `(partial)`.
+
 The `llm e2e` workflow runs them nightly, after a push to `main` that touches a scenario's paths (only those scenarios), on manual dispatch, and on a pull request labeled `ci:llm-e2e`. It needs the `DEEPSEEK_API_KEY` repository secret and skips with a notice without it. It is never part of the required `verify` check. When a feature adds a model-driven flow, add a scenario with the paths it depends on.
 
 ## Generated assets and pages

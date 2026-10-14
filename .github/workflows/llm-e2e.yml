@@ -27,9 +27,17 @@ on:
         required: false
         default: ''
       attempts:
-        description: Attempts per scenario (1-5)
+        description: Attempts per scenario (1-5); ignored when runs is set
         required: false
         default: '2'
+      runs:
+        description: Fixed runs per scenario and model (1-20) to measure pass rate and tokens
+        required: false
+        default: ''
+      models:
+        description: Space-separated provider/model[@effort] routes (empty uses the Host default)
+        required: false
+        default: ''
 
 concurrency:
   group: llm-e2e-${{ github.event.pull_request.number || github.ref }}
@@ -79,14 +87,24 @@ jobs:
         env:
           SCENARIOS: ${{ github.event.inputs.scenarios }}
           ATTEMPTS: ${{ github.event.inputs.attempts || '2' }}
+          RUNS: ${{ github.event.inputs.runs }}
+          MODELS: ${{ github.event.inputs.models }}
           CHANGED_FROM: ${{ github.event_name == 'push' && github.event.before || '' }}
         run: |
-          args=(--launch --attempts "$ATTEMPTS" --report "$RUNNER_TEMP/llm-e2e/report.json")
+          args=(--launch --report "$RUNNER_TEMP/llm-e2e/report.json")
+          if [ -n "$RUNS" ]; then args+=(--runs "$RUNS"); else args+=(--attempts "$ATTEMPTS"); fi
           for id in $SCENARIOS; do args+=(--scenario "$id"); done
+          for model in $MODELS; do args+=(--model "$model"); done
           if [ -n "$CHANGED_FROM" ] && [ "$CHANGED_FROM" != "0000000000000000000000000000000000000000" ]; then
             args+=(--changed-from "$CHANGED_FROM")
           fi
           node scripts/e2e-llm-scenarios.mjs "${args[@]}"
+      - name: Token and model summary
+        if: always() && steps.key.outputs.present == 'true'
+        run: |
+          if [ -f "$RUNNER_TEMP/llm-e2e/report.md" ]; then
+            cat "$RUNNER_TEMP/llm-e2e/report.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
       - uses: actions/upload-artifact@v4
         if: always() && steps.key.outputs.present == 'true'
         with:
