@@ -12,7 +12,7 @@
 | `secret_cli`         | 带着密钥运行一个已安装的命令行工具，密钥只放进它的环境变量。Host 不经 shell 直接启动程序，工作目录是 Bot 的工作文件夹，受 Shell 沙箱约束，环境变量是干净的。         |
 | `secret_mcp_connect` | 为这个 Bot 的聊天会话启动一个 MCP 服务，密钥放进它的环境变量；它的工具以 `mcp__<server_name>__<工具>` 出现。`secret_mcp_disconnect` 用来断开，或列出当前连着的服务。 |
 
-每个使用方都需要 Human 执行审批。审批卡上只有引用和占位符，没有值。`secret_cli` 每次调用都要单独批准：卡片只有“仅批准这一次”和“拒绝”，已保存的规则不会覆盖它（[ADR-0191](../../adr/0191-a-bot-runs-a-command-line-tool-with-owner-secrets-per-approved-call.md)）。
+每个使用方都需要 Human 执行审批。审批卡上只有引用和占位符，没有值。`secret_cli` 卡片提供“批准一次”“总是允许此类”和“拒绝”。“此类”指程序名、账号和这组环境变量名，参数不算在内。“总是允许”会为这个 Bot 和角色保存一条可撤销的 `secret-cli` 规则，之后同类调用无论参数如何都不再出卡片；换了程序、账号或变量名会出新卡片。精确规则和全部不透明规则都不覆盖 `secret_cli`（[ADR-0191](../../adr/0191-a-bot-runs-a-command-line-tool-with-owner-secrets-per-approved-call.md)、[ADR-0208](../../adr/0208-secret-cli-can-be-always-allowed-per-program-and-account.md)）。
 
 ## 密钥靠什么保护
 
@@ -31,7 +31,7 @@
 
 某个沙箱 runner 第一次没能加上规则时，Host 会记录一条警告。DSH 升级如果改变了所依赖的 runner 命令行，`scripts/test/dsh-sandbox-shape.test.mjs` 会失败，届时需要调整 `credentials/store-guard.ts`。
 
-`secret_cli` 会把密钥交给它启动的程序。如果某个工具能打印或转发自己的凭据，而一次被批准的调用恰好要求这么做，它就会照做；把 shell 和解释器拒绝掉只是堵住最直接的路，不是安全边界。请在每张卡片上核对程序名和参数。
+`secret_cli` 会把密钥交给它启动的程序。如果某个工具能打印或转发自己的凭据，而一次被批准的调用恰好要求这么做，它就会照做；把 shell 和解释器拒绝掉只是堵住最直接的路，不是安全边界。请在每张卡片上核对程序名和参数。有了“总是允许”规则后就没有卡片可核对，同类调用可能让程序打印凭据；只对你信任任何参数的工具选“总是允许”。
 
 ## 命令行工具
 
@@ -42,7 +42,7 @@
 然后运行：mytool status
 ```
 
-Bot 会用 `program: mytool`、`args: ["status"]`、`env: [{ name: "MYTOOL_TOKEN", value: "{{token}}" }]` 调用 `secret_cli`。预期：审批卡写明程序和参数，没有保存规则的按钮；批准后 Bot 报告退出码和输出，token 显示为 `[secret]`。让它用这种方式运行 `sh -c 'echo $MYTOOL_TOKEN'` 会在弹出卡片之前被拒绝。
+Bot 会用 `program: mytool`、`args: ["status"]`、`env: [{ name: "MYTOOL_TOKEN", value: "{{token}}" }]` 调用 `secret_cli`。预期：审批卡写明程序和参数，提供“批准一次”“总是允许此类”和“拒绝”；批准后 Bot 报告退出码和输出，token 显示为 `[secret]`。让它用这种方式运行 `sh -c 'echo $MYTOOL_TOKEN'` 会在弹出卡片之前被拒绝。
 
 ## MCP 服务
 

@@ -6,6 +6,7 @@ Date: 2026-09-24
 # Workspace Grants bound PersonaBot file access
 
 > Amended by [ADR-0193](0193-full-access-also-unconfines-the-orchestrator.md): while the dangerous preset is on, the Orchestrator is unconfined too.
+> Amended by [ADR-0205](0205-bot-sessions-follow-dsh-permission-mode-for-shell-and-plugin-tools.md): Shell and other opaque tools follow the Session's DSH mode without a BotHarness approval for each call; DSH's own asks appear in the Bot Channel.
 
 ADR-0048 made a Workspace Grant the durable authority for admitting one-cwd Assignments. Human QA then showed that an Orchestrator could use native bash and read to inspect a project file after its Grant was revoked: DSH workspace-write governs writes under one Session cwd and backend temp area but does not isolate reads. A visible list of granted folders therefore cannot truthfully mean file access unless every file-capable operation honors it.
 

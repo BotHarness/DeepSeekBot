@@ -39,6 +39,7 @@ vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
 vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
+vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
 vi.mock('expo-speech-recognition', () => ({
   ExpoSpeechRecognitionModule: {
     isRecognitionAvailable: () => speech.available,
@@ -56,6 +57,7 @@ vi.mock('expo-speech-recognition', () => ({
 const { Composer } = await import('../src/ui/chat/composer');
 const { useDictation } = await import('../src/host/speech');
 const { t } = await import('../src/ui/strings');
+const { played } = await import('./expo-haptics-shim');
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -157,8 +159,10 @@ describe('Composer dictation', () => {
     expect(field().value).toBe('Book a table for two.');
     expect(field().disabled).toBe(false);
     expect(button(t.dictate)).toBeNull();
+    expect(played).toEqual([]);
     await press(t.send);
     expect(sent).toHaveBeenCalledWith('Book a table for two.');
+    expect(played).toEqual(['impact:light']);
   });
 
   it('cancels a dictation and clears what it had written', async () => {

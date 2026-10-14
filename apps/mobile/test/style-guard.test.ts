@@ -23,6 +23,9 @@ const LITERAL_COLOR =
 const LITERAL_SCALE =
   /\b(?:fontSize|lineHeight|fontWeight|letterSpacing|gap|rowGap|columnGap|padding\w*|margin\w*|border\w*Radius|borderRadius|border\w*Width)\s*:\s*(?:-?[1-9]|['"`]\d)/;
 
+const TRANSLUCENT_FILL =
+  /backgroundColor[^,]*theme\.color\.(?:hover|selected|divider|border|borderStrong|borderField|dangerSoft)\b/;
+
 function sources(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
     const path = join(dir, name);
@@ -46,6 +49,18 @@ const files = [...sources(join(root, 'app')), ...sources(join(root, 'src/ui'))];
 describe('mobile style guard', () => {
   it('keeps colour, type, spacing, radius and edge values on the design tokens', () => {
     expect(files.filter((file) => !LEGACY.has(file)).flatMap(violations)).toEqual([]);
+  });
+
+  it('paints fills from opaque layer states, never a translucent role', () => {
+    expect(
+      files.flatMap((file) =>
+        readFileSync(join(root, file), 'utf8')
+          .split('\n')
+          .flatMap((line, index) =>
+            TRANSLUCENT_FILL.test(line) ? [`${file}:${index + 1}: ${line.trim()}`] : [],
+          ),
+      ),
+    ).toEqual([]);
   });
 
   it('drops a legacy file from the list once it is on the tokens', () => {

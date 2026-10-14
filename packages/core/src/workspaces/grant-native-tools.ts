@@ -18,6 +18,8 @@ export const NATIVE_FILE_TOOL_NAMES = new Set([
   'grep',
 ]);
 
+export const NATIVE_SHELL_TOOL_NAMES = new Set(['bash', 'pwsh']);
+
 function within(root: string, target: string): boolean {
   const tail = relative(root, target);
   return tail === '' || (tail !== '..' && !tail.startsWith('..' + sep) && !isAbsolute(tail));
@@ -148,10 +150,10 @@ export function nativeExecutionRoot(
   args: unknown,
 ): string {
   const input = typeof args === 'object' && args !== null ? (args as Record<string, unknown>) : {};
-  const request =
-    name === 'bash'
-      ? { path: typeof input.workdir === 'string' ? input.workdir : '.', kind: 'write' as const }
-      : nativePath(name, args);
+  const shell = NATIVE_SHELL_TOOL_NAMES.has(name);
+  const request = shell
+    ? { path: typeof input.workdir === 'string' ? input.workdir : '.', kind: 'write' as const }
+    : nativePath(name, args);
   if (request === undefined || session.header.cwd === undefined)
     throw new Error('BotHarness requires an authorized execution path');
   const target = canonicalTarget(resolve(session.header.cwd, request.path));
@@ -161,7 +163,7 @@ export function nativeExecutionRoot(
         session.id,
         target,
         request.kind,
-        name === 'bash',
+        shell,
       );
       if (original !== undefined) return original;
     }

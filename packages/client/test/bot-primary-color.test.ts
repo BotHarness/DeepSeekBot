@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  BUBBLE_SEPARATION,
+  BUBBLE_SURFACES,
   botNameColor,
+  humanBubbleColors,
   contrastRatio,
   NAME_CONTRAST,
   parseColor,
@@ -81,5 +84,28 @@ describe('Bot name color', () => {
     expect(toHex([255, 0, 16])).toBe('#ff0010');
     expect(parseColor('transparent')).toBeUndefined();
     expect(botNameColor('#ff0000', 'transparent')).toBe('#ff0000');
+  });
+});
+
+describe('Human bubble colour', () => {
+  it('separates from the chat and the Bot bubble and keeps its text at 4.5:1', () => {
+    for (const theme of ['light', 'dark'] as const)
+      for (const [name, source] of Object.entries({ ...SOURCES, brand: '#4176e6' })) {
+        const colors = humanBubbleColors(source, theme)!;
+        const fill = rgb(colors.fill);
+        const label = `${name} in ${theme} -> ${colors.fill}/${colors.ink}`;
+        expect(contrastRatio(fill, rgb(colors.ink)), label).toBeGreaterThanOrEqual(NAME_CONTRAST);
+        for (const behind of [BUBBLE_SURFACES[theme].base, BUBBLE_SURFACES[theme].surface])
+          expect(contrastRatio(fill, rgb(behind)), `${label} on ${behind}`).toBeGreaterThanOrEqual(
+            BUBBLE_SEPARATION,
+          );
+      }
+  });
+
+  it('keeps a light colour and gives it dark text', () => {
+    expect(humanBubbleColors('#f5c400', 'light')).toEqual({
+      fill: '#f5c400',
+      ink: '#0f1115',
+    });
   });
 });

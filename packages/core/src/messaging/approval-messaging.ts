@@ -54,7 +54,7 @@ export interface ApprovalDelivery {
     scopeKey: string;
     presented: boolean;
   };
-  savedRuleKind?: 'exact' | 'all-opaque';
+  savedRuleKind?: 'exact' | 'all-opaque' | 'secret-cli';
   savedRuleId?: string;
 }
 export interface ApprovalMessagingSnapshot {
@@ -229,17 +229,21 @@ export function createApprovalMessaging(options: {
       ...(value.savedRuleId
         ? [
             savedRuleStatus(value) === 'active'
-              ? value.savedRuleKind === 'all-opaque'
-                ? 'All-opaque rule saved for this scope; current creator authority is checked before every future call / 已保存此范围内全部不透明工具规则；每次调用前检查创建人的当前权限'
-                : 'Exact matching rule saved; current creator authority is checked before every future call / 已保存精确匹配规则；每次调用前检查创建人的当前权限'
+              ? value.savedRuleKind === 'secret-cli'
+                ? 'Always-allow rule saved for this program, account and variable names; current creator authority is checked before every future call / 已保存“总是允许此类”规则（同一程序、账号和变量名）；每次调用前检查创建人的当前权限'
+                : value.savedRuleKind === 'all-opaque'
+                  ? 'All-opaque rule saved for this scope; current creator authority is checked before every future call / 已保存此范围内全部不透明工具规则；每次调用前检查创建人的当前权限'
+                  : 'Exact matching rule saved; current creator authority is checked before every future call / 已保存精确匹配规则；每次调用前检查创建人的当前权限'
               : 'Saved rule disabled or unavailable; inspect Web and create a new confirmed rule to allow future calls / 已保存的规则已停用或不可用；请查看 Web，需重新确认创建规则才能批准后续调用',
           ]
         : []),
       ...(value.status === 'pending' && value.ruleConfirmation
         ? [
-            value.ruleConfirmation.kind === 'all-opaque'
-              ? 'HIGH RISK: Confirm saving a rule for ALL opaque tools and ALL inputs in the displayed scope AND allowing this call. Future commands need not match this example and may access files outside authorized folders or the network. Limited to this Bot, execution role, directory and current Grant IDs/write revisions. Native/Workspace/Service authority is not expanded. Creator authority loss permanently disables this rule. / 高风险：确认保存所示范围内全部不透明工具、全部参数的规则，并批准本次调用。后续命令无需匹配当前示例，可能访问授权文件夹之外的文件或网络。仅限当前 Bot、执行角色、目录及 Grant ID／写入版本；不扩大原生、工作区或 Service 授权。创建人权限失效会永久停用规则。'
-              : 'Confirm saving an exact rule AND allowing this call. Only the same complete tool name/input, this Bot execution role and current Workspace Grant scope match. Native/Workspace/Service authority is not expanded. Creator authority loss permanently disables the rule. / 确认保存精确规则并批准本次调用。仅匹配完整工具名与参数、当前 Bot 执行角色及 Workspace Grant 范围；不扩大原生、工作区或 Service 授权。创建人权限失效会停用规则。',
+            notice?.toolName === 'secret_cli'
+              ? 'Confirm always allowing this kind AND this call. Any later call with the same program, account and environment variable names runs without asking, with any arguments, including one that prints the secret. Limited to this Bot, execution role and current Workspace Grant scope. Creator authority loss permanently disables the rule. / 确认“总是允许此类”并批准本次调用。之后同一程序、同一账号、同一组环境变量名的调用不再询问，参数不限，包括会打印密钥的参数。仅限当前 Bot、执行角色及 Workspace Grant 范围；创建人权限失效会永久停用规则。'
+              : value.ruleConfirmation.kind === 'all-opaque'
+                ? 'HIGH RISK: Confirm saving a rule for ALL opaque tools and ALL inputs in the displayed scope AND allowing this call. Future commands need not match this example and may access files outside authorized folders or the network. Limited to this Bot, execution role, directory and current Grant IDs/write revisions. Native/Workspace/Service authority is not expanded. Creator authority loss permanently disables this rule. / 高风险：确认保存所示范围内全部不透明工具、全部参数的规则，并批准本次调用。后续命令无需匹配当前示例，可能访问授权文件夹之外的文件或网络。仅限当前 Bot、执行角色、目录及 Grant ID／写入版本；不扩大原生、工作区或 Service 授权。创建人权限失效会永久停用规则。'
+                : 'Confirm saving an exact rule AND allowing this call. Only the same complete tool name/input, this Bot execution role and current Workspace Grant scope match. Native/Workspace/Service authority is not expanded. Creator authority loss permanently disables the rule. / 确认保存精确规则并批准本次调用。仅匹配完整工具名与参数、当前 Bot 执行角色及 Workspace Grant 范围；不扩大原生、工作区或 Service 授权。创建人权限失效会停用规则。',
           ]
         : []),
       ...(resultText.has(value.id) ? [resultText.get(value.id)!] : []),
@@ -267,9 +271,10 @@ export function createApprovalMessaging(options: {
             ruleAllowed(value) &&
             owner?.ruleScope(value.botSlug, value.requestMessageId!)
           ? {
-              rules: ruleAllowed(value, 'all-opaque')
-                ? (['exact', 'all-opaque'] as ['exact', 'all-opaque'])
-                : (['exact'] as ['exact']),
+              rules:
+                notice?.toolName !== 'secret_cli' && ruleAllowed(value, 'all-opaque')
+                  ? (['exact', 'all-opaque'] as ['exact', 'all-opaque'])
+                  : (['exact'] as ['exact']),
             }
           : {}),
     };
@@ -800,7 +805,11 @@ export function createApprovalMessaging(options: {
           event.action === 'preview-all-opaque' || event.action === 'confirm-all-opaque'
             ? 'all-opaque'
             : 'exact';
-        if (!ruleAllowed(value, kind)) return { accepted: true, status: 'refused' };
+        if (
+          !ruleAllowed(value, kind) ||
+          (kind === 'all-opaque' && canonical(value)?.toolName === 'secret_cli')
+        )
+          return { accepted: true, status: 'refused' };
         if (event.action === 'preview-exact' || event.action === 'preview-all-opaque') {
           if (event.confirmationId || render(value).detail.length > 15000)
             return { accepted: true, status: 'refused' };
@@ -913,7 +922,9 @@ export function createApprovalMessaging(options: {
                   write({
                     ...latest,
                     actor,
-                    ...(confirmedRule ? { savedRuleKind: confirmedRule.kind } : {}),
+                    ...(confirmedRule
+                      ? { savedRuleKind: latest.savedRuleKind ?? confirmedRule.kind }
+                      : {}),
                   });
                   if (event.kind === 'approval-rule') void update(value.id);
                 }

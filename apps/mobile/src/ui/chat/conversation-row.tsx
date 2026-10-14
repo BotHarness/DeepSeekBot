@@ -48,7 +48,7 @@ export function ConversationRow({
         minHeight: theme.touch,
         paddingHorizontal: space.x5,
         paddingVertical: space.x3,
-        backgroundColor: pressed ? theme.color.hover : theme.color.base,
+        backgroundColor: pressed ? theme.layer.canvas.pressed : theme.layer.canvas.fill,
       })}
     >
       {row.kind === 'bot' ? (

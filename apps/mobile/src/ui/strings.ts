@@ -2,6 +2,15 @@ import type { PairingRefusal } from '../host/pairing';
 import type { PushKind, PushRefusal } from '../host/push';
 import type { AggregatedState } from '../host/wire';
 
+type ToolGroup = 'shell' | 'browser' | 'files' | 'other';
+
+function toolGroup(tool: string): ToolGroup {
+  if (/^(bash|shell|exec|secret_cli)$/u.test(tool)) return 'shell';
+  if (tool.startsWith('browser')) return 'browser';
+  if (/^(read|write|edit|glob|grep|list)$/u.test(tool)) return 'files';
+  return 'other';
+}
+
 const en = {
   roster: 'DeepSeekBot',
   bots: 'PersonaBots',
@@ -52,6 +61,14 @@ const en = {
     handled: 'Handled',
   },
   inboxEmpty: 'Nothing needs you right now.',
+  filterActivity: 'Filter activity',
+  filterAll: 'All',
+  filterAllBots: 'All Bots',
+  filterChip: (label: string, count: number) => `${label}, ${count}`,
+  filterEmpty: 'Nothing here.',
+  sectionCount: (label: string, count: number) => `${label} · ${count}`,
+  openPost: (kind: string, name: string, summary: string) =>
+    `${kind}, ${name}, ${summary}. Open in chat`,
   inboxLoading: 'Reading your Inbox…',
   inboxStale: 'Showing the last Inbox read. It could not be refreshed:',
   inboxFailed: 'Could not read your Inbox.',
@@ -65,6 +82,7 @@ const en = {
     'channel-reply': 'Reply',
   } as Record<string, string>,
   otherKind: 'Update',
+  rowTitle: (kind: string, name: string) => `${kind} · ${name}`,
   inChannel: (name: string) => `in #${name}`,
   wantsToRun: (bot: string, tool: string) => `${bot} wants to run ${tool}`,
   asks: (bot: string) => `${bot} asks`,
@@ -74,6 +92,7 @@ const en = {
   reject: 'Reject',
   submit: 'Send answer',
   otherAnswer: 'Other answer',
+  typeAnswer: 'Type your answer',
   multiSelectHint: 'Choose any that apply',
   sending: 'Sending…',
   approved: 'Allowed. The PersonaBot continues.',
@@ -139,6 +158,18 @@ const en = {
   dmRefused: 'This DM is not available on your computer.',
   openImage: (name: string) => `Open ${name}`,
   shareFile: (name: string) => `Download and share ${name}`,
+  copy: 'Copy',
+  copied: 'Copied',
+  cancel: 'Cancel',
+  copyHint: 'Long-press for Copy.',
+  messageActionsHint: 'Long-press to react or copy.',
+  messageActions: 'Message actions',
+  react: (emoji: string) => `React with ${emoji}`,
+  unreact: (emoji: string) => `Remove your ${emoji}`,
+  reactionSummary: (names: string, emoji: string) => `${names} reacted with ${emoji}`,
+  reactionYou: 'You',
+  reactionSeparator: ', ',
+  reactFailed: 'That reaction did not reach your computer.',
   closeViewer: 'Close',
   viewerHint: 'Pinch or double-tap to zoom. Swipe down to close.',
   imageUnavailable: 'Image unavailable. Tap to retry.',
@@ -153,6 +184,11 @@ const en = {
   tool: 'Tool',
   submitChoice: 'Submit',
   inFolder: (folder: string) => `In ${folder}`,
+  needsYou: 'Needs you',
+  toolCategory: (tool: string) =>
+    ({ shell: 'Terminal', browser: 'Browser', files: 'Files', other: 'Tool' })[toolGroup(tool)],
+  runTool: (tool: string) => (toolGroup(tool) === 'shell' ? 'Run this command' : `Use ${tool}`),
+  replyInChat: 'Or reply in the chat below.',
   option: (letter: string, label: string) => `${letter}. ${label}`,
   cardOutcome: {
     'allowed-once': 'Allowed once',
@@ -276,6 +312,24 @@ const en = {
   routineCron: (expression: string) => `Cron ${expression}`,
   folderCanEdit: 'Can edit',
   folderReadOnly: 'Read only',
+  profileBrowser: 'Browser',
+  browserTitle: (name: string) => `${name}'s Browser`,
+  browserClose: 'Close the Browser',
+  browserLoading: 'Loading the Browser…',
+  browserNotRunning: 'The Browser is not running. It appears here when the Bot opens a page.',
+  browserNoAccess:
+    'Browser Access is off for this Bot. Turn it on in the Bot settings on your computer.',
+  browserUnreachable: 'Cannot reach the Browser on your computer.',
+  browserRevoked: "Your computer revoked this phone's access.",
+  browserBotDriving: 'The Bot is using the Browser. Pause it to take over.',
+  browserYouDriving: 'You have the Browser. Resume to hand it back.',
+  browserPause: 'Pause Bot',
+  browserResume: 'Resume',
+  browserDirect: 'Tap',
+  browserTrackpad: 'Trackpad',
+  browserKeyboard: 'Keyboard',
+  browserTypeHere: 'Type to send keys',
+  browserView: 'Live view of the Bot Browser',
 };
 
 const zh: typeof en = {
@@ -326,6 +380,14 @@ const zh: typeof en = {
     handled: '已处理',
   },
   inboxEmpty: '现在没有需要你处理的事。',
+  filterActivity: '筛选活动',
+  filterAll: '全部',
+  filterAllBots: '全部 Bot',
+  filterChip: (label: string, count: number) => `${label}，${count} 条`,
+  filterEmpty: '这里没有内容。',
+  sectionCount: (label: string, count: number) => `${label} · ${count}`,
+  openPost: (kind: string, name: string, summary: string) =>
+    `${kind}，${name}，${summary}。在聊天中打开`,
   inboxLoading: '正在读取收件箱…',
   inboxStale: '显示的是上次读取的收件箱，刷新失败：',
   inboxFailed: '无法读取收件箱。',
@@ -339,6 +401,7 @@ const zh: typeof en = {
     'channel-reply': '回复',
   },
   otherKind: '动态',
+  rowTitle: (kind: string, name: string) => `${kind} · ${name}`,
   inChannel: (name: string) => `在 #${name}`,
   wantsToRun: (bot: string, tool: string) => `${bot} 想要运行 ${tool}`,
   asks: (bot: string) => `${bot} 问你`,
@@ -348,6 +411,7 @@ const zh: typeof en = {
   reject: '拒绝',
   submit: '发送回答',
   otherAnswer: '其他回答',
+  typeAnswer: '输入你的回答',
   multiSelectHint: '可多选',
   sending: '正在发送…',
   approved: '已允许，PersonaBot 继续工作。',
@@ -410,6 +474,18 @@ const zh: typeof en = {
   dmRefused: '你的电脑上已经没有这个私信。',
   openImage: (name: string) => `查看 ${name}`,
   shareFile: (name: string) => `下载并分享 ${name}`,
+  copy: '复制',
+  copied: '已复制',
+  cancel: '取消',
+  copyHint: '长按可复制。',
+  messageActionsHint: '长按可回应或复制。',
+  messageActions: '消息操作',
+  react: (emoji: string) => `回应 ${emoji}`,
+  unreact: (emoji: string) => `取消你的 ${emoji}`,
+  reactionSummary: (names: string, emoji: string) => `${names} 用 ${emoji} 回应`,
+  reactionYou: '你',
+  reactionSeparator: '、',
+  reactFailed: '这个表情回应没有送到你的电脑。',
   closeViewer: '关闭',
   viewerHint: '双指或双击缩放，下滑关闭。',
   imageUnavailable: '图片无法显示，点按重试。',
@@ -424,6 +500,11 @@ const zh: typeof en = {
   tool: '工具',
   submitChoice: '提交',
   inFolder: (folder: string) => `在 ${folder}`,
+  needsYou: '需要你确认',
+  toolCategory: (tool: string) =>
+    ({ shell: '终端', browser: '浏览器', files: '文件', other: '工具' })[toolGroup(tool)],
+  runTool: (tool: string) => (toolGroup(tool) === 'shell' ? '运行这条命令' : `使用 ${tool}`),
+  replyInChat: '或者在下方聊天中回复。',
   option: (letter: string, label: string) => `${letter}. ${label}`,
   cardOutcome: {
     'allowed-once': '已允许一次',
@@ -546,6 +627,23 @@ const zh: typeof en = {
   routineCron: (expression: string) => `Cron ${expression}`,
   folderCanEdit: '可编辑',
   folderReadOnly: '只读',
+  profileBrowser: '浏览器',
+  browserTitle: (name: string) => `${name} 的浏览器`,
+  browserClose: '关闭浏览器',
+  browserLoading: '正在加载浏览器…',
+  browserNotRunning: '浏览器没有运行。Bot 打开网页后会显示在这里。',
+  browserNoAccess: '这个 Bot 没有开启浏览器权限。请在电脑上的 Bot 设置里开启。',
+  browserUnreachable: '无法连接电脑上的浏览器。',
+  browserRevoked: '你的电脑已撤销这台手机的访问权限。',
+  browserBotDriving: 'Bot 正在使用浏览器。暂停它即可接管。',
+  browserYouDriving: '你正在控制浏览器。点继续交还给 Bot。',
+  browserPause: '暂停 Bot',
+  browserResume: '继续',
+  browserDirect: '点按',
+  browserTrackpad: '触控板',
+  browserKeyboard: '键盘',
+  browserTypeHere: '输入文字发送按键',
+  browserView: 'Bot 浏览器的实时画面',
 };
 
 export const locale: 'zh' | 'en' = Intl.DateTimeFormat()

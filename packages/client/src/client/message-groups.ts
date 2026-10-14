@@ -5,12 +5,19 @@ export interface MessageGroup {
   messages: ChannelMessage[];
 }
 
-export function groupChannelMessages(messages: readonly ChannelMessage[]): MessageGroup[] {
+export function groupChannelMessages(
+  messages: readonly ChannelMessage[],
+  breakAfter?: string,
+): MessageGroup[] {
   const groups: MessageGroup[] = [];
   for (const message of messages) {
     const last = groups.at(-1);
     const first = last?.messages[0];
     const previous = last?.messages.at(-1);
+    if (previous !== undefined && previous.id === breakAfter) {
+      groups.push({ key: message.id, messages: [message] });
+      continue;
+    }
     const firstAt = first === undefined ? NaN : Date.parse(first.at);
     const previousAt = previous === undefined ? NaN : Date.parse(previous.at);
     const at = Date.parse(message.at);

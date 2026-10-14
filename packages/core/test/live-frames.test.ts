@@ -3,7 +3,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { LiveRefused, openLiveFrames, parseLiveFrame } from '../src/channels/live-frames.js';
-import { createChannelLiveHub, type ChannelLiveHub } from '../src/channels/live.js';
+import type { AssistantStreamFrame } from '@deepseek-ai/dsh-agent';
+import { ChannelDraftTracker } from '../src/channels/draft.js';
+import {
+  createChannelLiveHub,
+  type ChannelLiveFrame,
+  type ChannelLiveHub,
+  type DraftDelivery,
+} from '../src/channels/live.js';
 import { createChannelStore } from '../src/channels/store.js';
 import { followCompanion } from '../src/companions/live.js';
 
@@ -257,6 +264,118 @@ describe('live frames on the native stream carrier', () => {
     await expect(refused('missing', 50)).rejects.toMatchObject({ code: 'not-found' });
     await expect(refused(group.id, 0)).rejects.toMatchObject({ code: 'invalid' });
     await expect(refused(group.id, 9999)).rejects.toMatchObject({ code: 'invalid' });
+  });
+
+  it('streams drafts as appended text to followers that ask, rebuilding the same bodies', async () => {
+    const store = createChannelStore({ rootDir: root() });
+    const dm = store.createGroup({ name: 'Team', members: [] });
+    const hub = createChannelLiveHub(store);
+    hubs.push(hub);
+    const abort = new AbortController();
+    const follow = (drafts?: DraftDelivery) => {
+      const frames: ChannelLiveFrame[] = [];
+      const done = (async () => {
+        for await (const frame of hub.followChannel(dm.id, 10, abort.signal, drafts))
+          frames.push(frame);
+      })();
+      return { frames, done };
+    };
+    const notifications = (frames: ChannelLiveFrame[]) =>
+      frames.flatMap((frame) => (frame.type === 'notification' ? [frame.notification] : []));
+    const full = follow();
+    const appended = follow('append');
+    await Promise.resolve();
+
+    const tracker = new ChannelDraftTracker((event) => hub.publishDraft(event));
+    tracker.begin('orchestrator-ada', { channelId: dm.id, botSlug: 'ada', canAccess: () => true });
+    const reply = 'The quick brown fox, 你好。'.repeat(80);
+    const fragments = ['{"body":"', ...reply.match(/.{1,3}/gsu)!, '"}'];
+    for (const [index, fragment] of fragments.entries())
+      tracker.accept('orchestrator-ada', {
+        type: 'chunk',
+        attemptId: 'attempt-1',
+        revision: 1,
+        index,
+        time: 1,
+        chunk: {
+          type: 'tool-call-delta',
+          index: 0,
+          id: 'call-1',
+          name: 'channel_send',
+          argumentsDelta: fragment,
+        },
+      } as AssistantStreamFrame);
+    const late = follow('append');
+    await Promise.resolve();
+    hub.publishDraft({
+      type: 'update',
+      draft: {
+        channelId: dm.id,
+        draftId: 'attempt-1:call-1',
+        attemptId: 'attempt-1',
+        botSlug: 'ada',
+        body: reply + '!',
+      },
+    });
+    hub.publishDraft({
+      type: 'update',
+      draft: {
+        channelId: dm.id,
+        draftId: 'attempt-1:call-1',
+        attemptId: 'attempt-1',
+        botSlug: 'ada',
+        body: 'rewritten',
+      },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    abort.abort();
+    await Promise.all([full.done, appended.done, late.done]);
+
+    const fullBodies = notifications(full.frames).flatMap((item) =>
+      item.kind === 'draft' ? [item.draft.body] : [],
+    );
+    expect(notifications(full.frames).some((item) => item.kind === 'draft-append')).toBe(false);
+    expect(fullBodies.at(-2)).toBe(reply + '!');
+    const rebuild = (frames: ChannelLiveFrame[]) => {
+      const bodies: string[] = [];
+      let body: string | undefined;
+      let revision: number | undefined;
+      for (const item of notifications(frames)) {
+        if (item.kind === 'draft-baseline') {
+          const draft = item.drafts[0];
+          body = draft?.body;
+          revision = draft?.revision;
+        } else if (item.kind === 'draft') {
+          body = item.draft.body;
+          revision = item.draft.revision;
+          bodies.push(body);
+        } else if (item.kind === 'draft-append') {
+          expect(item.append).toMatchObject({ base: revision, offset: body?.length });
+          body = body + item.append.append;
+          revision = item.append.revision;
+          bodies.push(body);
+        }
+      }
+      return bodies;
+    };
+    expect(rebuild(appended.frames)).toEqual(fullBodies);
+    expect(rebuild(late.frames)).toEqual(fullBodies.slice(-2));
+    const kinds = notifications(appended.frames).map((item) => item.kind);
+    expect(kinds.filter((kind) => kind === 'draft')).toHaveLength(2);
+    expect(kinds.filter((kind) => kind === 'draft-append')).toHaveLength(fullBodies.length - 2);
+
+    const bytes = (frames: ChannelLiveFrame[]) =>
+      notifications(frames)
+        .filter((item) => item.kind === 'draft' || item.kind === 'draft-append')
+        .reduce((total, item) => total + Buffer.byteLength(JSON.stringify(item)), 0);
+    expect(bytes(appended.frames) * 10).toBeLessThan(bytes(full.frames));
+
+    await expect(
+      hub
+        .followChannel(dm.id, 10, new AbortController().signal, 'bogus' as DraftDelivery)
+        [Symbol.asyncIterator]()
+        .next(),
+    ).rejects.toMatchObject({ code: 'invalid' });
   });
 
   it('follows the Companion feed as typed frames, passing resume identity and refusals through', async () => {

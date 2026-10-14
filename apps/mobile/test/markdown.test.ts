@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { inlineText, parseInline, parseMarkdown } from '../src/ui/markdown';
+import {
+  inlineText,
+  parseInline,
+  parseMarkdown,
+  streamMarkdown,
+  type MarkdownStream,
+} from '../src/ui/markdown';
 
 describe('Markdown reader', () => {
   it('reads the blocks a PersonaBot reply uses', () => {
@@ -95,5 +101,86 @@ describe('Markdown reader', () => {
       { type: 'del', children: [{ type: 'text', text: 'gone' }] },
     ]);
     expect(parseMarkdown('```\nunterminated')).toEqual([{ type: 'code', text: 'unterminated' }]);
+  });
+});
+
+const STREAMED = [
+  [
+    '# Plan',
+    '',
+    'First **bold** and `code`.',
+    'Second line.',
+    '',
+    '- one',
+    '- two',
+    '  - nested',
+    '',
+    '  continued item',
+    '',
+    '1. first',
+    '',
+    '2. second',
+    '',
+    '```ts',
+    'const a = 1;',
+    '',
+    'const b = 2;',
+    '```',
+    '',
+    '> quoted',
+    '>',
+    '> more',
+    '',
+    '| a | b |',
+    '| - | - |',
+    '| 1 | 2 |',
+    '',
+    '---',
+    '',
+    'Done with [a link](https://example.com).',
+    '',
+  ].join('\n'),
+  [
+    '- a',
+    '  ```',
+    '',
+    'code',
+    '  ```',
+    'more',
+    '',
+    'X',
+    '',
+    '~~~',
+    'open fence',
+    '',
+    'still code',
+    '',
+  ].join('\r\n'),
+];
+
+describe('streamed Markdown', () => {
+  it('matches a full parse at every point of a streamed reply', () => {
+    for (const source of STREAMED) {
+      let stream: MarkdownStream | undefined;
+      for (let length = 0; length <= source.length; length += 1) {
+        stream = streamMarkdown(source.slice(0, length), stream);
+        expect(stream.blocks).toEqual(parseMarkdown(source.slice(0, length)));
+      }
+    }
+  });
+
+  it('keeps closed blocks and re-parses only the open tail', () => {
+    const first = streamMarkdown('# Plan\n\nOne paragraph.\n\nSecond\n');
+    const second = streamMarkdown('# Plan\n\nOne paragraph.\n\nSecond\ngrows', first);
+    expect(first.frozen).toHaveLength(2);
+    expect(second.blocks[0]).toBe(first.blocks[0]);
+    expect(second.blocks[1]).toBe(first.blocks[1]);
+    expect(second.blocks[2]).toEqual(parseMarkdown('Second\ngrows')[0]);
+  });
+
+  it('starts over when the draft is rewritten rather than extended', () => {
+    const first = streamMarkdown('# Plan\n\nOne paragraph.\n\nSecond');
+    const rewritten = streamMarkdown('Something else\n\nentirely', first);
+    expect(rewritten.blocks).toEqual(parseMarkdown('Something else\n\nentirely'));
   });
 });

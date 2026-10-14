@@ -1,13 +1,9 @@
-import { mkdtempSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-
 import { describe, expect, it, vi } from 'vitest';
 
 import {
   deviceToolAuthorization,
   grantExecutionDenial,
-  isSafeMemoryDirectoryListing,
+  isDshGovernedTool,
   grantToolExecutionDenial,
   orchestratorPermission,
   requiresHumanToolApproval,
@@ -22,9 +18,19 @@ const cwd = '/tmp/grant-workspace';
 function fixture() {
   const resolve = vi.fn((sessionId: string) =>
     sessionId === assignmentSessionId
-      ? { sessionId, botSlug, rootRole: 'assignment', parentSessionId: undefined }
+      ? {
+          sessionId,
+          botSlug,
+          rootRole: 'assignment',
+          parentSessionId: undefined,
+        }
       : sessionId === 'botharness-orchestrator'
-        ? { sessionId, botSlug, rootRole: 'orchestrator', parentSessionId: undefined }
+        ? {
+            sessionId,
+            botSlug,
+            rootRole: 'orchestrator',
+            parentSessionId: undefined,
+          }
         : undefined,
   );
   const requireActive = vi.fn(() => ({
@@ -74,7 +80,10 @@ describe('Workspace Grant execution boundary', () => {
   it('recognizes full access from an Assignment snapshot or the chat-scoped preset only', () => {
     const state = fixture();
     const get = vi.fn((): { mode: string; scope: string } | undefined => undefined);
-    const core = { ...(state.core as object), assignmentAccess: { get } } as never;
+    const core = {
+      ...(state.core as object),
+      assignmentAccess: { get },
+    } as never;
     expect(sessionHasFullAccess(core, assignmentSessionId)).toBe(false);
     expect(sessionHasFullAccess(core, 'botharness-orchestrator')).toBe(false);
     expect(sessionHasFullAccess(core, 'native-session')).toBe(false);
@@ -118,7 +127,10 @@ describe('Workspace Grant execution boundary', () => {
   it('denies deleted native roots and saved tool approvals even with retained Memory cwd', () => {
     const state = fixture();
     state.getBot.mockReturnValue(undefined);
-    const session = { id: 'botharness-orchestrator', header: { cwd: '/tmp/memory' } } as never;
+    const session = {
+      id: 'botharness-orchestrator',
+      header: { cwd: '/tmp/memory' },
+    } as never;
     expect(grantExecutionDenial(state.core, session, state.policy, state.approval)).toBe(
       'PersonaBot identity is deleted or unavailable',
     );
@@ -164,9 +176,12 @@ describe('Workspace Grant execution boundary', () => {
       expect(requiresHumanToolApproval(tool)).toBe(false);
   });
 
-  it('keeps checked external file operations internal while retaining Shell approval', () => {
+  it('leaves Shell, plugin tools and their DSH escalation asks to the Session mode', () => {
     const state = fixture();
-    const session = { id: 'botharness-orchestrator', header: { cwd: '/tmp/memory' } } as never;
+    const session = {
+      id: 'botharness-orchestrator',
+      header: { cwd: '/tmp/memory' },
+    } as never;
     for (const tool of [
       'bridge_sender_permissions',
       'bridge_directory',
@@ -174,41 +189,70 @@ describe('Workspace Grant execution boundary', () => {
       'bridge_reply_file',
     ]) {
       expect(requiresHumanToolApproval(tool)).toBe(false);
+      expect(isDshGovernedTool(tool)).toBe(false);
       expect(
         grantToolExecutionDenial(state.core, session, state.policy, state.approval, tool, {}),
       ).toBeUndefined();
-      expect(
-        grantToolExecutionDenial(state.core, session, state.policy, state.approval, tool, {
-          sandbox_permissions: 'require_escalated',
-        }),
-      ).toMatch(/cannot request sandbox permission escalation/);
     }
-    expect(requiresHumanToolApproval('bash')).toBe(true);
-    expect(
-      grantToolExecutionDenial(state.core, session, state.policy, state.approval, 'bash', {
-        command: 'unzip source-orders.zip',
-      }),
-    ).toBe('BotHarness Session cannot run an unconfined native tool: bash');
-    expect(
-      grantToolExecutionDenial(
-        state.core,
-        session,
-        state.policy,
-        state.approval,
-        'bash',
+    for (const tool of ['bash', 'pwsh', 'ops_bash', 'terminal', 'run_code']) {
+      expect(requiresHumanToolApproval(tool)).toBe(false);
+      expect(isDshGovernedTool(tool)).toBe(true);
+      for (const args of [
         { command: 'unzip source-orders.zip' },
-        true,
-      ),
-    ).toBeUndefined();
+        {
+          command: 'touch /outside',
+          sandbox_permissions: 'require_escalated',
+          justification: 'x',
+        },
+      ])
+        expect(
+          grantToolExecutionDenial(state.core, session, state.policy, state.approval, tool, args),
+        ).toBeUndefined();
+    }
+    expect(isDshGovernedTool('read')).toBe(false);
+    expect(isDshGovernedTool('channel_attachment_open')).toBe(false);
+  });
+
+  it('keeps each-use approval for secret tools', () => {
+    const state = fixture();
+    for (const tool of ['secret_cli', 'secret_mcp_connect']) {
+      expect(requiresHumanToolApproval(tool)).toBe(true);
+      expect(
+        grantToolExecutionDenial(
+          state.core,
+          state.assignment,
+          state.policy,
+          state.approval,
+          tool,
+          {},
+        ),
+      ).toMatch(/requires Human approval/);
+      expect(
+        grantToolExecutionDenial(
+          state.core,
+          state.assignment,
+          state.policy,
+          state.approval,
+          tool,
+          {},
+          true,
+        ),
+      ).toBeUndefined();
+    }
   });
 
   it('requires approval for original editing while allowing exact read acquisition', () => {
     const state = fixture();
-    const session = { id: 'botharness-orchestrator', header: { cwd: '/tmp/memory' } } as never;
+    const session = {
+      id: 'botharness-orchestrator',
+      header: { cwd: '/tmp/memory' },
+    } as never;
     expect(requiresHumanToolApproval('channel_attachment_open', { access: 'read' })).toBe(false);
-    expect(requiresHumanToolApproval('channel_attachment_open', { access: 'edit-original' })).toBe(
-      true,
-    );
+    expect(
+      requiresHumanToolApproval('channel_attachment_open', {
+        access: 'edit-original',
+      }),
+    ).toBe(true);
     expect(requiresHumanToolApproval('channel_attachment_open', {})).toBe(true);
     const gate = (access: string, approved = false) =>
       grantToolExecutionDenial(
@@ -241,7 +285,10 @@ describe('Workspace Grant execution boundary', () => {
   it('allows DSH Subagents with native never approval only under the inherited Assignment Grant', () => {
     const state = fixture();
     const childId = 'dsh-child';
-    const child = { id: childId, header: { cwd, parentSession: assignmentSessionId } } as never;
+    const child = {
+      id: childId,
+      header: { cwd, parentSession: assignmentSessionId },
+    } as never;
     const resolve = (state.core as { ownership: { resolve: ReturnType<typeof vi.fn> } }).ownership
       .resolve;
     resolve.mockImplementation((sessionId: string) =>
@@ -254,7 +301,12 @@ describe('Workspace Grant execution boundary', () => {
             parentSessionId: assignmentSessionId,
           }
         : sessionId === assignmentSessionId
-          ? { sessionId, botSlug, rootRole: 'assignment', parentSessionId: undefined }
+          ? {
+              sessionId,
+              botSlug,
+              rootRole: 'assignment',
+              parentSessionId: undefined,
+            }
           : undefined,
     );
     state.overrideOf.mockReturnValue('never');
@@ -325,61 +377,12 @@ describe('Workspace Grant execution boundary', () => {
     ).toMatch(/revoked/);
   });
 
-  it('lets an Orchestrator list its own Memory directory without a Human approval', () => {
-    const state = fixture();
-    const memory = realpathSync(mkdtempSync(join(tmpdir(), 'botharness-memory-listing-')));
-    state.memoryDirFor.mockReturnValue(memory);
-    const orchestrator = { id: 'botharness-orchestrator', header: { cwd: memory } } as never;
-    const allowed = { command: 'ls -la', description: 'List memory repository contents' };
-    try {
-      expect(isSafeMemoryDirectoryListing(state.core, orchestrator, 'bash', allowed)).toBe(true);
-      expect(
-        grantToolExecutionDenial(
-          state.core,
-          orchestrator,
-          state.policy,
-          state.approval,
-          'bash',
-          allowed,
-        ),
-      ).toBeUndefined();
-      for (const args of [
-        { command: 'ls -la /tmp' },
-        { command: 'ls -la; cat /etc/passwd' },
-        { command: 'ls -la', workdir: '/tmp' },
-        { command: 'ls -la', run_in_background: true },
-      ]) {
-        expect(isSafeMemoryDirectoryListing(state.core, orchestrator, 'bash', args)).toBe(false);
-        expect(
-          grantToolExecutionDenial(
-            state.core,
-            orchestrator,
-            state.policy,
-            state.approval,
-            'bash',
-            args,
-          ),
-        ).toMatch(/unconfined native tool/);
-      }
-      const assignment = { id: assignmentSessionId, header: { cwd: memory } } as never;
-      expect(isSafeMemoryDirectoryListing(state.core, assignment, 'bash', allowed)).toBe(false);
-      const redirected = join(tmpdir(), 'botharness-memory-redirect-' + Date.now());
-      symlinkSync(memory, redirected);
-      try {
-        state.memoryDirFor.mockReturnValue(redirected);
-        const symlinked = { id: 'botharness-orchestrator', header: { cwd: redirected } } as never;
-        expect(isSafeMemoryDirectoryListing(state.core, symlinked, 'bash', allowed)).toBe(false);
-      } finally {
-        rmSync(redirected);
-      }
-    } finally {
-      rmSync(memory, { recursive: true, force: true });
-    }
-  });
-
   it('lets only the Orchestrator reach the native Human-question answerer', () => {
     const state = fixture();
-    const orchestrator = { id: 'botharness-orchestrator', header: { cwd: '/tmp/memory' } } as never;
+    const orchestrator = {
+      id: 'botharness-orchestrator',
+      header: { cwd: '/tmp/memory' },
+    } as never;
     expect(
       grantToolExecutionDenial(
         state.core,
@@ -402,7 +405,7 @@ describe('Workspace Grant execution boundary', () => {
     ).toMatch(/Orchestrator/);
   });
 
-  it('lets a registered host-owned tool through the unconfined-native gate', () => {
+  it('lets registered host-owned and unknown plugin tools through the Grant gate', () => {
     const state = fixture();
     const core = state.core as unknown as { hostTools: Set<string> };
     core.hostTools.add('computer_click');
@@ -425,63 +428,27 @@ describe('Workspace Grant execution boundary', () => {
         'computer_unregistered',
         {},
       ),
-    ).toContain('unconfined native tool');
+    ).toBeUndefined();
   });
 
-  it('denies per-tool sandbox escalation even when standing policy remains safe', () => {
+  it('still rechecks the Grant before a Shell call runs', () => {
     const state = fixture();
-    expect(
-      grantToolExecutionDenial(state.core, state.assignment, state.policy, state.approval, 'bash', {
-        command: 'touch /outside',
-        sandbox_permissions: 'danger-full-access',
-        justification: 'retry',
-      }),
-    ).toMatch(/cannot request sandbox permission escalation/);
     expect(
       grantToolExecutionDenial(state.core, state.assignment, state.policy, state.approval, 'bash', {
         command: 'pwd',
       }),
-    ).toMatch(/unconfined native tool/);
-    expect(
-      grantToolExecutionDenial(
-        state.core,
-        state.assignment,
-        state.policy,
-        state.approval,
-        'bash',
-        { command: 'pwd' },
-        true,
-      ),
     ).toBeUndefined();
     state.requireActive.mockImplementation(() => {
       throw new Error('revoked');
     });
     expect(
-      grantToolExecutionDenial(
-        state.core,
-        state.assignment,
-        state.policy,
-        state.approval,
-        'bash',
-        { command: 'pwd' },
-        true,
-      ),
+      grantToolExecutionDenial(state.core, state.assignment, state.policy, state.approval, 'bash', {
+        command: 'pwd',
+      }),
     ).toMatch(/revoked/);
   });
-  it('keeps DSH native file tools and denies unconfined execution capabilities', () => {
+  it('keeps DSH native file tools inside the Grant', () => {
     const state = fixture();
-    for (const name of ['bash', 'terminal', 'run_code', 'create_subagent']) {
-      expect(
-        grantToolExecutionDenial(
-          state.core,
-          state.assignment,
-          state.policy,
-          state.approval,
-          name,
-          {},
-        ),
-      ).toMatch(/unconfined native tool/);
-    }
     expect(
       grantToolExecutionDenial(state.core, state.assignment, state.policy, state.approval, 'read', {
         file_path: 'missing.txt',
@@ -508,7 +475,10 @@ describe('Workspace Grant execution boundary', () => {
   it('denies a native Orchestrator mode switch and ignores unrelated DSH sessions', () => {
     const state = fixture();
     state.resolvePolicy.mockReturnValue({ mode: 'danger-full-access' });
-    const orchestrator = { id: 'botharness-orchestrator', header: { cwd: '/tmp/memory' } } as never;
+    const orchestrator = {
+      id: 'botharness-orchestrator',
+      header: { cwd: '/tmp/memory' },
+    } as never;
     expect(grantExecutionDenial(state.core, orchestrator, state.policy, state.approval)).toMatch(
       /differs from this PersonaBot's access setting/,
     );
@@ -524,7 +494,10 @@ describe('Workspace Grant execution boundary', () => {
   });
   it('runs the Orchestrator unconfined only while the PersonaBot access setting is full access', () => {
     const state = fixture();
-    const orchestrator = { id: 'botharness-orchestrator', header: { cwd: '/tmp/memory' } } as never;
+    const orchestrator = {
+      id: 'botharness-orchestrator',
+      header: { cwd: '/tmp/memory' },
+    } as never;
     let mode: 'workspace-write' | 'danger-full-access' = 'danger-full-access';
     let scope: 'chat' | 'assignments' = 'assignments';
     const core = {
@@ -558,12 +531,6 @@ describe('Workspace Grant execution boundary', () => {
         content: 'x',
       }),
     ).toBeUndefined();
-    expect(
-      grantToolExecutionDenial(core, orchestrator, state.policy, state.approval, 'bash', {
-        command: 'pwd',
-        sandbox_permissions: 'danger-full-access',
-      }),
-    ).toMatch(/escalation/);
     mode = 'workspace-write';
     expect(orchestratorPermission(core, botSlug)).toEqual({
       mode: 'workspace-write',

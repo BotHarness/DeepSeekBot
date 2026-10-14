@@ -146,6 +146,45 @@ export function botNameColor(source: string, background: string): string {
   return readable(source, background, NAME_TARGET);
 }
 
+export const BUBBLE_SURFACES: Record<ThemeName, { base: string; surface: string; fg: string }> = {
+  light: { base: '#ffffff', surface: '#f5f6f7', fg: '#0f1115' },
+  dark: { base: '#151517', surface: '#353638', fg: '#f9fafb' },
+};
+export const BUBBLE_SEPARATION = 1.3;
+const INK_LIGHT: Rgb = [255, 255, 255];
+const INK_DARK: Rgb = [15, 17, 21];
+const LIGHT_INK_FLOOR = 3;
+
+function mixRgb(from: Rgb, to: Rgb, amount: number): Rgb {
+  return [0, 1, 2].map((index) => from[index]! + (to[index]! - from[index]!) * amount) as [
+    number,
+    number,
+    number,
+  ];
+}
+
+export function humanBubbleColors(
+  source: string,
+  theme: ThemeName,
+): { fill: string; ink: string } | undefined {
+  const from = parseColor(source)?.rgb;
+  if (from === undefined) return undefined;
+  const reference = BUBBLE_SURFACES[theme];
+  const fg = parseColor(reference.fg)!.rgb;
+  const behind = [reference.base, reference.surface].map((value) => parseColor(value)!.rgb);
+  const steps = Array.from({ length: 41 }, (_, step) => step / 40);
+  const separatedStep = steps.find((step) =>
+    behind.every((rgb) => contrastRatio(mixRgb(from, fg, step), rgb) >= BUBBLE_SEPARATION),
+  );
+  const separated = mixRgb(from, fg, separatedStep ?? 1);
+  if (contrastRatio(separated, INK_LIGHT) < LIGHT_INK_FLOOR)
+    return { fill: toHex(separated), ink: toHex(INK_DARK) };
+  const darkStep = steps.find(
+    (step) => contrastRatio(mixRgb(separated, [0, 0, 0], step), INK_LIGHT) >= NAME_TARGET,
+  );
+  return { fill: toHex(mixRgb(separated, [0, 0, 0], darkStep ?? 1)), ink: toHex(INK_LIGHT) };
+}
+
 export const CHART_CONTRAST = 3;
 export const CHART_TONE_LEVELS = { cached: 1, uncached: 0.62, output: 0.36 } as const;
 export type ChartTone = keyof typeof CHART_TONE_LEVELS;

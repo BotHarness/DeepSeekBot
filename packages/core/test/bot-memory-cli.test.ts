@@ -200,6 +200,22 @@ describe('Agent memory commands against a live Host', () => {
     expect(repair![1]).toMatchObject({ channelId: DM, expectedHead: 'c'.repeat(40) });
   });
 
+  it("moves a Bot's Memory to a folder, or back to the default", async () => {
+    const live = await host(() => ({
+      json: { ok: true, value: { memoryDir: '/srv/memory/ada', moved: true } },
+    }));
+    const moved = await invoke(
+      ['memory-move', 'ada', '--memory-location', '/srv/memory'],
+      live.url,
+    );
+    expect(moved.json).toEqual({ memoryDir: '/srv/memory/ada', moved: true });
+    await invoke(['memory-move', 'ada', '--default-location'], live.url);
+    expect(live.calls.map((call) => [call.path, call.body])).toEqual([
+      ['memoryMove', { slug: 'ada', location: '/srv/memory' }],
+      ['memoryMove', { slug: 'ada', location: null }],
+    ]);
+  });
+
   it('refuses incomplete memory commands before contacting the Host', async () => {
     const live = await host(() => ({ json: { ok: true, value: {} } }));
     for (const argv of [
@@ -212,6 +228,9 @@ describe('Agent memory commands against a live Host', () => {
       ['memory-restore-commit', 'ada', '--sha', 'd'.repeat(40)],
       ['memory-version-unname', 'ada'],
       ['memory-repair', 'ada'],
+      ['memory-move', 'ada'],
+      ['memory-move', 'ada', '--memory-location', 'relative/folder'],
+      ['memory-move', 'ada', '--memory-location', '/srv/memory', '--default-location'],
     ])
       expect((await invoke(argv, live.url)).json.error.code).toBe('usage');
     expect(live.calls).toEqual([]);

@@ -78,6 +78,7 @@ import {
   type BotMessageCausation,
   type ChannelMention,
   type ChannelMessage,
+  type ChannelReaction,
   type ChannelRecord,
 } from '../channels/channel.js';
 import { ChannelReplyTargetError, MAX_MESSAGE_PAGE } from '../channels/store.js';
@@ -97,6 +98,7 @@ import {
 } from '../database/owner.js';
 import { createSessionOwnership, type SessionOwnership } from '../sessions/ownership.js';
 import { sessionMentionText } from './session-mentions.js';
+import { botMentionLabel, resolveBotMentionText } from '../channels/bot-mention-text.js';
 import {
   createBotSourcePolicyStore,
   type BotSourcePolicy,
@@ -181,6 +183,16 @@ export type AssignmentArchiveOutcome =
       assignment: AssignmentSummary;
       message: string;
     };
+
+export type OrchestratorReplacement<T> =
+  | { outcome: 'replaced'; value: T }
+  | { outcome: 'refused'; code: 'bot-busy'; message: string };
+
+const BOT_BUSY = {
+  outcome: 'refused',
+  code: 'bot-busy',
+  message: 'This Bot is working right now; wait for it to finish, then try again.',
+} as const;
 
 export interface NativeSessionArchive {
   archiveSession(sessionId: string): Promise<void>;
@@ -482,6 +494,7 @@ export interface OrchestratorChannelAccess {
     intervalSeconds: number;
   }): GroupWakePolicyView;
   leaveGroup(input: { channelId: string }): { channelId: string; left: boolean };
+  react?(input: BotReactionInput & { channelId?: string }): BotReactionResult;
   sendToBot(input: {
     botSlug: string;
     body: string;
@@ -497,6 +510,18 @@ export interface OrchestratorChannelAccess {
     mentionHumanIds?: string[];
     deliveryKey?: string;
   }): Promise<ChannelMessage>;
+}
+
+export interface BotReactionInput {
+  messageId: string;
+  emoji: string;
+  active: boolean;
+}
+
+export interface BotReactionResult {
+  channelId: string;
+  messageId: string;
+  reactions: ChannelReaction[];
 }
 
 export interface OrchestratorServiceTurn {
@@ -631,6 +656,7 @@ export interface BotRuntime {
   admitGroupJoinDecision?(requesterDmChannelId: string, requestId: string): void;
   listAssignments(botSlug: string): AssignmentSummary[];
   currentOrchestratorSessionId?(botSlug: string): string | undefined;
+  replaceOrchestrator?<T>(botSlug: string, body: () => T): Promise<OrchestratorReplacement<T>>;
   directBotTools?(): DirectBotToolSpec[];
   directBotToolCalls?(botSlug: string): readonly DirectBotToolCall[];
   runDirectBotTool?(
@@ -1492,6 +1518,26 @@ class BotRuntimeImplementation implements BotRuntime {
         }),
       );
     }
+  }
+
+  #react(botSlug: string, channel: ChannelRecord, input: BotReactionInput): BotReactionResult {
+    const bot = this.#registry.get(botSlug);
+    if (this.#closed || bot === undefined || bot.paused === true)
+      throw new Error('channel_send: Bot is unavailable');
+    if (this.#channels.setBotReaction === undefined)
+      throw new Error('channel_send: reactions are unavailable');
+    const reactions = this.#channels.setBotReaction(
+      channel.id,
+      botSlug,
+      input.messageId,
+      input.emoji,
+      input.active,
+    );
+    if (reactions === undefined)
+      throw new Error(
+        `channel_send: message ${input.messageId} cannot take this reaction in Channel ${channel.id}`,
+      );
+    return { channelId: channel.id, messageId: input.messageId, reactions };
   }
 
   async retryDmMessage(channelId: string, messageId: string): Promise<void> {
@@ -3587,6 +3633,51 @@ class BotRuntimeImplementation implements BotRuntime {
       : this.#unarchiveAssignment(bot, sessionId, () => {});
   }
 
+  async replaceOrchestrator<T>(
+    botSlug: string,
+    body: () => T,
+  ): Promise<OrchestratorReplacement<T>> {
+    if (this.#tails.has(botSlug)) return BOT_BUSY;
+    let result: OrchestratorReplacement<T> | undefined;
+    await this.#enqueue(botSlug, async () => {
+      result = await this.#replaceOrchestrator(botSlug, body);
+    });
+    if (result === undefined) throw new Error(`Unknown PersonaBot: ${botSlug}`);
+    return result;
+  }
+
+  async #replaceOrchestrator<T>(
+    botSlug: string,
+    body: () => T,
+  ): Promise<OrchestratorReplacement<T>> {
+    const current = this.currentOrchestratorSessionId(botSlug);
+    if (current === undefined) return { outcome: 'replaced', value: body() };
+    const archive = this.#sessionArchive?.();
+    if (archive === undefined) throw new Error('DSH Session archive is unavailable');
+    try {
+      await archive.archiveSession(current);
+    } catch (error) {
+      if (error instanceof Error && error.name === 'WorkspaceActiveSessionError') return BOT_BUSY;
+      throw error;
+    }
+    await this.#agents.releaseSession?.(current).catch(() =>
+      this.#warn?.(
+        JSON.stringify({
+          component: 'bot-runtime',
+          event: 'orchestrator-release-failed',
+          botSlug,
+          sessionId: current,
+        }),
+      ),
+    );
+    try {
+      return { outcome: 'replaced', value: body() };
+    } catch (error) {
+      await archive.unarchiveSession(current);
+      throw error;
+    }
+  }
+
   triageOpenCount(botSlug: string): number | undefined {
     return this.#triageRunning.get(botSlug);
   }
@@ -5282,6 +5373,7 @@ class BotRuntimeImplementation implements BotRuntime {
         );
         return this.#channels.getGroupWakePolicy(channel.id, botSlug);
       },
+      react: (input) => this.#react(botSlug, resolve(input.channelId), input),
       leaveGroup: (input) => {
         const channel = this.#channels.get(input.channelId);
         if (channel === undefined) throw new Error('group_leave: channel-unavailable');
@@ -5314,6 +5406,7 @@ class BotRuntimeImplementation implements BotRuntime {
           recipientBotSlug: target.slug,
           channel: dm,
           sourceEventId,
+          readSourceEventIds: readAdmissions,
           sessionId,
           beforeSend: input.deliveryKey === undefined ? beforeSend : () => undefined,
           ...(input.deliveryKey === undefined ? {} : { afterSend: beforeSend }),
@@ -5638,6 +5731,7 @@ class BotRuntimeImplementation implements BotRuntime {
             recipientBotSlug,
             channel,
             sourceEventId,
+            readSourceEventIds: readAdmissions,
             sessionId,
             beforeSend: input.deliveryKey === undefined ? beforeSend : () => undefined,
             ...(input.deliveryKey === undefined ? {} : { afterSend: beforeSend }),
@@ -5653,6 +5747,7 @@ class BotRuntimeImplementation implements BotRuntime {
             botSlug,
             channel,
             sourceEventId,
+            readSourceEventIds: readAdmissions,
             sessionId,
             beforeSend: input.deliveryKey === undefined ? beforeSend : () => undefined,
             ...(input.deliveryKey === undefined ? {} : { afterSend: beforeSend }),
@@ -5694,6 +5789,7 @@ class BotRuntimeImplementation implements BotRuntime {
     botSlug: string;
     channel: ChannelRecord;
     sourceEventId: string;
+    readSourceEventIds?: ReadonlySet<string>;
     sessionId: string;
     beforeSend: () => void;
     afterSend?: () => void;
@@ -5710,12 +5806,22 @@ class BotRuntimeImplementation implements BotRuntime {
     const sender = this.#registry.get(botSlug);
     if (sender === undefined || sender.paused === true)
       throw new Error('Bot Group sender is no longer active');
-    const ids = input.mentionBotIds ?? [];
-    if (ids.length > 20 || ids.some((id) => !isValidSlug(id)))
+    const explicitIds = input.mentionBotIds ?? [];
+    if (explicitIds.length > 20 || explicitIds.some((id) => !isValidSlug(id)))
       throw new Error('Bot Group mentions require at most 20 valid Bot IDs');
+    const typed = resolveBotMentionText(
+      input.body,
+      this.#registry.list().map((bot) => ({
+        botSlug: bot.slug,
+        displayName: bot.displayName,
+        eligible: bot.slug !== botSlug && bot.paused !== true && channel.members.includes(bot.slug),
+      })),
+    );
+    const ids = [...new Set([...explicitIds, ...typed.botSlugs])];
+    if (ids.length > 20) throw new Error('Bot Group mentions require at most 20 valid Bot IDs');
     const mentions: ChannelMention[] = [];
     let prefix = '';
-    for (const id of new Set(ids)) {
+    for (const id of ids) {
       const target = this.#registry.get(id);
       if (
         id === botSlug ||
@@ -5724,7 +5830,7 @@ class BotRuntimeImplementation implements BotRuntime {
         !channel.members.includes(id)
       )
         throw new Error('Mentioned PersonaBot must be another active Group member');
-      const label = target.displayName.replace(/\s+/gu, ' ').trim().slice(0, 80);
+      const label = botMentionLabel(target.displayName);
       const token = '@' + label;
       mentions.push({
         botSlug: id,
@@ -5756,7 +5862,7 @@ class BotRuntimeImplementation implements BotRuntime {
       });
       prefix += token + ' ';
     }
-    const body = prefix + input.body;
+    const body = prefix + typed.body;
     if (!body.trim() && !input.attachments?.length)
       throw new Error('Group message requires a body or attachment');
     this.#channels.assertAttachmentRefs(input.attachments ?? []);
@@ -5767,7 +5873,9 @@ class BotRuntimeImplementation implements BotRuntime {
       at: this.#now().toISOString(),
       author: { kind: 'bot', slug: botSlug },
       body,
-      botCausation: this.#botCausation(input.sourceEventId),
+      botCausation: this.#botCausation(
+        this.#turnSourceIn(botSlug, channel.id, input.readSourceEventIds) ?? input.sourceEventId,
+      ),
       ...(mentions.length === 0 ? {} : { mentions }),
       ...(humanMentions.length === 0 ? {} : { humanMentions }),
       ...(input.replyTo === undefined ? {} : { replyTo: input.replyTo }),
@@ -5804,8 +5912,12 @@ class BotRuntimeImplementation implements BotRuntime {
     }
   }
 
-  #turnSourceIn(botSlug: string, channelId: string): string | undefined {
-    const sources = [...(this.#turnSources.get(botSlug)?.eventIds ?? [])];
+  #turnSourceIn(
+    botSlug: string,
+    channelId: string,
+    read: Iterable<string> = [],
+  ): string | undefined {
+    const sources = [...new Set([...(this.#turnSources.get(botSlug)?.eventIds ?? []), ...read])];
     if (sources.length === 0) return undefined;
     const row = this.#database.read(
       (database) =>
@@ -5877,6 +5989,7 @@ class BotRuntimeImplementation implements BotRuntime {
     recipientBotSlug: string;
     channel: ChannelRecord;
     sourceEventId: string;
+    readSourceEventIds?: ReadonlySet<string>;
     sessionId: string;
     beforeSend: () => void;
     afterSend?: () => void;
@@ -5907,7 +6020,7 @@ class BotRuntimeImplementation implements BotRuntime {
     if (this.#channels.getOrCreateDm(botSlug, sender.displayName) === undefined)
       throw new Error('Sender Human DM is unavailable');
     const botCausation = this.#botCausation(
-      this.#turnSourceIn(botSlug, channel.id) ?? input.sourceEventId,
+      this.#turnSourceIn(botSlug, channel.id, input.readSourceEventIds) ?? input.sourceEventId,
     );
     const messageId = this.#deliveryMessageId(input.sessionId, input.deliveryKey);
     const message: ChannelMessage = {

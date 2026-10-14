@@ -1,0 +1,101 @@
+import { createRequire } from 'node:module';
+import { mkdirSync, readFileSync, readdirSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const pnpm = resolve(root, 'node_modules/.pnpm');
+const puppeteerDir = readdirSync(pnpm).find((entry) => entry.startsWith('puppeteer@'));
+if (puppeteerDir === undefined) throw new Error('Puppeteer unavailable');
+const puppeteer = createRequire(resolve(pnpm, puppeteerDir, 'node_modules/'))('puppeteer');
+if (process.env.BH_E2E_INSTANCE === undefined) throw new Error('Set BH_E2E_INSTANCE');
+const instance = JSON.parse(readFileSync(process.env.BH_E2E_INSTANCE, 'utf8'));
+const shots = process.env.BH_SCREENSHOT_DIR ?? resolve(dirname(process.env.BH_E2E_INSTANCE), 'e2e');
+mkdirSync(shots, { recursive: true });
+
+const overlayButtons = ['Continue', 'Configure later', 'Skip tutorial'];
+const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
+
+const browser = await puppeteer.launch({
+  headless: true,
+  args: ['--no-sandbox', '--lang=en-US'],
+  ...(process.env.PUPPETEER_EXECUTABLE_PATH === undefined
+    ? {}
+    : { executablePath: process.env.PUPPETEER_EXECUTABLE_PATH }),
+});
+try {
+  const page = await browser.newPage();
+  const pageErrors = [];
+  page.on('pageerror', (error) => pageErrors.push(error.message));
+  await page.setExtraHTTPHeaders({ 'accept-language': 'en-US' });
+  await page.setViewport({ width: 1440, height: 900 });
+  await page.goto(instance.url, { waitUntil: 'networkidle2' });
+  await page.waitForSelector('button[aria-label="Bot mode"], .bh-mode-sidebar', {
+    timeout: 30_000,
+  });
+  for (let round = 0; round < 6; round += 1) {
+    await page.evaluate((labels) => {
+      [...document.querySelectorAll('button')]
+        .find((node) => labels.includes(node.textContent?.trim() ?? '') && node.offsetParent)
+        ?.click();
+    }, overlayButtons);
+    await sleep(300);
+  }
+
+  if ((await page.$('.bh-mode-sidebar')) === null)
+    await page.click('button[aria-label="Bot mode"]');
+  await page.waitForSelector('.bh-mode-sidebar', { timeout: 30_000 });
+  await page.keyboard.press('Escape');
+  const column = await page.evaluate(() => ({
+    width: document.querySelector('.bh-mode-sidebar')?.getBoundingClientRect().width ?? 0,
+    nativeRows: document.querySelectorAll('button[aria-label="Bot mode"]').length,
+    exit: document.querySelector('button[aria-label="Exit Bot mode"]') !== null,
+  }));
+  if (column.width < 263 || column.nativeRows !== 0 || !column.exit)
+    throw new Error(`Bot mode sidebar did not take over the column: ${JSON.stringify(column)}`);
+  await page.screenshot({ path: resolve(shots, '01-bot-mode-sidebar.png') });
+
+  await page.waitForSelector('.bh-mode-sidebar [data-channel-id]', { timeout: 30_000 });
+  const channelId = await page.$eval('.bh-mode-sidebar [data-channel-id]', (row) =>
+    row.getAttribute('data-channel-id'),
+  );
+  await page.click(`.bh-mode-sidebar [data-channel-id="${channelId}"]`);
+  await page.waitForFunction(
+    (id) =>
+      document
+        .querySelector(`.bh-mode-sidebar [data-channel-id="${id}"]`)
+        ?.classList.contains('bh-selected') === true,
+    { timeout: 20_000 },
+    channelId,
+  );
+  await page.waitForSelector('[data-bh-tour="composer"]', { timeout: 20_000 });
+
+  await page.click('button[aria-label="Collapse sidebar"]');
+  await page.waitForSelector('.bh-mode-sidebar[data-collapsed="true"]', { timeout: 10_000 });
+  await page.screenshot({ path: resolve(shots, '02-bot-mode-rail.png') });
+  await page.click('button[aria-label="Open sidebar"]');
+  await page.waitForFunction(
+    () => document.querySelector('.bh-mode-sidebar:not([data-collapsed])') !== null,
+    { timeout: 10_000 },
+  );
+
+  await page.click('button[aria-label="Exit Bot mode"]');
+  await page.waitForFunction(
+    () =>
+      document.querySelector('.bh-mode-sidebar') === null &&
+      document.querySelector('.bh-root.bh-main') === null &&
+      document.querySelector('button[aria-label="Bot mode"]') !== null,
+    { timeout: 20_000 },
+  );
+  const native = await page.evaluate(() =>
+    [...document.querySelectorAll('button')].map((node) => node.textContent?.trim() ?? ''),
+  );
+  for (const label of ['New Session', 'Plugins', 'Settings'])
+    if (!native.some((text) => text.includes(label)))
+      throw new Error(`Native App Sidebar is missing ${label} after exit`);
+  await page.screenshot({ path: resolve(shots, '03-native-after-exit.png') });
+  if (pageErrors.length > 0) throw new Error(`Page errors: ${pageErrors.join(' | ')}`);
+  console.log('BOT MODE SIDEBAR PASS');
+} finally {
+  await browser.close();
+}

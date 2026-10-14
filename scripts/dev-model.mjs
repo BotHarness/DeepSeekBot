@@ -17,7 +17,7 @@ import { Document, isMap, isSeq, parseDocument } from 'yaml';
 
 export const AX_MODEL_PATH = join(homedir(), '.config', 'botharness', 'ax-model.json');
 export const GO_KEY_REF = 'OPENCODE_GO_API_KEY';
-export const DEFAULT_GO_MODEL = 'deepseek-v4-flash';
+export const DEFAULT_GO_MODEL = 'deepseek-v4.1-flash';
 export const GO_SESSION_PATCH = resolve(
   import.meta.dirname,
   '../patches/@deepseek-ai__dsh-llm-pi-ai@0.2.0-rc.2.patch',

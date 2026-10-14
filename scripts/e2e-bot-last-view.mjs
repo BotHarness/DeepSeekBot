@@ -69,7 +69,9 @@ try {
     throw new Error(`Wrong conversation restored: ${restored}`);
   }
   await page.screenshot({ path: resolve(shots, '03-restored-channel.png') });
-  await page.click(botButton);
+  await page.click(
+    'button[aria-label="Exit Bot mode"], button[aria-label="退出 Bot 模式"], ' + botButton,
+  );
   await page.waitForFunction(() => document.querySelector('.bh-root') === null);
   const nativeView = await page.evaluate(() => localStorage.getItem('botharness/last-view.v1'));
   if (nativeView === null || JSON.parse(nativeView).mode !== 'dsh') {

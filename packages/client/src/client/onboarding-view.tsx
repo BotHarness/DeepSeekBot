@@ -4,6 +4,7 @@ import type { TutorialAction } from '../../../core/src/onboarding/types.js';
 import type { BridgeActions } from './actions.js';
 import { PersonaBotAvatar } from './avatar.js';
 import { BotBannerArt, bannerOf } from './bot-banner.js';
+import { botModeSidebarViewport } from './bot-mode-sidebar-viewport.js';
 import type { ModelCatalogEntryView, ModelRouteView } from './bridge.js';
 import { errorMessage } from './bridge.js';
 import { ModelPicker } from './model-picker.js';
@@ -340,6 +341,7 @@ export function OnboardingWelcome({
 }
 
 function onboardingTourSteps(t: BotHarnessTranslate): InternalTourSpec[] {
+  const ownSidebar = botModeSidebarViewport();
   return [
     {
       selector: '[data-onboarding-welcome]',
@@ -383,8 +385,8 @@ function onboardingTourSteps(t: BotHarnessTranslate): InternalTourSpec[] {
     },
     {
       selector: '[data-bh-tour="bot-mode"]',
-      title: t('onboarding.tour.exit.title'),
-      description: t('onboarding.tour.exit.hint'),
+      title: t(ownSidebar ? 'onboarding.tour.exit.titleSidebar' : 'onboarding.tour.exit.title'),
+      description: t(ownSidebar ? 'onboarding.tour.exit.hintSidebar' : 'onboarding.tour.exit.hint'),
     },
   ];
 }

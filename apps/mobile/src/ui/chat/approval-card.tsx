@@ -4,6 +4,7 @@ import { View } from 'react-native';
 import type { CardResolution } from '../../host/conversation';
 import {
   offersAlwaysAllow,
+  previewInput,
   readableInput,
   type ApprovalChoice,
   type ApprovalRequest,
@@ -16,8 +17,9 @@ import { useMounted } from '../mounted';
 import { Button } from '../primitives/button';
 import { Text } from '../primitives/text';
 import { errorText } from '../request-parts';
+import { haptic } from '../haptics';
 import { t } from '../strings';
-import { ActionCard, CardButtons, CardLine, CardLink, type CardLineTone } from './action-card';
+import { ActionCard, CardButtons, CardLine, DetailRow, type CardLineTone } from './action-card';
 
 export interface ApprovalCardPort {
   load(): Promise<ApprovalRequest>;
@@ -28,7 +30,12 @@ type Phase =
   | { kind: 'known' }
   | { kind: 'loading' }
   | { kind: 'failed' }
-  | { kind: 'pending'; request: ApprovalRequest; busy?: ApprovalChoice; error?: string }
+  | {
+      kind: 'pending';
+      request: ApprovalRequest;
+      busy?: ApprovalChoice;
+      error?: string;
+    }
   | {
       kind: 'settled';
       status: 'decided' | 'expired';
@@ -69,18 +76,18 @@ function settledLine(
 
 export function ApprovalCard({
   port,
-  botName,
   subject,
   resolution,
   focused = false,
-  onDetails,
+  wide = false,
+  onSettled,
 }: {
   port: ApprovalCardPort;
-  botName: string;
   subject?: string;
   resolution?: Extract<CardResolution, { kind: 'tool-approval' }>;
   focused?: boolean;
-  onDetails(): void;
+  wide?: boolean;
+  onSettled?(result: DecisionResult): void;
 }) {
   const theme = useDesignTheme();
   const known = useRef(resolution !== undefined);
@@ -120,15 +127,16 @@ export function ApprovalCard({
       </View>
     );
 
-  const eyebrow = t.kind['tool-approval']!;
-  const title = t.wantsToRun(botName, tool);
+  const category = t.toolCategory(tool);
+  const title = t.runTool(tool);
   if (phase.kind !== 'pending')
     return (
       <View ref={mount}>
         <ActionCard
-          eyebrow={eyebrow}
+          category={category}
           title={title}
           focused={focused}
+          wide={wide}
           busy={phase.kind === 'loading'}
           {...(phase.kind === 'failed' ? { error: t.cardLoadFailed } : {})}
         >
@@ -141,11 +149,13 @@ export function ApprovalCard({
 
   const { request } = phase;
   const decide = async (outcome: ApprovalChoice) => {
+    haptic(outcome === 'rejected' ? 'deny' : 'approve');
     setPhase({ kind: 'pending', request, busy: outcome });
     try {
       const result = await port.decide(outcome);
       if (result === 'accepted') {
         setPhase({ kind: 'settled', status: 'decided', outcome, mine: true });
+        onSettled?.(result);
         return;
       }
       const now = await port.load().catch(() => undefined);
@@ -155,45 +165,60 @@ export function ApprovalCard({
         mine: false,
         ...(now?.outcome === undefined ? {} : { outcome: now.outcome }),
       });
+      onSettled?.(result);
     } catch (error) {
-      setPhase({ kind: 'pending', request, error: `${t.decideFailed} ${errorText(error)}` });
+      setPhase({
+        kind: 'pending',
+        request,
+        error: `${t.decideFailed} ${errorText(error)}`,
+      });
     }
   };
-  const first = readableInput(request.input)[0];
+  const rows = readableInput(request.input);
+  const first = previewInput(request.input);
   return (
     <View ref={mount}>
       <ActionCard
-        eyebrow={eyebrow}
+        category={category}
+        status={t.needsYou}
         title={title}
-        explanation={t.inFolder(request.cwd)}
         focused={focused}
+        wide={wide}
         {...(phase.error === undefined ? {} : { error: phase.error })}
-        preview={
-          <View style={{ gap: space.x1 }}>
-            {first === undefined || first.value === '' ? null : (
-              <View
-                style={{
-                  backgroundColor: theme.color.base,
-                  borderRadius: radius.sm,
-                  paddingHorizontal: space.x4,
-                  paddingVertical: space.x3,
-                }}
-              >
-                <Text
-                  selectable
-                  variant="meta"
-                  numberOfLines={4}
-                  style={{ fontFamily: theme.mono }}
+        {...(first === undefined || first.value === ''
+          ? {}
+          : {
+              preview: (
+                <View
+                  style={{
+                    backgroundColor: theme.layer.well.fill,
+                    borderRadius: radius.md,
+                    paddingHorizontal: space.x4,
+                    paddingVertical: space.x3,
+                  }}
                 >
-                  {first.value}
-                </Text>
-              </View>
-            )}
-            <CardLink label={t.details} onPress={onDetails} />
-          </View>
+                  <Text
+                    selectable
+                    variant="meta"
+                    numberOfLines={2}
+                    style={{ fontFamily: theme.mono }}
+                  >
+                    {first.value}
+                  </Text>
+                </View>
+              ),
+            })}
+        details={
+          <>
+            <DetailRow label={t.tool} value={request.toolName} />
+            <DetailRow label={t.workingFolder} value={request.cwd} />
+            {rows.map((row, index) => (
+              <DetailRow key={`${row.label}-${index}`} label={row.label} value={row.value} />
+            ))}
+          </>
         }
       >
-        <CardButtons>
+        <CardButtons stack>
           <Button
             label={t.allowOnce}
             tone="primary"

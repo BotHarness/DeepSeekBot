@@ -1,6 +1,3 @@
-import { realpathSync } from 'node:fs';
-import { resolve } from 'node:path';
-
 import type { Session } from '@deepseek-ai/dsh-session';
 import type { SandboxPolicyService } from '@deepseek-ai/dsh-sandbox-policy';
 import type { ApprovalService } from '@deepseek-ai/dsh-user-approval';
@@ -206,34 +203,14 @@ export function requiresHumanToolApproval(name: string, args?: unknown): boolean
       args === null ||
       (args as Record<string, unknown>).access !== 'read'
     );
-  return !BOT_TOOL_NAMES.has(name) && !NATIVE_FILE_TOOL_NAMES.has(name);
+  return name === 'secret_cli' || name === 'secret_mcp_connect';
 }
 
-export function isSafeMemoryDirectoryListing(
-  core: Pick<BotHarnessCore, 'ownership' | 'registry'>,
-  session: Session,
-  name: string,
-  args: unknown,
-): boolean {
-  if (name !== 'bash' || typeof args !== 'object' || args === null) return false;
-  const owner = core.ownership.resolve(session.id);
-  if (owner?.rootRole !== 'orchestrator') return false;
-  const memory = core.registry.memoryDirFor(owner.botSlug);
-  if (memory === undefined || session.header.cwd !== memory) return false;
-  try {
-    if (realpathSync(memory) !== resolve(memory)) return false;
-  } catch {
-    return false;
-  }
-  const input = args as Record<string, unknown>;
-
+export function isDshGovernedTool(name: string): boolean {
   return (
-    typeof input.command === 'string' &&
-    /^(?:ls(?: -la)?|pwd)$/.test(input.command.trim()) &&
-    (input.workdir === undefined || input.workdir === '.' || input.workdir === memory) &&
-    input.run_in_background !== true &&
-    input.sandbox_permissions === undefined &&
-    input.justification === undefined
+    !BOT_TOOL_NAMES.has(name) &&
+    !NATIVE_FILE_TOOL_NAMES.has(name) &&
+    name !== 'channel_attachment_open'
   );
 }
 
@@ -250,9 +227,6 @@ export function grantToolExecutionDenial(
   const denial = grantExecutionDenial(core, session, policy, approval);
   if (denial !== undefined) return denial;
   if (core.ownership.resolve(session.id) === undefined) return undefined;
-  if (typeof args === 'object' && args !== null && 'sandbox_permissions' in args) {
-    return 'BotHarness Session cannot request sandbox permission escalation';
-  }
   if (
     name === 'ask_user_question' &&
     core.ownership.resolve(session.id)?.rootRole !== 'orchestrator'
@@ -279,7 +253,7 @@ export function grantToolExecutionDenial(
   )
     return undefined;
   if (NATIVE_FILE_TOOL_NAMES.has(name)) return nativeFileToolDenial(core, session, name, args);
-  if (isSafeMemoryDirectoryListing(core, session, name, args)) return undefined;
-  if (allowedOnce) return undefined;
-  return 'BotHarness Session cannot run an unconfined native tool: ' + name;
+  if (requiresHumanToolApproval(name, args) && !allowedOnce)
+    return name + ' requires Human approval';
+  return undefined;
 }

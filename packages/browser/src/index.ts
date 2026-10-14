@@ -5,7 +5,12 @@ import { join } from 'node:path';
 import type { Context } from '@deepseek-ai/cordis';
 import Schema from '@deepseek-ai/schemastery';
 import { registerBrowserViewer, type BrowserViewerHost } from './viewer.js';
-import { LOCAL_VIEWER_PREFIX, localViewerUrl, registerLocalViewer } from './viewer-local.js';
+import {
+  LOCAL_VIEWER_PREFIX,
+  createLocalViewerActions,
+  localViewerUrl,
+  registerLocalViewer,
+} from './viewer-local.js';
 import { createTakeoverService } from './takeover.js';
 import type { ContainerBrowserOptions } from './runtime/container.js';
 import { createProfileControl } from './profile-control.js';
@@ -340,28 +345,34 @@ export function apply(
       return true;
     },
   });
+  const viewerOptions = {
+    runtimes,
+    currentTab: (slug: string) => provider.currentTab(slug),
+    isTakeover: (slug: string) => provider.isTakeover(slug),
+    touch: (slug: string) => {
+      runtimes.touch(slug);
+      provider.touch(slug);
+    },
+    hasAccess: (slug: string) =>
+      (
+        coreLookup()?.registry as
+          | { get(slug: string): { browserAccess?: boolean } | undefined }
+          | undefined
+      )?.get(slug)?.browserAccess === true,
+    note: (detail: string) => diagnostics.record('lifecycle', detail),
+    takeover: takeovers,
+  };
+  const viewerActions = createLocalViewerActions(viewerOptions);
+  ctx.effect(() => () => void viewerActions.close(), 'botharness-browser: viewer frame feeds');
   ctx.inject(['connection', 'webServer'], (localViewerCtx) => {
     const services = localViewerCtx as unknown as {
       webServer: BrowserViewerHost;
       connection: { requestRejection(request: { headers: Headers }): number | undefined };
     };
     const release = registerLocalViewer({
+      ...viewerOptions,
       host: services.webServer,
-      runtimes,
-      currentTab: (slug) => provider.currentTab(slug),
-      isTakeover: (slug) => provider.isTakeover(slug),
-      touch: (slug) => {
-        runtimes.touch(slug);
-        provider.touch(slug);
-      },
-      hasAccess: (slug) =>
-        (
-          coreLookup()?.registry as
-            | { get(slug: string): { browserAccess?: boolean } | undefined }
-            | undefined
-        )?.get(slug)?.browserAccess === true,
-      note: (detail) => diagnostics.record('lifecycle', detail),
-      takeover: takeovers,
+      actions: viewerActions,
       rejection: (headers) => services.connection.requestRejection({ headers }),
     });
     diagnostics.record('lifecycle', `local viewer ready prefix=${LOCAL_VIEWER_PREFIX}`);
@@ -840,6 +851,53 @@ export function apply(
     connectionCtx.effect(
       () => connection.fetch.register(takeoverRoute),
       'botharness-browser: takeover route',
+    );
+
+    connectionCtx.effect(
+      () =>
+        connection.fetch.register({
+          path: '/api/browser/frame',
+          methods: ['GET'],
+          requestBody: 'buffered',
+          async fetch(request: Request): Promise<Response> {
+            const url = new URL(request.url);
+            const result = await viewerActions.frame(
+              url.searchParams.get('slug') ?? '',
+              url.searchParams.get('after'),
+            );
+            if (result.status === 204) return new Response(null, { status: 204 });
+            if (result.status !== 200)
+              return json({ ok: false, error: result.error }, result.status);
+            const { status: _status, ...frame } = result;
+            return json({ ok: true, ...frame });
+          },
+        }),
+      'botharness-browser: frame route',
+    );
+
+    connectionCtx.effect(
+      () =>
+        connection.fetch.register({
+          path: '/api/browser/input',
+          methods: ['POST'],
+          requestBody: 'buffered',
+          async fetch(request: Request): Promise<Response> {
+            let body: Record<string, unknown> = {};
+            try {
+              const value = (await request.json()) as unknown;
+              if (typeof value === 'object' && value !== null)
+                body = value as Record<string, unknown>;
+            } catch {
+              return json({ ok: false, error: 'invalid input' }, 400);
+            }
+            const slug = typeof body['slug'] === 'string' ? body['slug'] : '';
+            const result = await viewerActions.input(slug, body);
+            if (result.status !== 200)
+              return json({ ok: false, error: result.error }, result.status);
+            return json({ ok: true, url: result.url, title: result.title });
+          },
+        }),
+      'botharness-browser: input route',
     );
 
     const stopRoute = {

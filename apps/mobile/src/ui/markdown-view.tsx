@@ -1,41 +1,72 @@
-import { Fragment, useMemo } from 'react';
+import { Fragment, memo, useMemo, useRef } from 'react';
 import { Linking, Platform, ScrollView, Text, View, type TextStyle } from 'react-native';
 
-import { parseMarkdown, type Block, type Inline } from './markdown';
+import {
+  parseMarkdown,
+  streamMarkdown,
+  type Block,
+  type Inline,
+  type MarkdownStream,
+} from './markdown';
 import { edge, radius, space } from './design/tokens';
 import { useDesignTheme, type DesignTheme } from './design/theme';
 
 const mono = Platform.select({ ios: 'Menlo', default: 'monospace' });
 
-export function MarkdownView({ source, color }: { source: string; color?: string }) {
+export function MarkdownView({
+  source,
+  color,
+  selectable = true,
+  streaming = false,
+}: {
+  source: string;
+  color?: string;
+  selectable?: boolean;
+  streaming?: boolean;
+}) {
   const theme = useDesignTheme();
-  const blocks = useMemo(() => parseMarkdown(source), [source]);
-  const base: TextStyle = {
-    color: color ?? theme.color.fg,
-    fontSize: theme.type.body.size,
-    lineHeight: theme.type.body.line,
-  };
+  const stream = useRef<MarkdownStream | undefined>(undefined);
+  const blocks = useMemo(() => {
+    if (!streaming) return parseMarkdown(source);
+    stream.current = streamMarkdown(source, stream.current);
+    return stream.current.blocks;
+  }, [source, streaming]);
+  const ink = color ?? theme.color.fg;
+  const base = useMemo<TextStyle>(
+    () => ({ color: ink, fontSize: theme.type.body.size, lineHeight: theme.type.body.line }),
+    [ink, theme],
+  );
   return (
     <View style={{ gap: space.x3 }}>
       {blocks.map((block, index) => (
-        <BlockView key={index} block={block} base={base} theme={theme} />
+        <BlockView key={index} block={block} base={base} theme={theme} selectable={selectable} />
       ))}
     </View>
   );
 }
 
-function BlockView({ block, base, theme }: { block: Block; base: TextStyle; theme: DesignTheme }) {
+const BlockView = memo(function BlockView({
+  block,
+  base,
+  theme,
+  selectable,
+}: {
+  block: Block;
+  base: TextStyle;
+  theme: DesignTheme;
+  selectable: boolean;
+}) {
   switch (block.type) {
     case 'paragraph':
       return (
-        <Text selectable style={base}>
+        <Text selectable={selectable} style={base}>
           <Inlines nodes={block.children} theme={theme} />
         </Text>
       );
     case 'heading':
       return (
         <Text
-          selectable
+          selectable={selectable}
           accessibilityRole="header"
           style={{
             ...base,
@@ -52,11 +83,11 @@ function BlockView({ block, base, theme }: { block: Block; base: TextStyle; them
       return (
         <ScrollView
           horizontal
-          style={{ backgroundColor: theme.color.hover, borderRadius: radius.sm }}
+          style={{ backgroundColor: theme.layer.raised.inset, borderRadius: radius.sm }}
           contentContainerStyle={{ padding: space.x3 }}
         >
           <Text
-            selectable
+            selectable={selectable}
             style={{
               color: base.color,
               fontFamily: mono,
@@ -84,6 +115,7 @@ function BlockView({ block, base, theme }: { block: Block; base: TextStyle; them
               block={child}
               base={{ ...base, color: theme.color.muted }}
               theme={theme}
+              selectable={selectable}
             />
           ))}
         </View>
@@ -98,7 +130,13 @@ function BlockView({ block, base, theme }: { block: Block; base: TextStyle; them
               </Text>
               <View style={{ flex: 1, gap: space.x2 }}>
                 {item.map((child, childIndex) => (
-                  <BlockView key={childIndex} block={child} base={base} theme={theme} />
+                  <BlockView
+                    key={childIndex}
+                    block={child}
+                    base={base}
+                    theme={theme}
+                    selectable={selectable}
+                  />
                 ))}
               </View>
             </View>
@@ -110,13 +148,13 @@ function BlockView({ block, base, theme }: { block: Block; base: TextStyle; them
         <View
           style={{
             height: edge.hairline,
-            backgroundColor: theme.color.divider,
+            backgroundColor: theme.layer.raised.divider,
             marginVertical: space.x2,
           }}
         />
       );
   }
-}
+});
 
 function Inlines({ nodes, theme }: { nodes: readonly Inline[]; theme: DesignTheme }) {
   return (
@@ -136,7 +174,9 @@ function InlineView({ node, theme }: { node: Inline; theme: DesignTheme }) {
       return <Fragment>{'\n'}</Fragment>;
     case 'code':
       return (
-        <Text style={{ fontFamily: mono, backgroundColor: theme.color.hover }}>{node.text}</Text>
+        <Text style={{ fontFamily: mono, backgroundColor: theme.layer.raised.inset }}>
+          {node.text}
+        </Text>
       );
     case 'strong':
       return (

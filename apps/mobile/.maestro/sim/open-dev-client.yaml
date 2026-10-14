@@ -1,0 +1,24 @@
+# Opens a clean development build on Metro and waits for the pair screen.
+# -e METRO_URL=http%3A%2F%2F127.0.0.1%3A<port>  (URL-encoded)
+appId: ai.botharness.deepseekbot.dev
+---
+- launchApp:
+    clearState: true
+- openLink: exp+deepseekbot://expo-development-client/?url=${METRO_URL}
+# iOS asks before an app opens its own link; the Simulator may be in any language.
+- tapOn:
+    text: 'Open|打开'
+    optional: true
+# The first launch shows the dev menu onboarding once the bundle has loaded.
+- extendedWaitUntil:
+    visible: 'Continue|Pair with your computer|与电脑配对'
+    timeout: 180000
+- tapOn:
+    text: Continue
+    optional: true
+- tapOn:
+    text: Close
+    optional: true
+- extendedWaitUntil:
+    visible: 'Pair with your computer|与电脑配对'
+    timeout: 120000

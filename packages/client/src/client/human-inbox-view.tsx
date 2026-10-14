@@ -1,6 +1,11 @@
-import { useId, useState, type ReactElement } from 'react';
+import { useCallback, useId, useRef, useState, type ReactElement } from 'react';
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
-import { HumanInboxFilter, HumanInboxSourceButton } from './human-inbox-controls.js';
+import {
+  HumanInboxFilter,
+  HumanInboxSnoozeButton,
+  HumanInboxSourceButton,
+} from './human-inbox-controls.js';
+import { canSnoozeHumanInboxItem } from './human-inbox-snooze.js';
 
 import type { BridgeActions } from './actions.js';
 import {
@@ -12,6 +17,7 @@ import { zhTranslate, type BotHarnessTranslate } from './locale.js';
 import { store } from './store.js';
 import type { HumanAttentionItem, HumanInboxCategory, HumanInboxFilters } from './store.js';
 import { useMountedResource } from './mounted-resource.js';
+import { webModalOpen } from './channel-shortcuts.js';
 import { HumanInboxReply } from './human-inbox-reply.js';
 import { Modal } from './modal.js';
 import { HumanInboxDismiss } from './human-inbox-detail-controls.js';
@@ -26,6 +32,21 @@ const categoryCopy = {
   info: { title: 'humanInbox.info', empty: 'humanInbox.empty.info' },
   handled: { title: 'humanInbox.handled', empty: 'humanInbox.empty.handled' },
 } as const;
+
+const itemKey = (item: HumanAttentionItem): string =>
+  item.id + '\u0000' + (item.sourceEventId ?? '');
+
+const acknowledgeable = (item: HumanAttentionItem): boolean =>
+  item.kind === 'bot-dm-message' ||
+  item.kind === 'assignment-report' ||
+  item.kind === 'channel-unread' ||
+  ((item.kind === 'channel-reply' || item.kind === 'channel-mention') && item.isUnread === true);
+
+const batchApprovable = (item: HumanAttentionItem): boolean =>
+  item.kind === 'tool-approval' &&
+  item.category === 'action' &&
+  item.channelId !== undefined &&
+  item.messageId !== undefined;
 
 export function HumanInboxView({
   actions: sourceActions,
@@ -57,6 +78,14 @@ export function HumanInboxView({
   const [actionError, setActionError] = useState<string>();
   const [replySource, setReplySource] = useState<HumanAttentionItem>();
   const [actionSource, setActionSource] = useState<HumanAttentionItem>();
+  const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set());
+  const [cursor, setCursor] = useState<string>();
+  const [snoozeMenu, setSnoozeMenu] = useState<string>();
+  const [batchBusy, setBatchBusy] = useState(false);
+  const root = useRef<HTMLDivElement | null>(null);
+  const keyHandler = useRef<(event: KeyboardEvent) => void>(() => undefined);
+  const selectable = actionBotSlug === undefined;
+  const selectedItems = inbox.items.filter((item) => selected.has(itemKey(item)));
 
   const openAction = (item: HumanAttentionItem): void => {
     if (item.kind === 'private-input') {
@@ -137,6 +166,146 @@ export function HumanInboxView({
     }
   };
 
+  const settle = async (item: HumanAttentionItem): Promise<void> => {
+    if (!acknowledgeable(item)) await actions.dismissHumanInbox(item);
+    else if (item.kind === 'assignment-report') {
+      if (item.sourceEventId === undefined) throw new Error(t('humanInbox.failed'));
+      await actions.ignoreHumanReport(item.sourceEventId);
+      await actions.refreshHumanInbox();
+    } else {
+      if (item.channelId === undefined || item.messageId === undefined)
+        throw new Error(t('humanInbox.failed'));
+      await actions.markRead(item.channelId, item.messageId);
+    }
+  };
+
+  const settleOne = async (item: HumanAttentionItem): Promise<void> => {
+    setBusyId(item.id);
+    setActionError(undefined);
+    try {
+      await settle(item);
+      if (replySource !== undefined && itemKey(replySource) === itemKey(item))
+        setReplySource(undefined);
+    } catch {
+      setActionError(t('humanInbox.failed'));
+    } finally {
+      setBusyId(undefined);
+    }
+  };
+
+  const snooze = async (item: HumanAttentionItem, until: string | null): Promise<void> => {
+    setBusyId(item.id);
+    setActionError(undefined);
+    try {
+      await actions.snoozeHumanInbox(item, until);
+      if (replySource !== undefined && itemKey(replySource) === itemKey(item))
+        setReplySource(undefined);
+    } catch {
+      setActionError(t('humanInbox.failed'));
+    } finally {
+      setBusyId(undefined);
+    }
+  };
+
+  const runBatch = async (run: (item: HumanAttentionItem) => Promise<unknown>): Promise<void> => {
+    const items = selectedItems;
+    setBatchBusy(true);
+    setActionError(undefined);
+    let failed = 0;
+    for (const item of items) {
+      try {
+        await run(item);
+      } catch {
+        failed += 1;
+      }
+    }
+    setSelected(new Set());
+    setBatchBusy(false);
+    if (failed > 0) setActionError(t('humanInbox.batch.failed', { count: String(failed) }));
+    await actions.refreshHumanInbox().catch(() => undefined);
+  };
+
+  const toggleSelected = (item: HumanAttentionItem): void =>
+    setSelected((current) => {
+      const next = new Set(current);
+      const key = itemKey(item);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+
+  const moveCursor = (index: number): void => {
+    const item = inbox.items[index];
+    if (item === undefined) return;
+    setCursor(itemKey(item));
+    const row = root.current?.querySelectorAll<HTMLElement>('.bh-human-inbox-row-open')[index];
+    row?.focus();
+    row?.scrollIntoView?.({ block: 'nearest' });
+  };
+
+  const toggleDetail = (item: HumanAttentionItem): void => {
+    if (actionBotSlug !== undefined) {
+      setActionSource(item);
+      return;
+    }
+    setReplySource(
+      replySource?.id === item.id && replySource.sourceEventId === item.sourceEventId
+        ? undefined
+        : item,
+    );
+  };
+
+  keyHandler.current = (event) => {
+    if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return;
+    if (event.isComposing || webModalOpen(document)) return;
+    const container = root.current;
+    if (container === null || actionSource !== undefined) return;
+    const target = event.target instanceof Element ? event.target : null;
+    if (target !== null && target !== document.body && !container.contains(target)) return;
+    if (
+      target?.closest(
+        'input, textarea, select, [contenteditable="true"], [role="dialog"], [role="menu"], .bh-human-inbox-detail',
+      ) != null
+    )
+      return;
+    const items = inbox.items;
+    const index = items.findIndex((item) => itemKey(item) === cursor);
+    const current = index < 0 ? undefined : items[index];
+    const onRow =
+      target === null || target === document.body || target.matches('.bh-human-inbox-row-open');
+    const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+    if (key === 'j') moveCursor(index < 0 ? 0 : Math.min(index + 1, items.length - 1));
+    else if (key === 'k') moveCursor(index < 0 ? 0 : Math.max(index - 1, 0));
+    else if (key === 'Enter' && onRow && current !== undefined)
+      void openSource(current).catch(() => setActionError(t('humanInbox.failed')));
+    else if (key === 'o' && current !== undefined) toggleDetail(current);
+    else if (key === 'e' && current !== undefined && current.category !== 'handled')
+      void settleOne(current);
+    else if (key === 'x' && selectable && current !== undefined && current.category !== 'handled')
+      toggleSelected(current);
+    else if (key === 's' && selectable && current !== undefined && canSnoozeHumanInboxItem(current))
+      setSnoozeMenu(itemKey(current));
+    else if (key === 'Escape' && selected.size > 0) setSelected(new Set());
+    else if (key === 'Escape' && replySource !== undefined) setReplySource(undefined);
+    else return;
+    event.preventDefault();
+  };
+
+  const keysMount = useMountedResource<HTMLDivElement>(() => {
+    const listener = (event: KeyboardEvent): void => keyHandler.current(event);
+    document.addEventListener('keydown', listener);
+    return () => document.removeEventListener('keydown', listener);
+  }, []);
+  const scopeMount = scope.mount;
+  const rootRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      root.current = node;
+      (actionBotSlug === undefined ? mount : scopeMount)(node);
+      keysMount(node);
+    },
+    [actionBotSlug, mount, scopeMount, keysMount],
+  );
+
   const itemTitle = (item: HumanAttentionItem): string =>
     item.kind === 'channel-unread'
       ? (item.channelName ?? item.botSlug)
@@ -171,12 +340,14 @@ export function HumanInboxView({
     if (category === inbox.category) return;
     setActionError(undefined);
     setReplySource(undefined);
+    setSelected(new Set());
     void actions.refreshHumanInbox(category);
   };
 
   const changeFilters = (filters: HumanInboxFilters): void => {
     setReplySource(undefined);
     setActionError(undefined);
+    setSelected(new Set());
     void actions.setHumanInboxFilters(filters);
   };
 
@@ -248,7 +419,7 @@ export function HumanInboxView({
             ? 'bh-human-inbox'
             : 'bh-root bh-main bh-human-inbox'
       }
-      ref={actionBotSlug === undefined ? mount : scope.mount}
+      ref={rootRef}
     >
       <main
         className={
@@ -327,6 +498,24 @@ export function HumanInboxView({
                   })
                 }
               />
+              {inbox.category === 'unread' || inbox.category === 'handled' ? null : (
+                <Button
+                  variant="outline"
+                  type="button"
+                  className="bh-human-inbox-snoozed-toggle"
+                  aria-pressed={inbox.snoozed}
+                  onClick={() =>
+                    changeFilters({
+                      botSlug: inbox.botSlug,
+                      channelId: inbox.channelId,
+                      sort: inbox.sort,
+                      snoozed: !inbox.snoozed,
+                    })
+                  }
+                >
+                  {t('humanInbox.snoozed')}
+                </Button>
+              )}
             </div>
           </>
         )}
@@ -342,7 +531,101 @@ export function HumanInboxView({
         {inbox.error === undefined ? null : <p role="alert">{inbox.error}</p>}
         {inbox.status === 'loading' ? <p>{t('humanInbox.loading')}</p> : null}
         {inbox.status === 'ready' && inbox.items.length === 0 ? (
-          <p>{t(categoryCopy[inbox.category].empty)}</p>
+          <p>
+            {t(
+              inbox.snoozed && actionBotSlug === undefined
+                ? 'humanInbox.empty.snoozed'
+                : categoryCopy[inbox.category].empty,
+            )}
+          </p>
+        ) : null}
+        {selectable && inbox.items.some((item) => item.category !== 'handled') ? (
+          <div
+            className="bh-human-inbox-batch"
+            role="toolbar"
+            aria-label={t('humanInbox.batch.label')}
+          >
+            <label className="bh-human-inbox-batch-all">
+              <input
+                type="checkbox"
+                className="bh-human-inbox-row-check"
+                checked={
+                  selectedItems.length > 0 &&
+                  selectedItems.length ===
+                    inbox.items.filter((item) => item.category !== 'handled').length
+                }
+                disabled={batchBusy}
+                onChange={(event) =>
+                  setSelected(
+                    event.currentTarget.checked
+                      ? new Set(
+                          inbox.items.filter((item) => item.category !== 'handled').map(itemKey),
+                        )
+                      : new Set(),
+                  )
+                }
+              />
+              {selectedItems.length === 0
+                ? t('humanInbox.batch.all')
+                : t('humanInbox.batch.selected', { count: String(selectedItems.length) })}
+            </label>
+            {selectedItems.length === 0 ? null : (
+              <>
+                {selectedItems.every(batchApprovable) ? (
+                  <>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      type="button"
+                      disabled={batchBusy}
+                      onClick={() =>
+                        void runBatch((item) =>
+                          actions.decideToolApproval(
+                            item.channelId!,
+                            item.messageId!,
+                            'allowed-once',
+                          ),
+                        )
+                      }
+                    >
+                      {t('humanInbox.batch.allow', { count: String(selectedItems.length) })}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      type="button"
+                      disabled={batchBusy}
+                      onClick={() =>
+                        void runBatch((item) =>
+                          actions.decideToolApproval(item.channelId!, item.messageId!, 'rejected'),
+                        )
+                      }
+                    >
+                      {t('humanInbox.batch.reject')}
+                    </Button>
+                  </>
+                ) : null}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  type="button"
+                  disabled={batchBusy}
+                  onClick={() => void runBatch(settle)}
+                >
+                  {t('humanInbox.batch.handle')}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  type="button"
+                  disabled={batchBusy}
+                  onClick={() => setSelected(new Set())}
+                >
+                  {t('humanInbox.batch.clear')}
+                </Button>
+              </>
+            )}
+          </div>
         ) : null}
         <div className="bh-human-inbox-workspace">
           <div role="list" className="bh-human-inbox-list">
@@ -358,6 +641,8 @@ export function HumanInboxView({
                     : '')
                 }
                 data-selected={replySource?.id === item.id ? 'true' : undefined}
+                data-checked={selected.has(itemKey(item)) || undefined}
+                data-cursor={cursor === itemKey(item) || undefined}
               >
                 <button
                   type="button"
@@ -365,21 +650,23 @@ export function HumanInboxView({
                   aria-label={t('humanInbox.details', { title: itemTitle(item) })}
                   aria-expanded={replySource?.id === item.id}
                   aria-controls={replySource?.id === item.id ? detailId : undefined}
-                  onClick={() => {
-                    if (actionBotSlug !== undefined) {
-                      setActionSource(item);
-                      return;
-                    }
-                    setReplySource(
-                      replySource?.id === item.id &&
-                        replySource.sourceEventId === item.sourceEventId
-                        ? undefined
-                        : item,
-                    );
-                  }}
+                  onFocus={() => setCursor(itemKey(item))}
+                  onClick={() => toggleDetail(item)}
                 />
 
-                <div className="bh-human-inbox-row-title">{itemTitle(item)}</div>
+                <div className="bh-human-inbox-row-title">
+                  {selectable && item.category !== 'handled' ? (
+                    <input
+                      type="checkbox"
+                      className="bh-human-inbox-row-check"
+                      aria-label={t('humanInbox.batch.select', { title: itemTitle(item) })}
+                      checked={selected.has(itemKey(item))}
+                      disabled={batchBusy}
+                      onChange={() => toggleSelected(item)}
+                    />
+                  ) : null}
+                  {itemTitle(item)}
+                </div>
                 <div className="bh-human-inbox-row-main">
                   {item.kind === 'channel-reply' || item.kind === 'channel-mention' ? (
                     <div className="bh-human-inbox-unread-meta">
@@ -433,6 +720,18 @@ export function HumanInboxView({
                       {item.summary}
                     </div>
                   ) : null}
+                  {item.snoozedUntil === undefined ? null : (
+                    <div className="bh-human-inbox-unread-meta">
+                      <time dateTime={item.snoozedUntil}>
+                        {t('humanInbox.snooze.until', {
+                          time: new Date(item.snoozedUntil).toLocaleString(undefined, {
+                            dateStyle: 'medium',
+                            timeStyle: 'short',
+                          }),
+                        })}
+                      </time>
+                    </div>
+                  )}
                   {item.kind === 'bot-message-needs-repair' &&
                   (!item.channelName || !item.messageId) ? (
                     <div className="bh-human-inbox-row-summary">
@@ -539,6 +838,16 @@ export function HumanInboxView({
                             : 'humanInbox.acknowledge',
                       )}
                     </Button>
+                  ) : null}
+                  {selectable && canSnoozeHumanInboxItem(item) ? (
+                    <HumanInboxSnoozeButton
+                      item={item}
+                      t={t}
+                      open={snoozeMenu === itemKey(item)}
+                      disabled={busyId === item.id || batchBusy}
+                      onOpenChange={(open) => setSnoozeMenu(open ? itemKey(item) : undefined)}
+                      onSnooze={(until) => void snooze(item, until)}
+                    />
                   ) : null}
                   <HumanInboxSourceButton
                     item={item}

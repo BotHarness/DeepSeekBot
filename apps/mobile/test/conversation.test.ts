@@ -229,6 +229,70 @@ describe('DM conversation', () => {
     });
   });
 
+  it('shows reactions from the journal and follows reaction changes live', async () => {
+    const host = new FakeHost();
+    const channel = host.channel(DM);
+    seed(channel, 2);
+    channel.messages[0]!.reactions = [{ emoji: '👍', actors: [{ kind: 'bot', id: SLUG }] }];
+    const target = open(host);
+    const live = await until(target, (s) => s.status === 'live');
+    expect(live.messages[0]?.reactions).toEqual([
+      { emoji: '👍', actors: [{ kind: 'bot', id: SLUG }] },
+    ]);
+    expect(live.messages[1]).not.toHaveProperty('reactions');
+    channel.react('bot-2', [{ emoji: '👀', actors: [{ kind: 'bot', id: SLUG }] }]);
+    const seen = await until(target, (s) => s.messages[1]?.reactions !== undefined);
+    expect(seen.messages[1]?.reactions?.[0]?.emoji).toBe('👀');
+    channel.react('human-1', []);
+    const cleared = await until(target, (s) => s.messages[0]?.reactions === undefined);
+    expect(cleared.messages[1]?.reactions).toHaveLength(1);
+  });
+
+  it('reacts at once, then settles on what the Host stored', async () => {
+    const host = new FakeHost();
+    const channel = host.channel(DM);
+    seed(channel, 2);
+    channel.messages[1]!.reactions = [{ emoji: '👍', actors: [{ kind: 'bot', id: SLUG }] }];
+    const target = open(host);
+    await until(target, (s) => s.status === 'live');
+    const done = target.react('bot-2', '👍', true);
+    expect(target.getSnapshot().messages[1]?.reactions).toEqual([
+      {
+        emoji: '👍',
+        actors: [
+          { kind: 'bot', id: SLUG },
+          { kind: 'human', id: 'local-human' },
+        ],
+      },
+    ]);
+    await done;
+    expect(host.calls.find((call) => call.method === 'channelReact')?.args).toEqual({
+      channelId: DM,
+      messageId: 'bot-2',
+      emoji: '👍',
+      active: true,
+    });
+    await target.react('bot-2', '👍', false);
+    expect(target.getSnapshot().messages[1]?.reactions).toEqual([
+      { emoji: '👍', actors: [{ kind: 'bot', id: SLUG }] },
+    ]);
+    expect(channel.messages[1]?.reactions).toEqual([
+      { emoji: '👍', actors: [{ kind: 'bot', id: SLUG }] },
+    ]);
+  });
+
+  it('puts a reaction back when the Host refuses it', async () => {
+    const host = new FakeHost();
+    seed(host.channel(DM), 2);
+    const target = open(host);
+    await until(target, (s) => s.status === 'live');
+    host.failing.add('channelReact');
+    const done = target.react('bot-2', '🎉', true);
+    expect(target.getSnapshot().messages[1]?.reactions?.[0]?.emoji).toBe('🎉');
+    await expect(done).rejects.toThrow();
+    expect(target.getSnapshot().messages[1]).not.toHaveProperty('reactions');
+  });
+
   it('marks a send failed and retries with the same id, so the Host commits it once', async () => {
     const host = new FakeHost();
     host.channel(DM);
@@ -434,6 +498,156 @@ describe('DM conversation', () => {
     const done = await until(target, (s) => s.messages.at(-1)?.id === 'bot-reply');
     expect(done.drafts).toEqual([]);
     expect(done.messages.at(-1)).toMatchObject({ author: 'bot', delivery: 'committed' });
+  });
+
+  it('coalesces streamed draft bodies into few snapshots and keeps the messages array', async () => {
+    const host = new FakeHost();
+    const channel = host.channel(DM);
+    seed(channel, 2);
+    const target = open(host, { draftDelayMs: 200 });
+    const live = await until(target, (s) => s.status === 'live' && s.messages.length === 2);
+    const bodies: string[] = [];
+    const messageArrays = new Set<unknown>();
+    target.subscribe(() => {
+      const snapshot = target.getSnapshot();
+      bodies.push(snapshot.drafts[0]?.body ?? '');
+      messageArrays.add(snapshot.messages);
+    });
+    const draft = { channelId: DM, draftId: 'draft-1', attemptId: 'attempt-1', botSlug: SLUG };
+    const words = Array.from({ length: 20 }, (_, index) => `word${index}`);
+    words.forEach((_, index) =>
+      channel.emit({
+        type: 'notification',
+        notification: {
+          kind: 'draft',
+          draft: { ...draft, revision: index + 1, body: words.slice(0, index + 1).join(' ') },
+        },
+      }),
+    );
+    const final = words.join(' ');
+    await until(target, (s) => s.drafts[0]?.body === final);
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    expect(bodies.length).toBeLessThan(5);
+    expect(bodies.filter((body) => body === final)).toHaveLength(1);
+    expect([...messageArrays]).toEqual([live.messages]);
+    expect(messageArrays.has(live.messages)).toBe(true);
+  });
+
+  it('publishes a settled draft at once instead of waiting for the coalescing window', async () => {
+    const host = new FakeHost();
+    const channel = host.channel(DM);
+    seed(channel, 1);
+    const target = open(host, { draftDelayMs: 60_000 });
+    await until(target, (s) => s.status === 'live');
+    const seen: number[] = [];
+    target.subscribe(() => seen.push(target.getSnapshot().drafts.length));
+    const event = { channelId: DM, draftId: 'draft-1', attemptId: 'attempt-1', revision: 1 };
+    channel.emit({
+      type: 'notification',
+      notification: { kind: 'draft', draft: { ...event, botSlug: SLUG, body: 'Hel' } },
+    });
+    channel.emit({ type: 'notification', notification: { kind: 'draft-settled', event } });
+    await until(target, () => seen.length > 0);
+    expect(seen).toEqual([0]);
+  });
+
+  it('keeps each committed message object while new entries arrive', async () => {
+    const host = new FakeHost();
+    const channel = host.channel(DM);
+    seed(channel, 2);
+    const target = open(host);
+    const before = await until(target, (s) => s.status === 'live' && s.messages.length === 2);
+    channel.append({ id: 'bot-3', body: 'more', author: { kind: 'bot', slug: SLUG } });
+    const after = await until(target, (s) => s.messages.length === 3);
+    expect(after.messages[0]).toBe(before.messages[0]);
+    expect(after.messages[1]).toBe(before.messages[1]);
+  });
+
+  it('asks for draft appends and applies them on top of the whole body', async () => {
+    const host = new FakeHost();
+    const channel = host.channel(DM);
+    seed(channel, 1);
+    const target = open(host);
+    await until(target, (s) => s.status === 'live');
+    expect(channel.follows).toEqual([{ channelId: DM, limit: 10, drafts: 'append' }]);
+    const draft = { channelId: DM, draftId: 'draft-1', attemptId: 'attempt-1', botSlug: SLUG };
+    channel.emit({
+      type: 'notification',
+      notification: { kind: 'draft', draft: { ...draft, body: 'Hel', revision: 1 } },
+    });
+    for (const [index, append] of ['lo ', '**there**'].entries())
+      channel.emit({
+        type: 'notification',
+        notification: {
+          kind: 'draft-append',
+          append: {
+            draftId: 'draft-1',
+            revision: index + 2,
+            base: index + 1,
+            offset: index === 0 ? 3 : 6,
+            append,
+          },
+        },
+      });
+    await until(target, (s) => s.drafts[0]?.body === 'Hello **there**');
+    expect(target.getSnapshot().drafts).toEqual([
+      { draftId: 'draft-1', botSlug: SLUG, body: 'Hello **there**' },
+    ]);
+    expect(channel.follows).toHaveLength(1);
+  });
+
+  it('follows again for the whole body when an append does not match its copy', async () => {
+    const host = new FakeHost();
+    const channel = host.channel(DM);
+    seed(channel, 1);
+    const target = open(host);
+    await until(target, (s) => s.status === 'live');
+    const draft = { channelId: DM, draftId: 'draft-1', attemptId: 'attempt-1', botSlug: SLUG };
+    channel.emit({
+      type: 'notification',
+      notification: { kind: 'draft', draft: { ...draft, body: 'Hel', revision: 1 } },
+    });
+    await until(target, (s) => s.drafts[0]?.body === 'Hel');
+    channel.baselineDrafts = [{ ...draft, body: 'Hello there', revision: 4 }];
+    channel.emit({
+      type: 'notification',
+      notification: {
+        kind: 'draft-append',
+        append: { draftId: 'draft-1', revision: 4, base: 2, offset: 5, append: ' there' },
+      },
+    });
+    const repaired = await until(target, (s) => s.drafts[0]?.body === 'Hello there');
+    expect(repaired.status).toBe('live');
+    expect(channel.follows).toHaveLength(2);
+    await until(target, () => channel.followerCount === 1);
+  });
+
+  it('keeps streaming whole draft bodies from a Host that refuses appends', async () => {
+    const host = new FakeHost();
+    host.olderHost = true;
+    const channel = host.channel(DM);
+    seed(channel, 1);
+    const target = open(host);
+    await until(target, (s) => s.status === 'live');
+    expect(channel.follows).toEqual([
+      { channelId: DM, limit: 10, drafts: 'append' },
+      { channelId: DM, limit: 10 },
+    ]);
+    channel.emit({
+      type: 'notification',
+      notification: {
+        kind: 'draft',
+        draft: {
+          channelId: DM,
+          draftId: 'draft-1',
+          attemptId: 'attempt-1',
+          botSlug: SLUG,
+          body: 'Hello',
+          revision: 1,
+        },
+      },
+    });
+    await until(target, (s) => s.drafts[0]?.body === 'Hello');
   });
 
   it('resumes from the last revision after the connection drops, with nothing lost or doubled', async () => {

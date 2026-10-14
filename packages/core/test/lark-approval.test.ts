@@ -1034,3 +1034,92 @@ it('native Session-wide authorizations notify but remain Web-only', async () => 
   expect(await f.owner.decide('ada', pending.delivery.id, 'allowed-once')).toBe(true);
   expect(await pending.answer).toBe('allowed-once');
 });
+
+it('a Lark Approver can always allow a secret_cli kind, and revoking the pairing stops the rule', async () => {
+  const f = await fixture(true, true, true);
+  const agent = (await f.start()).execution.agent!;
+  await f.owner.decide('ada', f.owner.requests('ada')[0]!.messageId, 'rejected');
+  const secretCli = (callId: string, args: string[], account = 'github-work') => {
+    const execution = {
+      agent,
+      name: 'secret_cli',
+      arguments: {
+        account,
+        references: ['private:00000000-0000-0000-0000-000000000000:token'],
+        program: 'gh',
+        args,
+        env: [{ name: 'GH_TOKEN', value: '{{token}}' }],
+      },
+      callId,
+      token: Symbol(callId),
+    } as ToolExecution;
+    f.owner.track(execution);
+    return {
+      answer: f.owner.ask({ agent, toolName: 'secret_cli', callId }),
+      guard: () => f.owner.executionGuard(agent, callId)?.('secret_cli', execution.arguments),
+    };
+  };
+  const first = secretCli('secret-1', ['repo', 'list']);
+  const secretCard = () =>
+    f.cards.mock.calls
+      .filter((c) => (c[2] as { requestId?: string }).requestId === delivery?.id)
+      .at(-1)?.[2];
+  let delivery: { id: string } | undefined;
+  await vi.waitFor(() => {
+    delivery = f.core.externalMessaging.approvals
+      .snapshot('ada')
+      .deliveries.find((d) => d.callId === 'secret-1');
+    expect(secretCard()).toBeDefined();
+  });
+  expect(secretCard()).toMatchObject({ status: 'pending', rules: ['exact'] });
+  expect(await f.ruleAction(delivery!.id, 'preview-all-opaque')).toMatchObject({
+    status: 'refused',
+  });
+  await f.ruleAction(delivery!.id, 'preview-exact');
+  await vi.waitFor(() =>
+    expect(
+      f.core.externalMessaging.approvals
+        .snapshot('ada')
+        .deliveries.find((d) => d.id === delivery!.id)?.ruleConfirmation?.presented,
+    ).toBe(true),
+  );
+  const confirmation = f.core.externalMessaging.approvals
+    .snapshot('ada')
+    .deliveries.find((d) => d.id === delivery!.id)!.ruleConfirmation!;
+  expect(secretCard()!.detail).toContain('with any arguments');
+  await f.ruleAction(delivery!.id, 'confirm-exact', confirmation.id);
+  expect(await first.answer).toBe('allowed-once');
+  expect(f.core.toolRules.list('ada')).toMatchObject([
+    {
+      kind: 'secret-cli',
+      toolName: 'secret_cli',
+      input: '{"program":"gh","account":"github-work","env":["GH_TOKEN"]}',
+      externalCreator: { pairingId: f.approved.id },
+    },
+  ]);
+  await vi.waitFor(() =>
+    expect(
+      f.core.externalMessaging.approvals
+        .snapshot('ada')
+        .deliveries.find((d) => d.id === delivery!.id)?.savedRuleKind,
+    ).toBe('secret-cli'),
+  );
+  const second = secretCli('secret-2', ['issue', 'list']);
+  expect(await second.answer).toBe('allowed-once');
+  expect(second.guard()).toBe(true);
+  const otherAccount = secretCli('secret-3', ['repo', 'list'], 'github-personal');
+  await vi.waitFor(() => expect(f.owner.requests('ada')).toHaveLength(1));
+  await f.owner.decide('ada', f.owner.requests('ada')[0]!.messageId, 'rejected');
+  expect(await otherAccount.answer).toBe('rejected');
+  f.core.externalMessaging.pairing.review('ada', {
+    kind: 'revoke',
+    id: f.approved.id,
+    expectedRevision: f.approved.revision,
+  });
+  expect(f.core.toolRules.list('ada')[0]?.revokedAt).toBeDefined();
+  expect(second.guard()).toBe(false);
+  const afterRevoke = secretCli('secret-4', ['issue', 'list']);
+  await vi.waitFor(() => expect(f.owner.requests('ada')).toHaveLength(1));
+  await f.owner.decide('ada', f.owner.requests('ada')[0]!.messageId, 'rejected');
+  expect(await afterRevoke.answer).toBe('rejected');
+});

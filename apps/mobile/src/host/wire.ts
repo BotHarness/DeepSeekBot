@@ -14,8 +14,14 @@ export type WireAuthor =
   | { kind: 'bridged'; source: string }
   | { kind: 'system' };
 
+export interface WireReaction {
+  emoji: string;
+  actors: { kind: 'human' | 'bot'; id: string }[];
+}
+
 export interface ChannelWireMessage extends WireMessage {
   author: WireAuthor;
+  reactions?: WireReaction[];
   attachments?: readonly AttachmentRef[];
   bridgeMedia?: { items: readonly BridgeMediaItem[] };
   bridgeOrigin?: { sourceEventId: string };
@@ -64,11 +70,21 @@ export interface WireDraft {
   revision: number;
 }
 
+export interface WireDraftAppend {
+  draftId: string;
+  revision: number;
+  base: number;
+  offset: number;
+  append: string;
+}
+
 export type ChannelNotification =
   | { kind: 'admission'; channelId: string; messageId: string }
   | { kind: 'human-read'; channelId: string; humanId: string; revision: number }
+  | { kind: 'reaction'; channelId: string; messageId: string; reactions: WireReaction[] }
   | { kind: 'draft-baseline'; channelId: string; revision: number; drafts: WireDraft[] }
   | { kind: 'draft'; draft: WireDraft }
+  | { kind: 'draft-append'; append: WireDraftAppend }
   | {
       kind: 'draft-settled' | 'draft-abandoned';
       event: { channelId: string; draftId: string; attemptId: string; revision: number };
@@ -95,6 +111,7 @@ export interface PersonaBotSummary {
   roles?: string[];
   description?: string;
   computerAccess?: boolean;
+  browserAccess?: boolean;
   paused?: boolean;
   deleted?: boolean;
   aggregateState: AggregatedState;

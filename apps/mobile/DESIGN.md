@@ -27,8 +27,11 @@ References:
   - One list of PersonaBot DMs and Channels together, by latest activity.
   - The header has search and **+** (new Bot, new Channel).
 - **Activity** is the Human Inbox across all Hosts:
-  - Filters: All / Needs you / Mentions / Replies / Done, plus a Host filter.
-  - Every item carries its Host and can be decided in place.
+  - Filter chips with counts: All / Needs my action / Mentions & replies / Handled, and a Bot row once more than one Bot is listed. They match the Web Client Inbox's categories and Bot filter; a Host filter comes with more than one Host.
+  - Section headers stick to the top while their items scroll and show the section's count.
+  - Every item carries its Host and can be decided in place, on the same cards as the chat.
+  - Posts and rows are separated by space and layer fills, not divider lines.
+  - A row's title is `category · Bot`; a reply keeps its text on a second line, and a handled item collapses to one line: `category · Bot · summary`.
   - Opening an item jumps to the card in its chat.
 - **Me** holds appearance (scheme, accent, chat wallpaper), notifications, paired Hosts and unpairing.
 
@@ -55,15 +58,24 @@ References:
   - Bubbles use radius `lg` and are at most 80% wide.
   - Attachments sit inside the bubble: images as rounded thumbnails (one large, or a grid of squares), other files as a row with an icon, name and size. Tapping an image opens a full-screen viewer; tapping a file downloads it from the Host and opens the share sheet.
     - The viewer follows the Photos app: pinch zooms around the fingers (up to 5×, springing back to fit below 1×), double-tap zooms to 2.5× at the tapped point and back, one finger pans a zoomed image, a vertical swipe at fit size closes it with the backdrop fading, and a single tap hides or shows the close and share buttons. The close button, Android back and the iOS escape gesture also close it.
-  - Reactions are small chips on the bubble corner.
+  - Reactions are small pills under the bubble, on its side: the emoji and its count, the Human's own in `chosen` with an accent edge. Tapping one adds or removes the Human's reaction. A Bot's reaction-only answer shows here with no reply bubble.
+  - Long-press a bubble to open its menu, a sheet from the bottom: a row of quick reactions (👍 ❤️ 😂 🎉 👀 ✅, the Web Client's set), then **Copy** for a message with text, and **Cancel**. A message that is still sending, failed, or is a card has no reactions, so its menu is Copy alone. Bubble text is not selectable, so the long-press always reaches this menu.
   - Delivery: pending shows at 70% opacity, failed offers "Not sent · Tap to retry", and sent shows nothing.
-- **Action cards** sit in the chat stream and share one layout: title and explanation, an optional preview, then buttons.
+- **Action cards** sit in the chat stream, and the same rules apply wherever they appear (DM, Activity, Human Inbox, web Inbox). Show only what the Human needs to decide; everything else waits behind Details.
+  - Layout, top to bottom:
+    1. A header row: the category on the left (Terminal, Browser, Files, Tool, or the question's header), and a status pill on the right ("Needs you", `warningSoft` with `warning` text) while the request is open. There is no eyebrow, and the Bot's name is not repeated.
+    2. One key sentence saying what is asked ("Run this command", or the question itself).
+    3. An optional preview on the `well` layer: the command in mono, at most two lines.
+    4. **Details**, collapsed by default and expanded in place. It holds the tool, working folder and every argument on the `well` layer. There is no separate sheet.
+    5. The buttons.
   - Card kinds:
-    - **Question**: lettered options, single or multiple choice, then Submit.
-    - **Tool approval**: Allow once / Always allow / Deny. Details open a form sheet.
+    - **Question**: lettered options in one `well` group, with dividers between rows. A single choice answers on tap, with no Submit. Multiple choice or several questions end with Submit. In a DM the Other answer field becomes "Or reply in the chat below.", and a message sent while one single-part question is open answers it.
+    - **Tool approval**: Allow once / Always allow / Deny.
     - **Takeover**: a computer screenshot, then Take over / Done / Not now.
-  - At most one primary button per card.
-  - A decided card collapses to one line. A card decided on another device says so.
+  - Buttons are pills with no outline. The primary is a neutral high-contrast fill (`fg` with a `base` label), the secondary a subtle solid fill one step off the layer, and Deny a red label on the layer's `danger` tint. A card has at most one primary. Three or more decisions stack full width (primary first, destructive last); two sit in a row, sized to their labels.
+  - No keyboard shortcut hints, no explanatory boilerplate, and no paths or ids outside Details.
+  - Regions are told apart by layer fills, not borders. The card is `raised` with no outline, and an outline appears only on the focused card (`edge.focus` in the accent).
+  - A decided card collapses to one line: a coloured dot, then "subject · outcome" (for example "bash · Allowed once"). A card decided on another device or expired says so.
 - While the Bot works, a status strip above the composer shows the current step and a **Stop** button. Tapping it shows the steps.
 - The composer is a pill: **+** for attachments, the placeholder "Message {Bot}", and a mic that becomes Send once there is text.
   - With one trailing button (the mic or Send) the pill is one row: **+**, the field and the button, bottom-aligned as the field grows. When the text no longer fits that one row, or with more (attached files, or the mic next to Send), it stacks like the web composer: the field on top at full width, and a row below with **+** (or **×**) on the left and the buttons on the right.
@@ -79,6 +91,25 @@ References:
 - Each section loads on its own: an empty section says so, and a failed one offers Try again without hiding the others.
 - Read-only for now; editing Identity and Memory from the phone comes later.
 
+## Layers and states
+
+Every fill comes from a layer, like the Web Client's DSH layers. `theme.layer.<name>` holds opaque colours:
+
+| Layer    | Fill (DSH)           | Used for                                                  |
+| -------- | -------------------- | --------------------------------------------------------- |
+| `canvas` | `bg-base`            | screens, lists, the composer bar                          |
+| `raised` | `bg-module-platform` | cards, Bot bubbles, shortcut cards, the composer pill     |
+| `well`   | `bg-base`            | a recessed area in a raised card: option groups, previews |
+| `field`  | `bg-layer-1`         | text inputs in a card, edged with `border-l4`             |
+| `sheet`  | `bg-layer-2`         | settings rows, sheets and menus                           |
+
+Each layer has `fill`, `pressed`, `selected` (neutral, such as the current tab), `chosen` (the Human's pick, an accent tint), `danger` (a destructive button, a red tint), `inset` (code, badges, tiles), `edge` and `divider`.
+
+- `chosen` is the accent over the fill, 13% in light and 30% in dark. On `well` it equals DSH `state-business-tertiary`, and it follows a Bot's accent.
+- A state is pushed further from its fill until it stands apart from the fill, the layer under it and the other states (`SEPARATION` in `layers.ts`; `test/design-tokens.test.ts` checks every scheme and accent). DSH's dark `interactive-bg-active` over `bg-base` equals `bg-module-platform`, so without this a selected row in a card looks like the card.
+- Buttons are solid pills (`radius.round`) with no border, and take their colours from `buttonColors(theme, tone, on)` (`controls.ts`) for the layer they sit `on`. Primary is the neutral `fg` fill with a `base` label, never the Bot accent. Secondary is the layer's `selected`, or the next layer's fill when `selected` is too close to the layer. Danger is the layer's `danger` tint with a red label. Each fill stands apart from the layer and from the other tones, and each label reaches 4.5:1.
+- Translucent roles (`hover`, `selected`, `divider`, `border*`, `dangerSoft`) are never a `backgroundColor`; `test/style-guard.test.ts` enforces this. Translucent edges stay allowed.
+
 ## Components
 
 - `src/ui/design/` holds the tokens and theme (ADR-0201).
@@ -89,7 +120,7 @@ References:
 
 ## Code rules
 
-1. **No literal style values.**
+1. **No literal style values.** Fills come from `theme.layer` (above).
    - Colours, font sizes and weights, spacing, radii and edge widths come from `useDesignTheme()` and `src/ui/design/tokens.ts`.
    - `test/style-guard.test.ts` enforces this for `app/` and `src/ui/`.
    - Files written before the rule are listed in it and leave the list once migrated; the test fails if a migrated file stays listed.

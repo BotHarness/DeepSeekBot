@@ -261,4 +261,35 @@ describe('Human Inbox approval Host boundary', () => {
       }
     },
   );
+
+  it('reports when a pending approval expires and drops it once decided', async () => {
+    const f = fixture();
+    try {
+      const before = Date.now();
+      const pending = await f.start('ada');
+      const status = f.methods.toolApprovalStatus({
+        channelId: pending.channelId,
+        messageId: pending.message.id,
+      });
+      expect(status).toMatchObject({ ok: true, value: { status: 'pending' } });
+      const expiresAt = Date.parse((status as { value: { expiresAt: string } }).value.expiresAt);
+      expect(expiresAt).toBeGreaterThanOrEqual(before + 24 * 60 * 60 * 1000);
+      expect(expiresAt).toBeLessThanOrEqual(Date.now() + 24 * 60 * 60 * 1000);
+      await f.methods.toolApprovalDecide({
+        channelId: pending.channelId,
+        messageId: pending.message.id,
+        outcome: 'rejected',
+      });
+      expect(
+        f.methods.toolApprovalStatus({
+          channelId: pending.channelId,
+          messageId: pending.message.id,
+        }),
+      ).toEqual({ ok: true, value: { status: 'expired' } });
+    } finally {
+      f.broker.close();
+      await f.core.runtime.close();
+      f.core.operationalDatabase.close();
+    }
+  });
 });

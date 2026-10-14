@@ -189,6 +189,12 @@ describe('Orchestrator execution root selection', () => {
     expect(nativeExecutionRoot(f.core, f.orchestrator, 'bash', { workdir: f.project })).toBe(
       f.project,
     );
+    expect(nativeExecutionRoot(f.core, f.orchestrator, 'pwsh', { workdir: f.project })).toBe(
+      f.project,
+    );
+    expect(() =>
+      nativeExecutionRoot(f.core, f.orchestrator, 'pwsh', { workdir: dirname(f.project) }),
+    ).toThrow(/outside/);
     expect(() =>
       nativeExecutionRoot(f.core, f.orchestrator, 'bash', { workdir: dirname(f.project) }),
     ).toThrow(/outside/);

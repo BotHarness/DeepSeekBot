@@ -6,6 +6,8 @@ Issues: [#1572](https://github.com/BotHarness/DeepSeekBot/issues/1572), [#1562](
 
 # A Bot runs a command-line tool with Owner secrets, one approved call at a time
 
+> Amended by [ADR-0208](0208-secret-cli-can-be-always-allowed-per-program-and-account.md): a call can be always allowed per program, account and variable names, also from IM.
+
 ADR-0189 gave an ordinary Profile `ask_secret` and `secret_http`. Many tools a Bot works with are command-line programs that read their credential only from an environment variable. Without a consumer for them the Human exports the value in a terminal, where it reaches every later command. The owner asked for command-line use to be supported alongside the HTTP consumer.
 
 ## Decision

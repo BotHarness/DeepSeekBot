@@ -1,7 +1,9 @@
 import { useState } from 'react';
-import { ActivityIndicator, Image, Pressable, View } from 'react-native';
+import { Image } from 'expo-image';
+import { ActivityIndicator, Pressable, View } from 'react-native';
 
 import type { MessageAttachment } from '../../host/conversation';
+import { over } from '../design/layers';
 import { radius, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { Text } from '../primitives/text';
@@ -32,7 +34,8 @@ function AttachmentImage({
   const [failed, setFailed] = useState(false);
   const source = attachment.source;
   const tone = human ? 'onAccent' : 'muted';
-  const box = { width, height, borderRadius: radius.md, backgroundColor: theme.color.selected };
+  const fill = human ? over(theme.color.selected, theme.color.accent) : theme.layer.raised.inset;
+  const box = { width, height, borderRadius: radius.md, backgroundColor: fill };
   if (source === undefined || failed)
     return (
       <Pressable
@@ -60,7 +63,10 @@ function AttachmentImage({
       <Image
         key={attempt}
         source={source}
-        resizeMode="cover"
+        recyclingKey={attachment.key}
+        cachePolicy="memory-disk"
+        contentFit="cover"
+        transition={150}
         onError={() => setFailed(true)}
         style={box}
       />
@@ -80,6 +86,7 @@ function AttachmentFile({
   const theme = useDesignTheme();
   const [busy, setBusy] = useState(false);
   const ink = human ? 'onAccent' : 'fg';
+  const fill = human ? over(theme.color.selected, theme.color.accent) : theme.layer.raised.inset;
   const unavailable = attachment.source === undefined;
   const detail = unavailable
     ? t.attachmentElsewhere
@@ -106,7 +113,7 @@ function AttachmentFile({
         paddingHorizontal: space.x3,
         paddingVertical: space.x2,
         borderRadius: radius.md,
-        backgroundColor: theme.color.selected,
+        backgroundColor: fill,
       }}
     >
       {busy ? (

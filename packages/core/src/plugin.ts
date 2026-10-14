@@ -138,7 +138,7 @@ import {
   grantExecutionDenial,
   grantToolExecutionDenial,
   orchestratorPermission,
-  isSafeMemoryDirectoryListing,
+  isDshGovernedTool,
   requiresHumanToolApproval,
   sessionHasFullAccess,
 } from './workspaces/grant-execution.js';
@@ -570,6 +570,8 @@ export function createCore(
       live?.publishAdmission(channelId, messageId, message),
     onHumanReadChanged: (channelId, humanId, revision) =>
       live?.publishHumanRead(channelId, humanId, revision),
+    onReactionChanged: (channelId, messageId, reactions) =>
+      live?.publishReaction(channelId, messageId, reactions),
     ...(options.warn === undefined ? {} : { warn: options.warn }),
   });
   const attention = createBotAttentionQuery(
@@ -1289,7 +1291,11 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       const agent = execution.agent;
       if (agent === undefined || core.ownership.resolve(agent.session.id) === undefined)
         return next();
-      if (!requiresHumanToolApproval(execution.name, execution.arguments)) return next();
+      if (
+        !isDshGovernedTool(execution.name) &&
+        !requiresHumanToolApproval(execution.name, execution.arguments)
+      )
+        return next();
       const storeDenial = credentialStoreDenial(
         execution.name,
         execution.arguments,
@@ -1305,8 +1311,6 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         const serverDenial = secretMcpDenial(execution.arguments);
         if (serverDenial !== undefined) return { kind: 'deny', reason: serverDenial };
       }
-      if (isSafeMemoryDirectoryListing(core, agent.session, execution.name, execution.arguments))
-        return next();
 
       const computerTools = ctx.get('botharnessComputerTools') as
         | {
@@ -1423,23 +1427,14 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       }
       const denial = permissionDenial(agent.session);
       if (denial !== undefined) return { kind: 'deny', reason: denial };
-      if (
-        typeof execution.arguments === 'object' &&
-        execution.arguments !== null &&
-        'sandbox_permissions' in execution.arguments
-      ) {
-        return {
-          kind: 'deny',
-          reason: 'BotHarness Session cannot request sandbox permission escalation',
-        };
-      }
+      if (!requiresHumanToolApproval(execution.name, execution.arguments)) return next();
       const eachUse = execution.name === 'secret_cli' || execution.name === 'secret_mcp_connect';
       const fullAccess = sessionHasFullAccess(core, agent.session.id);
       if (fullAccess) return next();
       const approval = ctx.get('approval') as ApprovalService | undefined;
       const untrack = toolApproval.track(
         execution,
-        eachUse ? 'each-use' : 'operation',
+        execution.name === 'secret_mcp_connect' ? 'each-use' : 'operation',
         execution.name === 'secret_mcp_connect',
       );
       if (approval === undefined || untrack === undefined) {
@@ -1464,9 +1459,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
               reason:
                 execution.name === 'channel_attachment_open'
                   ? 'This PersonaBot wants to edit the selected original attachment. All references to this file will show its current contents.'
-                  : eachUse
-                    ? 'This PersonaBot wants to run a command-line tool with a secret you entered. The program receives the secret and could reveal it. Check the program and every argument.'
-                    : 'This tool call may access files outside the authorized folder.',
+                  : 'This PersonaBot wants to run a command-line tool with a secret you entered. The program receives the secret and could reveal it. Check the program and every argument.',
               signal: execution.signal,
             });
         if (outcome !== 'allowed-once') {
@@ -1509,34 +1502,44 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   ctx.on(
     'tools/execute',
     async (execution, next) => {
-      if (
-        execution.agent === undefined ||
-        core.ownership.resolve(execution.agent.session.id)?.rootRole !== 'assignment' ||
-        core.runtime.runAssignmentTool === undefined
-      )
-        return next();
-      return core.runtime.runAssignmentTool(
-        execution.agent.session.id,
-        execution.callId,
-        execution.token,
-        execution.signal,
-        () => {
-          const approvalGuard = approvedCalls.get(execution.token);
-          if (approvalGuard && !approvalGuard(execution.name, execution.arguments))
-            throw new Error('Approval authority or operation changed before execution');
-          const denial = grantToolExecutionDenial(
-            core,
-            execution.agent!.session,
-            ctx.get('sandboxPolicy'),
-            ctx.get('approval'),
-            execution.name,
-            execution.arguments,
-            approvalGuard !== undefined,
-          );
-          if (denial !== undefined) throw new Error(denial);
-          return next();
-        },
-      );
+      const owner =
+        execution.agent === undefined
+          ? undefined
+          : core.ownership.resolve(execution.agent.session.id);
+      if (owner === undefined) return next();
+      const untrack =
+        isDshGovernedTool(execution.name) &&
+        !requiresHumanToolApproval(execution.name, execution.arguments)
+          ? toolApproval.track(execution)
+          : undefined;
+      try {
+        if (owner.rootRole !== 'assignment' || core.runtime.runAssignmentTool === undefined)
+          return await next();
+        return await core.runtime.runAssignmentTool(
+          execution.agent!.session.id,
+          execution.callId,
+          execution.token,
+          execution.signal,
+          () => {
+            const approvalGuard = approvedCalls.get(execution.token);
+            if (approvalGuard && !approvalGuard(execution.name, execution.arguments))
+              throw new Error('Approval authority or operation changed before execution');
+            const denial = grantToolExecutionDenial(
+              core,
+              execution.agent!.session,
+              ctx.get('sandboxPolicy'),
+              ctx.get('approval'),
+              execution.name,
+              execution.arguments,
+              approvalGuard !== undefined,
+            );
+            if (denial !== undefined) throw new Error(denial);
+            return next();
+          },
+        );
+      } finally {
+        untrack?.();
+      }
     },
     { global: true },
   );
@@ -1697,7 +1700,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   registerBridge(ctx, bridgeMethods, privateInputs, {
     followRoster: (signal) => core.live.followRoster(signal),
     followActivity: (signal) => core.live.followActivity(signal),
-    followChannel: (channelId, limit, signal) => core.live.followChannel(channelId, limit, signal),
+    followChannel: (channelId, limit, signal, drafts) =>
+      core.live.followChannel(channelId, limit, signal, drafts),
     journalPage: (channelId, request) => core.channels.readHumanJournalPage(channelId, request),
     followCompanion: (resume, lastEventId, signal) =>
       followCompanion((request) => core.companions.open(request), resume, lastEventId, signal),

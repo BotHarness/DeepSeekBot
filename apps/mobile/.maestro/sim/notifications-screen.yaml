@@ -1,0 +1,17 @@
+# Opens Me → Notifications and waits for the expected status line.
+# -e EXPECT=<text>  (a Simulator build without an EAS projectId shows
+#   "This build of the app cannot receive notifications.")
+appId: ai.botharness.deepseekbot.dev
+---
+- tapOn: 'Me'
+- extendedWaitUntil:
+    visible: 'Computers.*'
+    timeout: 10000
+# The Activity tab icon is also labelled "notifications"; match the Me row.
+- tapOn:
+    text: 'Notifications'
+    below: 'Computers.*'
+- extendedWaitUntil:
+    visible: ${EXPECT}
+    timeout: 15000
+- tapOn: 'Back|\(tabs\)'

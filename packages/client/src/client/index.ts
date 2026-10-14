@@ -57,6 +57,11 @@ import { expectMobileConversation, MobileBotPanel } from './mobile-bot-panel.js'
 import { mobileBotViewport, subscribeMobileBotViewport } from './mobile-viewport.js';
 import { clearConversationDrafts } from './conversation-draft.js';
 import { BotSidebar, createBotPanelEntry } from './bot-sidebar.js';
+import { BotModeSidebar } from './bot-mode-sidebar.js';
+import {
+  botModeSidebarViewport,
+  subscribeBotModeSidebarViewport,
+} from './bot-mode-sidebar-viewport.js';
 import { OnboardingEnterHint, OnboardingLauncher } from './onboarding-checklist-view.js';
 import {
   createChannelSidebarBuiltinTabs,
@@ -73,6 +78,7 @@ import { openHumanAttentionSource } from './human-attention-source.js';
 import { ShortcutHelp, ShortcutHelpView } from './shortcut-help.js';
 import { mountTabTitle } from './tab-title.js';
 import { createChannelSidebarRegistry } from './channel-sidebar.js';
+import { createDockPanelRegistry } from './dock-panels.js';
 import { createProfileCardBuiltins } from './profile-cards-builtins.js';
 import { createGroupProfileCards } from './group-profile.js';
 import { createProfileCardRegistry } from './profile-cards.js';
@@ -339,7 +345,9 @@ export function apply(ctx: ClientContext): void {
       visibility.dispose();
     };
   }, 'botharness: Bot Session visibility');
-  const channelSidebar = createChannelSidebarRegistry();
+  const dockPanels = createDockPanelRegistry();
+  ctx.provide('dockPanels', dockPanels);
+  const channelSidebar = createChannelSidebarRegistry(dockPanels);
   ctx.provide('channelSidebar', channelSidebar);
   const profileCards = createProfileCardRegistry();
   ctx.provide('profileCards', profileCards);
@@ -814,6 +822,7 @@ export function apply(ctx: ClientContext): void {
           actions,
           companion,
           channelSidebar,
+          dockPanels,
           profileCards,
           nativeChatT,
           nativeSessions,
@@ -892,6 +901,34 @@ export function apply(ctx: ClientContext): void {
 
   registerModeShadow(
     ctx,
+    'sidebar',
+    () =>
+      ctx.slots.register(
+        {
+          name: 'sidebar',
+          priority: -1,
+          locale: LOCALE_NS,
+          inject: () => ({
+            actions,
+            companion,
+            channelSidebar,
+            shortcutBindings,
+            ...botModePrefsFace(prefs),
+            exitBotMode: () => ctx.layout.selectPanel(null),
+            toggleSidebar: () => ctx.layout.toggleSidebar(),
+            openBotSettings: () => botSettings.open(),
+          }),
+        },
+        BotModeSidebar,
+      ),
+    store,
+    {
+      enabled: botModeSidebarViewport,
+      subscribe: subscribeBotModeSidebarViewport,
+    },
+  );
+  registerModeShadow(
+    ctx,
     'sidebar.workspaces',
     () =>
       ctx.slots.register(
@@ -928,6 +965,7 @@ export function apply(ctx: ClientContext): void {
             actions,
             companion,
             channelSidebar,
+            dockPanels,
             profileCards,
             nativeChatT,
             nativeSessions,

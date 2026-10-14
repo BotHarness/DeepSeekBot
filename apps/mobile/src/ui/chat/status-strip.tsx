@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 
 import type { RosterBot } from '../../host/client';
+import { buttonColors } from '../design/controls';
 import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
 import { Text } from '../primitives/text';
@@ -19,6 +20,7 @@ export function StatusStrip({
   onStop(): void;
 }) {
   const theme = useDesignTheme();
+  const stopColors = buttonColors(theme, 'secondary', 'canvas');
   const [open, setOpen] = useState(false);
   const rows = stepRows(bot);
   return (
@@ -77,7 +79,7 @@ export function StatusStrip({
             gap: space.x2,
             paddingHorizontal: space.x4,
             borderRadius: radius.round,
-            backgroundColor: pressed ? theme.color.hover : theme.color.selected,
+            backgroundColor: pressed ? stopColors.pressed : stopColors.fill,
             opacity: stopping ? 0.6 : 1,
           })}
         >

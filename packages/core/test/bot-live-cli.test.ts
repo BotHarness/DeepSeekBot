@@ -187,6 +187,36 @@ describe('live CLI over the authenticated DSH carrier', () => {
       live.url,
     );
     expect(decided.json.error.code).toBe('botharness/invalid-input');
+    await invoke(
+      [
+        'tool-approval-decide',
+        'dm-ada',
+        '--message-id',
+        'approval',
+        '--outcome',
+        'allowed-always-kind',
+      ],
+      live.url,
+    );
+    expect(live.calls.at(-1)).toMatchObject({
+      method: 'toolApprovalDecide',
+      args: { channelId: 'dm-ada', messageId: 'approval', outcome: 'allowed-always-kind' },
+    });
+    expect(
+      (
+        await invoke(
+          [
+            'tool-approval-decide',
+            'dm-ada',
+            '--message-id',
+            'approval',
+            '--outcome',
+            'allowed-always-all',
+          ],
+          live.url,
+        )
+      ).json.error.code,
+    ).toBe('usage');
     const answer = { answers: [{ id: 'q1', selected: ['yes'], custom: 'details' }] };
     const answered = await invoke(
       ['user-question-answer', 'dm-ada', '--message-id', 'question', '--answer-stdin'],

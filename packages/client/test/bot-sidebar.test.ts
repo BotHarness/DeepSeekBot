@@ -241,6 +241,7 @@ function stubActions(): BridgeActions {
     answerUserQuestion: vi.fn(async () => undefined),
     authorizeWorkspacePath: vi.fn(async () => ({ id: 'grant-1' }) as never),
     memoryDirectory: vi.fn(async () => undefined),
+    moveMemoryLocation: vi.fn(async () => '/tmp/memory'),
     load: vi.fn(async () => undefined),
     refreshRoster: vi.fn(async () => undefined),
     refreshGit: vi.fn(async () => undefined),
@@ -260,6 +261,7 @@ function stubActions(): BridgeActions {
     openChannel: vi.fn(async () => undefined),
     openChannelAtMessage: vi.fn(async () => undefined),
     dismissHumanInbox: vi.fn(async () => undefined),
+    snoozeHumanInbox: vi.fn(async () => undefined),
     humanInboxContextPage: vi.fn(async () => ({
       entries: [],
       olderCursor: null,

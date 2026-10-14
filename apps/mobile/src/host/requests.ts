@@ -42,7 +42,11 @@ export function offersAlwaysAllow(toolName: string): boolean {
 
 export function requestRef(item: HumanAttentionItem): RequestRef | undefined {
   if (item.channelId === undefined || item.messageId === undefined) return undefined;
-  return { channelId: item.channelId, messageId: item.messageId, botSlug: item.botSlug };
+  return {
+    channelId: item.channelId,
+    messageId: item.messageId,
+    botSlug: item.botSlug,
+  };
 }
 
 const CONTEXT_AFTER = 50;
@@ -60,7 +64,10 @@ async function readRequest(
   });
   const index = page.entries.findIndex((entry) => entry.id === ref.messageId);
   if (index < 0) throw new Error('The request is no longer in this conversation.');
-  return { request: page.entries[index]!, later: page.entries.slice(index + 1) };
+  return {
+    request: page.entries[index]!,
+    later: page.entries.slice(index + 1),
+  };
 }
 
 export async function loadApproval(client: HostClient, ref: RequestRef): Promise<ApprovalRequest> {
@@ -155,6 +162,18 @@ export async function answerQuestion(
   }
 }
 
+export async function answerInChat(
+  client: HostClient,
+  ref: RequestRef,
+  text: string,
+): Promise<boolean> {
+  const request = await loadQuestion(client, ref);
+  const only = request.questions.length === 1 ? request.questions[0] : undefined;
+  if (request.status !== 'pending' || only === undefined) return false;
+  const answer = { answers: [{ id: only.id, selected: [], custom: text }] };
+  return (await answerQuestion(client, ref, answer)) === 'accepted';
+}
+
 export interface QuestionDraft {
   selected: string[];
   custom: string;
@@ -202,9 +221,25 @@ export function buildAnswer(
     if (question.multiSelect !== true && selected.length > 0)
       answers.push({ id: question.id, selected: selected.slice(0, 1) });
     else if (selected.length === 0 && custom.length === 0) return undefined;
-    else answers.push({ id: question.id, selected, ...(custom.length > 0 ? { custom } : {}) });
+    else
+      answers.push({
+        id: question.id,
+        selected,
+        ...(custom.length > 0 ? { custom } : {}),
+      });
   }
   return { answers };
+}
+
+const PREVIEW_FIELDS = ['command', 'cmd', 'script', 'code', 'url', 'path', 'file_path'];
+
+export function previewInput(input: string): { label: string; value: string } | undefined {
+  const rows = readableInput(input);
+  return (
+    PREVIEW_FIELDS.map((field) => rows.find((row) => row.label === field)).find(
+      (row) => row !== undefined,
+    ) ?? rows[0]
+  );
 }
 
 export function readableInput(input: string): { label: string; value: string }[] {

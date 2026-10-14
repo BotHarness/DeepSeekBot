@@ -3,6 +3,7 @@ import { INTERNAL_TOUR_CSS } from './internal-tour-styles.js';
 import { COMPOSER_CONTEXT_CSS } from './composer-context-styles.js';
 import { WINDOW_COMPANION_CSS } from './window-companion-styles.js';
 import { COMBOBOX_CSS } from './combobox.js';
+import { CHANNEL_DOCK_CSS } from './channel-dock-styles.js';
 import { keyframesFor } from '@botharness/botui-core';
 import { DEEPSEEKBOT_TRANSPARENT_DATA_URI } from './bot-icon-assets.js';
 import { STYLEX_CSS } from './ds/stylex-css.js';
@@ -12,6 +13,7 @@ export const CSS =
   INTERNAL_TOUR_CSS +
   COMBOBOX_CSS +
   WINDOW_COMPANION_CSS +
+  CHANNEL_DOCK_CSS +
   `
 .bh-selection-bar { display: flex; align-items: center; justify-content: space-between; gap: ${space.x4}; margin: 0 ${space.x5} ${space.x5}; padding: ${space.x3} ${space.x4} ${space.x3} ${space.x5}; border-radius: ${radius.md}; background: var(--dsw-alias-bg-module-platform); color: var(--dsw-alias-label-primary); }
 .bh-selection-count { min-width: 0; font-size: ${text.bodySize}; line-height: ${text.bodyLine}; font-weight: ${text.strong}; font-variant-numeric: tabular-nums; }
@@ -45,6 +47,11 @@ export const CSS =
   --bh-hover: var(--dsw-alias-interactive-bg-hover);
   --bh-selected: var(--dsw-specific-sidebar-nav-item-active);
   /* @bh-brand-aliases:end */
+  --bh-surface-selected: color-mix(in srgb, ${color.fg} 8%, ${color.surface});
+  --bh-surface-pressed: color-mix(in srgb, ${color.fg} 13%, ${color.surface});
+  --bh-surface-danger: color-mix(in srgb, ${color.danger} 10%, ${color.surface});
+  --bh-on-surface-danger: color-mix(in srgb, ${color.danger} 65%, ${color.fg});
+  --bh-well-inset: color-mix(in srgb, ${color.fg} 7%, ${color.well});
   /* @bh-profile-chart-aliases:start — the pinned DSH theme has no categorical
      chart palette; read shades derive from the brand accent and output uses a
      state token so both series stay distinguishable in either theme. */
@@ -3151,7 +3158,7 @@ html[data-botharness-motion='reduce'] .bh-chat-body { transition: none; }
   height: 28px;
   display: flex;
   align-items: flex-end;
-  margin-bottom: 0;
+  margin-bottom: var(--bh-avatar-lift, 0px);
   border: 0;
   border-radius: ${radius.round};
   padding: 0;
@@ -3329,11 +3336,14 @@ html[data-botharness-motion='reduce'] .bh-timeline-working-ellipsis i { animatio
 .bh-bubble {
   width: fit-content;
   max-width: 100%;
-  border: ${border.hairline} solid transparent;
   border-radius: ${radius.lg};
-  background: var(--dsw-alias-interactive-bg-active);
-  color: var(--dsw-alias-label-primary);
+  background: ${color.surface};
+  color: ${color.fg};
   padding: var(--bh-chat-card-inset);
+}
+/* Text bubbles are flat and compact like the mobile bubble; cards keep the card inset. */
+.bh-bubble:has(> .bh-bubble-body) {
+  padding: ${space.x3} ${space.x4};
 }
 .bh-bubble[data-group-position='first'] {
   border-bottom-left-radius: ${radius.xs};
@@ -3359,18 +3369,27 @@ html[data-botharness-motion='reduce'] .bh-timeline-working-ellipsis i { animatio
   border-top-left-radius: ${radius.lg};
   border-top-right-radius: ${radius.xs};
 }
+.bh-message-group-me {
+  --bh-bubble-me-fill: var(--bh-bubble-me-fill-light, color-mix(in srgb, ${color.accent} 90%, ${color.fg}));
+  --bh-bubble-me-ink: var(--bh-bubble-me-ink-light, ${color.onAccent});
+}
+body[data-ds-dark-theme] .bh-message-group-me {
+  --bh-bubble-me-fill: var(--bh-bubble-me-fill-dark, ${color.accent});
+  --bh-bubble-me-ink: var(--bh-bubble-me-ink-dark, ${color.onAccent});
+}
 .bh-bubble-me {
-  background: var(--dsw-alias-label-primary);
-  color: var(--dsw-alias-label-primary-foreground);
+  background: var(--bh-bubble-me-fill);
+  color: var(--bh-bubble-me-ink);
 }
 .bh-bubble-pending {
-  opacity: 0.55;
+  opacity: 0.7;
 }
 .bh-bubble-failed {
   opacity: 0.8;
 }
 .bh-bubble-focused .bh-bubble {
-  box-shadow: 0 0 0 2px var(--dsw-alias-label-primary);
+  outline: ${border.focus} solid var(--bh-accent);
+  outline-offset: 2px;
 }
 .bh-bubble-reply {
   display: flex;
@@ -3433,7 +3452,8 @@ html[data-botharness-motion='reduce'] .bh-timeline-working-ellipsis i { animatio
 .bh-bridge-image-button:focus-visible { outline: ${border.focus} solid var(--dsw-alias-state-business-primary); outline-offset: 2px; }
 .bh-bridge-image-state { display: flex; align-items: center; gap: ${space.x3}; min-height: 96px; color: var(--dsw-alias-label-secondary); }
 .bh-bridge-image-expanded { display: block; max-width: 100%; max-height: 75vh; margin: auto; object-fit: contain; }
-.bh-message-image-link { display: block; width: fit-content; max-width: 320px; min-width: 0; }
+.bh-message-image-link { display: block; width: fit-content; max-width: 320px; min-width: 0; padding: 0; border: 0; border-radius: ${radius.md}; background: transparent; cursor: zoom-in; }
+.bh-message-image-link:focus-visible { outline: ${border.focus} solid var(--bh-accent); outline-offset: 2px; }
 .bh-message-image-row { display: flex; align-items: flex-start; gap: ${space.x2}; width: fit-content; max-width: 100%; min-width: 0; }
 .bh-message-image { display: block; max-width: 100%; max-height: 320px; border-radius: ${radius.md}; object-fit: contain; }
 /* File and audio pills share one card rhythm: icon, stacked name/size, divider, action. */
@@ -3499,6 +3519,7 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
   flex: none;
   display: flex;
   align-items: center;
+  margin-bottom: var(--bh-reaction-row, 0px);
 }
 .bh-bubble-side .bh-delivery-trigger {
   position: static;
@@ -5186,7 +5207,15 @@ html[data-botharness-motion='full'] .bh-motion-preview-sample i:nth-child(3) {
 .bh-question-source code { display: block; margin-top: ${space.x2}; overflow-wrap: anywhere; }
 .bh-question-item { display: grid; grid-template-columns: minmax(0, 1fr); gap: ${space.x2}; min-width: 0; }
 .bh-question-prompt { font-weight: ${text.strong}; white-space: pre-wrap; }
+.bh-question-letter { display: grid; place-items: center; width: 22px; height: 22px; border-radius: ${radius.round}; background: var(--bh-well-inset); color: var(--dsw-alias-label-secondary); font-size: ${text.metaSize}; font-weight: ${text.strong}; line-height: 1; }
+.bh-question-letter[data-multiple] { border-radius: ${radius.xs}; }
+.bh-question-card .bh-card-row[data-selected='true'] .bh-question-letter { background: var(--bh-accent); color: ${color.onAccent}; }
+.bh-question-card label.bh-card-main { position: relative; }
+.bh-question-card .bh-card-checkbox { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.bh-question-card label.bh-card-main:has(.bh-card-checkbox:focus-visible) { outline: ${border.focus} solid var(--dsw-alias-label-primary); outline-offset: -2px; }
 .bh-question-custom { color: var(--dsw-alias-label-secondary); font-size: var(--dsh-content-font-size-secondary, ${text.bodySize}); }
+.bh-question-lettered { counter-reset: bh-option; }
+.bh-question-lettered .bh-card-main::before { counter-increment: bh-option; content: counter(bh-option, upper-alpha); display: inline-grid; flex-shrink: 0; place-items: center; width: ${space.x6}; height: ${space.x6}; border-radius: 999px; background: var(--bh-well-inset); color: var(--dsw-alias-label-secondary); font-size: ${text.metaSize}; font-weight: ${text.strong}; }
 .bh-tool-approval-input {
   margin: 0;
   padding: ${space.x3};
@@ -5194,11 +5223,58 @@ html[data-botharness-motion='full'] .bh-motion-preview-sample i:nth-child(3) {
   overflow: auto;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  border-radius: ${radius.sm};
-  background: ${color.surface};
+  border-radius: ${radius.md};
+  background: ${color.well};
   color: var(--dsw-alias-label-primary);
 }
+.bh-tool-approval-card:focus { outline: none; }
+.bh-tool-approval-card:focus-visible { outline: ${border.focus} solid ${color.accent}; outline-offset: ${space.x2}; border-radius: ${radius.sm}; }
+.bh-request-head { display: flex; align-items: center; justify-content: space-between; gap: ${space.x3}; min-width: 0; }
+.bh-request-category { min-width: 0; color: var(--dsw-alias-label-secondary); font-size: ${text.metaSize}; line-height: ${text.metaLine}; font-weight: ${text.strong}; }
+.bh-request-pill { flex-shrink: 0; padding: 0 ${space.x2}; border-radius: 999px; background: var(--bh-surface-selected); color: var(--dsw-alias-label-secondary); font-size: ${text.metaSize}; line-height: ${text.metaLine}; white-space: nowrap; }
+.bh-request-pill[data-state='pending'] { background: color-mix(in srgb, ${color.warning} 16%, transparent); color: ${color.warning}; }
+.bh-request-pill[data-state='pending'][data-urgent] { background: color-mix(in srgb, ${color.danger} 16%, transparent); color: ${color.danger}; }
+.bh-tool-approval-sentence { min-width: 0; color: var(--dsw-alias-label-primary); font-size: ${text.bodySize}; line-height: ${text.bodyLine}; overflow-wrap: anywhere; }
+.bh-tool-approval-line { display: block; min-width: 0; overflow: hidden; padding: ${space.x2} ${space.x3}; border-radius: ${radius.md}; background: ${color.well}; color: var(--dsw-alias-label-secondary); font-size: ${text.metaSize}; line-height: ${text.metaLine}; text-overflow: ellipsis; white-space: nowrap; }
+.bh-tool-approval-card .bh-message-card-actions button, .bh-question-card .bh-message-card-actions button { border-color: transparent; border-radius: 999px; }
+.bh-message-card-actions[data-stack] { flex-direction: column; }
+.bh-message-card-actions[data-stack] > button { width: 100%; }
+.bh-message-card-actions .bh-request-primary { border-color: transparent; background: ${color.fg}; color: ${color.base}; }
+.bh-message-card-actions .bh-request-primary:hover:not(:disabled) { background: color-mix(in srgb, ${color.fg} 86%, ${color.base}); }
+.bh-message-card-actions .bh-request-secondary { border-color: transparent; background: var(--bh-surface-selected); color: ${color.fg}; }
+.bh-message-card-actions .bh-request-secondary:hover:not(:disabled) { background: var(--bh-surface-pressed); }
+.bh-message-card-actions .bh-request-danger { border-color: transparent; color: var(--bh-on-surface-danger); background: var(--bh-surface-danger); }
+.bh-message-card-actions .bh-request-danger:hover:not(:disabled) { background: color-mix(in srgb, ${color.danger} 16%, ${color.surface}); }
+.bh-request-done { overflow: hidden; color: var(--dsw-alias-label-secondary); white-space: nowrap; text-overflow: ellipsis; --bh-request-dot: var(--dsw-alias-label-tertiary, currentColor); }
+.bh-request-done::before { content: ''; display: inline-block; width: ${space.x2}; height: ${space.x2}; margin-right: ${space.x2}; border-radius: 999px; background: var(--bh-request-dot); vertical-align: middle; }
+.bh-request-done[data-state='allowed'], .bh-request-done[data-state='remembered'], .bh-request-done[data-state='answered'] { --bh-request-dot: ${color.success}; }
+.bh-request-done[data-state='denied'] { --bh-request-dot: ${color.danger}; }
+.bh-request-done[data-state='submitted'] { --bh-request-dot: ${color.warning}; }
+.bh-tool-approval-details-body { display: grid; gap: ${space.x2}; min-width: 0; cursor: auto; }
+.bh-request-summary { display: grid; gap: var(--bh-message-card-gap); width: 100%; min-width: 0; margin: 0; padding: 0; border: 0; border-radius: ${radius.sm}; background: transparent; color: inherit; font: inherit; text-align: start; cursor: pointer; }
+.bh-request-summary:focus-visible { outline: ${border.focus} solid var(--bh-accent); outline-offset: ${space.x1}; }
+.bh-request-summary:hover .bh-tool-approval-line, .bh-tool-approval-card[data-open] .bh-tool-approval-line { background: var(--bh-well-inset); }
+.bh-tool-approval-card:has(> .bh-request-summary) { cursor: pointer; }
+.bh-request-link { width: fit-content; margin: 0; padding: 0; border: 0; background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; font-size: ${text.metaSize}; line-height: ${text.metaLine}; text-align: start; cursor: pointer; }
+.bh-request-link:disabled { cursor: default; opacity: 0.5; }
+.bh-request-link:hover:not(:disabled) { color: var(--dsw-alias-label-primary); text-decoration: underline; }
+.bh-tool-approval-input-block { display: grid; gap: ${space.x2}; min-width: 0; margin: 0; }
+.bh-tool-approval-input[data-folded] { max-height: none; overflow: hidden; }
+.bh-tool-approval-fold { justify-self: start; padding: 0; border: 0; background: transparent; color: ${color.accent}; font: inherit; font-size: ${text.metaSize}; cursor: pointer; }
+.bh-tool-approval-shell figcaption { color: var(--dsw-alias-label-secondary); font-size: ${text.metaSize}; }
+.bh-tool-approval-diff figcaption { display: flex; align-items: center; gap: ${space.x3}; min-width: 0; font-size: ${text.metaSize}; }
+.bh-tool-approval-diff figcaption code { min-width: 0; overflow-wrap: anywhere; }
+.bh-tool-approval-diff-stat[data-kind='add'] { color: ${color.success}; }
+.bh-tool-approval-diff-stat[data-kind='remove'] { color: ${color.danger}; }
+.bh-tool-approval-diff .bh-tool-approval-input { padding: ${space.x2} 0; }
+.bh-tool-approval-diff-line { display: block; padding: 0 ${space.x3}; }
+.bh-tool-approval-diff-line ins, .bh-tool-approval-diff-line del { text-decoration: none; }
+.bh-tool-approval-diff-line[data-kind='add'] { background: color-mix(in srgb, ${color.success} 14%, transparent); }
+.bh-tool-approval-diff-line[data-kind='remove'] { background: color-mix(in srgb, ${color.danger} 14%, transparent); }
+.bh-tool-approval-diff-mark { display: inline-block; width: 1.5ch; color: var(--dsw-alias-label-tertiary); user-select: none; }
 .bh-tool-approval-confirm, .bh-access-warning { display: grid; gap: ${space.x3}; padding: ${space.x3}; border: ${border.hairline} solid ${color.borderStrong}; border-radius: ${radius.sm}; }
+.bh-tool-approval-confirm { border: 0; border-radius: ${radius.md}; background: ${color.well}; }
+.bh-tool-approval-confirm .bh-request-secondary { background: var(--bh-well-inset); }
 .bh-tool-approval-confirm { --bh-message-card-gap: var(--bh-chat-card-inset); width: 100%; gap: var(--bh-message-card-gap); padding: var(--bh-chat-card-inset); }
 .bh-assignment-access-row { display: flex; align-items: center; justify-content: space-between; gap: ${space.x4}; }
 .bh-access-hint { padding: 0 ${space.x1}; color: var(--dsw-alias-state-error-primary); font-size: ${text.metaSize}; font-weight: ${text.strong}; line-height: 1.5; }
@@ -6053,6 +6129,27 @@ button:has(.bh-panel-glyph):is(:hover, :focus-within) .bh-panel-activity[data-wi
   gap: ${space.x2};
   flex-wrap: wrap;
 }
+.bh-human-inbox-row-check {
+  position: relative;
+  z-index: 1;
+  pointer-events: auto;
+  margin: 0 ${space.x3} 0 0;
+  vertical-align: middle;
+  accent-color: ${color.accent};
+  cursor: pointer;
+}
+.bh-human-inbox-row[data-checked] { background: ${color.selected}; }
+.bh-human-inbox-batch {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: ${space.x3};
+  min-height: 36px;
+  padding: 0 ${space.x5} ${space.x3};
+  border-bottom: ${border.hairline} solid ${color.divider};
+}
+.bh-human-inbox-batch-all { display: inline-flex; align-items: center; color: var(--dsw-alias-label-secondary); cursor: pointer; }
+.bh-human-inbox:not(:focus-within) .bh-human-inbox-snoozed-toggle[aria-pressed='true'] { background: ${color.selected}; border-color: ${color.borderStrong}; }
 .bh-human-inbox-more {
   padding: ${space.x2} ${space.x3};
   border: ${border.hairline} solid ${color.borderStrong};
@@ -6377,10 +6474,10 @@ button:has(.bh-panel-glyph):is(:hover, :focus-within) .bh-panel-activity[data-wi
 .bh-schedule-error {margin:0;color:var(--dsw-alias-state-error-primary);font-size:${text.metaSize};}
 .bh-card-list {display:flex;flex-direction:column;margin:0;padding:0;list-style:none;overflow:hidden;border:${border.hairline} solid ${color.border};border-radius:${radius.md};}
 .bh-card-list + .bh-card-list {margin-top:${space.x3};}
-.bh-card-list.bh-message-card-list {background:var(--dsw-alias-bg-base);}
+.bh-card-list.bh-message-card-list {border:0;background:${color.well};}
 .bh-message-card-list .bh-card-title {white-space:normal;overflow-wrap:anywhere;}
 .bh-message-card-list .bh-card-main {min-height:40px;align-items:center;}
-.bh-message-card-list .bh-card-row[data-selected="true"] {background:color-mix(in srgb,var(--bh-accent) 12%,var(--dsw-alias-bg-base));box-shadow:inset 3px 0 var(--bh-accent);}
+.bh-message-card-list .bh-card-row[data-selected="true"] {background:${color.accentTint};}
 .bh-message-card-list .bh-card-row:has(.bh-card-main:disabled),
 .bh-message-card-list .bh-card-row:has(.bh-card-checkbox:disabled) {opacity:.6;}
 .bh-card-checkbox {flex:none;width:16px;height:16px;margin:0;accent-color:var(--bh-accent);cursor:pointer;}

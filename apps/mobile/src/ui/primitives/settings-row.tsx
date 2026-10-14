@@ -44,7 +44,7 @@ export function SettingsRow({
         gap: space.x4,
         paddingHorizontal: space.x5,
         paddingVertical: space.x3,
-        backgroundColor: pressed ? theme.color.hover : theme.color.elevated,
+        backgroundColor: pressed ? theme.layer.sheet.pressed : theme.layer.sheet.fill,
       })}
     >
       <View style={{ flex: 1, gap: space.x1 }}>
@@ -73,7 +73,7 @@ export function SettingsSection({ title, children }: { title?: string; children:
       )}
       <View
         style={{
-          backgroundColor: theme.color.elevated,
+          backgroundColor: theme.layer.sheet.fill,
           borderRadius: radius.md,
           overflow: 'hidden',
         }}

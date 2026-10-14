@@ -44,14 +44,19 @@ describe('shortcut list', () => {
     expect(row('help')?.textContent).toBe('Show keyboard shortcuts?orCtrl/');
     expect(row('recall')?.textContent).toContain('When the composer is empty');
     expect(row('quick-switcher')?.textContent).toBe('Quick switcherCtrlK');
+    expect(row('search')?.textContent).toBe('Search this conversationCtrlF');
     expect(row('unread-next')?.textContent).toBe(
       'Next unread conversationSkips muted conversationsAlt⇧↓',
     );
     expect(row('send')?.textContent).toBe('Send↵');
     expect(row('newline')?.textContent).toBe('New line⇧↵');
     expect(row('newline')?.querySelector('kbd')?.getAttribute('title')).toBe('Shift');
-    expect(host.querySelectorAll('h3')).toHaveLength(2);
+    expect(host.querySelectorAll('h3')).toHaveLength(4);
     expect(host.querySelector('button')).toBeNull();
+    expect(row('approval-allow')?.textContent).toBe(
+      'Allow onceWhile the approval card has focusYor↵',
+    );
+    expect(row('inbox-step')?.textContent).toBe('Next or previous itemJorK');
     act(() => root.render(createElement(ShortcutHelpList, { t, apple: true })));
     expect(row('help')?.textContent).toBe('Show keyboard shortcuts?or⌘/');
     expect(row('unread-prev')?.textContent).toContain('⌥⇧↑');

@@ -9,6 +9,7 @@ import {
 import { PersonaBotAvatar } from './avatar.js';
 import type { BotHarnessTranslate } from './locale.js';
 import type { BotSummary, ChannelSummary, HumanAttentionItem } from './store.js';
+import { HUMAN_INBOX_SNOOZE_CHOICES, humanInboxSnoozeUntil } from './human-inbox-snooze.js';
 
 export function HumanInboxFilter({
   label,
@@ -117,5 +118,84 @@ export function HumanInboxSourceButton({
         <IconRightUpOutlineRegular className="bh-human-inbox-source-arrow" />
       </button>
     </Tooltip>
+  );
+}
+
+const SNOOZE_LABELS = {
+  hour: 'humanInbox.snooze.hour',
+  evening: 'humanInbox.snooze.evening',
+  tomorrow: 'humanInbox.snooze.tomorrow',
+  week: 'humanInbox.snooze.week',
+} as const;
+
+export function HumanInboxSnoozeButton({
+  item,
+  t,
+  open,
+  onOpenChange,
+  onSnooze,
+  disabled = false,
+}: {
+  item: HumanAttentionItem;
+  t: BotHarnessTranslate;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSnooze: (until: string | null) => void;
+  disabled?: boolean;
+}): ReactElement {
+  if (item.snoozedUntil !== undefined)
+    return (
+      <Button
+        variant="outline"
+        size="sm"
+        type="button"
+        disabled={disabled}
+        onClick={() => onSnooze(null)}
+      >
+        {t('humanInbox.snooze.cancel')}
+      </Button>
+    );
+  const now = new Date();
+  const items = HUMAN_INBOX_SNOOZE_CHOICES.flatMap((choice) => {
+    const until = humanInboxSnoozeUntil(choice, now);
+    return until === undefined
+      ? []
+      : [
+          {
+            id: until.toISOString(),
+            label: t(SNOOZE_LABELS[choice], {
+              time: until.toLocaleString(undefined, {
+                weekday: choice === 'week' ? 'short' : undefined,
+                hour: '2-digit',
+                minute: '2-digit',
+              }),
+            }),
+          },
+        ];
+  });
+  return (
+    <Menu
+      open={open}
+      portal
+      items={items}
+      onSelect={(id) => {
+        onOpenChange(false);
+        onSnooze(id);
+      }}
+      onClose={() => onOpenChange(false)}
+      anchor={
+        <Button
+          variant="outline"
+          size="sm"
+          type="button"
+          disabled={disabled}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          onClick={() => onOpenChange(!open)}
+        >
+          {t('humanInbox.snooze')}
+        </Button>
+      }
+    />
   );
 }

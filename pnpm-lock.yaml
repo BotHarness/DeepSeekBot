@@ -162,7 +162,11 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-packageExtensionsChecksum: sha256-+NWK+0qTE02cRKFYvWtADabYTgNxht78zrWJda8H7DY=
+overrides:
+  dockview: 8.4.1
+  dockview-core: 8.4.1
+
+packageExtensionsChecksum: sha256-Em4iEcPd6LM6jle6op7NLsBy9T/6LnYHLUkm8RiqQ1Y=
 
 patchedDependencies:
   '@deepseek-ai/dsh-llm-pi-ai@0.2.0-rc.2': 391fa276ff173513dd80cffab512a1dc43c51f44ee1f5e727749b6b9b4ecc402
@@ -338,6 +342,9 @@ importers:
       expo-camera:
         specifier: ~57.0.6
         version: 57.0.6(@types/emscripten@1.41.6)(expo@57.0.29)(react-native-web@0.21.4(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(@types/react@19.2.18)(react@19.2.3)(supports-color@10.2.2))(react@19.2.3)
+      expo-clipboard:
+        specifier: ~57.0.2
+        version: 57.0.2(expo@57.0.29)(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(@types/react@19.2.18)(react@19.2.3)(supports-color@10.2.2))(react@19.2.3)
       expo-constants:
         specifier: ~57.0.22
         version: 57.0.22(expo@57.0.29)(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(@types/react@19.2.18)(react@19.2.3)(supports-color@10.2.2))(supports-color@10.2.2)
@@ -353,6 +360,12 @@ importers:
       expo-font:
         specifier: ~57.0.4
         version: 57.0.4(expo@57.0.29)(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(@types/react@19.2.18)(react@19.2.3)(supports-color@10.2.2))(react@19.2.3)
+      expo-haptics:
+        specifier: ~57.0.3
+        version: 57.0.3(expo@57.0.29)
+      expo-image:
+        specifier: ~57.0.5
+        version: 57.0.5(expo@57.0.29)(react-native-web@0.21.4(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(@types/react@19.2.18)(react@19.2.3)(supports-color@10.2.2))(react@19.2.3)
       expo-image-picker:
         specifier: ~57.0.20
         version: 57.0.20(expo@57.0.29)
@@ -527,6 +540,9 @@ importers:
       blobatar:
         specifier: ^2.7.0
         version: 2.7.0(react@18.3.1)
+      dockview-react:
+        specifier: 8.4.1
+        version: 8.4.1(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       driver.js:
         specifier: 1.4.0
         version: 1.4.0
@@ -779,6 +795,9 @@ importers:
       '@deepseek-ai/dsh-tool-fs':
         specifier: 0.2.0-rc.2
         version: 0.2.0-rc.2(patch_hash=52087652e5d20ecfd3f7c17532d2b4568dd48189b07491f970fd6d67a10202c2)(bf0da04cc963a4827c7c5eca38b096b0)
+      '@deepseek-ai/dsh-tool-pwsh':
+        specifier: 0.2.0-rc.2
+        version: 0.2.0-rc.2(a632ae4dffe8177db68afb0fa35acac0)
       '@deepseek-ai/dsh-tools':
         specifier: 0.2.0-rc.2
         version: 0.2.0-rc.2(52b5a8ab481be2b3d891c22a71641755)
@@ -868,6 +887,24 @@ importers:
       wrangler:
         specifier: ^4.95.0
         version: 4.132.0(@types/node@22.20.3)
+
+  packages/todo:
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-include@1.0.9)(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      '@deepseek-ai/dsh-agent':
+        specifier: 0.2.0-rc.2
+        version: 0.2.0-rc.2(fee0e653b72a3883e0f0da2d9a46bb50)
+      '@deepseek-ai/dsh-storage-domain':
+        specifier: 0.2.0-rc.2
+        version: 0.2.0-rc.2(@deepseek-ai/cordis@4.0.4)(@deepseek-ai/dsh-invariants@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4))(@deepseek-ai/dsh-storage@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4))
+      '@deepseek-ai/dsh-tools':
+        specifier: 0.2.0-rc.2
+        version: 0.2.0-rc.2(52b5a8ab481be2b3d891c22a71641755)
+      zod:
+        specifier: ^4.4.3
+        version: 4.6.5
 
 packages:
 
@@ -8332,6 +8369,19 @@ packages:
   dnssd-advertise@1.1.6:
     resolution: {integrity: sha512-Ndrrf6BMPalkQPd/zubL+4YghH2J9NspapQ09uDXwYbvOPkP0oaqf5CkcwJ0b50kS2O3ul6yVu+jz+RY62Cejg==}
 
+  dockview-core@8.4.1:
+    resolution: {integrity: sha512-LcvhGwmK/Q1tFDEPkiBpkLIYctimmu8JJHgG5yhIXwyf9IvWQkJa3EG7/a1NKUS2Q8w82uoYZTL+c84/zpQUjg==}
+
+  dockview-react@8.4.1:
+    resolution: {integrity: sha512-6C5FV5Y0n0S3IljnKNn9stLm45SkbzZzlLnV2286sm1W2cnZXPmqDuZOWq3wWj9tZ2MvuV1q0c9hLT9NT6H+NQ==}
+    peerDependencies:
+      '@types/react': ~18.3.1
+      react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+      react-dom: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+
+  dockview@8.4.1:
+    resolution: {integrity: sha512-6CrXwfDkhTL0N8stgnur8E/WYFZqltAtHaAV96Ia9lA1JGWwWMw5MWZznWckIMocS2Il5rgaqP/i/l2ltYaTqw==}
+
   dom-serializer@2.0.0:
     resolution: {integrity: sha512-wIkAryiqt/nV5EQKqQpo3SToSOV9J0DnbJqwK7Wv/Trc92zIAYZ4FlMu+JPFW1DfGFt81ZTCGgDEabffXeLyJg==}
 
@@ -8557,6 +8607,13 @@ packages:
       react-native-web:
         optional: true
 
+  expo-clipboard@57.0.2:
+    resolution: {integrity: sha512-VB4Au8X/RbvJKUtJk+87vdtveWSNEa5RzY3ooeO6VNF7Rd49RbQXZOu3/TfEW9p7mU8TCfyTvjyCiAUwSoSJ4w==}
+    peerDependencies:
+      expo: '*'
+      react: '*'
+      react-native: '*'
+
   expo-constants@57.0.22:
     resolution: {integrity: sha512-+mBjnzMWMKIrQa7BP7LTDRC0W7cI+q12/sZns4HzVQJGzgGoAdRJSTEKiObxIw/3EswKXlESkRob8upiL95Q4A==}
     peerDependencies:
@@ -8615,6 +8672,11 @@ packages:
       react: '*'
       react-native: '*'
 
+  expo-haptics@57.0.3:
+    resolution: {integrity: sha512-qucUXtwtJdtECKSQK5D6TQBc/0SxKj7s5wQ4mrfSxhZsHrS9a4rcxINl/gbruMaY9spTXStco32ST4pV0vXmxw==}
+    peerDependencies:
+      expo: '*'
+
   expo-image-loader@57.0.1:
     resolution: {integrity: sha512-uhrZKLT/cTl2mXyR28kPpVkS5O+PK9N1QA/07IFM4f5T4g0lTW1JHT3NEWwEEsGFldPmVX4j7LwUVVZxE+woug==}
     peerDependencies:
@@ -8624,6 +8686,17 @@ packages:
     resolution: {integrity: sha512-plgcGuMZMWqDchjXQW6S/WepYLB5KqfbZOzwC6xe0+j5IhY4ipvVuRZcXeP/0NgKgU0Jiu/XoTK4Bi8crtZ+sQ==}
     peerDependencies:
       expo: '*'
+
+  expo-image@57.0.5:
+    resolution: {integrity: sha512-jOm5lofaIKXhQ7i0Hz3I5JuNULw/aghmpIPZXddwQcEtw8+wUhlozq3M7LbsOrcsBEapcG4jFs85DsfuFoz1tQ==}
+    peerDependencies:
+      expo: '*'
+      react: '*'
+      react-native: '*'
+      react-native-web: '*'
+    peerDependenciesMeta:
+      react-native-web:
+        optional: true
 
   expo-json-utils@57.0.2:
     resolution: {integrity: sha512-9kYZECLKE3pYZQs+kt3+ggY83Lfryog9/UEo3HJKGcHUZeKKtlFBIPFjI4LzREubsvjP7AsvG0FdEX9EquIoAQ==}
@@ -20830,6 +20903,19 @@ snapshots:
 
   dnssd-advertise@1.1.6: {}
 
+  dockview-core@8.4.1: {}
+
+  dockview-react@8.4.1(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
+    dependencies:
+      '@types/react': 18.3.31
+      dockview: 8.4.1
+      react: 18.3.1
+      react-dom: 18.3.1(react@18.3.1)
+
+  dockview@8.4.1:
+    dependencies:
+      dockview-core: 8.4.1
+
   dom-serializer@2.0.0:
     dependencies:
       domelementtype: 2.3.0
@@ -21094,6 +21180,12 @@ snapshots:
     transitivePeerDependencies:
       - '@types/emscripten'
 
+  expo-clipboard@57.0.2(expo@57.0.29)(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(@types/react@19.2.18)(react@19.2.3)(supports-color@10.2.2))(react@19.2.3):
+    dependencies:
+      expo: 57.0.29(934ab4870174467e3560175ab5ba70af)
+      react: 19.2.3
+      react-native: 0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(@types/react@19.2.18)(react@19.2.3)(supports-color@10.2.2)
+
   expo-constants@57.0.22(expo@57.0.29)(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(@types/react@19.2.18)(react@19.2.3)(supports-color@10.2.2))(supports-color@10.2.2):
     dependencies:
       '@expo/env': 2.4.3(supports-color@10.2.2)
@@ -21155,6 +21247,10 @@ snapshots:
       react: 19.2.3
       react-native: 0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(@types/react@19.2.18)(react@19.2.3)(supports-color@10.2.2)
 
+  expo-haptics@57.0.3(expo@57.0.29):
+    dependencies:
+      expo: 57.0.29(934ab4870174467e3560175ab5ba70af)
+
   expo-image-loader@57.0.1(expo@57.0.29):
     dependencies:
       expo: 57.0.29(934ab4870174467e3560175ab5ba70af)
@@ -21163,6 +21259,15 @@ snapshots:
     dependencies:
       expo: 57.0.29(934ab4870174467e3560175ab5ba70af)
       expo-image-loader: 57.0.1(expo@57.0.29)
+
+  expo-image@57.0.5(expo@57.0.29)(react-native-web@0.21.4(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react-native@0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(@types/react@19.2.18)(react@19.2.3)(supports-color@10.2.2))(react@19.2.3):
+    dependencies:
+      expo: 57.0.29(934ab4870174467e3560175ab5ba70af)
+      react: 19.2.3
+      react-native: 0.86.3(@babel/core@7.29.7(supports-color@10.2.2))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(@types/react@19.2.18)(react@19.2.3)(supports-color@10.2.2)
+      sf-symbols-typescript: 2.2.0
+    optionalDependencies:
+      react-native-web: 0.21.4(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
 
   expo-json-utils@57.0.2: {}
 

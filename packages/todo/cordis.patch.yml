@@ -1,0 +1,6 @@
+# The to-do example plugin (ADR-0203). It needs DSH storage (storageDomain) for
+# the list and the BotHarness core (botharness) for the Bot tools, so install
+# it next to the deepseekbot bundle.
+- insert:
+    - id: botharness-todo
+      name: '@botharness/todo'

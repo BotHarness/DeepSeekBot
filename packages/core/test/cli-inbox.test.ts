@@ -137,6 +137,40 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
     ]);
   });
 
+  it('snoozes a Human Inbox item, lists snoozed items and brings one back', async () => {
+    const live = await host(echo);
+    await invoke(
+      [
+        'inbox-snooze',
+        'approval:src-1',
+        '--source-key',
+        'src-1',
+        '--until',
+        '2026-10-15T09:00:00+08:00',
+      ],
+      live.url,
+    );
+    await invoke(['inbox', '--category', 'action', '--snoozed'], live.url);
+    await invoke(['inbox-snooze', 'approval:src-1', '--source-key', 'src-1', '--clear'], live.url);
+    for (const argv of [
+      ['inbox-snooze', 'approval:src-1'],
+      ['inbox-snooze', 'approval:src-1', '--until', 'tomorrow'],
+      ['inbox-snooze', 'approval:src-1', '--until', '2026-10-15T09:00:00Z', '--clear'],
+    ])
+      expect((await invoke(argv, live.url)).json.error.code).toBe('usage');
+    expect(live.calls).toEqual([
+      {
+        method: 'humanAttentionSnooze',
+        args: { itemId: 'approval:src-1', sourceKey: 'src-1', until: '2026-10-15T01:00:00.000Z' },
+      },
+      { method: 'humanAttention', args: { category: 'action', snoozed: true } },
+      {
+        method: 'humanAttentionSnooze',
+        args: { itemId: 'approval:src-1', sourceKey: 'src-1', until: null },
+      },
+    ]);
+  });
+
   it('refuses malformed Inbox queries before reaching the Host', async () => {
     const live = await host(echo);
     for (const argv of [

@@ -47,7 +47,11 @@ export function ShortcutCards({
               borderRadius: radius.lg,
               borderWidth: edge.hairline,
               borderColor: selected ? theme.color.accent : theme.color.borderStrong,
-              backgroundColor: pressed || selected ? theme.color.selected : theme.color.surface,
+              backgroundColor: selected
+                ? theme.layer.raised.chosen
+                : pressed
+                  ? theme.layer.raised.pressed
+                  : theme.layer.raised.fill,
             })}
           >
             <Icon

@@ -5,9 +5,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
+vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
 
 import { createHostClient, type HostClient } from '../src/host/client';
 import {
+  answerInChat,
   answerQuestion,
   decideApproval,
   loadApproval,
@@ -19,6 +21,7 @@ import type { HumanAttentionItem } from '../src/host/wire';
 import { ApprovalCard } from '../src/ui/chat/approval-card';
 import { QuestionCard } from '../src/ui/chat/question-card';
 import { t } from '../src/ui/strings';
+import { played } from './expo-haptics-shim';
 import { FakeHost } from './fake-host';
 import inboxWire from './fixtures/inbox-wire.json';
 
@@ -34,10 +37,20 @@ const approval = requestRef(items('humanAttention.action')[0]!)!;
 const question = requestRef(items('humanAttention.actionQuestion')[0]!)!;
 const expired = { ok: true, value: { status: 'expired' } };
 
+function oneQuestion(): unknown {
+  const timeline = recorded('channelTimeline.questionPending') as {
+    value: { page: { entries: Array<{ userQuestionRequest: { questions: unknown[] } }> } };
+  };
+  const request = timeline.value.page.entries[0]!.userQuestionRequest;
+  request.questions = request.questions.slice(0, 1);
+  return timeline;
+}
+
 let client: HostClient | undefined;
 let root: Root | undefined;
 let container: HTMLElement | undefined;
 afterEach(() => {
+  played.length = 0;
   act(() => root?.unmount());
   container?.remove();
   root = undefined;
@@ -134,19 +147,21 @@ describe('Tool approval card in the DM', () => {
   const card = (target: HostClient, extra: Record<string, unknown> = {}) =>
     createElement(ApprovalCard, {
       port: approvalPort(target),
-      botName: 'Inbox QA',
       subject: 'bash',
-      onDetails: () => undefined,
       ...extra,
     });
 
-  it('shows the tool, folder and command with Allow once, Always allow, Deny and Details', async () => {
+  it('shows the key action first and keeps the folder in collapsed details', async () => {
     const view = await render(card(connect(host())));
-    expect(view.textContent).toContain(t.wantsToRun('Inbox QA', 'bash'));
-    expect(view.textContent).toContain('/home/qa/.dsh/botharness/bots/');
+    expect(view.textContent).toContain(t.toolCategory('bash'));
+    expect(view.textContent).toContain(t.needsYou);
+    expect(view.textContent).toContain(t.runTool('bash'));
     expect(view.textContent).toContain('ls /tmp/mobile-fixture');
+    expect(view.textContent).not.toContain('/home/qa/.dsh/botharness/bots/');
     for (const label of [t.allowOnce, t.alwaysAllow, t.deny, t.details])
       expect(button(view, label).disabled).toBe(false);
+    await press(button(view, t.details));
+    expect(view.textContent).toContain('/home/qa/.dsh/botharness/bots/');
   });
 
   it('collapses to one line once allowed here', async () => {
@@ -159,6 +174,7 @@ describe('Tool approval card in the DM', () => {
     const view = await render(card(connect(fake)));
     await press(button(view, t.alwaysAllow));
     expect(sent[0]?.['outcome']).toBe('allowed-always-exact');
+    expect(played).toEqual(['notification:success']);
     expect(line(view)).toBe(t.cardLine('bash', t.cardOutcome['allowed-always-exact']));
     expect(view.querySelector('button')).toBeNull();
   });
@@ -178,6 +194,7 @@ describe('Tool approval card in the DM', () => {
     fake.answers.set('toolApprovalStatus', () => recorded('toolApprovalStatus.decided'));
     fake.answers.set('channelTimeline', () => recorded('channelTimeline.approvalDecided'));
     await press(button(view, t.deny));
+    expect(played).toEqual(['notification:warning']);
     expect(line(view)).toBe(t.cardLine('bash', t.elsewhere(t.cardOutcome['allowed-once'])));
   });
 
@@ -237,7 +254,9 @@ describe('Question card in the DM', () => {
     expect(button(view, t.option('A', 'Teal')).getAttribute('aria-checked')).toBe('true');
     await press(button(view, t.option('B', 'Biscuits')));
     await type(view, `${t.otherAnswer}: Which snacks?`, 'fruit');
+    expect(played).toEqual([]);
     await press(button(view, t.submitChoice));
+    expect(played).toEqual(['impact:light']);
     expect(sent[0]?.['answer']).toEqual({
       answers: [
         { id: 'colour', selected: ['Teal'] },
@@ -273,5 +292,62 @@ describe('Question card in the DM', () => {
     expect(line(view)).toBe(t.cardLine('Which colour?', t.cardExpired));
     await rerender(card(client!, { resolution: { kind: 'user-question', state: 'cancelled' } }));
     expect(line(view)).toBe(t.cardLine('Which colour?', t.cardCancelled));
+  });
+
+  it('answers a single choice on tap without a Submit button', async () => {
+    const fake = host();
+    fake.answers.set('channelTimeline', () => oneQuestion());
+    const sent: Array<Record<string, unknown>> = [];
+    fake.answers.set('userQuestionAnswer', (args) => {
+      sent.push(args);
+      return recorded('userQuestionAnswer.accepted');
+    });
+    const view = await render(card(connect(fake), { replyInChat: true }));
+    expect(view.querySelector(`button[aria-label="${t.submitChoice}"]`)).toBeNull();
+    expect(view.querySelector('textarea')).toBeNull();
+    expect(view.textContent).toContain(t.replyInChat);
+    await press(button(view, t.option('B', 'Amber')));
+    expect(sent[0]?.['answer']).toEqual({ answers: [{ id: 'colour', selected: ['Amber'] }] });
+    expect(line(view)).toBe(t.cardLine('Which colour?', t.cardAnswered));
+  });
+
+  it('keeps the typed answer and Submit outside the DM', async () => {
+    const fake = host();
+    fake.answers.set('channelTimeline', () => oneQuestion());
+    const view = await render(card(connect(fake)));
+    await type(view, `${t.otherAnswer}: Which colour?`, 'violet');
+    expect(button(view, t.submitChoice).disabled).toBe(false);
+  });
+
+  it('collapses as answered here when the chat answered it', async () => {
+    const target = connect(host());
+    const view = await render(card(target));
+    await rerender(
+      card(target, {
+        answeredHere: true,
+        resolution: { kind: 'user-question', state: 'answered' },
+      }),
+    );
+    expect(line(view)).toBe(t.cardLine('Which colour?', t.cardAnswered));
+  });
+
+  it('sends a chat reply as the custom answer to a single pending question', async () => {
+    const fake = host();
+    fake.answers.set('channelTimeline', () => oneQuestion());
+    const sent: Array<Record<string, unknown>> = [];
+    fake.answers.set('userQuestionAnswer', (args) => {
+      sent.push(args);
+      return recorded('userQuestionAnswer.accepted');
+    });
+    expect(await answerInChat(connect(fake), question, 'violet')).toBe(true);
+    expect(sent[0]?.['answer']).toEqual({
+      answers: [{ id: 'colour', selected: [], custom: 'violet' }],
+    });
+  });
+
+  it('leaves a chat reply as a message when the question has several parts', async () => {
+    const fake = host();
+    expect(await answerInChat(connect(fake), question, 'violet')).toBe(false);
+    expect(fake.requests.filter((request) => request.includes('userQuestionAnswer'))).toEqual([]);
   });
 });
