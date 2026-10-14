@@ -82,15 +82,15 @@ it('hides the Group workspace footer on mobile and restores its facts and action
         }),
       ),
     );
-    expect(container.querySelector<HTMLElement>('.bh-composer-context')!.hidden).toBe(true);
+    expect(container.querySelector<HTMLElement>('[data-composer-context]')!.hidden).toBe(true);
     await act(async () => {
       mobile = false;
       for (const listener of listeners) listener();
     });
-    expect(container.querySelector('.bh-composer-context')!.textContent).toBe('1 个工作区');
-    expect(container.querySelector<HTMLElement>('.bh-composer-context')!.hidden).toBe(false);
+    expect(container.querySelector('[data-composer-context]')!.textContent).toBe('1 个工作区');
+    expect(container.querySelector<HTMLElement>('[data-composer-context]')!.hidden).toBe(false);
     await act(async () =>
-      container.querySelector<HTMLButtonElement>('.bh-composer-context button')!.click(),
+      container.querySelector<HTMLButtonElement>('[data-composer-context] button')!.click(),
     );
     expect(onOpen).toHaveBeenCalledOnce();
   } finally {
@@ -134,7 +134,7 @@ it('counts the union of member workspaces by DSH Workspace id without naming Bot
         }),
       ),
     );
-    const chip = container.querySelector('.bh-composer-context')!.textContent;
+    const chip = container.querySelector('[data-composer-context]')!.textContent;
     expect(chip).toBe('3 个工作区');
     expect(chip).not.toContain('Ada');
   } finally {

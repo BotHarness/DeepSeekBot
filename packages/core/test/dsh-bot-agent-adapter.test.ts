@@ -1349,6 +1349,9 @@ describe('DSH Bot Agent adapter', () => {
     expect(rolePrompt).toContain('If the Human explicitly asks for no reply');
     expect(rolePrompt).toContain('External IM uses bridge_reply or bridge_reply_file');
     expect(rolePrompt).toContain('retry an uncertain send blindly');
+    expect(rolePrompt).toContain('call ask_secret at once');
+    expect(rolePrompt).toContain('never ask them to paste a secret into a Channel');
+    expect(rolePrompt.replace(/\{\{(?:provider|model|cwd)\}\}/g, '')).not.toContain('{{');
     expect(channelSend?.description).toContain('Assistant final text is private Session output');
     expect(channelSend?.description).toContain('A request for "no tools"');
     const deliveryPrompt = host.scopes

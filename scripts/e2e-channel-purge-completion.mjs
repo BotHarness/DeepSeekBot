@@ -101,9 +101,9 @@ const selectHistory = async (groupId) => {
 const openHistory = async (groupId) => {
   await sortMenu();
   await click('已结束会话的历史', '[role=menuitem]');
-  await page.waitForSelector('.bh-channel-history');
+  await page.waitForSelector('[data-channel-history]');
   await selectHistory(groupId);
-  await page.waitForSelector('.bh-channel-history-source');
+  await page.waitForSelector('[data-history-source]');
 };
 const dbPath = resolve(home, 'botharness/botharness.db');
 const read = (query, ...args) => {
@@ -118,7 +118,7 @@ const files = resolve(home, 'botharness/attachments/files');
 const fileDirectory = (ref) => resolve(files, ref.fileId.slice(5));
 const select = async (body) => {
   await page.evaluate((body) => {
-    const row = [...document.querySelectorAll('.bh-channel-history-source')].find((el) =>
+    const row = [...document.querySelectorAll('[data-history-source]')].find((el) =>
       el.textContent.includes(body),
     );
     assertEnabled(row?.querySelector('input'));
@@ -310,10 +310,10 @@ try {
       await shot('after-files-light');
       await theme(true);
       await shot('after-files-dark');
-      const rect = await page.$eval('.bh-channel-history-dialog', (el) =>
+      const rect = await page.$eval('[role="dialog"]:has([data-channel-history])', (el) =>
         el.getBoundingClientRect().toJSON(),
       );
-      assert.equal(rect.width, 760);
+      assert.equal(rect.width, 560);
       assert.ok(rect.top >= 24 && rect.bottom <= 876);
       await page.click('[aria-label="清除边界的说明"]');
       await page.waitForFunction(() => document.body.innerText.includes('DSH Session'));
@@ -360,12 +360,16 @@ try {
       await page.setViewport({ width: 390, height: 620, deviceScaleFactor: 1 });
       await page.waitForFunction(
         () =>
-          document.querySelector('.bh-channel-history-dialog').getBoundingClientRect().width <=
+          document
+            .querySelector('[role="dialog"]:has([data-channel-history])')
+            .getBoundingClientRect().width <=
           innerWidth - 48,
       );
       await shot('after-compact-dark');
       await page.keyboard.press('Escape');
-      await page.waitForFunction(() => !document.querySelector('.bh-channel-history-dialog'));
+      await page.waitForFunction(
+        () => !document.querySelector('[role="dialog"]:has([data-channel-history])'),
+      );
       unlinkSync(directory);
       renameSync(held, directory);
       writeFileSync(

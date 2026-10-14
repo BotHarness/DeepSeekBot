@@ -1,6 +1,6 @@
 import { useState, type ReactElement } from 'react';
 
-import { Button, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Button, Switch, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { PrivateAccountSummary } from '../../../core/src/credentials/contracts.js';
 import { useClientState } from './bot-sidebar.js';
@@ -84,6 +84,12 @@ function PrivateAccountsPanel({ botSlug, actions, t }: ChannelSidebarEntryProps)
             uncertain: result.uncertain,
           }),
         );
+    });
+  };
+  const toggleServer = (serverName: string, enabled: boolean) => {
+    if (botSlug === undefined) return;
+    void run('mcp:' + serverName, async () => {
+      await actions.privateMcpServerEnable?.(botSlug, serverName, enabled);
     });
   };
   const removeServer = (serverName: string) => {
@@ -255,6 +261,16 @@ function PrivateAccountsPanel({ botSlug, actions, t }: ChannelSidebarEntryProps)
                   )}
                 </Tag>
               }
+              trailing={
+                server.own === false ? (
+                  <Switch
+                    checked={server.enabled === true}
+                    disabled={busy !== undefined}
+                    onChange={(checked) => toggleServer(server.serverName, checked)}
+                    label={t('privateAccounts.mcpEnable', { server: server.serverName })}
+                  />
+                ) : undefined
+              }
               meta={
                 <>
                   <span className="bh-card-meta-line">
@@ -264,6 +280,11 @@ function PrivateAccountsPanel({ botSlug, actions, t }: ChannelSidebarEntryProps)
                   </span>
                   <span className="bh-card-meta-line">
                     {t('privateAccounts.mcpAccount', { account: server.account })}
+                  </span>
+                  <span className="bh-card-meta-line">
+                    {server.own === false
+                      ? t('privateAccounts.mcpSharedBy', { bot: server.ownerName ?? '' })
+                      : t('privateAccounts.mcpShared')}
                   </span>
                   <span
                     className="bh-card-meta-line"

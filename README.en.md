@@ -147,6 +147,8 @@ node scripts/dev-instance.mjs --home /tmp/botharness-demo --port 31967
 
 More in the [local instance guide](docs/client-bridge.md) · [contributing guide](CONTRIBUTING.md) · [architecture](docs/architecture/botharness-architecture.md) · [decisions](docs/adr/) · [agent guidelines](AGENTS.md) · [Release Ledger](CHANGELOG.md) · [DSH docs](https://deepseek-harness.github.io/deepseek-harness/).
 
+For real IM tests, the [shared QA App wizard](docs/agents/im-test-apps.md) configures independent Lark, Slack and Discord QA1/QA2/QA3 slots. For example, run `node scripts/dev-im-test-apps.mjs setup discord` to enter the Token privately; confirm the current exclusive window before each receiver start.
+
 <a id="community"></a>
 
 ## Community

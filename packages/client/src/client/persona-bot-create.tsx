@@ -1,12 +1,14 @@
 import { useId, useState, type ReactElement } from 'react';
+import * as stylex from '@stylexjs/stylex';
 
-import { Button, SegmentedControl } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Input, SegmentedControl } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { BridgeActions } from './actions.js';
 import { BridgeCallError, errorMessage, type CreatedBot } from './bridge.js';
+import { Field, TextAreaField, TextField } from './ds/field.js';
+import { FormDialog } from './ds/form-dialog.js';
+import { color, radius, space, text } from './ds/tokens.stylex.js';
 import { zhTranslate, type BotHarnessTranslate } from './locale.js';
-import { Modal } from './modal.js';
-import { NameInput } from './name-input.js';
 import { PersonaBotAvatar } from './avatar.js';
 import { TagEditor, tagsWithDraft } from './tag-editor.js';
 
@@ -37,27 +39,51 @@ export function personaBotCreateError(
   return errorMessage(error);
 }
 
-function Field({
-  id,
-  label,
-  hint,
-  children,
-}: {
-  id: string;
-  label: string;
-  hint?: string;
-  children: ReactElement;
-}): ReactElement {
-  return (
-    <div className="bh-personabot-field">
-      <label className="bh-personabot-label" htmlFor={id}>
-        {label}
-      </label>
-      {children}
-      {hint === undefined ? null : <span className="bh-personabot-hint">{hint}</span>}
-    </div>
-  );
-}
+const styles = stylex.create({
+  nameRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: space.x4,
+    minWidth: 0,
+  },
+  avatar: { display: 'inline-flex', flexShrink: 0 },
+  grow: { flexGrow: 1, minWidth: 0 },
+  fallback: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x4,
+    minWidth: 0,
+  },
+  code: {
+    margin: 0,
+    paddingBlock: space.x3,
+    paddingInline: space.x4,
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: color.border,
+    borderRadius: radius.row,
+    backgroundColor: color.surface,
+    color: color.fg,
+    fontFamily: 'var(--dsw-font-family-mono, monospace)',
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+    whiteSpace: 'pre-wrap',
+    overflowWrap: 'anywhere',
+  },
+  caption: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x1,
+    marginTop: `calc(-1 * ${space.x2})`,
+    color: color.muted,
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+  },
+  detail: {
+    fontFamily: 'var(--dsw-font-family-mono, monospace)',
+    overflowWrap: 'anywhere',
+  },
+});
 
 export function CreatePersonaBotModal({
   actions,
@@ -76,11 +102,6 @@ export function CreatePersonaBotModal({
   onCancel: () => void;
   onCreated: () => void;
 }): ReactElement {
-  const displayNameId = useId();
-  const gitUrlId = useId();
-  const roleId = useId();
-  const descriptionId = useId();
-  const personaId = useId();
   const personaPresetId = useId();
   const [displayName, setDisplayName] = useState('');
   const [personaPreset, setPersonaPreset] = useState<'blank' | 'colleague' | 'roleplay'>('blank');
@@ -140,46 +161,39 @@ export function CreatePersonaBotModal({
       void actions.openCreatedBot(fallback, sectionId).finally(onCreated);
     };
     return (
-      <Modal
-        open
-        onClose={done}
-        closeLabel={t('common.close')}
+      <FormDialog
         title={t('bot.create.httpsFallback.title')}
-        footer={
-          <Button variant="primary" onClick={done} data-https-fallback-done>
-            {t('bot.create.httpsFallback.done')}
-          </Button>
-        }
+        labels={{ close: t('common.close'), cancel: t('common.cancel') }}
+        submitLabel={t('bot.create.httpsFallback.done')}
+        submitData={{ 'data-https-fallback-done': '' }}
+        showCancel={false}
+        onCancel={done}
+        onSubmit={done}
       >
-        <div className="bh-personabot-form" data-https-fallback>
+        <div data-https-fallback="" {...stylex.props(styles.fallback)}>
           <span>{t('bot.create.httpsFallback.body')}</span>
-          <pre className="bh-https-fallback-code">
+          <pre {...stylex.props(styles.code)}>
             <code>{from}</code>
           </pre>
-          <span className="bh-https-fallback-caption" data-https-fallback-reason={reason}>
+          <span data-https-fallback-reason={reason} {...stylex.props(styles.caption)}>
             {t(`bot.create.httpsFallback.reason.${reason}`)}
             {detail === undefined ? null : (
-              <span className="bh-https-fallback-detail">
+              <span {...stylex.props(styles.detail)}>
                 {t('bot.create.httpsFallback.detail', { detail })}
               </span>
             )}
           </span>
           <span>{t('bot.create.httpsFallback.now')}</span>
-          <pre className="bh-https-fallback-code">
+          <pre {...stylex.props(styles.code)}>
             <code>{to}</code>
           </pre>
         </div>
-      </Modal>
+      </FormDialog>
     );
   }
 
   return (
-    <Modal
-      open
-      onClose={() => {
-        if (!creating) onCancel();
-      }}
-      closeLabel={t('common.close')}
+    <FormDialog
       title={
         sectionName === undefined
           ? t(source === 'git' ? 'bot.create.gitTitle' : 'bot.create.title')
@@ -188,42 +202,42 @@ export function CreatePersonaBotModal({
             })
       }
       description={t('bot.create.description')}
-      footer={
-        <>
-          <Button variant="outline" disabled={creating} onClick={onCancel}>
-            {t('common.cancel')}
-          </Button>
-          <Button variant="primary" disabled={invalid || creating} onClick={submit}>
-            {creating
-              ? t(source === 'git' ? 'bot.create.importing' : 'bot.create.creating')
-              : t('common.create')}
-          </Button>
-        </>
+      labels={{ close: t('common.close'), cancel: t('common.cancel') }}
+      submitLabel={
+        creating
+          ? t(source === 'git' ? 'bot.create.importing' : 'bot.create.creating')
+          : t('common.create')
       }
+      submitDisabled={invalid}
+      busy={creating}
+      error={
+        cause === undefined
+          ? undefined
+          : t('create.failed', { error: personaBotCreateError(cause, t) })
+      }
+      onCancel={() => {
+        if (!creating) onCancel();
+      }}
+      onSubmit={submit}
     >
-      <div className="bh-personabot-form">
-        {source === 'git' ? (
-          <Field
-            id={gitUrlId}
-            label={t('bot.create.gitUrl.label')}
-            hint={t('bot.create.gitUrl.hint')}
-          >
-            <NameInput
-              id={gitUrlId}
-              type="text"
-              autoCapitalize="none"
-              autoComplete="off"
-              spellCheck={false}
-              value={gitUrl}
-              disabled={creating}
-              placeholder={t('bot.create.gitUrl.placeholder')}
-              onChange={(event) => setGitUrl(event.currentTarget.value)}
-            />
-          </Field>
-        ) : null}
-        <Field id={displayNameId} label={t('bot.create.name.label')}>
-          <div className="bh-personabot-name-row">
-            <span data-create-avatar-preview>
+      {source === 'git' ? (
+        <TextField
+          label={t('bot.create.gitUrl.label')}
+          hint={t('bot.create.gitUrl.hint')}
+          type="text"
+          autoCapitalize="none"
+          autoComplete="off"
+          spellCheck={false}
+          value={gitUrl}
+          disabled={creating}
+          placeholder={t('bot.create.gitUrl.placeholder')}
+          onChange={setGitUrl}
+        />
+      ) : null}
+      <Field label={t('bot.create.name.label')}>
+        {(control) => (
+          <div {...stylex.props(styles.nameRow)}>
+            <span data-create-avatar-preview="" {...stylex.props(styles.avatar)}>
               <PersonaBotAvatar
                 personaBotId=""
                 name={displayName.trim() || t('bot.create.name.placeholder')}
@@ -233,19 +247,22 @@ export function CreatePersonaBotModal({
                 t={t}
               />
             </span>
-            <NameInput
-              id={displayNameId}
-              autoFocus
+            <Input
+              {...control}
+              data-modal-autofocus=""
+              className={stylex.props(styles.grow).className ?? ''}
               value={displayName}
               disabled={creating}
               placeholder={t('bot.create.name.placeholder')}
               onChange={(event) => setDisplayName(event.currentTarget.value)}
             />
           </div>
-        </Field>
-        <Field id={roleId} label={t('bot.create.roles.label')} hint={t('bot.create.roles.hint')}>
+        )}
+      </Field>
+      <Field label={t('bot.create.roles.label')} hint={t('bot.create.roles.hint')}>
+        {(control) => (
           <TagEditor
-            id={roleId}
+            id={control.id}
             tags={roles}
             draft={roleDraft}
             disabled={creating}
@@ -253,60 +270,53 @@ export function CreatePersonaBotModal({
             onTags={setRoles}
             onDraft={setRoleDraft}
           />
-        </Field>
-        <Field
-          id={descriptionId}
-          label={t('bot.create.about.label')}
-          hint={t('bot.create.about.hint')}
-        >
-          <NameInput
-            id={descriptionId}
-            value={description}
-            disabled={creating}
-            placeholder={t('bot.create.about.placeholder')}
-            onChange={(event) => setDescription(event.currentTarget.value)}
-          />
-        </Field>
-        {source === 'empty' ? (
-          <>
-            <SegmentedControl
-              id={personaPresetId}
-              label={t('bot.create.persona.preset')}
-              value={personaPreset}
-              options={[
-                { value: 'blank', label: t('bot.create.persona.blank') },
-                { value: 'colleague', label: t('bot.create.persona.colleague') },
-                { value: 'roleplay', label: t('bot.create.persona.roleplay') },
-              ]}
-              disabled={creating}
-              onChange={setPersonaPreset}
-            />
-            <Field
-              id={personaId}
-              label={t('bot.create.persona.label')}
-              hint={t('bot.create.persona.hint')}
-            >
-              <textarea
-                id={personaId}
-                className="bh-name-input bh-personabot-persona"
-                rows={6}
-                value={personaDrafts[personaPreset]}
-                disabled={creating}
-                placeholder={t('bot.create.persona.placeholder')}
-                onChange={(event) => {
-                  const value = event.currentTarget.value;
-                  setPersonaDrafts((current) => ({ ...current, [personaPreset]: value }));
-                }}
-              />
-            </Field>
-          </>
-        ) : null}
-        {cause === undefined ? null : (
-          <div className="bh-modal-error" role="alert">
-            {t('create.failed', { error: personaBotCreateError(cause, t) })}
-          </div>
         )}
-      </div>
-    </Modal>
+      </Field>
+      <TextField
+        label={t('bot.create.about.label')}
+        hint={t('bot.create.about.hint')}
+        value={description}
+        disabled={creating}
+        placeholder={t('bot.create.about.placeholder')}
+        onChange={setDescription}
+      />
+      {source === 'empty' ? (
+        <>
+          <Field label={t('bot.create.persona.preset')} group>
+            {() => (
+              <SegmentedControl
+                id={personaPresetId}
+                label={t('bot.create.persona.preset')}
+                value={personaPreset}
+                options={[
+                  { value: 'blank', label: t('bot.create.persona.blank') },
+                  {
+                    value: 'colleague',
+                    label: t('bot.create.persona.colleague'),
+                  },
+                  {
+                    value: 'roleplay',
+                    label: t('bot.create.persona.roleplay'),
+                  },
+                ]}
+                disabled={creating}
+                onChange={setPersonaPreset}
+              />
+            )}
+          </Field>
+          <TextAreaField
+            label={t('bot.create.persona.label')}
+            hint={t('bot.create.persona.hint')}
+            rows={6}
+            value={personaDrafts[personaPreset]}
+            disabled={creating}
+            placeholder={t('bot.create.persona.placeholder')}
+            onChange={(value) =>
+              setPersonaDrafts((current) => ({ ...current, [personaPreset]: value }))
+            }
+          />
+        </>
+      ) : null}
+    </FormDialog>
   );
 }

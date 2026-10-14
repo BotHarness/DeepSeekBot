@@ -22,7 +22,8 @@ import { PersonaBotAvatar } from './avatar.js';
 import { BotBannerArt } from './bot-banner.js';
 import { BridgeCallError, errorMessage } from './bridge.js';
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
-import { Modal } from './modal.js';
+import { Note } from './ds/note.js';
+import { PanelDialog } from './ds/panel-dialog.js';
 import { useMountedResource } from './mounted-resource.js';
 import { personaBotCreateError } from './persona-bot-create.js';
 
@@ -613,15 +614,15 @@ export function MarketplaceModal({
 
   if (selected !== undefined) {
     return (
-      <Modal
-        open
+      <PanelDialog
+        size="medium"
+        fill
         onClose={() => {
           if (!installing) onClose();
         }}
         closeLabel={t('common.close')}
         title={t('market.confirm.title', { name: marketplaceName(selected) })}
-        className="bh-market-modal"
-        footer={
+        actions={
           <>
             <Button
               variant="outline"
@@ -640,20 +641,32 @@ export function MarketplaceModal({
         }
       >
         <InstallConfirmation bot={selected} t={t} cause={installCause} />
-      </Modal>
+      </PanelDialog>
     );
   }
 
   if (viewing !== undefined) {
     const shown = detail.status === 'ready' ? detail.detail.bot : viewing;
     return (
-      <Modal
-        open
+      <PanelDialog
+        size="medium"
+        fill
         onClose={onClose}
         closeLabel={t('common.close')}
         title={marketplaceName(shown)}
-        className="bh-market-modal"
-        footer={
+        {...(report.status === 'closed'
+          ? {
+              secondary: (
+                <Button
+                  variant="ghost"
+                  onClick={() => setReport({ status: 'open', reason: '', phase: 'idle' })}
+                >
+                  {t('market.report.open')}
+                </Button>
+              ),
+            }
+          : {})}
+        actions={
           report.status === 'open' ? (
             <>
               <Button
@@ -677,15 +690,6 @@ export function MarketplaceModal({
             </>
           ) : (
             <>
-              {report.status === 'done' ? null : (
-                <Button
-                  variant="ghost"
-                  className="bh-market-report-open"
-                  onClick={() => setReport({ status: 'open', reason: '', phase: 'idle' })}
-                >
-                  {t('market.report.open')}
-                </Button>
-              )}
               <Button
                 variant="outline"
                 onClick={() => {
@@ -725,155 +729,149 @@ export function MarketplaceModal({
             />
           }
         />
-      </Modal>
+      </PanelDialog>
     );
   }
 
   return (
-    <Modal
-      open
+    <PanelDialog
+      size="medium"
+      fill
       onClose={onClose}
       closeLabel={t('common.close')}
       title={t('market.title')}
       description={t('market.description')}
-      className="bh-market-modal"
-      footer={
+      bodyRef={loadOnMount}
+      data={{ 'data-market': '' }}
+      actions={
         <Button variant="outline" onClick={onClose}>
           {t('common.close')}
         </Button>
       }
     >
-      <div className="bh-market" ref={loadOnMount}>
-        <div className="bh-market-submit">
-          <Input
-            aria-label={t('market.submit.label')}
-            placeholder={t('market.submit.placeholder')}
-            autoCapitalize="none"
-            autoComplete="off"
-            spellCheck={false}
-            value={url}
-            disabled={submitting}
-            onChange={(event) => setUrl(event.currentTarget.value)}
-            onKeyDown={(event) => {
-              if (event.key !== 'Enter') return;
-              event.preventDefault();
-              submit();
-            }}
-          />
-          <Button
-            variant="primary"
-            disabled={submitting || url.trim().length === 0}
-            onClick={submit}
+      <div className="bh-market-submit">
+        <Input
+          aria-label={t('market.submit.label')}
+          placeholder={t('market.submit.placeholder')}
+          autoCapitalize="none"
+          autoComplete="off"
+          spellCheck={false}
+          value={url}
+          disabled={submitting}
+          onChange={(event) => setUrl(event.currentTarget.value)}
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter') return;
+            event.preventDefault();
+            submit();
+          }}
+        />
+        <Button variant="primary" disabled={submitting || url.trim().length === 0} onClick={submit}>
+          {submitPhase === 'verifying'
+            ? t('market.challenge.verifying')
+            : submitting
+              ? t('market.submit.busy')
+              : t('market.submit.action')}
+        </Button>
+      </div>
+      <span className="bh-market-hint">
+        {submitted === undefined
+          ? t('market.submit.hint')
+          : t('market.submit.done', { name: submitted })}
+      </span>
+      {submitCause === undefined ? null : (
+        <Note tone="danger">{marketplaceError(submitCause, t)}</Note>
+      )}
+      <div className="bh-market-browse">
+        <Input
+          type="search"
+          aria-label={t('market.search.label')}
+          placeholder={t('market.search.placeholder')}
+          autoComplete="off"
+          maxLength={MAX_QUERY_LENGTH}
+          value={searchText}
+          onChange={(event) => search(event.currentTarget.value)}
+        />
+        <SegmentedControl
+          id={sortId}
+          label={t('market.sort.label')}
+          value={filters.sort}
+          options={[
+            { value: 'updated', label: t('market.sort.updated') },
+            { value: 'stars', label: t('market.sort.stars') },
+          ]}
+          disabled={filters.query.length > 0}
+          onChange={(sort) => load({ ...filters, sort })}
+        />
+      </div>
+      {filters.query.length > 0 ? (
+        <span className="bh-market-hint">{t('market.search.relevance')}</span>
+      ) : null}
+      {topics.length === 0 ? null : (
+        <div className="bh-market-topics" role="group" aria-label={t('market.topics.label')}>
+          <button
+            type="button"
+            className="bh-market-topic"
+            aria-pressed={filters.topic === undefined}
+            onClick={() => chooseTopic(undefined)}
           >
-            {submitPhase === 'verifying'
-              ? t('market.challenge.verifying')
-              : submitting
-                ? t('market.submit.busy')
-                : t('market.submit.action')}
-          </Button>
-        </div>
-        <span className="bh-market-hint">
-          {submitted === undefined
-            ? t('market.submit.hint')
-            : t('market.submit.done', { name: submitted })}
-        </span>
-        {submitCause === undefined ? null : (
-          <div className="bh-modal-error" role="alert">
-            {marketplaceError(submitCause, t)}
-          </div>
-        )}
-        <div className="bh-market-browse">
-          <Input
-            type="search"
-            aria-label={t('market.search.label')}
-            placeholder={t('market.search.placeholder')}
-            autoComplete="off"
-            maxLength={MAX_QUERY_LENGTH}
-            value={searchText}
-            onChange={(event) => search(event.currentTarget.value)}
-          />
-          <SegmentedControl
-            id={sortId}
-            label={t('market.sort.label')}
-            value={filters.sort}
-            options={[
-              { value: 'updated', label: t('market.sort.updated') },
-              { value: 'stars', label: t('market.sort.stars') },
-            ]}
-            disabled={filters.query.length > 0}
-            onChange={(sort) => load({ ...filters, sort })}
-          />
-        </div>
-        {filters.query.length > 0 ? (
-          <span className="bh-market-hint">{t('market.search.relevance')}</span>
-        ) : null}
-        {topics.length === 0 ? null : (
-          <div className="bh-market-topics" role="group" aria-label={t('market.topics.label')}>
+            {t('market.topics.all')}
+          </button>
+          {topics.map(({ topic, count }) => (
             <button
+              key={topic}
               type="button"
               className="bh-market-topic"
-              aria-pressed={filters.topic === undefined}
-              onClick={() => chooseTopic(undefined)}
+              data-market-topic={topic}
+              aria-pressed={filters.topic === topic}
+              onClick={() => chooseTopic(filters.topic === topic ? undefined : topic)}
             >
-              {t('market.topics.all')}
+              {topic}
+              <span className="bh-market-topic-count">{count}</span>
             </button>
-            {topics.map(({ topic, count }) => (
-              <button
-                key={topic}
-                type="button"
-                className="bh-market-topic"
-                data-market-topic={topic}
-                aria-pressed={filters.topic === topic}
-                onClick={() => chooseTopic(filters.topic === topic ? undefined : topic)}
-              >
-                {topic}
-                <span className="bh-market-topic-count">{count}</span>
-              </button>
-            ))}
-          </div>
-        )}
-        {list.status === 'loading' ? (
-          <div className="bh-market-state" role="status">
-            {t('market.loading')}
-          </div>
-        ) : null}
-        {list.status === 'error' ? (
-          <div className="bh-market-state" role="alert">
-            <span>{t('market.error.load', { error: marketplaceError(list.cause, t) })}</span>
-            <Button variant="outline" onClick={() => load()}>
-              {t('market.retry')}
-            </Button>
-          </div>
-        ) : null}
-        {list.status === 'ready' && list.bots.length === 0 ? (
-          <div className="bh-market-state">
-            {filters.query.length > 0 || filters.topic !== undefined
-              ? t('market.search.empty')
-              : t('market.empty')}
-          </div>
-        ) : null}
-        {list.status === 'ready' && list.bots.length > 0 ? (
-          <div className="bh-market-list" role="list" aria-label={t('market.title')}>
-            {list.bots.map((bot) => (
-              <MarketplaceRow
-                key={bot.id}
-                bot={bot}
-                t={t}
-                onOpen={() => openDetail(bot)}
-                onInstall={() => {
-                  setSelected(bot);
-                  setInstallCause(undefined);
-                }}
-              />
-            ))}
-          </div>
-        ) : null}
-        {list.status === 'ready' && list.nextCursor !== undefined ? (
-          <Button variant="outline" disabled={list.loadingMore} onClick={loadMore}>
-            {list.loadingMore ? t('market.loadingMore') : t('market.loadMore')}
+          ))}
+        </div>
+      )}
+      {list.status === 'loading' ? (
+        <div className="bh-market-state" role="status">
+          {t('market.loading')}
+        </div>
+      ) : null}
+      {list.status === 'error' ? (
+        <div className="bh-market-state" role="alert">
+          <span>{t('market.error.load', { error: marketplaceError(list.cause, t) })}</span>
+          <Button variant="outline" onClick={() => load()}>
+            {t('market.retry')}
           </Button>
-        ) : null}
-      </div>
-    </Modal>
+        </div>
+      ) : null}
+      {list.status === 'ready' && list.bots.length === 0 ? (
+        <div className="bh-market-state">
+          {filters.query.length > 0 || filters.topic !== undefined
+            ? t('market.search.empty')
+            : t('market.empty')}
+        </div>
+      ) : null}
+      {list.status === 'ready' && list.bots.length > 0 ? (
+        <div className="bh-market-list" role="list" aria-label={t('market.title')}>
+          {list.bots.map((bot) => (
+            <MarketplaceRow
+              key={bot.id}
+              bot={bot}
+              t={t}
+              onOpen={() => openDetail(bot)}
+              onInstall={() => {
+                setSelected(bot);
+                setInstallCause(undefined);
+              }}
+            />
+          ))}
+        </div>
+      ) : null}
+      {list.status === 'ready' && list.nextCursor !== undefined ? (
+        <Button variant="outline" disabled={list.loadingMore} onClick={loadMore}>
+          {list.loadingMore ? t('market.loadingMore') : t('market.loadMore')}
+        </Button>
+      ) : null}
+    </PanelDialog>
   );
 }

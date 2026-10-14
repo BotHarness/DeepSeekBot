@@ -273,7 +273,7 @@ async function open(g) {
   await page.click('[data-channel-id="' + g.id + '"]');
   await page.waitForSelector('.bh-group-channel-header');
   await page.waitForFunction(
-    (name) => document.querySelector('.bh-group-channel-name')?.textContent === name,
+    (name) => document.querySelector('[data-group-channel-name]')?.textContent === name,
     {},
     g.name,
   );
@@ -358,7 +358,7 @@ async function measure(g, preference, systemReduced, theme, width) {
     assert.equal(avatar.state, avatar.title.startsWith(scene.owner.name) ? 'working' : 'idle');
     assert.equal(avatar.infinite > 0, expected === 'full' && avatar.state === 'working');
   }
-  await page.click('.bh-group-channel-name');
+  await page.click('[data-group-channel-name]');
   await page.waitForSelector('.bh-group-live-activity-chips');
   await delay(400);
   const profile = await page.$eval('.bh-group-live-activity-chips', (node) => ({

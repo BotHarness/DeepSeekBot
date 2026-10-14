@@ -98,7 +98,7 @@ async function enter() {
   await page.waitForSelector('[data-channel-id="' + scene.group.id + '"]');
   await page.click('[data-channel-id="' + scene.group.id + '"]');
   await page.waitForFunction(
-    (name) => document.querySelector('.bh-group-channel-name')?.textContent === name,
+    (name) => document.querySelector('[data-group-channel-name]')?.textContent === name,
     {},
     scene.group.name,
   );

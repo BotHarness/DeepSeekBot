@@ -16,6 +16,7 @@ import {
   Switch,
   Tag,
 } from '@deepseek-ai/dsh-client-ui-primitives';
+import * as stylex from '@stylexjs/stylex';
 
 import type { ChannelSidebarEntryProps } from './channel-sidebar.js';
 import type { HostDirectoryListing } from './actions.js';
@@ -28,7 +29,9 @@ import type {
 import { errorMessage } from './bridge.js';
 import { MemoryFileActionButton, MemoryFileOpenButton } from './memory-file-actions.js';
 import { WorkspaceFileActionButton } from './workspace-file-actions.js';
-import { Modal } from './modal.js';
+import { Note } from './ds/note.js';
+import { PanelDialog } from './ds/panel-dialog.js';
+import { color, radius, space, text } from './ds/tokens.stylex.js';
 import { LoadingSkeleton } from './loading-skeleton.js';
 import { useMountedResource } from './mounted-resource.js';
 import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
@@ -212,6 +215,69 @@ function pickerUnavailable(cause: unknown): boolean {
   );
 }
 
+const browserStyles = stylex.create({
+  crumbs: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: space.x2,
+  },
+  crumb: {
+    paddingBlock: space.x2,
+    paddingInline: space.x3,
+    borderWidth: 0,
+    borderRadius: radius.control,
+    backgroundColor: 'transparent',
+    color: color.muted,
+    fontSize: text.bodySize,
+    lineHeight: text.bodyLine,
+    cursor: 'pointer',
+    outlineWidth: { default: 0, ':focus-visible': '2px' },
+    outlineStyle: 'solid',
+    outlineColor: color.fg,
+    outlineOffset: '-2px',
+  },
+  current: { backgroundColor: color.selected, color: color.fg },
+  list: {
+    minHeight: '180px',
+    maxHeight: 'min(360px, 50vh)',
+    overflowY: 'auto',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: color.border,
+    borderRadius: radius.row,
+  },
+  item: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: space.x3,
+    width: '100%',
+    paddingBlock: space.x3,
+    paddingInline: space.x4,
+    borderWidth: 0,
+    backgroundColor: { default: 'transparent', ':hover': color.hover },
+    color: color.fg,
+    fontSize: text.bodySize,
+    lineHeight: text.bodyLine,
+    textAlign: 'left',
+    cursor: 'pointer',
+    outlineWidth: { default: 0, ':focus-visible': '2px' },
+    outlineStyle: 'solid',
+    outlineColor: color.fg,
+    outlineOffset: '-2px',
+  },
+  empty: { paddingBlock: space.x3, paddingInline: space.x4 },
+  hidden: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: space.x3,
+    color: color.fg,
+    fontSize: text.bodySize,
+    lineHeight: text.bodyLine,
+    cursor: 'pointer',
+  },
+  checkbox: { margin: 0, accentColor: color.accent },
+});
+
 export function FolderBrowser({
   initial,
   actions,
@@ -261,16 +327,16 @@ export function FolderBrowser({
   };
 
   return (
-    <Modal
-      open
+    <PanelDialog
+      size="medium"
       title={t('grant.browseTitle')}
       description={t('grant.browseHelp')}
       closeLabel={t('common.close')}
       onClose={() => {
         if (!busy) onCancel();
       }}
-      className="bh-folder-browser"
-      footer={
+      data={{ 'data-folder-browser': '' }}
+      actions={
         <>
           <Button variant="outline" disabled={busy} onClick={onCancel}>
             {t('common.cancel')}
@@ -286,24 +352,28 @@ export function FolderBrowser({
       }
     >
       <div
-        className="bh-folder-browser-crumbs"
         aria-label={t('grant.browseLocation')}
         ref={abortOnUnmount}
+        {...stylex.props(browserStyles.crumbs)}
       >
         {listing.crumbs.map((crumb, index) => (
           <button
             type="button"
             key={crumb.path}
-            className="bh-folder-browser-crumb"
+            data-folder-browser-crumb=""
             aria-current={index === listing.crumbs.length - 1 ? 'location' : undefined}
             disabled={busy || loading}
             onClick={() => navigate(crumb.path)}
+            {...stylex.props(
+              browserStyles.crumb,
+              index === listing.crumbs.length - 1 && browserStyles.current,
+            )}
           >
             {crumb.name}
           </button>
         ))}
       </div>
-      <div className="bh-folder-browser-list" role="list" aria-label={t('grant.browseFolders')}>
+      <div role="list" aria-label={t('grant.browseFolders')} {...stylex.props(browserStyles.list)}>
         {listing.entries
           .filter((entry) => showHidden || !entry.hidden)
           .map((entry) => (
@@ -311,34 +381,34 @@ export function FolderBrowser({
               type="button"
               role="listitem"
               key={entry.path}
-              className="bh-folder-browser-item"
+              data-folder-browser-item=""
               disabled={busy || loading}
               onClick={() => navigate(entry.path)}
+              {...stylex.props(browserStyles.item)}
             >
               <IconFolderOpenOutlineRegular size={16} />
               <span>{entry.name}</span>
             </button>
           ))}
         {listing.entries.length === 0 ? (
-          <div className="bh-note">{t('grant.browseEmpty')}</div>
+          <div {...stylex.props(browserStyles.empty)}>
+            <Note>{t('grant.browseEmpty')}</Note>
+          </div>
         ) : null}
       </div>
-      {listing.truncated ? <div className="bh-note">{t('grant.browseTruncated')}</div> : null}
+      {listing.truncated ? <Note>{t('grant.browseTruncated')}</Note> : null}
       {loading ? <LoadingSkeleton kind="sidebar" label={t('grant.loading')} /> : null}
-      {error === undefined ? null : (
-        <div className="bh-error" role="alert">
-          {error}
-        </div>
-      )}
-      <label className="bh-folder-browser-hidden">
+      {error === undefined ? null : <Note tone="danger">{error}</Note>}
+      <label {...stylex.props(browserStyles.hidden)}>
         <input
           type="checkbox"
           checked={showHidden}
           onChange={(event) => setShowHidden(event.target.checked)}
+          {...stylex.props(browserStyles.checkbox)}
         />
         {t('grant.showHidden')}
       </label>
-    </Modal>
+    </PanelDialog>
   );
 }
 

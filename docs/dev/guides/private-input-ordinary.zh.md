@@ -53,7 +53,9 @@ Bot 会用 `program: mytool`、`args: ["status"]`、`env: [{ name: "MYTOOL_TOKEN
 GITHUB_PERSONAL_ACCESS_TOKEN。请先用 ask_secret 向我要这个 token。
 ```
 
-Bot 会调用 `secret_mcp_connect`。预期：审批卡写明启动程序和参数，说明这个程序会持续运行，并提供“仅批准这一次”“批准并记住”“拒绝”三个选择。批准后 Bot 列出该服务的工具；之后每次调用工具按平常的方式询问。选“仅批准这一次”时，服务在 `secret_mcp_disconnect`、账号被撤销或 Host 重启时停止，重新连接需要再次批准。选“批准并记住”时，这个 Bot 的聊天会话每次启动都会自动把它启动起来，并显示在 Bot 设置的“密钥”里，可以在那里移除（[ADR-0196](../../adr/0196-approved-secret-mcp-servers-can-be-remembered.md)）。派出的事项用不了它（[ADR-0195](../../adr/0195-a-bot-starts-an-mcp-server-with-owner-secrets-per-approved-start.md)）。
+Bot 会调用 `secret_mcp_connect`。预期：审批卡写明启动程序和参数，说明这个程序会持续运行，并提供“仅批准这一次”“批准并记住”“拒绝”三个选择。批准后 Bot 列出该服务的工具；之后每次调用工具按平常的方式询问。选“仅批准这一次”时，服务在 `secret_mcp_disconnect`、账号被撤销或 Host 重启时停止，重新连接需要再次批准。选“批准并记住”时，这个 Bot 的聊天会话每次启动都会自动把它启动起来，并且它会出现在每个 Bot 设置的“密钥”里（[ADR-0198](../../adr/0198-a-remembered-secret-mcp-server-serves-every-personabot.md)）：在另一个 Bot 的设置里打开开关，那个 Bot 就能使用它，运行的是自己的一份，用的是配置它的那个 Bot 的密钥。在任一 Bot 的设置里移除，就是对所有 Bot 移除（[ADR-0196](../../adr/0196-approved-secret-mcp-servers-can-be-remembered.md)）。派出的事项用不了它（[ADR-0195](../../adr/0195-a-bot-starts-an-mcp-server-with-owner-secrets-per-approved-start.md)）。
+
+请把 MCP 服务当作你安装并信任的程序，这和其他 MCP 客户端的做法一致。除了拿到密钥，它还能把自己的说明写进 Bot 的系统提示，它的工具描述和返回结果也会交给模型。服务里的文字，或者它返回的数据（比如别人写的一个 issue），都可能引导 Bot 做事。每次工具调用仍然需要审批，除非你保存了规则或开了完全访问。
 
 不依赖真实服务的本地验证：启动 `node scripts/ask-secret-fixture.mjs 31381`，让 Bot 用 `STATUS_ENDPOINT`、`STATUS_API_KEY`、`STATUS_API_SECRET` 接上 `node <仓库>/scripts/secret-mcp-fixture.mjs`，然后调用 `check_status`（应为 200）和 `describe_setup`（key 应显示为 `[secret]`）。
 

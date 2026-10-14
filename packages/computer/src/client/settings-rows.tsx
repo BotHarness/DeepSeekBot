@@ -1,16 +1,11 @@
-import {
-  useCallback,
-  useRef,
-  useState,
-  useSyncExternalStore,
-  type ReactElement,
-  type ReactNode,
-} from 'react';
+import { useCallback, useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
 import { useMountedResource } from './mounted-resource.js';
 
+import * as stylex from '@stylexjs/stylex';
 import {
   IconChevronDownOutlineRegular,
   IconFolderOpenOutlineRegular,
+  Input,
   Menu,
   Switch,
 } from '@deepseek-ai/dsh-client-ui-primitives';
@@ -23,7 +18,12 @@ import {
   COMPUTER_IDLE_STOP_FIELD,
   type ComputerSettings,
 } from '../settings.js';
-import { LocalComputerStatus, LOCAL_COMPUTER_COLORS } from './local-computer.js';
+import { Note } from '../../../client/src/client/ds/note.js';
+import { PillButton, PillFileButton } from '../../../client/src/client/ds/pill-button.js';
+import { Select } from '../../../client/src/client/ds/select.js';
+import { SettingsRow, SettingsRows } from '../../../client/src/client/ds/settings-row.js';
+import { color, space, text } from '../../../client/src/client/ds/tokens.stylex.js';
+import { LocalComputerStatus } from './local-computer.js';
 import type { ComputerTarget } from '../target.js';
 
 import { PHASE_LABEL, type ComputerTranslate } from './locale.js';
@@ -167,6 +167,47 @@ export interface ComputerSettingsFace {
 
 const IDLE_OPTIONS = [15, 30, 60, 120, 240] as const;
 
+const styles = stylex.create({
+  intro: {
+    margin: 0,
+    paddingTop: space.x5,
+    paddingBottom: space.x2,
+    color: color.muted,
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+  },
+  chevron: {
+    display: 'inline-flex',
+    flexShrink: 0,
+    color: color.muted,
+  },
+  manual: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: space.x4,
+    minWidth: 0,
+    paddingBlock: space.x4,
+    borderBottomWidth: '0.5px',
+    borderBottomStyle: 'solid',
+    borderBottomColor: color.border,
+  },
+  manualInput: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 0,
+    minWidth: 0,
+  },
+  file: {
+    margin: 0,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    color: color.muted,
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+  },
+});
+
 const EXPORT_ENDPOINT = '/api/computer/export';
 const IMPORT_ENDPOINT = '/api/computer/import';
 const EXPORTS_ENDPOINT = '/api/computer/exports';
@@ -275,26 +316,6 @@ export function createComputerSettingsFace(options: {
   };
 }
 
-function Row({
-  title,
-  description,
-  children,
-}: {
-  readonly title: string;
-  readonly description: string;
-  readonly children?: ReactNode;
-}): ReactElement {
-  return (
-    <div className="bh-settings-row">
-      <div className="bh-settings-row-text">
-        <div className="bh-settings-row-title">{title}</div>
-        <div className="bh-settings-row-desc">{description}</div>
-      </div>
-      {children}
-    </div>
-  );
-}
-
 function Selector({
   label,
   open,
@@ -307,17 +328,17 @@ function Selector({
   readonly disabled?: boolean | undefined;
 }): ReactElement {
   return (
-    <button
-      type="button"
-      className="bh-settings-selector"
+    <PillButton
       aria-haspopup="menu"
       aria-expanded={open}
       disabled={disabled === true}
       onClick={onToggle}
     >
       {label}
-      <IconChevronDownOutlineRegular className="bh-settings-chevron" />
-    </button>
+      <span {...stylex.props(styles.chevron)}>
+        <IconChevronDownOutlineRegular size={12} />
+      </span>
+    </PillButton>
   );
 }
 
@@ -336,7 +357,6 @@ export function ComputerSettingsRows({
   hostExportDir,
 }: PropsLocale<'botharness-computer'> & InjectFace<ComputerSettingsFace>): ReactElement {
   const snapshot = useSyncExternalStore(prefs.subscribe, prefs.getSnapshot);
-  const [targetOpen, setTargetOpen] = useState(false);
   const [targetError, setTargetError] = useState<string>();
   const [targetSaving, setTargetSaving] = useState(false);
   const [idleOpen, setIdleOpen] = useState(false);
@@ -562,331 +582,273 @@ export function ComputerSettingsRows({
   const selectedFile = uploadName ?? (confirming === 'import' ? archives?.[0] : undefined);
 
   return (
-    <div className="bh-settings-rows">
+    <SettingsRows>
       <span hidden ref={hostDirResource} />
       {busy === undefined ? null : <span hidden ref={busyResource} />}
-      <div className="bh-settings-section-head">
-        <div className="bh-settings-section-desc">{t('section.description')}</div>
-      </div>
-      <Row title={t('rows.target.title')} description={t('rows.target.description')}>
-        <Menu
-          open={targetOpen}
-          portal
-          align="end"
-          items={(['local', 'container'] as const).map((id) => ({
-            id,
-            label: t(`rows.target.${id}`),
-          }))}
-          selectedId={snapshot.target}
-          onSelect={(id) => {
-            setTargetOpen(false);
-            if (id !== 'local' && id !== 'container') return;
-            setTargetSaving(true);
-            setTargetError(undefined);
-            void prefs
-              .setTarget(id)
-              .catch((error: unknown) => setTargetError(String(error)))
-              .finally(() => setTargetSaving(false));
-          }}
-          onClose={() => setTargetOpen(false)}
-          anchor={
-            <Selector
-              label={t(`rows.target.${snapshot.target}`)}
-              open={targetOpen}
-              disabled={!writable || targetSaving}
-              onToggle={() => setTargetOpen((value) => !value)}
-            />
-          }
-        />
-      </Row>
-      {targetError === undefined ? null : (
-        <div role="alert" className="bh-note" style={{ color: LOCAL_COMPUTER_COLORS.error }}>
-          {targetError}
-        </div>
-      )}
-      <Row title={t('rows.autoAllow.title')} description={t('rows.autoAllow.description')}>
-        <Switch
-          checked={snapshot.autoAllowActions}
-          disabled={!writable}
-          onChange={(next) => {
-            prefs.setAutoAllowActions(next);
-          }}
-          label={t('rows.autoAllow.title')}
-        />
-      </Row>
+      <p {...stylex.props(styles.intro)}>{t('section.description')}</p>
+      <SettingsRow
+        title={t('rows.target.title')}
+        description={t('rows.target.description')}
+        control={
+          <Select
+            label={t('rows.target.title')}
+            value={snapshot.target}
+            options={(['local', 'container'] as const).map((id) => ({
+              value: id,
+              label: t(`rows.target.${id}`),
+            }))}
+            disabled={!writable || targetSaving}
+            onChange={(id) => {
+              setTargetSaving(true);
+              setTargetError(undefined);
+              void prefs
+                .setTarget(id)
+                .catch((error: unknown) => setTargetError(String(error)))
+                .finally(() => setTargetSaving(false));
+            }}
+          />
+        }
+      />
+      {targetError === undefined ? null : <Note tone="danger">{targetError}</Note>}
+      <SettingsRow
+        title={t('rows.autoAllow.title')}
+        description={t('rows.autoAllow.description')}
+        control={
+          <Switch
+            checked={snapshot.autoAllowActions}
+            disabled={!writable}
+            onChange={(next) => {
+              prefs.setAutoAllowActions(next);
+            }}
+            label={t('rows.autoAllow.title')}
+          />
+        }
+      />
       {snapshot.target === 'local' ? (
         <LocalComputerStatus t={t as ComputerTranslate} />
       ) : (
         <>
-          <Row
+          <SettingsRow
             title={t('rows.exportDir.title')}
             description={
               hasDir ? t('rows.exportDir.current', { dir: exportDir }) : t('rows.exportDir.empty')
             }
-          >
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              {canAdjust ? (
-                <button
-                  type="button"
-                  className="bh-settings-selector"
+            control={
+              <>
+                {canAdjust ? (
+                  <PillButton disabled={!writable} onClick={pickExportDir}>
+                    <IconFolderOpenOutlineRegular size={14} />
+                    {t('rows.exportDir.pick')}
+                  </PillButton>
+                ) : null}
+                <PillButton disabled={!hasDir} onClick={openDir}>
+                  {t('rows.exportDir.open')}
+                </PillButton>
+                <PillButton
                   disabled={!writable}
-                  onClick={pickExportDir}
+                  onClick={() => {
+                    setManualOpen((value) => !value);
+                    setManualPath(exportDir);
+                  }}
                 >
-                  <IconFolderOpenOutlineRegular size={14} />
-                  {t('rows.exportDir.pick')}
-                </button>
-              ) : null}
-              <button
-                type="button"
-                className="bh-settings-selector"
-                disabled={!hasDir}
-                onClick={openDir}
-              >
-                {t('rows.exportDir.open')}
-              </button>
-              <button
-                type="button"
-                className="bh-settings-selector"
-                disabled={!writable}
-                onClick={() => {
-                  setManualOpen((value) => !value);
-                  setManualPath(exportDir);
-                }}
-              >
-                {t('rows.exportDir.manual')}
-              </button>
-            </div>
-          </Row>
+                  {t('rows.exportDir.manual')}
+                </PillButton>
+              </>
+            }
+          />
 
           {manualOpen ? (
-            <div className="bh-settings-row">
-              <div className="bh-settings-row-text">
-                <input
-                  className="bh-settings-input"
-                  value={manualPath}
-                  placeholder="/absolute/path"
-                  aria-label={t('rows.exportDir.manual')}
-                  onChange={(event) => {
-                    setManualPath(event.target.value);
-                  }}
-                />
-              </div>
-              <button
-                type="button"
-                className="bh-settings-selector"
+            <div {...stylex.props(styles.manual)}>
+              <Input
+                className={stylex.props(styles.manualInput).className ?? ''}
+                value={manualPath}
+                placeholder="/absolute/path"
+                aria-label={t('rows.exportDir.manual')}
+                onChange={(event) => {
+                  setManualPath(event.target.value);
+                }}
+              />
+              <PillButton
                 disabled={!writable || saving || manualPath.trim() === ''}
                 onClick={saveManualPath}
               >
                 {saving ? t('rows.exportDir.saving') : t('rows.exportDir.save')}
-              </button>
+              </PillButton>
             </div>
           ) : null}
-          {dirNote === undefined ? null : <div className="bh-note">{dirNote}</div>}
+          {dirNote === undefined ? null : <Note>{dirNote}</Note>}
 
-          <Row title={t('rows.idle.title')} description={t('rows.idle.description')}>
-            <Menu
-              open={idleOpen}
-              portal
-              align="end"
-              items={IDLE_OPTIONS.map((minutes) => ({
-                id: String(minutes),
-                label: t('rows.idle.minutes', { minutes }),
-              }))}
-              selectedId={String(snapshot.idleStopMinutes)}
-              onSelect={(id) => {
-                setIdleOpen(false);
-                prefs.setIdleStopMinutes(Number(id));
-              }}
-              onClose={() => {
-                setIdleOpen(false);
-              }}
-              anchor={
-                <Selector
-                  label={t('rows.idle.minutes', { minutes: snapshot.idleStopMinutes })}
-                  open={idleOpen}
-                  disabled={!writable}
-                  onToggle={() => {
-                    setIdleOpen((value) => !value);
-                  }}
-                />
-              }
-            />
-          </Row>
+          <SettingsRow
+            title={t('rows.idle.title')}
+            description={t('rows.idle.description')}
+            control={
+              <Menu
+                open={idleOpen}
+                portal
+                align="end"
+                items={IDLE_OPTIONS.map((minutes) => ({
+                  id: String(minutes),
+                  label: t('rows.idle.minutes', { minutes }),
+                }))}
+                selectedId={String(snapshot.idleStopMinutes)}
+                onSelect={(id) => {
+                  setIdleOpen(false);
+                  prefs.setIdleStopMinutes(Number(id));
+                }}
+                onClose={() => {
+                  setIdleOpen(false);
+                }}
+                anchor={
+                  <Selector
+                    label={t('rows.idle.minutes', { minutes: snapshot.idleStopMinutes })}
+                    open={idleOpen}
+                    disabled={!writable}
+                    onToggle={() => {
+                      setIdleOpen((value) => !value);
+                    }}
+                  />
+                }
+              />
+            }
+          />
 
-          <Row
+          <SettingsRow
             title={t('rows.exportSection.title')}
             description={t('rows.exportSection.description')}
-          >
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              {confirming === 'export' ? (
-                <>
-                  <button
-                    type="button"
-                    className="bh-settings-selector"
+            control={
+              <>
+                {confirming === 'export' ? (
+                  <>
+                    <PillButton
+                      onClick={() => {
+                        setConfirming(undefined);
+                      }}
+                    >
+                      {t('entry.cancel')}
+                    </PillButton>
+                    <PillButton onClick={runExport}>{t('rows.authorizeExport')}</PillButton>
+                  </>
+                ) : (
+                  <PillButton
+                    disabled={(!hasDir && !canAdjust) || busy !== undefined}
+                    onClick={startExport}
+                  >
+                    {busy === 'export'
+                      ? t('rows.exporting')
+                      : canAdjust
+                        ? t('rows.exportTo')
+                        : t('rows.export')}
+                  </PillButton>
+                )}
+                {download === undefined ? null : (
+                  <PillButton
+                    onClick={() => {
+                      globalThis.location?.assign(downloadUrl(download.token));
+                    }}
+                  >
+                    {t('rows.download')}
+                  </PillButton>
+                )}
+              </>
+            }
+          />
+
+          {confirming === 'export' ? (
+            <Note>{t('rows.exportTarget', { dir: exportTarget ?? exportDir })}</Note>
+          ) : null}
+
+          <SettingsRow
+            title={t('rows.importSection.title')}
+            description={t('rows.importSection.description')}
+            control={
+              <>
+                {uploadName !== undefined ? null : confirming === 'import' ? (
+                  <PillButton
                     onClick={() => {
                       setConfirming(undefined);
                     }}
                   >
-                    {t('entry.cancel')}
-                  </button>
-                  <button type="button" className="bh-settings-selector" onClick={runExport}>
-                    {t('rows.authorizeExport')}
-                  </button>
-                </>
-              ) : (
-                <button
-                  type="button"
-                  className="bh-settings-selector"
-                  disabled={(!hasDir && !canAdjust) || busy !== undefined}
-                  onClick={startExport}
-                >
-                  {busy === 'export'
-                    ? t('rows.exporting')
-                    : canAdjust
-                      ? t('rows.exportTo')
-                      : t('rows.export')}
-                </button>
-              )}
-              {download === undefined ? null : (
-                <button
-                  type="button"
-                  className="bh-settings-selector"
-                  onClick={() => {
-                    globalThis.location?.assign(downloadUrl(download.token));
-                  }}
-                >
-                  {t('rows.download')}
-                </button>
-              )}
-            </div>
-          </Row>
-
-          {confirming === 'export' ? (
-            <div className="bh-note">
-              {t('rows.exportTarget', { dir: exportTarget ?? exportDir })}
-            </div>
-          ) : null}
-
-          <Row
-            title={t('rows.importSection.title')}
-            description={t('rows.importSection.description')}
-          >
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              {uploadName !== undefined ? null : confirming === 'import' ? (
-                <button
-                  type="button"
-                  className="bh-settings-selector"
-                  onClick={() => {
-                    setConfirming(undefined);
-                  }}
-                >
-                  {t('rows.cancelImport')}
-                </button>
-              ) : (
-                <Menu
-                  open={importOpen}
-                  portal
-                  align="end"
-                  items={(archives ?? []).map((file) => ({ id: file, label: file }))}
-                  onSelect={(id) => {
-                    setConfirming('import');
-                    setArchives([id]);
-                  }}
-                  onClose={() => {
-                    setImportOpen(false);
-                  }}
-                  anchor={
-                    <Selector
-                      label={busy === 'import' ? t('rows.importing') : t('rows.import')}
-                      open={importOpen}
-                      disabled={!hasDir || busy !== undefined}
-                      onToggle={openImport}
-                    />
-                  }
-                />
-              )}
-              {uploadName === undefined &&
-              confirming === 'import' &&
-              archives?.[0] !== undefined ? (
-                <button
-                  type="button"
-                  className="bh-settings-selector"
-                  disabled={busy !== undefined}
-                  onClick={() => {
-                    const file = archives[0];
-                    if (file !== undefined) runImport(file);
-                  }}
-                >
-                  {t('rows.authorizeImportConfirm')}
-                </button>
-              ) : null}
-              {uploadName !== undefined || confirming === 'import' ? null : (
-                <label className="bh-settings-selector">
-                  {t('rows.chooseFile')}
-                  <input
-                    type="file"
+                    {t('rows.cancelImport')}
+                  </PillButton>
+                ) : (
+                  <Menu
+                    open={importOpen}
+                    portal
+                    align="end"
+                    items={(archives ?? []).map((file) => ({ id: file, label: file }))}
+                    onSelect={(id) => {
+                      setConfirming('import');
+                      setArchives([id]);
+                    }}
+                    onClose={() => {
+                      setImportOpen(false);
+                    }}
+                    anchor={
+                      <Selector
+                        label={busy === 'import' ? t('rows.importing') : t('rows.import')}
+                        open={importOpen}
+                        disabled={!hasDir || busy !== undefined}
+                        onToggle={openImport}
+                      />
+                    }
+                  />
+                )}
+                {uploadName === undefined &&
+                confirming === 'import' &&
+                archives?.[0] !== undefined ? (
+                  <PillButton
+                    disabled={busy !== undefined}
+                    onClick={() => {
+                      const file = archives[0];
+                      if (file !== undefined) runImport(file);
+                    }}
+                  >
+                    {t('rows.authorizeImportConfirm')}
+                  </PillButton>
+                ) : null}
+                {uploadName !== undefined || confirming === 'import' ? null : (
+                  <PillFileButton
                     accept=".tar,application/x-tar"
-                    hidden
                     disabled={busy !== undefined}
                     onChange={(event) => {
                       const file = event.target.files?.[0] ?? null;
                       event.target.value = '';
                       takeUploadFile(file);
                     }}
-                  />
-                </label>
-              )}
-              {uploadName === undefined ? null : (
-                <>
-                  <button
-                    type="button"
-                    className="bh-settings-selector"
-                    onClick={() => {
-                      setUploadName(undefined);
-                      uploadFile.current = null;
-                    }}
                   >
-                    {t('entry.cancel')}
-                  </button>
-                  <button
-                    type="button"
-                    className="bh-settings-selector"
-                    disabled={busy !== undefined}
-                    onClick={runUpload}
-                  >
-                    {busy === 'upload' ? t('rows.importing') : t('rows.authorizeImportConfirm')}
-                  </button>
-                </>
-              )}
-            </div>
-          </Row>
+                    {t('rows.chooseFile')}
+                  </PillFileButton>
+                )}
+                {uploadName === undefined ? null : (
+                  <>
+                    <PillButton
+                      onClick={() => {
+                        setUploadName(undefined);
+                        uploadFile.current = null;
+                      }}
+                    >
+                      {t('entry.cancel')}
+                    </PillButton>
+                    <PillButton disabled={busy !== undefined} onClick={runUpload}>
+                      {busy === 'upload' ? t('rows.importing') : t('rows.authorizeImportConfirm')}
+                    </PillButton>
+                  </>
+                )}
+              </>
+            }
+          />
 
-          {selectedFile === undefined ? null : (
-            <div
-              className="bh-note"
-              style={{
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {selectedFile}
-            </div>
-          )}
+          {selectedFile === undefined ? null : <p {...stylex.props(styles.file)}>{selectedFile}</p>}
 
           {busy !== undefined && phaseKey !== undefined ? (
-            <div className="bh-note">
-              {`${t(phaseKey)} · ${t('entry.elapsed', { seconds: liveElapsed })}`}
-            </div>
+            <Note>{`${t(phaseKey)} · ${t('entry.elapsed', { seconds: liveElapsed })}`}</Note>
           ) : null}
         </>
       )}
-      {snapshot.status === 'unavailable' ? (
-        <div className="bh-note">{t('rows.noSettings')}</div>
-      ) : null}
+      {snapshot.status === 'unavailable' ? <Note>{t('rows.noSettings')}</Note> : null}
       {snapshot.target !== 'container' || transferNote === undefined ? null : (
-        <div className="bh-note">{transferNote}</div>
+        <Note>{transferNote}</Note>
       )}
-    </div>
+    </SettingsRows>
   );
 }

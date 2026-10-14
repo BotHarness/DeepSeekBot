@@ -27,12 +27,36 @@ describe('remembered secret MCP servers', () => {
       owner.close();
       owner = mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN });
       expect(store().list('ada')).toEqual([saved]);
+      expect(
+        store()
+          .listAll()
+          .map((entry) => entry.botSlug)
+          .sort(),
+      ).toEqual(['ada', 'bob']);
+      expect(
+        store()
+          .enabled('bob')
+          .map((entry) => entry.botSlug),
+      ).toEqual(['bob']);
+      expect(store().isEnabled('carol', saved)).toBe(false);
+      store().setEnabled('carol', 'ada', 'github', true);
+      store().setEnabled('carol', 'ada', 'github', true);
+      expect(store().isEnabled('carol', saved)).toBe(true);
+      expect(
+        store()
+          .enabled('carol')
+          .map((entry) => entry.botSlug),
+      ).toEqual(['ada']);
+      store().setEnabled('carol', 'ada', 'github', false);
+      expect(store().enabled('carol')).toEqual([]);
+      store().setEnabled('carol', 'ada', 'github', true);
       store().put({ ...input, args: ['-y', 'other-server'] });
       expect(store().list('ada')).toHaveLength(1);
       expect(store().list('ada')[0]?.args).toEqual(['-y', 'other-server']);
       expect(JSON.stringify(store().list('ada'))).not.toMatch(/SYNTHETIC|secret-value/);
       expect(store().remove('ada', 'github')).toBe(true);
       expect(store().remove('ada', 'github')).toBe(false);
+      expect(store().enabled('carol')).toEqual([]);
       expect(store().list('ada')).toEqual([]);
       store().eraseBot('bob');
       expect(store().list('bob')).toEqual([]);

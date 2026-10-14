@@ -7,6 +7,7 @@ import {
   type CSSProperties,
   type ReactElement,
 } from 'react';
+import * as stylex from '@stylexjs/stylex';
 import {
   Menu,
   IconEllipsisOutlineRegular,
@@ -30,6 +31,133 @@ import type { BridgeActions } from './actions.js';
 import { CompanionRequests } from './companion-requests-view.js';
 import { beatStart } from './companion-beats.js';
 import type { AvatarAnchor } from './avatar-anchor.js';
+import { companionSurface } from './companion-surface.js';
+import { hooked } from './ds/hooked.js';
+import { color, radius, size, space, text } from './ds/tokens.stylex.js';
+
+const CHARACTER = '96px';
+const SHADOW = `color-mix(in srgb, ${color.fg} 16%, transparent)`;
+
+const styles = stylex.create({
+  stage: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    pointerEvents: 'none',
+    overflow: 'clip',
+  },
+  companion: {
+    position: 'absolute',
+    width: CHARACTER,
+    height: CHARACTER,
+    pointerEvents: 'auto',
+  },
+  tether: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    width: '100%',
+    height: '100%',
+    overflow: 'visible',
+    pointerEvents: 'none',
+  },
+  tetherPath: {
+    fill: 'none',
+    stroke: color.fg,
+    strokeWidth: 2,
+    strokeLinecap: 'round',
+    strokeLinejoin: 'round',
+    strokeDasharray: '0 6',
+  },
+  bubble: {
+    paddingBlock: space.x3,
+    paddingInline: space.x4,
+  },
+  source: {
+    display: 'flex',
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 0,
+    flexDirection: 'column',
+    minWidth: 0,
+    gap: space.x1,
+  },
+  context: {
+    overflow: 'hidden',
+    whiteSpace: 'nowrap',
+    textOverflow: 'ellipsis',
+  },
+  headerButton: {
+    padding: 0,
+    borderWidth: 0,
+    backgroundColor: 'transparent',
+    color: color.muted,
+    fontSize: text.metaSize,
+    cursor: { default: 'pointer', ':disabled': 'default' },
+    overflow: 'hidden',
+    whiteSpace: 'nowrap',
+    textOverflow: 'ellipsis',
+  },
+  sourceButton: {
+    textAlign: 'left',
+    lineHeight: text.metaLine,
+  },
+  toolbar: {
+    position: 'absolute',
+    bottom: space.x3,
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: space.x1,
+    padding: space.x2,
+    backgroundColor: color.base,
+    borderWidth: '2px',
+    borderStyle: 'solid',
+    borderColor: color.fg,
+    borderRadius: radius.panel,
+    boxShadow: `0 6px 16px ${SHADOW}`,
+  },
+  tool: {
+    display: 'grid',
+    placeItems: 'center',
+    minWidth: size.icon,
+    height: size.inlineIcon,
+    borderWidth: 0,
+    borderRadius: radius.row,
+    backgroundColor: { default: 'transparent', ':hover': color.hover },
+    color: color.fg,
+    cursor: 'pointer',
+  },
+  attention: {
+    position: 'absolute',
+    zIndex: 2,
+    right: space.x2,
+    top: space.x2,
+    minWidth: '20px',
+    height: '20px',
+    paddingBlock: 0,
+    paddingInline: space.x1,
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: color.border,
+    backgroundColor: color.base,
+    color: color.warning,
+    cursor: 'pointer',
+  },
+  character: {
+    width: CHARACTER,
+    height: CHARACTER,
+    padding: 0,
+    borderWidth: 0,
+    backgroundColor: 'transparent',
+    cursor: { default: 'grab', ':active': 'grabbing' },
+    touchAction: 'none',
+  },
+});
 
 function avatarLimitation(
   bot: CompanionBot | undefined,
@@ -510,16 +638,17 @@ export function WindowCompanionView({
     bubble !== undefined &&
     (bubble.bottom - bubble.originY > 24 || Math.abs(connector.x - bubble.originX) > 1);
   return (
-    <div ref={mount} className="bh-root bh-companion-stage">
+    <div ref={mount} {...hooked('bh-root bh-companion-stage', styles.stage)}>
       {tethered && connector && bubble ? (
-        <svg className="bh-companion-tether" aria-hidden="true">
+        <svg {...hooked('bh-companion-tether', styles.tether)} aria-hidden="true">
           <path
+            {...stylex.props(styles.tetherPath)}
             d={`M ${bubble.originX} ${viewport.current.height - bubble.originY} V ${connector.y + 16} H ${connector.x} V ${connector.y + 10}`}
           />
         </svg>
       ) : null}
       <section
-        className="bh-companion"
+        {...hooked('bh-companion', styles.companion)}
         aria-label={t('companion.label', { name: bot.name })}
         data-bh-tour="companion"
         data-reading={view.reading}
@@ -582,7 +711,7 @@ export function WindowCompanionView({
         ) : head ? (
           <article
             ref={pop}
-            className="bh-companion-bubble"
+            {...hooked('bh-companion-bubble', companionSurface.speech, styles.bubble)}
             aria-label={t('companion.messages')}
             style={
               {
@@ -592,10 +721,11 @@ export function WindowCompanionView({
               } as CSSProperties
             }
           >
-            <header>
-              <div className="bh-companion-source">
+            <header {...stylex.props(companionSurface.header)}>
+              <div {...stylex.props(styles.source)}>
                 <button
                   type="button"
+                  {...stylex.props(styles.headerButton, styles.sourceButton)}
                   disabled={head.canOpen === false}
                   title={head.canOpen === false ? t('companion.sourceUnavailable') : undefined}
                   onClick={async () => {
@@ -620,11 +750,18 @@ export function WindowCompanionView({
                     { name: head.channelName },
                   )}
                 </button>
-                {headContext && <small title={headContext}>{headContext}</small>}
+                {headContext && (
+                  <small
+                    {...stylex.props(companionSurface.label, styles.context)}
+                    title={headContext}
+                  >
+                    {headContext}
+                  </small>
+                )}
               </div>
               {queued > 0 ? (
                 <span
-                  className="bh-companion-queue"
+                  {...hooked('bh-companion-queue', companionSurface.label, companionSurface.queue)}
                   title={t('companion.queued', { count: queued })}
                   aria-label={t('companion.queued', { count: queued })}
                 >
@@ -633,6 +770,7 @@ export function WindowCompanionView({
               ) : null}
               <button
                 type="button"
+                {...stylex.props(styles.headerButton)}
                 aria-label={t('companion.dismiss')}
                 onClick={(event) => {
                   if (document.activeElement === event.currentTarget && queued === 0)
@@ -654,9 +792,10 @@ export function WindowCompanionView({
             />
           </article>
         ) : null}
-        <div className="bh-companion-toolbar" data-open={menu}>
+        <div {...hooked('bh-companion-toolbar', styles.toolbar)} data-open={menu}>
           <button
             type="button"
+            {...stylex.props(styles.tool)}
             aria-label={t('companion.openDm')}
             title={t('companion.openDm')}
             onClick={() => openDm(bot.slug)}
@@ -665,6 +804,7 @@ export function WindowCompanionView({
           </button>
           <button
             type="button"
+            {...stylex.props(styles.tool)}
             aria-label={t(selection.walking ? 'companion.pause' : 'companion.walk')}
             title={t(selection.walking ? 'companion.pause' : 'companion.walk')}
             aria-pressed={!selection.walking}
@@ -685,6 +825,7 @@ export function WindowCompanionView({
             anchor={
               <button
                 type="button"
+                {...stylex.props(styles.tool)}
                 aria-label={t('companion.more')}
                 aria-expanded={menu}
                 onClick={() => setMenu(!menu)}
@@ -717,7 +858,7 @@ export function WindowCompanionView({
         {attentionCount(attention) > 0 || attention?.informationalCount ? (
           <button
             type="button"
-            className="bh-companion-attention"
+            {...hooked('bh-companion-attention', styles.attention)}
             aria-label={t('companion.attention')}
             onClick={openAttention}
           >
@@ -726,7 +867,7 @@ export function WindowCompanionView({
         ) : null}
         <button
           type="button"
-          className="bh-companion-character"
+          {...hooked('bh-companion-character', styles.character)}
           ref={character}
           style={{
             rotate: `${point.tilt}deg`,

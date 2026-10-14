@@ -2,6 +2,7 @@ import { useState, type ReactElement } from 'react';
 import { Menu, Tooltip, type MenuEntry } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
+import { IconButton } from './ds/icon-button.js';
 
 export function SidebarViewMenu({
   label,
@@ -23,16 +24,16 @@ export function SidebarViewMenu({
       align="end"
       anchor={
         <Tooltip label={label} side="bottom" delayMs={500}>
-          <button
-            type="button"
-            className="bh-channel-sidebar-entry-action"
+          <IconButton
+            size="row"
+            tone="subtle"
             aria-label={label}
             aria-haspopup="menu"
             aria-expanded={open}
             onClick={() => setOpen((value) => !value)}
           >
             <ChannelSidebarIcon name="settings" size={14} />
-          </button>
+          </IconButton>
         </Tooltip>
       }
       items={items}

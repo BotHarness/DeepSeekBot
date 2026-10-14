@@ -76,7 +76,12 @@ export class PrivateInputs {
       args: string[];
       approvedAt: string;
       connected: boolean;
+      enabled: boolean;
+      own: boolean;
+      ownerSlug: string;
+      ownerName: string;
     }>;
+    setEnabled(botSlug: string, serverName: string, enabled: boolean): Promise<boolean>;
     remove(botSlug: string, serverName: string): Promise<boolean>;
     erase(botSlug: string): Promise<void>;
   };
@@ -791,9 +796,16 @@ export class PrivateInputs {
     references: Record<string, string>,
     run: (values: Record<string, string>, signal: AbortSignal) => Promise<T>,
     signal?: AbortSignal,
+    sharedFrom?: string,
   ): Promise<T> {
     await this.recover();
-    const owner = this.#owner(agent);
+    const grantOwner = () => {
+      const caller = this.#owner(agent);
+      if (caller === undefined || sharedFrom === undefined) return caller;
+      const bot = this.deps.registry.get(sharedFrom);
+      return bot === undefined ? undefined : { botSlug: sharedFrom, createdAt: bot.createdAt };
+    };
+    const owner = grantOwner();
     if (owner === undefined || !(await this.deps.qualified()))
       throw new Error('Protected credential consumption is unavailable');
     const entries = Object.entries(references);
@@ -811,7 +823,8 @@ export class PrivateInputs {
       (origin) => origin.applies(),
     );
     if (remembered.length > 1) throw new Error('Private input IM source is ambiguous');
-    const origin = remembered[0] ?? this.deps.origin?.(agent);
+    const origin =
+      sharedFrom === undefined ? (remembered[0] ?? this.deps.origin?.(agent)) : undefined;
     if (origin !== undefined && !origin.current())
       throw new Error('Private input IM authority changed');
     const startedUse = await this.#accounts
@@ -835,7 +848,7 @@ export class PrivateInputs {
           (grant.data.version === 3 && binding?.grantId !== id)
         )
           throw new Error('Credential grant is unavailable for this PersonaBot and account');
-        const currentOwner = this.#owner(agent);
+        const currentOwner = grantOwner();
         if (currentOwner?.botSlug !== owner.botSlug || currentOwner.createdAt !== owner.createdAt)
           throw new Error('Credential authority changed');
         if (signal?.aborted) throw new Error('Protected credential consumer was cancelled');

@@ -182,9 +182,9 @@ try {
   });
   await page.locator('button[aria-label="Bot 模式"],button[aria-label="Bot mode"]').click();
   await clickLabel(fixture.displayName ?? 'Workspace Open QA', '.bh-root button');
-  await page.waitForSelector('.bh-channel-sidebar-entry-head');
+  await page.waitForSelector('[data-panel-head]');
   await page.evaluate(() => {
-    for (const element of document.querySelectorAll('.bh-channel-sidebar-entry-head'))
+    for (const element of document.querySelectorAll('[data-panel-head]'))
       if (
         /工作区授权|Workspace/.test(element.textContent) &&
         element.getAttribute('aria-expanded') === 'false'

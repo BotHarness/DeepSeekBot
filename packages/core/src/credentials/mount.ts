@@ -11,7 +11,7 @@ import {
   secretCommandPlan,
 } from './secret-command.js';
 import { SecretMcpServers, rememberedStarts, secretMcpEnv, secretMcpPlan } from './secret-mcp.js';
-import type { SecretMcpStore } from './secret-mcp-store.js';
+import type { SecretMcpRecord, SecretMcpStore } from './secret-mcp-store.js';
 import type { PrivateInputLog } from './diagnostics.js';
 import { privateInputWebUrl } from './web-locator.js';
 import { credentialStoreDenial, credentialStorePath, denyStoreRead } from './store-guard.js';
@@ -101,25 +101,67 @@ export function mountPrivateInputs(
     );
   });
   const mcpServers = new SecretMcpServers();
+  const liveOrchestrators = new Map<
+    import('@deepseek-ai/dsh-agent').Agent,
+    { botSlug: string; connect(server: SecretMcpRecord): Promise<void> }
+  >();
   ctx.effect(() => () => mcpServers.close(), 'botharness: secret MCP servers');
   owner.mcpServers = {
     list: (botSlug) => {
       const connected = mcpServers.connected(botSlug);
-      return (store?.list(botSlug) ?? []).map((record) => ({
-        serverName: record.serverName,
-        account: record.account,
-        program: record.program,
-        args: record.args,
-        approvedAt: record.approvedAt,
-        connected: connected.has(record.serverName),
-      }));
+      const seen = new Set<string>();
+      const all = store?.listAll() ?? [];
+      return [
+        ...all.filter((record) => record.botSlug === botSlug),
+        ...all.filter((record) => record.botSlug !== botSlug),
+      ]
+        .filter((record) => !seen.has(record.serverName) && seen.add(record.serverName))
+        .map((record) => ({
+          serverName: record.serverName,
+          account: record.account,
+          program: record.program,
+          args: record.args,
+          approvedAt: record.approvedAt,
+          connected: connected.has(record.serverName),
+          enabled: store?.isEnabled(botSlug, record) ?? false,
+          own: record.botSlug === botSlug,
+          ownerSlug: record.botSlug,
+          ownerName: core.registry.get(record.botSlug)?.displayName ?? record.botSlug,
+        }));
     },
-    remove: async (botSlug, serverName) => {
-      const stopped = await mcpServers.stopFor(botSlug, serverName);
-      return (store?.remove(botSlug, serverName) ?? false) || stopped > 0;
+    setEnabled: async (botSlug, serverName, enabled) => {
+      const record = (store?.listAll() ?? []).find(
+        (candidate) => candidate.serverName === serverName && candidate.botSlug !== botSlug,
+      );
+      if (record === undefined || store === undefined) return false;
+      store.setEnabled(botSlug, record.botSlug, serverName, enabled);
+      if (enabled) {
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        await Promise.race([
+          Promise.all(
+            [...liveOrchestrators.values()]
+              .filter((live) => live.botSlug === botSlug)
+              .map((live) => live.connect(record)),
+          ),
+          new Promise((resolve) => {
+            timer = setTimeout(resolve, 10_000);
+          }),
+        ]);
+        clearTimeout(timer);
+      } else await mcpServers.stopInstance(botSlug, serverName);
+      return true;
+    },
+    remove: async (_botSlug, serverName) => {
+      let removed = false;
+      for (const record of store?.listAll() ?? []) {
+        if (record.serverName !== serverName) continue;
+        const stopped = await mcpServers.stopOwned(record.botSlug, serverName);
+        removed = (store?.remove(record.botSlug, serverName) ?? false) || stopped > 0 || removed;
+      }
+      return removed;
     },
     erase: async (botSlug) => {
-      await mcpServers.stopFor(botSlug);
+      await mcpServers.stopOwned(botSlug);
       store?.eraseBot(botSlug);
     },
   };
@@ -516,6 +558,7 @@ export function mountPrivateInputs(
             env: Array<{ name: string; value: string }>;
           },
           signal?: AbortSignal,
+          sharedFrom?: string,
         ): Promise<string> => {
           const references: Record<string, string> = {};
           for (const reference of input.references) {
@@ -565,56 +608,64 @@ export function mountPrivateInputs(
               resolve(text);
             };
             owner
-              .consume(agent, input.account, references, async (values, signal) => {
-                const env = secretMcpEnv();
-                try {
-                  for (const [index, entry] of input.env.entries())
-                    env[plan.names[index]!] = entry.value.replace(
-                      /\{\{([a-z][a-z0-9_]{0,47})\}\}/g,
-                      (_match, field: string) => {
-                        const value = values[field];
-                        if (value === undefined)
-                          throw new SecretCommandRefusal(
-                            'A placeholder names a field that was not referenced',
-                          );
-                        return value;
+              .consume(
+                agent,
+                input.account,
+                references,
+                async (values, signal) => {
+                  const env = secretMcpEnv();
+                  try {
+                    for (const [index, entry] of input.env.entries())
+                      env[plan.names[index]!] = entry.value.replace(
+                        /\{\{([a-z][a-z0-9_]{0,47})\}\}/g,
+                        (_match, field: string) => {
+                          const value = values[field];
+                          if (value === undefined)
+                            throw new SecretCommandRefusal(
+                              'A placeholder names a field that was not referenced',
+                            );
+                          return value;
+                        },
+                      );
+                    const running = await mcpServers.start(
+                      agentCtx,
+                      agent,
+                      {
+                        botSlug: info.botSlug,
+                        ownerSlug: sharedFrom ?? info.botSlug,
+                        serverName: plan.serverName,
+                        account: input.account,
+                        argv: confined.argv,
+                        cwd,
                       },
+                      env,
+                      Object.values(values),
                     );
-                  const running = await mcpServers.start(
-                    agentCtx,
-                    agent,
-                    {
-                      botSlug: info.botSlug,
-                      serverName: plan.serverName,
-                      account: input.account,
-                      argv: confined.argv,
-                      cwd,
-                    },
-                    env,
-                    Object.values(values),
-                  );
-                  settle(
-                    JSON.stringify({
-                      consumer: 'mcp-v1',
-                      connected: true,
-                      serverName: plan.serverName,
-                      tools: running.tools,
-                    }),
-                  );
-                  await new Promise<void>((stopped) => {
-                    const stop = () => void running.stop().finally(stopped);
-                    signal.addEventListener('abort', stop, { once: true });
-                    agentCtx.effect(() => stop, 'botharness: secret MCP server');
-                    running.stopped = stopped;
-                  });
-                  if (signal.aborted) throw new Error('Secret MCP server stopped');
-                } catch (error) {
-                  if (!(error instanceof SecretCommandRefusal)) throw error;
-                  settle(refuse(error.message));
-                } finally {
-                  for (const name of plan.names) delete env[name];
-                }
-              })
+                    settle(
+                      JSON.stringify({
+                        consumer: 'mcp-v1',
+                        connected: true,
+                        serverName: plan.serverName,
+                        tools: running.tools,
+                      }),
+                    );
+                    await new Promise<void>((stopped) => {
+                      const stop = () => void running.stop().finally(stopped);
+                      signal.addEventListener('abort', stop, { once: true });
+                      agentCtx.effect(() => stop, 'botharness: secret MCP server');
+                      running.stopped = stopped;
+                    });
+                    if (signal.aborted) throw new Error('Secret MCP server stopped');
+                  } catch (error) {
+                    if (!(error instanceof SecretCommandRefusal)) throw error;
+                    settle(refuse(error.message));
+                  } finally {
+                    for (const name of plan.names) delete env[name];
+                  }
+                },
+                undefined,
+                sharedFrom,
+              )
               .then(
                 () => settle(refuse('the MCP server stopped')),
                 (error: unknown) => (settled ? undefined : reject(error)),
@@ -625,7 +676,7 @@ export function mountPrivateInputs(
           defineTool({
             name: 'secret_mcp_connect',
             description:
-              'Start an MCP server for yourself with secrets the Owner entered through ask_secret placed in its environment, then use its tools as mcp__<server_name>__<tool>. Use it for an integration that needs a client library or several calls; prefer secret_http for one plain HTTP request and secret_cli for one command. The Host starts the launcher directly, without a shell, inside the same file sandbox as bash with a clean environment; give the bare launcher name (for example npx or uvx), its arguments, and the environment variables the server documents, writing {{field_id}} where a secret belongs. The server stays connected for this conversation Session until you disconnect it or the account is revoked; it is not available to Assignments. Starting it needs a Human approval that shows the exact program and arguments; the Human may choose to remember it, and a remembered server is reconnected automatically when your Session starts, so check whether its tools are already present before connecting again. Each later tool call follows the usual approval. Returns the tool names the server offers.',
+              'Start an MCP server for yourself with secrets the Owner entered through ask_secret placed in its environment, then use its tools as mcp__<server_name>__<tool>. Use it for an integration that needs a client library or several calls; prefer secret_http for one plain HTTP request and secret_cli for one command. The Host starts the launcher directly, without a shell, inside the same file sandbox as bash with a clean environment; give the bare launcher name (for example npx or uvx), its arguments, and the environment variables the server documents, writing {{field_id}} where a secret belongs. The server stays connected for this conversation Session until you disconnect it or the account is revoked; it is not available to Assignments. Starting it needs a Human approval that shows the exact program and arguments; the Human may choose to remember it, and a remembered server is connected automatically when your Session starts and can be enabled for other PersonaBots in their settings, so check whether its tools are already present before connecting again. Each later tool call follows the usual approval. Returns the tool names the server offers.',
             parameters: {
               server_name: {
                 type: 'string',
@@ -676,8 +727,12 @@ export function mountPrivateInputs(
             },
             execute: async (args, call) => {
               const result = await connectServer(args, call.signal);
-              if (rememberedStarts.delete(call.token) && mcpServers.has(agent, args.server_name))
-                store?.put({
+              if (
+                rememberedStarts.delete(call.token) &&
+                mcpServers.has(agent, args.server_name) &&
+                store !== undefined
+              )
+                store.put({
                   botSlug: info.botSlug,
                   serverName: args.server_name,
                   account: args.account,
@@ -690,39 +745,46 @@ export function mountPrivateInputs(
             },
           }),
         );
-        const remembered = store?.list(info.botSlug) ?? [];
-        if (remembered.length > 0) {
-          let disposed = false;
-          agentCtx.effect(
-            () => () => {
-              disposed = true;
+        const connectRemembered = (server: SecretMcpRecord): Promise<void> => {
+          if (mcpServers.has(agent, server.serverName)) return Promise.resolve();
+          return connectServer(
+            {
+              server_name: server.serverName,
+              account: server.account,
+              references: server.references,
+              program: server.program,
+              args: server.args,
+              env: server.env,
             },
-            'botharness: secret MCP reconnect',
+            undefined,
+            server.botSlug === info.botSlug ? undefined : server.botSlug,
+          ).then(
+            (result) =>
+              log(
+                result.includes('"connected":true') ? 'mcp-reconnected' : 'mcp-reconnect-failed',
+                { botSlug: info.botSlug },
+              ),
+            () => log('mcp-reconnect-failed', { botSlug: info.botSlug }),
           );
+        };
+        let disposed = false;
+        liveOrchestrators.set(agent, { botSlug: info.botSlug, connect: connectRemembered });
+        agentCtx.effect(
+          () => () => {
+            disposed = true;
+            liveOrchestrators.delete(agent);
+          },
+          'botharness: secret MCP reconnect',
+        );
+        const remembered = store?.enabled(info.botSlug) ?? [];
+        if (remembered.length > 0) {
           const reconnect = (attempt: number): void => {
             if (disposed || attempt > 120) return;
             if (ctx.agents.get(agent.id) !== agent) {
               setTimeout(() => reconnect(attempt + 1), 250).unref();
               return;
             }
-            for (const server of remembered)
-              void connectServer({
-                server_name: server.serverName,
-                account: server.account,
-                references: server.references,
-                program: server.program,
-                args: server.args,
-                env: server.env,
-              }).then(
-                (result) =>
-                  log(
-                    result.includes('"connected":true')
-                      ? 'mcp-reconnected'
-                      : 'mcp-reconnect-failed',
-                    { botSlug: info.botSlug },
-                  ),
-                () => log('mcp-reconnect-failed', { botSlug: info.botSlug }),
-              );
+            for (const server of remembered) void connectRemembered(server);
           };
           reconnect(0);
         }
@@ -743,6 +805,7 @@ export function mountPrivateInputs(
                 return JSON.stringify({ servers: mcpServers.list(agent) });
               const stopped = await mcpServers.stop(agent, args.server_name);
               const forgotten = store?.remove(info.botSlug, args.server_name) ?? false;
+              if (forgotten) await mcpServers.stopOwned(info.botSlug, args.server_name);
               return JSON.stringify({
                 serverName: args.server_name,
                 disconnected: stopped || forgotten,

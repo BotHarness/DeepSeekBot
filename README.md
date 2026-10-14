@@ -147,6 +147,8 @@ node scripts/dev-instance.mjs --home /tmp/botharness-demo --port 31967
 
 更多见[本地实例指南](docs/client-bridge.md#7-本地开发环路dsh-020-rc1) · [贡献指南](CONTRIBUTING.zh.md) · [架构](docs/architecture/botharness-architecture.md) · [架构决策](docs/adr/) · [Agent 开发规范](AGENTS.md) · [Release Ledger](CHANGELOG.zh.md) · [DSH 官方文档](https://deepseek-harness.github.io/deepseek-harness/)。
 
+真实 IM 测试可用[共享 QA 应用向导](docs/agents/im-test-apps.md)配置 Lark、Slack、Discord 的独立 QA1／QA2／QA3；例如运行 `node scripts/dev-im-test-apps.mjs setup discord`，隐藏输入 Token，并在每次启动接收端前确认当前独占窗口。
+
 <a id="community"></a>
 
 ## 社区

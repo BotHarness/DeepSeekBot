@@ -354,7 +354,7 @@ async function verifyPhase(label, predicate) {
       assert.match(row, /Orchestrator|主会话/);
     assert.doesNotMatch(row, /setTimeout|120000|45000|PRIVATE_/);
     assert.equal(await page.$$eval('.bh-composer-activity-bot', (nodes) => nodes.length), 1);
-    await page.click('.bh-group-channel-name');
+    await page.click('[data-group-channel-name]');
     await page.waitForFunction(
       ({ slug, expected }) =>
         document.querySelector(
@@ -515,7 +515,7 @@ try {
     resolve(privateDir, 'failure-dom.json'),
     JSON.stringify(
       await page.evaluate(() => ({
-        groupName: document.querySelector('.bh-group-channel-name')?.outerHTML,
+        groupName: document.querySelector('[data-group-channel-name]')?.outerHTML,
         popover: document.querySelector('.bh-profile-popover')?.outerHTML,
         chips: [...document.querySelectorAll('.bh-group-activity-chip')].map(
           (node) => node.outerHTML,

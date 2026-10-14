@@ -375,6 +375,7 @@ describe('plugin entry', () => {
       'privateAccountRevoke',
       'privateAccounts',
       'privateMcpServerRemove',
+      'privateMcpServerEnable',
       'messagingDefaults',
       'messagingDefaultsSet',
       'channelBridges',

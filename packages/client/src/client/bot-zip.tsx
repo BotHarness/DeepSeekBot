@@ -1,17 +1,137 @@
 import { useMemo, useRef, useState, type ReactElement } from 'react';
+import * as stylex from '@stylexjs/stylex';
 import {
   Button,
+  Checkbox,
   IconChevronDownOutlineRegular,
   IconChevronRightOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { BridgeActions } from './actions.js';
 import { BridgeCallError, type BotZipFileListing } from './bridge.js';
+import { Callout } from './ds/callout.js';
+import { FormDialog } from './ds/form-dialog.js';
+import { Note } from './ds/note.js';
+import { color, radius, size, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
-import { Modal } from './modal.js';
 import { useMountedResource } from './mounted-resource.js';
 import { personaBotCreateError } from './persona-bot-create.js';
 import type { BotSummary } from './store.js';
+
+const styles = stylex.create({
+  file: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: space.x3,
+    paddingBlock: space.x4,
+    paddingInline: space.x4,
+    borderWidth: '1px',
+    borderStyle: 'dashed',
+    borderColor: color.border,
+    borderRadius: radius.row,
+  },
+  fileName: {
+    flexGrow: 1,
+    minWidth: 0,
+    overflow: 'hidden',
+    color: color.fg,
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  fileEmpty: { color: color.subtle },
+  picker: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x3,
+    minWidth: 0,
+  },
+  pickerHead: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: space.x2,
+  },
+  pickerTitle: {
+    display: 'flex',
+    flexDirection: 'column',
+    flexGrow: 1,
+    minWidth: 0,
+  },
+  pickerLabel: { color: color.fg, fontWeight: text.strong },
+  pickerCount: {
+    color: color.subtle,
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+  },
+  tree: {
+    maxHeight: '280px',
+    margin: 0,
+    paddingBlock: space.x2,
+    paddingInline: 0,
+    overflowY: 'auto',
+    listStyle: 'none',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: color.border,
+    borderRadius: radius.row,
+  },
+  group: { margin: 0, padding: 0, listStyle: 'none' },
+  row: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: space.x2,
+    minHeight: size.icon,
+    paddingInlineEnd: space.x4,
+    backgroundColor: { default: 'transparent', ':hover': color.hover },
+    color: color.fg,
+  },
+  toggle: {
+    display: 'inline-flex',
+    flexShrink: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '22px',
+    height: '22px',
+    marginInlineStart: space.x3,
+    padding: 0,
+    borderWidth: 0,
+    borderRadius: radius.control,
+    backgroundColor: 'transparent',
+    color: color.subtle,
+    cursor: 'pointer',
+    outline: { default: 'none', ':focus-visible': `2px solid ${color.accent}` },
+  },
+  spacer: { cursor: 'default' },
+  label: {
+    display: 'flex',
+    flexGrow: 1,
+    alignItems: 'center',
+    gap: space.x3,
+    minWidth: 0,
+    cursor: 'pointer',
+  },
+  checkbox: { flexShrink: 0, margin: 0, accentColor: color.accent },
+  name: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  always: {
+    flexShrink: 0,
+    paddingInline: space.x3,
+    borderRadius: radius.control,
+    backgroundColor: color.hover,
+    color: color.muted,
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+  },
+  size: {
+    flexShrink: 0,
+    color: color.subtle,
+    fontSize: text.metaSize,
+    fontVariantNumeric: 'tabular-nums',
+  },
+  history: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x1,
+  },
+});
 
 export function botZipError(error: unknown, t: BotHarnessTranslate): string {
   if (error instanceof BridgeCallError) {
@@ -66,68 +186,59 @@ export function ImportBotZipModal({
   };
 
   return (
-    <Modal
-      open
-      onClose={() => {
-        if (!importing) onCancel();
-      }}
-      closeLabel={t('common.close')}
+    <FormDialog
       title={
         sectionName === undefined
           ? t('botZip.import.title')
           : t('botZip.import.inSection', { name: sectionName })
       }
       description={t('botZip.import.description')}
-      footer={
-        <>
-          <Button variant="outline" disabled={importing} onClick={onCancel}>
-            {t('common.cancel')}
-          </Button>
-          <Button variant="primary" disabled={file === undefined || importing} onClick={submit}>
-            {importing ? t('botZip.import.importing') : t('botZip.import.submit')}
-          </Button>
-        </>
+      labels={{ close: t('common.close'), cancel: t('common.cancel') }}
+      submitLabel={importing ? t('botZip.import.importing') : t('botZip.import.submit')}
+      submitDisabled={file === undefined}
+      busy={importing}
+      error={
+        cause === undefined
+          ? undefined
+          : t('botZip.import.failed', { error: botZipError(cause, t) })
       }
+      onCancel={() => {
+        if (!importing) onCancel();
+      }}
+      onSubmit={submit}
     >
-      <div className="bh-personabot-form bh-bot-zip-import">
-        <div className="bh-bot-zip-file">
-          <span className="bh-bot-zip-file-name" data-empty={file === undefined || undefined}>
-            {file?.name ?? t('botZip.import.none')}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={importing}
-            onClick={() => input.current?.click()}
-          >
-            {file === undefined ? t('botZip.import.choose') : t('botZip.import.change')}
-          </Button>
-          <input
-            ref={input}
-            type="file"
-            accept=".zip,application/zip"
-            hidden
-            onChange={(event) => {
-              const chosen = event.currentTarget.files?.[0];
-              event.currentTarget.value = '';
-              if (chosen !== undefined) {
-                setFile(chosen);
-                setCause(undefined);
-              }
-            }}
-          />
-        </div>
-        <div className="bh-market-risk" role="note">
-          <strong>{t('botZip.import.riskTitle')}</strong>
-          <span>{t('botZip.import.risk')}</span>
-        </div>
-        {cause === undefined ? null : (
-          <div className="bh-modal-error" role="alert">
-            {t('botZip.import.failed', { error: botZipError(cause, t) })}
-          </div>
-        )}
+      <div {...stylex.props(styles.file)}>
+        <span {...stylex.props(styles.fileName, file === undefined && styles.fileEmpty)}>
+          {file?.name ?? t('botZip.import.none')}
+        </span>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={importing}
+          onClick={() => input.current?.click()}
+        >
+          {file === undefined ? t('botZip.import.choose') : t('botZip.import.change')}
+        </Button>
+        <input
+          ref={input}
+          type="file"
+          accept=".zip,application/zip"
+          hidden
+          onChange={(event) => {
+            const chosen = event.currentTarget.files?.[0];
+            event.currentTarget.value = '';
+            if (chosen !== undefined) {
+              setFile(chosen);
+              setCause(undefined);
+            }
+          }}
+        />
       </div>
-    </Modal>
+      <Callout tone="warning" role="note" title={t('botZip.import.riskTitle')}>
+        {t('botZip.import.risk')}
+      </Callout>
+    </FormDialog>
   );
 }
 
@@ -176,7 +287,12 @@ export function botZipTree(files: BotZipFileListing['files']): BotZipNode[] {
       next.size += file.size;
       folder = next;
     }
-    folder.children.push({ kind: 'file', name: parts.at(-1)!, path: file.path, size: file.size });
+    folder.children.push({
+      kind: 'file',
+      name: parts.at(-1)!,
+      path: file.path,
+      size: file.size,
+    });
   }
   const sort = (nodes: BotZipNode[]): BotZipNode[] =>
     nodes
@@ -223,21 +339,22 @@ function BotZipTreeRows({
         if (node.kind === 'file') {
           const fixed = always.has(node.path);
           return (
-            <li key={node.path} className="bh-bot-zip-tree-row" role="treeitem" style={indent}>
-              <span className="bh-bot-zip-tree-toggle" aria-hidden="true" />
-              <label className="bh-bot-zip-tree-label">
+            <li key={node.path} role="treeitem" style={indent} {...stylex.props(styles.row)}>
+              <span aria-hidden="true" {...stylex.props(styles.toggle, styles.spacer)} />
+              <label {...stylex.props(styles.label)}>
                 <input
                   type="checkbox"
                   checked={fixed || selected.has(node.path)}
                   disabled={fixed}
                   onChange={(event) => onSelect([node.path], event.currentTarget.checked)}
+                  {...stylex.props(styles.checkbox)}
                 />
-                <span className="bh-bot-zip-tree-name">{node.name}</span>
+                <span {...stylex.props(styles.name)}>{node.name}</span>
               </label>
               {fixed ? (
-                <span className="bh-bot-zip-tree-always">{t('botZip.export.always')}</span>
+                <span {...stylex.props(styles.always)}>{t('botZip.export.always')}</span>
               ) : null}
-              <span className="bh-bot-zip-tree-size">{formatBotZipSize(node.size)}</span>
+              <span {...stylex.props(styles.size)}>{formatBotZipSize(node.size)}</span>
             </li>
           );
         }
@@ -246,10 +363,10 @@ function BotZipTreeRows({
         const open = expanded.has(node.path);
         return (
           <li key={node.path} role="treeitem" aria-expanded={open}>
-            <div className="bh-bot-zip-tree-row" style={indent}>
+            <div style={indent} {...stylex.props(styles.row)}>
               <button
                 type="button"
-                className="bh-bot-zip-tree-toggle"
+                {...stylex.props(styles.toggle)}
                 aria-label={t(open ? 'botZip.export.collapse' : 'botZip.export.expand', {
                   name: node.name,
                 })}
@@ -261,7 +378,7 @@ function BotZipTreeRows({
                   <IconChevronRightOutlineRegular size={14} />
                 )}
               </button>
-              <label className="bh-bot-zip-tree-label">
+              <label {...stylex.props(styles.label)}>
                 <input
                   type="checkbox"
                   checked={choosable.length === 0 || chosen === choosable.length}
@@ -271,13 +388,14 @@ function BotZipTreeRows({
                       input.indeterminate = chosen > 0 && chosen < choosable.length;
                   }}
                   onChange={() => onSelect(choosable, chosen < choosable.length)}
+                  {...stylex.props(styles.checkbox)}
                 />
-                <span className="bh-bot-zip-tree-name">{node.name}/</span>
+                <span {...stylex.props(styles.name)}>{node.name}/</span>
               </label>
-              <span className="bh-bot-zip-tree-size">{formatBotZipSize(node.size)}</span>
+              <span {...stylex.props(styles.size)}>{formatBotZipSize(node.size)}</span>
             </div>
             {open ? (
-              <ul role="group" className="bh-bot-zip-tree-group">
+              <ul role="group" {...stylex.props(styles.group)}>
                 <BotZipTreeRows
                   nodes={node.children}
                   depth={depth + 1}
@@ -326,25 +444,30 @@ function BotZipFilePicker({
   };
 
   return (
-    <div className="bh-bot-zip-picker">
-      <div className="bh-bot-zip-picker-head">
-        <div className="bh-bot-zip-picker-title">
-          <strong>{t('botZip.export.files')}</strong>
-          <span className="bh-bot-zip-picker-count">
+    <div {...stylex.props(styles.picker)}>
+      <div {...stylex.props(styles.pickerHead)}>
+        <div {...stylex.props(styles.pickerTitle)}>
+          <strong {...stylex.props(styles.pickerLabel)}>{t('botZip.export.files')}</strong>
+          <span {...stylex.props(styles.pickerCount)}>
             {t('botZip.export.selected', {
               count: selected.size + always.size,
               total: listing.files.length,
             })}
           </span>
         </div>
-        <Button size="sm" variant="ghost" onClick={() => onChange(new Set(choosable))}>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          onClick={() => onChange(new Set(choosable))}
+        >
           {t('botZip.export.selectAll')}
         </Button>
-        <Button size="sm" variant="ghost" onClick={() => onChange(new Set())}>
+        <Button type="button" size="sm" variant="ghost" onClick={() => onChange(new Set())}>
           {t('botZip.export.selectNone')}
         </Button>
       </div>
-      <ul className="bh-bot-zip-tree" role="tree" aria-label={t('botZip.export.files')}>
+      <ul role="tree" aria-label={t('botZip.export.files')} {...stylex.props(styles.tree)}>
         <BotZipTreeRows
           nodes={tree}
           depth={0}
@@ -417,64 +540,47 @@ function BotZipExportModal({
   };
 
   return (
-    <Modal
-      open
-      onClose={() => {
-        if (!exporting) onClose();
-      }}
-      closeLabel={t('common.close')}
+    <FormDialog
       title={t('botZip.export.confirmTitle', { name: bot.displayName })}
       description={t('botZip.export.confirmBody')}
-      footer={
-        <>
-          <Button variant="outline" disabled={exporting} onClick={onClose}>
-            {t('common.cancel')}
-          </Button>
-          <Button variant="primary" disabled={exporting || !ready} onClick={submit}>
-            {exporting ? t('botZip.export.exporting') : t('botZip.export.submit')}
-          </Button>
-        </>
+      labels={{ close: t('common.close'), cancel: t('common.cancel') }}
+      submitLabel={exporting ? t('botZip.export.exporting') : t('botZip.export.submit')}
+      submitDisabled={!ready}
+      busy={exporting}
+      error={
+        cause === undefined
+          ? undefined
+          : t('botZip.export.failed', { error: botZipError(cause, t) })
       }
+      onCancel={() => {
+        if (!exporting) onClose();
+      }}
+      onSubmit={submit}
     >
-      <div className="bh-personabot-form">
-        {listing !== undefined ? (
-          <BotZipFilePicker listing={listing} selected={selected} onChange={onSelect} t={t} />
-        ) : loadError !== undefined ? (
-          <div className="bh-modal-error" role="alert">
-            {t('botZip.export.loadFailed', { error: botZipError(loadError, t) })}
-          </div>
-        ) : (
-          <div className="bh-bot-zip-picker-loading" role="status">
-            {t('botZip.export.loading')}
-          </div>
-        )}
-        {listing === undefined ? null : (
-          <label className="bh-bot-zip-history" data-disabled={!whole || undefined}>
-            <input
-              type="checkbox"
-              checked={whole && history}
-              disabled={!whole || exporting}
-              onChange={(event) => setHistory(event.currentTarget.checked)}
-            />
-            <span className="bh-bot-zip-history-text">
-              <strong>{t('botZip.export.history')}</strong>
-              <span>
-                {whole ? t('botZip.export.historyHint') : t('botZip.export.historyPartial')}
-              </span>
-            </span>
-          </label>
-        )}
-        <div className="bh-market-risk" role="note">
-          <strong>{t('botZip.export.warningTitle')}</strong>
-          <span>{t('botZip.export.warning')}</span>
+      {listing !== undefined ? (
+        <BotZipFilePicker listing={listing} selected={selected} onChange={onSelect} t={t} />
+      ) : loadError !== undefined ? (
+        <Note tone="danger">
+          {t('botZip.export.loadFailed', { error: botZipError(loadError, t) })}
+        </Note>
+      ) : (
+        <Note>{t('botZip.export.loading')}</Note>
+      )}
+      {listing === undefined ? null : (
+        <div {...stylex.props(styles.history)}>
+          <Checkbox
+            checked={whole && history}
+            disabled={!whole || exporting}
+            label={t('botZip.export.history')}
+            onChange={setHistory}
+          />
+          <Note>{whole ? t('botZip.export.historyHint') : t('botZip.export.historyPartial')}</Note>
         </div>
-        {cause === undefined ? null : (
-          <div className="bh-modal-error" role="alert">
-            {t('botZip.export.failed', { error: botZipError(cause, t) })}
-          </div>
-        )}
-      </div>
-    </Modal>
+      )}
+      <Callout tone="warning" role="note" title={t('botZip.export.warningTitle')}>
+        {t('botZip.export.warning')}
+      </Callout>
+    </FormDialog>
   );
 }
 

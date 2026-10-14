@@ -193,7 +193,7 @@ async function open(channel) {
   await page.waitForSelector(selector);
   await page.click(selector);
   await page.waitForFunction(
-    (name) => document.querySelector('.bh-group-channel-name')?.textContent === name,
+    (name) => document.querySelector('[data-group-channel-name]')?.textContent === name,
     {},
     channel.name,
   );

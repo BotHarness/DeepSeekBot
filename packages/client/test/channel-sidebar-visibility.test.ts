@@ -333,9 +333,7 @@ describe('Channel sidebar personal item visibility', () => {
     click('完成');
     expect(host.textContent).not.toContain('body-memory');
     expect(
-      host.querySelector<HTMLButtonElement>(
-        '[data-entry-id="memory"] .bh-channel-sidebar-entry-head',
-      )?.disabled,
+      host.querySelector<HTMLButtonElement>('[data-entry-id="memory"] [data-panel-head]')?.disabled,
     ).toBe(true);
   });
   it('preserves hidden registration identities and loads legacy preferences with every item shown', () => {

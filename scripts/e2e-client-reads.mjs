@@ -113,7 +113,7 @@ try {
     }
     await page.waitForFunction(
       (labels) =>
-        [...document.querySelectorAll('.bh-channel-sidebar-entry-label')].some((element) =>
+        [...document.querySelectorAll('[data-panel-label]')].some((element) =>
           labels.includes(element.textContent?.trim() ?? ''),
         ),
       { timeout: 15000 },
@@ -121,13 +121,10 @@ try {
     );
     await page.evaluate(
       (labels) => {
-        const section = [...document.querySelectorAll('.bh-channel-sidebar-entry')].find(
-          (element) =>
-            labels.includes(
-              element.querySelector('.bh-channel-sidebar-entry-label')?.textContent?.trim() ?? '',
-            ),
+        const section = [...document.querySelectorAll('[data-sidebar-entry]')].find((element) =>
+          labels.includes(element.querySelector('[data-panel-label]')?.textContent?.trim() ?? ''),
         );
-        const button = section?.querySelector('.bh-channel-sidebar-entry-head');
+        const button = section?.querySelector('[data-panel-head]');
         if (button?.getAttribute('aria-expanded') === 'false') button.click();
       },
       [english, chinese],
@@ -136,8 +133,8 @@ try {
   const openMemory = async (index) => {
     await select(dms[index].id);
     await expand('Memory files', '记忆文件');
-    await page.waitForSelector(`.bh-memory-tree-row[data-path="${filePath}"]`, { timeout: 15000 });
-    await page.click(`.bh-memory-tree-row[data-path="${filePath}"]`);
+    await page.waitForSelector(`[role="treeitem"][data-path="${filePath}"]`, { timeout: 15000 });
+    await page.click(`[role="treeitem"][data-path="${filePath}"]`);
     await page.waitForFunction(
       (text) => document.querySelector('.bh-memory-commit-code')?.textContent?.includes(text),
       { timeout: 15000 },
@@ -156,20 +153,18 @@ try {
   await page.waitForSelector('.bh-member-menu-button', { timeout: 15000 });
   await openMemory(1);
   await expand('Sessions', '会话');
-  await page.waitForSelector('.bh-sessions', { timeout: 15000 });
+  await page.waitForSelector('[data-sessions]', { timeout: 15000 });
   await expand('Workspace Grants', '工作区授权');
   await page.waitForSelector('.bh-workspace-grants', { timeout: 15000 }).catch(async (error) => {
     console.error(
       JSON.stringify({
-        entries: await page.$$eval('.bh-channel-sidebar-entry', (sections) =>
+        entries: await page.$$eval('[data-sidebar-entry]', (sections) =>
           sections.map((section) => ({
-            label: section.querySelector('.bh-channel-sidebar-entry-label')?.textContent?.trim(),
-            expanded: section
-              .querySelector('.bh-channel-sidebar-entry-head')
-              ?.getAttribute('aria-expanded'),
-            hasBody: section.querySelector('.bh-channel-sidebar-entry-body') !== null,
+            label: section.querySelector('[data-panel-label]')?.textContent?.trim(),
+            expanded: section.querySelector('[data-panel-head]')?.getAttribute('aria-expanded'),
+            hasBody: section.querySelector('[data-sidebar-entry-body]') !== null,
             childClasses: [
-              ...(section.querySelector('.bh-channel-sidebar-entry-body')?.children ?? []),
+              ...(section.querySelector('[data-sidebar-entry-body]')?.children ?? []),
             ].map((element) => element.className),
           })),
         ),
@@ -182,7 +177,7 @@ try {
   await expand('Workspace Grants', '工作区授权');
   await expand('Sessions', '会话');
   await page.waitForSelector('.bh-workspace-grants', { timeout: 15000 });
-  await page.waitForSelector('.bh-sessions', { timeout: 15000 });
+  await page.waitForSelector('[data-sessions]', { timeout: 15000 });
   assert.deepEqual(errors, []);
   console.log(
     JSON.stringify({

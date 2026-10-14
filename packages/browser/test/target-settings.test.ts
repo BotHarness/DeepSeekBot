@@ -153,6 +153,42 @@ describe('Browser Target native settings seam', () => {
     }
     expect(listeners.size).toBe(0);
   });
+  it('names the target row and picker and announces a refused save', async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    const snapshot = { status: 'ready', writable: true, value: { target: 'local' as const } };
+    const scope = {
+      getSnapshot: () => snapshot,
+      subscribe: () => () => undefined,
+      set: vi.fn(async () => undefined),
+    };
+    const host = document.createElement('div');
+    document.body.append(host);
+    const root = createRoot(host);
+    try {
+      await act(async () =>
+        root.render(createElement(BrowserTargetSettings, { scope, t: (key) => key })),
+      );
+      const group = host.querySelector<HTMLElement>('[role=group]')!;
+      const labelId = group.getAttribute('aria-labelledby')!;
+      expect(document.getElementById(labelId)?.textContent).toBe('settings.target');
+      const picker = host.querySelector<HTMLButtonElement>('button[aria-label="settings.target"]')!;
+      expect(picker.textContent).toBe('settings.local');
+      expect(picker.getAttribute('aria-haspopup')).toBe('menu');
+      await act(async () => picker.click());
+      const choice = [...host.querySelectorAll('button')].find(
+        (button) => button.textContent === 'settings.extension',
+      )!;
+      await act(async () => choice.click());
+      expect(scope.set).toHaveBeenCalledExactlyOnceWith('target', 'extension');
+      expect(host.querySelector('[role=alert]')?.textContent).toBe(
+        'Error: Browser setting was not saved',
+      );
+      expect(host.querySelector('[class*="bh-settings-"]')).toBeNull();
+    } finally {
+      await act(async () => root.unmount());
+      host.remove();
+    }
+  });
   it('registers a Browser Bot Settings section bound to the canonical Browser configForms scope', () => {
     const scope = {
       getSnapshot: () => ({ status: 'ready', writable: true, value: { target: 'local' } }),

@@ -87,7 +87,7 @@ function loadedEntry(): LoadedEntry {
 }
 
 beforeAll(async () => {
-  await build({ ...clientBundleOptions, outDir: tempDir });
+  await build({ ...clientBundleOptions, config: false, outDir: tempDir });
   bundleCode = readFileSync(join(tempDir, 'client.js'), 'utf8');
   const sandbox = {
     window: {

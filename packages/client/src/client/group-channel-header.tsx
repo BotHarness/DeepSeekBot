@@ -1,4 +1,5 @@
-import type { ReactElement } from 'react';
+import type { ReactElement, ReactNode } from 'react';
+import * as stylex from '@stylexjs/stylex';
 import { Tooltip } from '@deepseek-ai/dsh-client-ui-primitives';
 import {
   PersonaBotFacepile,
@@ -9,6 +10,71 @@ import type { BotHarnessTranslate } from './locale.js';
 import type { ChannelSummary } from './store.js';
 import { CompanionPin } from './window-companions-view.js';
 import type { WindowCompanions } from './window-companions.js';
+import { color, radius, text } from './ds/tokens.stylex.js';
+
+const styles = stylex.create({
+  title: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 'auto',
+    minWidth: '56px',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontWeight: text.heavy,
+  },
+  mark: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    width: '22px',
+    height: '22px',
+    overflow: 'hidden',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: color.border,
+    borderRadius: radius.control,
+    backgroundColor: color.elevated,
+    color: color.muted,
+    fontSize: text.metaSize,
+    fontWeight: text.heavy,
+  },
+  name: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: '0%',
+    minWidth: 0,
+    padding: 0,
+    borderWidth: 0,
+    borderStyle: 'none',
+    borderRadius: radius.control,
+    backgroundColor: 'transparent',
+    color: 'inherit',
+    fontFamily: 'inherit',
+    cursor: 'pointer',
+    outline: { default: 'none', ':focus-visible': `2px solid ${color.accent}` },
+    outlineOffset: '2px',
+  },
+});
+
+export function ConversationTitle({ children }: { readonly children: ReactNode }): ReactElement {
+  return (
+    <span data-conversation-title="" {...stylex.props(styles.title)}>
+      {children}
+    </span>
+  );
+}
+
+export function ChannelMark(): ReactElement {
+  return (
+    <span aria-hidden="true" data-channel-mark="" {...stylex.props(styles.mark)}>
+      #
+    </span>
+  );
+}
 
 export function GroupChannelHeader({
   channel,
@@ -34,9 +100,7 @@ export function GroupChannelHeader({
       {channel.avatar ? (
         <img className="bh-group-avatar-image bh-group-avatar-topbar" src={channel.avatar} alt="" />
       ) : members.length === 0 ? (
-        <span className="bh-channel-mark bh-channel-mark-sm" aria-hidden="true">
-          #
-        </span>
+        <ChannelMark />
       ) : null}
       <PersonaBotFacepile
         items={members}
@@ -76,13 +140,14 @@ export function GroupChannelHeader({
       />
       <button
         type="button"
-        className="bh-group-channel-name"
+        data-group-channel-name=""
+        {...stylex.props(styles.name)}
         aria-haspopup="dialog"
         aria-expanded={expanded}
         aria-label={t('groupProfile.openAvatar', { name: channel.name })}
         onClick={onToggleProfile}
       >
-        <span className="bh-title">{title}</span>
+        <ConversationTitle>{title}</ConversationTitle>
       </button>
     </span>
   );

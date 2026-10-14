@@ -1,6 +1,6 @@
 import { useState, type ReactElement } from 'react';
 
-import { IconChevronDownOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
+import * as stylex from '@stylexjs/stylex';
 
 import type { ChannelAssignmentSummary } from '../../../core/src/runtime/bot-runtime.js';
 import { PersonaBotAvatar } from './avatar.js';
@@ -10,6 +10,22 @@ import { formatRelativeTime } from './labels.js';
 import { LoadingSkeleton } from './loading-skeleton.js';
 import { useMountedResource } from './mounted-resource.js';
 import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
+import { GroupHeading } from './ds/group-heading.js';
+import { Note } from './ds/note.js';
+import { color, space } from './ds/tokens.stylex.js';
+
+const styles = stylex.create({
+  group: { marginBlock: space.x1 },
+  list: { marginTop: space.x1, marginBottom: space.x2 },
+  summary: {
+    display: '-webkit-box',
+    overflow: 'hidden',
+    flexBasis: '100%',
+    color: color.muted,
+    WebkitBoxOrient: 'vertical',
+    WebkitLineClamp: 2,
+  },
+});
 
 export type GroupWorkGroup = 'waiting' | 'working' | 'idle' | 'done';
 
@@ -93,7 +109,7 @@ function GroupWorkPanel({ channelId, actions, t }: ChannelSidebarEntryProps): Re
         meta={
           <>
             {assignment.latestReport === undefined ? null : (
-              <span className="bh-group-work-summary">{assignment.latestReport.summary}</span>
+              <span {...stylex.props(styles.summary)}>{assignment.latestReport.summary}</span>
             )}
             <span>{name}</span>
             <span>{formatRelativeTime(Date.parse(assignment.updatedAt), now, t)}</span>
@@ -109,7 +125,7 @@ function GroupWorkPanel({ channelId, actions, t }: ChannelSidebarEntryProps): Re
   })).filter((entry) => entry.rows.length > 0);
 
   return (
-    <div className="bh-group-work" ref={mount}>
+    <div ref={mount}>
       {load.status === 'loading' && load.assignments.length === 0 ? (
         <LoadingSkeleton kind="sidebar" label={t('groupWork.loading')} />
       ) : null}
@@ -117,35 +133,28 @@ function GroupWorkPanel({ channelId, actions, t }: ChannelSidebarEntryProps): Re
         <div className="bh-error">{t('groupWork.error', { error: load.error })}</div>
       ) : null}
       {load.status === 'ready' && load.assignments.length === 0 ? (
-        <div className="bh-note">{t('groupWork.empty')}</div>
+        <Note tone="subtle" inset>
+          {t('groupWork.empty')}
+        </Note>
       ) : null}
       {grouped.map(({ group, rows }) => {
         const collapsible = group === 'done';
         const expanded = !collapsible || doneOpen;
         return (
-          <section key={group} className="bh-session-workspace-group" data-group={group}>
-            {collapsible ? (
-              <button
-                type="button"
-                className="bh-session-workspace-heading"
-                aria-expanded={expanded}
-                onClick={() => setDoneOpen((open) => !open)}
-              >
-                <IconChevronDownOutlineRegular
-                  size={14}
-                  className={expanded ? '' : 'bh-session-workspace-chevron-collapsed'}
-                />
-                <span className="bh-session-workspace-name">{labels[group]}</span>
-                <span className="bh-session-workspace-count">{rows.length}</span>
-              </button>
-            ) : (
-              <div className="bh-session-workspace-heading bh-group-work-heading">
-                <span className="bh-session-workspace-name">{labels[group]}</span>
-                <span className="bh-session-workspace-count">{rows.length}</span>
-              </div>
-            )}
+          <section key={group} data-group={group} {...stylex.props(styles.group)}>
+            <GroupHeading
+              label={labels[group]}
+              count={rows.length}
+              expanded={expanded}
+              onToggle={collapsible ? () => setDoneOpen((open) => !open) : undefined}
+            />
             {expanded ? (
-              <SidebarCardList label={labels[group]}>{rows.map(renderRow)}</SidebarCardList>
+              <SidebarCardList
+                label={labels[group]}
+                className={stylex.props(styles.list).className}
+              >
+                {rows.map(renderRow)}
+              </SidebarCardList>
             ) : null}
           </section>
         );

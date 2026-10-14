@@ -1,9 +1,7 @@
 import { useRef, useState, type ReactElement } from 'react';
 
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
-
+import { FormDialog } from './ds/form-dialog.js';
 import type { BotHarnessTranslate } from './locale.js';
-import { Modal } from './modal.js';
 import { useMountedResource } from './mounted-resource.js';
 
 const PREVIEW_SIZE = 280;
@@ -51,7 +49,6 @@ interface CropShape {
   encode(canvas: HTMLCanvasElement): string;
   titleKey: 'profile.avatar.crop.title' | 'profile.banner.crop.title';
   descriptionKey: 'profile.avatar.crop.description' | 'profile.banner.crop.description';
-  className?: string;
 }
 
 const AVATAR_CROP: CropShape = {
@@ -72,7 +69,6 @@ const BANNER_CROP: CropShape = {
   encode: encodeBanner,
   titleKey: 'profile.banner.crop.title',
   descriptionKey: 'profile.banner.crop.description',
-  className: 'bh-sidebar-modal',
 };
 
 interface CropModalProps {
@@ -99,12 +95,20 @@ function ImageCropModal({
 }: CropModalProps & { shape: CropShape }): ReactElement {
   const { previewWidth, previewHeight, outputWidth, outputHeight } = shape;
   const [source, setSource] = useState<string>();
-  const [dimensions, setDimensions] = useState<{ width: number; height: number }>();
+  const [dimensions, setDimensions] = useState<{
+    width: number;
+    height: number;
+  }>();
   const [zoom, setZoom] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
-  const drag = useRef<{ x: number; y: number; offsetX: number; offsetY: number }>();
+  const drag = useRef<{
+    x: number;
+    y: number;
+    offsetX: number;
+    offsetY: number;
+  }>();
   const sourceMount = useMountedResource<HTMLDivElement>(() => {
     setSource(undefined);
     setDimensions(undefined);
@@ -163,23 +167,15 @@ function ImageCropModal({
     }
   };
   return (
-    <Modal
-      open
-      onClose={onClose}
-      closeLabel={t('common.close')}
-      {...(shape.className === undefined ? {} : { className: shape.className })}
+    <FormDialog
       title={t(shape.titleKey)}
       description={t(shape.descriptionKey)}
-      footer={
-        <>
-          <Button variant="outline" onClick={onClose}>
-            {t('common.cancel')}
-          </Button>
-          <Button variant="primary" disabled={!dimensions || busy} onClick={() => void save()}>
-            {t('profile.avatar.crop.save')}
-          </Button>
-        </>
-      }
+      labels={{ close: t('common.close'), cancel: t('common.cancel') }}
+      submitLabel={t('profile.avatar.crop.save')}
+      submitDisabled={!dimensions || busy}
+      error={error ? t('profile.avatar.crop.error') : undefined}
+      onCancel={onClose}
+      onSubmit={() => void save()}
     >
       <div className="bh-group-avatar-crop" ref={sourceMount}>
         <div
@@ -258,12 +254,7 @@ function ImageCropModal({
             setOffset({ x: clamp(offset.x, nextX), y: clamp(offset.y, nextY) });
           }}
         />
-        {error ? (
-          <div className="bh-error" role="alert">
-            {t('profile.avatar.crop.error')}
-          </div>
-        ) : null}
       </div>
-    </Modal>
+    </FormDialog>
   );
 }

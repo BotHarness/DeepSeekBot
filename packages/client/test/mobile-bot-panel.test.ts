@@ -234,6 +234,45 @@ describe('Mobile Bot navigation', () => {
     expect(container.querySelector('.bh-mobile-header')).toBeNull();
   });
 
+  it('draws the mobile chrome from design-system styles by role and name', () => {
+    renderPanel();
+    const byRole = (role: string, name: string) =>
+      [...container.querySelectorAll<HTMLElement>(role)].find(
+        (item) => item.getAttribute('aria-label') === name || item.textContent === name,
+      );
+    const navigation = byRole('nav', 'Bot mode navigation')!;
+    expect(navigation.className).toMatch(/^bh-mobile-nav bhx/);
+    for (const name of ['Conversations', 'Activity Center', 'Bot settings'])
+      expect(byRole('button', name)?.className, name).toMatch(/^bhx/);
+    const exit = byRole('button', 'Exit Bot mode')!;
+    expect(exit.className).toMatch(/^bh-mobile-exit bhx/);
+    const current = byRole('button', 'Conversations')!;
+    expect(current.getAttribute('aria-current')).toBe('page');
+    expect(current.className).not.toBe(byRole('button', 'Bot settings')!.className);
+    click('Activity Center');
+    expect(byRole('button', 'Back to conversations')?.className).toMatch(/^bhx/);
+    expect(byRole('button', 'Exit Bot mode')?.className).not.toBe(exit.className);
+    click('Back to conversations');
+    click('Alpha');
+    const heading = byRole('h1', 'Alpha')!;
+    expect(heading.className).toMatch(/^bhx/);
+    expect(heading.closest('header')?.className).toMatch(/^bh-mobile-conversation-header bhx/);
+    expect(byRole('button', 'Conversation settings')?.className).toMatch(/^bhx/);
+  });
+
+  it('keeps only cross-component overrides in the mobile stylesheet', () => {
+    for (const own of [
+      '.bh-mobile-shell {',
+      '.bh-mobile-header',
+      '.bh-mobile-nav {',
+      '.bh-mobile-exit',
+      '.bh-mobile-conversation-header',
+    ])
+      expect(MOBILE_BOT_CSS).not.toContain(own);
+    expect(MOBILE_BOT_CSS).not.toMatch(/#[0-9a-f]{3,8}\b|rgba?\(/i);
+    expect(MOBILE_BOT_CSS).toContain('.bh-mobile-list .bh-header-label { font-size: 16px;');
+  });
+
   it('connects the conversation back and settings icons without truncating accessible names', () => {
     const onBack = vi.fn();
     const onSettings = vi.fn();

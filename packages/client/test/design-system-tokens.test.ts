@@ -5,15 +5,43 @@ import { describe, expect, it } from 'vitest';
 
 const dsDir = fileURLToPath(new URL('../src/client/ds/', import.meta.url));
 const clientDir = fileURLToPath(new URL('../src/client/', import.meta.url));
+const bundleDirs = ['computer', 'browser'].map((name) =>
+  fileURLToPath(new URL(`../../${name}/src/client/`, import.meta.url)),
+);
 
 function stylexSources(): { name: string; source: string }[] {
   const files = [
-    ...readdirSync(dsDir).map((name) => `ds/${name}`),
-    ...readdirSync(clientDir).filter((name) => /\.tsx?$/.test(name)),
+    ...readdirSync(dsDir).map((name) => `${clientDir}ds/${name}`),
+    ...readdirSync(clientDir)
+      .filter((name) => /\.tsx?$/.test(name))
+      .map((name) => `${clientDir}${name}`),
+    ...bundleDirs.flatMap((dir) =>
+      readdirSync(dir)
+        .filter((name) => /\.tsx?$/.test(name))
+        .map((name) => `${dir}${name}`),
+    ),
   ];
   return files
-    .map((name) => ({ name, source: readFileSync(`${clientDir}${name}`, 'utf8') }))
+    .map((path) => ({
+      name: path.slice(path.indexOf('packages/')),
+      source: readFileSync(path, 'utf8'),
+    }))
     .filter(({ source }) => source.includes('@stylexjs/stylex'));
+}
+
+function styleBlocks(source: string): { text: string; start: number }[] {
+  const blocks: { text: string; start: number }[] = [];
+  let from = source.indexOf('stylex.create(');
+  while (from >= 0) {
+    const end = source.indexOf('\n});', from);
+    const stop = end < 0 ? source.length : end;
+    blocks.push({
+      text: source.slice(from, stop),
+      start: source.slice(0, from).split('\n').length - 1,
+    });
+    from = source.indexOf('stylex.create(', stop);
+  }
+  return blocks;
 }
 
 const SCALED =
@@ -28,15 +56,26 @@ describe('design-system tokens', () => {
       expect(value[1]).toMatch(/^var\(--dsw-[a-z0-9-]+\)$/);
   });
 
+  it('guards the Computer and Browser bundle StyleX sources too', () => {
+    expect(stylexSources().map(({ name }) => name)).toEqual(
+      expect.arrayContaining([
+        'packages/computer/src/client/settings-rows.tsx',
+        'packages/computer/src/client/local-computer.tsx',
+      ]),
+    );
+  });
+
   it('authors spacing, type and radius only through tokens', () => {
     const offenders = stylexSources()
-      .filter(({ name }) => name !== 'ds/tokens.stylex.ts')
+      .filter(({ name }) => !name.endsWith('/ds/tokens.stylex.ts'))
       .flatMap(({ name, source }) =>
-        source
-          .split('\n')
-          .map((line, index) => ({ line, index }))
-          .filter(({ line }) => SCALED.test(line) || LITERAL_COLOUR.test(line))
-          .map(({ line, index }) => `${name}:${index + 1} ${line.trim()}`),
+        styleBlocks(source).flatMap(({ text, start }) =>
+          text
+            .split('\n')
+            .map((line, index) => ({ line, index }))
+            .filter(({ line }) => SCALED.test(line) || LITERAL_COLOUR.test(line))
+            .map(({ line, index }) => `${name}:${start + index + 1} ${line.trim()}`),
+        ),
       );
     expect(offenders).toEqual([]);
   });
@@ -50,5 +89,7 @@ describe('design-system tokens', () => {
     expect(px('space')).toEqual([2, 4, 8, 12, 16, 24]);
     expect(px('radius')).toEqual([6, 8, 10]);
     expect(px('size')).toEqual([26, 28, 32, 40]);
+    const widths = [...block('dialog').matchAll(/min\((\d+)px/g)].map((match) => Number(match[1]));
+    expect(widths).toEqual([440, 760, 1060]);
   });
 });

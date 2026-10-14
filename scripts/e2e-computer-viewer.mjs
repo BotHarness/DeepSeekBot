@@ -84,9 +84,9 @@ async function openComputer(page, dark) {
     if (enabled) document.body.setAttribute('data-ds-dark-theme', 'true');
     else document.body.removeAttribute('data-ds-dark-theme');
   }, dark);
-  if (!(await page.$('.bh-channel-sidebar-entry-head')))
+  if (!(await page.$('[data-panel-head]')))
     await page.evaluate(() => document.querySelector('.bh-sidebar-toggle')?.click());
-  await page.waitForSelector('.bh-channel-sidebar-entry-head', { timeout: 20_000 });
+  await page.waitForSelector('[data-panel-head]', { timeout: 20_000 });
   await page.evaluate(() => {
     const toggle = document.querySelector('button[aria-label="Computer Access"]');
     if (toggle?.getAttribute('aria-checked') !== 'true') toggle?.click();
@@ -99,14 +99,14 @@ async function openComputer(page, dark) {
     { timeout: 15_000 },
   );
   await page.evaluate(() => {
-    const section = [...document.querySelectorAll('.bh-channel-sidebar-entry-head')].find(
+    const section = [...document.querySelectorAll('[data-panel-head]')].find(
       (button) => button.textContent?.trim() === 'Computer',
     );
     if (section?.getAttribute('aria-expanded') !== 'true') section?.click();
   });
   await page.waitForFunction(
     () =>
-      [...document.querySelectorAll('.bh-channel-sidebar-entry-head')].some(
+      [...document.querySelectorAll('[data-panel-head]')].some(
         (button) =>
           button.textContent?.trim() === 'Computer' &&
           button.getAttribute('aria-expanded') === 'true',

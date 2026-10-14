@@ -1,9 +1,0 @@
-- insert:
-    # Official computer-use seam (ADR-0079): one exclusive provider slot our
-    # Computer Tool Provider registers. The service has no config.
-    - id: computer-use
-      name: '@deepseek-ai/dsh-computer-use'
-    - id: botharness-computer
-      name: '@botharness/computer'
-      config:
-        target: local

@@ -1001,7 +1001,6 @@ export const zh = {
   'section.delete.description':
     '将把“{name}”从名册中移除。其中的频道会移出分组、变为未分组频道，不会被删除。',
   'section.create.title': '创建频道分组',
-  'section.create.description': '新频道分组只影响本机名册的分组显示。',
   'section.name.label': '分组名称',
   'section.name.placeholder': '分组名称',
   'bot.rename.title': '重命名 Bot',
@@ -1011,8 +1010,6 @@ export const zh = {
   'channel.name.placeholder': '频道名称',
   'channel.create.title': '创建频道',
   'channel.create.inSection': '在「{name}」中创建频道',
-  'channel.create.description':
-    '创建频道后，可邀请 Bot，并在频道侧栏的「外部连接器」中接入外部来源。',
   'create.failed': '创建失败：{error}',
   'bot.create.title': '创建 Bot',
   'bot.create.inSection': '在「{name}」中创建 Bot',
@@ -1394,6 +1391,8 @@ export const zh = {
   'identity.conversationCount': '{count} 个会话',
   'identity.conversations': '会话',
   'identity.conversationsEmpty': '还没有会话。私聊这个应用，或在群里 @ 它，会话就会出现在这里。',
+  'identity.discordConversationsEmpty':
+    '还没有会话。在应用已加入的服务器频道或公开帖子里 @ 这个应用，会话就会出现在这里。',
   'identity.qqConversationsEmpty':
     '还没有群会话。在已加入的 QQ 群里 @ 这个应用，群会话就会出现在这里。',
   'identity.kind.dm': '私聊',
@@ -1497,6 +1496,8 @@ export const zh = {
   'identity.done': '完成',
   'identity.readyWeixin': '已就绪：扫码者私聊 {app} 的消息，现在会进入这个 Bot 的收件箱。',
   'identity.readyQq': '官方 QQ Bot 应用已就绪：群里 @ {app} 的消息，现在会进入这个 Bot 的收件箱。',
+  'identity.readyDiscord':
+    '已就绪：服务器频道或公开帖子里 @ {app} 的消息遵循这个 Bot 的接收设置，Bot 在原处回复。',
   'identity.platform': '平台',
   'identity.name': '身份名称',
   'identity.status': '状态',
@@ -1538,6 +1539,8 @@ export const zh = {
     '绑定后，私聊和群里 @ 消息遵循这个 Bot 的接收与配对设置，Bot 在原会话回复。个人微信只接收扫码者本人的私聊。',
   'identity.bindHintQq':
     '这是通过腾讯官方授权接入的 QQ Bot 应用。绑定后，在 QQ 群里 @ 这个应用的文字消息会直接进入这个 Bot 的收件箱，Bot 以自己的应用身份在原群回复，不需要保存目标或授权会话。',
+  'identity.bindHintDiscord':
+    '绑定后，在应用已加入的服务器频道或公开帖子里 @ 它，消息遵循这个 Bot 的接收设置，Bot 在原处回复。Discord 私聊暂未支持。',
   'identity.reconnectHint':
     '重新验证同一账号与已有授权范围后启用。账号已变更时，需要明确解绑并重新绑定。',
   'identity.impact': '将使此 Bot 的 {count} 个已有授权失效：',
@@ -2863,8 +2866,8 @@ export const zh = {
   'approval.secretCliRisk':
     'Bot 想带着你填写的密钥运行一个命令行程序。这个程序会拿到密钥，也可能把它泄露出去。请核对程序名和每一个参数；这类调用每次都需要单独批准。',
   'approval.secretMcpRisk':
-    'Bot 想带着你填写的密钥启动一个 MCP 服务。这个程序会拿到密钥并持续运行，直到断开、撤销账号或重启；它也可能把密钥泄露出去。请核对程序名和每一个参数。选“批准并记住”后，这个 Bot 的会话每次启动都会自动连接它，直到你在设置里移除。',
-  'approval.allowAndRemember': '批准并记住（重启后自动连接）',
+    'Bot 想带着你填写的密钥启动一个 MCP 服务。这个程序会拿到密钥并持续运行，直到断开、撤销账号或重启；它也可能把密钥泄露出去。它还能把自己的说明写进 Bot 的系统提示，它的工具描述和返回结果也会进入 Bot 的上下文，可能影响 Bot 的行为。请只连接你信任的服务。请核对程序名和每一个参数。选“批准并记住”后，这个 Bot 每次启动都会自动连上它；其他 Bot 可以在各自的设置里启用它并使用这份密钥，直到你在设置里移除。',
+  'approval.allowAndRemember': '批准并记住（其他 Bot 可在设置里启用）',
   'approval.serverRemembered': '已批准并记住这个服务',
   'privateAccounts.mcpTitle': '已记住的 MCP 服务',
   'privateAccounts.mcpConnected': '已连接',
@@ -2872,12 +2875,17 @@ export const zh = {
   'privateAccounts.mcpCommand': '启动命令：{command}',
   'privateAccounts.mcpAccount': '使用的密钥：{account}',
   'privateAccounts.mcpApprovedAt': '{time}批准',
+  'privateAccounts.mcpShared': '由这个 Bot 配置 · 其他 Bot 可在各自的设置里启用',
+  'privateAccounts.mcpSharedBy': '由 {bot} 配置 · 打开开关后这个 Bot 也能使用',
+  'privateAccounts.mcpEnable': '在这个 Bot 启用 {server}',
   'privateAccounts.mcpRemove': '移除',
-  'privateAccounts.mcpRemoveConfirm': '移除 MCP 服务“{server}”？它会立即停止，之后不再自动连接。',
+  'privateAccounts.mcpRemoveConfirm':
+    '移除 MCP 服务“{server}”？所有 Bot 上的它都会立即停止，之后不再自动连接。',
   'approval.originalRisk':
     '这会修改指定附件原件。所有共享此文件的消息都将展示当前内容，独立副本不受影响。请核对上面的消息和文件。',
   'approval.channelChanged': '已切换频道，请回到此 Bot 的私聊后重试。',
   'approval.allowOnce': '仅批准这一次',
+  'approval.fullAccessEntry': '不想每次都批准？可以为这个 Bot 开启完全访问…',
   'approval.allowExact': '始终允许相同调用',
   'approval.allowAll': '始终允许此范围全部不透明工具',
   'approval.allowAllRisk':
@@ -4249,7 +4257,6 @@ export const en = {
   'section.delete.description':
     'Removes “{name}” from the roster. Its channels leave the section and become unsectioned; they are not deleted.',
   'section.create.title': 'Create channel section',
-  'section.create.description': 'A new section only affects how this roster groups its channels.',
   'section.name.label': 'Section name',
   'section.name.placeholder': 'Section name',
   'bot.rename.title': 'Rename Bot',
@@ -4259,8 +4266,6 @@ export const en = {
   'channel.name.placeholder': 'Channel name',
   'channel.create.title': 'Create channel',
   'channel.create.inSection': 'Create a channel in “{name}”',
-  'channel.create.description':
-    'Create a channel, then invite Bots and connect external sources under External connectors in its Channel sidebar.',
   'create.failed': 'Create failed: {error}',
   'bot.create.title': 'Create Bot',
   'bot.create.inSection': 'Create a Bot in “{name}”',
@@ -4671,6 +4676,8 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'identity.conversations': 'Conversations',
   'identity.conversationsEmpty':
     'No conversations yet. DM the app or @mention it in a group and the conversation shows up here.',
+  'identity.discordConversationsEmpty':
+    'No conversations yet. @mention this app in a server channel or public thread it belongs to and the conversation shows up here.',
   'identity.qqConversationsEmpty':
     'No group conversations yet. @mention this app in a QQ group it has joined and the group conversation shows up here.',
   'identity.kind.dm': 'DM',
@@ -4782,6 +4789,8 @@ My relationship with you, established lore and topics to avoid: [fill in].
     'Connected: DMs and @mentions to {app} follow this Bot’s reception and pairing settings.',
   'identity.readyQq':
     'Official QQ Bot app ready: group @mentions to {app} now reach this Bot’s Inbox.',
+  'identity.readyDiscord':
+    'Ready: @mentions to {app} in server channels or public threads follow this Bot’s reception settings; replies stay in the original location.',
   'identity.connecting': 'Connecting {app}…',
   'identity.offline':
     '{app} can’t receive messages right now. Check its connection in IM settings.',
@@ -4831,6 +4840,8 @@ My relationship with you, established lore and topics to avoid: [fill in].
     'Once bound, DMs and group @mentions follow this Bot’s reception and pairing settings; replies stay in the original conversation. Personal WeChat only receives DMs from the person who scanned it.',
   'identity.bindHintQq':
     'This QQ Bot app connects through Tencent’s official authorization. Once bound, text @mentions to this app in QQ groups reach this Bot’s Inbox. The Bot replies in the original group through its own app. No saved targets or conversation authorization needed.',
+  'identity.bindHintDiscord':
+    'Once bound, @mentions in server channels or public threads this app belongs to follow this Bot’s reception settings; replies stay in the original location. Discord DMs are not supported yet.',
   'identity.reconnectHint':
     'Revalidate this same account and existing authorized scopes before enabling. A changed account requires explicit unbind and rebind.',
   'identity.impact': 'This will invalidate {count} existing authorizations for this Bot:',
@@ -6213,8 +6224,8 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'approval.secretCliRisk':
     'The Bot wants to run a command-line program with a secret you entered. The program receives the secret and could reveal it. Check the program name and every argument; each such call needs its own approval.',
   'approval.secretMcpRisk':
-    'The Bot wants to start an MCP server with a secret you entered. The program receives the secret and keeps running until it is disconnected, the account is revoked or the Host restarts; it could reveal the secret. Check the program name and every argument. With Allow and remember, this Bot reconnects it whenever its Session starts, until you remove it in settings.',
-  'approval.allowAndRemember': 'Allow and remember (reconnect after restart)',
+    'The Bot wants to start an MCP server with a secret you entered. The program receives the secret and keeps running until it is disconnected, the account is revoked or the Host restarts; it could reveal the secret. It can also add its own instructions to the system prompt of the Bot, and its tool descriptions and results enter the context of the Bot and can influence what it does. Connect only a server you trust. Check the program name and every argument. With Allow and remember, this Bot reconnects it whenever it starts; other Bots can enable it in their settings and use this secret, until you remove it in settings.',
+  'approval.allowAndRemember': 'Allow and remember (other Bots can enable it)',
   'approval.serverRemembered': 'Allowed and remembered this server',
   'privateAccounts.mcpTitle': 'Remembered MCP servers',
   'privateAccounts.mcpConnected': 'Connected',
@@ -6222,13 +6233,17 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'privateAccounts.mcpCommand': 'Command: {command}',
   'privateAccounts.mcpAccount': 'Secret used: {account}',
   'privateAccounts.mcpApprovedAt': 'Approved {time}',
+  'privateAccounts.mcpShared': 'Set up by this Bot · other Bots can enable it in their settings',
+  'privateAccounts.mcpSharedBy': 'Set up by {bot} · turn on to let this Bot use it',
+  'privateAccounts.mcpEnable': 'Enable {server} for this Bot',
   'privateAccounts.mcpRemove': 'Remove',
   'privateAccounts.mcpRemoveConfirm':
-    'Remove the MCP server "{server}"? It stops now and will not reconnect.',
+    'Remove the MCP server "{server}"? It stops now for every Bot and will not reconnect.',
   'approval.originalRisk':
     'This edits the selected original attachment. All messages sharing this file show its current contents; independent copies stay unchanged. Check the message and file above.',
   'approval.channelChanged': 'Return to this Bot DM and try again.',
   'approval.allowOnce': 'Allow once',
+  'approval.fullAccessEntry': 'Tired of approving each time? Turn on full access for this Bot…',
   'approval.allowExact': 'Always allow this exact call',
   'approval.allowAll': 'Always allow all opaque tools in this scope',
   'approval.allowAllRisk':

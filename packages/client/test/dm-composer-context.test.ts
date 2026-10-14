@@ -88,7 +88,7 @@ it('refreshes mounted inherited footers after a successful global model save wit
   try {
     await act(async () => root.render(createElement(Harness)));
     const labels = () =>
-      Array.from(host.querySelectorAll('.bh-composer-model'), (node) => node.textContent);
+      Array.from(host.querySelectorAll('[data-composer-chip="model"]'), (node) => node.textContent);
     expect(labels()).toEqual(['Full First Model', 'Full First Model']);
     await act(async () => {
       await actions.onboardingModel(undefined, 0, second, true);
@@ -174,22 +174,26 @@ it('keeps only the model in mobile layouts and restores desktop workspace and us
     });
   try {
     await act(async () => root.render(createElement(Harness)));
-    expect(host.querySelectorAll('.bh-composer-context button')).toHaveLength(3);
-    await act(async () => host.querySelector<HTMLButtonElement>('.bh-composer-usage')!.click());
+    expect(host.querySelectorAll('[data-composer-context] button')).toHaveLength(3);
+    await act(async () =>
+      host.querySelector<HTMLButtonElement>('[data-composer-chip="usage"]')!.click(),
+    );
     expect(document.body.querySelector('.bh-composer-usage-popover')).not.toBeNull();
     await resize(true);
     expect(matchMedia).toHaveBeenCalledWith(MOBILE_BOT_QUERY);
-    expect(host.querySelectorAll('.bh-composer-context button')).toHaveLength(1);
-    expect(host.querySelector('.bh-composer-context')!.textContent).toBe('DeepSeek-V41-Flash');
+    expect(host.querySelectorAll('[data-composer-context] button')).toHaveLength(1);
+    expect(host.querySelector('[data-composer-context]')!.textContent).toBe('DeepSeek-V41-Flash');
     expect(document.body.querySelector('.bh-composer-usage-popover')).toBeNull();
     await act(async () =>
-      host.querySelector<HTMLButtonElement>('.bh-composer-context button')!.click(),
+      host.querySelector<HTMLButtonElement>('[data-composer-context] button')!.click(),
     );
     expect(host.querySelector('[role="dialog"]')!.textContent).toContain(`model:${bot.slug}`);
     await resize(false);
-    expect(host.querySelectorAll('.bh-composer-context button')).toHaveLength(3);
-    expect(host.querySelector('.bh-composer-context-left')!.textContent).toContain('0 个工作区');
-    expect(host.querySelector('.bh-composer-usage')).not.toBeNull();
+    expect(host.querySelectorAll('[data-composer-context] button')).toHaveLength(3);
+    expect(host.querySelector('[data-composer-context-leading]')!.textContent).toContain(
+      '0 个工作区',
+    );
+    expect(host.querySelector('[data-composer-chip="usage"]')).not.toBeNull();
     expect(document.body.querySelector('.bh-composer-usage-popover')).toBeNull();
   } finally {
     await act(async () => root.unmount());
@@ -233,7 +237,8 @@ it('shows the full catalog model name for inherited and custom routes and keeps 
   }
   try {
     await act(async () => root.render(createElement(Harness)));
-    const model = () => host.querySelector<HTMLButtonElement>('.bh-composer-context-left button')!;
+    const model = () =>
+      host.querySelector<HTMLButtonElement>('[data-composer-context-leading] button')!;
     expect(model().textContent).toBe(modelName);
     await act(async () =>
       rememberModelPlan(bot.slug, {
@@ -414,16 +419,16 @@ it('shares header pin, restores preferences, rejects unavailable and old targets
       ]),
     );
     expect(host.textContent).not.toContain('Late Grace grant');
-    await click('.bh-composer-usage');
+    await click('[data-composer-chip="usage"]');
     expect(usage).not.toHaveBeenCalled();
     expect(document.body.querySelector('.bh-composer-usage-popover')).not.toBeNull();
     await act(async () =>
       document.body.querySelector<HTMLButtonElement>('.bh-composer-usage-details')!.click(),
     );
     expect(usage).toHaveBeenCalledOnce();
-    expect(host.querySelector('.bh-composer-usage')!.getAttribute('aria-label')).toContain(
-      'Ada · 近 26 周',
-    );
+    expect(
+      host.querySelector('[data-composer-chip="usage"]')!.getAttribute('aria-label'),
+    ).toContain('Ada · 近 26 周');
     await click('[data-action="companion"]');
     expect(companion.get(ada.slug)).toBeDefined();
   } finally {
@@ -490,13 +495,15 @@ it('uses compact icon labels and a left context/right usage split, with keyboard
   }
   const render = () => act(async () => root.render(createElement(Harness)));
   const clickUsage = () =>
-    act(async () => host.querySelector<HTMLButtonElement>('.bh-composer-usage')!.click());
+    act(async () => host.querySelector<HTMLButtonElement>('[data-composer-chip="usage"]')!.click());
   try {
     await render();
-    expect(host.querySelectorAll('.bh-composer-context-left button')).toHaveLength(2);
-    expect(host.querySelector('.bh-composer-context-left')!.textContent).toContain('0 个工作区');
-    expect(host.querySelector('.bh-composer-usage')!.textContent).toBe('1.3M tokens');
-    expect(host.querySelectorAll('.bh-composer-context button svg')).toHaveLength(3);
+    expect(host.querySelectorAll('[data-composer-context-leading] button')).toHaveLength(2);
+    expect(host.querySelector('[data-composer-context-leading]')!.textContent).toContain(
+      '0 个工作区',
+    );
+    expect(host.querySelector('[data-composer-chip="usage"]')!.textContent).toBe('1.3M');
+    expect(host.querySelectorAll('[data-composer-context] button svg')).toHaveLength(3);
     await clickUsage();
     expect(details).not.toHaveBeenCalled();
     await act(async () =>
@@ -549,7 +556,7 @@ it('uses compact icon labels and a left context/right usage split, with keyboard
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', cancelable: true })),
     );
     expect(document.body.querySelector('.bh-composer-usage-popover')).toBeNull();
-    expect(document.activeElement).toBe(host.querySelector('.bh-composer-usage'));
+    expect(document.activeElement).toBe(host.querySelector('[data-composer-chip="usage"]'));
     await clickUsage();
     await act(async () =>
       resolve({

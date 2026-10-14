@@ -242,9 +242,7 @@ describe('Browser Access Power control', () => {
     await act(async () => button().click());
     await act(async () => authorization({ ok: true, value: { bot: { browserAccess: false } } }));
     expect(host.textContent).not.toContain('Permission-gated content');
-    expect(host.querySelector<HTMLButtonElement>('.bh-channel-sidebar-entry-head')?.disabled).toBe(
-      false,
-    );
+    expect(host.querySelector<HTMLButtonElement>('[data-panel-head]')?.disabled).toBe(false);
     expect(call.mock.calls.map((c) => c[1])).toEqual([
       'botharness/list',
       'botharness/browserAccessSet',

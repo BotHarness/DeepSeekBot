@@ -1,5 +1,6 @@
 import { useId, useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
 
+import * as stylex from '@stylexjs/stylex';
 import { MenuSurface, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type {
@@ -20,8 +21,155 @@ import {
 import { ChannelSidebarSettings } from './channel-sidebar-settings.js';
 import { ChannelSidebarEntrySection } from './channel-sidebar-view.js';
 import { useMountedResource } from './mounted-resource.js';
+import { sidebarStyles } from './channel-sidebar-styles.js';
+import { hooked } from './ds/hooked.js';
+import { IconButton } from './ds/icon-button.js';
+import { color, radius, size, space, text } from './ds/tokens.stylex.js';
 
 const noop = (): void => {};
+
+const focusRing = { default: 'none', ':focus-visible': `2px solid ${color.accent}` };
+
+const styles = stylex.create({
+  head: {
+    display: 'flex',
+    alignItems: 'center',
+    minHeight: 'var(--bh-channel-header-height)',
+    paddingBlock: 0,
+    paddingInlineStart: space.x3,
+    paddingInlineEnd: `calc(${space.x3} * 3 + ${size.icon} * 2)`,
+  },
+  tabs: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: space.x1,
+    minWidth: 0,
+    overflowX: 'auto',
+    scrollbarWidth: 'none',
+  },
+  tab: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: space.x3,
+    flexShrink: 0,
+    height: size.icon,
+    minWidth: size.icon,
+    paddingBlock: 0,
+    paddingInline: space.x2,
+    borderWidth: 0,
+    borderStyle: 'none',
+    borderRadius: radius.row,
+    backgroundColor: { default: 'transparent', ':hover': color.hover },
+    color: { default: color.subtle, ':hover': color.fg },
+    fontFamily: 'inherit',
+    fontSize: text.bodySize,
+    lineHeight: text.bodyLine,
+    whiteSpace: 'nowrap',
+    cursor: 'pointer',
+    outline: focusRing,
+    outlineOffset: '-2px',
+  },
+  selected: {
+    paddingInline: space.x3,
+    backgroundColor: { default: color.selected, ':hover': color.selected },
+    color: { default: color.fg, ':hover': color.fg },
+  },
+  badge: { fontSize: text.metaSize },
+  views: { position: 'relative', display: 'inline-flex', flexShrink: 0 },
+  menu: {
+    position: 'fixed',
+    zIndex: 1101,
+    width: '232px',
+    padding: space.x2,
+    '--dsw-elevation-stroke-color': color.borderSoft,
+    boxShadow: 'var(--dsw-elevation-prominent)',
+  },
+  menuLabel: {
+    paddingTop: space.x3,
+    paddingInline: space.x3,
+    paddingBottom: space.x2,
+    color: color.muted,
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+  },
+  row: {
+    display: 'flex',
+    alignItems: 'center',
+    borderRadius: radius.menuItem,
+    backgroundColor: { default: 'transparent', ':hover': color.hover },
+  },
+  dragging: { opacity: 0.5 },
+  item: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: space.x3,
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: '0%',
+    minWidth: 0,
+    minHeight: size.row,
+    paddingBlock: space.x2,
+    paddingInline: space.x3,
+    borderWidth: 0,
+    borderStyle: 'none',
+    borderRadius: radius.menuItem,
+    backgroundColor: 'transparent',
+    color: color.fg,
+    fontFamily: 'inherit',
+    fontSize: text.bodySize,
+    lineHeight: text.bodyLine,
+    textAlign: 'start',
+    cursor: { default: 'pointer', ':is([aria-disabled=true])': 'default' },
+    outline: focusRing,
+    outlineOffset: '-2px',
+  },
+  check: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    width: '16px',
+    height: '16px',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: color.borderStrong,
+    borderRadius: radius.control,
+    color: color.onAccent,
+  },
+  checked: { borderColor: color.accent, backgroundColor: color.accent },
+  locked: { opacity: 0.5 },
+  icon: { display: 'inline-flex', color: color.muted },
+  label: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: '0%',
+    minWidth: 0,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  grip: {
+    display: 'inline-flex',
+    paddingBlock: 0,
+    paddingInline: space.x3,
+    color: color.subtle,
+    cursor: 'grab',
+  },
+  hint: {
+    paddingBlock: space.x2,
+    paddingInline: space.x3,
+    color: color.subtle,
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+  },
+  split: {
+    display: 'flex',
+    flexDirection: 'column',
+    overflow: 'hidden',
+    paddingBottom: 0,
+  },
+});
 
 export function ChannelSidebarTabs({
   tabs,
@@ -62,10 +210,10 @@ export function ChannelSidebarTabs({
   const entries = tabs.flatMap((tab) => tab.entries);
   return (
     <>
-      <div className="bh-channel-sidebar-head bh-channel-sidebar-tabs-head">
+      <div {...hooked('bh-channel-sidebar-head', styles.head)}>
         <div
           ref={list}
-          className="bh-channel-sidebar-tabs"
+          {...stylex.props(styles.tabs)}
           role="tablist"
           aria-label={t('sidebar.tabs')}
         >
@@ -77,7 +225,7 @@ export function ChannelSidebarTabs({
                   type="button"
                   role="tab"
                   id={domId(tab.id)}
-                  className="bh-channel-sidebar-tab"
+                  {...stylex.props(styles.tab, selected && styles.selected)}
                   data-tab-id={tab.id}
                   aria-selected={selected}
                   aria-controls={selected ? panelId : undefined}
@@ -104,11 +252,9 @@ export function ChannelSidebarTabs({
                   }}
                 >
                   <ChannelSidebarIcon name={tab.icon} />
-                  {selected ? (
-                    <span className="bh-channel-sidebar-tab-label">{tab.label}</span>
-                  ) : null}
+                  {selected ? <span>{tab.label}</span> : null}
                   {tab.badges.length === 0 ? null : (
-                    <span className="bh-channel-sidebar-tab-badge">
+                    <span {...hooked('bh-channel-sidebar-tab-badge', styles.badge)}>
                       {tab.badges.map((Badge, badgeIndex) => (
                         <Badge key={badgeIndex} {...entryProps} />
                       ))}
@@ -137,14 +283,15 @@ export function ChannelSidebarTabs({
         ) : null}
       </div>
       {active === undefined ? (
-        <div className="bh-channel-sidebar-entries">
-          <div className="bh-note">{t('sidebar.empty')}</div>
+        <div data-sidebar-entries="" {...stylex.props(sidebarStyles.entries)}>
+          <p {...stylex.props(sidebarStyles.empty)}>{t('sidebar.empty')}</p>
         </div>
       ) : (
         <div
           key={active.id}
           id={panelId}
-          className={`bh-channel-sidebar-entries bh-channel-sidebar-tab-panel${active.entries.length === 2 ? ' bh-channel-sidebar-split' : ''}`}
+          data-sidebar-entries=""
+          {...stylex.props(sidebarStyles.entries, active.entries.length === 2 && styles.split)}
           role="tabpanel"
           aria-labelledby={domId(active.id)}
           data-tab-panel={active.id}
@@ -265,6 +412,7 @@ function ChannelSidebarSplit({
             entry={entry}
             expanded
             collapsible={false}
+            fill
             onToggle={noop}
             entryProps={entryProps}
           />
@@ -327,12 +475,11 @@ function ChannelSidebarViewsMenu({
   };
   const label = t('sidebar.views');
   return (
-    <span className="bh-channel-sidebar-views">
+    <span {...stylex.props(styles.views)}>
       <Tooltip label={label} side="bottom" delayMs={500}>
-        <button
+        <IconButton
           ref={anchor}
-          type="button"
-          className="bh-channel-sidebar-tab bh-channel-sidebar-views-button"
+          tone="subtle"
           aria-label={label}
           aria-haspopup="menu"
           aria-expanded={open !== undefined}
@@ -347,24 +494,25 @@ function ChannelSidebarViewsMenu({
           }}
         >
           <ChannelSidebarIcon name="plus" />
-        </button>
+        </IconButton>
       </Tooltip>
       {open === undefined ? null : (
         <MenuSurface
           role="menu"
           aria-label={label}
-          className="bh-channel-sidebar-views-menu"
+          data-views-menu=""
+          className={stylex.props(styles.menu).className}
           style={{ top: `${String(open.top)}px`, left: `${String(open.left)}px` }}
         >
           <div ref={surface}>
-            <div className="bh-sidebar-settings-label">{label}</div>
+            <div {...stylex.props(styles.menuLabel)}>{label}</div>
             {tabs.map((tab, index) => {
               const checked = !hidden.includes(tab.id);
               const locked = checked && shownCount <= 1;
               return (
                 <div
                   key={tab.id}
-                  className="bh-channel-sidebar-views-row"
+                  {...stylex.props(styles.row, dragging === tab.id && styles.dragging)}
                   data-view-id={tab.id}
                   data-dragging={dragging === tab.id || undefined}
                   draggable
@@ -391,7 +539,7 @@ function ChannelSidebarViewsMenu({
                   <button
                     type="button"
                     role="menuitemcheckbox"
-                    className="bh-channel-sidebar-views-item"
+                    {...stylex.props(styles.item)}
                     aria-checked={checked}
                     aria-disabled={locked || undefined}
                     title={locked ? t('sidebar.views.keepOne') : undefined}
@@ -404,7 +552,7 @@ function ChannelSidebarViewsMenu({
                         if (target === undefined) return;
                         if (event.altKey) onChange(moveEntry(order, tab.id, target.id), hidden);
                         const id = event.altKey ? tab.id : target.id;
-                        const menu = event.currentTarget.closest('.bh-channel-sidebar-views-menu');
+                        const menu = event.currentTarget.closest('[data-views-menu]');
                         requestAnimationFrame(() =>
                           [...(menu?.querySelectorAll<HTMLElement>('[data-view-id]') ?? [])]
                             .find((row) => row.dataset['viewId'] === id)
@@ -414,21 +562,28 @@ function ChannelSidebarViewsMenu({
                       }
                     }}
                   >
-                    <span className="bh-channel-sidebar-views-check" aria-hidden="true">
+                    <span
+                      aria-hidden="true"
+                      {...stylex.props(
+                        styles.check,
+                        checked && styles.checked,
+                        locked && styles.locked,
+                      )}
+                    >
                       {checked ? <ChannelSidebarIcon name="check" size={14} /> : null}
                     </span>
-                    <span className="bh-channel-sidebar-views-icon" aria-hidden="true">
+                    <span aria-hidden="true" {...stylex.props(styles.icon)}>
                       <ChannelSidebarIcon name={tab.icon} />
                     </span>
-                    <span className="bh-channel-sidebar-views-label">{tab.label}</span>
+                    <span {...stylex.props(styles.label)}>{tab.label}</span>
                   </button>
-                  <span className="bh-channel-sidebar-views-grip" aria-hidden="true">
+                  <span aria-hidden="true" {...stylex.props(styles.grip)}>
                     <ChannelSidebarIcon name="grip-vertical" size={14} />
                   </span>
                 </div>
               );
             })}
-            <div className="bh-channel-sidebar-views-hint">{t('sidebar.views.hint')}</div>
+            <div {...stylex.props(styles.hint)}>{t('sidebar.views.hint')}</div>
           </div>
         </MenuSurface>
       )}

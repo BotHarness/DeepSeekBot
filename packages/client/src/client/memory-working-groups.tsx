@@ -8,6 +8,7 @@ import {
   memoryChangeBadge,
   type MemoryChangeGroup,
 } from './memory-working-presentation.js';
+import { Note } from './ds/note.js';
 
 function groupLabel(id: MemoryChangeGroup, t: BotHarnessTranslate): string {
   switch (id) {
@@ -46,7 +47,9 @@ export function MemoryWorkingGroups({
   return (
     <div className="bh-memory-working-list" aria-label={t('memory.workingDiff')}>
       {groups.every((group) => group.changes.length === 0) ? (
-        <div className="bh-note">{t('memory.noChanges')}</div>
+        <Note tone="subtle" inset>
+          {t('memory.noChanges')}
+        </Note>
       ) : (
         groups.map((group) => {
           if (group.changes.length === 0) return null;

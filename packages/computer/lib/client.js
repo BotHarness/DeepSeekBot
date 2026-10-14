@@ -1554,11 +1554,293 @@ window.__ModuleLoader__.load({
 			}, dependencies);
 		}
 		//#endregion
-		//#region packages/computer/src/client/local-computer.tsx
-		const LOCAL_COMPUTER_COLORS = {
-			error: "var(--dsw-alias-state-error-primary)",
-			secondary: "var(--dsw-alias-label-secondary)"
+		//#region node_modules/.pnpm/@stylexjs+stylex@0.19.1/node_modules/@stylexjs/stylex/lib/es/stylex.mjs
+		var styleq = {};
+		var hasRequiredStyleq;
+		function requireStyleq() {
+			if (hasRequiredStyleq) return styleq;
+			hasRequiredStyleq = 1;
+			Object.defineProperty(styleq, "__esModule", { value: true });
+			styleq.styleq = void 0;
+			var cache = /* @__PURE__ */ new WeakMap();
+			var compiledKey = "$$css";
+			function createStyleq(options) {
+				var disableCache;
+				var disableMix;
+				var transform;
+				if (options != null) {
+					disableCache = options.disableCache === true;
+					disableMix = options.disableMix === true;
+					transform = options.transform;
+				}
+				return function styleq() {
+					var definedProperties = [];
+					var className = "";
+					var inlineStyle = null;
+					var debugString = "";
+					var nextCache = disableCache ? null : cache;
+					var styles = new Array(arguments.length);
+					for (var i = 0; i < arguments.length; i++) styles[i] = arguments[i];
+					while (styles.length > 0) {
+						var possibleStyle = styles.pop();
+						if (possibleStyle == null || possibleStyle === false) continue;
+						if (Array.isArray(possibleStyle)) {
+							for (var _i = 0; _i < possibleStyle.length; _i++) styles.push(possibleStyle[_i]);
+							continue;
+						}
+						var style = transform != null ? transform(possibleStyle) : possibleStyle;
+						if (style.$$css != null) {
+							var classNameChunk = "";
+							if (nextCache != null && nextCache.has(style)) {
+								var cacheEntry = nextCache.get(style);
+								if (cacheEntry != null) {
+									classNameChunk = cacheEntry[0];
+									debugString = cacheEntry[2];
+									definedProperties.push.apply(definedProperties, cacheEntry[1]);
+									nextCache = cacheEntry[3];
+								}
+							} else {
+								var definedPropertiesChunk = [];
+								for (var prop in style) {
+									var value = style[prop];
+									if (prop === compiledKey) {
+										var compiledKeyValue = style[prop];
+										if (compiledKeyValue !== true) debugString = debugString ? compiledKeyValue + "; " + debugString : compiledKeyValue;
+										continue;
+									}
+									if (typeof value === "string" || value === null) {
+										if (!definedProperties.includes(prop)) {
+											definedProperties.push(prop);
+											if (nextCache != null) definedPropertiesChunk.push(prop);
+											if (typeof value === "string") classNameChunk += classNameChunk ? " " + value : value;
+										}
+									} else console.error("styleq: ".concat(prop, " typeof ").concat(String(value), " is not \"string\" or \"null\"."));
+								}
+								if (nextCache != null) {
+									var weakMap = /* @__PURE__ */ new WeakMap();
+									nextCache.set(style, [
+										classNameChunk,
+										definedPropertiesChunk,
+										debugString,
+										weakMap
+									]);
+									nextCache = weakMap;
+								}
+							}
+							if (classNameChunk) className = className ? classNameChunk + " " + className : classNameChunk;
+						} else if (disableMix) {
+							if (inlineStyle == null) inlineStyle = {};
+							inlineStyle = Object.assign({}, style, inlineStyle);
+						} else {
+							var subStyle = null;
+							for (var _prop in style) {
+								var _value = style[_prop];
+								if (_value !== void 0) {
+									if (!definedProperties.includes(_prop)) {
+										if (_value != null) {
+											if (inlineStyle == null) inlineStyle = {};
+											if (subStyle == null) subStyle = {};
+											subStyle[_prop] = _value;
+										}
+										definedProperties.push(_prop);
+										nextCache = null;
+									}
+								}
+							}
+							if (subStyle != null) inlineStyle = Object.assign(subStyle, inlineStyle);
+						}
+					}
+					return [
+						className,
+						inlineStyle,
+						debugString
+					];
+				};
+			}
+			var styleq$1 = styleq.styleq = createStyleq();
+			styleq$1.factory = createStyleq;
+			return styleq;
+		}
+		var styleqExports = /*@__PURE__*/ requireStyleq();
+		function props(...styles) {
+			const [className, style, dataStyleSrc] = styleqExports.styleq(styles);
+			const result = {};
+			if (className != null && className !== "") result.className = className;
+			if (style != null && Object.keys(style).length > 0) result.style = style;
+			if (dataStyleSrc != null && dataStyleSrc !== "") result["data-style-src"] = dataStyleSrc;
+			return result;
+		}
+		Object.freeze({});
+		//#endregion
+		//#region packages/client/src/client/ds/note.tsx
+		const styles = {
+			note: {
+				kogj98: "bhx1ghz6dp",
+				kGuDYH: "bhxgowt09",
+				kLWn49: "bhx12cu2lo",
+				kHjlTd: "bhxj0a0fe",
+				$$css: true
+			},
+			inset: {
+				k8WAf4: "bhx89kiln",
+				kg3NbH: "bhx1w8vjyx",
+				$$css: true
+			},
+			muted: {
+				kMwMTN: "bhxr3raxm",
+				$$css: true
+			},
+			subtle: {
+				kMwMTN: "bhxwq55zj",
+				$$css: true
+			},
+			danger: {
+				kMwMTN: "bhx8ay0r6",
+				$$css: true
+			},
+			success: {
+				kMwMTN: "bhx1pideu2",
+				$$css: true
+			},
+			warning: {
+				kMwMTN: "bhxz9v26x",
+				$$css: true
+			}
 		};
+		function Note({ tone = "muted", inset = false, children }) {
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+				role: tone === "danger" ? "alert" : "status",
+				...props(styles.note, inset && styles.inset, styles[tone]),
+				children
+			});
+		}
+		//#endregion
+		//#region packages/client/src/client/ds/pill-button.tsx
+		const pillStyles = { pill: {
+			k1xSpc: "bhx3nfvp2",
+			kGNEyG: "bhx6s0dn4",
+			kOIVth: "bhx12e6dxb",
+			ks0D6T: "bhx193iq5w",
+			kZKoxP: "bhxxevliy",
+			kg3NbH: "bhx1vid4s1",
+			kMzoRj: "bhxc342km",
+			kaIpWk: "bhx1jeu99u",
+			kWkggS: "bhxw43b1w bhx1lc0nsx",
+			kMwMTN: "bhx24dycr",
+			kMv6JI: "bhxjb2p0i",
+			kGuDYH: "bhx5g6txa",
+			kLWn49: "bhx3350y7",
+			khDVqt: "bhxuxw1ft",
+			kkrTdU: "bhx1ypdohk bhxtgyt42",
+			kSiTet: "bhx1hc1fzr bhxijokvz",
+			kI3sdo: "bhx1a2a7pz bhxsp7bej",
+			kInvED: "bhx1y3gkto",
+			$$css: true
+		} };
+		function PillButton({ children, ...rest }) {
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+				type: "button",
+				...rest,
+				className: "bhx3nfvp2 bhx6s0dn4 bhx12e6dxb bhx193iq5w bhxxevliy bhx1vid4s1 bhxc342km bhx1jeu99u bhxw43b1w bhx1lc0nsx bhx24dycr bhxjb2p0i bhx5g6txa bhx3350y7 bhxuxw1ft bhx1ypdohk bhxtgyt42 bhx1hc1fzr bhxijokvz bhx1a2a7pz bhxsp7bej bhx1y3gkto",
+				children
+			});
+		}
+		function PillFileButton({ children, ...input }) {
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
+				className: "bhx3nfvp2 bhx6s0dn4 bhx12e6dxb bhx193iq5w bhxxevliy bhx1vid4s1 bhxc342km bhx1jeu99u bhxw43b1w bhx1lc0nsx bhx24dycr bhxjb2p0i bhx5g6txa bhx3350y7 bhxuxw1ft bhx1ypdohk bhxtgyt42 bhx1hc1fzr bhxijokvz bhx1a2a7pz bhxsp7bej bhx1y3gkto",
+				children: [children, /* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
+					...input,
+					type: "file",
+					hidden: true
+				})]
+			});
+		}
+		//#endregion
+		//#region packages/client/src/client/ds/select.tsx
+		function Select({ label, value, options, onChange, disabled = false, align = "end", autoFocus = false }) {
+			const [open, setOpen] = (0, react.useState)(false);
+			const current = options.find((option) => option.value === value);
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Menu, {
+				open: open && !disabled,
+				portal: true,
+				align,
+				items: options.map((option) => ({
+					id: option.value,
+					label: option.label
+				})),
+				selectedId: value,
+				onSelect: (id) => {
+					setOpen(false);
+					const next = options.find((option) => option.value === id);
+					if (next !== void 0 && next.value !== value) onChange(next.value);
+				},
+				onClose: () => {
+					setOpen(false);
+				},
+				anchor: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+					type: "button",
+					"aria-label": label,
+					"aria-haspopup": "menu",
+					"aria-expanded": open && !disabled,
+					disabled,
+					"data-modal-autofocus": autoFocus ? "" : void 0,
+					onClick: () => {
+						setOpen((previous) => !previous);
+					},
+					...props(pillStyles.pill),
+					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+						className: "bhxeuugli bhxb3r6kr bhxlyipyv bhxuxw1ft",
+						children: current?.label
+					}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+						className: "bhx3nfvp2 bhx2lah0s bhxr3raxm",
+						children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconChevronDownOutlineRegular, { size: 12 })
+					})]
+				})
+			});
+		}
+		//#endregion
+		//#region packages/client/src/client/ds/settings-row.tsx
+		function SettingsRows({ children, rootRef }) {
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+				ref: rootRef,
+				className: "bhx78zum5 bhxdt5ytf bhxeuugli",
+				children
+			});
+		}
+		function SettingsRow({ title, description, control, children, rootRef, data }) {
+			const id = (0, react.useId)();
+			const titleId = `${id}-title`;
+			const descriptionId = `${id}-description`;
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				ref: rootRef,
+				role: "group",
+				"aria-labelledby": titleId,
+				"aria-describedby": description === void 0 ? void 0 : descriptionId,
+				...data,
+				className: "bhx78zum5 bhx6s0dn4 bhx15bqsqq bhx1q0g3np bhx1uptv2i bhx1mckxr8 bhxv0lzym bhxeuugli bhxe74ayl bhx1co6499 bhx1q0q8m5 bhx1gzrhza bhx1bta2m4",
+				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+					className: "bhx78zum5 bhxdt5ytf bhx5v8n67 bhx1iyjqo2 bhxs83m0k bhx1r8uery bhxeuugli",
+					children: [
+						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+							id: titleId,
+							className: "bhx24dycr bhxskcadq bhx1gy5ux2 bhx1nj67n bhxj0a0fe",
+							children: title
+						}),
+						description === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+							id: descriptionId,
+							className: "bhxr3raxm bhxgowt09 bhx12cu2lo bhxj0a0fe",
+							children: description
+						}),
+						children
+					]
+				}), control === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+					className: "bhx78zum5 bhx1a02dak bhx6s0dn4 bhx13a6bvl bhx3xz8fp bhx2zm2ee bhx2lah0s bhxeuugli bhxh9uqaf bhx1cnm762",
+					children: control
+				})]
+			});
+		}
+		//#endregion
+		//#region packages/computer/src/client/local-computer.tsx
 		function LocalComputerStatus({ t }) {
 			const [payload, setPayload] = (0, react.useState)();
 			const [busy, setBusy] = (0, react.useState)(false);
@@ -1637,19 +1919,9 @@ window.__ModuleLoader__.load({
 						}),
 						meta: t(granted ? "local.granted" : "local.description"),
 						detail: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-							style: {
-								display: "grid",
-								gap: 8,
-								justifyItems: "start"
-							},
-							children: [failure === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-								role: "alert",
-								style: {
-									color: LOCAL_COMPUTER_COLORS.error,
-									fontSize: 12,
-									lineHeight: "16px",
-									overflowWrap: "anywhere"
-								},
+							className: "bhxrvj5dj bhx2zm2ee bhx619ttb",
+							children: [failure === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Note, {
+								tone: "danger",
 								children: failure
 							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
 								size: "sm",
@@ -1859,35 +2131,20 @@ window.__ModuleLoader__.load({
 				}
 			};
 		}
-		function Row({ title, description, children }) {
-			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: "bh-settings-row",
-				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-					className: "bh-settings-row-text",
-					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-						className: "bh-settings-row-title",
-						children: title
-					}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-						className: "bh-settings-row-desc",
-						children: description
-					})]
-				}), children]
-			});
-		}
 		function Selector({ label, open, onToggle, disabled }) {
-			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
-				type: "button",
-				className: "bh-settings-selector",
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(PillButton, {
 				"aria-haspopup": "menu",
 				"aria-expanded": open,
 				disabled: disabled === true,
 				onClick: onToggle,
-				children: [label, /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconChevronDownOutlineRegular, { className: "bh-settings-chevron" })]
+				children: [label, /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+					className: "bhx3nfvp2 bhx2lah0s bhxr3raxm",
+					children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconChevronDownOutlineRegular, { size: 12 })
+				})]
 			});
 		}
 		function ComputerSettingsRows({ t, prefs, pickerAvailable, pickDirectory, openDirectory, exportArchive, downloadUrl, importArchive, requestUpload, sendUploadBytes, listArchives, hostExportDir }) {
 			const snapshot = (0, react.useSyncExternalStore)(prefs.subscribe, prefs.getSnapshot);
-			const [targetOpen, setTargetOpen] = (0, react.useState)(false);
 			const [targetError, setTargetError] = (0, react.useState)();
 			const [targetSaving, setTargetSaving] = (0, react.useState)(false);
 			const [idleOpen, setIdleOpen] = (0, react.useState)(false);
@@ -2090,311 +2347,218 @@ window.__ModuleLoader__.load({
 				openDirectory(exportDir).catch((error) => setDirNote(String(error)));
 			}, [exportDir, openDirectory]);
 			const selectedFile = uploadName ?? (confirming === "import" ? archives?.[0] : void 0);
-			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: "bh-settings-rows",
-				children: [
-					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-						hidden: true,
-						ref: hostDirResource
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(SettingsRows, { children: [
+				/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+					hidden: true,
+					ref: hostDirResource
+				}),
+				busy === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+					hidden: true,
+					ref: busyResource
+				}),
+				/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+					className: "bhx1ghz6dp bhxb590mu bhx1e1oj2y bhxr3raxm bhxgowt09 bhx12cu2lo",
+					children: t("section.description")
+				}),
+				/* @__PURE__ */ (0, react_jsx_runtime.jsx)(SettingsRow, {
+					title: t("rows.target.title"),
+					description: t("rows.target.description"),
+					control: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Select, {
+						label: t("rows.target.title"),
+						value: snapshot.target,
+						options: ["local", "container"].map((id) => ({
+							value: id,
+							label: t(`rows.target.${id}`)
+						})),
+						disabled: !writable || targetSaving,
+						onChange: (id) => {
+							setTargetSaving(true);
+							setTargetError(void 0);
+							prefs.setTarget(id).catch((error) => setTargetError(String(error))).finally(() => setTargetSaving(false));
+						}
+					})
+				}),
+				targetError === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Note, {
+					tone: "danger",
+					children: targetError
+				}),
+				/* @__PURE__ */ (0, react_jsx_runtime.jsx)(SettingsRow, {
+					title: t("rows.autoAllow.title"),
+					description: t("rows.autoAllow.description"),
+					control: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Switch, {
+						checked: snapshot.autoAllowActions,
+						disabled: !writable,
+						onChange: (next) => {
+							prefs.setAutoAllowActions(next);
+						},
+						label: t("rows.autoAllow.title")
+					})
+				}),
+				snapshot.target === "local" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(LocalComputerStatus, { t }) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(SettingsRow, {
+						title: t("rows.exportDir.title"),
+						description: hasDir ? t("rows.exportDir.current", { dir: exportDir }) : t("rows.exportDir.empty"),
+						control: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
+							canAdjust ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(PillButton, {
+								disabled: !writable,
+								onClick: pickExportDir,
+								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconFolderOpenOutlineRegular, { size: 14 }), t("rows.exportDir.pick")]
+							}) : null,
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)(PillButton, {
+								disabled: !hasDir,
+								onClick: openDir,
+								children: t("rows.exportDir.open")
+							}),
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)(PillButton, {
+								disabled: !writable,
+								onClick: () => {
+									setManualOpen((value) => !value);
+									setManualPath(exportDir);
+								},
+								children: t("rows.exportDir.manual")
+							})
+						] })
 					}),
-					busy === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-						hidden: true,
-						ref: busyResource
-					}),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-						className: "bh-settings-section-head",
-						children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-							className: "bh-settings-section-desc",
-							children: t("section.description")
-						})
-					}),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Row, {
-						title: t("rows.target.title"),
-						description: t("rows.target.description"),
-						children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Menu, {
-							open: targetOpen,
+					manualOpen ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+						className: "bhx78zum5 bhx6s0dn4 bhx1mckxr8 bhxeuugli bhxe74ayl bhx1co6499 bhx1q0q8m5 bhx1gzrhza",
+						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Input, {
+							className: { className: "bhx1iyjqo2 bhxs83m0k bhx1r8uery bhxeuugli" }.className ?? "",
+							value: manualPath,
+							placeholder: "/absolute/path",
+							"aria-label": t("rows.exportDir.manual"),
+							onChange: (event) => {
+								setManualPath(event.target.value);
+							}
+						}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(PillButton, {
+							disabled: !writable || saving || manualPath.trim() === "",
+							onClick: saveManualPath,
+							children: saving ? t("rows.exportDir.saving") : t("rows.exportDir.save")
+						})]
+					}) : null,
+					dirNote === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Note, { children: dirNote }),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(SettingsRow, {
+						title: t("rows.idle.title"),
+						description: t("rows.idle.description"),
+						control: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Menu, {
+							open: idleOpen,
 							portal: true,
 							align: "end",
-							items: ["local", "container"].map((id) => ({
-								id,
-								label: t(`rows.target.${id}`)
+							items: IDLE_OPTIONS.map((minutes) => ({
+								id: String(minutes),
+								label: t("rows.idle.minutes", { minutes })
 							})),
-							selectedId: snapshot.target,
+							selectedId: String(snapshot.idleStopMinutes),
 							onSelect: (id) => {
-								setTargetOpen(false);
-								if (id !== "local" && id !== "container") return;
-								setTargetSaving(true);
-								setTargetError(void 0);
-								prefs.setTarget(id).catch((error) => setTargetError(String(error))).finally(() => setTargetSaving(false));
+								setIdleOpen(false);
+								prefs.setIdleStopMinutes(Number(id));
 							},
-							onClose: () => setTargetOpen(false),
+							onClose: () => {
+								setIdleOpen(false);
+							},
 							anchor: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Selector, {
-								label: t(`rows.target.${snapshot.target}`),
-								open: targetOpen,
-								disabled: !writable || targetSaving,
-								onToggle: () => setTargetOpen((value) => !value)
-							})
-						})
-					}),
-					targetError === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-						role: "alert",
-						className: "bh-note",
-						style: { color: LOCAL_COMPUTER_COLORS.error },
-						children: targetError
-					}),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Row, {
-						title: t("rows.autoAllow.title"),
-						description: t("rows.autoAllow.description"),
-						children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Switch, {
-							checked: snapshot.autoAllowActions,
-							disabled: !writable,
-							onChange: (next) => {
-								prefs.setAutoAllowActions(next);
-							},
-							label: t("rows.autoAllow.title")
-						})
-					}),
-					snapshot.target === "local" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(LocalComputerStatus, { t }) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
-						/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Row, {
-							title: t("rows.exportDir.title"),
-							description: hasDir ? t("rows.exportDir.current", { dir: exportDir }) : t("rows.exportDir.empty"),
-							children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-								style: {
-									display: "flex",
-									gap: 8,
-									alignItems: "center",
-									flexWrap: "wrap"
-								},
-								children: [
-									canAdjust ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
-										type: "button",
-										className: "bh-settings-selector",
-										disabled: !writable,
-										onClick: pickExportDir,
-										children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconFolderOpenOutlineRegular, { size: 14 }), t("rows.exportDir.pick")]
-									}) : null,
-									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-										type: "button",
-										className: "bh-settings-selector",
-										disabled: !hasDir,
-										onClick: openDir,
-										children: t("rows.exportDir.open")
-									}),
-									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-										type: "button",
-										className: "bh-settings-selector",
-										disabled: !writable,
-										onClick: () => {
-											setManualOpen((value) => !value);
-											setManualPath(exportDir);
-										},
-										children: t("rows.exportDir.manual")
-									})
-								]
-							})
-						}),
-						manualOpen ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-							className: "bh-settings-row",
-							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-								className: "bh-settings-row-text",
-								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
-									className: "bh-settings-input",
-									value: manualPath,
-									placeholder: "/absolute/path",
-									"aria-label": t("rows.exportDir.manual"),
-									onChange: (event) => {
-										setManualPath(event.target.value);
-									}
-								})
-							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-								type: "button",
-								className: "bh-settings-selector",
-								disabled: !writable || saving || manualPath.trim() === "",
-								onClick: saveManualPath,
-								children: saving ? t("rows.exportDir.saving") : t("rows.exportDir.save")
-							})]
-						}) : null,
-						dirNote === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-							className: "bh-note",
-							children: dirNote
-						}),
-						/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Row, {
-							title: t("rows.idle.title"),
-							description: t("rows.idle.description"),
-							children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Menu, {
+								label: t("rows.idle.minutes", { minutes: snapshot.idleStopMinutes }),
 								open: idleOpen,
+								disabled: !writable,
+								onToggle: () => {
+									setIdleOpen((value) => !value);
+								}
+							})
+						})
+					}),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(SettingsRow, {
+						title: t("rows.exportSection.title"),
+						description: t("rows.exportSection.description"),
+						control: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [confirming === "export" ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(PillButton, {
+							onClick: () => {
+								setConfirming(void 0);
+							},
+							children: t("entry.cancel")
+						}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(PillButton, {
+							onClick: runExport,
+							children: t("rows.authorizeExport")
+						})] }) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(PillButton, {
+							disabled: !hasDir && !canAdjust || busy !== void 0,
+							onClick: startExport,
+							children: busy === "export" ? t("rows.exporting") : canAdjust ? t("rows.exportTo") : t("rows.export")
+						}), download === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(PillButton, {
+							onClick: () => {
+								globalThis.location?.assign(downloadUrl(download.token));
+							},
+							children: t("rows.download")
+						})] })
+					}),
+					confirming === "export" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Note, { children: t("rows.exportTarget", { dir: exportTarget ?? exportDir }) }) : null,
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(SettingsRow, {
+						title: t("rows.importSection.title"),
+						description: t("rows.importSection.description"),
+						control: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
+							uploadName !== void 0 ? null : confirming === "import" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(PillButton, {
+								onClick: () => {
+									setConfirming(void 0);
+								},
+								children: t("rows.cancelImport")
+							}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Menu, {
+								open: importOpen,
 								portal: true,
 								align: "end",
-								items: IDLE_OPTIONS.map((minutes) => ({
-									id: String(minutes),
-									label: t("rows.idle.minutes", { minutes })
+								items: (archives ?? []).map((file) => ({
+									id: file,
+									label: file
 								})),
-								selectedId: String(snapshot.idleStopMinutes),
 								onSelect: (id) => {
-									setIdleOpen(false);
-									prefs.setIdleStopMinutes(Number(id));
+									setConfirming("import");
+									setArchives([id]);
 								},
 								onClose: () => {
-									setIdleOpen(false);
+									setImportOpen(false);
 								},
 								anchor: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Selector, {
-									label: t("rows.idle.minutes", { minutes: snapshot.idleStopMinutes }),
-									open: idleOpen,
-									disabled: !writable,
-									onToggle: () => {
-										setIdleOpen((value) => !value);
-									}
+									label: busy === "import" ? t("rows.importing") : t("rows.import"),
+									open: importOpen,
+									disabled: !hasDir || busy !== void 0,
+									onToggle: openImport
 								})
-							})
-						}),
-						/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Row, {
-							title: t("rows.exportSection.title"),
-							description: t("rows.exportSection.description"),
-							children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-								style: {
-									display: "flex",
-									gap: 8,
-									alignItems: "center",
-									flexWrap: "wrap"
+							}),
+							uploadName === void 0 && confirming === "import" && archives?.[0] !== void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(PillButton, {
+								disabled: busy !== void 0,
+								onClick: () => {
+									const file = archives[0];
+									if (file !== void 0) runImport(file);
 								},
-								children: [confirming === "export" ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-									type: "button",
-									className: "bh-settings-selector",
-									onClick: () => {
-										setConfirming(void 0);
-									},
-									children: t("entry.cancel")
-								}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-									type: "button",
-									className: "bh-settings-selector",
-									onClick: runExport,
-									children: t("rows.authorizeExport")
-								})] }) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-									type: "button",
-									className: "bh-settings-selector",
-									disabled: !hasDir && !canAdjust || busy !== void 0,
-									onClick: startExport,
-									children: busy === "export" ? t("rows.exporting") : canAdjust ? t("rows.exportTo") : t("rows.export")
-								}), download === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-									type: "button",
-									className: "bh-settings-selector",
-									onClick: () => {
-										globalThis.location?.assign(downloadUrl(download.token));
-									},
-									children: t("rows.download")
-								})]
-							})
-						}),
-						confirming === "export" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-							className: "bh-note",
-							children: t("rows.exportTarget", { dir: exportTarget ?? exportDir })
-						}) : null,
-						/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Row, {
-							title: t("rows.importSection.title"),
-							description: t("rows.importSection.description"),
-							children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-								style: {
-									display: "flex",
-									gap: 8,
-									alignItems: "center",
-									flexWrap: "wrap"
+								children: t("rows.authorizeImportConfirm")
+							}) : null,
+							uploadName !== void 0 || confirming === "import" ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(PillFileButton, {
+								accept: ".tar,application/x-tar",
+								disabled: busy !== void 0,
+								onChange: (event) => {
+									const file = event.target.files?.[0] ?? null;
+									event.target.value = "";
+									takeUploadFile(file);
 								},
-								children: [
-									uploadName !== void 0 ? null : confirming === "import" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-										type: "button",
-										className: "bh-settings-selector",
-										onClick: () => {
-											setConfirming(void 0);
-										},
-										children: t("rows.cancelImport")
-									}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Menu, {
-										open: importOpen,
-										portal: true,
-										align: "end",
-										items: (archives ?? []).map((file) => ({
-											id: file,
-											label: file
-										})),
-										onSelect: (id) => {
-											setConfirming("import");
-											setArchives([id]);
-										},
-										onClose: () => {
-											setImportOpen(false);
-										},
-										anchor: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Selector, {
-											label: busy === "import" ? t("rows.importing") : t("rows.import"),
-											open: importOpen,
-											disabled: !hasDir || busy !== void 0,
-											onToggle: openImport
-										})
-									}),
-									uploadName === void 0 && confirming === "import" && archives?.[0] !== void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-										type: "button",
-										className: "bh-settings-selector",
-										disabled: busy !== void 0,
-										onClick: () => {
-											const file = archives[0];
-											if (file !== void 0) runImport(file);
-										},
-										children: t("rows.authorizeImportConfirm")
-									}) : null,
-									uploadName !== void 0 || confirming === "import" ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
-										className: "bh-settings-selector",
-										children: [t("rows.chooseFile"), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
-											type: "file",
-											accept: ".tar,application/x-tar",
-											hidden: true,
-											disabled: busy !== void 0,
-											onChange: (event) => {
-												const file = event.target.files?.[0] ?? null;
-												event.target.value = "";
-												takeUploadFile(file);
-											}
-										})]
-									}),
-									uploadName === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-										type: "button",
-										className: "bh-settings-selector",
-										onClick: () => {
-											setUploadName(void 0);
-											uploadFile.current = null;
-										},
-										children: t("entry.cancel")
-									}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-										type: "button",
-										className: "bh-settings-selector",
-										disabled: busy !== void 0,
-										onClick: runUpload,
-										children: busy === "upload" ? t("rows.importing") : t("rows.authorizeImportConfirm")
-									})] })
-								]
-							})
-						}),
-						selectedFile === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-							className: "bh-note",
-							style: {
-								overflow: "hidden",
-								textOverflow: "ellipsis",
-								whiteSpace: "nowrap"
-							},
-							children: selectedFile
-						}),
-						busy !== void 0 && phaseKey !== void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-							className: "bh-note",
-							children: `${t(phaseKey)} · ${t("entry.elapsed", { seconds: liveElapsed })}`
-						}) : null
-					] }),
-					snapshot.status === "unavailable" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-						className: "bh-note",
-						children: t("rows.noSettings")
-					}) : null,
-					snapshot.target !== "container" || transferNote === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-						className: "bh-note",
-						children: transferNote
-					})
-				]
-			});
+								children: t("rows.chooseFile")
+							}),
+							uploadName === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(PillButton, {
+								onClick: () => {
+									setUploadName(void 0);
+									uploadFile.current = null;
+								},
+								children: t("entry.cancel")
+							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(PillButton, {
+								disabled: busy !== void 0,
+								onClick: runUpload,
+								children: busy === "upload" ? t("rows.importing") : t("rows.authorizeImportConfirm")
+							})] })
+						] })
+					}),
+					selectedFile === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+						className: "bhx1ghz6dp bhxb3r6kr bhxlyipyv bhxuxw1ft bhxr3raxm bhxgowt09 bhx12cu2lo",
+						children: selectedFile
+					}),
+					busy !== void 0 && phaseKey !== void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Note, { children: `${t(phaseKey)} · ${t("entry.elapsed", { seconds: liveElapsed })}` }) : null
+				] }),
+				snapshot.status === "unavailable" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Note, { children: t("rows.noSettings") }) : null,
+				snapshot.target !== "container" || transferNote === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Note, { children: transferNote })
+			] });
 		}
 		//#endregion
 		//#region packages/computer/src/client/access-power-icon.tsx
@@ -2412,6 +2576,9 @@ window.__ModuleLoader__.load({
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 2v10" }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M18.4 6.6a9 9 0 1 1-12.77.04" })]
 			});
 		}
+		//#endregion
+		//#region packages/client/src/client/ds/stylex-css.ts
+		const STYLEX_CSS = "\n.bhx-level-0{}\n.bhx-level-1:not(#\\#){}\n.bhx1ghz6dp:not(#\\#){margin:0}\n.bhx-level-2:not(#\\#):not(#\\#){}\n.bhx1jeu99u:not(#\\#):not(#\\#){border-radius:8px}\n.bhxc342km:not(#\\#):not(#\\#){border-width:0}\n.bhx1mckxr8:not(#\\#):not(#\\#){gap:12px}\n.bhx5v8n67:not(#\\#):not(#\\#){gap:2px}\n.bhx12e6dxb:not(#\\#):not(#\\#){gap:4px}\n.bhx2zm2ee:not(#\\#):not(#\\#){gap:8px}\n.bhx1a2a7pz:not(#\\#):not(#\\#){outline:none}\n.bhxb3r6kr:not(#\\#):not(#\\#){overflow:hidden}\n.bhxe74ayl:not(#\\#):not(#\\#){padding-block:12px}\n.bhx89kiln:not(#\\#):not(#\\#){padding-block:4px}\n.bhx1vid4s1:not(#\\#):not(#\\#){padding-inline:12px 8px}\n.bhx1w8vjyx:not(#\\#):not(#\\#){padding-inline:4px}\n.bhxsp7bej:focus-visible:not(#\\#):not(#\\#){outline:2px solid var(--dsw-alias-state-business-primary)}\n@media (max-width: 648px){.bhxv0lzym.bhxv0lzym:not(#\\#):not(#\\#){gap:8px}}\n.bhx-level-3:not(#\\#):not(#\\#):not(#\\#){}\n.bhx6s0dn4:not(#\\#):not(#\\#):not(#\\#){align-items:center}\n.bhxw43b1w:not(#\\#):not(#\\#):not(#\\#){background-color:var(--dsw-alias-bg-module-platform)}\n.bhx24dycr:not(#\\#):not(#\\#):not(#\\#){color:var(--dsw-alias-label-primary)}\n.bhxr3raxm:not(#\\#):not(#\\#):not(#\\#){color:var(--dsw-alias-label-secondary)}\n.bhxwq55zj:not(#\\#):not(#\\#):not(#\\#){color:var(--dsw-alias-label-tertiary)}\n.bhx8ay0r6:not(#\\#):not(#\\#):not(#\\#){color:var(--dsw-alias-state-error-primary)}\n.bhx1pideu2:not(#\\#):not(#\\#):not(#\\#){color:var(--dsw-alias-state-success-primary)}\n.bhxz9v26x:not(#\\#):not(#\\#):not(#\\#){color:var(--dsw-alias-state-warn-primary)}\n.bhx1ypdohk:not(#\\#):not(#\\#):not(#\\#){cursor:pointer}\n.bhx78zum5:not(#\\#):not(#\\#):not(#\\#){display:flex}\n.bhxrvj5dj:not(#\\#):not(#\\#):not(#\\#){display:grid}\n.bhx3nfvp2:not(#\\#):not(#\\#):not(#\\#){display:inline-flex}\n.bhx1r8uery:not(#\\#):not(#\\#):not(#\\#){flex-basis:0}\n.bhxdt5ytf:not(#\\#):not(#\\#):not(#\\#){flex-direction:column}\n.bhx1q0g3np:not(#\\#):not(#\\#):not(#\\#){flex-direction:row}\n.bhx1iyjqo2:not(#\\#):not(#\\#):not(#\\#){flex-grow:1}\n.bhx2lah0s:not(#\\#):not(#\\#):not(#\\#){flex-shrink:0}\n.bhxs83m0k:not(#\\#):not(#\\#):not(#\\#){flex-shrink:1}\n.bhx1a02dak:not(#\\#):not(#\\#):not(#\\#){flex-wrap:wrap}\n.bhxjb2p0i:not(#\\#):not(#\\#):not(#\\#){font-family:inherit}\n.bhxgowt09:not(#\\#):not(#\\#):not(#\\#){font-size:12px}\n.bhx5g6txa:not(#\\#):not(#\\#):not(#\\#){font-size:13px}\n.bhxskcadq:not(#\\#):not(#\\#):not(#\\#){font-size:14px}\n.bhx1nj67n:not(#\\#):not(#\\#):not(#\\#){font-weight:500}\n.bhx13a6bvl:not(#\\#):not(#\\#):not(#\\#){justify-content:flex-end}\n.bhx619ttb:not(#\\#):not(#\\#):not(#\\#){justify-items:start}\n.bhx12cu2lo:not(#\\#):not(#\\#):not(#\\#){line-height:16px}\n.bhx1gy5ux2:not(#\\#):not(#\\#):not(#\\#){line-height:20px}\n.bhx3350y7:not(#\\#):not(#\\#):not(#\\#){line-height:20px}\n.bhx1hc1fzr:not(#\\#):not(#\\#):not(#\\#){opacity:1}\n.bhx1y3gkto:not(#\\#):not(#\\#):not(#\\#){outline-offset:1px}\n.bhxj0a0fe:not(#\\#):not(#\\#):not(#\\#){overflow-wrap:anywhere}\n.bhxp4054r:not(#\\#):not(#\\#):not(#\\#){text-align:end}\n.bhxlyipyv:not(#\\#):not(#\\#):not(#\\#){text-overflow:ellipsis}\n.bhxuxw1ft:not(#\\#):not(#\\#):not(#\\#){white-space:nowrap}\n.bhxtgyt42:disabled:not(#\\#):not(#\\#):not(#\\#){cursor:default}\n.bhxijokvz:disabled:not(#\\#):not(#\\#):not(#\\#){opacity:.5}\n.bhx1lc0nsx:hover:not(#\\#):not(#\\#):not(#\\#){background-color:var(--dsw-alias-interactive-bg-hover)}\n@media (max-width: 648px){.bhx15bqsqq.bhx15bqsqq:not(#\\#):not(#\\#):not(#\\#){align-items:stretch}}\n@media (max-width: 648px){.bhx1uptv2i.bhx1uptv2i:not(#\\#):not(#\\#):not(#\\#){flex-direction:column}}\n@media (max-width: 648px){.bhx3xz8fp.bhx3xz8fp:not(#\\#):not(#\\#):not(#\\#){justify-content:flex-start}}\n.bhx-level-4:not(#\\#):not(#\\#):not(#\\#):not(#\\#){}\n.bhx1gzrhza:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-color:var(--dsw-alias-border-l2)}\n.bhx1q0q8m5:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-style:solid}\n.bhx1co6499:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-width:.5px}\n.bhxxevliy:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:28px}\n.bhx193iq5w:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:100%}\n.bhxh9uqaf:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:60%}\n.bhxeuugli:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-width:0}\n.bhx1e1oj2y:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-bottom:4px}\n.bhxb590mu:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-top:16px}\n.bhx10zg81t:first-child:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-top:0}\n.bhx1bta2m4:last-child:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-color:transparent}\n@media (max-width: 648px){.bhx1cnm762.bhx1cnm762:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:100%}}\n";
 		//#endregion
 		//#region packages/computer/src/client/index.tsx
 		const ACCESS_STYLE = `
@@ -3027,7 +3194,7 @@ window.__ModuleLoader__.load({
 				style.setAttribute("data-botharness-computer", "client");
 				style.dataset.plugin = "@botharness/computer";
 				style.dataset.pluginCss = "@botharness/computer/client.css";
-				style.textContent = ACCESS_STYLE;
+				style.textContent = ACCESS_STYLE + STYLEX_CSS;
 				document.head.appendChild(style);
 				return () => {
 					style.remove();

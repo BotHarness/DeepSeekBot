@@ -48,11 +48,12 @@ export function protectImTestApps(path = imTestAppsPath()) {
 function parseValues(text) {
   const values = {};
   for (const line of text.split(/\r?\n/u)) {
-    const record = line.startsWith('# BH_SLACK_') ? line.slice(2) : line;
+    const record = /^# BH_(?:SLACK|DISCORD)_/u.test(line) ? line.slice(2) : line;
     if (!record.trim() || record.trimStart().startsWith('#')) continue;
-    const match = /^(BH_IM_QA_SLOT|BH_SLACK_QA_SLOT|BH_(?:LARK|SLACK)_QA[123]_[A-Z_]+)=(.*)$/u.exec(
-      record,
-    );
+    const match =
+      /^(BH_IM_QA_SLOT|BH_(?:SLACK|DISCORD)_QA_SLOT|BH_(?:LARK|SLACK|DISCORD)_QA[123]_[A-Z_]+)=(.*)$/u.exec(
+        record,
+      );
     if (!match) throw new Error('Invalid IM test App configuration; use the setup wizard');
     if (Object.hasOwn(values, match[1])) throw new Error('Duplicate IM test App configuration key');
     values[match[1]] = match[2];
@@ -61,7 +62,7 @@ function parseValues(text) {
 }
 
 function configurationLine(key, value) {
-  return `${key.startsWith('BH_SLACK_') ? '# ' : ''}${key}=${value}`;
+  return `${/^BH_(?:SLACK|DISCORD)_/u.test(key) ? '# ' : ''}${key}=${value}`;
 }
 
 function readValues(path) {
@@ -80,7 +81,7 @@ export function saveImTestAppValues(text, { path = imTestAppsPath() } = {}) {
   while (lines.at(-1) === '') lines.pop();
   const pending = new Map(Object.entries(updates));
   const next = lines.map((line) => {
-    const record = line.startsWith('# BH_SLACK_') ? line.slice(2) : line;
+    const record = /^# BH_(?:SLACK|DISCORD)_/u.test(line) ? line.slice(2) : line;
     const key = record.slice(0, record.indexOf('='));
     if (!pending.has(key)) return line;
     const value = pending.get(key);
@@ -200,7 +201,63 @@ export function listSlackImTestApps({ path = imTestAppsPath() } = {}) {
   });
 }
 
-function setup(platform) {
+function validDiscordId(value) {
+  return /^[1-9][0-9]{16,19}$/u.test(value ?? '') && BigInt(value) <= (1n << 64n) - 1n;
+}
+
+export function loadDiscordImTestApp(slot, { path = imTestAppsPath() } = {}) {
+  const values = readValues(path);
+  const selected = slot ?? values.BH_DISCORD_QA_SLOT;
+  if (!IM_TEST_SLOTS.includes(selected))
+    throw new Error('Select a Discord test slot: QA1, QA2 or QA3');
+  const prefix = `BH_DISCORD_${selected}`;
+  const name = displayName(values[`${prefix}_NAME`]);
+  const guildName = displayName(values[`${prefix}_GUILD_NAME`]);
+  const channelName = displayName(values[`${prefix}_CHANNEL_NAME`]);
+  const appId = values[`${prefix}_APP_ID`];
+  const guildId = values[`${prefix}_GUILD_ID`];
+  const channelId = values[`${prefix}_CHANNEL_ID`];
+  const botToken = values[`${prefix}_BOT_TOKEN`];
+  if (
+    !name ||
+    !guildName ||
+    !channelName ||
+    ![appId, guildId, channelId].every(validDiscordId) ||
+    !/^[A-Za-z0-9_.-]{20,512}$/u.test(botToken ?? '')
+  )
+    throw new Error(`Discord test slot ${selected} is incomplete; run setup discord`);
+  return {
+    slot: selected,
+    name,
+    appId,
+    guildName,
+    guildId,
+    channelName,
+    channelId,
+    botToken,
+    consoleReady: values[`${prefix}_CONSOLE_READY`] === 'yes',
+    receiverCheckedAt: values[`${prefix}_RECEIVER_CHECKED_AT`] || undefined,
+  };
+}
+
+export function listDiscordImTestApps({ path = imTestAppsPath() } = {}) {
+  const values = readValues(path);
+  return IM_TEST_SLOTS.map((slot) => {
+    const prefix = `BH_DISCORD_${slot}`;
+    return {
+      slot,
+      name: displayName(values[`${prefix}_NAME`]) || null,
+      guildName: displayName(values[`${prefix}_GUILD_NAME`]) || null,
+      channelName: displayName(values[`${prefix}_CHANNEL_NAME`]) || null,
+      credentialsConfigured: Boolean(values[`${prefix}_BOT_TOKEN`]),
+      consoleReady: values[`${prefix}_CONSOLE_READY`] === 'yes',
+      receiverCheckedAt: values[`${prefix}_RECEIVER_CHECKED_AT`] || null,
+      receiverAvailability: 'requires-current-window-confirmation',
+    };
+  });
+}
+
+function setup(platform, { manual = false, slot } = {}) {
   const script = fileURLToPath(new URL(`./setup-${platform}-test-app.sh`, import.meta.url));
   let bash = 'bash';
   if (process.platform === 'win32') {
@@ -218,15 +275,24 @@ function setup(platform) {
       );
   }
   console.log('正在准备本机私密配置文件；此步骤不会启动 IM 接收器。');
-  const result = spawnSync(bash, [script.replaceAll('\\', '/')], {
-    stdio: 'inherit',
-    env: {
-      ...process.env,
-      PATH: `${dirname(process.execPath)}${process.platform === 'win32' ? ';' : ':'}${process.env.PATH ?? ''}`,
-      BOTHARNESS_IM_TEST_APPS_ENV: imTestAppsPath().replaceAll('\\', '/'),
-      ...(process.platform === 'win32' ? { TERM: 'dumb' } : {}),
+  const result = spawnSync(
+    bash,
+    [
+      script.replaceAll('\\', '/'),
+      ...(platform === 'discord'
+        ? [manual ? '--manual' : '--token-only', ...(slot ? [slot] : [])]
+        : []),
+    ],
+    {
+      stdio: 'inherit',
+      env: {
+        ...process.env,
+        PATH: `${dirname(process.execPath)}${process.platform === 'win32' ? ';' : ':'}${process.env.PATH ?? ''}`,
+        BOTHARNESS_IM_TEST_APPS_ENV: imTestAppsPath().replaceAll('\\', '/'),
+        ...(process.platform === 'win32' ? { TERM: 'dumb' } : {}),
+      },
     },
-  });
+  );
   if (result.error) throw result.error;
   process.exitCode = result.status ?? 1;
 }
@@ -235,19 +301,34 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   try {
     const [command = 'list', ...args] = process.argv.slice(2);
     const platform = args[0] ?? 'lark';
-    if (command === 'list' && args.length <= 1 && ['lark', 'slack'].includes(platform)) {
+    if (command === 'list' && args.length <= 1 && ['lark', 'slack', 'discord'].includes(platform)) {
       console.log(
         JSON.stringify(
           {
             path: imTestAppsPath(),
-            apps: platform === 'slack' ? listSlackImTestApps() : listImTestApps(),
+            apps:
+              platform === 'discord'
+                ? listDiscordImTestApps()
+                : platform === 'slack'
+                  ? listSlackImTestApps()
+                  : listImTestApps(),
           },
           null,
           2,
         ),
       );
-    } else if (command === 'setup' && args.length <= 1 && ['lark', 'slack'].includes(platform)) {
-      setup(platform);
+    } else if (command === 'setup' && ['lark', 'slack', 'discord'].includes(platform)) {
+      const extra = args.slice(1);
+      const slot = extra.find((value) => IM_TEST_SLOTS.includes(value));
+      const manual = extra.includes('--manual');
+      if (
+        (platform !== 'discord' && extra.length > 0) ||
+        extra.length !== new Set(extra).size ||
+        extra.filter((value) => IM_TEST_SLOTS.includes(value)).length > 1 ||
+        extra.some((value) => value !== '--manual' && !IM_TEST_SLOTS.includes(value))
+      )
+        throw new Error('usage: setup discord [QA1|QA2|QA3] [--manual]');
+      setup(platform, { manual, slot });
     } else if (command === 'protect' && args.length === 1) {
       const path = resolve(args[0]);
       protectImTestApps(path);
@@ -255,7 +336,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     } else if (command === 'save' && args.length === 0) {
       saveImTestAppValues(readFileSync(0, 'utf8'));
     } else {
-      throw new Error('usage: node scripts/dev-im-test-apps.mjs [list|setup] [lark|slack]');
+      throw new Error('usage: node scripts/dev-im-test-apps.mjs [list|setup] [lark|slack|discord]');
     }
   } catch (error) {
     console.error(error.message);

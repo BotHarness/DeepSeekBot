@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 import { WindowCompanion } from '../src/client/window-companion.js';
 import { WindowCompanionView } from '../src/client/window-companion-view.js';
+import { WINDOW_COMPANION_CSS } from '../src/client/window-companion-styles.js';
 import { zhTranslate } from '../src/client/locale.js';
 import { CompanionSound } from '../src/client/companion-sound.js';
 import { companionPosition } from './companion-position.js';
@@ -1261,6 +1262,84 @@ it('keeps two speaking companions from overlapping and moves their condition ont
     owners.forEach((owner) => owner.dispose());
     expect(frames.size).toBe(0);
     measurement.mockRestore();
+    vi.unstubAllGlobals();
+  }
+});
+
+it('draws the companion bubble and controls from design-system styles by role and name', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  vi.stubGlobal('requestAnimationFrame', () => 1);
+  vi.stubGlobal('cancelAnimationFrame', () => {});
+  const events = new EventTarget();
+  const companion = new WindowCompanion({
+    context: async () => ({ profileId: 'qa' }),
+    source: () => ({ addEventListener: events.addEventListener.bind(events), close() {} }),
+  });
+  const send = (type: string, value: unknown) =>
+    events.dispatchEvent(new MessageEvent(type, { data: JSON.stringify(value) }));
+  await companion.start();
+  companion.select('ada');
+  send('companion/baseline', {
+    profileId: 'qa',
+    bot: { slug: 'ada', name: 'Ada', paused: false },
+    activity: { generation: 'host', revision: 0, bots: [] },
+  });
+  const node = document.createElement('div');
+  document.body.append(node);
+  const root = createRoot(node);
+  const named = (selector: string, name: string) =>
+    [...node.querySelectorAll<HTMLElement>(selector)].find(
+      (item) => item.getAttribute('aria-label') === name,
+    );
+  try {
+    await act(() =>
+      root.render(
+        createElement(WindowCompanionView, {
+          companion,
+          openDm() {},
+          openAttention() {},
+          openChannel() {},
+          t: zhTranslate,
+        }),
+      ),
+    );
+    await act(() => {
+      send('companion/message', {
+        generation: 'host',
+        botId: 'ada',
+        channelId: 'dm',
+        channelName: 'Ada',
+        messageId: 'hello',
+        body: 'Hello there.',
+        source: 'own-dm',
+      });
+      companion.advance(350);
+    });
+    expect(named('section', zhTranslate('companion.label', { name: 'Ada' }))?.className).toMatch(
+      /^bh-companion bhx/,
+    );
+    const bubble = named('article', zhTranslate('companion.messages'))!;
+    expect(bubble.className).toMatch(/^bh-companion-bubble bhx/);
+    expect(named('button', zhTranslate('companion.dismiss'))?.className).toMatch(/^bhx/);
+    expect(bubble.querySelector('header')?.className).toMatch(/^bhx/);
+    for (const name of [
+      zhTranslate('companion.openDm'),
+      zhTranslate('companion.pause'),
+      zhTranslate('companion.more'),
+    ])
+      expect(named('button', name)?.className, name).toMatch(/^bhx/);
+    expect(named('button', zhTranslate('companion.openDm'))?.closest('div')?.className).toMatch(
+      /^bh-companion-toolbar bhx/,
+    );
+    expect(named('button', zhTranslate('companion.drag', { name: 'Ada' }))?.className).toMatch(
+      /^bh-companion-character bhx/,
+    );
+    expect(WINDOW_COMPANION_CSS).not.toContain('--bh-companion-surface');
+    expect(WINDOW_COMPANION_CSS).not.toMatch(/#[0-9a-f]{3,8}\b|rgba?\(/i);
+  } finally {
+    await act(() => root.unmount());
+    companion.dispose();
+    node.remove();
     vi.unstubAllGlobals();
   }
 });

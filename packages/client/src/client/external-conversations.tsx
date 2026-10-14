@@ -347,7 +347,9 @@ export function ExternalConversations({
           {t(
             identity.platform === 'qq'
               ? 'identity.qqConversationsEmpty'
-              : 'identity.conversationsEmpty',
+              : identity.platform === 'discord'
+                ? 'identity.discordConversationsEmpty'
+                : 'identity.conversationsEmpty',
           )}
         </p>
         {history}

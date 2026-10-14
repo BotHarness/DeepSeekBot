@@ -40,6 +40,7 @@ import { LocalComputerStatus } from './local-computer.js';
 import { useMountedResource } from './mounted-resource.js';
 
 import { AccessPowerIcon } from './access-power-icon.js';
+import { STYLEX_CSS } from '../../../client/src/client/ds/stylex-css.js';
 
 const ACCESS_STYLE = `
 .bh-computer-access-control { position: relative; display: flex; align-items: center; }
@@ -860,7 +861,7 @@ export function apply(ctx: ClientContext): void {
     style.setAttribute('data-botharness-computer', 'client');
     style.dataset.plugin = '@botharness/computer';
     style.dataset.pluginCss = '@botharness/computer/client.css';
-    style.textContent = ACCESS_STYLE;
+    style.textContent = ACCESS_STYLE + STYLEX_CSS;
     document.head.appendChild(style);
     return () => {
       style.remove();

@@ -6,6 +6,8 @@ Issues: [#1606](https://github.com/BotHarness/DeepSeekBot/issues/1606), [#1571](
 
 # Approved secret MCP servers can be remembered
 
+> Amended by [ADR-0198](0198-a-remembered-secret-mcp-server-serves-every-personabot.md): a remembered server is available to every PersonaBot in the Profile, not only the one that asked.
+
 ADR-0195 let a Bot start an MCP server with Owner secrets after an approval for each start, and kept nothing: after a Host restart the Bot had to ask again and the Human had to approve again. There was also no place to see which servers a Bot uses. ADR-0195 left both for a later decision.
 
 ## Decision

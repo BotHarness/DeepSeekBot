@@ -46,14 +46,14 @@ try {
   );
   await page.waitForFunction(
     () =>
-      Array.from(document.querySelectorAll('.bh-channel-sidebar-entry-head')).some((button) =>
+      Array.from(document.querySelectorAll('[data-panel-head]')).some((button) =>
         /Sessions|会话/.test(button.textContent ?? ''),
       ),
     { timeout: 20000 },
   );
   await page.evaluate(() => {
-    const button = Array.from(document.querySelectorAll('.bh-channel-sidebar-entry-head')).find(
-      (candidate) => /Sessions|会话/.test(candidate.textContent ?? ''),
+    const button = Array.from(document.querySelectorAll('[data-panel-head]')).find((candidate) =>
+      /Sessions|会话/.test(candidate.textContent ?? ''),
     );
     if (button?.getAttribute('aria-expanded') !== 'true') button?.click();
   });
@@ -85,14 +85,11 @@ try {
   };
   await chooseOption('All');
   await chooseOption('By workspace');
-  await page.waitForFunction(
-    () => document.querySelectorAll('.bh-session-workspace-heading').length >= 2,
-    {
-      timeout: 10000,
-    },
-  );
+  await page.waitForFunction(() => document.querySelectorAll('[data-group-heading]').length >= 2, {
+    timeout: 10000,
+  });
   await page.evaluate(() => {
-    for (const heading of document.querySelectorAll('.bh-session-workspace-heading')) {
+    for (const heading of document.querySelectorAll('[data-group-heading]')) {
       if (heading.getAttribute('aria-expanded') !== 'true') heading.click();
     }
   });
@@ -101,7 +98,7 @@ try {
   });
   console.log(
     'GROUPS',
-    await page.$$eval('.bh-session-workspace-heading', (nodes) =>
+    await page.$$eval('[data-group-heading]', (nodes) =>
       nodes.map((node) => ({
         name: node.textContent?.trim(),
         expanded: node.getAttribute('aria-expanded'),
@@ -118,7 +115,7 @@ try {
   await page.screenshot({ path: resolve(shots, 'grouped-dark.png'), fullPage: true });
   await page.evaluate(() => document.body.removeAttribute('data-ds-dark-theme'));
 
-  const heading = await page.$$('.bh-session-workspace-heading');
+  const heading = await page.$$('[data-group-heading]');
   if (heading.length < 2) throw new Error('Expected Memory and Assignment workspaces');
   await heading[1].click();
   await page.waitForFunction(() => document.querySelectorAll('.bh-session-row').length === 1, {
@@ -143,22 +140,22 @@ try {
   );
   await page.waitForFunction(
     () =>
-      Array.from(document.querySelectorAll('.bh-channel-sidebar-entry-head')).some((button) =>
+      Array.from(document.querySelectorAll('[data-panel-head]')).some((button) =>
         /Sessions|会话/.test(button.textContent ?? ''),
       ),
     { timeout: 20000 },
   );
   await page.evaluate(() => {
-    const button = Array.from(document.querySelectorAll('.bh-channel-sidebar-entry-head')).find(
-      (candidate) => /Sessions|会话/.test(candidate.textContent ?? ''),
+    const button = Array.from(document.querySelectorAll('[data-panel-head]')).find((candidate) =>
+      /Sessions|会话/.test(candidate.textContent ?? ''),
     );
     if (button?.getAttribute('aria-expanded') !== 'true') button?.click();
   });
   await page.waitForSelector('button[aria-label="Session view options"]', { timeout: 20000 });
   const restoredChoices = await readSelectedOptions();
   const restored = await page.evaluate(() => ({
-    collapsed: Array.from(document.querySelectorAll('.bh-session-workspace-heading')).map(
-      (heading) => heading.getAttribute('aria-expanded'),
+    collapsed: Array.from(document.querySelectorAll('[data-group-heading]')).map((heading) =>
+      heading.getAttribute('aria-expanded'),
     ),
     rows: document.querySelectorAll('.bh-session-row').length,
   }));
@@ -215,14 +212,14 @@ try {
   );
   await page.waitForFunction(
     () =>
-      Array.from(document.querySelectorAll('.bh-channel-sidebar-entry-head')).some((button) =>
+      Array.from(document.querySelectorAll('[data-panel-head]')).some((button) =>
         /Sessions|会话/.test(button.textContent ?? ''),
       ),
     { timeout: 20000 },
   );
   await page.evaluate(() => {
-    const button = Array.from(document.querySelectorAll('.bh-channel-sidebar-entry-head')).find(
-      (candidate) => /Sessions|会话/.test(candidate.textContent ?? ''),
+    const button = Array.from(document.querySelectorAll('[data-panel-head]')).find((candidate) =>
+      /Sessions|会话/.test(candidate.textContent ?? ''),
     );
     if (button?.getAttribute('aria-expanded') !== 'true') button?.click();
   });
@@ -240,14 +237,14 @@ try {
   );
   await page.waitForFunction(
     () =>
-      Array.from(document.querySelectorAll('.bh-channel-sidebar-entry-head')).some((button) =>
+      Array.from(document.querySelectorAll('[data-panel-head]')).some((button) =>
         /Sessions|会话/.test(button.textContent ?? ''),
       ),
     { timeout: 20000 },
   );
   await page.evaluate(() => {
-    const button = Array.from(document.querySelectorAll('.bh-channel-sidebar-entry-head')).find(
-      (candidate) => /Sessions|会话/.test(candidate.textContent ?? ''),
+    const button = Array.from(document.querySelectorAll('[data-panel-head]')).find((candidate) =>
+      /Sessions|会话/.test(candidate.textContent ?? ''),
     );
     if (button?.getAttribute('aria-expanded') !== 'true') button?.click();
   });

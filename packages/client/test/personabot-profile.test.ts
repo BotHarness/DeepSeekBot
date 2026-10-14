@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, createElement, type PropsWithChildren } from 'react';
+import { act, createElement, type InputHTMLAttributes, type PropsWithChildren } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -13,8 +13,14 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
       children,
       onClick,
       disabled,
-    }: PropsWithChildren<{ onClick?: () => void; disabled?: boolean }>) =>
-      createElement('button', { type: 'button', onClick, disabled }, children),
+      type = 'button',
+      form,
+    }: PropsWithChildren<{
+      onClick?: () => void;
+      disabled?: boolean;
+      type?: 'button' | 'submit';
+      form?: string;
+    }>) => createElement('button', { type, form, onClick, disabled }, children),
     HoverCard: stub,
     IconAgentPresetOutlineRegular: stub,
     IconCheckOutlineRegular: stub,
@@ -41,7 +47,8 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
     IconTrashOutlineRegular: stub,
     FileTypeIcon: stub,
     ImageLightbox: stub,
-    Input: stub,
+    Input: ({ className: _className, ...props }: InputHTMLAttributes<HTMLInputElement>) =>
+      createElement('input', props),
     MarkdownText: stub,
     Menu: stub,
     MenuItemButton: stub,
@@ -76,6 +83,7 @@ import { createProfileCardRegistry } from '../src/client/profile-cards.js';
 import { ProfilePopover } from '../src/client/personabot-profile.js';
 import { store } from '../src/client/store.js';
 import { inertSubmissionActions } from './inert-submissions.js';
+import { fieldNamed } from './primitive-mocks.js';
 
 function sidebarRegistry() {
   const registry = createChannelSidebarRegistry();
@@ -295,7 +303,7 @@ describe('PersonaBot Profile surface', () => {
         )!;
       await act(async () => headerButton('编辑资料').click());
       const editor = container.querySelector('[role="dialog"][aria-label="编辑资料"]')!;
-      const input = editor.querySelector<HTMLInputElement>('.bh-name-input')!;
+      const input = fieldNamed('名称', editor);
       expect(input.value).toBe('Ada');
       const saveButton = () =>
         [...editor.querySelectorAll<HTMLButtonElement>('button')].find(
@@ -303,12 +311,16 @@ describe('PersonaBot Profile surface', () => {
         )!;
       await act(async () => setNativeValue(input, '  '));
       expect(saveButton().disabled).toBe(true);
-      const bio = editor.querySelector<HTMLTextAreaElement>('.bh-profile-bio-input')!;
+      const bioLabel = [...editor.querySelectorAll('label')].find(
+        (label) => label.textContent === '简介',
+      )!;
+      const bio = document.getElementById(bioLabel.htmlFor) as HTMLTextAreaElement;
       expect(bio.value).toBe('与你一起发布研究。');
       await act(async () => setNativeValue(bio, 'x'.repeat(161)));
       await act(async () => setNativeValue(input, 'Bea'));
       expect(saveButton().disabled).toBe(true);
       expect(editor.textContent).toContain('161/160');
+      expect(bio.getAttribute('aria-invalid')).toBe('true');
       await act(async () => setNativeValue(bio, '帮你找资料'));
       await act(async () => saveButton().click());
       expect(renameChannel).toHaveBeenCalledWith('dm-ada', 'Bea');
@@ -348,7 +360,7 @@ describe('PersonaBot Profile surface', () => {
       expect(avatarMethods?.[1]?.textContent).toContain('使用中');
       await act(async () => click(container, '[data-avatar-remove]'));
       expect(setBotAvatar).toHaveBeenCalledWith('dm-ada', null);
-      expect(container.querySelector('.bh-profile-avatar-input')).not.toBeNull();
+      expect(avatarDialog?.querySelector('input[type="file"]')).not.toBeNull();
 
       const dialog = document.createElement('div');
       dialog.setAttribute('role', 'dialog');
@@ -421,7 +433,7 @@ describe('PersonaBot Profile surface', () => {
           }),
         );
       });
-      const island = container.querySelector('.bh-group-channel-name');
+      const island = container.querySelector('[data-group-channel-name]');
       expect(island?.tagName).toBe('BUTTON');
       expect(island?.getAttribute('aria-label')).toBe('打开 设计组 的群聊 Profile');
       expect(island?.getAttribute('aria-haspopup')).toBe('dialog');

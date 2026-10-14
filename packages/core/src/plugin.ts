@@ -132,11 +132,13 @@ import {
   type HumanAttentionDecisions,
 } from './runtime/human-attention.js';
 import {
+  deviceToolAuthorization,
   grantExecutionDenial,
   grantToolExecutionDenial,
   orchestratorPermission,
   isSafeMemoryDirectoryListing,
   requiresHumanToolApproval,
+  sessionHasFullAccess,
 } from './workspaces/grant-execution.js';
 import { ChannelToolApproval } from './workspaces/tool-approval.js';
 import { ChannelUserQuestions } from './channels/user-questions.js';
@@ -1276,7 +1278,17 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           }
         | undefined;
       if (computerTools?.ownsTool?.(execution.name) === true) {
-        if (computerTools.needsAuthorization?.(agent.session.id) !== true) return next();
+        const computerAuthorization = deviceToolAuthorization(
+          computerTools,
+          agent.session.id,
+          sessionHasFullAccess(core, agent.session.id),
+        );
+        if (computerAuthorization === 'authorized') return next();
+        if (computerAuthorization === 'changed')
+          return {
+            kind: 'deny',
+            reason: 'Computer Target changed while awaiting Human approval; request a new action.',
+          };
         const authorizationScope = computerTools.authorizationScope?.();
         const computerApproval = ctx.get('approval') as ApprovalService | undefined;
         const untrackComputer = toolApproval.track(execution, 'web-only');
@@ -1324,7 +1336,18 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         const browserSignal = browserTools.executionSignal?.(agent.session.id);
         if (browserTools.executionSignal !== undefined && browserSignal === undefined)
           return { kind: 'deny', reason: 'Browser Access is off for this PersonaBot' };
-        if (browserTools.needsAuthorization?.(agent.session.id) !== true) return next();
+        const browserAuthorization = deviceToolAuthorization(
+          browserTools,
+          agent.session.id,
+          sessionHasFullAccess(core, agent.session.id),
+        );
+        if (browserAuthorization === 'authorized') return next();
+        if (browserAuthorization === 'changed')
+          return {
+            kind: 'deny',
+            reason:
+              'Browser authority changed while awaiting Human approval; request a new action.',
+          };
         const browserAuthorizationScope = browserTools.authorizationScope?.(agent.session.id);
         const browserApproval = ctx.get('approval') as ApprovalService | undefined;
         const untrackBrowser = toolApproval.track(execution, 'web-only');
@@ -1371,18 +1394,9 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           reason: 'BotHarness Session cannot request sandbox permission escalation',
         };
       }
-      const owner = core.ownership.resolve(agent.session.id);
-      const snapshot =
-        owner?.rootRole === 'assignment'
-          ? core.runtime.getAssignment(owner.botSlug, owner.sessionId)?.permission
-          : undefined;
       const eachUse = execution.name === 'secret_cli' || execution.name === 'secret_mcp_connect';
-      const fullAccess =
-        snapshot?.mode === 'danger-full-access' ||
-        (owner?.rootRole === 'orchestrator' &&
-          owner.provenance !== 'subagent' &&
-          orchestratorPermission(core, owner.botSlug).mode === 'danger-full-access');
-      if (fullAccess && !eachUse) return next();
+      const fullAccess = sessionHasFullAccess(core, agent.session.id);
+      if (fullAccess) return next();
       const approval = ctx.get('approval') as ApprovalService | undefined;
       const untrack = toolApproval.track(
         execution,

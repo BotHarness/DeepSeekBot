@@ -3,19 +3,58 @@ import { act, createElement, type PropsWithChildren } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
+  const { dialogPrimitives } = await import('./primitive-mocks.js');
+  const { createElement: element } = await import('react');
   const stub = () => null;
-  const Tag = ({ children }: PropsWithChildren) => createElement('span', null, children);
+  const Tag = ({ children }: PropsWithChildren) => element('span', null, children);
   return {
-    Button: ({ children, onClick }: PropsWithChildren<{ onClick?(): void }>) =>
-      createElement('button', { type: 'button', onClick }, children),
-    Input: stub,
+    ...dialogPrimitives(),
     Tag,
     Tooltip: ({ children }: PropsWithChildren) => children,
-    Switch: ({ checked, label }: { checked: boolean; label: string }) =>
-      createElement('input', { type: 'checkbox', checked, readOnly: true, 'aria-label': label }),
-    SegmentedControl: stub,
-    Modal: ({ children }: PropsWithChildren) => createElement('div', { role: 'dialog' }, children),
+    Switch: ({
+      checked,
+      label,
+      onChange,
+    }: {
+      checked: boolean;
+      label: string;
+      onChange?(next: boolean): void;
+    }) =>
+      element('input', {
+        type: 'checkbox',
+        checked,
+        'aria-label': label,
+        onChange: (event: { target: HTMLInputElement }) => onChange?.(event.target.checked),
+      }),
+    SegmentedControl: ({
+      label,
+      value,
+      options,
+      onChange,
+    }: {
+      label: string;
+      value: string;
+      options: { value: string; label: string }[];
+      onChange(next: string): void;
+    }) =>
+      element(
+        'div',
+        { role: 'tablist', 'aria-label': label },
+        ...options.map((option) =>
+          element(
+            'button',
+            {
+              key: option.value,
+              type: 'button',
+              role: 'tab',
+              'aria-selected': option.value === value,
+              onClick: () => onChange(option.value),
+            },
+            option.label,
+          ),
+        ),
+      ),
     IconPlusOutlineRegular: stub,
     IconCloseOutlineRegular: stub,
   };
@@ -33,6 +72,7 @@ import {
   scheduleFormOf,
   scheduleTriggerOf,
 } from '../src/client/schedules-entry.js';
+import { buttonNamed, dialog, fieldNamed, typeInto } from './primitive-mocks.js';
 
 const schedule: BotScheduleView = {
   id: 'sch-1',
@@ -204,11 +244,11 @@ describe('Bot Schedules sidebar entry', () => {
     expect(text).toContain('已处理');
     expect(host.querySelector('[aria-label="由你创建"]')).not.toBeNull();
     expect(host.querySelector('[aria-label="启用「每日早报」"]')).not.toBeNull();
-    const lock = host.querySelector<HTMLButtonElement>('button.bh-schedule-lock-toggle');
+    const lock = host.querySelector<HTMLButtonElement>('button[data-schedule-lock]');
     expect(lock?.getAttribute('aria-pressed')).toBe('false');
     await act(async () => lock?.click());
     expect(actions.updateBotSchedule).toHaveBeenCalledWith('ada', 'sch-1', { locked: true });
-    const runNow = host.querySelector<HTMLButtonElement>('button.bh-schedule-run-now');
+    const runNow = host.querySelector<HTMLButtonElement>('button[data-schedule-run-now]');
     expect(runNow?.getAttribute('aria-label')).toBe('立即运行「每日早报」');
     await act(async () => runNow?.click());
     expect(actions.runBotScheduleNow).toHaveBeenCalledWith('ada', 'sch-1');
@@ -269,5 +309,140 @@ describe('Bot Schedule dialog opened from the Bot Inbox', () => {
     const { host, done } = await render([]);
     expect(host.textContent).toContain('这个定时任务已被删除。');
     await done();
+  });
+});
+
+describe('Bot Schedule editor dialog', () => {
+  async function open(
+    scheduleId: string | undefined,
+    extra: Record<string, unknown> = {},
+  ): Promise<{
+    actions: Record<string, ReturnType<typeof vi.fn>>;
+    onClose: ReturnType<typeof vi.fn>;
+    done(): Promise<void>;
+  }> {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    const actions = {
+      botSchedules: vi.fn(async () => [schedule]),
+      botScheduleHistory: vi.fn(async () => []),
+      botSchedulePreview: vi.fn(async () => ['2026-10-06T09:00:00.000Z']),
+      createBotSchedule: vi.fn(async () => schedule),
+      updateBotSchedule: vi.fn(async () => schedule),
+      deleteBotSchedule: vi.fn(async () => undefined),
+      ...extra,
+    };
+    const onClose = vi.fn();
+    const host = document.createElement('div');
+    document.body.append(host);
+    const root = createRoot(host);
+    await act(async () => {
+      root.render(
+        createElement(ScheduleDialog, {
+          botSlug: 'ada',
+          scheduleId,
+          actions: actions as unknown as BridgeActions,
+          t: zhTranslate,
+          onClose,
+        }),
+      );
+    });
+    return {
+      actions,
+      onClose,
+      done: async () => {
+        await act(async () => root.unmount());
+        host.remove();
+      },
+    };
+  }
+
+  async function typeArea(label: string, value: string): Promise<void> {
+    const field = [...document.querySelectorAll('label')].find((l) => l.textContent === label);
+    const area = document.getElementById(field!.htmlFor) as HTMLTextAreaElement;
+    const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+    await act(async () => {
+      setter?.call(area, value);
+      area.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  }
+
+  it('creates a schedule only once the name, task and cadence are complete', async () => {
+    const { actions, onClose, done } = await open(undefined);
+    try {
+      expect(dialog().getAttribute('aria-label')).toBe('新建定时任务');
+      expect(buttonNamed('创建').disabled).toBe(true);
+      await typeInto(fieldNamed('名称'), '每日早报');
+      await typeArea('要 Bot 做什么', 'Summarise');
+      await act(async () => buttonNamed('每周').click());
+      await typeInto(fieldNamed('时区'), 'Asia/Shanghai');
+      expect(buttonNamed('周一').getAttribute('aria-pressed')).toBe('true');
+      await act(async () => buttonNamed('周一').click());
+      expect(buttonNamed('周一').getAttribute('aria-pressed')).toBe('false');
+      await act(async () =>
+        document.querySelector<HTMLInputElement>('[aria-label="锁定"]')!.click(),
+      );
+      await act(async () => dialog().querySelector('form')!.requestSubmit());
+      expect(actions.createBotSchedule).toHaveBeenCalledWith('ada', {
+        title: '每日早报',
+        prompt: 'Summarise',
+        trigger: {
+          kind: 'weekly',
+          time: '09:00',
+          timeZone: 'Asia/Shanghai',
+          weekdays: [2, 3, 4, 5],
+        },
+        locked: true,
+      });
+      expect(onClose).toHaveBeenCalledTimes(1);
+    } finally {
+      await done();
+    }
+  });
+
+  it('warns about short intervals and keeps the dialog open with the Host error', async () => {
+    const { actions, onClose, done } = await open(undefined, {
+      createBotSchedule: vi.fn(async () => {
+        throw new Error('Schedule limit reached');
+      }),
+    });
+    try {
+      await typeInto(fieldNamed('名称'), 'Ping');
+      await typeArea('要 Bot 做什么', 'Check');
+      await act(async () => buttonNamed('按分钟').click());
+      await typeInto(fieldNamed('每隔几分钟'), '5');
+      expect(document.querySelector('[role="note"]')?.textContent).toContain('15 分钟');
+      await act(async () => buttonNamed('创建').click());
+      expect(actions.createBotSchedule).toHaveBeenCalledTimes(1);
+      expect(dialog().querySelector('[role="alert"]')?.textContent).toBe('Schedule limit reached');
+      expect(onClose).not.toHaveBeenCalled();
+    } finally {
+      await done();
+    }
+  });
+
+  it('asks again before deleting an existing schedule', async () => {
+    const { actions, onClose, done } = await open('sch-1');
+    try {
+      expect(dialog().getAttribute('aria-label')).toBe('编辑定时任务');
+      expect(fieldNamed('名称').value).toBe('每日早报');
+      await act(async () => buttonNamed('删除').click());
+      expect(actions.deleteBotSchedule).not.toHaveBeenCalled();
+      await act(async () => buttonNamed('确认删除').click());
+      expect(actions.deleteBotSchedule).toHaveBeenCalledWith('ada', 'sch-1');
+      expect(onClose).toHaveBeenCalledTimes(1);
+    } finally {
+      await done();
+    }
+  });
+
+  it('closes the deleted-schedule notice from its footer', async () => {
+    const { onClose, done } = await open('sch-1', { botSchedules: vi.fn(async () => []) });
+    try {
+      expect(dialog().textContent).toContain('这个定时任务已被删除。');
+      await act(async () => dialog().querySelector('form')!.requestSubmit());
+      expect(onClose).toHaveBeenCalledTimes(1);
+    } finally {
+      await done();
+    }
   });
 });

@@ -131,6 +131,7 @@ type ToolRegistry = {
 
 interface Running {
   botSlug: string;
+  ownerSlug: string;
   account: string;
   secrets: string[];
   tools: string[];
@@ -170,6 +171,7 @@ export class SecretMcpServers {
     agent: Agent,
     plan: {
       botSlug: string;
+      ownerSlug: string;
       serverName: string;
       account: string;
       argv: readonly string[];
@@ -215,6 +217,7 @@ export class SecretMcpServers {
     const prefix = `mcp__${plan.serverName}__`;
     const running: Running = {
       botSlug: plan.botSlug,
+      ownerSlug: plan.ownerSlug,
       account: plan.account,
       secrets: [...secrets],
       tools: tools
@@ -253,11 +256,19 @@ export class SecretMcpServers {
     return names;
   }
 
-  async stopFor(botSlug: string, serverName?: string): Promise<number> {
+  async stopInstance(botSlug: string, serverName: string): Promise<number> {
+    const matches = [...this.#running.values()].flatMap((servers) =>
+      [...servers].filter(([name, running]) => running.botSlug === botSlug && name === serverName),
+    );
+    await Promise.allSettled(matches.map(([, running]) => running.stop()));
+    return matches.length;
+  }
+
+  async stopOwned(ownerSlug: string, serverName?: string): Promise<number> {
     const matches = [...this.#running.values()].flatMap((servers) =>
       [...servers].filter(
         ([name, running]) =>
-          running.botSlug === botSlug && (serverName === undefined || name === serverName),
+          running.ownerSlug === ownerSlug && (serverName === undefined || name === serverName),
       ),
     );
     await Promise.allSettled(matches.map(([, running]) => running.stop()));

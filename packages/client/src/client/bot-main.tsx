@@ -1,6 +1,6 @@
 import { OnboardingMemoryNavigation } from './onboarding-memory.js';
 import { OnboardingOverlay } from './onboarding-view.js';
-import { GroupChannelHeader } from './group-channel-header.js';
+import { ChannelMark, ConversationTitle, GroupChannelHeader } from './group-channel-header.js';
 import { MobileConversationHeader } from './mobile-conversation-header.js';
 import { CompanionPin } from './window-companions-view.js';
 import { useDmComposerContext } from './dm-composer-context.js';
@@ -1735,11 +1735,9 @@ function ConversationView({
                   ) : channelFacepile.length > 0 ? (
                     <PersonaBotFacepile items={channelFacepile} size={22} indicator={false} t={t} />
                   ) : (
-                    <span className="bh-channel-mark bh-channel-mark-sm" aria-hidden="true">
-                      #
-                    </span>
+                    <ChannelMark />
                   )}
-                  <span className="bh-title">{title}</span>
+                  <ConversationTitle>{title}</ConversationTitle>
                 </button>
                 {bot && companion ? (
                   <CompanionPin
@@ -1771,7 +1769,7 @@ function ConversationView({
                     size={22}
                     indicator={false}
                   />
-                  <span className="bh-title">{title}</span>
+                  <ConversationTitle>{title}</ConversationTitle>
                 </button>
                 {companion ? (
                   <CompanionPin

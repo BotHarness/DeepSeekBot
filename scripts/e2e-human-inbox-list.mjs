@@ -274,17 +274,15 @@ if (mode === 'row-actions') {
     await click('.bh-human-inbox-detail button', '查看 Bot 收件箱');
     await page.waitForFunction(() => !document.querySelector('.bh-human-inbox-detail'));
     await page.waitForFunction(() =>
-      [...document.querySelectorAll('.bh-channel-sidebar-entry')].some(
+      [...document.querySelectorAll('[data-sidebar-entry]')].some(
         (node) =>
-          node.querySelector('.bh-channel-sidebar-entry-label')?.textContent.includes('收件箱') &&
-          node.querySelector('.bh-channel-sidebar-entry-head')?.getAttribute('aria-expanded') ===
-            'true',
+          node.querySelector('[data-panel-label]')?.textContent.includes('收件箱') &&
+          node.querySelector('[data-panel-head]')?.getAttribute('aria-expanded') === 'true',
       ),
     );
     const inboxEntry = await page.evaluateHandle(() =>
-      [...document.querySelectorAll('.bh-channel-sidebar-entry')].find(
-        (node) =>
-          node.querySelector('.bh-channel-sidebar-entry-label')?.textContent === 'Bot 收件箱',
+      [...document.querySelectorAll('[data-sidebar-entry]')].find(
+        (node) => node.querySelector('[data-panel-label]')?.textContent === 'Bot 收件箱',
       ),
     );
     assert.ok(inboxEntry.asElement());
@@ -412,18 +410,18 @@ try {
   await page.click('.bh-human-inbox-row-open[aria-expanded="true"]');
   await page.click('.bh-human-inbox-row-actions button');
   assert.equal(await page.$('.bh-human-inbox-detail'), null);
-  await page.waitForSelector('.bh-folder-browser', { visible: true, timeout: 15000 });
+  await page.waitForSelector('[data-folder-browser]', { visible: true, timeout: 15000 });
   assert.equal(await page.$('.bh-human-inbox-detail'), null);
   assert.equal(await page.$('.bh-human-inbox-row-open[aria-expanded="true"]'), null);
   await shot('list-action-picker-light');
-  await click('.bh-folder-browser button', '取消');
-  await page.waitForFunction(() => !document.querySelector('.bh-folder-browser'));
+  await click('[role="dialog"]:has([data-folder-browser]) button', '取消');
+  await page.waitForFunction(() => !document.querySelector('[data-folder-browser]'));
   await page.click('.bh-human-inbox-row-actions button');
-  await page.waitForSelector('.bh-folder-browser', { visible: true, timeout: 15000 });
+  await page.waitForSelector('[data-folder-browser]', { visible: true, timeout: 15000 });
   await theme(true);
   await shot('list-action-picker-dark');
-  await click('.bh-folder-browser button', '取消');
-  await page.waitForFunction(() => !document.querySelector('.bh-folder-browser'));
+  await click('[role="dialog"]:has([data-folder-browser]) button', '取消');
+  await page.waitForFunction(() => !document.querySelector('[data-folder-browser]'));
   await theme(false);
   await shot('primary-action-details-light');
   assert.equal(await page.$('.bh-human-inbox-detail'), null);

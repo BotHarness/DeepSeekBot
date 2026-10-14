@@ -1604,7 +1604,7 @@ describe('first-run provisioning UX', () => {
       (error: unknown) => error,
     )) as BrowserProvisionError;
     expect(failure.code).toBe('startup-sandbox');
-    expect(failure.message).toMatch(/headless/);
+    expect(failure.message).not.toMatch(/headless/);
   });
 
   it('bounds a browser that never reports its endpoint', async () => {

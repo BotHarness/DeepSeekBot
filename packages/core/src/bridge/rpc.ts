@@ -359,6 +359,20 @@ export class BotharnessBridgeService extends TypertRemoteService {
       : { status: 'ready', accounts, replaceable, mcpServers };
   }
 
+  async privateMcpServerEnable(
+    slug: string,
+    serverName: string,
+    enabled: boolean,
+  ): Promise<{ accepted: boolean }> {
+    this.requirePrivateOwner();
+    return {
+      accepted:
+        typeof slug === 'string' && typeof serverName === 'string' && typeof enabled === 'boolean'
+          ? ((await this.privateInputs?.mcpServers?.setEnabled(slug, serverName, enabled)) ?? false)
+          : false,
+    };
+  }
+
   async privateMcpServerRemove(slug: string, serverName: string): Promise<{ removed: boolean }> {
     this.requirePrivateOwner();
     return {
@@ -1500,6 +1514,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'privateAccountRevoke',
   'privateAccounts',
   'privateMcpServerRemove',
+  'privateMcpServerEnable',
   'messagingDefaults',
   'messagingDefaultsSet',
   'channelBridges',

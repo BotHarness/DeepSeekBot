@@ -1,9 +1,7 @@
 import { useRef, useState, type ReactElement } from 'react';
 
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
-
+import { FormDialog } from './ds/form-dialog.js';
 import type { BotHarnessTranslate } from './locale.js';
-import { Modal } from './modal.js';
 import { useMountedResource } from './mounted-resource.js';
 
 const PREVIEW_SIZE = 280;
@@ -21,12 +19,20 @@ export function GroupAvatarCropModal({
   onSave: (avatar: string) => Promise<boolean>;
 }): ReactElement {
   const [source, setSource] = useState<string>();
-  const [dimensions, setDimensions] = useState<{ width: number; height: number }>();
+  const [dimensions, setDimensions] = useState<{
+    width: number;
+    height: number;
+  }>();
   const [zoom, setZoom] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
-  const drag = useRef<{ x: number; y: number; offsetX: number; offsetY: number }>();
+  const drag = useRef<{
+    x: number;
+    y: number;
+    offsetX: number;
+    offsetY: number;
+  }>();
   const sourceMount = useMountedResource<HTMLDivElement>(() => {
     setSource(undefined);
     setDimensions(undefined);
@@ -85,22 +91,15 @@ export function GroupAvatarCropModal({
     }
   };
   return (
-    <Modal
-      open
-      onClose={onClose}
-      closeLabel={t('common.close')}
+    <FormDialog
       title={t('group.avatarCrop.title')}
       description={t('group.avatarCrop.description')}
-      footer={
-        <>
-          <Button variant="outline" onClick={onClose}>
-            {t('common.cancel')}
-          </Button>
-          <Button variant="primary" disabled={!dimensions || busy} onClick={() => void save()}>
-            {t('group.avatarCrop.save')}
-          </Button>
-        </>
-      }
+      labels={{ close: t('common.close'), cancel: t('common.cancel') }}
+      submitLabel={t('group.avatarCrop.save')}
+      submitDisabled={!dimensions || busy}
+      error={error ? t('group.avatarCrop.error') : undefined}
+      onCancel={onClose}
+      onSubmit={() => void save()}
     >
       <div className="bh-group-avatar-crop" ref={sourceMount}>
         <div
@@ -178,12 +177,7 @@ export function GroupAvatarCropModal({
             setOffset({ x: clamp(offset.x, nextX), y: clamp(offset.y, nextY) });
           }}
         />
-        {error ? (
-          <div className="bh-error" role="alert">
-            {t('group.avatarCrop.error')}
-          </div>
-        ) : null}
       </div>
-    </Modal>
+    </FormDialog>
   );
 }

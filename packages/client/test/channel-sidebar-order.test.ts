@@ -92,7 +92,7 @@ function startDrag(id: string) {
 function hover(y: number) {
   act(() =>
     host
-      .querySelector('.bh-channel-sidebar-entries')!
+      .querySelector('[data-sidebar-entries]')!
       .dispatchEvent(new MouseEvent('dragover', { bubbles: true, cancelable: true, clientY: y })),
   );
 }
@@ -196,7 +196,7 @@ describe('Channel sidebar personal order editor', () => {
   it('retains hover preview when native dragleave bubbles from a moving child with no related target', () => {
     render();
     edit();
-    const surface = host.querySelector<HTMLElement>('.bh-channel-sidebar-entries')!;
+    const surface = host.querySelector<HTMLElement>('[data-sidebar-entries]')!;
     vi.spyOn(surface, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 320, 150));
     startDrag('memory');
     hover(100);
@@ -228,10 +228,10 @@ describe('Channel sidebar personal order editor', () => {
   });
   it('starts dragging from the whole row and omits expansion chevrons while editing', () => {
     render();
-    expect(host.querySelectorAll('.bh-channel-sidebar-entry-chevron')).toHaveLength(3);
+    expect(host.querySelectorAll('[data-panel-chevron]')).toHaveLength(3);
     expect(host.querySelector<HTMLElement>('[data-entry-id="memory"]')!.draggable).toBe(false);
     edit();
-    expect(host.querySelectorAll('.bh-channel-sidebar-entry-chevron')).toHaveLength(0);
+    expect(host.querySelectorAll('[data-panel-chevron]')).toHaveLength(0);
     const row = host.querySelector<HTMLElement>('[data-entry-id="memory"]')!;
     const pointer = (type: string, y: number, target: EventTarget) => {
       const event = new MouseEvent(type, {
@@ -251,7 +251,7 @@ describe('Channel sidebar personal order editor', () => {
     pointer('pointerup', 100, document);
     click('完成');
     expect(prefs.getSnapshot().entryOrders.personabot).toEqual(['sessions', 'inbox', 'memory']);
-    expect(host.querySelectorAll('.bh-channel-sidebar-entry-chevron')).toHaveLength(3);
+    expect(host.querySelectorAll('[data-panel-chevron]')).toHaveLength(3);
   });
   it('cancels an active drag when Escape is delivered outside its handle and releases the global listener on unmount', () => {
     render();
@@ -305,7 +305,7 @@ describe('Channel sidebar personal order editor', () => {
     expect(host.querySelector('[data-drop-indicator]')).toBeNull();
     act(() =>
       host
-        .querySelector('.bh-channel-sidebar-entries')!
+        .querySelector('[data-sidebar-entries]')!
         .dispatchEvent(new Event('drop', { bubbles: true, cancelable: true })),
     );
     expect(order()).toEqual(['memory', 'sessions', 'inbox']);
@@ -318,12 +318,12 @@ describe('Channel sidebar personal order editor', () => {
     hover(100);
     const leave = new Event('dragleave', { bubbles: true });
     Object.defineProperty(leave, 'relatedTarget', { value: document.body });
-    act(() => host.querySelector('.bh-channel-sidebar-entries')!.dispatchEvent(leave));
+    act(() => host.querySelector('[data-sidebar-entries]')!.dispatchEvent(leave));
     expect(order()).toEqual(['memory', 'sessions', 'inbox']);
     hover(100);
     act(() =>
       host
-        .querySelector('[data-entry-id="inbox"] .bh-channel-sidebar-entry-label')!
+        .querySelector('[data-entry-id="inbox"] [data-panel-label]')!
         .dispatchEvent(new Event('drop', { bubbles: true, cancelable: true })),
     );
     releaseDrag('memory');
@@ -341,7 +341,7 @@ describe('Channel sidebar personal order editor', () => {
     render();
     act(() =>
       host
-        .querySelector('.bh-channel-sidebar-entries')!
+        .querySelector('[data-sidebar-entries]')!
         .dispatchEvent(new Event('drop', { bubbles: true, cancelable: true })),
     );
     click('完成');
@@ -531,9 +531,7 @@ describe('Channel sidebar personal order editor', () => {
     click(action);
     expect(host.textContent).not.toContain('body-memory');
     expect(
-      host.querySelector<HTMLButtonElement>(
-        '[data-entry-id="memory"] .bh-channel-sidebar-entry-head',
-      )?.disabled,
+      host.querySelector<HTMLButtonElement>('[data-entry-id="memory"] [data-panel-head]')?.disabled,
     ).toBe(true);
   });
   it('discards interrupted drafts without leaking into another selection or a later mount', () => {

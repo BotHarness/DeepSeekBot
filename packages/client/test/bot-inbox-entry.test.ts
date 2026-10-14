@@ -129,7 +129,7 @@ describe('DM Bot Inbox sidebar entry', () => {
             }),
           ),
         );
-        expect(container.querySelector('.bh-inbox-group-head')?.textContent).toContain(
+        expect(container.querySelector('[data-inbox-group] > summary')?.textContent).toContain(
           type === 'dm' ? 'Ada Lovelace' : 'Team',
         );
         expect(container.textContent).toContain('待处理');
@@ -188,7 +188,7 @@ describe('DM Bot Inbox sidebar entry', () => {
     };
     try {
       await render();
-      const group = container.querySelector<HTMLDetailsElement>('.bh-inbox-group')!;
+      const group = container.querySelector<HTMLDetailsElement>('[data-inbox-group]')!;
       expect(group.open).toBe(false);
       await act(async () =>
         store.setBotInbox({
@@ -367,7 +367,7 @@ it('lists every source newest first by default with a compact author, time and s
         }),
       ),
     );
-    expect(container.querySelector('.bh-inbox-group:not(.bh-inbox-section)')).toBeNull();
+    expect(container.querySelector('[data-inbox-group]:not([data-section])')).toBeNull();
     const rows = [...container.querySelectorAll('.bh-card-row')];
     expect(rows.map((row) => row.querySelector('.bh-card-summary')?.textContent)).toEqual([
       'Newer pending note',
@@ -948,7 +948,9 @@ it('puts open items first, snoozed by return time next, and folds done items wit
       'Later item',
       'Done item',
     ]);
-    const sections = [...container.querySelectorAll<HTMLDetailsElement>('.bh-inbox-section')];
+    const sections = [
+      ...container.querySelectorAll<HTMLDetailsElement>('[data-inbox-group][data-section]'),
+    ];
     expect(sections.map((section) => [section.dataset['section'], section.open])).toEqual([
       ['snoozed', true],
       ['done', false],

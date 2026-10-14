@@ -86,9 +86,9 @@ const selectHistory = async (groupId) => {
 const openHistory = async (groupId) => {
   await sortMenu();
   await click('已结束会话的历史', '[role=menuitem]');
-  await page.waitForSelector('.bh-channel-history');
+  await page.waitForSelector('[data-channel-history]');
   await selectHistory(groupId);
-  await page.waitForSelector('.bh-channel-history-source');
+  await page.waitForSelector('[data-history-source]');
 };
 const prepareScene = async () => {
   for (const channel of (await rpc('channels')).channels) {
@@ -200,12 +200,12 @@ try {
     await shot('after-menu-dark');
     await click('已结束会话的历史', '[role=menuitem]');
     await selectHistory(group.id);
-    await page.waitForSelector('.bh-channel-history-source');
+    await page.waitForSelector('[data-history-source]');
     await theme(false);
     await shot('after-retained-light');
     await page.evaluate(
       (body) =>
-        [...document.querySelectorAll('.bh-channel-history-source')]
+        [...document.querySelectorAll('[data-history-source]')]
           .find((el) => el.textContent.includes(body))
           .querySelector('input')
           .click(),
@@ -246,21 +246,25 @@ try {
     await theme(true);
     await shot('after-complete-dark');
     const bounds = await page.evaluate(() => {
-      const dialog = document.querySelector('.bh-channel-history-dialog');
+      const dialog = document.querySelector('[role="dialog"]:has([data-channel-history])');
       const rect = dialog.getBoundingClientRect();
       return { width: rect.width, top: rect.top, bottom: rect.bottom, viewport: innerHeight };
     });
-    assert.equal(bounds.width, 760);
+    assert.equal(bounds.width, 560);
     assert.ok(bounds.top >= 24 && bounds.bottom <= bounds.viewport - 24);
     await page.setViewport({ width: 390, height: 620, deviceScaleFactor: 1 });
     await page.waitForFunction(
       () =>
-        document.querySelector('.bh-channel-history-dialog').getBoundingClientRect().width <=
+        document
+          .querySelector('[role="dialog"]:has([data-channel-history])')
+          .getBoundingClientRect().width <=
         innerWidth - 48,
     );
     await shot('after-compact-dark');
     await page.keyboard.press('Escape');
-    await page.waitForFunction(() => !document.querySelector('.bh-channel-history-dialog'));
+    await page.waitForFunction(
+      () => !document.querySelector('[role="dialog"]:has([data-channel-history])'),
+    );
     await page.setViewport({ width: 1440, height: 900, deviceScaleFactor: 1 });
     writeFileSync(sceneFile, JSON.stringify({ groupId: group.id, body, port }, null, 2));
     console.log(

@@ -150,7 +150,7 @@ describe('Bot main Sessions pane', () => {
       }),
     );
     const chip = container.querySelector('.bh-channel-island')!;
-    expect(chip.querySelector('.bh-title')?.textContent).toBe('Chip Bot');
+    expect(chip.querySelector('[data-conversation-title]')?.textContent).toBe('Chip Bot');
     expect(chip.querySelector('.bh-role-badges')).toBeNull();
     expect(chip.textContent).not.toContain('GEO');
     expect(chip.textContent).not.toContain('SEO');
@@ -288,7 +288,7 @@ describe('Bot main Sessions pane', () => {
     expect(markup).toContain('class="bh-channel-island"');
     expect(markup).toContain('aria-haspopup="dialog"');
     expect(markup).toContain('aria-label="打开 Ada 的 Profile"');
-    expect(markup).toContain('<span class="bh-title">Ada</span>');
+    expect(markup).toMatch(/<span data-conversation-title="" class="[^"]+">Ada<\/span>/);
     expect(markup).not.toContain('bh-channel-sidebar-title');
     expect(markup).toContain('class="bh-chat-top-fade"');
     expect(markup).not.toContain('研究发布状态');
@@ -304,7 +304,7 @@ describe('Bot main Sessions pane', () => {
         channelSidebar: sidebarRegistry(),
       }),
     );
-    expect(channelMarkup).toContain('<span class="bh-title">Ada</span>');
+    expect(channelMarkup).toMatch(/<span data-conversation-title="" class="[^"]+">Ada<\/span>/);
     expect(channelMarkup).not.toContain('bh-channel-sidebar-title');
     store.select(beforeChannelSelection.selection);
     store.setConversation(beforeChannelSelection.conversation);
@@ -341,10 +341,10 @@ describe('Bot main Sessions pane', () => {
     );
 
     expect(markup).toContain('class="bh-channel-island bh-group-channel-header"');
-    expect(markup).toContain('class="bh-group-channel-name"');
+    expect(markup).toContain('data-group-channel-name=""');
     expect(markup).toContain('aria-label="打开 设计组 的群聊 Profile"');
     expect(markup).toContain('aria-haspopup="dialog"');
-    expect(markup).toContain('<span class="bh-title">设计组</span>');
+    expect(markup).toMatch(/<span data-conversation-title="" class="[^"]+">设计组<\/span>/);
 
     store.setRoster(previous.bots, previous.channels);
     store.select(previous.selection);
@@ -897,7 +897,7 @@ describe('DM usage refresh', () => {
       await act(async () =>
         root.render(createElement(BotMain, { actions, channelSidebar: sidebarRegistry() })),
       );
-      const before = node.querySelector('.bh-composer-usage')!.textContent;
+      const before = node.querySelector('[data-composer-chip="usage"]')!.textContent;
       expect(before).toContain('0');
       await act(async () => {
         store.setConversation({
@@ -907,7 +907,7 @@ describe('DM usage refresh', () => {
         });
       });
       expect(profileActivity).toHaveBeenCalledTimes(2);
-      expect(node.querySelector('.bh-composer-usage')!.textContent).toBe(before);
+      expect(node.querySelector('[data-composer-chip="usage"]')!.textContent).toBe(before);
     } finally {
       await act(async () => root.unmount());
       node.remove();

@@ -288,7 +288,9 @@ try {
           panel: document
             .querySelector('button:has(.bh-panel-glyph)')
             ?.getAttribute('aria-current'),
-          headers: [...document.querySelectorAll('h1,h2,.bh-title')].map((n) => n.textContent),
+          headers: [...document.querySelectorAll('h1,h2,[data-conversation-title]')].map(
+            (n) => n.textContent,
+          ),
           inbox: !!document.querySelector('.bh-human-inbox-inner'),
           text: document.querySelector('.bh-main')?.textContent?.slice(0, 400),
         })),

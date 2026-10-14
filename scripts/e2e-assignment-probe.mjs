@@ -188,24 +188,26 @@ export async function captureAssignmentInbox({
     );
     await page.waitForSelector('.bh-profile-view');
     await page.evaluate(() => {
-      for (const e of document.querySelectorAll('.bh-channel-sidebar-entry-head'))
+      for (const e of document.querySelectorAll('[data-panel-head]'))
         if (
           /Bot Inbox|Bot 收件箱/.test(e.textContent ?? '') &&
           e.getAttribute('aria-expanded') !== 'true'
         )
           e.click();
     });
-    await page.waitForSelector('.bh-inbox-group');
+    await page.waitForSelector('[data-inbox-group]');
     await page.evaluate(() => {
       for (const e of document.querySelectorAll(
-        '.bh-inbox-group > summary,.bh-inbox-history > summary',
+        '[data-inbox-group] > summary,.bh-inbox-history > summary',
       ))
         if (!e.parentElement.open) e.click();
     });
     await page.waitForSelector('.bh-inbox-item');
     await page.evaluate((purpose) => {
-      for (const group of document.querySelectorAll('.bh-inbox-group')) {
-        const keep = group.querySelector('.bh-inbox-group-head')?.textContent.includes(purpose);
+      for (const group of document.querySelectorAll('[data-inbox-group]')) {
+        const keep = group
+          .querySelector('[data-inbox-group] > summary')
+          ?.textContent.includes(purpose);
         if (group.open !== keep) group.querySelector('summary').click();
       }
     }, purpose);

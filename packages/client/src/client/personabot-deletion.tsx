@@ -1,13 +1,76 @@
 import { useState, type ReactElement, type ReactNode } from 'react';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
+import * as stylex from '@stylexjs/stylex';
+import { Button, Checkbox } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { PersonaBotDeletionPreview } from '../../../core/src/bots/deletion.js';
 import type { BridgeActions } from './actions.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import type { HostFileOptions } from './host-file-actions.js';
+import { Callout } from './ds/callout.js';
+import { FormDialog } from './ds/form-dialog.js';
+import { Note } from './ds/note.js';
+import { color, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
-import { Modal } from './modal.js';
 import { useMountedResource } from './mounted-resource.js';
+
+const styles = stylex.create({
+  content: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x5,
+    minWidth: 0,
+  },
+  plain: { margin: 0 },
+  lead: {
+    margin: 0,
+    color: color.fg,
+    fontSize: text.titleSize,
+    lineHeight: text.titleLine,
+  },
+  notices: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x3,
+    minWidth: 0,
+  },
+  heading: {
+    margin: 0,
+    color: color.muted,
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+    fontWeight: text.strong,
+  },
+  noticeTitle: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: space.x3,
+    fontWeight: text.strong,
+  },
+  noticeIcon: { display: 'inline-flex', flexShrink: 0, color: color.muted },
+  danger: { color: color.danger },
+  noticeText: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x2,
+    minWidth: 0,
+    color: color.muted,
+  },
+  path: {
+    overflowWrap: 'anywhere',
+    fontFamily: 'var(--dsw-font-family-mono)',
+  },
+  actions: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: space.x2,
+  },
+  choice: {
+    color: color.fg,
+    fontSize: text.bodySize,
+    lineHeight: text.bodyLine,
+  },
+  retry: { alignSelf: 'flex-start' },
+});
 
 function DeletionNotice({
   icon,
@@ -21,15 +84,23 @@ function DeletionNotice({
   children: ReactNode;
 }): ReactElement {
   return (
-    <div className="bh-bot-deletion-notice" data-tone={tone}>
-      <span className="bh-bot-deletion-notice-icon" aria-hidden="true">
-        <ChannelSidebarIcon name={icon} size={16} />
-      </span>
-      <div className="bh-bot-deletion-notice-text">
-        <strong className="bh-bot-deletion-notice-title">{title}</strong>
-        {children}
-      </div>
-    </div>
+    <Callout
+      tone={tone ?? 'muted'}
+      borderless
+      title={
+        <span {...stylex.props(styles.noticeTitle)}>
+          <span
+            aria-hidden="true"
+            {...stylex.props(styles.noticeIcon, tone === 'danger' && styles.danger)}
+          >
+            <ChannelSidebarIcon name={icon} size={16} />
+          </span>
+          <strong>{title}</strong>
+        </span>
+      }
+    >
+      <div {...stylex.props(styles.noticeText)}>{children}</div>
+    </Callout>
   );
 }
 
@@ -81,20 +152,20 @@ export function PersonaBotDeletionView({
   };
   const state = preview?.deletion;
   const content = (
-    <div ref={mount} className="bh-bot-deletion">
+    <div ref={mount} {...stylex.props(styles.content)}>
       {preview === undefined ? (
-        <p>{t('deletion.loading')}</p>
+        <p {...stylex.props(styles.plain)}>{t('deletion.loading')}</p>
       ) : (
         <>
-          <p className="bh-bot-deletion-lead">
+          <p {...stylex.props(styles.lead)}>
             {state === undefined
               ? t('deletion.lead', { name: preview.displayName })
               : t('deletion.history')}
           </p>
-          <section className="bh-bot-deletion-notices" aria-label={t('deletion.notice')}>
+          <section aria-label={t('deletion.notice')} {...stylex.props(styles.notices)}>
             {state === undefined ? (
               <>
-                <h3 className="bh-bot-deletion-heading">{t('deletion.notice')}</h3>
+                <h3 {...stylex.props(styles.heading)}>{t('deletion.notice')}</h3>
                 <DeletionNotice icon="lock" tone="danger" title={t('deletion.secretsTitle')}>
                   {t('deletion.secretsBody')}
                 </DeletionNotice>
@@ -106,9 +177,11 @@ export function PersonaBotDeletionView({
                   })}
                 </DeletionNotice>
                 <DeletionNotice icon="messages-square" title={t('deletion.retainTitle')}>
-                  {t('deletion.retainBody', { channels: preview.dependencies.channels.length })}
+                  {t('deletion.retainBody', {
+                    channels: preview.dependencies.channels.length,
+                  })}
                   {preview.dependencies.workspaces.map((workspace) => (
-                    <span key={workspace} className="bh-bot-deletion-path">
+                    <span key={workspace} {...stylex.props(styles.path)}>
                       {workspace}
                     </span>
                   ))}
@@ -116,9 +189,10 @@ export function PersonaBotDeletionView({
               </>
             ) : null}
             <DeletionNotice icon="files" title={t('deletion.memoryTitle')}>
-              <span className="bh-bot-deletion-path">{preview.memoryDir}</span>
-              <span className="bh-bot-deletion-actions">
+              <span {...stylex.props(styles.path)}>{preview.memoryDir}</span>
+              <span {...stylex.props(styles.actions)}>
                 <Button
+                  type="button"
                   variant="ghost"
                   size="sm"
                   title={t('deletion.hostFolder')}
@@ -128,6 +202,7 @@ export function PersonaBotDeletionView({
                   {t('deletion.openFolder')}
                 </Button>
                 <Button
+                  type="button"
                   variant="ghost"
                   size="sm"
                   disabled={busy || state?.memory === 'erased'}
@@ -144,11 +219,16 @@ export function PersonaBotDeletionView({
                 {handlers?.applications.map((app) => (
                   <Button
                     key={app.id}
+                    type="button"
                     variant="ghost"
                     size="sm"
                     disabled={busy}
                     onClick={() =>
-                      void perform(() => actions.deletionFolderOpen(slug, { application: app.id }))
+                      void perform(() =>
+                        actions.deletionFolderOpen(slug, {
+                          application: app.id,
+                        }),
+                      )
                     }
                   >
                     {app.name}
@@ -157,15 +237,13 @@ export function PersonaBotDeletionView({
               </span>
               {state === undefined ? (
                 <>
-                  <label className="bh-bot-deletion-choice">
-                    <input
-                      type="checkbox"
-                      checked={erase}
-                      disabled={busy || !preview.eraseAvailable}
-                      onChange={(event) => setErase(event.target.checked)}
-                    />
-                    {t('deletion.eraseMemory')}
-                  </label>
+                  <Checkbox
+                    checked={erase}
+                    disabled={busy || !preview.eraseAvailable}
+                    label={t('deletion.eraseMemory')}
+                    className={stylex.props(styles.choice).className}
+                    onChange={setErase}
+                  />
                   {preview.refusal === undefined ? null : <span>{preview.refusal}</span>}
                   <span>{t(erase ? 'deletion.eraseScope' : 'deletion.retainScope')}</span>
                 </>
@@ -184,34 +262,29 @@ export function PersonaBotDeletionView({
           </section>
           {state === undefined ? null : (
             <>
-              {state.failure === undefined ? null : (
-                <p className="bh-modal-error" role="alert">
-                  {state.failure}
-                </p>
-              )}
+              {state.failure === undefined ? null : <Note tone="danger">{state.failure}</Note>}
               {state.phase !== 'complete' ? (
-                <Button
-                  variant="outline"
-                  disabled={busy}
-                  onClick={() =>
-                    void perform(async () => {
-                      await actions.deletionRetry(slug);
-                      setPreview(await actions.deletionPreview(slug));
-                    })
-                  }
-                >
-                  {t('deletion.retry')}
-                </Button>
+                <span {...stylex.props(styles.retry)}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={busy}
+                    onClick={() =>
+                      void perform(async () => {
+                        await actions.deletionRetry(slug);
+                        setPreview(await actions.deletionPreview(slug));
+                      })
+                    }
+                  >
+                    {t('deletion.retry')}
+                  </Button>
+                </span>
               ) : null}
             </>
           )}
         </>
       )}
-      {error === undefined ? null : (
-        <p className="bh-modal-error" role="alert">
-          {error}
-        </p>
-      )}
+      {history && error !== undefined ? <Note tone="danger">{error}</Note> : null}
     </div>
   );
   if (history)
@@ -221,41 +294,47 @@ export function PersonaBotDeletionView({
         {content}
       </section>
     );
+  const labels = { close: t('common.close'), cancel: t('common.cancel') };
+  const cancel = (): void => {
+    if (!busy) onClose();
+  };
+  if (state !== undefined)
+    return (
+      <FormDialog
+        title={t('deletion.title')}
+        size="small"
+        labels={labels}
+        submitLabel={t('common.close')}
+        showCancel={false}
+        busy={busy}
+        error={error}
+        onCancel={cancel}
+        onSubmit={onClose}
+      >
+        {content}
+      </FormDialog>
+    );
   return (
-    <Modal
-      open
-      onClose={() => {
-        if (!busy) onClose();
-      }}
+    <FormDialog
       title={t('deletion.title')}
-      closeLabel={t('common.cancel')}
-      className="bh-sidebar-modal bh-bot-deletion-modal"
-      footer={
-        <>
-          <Button variant="outline" disabled={busy} onClick={onClose}>
-            {t('common.cancel')}
-          </Button>
-          {state === undefined ? (
-            <Button
-              variant="primary"
-              className="bh-im-danger"
-              disabled={busy || preview === undefined || (erase && !preview.eraseAvailable)}
-              onClick={() =>
-                void perform(async () => {
-                  if (preview === undefined) return;
-                  await actions.deletionConfirm(slug, preview.token, erase);
-                  setErase(false);
-                  setPreview(await actions.deletionPreview(slug));
-                })
-              }
-            >
-              {t(erase ? 'deletion.confirmErase' : 'deletion.confirmRetain')}
-            </Button>
-          ) : null}
-        </>
+      size="small"
+      labels={labels}
+      submitLabel={t(erase ? 'deletion.confirmErase' : 'deletion.confirmRetain')}
+      submitDisabled={preview === undefined || (erase && !preview.eraseAvailable)}
+      busy={busy}
+      danger
+      error={error}
+      onCancel={cancel}
+      onSubmit={() =>
+        void perform(async () => {
+          if (preview === undefined) return;
+          await actions.deletionConfirm(slug, preview.token, erase);
+          setErase(false);
+          setPreview(await actions.deletionPreview(slug));
+        })
       }
     >
       {content}
-    </Modal>
+    </FormDialog>
   );
 }

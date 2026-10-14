@@ -1406,7 +1406,7 @@ window.__ModuleLoader__.load({
 			"entry.fail.startup-spawn-failed.action": "把浏览器目录加入杀毒软件白名单（或找机器管理员看权限），再点一次“打开”。",
 			"entry.fail.startup-sandbox.title": "浏览器因系统沙箱限制拒绝启动。",
 			"entry.fail.startup-sandbox.fault": "这是本机系统限制的问题。",
-			"entry.fail.startup-sandbox.action": "在浏览器插件配置中打开 headless 后，再点一次“打开”。",
+			"entry.fail.startup-sandbox.action": "Ubuntu 23.10 起通常是 AppArmor 限制了用户命名空间：按“详情”给这个浏览器加 AppArmor 配置后，再点一次“打开”。",
 			"entry.fail.startup-crashed.title": "浏览器在启动过程中退出了。",
 			"entry.fail.startup-crashed.fault": "这是本机浏览器的问题，不是页面问题。",
 			"entry.fail.startup-crashed.action": "再点一次“打开”重试；多次失败请把“详情”发给机器管理员。",
@@ -1530,7 +1530,7 @@ window.__ModuleLoader__.load({
 			"entry.fail.startup-spawn-failed.action": "Allow-list the browser folder in your antivirus (or ask the machine owner about permissions), then click Open again.",
 			"entry.fail.startup-sandbox.title": "The browser refused to start because of its OS sandbox.",
 			"entry.fail.startup-sandbox.fault": "This is about OS restrictions on this machine.",
-			"entry.fail.startup-sandbox.action": "Enable headless in the browser plugin configuration, then click Open again.",
+			"entry.fail.startup-sandbox.action": "On Ubuntu 23.10 and later this is usually AppArmor restricting user namespaces: add the AppArmor profile from Details for this browser, then click Open again.",
 			"entry.fail.startup-crashed.title": "The browser exited during startup.",
 			"entry.fail.startup-crashed.fault": "This is about the browser on this machine, not the page.",
 			"entry.fail.startup-crashed.action": "Click Open to retry; if it keeps failing, show Details to the machine owner.",
@@ -1864,48 +1864,298 @@ window.__ModuleLoader__.load({
 			});
 		}
 		//#endregion
+		//#region node_modules/.pnpm/@stylexjs+stylex@0.19.1/node_modules/@stylexjs/stylex/lib/es/stylex.mjs
+		var styleq = {};
+		var hasRequiredStyleq;
+		function requireStyleq() {
+			if (hasRequiredStyleq) return styleq;
+			hasRequiredStyleq = 1;
+			Object.defineProperty(styleq, "__esModule", { value: true });
+			styleq.styleq = void 0;
+			var cache = /* @__PURE__ */ new WeakMap();
+			var compiledKey = "$$css";
+			function createStyleq(options) {
+				var disableCache;
+				var disableMix;
+				var transform;
+				if (options != null) {
+					disableCache = options.disableCache === true;
+					disableMix = options.disableMix === true;
+					transform = options.transform;
+				}
+				return function styleq() {
+					var definedProperties = [];
+					var className = "";
+					var inlineStyle = null;
+					var debugString = "";
+					var nextCache = disableCache ? null : cache;
+					var styles = new Array(arguments.length);
+					for (var i = 0; i < arguments.length; i++) styles[i] = arguments[i];
+					while (styles.length > 0) {
+						var possibleStyle = styles.pop();
+						if (possibleStyle == null || possibleStyle === false) continue;
+						if (Array.isArray(possibleStyle)) {
+							for (var _i = 0; _i < possibleStyle.length; _i++) styles.push(possibleStyle[_i]);
+							continue;
+						}
+						var style = transform != null ? transform(possibleStyle) : possibleStyle;
+						if (style.$$css != null) {
+							var classNameChunk = "";
+							if (nextCache != null && nextCache.has(style)) {
+								var cacheEntry = nextCache.get(style);
+								if (cacheEntry != null) {
+									classNameChunk = cacheEntry[0];
+									debugString = cacheEntry[2];
+									definedProperties.push.apply(definedProperties, cacheEntry[1]);
+									nextCache = cacheEntry[3];
+								}
+							} else {
+								var definedPropertiesChunk = [];
+								for (var prop in style) {
+									var value = style[prop];
+									if (prop === compiledKey) {
+										var compiledKeyValue = style[prop];
+										if (compiledKeyValue !== true) debugString = debugString ? compiledKeyValue + "; " + debugString : compiledKeyValue;
+										continue;
+									}
+									if (typeof value === "string" || value === null) {
+										if (!definedProperties.includes(prop)) {
+											definedProperties.push(prop);
+											if (nextCache != null) definedPropertiesChunk.push(prop);
+											if (typeof value === "string") classNameChunk += classNameChunk ? " " + value : value;
+										}
+									} else console.error("styleq: ".concat(prop, " typeof ").concat(String(value), " is not \"string\" or \"null\"."));
+								}
+								if (nextCache != null) {
+									var weakMap = /* @__PURE__ */ new WeakMap();
+									nextCache.set(style, [
+										classNameChunk,
+										definedPropertiesChunk,
+										debugString,
+										weakMap
+									]);
+									nextCache = weakMap;
+								}
+							}
+							if (classNameChunk) className = className ? classNameChunk + " " + className : classNameChunk;
+						} else if (disableMix) {
+							if (inlineStyle == null) inlineStyle = {};
+							inlineStyle = Object.assign({}, style, inlineStyle);
+						} else {
+							var subStyle = null;
+							for (var _prop in style) {
+								var _value = style[_prop];
+								if (_value !== void 0) {
+									if (!definedProperties.includes(_prop)) {
+										if (_value != null) {
+											if (inlineStyle == null) inlineStyle = {};
+											if (subStyle == null) subStyle = {};
+											subStyle[_prop] = _value;
+										}
+										definedProperties.push(_prop);
+										nextCache = null;
+									}
+								}
+							}
+							if (subStyle != null) inlineStyle = Object.assign(subStyle, inlineStyle);
+						}
+					}
+					return [
+						className,
+						inlineStyle,
+						debugString
+					];
+				};
+			}
+			var styleq$1 = styleq.styleq = createStyleq();
+			styleq$1.factory = createStyleq;
+			return styleq;
+		}
+		var styleqExports = /*@__PURE__*/ requireStyleq();
+		function props(...styles) {
+			const [className, style, dataStyleSrc] = styleqExports.styleq(styles);
+			const result = {};
+			if (className != null && className !== "") result.className = className;
+			if (style != null && Object.keys(style).length > 0) result.style = style;
+			if (dataStyleSrc != null && dataStyleSrc !== "") result["data-style-src"] = dataStyleSrc;
+			return result;
+		}
+		Object.freeze({});
+		//#endregion
+		//#region packages/client/src/client/ds/note.tsx
+		const styles$1 = {
+			note: {
+				kogj98: "bhx1ghz6dp",
+				kGuDYH: "bhxgowt09",
+				kLWn49: "bhx12cu2lo",
+				kHjlTd: "bhxj0a0fe",
+				$$css: true
+			},
+			inset: {
+				k8WAf4: "bhx89kiln",
+				kg3NbH: "bhx1w8vjyx",
+				$$css: true
+			},
+			muted: {
+				kMwMTN: "bhxr3raxm",
+				$$css: true
+			},
+			subtle: {
+				kMwMTN: "bhxwq55zj",
+				$$css: true
+			},
+			danger: {
+				kMwMTN: "bhx8ay0r6",
+				$$css: true
+			},
+			success: {
+				kMwMTN: "bhx1pideu2",
+				$$css: true
+			},
+			warning: {
+				kMwMTN: "bhxz9v26x",
+				$$css: true
+			}
+		};
+		function Note({ tone = "muted", inset = false, children }) {
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+				role: tone === "danger" ? "alert" : "status",
+				...props(styles$1.note, inset && styles$1.inset, styles$1[tone]),
+				children
+			});
+		}
+		//#endregion
+		//#region packages/client/src/client/ds/pill-button.tsx
+		const pillStyles = { pill: {
+			k1xSpc: "bhx3nfvp2",
+			kGNEyG: "bhx6s0dn4",
+			kOIVth: "bhx12e6dxb",
+			ks0D6T: "bhx193iq5w",
+			kZKoxP: "bhxxevliy",
+			kg3NbH: "bhx1vid4s1",
+			kMzoRj: "bhxc342km",
+			kaIpWk: "bhx1jeu99u",
+			kWkggS: "bhxw43b1w bhx1lc0nsx",
+			kMwMTN: "bhx24dycr",
+			kMv6JI: "bhxjb2p0i",
+			kGuDYH: "bhx5g6txa",
+			kLWn49: "bhx3350y7",
+			khDVqt: "bhxuxw1ft",
+			kkrTdU: "bhx1ypdohk bhxtgyt42",
+			kSiTet: "bhx1hc1fzr bhxijokvz",
+			kI3sdo: "bhx1a2a7pz bhxsp7bej",
+			kInvED: "bhx1y3gkto",
+			$$css: true
+		} };
+		//#endregion
+		//#region packages/client/src/client/ds/select.tsx
+		function Select({ label, value, options, onChange, disabled = false, align = "end", autoFocus = false }) {
+			const [open, setOpen] = (0, react.useState)(false);
+			const current = options.find((option) => option.value === value);
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Menu, {
+				open: open && !disabled,
+				portal: true,
+				align,
+				items: options.map((option) => ({
+					id: option.value,
+					label: option.label
+				})),
+				selectedId: value,
+				onSelect: (id) => {
+					setOpen(false);
+					const next = options.find((option) => option.value === id);
+					if (next !== void 0 && next.value !== value) onChange(next.value);
+				},
+				onClose: () => {
+					setOpen(false);
+				},
+				anchor: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+					type: "button",
+					"aria-label": label,
+					"aria-haspopup": "menu",
+					"aria-expanded": open && !disabled,
+					disabled,
+					"data-modal-autofocus": autoFocus ? "" : void 0,
+					onClick: () => {
+						setOpen((previous) => !previous);
+					},
+					...props(pillStyles.pill),
+					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+						className: "bhxeuugli bhxb3r6kr bhxlyipyv bhxuxw1ft",
+						children: current?.label
+					}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+						className: "bhx3nfvp2 bhx2lah0s bhxr3raxm",
+						children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconChevronDownOutlineRegular, { size: 12 })
+					})]
+				})
+			});
+		}
+		//#endregion
+		//#region packages/client/src/client/ds/settings-row.tsx
+		function SettingsRows({ children, rootRef }) {
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+				ref: rootRef,
+				className: "bhx78zum5 bhxdt5ytf bhxeuugli",
+				children
+			});
+		}
+		function SettingsRow({ title, description, control, children, rootRef, data }) {
+			const id = (0, react.useId)();
+			const titleId = `${id}-title`;
+			const descriptionId = `${id}-description`;
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				ref: rootRef,
+				role: "group",
+				"aria-labelledby": titleId,
+				"aria-describedby": description === void 0 ? void 0 : descriptionId,
+				...data,
+				className: "bhx78zum5 bhx6s0dn4 bhx15bqsqq bhx1q0g3np bhx1uptv2i bhx1mckxr8 bhxv0lzym bhxeuugli bhxe74ayl bhx1co6499 bhx1q0q8m5 bhx1gzrhza bhx1bta2m4",
+				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+					className: "bhx78zum5 bhxdt5ytf bhx5v8n67 bhx1iyjqo2 bhxs83m0k bhx1r8uery bhxeuugli",
+					children: [
+						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+							id: titleId,
+							className: "bhx24dycr bhxskcadq bhx1gy5ux2 bhx1nj67n bhxj0a0fe",
+							children: title
+						}),
+						description === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+							id: descriptionId,
+							className: "bhxr3raxm bhxgowt09 bhx12cu2lo bhxj0a0fe",
+							children: description
+						}),
+						children
+					]
+				}), control === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+					className: "bhx78zum5 bhx1a02dak bhx6s0dn4 bhx13a6bvl bhx3xz8fp bhx2zm2ee bhx2lah0s bhxeuugli bhxh9uqaf bhx1cnm762",
+					children: control
+				})]
+			});
+		}
+		//#endregion
 		//#region packages/browser/src/client/settings.tsx
 		function ConfigChoice({ scope, field, value, writable, title, items }) {
-			const [open, setOpen] = (0, react.useState)(false);
 			const [saving, setSaving] = (0, react.useState)(false);
 			const [error, setError] = (0, react.useState)();
-			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: "bh-settings-row",
-				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-					className: "bh-settings-row-text",
-					children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-						className: "bh-settings-row-title",
-						children: title
-					})
-				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Menu, {
-					portal: true,
-					align: "end",
-					open,
-					selectedId: value,
-					items,
-					onClose: () => setOpen(false),
-					onSelect: (id) => {
-						setOpen(false);
-						if (!items.some((item) => item.id === id)) return;
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(SettingsRow, {
+				title,
+				control: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Select, {
+					label: title,
+					value,
+					options: items.map((item) => ({
+						value: item.id,
+						label: item.label
+					})),
+					disabled: !writable || saving,
+					onChange: (id) => {
 						setSaving(true);
 						setError(void 0);
 						scope.set(field, id).then(() => {
 							if (scope.getSnapshot().value?.[field] !== id) throw new Error("Browser setting was not saved");
 						}).catch((cause) => setError(String(cause))).finally(() => setSaving(false));
-					},
-					anchor: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
-						type: "button",
-						className: "bh-settings-selector",
-						"aria-haspopup": "menu",
-						"aria-expanded": open,
-						disabled: !writable || saving,
-						onClick: () => setOpen(!open),
-						children: [items.find((item) => item.id === value)?.label ?? value, /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconChevronDownOutlineRegular, {})]
-					})
-				})]
-			}), error === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-				role: "alert",
-				className: "bh-browser-error",
+					}
+				})
+			}), error === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Note, {
+				tone: "danger",
 				children: error
 			})] });
 		}
@@ -1916,36 +2166,33 @@ window.__ModuleLoader__.load({
 			}), [scope]);
 			const snapshot = (0, react.useSyncExternalStore)(store.subscribe, store.getSnapshot);
 			const target = snapshot.value?.target ?? "local";
-			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: "bh-settings-rows bh-browser-settings",
-				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(ConfigChoice, {
-					scope,
-					field: "target",
-					value: target,
-					writable: snapshot.writable,
-					title: t("settings.target"),
-					items: [
-						"local",
-						"container",
-						"extension",
-						"daily-control",
-						"profile-control"
-					].map((id) => ({
-						id,
-						label: t(`settings.${id}`)
-					}))
-				}), target !== "local" && target !== "container" ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ConfigChoice, {
-					scope,
-					field: target === "container" ? "containerDriver" : "localDriver",
-					value: (target === "container" ? snapshot.value?.containerDriver : snapshot.value?.localDriver) ?? "current",
-					writable: snapshot.writable,
-					title: t(target === "container" ? "settings.containerDriver" : "settings.localDriver"),
-					items: ["current", "agent-browser"].map((id) => ({
-						id,
-						label: t(`settings.driver.${id}`)
-					}))
-				})]
-			});
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(SettingsRows, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(ConfigChoice, {
+				scope,
+				field: "target",
+				value: target,
+				writable: snapshot.writable,
+				title: t("settings.target"),
+				items: [
+					"local",
+					"container",
+					"extension",
+					"daily-control",
+					"profile-control"
+				].map((id) => ({
+					id,
+					label: t(`settings.${id}`)
+				}))
+			}), target !== "local" && target !== "container" ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ConfigChoice, {
+				scope,
+				field: target === "container" ? "containerDriver" : "localDriver",
+				value: (target === "container" ? snapshot.value?.containerDriver : snapshot.value?.localDriver) ?? "current",
+				writable: snapshot.writable,
+				title: t(target === "container" ? "settings.containerDriver" : "settings.localDriver"),
+				items: ["current", "agent-browser"].map((id) => ({
+					id,
+					label: t(`settings.driver.${id}`)
+				}))
+			})] });
 		}
 		function registerBrowserSettings(ctx, t) {
 			ctx.inject(["configForms", "slots"], (settingsCtx) => {
@@ -2308,60 +2555,7 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region packages/browser/src/client/styles.ts
-		const styles = COMBOBOX_CSS + `
-.bh-browser-access-control { position: relative; display: flex; align-items: center; }
-.bh-browser-borrow { display: grid; gap: 8px; font-size: 12.5px; }
-.bh-browser-borrow-title, .bh-browser-daily-install { color: var(--bh-browser-label); text-underline-offset: 3px; }
-.bh-browser-borrow-url { overflow-wrap: anywhere; }
-.bh-browser-borrow-url { color: var(--bh-browser-secondary); }
-.bh-browser-access-power {
-  display: flex; align-items: center; justify-content: center; width: 28px; height: 28px;
-  padding: 0; border: 0; border-radius: var(--dsw-radius-md); background: transparent;
-  color: var(--dsw-alias-label-secondary); cursor: pointer;
-}
-.bh-browser-access-power:hover { background: var(--dsw-alias-interactive-bg-hover); }
-.bh-browser-access-power[aria-pressed='true'] { color: var(--dsw-alias-state-business-primary); background: var(--dsw-alias-interactive-bg-hover); }
-.bh-browser-access-power:focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary); outline-offset: 2px; }
-.bh-browser-access-power:disabled { opacity: 0.5; cursor: default; }
-.bh-browser-access-power.bh-access-failed { color: var(--dsw-alias-state-error-primary); }
-.bh-browser-access-error { order: -1; padding: 0 4px; color: var(--dsw-alias-state-error-primary); font-size: 11px; line-height: 16px; white-space: nowrap; }
-
-/* @bh-browser-aliases:start */
-.bh-browser-body, .bh-browser-profiles, .bh-browser-settings {
-  --bh-browser-error: var(--dsw-alias-state-error-primary);
-  --bh-browser-secondary: var(--dsw-alias-label-secondary);
-  --bh-browser-label: var(--dsw-alias-label-primary);
-  --bh-browser-hover: var(--dsw-alias-interactive-bg-hover);
-  --bh-browser-elevation: var(--dsw-elevation-prominent);
-  --bh-browser-stroke: var(--dsw-alias-border-l1);
-  --bh-browser-radius: var(--dsw-radius-md);
-}
-/* @bh-browser-aliases:end */
-.bh-browser-local { display: grid; gap: 8px; font-size: 12.5px; }
-.bh-browser-card-detail { display: grid; gap: 8px; justify-items: start; font-size: 12px; }
-.bh-browser-card-field { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; color: var(--bh-browser-secondary); }
-.bh-browser-card-field > span:first-child { flex: none; }
-.bh-browser-cards .bh-card-meta [role="status"] { color: inherit; }
-.bh-browser-note { color: var(--bh-browser-secondary); }
-.bh-browser-frame { display: block; width: 100%; border: 1px solid var(--bh-browser-stroke); border-radius: var(--bh-browser-radius); }
-.bh-browser-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.bh-browser-tab[aria-pressed="true"] { background: var(--bh-browser-hover); }
-.bh-browser-tab[aria-current="true"] .bh-browser-tab-title { font-weight: 600; }
-.bh-browser-tab .bh-browser-tab-url { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.bh-browser-tabs .bh-card-main { padding: 7px 10px; }
-.bh-browser-error { color: var(--bh-browser-error); overflow-wrap: anywhere; }
-.bh-viewer-btn-content { display: inline-flex; align-items: center; gap: 6px; }
-@media (max-width: 560px) {
-  [data-bh-viewer-btn-label] { display: none; }
-}
-.bh-browser-progress { display: grid; gap: 4px; color: var(--bh-browser-secondary); }
-.bh-browser-progress-bar { width: 100%; height: 6px; accent-color: var(--dsw-alias-state-business-primary); }
-.bh-browser-failure { display: grid; gap: 4px; overflow-wrap: anywhere; }
-.bh-browser-failure-title { color: var(--bh-browser-label); font-weight: 600; }
-.bh-browser-failure-fault, .bh-browser-failure-action { color: var(--bh-browser-secondary); }
-.bh-browser-failure-details { color: var(--bh-browser-secondary); }
-.bh-browser-failure-details pre { overflow-x: auto; white-space: pre-wrap; font-size: 11px; }
-`;
+		const styles = COMBOBOX_CSS + "\n.bh-browser-access-control { position: relative; display: flex; align-items: center; }\n.bh-browser-borrow { display: grid; gap: 8px; font-size: 12.5px; }\n.bh-browser-borrow-title, .bh-browser-daily-install { color: var(--bh-browser-label); text-underline-offset: 3px; }\n.bh-browser-borrow-url { overflow-wrap: anywhere; }\n.bh-browser-borrow-url { color: var(--bh-browser-secondary); }\n.bh-browser-access-power {\n  display: flex; align-items: center; justify-content: center; width: 28px; height: 28px;\n  padding: 0; border: 0; border-radius: var(--dsw-radius-md); background: transparent;\n  color: var(--dsw-alias-label-secondary); cursor: pointer;\n}\n.bh-browser-access-power:hover { background: var(--dsw-alias-interactive-bg-hover); }\n.bh-browser-access-power[aria-pressed='true'] { color: var(--dsw-alias-state-business-primary); background: var(--dsw-alias-interactive-bg-hover); }\n.bh-browser-access-power:focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary); outline-offset: 2px; }\n.bh-browser-access-power:disabled { opacity: 0.5; cursor: default; }\n.bh-browser-access-power.bh-access-failed { color: var(--dsw-alias-state-error-primary); }\n.bh-browser-access-error { order: -1; padding: 0 4px; color: var(--dsw-alias-state-error-primary); font-size: 11px; line-height: 16px; white-space: nowrap; }\n\n/* @bh-browser-aliases:start */\n.bh-browser-body, .bh-browser-profiles {\n  --bh-browser-error: var(--dsw-alias-state-error-primary);\n  --bh-browser-secondary: var(--dsw-alias-label-secondary);\n  --bh-browser-label: var(--dsw-alias-label-primary);\n  --bh-browser-hover: var(--dsw-alias-interactive-bg-hover);\n  --bh-browser-elevation: var(--dsw-elevation-prominent);\n  --bh-browser-stroke: var(--dsw-alias-border-l1);\n  --bh-browser-radius: var(--dsw-radius-md);\n}\n/* @bh-browser-aliases:end */\n.bh-browser-local { display: grid; gap: 8px; font-size: 12.5px; }\n.bh-browser-card-detail { display: grid; gap: 8px; justify-items: start; font-size: 12px; }\n.bh-browser-card-field { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; color: var(--bh-browser-secondary); }\n.bh-browser-card-field > span:first-child { flex: none; }\n.bh-browser-cards .bh-card-meta [role=\"status\"] { color: inherit; }\n.bh-browser-note { color: var(--bh-browser-secondary); }\n.bh-browser-frame { display: block; width: 100%; border: 1px solid var(--bh-browser-stroke); border-radius: var(--bh-browser-radius); }\n.bh-browser-actions { display: flex; flex-wrap: wrap; gap: 8px; }\n.bh-browser-tab[aria-pressed=\"true\"] { background: var(--bh-browser-hover); }\n.bh-browser-tab[aria-current=\"true\"] .bh-browser-tab-title { font-weight: 600; }\n.bh-browser-tab .bh-browser-tab-url { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }\n.bh-browser-tabs .bh-card-main { padding: 7px 10px; }\n.bh-browser-error { color: var(--bh-browser-error); overflow-wrap: anywhere; }\n.bh-viewer-btn-content { display: inline-flex; align-items: center; gap: 6px; }\n@media (max-width: 560px) {\n  [data-bh-viewer-btn-label] { display: none; }\n}\n.bh-browser-progress { display: grid; gap: 4px; color: var(--bh-browser-secondary); }\n.bh-browser-progress-bar { width: 100%; height: 6px; accent-color: var(--dsw-alias-state-business-primary); }\n.bh-browser-failure { display: grid; gap: 4px; overflow-wrap: anywhere; }\n.bh-browser-failure-title { color: var(--bh-browser-label); font-weight: 600; }\n.bh-browser-failure-fault, .bh-browser-failure-action { color: var(--bh-browser-secondary); }\n.bh-browser-failure-details { color: var(--bh-browser-secondary); }\n.bh-browser-failure-details pre { overflow-x: auto; white-space: pre-wrap; font-size: 11px; }\n\n.bhx-level-0{}\n.bhx-level-1:not(#\\#){}\n.bhx1ghz6dp:not(#\\#){margin:0}\n.bhx-level-2:not(#\\#):not(#\\#){}\n.bhx1jeu99u:not(#\\#):not(#\\#){border-radius:8px}\n.bhxc342km:not(#\\#):not(#\\#){border-width:0}\n.bhx1mckxr8:not(#\\#):not(#\\#){gap:12px}\n.bhx5v8n67:not(#\\#):not(#\\#){gap:2px}\n.bhx12e6dxb:not(#\\#):not(#\\#){gap:4px}\n.bhx2zm2ee:not(#\\#):not(#\\#){gap:8px}\n.bhx1a2a7pz:not(#\\#):not(#\\#){outline:none}\n.bhxb3r6kr:not(#\\#):not(#\\#){overflow:hidden}\n.bhxe74ayl:not(#\\#):not(#\\#){padding-block:12px}\n.bhx89kiln:not(#\\#):not(#\\#){padding-block:4px}\n.bhx1vid4s1:not(#\\#):not(#\\#){padding-inline:12px 8px}\n.bhx1w8vjyx:not(#\\#):not(#\\#){padding-inline:4px}\n.bhxsp7bej:focus-visible:not(#\\#):not(#\\#){outline:2px solid var(--dsw-alias-state-business-primary)}\n@media (max-width: 648px){.bhxv0lzym.bhxv0lzym:not(#\\#):not(#\\#){gap:8px}}\n.bhx-level-3:not(#\\#):not(#\\#):not(#\\#){}\n.bhx6s0dn4:not(#\\#):not(#\\#):not(#\\#){align-items:center}\n.bhxw43b1w:not(#\\#):not(#\\#):not(#\\#){background-color:var(--dsw-alias-bg-module-platform)}\n.bhx24dycr:not(#\\#):not(#\\#):not(#\\#){color:var(--dsw-alias-label-primary)}\n.bhxr3raxm:not(#\\#):not(#\\#):not(#\\#){color:var(--dsw-alias-label-secondary)}\n.bhxwq55zj:not(#\\#):not(#\\#):not(#\\#){color:var(--dsw-alias-label-tertiary)}\n.bhx8ay0r6:not(#\\#):not(#\\#):not(#\\#){color:var(--dsw-alias-state-error-primary)}\n.bhx1pideu2:not(#\\#):not(#\\#):not(#\\#){color:var(--dsw-alias-state-success-primary)}\n.bhxz9v26x:not(#\\#):not(#\\#):not(#\\#){color:var(--dsw-alias-state-warn-primary)}\n.bhx1ypdohk:not(#\\#):not(#\\#):not(#\\#){cursor:pointer}\n.bhx78zum5:not(#\\#):not(#\\#):not(#\\#){display:flex}\n.bhx3nfvp2:not(#\\#):not(#\\#):not(#\\#){display:inline-flex}\n.bhx1r8uery:not(#\\#):not(#\\#):not(#\\#){flex-basis:0}\n.bhxdt5ytf:not(#\\#):not(#\\#):not(#\\#){flex-direction:column}\n.bhx1q0g3np:not(#\\#):not(#\\#):not(#\\#){flex-direction:row}\n.bhx1iyjqo2:not(#\\#):not(#\\#):not(#\\#){flex-grow:1}\n.bhx2lah0s:not(#\\#):not(#\\#):not(#\\#){flex-shrink:0}\n.bhxs83m0k:not(#\\#):not(#\\#):not(#\\#){flex-shrink:1}\n.bhx1a02dak:not(#\\#):not(#\\#):not(#\\#){flex-wrap:wrap}\n.bhxjb2p0i:not(#\\#):not(#\\#):not(#\\#){font-family:inherit}\n.bhxgowt09:not(#\\#):not(#\\#):not(#\\#){font-size:12px}\n.bhx5g6txa:not(#\\#):not(#\\#):not(#\\#){font-size:13px}\n.bhxskcadq:not(#\\#):not(#\\#):not(#\\#){font-size:14px}\n.bhx1nj67n:not(#\\#):not(#\\#):not(#\\#){font-weight:500}\n.bhx13a6bvl:not(#\\#):not(#\\#):not(#\\#){justify-content:flex-end}\n.bhx12cu2lo:not(#\\#):not(#\\#):not(#\\#){line-height:16px}\n.bhx1gy5ux2:not(#\\#):not(#\\#):not(#\\#){line-height:20px}\n.bhx3350y7:not(#\\#):not(#\\#):not(#\\#){line-height:20px}\n.bhx1hc1fzr:not(#\\#):not(#\\#):not(#\\#){opacity:1}\n.bhx1y3gkto:not(#\\#):not(#\\#):not(#\\#){outline-offset:1px}\n.bhxj0a0fe:not(#\\#):not(#\\#):not(#\\#){overflow-wrap:anywhere}\n.bhxp4054r:not(#\\#):not(#\\#):not(#\\#){text-align:end}\n.bhxlyipyv:not(#\\#):not(#\\#):not(#\\#){text-overflow:ellipsis}\n.bhxuxw1ft:not(#\\#):not(#\\#):not(#\\#){white-space:nowrap}\n.bhxtgyt42:disabled:not(#\\#):not(#\\#):not(#\\#){cursor:default}\n.bhxijokvz:disabled:not(#\\#):not(#\\#):not(#\\#){opacity:.5}\n.bhx1lc0nsx:hover:not(#\\#):not(#\\#):not(#\\#){background-color:var(--dsw-alias-interactive-bg-hover)}\n@media (max-width: 648px){.bhx15bqsqq.bhx15bqsqq:not(#\\#):not(#\\#):not(#\\#){align-items:stretch}}\n@media (max-width: 648px){.bhx1uptv2i.bhx1uptv2i:not(#\\#):not(#\\#):not(#\\#){flex-direction:column}}\n@media (max-width: 648px){.bhx3xz8fp.bhx3xz8fp:not(#\\#):not(#\\#):not(#\\#){justify-content:flex-start}}\n.bhx-level-4:not(#\\#):not(#\\#):not(#\\#):not(#\\#){}\n.bhx1gzrhza:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-color:var(--dsw-alias-border-l2)}\n.bhx1q0q8m5:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-style:solid}\n.bhx1co6499:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-width:.5px}\n.bhxxevliy:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:28px}\n.bhx193iq5w:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:100%}\n.bhxh9uqaf:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:60%}\n.bhxeuugli:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-width:0}\n.bhx1e1oj2y:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-bottom:4px}\n.bhxb590mu:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-top:16px}\n.bhx10zg81t:first-child:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-top:0}\n.bhx1bta2m4:last-child:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-color:transparent}\n@media (max-width: 648px){.bhx1cnm762.bhx1cnm762:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:100%}}\n";
 		//#endregion
 		//#region packages/browser/src/client/access-power-icon.tsx
 		function AccessPowerIcon() {

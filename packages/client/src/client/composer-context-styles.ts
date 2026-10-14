@@ -1,6 +1,4 @@
 export const COMPOSER_CONTEXT_CSS = `
-.bh-group-grant-modal.bh-group-grant-modal {max-width:calc(100vw - 32px);max-height:calc(100dvh - 32px);}
-.bh-group-grant-content {min-height:0;overflow-y:auto;max-height:calc(100dvh - 32px);}
 .bh-group-grant-members {display:flex;flex-wrap:wrap;gap:8px;padding:0;border:0;min-width:0;}
 .bh-group-grant-members legend {padding:0;margin-bottom:8px;font-weight:500;}
 .bh-group-grant-members label {display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--dsw-alias-border-l2);border-radius:8px;overflow-wrap:anywhere;cursor:pointer;}
@@ -8,18 +6,6 @@ export const COMPOSER_CONTEXT_CSS = `
 .bh-group-grant-directory {overflow-wrap:anywhere;}
 .bh-group-grant-actions {display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;}
 .bh-group-grant-policy summary {cursor:pointer;color:var(--dsw-alias-label-secondary);}
-.bh-composer-context {display:flex;gap:8px;padding:6px 4px 0;align-items:center;justify-content:space-between;min-width:0;}
-.bh-composer-context[hidden] {display:none;}
-.bh-composer-context-left {display:flex;flex-wrap:wrap;gap:4px;min-width:0;flex:1;}
-.bh-composer-context-left button {min-width:0;flex:0 1 auto;}
-.bh-composer-context .bh-composer-usage {margin-inline-start:auto;flex-shrink:0;}
-.bh-composer-context button {display:inline-flex;align-items:center;gap:5px;}
-.bh-composer-context button svg {flex-shrink:0;}
-.bh-composer-context button span {overflow:hidden;text-overflow:ellipsis;}
-.bh-composer-context button {font:inherit;font-size:12px;line-height:20px;min-height:28px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:2px 8px;border:1px solid var(--dsw-alias-border-l2);border-radius:8px;background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer;}
-.bh-composer-context .bh-composer-model {white-space:normal;text-align:start;}
-.bh-composer-context .bh-composer-model span {min-width:0;overflow:visible;overflow-wrap:anywhere;text-overflow:clip;}
-.bh-composer-context button:hover,.bh-composer-context button:focus-visible {background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary);}
 .bh-composer-shortcuts {position:absolute;bottom:100%;left:0;right:0;z-index:4;display:flex;flex-direction:column;gap:2px;padding:6px;border:1px solid var(--dsw-alias-border-l2);border-radius:10px;background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary);}
 .bh-composer-shortcuts button {display:flex;justify-content:space-between;gap:8px;align-items:center;font:inherit;text-align:start;padding:8px;border:0;border-radius:6px;background:transparent;color:inherit;cursor:pointer;}
 .bh-composer-shortcuts button[data-active='true'],.bh-composer-shortcuts button:hover {background:var(--dsw-alias-interactive-bg-hover);}

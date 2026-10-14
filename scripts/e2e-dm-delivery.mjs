@@ -567,7 +567,7 @@ try {
     assert.equal(nextItems.length, 1);
     assert.equal(nextItems[0].id, items[0].id);
     memoryProof.nextTurnNotificationCount = nextItems.length;
-    const sidebar = await page.$$('.bh-channel-sidebar-entry-head');
+    const sidebar = await page.$$('[data-panel-head]');
     for (const header of sidebar) {
       if (/Bot Inbox|Bot 收件箱/.test(await header.evaluate((e) => e.textContent))) {
         await header.click();
@@ -579,7 +579,7 @@ try {
       {},
       memoryPath,
     );
-    await page.$$eval('.bh-inbox-group, .bh-inbox-history', (elements) => {
+    await page.$$eval('[data-inbox-group], .bh-inbox-history', (elements) => {
       for (const element of elements)
         if (!element.open) element.querySelector(':scope > summary')?.click();
     });

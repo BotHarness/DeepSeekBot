@@ -2,28 +2,10 @@ import { useState, type ReactElement, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { IconChevronDownOutlineRegular, Menu } from '@deepseek-ai/dsh-client-ui-primitives';
 
-import { color, radius, size, space, text } from './tokens.stylex.js';
+import { pillStyles } from './pill-button.js';
+import { color } from './tokens.stylex.js';
 
 const styles = stylex.create({
-  pill: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: space.x2,
-    maxWidth: '100%',
-    height: size.icon,
-    paddingInline: `${space.x4} ${space.x3}`,
-    borderWidth: 0,
-    borderRadius: radius.row,
-    backgroundColor: { default: color.surface, ':hover': color.hover },
-    color: color.fg,
-    fontFamily: 'inherit',
-    fontSize: text.bodySize,
-    lineHeight: text.bodyLine,
-    cursor: { default: 'pointer', ':disabled': 'default' },
-    opacity: { default: 1, ':disabled': 0.5 },
-    outline: { default: 'none', ':focus-visible': `2px solid ${color.accent}` },
-    outlineOffset: '1px',
-  },
   label: {
     minWidth: 0,
     overflow: 'hidden',
@@ -89,7 +71,7 @@ export function Select<Value extends string>({
           onClick={() => {
             setOpen((previous) => !previous);
           }}
-          {...stylex.props(styles.pill)}
+          {...stylex.props(pillStyles.pill)}
         >
           <span {...stylex.props(styles.label)}>{current?.label}</span>
           <span {...stylex.props(styles.chevron)}>

@@ -1,11 +1,7 @@
 import { useState, useSyncExternalStore, type ReactElement } from 'react';
 
-import {
-  IconChevronDownOutlineRegular,
-  Tag,
-  Tooltip,
-  type MenuEntry,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+import * as stylex from '@stylexjs/stylex';
+import { Tag, Tooltip, type MenuEntry } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { ChannelSidebarEntryProps } from './channel-sidebar.js';
 import { useClientState } from './bot-sidebar.js';
@@ -30,6 +26,26 @@ import { SidebarViewMenu } from './sidebar-view-menu.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { botNameSource, paintBotScale } from './bot-primary-color.js';
 import { useFlipList } from './flip-list.js';
+import { GroupHeading } from './ds/group-heading.js';
+import { IconButton } from './ds/icon-button.js';
+import { Note } from './ds/note.js';
+import { color, radius, space } from './ds/tokens.stylex.js';
+
+const styles = stylex.create({
+  groups: { display: 'flex', flexDirection: 'column', gap: space.x3 },
+  group: { marginBlock: space.x1 },
+  groupList: { marginTop: space.x1, marginBottom: space.x2 },
+  orchestrator: { display: 'grid', placeItems: 'center' },
+  orchestratorIcon: {
+    display: 'grid',
+    placeItems: 'center',
+    width: '20px',
+    height: '20px',
+    borderRadius: radius.control,
+    backgroundColor: `var(--bh-bot-color, ${color.fg})`,
+    color: color.base,
+  },
+});
 
 const STATUS_TONE = {
   running: 'success',
@@ -134,7 +150,8 @@ function SessionsPanel({
           ? {
               leading: (
                 <span
-                  className="bh-session-orchestrator"
+                  data-session-orchestrator=""
+                  {...stylex.props(styles.orchestrator)}
                   role="img"
                   aria-label={role}
                   title={role}
@@ -142,7 +159,7 @@ function SessionsPanel({
                     paintBotScale(element, bot === undefined ? undefined : botNameSource(bot))
                   }
                 >
-                  <span className="bh-session-orchestrator-icon">
+                  <span {...stylex.props(styles.orchestratorIcon)}>
                     <ChannelSidebarIcon name="bot" size={14} />
                   </span>
                 </span>
@@ -180,9 +197,9 @@ function SessionsPanel({
                   portal
                   delayMs={400}
                 >
-                  <button
-                    type="button"
-                    className="bh-card-action bh-session-archive"
+                  <IconButton
+                    size="inline"
+                    data-session-archive=""
                     disabled={archiving !== undefined}
                     aria-label={t(
                       row.archived === true ? 'sessions.unarchiveNamed' : 'sessions.archiveNamed',
@@ -203,7 +220,7 @@ function SessionsPanel({
                       name={row.archived === true ? 'archive-restore' : 'archive'}
                       size={14}
                     />
-                  </button>
+                  </IconButton>
                 </Tooltip>
               ),
             })}
@@ -254,27 +271,19 @@ function SessionsPanel({
     title?: string,
     countLabel?: string,
   ): ReactElement => (
-    <button
-      type="button"
-      className="bh-session-workspace-heading"
-      title={title}
-      aria-expanded={expanded}
-      onClick={toggle}
+    <GroupHeading
       key={key}
-    >
-      <IconChevronDownOutlineRegular
-        size={14}
-        className={expanded ? '' : 'bh-session-workspace-chevron-collapsed'}
-      />
-      <span className="bh-session-workspace-name">{name}</span>
-      <span className="bh-session-workspace-count" title={countLabel}>
-        {count}
-      </span>
-    </button>
+      label={name}
+      count={count}
+      countLabel={countLabel}
+      title={title}
+      expanded={expanded}
+      onToggle={toggle}
+    />
   );
 
   return (
-    <div className="bh-sessions" ref={mount}>
+    <div data-sessions="" ref={mount}>
       {owned.status === 'loading' && rows.length === 0 ? (
         <LoadingSkeleton kind="sidebar" label={t('sessions.loading')} />
       ) : null}
@@ -282,14 +291,16 @@ function SessionsPanel({
         <div className="bh-error">{t('sessions.error', { error: owned.error })}</div>
       ) : null}
       {owned.status === 'ready' && rows.length === 0 && assignments.length === 0 ? (
-        <div className="bh-note">{t('sessions.empty')}</div>
+        <Note tone="subtle" inset>
+          {t('sessions.empty')}
+        </Note>
       ) : null}
       {archiveError === undefined ? null : (
         <div className="bh-error" role="alert">
           {archiveError}
         </div>
       )}
-      <div className="bh-sessions-groups" ref={flip}>
+      <div data-session-groups="" ref={flip} {...stylex.props(styles.groups)}>
         {preference.layout === 'status' ? (
           <>
             {orchestrators.length === 0 ? null : (
@@ -302,11 +313,7 @@ function SessionsPanel({
               const expanded = !preference.collapsedSections.includes(section.id);
               const name = t(`sessions.section.${section.id}`);
               return (
-                <section
-                  key={section.id}
-                  className="bh-session-workspace-group"
-                  data-section={section.id}
-                >
+                <section key={section.id} data-section={section.id} {...stylex.props(styles.group)}>
                   {section.id === 'working' && assignmentLimit !== undefined
                     ? heading(
                         section.id,
@@ -324,7 +331,10 @@ function SessionsPanel({
                         toggleSection(section.id),
                       )}
                   {expanded ? (
-                    <SidebarCardList label={name}>
+                    <SidebarCardList
+                      label={name}
+                      className={stylex.props(styles.groupList).className}
+                    >
                       {section.rows.map((row) => renderRow(row, true, section.implied))}
                     </SidebarCardList>
                   ) : null}
@@ -337,7 +347,7 @@ function SessionsPanel({
             const expanded = !preference.collapsedWorkspaces.includes(group.key);
             const name = group.name ?? t('sessions.workspace.unknown');
             return (
-              <section key={group.key} className="bh-session-workspace-group">
+              <section key={group.key} {...stylex.props(styles.group)}>
                 {heading(
                   group.key,
                   name,
@@ -347,7 +357,10 @@ function SessionsPanel({
                   group.path,
                 )}
                 {expanded ? (
-                  <SidebarCardList label={name}>
+                  <SidebarCardList
+                    label={name}
+                    className={stylex.props(styles.groupList).className}
+                  >
                     {group.rows.map((row) => renderRow(row, false))}
                   </SidebarCardList>
                 ) : null}

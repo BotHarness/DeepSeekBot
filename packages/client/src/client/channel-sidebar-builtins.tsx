@@ -1,11 +1,10 @@
 import type { ExternalSource } from '../../../core/src/messaging/inbound.js';
 import { useCallback, useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
+import * as stylex from '@stylexjs/stylex';
 
 import {
   Button,
   IconEllipsisOutlineRegular,
-  IconChevronDownOutlineRegular,
-  Input,
   Menu,
   Tag,
   Tooltip,
@@ -44,10 +43,11 @@ import { MemoryEntry } from './memory-entry.js';
 import { MemoryRecovery } from './memory-recovery.js';
 import { cachedMemory, invalidateMemory } from './memory-read-cache.js';
 import { MemoryFilesEntry } from './memory-files-entry.js';
-import { Modal } from './modal.js';
+import { Note } from './ds/note.js';
+import { PanelDialog } from './ds/panel-dialog.js';
 import { ExternalSourceContent } from './external-source-content.js';
 import { externalPlatformLabel, externalSenderLabel } from './bridge-source-label.js';
-import { GroupAvatarCropModal } from './group-avatar-crop.js';
+import { DisbandGroupDialog, GroupManagementSettings } from './group-management-settings.js';
 import { MembersEntry, MembersHeaderAction } from './group-member-controls.js';
 import { GroupWorkEntry } from './group-work-entry.js';
 import { PrivateAccountsSection } from './private-accounts-section.js';
@@ -69,7 +69,43 @@ import {
   type InboxSection,
 } from './inbox-sections.js';
 import type { BotHarnessTranslate } from './locale.js';
-import type { BotAttentionItem, ChannelSummary } from './store.js';
+import type { BotAttentionItem } from './store.js';
+import { IconButton } from './ds/icon-button.js';
+import { GroupHeading } from './ds/group-heading.js';
+import { color, radius, space, text } from './ds/tokens.stylex.js';
+
+const styles = stylex.create({
+  inboxGroup: { paddingBlock: space.x1 },
+  inboxSpaced: { marginTop: space.x3 },
+  inboxList: { marginTop: 0, marginBottom: space.x2 },
+  viewTabs: {
+    display: 'inline-flex',
+    gap: space.x1,
+    padding: space.x1,
+    borderRadius: radius.row,
+    backgroundColor: color.surface,
+  },
+  viewTab: {
+    paddingBlock: space.x1,
+    paddingInline: space.x3,
+    borderWidth: 0,
+    borderStyle: 'none',
+    borderRadius: radius.control,
+    backgroundColor: 'transparent',
+    color: { default: color.muted, ':hover': color.fg },
+    fontFamily: 'inherit',
+    fontSize: text.bodySize,
+    lineHeight: text.bodyLine,
+    cursor: 'pointer',
+    outline: { default: 'none', ':focus-visible': `2px solid ${color.accent}` },
+    outlineOffset: '-2px',
+  },
+  viewTabSelected: {
+    backgroundColor: color.base,
+    color: { default: color.fg, ':hover': color.fg },
+    fontWeight: text.heavy,
+  },
+});
 
 const inactiveSubscribe = (): (() => void) => () => {};
 
@@ -99,101 +135,8 @@ function inboxIcon(item: BotAttentionItem): string {
 function GroupManagementEntry(props: ChannelSidebarEntryProps): ReactElement {
   const group = useClientState().conversation.channel;
   if (group?.type !== 'group') return <></>;
-  return <GroupManagementForChannel key={group.id} {...props} group={group} />;
-}
-
-function GroupManagementForChannel({
-  actions,
-  t,
-  group,
-}: ChannelSidebarEntryProps & { group: ChannelSummary }): ReactElement {
-  const [nameState, setNameState] = useState({ source: group.name, draft: group.name });
-  if (nameState.source !== group.name) {
-    setNameState({ source: group.name, draft: group.name });
-  }
-  const name = nameState.source === group.name ? nameState.draft : group.name;
-  const [cropFile, setCropFile] = useState<File>();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(false);
-  const apply = async (result: Promise<boolean>): Promise<boolean> => {
-    setBusy(true);
-    try {
-      const ok = await result;
-      setError(!ok);
-      return ok;
-    } finally {
-      setBusy(false);
-    }
-  };
   return (
-    <div className="bh-group-management">
-      <div className="bh-group-setting">
-        <div className="bh-group-invitations-title">{t('group.avatar')}</div>
-        <div className="bh-group-avatar-setting">
-          {group.avatar ? <img src={group.avatar} alt="" /> : <span aria-hidden="true">#</span>}
-          <label className="bh-group-manage-button">
-            {t('group.avatarChoose')}
-            <input
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              disabled={busy}
-              onChange={(event) => {
-                const file = event.currentTarget.files?.[0];
-                if (file) setCropFile(file);
-                event.currentTarget.value = '';
-              }}
-            />
-          </label>
-          {group.avatar ? (
-            <button
-              type="button"
-              className="bh-group-manage-button"
-              disabled={busy}
-              onClick={() => void apply(actions.setGroupAvatar(group.id, null))}
-            >
-              {t('group.avatarRemove')}
-            </button>
-          ) : null}
-        </div>
-      </div>
-      <form
-        className="bh-group-setting"
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (name.trim() !== group.name) void apply(actions.renameChannel(group.id, name.trim()));
-        }}
-      >
-        <label htmlFor="bh-group-name">{t('group.name')}</label>
-        <div className="bh-group-setting-row">
-          <Input
-            id="bh-group-name"
-            value={name}
-            maxLength={120}
-            onChange={(event) => setNameState({ source: group.name, draft: event.target.value })}
-          />
-          <button
-            type="submit"
-            className="bh-group-manage-button"
-            disabled={busy || !name.trim() || name.trim() === group.name}
-          >
-            {t('group.save')}
-          </button>
-        </div>
-      </form>
-      {cropFile ? (
-        <GroupAvatarCropModal
-          file={cropFile}
-          t={t}
-          onClose={() => setCropFile(undefined)}
-          onSave={(avatar) => apply(actions.setGroupAvatar(group.id, avatar))}
-        />
-      ) : null}
-      {error ? (
-        <div className="bh-error" role="alert">
-          {t('members.error')}
-        </div>
-      ) : null}
-    </div>
+    <GroupManagementSettings key={group.id} actions={props.actions} t={props.t} group={group} />
   );
 }
 
@@ -209,19 +152,8 @@ function GroupManagementHeaderForChannel({
   const group = useClientState().conversation.channel;
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(false);
   if (group?.type !== 'group' || group.id !== channelId) return <></>;
   const items: readonly MenuEntry[] = [{ id: 'disband', label: t('members.delete') }];
-  const disband = async (): Promise<void> => {
-    setBusy(true);
-    try {
-      if (await actions.deleteGroupChannel(group.id)) setConfirmOpen(false);
-      else setError(true);
-    } finally {
-      setBusy(false);
-    }
-  };
   return (
     <>
       <Menu
@@ -231,15 +163,15 @@ function GroupManagementHeaderForChannel({
         align="end"
         anchor={
           <Tooltip label={t('group.more')} side="bottom" delayMs={500}>
-            <button
-              type="button"
-              className="bh-channel-sidebar-entry-action"
+            <IconButton
+              size="row"
+              tone="subtle"
               aria-label={t('group.more')}
               aria-expanded={menuOpen}
               onClick={() => setMenuOpen((value) => !value)}
             >
               <IconEllipsisOutlineRegular size={16} />
-            </button>
+            </IconButton>
           </Tooltip>
         }
         items={items}
@@ -250,29 +182,12 @@ function GroupManagementHeaderForChannel({
         onClose={() => setMenuOpen(false)}
       />
       {confirmOpen ? (
-        <Modal
-          open
+        <DisbandGroupDialog
+          group={group}
+          actions={actions}
+          t={t}
           onClose={() => setConfirmOpen(false)}
-          closeLabel={t('common.close')}
-          title={t('members.delete')}
-          description={t('members.deleteConfirm', { name: group.name })}
-          footer={
-            <>
-              <Button variant="outline" onClick={() => setConfirmOpen(false)}>
-                {t('common.cancel')}
-              </Button>
-              <Button variant="primary" disabled={busy} onClick={() => void disband()}>
-                {t('members.delete')}
-              </Button>
-            </>
-          }
-        >
-          {error ? (
-            <div className="bh-error" role="alert">
-              {t('members.error')}
-            </div>
-          ) : null}
-        </Modal>
+        />
       ) : null}
     </>
   );
@@ -554,8 +469,10 @@ function BotInboxItemRow({
         />
       ) : null}
       {externalOpen ? (
-        <Modal
-          open
+        <PanelDialog
+          size="medium"
+          fill
+          bodyRef={previewLifecycle}
           onClose={() => {
             ++externalRequest.current;
             fileRequest.current?.abort();
@@ -572,148 +489,141 @@ function BotInboxItemRow({
             setExternalOpen(false);
           }}
           title={t('im.sourceTitle')}
-          className="bh-external-source-modal"
           closeLabel={t('common.close')}
         >
-          <div ref={previewLifecycle}>
-            {externalError ? (
-              <p role="alert">{t('im.sourceError')}</p>
-            ) : external === undefined ? (
-              <p>{t('im.sourceLoading')}</p>
-            ) : (
-              <ExternalSourceContent
-                source={external}
-                t={t}
-                messageMedia={
-                  imageAttachments.length || videoAttachments.length ? (
-                    <>
-                      {imageAttachments.map((file) => (
-                        <div className="bh-external-source-attachment" key={file.id}>
-                          {imagePreviews[file.id] ? (
-                            <img
-                              className="bh-external-source-image"
-                              src={imagePreviews[file.id]}
-                              alt={file.name}
-                            />
-                          ) : imageErrors[file.id] ? (
-                            <>
-                              <p role="alert">{t('im.fileError')}</p>
-                              <Button
-                                disabled={fileBusy !== undefined}
-                                onClick={() => void download(file.id, file.name, true)}
-                              >
-                                {t('im.imageRetry')}
-                              </Button>
-                            </>
-                          ) : (
-                            <span role="status">{t('im.fileDownloading')}</span>
-                          )}
-                        </div>
-                      ))}
-                      {videoAttachments.map((file) => (
-                        <div className="bh-external-source-video" key={file.id}>
-                          {videoPreviews[file.id] ? (
-                            <video
-                              controls
-                              preload="metadata"
-                              playsInline
-                              src={videoPreviews[file.id]}
-                              aria-label={t('im.videoPlayer')}
-                              onError={() =>
-                                setVideoErrors((value) => ({ ...value, [file.id]: true }))
-                              }
-                            />
-                          ) : null}
-                          {videoErrors[file.id] ? (
+          {externalError ? (
+            <Note tone="danger">{t('im.sourceError')}</Note>
+          ) : external === undefined ? (
+            <Note>{t('im.sourceLoading')}</Note>
+          ) : (
+            <ExternalSourceContent
+              source={external}
+              t={t}
+              messageMedia={
+                imageAttachments.length || videoAttachments.length ? (
+                  <>
+                    {imageAttachments.map((file) => (
+                      <div className="bh-external-source-attachment" key={file.id}>
+                        {imagePreviews[file.id] ? (
+                          <img
+                            className="bh-external-source-image"
+                            src={imagePreviews[file.id]}
+                            alt={file.name}
+                          />
+                        ) : imageErrors[file.id] ? (
+                          <>
+                            <p role="alert">{t('im.fileError')}</p>
                             <Button
-                              variant="primary"
                               disabled={fileBusy !== undefined}
-                              onClick={() => void download(file.id, file.name, 'video')}
+                              onClick={() => void download(file.id, file.name, true)}
                             >
-                              {fileBusy === file.id ? t('im.videoLoading') : t('im.videoRetry')}
+                              {t('im.imageRetry')}
                             </Button>
-                          ) : !videoPreviews[file.id] && !videoErrors[file.id] ? (
-                            <span role="status">{t('im.videoLoading')}</span>
-                          ) : null}
-                          {videoErrors[file.id] ? (
-                            <p role="alert">{t('im.videoUnavailable')}</p>
-                          ) : null}
-                        </div>
-                      ))}
-                    </>
-                  ) : undefined
-                }
-              >
-                {external.event.attachments?.map((file) => (
-                  <div className="bh-external-source-attachment" key={file.id}>
-                    {external.event.voice && file.mediaType?.startsWith('audio/') ? (
-                      <div className="bh-external-source-audio">
-                        {audioPreviews[file.id] ? (
-                          <audio
+                          </>
+                        ) : (
+                          <span role="status">{t('im.fileDownloading')}</span>
+                        )}
+                      </div>
+                    ))}
+                    {videoAttachments.map((file) => (
+                      <div className="bh-external-source-video" key={file.id}>
+                        {videoPreviews[file.id] ? (
+                          <video
                             controls
                             preload="metadata"
-                            src={audioPreviews[file.id]}
-                            aria-label={t('im.voiceAudioPlayer')}
+                            playsInline
+                            src={videoPreviews[file.id]}
+                            aria-label={t('im.videoPlayer')}
                             onError={() =>
-                              setAudioErrors((value) => ({ ...value, [file.id]: true }))
+                              setVideoErrors((value) => ({ ...value, [file.id]: true }))
                             }
                           />
                         ) : null}
-                        {!audioPreviews[file.id] || audioErrors[file.id] ? (
+                        {videoErrors[file.id] ? (
                           <Button
                             variant="primary"
                             disabled={fileBusy !== undefined}
-                            onClick={() => void download(file.id, 'voice.wav', 'audio')}
+                            onClick={() => void download(file.id, file.name, 'video')}
                           >
-                            {fileBusy === file.id
-                              ? t('im.voiceAudioPreparing')
-                              : audioPreviews[file.id]
-                                ? t('im.voiceAudioRetry')
-                                : t('im.voiceAudioPrepare')}
+                            {fileBusy === file.id ? t('im.videoLoading') : t('im.videoRetry')}
                           </Button>
+                        ) : !videoPreviews[file.id] && !videoErrors[file.id] ? (
+                          <span role="status">{t('im.videoLoading')}</span>
                         ) : null}
-                        <p>{t('im.voiceAudioHint')}</p>
-                        {audioErrors[file.id] ? (
-                          <p role="alert">{t('im.voiceAudioUnavailable')}</p>
+                        {videoErrors[file.id] ? (
+                          <p role="alert">{t('im.videoUnavailable')}</p>
                         ) : null}
                       </div>
-                    ) : null}
-                    <div className="bh-external-source-file">
-                      <span>
-                        {file.name}
-                        {file.sizeBytes !== undefined || file.mediaType ? (
-                          <small>
-                            {' '}
-                            ·{' '}
-                            {[
-                              file.mediaType,
-                              file.sizeBytes === undefined
-                                ? undefined
-                                : `${new Intl.NumberFormat().format(file.sizeBytes)} B`,
-                            ]
-                              .filter(Boolean)
-                              .join(' · ')}
-                          </small>
-                        ) : null}
-                      </span>
-                      <Button
-                        disabled={fileBusy !== undefined}
-                        onClick={() => void download(file.id, file.name)}
-                      >
-                        {fileBusy === file.id
-                          ? t('im.fileDownloading')
-                          : t(
-                              external.event.voice ? 'im.voiceDownloadOriginal' : 'im.fileDownload',
-                            )}
-                      </Button>
+                    ))}
+                  </>
+                ) : undefined
+              }
+            >
+              {external.event.attachments?.map((file) => (
+                <div className="bh-external-source-attachment" key={file.id}>
+                  {external.event.voice && file.mediaType?.startsWith('audio/') ? (
+                    <div className="bh-external-source-audio">
+                      {audioPreviews[file.id] ? (
+                        <audio
+                          controls
+                          preload="metadata"
+                          src={audioPreviews[file.id]}
+                          aria-label={t('im.voiceAudioPlayer')}
+                          onError={() => setAudioErrors((value) => ({ ...value, [file.id]: true }))}
+                        />
+                      ) : null}
+                      {!audioPreviews[file.id] || audioErrors[file.id] ? (
+                        <Button
+                          variant="primary"
+                          disabled={fileBusy !== undefined}
+                          onClick={() => void download(file.id, 'voice.wav', 'audio')}
+                        >
+                          {fileBusy === file.id
+                            ? t('im.voiceAudioPreparing')
+                            : audioPreviews[file.id]
+                              ? t('im.voiceAudioRetry')
+                              : t('im.voiceAudioPrepare')}
+                        </Button>
+                      ) : null}
+                      <p>{t('im.voiceAudioHint')}</p>
+                      {audioErrors[file.id] ? (
+                        <p role="alert">{t('im.voiceAudioUnavailable')}</p>
+                      ) : null}
                     </div>
+                  ) : null}
+                  <div className="bh-external-source-file">
+                    <span>
+                      {file.name}
+                      {file.sizeBytes !== undefined || file.mediaType ? (
+                        <small>
+                          {' '}
+                          ·{' '}
+                          {[
+                            file.mediaType,
+                            file.sizeBytes === undefined
+                              ? undefined
+                              : `${new Intl.NumberFormat().format(file.sizeBytes)} B`,
+                          ]
+                            .filter(Boolean)
+                            .join(' · ')}
+                        </small>
+                      ) : null}
+                    </span>
+                    <Button
+                      disabled={fileBusy !== undefined}
+                      onClick={() => void download(file.id, file.name)}
+                    >
+                      {fileBusy === file.id
+                        ? t('im.fileDownloading')
+                        : t(external.event.voice ? 'im.voiceDownloadOriginal' : 'im.fileDownload')}
+                    </Button>
                   </div>
-                ))}
-                {fileError ? <p role="alert">{t('im.fileError')}</p> : null}
-              </ExternalSourceContent>
-            )}
-          </div>
-        </Modal>
+                </div>
+              ))}
+              {fileError ? <p role="alert">{t('im.fileError')}</p> : null}
+            </ExternalSourceContent>
+          )}
+        </PanelDialog>
       ) : null}
     </>
   );
@@ -743,20 +653,22 @@ function BotInboxGroup({
     activeSignature !== expansion.signature && activeSignature !== '' ? true : expansion.expanded;
   return (
     <details
-      className="bh-inbox-group"
+      data-inbox-group=""
       open={expanded}
       onToggle={(event) =>
         setExpansion({ signature: activeSignature, expanded: event.currentTarget.open })
       }
+      {...stylex.props(styles.inboxGroup)}
     >
-      <summary className="bh-inbox-group-head">
-        <IconChevronDownOutlineRegular className="bh-inbox-group-chevron" size={14} />
-        <span className="bh-inbox-group-name" title={name}>
-          {name}
-        </span>
-        <Tag tone="neutral">{items.length}</Tag>
-      </summary>
-      <SidebarCardList label={name}>
+      <GroupHeading
+        summary
+        quiet
+        label={name}
+        title={name}
+        expanded={expanded}
+        count={<Tag tone="neutral">{items.length}</Tag>}
+      />
+      <SidebarCardList label={name} className={stylex.props(styles.inboxList).className}>
         {INBOX_SECTIONS.flatMap((section) => inboxSections(items)[section]).map((item) => (
           <BotInboxItemRow key={item.id} item={item} actions={actions} t={t} />
         ))}
@@ -769,10 +681,12 @@ function BotInboxSection({
   section,
   items,
   sourceLabel,
+  spaced,
   actions,
   t,
 }: {
   section: Exclude<InboxSection, 'active'>;
+  spaced: boolean;
   items: BotAttentionItem[];
   sourceLabel: (item: BotAttentionItem) => string;
   actions: ChannelSidebarEntryProps['actions'];
@@ -782,17 +696,20 @@ function BotInboxSection({
   const name = t(`inbox.section.${section}`);
   return (
     <details
-      className="bh-inbox-group bh-inbox-section"
+      data-inbox-group=""
       data-section={section}
       open={expanded}
       onToggle={(event) => setExpanded(event.currentTarget.open)}
+      {...stylex.props(styles.inboxGroup, spaced && styles.inboxSpaced)}
     >
-      <summary className="bh-inbox-group-head">
-        <IconChevronDownOutlineRegular className="bh-inbox-group-chevron" size={14} />
-        <span className="bh-inbox-group-name">{name}</span>
-        <Tag tone="neutral">{items.length}</Tag>
-      </summary>
-      <SidebarCardList label={name}>
+      <GroupHeading
+        summary
+        quiet
+        label={name}
+        expanded={expanded}
+        count={<Tag tone="neutral">{items.length}</Tag>}
+      />
+      <SidebarCardList label={name} className={stylex.props(styles.inboxList).className}>
         {items.map((item) => (
           <BotInboxItemRow
             key={item.id}
@@ -872,6 +789,9 @@ function BotInboxEntry({ actions, t, botSlug }: ChannelSidebarEntryProps): React
               <BotInboxSection
                 key={section}
                 section={section}
+                spaced={
+                  sections.active.length > 0 || (section === 'done' && sections.snoozed.length > 0)
+                }
                 items={sections[section]}
                 sourceLabel={sourceLabel}
                 actions={actions}
@@ -921,7 +841,12 @@ function BotInboxHeaderAction({ t }: ChannelSidebarEntryProps): ReactElement {
 function MemoryViewTabs({ t, setExpanded }: ChannelSidebarEntryProps): ReactElement {
   const view = useSyncExternalStore(subscribeMemoryView, memoryViewSnapshot, memoryViewSnapshot);
   return (
-    <span className="bh-memory-view-tabs" role="tablist" aria-label={t('memory.view.label')}>
+    <span
+      role="tablist"
+      aria-label={t('memory.view.label')}
+      data-memory-view-tabs=""
+      {...stylex.props(styles.viewTabs)}
+    >
       {(['graph', 'versions', 'branches'] as const).map((id) => (
         <Tooltip
           key={id}
@@ -935,6 +860,7 @@ function MemoryViewTabs({ t, setExpanded }: ChannelSidebarEntryProps): ReactElem
             type="button"
             role="tab"
             aria-selected={view === id}
+            {...stylex.props(styles.viewTab, view === id && styles.viewTabSelected)}
             onClick={() => {
               setMemoryView(id);
               setExpanded?.(true);
@@ -978,13 +904,12 @@ function MemoryHeaderAction({
         }}
       />
       {!backups ? null : (
-        <Modal
-          open
+        <PanelDialog
+          size="small"
           onClose={() => setBackups(false)}
           closeLabel={t('common.close')}
           title={t('memory.backups.title')}
           description={t('memory.backups.intro')}
-          className="bh-memory-backups-dialog"
         >
           <MemoryRecovery
             actions={actions}
@@ -993,7 +918,7 @@ function MemoryHeaderAction({
             t={t}
             onRestored={() => invalidateMemory(cachedMemory(actions, channelId))}
           />
-        </Modal>
+        </PanelDialog>
       )}
     </>
   );
@@ -1066,10 +991,9 @@ function AssignmentLimitDialog({
     prefs.source.getSnapshot,
   );
   return (
-    <Modal
-      open
+    <PanelDialog
+      size="small"
       title={t('assignmentLimit.title')}
-      className="bh-assignment-limit-dialog"
       onClose={onClose}
       closeLabel={t('common.close')}
     >
@@ -1080,7 +1004,7 @@ function AssignmentLimitDialog({
         save={(limit) => prefs.setAssignmentConcurrencyLimit(limit)}
         variant="dialog"
       />
-    </Modal>
+    </PanelDialog>
   );
 }
 

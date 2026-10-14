@@ -663,6 +663,7 @@ export interface BridgeActions {
   privateInputReplace?(channelId: string, messageId: string): Promise<string>;
   privateAccounts?(slug: string): Promise<PrivateAccountList>;
   privateMcpServerRemove?(slug: string, serverName: string): Promise<boolean>;
+  privateMcpServerEnable?(slug: string, serverName: string, enabled: boolean): Promise<boolean>;
   privateAccountRevoke?(
     channelId: string,
     messageId: string,
@@ -1551,6 +1552,11 @@ export function createActions(
       const result = await call('privateAccounts', { slug });
       if (!result.ok) throw new Error('Private accounts are unavailable');
       return parsePrivateAccountList(result.value);
+    },
+    privateMcpServerEnable: async (slug, serverName, enabled) => {
+      const result = await call('privateMcpServerEnable', { slug, serverName, enabled });
+      if (!result.ok) throw new Error('MCP server setting is unavailable');
+      return (result.value as { accepted?: unknown }).accepted === true;
     },
     privateMcpServerRemove: async (slug, serverName) => {
       const result = await call('privateMcpServerRemove', { slug, serverName });

@@ -133,9 +133,9 @@ try {
   await page.locator('button[aria-label="Bot 模式"],button[aria-label="Bot mode"]').click();
   await page.waitForSelector('.bh-root');
   await buttonClick(fixture.displayName ?? 'Memory Files QA');
-  await page.waitForSelector('.bh-channel-sidebar-entry-head');
+  await page.waitForSelector('[data-panel-head]');
   await page.evaluate(() => {
-    for (const h of document.querySelectorAll('.bh-channel-sidebar-entry-head'))
+    for (const h of document.querySelectorAll('[data-panel-head]'))
       if (
         /Workspace|工作区|Memory files|记忆文件/.test(h.textContent) &&
         h.getAttribute('aria-expanded') === 'false'

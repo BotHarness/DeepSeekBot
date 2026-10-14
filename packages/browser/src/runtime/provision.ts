@@ -274,6 +274,53 @@ export function missingLibsFailure(
 
 const SANDBOX_PATTERNS = /sandbox|namespace|clone.*EPERM|zygote/i;
 
+const RUNNING_AS_ROOT = /running as root/i;
+
+function sandboxFailure(options: {
+  binary: string;
+  code: number | null;
+  stderr: string;
+  platform: NodeJS.Platform;
+}): BrowserProvisionError {
+  const tail = `exit code ${String(options.code ?? 'unknown')}\n${options.stderr.slice(-500)}`;
+  if (RUNNING_AS_ROOT.test(options.stderr)) {
+    return new BrowserProvisionError(
+      'startup-sandbox',
+      'The Bot Browser refused to start because the Host runs as root, where Chrome cannot use its sandbox; run the Host as a regular user, then open the browser again.',
+      tail,
+    );
+  }
+  if (options.platform !== 'linux') {
+    return new BrowserProvisionError(
+      'startup-sandbox',
+      'The Bot Browser refused to start because the OS blocked its sandbox; show Details to the machine owner, then open the browser again.',
+      tail,
+    );
+  }
+  return new BrowserProvisionError(
+    'startup-sandbox',
+    'The Bot Browser refused to start because the OS blocked its sandbox. On Ubuntu 23.10 and later this is usually AppArmor restricting unprivileged user namespaces for a Chrome outside system paths; add the AppArmor profile in Details for this browser, then open the browser again.',
+    `${appArmorUsernsGuide(options.binary)}\n\n${tail}`,
+  );
+}
+
+function appArmorUsernsGuide(binary: string): string {
+  const path = binary === '' ? '/path/to/chrome' : binary;
+  return [
+    'Likely cause: AppArmor restricts unprivileged user namespaces (kernel.apparmor_restrict_unprivileged_userns=1).',
+    'Check: sudo dmesg | grep -i apparmor   (look for a "userns_create" denial)',
+    'Fix: save this as /etc/apparmor.d/botharness-chrome, then run sudo apparmor_parser -r /etc/apparmor.d/botharness-chrome',
+    '',
+    'abi <abi/4.0>,',
+    'include <tunables/global>',
+    '',
+    `profile botharness-chrome ${JSON.stringify(path)} flags=(unconfined) {`,
+    '  userns,',
+    '  include if exists <local/botharness-chrome>',
+    '}',
+  ].join('\n');
+}
+
 export function diagnoseStartupExit(options: {
   binary: string;
   code: number | null;
@@ -288,11 +335,7 @@ export function diagnoseStartupExit(options: {
   }
   const stderr = options.stderr.trim();
   if (SANDBOX_PATTERNS.test(stderr)) {
-    return new BrowserProvisionError(
-      'startup-sandbox',
-      'The Bot Browser refused to start because of its OS sandbox; enable headless in the browser plugin configuration and open the browser again.',
-      `exit code ${String(options.code ?? 'unknown')}\n${stderr.slice(-500)}`,
-    );
+    return sandboxFailure({ ...options, platform, stderr });
   }
   return new BrowserProvisionError(
     'startup-crashed',

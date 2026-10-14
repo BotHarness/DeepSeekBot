@@ -9,6 +9,7 @@ import { MemoryLoadFeedback } from './memory-load-feedback.js';
 import { useClientState } from './bot-sidebar.js';
 import { SidebarCardList } from './sidebar-card.js';
 import { StandingLimitsRow } from './standing-limits.js';
+import { Note } from './ds/note.js';
 
 type MemoryFilesProps = ChannelSidebarEntryProps & { showLimits?: boolean };
 
@@ -99,7 +100,9 @@ function MemoryFilesForScope({
           <LoadingSkeleton kind="sidebar" label={t('memory.loading')} />
         ) : null
       ) : snapshot.files.length === 0 ? (
-        <div className="bh-note">{t('memory.empty')}</div>
+        <Note tone="subtle" inset>
+          {t('memory.empty')}
+        </Note>
       ) : (
         <MemoryFileTree
           paths={snapshot.files}

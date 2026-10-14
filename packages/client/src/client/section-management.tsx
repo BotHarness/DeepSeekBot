@@ -1,7 +1,6 @@
-import { useRef, useState, type ReactElement } from 'react';
+import { useState, type ReactElement } from 'react';
 
 import {
-  Button,
   IconCheckOutlineRegular,
   IconEditOutlineRegular,
   IconTrashOutlineRegular,
@@ -12,13 +11,11 @@ import {
 import { errorMessage } from './bridge.js';
 import { ungroupedLabel } from './labels.js';
 import type { BotHarnessTranslate } from './locale.js';
-import { Modal } from './modal.js';
-import { NameInput } from './name-input.js';
+import { ConfirmDialog, FormDialog, type DialogLabels } from './ds/form-dialog.js';
+import { TextField } from './ds/field.js';
 import type { RosterSection } from './roster.js';
 
 export type BotMenuTranslate = BotHarnessTranslate;
-
-export const DANGER_ACTION_CLASS = 'bh-danger-action';
 
 export function globalSortMenuItems(t: BotMenuTranslate): readonly MenuEntry[] {
   return [
@@ -54,8 +51,17 @@ export function sectionMenuItems(
     { id: 'move-up', label: t('section.moveUp'), disabled: !canMoveUp },
     { id: 'move-down', label: t('section.moveDown'), disabled: !canMoveDown },
     { type: 'separator', id: 'section-action-separator' },
-    { id: 'rename', label: t('section.rename'), icon: <IconEditOutlineRegular /> },
-    { id: 'delete', label: t('section.delete'), icon: <IconTrashOutlineRegular />, danger: true },
+    {
+      id: 'rename',
+      label: t('section.rename'),
+      icon: <IconEditOutlineRegular />,
+    },
+    {
+      id: 'delete',
+      label: t('section.delete'),
+      icon: <IconTrashOutlineRegular />,
+      danger: true,
+    },
   ];
 }
 
@@ -95,54 +101,15 @@ export function channelMoveMenuItems(
   ];
 }
 
-function NameField({
-  label,
-  placeholder,
-  value,
-  disabled,
-  onChange,
-  onSubmit,
-}: {
-  label: string;
-  placeholder: string;
-  value: string;
-  disabled: boolean;
-  onChange: (value: string) => void;
-  onSubmit: () => void;
-}): ReactElement {
-  const composing = useRef(false);
-  return (
-    <NameInput
-      autoFocus
-      aria-label={label}
-      placeholder={placeholder}
-      value={value}
-      onFocus={(event) => {
-        event.currentTarget.select();
-      }}
-      onChange={(event) => {
-        onChange(event.currentTarget.value);
-      }}
-      onCompositionStart={() => {
-        composing.current = true;
-      }}
-      onCompositionEnd={() => {
-        composing.current = false;
-      }}
-      onKeyDown={(event) => {
-        if (event.key !== 'Enter' || composing.current) return;
-        event.preventDefault();
-        if (!disabled) onSubmit();
-      }}
-    />
-  );
-}
-
 export interface SectionRenameModalProps {
   section: RosterSection;
   t: BotHarnessTranslate;
   onCancel: () => void;
   onRename: (name: string) => void;
+}
+
+function dialogLabels(t: BotHarnessTranslate): DialogLabels {
+  return { close: t('common.close'), cancel: t('common.cancel') };
 }
 
 export function SectionRenameModal({
@@ -153,41 +120,24 @@ export function SectionRenameModal({
 }: SectionRenameModalProps): ReactElement {
   const [draft, setDraft] = useState(section.name);
   const trimmed = draft.trim();
-  const blank = trimmed.length === 0;
   return (
-    <Modal
-      open
-      onClose={onCancel}
-      closeLabel={t('common.close')}
+    <FormDialog
       title={t('section.rename.title')}
-      footer={
-        <>
-          <Button variant="outline" onClick={onCancel}>
-            {t('common.cancel')}
-          </Button>
-          <Button
-            variant="primary"
-            disabled={blank}
-            onClick={() => {
-              if (!blank) onRename(trimmed);
-            }}
-          >
-            {t('common.rename')}
-          </Button>
-        </>
-      }
+      labels={dialogLabels(t)}
+      submitLabel={t('common.rename')}
+      submitDisabled={trimmed.length === 0}
+      onCancel={onCancel}
+      onSubmit={() => onRename(trimmed)}
     >
-      <NameField
+      <TextField
         label={t('section.name.label')}
         placeholder={t('section.name.placeholder')}
         value={draft}
-        disabled={blank}
         onChange={setDraft}
-        onSubmit={() => {
-          if (!blank) onRename(trimmed);
-        }}
+        initialFocus
+        selectOnFocus
       />
-    </Modal>
+    </FormDialog>
   );
 }
 
@@ -208,42 +158,25 @@ export function ChannelRenameModal({
 }: ChannelRenameModalProps): ReactElement {
   const [draft, setDraft] = useState(name);
   const trimmed = draft.trim();
-  const blank = trimmed.length === 0;
   const label = bot ? t('bot.name.label') : t('channel.name.label');
   return (
-    <Modal
-      open
-      onClose={onCancel}
-      closeLabel={t('common.close')}
+    <FormDialog
       title={bot ? t('bot.rename.title') : t('channel.rename.title')}
-      footer={
-        <>
-          <Button variant="outline" onClick={onCancel}>
-            {t('common.cancel')}
-          </Button>
-          <Button
-            variant="primary"
-            disabled={blank}
-            onClick={() => {
-              if (!blank) onRename(trimmed);
-            }}
-          >
-            {t('common.rename')}
-          </Button>
-        </>
-      }
+      labels={dialogLabels(t)}
+      submitLabel={t('common.rename')}
+      submitDisabled={trimmed.length === 0}
+      onCancel={onCancel}
+      onSubmit={() => onRename(trimmed)}
     >
-      <NameField
+      <TextField
         label={label}
         placeholder={label}
         value={draft}
-        disabled={blank}
         onChange={setDraft}
-        onSubmit={() => {
-          if (!blank) onRename(trimmed);
-        }}
+        initialFocus
+        selectOnFocus
       />
-    </Modal>
+    </FormDialog>
   );
 }
 
@@ -261,22 +194,13 @@ export function SectionDeleteModal({
   onDelete,
 }: SectionDeleteModalProps): ReactElement {
   return (
-    <Modal
-      open
-      onClose={onCancel}
-      closeLabel={t('common.close')}
+    <ConfirmDialog
       title={t('section.delete.title')}
       description={t('section.delete.description', { name: section.name })}
-      footer={
-        <>
-          <Button variant="outline" autoFocus onClick={onCancel}>
-            {t('common.cancel')}
-          </Button>
-          <Button variant="outline" className={DANGER_ACTION_CLASS} onClick={onDelete}>
-            {t('common.delete')}
-          </Button>
-        </>
-      }
+      labels={dialogLabels(t)}
+      confirmLabel={t('common.delete')}
+      onCancel={onCancel}
+      onConfirm={onDelete}
     />
   );
 }
@@ -294,42 +218,23 @@ export function CreateSectionModal({
 }: CreateSectionModalProps): ReactElement {
   const [draft, setDraft] = useState('');
   const trimmed = draft.trim();
-  const blank = trimmed.length === 0;
   return (
-    <Modal
-      open
-      onClose={onCancel}
-      closeLabel={t('common.close')}
+    <FormDialog
       title={t('section.create.title')}
-      description={t('section.create.description')}
-      footer={
-        <>
-          <Button variant="outline" onClick={onCancel}>
-            {t('common.cancel')}
-          </Button>
-          <Button
-            variant="primary"
-            disabled={blank}
-            onClick={() => {
-              if (!blank) onCreate(trimmed);
-            }}
-          >
-            {t('common.create')}
-          </Button>
-        </>
-      }
+      labels={dialogLabels(t)}
+      submitLabel={t('common.create')}
+      submitDisabled={trimmed.length === 0}
+      onCancel={onCancel}
+      onSubmit={() => onCreate(trimmed)}
     >
-      <NameField
+      <TextField
         label={t('section.name.label')}
         placeholder={t('section.name.placeholder')}
         value={draft}
-        disabled={blank}
         onChange={setDraft}
-        onSubmit={() => {
-          if (!blank) onCreate(trimmed);
-        }}
+        initialFocus
       />
-    </Modal>
+    </FormDialog>
   );
 }
 
@@ -350,9 +255,7 @@ export function CreateChannelModal({
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
   const trimmed = draft.trim();
-  const blank = trimmed.length === 0;
   const submit = (): void => {
-    if (blank || creating) return;
     setCreating(true);
     setError(undefined);
     void onCreate(trimmed).then(
@@ -366,40 +269,27 @@ export function CreateChannelModal({
     );
   };
   return (
-    <Modal
-      open
-      onClose={onCancel}
-      closeLabel={t('common.close')}
+    <FormDialog
       title={
         sectionName === undefined
           ? t('channel.create.title')
           : t('channel.create.inSection', { name: sectionName })
       }
-      description={t('channel.create.description')}
-      footer={
-        <>
-          <Button variant="outline" disabled={creating} onClick={onCancel}>
-            {t('common.cancel')}
-          </Button>
-          <Button variant="primary" disabled={blank || creating} onClick={submit}>
-            {t('common.create')}
-          </Button>
-        </>
-      }
+      labels={dialogLabels(t)}
+      submitLabel={t('common.create')}
+      submitDisabled={trimmed.length === 0}
+      busy={creating}
+      error={error === undefined ? undefined : t('create.failed', { error })}
+      onCancel={onCancel}
+      onSubmit={submit}
     >
-      <NameField
+      <TextField
         label={t('channel.name.label')}
         placeholder={t('channel.name.placeholder')}
         value={draft}
-        disabled={blank || creating}
         onChange={setDraft}
-        onSubmit={submit}
+        initialFocus
       />
-      {error !== undefined ? (
-        <div className="bh-modal-error" role="alert">
-          {t('create.failed', { error })}
-        </div>
-      ) : null}
-    </Modal>
+    </FormDialog>
   );
 }

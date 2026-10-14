@@ -7,10 +7,10 @@ import { ApprovalSettings } from './approval-settings.js';
 import { useClientState } from './bot-sidebar.js';
 import { ChannelBridgeAttention, ChannelBridgeList } from './channel-bridge-list.js';
 import type { ChannelSettingsAttentionProps, ChannelSidebarEntryProps } from './channel-sidebar.js';
+import { PanelDialog } from './ds/panel-dialog.js';
 import { ExternalIdentityList } from './external-identity-list.js';
 import { MessagingGrantRow } from './messaging-grant.js';
 import { useMessagingSnapshot } from './messaging-store.js';
-import { Modal } from './modal.js';
 import { PairingSettings } from './pairing-settings.js';
 import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
 
@@ -158,77 +158,79 @@ function IdentitiesForBot({
           onClick={() => setPanel('approval')}
         />
       </SidebarCardList>
-      <Modal
-        open={panel === 'pairing'}
-        onClose={() => setPanel(undefined)}
-        title={t('pairing.title')}
-        closeLabel={t('common.close')}
-        className="bh-sidebar-modal bh-external-panel-modal bh-pairing-modal"
-        contentClassName="bh-pairing-content"
-      >
-        <PairingSettings
-          requests={pairings}
-          roles={snapshot?.roles ?? []}
-          groups={snapshot?.permissionGroups ?? []}
-          behaviorPermissions={snapshot?.behaviorPermissions ?? []}
-          bindings={(snapshot?.identities ?? [])
-            .filter(
-              (binding) => binding.enabled && !binding.revokedAt && binding.platform === 'feishu',
-            )
-            .map((binding) => ({ id: binding.id, name: binding.name }))}
-          {...(snapshot?.senderPolicy ? { policy: snapshot.senderPolicy } : {})}
-          senderAccess={(input) =>
-            operate(() => actions.senderAccess(slug, input), 'pairing', true)
-          }
-          receivers={snapshot?.pairingReceivers ?? []}
-          busy={busy}
-          failed={scopeFailed === 'pairing'}
-          refresh={() => operate(async () => undefined, 'pairing')}
-          review={(input) =>
-            operate(async () => {
-              await actions.pairingReview(slug, input);
-            }, 'pairing')
-          }
-          t={t}
-        />
-      </Modal>
-      <Modal
-        open={panel === 'approval'}
-        onClose={() => setPanel(undefined)}
-        title={t('approvalIm.title')}
-        closeLabel={t('common.close')}
-        className="bh-sidebar-modal bh-external-panel-modal bh-management-modal"
-        contentClassName="bh-management-content"
-        footer={
-          <div className="bh-modal-footer">
-            <Button size="sm" variant="toolbar" onClick={() => setPanel(undefined)}>
+      {panel === 'pairing' ? (
+        <PanelDialog
+          size="wide"
+          fill
+          onClose={() => setPanel(undefined)}
+          title={t('pairing.title')}
+          closeLabel={t('common.close')}
+          data={{ 'data-pairing-panel': '', 'data-external-panel': '' }}
+        >
+          <PairingSettings
+            requests={pairings}
+            roles={snapshot?.roles ?? []}
+            groups={snapshot?.permissionGroups ?? []}
+            behaviorPermissions={snapshot?.behaviorPermissions ?? []}
+            bindings={(snapshot?.identities ?? [])
+              .filter(
+                (binding) => binding.enabled && !binding.revokedAt && binding.platform === 'feishu',
+              )
+              .map((binding) => ({ id: binding.id, name: binding.name }))}
+            {...(snapshot?.senderPolicy ? { policy: snapshot.senderPolicy } : {})}
+            senderAccess={(input) =>
+              operate(() => actions.senderAccess(slug, input), 'pairing', true)
+            }
+            receivers={snapshot?.pairingReceivers ?? []}
+            busy={busy}
+            failed={scopeFailed === 'pairing'}
+            refresh={() => operate(async () => undefined, 'pairing')}
+            review={(input) =>
+              operate(async () => {
+                await actions.pairingReview(slug, input);
+              }, 'pairing')
+            }
+            t={t}
+          />
+        </PanelDialog>
+      ) : null}
+      {panel === 'approval' ? (
+        <PanelDialog
+          size="wide"
+          fill
+          onClose={() => setPanel(undefined)}
+          title={t('approvalIm.title')}
+          closeLabel={t('common.close')}
+          data={{ 'data-pairing-panel': '', 'data-external-panel': '' }}
+          actions={
+            <Button variant="outline" onClick={() => setPanel(undefined)}>
               {t('common.close')}
             </Button>
-          </div>
-        }
-      >
-        <ApprovalSettings
-          key={`approval-${snapshot?.approvals?.routeRevision ?? 0}`}
-          {...(snapshot?.approvals ? { snapshot: snapshot.approvals } : {})}
-          busy={busy}
-          failed={scopeFailed === 'approval'}
-          t={t}
-          save={(pairingId, revision) =>
-            operate(() => actions.approvalRoute(slug, pairingId, revision), 'approval')
           }
-          test={() => operate(() => actions.approvalTest(slug), 'approval')}
-          retry={(id) => operate(() => actions.approvalRetry(slug, id), 'approval')}
-          refresh={() => operate(async () => undefined, 'approval')}
-          openSession={actions.openSession}
-          failureAlerts={{
-            ...(snapshot?.failureAlerts ? { snapshot: snapshot.failureAlerts } : {}),
-            save: (enabled, revision) =>
-              operate(() => actions.failureAlertsSet(slug, enabled, revision), 'approval'),
-            test: () => operate(() => actions.failureAlertsTest(slug), 'approval'),
-            retry: (id) => operate(() => actions.failureAlertsRetry(slug, id), 'approval'),
-          }}
-        />
-      </Modal>
+        >
+          <ApprovalSettings
+            key={`approval-${snapshot?.approvals?.routeRevision ?? 0}`}
+            {...(snapshot?.approvals ? { snapshot: snapshot.approvals } : {})}
+            busy={busy}
+            failed={scopeFailed === 'approval'}
+            t={t}
+            save={(pairingId, revision) =>
+              operate(() => actions.approvalRoute(slug, pairingId, revision), 'approval')
+            }
+            test={() => operate(() => actions.approvalTest(slug), 'approval')}
+            retry={(id) => operate(() => actions.approvalRetry(slug, id), 'approval')}
+            refresh={() => operate(async () => undefined, 'approval')}
+            openSession={actions.openSession}
+            failureAlerts={{
+              ...(snapshot?.failureAlerts ? { snapshot: snapshot.failureAlerts } : {}),
+              save: (enabled, revision) =>
+                operate(() => actions.failureAlertsSet(slug, enabled, revision), 'approval'),
+              test: () => operate(() => actions.failureAlertsTest(slug), 'approval'),
+              retry: (id) => operate(() => actions.failureAlertsRetry(slug, id), 'approval'),
+            }}
+          />
+        </PanelDialog>
+      ) : null}
     </div>
   );
 }

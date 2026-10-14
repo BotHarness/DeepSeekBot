@@ -16,6 +16,21 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
     icon?: unknown;
   }) => createElement('button', props),
   Tag: ({ children }: PropsWithChildren) => createElement('span', { className: 'tag' }, children),
+  Switch: ({
+    checked,
+    onChange,
+    label,
+  }: {
+    checked: boolean;
+    onChange(value: boolean): void;
+    label: string;
+  }) =>
+    createElement('input', {
+      type: 'checkbox',
+      'aria-label': label,
+      checked,
+      onChange: () => onChange(!checked),
+    }),
   Tooltip: ({ children }: PropsWithChildren) => children,
   Modal: () => null,
   Menu: () => null,
@@ -137,6 +152,9 @@ it('lists remembered MCP servers and removes one after confirmation', async () =
         args: ['-y', '@modelcontextprotocol/server-github'],
         approvedAt: '2026-10-13T00:00:00.000Z',
         connected: true,
+        ownerName: 'Ada',
+        own: true,
+        enabled: true,
       },
     ],
   };
@@ -147,6 +165,8 @@ it('lists remembered MCP servers and removes one after confirmation', async () =
   expect(card.textContent).toContain(zhTranslate('privateAccounts.mcpConnected'));
   expect(card.textContent).toContain('npx -y @modelcontextprotocol/server-github');
   expect(card.textContent).toContain('GitHub token');
+  expect(card.textContent).toContain(zhTranslate('privateAccounts.mcpShared'));
+  expect(card.querySelector('input[type=checkbox]')).toBeNull();
   const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
   await act(async () => button(zhTranslate('privateAccounts.mcpRemove')).click());
   expect(remove).not.toHaveBeenCalled();
@@ -155,6 +175,37 @@ it('lists remembered MCP servers and removes one after confirmation', async () =
   await act(async () => button(zhTranslate('privateAccounts.mcpRemove')).click());
   expect(remove).toHaveBeenCalledWith('ada', 'github');
   expect(host.querySelector('.bh-card-row')).toBeNull();
+});
+
+it('lets another Bot enable a server that a different Bot set up', async () => {
+  const enable = vi.fn(async () => true);
+  (actions as unknown as { privateMcpServerEnable: typeof enable }).privateMcpServerEnable = enable;
+  const server = {
+    serverName: 'github',
+    account: 'GitHub token',
+    program: 'npx',
+    args: ['-y', '@modelcontextprotocol/server-github'],
+    approvedAt: '2026-10-13T00:00:00.000Z',
+    connected: false,
+    ownerName: 'Bob',
+    own: false,
+    enabled: false,
+  };
+  list = { status: 'ready', accounts: [], replaceable: true, mcpServers: [server] };
+  await render();
+  const card = host.querySelector('.bh-card-row')!;
+  expect(card.textContent).toContain(zhTranslate('privateAccounts.mcpSharedBy', { bot: 'Bob' }));
+  const toggle = card.querySelector('input[type=checkbox]') as HTMLInputElement;
+  expect(toggle.checked).toBe(false);
+  list = {
+    status: 'ready',
+    accounts: [],
+    replaceable: true,
+    mcpServers: [{ ...server, enabled: true, connected: true }],
+  };
+  await act(async () => toggle.click());
+  expect(enable).toHaveBeenCalledWith('ada', 'github', true);
+  expect((host.querySelector('input[type=checkbox]') as HTMLInputElement).checked).toBe(true);
 });
 
 it('disables Replace when execution is off and keeps Remove', async () => {

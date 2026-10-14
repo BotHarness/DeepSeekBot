@@ -1,39 +1,19 @@
-import { createElement } from 'react';
+// @vitest-environment jsdom
+import { act, createElement, type ReactElement } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const captured = vi.hoisted(() => ({
-  buttons: [] as Array<Record<string, unknown>>,
-  inputs: [] as Array<Record<string, unknown>>,
-  modals: [] as Array<Record<string, unknown>>,
-}));
-
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
-  const stub = () => null;
-  const icon = (name: string) => () => createElement('span', { 'data-icon': name });
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
+  const { dialogPrimitives } = await import('./primitive-mocks.js');
+  const { createElement: element } = await import('react');
   return {
-    Button: (props: Record<string, unknown>) => {
-      captured.buttons.push(props);
-      return null;
-    },
-    IconCheckOutlineRegular: icon('IconCheckOutlineRegular'),
-    IconEditOutlineRegular: stub,
-    IconTrashOutlineRegular: stub,
-    Modal: (props: Record<string, unknown>) => {
-      captured.modals.push(props);
-      return props['open'] === true
-        ? createElement('div', null, props['children'] as never, props['footer'] as never)
-        : null;
-    },
+    ...dialogPrimitives(),
+    IconCheckOutlineRegular: () => element('span', { 'data-icon': 'IconCheckOutlineRegular' }),
+    IconEditOutlineRegular: () => null,
+    IconTrashOutlineRegular: () => null,
   };
 });
-
-vi.mock('../src/client/name-input.js', () => ({
-  NameInput: (props: Record<string, unknown>) => {
-    captured.inputs.push(props);
-    return null;
-  },
-}));
 
 import type { MenuItem } from '@deepseek-ai/dsh-client-ui-primitives';
 
@@ -42,7 +22,6 @@ import {
   channelMoveMenuItems,
   CreateChannelModal,
   CreateSectionModal,
-  DANGER_ACTION_CLASS,
   globalSortMenuItems,
   SectionDeleteModal,
   NEW_SECTION_MOVE_TARGET,
@@ -50,38 +29,40 @@ import {
   sectionMenuItems,
   UNGROUPED_MOVE_TARGET,
 } from '../src/client/section-management.js';
+import { buttonNamed, dialog, fieldNamed, typeInto } from './primitive-mocks.js';
 
 const SECTION = { id: 's1', name: '工作流', channelIds: [] };
 
 const t = zhTranslate;
 
-function lastButton(label: string): Record<string, unknown> {
-  const found = captured.buttons.findLast((button) => button['children'] === label);
-  if (found === undefined) throw new Error(`button ${label} not rendered`);
-  return found;
-}
-
-function lastInput(): Record<string, unknown> {
-  const found = captured.inputs.at(-1);
-  if (found === undefined) throw new Error('input not rendered');
-  return found;
-}
-
-function lastModal(): Record<string, unknown> {
-  const found = captured.modals.at(-1);
-  if (found === undefined) throw new Error('modal not rendered');
-  return found;
-}
-
-function key(keyValue: string): { key: string; preventDefault: () => void } {
-  return { key: keyValue, preventDefault: () => undefined };
-}
+let host: HTMLDivElement;
+let root: Root;
 
 beforeEach(() => {
-  captured.buttons.length = 0;
-  captured.inputs.length = 0;
-  captured.modals.length = 0;
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  host = document.createElement('div');
+  document.body.append(host);
+  root = createRoot(host);
 });
+
+afterEach(() => {
+  act(() => root.unmount());
+  host.remove();
+});
+
+async function render(node: ReactElement): Promise<void> {
+  await act(async () => root.render(node));
+}
+
+async function click(button: HTMLButtonElement): Promise<void> {
+  await act(async () => button.click());
+}
+
+async function pressEnter(): Promise<void> {
+  const form = dialog().querySelector('form');
+  if (form === null) throw new Error('No form');
+  await act(async () => form.requestSubmit());
+}
 
 describe('section menus', () => {
   it('orders the global menu as sort modes followed by hidden Channel management', () => {
@@ -159,118 +140,94 @@ describe('channel move menu', () => {
 });
 
 describe('section rename modal', () => {
-  it('submits the trimmed draft on Enter', () => {
+  it('labels the name field and submits the trimmed draft on Enter', async () => {
     const onRename = vi.fn();
-    renderToStaticMarkup(
+    await render(
       createElement(SectionRenameModal, {
-        t: zhTranslate,
+        t,
         section: { ...SECTION, name: '  旧名  ' },
         onCancel: () => undefined,
         onRename,
       }),
     );
 
-    (lastInput()['onKeyDown'] as (event: unknown) => void)(key('Enter'));
+    expect(dialog().getAttribute('aria-label')).toBe('重命名频道分组');
+    expect(fieldNamed('分组名称').value).toBe('  旧名  ');
+    await pressEnter();
 
     expect(onRename).toHaveBeenCalledWith('旧名');
   });
 
-  it('submits through the primary button and ignores other keys', () => {
+  it('submits an edited name through the primary button', async () => {
     const onRename = vi.fn();
-    renderToStaticMarkup(
+    await render(
       createElement(SectionRenameModal, {
-        t: zhTranslate,
-        section: { ...SECTION, name: '新名' },
+        t,
+        section: SECTION,
         onCancel: () => undefined,
         onRename,
       }),
     );
 
-    (lastInput()['onKeyDown'] as (event: unknown) => void)(key('a'));
-    expect(onRename).not.toHaveBeenCalled();
-    (lastButton('重命名')['onClick'] as () => void)();
+    await typeInto(fieldNamed('分组名称'), '新名');
+    await click(buttonNamed('重命名'));
+
     expect(onRename).toHaveBeenCalledWith('新名');
   });
 
-  it('defers Enter while an IME composition is open', () => {
+  it('keeps a blank draft from submitting by button or Enter', async () => {
     const onRename = vi.fn();
-    renderToStaticMarkup(
+    await render(
       createElement(SectionRenameModal, {
-        t: zhTranslate,
-        section: { ...SECTION, name: '输入中' },
-        onCancel: () => undefined,
-        onRename,
-      }),
-    );
-
-    (lastInput()['onCompositionStart'] as () => void)();
-    (lastInput()['onKeyDown'] as (event: unknown) => void)(key('Enter'));
-    expect(onRename).not.toHaveBeenCalled();
-    (lastInput()['onCompositionEnd'] as () => void)();
-    (lastInput()['onKeyDown'] as (event: unknown) => void)(key('Enter'));
-    expect(onRename).toHaveBeenCalledTimes(1);
-  });
-
-  it('rejects a blank draft from both Enter and the disabled confirm button', () => {
-    const onRename = vi.fn();
-    renderToStaticMarkup(
-      createElement(SectionRenameModal, {
-        t: zhTranslate,
+        t,
         section: { ...SECTION, name: '   ' },
         onCancel: () => undefined,
         onRename,
       }),
     );
 
-    expect(lastButton('重命名')['disabled']).toBe(true);
-    (lastButton('重命名')['onClick'] as () => void)();
-    (lastInput()['onKeyDown'] as (event: unknown) => void)(key('Enter'));
+    expect(buttonNamed('重命名').disabled).toBe(true);
+    await pressEnter();
     expect(onRename).not.toHaveBeenCalled();
   });
 
-  it('cancels through the footer button and the modal close path', () => {
+  it('cancels through the footer and the close button', async () => {
     const onCancel = vi.fn();
-    renderToStaticMarkup(
+    await render(
       createElement(SectionRenameModal, {
-        t: zhTranslate,
+        t,
         section: SECTION,
         onCancel,
         onRename: () => undefined,
       }),
     );
 
-    (lastButton('取消')['onClick'] as () => void)();
-    (lastModal()['onClose'] as () => void)();
+    await click(buttonNamed('取消'));
+    await click(buttonNamed('关闭'));
 
     expect(onCancel).toHaveBeenCalledTimes(2);
-    expect(lastModal()['title']).toBe('重命名频道分组');
-    expect(lastModal()['closeLabel']).toBe('关闭');
   });
 });
 
 describe('section delete modal', () => {
-  it('renders the fallback copy, parks focus on cancel, and wires both actions', () => {
+  it('explains the consequence and confirms with a destructive action', async () => {
     const onDelete = vi.fn();
     const onCancel = vi.fn();
-    renderToStaticMarkup(
+    await render(
       createElement(SectionDeleteModal, {
-        t: zhTranslate,
+        t,
         section: { ...SECTION, name: '工作流', channelIds: ['c1'] },
         onCancel,
         onDelete,
       }),
     );
 
-    expect(lastModal()['title']).toBe('删除频道分组');
-    expect(lastModal()['description']).toContain('工作流');
-    expect(lastModal()['description']).toContain('其中的频道会移出分组、变为未分组频道');
-    expect(lastButton('取消')['autoFocus']).toBe(true);
-    expect(lastButton('删除')['variant']).toBe('outline');
-    expect(lastButton('删除')['className']).toBe(DANGER_ACTION_CLASS);
-    expect(lastButton('删除')['autoFocus']).toBeUndefined();
+    expect(dialog().getAttribute('aria-label')).toBe('删除频道分组');
+    expect(dialog().textContent).toContain('工作流');
+    expect(dialog().textContent).toContain('其中的频道会移出分组、变为未分组频道');
 
-    (lastButton('删除')['onClick'] as () => void)();
-    (lastButton('取消')['onClick'] as () => void)();
+    await click(buttonNamed('删除'));
+    await click(buttonNamed('取消'));
 
     expect(onDelete).toHaveBeenCalledTimes(1);
     expect(onCancel).toHaveBeenCalledTimes(1);
@@ -278,82 +235,62 @@ describe('section delete modal', () => {
 });
 
 describe('section create modal', () => {
-  it('renders the 频道分组 copy with a focused blank name field', () => {
-    renderToStaticMarkup(
-      createElement(CreateSectionModal, {
-        t: zhTranslate,
-        onCancel: () => undefined,
-        onCreate: () => undefined,
-      }),
-    );
-
-    expect(lastModal()['title']).toBe('创建频道分组');
-    expect(lastModal()['description']).toContain('分组');
-    expect(lastInput()['autoFocus']).toBe(true);
-    expect(lastInput()['placeholder']).toBe('分组名称');
-    expect(lastInput()['aria-label']).toBe('分组名称');
-  });
-
-  it('keeps Enter, the create button, and cancel inert on a blank draft', () => {
+  it('asks for a section name and stays inert while it is blank', async () => {
     const onCreate = vi.fn();
     const onCancel = vi.fn();
-    renderToStaticMarkup(
-      createElement(CreateSectionModal, {
-        t: zhTranslate,
-        onCancel,
-        onCreate,
-      }),
-    );
+    await render(createElement(CreateSectionModal, { t, onCancel, onCreate }));
 
-    expect(lastButton('创建')['disabled']).toBe(true);
-    (lastInput()['onKeyDown'] as (event: unknown) => void)(key('Enter'));
-    (lastButton('创建')['onClick'] as () => void)();
+    expect(dialog().getAttribute('aria-label')).toBe('创建频道分组');
+    expect(fieldNamed('分组名称').placeholder).toBe('分组名称');
+    expect(buttonNamed('创建').disabled).toBe(true);
+    await pressEnter();
     expect(onCreate).not.toHaveBeenCalled();
-    (lastButton('取消')['onClick'] as () => void)();
-    (lastModal()['onClose'] as () => void)();
-    expect(onCancel).toHaveBeenCalledTimes(2);
+
+    await typeInto(fieldNamed('分组名称'), ' 设计 ');
+    await pressEnter();
+    expect(onCreate).toHaveBeenCalledWith('设计');
+
+    await click(buttonNamed('取消'));
+    expect(onCancel).toHaveBeenCalledTimes(1);
   });
 });
 
 describe('channel create modal', () => {
-  it('titles an ungrouped channel and a section-scoped channel', () => {
-    renderToStaticMarkup(
+  it('titles an ungrouped channel and a section-scoped channel', async () => {
+    await render(
       createElement(CreateChannelModal, {
-        t: zhTranslate,
+        t,
         onCancel: () => undefined,
         onCreate: async () => undefined,
       }),
     );
-    expect(lastModal()['title']).toBe('创建频道');
-    expect(lastModal()['description']).toContain('频道');
+    expect(dialog().getAttribute('aria-label')).toBe('创建频道');
 
-    renderToStaticMarkup(
+    await render(
       createElement(CreateChannelModal, {
-        t: zhTranslate,
+        t,
         sectionName: '工作流',
         onCancel: () => undefined,
         onCreate: async () => undefined,
       }),
     );
-    expect(lastModal()['title']).toBe('在「工作流」中创建频道');
+    expect(dialog().getAttribute('aria-label')).toBe('在「工作流」中创建频道');
   });
 
-  it('keeps the blank draft inert and closes through cancel and Escape', () => {
-    const onCreate = vi.fn(async () => undefined);
-    const onCancel = vi.fn();
-    renderToStaticMarkup(
-      createElement(CreateChannelModal, {
-        t: zhTranslate,
-        onCancel,
-        onCreate,
-      }),
-    );
+  it('shows a failed create inline and lets the Human retry', async () => {
+    const onCreate = vi
+      .fn<(name: string) => Promise<void>>()
+      .mockRejectedValueOnce(new Error('磁盘已满'))
+      .mockResolvedValueOnce(undefined);
+    await render(createElement(CreateChannelModal, { t, onCancel: () => undefined, onCreate }));
 
-    expect(lastButton('创建')['disabled']).toBe(true);
-    (lastInput()['onKeyDown'] as (event: unknown) => void)(key('Enter'));
-    expect(onCreate).not.toHaveBeenCalled();
-    (lastButton('取消')['onClick'] as () => void)();
-    (lastModal()['onClose'] as () => void)();
-    expect(onCancel).toHaveBeenCalledTimes(2);
+    expect(buttonNamed('创建').disabled).toBe(true);
+    await typeInto(fieldNamed('频道名称'), '周报');
+    await click(buttonNamed('创建'));
+
+    expect(dialog().querySelector('[role="alert"]')?.textContent).toContain('磁盘已满');
+    await click(buttonNamed('创建'));
+    expect(onCreate).toHaveBeenLastCalledWith('周报');
+    expect(dialog().querySelector('[role="alert"]')).toBeNull();
   });
 });

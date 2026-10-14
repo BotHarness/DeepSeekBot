@@ -1,5 +1,6 @@
 import { useRef, useState, type ReactElement } from 'react';
-import { Button, Switch, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+import * as stylex from '@stylexjs/stylex';
+import { Switch, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type {
   ConversationIngestRow,
@@ -9,11 +10,22 @@ import type {
 import type { BridgeActions } from './actions.js';
 import { externalPlatformLabel } from './bridge-source-label.js';
 import { Combobox } from './combobox.js';
+import { Field } from './ds/field.js';
+import {
+  ConfirmDialog,
+  DangerTextButton,
+  FormDialog,
+  type DialogLabels,
+} from './ds/form-dialog.js';
+import { Note } from './ds/note.js';
 import { formatRelativeTime } from './labels.js';
 import type { BotHarnessTranslate } from './locale.js';
-import { Modal } from './modal.js';
 import { useMountedResource } from './mounted-resource.js';
 import { SidebarCardRow } from './sidebar-card.js';
+
+const styles = stylex.create({
+  text: { margin: 0 },
+});
 
 const WAKE: Record<ConversationIngestWake['mode'], ConversationIngestWake> = {
   mentions: { mode: 'mentions', count: 10, intervalSeconds: 300 },
@@ -121,6 +133,7 @@ export function ConversationIngestRows({
   const close = () => {
     if (!busy) setMode(undefined);
   };
+  const labels: DialogLabels = { close: t('common.close'), cancel: t('common.cancel') };
   const stateTone = (row: ConversationIngestRow) =>
     row.state === 'receiving' ? 'success' : row.state === 'unavailable' ? 'warning' : 'neutral';
   return (
@@ -170,148 +183,125 @@ export function ConversationIngestRows({
       />
       {error && !mode ? (
         <li className="bh-card-row bh-card-note">
-          <span className="bh-error" role="alert">
-            {error}
-          </span>
+          <Note tone="danger">{error}</Note>
         </li>
       ) : null}
-      <Modal
-        className="bh-sidebar-modal"
-        open={mode !== undefined}
-        onClose={close}
-        title={
-          mode === 'add'
-            ? t('ingest.addTitle')
-            : mode === 'delete'
-              ? t('ingest.delete')
+      {mode === 'delete' ? (
+        <ConfirmDialog
+          title={t('ingest.delete')}
+          labels={labels}
+          confirmLabel={t(busy ? 'identity.pending' : 'ingest.confirmDelete')}
+          busy={busy}
+          error={error || undefined}
+          onCancel={close}
+          onConfirm={() => void operate(save, true)}
+        >
+          <p {...stylex.props(styles.text)}>{t('ingest.deleteImpact')}</p>
+        </ConfirmDialog>
+      ) : mode !== undefined ? (
+        <FormDialog
+          title={
+            mode === 'add'
+              ? t('ingest.addTitle')
               : t('ingest.edit', { name: selected?.conversation.name ?? '' })
-        }
-        {...(mode === 'add' ? { description: t('ingest.summary') } : {})}
-        closeLabel={t('common.close')}
-        footer={
-          <div className="bh-modal-footer">
-            {mode === 'edit' && selected ? (
-              <>
-                <Button
-                  variant="outline"
-                  className="bh-im-danger-outline"
-                  disabled={busy}
-                  onClick={() => setMode('delete')}
-                >
-                  {t('common.delete')}
-                </Button>
-                <span className="bh-modal-footer-gap" />
-              </>
-            ) : null}
-            <Button variant="outline" disabled={busy} onClick={close}>
-              {t('common.cancel')}
-            </Button>
-            <Button
-              variant="primary"
-              className={mode === 'delete' ? 'bh-im-danger' : undefined}
-              disabled={busy || (mode === 'add' && (!candidate || !conversationId))}
-              onClick={() => void operate(save, true)}
-            >
-              {t(
-                busy
-                  ? 'identity.pending'
-                  : mode === 'delete'
-                    ? 'ingest.confirmDelete'
-                    : mode === 'add'
-                      ? 'ingest.save'
-                      : 'ingest.update',
-              )}
-            </Button>
-          </div>
-        }
-      >
-        <div className="bh-sidebar-modal-form">
-          {error ? (
-            <p role="alert" className="bh-error">
-              {error}
-            </p>
-          ) : null}
+          }
+          description={mode === 'add' ? t('ingest.summary') : undefined}
+          labels={labels}
+          submitLabel={t(
+            busy ? 'identity.pending' : mode === 'add' ? 'ingest.save' : 'ingest.update',
+          )}
+          submitDisabled={mode === 'add' && (!candidate || !conversationId)}
+          busy={busy}
+          error={error || undefined}
+          onCancel={close}
+          onSubmit={() => void operate(save, true)}
+          secondary={
+            mode === 'edit' && selected ? (
+              <DangerTextButton disabled={busy} onClick={() => setMode('delete')}>
+                {t('common.delete')}
+              </DangerTextButton>
+            ) : undefined
+          }
+        >
           {mode === 'add' ? (
             <>
-              <label className="bh-im-field">
-                <span>{t('ingest.app')}</span>
-                <Combobox
-                  searchable={false}
-                  label={t('ingest.app')}
-                  toggleLabel={t('ingest.app')}
-                  placeholder={t('im.select')}
-                  emptyLabel={t('ingest.noApps')}
-                  value={bindingId}
-                  disabled={busy}
-                  onSelect={(value) => {
-                    setBindingId(value);
-                    setConversationId('');
-                  }}
-                  options={(snapshot?.candidates ?? []).map((item) => ({
-                    value: item.bindingId,
-                    label: item.accountName,
-                    hint: t('ingest.appHint', {
-                      platform: externalPlatformLabel(item.platform, t),
-                      bot: botNames.get(item.botSlug) ?? item.botSlug,
-                    }),
-                  }))}
-                />
-              </label>
-              {snapshot && !snapshot.candidates.length ? (
-                <p className="bh-muted">{t('ingest.noApps')}</p>
-              ) : null}
-              {candidate ? (
-                <label className="bh-im-field">
-                  <span>{t('ingest.conversation')}</span>
+              <Field
+                label={t('ingest.app')}
+                hint={snapshot && !snapshot.candidates.length ? t('ingest.noApps') : undefined}
+                group
+              >
+                {() => (
                   <Combobox
-                    label={t('ingest.conversation')}
-                    toggleLabel={t('ingest.conversation')}
+                    searchable={false}
+                    label={t('ingest.app')}
+                    toggleLabel={t('ingest.app')}
                     placeholder={t('im.select')}
-                    emptyLabel={t('ingest.noConversations')}
-                    value={conversationId}
+                    emptyLabel={t('ingest.noApps')}
+                    value={bindingId}
                     disabled={busy}
-                    onSelect={setConversationId}
-                    options={candidate.conversations.map((item) => ({
-                      value: item.id,
-                      label: item.name,
-                      ...(item.name === item.id ? {} : { hint: item.id }),
-                      disabled: connected(item.id),
+                    onSelect={(value) => {
+                      setBindingId(value);
+                      setConversationId('');
+                    }}
+                    options={(snapshot?.candidates ?? []).map((item) => ({
+                      value: item.bindingId,
+                      label: item.accountName,
+                      hint: t('ingest.appHint', {
+                        platform: externalPlatformLabel(item.platform, t),
+                        bot: botNames.get(item.botSlug) ?? item.botSlug,
+                      }),
                     }))}
                   />
-                </label>
-              ) : null}
-              {candidate && !candidate.conversations.length ? (
-                <p className="bh-muted">{t('ingest.noConversations')}</p>
+                )}
+              </Field>
+              {candidate ? (
+                <Field
+                  label={t('ingest.conversation')}
+                  hint={candidate.conversations.length ? undefined : t('ingest.noConversations')}
+                  group
+                >
+                  {() => (
+                    <Combobox
+                      label={t('ingest.conversation')}
+                      toggleLabel={t('ingest.conversation')}
+                      placeholder={t('im.select')}
+                      emptyLabel={t('ingest.noConversations')}
+                      value={conversationId}
+                      disabled={busy}
+                      onSelect={setConversationId}
+                      options={candidate.conversations.map((item) => ({
+                        value: item.id,
+                        label: item.name,
+                        ...(item.name === item.id ? {} : { hint: item.id }),
+                        disabled: connected(item.id),
+                      }))}
+                    />
+                  )}
+                </Field>
               ) : null}
             </>
           ) : null}
-          {mode === 'delete' ? (
-            <p>{t('ingest.deleteImpact')}</p>
-          ) : mode === undefined ? null : (
-            <>
-              <div className="bh-im-field">
-                <span>{t('ingest.wake')}</span>
-                <Combobox
-                  searchable={false}
-                  label={t('ingest.wake')}
-                  toggleLabel={t('ingest.wake')}
-                  value={wake}
-                  disabled={busy}
-                  onSelect={(value) =>
-                    setWake(value === 'all' ? 'all' : value === 'digest' ? 'digest' : 'mentions')
-                  }
-                  options={(['mentions', 'digest', 'all'] as const).map((value) => ({
-                    value,
-                    label: t(`ingest.wake.${value}`),
-                  }))}
-                />
-              </div>
-              <p className="bh-muted">{t('ingest.wakeHint')}</p>
-              <p className="bh-muted">{t('ingest.requirement')}</p>
-            </>
-          )}
-        </div>
-      </Modal>
+          <Field label={t('ingest.wake')} hint={t('ingest.wakeHint')} group>
+            {() => (
+              <Combobox
+                searchable={false}
+                label={t('ingest.wake')}
+                toggleLabel={t('ingest.wake')}
+                value={wake}
+                disabled={busy}
+                onSelect={(value) =>
+                  setWake(value === 'all' ? 'all' : value === 'digest' ? 'digest' : 'mentions')
+                }
+                options={(['mentions', 'digest', 'all'] as const).map((value) => ({
+                  value,
+                  label: t(`ingest.wake.${value}`),
+                }))}
+              />
+            )}
+          </Field>
+          <Note>{t('ingest.requirement')}</Note>
+        </FormDialog>
+      ) : null}
     </>
   );
 }

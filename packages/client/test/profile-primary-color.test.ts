@@ -1,26 +1,13 @@
 // @vitest-environment jsdom
-import { act, createElement, type ButtonHTMLAttributes, type PropsWithChildren } from 'react';
+import { act, createElement, type PropsWithChildren } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
+  const { dialogPrimitives } = await import('./primitive-mocks.js');
   const stub = () => null;
   return {
-    Button: ({
-      variant: _variant,
-      size: _size,
-      ...props
-    }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string; size?: string }) =>
-      createElement('button', { type: 'button', ...props }),
-    Modal: ({
-      open,
-      title,
-      children,
-      footer,
-    }: PropsWithChildren<{ open: boolean; title: string; footer?: unknown }>) =>
-      open
-        ? createElement('div', { role: 'dialog', 'aria-label': title }, children, footer as never)
-        : null,
+    ...dialogPrimitives(),
     Tooltip: ({ children }: PropsWithChildren) => children,
     IconCloseOutlineRegular: stub,
     IconEllipsisOutlineRegular: stub,
@@ -44,6 +31,7 @@ import { ProfileHeader } from '../src/client/profile-header.js';
 import type { BotSummary, ChannelSummary } from '../src/client/store.js';
 import { seededAvatarFor } from '../../core/src/bots/avatar-appearance.js';
 import { fallbackPrimaryColor } from '../../core/src/bots/primary-color.js';
+import { buttonNamed, dialog, fieldNamed, typeInto } from './primitive-mocks.js';
 
 const AT = '2026-10-12T00:00:00Z';
 const CHANNEL: ChannelSummary = {
@@ -106,18 +94,10 @@ const one = <T extends Element>(selector: string): T => {
   return found!;
 };
 const click = (selector: string) => act(async () => one<HTMLElement>(selector).click());
-const button = (label: string) =>
-  [...host.querySelectorAll('button')].find((item) => item.textContent === label)!;
+const button = (label: string) => buttonNamed(label, dialog());
 const pane = (theme: 'light' | 'dark') => one<HTMLElement>(`[data-preview-theme="${theme}"]`);
-const mode = () => one('.bh-primary-color-editor').getAttribute('data-primary-color-mode');
-
-async function type(selector: string, value: string) {
-  const input = one<HTMLInputElement>(selector);
-  await act(async () => {
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value);
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-  });
-}
+const mode = () => one('[role="radiogroup"]').getAttribute('data-primary-color-mode');
+const hex = () => fieldNamed(zhTranslate('profile.primaryColor.hex'));
 
 function expectReadable(theme: 'light' | 'dark', source: string) {
   const surface = REFERENCE_SURFACES[theme].background;
@@ -160,14 +140,16 @@ it('previews a Custom draft locally and saves it only on Save', async () => {
   await click('[data-primary-color-preset="#f4f1ec"]');
   expectReadable('light', '#f4f1ec');
   expectReadable('dark', '#f4f1ec');
-  expect(one<HTMLInputElement>('.bh-primary-color-hex-input').value).toBe('#f4f1ec');
+  expect(hex().value).toBe('#f4f1ec');
 
-  await type('.bh-primary-color-hex-input', '#12');
-  expect(one('.bh-primary-color-hex-input').getAttribute('aria-invalid')).toBe('true');
+  await typeInto(hex(), '#12');
+  expect(hex().getAttribute('aria-invalid')).toBe('true');
+  expect(dialog().textContent).toContain(zhTranslate('profile.primaryColor.hexInvalid'));
   expect(button('保存').disabled).toBe(true);
-  await type('.bh-primary-color-hex-input', '0F0');
+  await typeInto(hex(), '0F0');
+  expect(hex().hasAttribute('aria-invalid')).toBe(false);
   expectReadable('dark', '#00ff00');
-  await type('.bh-primary-color-hex-input', '#1D1B22');
+  await typeInto(hex(), '#1D1B22');
   expectReadable('dark', '#1d1b22');
   expect(setBotPrimaryColor).not.toHaveBeenCalled();
 
@@ -198,7 +180,7 @@ it('keeps the draft and reports a failed Save', async () => {
   await act(async () => button('保存').click());
   expect(setBotPrimaryColor).toHaveBeenCalledOnce();
   expect(onClose).not.toHaveBeenCalled();
-  expect(host.querySelector('[role="alert"]')?.textContent).toBe(
+  expect(dialog().querySelector('[role="alert"]')?.textContent).toBe(
     zhTranslate('profile.primaryColor.failed'),
   );
   expect(mode()).toBe('custom');
@@ -236,10 +218,15 @@ it('offers the setting in the Avatar area for pixel and uploaded-image Bots alik
         }),
       ),
     );
-    expect(host.querySelector('.bh-primary-color-row')).toBeNull();
-    await click('.bh-profile-avatar-button');
-    expect(one('.bh-primary-color-row').getAttribute('data-primary-color-source')).toBe(source);
-    await click('.bh-primary-color-row button');
-    expect(one('[role="dialog"] .bh-primary-color-editor')).not.toBeNull();
+    expect(host.querySelector('[role="dialog"]')).toBeNull();
+    await act(async () => buttonNamed(zhTranslate('profile.avatar.change')).click());
+    const row = one('[role="dialog"] div[data-primary-color-source]');
+    expect(row.getAttribute('data-primary-color-source')).toBe(source);
+    await act(async () => buttonNamed(zhTranslate('profile.primaryColor.edit'), row).click());
+    expect(
+      document.querySelector(
+        `[role="dialog"][aria-label="${zhTranslate('profile.primaryColor.title')}"] [role="radiogroup"]`,
+      ),
+    ).not.toBeNull();
   }
 });

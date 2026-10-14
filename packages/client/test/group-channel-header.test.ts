@@ -57,7 +57,7 @@ it('gives each visible Bot an independent safe keyboard button outside the Profi
   expect(html).toContain('>+1</span>');
   expect(html).toContain('aria-label="Ada &lt;safe&gt; · 正在搜索"');
   expect(html).toContain('aria-label="Cy · 空闲"');
-  expect(html).toContain('class="bh-group-channel-name"');
+  expect(html).toContain('data-group-channel-name=""');
   expect(html).toContain('<span class="bh-channel-island bh-group-channel-header">');
 });
 it('keeps the custom Group identity alongside live member avatars and an empty Group hash fallback', () => {
@@ -66,7 +66,7 @@ it('keeps the custom Group identity alongside live member avatars and an empty G
     header({ ...channel, avatar: 'avatar.webp' }).match(/class="bh-avatar-facepile-button"/gu),
   ).toHaveLength(3);
   const empty = header({ ...channel, members: [] }, []);
-  expect(empty).toContain('bh-channel-mark bh-channel-mark-sm');
+  expect(empty).toContain('data-channel-mark=""');
   expect(empty).not.toContain('bh-avatar-facepile-button');
 });
 it('shows at most three active-first member chips and overflow in the existing Group Profile popover', () => {

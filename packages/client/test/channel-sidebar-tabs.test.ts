@@ -152,7 +152,7 @@ describe('Channel sidebar tabs', () => {
     expect(tabNames()).toEqual(['Memory', 'sessions']);
     expect(selected()).toBe('Memory');
     expect(bodies()).toEqual(['memory-files', 'memory-evolution']);
-    expect(host.querySelector('.bh-channel-sidebar-entry-chevron')).toBeNull();
+    expect(host.querySelector('[data-panel-chevron]')).toBeNull();
 
     clickTab('sessions');
     expect(selected()).toBe('sessions');

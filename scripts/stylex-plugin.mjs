@@ -19,8 +19,22 @@ export function stylexOptions(rootDir) {
   };
 }
 
+const PRIORITY_LEVEL = 1000;
+
+function priorityAnchors(rules) {
+  const top = Math.max(-1, ...rules.map(([, , priority]) => Math.floor(priority / PRIORITY_LEVEL)));
+  return Array.from({ length: top + 1 }, (_, level) => [
+    `bhx-level-${String(level)}`,
+    { ltr: `.bhx-level-${String(level)}{}`, rtl: null },
+    level * PRIORITY_LEVEL,
+  ]);
+}
+
 export function stylexCss(rules) {
-  return stylexBabel.processStylexRules(rules, { useLayers: false });
+  if (rules.length === 0) return '';
+  return stylexBabel.processStylexRules([...priorityAnchors(rules), ...rules], {
+    useLayers: false,
+  });
 }
 
 export function stylexPlugin({ rootDir }) {

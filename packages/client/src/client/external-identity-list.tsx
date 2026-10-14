@@ -2,9 +2,9 @@ import { CreateAppForm } from './create-app-form.js';
 import type { ProviderAppSetup } from './provider-app-setup.js';
 import { externalPlatformLabel } from './bridge-source-label.js';
 import { useRef, useState, type ReactElement } from 'react';
+import * as stylex from '@stylexjs/stylex';
 import {
   Button,
-  Input,
   Switch,
   Tag,
   Tooltip,
@@ -22,11 +22,73 @@ import { ExternalConversations, type ConversationSync } from './external-convers
 import type { MessagingConversationInput } from '../../../core/src/messaging/conversations.js';
 import type { GroupReceptionInput } from '../../../core/src/messaging/group-policy.js';
 import type { BotHarnessTranslate } from './locale.js';
-import { Modal } from './modal.js';
+import { Field, TextField } from './ds/field.js';
+import {
+  ConfirmDialog,
+  DangerTextButton,
+  FormDialog,
+  type DialogLabels,
+} from './ds/form-dialog.js';
+import { Note } from './ds/note.js';
+import { color, space, text } from './ds/tokens.stylex.js';
 import { MessagingHelp } from './messaging-help.js';
 import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
 import { openExternalBindingSettings } from './bot-settings-open.js';
 import { useMountedResource } from './mounted-resource.js';
+
+const styles = stylex.create({
+  block: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x2,
+    minWidth: 0,
+  },
+  muted: { color: color.muted },
+  strong: { fontWeight: text.strong },
+  meta: {
+    margin: 0,
+    color: color.muted,
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+    overflowWrap: 'anywhere',
+  },
+  text: { margin: 0 },
+  list: { margin: 0, paddingInlineStart: space.x5 },
+  subject: {
+    margin: 0,
+    fontWeight: text.strong,
+    overflowWrap: 'anywhere',
+  },
+  heading: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: space.x2,
+  },
+  links: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: `${space.x3} ${space.x5}`,
+  },
+  link: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: space.x2,
+    color: color.accent,
+    textUnderlineOffset: '3px',
+  },
+  picker: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: space.x2,
+    minWidth: 0,
+  },
+  actions: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: space.x2,
+  },
+});
 
 const AVAILABILITY = {
   available: 'identity.state.available',
@@ -158,6 +220,10 @@ export function ExternalIdentityList({
       },
     );
   };
+  const labels: DialogLabels = {
+    close: t('common.close'),
+    cancel: bindDialog?.dismissLabel ?? t('common.cancel'),
+  };
   const operate = async (operation: () => Promise<void>, done = false) => {
     if (busy) return;
     setBusy(true);
@@ -217,11 +283,7 @@ export function ExternalIdentityList({
   return (
     <>
       <span hidden ref={mount} />
-      {error && !mode ? (
-        <p role="alert" className="bh-error">
-          {error}
-        </p>
-      ) : null}
+      {error && !mode ? <Note tone="danger">{error}</Note> : null}
       {bindDialog ? null : (
         <SidebarCardList label={t('identity.title')}>
           {[...identities]
@@ -301,164 +363,77 @@ export function ExternalIdentityList({
           />
         </SidebarCardList>
       )}
-      <Modal
-        className="bh-sidebar-modal bh-external-identity-modal"
-        contentClassName="bh-external-identity-content"
-        open={mode !== undefined}
-        onClose={close}
-        title={t(
-          mode === 'bind' || mode === 'bound'
-            ? 'identity.bind'
-            : mode === 'unbind'
-              ? 'identity.unbind'
-              : mode === 'reconnect'
-                ? 'identity.reconnect'
-                : 'identity.editTitle',
-        )}
-        closeLabel={t('common.close')}
-        footer={
-          <div className="bh-modal-footer">
-            {mode === 'edit' ? (
+      {mode === 'bind' && creatingApp && appSetup ? (
+        <CreateAppForm
+          client={appSetup.client}
+          botSlug={appSetup.botSlug}
+          descriptors={snapshot?.appSetups ?? []}
+          t={t}
+          title={t('identity.bind')}
+          description={bindDialog?.description || undefined}
+          labels={labels}
+          error={error || undefined}
+          onCancel={close}
+          onBack={() => setCreatingApp(false)}
+          onCreated={async () => {
+            const input = appSetup.client.binding(appSetup.botSlug);
+            await mutate(input);
+            await refresh();
+            if (input.kind === 'bind') setAccountKey(input.providerId + ':' + input.accountRef);
+            appSetup.client.forget(appSetup.botSlug);
+            setCreatingApp(false);
+            setMode('bound');
+          }}
+        />
+      ) : mode === 'bind' ? (
+        <FormDialog
+          title={t('identity.bind')}
+          description={bindDialog?.description || undefined}
+          labels={labels}
+          submitLabel={t(busy ? 'identity.pending' : 'identity.bind')}
+          submitDisabled={
+            refreshing ||
+            !selectedAccount ||
+            !selectedAccount.connected ||
+            !!selectedAccount.boundBotSlug ||
+            !!selectedAccount.unsupported
+          }
+          busy={busy}
+          error={error || undefined}
+          onCancel={close}
+          onSubmit={() => void operate(save)}
+        >
+          <nav aria-label={t('identity.tutorials')} {...stylex.props(styles.block)}>
+            <span {...stylex.props(styles.muted)}>{t('identity.tutorials')}</span>
+            <div {...stylex.props(styles.links)}>
+              {(['lark', 'slack', 'wechat', 'more'] as const).map((guide) => (
+                <a
+                  key={guide}
+                  href={t(`identity.tutorial.${guide}Url`)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  {...stylex.props(styles.link)}
+                >
+                  {t(`identity.tutorial.${guide}`)}
+                  <IconRightUpOutlineRegular size={14} />
+                </a>
+              ))}
+            </div>
+          </nav>
+          <Field
+            label={t('identity.app')}
+            hint={t(
+              selectedAccount?.platform === 'qq'
+                ? 'identity.bindHintQq'
+                : selectedAccount?.platform === 'discord'
+                  ? 'identity.bindHintDiscord'
+                  : 'identity.bindHint',
+            )}
+            group
+          >
+            {() => (
               <>
-                {post && selected ? (
-                  <Button
-                    variant="outline"
-                    disabled={busy || !selected.enabled}
-                    onClick={() => {
-                      const identity = selected;
-                      close();
-                      post(identity);
-                    }}
-                  >
-                    {t('proactive.title')}
-                  </Button>
-                ) : null}
-                <Button
-                  variant="outline"
-                  disabled={busy}
-                  aria-label={selected && t('identity.reconnectFor', { name: selected.name })}
-                  onClick={() => setMode('reconnect')}
-                >
-                  {t('identity.reconnect')}
-                </Button>
-                <Button
-                  variant="outline"
-                  className="bh-im-danger-outline"
-                  disabled={busy}
-                  aria-label={selected && t('identity.unbindFor', { name: selected.name })}
-                  onClick={() => setMode('unbind')}
-                >
-                  {t('identity.unbind')}
-                </Button>
-                <span className="bh-modal-footer-gap" />
-              </>
-            ) : mode === 'bound' ? null : (
-              <Button variant="outline" disabled={busy} onClick={close}>
-                {bindDialog?.dismissLabel ?? t('common.cancel')}
-              </Button>
-            )}
-            {mode === 'bound' ? (
-              <Button variant="primary" onClick={close}>
-                {t('identity.done')}
-              </Button>
-            ) : creatingApp ? null : (
-              <Button
-                variant="primary"
-                className={mode === 'unbind' ? 'bh-im-danger' : undefined}
-                disabled={
-                  busy ||
-                  (mode === 'bind' &&
-                    (refreshing ||
-                      !selectedAccount ||
-                      !selectedAccount.connected ||
-                      !!selectedAccount.boundBotSlug ||
-                      !!selectedAccount.unsupported)) ||
-                  (mode === 'edit' && !name.trim())
-                }
-                onClick={() => void operate(save, mode !== 'bind')}
-              >
-                {t(
-                  busy
-                    ? 'identity.pending'
-                    : mode === 'unbind'
-                      ? 'identity.confirmUnbind'
-                      : mode === 'bind'
-                        ? 'identity.bind'
-                        : mode === 'reconnect'
-                          ? 'identity.reconnect'
-                          : 'identity.save',
-                )}
-              </Button>
-            )}
-          </div>
-        }
-      >
-        <div className="bh-sidebar-modal-form">
-          {bindDialog ? <p className="bh-note">{bindDialog.description}</p> : null}
-          {error ? (
-            <p role="alert" className="bh-error">
-              {error}
-            </p>
-          ) : null}
-          {mode === 'bind' && creatingApp && appSetup ? (
-            <CreateAppForm
-              client={appSetup.client}
-              botSlug={appSetup.botSlug}
-              descriptors={snapshot?.appSetups ?? []}
-              t={t}
-              onBack={() => setCreatingApp(false)}
-              onCreated={async () => {
-                const input = appSetup.client.binding(appSetup.botSlug);
-                await mutate(input);
-                await refresh();
-                if (input.kind === 'bind') setAccountKey(input.providerId + ':' + input.accountRef);
-                appSetup.client.forget(appSetup.botSlug);
-                setCreatingApp(false);
-                setMode('bound');
-              }}
-            />
-          ) : mode === 'bind' ? (
-            <>
-              <nav className="bh-im-field" aria-label={t('identity.tutorials')}>
-                <span className="bh-muted">{t('identity.tutorials')}</span>
-                <div className="bh-im-tutorials">
-                  {(['lark', 'slack', 'wechat', 'more'] as const).map((guide) => (
-                    <a
-                      key={guide}
-                      href={t(`identity.tutorial.${guide}Url`)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      {t(`identity.tutorial.${guide}`)}
-                      <IconRightUpOutlineRegular size={14} />
-                    </a>
-                  ))}
-                </div>
-              </nav>
-              <div className="bh-im-field">
-                <div className="bh-im-app-heading">
-                  <span>{t('identity.app')}</span>
-                  {appSetup && snapshot?.appSetups?.length ? (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      disabled={busy || refreshing}
-                      onClick={() => setCreatingApp(true)}
-                    >
-                      {t('appSetup.create')}
-                    </Button>
-                  ) : null}
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={busy || refreshing}
-                    onClick={openAppSettings}
-                  >
-                    <IconPlusOutlineRegular size={16} />
-                    {t('identity.manageApps')}
-                  </Button>
-                </div>
-                <div className="bh-im-app-picker">
+                <div {...stylex.props(styles.picker)}>
                   <Combobox
                     label={t('identity.app')}
                     toggleLabel={t('identity.app')}
@@ -514,166 +489,202 @@ export function ExternalIdentityList({
                       }))}
                   />
                   <Tooltip label={t('identity.refreshApps')} portal side="bottom" delayMs={250}>
-                    <button
+                    <Button
                       type="button"
-                      className="bh-icon-btn bh-im-app-refresh"
+                      variant="ghost"
+                      size="sm"
+                      icon={<IconRefreshOutlineRegular size={16} />}
                       aria-label={t('identity.refreshApps')}
                       aria-busy={refreshing}
                       disabled={busy || refreshing}
                       onClick={() => void refreshApps()}
-                    >
-                      <IconRefreshOutlineRegular size={16} />
-                    </button>
+                    />
                   </Tooltip>
                 </div>
-              </div>
-              <p className="bh-muted">
-                {t(
-                  selectedAccount?.platform === 'qq' ? 'identity.bindHintQq' : 'identity.bindHint',
-                )}
-              </p>
-              {appSetup && !snapshot?.appSetups?.length ? (
-                <p className="bh-note">{t('appSetup.fallback')}</p>
-              ) : null}
-              {refreshing ? <p role="status">{t('identity.refreshing')}</p> : null}
-            </>
-          ) : mode === 'bound' && selectedAccount ? (
+                <div {...stylex.props(styles.actions)}>
+                  {appSetup && snapshot?.appSetups?.length ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      disabled={busy || refreshing}
+                      onClick={() => setCreatingApp(true)}
+                    >
+                      {t('appSetup.create')}
+                    </Button>
+                  ) : null}
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    icon={<IconPlusOutlineRegular size={16} />}
+                    disabled={busy || refreshing}
+                    onClick={openAppSettings}
+                  >
+                    {t('identity.manageApps')}
+                  </Button>
+                </div>
+              </>
+            )}
+          </Field>
+          {appSetup && !snapshot?.appSetups?.length ? <Note>{t('appSetup.fallback')}</Note> : null}
+          {refreshing ? <Note>{t('identity.refreshing')}</Note> : null}
+        </FormDialog>
+      ) : mode === 'bound' ? (
+        <FormDialog
+          title={t('identity.bind')}
+          labels={labels}
+          submitLabel={t('identity.done')}
+          showCancel={false}
+          onCancel={close}
+          onSubmit={close}
+        >
+          {selectedAccount ? (
             <>
-              <p className="bh-sidebar-modal-subject">
+              <p {...stylex.props(styles.subject)}>
                 {platform(selectedAccount.platform)} · {selectedAccount.name}
               </p>
-              <p role="status">
+              <Note>
                 {t(
                   bound?.reception === 'receiving'
                     ? selectedAccount.platform === 'weixin'
                       ? 'identity.readyWeixin'
                       : selectedAccount.platform === 'qq'
                         ? 'identity.readyQq'
-                        : 'identity.ready'
+                        : selectedAccount.platform === 'discord'
+                          ? 'identity.readyDiscord'
+                          : 'identity.ready'
                     : bound?.reception === 'connecting' || bound === undefined
                       ? 'identity.connecting'
                       : 'identity.offline',
                   { app: selectedAccount.name },
                 )}
-              </p>
+              </Note>
             </>
-          ) : selected ? (
+          ) : null}
+        </FormDialog>
+      ) : mode === 'edit' && selected ? (
+        <FormDialog
+          title={t('identity.editTitle')}
+          size="small"
+          scroll
+          labels={labels}
+          submitLabel={t(busy ? 'identity.pending' : 'identity.save')}
+          submitDisabled={!name.trim()}
+          busy={busy}
+          error={error || undefined}
+          onCancel={close}
+          onSubmit={() => void operate(save, true)}
+          secondary={
             <>
-              <p className="bh-sidebar-modal-subject">
-                {platform(selected.platform)} · {selected.name}
-              </p>
-              {mode === 'edit' ? (
-                <>
-                  {selected.platform === 'feishu' ? (
-                    <div className="bh-im-field" role="status">
-                      <span>{t('identity.feedback.title')}</span>
-                      <p className="bh-bridge-secondary">
-                        {t(
-                          accounts.some(
-                            (account) =>
-                              account.providerId === selected.providerId &&
-                              account.ref === selected.accountRef &&
-                              account.fingerprint === selected.fingerprint &&
-                              account.reactionSupported === true,
-                          )
-                            ? 'identity.feedback.supported'
-                            : 'identity.feedback.capabilityUnavailable',
-                        )}
-                      </p>
-                      {(snapshot?.feedback ?? [])
-                        .filter((item) => item.bindingId === selected.id)
-                        .slice(0, 5)
-                        .map((item) => (
-                          <p
-                            key={item.sourceEventId}
-                            className="bh-bridge-secondary"
-                            title={item.sourceEventId}
-                          >
-                            {item.sourceEventId.slice(-8)} · {t('identity.feedback.received')}:{' '}
-                            {t(`identity.feedback.${item.attempts.received?.state ?? 'none'}`)} ·{' '}
-                            {t('identity.feedback.answered')}:{' '}
-                            {t(`identity.feedback.${item.attempts.answered?.state ?? 'none'}`)}
-                          </p>
-                        ))}
-                    </div>
-                  ) : null}
-                  <label className="bh-im-field">
-                    <span>{t('identity.displayName')}</span>
-                    <Input
-                      value={name}
-                      disabled={busy}
-                      maxLength={120}
-                      onChange={(e) => setName(e.target.value)}
-                    />
-                  </label>
-                  <div className="bh-im-field">
-                    <span className="bh-im-heading">
-                      <span>{t('defaults.identity')}</span>
-                      <MessagingHelp
-                        title={t('defaults.identity')}
-                        text={t('defaults.restoreHint')}
-                        t={t}
-                      />
-                    </span>
-                    <Combobox
-                      searchable={false}
-                      label={t('defaults.identityOrigin')}
-                      toggleLabel={t('defaults.identityOrigin')}
-                      value={inheritEnabled ? 'inherit' : 'custom'}
-                      disabled={busy}
-                      onSelect={(value) => setInheritEnabled(value === 'inherit')}
-                      options={[
-                        { value: 'inherit', label: t('defaults.inherited') },
-                        { value: 'custom', label: t('defaults.custom') },
-                      ]}
-                    />
-                  </div>
-                  {selected.platform === 'weixin' ? null : (
-                    <div className="bh-im-field">
-                      <span className="bh-im-heading">
-                        <span>{t('identity.newConversations')}</span>
-                        <MessagingHelp
-                          title={t('identity.newConversations')}
-                          text={t('identity.newConversationsHint')}
-                          t={t}
-                        />
-                      </span>
-                      <Combobox
-                        searchable={false}
-                        label={t('identity.newConversations')}
-                        toggleLabel={t('identity.newConversations')}
-                        value={newConversations}
-                        disabled={busy}
-                        onSelect={(value) =>
-                          setNewConversations(
-                            value === 'ask' || value === 'auto' ? value : 'inherit',
-                          )
-                        }
-                        options={[
-                          {
-                            value: 'inherit',
-                            label:
-                              selected.newConversationsInheritance === 'custom'
-                                ? t('identity.newConversations.inheritPlain')
-                                : t('identity.newConversations.inherit', {
-                                    value: t(
-                                      selected.newConversations === 'ask'
-                                        ? 'identity.newConversations.ask'
-                                        : 'identity.newConversations.auto',
-                                    ),
-                                  }),
-                          },
-                          { value: 'auto', label: t('identity.newConversations.auto') },
-                          { value: 'ask', label: t('identity.newConversations.ask') },
-                        ]}
-                      />
-                    </div>
-                  )}
-                </>
+              {post ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={busy || !selected.enabled}
+                  onClick={() => {
+                    const identity = selected;
+                    close();
+                    post(identity);
+                  }}
+                >
+                  {t('proactive.title')}
+                </Button>
               ) : null}
-              {mode === 'edit' && selected.platform === 'weixin' ? (
-                <div className="bh-im-field">
-                  <span>{t('identity.typing.label')}</span>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={busy}
+                aria-label={t('identity.reconnectFor', { name: selected.name })}
+                onClick={() => setMode('reconnect')}
+              >
+                {t('identity.reconnect')}
+              </Button>
+              <DangerTextButton
+                label={t('identity.unbindFor', { name: selected.name })}
+                disabled={busy}
+                onClick={() => setMode('unbind')}
+              >
+                {t('identity.unbind')}
+              </DangerTextButton>
+            </>
+          }
+        >
+          <p {...stylex.props(styles.subject)}>
+            {platform(selected.platform)} · {selected.name}
+          </p>
+          {selected.platform === 'feishu' ? (
+            <div role="status" {...stylex.props(styles.block)}>
+              <span {...stylex.props(styles.strong)}>{t('identity.feedback.title')}</span>
+              <p {...stylex.props(styles.meta)}>
+                {t(
+                  accounts.some(
+                    (account) =>
+                      account.providerId === selected.providerId &&
+                      account.ref === selected.accountRef &&
+                      account.fingerprint === selected.fingerprint &&
+                      account.reactionSupported === true,
+                  )
+                    ? 'identity.feedback.supported'
+                    : 'identity.feedback.capabilityUnavailable',
+                )}
+              </p>
+              {(snapshot?.feedback ?? [])
+                .filter((item) => item.bindingId === selected.id)
+                .slice(0, 5)
+                .map((item) => (
+                  <p
+                    key={item.sourceEventId}
+                    title={item.sourceEventId}
+                    {...stylex.props(styles.meta)}
+                  >
+                    {item.sourceEventId.slice(-8)} · {t('identity.feedback.received')}:{' '}
+                    {t(`identity.feedback.${item.attempts.received?.state ?? 'none'}`)} ·{' '}
+                    {t('identity.feedback.answered')}:{' '}
+                    {t(`identity.feedback.${item.attempts.answered?.state ?? 'none'}`)}
+                  </p>
+                ))}
+            </div>
+          ) : null}
+          <TextField
+            label={t('identity.displayName')}
+            value={name}
+            disabled={busy}
+            maxLength={120}
+            onChange={setName}
+          />
+          <Field
+            label={
+              <span {...stylex.props(styles.heading)}>
+                {t('defaults.identity')}
+                <MessagingHelp
+                  title={t('defaults.identity')}
+                  text={t('defaults.restoreHint')}
+                  t={t}
+                />
+              </span>
+            }
+            group
+          >
+            {() => (
+              <Combobox
+                searchable={false}
+                label={t('defaults.identityOrigin')}
+                toggleLabel={t('defaults.identityOrigin')}
+                value={inheritEnabled ? 'inherit' : 'custom'}
+                disabled={busy}
+                onSelect={(value) => setInheritEnabled(value === 'inherit')}
+                options={[
+                  { value: 'inherit', label: t('defaults.inherited') },
+                  { value: 'custom', label: t('defaults.custom') },
+                ]}
+              />
+            )}
+          </Field>
+          {selected.platform === 'weixin' ? (
+            <Field label={t('identity.typing.label')} hint={t('identity.typing.hint')} group>
+              {() => (
+                <>
                   <Combobox
                     searchable={false}
                     label={t('defaults.typingOrigin')}
@@ -687,7 +698,7 @@ export function ExternalIdentityList({
                     ]}
                   />
                   {inheritTyping ? (
-                    <span className="bh-bridge-secondary">{t('defaults.typingInheritHint')}</span>
+                    <Note>{t('defaults.typingInheritHint')}</Note>
                   ) : (
                     <Switch
                       label={t('identity.typing.label')}
@@ -696,49 +707,115 @@ export function ExternalIdentityList({
                       onChange={setTypingEnabled}
                     />
                   )}
-                  <span className="bh-bridge-secondary">{t('identity.typing.hint')}</span>
                   {!selected.typing?.supported ? (
-                    <span className="bh-bridge-secondary">{t('identity.typing.unavailable')}</span>
+                    <Note>{t('identity.typing.unavailable')}</Note>
                   ) : null}
-                </div>
-              ) : null}
-              {mode === 'edit' ? (
-                <div className="bh-im-field">
-                  <span className="bh-im-heading">{t('identity.conversations')}</span>
-                  <ExternalConversations
-                    identity={selected}
-                    snapshot={snapshot}
-                    busy={busy}
-                    t={t}
-                    change={(input) => operate(() => conversation(input))}
-                    rules={(grantId, input) => operate(() => rules(grantId, input))}
-                    {...(channels ? { channels } : {})}
-                    {...(selected.platform === 'qq' && sync
-                      ? {
-                          sync: (grant, channelId, enabled) =>
-                            operate(() => sync(grant, channelId, enabled)),
-                          syncChannels: syncChannels ?? [],
-                        }
-                      : {})}
-                  />
-                </div>
-              ) : null}
-              {mode === 'reconnect' ? <p>{t('identity.reconnectHint')}</p> : null}
-              {mode === 'unbind' ? (
-                <>
-                  <p>{t('identity.impact', { count: selected.grantCount })}</p>
-                  <ul>
-                    {selected.scopes.map((scope, index) => (
-                      <li key={index}>{scope}</li>
-                    ))}
-                  </ul>
-                  <p>{t('identity.unbindHint')}</p>
                 </>
-              ) : null}
+              )}
+            </Field>
+          ) : (
+            <Field
+              label={
+                <span {...stylex.props(styles.heading)}>
+                  {t('identity.newConversations')}
+                  <MessagingHelp
+                    title={t('identity.newConversations')}
+                    text={t('identity.newConversationsHint')}
+                    t={t}
+                  />
+                </span>
+              }
+              group
+            >
+              {() => (
+                <Combobox
+                  searchable={false}
+                  label={t('identity.newConversations')}
+                  toggleLabel={t('identity.newConversations')}
+                  value={newConversations}
+                  disabled={busy}
+                  onSelect={(value) =>
+                    setNewConversations(value === 'ask' || value === 'auto' ? value : 'inherit')
+                  }
+                  options={[
+                    {
+                      value: 'inherit',
+                      label:
+                        selected.newConversationsInheritance === 'custom'
+                          ? t('identity.newConversations.inheritPlain')
+                          : t('identity.newConversations.inherit', {
+                              value: t(
+                                selected.newConversations === 'ask'
+                                  ? 'identity.newConversations.ask'
+                                  : 'identity.newConversations.auto',
+                              ),
+                            }),
+                    },
+                    { value: 'auto', label: t('identity.newConversations.auto') },
+                    { value: 'ask', label: t('identity.newConversations.ask') },
+                  ]}
+                />
+              )}
+            </Field>
+          )}
+          <Field label={t('identity.conversations')} group>
+            {() => (
+              <ExternalConversations
+                identity={selected}
+                snapshot={snapshot}
+                busy={busy}
+                t={t}
+                change={(input) => operate(() => conversation(input))}
+                rules={(grantId, input) => operate(() => rules(grantId, input))}
+                {...(channels ? { channels } : {})}
+                {...(selected.platform === 'qq' && sync
+                  ? {
+                      sync: (grant, channelId, enabled) =>
+                        operate(() => sync(grant, channelId, enabled)),
+                      syncChannels: syncChannels ?? [],
+                    }
+                  : {})}
+              />
+            )}
+          </Field>
+        </FormDialog>
+      ) : (mode === 'reconnect' || mode === 'unbind') && selected ? (
+        <ConfirmDialog
+          title={t(mode === 'unbind' ? 'identity.unbind' : 'identity.reconnect')}
+          labels={labels}
+          confirmLabel={t(
+            busy
+              ? 'identity.pending'
+              : mode === 'unbind'
+                ? 'identity.confirmUnbind'
+                : 'identity.reconnect',
+          )}
+          danger={mode === 'unbind'}
+          busy={busy}
+          error={error || undefined}
+          onCancel={close}
+          onConfirm={() => void operate(save, true)}
+        >
+          <p {...stylex.props(styles.subject)}>
+            {platform(selected.platform)} · {selected.name}
+          </p>
+          {mode === 'reconnect' ? (
+            <p {...stylex.props(styles.text)}>{t('identity.reconnectHint')}</p>
+          ) : (
+            <>
+              <p {...stylex.props(styles.text)}>
+                {t('identity.impact', { count: selected.grantCount })}
+              </p>
+              <ul {...stylex.props(styles.list)}>
+                {selected.scopes.map((scope, index) => (
+                  <li key={index}>{scope}</li>
+                ))}
+              </ul>
+              <p {...stylex.props(styles.text)}>{t('identity.unbindHint')}</p>
             </>
-          ) : null}
-        </div>
-      </Modal>
+          )}
+        </ConfirmDialog>
+      ) : null}
     </>
   );
 }

@@ -86,19 +86,19 @@ try {
     dm.id,
   );
   await page.waitForSelector('.bh-composer-input', { timeout: 20000 });
-  if (!(await page.$('.bh-channel-sidebar-entry-head'))) {
+  if (!(await page.$('[data-panel-head]'))) {
     await page.evaluate(() => document.querySelector('.bh-sidebar-toggle')?.click());
   }
   await page.waitForFunction(
     () =>
-      [...document.querySelectorAll('.bh-channel-sidebar-entry-head')].some((button) =>
+      [...document.querySelectorAll('[data-panel-head]')].some((button) =>
         /Sessions|会话/u.test(button.textContent ?? ''),
       ),
     { timeout: 20000 },
   );
   await page.evaluate(() => {
-    const button = [...document.querySelectorAll('.bh-channel-sidebar-entry-head')].find(
-      (candidate) => /Sessions|会话/u.test(candidate.textContent ?? ''),
+    const button = [...document.querySelectorAll('[data-panel-head]')].find((candidate) =>
+      /Sessions|会话/u.test(candidate.textContent ?? ''),
     );
     if (button?.getAttribute('aria-expanded') !== 'true') button?.click();
   });

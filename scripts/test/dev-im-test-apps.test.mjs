@@ -9,6 +9,8 @@ import {
   loadImTestApp,
   loadSlackImTestApp,
   listSlackImTestApps,
+  loadDiscordImTestApp,
+  listDiscordImTestApps,
   saveImTestAppValues,
 } from '../dev-im-test-apps.mjs';
 
@@ -58,7 +60,259 @@ const slackConfiguration = [
   'BH_SLACK_QA2_APP_TOKEN=xapp-synthetic-app-token-two',
 ].join('\n');
 
+const discordConfiguration = [
+  'BH_DISCORD_QA_SLOT=QA1',
+  'BH_DISCORD_QA1_NAME=Synthetic Discord QA One',
+  'BH_DISCORD_QA1_APP_ID=1557410346271244380',
+  'BH_DISCORD_QA1_GUILD_NAME=QA server one',
+  'BH_DISCORD_QA1_GUILD_ID=1557412878687014925',
+  'BH_DISCORD_QA1_CHANNEL_NAME=QA channel one',
+  'BH_DISCORD_QA1_CHANNEL_ID=1557412879853035562',
+  'BH_DISCORD_QA1_BOT_TOKEN=SYNTHETIC.DISCORD.TOKEN-one',
+  'BH_DISCORD_QA1_CONSOLE_READY=yes',
+  'BH_DISCORD_QA1_RECEIVER_CHECKED_AT=2026-10-14T00:00:00Z',
+  'BH_DISCORD_QA2_NAME=Synthetic Discord QA Two',
+  'BH_DISCORD_QA2_APP_ID=1557410346271244381',
+  'BH_DISCORD_QA2_GUILD_NAME=QA server two',
+  'BH_DISCORD_QA2_GUILD_ID=1557412878687014926',
+  'BH_DISCORD_QA2_CHANNEL_NAME=QA channel two',
+  'BH_DISCORD_QA2_CHANNEL_ID=1557412879853035563',
+  'BH_DISCORD_QA2_BOT_TOKEN=SYNTHETIC.DISCORD.TOKEN-two',
+].join('\n');
+
 describe('machine-local reusable IM test Apps', () => {
+  it('loads independent Discord slots and preserves Lark, Slack and literal metadata on updates', () => {
+    const options = fixture(configuration);
+    saveImTestAppValues(slackConfiguration, options);
+    const larkBefore = loadImTestApp(undefined, options);
+    const slackBefore = loadSlackImTestApp(undefined, options);
+    saveImTestAppValues(discordConfiguration, options);
+    expect(loadDiscordImTestApp(undefined, options)).toMatchObject({
+      slot: 'QA1',
+      appId: '1557410346271244380',
+      guildId: '1557412878687014925',
+      channelId: '1557412879853035562',
+      botToken: 'SYNTHETIC.DISCORD.TOKEN-one',
+      consoleReady: true,
+    });
+    expect(loadDiscordImTestApp('QA2', options)).toMatchObject({
+      name: 'Synthetic Discord QA Two',
+      botToken: 'SYNTHETIC.DISCORD.TOKEN-two',
+      consoleReady: false,
+    });
+    expect(() => loadDiscordImTestApp('QA3', options)).toThrow('incomplete');
+    expect(loadImTestApp(undefined, options)).toEqual(larkBefore);
+    expect(loadSlackImTestApp(undefined, options)).toEqual(slackBefore);
+    const discordBefore = loadDiscordImTestApp('QA1', options);
+    saveImTestAppValues('BH_LARK_QA2_NAME=Renamed Lark', options);
+    saveImTestAppValues('BH_SLACK_QA2_NAME=Renamed Slack', options);
+    expect(loadDiscordImTestApp('QA1', options)).toEqual(discordBefore);
+    saveImTestAppValues('BH_DISCORD_QA2_NAME=Discord $(exit 99) = literal', options);
+    expect(loadDiscordImTestApp('QA2', options).name).toBe('Discord $(exit 99) = literal');
+    const stored = readFileSync(options.path, 'utf8');
+    expect(stored).toContain('# BH_DISCORD_QA1_BOT_TOKEN=SYNTHETIC.DISCORD.TOKEN-one');
+    expect(stored).not.toMatch(/^BH_DISCORD_/mu);
+    expect(
+      stored.split('\n').filter((line) => line.startsWith('# BH_DISCORD_QA2_NAME=')),
+    ).toHaveLength(1);
+  });
+
+  it('refuses invalid Discord IDs, prefixed tokens and duplicate keys without exposing values', () => {
+    for (const text of [
+      discordConfiguration.replace('1557410346271244380', 'application-name'),
+      discordConfiguration.replace('1557410346271244380', '18446744073709551616'),
+      discordConfiguration.replace(
+        '1557412878687014925',
+        'https://discord.com/channels/1557412878687014925',
+      ),
+      discordConfiguration.replace('1557412879853035562', '1557412879853035600.1'),
+      discordConfiguration.replace(
+        'SYNTHETIC.DISCORD.TOKEN-one',
+        'Bot SYNTHETIC.DISCORD.TOKEN-one',
+      ),
+      discordConfiguration.replace('SYNTHETIC.DISCORD.TOKEN-one', '$(exit 99)'),
+    ]) {
+      expect(() => loadDiscordImTestApp('QA1', fixture(text))).toThrow(
+        'Discord test slot QA1 is incomplete; run setup discord',
+      );
+    }
+    const options = fixture(configuration);
+    expect(() =>
+      saveImTestAppValues('BH_DISCORD_QA_SLOT=QA1\n# BH_DISCORD_QA_SLOT=QA2', options),
+    ).toThrow('Duplicate');
+    expect(readFileSync(options.path, 'utf8')).toBe(configuration);
+  });
+
+  it('Discord CLI lists no Token or IDs and never turns an old check into a receiver lease', () => {
+    const options = fixture(configuration);
+    saveImTestAppValues(discordConfiguration, options);
+    const result = spawnSync(
+      process.execPath,
+      ['scripts/dev-im-test-apps.mjs', 'list', 'discord'],
+      {
+        encoding: 'utf8',
+        timeout: 15_000,
+        env: { ...process.env, BOTHARNESS_IM_TEST_APPS_ENV: options.path },
+      },
+    );
+    expect(result.status).toBe(0);
+    const listed = JSON.parse(result.stdout).apps;
+    expect(listed).toEqual(listDiscordImTestApps(options));
+    expect(listed[0]).toMatchObject({
+      credentialsConfigured: true,
+      consoleReady: true,
+      guildName: 'QA server one',
+      receiverAvailability: 'requires-current-window-confirmation',
+    });
+    expect(listed[2]).toMatchObject({ name: null, credentialsConfigured: false });
+    for (const value of [
+      'SYNTHETIC.DISCORD',
+      '1557410346271244380',
+      '1557412878687014925',
+      '1557412879853035562',
+      'test-secret',
+      'xoxb-',
+    ]) {
+      expect(result.stdout).not.toContain(value);
+      expect(result.stderr).not.toContain(value);
+    }
+  });
+
+  it('keeps the wizard library unchanged and opens the correct Discord pages before hidden input', () => {
+    const template = readFileSync('.agents/skills/wizard/template.sh', 'utf8');
+    const wizard = readFileSync('scripts/setup-discord-test-app.sh', 'utf8');
+    expect(wizard.startsWith(template.slice(0, template.indexOf('TOTAL_STAGES=1')))).toBe(true);
+    expect(wizard).toContain('TOTAL_STAGES=3');
+    expect(
+      wizard.indexOf('open_url "https://discord.com/developers/applications/${!id_key}/bot"'),
+    ).toBeLessThan(wizard.indexOf('ask_secret "${prefix}_BOT_TOKEN"'));
+    expect(wizard.slice(template.indexOf('TOTAL_STAGES=1'))).not.toMatch(
+      /\bset_secret\b|\bset_var\b/,
+    );
+  });
+
+  it('captures synthetic Discord input without echo, preserves other slots and retains Token on Enter', () => {
+    const options = fixture(configuration);
+    saveImTestAppValues(slackConfiguration, options);
+    saveImTestAppValues(discordConfiguration.replace('QA channel two', '常规'), options);
+    const larkBefore = loadImTestApp(undefined, options);
+    const slackBefore = loadSlackImTestApp(undefined, options);
+    const discordBefore = loadDiscordImTestApp('QA1', options);
+    const token = 'SYNTHETIC.DISCORD.SECRET-qa2-new';
+    const run = (input) =>
+      spawnSync(
+        process.execPath,
+        ['scripts/dev-im-test-apps.mjs', 'setup', 'discord', '--manual'],
+        {
+          input,
+          encoding: 'utf8',
+          timeout: 15_000,
+          env: {
+            ...process.env,
+            BOTHARNESS_IM_TEST_APPS_ENV: options.path,
+            BOTHARNESS_IM_TEST_APPS_NO_OPEN: '1',
+          },
+        },
+      );
+    const result = run(['', 'QA2', '', '', 'y', token, '', '', '', '', 'y', ''].join('\n'));
+    expect(result.error).toBeUndefined();
+    expect(result.status, result.stdout + result.stderr).toBe(0);
+    expect(result.stdout).toContain(
+      'https://discord.com/developers/applications/1557410346271244381/bot',
+    );
+    expect(result.stdout).toContain(
+      'https://discord.com/channels/1557412878687014926/1557412879853035563',
+    );
+    expect(result.stdout).not.toContain(token);
+    expect(result.stderr).not.toContain(token);
+    expect(loadDiscordImTestApp(undefined, options)).toMatchObject({
+      slot: 'QA2',
+      botToken: token,
+      consoleReady: true,
+    });
+    const repeated = run(['', '', '', '', 'y', '', '', '', '', '', 'n', ''].join('\n'));
+    expect(repeated.status).toBe(0);
+    expect(repeated.stdout).not.toContain(token);
+    expect(repeated.stderr).not.toContain(token);
+    expect(loadDiscordImTestApp('QA2', options)).toMatchObject({
+      botToken: token,
+      consoleReady: false,
+    });
+    expect(loadImTestApp(undefined, options)).toEqual(larkBefore);
+    expect(loadSlackImTestApp(undefined, options)).toEqual(slackBefore);
+    expect(loadDiscordImTestApp('QA1', options)).toEqual(discordBefore);
+  });
+
+  it('asks only for the Token when an agent has prepared Discord metadata, including Chinese names', () => {
+    const options = fixture(configuration);
+    saveImTestAppValues(slackConfiguration, options);
+    saveImTestAppValues(discordConfiguration.replace('QA channel one', '常规'), options);
+    const before = loadDiscordImTestApp('QA1', options);
+    const token = 'SYNTHETIC.DISCORD.NEW-token';
+    const result = spawnSync(
+      process.execPath,
+      ['scripts/dev-im-test-apps.mjs', 'setup', 'discord'],
+      {
+        input: `${token}\n`,
+        encoding: 'utf8',
+        timeout: 15000,
+        env: {
+          ...process.env,
+          BOTHARNESS_IM_TEST_APPS_ENV: options.path,
+          BOTHARNESS_IM_TEST_APPS_NO_OPEN: '1',
+        },
+      },
+    );
+    expect(result.status, result.stdout + result.stderr).toBe(0);
+    expect(result.stdout).toContain('常规');
+    expect(result.stdout).toContain('Bot Token');
+    for (const forbidden of [
+      'Ready to start?',
+      '测试槽 [',
+      'App 名称:',
+      '测试服务器名称:',
+      '测试服务器 ID:',
+      '测试文字频道名称:',
+      '测试文字频道 ID',
+      token,
+    ]) {
+      expect(result.stdout).not.toContain(forbidden);
+      expect(result.stderr).not.toContain(forbidden);
+    }
+    expect(loadDiscordImTestApp('QA1', options)).toEqual({
+      ...before,
+      botToken: token,
+      consoleReady: false,
+    });
+    expect(loadImTestApp(undefined, options)).toMatchObject({ name: 'BotHarness reusable QA 1' });
+    expect(loadSlackImTestApp(undefined, options)).toMatchObject({
+      name: 'BotHarness Slack QA Two',
+    });
+  });
+
+  it('refuses a Token-only handoff with missing metadata before asking for or saving a Token', () => {
+    const options = fixture(configuration);
+    const before = readFileSync(options.path, 'utf8');
+    const result = spawnSync(
+      process.execPath,
+      ['scripts/dev-im-test-apps.mjs', 'setup', 'discord', 'QA3'],
+      {
+        input: 'SYNTHETIC.NOT-TO-BE-SAVED\n',
+        encoding: 'utf8',
+        timeout: 15000,
+        env: {
+          ...process.env,
+          BOTHARNESS_IM_TEST_APPS_ENV: options.path,
+          BOTHARNESS_IM_TEST_APPS_NO_OPEN: '1',
+        },
+      },
+    );
+    expect(result.status).toBe(1);
+    expect(result.stdout).not.toContain('Bot Token（隐藏输入）:');
+    expect(result.stdout).not.toContain('SYNTHETIC.NOT-TO-BE-SAVED');
+    expect(readFileSync(options.path, 'utf8')).toBe(before);
+  });
+
   it('atomically saves one stage while preserving other Apps, comments and literal values', () => {
     const options = fixture('# private machine-local configuration\n' + configuration);
     const before = loadImTestApp('QA1', options);

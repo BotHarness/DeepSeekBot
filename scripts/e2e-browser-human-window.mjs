@@ -98,14 +98,12 @@ try {
     });
   await page.click(`.bh-root [data-channel-id="${dm.id}"]`);
   await page.waitForSelector('.bh-composer', { timeout: 20000 });
-  if (!(await page.$('.bh-channel-sidebar-entry-head')))
+  if (!(await page.$('[data-panel-head]')))
     await page.evaluate(() => document.querySelector('.bh-sidebar-toggle')?.click());
-  await page
-    .waitForSelector('.bh-channel-sidebar-entry-head', { timeout: 20000 })
-    .catch(async (error) => {
-      await page.screenshot({ path: join(evidence, 'ui-failure.png') });
-      throw error;
-    });
+  await page.waitForSelector('[data-panel-head]', { timeout: 20000 }).catch(async (error) => {
+    await page.screenshot({ path: join(evidence, 'ui-failure.png') });
+    throw error;
+  });
   await page.waitForSelector('button[aria-label="Browser Access"]', { timeout: 20000 });
   await page.waitForFunction(
     () =>
@@ -115,14 +113,14 @@ try {
   );
   await sleep(2000);
   await page.evaluate(() => {
-    const section = [...document.querySelectorAll('.bh-channel-sidebar-entry-head')].find((b) =>
+    const section = [...document.querySelectorAll('[data-panel-head]')].find((b) =>
       ['Browser', '浏览器'].includes(b.textContent?.trim() ?? ''),
     );
     if (section?.getAttribute('aria-expanded') !== 'true') section?.click();
   });
   await page.waitForFunction(
     () =>
-      [...document.querySelectorAll('.bh-channel-sidebar-entry')].find((el) =>
+      [...document.querySelectorAll('[data-sidebar-entry]')].find((el) =>
         el.querySelector('button[aria-label="Browser Access"]'),
       ),
     { timeout: 15000 },
@@ -162,9 +160,9 @@ try {
     assert.equal((await response.json()).takeover, value);
   }
   await page.waitForFunction(() =>
-    [...document.querySelectorAll('.bh-channel-sidebar-entry')]
+    [...document.querySelectorAll('[data-sidebar-entry]')]
       .find((el) => el.querySelector('button[aria-label="Browser Access"]'))
-      ?.querySelector('.bh-channel-sidebar-entry-body'),
+      ?.querySelector('[data-sidebar-entry-body]'),
   );
   await sleep(1000);
   if (
@@ -448,7 +446,7 @@ try {
       assert.equal((await observation()).tabs.length, 1);
       await page.waitForSelector(`.bh-root [data-channel-id="${coldDm.id}"]`);
       await page.click(`.bh-root [data-channel-id="${coldDm.id}"]`);
-      if (!(await page.$('.bh-channel-sidebar-entry-head')))
+      if (!(await page.$('[data-panel-head]')))
         await page.evaluate(() => document.querySelector('.bh-sidebar-toggle')?.click());
       await page.waitForSelector('button[aria-label="Browser Access"]');
       await page.waitForFunction(
@@ -458,11 +456,11 @@ try {
             ?.getAttribute('aria-checked') === 'true',
       );
       await page.evaluate(() => {
-        const section = [...document.querySelectorAll('.bh-channel-sidebar-entry')].find((el) =>
+        const section = [...document.querySelectorAll('[data-sidebar-entry]')].find((el) =>
           el.querySelector('button[aria-label="Browser Access"]'),
         );
-        if (!section?.querySelector('.bh-channel-sidebar-entry-body'))
-          section?.querySelector('.bh-channel-sidebar-entry-head')?.click();
+        if (!section?.querySelector('[data-sidebar-entry-body]'))
+          section?.querySelector('[data-panel-head]')?.click();
       });
       console.log('Cold Browser Access enabled');
       const preCold = (await targets()).length;
@@ -513,11 +511,11 @@ try {
       await page.click(`.bh-root [data-channel-id="${dm.id}"]`);
       await sleep(1800);
       await page.evaluate(() => {
-        const section = [...document.querySelectorAll('.bh-channel-sidebar-entry')].find((el) =>
+        const section = [...document.querySelectorAll('[data-sidebar-entry]')].find((el) =>
           el.querySelector('button[aria-label="Browser Access"]'),
         );
-        if (!section?.querySelector('.bh-channel-sidebar-entry-body'))
-          section?.querySelector('.bh-channel-sidebar-entry-head')?.click();
+        if (!section?.querySelector('[data-sidebar-entry-body]'))
+          section?.querySelector('[data-panel-head]')?.click();
       });
       await page.waitForSelector('button[title="http://127.0.0.1:31999/preview"]');
       await sleep(1800);

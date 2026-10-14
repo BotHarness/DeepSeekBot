@@ -314,7 +314,7 @@ try {
     await shot('group-chip-tooltip-light');
     await page.keyboard.press('Escape');
     await page.waitForFunction(() => !document.querySelector('.bh-profile-popover'));
-    await page.click('.bh-group-channel-name');
+    await page.click('[data-group-channel-name]');
     await page.waitForSelector('.bh-profile-popover .bh-profile-expand');
     await page.keyboard.press('Escape');
   }
@@ -447,7 +447,7 @@ try {
     await page.setViewport({ width: 1500, height: 1000 });
     await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: 'light' }]);
     await page.evaluate(() => document.body.removeAttribute('data-ds-dark-theme'));
-    await page.click('.bh-group-channel-name');
+    await page.click('[data-group-channel-name]');
     await page.waitForSelector('.bh-group-live-activity');
     assert.equal(
       await page.$$eval('.bh-group-live-activity .bh-group-activity-chip', (nodes) => nodes.length),

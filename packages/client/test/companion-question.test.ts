@@ -351,6 +351,11 @@ it('accepts only formal well-formed questions qualified for the selected Bot', (
   expect(companionRequests([{ ...request, callId: 'native-timed-call' }], 'ada')).toEqual([
     { ...request, callId: 'native-timed-call' },
   ]);
+  const many = {
+    ...request,
+    questions: [...questions, { id: 'extra', question: 'One more?', detail: 'x'.repeat(20_000) }],
+  };
+  expect(companionRequests([many], 'ada')).toEqual([many]);
   expect(
     companionRequests(
       [

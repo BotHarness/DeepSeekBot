@@ -12,18 +12,20 @@ import type { BotHarnessTranslate } from './locale.js';
 import type { WindowCompanions } from './window-companions.js';
 import { ModelPresetProfile } from './model-preset-profile.js';
 import { modelPlanOf, rememberModelPlan, subscribeModelPlans } from './model-plan-store.js';
-import { Modal } from './modal.js';
+import { PanelDialog } from './ds/panel-dialog.js';
 import { useMountedResource } from './mounted-resource.js';
 import { WorkspaceGrantsEntry } from './workspace-grants-entry.js';
 import {
   subscribeWorkspaceGrantChanges,
   workspaceGrantRevision,
 } from './workspace-grant-events.js';
-import { profileTokenSummaryText } from './profile-token-summary.js';
+import { profileTokenChipText, profileTokenSummaryText } from './profile-token-summary.js';
 import { PROFILE_ACTIVITY_WEEKS } from './profile-cards-builtins.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { DmComposerUsagePopover } from './dm-composer-usage.js';
 import { useMobileBotViewport } from './mobile-viewport.js';
+import { ComposerContextBar } from './composer-context-bar.js';
+import { ChipButton } from './ds/chip-button.js';
 
 const subscribeUnavailable = (): (() => void) => () => {};
 const unavailableSnapshot = () => undefined;
@@ -253,48 +255,47 @@ function DmComposerContextView({
   const compactUsage =
     loading && activity === undefined
       ? t('composerContext.loading')
-      : t('composerContext.tokens', { count: profileTokenSummaryText(activity, t, true) });
+      : profileTokenChipText(activity, t);
   return (
     <>
-      <div className="bh-composer-context" aria-label={t('composerContext.label')}>
-        <div className="bh-composer-context-left">
-          <button
-            ref={modelMount}
-            className="bh-composer-model"
-            type="button"
-            onClick={() => onOpen('model')}
-            aria-label={`${t('entry.model')} · ${bot.displayName} · ${modelLabel}`}
-          >
-            <ChannelSidebarIcon name="cpu" size={14} />
-            <span>{modelLabel}</span>
-          </button>
-          {mobile ? null : (
-            <button
-              ref={grantMount}
-              type="button"
-              onClick={() => onOpen('workspace')}
-              aria-label={`${t('entry.workspaceGrants')} · ${bot.displayName} · ${workspaceLabel}`}
-            >
-              <ChannelSidebarIcon name="folder-key" size={14} />
-              <span>{workspaceLabel}</span>
-            </button>
-          )}
-        </div>
+      <ComposerContextBar
+        label={t('composerContext.label')}
+        trailing={
+          mobile ? null : (
+            <ChipButton
+              ref={usageMount}
+              trailing
+              data-composer-chip="usage"
+              icon={<ChannelSidebarIcon name="ruler" size={14} />}
+              label={compactUsage}
+              onClick={() => setUsageOpen((open) => !open)}
+              aria-label={usageLabel}
+              aria-haspopup="dialog"
+              aria-expanded={usageOpen}
+            />
+          )
+        }
+      >
+        <ChipButton
+          ref={modelMount}
+          wrap
+          data-composer-chip="model"
+          icon={<ChannelSidebarIcon name="cpu" size={14} />}
+          label={modelLabel}
+          onClick={() => onOpen('model')}
+          aria-label={`${t('entry.model')} · ${bot.displayName} · ${modelLabel}`}
+        />
         {mobile ? null : (
-          <button
-            ref={usageMount}
-            type="button"
-            className="bh-composer-usage"
-            onClick={() => setUsageOpen((open) => !open)}
-            aria-label={usageLabel}
-            aria-haspopup="dialog"
-            aria-expanded={usageOpen}
-          >
-            <ChannelSidebarIcon name="ruler" size={14} />
-            <span>{compactUsage}</span>
-          </button>
+          <ChipButton
+            ref={grantMount}
+            data-composer-chip="workspace"
+            icon={<ChannelSidebarIcon name="folder-key" size={14} />}
+            label={workspaceLabel}
+            onClick={() => onOpen('workspace')}
+            aria-label={`${t('entry.workspaceGrants')} · ${bot.displayName} · ${workspaceLabel}`}
+          />
         )}
-      </div>
+      </ComposerContextBar>
       {!mobile && usageOpen ? (
         <DmComposerUsagePopover
           bot={bot}
@@ -311,8 +312,9 @@ function DmComposerContextView({
         />
       ) : null}
       {panel === undefined ? null : (
-        <Modal
-          open
+        <PanelDialog
+          size="medium"
+          fill
           title={`${t(panel === 'model' ? 'entry.model' : 'entry.workspaceGrants')} · ${bot.displayName}`}
           closeLabel={t('approval.cancel')}
           onClose={onClose}
@@ -330,7 +332,7 @@ function DmComposerContextView({
               composerOnly
             />
           )}
-        </Modal>
+        </PanelDialog>
       )}
     </>
   );

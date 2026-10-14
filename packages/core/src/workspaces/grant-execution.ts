@@ -20,6 +20,40 @@ export function orchestratorPermission(
     : { mode: 'workspace-write', approval: 'ask' };
 }
 
+export function sessionHasFullAccess(
+  core: Pick<BotHarnessCore, 'ownership' | 'runtime'> & AccessCore,
+  sessionId: string,
+): boolean {
+  const owner = core.ownership.resolve(sessionId);
+  if (owner === undefined) return false;
+  if (owner.rootRole === 'assignment')
+    return (
+      core.runtime.getAssignment(owner.botSlug, owner.sessionId)?.permission?.mode ===
+      'danger-full-access'
+    );
+  return (
+    owner.rootRole === 'orchestrator' &&
+    owner.provenance !== 'subagent' &&
+    orchestratorPermission(core, owner.botSlug).mode === 'danger-full-access'
+  );
+}
+
+export function deviceToolAuthorization(
+  tools: {
+    needsAuthorization?(sessionId: string): boolean;
+    authorizationScope?(sessionId?: string): string;
+    markAuthorized?(sessionId: string, scope?: string): boolean | void;
+  },
+  sessionId: string,
+  fullAccess: boolean,
+): 'authorized' | 'ask' | 'changed' {
+  if (tools.needsAuthorization?.(sessionId) !== true) return 'authorized';
+  if (!fullAccess) return 'ask';
+  return tools.markAuthorized?.(sessionId, tools.authorizationScope?.(sessionId)) === false
+    ? 'changed'
+    : 'authorized';
+}
+
 export function grantExecutionDenial(
   core: Pick<BotHarnessCore, 'ownership' | 'runtime' | 'grants' | 'registry'> & AccessCore,
   session: Session,

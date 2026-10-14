@@ -174,7 +174,7 @@ try {
   }, name);
   await sleep(1500);
   await page.evaluate(() => {
-    Array.from(document.querySelectorAll('.bh-channel-sidebar-entry-head'))
+    Array.from(document.querySelectorAll('[data-panel-head]'))
       .find((button) => /Bot 收件箱|Bot Inbox/u.test(button.textContent ?? ''))
       ?.click();
   });

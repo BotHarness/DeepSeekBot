@@ -83,7 +83,7 @@ describe('Channel sidebar expandable contract', () => {
     const gated = gatedEntry();
     const onToggle = vi.fn();
     const container = mount(gated.entry, false, onToggle);
-    const head = container.querySelector('.bh-channel-sidebar-entry-head');
+    const head = container.querySelector('[data-panel-head]');
     expect(head).not.toBeNull();
     expect(head?.hasAttribute('disabled')).toBe(false);
     gated.setExpandable(false);
@@ -139,17 +139,15 @@ describe('Channel sidebar expandable contract', () => {
     }
     act(() => root.render(createElement(Wrapper)));
     act(() => setExpandable?.(false));
-    expect(
-      container.querySelector('.bh-channel-sidebar-entry-head')?.hasAttribute('disabled'),
-    ).toBe(true);
+    expect(container.querySelector('[data-panel-head]')?.hasAttribute('disabled')).toBe(true);
     act(() =>
-      (
-        container.querySelector('.bh-channel-sidebar-entry-action-slot button') as HTMLButtonElement
-      ).click(),
+      [...container.querySelectorAll('button')]
+        .find((button) => button.textContent === 'enable')!
+        .click(),
     );
-    expect(
-      container.querySelector('.bh-channel-sidebar-entry-head')?.getAttribute('aria-expanded'),
-    ).toBe('true');
+    expect(container.querySelector('[data-panel-head]')?.getAttribute('aria-expanded')).toBe(
+      'true',
+    );
     expect(container.textContent).toContain('gated body');
   });
 

@@ -131,7 +131,7 @@ try {
     throw new Error('Missing owned root Sessions: ' + JSON.stringify(owned));
   await page.waitForSelector('.bh-tool-approval-card', { timeout: 90000 });
   await page.evaluate(() =>
-    Array.from(document.querySelectorAll('.bh-channel-sidebar-entry-head'))
+    Array.from(document.querySelectorAll('[data-panel-head]'))
       .find((button) => /Sessions|会话/.test(button.textContent ?? ''))
       ?.click(),
   );

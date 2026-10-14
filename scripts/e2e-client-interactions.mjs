@@ -136,44 +136,42 @@ try {
     ) {
       await page.click(sidebarToggle);
     }
-    const entry = '.bh-channel-sidebar-entry-head';
+    const entry = '[data-panel-head]';
     await page.waitForSelector(entry, { timeout: 10000 });
     const before = await page.$eval(entry, (button) => button.getAttribute('aria-expanded'));
     await page.click(entry);
     await page.waitForFunction(
       (previous) =>
-        document.querySelector('.bh-channel-sidebar-entry-head')?.getAttribute('aria-expanded') !==
-        previous,
+        document.querySelector('[data-panel-head]')?.getAttribute('aria-expanded') !== previous,
       { timeout: 10000 },
       before,
     );
     await page.click(entry);
     await page.waitForFunction(
       (previous) =>
-        document.querySelector('.bh-channel-sidebar-entry-head')?.getAttribute('aria-expanded') ===
-        previous,
+        document.querySelector('[data-panel-head]')?.getAttribute('aria-expanded') === previous,
       { timeout: 10000 },
       before,
     );
 
     await select(first.id);
     await page.evaluate(() => {
-      const members = [...document.querySelectorAll('.bh-channel-sidebar-entry')].find((section) =>
+      const members = [...document.querySelectorAll('[data-sidebar-entry]')].find((section) =>
         ['Members', '成员'].includes(
-          section.querySelector('.bh-channel-sidebar-entry-label')?.textContent ?? '',
+          section.querySelector('[data-panel-label]')?.textContent ?? '',
         ),
       );
-      const head = members?.querySelector('.bh-channel-sidebar-entry-head');
+      const head = members?.querySelector('[data-panel-head]');
       if (head?.getAttribute('aria-expanded') === 'false') head.click();
     });
     await page.waitForSelector('.bh-member-menu-button');
     await page.click('button[aria-label="Invite member"], button[aria-label="邀请新群员"]');
-    await page.waitForSelector('.bh-group-invite-modal');
+    await page.waitForSelector('[data-group-invite]');
     await page.keyboard.press('Escape');
-    await page.waitForSelector('.bh-group-invite-modal', { hidden: true });
+    await page.waitForSelector('[data-group-invite]', { hidden: true });
     await select(second.id);
     await select(first.id);
-    assert.equal(await page.$('.bh-group-invite-modal'), null);
+    assert.equal(await page.$('[data-group-invite]'), null);
     await page.waitForSelector('.bh-member-menu-button');
     await page.click('.bh-member-menu-button');
     await page.waitForSelector('[role="menu"]');

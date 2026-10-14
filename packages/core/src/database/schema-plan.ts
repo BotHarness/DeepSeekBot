@@ -2155,6 +2155,23 @@ const PROACTIVE_POST_LIMIT_MIGRATION: SchemaMigration = {
   },
 };
 
+const SECRET_MCP_ENABLEMENT_MIGRATION: SchemaMigration = {
+  generation: 90,
+  module: 'secret-mcp',
+  description: 'Record which PersonaBots enabled a remembered secret MCP server (ADR-0198)',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE bot_secret_mcp_enabled (
+        bot_slug TEXT NOT NULL,
+        owner_slug TEXT NOT NULL,
+        server_name TEXT NOT NULL,
+        enabled_at TEXT NOT NULL,
+        PRIMARY KEY (bot_slug, owner_slug, server_name)
+      );
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -2244,4 +2261,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   ASSIGNMENT_ACCESS_SCOPE_MIGRATION,
   SECRET_MCP_SERVER_MIGRATION,
   PROACTIVE_POST_LIMIT_MIGRATION,
+  SECRET_MCP_ENABLEMENT_MIGRATION,
 ]);

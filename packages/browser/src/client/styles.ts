@@ -1,4 +1,5 @@
 import { COMBOBOX_CSS } from '../../../client/src/client/combobox.js';
+import { STYLEX_CSS } from '../../../client/src/client/ds/stylex-css.js';
 
 export const styles =
   COMBOBOX_CSS +
@@ -21,7 +22,7 @@ export const styles =
 .bh-browser-access-error { order: -1; padding: 0 4px; color: var(--dsw-alias-state-error-primary); font-size: 11px; line-height: 16px; white-space: nowrap; }
 
 /* @bh-browser-aliases:start */
-.bh-browser-body, .bh-browser-profiles, .bh-browser-settings {
+.bh-browser-body, .bh-browser-profiles {
   --bh-browser-error: var(--dsw-alias-state-error-primary);
   --bh-browser-secondary: var(--dsw-alias-label-secondary);
   --bh-browser-label: var(--dsw-alias-label-primary);
@@ -55,4 +56,5 @@ export const styles =
 .bh-browser-failure-fault, .bh-browser-failure-action { color: var(--bh-browser-secondary); }
 .bh-browser-failure-details { color: var(--bh-browser-secondary); }
 .bh-browser-failure-details pre { overflow-x: auto; white-space: pre-wrap; font-size: 11px; }
-`;
+` +
+  STYLEX_CSS;

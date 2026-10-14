@@ -69,6 +69,22 @@ describe('selected Channel mentions', () => {
     expect(sessionBotReference('ada')).toBe('\u2060@ada');
   });
 
+  it('opens the picker after CJK text and punctuation but not inside an email address', () => {
+    const first = [{ botSlug: 'lead', label: '主管', start: 0, end: 3 }];
+    expect(activeMentionQuery('@主管 你吃饭。@', 9, first)).toEqual({
+      start: 8,
+      end: 9,
+      query: '',
+    });
+    expect(activeMentionQuery('@主管 你吃饭。@画', 10, first)).toEqual({
+      start: 8,
+      end: 10,
+      query: '画',
+    });
+    expect(activeMentionQuery('请@主管', 4, [])).toEqual({ start: 1, end: 4, query: '主管' });
+    expect(activeMentionQuery('mail ada@example', 16, [])).toBeUndefined();
+  });
+
   it('does not turn typed or pasted names into selected identities', () => {
     expect(activeMentionQuery('@Ada', 4, [])).toEqual({ start: 0, end: 4, query: 'Ada' });
     expect(

@@ -3,6 +3,7 @@ import type { ProfileActivity, ProfileModelUsageRow } from '../src/client/bridge
 import {
   profileTokenSummary,
   profileTokenSummaryText,
+  profileTokenChipText,
   compactTokenCount,
 } from '../src/client/profile-token-summary.js';
 import { zhTranslate } from '../src/client/locale.js';
@@ -70,6 +71,18 @@ describe('shared Bot usage summary', () => {
     expect(
       profileTokenSummaryText(activity([{ ...row, cacheWriteTokens: null }]), zhTranslate),
     ).toBe('部分已知 30');
+  });
+
+  it('shows only the compact count on the composer chip, even when usage is partial', () => {
+    const partial = activity([
+      { ...row, totalTokens: 169_500 },
+      { ...row, cacheWriteTokens: null },
+    ]);
+    expect(profileTokenChipText(partial, zhTranslate)).toBe('169.5K');
+    expect(profileTokenChipText(activity([row]), zhTranslate)).toBe('30');
+    expect(profileTokenChipText(undefined, zhTranslate)).toBe(
+      zhTranslate('composerContext.unavailable'),
+    );
   });
 });
 

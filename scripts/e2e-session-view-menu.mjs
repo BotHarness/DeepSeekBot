@@ -142,13 +142,13 @@ try {
   );
   await page.waitForSelector(menuSelector);
   const heading = await page.evaluate(() =>
-    Array.from(document.querySelectorAll('.bh-channel-sidebar-entry-head'))
+    Array.from(document.querySelectorAll('[data-panel-head]'))
       .find((button) => /Sessions|会话/u.test(button.textContent ?? ''))
       ?.getAttribute('aria-expanded'),
   );
   if (heading !== 'true') {
     await page.evaluate(() =>
-      Array.from(document.querySelectorAll('.bh-channel-sidebar-entry-head'))
+      Array.from(document.querySelectorAll('[data-panel-head]'))
         .find((button) => /Sessions|会话/u.test(button.textContent ?? ''))
         ?.click(),
     );
@@ -171,7 +171,7 @@ try {
       throw new Error('Missing menu item: ' + labels.join(' / '));
   }
   const expandedAfterMenu = await page.evaluate(() =>
-    Array.from(document.querySelectorAll('.bh-channel-sidebar-entry-head'))
+    Array.from(document.querySelectorAll('[data-panel-head]'))
       .find((button) => /Sessions|会话/u.test(button.textContent ?? ''))
       ?.getAttribute('aria-expanded'),
   );
@@ -263,12 +263,12 @@ try {
   await page.evaluate(() => document.body.setAttribute('data-ds-dark-theme', 'true'));
   await screenshot('03-session-menu-dark.png');
   await page.evaluate(() =>
-    Array.from(document.querySelectorAll('.bh-channel-sidebar-entry-head'))
+    Array.from(document.querySelectorAll('[data-panel-head]'))
       .find((button) => /Sessions|会话/u.test(button.textContent ?? ''))
       ?.click(),
   );
   const collapsed = await page.evaluate(() =>
-    Array.from(document.querySelectorAll('.bh-channel-sidebar-entry-head'))
+    Array.from(document.querySelectorAll('[data-panel-head]'))
       .find((button) => /Sessions|会话/u.test(button.textContent ?? ''))
       ?.getAttribute('aria-expanded'),
   );
@@ -285,7 +285,7 @@ try {
   if (collapsedChoice !== 'current')
     throw new Error('Collapsed Sessions menu did not update scope');
   await page.evaluate(() =>
-    Array.from(document.querySelectorAll('.bh-channel-sidebar-entry-head'))
+    Array.from(document.querySelectorAll('[data-panel-head]'))
       .find((button) => /Sessions|会话/u.test(button.textContent ?? ''))
       ?.click(),
   );

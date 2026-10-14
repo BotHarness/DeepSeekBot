@@ -242,7 +242,37 @@ describe('startup exit diagnosis', () => {
       missingLibs: [],
     });
     expect(failure.code).toBe('startup-sandbox');
-    expect(failure.message).toMatch(/headless/);
+    expect(failure.message).toMatch(/regular user/);
+    expect(failure.message).not.toMatch(/headless/);
+  });
+
+  it('points a Linux sandbox crash at the AppArmor userns profile, not headless', () => {
+    const failure = diagnoseStartupExit({
+      binary: '/home/h/.dsh/browser/chrome-linux64/chrome',
+      code: 133,
+      stderr: '[1:1:FATAL:zygote_host_impl_linux.cc(127)] No usable sandbox!',
+      platform: 'linux',
+      missingLibs: [],
+    });
+    expect(failure.code).toBe('startup-sandbox');
+    expect(failure.message).toMatch(/AppArmor/);
+    expect(failure.message).not.toMatch(/headless|no-sandbox/);
+    expect(failure.detail).toContain(
+      'profile botharness-chrome "/home/h/.dsh/browser/chrome-linux64/chrome" flags=(unconfined) {',
+    );
+    expect(failure.detail).toContain('  userns,');
+    expect(failure.detail).toContain('No usable sandbox!');
+  });
+
+  it('keeps AppArmor advice off non-Linux sandbox failures', () => {
+    const failure = diagnoseStartupExit({
+      binary: '/Applications/Chrome',
+      code: 1,
+      stderr: 'sandbox initialization failed',
+      platform: 'darwin',
+    });
+    expect(failure.code).toBe('startup-sandbox');
+    expect(failure.message).not.toMatch(/AppArmor|headless/);
   });
 
   it('keeps a bounded stderr tail for unexplained crashes', () => {

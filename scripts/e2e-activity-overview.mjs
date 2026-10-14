@@ -342,7 +342,7 @@ try {
     await page.click(`.bh-overview-bot[data-bot-id="${release.slug}"] .bh-overview-bot-header`);
     await page.waitForSelector('.bh-channel-options');
     assert.equal(
-      await page.$eval('.bh-topbar .bh-title', (n) => n.textContent),
+      await page.$eval('.bh-topbar [data-conversation-title]', (n) => n.textContent),
       release.displayName,
     );
     await shot('overview-bot-dm');

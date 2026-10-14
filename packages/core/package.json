@@ -4,8 +4,7 @@
   "private": true,
   "description": "BotHarness core: PersonaBot registry, memory, and state",
   "files": [
-    "dist",
-    "cordis.patch.yml"
+    "dist"
   ],
   "type": "module",
   "main": "./dist/index.mjs",
@@ -59,9 +58,6 @@
     "node": ">=22.16"
   },
   "dsh": {
-    "manifestVersion": 1,
-    "bundle": {
-      "patch": "./cordis.patch.yml"
-    }
+    "manifestVersion": 1
   }
 }

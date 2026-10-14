@@ -1,6 +1,0 @@
-- insert:
-    # Browser use (ADR-0089): the profile-scoped managed Bot Browser with a
-    # BotHarness-owned tool provider. No official seam is composed; the plugin
-    # registers its own tools in the session scopes where Browser Access is on.
-    - id: botharness-browser
-      name: '@botharness/browser'

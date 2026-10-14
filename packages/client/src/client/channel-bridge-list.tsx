@@ -2,7 +2,8 @@ import { externalPlatformLabel } from './bridge-source-label.js';
 import { subscribeMessagingDefaults } from './messaging-defaults-live.js';
 import type {} from '@deepseek-ai/dsh-api-session-controller/client';
 import { useRef, useState, type ReactElement, type ReactNode } from 'react';
-import { Button, Input, Switch, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+import * as stylex from '@stylexjs/stylex';
+import { Switch, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 import type {
   ChannelBridgeInput,
   ChannelBridgeRow,
@@ -11,9 +12,35 @@ import type {
 import type { BridgeActions } from './actions.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
-import { Modal } from './modal.js';
 import { Combobox } from './combobox.js';
+import { Field, TextField } from './ds/field.js';
+import {
+  ConfirmDialog,
+  DangerTextButton,
+  FormDialog,
+  type DialogLabels,
+} from './ds/form-dialog.js';
+import { Note } from './ds/note.js';
+import { color, space, text } from './ds/tokens.stylex.js';
 import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
+
+const styles = stylex.create({
+  subject: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x1,
+    minWidth: 0,
+  },
+  strong: { margin: 0, fontWeight: text.strong, overflowWrap: 'anywhere' },
+  meta: {
+    margin: 0,
+    color: color.muted,
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+    overflowWrap: 'anywhere',
+  },
+  text: { margin: 0 },
+});
 
 function stateKey(row: ChannelBridgeRow) {
   return !row.enabled
@@ -240,13 +267,20 @@ export function ChannelBridgeList({
   const close = () => {
     if (!busy) setMode(undefined);
   };
+  const labels: DialogLabels = { close: t('common.close'), cancel: t('common.cancel') };
+  const target =
+    delivery === 'inbox' ? t('bridge.inboxOnly') : t('bridge.target', { name: channelName });
+  const subject = source ? (
+    <div {...stylex.props(styles.subject)}>
+      <p {...stylex.props(styles.strong)}>
+        {externalPlatformLabel(source.platform, t)} · {source.conversationName}
+      </p>
+      <p {...stylex.props(styles.meta)}>{t('bridge.receiver', { name: source.accountName })}</p>
+    </div>
+  ) : null;
   return (
     <div ref={mount} className="bh-channel-bridges" role="region" aria-label={t('bridge.title')}>
-      {error && !mode ? (
-        <p className="bh-error" role="alert">
-          {error}
-        </p>
-      ) : null}
+      {error && !mode ? <Note tone="danger">{error}</Note> : null}
       <SidebarCardList label={t('bridge.title')}>
         {snapshot?.bridges.map((row) => (
           <SidebarCardRow
@@ -289,61 +323,47 @@ export function ChannelBridgeList({
         ) : null}
         {children}
       </SidebarCardList>
-      <Modal
-        className="bh-sidebar-modal"
-        open={mode !== undefined}
-        onClose={close}
-        title={t(
-          mode === 'add' ? 'bridge.add' : mode === 'delete' ? 'bridge.delete' : 'bridge.edit',
-        )}
-        {...(mode === 'add' ? { description: t('bridge.summary') } : {})}
-        closeLabel={t('common.close')}
-        footer={
-          <div className="bh-modal-footer">
-            {mode === 'edit' && selected ? (
-              <>
-                <Button
-                  variant="outline"
-                  className="bh-im-danger-outline"
-                  disabled={busy}
-                  aria-label={t('bridge.deleteFor', { name: selected.name })}
-                  onClick={() => setMode('delete')}
-                >
-                  {t('common.delete')}
-                </Button>
-                <span className="bh-modal-footer-gap" />
-              </>
-            ) : null}
-            <Button variant="outline" disabled={busy} onClick={close}>
-              {t('common.cancel')}
-            </Button>
-            <Button
-              variant="primary"
-              className={mode === 'delete' ? 'bh-im-danger' : undefined}
-              disabled={busy || !source || alreadyConnected || (mode !== 'delete' && !name.trim())}
-              onClick={() => void operate(save, true)}
-            >
-              {t(
-                busy
-                  ? 'identity.pending'
-                  : mode === 'delete'
-                    ? 'bridge.confirmDelete'
-                    : 'bridge.save',
-              )}
-            </Button>
-          </div>
-        }
-      >
-        <div className="bh-sidebar-modal-form">
-          {error ? (
-            <p role="alert" className="bh-error">
-              {error}
-            </p>
-          ) : null}
+      {mode === 'delete' && selected ? (
+        <ConfirmDialog
+          title={t('bridge.delete')}
+          labels={labels}
+          confirmLabel={t(busy ? 'identity.pending' : 'bridge.confirmDelete')}
+          busy={busy}
+          error={error || undefined}
+          onCancel={close}
+          onConfirm={() => void operate(save, true)}
+        >
+          {subject}
+          <p {...stylex.props(styles.text)}>{target}</p>
+          <p {...stylex.props(styles.text)}>{t('bridge.deleteImpact')}</p>
+          <Note>{t('bridge.retainHint')}</Note>
+        </ConfirmDialog>
+      ) : mode === 'add' || (mode === 'edit' && selected) ? (
+        <FormDialog
+          title={t(mode === 'add' ? 'bridge.add' : 'bridge.edit')}
+          description={mode === 'add' ? t('bridge.summary') : undefined}
+          labels={labels}
+          submitLabel={t(busy ? 'identity.pending' : 'bridge.save')}
+          submitDisabled={!source || alreadyConnected || !name.trim()}
+          busy={busy}
+          error={error || undefined}
+          onCancel={close}
+          onSubmit={() => void operate(save, true)}
+          secondary={
+            mode === 'edit' && selected ? (
+              <DangerTextButton
+                label={t('bridge.deleteFor', { name: selected.name })}
+                disabled={busy}
+                onClick={() => setMode('delete')}
+              >
+                {t('common.delete')}
+              </DangerTextButton>
+            ) : undefined
+          }
+        >
           {mode === 'add' ? (
-            <>
-              <label className="bh-im-field">
-                <span>{t('bridge.authorizedSource')}</span>
+            <Field label={t('bridge.authorizedSource')} hint={t('bridge.addHint')} group>
+              {() => (
                 <Combobox
                   label={t('bridge.authorizedSource')}
                   toggleLabel={t('bridge.authorizedSource')}
@@ -366,106 +386,106 @@ export function ChannelBridgeList({
                     ),
                   }))}
                 />
-              </label>
-              {!snapshot?.sources.length ? <p>{t('bridge.noSources')}</p> : null}
-              <p className="bh-muted">{t('bridge.addHint')}</p>
-            </>
+              )}
+            </Field>
           ) : null}
-          {source ? (
-            <p className="bh-sidebar-modal-subject">
-              {externalPlatformLabel(source.platform, t)} · {source.conversationName}
-              <span className="bh-bridge-secondary">
-                {t('bridge.receiver', { name: source.accountName })}
-              </span>
-            </p>
+          {mode === 'add' && !snapshot?.sources.length ? (
+            <Note>{t('bridge.noSources')}</Note>
           ) : null}
+          {subject}
           {mode === 'add' && snapshot?.canTargetInbox ? (
-            <label className="bh-im-field">
-              <span>{t('bridge.destination')}</span>
-              <Combobox
-                searchable={false}
-                label={t('bridge.destination')}
-                toggleLabel={t('bridge.destination')}
-                value={delivery}
-                disabled={busy}
-                onSelect={(value) => setDelivery(value === 'inbox' ? 'inbox' : 'channel')}
-                options={[
-                  { value: 'channel', label: t('bridge.dmTarget', { name: channelName }) },
-                  { value: 'inbox', label: t('bridge.inboxOnly') },
-                ]}
-              />
-            </label>
+            <Field
+              label={t('bridge.destination')}
+              hint={delivery === 'inbox' ? t('bridge.inboxOnlyHint') : undefined}
+              group
+            >
+              {() => (
+                <Combobox
+                  searchable={false}
+                  label={t('bridge.destination')}
+                  toggleLabel={t('bridge.destination')}
+                  value={delivery}
+                  disabled={busy}
+                  onSelect={(value) => setDelivery(value === 'inbox' ? 'inbox' : 'channel')}
+                  options={[
+                    { value: 'channel', label: t('bridge.dmTarget', { name: channelName }) },
+                    { value: 'inbox', label: t('bridge.inboxOnly') },
+                  ]}
+                />
+              )}
+            </Field>
           ) : (
-            <p>
-              {delivery === 'inbox'
-                ? t('bridge.inboxOnly')
-                : t('bridge.target', { name: channelName })}
-            </p>
-          )}
-          {delivery === 'inbox' ? <p className="bh-muted">{t('bridge.inboxOnlyHint')}</p> : null}
-          {mode === 'delete' ? (
             <>
-              <p>{t('bridge.deleteImpact')}</p>
-              <p className="bh-muted">{t('bridge.retainHint')}</p>
-            </>
-          ) : mode === undefined ? null : (
-            <>
-              <label className="bh-im-field">
-                <span>{t('bridge.name')}</span>
-                <Input
-                  value={name}
-                  disabled={busy}
-                  maxLength={120}
-                  onChange={(e) => setName(e.target.value)}
-                />
-              </label>
-              <div className="bh-im-field">
-                <span>{t('bridge.condition')}</span>
-                {privateSource ? (
-                  <p>{t('bridge.ownerDM')}</p>
-                ) : (
-                  <Combobox
-                    searchable={false}
-                    label={t('bridge.condition')}
-                    toggleLabel={t('bridge.condition')}
-                    value={collection}
-                    disabled={busy}
-                    onSelect={(value) =>
-                      setCollection(
-                        value === 'inherit' ? 'inherit' : value === 'all' ? 'all' : 'mentions',
-                      )
-                    }
-                    options={[
-                      { value: 'inherit', label: t('defaults.inherited') },
-                      { value: 'mentions', label: t('bridge.mentions') },
-                      {
-                        value: 'all',
-                        label: t('bridge.all'),
-                        disabled: source?.ordinaryDelivery !== 'verified',
-                      },
-                    ]}
-                  />
-                )}
-              </div>
-              {privateSource ? <p className="bh-muted">{t('bridge.wechatDMHint')}</p> : null}
-              {!privateSource && source?.ordinaryDelivery !== 'verified' ? (
-                <p className="bh-muted">{t('bridge.unverified')}</p>
-              ) : null}
-              <div className="bh-switch-row">
-                <span>{t('bridge.enableDraft')}</span>
-                <Switch
-                  checked={enabled}
-                  disabled={busy}
-                  label={t('bridge.enableDraft')}
-                  onChange={setEnabled}
-                />
-              </div>
-              {!privateSource ? <p className="bh-muted">{t('bridge.providerHint')}</p> : null}
-              <p className="bh-muted">{t('bridge.wakeHint')}</p>
+              <p {...stylex.props(styles.text)}>{target}</p>
+              {delivery === 'inbox' ? <Note>{t('bridge.inboxOnlyHint')}</Note> : null}
             </>
           )}
-        </div>
-      </Modal>
+          <TextField
+            label={t('bridge.name')}
+            value={name}
+            disabled={busy}
+            maxLength={120}
+            onChange={setName}
+          />
+          <Field
+            label={t('bridge.condition')}
+            hint={
+              privateSource
+                ? t('bridge.wechatDMHint')
+                : source?.ordinaryDelivery !== 'verified'
+                  ? t('bridge.unverified')
+                  : undefined
+            }
+            group
+          >
+            {() =>
+              privateSource ? (
+                <p {...stylex.props(styles.text)}>{t('bridge.ownerDM')}</p>
+              ) : (
+                <Combobox
+                  searchable={false}
+                  label={t('bridge.condition')}
+                  toggleLabel={t('bridge.condition')}
+                  value={collection}
+                  disabled={busy}
+                  onSelect={(value) =>
+                    setCollection(
+                      value === 'inherit' ? 'inherit' : value === 'all' ? 'all' : 'mentions',
+                    )
+                  }
+                  options={[
+                    { value: 'inherit', label: t('defaults.inherited') },
+                    { value: 'mentions', label: t('bridge.mentions') },
+                    {
+                      value: 'all',
+                      label: t('bridge.all'),
+                      disabled: source?.ordinaryDelivery !== 'verified',
+                    },
+                  ]}
+                />
+              )
+            }
+          </Field>
+          <Field
+            label={t('bridge.enableDraft')}
+            hint={
+              privateSource
+                ? t('bridge.wakeHint')
+                : `${t('bridge.providerHint')} ${t('bridge.wakeHint')}`
+            }
+            group
+          >
+            {() => (
+              <Switch
+                checked={enabled}
+                disabled={busy}
+                label={t('bridge.enableDraft')}
+                onChange={setEnabled}
+              />
+            )}
+          </Field>
+        </FormDialog>
+      ) : null}
     </div>
   );
 }

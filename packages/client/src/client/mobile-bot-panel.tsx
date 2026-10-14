@@ -1,4 +1,5 @@
 import { useRef, useState, type ReactElement } from 'react';
+import * as stylex from '@stylexjs/stylex';
 import type { SnapshotSelectorHook } from '@deepseek-ai/dsh-client-store';
 import {
   IconChevronLeftOutlineRegular,
@@ -17,6 +18,99 @@ import { useMobileBotViewport } from './mobile-viewport.js';
 import { InboxIcon } from './inbox-icon.js';
 import { OnboardingLauncher } from './onboarding-checklist-view.js';
 import { BotIcon } from './bot-icon.js';
+import { hooked } from './ds/hooked.js';
+import { color, radius, space } from './ds/tokens.stylex.js';
+
+const TOUCH = '44px';
+const SAFE_LEFT = 'env(safe-area-inset-left)';
+const SAFE_RIGHT = 'env(safe-area-inset-right)';
+
+const styles = stylex.create({
+  shell: {
+    position: 'fixed',
+    top: 'var(--bh-mobile-top, 0px)',
+    right: 0,
+    bottom: 'auto',
+    left: 0,
+    height: 'var(--bh-mobile-height, 100dvh)',
+    zIndex: 10,
+    display: 'flex',
+    flexDirection: 'column',
+    minWidth: 0,
+    overflow: 'hidden',
+    backgroundColor: color.base,
+    paddingLeft: SAFE_LEFT,
+    paddingRight: SAFE_RIGHT,
+  },
+  header: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexGrow: 0,
+    flexShrink: 0,
+    flexBasis: 'auto',
+    paddingTop: `max(${space.x2}, env(safe-area-inset-top))`,
+    paddingInline: space.x3,
+    paddingBottom: space.x2,
+    borderBottomWidth: '1px',
+    borderBottomStyle: 'solid',
+    borderBottomColor: color.border,
+  },
+  pane: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 0,
+    minHeight: 0,
+    minWidth: 0,
+    overflow: 'hidden',
+  },
+  nav: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+    gap: space.x2,
+    paddingTop: space.x2,
+    paddingInline: space.x3,
+    paddingBottom: `max(${space.x2}, env(safe-area-inset-bottom))`,
+    borderTopWidth: '1px',
+    borderTopStyle: 'solid',
+    borderTopColor: color.border,
+  },
+  touch: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: space.x2,
+    minHeight: TOUCH,
+    minWidth: TOUCH,
+    borderWidth: 0,
+    borderRadius: radius.row,
+    backgroundColor: 'transparent',
+    color: color.fg,
+    cursor: 'pointer',
+    outline: { default: 'none', ':focus-visible': `2px solid ${color.accent}` },
+    outlineOffset: '-2px',
+  },
+  hover: {
+    backgroundColor: { default: 'transparent', ':hover': color.hover },
+  },
+  headerButton: {
+    paddingBlock: space.x2,
+    paddingInline: space.x3,
+  },
+  navButton: {
+    paddingBlock: space.x2,
+    paddingInline: space.x2,
+    overflowWrap: 'anywhere',
+  },
+  current: {
+    backgroundColor: color.hover,
+  },
+  exit: {
+    flexGrow: 0,
+    flexShrink: 0,
+    flexBasis: 'auto',
+  },
+});
 
 export function mountMobileBotShell(node: HTMLElement): () => void {
   let frame = node.parentElement;
@@ -93,10 +187,16 @@ function MobileNavigation(props: MobileBotPanelProps): ReactElement {
     store.select(undefined);
     setPage('list');
   };
-  const exitButton = (
+  const exitButton = (inHeader: boolean): ReactElement => (
     <button
       type="button"
-      className="bh-mobile-exit"
+      {...hooked(
+        'bh-mobile-exit',
+        styles.touch,
+        styles.exit,
+        inHeader && styles.hover,
+        inHeader && styles.headerButton,
+      )}
       onClick={props.exitBotMode}
       aria-label={t('mobile.host')}
       title={t('mobile.host')}
@@ -105,19 +205,24 @@ function MobileNavigation(props: MobileBotPanelProps): ReactElement {
     </button>
   );
   return (
-    <div ref={shellMount} className="bh-root bh-mobile-shell" data-page={page}>
+    <div ref={shellMount} {...hooked('bh-root bh-mobile-shell', styles.shell)} data-page={page}>
       <style>{MOBILE_BOT_CSS}</style>
       {page === 'inbox' ? (
-        <header className="bh-mobile-header">
-          <button type="button" onClick={showList} aria-label={t('mobile.back')}>
+        <header {...hooked('bh-mobile-header', styles.header)}>
+          <button
+            type="button"
+            {...stylex.props(styles.touch, styles.hover, styles.headerButton)}
+            onClick={showList}
+            aria-label={t('mobile.back')}
+          >
             <IconChevronLeftOutlineRegular size={22} />
           </button>
           <strong>{t('activityCenter.title')}</strong>
-          {exitButton}
+          {exitButton(true)}
         </header>
       ) : null}
       <div
-        className="bh-mobile-list"
+        {...hooked('bh-mobile-list', styles.pane)}
         hidden={page !== 'list'}
         onClickCapture={(event) => {
           navigationIntent.current = true;
@@ -134,7 +239,7 @@ function MobileNavigation(props: MobileBotPanelProps): ReactElement {
             headerEnd={
               <>
                 <OnboardingLauncher actions={actions} t={t} placement="header" />
-                {exitButton}
+                {exitButton(false)}
               </>
             }
             actions={actions}
@@ -146,13 +251,19 @@ function MobileNavigation(props: MobileBotPanelProps): ReactElement {
           />
         )}
       </div>
-      <div className="bh-mobile-content" hidden={page === 'list'}>
+      <div {...hooked('bh-mobile-content', styles.pane)} hidden={page === 'list'}>
         <BotPanel {...props} onMobileBack={showList} />
       </div>
       {page === 'conversation' ? null : (
-        <nav className="bh-mobile-nav" aria-label={t('mobile.navigation')}>
+        <nav {...hooked('bh-mobile-nav', styles.nav)} aria-label={t('mobile.navigation')}>
           <button
             type="button"
+            {...stylex.props(
+              styles.touch,
+              styles.hover,
+              styles.navButton,
+              page === 'list' && styles.current,
+            )}
             aria-current={page === 'list' ? 'page' : undefined}
             aria-label={t('mobile.conversations')}
             title={t('mobile.conversations')}
@@ -162,6 +273,12 @@ function MobileNavigation(props: MobileBotPanelProps): ReactElement {
           </button>
           <button
             type="button"
+            {...stylex.props(
+              styles.touch,
+              styles.hover,
+              styles.navButton,
+              page === 'inbox' && styles.current,
+            )}
             aria-current={page === 'inbox' ? 'page' : undefined}
             aria-label={t('activityCenter.title')}
             title={t('activityCenter.title')}
@@ -174,6 +291,7 @@ function MobileNavigation(props: MobileBotPanelProps): ReactElement {
           </button>
           <button
             type="button"
+            {...stylex.props(styles.touch, styles.hover, styles.navButton)}
             onClick={props.openBotSettings}
             aria-label={t('panel.settings')}
             title={t('panel.settings')}

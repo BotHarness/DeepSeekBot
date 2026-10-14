@@ -1,7 +1,6 @@
 import { useState, useSyncExternalStore, type ReactElement } from 'react';
 import {
   Button,
-  Input,
   Menu,
   IconEllipsisOutlineRegular,
   IconSettingsOutlineRegular,
@@ -12,7 +11,8 @@ import {
 import type { BridgeActions } from './actions.js';
 import type { ChannelSummary } from './store.js';
 import type { BotHarnessTranslate } from './locale.js';
-import { Modal } from './modal.js';
+import { FormDialog } from './ds/form-dialog.js';
+import { TextField } from './ds/field.js';
 import { PersonaBotDeletionView } from './personabot-deletion.js';
 import {
   DM_ACTION_KINDS,
@@ -20,6 +20,7 @@ import {
   subscribeHiddenDmActions,
   toggleHiddenDmAction,
 } from './dm-actions.js';
+import { IconButton } from './ds/icon-button.js';
 
 function NicknameDialog({
   channel,
@@ -48,60 +49,41 @@ function NicknameDialog({
   };
   const valid = draft.length <= 128 && !/[\u0000-\u001f\u007f]/u.test(draft);
   return (
-    <Modal
-      open
+    <FormDialog
       title={t('humanNickname.title')}
       description={t('humanNickname.description', { channel: channel.name })}
-      onClose={() => {
+      labels={{ close: t('common.close'), cancel: t('common.cancel') }}
+      submitLabel={t('humanName.save')}
+      submitDisabled={!valid}
+      busy={busy}
+      error={error ? t('humanName.error') : undefined}
+      onCancel={() => {
         if (!busy) onClose();
       }}
-      closeLabel={t('common.close')}
-      footer={
-        <>
-          <Button variant="outline" disabled={busy} onClick={onClose}>
-            {t('common.cancel')}
-          </Button>
-          <Button
-            variant="outline"
-            disabled={busy || channel.humanNickname == null}
-            onClick={() => void save(null)}
-          >
-            {t('humanNickname.clear')}
-          </Button>
-          <Button
-            variant="primary"
-            disabled={busy || !valid}
-            onClick={() => void save(draft.trim() || null)}
-          >
-            {t('humanName.save')}
-          </Button>
-        </>
+      onSubmit={() => void save(draft.trim() || null)}
+      secondary={
+        <Button
+          type="button"
+          variant="ghost"
+          disabled={busy || channel.humanNickname == null}
+          onClick={() => void save(null)}
+        >
+          {t('humanNickname.clear')}
+        </Button>
       }
     >
-      <div className="bh-group-setting bh-human-nickname-dialog">
-        <label htmlFor="bh-human-channel-nickname">{t('humanNickname.title')}</label>
-        <Input
-          id="bh-human-channel-nickname"
-          value={draft}
-          maxLength={128}
-          disabled={busy}
-          placeholder={t('humanNickname.inherit')}
-          onChange={(event) => setDraft(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' && !event.nativeEvent.isComposing && valid && !busy) {
-              event.preventDefault();
-              void save(draft.trim() || null);
-            }
-          }}
-        />
-        <p>{t('humanNickname.inherit')}</p>
-        {error ? (
-          <div className="bh-error" role="alert">
-            {t('humanName.error')}
-          </div>
-        ) : null}
-      </div>
-    </Modal>
+      <TextField
+        label={t('humanNickname.title')}
+        hint={t('humanNickname.inherit')}
+        data-human-nickname=""
+        value={draft}
+        maxLength={128}
+        disabled={busy}
+        placeholder={t('humanNickname.inherit')}
+        onChange={setDraft}
+        initialFocus
+      />
+    </FormDialog>
   );
 }
 
@@ -195,9 +177,9 @@ export function HumanChannelNameMenu({
         dense
         align="end"
         anchor={
-          <button
-            type="button"
-            className="bh-channel-sidebar-entry-action"
+          <IconButton
+            size="row"
+            tone="subtle"
             aria-label={
               settingsAttention && onOpenSettings !== undefined
                 ? `${t('humanNickname.menu')} · ${t('channelSettings.needsAttention')}`
@@ -211,7 +193,7 @@ export function HumanChannelNameMenu({
             {settingsAttention && onOpenSettings !== undefined ? (
               <span className="bh-channel-settings-attention-dot bh-channel-options-dot" />
             ) : null}
-          </button>
+          </IconButton>
         }
         items={items}
         selectedIds={DM_ACTION_KINDS.filter((kind) => !hidden.includes(kind)).map(

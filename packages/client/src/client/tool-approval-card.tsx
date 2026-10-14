@@ -7,6 +7,7 @@ import { store, type ChannelMessage } from './store.js';
 import { useMountedResource } from './mounted-resource.js';
 import { WORKSPACE_GRANTS_CHANGED } from './workspace-grant-events.js';
 import type { CompanionRequestTarget } from './companion-requests.js';
+import { channelSettings } from './channel-settings-state.js';
 
 export function ToolApprovalCard({
   message,
@@ -287,6 +288,23 @@ export function ToolApprovalCard({
               : t('approval.expired')}
         </div>
       )}
+      {status === 'pending' &&
+      effectiveDecision === undefined &&
+      !confirmAll &&
+      !eachUse &&
+      companionTarget === undefined &&
+      request.role === 'orchestrator' &&
+      cardChannelId === 'dm-' + botSlug ? (
+        <div className="bh-message-card-actions">
+          <Button
+            variant="ghost"
+            size={size}
+            onClick={() => channelSettings.open('workspace-grants')}
+          >
+            {t('approval.fullAccessEntry')}
+          </Button>
+        </div>
+      ) : null}
       {companionTarget && status === 'unavailable' ? (
         <div className="bh-message-card-actions">
           <Button

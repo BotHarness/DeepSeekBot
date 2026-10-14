@@ -1,8 +1,8 @@
 import { useId, useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
+import * as stylex from '@stylexjs/stylex';
 import {
   Button,
   IconPlusOutlineRegular,
-  Input,
   SegmentedControl,
   Switch,
   Tag,
@@ -17,12 +17,18 @@ import {
   type BotScheduleTrigger,
   type BotScheduleView,
 } from './bridge.js';
+import { Callout } from './ds/callout.js';
+import { Field, TextAreaField, TextField } from './ds/field.js';
+import { DangerTextButton, FormDialog } from './ds/form-dialog.js';
+import { Note } from './ds/note.js';
+import { SettingsRow } from './ds/settings-row.js';
+import { color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { LoadingSkeleton } from './loading-skeleton.js';
-import { Modal } from './modal.js';
 import { useMountedResource } from './mounted-resource.js';
 import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
 import { subscribeMessagingDefaults } from './messaging-defaults-live.js';
+import { IconButton } from './ds/icon-button.js';
 
 export const SCHEDULE_COST_WARNING_SECONDS = 15 * 60;
 const REFRESH_MS = 30_000;
@@ -43,6 +49,125 @@ const STARTED_MS = 4000;
 const TOOLTIP_DELAY_MS = 400;
 const TIME = /^\d{2}:\d{2}$/u;
 const DATE = /^\d{4}-\d{2}-\d{2}$/u;
+
+const styles = stylex.create({
+  locked: { color: color.fg },
+  unlocked: { opacity: { default: 0.55, ':disabled': 0.5 } },
+  grow: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 },
+  wide: { flexGrow: 2, flexShrink: 1, flexBasis: 0, minWidth: 0 },
+  row: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: space.x3,
+    minWidth: 0,
+  },
+  input: { width: '100%' },
+  weekdays: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: space.x2,
+  },
+  weekday: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 0,
+    minWidth: '40px',
+    paddingBlock: space.x3,
+    paddingInline: 0,
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: {
+      default: color.border,
+      ':is([aria-pressed=true])': color.fg,
+    },
+    borderRadius: radius.row,
+    backgroundColor: {
+      default: 'transparent',
+      ':hover': color.hover,
+      ':is([aria-pressed=true])': color.fg,
+    },
+    color: {
+      default: color.muted,
+      ':is([aria-pressed=true])': 'var(--dsw-alias-bg-base)',
+    },
+    fontFamily: 'inherit',
+    fontSize: text.metaSize,
+    cursor: 'pointer',
+    outline: { default: 'none', ':focus-visible': `2px solid ${color.accent}` },
+    outlineOffset: '1px',
+  },
+  preview: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x2,
+    paddingBlock: space.x3,
+    paddingInline: space.x4,
+    borderRadius: radius.row,
+    backgroundColor: color.hover,
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+  },
+  muted: { margin: 0, color: color.muted },
+  danger: { margin: 0, color: color.danger },
+  list: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x1,
+    margin: 0,
+    padding: 0,
+    listStyle: 'none',
+    color: color.fg,
+    fontVariantNumeric: 'tabular-nums',
+  },
+  history: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x3,
+    paddingTop: space.x4,
+    borderTopWidth: '0.5px',
+    borderTopStyle: 'solid',
+    borderTopColor: color.border,
+  },
+  historyTitle: {
+    margin: 0,
+    color: color.fg,
+    fontSize: text.bodySize,
+    lineHeight: text.bodyLine,
+    fontWeight: text.strong,
+  },
+  firings: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x3,
+    maxHeight: '200px',
+    margin: 0,
+    padding: 0,
+    overflow: 'auto',
+    listStyle: 'none',
+  },
+  firing: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: space.x3,
+    minWidth: 0,
+  },
+  firingTime: {
+    flexGrow: 1,
+    minWidth: 0,
+    color: color.muted,
+    fontSize: text.metaSize,
+  },
+  link: {
+    padding: 0,
+    borderWidth: 0,
+    backgroundColor: 'transparent',
+    color: color.fg,
+    fontFamily: 'inherit',
+    fontSize: text.metaSize,
+    textDecoration: 'underline',
+    cursor: 'pointer',
+  },
+});
 
 export interface ScheduleForm {
   title: string;
@@ -116,7 +241,12 @@ export function scheduleFormOf(schedule: BotScheduleView): ScheduleForm {
       };
     }
     case 'daily':
-      return { ...base, unit: 'daily', time: trigger.time, timeZone: trigger.timeZone };
+      return {
+        ...base,
+        unit: 'daily',
+        time: trigger.time,
+        timeZone: trigger.timeZone,
+      };
     case 'weekly':
       return {
         ...base,
@@ -134,7 +264,12 @@ export function scheduleFormOf(schedule: BotScheduleView): ScheduleForm {
         timeZone: trigger.timeZone,
       };
     case 'cron':
-      return { ...base, unit: 'cron', expression: trigger.expression, timeZone: trigger.timeZone };
+      return {
+        ...base,
+        unit: 'cron',
+        expression: trigger.expression,
+        timeZone: trigger.timeZone,
+      };
   }
 }
 
@@ -143,7 +278,10 @@ export function scheduleTriggerOf(form: ScheduleForm): BotScheduleTrigger | unde
   if (form.unit === 'minutes' || form.unit === 'hours') {
     const every = Number(form.every);
     if (!Number.isSafeInteger(every) || every < 1) return undefined;
-    return { kind: 'every', everySeconds: every * (form.unit === 'hours' ? 3600 : 60) };
+    return {
+      kind: 'every',
+      everySeconds: every * (form.unit === 'hours' ? 3600 : 60),
+    };
   }
   if (timeZone.length === 0) return undefined;
   if (form.unit === 'cron') {
@@ -174,7 +312,9 @@ export function scheduleCadenceLabel(trigger: BotScheduleTrigger, t: BotHarnessT
       time: trigger.time,
     });
   if (trigger.kind === 'once')
-    return t('schedule.cadence.once', { time: `${trigger.date.slice(5)} ${trigger.time}` });
+    return t('schedule.cadence.once', {
+      time: `${trigger.date.slice(5)} ${trigger.time}`,
+    });
   if (trigger.kind === 'cron')
     return t('schedule.cadence.cron', { expression: trigger.expression });
   if (trigger.everySeconds % 3600 === 0) {
@@ -234,15 +374,15 @@ export function BotSchedulesHeaderAction({ botSlug, t }: ChannelSidebarEntryProp
   if (botSlug === undefined) return <></>;
   return (
     <Tooltip label={t('schedule.add')} side="bottom" delayMs={500}>
-      <button
-        type="button"
-        className="bh-channel-sidebar-entry-action"
+      <IconButton
+        size="row"
+        tone="subtle"
         aria-label={t('schedule.add')}
         aria-haspopup="dialog"
         onClick={() => requestCreate(botSlug)}
       >
         <IconPlusOutlineRegular size={16} />
-      </button>
+      </IconButton>
     </Tooltip>
   );
 }
@@ -281,18 +421,18 @@ function SchedulePreview({
   }, [key, preview]);
   const current = result?.key === key ? result : undefined;
   return (
-    <div ref={mount} className="bh-schedule-preview" aria-live="polite" data-schedule-preview="">
-      <span className="bh-schedule-preview-label">{t('schedule.preview')}</span>
+    <div ref={mount} aria-live="polite" data-schedule-preview="" {...stylex.props(styles.preview)}>
+      <span {...stylex.props(styles.muted)}>{t('schedule.preview')}</span>
       {trigger === undefined ? (
-        <span className="bh-schedule-muted">{t('schedule.preview.incomplete')}</span>
+        <span {...stylex.props(styles.muted)}>{t('schedule.preview.incomplete')}</span>
       ) : current === undefined ? (
-        <span className="bh-schedule-muted">{t('schedule.preview.loading')}</span>
+        <span {...stylex.props(styles.muted)}>{t('schedule.preview.loading')}</span>
       ) : current.error !== undefined ? (
-        <span className="bh-schedule-error" role="alert">
+        <span role="alert" {...stylex.props(styles.danger)}>
           {t('schedule.preview.invalid', { reason: current.error })}
         </span>
       ) : (
-        <ol>
+        <ol {...stylex.props(styles.list)}>
           {current.occurrences!.map((occurrence) => (
             <li key={occurrence}>{formatSchedulePreview(occurrence)}</li>
           ))}
@@ -303,7 +443,6 @@ function SchedulePreview({
 }
 
 function ScheduleEditor({
-  open,
   initial,
   editing,
   busy,
@@ -316,7 +455,6 @@ function ScheduleEditor({
   preview,
   t,
 }: {
-  open: boolean;
   initial: ScheduleForm;
   editing: BotScheduleView | undefined;
   busy: boolean;
@@ -339,228 +477,196 @@ function ScheduleEditor({
   const set = (patch: Partial<ScheduleForm>): void =>
     setForm((current) => ({ ...current, ...patch }));
   return (
-    <Modal
-      open={open}
-      onClose={onClose}
+    <FormDialog
       title={editing === undefined ? t('schedule.add') : t('schedule.edit')}
-      closeLabel={t('schedule.close')}
-      className="bh-schedule-modal"
-      footer={
-        <div className="bh-schedule-modal-footer">
-          {editing === undefined ? null : confirmDelete ? (
-            <Button variant="outline" size="sm" disabled={busy} onClick={onDelete}>
-              {t('schedule.deleteConfirm')}
-            </Button>
-          ) : (
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={busy}
-              onClick={() => setConfirmDelete(true)}
-            >
-              {t('schedule.delete')}
-            </Button>
-          )}
-          <span className="bh-schedule-modal-spacer" />
-          <Button variant="ghost" size="sm" disabled={busy} onClick={onClose}>
-            {t('schedule.cancel')}
-          </Button>
-          <Button
-            variant="primary"
-            size="sm"
-            disabled={busy || !valid}
-            onClick={() => onSave(form)}
-          >
-            {editing === undefined ? t('schedule.create') : t('schedule.save')}
-          </Button>
-        </div>
+      size="medium"
+      labels={{ close: t('schedule.close'), cancel: t('schedule.cancel') }}
+      submitLabel={editing === undefined ? t('schedule.create') : t('schedule.save')}
+      submitDisabled={!valid}
+      busy={busy}
+      error={error}
+      secondary={
+        editing === undefined ? undefined : confirmDelete ? (
+          <DangerTextButton disabled={busy} onClick={onDelete}>
+            {t('schedule.deleteConfirm')}
+          </DangerTextButton>
+        ) : (
+          <DangerTextButton disabled={busy} onClick={() => setConfirmDelete(true)}>
+            {t('schedule.delete')}
+          </DangerTextButton>
+        )
       }
+      onCancel={onClose}
+      onSubmit={() => onSave(form)}
     >
-      <div className="bh-schedule-form" data-schedule-form="">
-        <label className="bh-schedule-field">
-          <span>{t('schedule.form.title')}</span>
-          <Input
-            value={form.title}
-            maxLength={120}
-            placeholder={t('schedule.form.titlePlaceholder')}
-            onChange={(event) => set({ title: event.target.value })}
+      <TextField
+        label={t('schedule.form.title')}
+        value={form.title}
+        maxLength={120}
+        placeholder={t('schedule.form.titlePlaceholder')}
+        initialFocus
+        onChange={(title) => set({ title })}
+      />
+      <TextAreaField
+        label={t('schedule.form.prompt')}
+        rows={4}
+        maxLength={4000}
+        value={form.prompt}
+        placeholder={t('schedule.form.promptPlaceholder')}
+        onChange={(prompt) => set({ prompt })}
+      />
+      <Field label={t('schedule.form.cadence')} group>
+        {() => (
+          <SegmentedControl
+            id={`${id}-unit`}
+            label={t('schedule.form.cadence')}
+            value={form.unit}
+            options={[
+              { value: 'minutes', label: t('schedule.form.unit.minutes') },
+              { value: 'hours', label: t('schedule.form.unit.hours') },
+              { value: 'daily', label: t('schedule.form.unit.daily') },
+              { value: 'weekly', label: t('schedule.form.unit.weekly') },
+              { value: 'once', label: t('schedule.form.unit.once') },
+              { value: 'cron', label: t('schedule.form.unit.cron') },
+            ]}
+            onChange={(unit) => set({ unit })}
           />
-        </label>
-        <label className="bh-schedule-field">
-          <span>{t('schedule.form.prompt')}</span>
-          <textarea
-            rows={4}
-            maxLength={4000}
-            value={form.prompt}
-            placeholder={t('schedule.form.promptPlaceholder')}
-            onChange={(event) => set({ prompt: event.currentTarget.value })}
-          />
-        </label>
-        <SegmentedControl
-          id={`${id}-unit`}
-          label={t('schedule.form.cadence')}
-          value={form.unit}
-          options={[
-            { value: 'minutes', label: t('schedule.form.unit.minutes') },
-            { value: 'hours', label: t('schedule.form.unit.hours') },
-            { value: 'daily', label: t('schedule.form.unit.daily') },
-            { value: 'weekly', label: t('schedule.form.unit.weekly') },
-            { value: 'once', label: t('schedule.form.unit.once') },
-            { value: 'cron', label: t('schedule.form.unit.cron') },
-          ]}
-          onChange={(unit) => set({ unit })}
-        />
-        {form.unit === 'minutes' || form.unit === 'hours' ? (
-          <label className="bh-schedule-field">
-            <span>
-              {form.unit === 'hours'
-                ? t('schedule.form.everyHours')
-                : t('schedule.form.everyMinutes')}
-            </span>
-            <Input
-              type="number"
-              min={1}
-              step={1}
-              value={form.every}
-              onChange={(event) => set({ every: event.target.value })}
-            />
-          </label>
-        ) : null}
-        {form.unit === 'weekly' ? (
-          <div
-            className="bh-schedule-weekdays"
-            role="group"
-            aria-label={t('schedule.form.weekdays')}
-          >
-            {WEEKDAYS.map(([day, key]) => {
-              const on = form.weekdays.includes(day);
-              return (
-                <button
-                  key={day}
-                  type="button"
-                  className="bh-schedule-weekday"
-                  aria-pressed={on}
-                  onClick={() =>
-                    set({
-                      weekdays: on
-                        ? form.weekdays.filter((value) => value !== day)
-                        : [...form.weekdays, day].sort((a, b) => a - b),
-                    })
-                  }
-                >
-                  {t(key)}
-                </button>
-              );
-            })}
-          </div>
-        ) : null}
-        {form.unit === 'cron' ? (
-          <label className="bh-schedule-field">
-            <span>{t('schedule.form.cron')}</span>
-            <Input
-              value={form.expression}
-              spellCheck={false}
-              placeholder="0 9 * * 1-5"
-              className="bh-schedule-cron"
-              onChange={(event) => set({ expression: event.target.value })}
-            />
-            <small className="bh-schedule-muted">{t('schedule.form.cronHint')}</small>
-          </label>
-        ) : null}
-        {form.unit === 'minutes' || form.unit === 'hours' ? null : (
-          <div className="bh-schedule-row">
-            {form.unit === 'once' ? (
-              <label className="bh-schedule-field">
-                <span>{t('schedule.form.date')}</span>
-                <Input
-                  type="date"
-                  value={form.date}
-                  onChange={(event) => set({ date: event.target.value })}
-                />
-              </label>
-            ) : null}
-            {form.unit === 'cron' ? null : (
-              <label className="bh-schedule-field">
-                <span>{t('schedule.form.time')}</span>
-                <Input
-                  type="time"
-                  value={form.time}
-                  onChange={(event) => set({ time: event.target.value })}
-                />
-              </label>
-            )}
-            <label className="bh-schedule-field bh-schedule-zone">
-              <span>{t('schedule.form.timeZone')}</span>
-              <Input
-                value={form.timeZone}
-                onChange={(event) => set({ timeZone: event.target.value })}
-              />
-            </label>
-          </div>
         )}
-        {form.unit === 'once' ? (
-          <p className="bh-schedule-muted">{t('schedule.form.onceHint')}</p>
-        ) : null}
-        <SchedulePreview trigger={trigger} preview={preview} t={t} />
-        <div className="bh-schedule-lock">
-          <span className="bh-card-icon" aria-hidden="true">
-            <ChannelSidebarIcon name={form.locked ? 'lock' : 'lock-open'} size={16} />
-          </span>
-          <span className="bh-card-body">
-            <span className="bh-card-title">{t('schedule.form.lock')}</span>
-            <span className="bh-card-meta">{t('schedule.form.lockHint')}</span>
-          </span>
+      </Field>
+      {form.unit === 'minutes' || form.unit === 'hours' ? (
+        <TextField
+          label={
+            form.unit === 'hours' ? t('schedule.form.everyHours') : t('schedule.form.everyMinutes')
+          }
+          type="number"
+          min={1}
+          step={1}
+          value={form.every}
+          onChange={(every) => set({ every })}
+        />
+      ) : null}
+      {form.unit === 'weekly' ? (
+        <Field label={t('schedule.form.weekdays')} group>
+          {() => (
+            <div {...stylex.props(styles.weekdays)}>
+              {WEEKDAYS.map(([day, key]) => {
+                const on = form.weekdays.includes(day);
+                return (
+                  <button
+                    key={day}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() =>
+                      set({
+                        weekdays: on
+                          ? form.weekdays.filter((value) => value !== day)
+                          : [...form.weekdays, day].sort((a, b) => a - b),
+                      })
+                    }
+                    {...stylex.props(styles.weekday)}
+                  >
+                    {t(key)}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </Field>
+      ) : null}
+      {form.unit === 'cron' ? (
+        <TextField
+          label={t('schedule.form.cron')}
+          hint={t('schedule.form.cronHint')}
+          monospace
+          value={form.expression}
+          spellCheck={false}
+          placeholder="0 9 * * 1-5"
+          onChange={(expression) => set({ expression })}
+        />
+      ) : null}
+      {form.unit === 'minutes' || form.unit === 'hours' ? null : (
+        <div {...stylex.props(styles.row)}>
+          {form.unit === 'once' ? (
+            <div {...stylex.props(styles.grow)}>
+              <TextField
+                label={t('schedule.form.date')}
+                hint={t('schedule.form.onceHint')}
+                type="date"
+                value={form.date}
+                onChange={(date) => set({ date })}
+              />
+            </div>
+          ) : null}
+          {form.unit === 'cron' ? null : (
+            <div {...stylex.props(styles.grow)}>
+              <TextField
+                label={t('schedule.form.time')}
+                type="time"
+                value={form.time}
+                onChange={(time) => set({ time })}
+              />
+            </div>
+          )}
+          <div {...stylex.props(styles.wide)}>
+            <TextField
+              label={t('schedule.form.timeZone')}
+              value={form.timeZone}
+              onChange={(timeZone) => set({ timeZone })}
+            />
+          </div>
+        </div>
+      )}
+      <SchedulePreview trigger={trigger} preview={preview} t={t} />
+      <SettingsRow
+        title={t('schedule.form.lock')}
+        description={t('schedule.form.lockHint')}
+        control={
           <Switch
             checked={form.locked}
             label={t('schedule.form.lock')}
             onChange={(locked) => set({ locked })}
           />
-        </div>
-        {costly ? (
-          <p className="bh-schedule-warning" role="note">
-            {t('schedule.form.cost')}
-          </p>
-        ) : null}
-        {error === undefined ? null : (
-          <p className="bh-schedule-error" role="alert">
-            {error}
-          </p>
-        )}
-        {editing === undefined ? null : (
-          <section className="bh-schedule-history" aria-label={t('schedule.history')}>
-            <h4>{t('schedule.history')}</h4>
-            {history === undefined ? (
-              <LoadingSkeleton kind="sidebar" label={t('schedule.loading')} />
-            ) : history.length === 0 ? (
-              <p className="bh-schedule-muted">{t('schedule.historyEmpty')}</p>
-            ) : (
-              <ol>
-                {history.map((firing) => (
-                  <li key={firing.id} className="bh-schedule-firing">
-                    <span className="bh-schedule-firing-time">
-                      {formatScheduleTime(firing.occurrenceAt)}
-                    </span>
-                    {firing.trigger === 'manual' ? (
-                      <Tag tone="outline">{t('schedule.history.manual')}</Tag>
-                    ) : null}
-                    <FiringTag firing={firing} t={t} />
-                    {firing.sessionId === undefined ? null : (
-                      <button
-                        type="button"
-                        className="bh-schedule-link"
-                        onClick={() => onOpenSession(firing.sessionId!)}
-                      >
-                        {t('schedule.openSession')}
-                      </button>
-                    )}
-                  </li>
-                ))}
-              </ol>
-            )}
-          </section>
-        )}
-      </div>
-    </Modal>
+        }
+      />
+      {costly ? (
+        <Callout tone="warning" role="note">
+          {t('schedule.form.cost')}
+        </Callout>
+      ) : null}
+      {editing === undefined ? null : (
+        <section aria-label={t('schedule.history')} {...stylex.props(styles.history)}>
+          <h4 {...stylex.props(styles.historyTitle)}>{t('schedule.history')}</h4>
+          {history === undefined ? (
+            <LoadingSkeleton kind="sidebar" label={t('schedule.loading')} />
+          ) : history.length === 0 ? (
+            <p {...stylex.props(styles.muted)}>{t('schedule.historyEmpty')}</p>
+          ) : (
+            <ol {...stylex.props(styles.firings)}>
+              {history.map((firing) => (
+                <li key={firing.id} {...stylex.props(styles.firing)}>
+                  <span {...stylex.props(styles.firingTime)}>
+                    {formatScheduleTime(firing.occurrenceAt)}
+                  </span>
+                  {firing.trigger === 'manual' ? (
+                    <Tag tone="outline">{t('schedule.history.manual')}</Tag>
+                  ) : null}
+                  <FiringTag firing={firing} t={t} />
+                  {firing.sessionId === undefined ? null : (
+                    <button
+                      type="button"
+                      onClick={() => onOpenSession(firing.sessionId!)}
+                      {...stylex.props(styles.link)}
+                    >
+                      {t('schedule.openSession')}
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ol>
+          )}
+        </section>
+      )}
+    </FormDialog>
   );
 }
 
@@ -633,11 +739,16 @@ export function ScheduleDialog({
     return (
       <>
         <span ref={mount} hidden />
-        <Modal open onClose={onClose} title={t('schedule.edit')} closeLabel={t('schedule.close')}>
-          <p className="bh-schedule-muted" role="status">
-            {error ?? t('schedule.missing')}
-          </p>
-        </Modal>
+        <FormDialog
+          title={t('schedule.edit')}
+          labels={{ close: t('schedule.close'), cancel: t('schedule.cancel') }}
+          submitLabel={t('schedule.close')}
+          showCancel={false}
+          onCancel={onClose}
+          onSubmit={onClose}
+        >
+          <Note>{error ?? t('schedule.missing')}</Note>
+        </FormDialog>
       </>
     );
   const editing = schedule ?? undefined;
@@ -645,7 +756,6 @@ export function ScheduleDialog({
     <>
       <span ref={mount} hidden />
       <ScheduleEditor
-        open
         initial={editing === undefined ? emptyScheduleForm() : scheduleFormOf(editing)}
         editing={editing}
         busy={busy}
@@ -688,7 +798,10 @@ export function ScheduleDialog({
 export function BotSchedulesEntry({ botSlug, actions, t }: ChannelSidebarEntryProps): ReactElement {
   const [schedules, setSchedules] = useState<BotScheduleView[] | undefined>();
   const [loadError, setLoadError] = useState<string | undefined>();
-  const [editor, setEditor] = useState<{ key: number; scheduleId: string | undefined }>();
+  const [editor, setEditor] = useState<{
+    key: number;
+    scheduleId: string | undefined;
+  }>();
   const [toggling, setToggling] = useState<string | undefined>();
   const [started, setStarted] = useState<string | undefined>();
   const active = useRef<string | undefined>(undefined);
@@ -827,7 +940,9 @@ export function BotSchedulesEntry({ botSlug, actions, t }: ChannelSidebarEntryPr
                 started === schedule.id
                   ? t('schedule.runNow.started')
                   : schedule.enabled && schedule.nextRunAt !== undefined
-                    ? t('schedule.next', { time: formatScheduleTime(schedule.nextRunAt) })
+                    ? t('schedule.next', {
+                        time: formatScheduleTime(schedule.nextRunAt),
+                      })
                     : schedule.trigger.kind === 'once' && schedule.lastFiring !== undefined
                       ? t('schedule.done')
                       : t('schedule.paused')
@@ -840,15 +955,17 @@ export function BotSchedulesEntry({ botSlug, actions, t }: ChannelSidebarEntryPr
                     portal
                     delayMs={TOOLTIP_DELAY_MS}
                   >
-                    <button
-                      type="button"
-                      className="bh-card-action bh-schedule-run-now"
+                    <IconButton
+                      size="inline"
+                      data-schedule-run-now=""
                       disabled={toggling !== undefined}
-                      aria-label={t('schedule.runNow', { title: schedule.title })}
+                      aria-label={t('schedule.runNow', {
+                        title: schedule.title,
+                      })}
                       onClick={() => runNow(schedule)}
                     >
                       <ChannelSidebarIcon name="play" size={14} />
-                    </button>
+                    </IconButton>
                   </Tooltip>
                   <Tooltip
                     label={schedule.locked ? t('schedule.locked') : t('schedule.lock.tooltip')}
@@ -856,10 +973,10 @@ export function BotSchedulesEntry({ botSlug, actions, t }: ChannelSidebarEntryPr
                     portal
                     delayMs={TOOLTIP_DELAY_MS}
                   >
-                    <button
-                      type="button"
-                      className="bh-card-action bh-schedule-lock-toggle"
-                      data-locked={schedule.locked ? 'true' : undefined}
+                    <IconButton
+                      size="inline"
+                      data-schedule-lock=""
+                      xstyle={schedule.locked ? styles.locked : styles.unlocked}
                       aria-pressed={schedule.locked}
                       disabled={toggling !== undefined}
                       aria-label={
@@ -870,7 +987,7 @@ export function BotSchedulesEntry({ botSlug, actions, t }: ChannelSidebarEntryPr
                       onClick={() => change(schedule, { locked: !schedule.locked })}
                     >
                       <ChannelSidebarIcon name={schedule.locked ? 'lock' : 'lock-open'} size={14} />
-                    </button>
+                    </IconButton>
                   </Tooltip>
                   <Tooltip
                     label={

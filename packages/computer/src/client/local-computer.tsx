@@ -1,13 +1,19 @@
 import { useCallback, useState, type ReactElement } from 'react';
+import * as stylex from '@stylexjs/stylex';
 import { Button, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Note } from '../../../client/src/client/ds/note.js';
+import { space } from '../../../client/src/client/ds/tokens.stylex.js';
 import { SidebarCardList, SidebarCardRow } from '../../../client/src/client/sidebar-card.js';
 import type { ComputerTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
 
-export const LOCAL_COMPUTER_COLORS = {
-  error: 'var(--dsw-alias-state-error-primary)',
-  secondary: 'var(--dsw-alias-label-secondary)',
-} as const;
+const styles = stylex.create({
+  detail: {
+    display: 'grid',
+    gap: space.x3,
+    justifyItems: 'start',
+  },
+});
 
 interface LocalStatus {
   target?: string;
@@ -90,20 +96,8 @@ export function LocalComputerStatus({ t }: { t: ComputerTranslate }): ReactEleme
           }
           meta={t(granted ? 'local.granted' : 'local.description')}
           detail={
-            <div style={{ display: 'grid', gap: 8, justifyItems: 'start' }}>
-              {failure === undefined ? null : (
-                <div
-                  role="alert"
-                  style={{
-                    color: LOCAL_COMPUTER_COLORS.error,
-                    fontSize: 12,
-                    lineHeight: '16px',
-                    overflowWrap: 'anywhere',
-                  }}
-                >
-                  {failure}
-                </div>
-              )}
+            <div {...stylex.props(styles.detail)}>
+              {failure === undefined ? null : <Note tone="danger">{failure}</Note>}
               <Button
                 size="sm"
                 variant="outline"

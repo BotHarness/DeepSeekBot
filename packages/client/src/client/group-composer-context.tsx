@@ -7,7 +7,8 @@ import type { BotSummary, ChannelSummary } from './store.js';
 import type { BotHarnessTranslate } from './locale.js';
 import type { ComposerContext } from './composer-shortcuts.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
-import { Modal } from './modal.js';
+import { Note } from './ds/note.js';
+import { PanelDialog } from './ds/panel-dialog.js';
 import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
 import { useMountedResource } from './mounted-resource.js';
 import {
@@ -19,6 +20,8 @@ import {
 import { subscribeWorkspaceGrantChanges } from './workspace-grant-events.js';
 import { authorizeGroupMembers, type GroupGrantResult } from './group-workspace-authorization.js';
 import { useMobileBotViewport } from './mobile-viewport.js';
+import { ComposerContextBar } from './composer-context-bar.js';
+import { ChipButton } from './ds/chip-button.js';
 
 interface PreviewMember {
   slug: string;
@@ -197,152 +200,143 @@ export function GroupComposerContextView({
   const retry = results.some((row) => row.status === 'unknown' || row.status === 'failed');
   return (
     <div ref={mount}>
-      <div className="bh-composer-context" hidden={mobile} aria-label={t('composerContext.label')}>
-        <button ref={factMount} type="button" onClick={onOpen}>
-          <ChannelSidebarIcon name="folder-key" size={14} />
-          <span>{chip}</span>
-        </button>
-      </div>
+      <ComposerContextBar label={t('composerContext.label')} hidden={mobile}>
+        <ChipButton
+          ref={factMount}
+          data-composer-chip="workspace"
+          icon={<ChannelSidebarIcon name="folder-key" size={14} />}
+          label={chip}
+          onClick={onOpen}
+        />
+      </ComposerContextBar>
       {open ? (
-        <Modal
-          open
-          className="bh-group-grant-modal"
-          contentClassName="bh-group-grant-content"
+        <PanelDialog
+          size="medium"
+          fill
           title={t('entry.workspaceGrants')}
           closeLabel={t('approval.cancel')}
           onClose={() => {
             if (!busy) onClose();
           }}
+          data={{ 'data-group-grant': '' }}
         >
-          <div className="bh-workspace-grants">
-            {preview === undefined ? (
-              <fieldset className="bh-group-grant-members" disabled={busy}>
-                <legend>{t('groupGrant.select')}</legend>
-                {members.map((bot) => (
-                  <label key={bot.slug}>
-                    <input
-                      type="checkbox"
-                      checked={eligible.includes(bot.slug)}
-                      onChange={(event) => {
-                        setSelected(
-                          event.target.checked
-                            ? [...eligible, bot.slug]
-                            : eligible.filter((slug) => slug !== bot.slug),
-                        );
-                        setPreview(undefined);
-                        setResults([]);
-                        setError(undefined);
-                      }}
-                    />
-                    {bot.displayName}
-                  </label>
-                ))}
-                {members.length === 0 ? <p>{t('groupGrant.noMembers')}</p> : null}
-              </fieldset>
-            ) : null}
-            {error === undefined ? null : (
-              <div className="bh-error" role="alert">
-                {error}
-              </div>
-            )}
-            {busy ? (
-              <div className="bh-note" role="status">
-                {t('grant.working')}
-              </div>
-            ) : null}
-            {preview === undefined ? (
-              <WorkspaceFolderPicker
-                actions={actions}
-                t={t}
-                disabled={busy || eligible.length === 0}
-                workspaces={workspaces}
-                onChoose={choose}
-              />
-            ) : (
-              <div role="group" aria-label={t('groupGrant.confirm')}>
-                <SidebarCardList className="bh-workspace-folder-table bh-group-grant-results">
-                  <FolderRow
-                    name={preview.title}
-                    path={preview.path}
-                    initiallyExpanded
-                    chips={
-                      <Tag tone="outline">
-                        {t('groupGrant.targets', { count: preview.members.length })}
-                      </Tag>
-                    }
-                    pathAction={
-                      <div className="bh-workspace-folder-path bh-group-grant-directory">
-                        {preview.path}
-                      </div>
-                    }
-                    detail={<p>{t('groupGrant.permissions')}</p>}
-                  />
-                  {preview.members.map((bot) => {
-                    const result = results.find((row) => row.slug === bot.slug);
-                    const status =
-                      result?.status ?? (bot.grant === undefined ? 'pending' : 'existing');
-                    return (
-                      <SidebarCardRow
-                        key={bot.slug}
-                        title={bot.name}
-                        state={status}
-                        chips={
-                          <>
-                            <Tag
-                              tone={
-                                ['created', 'existing', 'confirmed'].includes(status)
-                                  ? 'success'
-                                  : 'outline'
-                              }
-                            >
-                              <span role="status">{t(`groupGrant.${status}`)}</span>
-                            </Tag>
-                            <Tag tone="outline">
-                              {t(
-                                bot.grant?.orchestratorWrite
-                                  ? 'grant.chip.write'
-                                  : 'grant.chip.read',
-                              )}
-                            </Tag>
-                          </>
-                        }
-                        meta={t('groupGrant.taskAccess', { mode: bot.access.mode })}
-                        detail={
-                          result?.error === undefined ? undefined : (
-                            <div className="bh-error">{result.error}</div>
-                          )
-                        }
-                      />
-                    );
-                  })}
-                </SidebarCardList>
-                <div className="bh-group-grant-actions">
-                  {results.length === 0 || retry ? (
-                    <Button variant="outline" disabled={busy} onClick={submit}>
-                      {t(results.length === 0 ? 'grant.authorize' : 'groupGrant.retry')}
-                    </Button>
-                  ) : null}
-                  <Button
-                    variant="outline"
-                    disabled={busy}
-                    onClick={() => {
+          {preview === undefined ? (
+            <fieldset className="bh-group-grant-members" disabled={busy}>
+              <legend>{t('groupGrant.select')}</legend>
+              {members.map((bot) => (
+                <label key={bot.slug}>
+                  <input
+                    type="checkbox"
+                    checked={eligible.includes(bot.slug)}
+                    onChange={(event) => {
+                      setSelected(
+                        event.target.checked
+                          ? [...eligible, bot.slug]
+                          : eligible.filter((slug) => slug !== bot.slug),
+                      );
                       setPreview(undefined);
                       setResults([]);
+                      setError(undefined);
                     }}
-                  >
-                    {t('approval.cancel')}
+                  />
+                  {bot.displayName}
+                </label>
+              ))}
+              {members.length === 0 ? <p>{t('groupGrant.noMembers')}</p> : null}
+            </fieldset>
+          ) : null}
+          {error === undefined ? null : <Note tone="danger">{error}</Note>}
+          {busy ? <Note>{t('grant.working')}</Note> : null}
+          {preview === undefined ? (
+            <WorkspaceFolderPicker
+              actions={actions}
+              t={t}
+              disabled={busy || eligible.length === 0}
+              workspaces={workspaces}
+              onChoose={choose}
+            />
+          ) : (
+            <div role="group" aria-label={t('groupGrant.confirm')}>
+              <SidebarCardList className="bh-workspace-folder-table bh-group-grant-results">
+                <FolderRow
+                  name={preview.title}
+                  path={preview.path}
+                  initiallyExpanded
+                  chips={
+                    <Tag tone="outline">
+                      {t('groupGrant.targets', { count: preview.members.length })}
+                    </Tag>
+                  }
+                  pathAction={
+                    <div className="bh-workspace-folder-path bh-group-grant-directory">
+                      {preview.path}
+                    </div>
+                  }
+                  detail={<p>{t('groupGrant.permissions')}</p>}
+                />
+                {preview.members.map((bot) => {
+                  const result = results.find((row) => row.slug === bot.slug);
+                  const status =
+                    result?.status ?? (bot.grant === undefined ? 'pending' : 'existing');
+                  return (
+                    <SidebarCardRow
+                      key={bot.slug}
+                      title={bot.name}
+                      state={status}
+                      chips={
+                        <>
+                          <Tag
+                            tone={
+                              ['created', 'existing', 'confirmed'].includes(status)
+                                ? 'success'
+                                : 'outline'
+                            }
+                          >
+                            <span role="status">{t(`groupGrant.${status}`)}</span>
+                          </Tag>
+                          <Tag tone="outline">
+                            {t(
+                              bot.grant?.orchestratorWrite ? 'grant.chip.write' : 'grant.chip.read',
+                            )}
+                          </Tag>
+                        </>
+                      }
+                      meta={t('groupGrant.taskAccess', { mode: bot.access.mode })}
+                      detail={
+                        result?.error === undefined ? undefined : (
+                          <div className="bh-error">{result.error}</div>
+                        )
+                      }
+                    />
+                  );
+                })}
+              </SidebarCardList>
+              <div className="bh-group-grant-actions">
+                {results.length === 0 || retry ? (
+                  <Button variant="outline" disabled={busy} onClick={submit}>
+                    {t(results.length === 0 ? 'grant.authorize' : 'groupGrant.retry')}
                   </Button>
-                </div>
+                ) : null}
+                <Button
+                  variant="outline"
+                  disabled={busy}
+                  onClick={() => {
+                    setPreview(undefined);
+                    setResults([]);
+                  }}
+                >
+                  {t('approval.cancel')}
+                </Button>
               </div>
-            )}
-            <details className="bh-group-grant-policy">
-              <FolderSectionSummary>{t('groupGrant.details')}</FolderSectionSummary>
-              <p>{t('groupGrant.unselected')}</p>
-              <p>{t('groupGrant.scope')}</p>
-              <p>{t('groupGrant.partial')}</p>
-            </details>
-          </div>
-        </Modal>
+            </div>
+          )}
+          <details className="bh-group-grant-policy">
+            <FolderSectionSummary>{t('groupGrant.details')}</FolderSectionSummary>
+            <p>{t('groupGrant.unselected')}</p>
+            <p>{t('groupGrant.scope')}</p>
+            <p>{t('groupGrant.partial')}</p>
+          </details>
+        </PanelDialog>
       ) : null}
     </div>
   );

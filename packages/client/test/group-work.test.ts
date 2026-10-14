@@ -133,6 +133,6 @@ it('groups the Group’s Assignments and keeps Done collapsed', async () => {
 
 it('says where Group work will appear before there is any', async () => {
   await render();
-  expect(host.querySelector('.bh-note')?.textContent).toBe(zhTranslate('groupWork.empty'));
+  expect(host.querySelector('[role="status"]')?.textContent).toBe(zhTranslate('groupWork.empty'));
   expect(host.querySelector('section')).toBeNull();
 });

@@ -1,5 +1,7 @@
 import { useMemo, useState, useSyncExternalStore, type ReactElement } from 'react';
-import { Menu, IconChevronDownOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Note } from '../../../client/src/client/ds/note.js';
+import { Select } from '../../../client/src/client/ds/select.js';
+import { SettingsRow, SettingsRows } from '../../../client/src/client/ds/settings-row.js';
 import type { BrowserClientContext } from './index.js';
 import { LOCALE_NS, type BrowserTranslate } from './locale.js';
 
@@ -34,56 +36,34 @@ function ConfigChoice({
   title: string;
   items: { id: string; label: string }[];
 }): ReactElement {
-  const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string>();
   return (
     <>
-      <div className="bh-settings-row">
-        <div className="bh-settings-row-text">
-          <div className="bh-settings-row-title">{title}</div>
-        </div>
-        <Menu
-          portal
-          align="end"
-          open={open}
-          selectedId={value}
-          items={items}
-          onClose={() => setOpen(false)}
-          onSelect={(id) => {
-            setOpen(false);
-            if (!items.some((item) => item.id === id)) return;
-            setSaving(true);
-            setError(undefined);
-            void scope
-              .set(field, id)
-              .then(() => {
-                if (scope.getSnapshot().value?.[field] !== id)
-                  throw new Error('Browser setting was not saved');
-              })
-              .catch((cause: unknown) => setError(String(cause)))
-              .finally(() => setSaving(false));
-          }}
-          anchor={
-            <button
-              type="button"
-              className="bh-settings-selector"
-              aria-haspopup="menu"
-              aria-expanded={open}
-              disabled={!writable || saving}
-              onClick={() => setOpen(!open)}
-            >
-              {items.find((item) => item.id === value)?.label ?? value}
-              <IconChevronDownOutlineRegular />
-            </button>
-          }
-        />
-      </div>
-      {error === undefined ? null : (
-        <div role="alert" className="bh-browser-error">
-          {error}
-        </div>
-      )}
+      <SettingsRow
+        title={title}
+        control={
+          <Select
+            label={title}
+            value={value}
+            options={items.map((item) => ({ value: item.id, label: item.label }))}
+            disabled={!writable || saving}
+            onChange={(id) => {
+              setSaving(true);
+              setError(undefined);
+              void scope
+                .set(field, id)
+                .then(() => {
+                  if (scope.getSnapshot().value?.[field] !== id)
+                    throw new Error('Browser setting was not saved');
+                })
+                .catch((cause: unknown) => setError(String(cause)))
+                .finally(() => setSaving(false));
+            }}
+          />
+        }
+      />
+      {error === undefined ? null : <Note tone="danger">{error}</Note>}
     </>
   );
 }
@@ -105,7 +85,7 @@ export function BrowserTargetSettings({
   const snapshot = useSyncExternalStore(store.subscribe, store.getSnapshot);
   const target = snapshot.value?.target ?? 'local';
   return (
-    <div className="bh-settings-rows bh-browser-settings">
+    <SettingsRows>
       <ConfigChoice
         scope={scope}
         field="target"
@@ -133,7 +113,7 @@ export function BrowserTargetSettings({
           }))}
         />
       )}
-    </div>
+    </SettingsRows>
   );
 }
 

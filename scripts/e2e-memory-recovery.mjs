@@ -174,8 +174,8 @@ try {
   }, name);
   await sleep(1500);
   await page.evaluate(() => {
-    const heading = Array.from(document.querySelectorAll('.bh-channel-sidebar-entry-head')).find(
-      (button) => /记忆演化|Memory evolution/u.test(button.textContent ?? ''),
+    const heading = Array.from(document.querySelectorAll('[data-panel-head]')).find((button) =>
+      /记忆演化|Memory evolution/u.test(button.textContent ?? ''),
     );
     if (heading?.getAttribute('aria-expanded') === 'false') heading.click();
   });

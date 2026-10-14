@@ -107,10 +107,10 @@ it('pins the Orchestrator on top and groups Assignments by needs input, working,
     );
     const titles = (scope: ParentNode) =>
       [...scope.querySelectorAll('.bh-card-title')].map((node) => node.textContent);
-    const lists = container.querySelectorAll('.bh-sessions-groups > .bh-card-list');
+    const lists = container.querySelectorAll('[data-session-groups] > .bh-card-list');
     expect(lists).toHaveLength(1);
     expect(titles(lists[0]!)).toEqual(['Main']);
-    expect(lists[0]!.querySelector('.bh-session-orchestrator')?.getAttribute('aria-label')).toBe(
+    expect(lists[0]!.querySelector('[data-session-orchestrator]')?.getAttribute('aria-label')).toBe(
       'Orchestrator',
     );
     expect(
@@ -126,7 +126,7 @@ it('pins the Orchestrator on top and groups Assignments by needs input, working,
     expect(titles(working)).toEqual(['Running']);
     expect(titles(idle)).toEqual(['New idle', 'Old idle']);
     expect(resolved.querySelector('.bh-card-list')).toBeNull();
-    expect(working.querySelector('.bh-session-workspace-count')?.textContent).toBe('1 / 8');
+    expect(working.querySelector('[data-group-count]')?.textContent).toBe('1 / 8');
     expect(container.textContent).not.toContain('Assignment');
     expect(lists[0]!.querySelector('.bh-card-badge')).toBeNull();
     await act(async () =>
@@ -141,10 +141,10 @@ it('pins the Orchestrator on top and groups Assignments by needs input, working,
       ),
     );
     expect(
-      container.querySelector('.bh-sessions-groups > .bh-card-list .bh-card-badge')?.textContent,
+      container.querySelector('[data-session-groups] > .bh-card-list .bh-card-badge')?.textContent,
     ).toBe('整理收件箱 · 3');
     expect(working.querySelector('[data-flip-key="a-run"] .bh-card-badge')).toBeNull();
-    expect(working.querySelector('.bh-session-archive')).toBeNull();
+    expect(working.querySelector('[data-session-archive]')).toBeNull();
     expect(needs.querySelector('[data-flip-key="a-fail"] .bh-card-badge')?.textContent).toBe(
       '出错',
     );
@@ -152,11 +152,13 @@ it('pins the Orchestrator on top and groups Assignments by needs input, working,
       '等你回复',
     );
     await act(async () =>
-      idle.querySelector<HTMLButtonElement>('[data-flip-key="a-new"] .bh-session-archive')!.click(),
+      idle
+        .querySelector<HTMLButtonElement>('[data-flip-key="a-new"] [data-session-archive]')!
+        .click(),
     );
     expect(setSessionArchived).toHaveBeenCalledWith('sessions-qa', 'a-new', true);
     await act(async () =>
-      resolved.querySelector<HTMLButtonElement>('.bh-session-workspace-heading')!.click(),
+      resolved.querySelector<HTMLButtonElement>('[data-group-heading]')!.click(),
     );
     expect(titles(container.querySelector('[data-section="resolved"]')!)).toEqual([
       'Ship the release notes',
@@ -164,13 +166,11 @@ it('pins the Orchestrator on top and groups Assignments by needs input, working,
     expect(container.querySelector('[data-flip-key="a-done"] .bh-card-badge')).toBeNull();
     await act(async () =>
       container
-        .querySelector<HTMLButtonElement>('[data-flip-key="a-done"] .bh-session-archive')!
+        .querySelector<HTMLButtonElement>('[data-flip-key="a-done"] [data-session-archive]')!
         .click(),
     );
     expect(setSessionArchived).toHaveBeenCalledWith('sessions-qa', 'a-done', false);
-    await act(async () =>
-      idle.querySelector<HTMLButtonElement>('.bh-session-workspace-heading')!.click(),
-    );
+    await act(async () => idle.querySelector<HTMLButtonElement>('[data-group-heading]')!.click());
     expect(sessionViewPreferenceSnapshot('sessions-qa').collapsedSections).toEqual(['idle']);
     expect(container.querySelector('[data-section="idle"] .bh-card-list')).toBeNull();
   } finally {

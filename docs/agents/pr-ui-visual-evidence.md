@@ -17,11 +17,27 @@ Place each pair directly in **Change outline**, with a short heading that names 
 
 **Before** — The attachment preview covered the send control.
 
-![Before: Channel composer with attachment selected](https://...)
+<img alt="Before: Channel composer with attachment selected" src="https://github.com/BotHarness/DeepSeekBot/raw/<sha>/.github/pr-screenshots/<slug>/before.png" width="900">
 
 **After** — The preview and send control are both visible.
 
-![After: Channel composer with attachment selected](https://...)
+<img alt="After: Channel composer with attachment selected" src="https://github.com/BotHarness/DeepSeekBot/raw/<sha>/.github/pr-screenshots/<slug>/after.png" width="900">
 ```
 
 Use image URLs that render for a reviewer in GitHub; local file paths are not PR evidence. Keep the images visible in the body, with a short caption pointing to the change. If capture is impossible, state the concrete blocker and a runnable review path in **Change outline**. The section is complete when every affected view or state has a comparable pair, or a clearly explained capture blocker, and the published images render in the PR.
+
+### Image reference format
+
+Commit the images under `.github/pr-screenshots/<slug>/` on the PR branch and reference each one with exactly this form:
+
+```html
+<img
+  alt="…"
+  src="https://github.com/BotHarness/DeepSeekBot/raw/<commit-sha>/.github/pr-screenshots/<slug>/<file>.png"
+  width="900"
+/>
+```
+
+- Pin a full commit SHA that contains the file, not a branch name, so the image does not change or break when the branch moves.
+- Use the `/raw/<sha>/` path. Do not use `/blob/<sha>/…?raw=true`, Markdown `![alt](url)` syntax, or any query string: when a body with several such URLs is written through the GitHub MCP `update_pull_request` / `create_pull_request` tools, the URLs come back wrapped in backticks (`` `https://…` ``) and GitHub shows the raw tag text instead of the image.
+- After writing the body, read it back (`pull_request_read` `get`, or `gh pr view --json body`) and confirm every `src="…"` is a bare URL with no backticks. Spot-check one URL returns `200 image/png`, for example `curl -sIL -o /dev/null -w '%{http_code} %{content_type}' <url>`.

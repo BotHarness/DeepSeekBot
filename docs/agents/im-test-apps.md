@@ -95,3 +95,66 @@ Before each Slack receiver start, coordinate the selected slot, owning task, iso
 start/stop window and inspect live receiver evidence, including other devices/environments.
 Reuse credentials across branches/sessions, not simultaneous receivers. Stop only this task's
 exact receiver after testing. A setup confirmation never grants a perpetual window.
+
+## Reusable Discord QA Apps
+
+Discord has independent QA1/QA2/QA3 slots in the same protected machine-local file:
+
+```bash
+node scripts/dev-im-test-apps.mjs setup discord
+node scripts/dev-im-test-apps.mjs list discord
+```
+
+Run setup in an interactive terminal, using Windows Node and Git for Windows Bash on Windows.
+The default path asks **only for the Bot Token**, using the selected slot's already prepared
+App and test server/channel metadata. An agent checks those non-secret values in the signed-in
+browser and saves them through the private registry before handing off Token entry.
+An explicit slot can be selected without another prompt: `setup discord QA2`.
+If metadata is missing, setup stops before asking for or saving a Token. Enter preserves the
+existing Token. Token entry leaves configuration readiness pending until real identity and
+permissions are checked; it never records a fresh receiver window.
+
+For full manual configuration, run `node scripts/dev-im-test-apps.mjs setup discord QA2 --manual`.
+Its three stages select an independent App/current window, capture the Token, and record the
+test server/channel. Re-running preserves saved values on Enter. This optional fallback opens
+the Developer Portal and Discord web client; the default opens only the App's Bot page.
+If automatic opening fails, use the printed link. Neither path
+creates Apps, resets Tokens, changes permissions, installs a Provider or starts a receiver itself.
+QA1/QA2/QA3 are reusable slots, not three automatically generated Discord applications.
+
+Use **General Information → Application ID** and **Bot → Token** in the
+[Developer Portal](https://discord.com/developers/applications). Discord cannot show an old
+Token again; use the saved Token when available. If a reset is necessary, the Human first
+confirms that invalidating the previous Token and restoring its receiver are acceptable, then
+performs **Reset Token** and any required authentication. Do not paste Tokens into chat or Git.
+Client Secret, Public Key and a user login Token are not substitutes for the Bot Token.
+
+Each slot records `BH_DISCORD_QA<n>_NAME`, `APP_ID`, `BOT_TOKEN`, `GUILD_NAME`, `GUILD_ID`,
+`CHANNEL_NAME`, `CHANNEL_ID`, `CONSOLE_READY` and `RECEIVER_CHECKED_AT`;
+`BH_DISCORD_QA_SLOT` remembers the selection. Server/channel IDs come from **User Settings →
+Advanced → Developer Mode**, then the native **Copy Server ID / Copy Channel ID** actions.
+Store these Snowflakes as strings. For a public-thread test, record the parent text channel;
+the thread's actual destination is verified separately during reception/reply qualification.
+
+Load privately with `loadDiscordImTestApp('QA1')` from `scripts/dev-im-test-apps.mjs`. `list discord`
+prints names and presence/readiness metadata only, with no Token or numeric IDs. Records use
+literal `# BH_DISCORD_...=...` lines so older Lark/Slack loaders ignore and preserve them. Comment
+lines still contain private credentials and retain the same ACL/file protection; never source
+the file. Name validation uses Unicode text, so Chinese names do not depend on the Bash locale.
+The loader validates syntax, not native Token ownership, installation or live readiness.
+The Provider must authenticate the App/Bot identity and test destination before binding.
+
+For the current checked mention/reply contract, verify the App's installation in the designated
+test server and its **View Channel**, **Read Message History** and **Send Messages** permissions.
+Replies in existing public threads also need **Send Messages in Threads**. Do not request
+Administrator. Direct Bot mentions do not require adding the privileged Message Content intent;
+ordinary-message collection, DM pairing and interactions have separate qualification. See the
+official [setup guide](https://docs.discord.com/developers/quick-start/getting-started),
+[Gateway contract](https://docs.discord.com/developers/events/gateway#message-content-intent) and
+[permissions reference](https://docs.discord.com/developers/topics/permissions).
+
+Before **each** Discord receiver start, coordinate the selected slot, owning task, isolated Host,
+test server/channel and current start/stop window, and inspect other task/device receiver evidence.
+Saved names, IDs, `CONSOLE_READY` and timestamps are operator metadata, never an authenticated
+identity, an idle indication or a continuing lease. Stop only the exact task-owned receiver;
+keep production configuration and unrelated sessions intact.
