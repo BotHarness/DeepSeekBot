@@ -119,6 +119,18 @@ const en = {
     `${count === 1 ? '1 attachment' : `${count} attachments`}. Open in the full client to view.`,
   card: 'Open the full client on your computer to respond to this.',
   noBot: 'This PersonaBot is not on your computer anymore.',
+  home: 'Home',
+  activity: 'Activity',
+  me: 'Me',
+  workingPreview: 'Working…',
+  needsYouCount: (count: number) => (count === 1 ? 'needs you' : `${count} need you`),
+  shortcut: { 'needs-you': 'Needs you', working: 'Working' },
+  noConversations: 'No conversations here.',
+  showAll: 'Show all',
+  computer: 'This computer',
+  connected: 'Connected',
+  pairNew: 'Pair a new computer',
+  pairNewHint: 'Replaces the computer this phone is paired with.',
 };
 
 const zh: typeof en = {
@@ -234,6 +246,18 @@ const zh: typeof en = {
   attachments: (count: number) => `${count} 个附件，请在完整客户端中查看。`,
   card: '请在电脑上的完整客户端中处理这条消息。',
   noBot: '你的电脑上已经没有这个 PersonaBot。',
+  home: '首页',
+  activity: '动态',
+  me: '我',
+  workingPreview: '工作中…',
+  needsYouCount: (count: number) => (count === 1 ? '等你处理' : `${count} 项等你处理`),
+  shortcut: { 'needs-you': '等你处理', working: '工作中' },
+  noConversations: '这里还没有对话。',
+  showAll: '显示全部',
+  computer: '这台电脑',
+  connected: '已连接',
+  pairNew: '配对新电脑',
+  pairNewHint: '会替换这台手机当前配对的电脑。',
 };
 
 const locale = Intl.DateTimeFormat().resolvedOptions().locale;

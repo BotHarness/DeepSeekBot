@@ -1,52 +1,37 @@
-import { Tabs } from 'expo-router/js-tabs';
-import { View } from 'react-native';
+import { NativeTabs } from 'expo-router/unstable-native-tabs';
 
 import { actionCount } from '../../src/host/inbox';
 import { useHostSession, useInbox } from '../../src/host/host-session';
-import { OpenFullClientButton } from '../../src/ui/open-full-client';
+import { useDesignTheme } from '../../src/ui/design/theme';
 import { t } from '../../src/ui/strings';
-import { InboxIcon, RosterIcon } from '../../src/ui/tab-icons';
-import { useTheme } from '../../src/ui/theme';
 
 export default function TabsLayout() {
-  const theme = useTheme();
+  const theme = useDesignTheme();
   const { inbox } = useHostSession();
   const pending = actionCount(useInbox(inbox));
   return (
-    <Tabs
-      screenOptions={{
-        headerStyle: { backgroundColor: theme.background },
-        headerTintColor: theme.ink,
-        headerShadowVisible: false,
-        tabBarActiveTintColor: theme.accent,
-        tabBarInactiveTintColor: theme.inkSoft,
-        tabBarStyle: {
-          backgroundColor: theme.surface,
-          borderTopColor: theme.border,
-        },
-        sceneStyle: { backgroundColor: theme.background },
-      }}
-    >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: t.roster,
-          tabBarIcon: (props) => <RosterIcon {...props} />,
-        }}
-      />
-      <Tabs.Screen
-        name="inbox"
-        options={{
-          title: t.inbox,
-          headerRight: () => (
-            <View style={{ paddingHorizontal: 16 }}>
-              <OpenFullClientButton target={{ kind: 'home' }} />
-            </View>
-          ),
-          tabBarIcon: (props) => <InboxIcon {...props} />,
-          ...(pending > 0 ? { tabBarBadge: pending } : {}),
-        }}
-      />
-    </Tabs>
+    <NativeTabs tintColor={theme.color.accent}>
+      <NativeTabs.Trigger name="(home)">
+        <NativeTabs.Trigger.Icon sf={{ default: 'house', selected: 'house.fill' }} md="home" />
+        <NativeTabs.Trigger.Label>{t.home}</NativeTabs.Trigger.Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="(activity)">
+        <NativeTabs.Trigger.Icon
+          sf={{ default: 'bell', selected: 'bell.fill' }}
+          md="notifications"
+        />
+        <NativeTabs.Trigger.Label>{t.activity}</NativeTabs.Trigger.Label>
+        {pending > 0 ? (
+          <NativeTabs.Trigger.Badge>{String(pending)}</NativeTabs.Trigger.Badge>
+        ) : null}
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="(me)">
+        <NativeTabs.Trigger.Icon
+          sf={{ default: 'person.crop.circle', selected: 'person.crop.circle.fill' }}
+          md="account_circle"
+        />
+        <NativeTabs.Trigger.Label>{t.me}</NativeTabs.Trigger.Label>
+      </NativeTabs.Trigger>
+    </NativeTabs>
   );
 }

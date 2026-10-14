@@ -19,7 +19,7 @@ References:
 - **Tabs** are native (`NativeTabs`): **Home**, **Activity** and **Me**.
   - A chat is pushed above the tabs, so the tab bar hides while it is open.
 - **Home** shows the current Host:
-  - A row of shortcut cards: **Needs you**, **Working** and **Unread**.
+  - A row of shortcut cards: **Needs you** and **Working**, each a count that filters the list when tapped. **Unread** joins them once the Host reports unread counts.
   - One list of PersonaBot DMs and Channels together, by latest activity.
   - The header has search and **+** (new Bot, new Channel).
 - **Activity** is the Human Inbox across all Hosts:
@@ -32,10 +32,10 @@ References:
 
 **Conversation row**
 
-- A 48pt avatar on a rounded square.
+- A 48pt avatar: the Bot's round avatar with its state ring, or a rounded square with `#` for a Channel.
 - First line: title, IM channel badges and time.
 - Second line: a one-line preview.
-- "Needs you" (a warning `!`) takes priority over unread (an accent count).
+- "Needs you" (a warning `!`, with the count when more than one) takes priority over unread (an accent count).
 - A working Bot's preview reads "Working…".
 - Swipe for pin and mute; long-press opens a native menu.
 
