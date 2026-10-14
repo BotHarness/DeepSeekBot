@@ -7,6 +7,7 @@ import {
   verifyProductComposition,
   parseProductComposition,
 } from './packaged-profile.mjs';
+import { productDsh } from './product-artifacts.mjs';
 import {
   qualifiedImProvider,
   withQualifiedImProvider,
@@ -166,8 +167,8 @@ function ensureProfile(options) {
     );
   }
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
-  if (options.productArtifacts && installedDshVersion(runtime) !== '0.2.0-rc.1')
-    throw new Error('Qualified product artifacts require DSH 0.2.0-rc.1');
+  if (options.productArtifacts && installedDshVersion(runtime) !== productDsh)
+    throw new Error(`Qualified product artifacts require DSH ${productDsh}`);
   const base = options.productArtifacts
     ? packagedProfileManifest(manifest, options.productArtifacts)
     : developmentProfileManifest(manifest, options.worktree);

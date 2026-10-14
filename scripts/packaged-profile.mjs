@@ -4,7 +4,7 @@ import { readFileSync, realpathSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { parse, parseDocument } from 'yaml';
 import semver from 'semver';
-import { productImProvider } from './product-artifacts.mjs';
+import { productDsh, productImProvider } from './product-artifacts.mjs';
 import { providerRuntimeDigest } from './dev-im-provider.mjs';
 
 export function verifyProductComposition(entries) {
@@ -79,7 +79,7 @@ export function verifiedProductArtifacts(directory) {
   const root = resolve(directory);
   const manifest = JSON.parse(readFileSync(join(root, 'artifacts.json'), 'utf8'));
   if (
-    manifest.dsh !== productImProvider.upstream.dsh ||
+    manifest.dsh !== productDsh ||
     !Number.isSafeInteger(manifest.providerRuntime?.runtimeFiles) ||
     manifest.providerRuntime.runtimeFiles < 1 ||
     !/^[a-f0-9]{64}$/.test(manifest.providerRuntime.runtimeSha256) ||

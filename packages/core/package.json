@@ -54,7 +54,7 @@
     "@deepseek-ai/dsh-tools": ">=0.2.0-0"
   },
   "engines": {
-    "dsh": ">=0.2.0-0",
+    "dsh": "0.2.0-rc.2",
     "node": ">=22.16"
   },
   "dsh": {

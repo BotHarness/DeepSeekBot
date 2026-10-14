@@ -8,13 +8,10 @@ import { readComposedReleaseLedgers } from './change-fragments.mjs';
 import { providerRuntimeDigest } from './dev-im-provider.mjs';
 import { pnpmCommand } from './dev-package-manager.mjs';
 
-export const productDshRange = '>=0.2.0-0';
-export const productDshVersions = Object.freeze([
-  '0.2.0-rc.1',
-  '0.2.0-rc.2',
-  '0.2.1-alpha.1',
-  '0.2.1-alpha.2',
-]);
+export const productDsh = '0.2.0-rc.2';
+export const productDshRange = productDsh;
+export const providerDshRange = '>=0.2.0-0';
+export const productDshVersions = Object.freeze([productDsh]);
 
 export const productImProvider = Object.freeze({
   name: '@botharness/im-provider',
@@ -145,18 +142,18 @@ export function providerManifest(original) {
       'README.en.md',
       'PROVENANCE.json',
     ],
-    engines: { node: '>=22', dsh: productDshRange },
+    engines: { node: '>=22', dsh: providerDshRange },
     peerDependencies: Object.fromEntries(
       Object.entries(manifest.peerDependencies ?? {}).map(([name, range]) => [
         name,
         name === '@deepseek-ai/dsh' || name.startsWith('@deepseek-ai/dsh-')
-          ? productDshRange
+          ? providerDshRange
           : range,
       ]),
     ),
     dsh: {
       ...manifest.dsh,
-      compatibility: { dsh: productDshRange, profiles: ['web'] },
+      compatibility: { dsh: providerDshRange, profiles: ['web'] },
     },
     botharness: { managedByProduct: true, upstreamSource: productImProvider.upstream.source },
   };
@@ -313,7 +310,7 @@ export function packProduct({ repoRoot, outputDirectory, providerSource, version
   }
   writeJson(join(output, 'artifacts.json'), {
     productVersion: version,
-    dsh: productImProvider.upstream.dsh,
+    dsh: productDsh,
     providerRuntime,
     artifacts,
   });

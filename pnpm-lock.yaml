@@ -776,6 +776,9 @@ importers:
       '@botharness/ui':
         specifier: link:../client
         version: link:../client
+      '@deepseek-ai/dsh':
+        specifier: 0.2.0-rc.2
+        version: 0.2.0-rc.2(427dd8f69a44319b8daa2e6c2073707c)
 
   packages/ingest:
     dependencies:

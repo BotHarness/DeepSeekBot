@@ -4,7 +4,7 @@ import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import semver from 'semver';
-import { packProduct, productImProvider } from './product-artifacts.mjs';
+import { packProduct, productDsh, productImProvider } from './product-artifacts.mjs';
 import {
   verifiedProductArtifacts,
   parseProductComposition,
@@ -362,7 +362,7 @@ async function main() {
           }).trim(),
           ...sourceState,
           providerSource: productImProvider.upstream.source,
-          dsh: productImProvider.upstream.dsh,
+          dsh: productDsh,
           publicationOrder,
           artifactsSha256: digest(readFileSync(join(directory, 'artifacts.json'))),
         },
