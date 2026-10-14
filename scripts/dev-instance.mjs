@@ -25,6 +25,7 @@ import {
   profileDeepSeekCredential,
   resolveDevSecret,
 } from './dev-secret.mjs';
+import { dshCommand, installedDshVersion } from './dev-dsh-cli.mjs';
 import { pnpmCommand } from './dev-package-manager.mjs';
 import {
   resolveAxModel,
@@ -36,26 +37,6 @@ import {
 } from './dev-model.mjs';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-function dshCommand(worktree) {
-  const installedRoot = join(worktree, 'node_modules', '@deepseek-ai', 'dsh');
-  const cli = join(installedRoot, 'lib', 'bin.js');
-  if (!existsSync(cli)) {
-    throw new Error(`local DSH CLI is missing in ${worktree}; run pnpm install there`);
-  }
-  const expected = JSON.parse(readFileSync(join(worktree, 'package.json'), 'utf8'))
-    .devDependencies?.['@deepseek-ai/dsh'];
-  const actual = installedDshVersion(worktree);
-  if (actual !== expected) {
-    throw new Error(`local DSH CLI mismatch: expected ${expected}, found ${actual}`);
-  }
-  return [process.execPath, cli];
-}
-
-function installedDshVersion(worktree) {
-  return JSON.parse(
-    readFileSync(join(worktree, 'node_modules', '@deepseek-ai', 'dsh', 'package.json'), 'utf8'),
-  ).version;
-}
 
 function parseArgs(argv) {
   const options = {

@@ -17,6 +17,7 @@ import { tmpdir } from 'node:os';
 import { basename, extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { pnpmCommand } from './dev-package-manager.mjs';
 import { verifyPaths } from './verify-app.mjs';
 
 const root = resolve(fileURLToPath(import.meta.url), '../..');
@@ -183,7 +184,12 @@ async function main() {
   mkdirSync(paths.evidence, { recursive: true });
 
   if (!skipExport || !existsSync(join(dist, 'index.html'))) {
-    const exported = spawnSync('pnpm', ['--filter', '@botharness/mobile', 'export:web'], {
+    const [exportCommand, exportArgs] = pnpmCommand([
+      '--filter',
+      '@botharness/mobile',
+      'export:web',
+    ]);
+    const exported = spawnSync(exportCommand, exportArgs, {
       cwd: root,
       encoding: 'utf8',
       env: { ...process.env, EXPO_OFFLINE: '1' },
