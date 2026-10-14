@@ -1,7 +1,7 @@
 import { useId, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
-import { Input, SegmentedControl } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Button, Input, SegmentedControl } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { BridgeActions } from './actions.js';
 import { BridgeCallError, errorMessage, type CreatedBot } from './bridge.js';
@@ -34,6 +34,10 @@ export function personaBotCreateError(
         return t('bot.create.error.clone');
       case 'git-clone-timeout':
         return t('bot.create.error.cloneTimeout');
+      case 'invalid-memory-dir':
+        return t('bot.create.error.memoryLocationMissing');
+      case 'memory-unavailable':
+        return t('bot.create.error.memoryLocation', { detail: error.message });
     }
   }
   return errorMessage(error);
@@ -80,7 +84,36 @@ const styles = stylex.create({
     fontFamily: 'var(--dsw-font-family-mono, monospace)',
     overflowWrap: 'anywhere',
   },
+  advanced: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x4,
+    minWidth: 0,
+  },
+  advancedSummary: {
+    cursor: 'pointer',
+    color: color.muted,
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+    userSelect: 'none',
+  },
+  advancedBody: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x4,
+    minWidth: 0,
+  },
+  folderRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: space.x3,
+    minWidth: 0,
+  },
 });
+
+export function isAbsoluteHostPath(path: string): boolean {
+  return /^(?:\/|[A-Za-z]:[\\/]|\\\\)/.test(path);
+}
 
 export function CreatePersonaBotModal({
   actions,
@@ -111,11 +144,31 @@ export function CreatePersonaBotModal({
   const [roleDraft, setRoleDraft] = useState('');
   const [description, setDescription] = useState('');
   const [roles, setRoles] = useState<string[]>([]);
+  const [memoryLocation, setMemoryLocation] = useState('');
+  const [pickingFolder, setPickingFolder] = useState(false);
   const [creating, setCreating] = useState(false);
   const [cause, setCause] = useState<unknown | undefined>(undefined);
   const [fallback, setFallback] = useState<CreatedBot | undefined>(undefined);
+  const chosenLocation = memoryLocation.trim();
+  const locationInvalid = chosenLocation.length > 0 && !isAbsoluteHostPath(chosenLocation);
   const invalid =
-    displayName.trim().length === 0 || (source === 'git' && gitUrl.trim().length === 0);
+    displayName.trim().length === 0 ||
+    (source === 'git' && gitUrl.trim().length === 0) ||
+    locationInvalid;
+
+  const chooseFolder = (): void => {
+    if (pickingFolder || creating) return;
+    setPickingFolder(true);
+    void actions
+      .pickWorkspaceFolder()
+      .then(
+        (path) => {
+          if (path !== null) setMemoryLocation(path);
+        },
+        (rejection: unknown) => setCause(rejection),
+      )
+      .finally(() => setPickingFolder(false));
+  };
 
   const rolesWithDraft = (): string[] => tagsWithDraft(roles, roleDraft);
 
@@ -136,6 +189,9 @@ export function CreatePersonaBotModal({
             : { persona: personaDrafts[personaPreset] }),
           roles: submittedRoles,
           ...(submittedDescription.length === 0 ? {} : { description: submittedDescription }),
+          ...(source === 'empty' && chosenLocation.length > 0
+            ? { memoryLocation: chosenLocation }
+            : {}),
         },
         sectionId,
       )
@@ -312,6 +368,39 @@ export function CreatePersonaBotModal({
               setPersonaDrafts((current) => ({ ...current, [personaPreset]: value }))
             }
           />
+          <details data-create-advanced="" {...stylex.props(styles.advanced)}>
+            <summary {...stylex.props(styles.advancedSummary)}>{t('bot.create.advanced')}</summary>
+            <div {...stylex.props(styles.advancedBody)}>
+              <Field
+                label={t('bot.create.memoryLocation.label')}
+                hint={t('bot.create.memoryLocation.hint')}
+                {...(locationInvalid ? { error: t('bot.create.memoryLocation.relative') } : {})}
+              >
+                {(control) => (
+                  <div {...stylex.props(styles.folderRow)}>
+                    <Input
+                      {...control}
+                      className={stylex.props(styles.grow).className ?? ''}
+                      value={memoryLocation}
+                      disabled={creating}
+                      autoCapitalize="none"
+                      autoComplete="off"
+                      spellCheck={false}
+                      placeholder={t('bot.create.memoryLocation.placeholder')}
+                      onChange={(event) => setMemoryLocation(event.currentTarget.value)}
+                    />
+                    <Button
+                      variant="outline"
+                      disabled={creating || pickingFolder}
+                      onClick={chooseFolder}
+                    >
+                      {t('bot.create.memoryLocation.choose')}
+                    </Button>
+                  </div>
+                )}
+              </Field>
+            </div>
+          </details>
         </>
       ) : null}
     </FormDialog>

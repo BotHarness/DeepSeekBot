@@ -7,7 +7,8 @@
 ```bash
 deepseekbot create --name <name> [--persona <text> | --persona-stdin]
                    [--description <text>] [--role <tag> ...]
-                   [--preset <model-preset-id>] [--home <dsh-home>]
+                   [--preset <model-preset-id>] [--memory-location <absolute-dir>]
+                   [--home <dsh-home>]
 deepseekbot create --name <name> --from-git <url | owner/repo> [...]
 deepseekbot create [--name <name>] --from-zip <file> [...]
 deepseekbot create [--name <name>] --from-dir <directory> [...]
@@ -43,6 +44,8 @@ deepseekbot search <words>
 ```
 
 Exactly one source per create. `--name` is required for blank and GitHub bots; for bundle imports it overrides the name from `.botharness/bot.json` (or the file name). A `--from-git` value accepts a full Git URL (`https://`, `ssh://`, `git@host:path`) or an `owner/repo` shorthand for `https://github.com/owner/repo.git`, which also covers Bot Marketplace entries through their clone URL. A `--from-dir` bundle skips `.git` as files but packs it as history when present.
+
+`--memory-location <absolute-dir>` keeps a blank bot's Memory outside the DSH data folder (for example on another drive): the Bot's Memory repository is created in a new `<dir>/<bot-id>` folder, and `dataDir` reports that path. The path must be an existing absolute folder and the per-Bot folder must not exist yet (`invalid-memory-dir`); imports keep the default location. The create dialog offers the same choice under **Advanced settings → Memory location**.
 
 `--home` points at the target `DSH_HOME`; a fresh directory works with zero clicks. Without it, `DSH_HOME` from the environment is used. Stop the Host before offline database commands: the profile writer lease is exclusive (`lease-unavailable`). Secret file commands can run online; live commands below use authenticated Host RPC.
 

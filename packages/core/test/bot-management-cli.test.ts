@@ -281,6 +281,23 @@ describe('online CLI management', () => {
     expect(live.calls[2]?.args).toEqual({ slug: 'minted', presetId: 'preset' });
   });
 
+  it('forwards a chosen Memory location to the Host create owner', async () => {
+    const live = await host((method) => ({
+      ok: true,
+      value: { bot: { slug: 'minted', displayName: 'Ada', memoryDir: '/data/bots/minted' } },
+    }));
+    const result = await invoke(
+      ['create', '--name', 'Ada', '--memory-location', '/data/bots', '--compact'],
+      live.url,
+    );
+    expect(result.code).toBe(0);
+    expect(result.value).toMatchObject({ dataDir: '/data/bots/minted' });
+    expect(live.calls[0]).toMatchObject({
+      method: 'create',
+      args: { displayName: 'Ada', memoryLocation: '/data/bots' },
+    });
+  });
+
   it('rejects a known missing preset before minting any identity', async () => {
     const live = await host(() => ({ ok: true, value: { presets: [] } }));
     const result = await invoke(['create', '--name', 'Ada', '--preset', 'missing'], live.url);

@@ -337,6 +337,64 @@ describe('createPersonaBotRegistry', () => {
     expect(existsSync(custom)).toBe(true);
   });
 
+  it('stores Memory in a new per-Bot folder under a chosen location', () => {
+    const root = createRoot();
+    const registry = createTestRegistry({ rootDir: root });
+    const location = join(root, 'D-drive', 'BotMemory');
+    mkdirSync(location, { recursive: true });
+    const created = registry.create({
+      slug: 'ada',
+      displayName: 'Ada',
+      persona: '# Ada\n',
+      memoryLocation: location,
+    });
+    expect(created.ok).toBe(true);
+    expect(registry.memoryDirFor('ada')).toBe(join(location, 'ada'));
+    expect(readFileSync(join(location, 'ada', 'SOUL.md'), 'utf8')).toBe('# Ada\n');
+    expect(existsSync(join(root, 'ada', 'memory'))).toBe(false);
+
+    expect(
+      registry.create({ slug: 'grace', displayName: 'Grace', memoryLocation: location }).ok,
+    ).toBe(true);
+    expect(registry.memoryDirFor('grace')).toBe(join(location, 'grace'));
+  });
+
+  it('refuses a relative, missing or already-occupied chosen Memory location', () => {
+    const root = createRoot();
+    const registry = createTestRegistry({ rootDir: root });
+    expect(
+      registry.create({ slug: 'a', displayName: 'A', memoryLocation: 'relative/folder' }),
+    ).toEqual({ ok: false, reason: 'invalid-memory-dir' });
+    expect(
+      registry.create({ slug: 'a', displayName: 'A', memoryLocation: join(root, 'missing') }),
+    ).toEqual({ ok: false, reason: 'invalid-memory-dir' });
+    expect(existsSync(join(root, 'missing'))).toBe(false);
+    const location = join(root, 'shared');
+    mkdirSync(join(location, 'b'), { recursive: true });
+    expect(registry.create({ slug: 'b', displayName: 'B', memoryLocation: location })).toEqual({
+      ok: false,
+      reason: 'invalid-memory-dir',
+    });
+    expect(registry.get('b')).toBeUndefined();
+  });
+
+  it('removes the new chosen Memory folder when Memory initialization fails', () => {
+    const root = createRoot();
+    const registry = createTestRegistry({
+      rootDir: root,
+      initializeMemory: () => ({ ok: false, message: 'no git' }),
+    });
+    const location = join(root, 'chosen');
+    mkdirSync(location);
+    expect(registry.create({ slug: 'c', displayName: 'C', memoryLocation: location })).toEqual({
+      ok: false,
+      reason: 'memory-unavailable',
+      detail: 'no git',
+    });
+    expect(existsSync(join(location, 'c'))).toBe(false);
+    expect(registry.get('c')).toBeUndefined();
+  });
+
   it('finds a bot by workspace, tolerating trailing slashes and unknown paths', () => {
     const root = createRoot();
     const registry = createTestRegistry({ rootDir: root });

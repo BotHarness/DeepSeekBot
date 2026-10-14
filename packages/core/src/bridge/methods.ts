@@ -925,7 +925,14 @@ function createFailure(
     case 'invalid-input':
       return invalidInput('invalid PersonaBot input');
     case 'invalid-memory-dir':
-      return invalidInput('memoryDir must be an absolute path');
+      return {
+        ok: false,
+        error: {
+          code: 'invalid-memory-dir',
+          message:
+            'The Memory location must be an existing absolute folder that does not already hold this Bot.',
+        },
+      };
     case 'git-not-found':
       return {
         ok: false,
@@ -2208,7 +2215,9 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       const preset = parseOptional(source, 'preset');
       const workspaces = parseWorkspaces(source);
       const avatar = parseOptional(source, 'avatar');
+      const memoryLocation = parseOptional(source, 'memoryLocation');
       if (
+        !memoryLocation.ok ||
         !persona.ok ||
         !roles.ok ||
         !description.ok ||
@@ -2230,6 +2239,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         ...(preset.value === undefined ? {} : { preset: preset.value }),
         ...(workspaces.value === undefined ? {} : { workspaces: workspaces.value }),
         ...(avatar.value === undefined ? {} : { avatar: avatar.value }),
+        ...(memoryLocation.value === undefined ? {} : { memoryLocation: memoryLocation.value }),
       });
       if (!result.ok) return createFailure(slug, result);
       return { ok: true, value: detailOf(result.record) };

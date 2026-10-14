@@ -715,6 +715,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     preset?: string,
     workspaces?: string[],
     avatar?: string,
+    memoryLocation?: string,
   ): { bot: PersonaBotDetail } {
     return unwrap(
       this.methods.create({
@@ -726,6 +727,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
         preset,
         workspaces,
         avatar,
+        memoryLocation,
       }),
     );
   }

@@ -7,7 +7,8 @@
 ```bash
 deepseekbot create --name <name> [--persona <text> | --persona-stdin]
                    [--description <text>] [--role <tag> ...]
-                   [--preset <model-preset-id>] [--home <dsh-home>]
+                   [--preset <model-preset-id>] [--memory-location <absolute-dir>]
+                   [--home <dsh-home>]
 deepseekbot create --name <name> --from-git <url | owner/repo> [...]
 deepseekbot create [--name <name>] --from-zip <file> [...]
 deepseekbot create [--name <name>] --from-dir <directory> [...]
@@ -43,6 +44,8 @@ deepseekbot search <words>
 ```
 
 每次创建只能指定一种来源。空白创建和 GitHub 导入必须传 `--name`；包导入时 `--name` 会覆盖 `.botharness/bot.json`（或文件名）中的名字。`--from-git` 接受完整 Git 地址（`https://`、`ssh://`、`git@host:path`）或 `owner/repo` 简写（即 `https://github.com/owner/repo.git`），Bot 市场条目可用其克隆地址走同一路径。`--from-dir` 会跳过 `.git` 下的文件，但存在时将其打包为历史记录。
+
+`--memory-location <绝对路径>` 让空白 Bot 的记忆存放在 DSH 数据目录之外（例如另一块磁盘）：记忆仓库会建在新的 `<目录>/<bot-id>` 文件夹中，`dataDir` 返回该路径。路径必须是已存在文件夹的绝对路径，且这个 Bot 的文件夹不能已存在（`invalid-memory-dir`）；导入的 Bot 仍使用默认位置。创建对话框的 **进阶设置 → 记忆文件位置** 提供同样的选择。
 
 `--home` 指向目标 `DSH_HOME`；全新目录零点击可用。不传时使用环境中的 `DSH_HOME`。离线数据库命令须先停 Host，否则独占写租约返回 `lease-unavailable`。凭据文件命令可在线执行；以下在线命令走已认证的 Host RPC。
 

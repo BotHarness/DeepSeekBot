@@ -320,6 +320,7 @@ export interface CreatePersonaBotInput {
   description?: string;
   gitUrl?: string;
   origin?: 'marketplace';
+  memoryLocation?: string;
 }
 
 export interface BotSourcePolicyView {

@@ -1086,6 +1086,16 @@ export const zh = {
   'bot.create.error.gitUrl': '请输入有效的 HTTPS 或 SSH 仓库地址。',
   'bot.create.error.clone': '克隆失败。请检查仓库地址、网络和 Host 的 Git 凭证。',
   'bot.create.error.cloneTimeout': '克隆超时。请检查网络或改用较小的仓库重试。',
+  'bot.create.error.memoryLocation': '无法在所选位置创建记忆文件夹：{detail}',
+  'bot.create.error.memoryLocationMissing':
+    '记忆文件位置必须是已存在的文件夹，且其中还没有这个 Bot 的文件夹。请换一个文件夹或留空。',
+  'bot.create.advanced': '进阶设置',
+  'bot.create.memoryLocation.label': '记忆文件位置',
+  'bot.create.memoryLocation.hint':
+    '选择一个已有的文件夹，记忆会存放在其中以 Bot 编号命名的新文件夹里。留空则使用默认位置（DSH 数据目录）。',
+  'bot.create.memoryLocation.placeholder': '默认位置',
+  'bot.create.memoryLocation.choose': '选择文件夹…',
+  'bot.create.memoryLocation.relative': '请输入完整路径，例如 D:\\BotMemory 或 /data/bots。',
   'bot.create.gitTitle': '从 GitHub 导入 Bot',
   'bot.create.gitInSection': '在「{name}」中从 GitHub 导入 Bot',
   'botZip.import.title': '从 zip 导入 Bot',
@@ -4395,6 +4405,16 @@ My relationship with you, established lore and topics to avoid: [fill in].
     'Clone failed. Check the URL, network, and Git credentials on the Host.',
   'bot.create.error.cloneTimeout':
     'Clone timed out. Check the network or retry with a smaller repository.',
+  'bot.create.error.memoryLocation': 'The Memory folder could not be created there: {detail}',
+  'bot.create.error.memoryLocationMissing':
+    'The Memory location must be an existing folder that does not already hold this Bot. Choose another folder or leave it empty.',
+  'bot.create.advanced': 'Advanced settings',
+  'bot.create.memoryLocation.label': 'Memory location',
+  'bot.create.memoryLocation.hint':
+    'Choose an existing folder; Memory is stored in a new folder named after the Bot id inside it. Leave empty for the default location in the DSH data folder.',
+  'bot.create.memoryLocation.placeholder': 'Default location',
+  'bot.create.memoryLocation.choose': 'Choose folder…',
+  'bot.create.memoryLocation.relative': 'Enter a full path, such as D:\\BotMemory or /data/bots.',
   'bot.create.gitTitle': 'Import a Bot from GitHub',
   'bot.create.gitInSection': 'Import a Bot from GitHub into “{name}”',
   'botZip.import.title': 'Import a Bot from zip',

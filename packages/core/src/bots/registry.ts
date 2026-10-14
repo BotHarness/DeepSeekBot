@@ -7,9 +7,10 @@ import {
   realpathSync,
   renameSync,
   rmSync,
+  statSync,
   type Dirent,
 } from 'node:fs';
-import { isAbsolute, join } from 'node:path';
+import { isAbsolute, join, resolve } from 'node:path';
 
 import { attachOperationalModule, type OperationalDatabaseOwner } from '../database/owner.js';
 import { deriveAvatarAppearance } from './avatar-snapshot.js';
@@ -151,6 +152,14 @@ function normalizeWorkspacePath(path: string): string {
     return realpathSync.native(normalized);
   } catch {
     return normalized;
+  }
+}
+
+function isDirectory(path: string): boolean {
+  try {
+    return statSync(path).isDirectory();
+  } catch {
+    return false;
   }
 }
 
@@ -388,10 +397,26 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
     if (!isValidSlug(input.slug)) return { ok: false, reason: 'invalid-slug' };
     if (read(input.slug) !== undefined) return { ok: false, reason: 'duplicate' };
 
-    const memoryDir = input.memoryDir?.trim();
-    if (memoryDir !== undefined && memoryDir.length > 0 && !isAbsolute(memoryDir)) {
+    const explicitMemoryDir = input.memoryDir?.trim();
+    if (
+      explicitMemoryDir !== undefined &&
+      explicitMemoryDir.length > 0 &&
+      !isAbsolute(explicitMemoryDir)
+    ) {
       return { ok: false, reason: 'invalid-memory-dir' };
     }
+    const memoryLocation = input.memoryLocation?.trim();
+    let memoryDir = explicitMemoryDir;
+    if (memoryLocation !== undefined && memoryLocation.length > 0) {
+      if (explicitMemoryDir || !isAbsolute(memoryLocation)) {
+        return { ok: false, reason: 'invalid-memory-dir' };
+      }
+      const parent = resolve(memoryLocation);
+      if (!isDirectory(parent)) return { ok: false, reason: 'invalid-memory-dir' };
+      memoryDir = join(parent, input.slug);
+      if (existsSync(memoryDir)) return { ok: false, reason: 'invalid-memory-dir' };
+    }
+    const chosenLocation = memoryLocation !== undefined && memoryLocation.length > 0;
 
     const displayName = input.displayName.trim();
     const roles = normalizeRoles(input.roles);
@@ -419,7 +444,15 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
     const targetMemoryDir = memoryDirOf(record);
     const newMemoryDirectory = !existsSync(targetMemoryDir);
     const newBotDirectory = !existsSync(botDir(record.slug));
-    mkdirSync(targetMemoryDir, { recursive: true });
+    try {
+      mkdirSync(targetMemoryDir, { recursive: !chosenLocation });
+    } catch (cause) {
+      return {
+        ok: false,
+        reason: 'memory-unavailable',
+        detail: cause instanceof Error ? cause.message : String(cause),
+      };
+    }
     const seeded = seedStandingFiles(targetMemoryDir, {
       ...(input.persona === undefined ? {} : { soul: input.persona }),
       coreMemoryTemplate: sync,
@@ -430,6 +463,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       if (newBotDirectory && !memoryDir) {
         rmSync(botDir(record.slug), { recursive: true, force: true });
       }
+      if (chosenLocation) rmSync(targetMemoryDir, { recursive: true, force: true });
       return {
         ok: false,
         reason: initialized.code === 'git-not-found' ? 'git-not-found' : 'memory-unavailable',
