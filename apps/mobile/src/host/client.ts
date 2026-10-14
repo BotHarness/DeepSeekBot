@@ -37,6 +37,7 @@ export interface RosterBot {
   roles: string[];
   description?: string;
   computerAccess: boolean;
+  browserAccess: boolean;
   state: AggregatedState;
   activity?: WireToolActivity;
   sessions?: readonly WireSessionActivity[];
@@ -85,9 +86,21 @@ export interface HostClient {
   refresh(): Promise<void>;
   call<T>(method: string, args?: Record<string, unknown>): Promise<T>;
   upload(name: string, data: Blob): Promise<AttachmentRef>;
+  api(path: string, init?: HostApiInit): Promise<HostApiAnswer>;
   resource(path: string): RemoteSource;
   onLive(listener: (source: 'roster' | 'activity') => void): () => void;
   follow(endpoint: string, args: Record<string, unknown>, handlers: StreamHandlers): () => void;
+}
+
+export interface HostApiInit {
+  body?: Record<string, unknown>;
+  timeoutMs?: number;
+  signal?: AbortSignal;
+}
+
+export interface HostApiAnswer {
+  status: number;
+  body: unknown;
 }
 
 export interface HostClientOptions {
@@ -110,6 +123,10 @@ class CredentialRefused extends Error {
   constructor(readonly code: DeviceRefusal) {
     super(REFUSALS[code]);
   }
+}
+
+export function deviceRefusal(error: unknown): DeviceRefusal | undefined {
+  return error instanceof CredentialRefused ? error.code : undefined;
 }
 
 function refusalOf(text: string): DeviceRefusal | undefined {
@@ -232,6 +249,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
             roles: bot.roles ?? [],
             ...(bot.description === undefined ? {} : { description: bot.description }),
             computerAccess: bot.computerAccess === true,
+            browserAccess: bot.browserAccess === true,
             state: live?.state ?? bot.aggregateState,
             ...(live?.activity === undefined ? {} : { activity: live.activity }),
             ...(live?.sessions === undefined ? {} : { sessions: live.sessions }),
@@ -345,6 +363,47 @@ export function createHostClient(options: HostClientOptions): HostClient {
         throw new Unreachable('The Host did not accept the attachment.');
       return attachment as AttachmentRef;
     }, uploadTimeoutMs);
+
+  const api = (path: string, init: HostApiInit = {}): Promise<HostApiAnswer> =>
+    withDeadline(async (signal) => {
+      const outer = init.signal;
+      if (outer?.aborted === true) throw new Unreachable('The request was cancelled.');
+      const controller = new AbortController();
+      const cancel = (): void => controller.abort();
+      signal.addEventListener('abort', cancel);
+      outer?.addEventListener('abort', cancel);
+      try {
+        const response = await options.carrier.request(`${route}${DEVICE_PREFIX}${path}`, {
+          method: init.body === undefined ? 'GET' : 'POST',
+          ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
+          headers: authorization,
+          signal: controller.signal,
+        });
+        const text = await response.text();
+        if (response.status === 401) {
+          const code = refusalOf(text);
+          if (code !== undefined) throw new CredentialRefused(code);
+        }
+        if (text === '') return { status: response.status, body: null };
+        try {
+          return { status: response.status, body: JSON.parse(text) as unknown };
+        } catch {
+          return { status: response.status, body: text };
+        }
+      } finally {
+        signal.removeEventListener('abort', cancel);
+        outer?.removeEventListener('abort', cancel);
+      }
+    }, init.timeoutMs);
+
+  const refusedBy = (error: unknown): void => {
+    if (error instanceof CredentialRefused && running) {
+      running = false;
+      generation += 1;
+      socket?.close();
+      publish({ status: 'refused', route, code: error.code, reason: error.message });
+    }
+  };
 
   const reloadOnce = async (): Promise<void> => {
     const [list, channelList] = await Promise.all([
@@ -632,12 +691,15 @@ export function createHostClient(options: HostClientOptions): HostClient {
       try {
         return await call<T>(method, args);
       } catch (error) {
-        if (error instanceof CredentialRefused && running) {
-          running = false;
-          generation += 1;
-          socket?.close();
-          publish({ status: 'refused', route, code: error.code, reason: error.message });
-        }
+        refusedBy(error);
+        throw error;
+      }
+    },
+    async api(path, init) {
+      try {
+        return await api(path, init);
+      } catch (error) {
+        refusedBy(error);
         throw error;
       }
     },

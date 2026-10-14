@@ -215,6 +215,7 @@ Usage:
   deepseekbot browser-open <id>
   deepseekbot browser-frame <id> --out <absolute-file>
   deepseekbot browser-takeover <id> (--enabled | --disabled)
+  deepseekbot browser-input <id> --args-stdin
   deepseekbot browser-stop <id>
   deepseekbot computer-start [--target local|container]
   deepseekbot computer-status

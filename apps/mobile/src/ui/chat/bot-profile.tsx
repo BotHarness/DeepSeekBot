@@ -14,7 +14,7 @@ import { useDesignTheme } from '../design/theme';
 import { edge, radius, space } from '../design/tokens';
 import { useMounted } from '../mounted';
 import { Text } from '../primitives/text';
-import { ActivityIcon, ComputerIcon, MessageIcon } from '../shell/icons';
+import { ActivityIcon, BrowserIcon, ComputerIcon, MessageIcon } from '../shell/icons';
 import { t } from '../strings';
 import { botStateTone } from './bot-tone';
 import { MemoryEntryRow } from './memory-browser';
@@ -40,6 +40,7 @@ type Row = RowBody & { key: string; first: boolean; last: boolean };
 export interface BotProfileActions {
   onMessage(): void;
   onComputer?(): void;
+  onBrowser?(): void;
   onNotifications(): void;
   onOpenMemory(entry: MemoryEntry): void;
 }
@@ -199,6 +200,13 @@ function ProfileHeader({ bot, actions }: { bot: RosterBot; actions: BotProfileAc
           icon={(color) => <MessageIcon color={color} size={ICON} />}
           onPress={actions.onMessage}
         />
+        {actions.onBrowser === undefined ? null : (
+          <ProfileAction
+            label={t.profileBrowser}
+            icon={(color) => <BrowserIcon color={color} size={ICON} />}
+            onPress={actions.onBrowser}
+          />
+        )}
         {actions.onComputer === undefined ? null : (
           <ProfileAction
             label={t.profileComputer}

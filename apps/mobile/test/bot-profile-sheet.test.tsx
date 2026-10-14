@@ -13,6 +13,7 @@ vi.mock('../src/ui/shell/icons', () => ({
   ChevronRightIcon: () => null,
   FileIcon: () => null,
   FolderIcon: () => null,
+  BrowserIcon: () => null,
   ComputerIcon: () => null,
   MessageIcon: () => null,
 }));
@@ -48,6 +49,7 @@ const bot: RosterBot = {
   roles: profileWire.bot.roles,
   description: profileWire.bot.description,
   computerAccess: false,
+  browserAccess: false,
   state: 'idle',
   paused: false,
 };
@@ -112,13 +114,14 @@ describe('Bot profile sheet', () => {
     expect(text).not.toContain('/Users/me/Documents/old');
   });
 
-  it('says so when a section is empty, and offers Computer only when the Bot has one', async () => {
+  it('says so when a section is empty, and offers Browser and Computer only when the Bot has them', async () => {
     const view = await render(
       <BotProfileSheet bot={bot} channels={[]} load={async () => empty} actions={actions()} />,
     );
     const text = view.textContent ?? '';
     for (const note of Object.values(t.profileEmpty)) expect(text).toContain(note);
     expect(button(view, t.profileComputer)).toBeNull();
+    expect(button(view, t.profileBrowser)).toBeNull();
 
     act(() => root?.unmount());
     const onComputer = vi.fn();
@@ -132,6 +135,19 @@ describe('Bot profile sheet', () => {
     );
     await act(async () => button(withComputer, t.profileComputer)!.click());
     expect(onComputer).toHaveBeenCalled();
+
+    act(() => root?.unmount());
+    const onBrowser = vi.fn();
+    const withBrowser = await render(
+      <BotProfileSheet
+        bot={{ ...bot, browserAccess: true }}
+        channels={[]}
+        load={async () => empty}
+        actions={{ ...actions(), onBrowser }}
+      />,
+    );
+    await act(async () => button(withBrowser, t.profileBrowser)!.click());
+    expect(onBrowser).toHaveBeenCalled();
   });
 
   it('closes back to the DM, opens notifications and retries a failed section', async () => {

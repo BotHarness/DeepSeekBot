@@ -268,6 +268,7 @@ describe('Inbox list', () => {
     displayName: 'Inbox QA',
     roles: [],
     computerAccess: false,
+    browserAccess: false,
     state: 'waiting',
     paused: false,
   };

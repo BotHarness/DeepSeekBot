@@ -109,13 +109,15 @@ describe('Agent Browser and Computer commands', () => {
     const dir = mkdtempSync(join(tmpdir(), 'bh-frame-'));
     dirs.push(dir);
     const live = await host((call) =>
-      call.path.startsWith('/botharness-browser/viewer/local/frame')
+      call.path.startsWith('/api/browser/frame')
         ? {
-            bytes: Buffer.from('jpeg-bytes'),
-            headers: {
-              'content-type': 'image/jpeg',
-              'x-viewport-width': '1440',
-              'x-viewport-height': '900',
+            json: {
+              ok: true,
+              seq: 3,
+              mode: 'stream',
+              mimeType: 'image/jpeg',
+              data: Buffer.from('jpeg-bytes').toString('base64'),
+              viewport: { width: 1440, height: 900 },
             },
           }
         : { json: { ok: true, tabId: 'tab-1', viewerUrl: '/viewer' } },
@@ -138,10 +140,26 @@ describe('Agent Browser and Computer commands', () => {
     await invoke(['browser-stop', 'ada'], live.url);
     expect(live.calls.map((call) => [call.method, call.path, call.body])).toEqual([
       ['POST', '/api/browser/open', { slug: 'ada' }],
-      ['GET', '/botharness-browser/viewer/local/frame?slug=ada', undefined],
+      ['GET', '/api/browser/frame?slug=ada', undefined],
       ['POST', '/api/browser/takeover', { slug: 'ada', active: true }],
       ['POST', '/api/browser/takeover', { slug: 'ada', active: false }],
       ['POST', '/api/browser/stop', { slug: 'ada' }],
+    ]);
+  });
+
+  it('sends Human input to a paused Bot browser', async () => {
+    const live = await host(() => ({ json: { ok: true, url: 'https://a.test/', title: 'A' } }));
+    expect(
+      (
+        await invokeWithStdin(
+          ['browser-input', 'ada', '--args-stdin'],
+          live.url,
+          '{"kind":"click","x":12,"y":34}',
+        )
+      ).json,
+    ).toEqual({ ok: true, url: 'https://a.test/', title: 'A' });
+    expect(live.calls.map((call) => [call.method, call.path, call.body])).toEqual([
+      ['POST', '/api/browser/input', { kind: 'click', x: 12, y: 34, slug: 'ada' }],
     ]);
   });
 
@@ -323,6 +341,7 @@ describe('Agent Browser and Computer commands', () => {
       ['browser-frame', 'ada'],
       ['browser-frame', 'ada', '--out', 'relative.jpg'],
       ['browser-takeover', 'ada'],
+      ['browser-input', 'ada'],
       ['computer-start', '--target', 'cloud'],
     ])
       expect((await invoke(argv, live.url)).json.error.code).toBe('usage');
