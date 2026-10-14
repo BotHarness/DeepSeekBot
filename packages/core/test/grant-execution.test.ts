@@ -5,11 +5,13 @@ import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  deviceToolAuthorization,
   grantExecutionDenial,
   isSafeMemoryDirectoryListing,
   grantToolExecutionDenial,
   orchestratorPermission,
   requiresHumanToolApproval,
+  sessionHasFullAccess,
 } from '../src/workspaces/grant-execution.js';
 
 const botSlug = 'ada';
@@ -69,6 +71,50 @@ function fixture() {
 }
 
 describe('Workspace Grant execution boundary', () => {
+  it('recognizes full access from an Assignment snapshot or the chat-scoped preset only', () => {
+    const state = fixture();
+    const get = vi.fn((): { mode: string; scope: string } | undefined => undefined);
+    const core = { ...(state.core as object), assignmentAccess: { get } } as never;
+    expect(sessionHasFullAccess(core, assignmentSessionId)).toBe(false);
+    expect(sessionHasFullAccess(core, 'botharness-orchestrator')).toBe(false);
+    expect(sessionHasFullAccess(core, 'native-session')).toBe(false);
+    state.getAssignment.mockReturnValue({
+      permission: {
+        grantId,
+        workspaceId: 'workspace-1',
+        primaryCwd: cwd,
+        mode: 'danger-full-access',
+        approval: 'never',
+        presetRevision: 1,
+      },
+    });
+    expect(sessionHasFullAccess(core, assignmentSessionId)).toBe(true);
+    get.mockReturnValue({ mode: 'danger-full-access', scope: 'assignments' });
+    expect(sessionHasFullAccess(core, 'botharness-orchestrator')).toBe(false);
+    get.mockReturnValue({ mode: 'danger-full-access', scope: 'chat' });
+    expect(sessionHasFullAccess(core, 'botharness-orchestrator')).toBe(true);
+  });
+
+  it('authorizes Browser and Computer tools for full access without asking the Human', () => {
+    const granted = new Set<string>();
+    const markAuthorized = vi.fn((sessionId: string, _scope?: string): boolean | void => {
+      granted.add(sessionId);
+    });
+    const tools = {
+      needsAuthorization: (sessionId: string) => !granted.has(sessionId),
+      authorizationScope: () => 'local:default',
+      markAuthorized,
+    };
+    expect(deviceToolAuthorization(tools, 'ask-session', false)).toBe('ask');
+    expect(markAuthorized).not.toHaveBeenCalled();
+    expect(deviceToolAuthorization(tools, 'full-session', true)).toBe('authorized');
+    expect(markAuthorized).toHaveBeenCalledWith('full-session', 'local:default');
+    expect(deviceToolAuthorization(tools, 'full-session', false)).toBe('authorized');
+    markAuthorized.mockReturnValue(false);
+    expect(deviceToolAuthorization(tools, 'changed-session', true)).toBe('changed');
+    expect(deviceToolAuthorization({}, 'bare-session', true)).toBe('authorized');
+  });
+
   it('denies deleted native roots and saved tool approvals even with retained Memory cwd', () => {
     const state = fixture();
     state.getBot.mockReturnValue(undefined);

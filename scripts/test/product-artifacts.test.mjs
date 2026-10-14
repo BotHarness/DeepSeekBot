@@ -227,6 +227,15 @@ describe('release composition', () => {
       });
     }
   });
+  it('declares no Bundle for umbrella members, so the Plugins page cannot add them twice', () => {
+    for (const member of ['browser', 'computer', 'core', 'client']) {
+      const manifest = JSON.parse(
+        readFileSync(new URL(`../../packages/${member}/package.json`, import.meta.url), 'utf8'),
+      );
+      expect(manifest.dsh?.bundle).toBeUndefined();
+      expect(manifest.files).not.toContain('cordis.patch.yml');
+    }
+  });
   it('refuses duplicates in a composed native Patch before a receiver can start', () => {
     const entries = [
       { id: 'xmanrui-dsh-im', name: productImProvider.name },

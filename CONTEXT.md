@@ -231,11 +231,11 @@ The profile-scoped choice of where a Computer lives: the Local Computer (default
 _Avoid_: device, driver, provider, backend
 
 **Local Computer**:
-The Computer served by the machine running DSH itself — the Human's own desktop, or the host of a deployment with an interactive desktop. Every PersonaBot shares the Human's real desktop and logins; it offers no isolation beyond that machine.
+The Computer served by the machine running DSH itself — the Human's own macOS or Windows desktop, or a Linux server's display (a private virtual one when the server has none). Every PersonaBot shares the Human's real desktop and logins; it offers no isolation beyond that machine.
 _Avoid_: host machine, personal computer, native target
 
 **Container Computer**:
-The Computer served by the profile's Docker desktop, recommended when the host has no interactive desktop (a headless VPS). It is optional: a profile without Docker uses the Local Computer.
+The Computer served by the profile's Docker desktop, for when the Human wants a watchable, isolated desktop. It is optional: a profile without Docker uses the Local Computer.
 _Avoid_: sandbox, VM, docker computer
 
 **Computer Access**:

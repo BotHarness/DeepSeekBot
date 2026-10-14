@@ -473,7 +473,7 @@ DM composer 的固定 `/` 快捷动作与模型／工作区 chips 仅消费既�
 
 模型配置目标在 Profile 顶部提供紧凑的预设切换，详细的单 Bot 快照编辑置于活动图表下方的折叠区或弹窗；用量图表默认显示最近 7 天，可在现有 26 周查询范围内切换时间范围（#592）；独立的长期累计与筛选查询由 #507 提供。Profile 的实际模型用量与配置的可用模型分开呈现，后者不冒充已经发生的调用（#488、#39）。
 
-Computer 是 profile 级共享资源（ADR-0051、ADR-0082）：Profile 的 **Computer Target** 在 Bot settings 中选择本机或容器，新 Bundle 默认本机，旧的无 target 配置保留 Docker 行为。Computer Provider 管理内部目标策略，官方 `ctx.computerUse` 的单一 Provider 注册不变（ADR-0079）。macOS 本机使用 Host 上校验固定版本的 `cua-driver mcp --direct --embedded`，继承运行 DSH 的应用的 TCC 权限，完全不探测 Docker；Human 显式检查安装及辅助功能/屏幕录制权限，直接在自己的屏幕上完成登录。本机没有 viewer、归档迁移或空闲停机；容器仍使用 `docker exec` stdio MCP、Selkies viewer、持久卷与导出/导入。目标通过原生 configForms 持久化，volatile 更新关闭旧驱动并停止旧目标，清空工具目录与会话授权；等待 Human 的审批绑定目标版本，不能批准另一个目标的桌面操作。
+Computer 是 profile 级共享资源（ADR-0051、ADR-0082）：Profile 的 **Computer Target** 在 Bot settings 中选择本机或容器，新 Bundle 默认本机，旧的无 target 配置保留 Docker 行为。Computer Provider 管理内部目标策略，官方 `ctx.computerUse` 的单一 Provider 注册不变（ADR-0079）。本机目标在 macOS、Windows 和 Linux 上都使用 Host 上按平台校验固定版本与 SHA-256 的 `cua-driver mcp --direct --embedded`，完全不探测 Docker；Human 显式点「检查权限」完成安装与就绪检查：macOS 读取辅助功能/屏幕录制权限（继承运行 DSH 的应用的 TCC 身份），Linux 需要可达的 X11/Wayland 显示（没有 DISPLAY 的服务器由本机目标启动私有的 Xvfb、D-Bus 会话和窗口管理器；DISPLAY 指向无桌面的裸 X 服务器（例如与 Bot Browser 共用的 Xvfb）时复用该显示，只补上窗口管理器和缺失的 D-Bus 会话；关闭驱动时一并停止），Windows 无需授权。Human 直接在自己的屏幕上完成登录。本机没有 viewer、归档迁移或空闲停机；容器仍使用 `docker exec` stdio MCP、Selkies viewer、持久卷与导出/导入。目标通过原生 configForms 持久化，volatile 更新关闭旧驱动并停止旧目标，清空工具目录与会话授权；等待 Human 的审批绑定目标版本，不能批准另一个目标的桌面操作。
 
 只有 Human 为某个 PersonaBot 打开 **Computer Access** 时，精选的观察/动作/验证工具与目标对应的指引才注入它的 Orchestrator 与 Assignment 会话作用域；每个会话的首次动作经 DSH 原生审批询问 Human 一次（profile 开关可自动允许），每次观察与动作都以脱敏的 **Computer Audit** 记入 `logs.db`（ADR-0080）。Computer 未准备好或权限被拒绝时工具返回可读错误，不威胁 Host 启动。
 

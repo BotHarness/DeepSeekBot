@@ -1393,6 +1393,12 @@ window.__ModuleLoader__.load({
 			"entry.fail.provision-no-permission.fault": "这是本机目录权限的问题。",
 			"entry.fail.provision-no-permission.action": "请机器管理员放开浏览器目录的写权限后，再点一次“打开”。",
 			"entry.fail.provision-missing-libs.title": "这台机器缺少浏览器需要的系统库。",
+			"entry.install.missing": "需要安装 {count} 个系统包。",
+			"entry.install.manual": "安装需要管理员密码。请在这台机器的终端里运行下面的命令，装好后再点「打开」。",
+			"entry.install.button": "一键安装",
+			"entry.install.copy": "复制命令",
+			"entry.install.copied": "已复制",
+			"entry.install.progress": "正在安装系统库：{percent}%",
 			"entry.fail.provision-missing-libs.fault": "这是机器环境的问题，不是浏览器设置的问题。",
 			"entry.fail.provision-missing-libs.action": "Ubuntu 24.04 上按“详情”里的命令安装系统库，装好后再点“打开”。",
 			"entry.fail.provision-failed.title": "浏览器下载失败。",
@@ -1406,7 +1412,7 @@ window.__ModuleLoader__.load({
 			"entry.fail.startup-spawn-failed.action": "把浏览器目录加入杀毒软件白名单（或找机器管理员看权限），再点一次“打开”。",
 			"entry.fail.startup-sandbox.title": "浏览器因系统沙箱限制拒绝启动。",
 			"entry.fail.startup-sandbox.fault": "这是本机系统限制的问题。",
-			"entry.fail.startup-sandbox.action": "在浏览器插件配置中打开 headless 后，再点一次“打开”。",
+			"entry.fail.startup-sandbox.action": "Ubuntu 23.10 起通常是 AppArmor 限制了用户命名空间：按“详情”给这个浏览器加 AppArmor 配置后，再点一次“打开”。",
 			"entry.fail.startup-crashed.title": "浏览器在启动过程中退出了。",
 			"entry.fail.startup-crashed.fault": "这是本机浏览器的问题，不是页面问题。",
 			"entry.fail.startup-crashed.action": "再点一次“打开”重试；多次失败请把“详情”发给机器管理员。",
@@ -1517,6 +1523,12 @@ window.__ModuleLoader__.load({
 			"entry.fail.provision-no-permission.fault": "This is about folder permissions on this machine.",
 			"entry.fail.provision-no-permission.action": "Ask the machine owner to make the browser folder writable, then click Open again.",
 			"entry.fail.provision-missing-libs.title": "This machine is missing system libraries the browser needs.",
+			"entry.install.missing": "{count} system packages need to be installed.",
+			"entry.install.manual": "Installing needs an administrator password. Run this command in a terminal on this machine, then click Open again.",
+			"entry.install.button": "Install",
+			"entry.install.copy": "Copy command",
+			"entry.install.copied": "Copied",
+			"entry.install.progress": "Installing system libraries: {percent}%",
 			"entry.fail.provision-missing-libs.fault": "This is about the machine setup, not your browser settings.",
 			"entry.fail.provision-missing-libs.action": "On Ubuntu 24.04, install them with the command in Details, then click Open again.",
 			"entry.fail.provision-failed.title": "The browser download failed.",
@@ -1530,7 +1542,7 @@ window.__ModuleLoader__.load({
 			"entry.fail.startup-spawn-failed.action": "Allow-list the browser folder in your antivirus (or ask the machine owner about permissions), then click Open again.",
 			"entry.fail.startup-sandbox.title": "The browser refused to start because of its OS sandbox.",
 			"entry.fail.startup-sandbox.fault": "This is about OS restrictions on this machine.",
-			"entry.fail.startup-sandbox.action": "Enable headless in the browser plugin configuration, then click Open again.",
+			"entry.fail.startup-sandbox.action": "On Ubuntu 23.10 and later this is usually AppArmor restricting user namespaces: add the AppArmor profile from Details for this browser, then click Open again.",
 			"entry.fail.startup-crashed.title": "The browser exited during startup.",
 			"entry.fail.startup-crashed.fault": "This is about the browser on this machine, not the page.",
 			"entry.fail.startup-crashed.action": "Click Open to retry; if it keeps failing, show Details to the machine owner.",
@@ -1555,76 +1567,6 @@ window.__ModuleLoader__.load({
 		];
 		function isBrowserFailureKind(value) {
 			return typeof value === "string" && BROWSER_FAILURE_KINDS.includes(value);
-		}
-		//#endregion
-		//#region packages/browser/src/client/browser-failure.tsx
-		var BrowserApiError = class extends Error {
-			code;
-			detail;
-			constructor(message, code, detail) {
-				super(message);
-				this.name = "BrowserApiError";
-				if (code !== void 0) this.code = code;
-				if (detail !== void 0) this.detail = detail;
-			}
-		};
-		function readFailure(cause) {
-			if (cause instanceof BrowserApiError) return {
-				message: cause.message,
-				...cause.code === void 0 ? {} : { code: cause.code },
-				...cause.detail === void 0 ? {} : { detail: cause.detail }
-			};
-			return { message: cause instanceof Error ? cause.message : String(cause) };
-		}
-		function BrowserFailureNotice({ failure, t }) {
-			if (!isBrowserFailureKind(failure.code)) return null;
-			const kind = failure.code;
-			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				role: "alert",
-				className: "bh-browser-failure",
-				children: [
-					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-						className: "bh-browser-failure-title",
-						children: t(`entry.fail.${kind}.title`)
-					}),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-						className: "bh-browser-failure-fault",
-						children: t(`entry.fail.${kind}.fault`)
-					}),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-						className: "bh-browser-failure-action",
-						children: t(`entry.fail.${kind}.action`)
-					}),
-					failure.detail === void 0 || failure.detail === "" ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("details", {
-						className: "bh-browser-failure-details",
-						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("summary", { children: t("entry.fail.details") }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("pre", { children: failure.detail })]
-					})
-				]
-			});
-		}
-		function formatMiB(bytes) {
-			return `${(bytes / 1048576).toFixed(1)} MB`;
-		}
-		function BrowserProvisionProgress({ progress, t }) {
-			if (progress.totalBytes <= 0) return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-				role: "status",
-				className: "bh-browser-progress",
-				children: t("entry.provision.preparing")
-			});
-			const percent = Math.max(0, Math.min(99, Math.floor(progress.downloadedBytes / progress.totalBytes * 100)));
-			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				role: "status",
-				className: "bh-browser-progress",
-				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("progress", {
-					className: "bh-browser-progress-bar",
-					max: progress.totalBytes,
-					value: Math.min(progress.downloadedBytes, progress.totalBytes)
-				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("entry.provision.downloading", {
-					percent: String(percent),
-					downloaded: formatMiB(progress.downloadedBytes),
-					total: formatMiB(progress.totalBytes)
-				}) })]
-			});
 		}
 		//#endregion
 		//#region node_modules/.pnpm/@stylexjs+stylex@0.19.1/node_modules/@stylexjs/stylex/lib/es/stylex.mjs
@@ -1800,6 +1742,255 @@ window.__ModuleLoader__.load({
 			elevated: "var(--dsw-alias-button-elevated-fill)",
 			base: "var(--dsw-alias-bg-base)"
 		};
+		//#endregion
+		//#region packages/client/src/client/ds/note.tsx
+		const styles$1 = {
+			note: {
+				kogj98: "bhx1ghz6dp",
+				kGuDYH: "bhxgowt09",
+				kLWn49: "bhx12cu2lo",
+				kHjlTd: "bhxj0a0fe",
+				$$css: true
+			},
+			inset: {
+				k8WAf4: "bhx89kiln",
+				kg3NbH: "bhx1w8vjyx",
+				$$css: true
+			},
+			muted: {
+				kMwMTN: "bhxr3raxm",
+				$$css: true
+			},
+			subtle: {
+				kMwMTN: "bhxwq55zj",
+				$$css: true
+			},
+			danger: {
+				kMwMTN: "bhx8ay0r6",
+				$$css: true
+			},
+			success: {
+				kMwMTN: "bhx1pideu2",
+				$$css: true
+			},
+			warning: {
+				kMwMTN: "bhxz9v26x",
+				$$css: true
+			}
+		};
+		function Note({ tone = "muted", inset = false, children }) {
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+				role: tone === "danger" ? "alert" : "status",
+				...props(styles$1.note, inset && styles$1.inset, styles$1[tone]),
+				children
+			});
+		}
+		//#endregion
+		//#region packages/client/src/client/missing-packages.tsx
+		function ProgressLine({ percent, label }) {
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				role: "status",
+				className: "bhxrvj5dj bhx5v8n67 bhxh8yej3 bhxr3raxm bhxgowt09 bhx12cu2lo",
+				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("progress", {
+					className: "bhxh8yej3 bhxols6we bhx1g31g6d",
+					max: 100,
+					value: Math.max(0, Math.min(100, percent))
+				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: label })]
+			});
+		}
+		function MissingPackages({ command, access, installing, busy = false, onInstall, labels, children }) {
+			const [copied, setCopied] = (0, react.useState)(false);
+			const copy = () => {
+				navigator.clipboard?.writeText(command).then(() => setCopied(true));
+			};
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				className: "bhxrvj5dj bhx2zm2ee bhx619ttb bhxh8yej3",
+				children: [
+					installing === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Note, {
+						tone: "warning",
+						children: labels.missing
+					}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ProgressLine, {
+						percent: installing.percent,
+						label: installing.label
+					}),
+					access === "none" && installing === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Note, { children: labels.manual }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("pre", {
+						className: "bhx1ghz6dp bhxh8yej3 bhx9f619 bhx89kiln bhx1w8vjyx bhx4g09nt bhx1xojs80 bhx24dycr bhxmz2490 bhxgowt09 bhx12cu2lo bhx126k92a bhxj0a0fe",
+						children: command
+					})] }) : null,
+					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+						className: "bhx78zum5 bhx12e6dxb bhx1a02dak",
+						children: [
+							access !== "none" && installing === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+								size: "sm",
+								variant: "primary",
+								disabled: busy,
+								onClick: onInstall,
+								children: labels.install
+							}) : null,
+							access === "none" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+								size: "sm",
+								variant: "outline",
+								onClick: copy,
+								children: copied ? labels.copied : labels.copy
+							}) : null,
+							children
+						]
+					})
+				]
+			});
+		}
+		//#endregion
+		//#region packages/browser/src/client/browser-failure.tsx
+		var BrowserApiError = class extends Error {
+			code;
+			detail;
+			packages;
+			constructor(message, code, detail, packages) {
+				super(message);
+				this.name = "BrowserApiError";
+				if (code !== void 0) this.code = code;
+				if (detail !== void 0) this.detail = detail;
+				if (packages !== void 0) this.packages = packages;
+			}
+		};
+		function readFailure(cause) {
+			if (cause instanceof BrowserApiError) return {
+				message: cause.message,
+				...cause.code === void 0 ? {} : { code: cause.code },
+				...cause.detail === void 0 ? {} : { detail: cause.detail },
+				...cause.packages === void 0 ? {} : { packages: cause.packages }
+			};
+			return { message: cause instanceof Error ? cause.message : String(cause) };
+		}
+		const INSTALL_ENDPOINT = "/api/browser/install-packages";
+		function BrowserMissingLibs({ packages, t, onRetry }) {
+			const [install, setInstall] = (0, react.useState)({});
+			const [busy, setBusy] = (0, react.useState)(false);
+			const [error, setError] = (0, react.useState)();
+			const retried = (0, react.useRef)(false);
+			const read = (0, react.useCallback)(async () => {
+				const next = await (await fetch(INSTALL_ENDPOINT, { cache: "no-store" })).json();
+				setInstall(next);
+				return next;
+			}, []);
+			const resource = (0, react.useCallback)((node) => {
+				if (node === null) return;
+				read().catch(() => void 0);
+			}, [read]);
+			const poll = () => {
+				read().then((next) => {
+					if (next.state === "installing") {
+						setTimeout(poll, 1e3);
+						return;
+					}
+					if (next.state === "installed" && !retried.current) {
+						retried.current = true;
+						onRetry?.();
+					}
+				}).catch((cause) => setError(String(cause)));
+			};
+			const start = () => {
+				setBusy(true);
+				setError(void 0);
+				fetch(INSTALL_ENDPOINT, {
+					method: "POST",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						authorize: true,
+						packages
+					})
+				}).then(async (response) => {
+					if (!response.ok) throw new Error((await response.json()).error);
+					poll();
+				}).catch((cause) => setError(String(cause))).finally(() => setBusy(false));
+			};
+			const installing = install.state === "installing";
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				ref: resource,
+				className: "bh-browser-failure-install",
+				children: [
+					install.state === "failed" && install.text !== void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+						className: "bh-browser-failure-action",
+						children: install.text
+					}) : null,
+					error === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+						className: "bh-browser-failure-action",
+						children: error
+					}),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(MissingPackages, {
+						command: `sudo apt install -y ${packages.join(" ")}`,
+						access: install.access ?? "none",
+						installing: installing ? {
+							percent: install.percent ?? 0,
+							label: t("entry.install.progress", { percent: String(install.percent ?? 0) })
+						} : void 0,
+						busy,
+						onInstall: start,
+						labels: {
+							missing: t("entry.install.missing", { count: String(packages.length) }),
+							manual: t("entry.install.manual"),
+							install: t("entry.install.button"),
+							copy: t("entry.install.copy"),
+							copied: t("entry.install.copied")
+						}
+					})
+				]
+			});
+		}
+		function BrowserFailureNotice({ failure, t, onRetry }) {
+			if (!isBrowserFailureKind(failure.code)) return null;
+			const kind = failure.code;
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				role: "alert",
+				className: "bh-browser-failure",
+				children: [
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+						className: "bh-browser-failure-title",
+						children: t(`entry.fail.${kind}.title`)
+					}),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+						className: "bh-browser-failure-fault",
+						children: t(`entry.fail.${kind}.fault`)
+					}),
+					kind === "provision-missing-libs" && (failure.packages?.length ?? 0) > 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(BrowserMissingLibs, {
+						packages: failure.packages ?? [],
+						t,
+						onRetry
+					}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+						className: "bh-browser-failure-action",
+						children: t(`entry.fail.${kind}.action`)
+					}),
+					failure.detail === void 0 || failure.detail === "" ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("details", {
+						className: "bh-browser-failure-details",
+						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("summary", { children: t("entry.fail.details") }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("pre", { children: failure.detail })]
+					})
+				]
+			});
+		}
+		function formatMiB(bytes) {
+			return `${(bytes / 1048576).toFixed(1)} MB`;
+		}
+		function BrowserProvisionProgress({ progress, t }) {
+			if (progress.totalBytes <= 0) return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+				role: "status",
+				className: "bh-browser-progress",
+				children: t("entry.provision.preparing")
+			});
+			const percent = Math.max(0, Math.min(99, Math.floor(progress.downloadedBytes / progress.totalBytes * 100)));
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				role: "status",
+				className: "bh-browser-progress",
+				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("progress", {
+					className: "bh-browser-progress-bar",
+					max: progress.totalBytes,
+					value: Math.min(progress.downloadedBytes, progress.totalBytes)
+				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("entry.provision.downloading", {
+					percent: String(percent),
+					downloaded: formatMiB(progress.downloadedBytes),
+					total: formatMiB(progress.totalBytes)
+				}) })]
+			});
+		}
 		//#endregion
 		//#region packages/client/src/client/combobox.tsx
 		const COMBOBOX_CSS = `
@@ -2035,49 +2226,6 @@ window.__ModuleLoader__.load({
 				errorId,
 				fallbackValue: "default",
 				createLabel: (name) => t("entry.profile.create", { name })
-			});
-		}
-		//#endregion
-		//#region packages/client/src/client/ds/note.tsx
-		const styles$1 = {
-			note: {
-				kogj98: "bhx1ghz6dp",
-				kGuDYH: "bhxgowt09",
-				kLWn49: "bhx12cu2lo",
-				kHjlTd: "bhxj0a0fe",
-				$$css: true
-			},
-			inset: {
-				k8WAf4: "bhx89kiln",
-				kg3NbH: "bhx1w8vjyx",
-				$$css: true
-			},
-			muted: {
-				kMwMTN: "bhxr3raxm",
-				$$css: true
-			},
-			subtle: {
-				kMwMTN: "bhxwq55zj",
-				$$css: true
-			},
-			danger: {
-				kMwMTN: "bhx8ay0r6",
-				$$css: true
-			},
-			success: {
-				kMwMTN: "bhx1pideu2",
-				$$css: true
-			},
-			warning: {
-				kMwMTN: "bhxz9v26x",
-				$$css: true
-			}
-		};
-		function Note({ tone = "muted", inset = false, children }) {
-			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-				role: tone === "danger" ? "alert" : "status",
-				...props(styles$1.note, inset && styles$1.inset, styles$1[tone]),
-				children
 			});
 		}
 		//#endregion
@@ -2673,8 +2821,11 @@ window.__ModuleLoader__.load({
 .bhx1m95a6t:focus-visible:not(#\\#):not(#\\#){outline:var(--dsw-focus-ring-width, 2px) solid var(--dsw-alias-state-business-primary)}
 @media (max-width: 648px){.bhxv0lzym.bhxv0lzym:not(#\\#):not(#\\#){gap:8px}}
 .bhx-level-3:not(#\\#):not(#\\#):not(#\\#){}
+.bhx1g31g6d:not(#\\#):not(#\\#):not(#\\#){accent-color:var(--dsw-alias-state-business-primary)}
 .bhx6s0dn4:not(#\\#):not(#\\#):not(#\\#){align-items:center}
 .bhxw43b1w:not(#\\#):not(#\\#):not(#\\#){background-color:var(--dsw-alias-bg-module-platform)}
+.bhx1xojs80:not(#\\#):not(#\\#):not(#\\#){background-color:var(--dsw-alias-interactive-bg-hover)}
+.bhx9f619:not(#\\#):not(#\\#):not(#\\#){box-sizing:border-box}
 .bhx24dycr:not(#\\#):not(#\\#):not(#\\#){color:var(--dsw-alias-label-primary)}
 .bhxr3raxm:not(#\\#):not(#\\#):not(#\\#){color:var(--dsw-alias-label-secondary)}
 .bhxwq55zj:not(#\\#):not(#\\#):not(#\\#){color:var(--dsw-alias-label-tertiary)}
@@ -2683,6 +2834,7 @@ window.__ModuleLoader__.load({
 .bhxz9v26x:not(#\\#):not(#\\#):not(#\\#){color:var(--dsw-alias-state-warn-primary)}
 .bhx1ypdohk:not(#\\#):not(#\\#):not(#\\#){cursor:pointer}
 .bhx78zum5:not(#\\#):not(#\\#):not(#\\#){display:flex}
+.bhxrvj5dj:not(#\\#):not(#\\#):not(#\\#){display:grid}
 .bhx3nfvp2:not(#\\#):not(#\\#):not(#\\#){display:inline-flex}
 .bhx1r8uery:not(#\\#):not(#\\#):not(#\\#){flex-basis:0}
 .bhxdt5ytf:not(#\\#):not(#\\#):not(#\\#){flex-direction:column}
@@ -2692,11 +2844,13 @@ window.__ModuleLoader__.load({
 .bhxs83m0k:not(#\\#):not(#\\#):not(#\\#){flex-shrink:1}
 .bhx1a02dak:not(#\\#):not(#\\#):not(#\\#){flex-wrap:wrap}
 .bhxjb2p0i:not(#\\#):not(#\\#):not(#\\#){font-family:inherit}
+.bhxmz2490:not(#\\#):not(#\\#):not(#\\#){font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
 .bhxgowt09:not(#\\#):not(#\\#):not(#\\#){font-size:12px}
 .bhx5g6txa:not(#\\#):not(#\\#):not(#\\#){font-size:13px}
 .bhxskcadq:not(#\\#):not(#\\#):not(#\\#){font-size:14px}
 .bhx1nj67n:not(#\\#):not(#\\#):not(#\\#){font-weight:500}
 .bhx13a6bvl:not(#\\#):not(#\\#):not(#\\#){justify-content:flex-end}
+.bhx619ttb:not(#\\#):not(#\\#):not(#\\#){justify-items:start}
 .bhx12cu2lo:not(#\\#):not(#\\#):not(#\\#){line-height:16px}
 .bhx1gy5ux2:not(#\\#):not(#\\#):not(#\\#){line-height:20px}
 .bhx3350y7:not(#\\#):not(#\\#):not(#\\#){line-height:20px}
@@ -2706,6 +2860,7 @@ window.__ModuleLoader__.load({
 .bhxp4054r:not(#\\#):not(#\\#):not(#\\#){text-align:end}
 .bhxlyipyv:not(#\\#):not(#\\#):not(#\\#){text-overflow:ellipsis}
 .bhxuxw1ft:not(#\\#):not(#\\#):not(#\\#){white-space:nowrap}
+.bhx126k92a:not(#\\#):not(#\\#):not(#\\#){white-space:pre-wrap}
 .bhxtgyt42:disabled:not(#\\#):not(#\\#):not(#\\#){cursor:default}
 .bhxijokvz:disabled:not(#\\#):not(#\\#):not(#\\#){opacity:.5}
 .bhx1lc0nsx:hover:not(#\\#):not(#\\#):not(#\\#){background-color:var(--dsw-alias-interactive-bg-hover)}
@@ -2717,11 +2872,13 @@ window.__ModuleLoader__.load({
 .bhx1q0q8m5:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-style:solid}
 .bhxrvphhj:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-width:1px}
 .bhxxevliy:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:28px}
+.bhxols6we:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:6px}
 .bhx193iq5w:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:100%}
 .bhxh9uqaf:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:60%}
 .bhxeuugli:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-width:0}
 .bhx1e1oj2y:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-bottom:4px}
 .bhxb590mu:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-top:16px}
+.bhxh8yej3:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:100%}
 .bhx10zg81t:first-child:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-top:0}
 .bhx1bta2m4:last-child:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-color:transparent}
 @media (max-width: 648px){.bhx1cnm762.bhx1cnm762:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:100%}}
@@ -2808,7 +2965,7 @@ window.__ModuleLoader__.load({
 				...init
 			});
 			const body = await response.json();
-			if (!response.ok || body.ok === false) throw new BrowserApiError(body.error ?? `HTTP ${String(response.status)}`, body.code, body.detail);
+			if (!response.ok || body.ok === false) throw new BrowserApiError(body.error ?? `HTTP ${String(response.status)}`, body.code, body.detail, body.packages);
 			return body;
 		}
 		const botInfoStores = /* @__PURE__ */ new Map();
@@ -3040,7 +3197,8 @@ window.__ModuleLoader__.load({
 			const cleanupRequired = observation?.cleanupRequired === true;
 			const failureNotice = !cleanupRequired && failure !== void 0 && isBrowserFailureKind(failure.code) ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(BrowserFailureNotice, {
 				failure,
-				t
+				t,
+				onRetry: () => invoke(OPEN_ENDPOINT, follow || preview === void 0 ? {} : { tab: preview })
 			}) : null;
 			let visibleError = failure?.message;
 			if (cleanupRequired) visibleError = t("entry.view.cleanupFailed");

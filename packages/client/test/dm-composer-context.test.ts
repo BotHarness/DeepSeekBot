@@ -502,7 +502,7 @@ it('uses compact icon labels and a left context/right usage split, with keyboard
     expect(host.querySelector('[data-composer-context-leading]')!.textContent).toContain(
       '0 个工作区',
     );
-    expect(host.querySelector('[data-composer-chip="usage"]')!.textContent).toBe('1.3M tokens');
+    expect(host.querySelector('[data-composer-chip="usage"]')!.textContent).toBe('1.3M');
     expect(host.querySelectorAll('[data-composer-context] button svg')).toHaveLength(3);
     await clickUsage();
     expect(details).not.toHaveBeenCalled();

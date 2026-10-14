@@ -7,8 +7,7 @@
     "dist",
     "lib",
     "extension",
-    "profile-extension",
-    "cordis.patch.yml"
+    "profile-extension"
   ],
   "type": "module",
   "main": "./dist/index.mjs",
@@ -48,9 +47,6 @@
   },
   "dsh": {
     "manifestVersion": 1,
-    "bundle": {
-      "patch": "./cordis.patch.yml"
-    },
     "client": {
       "platform": "web",
       "inject": []

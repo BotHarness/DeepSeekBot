@@ -106,7 +106,7 @@ verified.
 
 When creating or updating a PR, use the `visual-pr` skill to write the description: one-sentence "why", `/show-me`-style change outline, saved under `.humanlayer/tasks/` and applied with `gh pr edit --body-file`.
 For every PR, follow [merge-risk classification](docs/agents/pr-merge-risk.md) and summarize reversibility, blast radius, and review focus in one `Special things to note` bullet.
-For every PR that changes visible UI or user interactions, embed GitHub-rendered before/after screenshots in the PR `Change outline` and verify they render; follow [UI/UX PR visual evidence](docs/agents/pr-ui-visual-evidence.md) for capture and exceptions.
+For every PR that changes visible UI or user interactions, embed GitHub-rendered before/after screenshots in the PR `Change outline` and verify they render; follow [UI/UX PR visual evidence](docs/agents/pr-ui-visual-evidence.md) for capture, exceptions and the required `<img src=".../raw/<sha>/...">` reference format.
 
 For every PR, assess whether a detailed explanation would help review; follow [PR HTML explainers](docs/agents/pr-html-explainer.md). Use the repository's `answer-me-with-html` skill for nontrivial behavior, lifecycle, permission, persistence, or cross-module changes; simple edits may omit it. Keep `visual-pr` as the PR description authority, bind explainers to the exact head SHA, and do not treat local HTML as reviewer-accessible or as runtime evidence.
 

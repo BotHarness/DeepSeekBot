@@ -164,6 +164,8 @@
 - Bot 可以带着你在卡片里填写的密钥，接上一个从环境变量读取凭据的 MCP 服务，并使用它的工具。每次启动都要单独批准，不能保存成规则；让 Bot 断开、撤销密钥或重启后，服务就会停止。（[#1571](https://github.com/BotHarness/DeepSeekBot/issues/1571)、[ADR-0195](docs/adr/0195-a-bot-starts-an-mcp-server-with-owner-secrets-per-approved-start.md)）
 - Bot 请求带密钥连接 MCP 服务时，现在可以选择“批准并记住”：之后这个 Bot 的聊天每次启动都会自动重新连接，不再询问。已记住的服务显示在 Bot 设置的“密钥”里，可以在那里移除。（[#1606](https://github.com/BotHarness/DeepSeekBot/issues/1606)、[ADR-0196](docs/adr/0196-approved-secret-mcp-servers-can-be-remembered.md)）
 - 选择“记住”的 MCP 服务现在会出现在每个 Bot 的设置里。在另一个 Bot 的设置里打开开关，那个 Bot 不需要你再填一次密钥就能使用它的工具；在任一 Bot 的设置里移除，就是对所有 Bot 移除。（[#1613](https://github.com/BotHarness/DeepSeekBot/issues/1613)、[ADR-0198](docs/adr/0198-a-remembered-secret-mcp-server-serves-every-personabot.md)）
+- Bot 私聊里的审批卡现在带有通往该 Bot“完全访问”开关的入口，被逐条审批打断时可以就地去开启。完全访问仍然默认关闭，由你带着警告自己打开。（[#1624](https://github.com/BotHarness/DeepSeekBot/issues/1624)）
+
 - 启动 MCP 服务的审批卡现在会写明：服务能把自己的说明写进 Bot 的系统提示，它的工具描述和返回结果也可能影响 Bot，请只连接你信任的服务。（[#1620](https://github.com/BotHarness/DeepSeekBot/issues/1620)）
 
 - 现在用一句话让 Bot 配置某个 MCP 服务就能配通：它会直接弹出密钥卡片并连接服务，不再让你把密钥贴进聊天，也不再去翻配置文件。（[#1611](https://github.com/BotHarness/DeepSeekBot/issues/1611)）

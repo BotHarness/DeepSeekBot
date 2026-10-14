@@ -131,12 +131,14 @@ async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
     error?: string;
     code?: string;
     detail?: string;
+    packages?: string[];
   };
   if (!response.ok || body.ok === false) {
     throw new BrowserApiError(
       body.error ?? `HTTP ${String(response.status)}`,
       body.code,
       body.detail,
+      body.packages,
     );
   }
   return body;
@@ -441,7 +443,13 @@ function BrowserBody({ botSlug, t }: ChannelSidebarEntryProps): ReactElement {
   const cleanupRequired = observation?.cleanupRequired === true;
   const failureNotice =
     !cleanupRequired && failure !== undefined && isBrowserFailureKind(failure.code) ? (
-      <BrowserFailureNotice failure={failure} t={t} />
+      <BrowserFailureNotice
+        failure={failure}
+        t={t}
+        onRetry={() =>
+          invoke(OPEN_ENDPOINT, follow || preview === undefined ? {} : { tab: preview })
+        }
+      />
     ) : null;
   let visibleError: string | undefined = failure?.message;
   if (cleanupRequired) visibleError = t('entry.view.cleanupFailed');

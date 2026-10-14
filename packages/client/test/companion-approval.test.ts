@@ -286,3 +286,61 @@ it.each(['native', 'wrong-target', 'unmounted'] as const)(
     }
   },
 );
+
+it.each([
+  ['bash', 'orchestrator', undefined, true],
+  ['secret_cli', 'orchestrator', undefined, false],
+  ['secret_mcp_connect', 'orchestrator', undefined, false],
+  ['bash', 'assignment', undefined, false],
+  ['bash', 'orchestrator', 'group-room', false],
+] as const)(
+  'offers the full access entry on a %s card (%s, channel %s): %s',
+  async (toolName, role, channelId, offered) => {
+    const call: BridgeCall = async () => ({ ok: true, value: { status: 'pending' } });
+    const message: ChannelMessage = {
+      id: 'request',
+      at: '2026-10-08T00:00:00Z',
+      author: { kind: 'bot', slug: 'ada' },
+      body: '',
+      toolApprovalRequest: {
+        sessionId: 'owned',
+        callId: 'call',
+        toolName,
+        role,
+        cwd: '/qa',
+        input: '{}',
+      },
+    };
+    const node = document.createElement('div');
+    document.body.append(node);
+    const root = createRoot(node);
+    const { channelSettings } = await import('../src/client/channel-settings-state.js');
+    try {
+      await act(async () =>
+        root.render(
+          createElement(ToolApprovalCard, {
+            message,
+            actions: createActions(call, store),
+            t: zhTranslate,
+            ...(channelId === undefined ? {} : { channelId }),
+          }),
+        ),
+      );
+      const entry = [...node.querySelectorAll<HTMLButtonElement>('button')].find(
+        (button) => button.textContent === zhTranslate('approval.fullAccessEntry'),
+      );
+      expect(entry !== undefined).toBe(offered);
+      if (entry !== undefined) {
+        await act(async () => entry.click());
+        expect(channelSettings.getSnapshot()).toEqual({
+          open: true,
+          sectionId: 'workspace-grants',
+        });
+      }
+    } finally {
+      channelSettings.close();
+      await act(() => root.unmount());
+      node.remove();
+    }
+  },
+);

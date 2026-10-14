@@ -126,7 +126,7 @@ const ALLOWANCES: readonly Allowance[] = [
       '.bh-composer',
       '.bh-composer-with-footer',
       '.bh-composer-input',
-      "button:has(.bh-panel-glyph[data-wide='true']) > span:not(.bh-panel-glyph):not(.bh-panel-gear)",
+      "button:has(.bh-panel-glyph[data-wide='true']) > span:not(.bh-panel-glyph):not(.bh-panel-glyph-hit):not(.bh-panel-actions)",
     ],
   },
   {
@@ -156,7 +156,7 @@ const ALLOWANCES: readonly Allowance[] = [
       '.bh-chat-body',
       '.bh-composer-expanded',
       '.bh-panel-activity',
-      "nav:has(> .bh-panel-activity[data-wide='true']) > button:has(.bh-panel-glyph)",
+      'button:has(> .bh-panel-actions)',
     ],
   },
   {

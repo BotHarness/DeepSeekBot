@@ -1,7 +1,7 @@
 import { Client } from '@modelcontextprotocol/client';
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
 
-import type { ComputerRuntimeRunner } from '../provider.js';
+import type { ComputerProgress, ComputerRuntimeRunner } from '../provider.js';
 
 export const CUA_DRIVER_VERSION = '0.28.0';
 
@@ -32,7 +32,10 @@ export interface CuaDriverOptions {
 }
 
 export interface CuaDriver {
-  ensure(signal?: AbortSignal): Promise<{ status: 'present' | 'installed'; arch: string }>;
+  ensure(
+    signal?: AbortSignal,
+    onProgress?: (progress: ComputerProgress) => void,
+  ): Promise<{ status: 'present' | 'installed'; arch: string }>;
   tools(signal?: AbortSignal): Promise<readonly DriverToolDescriptor[]>;
   call(rawName: string, args: Record<string, unknown>, signal?: AbortSignal): Promise<unknown>;
   close(): Promise<void>;

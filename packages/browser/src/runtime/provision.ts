@@ -14,12 +14,19 @@ export const PROVISION_MIN_FREE_BYTES = 500 * 1024 * 1024;
 export class BrowserProvisionError extends Error {
   readonly code: BrowserFailureKind;
   readonly detail?: string;
+  readonly packages?: readonly string[];
 
-  constructor(code: BrowserFailureKind, message: string, detail?: string) {
+  constructor(
+    code: BrowserFailureKind,
+    message: string,
+    detail?: string,
+    packages?: readonly string[],
+  ) {
     super(message);
     this.name = 'BrowserProvisionError';
     this.code = code;
     if (detail !== undefined) this.detail = detail;
+    if (packages !== undefined) this.packages = packages;
   }
 }
 
@@ -28,6 +35,7 @@ export function toBrowserErrorBody(error: unknown): {
   error: string;
   code?: BrowserFailureKind;
   detail?: string;
+  packages?: readonly string[];
 } {
   if (error instanceof BrowserProvisionError) {
     return {
@@ -35,6 +43,7 @@ export function toBrowserErrorBody(error: unknown): {
       error: error.message,
       code: error.code,
       ...(error.detail === undefined ? {} : { detail: error.detail }),
+      ...(error.packages === undefined ? {} : { packages: error.packages }),
     };
   }
   const message = error instanceof Error ? error.message : String(error);
@@ -182,10 +191,17 @@ export const LINUX_CHROME_LIB_REQUIREMENTS: readonly LinuxLibRequirement[] = [
   { soname: 'libxcb.so.1', packages: ['libxcb1'] },
 ];
 
-export function aptInstallCommand(requirements: readonly LinuxLibRequirement[]): string {
-  const packages = [...new Set(requirements.flatMap((entry) => entry.packages))].sort();
-  return `sudo apt install -y ${packages.join(' ')}`;
+export function requiredPackages(requirements: readonly LinuxLibRequirement[]): string[] {
+  return [...new Set(requirements.flatMap((entry) => entry.packages))].sort();
 }
+
+export function aptInstallCommand(requirements: readonly LinuxLibRequirement[]): string {
+  return `sudo apt install -y ${requiredPackages(requirements).join(' ')}`;
+}
+
+export const CHROME_LIB_PACKAGES: ReadonlySet<string> = new Set(
+  requiredPackages(LINUX_CHROME_LIB_REQUIREMENTS),
+);
 
 export function parseLdconfigSonames(output: string): Set<string> {
   const found = new Set<string>();
@@ -252,7 +268,9 @@ export function missingLibsFailure(
       (name) => name === entry.soname || name.startsWith(entry.soname.replace(/\.so.*$/u, '')),
     ),
   );
-  const command = aptInstallCommand(relevant.length > 0 ? relevant : LINUX_CHROME_LIB_REQUIREMENTS);
+  const needed = relevant.length > 0 ? relevant : LINUX_CHROME_LIB_REQUIREMENTS;
+  const command = aptInstallCommand(needed);
+  const packages = requiredPackages(needed);
   const detail =
     `missing: ${names}\nUbuntu 24.04: ${command}` +
     (options?.exitCode === undefined || options.exitCode === null
@@ -263,16 +281,65 @@ export function missingLibsFailure(
       'provision-missing-libs',
       `The Bot Browser cannot run on this machine yet: system libraries are missing (${names}). Install them first with the command in Details — nothing was downloaded.`,
       detail,
+      packages,
     );
   }
   return new BrowserProvisionError(
     'provision-missing-libs',
     `The Bot Browser cannot start on this machine: system libraries are missing (${names}). Install them with the command in Details, then open the browser again.`,
     detail,
+    packages,
   );
 }
 
 const SANDBOX_PATTERNS = /sandbox|namespace|clone.*EPERM|zygote/i;
+
+const RUNNING_AS_ROOT = /running as root/i;
+
+function sandboxFailure(options: {
+  binary: string;
+  code: number | null;
+  stderr: string;
+  platform: NodeJS.Platform;
+}): BrowserProvisionError {
+  const tail = `exit code ${String(options.code ?? 'unknown')}\n${options.stderr.slice(-500)}`;
+  if (RUNNING_AS_ROOT.test(options.stderr)) {
+    return new BrowserProvisionError(
+      'startup-sandbox',
+      'The Bot Browser refused to start because the Host runs as root, where Chrome cannot use its sandbox; run the Host as a regular user, then open the browser again.',
+      tail,
+    );
+  }
+  if (options.platform !== 'linux') {
+    return new BrowserProvisionError(
+      'startup-sandbox',
+      'The Bot Browser refused to start because the OS blocked its sandbox; show Details to the machine owner, then open the browser again.',
+      tail,
+    );
+  }
+  return new BrowserProvisionError(
+    'startup-sandbox',
+    'The Bot Browser refused to start because the OS blocked its sandbox. On Ubuntu 23.10 and later this is usually AppArmor restricting unprivileged user namespaces for a Chrome outside system paths; add the AppArmor profile in Details for this browser, then open the browser again.',
+    `${appArmorUsernsGuide(options.binary)}\n\n${tail}`,
+  );
+}
+
+function appArmorUsernsGuide(binary: string): string {
+  const path = binary === '' ? '/path/to/chrome' : binary;
+  return [
+    'Likely cause: AppArmor restricts unprivileged user namespaces (kernel.apparmor_restrict_unprivileged_userns=1).',
+    'Check: sudo dmesg | grep -i apparmor   (look for a "userns_create" denial)',
+    'Fix: save this as /etc/apparmor.d/botharness-chrome, then run sudo apparmor_parser -r /etc/apparmor.d/botharness-chrome',
+    '',
+    'abi <abi/4.0>,',
+    'include <tunables/global>',
+    '',
+    `profile botharness-chrome ${JSON.stringify(path)} flags=(unconfined) {`,
+    '  userns,',
+    '  include if exists <local/botharness-chrome>',
+    '}',
+  ].join('\n');
+}
 
 export function diagnoseStartupExit(options: {
   binary: string;
@@ -288,11 +355,7 @@ export function diagnoseStartupExit(options: {
   }
   const stderr = options.stderr.trim();
   if (SANDBOX_PATTERNS.test(stderr)) {
-    return new BrowserProvisionError(
-      'startup-sandbox',
-      'The Bot Browser refused to start because of its OS sandbox; enable headless in the browser plugin configuration and open the browser again.',
-      `exit code ${String(options.code ?? 'unknown')}\n${stderr.slice(-500)}`,
-    );
+    return sandboxFailure({ ...options, platform, stderr });
   }
   return new BrowserProvisionError(
     'startup-crashed',

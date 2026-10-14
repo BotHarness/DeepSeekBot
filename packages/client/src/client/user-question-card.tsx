@@ -213,7 +213,6 @@ export function UserQuestionCard({
             aria-label={t('question.custom')}
             value={custom[question.id] ?? ''}
             disabled={disabled}
-            maxLength={2000}
             placeholder={t(
               question.options?.length ? 'question.otherPlaceholder' : 'question.customPlaceholder',
             )}

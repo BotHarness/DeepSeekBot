@@ -107,6 +107,13 @@ export const zh = {
   'entry.fail.provision-no-permission.action':
     '请机器管理员放开浏览器目录的写权限后，再点一次“打开”。',
   'entry.fail.provision-missing-libs.title': '这台机器缺少浏览器需要的系统库。',
+  'entry.install.missing': '需要安装 {count} 个系统包。',
+  'entry.install.manual':
+    '安装需要管理员密码。请在这台机器的终端里运行下面的命令，装好后再点「打开」。',
+  'entry.install.button': '一键安装',
+  'entry.install.copy': '复制命令',
+  'entry.install.copied': '已复制',
+  'entry.install.progress': '正在安装系统库：{percent}%',
   'entry.fail.provision-missing-libs.fault': '这是机器环境的问题，不是浏览器设置的问题。',
   'entry.fail.provision-missing-libs.action':
     'Ubuntu 24.04 上按“详情”里的命令安装系统库，装好后再点“打开”。',
@@ -124,7 +131,8 @@ export const zh = {
     '把浏览器目录加入杀毒软件白名单（或找机器管理员看权限），再点一次“打开”。',
   'entry.fail.startup-sandbox.title': '浏览器因系统沙箱限制拒绝启动。',
   'entry.fail.startup-sandbox.fault': '这是本机系统限制的问题。',
-  'entry.fail.startup-sandbox.action': '在浏览器插件配置中打开 headless 后，再点一次“打开”。',
+  'entry.fail.startup-sandbox.action':
+    'Ubuntu 23.10 起通常是 AppArmor 限制了用户命名空间：按“详情”给这个浏览器加 AppArmor 配置后，再点一次“打开”。',
   'entry.fail.startup-crashed.title': '浏览器在启动过程中退出了。',
   'entry.fail.startup-crashed.fault': '这是本机浏览器的问题，不是页面问题。',
   'entry.fail.startup-crashed.action': '再点一次“打开”重试；多次失败请把“详情”发给机器管理员。',
@@ -248,6 +256,13 @@ export const en: Record<BrowserKey, string> = {
     'Ask the machine owner to make the browser folder writable, then click Open again.',
   'entry.fail.provision-missing-libs.title':
     'This machine is missing system libraries the browser needs.',
+  'entry.install.missing': '{count} system packages need to be installed.',
+  'entry.install.manual':
+    'Installing needs an administrator password. Run this command in a terminal on this machine, then click Open again.',
+  'entry.install.button': 'Install',
+  'entry.install.copy': 'Copy command',
+  'entry.install.copied': 'Copied',
+  'entry.install.progress': 'Installing system libraries: {percent}%',
   'entry.fail.provision-missing-libs.fault':
     'This is about the machine setup, not your browser settings.',
   'entry.fail.provision-missing-libs.action':
@@ -269,7 +284,7 @@ export const en: Record<BrowserKey, string> = {
   'entry.fail.startup-sandbox.title': 'The browser refused to start because of its OS sandbox.',
   'entry.fail.startup-sandbox.fault': 'This is about OS restrictions on this machine.',
   'entry.fail.startup-sandbox.action':
-    'Enable headless in the browser plugin configuration, then click Open again.',
+    'On Ubuntu 23.10 and later this is usually AppArmor restricting user namespaces: add the AppArmor profile from Details for this browser, then click Open again.',
   'entry.fail.startup-crashed.title': 'The browser exited during startup.',
   'entry.fail.startup-crashed.fault': 'This is about the browser on this machine, not the page.',
   'entry.fail.startup-crashed.action':

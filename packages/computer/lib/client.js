@@ -1010,13 +1010,21 @@ window.__ModuleLoader__.load({
 			"rows.target.container": "Docker Computer",
 			"local.title": "本机 Computer",
 			"local.granted": "桌面权限已授予",
-			"local.description": "直接操作运行 DSH 的 Mac。首次检查会安装桌面操作组件；请在这台电脑上完成登录。",
+			"local.description": "直接操作运行 DSH 的这台电脑（macOS、Windows 或 Linux）。首次检查会安装桌面操作组件；没有显示器的 Linux 服务器会启动一个虚拟桌面。登录请在这台电脑上完成。",
 			"local.check": "检查权限",
+			"local.downloading": "正在下载桌面操作组件 {percent}%（{downloaded} / {total}）",
+			"local.installing": "正在安装 {packages}：{percent}%",
+			"local.missing": "这台机器缺少桌面组件：{packages}",
+			"local.missing.manual": "安装需要管理员密码。请在这台机器的终端里运行下面的命令；装好后这里会自动重新检查。",
+			"local.install": "一键安装",
+			"local.copy": "复制命令",
+			"local.copied": "已复制",
 			"local.checking": "正在检查…",
 			"local.chip.granted": "已授权",
 			"local.chip.checking": "检查中",
 			"local.chip.unchecked": "未检查",
 			"local.chip.failed": "需要处理",
+			"local.chip.missing": "缺少组件",
 			"entry.label": "电脑",
 			"entry.screen.title": "{name} 的屏幕",
 			"entry.shared": "这台电脑由本 profile 的所有 PersonaBot 共享：各自拥有自己的窗口，共享登录态与文件。",
@@ -1116,13 +1124,21 @@ window.__ModuleLoader__.load({
 			"rows.target.container": "Docker Computer",
 			"local.title": "Local Computer",
 			"local.granted": "Desktop permissions granted",
-			"local.description": "Uses the Mac running DSH. The first check installs the required desktop helper. Complete logins on this computer.",
+			"local.description": "Uses the computer running DSH (macOS, Windows or Linux). The first check installs the required desktop helper; a Linux server without a display gets a virtual one. Complete logins on this computer.",
 			"local.check": "Check permissions",
+			"local.downloading": "Downloading the desktop helper {percent}% ({downloaded} / {total})",
+			"local.installing": "Installing {packages}: {percent}%",
+			"local.missing": "This machine is missing desktop packages: {packages}",
+			"local.missing.manual": "Installing needs an administrator password. Run this command in a terminal on this machine; this card checks again on its own once it is done.",
+			"local.install": "Install",
+			"local.copy": "Copy command",
+			"local.copied": "Copied",
 			"local.checking": "Checking…",
 			"local.chip.granted": "Granted",
 			"local.chip.checking": "Checking",
 			"local.chip.unchecked": "Not checked",
 			"local.chip.failed": "Needs attention",
+			"local.chip.missing": "Missing parts",
 			"entry.label": "Computer",
 			"entry.screen.title": "{name}'s screen",
 			"entry.shared": "This Computer is shared by every PersonaBot in the profile: each keeps its own window and they share logins and files.",
@@ -1896,6 +1912,63 @@ window.__ModuleLoader__.load({
 			});
 		}
 		//#endregion
+		//#region packages/client/src/client/missing-packages.tsx
+		function formatProgressMiB(bytes) {
+			return `${(bytes / 1048576).toFixed(1)} MB`;
+		}
+		function ProgressLine({ percent, label }) {
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				role: "status",
+				className: "bhxrvj5dj bhx5v8n67 bhxh8yej3 bhxr3raxm bhxgowt09 bhx12cu2lo",
+				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("progress", {
+					className: "bhxh8yej3 bhxols6we bhx1g31g6d",
+					max: 100,
+					value: Math.max(0, Math.min(100, percent))
+				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: label })]
+			});
+		}
+		function MissingPackages({ command, access, installing, busy = false, onInstall, labels, children }) {
+			const [copied, setCopied] = (0, react.useState)(false);
+			const copy = () => {
+				navigator.clipboard?.writeText(command).then(() => setCopied(true));
+			};
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				className: "bhxrvj5dj bhx2zm2ee bhx619ttb bhxh8yej3",
+				children: [
+					installing === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Note, {
+						tone: "warning",
+						children: labels.missing
+					}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ProgressLine, {
+						percent: installing.percent,
+						label: installing.label
+					}),
+					access === "none" && installing === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Note, { children: labels.manual }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("pre", {
+						className: "bhx1ghz6dp bhxh8yej3 bhx9f619 bhx89kiln bhx1w8vjyx bhx4g09nt bhx1xojs80 bhx24dycr bhxmz2490 bhxgowt09 bhx12cu2lo bhx126k92a bhxj0a0fe",
+						children: command
+					})] }) : null,
+					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+						className: "bhx78zum5 bhx12e6dxb bhx1a02dak",
+						children: [
+							access !== "none" && installing === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+								size: "sm",
+								variant: "primary",
+								disabled: busy,
+								onClick: onInstall,
+								children: labels.install
+							}) : null,
+							access === "none" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+								size: "sm",
+								variant: "outline",
+								onClick: copy,
+								children: copied ? labels.copied : labels.copy
+							}) : null,
+							children
+						]
+					})
+				]
+			});
+		}
+		//#endregion
 		//#region packages/computer/src/client/local-computer.tsx
 		function LocalComputerStatus({ t }) {
 			const [payload, setPayload] = (0, react.useState)();
@@ -1934,25 +2007,67 @@ window.__ModuleLoader__.load({
 					clearInterval(timer);
 				};
 			}, [refresh]);
-			const preparing = busy || payload?.status?.phase === "starting";
-			const failure = error ?? payload?.status?.detail ?? payload?.probe?.detail;
-			const check = () => {
+			const installing = payload?.install?.state === "installing";
+			const preparing = busy || installing || payload?.status?.phase === "starting";
+			const missing = payload?.status?.missing;
+			const failure = error ?? (payload?.install?.state === "failed" ? payload.install.text : void 0) ?? (missing === void 0 ? payload?.status?.detail : void 0) ?? payload?.probe?.detail;
+			const post = (path, body) => {
 				setBusy(true);
 				setError(void 0);
-				fetch("/api/computer/start", {
+				fetch(path, {
 					method: "POST",
 					credentials: "same-origin",
 					headers: { "content-type": "application/json" },
-					body: JSON.stringify({
-						authorize: true,
-						target: "local"
-					})
+					body: JSON.stringify(body)
 				}).then(async (response) => {
 					if (!response.ok) throw new Error(await response.text());
 					await refresh();
 				}).catch((error) => setError(String(error))).finally(() => setBusy(false));
 			};
+			const check = () => post("/api/computer/start", {
+				authorize: true,
+				target: "local"
+			});
+			const install = () => post("/api/computer/install-packages", { authorize: true });
 			const granted = payload?.status?.state === "running";
+			const download = payload?.status?.progress;
+			const installLabel = installing ? {
+				percent: payload?.install?.percent ?? 0,
+				label: t("local.installing", {
+					packages: (payload?.install?.packages ?? []).join(", "),
+					percent: String(payload?.install?.percent ?? 0)
+				})
+			} : void 0;
+			const checkButton = /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+				size: "sm",
+				variant: "outline",
+				disabled: preparing || payload?.probe?.available === false,
+				onClick: check,
+				children: t(preparing ? "local.checking" : "local.check")
+			});
+			const packages = installing ? payload?.install?.packages ?? [] : missing?.packages ?? [];
+			const body = packages.length > 0 && (missing !== void 0 || installing) ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(MissingPackages, {
+				command: missing?.command ?? "",
+				access: missing?.install ?? "root",
+				installing: installLabel,
+				busy,
+				onInstall: install,
+				labels: {
+					missing: t("local.missing", { packages: packages.join(", ") }),
+					manual: t("local.missing.manual"),
+					install: t("local.install"),
+					copy: t("local.copy"),
+					copied: t("local.copied")
+				},
+				children: checkButton
+			}) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [payload?.status?.phase === "starting" && (download?.totalBytes ?? 0) > 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ProgressLine, {
+				percent: download?.percent ?? 0,
+				label: t("local.downloading", {
+					percent: String(download?.percent ?? 0),
+					downloaded: formatProgressMiB(download?.downloadedBytes ?? 0),
+					total: formatProgressMiB(download?.totalBytes ?? 0)
+				})
+			}) : null, checkButton] });
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 				ref: resource,
 				children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(SidebarCardList, {
@@ -1966,6 +2081,9 @@ window.__ModuleLoader__.load({
 						}) : preparing ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tag, {
 							tone: "info",
 							children: t("local.chip.checking")
+						}) : missing !== void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tag, {
+							tone: "warning",
+							children: t("local.chip.missing")
 						}) : failure === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tag, {
 							tone: "neutral",
 							children: t("local.chip.unchecked")
@@ -1979,13 +2097,7 @@ window.__ModuleLoader__.load({
 							children: [failure === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Note, {
 								tone: "danger",
 								children: failure
-							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
-								size: "sm",
-								variant: "outline",
-								disabled: preparing || payload?.probe?.available === false,
-								onClick: check,
-								children: t(preparing ? "local.checking" : "local.check")
-							})]
+							}), body]
 						})
 					})
 				})
@@ -2634,7 +2746,7 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region packages/client/src/client/ds/stylex-css.ts
-		const STYLEX_CSS = "\n.bhx-level-0{}\n.bhx-level-1:not(#\\#){}\n.bhx1ghz6dp:not(#\\#){margin:0}\n.bhx-level-2:not(#\\#):not(#\\#){}\n.bhx4g09nt:not(#\\#):not(#\\#){border-radius:var(--dsw-radius-sm, 8px)}\n.bhxc342km:not(#\\#):not(#\\#){border-width:0}\n.bhx1mckxr8:not(#\\#):not(#\\#){gap:12px}\n.bhx5v8n67:not(#\\#):not(#\\#){gap:2px}\n.bhx12e6dxb:not(#\\#):not(#\\#){gap:4px}\n.bhx2zm2ee:not(#\\#):not(#\\#){gap:8px}\n.bhx1a2a7pz:not(#\\#):not(#\\#){outline:none}\n.bhxb3r6kr:not(#\\#):not(#\\#){overflow:hidden}\n.bhxe74ayl:not(#\\#):not(#\\#){padding-block:12px}\n.bhx89kiln:not(#\\#):not(#\\#){padding-block:4px}\n.bhx1vid4s1:not(#\\#):not(#\\#){padding-inline:12px 8px}\n.bhx1w8vjyx:not(#\\#):not(#\\#){padding-inline:4px}\n.bhx1m95a6t:focus-visible:not(#\\#):not(#\\#){outline:var(--dsw-focus-ring-width, 2px) solid var(--dsw-alias-state-business-primary)}\n@media (max-width: 648px){.bhxv0lzym.bhxv0lzym:not(#\\#):not(#\\#){gap:8px}}\n.bhx-level-3:not(#\\#):not(#\\#):not(#\\#){}\n.bhx6s0dn4:not(#\\#):not(#\\#):not(#\\#){align-items:center}\n.bhxw43b1w:not(#\\#):not(#\\#):not(#\\#){background-color:var(--dsw-alias-bg-module-platform)}\n.bhx24dycr:not(#\\#):not(#\\#):not(#\\#){color:var(--dsw-alias-label-primary)}\n.bhxr3raxm:not(#\\#):not(#\\#):not(#\\#){color:var(--dsw-alias-label-secondary)}\n.bhxwq55zj:not(#\\#):not(#\\#):not(#\\#){color:var(--dsw-alias-label-tertiary)}\n.bhx8ay0r6:not(#\\#):not(#\\#):not(#\\#){color:var(--dsw-alias-state-error-primary)}\n.bhx1pideu2:not(#\\#):not(#\\#):not(#\\#){color:var(--dsw-alias-state-success-primary)}\n.bhxz9v26x:not(#\\#):not(#\\#):not(#\\#){color:var(--dsw-alias-state-warn-primary)}\n.bhx1ypdohk:not(#\\#):not(#\\#):not(#\\#){cursor:pointer}\n.bhx78zum5:not(#\\#):not(#\\#):not(#\\#){display:flex}\n.bhxrvj5dj:not(#\\#):not(#\\#):not(#\\#){display:grid}\n.bhx3nfvp2:not(#\\#):not(#\\#):not(#\\#){display:inline-flex}\n.bhx1r8uery:not(#\\#):not(#\\#):not(#\\#){flex-basis:0}\n.bhxdt5ytf:not(#\\#):not(#\\#):not(#\\#){flex-direction:column}\n.bhx1q0g3np:not(#\\#):not(#\\#):not(#\\#){flex-direction:row}\n.bhx1iyjqo2:not(#\\#):not(#\\#):not(#\\#){flex-grow:1}\n.bhx2lah0s:not(#\\#):not(#\\#):not(#\\#){flex-shrink:0}\n.bhxs83m0k:not(#\\#):not(#\\#):not(#\\#){flex-shrink:1}\n.bhx1a02dak:not(#\\#):not(#\\#):not(#\\#){flex-wrap:wrap}\n.bhxjb2p0i:not(#\\#):not(#\\#):not(#\\#){font-family:inherit}\n.bhxgowt09:not(#\\#):not(#\\#):not(#\\#){font-size:12px}\n.bhx5g6txa:not(#\\#):not(#\\#):not(#\\#){font-size:13px}\n.bhxskcadq:not(#\\#):not(#\\#):not(#\\#){font-size:14px}\n.bhx1nj67n:not(#\\#):not(#\\#):not(#\\#){font-weight:500}\n.bhx13a6bvl:not(#\\#):not(#\\#):not(#\\#){justify-content:flex-end}\n.bhx619ttb:not(#\\#):not(#\\#):not(#\\#){justify-items:start}\n.bhx12cu2lo:not(#\\#):not(#\\#):not(#\\#){line-height:16px}\n.bhx1gy5ux2:not(#\\#):not(#\\#):not(#\\#){line-height:20px}\n.bhx3350y7:not(#\\#):not(#\\#):not(#\\#){line-height:20px}\n.bhx1hc1fzr:not(#\\#):not(#\\#):not(#\\#){opacity:1}\n.bhx1y3gkto:not(#\\#):not(#\\#):not(#\\#){outline-offset:1px}\n.bhxj0a0fe:not(#\\#):not(#\\#):not(#\\#){overflow-wrap:anywhere}\n.bhxp4054r:not(#\\#):not(#\\#):not(#\\#){text-align:end}\n.bhxlyipyv:not(#\\#):not(#\\#):not(#\\#){text-overflow:ellipsis}\n.bhxuxw1ft:not(#\\#):not(#\\#):not(#\\#){white-space:nowrap}\n.bhxtgyt42:disabled:not(#\\#):not(#\\#):not(#\\#){cursor:default}\n.bhxijokvz:disabled:not(#\\#):not(#\\#):not(#\\#){opacity:.5}\n.bhx1lc0nsx:hover:not(#\\#):not(#\\#):not(#\\#){background-color:var(--dsw-alias-interactive-bg-hover)}\n@media (max-width: 648px){.bhx15bqsqq.bhx15bqsqq:not(#\\#):not(#\\#):not(#\\#){align-items:stretch}}\n@media (max-width: 648px){.bhx1uptv2i.bhx1uptv2i:not(#\\#):not(#\\#):not(#\\#){flex-direction:column}}\n@media (max-width: 648px){.bhx3xz8fp.bhx3xz8fp:not(#\\#):not(#\\#):not(#\\#){justify-content:flex-start}}\n.bhx-level-4:not(#\\#):not(#\\#):not(#\\#):not(#\\#){}\n.bhxnoyelg:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-color:var(--dsw-alias-border-l1)}\n.bhx1q0q8m5:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-style:solid}\n.bhxrvphhj:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-width:1px}\n.bhxxevliy:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:28px}\n.bhx193iq5w:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:100%}\n.bhxh9uqaf:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:60%}\n.bhxeuugli:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-width:0}\n.bhx1e1oj2y:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-bottom:4px}\n.bhxb590mu:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-top:16px}\n.bhx10zg81t:first-child:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-top:0}\n.bhx1bta2m4:last-child:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-color:transparent}\n@media (max-width: 648px){.bhx1cnm762.bhx1cnm762:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:100%}}\n";
+		const STYLEX_CSS = "\n.bhx-level-0{}\n.bhx-level-1:not(#\\#){}\n.bhx1ghz6dp:not(#\\#){margin:0}\n.bhx-level-2:not(#\\#):not(#\\#){}\n.bhx4g09nt:not(#\\#):not(#\\#){border-radius:var(--dsw-radius-sm, 8px)}\n.bhxc342km:not(#\\#):not(#\\#){border-width:0}\n.bhx1mckxr8:not(#\\#):not(#\\#){gap:12px}\n.bhx5v8n67:not(#\\#):not(#\\#){gap:2px}\n.bhx12e6dxb:not(#\\#):not(#\\#){gap:4px}\n.bhx2zm2ee:not(#\\#):not(#\\#){gap:8px}\n.bhx1a2a7pz:not(#\\#):not(#\\#){outline:none}\n.bhxb3r6kr:not(#\\#):not(#\\#){overflow:hidden}\n.bhxe74ayl:not(#\\#):not(#\\#){padding-block:12px}\n.bhx89kiln:not(#\\#):not(#\\#){padding-block:4px}\n.bhx1vid4s1:not(#\\#):not(#\\#){padding-inline:12px 8px}\n.bhx1w8vjyx:not(#\\#):not(#\\#){padding-inline:4px}\n.bhx1m95a6t:focus-visible:not(#\\#):not(#\\#){outline:var(--dsw-focus-ring-width, 2px) solid var(--dsw-alias-state-business-primary)}\n@media (max-width: 648px){.bhxv0lzym.bhxv0lzym:not(#\\#):not(#\\#){gap:8px}}\n.bhx-level-3:not(#\\#):not(#\\#):not(#\\#){}\n.bhx1g31g6d:not(#\\#):not(#\\#):not(#\\#){accent-color:var(--dsw-alias-state-business-primary)}\n.bhx6s0dn4:not(#\\#):not(#\\#):not(#\\#){align-items:center}\n.bhxw43b1w:not(#\\#):not(#\\#):not(#\\#){background-color:var(--dsw-alias-bg-module-platform)}\n.bhx1xojs80:not(#\\#):not(#\\#):not(#\\#){background-color:var(--dsw-alias-interactive-bg-hover)}\n.bhx9f619:not(#\\#):not(#\\#):not(#\\#){box-sizing:border-box}\n.bhx24dycr:not(#\\#):not(#\\#):not(#\\#){color:var(--dsw-alias-label-primary)}\n.bhxr3raxm:not(#\\#):not(#\\#):not(#\\#){color:var(--dsw-alias-label-secondary)}\n.bhxwq55zj:not(#\\#):not(#\\#):not(#\\#){color:var(--dsw-alias-label-tertiary)}\n.bhx8ay0r6:not(#\\#):not(#\\#):not(#\\#){color:var(--dsw-alias-state-error-primary)}\n.bhx1pideu2:not(#\\#):not(#\\#):not(#\\#){color:var(--dsw-alias-state-success-primary)}\n.bhxz9v26x:not(#\\#):not(#\\#):not(#\\#){color:var(--dsw-alias-state-warn-primary)}\n.bhx1ypdohk:not(#\\#):not(#\\#):not(#\\#){cursor:pointer}\n.bhx78zum5:not(#\\#):not(#\\#):not(#\\#){display:flex}\n.bhxrvj5dj:not(#\\#):not(#\\#):not(#\\#){display:grid}\n.bhx3nfvp2:not(#\\#):not(#\\#):not(#\\#){display:inline-flex}\n.bhx1r8uery:not(#\\#):not(#\\#):not(#\\#){flex-basis:0}\n.bhxdt5ytf:not(#\\#):not(#\\#):not(#\\#){flex-direction:column}\n.bhx1q0g3np:not(#\\#):not(#\\#):not(#\\#){flex-direction:row}\n.bhx1iyjqo2:not(#\\#):not(#\\#):not(#\\#){flex-grow:1}\n.bhx2lah0s:not(#\\#):not(#\\#):not(#\\#){flex-shrink:0}\n.bhxs83m0k:not(#\\#):not(#\\#):not(#\\#){flex-shrink:1}\n.bhx1a02dak:not(#\\#):not(#\\#):not(#\\#){flex-wrap:wrap}\n.bhxjb2p0i:not(#\\#):not(#\\#):not(#\\#){font-family:inherit}\n.bhxmz2490:not(#\\#):not(#\\#):not(#\\#){font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}\n.bhxgowt09:not(#\\#):not(#\\#):not(#\\#){font-size:12px}\n.bhx5g6txa:not(#\\#):not(#\\#):not(#\\#){font-size:13px}\n.bhxskcadq:not(#\\#):not(#\\#):not(#\\#){font-size:14px}\n.bhx1nj67n:not(#\\#):not(#\\#):not(#\\#){font-weight:500}\n.bhx13a6bvl:not(#\\#):not(#\\#):not(#\\#){justify-content:flex-end}\n.bhx619ttb:not(#\\#):not(#\\#):not(#\\#){justify-items:start}\n.bhx12cu2lo:not(#\\#):not(#\\#):not(#\\#){line-height:16px}\n.bhx1gy5ux2:not(#\\#):not(#\\#):not(#\\#){line-height:20px}\n.bhx3350y7:not(#\\#):not(#\\#):not(#\\#){line-height:20px}\n.bhx1hc1fzr:not(#\\#):not(#\\#):not(#\\#){opacity:1}\n.bhx1y3gkto:not(#\\#):not(#\\#):not(#\\#){outline-offset:1px}\n.bhxj0a0fe:not(#\\#):not(#\\#):not(#\\#){overflow-wrap:anywhere}\n.bhxp4054r:not(#\\#):not(#\\#):not(#\\#){text-align:end}\n.bhxlyipyv:not(#\\#):not(#\\#):not(#\\#){text-overflow:ellipsis}\n.bhxuxw1ft:not(#\\#):not(#\\#):not(#\\#){white-space:nowrap}\n.bhx126k92a:not(#\\#):not(#\\#):not(#\\#){white-space:pre-wrap}\n.bhxtgyt42:disabled:not(#\\#):not(#\\#):not(#\\#){cursor:default}\n.bhxijokvz:disabled:not(#\\#):not(#\\#):not(#\\#){opacity:.5}\n.bhx1lc0nsx:hover:not(#\\#):not(#\\#):not(#\\#){background-color:var(--dsw-alias-interactive-bg-hover)}\n@media (max-width: 648px){.bhx15bqsqq.bhx15bqsqq:not(#\\#):not(#\\#):not(#\\#){align-items:stretch}}\n@media (max-width: 648px){.bhx1uptv2i.bhx1uptv2i:not(#\\#):not(#\\#):not(#\\#){flex-direction:column}}\n@media (max-width: 648px){.bhx3xz8fp.bhx3xz8fp:not(#\\#):not(#\\#):not(#\\#){justify-content:flex-start}}\n.bhx-level-4:not(#\\#):not(#\\#):not(#\\#):not(#\\#){}\n.bhxnoyelg:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-color:var(--dsw-alias-border-l1)}\n.bhx1q0q8m5:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-style:solid}\n.bhxrvphhj:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-width:1px}\n.bhxxevliy:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:28px}\n.bhxols6we:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:6px}\n.bhx193iq5w:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:100%}\n.bhxh9uqaf:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:60%}\n.bhxeuugli:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-width:0}\n.bhx1e1oj2y:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-bottom:4px}\n.bhxb590mu:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-top:16px}\n.bhxh8yej3:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:100%}\n.bhx10zg81t:first-child:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-top:0}\n.bhx1bta2m4:last-child:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-color:transparent}\n@media (max-width: 648px){.bhx1cnm762.bhx1cnm762:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:100%}}\n";
 		//#endregion
 		//#region packages/computer/src/client/index.tsx
 		const ACCESS_STYLE = `

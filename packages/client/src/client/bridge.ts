@@ -977,8 +977,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
       author.kind !== 'bot' ||
       typeof request['sessionId'] !== 'string' ||
       !Array.isArray(questions) ||
-      questions.length === 0 ||
-      questions.length > 3
+      questions.length === 0
     )
       return undefined;
     const parsed = questions.map((value) => {

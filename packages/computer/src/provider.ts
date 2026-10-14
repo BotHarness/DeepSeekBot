@@ -4,8 +4,12 @@ export interface ComputerRuntimeResult {
   readonly stderr: string;
 }
 
+export interface ComputerRuntimeRunOptions {
+  readonly env?: Readonly<Record<string, string>> | undefined;
+}
+
 export interface ComputerRuntimeRunner {
-  run(argv: readonly string[]): Promise<ComputerRuntimeResult>;
+  run(argv: readonly string[], options?: ComputerRuntimeRunOptions): Promise<ComputerRuntimeResult>;
   runStreaming?(
     argv: readonly string[],
     onChunk: (chunk: string) => void,
@@ -33,6 +37,14 @@ export interface ComputerProgress {
   readonly percent?: number;
   readonly text?: string;
   readonly updatedAt?: number;
+  readonly downloadedBytes?: number;
+  readonly totalBytes?: number;
+}
+
+export interface ComputerMissingPackages {
+  readonly packages: readonly string[];
+  readonly command: string;
+  readonly install: 'root' | 'sudo' | 'none';
 }
 
 export interface ComputerStatus {
@@ -41,6 +53,7 @@ export interface ComputerStatus {
   readonly detail?: string;
   readonly progress?: ComputerProgress;
   readonly storage?: ComputerStorage;
+  readonly missing?: ComputerMissingPackages;
 }
 
 export interface ComputerStorage {

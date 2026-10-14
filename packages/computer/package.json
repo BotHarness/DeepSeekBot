@@ -5,8 +5,7 @@
   "description": "BotHarness Computer: a profile-scoped shared desktop sandbox watched over VNC",
   "files": [
     "dist",
-    "lib",
-    "cordis.patch.yml"
+    "lib"
   ],
   "type": "module",
   "main": "./dist/index.mjs",
@@ -50,9 +49,6 @@
   },
   "dsh": {
     "manifestVersion": 1,
-    "bundle": {
-      "patch": "./cordis.patch.yml"
-    },
     "client": {
       "platform": "web",
       "inject": []

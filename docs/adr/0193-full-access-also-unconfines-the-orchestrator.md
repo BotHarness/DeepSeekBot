@@ -16,7 +16,9 @@ Full access has a scope the Human can switch: **chat and Assignments**, the defa
 
 The Host owns the Orchestrator's mode. Before each step it compares the Session with the preset and sets it when they differ. If the Session had already been aligned and was changed from outside, the Host restores it and posts one line in the Bot's DM saying where the setting lives. It no longer rejects steps silently.
 
-Three things still apply under full access: `secret_cli` asks for its own approval on every call and runs in the Shell sandbox; file tools and commands that name the credential store are refused; a tool call cannot request a sandbox escalation for itself.
+Two things still apply under full access: file tools and commands that name the credential store are refused, and a tool call cannot request a sandbox escalation for itself. `secret_cli` still runs in the Shell sandbox.
+
+Amended for [#1622](https://github.com/BotHarness/DeepSeekBot/issues/1622): full access means no approval cards at all. `secret_cli` and `secret_mcp_connect` no longer ask on every call for a Session with full access, and the Bot Browser and Computer no longer ask for their session authorization. A Bot can still ask the Human a question (`ask_user_question`) or for a secret (`ask_secret`); those are requests for input, not approvals.
 
 A Bot that already had full access on before this change keeps the Assignments-only scope, so an upgrade does not widen it silently.
 

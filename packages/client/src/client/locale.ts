@@ -2885,6 +2885,7 @@ export const zh = {
     '这会修改指定附件原件。所有共享此文件的消息都将展示当前内容，独立副本不受影响。请核对上面的消息和文件。',
   'approval.channelChanged': '已切换频道，请回到此 Bot 的私聊后重试。',
   'approval.allowOnce': '仅批准这一次',
+  'approval.fullAccessEntry': '不想每次都批准？可以为这个 Bot 开启完全访问…',
   'approval.allowExact': '始终允许相同调用',
   'approval.allowAll': '始终允许此范围全部不透明工具',
   'approval.allowAllRisk':
@@ -6242,6 +6243,7 @@ My relationship with you, established lore and topics to avoid: [fill in].
     'This edits the selected original attachment. All messages sharing this file show its current contents; independent copies stay unchanged. Check the message and file above.',
   'approval.channelChanged': 'Return to this Bot DM and try again.',
   'approval.allowOnce': 'Allow once',
+  'approval.fullAccessEntry': 'Tired of approving each time? Turn on full access for this Bot…',
   'approval.allowExact': 'Always allow this exact call',
   'approval.allowAll': 'Always allow all opaque tools in this scope',
   'approval.allowAllRisk':

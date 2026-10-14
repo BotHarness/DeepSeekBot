@@ -96,9 +96,7 @@ function validAnswer(questions: AskUserQuestionItem[], answer: AskUserQuestionAn
     if (item.selected.some((label) => !offered.has(label))) return false;
     if (
       item.custom !== undefined &&
-      (typeof item.custom !== 'string' ||
-        item.custom.trim().length === 0 ||
-        item.custom.length > 2_000)
+      (typeof item.custom !== 'string' || item.custom.trim().length === 0)
     )
       return false;
     if (item.selected.length === 0 && item.custom === undefined) return false;
@@ -156,8 +154,7 @@ export class ChannelUserQuestions {
         ? {}
         : { options: question.options.map((option) => ({ ...option })) }),
     }));
-    if (questions.length === 0 || questions.length > 3 || JSON.stringify(questions).length > 16_000)
-      return undefined;
+    if (questions.length === 0) return undefined;
     const wait = 'wait' in request ? request.wait : undefined;
     const callId =
       this.#timed !== undefined &&

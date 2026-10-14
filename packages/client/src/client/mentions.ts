@@ -51,7 +51,7 @@ export function activeMentionQuery(
   mentions: readonly SelectedMention[],
 ): MentionQuery | undefined {
   const start = value.lastIndexOf('@', caret - 1);
-  if (start < 0 || caret - start > 34 || (start > 0 && !/[\s([{]/u.test(value[start - 1]!)))
+  if (start < 0 || caret - start > 34 || (start > 0 && /[A-Za-z0-9._%+-]/u.test(value[start - 1]!)))
     return undefined;
   const query = value.slice(start + 1, caret);
   if (/[\n\r@#]/u.test(query)) return undefined;

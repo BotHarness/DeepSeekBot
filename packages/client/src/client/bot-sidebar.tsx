@@ -7,6 +7,7 @@ import {
   type MouseEvent as ReactMouseEvent,
   type ReactElement,
   type ReactNode,
+  type SyntheticEvent,
 } from 'react';
 import { createPortal } from 'react-dom';
 
@@ -169,7 +170,7 @@ export function BotPanelIcon({
       : []),
     ...(state.humanInbox.hasAction ? [t('humanInbox.action')] : []),
   ].join(' · ');
-  const entryMount = useMountedResource<HTMLButtonElement>(() => {
+  const entryMount = useMountedResource<HTMLElement>(() => {
     void refreshStatus();
     const timer = window.setInterval(() => void refreshStatus(), 10_000);
     return () => window.clearInterval(timer);
@@ -190,8 +191,9 @@ export function BotPanelIcon({
       const onKeyDown = (event: KeyboardEvent): void => {
         if (event.key !== 'Enter' && event.key !== ' ') return;
         if (
-          (event.target as Element | null)?.closest('.bh-panel-gear, .bh-onboarding-launcher') !==
-          null
+          (event.target as Element | null)?.closest(
+            '.bh-panel-gear, .bh-panel-activity, .bh-onboarding-launcher',
+          ) !== null
         )
           return;
         event.preventDefault();
@@ -200,8 +202,9 @@ export function BotPanelIcon({
       };
       const onClick = (event: MouseEvent): void => {
         if (
-          (event.target as Element | null)?.closest('.bh-panel-gear, .bh-onboarding-launcher') !==
-          null
+          (event.target as Element | null)?.closest(
+            '.bh-panel-gear, .bh-panel-activity, .bh-onboarding-launcher',
+          ) !== null
         )
           return;
         event.preventDefault();
@@ -221,25 +224,34 @@ export function BotPanelIcon({
     [size, icon, active, onExit],
   );
 
+  const openInbox = (event: SyntheticEvent): void => {
+    event.preventDefault();
+    event.stopPropagation();
+    openActivityCenter();
+  };
+  const inboxProps = {
+    className: 'bh-root bh-human-inbox-entry bh-panel-activity',
+    'data-bh-tour': 'inbox',
+    'data-wide': wide ? 'true' : 'false',
+    'data-unread': state.humanInbox.unreadCount > 0 ? 'true' : 'false',
+    'data-active': active ? 'true' : 'false',
+    tabIndex: entryHidden ? -1 : 0,
+    'aria-hidden': entryHidden ? true : undefined,
+    ref: entryMount,
+    'aria-label': entryLabel,
+    title: entryLabel,
+    'aria-current': active && state.selection?.kind === 'inbox' ? ('page' as const) : undefined,
+  };
+
   return (
     <span className="bh-panel-glyph" ref={glyphMount} {...(wide ? { 'data-wide': 'true' } : {})}>
       <BotIcon icon={icon} size={size} />
-      {row !== null && panelList != null
+      {row !== null && !wide && panelList != null
         ? createPortal(
             <button
               type="button"
-              className="bh-root bh-human-inbox-entry bh-panel-activity"
-              data-bh-tour="inbox"
-              data-wide={wide ? 'true' : 'false'}
-              data-unread={state.humanInbox.unreadCount > 0 ? 'true' : 'false'}
-              data-active={active ? 'true' : 'false'}
-              tabIndex={entryHidden ? -1 : 0}
-              aria-hidden={entryHidden ? true : undefined}
-              ref={entryMount}
-              style={{ gridRow: Number(row.style.gridRow) + (wide ? 0 : 1) }}
-              aria-label={entryLabel}
-              title={entryLabel}
-              aria-current={active && state.selection?.kind === 'inbox' ? 'page' : undefined}
+              {...inboxProps}
+              style={{ gridRow: Number(row.style.gridRow) + 1 }}
               onClick={(event) => {
                 event.stopPropagation();
                 openActivityCenter();
@@ -248,28 +260,39 @@ export function BotPanelIcon({
                 if (event.key === 'Enter' || event.key === ' ') event.stopPropagation();
               }}
             >
-              <InboxIcon size={wide ? 16 : 18} />
-              {wide && state.humanInbox.unreadCount > 0 ? (
-                <span className="bh-human-inbox-count">
-                  {state.humanInbox.unreadCount > 99 ? '99+' : state.humanInbox.unreadCount}
-                </span>
-              ) : null}
-              {!wide &&
-              active &&
-              (state.humanInbox.unreadCount > 0 || state.humanInbox.hasAction) ? (
+              <InboxIcon size={18} />
+              {active && (state.humanInbox.unreadCount > 0 || state.humanInbox.hasAction) ? (
                 <span className="bh-human-inbox-notification-dot" aria-hidden="true" />
               ) : null}
             </button>,
             panelList,
           )
         : null}
-      {row !== null && wide && tutorial !== undefined
-        ? createPortal(active ? tutorial.launcher(t) : tutorial.enterHint(t), row)
-        : null}
-      {active && row !== null
+      {row !== null && wide
         ? createPortal(
-            <>
-              {wide ? (
+            <span className="bh-panel-actions">
+              {tutorial !== undefined
+                ? active
+                  ? tutorial.launcher(t)
+                  : tutorial.enterHint(t)
+                : null}
+              <span
+                role="button"
+                {...inboxProps}
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={openInbox}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') openInbox(event);
+                }}
+              >
+                <InboxIcon size={16} />
+                {state.humanInbox.unreadCount > 0 ? (
+                  <span className="bh-human-inbox-count">
+                    {state.humanInbox.unreadCount > 99 ? '99+' : state.humanInbox.unreadCount}
+                  </span>
+                ) : null}
+              </span>
+              {active ? (
                 <span
                   className="bh-panel-gear"
                   data-bh-tour="bot-settings"
@@ -291,7 +314,7 @@ export function BotPanelIcon({
                   <IconSettingsOutlineRegular size={14} />
                 </span>
               ) : null}
-            </>,
+            </span>,
             row,
           )
         : null}

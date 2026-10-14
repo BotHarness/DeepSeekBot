@@ -36,3 +36,13 @@ export function profileTokenSummaryText(
   const count = compact ? compactTokenCount(summary.total!) : String(summary.total);
   return summary.status === 'partial' ? t('composerContext.partial', { count }) : count;
 }
+
+export function profileTokenChipText(
+  activity: ProfileActivity | undefined,
+  t: BotHarnessTranslate,
+): string {
+  const summary = profileTokenSummary(activity);
+  if (summary.status === 'unavailable') return t('composerContext.unavailable');
+  if (summary.status === 'unknown') return t('profile.usage.unknown');
+  return compactTokenCount(summary.total!);
+}

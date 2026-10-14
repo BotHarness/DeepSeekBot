@@ -229,11 +229,11 @@ Computer 位于何处的 profile 级选择：Local Computer（默认）或 Conta
 _避免使用_：device、driver、provider、backend
 
 **Local Computer**：
-由运行 DSH 的机器本身提供的 Computer——Human 自己的桌面，或带交互桌面的部署宿主。所有 PersonaBot 共享 Human 的真实桌面与登录态；除了这台机器本身，没有额外隔离。
+由运行 DSH 的机器本身提供的 Computer——Human 自己的 macOS 或 Windows 桌面，或 Linux 服务器的显示器（没有显示器时使用一个私有的虚拟桌面）。所有 PersonaBot 共享 Human 的真实桌面与登录态；除了这台机器本身，没有额外隔离。
 _避免使用_：host machine、personal computer、native target
 
 **Container Computer**：
-由 profile 的 Docker 桌面提供的 Computer；宿主没有交互桌面（headless VPS）时推荐使用。它是可选项：没有 Docker 的 profile 使用 Local Computer。
+由 profile 的 Docker 桌面提供的 Computer；Human 需要一个可观看、隔离的桌面时使用。它是可选项：没有 Docker 的 profile 使用 Local Computer。
 _避免使用_：sandbox、VM、docker computer
 
 **Computer Access**：

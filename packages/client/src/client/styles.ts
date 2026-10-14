@@ -67,14 +67,10 @@ export const CSS =
 
 .bh-onboarding-notice { position: fixed; left: 50%; bottom: 96px; transform: translateX(-50%); z-index: 1000; display: flex; align-items: center; gap: ${space.x3}; max-width: min(560px, calc(100vw - 32px)); padding: ${space.x3} ${space.x4}; border: ${border.hairline} solid ${color.border}; border-radius: ${radius.md}; background: var(--dsw-alias-bg-base); box-shadow: 0 8px 24px color-mix(in srgb, var(--dsw-alias-label-primary) 12%, transparent); }
 .bh-onboarding-notice-text { min-width: 0; overflow-wrap: anywhere; }
-/* Onboarding launcher: a progress ring inside the Bot-mode row (no row of its own).
-   Like the Activity Center and gear it appears only on hover, while its checklist
-   is open, or while the walkthrough highlights the row, stepping left beside them. */
-.bh-onboarding-launcher { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: ${radius.sm}; color: var(--dsw-alias-label-secondary); cursor: pointer; transition: right 120ms var(--ds-ease-in-out), opacity 120ms var(--ds-ease-in-out), background 120ms var(--ds-ease-in-out); }
-.bh-onboarding-launcher[data-bh-onboarding-launcher='row'] { position: absolute; top: 50%; right: 10px; z-index: 1; transform: translateY(-50%); }
-button:has(.bh-panel-glyph):is(:hover, :focus-within) .bh-onboarding-launcher[data-bh-onboarding-launcher='row'],
-nav:has(> .bh-panel-activity[data-unread='true']) .bh-onboarding-launcher[data-bh-onboarding-launcher='row'],
-nav:has(:is(.bh-panel-activity, .bh-panel-gear).driver-active-element) .bh-onboarding-launcher[data-bh-onboarding-launcher='row'] { right: 74px; }
+/* Onboarding launcher: a progress ring in the Bot-mode row's action group (no row
+   of its own). Like the Human Inbox and gear it appears only on hover, while its
+   checklist is open, or while the walkthrough highlights the row. */
+.bh-onboarding-launcher { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: ${radius.sm}; color: var(--dsw-alias-label-secondary); cursor: pointer; transition: opacity 120ms var(--ds-ease-in-out), background 120ms var(--ds-ease-in-out); }
 .bh-onboarding-launcher[data-bh-onboarding-launcher='row']:not([data-open='true']) { opacity: 0; pointer-events: none; }
 button:has(.bh-panel-glyph):is(:hover, :focus-within, .driver-active-element) .bh-onboarding-launcher[data-bh-onboarding-launcher='row'] { opacity: 1; pointer-events: auto; }
 .bh-onboarding-launcher:hover, .bh-onboarding-launcher[data-open='true'] { background: var(--dsw-alias-interactive-bg-hover); }
@@ -84,7 +80,7 @@ button:has(.bh-panel-glyph):is(:hover, :focus-within, .driver-active-element) .b
 .bh-onboarding-ring circle { fill: none; stroke-width: 2; }
 .bh-onboarding-ring-track { stroke: var(--dsw-alias-border-l2); }
 .bh-onboarding-ring-value { stroke: var(--dsw-alias-state-business-primary); stroke-linecap: round; transition: stroke-dashoffset 240ms var(--ds-ease-in-out); }
-.bh-onboarding-enter { position: absolute; top: 50%; right: 10px; z-index: 1; display: inline-flex; align-items: center; gap: ${space.x2}; transform: translateY(-50%); font-size: ${text.metaSize}; line-height: ${text.metaLine}; color: var(--dsw-alias-state-business-primary); pointer-events: none; }
+.bh-onboarding-enter { display: inline-flex; align-items: center; gap: ${space.x2}; margin-left: ${space.x2}; font-size: ${text.metaSize}; line-height: ${text.metaLine}; color: var(--dsw-alias-state-business-primary); pointer-events: none; }
 .bh-onboarding-enter-dot { width: 6px; height: 6px; border-radius: ${radius.round}; background: currentColor; animation: bh-onboarding-pulse 1.6s ease-in-out infinite; }
 @keyframes bh-onboarding-pulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 45%, transparent); } 50% { box-shadow: 0 0 0 4px transparent; } }
 html[data-botharness-motion='reduce'] .bh-onboarding-enter-dot { animation: none; }
@@ -127,11 +123,12 @@ html[data-botharness-motion='reduce'] .bh-onboarding-enter-dot { animation: none
 .bh-onboarding-welcome { display: grid; gap: ${space.x4}; width: 380px; max-width: 100%; white-space: normal; line-height: ${text.bodyLine}; border-radius: ${radius.lg}; background: var(--dsw-alias-bg-module-platform); overflow: hidden; }
 .bh-onboarding-welcome > :not(.bh-welcome-banner) { margin-inline: ${space.x4}; }
 .bh-onboarding-welcome > :last-child { margin-bottom: ${space.x4}; }
-.bh-welcome-banner { aspect-ratio: 4 / 1; background: var(--dsw-alias-bg-base); }
+.bh-welcome-banner { aspect-ratio: 3 / 1; background: var(--dsw-alias-bg-base); }
 .bh-welcome-banner .bh-banner-art { display: block; width: 100%; height: 100%; }
-.bh-welcome-identity { position: relative; z-index: 1; display: flex; align-items: flex-end; gap: ${space.x3}; margin-top: -42px; }
+/* The avatar rides over the banner; the name starts just below the banner edge (42px overlap - 12px grid gap + 4px). */
+.bh-welcome-identity { position: relative; z-index: 1; display: flex; align-items: flex-start; gap: ${space.x3}; margin-top: -42px; }
 .bh-welcome-avatar { padding: ${space.x1}; border-radius: ${radius.lg}; background: var(--dsw-alias-bg-module-platform); line-height: 0; }
-.bh-welcome-identity-text { display: grid; gap: ${space.x2}; min-width: 0; padding-bottom: ${space.x1}; }
+.bh-welcome-identity-text { display: grid; gap: ${space.x2}; min-width: 0; padding-top: calc(${space.x6} + ${space.x3} + ${space.x1}); }
 .bh-welcome-name { font-size: ${text.titleSize}; font-weight: ${text.strong}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bh-welcome-roles { display: flex; flex-wrap: wrap; gap: ${space.x2}; }
 .bh-welcome-letter { display: grid; gap: ${space.x2}; }
@@ -481,7 +478,7 @@ button:has(.bh-panel-glyph[data-wide='true']) .bh-panel-glyph > .bh-bot-icon {
   height: 24px;
 }
 
-button:has(.bh-panel-glyph[data-wide='true']) > span:not(.bh-panel-glyph):not(.bh-panel-gear) {
+button:has(.bh-panel-glyph[data-wide='true']) > span:not(.bh-panel-glyph):not(.bh-panel-glyph-hit):not(.bh-panel-actions) {
   font-size: 16px;
   line-height: 24px;
 }
@@ -511,12 +508,22 @@ button:has(.bh-panel-glyph)::before {
 }
 
 
-/* Settings gear on the active Bot row: hidden until the row is hovered, then
-   it opens the Bot section of the Settings dialog. */
-.bh-panel-gear {
+/* Action group on the wide Bot row: tutorial progress, Human Inbox and the
+   settings gear sit side by side inside the row, sharing its layer and hover. */
+.bh-panel-actions {
   position: absolute;
   top: 50%;
   right: 10px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: ${space.x1};
+  transform: translateY(-50%);
+}
+
+/* Settings gear on the active Bot row: hidden until the row is hovered, then
+   it opens the Bot section of the Settings dialog. */
+.bh-panel-gear {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -526,7 +533,6 @@ button:has(.bh-panel-glyph)::before {
   color: var(--dsw-alias-label-secondary);
   opacity: 0;
   pointer-events: none;
-  transform: translateY(-50%);
   transition:
     opacity 120ms var(--ds-ease-in-out),
     background 120ms var(--ds-ease-in-out);
@@ -2299,14 +2305,19 @@ canvas.bh-banner-art { image-rendering: pixelated; }
 .bh-profile-banner:hover .bh-profile-banner-edit,
 .bh-profile-banner-edit:focus-visible { opacity: 1; }
 @media (hover: none) { .bh-profile-banner-edit { opacity: 1; } }
+/* No max-height: with aspect-ratio, WebKit turns it into a max-width and the banner stops
+   short of the popover's right edge. Uploads are cropped to 3:1, so the ratio alone fits.
+   The art is absolutely placed so its intrinsic width doesn't widen the popover. */
 .bh-profile-popover-banner {
+  position: relative;
+  flex: none;
   margin: -${space.x4} -${space.x4} 0;
   aspect-ratio: 3 / 1;
-  max-height: 96px;
   overflow: hidden;
   border-radius: ${radius.md} ${radius.md} 0 0;
   border-bottom: ${border.hairline} solid ${color.divider};
 }
+.bh-profile-popover-banner > .bh-banner-art { position: absolute; inset: 0; }
 .bh-profile-header-body {
   display: flex;
   flex-direction: column;
@@ -5557,31 +5568,29 @@ nav:has(> .bh-panel-activity) {
   align-items: center;
 }
 nav:has(> .bh-panel-activity) > button { grid-column: 1; }
-nav:has(> .bh-panel-activity[data-wide='true']) > button:has(.bh-panel-glyph) { padding-right: 112px; }
+button:has(> .bh-panel-actions) { padding-right: 112px; }
 .bh-panel-activity {
   position: relative;
-  z-index: 2;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  justify-self: end;
-  gap: ${space.x2};
-  min-height: 26px;
-  margin-right: 38px;
-  padding: ${space.x1} ${space.x2};
-  border: ${border.hairline} solid ${color.border};
+  gap: ${space.x1};
+  min-width: 22px;
+  height: 22px;
+  padding: 0 ${space.x1};
   border-radius: ${radius.sm};
   color: var(--dsw-alias-label-secondary);
-  background: var(--dsw-alias-bg-base);
   cursor: pointer;
+  transition:
+    opacity 120ms var(--ds-ease-in-out),
+    background 120ms var(--ds-ease-in-out);
 }
 .bh-panel-activity[data-wide='true'][data-unread='false'] { opacity: 0; pointer-events: none; }
-button:has(.bh-panel-glyph):is(:hover, :focus-within) ~ .bh-panel-activity[data-wide='true'][data-unread='false'][data-active='true'],
-.bh-panel-activity[data-wide='true'][data-unread='false'][data-active='true']:is(:hover, :focus-visible) { opacity: 1; pointer-events: auto; }
-.bh-panel-activity[data-wide='true'][data-unread='false'].driver-active-element { opacity: 1; }
-.bh-panel-activity:hover { background: var(--bh-hover); color: var(--dsw-alias-label-primary); }
-.bh-panel-activity[aria-current='page'] { background: var(--bh-selected); color: var(--dsw-alias-label-primary); }
-.bh-panel-activity:focus-visible { outline: ${border.focus} solid var(--dsw-alias-label-primary); outline-offset: 2px; }
+button:has(.bh-panel-glyph):is(:hover, :focus-within) .bh-panel-activity[data-wide='true'][data-active='true'],
+.bh-panel-activity[data-wide='true'][data-unread='false'].driver-active-element { opacity: 1; pointer-events: auto; }
+.bh-panel-activity:hover { background: var(--dsw-alias-interactive-bg-hover); color: var(--dsw-alias-label-primary); }
+.bh-panel-activity[aria-current='page'] { background: var(--dsw-alias-interactive-bg-hover); color: var(--dsw-alias-label-primary); }
+.bh-panel-activity:focus-visible { outline: ${border.focus} solid var(--dsw-alias-state-business-primary); outline-offset: 1px; }
 .bh-human-inbox-count {
   flex: none;
   min-width: 14px;
@@ -5589,7 +5598,7 @@ button:has(.bh-panel-glyph):is(:hover, :focus-within) ~ .bh-panel-activity[data-
   font-size: ${text.metaSize};
   line-height: ${text.metaLine};
   font-variant-numeric: tabular-nums;
-  color: var(--dsw-alias-label-primary);
+  color: inherit;
 }
 .bh-human-inbox-notification-dot {
   position: absolute;

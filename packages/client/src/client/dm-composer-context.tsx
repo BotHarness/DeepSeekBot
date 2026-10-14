@@ -19,7 +19,7 @@ import {
   subscribeWorkspaceGrantChanges,
   workspaceGrantRevision,
 } from './workspace-grant-events.js';
-import { profileTokenSummaryText } from './profile-token-summary.js';
+import { profileTokenChipText, profileTokenSummaryText } from './profile-token-summary.js';
 import { PROFILE_ACTIVITY_WEEKS } from './profile-cards-builtins.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { DmComposerUsagePopover } from './dm-composer-usage.js';
@@ -255,7 +255,7 @@ function DmComposerContextView({
   const compactUsage =
     loading && activity === undefined
       ? t('composerContext.loading')
-      : t('composerContext.tokens', { count: profileTokenSummaryText(activity, t, true) });
+      : profileTokenChipText(activity, t);
   return (
     <>
       <ComposerContextBar
