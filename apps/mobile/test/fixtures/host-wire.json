@@ -1,0 +1,388 @@
+{
+  "recordedFrom": "isolated Host via scripts/dev-instance.mjs, DSH 0.2.0-rc.2, 2026-10-14",
+  "login": {
+    "accepted": {
+      "status": 303,
+      "location": "./"
+    },
+    "refused": {
+      "status": 401
+    }
+  },
+  "rpc": {
+    "list": [
+      {
+        "status": 401,
+        "body": "unauthorized"
+      },
+      {
+        "status": 200,
+        "body": {
+          "type": "server-response",
+          "rpcId": "4872228a-c507-41f4-967e-e99dcd35cbc7",
+          "result": {
+            "ok": true,
+            "value": {
+              "bots": [
+                {
+                  "slug": "bot-59296301f8d044d2b022d8784c5ed3fe",
+                  "displayName": "Mobile Probe",
+                  "aggregateState": "idle",
+                  "workspaces": [],
+                  "createdAt": "2026-10-14T07:13:03.432Z",
+                  "roles": ["tester"],
+                  "standingLimits": {
+                    "soul": 5000,
+                    "coreMemory": 3000
+                  },
+                  "banner": {
+                    "recipe": {
+                      "scene": "night-sky",
+                      "seed": 3951035132
+                    }
+                  },
+                  "avatarSeed": 2
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "status": 200,
+        "body": {
+          "type": "server-response",
+          "rpcId": "9c4cd8fd-d902-4aac-bbfe-f6915f0e25fc",
+          "result": {
+            "ok": true,
+            "value": {
+              "bots": [
+                {
+                  "slug": "bot-59296301f8d044d2b022d8784c5ed3fe",
+                  "displayName": "Mobile Probe",
+                  "aggregateState": "idle",
+                  "workspaces": [],
+                  "createdAt": "2026-10-14T07:13:03.432Z",
+                  "roles": ["tester"],
+                  "standingLimits": {
+                    "soul": 5000,
+                    "coreMemory": 3000
+                  },
+                  "banner": {
+                    "recipe": {
+                      "scene": "night-sky",
+                      "seed": 3951035132
+                    }
+                  },
+                  "avatarSeed": 2
+                }
+              ]
+            }
+          }
+        }
+      }
+    ],
+    "channels": [
+      {
+        "status": 200,
+        "body": {
+          "type": "server-response",
+          "rpcId": "8e4cf8b6-0010-4bdf-9bbb-934eda9e40ea",
+          "result": {
+            "ok": true,
+            "value": {
+              "channels": [
+                {
+                  "id": "dm-bot-59296301f8d044d2b022d8784c5ed3fe",
+                  "type": "dm",
+                  "name": "Mobile Probe",
+                  "members": ["bot-59296301f8d044d2b022d8784c5ed3fe"],
+                  "botSlug": "bot-59296301f8d044d2b022d8784c5ed3fe",
+                  "createdAt": "2026-10-14T07:13:26.070Z",
+                  "updatedAt": "2026-10-14T07:13:26.070Z",
+                  "humanMembers": [
+                    {
+                      "humanId": "local-human",
+                      "displayName": "Human"
+                    }
+                  ],
+                  "humanNickname": null
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "status": 200,
+        "body": {
+          "type": "server-response",
+          "rpcId": "8e3f575e-e035-41ab-8220-f79edccad173",
+          "result": {
+            "ok": true,
+            "value": {
+              "channels": [
+                {
+                  "id": "dm-bot-59296301f8d044d2b022d8784c5ed3fe",
+                  "type": "dm",
+                  "name": "Mobile Probe",
+                  "members": ["bot-59296301f8d044d2b022d8784c5ed3fe"],
+                  "botSlug": "bot-59296301f8d044d2b022d8784c5ed3fe",
+                  "createdAt": "2026-10-14T07:13:26.070Z",
+                  "updatedAt": "2026-10-14T07:13:28.147Z",
+                  "humanMembers": [
+                    {
+                      "humanId": "local-human",
+                      "displayName": "Human"
+                    }
+                  ],
+                  "humanNickname": null,
+                  "latestMessage": {
+                    "id": "session-failure-64eb7482-338d-420e-b980-427ad17561af",
+                    "at": "2026-10-14T07:13:28.146Z",
+                    "author": {
+                      "kind": "bot",
+                      "slug": "bot-59296301f8d044d2b022d8784c5ed3fe"
+                    },
+                    "format": "text",
+                    "sessionFailure": {
+                      "role": "orchestrator",
+                      "sessionId": "botharness-fe378391-5f4a-4820-a25a-b277eeb37b89",
+                      "code": "MISSING_CREDENTIAL",
+                      "detail": "llm-deepseek: no API key for provider route \"deepseek-official\"; store DEEPSEEK_API_KEY through the credentials service (the web Models page writes it), or export DEEPSEEK_API_KEY in the launching environment. Open PersonaBot Profile and select an available Model Preset or repair the DSH provider credential before retrying.",
+                      "requestMessageId": "human-5f632acb-9fdb-4461-9d84-b902dfb0fc3c"
+                    },
+                    "body": "Session failed: MISSING_CREDENTIAL: llm-deepseek: no API key for provider route \"deepseek-official\"; store DEEPSEEK_API_KEY through the credentials service (the web Models page writes it), or export DEEPSEEK_API_KEY in the launching environment. Open PersonaBot Profile and select an available Model Preset or repair the DSH provider credential before retrying.",
+                    "channelRevision": 2
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ],
+    "activitySnapshot": [
+      {
+        "status": 200,
+        "body": {
+          "type": "server-response",
+          "rpcId": "8f30a583-b25c-4a26-a075-a9f6a4cee279",
+          "result": {
+            "ok": true,
+            "value": {
+              "generation": "73705865-423c-4ae3-a0f0-e38faa512870",
+              "revision": 0,
+              "bots": [
+                {
+                  "slug": "bot-59296301f8d044d2b022d8784c5ed3fe",
+                  "state": "idle"
+                }
+              ]
+            }
+          }
+        }
+      }
+    ],
+    "channelDm": [
+      {
+        "status": 200,
+        "body": {
+          "type": "server-response",
+          "rpcId": "d27b4285-08b8-4fb9-aa70-96ef66ce81bc",
+          "result": {
+            "ok": true,
+            "value": {
+              "channel": {
+                "id": "dm-bot-59296301f8d044d2b022d8784c5ed3fe",
+                "type": "dm",
+                "name": "Mobile Probe",
+                "members": ["bot-59296301f8d044d2b022d8784c5ed3fe"],
+                "botSlug": "bot-59296301f8d044d2b022d8784c5ed3fe",
+                "createdAt": "2026-10-14T07:13:26.070Z",
+                "updatedAt": "2026-10-14T07:13:26.070Z",
+                "humanMembers": [
+                  {
+                    "humanId": "local-human",
+                    "displayName": "Human"
+                  }
+                ],
+                "humanNickname": null
+              }
+            }
+          }
+        }
+      }
+    ],
+    "channelSend": [
+      {
+        "status": 200,
+        "body": {
+          "type": "server-response",
+          "rpcId": "babf6628-a4fb-4857-b219-02fb5b5c25c1",
+          "result": {
+            "ok": true,
+            "value": {
+              "message": {
+                "id": "human-5f632acb-9fdb-4461-9d84-b902dfb0fc3c",
+                "at": "2026-10-14T07:13:27.133Z",
+                "author": {
+                  "kind": "human"
+                },
+                "body": "mobile tracer probe",
+                "channelRevision": 1,
+                "deliveries": [
+                  {
+                    "botSlug": "bot-59296301f8d044d2b022d8784c5ed3fe",
+                    "state": "pending"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  "mux": {
+    "roster": [
+      {
+        "type": "baseline",
+        "placements": []
+      },
+      {
+        "type": "latest",
+        "channelId": "dm-bot-59296301f8d044d2b022d8784c5ed3fe",
+        "message": {
+          "id": "human-5f632acb-9fdb-4461-9d84-b902dfb0fc3c",
+          "at": "2026-10-14T07:13:27.133Z",
+          "author": {
+            "kind": "human"
+          },
+          "body": "mobile tracer probe",
+          "channelRevision": 1,
+          "deliveries": [
+            {
+              "botSlug": "bot-59296301f8d044d2b022d8784c5ed3fe",
+              "state": "pending"
+            }
+          ]
+        }
+      },
+      {
+        "type": "latest",
+        "channelId": "dm-bot-59296301f8d044d2b022d8784c5ed3fe",
+        "message": {
+          "id": "session-failure-64eb7482-338d-420e-b980-427ad17561af",
+          "at": "2026-10-14T07:13:28.146Z",
+          "author": {
+            "kind": "bot",
+            "slug": "bot-59296301f8d044d2b022d8784c5ed3fe"
+          },
+          "body": "Session failed: MISSING_CREDENTIAL: llm-deepseek: no API key for provider route \"deepseek-official\"; store DEEPSEEK_API_KEY through the credentials service (the web Models page writes it), or export DEEPSEEK_API_KEY in the launching environment. Open PersonaBot Profile and select an available Model Preset or repair the DSH provider credential before retrying.",
+          "format": "text",
+          "sessionFailure": {
+            "role": "orchestrator",
+            "sessionId": "botharness-fe378391-5f4a-4820-a25a-b277eeb37b89",
+            "code": "MISSING_CREDENTIAL",
+            "detail": "llm-deepseek: no API key for provider route \"deepseek-official\"; store DEEPSEEK_API_KEY through the credentials service (the web Models page writes it), or export DEEPSEEK_API_KEY in the launching environment. Open PersonaBot Profile and select an available Model Preset or repair the DSH provider credential before retrying.",
+            "requestMessageId": "human-5f632acb-9fdb-4461-9d84-b902dfb0fc3c"
+          },
+          "channelRevision": 2
+        }
+      }
+    ],
+    "activity": [
+      {
+        "type": "baseline",
+        "snapshot": {
+          "generation": "73705865-423c-4ae3-a0f0-e38faa512870",
+          "revision": 0,
+          "bots": [
+            {
+              "slug": "bot-59296301f8d044d2b022d8784c5ed3fe",
+              "state": "idle"
+            }
+          ]
+        }
+      },
+      {
+        "type": "changed",
+        "snapshot": {
+          "generation": "73705865-423c-4ae3-a0f0-e38faa512870",
+          "revision": 1,
+          "bots": [
+            {
+              "slug": "bot-59296301f8d044d2b022d8784c5ed3fe",
+              "state": "thinking",
+              "sessions": [
+                {
+                  "id": "activity-9b781b52-ba3d-4738-ae6e-b4889a851dde",
+                  "role": "orchestrator",
+                  "at": 1791962007593,
+                  "revision": 1,
+                  "state": "thinking"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "type": "changed",
+        "snapshot": {
+          "generation": "73705865-423c-4ae3-a0f0-e38faa512870",
+          "revision": 2,
+          "bots": [
+            {
+              "slug": "bot-59296301f8d044d2b022d8784c5ed3fe",
+              "state": "thinking",
+              "sessions": [
+                {
+                  "id": "activity-9b781b52-ba3d-4738-ae6e-b4889a851dde",
+                  "role": "orchestrator",
+                  "name": "[Human DM] Channel: dm-bot-59296301f8d04",
+                  "at": 1791962007956,
+                  "revision": 2,
+                  "state": "thinking"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "type": "changed",
+        "snapshot": {
+          "generation": "73705865-423c-4ae3-a0f0-e38faa512870",
+          "revision": 3,
+          "bots": [
+            {
+              "slug": "bot-59296301f8d044d2b022d8784c5ed3fe",
+              "state": "idle"
+            }
+          ]
+        }
+      }
+    ],
+    "unknownEndpoint": {
+      "open": {
+        "endpoint": "botharness/doesNotExist"
+      },
+      "frame": {
+        "type": "error",
+        "streamId": "6a119a23-a7e4-4831-ba9f-8c092bd90149",
+        "error": {
+          "code": "gateway/invocation-unavailable",
+          "message": "typert gateway: botharness/doesNotExist: no active Remote method exports this endpoint",
+          "details": {
+            "endpoint": "botharness/doesNotExist"
+          }
+        }
+      }
+    },
+    "upgradeWithoutCookie": {
+      "status": 401
+    }
+  }
+}

@@ -66,6 +66,7 @@ function parseArgs(argv) {
     imProvider: false,
     productArtifacts: null,
     json: false,
+    trustedHosts: [],
     clientDiagnostics: process.env['BOTHARNESS_CLIENT_DIAGNOSTICS'] !== '0',
   };
   for (let index = 0; index < argv.length; index += 1) {
@@ -90,6 +91,11 @@ function parseArgs(argv) {
         break;
       case '--build':
         options.build = true;
+        break;
+      case '--trusted-host':
+        if (!next) throw new Error('--trusted-host needs a host or host:port authority');
+        options.trustedHosts.push(next);
+        index += 1;
         break;
       case '--im-provider':
         options.imProvider = true;
@@ -225,6 +231,7 @@ function launch(options) {
       ...(options.modelPatch ? ['--patch', options.modelPatch] : []),
       '--port',
       String(options.port),
+      ...options.trustedHosts.flatMap((host) => ['--trusted-host', host]),
       '--no-open',
     ],
     { env, cwd: runtime, detached: true, stdio: ['ignore', logFd, logFd] },

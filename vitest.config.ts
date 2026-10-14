@@ -20,6 +20,7 @@ export default defineConfig({
     include: [
       'packages/*/test/**/*.test.{ts,tsx}',
       'apps/docs/test/**/*.test.ts',
+      'apps/mobile/test/**/*.test.ts',
       'scripts/test/**/*.test.mjs',
     ],
   },
