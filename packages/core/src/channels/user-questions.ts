@@ -156,8 +156,7 @@ export class ChannelUserQuestions {
         ? {}
         : { options: question.options.map((option) => ({ ...option })) }),
     }));
-    if (questions.length === 0 || questions.length > 3 || JSON.stringify(questions).length > 16_000)
-      return undefined;
+    if (questions.length === 0) return undefined;
     const wait = 'wait' in request ? request.wait : undefined;
     const callId =
       this.#timed !== undefined &&

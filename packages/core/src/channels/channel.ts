@@ -650,7 +650,6 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
         (typeof request['callId'] !== 'string' || request['callId'].length === 0)) ||
       !Array.isArray(request['questions']) ||
       request['questions'].length === 0 ||
-      request['questions'].length > 3 ||
       !request['questions'].every((value) => {
         if (typeof value !== 'object' || value === null) return false;
         const item = value as Record<string, unknown>;

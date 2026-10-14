@@ -95,6 +95,23 @@ describe('native DSH questions in a PersonaBot DM', () => {
     expect(await state.answerer.answer('ada', request.id, expected)).toBe(false);
   });
 
+  it('posts a card for more than three questions and a long question instead of leaving them to DSH', async () => {
+    const state = fixture();
+    const many = Array.from({ length: 5 }, (_, index) => ({
+      id: 'q' + index,
+      question: 'Question ' + index + '?',
+      ...(index === 0 ? { detail: 'x'.repeat(20_000) } : {}),
+      options: [{ label: 'yes' }, { label: 'no' }],
+    }));
+    const wait = state.answerer.ask({ agent: state.agent, questions: many });
+    await vi.waitFor(() => expect(state.channels.readMessages(channelId)).toHaveLength(1));
+    const request = state.channels.readMessages(channelId)[0]!;
+    expect(request.userQuestionRequest?.questions).toHaveLength(5);
+    const expected = { answers: many.map((item) => ({ id: item.id, selected: ['yes'] })) };
+    expect(await state.answerer.answer('ada', request.id, expected)).toBe(true);
+    expect(await wait).toEqual(expected);
+  });
+
   it('accepts a free-text answer and prevents a stopped or stale Session from resuming', async () => {
     const state = fixture();
     const controller = new AbortController();

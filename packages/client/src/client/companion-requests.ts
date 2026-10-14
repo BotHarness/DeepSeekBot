@@ -82,13 +82,7 @@ export function companionRequests(value: unknown, botSlug: string): CompanionReq
     };
     if (item['kind'] === 'user-question') {
       const raw = item['questions'];
-      if (
-        !Array.isArray(raw) ||
-        raw.length < 1 ||
-        raw.length > 3 ||
-        JSON.stringify(raw).length > 16_000
-      )
-        return [];
+      if (!Array.isArray(raw) || raw.length < 1) return [];
       const questions = raw.flatMap((question: unknown) => {
         const parsed = questionItem(question);
         return parsed ? [parsed] : [];
