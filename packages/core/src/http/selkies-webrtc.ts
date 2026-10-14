@@ -174,6 +174,7 @@ export interface SelkiesWebRtcOptions {
   readonly fetchImpl?: typeof fetch;
   readonly openRelay?: typeof openUdpRelay;
   readonly log?: (detail: string) => void;
+  readonly switchBackRetryMs?: number;
 }
 
 export interface SelkiesWebRtc {
@@ -202,6 +203,9 @@ export function createSelkiesWebRtc(options: SelkiesWebRtcOptions): SelkiesWebRt
   const sockets = new Set<Duplex>();
   let calls = 0;
   let relay: UdpRelay | undefined;
+  let retry: NodeJS.Timeout | undefined;
+  let closed = false;
+  const retryMs = options.switchBackRetryMs ?? 5000;
   let queue: Promise<unknown> = Promise.resolve();
   const serial = <T>(work: () => Promise<T>): Promise<T> => {
     const next = queue.then(work, work);
@@ -251,8 +255,9 @@ export function createSelkiesWebRtc(options: SelkiesWebRtcOptions): SelkiesWebRt
         } catch {
           throw new Refused('media-unavailable');
         }
+        clearTimeout(retry);
         try {
-          relay = await openRelay({
+          relay ??= await openRelay({
             address: media.advertised.address,
             port: media.advertised.port,
             targetPort: media.loopbackPort,
@@ -273,15 +278,24 @@ export function createSelkiesWebRtc(options: SelkiesWebRtcOptions): SelkiesWebRt
       return media.upstream;
     });
 
+  const switchBack = async (): Promise<void> => {
+    if (calls > 0 || relay === undefined) return;
+    const upstream = options.upstream();
+    const back = upstream === undefined ? true : await switchTo(upstream, 'websockets');
+    log(`${options.label} webrtc phase=ended switchedBack=${String(back)}`);
+    if (!back && !closed) {
+      retry = setTimeout(() => void serial(switchBack), retryMs);
+      retry.unref();
+      return;
+    }
+    await relay.close();
+    relay = undefined;
+  };
+
   const release = (): Promise<void> =>
     serial(async () => {
       calls -= 1;
-      if (calls > 0) return;
-      const upstream = options.upstream();
-      const back = upstream === undefined ? true : await switchTo(upstream, 'websockets');
-      await relay?.close();
-      relay = undefined;
-      log(`${options.label} webrtc phase=ended switchedBack=${String(back)}`);
+      await switchBack();
     });
 
   const connect = (
@@ -377,9 +391,13 @@ export function createSelkiesWebRtc(options: SelkiesWebRtcOptions): SelkiesWebRt
     },
 
     async close() {
+      closed = true;
+      clearTimeout(retry);
       for (const socket of [...sockets]) socket.destroy();
       await new Promise((resolve) => setImmediate(resolve));
       await queue;
+      await relay?.close();
+      relay = undefined;
     },
   };
 }

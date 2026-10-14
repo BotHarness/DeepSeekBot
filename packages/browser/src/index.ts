@@ -12,7 +12,6 @@ import {
   registerLocalViewer,
 } from './viewer-local.js';
 import { createTakeoverService } from './takeover.js';
-import type { ContainerBrowserOptions } from './runtime/container.js';
 import { createProfileControl } from './profile-control.js';
 import { registerProfileHttp } from './profile-http.js';
 import { createDailyControl } from './daily.js';
@@ -34,7 +33,11 @@ import {
   refuseWebRtcUpgrade,
   type SelkiesWebRtc,
 } from '../../core/src/http/selkies-webrtc.js';
-import { createBotBrowserRuntimes, listStoredProfileNames } from './runtimes.js';
+import {
+  type BrowserViewerRegistration,
+  createBotBrowserRuntimes,
+  listStoredProfileNames,
+} from './runtimes.js';
 import {
   browserToolNames,
   createBrowserToolProvider,
@@ -174,14 +177,14 @@ export function apply(
     return `${target()}:${driver()}:${revision}:${borrow.revision}:${daily.revision}:${profile.revision}:${signal === undefined ? '' : registrationScopes.get(signal)}`;
   };
   let switching: Promise<void> = Promise.resolve();
-  let registerViewer: ContainerBrowserOptions['onViewer'];
-  const webrtcCalls = new Map<string, SelkiesWebRtc>();
+  let registerViewer: BrowserViewerRegistration | undefined;
+  const webrtcCalls = new Map<string, { calls: SelkiesWebRtc; touch: () => void }>();
   ctx.inject(['connection', 'webServer'], (viewerCtx) => {
     const services = viewerCtx as unknown as {
       webServer: BrowserViewerHost;
       connection: { requestRejection(request: { headers: Headers }): number | undefined };
     };
-    registerViewer = (prefix, upstream, container) => {
+    registerViewer = (prefix, upstream, container, touch) => {
       const release = registerBrowserViewer({
         host: services.webServer,
         prefix,
@@ -196,9 +199,10 @@ export function apply(
         tailnetAddress: () => detectTailnetAddress(),
         log: (detail) => diagnostics.record('lifecycle', detail),
       });
-      webrtcCalls.set(viewer, calls);
+      const entry = { calls, touch };
+      webrtcCalls.set(viewer, entry);
       return () => {
-        if (webrtcCalls.get(viewer) === calls) webrtcCalls.delete(viewer);
+        if (webrtcCalls.get(viewer) === entry) webrtcCalls.delete(viewer);
         void calls.close();
         release();
       };
@@ -214,9 +218,15 @@ export function apply(
           return;
         }
         const viewer = new URL(request.url ?? '/', 'http://127.0.0.1').searchParams.get('viewer');
-        const calls = viewer === null ? undefined : webrtcCalls.get(viewer);
-        if (calls === undefined) refuseWebRtcUpgrade(socket, 'not-running');
-        else void calls.signal(request, socket, head);
+        const entry = viewer === null ? undefined : webrtcCalls.get(viewer);
+        if (entry === undefined) {
+          refuseWebRtcUpgrade(socket, 'not-running');
+          return;
+        }
+        entry.touch();
+        const timer = setInterval(entry.touch, 60_000);
+        socket.once('close', () => clearInterval(timer));
+        void entry.calls.signal(request, socket, head);
       },
     });
     return () => {
@@ -229,10 +239,10 @@ export function apply(
     target: () => (target() === 'container' ? 'container' : 'local'),
     driver,
     onIdleStop: (profile) => provider.invalidateProfile(profile),
-    onViewer: (prefix, upstream, container) => {
+    onViewer: (prefix, upstream, container, touch) => {
       if (registerViewer === undefined)
         throw new Error('The Container Browser viewer requires the DSH Web Host');
-      return registerViewer(prefix, upstream, container);
+      return registerViewer(prefix, upstream, container, touch);
     },
     tailnetAddress: () => detectTailnetAddress(),
     installDir: pinnedBrowserDirectory(),
@@ -523,13 +533,13 @@ export function apply(
           requestBody: 'buffered',
           fetch: async (request: Request): Promise<Response> => {
             const viewer = new URL(request.url).searchParams.get('viewer') ?? '';
-            const calls = webrtcCalls.get(viewer);
+            const entry = webrtcCalls.get(viewer);
             return json({
               viewer,
               signaling: `/api/browser/webrtc/signaling?viewer=${encodeURIComponent(viewer)}`,
-              ...(calls === undefined
+              ...(entry === undefined
                 ? { available: false, code: 'not-running', fallback: 'websocket' }
-                : await calls.status()),
+                : await entry.calls.status()),
             });
           },
         }),

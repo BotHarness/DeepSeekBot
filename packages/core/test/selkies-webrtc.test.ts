@@ -108,16 +108,25 @@ describe('UDP relay', () => {
   });
 });
 
-async function fakeSelkies(options: { signalingRefusals?: number } = {}) {
+async function fakeSelkies(
+  options: { signalingRefusals?: number; switchBackFailures?: number } = {},
+) {
   const switches: string[] = [];
   const upgrades: string[] = [];
   let refusals = options.signalingRefusals ?? 0;
+  let switchBackFailures = options.switchBackFailures ?? 0;
   const server = createServer((req, res) => {
     const chunks: Buffer[] = [];
     req.on('data', (chunk: Buffer) => chunks.push(chunk));
     req.on('end', () => {
       if (req.url === '/api/switch' && req.method === 'POST') {
-        switches.push((JSON.parse(Buffer.concat(chunks).toString()) as { mode: string }).mode);
+        const mode = (JSON.parse(Buffer.concat(chunks).toString()) as { mode: string }).mode;
+        switches.push(mode);
+        if (mode === 'websockets' && switchBackFailures > 0) {
+          switchBackFailures -= 1;
+          res.writeHead(500);
+          return res.end();
+        }
         res.writeHead(200, { 'content-type': 'application/json' });
         return res.end('{"status":"success"}');
       }
@@ -283,6 +292,42 @@ describe('Selkies WebRTC calls', () => {
     await expect.poll(() => selkies.switches).toEqual(['webrtc', 'websockets']);
     expect(closedRelays).toBe(1);
     expect(await webrtc.status()).toMatchObject({ calls: 0 });
+  });
+
+  it('keeps the relay and retries until the container is back on WebSockets', async () => {
+    const selkies = await fakeSelkies({ switchBackFailures: 1 });
+    let opened = 0;
+    let closedRelays = 0;
+    const ended: string[] = [];
+    const webrtc = createSelkiesWebRtc({
+      label: 'computer',
+      upstream: () => selkies.url,
+      container: () => media(),
+      tailnetAddress: async () => '100.101.102.103',
+      switchBackRetryMs: 20,
+      log: (detail) => {
+        if (detail.includes('phase=ended')) ended.push(`${detail} relaysClosed=${closedRelays}`);
+      },
+      openRelay: async () => {
+        opened += 1;
+        return {
+          flows: () => 0,
+          close: async () => {
+            closedRelays += 1;
+          },
+        };
+      },
+    });
+    const call = await hostFor(webrtc);
+    const first = await call();
+    first.socket!.destroy();
+    await expect.poll(() => closedRelays).toBe(1);
+    expect(ended).toEqual([
+      'computer webrtc phase=ended switchedBack=false relaysClosed=0',
+      'computer webrtc phase=ended switchedBack=true relaysClosed=0',
+    ]);
+    expect(selkies.switches).toEqual(['webrtc', 'websockets', 'websockets']);
+    expect(opened).toBe(1);
   });
 
   it('refuses the upgrade with a code when the tailnet is gone', async () => {

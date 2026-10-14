@@ -23,11 +23,15 @@ export interface BotBrowserRuntimes {
   profileOf(slug: string): string;
 }
 
+export type BrowserViewerRegistration = (
+  ...args: [...Parameters<NonNullable<ContainerBrowserOptions['onViewer']>>, touch: () => void]
+) => () => void;
+
 export interface BotBrowserRuntimesOptions {
   readonly target?: () => 'local' | 'container';
   readonly driver?: () => 'current' | 'agent-browser';
   readonly onIdleStop?: (profile: string) => void;
-  readonly onViewer?: ContainerBrowserOptions['onViewer'];
+  readonly onViewer?: BrowserViewerRegistration;
   readonly tailnetAddress?: ContainerBrowserOptions['tailnetAddress'];
   readonly browserDir: string;
   readonly installDir: string;
@@ -109,6 +113,7 @@ export function createBotBrowserRuntimes(options: BotBrowserRuntimesOptions): Bo
       lastActivity: Date.now(),
       progress: undefined,
     };
+    const { onViewer } = options;
     created.runtime = (driver === 'agent-browser' ? createAgentBrowserRuntime : create)({
       ...(options.browserPath === undefined ? {} : { browserPath: options.browserPath }),
       userDataDir: directoryFor(profile),
@@ -118,7 +123,14 @@ export function createBotBrowserRuntimes(options: BotBrowserRuntimesOptions): Bo
               profileDirectory: directoryFor(profile),
               onEvent: (detail) =>
                 options.onEvent?.(`[${profile === '' ? 'default' : profile}] ${detail}`),
-              ...(options.onViewer === undefined ? {} : { onViewer: options.onViewer }),
+              ...(onViewer === undefined
+                ? {}
+                : {
+                    onViewer: (prefix, upstream, webrtc) =>
+                      onViewer(prefix, upstream, webrtc, () => {
+                        created.lastActivity = Date.now();
+                      }),
+                  }),
               ...(options.tailnetAddress === undefined
                 ? {}
                 : { tailnetAddress: options.tailnetAddress }),
