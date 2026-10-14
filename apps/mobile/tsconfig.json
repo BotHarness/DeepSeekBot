@@ -9,5 +9,12 @@
     "types": ["node"],
     "noEmit": true
   },
-  "include": ["app", "src", "expo-env.d.ts", "test/inbox-screens.test.ts", "test/**/*.tsx"]
+  "include": [
+    "app",
+    "src",
+    "expo-env.d.ts",
+    "test/inbox-screens.test.ts",
+    "test/action-cards.test.ts",
+    "test/**/*.tsx"
+  ]
 }

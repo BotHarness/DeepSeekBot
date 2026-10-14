@@ -62,6 +62,7 @@ export class FakeAgentHost implements DshAgentHost {
   readonly sessions: FakeSession[] = [];
   readonly received = new Map<string, UserMessage[]>();
   readonly steered = new Map<string, UserMessage[]>();
+  readonly cancelled: Array<{ sessionId: string; reason: unknown }> = [];
   readonly #cwdBySession = new Map<string, string | undefined>();
   readonly #live = new Map<string, Agent>();
 
@@ -167,6 +168,9 @@ export class FakeAgentHost implements DshAgentHost {
         const steered = this.steered.get(sessionId) ?? [];
         steered.push(message);
         this.steered.set(sessionId, steered);
+      },
+      cancel: (reason: unknown) => {
+        this.cancelled.push({ sessionId, reason });
       },
       whenIdle: () => pending,
     };

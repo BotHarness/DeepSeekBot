@@ -24,6 +24,8 @@ export interface ChannelWireMessage extends WireMessage {
   privateInputRequest?: unknown;
   sessionFailure?: unknown;
   grantRequest?: true;
+  toolApprovalDecision?: unknown;
+  userQuestionResolution?: unknown;
 }
 
 export interface BridgeMediaItem {
@@ -112,10 +114,32 @@ export type RosterLiveFrame =
   | { type: 'latest'; channelId: string; message: WireMessage }
   | { type: 'purged'; placements: unknown[] };
 
+export interface WireToolActivity {
+  effect: 'thinking-dots' | 'searching' | 'coding' | 'executing' | 'generic-working';
+  toolName?: string;
+  publicDetail?: string;
+  activeToolCount: number;
+}
+
+export interface WireSessionActivity {
+  id: string;
+  role: 'orchestrator' | 'assignment' | 'subagent';
+  name?: string;
+  state: Exclude<AggregatedState, 'idle'>;
+  activity?: WireToolActivity;
+}
+
+export interface WireBotActivity {
+  slug: string;
+  state: AggregatedState;
+  activity?: WireToolActivity;
+  sessions?: readonly WireSessionActivity[];
+}
+
 export interface ActivitySnapshot {
   generation: string;
   revision: number;
-  bots: readonly { slug: string; state: AggregatedState }[];
+  bots: readonly WireBotActivity[];
 }
 
 export type ActivityLiveFrame =

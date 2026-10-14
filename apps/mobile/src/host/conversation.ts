@@ -6,10 +6,23 @@ import type {
   ChannelWireMessage,
   JournalEntry,
   JournalPage,
+  ToolApprovalOutcome,
   WireDraft,
 } from './wire';
 
 export type DeliveryState = 'pending' | 'committed' | 'failed';
+
+export type CardKind = 'tool-approval' | 'user-question' | 'private-input' | 'grant';
+
+export interface MessageCard {
+  kind: CardKind;
+  channelId: string;
+  subject?: string;
+}
+
+export type CardResolution =
+  | { kind: 'tool-approval'; outcome: ToolApprovalOutcome }
+  | { kind: 'user-question'; state: 'answered' | 'cancelled' };
 
 export interface MessageAttachment {
   key: string;
@@ -28,7 +41,8 @@ export interface ConversationMessage {
   author: 'human' | 'bot' | 'system';
   body: string;
   attachments: MessageAttachment[];
-  card: boolean;
+  card?: MessageCard;
+  resolves?: { requestId: string; resolution: CardResolution };
   delivery: DeliveryState;
   error?: string;
 }
@@ -113,13 +127,53 @@ function uuid(): string {
   });
 }
 
-function hasCard(message: ChannelWireMessage): boolean {
-  return (
-    message.toolApprovalRequest !== undefined ||
-    message.userQuestionRequest !== undefined ||
-    message.privateInputRequest !== undefined ||
-    message.grantRequest === true
-  );
+function text(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() !== '' ? value : undefined;
+}
+
+function field(value: unknown, key: string): unknown {
+  return typeof value === 'object' && value !== null
+    ? (value as Record<string, unknown>)[key]
+    : undefined;
+}
+
+function cardOf(channelId: string, message: ChannelWireMessage): MessageCard | undefined {
+  if (message.toolApprovalRequest !== undefined) {
+    const subject = text(field(message.toolApprovalRequest, 'toolName'));
+    return { kind: 'tool-approval', channelId, ...(subject === undefined ? {} : { subject }) };
+  }
+  if (message.userQuestionRequest !== undefined) {
+    const questions = field(message.userQuestionRequest, 'questions');
+    const subject = Array.isArray(questions) ? text(field(questions[0], 'question')) : undefined;
+    return { kind: 'user-question', channelId, ...(subject === undefined ? {} : { subject }) };
+  }
+  if (message.privateInputRequest !== undefined) return { kind: 'private-input', channelId };
+  if (message.grantRequest === true) return { kind: 'grant', channelId };
+  return undefined;
+}
+
+const OUTCOMES = new Set<string>([
+  'allowed-once',
+  'allowed-always-exact',
+  'allowed-always-all',
+  'rejected',
+]);
+
+function resolvesOf(message: ChannelWireMessage): ConversationMessage['resolves'] {
+  const decision = message.toolApprovalDecision;
+  const decided = text(field(decision, 'requestMessageId'));
+  const outcome = field(decision, 'outcome');
+  if (decided !== undefined && typeof outcome === 'string' && OUTCOMES.has(outcome))
+    return {
+      requestId: decided,
+      resolution: { kind: 'tool-approval', outcome: outcome as ToolApprovalOutcome },
+    };
+  const resolution = message.userQuestionResolution;
+  const answered = text(field(resolution, 'requestMessageId'));
+  const state = field(resolution, 'state');
+  if (answered !== undefined && (state === 'answered' || state === 'cancelled'))
+    return { requestId: answered, resolution: { kind: 'user-question', state } };
+  return undefined;
 }
 
 function attachmentPath(params: Record<string, string>): string {
@@ -184,6 +238,8 @@ function present(
 ): ConversationMessage {
   const message = entry.message;
   const kind = message.author.kind;
+  const card = cardOf(entry.channelId, message);
+  const resolves = resolvesOf(message);
   return {
     id: message.id,
     revision: entry.revision,
@@ -191,7 +247,8 @@ function present(
     author: kind === 'human' ? 'human' : kind === 'bot' ? 'bot' : 'system',
     body: message.body,
     attachments: attachmentsOf(entry, resolve, picked),
-    card: hasCard(message),
+    ...(card === undefined ? {} : { card }),
+    ...(resolves === undefined ? {} : { resolves }),
     delivery: 'committed',
   };
 }
@@ -237,7 +294,6 @@ export function createConversation(options: ConversationOptions): Conversation {
           ...(file.uri === undefined ? {} : { source: { uri: file.uri, headers: {} } }),
           local: file.uri !== undefined,
         })),
-        card: false,
         delivery: item.delivery,
         ...(item.error === undefined ? {} : { error: item.error }),
       });

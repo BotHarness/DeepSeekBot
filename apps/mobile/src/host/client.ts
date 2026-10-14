@@ -13,6 +13,9 @@ import {
   type MuxServerFrame,
   type PersonaBotSummary,
   type RosterLiveFrame,
+  type WireBotActivity,
+  type WireSessionActivity,
+  type WireToolActivity,
 } from './wire';
 
 export type ConnectionState =
@@ -32,6 +35,8 @@ export interface RosterBot {
   avatarSeed?: 2;
   primaryColor?: BotPrimaryColor;
   state: AggregatedState;
+  activity?: WireToolActivity;
+  sessions?: readonly WireSessionActivity[];
   paused: boolean;
   dmChannelId?: string;
   preview?: string;
@@ -167,7 +172,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
   let snapshot: HostSnapshot = { connection: { status: 'stopped', route } };
   let bots: PersonaBotSummary[] | undefined;
   let channels = new Map<string, ChannelListItem>();
-  let states = new Map<string, AggregatedState>();
+  let states = new Map<string, WireBotActivity>();
   let running = false;
   let everConnected = false;
   let attempt = 0;
@@ -209,6 +214,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
         .filter((bot) => bot.deleted !== true)
         .map((bot) => {
           const dm = dms.get(bot.slug);
+          const live = states.get(bot.slug);
           return {
             slug: bot.slug,
             displayName: bot.displayName,
@@ -218,7 +224,9 @@ export function createHostClient(options: HostClientOptions): HostClient {
             ...(bot.appearance === undefined ? {} : { appearance: bot.appearance }),
             ...(bot.avatarSeed === undefined ? {} : { avatarSeed: bot.avatarSeed }),
             ...(bot.primaryColor === undefined ? {} : { primaryColor: bot.primaryColor }),
-            state: states.get(bot.slug) ?? bot.aggregateState,
+            state: live?.state ?? bot.aggregateState,
+            ...(live?.activity === undefined ? {} : { activity: live.activity }),
+            ...(live?.sessions === undefined ? {} : { sessions: live.sessions }),
             paused: bot.paused === true,
             ...(dm === undefined ? {} : { dmChannelId: dm.id }),
             ...previewOf(dm),
@@ -363,7 +371,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
   };
 
   const applyActivity = (frame: ActivityLiveFrame): void => {
-    states = new Map(frame.snapshot.bots.map((bot) => [bot.slug, bot.state]));
+    states = new Map(frame.snapshot.bots.map((bot) => [bot.slug, bot]));
     const known = new Set(bots?.map((bot) => bot.slug));
     if (bots !== undefined && frame.snapshot.bots.some((bot) => !known.has(bot.slug)))
       reloadInBackground();

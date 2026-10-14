@@ -52,59 +52,6 @@ export function webChannelShortcutLabel(index: number): string | undefined {
   return `Alt+${index === 9 ? 0 : index + 1}`;
 }
 
-export function webBotModeShortcut(
-  code: string,
-  keys: {
-    alt: boolean;
-    ctrl: boolean;
-    meta: boolean;
-    shift: boolean;
-    altGraph?: boolean;
-    composing?: boolean;
-    repeat?: boolean;
-    prevented?: boolean;
-  },
-): boolean {
-  return (
-    code === 'Backquote' &&
-    keys.alt &&
-    !keys.ctrl &&
-    !keys.meta &&
-    !keys.shift &&
-    !keys.altGraph &&
-    !keys.composing &&
-    !keys.repeat &&
-    !keys.prevented
-  );
-}
-
-export interface ConversationStep {
-  direction: -1 | 1;
-  unreadOnly: boolean;
-}
-
-export function webConversationStepShortcut(
-  key: string,
-  keys: {
-    alt: boolean;
-    ctrl: boolean;
-    meta: boolean;
-    shift: boolean;
-    altGraph?: boolean;
-    composing?: boolean;
-    prevented?: boolean;
-  },
-): ConversationStep | undefined {
-  if (!keys.alt || keys.ctrl || keys.meta || keys.altGraph || keys.composing || keys.prevented)
-    return undefined;
-  if (key !== 'ArrowUp' && key !== 'ArrowDown') return undefined;
-  return { direction: key === 'ArrowUp' ? -1 : 1, unreadOnly: keys.shift };
-}
-
-export function webConversationStepLabel(step: ConversationStep): string {
-  return `Alt+${step.unreadOnly ? 'Shift+' : ''}${step.direction < 0 ? '↑' : '↓'}`;
-}
-
 export function webModalOpen(root: { querySelector(selector: string): unknown }): boolean {
   return root.querySelector(openModalSelector) !== null;
 }
@@ -147,60 +94,26 @@ export function webQuickSwitcherBlocked(
   return root.querySelector(openModalSelector) !== null;
 }
 
-export function webQuickSwitcherShortcut(
+export function webShortcutHelpQuestion(
   key: string,
-  code: string,
   keys: {
-    alt: boolean;
     ctrl: boolean;
     meta: boolean;
-    shift: boolean;
-    mac: boolean;
+    alt: boolean;
     altGraph?: boolean;
     composing?: boolean;
     repeat?: boolean;
     prevented?: boolean;
   },
 ): boolean {
-  const modifier = keys.mac ? keys.meta && !keys.ctrl : keys.ctrl && !keys.meta;
-  if (
-    !modifier ||
-    keys.alt ||
-    keys.shift ||
-    keys.altGraph ||
-    keys.composing ||
-    keys.repeat ||
-    keys.prevented
-  ) {
-    return false;
-  }
-  const lower = key.toLowerCase();
-  if (/^[a-z]$/u.test(lower)) return lower === 'k';
-  return code === 'KeyK';
-}
-
-export function webQuickSwitcherLabel(mac: boolean): string {
-  return mac ? '⌘K' : 'Ctrl+K';
-}
-
-export type ShortcutHelpTrigger = 'question' | 'slash';
-
-export function webShortcutHelpShortcut(
-  event: { key: string; code: string },
-  keys: {
-    alt: boolean;
-    ctrl: boolean;
-    meta: boolean;
-    shift: boolean;
-    altGraph?: boolean;
-    composing?: boolean;
-    repeat?: boolean;
-    prevented?: boolean;
-  },
-): ShortcutHelpTrigger | undefined {
-  if (keys.alt || keys.altGraph || keys.composing || keys.repeat || keys.prevented)
-    return undefined;
-  if (event.code === 'Slash' && (keys.ctrl || keys.meta) && !keys.shift) return 'slash';
-  if (event.key === '?' && !keys.ctrl && !keys.meta) return 'question';
-  return undefined;
+  return (
+    key === '?' &&
+    !keys.ctrl &&
+    !keys.meta &&
+    !keys.alt &&
+    !keys.altGraph &&
+    !keys.composing &&
+    !keys.repeat &&
+    !keys.prevented
+  );
 }

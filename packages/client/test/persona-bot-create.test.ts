@@ -123,6 +123,9 @@ describe('PersonaBot creation form', () => {
     expect(
       personaBotCreateError(new BridgeCallError('git-clone-timeout', 'private token')),
     ).toContain('超时');
+    expect(
+      personaBotCreateError(new BridgeCallError('invalid-memory-dir', 'missing folder')),
+    ).toContain('已存在的文件夹');
     expect(personaBotCreateError(new Error('disk read-only'))).toBe('disk read-only');
   });
 });
@@ -148,7 +151,11 @@ async function withForm(
     await act(async () =>
       root.render(
         createElement(CreatePersonaBotModal, {
-          actions: { createBot: create, openCreatedBot: open } as unknown as BridgeActions,
+          actions: {
+            createBot: create,
+            openCreatedBot: open,
+            pickWorkspaceFolder: vi.fn(async () => 'D:\\BotMemory'),
+          } as unknown as BridgeActions,
           source,
           onCancel: vi.fn(),
           onCreated,
@@ -292,6 +299,59 @@ describe('editable creation starting points', () => {
         undefined,
       );
     });
+  });
+});
+
+describe('memory location under Advanced settings', () => {
+  it('keeps the default location unless the Human chooses a folder', async () => {
+    await withForm(async (host, create) => {
+      const advanced = host.querySelector<HTMLDetailsElement>('[data-create-advanced]')!;
+      expect(advanced.open).toBe(false);
+      expect(advanced.querySelector('summary')!.textContent).toBe('进阶设置');
+      await typeText(host, 'input[placeholder="例如：小研"]', 'Ada');
+      await submit(host);
+      expect(create).toHaveBeenCalledWith(
+        { displayName: 'Ada', roles: [], persona: '' },
+        undefined,
+      );
+    });
+  });
+
+  it('submits a folder picked through the DSH folder picker', async () => {
+    await withForm(async (host, create) => {
+      await typeText(host, 'input[placeholder="例如：小研"]', 'Ada');
+      await act(async () => buttonNamed('选择文件夹…', host).click());
+      expect(host.querySelector<HTMLInputElement>('input[placeholder="默认位置"]')!.value).toBe(
+        'D:\\BotMemory',
+      );
+      await submit(host);
+      expect(create).toHaveBeenCalledWith(
+        { displayName: 'Ada', roles: [], persona: '', memoryLocation: 'D:\\BotMemory' },
+        undefined,
+      );
+    });
+  });
+
+  it('refuses a relative typed path before contacting the Host', async () => {
+    await withForm(async (host, create) => {
+      await typeText(host, 'input[placeholder="例如：小研"]', 'Ada');
+      await typeText(host, 'input[placeholder="默认位置"]', 'bots/memory');
+      expect(host.textContent).toContain('请输入完整路径');
+      await act(async () => host.querySelector('form')!.requestSubmit());
+      expect(create).not.toHaveBeenCalled();
+      await typeText(host, 'input[placeholder="默认位置"]', ' /data/bots ');
+      await submit(host);
+      expect(create).toHaveBeenCalledWith(
+        { displayName: 'Ada', roles: [], persona: '', memoryLocation: '/data/bots' },
+        undefined,
+      );
+    });
+  });
+
+  it('is not offered for a GitHub import', async () => {
+    await withForm(async (host) => {
+      expect(host.querySelector('[data-create-advanced]')).toBeNull();
+    }, 'git');
   });
 });
 

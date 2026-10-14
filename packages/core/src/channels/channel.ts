@@ -163,6 +163,13 @@ export interface ChannelDelivery {
   state: 'pending' | 'observed' | 'running' | 'retryable' | 'needs-repair' | 'handled' | 'ignored';
 }
 
+export interface ChannelTurnStop {
+  botSlug: string;
+  botName: string;
+  humanName: string;
+  sessionId: string;
+}
+
 export interface ChannelMemberDeparture {
   memberKind: 'bot' | 'human';
   memberId: string;
@@ -270,6 +277,7 @@ export interface ChannelMessage {
   memoryCommit?: ChannelMemoryCommit;
   noticeOrigin?: { channelId: string };
   memberDeparture?: ChannelMemberDeparture;
+  turnStop?: ChannelTurnStop;
   botCausation?: BotMessageCausation;
 
   grantRequest?: true;
@@ -729,6 +737,17 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
     if (
       (message['author'] as ChannelMessageAuthor)?.kind !== 'system' ||
       !isMemoryCommit(message['memoryCommit'])
+    )
+      return false;
+  } else if (message['turnStop'] !== undefined) {
+    const stop = message['turnStop'] as Record<string, unknown> | null;
+    if (
+      (message['author'] as ChannelMessageAuthor)?.kind !== 'system' ||
+      typeof stop !== 'object' ||
+      stop === null ||
+      ['botSlug', 'botName', 'humanName', 'sessionId'].some(
+        (key) => typeof stop[key] !== 'string' || stop[key].length === 0,
+      )
     )
       return false;
   } else if (

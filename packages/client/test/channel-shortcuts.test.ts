@@ -2,17 +2,12 @@ import { describe, expect, it } from 'vitest';
 
 import {
   steppedConversationId,
-  webBotModeShortcut,
   webQuickSwitcherBlocked,
-  webQuickSwitcherLabel,
-  webQuickSwitcherShortcut,
   webChannelShortcutIndex,
   webChannelShortcutLabel,
-  webConversationStepLabel,
-  webConversationStepShortcut,
   webModalOpen,
   webShortcutBlocked,
-  webShortcutHelpShortcut,
+  webShortcutHelpQuestion,
 } from '../src/client/channel-shortcuts.js';
 import { isApplePlatform } from '../src/client/ds/kbd.js';
 
@@ -40,18 +35,6 @@ describe('web channel number shortcuts', () => {
     expect(webChannelShortcutLabel(10)).toBeUndefined();
   });
 
-  it('toggles Bot mode only for Alt plus the physical backquote key', () => {
-    expect(webBotModeShortcut('Backquote', alt)).toBe(true);
-    expect(webBotModeShortcut('Backquote', { ...alt, alt: false })).toBe(false);
-    expect(webBotModeShortcut('Backquote', { ...alt, ctrl: true })).toBe(false);
-    expect(webBotModeShortcut('Backquote', { ...alt, meta: true })).toBe(false);
-    expect(webBotModeShortcut('Backquote', { ...alt, shift: true })).toBe(false);
-    expect(webBotModeShortcut('Backquote', { ...alt, altGraph: true })).toBe(false);
-    expect(webBotModeShortcut('Backquote', { ...alt, composing: true })).toBe(false);
-    expect(webBotModeShortcut('Backquote', { ...alt, repeat: true })).toBe(false);
-    expect(webBotModeShortcut('Backquote', { ...alt, prevented: true })).toBe(false);
-    expect(webBotModeShortcut('Digit1', alt)).toBe(false);
-  });
   it('blocks shortcuts while a native or ARIA modal is open', () => {
     let selector = '';
     const modalRoot = {
@@ -64,31 +47,6 @@ describe('web channel number shortcuts', () => {
     expect(selector).toContain('dialog[open]');
     expect(selector).toContain('[role="alertdialog"][aria-modal="true"]');
     expect(webShortcutBlocked(null, { querySelector: () => null })).toBe(false);
-  });
-
-  it('opens the quick switcher with Ctrl+K, or Command+K on macOS', () => {
-    const none = { alt: false, ctrl: false, meta: false, shift: false };
-    const ctrl = { ...none, ctrl: true, mac: false };
-    const cmd = { ...none, meta: true, mac: true };
-    expect(webQuickSwitcherShortcut('k', 'KeyK', ctrl)).toBe(true);
-    expect(webQuickSwitcherShortcut('K', 'KeyK', ctrl)).toBe(true);
-    expect(webQuickSwitcherShortcut('k', 'KeyK', cmd)).toBe(true);
-    expect(webQuickSwitcherShortcut('k', 'KeyK', { ...ctrl, mac: true })).toBe(false);
-    expect(webQuickSwitcherShortcut('k', 'KeyK', { ...cmd, mac: false })).toBe(false);
-    expect(webQuickSwitcherShortcut('k', 'KeyK', { ...ctrl, meta: true })).toBe(false);
-    expect(webQuickSwitcherShortcut('k', 'KeyK', { ...ctrl, shift: true })).toBe(false);
-    expect(webQuickSwitcherShortcut('k', 'KeyK', { ...ctrl, alt: true })).toBe(false);
-    expect(webQuickSwitcherShortcut('k', 'KeyK', { ...ctrl, altGraph: true })).toBe(false);
-    expect(webQuickSwitcherShortcut('k', 'KeyK', { ...ctrl, composing: true })).toBe(false);
-    expect(webQuickSwitcherShortcut('k', 'KeyK', { ...ctrl, repeat: true })).toBe(false);
-    expect(webQuickSwitcherShortcut('k', 'KeyK', { ...ctrl, prevented: true })).toBe(false);
-    expect(webQuickSwitcherShortcut('k', 'KeyK', { ...none, mac: false })).toBe(false);
-    expect(webQuickSwitcherShortcut('k', 'KeyV', ctrl)).toBe(true);
-    expect(webQuickSwitcherShortcut('t', 'KeyK', ctrl)).toBe(false);
-    expect(webQuickSwitcherShortcut('л', 'KeyK', ctrl)).toBe(true);
-    expect(webQuickSwitcherShortcut('j', 'KeyJ', ctrl)).toBe(false);
-    expect(webQuickSwitcherLabel(false)).toBe('Ctrl+K');
-    expect(webQuickSwitcherLabel(true)).toBe('⌘K');
   });
 
   it('detects macOS from the browser platform', () => {
@@ -116,33 +74,6 @@ describe('web channel number shortcuts', () => {
 });
 
 describe('web conversation step shortcuts', () => {
-  it('maps Alt+↑/↓ to the previous or next conversation and adds Shift for unread only', () => {
-    expect(webConversationStepShortcut('ArrowUp', alt)).toEqual({
-      direction: -1,
-      unreadOnly: false,
-    });
-    expect(webConversationStepShortcut('ArrowDown', alt)).toEqual({
-      direction: 1,
-      unreadOnly: false,
-    });
-    expect(webConversationStepShortcut('ArrowDown', { ...alt, shift: true })).toEqual({
-      direction: 1,
-      unreadOnly: true,
-    });
-    expect(webConversationStepLabel({ direction: 1, unreadOnly: true })).toBe('Alt+Shift+↓');
-    expect(webConversationStepLabel({ direction: -1, unreadOnly: false })).toBe('Alt+↑');
-  });
-
-  it('leaves plain arrows, other modifiers, IME and handled events alone', () => {
-    expect(webConversationStepShortcut('ArrowUp', { ...alt, alt: false })).toBeUndefined();
-    expect(webConversationStepShortcut('ArrowUp', { ...alt, ctrl: true })).toBeUndefined();
-    expect(webConversationStepShortcut('ArrowUp', { ...alt, meta: true })).toBeUndefined();
-    expect(webConversationStepShortcut('ArrowUp', { ...alt, altGraph: true })).toBeUndefined();
-    expect(webConversationStepShortcut('ArrowUp', { ...alt, composing: true })).toBeUndefined();
-    expect(webConversationStepShortcut('ArrowUp', { ...alt, prevented: true })).toBeUndefined();
-    expect(webConversationStepShortcut('ArrowLeft', alt)).toBeUndefined();
-  });
-
   it('steps through sidebar order and wraps at either end', () => {
     const order = ['a', 'b', 'c'];
     expect(steppedConversationId(order, 'b', 1)).toBe('c');
@@ -171,40 +102,18 @@ describe('web conversation step shortcuts', () => {
   });
 });
 
-describe('web shortcut list shortcut', () => {
-  const none = { alt: false, ctrl: false, meta: false, shift: false };
+describe('web shortcut list question mark', () => {
+  const none = { alt: false, ctrl: false, meta: false };
 
-  it('opens on ? and on Ctrl+/ or ⌘+/', () => {
-    expect(webShortcutHelpShortcut({ key: '?', code: 'Slash' }, { ...none, shift: true })).toBe(
-      'question',
-    );
-    expect(webShortcutHelpShortcut({ key: '/', code: 'Slash' }, { ...none, ctrl: true })).toBe(
-      'slash',
-    );
-    expect(webShortcutHelpShortcut({ key: '/', code: 'Slash' }, { ...none, meta: true })).toBe(
-      'slash',
-    );
-  });
-
-  it('leaves plain /, Alt, IME, repeats and handled keys alone', () => {
-    expect(webShortcutHelpShortcut({ key: '/', code: 'Slash' }, none)).toBeUndefined();
-    expect(
-      webShortcutHelpShortcut({ key: '?', code: 'Slash' }, { ...none, shift: true, alt: true }),
-    ).toBeUndefined();
-    expect(
-      webShortcutHelpShortcut({ key: '?', code: 'Slash' }, { ...none, composing: true }),
-    ).toBeUndefined();
-    expect(
-      webShortcutHelpShortcut({ key: '/', code: 'Slash' }, { ...none, ctrl: true, repeat: true }),
-    ).toBeUndefined();
-    expect(
-      webShortcutHelpShortcut(
-        { key: '/', code: 'Slash' },
-        { ...none, ctrl: true, prevented: true },
-      ),
-    ).toBeUndefined();
-    expect(
-      webShortcutHelpShortcut({ key: '?', code: 'Slash' }, { ...none, shift: true, ctrl: true }),
-    ).toBeUndefined();
+  it('opens on ? without Ctrl, ⌘ or Alt', () => {
+    expect(webShortcutHelpQuestion('?', none)).toBe(true);
+    expect(webShortcutHelpQuestion('/', none)).toBe(false);
+    expect(webShortcutHelpQuestion('?', { ...none, alt: true })).toBe(false);
+    expect(webShortcutHelpQuestion('?', { ...none, ctrl: true })).toBe(false);
+    expect(webShortcutHelpQuestion('?', { ...none, meta: true })).toBe(false);
+    expect(webShortcutHelpQuestion('?', { ...none, altGraph: true })).toBe(false);
+    expect(webShortcutHelpQuestion('?', { ...none, composing: true })).toBe(false);
+    expect(webShortcutHelpQuestion('?', { ...none, repeat: true })).toBe(false);
+    expect(webShortcutHelpQuestion('?', { ...none, prevented: true })).toBe(false);
   });
 });

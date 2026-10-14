@@ -47,6 +47,11 @@ export const weight: Record<PlatformOS, { regular: '400'; strong: '500' | '600' 
   android: { regular: '400', strong: '500' },
 };
 
+export const mono: Record<PlatformOS, string> = {
+  ios: 'Menlo',
+  android: 'monospace',
+};
+
 export const touch: Record<PlatformOS, number> = {
   ios: 44,
   android: 48,

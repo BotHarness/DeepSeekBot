@@ -338,6 +338,7 @@ export interface BridgeActions {
   ): Promise<{ revision: number }>;
   inheritModel(slug: string, expectedRevision: number): Promise<{ revision: number }>;
   retryMessage(channelId: string, messageId: string): Promise<void>;
+  stopBot(channelId: string, botSlug: string): Promise<'stopped' | 'not-working'>;
 
   channelBridges(channelId: string): Promise<ChannelBridgeSnapshot>;
   channelBridge(channelId: string, input: ChannelBridgeInput): Promise<void>;
@@ -1497,6 +1498,16 @@ export function createActions(
     async retryMessage(channelId, messageId) {
       await invoke('channelRetry', { channelId, messageId });
       await actions.refreshChannelMessages(channelId);
+    },
+    async stopBot(channelId, botSlug) {
+      try {
+        await invoke('channelBotStop', { channelId, botSlug });
+      } catch (error) {
+        if (error instanceof BridgeCallError && error.code === 'not-working') return 'not-working';
+        throw error;
+      }
+      await actions.refreshChannelMessages(channelId).catch(() => undefined);
+      return 'stopped';
     },
     modelCatalog: () => loadModelCatalog(call),
     modelPresets: () => loadModelPresets(call),

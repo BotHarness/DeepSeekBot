@@ -75,10 +75,12 @@ describe('resolveTheme', () => {
   it('uses each platform type and touch scale', () => {
     expect(resolveTheme('light', {}, 'ios')).toMatchObject({
       touch: 44,
+      mono: 'Menlo',
       type: { body: { size: 17 } },
     });
     expect(resolveTheme('light', {}, 'android')).toMatchObject({
       touch: 48,
+      mono: 'monospace',
       type: { body: { size: 14 } },
     });
   });

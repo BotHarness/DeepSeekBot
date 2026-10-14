@@ -25,6 +25,7 @@ vi.mock('../src/client/avatar.js', () => ({
 
 import { webQuickSwitcherBlocked } from '../src/client/channel-shortcuts.js';
 import { QuickSwitcher } from '../src/client/quick-switcher.js';
+import { ShortcutBindings } from '../src/client/shortcut-bindings.js';
 import {
   quickSwitcherEntries,
   type QuickSwitcherEntry,
@@ -87,7 +88,7 @@ describe('quick switcher keyboard', () => {
           entries,
           bots: new Map(),
           activityOf: () => 'idle' as const,
-          mac: false,
+          shortcutBindings: new ShortcutBindings(undefined, () => false),
           t: zhTranslate,
           onOpen: (entry: QuickSwitcherEntry) => opened.push(entry),
           onClose,

@@ -110,7 +110,7 @@ describe('observed model usage through the Profile query', () => {
     ]);
   });
 
-  it('keeps a reported exact total when a cache bucket is unknown', () => {
+  it('derives the one bucket a provider left out from its exact total', () => {
     const { methods, dm, fold } = setup();
     fold({ inputTokens: 100, outputTokens: 40, cacheReadTokens: 10, totalTokens: 155 });
     const result = methods.profileActivity({ channelId: dm.id });
@@ -119,6 +119,37 @@ describe('observed model usage through the Profile query', () => {
       inputTokens: 100,
       outputTokens: 40,
       cacheReadTokens: 10,
+      cacheWriteTokens: 5,
+      totalTokens: 155,
+    });
+  });
+
+  it('counts omitted cache buckets as zero when the reported buckets already make the total', () => {
+    const { methods, dm, fold } = setup();
+    fold(
+      { inputTokens: 22669, outputTokens: 38, totalTokens: 22707 },
+      { inputTokens: 248, outputTokens: 1, cacheReadTokens: 22528, totalTokens: 22777 },
+    );
+    const result = methods.profileActivity({ channelId: dm.id });
+    if (!result.ok) throw new Error(result.error.message);
+    expect(result.value.modelUsageRows[0]).toMatchObject({
+      inputTokens: 22917,
+      outputTokens: 39,
+      cacheReadTokens: 22528,
+      cacheWriteTokens: 0,
+      totalTokens: 45484,
+    });
+  });
+
+  it('keeps several omitted buckets unknown when the total cannot say how they split', () => {
+    const { methods, dm, fold } = setup();
+    fold({ inputTokens: 100, outputTokens: 40, totalTokens: 155 });
+    const result = methods.profileActivity({ channelId: dm.id });
+    if (!result.ok) throw new Error(result.error.message);
+    expect(result.value.modelUsageRows[0]).toMatchObject({
+      inputTokens: 100,
+      outputTokens: 40,
+      cacheReadTokens: null,
       cacheWriteTokens: null,
       totalTokens: 155,
     });
@@ -148,7 +179,7 @@ describe('observed model usage through the Profile query', () => {
         cacheWriteTokens: 5,
         totalTokens: 155,
       },
-      { outputTokens: 40, cacheReadTokens: 10, cacheWriteTokens: 5, totalTokens: 155 },
+      { outputTokens: 40, cacheReadTokens: 10, totalTokens: 155 },
     );
     const result = methods.profileActivity({ channelId: dm.id });
     if (!result.ok) throw new Error(result.error.message);
@@ -158,7 +189,7 @@ describe('observed model usage through the Profile query', () => {
       inputTokens: null,
       outputTokens: 80,
       cacheReadTokens: 20,
-      cacheWriteTokens: 10,
+      cacheWriteTokens: null,
       totalTokens: 310,
     });
   });
@@ -173,7 +204,7 @@ describe('observed model usage through the Profile query', () => {
         cacheWriteTokens: 5,
         totalTokens: 155,
       },
-      { outputTokens: 40, cacheReadTokens: 10, cacheWriteTokens: 5, totalTokens: 155 },
+      { outputTokens: 40, cacheReadTokens: 10, totalTokens: 155 },
       'other-model',
     );
     const result = methods.profileActivity({ channelId: dm.id });
@@ -193,7 +224,7 @@ describe('observed model usage through the Profile query', () => {
       inputTokens: null,
       outputTokens: 40,
       cacheReadTokens: 10,
-      cacheWriteTokens: 5,
+      cacheWriteTokens: null,
       totalTokens: 155,
     });
   });

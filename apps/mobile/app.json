@@ -21,7 +21,7 @@
         "expo-camera",
         {
           "cameraPermission": "DeepSeekBot uses the camera to scan the pairing code shown on your computer and to take photos you send to a PersonaBot.",
-          "microphonePermission": false,
+          "microphonePermission": "DeepSeekBot uses the microphone to turn what you say into a message you can edit before sending to a PersonaBot.",
           "recordAudioAndroid": false
         }
       ],
@@ -30,7 +30,14 @@
         {
           "photosPermission": "DeepSeekBot opens your photos so you can send them to a PersonaBot.",
           "cameraPermission": "DeepSeekBot uses the camera to scan the pairing code shown on your computer and to take photos you send to a PersonaBot.",
-          "microphonePermission": false
+          "microphonePermission": "DeepSeekBot uses the microphone to turn what you say into a message you can edit before sending to a PersonaBot."
+        }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "DeepSeekBot uses the microphone to turn what you say into a message you can edit before sending to a PersonaBot.",
+          "speechRecognitionPermission": "DeepSeekBot turns what you say into text so you can send it to a PersonaBot. You see and edit the text before it is sent."
         }
       ]
     ],

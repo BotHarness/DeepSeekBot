@@ -84,14 +84,14 @@ function setup(now?: () => Date) {
 
 it('reads today and seven-day observed usage through Overview without inventing missing buckets', () => {
   const { methods, dm, fold, time } = setup();
-  fold({ inputTokens: 100, outputTokens: 40, cacheReadTokens: 10, totalTokens: 155 });
+  fold({ inputTokens: 100, outputTokens: 40, totalTokens: 155 });
   const result = methods.overviewUsage({ period: 'week' });
   if (!result.ok) throw new Error(result.error.message);
   expect(result.value.days).toHaveLength(7);
   expect(result.value.totals).toMatchObject({
     inputTokens: 100,
     outputTokens: 40,
-    cacheReadTokens: 10,
+    cacheReadTokens: null,
     cacheWriteTokens: null,
     totalTokens: 155,
   });

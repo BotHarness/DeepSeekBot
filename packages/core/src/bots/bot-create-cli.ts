@@ -9,7 +9,7 @@ import {
   writeFileSync,
   unlinkSync,
 } from 'node:fs';
-import { basename, join, relative, resolve, sep } from 'node:path';
+import { basename, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { parseArgs } from 'node:util';
 import { isMap, isScalar, parseDocument } from 'yaml';
 import { parseCredentialsDocument } from '@deepseek-ai/dsh-credentials-local';
@@ -122,7 +122,8 @@ export const BOT_CREATE_HELP = `deepseekbot: create PersonaBots without clicking
 Usage:
   deepseekbot create --name <name> [--persona <text> | --persona-stdin]
                     [--description <text>] [--role <tag> ...]
-                    [--preset <model-preset-id>] [--home <dsh-home>]
+                    [--preset <model-preset-id>] [--memory-location <absolute-dir>]
+                    [--home <dsh-home>]
   deepseekbot create --name <name> --from-git <url | owner/repo> [...]
   deepseekbot create [--name <name>] --from-zip <file> [...]
   deepseekbot create [--name <name>] --from-dir <directory> [...]
@@ -435,6 +436,7 @@ const CREATE_OPTIONS = {
   'from-zip': { type: 'string' },
   'from-dir': { type: 'string' },
   'from-git': { type: 'string' },
+  'memory-location': { type: 'string' },
   home: { type: 'string' },
   'orchestrator-provider': { type: 'string' },
   'orchestrator-model': { type: 'string' },
@@ -702,6 +704,12 @@ function failureOf(reason: string, detail?: string): CliFailure {
           : `The Bot memory could not be initialized: ${detail}`,
         1,
       );
+    case 'invalid-memory-dir':
+      return new CliFailure(
+        'invalid-memory-dir',
+        'The Memory location must be an existing absolute folder that does not already hold this Bot.',
+        1,
+      );
     case 'duplicate':
       return new CliFailure('invalid-input', 'The minted bot id collided. Retry the command.', 1);
     default:
@@ -719,6 +727,7 @@ export interface ValidatedCreate {
   roles: string[] | undefined;
   description: string | undefined;
   presetId: string | undefined;
+  memoryLocation?: string;
   source:
     | { kind: 'blank' }
     | { kind: 'git'; gitUrl: string }
@@ -750,6 +759,15 @@ async function validatedCreate(
       ? undefined
       : values.role.map((role) => role.trim()).filter((role) => role.length > 0);
   const presetId = trimmed(values.preset);
+  const memoryLocation = trimmed(values['memory-location']);
+  if (memoryLocation !== undefined) {
+    if (zip !== undefined || dir !== undefined || git !== undefined) {
+      throw usageError('--memory-location applies to blank bots only.');
+    }
+    if (!isAbsolute(memoryLocation)) {
+      throw new CliFailure('invalid-input', '--memory-location must be an absolute path.', 1);
+    }
+  }
   if (git !== undefined) {
     if (persona !== undefined || personaStdin) {
       throw usageError('The persona comes from the Git repository, not --persona.');
@@ -806,6 +824,7 @@ async function validatedCreate(
     roles,
     description,
     presetId,
+    ...(memoryLocation === undefined ? {} : { memoryLocation }),
     source: { kind: 'blank' },
   };
 }
@@ -867,6 +886,9 @@ async function runCreate(
           slug: candidate,
           displayName: validated.displayName!,
           ...(validated.persona === undefined ? {} : { persona: validated.persona }),
+          ...(validated.memoryLocation === undefined
+            ? {}
+            : { memoryLocation: validated.memoryLocation }),
           ...base,
         });
       let created = attempt(slug);

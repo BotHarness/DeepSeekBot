@@ -48,6 +48,47 @@ const groupTools = {
   },
 };
 
+const reportRun: OrchestratorAgentRun = {
+  sessionId: 'orchestrator-ada',
+  resume: false,
+  bot: BOT,
+  message: 'Write a long report',
+  inboundChannelId: 'dm-test',
+  inbox: '',
+  channels: {
+    ...groupTools,
+    contacts: () => ({ outputLimit: 12_000, contacts: [] }),
+    sendToBot: async () => {
+      throw new Error('unexpected Bot DM');
+    },
+    ignore: () => ({ sourceEventId: 'source-1', ignoredAt: BOT.createdAt, alreadyIgnored: false }),
+    read: () => [],
+    requestGrant: async () => {
+      throw new Error('unexpected Grant request');
+    },
+    send: async (input) => ({
+      id: 'bot-1',
+      at: BOT.createdAt,
+      author: { kind: 'bot', slug: BOT.slug },
+      body: input.body,
+    }),
+  },
+  assignments: {
+    create: () => {
+      throw new Error('unexpected Assignment');
+    },
+    request: () => {
+      throw new Error('unexpected Assignment request');
+    },
+    grants: () => [],
+    list: () => [],
+    inspect: () => undefined,
+    stop: async () => {
+      throw new Error('unexpected stop');
+    },
+  },
+};
+
 describe('DSH Bot Agent adapter', () => {
   it.each<TurnEndCancelCause>([
     { kind: 'user' },
@@ -97,6 +138,69 @@ describe('DSH Bot Agent adapter', () => {
       else expect(cancelledTurn).not.toHaveBeenCalled();
       expect(completedTurn).not.toHaveBeenCalled();
       expect(report).not.toHaveBeenCalled();
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it.each([true, false])(
+    'ends a Human-stopped Orchestrator turn without an error (stopped: %s)',
+    async (stopped) => {
+      let started!: () => void;
+      let finish!: () => void;
+      const running = new Promise<void>((resolve) => {
+        started = resolve;
+      });
+      const host = new FakeAgentHost(
+        stopped ? { kind: 'aborted', reason: { kind: 'user' } } : { kind: 'completed' },
+        {
+          onTurn: () =>
+            new Promise<void>((resolve) => {
+              finish = resolve;
+              started();
+            }),
+        },
+      );
+      const adapter = createDshBotAgentAdapter({
+        agents: host,
+        defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+        orchestratorCwd: () => '/memory/ada',
+        ensureWorkspace: () => undefined,
+      });
+      try {
+        expect(adapter.stopOrchestratorTurn?.(BOT.slug)).toBeUndefined();
+        const turn = adapter.runOrchestrator(reportRun);
+        await running;
+        if (stopped) {
+          expect(adapter.stopOrchestratorTurn?.(BOT.slug)).toBe('orchestrator-ada');
+          expect(host.cancelled).toEqual([
+            { sessionId: 'orchestrator-ada', reason: { kind: 'user' } },
+          ]);
+        }
+        finish();
+        await expect(turn).resolves.toBeUndefined();
+        expect(adapter.stopOrchestratorTurn?.(BOT.slug)).toBeUndefined();
+      } finally {
+        await adapter.close();
+      }
+    },
+  );
+
+  it('still fails an Orchestrator turn aborted by anything but a Human stop', async () => {
+    const host = new FakeAgentHost(
+      { kind: 'aborted', reason: { kind: 'user' } },
+      { onTurn: async () => undefined },
+    );
+    const adapter = createDshBotAgentAdapter({
+      agents: host,
+      defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+      orchestratorCwd: () => '/memory/ada',
+      ensureWorkspace: () => undefined,
+    });
+    try {
+      await expect(adapter.runOrchestrator(reportRun)).rejects.toThrow(
+        'Agent turn ended without completion: aborted',
+      );
     } finally {
       await adapter.close();
     }

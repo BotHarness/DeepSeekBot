@@ -8,6 +8,7 @@ One file per user-facing feature. Each file has four sections: `Sub-features`, `
 | Bot DM reply | yes | none | [bot-dm-reply.md](bot-dm-reply.md) |
 | Conversation timeline: new-messages divider, kept place, folding, image preview, reactions, search | yes | none | [conversation-timeline.md](conversation-timeline.md) |
 | PersonaBot creation and restart persistence | no | `scripts/e2e-personabot-create.mjs` (CI) | [personabot-create.md](personabot-create.md) |
+| Stop a working Bot (Web Client) | yes | `scripts/e2e-web-stop.mjs` | [bot-stop.md](bot-stop.md) |
 | Phone pairing and paired devices | no | `scripts/e2e-mobile-pairing-web.mjs`, `scripts/e2e-device-pairing.mjs` | [phone-pairing.md](phone-pairing.md) |
 
 ## Not mapped yet

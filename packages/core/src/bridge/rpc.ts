@@ -608,6 +608,12 @@ export class BotharnessBridgeService extends TypertRemoteService {
   channelRetry(channelId: string, messageId: string): Promise<{ accepted: true }> {
     return unwrapAsync(this.methods.channelRetry({ channelId, messageId }));
   }
+  channelBotStop(
+    channelId: string,
+    botSlug: string,
+  ): Promise<{ stopped: { botSlug: string; sessionId: string; messageId: string } }> {
+    return unwrapAsync(this.methods.channelBotStop({ channelId, botSlug }));
+  }
   modelCatalog(): Promise<{
     models: ModelCatalogEntry[];
     default?: ModelRoute;
@@ -715,6 +721,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     preset?: string,
     workspaces?: string[],
     avatar?: string,
+    memoryLocation?: string,
   ): { bot: PersonaBotDetail } {
     return unwrap(
       this.methods.create({
@@ -726,6 +733,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
         preset,
         workspaces,
         avatar,
+        memoryLocation,
       }),
     );
   }
@@ -1590,6 +1598,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'onboardingModel',
   'modelPlanInherit',
   'channelRetry',
+  'channelBotStop',
   'modelCatalog',
   'modelPresets',
   'modelPresetCreate',

@@ -209,6 +209,9 @@ export async function runOnlineManagement(
                 : create.persona === undefined
                   ? {}
                   : { persona: create.persona }),
+              ...(create.memoryLocation === undefined
+                ? {}
+                : { memoryLocation: create.memoryLocation }),
             },
           );
     if (!result.bot?.slug || !result.bot.displayName)

@@ -1,13 +1,41 @@
-import { useState, type ReactNode } from 'react';
-import { Image, Keyboard, Pressable, ScrollView, TextInput, View } from 'react-native';
+import { useRef, useState, type ReactNode } from 'react';
+import {
+  Image,
+  Keyboard,
+  PanResponder,
+  Pressable,
+  ScrollView,
+  TextInput,
+  View,
+  type ViewStyle,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { PickSource, PickedFile } from '../../host/pick-files';
 import { useDesignTheme } from '../design/theme';
 import { edge, radius, space } from '../design/tokens';
 import { Text } from '../primitives/text';
-import { ArrowUpIcon, CameraIcon, CloseIcon, FileIcon, PhotoIcon, PlusIcon } from '../shell/icons';
+import {
+  ArrowUpIcon,
+  CameraIcon,
+  ChevronUpIcon,
+  CloseIcon,
+  FileIcon,
+  LockIcon,
+  MicIcon,
+  PhotoIcon,
+  PlusIcon,
+  RecordingStopIcon,
+} from '../shell/icons';
 import { t } from '../strings';
+import {
+  composerActions,
+  composerStacked,
+  dictating,
+  voiceDrag,
+  voiceRelease,
+  type DictationStatus,
+} from './dictation';
 
 const SOURCES: Array<{ source: PickSource; label: string; Icon: typeof PhotoIcon }> = [
   { source: 'photos', label: t.attachPhotos, Icon: PhotoIcon },
@@ -110,6 +138,132 @@ function AttachmentTile({ file, onRemove }: { file: PickedFile; onRemove(): void
   );
 }
 
+function VoiceButton({
+  active,
+  onStart,
+  onStop,
+  onCancel,
+  onHeld,
+}: {
+  active: boolean;
+  onStart(): void;
+  onStop(): void;
+  onCancel(): void;
+  onHeld(held: boolean): void;
+}) {
+  const theme = useDesignTheme();
+  const [held, setHeld] = useState(false);
+  const size = theme.touch - space.x4;
+  const latest = useRef({ active, onStart, onStop, onCancel, onHeld });
+  latest.current = { active, onStart, onStop, onCancel, onHeld };
+  const gesture = useRef({ at: 0, startedHere: false, done: false });
+  const hold = (next: boolean) => {
+    setHeld(next);
+    latest.current.onHeld(next);
+  };
+  const responder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderGrant: () => {
+        const startedHere = !latest.current.active;
+        gesture.current = { at: Date.now(), startedHere, done: false };
+        if (!startedHere) return;
+        latest.current.onStart();
+        hold(true);
+      },
+      onPanResponderMove: (_event, { dx, dy }) => {
+        const current = gesture.current;
+        if (!current.startedHere || current.done) return;
+        const drag = voiceDrag(dx, dy);
+        if (drag === undefined) return;
+        current.done = true;
+        hold(false);
+        if (drag === 'cancel') latest.current.onCancel();
+      },
+      onPanResponderRelease: () => {
+        const current = gesture.current;
+        hold(false);
+        if (current.done) return;
+        if (!current.startedHere) latest.current.onStop();
+        else if (voiceRelease(Date.now() - current.at) === 'stop') latest.current.onStop();
+      },
+      onPanResponderTerminate: () => hold(false),
+    }),
+  ).current;
+  const filled = active || held;
+  return (
+    <View
+      {...responder.panHandlers}
+      accessible
+      accessibilityRole="button"
+      accessibilityLabel={active ? t.stopDictation : t.dictate}
+      accessibilityHint={active ? undefined : t.dictateHint}
+      onAccessibilityTap={() => (latest.current.active ? onStop() : onStart())}
+      hitSlop={space.x2}
+      style={{
+        width: size,
+        height: size,
+        borderRadius: radius.round,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: filled ? theme.color.accent : undefined,
+      }}
+    >
+      {active && !held ? (
+        <RecordingStopIcon color={theme.color.onAccent} size={theme.type.title.line} />
+      ) : (
+        <MicIcon
+          color={filled ? theme.color.onAccent : theme.color.muted}
+          size={theme.type.title.line}
+        />
+      )}
+    </View>
+  );
+}
+
+function HoldDot() {
+  const theme = useDesignTheme();
+  const size = theme.touch - space.x4;
+  return (
+    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+      <View
+        style={{
+          width: space.x3,
+          height: space.x3,
+          borderRadius: radius.round,
+          backgroundColor: theme.color.danger,
+        }}
+      />
+    </View>
+  );
+}
+
+function LockHint({ style }: { style: ViewStyle }) {
+  const theme = useDesignTheme();
+  const size = theme.touch - space.x4;
+  return (
+    <View
+      style={[
+        style,
+        {
+          width: size,
+          paddingVertical: space.x3,
+          gap: space.x2,
+          alignItems: 'center',
+          borderRadius: radius.round,
+          borderWidth: edge.hairline,
+          borderColor: theme.color.borderStrong,
+          backgroundColor: theme.color.surface,
+        },
+      ]}
+    >
+      <LockIcon color={theme.color.muted} size={theme.type.title.line} />
+      <ChevronUpIcon color={theme.color.subtle} size={theme.type.body.size} />
+    </View>
+  );
+}
+
 function AttachMenu({ onPick }: { onPick(source: PickSource): void }) {
   const theme = useDesignTheme();
   return (
@@ -163,29 +317,126 @@ export function Composer({
   disabled,
   files,
   canAttach,
+  dictation,
+  canDictate,
   onChange,
   onSend,
   onPick,
   onRemove,
+  onDictate,
+  onStopDictation,
+  onCancelDictation,
 }: {
   value: string;
   placeholder: string;
   disabled: boolean;
   files: PickedFile[];
   canAttach: boolean;
+  dictation: DictationStatus;
+  canDictate: boolean;
   onChange(next: string): void;
   onSend(): void;
   onPick(source: PickSource): void;
   onRemove(id: string): void;
+  onDictate(): void;
+  onStopDictation(): void;
+  onCancelDictation(): void;
 }) {
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
   const [menu, setMenu] = useState(false);
-  const ready = (value.trim() !== '' || files.length > 0) && !disabled;
+  const [held, setHeld] = useState(false);
+  const [contentHeight, setContentHeight] = useState(0);
+  const [pill, setPill] = useState({ width: 0, height: 0 });
+  const [wraps, setWraps] = useState(false);
+  const lineHeight = theme.touch - space.x4;
+  const inset = space.x3;
+  const listening = dictating(dictation);
+  const actions = composerActions({
+    text: value,
+    files: files.length,
+    disabled,
+    dictation,
+    canDictate,
+  });
   const toggleMenu = () => {
     if (!menu) Keyboard.dismiss();
     setMenu(!menu);
   };
+  const stacked = composerStacked(actions, files.length, wraps);
+  const icon = theme.type.title.line;
+  const button = theme.touch - space.x4;
+  const compactWidth = pill.width - 2 * (inset + edge.hairline + button + space.x2);
+  const leading = held ? (
+    <HoldDot key="lead" />
+  ) : listening ? (
+    <RoundButton key="lead" label={t.cancelDictation} filled={false} onPress={onCancelDictation}>
+      <CloseIcon color={theme.color.muted} size={icon} />
+    </RoundButton>
+  ) : canAttach ? (
+    <RoundButton
+      key="lead"
+      label={menu ? t.closeAttach : t.attach}
+      filled={false}
+      onPress={toggleMenu}
+    >
+      {menu ? (
+        <CloseIcon color={theme.color.muted} size={icon} />
+      ) : (
+        <PlusIcon color={theme.color.muted} size={icon} />
+      )}
+    </RoundButton>
+  ) : null;
+  const field = (
+    <TextInput
+      key="field"
+      value={value}
+      onChangeText={onChange}
+      onFocus={() => setMenu(false)}
+      placeholder={
+        held
+          ? t.dictationHoldHint
+          : dictation === 'starting'
+            ? t.dictationStarting
+            : listening
+              ? t.dictationListening
+              : placeholder
+      }
+      placeholderTextColor={theme.color.subtle}
+      accessibilityLabel={placeholder}
+      multiline
+      editable={!listening}
+      onContentSizeChange={(event) => setContentHeight(event.nativeEvent.contentSize.height)}
+      style={{
+        flex: 1,
+        height: wraps ? Math.min(Math.max(contentHeight, lineHeight), theme.touch * 3) : lineHeight,
+        paddingVertical: (lineHeight - theme.type.body.line) / 2,
+        paddingHorizontal: stacked || leading === null ? space.x3 : 0,
+        color: theme.color.fg,
+        fontSize: theme.type.body.size,
+        lineHeight: theme.type.body.line,
+      }}
+    />
+  );
+  const trailing = actions.map((action) =>
+    action === 'send' ? (
+      <RoundButton key={action} label={t.send} filled onPress={onSend}>
+        <ArrowUpIcon color={theme.color.onAccent} size={icon} />
+      </RoundButton>
+    ) : (
+      <VoiceButton
+        key="voice"
+        active={listening}
+        onStart={() => {
+          setMenu(false);
+          onDictate();
+        }}
+        onStop={onStopDictation}
+        onCancel={onCancelDictation}
+        onHeld={setHeld}
+      />
+    ),
+  );
   return (
     <View
       style={{
@@ -197,12 +448,18 @@ export function Composer({
     >
       <View
         style={{
-          borderRadius: radius.lg + space.x3,
+          borderRadius: (theme.touch - space.x4) / 2 + inset,
           borderWidth: edge.hairline,
           borderColor: theme.color.borderStrong,
           backgroundColor: theme.color.surface,
           overflow: 'hidden',
         }}
+        onLayout={(event) =>
+          setPill({
+            width: event.nativeEvent.layout.width,
+            height: event.nativeEvent.layout.height,
+          })
+        }
       >
         {files.length > 0 ? (
           <ScrollView
@@ -216,55 +473,56 @@ export function Composer({
             ))}
           </ScrollView>
         ) : null}
-        <View
-          style={{
-            flexDirection: 'row',
-            alignItems: 'flex-end',
-            gap: space.x2,
-            paddingHorizontal: space.x2,
-            paddingVertical: space.x3,
-          }}
-        >
-          {canAttach ? (
-            <RoundButton
-              label={menu ? t.closeAttach : t.attach}
-              filled={false}
-              onPress={toggleMenu}
-            >
-              {menu ? (
-                <CloseIcon color={theme.color.muted} size={theme.type.title.line} />
-              ) : (
-                <PlusIcon color={theme.color.muted} size={theme.type.title.line} />
-              )}
-            </RoundButton>
-          ) : null}
-          <TextInput
-            value={value}
-            onChangeText={onChange}
-            onFocus={() => setMenu(false)}
-            placeholder={placeholder}
-            placeholderTextColor={theme.color.subtle}
-            accessibilityLabel={placeholder}
-            multiline
+        <View style={{ padding: inset }}>
+          <View
             style={{
-              flex: 1,
-              maxHeight: theme.touch * 3,
-              minHeight: theme.touch - space.x4,
-              paddingVertical: (theme.touch - space.x4 - theme.type.body.line) / 2,
-              paddingLeft: canAttach ? 0 : space.x3,
-              color: theme.color.fg,
-              fontSize: theme.type.body.size,
-              lineHeight: theme.type.body.line,
+              flexDirection: 'row',
+              paddingLeft: stacked || leading === null ? 0 : button + space.x2,
+              paddingRight: stacked || trailing.length === 0 ? 0 : button + space.x2,
             }}
-          />
-          {ready ? (
-            <RoundButton label={t.send} filled onPress={onSend}>
-              <ArrowUpIcon color={theme.color.onAccent} size={theme.type.title.line} />
-            </RoundButton>
-          ) : null}
+          >
+            {field}
+          </View>
+          <View
+            pointerEvents="box-none"
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: space.x2,
+              ...(stacked
+                ? { paddingTop: space.x2 }
+                : { position: 'absolute', left: inset, right: inset, bottom: inset }),
+            }}
+          >
+            {leading}
+            <View pointerEvents="none" style={{ flex: 1 }} />
+            {trailing}
+          </View>
         </View>
+        {compactWidth > 0 ? (
+          <Text
+            variant="body"
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+            onLayout={(event) =>
+              setWraps(event.nativeEvent.layout.height > theme.type.body.line * 1.5)
+            }
+            style={{ position: 'absolute', opacity: 0, width: compactWidth, left: 0, top: 0 }}
+          >
+            {value === '' ? ' ' : value}
+          </Text>
+        ) : null}
       </View>
-      {menu && canAttach ? (
+      {held ? (
+        <LockHint
+          style={{
+            position: 'absolute',
+            right: space.x4 + edge.hairline + inset,
+            bottom: Math.max(insets.bottom, space.x3) + pill.height + space.x3,
+          }}
+        />
+      ) : null}
+      {menu && canAttach && !listening ? (
         <AttachMenu
           onPick={(source) => {
             setMenu(false);

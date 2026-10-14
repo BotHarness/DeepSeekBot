@@ -1,24 +1,43 @@
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useHeaderHeight } from 'expo-router/react-navigation';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, View } from 'react-native';
 
-import type { ConversationDraft, MessageAttachment } from '../../src/host/conversation';
+import type { HostClient } from '../../src/host/client';
+import type {
+  CardResolution,
+  ConversationDraft,
+  ConversationMessage,
+  MessageAttachment,
+  MessageCard,
+} from '../../src/host/conversation';
+import type { Inbox } from '../../src/host/inbox';
 import { shareAttachment } from '../../src/host/share-attachment';
 import { MAX_PICKED, pickFiles, type PickSource, type PickedFile } from '../../src/host/pick-files';
+import { stopBot, type StopOutcome } from '../../src/host/stop';
 import {
   useConversation,
   useConversationSnapshot,
   useHostSession,
   useHostSnapshot,
 } from '../../src/host/host-session';
+import {
+  answerQuestion,
+  decideApproval,
+  loadApproval,
+  loadQuestion,
+  type RequestRef,
+} from '../../src/host/requests';
+import { useDictation } from '../../src/host/speech';
 import { botColor } from '../../src/ui/bot-color';
+import { ApprovalCard } from '../../src/ui/chat/approval-card';
 import { botBusy } from '../../src/ui/chat/bot-tone';
 import { ChatTitle } from '../../src/ui/chat/chat-title';
 import { Composer } from '../../src/ui/chat/composer';
 import { ImageViewer } from '../../src/ui/chat/image-viewer';
 import { DraftBubble, MessageBubble } from '../../src/ui/chat/message-bubble';
 import { chatRows, type ChatRow } from '../../src/ui/chat/message-groups';
+import { QuestionCard } from '../../src/ui/chat/question-card';
 import { StatusStrip } from '../../src/ui/chat/status-strip';
 import { TimeSeparator } from '../../src/ui/chat/time-separator';
 import { AccentProvider, useDesignTheme } from '../../src/ui/design/theme';
@@ -30,20 +49,97 @@ import { t } from '../../src/ui/strings';
 type Row = ChatRow | { kind: 'draft'; key: string; draft: ConversationDraft };
 
 export default function DmScreen() {
-  const { slug } = useLocalSearchParams<{ slug: string }>();
+  const { slug, focus } = useLocalSearchParams<{ slug: string; focus?: string }>();
   const { client } = useHostSession();
   const bot = useHostSnapshot(client).roster?.bots.find((entry) => entry.slug === slug);
   return (
     <AccentProvider accent={bot === undefined ? undefined : botColor(bot)}>
-      <DmConversation slug={slug} />
+      <DmConversation slug={slug} focus={focus} />
     </AccentProvider>
   );
 }
 
-function DmConversation({ slug }: { slug: string | undefined }) {
+function hiddenResolution(message: ConversationMessage): boolean {
+  const resolution = message.resolves?.resolution;
+  return (
+    resolution?.kind === 'tool-approval' ||
+    (resolution?.kind === 'user-question' && resolution.state === 'cancelled')
+  );
+}
+
+function RequestCard({
+  client,
+  inbox,
+  message,
+  card,
+  botSlug,
+  botName,
+  resolution,
+  focused,
+}: {
+  client: HostClient;
+  inbox: Inbox | undefined;
+  message: ConversationMessage;
+  card: MessageCard;
+  botSlug: string;
+  botName: string;
+  resolution: CardResolution | undefined;
+  focused: boolean;
+}) {
+  const router = useRouter();
+  const ref = useMemo<RequestRef>(
+    () => ({ channelId: card.channelId, messageId: message.id, botSlug }),
+    [card.channelId, message.id, botSlug],
+  );
+  const approval = useMemo(
+    () => ({
+      load: () => loadApproval(client, ref),
+      decide: async (outcome: Parameters<typeof decideApproval>[2]) => {
+        const result = await decideApproval(client, ref, outcome);
+        void inbox?.refresh();
+        return result;
+      },
+    }),
+    [client, inbox, ref],
+  );
+  const question = useMemo(
+    () => ({
+      load: () => loadQuestion(client, ref),
+      answer: async (answer: Parameters<typeof answerQuestion>[2]) => {
+        const result = await answerQuestion(client, ref, answer);
+        void inbox?.refresh();
+        return result;
+      },
+    }),
+    [client, inbox, ref],
+  );
+  const subject = card.subject === undefined ? {} : { subject: card.subject };
+  if (card.kind === 'tool-approval')
+    return (
+      <ApprovalCard
+        port={approval}
+        botName={botName}
+        {...subject}
+        {...(resolution?.kind === 'tool-approval' ? { resolution } : {})}
+        focused={focused}
+        onDetails={() => router.push({ pathname: '/approval', params: { ...ref } })}
+      />
+    );
+  return (
+    <QuestionCard
+      port={question}
+      botName={botName}
+      {...subject}
+      {...(resolution?.kind === 'user-question' ? { resolution } : {})}
+      focused={focused}
+    />
+  );
+}
+
+function DmConversation({ slug, focus }: { slug: string | undefined; focus: string | undefined }) {
   const theme = useDesignTheme();
   const headerHeight = useHeaderHeight();
-  const { client } = useHostSession();
+  const { client, inbox } = useHostSession();
   const host = useHostSnapshot(client);
   const bot = host.roster?.bots.find((entry) => entry.slug === slug);
   const target = useMemo(
@@ -62,9 +158,25 @@ function DmConversation({ slug }: { slug: string | undefined }) {
   const [draft, setDraft] = useState('');
   const [files, setFiles] = useState<PickedFile[]>([]);
   const [attachError, setAttachError] = useState(false);
+  const dictation = useDictation(setDraft);
+  const [stop, setStop] = useState<StopOutcome | { status: 'stopping' } | undefined>();
   const [shareError, setShareError] = useState(false);
   const [viewing, setViewing] = useState<MessageAttachment>();
   const now = new Date();
+  const list = useRef<FlatList<Row>>(null);
+  const jumped = useRef<string | undefined>(undefined);
+
+  const resolutions = useMemo(
+    () =>
+      new Map(
+        snapshot.messages.flatMap((message) =>
+          message.resolves === undefined
+            ? []
+            : [[message.resolves.requestId, message.resolves.resolution] as const],
+        ),
+      ),
+    [snapshot.messages],
+  );
 
   const rows = useMemo<Row[]>(
     () => [
@@ -73,15 +185,26 @@ function DmConversation({ slug }: { slug: string | undefined }) {
         key: `draft:${entry.draftId}`,
         draft: entry,
       })),
-      ...chatRows(snapshot.messages).reverse(),
+      ...chatRows(snapshot.messages.filter((message) => !hiddenResolution(message))).reverse(),
     ],
     [snapshot.drafts, snapshot.messages],
   );
+
+  const jump = () => {
+    if (focus === undefined || jumped.current === focus) return;
+    const index = rows.findIndex((row) => row.kind === 'message' && row.message.id === focus);
+    if (index >= 0) {
+      jumped.current = focus;
+      list.current?.scrollToIndex({ index, viewPosition: 0.5, animated: true });
+    } else if (snapshot.status === 'live' && snapshot.hasOlder && !snapshot.loadingOlder)
+      void conversation?.loadOlder();
+  };
 
   const send = () => {
     const body = draft.trim();
     if ((body === '' && files.length === 0) || conversation === undefined) return;
     conversation.send(body, files);
+    if (dictation.state.status !== 'idle') dictation.cancel();
     setDraft('');
     setFiles([]);
   };
@@ -91,6 +214,15 @@ function DmConversation({ slug }: { slug: string | undefined }) {
     pickFiles(source, MAX_PICKED - files.length)
       .then((more) => setFiles((current) => [...current, ...more].slice(0, MAX_PICKED)))
       .catch(() => setAttachError(true));
+  };
+
+  const stopRun = () => {
+    if (client === undefined || bot?.dmChannelId === undefined || stop?.status === 'stopping')
+      return;
+    setStop({ status: 'stopping' });
+    void stopBot(client, bot.dmChannelId, bot.slug).then((outcome) =>
+      setStop(outcome.status === 'stopped' ? undefined : outcome),
+    );
   };
 
   const share = (attachment: MessageAttachment): Promise<void> => {
@@ -111,7 +243,17 @@ function DmConversation({ slug }: { slug: string | undefined }) {
               ? t.attachFailed
               : shareError
                 ? t.shareFailed
-                : undefined;
+                : stop?.status === 'not-working' && bot !== undefined
+                  ? t.stopNotWorking(bot.displayName)
+                  : stop?.status === 'failed'
+                    ? `${t.stopFailed} ${stop.reason}`
+                    : dictation.state.status === 'denied'
+                      ? t.dictationDenied
+                      : dictation.state.status === 'unavailable'
+                        ? t.dictationUnavailable
+                        : dictation.state.status === 'failed'
+                          ? t.dictationFailed
+                          : undefined;
 
   return (
     <>
@@ -127,6 +269,7 @@ function DmConversation({ slug }: { slug: string | undefined }) {
         }}
       />
       <KeyboardAvoidingView
+        ref={dictation.mountRef}
         style={{ flex: 1, backgroundColor: theme.color.base }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={headerHeight}
@@ -146,6 +289,7 @@ function DmConversation({ slug }: { slug: string | undefined }) {
           </Text>
         )}
         <FlatList
+          ref={list}
           inverted
           style={{ flex: 1 }}
           contentContainerStyle={{ paddingVertical: space.x3 }}
@@ -156,6 +300,20 @@ function DmConversation({ slug }: { slug: string | undefined }) {
               <DraftBubble draft={item.draft} />
             ) : item.kind === 'separator' ? (
               <TimeSeparator at={item.at} now={now} />
+            ) : client !== undefined &&
+              slug !== undefined &&
+              (item.message.card?.kind === 'tool-approval' ||
+                item.message.card?.kind === 'user-question') ? (
+              <RequestCard
+                client={client}
+                inbox={inbox}
+                message={item.message}
+                card={item.message.card}
+                botSlug={slug}
+                botName={bot?.displayName ?? slug}
+                resolution={resolutions.get(item.message.id)}
+                focused={item.message.id === focus}
+              />
             ) : (
               <MessageBubble
                 message={item.message}
@@ -167,14 +325,39 @@ function DmConversation({ slug }: { slug: string | undefined }) {
               />
             )
           }
+          onContentSizeChange={jump}
+          onScrollToIndexFailed={(info) => {
+            list.current?.scrollToOffset({
+              offset: info.averageItemLength * info.index,
+              animated: false,
+            });
+            setTimeout(
+              () =>
+                list.current?.scrollToIndex({
+                  index: info.index,
+                  viewPosition: 0.5,
+                  animated: true,
+                }),
+              100,
+            );
+          }}
           onEndReached={() => void conversation?.loadOlder()}
           onEndReachedThreshold={0.5}
-          maintainVisibleContentPosition={{ minIndexForVisible: 0, autoscrollToTopThreshold: 40 }}
+          maintainVisibleContentPosition={{
+            minIndexForVisible: 0,
+            autoscrollToTopThreshold: 40,
+          }}
           keyboardDismissMode="interactive"
           keyboardShouldPersistTaps="handled"
           ListFooterComponent={
             snapshot.loadingOlder ? (
-              <View style={{ padding: space.x4, alignItems: 'center', gap: space.x2 }}>
+              <View
+                style={{
+                  padding: space.x4,
+                  alignItems: 'center',
+                  gap: space.x2,
+                }}
+              >
                 <ActivityIndicator />
                 <Text variant="meta" tone="muted">
                   {t.olderLoading}
@@ -194,17 +377,27 @@ function DmConversation({ slug }: { slug: string | undefined }) {
             ) : null
           }
         />
-        {bot !== undefined && botBusy(bot) ? <StatusStrip bot={bot} /> : null}
+        {bot !== undefined && botBusy(bot) ? (
+          <StatusStrip bot={bot} stopping={stop?.status === 'stopping'} onStop={stopRun} />
+        ) : null}
         <Composer
           value={draft}
           placeholder={bot === undefined ? t.messagePlaceholder : t.messageBot(bot.displayName)}
           disabled={conversation === undefined}
           files={files}
           canAttach={files.length < MAX_PICKED}
+          dictation={dictation.state.status}
+          canDictate={conversation !== undefined}
           onChange={setDraft}
           onSend={send}
           onPick={pick}
           onRemove={(id) => setFiles((current) => current.filter((file) => file.id !== id))}
+          onDictate={() => {
+            setAttachError(false);
+            dictation.start();
+          }}
+          onStopDictation={dictation.stop}
+          onCancelDictation={dictation.cancel}
         />
       </KeyboardAvoidingView>
       <ImageViewer attachment={viewing} onClose={() => setViewing(undefined)} onShare={share} />

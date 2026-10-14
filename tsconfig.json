@@ -37,5 +37,9 @@
     "apps/mobile/test",
     "*.config.ts"
   ],
-  "exclude": ["apps/mobile/test/inbox-screens.test.ts", "apps/mobile/test/**/*.tsx"]
+  "exclude": [
+    "apps/mobile/test/inbox-screens.test.ts",
+    "apps/mobile/test/action-cards.test.ts",
+    "apps/mobile/test/**/*.tsx"
+  ]
 }

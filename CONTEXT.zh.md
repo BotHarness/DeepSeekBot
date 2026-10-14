@@ -792,6 +792,14 @@ _避免使用_：widget、card、tab、destination、Channel section
 桌面端 Channel sidebar 的一个图标标签页，包含一个或多个 Channel sidebar entry（会话 = Session + Bot Inbox；记忆 = 记忆文件 + 记忆演化）。没有指定已注册 tab 的 entry 自成一个 tab。有两个可见 entry 的 tab 分成上下两个区域。Human 在 + 视图菜单中排序和隐藏 tab，这些是浏览器本地的展示偏好。
 _避免使用_：view、page、rail item
 
+**Bot mode layout**：
+桌面端 Bot mode（宽度 960 px 及以上）的整体界面：一个可停靠布局，Human 可以拖动、停靠、叠成 tab、浮动、调整大小、关闭和重新打开 Dock panel，布局按浏览器保存，并可恢复默认（提议中，ADR-0203）。窄布局与手机保持响应式布局。
+_避免使用_：workbench、panel layout、dock
+
+**Dock panel**：
+Bot mode layout 中注册的一个单元：稳定 id、标题、图标、scope（`channel` 面板跟随当前 Channel，`global` 面板不跟随）、默认位置与渲染器。App Sidebar panel、Channel body 和每个 Channel sidebar entry 都是 Dock panel；其他插件通过 `dockPanels` Service 注册更多面板。Dock panel 只是 UI Consumer；插件的数据存放在它自己的 Service 与 Provider 中（提议中，ADR-0203）。
+_避免使用_：widget、view、pane、DSH main panel
+
 **Channel settings**：
 当前 Channel 的运行配置 modal（频道设置）：PersonaBot DM 中是 Wake Policy、外部身份与外部连接器；群聊中是 Wake Policy、外部连接器与群管理。从 Channel sidebar 齿轮菜单和 Channel header 的「···」菜单打开，按 Channel settings section 组织。
 _避免使用_：Bot Settings、Profile settings、sidebar settings

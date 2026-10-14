@@ -214,6 +214,7 @@ export interface ChannelMessage {
     files: Array<{ path: string; added: number | null; deleted: number | null }>;
     moreFiles: number;
   };
+  turnStop?: { botName: string; humanName: string };
   memberDeparture?: {
     memberKind: 'bot' | 'human';
     memberId: string;

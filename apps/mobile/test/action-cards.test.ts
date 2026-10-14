@@ -1,0 +1,277 @@
+// @vitest-environment jsdom
+import { act, createElement, type ReactElement } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('react-native', () => import('./react-native-shim'));
+vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
+
+import { createHostClient, type HostClient } from '../src/host/client';
+import {
+  answerQuestion,
+  decideApproval,
+  loadApproval,
+  loadQuestion,
+  offersAlwaysAllow,
+  requestRef,
+} from '../src/host/requests';
+import type { HumanAttentionItem } from '../src/host/wire';
+import { ApprovalCard } from '../src/ui/chat/approval-card';
+import { QuestionCard } from '../src/ui/chat/question-card';
+import { t } from '../src/ui/strings';
+import { FakeHost } from './fake-host';
+import inboxWire from './fixtures/inbox-wire.json';
+
+Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+
+type Recorded = keyof typeof inboxWire.rpc;
+const recorded = (name: Recorded): unknown => structuredClone(inboxWire.rpc[name].result);
+const items = (name: Recorded): HumanAttentionItem[] =>
+  (inboxWire.rpc[name].result as { value: { items: HumanAttentionItem[] } }).value.items;
+
+const ROUTE = 'https://studio.tailnet-example.ts.net';
+const approval = requestRef(items('humanAttention.action')[0]!)!;
+const question = requestRef(items('humanAttention.actionQuestion')[0]!)!;
+const expired = { ok: true, value: { status: 'expired' } };
+
+let client: HostClient | undefined;
+let root: Root | undefined;
+let container: HTMLElement | undefined;
+afterEach(() => {
+  act(() => root?.unmount());
+  container?.remove();
+  root = undefined;
+  client?.stop();
+});
+
+function host(): FakeHost {
+  const fake = new FakeHost();
+  fake.answers.set('toolApprovalStatus', () => recorded('toolApprovalStatus.pending'));
+  fake.answers.set('toolApprovalDecide', () => recorded('toolApprovalDecide.accepted'));
+  fake.answers.set('userQuestionStatus', () => recorded('userQuestionStatus.pending'));
+  fake.answers.set('userQuestionAnswer', () => recorded('userQuestionAnswer.accepted'));
+  fake.answers.set('channelTimeline', (args) =>
+    recorded(
+      args['around'] === approval.messageId
+        ? 'channelTimeline.approvalPending'
+        : 'channelTimeline.questionPending',
+    ),
+  );
+  return fake;
+}
+
+function connect(fake: FakeHost): HostClient {
+  client = createHostClient({
+    routes: [ROUTE],
+    credential: fake.credential,
+    carrier: fake.carrier,
+    backoff: () => 5,
+    timeoutMs: 200,
+  });
+  client.start();
+  return client;
+}
+
+function approvalPort(target: HostClient) {
+  return {
+    load: () => loadApproval(target, approval),
+    decide: (outcome: Parameters<typeof decideApproval>[2]) =>
+      decideApproval(target, approval, outcome),
+  };
+}
+
+function questionPort(target: HostClient) {
+  return {
+    load: () => loadQuestion(target, question),
+    answer: (answer: Parameters<typeof answerQuestion>[2]) =>
+      answerQuestion(target, question, answer),
+  };
+}
+
+async function settle(): Promise<void> {
+  for (let tries = 0; tries < 20; tries += 1)
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 5)));
+}
+
+async function render(element: ReactElement): Promise<HTMLElement> {
+  container = document.createElement('div');
+  document.body.append(container);
+  root = createRoot(container);
+  await act(async () => root!.render(element));
+  await settle();
+  return container;
+}
+
+async function rerender(element: ReactElement): Promise<void> {
+  await act(async () => root!.render(element));
+  await settle();
+}
+
+function button(view: HTMLElement, label: string): HTMLButtonElement {
+  const found = view.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`);
+  if (found === null) throw new Error(`no button ${label}`);
+  return found;
+}
+
+async function press(target: HTMLElement): Promise<void> {
+  await act(async () => target.click());
+  await settle();
+}
+
+async function type(view: HTMLElement, label: string, text: string): Promise<void> {
+  const input = view.querySelector<HTMLTextAreaElement>(`textarea[aria-label="${label}"]`)!;
+  const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!;
+  await act(async () => {
+    setter.call(input, text);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+}
+
+const line = (view: HTMLElement) =>
+  view.querySelector('[data-testid="card-line"]')?.getAttribute('aria-label');
+
+describe('Tool approval card in the DM', () => {
+  const card = (target: HostClient, extra: Record<string, unknown> = {}) =>
+    createElement(ApprovalCard, {
+      port: approvalPort(target),
+      botName: 'Inbox QA',
+      subject: 'bash',
+      onDetails: () => undefined,
+      ...extra,
+    });
+
+  it('shows the tool, folder and command with Allow once, Always allow, Deny and Details', async () => {
+    const view = await render(card(connect(host())));
+    expect(view.textContent).toContain(t.wantsToRun('Inbox QA', 'bash'));
+    expect(view.textContent).toContain('/home/qa/.dsh/botharness/bots/');
+    expect(view.textContent).toContain('ls /tmp/mobile-fixture');
+    for (const label of [t.allowOnce, t.alwaysAllow, t.deny, t.details])
+      expect(button(view, label).disabled).toBe(false);
+  });
+
+  it('collapses to one line once allowed here', async () => {
+    const fake = host();
+    const sent: Array<Record<string, unknown>> = [];
+    fake.answers.set('toolApprovalDecide', (args) => {
+      sent.push(args);
+      return recorded('toolApprovalDecide.accepted');
+    });
+    const view = await render(card(connect(fake)));
+    await press(button(view, t.alwaysAllow));
+    expect(sent[0]?.['outcome']).toBe('allowed-always-exact');
+    expect(line(view)).toBe(t.cardLine('bash', t.cardOutcome['allowed-always-exact']));
+    expect(view.querySelector('button')).toBeNull();
+  });
+
+  it('says so when another device decided while the card was open', async () => {
+    const target = connect(host());
+    const view = await render(card(target));
+    expect(button(view, t.allowOnce)).toBeDefined();
+    await rerender(card(target, { resolution: { kind: 'tool-approval', outcome: 'rejected' } }));
+    expect(line(view)).toBe(t.cardLine('bash', t.elsewhere(t.cardOutcome.rejected)));
+  });
+
+  it('says so when a tap lost to another device', async () => {
+    const fake = host();
+    const view = await render(card(connect(fake)));
+    fake.answers.set('toolApprovalDecide', () => recorded('toolApprovalDecide.refused'));
+    fake.answers.set('toolApprovalStatus', () => recorded('toolApprovalStatus.decided'));
+    fake.answers.set('channelTimeline', () => recorded('channelTimeline.approvalDecided'));
+    await press(button(view, t.deny));
+    expect(line(view)).toBe(t.cardLine('bash', t.elsewhere(t.cardOutcome['allowed-once'])));
+  });
+
+  it('collapses an expired approval without buttons', async () => {
+    const fake = host();
+    fake.answers.set('toolApprovalStatus', () => expired);
+    const view = await render(card(connect(fake)));
+    expect(line(view)).toBe(t.cardLine('bash', t.cardExpired));
+    expect(view.querySelector('button')).toBeNull();
+  });
+
+  it('shows a decision already in the DM without asking the Host', async () => {
+    const fake = host();
+    const view = await render(
+      card(connect(fake), { resolution: { kind: 'tool-approval', outcome: 'allowed-once' } }),
+    );
+    expect(line(view)).toBe(t.cardLine('bash', t.cardOutcome['allowed-once']));
+    expect(fake.requests.filter((request) => request.includes('toolApproval'))).toEqual([]);
+  });
+
+  it('keeps the buttons and names the refusal when a decision fails while pending', async () => {
+    const fake = host();
+    const view = await render(card(connect(fake)));
+    fake.answers.set('toolApprovalDecide', () => recorded('toolApprovalDecide.refused'));
+    await press(button(view, t.allowOnce));
+    expect(view.querySelector('[role="alert"]')?.textContent).toContain(t.decideFailed);
+    expect(button(view, t.allowOnce).disabled).toBe(false);
+  });
+
+  it('offers no Always allow for a secret command', () => {
+    expect(offersAlwaysAllow('secret_cli')).toBe(false);
+    expect(offersAlwaysAllow('bash')).toBe(true);
+  });
+});
+
+describe('Question card in the DM', () => {
+  const card = (target: HostClient, extra: Record<string, unknown> = {}) =>
+    createElement(QuestionCard, {
+      port: questionPort(target),
+      botName: 'Inbox QA',
+      subject: 'Which colour?',
+      ...extra,
+    });
+
+  it('answers lettered single and multiple choices, then collapses', async () => {
+    const fake = host();
+    const sent: Array<Record<string, unknown>> = [];
+    fake.answers.set('userQuestionAnswer', (args) => {
+      sent.push(args);
+      return recorded('userQuestionAnswer.accepted');
+    });
+    const view = await render(card(connect(fake)));
+    expect(view.textContent).toContain('Which snacks?');
+    expect(view.textContent).toContain(t.multiSelectHint);
+    expect(button(view, t.submitChoice).disabled).toBe(true);
+    await press(button(view, t.option('A', 'Teal')));
+    expect(button(view, t.option('A', 'Teal')).getAttribute('aria-checked')).toBe('true');
+    await press(button(view, t.option('B', 'Biscuits')));
+    await type(view, `${t.otherAnswer}: Which snacks?`, 'fruit');
+    await press(button(view, t.submitChoice));
+    expect(sent[0]?.['answer']).toEqual({
+      answers: [
+        { id: 'colour', selected: ['Teal'] },
+        { id: 'snacks', selected: ['Biscuits'], custom: 'fruit' },
+      ],
+    });
+    expect(line(view)).toBe(t.cardLine('Which colour?', t.cardAnswered));
+  });
+
+  it('says so when another device answered while the card was open', async () => {
+    const target = connect(host());
+    const view = await render(card(target));
+    await rerender(card(target, { resolution: { kind: 'user-question', state: 'answered' } }));
+    expect(line(view)).toBe(t.cardLine('Which colour?', t.elsewhere(t.cardAnswered)));
+  });
+
+  it('says so when an answer lost to another device', async () => {
+    const fake = host();
+    const view = await render(card(connect(fake)));
+    fake.answers.set('userQuestionAnswer', () => recorded('userQuestionAnswer.refused'));
+    fake.answers.set('userQuestionStatus', () => recorded('userQuestionStatus.answered'));
+    fake.answers.set('channelTimeline', () => recorded('channelTimeline.questionAnswered'));
+    await press(button(view, t.option('A', 'Teal')));
+    await press(button(view, t.option('A', 'Tea')));
+    await press(button(view, t.submitChoice));
+    expect(line(view)).toBe(t.cardLine('Which colour?', t.elsewhere(t.cardAnswered)));
+  });
+
+  it('collapses an expired or cancelled question', async () => {
+    const fake = host();
+    fake.answers.set('userQuestionStatus', () => expired);
+    const view = await render(card(connect(fake)));
+    expect(line(view)).toBe(t.cardLine('Which colour?', t.cardExpired));
+    await rerender(card(client!, { resolution: { kind: 'user-question', state: 'cancelled' } }));
+    expect(line(view)).toBe(t.cardLine('Which colour?', t.cardCancelled));
+  });
+});

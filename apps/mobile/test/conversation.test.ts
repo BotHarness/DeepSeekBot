@@ -109,6 +109,47 @@ describe('DM conversation', () => {
     });
   });
 
+  it('marks request cards and the messages that resolve them', async () => {
+    const host = new FakeHost();
+    const channel = host.channel(DM);
+    const bot = { kind: 'bot' as const, slug: SLUG };
+    channel.append({
+      id: 'ask-tool',
+      author: bot,
+      body: '请求批准执行 bash',
+      toolApprovalRequest: { toolName: 'bash', role: 'orchestrator', cwd: '/w', input: '{}' },
+    } as never);
+    channel.append({
+      id: 'tool-decided',
+      body: '已批准这一次工具调用',
+      toolApprovalDecision: { requestMessageId: 'ask-tool', outcome: 'allowed-once' },
+    } as never);
+    channel.append({
+      id: 'ask-question',
+      author: bot,
+      body: 'Which colour?',
+      userQuestionRequest: { questions: [{ id: 'c', question: 'Which colour?' }] },
+    } as never);
+    channel.append({
+      id: 'question-cancelled',
+      author: bot,
+      body: '提问已取消',
+      userQuestionResolution: { requestMessageId: 'ask-question', state: 'cancelled' },
+    } as never);
+    const live = await until(open(host), (snapshot) => snapshot.status === 'live');
+    const [tool, decided, ask, cancelled] = live.messages;
+    expect(tool?.card).toEqual({ kind: 'tool-approval', channelId: DM, subject: 'bash' });
+    expect(decided?.resolves).toEqual({
+      requestId: 'ask-tool',
+      resolution: { kind: 'tool-approval', outcome: 'allowed-once' },
+    });
+    expect(ask?.card).toEqual({ kind: 'user-question', channelId: DM, subject: 'Which colour?' });
+    expect(cancelled?.resolves).toEqual({
+      requestId: 'ask-question',
+      resolution: { kind: 'user-question', state: 'cancelled' },
+    });
+  });
+
   it('shows the cached page at once, then reconciles it with the Host window', async () => {
     const host = new FakeHost();
     const channel = host.channel(DM);

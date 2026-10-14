@@ -1,7 +1,7 @@
 import { seededBannerRecipe } from '@botharness/pixel-banner';
 import { createTestRosterStore } from './roster-fixture.js';
 import { createTestRegistry } from './registry-fixture.js';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -1634,6 +1634,27 @@ describe('bridge methods', () => {
     expect(methods.create({ displayName: 'Plain' }).ok).toBe(true);
     expect(existsSync(join(root, 'plain', 'memory'))).toBe(true);
     expect(existsSync(join(root, 'plain', 'memory', 'SOUL.md'))).toBe(false);
+  });
+
+  it('creates Memory under a Human-chosen location and refuses a relative one', () => {
+    const { root, methods } = setup([], ['bot-located', 'bot-relative']);
+    const location = join(root, 'chosen');
+    mkdirSync(location, { recursive: true });
+
+    const created = methods.create({ displayName: 'Located', memoryLocation: location });
+    expect(created.ok && created.value.bot.memoryDir).toBe(join(location, 'bot-located'));
+    expect(existsSync(join(location, 'bot-located'))).toBe(true);
+    expect(methods.create({ displayName: 'Relative', memoryLocation: 'chosen' })).toMatchObject({
+      ok: false,
+      error: { code: 'invalid-memory-dir' },
+    });
+    expect(
+      methods.create({ displayName: 'Missing', memoryLocation: join(root, 'missing') }),
+    ).toMatchObject({ ok: false, error: { code: 'invalid-memory-dir' } });
+    expect(methods.create({ displayName: 'Bad', memoryLocation: 7 })).toEqual({
+      ok: false,
+      error: { code: 'invalid-input', message: 'invalid create payload' },
+    });
   });
 
   it('owns ID generation and reports malformed Human-facing fields', () => {

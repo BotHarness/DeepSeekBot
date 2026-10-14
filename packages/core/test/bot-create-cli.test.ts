@@ -149,6 +149,29 @@ describe('deepseekbot create', () => {
     expect(result.stderr).toContain(result.json.bot.id);
   });
 
+  it('stores a blank bot Memory under a chosen absolute location', async () => {
+    const home = createTempRoot('botharness-create-location-');
+    const location = createTempRoot('botharness-create-location-target-');
+    const result = await invoke(['create', '--name', 'Ada', '--memory-location', location], home);
+    expect(result.code).toBe(0);
+    expect(result.json.dataDir).toBe(join(location, result.json.bot.id));
+    expect(existsSync(join(result.json.dataDir, '.git'))).toBe(true);
+    const shown = await invoke(['show', result.json.bot.id], home);
+    expect(shown.json.dataDir).toBe(join(location, result.json.bot.id));
+  });
+
+  it('refuses a relative or import-time Memory location as coded errors', async () => {
+    const home = createTempRoot('botharness-create-location-bad-');
+    const relative = await invoke(['create', '--name', 'Ada', '--memory-location', 'rel'], home);
+    expect(relative.code).not.toBe(0);
+    expect(relative.json.error.code).toBe('invalid-input');
+    const imported = await invoke(
+      ['create', '--name', 'Ada', '--from-git', 'owner/repo', '--memory-location', home],
+      home,
+    );
+    expect(imported.code).toBe(2);
+  });
+
   it('mints a second bot for a duplicate name', async () => {
     const home = createTempRoot('botharness-create-dup-');
     const first = await invoke(['create', '--name', 'Same'], home);

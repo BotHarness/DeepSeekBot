@@ -23,6 +23,7 @@ vi.mock('../src/client/avatar.js', () => ({
 }));
 
 import { QuickSwitcher } from '../src/client/quick-switcher.js';
+import { ShortcutBindings } from '../src/client/shortcut-bindings.js';
 import {
   quickSwitcherEntries,
   rankQuickSwitcher,
@@ -162,7 +163,7 @@ describe('quick switcher dialog', () => {
         entries: list,
         bots: new Map(bots.map((value) => [value.slug, value])),
         activityOf: () => 'idle' as const,
-        mac,
+        shortcutBindings: new ShortcutBindings(undefined, () => mac),
         t,
         onOpen: () => {},
         onClose: () => {},

@@ -62,12 +62,8 @@ import {
   createChannelSidebarBuiltinTabs,
   createChannelSidebarBuiltins,
 } from './channel-sidebar-builtins.js';
-import {
-  webBotModeShortcut,
-  webShortcutBlocked,
-  webModalOpen,
-  webShortcutHelpShortcut,
-} from './channel-shortcuts.js';
+import { webShortcutBlocked, webModalOpen, webShortcutHelpQuestion } from './channel-shortcuts.js';
+import { ShortcutBindings } from './shortcut-bindings.js';
 import {
   browserNotificationApi,
   DesktopNotificationPrefs,
@@ -252,6 +248,7 @@ export function apply(ctx: ClientContext): void {
   const botSettings = new BotSettings();
   const shortcutHelp = new ShortcutHelp();
   const desktopNotifications = new DesktopNotificationPrefs(storage, browserNotificationApi());
+  const shortcutBindings = new ShortcutBindings(storage);
   ctx.slots.inject('shell.overlay', () =>
     ctx.slots.register(
       {
@@ -301,7 +298,7 @@ export function apply(ctx: ClientContext): void {
         name: 'shell.overlay',
         id: 'botharness-shortcut-help',
         locale: LOCALE_NS,
-        inject: () => ({ shortcutHelp, ...botModePrefsFace(prefs) }),
+        inject: () => ({ shortcutHelp, shortcutBindings, ...botModePrefsFace(prefs) }),
       },
       ShortcutHelpView,
     ),
@@ -396,18 +393,7 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(() => {
     if (typeof document === 'undefined') return () => {};
     const onKeyDown = (event: KeyboardEvent): void => {
-      if (
-        !webBotModeShortcut(event.code, {
-          alt: event.altKey,
-          ctrl: event.ctrlKey,
-          meta: event.metaKey,
-          shift: event.shiftKey,
-          altGraph: event.getModifierState('AltGraph'),
-          composing: event.isComposing,
-          repeat: event.repeat,
-          prevented: event.defaultPrevented,
-        })
-      ) {
+      if (!shortcutBindings.matches('bot-mode', event)) {
         return;
       }
       if (webShortcutBlocked(event.target, document)) return;
@@ -421,16 +407,19 @@ export function apply(ctx: ClientContext): void {
     if (typeof document === 'undefined') return () => {};
     const onKeyDown = (event: KeyboardEvent): void => {
       if (store.getSnapshot().mode !== 'bot') return;
-      const trigger = webShortcutHelpShortcut(event, {
-        alt: event.altKey,
-        ctrl: event.ctrlKey,
-        meta: event.metaKey,
-        shift: event.shiftKey,
-        altGraph: event.getModifierState('AltGraph'),
-        composing: event.isComposing,
-        repeat: event.repeat,
-        prevented: event.defaultPrevented,
-      });
+      const trigger = shortcutBindings.matches('help', event)
+        ? 'binding'
+        : webShortcutHelpQuestion(event.key, {
+              ctrl: event.ctrlKey,
+              meta: event.metaKey,
+              alt: event.altKey,
+              altGraph: event.getModifierState('AltGraph'),
+              composing: event.isComposing,
+              repeat: event.repeat,
+              prevented: event.defaultPrevented,
+            })
+          ? 'question'
+          : undefined;
       if (trigger === undefined) return;
       if (shortcutHelp.getSnapshot()) {
         event.preventDefault();
@@ -910,7 +899,13 @@ export function apply(ctx: ClientContext): void {
           name: 'sidebar.workspaces',
           priority: -100,
           locale: LOCALE_NS,
-          inject: () => ({ actions, companion, channelSidebar, ...botModePrefsFace(prefs) }),
+          inject: () => ({
+            actions,
+            companion,
+            channelSidebar,
+            shortcutBindings,
+            ...botModePrefsFace(prefs),
+          }),
         },
         BotSidebar,
       ),

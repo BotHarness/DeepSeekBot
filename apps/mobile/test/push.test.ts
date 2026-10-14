@@ -67,7 +67,7 @@ describe('notification taps', () => {
     messageId: 'm1',
   };
 
-  it('reads only the ids the Host sent and opens the exact item', () => {
+  it('reads only the ids the Host sent and opens its card in the DM, or the item outside a DM', () => {
     expect(parsePushData({ ...approval, body: 'secret' })).toEqual({
       hostId: 'h2',
       itemId: 'approval:e1',
@@ -78,6 +78,10 @@ describe('notification taps', () => {
     });
     expect(parsePushData({ hostId: 'h2' })).toBeUndefined();
     expect(pushHref(parsePushData(approval)!, () => 'dm-ada')).toEqual({
+      pathname: '/dm/[slug]',
+      params: { slug: 'ada', focus: 'm1' },
+    });
+    expect(pushHref(parsePushData(approval)!, () => 'dm-other')).toEqual({
       pathname: '/inbox/[id]',
       params: {
         id: 'approval:e1',

@@ -321,6 +321,7 @@ export interface CreatePersonaBotInput {
   description?: string;
   gitUrl?: string;
   origin?: 'marketplace';
+  memoryLocation?: string;
 }
 
 export interface BotSourcePolicyView {
@@ -1046,6 +1047,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
     };
   }
   let memberDeparture: ChannelMessage['memberDeparture'];
+  let turnStop: ChannelMessage['turnStop'];
   if (record['memberDeparture'] !== undefined) {
     const departure = asRecord(record['memberDeparture']);
     if (
@@ -1069,6 +1071,16 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
     };
   } else if (record['memoryCommit'] !== undefined) {
     if (author.kind !== 'system') return undefined;
+  } else if (record['turnStop'] !== undefined) {
+    const stop = asRecord(record['turnStop']);
+    if (
+      stop === undefined ||
+      author.kind !== 'system' ||
+      typeof stop['botName'] !== 'string' ||
+      typeof stop['humanName'] !== 'string'
+    )
+      return undefined;
+    turnStop = { botName: stop['botName'], humanName: stop['humanName'] };
   } else if (author.kind === 'system' && asRecord(record['onboardingWelcome'])?.['version'] !== 1) {
     return undefined;
   }
@@ -1477,6 +1489,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
       : {}),
     ...(memoryCommit === undefined ? {} : { memoryCommit }),
     ...(memberDeparture === undefined ? {} : { memberDeparture }),
+    ...(turnStop === undefined ? {} : { turnStop }),
     ...(toolApprovalRequest === undefined ? {} : { toolApprovalRequest }),
     ...(sessionFailure === undefined ? {} : { sessionFailure }),
     ...(toolApprovalDecision === undefined ? {} : { toolApprovalDecision }),

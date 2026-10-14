@@ -8,11 +8,11 @@ import {
 
 import { PersonaBotAvatar, type PersonaBotActivityState } from './avatar.js';
 import { isBotDmChannel } from './channel-kind.js';
-import { webQuickSwitcherLabel, webQuickSwitcherShortcut } from './channel-shortcuts.js';
 import { GroupChannelIcon } from './group-avatar-stack.js';
 import { border, color, dialog, radius, size, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { Modal } from './modal.js';
+import type { ShortcutBindings } from './shortcut-bindings.js';
 import { useMountedResource } from './mounted-resource.js';
 import { rankQuickSwitcher, type QuickSwitcherEntry } from './quick-switcher-rank.js';
 import type { BotSummary } from './store.js';
@@ -129,7 +129,7 @@ export interface QuickSwitcherProps {
   entries: readonly QuickSwitcherEntry[];
   bots: ReadonlyMap<string, BotSummary>;
   activityOf: (bot: BotSummary) => PersonaBotActivityState;
-  mac: boolean;
+  shortcutBindings: ShortcutBindings;
   t: BotHarnessTranslate;
   onOpen: (entry: QuickSwitcherEntry) => void;
   onClose: () => void;
@@ -139,7 +139,7 @@ export function QuickSwitcher({
   entries,
   bots,
   activityOf,
-  mac,
+  shortcutBindings,
   t,
   onOpen,
   onClose,
@@ -178,16 +178,7 @@ export function QuickSwitcher({
       if (activeEntry !== undefined) onOpen(activeEntry);
       return;
     }
-    if (
-      webQuickSwitcherShortcut(event.key, event.code, {
-        alt: event.altKey,
-        ctrl: event.ctrlKey,
-        meta: event.metaKey,
-        shift: event.shiftKey,
-        mac,
-        repeat: event.repeat,
-      })
-    ) {
+    if (shortcutBindings.matches('quick-switcher', event)) {
       event.preventDefault();
       onClose();
     }
@@ -300,7 +291,7 @@ export function QuickSwitcher({
           {t('quickSwitcher.hint.close')}
         </span>
         <span {...stylex.props(styles.hint)}>
-          <ShortcutKeys keys={[webQuickSwitcherLabel(mac)]} />
+          <ShortcutKeys keys={[shortcutBindings.text('quick-switcher')]} />
           {t('quickSwitcher.hint.toggle')}
         </span>
       </div>

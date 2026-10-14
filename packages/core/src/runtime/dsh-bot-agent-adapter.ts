@@ -315,6 +315,13 @@ function requireCompletedTurn(
   throw new Error(`Agent turn ended without completion: ${reason.kind}`);
 }
 
+function turnAborted(handle: AgentHandle, fromSeq: SessionLogOffset): boolean {
+  const turnEnd = handle.agent.session
+    .snapshotEvents(fromSeq)
+    .find((event) => event.type === 'turn/end');
+  return turnEnd === undefined || turnEnd.data.reason.kind === 'aborted';
+}
+
 class DshBotAgentAdapter implements BotAgentAdapter {
   readonly #agents: DshAgentHost;
   readonly #defaultModel: DshDefaultModelHost;
@@ -346,6 +353,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   readonly #runs = new Map<string, ActiveRun>();
   readonly #stopping = new Set<string>();
   readonly #stoppedBots = new Set<string>();
+  readonly #humanStops = new Set<string>();
   readonly #drafts: ChannelDraftTracker;
   #closed = false;
 
@@ -420,14 +428,28 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           }),
         );
       await handle.agent.whenIdle();
+      if (this.#humanStops.has(run.sessionId) && turnAborted(handle, fromSeq)) return;
       const provider = selection?.current?.provider;
       requireCompletedTurn(handle, fromSeq, undefined, undefined, (code) => {
         if (provider !== undefined) this.#observeTurnFailure?.(provider, code);
       });
     } finally {
+      this.#humanStops.delete(run.sessionId);
       this.#drafts.end(run.sessionId);
       if (this.#runs.get(run.sessionId) === entry) this.#runs.delete(run.sessionId);
     }
+  }
+
+  stopOrchestratorTurn(botSlug: string): string | undefined {
+    for (const [sessionId, active] of this.#runs) {
+      if (active.role !== 'orchestrator' || active.run.bot.slug !== botSlug) continue;
+      const handle = this.#handles.get(sessionId);
+      if (handle === undefined) return undefined;
+      this.#humanStops.add(sessionId);
+      handle.agent.cancel({ kind: 'user' });
+      return sessionId;
+    }
+    return undefined;
   }
 
   steerOrchestrator(botSlug: string, text: string): boolean {

@@ -46,7 +46,6 @@ const human = (overrides: Partial<ConversationMessage>): ConversationMessage => 
   author: 'human',
   body: 'hello',
   attachments: [],
-  card: false,
   delivery: 'committed',
   ...overrides,
 });
@@ -123,7 +122,13 @@ describe('message states', () => {
   it('shows a card note for interactive messages and a typing line for drafts', () => {
     expect(
       renderToStaticMarkup(
-        <MessageBubble message={human({ author: 'bot', card: true, body: '' })} />,
+        <MessageBubble
+          message={human({
+            author: 'bot',
+            card: { kind: 'private-input', channelId: 'dm-ada' },
+            body: '',
+          })}
+        />,
       ),
     ).toContain(t.card);
     const draft = renderToStaticMarkup(

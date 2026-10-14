@@ -49,6 +49,7 @@ export interface CreatePersonaBotInput {
   model?: string;
   preset?: string;
   memoryDir?: string;
+  memoryLocation?: string;
   workspaces?: string[];
 }
 

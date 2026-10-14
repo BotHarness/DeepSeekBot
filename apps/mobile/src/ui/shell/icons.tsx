@@ -54,8 +54,35 @@ export function WorkingIcon(props: IconProps) {
   );
 }
 
+export function StopIcon(props: IconProps) {
+  return (
+    <Glyph
+      {...props}
+      focused
+      d="M8 7h8a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1Z"
+    />
+  );
+}
+
 export function ChevronDownIcon(props: IconProps) {
   return <Glyph {...props} d="m6 9 6 6 6-6" />;
+}
+
+export function ChevronRightIcon(props: IconProps) {
+  return <Glyph {...props} d="m9 6 6 6-6 6" />;
+}
+
+export function ChevronUpIcon(props: IconProps) {
+  return <Glyph {...props} d="m6 15 6-6 6 6" />;
+}
+
+export function LockIcon(props: IconProps) {
+  return (
+    <Glyph
+      {...props}
+      d="M7 11h10a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1Zm2 0V8a3 3 0 0 1 6 0v3"
+    />
+  );
 }
 
 export function ArrowUpIcon(props: IconProps) {
@@ -91,6 +118,26 @@ export function CameraIcon(props: IconProps) {
 export function FileIcon(props: IconProps) {
   return (
     <Glyph {...props} d="M7 3h7l5 5v12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Zm7 0v5h5" />
+  );
+}
+
+export function MicIcon(props: IconProps) {
+  return (
+    <Glyph
+      {...props}
+      d="M12 3a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3Zm-6 9a6 6 0 0 0 12 0m-6 6v3"
+    />
+  );
+}
+
+export function RecordingStopIcon({ color, size }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      <Path
+        d="M8 7h8a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1Z"
+        fill={color}
+      />
+    </Svg>
   );
 }
 

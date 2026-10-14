@@ -2,6 +2,7 @@ import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
 
 import { useHostSession, useHostSnapshot, useInbox } from '../../../src/host/host-session';
+import { cardHref } from '../../../src/host/push';
 import type { HumanAttentionItem } from '../../../src/host/wire';
 import { ConnectionBanner } from '../../../src/ui/connection-banner';
 import { InboxList } from '../../../src/ui/inbox-list';
@@ -15,7 +16,9 @@ export default function ActivityScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const bots = snapshot.roster?.bots ?? [];
 
-  const open = (item: HumanAttentionItem) =>
+  const open = (item: HumanAttentionItem) => {
+    const card = cardHref(item, (slug) => bots.find((bot) => bot.slug === slug)?.dmChannelId);
+    if (card !== undefined) return router.push(card);
     router.push({
       pathname: '/inbox/[id]',
       params: {
@@ -27,6 +30,7 @@ export default function ActivityScreen() {
         ...(item.messageId === undefined ? {} : { messageId: item.messageId }),
       },
     });
+  };
 
   return (
     <>

@@ -55,10 +55,27 @@ export function parsePushData(input: unknown): PushTarget | undefined {
 
 export type PushHref =
   | { pathname: '/inbox/[id]'; params: Record<string, string> }
-  | { pathname: '/dm/[slug]'; params: { slug: string } }
+  | { pathname: '/dm/[slug]'; params: { slug: string; focus?: string } }
   | { pathname: '/activity' };
 
 const REPLIES = new Set(['channel-reply', 'channel-mention']);
+const CARDS = new Set(['tool-approval', 'user-question']);
+
+export function cardHref(
+  item: { kind?: string; botSlug?: string; channelId?: string; messageId?: string },
+  dmChannelOf: (slug: string) => string | undefined,
+): { pathname: '/dm/[slug]'; params: { slug: string; focus: string } } | undefined {
+  if (
+    item.kind === undefined ||
+    !CARDS.has(item.kind) ||
+    item.botSlug === undefined ||
+    item.messageId === undefined ||
+    item.channelId === undefined ||
+    dmChannelOf(item.botSlug) !== item.channelId
+  )
+    return undefined;
+  return { pathname: '/dm/[slug]', params: { slug: item.botSlug, focus: item.messageId } };
+}
 
 export function pushHref(
   target: PushTarget,
@@ -72,6 +89,8 @@ export function pushHref(
     dmChannelOf(target.botSlug) === target.channelId
   )
     return { pathname: '/dm/[slug]', params: { slug: target.botSlug } };
+  const card = cardHref(target, dmChannelOf);
+  if (card !== undefined) return card;
   return {
     pathname: '/inbox/[id]',
     params: {

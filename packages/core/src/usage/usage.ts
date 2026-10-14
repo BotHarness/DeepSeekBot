@@ -173,6 +173,14 @@ function reportedBuckets(event: DshSessionEvent): {
     Number.isSafeInteger(sum)
   )
     buckets.totalTokens = sum;
+  const missing = (
+    ['uncachedInputTokens', 'outputTokens', 'cacheReadTokens', 'cacheWriteTokens'] as const
+  ).filter((key) => buckets[key] === undefined);
+  if (buckets.totalTokens !== undefined && missing.length > 0) {
+    const rest = buckets.totalTokens - sum;
+    if (missing.length === 1) buckets[missing[0]!] = rest;
+    else if (rest === 0) for (const key of missing) buckets[key] = 0;
+  }
   return buckets;
 }
 

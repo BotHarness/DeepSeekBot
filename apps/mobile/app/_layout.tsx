@@ -26,6 +26,15 @@ export default function RootLayout() {
           <Stack.Screen name="dm/[slug]" options={{ title: '' }} />
           <Stack.Screen name="pair" options={{ title: t.pairTitle, presentation: 'modal' }} />
           <Stack.Screen name="inbox/[id]" options={{ title: t.inbox }} />
+          <Stack.Screen
+            name="approval"
+            options={{
+              presentation: 'formSheet',
+              headerShown: false,
+              sheetAllowedDetents: [0.6, 1],
+              sheetGrabberVisible: true,
+            }}
+          />
           <Stack.Screen name="notifications" options={{ title: t.notifications }} />
           <Stack.Screen name="hosts" options={{ title: t.computers, presentation: 'modal' }} />
           <Stack.Screen

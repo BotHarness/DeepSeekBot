@@ -74,9 +74,13 @@ describe('Host client', () => {
     const target = connect(host);
     await until(target, (s) => s.connection.status === 'connected');
     host.push('botharness/followActivity', thinking);
-    await until(target, (s) => s.roster?.bots[0]?.state === 'thinking');
+    const working = await until(target, (s) => s.roster?.bots[0]?.state === 'thinking');
+    expect(working.roster?.bots[0]?.sessions).toEqual([
+      expect.objectContaining({ role: 'orchestrator', state: 'thinking' }),
+    ]);
     host.push('botharness/followActivity', idle);
-    await until(target, (s) => s.roster?.bots[0]?.state === 'idle');
+    const done = await until(target, (s) => s.roster?.bots[0]?.state === 'idle');
+    expect(done.roster?.bots[0]?.sessions).toBeUndefined();
   });
 
   it('updates the DM preview from a roster latest frame without re-reading', async () => {

@@ -57,8 +57,10 @@ import type { BotModePrefs } from './bot-mode-prefs.js';
 import {
   ChannelComposer,
   type ChannelComposerActivity,
+  type ChannelComposerStop,
   type ChannelComposerUpload,
 } from './channel-composer.js';
+import { stoppableBots } from './composer-stop.js';
 import type { SelectedMention } from './mentions.js';
 import type { SelectedChannelRef } from './channel-refs.js';
 import { recallEntries, stepRecall, SUBMISSION_PREFIX } from './composer-submission-store.js';
@@ -1021,6 +1023,11 @@ function ConversationView({
   const [draft, setDraft] = useConversationDraft(draftScope, 'text', '');
   const [allBotPreview, setAllBotPreview] = useState<AllBotPreview>();
   const [allBotNotice, setAllBotNotice] = useState<string>();
+  const [botStop, setBotStop] = useState<{
+    channelId: string;
+    stopping: boolean;
+    notice?: string;
+  }>();
   const [mentionTokens, setMentionTokens] = useConversationDraft(draftScope, 'mentions', []);
   const [channelRefTokens, setChannelRefTokens] = useConversationDraft(
     draftScope,
@@ -1271,7 +1278,8 @@ function ConversationView({
       item.botDmAction === undefined &&
       item.botChannelPost === undefined &&
       item.memoryCommit === undefined &&
-      item.memberDeparture === undefined,
+      item.memberDeparture === undefined &&
+      item.turnStop === undefined,
   );
   const workingRows = timelineWorkingRows(
     conversation.status === 'ready' && !conversation.timeline.hasNewer
@@ -1296,6 +1304,73 @@ function ConversationView({
             .catch((error: unknown) => {
               console.warn('botharness: reaction failed', error);
             });
+  const stopTargets =
+    channelId !== undefined &&
+    !readOnlyDm &&
+    (channel?.type === 'group' ||
+      (channel?.type === 'dm' && !botDm && channel.botSlug !== undefined))
+      ? stoppableBots(
+          (channel.type === 'group'
+            ? channelBots
+            : state.bots.filter((member) => member.slug === channel.botSlug)
+          ).map((member) => ({
+            slug: member.slug,
+            name: member.displayName,
+            paused: member.paused === true,
+            state: personaBotActivity(state, member),
+          })),
+        )
+      : [];
+  const channelStop = botStop?.channelId === channelId ? botStop : undefined;
+  const composerStop: ChannelComposerStop | undefined =
+    channelId === undefined || (stopTargets.length === 0 && channelStop?.notice === undefined)
+      ? undefined
+      : {
+          label:
+            stopTargets.length === 0
+              ? undefined
+              : stopTargets.length === 1
+                ? t('composer.stopBot', { name: stopTargets[0]?.name ?? '' })
+                : t('composer.stopBots', { count: stopTargets.length }),
+          stopping: channelStop?.stopping === true,
+          notice: channelStop?.notice,
+          onStop: () => {
+            if (stopTargets.length === 0 || channelStop?.stopping === true) return;
+            setBotStop({ channelId, stopping: true });
+            void Promise.allSettled(
+              stopTargets.map((target) => actions.stopBot(channelId, target.slug)),
+            ).then((outcomes) => {
+              const failed = outcomes.find((outcome) => outcome.status === 'rejected');
+              const idle = stopTargets.filter((_target, index) => {
+                const outcome = outcomes[index];
+                return outcome?.status === 'fulfilled' && outcome.value === 'not-working';
+              });
+              const notice =
+                failed !== undefined
+                  ? t('composer.stopFailed', {
+                      reason:
+                        failed.reason instanceof Error
+                          ? failed.reason.message
+                          : String(failed.reason),
+                    })
+                  : idle.length > 0 && idle.length === stopTargets.length
+                    ? t('composer.stopNotWorking', {
+                        name: idle.map((target) => target.name).join(', '),
+                      })
+                    : undefined;
+              if (notice === undefined) {
+                setBotStop(undefined);
+                return;
+              }
+              const shown = { channelId, stopping: false, notice };
+              setBotStop(shown);
+              window.setTimeout(
+                () => setBotStop((current) => (current === shown ? undefined : current)),
+                6000,
+              );
+            });
+          },
+        };
   const selectedIds =
     selectedMessages !== undefined && selectedMessages.channelId === channelId
       ? selectedMessages.ids
@@ -2453,7 +2528,16 @@ function ConversationView({
                             })}
                           </div>
                         ) : null}
-                        {first.memberDeparture !== undefined ? (
+                        {first.turnStop !== undefined ? (
+                          <div className="bh-member-departure" data-message-id={first.id}>
+                            <span>
+                              {t('turn.stopped', {
+                                human: first.turnStop.humanName,
+                                name: first.turnStop.botName,
+                              })}
+                            </span>
+                          </div>
+                        ) : first.memberDeparture !== undefined ? (
                           <div className="bh-member-departure" data-message-id={first.id}>
                             <span>
                               {t(
@@ -2806,6 +2890,7 @@ function ConversationView({
                       }
                       allBotPreview={channel?.type === 'group' ? allBotPreview : undefined}
                       allBotNotice={allBotNotice}
+                      stop={composerStop}
                       mentionCandidates={
                         channel?.type === 'group'
                           ? channelBots
