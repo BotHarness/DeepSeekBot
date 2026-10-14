@@ -77,3 +77,31 @@ export function webBotModeShortcut(
     !keys.prevented
   );
 }
+
+export type ShortcutHelpTrigger = 'question' | 'slash';
+
+export function webShortcutHelpShortcut(
+  event: { key: string; code: string },
+  keys: {
+    alt: boolean;
+    ctrl: boolean;
+    meta: boolean;
+    shift: boolean;
+    altGraph?: boolean;
+    composing?: boolean;
+    repeat?: boolean;
+    prevented?: boolean;
+  },
+): ShortcutHelpTrigger | undefined {
+  if (keys.alt || keys.altGraph || keys.composing || keys.repeat || keys.prevented)
+    return undefined;
+  if (event.code === 'Slash' && (keys.ctrl || keys.meta) && !keys.shift) return 'slash';
+  if (event.key === '?' && !keys.ctrl && !keys.meta) return 'question';
+  return undefined;
+}
+
+export function webShortcutBlockedByModal(root: {
+  querySelector(selector: string): unknown;
+}): boolean {
+  return root.querySelector(openModalSelector) !== null;
+}

@@ -14,14 +14,17 @@ import {
 } from './bot-mode-setting-rows.js';
 import type { BotModePrefsFace } from './bot-mode-prefs.js';
 import type { BridgeCall } from './bridge.js';
+import type { DesktopNotificationPrefs } from './desktop-notifications.js';
 import { SettingsRows, SettingsSection } from './ds/settings-row.js';
 import { GitSettings } from './git-settings.js';
 import { HumanNameSettings } from './human-name-settings.js';
 import { MessagingDefaultsSettings } from './messaging-defaults-settings.js';
+import { DesktopNotificationSetting, ShortcutHelpSetting } from './notification-settings.js';
 import { DefaultModelSettings, OnboardingSetting } from './onboarding-view.js';
 import { PairedDevicesSettings } from './paired-devices.js';
 import { ProfileBackupSettings } from './profile-backup.js';
 import type { ReleaseNotesController } from './release-notes.js';
+import type { ShortcutHelp } from './shortcut-help.js';
 import { ReleaseSettings } from './release-notes-view.js';
 import type { ClientStore } from './store.js';
 import { TelemetrySettings } from './telemetry-settings.js';
@@ -40,6 +43,8 @@ export type GeneralSectionFace = BotModePrefsFace & {
   onSaved(): Promise<void>;
   actions: BridgeActions;
   closeBotSettings(): void;
+  desktopNotifications: DesktopNotificationPrefs;
+  shortcutHelp: ShortcutHelp;
 };
 
 export function GeneralSection(props: SectionProps<GeneralSectionFace>): ReactElement {
@@ -55,6 +60,8 @@ export function GeneralSection(props: SectionProps<GeneralSectionFace>): ReactEl
       <MotionSetting {...props} />
       <SortSetting {...props} />
       <BotSessionsVisibilitySetting {...props} />
+      <DesktopNotificationSetting desktopNotifications={props.desktopNotifications} t={props.t} />
+      <ShortcutHelpSetting shortcutHelp={props.shortcutHelp} t={props.t} />
       <OnboardingSetting
         actions={props.actions}
         closeBotSettings={props.closeBotSettings}

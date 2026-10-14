@@ -62,7 +62,20 @@ import {
   createChannelSidebarBuiltinTabs,
   createChannelSidebarBuiltins,
 } from './channel-sidebar-builtins.js';
-import { webBotModeShortcut, webShortcutBlocked } from './channel-shortcuts.js';
+import {
+  webBotModeShortcut,
+  webShortcutBlocked,
+  webShortcutBlockedByModal,
+  webShortcutHelpShortcut,
+} from './channel-shortcuts.js';
+import {
+  browserNotificationApi,
+  DesktopNotificationPrefs,
+  mountDesktopNotifications,
+} from './desktop-notifications.js';
+import { openHumanAttentionSource } from './human-attention-source.js';
+import { ShortcutHelp, ShortcutHelpView } from './shortcut-help.js';
+import { mountTabTitle } from './tab-title.js';
 import { createChannelSidebarRegistry } from './channel-sidebar.js';
 import { createProfileCardBuiltins } from './profile-cards-builtins.js';
 import { createGroupProfileCards } from './group-profile.js';
@@ -74,6 +87,7 @@ import {
   loadActivitySnapshot,
   loadBotSessionIds,
   loadSessionBotOwner,
+  loadHumanAttention,
   botExists,
 } from './bridge.js';
 import {
@@ -236,6 +250,8 @@ export function apply(ctx: ClientContext): void {
   }, 'botharness: independent Window Companion owner');
   const prefs = new BotModePrefs(storage);
   const botSettings = new BotSettings();
+  const shortcutHelp = new ShortcutHelp();
+  const desktopNotifications = new DesktopNotificationPrefs(storage, browserNotificationApi());
   ctx.slots.inject('shell.overlay', () =>
     ctx.slots.register(
       {
@@ -277,6 +293,17 @@ export function apply(ctx: ClientContext): void {
         children: { 'botharness.settings.section': { kind: 'list', scope: 'root' } },
       },
       BotSettingsView,
+    ),
+  );
+  ctx.slots.inject('shell.overlay', () =>
+    ctx.slots.register(
+      {
+        name: 'shell.overlay',
+        id: 'botharness-shortcut-help',
+        locale: LOCALE_NS,
+        inject: () => ({ shortcutHelp }),
+      },
+      ShortcutHelpView,
     ),
   );
   const releaseNotes = new ReleaseNotesController(call, storage);
@@ -390,6 +417,92 @@ export function apply(ctx: ClientContext): void {
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
   }, 'botharness: Bot mode keyboard shortcut');
+  ctx.effect(() => {
+    if (typeof document === 'undefined') return () => {};
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (store.getSnapshot().mode !== 'bot') return;
+      const trigger = webShortcutHelpShortcut(event, {
+        alt: event.altKey,
+        ctrl: event.ctrlKey,
+        meta: event.metaKey,
+        shift: event.shiftKey,
+        altGraph: event.getModifierState('AltGraph'),
+        composing: event.isComposing,
+        repeat: event.repeat,
+        prevented: event.defaultPrevented,
+      });
+      if (trigger === undefined) return;
+      if (shortcutHelp.getSnapshot()) {
+        event.preventDefault();
+        shortcutHelp.close();
+        return;
+      }
+      if (
+        trigger === 'question'
+          ? webShortcutBlocked(event.target, document)
+          : webShortcutBlockedByModal(document)
+      )
+        return;
+      event.preventDefault();
+      shortcutHelp.open();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, 'botharness: keyboard shortcut list');
+  ctx.effect(() => {
+    if (typeof document === 'undefined') return () => {};
+    return mountTabTitle(store, document);
+  }, 'botharness: tab title attention count');
+  ctx.effect(() => {
+    if (typeof document === 'undefined' || typeof window === 'undefined') return () => {};
+    return mountDesktopNotifications({
+      prefs: desktopNotifications,
+      load: async () => {
+        const [action, replies, unread] = await Promise.all([
+          loadHumanAttention(call, 'action', 20),
+          loadHumanAttention(call, 'replies', 20),
+          loadHumanAttention(call, 'unread', 20),
+        ]);
+        return [...action.items, ...replies.items, ...unread.items];
+      },
+      channels: () => store.getSnapshot().channels,
+      attentive: () => document.visibilityState === 'visible' && document.hasFocus(),
+      subscribe: (listener) => {
+        let prior = store.getSnapshot().humanInbox;
+        const offStore = store.subscribe(() => {
+          const next = store.getSnapshot().humanInbox;
+          if (next.unreadCount === prior.unreadCount && next.hasAction === prior.hasAction) return;
+          prior = next;
+          listener();
+        });
+        const offPrefs = desktopNotifications.subscribe(listener);
+        document.addEventListener('visibilitychange', listener);
+        window.addEventListener('focus', listener);
+        window.addEventListener('blur', listener);
+        return () => {
+          offStore();
+          offPrefs();
+          document.removeEventListener('visibilitychange', listener);
+          window.removeEventListener('focus', listener);
+          window.removeEventListener('blur', listener);
+        };
+      },
+      title: (kind, item) => {
+        const bot =
+          store.getSnapshot().bots.find((candidate) => candidate.slug === item.botSlug)
+            ?.displayName ??
+          (item.botSlug || item.channelName) ??
+          '';
+        return t(`desktopNotify.${kind}`, { bot, channel: item.channelName ?? '' });
+      },
+      open: (item) => {
+        ctx.layout.selectPanel(PANEL_ID);
+        void openHumanAttentionSource(actions, item).catch((error: unknown) => {
+          ctx.logger.warn('botharness: failed to open notification source', error);
+        });
+      },
+    });
+  }, 'botharness: desktop notifications');
   ctx.effect(
     () => (typeof EventSource === 'undefined' ? () => {} : mountChannelLive(store, actions)),
     'botharness: Channel live subscription',
@@ -540,6 +653,8 @@ export function apply(ctx: ClientContext): void {
             closeBotSettings: () => {
               botSettings.close();
             },
+            desktopNotifications,
+            shortcutHelp,
           }),
         },
         GeneralSection,
