@@ -38,6 +38,8 @@ const { t } = await import('../src/ui/strings');
 const mika: RosterBot = {
   slug: 'mika',
   displayName: 'Mika',
+  roles: [],
+  computerAccess: false,
   state: 'working',
   paused: false,
   dmChannelId: 'dm-mika',

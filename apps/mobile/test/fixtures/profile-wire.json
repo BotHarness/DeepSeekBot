@@ -1,0 +1,117 @@
+{
+  "recordedFrom": "isolated Host via scripts/dev-instance.mjs, DSH 0.2.0-rc.2, 2026-10-14",
+  "bot": {
+    "slug": "bot-d00fc59d30dc413390b4c4708b4a2032",
+    "displayName": "Profile Probe",
+    "roles": ["researcher", "notes"],
+    "description": "Reads papers and keeps notes."
+  },
+  "rpc": {
+    "memorySnapshot": {
+      "snapshot": {
+        "head": "33c2a198192883d5f46c3dd19d0c6a83cff5057d",
+        "files": [
+          ".botharness/banner.png",
+          ".botharness/bot.json",
+          ".gitattributes",
+          "MEMORY.md",
+          "SOUL.md",
+          "notes/reading.md"
+        ],
+        "provisional": false,
+        "standing": [
+          {
+            "path": "SOUL.md",
+            "role": "soul",
+            "chars": 122,
+            "limit": 5000
+          },
+          {
+            "path": "MEMORY.md",
+            "role": "coreMemory",
+            "chars": 83,
+            "limit": 3000
+          }
+        ]
+      }
+    },
+    "memoryFile": {
+      "SOUL.md": {
+        "file": {
+          "path": "SOUL.md",
+          "body": "You are Profile Probe, a calm research assistant.\n\nStanding rules:\n- Answer in short paragraphs.\n- Cite the file you read.",
+          "head": "33c2a198192883d5f46c3dd19d0c6a83cff5057d"
+        }
+      },
+      "MEMORY.md": {
+        "file": {
+          "path": "MEMORY.md",
+          "body": "- Vain prefers summaries under 100 words.\n- Reading list lives in notes/reading.md.",
+          "head": "33c2a198192883d5f46c3dd19d0c6a83cff5057d"
+        }
+      }
+    },
+    "scheduleList": {
+      "schedules": [
+        {
+          "id": "e3f2c864-d7c8-4698-95e9-84e8f6405b0f",
+          "botSlug": "bot-d00fc59d30dc413390b4c4708b4a2032",
+          "title": "Morning digest",
+          "prompt": "Summarize new papers",
+          "trigger": {
+            "kind": "daily",
+            "time": "09:00",
+            "timeZone": "Asia/Tokyo"
+          },
+          "enabled": true,
+          "creator": "human",
+          "locked": false,
+          "nextRunAt": "2026-10-15T00:00:00.000Z",
+          "createdAt": "2026-10-14T14:04:57.748Z",
+          "updatedAt": "2026-10-14T14:04:57.748Z"
+        },
+        {
+          "id": "75247201-36c8-47ad-80b7-f248e7ac2a8c",
+          "botSlug": "bot-d00fc59d30dc413390b4c4708b4a2032",
+          "title": "Hourly check",
+          "prompt": "Check the feed",
+          "trigger": {
+            "kind": "every",
+            "everySeconds": 3600
+          },
+          "enabled": true,
+          "creator": "human",
+          "locked": false,
+          "nextRunAt": "2026-10-14T15:04:58.269Z",
+          "createdAt": "2026-10-14T14:04:58.269Z",
+          "updatedAt": "2026-10-14T14:04:58.269Z"
+        }
+      ]
+    },
+    "grants": {
+      "grants": [
+        {
+          "id": "555ca37f-c7da-4b8c-83ab-c425eb2c9f62",
+          "botSlug": "bot-d00fc59d30dc413390b4c4708b4a2032",
+          "workspaceId": "11320ab9-b585-491a-a96b-72d115859a04",
+          "workspacePath": "/Users/me/Documents/old",
+          "workspaceTitle": "old",
+          "createdAt": "2026-10-14T14:05:20.332Z",
+          "orchestratorWrite": false,
+          "writeRevision": 0,
+          "revokedAt": "2026-10-14T14:05:20.941Z"
+        },
+        {
+          "id": "1a5daa61-05bd-4d27-af87-5f8e4f9c945d",
+          "botSlug": "bot-d00fc59d30dc413390b4c4708b4a2032",
+          "workspaceId": "c5ef9f1c-4a76-4935-9b92-8353863266a1",
+          "workspacePath": "/Users/me/Documents/papers",
+          "workspaceTitle": "papers",
+          "createdAt": "2026-10-14T14:05:04.383Z",
+          "orchestratorWrite": false,
+          "writeRevision": 0
+        }
+      ]
+    }
+  }
+}

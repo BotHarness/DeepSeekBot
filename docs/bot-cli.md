@@ -98,6 +98,8 @@ deepseekbot workspace-options
 deepseekbot grant-create <bot-id> --workspace <workspace-id>
 ```
 
+`tool-approval-status` returns `status` and, while the card is still `pending`, its `expiresAt`, the time the Web card counts down to.
+
 ### Agent control
 
 These commands let an agent configure a Bot's capabilities and the Host without the Web UI, through the same Host owners and checks the UI uses:
@@ -272,6 +274,9 @@ deepseekbot grants <bot-id>
 deepseekbot inbox --category action --limit 20
 deepseekbot inbox-status
 deepseekbot inbox-dismiss <item-id> --source-key <source-event-id>
+deepseekbot inbox-snooze <item-id> --source-key <source-event-id> --until 2026-10-15T09:00:00Z
+deepseekbot inbox-snooze <item-id> --source-key <source-event-id> --clear
+deepseekbot inbox --category action --snoozed
 deepseekbot inbox-ignore <report-source-event-id>
 deepseekbot assignment-context <bot-id> --session <session-id> --source <source-event-id>
 deepseekbot channel-assignments <group-channel>
@@ -287,7 +292,7 @@ deepseekbot private-mcp-set <bot-id> --server <name> --enabled
 deepseekbot private-mcp-remove <bot-id> --server <name> --confirm
 ```
 
-`inbox` returns one page of the Human Inbox (`items` and `nextCursor`), filtered like the Inbox tabs by `--category` (`action`, `info`, `unread`, `replies`, `handled`), `--bot` or `--channel`. `inbox-dismiss` takes an item's `id` and, when the item has one, its `sourceEventId` as `--source-key`; `inbox-ignore` marks an informational assignment report as read. `assignment-context` reads the report behind an `assignment-report` item. `channel-assignments` lists a group Channel's assignment work; `channel-assign` moves a Channel into a sidebar section (`--unsectioned` takes it out). `session-ids` lists the root Sessions Bots own and `session-owner` names a Session's Bot and role. `tool-approval-rules` lists a Bot's "always allow" rules. Revoking a rule, a Workspace Grant or a private MCP server needs `--confirm`, as the Web UI asks for confirmation. With a Host targeted, `grant-revoke` and `grant-write-set` go through it; with `--home` they stay offline maintenance commands. Private MCP servers are listed by `ask-secret-accounts`; a name the Host does not know fails with `private-mcp-server-unavailable`.
+`inbox` returns one page of the Human Inbox (`items` and `nextCursor`), filtered like the Inbox tabs by `--category` (`action`, `info`, `unread`, `replies`, `handled`), `--bot` or `--channel`. `inbox-dismiss` takes an item's `id` and, when the item has one, its `sourceEventId` as `--source-key`; `inbox-ignore` marks an informational assignment report as read. `inbox-snooze` hides an Action, Info or Replies item until `--until` (at most 30 days away), the Web Inbox's "Remind me later"; `--clear` brings it back now, and `inbox --snoozed` lists the items still snoozed with their `snoozedUntil`. `assignment-context` reads the report behind an `assignment-report` item. `channel-assignments` lists a group Channel's assignment work; `channel-assign` moves a Channel into a sidebar section (`--unsectioned` takes it out). `session-ids` lists the root Sessions Bots own and `session-owner` names a Session's Bot and role. `tool-approval-rules` lists a Bot's "always allow" rules. Revoking a rule, a Workspace Grant or a private MCP server needs `--confirm`, as the Web UI asks for confirmation. With a Host targeted, `grant-revoke` and `grant-write-set` go through it; with `--home` they stay offline maintenance commands. Private MCP servers are listed by `ask-secret-accounts`; a name the Host does not know fails with `private-mcp-server-unavailable`.
 
 ### Schedules on a live Host
 

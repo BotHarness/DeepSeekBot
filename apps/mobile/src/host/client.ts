@@ -34,6 +34,9 @@ export interface RosterBot {
   appearance?: unknown;
   avatarSeed?: 2;
   primaryColor?: BotPrimaryColor;
+  roles: string[];
+  description?: string;
+  computerAccess: boolean;
   state: AggregatedState;
   activity?: WireToolActivity;
   sessions?: readonly WireSessionActivity[];
@@ -47,6 +50,7 @@ export interface RosterChannel {
   id: string;
   name: string;
   memberCount: number;
+  members: string[];
   preview?: string;
   previewAt?: string;
 }
@@ -205,6 +209,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
           id: channel.id,
           name: channel.name,
           memberCount: channel.members.length,
+          members: channel.members,
           ...previewOf(channel),
         });
     }
@@ -224,6 +229,9 @@ export function createHostClient(options: HostClientOptions): HostClient {
             ...(bot.appearance === undefined ? {} : { appearance: bot.appearance }),
             ...(bot.avatarSeed === undefined ? {} : { avatarSeed: bot.avatarSeed }),
             ...(bot.primaryColor === undefined ? {} : { primaryColor: bot.primaryColor }),
+            roles: bot.roles ?? [],
+            ...(bot.description === undefined ? {} : { description: bot.description }),
+            computerAccess: bot.computerAccess === true,
             state: live?.state ?? bot.aggregateState,
             ...(live?.activity === undefined ? {} : { activity: live.activity }),
             ...(live?.sessions === undefined ? {} : { sessions: live.sessions }),

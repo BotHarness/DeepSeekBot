@@ -139,16 +139,21 @@ it.each([
       );
       expect(node.querySelectorAll('.bh-companion-pending li')).toHaveLength(1);
       expect(node.querySelector('.bh-companion-bubble')).toBeNull();
-      expect(node.textContent).toContain('/qa/release');
+      expect(node.textContent).not.toContain('/qa/release');
       if (requestCount > 1) expect(node.textContent).toContain('1/2');
-      expect(node.querySelector('.bh-companion-details')?.hasAttribute('open')).toBe(false);
+      expect(node.querySelector('.bh-request-summary')?.getAttribute('aria-expanded')).toBe(
+        'false',
+      );
+      expect(node.querySelector('.bh-companion-details')).toBeNull();
       await act(() => companion.get('ada')!.advance(30_000));
       expect(node.querySelectorAll('.bh-companion-pending li')).toHaveLength(1);
       await act(() => events.dispatchEvent(new Event('error')));
       expect(
-        [...node.querySelectorAll<HTMLButtonElement>('.bh-tool-approval-card button')].every(
-          (button) => button.disabled,
-        ),
+        [
+          ...node.querySelectorAll<HTMLButtonElement>(
+            '.bh-tool-approval-card .bh-tool-approval-actions button',
+          ),
+        ].every((button) => button.disabled),
       ).toBe(true);
       expect(decisions).toEqual([]);
       await act(async () => {

@@ -28,6 +28,7 @@ export interface PushSession {
   enable(hosts: readonly SavedHost[]): Promise<void>;
   forget(host: SavedHost): Promise<void>;
   reflect(hostId: string, unresolved: ReadonlySet<string> | undefined, count: number): void;
+  reflectAgain(): void;
   stop(): void;
 }
 
@@ -120,6 +121,9 @@ export function createPushSession(options: {
           ),
         )
         .catch(() => undefined);
+    },
+    reflectAgain() {
+      reflected = '';
     },
     stop() {
       offToken();

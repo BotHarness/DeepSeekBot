@@ -431,10 +431,11 @@ describe('native question card interaction', () => {
       };
       await act(async () => render(actions, undefined, card));
       await act(async () => button('main')?.click());
-      await act(async () => button('回答并继续')?.click());
-      expect(container.textContent).toContain('已提交，等待会话接收');
+      const done = container.querySelector('.bh-request-done');
+      expect(done?.textContent).toBe('Which Memory branch should I switch to? · 已提交');
+      expect(done?.getAttribute('title')).toBe('已提交，等待会话接收');
       expect(container.textContent).not.toContain('已回答');
-      expect(button('main')?.disabled).toBe(true);
+      expect(button('main')).toBeUndefined();
       await act(async () => {
         await vi.advanceTimersByTimeAsync(800);
       });
@@ -452,18 +453,26 @@ describe('native question card interaction', () => {
     await act(async () => render(actions));
     expect(actions.userQuestionStatus).toHaveBeenCalledWith('dm-ada', 'question-1');
     expect(container.querySelector('input[type=checkbox]')).toBeNull();
-    await act(async () => button('main')?.click());
+    expect(container.querySelector('.bh-request-category')?.textContent).toBe('提问');
+    expect(container.querySelector('.bh-request-pill')?.textContent).toBe('需要你回答');
+    expect(container.textContent).not.toContain('需要你的回答');
+    expect(container.querySelector('.bh-question-lettered')).not.toBeNull();
+    expect(container.querySelector('details')).toBeNull();
+    expect(
+      container.querySelector<HTMLInputElement>('input[aria-label="其他回答"]')?.placeholder,
+    ).toBe('其他回答（可选）');
+    expect(button('回答并继续')).toBeUndefined();
     await act(async () => button('history-qa')?.click());
-    expect(button('main')?.getAttribute('aria-pressed')).toBe('false');
-    expect(button('history-qa')?.getAttribute('aria-pressed')).toBe('true');
-    await act(async () => button('回答并继续')?.click());
     expect(actions.answerUserQuestion).toHaveBeenCalledWith('dm-ada', 'question-1', [
       { id: 'memory-branch', selected: ['history-qa'] },
     ]);
     expect(container.textContent).toContain('已回答');
     await act(async () => render(actions, 'answered'));
     expect(button('回答并继续')).toBeUndefined();
-    expect(button('history-qa')?.disabled).toBe(true);
+    expect(button('history-qa')).toBeUndefined();
+    expect(container.querySelector('.bh-request-done')?.textContent).toBe(
+      'Which Memory branch should I switch to? · 已回答',
+    );
   });
 
   it('toggles multiple choices from the full label and submits only the checked answers', async () => {
@@ -512,17 +521,16 @@ describe('native question card interaction', () => {
       customInput?.dispatchEvent(new Event('input', { bubbles: true }));
     });
     expect(container.querySelector('.bh-question-source')).toBeNull();
-    expect(container.textContent).not.toContain('Digest');
+    expect(container.querySelector('.bh-request-category')?.textContent).toBe('Digest');
     expect(container.textContent).toContain('Choose the topics you want to follow.');
     expect(container.querySelector('.bh-question-custom')).toBeNull();
     expect(customInput?.getAttribute('aria-label')).toBe('其他回答');
     expect(customInput?.placeholder).toBe('其他回答（可选）');
     await act(async () => render(actions, undefined, card, true));
     expect(container.querySelector('.bh-question-source code')?.textContent).toBe('orchestrator-1');
-    expect(container.textContent).toContain('Digest');
     await act(async () => render(actions, undefined, card, false));
     expect(container.querySelector('.bh-question-source')).toBeNull();
-    expect(container.textContent).not.toContain('Digest');
+    expect(container.querySelector('.bh-request-category')?.textContent).toBe('Digest');
     expect(customInput?.value).toBe('Design');
     expect(actions.userQuestionStatus).toHaveBeenCalledTimes(1);
     expect(choices[1]?.checked).toBe(true);
@@ -530,7 +538,7 @@ describe('native question card interaction', () => {
     expect(actions.answerUserQuestion).toHaveBeenCalledWith('dm-ada', 'question-1', [
       { id: 'topics', selected: ['Business'], custom: 'Design' },
     ]);
-    expect(choices.every((choice) => choice.disabled)).toBe(true);
+    expect(container.querySelector('input[type=checkbox]')).toBeNull();
   });
 
   it('retries a failed status read without expiring a pending question', async () => {
@@ -543,10 +551,9 @@ describe('native question card interaction', () => {
     } as unknown as BridgeActions;
     await act(async () => render(actions));
     expect(container.textContent).toContain('暂时无法确认提问状态');
-    expect(button('回答并继续')).toBeUndefined();
+    expect(button('main')?.disabled).toBe(true);
     await act(async () => button('重试检查')?.click());
     expect(actions.userQuestionStatus).toHaveBeenCalledTimes(2);
-    expect(button('回答并继续')).toBeDefined();
     expect(button('main')?.disabled).toBe(false);
   });
 
@@ -556,8 +563,7 @@ describe('native question card interaction', () => {
       answerUserQuestion: vi.fn().mockResolvedValue(undefined),
     } as unknown as BridgeActions;
     await act(async () => render(actions));
-    await act(async () => button('main')?.click());
-    expect(button('main')?.getAttribute('aria-pressed')).toBe('true');
+    expect(button('回答并继续')).toBeUndefined();
     const input = container.querySelector<HTMLInputElement>('input');
     expect(input).not.toBeNull();
     await act(async () => {
@@ -565,7 +571,6 @@ describe('native question card interaction', () => {
       setter?.call(input, 'new-branch');
       input?.dispatchEvent(new Event('input', { bubbles: true }));
     });
-    expect(button('main')?.getAttribute('aria-pressed')).toBe('false');
     await act(async () => button('回答并继续')?.click());
     expect(actions.answerUserQuestion).toHaveBeenCalledWith('dm-ada', 'question-1', [
       { id: 'memory-branch', selected: [], custom: 'new-branch' },
@@ -578,8 +583,11 @@ describe('native question card interaction', () => {
     await act(async () => root.unmount());
     root = createRoot(container);
     await act(async () => render(expiredActions));
-    expect(container.textContent).toContain('此提问已失效');
+    expect(container.querySelector('.bh-request-done')?.textContent).toContain('已过期');
+    expect(container.querySelector('.bh-request-done')?.getAttribute('title')).toContain(
+      '此提问已失效',
+    );
     expect(button('回答并继续')).toBeUndefined();
-    expect(button('main')?.disabled).toBe(true);
+    expect(button('main')).toBeUndefined();
   });
 });

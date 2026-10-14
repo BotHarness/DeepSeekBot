@@ -89,6 +89,7 @@ void loadSavedHosts().then(
 
 AppState.addEventListener('change', (next) => {
   if (next !== 'active') return;
+  pushSession.reflectAgain();
   state.client?.retryNow();
   if (state.client?.getSnapshot().connection.status === 'connected') void state.inbox?.refresh();
 });

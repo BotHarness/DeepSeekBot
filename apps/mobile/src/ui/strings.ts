@@ -15,7 +15,7 @@ const en = {
   retry: 'Retry',
   tried: 'Tried',
   paused: 'Paused',
-  members: (count: number) => `${count} members`,
+  members: (count: number) => (count === 1 ? '1 member' : `${count} members`),
   state: {
     idle: 'Idle',
     thinking: 'Thinking',
@@ -139,6 +139,10 @@ const en = {
   dmRefused: 'This DM is not available on your computer.',
   openImage: (name: string) => `Open ${name}`,
   shareFile: (name: string) => `Download and share ${name}`,
+  copy: 'Copy',
+  copied: 'Copied',
+  cancel: 'Cancel',
+  messageActionsHint: 'Long-press for Copy.',
   closeViewer: 'Close',
   viewerHint: 'Pinch or double-tap to zoom. Swipe down to close.',
   imageUnavailable: 'Image unavailable. Tap to retry.',
@@ -171,6 +175,7 @@ const en = {
   home: 'Home',
   activity: 'Activity',
   me: 'Me',
+  back: 'Back',
   workingPreview: 'Working…',
   effect: {
     searching: 'Searching',
@@ -232,6 +237,49 @@ const en = {
   showing: 'Showing',
   pairAnother: 'Pair a new computer',
   switchComputer: (host: string) => `${host}, switch computer`,
+  openProfile: 'Opens the profile',
+  profile: 'Profile',
+  profileMessage: 'Message',
+  profileComputer: 'Computer',
+  profileNotifications: 'Notifications',
+  profileSection: {
+    identity: 'Identity',
+    memory: 'Memory',
+    routines: 'Routines',
+    channels: 'Channels',
+    files: 'Files',
+  },
+  profileEmpty: {
+    identity: 'No persona or standing rules yet.',
+    memory: 'Nothing remembered yet.',
+    routines: 'No routines.',
+    channels: 'Not in any Channel.',
+    files: 'No folders shared with this PersonaBot.',
+  },
+  profileLoading: 'Reading…',
+  profileFailed: 'Could not read this section:',
+  memoryItems: (count: number) => (count === 1 ? '1 item' : `${count} items`),
+  memoryEmptyFolder: 'This folder is empty.',
+  memoryEmptyFile: 'This file is empty.',
+  memoryMissing: 'This file is no longer in Memory.',
+  memoryBinary: 'This file cannot be shown as text.',
+  showMore: 'Show more',
+  showLess: 'Show less',
+  routineOff: 'Off',
+  routineNext: (at: string) => `Next ${at}`,
+  routineEvery: (seconds: number) =>
+    seconds % 86_400 === 0
+      ? `Every ${seconds / 86_400} d`
+      : seconds % 3600 === 0
+        ? `Every ${seconds / 3600} h`
+        : `Every ${Math.max(1, Math.round(seconds / 60))} min`,
+  routineDaily: (time: string) => `Daily at ${time}`,
+  routineWeekly: (time: string, days: number[]) =>
+    `${days.map((day) => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][day]).join(', ')} at ${time}`,
+  routineOnce: (date: string, time: string) => `Once on ${date} at ${time}`,
+  routineCron: (expression: string) => `Cron ${expression}`,
+  folderCanEdit: 'Can edit',
+  folderReadOnly: 'Read only',
 };
 
 const zh: typeof en = {
@@ -366,6 +414,10 @@ const zh: typeof en = {
   dmRefused: '你的电脑上已经没有这个私信。',
   openImage: (name: string) => `查看 ${name}`,
   shareFile: (name: string) => `下载并分享 ${name}`,
+  copy: '复制',
+  copied: '已复制',
+  cancel: '取消',
+  messageActionsHint: '长按可复制。',
   closeViewer: '关闭',
   viewerHint: '双指或双击缩放，下滑关闭。',
   imageUnavailable: '图片无法显示，点按重试。',
@@ -398,6 +450,7 @@ const zh: typeof en = {
   home: '首页',
   activity: '动态',
   me: '我',
+  back: '返回',
   workingPreview: '工作中…',
   effect: {
     searching: '正在搜索',
@@ -458,6 +511,49 @@ const zh: typeof en = {
   showing: '当前显示',
   pairAnother: '配对新电脑',
   switchComputer: (host: string) => `${host}，切换电脑`,
+  openProfile: '打开资料页',
+  profile: '资料',
+  profileMessage: '发消息',
+  profileComputer: '电脑',
+  profileNotifications: '通知',
+  profileSection: {
+    identity: '身份',
+    memory: '记忆',
+    routines: '例行任务',
+    channels: '频道',
+    files: '文件',
+  },
+  profileEmpty: {
+    identity: '还没有人设或长期规则。',
+    memory: '还没有记住任何东西。',
+    routines: '没有例行任务。',
+    channels: '还没有加入任何频道。',
+    files: '还没有和这个 PersonaBot 共享文件夹。',
+  },
+  profileLoading: '正在读取…',
+  profileFailed: '无法读取这一部分：',
+  memoryItems: (count: number) => `${count} 项`,
+  memoryEmptyFolder: '这个文件夹是空的。',
+  memoryEmptyFile: '这个文件是空的。',
+  memoryMissing: '这个文件已不在记忆里。',
+  memoryBinary: '这个文件无法以文本显示。',
+  showMore: '展开',
+  showLess: '收起',
+  routineOff: '已关闭',
+  routineNext: (at: string) => `下次 ${at}`,
+  routineEvery: (seconds: number) =>
+    seconds % 86_400 === 0
+      ? `每 ${seconds / 86_400} 天`
+      : seconds % 3600 === 0
+        ? `每 ${seconds / 3600} 小时`
+        : `每 ${Math.max(1, Math.round(seconds / 60))} 分钟`,
+  routineDaily: (time: string) => `每天 ${time}`,
+  routineWeekly: (time: string, days: number[]) =>
+    `每${days.map((day) => ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][day]).join('、')} ${time}`,
+  routineOnce: (date: string, time: string) => `${date} ${time} 一次`,
+  routineCron: (expression: string) => `Cron ${expression}`,
+  folderCanEdit: '可编辑',
+  folderReadOnly: '只读',
 };
 
 export const locale: 'zh' | 'en' = Intl.DateTimeFormat()

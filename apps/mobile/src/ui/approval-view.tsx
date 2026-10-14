@@ -11,6 +11,7 @@ import {
   type NoticeTone,
 } from './request-parts';
 import { useMounted } from './mounted';
+import { haptic } from './haptics';
 import { t } from './strings';
 import { useTheme } from './theme';
 
@@ -90,6 +91,7 @@ export function ApprovalView({
   const { request } = phase;
   const decide = async (outcome: 'allowed-once' | 'rejected') => {
     own.current = true;
+    haptic(outcome === 'rejected' ? 'deny' : 'approve');
     setPhase({ kind: 'ready', request, busy: outcome });
     try {
       const result = await port.decide(outcome);

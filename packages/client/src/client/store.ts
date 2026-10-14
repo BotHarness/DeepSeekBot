@@ -273,6 +273,7 @@ export interface HumanInboxFilters {
   botSlug: string | undefined;
   channelId: string | undefined;
   sort: HumanInboxSort;
+  snoozed?: boolean;
 }
 
 export interface HumanAttentionItem {
@@ -305,6 +306,7 @@ export interface HumanAttentionItem {
   isUnread?: boolean;
   responseMessageId?: string;
   responseSourceEventId?: string;
+  snoozedUntil?: string;
 }
 
 export interface HumanAttentionPage {
@@ -321,6 +323,7 @@ export interface HumanInboxState {
   botSlug: string | undefined;
   channelId: string | undefined;
   sort: HumanInboxSort;
+  snoozed: boolean;
   items: readonly HumanAttentionItem[];
   nextCursor: string | undefined;
   error: string | undefined;
@@ -554,6 +557,7 @@ function initialHumanInbox(): HumanInboxState {
     botSlug: undefined,
     channelId: undefined,
     sort: 'oldest',
+    snoozed: false,
     items: [],
     nextCursor: undefined,
     error: undefined,

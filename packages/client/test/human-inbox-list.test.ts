@@ -137,14 +137,20 @@ describe('compact Human Inbox interactions', () => {
     const view = await mount(repair);
     try {
       const rowActions = view.host.querySelector('.bh-human-inbox-row-actions')!;
-      expect(rowActions.querySelectorAll('button')).toHaveLength(1);
+      expect(
+        [...rowActions.querySelectorAll('button')].map((button) => button.textContent),
+      ).toEqual(['稍后提醒', '']);
       expect(rowActions.textContent).not.toContain('查看 Bot 收件箱');
-      await act(async () => rowActions.querySelector<HTMLButtonElement>('button')!.click());
+      await act(async () =>
+        rowActions.querySelector<HTMLButtonElement>('.bh-human-inbox-source-link')!.click(),
+      );
       expect(view.actions.openChannelAtMessage).toHaveBeenCalledWith('group', 'source');
       view.actions.openChannelAtMessage.mockRejectedValueOnce(
         new Error('Source no longer available'),
       );
-      await act(async () => rowActions.querySelector<HTMLButtonElement>('button')!.click());
+      await act(async () =>
+        rowActions.querySelector<HTMLButtonElement>('.bh-human-inbox-source-link')!.click(),
+      );
       expect(view.actions.openBot).toHaveBeenCalledWith('ada');
       view.actions.openBot.mockClear();
       expect(view.host.querySelector('.bh-human-inbox-detail')).toBeNull();

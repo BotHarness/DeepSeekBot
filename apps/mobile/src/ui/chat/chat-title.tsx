@@ -1,7 +1,8 @@
-import { View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 import type { RosterBot } from '../../host/client';
 import { BotAvatar } from '../bot-avatar';
+import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { t } from '../strings';
@@ -9,7 +10,16 @@ import { botStateTone } from './bot-tone';
 
 const AVATAR = 28;
 
-export function ChatTitle({ bot, fallback }: { bot: RosterBot | undefined; fallback: string }) {
+export function ChatTitle({
+  bot,
+  fallback,
+  onPress,
+}: {
+  bot: RosterBot | undefined;
+  fallback: string;
+  onPress(): void;
+}) {
+  const theme = useDesignTheme();
   if (bot === undefined)
     return (
       <Text variant="title" numberOfLines={1}>
@@ -18,10 +28,18 @@ export function ChatTitle({ bot, fallback }: { bot: RosterBot | undefined; fallb
     );
   const status = bot.paused ? t.paused : t.state[bot.state];
   return (
-    <View
-      accessible
+    <Pressable
+      accessibilityRole="button"
       accessibilityLabel={`${bot.displayName}, ${status}`}
-      style={{ flexDirection: 'row', alignItems: 'center', gap: space.x3 }}
+      accessibilityHint={t.openProfile}
+      onPress={onPress}
+      style={({ pressed }) => ({
+        minHeight: theme.touch,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: space.x3,
+        opacity: pressed ? 0.6 : 1,
+      })}
     >
       <BotAvatar bot={bot} size={AVATAR} />
       <View>
@@ -32,6 +50,6 @@ export function ChatTitle({ bot, fallback }: { bot: RosterBot | undefined; fallb
           {status}
         </Text>
       </View>
-    </View>
+    </Pressable>
   );
 }

@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Keyboard, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 
 import {
   buildAnswer,
@@ -20,6 +20,7 @@ import {
   type NoticeTone,
 } from './request-parts';
 import { useMounted } from './mounted';
+import { haptic } from './haptics';
 import { t } from './strings';
 import { useTheme } from './theme';
 
@@ -69,6 +70,28 @@ export function QuestionView({
     }
   }, [port]);
 
+  const scroll = useRef<ScrollView | null>(null);
+  const height = useRef(0);
+  const blocks = useRef<Record<string, { bottom: number; last: boolean }>>({});
+  const focused = useRef<string | undefined>(undefined);
+  const reveal = (keyboard: number) => {
+    const block = focused.current === undefined ? undefined : blocks.current[focused.current];
+    if (block === undefined) return;
+    if (block.last) return scroll.current?.scrollToEnd({ animated: true });
+    const y = block.bottom + 16 - (height.current - keyboard);
+    if (y > 0) scroll.current?.scrollTo({ y, animated: true });
+  };
+  const scrolled = useMounted<ScrollView>((node) => {
+    scroll.current = node;
+    const shown = Keyboard.addListener('keyboardDidShow', (event) =>
+      reveal(event.endCoordinates.height),
+    );
+    return () => {
+      shown.remove();
+      scroll.current = null;
+    };
+  }, []);
+
   const seen = useRef<boolean | undefined>(undefined);
   const mount = useMounted<View>(() => {
     const first = seen.current === undefined;
@@ -96,6 +119,7 @@ export function QuestionView({
 
   const submit = async () => {
     if (answer === undefined) return;
+    haptic('submit');
     own.current = true;
     setPhase({ kind: 'ready', request, busy: true });
     try {
@@ -119,16 +143,32 @@ export function QuestionView({
   return (
     <View ref={mount} style={{ flex: 1 }}>
       <ScrollView
+        ref={scrolled}
+        onLayout={(event) => {
+          height.current = event.nativeEvent.layout.height;
+        }}
         contentInsetAdjustmentBehavior="automatic"
+        automaticallyAdjustKeyboardInsets
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
         contentContainerStyle={{ padding: 16, gap: 20 }}
         style={{ backgroundColor: theme.background }}
       >
         <Text style={{ color: theme.inkSoft, fontSize: 15 }}>{t.asks(botName)}</Text>
-        {request.questions.map((question) => {
+        {request.questions.map((question, index) => {
           const draft = drafts[question.id] ?? emptyDraft();
           return (
-            <View key={question.id} style={{ gap: 10 }}>
+            <View
+              key={question.id}
+              style={{ gap: 10 }}
+              onLayout={(event) => {
+                const { y, height: tall } = event.nativeEvent.layout;
+                blocks.current[question.id] = {
+                  bottom: y + tall,
+                  last: index === request.questions.length - 1,
+                };
+              }}
+            >
               {question.header === undefined ? null : (
                 <Text style={{ color: theme.inkSoft, fontSize: 13, fontWeight: '600' }}>
                   {question.header}
@@ -179,6 +219,11 @@ export function QuestionView({
                 placeholderTextColor={theme.inkSoft}
                 editable={pending && phase.busy !== true}
                 multiline
+                onFocus={() => {
+                  focused.current = question.id;
+                  const keyboard = Keyboard.metrics();
+                  if (keyboard !== undefined) reveal(keyboard.height);
+                }}
                 value={draft.custom}
                 onChangeText={(text) => update(question, typeCustom(question, draft, text))}
                 style={{

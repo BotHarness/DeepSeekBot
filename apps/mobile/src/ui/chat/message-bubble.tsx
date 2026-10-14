@@ -11,6 +11,7 @@ import { MarkdownView } from '../markdown-view';
 import { Text } from '../primitives/text';
 import { t } from '../strings';
 import { MessageAttachments } from './message-attachments';
+import { openMessageMenu } from './message-menu';
 
 export function deliveryLabel(message: ConversationMessage): string | undefined {
   if (message.author !== 'human') return undefined;
@@ -26,6 +27,7 @@ export function MessageBubble({
   onRetry,
   onOpenImage = () => {},
   onShare = async () => {},
+  onLongPress = openMessageMenu,
 }: {
   message: ConversationMessage;
   first?: boolean;
@@ -33,6 +35,7 @@ export function MessageBubble({
   onRetry?: (messageId: string) => void;
   onOpenImage?: (attachment: MessageAttachment) => void;
   onShare?: (attachment: MessageAttachment) => Promise<void>;
+  onLongPress?: (text: string) => void;
 }) {
   const theme = useDesignTheme();
   const human = message.author === 'human';
@@ -49,6 +52,7 @@ export function MessageBubble({
       </View>
     );
   const ink = human ? 'onAccent' : 'fg';
+  const copyable = message.body.trim() !== '';
   const bubble = (
     <View
       style={{
@@ -71,12 +75,10 @@ export function MessageBubble({
         opacity: message.delivery === 'pending' ? 0.7 : 1,
       }}
     >
-      {message.body.trim() === '' ? null : human ? (
-        <Text selectable tone={ink}>
-          {message.body}
-        </Text>
+      {!copyable ? null : human ? (
+        <Text tone={ink}>{message.body}</Text>
       ) : (
-        <MarkdownView source={message.body} color={theme.color[ink]} />
+        <MarkdownView source={message.body} color={theme.color[ink]} selectable={false} />
       )}
       {message.attachments.length > 0 ? (
         <MessageAttachments
@@ -101,11 +103,18 @@ export function MessageBubble({
         gap: space.x1,
       }}
     >
-      {failed ? (
+      {failed || copyable ? (
         <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={label}
-          onPress={() => onRetry?.(message.id)}
+          {...(failed ? { accessibilityRole: 'button' as const, accessibilityLabel: label } : {})}
+          {...(copyable
+            ? {
+                accessibilityHint: t.messageActionsHint,
+                accessibilityActions: [{ name: 'copy', label: t.copy }],
+                onAccessibilityAction: () => onLongPress(message.body),
+                onLongPress: () => onLongPress(message.body),
+              }
+            : {})}
+          {...(failed ? { onPress: () => onRetry?.(message.id) } : {})}
         >
           {bubble}
         </Pressable>

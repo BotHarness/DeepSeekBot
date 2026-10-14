@@ -2223,8 +2223,26 @@ const PUSH_DELIVERY_MIGRATION: SchemaMigration = {
   },
 };
 
-const CHANNEL_REACTION_MIGRATION: SchemaMigration = {
+const HUMAN_INBOX_SNOOZE_MIGRATION: SchemaMigration = {
   generation: 93,
+  module: 'human-attention',
+  description: 'Let the Human snooze a Human Inbox item until a later time',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE human_inbox_snoozes (
+        human_id TEXT NOT NULL,
+        item_id TEXT NOT NULL,
+        source_key TEXT NOT NULL,
+        until TEXT NOT NULL,
+        snoozed_at TEXT NOT NULL,
+        PRIMARY KEY (human_id, item_id, source_key)
+      );
+    `);
+  },
+};
+
+const CHANNEL_REACTION_MIGRATION: SchemaMigration = {
+  generation: 94,
   module: 'messaging',
   description: 'Record emoji reactions on Channel messages',
   migrate(database) {
@@ -2334,5 +2352,6 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SECRET_MCP_ENABLEMENT_MIGRATION,
   DEVICE_PAIRING_MIGRATION,
   PUSH_DELIVERY_MIGRATION,
+  HUMAN_INBOX_SNOOZE_MIGRATION,
   CHANNEL_REACTION_MIGRATION,
 ]);

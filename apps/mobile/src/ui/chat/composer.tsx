@@ -27,6 +27,7 @@ import {
   PlusIcon,
   RecordingStopIcon,
 } from '../shell/icons';
+import { haptic } from '../haptics';
 import { t } from '../strings';
 import {
   composerActions,
@@ -420,7 +421,15 @@ export function Composer({
   );
   const trailing = actions.map((action) =>
     action === 'send' ? (
-      <RoundButton key={action} label={t.send} filled onPress={onSend}>
+      <RoundButton
+        key={action}
+        label={t.send}
+        filled
+        onPress={() => {
+          haptic('send');
+          onSend();
+        }}
+      >
         <ArrowUpIcon color={theme.color.onAccent} size={icon} />
       </RoundButton>
     ) : (

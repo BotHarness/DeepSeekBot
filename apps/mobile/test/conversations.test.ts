@@ -9,22 +9,42 @@ const roster: RosterView = {
     {
       slug: 'ada',
       displayName: 'Ada',
+      roles: [],
+      computerAccess: false,
       state: 'idle',
       paused: false,
       dmChannelId: 'dm-ada',
       preview: 'Done',
       previewAt: '2026-10-14T08:00:00.000Z',
     },
-    { slug: 'bo', displayName: 'Bo', state: 'working', paused: false, dmChannelId: 'dm-bo' },
+    {
+      slug: 'bo',
+      displayName: 'Bo',
+      roles: [],
+      computerAccess: false,
+      state: 'working',
+      paused: false,
+      dmChannelId: 'dm-bo',
+    },
     {
       slug: 'cy',
       displayName: 'Cy',
+      roles: [],
+      computerAccess: false,
       state: 'thinking',
       paused: false,
       previewAt: '2026-10-14T10:00:00.000Z',
     },
   ],
-  channels: [{ id: 'team', name: 'team', memberCount: 3, previewAt: '2026-10-14T09:00:00.000Z' }],
+  channels: [
+    {
+      id: 'team',
+      name: 'team',
+      memberCount: 3,
+      members: ['ada', 'bo', 'cy'],
+      previewAt: '2026-10-14T09:00:00.000Z',
+    },
+  ],
 };
 
 const item = (overrides: Partial<HumanAttentionItem>): HumanAttentionItem => ({

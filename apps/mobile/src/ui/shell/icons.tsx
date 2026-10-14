@@ -121,11 +121,29 @@ export function FileIcon(props: IconProps) {
   );
 }
 
+export function MessageIcon(props: IconProps) {
+  return (
+    <Glyph
+      {...props}
+      d="M5 5h14a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-7l-4 3v-3H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z"
+    />
+  );
+}
+
 export function MicIcon(props: IconProps) {
   return (
     <Glyph
       {...props}
       d="M12 3a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3Zm-6 9a6 6 0 0 0 12 0m-6 6v3"
+    />
+  );
+}
+
+export function ComputerIcon(props: IconProps) {
+  return (
+    <Glyph
+      {...props}
+      d="M4 5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Zm5 15h6m-3-3v3"
     />
   );
 }
@@ -143,4 +161,13 @@ export function RecordingStopIcon({ color, size }: IconProps) {
 
 export function ShareIcon(props: IconProps) {
   return <Glyph {...props} d="M12 15V4M8 8l4-4 4 4M6 12v7a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-7" />;
+}
+
+export function FolderIcon(props: IconProps) {
+  return (
+    <Glyph
+      {...props}
+      d="M4 6a1 1 0 0 1 1-1h4.5l2 2H19a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6Z"
+    />
+  );
 }
