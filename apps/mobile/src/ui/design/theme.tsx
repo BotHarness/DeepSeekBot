@@ -5,12 +5,14 @@ import { resolveTheme, type Appearance, type ColorScheme, type DesignTheme } fro
 import type { PlatformOS } from './tokens';
 
 export {
+  headerBand,
   resolveTheme,
   withAccent,
   type Appearance,
   type ColorRole,
   type ColorScheme,
   type DesignTheme,
+  type HeaderBand,
 } from './resolve-theme';
 
 function platformOS(): PlatformOS {

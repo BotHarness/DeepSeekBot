@@ -12,7 +12,7 @@ import {
 import { ConnectionBanner } from '../../../src/ui/connection-banner';
 import { space } from '../../../src/ui/design/tokens';
 import { Text } from '../../../src/ui/primitives/text';
-import { HostSwitchButton } from '../../../src/ui/shell/host-switch-button';
+import { HomeHeader } from '../../../src/ui/shell/home-header';
 import { ShortcutCards } from '../../../src/ui/shell/shortcut-cards';
 import { t } from '../../../src/ui/strings';
 import type { HumanAttentionItem } from '../../../src/host/wire';
@@ -50,52 +50,48 @@ export default function HomeScreen() {
 
   return (
     <>
-      <Stack.Screen
-        options={{
-          title: saved.hostName,
-          headerLeft: () => <HostSwitchButton hostName={saved.hostName} />,
-        }}
-      />
-      <FlatList
-        contentInsetAdjustmentBehavior="automatic"
-        data={rows}
-        keyExtractor={(row) => row.key}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
-        ListHeaderComponent={
-          <>
-            <ConnectionBanner
-              connection={snapshot.connection}
-              onRetry={() => client?.retryNow()}
-              onPairAgain={() => router.push('/pair')}
+      <Stack.Screen options={{ title: saved.hostName, headerShown: false }} />
+      <HomeHeader hostName={saved.hostName}>
+        <FlatList
+          data={rows}
+          keyExtractor={(row) => row.key}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
+          ListHeaderComponent={
+            <>
+              <ConnectionBanner
+                connection={snapshot.connection}
+                onRetry={() => client?.retryNow()}
+                onPairAgain={() => router.push('/pair')}
+              />
+              <ShortcutCards counts={counts} filter={filter} onFilter={setFilter} />
+            </>
+          }
+          ListEmptyComponent={
+            snapshot.roster === undefined ? null : (
+              <View style={{ padding: space.x6, alignItems: 'center', gap: space.x3 }}>
+                <Text tone="muted">{filter === 'all' ? t.noBots : t.noConversations}</Text>
+                {filter === 'all' ? null : (
+                  <Text tone="accent" accessibilityRole="button" onPress={() => setFilter('all')}>
+                    {t.showAll}
+                  </Text>
+                )}
+              </View>
+            )
+          }
+          renderItem={({ item }) => (
+            <ConversationRow
+              row={item}
+              now={now}
+              {...(item.kind === 'bot'
+                ? {
+                    onPress: () =>
+                      router.push({ pathname: '/dm/[slug]', params: { slug: item.bot.slug } }),
+                  }
+                : {})}
             />
-            <ShortcutCards counts={counts} filter={filter} onFilter={setFilter} />
-          </>
-        }
-        ListEmptyComponent={
-          snapshot.roster === undefined ? null : (
-            <View style={{ padding: space.x6, alignItems: 'center', gap: space.x3 }}>
-              <Text tone="muted">{filter === 'all' ? t.noBots : t.noConversations}</Text>
-              {filter === 'all' ? null : (
-                <Text tone="accent" accessibilityRole="button" onPress={() => setFilter('all')}>
-                  {t.showAll}
-                </Text>
-              )}
-            </View>
-          )
-        }
-        renderItem={({ item }) => (
-          <ConversationRow
-            row={item}
-            now={now}
-            {...(item.kind === 'bot'
-              ? {
-                  onPress: () =>
-                    router.push({ pathname: '/dm/[slug]', params: { slug: item.bot.slug } }),
-                }
-              : {})}
-          />
-        )}
-      />
+          )}
+        />
+      </HomeHeader>
     </>
   );
 }

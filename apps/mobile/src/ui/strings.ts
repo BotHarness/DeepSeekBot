@@ -126,6 +126,10 @@ const en = {
   workingPreview: 'Working…',
   needsYouCount: (count: number) => (count === 1 ? 'needs you' : `${count} need you`),
   shortcut: { 'needs-you': 'Needs you', working: 'Working' },
+  shortcutDetail: {
+    'needs-you': (count: number) => (count === 1 ? '1 conversation' : `${count} conversations`),
+    working: (count: number) => (count === 1 ? '1 PersonaBot' : `${count} PersonaBots`),
+  },
   noConversations: 'No conversations here.',
   showAll: 'Show all',
   computer: 'This computer',
@@ -288,6 +292,10 @@ const zh: typeof en = {
   workingPreview: '工作中…',
   needsYouCount: (count: number) => (count === 1 ? '等你处理' : `${count} 项等你处理`),
   shortcut: { 'needs-you': '等你处理', working: '工作中' },
+  shortcutDetail: {
+    'needs-you': (count: number) => `${count} 个对话`,
+    working: (count: number) => `${count} 个 PersonaBot`,
+  },
   noConversations: '这里还没有对话。',
   showAll: '显示全部',
   computer: '这台电脑',

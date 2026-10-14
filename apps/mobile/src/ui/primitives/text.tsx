@@ -3,12 +3,12 @@ import { Text as NativeText, type TextProps } from 'react-native';
 import type { ColorRole } from '../design/resolve-theme';
 import { useDesignTheme } from '../design/theme';
 
-export type TextVariant = 'meta' | 'body' | 'title';
+export type TextVariant = 'meta' | 'body' | 'title' | 'display';
 
 export function Text({
   variant = 'body',
   tone = 'fg',
-  strong = variant === 'title',
+  strong = variant === 'title' || variant === 'display',
   style,
   ...props
 }: TextProps & { variant?: TextVariant; tone?: ColorRole; strong?: boolean }) {

@@ -10,7 +10,17 @@ export default function TabsLayout() {
   const { inbox } = useHostSession();
   const pending = actionCount(useInbox(inbox));
   return (
-    <NativeTabs tintColor={theme.color.accent}>
+    <NativeTabs
+      tintColor={theme.color.fg}
+      backgroundColor={theme.color.base}
+      indicatorColor={theme.color.selected}
+      iconColor={{ default: theme.color.muted, selected: theme.color.fg }}
+      labelStyle={{
+        default: { color: theme.color.muted },
+        selected: { color: theme.color.fg, fontWeight: theme.weight.strong },
+      }}
+      labelVisibilityMode="labeled"
+    >
       <NativeTabs.Trigger name="(home)">
         <NativeTabs.Trigger.Icon sf={{ default: 'house', selected: 'house.fill' }} md="home" />
         <NativeTabs.Trigger.Label>{t.home}</NativeTabs.Trigger.Label>

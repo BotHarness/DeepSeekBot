@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import { palette as dshPalette, render } from '../scripts/generate-palette.mjs';
 import { palette } from '../src/ui/design/palette.generated';
-import { resolveTheme, withAccent } from '../src/ui/design/resolve-theme';
+import { headerBand, resolveTheme, withAccent } from '../src/ui/design/resolve-theme';
 import { botColor } from '../src/ui/bot-color';
 import { edge, radius, space } from '../src/ui/design/tokens';
 
@@ -124,6 +124,18 @@ describe('Bot colour on the Human bubble', () => {
     const red = withAccent(palette.light, '#d9475a');
     expect(red.onAccent).toBe('#ffffff');
     expect(red.accent).not.toBe('#d9475a');
+  });
+
+  it('keeps the Home header text readable on every accent in both schemes', () => {
+    for (const scheme of ['light', 'dark'] as const)
+      for (const source of ['#d9475a', '#3f8fd0', '#5f9e45', '#e07a3f', '#888888', '#c79a2b']) {
+        const { color } = resolveTheme(scheme, { accent: source });
+        const band = headerBand(scheme, color);
+        for (const behind of [band.top, band.bottom])
+          expect(contrastOf(behind, color[band.ink]), `${scheme} ${source}`).toBeGreaterThanOrEqual(
+            4.5,
+          );
+      }
   });
 
   it('lifts a colour that would vanish into the chat background', () => {

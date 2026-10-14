@@ -88,6 +88,32 @@ export function withAccent(
   return { ...color, accent, onAccent };
 }
 
+export type HeaderBand = { top: string; bottom: string; ink: ColorRole; lightInk: boolean };
+
+export function headerBand(scheme: ColorScheme, color: Record<ColorRole, string>): HeaderBand {
+  const steps = Array.from({ length: 41 }, (_, step) => step / 40);
+  if (scheme === 'dark') {
+    const sink = (from: number) =>
+      mix(
+        color.accent,
+        color.base,
+        steps.find(
+          (step) =>
+            step >= from &&
+            contrast(mix(color.accent, color.base, step), color.fg) >= BODY_CONTRAST,
+        ) ?? 1,
+      );
+    return { top: sink(0.5), bottom: sink(0.8), ink: 'fg', lightInk: true };
+  }
+  const lightInk = contrast(color.onAccent, INK_LIGHT) < 2;
+  return {
+    top: color.accent,
+    bottom: mix(color.accent, lightInk ? '#000000' : INK_LIGHT, 0.18),
+    ink: 'onAccent',
+    lightInk,
+  };
+}
+
 export function resolveTheme(
   system: ColorScheme,
   appearance: Appearance = {},

@@ -1,12 +1,15 @@
-import { Pressable, ScrollView } from 'react-native';
+import { Pressable, ScrollView, View } from 'react-native';
 
 import type { ConversationFilter } from '../chat/conversations';
 import { edge, radius, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { Text } from '../primitives/text';
 import { t } from '../strings';
+import { NeedsYouIcon, WorkingIcon } from './icons';
 
 const CARDS = ['needs-you', 'working'] as const;
+
+const ICON = { 'needs-you': NeedsYouIcon, working: WorkingIcon } as const;
 
 export function ShortcutCards({
   counts,
@@ -25,7 +28,7 @@ export function ShortcutCards({
       contentContainerStyle={{
         gap: space.x3,
         paddingHorizontal: space.x5,
-        paddingVertical: space.x3,
+        paddingVertical: space.x5,
       }}
     >
       {CARDS.map((card) => {
@@ -36,31 +39,48 @@ export function ShortcutCards({
             onPress={() => onFilter(selected ? 'all' : card)}
             accessibilityRole="button"
             accessibilityState={{ selected }}
-            accessibilityLabel={`${t.shortcut[card]}, ${counts[card]}`}
+            accessibilityLabel={`${t.shortcut[card]}, ${t.shortcutDetail[card](counts[card])}`}
             style={({ pressed }) => ({
-              minWidth: theme.touch * 3,
-              minHeight: theme.touch,
-              gap: space.x1,
-              paddingHorizontal: space.x4,
-              paddingVertical: space.x3,
+              width: theme.touch * 3,
+              gap: space.x3,
+              padding: space.x5,
               borderRadius: radius.lg,
               borderWidth: edge.hairline,
-              borderColor: selected ? theme.color.accent : theme.color.border,
+              borderColor: selected ? theme.color.accent : theme.color.borderStrong,
               backgroundColor: pressed || selected ? theme.color.selected : theme.color.surface,
             })}
           >
-            <Text
-              variant="title"
-              tone={card === 'needs-you' && counts[card] > 0 ? 'warning' : 'fg'}
-            >
-              {counts[card]}
-            </Text>
-            <Text variant="meta" tone="muted">
-              {t.shortcut[card]}
-            </Text>
+            <Icon
+              card={card}
+              color={
+                card === 'needs-you' && counts[card] > 0 ? theme.color.warning : theme.color.fg
+              }
+              size={theme.type.title.line}
+            />
+            <View style={{ gap: space.x1 }}>
+              <Text strong numberOfLines={1}>
+                {t.shortcut[card]}
+              </Text>
+              <Text variant="meta" tone="muted" numberOfLines={1}>
+                {t.shortcutDetail[card](counts[card])}
+              </Text>
+            </View>
           </Pressable>
         );
       })}
     </ScrollView>
   );
+}
+
+function Icon({
+  card,
+  color,
+  size,
+}: {
+  card: (typeof CARDS)[number];
+  color: string;
+  size: number;
+}) {
+  const Glyph = ICON[card];
+  return <Glyph color={color} size={size} />;
 }

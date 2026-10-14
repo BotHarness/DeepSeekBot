@@ -24,16 +24,21 @@ export const edge = {
 
 export type TypeRole = { size: number; line: number };
 
-export const typeScale: Record<PlatformOS, Record<'meta' | 'body' | 'title', TypeRole>> = {
+export const typeScale: Record<
+  PlatformOS,
+  Record<'meta' | 'body' | 'title' | 'display', TypeRole>
+> = {
   ios: {
     meta: { size: 13, line: 18 },
     body: { size: 17, line: 22 },
     title: { size: 17, line: 22 },
+    display: { size: 28, line: 34 },
   },
   android: {
     meta: { size: 12, line: 16 },
     body: { size: 14, line: 20 },
     title: { size: 16, line: 24 },
+    display: { size: 24, line: 32 },
   },
 };
 
