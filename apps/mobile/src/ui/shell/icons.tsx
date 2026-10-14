@@ -93,3 +93,7 @@ export function FileIcon(props: IconProps) {
     <Glyph {...props} d="M7 3h7l5 5v12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Zm7 0v5h5" />
   );
 }
+
+export function ShareIcon(props: IconProps) {
+  return <Glyph {...props} d="M12 15V4M8 8l4-4 4 4M6 12v7a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-7" />;
+}

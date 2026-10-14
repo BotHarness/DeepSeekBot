@@ -38,7 +38,7 @@ DeepSeekBot（简称 **DSB**，是 DeepSeekBot 的缩写，才不是“大啥比
 
 ## 安装
 
-在 DeepSeek Harness 桌面端点「插件 → 添加插件」，输入 `deepseekbot@1.3.0`，安装并启用，侧栏就会出现「Bot 模式」。还没装 DSH？先[下载桌面端](https://www.deepseek.com/en/harness/)。
+在 DeepSeek Harness 桌面端点「插件 → 添加插件」，输入 `deepseekbot@1.3.1`，安装并启用，侧栏就会出现「Bot 模式」。还没装 DSH？先[下载桌面端](https://www.deepseek.com/en/harness/)。
 
 命令行安装、版本说明和常见问题见[官网安装指南](https://deepseekbot.app/docs/installation/)。
 
@@ -96,6 +96,7 @@ _截图来自隔离的本地 DSH，对话是虚构的天文台展览示例。_
 
 | 版本                                                                                                              | 新内容                                                                                                                                                                                                                                                      |
 | ----------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **[1.3.1](https://github.com/BotHarness/DeepSeekBot/releases/tag/v1.3.1)**（2026-10-14）                          | 从插件页安装 `deepseekbot` 重新只要一步，不再要求批准构建；需要 DSH 0.2.0-rc.2。`deepseekbot` 命令行可以配置 Host、操作 Bot 的浏览器和 Computer、管理 IM 应用；浏览器面板实时刷新。                                                                         |
 | **[1.3.0](https://github.com/BotHarness/DeepSeekBot/releases/tag/v1.3.0)**（2026-10-14）                          | 界面换上统一的设计系统，Channel 设置收进对话框；Orchestrator 自己整理收件箱和任务；Bot 可以凭你批准使用密钥跑命令行和 **MCP**，一句话就能配好 MCP；消息可多选**导出**；新增 Bot 主题色、更多像素物种和自绘部件；记忆可回到任意版本。需要 DSH 0.2.0 及以上。 |
 | **[1.2.1](https://github.com/BotHarness/DeepSeekBot/releases/tag/v1.2.1)**（2026-10-12）                          | 修复部分 DSH 版本装不上的问题；群头像显示成员头像拼图；音频和文件附件可以直接播放、下载。                                                                                                                                                                   |
 | **[1.2.0](https://github.com/BotHarness/DeepSeekBot/blob/v1.2.0/CHANGELOG.zh.md#120---2026-10-08)**（2026-10-08） | 可以置顶在桌面的像素**窗口伙伴**；绑定一个应用就能在飞书、Slack、Discord、微信里收发消息；Bot 可以**导入导出**成 zip；Bot 资料页加了横幅和简介。                                                                                                            |

@@ -71,9 +71,16 @@ describe('section menus', () => {
       'updated',
       'manual',
       'roster-separator',
+      'mark-all-read',
       'hidden',
       'channel-history',
     ]);
+    expect(globalSortMenuItems(t)).toContainEqual(
+      expect.objectContaining({ id: 'mark-all-read', disabled: true }),
+    );
+    expect(globalSortMenuItems(t, { hasUnread: true })).toContainEqual(
+      expect.objectContaining({ id: 'mark-all-read', disabled: false }),
+    );
   });
 
   it('orders the section menu: sort modes, rename, danger delete last', () => {

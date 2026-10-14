@@ -541,6 +541,9 @@ export interface BridgeMethods {
   humanAttention(payload: unknown): BridgeResult<HumanAttentionPage>;
   humanAssignmentContext(payload: unknown): BridgeResult<{ context: HumanAssignmentContext }>;
   humanAttentionStatus(payload: unknown): BridgeResult<{ unreadCount: number; hasAction: boolean }>;
+  channelUnreadCounts(
+    payload: unknown,
+  ): BridgeResult<{ channels: Array<{ channelId: string; unreadCount: number }> }>;
   humanAttentionDismiss(payload: unknown): BridgeResult<{ accepted: boolean }>;
   humanAttentionIgnore(payload: unknown): BridgeResult<{ accepted: boolean }>;
   assignments(payload: unknown): BridgeResult<{ assignments: AssignmentSummary[] }>;
@@ -622,6 +625,7 @@ export interface BridgeMethods {
   topReorder(payload: unknown): Promise<BridgeResult<{ topOrder: TopOrderEntry[] }>>;
   pinsSet(payload: unknown): Promise<BridgeResult<{ pins: string[] }>>;
   hiddenSet(payload: unknown): Promise<BridgeResult<{ hidden: string[] }>>;
+  channelMuteSet(payload: unknown): Promise<BridgeResult<{ muted: string[] }>>;
   rosterBatch(payload: unknown): Promise<BridgeResult<RosterSnapshot>>;
   developerModeSet(payload: unknown): BridgeResult<{ accepted: boolean }>;
   computerAccessSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
@@ -895,6 +899,7 @@ const topReorderPayload = z.object({
 });
 const pinsSetPayload = z.object({ pins: z.array(z.string()) });
 const hiddenSetPayload = z.object({ hidden: z.array(z.string()) });
+const channelMuteSetPayload = z.object({ channelId: z.string().trim().min(1), muted: z.boolean() });
 const rosterBatchPayload = z.object({
   action: z.enum(['pin', 'unpin', 'hide', 'move']),
   channelIds: z
@@ -3980,6 +3985,13 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         return invalidInput(String(error));
       }
     },
+    channelUnreadCounts() {
+      try {
+        return { ok: true, value: { channels: deps.humanAttention?.unreadByChannel() ?? [] } };
+      } catch (error) {
+        return invalidInput(String(error));
+      }
+    },
     humanAssignmentContext(payload) {
       const source = asObject(payload);
       const slug = asSlug(payload);
@@ -5076,6 +5088,13 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       const parsed = hiddenSetPayload.safeParse(payload);
       if (!parsed.success) return invalidInput('invalid hiddenSet payload');
       return rosterWrite(async () => ({ hidden: await deps.roster.hiddenSet(parsed.data.hidden) }));
+    },
+    async channelMuteSet(payload) {
+      const parsed = channelMuteSetPayload.safeParse(payload);
+      if (!parsed.success) return invalidInput('channelId and a boolean muted are required');
+      const { channelId, muted } = parsed.data;
+      if (muted && deps.channels.get(channelId) === undefined) return unknownChannel(channelId);
+      return rosterWrite(async () => ({ muted: await deps.roster.mutedSet(channelId, muted) }));
     },
     async rosterBatch(payload) {
       const parsed = rosterBatchPayload.safeParse(payload);

@@ -31,6 +31,24 @@ export const SHORTCUT_HELP_GROUPS: readonly ShortcutHelpGroup[] = [
         keys: [['Alt', '1 … 0']],
         label: 'shortcuts.conversationIndex',
       },
+      { id: 'quick-switcher', keys: [['Mod', 'K']], label: 'shortcuts.quickSwitcher' },
+      {
+        id: 'conversation-step',
+        keys: [
+          ['Alt', '↑'],
+          ['Alt', '↓'],
+        ],
+        label: 'shortcuts.conversationStep',
+      },
+      {
+        id: 'unread-step',
+        keys: [
+          ['Alt', 'Shift', '↑'],
+          ['Alt', 'Shift', '↓'],
+        ],
+        label: 'shortcuts.unreadStep',
+        note: 'shortcuts.unreadStep.note',
+      },
       { id: 'help', keys: [['?'], ['Mod', '/']], label: 'shortcuts.help' },
     ],
   },

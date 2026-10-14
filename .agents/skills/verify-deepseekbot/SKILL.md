@@ -39,6 +39,7 @@ node scripts/verify-app.mjs shot <label> --name <n> --bot-mode \
 ```
 
 - Address elements by accessible name (`--click`, `--fill`, `--wait`). Read names from the last `<label>.aria.txt`. When a name carries dynamic text, such as a Channel row with its last message, use `--click-text` with a stable part.
+- `--right-click <name>` opens an element's context menu, such as a Channel row's menu in the Messages sidebar; follow it with `--click` on a menu row.
 - `--wait-text` matches rendered text only, not the composer value. Pick a reply that the prompt does not contain.
 - Use `rpc <namespace/method> [json]` to read canonical state (Channel timelines, Bot lists) after a UI action, or to seed preconditions through the same public API the Client calls. It is evidence of state, never a substitute for the UI step it follows.
 - Scripted journeys under `scripts/e2e-*.mjs` read `BH_E2E_INSTANCE`; point it at `.humanlayer/verify/<n>/instance.json` to run them against this instance.

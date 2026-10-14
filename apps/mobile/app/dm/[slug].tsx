@@ -3,7 +3,8 @@ import { useHeaderHeight } from 'expo-router/react-navigation';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, View } from 'react-native';
 
-import type { ConversationDraft } from '../../src/host/conversation';
+import type { ConversationDraft, MessageAttachment } from '../../src/host/conversation';
+import { shareAttachment } from '../../src/host/share-attachment';
 import { MAX_PICKED, pickFiles, type PickSource, type PickedFile } from '../../src/host/pick-files';
 import {
   useConversation,
@@ -15,6 +16,7 @@ import { botColor } from '../../src/ui/bot-color';
 import { botBusy } from '../../src/ui/chat/bot-tone';
 import { ChatTitle } from '../../src/ui/chat/chat-title';
 import { Composer } from '../../src/ui/chat/composer';
+import { ImageViewer } from '../../src/ui/chat/image-viewer';
 import { DraftBubble, MessageBubble } from '../../src/ui/chat/message-bubble';
 import { chatRows, type ChatRow } from '../../src/ui/chat/message-groups';
 import { StatusStrip } from '../../src/ui/chat/status-strip';
@@ -60,6 +62,8 @@ function DmConversation({ slug }: { slug: string | undefined }) {
   const [draft, setDraft] = useState('');
   const [files, setFiles] = useState<PickedFile[]>([]);
   const [attachError, setAttachError] = useState(false);
+  const [shareError, setShareError] = useState(false);
+  const [viewing, setViewing] = useState<MessageAttachment>();
   const now = new Date();
 
   const rows = useMemo<Row[]>(
@@ -89,6 +93,11 @@ function DmConversation({ slug }: { slug: string | undefined }) {
       .catch(() => setAttachError(true));
   };
 
+  const share = (attachment: MessageAttachment): Promise<void> => {
+    setShareError(false);
+    return shareAttachment(attachment).catch(() => setShareError(true));
+  };
+
   const notice =
     snapshot.status === 'refused'
       ? t.dmRefused
@@ -100,7 +109,9 @@ function DmConversation({ slug }: { slug: string | undefined }) {
             ? t.liveInterrupted
             : attachError
               ? t.attachFailed
-              : undefined;
+              : shareError
+                ? t.shareFailed
+                : undefined;
 
   return (
     <>
@@ -151,6 +162,8 @@ function DmConversation({ slug }: { slug: string | undefined }) {
                 first={item.first}
                 last={item.last}
                 onRetry={(id) => conversation?.retry(id)}
+                onOpenImage={setViewing}
+                onShare={share}
               />
             )
           }
@@ -194,6 +207,7 @@ function DmConversation({ slug }: { slug: string | undefined }) {
           onRemove={(id) => setFiles((current) => current.filter((file) => file.id !== id))}
         />
       </KeyboardAvoidingView>
+      <ImageViewer attachment={viewing} onClose={() => setViewing(undefined)} onShare={share} />
     </>
   );
 }

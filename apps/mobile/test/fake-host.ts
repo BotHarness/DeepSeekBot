@@ -265,7 +265,14 @@ export class FakeHost {
         const id = String(args['messageId']);
         const existing = channel.messages.find((message) => message.id === id);
         if (existing !== undefined) return { message: existing };
-        channel.append({ id, body: String(args['body']), author: { kind: 'human' } });
+        channel.append({
+          id,
+          body: String(args['body']),
+          author: { kind: 'human' },
+          ...(args['attachments'] === undefined
+            ? {}
+            : { attachments: args['attachments'] as NonNullable<ChannelMessage['attachments']> }),
+        });
         return { message: channel.messages.at(-1) };
       };
     return undefined;

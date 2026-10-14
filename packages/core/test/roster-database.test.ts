@@ -69,6 +69,7 @@ describe('roster database authority', () => {
     expect(rows(database).markers).toHaveLength(1);
     expect(store.snapshot()).toEqual({
       ...original.state,
+      muted: [],
       sections: [
         { id: 'target', name: 'Work', channelIds: ['c3'] },
         { id: 'source', name: '研究', channelIds: ['c1', 'c2'] },

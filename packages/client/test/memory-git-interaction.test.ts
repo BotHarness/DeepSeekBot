@@ -14,6 +14,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
   const stub = () => null;
   return {
     IconCodeOutlineRegular: () => null,
+    HoverCard: ({ anchor }: { anchor: unknown }) => anchor,
     Button: ({
       children,
       variant: _variant,

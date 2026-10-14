@@ -56,6 +56,11 @@ export interface HostSnapshot {
   roster?: RosterView;
 }
 
+export interface RemoteSource {
+  uri: string;
+  headers: Record<string, string>;
+}
+
 export interface StreamHandlers {
   item(value: unknown): void;
   interrupted(reason: string): void;
@@ -71,6 +76,7 @@ export interface HostClient {
   refresh(): Promise<void>;
   call<T>(method: string, args?: Record<string, unknown>): Promise<T>;
   upload(name: string, data: Blob): Promise<AttachmentRef>;
+  resource(path: string): RemoteSource;
   onLive(listener: (source: 'roster' | 'activity') => void): () => void;
   follow(endpoint: string, args: Record<string, unknown>, handlers: StreamHandlers): () => void;
 }
@@ -620,6 +626,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
       }
     },
     upload,
+    resource: (path) => ({ uri: absolute(path), headers: authorization }),
     onLive(listener) {
       liveListeners.add(listener);
       return () => liveListeners.delete(listener);

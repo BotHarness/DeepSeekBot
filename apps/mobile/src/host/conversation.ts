@@ -1,4 +1,4 @@
-import type { HostClient } from './client';
+import type { HostClient, RemoteSource } from './client';
 import type {
   AttachmentRef,
   ChannelLiveFrame,
@@ -11,13 +11,23 @@ import type {
 
 export type DeliveryState = 'pending' | 'committed' | 'failed';
 
+export interface MessageAttachment {
+  key: string;
+  kind: 'image' | 'file' | 'audio';
+  name: string;
+  mime?: string;
+  size?: number;
+  source?: RemoteSource;
+  local: boolean;
+}
+
 export interface ConversationMessage {
   id: string;
   revision?: number;
   at: string;
   author: 'human' | 'bot' | 'system';
   body: string;
-  attachments: number;
+  attachments: MessageAttachment[];
   card: boolean;
   delivery: DeliveryState;
   error?: string;
@@ -62,7 +72,7 @@ export interface Conversation {
 }
 
 export interface ConversationOptions {
-  host: Pick<HostClient, 'call' | 'follow' | 'upload'>;
+  host: Pick<HostClient, 'call' | 'follow' | 'upload' | 'resource'>;
   botSlug: string;
   displayName?: string;
   channelId?: string;
@@ -77,8 +87,14 @@ const MAX_PAGE = 200;
 
 export interface OutgoingFile {
   name: string;
+  kind?: 'image' | 'file';
+  uri?: string;
   read(): Promise<Blob>;
 }
+
+const PREVIEWABLE = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp']);
+
+export const ATTACHMENT_PATH = '/api/botharness/attachment';
 
 interface Outgoing {
   id: string;
@@ -106,7 +122,66 @@ function hasCard(message: ChannelWireMessage): boolean {
   );
 }
 
-function present(entry: JournalEntry): ConversationMessage {
+function attachmentPath(params: Record<string, string>): string {
+  return `${ATTACHMENT_PATH}?${new URLSearchParams(params)}`;
+}
+
+function attachmentsOf(
+  entry: JournalEntry,
+  resolve: (path: string) => RemoteSource,
+  picked: readonly (OutgoingFile | undefined)[],
+): MessageAttachment[] {
+  const message = entry.message;
+  const owner = { channelId: entry.channelId, messageId: message.id };
+  const stored = (message.attachments ?? []).map((ref, index): MessageAttachment => {
+    const file = picked[index];
+    return {
+      key: `${message.id}:${index}`,
+      kind: PREVIEWABLE.has(ref.mime) ? 'image' : 'file',
+      name: ref.name,
+      mime: ref.mime,
+      size: ref.size,
+      ...(file?.uri === undefined
+        ? {
+            source: resolve(
+              attachmentPath(
+                ref.fileId === undefined
+                  ? { hash: ref.hash ?? '', name: ref.name, ...owner }
+                  : { ...owner, fileId: ref.fileId },
+              ),
+            ),
+          }
+        : { source: { uri: file.uri, headers: {} } }),
+      local: file?.uri !== undefined,
+    };
+  });
+  const sourceEventId = message.bridgeOrigin?.sourceEventId;
+  const bridged = (message.bridgeMedia?.items ?? []).map((item): MessageAttachment => ({
+    key: `${message.id}:bridge:${item.id}`,
+    kind: item.kind,
+    name: item.name,
+    ...(item.sizeBytes === undefined ? {} : { size: item.sizeBytes }),
+    ...(sourceEventId === undefined
+      ? {}
+      : {
+          source: resolve(
+            attachmentPath({
+              channelId: entry.channelId,
+              sourceEventId,
+              attachmentId: item.id,
+            }),
+          ),
+        }),
+    local: false,
+  }));
+  return [...stored, ...bridged];
+}
+
+function present(
+  entry: JournalEntry,
+  resolve: (path: string) => RemoteSource,
+  picked: readonly (OutgoingFile | undefined)[],
+): ConversationMessage {
   const message = entry.message;
   const kind = message.author.kind;
   return {
@@ -115,7 +190,7 @@ function present(entry: JournalEntry): ConversationMessage {
     at: message.at,
     author: kind === 'human' ? 'human' : kind === 'bot' ? 'bot' : 'system',
     body: message.body,
-    attachments: (message.attachments?.length ?? 0) + (message.bridgeMedia?.items.length ?? 0),
+    attachments: attachmentsOf(entry, resolve, picked),
     card: hasCard(message),
     delivery: 'committed',
   };
@@ -136,6 +211,7 @@ export function createConversation(options: ConversationOptions): Conversation {
   let reason: string | undefined;
   const drafts = new Map<string, ConversationDraft>();
   const outgoing = new Map<string, Outgoing>();
+  const sentFiles = new Map<string, OutgoingFile[]>();
   let running = false;
   let session = 0;
   let unfollow: (() => void) | undefined;
@@ -153,7 +229,14 @@ export function createConversation(options: ConversationOptions): Conversation {
         at: item.at,
         author: 'human',
         body: item.body,
-        attachments: item.files.length,
+        attachments: item.files.map((file, index) => ({
+          key: `${item.id}:${index}`,
+          kind: file.kind ?? 'file',
+          name: file.name,
+          ...(item.refs[index] === undefined ? {} : { size: item.refs[index].size }),
+          ...(file.uri === undefined ? {} : { source: { uri: file.uri, headers: {} } }),
+          local: file.uri !== undefined,
+        })),
         card: false,
         delivery: item.delivery,
         ...(item.error === undefined ? {} : { error: item.error }),
@@ -162,7 +245,12 @@ export function createConversation(options: ConversationOptions): Conversation {
     return {
       status,
       ...(reason === undefined ? {} : { reason }),
-      messages: [...window.map(present), ...pending],
+      messages: [
+        ...window.map((entry) =>
+          present(entry, options.host.resource, sentFiles.get(entry.message.id) ?? []),
+        ),
+        ...pending,
+      ],
       drafts: [...drafts.values()],
       hasOlder,
       loadingOlder,
@@ -433,6 +521,7 @@ export function createConversation(options: ConversationOptions): Conversation {
         delivery: 'pending',
       };
       outgoing.set(item.id, item);
+      if (files.some((file) => file.uri !== undefined)) sentFiles.set(item.id, files);
       publish();
       void deliver(item);
       return item.id;

@@ -3224,6 +3224,26 @@ export async function loadHumanAttentionStatus(
     throw new Error('invalid Human attention status');
   return { unreadCount: row['unreadCount'] as number, hasAction: row['hasAction'] };
 }
+export async function loadChannelUnreadCounts(call: BridgeCall): Promise<Record<string, number>> {
+  const channels = asRecord(await unwrap(call, 'channelUnreadCounts', {}))?.['channels'];
+  if (!Array.isArray(channels)) throw new Error('invalid channelUnreadCounts response');
+  const counts: Record<string, number> = {};
+  for (const entry of channels) {
+    const row = asRecord(entry);
+    const channelId = row?.['channelId'];
+    const unreadCount = row?.['unreadCount'];
+    if (
+      typeof channelId !== 'string' ||
+      channelId.length === 0 ||
+      !Number.isSafeInteger(unreadCount) ||
+      (unreadCount as number) < 0
+    )
+      throw new Error('invalid channelUnreadCounts response');
+    if ((unreadCount as number) > 0) counts[channelId] = unreadCount as number;
+  }
+  return counts;
+}
+
 export async function dismissHumanInboxItem(
   call: BridgeCall,
   itemId: string,
@@ -3367,6 +3387,15 @@ export async function setRosterHidden(
   signal?: AbortSignal,
 ): Promise<void> {
   await unwrap(call, 'hiddenSet', { hidden }, signal);
+}
+
+export async function setChannelMute(
+  call: BridgeCall,
+  channelId: string,
+  muted: boolean,
+  signal?: AbortSignal,
+): Promise<void> {
+  await unwrap(call, 'channelMuteSet', { channelId, muted }, signal);
 }
 
 export interface MemoryAcceptedCommit {

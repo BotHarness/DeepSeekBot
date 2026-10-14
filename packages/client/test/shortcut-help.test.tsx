@@ -32,9 +32,14 @@ describe('shortcut list', () => {
     expect(row('bot-mode')?.textContent).toBe('Enter or leave Bot modeAlt`');
     expect(row('help')?.textContent).toBe('Show keyboard shortcuts?orCtrl/');
     expect(row('recall')?.textContent).toContain('When the composer is empty');
+    expect(row('quick-switcher')?.textContent).toBe('Quick switcherCtrlK');
+    expect(row('unread-step')?.textContent).toBe(
+      'Previous or next unread conversationSkips muted conversationsAltShift↑orAltShift↓',
+    );
     expect(host.querySelectorAll('h3')).toHaveLength(2);
     act(() => root.render(createElement(ShortcutHelpList, { t, apple: true })));
     expect(row('help')?.textContent).toBe('Show keyboard shortcuts?or⌘/');
+    expect(row('conversation-step')?.textContent).toBe('Previous or next conversation⌥↑or⌥↓');
     act(() => root.unmount());
   });
 

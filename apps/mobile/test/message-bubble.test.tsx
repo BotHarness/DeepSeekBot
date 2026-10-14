@@ -7,8 +7,10 @@ vi.mock('react-native', () => {
   const host = (name: string) => {
     const Component = ({ children, ...props }: Record<string, unknown>) => {
       const attributes: Record<string, string> = {};
-      for (const key of ['accessibilityLabel', 'accessibilityRole', 'selectable'])
-        if (props[key] !== undefined) attributes[`data-${key.toLowerCase()}`] = String(props[key]);
+      for (const key of ['accessibilityLabel', 'accessibilityRole', 'selectable', 'source'])
+        if (props[key] !== undefined)
+          attributes[`data-${key.toLowerCase()}`] =
+            typeof props[key] === 'object' ? JSON.stringify(props[key]) : String(props[key]);
       return (
         <div data-native={name} {...attributes}>
           {children as never}
@@ -22,11 +24,18 @@ vi.mock('react-native', () => {
     Text: host('Text'),
     Pressable: host('Pressable'),
     ScrollView: host('ScrollView'),
+    Image: host('Image'),
+    ActivityIndicator: host('ActivityIndicator'),
     Linking: { openURL: async () => undefined },
     Platform: { OS: 'ios', select: (options: Record<string, unknown>) => options['ios'] },
     useColorScheme: () => 'light',
   };
 });
+
+vi.mock('react-native-svg', () => ({
+  default: () => <svg />,
+  Path: () => null,
+}));
 
 const { MessageBubble, DraftBubble, deliveryLabel } = await import('../src/ui/chat/message-bubble');
 const { t } = await import('../src/ui/strings');
@@ -36,7 +45,7 @@ const human = (overrides: Partial<ConversationMessage>): ConversationMessage => 
   at: '2026-10-14T08:00:00.000Z',
   author: 'human',
   body: 'hello',
-  attachments: 0,
+  attachments: [],
   card: false,
   delivery: 'committed',
   ...overrides,
@@ -69,14 +78,13 @@ describe('message states', () => {
     expect(html).toContain('data-accessibilityrole="button"');
   });
 
-  it('renders a Bot reply as selectable Markdown with an attachment placeholder', () => {
+  it('renders a Bot reply as selectable Markdown', () => {
     const html = renderToStaticMarkup(
       <MessageBubble
         message={human({
           id: 'bot-1',
           author: 'bot',
           body: 'Use `pnpm test`:\n\n- one\n- [docs](https://botharness.ai)',
-          attachments: 2,
           revision: 2,
         })}
       />,
@@ -84,8 +92,32 @@ describe('message states', () => {
     expect(html).toContain('data-selectable="true"');
     expect(html).toContain('pnpm test');
     expect(html).toContain('data-accessibilityrole="link"');
-    expect(html).toContain(t.attachments(2));
     expect(deliveryLabel(human({ author: 'bot' }))).toBeUndefined();
+  });
+
+  it('shows images as thumbnails and files as rows with their size', () => {
+    const source = { uri: 'https://host/a', headers: { authorization: 'Device x' } };
+    const html = renderToStaticMarkup(
+      <MessageBubble
+        message={human({
+          author: 'bot',
+          body: '',
+          attachments: [
+            { key: 'a', kind: 'image', name: 'chart.png', source, local: false },
+            { key: 'b', kind: 'file', name: 'report.pdf', size: 3_500_000, source, local: false },
+            { key: 'c', kind: 'audio', name: 'voice.ogg', local: false },
+          ],
+        })}
+      />,
+    );
+    expect(html).toContain(`data-accessibilitylabel="${t.openImage('chart.png')}"`);
+    expect(html).toContain('data-native="Image"');
+    expect(html).toContain('Device x');
+    expect(html).toContain(`data-accessibilitylabel="${t.shareFile('report.pdf')}"`);
+    expect(html).toContain('3.3 MB');
+    expect(html).toContain('voice.ogg');
+    expect(html).toContain(t.attachmentElsewhere);
+    expect(html).not.toContain('full client to view.');
   });
 
   it('shows a card note for interactive messages and a typing line for drafts', () => {

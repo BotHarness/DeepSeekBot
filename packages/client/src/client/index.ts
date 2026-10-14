@@ -65,7 +65,7 @@ import {
 import {
   webBotModeShortcut,
   webShortcutBlocked,
-  webShortcutBlockedByModal,
+  webModalOpen,
   webShortcutHelpShortcut,
 } from './channel-shortcuts.js';
 import {
@@ -438,9 +438,7 @@ export function apply(ctx: ClientContext): void {
         return;
       }
       if (
-        trigger === 'question'
-          ? webShortcutBlocked(event.target, document)
-          : webShortcutBlockedByModal(document)
+        trigger === 'question' ? webShortcutBlocked(event.target, document) : webModalOpen(document)
       )
         return;
       event.preventDefault();
@@ -912,7 +910,7 @@ export function apply(ctx: ClientContext): void {
           name: 'sidebar.workspaces',
           priority: -100,
           locale: LOCALE_NS,
-          inject: () => ({ actions, companion, ...botModePrefsFace(prefs) }),
+          inject: () => ({ actions, companion, channelSidebar, ...botModePrefsFace(prefs) }),
         },
         BotSidebar,
       ),

@@ -12,7 +12,7 @@ const message = (
   at: `2026-10-14T${at}:00.000Z`,
   author,
   body: id,
-  attachments: 0,
+  attachments: [],
   card: false,
   delivery: 'committed',
 });

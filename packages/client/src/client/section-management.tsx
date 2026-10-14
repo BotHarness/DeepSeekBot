@@ -17,12 +17,16 @@ import type { RosterSection } from './roster.js';
 
 export type BotMenuTranslate = BotHarnessTranslate;
 
-export function globalSortMenuItems(t: BotMenuTranslate): readonly MenuEntry[] {
+export function globalSortMenuItems(
+  t: BotMenuTranslate,
+  options: { hasUnread?: boolean } = {},
+): readonly MenuEntry[] {
   return [
     { type: 'label', id: 'sort-label', text: t('sort.menu.label') },
     { id: 'updated', label: t('sort.updated') },
     { id: 'manual', label: t('sort.manual') },
     { type: 'separator', id: 'roster-separator' },
+    { id: 'mark-all-read', label: t('roster.markAllRead'), disabled: options.hasUnread !== true },
     { id: 'hidden', label: t('hidden.manage') },
     { id: 'channel-history', label: t('purge.history') },
   ];

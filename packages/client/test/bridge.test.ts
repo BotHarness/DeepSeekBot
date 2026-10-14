@@ -2036,6 +2036,7 @@ describe('bridge actions', () => {
     expect(clientStore.getSnapshot().roster).toEqual({
       pins: ['ada'],
       hidden: [],
+      muted: [],
       sections: [
         { id: 's2', name: '研究', channelIds: [] },
         { id: 's1', name: '工作流', channelIds: ['c1'] },
@@ -2347,6 +2348,7 @@ describe('bridge actions', () => {
     expect(clientStore.getSnapshot().roster).toEqual({
       pins: ['ada'],
       hidden: [],
+      muted: [],
       sections: [],
       topOrder: undefined,
       readOnly: false,

@@ -44,13 +44,41 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
     IconSearchOutlineRegular: stub,
     IconSendOutlineRegular: stub,
     IconSettingsOutlineRegular: stub,
+    IconUserOutlineRegular: stub,
     IconTrashOutlineRegular: stub,
     FileTypeIcon: stub,
     ImageLightbox: stub,
     Input: ({ className: _className, ...props }: InputHTMLAttributes<HTMLInputElement>) =>
       createElement('input', props),
     MarkdownText: stub,
-    Menu: stub,
+    Menu: ({
+      open,
+      anchor,
+      items = [],
+      onSelect,
+    }: {
+      open: boolean;
+      anchor?: unknown;
+      items?: readonly { id: string; type?: string }[];
+      onSelect?: (id: string) => void;
+    }) =>
+      createElement(
+        'span',
+        null,
+        anchor as never,
+        open
+          ? items
+              .filter((item) => item.type === undefined)
+              .map((item) =>
+                createElement('button', {
+                  key: item.id,
+                  type: 'button',
+                  'data-menu-id': item.id,
+                  onClick: () => onSelect?.(item.id),
+                }),
+              )
+          : null,
+      ),
     MenuItemButton: stub,
     Modal: ({
       open,
@@ -241,6 +269,7 @@ describe('PersonaBot Profile surface', () => {
       expect(container.querySelector('.bh-chat-body')).not.toBeNull();
 
       await act(async () => click(container, '.bh-channel-island'));
+      await act(async () => click(container, '[data-menu-id="primary"]'));
       const popover = container.querySelector('.bh-profile-popover');
       expect(popover).not.toBeNull();
       expect(popover?.textContent).toContain('Ada');
@@ -385,6 +414,7 @@ describe('PersonaBot Profile surface', () => {
       expect(container.querySelector('.bh-chat-body')).not.toBeNull();
 
       await act(async () => click(container, '.bh-channel-island'));
+      await act(async () => click(container, '[data-menu-id="primary"]'));
       expect(container.querySelector('.bh-profile-popover')).not.toBeNull();
       await act(async () => {
         document.body.dispatchEvent(new Event('pointerdown', { bubbles: true }));
@@ -426,6 +456,7 @@ describe('PersonaBot Profile surface', () => {
             actions: {
               allBotPreview: vi.fn(async () => ({ revision: '0'.repeat(64), recipients: [] })),
               channelAssignments: vi.fn(async () => []),
+              groupProfileActivity: vi.fn(() => new Promise(() => {})),
               ...inertSubmissionActions,
             } as unknown as BridgeActions,
             channelSidebar: sidebarRegistry(),
@@ -435,8 +466,11 @@ describe('PersonaBot Profile surface', () => {
       });
       const island = container.querySelector('[data-group-channel-name]');
       expect(island?.tagName).toBe('BUTTON');
-      expect(island?.getAttribute('aria-label')).toBe('打开 设计组 的群聊 Profile');
-      expect(island?.getAttribute('aria-haspopup')).toBe('dialog');
+      expect(island?.getAttribute('aria-label')).toBe('设计组 · 聊天菜单');
+      expect(island?.getAttribute('aria-haspopup')).toBe('menu');
+      await act(async () => click(container, '[data-group-channel-name]'));
+      await act(async () => click(container, '[data-menu-id="primary"]'));
+      expect(container.querySelector('.bh-profile-popover')).not.toBeNull();
     } finally {
       await act(async () => root.unmount());
       container.remove();

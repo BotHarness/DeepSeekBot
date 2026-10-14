@@ -59,6 +59,7 @@ export interface PersonaBotAvatarProps {
   mouth?: PixelMouthState | undefined;
   facing?: 'front' | 'left' | 'right' | undefined;
   anchorRef?: ((anchor: AvatarAnchor | undefined) => void) | undefined;
+  nativeTitle?: boolean | undefined;
 }
 
 export interface PersonaBotFacepileItem {
@@ -355,6 +356,7 @@ export function PersonaBotAvatar({
   mouth = 'saved',
   facing,
   anchorRef,
+  nativeTitle = true,
   t = zhTranslate,
 }: PersonaBotAvatarProps): ReactElement {
   const resolvedEffect =
@@ -391,7 +393,7 @@ export function PersonaBotAvatar({
       data-effect={resolvedEffect}
       data-media={mediaKind}
       data-active={active ? 'true' : 'false'}
-      title={`${name} · ${summary}`}
+      title={nativeTitle ? `${name} · ${summary}` : undefined}
       role="img"
       aria-label={t('avatar.label', { name, activity: summary })}
     >
