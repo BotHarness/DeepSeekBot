@@ -18,6 +18,7 @@ export const radius = {
 } as const;
 
 export const edge = {
+  hairline: 1,
   focus: 2,
 } as const;
 

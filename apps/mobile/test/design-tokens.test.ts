@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest';
 
 import { palette as dshPalette, render } from '../scripts/generate-palette.mjs';
 import { palette } from '../src/ui/design/palette.generated';
-import { resolveTheme } from '../src/ui/design/resolve-theme';
+import { resolveTheme, withAccent } from '../src/ui/design/resolve-theme';
+import { botColor } from '../src/ui/bot-color';
 import { edge, radius, space } from '../src/ui/design/tokens';
 
 const webTokens = readFileSync(
@@ -48,6 +49,7 @@ describe('mobile design tokens', () => {
     const web = webConsts('radius');
     for (const role of ['xs', 'sm', 'md', 'lg'] as const) expect(px(web[role]!)).toBe(radius[role]);
     expect(px(webConsts('border')['focus']!)).toBe(edge.focus);
+    expect(px(webConsts('border')['hairline']!)).toBe(edge.hairline);
   });
 });
 
@@ -79,5 +81,57 @@ describe('resolveTheme', () => {
       touch: 48,
       type: { body: { size: 14 } },
     });
+  });
+});
+
+function contrastOf(a: string, b: string): number {
+  const lum = (hex: string) =>
+    [16, 8, 0]
+      .map((shift) => ((Number.parseInt(hex.slice(1), 16) >> shift) & 0xff) / 255)
+      .map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4))
+      .reduce((sum, c, index) => sum + c * [0.2126, 0.7152, 0.0722][index]!, 0);
+  const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x) as [number, number];
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+describe('Bot colour on the Human bubble', () => {
+  const bot = { slug: 'ada', displayName: 'Ada', state: 'idle' as const, paused: false };
+
+  it('uses the Bot primary colour, custom first', () => {
+    expect(botColor({ ...bot, primaryColor: { mode: 'custom', color: '#2f9e8f' } })).toBe(
+      '#2f9e8f',
+    );
+    expect(botColor(bot)).toMatch(/^#[0-9a-f]{6}$/);
+  });
+
+  it('keeps message text at 4.5:1 on every Bot colour', () => {
+    for (const scheme of [palette.light, palette.dark])
+      for (const source of ['#d9475a', '#3f8fd0', '#5f9e45', '#e07a3f', '#888888', '#c79a2b']) {
+        const { accent, onAccent } = withAccent(scheme, source);
+        expect(contrastOf(accent, onAccent), `${source} → ${accent}`).toBeGreaterThanOrEqual(4.5);
+      }
+  });
+
+  it('keeps a light colour as is with dark text, and darkens a mid-tone under white text', () => {
+    expect(withAccent(palette.dark, '#c79a2b')).toMatchObject({
+      accent: '#c79a2b',
+      onAccent: '#0f1115',
+    });
+    expect(withAccent(palette.light, '#5b2ecc')).toMatchObject({
+      accent: '#5b2ecc',
+      onAccent: '#ffffff',
+    });
+    const red = withAccent(palette.light, '#d9475a');
+    expect(red.onAccent).toBe('#ffffff');
+    expect(red.accent).not.toBe('#d9475a');
+  });
+
+  it('lifts a colour that would vanish into the chat background', () => {
+    const dark = withAccent(palette.dark, '#141414');
+    expect(dark.accent).not.toBe('#141414');
+    expect(dark.accent).not.toBe(palette.dark.surface);
+    expect(dark.onAccent).toBe('#ffffff');
+    expect(withAccent(palette.light, '#fbf6ec').accent).not.toBe('#fbf6ec');
+    expect(withAccent(palette.light, undefined)).toEqual(palette.light);
   });
 });

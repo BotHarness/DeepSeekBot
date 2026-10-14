@@ -250,6 +250,76 @@ describe('bridge methods', () => {
     expect((await methods.profileSessionUsage({})).ok).toBe(false);
     expect(read.mock.calls).toHaveLength(2);
   });
+  it("traces a Bot's recent tool calls from its own Session log only", async () => {
+    const ownership = createTestOwnership({
+      'session-ada': { botSlug: 'ada', rootRole: 'orchestrator' },
+      'session-other': { botSlug: 'outsider', rootRole: 'orchestrator' },
+    });
+    const read = vi.fn(async () => ({
+      events: [
+        { type: 'turn/start', seq: 1, time: 1, data: { turn: 1 } },
+        {
+          type: 'tool/call',
+          seq: 2,
+          time: 2,
+          data: {
+            turn: 1,
+            step: 1,
+            callId: 'c1',
+            name: 'browser_open',
+            arguments: '{"url":"https://x.com"}',
+          },
+        },
+        {
+          type: 'tool/result',
+          seq: 3,
+          time: 3,
+          data: {
+            turn: 1,
+            step: 1,
+            message: {
+              toolCallId: 'c1',
+              isError: true,
+              content: [{ type: 'text', text: 'Error: failed' }],
+            },
+          },
+        },
+      ],
+      inheritedEventCount: 0,
+    }));
+    const { registry, methods } = setup(
+      [],
+      ['ada'],
+      undefined,
+      ownership,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      read,
+    );
+    registry.create({ slug: 'ada', displayName: 'Ada' });
+    const result = await methods.botToolTrace({ slug: 'ada', sessionId: 'session-ada', turns: 5 });
+    expect(result).toMatchObject({
+      ok: true,
+      value: {
+        sessionId: 'session-ada',
+        turns: [
+          { turn: 1, calls: [{ name: 'browser_open', outcome: 'error', result: 'Error: failed' }] },
+        ],
+      },
+    });
+    expect(read).toHaveBeenCalledWith('session-ada');
+    expect((await methods.botToolTrace({ slug: 'ada', sessionId: 'session-other' })).ok).toBe(
+      false,
+    );
+    expect(
+      (await methods.botToolTrace({ slug: 'ada', sessionId: 'session-ada', turns: 0 })).ok,
+    ).toBe(false);
+    expect((await methods.botToolTrace({ slug: 'nobody' })).ok).toBe(false);
+    expect(read).toHaveBeenCalledTimes(1);
+  });
   it('reports the Orchestrator Session the runtime resumes, not an archived newer one', async () => {
     const ownership = createTestOwnership({
       resumed: { botSlug: 'ada', rootRole: 'orchestrator' },

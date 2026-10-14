@@ -1,3 +1,5 @@
+import type { BotPrimaryColor } from '../../../../packages/core/src/bots/primary-color';
+
 export type AggregatedState = 'idle' | 'thinking' | 'working' | 'waiting' | 'blocked';
 
 export interface WireMessage {
@@ -71,6 +73,7 @@ export interface PersonaBotSummary {
   avatar?: string;
   appearance?: unknown;
   avatarSeed?: 2;
+  primaryColor?: BotPrimaryColor;
   paused?: boolean;
   deleted?: boolean;
   aggregateState: AggregatedState;

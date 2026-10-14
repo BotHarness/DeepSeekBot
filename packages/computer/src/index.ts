@@ -659,6 +659,58 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
       'botharness-computer: stop route',
     );
 
+    const toolsRoute = {
+      path: '/api/computer/tools',
+      methods: ['GET'] as const,
+      requestBody: 'buffered' as const,
+      fetch: async (): Promise<Response> =>
+        json({ ok: true, tools: await toolProvider.directTools() }),
+    };
+    connectionCtx.effect(
+      () => connection.fetch.register(toolsRoute),
+      'botharness-computer: tool catalog route',
+    );
+
+    const toolRoute = {
+      path: '/api/computer/tool',
+      methods: ['POST'] as const,
+      requestBody: 'buffered' as const,
+      fetch: async (request: Request): Promise<Response> => {
+        const body = (await parseBody(request)) as {
+          slug?: unknown;
+          tool?: unknown;
+          args?: unknown;
+        };
+        const slug = typeof body.slug === 'string' ? body.slug : '';
+        const tool = typeof body.tool === 'string' ? body.tool : '';
+        const args = body.args ?? {};
+        if (
+          slug === '' ||
+          tool === '' ||
+          typeof args !== 'object' ||
+          args === null ||
+          Array.isArray(args)
+        )
+          return json({ ok: false, error: 'slug, tool and an args object are required' }, 400);
+        diagnostics.record('lifecycle', `direct tool slug=${slug} tool=${tool}`);
+        try {
+          return json({
+            ok: true,
+            result: await toolProvider.runDirect(slug, tool, args as Record<string, unknown>),
+          });
+        } catch (error) {
+          return json(
+            { ok: false, error: error instanceof Error ? error.message : String(error) },
+            409,
+          );
+        }
+      },
+    };
+    connectionCtx.effect(
+      () => connection.fetch.register(toolRoute),
+      'botharness-computer: direct tool route',
+    );
+
     const parseBody = async (request: Request): Promise<Record<string, unknown>> => {
       try {
         return (await request.json()) as Record<string, unknown>;

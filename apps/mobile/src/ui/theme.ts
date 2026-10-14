@@ -1,49 +1,31 @@
-import { useColorScheme } from 'react-native';
-
 import type { AggregatedState } from '../host/wire';
+import { useDesignTheme, type DesignTheme } from './design/theme';
 
-const light = {
-  background: '#f8fafc',
-  surface: '#ffffff',
-  ink: '#0f172a',
-  inkSoft: '#475569',
-  border: 'rgba(0, 0, 0, 0.12)',
-  brand: '#16a34a',
-  accent: '#2563eb',
-  onAccent: '#ffffff',
-  warning: '#b45309',
-  danger: '#dc2626',
-  warningSurface: '#fef3c7',
-  dangerSurface: '#fee2e2',
-  codeSurface: 'rgba(15, 23, 42, 0.06)',
-  humanBubble: '#2563eb',
-  humanInk: '#ffffff',
-  botBubble: '#ffffff',
-};
+function legacy(color: DesignTheme['color']) {
+  return {
+    background: color.base,
+    surface: color.elevated,
+    ink: color.fg,
+    inkSoft: color.muted,
+    border: color.border,
+    brand: color.success,
+    accent: color.accent,
+    onAccent: color.onAccent,
+    warning: color.warning,
+    danger: color.danger,
+    warningSurface: color.warningSoft,
+    dangerSurface: color.dangerSoft,
+    codeSurface: color.hover,
+    humanBubble: color.accent,
+    humanInk: color.onAccent,
+    botBubble: color.surface,
+  };
+}
 
-const dark: typeof light = {
-  background: '#0b1120',
-  surface: '#111827',
-  ink: '#f1f5f9',
-  inkSoft: '#94a3b8',
-  border: 'rgba(255, 255, 255, 0.16)',
-  brand: '#22c55e',
-  accent: '#60a5fa',
-  onAccent: '#0b1120',
-  warning: '#fbbf24',
-  danger: '#f87171',
-  warningSurface: '#3a2a07',
-  dangerSurface: '#3b1212',
-  codeSurface: 'rgba(255, 255, 255, 0.08)',
-  humanBubble: '#1d4ed8',
-  humanInk: '#ffffff',
-  botBubble: '#1e293b',
-};
-
-export type Theme = typeof light;
+export type Theme = ReturnType<typeof legacy>;
 
 export function useTheme(): Theme {
-  return useColorScheme() === 'dark' ? dark : light;
+  return legacy(useDesignTheme().color);
 }
 
 export function stateColor(theme: Theme, state: AggregatedState): string {

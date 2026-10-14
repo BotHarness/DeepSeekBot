@@ -202,6 +202,7 @@ describe('bridge typert service', () => {
       'userQuestionStatus',
       'userQuestionAnswer',
       'sessions',
+      'botToolTrace',
       'sessionArchiveSet',
       'sessionOwner',
       'botSessionIds',

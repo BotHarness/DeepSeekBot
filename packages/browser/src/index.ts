@@ -1,3 +1,4 @@
+import { BROWSER_TOOLS, browserToolName } from './tool/catalog.js';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
@@ -892,6 +893,66 @@ export function apply(
     connectionCtx.effect(
       () => connection.fetch.register(stopRoute),
       'botharness-browser: stop route',
+    );
+
+    const toolsRoute = {
+      path: '/api/browser/tools',
+      methods: ['GET'] as const,
+      requestBody: 'buffered' as const,
+      fetch: async (): Promise<Response> =>
+        json({
+          ok: true,
+          tools: BROWSER_TOOLS.map((spec) => ({
+            name: browserToolName(spec.raw),
+            description: spec.description,
+            inputSchema: spec.inputSchema,
+          })),
+        }),
+    };
+    connectionCtx.effect(
+      () => connection.fetch.register(toolsRoute),
+      'botharness-browser: tool catalog route',
+    );
+
+    const toolRoute = {
+      path: '/api/browser/tool',
+      methods: ['POST'] as const,
+      requestBody: 'buffered' as const,
+      fetch: async (request: Request): Promise<Response> => {
+        let body: { slug?: unknown; tool?: unknown; args?: unknown } = {};
+        try {
+          body = (await request.json()) as typeof body;
+        } catch {
+          void 0;
+        }
+        const slug = typeof body.slug === 'string' ? body.slug : '';
+        const tool = typeof body.tool === 'string' ? body.tool : '';
+        const args = body.args ?? {};
+        if (
+          slug === '' ||
+          tool === '' ||
+          typeof args !== 'object' ||
+          args === null ||
+          Array.isArray(args)
+        )
+          return json({ ok: false, error: 'slug, tool and an args object are required' }, 400);
+        diagnostics.record('lifecycle', `direct tool slug=${slug} tool=${tool}`);
+        runtimes.touch(slug);
+        try {
+          await switching;
+          const result = await provider.runDirect(slug, tool, args as Record<string, unknown>);
+          return json({ ok: true, content: result.content });
+        } catch (error) {
+          return json(
+            { ok: false, error: error instanceof Error ? error.message : String(error) },
+            409,
+          );
+        }
+      },
+    };
+    connectionCtx.effect(
+      () => connection.fetch.register(toolRoute),
+      'botharness-browser: direct tool route',
     );
 
     const takeoverAuditRoute = {

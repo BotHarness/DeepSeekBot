@@ -88,6 +88,12 @@ export interface BrowserToolProvider {
   touch(slug: string): void;
   resetBot(slug: string): void;
   closeIdleTabs(idleMs: number): Promise<void>;
+  runDirect(
+    slug: string,
+    tool: string,
+    args: Record<string, unknown>,
+    signal?: AbortSignal,
+  ): Promise<{ content: BrowserToolContent[] }>;
   dispose(): Promise<void>;
 }
 
@@ -1000,7 +1006,66 @@ export function createBrowserToolProvider(
 
   ctx.on('agent/disposed', onDisposed);
 
+  const runDirect = async (
+    slug: string,
+    tool: string,
+    args: Record<string, unknown>,
+    signal: AbortSignal = new AbortController().signal,
+  ): Promise<{ content: BrowserToolContent[] }> => {
+    const raw = tool.startsWith('browser_') ? tool.slice('browser_'.length) : tool;
+    if (!BROWSER_TOOLS.some((spec) => spec.raw === raw))
+      throw new Error(`Unknown browser tool ${tool}`);
+    const started = Date.now();
+    const assertCurrent = (): void => {
+      signal.throwIfAborted();
+      assertExecutionAllowed(raw, slug);
+    };
+    try {
+      assertCurrent();
+      await options.beforeExecution?.();
+      onActivity(slug);
+      const result = await serialize(slug, () => {
+        assertCurrent();
+        const execute = () => {
+          assertCurrent();
+          return runTool(raw, args, slug, signal, assertCurrent);
+        };
+        if (
+          options.daily?.() !== undefined ||
+          options.profile?.() !== undefined ||
+          options.borrowed?.() !== undefined
+        )
+          return execute();
+        const runtime = runtimes.for(slug);
+        return runtime.runWithSignal === undefined
+          ? execute()
+          : runtime.runWithSignal(signal, execute, assertCurrent);
+      });
+      record(
+        slug,
+        'direct',
+        browserToolName(raw),
+        auditSummary(raw, args),
+        'ok',
+        Date.now() - started,
+      );
+      return result;
+    } catch (error) {
+      record(
+        slug,
+        'direct',
+        browserToolName(raw),
+        auditSummary(raw, args),
+        'error',
+        Date.now() - started,
+        error instanceof Error ? error.message : String(error),
+      );
+      throw error;
+    }
+  };
+
   return {
+    runDirect,
     attachAgent(scope, sessionId, info) {
       if (disposed) return;
       sessions.set(sessionId, { scope });

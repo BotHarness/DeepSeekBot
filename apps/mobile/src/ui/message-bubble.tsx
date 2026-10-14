@@ -1,9 +1,11 @@
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 import type { ConversationDraft, ConversationMessage } from '../host/conversation';
+import { radius, space } from './design/tokens';
+import { useDesignTheme } from './design/theme';
 import { MarkdownView } from './markdown-view';
+import { Text } from './primitives/text';
 import { t } from './strings';
-import { useTheme } from './theme';
 
 export function deliveryLabel(message: ConversationMessage): string | undefined {
   if (message.author !== 'human') return undefined;
@@ -19,53 +21,55 @@ export function MessageBubble({
   message: ConversationMessage;
   onRetry?: (messageId: string) => void;
 }) {
-  const theme = useTheme();
+  const theme = useDesignTheme();
   const human = message.author === 'human';
   const failed = message.delivery === 'failed';
   const label = deliveryLabel(message);
   if (message.author === 'system')
     return (
-      <View style={{ paddingHorizontal: 24, paddingVertical: 6, alignItems: 'center' }}>
-        <Text selectable style={{ color: theme.inkSoft, fontSize: 13, textAlign: 'center' }}>
+      <View
+        style={{ paddingHorizontal: space.x6, paddingVertical: space.x2, alignItems: 'center' }}
+      >
+        <Text selectable variant="meta" tone="muted" style={{ textAlign: 'center' }}>
           {message.body}
         </Text>
       </View>
     );
-  const ink = human ? theme.humanInk : theme.ink;
+  const ink = human ? 'onAccent' : 'fg';
   const bubble = (
     <View
       style={{
-        maxWidth: '86%',
+        maxWidth: '80%',
         alignSelf: human ? 'flex-end' : 'flex-start',
-        backgroundColor: human ? theme.humanBubble : theme.botBubble,
-        borderRadius: 18,
-        borderWidth: human ? 0 : 1,
-        borderColor: theme.border,
-        paddingHorizontal: 14,
-        paddingVertical: 9,
-        gap: 6,
+        backgroundColor: human ? theme.color.accent : theme.color.surface,
+        borderRadius: radius.lg,
+        paddingHorizontal: space.x4,
+        paddingVertical: space.x3,
+        gap: space.x2,
         opacity: message.delivery === 'pending' ? 0.7 : 1,
       }}
     >
       {message.body.trim() === '' ? null : human ? (
-        <Text selectable style={{ color: ink, fontSize: 16, lineHeight: 22 }}>
+        <Text selectable tone={ink}>
           {message.body}
         </Text>
       ) : (
-        <MarkdownView source={message.body} color={ink} />
+        <MarkdownView source={message.body} color={theme.color[ink]} />
       )}
       {message.attachments > 0 ? (
-        <Text style={{ color: human ? ink : theme.inkSoft, fontSize: 13, fontStyle: 'italic' }}>
+        <Text variant="meta" tone={human ? ink : 'muted'} style={{ fontStyle: 'italic' }}>
           📎 {t.attachments(message.attachments)}
         </Text>
       ) : null}
       {message.card ? (
-        <Text style={{ color: theme.inkSoft, fontSize: 13, fontStyle: 'italic' }}>{t.card}</Text>
+        <Text variant="meta" tone={human ? ink : 'muted'} style={{ fontStyle: 'italic' }}>
+          {t.card}
+        </Text>
       ) : null}
     </View>
   );
   return (
-    <View style={{ paddingHorizontal: 12, paddingVertical: 3, gap: 2 }}>
+    <View style={{ paddingHorizontal: space.x4, paddingVertical: space.x1, gap: space.x1 }}>
       {failed ? (
         <Pressable
           accessibilityRole="button"
@@ -80,11 +84,9 @@ export function MessageBubble({
       {label === undefined ? null : (
         <Text
           accessibilityLiveRegion="polite"
-          style={{
-            alignSelf: 'flex-end',
-            fontSize: 12,
-            color: failed ? theme.danger : theme.inkSoft,
-          }}
+          variant="meta"
+          tone={failed ? 'danger' : 'muted'}
+          style={{ alignSelf: 'flex-end' }}
         >
           {label}
         </Text>
@@ -94,28 +96,26 @@ export function MessageBubble({
 }
 
 export function DraftBubble({ draft }: { draft: ConversationDraft }) {
-  const theme = useTheme();
+  const theme = useDesignTheme();
   return (
-    <View style={{ paddingHorizontal: 12, paddingVertical: 3, gap: 2 }}>
+    <View style={{ paddingHorizontal: space.x4, paddingVertical: space.x1, gap: space.x1 }}>
       <View
         style={{
-          maxWidth: '86%',
+          maxWidth: '80%',
           alignSelf: 'flex-start',
-          backgroundColor: theme.botBubble,
-          borderRadius: 18,
-          borderWidth: 1,
-          borderColor: theme.border,
-          paddingHorizontal: 14,
-          paddingVertical: 9,
+          backgroundColor: theme.color.surface,
+          borderRadius: radius.lg,
+          paddingHorizontal: space.x4,
+          paddingVertical: space.x3,
         }}
       >
         {draft.body.trim() === '' ? (
-          <Text style={{ color: theme.inkSoft, fontSize: 16 }}>…</Text>
+          <Text tone="muted">…</Text>
         ) : (
           <MarkdownView source={draft.body} />
         )}
       </View>
-      <Text style={{ fontSize: 12, color: theme.inkSoft }} accessibilityLiveRegion="polite">
+      <Text variant="meta" tone="muted" accessibilityLiveRegion="polite">
         {t.typing}
       </Text>
     </View>

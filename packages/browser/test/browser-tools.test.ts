@@ -371,6 +371,30 @@ describe('per-PersonaBot registration, authorization, and tabs', () => {
     expect(h.provider.needsAuthorization('session-a')).toBe(false);
   });
 
+  it('runs the same tools directly for the Owner without a Session, model or approval card', async () => {
+    const h = harness({ access: true, auto: false });
+    const opened = await h.provider.runDirect('bot-a', 'browser_open', {
+      url: 'https://example.com',
+    });
+    expect(h.runtime.open).toHaveBeenCalledWith('https://example.com', undefined);
+    expect(JSON.stringify(opened)).toContain('Opened https://example.com');
+    const observed = await h.provider.runDirect('bot-a', 'observe', {});
+    expect(h.runtime.observe).toHaveBeenCalledWith('tab-1');
+    expect(JSON.stringify(observed)).toContain('Hello world');
+    expect(h.audits.map((event) => [event.tool, event.sessionId, event.outcome])).toEqual([
+      ['browser_open', 'direct', 'ok'],
+      ['browser_observe', 'direct', 'ok'],
+    ]);
+    await expect(h.provider.runDirect('bot-a', 'browser_teleport', {})).rejects.toThrow(
+      'Unknown browser tool',
+    );
+    h.setAccess(false);
+    await expect(h.provider.runDirect('bot-a', 'observe', {})).rejects.toThrow(
+      'Browser Access is off',
+    );
+    expect(h.audits.at(-1)).toMatchObject({ tool: 'browser_observe', outcome: 'error' });
+  });
+
   it('opens a URL, reuses the Bot tab, and observes it with refs', async () => {
     const h = harness({ access: true, auto: true });
     h.created();

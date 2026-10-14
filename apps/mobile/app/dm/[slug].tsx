@@ -21,6 +21,8 @@ import {
   useHostSnapshot,
 } from '../../src/host/host-session';
 import { BotAvatar } from '../../src/ui/bot-avatar';
+import { botColor } from '../../src/ui/bot-color';
+import { AccentProvider } from '../../src/ui/design/theme';
 import { OpenFullClientButton } from '../../src/ui/open-full-client';
 import { DraftBubble, MessageBubble } from '../../src/ui/message-bubble';
 import { t } from '../../src/ui/strings';
@@ -31,10 +33,20 @@ type Row =
   | { kind: 'draft'; draft: ConversationDraft };
 
 export default function DmScreen() {
+  const { slug } = useLocalSearchParams<{ slug: string }>();
+  const { client } = useHostSession();
+  const bot = useHostSnapshot(client).roster?.bots.find((entry) => entry.slug === slug);
+  return (
+    <AccentProvider accent={bot === undefined ? undefined : botColor(bot)}>
+      <DmConversation slug={slug} />
+    </AccentProvider>
+  );
+}
+
+function DmConversation({ slug }: { slug: string | undefined }) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
-  const { slug } = useLocalSearchParams<{ slug: string }>();
   const { client } = useHostSession();
   const host = useHostSnapshot(client);
   const bot = host.roster?.bots.find((entry) => entry.slug === slug);

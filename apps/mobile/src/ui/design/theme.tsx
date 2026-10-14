@@ -6,6 +6,7 @@ import type { PlatformOS } from './tokens';
 
 export {
   resolveTheme,
+  withAccent,
   type Appearance,
   type ColorRole,
   type ColorScheme,
@@ -26,6 +27,21 @@ export function DesignThemeProvider({
   children: ReactNode;
 }) {
   return <AppearanceContext.Provider value={appearance}>{children}</AppearanceContext.Provider>;
+}
+
+export function AccentProvider({
+  accent,
+  children,
+}: {
+  accent: string | undefined;
+  children: ReactNode;
+}) {
+  const appearance = useContext(AppearanceContext);
+  const tinted = useMemo(
+    () => (accent === undefined ? appearance : { ...appearance, accent }),
+    [appearance, accent],
+  );
+  return <AppearanceContext.Provider value={tinted}>{children}</AppearanceContext.Provider>;
 }
 
 export function useDesignTheme(): DesignTheme {

@@ -1,3 +1,4 @@
+import type { BotPrimaryColor } from '../../../../packages/core/src/bots/primary-color';
 import type { HostCarrier, HostSocket } from './carrier';
 import { DEVICE_PREFIX } from './pairing';
 import { socketOrigin } from './route';
@@ -28,6 +29,7 @@ export interface RosterBot {
   avatarHeaders?: Record<string, string>;
   appearance?: unknown;
   avatarSeed?: 2;
+  primaryColor?: BotPrimaryColor;
   state: AggregatedState;
   paused: boolean;
   dmChannelId?: string;
@@ -204,6 +206,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
               : { avatarUrl: absolute(bot.avatar), avatarHeaders: authorization }),
             ...(bot.appearance === undefined ? {} : { appearance: bot.appearance }),
             ...(bot.avatarSeed === undefined ? {} : { avatarSeed: bot.avatarSeed }),
+            ...(bot.primaryColor === undefined ? {} : { primaryColor: bot.primaryColor }),
             state: states.get(bot.slug) ?? bot.aggregateState,
             paused: bot.paused === true,
             ...(dm === undefined ? {} : { dmChannelId: dm.id }),
