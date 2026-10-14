@@ -1207,7 +1207,7 @@ html[data-botharness-motion='reduce'] .bh-avatar-botui i {
   justify-content: center;
   border-radius: ${radius.md};
   overflow: hidden;
-  background: var(--dsw-alias-button-elevated-fill);
+  background: ${color.hover};
   color: var(--dsw-alias-label-secondary);
   font-weight: ${text.strong};
 }
