@@ -1,8 +1,15 @@
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
-import { Platform, useColorScheme } from 'react-native';
+import { DynamicColorIOS, Platform, useColorScheme, type ColorValue } from 'react-native';
 
-import { resolveTheme, type Appearance, type ColorScheme, type DesignTheme } from './resolve-theme';
-import type { PlatformOS } from './tokens';
+import { palette } from './palette.generated';
+import {
+  resolveTheme,
+  type Appearance,
+  type ColorRole,
+  type ColorScheme,
+  type DesignTheme,
+} from './resolve-theme';
+import { glass, type PlatformOS } from './tokens';
 
 export {
   headerBand,
@@ -50,4 +57,17 @@ export function useDesignTheme(): DesignTheme {
   const appearance = useContext(AppearanceContext);
   const system: ColorScheme = useColorScheme() === 'dark' ? 'dark' : 'light';
   return useMemo(() => resolveTheme(system, appearance, platformOS()), [system, appearance]);
+}
+
+export function adaptiveColor(theme: DesignTheme, role: ColorRole): ColorValue {
+  if (Platform.OS !== 'ios') return theme.color[role];
+  return DynamicColorIOS({ light: palette.light[role], dark: palette.dark[role] });
+}
+
+export function glassTint(base: string): string {
+  return `color-mix(in srgb, ${base} ${glass.tint}%, transparent)`;
+}
+
+export function glassShadow(scheme: ColorScheme): string {
+  return scheme === 'dark' ? '0 8px 24px rgba(0, 0, 0, 0.5)' : '0 8px 24px rgba(15, 17, 21, 0.12)';
 }

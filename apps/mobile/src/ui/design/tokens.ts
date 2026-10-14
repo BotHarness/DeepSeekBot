@@ -56,3 +56,9 @@ export const touch: Record<PlatformOS, number> = {
   ios: 44,
   android: 48,
 };
+
+export const glass = {
+  tint: 72,
+  blur: 24,
+  saturate: 180,
+} as const;

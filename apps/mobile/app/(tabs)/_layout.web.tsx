@@ -5,26 +5,41 @@ import { View, type ColorValue } from 'react-native';
 import { actionCount } from '../../src/host/inbox';
 import { useHostSession, useInbox } from '../../src/host/host-session';
 import { useDesignTheme } from '../../src/ui/design/theme';
-import { radius, space } from '../../src/ui/design/tokens';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { glassShadow, glassTint } from '../../src/ui/design/theme';
+import { edge, glass, radius, space } from '../../src/ui/design/tokens';
 import { ActivityIcon, HomeIcon, MeIcon } from '../../src/ui/shell/icons';
 import { t } from '../../src/ui/strings';
 
 export default function TabsLayout() {
   const theme = useDesignTheme();
+  const insets = useSafeAreaInsets();
   const { inbox } = useHostSession();
   const pending = actionCount(useInbox(inbox));
   return (
     <Tabs
+      safeAreaInsets={{ bottom: 0 }}
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: theme.color.fg,
         tabBarInactiveTintColor: theme.color.muted,
         tabBarStyle: {
-          height: theme.touch * 2,
-          paddingTop: space.x3,
-          backgroundColor: theme.color.base,
+          height: theme.touch + space.x6,
+          marginHorizontal: space.x6,
+          marginBottom: Math.max(insets.bottom, space.x5),
+          paddingTop: space.x2,
+          paddingBottom: space.x2,
+          borderRadius: radius.round,
+          borderTopWidth: edge.hairline,
+          borderWidth: edge.hairline,
+          borderColor: theme.color.border,
           borderTopColor: theme.color.border,
+          backgroundColor: glassTint(theme.color.base),
+          ...({ backdropFilter: `blur(${glass.blur}px) saturate(${glass.saturate}%)` } as object),
+          boxShadow: glassShadow(theme.scheme),
         },
+        tabBarItemStyle: { borderRadius: radius.round },
         tabBarLabelStyle: { fontSize: theme.type.meta.size },
         sceneStyle: { backgroundColor: theme.color.base },
       }}

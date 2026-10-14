@@ -54,6 +54,7 @@ export default function HomeScreen() {
       <HomeHeader hostName={saved.hostName}>
         <FlatList
           data={rows}
+          contentInsetAdjustmentBehavior="automatic"
           keyExtractor={(row) => row.key}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
           ListHeaderComponent={

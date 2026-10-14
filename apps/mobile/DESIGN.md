@@ -18,7 +18,10 @@ References:
   - Home and chats show one Host at a time. Home has a Slack-style header band in the accent colour (a muted accent in dark mode) with the Host's initial tile, the Host name and ▾; tap it to open the Host switcher. The list sits on a panel with rounded top corners below it. The switcher lists each Host with its status and pending count, plus "Pair a new computer".
 - **Tabs** are native (`NativeTabs`): **Home**, **Activity** and **Me**.
   - A chat is pushed above the tabs, so the tab bar hides while it is open.
-  - Like Slack, the selected tab is the foreground colour with a pill behind its icon (the Android Material indicator; drawn the same way on web), and the others are muted.
+  - iOS draws the system tab bar with no background colour of ours: Liquid Glass on iOS 26 (a floating capsule above the home indicator, with the system's glass pill behind the selected tab), the translucent system bar before it. The selected tint is `fg` taken from the system's light or dark look (`adaptiveColor`), because the glass flips with the content behind it.
+  - Content scrolls under the bar. Each tab's list sets `contentInsetAdjustmentBehavior="automatic"`, so its last row clears the bar and the home indicator.
+  - Android keeps the Material 3 bar on `base`: like Slack, the selected tab is the foreground colour with a pill behind its icon (the Material indicator), and the others are muted.
+  - The web preview draws a floating translucent capsule with the same pill, standing in for the glass.
 - **Home** shows the current Host:
   - A row of shortcut cards: **Needs you** and **Working**, each an icon, a name and a count that filters the list when tapped. **Unread** joins them once the Host reports unread counts.
   - One list of PersonaBot DMs and Channels together, by latest activity.
