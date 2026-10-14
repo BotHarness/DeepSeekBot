@@ -56,6 +56,10 @@ describe('channel_send reactions', () => {
       await send({ body: '', react_to: 'trigger', reaction: '✅', remove_reaction: true }),
     ).toMatchObject({ reactions: [] });
     expect(channels.message(dm.id, 'trigger')?.reactions ?? []).toEqual([]);
+    expect(await send({ body: ' ', react_to: 'trigger', reaction: '👀' })).toMatchObject({
+      reactions: [{ emoji: '👀', actors: [{ kind: 'bot', id: 'ada' }] }],
+    });
+    expect(channels.readMessages(dm.id)).toHaveLength(before);
   });
 
   it('reacts and replies in one call', async () => {

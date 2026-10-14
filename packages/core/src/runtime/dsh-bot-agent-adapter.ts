@@ -3428,7 +3428,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
                 });
           if (args.react_to !== undefined && reacted === undefined)
             throw new Error('channel_send: reactions are unavailable');
-          if (reacted !== undefined && args.body === '' && args.attachments === undefined)
+          if (reacted !== undefined && args.body.trim() === '' && args.attachments === undefined)
             return JSON.stringify(reacted);
           const message = await active.run.channels.send({
             body: args.body,
