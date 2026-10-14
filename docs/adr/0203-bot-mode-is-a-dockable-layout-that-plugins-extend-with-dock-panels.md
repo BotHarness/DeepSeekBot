@@ -60,7 +60,7 @@ DeepSeekBot can already do far more than DSH's native shell shows, and Humans wi
 These are tracer-bullet slices. Each one ends in a state the Human can run and judge.
 
 1. **Docked Channel.** Desktop Bot mode renders dockview inside `main`, containing the Channel body and every Channel sidebar entry as Dock panels, through the `channelSidebar` compatibility Consumer. Panels can be dragged, docked by splitting and floated, and never tabbed. The layout persists browser-locally and the narrow fallback still works.
-2. **App Sidebar takeover.** Shadow `sidebar` in Bot mode and add the App Sidebar panel that renders the native sub-slots. The focused Channel body defines the active Channel and the App Sidebar highlights it.
+2. **App Sidebar takeover.** Shadow `sidebar` in Bot mode and add the App Sidebar panel that renders the native sub-slots. Selecting a Channel in the App Sidebar makes it the active Channel, and the App Sidebar highlights it.
 3. **Public registry.** Add the `dockPanels` Service with `global` and `channel` scopes, the Panels menu and Reset layout. Seed the layout from the old preferences and retire + Views on desktop.
 4. **Example plugin and guide.** The to-do example plugin with its Service, Provider, Bot tool, CLI command and Dock panel, plus the authoring guide and skill.
 5. **Upstream.** File the DSH layout API request and track it.
