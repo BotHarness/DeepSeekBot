@@ -941,14 +941,53 @@ describe('bridge actions', () => {
     });
     await actions.load();
     await actions.openBot('ada');
-    expect(clientStore.getSnapshot().conversation.focusMessageId).toBe('m2');
+    expect(clientStore.getSnapshot().conversation.focusMessageId).toBeUndefined();
+    expect(clientStore.getSnapshot().conversation.unreadAfterMessageId).toBe('m2');
     expect(clientStore.getSnapshot().conversation.timeline.hasNewer).toBe(true);
     await actions.openChannel('group-team');
-    expect(clientStore.getSnapshot().conversation.focusMessageId).toBe('m2');
+    expect(clientStore.getSnapshot().conversation.unreadAfterMessageId).toBe('m2');
     expect(requests).toEqual([
       { channelId: 'dm-ada', direction: 'around', around: 'm2' },
       { channelId: 'group-team', direction: 'around', around: 'm2' },
     ]);
+  });
+
+  it('draws no divider when only the Human wrote after the anchor and refreshes it on a cached reopen', async () => {
+    let position = 'm2';
+    let entries = [
+      { id: 'm1', at: BOT.createdAt, author: { kind: 'bot', slug: 'ada' }, body: 'm1' },
+      { id: 'm2', at: BOT.createdAt, author: { kind: 'bot', slug: 'ada' }, body: 'm2' },
+      { id: 'm3', at: BOT.createdAt, author: { kind: 'human' }, body: 'm3' },
+    ];
+    const { clientStore, actions } = setup({
+      channelReadPosition: () => ({
+        position: { messageId: position, revision: 2, readAt: BOT.createdAt },
+      }),
+      channelTimeline: () => ({
+        revision: entries.length,
+        page: {
+          entries,
+          olderCursor: null,
+          newerCursor: null,
+          hasOlder: false,
+          hasNewer: false,
+        },
+      }),
+    });
+    await actions.load();
+    await actions.openChannel('group-team');
+    expect(clientStore.getSnapshot().conversation.unreadAfterMessageId).toBeUndefined();
+    await actions.openChannel('dm-ada');
+    position = 'm3';
+    entries = [
+      ...entries,
+      { id: 'm4', at: BOT.createdAt, author: { kind: 'bot', slug: 'ada' }, body: 'm4' },
+    ];
+    await actions.openChannel('group-team');
+    expect(clientStore.getSnapshot().conversation.messages.map((message) => message.id)).toContain(
+      'm4',
+    );
+    expect(clientStore.getSnapshot().conversation.unreadAfterMessageId).toBe('m3');
   });
 
   it('falls back to latest for an expired anchor and sends explicit read marks', async () => {

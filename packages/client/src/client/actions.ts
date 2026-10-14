@@ -15,6 +15,7 @@ import type {
 } from '../../../core/src/bots/deletion.js';
 import type { PairingRequest, PairingReviewInput } from '../../../core/src/messaging/pairing.js';
 import type { SenderAccessInput } from '../../../core/src/messaging/sender-access.js';
+import { unreadAfterAnchor } from './timeline-position.js';
 import {
   gitInstalling,
   loadGitAvailability,
@@ -1277,15 +1278,42 @@ export function createActions(
     const anchor = await loadReadPosition(call, channelId);
     if (anchor !== undefined) {
       try {
+        const opened = await loadTimelinePage(call, channelId, {
+          direction: 'around',
+          around: anchor,
+        });
         return {
-          ...(await loadTimelinePage(call, channelId, { direction: 'around', around: anchor })),
-          focusMessageId: anchor,
+          ...opened,
+          focusMessageId: undefined,
+          unreadAfterMessageId: unreadAfterAnchor(
+            opened.page.entries,
+            anchor,
+            opened.page.hasNewer,
+          ),
         };
       } catch (error) {
         if (!(error instanceof BridgeCallError) || error.code !== 'invalid-input') throw error;
       }
     }
-    return { ...(await loadTimelinePage(call, channelId)), focusMessageId: undefined };
+    return {
+      ...(await loadTimelinePage(call, channelId)),
+      focusMessageId: undefined,
+      unreadAfterMessageId: undefined,
+    };
+  };
+  const refreshUnreadDivider = async (
+    channelId: string,
+    active: ConversationSelection,
+  ): Promise<void> => {
+    const anchor = await loadReadPosition(call, channelId).catch(() => undefined);
+    const conversation = clientStore.getSnapshot().conversation;
+    if (currentSelection() !== active || conversation.channel?.id !== channelId) return;
+    const unreadAfterMessageId = unreadAfterAnchor(
+      conversation.messages,
+      anchor,
+      conversation.timeline.hasNewer,
+    );
+    if (unreadAfterMessageId !== undefined) clientStore.setConversation({ unreadAfterMessageId });
   };
 
   const openChannelById = async (channelId: string, messageId?: string): Promise<void> => {
@@ -1315,6 +1343,7 @@ export function createActions(
       clientStore.setConversation({ channel, error: undefined });
       try {
         await actions.refreshChannelMessages(channelId);
+        await refreshUnreadDivider(channelId, active);
       } catch (error) {
         if (currentSelection() === active)
           clientStore.setConversation({ error: errorMessage(error) });
@@ -1334,12 +1363,13 @@ export function createActions(
       sending: false,
     });
     try {
-      const { page, revision, focusMessageId } =
+      const { page, revision, focusMessageId, unreadAfterMessageId } =
         sourcePage === undefined
           ? await loadOpeningTimeline(channelId)
           : {
               ...sourcePage,
               focusMessageId: messageId,
+              unreadAfterMessageId: undefined,
             };
       const failures = remainingFailures(channelId, page.entries);
       const messages = page.hasNewer ? page.entries : [...page.entries, ...failures];
@@ -1351,6 +1381,7 @@ export function createActions(
         revision,
         timeline: { ...initialTimeline(), ...page },
         focusMessageId,
+        unreadAfterMessageId,
         error: undefined,
         sending: false,
       });
@@ -1695,6 +1726,7 @@ export function createActions(
           clientStore.upsertChannel(channel);
           clientStore.setConversation({ channel, error: undefined });
           await actions.refreshChannelMessages(channel.id);
+          await refreshUnreadDivider(channel.id, active);
           await Promise.all([loadSessionsFor(slug, active), loadBotInboxFor(slug, active)]);
           return;
         }
@@ -1711,7 +1743,9 @@ export function createActions(
             error: undefined,
           });
         }
-        const { page, revision, focusMessageId } = await loadOpeningTimeline(channel.id);
+        const { page, revision, focusMessageId, unreadAfterMessageId } = await loadOpeningTimeline(
+          channel.id,
+        );
         const messages = page.entries;
         if (currentSelection() !== active) return;
         const listedChannel = clientStore
@@ -1734,6 +1768,7 @@ export function createActions(
           revision,
           timeline: { ...initialTimeline(), ...page },
           focusMessageId,
+          unreadAfterMessageId,
           error: undefined,
           sending: false,
         });

@@ -14,6 +14,9 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
     IconAgentPresetOutlineRegular: stub,
     IconCheckOutlineRegular: stub,
     IconChevronDownOutlineRegular: stub,
+    IconChevronLeftOutlineRegular: stub,
+    IconChevronRightOutlineRegular: stub,
+    IconDownloadOutlineRegular: stub,
     IconCloseFill14: stub,
     IconCopyOutlineRegular: stub,
     IconCloseOutlineRegular: stub,
@@ -804,6 +807,147 @@ describe('Bot main Sessions pane', () => {
     expect(markup.match(/aria-label="回复"/g)).toHaveLength(2);
     expect(markup.match(/aria-label="复制消息"/g)).toHaveLength(2);
     expect(markup).toContain('bh-bubble-focused');
+    expect(markup.match(/<time[^>]*dateTime="2026-09-21T00:01:05.000Z"/g)).toHaveLength(1);
+    expect(markup).not.toContain('data-unread-divider');
+  });
+  it('draws the new-messages divider after the read anchor and splits the group there', () => {
+    const bot = {
+      slug: 'ada',
+      displayName: 'Ada',
+      roles: [],
+      aggregateState: 'idle',
+      workspaces: [],
+      createdAt: '2026-09-21T00:00:00.000Z',
+    };
+    const channel = {
+      id: 'dm-ada',
+      type: 'dm' as const,
+      name: 'Ada',
+      members: ['ada'],
+      botSlug: 'ada',
+      createdAt: '2026-09-21T00:00:00.000Z',
+      updatedAt: '2026-09-21T00:01:00.000Z',
+    };
+    store.setRoster([bot], [channel]);
+    store.select({ kind: 'bot', slug: 'ada' });
+    store.setConversation({
+      status: 'ready',
+      channel,
+      sending: false,
+      unreadAfterMessageId: 'b1',
+      messages: ['b1', 'b2', 'b3'].map((id, index) => ({
+        id,
+        at: `2026-09-21T00:01:0${index}.000Z`,
+        author: { kind: 'bot' as const, slug: 'ada' },
+        body: id,
+      })),
+    });
+    const container = document.createElement('div');
+    container.innerHTML = renderToStaticMarkup(
+      createElement(BotMain, {
+        actions: { ...inertSubmissionActions } as BridgeActions,
+        channelSidebar: sidebarRegistry(),
+      }),
+    );
+    const divider = container.querySelector('[data-unread-divider]')!;
+    expect(divider.getAttribute('role')).toBe('separator');
+    expect(divider.textContent).toBe('以下为新消息');
+    expect(container.querySelectorAll('[data-unread-divider]')).toHaveLength(1);
+    const block = divider.closest('.bh-message-block')!;
+    expect(block.querySelector('[data-message-id]')?.getAttribute('data-message-id')).toBe('b2');
+    expect(
+      Array.from(container.querySelectorAll('.bh-message-group')).map((group) =>
+        group.getAttribute('data-group-size'),
+      ),
+    ).toEqual(['1', '2']);
+  });
+  it('steps through every image attachment of the conversation in one preview', async () => {
+    const bot = {
+      slug: 'ada',
+      displayName: 'Ada',
+      roles: [],
+      aggregateState: 'idle',
+      workspaces: [],
+      createdAt: '2026-09-21T00:00:00.000Z',
+    };
+    const channel = {
+      id: 'dm-ada',
+      type: 'dm' as const,
+      name: 'Ada',
+      members: ['ada'],
+      botSlug: 'ada',
+      createdAt: '2026-09-21T00:00:00.000Z',
+      updatedAt: '2026-09-21T00:01:00.000Z',
+    };
+    const image = (name: string) => ({
+      fileId: `file:${name}`,
+      name,
+      mime: 'image/png',
+      size: 1,
+    });
+    store.setRoster([bot], [channel]);
+    store.select({ kind: 'bot', slug: 'ada' });
+    store.setConversation({
+      status: 'ready',
+      channel,
+      sending: false,
+      messages: [
+        {
+          id: 'p1',
+          at: '2026-09-21T00:01:00.000Z',
+          author: { kind: 'human' },
+          body: '',
+          attachments: [image('one.png'), image('two.png')],
+        },
+        {
+          id: 'p2',
+          at: '2026-09-21T00:05:00.000Z',
+          author: { kind: 'human' },
+          body: '',
+          attachments: [image('three.png')],
+        },
+      ],
+    });
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    await act(async () =>
+      root.render(
+        createElement(BotMain, {
+          actions: {
+            profileActivity: vi.fn().mockRejectedValue(new Error('Unavailable')),
+            listWorkspaceGrants: async () => [],
+            modelPlanState: async () => undefined,
+            botSourcePolicies: async () => [],
+            ...inertSubmissionActions,
+          } as unknown as BridgeActions,
+          channelSidebar: sidebarRegistry(),
+        }),
+      ),
+    );
+    const thumbs = container.querySelectorAll<HTMLButtonElement>('button.bh-message-image-link');
+    expect(thumbs).toHaveLength(3);
+    await act(async () => thumbs[1]!.click());
+    const dialog = () => document.body.querySelector('[role="dialog"][aria-modal="true"]');
+    expect(dialog()?.getAttribute('aria-label')).toBe('图片预览：two.png');
+    expect(dialog()?.textContent).toContain('2 / 3');
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }));
+    });
+    expect(dialog()?.getAttribute('aria-label')).toBe('图片预览：three.png');
+    expect(dialog()?.querySelector<HTMLButtonElement>('[aria-label="下一张"]')?.disabled).toBe(
+      true,
+    );
+    await act(async () =>
+      dialog()?.querySelector<HTMLButtonElement>('[aria-label="上一张"]')?.click(),
+    );
+    expect(dialog()?.getAttribute('aria-label')).toBe('图片预览：two.png');
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    });
+    expect(dialog()).toBeNull();
+    await act(async () => root.unmount());
+    container.remove();
   });
   it('renders a linked reply summary and safely degrades when the original is gone', () => {
     const bot = {

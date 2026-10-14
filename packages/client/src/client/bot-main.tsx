@@ -137,10 +137,29 @@ import {
   type MessageSelection,
 } from './message-selection-state.js';
 import { useMountedResource } from './mounted-resource.js';
+import * as stylex from '@stylexjs/stylex';
+import { color, text } from './ds/tokens.stylex.js';
 import type { ReleaseNotesController } from './release-notes.js';
 import { ReleaseNotesAnnouncement } from './release-notes-view.js';
 import type { TelemetryNoticeController } from './telemetry-notice.js';
 import { TelemetryNotice } from './telemetry-notice-view.js';
+import {
+  rememberTimelineScroll,
+  rememberedTimelineScroll,
+  restoreTimelineScroll,
+  timelineScrollAnchor,
+} from './timeline-position.js';
+import { TimelineUnreadDivider } from './timeline-unread-divider.js';
+import { foldableMessage, MessageFold } from './message-fold.js';
+import {
+  galleryImageKey,
+  ImageGalleryScope,
+  useMessageImageGallery,
+  type Gallery,
+  type GalleryImage,
+} from './message-image-gallery.js';
+import { inlineImageAttachment } from './message-attachment.js';
+import { channelAttachmentUrl } from './bridge.js';
 
 export function committedMessageIds(messages: readonly ChannelMessage[]): Set<string> {
   return new Set(
@@ -200,6 +219,23 @@ function clockTime(at: string): string {
   if (Number.isNaN(date.getTime())) return '';
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
+
+function fullTime(at: string, t: BotHarnessTranslate): string {
+  const date = new Date(at);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleString(t('main.date.locale'), { dateStyle: 'full', timeStyle: 'short' });
+}
+
+const messageStyles = stylex.create({
+  metaTime: {
+    color: color.subtle,
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+    fontVariantNumeric: 'tabular-nums',
+    whiteSpace: 'nowrap',
+    display: { default: 'inline', '@media (hover: none)': 'none' },
+  },
+});
 
 function Welcome({ state, t }: { state: ClientState; t: BotHarnessTranslate }): ReactElement {
   return (
@@ -416,10 +452,12 @@ function MessageGroupView({
   resolvedGrantRequests,
   toolApprovalDecisions,
   userQuestionResolutions,
+  gallery,
   nativeChatT,
   t,
 }: {
   humanMembers?: readonly ChannelHumanMember[];
+  gallery?: Gallery | undefined;
   group: MessageGroup;
   channelId?: string | undefined;
   focusMessageId?: string | undefined;
@@ -498,7 +536,7 @@ function MessageGroupView({
               {welcomeBot?.displayName ?? authorLabel(first, bots, t, humanName)}
             </div>
           )}
-          <time className="bh-bubble-time" dateTime={first.at}>
+          <time className="bh-bubble-time" dateTime={first.at} title={fullTime(first.at, t)}>
             {clockTime(first.at)}
           </time>
         </div>
@@ -547,18 +585,22 @@ function MessageGroupView({
                     onJump={onJumpReply}
                     t={t}
                   />
-                  <ChannelMessageBody
-                    message={message}
-                    channelId={channelId}
-                    t={t}
-                    nativeChatT={nativeChatT}
-                    actions={actions}
-                    bots={bots}
-                    humanMembers={humanMembers}
-                    grantRequestResolved={resolvedGrantRequests.has(message.id)}
-                    toolApprovalDecision={toolApprovalDecisions.get(message.id)}
-                    userQuestionResolution={userQuestionResolutions.get(message.id)}
-                  />
+                  <ImageGalleryScope value={gallery}>
+                    <MessageFold messageId={message.id} enabled={foldableMessage(message)} t={t}>
+                      <ChannelMessageBody
+                        message={message}
+                        channelId={channelId}
+                        t={t}
+                        nativeChatT={nativeChatT}
+                        actions={actions}
+                        bots={bots}
+                        humanMembers={humanMembers}
+                        grantRequestResolved={resolvedGrantRequests.has(message.id)}
+                        toolApprovalDecision={toolApprovalDecisions.get(message.id)}
+                        userQuestionResolution={userQuestionResolutions.get(message.id)}
+                      />
+                    </MessageFold>
+                  </ImageGalleryScope>
                   {message.pending === true || message.streaming === true ? (
                     <span className="bh-bubble-status" role="status">
                       {t(message.streaming === true ? 'message.generating' : 'message.sending')}
@@ -574,6 +616,15 @@ function MessageGroupView({
                   t={t}
                 />
                 <div className="bh-bubble-meta">
+                  {index === 0 || clockTime(message.at) === '' ? null : (
+                    <time
+                      dateTime={message.at}
+                      title={fullTime(message.at, t)}
+                      {...stylex.props(messageStyles.metaTime)}
+                    >
+                      {clockTime(message.at)}
+                    </time>
+                  )}
                   <div className="bh-bubble-actions">
                     {onReply !== undefined &&
                     message.pending !== true &&
@@ -879,6 +930,9 @@ function ConversationView({
     height: number;
   } | null>(null);
   const lastRevision = useRef<number | undefined>(undefined);
+  const positioned = useRef(false);
+  const restoredScroll = useRef(false);
+  const placedUnreadDivider = useRef<string | undefined>(undefined);
   const readMarkTimer = useRef<number | undefined>(undefined);
   const [unseen, setUnseen] = useState(0);
   const [atLatest, setAtLatest] = useState(true);
@@ -1331,6 +1385,39 @@ function ConversationView({
     void actions.loadNewer(channelId);
   };
 
+  const unreadAfter = conversation.unreadAfterMessageId;
+  const messageGroups = groupChannelMessages(displayMessages, unreadAfter);
+  const galleryImages: GalleryImage[] =
+    channelId === undefined
+      ? []
+      : displayMessages.flatMap((message) =>
+          message.contentPurged === true
+            ? []
+            : (message.attachments ?? []).flatMap((ref) =>
+                inlineImageAttachment(ref.mime)
+                  ? [
+                      {
+                        key: galleryImageKey(message.id, ref),
+                        src: channelAttachmentUrl(ref, { channelId, messageId: message.id }),
+                        alt: ref.name,
+                      },
+                    ]
+                  : [],
+              ),
+        );
+  const imageGallery = useMessageImageGallery(galleryImages, t);
+  const placeUnreadDivider = (element: HTMLDivElement): boolean => {
+    const divider = element.querySelector<HTMLElement>('[data-unread-divider]');
+    if (divider === null) return false;
+    const viewport = element.getBoundingClientRect();
+    element.scrollTop += divider.getBoundingClientRect().top - viewport.top - viewport.height / 4;
+    followingLatest.current =
+      !conversation.timeline.hasNewer &&
+      element.scrollHeight - element.scrollTop - element.clientHeight <= 80;
+    setAtLatest(followingLatest.current);
+    return true;
+  };
+
   const timelineMount = useMountedResource<HTMLDivElement>(
     (element) => {
       scrollRef.current = element;
@@ -1351,6 +1438,27 @@ function ConversationView({
             element.scrollTop = anchor.top + element.scrollHeight - anchor.height;
           }
           prependAnchor.current = null;
+        } else if (
+          unreadAfter !== undefined &&
+          placedUnreadDivider.current !== unreadAfter &&
+          !restoredScroll.current &&
+          conversation.focusMessageId === undefined &&
+          placeUnreadDivider(element)
+        ) {
+          placedUnreadDivider.current = unreadAfter;
+          positioned.current = true;
+        } else if (
+          !positioned.current &&
+          conversation.focusMessageId === undefined &&
+          messages.length > 0
+        ) {
+          positioned.current = true;
+          const saved = channelId === undefined ? undefined : rememberedTimelineScroll(channelId);
+          if (saved !== undefined && !saved.atLatest && restoreTimelineScroll(element, saved)) {
+            restoredScroll.current = true;
+            followingLatest.current = false;
+            setAtLatest(false);
+          } else if (followingLatest.current) element.scrollTop = element.scrollHeight;
         } else if (followingLatest.current) {
           element.scrollTop = element.scrollHeight;
         }
@@ -1367,6 +1475,7 @@ function ConversationView({
       const id = conversation.focusMessageId;
       let focusTimer: number | undefined;
       if (id !== undefined) {
+        positioned.current = true;
         const target = Array.from(element.querySelectorAll<HTMLElement>('[data-message-id]')).find(
           (candidate) => candidate.dataset['messageId'] === id,
         );
@@ -1398,6 +1507,7 @@ function ConversationView({
       conversation.drafts,
       conversation.revision,
       conversation.focusMessageId,
+      unreadAfter,
       conversation.timeline.hasOlder,
       conversation.timeline.hasNewer,
       conversation.timeline.loadingOlder,
@@ -1416,6 +1526,10 @@ function ConversationView({
     followingLatest.current = atBottom && !conversation.timeline.hasNewer;
     setAtLatest(followingLatest.current);
     if (followingLatest.current) setUnseen(0);
+    if (channelId !== undefined && conversation.status === 'ready' && positioned.current) {
+      const position = timelineScrollAnchor(element, followingLatest.current);
+      if (position !== undefined) rememberTimelineScroll(channelId, position);
+    }
     scheduleReadMark();
     if (element.scrollTop <= 48) loadOlderAtTop();
     if (atBottom) loadNewerAtBottom();
@@ -1910,7 +2024,7 @@ function ConversationView({
                   <EmptyConversation channel={channel} bot={bot} t={t} />
                 ) : null}
                 <MessageSelectionContext.Provider value={messageSelection}>
-                  {groupChannelMessages(displayMessages).map((group, index, groups) => {
+                  {messageGroups.map((group, index, groups) => {
                     const first = group.messages[0]!;
                     const previous = groups[index - 1]?.messages.at(-1);
                     const firstDay = Number.isFinite(Date.parse(first.at))
@@ -1922,6 +2036,9 @@ function ConversationView({
                         : undefined;
                     return (
                       <div key={group.key} className="bh-message-block">
+                        {unreadAfter !== undefined && previous?.id === unreadAfter ? (
+                          <TimelineUnreadDivider label={t('messages.newDivider')} />
+                        ) : null}
                         {firstDay !== undefined && firstDay !== previousDay ? (
                           <div className="bh-message-day">
                             {new Date(first.at).toLocaleDateString(t('main.date.locale'), {
@@ -1989,7 +2106,10 @@ function ConversationView({
                                   candidate.type === 'dm' && candidate.botSlug === commit.botSlug,
                               );
                               if (dm !== undefined)
-                                store.setMemoryCommitIntent({ channelId: dm.id, sha: commit.sha });
+                                store.setMemoryCommitIntent({
+                                  channelId: dm.id,
+                                  sha: commit.sha,
+                                });
                               void actions.openBot(commit.botSlug);
                             }}
                           />
@@ -2006,6 +2126,7 @@ function ConversationView({
                               group={group}
                               channelId={channelId}
                               actions={actions}
+                              gallery={imageGallery.gallery}
                               nativeChatT={nativeChatT}
                               resolvedGrantRequests={resolvedGrantRequestIds(displayMessages)}
                               toolApprovalDecisions={
@@ -2137,6 +2258,7 @@ function ConversationView({
                     );
                   })}
                 </MessageSelectionContext.Provider>
+                {imageGallery.lightbox}
                 <TimelineWorkingRowsView rows={workingRows} t={t} />
                 {conversation.timeline.hasNewer ? (
                   <div className="bh-timeline-newer-sentinel">

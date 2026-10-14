@@ -1,6 +1,7 @@
 import { toBlob } from 'html-to-image';
 
-const SNAPSHOT_STRIP = '.bh-bubble-check, .bh-bubble-side, .bh-bubble-failed-action';
+const SNAPSHOT_STRIP =
+  '.bh-bubble-check, .bh-bubble-side, .bh-bubble-failed-action, [data-message-fold-toggle]';
 
 function snapshotGroup(group: Element, selected: ReadonlySet<string>): HTMLElement | undefined {
   const copy = group.cloneNode(true) as HTMLElement;
@@ -18,6 +19,11 @@ function snapshotGroup(group: Element, selected: ReadonlySet<string>): HTMLEleme
   }
   if (kept === 0) return undefined;
   for (const node of Array.from(copy.querySelectorAll(SNAPSHOT_STRIP))) node.remove();
+  for (const fold of Array.from(copy.querySelectorAll<HTMLElement>('[data-message-fold]'))) {
+    fold.style.maxHeight = 'none';
+    fold.style.overflow = 'visible';
+    fold.style.maskImage = 'none';
+  }
   return copy;
 }
 

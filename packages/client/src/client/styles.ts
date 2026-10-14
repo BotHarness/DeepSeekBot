@@ -3297,7 +3297,8 @@ html[data-botharness-motion='reduce'] .bh-timeline-working-ellipsis i { animatio
 .bh-bridge-image-button:focus-visible { outline: ${border.focus} solid var(--dsw-alias-state-business-primary); outline-offset: 2px; }
 .bh-bridge-image-state { display: flex; align-items: center; gap: ${space.x3}; min-height: 96px; color: var(--dsw-alias-label-secondary); }
 .bh-bridge-image-expanded { display: block; max-width: 100%; max-height: 75vh; margin: auto; object-fit: contain; }
-.bh-message-image-link { display: block; width: fit-content; max-width: 320px; min-width: 0; }
+.bh-message-image-link { display: block; width: fit-content; max-width: 320px; min-width: 0; padding: 0; border: 0; border-radius: ${radius.md}; background: transparent; cursor: zoom-in; }
+.bh-message-image-link:focus-visible { outline: ${border.focus} solid var(--bh-accent); outline-offset: 2px; }
 .bh-message-image-row { display: flex; align-items: flex-start; gap: ${space.x2}; width: fit-content; max-width: 100%; min-width: 0; }
 .bh-message-image { display: block; max-width: 100%; max-height: 320px; border-radius: ${radius.md}; object-fit: contain; }
 /* File and audio pills share one card rhythm: icon, stacked name/size, divider, action. */

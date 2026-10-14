@@ -355,6 +355,7 @@ export interface ConversationState {
   revision: number;
   timeline: ConversationTimeline;
   focusMessageId?: string | undefined;
+  unreadAfterMessageId?: string | undefined;
   error: string | undefined;
   sending: boolean;
 }
@@ -520,6 +521,7 @@ function initialConversation(): ConversationState {
     revision: 0,
     timeline: initialTimeline(),
     focusMessageId: undefined,
+    unreadAfterMessageId: undefined,
     error: undefined,
     sending: false,
   };
@@ -589,6 +591,7 @@ export function createStore(): ClientStore {
     if (channelId === undefined || conversation.status !== 'ready') return;
     rememberKeyed(conversations, channelId, {
       ...conversation,
+      unreadAfterMessageId: undefined,
       drafts: [],
       draftRevision: 0,
       draftNotice: undefined,
