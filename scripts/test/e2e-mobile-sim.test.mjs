@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
   BUNDLE_ID,
+  DEVICE_NAME,
+  derivedDataFolder,
   missingTools,
   parseArgs,
   pickSimulator,
   pushPayload,
   renamePairingLink,
+  reusableDevice,
 } from '../e2e-mobile-sim.mjs';
 
 describe('iOS Simulator phone journey', () => {
@@ -108,5 +111,40 @@ describe('iOS Simulator phone journey', () => {
   it('names each missing tool with how to install it', () => {
     expect(missingTools({ which: () => true, javaHome: '/jdk' })).toEqual([]);
     expect(missingTools({ which: () => false, javaHome: undefined })).toHaveLength(3);
+  });
+  it('reuses its own Simulator only for the same runtime and device type', () => {
+    const sim = { runtime: 'ios-26', deviceType: 'iphone-16' };
+    const device = (name, deviceTypeIdentifier, isAvailable = true) => ({
+      name,
+      deviceTypeIdentifier,
+      isAvailable,
+      udid: `${name}-${deviceTypeIdentifier}-${isAvailable}`,
+    });
+    expect(
+      reusableDevice(
+        {
+          devices: {
+            'ios-26': [
+              device('PR1800 glass iOS 26', 'iphone-16'),
+              device(DEVICE_NAME, 'iphone-16', false),
+              device(DEVICE_NAME, 'iphone-17-pro'),
+              device(DEVICE_NAME, 'iphone-16'),
+            ],
+          },
+        },
+        sim,
+      ),
+    ).toBe(`${DEVICE_NAME}-iphone-16-true`);
+    expect(reusableDevice({ devices: {} }, sim)).toBeUndefined();
+  });
+
+  it('finds the DerivedData folder of a built app so it can be removed', () => {
+    expect(
+      derivedDataFolder(
+        '/Users/me/Library/Developer/Xcode/DerivedData/DeepSeekBotDev-abc/Build/Products/Debug-iphonesimulator/DeepSeekBotDev.app',
+      ),
+    ).toBe('/Users/me/Library/Developer/Xcode/DerivedData/DeepSeekBotDev-abc');
+    expect(derivedDataFolder('/tmp/DeepSeekBotDev.app')).toBeUndefined();
+    expect(derivedDataFolder('/tmp/DerivedData/DeepSeekBotDev.app')).toBeUndefined();
   });
 });

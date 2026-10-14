@@ -1,9 +1,19 @@
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import { createRequire } from 'node:module';
 import { createServer } from 'node:http';
 import { createServer as createNetServer } from 'node:net';
 import { homedir, tmpdir } from 'node:os';
-import { basename, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { verifyPaths } from './verify-app.mjs';
@@ -12,6 +22,8 @@ const root = resolve(fileURLToPath(import.meta.url), '../..');
 const mobile = join(root, 'apps/mobile');
 const flows = join(mobile, '.maestro/sim');
 export const BUNDLE_ID = 'ai.botharness.deepseekbot.dev';
+export const DEVICE_NAME = 'BotHarness e2e';
+const buildCache = join(homedir(), 'Library/Caches/botharness/mobile-sim');
 
 export function parseArgs(argv) {
   const options = { app: undefined, keep: false, approval: true, device: 'iPhone 16' };
@@ -40,6 +52,46 @@ export function pickSimulator(list, deviceName) {
     (runtime.supportedDeviceTypes ?? []).find((entry) => entry.productFamily === 'iPhone');
   if (type === undefined) throw new Error(`no ${deviceName} device type`);
   return { runtime: runtime.identifier, deviceType: type.identifier, runtimeName: runtime.name };
+}
+
+export function reusableDevice(list, { runtime, deviceType }) {
+  return (list.devices?.[runtime] ?? []).find(
+    (entry) =>
+      entry.name === DEVICE_NAME &&
+      entry.deviceTypeIdentifier === deviceType &&
+      entry.isAvailable !== false,
+  )?.udid;
+}
+
+export function derivedDataFolder(appPath) {
+  const parts = appPath.split(sep);
+  const index = parts.lastIndexOf('DerivedData');
+  return index === -1 || index + 1 >= parts.length - 1
+    ? undefined
+    : parts.slice(0, index + 2).join(sep);
+}
+
+async function nativeFingerprint() {
+  const expo = createRequire(join(mobile, 'package.json')).resolve('expo/package.json');
+  const { createFingerprintAsync } = createRequire(expo)('@expo/fingerprint');
+  return (await createFingerprintAsync(mobile)).hash;
+}
+
+function cachedApp(hash) {
+  const folder = join(buildCache, hash);
+  if (!existsSync(folder)) return undefined;
+  const app = readdirSync(folder).find((name) => name.endsWith('.app'));
+  return app === undefined ? undefined : join(folder, app);
+}
+
+function cacheBuild(hash, app) {
+  rmSync(buildCache, { recursive: true, force: true });
+  const target = join(buildCache, hash, basename(app));
+  mkdirSync(dirname(target), { recursive: true });
+  cpSync(app, target, { recursive: true, verbatimSymlinks: true });
+  const derived = derivedDataFolder(app);
+  if (derived !== undefined) rmSync(derived, { recursive: true, force: true });
+  return target;
 }
 
 function compareVersions(a, b) {
@@ -287,20 +339,25 @@ async function main() {
       JSON.parse(run('xcrun', ['simctl', 'list', '-j', 'runtimes', 'devicetypes'])),
       options.device,
     );
-    udid = run('xcrun', [
-      'simctl',
-      'create',
-      `BotHarness e2e ${Date.now()}`,
-      sim.deviceType,
-      sim.runtime,
-    ]).trim();
+    const existing = reusableDevice(
+      JSON.parse(run('xcrun', ['simctl', 'list', '-j', 'devices'])),
+      sim,
+    );
+    if (existing === undefined) {
+      udid = run('xcrun', ['simctl', 'create', DEVICE_NAME, sim.deviceType, sim.runtime]).trim();
+    } else {
+      udid = existing;
+      spawnSync('xcrun', ['simctl', 'shutdown', udid]);
+      run('xcrun', ['simctl', 'erase', udid]);
+    }
     cleanups.push(() => {
       if (options.keep) return;
       spawnSync('xcrun', ['simctl', 'shutdown', udid]);
-      spawnSync('xcrun', ['simctl', 'delete', udid]);
     });
     run('xcrun', ['simctl', 'boot', udid]);
-    steps.push(`created and booted ${options.device} on ${sim.runtimeName} (${udid})`);
+    steps.push(
+      `${existing === undefined ? 'created' : 'erased'} and booted ${DEVICE_NAME} on ${sim.runtimeName} (${udid})`,
+    );
 
     const metroPort = await freePort();
     const metroLog = join(paths.evidence, 'metro.log');
@@ -332,19 +389,21 @@ async function main() {
     );
     steps.push(`started Metro on port ${metroPort}`);
 
-    if (options.app !== undefined) {
-      run('xcrun', ['simctl', 'install', udid, options.app]);
-      steps.push(`installed ${options.app}`);
+    const hash = options.app === undefined ? await nativeFingerprint() : undefined;
+    const reuse = options.app ?? cachedApp(hash);
+    if (reuse !== undefined) {
+      run('xcrun', ['simctl', 'install', udid, reuse]);
+      steps.push(`installed ${reuse} without building`);
     } else {
+      rmSync(join(mobile, 'ios'), { recursive: true, force: true });
       const built = run('npx', ['expo', 'run:ios', '--device', udid, '--no-bundler'], {
         cwd: mobile,
         timeout: 3_600_000,
         env: { ...process.env, LANG: 'en_US.UTF-8', LC_ALL: 'en_US.UTF-8', CI: '1' },
       });
       const app = /Installing (\S+\.app)/u.exec(built)?.[1];
-      steps.push(
-        `built the development build${app === undefined ? '' : ` (reuse it with --app ${app})`}`,
-      );
+      if (app === undefined) throw new Error('expo run:ios did not say which .app it installed');
+      steps.push(`built the development build and cached it at ${cacheBuild(hash, app)}`);
     }
 
     const hosts = [
