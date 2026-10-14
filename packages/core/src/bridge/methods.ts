@@ -228,11 +228,12 @@ import {
   type BotScheduleTrigger,
   previewBotScheduleTrigger,
 } from '../schedules/bot-schedules.js';
-import type {
-  HumanAttentionQuery,
-  HumanAttentionDecisions,
-  HumanAttentionPage,
-  HumanAttentionCategory,
+import {
+  HUMAN_INBOX_SNOOZE_MAX_MS,
+  type HumanAttentionQuery,
+  type HumanAttentionDecisions,
+  type HumanAttentionPage,
+  type HumanAttentionCategory,
 } from '../runtime/human-attention.js';
 import { DirectBotToolError } from '../runtime/bot-runtime.js';
 import type {
@@ -551,6 +552,7 @@ export interface BridgeMethods {
   ): BridgeResult<{ channels: Array<{ channelId: string; unreadCount: number }> }>;
   humanAttentionDismiss(payload: unknown): BridgeResult<{ accepted: boolean }>;
   humanAttentionIgnore(payload: unknown): BridgeResult<{ accepted: boolean }>;
+  humanAttentionSnooze(payload: unknown): BridgeResult<{ accepted: boolean }>;
   assignments(payload: unknown): BridgeResult<{ assignments: AssignmentSummary[] }>;
   channelAssignments(payload: unknown): BridgeResult<{ assignments: ChannelAssignmentSummary[] }>;
   assignment(payload: unknown): BridgeResult<{ assignment: AssignmentDetail }>;
@@ -572,6 +574,7 @@ export interface BridgeMethods {
   toolApprovalRuleRevoke(payload: unknown): BridgeResult<{ rule: ToolApprovalRule }>;
   toolApprovalStatus(payload: unknown): BridgeResult<{
     status: 'pending' | 'expired';
+    expiresAt?: string;
     execution?: 'waiting-human' | 'waiting-capacity' | 'running' | 'settled' | 'needs-repair';
   }>;
   toolApprovalDecide(payload: unknown): Promise<BridgeResult<{ accepted: boolean }>>;
@@ -3997,6 +4000,9 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       const channelId = source['channelId'];
       const limit = source['limit'];
       const cursor = source['cursor'];
+      const snoozed = source['snoozed'];
+      if (snoozed !== undefined && typeof snoozed !== 'boolean')
+        return invalidInput('snoozed must be a boolean');
       if (
         category !== undefined &&
         category !== 'action' &&
@@ -4035,6 +4041,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
             ...(channelId === undefined ? {} : { channelId: channelId as string }),
             ...(limit === undefined ? {} : { limit: limit as number }),
             ...(cursor === undefined ? {} : { cursor: cursor as string }),
+            ...(snoozed === true ? { snoozed: true } : {}),
           }) ?? { items: [] },
         };
       } catch (error) {
@@ -4107,6 +4114,39 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
           deps.humanAttentionDecisions?.dismiss(item) !== true
         )
           return invalidInput('Inbox item is no longer available');
+        return { ok: true, value: { accepted: true } };
+      } catch (error) {
+        return invalidInput(String(error));
+      }
+    },
+    humanAttentionSnooze(payload) {
+      const source = asObject(payload);
+      const itemId = asNonBlank(source, 'itemId');
+      const sourceKey = source?.['sourceKey'];
+      const until = source?.['until'];
+      if (
+        itemId === undefined ||
+        itemId.length > 350 ||
+        typeof sourceKey !== 'string' ||
+        sourceKey.length > 150
+      )
+        return invalidInput('itemId and sourceKey are required');
+      if (until !== null) {
+        const at = typeof until === 'string' ? Date.parse(until) : Number.NaN;
+        if (Number.isNaN(at) || new Date(at).toISOString() !== until)
+          return invalidInput('until must be an ISO time, or null to bring the item back');
+        const left = at - Date.now();
+        if (left <= 0 || left > HUMAN_INBOX_SNOOZE_MAX_MS)
+          return invalidInput('until must be in the future and at most 30 days away');
+      }
+      try {
+        const item = deps.humanAttention?.item(itemId, sourceKey);
+        if (
+          item === undefined ||
+          (item.sourceEventId ?? '') !== sourceKey ||
+          deps.humanAttentionDecisions?.snooze(item, until) !== true
+        )
+          return invalidInput('Inbox item cannot be snoozed');
         return { ok: true, value: { accepted: true } };
       } catch (error) {
         return invalidInput(String(error));
@@ -4458,10 +4498,14 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
                   : deps.runtime.assignmentApprovalWait(request.sessionId, request.callId)) ??
                 'running')
               : 'settled';
+      const status = deps.toolApproval?.status(channel.botSlug, messageId) ?? 'expired';
+      const expiresAt =
+        status === 'pending' ? deps.toolApproval?.expiresAt(channel.botSlug, messageId) : undefined;
       return {
         ok: true,
         value: {
-          status: deps.toolApproval?.status(channel.botSlug, messageId) ?? 'expired',
+          status,
+          ...(expiresAt === undefined ? {} : { expiresAt }),
           ...(execution === undefined ? {} : { execution }),
         },
       };

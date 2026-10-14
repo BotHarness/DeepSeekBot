@@ -7,7 +7,15 @@ import { useDesignTheme, type DesignTheme } from './design/theme';
 
 const mono = Platform.select({ ios: 'Menlo', default: 'monospace' });
 
-export function MarkdownView({ source, color }: { source: string; color?: string }) {
+export function MarkdownView({
+  source,
+  color,
+  selectable = true,
+}: {
+  source: string;
+  color?: string;
+  selectable?: boolean;
+}) {
   const theme = useDesignTheme();
   const blocks = useMemo(() => parseMarkdown(source), [source]);
   const base: TextStyle = {
@@ -18,24 +26,34 @@ export function MarkdownView({ source, color }: { source: string; color?: string
   return (
     <View style={{ gap: space.x3 }}>
       {blocks.map((block, index) => (
-        <BlockView key={index} block={block} base={base} theme={theme} />
+        <BlockView key={index} block={block} base={base} theme={theme} selectable={selectable} />
       ))}
     </View>
   );
 }
 
-function BlockView({ block, base, theme }: { block: Block; base: TextStyle; theme: DesignTheme }) {
+function BlockView({
+  block,
+  base,
+  theme,
+  selectable,
+}: {
+  block: Block;
+  base: TextStyle;
+  theme: DesignTheme;
+  selectable: boolean;
+}) {
   switch (block.type) {
     case 'paragraph':
       return (
-        <Text selectable style={base}>
+        <Text selectable={selectable} style={base}>
           <Inlines nodes={block.children} theme={theme} />
         </Text>
       );
     case 'heading':
       return (
         <Text
-          selectable
+          selectable={selectable}
           accessibilityRole="header"
           style={{
             ...base,
@@ -56,7 +74,7 @@ function BlockView({ block, base, theme }: { block: Block; base: TextStyle; them
           contentContainerStyle={{ padding: space.x3 }}
         >
           <Text
-            selectable
+            selectable={selectable}
             style={{
               color: base.color,
               fontFamily: mono,
@@ -84,6 +102,7 @@ function BlockView({ block, base, theme }: { block: Block; base: TextStyle; them
               block={child}
               base={{ ...base, color: theme.color.muted }}
               theme={theme}
+              selectable={selectable}
             />
           ))}
         </View>
@@ -98,7 +117,13 @@ function BlockView({ block, base, theme }: { block: Block; base: TextStyle; them
               </Text>
               <View style={{ flex: 1, gap: space.x2 }}>
                 {item.map((child, childIndex) => (
-                  <BlockView key={childIndex} block={child} base={base} theme={theme} />
+                  <BlockView
+                    key={childIndex}
+                    block={child}
+                    base={base}
+                    theme={theme}
+                    selectable={selectable}
+                  />
                 ))}
               </View>
             </View>

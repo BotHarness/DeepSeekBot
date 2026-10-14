@@ -28,8 +28,8 @@ appId: ai.botharness.deepseekbot.dev
 - tapOn:
     text: deepseekbot://pair\?p=…
 - inputText: not-a-link
-# The keyboard covers the Pair button; tapping the hint ends editing.
-- tapOn: 'On your computer.*|在电脑上.*'
+# With the keyboard still up, the field and Pair are both on screen.
+- assertVisible: not-a-link
 - tapOn: 'Pair|配对'
 - assertVisible: 'This is not a DeepSeekBot pairing code\.|这不是 DeepSeekBot 的配对二维码。'
 - takeScreenshot: pair-screen

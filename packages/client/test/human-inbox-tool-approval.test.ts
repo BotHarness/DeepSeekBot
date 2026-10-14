@@ -132,8 +132,12 @@ describe('Human Inbox tool approval', () => {
         await act(async () => button('处理审批')!.click());
         expect(container.querySelector('.bh-human-inbox-detail')).not.toBeNull();
         expect(container.querySelector('[role="dialog"]')).toBeNull();
+        expect(container.querySelector('.bh-tool-approval-input')).toBeNull();
+        await act(async () =>
+          container.querySelector<HTMLButtonElement>('.bh-request-summary')!.click(),
+        );
         expect(container.querySelector('.bh-tool-approval-input')?.textContent).toBe(
-          '{"command":"echo QA_RELEASE"}',
+          '$ echo QA_RELEASE',
         );
         expect(container.textContent).toContain('/qa/release');
         expect(container.querySelector('textarea')).toBeNull();
@@ -162,11 +166,7 @@ describe('Human Inbox tool approval', () => {
         expect(store.getSnapshot().selection).toEqual({ kind: 'inbox' });
         expect(store.getSnapshot().humanInbox.items.map((i) => i.botSlug)).toEqual(['bea']);
         expect(container.textContent).toContain(
-          outcome === 'stale'
-            ? '请求已失效'
-            : outcome === 'rejected'
-              ? '已拒绝这一次调用'
-              : '已批准这一次调用',
+          outcome === 'stale' ? '已过期' : outcome === 'rejected' ? '已拒绝' : '已允许',
         );
         expect(button('仅批准这一次')).toBeUndefined();
         expect(calls.some((c) => c.endpoint === 'channelSend')).toBe(false);

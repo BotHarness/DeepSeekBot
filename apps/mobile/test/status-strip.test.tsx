@@ -40,6 +40,7 @@ const mika: RosterBot = {
   displayName: 'Mika',
   roles: [],
   computerAccess: false,
+  browserAccess: false,
   state: 'working',
   paused: false,
   dmChannelId: 'dm-mika',

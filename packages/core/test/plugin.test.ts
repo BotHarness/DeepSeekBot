@@ -474,6 +474,7 @@ describe('plugin entry', () => {
       'humanAttentionStatus',
       'humanAttentionIgnore',
       'humanAttentionDismiss',
+      'humanAttentionSnooze',
       'assignments',
       'channelAssignments',
       'assignment',

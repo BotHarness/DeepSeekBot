@@ -1099,9 +1099,10 @@ export class BotharnessBridgeService extends TypertRemoteService {
     limit?: number,
     cursor?: string,
     sort?: 'newest' | 'oldest',
+    snoozed?: boolean,
   ): HumanAttentionPage {
     return unwrap(
-      this.methods.humanAttention({ category, botSlug, channelId, limit, cursor, sort }),
+      this.methods.humanAttention({ category, botSlug, channelId, limit, cursor, sort, snoozed }),
     );
   }
   humanAttentionStatus(): { unreadCount: number; hasAction: boolean } {
@@ -1122,6 +1123,13 @@ export class BotharnessBridgeService extends TypertRemoteService {
   }
   humanAttentionIgnore(sourceEventId: string): { accepted: boolean } {
     return unwrap(this.methods.humanAttentionIgnore({ sourceEventId }));
+  }
+  humanAttentionSnooze(
+    itemId: string,
+    sourceKey: string,
+    until: string | null,
+  ): { accepted: boolean } {
+    return unwrap(this.methods.humanAttentionSnooze({ itemId, sourceKey, until }));
   }
 
   assignments(slug: string): { assignments: AssignmentSummary[] } {
@@ -1657,6 +1665,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'humanAttentionStatus',
   'humanAttentionIgnore',
   'humanAttentionDismiss',
+  'humanAttentionSnooze',
   'assignments',
   'channelAssignments',
   'assignment',

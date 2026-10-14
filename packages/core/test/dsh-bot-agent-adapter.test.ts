@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { createDshBotAgentAdapter } from '../src/runtime/dsh-bot-agent-adapter.js';
 import { BotScheduleError } from '../src/schedules/bot-schedules.js';
-import { requiresHumanToolApproval } from '../src/workspaces/grant-execution.js';
+import { isDshGovernedTool } from '../src/workspaces/grant-execution.js';
 import type { AssignmentAgentRun, OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
 import { FakeAgentHost, FAKE_BOT as BOT } from './dsh-agent-host-fixture.js';
 
@@ -1438,7 +1438,7 @@ describe('DSH Bot Agent adapter', () => {
       host.scopes
         .get('orchestrator-ada')
         ?.tools.map((tool) => tool.name)
-        .filter((name) => name !== 'channel_attachment_open' && requiresHumanToolApproval(name)),
+        .filter((name) => isDshGovernedTool(name) && !name.startsWith('secret_')),
     ).toEqual([]);
     const channelSend = host.scopes
       .get('orchestrator-ada')
@@ -1533,7 +1533,9 @@ describe('DSH Bot Agent adapter', () => {
     expect(assignmentPrompt).toContain('Never access another workspace or the PersonaBot');
     expect(host.scopes.get('orchestrator-ada')?.restrictions).toEqual([]);
     expect(host.scopes.get('assignment-1')?.restrictions).toEqual([]);
-    expect(assignmentPrompt).toContain('unless the Human has saved a matching automatic rule');
+    expect(assignmentPrompt).toContain(
+      'when one asks DSH for permission, the approval card appears in the Bot Channel',
+    );
     expect(assignmentPrompt).toContain('expects_reply');
 
     await adapter.close();

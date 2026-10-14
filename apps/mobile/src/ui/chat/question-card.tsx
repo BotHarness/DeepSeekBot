@@ -18,6 +18,7 @@ import { useMounted } from '../mounted';
 import { Button } from '../primitives/button';
 import { Text } from '../primitives/text';
 import { errorText } from '../request-parts';
+import { haptic } from '../haptics';
 import { t } from '../strings';
 import { ActionCard, CardButtons, CardLine, type CardLineTone } from './action-card';
 
@@ -268,6 +269,7 @@ export function QuestionCard({
   const answer = buildAnswer(request.questions, drafts);
   const submit = async () => {
     if (answer === undefined) return;
+    haptic('submit');
     setPhase({ kind: 'pending', request, busy: true });
     try {
       const result = await port.answer(answer);

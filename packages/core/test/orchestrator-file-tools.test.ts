@@ -2,7 +2,7 @@ import { Context } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import { ToolCallId } from '@deepseek-ai/dsh-llm';
 import { createScope } from '@deepseek-ai/dsh-scope';
-import { ToolRuntime } from '@deepseek-ai/dsh-tools';
+import { ToolRuntime, defineTool } from '@deepseek-ai/dsh-tools';
 import { describe, expect, it } from 'vitest';
 import { installOrchestratorFileTools } from '../src/workspaces/orchestrator-file-tools.js';
 
@@ -245,4 +245,85 @@ describe('Agent-scoped native file Policy', () => {
       await providers.dispose();
     }
   });
+  it.each([
+    ['pwsh', 'bash'],
+    ['bash', 'pwsh'],
+  ] as const)(
+    're-scopes only the %s Shell the preset gives the Agent and gates its workdir',
+    async (shellName, absent) => {
+      const ctx = new Context();
+      const roots: Array<{ name: string; args: unknown }> = [];
+      const base = {
+        defaultMode: 'workspace-write',
+        workspaceRoot: '/memory',
+        overrideOf: () => 'workspace-write',
+        resolve: () => ({ mode: 'workspace-write', workspaceRoot: '/memory' }),
+      };
+      const providers = ctx.plugin({
+        name: 'test-preset-shell-capabilities',
+        apply(c: Context) {
+          c.provide('systemPrompt', {
+            tools: () => () => undefined,
+            section: () => () => undefined,
+            getSectionOrder: () => 1,
+          });
+          c.provide('sandboxPolicy', base);
+          c.provide('shellEnv', { collect: () => ({}) });
+          c.provide('shell', { sandboxMode: 'workspace-write' });
+          c.provide('fs', { sandboxMode: 'workspace-write' });
+        },
+      });
+      await providers.await();
+      const runtime = ctx.plugin(ToolRuntime, {});
+      await runtime.await();
+      const disposePreset = ctx.tools.register(
+        defineTool({
+          name: shellName,
+          description: 'preset shell',
+          parameters: { command: { type: 'string', required: true, description: 'Command.' } },
+          output: {
+            schema: { type: 'string' },
+            render: (_args, value) => [{ type: 'text', text: value }],
+          },
+          execute: async () => 'preset shell ran',
+        }),
+      );
+      const agent = { session: { id: 'shell-agent', header: { cwd: '/memory' } } } as Agent;
+      const scope = createScope(ctx, agent);
+      Object.assign(agent, { ctx: scope.ctx });
+      const dispose = await installOrchestratorFileTools(
+        scope.ctx,
+        agent,
+        undefined,
+        (name, args) => {
+          roots.push({ name, args });
+          throw new Error('Grant revoked');
+        },
+      );
+      try {
+        const visible = ctx.tools.schemas(agent);
+        expect(visible.map((tool) => tool.name)).not.toContain(absent);
+        expect(visible.find((tool) => tool.name === shellName)?.description).not.toBe(
+          'preset shell',
+        );
+        const result = await ctx.tools.execute({
+          agent,
+          callId: ToolCallId('shell'),
+          name: shellName,
+          arguments: { command: 'ls', workdir: '/outside' },
+          signal: new AbortController().signal,
+        });
+        expect(result.isError).toBe(true);
+        expect(roots).toEqual([
+          { name: shellName, args: expect.objectContaining({ workdir: '/outside' }) },
+        ]);
+      } finally {
+        await dispose();
+        disposePreset();
+        await scope.dispose();
+        await runtime.dispose();
+        await providers.dispose();
+      }
+    },
+  );
 });

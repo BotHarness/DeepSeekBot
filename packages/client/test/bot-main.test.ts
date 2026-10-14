@@ -983,15 +983,14 @@ describe('Bot main question developer details', () => {
       );
       expect(node.querySelector('.bh-question-source')).toBeNull();
       const choice = node.querySelector<HTMLButtonElement>('.bh-question-item button')!;
-      await act(async () => choice.click());
       await act(async () => prefs.setDeveloperMode(true));
       expect(node.querySelector('.bh-question-source code')?.textContent).toBe(
         'orchestrator-private',
       );
-      expect(choice.getAttribute('aria-pressed')).toBe('true');
+      expect(node.querySelector('.bh-question-item button')).toBe(choice);
       await act(async () => prefs.setDeveloperMode(false));
       expect(node.querySelector('.bh-question-source')).toBeNull();
-      expect(choice.getAttribute('aria-pressed')).toBe('true');
+      expect(node.querySelector('.bh-question-item button')).toBe(choice);
       expect(actions.userQuestionStatus).toHaveBeenCalledTimes(1);
     } finally {
       await act(async () => root.unmount());

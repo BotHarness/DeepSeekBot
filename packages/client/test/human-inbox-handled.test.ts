@@ -124,7 +124,7 @@ describe('Handled action navigation', () => {
           zhTranslate(kind === 'question' ? 'question.expired' : 'approval.expired'),
         );
         expect(container.textContent).toContain(
-          zhTranslate(kind === 'question' ? 'question.answered' : 'approval.rejected'),
+          zhTranslate(kind === 'question' ? 'question.answered' : 'approval.outcome.denied'),
         );
         expect(
           container.querySelector(

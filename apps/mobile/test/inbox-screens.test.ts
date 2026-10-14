@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('react-native', () => import('./react-native-shim'));
+vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
 vi.mock('../src/ui/bot-avatar', () => ({
   BotAvatar: ({ bot }: { bot: { slug: string } }) =>
     createElement('span', { 'data-testid': `avatar-${bot.slug}` }),
@@ -268,6 +269,7 @@ describe('Inbox list', () => {
     displayName: 'Inbox QA',
     roles: [],
     computerAccess: false,
+    browserAccess: false,
     state: 'waiting',
     paused: false,
   };

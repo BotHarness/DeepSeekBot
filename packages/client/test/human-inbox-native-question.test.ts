@@ -157,9 +157,9 @@ describe('Human Inbox native question', () => {
         );
         expect(container.textContent).toContain('Please check the release.');
         expect(container.textContent).toContain('The separate check is queued.');
-        await act(async () => button('CanarySmall launch')!.click());
+        expect(button('回答并继续')).toBeUndefined();
         if (outcome === 'custom') {
-          const input = container.querySelector<HTMLInputElement>('input')!;
+          const input = container.querySelector<HTMLInputElement>('input[aria-label="其他回答"]')!;
           await act(async () => {
             Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(
               input,
@@ -167,9 +167,10 @@ describe('Human Inbox native question', () => {
             );
             input.dispatchEvent(new Event('input', { bubbles: true }));
           });
-          expect(button('CanarySmall launch')?.getAttribute('aria-pressed')).toBe('false');
+          await act(async () => button('回答并继续')!.click());
+        } else {
+          await act(async () => button('CanarySmall launch')!.click());
         }
-        await act(async () => button('回答并继续')!.click());
         expect(
           calls.filter((c) => c.endpoint === 'userQuestionAnswer').map((c) => c.payload),
         ).toEqual([
@@ -187,7 +188,7 @@ describe('Human Inbox native question', () => {
         ]);
         expect(store.getSnapshot().selection).toEqual({ kind: 'inbox' });
         expect(store.getSnapshot().humanInbox.items.map((i) => i.botSlug)).toEqual(['bea']);
-        expect(container.textContent).toContain(outcome === 'stale' ? '此提问已失效' : '已回答');
+        expect(container.textContent).toContain(outcome === 'stale' ? '已过期' : '已回答');
         expect(button('回答并继续')).toBeUndefined();
         expect(calls.some((c) => c.endpoint === 'channelSend')).toBe(false);
       } finally {

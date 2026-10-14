@@ -376,6 +376,11 @@ export class ChannelToolApproval {
     return this.#pending.get(messageId)?.botSlug === botSlug ? 'pending' : 'expired';
   }
 
+  expiresAt(botSlug: string, messageId: string): string | undefined {
+    const pending = this.#pending.get(messageId);
+    return pending?.botSlug === botSlug ? pending.notice.expiresAt : undefined;
+  }
+
   async decide(
     botSlug: string,
     messageId: string,

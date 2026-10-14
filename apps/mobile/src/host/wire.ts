@@ -95,6 +95,7 @@ export interface PersonaBotSummary {
   roles?: string[];
   description?: string;
   computerAccess?: boolean;
+  browserAccess?: boolean;
   paused?: boolean;
   deleted?: boolean;
   aggregateState: AggregatedState;

@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
-import { Image, Modal, Pressable, useWindowDimensions, View } from 'react-native';
+import { Image } from 'expo-image';
+import { Modal, Pressable, useWindowDimensions, View } from 'react-native';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, {
   runOnJS,
@@ -216,13 +217,14 @@ function ZoomableImage({
               <Animated.View style={imageStyle}>
                 <Image
                   source={attachment.source}
-                  resizeMode="contain"
+                  recyclingKey={attachment.key}
+                  cachePolicy="memory-disk"
+                  contentFit="contain"
                   accessibilityLabel={attachment.name}
                   accessibilityHint={t.viewerHint}
-                  onLoad={({ nativeEvent }) => {
-                    const size = nativeEvent.source as typeof natural | undefined;
-                    if (size !== undefined) setNatural({ width: size.width, height: size.height });
-                  }}
+                  onLoad={({ source }) =>
+                    setNatural({ width: source.width, height: source.height })
+                  }
                   style={{ width: fitted.width, height: fitted.height }}
                 />
               </Animated.View>

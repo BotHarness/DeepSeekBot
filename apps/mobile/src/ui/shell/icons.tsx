@@ -148,6 +148,24 @@ export function ComputerIcon(props: IconProps) {
   );
 }
 
+export function BrowserIcon(props: IconProps) {
+  return (
+    <Glyph
+      {...props}
+      d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18Zm-9 9h18M12 3c2.5 2.5 3.5 5.5 3.5 9s-1 6.5-3.5 9c-2.5-2.5-3.5-5.5-3.5-9s1-6.5 3.5-9Z"
+    />
+  );
+}
+
+export function KeyboardIcon(props: IconProps) {
+  return (
+    <Glyph
+      {...props}
+      d="M4 6h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1Zm3 4h.01M11 10h.01M15 10h.01M7 14h10"
+    />
+  );
+}
+
 export function RecordingStopIcon({ color, size }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">

@@ -148,6 +148,7 @@ import {
   setWorkspaceGrantWrite,
   loadToolApprovalStatus,
   loadToolApprovalExecutionState,
+  loadToolApprovalState,
   type ToolApprovalExecutionState,
   decideToolApproval,
   loadUserQuestionStatus,
@@ -164,6 +165,7 @@ import {
   type HumanAssignmentContext,
   ignoreHumanAssignmentReport,
   dismissHumanInboxItem,
+  snoozeHumanInboxItem,
   type TimelinePage,
   type TimelinePageRequest,
   loadSessions,
@@ -473,6 +475,7 @@ export interface BridgeActions {
   setHumanInboxFilters(filters: HumanInboxFilters): Promise<void>;
   loadMoreHumanInbox(): Promise<void>;
   dismissHumanInbox(item: HumanAttentionItem): Promise<void>;
+  snoozeHumanInbox(item: HumanAttentionItem, until: string | null): Promise<void>;
   humanInboxContextPage(
     channelId: string,
     request: TimelinePageRequest,
@@ -672,6 +675,10 @@ export interface BridgeActions {
     channelId: string,
     messageId: string,
   ): Promise<import('../../../core/src/credentials/contracts.js').PrivateRevocationResult>;
+  toolApprovalState?(
+    channelId: string,
+    messageId: string,
+  ): Promise<{ status: 'pending' | 'expired'; expiresAt?: string }>;
   toolApprovalExecutionState?(
     channelId: string,
     messageId: string,
@@ -1230,7 +1237,7 @@ export function createActions(
     const requestSeq = head ? ++humanInboxHeadSeq : ++humanInboxPageSeq;
     const scopeVersion = humanInboxScopeVersion;
     const headVersion = humanInboxHeadSeq;
-    const { botSlug, channelId, sort } = clientStore.getSnapshot().humanInbox;
+    const { botSlug, channelId, sort, snoozed } = clientStore.getSnapshot().humanInbox;
     const isCurrent = (): boolean =>
       currentSelection() === selection &&
       scopeVersion === humanInboxScopeVersion &&
@@ -1242,6 +1249,7 @@ export function createActions(
         botSlug,
         channelId,
         sort,
+        snoozed,
       });
       if (!isCurrent()) return;
       const priorState = clientStore.getSnapshot().humanInbox;
@@ -1268,6 +1276,7 @@ export function createActions(
           botSlug,
           channelId,
           sort,
+          snoozed,
         });
         if (!isCurrent()) return;
         const seen = new Set(canonicalItems.map((item) => item.id));
@@ -1606,6 +1615,7 @@ export function createActions(
         throw new Error('Private account revocation was not accepted');
       return value;
     },
+    toolApprovalState: (channelId, messageId) => loadToolApprovalState(call, channelId, messageId),
     toolApprovalExecutionState: (channelId, messageId) =>
       loadToolApprovalExecutionState(call, channelId, messageId),
     decideToolApproval: (channelId, messageId, outcome) =>
@@ -1826,6 +1836,7 @@ export function createActions(
           sort: nextCategory === 'action' ? 'oldest' : 'newest',
           botSlug: nextCategory === 'unread' ? undefined : prior.botSlug,
           channelId: undefined,
+          snoozed: nextCategory === 'unread' || nextCategory === 'handled' ? false : prior.snoozed,
           status: 'loading',
           items: [],
           nextCursor: undefined,
@@ -1841,12 +1852,14 @@ export function createActions(
       if (
         prior.botSlug === filters.botSlug &&
         prior.channelId === filters.channelId &&
-        prior.sort === filters.sort
+        prior.sort === filters.sort &&
+        prior.snoozed === (filters.snoozed ?? prior.snoozed)
       )
         return Promise.resolve();
       humanInboxScopeVersion += 1;
       clientStore.setHumanInbox({
         ...filters,
+        snoozed: filters.snoozed ?? prior.snoozed,
         status: 'loading',
         items: [],
         nextCursor: undefined,
@@ -1888,6 +1901,21 @@ export function createActions(
       )
         throw new Error('Source message is no longer available');
       return page;
+    },
+    async snoozeHumanInbox(item, until) {
+      await snoozeHumanInboxItem(call, item.id, item.sourceEventId ?? '', until);
+      humanInboxScopeVersion += 1;
+      humanInboxHeadSeq += 1;
+      humanInboxPageSeq += 1;
+      const state = clientStore.getSnapshot().humanInbox;
+      clientStore.setHumanInbox({
+        items: state.items.filter(
+          (entry) => entry.id !== item.id || entry.sourceEventId !== item.sourceEventId,
+        ),
+      });
+      void Promise.all([actions.refreshHumanInbox(), actions.refreshHumanInboxStatus()]).catch(
+        () => undefined,
+      );
     },
     async ignoreHumanReport(sourceEventId) {
       await ignoreHumanAssignmentReport(call, sourceEventId);

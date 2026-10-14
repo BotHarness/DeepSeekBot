@@ -2800,6 +2800,23 @@ export async function loadToolApprovalStatus(
   return status;
 }
 
+export async function loadToolApprovalState(
+  call: BridgeCall,
+  channelId: string,
+  messageId: string,
+): Promise<{ status: 'pending' | 'expired'; expiresAt?: string }> {
+  const response = asRecord(await unwrap(call, 'toolApprovalStatus', { channelId, messageId }));
+  const status = response?.['status'];
+  if (status !== 'pending' && status !== 'expired') {
+    throw new Error('invalid toolApprovalStatus response');
+  }
+  const expiresAt = response?.['expiresAt'];
+  if (expiresAt === undefined || status !== 'pending') return { status };
+  if (typeof expiresAt !== 'string' || Number.isNaN(Date.parse(expiresAt)))
+    throw new Error('invalid toolApprovalStatus expiry');
+  return { status, expiresAt };
+}
+
 export type ToolApprovalExecutionState =
   | 'waiting-human'
   | 'waiting-capacity'
@@ -3151,6 +3168,8 @@ function parseHumanAttentionPage(value: unknown): HumanAttentionPage {
       return undefined;
     if (item['requestId'] !== undefined && typeof item['requestId'] !== 'string') return undefined;
     if (item['messageId'] !== undefined && typeof item['messageId'] !== 'string') return undefined;
+    if (item['snoozedUntil'] !== undefined && typeof item['snoozedUntil'] !== 'string')
+      return undefined;
     if (
       item['kind'] === 'private-input' &&
       (item['category'] !== 'action' ||
@@ -3221,6 +3240,7 @@ export async function loadHumanAttention(
       botSlug: filters.botSlug,
       channelId: filters.channelId,
       sort: filters.sort,
+      ...(filters.snoozed === true ? { snoozed: true } : {}),
     }),
   );
 }
@@ -3264,6 +3284,16 @@ export async function dismissHumanInboxItem(
 ): Promise<void> {
   const value = asRecord(await unwrap(call, 'humanAttentionDismiss', { itemId, sourceKey }));
   if (value?.['accepted'] !== true) throw new Error('Inbox dismissal was not confirmed');
+}
+
+export async function snoozeHumanInboxItem(
+  call: BridgeCall,
+  itemId: string,
+  sourceKey: string,
+  until: string | null,
+): Promise<void> {
+  const value = asRecord(await unwrap(call, 'humanAttentionSnooze', { itemId, sourceKey, until }));
+  if (value?.['accepted'] !== true) throw new Error('Inbox snooze was not confirmed');
 }
 
 export async function ignoreHumanAssignmentReport(

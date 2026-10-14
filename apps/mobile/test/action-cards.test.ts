@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
+vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
 
 import { createHostClient, type HostClient } from '../src/host/client';
 import {
@@ -19,6 +20,7 @@ import type { HumanAttentionItem } from '../src/host/wire';
 import { ApprovalCard } from '../src/ui/chat/approval-card';
 import { QuestionCard } from '../src/ui/chat/question-card';
 import { t } from '../src/ui/strings';
+import { played } from './expo-haptics-shim';
 import { FakeHost } from './fake-host';
 import inboxWire from './fixtures/inbox-wire.json';
 
@@ -38,6 +40,7 @@ let client: HostClient | undefined;
 let root: Root | undefined;
 let container: HTMLElement | undefined;
 afterEach(() => {
+  played.length = 0;
   act(() => root?.unmount());
   container?.remove();
   root = undefined;
@@ -159,6 +162,7 @@ describe('Tool approval card in the DM', () => {
     const view = await render(card(connect(fake)));
     await press(button(view, t.alwaysAllow));
     expect(sent[0]?.['outcome']).toBe('allowed-always-exact');
+    expect(played).toEqual(['notification:success']);
     expect(line(view)).toBe(t.cardLine('bash', t.cardOutcome['allowed-always-exact']));
     expect(view.querySelector('button')).toBeNull();
   });
@@ -178,6 +182,7 @@ describe('Tool approval card in the DM', () => {
     fake.answers.set('toolApprovalStatus', () => recorded('toolApprovalStatus.decided'));
     fake.answers.set('channelTimeline', () => recorded('channelTimeline.approvalDecided'));
     await press(button(view, t.deny));
+    expect(played).toEqual(['notification:warning']);
     expect(line(view)).toBe(t.cardLine('bash', t.elsewhere(t.cardOutcome['allowed-once'])));
   });
 
@@ -237,7 +242,9 @@ describe('Question card in the DM', () => {
     expect(button(view, t.option('A', 'Teal')).getAttribute('aria-checked')).toBe('true');
     await press(button(view, t.option('B', 'Biscuits')));
     await type(view, `${t.otherAnswer}: Which snacks?`, 'fruit');
+    expect(played).toEqual([]);
     await press(button(view, t.submitChoice));
+    expect(played).toEqual(['impact:light']);
     expect(sent[0]?.['answer']).toEqual({
       answers: [
         { id: 'colour', selected: ['Teal'] },
