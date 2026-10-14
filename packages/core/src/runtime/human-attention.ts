@@ -39,6 +39,7 @@ export interface HumanAttentionItem {
   isUnread?: boolean;
   responseMessageId?: string;
   responseSourceEventId?: string;
+  snoozedUntil?: string;
 }
 
 export interface HumanAttentionPage {
@@ -56,6 +57,7 @@ export interface HumanAttentionQuery {
   list(input: {
     itemId?: string;
     includeDismissed?: boolean;
+    snoozed?: boolean;
     category?: HumanAttentionCategory;
     sort?: HumanAttentionSort;
     botSlug?: string;
@@ -366,7 +368,31 @@ export function createHumanAttentionQuery(
   activeToolApprovalMessageIds: () => readonly string[] = () => [],
   activePrivateInputMessageIds: () => readonly string[] = () => [],
   mutedChannelIds: () => readonly string[] = () => [],
+  now: () => Date = () => new Date(),
 ): HumanAttentionQuery {
+  const activeSnooze = (id: string, source: string, at: string): string =>
+    `EXISTS (SELECT 1 FROM human_inbox_snoozes s WHERE s.human_id = '${LOCAL_HUMAN_ID}' AND s.item_id = ${id} AND s.source_key = coalesce(${source}, '') AND s.until > '${at}')`;
+  const snoozedUntil = (items: HumanAttentionItem[]): HumanAttentionItem[] => {
+    if (items.length === 0) return items;
+    const rows = database.read(
+      (db) =>
+        db
+          .prepare(
+            `SELECT item_id, source_key, until FROM human_inbox_snoozes WHERE human_id = '${LOCAL_HUMAN_ID}' AND item_id IN (SELECT value FROM json_each(?))`,
+          )
+          .all(JSON.stringify(items.map((item) => item.id))) as Array<{
+          item_id: string;
+          source_key: string;
+          until: string;
+        }>,
+    );
+    return items.map((item) => {
+      const until = rows.find(
+        (row) => row.item_id === item.id && row.source_key === (item.sourceEventId ?? ''),
+      )?.until;
+      return until === undefined ? item : { ...item, snoozedUntil: until };
+    });
+  };
   return {
     item(id, sourceKey) {
       if (id.startsWith('unread:') && sourceKey !== undefined) {
@@ -408,16 +434,20 @@ export function createHumanAttentionQuery(
       if (sort !== 'newest' && sort !== 'oldest') throw new Error('Invalid Human attention sort');
       const direction = sort === 'newest' ? 'DESC' : 'ASC';
       const cursorComparison = sort === 'newest' ? '<' : '>';
+      const snoozedOnly = input.snoozed === true;
+      if (snoozedOnly && (category === 'unread' || category === 'handled')) return { items: [] };
       const filters = JSON.stringify([
         category,
         input.botSlug ?? null,
         input.channelId ?? null,
         sort,
+        ...(snoozedOnly ? ['snoozed'] : []),
       ]);
+      const at = now().toISOString();
       const dismissFilter = (id: string, source: string): string =>
         input.includeDismissed
           ? ''
-          : `AND NOT EXISTS (SELECT 1 FROM human_inbox_dismissals d WHERE d.human_id = '${LOCAL_HUMAN_ID}' AND d.item_id = ${id} AND d.source_key = coalesce(${source}, ''))`;
+          : `AND NOT EXISTS (SELECT 1 FROM human_inbox_dismissals d WHERE d.human_id = '${LOCAL_HUMAN_ID}' AND d.item_id = ${id} AND d.source_key = coalesce(${source}, '')) AND ${snoozedOnly ? '' : 'NOT '}${activeSnooze(id, source, at)}`;
       const cursor = input.cursor === undefined ? undefined : decodeCursor(input.cursor, filters);
       if (category === 'handled') {
         const pageParameters = [
@@ -589,20 +619,21 @@ SELECT 'handled:' || request.source_event_id AS id,
         }>;
         const page = rows.slice(0, limit);
         const last = page.at(-1);
+        const items = page.map((row): HumanAttentionItem => ({
+          id: row.id,
+          category: 'replies',
+          kind: row.is_mention === 1 ? 'channel-mention' : 'channel-reply',
+          createdAt: row.created_at,
+          channelId: row.channel_id,
+          channelName: row.channel_name,
+          botSlug: row.bot_slug,
+          summary: row.summary,
+          messageId: row.message_id,
+          sourceEventId: row.source_event_id,
+          isUnread: row.is_unread === 1,
+        }));
         return {
-          items: page.map((row) => ({
-            id: row.id,
-            category: 'replies',
-            kind: row.is_mention === 1 ? 'channel-mention' : 'channel-reply',
-            createdAt: row.created_at,
-            channelId: row.channel_id,
-            channelName: row.channel_name,
-            botSlug: row.bot_slug,
-            summary: row.summary,
-            messageId: row.message_id,
-            sourceEventId: row.source_event_id,
-            isUnread: row.is_unread === 1,
-          })),
+          items: snoozedOnly ? snoozedUntil(items) : items,
           ...(rows.length > limit && last !== undefined
             ? {
                 nextCursor: Buffer.from(
@@ -733,7 +764,7 @@ SELECT 'handled:' || request.source_event_id AS id,
             ) as unknown as AttentionRow[],
       );
       const page = rows.slice(0, limit);
-      const items = page.map(attentionItem);
+      const items = snoozedOnly ? snoozedUntil(page.map(attentionItem)) : page.map(attentionItem);
       const last = page.at(-1);
       return {
         items,
@@ -792,6 +823,7 @@ SELECT 'handled:' || request.source_event_id AS id,
              AND NOT EXISTS (SELECT 1 FROM human_inbox_dismissals d
                WHERE d.human_id = '${LOCAL_HUMAN_ID}' AND d.item_id = attention.id
                  AND d.source_key = coalesce(attention.source_event_id, ''))
+             AND NOT ${activeSnooze('attention.id', 'attention.source_event_id', now().toISOString())}
            GROUP BY bot_slug`)
             .all('[]', '[]') as Array<{
             botSlug: string;
@@ -810,7 +842,7 @@ SELECT 'handled:' || request.source_event_id AS id,
         (db) =>
           db
             .prepare(
-              `${ACTION_ATTENTION_CTE} SELECT bot_slug, count(DISTINCT id) AS count FROM attention WHERE category = 'action' AND NOT EXISTS (SELECT 1 FROM human_inbox_dismissals d WHERE d.human_id = '${LOCAL_HUMAN_ID}' AND d.item_id = attention.id AND d.source_key = coalesce(attention.source_event_id, '')) GROUP BY bot_slug`,
+              `${ACTION_ATTENTION_CTE} SELECT bot_slug, count(DISTINCT id) AS count FROM attention WHERE category = 'action' AND NOT EXISTS (SELECT 1 FROM human_inbox_dismissals d WHERE d.human_id = '${LOCAL_HUMAN_ID}' AND d.item_id = attention.id AND d.source_key = coalesce(attention.source_event_id, '')) AND NOT ${activeSnooze('attention.id', 'attention.source_event_id', now().toISOString())} GROUP BY bot_slug`,
             )
             .all(
               JSON.stringify(activeQuestionMessageIds()),
@@ -857,8 +889,11 @@ SELECT 'handled:' || request.source_event_id AS id,
   };
 }
 
+export const HUMAN_INBOX_SNOOZE_MAX_MS = 30 * 24 * 60 * 60 * 1000;
+
 export interface HumanAttentionDecisions {
   dismiss(item: HumanAttentionItem): boolean;
+  snooze(item: HumanAttentionItem, until: string | null): boolean;
   ignoreAssignmentReport(sourceEventId: string): boolean;
 }
 
@@ -892,6 +927,29 @@ export function createHumanAttentionDecisions(
             revision ?? null,
             now().toISOString(),
           );
+          return true;
+        },
+        ['human-attention'],
+      );
+    },
+    snooze(item, until) {
+      if (
+        item.kind === 'channel-unread' ||
+        item.category === 'unread' ||
+        item.category === 'handled'
+      )
+        return false;
+      return database.transaction(
+        (db) => {
+          if (until === null) {
+            db.prepare(
+              'DELETE FROM human_inbox_snoozes WHERE human_id = ? AND item_id = ? AND source_key = ?',
+            ).run(LOCAL_HUMAN_ID, item.id, item.sourceEventId ?? '');
+            return true;
+          }
+          db.prepare(
+            'INSERT OR REPLACE INTO human_inbox_snoozes (human_id, item_id, source_key, until, snoozed_at) VALUES (?, ?, ?, ?, ?)',
+          ).run(LOCAL_HUMAN_ID, item.id, item.sourceEventId ?? '', until, now().toISOString());
           return true;
         },
         ['human-attention'],

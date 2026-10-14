@@ -58,14 +58,13 @@ Agents verify native UI on a Mac with Xcode: they drive a development build on t
      --launch-url "exp+deepseekbot://expo-development-client/?url=http%3A%2F%2F127.0.0.1%3A8081"
    npx agent-device snapshot -i                      # @e8 [text-field] "deepseekbot://pair?p=…" …
    npx agent-device fill @e8 "not-a-link" --settle   # the link field's ref from the snapshot
-   npx agent-device press 200 140 --settle           # tap the hint text: the keyboard covers Pair
    npx agent-device press 'label="Pair"' --settle
    npx agent-device wait text "This is not a DeepSeekBot pairing code."
    npx agent-device screenshot /tmp/pair.png
    npx agent-device close
    ```
 
-   iOS asks "Open in DeepSeekBot Dev?" before the launch link. agent-device accepts it only when the Simulator is in English; otherwise `snapshot -i` shows the alert and you press its Open button by ref. The first launch after a reset shows the dev menu onboarding: press **Continue**, then **Close**. On the pair screen the keyboard covers the Pair button; tap the hint text to end editing first.
+   iOS asks "Open in DeepSeekBot Dev?" before the launch link. agent-device accepts it only when the Simulator is in English; otherwise `snapshot -i` shows the alert and you press its Open button by ref. The first launch after a reset shows the dev menu onboarding: press **Continue**, then **Close**.
 
 3. **Regression flows.** `.maestro/pair-screen.yaml` launches a clean app with no permissions, connects it to Metro, checks the unpaired pair screen and the refusal of a bad pasted link. Maestro needs Java 17 or later (`brew install openjdk@21`, then point `JAVA_HOME` at it):
 
@@ -76,7 +75,35 @@ Agents verify native UI on a Mac with Xcode: they drive a development build on t
 
    Maestro grants every permission on `launchApp` unless the flow says otherwise; the flow sets `permissions: { all: unset }` so the camera prompt shows as on a first launch. Run output and screenshots go to `~/.maestro/tests/<timestamp>/`.
 
-4. **MCP.** Agents that prefer tools over a shell can use `npx agent-device mcp` (stdio; tools mirror the CLI commands) or `maestro mcp` (stdio; runs flows and inspects the view hierarchy). [XcodeBuildMCP](https://github.com/getsentry/XcodeBuildMCP) is an alternative for building and driving the Simulator from Xcode's side.
+   Screens behind pairing need a live Host, and an Inbox request needs a real model turn. Step 4 runs the paired flows in `.maestro/sim/`; drive any other screen (DMs, Inbox questions) with agent-device. Launch an isolated Host (`node scripts/verify-app.mjs launch --name <n>`), ask it for a pairing offer, point the link's `routes` at the Host's loopback origin (the Simulator shares the Mac's network, and the development build allows local HTTP), paste the link on the pair screen, then make a PersonaBot ask with `ask_user_question` through `channelSend`. `scripts/e2e-mobile-pairing-web.mjs` shows the offer and route rewrite.
+
+4. **Everything with live Hosts, in one command.** `node scripts/e2e-mobile-sim.mjs` creates its own Simulator (a fresh one each run, so earlier pairings in the Keychain do not leak in) and its own Metro port, builds the development build onto it, launches two isolated Hosts, pairs with both by deep link, switches computers, makes a PersonaBot ask for a real Tool approval and opens it from a notification. It prints `"result":"pass"` and keeps screenshots and Maestro output in `.humanlayer/verify/mobile-sim/evidence/`. Pass `--app <path.app>` to reuse a build (the first run prints its path), `--no-approval` to skip the step that needs a model, and `--keep` to leave everything running. Its flows are in `.maestro/sim/` and take their values as `-e` variables. Feature map: [phone-notifications.md](../../.agents/skills/verify-deepseekbot/features/phone-notifications.md).
+
+5. **Notifications without APNs.** `xcrun simctl push <udid> ai.botharness.deepseekbot.dev payload.apns` delivers a notification as the Expo push service would. expo-notifications reads the data from the `body` key:
+
+   ```json
+   {
+     "Simulator Target Bundle": "ai.botharness.deepseekbot.dev",
+     "aps": {
+       "alert": { "title": "Ada", "body": "Ada needs your approval" },
+       "sound": "default",
+       "badge": 1
+     },
+     "body": {
+       "v": 1,
+       "hostId": "<host id from the pairing link>",
+       "itemId": "approval:<id>",
+       "kind": "tool-approval",
+       "botSlug": "<slug>",
+       "channelId": "dm-<slug>",
+       "messageId": "<message id>"
+     }
+   }
+   ```
+
+   A test notification sends `{ "v": 1, "hostId": "…", "test": true }`, and a badge-only one sends `{ "v": 1, "hostId": "…" }` with `aps.badge`; both open Activity. The banner belongs to SpringBoard, so neither Maestro nor agent-device finds it by text: tap it by point while it shows, for example `npx agent-device press 196 90` on an iPhone 16, or `tapOn: { point: 50%,10% }` in a flow. For the home-screen badge and Notification Center, go home (`npx agent-device home`) and take `xcrun simctl io <udid> screenshot`. The Simulator cannot get an Expo push token without an EAS projectId, so Me → Notifications says this build cannot receive notifications.
+
+6. **MCP.** Agents that prefer tools over a shell can use `npx agent-device mcp` (stdio; tools mirror the CLI commands) or `maestro mcp` (stdio; runs flows and inspects the view hierarchy). [XcodeBuildMCP](https://github.com/getsentry/XcodeBuildMCP) is an alternative for building and driving the Simulator from Xcode's side.
 
 ## Screenshots without a phone
 
@@ -110,7 +137,7 @@ The web render is layout evidence, not native evidence: it shows the app's own v
 
 4. **Check the Roster.** The Roster lists every PersonaBot with its avatar. Send the Bot a DM from the computer: its state turns to Thinking and back on the phone without a refresh. Restart the Host: the app reconnects by itself without pairing again. Settings → Devices lists the phone with its last-seen time; Revoke it and the app shows "Pair again" at once.
 
-5. **Inbox.** Ask the Bot in its DM to run a shell command. The Inbox tab shows a badge and the Tool approval under "Needs my action"; open it, check the tool and arguments, tap **Allow once**, and the Bot continues in the DM. Ask it to use `ask_user_question` and answer on the phone the same way. Decide another approval on the computer first: it leaves the phone's list, and opening it shows "Already decided on another device".
+5. **Inbox.** Ask the Bot in its DM to run a shell command. The Activity tab shows a badge, and under "Needs my action" each Tool approval and Human question is a post with the Bot, the time and its card. Tap **Allow once** in the post: it leaves the feed and the Bot continues in the DM. Ask it to use `ask_user_question` and answer in the post the same way; several pending questions are checked off one after another. Tap a post's header to open the card in its chat. Decide another one on the computer first: its post leaves the phone's feed without a tap, and a post that loses the race says "Answered on another device" until the next refresh.
 
 6. **Notifications.** Push needs the build's EAS project id (`extra.eas.projectId`, written by `eas-cli init`) and, on Android, FCM credentials uploaded with `npx eas-cli credentials`. `expo-notifications` is native code, so rebuild the development build. After pairing, allow notifications. Open the bell on the Roster, tap **Send a test notification**, and it arrives. Close the app, make the Bot ask for a Tool approval: one notification names the Bot and "needs your approval" with no command; tapping it opens the approval. Approve another one on the computer first: no notification arrives for it and the badge drops. Revoke the phone: nothing more arrives.
 

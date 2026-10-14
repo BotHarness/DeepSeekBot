@@ -1,0 +1,116 @@
+name: llm e2e
+
+# Real-model multi-Bot scenarios (scripts/e2e-llm-scenarios.mjs). They spend model tokens, so
+# they run nightly, after a push to main that touches a scenario's areas, on demand, and on a
+# pull request only when it carries the `ci:llm-e2e` label. Never part of the required verify run.
+
+on:
+  schedule:
+    - cron: '0 19 * * *'
+  push:
+    branches: [main]
+    paths:
+      - 'packages/core/src/runtime/**'
+      - 'packages/core/src/channels/**'
+      - 'packages/core/src/messaging/**'
+      - 'packages/core/src/plugin.ts'
+      - 'packages/deepseekbot/**'
+      - 'scripts/e2e-llm-scenarios.mjs'
+      - 'patches/**'
+      - 'pnpm-lock.yaml'
+  pull_request:
+    types: [labeled, synchronize]
+  workflow_dispatch:
+    inputs:
+      scenarios:
+        description: Space-separated scenario ids (empty runs all; see --list)
+        required: false
+        default: ''
+      attempts:
+        description: Attempts per scenario (1-5); ignored when runs is set
+        required: false
+        default: '2'
+      runs:
+        description: Fixed runs per scenario and model (1-20) to measure pass rate and tokens
+        required: false
+        default: ''
+      models:
+        description: Space-separated provider/model[@effort] routes (empty runs opencode-go/deepseek-v4.1-flash)
+        required: false
+        default: ''
+
+concurrency:
+  group: llm-e2e-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  scenarios:
+    name: real-model scenarios
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'ci:llm-e2e')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      OPENCODE_GO_API_KEY: ${{ secrets.OPENCODE_GO_API_KEY }}
+    steps:
+      - name: Require a model key
+        id: key
+        run: |
+          if [ -z "$OPENCODE_GO_API_KEY" ]; then
+            echo "::notice::Add the OPENCODE_GO_API_KEY repository secret (OpenCode Go subscription) to run real-model scenarios."
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v7
+        if: steps.key.outputs.present == 'true'
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v6
+        if: steps.key.outputs.present == 'true'
+        with:
+          run_install: false
+      - uses: actions/setup-node@v7
+        if: steps.key.outputs.present == 'true'
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - if: steps.key.outputs.present == 'true'
+        run: pnpm install --frozen-lockfile
+      - if: steps.key.outputs.present == 'true'
+        run: pnpm build
+      - name: Select the OpenCode Go model
+        if: steps.key.outputs.present == 'true'
+        run: node scripts/dev-model.mjs setup --from-env --model deepseek-v4.1-flash
+      - name: Run scenarios
+        if: steps.key.outputs.present == 'true'
+        env:
+          SCENARIOS: ${{ github.event.inputs.scenarios }}
+          ATTEMPTS: ${{ github.event.inputs.attempts || '2' }}
+          RUNS: ${{ github.event.inputs.runs }}
+          MODELS: ${{ github.event.inputs.models }}
+          CHANGED_FROM: ${{ github.event_name == 'push' && github.event.before || '' }}
+        run: |
+          args=(--launch --report "$RUNNER_TEMP/llm-e2e/report.json")
+          if [ -n "$RUNS" ]; then args+=(--runs "$RUNS"); else args+=(--attempts "$ATTEMPTS"); fi
+          for id in $SCENARIOS; do args+=(--scenario "$id"); done
+          for model in $MODELS; do args+=(--model "$model"); done
+          if [ -n "$CHANGED_FROM" ] && [ "$CHANGED_FROM" != "0000000000000000000000000000000000000000" ]; then
+            args+=(--changed-from "$CHANGED_FROM")
+          fi
+          node scripts/e2e-llm-scenarios.mjs "${args[@]}"
+      - name: Token and model summary
+        if: always() && steps.key.outputs.present == 'true'
+        run: |
+          if [ -f "$RUNNER_TEMP/llm-e2e/report.md" ]; then
+            cat "$RUNNER_TEMP/llm-e2e/report.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.key.outputs.present == 'true'
+        with:
+          name: llm-e2e-report
+          path: ${{ runner.temp }}/llm-e2e/
+          if-no-files-found: ignore

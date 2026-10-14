@@ -1,7 +1,7 @@
 import { pageChannelJournal } from '../../../packages/core/src/channels/timeline.js';
 import type { ChannelMessage } from '../../../packages/core/src/channels/channel.js';
 import type { HostCarrier, HostSocketEvents } from '../src/host/carrier';
-import type { ChannelLiveFrame, MuxClientFrame } from '../src/host/wire';
+import type { ChannelLiveFrame, MuxClientFrame, WireDraft } from '../src/host/wire';
 import wire from './fixtures/host-wire.json';
 
 type Rpc = keyof typeof wire.rpc;
@@ -16,6 +16,8 @@ type Socket = { events: HostSocketEvents; streams: Map<string, string>; device: 
 export class FakeChannel {
   readonly messages: ChannelMessage[] = [];
   private followers = new Map<string, { entry: Socket; streamId: string }>();
+  readonly follows: Array<Record<string, unknown>> = [];
+  baselineDrafts: WireDraft[] = [];
   constructor(readonly id: string) {}
 
   get revision(): number {
@@ -48,7 +50,12 @@ export class FakeChannel {
     this.send(streamId, { type: 'opened', cursor, page: this.page(cursor, undefined, limit)! });
     this.send(streamId, {
       type: 'notification',
-      notification: { kind: 'draft-baseline', channelId: this.id, revision: 0, drafts: [] },
+      notification: {
+        kind: 'draft-baseline',
+        channelId: this.id,
+        revision: Math.max(0, ...this.baselineDrafts.map((draft) => draft.revision)),
+        drafts: structuredClone(this.baselineDrafts),
+      },
     });
   }
 
@@ -63,6 +70,17 @@ export class FakeChannel {
 
   get followerCount(): number {
     return this.followers.size;
+  }
+
+  react(messageId: string, reactions: NonNullable<ChannelMessage['reactions']>): void {
+    const message = this.messages.find((entry) => entry.id === messageId);
+    if (message === undefined) return;
+    if (reactions.length === 0) delete message.reactions;
+    else message.reactions = reactions;
+    this.emit({
+      type: 'notification',
+      notification: { kind: 'reaction', channelId: this.id, messageId, reactions },
+    });
   }
 
   emit(frame: ChannelLiveFrame): void {
@@ -81,6 +99,7 @@ export class FakeHost {
   offer = 'offer-1';
   revoked = false;
   up = true;
+  olderHost = false;
   private sockets = new Set<Socket>();
   readonly requests: string[] = [];
   readonly unreachable = new Set<string>();
@@ -204,7 +223,20 @@ export class FakeHost {
             else if (frame.endpoint === 'botharness/followChannel') {
               const args = frame.payload.args as { channelId: string; limit: number };
               const channel = this.channels.get(args.channelId);
-              if (channel === undefined)
+              channel?.follows.push({ ...args });
+              if (this.olderHost && 'drafts' in args)
+                entry.events.message(
+                  JSON.stringify({
+                    type: 'error',
+                    streamId: frame.streamId,
+                    error: {
+                      code: 'gateway/arguments-invalid',
+                      message: 'args fields do not match the descriptor: unexpected "drafts"',
+                      details: {},
+                    },
+                  }),
+                );
+              else if (channel === undefined)
                 entry.events.message(
                   JSON.stringify({
                     type: 'error',
@@ -274,6 +306,33 @@ export class FakeHost {
             : { attachments: args['attachments'] as NonNullable<ChannelMessage['attachments']> }),
         });
         return { message: channel.messages.at(-1) };
+      };
+    if (method === 'channelReact')
+      return (args) => {
+        const channel = this.channels.get(String(args['channelId']));
+        const message = channel?.messages.find((entry) => entry.id === args['messageId']);
+        if (channel === undefined || message === undefined) throw new Error('Unknown message');
+        const emoji = String(args['emoji']);
+        const others = (message.reactions ?? [])
+          .map((reaction) => ({
+            emoji: reaction.emoji,
+            actors: reaction.actors.filter(
+              (actor) => reaction.emoji !== emoji || actor.kind !== 'human',
+            ),
+          }))
+          .filter((reaction) => reaction.actors.length > 0);
+        const existing = others.find((reaction) => reaction.emoji === emoji);
+        const me = { kind: 'human' as const, id: 'local-human' };
+        const reactions =
+          args['active'] !== true
+            ? others
+            : existing === undefined
+              ? [...others, { emoji, actors: [me] }]
+              : others.map((reaction) =>
+                  reaction === existing ? { emoji, actors: [...reaction.actors, me] } : reaction,
+                );
+        channel.react(message.id, reactions);
+        return { reactions };
       };
     return undefined;
   }

@@ -332,6 +332,37 @@ describe('Channel live Client', () => {
     dispose();
   });
 
+  it('replaces one message reactions from a reaction event and drops an empty set', () => {
+    const { store, sources, dispose } = setup();
+    store.setConversation({
+      messages: [
+        {
+          id: 'first',
+          at: '2026-09-21T00:00:01.000Z',
+          author: { kind: 'bot', slug: 'ada' },
+          body: 'first',
+          channelRevision: 1,
+        },
+      ],
+      revision: 1,
+    });
+    const react = (reactions: unknown, channelId = CHANNEL.id) =>
+      sources[0]?.listeners.get('channel/reaction')?.(
+        new MessageEvent('channel/reaction', {
+          data: JSON.stringify({ channelId, messageId: 'first', reactions }),
+        }),
+      );
+    const reactions = [{ emoji: '👍', actors: [{ kind: 'human', id: 'local-human' }] }];
+    react(reactions);
+    expect(store.getSnapshot().conversation.messages[0]?.reactions).toEqual(reactions);
+    react([{ emoji: '👍', actors: 'everyone' }]);
+    react([], 'other-channel');
+    expect(store.getSnapshot().conversation.messages[0]?.reactions).toEqual(reactions);
+    react([]);
+    expect(store.getSnapshot().conversation.messages[0]).not.toHaveProperty('reactions');
+    dispose();
+  });
+
   it('appends once, ignores duplicate revisions, and updates the Channel preview', () => {
     const { store, sources, dispose } = setup();
     expect(sources[0]?.url).toContain('channelId=group-team&after=0');

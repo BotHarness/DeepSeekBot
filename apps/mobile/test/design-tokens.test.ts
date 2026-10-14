@@ -3,9 +3,13 @@ import { describe, expect, it } from 'vitest';
 
 import { palette as dshPalette, render } from '../scripts/generate-palette.mjs';
 import { palette } from '../src/ui/design/palette.generated';
+import { BUTTON_TONES, buttonColors } from '../src/ui/design/controls';
+import { distance, LAYER_PARENT, LAYERS, SEPARATION } from '../src/ui/design/layers';
 import { headerBand, resolveTheme, withAccent } from '../src/ui/design/resolve-theme';
 import { botColor } from '../src/ui/bot-color';
 import { edge, radius, space } from '../src/ui/design/tokens';
+
+const DSH_LAYER_ROLES = ['borderField', 'field', 'sheet'];
 
 const webTokens = readFileSync(
   new URL('../../../packages/client/src/client/ds/tokens.stylex.ts', import.meta.url),
@@ -37,7 +41,10 @@ describe('mobile design tokens', () => {
 
   it('keep every Web colour role', () => {
     expect(Object.keys(palette.light).sort()).toEqual(
-      [...Object.keys(webConsts('color')).filter((role) => role !== 'navSelected')].sort(),
+      [
+        ...Object.keys(webConsts('color')).filter((role) => role !== 'navSelected'),
+        ...DSH_LAYER_ROLES,
+      ].sort(),
     );
     expect(Object.keys(palette.dark)).toEqual(Object.keys(palette.light));
   });
@@ -55,8 +62,8 @@ describe('mobile design tokens', () => {
 
 describe('resolveTheme', () => {
   it('follows the system scheme unless the Human picks one', () => {
-    expect(resolveTheme('dark').color).toEqual(palette.dark);
-    expect(resolveTheme('dark', { scheme: 'light' }).color).toEqual(palette.light);
+    expect(resolveTheme('dark').color).toMatchObject(palette.dark);
+    expect(resolveTheme('dark', { scheme: 'light' }).color).toMatchObject(palette.light);
     expect(resolveTheme('light', { scheme: 'system' }).scheme).toBe('light');
   });
 
@@ -86,10 +93,99 @@ describe('resolveTheme', () => {
   });
 });
 
+describe('Layers and their states', () => {
+  const accents = [undefined, '#d9475a', '#3f8fd0', '#5f9e45', '#c79a2b', '#ffd60a', '#000000'];
+
+  it('tints a chosen row like the DSH accent tint on the base', () => {
+    for (const scheme of ['light', 'dark'] as const)
+      expect(
+        distance(resolveTheme(scheme).layer.well.chosen, palette[scheme].accentTint),
+      ).toBeLessThan(0.01);
+  });
+
+  it('keeps every state apart from its layer, the layer under it and the other states', () => {
+    for (const scheme of ['light', 'dark'] as const)
+      for (const accent of accents) {
+        const { layer } = resolveTheme(scheme, accent === undefined ? {} : { accent });
+        for (const name of LAYERS) {
+          const { fill, pressed, selected, chosen, danger } = layer[name];
+          const parent = LAYER_PARENT[name];
+          const floor = [fill, ...(parent === undefined ? [] : [layer[parent].fill])];
+          for (const [state, value] of Object.entries({ pressed, selected, chosen, danger }))
+            for (const other of floor)
+              expect(
+                distance(value, other),
+                `${scheme} ${accent ?? 'default'} ${name}.${state} ${value} vs ${other}`,
+              ).toBeGreaterThanOrEqual(SEPARATION);
+          for (const [a, b] of [
+            [pressed, selected],
+            [selected, chosen],
+            [selected, danger],
+          ] as const)
+            expect(
+              distance(a, b),
+              `${scheme} ${accent ?? 'default'} ${name}`,
+            ).toBeGreaterThanOrEqual(SEPARATION);
+        }
+      }
+  });
+
+  it('never lets a selected row inside a card match the card', () => {
+    const dark = resolveTheme('dark').layer;
+    expect(distance(dark.well.selected, dark.raised.fill)).toBeGreaterThanOrEqual(SEPARATION);
+    expect(distance(dark.well.chosen, dark.raised.fill)).toBeGreaterThanOrEqual(SEPARATION);
+  });
+
+  it('paints only opaque colours', () => {
+    for (const scheme of ['light', 'dark'] as const)
+      for (const name of LAYERS)
+        for (const value of Object.values(resolveTheme(scheme).layer[name]))
+          expect(value).toMatch(/^#[0-9a-f]{3}(?:[0-9a-f]{3})?$/);
+  });
+});
+
+describe('Button tones', () => {
+  it('keep the primary neutral whatever the Bot accent is', () => {
+    for (const scheme of ['light', 'dark'] as const) {
+      const plain = buttonColors(resolveTheme(scheme), 'primary', 'raised');
+      for (const accent of ['#d9475a', '#c79a2b', '#000000'])
+        expect(buttonColors(resolveTheme(scheme, { accent }), 'primary', 'raised')).toEqual(plain);
+      expect(plain.fill).toBe(resolveTheme(scheme).color.fg);
+    }
+  });
+
+  it('stand apart from the layer they sit on and from each other, with readable labels', () => {
+    for (const scheme of ['light', 'dark'] as const)
+      for (const accent of [undefined, '#d9475a', '#c79a2b', '#000000']) {
+        const theme = resolveTheme(scheme, accent === undefined ? {} : { accent });
+        for (const on of ['canvas', 'raised', 'sheet'] as const) {
+          const behind = theme.layer[on].fill;
+          const tones = BUTTON_TONES.map((tone) => [tone, buttonColors(theme, tone, on)] as const);
+          for (const [tone, colors] of tones) {
+            const where = `${scheme} ${accent ?? 'default'} ${tone} on ${on}`;
+            expect(distance(colors.fill, behind), where).toBeGreaterThanOrEqual(SEPARATION);
+            expect(distance(colors.pressed, colors.fill), where).toBeGreaterThanOrEqual(
+              SEPARATION / 2,
+            );
+            expect(contrastOf(colors.label, colors.fill), where).toBeGreaterThanOrEqual(4.5);
+          }
+          for (let a = 0; a < tones.length; a += 1)
+            for (let b = a + 1; b < tones.length; b += 1)
+              expect(
+                distance(tones[a]![1].fill, tones[b]![1].fill),
+                `${scheme} ${accent ?? 'default'} ${tones[a]![0]}~${tones[b]![0]} on ${on}`,
+              ).toBeGreaterThanOrEqual(SEPARATION);
+        }
+      }
+  });
+});
+
 function contrastOf(a: string, b: string): number {
+  const full = (hex: string) =>
+    hex.length === 4 ? [...hex.slice(1)].map((digit) => digit + digit).join('') : hex.slice(1);
   const lum = (hex: string) =>
     [16, 8, 0]
-      .map((shift) => ((Number.parseInt(hex.slice(1), 16) >> shift) & 0xff) / 255)
+      .map((shift) => ((Number.parseInt(full(hex), 16) >> shift) & 0xff) / 255)
       .map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4))
       .reduce((sum, c, index) => sum + c * [0.2126, 0.7152, 0.0722][index]!, 0);
   const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x) as [number, number];
@@ -102,6 +198,7 @@ describe('Bot colour on the Human bubble', () => {
     displayName: 'Ada',
     roles: [],
     computerAccess: false,
+    browserAccess: false,
     state: 'idle' as const,
     paused: false,
   };

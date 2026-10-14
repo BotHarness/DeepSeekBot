@@ -5,6 +5,7 @@ import type { BotHarnessTranslate } from './locale.js';
 import type { ChannelSummary, ClientState } from './store.js';
 import type { MemoryWorkingChange } from './bridge.js';
 import { channelSidebarScopeKey } from './channel-sidebar-prefs.js';
+import type { DockPanelHost } from './dock-panels.js';
 
 export type ChannelSidebarScope = 'channel' | 'personabot';
 
@@ -164,7 +165,7 @@ function compareEntries(left: ChannelSidebarEntry, right: ChannelSidebarEntry): 
   return (left.order ?? 0) - (right.order ?? 0) || left.id.localeCompare(right.id);
 }
 
-export function createChannelSidebarRegistry(): ChannelSidebarRegistry {
+export function createChannelSidebarRegistry(dockPanels?: DockPanelHost): ChannelSidebarRegistry {
   const entries = new Map<string, ChannelSidebarEntry>();
   const tabs = new Map<string, ChannelSidebarTab>();
   const listeners = new Set<() => void>();
@@ -200,11 +201,25 @@ export function createChannelSidebarRegistry(): ChannelSidebarRegistry {
       if (entries.has(entry.id)) {
         throw new Error(`duplicate Channel sidebar entry: ${entry.id}`);
       }
+      const sibling =
+        entry.tab === undefined
+          ? undefined
+          : [...entries.values()].find(
+              (candidate) => candidate.tab === entry.tab && candidate.surface !== 'settings',
+            );
+      const undock =
+        dockPanels === undefined || entry.surface === 'settings'
+          ? undefined
+          : dockPanels.registerEntry(
+              entry,
+              sibling === undefined ? undefined : { zone: 'right', relativeTo: sibling.id },
+            );
       entries.set(entry.id, entry);
       rebuild();
       return () => {
         if (entries.get(entry.id) !== entry) return;
         entries.delete(entry.id);
+        undock?.();
         rebuild();
       };
     },

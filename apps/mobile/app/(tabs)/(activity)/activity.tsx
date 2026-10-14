@@ -1,11 +1,10 @@
 import { Stack, useRouter } from 'expo-router';
-import { useState } from 'react';
 
 import { useHostSession, useHostSnapshot, useInbox } from '../../../src/host/host-session';
 import { cardHref } from '../../../src/host/push';
 import type { HumanAttentionItem } from '../../../src/host/wire';
 import { ConnectionBanner } from '../../../src/ui/connection-banner';
-import { InboxList } from '../../../src/ui/inbox-list';
+import { ActivityFeed } from '../../../src/ui/shell/activity-feed';
 import { t } from '../../../src/ui/strings';
 
 export default function ActivityScreen() {
@@ -13,7 +12,6 @@ export default function ActivityScreen() {
   const { client, inbox } = useHostSession();
   const snapshot = useHostSnapshot(client);
   const list = useInbox(inbox);
-  const [refreshing, setRefreshing] = useState(false);
   const bots = snapshot.roster?.bots ?? [];
 
   const open = (item: HumanAttentionItem) => {
@@ -35,15 +33,12 @@ export default function ActivityScreen() {
   return (
     <>
       <Stack.Screen options={{ title: t.activity }} />
-      <InboxList
+      <ActivityFeed
+        client={client}
+        inbox={inbox}
         snapshot={list}
         bot={(slug) => bots.find((bot) => bot.slug === slug)}
         onOpen={open}
-        refreshing={refreshing}
-        onRefresh={() => {
-          setRefreshing(true);
-          void inbox?.refresh().finally(() => setRefreshing(false));
-        }}
         header={
           <ConnectionBanner
             connection={snapshot.connection}

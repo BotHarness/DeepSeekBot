@@ -37,7 +37,7 @@ import {
   readSharedPrimaryColor,
 } from './shared-presentation.js';
 import { isValidSlug } from './slug.js';
-import { recordMemoryOwnership } from './deletion.js';
+import { recordMemoryOwnership, transferMemoryOwnership } from './deletion.js';
 import type { HttpsFallback, MemoryCloneResult } from '../memory/clone.js';
 import { restoreBotHistory, writeBotFiles } from './bot-zip.js';
 import type { ZipEntry } from './zip-archive.js';
@@ -100,6 +100,8 @@ export interface PersonaBotRegistry {
   findByWorkspace(workspace: string): PersonaBotRecord | undefined;
   remove(slug: string, options?: RemovePersonaBotOptions): boolean;
   memoryDirFor(slug: string): string | undefined;
+  defaultMemoryDirFor(slug: string): string;
+  setMemoryDir(slug: string, memoryDir: string | undefined): UpdatePersonaBotResult;
   update(slug: string, patch: PersonaBotPatch): UpdatePersonaBotResult;
   setAppearance(slug: string, recipe: unknown): UpdatePersonaBotResult;
   setBanner(slug: string, banner: unknown): UpdatePersonaBotResult;
@@ -604,6 +606,19 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       const record = read(slug);
       if (record === undefined) return undefined;
       return memoryDirOf(record);
+    },
+    defaultMemoryDirFor(slug) {
+      return defaultMemoryDir(slug);
+    },
+    setMemoryDir(slug, memoryDir) {
+      const record = active(slug);
+      if (record === undefined) return { ok: false, reason: 'not-found' };
+      const updated = { ...record };
+      if (memoryDir === undefined || memoryDir === defaultMemoryDir(slug)) delete updated.memoryDir;
+      else updated.memoryDir = memoryDir;
+      write(updated);
+      transferMemoryOwnership(port, slug, memoryDirOf(updated));
+      return { ok: true, record: updated };
     },
     update(slug, patch) {
       const record = active(slug);

@@ -1,0 +1,27 @@
+# Switches computers from the Home header.
+# -e FROM=<shown host> -e TO=<other host> -e BOT=<a PersonaBot on TO> -e OTHER_BOT=<one only on FROM>
+appId: ai.botharness.deepseekbot.dev
+---
+- tapOn: 'Home'
+- tapOn: '${FROM}, switch computer'
+- extendedWaitUntil:
+    visible: 'Pair a new computer'
+    timeout: 10000
+# The current computer is the selected row ("Showing").
+- assertVisible:
+    text: '^${FROM}$'
+    selected: true
+- tapOn: '^${TO}$'
+- extendedWaitUntil:
+    visible: '${TO}, switch computer'
+    timeout: 20000
+- extendedWaitUntil:
+    visible: ${BOT}
+    timeout: 20000
+- assertNotVisible: ${OTHER_BOT}
+# Switching dismisses the Computers sheet back to Home; let that finish.
+- extendedWaitUntil:
+    notVisible: 'Pair a new computer'
+    timeout: 10000
+- waitForAnimationToEnd:
+    timeout: 3000

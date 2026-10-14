@@ -16,10 +16,12 @@ const mono = Platform.select({ ios: 'Menlo', default: 'monospace' });
 export function MarkdownView({
   source,
   color,
+  selectable = true,
   streaming = false,
 }: {
   source: string;
   color?: string;
+  selectable?: boolean;
   streaming?: boolean;
 }) {
   const theme = useDesignTheme();
@@ -37,7 +39,7 @@ export function MarkdownView({
   return (
     <View style={{ gap: space.x3 }}>
       {blocks.map((block, index) => (
-        <BlockView key={index} block={block} base={base} theme={theme} />
+        <BlockView key={index} block={block} base={base} theme={theme} selectable={selectable} />
       ))}
     </View>
   );
@@ -47,22 +49,24 @@ const BlockView = memo(function BlockView({
   block,
   base,
   theme,
+  selectable,
 }: {
   block: Block;
   base: TextStyle;
   theme: DesignTheme;
+  selectable: boolean;
 }) {
   switch (block.type) {
     case 'paragraph':
       return (
-        <Text selectable style={base}>
+        <Text selectable={selectable} style={base}>
           <Inlines nodes={block.children} theme={theme} />
         </Text>
       );
     case 'heading':
       return (
         <Text
-          selectable
+          selectable={selectable}
           accessibilityRole="header"
           style={{
             ...base,
@@ -79,11 +83,11 @@ const BlockView = memo(function BlockView({
       return (
         <ScrollView
           horizontal
-          style={{ backgroundColor: theme.color.hover, borderRadius: radius.sm }}
+          style={{ backgroundColor: theme.layer.raised.inset, borderRadius: radius.sm }}
           contentContainerStyle={{ padding: space.x3 }}
         >
           <Text
-            selectable
+            selectable={selectable}
             style={{
               color: base.color,
               fontFamily: mono,
@@ -111,6 +115,7 @@ const BlockView = memo(function BlockView({
               block={child}
               base={{ ...base, color: theme.color.muted }}
               theme={theme}
+              selectable={selectable}
             />
           ))}
         </View>
@@ -125,7 +130,13 @@ const BlockView = memo(function BlockView({
               </Text>
               <View style={{ flex: 1, gap: space.x2 }}>
                 {item.map((child, childIndex) => (
-                  <BlockView key={childIndex} block={child} base={base} theme={theme} />
+                  <BlockView
+                    key={childIndex}
+                    block={child}
+                    base={base}
+                    theme={theme}
+                    selectable={selectable}
+                  />
                 ))}
               </View>
             </View>
@@ -137,7 +148,7 @@ const BlockView = memo(function BlockView({
         <View
           style={{
             height: edge.hairline,
-            backgroundColor: theme.color.divider,
+            backgroundColor: theme.layer.raised.divider,
             marginVertical: space.x2,
           }}
         />
@@ -163,7 +174,9 @@ function InlineView({ node, theme }: { node: Inline; theme: DesignTheme }) {
       return <Fragment>{'\n'}</Fragment>;
     case 'code':
       return (
-        <Text style={{ fontFamily: mono, backgroundColor: theme.color.hover }}>{node.text}</Text>
+        <Text style={{ fontFamily: mono, backgroundColor: theme.layer.raised.inset }}>
+          {node.text}
+        </Text>
       );
     case 'strong':
       return (

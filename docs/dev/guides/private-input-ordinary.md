@@ -12,7 +12,7 @@ Since [ADR-0189](../../adr/0189-secret-input-is-available-in-ordinary-profiles.m
 | `secret_cli`         | Runs one installed command-line tool with secrets in its environment. The Host starts the program without a shell, in the Bot's working folder, inside the Shell sandbox, with a clean environment.         |
 | `secret_mcp_connect` | Starts an MCP server for this Bot's chat Session with secrets in its environment; its tools appear as `mcp__<server_name>__<tool>`. `secret_mcp_disconnect` stops it or lists what is connected.            |
 
-Every consumer needs Human execution approval. The approval card shows references and placeholders, not values. A `secret_cli` call needs its own approval every time: the card offers allow once and reject only, and no saved rule covers it ([ADR-0191](../../adr/0191-a-bot-runs-a-command-line-tool-with-owner-secrets-per-approved-call.md)).
+Every consumer needs Human execution approval. The approval card shows references and placeholders, not values. A `secret_cli` card offers allow once, always allow this kind, and reject. The kind is the program, the account and the set of environment variable names; arguments are not part of it. Always allow saves a revocable `secret-cli` rule for that Bot and role, so later calls of the same kind run with any arguments without a card, and a different program, account or variable set gets a new card. No exact or all-opaque rule covers `secret_cli` ([ADR-0191](../../adr/0191-a-bot-runs-a-command-line-tool-with-owner-secrets-per-approved-call.md), [ADR-0208](../../adr/0208-secret-cli-can-be-always-allowed-per-program-and-account.md)).
 
 ## What protects the secret
 
@@ -31,7 +31,7 @@ The sandbox rule does not exist in three cases, where only the refusal by comman
 
 The Host logs a warning the first time a sandbox runner gets no rule. `scripts/test/dsh-sandbox-shape.test.mjs` fails when a DSH upgrade changes the runner command line this depends on; adapt `credentials/store-guard.ts` then.
 
-`secret_cli` hands the secret to the program it starts. A tool that can print or forward its credential will do so if an approved call asks for it; shells and interpreters are refused as the program, which removes the trivial route and nothing more. Read the program and arguments on each card.
+`secret_cli` hands the secret to the program it starts. A tool that can print or forward its credential will do so if an approved call asks for it; shells and interpreters are refused as the program, which removes the trivial route and nothing more. Read the program and arguments on each card. Under an always-allow rule there is no card to read, so a call of that kind can ask the program to print its credential; choose always allow only for a tool you trust with any arguments.
 
 ## Command-line tools
 
@@ -42,7 +42,7 @@ The tool mytool reads MYTOOL_TOKEN. Ask me for the token with ask_secret (accoun
 then run: mytool status
 ```
 
-The Bot calls `secret_cli` with `program: mytool`, `args: ["status"]` and `env: [{ name: "MYTOOL_TOKEN", value: "{{token}}" }]`. Expect an approval card that names the program and arguments and has no save-rule buttons; after approval the Bot reports the exit code and output with the token shown as `[secret]`. Asking it to run `sh -c 'echo $MYTOOL_TOKEN'` this way is refused without a card.
+The Bot calls `secret_cli` with `program: mytool`, `args: ["status"]` and `env: [{ name: "MYTOOL_TOKEN", value: "{{token}}" }]`. Expect an approval card that names the program and arguments and offers allow once, always allow this kind and reject; after approval the Bot reports the exit code and output with the token shown as `[secret]`. Asking it to run `sh -c 'echo $MYTOOL_TOKEN'` this way is refused without a card.
 
 ## MCP servers
 

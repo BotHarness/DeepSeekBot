@@ -14,6 +14,8 @@ export const INBOX_OPTIONS = {
   rule: { type: 'string' },
   server: { type: 'string' },
   confirm: { type: 'boolean' },
+  until: { type: 'string' },
+  snoozed: { type: 'boolean' },
 } as const;
 
 export const INBOX_COMMANDS = [
@@ -21,6 +23,10 @@ export const INBOX_COMMANDS = [
   { command: 'inbox-status', description: 'read the Human Inbox unread count and action flag' },
   { command: 'inbox-dismiss', description: 'dismiss one Human Inbox item' },
   { command: 'inbox-ignore', description: 'ignore an informational assignment report' },
+  {
+    command: 'inbox-snooze',
+    description: 'hide one Human Inbox item until a later time, or bring it back',
+  },
   {
     command: 'assignment-context',
     description: "read an assignment report's context from the Human Inbox",
@@ -71,6 +77,9 @@ export interface InboxValues {
   enabled?: boolean;
   disabled?: boolean;
   confirm?: boolean;
+  until?: string;
+  clear?: boolean;
+  snoozed?: boolean;
 }
 
 type Rpc = <T>(method: string, args: Record<string, unknown>) => Promise<T>;
@@ -166,6 +175,7 @@ function prepare(
           ...(limit === undefined ? {} : { limit }),
           ...(values.cursor === undefined ? {} : { cursor: values.cursor }),
           ...(values.sort === undefined ? {} : { sort: values.sort }),
+          ...(values.snoozed === true ? { snoozed: true } : {}),
         },
       };
     }
@@ -177,6 +187,21 @@ function prepare(
       return {
         method: 'humanAttentionDismiss',
         args: { itemId, sourceKey: values['source-key']?.trim() ?? '' },
+      };
+    }
+    case 'inbox-snooze': {
+      const [itemId] = positionals(command, rest, 1, 'exactly one inbox item id');
+      if ((values.until !== undefined) === (values.clear === true))
+        usage('inbox-snooze needs --until <ISO time> or --clear, not both or neither.');
+      let until: string | null = null;
+      if (values.until !== undefined) {
+        const at = Date.parse(values.until.trim());
+        if (Number.isNaN(at)) usage('--until must be an ISO time such as 2026-10-15T09:00:00Z.');
+        until = new Date(at).toISOString();
+      }
+      return {
+        method: 'humanAttentionSnooze',
+        args: { itemId, sourceKey: values['source-key']?.trim() ?? '', until },
       };
     }
     case 'inbox-ignore': {

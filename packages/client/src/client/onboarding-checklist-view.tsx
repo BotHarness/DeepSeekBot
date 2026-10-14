@@ -2,6 +2,7 @@ import { useState, useSyncExternalStore, type ReactElement } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { BridgeActions } from './actions.js';
+import { botModeSidebarViewport } from './bot-mode-sidebar-viewport.js';
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
 import { onboardingFor, type OnboardingController } from './onboarding.js';
@@ -241,6 +242,7 @@ export function OnboardingChecklist({
     );
   };
   const compact = position.placement === 'sheet';
+  const ownSidebar = botModeSidebarViewport();
   const nextIndex = Math.max(
     0,
     CHECKLIST_ITEMS.findIndex((item) => itemState(item) === 'todo'),
@@ -322,7 +324,13 @@ export function OnboardingChecklist({
         ))
       )}
       <p className="bh-note bh-onboarding-checklist-exit">
-        {t(compact ? 'onboarding.checklist.exitHintMobile' : 'onboarding.checklist.exitHint')}
+        {t(
+          ownSidebar
+            ? 'onboarding.checklist.exitHintSidebar'
+            : compact
+              ? 'onboarding.checklist.exitHintMobile'
+              : 'onboarding.checklist.exitHint',
+        )}
       </p>
       <footer className="bh-onboarding-checklist-footer">
         {compact ? (

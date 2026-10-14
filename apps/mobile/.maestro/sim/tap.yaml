@@ -1,0 +1,7 @@
+# Taps a control by its visible text or accessibility label.
+# -e TEXT=<label>
+appId: ai.botharness.deepseekbot.dev
+---
+- tapOn: ${TEXT}
+- waitForAnimationToEnd:
+    timeout: 3000

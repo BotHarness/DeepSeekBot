@@ -233,6 +233,24 @@ function isMemoryCommit(value: unknown): value is ChannelMemoryCommit {
   );
 }
 
+export interface ChannelReaction {
+  emoji: string;
+  actors: { kind: 'human' | 'bot'; id: string }[];
+}
+
+export const MAX_REACTION_EMOJI_LENGTH = 16;
+export const MAX_ACTOR_REACTIONS_PER_MESSAGE = 20;
+
+export function isReactionEmoji(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    value.length > 0 &&
+    value.length <= MAX_REACTION_EMOJI_LENGTH &&
+    /\p{Extended_Pictographic}|\p{Regional_Indicator}/u.test(value) &&
+    !/[\s\p{Cc}\p{L}\p{N}]/u.test(value)
+  );
+}
+
 export interface ChannelMessage {
   id: string;
   at: string;
@@ -252,6 +270,7 @@ export interface ChannelMessage {
   deliveries?: ChannelDelivery[];
 
   humanReceipts?: ChannelHumanReceipt[];
+  reactions?: ChannelReaction[];
   botDmAction?: BotDmAction;
   botChannelPost?: BotChannelPost;
   botChannelPostPreview?: string | null;

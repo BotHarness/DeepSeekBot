@@ -108,6 +108,7 @@ export function useHumanActionScope(actions: BridgeActions, botSlug: string | un
       replyToHumanAssignment: after(actions.replyToHumanAssignment),
       decideGroupJoin: after(actions.decideGroupJoin),
       dismissHumanInbox: after(actions.dismissHumanInbox),
+      snoozeHumanInbox: after(actions.snoozeHumanInbox),
     };
   }, [actions, botSlug, refresh]);
   return { page, actions: scoped, mount };

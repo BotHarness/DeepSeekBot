@@ -27,6 +27,7 @@ import {
   type LocalHumanIdentity,
   type ChannelMemoryCommit,
   type ChannelMessage,
+  type ChannelReaction,
   type ChannelRecord,
   type GroupInvitation,
   type GroupJoinRequest,
@@ -55,6 +56,7 @@ export interface ChannelStoreOptions {
   onRecordChanged?: () => void;
   onAdmissionChanged?: (channelId: string, messageId: string, message: ChannelMessage) => void;
   onHumanReadChanged?: (channelId: string, humanId: string, revision: number) => void;
+  onReactionChanged?: (channelId: string, messageId: string, reactions: ChannelReaction[]) => void;
   warn?: (message: string) => void;
   isBotActive?: (botSlug: string) => boolean;
   botDisplayName?: (botSlug: string) => string | undefined;
@@ -102,6 +104,7 @@ export interface ChannelMessageQueryOptions {
   to?: string;
   cursor?: string;
   limit?: number;
+  visibleFrom?: number;
 
   orderBy?: 'time';
 }
@@ -118,6 +121,7 @@ export interface PreparedChannelMessageQuery {
   from?: number;
   to?: number;
   beforeId?: string;
+  visibleFrom?: number;
   orderBy?: 'time';
   filter: string;
   limit: number;
@@ -151,6 +155,11 @@ export function prepareChannelMessageQuery(
     (from !== undefined && to !== undefined && from > to)
   )
     throw new Error('channel_read: invalid date range');
+  if (
+    options.visibleFrom !== undefined &&
+    (!Number.isSafeInteger(options.visibleFrom) || options.visibleFrom < 0)
+  )
+    throw new Error('channel_read: invalid visible revision');
   const text = options.text?.trim().toLowerCase();
   const filter = createHash('sha256')
     .update(
@@ -162,6 +171,7 @@ export function prepareChannelMessageQuery(
         from,
         to,
         orderBy: options.orderBy,
+        visibleFrom: options.visibleFrom,
       }),
     )
     .digest('hex')
@@ -193,6 +203,7 @@ export function prepareChannelMessageQuery(
     ...(from === undefined ? {} : { from }),
     ...(to === undefined ? {} : { to }),
     ...(beforeId === undefined ? {} : { beforeId }),
+    ...(options.visibleFrom === undefined ? {} : { visibleFrom: options.visibleFrom }),
     ...(options.orderBy === undefined ? {} : { orderBy: options.orderBy }),
     filter,
     limit: Math.max(
@@ -232,6 +243,8 @@ export function queryChannelMessages(
     )
       return false;
     if (query.authorKind !== undefined && message.author.kind !== query.authorKind) return false;
+    if (query.visibleFrom !== undefined && (message.channelRevision ?? 0) < query.visibleFrom)
+      return false;
     const at = Date.parse(message.at);
     if ((query.from !== undefined || query.to !== undefined) && !Number.isFinite(at)) return false;
     if (query.from !== undefined && at < query.from) return false;
@@ -370,6 +383,19 @@ export interface ChannelStore {
   ): Promise<ChannelAppendOnceResult>;
   readPosition(id: string): ChannelReadPosition | undefined;
   markRead(id: string, messageId: string): Promise<ChannelReadPosition | undefined>;
+  setHumanReaction?(
+    id: string,
+    messageId: string,
+    emoji: string,
+    active: boolean,
+  ): ChannelReaction[] | undefined;
+  setBotReaction?(
+    id: string,
+    botSlug: string,
+    messageId: string,
+    emoji: string,
+    active: boolean,
+  ): ChannelReaction[] | undefined;
   appendMessage(
     id: string,
     message: ChannelMessage,
@@ -377,6 +403,10 @@ export interface ChannelStore {
   ): Promise<ChannelMessage | undefined>;
   readMessages(id: string, options?: ChannelReadOptions): ChannelMessage[];
   queryMessages(id: string, options?: ChannelMessageQueryOptions): ChannelMessageQueryPage;
+  searchHumanMessages?(
+    id: string,
+    options: Pick<ChannelMessageQueryOptions, 'text' | 'cursor' | 'limit'>,
+  ): ChannelMessageQueryPage | undefined;
   readTimeline(id: string, request?: ChannelTimelineRequest): ChannelTimelinePage | undefined;
   readHumanTimeline(id: string, request?: ChannelTimelineRequest): ChannelTimelinePage | undefined;
   readHumanJournalPage(id: string, request: ChannelJournalRequest): ChannelJournalPage | undefined;
@@ -405,6 +435,13 @@ export interface ChannelOutputObservation {
 
 function isMissing(error: unknown): boolean {
   return (error as NodeJS.ErrnoException).code === 'ENOENT';
+}
+
+export class ChannelReactionLimitError extends Error {
+  constructor() {
+    super('A message holds at most 20 of your reactions');
+    this.name = 'ChannelReactionLimitError';
+  }
 }
 
 export class ChannelMentionTargetError extends Error {

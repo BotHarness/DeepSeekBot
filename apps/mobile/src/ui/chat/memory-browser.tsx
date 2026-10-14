@@ -59,7 +59,7 @@ export function MemoryEntryRow({
         gap: space.x4,
         paddingHorizontal: space.x5,
         paddingVertical: space.x4,
-        backgroundColor: pressed ? theme.color.hover : theme.color.elevated,
+        backgroundColor: pressed ? theme.layer.sheet.pressed : theme.layer.sheet.fill,
         borderTopLeftRadius: first ? radius.md : 0,
         borderTopRightRadius: first ? radius.md : 0,
         borderBottomLeftRadius: last ? radius.md : 0,
@@ -171,7 +171,7 @@ export function MemoryFileView({ load }: { load: () => Promise<MemoryFile | unde
       ) : (
         <View
           style={{
-            backgroundColor: theme.color.elevated,
+            backgroundColor: theme.layer.sheet.fill,
             borderRadius: radius.md,
             padding: space.x5,
           }}

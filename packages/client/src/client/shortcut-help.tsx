@@ -65,6 +65,7 @@ export const SHORTCUT_HELP_GROUPS: readonly ShortcutHelpGroup[] = [
         label: 'shortcuts.unreadNext',
         note: 'shortcuts.unreadStep.note',
       },
+      { id: 'search', keys: [['Mod', 'F']], label: 'shortcuts.search' },
       { id: 'help', keys: [['?']], action: 'help', label: 'shortcuts.help' },
     ],
   },
@@ -90,6 +91,43 @@ export const SHORTCUT_HELP_GROUPS: readonly ShortcutHelpGroup[] = [
         note: 'shortcuts.complete.note',
       },
       { id: 'cancel', keys: [['Esc']], label: 'shortcuts.cancel' },
+    ],
+  },
+  {
+    id: 'approval',
+    title: 'shortcuts.group.approval',
+    entries: [
+      {
+        id: 'approval-allow',
+        keys: [['Y'], ['Enter']],
+        label: 'shortcuts.approvalAllow',
+        note: 'shortcuts.approval.note',
+      },
+      { id: 'approval-reject', keys: [['N'], ['Esc']], label: 'shortcuts.approvalReject' },
+      {
+        id: 'approval-always',
+        keys: [['A']],
+        label: 'shortcuts.approvalAlways',
+        note: 'shortcuts.approvalAlways.note',
+      },
+    ],
+  },
+  {
+    id: 'inbox',
+    title: 'shortcuts.group.inbox',
+    entries: [
+      { id: 'inbox-step', keys: [['J'], ['K']], label: 'shortcuts.inboxStep' },
+      { id: 'inbox-open', keys: [['Enter']], label: 'shortcuts.inboxOpen' },
+      { id: 'inbox-detail', keys: [['O']], label: 'shortcuts.inboxDetail' },
+      { id: 'inbox-handle', keys: [['E']], label: 'shortcuts.inboxHandle' },
+      {
+        id: 'inbox-select',
+        keys: [['X']],
+        label: 'shortcuts.inboxSelect',
+        note: 'shortcuts.inboxSelect.note',
+      },
+      { id: 'inbox-snooze', keys: [['S']], label: 'shortcuts.inboxSnooze' },
+      { id: 'inbox-clear', keys: [['Esc']], label: 'shortcuts.inboxClear' },
     ],
   },
 ];

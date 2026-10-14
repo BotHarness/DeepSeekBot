@@ -5,10 +5,15 @@ One file per user-facing feature. Each file has four sections: `Sub-features`, `
 | Feature | Needs a model | Scripted journey | File |
 | --- | --- | --- | --- |
 | Bot mode entry and the default DeepSeek Bot | no | none | [bot-mode.md](bot-mode.md) |
-| Bot DM reply | yes | none | [bot-dm-reply.md](bot-dm-reply.md) |
+| Bot mode dock (desktop layout) | no | none | [bot-mode-dock.md](bot-mode-dock.md) |
+| Bot DM reply | yes | `scripts/e2e-llm-scenarios.mjs --scenario dm-reply` | [bot-dm-reply.md](bot-dm-reply.md) |
+| Bot-to-Bot Group mentions and wake | yes | `scripts/e2e-llm-scenarios.mjs` (nightly) | [bot-group-mention.md](bot-group-mention.md) |
+| Conversation timeline: new-messages divider, kept place, folding, image preview, reactions, search | yes | none | [conversation-timeline.md](conversation-timeline.md) |
 | PersonaBot creation and restart persistence | no | `scripts/e2e-personabot-create.mjs` (CI) | [personabot-create.md](personabot-create.md) |
 | Stop a working Bot (Web Client) | yes | `scripts/e2e-web-stop.mjs` | [bot-stop.md](bot-stop.md) |
 | Phone pairing and paired devices | no | `scripts/e2e-mobile-pairing-web.mjs`, `scripts/e2e-device-pairing.mjs` | [phone-pairing.md](phone-pairing.md) |
+| Phone notifications and paired computers (iOS Simulator) | for the approval step | `scripts/e2e-mobile-sim.mjs` (Mac) | [phone-notifications.md](phone-notifications.md) |
+| Bot Browser on the phone | no | `scripts/e2e-mobile-browser-web.mjs` | [phone-browser.md](phone-browser.md) |
 
 ## Not mapped yet
 

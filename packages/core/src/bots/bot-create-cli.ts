@@ -215,6 +215,7 @@ Usage:
   deepseekbot browser-open <id>
   deepseekbot browser-frame <id> --out <absolute-file>
   deepseekbot browser-takeover <id> (--enabled | --disabled)
+  deepseekbot browser-input <id> --args-stdin
   deepseekbot browser-stop <id>
   deepseekbot computer-start [--target local|container]
   deepseekbot computer-status
@@ -229,6 +230,7 @@ Usage:
   deepseekbot memory-version-name <id> --sha <commit> --name <version>
   deepseekbot memory-version-unname <id> --tag <version>
   deepseekbot memory-repair <id> --expected-head <commit>
+  deepseekbot memory-move <id> (--memory-location <absolute-dir> | --default-location)
   deepseekbot model-catalog
   deepseekbot model-plan-set <id> --plan-stdin [--expected-revision <n>]
   deepseekbot model-plan-customize <id> --orchestrator-provider <p> --orchestrator-model <m> [--orchestrator-effort <e>]
@@ -250,13 +252,20 @@ Usage:
   deepseekbot bot-tool <id> <tool> [--args-stdin]
   deepseekbot computer-tools
   deepseekbot computer-tool <id> <tool> [--args-stdin] [--out <absolute-file>]
+  deepseekbot todos
+  deepseekbot todo-add --title <text>
+  deepseekbot todo-update <todo-id> [--title <text>] [--done | --not-done]
+  deepseekbot todo-remove <todo-id>
+  deepseekbot todo-tools
+  deepseekbot todo-tool <id> <tool> [--args-stdin]
   deepseekbot bot-attention <id> [--limit <1-100>] [--cursor <source-id>] [--state <state>]
   deepseekbot bot-sessions <id> [--limit <1-100>]
   deepseekbot bot-activity <id> [--limit <1-100>]
   deepseekbot inbox [--category action|info|unread|replies|handled] [--bot <id>] [--channel <id>]
-                    [--limit <1-100>] [--cursor <cursor>] [--sort newest|oldest]
+                    [--limit <1-100>] [--cursor <cursor>] [--sort newest|oldest] [--snoozed]
   deepseekbot inbox-status
   deepseekbot inbox-dismiss <item-id> [--source-key <source-event-id>]
+  deepseekbot inbox-snooze <item-id> [--source-key <source-event-id>] (--until <ISO time> | --clear)
   deepseekbot inbox-ignore <source-event-id>
   deepseekbot assignment-context <id> --session <session-id> --source <source-event-id>
   deepseekbot channel-assignments <group-channel>

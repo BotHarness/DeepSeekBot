@@ -1,13 +1,29 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ConversationMessage } from '../src/host/conversation';
+
+const native = vi.hoisted(() => ({
+  os: 'ios',
+  copied: [] as string[],
+  sheets: [] as Array<{ options: string[]; cancelButtonIndex?: number }>,
+  toasts: [] as string[],
+  pick: 0,
+}));
 
 vi.mock('react-native', () => {
   const host = (name: string) => {
     const Component = ({ children, ...props }: Record<string, unknown>) => {
       const attributes: Record<string, string> = {};
-      for (const key of ['accessibilityLabel', 'accessibilityRole', 'selectable', 'source'])
+      for (const key of [
+        'accessibilityLabel',
+        'accessibilityRole',
+        'accessibilityHint',
+        'selectable',
+        'source',
+        'recyclingKey',
+        'cachePolicy',
+      ])
         if (props[key] !== undefined)
           attributes[`data-${key.toLowerCase()}`] =
             typeof props[key] === 'object' ? JSON.stringify(props[key]) : String(props[key]);
@@ -27,10 +43,33 @@ vi.mock('react-native', () => {
     Image: host('Image'),
     ActivityIndicator: host('ActivityIndicator'),
     Linking: { openURL: async () => undefined },
-    Platform: { OS: 'ios', select: (options: Record<string, unknown>) => options['ios'] },
+    Platform: {
+      get OS() {
+        return native.os;
+      },
+      select: (options: Record<string, unknown>) => options['ios'],
+    },
+    ActionSheetIOS: {
+      showActionSheetWithOptions(
+        options: { options: string[]; cancelButtonIndex?: number },
+        callback: (index: number) => void,
+      ) {
+        native.sheets.push(options);
+        callback(native.pick);
+      },
+    },
+    ToastAndroid: { SHORT: 0, show: (text: string) => native.toasts.push(text) },
     useColorScheme: () => 'light',
   };
 });
+
+vi.mock('expo-image', async () => ({ Image: (await import('react-native')).Image }));
+vi.mock('expo-clipboard', () => ({
+  setStringAsync: async (text: string) => {
+    native.copied.push(text);
+    return true;
+  },
+}));
 
 vi.mock('react-native-svg', () => ({
   default: () => <svg />,
@@ -39,6 +78,15 @@ vi.mock('react-native-svg', () => ({
 
 const { MessageBubble, DraftBubble, deliveryLabel } = await import('../src/ui/chat/message-bubble');
 const { t } = await import('../src/ui/strings');
+const { openMessageMenu } = await import('../src/ui/chat/message-menu');
+
+beforeEach(() => {
+  native.os = 'ios';
+  native.copied.length = 0;
+  native.sheets.length = 0;
+  native.toasts.length = 0;
+  native.pick = 0;
+});
 
 const human = (overrides: Partial<ConversationMessage>): ConversationMessage => ({
   id: 'human-1',
@@ -54,7 +102,8 @@ describe('message states', () => {
   it('shows a pending Human message as sending, without a retry control', () => {
     const html = renderToStaticMarkup(<MessageBubble message={human({ delivery: 'pending' })} />);
     expect(html).toContain(t.sending);
-    expect(html).not.toContain('data-native="Pressable"');
+    expect(html).not.toContain(t.retrySend);
+    expect(html).not.toContain('data-accessibilityrole="button"');
   });
 
   it('shows a delivered message as sent until its journal entry arrives', () => {
@@ -77,7 +126,7 @@ describe('message states', () => {
     expect(html).toContain('data-accessibilityrole="button"');
   });
 
-  it('renders a Bot reply as selectable Markdown', () => {
+  it('renders a Bot reply as Markdown that long-press copies whole', () => {
     const html = renderToStaticMarkup(
       <MessageBubble
         message={human({
@@ -88,7 +137,9 @@ describe('message states', () => {
         })}
       />,
     );
-    expect(html).toContain('data-selectable="true"');
+    expect(html).toContain('data-selectable="false"');
+    expect(html).not.toContain('data-selectable="true"');
+    expect(html).toContain(`data-accessibilityhint="${t.copyHint}"`);
     expect(html).toContain('pnpm test');
     expect(html).toContain('data-accessibilityrole="link"');
     expect(deliveryLabel(human({ author: 'bot' }))).toBeUndefined();
@@ -112,6 +163,9 @@ describe('message states', () => {
     expect(html).toContain(`data-accessibilitylabel="${t.openImage('chart.png')}"`);
     expect(html).toContain('data-native="Image"');
     expect(html).toContain('Device x');
+    expect(html).toContain('data-recyclingkey="a"');
+    expect(html).toContain('data-cachepolicy="memory-disk"');
+    expect(html).not.toContain(`data-accessibilityhint="${t.copyHint}"`);
     expect(html).toContain(`data-accessibilitylabel="${t.shareFile('report.pdf')}"`);
     expect(html).toContain('3.3 MB');
     expect(html).toContain('voice.ogg');
@@ -136,5 +190,78 @@ describe('message states', () => {
     );
     expect(draft).toContain('Hel');
     expect(draft).toContain(t.typing);
+  });
+});
+
+describe('reactions', () => {
+  const reacted = human({
+    id: 'bot-1',
+    author: 'bot',
+    body: 'Done.',
+    revision: 2,
+    reactions: [
+      {
+        emoji: '👍',
+        actors: [
+          { kind: 'human', id: 'local-human' },
+          { kind: 'bot', id: 'ada' },
+        ],
+      },
+      { emoji: '👀', actors: [{ kind: 'bot', id: 'ada' }] },
+    ],
+  });
+  const names = (id: string) => (id === 'ada' ? 'Ada' : id);
+
+  it('shows each reaction as a chip with its count and who reacted', () => {
+    const html = renderToStaticMarkup(
+      <MessageBubble message={reacted} onReact={() => {}} botName={names} />,
+    );
+    expect(html).toContain(
+      `data-accessibilitylabel="${t.reactionSummary(`${t.reactionYou}${t.reactionSeparator}Ada`, '👍')}"`,
+    );
+    expect(html).toContain(`data-accessibilityhint="${t.unreact('👍')}"`);
+    expect(html).toContain(`data-accessibilitylabel="${t.reactionSummary('Ada', '👀')}"`);
+    expect(html).toContain(`data-accessibilityhint="${t.react('👀')}"`);
+    expect(html).toContain('>2<');
+    expect(html).toContain(`data-accessibilityhint="${t.messageActionsHint}"`);
+  });
+
+  it('lets a committed attachment-only message take reactions, but not a pending one', () => {
+    const image = human({ author: 'bot', body: '', revision: 3 });
+    expect(renderToStaticMarkup(<MessageBubble message={image} onReact={() => {}} />)).toContain(
+      `data-accessibilityhint="${t.messageActionsHint}"`,
+    );
+    expect(
+      renderToStaticMarkup(
+        <MessageBubble message={human({ body: '', delivery: 'pending' })} onReact={() => {}} />,
+      ),
+    ).not.toContain('data-accessibilityhint');
+  });
+});
+
+describe('copying a message', () => {
+  const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+  it('offers Copy in the iOS action sheet and copies the whole text', async () => {
+    openMessageMenu('Line one\n\nLine two');
+    await flush();
+    expect(native.sheets).toEqual([{ options: [t.copy, t.cancel], cancelButtonIndex: 1 }]);
+    expect(native.copied).toEqual(['Line one\n\nLine two']);
+  });
+
+  it('copies nothing when the sheet is cancelled', async () => {
+    native.pick = 1;
+    openMessageMenu('hello');
+    await flush();
+    expect(native.copied).toEqual([]);
+  });
+
+  it('copies at once on Android and confirms with a toast', async () => {
+    native.os = 'android';
+    openMessageMenu('hello');
+    await flush();
+    expect(native.sheets).toEqual([]);
+    expect(native.copied).toEqual(['hello']);
+    expect(native.toasts).toEqual([t.copied]);
   });
 });

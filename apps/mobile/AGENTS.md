@@ -32,6 +32,7 @@ Screens follow [DESIGN.md](./DESIGN.md): the Host-as-workspace structure, the sc
 
 ## Native UI verification
 
+- On a Mac, start with `node scripts/e2e-mobile-sim.mjs`: one command makes its own Simulator and Metro port, builds the app, pairs with two isolated Hosts and opens notifications sent with `xcrun simctl push`; read the screenshots it keeps.
 - On a Mac, verify native UI with Callstack's `agent-device` on the iOS Simulator: open the development build, read its accessibility snapshot, act by ref, and save a screenshot. The commands are in `README.md` ("Drive it on the iOS Simulator").
 - Regression flows live in `.maestro/` and run with `pnpm --filter @botharness/mobile e2e:ios`. Target elements by their visible text from the snapshot, not by coordinates.
 - Cloud sessions have no simulator. They use the web screenshots ("Screenshots without a phone") and reach a Mac through Remote Control for native checks.

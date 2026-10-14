@@ -1,0 +1,29 @@
+# Switches computers from Me → Computers and checks the Notifications row.
+# -e FROM=<shown host> -e TO=<other host> -e BOT=<a PersonaBot on TO>
+appId: ai.botharness.deepseekbot.dev
+---
+- tapOn: 'Me'
+- extendedWaitUntil:
+    visible: 'Computers.*'
+    timeout: 10000
+- assertVisible: '${FROM}.*'
+- assertVisible:
+    text: 'Notifications'
+    below: 'Computers.*'
+- tapOn: 'Computers.*'
+- extendedWaitUntil:
+    visible: 'Pair a new computer'
+    timeout: 10000
+- tapOn: '^${TO}$'
+- extendedWaitUntil:
+    visible: '${TO}, switch computer'
+    timeout: 20000
+- extendedWaitUntil:
+    visible: ${BOT}
+    timeout: 20000
+# Switching dismisses the Computers sheet back to Home; let that finish.
+- extendedWaitUntil:
+    notVisible: 'Pair a new computer'
+    timeout: 10000
+- waitForAnimationToEnd:
+    timeout: 3000

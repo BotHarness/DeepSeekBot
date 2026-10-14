@@ -1,0 +1,8 @@
+# Goes to Home and checks which computer it shows.
+# -e HOST=<host name>
+appId: ai.botharness.deepseekbot.dev
+---
+- tapOn: 'Home'
+- extendedWaitUntil:
+    visible: '${HOST}, switch computer'
+    timeout: 15000

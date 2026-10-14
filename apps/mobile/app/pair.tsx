@@ -4,7 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
+  Keyboard,
   Platform,
   Pressable,
   ScrollView,
@@ -16,6 +16,7 @@ import {
 import { hostSession } from '../src/host/host-session';
 import { nativeCarrier } from '../src/host/native-carrier';
 import { parsePairingLink, redeemPairing, type PairingRefusal } from '../src/host/pairing';
+import { useMounted } from '../src/ui/mounted';
 import { t } from '../src/ui/strings';
 import { useTheme } from '../src/ui/theme';
 
@@ -32,6 +33,16 @@ export default function PairScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<PairingRefusal | undefined>();
   const handled = useRef<string | undefined>(undefined);
+  const scroll = useRef<ScrollView | null>(null);
+  const showPair = () => scroll.current?.scrollToEnd({ animated: true });
+  const mounted = useMounted<ScrollView>((node) => {
+    scroll.current = node;
+    const shown = Keyboard.addListener('keyboardDidShow', showPair);
+    return () => {
+      shown.remove();
+      scroll.current = null;
+    };
+  }, []);
 
   const pair = async (text: string): Promise<void> => {
     if (busy || handled.current === text) return;
@@ -62,75 +73,82 @@ export default function PairScreen() {
   } as const;
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    <ScrollView
+      ref={mounted}
+      onContentSizeChange={() => {
+        if (Keyboard.isVisible()) showPair();
+      }}
+      automaticallyAdjustKeyboardInsets
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="interactive"
       style={{ flex: 1, backgroundColor: theme.background }}
+      contentContainerStyle={{ padding: 16, gap: 12 }}
     >
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
-        <Text style={{ color: theme.inkSoft, fontSize: 14 }}>{t.pairHint}</Text>
-        <View
-          style={{
-            aspectRatio: 1,
-            borderRadius: 16,
-            overflow: 'hidden',
-            backgroundColor: theme.surface,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          {permission?.granted ? (
-            <CameraView
-              style={{ width: '100%', height: '100%' }}
-              facing="back"
-              barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-              onBarcodeScanned={busy ? undefined : ({ data }) => void pair(data)}
-            />
-          ) : (
-            <Pressable
-              onPress={() => void requestPermission()}
-              accessibilityRole="button"
-              style={{ padding: 16 }}
-            >
-              <Text style={{ color: theme.accent, fontSize: 16, fontWeight: '600' }}>
-                {t.allowCamera}
-              </Text>
-            </Pressable>
-          )}
-        </View>
-        {busy ? <ActivityIndicator /> : null}
-        {error !== undefined ? (
-          <Text style={{ color: theme.danger }}>{t.pairRefused[error]}</Text>
-        ) : null}
-        <Text style={{ color: theme.ink, fontWeight: '600' }}>{t.pasteLink}</Text>
-        <TextInput
-          value={link}
-          onChangeText={(value) => {
-            setLink(value);
-            handled.current = undefined;
-          }}
-          placeholder="deepseekbot://pair?p=…"
-          placeholderTextColor={theme.inkSoft}
-          autoCapitalize="none"
-          autoCorrect={false}
-          style={{
-            borderWidth: 1,
-            borderColor: theme.border,
-            borderRadius: 12,
-            padding: 12,
-            fontSize: 16,
-            color: theme.ink,
-            backgroundColor: theme.surface,
-          }}
-        />
-        <Pressable
-          onPress={() => void pair(link)}
-          disabled={busy || link.trim() === ''}
-          accessibilityRole="button"
-          style={button}
-        >
-          <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600' }}>{t.pair}</Text>
-        </Pressable>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      <Text style={{ color: theme.inkSoft, fontSize: 14 }}>{t.pairHint}</Text>
+      <View
+        style={{
+          aspectRatio: 1,
+          borderRadius: 16,
+          overflow: 'hidden',
+          backgroundColor: theme.surface,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        {permission?.granted ? (
+          <CameraView
+            style={{ width: '100%', height: '100%' }}
+            facing="back"
+            barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+            onBarcodeScanned={busy ? undefined : ({ data }) => void pair(data)}
+          />
+        ) : (
+          <Pressable
+            onPress={() => void requestPermission()}
+            accessibilityRole="button"
+            style={{ padding: 16 }}
+          >
+            <Text style={{ color: theme.accent, fontSize: 16, fontWeight: '600' }}>
+              {t.allowCamera}
+            </Text>
+          </Pressable>
+        )}
+      </View>
+      {busy ? <ActivityIndicator /> : null}
+      {error !== undefined ? (
+        <Text style={{ color: theme.danger }}>{t.pairRefused[error]}</Text>
+      ) : null}
+      <Text style={{ color: theme.ink, fontWeight: '600' }}>{t.pasteLink}</Text>
+      <TextInput
+        value={link}
+        onChangeText={(value) => {
+          setLink(value);
+          handled.current = undefined;
+        }}
+        placeholder="deepseekbot://pair?p=…"
+        placeholderTextColor={theme.inkSoft}
+        autoCapitalize="none"
+        autoCorrect={false}
+        returnKeyType="go"
+        onSubmitEditing={() => void pair(link)}
+        style={{
+          borderWidth: 1,
+          borderColor: theme.border,
+          borderRadius: 12,
+          padding: 12,
+          fontSize: 16,
+          color: theme.ink,
+          backgroundColor: theme.surface,
+        }}
+      />
+      <Pressable
+        onPress={() => void pair(link)}
+        disabled={busy || link.trim() === ''}
+        accessibilityRole="button"
+        style={button}
+      >
+        <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600' }}>{t.pair}</Text>
+      </Pressable>
+    </ScrollView>
   );
 }

@@ -4,7 +4,7 @@ import type { ClientStore } from './store.js';
 
 export function registerModeShadow(
   ctx: ClientContext,
-  name: 'sidebar.workspaces' | 'main',
+  name: 'sidebar' | 'sidebar.workspaces' | 'main',
   register: () => () => void,
   clientStore: ClientStore,
   presentation?: {

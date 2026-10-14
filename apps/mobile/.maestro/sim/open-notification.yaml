@@ -1,0 +1,14 @@
+# Asks the runner to deliver a notification with `xcrun simctl push`, taps its
+# banner, and waits for the screen it opens.
+# -e TRIGGER=http://127.0.0.1:<port> -e NAME=<payload name> -e EXPECT=<text>
+# The banner belongs to SpringBoard, not the app, so it is tapped by point.
+appId: ai.botharness.deepseekbot.dev
+---
+- runScript: scripts/push.js
+- waitForAnimationToEnd:
+    timeout: 1500
+- tapOn:
+    point: 50%,10%
+- extendedWaitUntil:
+    visible: ${EXPECT}
+    timeout: 30000

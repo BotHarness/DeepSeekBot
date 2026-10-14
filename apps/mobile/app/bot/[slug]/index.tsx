@@ -39,6 +39,12 @@ export default function BotProfileScreen() {
       load={load}
       actions={{
         onMessage: () => (router.canGoBack() ? router.back() : router.replace(`/dm/${bot.slug}`)),
+        ...(bot.browserAccess
+          ? {
+              onBrowser: () =>
+                router.push({ pathname: '/browser/[slug]', params: { slug: bot.slug } }),
+            }
+          : {}),
         ...(bot.computerAccess
           ? {
               onComputer: () =>

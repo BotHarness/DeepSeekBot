@@ -140,6 +140,14 @@ describe('@botharness/ui browser bundle', () => {
     expect(nonBaselineShell).toEqual([]);
   });
 
+  it('inlines dockview with only its structural stylesheet, themed through DSH tokens', () => {
+    expect(bundleCode).not.toContain('@bh-dockview-css');
+    expect(bundleCode).not.toMatch(/require\("dockview/);
+    expect(bundleCode).toContain('.dv-split-view-container');
+    expect(bundleCode).not.toContain('.dockview-theme-');
+    expect(bundleCode).toContain('.bh-dock-theme');
+  });
+
   it('compiles StyleX at build time and ships every class it uses in the plugin stylesheet', () => {
     expect(bundleCode).not.toContain('@bh-stylex-css');
     expect(bundleCode).not.toMatch(/require\("@stylexjs\//);

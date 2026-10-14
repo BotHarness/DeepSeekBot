@@ -89,7 +89,7 @@ export function InboxList({
   );
 }
 
-function InboxRow({
+export function InboxRow({
   item,
   bot,
   onOpen,

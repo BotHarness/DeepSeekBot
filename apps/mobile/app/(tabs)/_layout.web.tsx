@@ -61,7 +61,7 @@ function Pill({ Icon, color, focused }: { Icon: TabIcon; color: ColorValue; focu
         borderRadius: radius.round,
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: focused ? theme.color.selected : 'transparent',
+        backgroundColor: focused ? theme.layer.canvas.selected : 'transparent',
       }}
     >
       <Icon color={color} size={theme.type.title.line} focused={focused} />
