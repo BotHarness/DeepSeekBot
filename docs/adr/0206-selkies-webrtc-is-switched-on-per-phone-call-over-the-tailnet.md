@@ -20,4 +20,5 @@ Container Computer and the Container Browser stream through Selkies, which today
 - The desktop Web Client keeps its WebSocket stream except while a phone is calling. During a call it is interrupted; a desktop page that wants the stream back has to wait for the call to end. Viewing on both at once is out of scope for this slice.
 - A tailnet address that changes after the container was created reports `tailnet-changed` until the container is recreated at its next start.
 - Routes outside the tailnet (STUN, TURN, a public address) are excluded. Adding one later means a new refusal-free path, not a change to this one.
+- Both images must ship Selkies 2.x, whose mode switch and signalling routes sit under the viewer prefix. The Container Browser pin moved to a 2.x `linuxserver/chrome` build for this; the earlier pin's Selkies only switched modes from inside the container.
 - Selkies is used as is (MPL-2.0). The phone talks Selkies' own signalling protocol (`HELLO`, `SESSION`, `<peer-id> {"sdp"|"ice"}`), and retries `SESSION server` while the WebRTC service is still starting.

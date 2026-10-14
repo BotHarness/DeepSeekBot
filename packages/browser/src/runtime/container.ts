@@ -16,7 +16,7 @@ import {
 import type { BrowserExecution } from './browser.js';
 
 export const CONTAINER_BROWSER_IMAGE =
-  'lscr.io/linuxserver/chrome@sha256:0614c258b65fa8acbc86d0f674efec942958b94dc341d710d27126ea3bad848c';
+  'lscr.io/linuxserver/chrome@sha256:3a8a8bbc2333859773ea21c3c0342bb14be5d77a0d7e1e69ba95f8e9f931d6d8';
 
 const execute = promisify(execFile);
 const OWNER_LABEL = 'ai.botharness.browser';
