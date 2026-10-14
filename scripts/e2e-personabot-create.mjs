@@ -5,6 +5,8 @@ import { basename, delimiter, dirname, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
+import { dshCommand } from './dev-dsh-cli.mjs';
+
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const helper = join(root, 'scripts', 'dev-instance.mjs');
 const withDm = process.argv.includes('--with-dm');
@@ -18,7 +20,8 @@ const env = {
 };
 
 function dshVersion() {
-  const result = spawnSync('dsh', ['--version'], { cwd: root, env, encoding: 'utf8' });
+  const [command, cli] = dshCommand(root);
+  const result = spawnSync(command, [cli, '--version'], { cwd: root, env, encoding: 'utf8' });
   if (result.status !== 0) throw new Error('Installed DSH CLI is unavailable');
   const version = result.stdout.trim();
   if (version !== expectedVersion) {
