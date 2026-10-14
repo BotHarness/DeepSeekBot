@@ -1,6 +1,6 @@
 import type { SavedHost } from './saved-host';
 
-const KEY = 'deepseekbot.host.v1';
+const KEY = 'deepseekbot.host.v2';
 
 function store(): Storage | undefined {
   try {
@@ -15,8 +15,19 @@ export async function loadSavedHost(): Promise<SavedHost | undefined> {
   if (raw === null || raw === undefined) return undefined;
   try {
     const value = JSON.parse(raw) as Partial<SavedHost>;
-    return typeof value.route === 'string' && typeof value.token === 'string'
-      ? { route: value.route, token: value.token }
+    return typeof value.hostId === 'string' &&
+      typeof value.hostName === 'string' &&
+      Array.isArray(value.routes) &&
+      value.routes.every((route) => typeof route === 'string') &&
+      typeof value.deviceId === 'string' &&
+      typeof value.credential === 'string'
+      ? {
+          hostId: value.hostId,
+          hostName: value.hostName,
+          routes: value.routes,
+          deviceId: value.deviceId,
+          credential: value.credential,
+        }
       : undefined;
   } catch {
     return undefined;

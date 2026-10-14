@@ -43,7 +43,10 @@ export function BotAvatar({ bot, size }: { bot: RosterBot; size: number }) {
         }}
       >
         {bot.avatarUrl !== undefined ? (
-          <Image source={{ uri: bot.avatarUrl }} style={{ width: size, height: size }} />
+          <Image
+            source={{ uri: bot.avatarUrl, headers: bot.avatarHeaders }}
+            style={{ width: size, height: size }}
+          />
         ) : svg !== undefined ? (
           <SvgXml xml={svg} width={size} height={size} />
         ) : null}

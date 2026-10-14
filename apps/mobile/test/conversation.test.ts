@@ -40,8 +40,8 @@ function open(
   } = {},
 ): Conversation {
   client = createHostClient({
-    route: ROUTE,
-    token: host.token,
+    routes: [ROUTE],
+    credential: host.credential,
     carrier: host.carrier,
     backoff: () => 5,
     timeoutMs: 200,
@@ -294,7 +294,10 @@ describe('DM conversation', () => {
     const host = new FakeHost();
     const target = open(host, { noChannel: true });
     await until(target, (s) => s.status === 'live');
-    expect(host.calls[0]).toMatchObject({ method: 'channelDm', args: { slug: SLUG } });
+    expect(host.calls.find((call) => call.method.startsWith('channel'))).toMatchObject({
+      method: 'channelDm',
+      args: { slug: SLUG },
+    });
     target.send('first');
     await until(target, (s) => s.messages.at(-1)?.revision === 1);
   });

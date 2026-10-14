@@ -6,13 +6,16 @@ import { describe, expect, it } from 'vitest';
 const root = fileURLToPath(new URL('..', import.meta.url));
 
 const LEGACY = new Set([
+  'app/(tabs)/_layout.tsx',
   'app/(tabs)/index.tsx',
-  'app/connect.tsx',
+  'app/full-client.tsx',
+  'app/pair.tsx',
   'app/dm/[slug].tsx',
   'app/inbox/[id].tsx',
   'src/ui/approval-view.tsx',
   'src/ui/bot-avatar.tsx',
   'src/ui/connection-banner.tsx',
+  'src/ui/floating-exit.tsx',
   'src/ui/inbox-list.tsx',
   'src/ui/question-view.tsx',
   'src/ui/request-parts.tsx',

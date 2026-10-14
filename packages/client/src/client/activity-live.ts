@@ -180,7 +180,7 @@ export function mountActivityLive(
     if (source !== undefined) return;
     let next: ActivityEventSource | undefined;
     try {
-      next = makeSource('/api/botharness/stream?scope=activity');
+      next = makeSource('./api/botharness/stream?scope=activity');
     } catch {
       schedule();
       return;

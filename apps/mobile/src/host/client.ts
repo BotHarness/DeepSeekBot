@@ -1,5 +1,6 @@
 import type { BotPrimaryColor } from '../../../../packages/core/src/bots/primary-color';
 import type { HostCarrier, HostSocket } from './carrier';
+import { DEVICE_PREFIX } from './pairing';
 import { socketOrigin } from './route';
 import {
   REMOTE_STREAM_MUX_PATH,
@@ -18,13 +19,14 @@ export type ConnectionState =
   | { status: 'connected'; route: string }
   | { status: 'reconnecting'; route: string; attempt: number }
   | { status: 'unreachable'; route: string; attempt: number; reason: string }
-  | { status: 'refused'; route: string; reason: string }
+  | { status: 'refused'; route: string; code: DeviceRefusal; reason: string }
   | { status: 'stopped'; route: string };
 
 export interface RosterBot {
   slug: string;
   displayName: string;
   avatarUrl?: string;
+  avatarHeaders?: Record<string, string>;
   appearance?: unknown;
   avatarSeed?: 2;
   primaryColor?: BotPrimaryColor;
@@ -72,20 +74,33 @@ export interface HostClient {
 }
 
 export interface HostClientOptions {
-  route: string;
-  token: string;
+  routes: string[];
+  credential: string;
   carrier: HostCarrier;
   backoff?: (attempt: number) => number;
   timeoutMs?: number;
 }
 
+export type DeviceRefusal = 'device-revoked' | 'device-unknown' | 'device-credential-missing';
+
+const REFUSALS: Record<DeviceRefusal, string> = {
+  'device-revoked': 'This phone was removed from the paired devices on your computer.',
+  'device-unknown': 'Your computer no longer knows this phone.',
+  'device-credential-missing': 'This phone has no pairing for your computer.',
+};
+
 class CredentialRefused extends Error {
-  constructor(readonly stage: 'login' | 'session') {
-    super(
-      stage === 'login'
-        ? 'The Host refused this launch token. Pair again or paste a fresh token.'
-        : 'The Host refused this session.',
-    );
+  constructor(readonly code: DeviceRefusal) {
+    super(REFUSALS[code]);
+  }
+}
+
+function refusalOf(text: string): DeviceRefusal | undefined {
+  try {
+    const code = record(JSON.parse(text))['code'];
+    return typeof code === 'string' && code in REFUSALS ? (code as DeviceRefusal) : undefined;
+  } catch {
+    return undefined;
   }
 }
 
@@ -131,7 +146,9 @@ function previewOf(channel: ChannelListItem | undefined): { preview?: string; pr
 }
 
 export function createHostClient(options: HostClientOptions): HostClient {
-  const route = options.route;
+  const routes = options.routes;
+  const authorization = { authorization: `Device ${options.credential}` };
+  let route = routes[0] ?? '';
   const backoff = options.backoff ?? defaultBackoff;
   const timeoutMs = options.timeoutMs ?? 10_000;
   const listeners = new Set<() => void>();
@@ -140,7 +157,6 @@ export function createHostClient(options: HostClientOptions): HostClient {
   let bots: PersonaBotSummary[] | undefined;
   let channels = new Map<string, ChannelListItem>();
   let states = new Map<string, AggregatedState>();
-  let session = false;
   let running = false;
   let everConnected = false;
   let attempt = 0;
@@ -185,7 +201,9 @@ export function createHostClient(options: HostClientOptions): HostClient {
           return {
             slug: bot.slug,
             displayName: bot.displayName,
-            ...(bot.avatar === undefined ? {} : { avatarUrl: absolute(bot.avatar) }),
+            ...(bot.avatar === undefined
+              ? {}
+              : { avatarUrl: absolute(bot.avatar), avatarHeaders: authorization }),
             ...(bot.appearance === undefined ? {} : { appearance: bot.appearance }),
             ...(bot.avatarSeed === undefined ? {} : { avatarSeed: bot.avatarSeed }),
             ...(bot.primaryColor === undefined ? {} : { primaryColor: bot.primaryColor }),
@@ -199,7 +217,8 @@ export function createHostClient(options: HostClientOptions): HostClient {
     };
   };
 
-  const absolute = (path: string): string => (path.startsWith('/') ? route + path : path);
+  const absolute = (path: string): string =>
+    path.startsWith('/') ? `${route}${DEVICE_PREFIX}${path}` : path;
 
   const reloadInBackground = (): void => {
     reload().catch(() => {});
@@ -227,16 +246,11 @@ export function createHostClient(options: HostClientOptions): HostClient {
     }
   };
 
-  const login = (): Promise<void> =>
-    withDeadline(async (signal) => {
-      const url = `${route}/?token=${encodeURIComponent(options.token)}`;
-      const response = await options.carrier.request(url, { method: 'GET', signal });
-      if (response.status === 401 || response.status === 403) throw new CredentialRefused('login');
-      if (response.status >= 400) throw new Unreachable(`The Host answered ${response.status}.`);
-      session = true;
-    });
-
-  const call = <T>(method: string, args: Record<string, unknown> = {}): Promise<T> =>
+  const call = <T>(
+    method: string,
+    args: Record<string, unknown> = {},
+    via: string = route,
+  ): Promise<T> =>
     withDeadline(async (signal) => {
       const name = `botharness/${method}`;
       const request: ClientRequest = {
@@ -245,14 +259,15 @@ export function createHostClient(options: HostClientOptions): HostClient {
         method: name,
         payload: { args },
       };
-      const response = await options.carrier.request(`${route}/api/${name}`, {
+      const response = await options.carrier.request(`${via}${DEVICE_PREFIX}/api/${name}`, {
         method: 'POST',
         body: JSON.stringify(request),
+        headers: authorization,
         signal,
       });
-      if (response.status === 401 || response.status === 403) {
-        session = false;
-        throw new CredentialRefused('session');
+      if (response.status === 401) {
+        const code = refusalOf(await response.text());
+        if (code !== undefined) throw new CredentialRefused(code);
       }
       if (response.status >= 400) throw new Unreachable(`The Host answered ${response.status}.`);
       let envelope: Record<string, unknown>;
@@ -326,6 +341,21 @@ export function createHostClient(options: HostClientOptions): HostClient {
     }
   };
 
+  const pickRoute = async (): Promise<void> => {
+    let failure: unknown;
+    for (const candidate of routes) {
+      try {
+        await call('list', {}, candidate);
+        route = candidate;
+        return;
+      } catch (error) {
+        if (error instanceof CredentialRefused) throw error;
+        failure = error;
+      }
+    }
+    throw failure instanceof Error ? failure : new Unreachable('The Host could not be reached.');
+  };
+
   const openFollower = (follower: Follower): void => {
     const carrier = liveSocket;
     if (carrier === undefined || carrier.generation !== generation) return;
@@ -367,7 +397,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
   };
 
   const connectOnce = async (current: number): Promise<void> => {
-    if (!session) await login();
+    await pickRoute();
     const baselines = { roster: false, activity: false };
     let resolveReady: () => void = () => {};
     let rejectReady: (error: Error) => void = () => {};
@@ -394,56 +424,63 @@ export function createHostClient(options: HostClientOptions): HostClient {
       const frame: MuxClientFrame = { type: 'open', streamId, endpoint, payload: { args: {} } };
       socket?.send(JSON.stringify(frame));
     };
-    socket = options.carrier.openSocket(socketOrigin(route) + REMOTE_STREAM_MUX_PATH, {
-      open: () => {
-        if (current !== generation) return;
-        opened = true;
-        const carrier = socket;
-        liveSocket = { generation: current, send: (frame) => carrier?.send(JSON.stringify(frame)) };
-        follow('botharness/followRoster', (value) => {
-          const frame = value as RosterLiveFrame;
-          if (frame.type === 'baseline') {
-            baselines.roster = true;
-            if (baselines.activity) resolveReady();
-          } else {
-            applyRoster(frame);
-            notifyLive('roster');
+    socket = options.carrier.openSocket(
+      socketOrigin(route) + DEVICE_PREFIX + REMOTE_STREAM_MUX_PATH,
+      {
+        open: () => {
+          if (current !== generation) return;
+          opened = true;
+          const carrier = socket;
+          liveSocket = {
+            generation: current,
+            send: (frame) => carrier?.send(JSON.stringify(frame)),
+          };
+          follow('botharness/followRoster', (value) => {
+            const frame = value as RosterLiveFrame;
+            if (frame.type === 'baseline') {
+              baselines.roster = true;
+              if (baselines.activity) resolveReady();
+            } else {
+              applyRoster(frame);
+              notifyLive('roster');
+            }
+          });
+          follow('botharness/followActivity', (value) => {
+            const frame = value as ActivityLiveFrame;
+            if (frame.type !== 'baseline' && frame.type !== 'changed') return;
+            applyActivity(frame);
+            if (frame.type === 'changed') notifyLive('activity');
+            if (frame.type === 'baseline') {
+              baselines.activity = true;
+              if (baselines.roster) resolveReady();
+            }
+          });
+          for (const follower of followers) openFollower(follower);
+        },
+        message: (text) => {
+          if (current !== generation) return;
+          let frame: MuxServerFrame;
+          try {
+            frame = JSON.parse(text) as MuxServerFrame;
+          } catch {
+            return;
           }
-        });
-        follow('botharness/followActivity', (value) => {
-          const frame = value as ActivityLiveFrame;
-          if (frame.type !== 'baseline' && frame.type !== 'changed') return;
-          applyActivity(frame);
-          if (frame.type === 'changed') notifyLive('activity');
-          if (frame.type === 'baseline') {
-            baselines.activity = true;
-            if (baselines.roster) resolveReady();
+          const stream = streams.get(frame.streamId);
+          if (stream === undefined) return;
+          if (frame.type === 'item') stream.item(frame.value);
+          else {
+            streams.delete(frame.streamId);
+            stream.end(frame);
           }
-        });
-        for (const follower of followers) openFollower(follower);
+        },
+        closed: (reason) => {
+          if (current === generation) interruptFollowers(reason || 'The live connection closed.');
+          rejectReady(new Unreachable(reason || 'The live connection closed.'));
+          resolveClosed(reason);
+        },
       },
-      message: (text) => {
-        if (current !== generation) return;
-        let frame: MuxServerFrame;
-        try {
-          frame = JSON.parse(text) as MuxServerFrame;
-        } catch {
-          return;
-        }
-        const stream = streams.get(frame.streamId);
-        if (stream === undefined) return;
-        if (frame.type === 'item') stream.item(frame.value);
-        else {
-          streams.delete(frame.streamId);
-          stream.end(frame);
-        }
-      },
-      closed: (reason) => {
-        if (current === generation) interruptFollowers(reason || 'The live connection closed.');
-        rejectReady(new Unreachable(reason || 'The live connection closed.'));
-        resolveClosed(reason);
-      },
-    });
+      authorization,
+    );
     const deadline = setTimeout(
       () => rejectReady(new Unreachable('The live connection did not open in time.')),
       timeoutMs,
@@ -466,7 +503,6 @@ export function createHostClient(options: HostClientOptions): HostClient {
   };
 
   const loop = async (current: number): Promise<void> => {
-    let reloggedIn = false;
     while (running && current === generation) {
       try {
         await connectOnce(current);
@@ -477,12 +513,8 @@ export function createHostClient(options: HostClientOptions): HostClient {
         if (!running || current !== generation) return;
         socket?.close();
         if (error instanceof CredentialRefused) {
-          if (error.stage === 'session' && !reloggedIn) {
-            reloggedIn = true;
-            continue;
-          }
           running = false;
-          publish({ status: 'refused', route, reason: error.message });
+          publish({ status: 'refused', route, code: error.code, reason: error.message });
           return;
         }
         attempt += 1;
@@ -493,7 +525,6 @@ export function createHostClient(options: HostClientOptions): HostClient {
           reason: error instanceof Error ? error.message : 'The Host could not be reached.',
         });
       }
-      reloggedIn = false;
       await new Promise<void>((resolve) => {
         wake = resolve;
         retryTimer = setTimeout(resolve, backoff(attempt));
@@ -542,9 +573,13 @@ export function createHostClient(options: HostClientOptions): HostClient {
       try {
         return await call<T>(method, args);
       } catch (error) {
-        if (!(error instanceof CredentialRefused) || error.stage !== 'session') throw error;
-        await login();
-        return await call<T>(method, args);
+        if (error instanceof CredentialRefused && running) {
+          running = false;
+          generation += 1;
+          socket?.close();
+          publish({ status: 'refused', route, code: error.code, reason: error.message });
+        }
+        throw error;
       }
     },
     onLive(listener) {

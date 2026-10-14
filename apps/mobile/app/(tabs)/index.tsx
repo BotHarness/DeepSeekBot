@@ -14,6 +14,7 @@ import type { RosterBot, RosterChannel } from '../../src/host/client';
 import { hostSession, useHostSession, useHostSnapshot } from '../../src/host/host-session';
 import { BotAvatar } from '../../src/ui/bot-avatar';
 import { ConnectionBanner } from '../../src/ui/connection-banner';
+import { OpenFullClientButton } from '../../src/ui/open-full-client';
 import { t } from '../../src/ui/strings';
 import { stateColor, useTheme } from '../../src/ui/theme';
 
@@ -32,7 +33,7 @@ export default function RosterScreen() {
         <ActivityIndicator />
       </View>
     );
-  if (saved === null) return <Redirect href="/connect" />;
+  if (saved === null) return <Redirect href="/pair" />;
 
   const roster = snapshot.roster;
   const sections = [
@@ -61,14 +62,23 @@ export default function RosterScreen() {
       <Tabs.Screen
         options={{
           headerRight: () => (
-            <Pressable
-              onPress={() => void hostSession.unpair()}
-              accessibilityRole="button"
-              hitSlop={8}
-              style={{ paddingHorizontal: 16 }}
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 16,
+                paddingHorizontal: 16,
+              }}
             >
-              <Text style={{ color: theme.accent, fontSize: 16 }}>{t.unpair}</Text>
-            </Pressable>
+              <OpenFullClientButton target={{ kind: 'home' }} />
+              <Pressable
+                onPress={() => void hostSession.unpair()}
+                accessibilityRole="button"
+                hitSlop={8}
+              >
+                <Text style={{ color: theme.accent, fontSize: 16 }}>{t.unpair}</Text>
+              </Pressable>
+            </View>
           ),
         }}
       />
@@ -82,7 +92,7 @@ export default function RosterScreen() {
           <ConnectionBanner
             connection={snapshot.connection}
             onRetry={() => client?.retryNow()}
-            onPairAgain={() => router.push('/connect')}
+            onPairAgain={() => router.push('/pair')}
           />
         }
         ListEmptyComponent={null}
@@ -137,12 +147,24 @@ function BotRow({ bot }: { bot: RosterBot }) {
       <View style={{ flex: 1, gap: 2 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <Text
-            style={{ color: theme.ink, fontSize: 16, fontWeight: '600', flexShrink: 1 }}
+            style={{
+              color: theme.ink,
+              fontSize: 16,
+              fontWeight: '600',
+              flexShrink: 1,
+            }}
             numberOfLines={1}
           >
             {bot.displayName}
           </Text>
-          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: color }} />
+          <View
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: 4,
+              backgroundColor: color,
+            }}
+          />
           <Text style={{ color, fontSize: 13 }}>{bot.paused ? t.paused : t.state[bot.state]}</Text>
         </View>
         {bot.preview !== undefined ? (

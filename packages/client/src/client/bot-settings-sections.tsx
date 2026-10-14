@@ -19,6 +19,7 @@ import { GitSettings } from './git-settings.js';
 import { HumanNameSettings } from './human-name-settings.js';
 import { MessagingDefaultsSettings } from './messaging-defaults-settings.js';
 import { DefaultModelSettings, OnboardingSetting } from './onboarding-view.js';
+import { PairedDevicesSettings } from './paired-devices.js';
 import { ProfileBackupSettings } from './profile-backup.js';
 import type { ReleaseNotesController } from './release-notes.js';
 import { ReleaseSettings } from './release-notes-view.js';
@@ -94,6 +95,14 @@ export function CompanionsSection({
   return (
     <Rows>
       <CompanionSettings companion={companion} t={t} />
+    </Rows>
+  );
+}
+
+export function DevicesSection({ t }: PropsLocale<'botharness'>): ReactElement {
+  return (
+    <Rows>
+      <PairedDevicesSettings t={t} />
     </Rows>
   );
 }

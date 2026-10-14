@@ -35,7 +35,7 @@ export function createBridgeAudioResource(
     update({ loading: true });
     try {
       const response = await fetch(
-        '/api/botharness/attachment?' +
+        './api/botharness/attachment?' +
           new URLSearchParams({
             channelId,
             sourceEventId,

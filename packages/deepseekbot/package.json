@@ -18,8 +18,11 @@
     "@botharness/core": "link:../core",
     "@botharness/ui": "link:../client"
   },
+  "peerDependencies": {
+    "@deepseek-ai/dsh": "0.2.0-rc.2"
+  },
   "engines": {
-    "dsh": ">=0.2.0-0",
+    "dsh": "0.2.0-rc.2",
     "node": ">=22"
   },
   "dsh": {

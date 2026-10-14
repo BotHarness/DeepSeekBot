@@ -174,6 +174,29 @@ Usage:
   deepseekbot release-info [--since <version>]
   deepseekbot workspace-options
   deepseekbot grant-create <id> --workspace <workspace-id>
+  deepseekbot browser-access-set <id> (--enabled | --disabled)
+  deepseekbot computer-access-set <id> (--enabled | --disabled)
+  deepseekbot access <id>
+  deepseekbot access-set <id> --mode workspace-write|danger-full-access [--scope chat|assignments] [--acknowledge-risk]
+  deepseekbot settings <namespace>
+  deepseekbot settings-set <namespace> --patch-stdin
+  deepseekbot workspace-create <absolute-path>
+  deepseekbot group-create <name> --member <bot-id> [--member <bot-id> ...]
+  deepseekbot im-app-add <discord|slack|qq|dingtalk|wecom|matrix> --credentials-stdin
+  deepseekbot im-app-status <platform>
+  deepseekbot im-app-remove <platform> --app <app-id>
+  deepseekbot im-bind <id> --app <app-id>
+  deepseekbot im-unbind <id> --app <app-id>
+  deepseekbot im-status <id>
+  deepseekbot channel-connect <channel> --bot <id> --conversation <external-id> [--app <app-id>]
+  deepseekbot channel-ingests <channel>
+  deepseekbot browser-open <id>
+  deepseekbot browser-frame <id> --out <absolute-file>
+  deepseekbot browser-takeover <id> (--enabled | --disabled)
+  deepseekbot browser-stop <id>
+  deepseekbot computer-start [--target local|container]
+  deepseekbot computer-status
+  deepseekbot computer-stop
   deepseekbot bot-attention <id> [--limit <1-100>] [--cursor <source-id>] [--state <state>]
   deepseekbot bot-sessions <id> [--limit <1-100>]
   deepseekbot bot-activity <id> [--limit <1-100>]
@@ -2462,7 +2485,7 @@ export async function runBotCreateCli(
     }
     if (
       LIVE_COMMANDS.some((entry) => entry.command === command) ||
-      (command === 'channel-messages' &&
+      ((command === 'channel-messages' || command === 'grants') &&
         (values.host !== undefined || io.env['DEEPSEEKBOT_HOST'] !== undefined))
     ) {
       if (values.home !== undefined)

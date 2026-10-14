@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { watchPrivateInputNavigation } from '../src/client/private-input-navigation.js';
+import {
+  watchFullClientLanding,
+  watchPrivateInputNavigation,
+} from '../src/client/private-input-navigation.js';
 import { createStore } from '../src/client/store.js';
 
 describe('private input Chat navigation', () => {
@@ -40,5 +43,27 @@ describe('private input Chat navigation', () => {
     expect(open).not.toHaveBeenCalled();
     watchPrivateInputNavigation(store, locator, open)();
     expect(open).toHaveBeenCalledExactlyOnceWith('dm-ada', 'private-card');
+  });
+});
+
+describe('full-client landing from the phone app', () => {
+  const ada = { slug: 'ada', displayName: 'Ada', roles: [] } as never;
+
+  it('lands on Bot mode once the roster is ready and opens the DM only for a known Bot', () => {
+    const store = createStore();
+    const land = vi.fn();
+    watchFullClientLanding(store, { kind: 'dm', slug: 'ada' }, land);
+    expect(land).not.toHaveBeenCalled();
+    store.setRoster([ada], []);
+    expect(land).toHaveBeenCalledExactlyOnceWith('ada');
+    store.setRoster([ada], []);
+    expect(land).toHaveBeenCalledOnce();
+
+    const missing = vi.fn();
+    watchFullClientLanding(store, { kind: 'dm', slug: 'grace' }, missing);
+    expect(missing).toHaveBeenCalledExactlyOnceWith(undefined);
+    const home = vi.fn();
+    watchFullClientLanding(store, { kind: 'home' }, home);
+    expect(home).toHaveBeenCalledExactlyOnceWith(undefined);
   });
 });

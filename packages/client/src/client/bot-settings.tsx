@@ -12,6 +12,7 @@ export const BOT_SETTINGS_SECTIONS = {
   messaging: 'messaging',
   imApps: 'im-apps',
   companions: 'companions',
+  devices: 'devices',
   dataPrivacy: 'data-privacy',
   advanced: 'advanced',
   about: 'about',

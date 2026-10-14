@@ -67,7 +67,7 @@ export function createBridgeImageResource(
     };
     void boundedImage(request.signal, async () => {
       const response = await fetch(
-        '/api/botharness/attachment?' +
+        './api/botharness/attachment?' +
           new URLSearchParams({ channelId, sourceEventId, attachmentId }),
         { signal: request.signal },
       );

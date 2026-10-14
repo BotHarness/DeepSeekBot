@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { productDshRange, productDshVersions } from '../product-artifacts.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
-const packages = ['core', 'client', 'deepseekbot'];
+const packages = ['core', 'client', 'deepseekbot', 'browser', 'computer'];
 
 function manifest(packageName) {
   return JSON.parse(readFileSync(join(root, 'packages', packageName, 'package.json'), 'utf8'));
@@ -21,24 +21,17 @@ describe('DSH engine declaration', () => {
     expect(ranges[0]).toBe(productDshRange);
   });
 
-  it('separates the supported Host floor from the pinned build baseline', () => {
+  it('supports exactly the DSH release the bundled Computer runtime and the repository pin target', () => {
     const range = manifest('core').engines.dsh;
     const pinned = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).devDependencies[
       '@deepseek-ai/dsh'
     ];
-    expect(semver.minVersion(range)?.version).toBe('0.2.0-0');
-    expect(semver.satisfies(pinned, range, { includePrerelease: true })).toBe(true);
-  });
-
-  it('includes the qualified matrix with native DSH prerelease semantics', () => {
-    const range = manifest('core').engines.dsh;
+    const computerUse = manifest('computer').dependencies['@deepseek-ai/dsh-computer-use'];
+    expect(productDshVersions).toEqual([pinned]);
+    expect(computerUse).toBe(pinned);
     for (const version of productDshVersions)
       expect(semver.satisfies(version, range, { includePrerelease: true })).toBe(true);
-    expect(semver.satisfies('0.2.0', range, { includePrerelease: true })).toBe(true);
-    expect(semver.satisfies('0.1.6-alpha.2', range, { includePrerelease: true })).toBe(false);
-    for (const version of ['0.1.7-alpha.1', '0.1.7-rc.2', '0.1.7', '0.1.9'])
+    for (const version of ['0.2.0-rc.1', '0.2.1-alpha.1', '0.2.1-alpha.2', '0.2.0', '0.3.0-rc.1'])
       expect(semver.satisfies(version, range, { includePrerelease: true })).toBe(false);
-    expect(semver.satisfies('0.3.0-rc.1', range, { includePrerelease: true })).toBe(true);
-    expect(semver.satisfies('1.0.0', range, { includePrerelease: true })).toBe(true);
   });
 });

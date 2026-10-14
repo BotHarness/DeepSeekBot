@@ -3,7 +3,12 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { productManifest, productImProvider, providerManifest } from '../product-artifacts.mjs';
+import {
+  productDsh,
+  productManifest,
+  productImProvider,
+  providerManifest,
+} from '../product-artifacts.mjs';
 import {
   packagedProfileManifest,
   packagedWorkspaceSettings,
@@ -54,7 +59,7 @@ function artifactSet(version = '0.0.0-test.823') {
     join(root, 'artifacts.json'),
     JSON.stringify({
       productVersion: version,
-      dsh: '0.2.0-rc.1',
+      dsh: productDsh,
       providerRuntime: { runtimeFiles: 1, runtimeSha256: 'a'.repeat(64) },
       artifacts,
     }),
@@ -179,7 +184,7 @@ describe('packaged product selection', () => {
     ]) {
       writeFileSync(
         join(root, 'artifacts.json'),
-        JSON.stringify({ productVersion: '0.0.0-test.823', dsh: '0.2.0-rc.1', artifacts: invalid }),
+        JSON.stringify({ productVersion: '0.0.0-test.823', dsh: productDsh, artifacts: invalid }),
       );
       expect(() => verifiedProductArtifacts(root)).toThrow();
     }

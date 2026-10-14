@@ -27,7 +27,7 @@ DeepSeekBot installs into [DeepSeek Harness (DSH)](https://github.com/deepseek-a
 
 **Desktop:** in the DeepSeek Harness desktop app, go to **Plugins → Add plugin**, enter `deepseekbot`, keep the official npm registry and click **Install**, then **Enable now**. **Bot mode** appears in the sidebar.
 
-**CLI:** needs Node 22+ and DSH 0.2.0 or later (previews included).
+**CLI:** needs Node 22+ and DSH 0.2.0-rc.2.
 
 ```bash
 npm i -g @deepseek-ai/dsh@0.2.0-rc.2

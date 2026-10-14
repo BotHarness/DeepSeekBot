@@ -43,7 +43,7 @@ export function BridgeAudio({
         size={sizeBytes}
         url={state.url}
         downloadUrl={
-          '/api/botharness/attachment?' +
+          './api/botharness/attachment?' +
           new URLSearchParams({ channelId, sourceEventId, attachmentId })
         }
         onError={resource.fail}

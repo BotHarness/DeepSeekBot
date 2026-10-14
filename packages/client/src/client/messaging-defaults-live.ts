@@ -154,7 +154,7 @@ function ensureSource(): void {
   const shared = typed === undefined ? '&roster=1&activity=1' : '';
   const url =
     channelConsumer?.channelUrl === undefined
-      ? '/api/botharness/stream?scope=roster&activity=1'
+      ? './api/botharness/stream?scope=roster&activity=1'
       : channelConsumer.channelUrl + shared;
   if (source && sourceUrl === url) return;
   const next: LiveSource = new EventSource(url);
@@ -244,7 +244,7 @@ export function installTypedLive(next: TypedLive): () => void {
 export function openSharedChannel(url: string): ChannelEventSource {
   if (channelConsumer !== undefined) throw new Error('A document already owns a live Channel');
   const query = new URL(url, 'http://localhost').searchParams;
-  const consumer = new SharedSource('/api/botharness/stream?' + query.toString());
+  const consumer = new SharedSource('./api/botharness/stream?' + query.toString());
   consumers.add(consumer);
   channelConsumer = consumer;
   try {

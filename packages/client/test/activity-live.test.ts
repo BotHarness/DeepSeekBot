@@ -77,7 +77,7 @@ describe('live PersonaBot activity', () => {
     store.setRoster([BOT], []);
     const sources: Source[] = [];
     const dispose = mountActivityLive(store, (url) => {
-      expect(url).toBe('/api/botharness/stream?scope=activity');
+      expect(url).toBe('./api/botharness/stream?scope=activity');
       const source = new Source();
       sources.push(source);
       return source as unknown as EventSource;

@@ -14,7 +14,7 @@ import { border, color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
 
-const PATH = '/api/botharness/diagnostic-bundle';
+const PATH = './api/botharness/diagnostic-bundle';
 const NARROW = '@media (max-width: 560px)';
 
 const styles = stylex.create({

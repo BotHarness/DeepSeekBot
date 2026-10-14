@@ -860,10 +860,10 @@ export function channelAttachmentUrl(
 ): string {
   if (owner === undefined) throw new Error('Message ownership is required for attachments');
   if (ref.fileId !== undefined) {
-    return '/api/botharness/attachment?' + new URLSearchParams({ ...owner, fileId: ref.fileId });
+    return './api/botharness/attachment?' + new URLSearchParams({ ...owner, fileId: ref.fileId });
   }
   return (
-    '/api/botharness/attachment?' +
+    './api/botharness/attachment?' +
     new URLSearchParams({ hash: ref.hash, name: ref.name, ...owner })
   );
 }
@@ -874,7 +874,7 @@ export async function uploadChannelAttachment(
   uploadId?: string,
 ): Promise<ChannelAttachmentRef> {
   const response = await fetch(
-    `/api/botharness/attachment/upload?${new URLSearchParams({ name: file.name, ...(uploadId === undefined ? {} : { uploadId }) })}`,
+    `./api/botharness/attachment/upload?${new URLSearchParams({ name: file.name, ...(uploadId === undefined ? {} : { uploadId }) })}`,
     {
       method: 'POST',
       headers: { 'content-type': 'application/octet-stream' },

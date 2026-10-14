@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { createHostClient, type HostClient, type HostSnapshot } from '../src/host/client';
+import { parsePairingLink, redeemPairing } from '../src/host/pairing';
 import { checkRoute } from '../src/host/route';
 import { FakeHost } from './fake-host';
 import wire from './fixtures/host-wire.json';
@@ -16,10 +17,16 @@ const latest = wire.mux.roster.filter((frame) => frame.type === 'latest');
 let client: HostClient | undefined;
 afterEach(() => client?.stop());
 
-function connect(host: FakeHost, token = host.token): HostClient {
+const LOOPBACK = 'http://127.0.0.1:4100';
+
+function connect(
+  host: FakeHost,
+  credential = host.credential,
+  routes = [ROUTE, LOOPBACK],
+): HostClient {
   client = createHostClient({
-    route: ROUTE,
-    token,
+    routes,
+    credential,
     carrier: host.carrier,
     backoff: () => 5,
     timeoutMs: 200,
@@ -41,7 +48,7 @@ async function until(
 }
 
 describe('Host client', () => {
-  it('logs in with the launch token and renders the recorded Roster', async () => {
+  it('calls the device gateway with its credential and renders the recorded Roster', async () => {
     const host = new FakeHost();
     const target = connect(host);
     expect(target.getSnapshot().connection.status).toBe('connecting');
@@ -58,7 +65,8 @@ describe('Host client', () => {
     ]);
     expect(snapshot.roster?.bots[0]).toMatchObject({ avatarSeed: 2 });
     expect(snapshot.roster?.bots[0]?.avatarUrl).toBeUndefined();
-    expect(host.requests[0]).toBe(`GET ${ROUTE}/?token=${host.token}`);
+    expect(host.requests[0]).toBe(`POST ${ROUTE}/botharness-device/api/botharness/list`);
+    expect(host.requests.some((line) => line.startsWith('GET'))).toBe(false);
   });
 
   it('shows a Host state change live, from the recorded Activity frames', async () => {
@@ -83,7 +91,7 @@ describe('Host client', () => {
     await until(target, () => host.requests.length === reads + 2);
   });
 
-  it('shows unreachable while the Host is down and reconnects with its cookie after restart', async () => {
+  it('shows unreachable while the Host is down and reconnects with the same credential after restart', async () => {
     const host = new FakeHost();
     const target = connect(host);
     await until(target, (s) => s.connection.status === 'connected');
@@ -91,39 +99,32 @@ describe('Host client', () => {
     const down = await until(target, (s) => s.connection.status === 'unreachable');
     expect(down.connection).toMatchObject({ route: ROUTE });
     expect(down.roster?.bots).toHaveLength(1);
-    const logins = host.requests.filter((line) => line.startsWith('GET')).length;
     host.restart();
     await until(target, (s) => s.connection.status === 'connected');
-    expect(host.requests.filter((line) => line.startsWith('GET'))).toHaveLength(logins);
   });
 
-  it('logs in again when the session cookie stops verifying but the token is current', async () => {
+  it('uses the first route that answers', async () => {
+    const host = new FakeHost();
+    host.unreachable.add(ROUTE);
+    const target = connect(host);
+    const snapshot = await until(target, (s) => s.connection.status === 'connected');
+    expect(snapshot.connection.route).toBe(LOOPBACK);
+  });
+
+  it('asks to pair again when the Host revokes this phone, closing its live stream', async () => {
     const host = new FakeHost();
     const target = connect(host);
     await until(target, (s) => s.connection.status === 'connected');
-    host.kill();
-    await until(target, (s) => s.connection.status === 'unreachable');
-    host.resetSecret();
-    host.up = true;
-    await until(target, (s) => s.connection.status === 'connected');
+    host.revoke();
+    const refused = await until(target, (s) => s.connection.status === 'refused');
+    expect(refused.connection).toMatchObject({ code: 'device-revoked' });
   });
 
-  it('asks to pair again when the token is refused', async () => {
+  it('asks to pair again when the Host does not know this phone', async () => {
     const host = new FakeHost();
-    const target = connect(host, 'stale-token');
+    const target = connect(host, 'device-9.unknown');
     const snapshot = await until(target, (s) => s.connection.status === 'refused');
-    expect(snapshot.connection).toMatchObject({ reason: expect.stringMatching(/Pair again/) });
-  });
-
-  it('asks to pair again when the Host restarted with a new home and the old token', async () => {
-    const host = new FakeHost();
-    const target = connect(host);
-    await until(target, (s) => s.connection.status === 'connected');
-    host.kill();
-    await until(target, (s) => s.connection.status === 'unreachable');
-    host.resetSecret();
-    host.restart();
-    await until(target, (s) => s.connection.status === 'refused');
+    expect(snapshot.connection).toMatchObject({ code: 'device-unknown' });
   });
 
   it('fails a generation when the Host refuses a stream, then keeps retrying', async () => {
@@ -131,14 +132,14 @@ describe('Host client', () => {
     const carrier = host.carrier;
     let refuse = true;
     client = createHostClient({
-      route: ROUTE,
-      token: host.token,
+      routes: [ROUTE],
+      credential: host.credential,
       backoff: () => 5,
       timeoutMs: 200,
       carrier: {
         ...carrier,
-        openSocket(url, events) {
-          const socket = carrier.openSocket(url, events);
+        openSocket(url, events, headers) {
+          const socket = carrier.openSocket(url, events, headers);
           return {
             ...socket,
             send(text) {
@@ -161,13 +162,15 @@ describe('Host client', () => {
     await until(client, (s) => s.connection.status === 'connected');
   });
 
-  it('never exposes the launch token in its published state', async () => {
+  it('never exposes the device credential in its published state', async () => {
     const host = new FakeHost();
-    const target = connect(host, 'stale-token');
+    const target = connect(host);
     const states: string[] = [];
     target.subscribe(() => states.push(JSON.stringify(target.getSnapshot())));
+    await until(target, (s) => s.connection.status === 'connected');
+    host.revoke();
     await until(target, (s) => s.connection.status === 'refused');
-    expect(states.join('\n')).not.toContain('stale-token');
+    expect(states.join('\n')).not.toContain('secret-1');
   });
 });
 
@@ -184,5 +187,69 @@ describe('route check', () => {
     expect(checkRoute('http://studio.tailnet-example.ts.net').ok).toBe(false);
     expect(checkRoute('https://example.com').ok).toBe(false);
     expect(checkRoute('https://studio.tailnet-example.ts.net/?token=x').ok).toBe(false);
+  });
+});
+
+function link(payload: Record<string, unknown>, scheme = 'deepseekbot'): string {
+  return `${scheme}://pair?p=${Buffer.from(JSON.stringify(payload)).toString('base64url')}`;
+}
+
+describe('pairing', () => {
+  const payload = {
+    v: 1,
+    host: { id: 'host-1', name: 'studio' },
+    offer: 'offer-1',
+    routes: [ROUTE, 'http://evil.example', LOOPBACK],
+    expiresAt: '2099-01-01T00:00:00.000Z',
+  };
+
+  it('reads the QR link and keeps only routes the app accepts', () => {
+    expect(parsePairingLink(link(payload))).toEqual({
+      ok: true,
+      payload: {
+        host: payload.host,
+        offer: 'offer-1',
+        routes: [ROUTE, LOOPBACK],
+        expiresAt: payload.expiresAt,
+      },
+    });
+    expect(parsePairingLink(link(payload, 'deepseekbot-dev')).ok).toBe(true);
+    expect(parsePairingLink('https://example.com/?p=x')).toEqual({
+      ok: false,
+      code: 'link-invalid',
+    });
+    expect(parsePairingLink(link({ ...payload, expiresAt: '2000-01-01T00:00:00Z' }))).toEqual({
+      ok: false,
+      code: 'link-expired',
+    });
+    expect(parsePairingLink(link({ ...payload, routes: ['http://10.0.0.2:3000'] }))).toEqual({
+      ok: false,
+      code: 'no-route',
+    });
+  });
+
+  it('redeems the offer once through the first route that answers', async () => {
+    const host = new FakeHost();
+    host.unreachable.add(ROUTE);
+    const parsed = parsePairingLink(link(payload));
+    if (!parsed.ok) throw new Error('link rejected');
+    const paired = await redeemPairing({
+      payload: parsed.payload,
+      deviceName: 'iPhone',
+      carrier: host.carrier,
+    });
+    expect(paired).toEqual({
+      ok: true,
+      host: {
+        hostId: 'host-1',
+        hostName: 'studio',
+        routes: [LOOPBACK, ROUTE],
+        deviceId: 'device-1',
+        credential: host.credential,
+      },
+    });
+    expect(
+      await redeemPairing({ payload: parsed.payload, deviceName: 'iPhone', carrier: host.carrier }),
+    ).toEqual({ ok: false, code: 'offer-invalid' });
   });
 });

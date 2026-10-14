@@ -6,22 +6,23 @@ type NativeWebSocket = new (
   options: { headers: Record<string, string> },
 ) => WebSocket;
 
-export function nativeCarrier(route: string): HostCarrier {
+export function nativeCarrier(): HostCarrier {
   return {
     async request(url, init) {
       const response = await fetch(url, {
         method: init.method,
         signal: init.signal,
-        credentials: 'include',
-        headers: init.body === undefined ? {} : { 'content-type': 'application/json' },
+        credentials: 'omit',
+        headers: {
+          ...init.headers,
+          ...(init.body === undefined ? {} : { 'content-type': 'application/json' }),
+        },
         ...(init.body === undefined ? {} : { body: init.body }),
       });
       return { status: response.status, text: () => response.text() };
     },
-    openSocket(url, events) {
-      const socket = new (WebSocket as unknown as NativeWebSocket)(url, undefined, {
-        headers: { origin: route },
-      });
+    openSocket(url, events, headers = {}) {
+      const socket = new (WebSocket as unknown as NativeWebSocket)(url, undefined, { headers });
       let done = false;
       const closed = (reason: string): void => {
         if (done) return;

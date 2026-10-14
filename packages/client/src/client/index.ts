@@ -13,8 +13,11 @@ import type {} from '@deepseek-ai/dsh-api-session-controller/client';
 import type { SessionId } from '@deepseek-ai/dsh-session/types';
 
 import { BOT_MODE_NAMESPACE, type BotModeSettings } from '../bot-mode-settings.js';
-import { privateInputLocator } from '../../../core/src/credentials/web-locator.js';
-import { watchPrivateInputNavigation } from './private-input-navigation.js';
+import {
+  fullClientLocator,
+  privateInputLocator,
+} from '../../../core/src/credentials/web-locator.js';
+import { watchFullClientLanding, watchPrivateInputNavigation } from './private-input-navigation.js';
 import { createNativeHostFiles } from './host-file-actions.js';
 import { createFileOpenPreferences } from './file-open-preferences.js';
 import { createActions, type BridgeActions } from './actions.js';
@@ -41,6 +44,7 @@ import {
   AdvancedSection,
   CompanionsSection,
   DataPrivacySection,
+  DevicesSection,
   GeneralSection,
   MessagingSection,
   ModelsSection,
@@ -49,7 +53,7 @@ import { ReleaseNotesController } from './release-notes.js';
 import { TelemetryNoticeController } from './telemetry-notice.js';
 import './bot-settings-slot.js';
 import { BotMain } from './bot-main.js';
-import { MobileBotPanel } from './mobile-bot-panel.js';
+import { expectMobileConversation, MobileBotPanel } from './mobile-bot-panel.js';
 import { mobileBotViewport, subscribeMobileBotViewport } from './mobile-viewport.js';
 import { clearConversationDrafts } from './conversation-draft.js';
 import { BotSidebar, createBotPanelEntry } from './bot-sidebar.js';
@@ -156,7 +160,7 @@ export function apply(ctx: ClientContext): void {
   const nativeChatT = ctx.locale.bind('chat');
   const call = createBridgeCall(ctx);
   const profileContext = async (): Promise<{ profileId: string }> => {
-    const response = await fetch('/api/botharness/companion', { credentials: 'same-origin' });
+    const response = await fetch('./api/botharness/companion', { credentials: 'same-origin' });
     if (!response.ok) throw new Error('Companion context unavailable');
     const value: unknown = await response.json();
     if (
@@ -201,7 +205,7 @@ export function apply(ctx: ClientContext): void {
     context: profileContext,
     source: (url) => companionSource?.(url) ?? new EventSource(url),
     update: async (value) => {
-      const response = await fetch('/api/botharness/companion', {
+      const response = await fetch('./api/botharness/companion', {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
@@ -598,6 +602,19 @@ export function apply(ctx: ClientContext): void {
       settingsCtx.slots.register(
         {
           name: 'botharness.settings.section',
+          id: BOT_SETTINGS_SECTIONS.devices,
+          order: 45,
+          label: () => t('botSettings.section.devices'),
+          locale: LOCALE_NS,
+          inject: () => ({}),
+        },
+        DevicesSection,
+      ),
+    );
+    settingsCtx.slots.inject('botharness.settings.section', () =>
+      settingsCtx.slots.register(
+        {
+          name: 'botharness.settings.section',
           id: BOT_SETTINGS_SECTIONS.dataPrivacy,
           order: 50,
           label: () => t('botSettings.section.dataPrivacy'),
@@ -855,6 +872,7 @@ export function apply(ctx: ClientContext): void {
     ctx.effect(
       () =>
         watchPrivateInputNavigation(store, privateLocator, (channelId, messageId) => {
+          expectMobileConversation();
           ctx.layout.selectPanel(PANEL_ID);
           void actions.openChannelAtMessage(channelId, messageId).catch(() => {
             ctx.logger.warn('botharness: private input card locator unavailable');
@@ -863,7 +881,25 @@ export function apply(ctx: ClientContext): void {
       'botharness: private input Chat locator',
     );
   }
-  if (privateLocator === undefined && viewToRestore !== undefined) {
+  const landing =
+    typeof window === 'undefined' || privateLocator !== undefined
+      ? undefined
+      : fullClientLocator(window.location.hash);
+  if (landing !== undefined) {
+    ctx.effect(
+      () =>
+        watchFullClientLanding(store, landing, (slug) => {
+          if (slug !== undefined) expectMobileConversation();
+          ctx.layout.selectPanel(PANEL_ID);
+          if (slug === undefined) return;
+          void actions.openBot(slug).catch(() => {
+            ctx.logger.warn('botharness: full-client landing Bot unavailable');
+          });
+        }),
+      'botharness: full-client landing',
+    );
+  }
+  if (privateLocator === undefined && landing === undefined && viewToRestore !== undefined) {
     ctx.effect(() => {
       let restored = false;
       const restore = (): void => {

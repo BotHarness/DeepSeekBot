@@ -9,6 +9,7 @@ export function nodeCarrier(): HostCarrier {
         signal: init.signal,
         redirect: 'manual',
         headers: {
+          ...init.headers,
           ...(cookie ? { cookie } : {}),
           ...(init.body === undefined ? {} : { 'content-type': 'application/json' }),
         },
@@ -18,9 +19,13 @@ export function nodeCarrier(): HostCarrier {
       if (issued.length > 0) cookie = issued.map((entry) => entry.split(';')[0]).join('; ');
       return { status: response.status, text: () => response.text() };
     },
-    openSocket(url, events) {
+    openSocket(url, events, headers = {}) {
       const socket = new WebSocket(url, {
-        headers: { cookie, origin: url.replace(/^ws/u, 'http').replace(/\/api\/.*$/u, '') },
+        headers: {
+          ...headers,
+          ...(cookie ? { cookie } : {}),
+          origin: new URL(url.replace(/^ws/u, 'http')).origin,
+        },
       } as unknown as string[]);
       let done = false;
       const closed = (reason: string): void => {

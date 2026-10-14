@@ -13,6 +13,7 @@ import {
   type RequestRef,
 } from '../src/host/requests';
 import type { HumanAttentionItem } from '../src/host/wire';
+import { pairWithLiveHost } from './live-pairing';
 import { nodeCarrier } from './node-carrier';
 
 const live = process.env['MOBILE_LIVE_HOST_URL'];
@@ -42,11 +43,20 @@ function listed(inbox: Inbox, id: string): boolean | undefined {
 
 describe.skipIf(live === undefined)('Human Inbox against a live isolated Host', () => {
   it('approves a Tool call, sees a computer decision, and answers a question', async () => {
-    const [route, token] = live!.split('/?token=') as [string, string];
-    const client: HostClient = createHostClient({ route, token, carrier: nodeCarrier() });
+    const phone = await pairWithLiveHost(live!, 'mobile inbox live test');
+    const other = await pairWithLiveHost(live!, 'mobile inbox live test, other device');
+    const client: HostClient = createHostClient({
+      routes: phone.host.routes,
+      credential: phone.host.credential,
+      carrier: nodeCarrier(),
+    });
     client.start();
     const inbox = createInbox(client);
-    const computer = createHostClient({ route, token, carrier: nodeCarrier() });
+    const computer = createHostClient({
+      routes: other.host.routes,
+      credential: other.host.credential,
+      carrier: nodeCarrier(),
+    });
     const marker = `/tmp/mobile-inbox-${Date.now()}.txt`;
     try {
       await until(

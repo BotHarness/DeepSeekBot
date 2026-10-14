@@ -6,6 +6,7 @@ export interface HostResponse {
 export interface HostRequest {
   method: 'GET' | 'POST';
   body?: string;
+  headers?: Record<string, string>;
   signal: AbortSignal;
 }
 
@@ -22,5 +23,5 @@ export interface HostSocket {
 
 export interface HostCarrier {
   request(url: string, init: HostRequest): Promise<HostResponse>;
-  openSocket(url: string, events: HostSocketEvents): HostSocket;
+  openSocket(url: string, events: HostSocketEvents, headers?: Record<string, string>): HostSocket;
 }

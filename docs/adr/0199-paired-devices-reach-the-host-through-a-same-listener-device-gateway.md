@@ -53,7 +53,7 @@ The probe printed no token, cookie or device credential. The spike code and prob
 ## Trust boundaries
 
 - `dsh web` stays loopback-bound. Phones arrive only through an authenticated route, Tailscale HTTPS first, and the Host's trusted-host configuration must name that route for the operator's own browser to work there.
-- The device credential is an explicit header, not ambient browser state, so DNS rebinding and cross-site requests cannot spend it. The gateway refuses any request that carries an `Origin` header, because native devices send none and a browser has no business on these routes.
+- The device credential is an explicit header, not ambient browser state, so DNS rebinding and cross-site requests cannot spend it. The gateway refuses a request whose `Origin` names another host (`403 origin-refused`). Native HTTP requests send no `Origin`; native WebSocket stacks (iOS SocketRocket, Android OkHttp) stamp the socket's own origin, which is the same host and is accepted (amended in [#1652](https://github.com/BotHarness/DeepSeekBot/issues/1652): refusing every `Origin` would have refused the phone's own stream).
 - A paired device has the Human's full authority in v1, the same as the Web Client (spec user story 15). The gateway adds no per-device scopes.
 - Gateway diagnostics are bounded, structured developer log entries (offer created, redeemed or expired; device admitted, refused or revoked), and never contain the secret, the DSH cookie, the launch token or a tailnet address.
 
@@ -63,3 +63,23 @@ The probe printed no token, cookie or device credential. The spike code and prob
 - The gateway depends on four public DSH surfaces: `webServer.register`, `webServer.registerUpgrade`, `connection.fetch.register` and `connection.authenticatedUrl`. A change to any of them is a pinned-DSH upgrade check.
 - Each device request costs one loopback hop on the Host. Body limits come from the native `/api` carrier behind the gateway.
 - Global sign-out of every browser and device remains a DSH operation (rotating `client-connection/browser-session`). It ends the gateway's loopback cookie too, and the gateway mints a new one on the next request.
+
+## Implementation (#1652)
+
+[#1652](https://github.com/BotHarness/DeepSeekBot/issues/1652) built this decision in `packages/core/src/devices/`. Details the decision left open:
+
+- **Prefix and routes.** The device-facing prefix is `/botharness-device`: `POST /botharness-device/pair` redeems an offer, `/botharness-device/api/*` forwards unary calls and `/botharness-device/api/remote.mux` splices the stream. Management is `GET /api/botharness/devices`, `POST /api/botharness/devices/offer` and `POST /api/botharness/devices/revoke`.
+- **Pairing link.** The QR code and the copyable link are the same deep link, `deepseekbot://pair?p=<base64url JSON>`, carrying the Host id and name, the one-time offer, its expiry and the ordered route list. Offers live only in Host memory for five minutes, so a Host restart voids every unredeemed offer.
+- **Routes.** The Host offers its Tailscale HTTPS name when `tailscale serve` publishes the `dsh web` port, the Web Client's own origin when it is a tailnet HTTPS origin, and loopback last for simulators. Device traffic never reaches DSH's Host/Origin fence (the gateway forwards with a loopback authority), so pairing needs no `--trusted-host`.
+- **Forwarding.** Unary requests and responses are streamed, not buffered, and `Set-Cookie` is never passed back. When the loopback cookie stops verifying (global sign-out), a unary call answers `503 host-session-unavailable` and the next request mints a new cookie; a stream upgrade retries once with a fresh cookie.
+- **Last seen** is written at most once a minute per device. Revocation also cuts in-flight unary responses, not only stream sockets.
+- **Live proof.** `scripts/e2e-device-pairing.mjs` runs pair → Host restart → device call and stream → revoke → refused on an isolated Host, and checks that the credential is absent from the Host log and the developer log.
+
+## Full Web Client in the app (#1654)
+
+[#1654](https://github.com/BotHarness/DeepSeekBot/issues/1654) opens the Host's full Web Client in the app's WebView with the same device authority. A WebView cannot add the `Authorization` header to every subresource, script request and WebSocket, so the gateway also serves a web directory:
+
+- **Directory.** `/botharness-device/web/*` forwards to the same path without the prefix over loopback with the Host-held cookie, and `/botharness-device/web/api/remote.mux` splices the stream. DSH already serves the Web Client for a sub-path (the index carries `<base href="./">`, and its `/api` calls and stream URL are relative), so BotHarness client code also uses relative `./api/botharness/…` paths. Browser and Computer viewer controls still use absolute paths and are not reachable from the WebView yet.
+- **Credential once, then a session cookie.** The app sends `Authorization: Device <id>.<secret>` only with the WebView's first load. The gateway admits it and answers with an `HttpOnly; SameSite=Strict` cookie scoped to `/botharness-device/web/` (`Secure` behind an HTTPS route). The cookie names a random web session kept only in Host memory for at most 12 hours; the device secret and the DSH cookie never reach the page. No token is put in the URL.
+- **Revocation.** Every web request and stream upgrade re-checks the session's device record, so revoking the device refuses the next request with `401 device-revoked` and closes the WebView's open stream with the device's other streams. A Host restart forgets web sessions; the app re-presents the credential the next time the full client opens.
+- **Landing.** The app adds a hash the Web Client reads once: `#botharness-private-input=…` (existing) for a private input request, `#botharness-open=dm:<slug>` for a PersonaBot DM and `#botharness-open=home` for Bot mode.

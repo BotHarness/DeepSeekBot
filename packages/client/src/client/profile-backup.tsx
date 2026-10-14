@@ -59,7 +59,7 @@ const styles = stylex.create({
   },
 });
 
-const PATH = '/api/botharness/profile-backup';
+const PATH = './api/botharness/profile-backup';
 interface Preview {
   bots: number;
   files: number;

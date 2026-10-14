@@ -161,9 +161,9 @@ it('gives roster and Activity their own typed streams and leaves only the Channe
     activity!.interrupted();
     expect(feed.readyState).toBe(0);
 
-    const live = openSharedChannel('/api/botharness/stream?channelId=c1&after=2');
+    const live = openSharedChannel('./api/botharness/stream?channelId=c1&after=2');
     expect(sources).toHaveLength(1);
-    expect(sources[0]!.url).toBe('/api/botharness/stream?channelId=c1&after=2');
+    expect(sources[0]!.url).toBe('./api/botharness/stream?channelId=c1&after=2');
     live.close();
     expect(sources[0]!.closed).toBe(true);
 
@@ -305,7 +305,7 @@ it('presents the typed Companion stream as the source the Companion owner consum
       opens.push([resume, lastEventId]);
       return feed.items(signal) as never;
     },
-  }))('/api/botharness/companion?subscribe=1&resume=r1');
+  }))('./api/botharness/companion?subscribe=1&resume=r1');
   const seen: unknown[] = [];
   source.addEventListener('companion/baseline', (event) =>
     seen.push(['baseline', (event as MessageEvent).data]),

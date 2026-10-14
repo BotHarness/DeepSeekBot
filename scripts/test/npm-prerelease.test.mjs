@@ -19,7 +19,7 @@ import {
   reusePublishedProvider,
 } from '../npm-prerelease.mjs';
 import { providerReleasePlan } from '../npm-provider-release.mjs';
-import { productImProvider } from '../product-artifacts.mjs';
+import { productDsh, productImProvider } from '../product-artifacts.mjs';
 
 const roots = [];
 afterEach(() => roots.splice(0).forEach((r) => rmSync(r, { recursive: true, force: true })));
@@ -70,7 +70,7 @@ function fixture(productVersion = '0.1.0-alpha.1') {
     join(root, 'artifacts.json'),
     JSON.stringify({
       productVersion,
-      dsh: productImProvider.upstream.dsh,
+      dsh: productDsh,
       providerRuntime: runtime,
       artifacts,
     }),
@@ -80,7 +80,7 @@ function fixture(productVersion = '0.1.0-alpha.1') {
     sourceSha: 'b'.repeat(40),
     sourceDirty: false,
     providerSource: productImProvider.upstream.source,
-    dsh: productImProvider.upstream.dsh,
+    dsh: productDsh,
     distTag: distTagFor(productVersion),
     publicationOrder,
     artifactsSha256: sha256(readFileSync(join(root, 'artifacts.json'))),

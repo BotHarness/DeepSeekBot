@@ -41,7 +41,7 @@ export default function InboxScreen() {
         <ConnectionBanner
           connection={snapshot.connection}
           onRetry={() => client?.retryNow()}
-          onPairAgain={() => router.push('/connect')}
+          onPairAgain={() => router.push('/pair')}
         />
       }
     />

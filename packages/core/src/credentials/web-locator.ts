@@ -1,3 +1,5 @@
+import { isValidSlug } from '../bots/slug.js';
+
 const PREFIX = '#botharness-private-input=';
 
 export function privateInputWebUrl(base: string, channelId: string, messageId: string): string {
@@ -31,6 +33,34 @@ export function privateInputLocator(
     )
       return undefined;
     return { channelId: value[0], messageId: value[1] };
+  } catch {
+    return undefined;
+  }
+}
+
+export type FullClientTarget =
+  | { kind: 'home' }
+  | { kind: 'dm'; slug: string }
+  | { kind: 'private-input'; channelId: string; messageId: string };
+
+const OPEN_PREFIX = '#botharness-open=';
+
+export function fullClientHash(target: FullClientTarget): string {
+  if (target.kind === 'private-input')
+    return PREFIX + encodeURIComponent(JSON.stringify([target.channelId, target.messageId]));
+  return OPEN_PREFIX + (target.kind === 'dm' ? `dm:${encodeURIComponent(target.slug)}` : 'home');
+}
+
+export function fullClientLocator(
+  hash: string,
+): { kind: 'home' } | { kind: 'dm'; slug: string } | undefined {
+  if (!hash.startsWith(OPEN_PREFIX) || hash.length > 256) return undefined;
+  const value = hash.slice(OPEN_PREFIX.length);
+  if (value === 'home') return { kind: 'home' };
+  if (!value.startsWith('dm:')) return undefined;
+  try {
+    const slug = decodeURIComponent(value.slice(3));
+    return isValidSlug(slug) ? { kind: 'dm', slug } : undefined;
   } catch {
     return undefined;
   }

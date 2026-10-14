@@ -638,7 +638,7 @@ it('loads checked images into their message bubble on open, retries refusals and
     );
     expect(container.querySelector('.bh-external-source-file img')).toBeNull();
     expect(fetchImage.mock.calls[1]?.[0]).toBe(
-      '/api/botharness/attachment?slug=ada&sourceEventId=source-1&attachmentId=image-one',
+      './api/botharness/attachment?slug=ada&sourceEventId=source-1&attachmentId=image-one',
     );
     expect(fetchImage.mock.calls[1]?.[1].credentials).toBe('same-origin');
     await click('Close source');
@@ -807,7 +807,7 @@ it('loads checked video into its bubble without autoplay, retries refusals and p
     expect(player.controls).toBe(true);
     expect(player.autoplay).toBe(false);
     expect(fetchVideo.mock.calls[1]?.[0]).toBe(
-      '/api/botharness/attachment?slug=ada&sourceEventId=source-1&attachmentId=video-one',
+      './api/botharness/attachment?slug=ada&sourceEventId=source-1&attachmentId=video-one',
     );
     expect(fetchVideo.mock.calls[1]?.[1].credentials).toBe('same-origin');
     await click('Close source');

@@ -18,7 +18,8 @@ export function BridgeFile({
   t: BotHarnessTranslate;
 }): ReactElement {
   const url =
-    '/api/botharness/attachment?' + new URLSearchParams({ channelId, sourceEventId, attachmentId });
+    './api/botharness/attachment?' +
+    new URLSearchParams({ channelId, sourceEventId, attachmentId });
   return (
     <div className="bh-message-attachment">
       <a

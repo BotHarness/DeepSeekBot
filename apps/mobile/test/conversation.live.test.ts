@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { createHostClient, type HostClient } from '../src/host/client';
 import { createConversation, type ConversationSnapshot } from '../src/host/conversation';
+import { pairWithLiveHost } from './live-pairing';
 import { nodeCarrier } from './node-carrier';
 
 const live = process.env['MOBILE_LIVE_HOST_URL'];
@@ -29,8 +30,12 @@ function unique(snapshot: ConversationSnapshot): boolean {
 
 describe.skipIf(live === undefined)('DM conversation against a live isolated Host', () => {
   it('sends, streams the real reply and resumes after the app was away', async () => {
-    const [route, token] = live!.split('/?token=') as [string, string];
-    const client: HostClient = createHostClient({ route, token, carrier: nodeCarrier() });
+    const { route, operator: actor, host } = await pairWithLiveHost(live!, 'mobile DM live test');
+    const client: HostClient = createHostClient({
+      routes: host.routes,
+      credential: host.credential,
+      carrier: nodeCarrier(),
+    });
     client.start();
     try {
       await until(client.getSnapshot, (s) => s.connection.status === 'connected', 20_000);
@@ -67,11 +72,6 @@ describe.skipIf(live === undefined)('DM conversation against a live isolated Hos
       console.info(`drafts observed: ${drafts.length}; reply: ${replied.messages.at(-1)?.body}`);
 
       client.stop();
-      const actor = nodeCarrier();
-      await actor.request(`${route}/?token=${token}`, {
-        method: 'GET',
-        signal: AbortSignal.timeout(5000),
-      });
       const away = `human-${crypto.randomUUID()}`;
       await actor.request(`${route}/api/botharness/channelSend`, {
         method: 'POST',

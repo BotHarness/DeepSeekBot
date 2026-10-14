@@ -65,8 +65,8 @@ function host(): FakeHost {
 
 function connect(fake: FakeHost): HostClient {
   client = createHostClient({
-    route: ROUTE,
-    token: fake.token,
+    routes: [ROUTE],
+    credential: fake.credential,
     carrier: fake.carrier,
     backoff: () => 5,
     timeoutMs: 200,

@@ -2275,7 +2275,7 @@ export function createActions(
       const target = await loadMessageAttachmentTarget(call, channelId, messageId, fileId);
       const anchor = document.createElement('a');
       anchor.href =
-        '/api/botharness/attachment?' + new URLSearchParams({ channelId, messageId, fileId });
+        './api/botharness/attachment?' + new URLSearchParams({ channelId, messageId, fileId });
       anchor.download = target.relativePath;
       document.body.append(anchor);
       anchor.click();

@@ -2172,6 +2172,30 @@ const SECRET_MCP_ENABLEMENT_MIGRATION: SchemaMigration = {
   },
 };
 
+const DEVICE_PAIRING_MIGRATION: SchemaMigration = {
+  generation: 91,
+  module: 'device-pairing',
+  description: 'Record the Host identity and paired devices for the device gateway (ADR-0199)',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE device_pairing_host (
+        singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+        host_id TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE TABLE paired_devices (
+        device_id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        secret_hash TEXT NOT NULL,
+        public_key TEXT,
+        paired_at TEXT NOT NULL,
+        last_seen_at TEXT,
+        revoked_at TEXT
+      );
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -2262,4 +2286,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SECRET_MCP_SERVER_MIGRATION,
   PROACTIVE_POST_LIMIT_MIGRATION,
   SECRET_MCP_ENABLEMENT_MIGRATION,
+  DEVICE_PAIRING_MIGRATION,
 ]);

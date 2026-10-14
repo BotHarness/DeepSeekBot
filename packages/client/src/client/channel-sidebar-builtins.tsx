@@ -246,7 +246,7 @@ function BotInboxItemRow({
     else if (preview) setImageErrors((value) => ({ ...value, [attachmentId]: false }));
     try {
       const response = await fetch(
-        '/api/botharness/attachment?' +
+        './api/botharness/attachment?' +
           new URLSearchParams({
             slug: item.botSlug,
             sourceEventId: item.id,

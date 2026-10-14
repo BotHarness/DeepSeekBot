@@ -68,7 +68,7 @@ describe('Diagnostic bundle dialog', () => {
     const { host, onClose } = await render(fetch);
     expect(dialog().getAttribute('aria-label')).toBe('导出诊断包');
     expect(fetch).toHaveBeenCalledWith(
-      '/api/botharness/diagnostic-bundle/preview',
+      './api/botharness/diagnostic-bundle/preview',
       expect.objectContaining({ method: 'POST', body: JSON.stringify(selection) }),
     );
     expect(host.querySelector('[data-diagnostic-preview]')?.textContent).toContain('QA');

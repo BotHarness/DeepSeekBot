@@ -158,6 +158,12 @@ export function MobileBotPanel(props: MobileBotPanelProps): ReactElement {
   return mobile ? <MobileNavigation {...props} /> : <BotPanel {...props} />;
 }
 
+let landingIntent = false;
+
+export function expectMobileConversation(): void {
+  landingIntent = true;
+}
+
 function MobileNavigation(props: MobileBotPanelProps): ReactElement {
   const { prefs, actions, companion, useBotModePrefs, t } = props;
   const botIcon = useBotModePrefs((value) => value.botIcon);
@@ -167,15 +173,19 @@ function MobileNavigation(props: MobileBotPanelProps): ReactElement {
     store.setMode('bot');
     const releaseShell = mountMobileBotShell(node);
     let selection = store.getSnapshot().selection;
+    const follow = (next: typeof selection): void => {
+      if (next === undefined || (!navigationIntent.current && !landingIntent)) return;
+      navigationIntent.current = false;
+      landingIntent = false;
+      setPage(next.kind === 'inbox' ? 'inbox' : 'conversation');
+    };
     const unsubscribe = store.subscribe(() => {
       const next = store.getSnapshot().selection;
       if (next === selection) return;
       selection = next;
-      if (next !== undefined && navigationIntent.current) {
-        navigationIntent.current = false;
-        setPage(next.kind === 'inbox' ? 'inbox' : 'conversation');
-      }
+      follow(next);
     });
+    follow(selection);
     return () => {
       unsubscribe();
       releaseShell();

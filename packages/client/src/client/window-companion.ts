@@ -323,7 +323,7 @@ export class WindowCompanion {
     let stream: CompanionStream;
     try {
       stream = this.deps.source(
-        `/api/botharness/companion?botId=${encodeURIComponent(selection.botId)}&dm=${selection.dm ? 1 : 0}&group=${selection.group ? 1 : 0}&visibility=${selection.visibility}`,
+        `./api/botharness/companion?botId=${encodeURIComponent(selection.botId)}&dm=${selection.dm ? 1 : 0}&group=${selection.group ? 1 : 0}&visibility=${selection.visibility}`,
       );
     } catch {
       this.update({ sync: 'stale' });

@@ -23,6 +23,7 @@ import {
 import { BotAvatar } from '../../src/ui/bot-avatar';
 import { botColor } from '../../src/ui/bot-color';
 import { AccentProvider } from '../../src/ui/design/theme';
+import { OpenFullClientButton } from '../../src/ui/open-full-client';
 import { DraftBubble, MessageBubble } from '../../src/ui/message-bubble';
 import { t } from '../../src/ui/strings';
 import { stateColor, useTheme } from '../../src/ui/theme';
@@ -95,6 +96,8 @@ function DmConversation({ slug }: { slug: string | undefined }) {
       <Stack.Screen
         options={{
           headerLargeTitle: false,
+          headerRight: () =>
+            slug === undefined ? null : <OpenFullClientButton target={{ kind: 'dm', slug }} />,
           headerTitle: () =>
             bot === undefined ? (
               <Text style={{ color: theme.ink, fontSize: 17, fontWeight: '600' }}>{slug}</Text>

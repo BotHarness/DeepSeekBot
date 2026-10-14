@@ -7,6 +7,7 @@ One file per user-facing feature. Each file has four sections: `Sub-features`, `
 | Bot mode entry and the default DeepSeek Bot | no | none | [bot-mode.md](bot-mode.md) |
 | Bot DM reply | yes | none | [bot-dm-reply.md](bot-dm-reply.md) |
 | PersonaBot creation and restart persistence | no | `scripts/e2e-personabot-create.mjs` (CI) | [personabot-create.md](personabot-create.md) |
+| Phone pairing and paired devices | no | `scripts/e2e-mobile-pairing-web.mjs`, `scripts/e2e-device-pairing.mjs` | [phone-pairing.md](phone-pairing.md) |
 
 ## Not mapped yet
 

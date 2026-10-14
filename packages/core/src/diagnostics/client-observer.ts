@@ -59,7 +59,7 @@ export function installClientObserver(win: Window & typeof globalThis): void {
     sending = true;
     const sentRevision = revision;
     try {
-      const response = await win.fetch('/api/botharness/client-diagnostics', {
+      const response = await win.fetch('./api/botharness/client-diagnostics', {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
@@ -218,7 +218,7 @@ export function installClientObserver(win: Window & typeof globalThis): void {
     record('page-hidden', 'lifecycle');
     try {
       void win
-        .fetch('/api/botharness/client-diagnostics', {
+        .fetch('./api/botharness/client-diagnostics', {
           method: 'POST',
           credentials: 'same-origin',
           headers: { 'Content-Type': 'application/json' },

@@ -1,5 +1,10 @@
 import { expect, it } from 'vitest';
-import { privateInputLocator, privateInputWebUrl } from '../src/credentials/web-locator.js';
+import {
+  fullClientHash,
+  fullClientLocator,
+  privateInputLocator,
+  privateInputWebUrl,
+} from '../src/credentials/web-locator.js';
 
 it('locates an existing private card without authority or native login credentials', () => {
   const id = '11111111-1111-4111-8111-111111111111';
@@ -24,4 +29,21 @@ it.each([
   expect(() => privateInputWebUrl(url, 'dm-ada', '11111111-1111-4111-8111-111111111111')).toThrow(
     /credential-free/,
   );
+});
+
+it('round-trips the full-client landing targets the phone app opens', () => {
+  const id = '11111111-1111-4111-8111-111111111111';
+  expect(fullClientLocator(fullClientHash({ kind: 'home' }))).toEqual({ kind: 'home' });
+  expect(fullClientLocator(fullClientHash({ kind: 'dm', slug: 'ada-lovelace' }))).toEqual({
+    kind: 'dm',
+    slug: 'ada-lovelace',
+  });
+  expect(
+    privateInputLocator(
+      fullClientHash({ kind: 'private-input', channelId: 'dm-ada', messageId: id }),
+    ),
+  ).toEqual({ channelId: 'dm-ada', messageId: id });
+  expect(fullClientLocator('#botharness-open=dm:..%2Fadmin')).toBeUndefined();
+  expect(fullClientLocator('#botharness-open=dm:%')).toBeUndefined();
+  expect(fullClientLocator('#botharness-open=settings')).toBeUndefined();
 });

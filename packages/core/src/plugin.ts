@@ -60,6 +60,7 @@ import { homedir } from 'node:os';
 import type { BotAgentSetupInfo } from './runtime/dsh-bot-agent-adapter.js';
 import { registerBridge } from './bridge/rpc.js';
 import { mountClientDiagnostics } from './diagnostics/client-diagnostics.js';
+import { mountDevicePairing } from './devices/mount.js';
 import { createMarketplaceClient } from './marketplace/client.js';
 import {
   createReleaseService,
@@ -1058,6 +1059,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   publishDraft = (event) => core.live.publishDraft(event);
   ctx.effect(() => () => core.operationalDatabase.close(), 'botharness: operational database');
   ctx.effect(() => () => core.contentPurge.close(), 'botharness: purge ledger');
+  mountDevicePairing(ctx, { database: core.operationalDatabase, dshHome });
   if (core.operationalDatabase.mode === 'ready' && telemetryState.lockedBy === undefined) {
     const usageDatabase = attachOperationalModule(core.operationalDatabase, 'telemetry');
     ctx.effect(

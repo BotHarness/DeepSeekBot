@@ -234,7 +234,7 @@ describe('Roster live Client', () => {
         return source as unknown as EventSource;
       });
       expect(sources).toHaveLength(1);
-      expect(sources[0]?.url).toBe('/api/botharness/stream?scope=roster');
+      expect(sources[0]?.url).toBe('./api/botharness/stream?scope=roster');
       sources[0]?.listeners.get('roster/changed')?.(new MessageEvent('roster/changed'));
       await vi.advanceTimersByTimeAsync(80);
       expect(refreshRoster).toHaveBeenCalledTimes(1);

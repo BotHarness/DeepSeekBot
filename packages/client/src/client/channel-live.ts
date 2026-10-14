@@ -523,7 +523,7 @@ export function mountChannelLive(
     }
     let next: ChannelEventSource;
     try {
-      next = makeSource('/api/botharness/stream?' + query.toString());
+      next = makeSource('./api/botharness/stream?' + query.toString());
     } catch {
       close();
       console.warn('botharness: Channel live stream construction refused');
@@ -624,7 +624,7 @@ export function mountRosterLive(
     if (store.getSnapshot().mode === 'bot') {
       if (stopSource !== undefined) return;
       if (makeSource) {
-        const source = makeSource('/api/botharness/stream?scope=roster');
+        const source = makeSource('./api/botharness/stream?scope=roster');
         source.onopen = schedule;
         source.addEventListener('roster/changed', schedule);
         source.addEventListener('roster/latest', (event) => {

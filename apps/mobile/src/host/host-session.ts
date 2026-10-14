@@ -24,9 +24,9 @@ function adopt(saved: SavedHost | null): void {
     saved === null
       ? undefined
       : createHostClient({
-          route: saved.route,
-          token: saved.token,
-          carrier: nativeCarrier(saved.route),
+          routes: saved.routes,
+          credential: saved.credential,
+          carrier: nativeCarrier(),
         });
   state = { saved, client, inbox: client === undefined ? undefined : createInbox(client) };
   client?.start();

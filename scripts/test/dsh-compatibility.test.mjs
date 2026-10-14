@@ -6,6 +6,7 @@ import {
   productDshVersions,
   productDshRange,
   productManifest,
+  providerDshRange,
   providerManifest,
 } from '../product-artifacts.mjs';
 
@@ -23,7 +24,8 @@ const provider = providerManifest({
   version: '4.32.0',
   peerDependencies: { '@deepseek-ai/dsh-tools': '0.2.0-rc.1' },
 });
-const releases = [...manifests, productManifest(manifests[2], '1.2.1'), provider];
+const releases = [...manifests, productManifest(manifests[2], '1.3.1'), provider];
+const product = [manifests[2], releases[3]];
 
 describe('DSH native product compatibility preflight', () => {
   it.each(productDshVersions)('admits supported Host %s without an exemption', (version) => {
@@ -35,22 +37,20 @@ describe('DSH native product compatibility preflight', () => {
       ).toBe(true);
     }
   });
-  it.each(['0.1.6', '0.1.7-alpha.1', '0.1.7-rc.2', '0.1.7'])(
-    'rejects Host %s below the minimum',
+  it.each(['0.1.7', '0.2.0-rc.1', '0.2.1-alpha.1', '0.2.1-alpha.2', '0.2.0', '1.0.0'])(
+    'refuses Host %s, where the bundled Computer runtime is incompatible',
     (version) => {
       expect(semver.satisfies(version, productDshRange, { includePrerelease: true })).toBe(false);
-      expect(evaluatePluginCompatibility(manifests[0], {}, version)?.exempted).toBe(false);
+      for (const manifest of product)
+        expect(evaluatePluginCompatibility(manifest, {}, version)?.exempted, manifest.name).toBe(
+          false,
+        );
     },
   );
-  it.each(['0.2.0', '0.3.0-alpha.1', '1.0.0', '1.0.1', '2.0.0'])(
-    'does not impose a future Host ceiling on %s',
+  it.each(['0.2.0-rc.1', '0.2.1-alpha.2', '1.0.0'])(
+    'keeps the separately versioned Provider admissible on Host %s',
     (version) => {
-      for (const manifest of releases) {
-        expect(evaluatePluginCompatibility(manifest, {}, version), manifest.name).toBeUndefined();
-        expect(semver.satisfies(version, manifest.engines.dsh, { includePrerelease: true })).toBe(
-          true,
-        );
-      }
+      expect(evaluatePluginCompatibility(provider, {}, version)).toBeUndefined();
     },
   );
   it('preserves non-DSH peers and the independently qualified build baseline', () => {
@@ -58,7 +58,7 @@ describe('DSH native product compatibility preflight', () => {
       peerDependencies: { react: '^18.3.1', '@deepseek-ai/dsh-tools': '0.2.0-rc.1' },
     });
     expect(result.peerDependencies.react).toBe('^18.3.1');
-    expect(result.peerDependencies['@deepseek-ai/dsh-tools']).toBe(productDshRange);
-    expect(result.dsh.compatibility.dsh).toBe(productDshRange);
+    expect(result.peerDependencies['@deepseek-ai/dsh-tools']).toBe(providerDshRange);
+    expect(result.dsh.compatibility.dsh).toBe(providerDshRange);
   });
 });

@@ -329,7 +329,7 @@ export class WindowCompanions {
   }
   private connect(): void {
     const stream = this.deps.source(
-      `/api/botharness/companion?subscribe=1${this.resumeConsumerId ? `&resume=${encodeURIComponent(this.resumeConsumerId)}` : ''}`,
+      `./api/botharness/companion?subscribe=1${this.resumeConsumerId ? `&resume=${encodeURIComponent(this.resumeConsumerId)}` : ''}`,
     );
     this.stream = stream;
     const snapshot = (event: Event, baseline: boolean) => {

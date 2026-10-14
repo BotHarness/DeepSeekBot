@@ -2,7 +2,7 @@
 
 Install the **DeepSeekBot** plugin in DeepSeek Harness (DSH), enable it and create your first PersonaBot. You install one product package; Core, Client and the qualified IM Provider arrive with it.
 
-This guide installs the public npm package **`deepseekbot`**, verified with **DSH `0.2.0-rc.1`**. Screenshots show a clean Profile using the Chinese DSH interface; the captions name the corresponding controls. No repository checkout or local build is required.
+This guide installs the public npm package **`deepseekbot`**, which requires **DSH `0.2.0-rc.2`**. Screenshots, taken on DSH 0.2.0-rc.1, show a clean Profile using the Chinese DSH interface; the captions name the corresponding controls. No repository checkout or local build is required.
 
 ## 1. Open Plugins
 
@@ -96,11 +96,12 @@ To import the same precompiled archive, download the public npm tarball with `np
 
 ## If installation does not finish
 
-| What you see                            | Next check                                                                                                                |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| Package or version not found            | Check the exact package spelling and version, choose npm official registry and retry once registry metadata is available. |
-| Installed but no Bot mode               | Enable deepseekbot in the current Profile; follow any DSH restart notice, then reload the Web page.                       |
-| Bot mode works but the Bot cannot reply | Check the selected model and DSH credentials; installation and model access are separate.                                 |
-| IM settings are empty                   | Add the app account through the connection guide; an empty account list is expected on first installation.                |
+| What you see                              | Next check                                                                                                                |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| deepseekbot is incompatible with this DSH | Install DSH 0.2.0-rc.2 and install again; the bundled Computer runtime only matches that release.                         |
+| Package or version not found              | Check the exact package spelling and version, choose npm official registry and retry once registry metadata is available. |
+| Installed but no Bot mode                 | Enable deepseekbot in the current Profile; follow any DSH restart notice, then reload the Web page.                       |
+| Bot mode works but the Bot cannot reply   | Check the selected model and DSH credentials; installation and model access are separate.                                 |
+| IM settings are empty                     | Add the app account through the connection guide; an empty account list is expected on first installation.                |
 
 For source development rather than installation, see the [repository README](https://github.com/BotHarness/BotHarness#readme) and [local development guide](/dev/guides/client-bridge).

@@ -1,7 +1,8 @@
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo } from 'react';
-import { Linking, ScrollView, Text, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 
+import { fullClientParams, type FullClientTarget } from '../../src/host/full-client';
 import { useHostSession, useHostSnapshot, useInbox } from '../../src/host/host-session';
 import {
   answerQuestion,
@@ -27,6 +28,7 @@ type Params = {
 
 export default function InboxItemScreen() {
   const theme = useTheme();
+  const router = useRouter();
   const params = useLocalSearchParams<Params>();
   const { saved, client, inbox } = useHostSession();
   const snapshot = useHostSnapshot(client);
@@ -39,7 +41,11 @@ export default function InboxItemScreen() {
     () =>
       params.channelId === undefined || params.messageId === undefined
         ? undefined
-        : { channelId: params.channelId, messageId: params.messageId, botSlug: params.botSlug },
+        : {
+            channelId: params.channelId,
+            messageId: params.messageId,
+            botSlug: params.botSlug,
+          },
     [params.channelId, params.messageId, params.botSlug],
   );
   const approvalPort = useMemo(
@@ -71,6 +77,14 @@ export default function InboxItemScreen() {
     [client, inbox, ref],
   );
 
+  const target: FullClientTarget =
+    params.kind === 'private-input' && ref !== undefined
+      ? {
+          kind: 'private-input',
+          channelId: ref.channelId,
+          messageId: ref.messageId,
+        }
+      : { kind: 'home' };
   const title = t.kind[params.kind] ?? t.otherKind;
   let body;
   if (params.kind === 'tool-approval' && approvalPort !== undefined)
@@ -93,7 +107,12 @@ export default function InboxItemScreen() {
           <View style={{ flexDirection: 'row' }}>
             <ActionButton
               label={t.openFullClient}
-              onPress={() => void Linking.openURL(`${saved.route}/`)}
+              onPress={() =>
+                router.push({
+                  pathname: '/full-client',
+                  params: fullClientParams(target),
+                })
+              }
             />
           </View>
         ) : null}
