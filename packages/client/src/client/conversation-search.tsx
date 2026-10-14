@@ -250,7 +250,7 @@ export function ConversationSearch({
         <IconSearchOutlineRegular size={16} aria-hidden="true" />
         <input
           ref={inputMount}
-          type="search"
+          type="text"
           role="combobox"
           aria-expanded={results.length > 0}
           aria-controls={listId}
