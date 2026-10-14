@@ -8,7 +8,8 @@ import {
   parseScenarioArgs,
   renderMarkdown,
   selectScenarios,
-  sumUsageRows,
+  sumHostRows,
+  sumSessionTotals,
   summarizeAttempts,
 } from '../e2e-llm-scenarios.mjs';
 
@@ -69,7 +70,8 @@ const attempt = (result, totalTokens, extra = {}) => ({
     cacheReadTokens: totalTokens / 4,
     cacheWriteTokens: 0,
     totalTokens,
-    complete: true,
+    settled: true,
+    hostMatches: true,
     ...extra,
   },
 });
@@ -102,18 +104,51 @@ describe('scenario token usage and model matrix', () => {
     expect(() => parseScenarioArgs(['--runs', '0'])).toThrow('--runs');
   });
 
-  it('sums every Bot row into the four buckets and flags an unknown bucket', () => {
-    const usage = sumUsageRows([row(), row({ model: 'other', outputTokens: 30 })]);
+  it('sums the native Session totals of the scenario Bots only', () => {
+    const record = (slug, totals, lastUsed) => ({
+      identity: { cwd: `/home/botharness/bots/${slug}/memory` },
+      rows: {
+        tokenUsage: { val: { totals } },
+        modelSelection: { val: { lastUsed } },
+      },
+    });
+    const route = { provider: 'opencode-go', model: 'deepseek-v4-flash' };
+    const usage = sumSessionTotals(
+      [
+        record(
+          'aura',
+          { uncachedInputTokens: 100, outputTokens: 20, cacheReadTokens: 300, cacheWriteTokens: 0 },
+          route,
+        ),
+        record('nexus', { uncachedInputTokens: 50, outputTokens: 10, cacheReadTokens: 200 }, route),
+        record('someone-else', { uncachedInputTokens: 9999, outputTokens: 1 }, route),
+        { identity: { cwd: '/elsewhere' } },
+      ],
+      ['aura', 'nexus'],
+    );
+    expect(usage).toEqual({
+      inputTokens: 150,
+      outputTokens: 30,
+      cacheReadTokens: 500,
+      cacheWriteTokens: 0,
+      totalTokens: 680,
+      sessions: 2,
+      routes: ['opencode-go/deepseek-v4-flash'],
+    });
+  });
+
+  it('keeps a Host bucket unknown when any row has it unknown', () => {
+    const usage = sumHostRows([
+      row(),
+      row({ model: 'other', cacheReadTokens: null, totalTokens: 9 }),
+    ]);
     expect(usage).toMatchObject({
       inputTokens: 200,
-      outputTokens: 50,
-      cacheReadTokens: 600,
-      cacheWriteTokens: 0,
-      totalTokens: 850,
-      complete: true,
+      cacheReadTokens: null,
       routes: ['opencode-go/deepseek-v4-flash', 'opencode-go/other'],
     });
-    expect(sumUsageRows([row({ cacheWriteTokens: null })]).complete).toBe(false);
+    expect(usage.totalTokens).toBeNull();
+    expect(sumHostRows([row({ totalTokens: 420 })]).totalTokens).toBe(420);
   });
 
   it('reports pass rate, mean tokens and cache hit rate across runs', () => {

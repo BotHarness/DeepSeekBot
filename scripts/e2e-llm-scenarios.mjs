@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -274,24 +274,48 @@ const delay = (ms) => new Promise((done) => setTimeout(done, ms));
 
 export const TOKEN_BUCKETS = ['inputTokens', 'outputTokens', 'cacheReadTokens', 'cacheWriteTokens'];
 
-export function sumUsageRows(rows) {
-  const usage = {
-    inputTokens: 0,
-    outputTokens: 0,
-    cacheReadTokens: 0,
-    cacheWriteTokens: 0,
-  };
-  let complete = true;
+export function sumHostRows(rows) {
+  const usage = { routes: [...new Set(rows.map((row) => `${row.provider}/${row.model}`))].sort() };
+  for (const bucket of [...TOKEN_BUCKETS, 'totalTokens'])
+    usage[bucket] = rows.some((row) => typeof row[bucket] !== 'number')
+      ? null
+      : rows.reduce((total, row) => total + row[bucket], 0);
+  return usage;
+}
+
+export function sumSessionTotals(records, slugs) {
+  const usage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 };
   const routes = new Set();
-  for (const row of rows) {
-    routes.add(`${row.provider}/${row.model}`);
-    for (const bucket of TOKEN_BUCKETS) {
-      if (typeof row[bucket] === 'number') usage[bucket] += row[bucket];
-      else complete = false;
-    }
+  let sessions = 0;
+  for (const record of records) {
+    const cwd = record?.identity?.cwd?.replaceAll('\\', '/') ?? '';
+    if (!slugs.some((slug) => cwd.includes(`/bots/${slug}/`))) continue;
+    const totals = record.rows?.tokenUsage?.val?.totals;
+    if (totals === undefined) continue;
+    sessions += 1;
+    usage.inputTokens += totals.uncachedInputTokens ?? 0;
+    usage.outputTokens += totals.outputTokens ?? 0;
+    usage.cacheReadTokens += totals.cacheReadTokens ?? 0;
+    usage.cacheWriteTokens += totals.cacheWriteTokens ?? 0;
+    const used = record.rows?.modelSelection?.val?.lastUsed;
+    if (used?.provider && used?.model) routes.add(`${used.provider}/${used.model}`);
   }
   usage.totalTokens = TOKEN_BUCKETS.reduce((total, bucket) => total + usage[bucket], 0);
-  return { ...usage, complete, routes: [...routes].sort() };
+  return { ...usage, sessions, routes: [...routes].sort() };
+}
+
+function readSessionRecords(home) {
+  const folder = join(home, 'storages', 'session_projcache', 'sessions');
+  if (!existsSync(folder)) return [];
+  return readdirSync(folder)
+    .filter((file) => file.endsWith('.json'))
+    .flatMap((file) => {
+      try {
+        return [JSON.parse(readFileSync(join(folder, file), 'utf8')).record];
+      } catch {
+        return [];
+      }
+    });
 }
 
 function cacheHitRate(tokens) {
@@ -321,7 +345,8 @@ export function summarizeAttempts(attempts) {
     minTotalTokens: totals.length ? Math.min(...totals) : null,
     maxTotalTokens: totals.length ? Math.max(...totals) : null,
     cacheHitRate: mean.totalTokens === null ? null : cacheHitRate(mean),
-    usageComplete: measured.length === attempts.length && measured.every((a) => a.usage.complete),
+    usageComplete: measured.length === attempts.length && measured.every((a) => a.usage.settled),
+    hostMatches: measured.every((attempt) => attempt.usage.hostMatches),
   };
 }
 
@@ -375,7 +400,7 @@ export function renderMarkdown(report, comparison) {
     const { stats } = entry;
     const tokens = stats.meanTokens;
     lines.push(
-      `| ${entry.id} | ${entry.model} | ${stats.passed}/${stats.runs} | ${count(tokens.inputTokens)} | ${count(tokens.outputTokens)} | ${count(tokens.cacheReadTokens)} | ${count(tokens.cacheWriteTokens)} | ${count(tokens.totalTokens)}${stats.usageComplete ? '' : ' (partial)'} | ${percent(stats.cacheHitRate)} |`,
+      `| ${entry.id} | ${entry.model} | ${stats.passed}/${stats.runs} | ${count(tokens.inputTokens)} | ${count(tokens.outputTokens)} | ${count(tokens.cacheReadTokens)} | ${count(tokens.cacheWriteTokens)} | ${count(tokens.totalTokens)}${stats.usageComplete ? '' : ' (unsettled)'}${stats.hostMatches ? '' : ' (Host differs)'} | ${percent(stats.cacheHitRate)} |`,
     );
   }
   if (comparison !== undefined) {
@@ -431,7 +456,7 @@ function createContext(instance, scenario, timeoutSeconds, log, presetId) {
       }
       log.bots = Object.fromEntries(Object.entries(slugs));
     },
-    async usageRows(start) {
+    async hostUsage(start) {
       const filter = { start, end: localDay() };
       const rows = [];
       let ready = true;
@@ -443,21 +468,33 @@ function createContext(instance, scenario, timeoutSeconds, log, presetId) {
         if (result.freshness !== 'ready') ready = false;
         rows.push(...result.rows);
       }
-      return { rows, ready };
+      return { ...sumHostRows(rows), ready };
     },
     async settledUsage(start, settleSeconds) {
       const deadline = Date.now() + (settleSeconds + 60) * 1000;
+      const bots = Object.values(slugs);
       let last;
       let stableSince = Date.now();
       for (;;) {
-        const { rows, ready } = await ctx.usageRows(start);
-        const usage = sumUsageRows(rows);
-        if (last === undefined || last.totalTokens !== usage.totalTokens || !ready)
-          stableSince = Date.now();
-        last = usage;
-        if (ready && Date.now() - stableSince >= settleSeconds * 1000)
-          return { ...usage, settled: true };
-        if (Date.now() >= deadline) return { ...usage, settled: false };
+        const usage = sumSessionTotals(readSessionRecords(instance.home), bots);
+        const host = await ctx.hostUsage(start);
+        const moving =
+          last === undefined ||
+          last.usage.totalTokens !== usage.totalTokens ||
+          last.host.totalTokens !== host.totalTokens ||
+          !host.ready;
+        if (moving) stableSince = Date.now();
+        last = { usage, host };
+        const settled = !moving && Date.now() - stableSince >= settleSeconds * 1000;
+        if (settled || Date.now() >= deadline) {
+          const { ready: _ready, ...hostUsage } = host;
+          return {
+            ...usage,
+            settled,
+            host: hostUsage,
+            hostMatches: host.totalTokens === null || host.totalTokens === usage.totalTokens,
+          };
+        }
         await delay(3000);
       }
     },
@@ -682,13 +719,19 @@ async function main() {
     const instance = JSON.parse(readFileSync(paths.instance, 'utf8'));
     const results = [];
     const routes = options.models.length > 0 ? options.models : [undefined];
-    for (const route of routes) {
-      const presetId = route === undefined ? undefined : await presetFor(instance, route);
-      for (const scenario of selected)
-        results.push(await runScenario(instance, scenario, options, route, presetId));
-    }
+    const reportPath = resolve(
+      options.report ??
+        join(
+          repoRoot,
+          '.humanlayer',
+          'llm-e2e',
+          `${new Date().toISOString().replace(/[:.]/gu, '-')}.json`,
+        ),
+    );
+    const summaryPath = reportPath.replace(/\.json$/u, '') + '.md';
+    mkdirSync(dirname(reportPath), { recursive: true });
     const report = {
-      result: results.every((item) => item.result === 'pass') ? 'pass' : 'fail',
+      result: 'running',
       model: instance.secret,
       models: routes.map(modelLabel),
       mode: options.runs === undefined ? { attempts: options.attempts } : { runs: options.runs },
@@ -699,27 +742,25 @@ async function main() {
       ...(changed === undefined ? {} : { changedFrom: options.changedFrom }),
       scenarios: results,
     };
-    const reportPath = resolve(
-      options.report ??
-        join(
-          repoRoot,
-          '.humanlayer',
-          'llm-e2e',
-          `${new Date().toISOString().replace(/[:.]/gu, '-')}.json`,
-        ),
-    );
-    mkdirSync(dirname(reportPath), { recursive: true });
-    const comparison =
-      baseline === undefined
-        ? undefined
-        : {
-            baselineCommit: baseline.commit,
-            rows: compareReports(baseline, report),
-          };
-    if (comparison !== undefined) report.comparison = comparison;
-    writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
-    const summaryPath = reportPath.replace(/\.json$/u, '') + '.md';
-    writeFileSync(summaryPath, renderMarkdown(report, comparison));
+    let comparison;
+    const save = () => {
+      comparison =
+        baseline === undefined
+          ? undefined
+          : { baselineCommit: baseline.commit, rows: compareReports(baseline, report) };
+      if (comparison !== undefined) report.comparison = comparison;
+      writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
+      writeFileSync(summaryPath, renderMarkdown(report, comparison));
+    };
+    for (const route of routes) {
+      const presetId = route === undefined ? undefined : await presetFor(instance, route);
+      for (const scenario of selected) {
+        results.push(await runScenario(instance, scenario, options, route, presetId));
+        save();
+      }
+    }
+    report.result = results.every((item) => item.result === 'pass') ? 'pass' : 'fail';
+    save();
     console.log(
       JSON.stringify(
         {

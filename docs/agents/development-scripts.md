@@ -92,7 +92,7 @@ A scenario passes when any of its `--attempts` (default 2) passes; the JSON repo
 
 ### Tokens and models
 
-Each attempt also records what its Bots spent, read from the Host's usage records (the same numbers as `deepseekbot bot-usage`): uncached input, output, cache-read and cache-write tokens. Use this to judge a design change on cost and on how each model copes, not only on pass/fail:
+Each attempt also records what its Bots spent: uncached input, output, cache-read and cache-write tokens, summed from DSH's own per-Session token totals for the scenario's Bots (a bucket a provider leaves out counts as zero, as in DSH). The Host's usage records (`deepseekbot bot-usage`) are read alongside as `host`; they keep a bucket unknown when any request omitted it (ADR-0094), so on routes that omit cache tokens on a cache miss the Host shows cache read as unknown while the Session totals carry the exact number. `hostMatches` is false when the Host's known total disagrees. Use this to judge a design change on cost and on how each model copes, not only on pass/fail:
 
 ```bash
 # Measure: 5 independent runs per scenario on each model (no retry), saved as the baseline.
@@ -107,7 +107,7 @@ node scripts/e2e-llm-scenarios.mjs --launch --runs 5 \
 node scripts/e2e-llm-scenarios.mjs --compare before.json after.json
 ```
 
-`--model provider/model[@effort]` applies a Model Preset to every scenario Bot; the route must be in the Host's model catalog (`deepseekbot model-catalog`), and an attempt whose usage shows a different route is flagged `routeMismatch`. `--runs` counts every run, so the pass rate is measured; `--attempts` keeps retrying until one passes and suits a gate. Each report gets a Markdown table next to it (`.md`, and the workflow's job summary) with pass rate, mean tokens per run in each bucket and the cache-hit rate (cache read over all prompt tokens); with `--baseline` it adds the pass-rate change and token delta per scenario and model. Usage is read after the totals stop moving for `--settle` seconds (default 12), since Bots keep working after the asserted state; a run whose usage never settled says `settled: false`. A bucket the provider did not report makes that run's usage `(partial)`.
+`--model provider/model[@effort]` applies a Model Preset to every scenario Bot; the route must be in the Host's model catalog (`deepseekbot model-catalog`), and an attempt whose usage shows a different route is flagged `routeMismatch`. `--runs` counts every run, so the pass rate is measured; `--attempts` keeps retrying until one passes and suits a gate. Each report gets a Markdown table next to it (`.md`, and the workflow's job summary) with pass rate, mean tokens per run in each bucket and the cache-hit rate (cache read over all prompt tokens); with `--baseline` it adds the pass-rate change and token delta per scenario and model. Usage is read after the totals stop moving for `--settle` seconds (default 12), since Bots keep working after the asserted state; a run whose usage never settled says `settled: false`. A table cell marked `(Host differs)` means the Host's usage total disagreed with the Session totals.
 
 The `llm e2e` workflow runs them nightly, after a push to `main` that touches a scenario's paths (only those scenarios), on manual dispatch, and on a pull request labeled `ci:llm-e2e`. It needs the `DEEPSEEK_API_KEY` repository secret and skips with a notice without it. It is never part of the required `verify` check. When a feature adds a model-driven flow, add a scenario with the paths it depends on.
 
