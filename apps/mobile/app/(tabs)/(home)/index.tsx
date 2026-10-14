@@ -12,6 +12,7 @@ import {
 import { ConnectionBanner } from '../../../src/ui/connection-banner';
 import { space } from '../../../src/ui/design/tokens';
 import { Text } from '../../../src/ui/primitives/text';
+import { HostSwitchButton } from '../../../src/ui/shell/host-switch-button';
 import { ShortcutCards } from '../../../src/ui/shell/shortcut-cards';
 import { t } from '../../../src/ui/strings';
 import type { HumanAttentionItem } from '../../../src/host/wire';
@@ -49,7 +50,12 @@ export default function HomeScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: saved.hostName }} />
+      <Stack.Screen
+        options={{
+          title: saved.hostName,
+          headerLeft: () => <HostSwitchButton hostName={saved.hostName} />,
+        }}
+      />
       <FlatList
         contentInsetAdjustmentBehavior="automatic"
         data={rows}

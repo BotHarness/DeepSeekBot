@@ -28,7 +28,7 @@ export default function MeScreen() {
       <Stack.Screen options={{ title: t.me }} />
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
-        contentContainerStyle={{ gap: space.x6, paddingVertical: space.x5 }}
+        contentContainerStyle={{ gap: space.x6, padding: space.x5 }}
       >
         <SettingsSection title={t.computer}>
           <SettingsRow
@@ -43,11 +43,11 @@ export default function MeScreen() {
             }
           />
           <SettingsRow
-            title={t.pairNew}
-            detail={t.pairNewHint}
-            tone="accent"
-            onPress={() => router.push('/pair')}
+            title={t.computers}
+            detail={t.computersHint}
+            onPress={() => router.push('/hosts')}
           />
+          <SettingsRow title={t.notifications} onPress={() => router.push('/notifications')} />
           <SettingsRow
             title={t.unpair}
             tone="danger"

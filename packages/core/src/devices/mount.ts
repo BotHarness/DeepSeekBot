@@ -15,6 +15,24 @@ import {
 import { createDevicesHttp, DEVICES_PATH } from './http.js';
 import { createDevicePairing, type DevicePairingEvent } from './pairing.js';
 import { detectPhoneRoutes } from './routes.js';
+import {
+  createPushDelivery,
+  type ExpoSender,
+  type PushDelivery,
+  type PushEvent,
+  type PushSource,
+} from '../push/delivery.js';
+import { createExpoSender } from '../push/expo-sender.js';
+import { createDevicePushHttp } from '../push/http.js';
+
+const PUSH_SETTLE_MS = 500;
+const PUSH_SWEEP_MS = 60_000;
+
+export interface DevicePushOptions {
+  source: PushSource;
+  watch(changed: () => void): () => void;
+  sender?: ExpoSender;
+}
 
 interface ConnectionLike {
   fetch: {
@@ -49,9 +67,15 @@ function detail(event: DevicePairingEvent): string {
   return parts.join(' ');
 }
 
+function pushDetail(event: PushEvent): string {
+  return Object.entries(event)
+    .map(([key, value]) => `${key}=${String(value)}`)
+    .join(' ');
+}
+
 export function mountDevicePairing(
   ctx: Context,
-  options: { database: OperationalDatabaseOwner; dshHome: string },
+  options: { database: OperationalDatabaseOwner; dshHome: string; push?: DevicePushOptions },
 ): void {
   if (options.database.mode !== 'ready') return;
   let logs: LogDatabase | undefined;
@@ -61,22 +85,56 @@ export function mountDevicePairing(
     logs = undefined;
   }
   ctx.effect(() => () => logs?.close(), 'botharness: device pairing logs');
+  const write = (plugin: string, kind: string, message: string): void => {
+    ctx.logger.info(message);
+    try {
+      logs?.write({ plugin, owner: 'profile-shared', kind, detail: message });
+    } catch {}
+  };
+  let push: PushDelivery | undefined;
   const pairing = createDevicePairing({
     database: attachOperationalModule(options.database, 'device-pairing'),
     hostName: hostname().replace(/\.local$/u, ''),
-    record: (event) => {
-      const message = `device-pairing ${detail(event)}`;
-      ctx.logger.info(message);
-      try {
-        logs?.write({
-          plugin: 'device-pairing',
-          owner: 'profile-shared',
-          kind: event.phase,
-          detail: message,
-        });
-      } catch {}
-    },
+    record: (event) => write('device-pairing', event.phase, `device-pairing ${detail(event)}`),
+    onRevoked: (deviceId) => push?.unregister(deviceId),
   });
+  if (options.push !== undefined) {
+    const watched = options.push;
+    const delivery = createPushDelivery({
+      database: attachOperationalModule(options.database, 'push'),
+      source: watched.source,
+      sender: watched.sender ?? createExpoSender(),
+      host: () => pairing.host(),
+      deviceActive: (deviceId) =>
+        pairing.list().some((device) => device.id === deviceId && device.revokedAt === undefined),
+      record: (event) => write('push', event.phase, `push ${pushDetail(event)}`),
+    });
+    push = delivery;
+    const reconcile = (): void => {
+      void delivery
+        .reconcile()
+        .catch((error: unknown) =>
+          ctx.logger.warn(`push phase=reconcile-failed error=${String(error)}`),
+        );
+    };
+    let settle: ReturnType<typeof setTimeout> | undefined;
+    ctx.effect(() => {
+      const off = watched.watch(() => {
+        clearTimeout(settle);
+        settle = setTimeout(reconcile, PUSH_SETTLE_MS);
+      });
+      const sweep = setInterval(() => {
+        reconcile();
+        void delivery.checkReceipts();
+      }, PUSH_SWEEP_MS);
+      reconcile();
+      return () => {
+        off();
+        clearTimeout(settle);
+        clearInterval(sweep);
+      };
+    }, 'botharness: push delivery');
+  }
 
   ctx.inject(['connection', 'webServer'], (webCtx) => {
     const connection = (webCtx as unknown as { connection: ConnectionLike }).connection;
@@ -98,6 +156,7 @@ export function mountDevicePairing(
       port: () => webServer.port,
       authenticatedUrl: (base) => connection.authenticatedUrl(base),
       log: (message) => ctx.logger.info(message),
+      ...(push === undefined ? {} : { push: createDevicePushHttp(push) }),
     });
     webCtx.effect(
       () =>

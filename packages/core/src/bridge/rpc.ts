@@ -1,3 +1,4 @@
+import type { TurnTrace } from '../bots/tool-trace.js';
 import type { PartLibraryEntry } from '../bots/part-library.js';
 import type { OnboardingSnapshot, TutorialAction } from '../onboarding/service.js';
 import type { HttpsFallback } from '../memory/clone.js';
@@ -1222,6 +1223,20 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.sessions({ slug }));
   }
 
+  botToolTrace(
+    slug: string,
+    sessionId?: string,
+    turns?: number,
+  ): Promise<{ slug: string; sessionId: string; turns: TurnTrace[] }> {
+    return unwrapAsync(
+      this.methods.botToolTrace({
+        slug,
+        ...(sessionId === undefined ? {} : { sessionId }),
+        ...(turns === undefined ? {} : { turns }),
+      }),
+    );
+  }
+
   sessionArchiveSet(
     slug: string,
     sessionId: string,
@@ -1630,6 +1645,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'userQuestionStatus',
   'userQuestionAnswer',
   'sessions',
+  'botToolTrace',
   'sessionArchiveSet',
   'sessionOwner',
   'botSessionIds',

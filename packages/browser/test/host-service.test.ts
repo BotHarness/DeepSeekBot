@@ -161,6 +161,38 @@ async function setup(
 }
 
 describe('published Browser Host service', () => {
+  it('lists the Bot tools and runs one directly for the Owner through the Host route', async () => {
+    const h = await setup();
+    const listed = await h.routes
+      .get('/api/browser/tools')!
+      .fetch(new Request('http://localhost/api/browser/tools'));
+    const catalog = (await listed.json()) as { tools: { name: string; inputSchema: unknown }[] };
+    expect(catalog.tools.map((tool) => tool.name)).toContain('browser_open');
+    const run = (body: unknown) =>
+      h.routes.get('/api/browser/tool')!.fetch(
+        new Request('http://localhost/api/browser/tool', {
+          method: 'POST',
+          body: JSON.stringify(body),
+        }),
+      );
+    const opened = await run({
+      slug: 'bot-a',
+      tool: 'browser_open',
+      args: { url: 'https://example.com' },
+    });
+    expect(opened.status).toBe(200);
+    expect(await opened.json()).toMatchObject({ ok: true, content: [{ type: 'text' }] });
+    expect(h.opened).toHaveLength(1);
+    expect((await run({ tool: 'browser_open', args: {} })).status).toBe(400);
+    expect((await run({ slug: 'bot-a', tool: 'browser_open', args: [] })).status).toBe(400);
+    const unknown = await run({ slug: 'bot-a', tool: 'browser_teleport', args: {} });
+    expect(unknown.status).toBe(409);
+    expect(await unknown.json()).toMatchObject({
+      ok: false,
+      error: 'Unknown browser tool browser_teleport',
+    });
+  });
+
   it('fences another profile preview while retrying a failed global cleanup', async () => {
     const h = await setup(true);
     await h.open('bot-c');

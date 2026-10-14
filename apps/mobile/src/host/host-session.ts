@@ -1,23 +1,59 @@
 import { useCallback, useMemo, useSyncExternalStore } from 'react';
-import { AppState } from 'react-native';
+import { AppState, Platform } from 'react-native';
 
 import { createHostClient, type HostClient, type HostSnapshot } from './client';
 import { createInbox, type Inbox, type InboxSnapshot } from './inbox';
 import { createConversation, type Conversation, type ConversationSnapshot } from './conversation';
+import { currentHost, selectHost, withHost, withoutHost, type SavedHosts } from './hosts';
 import { clearConversationCache, nativeConversationCache } from './native-cache';
 import { nativeCarrier } from './native-carrier';
-import { forgetHost, loadSavedHost, saveHost, type SavedHost } from './saved-host';
+import { nativeNotifications } from './native-notifications';
+import { createHostPush } from './push';
+import { createPushSession, type PushStatus } from './push-session';
+import { loadSavedHosts, saveHosts, type SavedHost } from './saved-host';
+import { locale, t } from '../ui/strings';
 
 export interface HostSessionState {
   saved: SavedHost | null | undefined;
+  hosts: SavedHost[];
   client: HostClient | undefined;
   inbox: Inbox | undefined;
 }
 
 const listeners = new Set<() => void>();
-let state: HostSessionState = { saved: undefined, client: undefined, inbox: undefined };
+let state: HostSessionState = { saved: undefined, hosts: [], client: undefined, inbox: undefined };
+let stored: SavedHosts = { hosts: [] };
+let offInbox: (() => void) | undefined;
 
-function adopt(saved: SavedHost | null): void {
+export const hostPush = createHostPush(nativeCarrier());
+export const pushSession = createPushSession({
+  notifications: nativeNotifications(t.notificationsChannel),
+  hostPush,
+  platform: Platform.OS === 'android' ? 'android' : 'ios',
+  locale: locale === 'zh' ? 'zh' : 'en',
+});
+
+function reflectInbox(hostId: string, inbox: Inbox): void {
+  const snapshot = inbox.getSnapshot();
+  if (snapshot.status !== 'ready') return;
+  const unresolved = new Set(snapshot.sections.action.map((item) => item.id));
+  pushSession.reflect(hostId, unresolved, unresolved.size);
+}
+
+function adopt(next: SavedHosts): void {
+  const previous = state.saved;
+  stored = next;
+  const saved = currentHost(next) ?? null;
+  if (
+    previous !== undefined &&
+    previous?.hostId === saved?.hostId &&
+    previous?.credential === saved?.credential
+  ) {
+    state = { ...state, saved, hosts: next.hosts };
+    for (const listener of listeners) listener();
+    return;
+  }
+  offInbox?.();
   state.inbox?.stop();
   state.client?.stop();
   const client =
@@ -28,14 +64,27 @@ function adopt(saved: SavedHost | null): void {
           credential: saved.credential,
           carrier: nativeCarrier(),
         });
-  state = { saved, client, inbox: client === undefined ? undefined : createInbox(client) };
+  const inbox = client === undefined ? undefined : createInbox(client);
+  offInbox =
+    saved === null || inbox === undefined
+      ? undefined
+      : inbox.subscribe(() => reflectInbox(saved.hostId, inbox));
+  state = { saved, hosts: next.hosts, client, inbox };
   client?.start();
   for (const listener of listeners) listener();
 }
 
-void loadSavedHost().then(
-  (saved) => adopt(saved ?? null),
-  () => adopt(null),
+async function commit(next: SavedHosts): Promise<void> {
+  await saveHosts(next);
+  adopt(next);
+}
+
+void loadSavedHosts().then(
+  (hosts) => {
+    adopt(hosts);
+    void pushSession.sync(hosts.hosts);
+  },
+  () => adopt({ hosts: [] }),
 );
 
 AppState.addEventListener('change', (next) => {
@@ -51,12 +100,21 @@ export const hostSession = {
   },
   getState: (): HostSessionState => state,
   async pair(host: SavedHost): Promise<void> {
-    await saveHost(host);
-    adopt(host);
+    await commit(withHost(stored, host));
+    void pushSession.enable(stored.hosts);
+  },
+  async switchTo(hostId: string): Promise<boolean> {
+    if (stored.current === hostId) return true;
+    const next = selectHost(stored, hostId);
+    if (next === undefined) return false;
+    await commit(next);
+    return true;
   },
   async unpair(): Promise<void> {
-    await forgetHost();
-    adopt(null);
+    const host = state.saved;
+    if (host === null || host === undefined) return;
+    void pushSession.forget(host);
+    await commit(withoutHost(stored, host.hostId));
     try {
       clearConversationCache();
     } catch {}
@@ -65,6 +123,10 @@ export const hostSession = {
 
 export function useHostSession(): HostSessionState {
   return useSyncExternalStore(hostSession.subscribe, hostSession.getState);
+}
+
+export function usePushStatus(): PushStatus {
+  return useSyncExternalStore(pushSession.subscribe, pushSession.getSnapshot);
 }
 
 const detached: HostSnapshot = { connection: { status: 'stopped', route: '' } };

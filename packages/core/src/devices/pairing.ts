@@ -56,6 +56,7 @@ export interface DevicePairingOptions {
   hostName: string;
   now?: () => number;
   record?: (event: DevicePairingEvent) => void;
+  onRevoked?: (deviceId: string) => void;
 }
 
 interface Row {
@@ -265,6 +266,7 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
       for (const close of open) close();
       if (Number(changed) === 0 && open.length === 0) return { revoked: false, closedStreams: 0 };
       record({ phase: 'device-revoked', deviceId, closedStreams: open.length });
+      options.onRevoked?.(deviceId);
       return { revoked: true, closedStreams: open.length };
     },
 

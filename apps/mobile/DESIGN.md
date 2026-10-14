@@ -15,7 +15,7 @@ References:
 
 - **Hosts are workspaces.** Each paired computer is a Host.
   - The app stays connected to every paired Host at once.
-  - Home and chats show one Host at a time. The Host switcher is at the top left of Home: the Host name with ▾, tap or swipe right to open it. It lists each Host with its status and pending count, plus "Pair a new computer".
+  - Home and chats show one Host at a time. The Host switcher is at the top left of Home: a Slack-style tile with the Host's initial, beside the Host name as the large title. Tap it to open the switcher. It lists each Host with its status and pending count, plus "Pair a new computer".
 - **Tabs** are native (`NativeTabs`): **Home**, **Activity** and **Me**.
   - A chat is pushed above the tabs, so the tab bar hides while it is open.
 - **Home** shows the current Host:

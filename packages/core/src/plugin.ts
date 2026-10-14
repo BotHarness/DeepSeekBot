@@ -61,6 +61,7 @@ import type { BotAgentSetupInfo } from './runtime/dsh-bot-agent-adapter.js';
 import { registerBridge } from './bridge/rpc.js';
 import { mountClientDiagnostics } from './diagnostics/client-diagnostics.js';
 import { mountDevicePairing } from './devices/mount.js';
+import { humanInboxPushSource } from './push/source.js';
 import { createMarketplaceClient } from './marketplace/client.js';
 import {
   createReleaseService,
@@ -184,6 +185,14 @@ import { createUsageProjection, type UsageProjection } from './usage/usage.js';
 import { installBotSubagentModelTools } from './runtime/subagent-model-tools.js';
 
 export const name = 'botharness-core';
+
+const PUSH_TOPICS = new Set([
+  'source-event',
+  'channel',
+  'human-attention',
+  'bot-inbox',
+  'assignments',
+]);
 
 const installedPackage = installedRelease(import.meta.url);
 const runningRelease = {
@@ -1059,7 +1068,28 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   publishDraft = (event) => core.live.publishDraft(event);
   ctx.effect(() => () => core.operationalDatabase.close(), 'botharness: operational database');
   ctx.effect(() => () => core.contentPurge.close(), 'botharness: purge ledger');
-  mountDevicePairing(ctx, { database: core.operationalDatabase, dshHome });
+  mountDevicePairing(ctx, {
+    database: core.operationalDatabase,
+    dshHome,
+    push: {
+      source: humanInboxPushSource(
+        core.humanAttention,
+        (slug) => core.registry.get(slug)?.displayName,
+      ),
+      watch: (changed) => {
+        const offDatabase = core.operationalDatabase.subscribe(({ topics }) => {
+          if (topics.some((topic) => PUSH_TOPICS.has(topic))) changed();
+        });
+        const offActivity = core.states.onActivity((event) => {
+          if (event.cause === 'attention-changed') changed();
+        });
+        return () => {
+          offDatabase();
+          offActivity();
+        };
+      },
+    },
+  });
   if (core.operationalDatabase.mode === 'ready' && telemetryState.lockedBy === undefined) {
     const usageDatabase = attachOperationalModule(core.operationalDatabase, 'telemetry');
     ctx.effect(

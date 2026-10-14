@@ -1,3 +1,4 @@
+import { summarizeToolTrace, type TurnTrace } from '../bots/tool-trace.js';
 import type { BotOnboarding, OnboardingSnapshot, TutorialAction } from '../onboarding/service.js';
 import type { HttpsFallback } from '../memory/clone.js';
 import {
@@ -571,6 +572,9 @@ export interface BridgeMethods {
   ): BridgeResult<{ status: 'pending' | 'submitted' | 'answered' | 'expired' }>;
   userQuestionAnswer(payload: unknown): Promise<BridgeResult<{ accepted: boolean }>>;
   sessions(payload: unknown): BridgeResult<{ sessions: OwnedSessionSummary[] }>;
+  botToolTrace(
+    payload: unknown,
+  ): Promise<BridgeResult<{ slug: string; sessionId: string; turns: TurnTrace[] }>>;
   sessionArchiveSet(payload: unknown): Promise<BridgeResult<{ archived: boolean }>>;
   sessionOwner(payload: unknown): BridgeResult<{ owner: OwnedSessionBot | null }>;
   botSessionIds(payload: unknown): BridgeResult<{ sessionIds: string[] }>;
@@ -4451,6 +4455,29 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (accepted !== true)
         return invalidInput('Question is no longer pending or answer is invalid');
       return { ok: true, value: { accepted: true } };
+    },
+    async botToolTrace(payload) {
+      const slug = asSlug(payload);
+      if (slug === undefined) return invalidInput('slug is required');
+      if (deps.registry.getHistorical(slug) === undefined) return unknownBot(slug);
+      const source = asObject(payload) ?? {};
+      const turns = source['turns'] === undefined ? 3 : source['turns'];
+      if (typeof turns !== 'number' || !Number.isInteger(turns) || turns < 1 || turns > 20)
+        return invalidInput('turns must be an integer from 1 to 20');
+      const roots = deps.ownership.rootsFor(slug);
+      const requested = source['sessionId'];
+      if (requested !== undefined && typeof requested !== 'string')
+        return invalidInput('sessionId must be a string');
+      const sessionId =
+        requested ??
+        deps.runtime?.currentOrchestratorSessionId?.(slug) ??
+        [...roots].reverse().find((root) => root.rootRole === 'orchestrator')?.sessionId;
+      if (sessionId === undefined || !roots.some((root) => root.sessionId === sessionId))
+        return invalidInput('The Session does not belong to this PersonaBot');
+      if (deps.readUsageSessionLog === undefined) return unavailable();
+      const log = await deps.readUsageSessionLog(sessionId);
+      if (log === undefined) return unavailable();
+      return { ok: true, value: { slug, sessionId, ...summarizeToolTrace(log.events, { turns }) } };
     },
     sessions(payload) {
       const slug = asSlug(payload);

@@ -421,6 +421,31 @@ describe('per-PersonaBot registration and authorization', () => {
     expect(h.driver.call).toHaveBeenCalledTimes(1);
   });
 
+  it('runs a curated tool directly for the Owner and lists the catalog, with the same access checks', async () => {
+    const h = harness({ access: true, running: true, auto: false });
+    const catalog = await h.provider.directTools();
+    expect(catalog.map((tool) => tool.name)).toContain('computer_click');
+    const result = await h.provider.runDirect('bot-a', 'computer_click', { pid: 7 });
+    expect(h.driver.call).toHaveBeenCalledWith('click', { pid: 7 }, expect.any(AbortSignal));
+    expect(JSON.stringify(result)).toContain('ran click');
+    expect(h.audits.at(-1)).toMatchObject({
+      tool: 'computer_click',
+      sessionId: 'direct',
+      outcome: 'ok',
+    });
+    await expect(h.provider.runDirect('bot-a', 'computer_format_disk', {})).rejects.toThrow(
+      'Unknown Computer tool',
+    );
+    h.setRunning(false);
+    await expect(h.provider.runDirect('bot-a', 'click', { pid: 7 })).rejects.toThrow('not running');
+    h.setRunning(true);
+    h.setAccess(false);
+    await expect(h.provider.runDirect('bot-a', 'click', { pid: 7 })).rejects.toThrow(
+      'Computer Access is off',
+    );
+    expect(h.driver.call).toHaveBeenCalledTimes(1);
+  });
+
   it('runs without a grant when the profile auto-allows', async () => {
     const h = harness({ access: true, running: true, auto: true });
     h.created({ agent });

@@ -1,4 +1,5 @@
 import type { PairingRefusal } from '../host/pairing';
+import type { PushKind, PushRefusal } from '../host/push';
 import type { AggregatedState } from '../host/wire';
 
 const en = {
@@ -129,8 +130,43 @@ const en = {
   showAll: 'Show all',
   computer: 'This computer',
   connected: 'Connected',
-  pairNew: 'Pair a new computer',
-  pairNewHint: 'Replaces the computer this phone is paired with.',
+  notifications: 'Notifications',
+  notificationsChannel: 'Requests from PersonaBots',
+  notificationsHint:
+    'Get a notification when a PersonaBot needs you. It names the PersonaBot and what it needs, never the message, the command or the question.',
+  notificationsOn: (host: string) => `Notifications from ${host} are on.`,
+  notificationsOff: 'Notifications are off for this phone.',
+  notificationsDenied: 'Notifications are turned off for DeepSeekBot in the phone settings.',
+  notificationsUnavailable: 'This build of the app cannot receive notifications.',
+  notificationsHostFailed: (host: string) => `${host} could not be told about this phone yet.`,
+  notificationsChecking: 'Checking notifications…',
+  turnOnNotifications: 'Turn on notifications',
+  openSettings: 'Open phone settings',
+  notifyAbout: 'Notify me about',
+  pushKind: {
+    approval: 'Tool approvals',
+    question: 'Questions',
+    'private-input': 'Private input requests',
+    reply: 'Mentions & replies',
+  } satisfies Record<PushKind, string>,
+  sendTest: 'Send a test notification',
+  testSent: 'Test sent. It should arrive in a few seconds.',
+  testFailed: 'The test notification was not sent:',
+  pushFailed: {
+    'push-not-registered': 'this phone is not registered with your computer yet.',
+    'push-token-invalid': 'the phone gave an invalid notification address.',
+    'push-send-failed': 'your computer could not reach the notification service.',
+    'device-revoked': 'your computer removed this phone.',
+    'device-unknown': 'your computer no longer knows this phone.',
+    'device-credential-missing': 'this phone has no pairing for your computer.',
+    unreachable: 'cannot reach your computer.',
+  } satisfies Record<PushRefusal, string>,
+  computers: 'Computers',
+  computersHint:
+    'Each paired computer is a separate workspace. Notifications come from all of them.',
+  showing: 'Showing',
+  pairAnother: 'Pair a new computer',
+  switchComputer: (host: string) => `${host}, switch computer`,
 };
 
 const zh: typeof en = {
@@ -256,10 +292,49 @@ const zh: typeof en = {
   showAll: '显示全部',
   computer: '这台电脑',
   connected: '已连接',
-  pairNew: '配对新电脑',
-  pairNewHint: '会替换这台手机当前配对的电脑。',
+  notifications: '通知',
+  notificationsChannel: 'PersonaBot 的请求',
+  notificationsHint:
+    'PersonaBot 需要你时发通知。通知只写是哪个 PersonaBot、需要什么，不包含消息、命令或问题内容。',
+  notificationsOn: (host: string) => `已开启来自 ${host} 的通知。`,
+  notificationsOff: '这台手机的通知已关闭。',
+  notificationsDenied: '手机设置里关闭了 DeepSeekBot 的通知。',
+  notificationsUnavailable: '这个版本的应用无法接收通知。',
+  notificationsHostFailed: (host: string) => `还没能把这台手机告诉 ${host}。`,
+  notificationsChecking: '正在检查通知…',
+  turnOnNotifications: '开启通知',
+  openSettings: '打开手机设置',
+  notifyAbout: '通知我',
+  pushKind: {
+    approval: '工具审批',
+    question: '提问',
+    'private-input': '私密输入请求',
+    reply: '提及与回复',
+  },
+  sendTest: '发送测试通知',
+  testSent: '测试通知已发送，几秒内会到。',
+  testFailed: '测试通知没有发出：',
+  pushFailed: {
+    'push-not-registered': '这台手机还没在电脑上登记通知。',
+    'push-token-invalid': '手机提供的通知地址无效。',
+    'push-send-failed': '电脑连不上通知服务。',
+    'device-revoked': '电脑已移除这台手机。',
+    'device-unknown': '电脑已不认识这台手机。',
+    'device-credential-missing': '这台手机没有与电脑配对。',
+    unreachable: '连不上你的电脑。',
+  },
+  computers: '电脑',
+  computersHint: '每台配对的电脑是一个独立的工作区，所有电脑的通知都会发到这台手机。',
+  showing: '当前显示',
+  pairAnother: '配对新电脑',
+  switchComputer: (host: string) => `${host}，切换电脑`,
 };
 
-const locale = Intl.DateTimeFormat().resolvedOptions().locale;
+export const locale: 'zh' | 'en' = Intl.DateTimeFormat()
+  .resolvedOptions()
+  .locale.toLowerCase()
+  .startsWith('zh')
+  ? 'zh'
+  : 'en';
 
-export const t = locale.toLowerCase().startsWith('zh') ? zh : en;
+export const t = locale === 'zh' ? zh : en;

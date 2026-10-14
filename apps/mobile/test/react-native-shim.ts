@@ -81,3 +81,14 @@ export const Platform = {
   OS: 'web',
   select: <T>(options: { default?: T; web?: T }) => options.web ?? options.default,
 };
+
+export const Switch = (props: Props) =>
+  createElement('input', {
+    ...a11y(props),
+    type: 'checkbox',
+    role: 'switch',
+    checked: props['value'] === true,
+    disabled: props['disabled'] === true,
+    onChange: () =>
+      (props['onValueChange'] as ((value: boolean) => void) | undefined)?.(props['value'] !== true),
+  });

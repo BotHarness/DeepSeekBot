@@ -1,6 +1,6 @@
 import type { HostCarrier } from './carrier';
 import { checkRoute } from './route';
-import type { SavedHost } from './saved-host';
+import type { SavedHost } from './hosts';
 
 export const DEVICE_PREFIX = '/botharness-device';
 
