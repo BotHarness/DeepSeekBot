@@ -267,9 +267,29 @@ export function MessageReactionChips({
   onReact?: ((emoji: string, active: boolean) => void) | undefined;
   t: BotHarnessTranslate;
 }): ReactElement | null {
+  const rowMount = useMountedResource<HTMLDivElement>((node) => {
+    const wrap = node.closest<HTMLElement>('.bh-bubble-wrap');
+    if (wrap === null) return;
+    const measure = (): void => {
+      const margin = Number.parseFloat(getComputedStyle(node).marginTop) || 0;
+      wrap.style.setProperty(
+        '--bh-reaction-row',
+        `${String(node.getBoundingClientRect().height + margin)}px`,
+      );
+    };
+    measure();
+    const observer =
+      typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(measure);
+    observer?.observe(node);
+    return () => {
+      observer?.disconnect();
+      wrap.style.removeProperty('--bh-reaction-row');
+    };
+  }, []);
   if (reactions.length === 0) return null;
   return (
     <div
+      ref={rowMount}
       role="group"
       aria-label={t('message.reactions')}
       data-message-reactions=""

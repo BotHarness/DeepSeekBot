@@ -3500,6 +3500,7 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
   flex: none;
   display: flex;
   align-items: center;
+  margin-bottom: var(--bh-reaction-row, 0px);
 }
 .bh-bubble-side .bh-delivery-trigger {
   position: static;
