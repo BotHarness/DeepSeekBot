@@ -32,7 +32,7 @@ const styles = stylex.create({
     height: '22px',
     overflow: 'hidden',
     borderRadius: radius.sm,
-    backgroundColor: color.elevated,
+    backgroundColor: color.surface,
     color: color.muted,
     fontSize: text.metaSize,
     fontWeight: text.strong,

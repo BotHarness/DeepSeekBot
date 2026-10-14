@@ -1089,7 +1089,6 @@ html[data-botharness-motion='reduce'] .bh-avatar-botui i {
   height: 20px;
   align-items: center;
   justify-content: center;
-  
   border-radius: ${radius.xs};
   background: var(--dsw-alias-button-elevated-fill);
   color: var(--dsw-alias-label-primary);
@@ -1206,7 +1205,6 @@ html[data-botharness-motion='reduce'] .bh-avatar-botui i {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  
   border-radius: ${radius.md};
   overflow: hidden;
   background: var(--dsw-alias-button-elevated-fill);
@@ -1626,7 +1624,6 @@ html[data-botharness-motion='reduce'] .bh-section-chevron {
   gap: ${space.x2};
   min-width: 0;
   padding: ${space.x3} ${space.x3} ${space.x3};
-  
   border-radius: ${radius.lg};
   background: var(--dsw-alias-bg-module-platform);
   transition: border-color 120ms ease, transform 120ms ease;
@@ -2266,7 +2263,6 @@ html[data-botharness-motion='full'] .bh-skeleton-line {
 .bh-profile-header {
   overflow: hidden;
   margin-bottom: 20px;
-  
   border-radius: ${radius.md};
   background: var(--dsw-alias-bg-module-platform);
 }
@@ -2413,7 +2409,6 @@ canvas.bh-banner-art { image-rendering: pixelated; }
   flex-direction: column;
   gap: ${space.x3};
   padding: ${space.x4} ${space.x4};
-  
   border-radius: ${radius.md};
   background: var(--dsw-alias-bg-module-platform);
 }
@@ -3907,7 +3902,6 @@ html[data-botharness-motion='reduce'] .bh-composer-activity-status { transition:
   min-width: 0;
   gap: ${space.x2};
   padding: ${space.x2} ${space.x6} ${space.x2} ${space.x2};
-  
   border-radius: ${radius.sm};
   background: var(--dsw-specific-input-major);
   color: var(--dsw-alias-label-secondary);
@@ -5062,9 +5056,8 @@ html[data-botharness-motion='full'] .bh-motion-preview-sample i:nth-child(3) {
   overflow: auto;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  
   border-radius: ${radius.sm};
-  background: var(--dsw-alias-button-elevated-fill);
+  background: ${color.surface};
   color: var(--dsw-alias-label-primary);
 }
 .bh-tool-approval-confirm, .bh-access-warning { display: grid; gap: ${space.x3}; padding: ${space.x3}; border: ${border.hairline} solid ${color.borderStrong}; border-radius: ${radius.sm}; }
