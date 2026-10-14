@@ -289,6 +289,36 @@ describe('Channel composer', () => {
     expect(key({ key: 'a' })).toBe(false);
   });
 
+  it('sends with Ctrl or ⌘+Enter when that send key is chosen, leaving Enter for new lines', () => {
+    const key = (patch: { ctrlKey?: boolean; metaKey?: boolean; shiftKey?: boolean }) =>
+      shouldSubmitComposerKey(
+        {
+          key: 'Enter',
+          shiftKey: patch.shiftKey ?? false,
+          ctrlKey: patch.ctrlKey ?? false,
+          metaKey: patch.metaKey ?? false,
+          nativeEvent: { isComposing: false, keyCode: 13 },
+        } as never,
+        'mod-enter',
+      );
+
+    expect(key({})).toBe(false);
+    expect(key({ ctrlKey: true })).toBe(true);
+    expect(key({ metaKey: true })).toBe(true);
+    expect(key({ metaKey: true, shiftKey: true })).toBe(false);
+    expect(
+      shouldSubmitComposerKey(
+        {
+          key: 'Enter',
+          shiftKey: false,
+          ctrlKey: true,
+          nativeEvent: { isComposing: false, keyCode: 13 },
+        } as never,
+        'enter',
+      ),
+    ).toBe(true);
+  });
+
   it('grows, shrinks back to one line, and switches to bounded scrolling', () => {
     const style = { height: '', overflowY: '' };
     const element = { scrollHeight: 88, style };

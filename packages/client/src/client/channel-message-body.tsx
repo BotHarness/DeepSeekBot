@@ -26,6 +26,7 @@ import { openModelsSettings } from './bot-settings-open.js';
 import { currentMentionLabel } from './actor-names.js';
 import type { ChannelHumanMember } from './store.js';
 import { referenceRuns } from './channel-refs.js';
+import { preserveHumanLineBreaks, rendersHumanMarkdown } from './human-markdown.js';
 import { attachmentReferenceRuns, messageAttachmentReferences } from './attachment-refs.js';
 import type { BridgeActions, HostDirectoryListing } from './actions.js';
 import { FolderBrowser } from './workspace-grants-entry.js';
@@ -292,7 +293,7 @@ function leadingBotMentions(message: ChannelMessage):
       text: string;
     }
   | undefined {
-  if (message.author.kind !== 'bot') return undefined;
+  if (message.author.kind !== 'bot' && message.author.kind !== 'human') return undefined;
   const mentions = [...(message.mentions ?? []), ...(message.humanMentions ?? [])].sort(
     (left, right) => left.start - right.start,
   );
@@ -354,7 +355,9 @@ export function ChannelMessageBody({
   const approvalBody = toolApprovalText(storedMessage, t);
   const message =
     approvalBody === undefined ? storedMessage : { ...storedMessage, body: approvalBody };
-  const format = message.format ?? (message.author.kind === 'human' ? 'text' : 'markdown');
+  const humanMarkdown = rendersHumanMarkdown(message);
+  const format =
+    message.format ?? (message.author.kind === 'human' && !humanMarkdown ? 'text' : 'markdown');
   if (message.contentPurged) return <div className="bh-bubble-body">{t('purge.purged')}</div>;
   if (message.onboardingWelcome !== undefined && actions !== undefined && channelId !== undefined)
     return <OnboardingWelcome actions={actions} channelId={channelId} t={t} />;
@@ -644,7 +647,11 @@ export function ChannelMessageBody({
           )}
           {leading === undefined || leading.text.length > 0 ? (
             <ChannelMarkdownText
-              text={leading?.text ?? message.body}
+              text={
+                humanMarkdown
+                  ? preserveHumanLineBreaks(leading?.text ?? message.body)
+                  : (leading?.text ?? message.body)
+              }
               streaming={message.streaming === true}
               labels={labels}
             />

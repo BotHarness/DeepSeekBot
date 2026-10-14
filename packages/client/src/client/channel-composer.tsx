@@ -67,6 +67,7 @@ import {
 } from './channel-refs.js';
 import type { ChannelAttachmentRef } from './store.js';
 import { deleteAttachmentReference, insertAttachmentReferences } from './attachment-refs.js';
+import type { ComposerSendKey } from './composer-send-key.js';
 
 function sessionLatestSummary(session: PersonaBotSessionActivity, t: BotHarnessTranslate): string {
   if (session.activity === undefined) return personaBotActivitySummary(session.state, undefined, t);
@@ -95,6 +96,7 @@ export interface ChannelComposerUpload {
 
 export interface ChannelComposerProps {
   context?: ComposerContext | undefined;
+  sendKey?: ComposerSendKey | undefined;
   value: string;
   placeholder: string;
   sending: boolean;
@@ -313,11 +315,14 @@ function ComposerFileAttachment({
 }
 
 export function shouldSubmitComposerKey(
-  event: Pick<KeyboardEvent<HTMLElement>, 'key' | 'shiftKey' | 'nativeEvent'>,
+  event: Pick<KeyboardEvent<HTMLElement>, 'key' | 'shiftKey' | 'nativeEvent'> &
+    Partial<Pick<KeyboardEvent<HTMLElement>, 'ctrlKey' | 'metaKey'>>,
+  sendKey: ComposerSendKey = 'enter',
 ): boolean {
   return (
     event.key === 'Enter' &&
     !event.shiftKey &&
+    (sendKey === 'enter' || event.ctrlKey === true || event.metaKey === true) &&
     !event.nativeEvent.isComposing &&
     event.nativeEvent.keyCode !== 229
   );
@@ -530,6 +535,7 @@ function PersonaBotActivityStatus({
 
 export function ChannelComposer({
   context,
+  sendKey = 'enter',
   value,
   placeholder,
   sending,
@@ -1026,8 +1032,9 @@ export function ChannelComposer({
     if (
       input instanceof HTMLDivElement &&
       event.key === 'Enter' &&
-      event.shiftKey &&
-      !event.nativeEvent.isComposing
+      !event.nativeEvent.isComposing &&
+      event.nativeEvent.keyCode !== 229 &&
+      !shouldSubmitComposerKey(event, sendKey)
     ) {
       event.preventDefault();
       insertRichPlainText(input, '\n');
@@ -1046,7 +1053,7 @@ export function ChannelComposer({
       event.preventDefault();
       return;
     }
-    if (!shouldSubmitComposerKey(event)) return;
+    if (!shouldSubmitComposerKey(event, sendKey)) return;
     if (mentions.some((item) => item.kind === 'all-bots' && item.preview.recipients.length === 0)) {
       event.preventDefault();
       return;

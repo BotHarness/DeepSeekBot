@@ -1,7 +1,17 @@
 import type { ReactNode } from 'react';
 
+export type ComposerShortcutId =
+  | 'model'
+  | 'workspace'
+  | 'companion'
+  | 'profile'
+  | 'memory'
+  | 'sessions'
+  | 'settings'
+  | 'sidebar';
+
 export interface ComposerShortcut {
-  id: 'model' | 'workspace' | 'companion';
+  id: ComposerShortcutId;
   label: string;
   icon?: ReactNode;
   disabled?: boolean;

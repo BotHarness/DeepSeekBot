@@ -13,8 +13,12 @@ import { useGroupComposerContext } from './group-composer-context.js';
 import type { WindowCompanions } from './window-companions.js';
 import { BridgeCallError, parseAllBotPreview } from './bridge.js';
 import type { AllBotPreview, AllBotMention } from '../../../core/src/channels/all-bot-mention.js';
+import { ComposerSendKeyContext } from './composer-send-key.js';
+import { ConversationFileDropOverlay, useConversationFileDrop } from './conversation-file-drop.js';
+import type { ComposerShortcut } from './composer-shortcuts.js';
 import {
   useCallback,
+  useContext,
   useRef,
   useState,
   useSyncExternalStore,
@@ -948,6 +952,7 @@ function ConversationView({
   t: BotHarnessTranslate;
 }): ReactElement {
   const sidebar = useChannelSidebar(state);
+  const sendKey = useContext(ComposerSendKeyContext);
   const settingsScope = resolveChannelSidebarContext(state)?.scope ?? 'channel';
   const settingsEntries = useSyncExternalStore(
     channelSidebar.subscribe,
@@ -1531,7 +1536,59 @@ function ConversationView({
     actions,
     t,
   });
-  const composerContext = dmComposerContext ?? groupComposerContext;
+  const baseComposerContext = dmComposerContext ?? groupComposerContext;
+  const openProfileView = (): void => {
+    setProfilePopoverOpen(false);
+    setSelectedMemoryView(undefined);
+    setProfileViewOpen(true);
+  };
+  const conversationShortcuts: ComposerShortcut[] = [
+    ...(dmComposerContext === undefined
+      ? []
+      : [
+          {
+            id: 'memory' as const,
+            label: t('composerCommand.memory'),
+            icon: <ChannelSidebarIcon name="files" />,
+            run: () => sidebar.openTab('memory'),
+          },
+          {
+            id: 'sessions' as const,
+            label: t('composerCommand.sessions'),
+            icon: <ChannelSidebarIcon name="messages-square" />,
+            run: () => sidebar.openTab('conversation'),
+          },
+        ]),
+    {
+      id: 'profile',
+      label: t('composerCommand.profile'),
+      icon: <ChannelSidebarIcon name={channel?.type === 'group' ? 'users' : 'id-card'} />,
+      run: openProfileView,
+    },
+    ...(hasChannelSettings
+      ? [
+          {
+            id: 'settings' as const,
+            label: t('composerCommand.settings'),
+            icon: <ChannelSidebarIcon name="settings" />,
+            run: () => channelSettings.open(settingsAttention[0]?.id),
+          },
+        ]
+      : []),
+    {
+      id: 'sidebar',
+      label: t(sidebar.mode === 'hidden' ? 'sidebar.expand' : 'sidebar.collapse'),
+      icon: <ChannelSidebarIcon name="panels-top-left" />,
+      run: sidebar.toggle,
+    },
+  ];
+  const composerContext =
+    baseComposerContext === undefined
+      ? undefined
+      : {
+          ...baseComposerContext,
+          shortcuts: [...baseComposerContext.shortcuts, ...conversationShortcuts],
+        };
 
   const togglePinnedCard = (id: string): void => {
     setPinnedProfileCards((current) => {
@@ -1798,6 +1855,18 @@ function ConversationView({
     return selected.caret;
   };
 
+  const fileDrop = useConversationFileDrop(
+    !readOnlyDm &&
+      !conversation.sending &&
+      !recovery.blocked &&
+      activeMemoryView === undefined &&
+      selectedIds === undefined,
+    (files) => {
+      addFiles(files);
+      setRestoreFocusSignal((value) => value + 1);
+    },
+  );
+
   const submit = async (): Promise<void> => {
     if (recovery.blocked) return;
     const body = draft.trim();
@@ -1972,7 +2041,14 @@ function ConversationView({
         <section
           className="bh-chat-pane"
           data-activity-concealed={composerActivityConcealed ? 'true' : undefined}
+          {...fileDrop.handlers}
         >
+          {fileDrop.active ? (
+            <ConversationFileDropOverlay
+              label={t('composer.dropFiles')}
+              hint={t('composer.dropLimit')}
+            />
+          ) : null}
           <div
             ref={profileMount}
             className="bh-topbar"
@@ -2673,6 +2749,7 @@ function ConversationView({
                     <ChannelComposer
                       key={channelId}
                       context={composerContext}
+                      sendKey={sendKey}
                       value={draft}
                       mentions={mentionTokens}
                       channelRefs={channelRefTokens}
@@ -2900,9 +2977,16 @@ export function BotMain({
     () => prefs?.source.getSnapshot().developerMode ?? false,
     () => false,
   );
+  const sendKey = useSyncExternalStore(
+    prefs?.source.subscribe ?? subscribeWithoutPrefs,
+    () => prefs?.source.getSnapshot().sendKey ?? 'enter',
+    () => 'enter' as const,
+  );
   return (
     <MessageDeveloperMode.Provider value={developerMode}>
-      <BotMainContent {...props} />
+      <ComposerSendKeyContext.Provider value={sendKey}>
+        <BotMainContent {...props} />
+      </ComposerSendKeyContext.Provider>
     </MessageDeveloperMode.Provider>
   );
 }

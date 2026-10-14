@@ -723,6 +723,8 @@ export const zh = {
   'botSessions.row.title': '在会话列表显示 Bot 会话',
   'botSessions.row.description':
     'Bot 的 Orchestrator 和 Assignment 会话默认不出现在 DeepSeek Harness 的会话列表中。打开后会显示出来。',
+  'sendKey.row.title': '发送消息',
+  'sendKey.row.description': '选择发送消息的按键，另一种组合用于换行',
   'desktopNotify.row.title': '桌面通知',
   'desktopNotify.row.description':
     '页面不在前台时，Bot 需要你审批、@你、回复你或在私聊里回复完成，会弹出系统通知。点击通知跳到对应消息。只对这个浏览器生效。',
@@ -3189,6 +3191,12 @@ export const zh = {
   'groupGrant.retry': '读回并重试',
   'composerContext.grantScope':
     '已解析目录：{path}。仅建立此 Bot 的 Workspace Grant；不启用 Orchestrator 项目写入，不更改 Assignment 权限或审批规则。',
+  'composerCommand.memory': '查看记忆',
+  'composerCommand.sessions': '查看 Sessions',
+  'composerCommand.profile': '打开资料页',
+  'composerCommand.settings': '打开会话设置',
+  'composer.dropFiles': '松开以添加附件',
+  'composer.dropLimit': '一次最多 10 个附件',
   'composer.addAttachment': '添加附件',
   'composer.referenceAttachment': '在正文中引用 {name}',
   'composer.locateAttachment': '定位附件 {name}',
@@ -4103,6 +4111,8 @@ export const en = {
   'botSessions.row.title': 'Show Bot sessions in the session list',
   'botSessions.row.description':
     "Bot Orchestrator and Assignment sessions stay out of DeepSeek Harness's session list by default. Turn this on to show them.",
+  'sendKey.row.title': 'Send messages',
+  'sendKey.row.description': 'Choose the key that sends a message; the other inserts a new line',
   'desktopNotify.row.title': 'Desktop notifications',
   'desktopNotify.row.description':
     'While this page is in the background, show a system notification when a Bot needs your approval, mentions or replies to you, or finishes replying in a DM. Click it to jump to the message. Applies to this browser only.',
@@ -6704,6 +6714,12 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'groupGrant.retry': 'Read back and retry',
   'composerContext.grantScope':
     'Resolved directory: {path}. Creates only this Bot’s Workspace Grant; does not enable Orchestrator project writes or change Assignment access or approval rules.',
+  'composerCommand.memory': 'View memory',
+  'composerCommand.sessions': 'View Sessions',
+  'composerCommand.profile': 'Open profile',
+  'composerCommand.settings': 'Open conversation settings',
+  'composer.dropFiles': 'Drop to attach',
+  'composer.dropLimit': 'Up to 10 attachments at a time',
   'composer.addAttachment': 'Add attachment',
   'composer.referenceAttachment': 'Reference {name} in message',
   'composer.locateAttachment': 'Locate attachment {name}',

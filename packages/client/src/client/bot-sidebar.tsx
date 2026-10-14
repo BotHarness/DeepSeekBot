@@ -63,11 +63,11 @@ import {
   webChannelShortcutLabel,
   webConversationStepShortcut,
   webModalOpen,
-  isMacPlatform,
   webQuickSwitcherBlocked,
   webQuickSwitcherShortcut,
   webShortcutBlocked,
 } from './channel-shortcuts.js';
+import { isApplePlatform } from './ds/kbd.js';
 import { QuickSwitcher } from './quick-switcher.js';
 import { quickSwitcherEntries, type QuickSwitcherEntry } from './quick-switcher-rank.js';
 import {
@@ -1287,7 +1287,7 @@ export function BotSidebar({
           ctrl: event.ctrlKey,
           meta: event.metaKey,
           shift: event.shiftKey,
-          mac: isMacPlatform(),
+          mac: isApplePlatform(),
           altGraph: event.getModifierState('AltGraph'),
           composing: event.isComposing,
           repeat: event.repeat,
@@ -2758,7 +2758,7 @@ export function BotSidebar({
           entries={quickSwitcherEntries(state.channels, state.bots, state.roster.hidden)}
           bots={botBySlug}
           activityOf={(bot) => personaBotActivity(state, bot)}
-          mac={isMacPlatform()}
+          mac={isApplePlatform()}
           t={t}
           onOpen={openQuickSwitcherEntry}
           onClose={() => setQuickSwitcherOpen(false)}

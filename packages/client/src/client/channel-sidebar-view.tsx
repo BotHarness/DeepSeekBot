@@ -90,6 +90,7 @@ export interface ChannelSidebarController {
   setWidth(width: number): void;
   isEntryExpanded(entryId: string): boolean;
   toggleEntry(entryId: string): void;
+  openTab(tabId: string): void;
   toggle(): void;
   close(): void;
 }
@@ -126,6 +127,12 @@ export function useChannelSidebar(
     toggleEntry: (entryId) => {
       if (scopeKey === undefined) return;
       prefs.setEntryExpanded(scopeKey, entryId, !prefs.isEntryExpanded(scopeKey, entryId));
+    },
+    openTab: (tabId) => {
+      if (scopeKey === undefined) return;
+      prefs.setSelectedTab(scopeKey, tabId);
+      if (narrow) setOverlay({ scopeKey, open: true });
+      else prefs.setSidebarCollapsed(scopeKey, false);
     },
     toggle: () => {
       if (narrow) {

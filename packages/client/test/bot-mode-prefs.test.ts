@@ -30,6 +30,7 @@ function fakeHost(initial: Partial<BotModeScopeSnapshot> = {}) {
     status: 'ready',
     value: {
       botIcon: 'mascot' as const,
+      sendKey: 'enter' as const,
       autoAcceptGroupInvites: true,
       assignmentConcurrencyLimit: 8,
       developerMode: false,
@@ -90,6 +91,7 @@ describe('BOT-mode policy store', () => {
     expect(prefs.source.getSnapshot()).toEqual({
       motionPreference: 'system',
       botIcon: 'mascot' as const,
+      sendKey: 'enter' as const,
       autoAcceptGroupInvites: true,
       assignmentConcurrencyLimit: 8,
       developerMode: false,
@@ -122,6 +124,7 @@ describe('BOT-mode policy store', () => {
     const scope = fakeHost({
       value: {
         botIcon: 'mascot' as const,
+        sendKey: 'enter' as const,
         autoAcceptGroupInvites: true,
         assignmentConcurrencyLimit: 3,
         developerMode: false,
@@ -138,6 +141,7 @@ describe('BOT-mode policy store', () => {
     expect(prefs.source.getSnapshot()).toEqual({
       motionPreference: 'reduce',
       botIcon: 'mascot' as const,
+      sendKey: 'enter' as const,
       autoAcceptGroupInvites: true,
       assignmentConcurrencyLimit: 3,
       developerMode: false,
@@ -152,6 +156,7 @@ describe('BOT-mode policy store', () => {
     scope.push({
       value: {
         botIcon: 'mascot' as const,
+        sendKey: 'enter' as const,
         autoAcceptGroupInvites: true,
         assignmentConcurrencyLimit: 3,
         developerMode: false,
@@ -188,6 +193,7 @@ describe('BOT-mode policy store', () => {
     expect(prefs.source.getSnapshot()).toMatchObject({
       motionPreference: 'reduce',
       botIcon: 'mascot' as const,
+      sendKey: 'enter' as const,
       autoAcceptGroupInvites: true,
       assignmentConcurrencyLimit: 8,
       developerMode: false,
@@ -199,6 +205,31 @@ describe('BOT-mode policy store', () => {
     scope.set.mockClear();
     prefs.setMotionPreference('reduce');
     expect(scope.set).not.toHaveBeenCalled();
+  });
+
+  it('sends with Enter by default and persists the chosen send key', () => {
+    const scope = fakeHost();
+    const prefs = new BotModePrefs();
+    prefs.attach(scope.host);
+
+    expect(prefs.source.getSnapshot().sendKey).toBe('enter');
+    prefs.setSendKey('mod-enter');
+    expect(prefs.source.getSnapshot().sendKey).toBe('mod-enter');
+    expect(scope.set).toHaveBeenCalledWith('sendKey', 'mod-enter');
+
+    scope.push({
+      value: {
+        botIcon: 'mascot',
+        sendKey: 'bogus' as never,
+        autoAcceptGroupInvites: true,
+        assignmentConcurrencyLimit: 3,
+        developerMode: false,
+        motionPreference: 'system',
+        sortMode: 'updated',
+        sortModes: {},
+      },
+    });
+    expect(prefs.source.getSnapshot().sendKey).toBe('enter');
   });
 
   it('keeps developer details off by default and persists an explicit toggle', () => {
@@ -214,6 +245,7 @@ describe('BOT-mode policy store', () => {
     scope.push({
       value: {
         botIcon: 'mascot',
+        sendKey: 'enter' as const,
         autoAcceptGroupInvites: true,
         assignmentConcurrencyLimit: 3,
         developerMode: true,
@@ -251,6 +283,7 @@ describe('BOT-mode policy store', () => {
     const snapshot = {
       motionPreference: 'system' as const,
       botIcon: 'mascot' as const,
+      sendKey: 'enter' as const,
       autoAcceptGroupInvites: true,
       assignmentConcurrencyLimit: 3,
       developerMode: false,
@@ -322,6 +355,7 @@ describe('BOT-mode policy store', () => {
     scope.push({
       value: {
         botIcon: 'mascot' as const,
+        sendKey: 'enter' as const,
         autoAcceptGroupInvites: true,
         assignmentConcurrencyLimit: 3,
         developerMode: false,
@@ -409,6 +443,7 @@ describe('legacy roster.json sort migration', () => {
     const scope = fakeHost({
       value: {
         botIcon: 'mascot' as const,
+        sendKey: 'enter' as const,
         autoAcceptGroupInvites: true,
         assignmentConcurrencyLimit: 3,
         developerMode: false,
@@ -472,6 +507,7 @@ describe('roster migration sort-mode remap', () => {
       value: {
         motionPreference: 'system',
         botIcon: 'mascot' as const,
+        sendKey: 'enter' as const,
         autoAcceptGroupInvites: true,
         assignmentConcurrencyLimit: 3,
         developerMode: false,
@@ -548,6 +584,7 @@ describe('roster migration sort-mode remap', () => {
       value: {
         motionPreference: 'system',
         botIcon: 'mascot' as const,
+        sendKey: 'enter' as const,
         autoAcceptGroupInvites: true,
         assignmentConcurrencyLimit: 3,
         developerMode: false,

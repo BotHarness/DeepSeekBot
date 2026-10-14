@@ -183,19 +183,6 @@ export function webQuickSwitcherLabel(mac: boolean): string {
   return mac ? '⌘K' : 'Ctrl+K';
 }
 
-export function isMacPlatform(navigatorLike?: {
-  platform?: string;
-  userAgentData?: { platform?: string } | undefined;
-}): boolean {
-  const source =
-    navigatorLike ??
-    (typeof navigator === 'undefined'
-      ? undefined
-      : (navigator as Navigator & { userAgentData?: { platform?: string } }));
-  const platform = source?.userAgentData?.platform ?? source?.platform ?? '';
-  return /mac|iphone|ipad|ipod/iu.test(platform);
-}
-
 export type ShortcutHelpTrigger = 'question' | 'slash';
 
 export function webShortcutHelpShortcut(

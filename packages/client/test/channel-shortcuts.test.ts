@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 
 import {
   steppedConversationId,
-  isMacPlatform,
   webBotModeShortcut,
   webQuickSwitcherBlocked,
   webQuickSwitcherLabel,
@@ -15,6 +14,7 @@ import {
   webShortcutBlocked,
   webShortcutHelpShortcut,
 } from '../src/client/channel-shortcuts.js';
+import { isApplePlatform } from '../src/client/ds/kbd.js';
 
 const alt = { alt: true, ctrl: false, meta: false, shift: false };
 
@@ -92,11 +92,11 @@ describe('web channel number shortcuts', () => {
   });
 
   it('detects macOS from the browser platform', () => {
-    expect(isMacPlatform({ platform: 'MacIntel' })).toBe(true);
-    expect(isMacPlatform({ userAgentData: { platform: 'macOS' } })).toBe(true);
-    expect(isMacPlatform({ platform: 'iPad' })).toBe(true);
-    expect(isMacPlatform({ platform: 'Win32' })).toBe(false);
-    expect(isMacPlatform({ userAgentData: { platform: 'Linux' }, platform: 'MacIntel' })).toBe(
+    expect(isApplePlatform({ platform: 'MacIntel' })).toBe(true);
+    expect(isApplePlatform({ userAgentData: { platform: 'macOS' } })).toBe(true);
+    expect(isApplePlatform({ platform: 'iPad' })).toBe(true);
+    expect(isApplePlatform({ platform: 'Win32' })).toBe(false);
+    expect(isApplePlatform({ userAgentData: { platform: 'Linux' }, platform: 'MacIntel' })).toBe(
       false,
     );
   });

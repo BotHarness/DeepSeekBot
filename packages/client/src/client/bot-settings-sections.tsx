@@ -10,6 +10,7 @@ import {
   DeveloperModeSetting,
   GroupAutoAcceptSetting,
   MotionSetting,
+  SendKeySetting,
   SortSetting,
 } from './bot-mode-setting-rows.js';
 import type { BotModePrefsFace } from './bot-mode-prefs.js';
@@ -59,6 +60,7 @@ export function GeneralSection(props: SectionProps<GeneralSectionFace>): ReactEl
       <BotIconSetting {...props} />
       <MotionSetting {...props} />
       <SortSetting {...props} />
+      <SendKeySetting {...props} />
       <BotSessionsVisibilitySetting {...props} />
       <DesktopNotificationSetting desktopNotifications={props.desktopNotifications} t={props.t} />
       <ShortcutHelpSetting shortcutHelp={props.shortcutHelp} t={props.t} />

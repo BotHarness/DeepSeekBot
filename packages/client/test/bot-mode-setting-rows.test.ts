@@ -32,8 +32,10 @@ import {
   DeveloperModeSetting,
   GroupAutoAcceptSetting,
   MotionSetting,
+  SendKeySetting,
   SortSetting,
 } from '../src/client/bot-mode-setting-rows.js';
+import { shortcutKeyLabel } from '../src/client/ds/kbd.js';
 import { zh, zhTranslate, type BotHarnessKey } from '../src/client/locale.js';
 
 const t = zhTranslate;
@@ -42,6 +44,7 @@ function snapshot(patch?: Partial<BotModePrefsSnapshot>): BotModePrefsSnapshot {
   return {
     motionPreference: 'system',
     botIcon: 'mascot' as const,
+    sendKey: 'enter' as const,
     autoAcceptGroupInvites: true,
     assignmentConcurrencyLimit: 3,
     developerMode: false,
@@ -123,7 +126,10 @@ describe('Bot mode setting rows', () => {
     const setDeveloperMode = vi.fn();
     const markup = renderSection(snapshot(), undefined, undefined, undefined, setDeveloperMode);
     expect(markup).toContain('开发者模式');
-    expect(captured.switches[0]).toMatchObject({ checked: false, label: '开发者模式' });
+    expect(captured.switches[0]).toMatchObject({
+      checked: false,
+      label: '开发者模式',
+    });
     (captured.switches[0]?.['onChange'] as (enabled: boolean) => void)(true);
     expect(setDeveloperMode).toHaveBeenCalledWith(true);
   });
@@ -217,4 +223,59 @@ it('shows default Group auto-accept and writes its native switch', () => {
   expect(control).toMatchObject({ checked: true, disabled: false });
   (control['onChange'] as (enabled: boolean) => void)(false);
   expect(set).toHaveBeenCalledWith(false);
+});
+
+describe('send key setting', () => {
+  function renderSendKey(apple: boolean, sendKey: 'enter' | 'mod-enter', setSendKey = vi.fn()) {
+    const markup = renderToStaticMarkup(
+      createElement(SendKeySetting, {
+        t,
+        apple,
+        useBotModePrefs: ((selector: (value: BotModePrefsSnapshot) => unknown) =>
+          selector(snapshot({ sendKey }))) as never,
+        setSendKey: setSendKey as never,
+      } as never),
+    );
+    const items = (
+      menuWithItem('mod-enter')['items'] as readonly {
+        id: string;
+        label: unknown;
+      }[]
+    ).map((item) => ({
+      id: item.id,
+      markup: renderToStaticMarkup(createElement(Fragment, null, item.label as never)),
+    }));
+    return { markup, items, setSendKey };
+  }
+
+  it('shows symbol keycaps with Command on Apple platforms', () => {
+    const { markup, items } = renderSendKey(true, 'mod-enter');
+    expect(markup).toContain('<kbd title="Command"');
+    expect(markup).not.toContain('Ctrl');
+    expect(items.map((item) => item.id)).toEqual(['enter', 'mod-enter']);
+    expect(items[0]?.markup).toMatch(/>↵<\/kbd>.*发送.*>⇧<\/kbd>.*>↵<\/kbd>.*换行/u);
+    expect(items[1]?.markup).toMatch(/>⌘<\/kbd>.*>↵<\/kbd>.*发送.*>↵<\/kbd>.*换行/u);
+    expect(items.some((item) => item.markup.includes('Enter<'))).toBe(false);
+  });
+
+  it('shows Ctrl on other platforms and writes the picked key', () => {
+    const { items, setSendKey } = renderSendKey(false, 'enter');
+    expect(items[1]?.markup).toMatch(/>Ctrl<\/kbd>.*>↵<\/kbd>.*发送/u);
+    expect(items[1]?.markup).not.toContain('⌘');
+    const onSelect = menuWithItem('mod-enter')['onSelect'] as (id: string) => void;
+    onSelect('mod-enter');
+    expect(setSendKey).toHaveBeenCalledWith('mod-enter');
+  });
+
+  it('maps shortcut keys to platform symbols', () => {
+    expect(['Mod', 'Alt', 'Shift', 'Enter', '/'].map((key) => shortcutKeyLabel(key, true))).toEqual(
+      ['⌘', '⌥', '⇧', '↵', '/'],
+    );
+    expect(['Mod', 'Alt', 'Shift', 'Enter'].map((key) => shortcutKeyLabel(key, false))).toEqual([
+      'Ctrl',
+      'Alt',
+      '⇧',
+      '↵',
+    ]);
+  });
 });

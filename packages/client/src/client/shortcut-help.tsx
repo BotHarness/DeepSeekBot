@@ -1,11 +1,12 @@
 import { Fragment, useSyncExternalStore, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
+import type { BotModeSendKey } from '../bot-mode-settings.js';
+import type { BotModePrefsSnapshot } from './bot-mode-prefs.js';
+import { isApplePlatform, KeyCombo, type ShortcutKey } from './ds/kbd.js';
 import { PanelDialog } from './ds/panel-dialog.js';
-import { border, color, radius, space, text } from './ds/tokens.stylex.js';
+import { border, color, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
-
-export type ShortcutKey = string;
 
 export interface ShortcutHelpEntry {
   readonly id: string;
@@ -78,18 +79,20 @@ export const SHORTCUT_HELP_GROUPS: readonly ShortcutHelpGroup[] = [
   },
 ];
 
-export function isApplePlatform(): boolean {
-  if (typeof navigator === 'undefined') return false;
-  const platform =
-    (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform ??
-    navigator.platform;
-  return /mac|iphone|ipad|ipod/iu.test(platform ?? '');
-}
+const SEND_KEY_COMBOS: Readonly<
+  Record<BotModeSendKey, { send: readonly ShortcutKey[]; newline: readonly ShortcutKey[] }>
+> = {
+  enter: { send: ['Enter'], newline: ['Shift', 'Enter'] },
+  'mod-enter': { send: ['Mod', 'Enter'], newline: ['Enter'] },
+};
 
-export function shortcutKeyLabel(key: ShortcutKey, apple: boolean): string {
-  if (key === 'Mod') return apple ? '⌘' : 'Ctrl';
-  if (key === 'Alt' && apple) return '⌥';
-  return key;
+export function shortcutEntryKeys(
+  entry: ShortcutHelpEntry,
+  sendKey: BotModeSendKey,
+): readonly (readonly ShortcutKey[])[] {
+  if (entry.id === 'send') return [SEND_KEY_COMBOS[sendKey].send];
+  if (entry.id === 'newline') return [SEND_KEY_COMBOS[sendKey].newline];
+  return entry.keys;
 }
 
 export class ShortcutHelp {
@@ -158,32 +161,16 @@ const styles = stylex.create({
     color: color.subtle,
     fontSize: text.metaSize,
   },
-  kbd: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    minWidth: '22px',
-    height: '22px',
-    paddingInline: space.x2,
-    borderWidth: border.hairline,
-    borderStyle: 'solid',
-    borderColor: color.border,
-    borderRadius: radius.xs,
-    backgroundColor: color.elevated,
-    color: color.fg,
-    fontFamily: 'inherit',
-    fontSize: text.metaSize,
-    lineHeight: 1,
-    whiteSpace: 'nowrap',
-  },
 });
 
 export function ShortcutHelpList({
   t,
   apple = isApplePlatform(),
+  sendKey = 'enter',
 }: {
   t: BotHarnessTranslate;
   apple?: boolean;
+  sendKey?: BotModeSendKey;
 }): ReactElement {
   return (
     <>
@@ -206,14 +193,10 @@ export function ShortcutHelpList({
                   )}
                 </dt>
                 <dd {...stylex.props(styles.keys)}>
-                  {entry.keys.map((combo, index) => (
+                  {shortcutEntryKeys(entry, sendKey).map((combo, index) => (
                     <Fragment key={combo.join('+')}>
                       {index > 0 ? <span>{t('shortcuts.or')}</span> : null}
-                      {combo.map((key) => (
-                        <kbd key={key} {...stylex.props(styles.kbd)}>
-                          {shortcutKeyLabel(key, apple)}
-                        </kbd>
-                      ))}
+                      <KeyCombo keys={combo} apple={apple} />
                     </Fragment>
                   ))}
                 </dd>
@@ -229,11 +212,14 @@ export function ShortcutHelpList({
 export function ShortcutHelpView({
   shortcutHelp,
   t,
+  useBotModePrefs,
 }: {
   shortcutHelp: ShortcutHelp;
   t: BotHarnessTranslate;
+  useBotModePrefs?: <T>(selector: (value: BotModePrefsSnapshot) => T) => T;
 }): ReactElement | null {
   const open = useSyncExternalStore(shortcutHelp.subscribe, shortcutHelp.getSnapshot, () => false);
+  const sendKey = useBotModePrefs?.((value) => value.sendKey) ?? 'enter';
   if (!open) return null;
   return (
     <PanelDialog
@@ -244,7 +230,7 @@ export function ShortcutHelpView({
       onClose={shortcutHelp.close}
       data={{ 'data-bh-shortcut-help': '' }}
     >
-      <ShortcutHelpList t={t} />
+      <ShortcutHelpList t={t} sendKey={sendKey} />
     </PanelDialog>
   );
 }

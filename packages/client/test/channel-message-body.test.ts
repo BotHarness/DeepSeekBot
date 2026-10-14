@@ -602,11 +602,19 @@ describe('Channel message body', () => {
     }
   });
 
-  it('keeps Human punctuation, whitespace and newlines literal', () => {
-    const markup = render({ kind: 'human' }, '# not a heading\n**not bold**  ');
-    expect(markup).toContain('# not a heading\n**not bold**  ');
+  it('keeps casual Human punctuation, whitespace and newlines literal', () => {
+    const markup = render({ kind: 'human' }, '#1 is 2*3\n_maybe_  ');
+    expect(markup).toContain('#1 is 2*3\n_maybe_  ');
     expect(markup).not.toContain('bh-bubble-body-markdown');
     expect(MarkdownText).not.toHaveBeenCalled();
+  });
+
+  it('renders Human Markdown and keeps the line breaks the Human typed', () => {
+    const markup = render({ kind: 'human' }, 'plan\n- **ship** it\n- run `pnpm test`');
+    expect(markup).toContain('bh-bubble-body-markdown');
+    expect(vi.mocked(MarkdownText).mock.calls[0]?.[0]).toMatchObject({
+      text: 'plan  \n- **ship** it  \n- run `pnpm test`',
+    });
   });
 
   it('honors an explicit text override for Bot messages', () => {

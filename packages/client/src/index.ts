@@ -6,15 +6,18 @@ import {
   BOT_MODE_ICONS,
   DEFAULT_ASSIGNMENT_CONCURRENCY_LIMIT,
   BOT_MODE_MOTION_PREFERENCES,
+  BOT_MODE_SEND_KEYS,
   BOT_MODE_SORT_MODES,
   DEFAULT_BOT_MODE_ICON,
   DEFAULT_BOT_MODE_DEVELOPER,
   DEFAULT_BOT_MODE_GROUP_AUTO_ACCEPT,
   DEFAULT_BOT_MODE_MOTION,
+  DEFAULT_BOT_MODE_SEND_KEY,
   DEFAULT_BOT_MODE_SHOW_BOT_SESSIONS,
   DEFAULT_BOT_MODE_SORT,
   type BotModeIcon,
   type BotModeMotionPreference,
+  type BotModeSendKey,
   type BotModeSortMode,
   type BotModeSettings,
 } from './bot-mode-settings.js';
@@ -28,6 +31,7 @@ export interface Config {
   showBotSessions: Volatile<boolean>;
   botIcon: Volatile<BotModeIcon>;
   motionPreference: Volatile<BotModeMotionPreference>;
+  sendKey: Volatile<BotModeSendKey>;
   sortMode: Volatile<BotModeSortMode>;
   sortModes: Volatile<Record<string, BotModeSortMode>>;
 }
@@ -47,6 +51,9 @@ export const Config: Schema<Partial<BotModeSettings>, Config> = Schema.object({
     .volatile(),
   motionPreference: Schema.union([...BOT_MODE_MOTION_PREFERENCES])
     .default(DEFAULT_BOT_MODE_MOTION)
+    .volatile(),
+  sendKey: Schema.union([...BOT_MODE_SEND_KEYS])
+    .default(DEFAULT_BOT_MODE_SEND_KEY)
     .volatile(),
   sortMode: Schema.union([...BOT_MODE_SORT_MODES])
     .default(DEFAULT_BOT_MODE_SORT)

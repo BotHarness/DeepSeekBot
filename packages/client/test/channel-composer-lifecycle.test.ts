@@ -213,6 +213,48 @@ describe('mounted Channel composer', () => {
     expect(onSubmit).toHaveBeenCalledOnce();
   });
 
+  it('inserts a new line on Enter and sends on Ctrl/⌘+Enter when that send key is chosen', async () => {
+    const onSubmit = vi.fn();
+    const attachment = {
+      id: 'file',
+      file: new File(['proof'], 'proof.txt'),
+      status: 'ready' as const,
+    };
+    function Harness() {
+      const [value, setValue] = useState('first');
+      return createElement(ChannelComposer, {
+        value,
+        placeholder: 'Message',
+        sending: false,
+        sendKey: 'mod-enter',
+        attachments: [attachment],
+        onChange: setValue,
+        onSubmit,
+      });
+    }
+    await act(async () => root.render(createElement(Harness)));
+    const input = host.querySelector<HTMLElement>('[contenteditable]')!;
+    await act(async () => setRichSelection(input, 'first'.length));
+    await act(async () =>
+      input.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
+      ),
+    );
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(readRichMentionDraft(input).value).toBe('first\n');
+    await act(async () =>
+      input.dispatchEvent(
+        new KeyboardEvent('keydown', {
+          key: 'Enter',
+          ctrlKey: true,
+          bubbles: true,
+          cancelable: true,
+        }),
+      ),
+    );
+    expect(onSubmit).toHaveBeenCalledOnce();
+  });
+
   it('uses touch/click without sending and refuses a menu opened for an old target', async () => {
     const run = vi.fn();
     const onSubmit = vi.fn();

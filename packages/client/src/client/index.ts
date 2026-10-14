@@ -301,7 +301,7 @@ export function apply(ctx: ClientContext): void {
         name: 'shell.overlay',
         id: 'botharness-shortcut-help',
         locale: LOCALE_NS,
-        inject: () => ({ shortcutHelp }),
+        inject: () => ({ shortcutHelp, ...botModePrefsFace(prefs) }),
       },
       ShortcutHelpView,
     ),

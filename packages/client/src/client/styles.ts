@@ -3630,6 +3630,15 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
   background: color-mix(in srgb, currentColor 14%, transparent);
   box-shadow: 0 0 0 1px color-mix(in srgb, currentColor 14%, transparent);
 }
+.bh-bubble-me .bh-bubble-body-markdown > *,
+.bh-bubble-me .bh-bubble-body-markdown :is(p, li, h1, h2, h3, h4, h5, h6, blockquote, strong, em, del, a, th, td),
+.bh-bubble-me .bh-bubble-body-markdown li::marker {
+  color: inherit;
+}
+.bh-bubble-me .bh-bubble-body-markdown :not(pre) > code {
+  color: inherit;
+  background: color-mix(in srgb, currentColor 14%, transparent);
+}
 .bh-bubble-me .bh-inline-mention-link:hover {
   background: color-mix(in srgb, currentColor 24%, transparent);
   box-shadow: 0 0 0 1px color-mix(in srgb, currentColor 24%, transparent);
