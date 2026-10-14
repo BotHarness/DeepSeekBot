@@ -1,3 +1,8 @@
+# Every checkout materializes text with LF so committed build artifacts are
+# byte-stable across platforms: the lib/ client bundles embed source text in
+# their sourcemaps, and a CRLF worktree changes that embedded text.
+* text=auto eol=lf
+
 docs/assets/vps-source/terminal/*.typescript -text -diff
 docs/assets/vps-source/terminal/*.timing -text -diff
 apps/docs/public/guides/vps-source/terminal/*.typescript -text -diff
