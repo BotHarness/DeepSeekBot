@@ -250,4 +250,10 @@ describe('CI test plan drift checks', () => {
     expect(synced.endsWith('\n\nAfter.\n')).toBe(true);
     expect(syncGuide(synced)).toBe(synced);
   });
+
+  it('regenerates a CRLF guide table in the file line endings', () => {
+    const guide = `# Guide\n\n${rulesTable().replace('Lockfile', 'Old text')}\n\nAfter.\n`;
+    const crlf = guide.replaceAll('\n', '\r\n');
+    expect(syncGuide(crlf)).toBe(syncGuide(guide).replaceAll('\n', '\r\n'));
+  });
 });
