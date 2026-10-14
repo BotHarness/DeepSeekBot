@@ -793,7 +793,7 @@ _避免使用_：widget、card、tab、destination、Channel section
 _避免使用_：view、page、rail item
 
 **Bot mode layout**：
-桌面端 Bot mode（宽度 960 px 及以上）的整体界面：一个可停靠布局，Human 可以拖动、停靠、叠成 tab、浮动、调整大小、关闭和重新打开 Dock panel，布局按浏览器保存，并可恢复默认（提议中，ADR-0203）。窄布局与手机保持响应式布局。
+桌面端 Bot mode（宽度 960 px 及以上）的整体界面：一个可停靠布局，Human 可以拖动、停靠、浮动、调整大小、关闭和重新打开 Dock panel。每个面板独立存在，面板之间不叠成 tab，Channel body 只有一个，布局按浏览器保存，并可恢复默认（提议中，ADR-0203）。窄布局与手机保持响应式布局。
 _避免使用_：workbench、panel layout、dock
 
 **Dock panel**：
