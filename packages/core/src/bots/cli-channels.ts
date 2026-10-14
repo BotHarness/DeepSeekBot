@@ -19,6 +19,8 @@ export const CHANNEL_OPTIONS = {
   through: { type: 'string' },
   'source-event': { type: 'string', multiple: true },
   confirm: { type: 'boolean' },
+  emoji: { type: 'string' },
+  remove: { type: 'boolean' },
   off: { type: 'boolean' },
 } as const;
 
@@ -53,6 +55,11 @@ export const CHANNEL_COMMANDS = [
   },
   { command: 'channel-mark-read', description: 'mark a Channel read through one message' },
   { command: 'channel-mark-all-read', description: 'mark every Channel read' },
+  {
+    command: 'channel-react',
+    description: 'add or remove your emoji reaction on one Channel message',
+  },
+  { command: 'channel-search', description: "search a Channel's messages, newest first" },
   { command: 'channel-unread', description: 'list unread message counts per Channel' },
   {
     command: 'channel-mute',
@@ -98,6 +105,9 @@ interface ChannelValues {
   through?: string;
   'source-event'?: string[];
   confirm?: boolean;
+  emoji?: string;
+  remove?: boolean;
+  query?: string;
   off?: boolean;
 }
 
@@ -289,6 +299,20 @@ export async function runChannelCommand(
       method = 'channelMarkRead';
       args.messageId = required(values['message-id'], '--message-id');
       break;
+    case 'channel-react':
+      method = 'channelReact';
+      args.messageId = required(values['message-id'], '--message-id');
+      args.emoji = required(values.emoji, '--emoji');
+      args.active = values.remove !== true;
+      break;
+    case 'channel-search': {
+      method = 'channelSearch';
+      const limit = integer(values.limit, '--limit', 1, 50);
+      args.text = required(values.query, '--query');
+      if (values.cursor !== undefined) args.cursor = values.cursor;
+      if (limit !== undefined) args.limit = limit;
+      break;
+    }
     case 'channel-mark-all-read':
       method = 'channelMarkAllRead';
       args = {};

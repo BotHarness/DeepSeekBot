@@ -485,6 +485,10 @@ const glyphs: Record<string, readonly [string, Record<string, string | number>][
     ['circle', { cx: '15', cy: '5', r: '1' }],
     ['circle', { cx: '15', cy: '19', r: '1' }],
   ],
+  x: [
+    ['path', { d: 'M18 6 6 18' }],
+    ['path', { d: 'm6 6 12 12' }],
+  ],
   check: [
     [
       'path',

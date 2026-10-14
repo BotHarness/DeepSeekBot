@@ -431,6 +431,7 @@ export function ToolApprovalCard({
           <Button
             variant="primary"
             size={size}
+            className="bh-request-primary"
             disabled={disabled}
             onClick={() => decide('allowed-once')}
           >
@@ -515,6 +516,7 @@ export function ToolApprovalCard({
               <Button
                 variant="primary"
                 size={size}
+                className="bh-request-primary"
                 disabled={disabled}
                 onClick={() => decide('allowed-always-all')}
               >
@@ -523,6 +525,7 @@ export function ToolApprovalCard({
               <Button
                 variant="outline"
                 size={size}
+                className="bh-request-secondary"
                 disabled={busy}
                 onClick={() => setConfirmAll(false)}
               >

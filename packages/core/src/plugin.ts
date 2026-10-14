@@ -570,6 +570,8 @@ export function createCore(
       live?.publishAdmission(channelId, messageId, message),
     onHumanReadChanged: (channelId, humanId, revision) =>
       live?.publishHumanRead(channelId, humanId, revision),
+    onReactionChanged: (channelId, messageId, reactions) =>
+      live?.publishReaction(channelId, messageId, reactions),
     ...(options.warn === undefined ? {} : { warn: options.warn }),
   });
   const attention = createBotAttentionQuery(
@@ -1698,7 +1700,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   registerBridge(ctx, bridgeMethods, privateInputs, {
     followRoster: (signal) => core.live.followRoster(signal),
     followActivity: (signal) => core.live.followActivity(signal),
-    followChannel: (channelId, limit, signal) => core.live.followChannel(channelId, limit, signal),
+    followChannel: (channelId, limit, signal, drafts) =>
+      core.live.followChannel(channelId, limit, signal, drafts),
     journalPage: (channelId, request) => core.channels.readHumanJournalPage(channelId, request),
     followCompanion: (resume, lastEventId, signal) =>
       followCompanion((request) => core.companions.open(request), resume, lastEventId, signal),

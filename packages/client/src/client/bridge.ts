@@ -94,6 +94,7 @@ import type {
   ChannelAuthor,
   ChannelAttachmentRef,
   ChannelMessage,
+  ChannelReaction,
   ChannelSummary,
   OwnedSessionSummary,
   StandingLimitsView,
@@ -1418,6 +1419,9 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
       }))
   )
     return undefined;
+  const reactions =
+    record['reactions'] === undefined ? undefined : parseReactions(record['reactions']);
+  if (record['reactions'] !== undefined && reactions === undefined) return undefined;
   const deliveries = record['deliveries'];
   if (
     deliveries !== undefined &&
@@ -1468,6 +1472,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
       ? {}
       : { humanReceipts: humanReceipts as NonNullable<ChannelMessage['humanReceipts']> }),
     ...(channelRevision === undefined ? {} : { channelRevision }),
+    ...(reactions === undefined || reactions.length === 0 ? {} : { reactions }),
     ...(grantRequest === true ? { grantRequest: true as const } : {}),
     ...(grantRequest === true && record['grantRequestResolved'] === true
       ? { grantRequestResolved: true }
@@ -1499,6 +1504,67 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
     ...(bridgeMedia === undefined ? {} : { bridgeMedia }),
     ...(replyTo === undefined ? {} : { replyTo }),
     ...(replyToPreview === undefined ? {} : { replyToPreview }),
+  };
+}
+
+export function parseReactions(value: unknown): ChannelReaction[] | undefined {
+  if (!Array.isArray(value) || value.length > 200) return undefined;
+  const reactions: ChannelReaction[] = [];
+  for (const entry of value) {
+    const item = asRecord(entry);
+    const emoji = item?.['emoji'];
+    const actors = item?.['actors'];
+    if (typeof emoji !== 'string' || emoji.length === 0 || emoji.length > 16) return undefined;
+    if (!Array.isArray(actors) || actors.length === 0) return undefined;
+    const parsed: ChannelReaction['actors'] = [];
+    for (const actor of actors) {
+      const record = asRecord(actor);
+      const kind = record?.['kind'];
+      const id = record?.['id'];
+      if ((kind !== 'human' && kind !== 'bot') || typeof id !== 'string' || id.length === 0)
+        return undefined;
+      parsed.push({ kind, id });
+    }
+    reactions.push({ emoji, actors: parsed });
+  }
+  return reactions;
+}
+
+export async function reactToChannelMessage(
+  call: BridgeCall,
+  channelId: string,
+  messageId: string,
+  emoji: string,
+  active: boolean,
+): Promise<ChannelReaction[]> {
+  const value = asRecord(
+    await unwrap(call, 'channelReact', { channelId, messageId, emoji, active }),
+  );
+  const reactions = parseReactions(value?.['reactions']);
+  if (reactions === undefined) throw new Error('invalid channelReact response');
+  return reactions;
+}
+
+export async function searchChannelMessages(
+  call: BridgeCall,
+  channelId: string,
+  text: string,
+  cursor?: string,
+): Promise<{ messages: ChannelMessage[]; nextCursor?: string }> {
+  const value = asRecord(
+    await unwrap(call, 'channelSearch', {
+      channelId,
+      text,
+      limit: 20,
+      ...(cursor === undefined ? {} : { cursor }),
+    }),
+  );
+  const nextCursor = value?.['nextCursor'];
+  if (value === undefined || (nextCursor !== undefined && typeof nextCursor !== 'string'))
+    throw new Error('invalid channelSearch response');
+  return {
+    messages: parseChannelMessages(value),
+    ...(nextCursor === undefined ? {} : { nextCursor }),
   };
 }
 
@@ -3337,6 +3403,17 @@ export async function setSessionArchived(
 ): Promise<boolean> {
   const value = asRecord(await unwrap(call, 'sessionArchiveSet', { slug, sessionId, archived }));
   return value?.['archived'] === true;
+}
+
+export async function moveMemoryLocation(
+  call: BridgeCall,
+  slug: string,
+  location: string | null,
+): Promise<string> {
+  const value = asRecord(await unwrap(call, 'memoryMove', { slug, location }));
+  const memoryDir = value?.['memoryDir'];
+  if (typeof memoryDir !== 'string') throw new Error('Memory location is invalid');
+  return memoryDir;
 }
 
 export async function loadRoster(call: BridgeCall, signal?: AbortSignal): Promise<RosterSnapshot> {

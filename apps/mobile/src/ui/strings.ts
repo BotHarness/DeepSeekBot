@@ -2,6 +2,15 @@ import type { PairingRefusal } from '../host/pairing';
 import type { PushKind, PushRefusal } from '../host/push';
 import type { AggregatedState } from '../host/wire';
 
+type ToolGroup = 'shell' | 'browser' | 'files' | 'other';
+
+function toolGroup(tool: string): ToolGroup {
+  if (/^(bash|shell|exec|secret_cli)$/u.test(tool)) return 'shell';
+  if (tool.startsWith('browser')) return 'browser';
+  if (/^(read|write|edit|glob|grep|list)$/u.test(tool)) return 'files';
+  return 'other';
+}
+
 const en = {
   roster: 'DeepSeekBot',
   bots: 'PersonaBots',
@@ -52,6 +61,14 @@ const en = {
     handled: 'Handled',
   },
   inboxEmpty: 'Nothing needs you right now.',
+  filterActivity: 'Filter activity',
+  filterAll: 'All',
+  filterAllBots: 'All Bots',
+  filterChip: (label: string, count: number) => `${label}, ${count}`,
+  filterEmpty: 'Nothing here.',
+  sectionCount: (label: string, count: number) => `${label} · ${count}`,
+  openPost: (kind: string, name: string, summary: string) =>
+    `${kind}, ${name}, ${summary}. Open in chat`,
   inboxLoading: 'Reading your Inbox…',
   inboxStale: 'Showing the last Inbox read. It could not be refreshed:',
   inboxFailed: 'Could not read your Inbox.',
@@ -65,6 +82,7 @@ const en = {
     'channel-reply': 'Reply',
   } as Record<string, string>,
   otherKind: 'Update',
+  rowTitle: (kind: string, name: string) => `${kind} · ${name}`,
   inChannel: (name: string) => `in #${name}`,
   wantsToRun: (bot: string, tool: string) => `${bot} wants to run ${tool}`,
   asks: (bot: string) => `${bot} asks`,
@@ -74,6 +92,7 @@ const en = {
   reject: 'Reject',
   submit: 'Send answer',
   otherAnswer: 'Other answer',
+  typeAnswer: 'Type your answer',
   multiSelectHint: 'Choose any that apply',
   sending: 'Sending…',
   approved: 'Allowed. The PersonaBot continues.',
@@ -157,6 +176,11 @@ const en = {
   tool: 'Tool',
   submitChoice: 'Submit',
   inFolder: (folder: string) => `In ${folder}`,
+  needsYou: 'Needs you',
+  toolCategory: (tool: string) =>
+    ({ shell: 'Terminal', browser: 'Browser', files: 'Files', other: 'Tool' })[toolGroup(tool)],
+  runTool: (tool: string) => (toolGroup(tool) === 'shell' ? 'Run this command' : `Use ${tool}`),
+  replyInChat: 'Or reply in the chat below.',
   option: (letter: string, label: string) => `${letter}. ${label}`,
   cardOutcome: {
     'allowed-once': 'Allowed once',
@@ -348,6 +372,14 @@ const zh: typeof en = {
     handled: '已处理',
   },
   inboxEmpty: '现在没有需要你处理的事。',
+  filterActivity: '筛选活动',
+  filterAll: '全部',
+  filterAllBots: '全部 Bot',
+  filterChip: (label: string, count: number) => `${label}，${count} 条`,
+  filterEmpty: '这里没有内容。',
+  sectionCount: (label: string, count: number) => `${label} · ${count}`,
+  openPost: (kind: string, name: string, summary: string) =>
+    `${kind}，${name}，${summary}。在聊天中打开`,
   inboxLoading: '正在读取收件箱…',
   inboxStale: '显示的是上次读取的收件箱，刷新失败：',
   inboxFailed: '无法读取收件箱。',
@@ -361,6 +393,7 @@ const zh: typeof en = {
     'channel-reply': '回复',
   },
   otherKind: '动态',
+  rowTitle: (kind: string, name: string) => `${kind} · ${name}`,
   inChannel: (name: string) => `在 #${name}`,
   wantsToRun: (bot: string, tool: string) => `${bot} 想要运行 ${tool}`,
   asks: (bot: string) => `${bot} 问你`,
@@ -370,6 +403,7 @@ const zh: typeof en = {
   reject: '拒绝',
   submit: '发送回答',
   otherAnswer: '其他回答',
+  typeAnswer: '输入你的回答',
   multiSelectHint: '可多选',
   sending: '正在发送…',
   approved: '已允许，PersonaBot 继续工作。',
@@ -450,6 +484,11 @@ const zh: typeof en = {
   tool: '工具',
   submitChoice: '提交',
   inFolder: (folder: string) => `在 ${folder}`,
+  needsYou: '需要你确认',
+  toolCategory: (tool: string) =>
+    ({ shell: '终端', browser: '浏览器', files: '文件', other: '工具' })[toolGroup(tool)],
+  runTool: (tool: string) => (toolGroup(tool) === 'shell' ? '运行这条命令' : `使用 ${tool}`),
+  replyInChat: '或者在下方聊天中回复。',
   option: (letter: string, label: string) => `${letter}. ${label}`,
   cardOutcome: {
     'allowed-once': '已允许一次',

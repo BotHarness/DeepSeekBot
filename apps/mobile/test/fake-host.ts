@@ -1,7 +1,7 @@
 import { pageChannelJournal } from '../../../packages/core/src/channels/timeline.js';
 import type { ChannelMessage } from '../../../packages/core/src/channels/channel.js';
 import type { HostCarrier, HostSocketEvents } from '../src/host/carrier';
-import type { ChannelLiveFrame, MuxClientFrame } from '../src/host/wire';
+import type { ChannelLiveFrame, MuxClientFrame, WireDraft } from '../src/host/wire';
 import wire from './fixtures/host-wire.json';
 
 type Rpc = keyof typeof wire.rpc;
@@ -16,6 +16,8 @@ type Socket = { events: HostSocketEvents; streams: Map<string, string>; device: 
 export class FakeChannel {
   readonly messages: ChannelMessage[] = [];
   private followers = new Map<string, { entry: Socket; streamId: string }>();
+  readonly follows: Array<Record<string, unknown>> = [];
+  baselineDrafts: WireDraft[] = [];
   constructor(readonly id: string) {}
 
   get revision(): number {
@@ -48,7 +50,12 @@ export class FakeChannel {
     this.send(streamId, { type: 'opened', cursor, page: this.page(cursor, undefined, limit)! });
     this.send(streamId, {
       type: 'notification',
-      notification: { kind: 'draft-baseline', channelId: this.id, revision: 0, drafts: [] },
+      notification: {
+        kind: 'draft-baseline',
+        channelId: this.id,
+        revision: Math.max(0, ...this.baselineDrafts.map((draft) => draft.revision)),
+        drafts: structuredClone(this.baselineDrafts),
+      },
     });
   }
 
@@ -81,6 +88,7 @@ export class FakeHost {
   offer = 'offer-1';
   revoked = false;
   up = true;
+  olderHost = false;
   private sockets = new Set<Socket>();
   readonly requests: string[] = [];
   readonly unreachable = new Set<string>();
@@ -204,7 +212,20 @@ export class FakeHost {
             else if (frame.endpoint === 'botharness/followChannel') {
               const args = frame.payload.args as { channelId: string; limit: number };
               const channel = this.channels.get(args.channelId);
-              if (channel === undefined)
+              channel?.follows.push({ ...args });
+              if (this.olderHost && 'drafts' in args)
+                entry.events.message(
+                  JSON.stringify({
+                    type: 'error',
+                    streamId: frame.streamId,
+                    error: {
+                      code: 'gateway/arguments-invalid',
+                      message: 'args fields do not match the descriptor: unexpected "drafts"',
+                      details: {},
+                    },
+                  }),
+                );
+              else if (channel === undefined)
                 entry.events.message(
                   JSON.stringify({
                     type: 'error',

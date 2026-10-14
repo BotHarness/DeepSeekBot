@@ -2,7 +2,7 @@ import type { PersonaBotActivitySnapshot } from '../state/bot-state.js';
 import type { PurgedPlacement } from '../purge/contracts.js';
 import { isChannelNotice } from './channel-notice.js';
 import type { ChannelDraft, ChannelDraftEvent } from './draft.js';
-import type { ChannelMessage } from './channel.js';
+import type { ChannelMessage, ChannelReaction } from './channel.js';
 import type { ChannelMessageCommit, ChannelStore } from './store.js';
 import { MAX_MESSAGE_PAGE, type ChannelJournalPage } from './timeline.js';
 
@@ -10,7 +10,9 @@ export const CHANNEL_STREAM_PATH = '/api/botharness/stream';
 export const CHANNEL_COMMIT_EVENT = 'channel/message';
 export const CHANNEL_ADMISSION_EVENT = 'channel/admission';
 export const CHANNEL_HUMAN_READ_EVENT = 'channel/human-read';
+export const CHANNEL_REACTION_EVENT = 'channel/reaction';
 export const CHANNEL_DRAFT_EVENT = 'channel/draft';
+export const CHANNEL_DRAFT_APPEND_EVENT = 'channel/draft-append';
 export const CHANNEL_DRAFT_BASELINE_EVENT = 'channel/draft-baseline';
 export const CHANNEL_DRAFT_SETTLED_EVENT = 'channel/draft-settled';
 export const CHANNEL_DRAFT_ABANDONED_EVENT = 'channel/draft-abandoned';
@@ -22,8 +24,18 @@ export interface PublishedDraft extends ChannelDraft {
   revision: number;
 }
 
+export type DraftDelivery = 'full' | 'append';
+
+export interface PublishedDraftAppend {
+  draftId: string;
+  revision: number;
+  base: number;
+  offset: number;
+  append: string;
+}
+
 export type PublishedDraftEvent =
-  | { type: 'update'; draft: PublishedDraft }
+  | { type: 'update'; draft: PublishedDraft; append?: PublishedDraftAppend }
   | {
       type: 'settled' | 'abandoned';
       channelId: string;
@@ -38,6 +50,7 @@ interface Subscriber {
   pushDraft(event: PublishedDraftEvent): void;
   pushAdmission(messageId: string, message: ChannelMessage): void;
   pushHumanRead(humanId: string, revision: number): void;
+  pushReaction(messageId: string, reactions: ChannelReaction[]): void;
   close(): void;
 }
 
@@ -60,8 +73,10 @@ export type ChannelLiveNotification =
       humanReceipts: NonNullable<ChannelMessage['humanReceipts']>;
     }
   | { kind: 'human-read'; channelId: string; humanId: string; revision: number }
+  | { kind: 'reaction'; channelId: string; messageId: string; reactions: ChannelReaction[] }
   | { kind: 'draft-baseline'; channelId: string; revision: number; drafts: PublishedDraft[] }
   | { kind: 'draft'; draft: PublishedDraft }
+  | { kind: 'draft-append'; append: PublishedDraftAppend }
   | {
       kind: 'draft-settled' | 'draft-abandoned';
       event: Exclude<PublishedDraftEvent, { type: 'update' }>;
@@ -97,12 +112,18 @@ function encodeChannelFrame(frame: ChannelLiveFrame): string {
     const { kind: _kind, ...data } = notification;
     return `event: ${CHANNEL_HUMAN_READ_EVENT}\ndata: ${JSON.stringify(data)}\n\n`;
   }
+  if (notification.kind === 'reaction') {
+    const { kind: _kind, ...data } = notification;
+    return `event: ${CHANNEL_REACTION_EVENT}\ndata: ${JSON.stringify(data)}\n\n`;
+  }
   if (notification.kind === 'draft-baseline') {
     const { kind: _kind, ...data } = notification;
     return `event: ${CHANNEL_DRAFT_BASELINE_EVENT}\ndata: ${JSON.stringify(data)}\n\n`;
   }
   if (notification.kind === 'draft')
     return `event: ${CHANNEL_DRAFT_EVENT}\ndata: ${JSON.stringify(notification.draft)}\n\n`;
+  if (notification.kind === 'draft-append')
+    return `event: ${CHANNEL_DRAFT_APPEND_EVENT}\ndata: ${JSON.stringify(notification.append)}\n\n`;
   const name =
     notification.kind === 'draft-settled'
       ? CHANNEL_DRAFT_SETTLED_EVENT
@@ -127,10 +148,12 @@ export interface ChannelLiveHub {
     channelId: string,
     limit: number,
     signal: AbortSignal,
+    drafts?: DraftDelivery,
   ): AsyncIterable<ChannelLiveFrame>;
   publishCommitted(commit: ChannelMessageCommit): void;
   publishAdmission(channelId: string, messageId: string, message: ChannelMessage): void;
   publishHumanRead(channelId: string, humanId: string, revision: number): void;
+  publishReaction(channelId: string, messageId: string, reactions: ChannelReaction[]): void;
   publishDraft(event: ChannelDraftEvent): void;
   publishRosterCommitted(): void;
   publishContentPurged(): void;
@@ -494,6 +517,7 @@ export function createChannelLiveHub(
     after: number,
     sink: (frame: ChannelLiveFrame) => void,
     closed: () => void,
+    delivery: DraftDelivery = 'full',
   ): { close(): void } => {
     let delivered = after;
     let ended = false;
@@ -536,12 +560,20 @@ export function createChannelLiveHub(
           notification: { kind: 'human-read', channelId, humanId, revision },
         });
       },
+      pushReaction(messageId, reactions) {
+        emit({
+          type: 'notification',
+          notification: { kind: 'reaction', channelId, messageId, reactions },
+        });
+      },
       pushDraft(event) {
         emit({
           type: 'notification',
           notification:
             event.type === 'update'
-              ? { kind: 'draft', draft: event.draft }
+              ? delivery === 'append' && event.append !== undefined
+                ? { kind: 'draft-append', append: event.append }
+                : { kind: 'draft', draft: event.draft }
               : event.type === 'settled'
                 ? { kind: 'draft-settled', event }
                 : { kind: 'draft-abandoned', event },
@@ -586,11 +618,14 @@ export function createChannelLiveHub(
     channelId: string,
     limit: number,
     signal: AbortSignal,
+    drafts: DraftDelivery = 'full',
   ): AsyncGenerator<ChannelLiveFrame> {
     if (typeof channelId !== 'string' || channels.get(channelId) === undefined)
       throw new ChannelLiveRefused('not-found', 'Unknown Channel');
     if (!Number.isSafeInteger(limit) || limit < 1 || limit > MAX_MESSAGE_PAGE)
       throw new ChannelLiveRefused('invalid', 'Invalid Channel page size');
+    if (drafts !== 'full' && drafts !== 'append')
+      throw new ChannelLiveRefused('invalid', 'Invalid draft delivery');
     const after = channels.revision(channelId);
     const page = channels.readHumanJournalPage(channelId, { through: after, limit });
     if (page === undefined) throw new ChannelLiveRefused('not-found', 'Unknown Channel');
@@ -611,6 +646,7 @@ export function createChannelLiveHub(
         ended = true;
         wake?.();
       },
+      drafts,
     );
     const abort = (): void => subscription.close();
     signal.addEventListener('abort', abort, { once: true });
@@ -732,6 +768,10 @@ export function createChannelLiveHub(
       for (const subscriber of subscribers.get(channelId) ?? [])
         subscriber.pushHumanRead(humanId, revision);
     },
+    publishReaction(channelId, messageId, reactions) {
+      for (const subscriber of subscribers.get(channelId) ?? [])
+        subscriber.pushReaction(messageId, reactions);
+    },
     publishDraft(event) {
       const channelId = event.type === 'update' ? event.draft.channelId : event.channelId;
       if (channels.get(channelId) === undefined) return;
@@ -744,8 +784,25 @@ export function createChannelLiveHub(
           drafts.set(channelId, group);
         }
         const draft = { ...event.draft, revision };
+        const previous = group.get(draft.draftId);
         group.set(draft.draftId, draft);
-        published = { type: 'update', draft };
+        published =
+          previous?.attemptId === draft.attemptId &&
+          previous.botSlug === draft.botSlug &&
+          draft.body.length > previous.body.length &&
+          draft.body.startsWith(previous.body)
+            ? {
+                type: 'update',
+                draft,
+                append: {
+                  draftId: draft.draftId,
+                  revision,
+                  base: previous.revision,
+                  offset: previous.body.length,
+                  append: draft.body.slice(previous.body.length),
+                },
+              }
+            : { type: 'update', draft };
       } else {
         const group = drafts.get(channelId);
         if (group?.get(event.draftId)?.attemptId !== event.attemptId) return;

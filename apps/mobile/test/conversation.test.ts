@@ -436,6 +436,93 @@ describe('DM conversation', () => {
     expect(done.messages.at(-1)).toMatchObject({ author: 'bot', delivery: 'committed' });
   });
 
+  it('asks for draft appends and applies them on top of the whole body', async () => {
+    const host = new FakeHost();
+    const channel = host.channel(DM);
+    seed(channel, 1);
+    const target = open(host);
+    await until(target, (s) => s.status === 'live');
+    expect(channel.follows).toEqual([{ channelId: DM, limit: 10, drafts: 'append' }]);
+    const draft = { channelId: DM, draftId: 'draft-1', attemptId: 'attempt-1', botSlug: SLUG };
+    channel.emit({
+      type: 'notification',
+      notification: { kind: 'draft', draft: { ...draft, body: 'Hel', revision: 1 } },
+    });
+    for (const [index, append] of ['lo ', '**there**'].entries())
+      channel.emit({
+        type: 'notification',
+        notification: {
+          kind: 'draft-append',
+          append: {
+            draftId: 'draft-1',
+            revision: index + 2,
+            base: index + 1,
+            offset: index === 0 ? 3 : 6,
+            append,
+          },
+        },
+      });
+    await until(target, (s) => s.drafts[0]?.body === 'Hello **there**');
+    expect(target.getSnapshot().drafts).toEqual([
+      { draftId: 'draft-1', botSlug: SLUG, body: 'Hello **there**' },
+    ]);
+    expect(channel.follows).toHaveLength(1);
+  });
+
+  it('follows again for the whole body when an append does not match its copy', async () => {
+    const host = new FakeHost();
+    const channel = host.channel(DM);
+    seed(channel, 1);
+    const target = open(host);
+    await until(target, (s) => s.status === 'live');
+    const draft = { channelId: DM, draftId: 'draft-1', attemptId: 'attempt-1', botSlug: SLUG };
+    channel.emit({
+      type: 'notification',
+      notification: { kind: 'draft', draft: { ...draft, body: 'Hel', revision: 1 } },
+    });
+    await until(target, (s) => s.drafts[0]?.body === 'Hel');
+    channel.baselineDrafts = [{ ...draft, body: 'Hello there', revision: 4 }];
+    channel.emit({
+      type: 'notification',
+      notification: {
+        kind: 'draft-append',
+        append: { draftId: 'draft-1', revision: 4, base: 2, offset: 5, append: ' there' },
+      },
+    });
+    const repaired = await until(target, (s) => s.drafts[0]?.body === 'Hello there');
+    expect(repaired.status).toBe('live');
+    expect(channel.follows).toHaveLength(2);
+    await until(target, () => channel.followerCount === 1);
+  });
+
+  it('keeps streaming whole draft bodies from a Host that refuses appends', async () => {
+    const host = new FakeHost();
+    host.olderHost = true;
+    const channel = host.channel(DM);
+    seed(channel, 1);
+    const target = open(host);
+    await until(target, (s) => s.status === 'live');
+    expect(channel.follows).toEqual([
+      { channelId: DM, limit: 10, drafts: 'append' },
+      { channelId: DM, limit: 10 },
+    ]);
+    channel.emit({
+      type: 'notification',
+      notification: {
+        kind: 'draft',
+        draft: {
+          channelId: DM,
+          draftId: 'draft-1',
+          attemptId: 'attempt-1',
+          botSlug: SLUG,
+          body: 'Hello',
+          revision: 1,
+        },
+      },
+    });
+    await until(target, (s) => s.drafts[0]?.body === 'Hello');
+  });
+
   it('resumes from the last revision after the connection drops, with nothing lost or doubled', async () => {
     const host = new FakeHost();
     const channel = host.channel(DM);

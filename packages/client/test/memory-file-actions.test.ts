@@ -22,6 +22,8 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
     IconChevronDownOutlineRegular: stub,
     IconFolderOpenOutlineRegular: stub,
     IconChevronLeftOutlineRegular: stub,
+    IconChevronRightOutlineRegular: stub,
+    IconCloseOutlineRegular: stub,
     IconCopyOutlineRegular: stub,
     IconRefreshOutlineRegular: stub,
     IconSettingsOutlineRegular: stub,
@@ -429,12 +431,21 @@ describe('message attachment menus', () => {
         }),
       ),
     );
-    const image = container.querySelector('a.bh-message-image-link')!;
-    expect(image.getAttribute('href')).toContain(
+    const image = container.querySelector<HTMLButtonElement>('button.bh-message-image-link')!;
+    expect(image.getAttribute('aria-label')).toBe('查看图片 photo.png');
+    expect(image.querySelector('img')?.getAttribute('src')).toContain(
       'channelId=group-owner&messageId=message-owner&fileId=file%3A',
     );
-    expect(image.getAttribute('target')).toBe('_blank');
     expect(container.querySelector('button[aria-label="文件操作: photo.png"]')).not.toBeNull();
     expect(container.querySelector('[role="menu"]')).toBeNull();
+    await act(async () => image.click());
+    const dialog = document.body.querySelector('[role="dialog"][aria-modal="true"]')!;
+    expect(dialog.getAttribute('aria-label')).toBe('图片预览：photo.png');
+    expect(dialog.querySelector('img')?.getAttribute('src')).toContain('messageId=message-owner');
+    expect(dialog.querySelector('[aria-label="上一张"]')).toBeNull();
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    });
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull();
   });
 });

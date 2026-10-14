@@ -241,6 +241,7 @@ function stubActions(): BridgeActions {
     answerUserQuestion: vi.fn(async () => undefined),
     authorizeWorkspacePath: vi.fn(async () => ({ id: 'grant-1' }) as never),
     memoryDirectory: vi.fn(async () => undefined),
+    moveMemoryLocation: vi.fn(async () => '/tmp/memory'),
     load: vi.fn(async () => undefined),
     refreshRoster: vi.fn(async () => undefined),
     refreshGit: vi.fn(async () => undefined),

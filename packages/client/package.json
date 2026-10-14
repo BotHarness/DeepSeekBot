@@ -24,6 +24,7 @@
     "@botharness/pixel-morph": "0.2.0",
     "@stylexjs/stylex": "0.19.1",
     "blobatar": "^2.7.0",
+    "dockview-react": "8.4.1",
     "driver.js": "1.4.0",
     "html-to-image": "1.11.13",
     "morphicons": "1.7.1"

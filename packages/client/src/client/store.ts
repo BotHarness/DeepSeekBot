@@ -165,6 +165,11 @@ export interface SessionFailureCard {
   context?: string;
 }
 
+export interface ChannelReaction {
+  emoji: string;
+  actors: { kind: 'human' | 'bot'; id: string }[];
+}
+
 export interface ChannelMessage {
   onboardingWelcome?: { version: 1 };
   contentPurged?: true;
@@ -184,6 +189,7 @@ export interface ChannelMessage {
     state: 'unread' | 'read';
   }[];
   channelRevision?: number;
+  reactions?: ChannelReaction[];
   deliveries?: {
     botSlug: string;
     state:
@@ -360,6 +366,7 @@ export interface ConversationState {
   revision: number;
   timeline: ConversationTimeline;
   focusMessageId?: string | undefined;
+  unreadAfterMessageId?: string | undefined;
   error: string | undefined;
   sending: boolean;
 }
@@ -526,6 +533,7 @@ function initialConversation(): ConversationState {
     revision: 0,
     timeline: initialTimeline(),
     focusMessageId: undefined,
+    unreadAfterMessageId: undefined,
     error: undefined,
     sending: false,
   };
@@ -598,6 +606,7 @@ export function createStore(): ClientStore {
     if (channelId === undefined || conversation.status !== 'ready') return;
     rememberKeyed(conversations, channelId, {
       ...conversation,
+      unreadAfterMessageId: undefined,
       drafts: [],
       draftRevision: 0,
       draftNotice: undefined,

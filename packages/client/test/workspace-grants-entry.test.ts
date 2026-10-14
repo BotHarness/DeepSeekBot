@@ -361,6 +361,77 @@ describe('Workspace Grant sidebar', () => {
       container.remove();
     }
   });
+  it('moves Memory to a chosen folder, or back to the default, from the Memory Repository row', async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    const moveMemoryLocation = vi
+      .fn()
+      .mockResolvedValueOnce('/srv/memory/ada')
+      .mockResolvedValueOnce('/home/me/.deepseek/botharness/bots/ada/memory');
+    const actions = {
+      listWorkspaceOptions: vi.fn(async () => []),
+      listWorkspaceGrants: vi.fn(async () => []),
+      memoryDirectory: vi.fn(async () => '/tmp/memory'),
+      listToolApprovalRules: vi.fn(async () => []),
+      assignmentAccess: vi.fn(async () => ({ mode: 'workspace-write' })),
+      pickWorkspaceFolder: vi.fn(async () => '/srv/memory'),
+      moveMemoryLocation,
+    } as unknown as BridgeActions;
+    try {
+      await act(async () =>
+        root.render(
+          createElement(WorkspaceGrantsEntry, {
+            scope: 'personabot',
+            channelId: 'dm-ada',
+            botSlug: 'ada',
+            actions,
+            t: zhTranslate,
+          }),
+        ),
+      );
+      const expand = Array.from(
+        container.querySelectorAll<HTMLButtonElement>('button.bh-workspace-folder-toggle'),
+      ).find(
+        (button) =>
+          button.querySelector('.bh-card-title')?.textContent === zhTranslate('grant.memory'),
+      )!;
+      act(() => expand.click());
+      const input = () =>
+        container.querySelector<HTMLInputElement>(
+          `input[aria-label="${zhTranslate('grant.memoryMove.label')}"]`,
+        )!;
+      const button = (key: string) =>
+        Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find(
+          (candidate) => candidate.textContent === zhTranslate(key),
+        )!;
+      expect(container.textContent).toContain(zhTranslate('grant.memoryMove.hint'));
+      act(() => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+          input(),
+          'relative/folder',
+        );
+        input().dispatchEvent(new Event('input', { bubbles: true }));
+      });
+      expect(container.textContent).toContain(zhTranslate('bot.create.memoryLocation.relative'));
+      expect(button('grant.memoryMove.move').disabled).toBe(true);
+
+      await act(async () => button('bot.create.memoryLocation.choose').click());
+      expect(input().value).toBe('/srv/memory');
+      await act(async () => button('grant.memoryMove.move').click());
+      expect(moveMemoryLocation).toHaveBeenCalledWith('ada', '/srv/memory');
+      expect(container.textContent).toContain('/srv/memory/ada');
+      expect(input().value).toBe('');
+
+      await act(async () => button('grant.memoryMove.default').click());
+      expect(moveMemoryLocation).toHaveBeenLastCalledWith('ada', null);
+      expect(container.textContent).toContain('/home/me/.deepseek/botharness/bots/ada/memory');
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+    }
+  });
   it('shows cached Grants immediately when returning to the same PersonaBot', async () => {
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
     const container = document.createElement('div');

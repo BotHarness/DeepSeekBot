@@ -15,6 +15,8 @@
     "expo-env.d.ts",
     "test/inbox-screens.test.ts",
     "test/action-cards.test.ts",
+    "test/activity-feed.test.ts",
+    "test/reanimated-shim.ts",
     "test/**/*.tsx"
   ]
 }

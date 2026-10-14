@@ -230,6 +230,7 @@ Usage:
   deepseekbot memory-version-name <id> --sha <commit> --name <version>
   deepseekbot memory-version-unname <id> --tag <version>
   deepseekbot memory-repair <id> --expected-head <commit>
+  deepseekbot memory-move <id> (--memory-location <absolute-dir> | --default-location)
   deepseekbot model-catalog
   deepseekbot model-plan-set <id> --plan-stdin [--expected-revision <n>]
   deepseekbot model-plan-customize <id> --orchestrator-provider <p> --orchestrator-model <m> [--orchestrator-effort <e>]
@@ -251,6 +252,12 @@ Usage:
   deepseekbot bot-tool <id> <tool> [--args-stdin]
   deepseekbot computer-tools
   deepseekbot computer-tool <id> <tool> [--args-stdin] [--out <absolute-file>]
+  deepseekbot todos
+  deepseekbot todo-add --title <text>
+  deepseekbot todo-update <todo-id> [--title <text>] [--done | --not-done]
+  deepseekbot todo-remove <todo-id>
+  deepseekbot todo-tools
+  deepseekbot todo-tool <id> <tool> [--args-stdin]
   deepseekbot bot-attention <id> [--limit <1-100>] [--cursor <source-id>] [--state <state>]
   deepseekbot bot-sessions <id> [--limit <1-100>]
   deepseekbot bot-activity <id> [--limit <1-100>]

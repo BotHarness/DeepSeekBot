@@ -1,9 +1,14 @@
 # AX shared default model
 
 Use DSH's built-in `opencode-go` route for AX-launched isolated Profiles after a one-time
-machine-local setup. The default model is `deepseek-v4-flash`; the setup script checks the model
+machine-local setup. The default model is `deepseek-v4.1-flash`; the setup script checks the model
 against the catalog shipped with the worktree's pinned native adapter. This uses no additional
 Provider plugin.
+
+Test with the newest DeepSeek model in that catalog, not an earlier generation. When a newer one
+ships in the pinned catalog, move `DEFAULT_GO_MODEL` in `scripts/dev-model.mjs` and this page to it.
+An existing selection keeps its model: remove `~/.config/botharness/ax-model.json` and rerun setup
+to pick up the new default.
 
 ## Set the key locally
 

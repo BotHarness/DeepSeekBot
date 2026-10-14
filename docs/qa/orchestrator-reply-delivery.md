@@ -15,7 +15,7 @@ them, modify the global model default or approve actual Tool permissions.
 BH_E2E_ORIGIN=http://127.0.0.1:3220 \
 BH_E2E_HOME=/absolute/path/to/isolated-profile \
 BH_E2E_EVIDENCE=/absolute/path/to/private-evidence \
-BH_E2E_MODELS=opencode-go:deepseek-v4-flash:off,opencode-go:glm-5.1:low \
+BH_E2E_MODELS=opencode-go:deepseek-v4.1-flash:off,opencode-go:glm-5.1:low \
 BH_E2E_ROUNDS=2 \
 node scripts/e2e-orchestrator-reply-delivery.mjs
 ```

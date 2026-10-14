@@ -12,9 +12,11 @@ export const ROLES = {
   divider: 'alias-border-l1',
   border: 'alias-border-l2',
   borderStrong: 'alias-border-l3',
+  borderField: 'alias-border-l4',
   hover: 'alias-interactive-bg-hover',
   selected: 'alias-interactive-bg-active',
   accent: 'alias-state-business-primary',
+  accentTint: 'alias-state-business-tertiary',
   onAccent: 'alias-label-primary-foreground',
   danger: 'alias-state-error-primary',
   onDanger: 'alias-label-primary-foreground',
@@ -25,8 +27,11 @@ export const ROLES = {
   warningSoft: 'alias-state-warn-tertiary',
   success: 'alias-state-success-primary',
   surface: 'alias-bg-module-platform',
+  field: 'alias-bg-layer-1',
+  sheet: 'alias-bg-layer-2',
   elevated: 'alias-button-elevated-fill',
   base: 'alias-bg-base',
+  well: 'alias-bg-base',
 };
 
 function themeSource() {

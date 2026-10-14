@@ -4,13 +4,19 @@ import {
   type ChannelEventSource,
 } from './messaging-defaults-live.js';
 import { parseContentRedactions } from './content-redactions.js';
-import { parseChannelMessage, type JournalEntry, type JournalPage } from './bridge.js';
+import {
+  parseChannelMessage,
+  parseReactions,
+  type JournalEntry,
+  type JournalPage,
+} from './bridge.js';
 import type { BridgeActions } from './actions.js';
 import type { ChannelDraft, ClientStore } from './store.js';
 
 const EVENT_NAME = 'channel/message';
 const ADMISSION_EVENT = 'channel/admission';
 const HUMAN_READ_EVENT = 'channel/human-read';
+const REACTION_EVENT = 'channel/reaction';
 const DRAFT_EVENT = 'channel/draft';
 const DRAFT_BASELINE_EVENT = 'channel/draft-baseline';
 const DRAFT_SETTLED_EVENT = 'channel/draft-settled';
@@ -350,6 +356,27 @@ export function mountChannelLive(
         ),
       });
     };
+    const onReaction = (data: unknown): void => {
+      const payload = decode(data);
+      if (typeof payload !== 'object' || payload === null) return;
+      const item = payload as Record<string, unknown>;
+      const reactions = parseReactions(item['reactions']);
+      if (
+        item['channelId'] !== activeChannelId ||
+        typeof item['messageId'] !== 'string' ||
+        reactions === undefined
+      )
+        return;
+      const latest = store.getSnapshot();
+      if (latest.conversation.channel?.id !== activeChannelId) return;
+      store.setConversation({
+        messages: latest.conversation.messages.map((message) => {
+          if (message.id !== item['messageId']) return message;
+          const { reactions: _previous, ...rest } = message;
+          return reactions.length === 0 ? rest : { ...rest, reactions };
+        }),
+      });
+    };
     const onHumanRead = (data: unknown): void => {
       const payload = decode(data);
       if (typeof payload !== 'object' || payload === null) return;
@@ -488,6 +515,7 @@ export function mountChannelLive(
           const item = notification as { kind?: unknown; draft?: unknown; event?: unknown };
           if (item.kind === 'admission') onAdmission(notification);
           else if (item.kind === 'human-read') onHumanRead(notification);
+          else if (item.kind === 'reaction') onReaction(notification);
           else if (item.kind === 'draft-baseline') onDraftBaseline(notification);
           else if (item.kind === 'draft') onDraft(item.draft);
           else if (item.kind === 'draft-settled') onLifecycle(item.event, false);
@@ -536,6 +564,7 @@ export function mountChannelLive(
     next.addEventListener(EVENT_NAME, data(onEntry));
     next.addEventListener(ADMISSION_EVENT, data(onAdmission));
     next.addEventListener(HUMAN_READ_EVENT, data(onHumanRead));
+    next.addEventListener(REACTION_EVENT, data(onReaction));
     next.addEventListener(DRAFT_BASELINE_EVENT, data(onDraftBaseline));
     next.addEventListener(DRAFT_EVENT, data(onDraft));
     next.addEventListener(

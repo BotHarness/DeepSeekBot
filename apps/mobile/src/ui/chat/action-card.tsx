@@ -1,11 +1,12 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { ActivityIndicator, Pressable, View } from 'react-native';
 
 import type { ColorRole } from '../design/theme';
 import { useDesignTheme } from '../design/theme';
 import { edge, radius, space } from '../design/tokens';
 import { Text } from '../primitives/text';
-import { ChevronRightIcon } from '../shell/icons';
+import { ChevronDownIcon } from '../shell/icons';
+import { t } from '../strings';
 
 export type CardLineTone = 'success' | 'danger' | 'subtle';
 
@@ -13,23 +14,103 @@ function Frame({ children }: { children: ReactNode }) {
   return <View style={{ paddingHorizontal: space.x4, paddingTop: space.x3 }}>{children}</View>;
 }
 
+function StatusPill({ label }: { label: string }) {
+  const theme = useDesignTheme();
+  return (
+    <View
+      style={{
+        borderRadius: radius.round,
+        backgroundColor: theme.color.warningSoft,
+        paddingHorizontal: space.x4,
+        paddingVertical: space.x1,
+      }}
+    >
+      <Text variant="meta" strong tone="warning" numberOfLines={1}>
+        {label}
+      </Text>
+    </View>
+  );
+}
+
+function Details({ children }: { children: ReactNode }) {
+  const theme = useDesignTheme();
+  const [open, setOpen] = useState(false);
+  return (
+    <View style={{ gap: space.x3 }}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={t.details}
+        accessibilityState={{ expanded: open }}
+        onPress={() => setOpen(!open)}
+        hitSlop={space.x3}
+        style={({ pressed }) => ({
+          alignSelf: 'flex-start',
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: space.x2,
+          opacity: pressed ? 0.6 : 1,
+        })}
+      >
+        <Text variant="meta" tone="muted" strong>
+          {t.details}
+        </Text>
+        <View style={{ transform: [{ rotate: open ? '180deg' : '0deg' }] }}>
+          <ChevronDownIcon color={theme.color.muted} size={theme.type.meta.size} />
+        </View>
+      </Pressable>
+      {open ? (
+        <View
+          style={{
+            backgroundColor: theme.layer.well.fill,
+            borderRadius: radius.md,
+            padding: space.x4,
+            gap: space.x4,
+          }}
+        >
+          {children}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+export function DetailRow({ label, value }: { label: string; value: string }) {
+  const theme = useDesignTheme();
+  return (
+    <View style={{ gap: space.x1 }}>
+      {label === '' ? null : (
+        <Text variant="meta" tone="muted">
+          {label}
+        </Text>
+      )}
+      <Text selectable variant="meta" style={{ fontFamily: theme.mono }}>
+        {value}
+      </Text>
+    </View>
+  );
+}
+
 export function ActionCard({
-  eyebrow,
+  category,
+  status,
   title,
-  explanation,
   preview,
+  details,
   focused = false,
   error,
   busy = false,
+  wide = false,
   children,
 }: {
-  eyebrow: string;
+  category: string;
+  status?: string;
   title: string;
-  explanation?: string;
   preview?: ReactNode;
+  details?: ReactNode;
   focused?: boolean;
   error?: string;
   busy?: boolean;
+  wide?: boolean;
   children?: ReactNode;
 }) {
   const theme = useDesignTheme();
@@ -38,30 +119,33 @@ export function ActionCard({
       <View
         testID="action-card"
         style={{
-          maxWidth: '92%',
-          alignSelf: 'flex-start',
-          backgroundColor: theme.color.surface,
+          width: wide ? '100%' : '92%',
+          backgroundColor: theme.layer.raised.fill,
           borderRadius: radius.lg,
-          borderWidth: focused ? edge.focus : edge.hairline,
-          borderColor: focused ? theme.color.accent : theme.color.border,
+          borderWidth: focused ? edge.focus : 0,
+          borderColor: theme.color.accent,
           padding: space.x5,
           gap: space.x4,
         }}
       >
         <View style={{ gap: space.x2 }}>
-          <Text variant="meta" tone="muted" strong>
-            {eyebrow}
-          </Text>
-          <Text selectable variant="title">
-            {title}
-          </Text>
-          {explanation === undefined ? null : (
-            <Text selectable variant="meta" tone="muted">
-              {explanation}
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: space.x4,
+            }}
+          >
+            <Text strong numberOfLines={1} style={{ flexShrink: 1 }}>
+              {category}
             </Text>
-          )}
+            {status === undefined ? null : <StatusPill label={status} />}
+          </View>
+          <Text selectable>{title}</Text>
         </View>
         {preview}
+        {details === undefined ? null : <Details>{details}</Details>}
         {busy ? <ActivityIndicator /> : children}
         {error === undefined ? null : (
           <Text accessibilityRole="alert" variant="meta" tone="danger">
@@ -95,8 +179,8 @@ export function CardLine({
           flexDirection: 'row',
           alignItems: 'center',
           gap: space.x3,
-          backgroundColor: theme.color.surface,
-          borderRadius: radius.md,
+          backgroundColor: theme.layer.raised.fill,
+          borderRadius: radius.round,
           borderWidth: focused ? edge.focus : 0,
           borderColor: theme.color.accent,
           paddingHorizontal: space.x4,
@@ -119,31 +203,12 @@ export function CardLine({
   );
 }
 
-export function CardButtons({ children }: { children: ReactNode }) {
-  return <View style={{ gap: space.x3 }}>{children}</View>;
-}
-
-export function CardLink({ label, onPress }: { label: string; onPress(): void }) {
-  const theme = useDesignTheme();
+export function CardButtons({ children, stack = false }: { children: ReactNode; stack?: boolean }) {
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      onPress={onPress}
-      hitSlop={space.x3}
-      style={({ pressed }) => ({
-        alignSelf: 'flex-start',
-        minHeight: theme.touch,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: space.x2,
-        opacity: pressed ? 0.6 : 1,
-      })}
+    <View
+      style={stack ? { gap: space.x3 } : { flexDirection: 'row', flexWrap: 'wrap', gap: space.x3 }}
     >
-      <Text variant="meta" strong>
-        {label}
-      </Text>
-      <ChevronRightIcon color={theme.color.muted} size={theme.type.meta.size} />
-    </Pressable>
+      {children}
+    </View>
   );
 }

@@ -27,6 +27,7 @@ import type {
   AssignmentAccessPresetView,
 } from './bridge.js';
 import { errorMessage } from './bridge.js';
+import { isAbsoluteHostPath } from './persona-bot-create.js';
 import { MemoryFileActionButton, MemoryFileOpenButton } from './memory-file-actions.js';
 import { WorkspaceFileActionButton } from './workspace-file-actions.js';
 import { Note } from './ds/note.js';
@@ -214,6 +215,11 @@ function pickerUnavailable(cause: unknown): boolean {
     rpcError.code === 'directory-picker/unavailable'
   );
 }
+
+const memoryMoveStyles = stylex.create({
+  row: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: space.x2 },
+  grow: { flexGrow: 1, minWidth: 0 },
+});
 
 const browserStyles = stylex.create({
   crumbs: {
@@ -445,6 +451,7 @@ export function WorkspaceGrantsEntry({
   const [memoryDir, setMemoryDir] = useState<string | undefined>(cached?.memoryDir);
   const [manualOpen, setManualOpen] = useState(false);
   const [manualPath, setManualPath] = useState('');
+  const [memoryLocation, setMemoryLocation] = useState('');
   const [browserListing, setBrowserListing] = useState<HostDirectoryListing | undefined>();
   const [busy, setBusy] = useState<string | undefined>();
   const [error, setError] = useState<string | undefined>();
@@ -503,6 +510,7 @@ export function WorkspaceGrantsEntry({
     setRules(current?.rules ?? []);
     setAccess(current?.access);
     setMemoryDir(current?.memoryDir);
+    setMemoryLocation('');
     setBrowserListing(undefined);
     setBusy(undefined);
     setConfirmDanger(false);
@@ -547,6 +555,47 @@ export function WorkspaceGrantsEntry({
         if (activeSlug.current === botSlug) setBusy(undefined);
       }
     })();
+  };
+
+  const chooseMemoryLocation = (): void => {
+    if (botSlug === undefined || busy !== undefined) return;
+    setBusy('memory-picker');
+    setError(undefined);
+    void actions
+      .pickWorkspaceFolder()
+      .then(
+        (path) => {
+          if (path !== null && activeSlug.current === botSlug) setMemoryLocation(path);
+        },
+        (cause: unknown) => {
+          if (activeSlug.current === botSlug) setError(errorMessage(cause));
+        },
+      )
+      .finally(() => {
+        if (activeSlug.current === botSlug) setBusy(undefined);
+      });
+  };
+
+  const moveMemory = (location: string | null): void => {
+    if (botSlug === undefined || busy !== undefined) return;
+    setBusy('memory-move');
+    setError(undefined);
+    void actions
+      .moveMemoryLocation(botSlug, location)
+      .then(
+        (moved) => {
+          rememberWorkspace(actions, botSlug, { memoryDir: moved });
+          if (activeSlug.current !== botSlug) return;
+          setMemoryDir(moved);
+          setMemoryLocation('');
+        },
+        (cause: unknown) => {
+          if (activeSlug.current === botSlug) setError(errorMessage(cause));
+        },
+      )
+      .finally(() => {
+        if (activeSlug.current === botSlug) setBusy(undefined);
+      });
   };
 
   const openFolderBrowser = (): void => {
@@ -645,6 +694,56 @@ export function WorkspaceGrantsEntry({
                   t={t}
                 />
               </span>
+            )
+          }
+          detail={
+            memoryDir === undefined ? undefined : (
+              <div className="bh-workspace-folder-manual" data-memory-move="">
+                <div className="bh-note">{t('grant.memoryMove.hint')}</div>
+                <div {...stylex.props(memoryMoveStyles.row)}>
+                  <Input
+                    className={stylex.props(memoryMoveStyles.grow).className ?? ''}
+                    aria-label={t('grant.memoryMove.label')}
+                    placeholder={t('grant.memoryMove.placeholder')}
+                    value={memoryLocation}
+                    disabled={busy !== undefined}
+                    autoCapitalize="none"
+                    autoComplete="off"
+                    spellCheck={false}
+                    onChange={(event) => setMemoryLocation(event.currentTarget.value)}
+                  />
+                  <Button
+                    variant="outline"
+                    disabled={busy !== undefined}
+                    onClick={chooseMemoryLocation}
+                  >
+                    {t('bot.create.memoryLocation.choose')}
+                  </Button>
+                </div>
+                {memoryLocation.trim().length > 0 && !isAbsoluteHostPath(memoryLocation.trim()) ? (
+                  <div className="bh-error" role="alert">
+                    {t('bot.create.memoryLocation.relative')}
+                  </div>
+                ) : null}
+                <div {...stylex.props(memoryMoveStyles.row)}>
+                  <Button
+                    variant="primary"
+                    disabled={busy !== undefined || !isAbsoluteHostPath(memoryLocation.trim())}
+                    onClick={() => moveMemory(memoryLocation.trim())}
+                  >
+                    {busy === 'memory-move'
+                      ? t('grant.memoryMove.moving')
+                      : t('grant.memoryMove.move')}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    disabled={busy !== undefined}
+                    onClick={() => moveMemory(null)}
+                  >
+                    {t('grant.memoryMove.default')}
+                  </Button>
+                </div>
+              </div>
             )
           }
         />

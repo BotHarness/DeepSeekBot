@@ -8,6 +8,7 @@ import {
   decideApproval,
   loadApproval,
   loadQuestion,
+  previewInput,
   readableInput,
   requestRef,
   toggleOption,
@@ -148,6 +149,15 @@ describe('Tool approval', () => {
       { label: 'command', value: 'ls /tmp/mobile-fixture' },
       { label: 'description', value: 'List mobile fixture directory' },
     ]);
+  });
+
+  it('previews the command whatever order the arguments come in', () => {
+    const input = JSON.stringify({ description: 'List files', command: 'ls /tmp' });
+    expect(previewInput(input)).toEqual({ label: 'command', value: 'ls /tmp' });
+    expect(previewInput(JSON.stringify({ query: 'weather' }))).toEqual({
+      label: 'query',
+      value: 'weather',
+    });
   });
 
   it('allows once, and a second decision reports the first one won', async () => {

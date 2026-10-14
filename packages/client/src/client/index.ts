@@ -57,6 +57,11 @@ import { expectMobileConversation, MobileBotPanel } from './mobile-bot-panel.js'
 import { mobileBotViewport, subscribeMobileBotViewport } from './mobile-viewport.js';
 import { clearConversationDrafts } from './conversation-draft.js';
 import { BotSidebar, createBotPanelEntry } from './bot-sidebar.js';
+import { BotModeSidebar } from './bot-mode-sidebar.js';
+import {
+  botModeSidebarViewport,
+  subscribeBotModeSidebarViewport,
+} from './bot-mode-sidebar-viewport.js';
 import { OnboardingEnterHint, OnboardingLauncher } from './onboarding-checklist-view.js';
 import {
   createChannelSidebarBuiltinTabs,
@@ -890,6 +895,34 @@ export function apply(ctx: ClientContext): void {
     ),
   );
 
+  registerModeShadow(
+    ctx,
+    'sidebar',
+    () =>
+      ctx.slots.register(
+        {
+          name: 'sidebar',
+          priority: -1,
+          locale: LOCALE_NS,
+          inject: () => ({
+            actions,
+            companion,
+            channelSidebar,
+            shortcutBindings,
+            ...botModePrefsFace(prefs),
+            exitBotMode: () => ctx.layout.selectPanel(null),
+            toggleSidebar: () => ctx.layout.toggleSidebar(),
+            openBotSettings: () => botSettings.open(),
+          }),
+        },
+        BotModeSidebar,
+      ),
+    store,
+    {
+      enabled: botModeSidebarViewport,
+      subscribe: subscribeBotModeSidebarViewport,
+    },
+  );
   registerModeShadow(
     ctx,
     'sidebar.workspaces',

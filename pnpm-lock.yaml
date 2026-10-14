@@ -162,7 +162,11 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-packageExtensionsChecksum: sha256-+NWK+0qTE02cRKFYvWtADabYTgNxht78zrWJda8H7DY=
+overrides:
+  dockview: 8.4.1
+  dockview-core: 8.4.1
+
+packageExtensionsChecksum: sha256-Em4iEcPd6LM6jle6op7NLsBy9T/6LnYHLUkm8RiqQ1Y=
 
 patchedDependencies:
   '@deepseek-ai/dsh-llm-pi-ai@0.2.0-rc.2': 391fa276ff173513dd80cffab512a1dc43c51f44ee1f5e727749b6b9b4ecc402
@@ -536,6 +540,9 @@ importers:
       blobatar:
         specifier: ^2.7.0
         version: 2.7.0(react@18.3.1)
+      dockview-react:
+        specifier: 8.4.1
+        version: 8.4.1(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       driver.js:
         specifier: 1.4.0
         version: 1.4.0
@@ -880,6 +887,24 @@ importers:
       wrangler:
         specifier: ^4.95.0
         version: 4.132.0(@types/node@22.20.3)
+
+  packages/todo:
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-include@1.0.9)(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      '@deepseek-ai/dsh-agent':
+        specifier: 0.2.0-rc.2
+        version: 0.2.0-rc.2(fee0e653b72a3883e0f0da2d9a46bb50)
+      '@deepseek-ai/dsh-storage-domain':
+        specifier: 0.2.0-rc.2
+        version: 0.2.0-rc.2(@deepseek-ai/cordis@4.0.4)(@deepseek-ai/dsh-invariants@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4))(@deepseek-ai/dsh-storage@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4))
+      '@deepseek-ai/dsh-tools':
+        specifier: 0.2.0-rc.2
+        version: 0.2.0-rc.2(52b5a8ab481be2b3d891c22a71641755)
+      zod:
+        specifier: ^4.4.3
+        version: 4.6.5
 
 packages:
 
@@ -8343,6 +8368,19 @@ packages:
 
   dnssd-advertise@1.1.6:
     resolution: {integrity: sha512-Ndrrf6BMPalkQPd/zubL+4YghH2J9NspapQ09uDXwYbvOPkP0oaqf5CkcwJ0b50kS2O3ul6yVu+jz+RY62Cejg==}
+
+  dockview-core@8.4.1:
+    resolution: {integrity: sha512-LcvhGwmK/Q1tFDEPkiBpkLIYctimmu8JJHgG5yhIXwyf9IvWQkJa3EG7/a1NKUS2Q8w82uoYZTL+c84/zpQUjg==}
+
+  dockview-react@8.4.1:
+    resolution: {integrity: sha512-6C5FV5Y0n0S3IljnKNn9stLm45SkbzZzlLnV2286sm1W2cnZXPmqDuZOWq3wWj9tZ2MvuV1q0c9hLT9NT6H+NQ==}
+    peerDependencies:
+      '@types/react': ~18.3.1
+      react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+      react-dom: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+
+  dockview@8.4.1:
+    resolution: {integrity: sha512-6CrXwfDkhTL0N8stgnur8E/WYFZqltAtHaAV96Ia9lA1JGWwWMw5MWZznWckIMocS2Il5rgaqP/i/l2ltYaTqw==}
 
   dom-serializer@2.0.0:
     resolution: {integrity: sha512-wIkAryiqt/nV5EQKqQpo3SToSOV9J0DnbJqwK7Wv/Trc92zIAYZ4FlMu+JPFW1DfGFt81ZTCGgDEabffXeLyJg==}
@@ -20864,6 +20902,19 @@ snapshots:
   diff@9.0.0: {}
 
   dnssd-advertise@1.1.6: {}
+
+  dockview-core@8.4.1: {}
+
+  dockview-react@8.4.1(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
+    dependencies:
+      '@types/react': 18.3.31
+      dockview: 8.4.1
+      react: 18.3.1
+      react-dom: 18.3.1(react@18.3.1)
+
+  dockview@8.4.1:
+    dependencies:
+      dockview-core: 8.4.1
 
   dom-serializer@2.0.0:
     dependencies:

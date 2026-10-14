@@ -71,4 +71,6 @@ export const color = stylex.defineConsts({
   surface: 'var(--dsw-alias-bg-module-platform)',
   elevated: 'var(--dsw-alias-button-elevated-fill)',
   base: 'var(--dsw-alias-bg-base)',
+  well: 'var(--dsw-alias-bg-base)',
+  accentTint: 'var(--dsw-alias-state-business-tertiary)',
 });

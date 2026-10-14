@@ -8,6 +8,7 @@ import type {
   JournalPage,
   ToolApprovalOutcome,
   WireDraft,
+  WireDraftAppend,
 } from './wire';
 
 export type DeliveryState = 'pending' | 'committed' | 'failed';
@@ -267,6 +268,8 @@ export function createConversation(options: ConversationOptions): Conversation {
   let status: ConversationStatus = 'opening';
   let reason: string | undefined;
   const drafts = new Map<string, ConversationDraft>();
+  const draftRevisions = new Map<string, number>();
+  let appendDrafts = true;
   const outgoing = new Map<string, Outgoing>();
   const sentFiles = new Map<string, OutgoingFile[]>();
   let running = false;
@@ -379,18 +382,45 @@ export function createConversation(options: ConversationOptions): Conversation {
     merge(tail);
   };
 
-  const applyNotification = (notification: ChannelNotification): void => {
+  const clearDrafts = (): void => {
+    drafts.clear();
+    draftRevisions.clear();
+  };
+
+  const deleteDraft = (draftId: string): void => {
+    drafts.delete(draftId);
+    draftRevisions.delete(draftId);
+  };
+
+  const applyNotification = (notification: ChannelNotification, current: number): void => {
     if (notification.kind === 'draft-baseline') {
-      drafts.clear();
+      clearDrafts();
       for (const draft of notification.drafts) upsertDraft(draft);
     } else if (notification.kind === 'draft') upsertDraft(notification.draft);
+    else if (notification.kind === 'draft-append') appendDraft(notification.append, current);
     else if (notification.kind === 'draft-settled' || notification.kind === 'draft-abandoned')
-      drafts.delete(notification.event.draftId);
+      deleteDraft(notification.event.draftId);
   };
 
   const upsertDraft = (draft: WireDraft): void => {
     if (draft.channelId !== channelId) return;
     drafts.set(draft.draftId, { draftId: draft.draftId, botSlug: draft.botSlug, body: draft.body });
+    draftRevisions.set(draft.draftId, draft.revision);
+  };
+
+  const appendDraft = (append: WireDraftAppend, current: number): void => {
+    const draft = drafts.get(append.draftId);
+    if (
+      draft === undefined ||
+      draftRevisions.get(append.draftId) !== append.base ||
+      draft.body.length !== append.offset
+    ) {
+      deleteDraft(append.draftId);
+      refollow(current);
+      return;
+    }
+    drafts.set(append.draftId, { ...draft, body: draft.body + append.append });
+    draftRevisions.set(append.draftId, append.revision);
   };
 
   const applyFrame = async (frame: ChannelLiveFrame, current: number): Promise<void> => {
@@ -413,8 +443,8 @@ export function createConversation(options: ConversationOptions): Conversation {
       }
       if (entry.message.author.kind === 'bot')
         for (const [draftId, draft] of drafts)
-          if (draft.botSlug === entry.message.author.slug) drafts.delete(draftId);
-    } else applyNotification(frame.notification);
+          if (draft.botSlug === entry.message.author.slug) deleteDraft(draftId);
+    } else applyNotification(frame.notification, current);
     settleOutgoing();
     publish();
     persist();
@@ -450,6 +480,14 @@ export function createConversation(options: ConversationOptions): Conversation {
     }, 1_000);
   };
 
+  const refollow = (current: number): void => {
+    if (!running || current !== session) return;
+    unfollow?.();
+    unfollow = undefined;
+    session += 1;
+    void open(session);
+  };
+
   const open = async (current: number): Promise<void> => {
     let id: string;
     try {
@@ -465,7 +503,7 @@ export function createConversation(options: ConversationOptions): Conversation {
     if (current !== session) return;
     unfollow = options.host.follow(
       'botharness/followChannel',
-      { channelId: id, limit: pageSize },
+      { channelId: id, limit: pageSize, ...(appendDrafts ? { drafts: 'append' } : {}) },
       {
         item: (value) => enqueue(value as ChannelLiveFrame, current),
         interrupted: (why) => {
@@ -474,12 +512,17 @@ export function createConversation(options: ConversationOptions): Conversation {
             if (current !== session) return;
             status = 'interrupted';
             reason = why;
-            drafts.clear();
+            clearDrafts();
             publish();
           });
         },
         refused: (error) => {
           if (current !== session) return;
+          if (appendDrafts && error.code === 'gateway/arguments-invalid') {
+            appendDrafts = false;
+            refollow(current);
+            return;
+          }
           status = 'refused';
           reason = error.message;
           publish();

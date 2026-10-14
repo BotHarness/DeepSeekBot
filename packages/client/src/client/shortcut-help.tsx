@@ -65,6 +65,7 @@ export const SHORTCUT_HELP_GROUPS: readonly ShortcutHelpGroup[] = [
         label: 'shortcuts.unreadNext',
         note: 'shortcuts.unreadStep.note',
       },
+      { id: 'search', keys: [['Mod', 'F']], label: 'shortcuts.search' },
       { id: 'help', keys: [['?']], action: 'help', label: 'shortcuts.help' },
     ],
   },

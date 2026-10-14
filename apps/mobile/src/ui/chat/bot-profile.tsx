@@ -164,7 +164,7 @@ function ProfileAction({
         gap: space.x2,
         paddingVertical: space.x4,
         borderRadius: radius.md,
-        backgroundColor: pressed ? theme.color.hover : theme.color.elevated,
+        backgroundColor: pressed ? theme.layer.sheet.pressed : theme.layer.sheet.fill,
       })}
     >
       {icon(theme.color.fg)}
@@ -243,7 +243,7 @@ function ProfileRow({
       <MemoryEntryRow entry={row.entry} first={row.first} last={row.last} onOpen={onOpenMemory} />
     );
   const shape = {
-    backgroundColor: theme.color.elevated,
+    backgroundColor: theme.layer.sheet.fill,
     paddingHorizontal: space.x5,
     paddingVertical: space.x4,
     borderTopLeftRadius: row.first ? radius.md : 0,
