@@ -50,6 +50,7 @@ Run `node scripts/ci-plan.mjs --base origin/main` to print the plan and the exac
 | `apps/docs/test/**`                                                                                       | Related tests       | Yes       | Docs tests and fixtures                                      |
 | `apps/docs/**`                                                                                            | Related tests       | Yes       | Docs site                                                    |
 | `apps/presentations/**`                                                                                   | No tests of its own | Yes       | Slides embedded in the docs site                             |
+| `apps/mobile/**`                                                                                          | Related tests       |           | Mobile app source and tests                                  |
 | `scripts/test/**`                                                                                         | Related tests       |           | Script tests                                                 |
 | `scripts/fixtures/**`                                                                                     | Related tests       |           | Script test fixtures                                         |
 | `scripts/product-provider/**`                                                                             | Related tests       |           | Product provider scripts                                     |

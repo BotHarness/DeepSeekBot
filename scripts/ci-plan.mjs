@@ -60,6 +60,7 @@ export const RULES = [
   related('apps/docs/test/**', 'Docs tests and fixtures', true),
   related('apps/docs/**', 'Docs site', true),
   none('apps/presentations/**', 'Slides embedded in the docs site', true),
+  related('apps/mobile/**', 'Mobile app source and tests'),
   related('scripts/test/**', 'Script tests'),
   related('scripts/fixtures/**', 'Script test fixtures'),
   related('scripts/product-provider/**', 'Product provider scripts'),
