@@ -26,6 +26,8 @@
     "sync:development-status": "node scripts/development-status.mjs",
     "dev": "pnpm --filter docs exec portless",
     "dev:instance": "node scripts/dev-instance.mjs",
+    "verify:app": "node scripts/verify-app.mjs",
+    "e2e:smoke": "node scripts/e2e-personabot-create.mjs --with-dm",
     "dev:client": "tsdown --config tsdown.client.config.ts --config-loader unrun --watch",
     "slides:dev": "pnpm --filter @botharness/presentations dev",
     "slides:build": "node scripts/sync-slides.mjs",

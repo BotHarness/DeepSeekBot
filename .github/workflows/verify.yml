@@ -131,9 +131,27 @@ jobs:
       - run: pnpm slides:build
       - run: pnpm vitest run "$DOCS_SITE_TEST"
 
+  e2e-smoke:
+    name: e2e smoke (isolated DSH Host)
+    needs: plan
+    if: needs.plan.outputs.tests != 'none'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm e2e:smoke
+
   verify:
     name: lint, format, typecheck, test, build, docs
-    needs: [plan, static, test-full, test-affected, docs-site]
+    needs: [plan, static, test-full, test-affected, docs-site, e2e-smoke]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
