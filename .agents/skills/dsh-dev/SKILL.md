@@ -33,6 +33,8 @@ corepack pnpm dev:client
 
 The launch summary includes the Host PID and local login URL. For Client edits, open the local Web tab with `?botharness-dev-reload=1`: tsdown rebuilds the linked Client bundle, and the opted-in development listener refreshes the page when the RC publishes a rebuilt frame. The Desktop Client HMR stream replaces the linked `@botharness/ui` Fiber; BotHarness hands off the active Bot/Channel selection during replacement. The Web development listener retains a full-page refresh fallback. For Host edits, build, stop that exact PID, then start the helper again with the same home and port; Host hot replacement is disabled in the pinned RC. Follow `docs/client-bridge.md` §7 for the complete steps and measured timings.
 
+For messaging work, `--fake-im [feishu|slack|discord|weixin]` inserts a fake `dshIm` Provider so a cloud or local agent can drive bind → DM/@mention → Inbox → real model → reply without a real IM app; see `docs/agents/development-scripts.md`. It replaces the platform only, so real-platform QA (`--im-provider`) remains separate. In a cloud container, if `corepack pnpm` fails with a missing `pnpm.cjs`, use the preinstalled `pnpm` 12.4.2 directly; with `OPENCODE_GO_API_KEY` in the environment, run `node scripts/dev-model.mjs setup --from-env` once before launching.
+
 The helper injects a shared machine-local DeepSeek key when available; `node scripts/dev-secret.mjs check` reports its source without a value. Existing Profile credentials are another DSH source. Confirm model access with a real DM reply. `node scripts/dev-secret.mjs adopt-profile --home <existing-DSH_HOME>` copies only the DeepSeek reference into a private local file for later isolated Profiles.
 
 ## Profile model

@@ -12,6 +12,7 @@ import {
   withQualifiedImProvider,
   verifyQualifiedImProvider,
 } from './dev-im-provider.mjs';
+import { FAKE_IM_PLATFORMS, fakeImPatch, fakeImSpool } from './dev-fake-im.mjs';
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, openSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
@@ -64,6 +65,7 @@ function parseArgs(argv) {
     worktree: repoRoot,
     build: false,
     imProvider: false,
+    fakeIm: null,
     productArtifacts: null,
     json: false,
     clientDiagnostics: process.env['BOTHARNESS_CLIENT_DIAGNOSTICS'] !== '0',
@@ -94,6 +96,12 @@ function parseArgs(argv) {
       case '--im-provider':
         options.imProvider = true;
         break;
+      case '--fake-im':
+        if (FAKE_IM_PLATFORMS.includes(next ?? '')) {
+          options.fakeIm = next;
+          index += 1;
+        } else options.fakeIm = 'feishu';
+        break;
       case '--product-artifacts':
         options.productArtifacts = resolve(next ?? '');
         index += 1;
@@ -114,6 +122,10 @@ function parseArgs(argv) {
   if (options.productArtifacts && options.imProvider)
     throw new Error(
       '--product-artifacts already includes its qualified IM Provider; omit --im-provider',
+    );
+  if (options.fakeIm && (options.imProvider || options.productArtifacts))
+    throw new Error(
+      '--fake-im replaces the real IM Provider; omit --im-provider/--product-artifacts',
     );
   return options;
 }
@@ -223,6 +235,7 @@ function launch(options) {
       '--profile',
       options.profile,
       ...(options.modelPatch ? ['--patch', options.modelPatch] : []),
+      ...(options.fakeImPatch ? ['--patch', options.fakeImPatch] : []),
       '--port',
       String(options.port),
       '--no-open',
@@ -326,6 +339,13 @@ async function main() {
     options.modelPatch = join(profileDir, 'botharness-ax-model.patch.yml');
     writeFileSync(options.modelPatch, axModelPatch(dump, options.axModel.model));
   }
+  if (options.fakeIm) {
+    options.fakeImPatch = join(profileDir, 'botharness-fake-im.patch.yml');
+    writeFileSync(
+      options.fakeImPatch,
+      fakeImPatch({ home: options.home, platform: options.fakeIm }),
+    );
+  }
   const profileCredential = profileDeepSeekCredential(options.home) !== undefined;
   if (!options.axModel && secret === undefined && !profileCredential)
     console.error(devSecretInstructions());
@@ -365,6 +385,16 @@ async function main() {
           },
         }
       : {}),
+    ...(options.fakeIm
+      ? {
+          fakeIm: {
+            platform: options.fakeIm,
+            spool: fakeImSpool(options.home, options.fakeIm),
+            bind: `node scripts/dev-fake-im.mjs bind --home ${options.home} --port ${options.port} --bot <slug>`,
+            send: `node scripts/dev-fake-im.mjs send --home ${options.home} [--group] <text>`,
+          },
+        }
+      : {}),
     ...(options.imProvider
       ? { imProvider: { source: qualifiedImProvider.source, upstreamReleased: false } }
       : {}),
@@ -390,6 +420,13 @@ async function main() {
       console.log(
         `  model    : ${summary.model.provider}/${summary.model.model} (${summary.model.usability})`,
       );
+    if (summary.fakeIm) {
+      console.log(
+        `  fake IM  : ${summary.fakeIm.platform} (simulated Provider; real Host and model)`,
+      );
+      console.log(`  bind     : ${summary.fakeIm.bind}`);
+      console.log(`  send     : ${summary.fakeIm.send}`);
+    }
     console.log(`  plugin   : ${health.ok ? 'ready' : `unhealthy (HTTP ${health.status})`}`);
     console.log(`  log      : ${summary.log}`);
     console.log(`  stop     : ${summary.stop}`);
