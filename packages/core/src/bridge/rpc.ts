@@ -91,7 +91,7 @@ import type {
 } from './methods.js';
 import type { ChannelActivityToday } from '../channels/activity-today.js';
 import type { GroupProfileActivity } from '../channels/profile-activity.js';
-import type { ChannelMessage, ChannelRecord } from '../channels/channel.js';
+import type { ChannelMessage, ChannelReaction, ChannelRecord } from '../channels/channel.js';
 import type { ChannelSendStatus } from '../channels/store.js';
 import type { ChannelAttachmentRef } from '../attachments/ref.js';
 import type { ChannelReadPosition } from '../channels/store.js';
@@ -998,6 +998,24 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(await this.methods.channelMarkRead({ channelId, messageId }));
   }
 
+  channelReact(
+    channelId: string,
+    messageId: string,
+    emoji: string,
+    active: boolean,
+  ): { reactions: ChannelReaction[] } {
+    return unwrap(this.methods.channelReact({ channelId, messageId, emoji, active }));
+  }
+
+  channelSearch(
+    channelId: string,
+    text: string,
+    cursor?: string,
+    limit?: number,
+  ): { messages: ChannelMessage[]; nextCursor?: string } {
+    return unwrap(this.methods.channelSearch({ channelId, text, cursor, limit }));
+  }
+
   channelAllBotPreview(channelId: string): AllBotPreview {
     return unwrap(this.methods.channelAllBotPreview({ channelId }));
   }
@@ -1612,6 +1630,8 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'channelReadPosition',
   'channelMarkRead',
   'channelMarkAllRead',
+  'channelReact',
+  'channelSearch',
   'channelAllBotPreview',
   'channelSend',
   'channelSendStatus',

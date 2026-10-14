@@ -2223,6 +2223,25 @@ const PUSH_DELIVERY_MIGRATION: SchemaMigration = {
   },
 };
 
+const CHANNEL_REACTION_MIGRATION: SchemaMigration = {
+  generation: 93,
+  module: 'messaging',
+  description: 'Record emoji reactions on Channel messages',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE channel_reactions (
+        channel_id TEXT NOT NULL REFERENCES channel_records(channel_id) ON DELETE CASCADE,
+        message_id TEXT NOT NULL,
+        actor_kind TEXT NOT NULL CHECK (actor_kind IN ('human', 'bot')),
+        actor_id TEXT NOT NULL,
+        emoji TEXT NOT NULL,
+        reacted_at TEXT NOT NULL,
+        PRIMARY KEY (channel_id, message_id, actor_kind, actor_id, emoji)
+      );
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -2315,4 +2334,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SECRET_MCP_ENABLEMENT_MIGRATION,
   DEVICE_PAIRING_MIGRATION,
   PUSH_DELIVERY_MIGRATION,
+  CHANNEL_REACTION_MIGRATION,
 ]);

@@ -114,6 +114,9 @@ describe('Channel and group CLI commands', () => {
       [['channel-timeline', 'grp-1', '--cursor', 'c-1', '--limit', '20']],
       [['channel-mark-read', 'grp-1', '--message-id', 'm-1']],
       [['channel-mark-all-read']],
+      [['channel-react', 'grp-1', '--message-id', 'm-1', '--emoji', '👍']],
+      [['channel-react', 'grp-1', '--message-id', 'm-1', '--emoji', '👍', '--remove']],
+      [['channel-search', 'grp-1', '--query', 'launch', '--cursor', 'c-2', '--limit', '5']],
       [['channel-retry', 'dm-ada', '--message-id', 'm-2']],
       [['channel-purge-preview', 'grp-1', '--source-event', 's-1', '--source-event', 's-1']],
       [
@@ -187,6 +190,18 @@ describe('Channel and group CLI commands', () => {
       { method: 'channelTimeline', args: { channelId: 'grp-1', cursor: 'c-1', limit: 20 } },
       { method: 'channelMarkRead', args: { channelId: 'grp-1', messageId: 'm-1' } },
       { method: 'channelMarkAllRead', args: {} },
+      {
+        method: 'channelReact',
+        args: { channelId: 'grp-1', messageId: 'm-1', emoji: '👍', active: true },
+      },
+      {
+        method: 'channelReact',
+        args: { channelId: 'grp-1', messageId: 'm-1', emoji: '👍', active: false },
+      },
+      {
+        method: 'channelSearch',
+        args: { channelId: 'grp-1', text: 'launch', cursor: 'c-2', limit: 5 },
+      },
       { method: 'channelRetry', args: { channelId: 'dm-ada', messageId: 'm-2' } },
       { method: 'channelPurgePreview', args: { channelId: 'grp-1', sourceEventIds: ['s-1'] } },
       {
@@ -238,6 +253,10 @@ describe('Channel and group CLI commands', () => {
       [['channel-timeline', 'grp-1', '--direction', 'around']],
       [['channel-history-sources', 'grp-1', '--before', 'abc']],
       [['channel-retry', 'dm-ada']],
+      [['channel-react', 'grp-1', '--emoji', '👍']],
+      [['channel-react', 'grp-1', '--message-id', 'm-1']],
+      [['channel-search', 'grp-1']],
+      [['channel-search', 'grp-1', '--query', 'x', '--limit', '51']],
     ];
     for (const [argv, stdin] of refused) {
       const result = await invoke(argv, live.url, stdin);

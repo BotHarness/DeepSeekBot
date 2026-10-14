@@ -151,6 +151,9 @@ import {
 } from './timeline-position.js';
 import { TimelineUnreadDivider } from './timeline-unread-divider.js';
 import { foldableMessage, MessageFold } from './message-fold.js';
+import { MessageReactionChips, MessageReactionPicker } from './message-reactions.js';
+import { ConversationSearch } from './conversation-search.js';
+import { reactableMessage } from './message-reactions-model.js';
 import {
   galleryImageKey,
   ImageGalleryScope,
@@ -314,6 +317,7 @@ function ReplyIcon(): ReactElement {
   );
 }
 
+const SEARCH_PANEL_GAP_PX = 8;
 const BUBBLE_LONG_PRESS_MS = 500;
 const BUBBLE_LONG_PRESS_TOLERANCE_PX = 10;
 
@@ -446,6 +450,7 @@ function MessageGroupView({
   currentDmBotSlug,
   onContextMenu,
   onReply,
+  onReact,
   onJumpReply,
   onRestoreFailed,
   actions,
@@ -465,6 +470,7 @@ function MessageGroupView({
   bots: readonly BotSummary[];
   onContextMenu(message: ChannelMessage, x: number, y: number): void;
   onReply?: ((message: ChannelMessage) => void) | undefined;
+  onReact?: ((message: ChannelMessage, emoji: string, active: boolean) => void) | undefined;
   onRestoreFailed(message: ChannelMessage): void;
   onJumpReply(messageId: string): void;
   actions: BridgeActions;
@@ -488,6 +494,12 @@ function MessageGroupView({
       ? undefined
       : bots.find((candidate) => candidate.slug === currentDmBotSlug);
   const displayBot = authorBot ?? welcomeBot;
+  const reactorName = (actor: { kind: 'human' | 'bot'; id: string }): string =>
+    actor.kind === 'human'
+      ? actor.id === 'local-human'
+        ? t('message.reaction.you')
+        : (humanMembers.find((member) => member.humanId === actor.id)?.displayName ?? actor.id)
+      : (bots.find((candidate) => candidate.slug === actor.id)?.displayName ?? actor.id);
   const surface = useConversationSurface();
   const nameSource = first.bridgeOrigin ? undefined : botNameSource(displayBot);
   const nameColor =
@@ -607,6 +619,17 @@ function MessageGroupView({
                     </span>
                   ) : null}
                 </div>
+                <MessageReactionChips
+                  reactions={message.reactions ?? []}
+                  mine={human}
+                  names={reactorName}
+                  onReact={
+                    onReact === undefined || !reactableMessage(message)
+                      ? undefined
+                      : (emoji, active) => onReact(message, emoji, active)
+                  }
+                  t={t}
+                />
               </div>
               <div className="bh-bubble-side">
                 <ChannelDeliveryReceipt
@@ -640,6 +663,13 @@ function MessageGroupView({
                           <ReplyIcon />
                         </button>
                       </Tooltip>
+                    ) : null}
+                    {onReact !== undefined && reactableMessage(message) ? (
+                      <MessageReactionPicker
+                        message={message}
+                        onReact={(emoji, active) => onReact(message, emoji, active)}
+                        t={t}
+                      />
                     ) : null}
                     <MessageCopyAction body={message.body} t={t} />
                   </div>
@@ -1234,6 +1264,40 @@ function ConversationView({
       cancelled = true;
     };
   }, [channelId, previewRoster]);
+  const [searchTop, setSearchTop] = useState<number | undefined>(undefined);
+  const searchAvailable = useRef(false);
+  const searchReturnFocus = useRef<HTMLElement | null>(null);
+  searchAvailable.current =
+    channelId !== undefined &&
+    actions.searchChannel !== undefined &&
+    activeMemoryView === undefined &&
+    !profileViewOpen;
+  const searchShortcutMount = useMountedResource<HTMLSpanElement>((node) => {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (
+        !(event.metaKey || event.ctrlKey) ||
+        event.altKey ||
+        event.shiftKey ||
+        event.key.toLowerCase() !== 'f' ||
+        !searchAvailable.current ||
+        document.querySelector('[aria-modal="true"]') !== null
+      )
+        return;
+      const pane = node.parentElement?.querySelector<HTMLElement>('.bh-chat-pane');
+      const bar = pane?.querySelector<HTMLElement>('.bh-topbar');
+      if (pane == null) return;
+      event.preventDefault();
+      const field = pane.querySelector<HTMLInputElement>('[data-conversation-search] input');
+      if (field === null && document.activeElement instanceof HTMLElement)
+        searchReturnFocus.current = document.activeElement;
+      const offset =
+        bar == null ? 0 : bar.getBoundingClientRect().bottom - pane.getBoundingClientRect().top;
+      setSearchTop(Math.max(0, offset) + SEARCH_PANEL_GAP_PX);
+      field?.select();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, []);
   const conversationMount = useMountedResource<HTMLDivElement>(() => {
     setAllBotNotice(undefined);
     return () => {
@@ -1746,6 +1810,7 @@ function ConversationView({
   return (
     <div ref={conversationMount} className="bh-root bh-main">
       <span ref={allBotPreviewMount} hidden />
+      <span ref={searchShortcutMount} hidden />
       <div className="bh-chat-layout" data-sidebar={sidebar.mode}>
         <section
           className="bh-chat-pane"
@@ -1976,6 +2041,24 @@ function ConversationView({
                   onClose={closeMemoryView}
                 />
               )}
+              {searchTop === undefined ||
+              channelId === undefined ||
+              activeMemoryView !== undefined ||
+              actions.searchChannel === undefined ? null : (
+                <ConversationSearch
+                  top={searchTop}
+                  search={(query, cursor) => actions.searchChannel!(channelId, query, cursor)}
+                  onJump={(messageId) => void actions.openAround(channelId, messageId)}
+                  onClose={() => {
+                    setSearchTop(undefined);
+                    searchReturnFocus.current?.focus();
+                    searchReturnFocus.current = null;
+                  }}
+                  label={selectionAuthor}
+                  time={(at) => fullTime(at, t)}
+                  t={t}
+                />
+              )}
               <div
                 className="bh-chat-body"
                 ref={timelineMount}
@@ -2159,6 +2242,16 @@ function ConversationView({
                               }}
                               onReply={
                                 readOnlyDm ? undefined : (message) => setReplyTarget(message)
+                              }
+                              onReact={
+                                readOnlyDm || channelId === undefined
+                                  ? undefined
+                                  : (message, emoji, active) =>
+                                      void actions
+                                        .reactToMessage?.(channelId, message.id, emoji, active)
+                                        .catch((error: unknown) => {
+                                          console.warn('botharness: reaction failed', error);
+                                        })
                               }
                               onJumpReply={(messageId) => {
                                 if (channelId !== undefined)

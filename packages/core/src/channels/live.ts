@@ -2,7 +2,7 @@ import type { PersonaBotActivitySnapshot } from '../state/bot-state.js';
 import type { PurgedPlacement } from '../purge/contracts.js';
 import { isChannelNotice } from './channel-notice.js';
 import type { ChannelDraft, ChannelDraftEvent } from './draft.js';
-import type { ChannelMessage } from './channel.js';
+import type { ChannelMessage, ChannelReaction } from './channel.js';
 import type { ChannelMessageCommit, ChannelStore } from './store.js';
 import { MAX_MESSAGE_PAGE, type ChannelJournalPage } from './timeline.js';
 
@@ -10,6 +10,7 @@ export const CHANNEL_STREAM_PATH = '/api/botharness/stream';
 export const CHANNEL_COMMIT_EVENT = 'channel/message';
 export const CHANNEL_ADMISSION_EVENT = 'channel/admission';
 export const CHANNEL_HUMAN_READ_EVENT = 'channel/human-read';
+export const CHANNEL_REACTION_EVENT = 'channel/reaction';
 export const CHANNEL_DRAFT_EVENT = 'channel/draft';
 export const CHANNEL_DRAFT_BASELINE_EVENT = 'channel/draft-baseline';
 export const CHANNEL_DRAFT_SETTLED_EVENT = 'channel/draft-settled';
@@ -38,6 +39,7 @@ interface Subscriber {
   pushDraft(event: PublishedDraftEvent): void;
   pushAdmission(messageId: string, message: ChannelMessage): void;
   pushHumanRead(humanId: string, revision: number): void;
+  pushReaction(messageId: string, reactions: ChannelReaction[]): void;
   close(): void;
 }
 
@@ -60,6 +62,7 @@ export type ChannelLiveNotification =
       humanReceipts: NonNullable<ChannelMessage['humanReceipts']>;
     }
   | { kind: 'human-read'; channelId: string; humanId: string; revision: number }
+  | { kind: 'reaction'; channelId: string; messageId: string; reactions: ChannelReaction[] }
   | { kind: 'draft-baseline'; channelId: string; revision: number; drafts: PublishedDraft[] }
   | { kind: 'draft'; draft: PublishedDraft }
   | {
@@ -97,6 +100,10 @@ function encodeChannelFrame(frame: ChannelLiveFrame): string {
     const { kind: _kind, ...data } = notification;
     return `event: ${CHANNEL_HUMAN_READ_EVENT}\ndata: ${JSON.stringify(data)}\n\n`;
   }
+  if (notification.kind === 'reaction') {
+    const { kind: _kind, ...data } = notification;
+    return `event: ${CHANNEL_REACTION_EVENT}\ndata: ${JSON.stringify(data)}\n\n`;
+  }
   if (notification.kind === 'draft-baseline') {
     const { kind: _kind, ...data } = notification;
     return `event: ${CHANNEL_DRAFT_BASELINE_EVENT}\ndata: ${JSON.stringify(data)}\n\n`;
@@ -131,6 +138,7 @@ export interface ChannelLiveHub {
   publishCommitted(commit: ChannelMessageCommit): void;
   publishAdmission(channelId: string, messageId: string, message: ChannelMessage): void;
   publishHumanRead(channelId: string, humanId: string, revision: number): void;
+  publishReaction(channelId: string, messageId: string, reactions: ChannelReaction[]): void;
   publishDraft(event: ChannelDraftEvent): void;
   publishRosterCommitted(): void;
   publishContentPurged(): void;
@@ -536,6 +544,12 @@ export function createChannelLiveHub(
           notification: { kind: 'human-read', channelId, humanId, revision },
         });
       },
+      pushReaction(messageId, reactions) {
+        emit({
+          type: 'notification',
+          notification: { kind: 'reaction', channelId, messageId, reactions },
+        });
+      },
       pushDraft(event) {
         emit({
           type: 'notification',
@@ -731,6 +745,10 @@ export function createChannelLiveHub(
     publishHumanRead(channelId, humanId, revision) {
       for (const subscriber of subscribers.get(channelId) ?? [])
         subscriber.pushHumanRead(humanId, revision);
+    },
+    publishReaction(channelId, messageId, reactions) {
+      for (const subscriber of subscribers.get(channelId) ?? [])
+        subscriber.pushReaction(messageId, reactions);
     },
     publishDraft(event) {
       const channelId = event.type === 'update' ? event.draft.channelId : event.channelId;

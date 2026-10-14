@@ -84,9 +84,11 @@ import { z } from 'zod';
 import {
   isValidChannelId,
   isGroupAvatar,
+  isReactionEmoji,
   type LocalHumanIdentity,
   type ChannelMention,
   type ChannelMessage,
+  type ChannelReaction,
   type ChannelRecord,
   type ChannelReference,
 } from '../channels/channel.js';
@@ -123,7 +125,11 @@ import {
   resolveBotPrimaryColor,
   type BotPrimaryColor,
 } from '../bots/primary-color.js';
-import { ChannelMentionTargetError, ChannelReplyTargetError } from '../channels/store.js';
+import {
+  ChannelMentionTargetError,
+  ChannelReactionLimitError,
+  ChannelReplyTargetError,
+} from '../channels/store.js';
 import { ChannelAttachmentError } from '../attachments/store.js';
 import { isChannelAttachmentRef } from '../attachments/ref.js';
 import type { ChannelAttachmentRef } from '../attachments/ref.js';
@@ -528,6 +534,10 @@ export interface BridgeMethods {
   channelReadPosition(payload: unknown): BridgeResult<{ position?: ChannelReadPosition }>;
   channelMarkAllRead(payload: unknown): Promise<BridgeResult<{ channels: number }>>;
   channelMarkRead(payload: unknown): Promise<BridgeResult<{ position: ChannelReadPosition }>>;
+  channelReact(payload: unknown): BridgeResult<{ reactions: ChannelReaction[] }>;
+  channelSearch(
+    payload: unknown,
+  ): BridgeResult<{ messages: ChannelMessage[]; nextCursor?: string }>;
   channelMessages(payload: unknown): BridgeResult<{ messages: ChannelMessage[]; revision: number }>;
   channelAllBotPreview(payload: unknown): BridgeResult<AllBotPreview>;
   channelSend(payload: unknown): Promise<BridgeResult<{ message: ChannelMessage }>>;
@@ -3241,6 +3251,66 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       const position = await deps.channels.markRead(channelId, messageId);
       if (position === undefined) return invalidInput('message does not belong to channel');
       return { ok: true, value: { position } };
+    },
+    channelReact(payload) {
+      const source = asObject(payload);
+      const channelId = asNonBlank(source, 'channelId');
+      const messageId = asNonBlank(source, 'messageId');
+      const emoji = source['emoji'];
+      const active = source['active'] ?? true;
+      if (channelId === undefined || messageId === undefined)
+        return invalidInput('channelId and messageId are required');
+      if (!isReactionEmoji(emoji)) return invalidInput('emoji must be a single emoji');
+      if (typeof active !== 'boolean') return invalidInput('active must be a boolean');
+      if (deps.channels.get(channelId) === undefined) return unknownChannel(channelId);
+      if (deps.channels.setHumanReaction === undefined)
+        return {
+          ok: false,
+          error: { code: 'storage-unavailable', message: 'reactions are unavailable' },
+        };
+      try {
+        const reactions = deps.channels.setHumanReaction(channelId, messageId, emoji, active);
+        if (reactions === undefined)
+          return invalidInput('message cannot take reactions in this Channel');
+        return { ok: true, value: { reactions } };
+      } catch (error) {
+        if (error instanceof ChannelReactionLimitError) return invalidInput(error.message);
+        throw error;
+      }
+    },
+    channelSearch(payload) {
+      const source = asObject(payload);
+      const channelId = asNonBlank(source, 'channelId');
+      const text = source['text'];
+      const cursor = source['cursor'];
+      const limit = source['limit'];
+      if (channelId === undefined) return invalidInput('channelId is required');
+      if (typeof text !== 'string' || text.trim().length === 0 || text.length > 200)
+        return invalidInput('text must be 1 to 200 characters');
+      if (cursor !== undefined && (typeof cursor !== 'string' || cursor.length > 512))
+        return invalidInput('cursor must be the nextCursor of the previous page');
+      if (
+        limit !== undefined &&
+        (typeof limit !== 'number' || !Number.isSafeInteger(limit) || limit < 1 || limit > 50)
+      )
+        return invalidInput('limit must be an integer from 1 to 50');
+      if (deps.channels.get(channelId) === undefined) return unknownChannel(channelId);
+      if (deps.channels.searchHumanMessages === undefined)
+        return {
+          ok: false,
+          error: { code: 'storage-unavailable', message: 'search is unavailable' },
+        };
+      try {
+        const page = deps.channels.searchHumanMessages(channelId, {
+          text,
+          limit: limit ?? 20,
+          ...(cursor === undefined ? {} : { cursor }),
+        });
+        if (page === undefined) return unknownChannel(channelId);
+        return { ok: true, value: page };
+      } catch (error) {
+        return invalidInput((error as Error).message.replace(/^channel_read: /u, ''));
+      }
     },
     async channelMarkAllRead() {
       try {

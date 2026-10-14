@@ -442,3 +442,30 @@ describe('bounded model Channel read and exact Inbox settlement', () => {
     );
   });
 });
+
+describe('channel_read reactions', () => {
+  it('shows Human reactions to the Bot as feedback on its message', () => {
+    const reactions = [{ emoji: '👍', actors: [{ kind: 'human' as const, id: 'local-human' }] }];
+    expect(
+      projectModelMessage({
+        channelId: 'dm-ada',
+        channelName: 'Ada',
+        actorNames: { humans: { 'local-human': 'Human' }, bots: {} },
+        message: {
+          id: 'bot-one',
+          at: '2026-10-14T00:00:00.000Z',
+          author: { kind: 'bot', slug: 'ada' },
+          body: 'Done',
+          channelRevision: 2,
+          reactions,
+        },
+      }).message,
+    ).toEqual({
+      id: 'bot-one',
+      at: '2026-10-14T00:00:00.000Z',
+      author: { kind: 'bot', slug: 'ada' },
+      body: 'Done',
+      reactions,
+    });
+  });
+});

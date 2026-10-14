@@ -5,12 +5,18 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   IconChevronLeftOutlineRegular: () => null,
   IconChevronRightOutlineRegular: () => null,
   IconCloseOutlineRegular: () => null,
+  IconSearchOutlineRegular: () => null,
+  MenuSurface: () => null,
+  Tooltip: () => null,
 }));
 
 import { foldableMessage, messageFolds } from '../src/client/message-fold.js';
 import { galleryImageKey, galleryStep } from '../src/client/message-image-gallery.js';
 import { groupChannelMessages } from '../src/client/message-groups.js';
 import type { ChannelMessage } from '../src/client/store.js';
+import { parseChannelMessage } from '../src/client/bridge.js';
+import { searchSnippet } from '../src/client/conversation-search.js';
+import { reactableMessage, toggledReactions } from '../src/client/message-reactions-model.js';
 import {
   forgetTimelineScrolls,
   rememberTimelineScroll,
@@ -125,5 +131,68 @@ describe('image gallery', () => {
   it('keys an image by its message and file', () => {
     expect(galleryImageKey('m1', { fileId: 'file:1' })).toBe('m1:file:1');
     expect(galleryImageKey('m1', { hash: 'abc' })).toBe('m1:abc');
+  });
+});
+
+describe('reactions', () => {
+  const me = { kind: 'human' as const, id: 'local-human' };
+  const ada = { kind: 'bot' as const, id: 'ada' };
+
+  it('adds, joins and removes the local Human without touching others', () => {
+    expect(toggledReactions(undefined, '👍', true)).toEqual([{ emoji: '👍', actors: [me] }]);
+    const shared = toggledReactions([{ emoji: '👍', actors: [ada] }], '👍', true);
+    expect(shared).toEqual([{ emoji: '👍', actors: [ada, me] }]);
+    expect(toggledReactions(shared, '👍', true)).toEqual(shared);
+    expect(toggledReactions(shared, '👍', false)).toEqual([{ emoji: '👍', actors: [ada] }]);
+    expect(toggledReactions([{ emoji: '👍', actors: [me] }], '👍', false)).toEqual([]);
+    expect(toggledReactions([], '🎉', false)).toEqual([]);
+  });
+
+  it('offers reactions only on settled, committed, non-notice messages', () => {
+    expect(reactableMessage(bot('m1', { channelRevision: 1 }))).toBe(true);
+    expect(reactableMessage(bot('m1'))).toBe(false);
+    expect(reactableMessage(bot('m1', { channelRevision: 1, streaming: true }))).toBe(false);
+    expect(
+      reactableMessage(
+        bot('m1', {
+          channelRevision: 1,
+          memoryCommit: {} as NonNullable<ChannelMessage['memoryCommit']>,
+        }),
+      ),
+    ).toBe(false);
+    expect(
+      reactableMessage({ ...bot('m1', { channelRevision: 1 }), author: { kind: 'system' } }),
+    ).toBe(false);
+  });
+
+  it('keeps valid reactions from the Host and refuses a malformed message', () => {
+    const base = { id: 'm1', at, author: { kind: 'bot', slug: 'ada' }, body: 'x' };
+    expect(
+      parseChannelMessage({ ...base, reactions: [{ emoji: '👍', actors: [ada] }] })?.reactions,
+    ).toEqual([{ emoji: '👍', actors: [ada] }]);
+    expect(parseChannelMessage({ ...base, reactions: [] })).not.toHaveProperty('reactions');
+    expect(
+      parseChannelMessage({ ...base, reactions: [{ emoji: '👍', actors: [{ kind: 'x' }] }] }),
+    ).toBeUndefined();
+  });
+});
+
+describe('conversation search', () => {
+  it('centres the snippet on the first case-insensitive match', () => {
+    expect(searchSnippet('Ship the\n launch list', 'LAUNCH')).toEqual({
+      before: 'Ship the ',
+      match: 'launch',
+      after: ' list',
+    });
+    const long = `${'a'.repeat(60)} needle ${'b'.repeat(120)}`;
+    const snippet = searchSnippet(long, 'needle');
+    expect(snippet.before.startsWith('…')).toBe(true);
+    expect(snippet.match).toBe('needle');
+    expect(snippet.after.endsWith('…')).toBe(true);
+    expect(searchSnippet('nothing here', 'zzz')).toEqual({
+      before: 'nothing here',
+      match: '',
+      after: '',
+    });
   });
 });

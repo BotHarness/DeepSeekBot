@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, createElement, type PropsWithChildren } from 'react';
+import { act, createElement, forwardRef, type PropsWithChildren } from 'react';
 import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
@@ -42,6 +42,9 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
     Input: stub,
     Menu: stub,
     MenuItemButton: stub,
+    MenuSurface: forwardRef<HTMLDivElement, PropsWithChildren>((props, ref) =>
+      createElement('div', { ...props, ref }),
+    ),
     MarkdownText: stub,
     Modal: stub,
     SegmentedControl: stub,
@@ -946,6 +949,166 @@ describe('Bot main Sessions pane', () => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     });
     expect(dialog()).toBeNull();
+    await act(async () => root.unmount());
+    container.remove();
+  });
+  it('reacts from the hover bar and toggles reactions from their chips', async () => {
+    const bot = {
+      slug: 'ada',
+      displayName: 'Ada',
+      roles: [],
+      aggregateState: 'idle',
+      workspaces: [],
+      createdAt: '2026-09-21T00:00:00.000Z',
+    };
+    const channel = {
+      id: 'dm-ada',
+      type: 'dm' as const,
+      name: 'Ada',
+      members: ['ada'],
+      botSlug: 'ada',
+      createdAt: '2026-09-21T00:00:00.000Z',
+      updatedAt: '2026-09-21T00:01:00.000Z',
+    };
+    store.setRoster([bot], [channel]);
+    store.select({ kind: 'bot', slug: 'ada' });
+    store.setConversation({
+      status: 'ready',
+      channel,
+      sending: false,
+      focusMessageId: undefined,
+      messages: [
+        {
+          id: 'b1',
+          at: '2026-09-21T00:01:00.000Z',
+          author: { kind: 'bot', slug: 'ada' },
+          body: 'Ready',
+          channelRevision: 1,
+          reactions: [{ emoji: '🎉', actors: [{ kind: 'bot', id: 'ada' }] }],
+        },
+      ],
+    });
+    const reactToMessage = vi.fn().mockResolvedValue(undefined);
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    await act(async () =>
+      root.render(
+        createElement(BotMain, {
+          actions: {
+            profileActivity: vi.fn().mockRejectedValue(new Error('Unavailable')),
+            listWorkspaceGrants: async () => [],
+            modelPlanState: async () => undefined,
+            botSourcePolicies: async () => [],
+            reactToMessage,
+            ...inertSubmissionActions,
+          } as unknown as BridgeActions,
+          channelSidebar: sidebarRegistry(),
+        }),
+      ),
+    );
+    const chip = container.querySelector<HTMLButtonElement>('[data-reaction="🎉"]');
+    expect(chip?.getAttribute('aria-label')).toBe('Ada 用 🎉 回应');
+    expect(chip?.getAttribute('aria-pressed')).toBe('false');
+    await act(async () => chip!.click());
+    expect(reactToMessage).toHaveBeenLastCalledWith('dm-ada', 'b1', '🎉', true);
+    await act(async () =>
+      container.querySelector<HTMLButtonElement>('[data-reaction-picker-trigger]')!.click(),
+    );
+    const picker = document.body.querySelector('[data-reaction-picker]');
+    expect(picker?.getAttribute('role')).toBe('menu');
+    const thumbs = picker!.querySelector<HTMLButtonElement>('[aria-label="回应 👍"]');
+    expect(document.activeElement?.textContent).toBe('👍');
+    await act(async () => thumbs!.click());
+    expect(reactToMessage).toHaveBeenLastCalledWith('dm-ada', 'b1', '👍', true);
+    expect(document.body.querySelector('[data-reaction-picker]')).toBeNull();
+    await act(async () => root.unmount());
+    container.remove();
+  });
+  it('opens conversation search with Ctrl+F and jumps to a result', async () => {
+    const bot = {
+      slug: 'ada',
+      displayName: 'Ada',
+      roles: [],
+      aggregateState: 'idle',
+      workspaces: [],
+      createdAt: '2026-09-21T00:00:00.000Z',
+    };
+    const channel = {
+      id: 'dm-ada',
+      type: 'dm' as const,
+      name: 'Ada',
+      members: ['ada'],
+      botSlug: 'ada',
+      createdAt: '2026-09-21T00:00:00.000Z',
+      updatedAt: '2026-09-21T00:01:00.000Z',
+    };
+    const hit = {
+      id: 'b0',
+      at: '2026-09-20T00:01:00.000Z',
+      author: { kind: 'bot' as const, slug: 'ada' },
+      body: 'The launch checklist lives in docs/launch.md',
+      channelRevision: 1,
+    };
+    store.setRoster([bot], [channel]);
+    store.select({ kind: 'bot', slug: 'ada' });
+    store.setConversation({
+      status: 'ready',
+      channel,
+      sending: false,
+      focusMessageId: undefined,
+      messages: [{ ...hit, id: 'b1', body: 'Latest', channelRevision: 2 }],
+    });
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const searchChannel = vi.fn().mockResolvedValue({ messages: [hit] });
+    const openAround = vi.fn().mockResolvedValue(undefined);
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    await act(async () =>
+      root.render(
+        createElement(BotMain, {
+          actions: {
+            profileActivity: vi.fn().mockRejectedValue(new Error('Unavailable')),
+            listWorkspaceGrants: async () => [],
+            modelPlanState: async () => undefined,
+            botSourcePolicies: async () => [],
+            searchChannel,
+            openAround,
+            ...inertSubmissionActions,
+          } as unknown as BridgeActions,
+          channelSidebar: sidebarRegistry(),
+        }),
+      ),
+    );
+    const shortcut = new KeyboardEvent('keydown', { key: 'f', ctrlKey: true, cancelable: true });
+    await act(async () => {
+      document.dispatchEvent(shortcut);
+    });
+    expect(shortcut.defaultPrevented).toBe(true);
+    const input = container.querySelector<HTMLInputElement>('[data-conversation-search] input');
+    expect(document.activeElement).toBe(input);
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
+      setter.call(input, 'LAUNCH');
+      input!.dispatchEvent(new Event('input', { bubbles: true }));
+      await vi.advanceTimersByTimeAsync(300);
+    });
+    expect(searchChannel).toHaveBeenCalledWith('dm-ada', 'LAUNCH', undefined);
+    const result = container.querySelector<HTMLElement>('[data-search-result="b0"]');
+    expect(result?.querySelector('mark')?.textContent).toBe('launch');
+    expect(container.querySelector('[data-conversation-search] [role="status"]')?.textContent).toBe(
+      '1 条结果',
+    );
+    await act(async () => {
+      input!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    });
+    expect(openAround).toHaveBeenCalledWith('dm-ada', 'b0');
+    await act(async () => {
+      input!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+    expect(container.querySelector('[data-conversation-search]')).toBeNull();
+    vi.useRealTimers();
     await act(async () => root.unmount());
     container.remove();
   });

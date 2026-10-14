@@ -165,6 +165,11 @@ export interface SessionFailureCard {
   context?: string;
 }
 
+export interface ChannelReaction {
+  emoji: string;
+  actors: { kind: 'human' | 'bot'; id: string }[];
+}
+
 export interface ChannelMessage {
   onboardingWelcome?: { version: 1 };
   contentPurged?: true;
@@ -184,6 +189,7 @@ export interface ChannelMessage {
     state: 'unread' | 'read';
   }[];
   channelRevision?: number;
+  reactions?: ChannelReaction[];
   deliveries?: {
     botSlug: string;
     state:

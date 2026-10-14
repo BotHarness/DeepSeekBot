@@ -195,6 +195,7 @@ function ensureSource(): void {
     'channel/message',
     'channel/admission',
     'channel/human-read',
+    'channel/reaction',
     'channel/draft-baseline',
     'channel/draft',
     'channel/draft-settled',

@@ -570,6 +570,8 @@ export function createCore(
       live?.publishAdmission(channelId, messageId, message),
     onHumanReadChanged: (channelId, humanId, revision) =>
       live?.publishHumanRead(channelId, humanId, revision),
+    onReactionChanged: (channelId, messageId, reactions) =>
+      live?.publishReaction(channelId, messageId, reactions),
     ...(options.warn === undefined ? {} : { warn: options.warn }),
   });
   const attention = createBotAttentionQuery(

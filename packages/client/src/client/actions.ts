@@ -16,6 +16,8 @@ import type {
 import type { PairingRequest, PairingReviewInput } from '../../../core/src/messaging/pairing.js';
 import type { SenderAccessInput } from '../../../core/src/messaging/sender-access.js';
 import { unreadAfterAnchor } from './timeline-position.js';
+import { reactToChannelMessage, searchChannelMessages } from './bridge.js';
+import { toggledReactions } from './message-reactions-model.js';
 import {
   gitInstalling,
   loadGitAvailability,
@@ -517,6 +519,17 @@ export interface BridgeActions {
   openAround(channelId: string, messageId: string): Promise<void>;
   markAllRead(): Promise<void>;
   markRead(channelId: string, messageId: string): Promise<void>;
+  reactToMessage?(
+    channelId: string,
+    messageId: string,
+    emoji: string,
+    active: boolean,
+  ): Promise<void>;
+  searchChannel?(
+    channelId: string,
+    text: string,
+    cursor?: string,
+  ): Promise<{ messages: ChannelMessage[]; nextCursor?: string }>;
   refreshChannelMessages(channelId: string): Promise<void>;
   applyChannelTail(
     channelId: string,
@@ -2019,6 +2032,34 @@ export function createActions(
       await markReadPosition(call, channelId, messageId);
       await refreshHumanInboxStatus();
       if (currentSelection()?.kind === 'inbox') await actions.refreshHumanInbox();
+    },
+    async reactToMessage(channelId, messageId, emoji, active) {
+      const apply = (reactions: (current: ChannelMessage) => ChannelMessage['reactions']) => {
+        const snapshot = clientStore.getSnapshot();
+        if (snapshot.conversation.channel?.id !== channelId) return;
+        clientStore.setConversation({
+          messages: snapshot.conversation.messages.map((message) => {
+            if (message.id !== messageId) return message;
+            const next = reactions(message);
+            const { reactions: _previous, ...rest } = message;
+            return next === undefined || next.length === 0 ? rest : { ...rest, reactions: next };
+          }),
+        });
+      };
+      const before = clientStore
+        .getSnapshot()
+        .conversation.messages.find((message) => message.id === messageId)?.reactions;
+      apply((message) => toggledReactions(message.reactions, emoji, active));
+      try {
+        const reactions = await reactToChannelMessage(call, channelId, messageId, emoji, active);
+        apply(() => reactions);
+      } catch (error) {
+        apply(() => before);
+        throw error;
+      }
+    },
+    searchChannel(channelId, text, cursor) {
+      return searchChannelMessages(call, channelId, text, cursor);
     },
     humanAssignmentContext(slug, sessionId, sourceEventId, signal) {
       return loadHumanAssignmentContext(call, slug, sessionId, sourceEventId, signal);
