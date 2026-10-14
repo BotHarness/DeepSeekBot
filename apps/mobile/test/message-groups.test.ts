@@ -14,7 +14,7 @@ const message = (
   body: id,
   attachments: 0,
   card: false,
-  delivery: 'sent',
+  delivery: 'committed',
 });
 
 const shape = (rows: ReturnType<typeof chatRows>) =>
