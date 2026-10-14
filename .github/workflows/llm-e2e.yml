@@ -35,7 +35,7 @@ on:
         required: false
         default: ''
       models:
-        description: Space-separated provider/model[@effort] routes (empty uses the Host default)
+        description: Space-separated provider/model[@effort] routes (empty runs opencode-go/deepseek-v4.1-flash)
         required: false
         default: ''
 
@@ -53,13 +53,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+      OPENCODE_GO_API_KEY: ${{ secrets.OPENCODE_GO_API_KEY }}
     steps:
       - name: Require a model key
         id: key
         run: |
-          if [ -z "$DEEPSEEK_API_KEY" ]; then
-            echo "::notice::Add the DEEPSEEK_API_KEY repository secret to run real-model scenarios."
+          if [ -z "$OPENCODE_GO_API_KEY" ]; then
+            echo "::notice::Add the OPENCODE_GO_API_KEY repository secret (OpenCode Go subscription) to run real-model scenarios."
             echo "present=false" >> "$GITHUB_OUTPUT"
           else
             echo "present=true" >> "$GITHUB_OUTPUT"
@@ -82,6 +82,9 @@ jobs:
         run: pnpm install --frozen-lockfile
       - if: steps.key.outputs.present == 'true'
         run: pnpm build
+      - name: Select the OpenCode Go model
+        if: steps.key.outputs.present == 'true'
+        run: node scripts/dev-model.mjs setup --from-env
       - name: Run scenarios
         if: steps.key.outputs.present == 'true'
         env:

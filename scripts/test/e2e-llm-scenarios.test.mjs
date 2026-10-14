@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  DEFAULT_MODEL,
   SCENARIOS,
   compareReports,
   modelLabel,
@@ -93,6 +94,14 @@ describe('scenario token usage and model matrix', () => {
     expect(modelLabel(undefined)).toBe('host-default');
     expect(() => parseModelRoute('deepseek-v4-flash')).toThrow('provider/model');
     expect(() => parseScenarioArgs(['--model', 'a/b', '--model', 'a/b'])).toThrow('twice');
+  });
+
+  it('runs on deepseek-v4.1-flash unless models are named', () => {
+    expect(DEFAULT_MODEL).toBe('opencode-go/deepseek-v4.1-flash');
+    expect(parseScenarioArgs([]).models).toEqual([
+      { provider: 'opencode-go', model: 'deepseek-v4.1-flash' },
+    ]);
+    expect(parseScenarioArgs(['--model', 'host-default']).models).toEqual([undefined]);
   });
 
   it('runs a fixed number of times instead of retrying, but not both', () => {

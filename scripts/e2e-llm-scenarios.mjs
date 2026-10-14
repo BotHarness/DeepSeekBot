@@ -8,6 +8,8 @@ import { rpc, verifyPaths } from './verify-app.mjs';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
+export const DEFAULT_MODEL = 'opencode-go/deepseek-v4.1-flash';
+
 export const usage = `Usage: node scripts/e2e-llm-scenarios.mjs [options]
 
 Run multi-Bot scenarios against a real model on an isolated DSH Host and assert on canonical
@@ -28,7 +30,8 @@ Options:
   --runs <n>            Run each scenario exactly n times, 1-20, without stopping at the first
                         pass, to measure pass rate and token spread. Replaces --attempts.
   --model <route>       provider/model[@effort] for every scenario Bot (repeatable). Each model
-                        runs every selected scenario. Default: the Host's default model.
+                        runs every selected scenario. Default: ${DEFAULT_MODEL};
+                        host-default keeps the Host's own default model.
   --baseline <path>     A previous report; print pass-rate and token deltas against it.
   --compare <a> <b>     Print the deltas between two saved reports (baseline a, current b), then
                         exit without launching anything.
@@ -39,9 +42,9 @@ Options:
                         and a Markdown summary next to it (same name, .md).
   --list                Print the scenarios and their areas, then exit.
 
-The Host needs a model credential: DEEPSEEK_API_KEY in the environment, or the AX opencode-go
-selection from docs/agents/ax-model.md. Exit status is 1 when a selected scenario has no passing
-attempt or run on some model.`;
+The Host needs a model credential: the AX opencode-go selection from docs/agents/ax-model.md
+(CI runs dev-model.mjs setup --from-env with OPENCODE_GO_API_KEY). Exit status is 1 when a
+selected scenario has no passing attempt or run on some model.`;
 
 const RUNTIME_AREAS = [
   'packages/core/src/runtime/',
@@ -235,10 +238,12 @@ export function parseScenarioArgs(argv) {
   }
   if (attemptsGiven && options.runs !== undefined)
     throw new Error('--runs replaces --attempts; pass one of them');
+  if (options.models.length === 0) options.models.push(parseModelRoute(DEFAULT_MODEL));
   return options;
 }
 
 export function parseModelRoute(spec) {
+  if (spec === 'host-default') return undefined;
   const match = /^([^/@\s]+)\/([^@\s]+)(?:@([a-z0-9-]+))?$/u.exec(spec);
   if (!match) throw new Error(`--model must be provider/model[@effort], got ${spec}`);
   const [, provider, model, reasoningEffort] = match;
@@ -718,7 +723,7 @@ async function main() {
       throw new Error(`no instance at ${paths.instance}; pass --launch or run verify-app launch`);
     const instance = JSON.parse(readFileSync(paths.instance, 'utf8'));
     const results = [];
-    const routes = options.models.length > 0 ? options.models : [undefined];
+    const routes = options.models;
     const reportPath = resolve(
       options.report ??
         join(
