@@ -55,8 +55,8 @@ References:
   - Bubbles use radius `lg` and are at most 80% wide.
   - Attachments sit inside the bubble: images as rounded thumbnails (one large, or a grid of squares), other files as a row with an icon, name and size. Tapping an image opens a full-screen viewer; tapping a file downloads it from the Host and opens the share sheet.
     - The viewer follows the Photos app: pinch zooms around the fingers (up to 5×, springing back to fit below 1×), double-tap zooms to 2.5× at the tapped point and back, one finger pans a zoomed image, a vertical swipe at fit size closes it with the backdrop fading, and a single tap hides or shows the close and share buttons. The close button, Android back and the iOS escape gesture also close it.
-  - Reactions are small chips on the bubble corner.
-  - Long-press a bubble to copy its whole text: iOS shows the action sheet with **Copy**, and Android copies at once and confirms with a toast. Bubble text is not selectable, so the long-press always reaches this menu.
+  - Reactions are small pills under the bubble, on its side: the emoji and its count, the Human's own in `chosen` with an accent edge. Tapping one adds or removes the Human's reaction. A Bot's reaction-only answer shows here with no reply bubble.
+  - Long-press a bubble to open its menu, a sheet from the bottom: a row of quick reactions (👍 ❤️ 😂 🎉 👀 ✅, the Web Client's set), then **Copy** for a message with text, and **Cancel**. A message that is still sending, failed, or is a card has no reactions, so its menu is Copy alone. Bubble text is not selectable, so the long-press always reaches this menu.
   - Delivery: pending shows at 70% opacity, failed offers "Not sent · Tap to retry", and sent shows nothing.
 - **Action cards** sit in the chat stream, and the same rules apply wherever they appear (DM, Activity, Human Inbox, web Inbox). Show only what the Human needs to decide; everything else waits behind Details.
   - Layout, top to bottom:

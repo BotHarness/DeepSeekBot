@@ -72,6 +72,17 @@ export class FakeChannel {
     return this.followers.size;
   }
 
+  react(messageId: string, reactions: NonNullable<ChannelMessage['reactions']>): void {
+    const message = this.messages.find((entry) => entry.id === messageId);
+    if (message === undefined) return;
+    if (reactions.length === 0) delete message.reactions;
+    else message.reactions = reactions;
+    this.emit({
+      type: 'notification',
+      notification: { kind: 'reaction', channelId: this.id, messageId, reactions },
+    });
+  }
+
   emit(frame: ChannelLiveFrame): void {
     for (const streamId of this.followers.keys()) this.send(streamId, frame);
   }
@@ -295,6 +306,33 @@ export class FakeHost {
             : { attachments: args['attachments'] as NonNullable<ChannelMessage['attachments']> }),
         });
         return { message: channel.messages.at(-1) };
+      };
+    if (method === 'channelReact')
+      return (args) => {
+        const channel = this.channels.get(String(args['channelId']));
+        const message = channel?.messages.find((entry) => entry.id === args['messageId']);
+        if (channel === undefined || message === undefined) throw new Error('Unknown message');
+        const emoji = String(args['emoji']);
+        const others = (message.reactions ?? [])
+          .map((reaction) => ({
+            emoji: reaction.emoji,
+            actors: reaction.actors.filter(
+              (actor) => reaction.emoji !== emoji || actor.kind !== 'human',
+            ),
+          }))
+          .filter((reaction) => reaction.actors.length > 0);
+        const existing = others.find((reaction) => reaction.emoji === emoji);
+        const me = { kind: 'human' as const, id: 'local-human' };
+        const reactions =
+          args['active'] !== true
+            ? others
+            : existing === undefined
+              ? [...others, { emoji, actors: [me] }]
+              : others.map((reaction) =>
+                  reaction === existing ? { emoji, actors: [...reaction.actors, me] } : reaction,
+                );
+        channel.react(message.id, reactions);
+        return { reactions };
       };
     return undefined;
   }

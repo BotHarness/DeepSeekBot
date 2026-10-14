@@ -5,6 +5,8 @@ import type {
   SerializedGridObject,
 } from 'dockview-react';
 
+import type { DockPanelPosition } from './dock-panels.js';
+
 export const CHANNEL_DOCK_STORAGE_KEY = 'botharness.bot-mode-layout';
 export const CHANNEL_DOCK_LAYOUT_VERSION = 1;
 export const CHANNEL_BODY_PANEL = 'bh:channel-body';
@@ -214,6 +216,20 @@ export function resolveDockPosition(
   const last = column.at(-1);
   if (last !== undefined) return { referencePanel: last.id, direction: 'below' };
   return { referencePanel: CHANNEL_BODY_PANEL, direction: 'right' };
+}
+
+export function resolveDefaultPosition(
+  api: Pick<DockviewApi, 'getPanel' | 'panels'>,
+  position: DockPanelPosition | undefined,
+): AddPanelPositionOptions {
+  const zone = position?.zone ?? 'right';
+  const anchor = position?.relativeTo;
+  if (anchor !== undefined && api.getPanel(anchor) !== undefined)
+    return { referencePanel: anchor, direction: zone === 'bottom' ? 'right' : 'below' };
+  if (zone === 'left') return { direction: 'left' };
+  if (zone === 'bottom') return { direction: 'below' };
+  if (zone === 'center') return { referencePanel: CHANNEL_BODY_PANEL, direction: 'below' };
+  return resolveDockPosition(api, undefined);
 }
 
 export function allowsDockDrop(kind: string, position: string): boolean {

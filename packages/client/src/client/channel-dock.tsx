@@ -21,6 +21,7 @@ import {
 } from 'dockview-react';
 
 import type { ChannelSidebarEntry, ChannelSidebarEntryProps } from './channel-sidebar.js';
+import type { DockPanelChannel, DockPanelHost, DockPanelRegistration } from './dock-panels.js';
 import {
   allowsDockDrop,
   CHANNEL_BODY_COMPONENT,
@@ -31,6 +32,7 @@ import {
   DEFAULT_DOCK_PANELS,
   pruneChannelDock,
   readChannelDock,
+  resolveDefaultPosition,
   resolveDockPosition,
   writeChannelDock,
   type ChannelDockStorage,
@@ -102,7 +104,8 @@ interface EntryRuntime {
 interface DockContextValue {
   body: ReactNode;
   menu: ReactNode;
-  entries: ReadonlyMap<string, ChannelSidebarEntry>;
+  panels: ReadonlyMap<string, DockPanelRegistration>;
+  channel: DockPanelChannel | undefined;
   entryProps: ChannelSidebarEntryProps | undefined;
   shows(entry: ChannelSidebarEntry): boolean;
   runtime(entryId: string): EntryRuntime;
@@ -144,10 +147,30 @@ function ChannelBodyPanel(): ReactElement {
   );
 }
 
+function DockPanelBody({ panel }: { panel: DockPanelRegistration }): ReactElement {
+  const dock = useDock();
+  const channel = panel.scope === 'channel' ? dock.channel : undefined;
+  return (
+    <section data-dock-panel={panel.id} {...stylex.props(styles.panel)}>
+      {panel.scope === 'global' || channel !== undefined ? (
+        <div data-dock-panel-body="" {...stylex.props(styles.body)}>
+          <panel.component channel={channel} />
+        </div>
+      ) : (
+        <p data-dock-empty="" {...stylex.props(sidebarStyles.empty)}>
+          {dock.t('dock.empty')}
+        </p>
+      )}
+    </section>
+  );
+}
+
 function ChannelEntryPanel({ params }: IDockviewPanelProps<{ entryId: string }>): ReactElement {
   const dock = useDock();
-  const entry = dock.entries.get(params.entryId);
+  const panel = dock.panels.get(params.entryId);
+  const entry = panel?.entry;
   const props = useEntryProps(params.entryId);
+  if (panel !== undefined && entry === undefined) return <DockPanelBody panel={panel} />;
   const shown = entry !== undefined && props !== undefined && dock.shows(entry);
   return (
     <section data-sidebar-entry={params.entryId} {...stylex.props(styles.panel)}>
@@ -169,19 +192,20 @@ function ChannelEntryPanel({ params }: IDockviewPanelProps<{ entryId: string }>)
 function ChannelDockTab({ api, params }: IDockviewPanelHeaderProps<{ entryId?: string }>) {
   const dock = useDock();
   const entryId = params.entryId;
-  const entry = entryId === undefined ? undefined : dock.entries.get(entryId);
+  const panel = entryId === undefined ? undefined : dock.panels.get(entryId);
+  const entry = panel?.entry;
   const props = useEntryProps(entryId ?? '');
-  if (entryId === undefined || entry === undefined) return null;
-  const shown = props !== undefined && dock.shows(entry);
+  if (entryId === undefined || panel === undefined) return null;
+  const shown = entry !== undefined && props !== undefined && dock.shows(entry);
   const Badge = shown ? entry.badge : undefined;
   const HeaderAction = shown ? entry.headerAction : undefined;
   const HeaderTabs = shown ? entry.headerTabs : undefined;
-  const closeLabel = dock.t('dock.close', { label: entry.label });
+  const closeLabel = dock.t('dock.close', { label: panel.title });
   return (
     <div className="bh-dock-header" data-dock-header={entryId}>
       <PanelHeader
-        icon={<ChannelSidebarIcon name={entry.icon} />}
-        label={HeaderTabs === undefined ? entry.label : (entry.headerLabel ?? entry.label)}
+        icon={<ChannelSidebarIcon name={panel.icon} />}
+        label={HeaderTabs === undefined ? panel.title : (entry?.headerLabel ?? panel.title)}
         badge={Badge === undefined || props === undefined ? undefined : <Badge {...props} />}
         tabs={
           HeaderTabs === undefined || props === undefined ? undefined : <HeaderTabs {...props} />
@@ -222,20 +246,23 @@ function hideBodyHeader(api: DockviewApi): void {
 
 function addEntryPanel(
   api: DockviewApi,
-  entry: ChannelSidebarEntry,
+  panel: DockPanelRegistration,
   remembered: DockPosition | undefined,
 ): void {
-  if (api.getPanel(entry.id) !== undefined) return;
+  if (api.getPanel(panel.id) !== undefined) return;
   api.addPanel({
-    id: entry.id,
+    id: panel.id,
     component: CHANNEL_ENTRY_COMPONENT,
-    title: entry.label,
-    params: { entryId: entry.id },
-    position: resolveDockPosition(api, remembered),
+    title: panel.title,
+    params: { entryId: panel.id },
+    position:
+      remembered === undefined
+        ? resolveDefaultPosition(api, panel.defaultPosition)
+        : resolveDockPosition(api, remembered),
   });
 }
 
-function buildDefaultLayout(api: DockviewApi, entries: ReadonlyMap<string, ChannelSidebarEntry>) {
+function buildDefaultLayout(api: DockviewApi, entries: ReadonlyMap<string, DockPanelRegistration>) {
   api.clear();
   api.addPanel({
     id: CHANNEL_BODY_PANEL,
@@ -249,7 +276,7 @@ function buildDefaultLayout(api: DockviewApi, entries: ReadonlyMap<string, Chann
     api.addPanel({
       id,
       component: CHANNEL_ENTRY_COMPONENT,
-      title: entry.label,
+      title: entry.title,
       params: { entryId: id },
       position:
         previous === undefined
@@ -267,7 +294,9 @@ function buildDefaultLayout(api: DockviewApi, entries: ReadonlyMap<string, Chann
 
 export interface ChannelDockProps {
   body: ReactNode;
-  entries: readonly ChannelSidebarEntry[];
+  panels: readonly DockPanelRegistration[];
+  channel?: DockPanelChannel | undefined;
+  registry?: DockPanelHost | undefined;
   entryProps: ChannelSidebarEntryProps | undefined;
   shows(entry: ChannelSidebarEntry): boolean;
   t: BotHarnessTranslate;
@@ -276,7 +305,9 @@ export interface ChannelDockProps {
 
 export function ChannelDock({
   body,
-  entries,
+  panels,
+  channel,
+  registry,
   entryProps,
   shows,
   t,
@@ -286,13 +317,15 @@ export function ChannelDock({
   const [openIds, setOpenIds] = useState<readonly string[]>([]);
   const [runtimes, setRuntimes] = useState<ReadonlyMap<string, EntryRuntime>>(new Map());
   const parked = useRef<Record<string, DockPosition & { missing?: boolean }>>({});
-  const byId = useMemo(() => new Map(entries.map((entry) => [entry.id, entry])), [entries]);
+  const byId = useMemo(() => new Map(panels.map((panel) => [panel.id, panel])), [panels]);
   const known = useRef(byId);
   known.current = byId;
 
   const save = (target: DockviewApi): void => {
     hideBodyHeader(target);
-    setOpenIds(target.panels.map((panel) => panel.id));
+    const ids = target.panels.map((panel) => panel.id);
+    setOpenIds(ids);
+    registry?.reportOpen(ids.filter((id) => id !== CHANNEL_BODY_PANEL));
     writeChannelDock({ layout: target.toJSON(), parked: parked.current }, storage);
   };
 
@@ -340,10 +373,10 @@ export function ChannelDock({
       panel.api.close();
     }
     for (const [id, position] of Object.entries(parked.current)) {
-      const entry = byId.get(id);
-      if (position.missing !== true || entry === undefined) continue;
+      const panel = byId.get(id);
+      if (position.missing !== true || panel === undefined) continue;
       delete parked.current[id];
-      addEntryPanel(api, entry, position);
+      addEntryPanel(api, panel, position);
     }
     save(api);
   }, [api, byId]);
@@ -356,23 +389,34 @@ export function ChannelDock({
     panel.api.close();
   };
 
+  const open = (panelId: string): void => {
+    const panel = byId.get(panelId);
+    if (api === undefined || panel === undefined) return;
+    if (api.getPanel(panelId) !== undefined) {
+      api.getPanel(panelId)?.api.setActive();
+      return;
+    }
+    const remembered = parked.current[panelId];
+    delete parked.current[panelId];
+    addEntryPanel(api, panel, remembered);
+  };
+
+  const layout = useRef({ open, close });
+  layout.current = { open, close };
+  const layoutMount = useMountedResource<HTMLSpanElement>(() => {
+    if (api === undefined || registry === undefined) return;
+    return registry.attach({
+      open: (id) => layout.current.open(id),
+      close: (id) => layout.current.close(id),
+    });
+  }, [api, registry]);
+
   const menu = (
     <ChannelDockPanelsMenu
-      entries={entries}
+      panels={panels}
       openIds={openIds}
       t={t}
-      onToggle={(id) => {
-        if (api === undefined) return;
-        if (api.getPanel(id) !== undefined) {
-          close(id);
-          return;
-        }
-        const entry = byId.get(id);
-        if (entry === undefined) return;
-        const remembered = parked.current[id];
-        delete parked.current[id];
-        addEntryPanel(api, entry, remembered);
-      }}
+      onToggle={(id) => (api?.getPanel(id) === undefined ? open(id) : close(id))}
       onReset={() => {
         if (api === undefined) return;
         clearChannelDock(storage);
@@ -386,7 +430,8 @@ export function ChannelDock({
   const value: DockContextValue = {
     body,
     menu,
-    entries: byId,
+    panels: byId,
+    channel,
     entryProps,
     shows,
     runtime: (entryId) => runtimes.get(entryId) ?? { refreshRevision: 0, expandable: true },
@@ -412,6 +457,7 @@ export function ChannelDock({
         role="region"
         aria-label={t('dock.region')}
       >
+        <span ref={layoutMount} hidden />
         <DockviewReact
           components={COMPONENTS}
           defaultTabComponent={ChannelDockTab}
@@ -432,14 +478,17 @@ export function ChannelDock({
 
 const RESET_ID = 'bh:dock-reset';
 
+const groupRank = (panel: DockPanelRegistration): number =>
+  panel.entry?.scope === 'channel' ? 1 : 0;
+
 function ChannelDockPanelsMenu({
-  entries,
+  panels,
   openIds,
   t,
   onToggle,
   onReset,
 }: {
-  entries: readonly ChannelSidebarEntry[];
+  panels: readonly DockPanelRegistration[];
   openIds: readonly string[];
   t: BotHarnessTranslate;
   onToggle(id: string): void;
@@ -449,11 +498,13 @@ function ChannelDockPanelsMenu({
   const label = t('dock.panels');
   const items: MenuEntry[] = [
     { type: 'label', id: 'bh:dock-panels', text: label },
-    ...entries.map((entry) => ({
-      id: entry.id,
-      label: entry.label,
-      icon: <ChannelSidebarIcon name={entry.icon} />,
-    })),
+    ...[...panels]
+      .sort((left, right) => groupRank(left) - groupRank(right))
+      .map((panel) => ({
+        id: panel.id,
+        label: panel.title,
+        icon: <ChannelSidebarIcon name={panel.icon} />,
+      })),
     { type: 'separator', id: 'bh:dock-separator' },
     { id: RESET_ID, label: t('dock.reset') },
   ];

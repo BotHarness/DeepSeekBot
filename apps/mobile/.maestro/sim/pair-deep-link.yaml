@@ -1,0 +1,23 @@
+# Pairs with a Host through its deepseekbot://pair link and lands on its Home.
+# -e LINK=deepseekbot://pair?p=…  -e HOST=<host name>  -e BOT=<a PersonaBot on it>
+appId: ai.botharness.deepseekbot.dev
+---
+- openLink: ${LINK}
+- tapOn:
+    text: 'Open|打开'
+    optional: true
+# The first pairing asks for notification permission a moment after Home opens.
+- extendedWaitUntil:
+    visible: '^(Allow|允许)$|${HOST}, switch computer'
+    timeout: 30000
+- waitForAnimationToEnd:
+    timeout: 3000
+- tapOn:
+    text: '^(Allow|允许)$'
+    optional: true
+- extendedWaitUntil:
+    visible: '${HOST}, switch computer'
+    timeout: 30000
+- extendedWaitUntil:
+    visible: ${BOT}
+    timeout: 30000

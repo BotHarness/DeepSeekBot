@@ -75,9 +75,35 @@ Agents verify native UI on a Mac with Xcode: they drive a development build on t
 
    Maestro grants every permission on `launchApp` unless the flow says otherwise; the flow sets `permissions: { all: unset }` so the camera prompt shows as on a first launch. Run output and screenshots go to `~/.maestro/tests/<timestamp>/`.
 
-   Screens behind pairing (Roster, DMs, Inbox items) have no Maestro flow: they need a live Host, and an Inbox question needs a real model turn. Drive them with agent-device instead. Launch an isolated Host (`node scripts/verify-app.mjs launch --name <n>`), ask it for a pairing offer, point the link's `routes` at the Host's loopback origin (the Simulator shares the Mac's network, and the development build allows local HTTP), paste the link on the pair screen, then make a PersonaBot ask with `ask_user_question` through `channelSend`. `scripts/e2e-mobile-pairing-web.mjs` shows the offer and route rewrite.
+   Screens behind pairing need a live Host, and an Inbox request needs a real model turn. Step 4 runs the paired flows in `.maestro/sim/`; drive any other screen (DMs, Inbox questions) with agent-device. Launch an isolated Host (`node scripts/verify-app.mjs launch --name <n>`), ask it for a pairing offer, point the link's `routes` at the Host's loopback origin (the Simulator shares the Mac's network, and the development build allows local HTTP), paste the link on the pair screen, then make a PersonaBot ask with `ask_user_question` through `channelSend`. `scripts/e2e-mobile-pairing-web.mjs` shows the offer and route rewrite.
 
-4. **MCP.** Agents that prefer tools over a shell can use `npx agent-device mcp` (stdio; tools mirror the CLI commands) or `maestro mcp` (stdio; runs flows and inspects the view hierarchy). [XcodeBuildMCP](https://github.com/getsentry/XcodeBuildMCP) is an alternative for building and driving the Simulator from Xcode's side.
+4. **Everything with live Hosts, in one command.** `node scripts/e2e-mobile-sim.mjs` creates its own Simulator (a fresh one each run, so earlier pairings in the Keychain do not leak in) and its own Metro port, builds the development build onto it, launches two isolated Hosts, pairs with both by deep link, switches computers, makes a PersonaBot ask for a real Tool approval and opens it from a notification. It prints `"result":"pass"` and keeps screenshots and Maestro output in `.humanlayer/verify/mobile-sim/evidence/`. Pass `--app <path.app>` to reuse a build (the first run prints its path), `--no-approval` to skip the step that needs a model, and `--keep` to leave everything running. Its flows are in `.maestro/sim/` and take their values as `-e` variables. Feature map: [phone-notifications.md](../../.agents/skills/verify-deepseekbot/features/phone-notifications.md).
+
+5. **Notifications without APNs.** `xcrun simctl push <udid> ai.botharness.deepseekbot.dev payload.apns` delivers a notification as the Expo push service would. expo-notifications reads the data from the `body` key:
+
+   ```json
+   {
+     "Simulator Target Bundle": "ai.botharness.deepseekbot.dev",
+     "aps": {
+       "alert": { "title": "Ada", "body": "Ada needs your approval" },
+       "sound": "default",
+       "badge": 1
+     },
+     "body": {
+       "v": 1,
+       "hostId": "<host id from the pairing link>",
+       "itemId": "approval:<id>",
+       "kind": "tool-approval",
+       "botSlug": "<slug>",
+       "channelId": "dm-<slug>",
+       "messageId": "<message id>"
+     }
+   }
+   ```
+
+   A test notification sends `{ "v": 1, "hostId": "…", "test": true }`, and a badge-only one sends `{ "v": 1, "hostId": "…" }` with `aps.badge`; both open Activity. The banner belongs to SpringBoard, so neither Maestro nor agent-device finds it by text: tap it by point while it shows, for example `npx agent-device press 196 90` on an iPhone 16, or `tapOn: { point: 50%,10% }` in a flow. For the home-screen badge and Notification Center, go home (`npx agent-device home`) and take `xcrun simctl io <udid> screenshot`. The Simulator cannot get an Expo push token without an EAS projectId, so Me → Notifications says this build cannot receive notifications.
+
+6. **MCP.** Agents that prefer tools over a shell can use `npx agent-device mcp` (stdio; tools mirror the CLI commands) or `maestro mcp` (stdio; runs flows and inspects the view hierarchy). [XcodeBuildMCP](https://github.com/getsentry/XcodeBuildMCP) is an alternative for building and driving the Simulator from Xcode's side.
 
 ## Screenshots without a phone
 

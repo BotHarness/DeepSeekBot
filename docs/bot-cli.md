@@ -83,6 +83,7 @@ deepseekbot send-status <bot-id> --message-id <receipt-message-id>
 deepseekbot channel-messages <channel-id> --host http://127.0.0.1:31917 --limit 20
 deepseekbot tool-approval-status <channel-id> --message-id <card-id>
 deepseekbot tool-approval-decide <channel-id> --message-id <card-id> --outcome allowed-once
+deepseekbot tool-approval-decide <channel-id> --message-id <card-id> --outcome allowed-always-kind
 deepseekbot tool-approval-decide <channel-id> --message-id <card-id> --outcome rejected
 deepseekbot user-question-status <channel-id> --message-id <card-id>
 deepseekbot user-question-answer <channel-id> --message-id <card-id> --answer-stdin
@@ -98,7 +99,7 @@ deepseekbot workspace-options
 deepseekbot grant-create <bot-id> --workspace <workspace-id>
 ```
 
-`tool-approval-status` returns `status` and, while the card is still `pending`, its `expiresAt`, the time the Web card counts down to.
+`tool-approval-status` returns `status` and, while the card is still `pending`, its `expiresAt`, the time the Web card counts down to. `--outcome allowed-always-kind` is the `secret_cli` card's "Always allow this kind": it allows this call and saves a rule for the same program, account and environment variable names, which `tool-approval-rules` lists with kind `secret-cli`; any other card refuses it.
 
 ### Agent control
 

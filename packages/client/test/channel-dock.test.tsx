@@ -46,6 +46,14 @@ import type {
   ChannelSidebarEntryProps,
 } from '../src/client/channel-sidebar.js';
 import { zhTranslate } from '../src/client/locale.js';
+import {
+  createDockPanelRegistry,
+  dockPanelsFromEntries,
+  type DockPanel,
+  type DockPanelChannel,
+  type DockPanelHost,
+  type DockPanelRegistration,
+} from '../src/client/dock-panels.js';
 
 const entry = (id: string, scope: ChannelSidebarEntry['scope'] = 'personabot') =>
   ({
@@ -72,12 +80,21 @@ const storage = {
   removeItem: (key: string) => void values.delete(key),
 };
 
-async function render(entries: readonly ChannelSidebarEntry[], scope = 'personabot') {
+async function render(
+  entries: readonly ChannelSidebarEntry[] | readonly DockPanelRegistration[],
+  scope = 'personabot',
+  options: { channel?: DockPanelChannel; registry?: DockPanelHost } = {},
+) {
+  const panels = entries.every((item) => 'title' in item)
+    ? (entries as readonly DockPanelRegistration[])
+    : dockPanelsFromEntries(entries as readonly ChannelSidebarEntry[]);
   act(() =>
     root.render(
       createElement(ChannelDock, {
         body: createElement('section', { className: 'bh-chat-pane' }, 'channel body'),
-        entries,
+        panels,
+        channel: options.channel,
+        registry: options.registry,
         entryProps,
         shows: (candidate: ChannelSidebarEntry) => candidate.scope === scope,
         t: zhTranslate,
@@ -205,5 +222,91 @@ describe('desktop Bot mode dock', () => {
     await click('[data-menu-item="bh:dock-reset"]');
     expect(Object.keys(panels())).toEqual([CHANNEL_BODY_PANEL, 'sessions', 'bot-inbox']);
     expect(values.has(CHANNEL_DOCK_STORAGE_KEY)).toBe(true);
+  });
+});
+
+describe('dockPanels Service in the dock', () => {
+  const dm: DockPanelChannel = { id: 'dm-ada', type: 'dm', botSlug: 'ada' };
+  const group: DockPanelChannel = { id: 'group-1', type: 'group', botSlug: undefined };
+  const todo: DockPanel = {
+    id: 'example:todo',
+    title: 'To-do',
+    icon: 'list-todo',
+    scope: 'global',
+    component: ({ channel }) =>
+      createElement('div', { 'data-todo': channel?.id ?? 'global' }, 'todo body'),
+  };
+  const notes: DockPanel = {
+    id: 'example:notes',
+    title: 'Notes',
+    scope: 'channel',
+    defaultPosition: { zone: 'bottom' },
+    component: ({ channel }) => createElement('div', { 'data-notes': channel?.id }, 'notes'),
+  };
+
+  function setup() {
+    const registry = createDockPanelRegistry();
+    for (const id of ['sessions', 'bot-inbox', 'schedules']) registry.registerEntry(entry(id));
+    registry.register(todo);
+    registry.register(notes);
+    return registry;
+  }
+
+  it('lists a plugin panel in the Panels menu and keeps a global panel when the Channel changes', async () => {
+    const registry = setup();
+    await render(registry.panels(), 'personabot', { channel: dm, registry });
+    await click('[data-dock-menu] button');
+    expect(host.querySelector('[data-menu-item="example:todo"]')?.textContent).toBe('To-do');
+    await click('[data-menu-item="example:todo"]');
+    expect(host.querySelector('[data-todo]')?.getAttribute('data-todo')).toBe('global');
+    expect(registry.isOpen('example:todo')).toBe(true);
+    const layout = JSON.stringify(readChannelDock(storage)!.layout.grid);
+
+    act(() => root.unmount());
+    root = createRoot(host);
+    await render(registry.panels(), 'channel', { channel: group, registry });
+    expect(host.querySelector('[data-todo]')?.getAttribute('data-todo')).toBe('global');
+    expect(JSON.stringify(readChannelDock(storage)!.layout.grid)).toBe(layout);
+  });
+
+  it('hands a channel panel the active Channel and opens it at its default position', async () => {
+    const registry = setup();
+    await render(registry.panels(), 'personabot', { channel: dm, registry });
+    act(() => registry.open('example:notes'));
+    await settle();
+    expect(host.querySelector('[data-notes]')?.getAttribute('data-notes')).toBe('dm-ada');
+    const grid = readChannelDock(storage)!.layout.grid;
+    expect(grid.orientation).toBe('VERTICAL');
+    const rows = (grid.root.data as { data: unknown }[]).map((node) => JSON.stringify(node));
+    expect(rows.at(-1)).toContain('example:notes');
+  });
+
+  it('shows an empty state for a channel panel while no Channel is active', async () => {
+    const registry = setup();
+    await render(registry.panels(), 'personabot', { registry });
+    act(() => registry.open('example:notes'));
+    await settle();
+    expect(host.querySelector('[data-notes]')).toBeNull();
+    expect(
+      host.querySelector('[data-dock-panel="example:notes"] [data-dock-empty]'),
+    ).not.toBeNull();
+  });
+
+  it('toggles panels through the Service and reports what is open', async () => {
+    const registry = setup();
+    const seen: string[][] = [];
+    registry.subscribe(() => seen.push([...registry.openPanels()]));
+    await render(registry.panels(), 'personabot', { channel: dm, registry });
+    expect(registry.openPanels()).toEqual(['sessions', 'bot-inbox']);
+    act(() => registry.toggle('bot-inbox'));
+    await settle();
+    expect(registry.isOpen('bot-inbox')).toBe(false);
+    act(() => registry.toggle('bot-inbox'));
+    await settle();
+    expect(registry.isOpen('bot-inbox')).toBe(true);
+    act(() => root.unmount());
+    root = createRoot(host);
+    expect(registry.openPanels()).toEqual([]);
+    expect(seen.length).toBeGreaterThan(2);
   });
 });

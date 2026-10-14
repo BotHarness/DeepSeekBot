@@ -2260,6 +2260,39 @@ const CHANNEL_REACTION_MIGRATION: SchemaMigration = {
   },
 };
 
+const SECRET_CLI_TOOL_RULE_MIGRATION: SchemaMigration = {
+  generation: 95,
+  module: 'tool-approval-rules',
+  description: 'Allow secret_cli always-allow rules per program, account and variable names',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE tool_approval_rules_next (
+        id TEXT PRIMARY KEY,
+        bot_slug TEXT NOT NULL,
+        role TEXT NOT NULL CHECK (role IN ('orchestrator', 'assignment')),
+        scope_key TEXT NOT NULL,
+        kind TEXT NOT NULL CHECK (kind IN ('exact', 'all-opaque', 'secret-cli')),
+        tool_name TEXT NOT NULL,
+        input TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        active INTEGER NOT NULL CHECK (active IN (0, 1)),
+        revoked_at TEXT,
+        external_creator TEXT
+      );
+      INSERT INTO tool_approval_rules_next
+        (id, bot_slug, role, scope_key, kind, tool_name, input, created_at, active, revoked_at,
+         external_creator)
+      SELECT id, bot_slug, role, scope_key, kind, tool_name, input, created_at, active, revoked_at,
+             external_creator
+        FROM tool_approval_rules;
+      DROP TABLE tool_approval_rules;
+      ALTER TABLE tool_approval_rules_next RENAME TO tool_approval_rules;
+      CREATE INDEX tool_approval_rules_lookup
+        ON tool_approval_rules (bot_slug, role, scope_key, active, revoked_at);
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -2354,4 +2387,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   PUSH_DELIVERY_MIGRATION,
   HUMAN_INBOX_SNOOZE_MIGRATION,
   CHANNEL_REACTION_MIGRATION,
+  SECRET_CLI_TOOL_RULE_MIGRATION,
 ]);

@@ -2,7 +2,27 @@ import { randomUUID } from 'node:crypto';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import { parseToolApprovalActor, type ToolApprovalActor } from './tool-approval-actor.js';
 
-export type ToolRuleKind = 'exact' | 'all-opaque';
+export type ToolRuleKind = 'exact' | 'all-opaque' | 'secret-cli';
+
+export function secretCliKind(input: string): string | undefined {
+  let args: unknown;
+  try {
+    args = JSON.parse(input);
+  } catch {
+    return undefined;
+  }
+  if (typeof args !== 'object' || args === null) return undefined;
+  const { program, account, env } = args as { program?: unknown; account?: unknown; env?: unknown };
+  if (typeof program !== 'string' || typeof account !== 'string' || !Array.isArray(env))
+    return undefined;
+  const names: string[] = [];
+  for (const entry of env) {
+    const name = (entry as { name?: unknown } | null)?.name;
+    if (typeof name !== 'string') return undefined;
+    names.push(name);
+  }
+  return JSON.stringify({ program, account, env: [...new Set(names)].sort() });
+}
 export interface ToolApprovalRule {
   id: string;
   botSlug: string;
@@ -85,15 +105,26 @@ export function createToolApprovalRuleStore(
       return rows.map(record);
     },
     match(input) {
+      const kind = input.toolName === 'secret_cli' ? secretCliKind(input.input) : undefined;
+      if (input.toolName === 'secret_cli' && kind === undefined) return undefined;
       const rows = database.read((connection) =>
-        connection
-          .prepare(
-            `SELECT * FROM tool_approval_rules
+        kind !== undefined
+          ? connection
+              .prepare(
+                `SELECT * FROM tool_approval_rules
+         WHERE bot_slug = ? AND role = ? AND scope_key = ? AND active = 1 AND revoked_at IS NULL
+           AND kind = 'secret-cli' AND tool_name = 'secret_cli' AND input = ?
+         ORDER BY created_at DESC`,
+              )
+              .all(input.botSlug, input.role, input.scopeKey, kind)
+          : connection
+              .prepare(
+                `SELECT * FROM tool_approval_rules
          WHERE bot_slug = ? AND role = ? AND scope_key = ? AND active = 1 AND revoked_at IS NULL
            AND ((kind = 'exact' AND tool_name = ? AND input = ?) OR kind = 'all-opaque')
          ORDER BY CASE kind WHEN 'exact' THEN 0 ELSE 1 END, created_at DESC`,
-          )
-          .all(input.botSlug, input.role, input.scopeKey, input.toolName, input.input),
+              )
+              .all(input.botSlug, input.role, input.scopeKey, input.toolName, input.input),
       ) as unknown as RuleRow[];
       for (const row of rows) {
         const rule = record(row);

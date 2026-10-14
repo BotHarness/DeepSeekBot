@@ -46,7 +46,7 @@ node scripts/verify-app.mjs shot <label> --name <n> --bot-mode \
 
 ## Native mobile
 
-The Web Client drives above do not cover the Expo app in `apps/mobile`. On a Mac, drive its development build on the iOS Simulator with `npx agent-device` and run the Maestro flows in `apps/mobile/.maestro/` (`pnpm --filter @botharness/mobile e2e:ios`); `apps/mobile/README.md` ("Drive it on the iOS Simulator") has the commands. Without a Mac, use the app's web screenshots and say the native check is still owed.
+The Web Client drives above do not cover the Expo app in `apps/mobile`. On a Mac, start with `node scripts/e2e-mobile-sim.mjs`: it creates its own Simulator and Metro port, builds the development build, pairs with two isolated Hosts, switches computers and opens notifications sent with `xcrun simctl push` ([phone-notifications.md](features/phone-notifications.md)). For anything it does not cover, drive the build with `npx agent-device` and the Maestro flows in `apps/mobile/.maestro/`; `apps/mobile/README.md` ("Drive it on the iOS Simulator") has the commands. Read every screenshot you take. Without a Mac, use the app's web screenshots and say the native check is still owed.
 
 ## Evidence
 

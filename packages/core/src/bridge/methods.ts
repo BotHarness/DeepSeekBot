@@ -4599,6 +4599,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         (outcome !== 'allowed-once' &&
           outcome !== 'allowed-always-exact' &&
           outcome !== 'allowed-always-all' &&
+          outcome !== 'allowed-always-kind' &&
           outcome !== 'rejected')
       ) {
         return invalidInput('channelId, messageId, and a valid outcome are required');
@@ -4608,10 +4609,17 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         return invalidInput('Tool approval is available only in a PersonaBot DM or Group');
       }
       const channel = { botSlug: asker };
-      if (deps.channels.message(channelId, messageId)?.toolApprovalRequest === undefined) {
+      const request = deps.channels.message(channelId, messageId)?.toolApprovalRequest;
+      if (request === undefined) {
         return invalidInput('Unknown tool approval request');
       }
-      const accepted = await deps.toolApproval?.decide(channel.botSlug, messageId, outcome);
+      if (outcome === 'allowed-always-kind' && request.toolName !== 'secret_cli')
+        return invalidInput('allowed-always-kind applies only to a secret_cli approval');
+      const accepted = await deps.toolApproval?.decide(
+        channel.botSlug,
+        messageId,
+        outcome === 'allowed-always-kind' ? 'allowed-always-exact' : outcome,
+      );
       if (accepted !== true) return invalidInput('Tool approval request is no longer pending');
       return { ok: true, value: { accepted: true } };
     },

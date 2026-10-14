@@ -183,7 +183,10 @@ export const LIVE_COMMANDS = [
     command: 'tool-approval-status',
     description: 'inspect a pending tool approval on a live Host',
   },
-  { command: 'tool-approval-decide', description: 'allow once or reject an owned tool approval' },
+  {
+    command: 'tool-approval-decide',
+    description: 'allow once, always allow a secret_cli kind, or reject an owned tool approval',
+  },
   { command: 'user-question-status', description: 'inspect a formal Human question' },
   { command: 'ask-secret-status', description: 'inspect a private input request without values' },
   {
@@ -768,9 +771,10 @@ export async function runLiveCli(
   if (
     command === 'tool-approval-decide' &&
     values.outcome !== 'allowed-once' &&
+    values.outcome !== 'allowed-always-kind' &&
     values.outcome !== 'rejected'
   )
-    usage('--outcome must be allowed-once or rejected.');
+    usage('--outcome must be allowed-once, allowed-always-kind or rejected.');
   if (command === 'user-question-answer') {
     if (!values['answer-stdin']) usage('user-question-answer requires --answer-stdin.');
     try {

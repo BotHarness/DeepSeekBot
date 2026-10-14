@@ -139,7 +139,7 @@ describe('message states', () => {
     );
     expect(html).toContain('data-selectable="false"');
     expect(html).not.toContain('data-selectable="true"');
-    expect(html).toContain(`data-accessibilityhint="${t.messageActionsHint}"`);
+    expect(html).toContain(`data-accessibilityhint="${t.copyHint}"`);
     expect(html).toContain('pnpm test');
     expect(html).toContain('data-accessibilityrole="link"');
     expect(deliveryLabel(human({ author: 'bot' }))).toBeUndefined();
@@ -165,7 +165,7 @@ describe('message states', () => {
     expect(html).toContain('Device x');
     expect(html).toContain('data-recyclingkey="a"');
     expect(html).toContain('data-cachepolicy="memory-disk"');
-    expect(html).not.toContain(`data-accessibilityhint="${t.messageActionsHint}"`);
+    expect(html).not.toContain(`data-accessibilityhint="${t.copyHint}"`);
     expect(html).toContain(`data-accessibilitylabel="${t.shareFile('report.pdf')}"`);
     expect(html).toContain('3.3 MB');
     expect(html).toContain('voice.ogg');
@@ -190,6 +190,52 @@ describe('message states', () => {
     );
     expect(draft).toContain('Hel');
     expect(draft).toContain(t.typing);
+  });
+});
+
+describe('reactions', () => {
+  const reacted = human({
+    id: 'bot-1',
+    author: 'bot',
+    body: 'Done.',
+    revision: 2,
+    reactions: [
+      {
+        emoji: '👍',
+        actors: [
+          { kind: 'human', id: 'local-human' },
+          { kind: 'bot', id: 'ada' },
+        ],
+      },
+      { emoji: '👀', actors: [{ kind: 'bot', id: 'ada' }] },
+    ],
+  });
+  const names = (id: string) => (id === 'ada' ? 'Ada' : id);
+
+  it('shows each reaction as a chip with its count and who reacted', () => {
+    const html = renderToStaticMarkup(
+      <MessageBubble message={reacted} onReact={() => {}} botName={names} />,
+    );
+    expect(html).toContain(
+      `data-accessibilitylabel="${t.reactionSummary(`${t.reactionYou}${t.reactionSeparator}Ada`, '👍')}"`,
+    );
+    expect(html).toContain(`data-accessibilityhint="${t.unreact('👍')}"`);
+    expect(html).toContain(`data-accessibilitylabel="${t.reactionSummary('Ada', '👀')}"`);
+    expect(html).toContain(`data-accessibilityhint="${t.react('👀')}"`);
+    expect(html).toContain('>2<');
+    expect(html).toContain(`data-accessibilityhint="${t.messageActionsHint}"`);
+  });
+
+  it('lets a committed attachment-only message take reactions, but not a pending one', () => {
+    const image = human({ author: 'bot', body: '', revision: 3 });
+    expect(renderToStaticMarkup(<MessageBubble message={image} onReact={() => {}} />)).toContain(
+      `data-accessibilityhint="${t.messageActionsHint}"`,
+    );
+    expect(
+      renderToStaticMarkup(
+        <MessageBubble message={human({ body: '', delivery: 'pending' })} onReact={() => {}} />,
+      ),
+    ).not.toContain('data-accessibilityhint');
   });
 });
 

@@ -349,3 +349,60 @@ it.each([
     }
   },
 );
+
+it('a secret_cli card offers always allow this kind with its one-line warning and saves it', async () => {
+  const calls: { method: string; args: unknown }[] = [];
+  const call: BridgeCall = async (method, args) => {
+    calls.push({ method, args });
+    return method === 'toolApprovalDecide'
+      ? { ok: true, value: { accepted: true } }
+      : { ok: true, value: { status: 'pending' } };
+  };
+  const message: ChannelMessage = {
+    id: 'request',
+    at: '2026-10-14T00:00:00Z',
+    author: { kind: 'bot', slug: 'ada' },
+    body: '',
+    toolApprovalRequest: {
+      sessionId: 'owned',
+      callId: 'call',
+      toolName: 'secret_cli',
+      role: 'orchestrator',
+      cwd: '/qa',
+      input: '{"program":"gh","account":"github-work","args":[],"env":[]}',
+    },
+  };
+  const old = store.getSnapshot();
+  store.select({ kind: 'inbox' } as never);
+  const node = document.createElement('div');
+  document.body.append(node);
+  const root = createRoot(node);
+  try {
+    await act(async () =>
+      root.render(
+        createElement(ToolApprovalCard, {
+          message,
+          actions: createActions(call, store),
+          t: zhTranslate,
+        }),
+      ),
+    );
+    const labels = [...node.querySelectorAll<HTMLButtonElement>('button')].map(
+      (button) => button.textContent,
+    );
+    expect(labels).toContain(zhTranslate('approval.allowKind'));
+    expect(labels).not.toContain(zhTranslate('approval.allowAll'));
+    expect(node.textContent).toContain(zhTranslate('approval.allowKindRisk'));
+    const kind = [...node.querySelectorAll<HTMLButtonElement>('button')].find(
+      (button) => button.textContent === zhTranslate('approval.allowKind'),
+    )!;
+    await act(async () => kind.click());
+    expect(calls.find((c) => c.method === 'toolApprovalDecide')?.args).toMatchObject({
+      outcome: 'allowed-always-exact',
+    });
+  } finally {
+    await act(() => root.unmount());
+    node.remove();
+    store.select(old.selection);
+  }
+});

@@ -85,6 +85,7 @@ deepseekbot send-status <bot-id> --message-id <回执中的消息-id>
 deepseekbot channel-messages <channel-id> --host http://127.0.0.1:31917 --limit 20
 deepseekbot tool-approval-status <channel-id> --message-id <卡片-id>
 deepseekbot tool-approval-decide <channel-id> --message-id <卡片-id> --outcome allowed-once
+deepseekbot tool-approval-decide <channel-id> --message-id <卡片-id> --outcome allowed-always-kind
 deepseekbot tool-approval-decide <channel-id> --message-id <卡片-id> --outcome rejected
 deepseekbot user-question-status <channel-id> --message-id <卡片-id>
 deepseekbot user-question-answer <channel-id> --message-id <卡片-id> --answer-stdin
@@ -93,7 +94,7 @@ deepseekbot workspace-options
 deepseekbot grant-create <bot-id> --workspace <workspace-id>
 ```
 
-`tool-approval-status` 返回 `status`；卡片仍为 `pending` 时还返回 `expiresAt`，即网页卡片倒计时的截止时间。
+`tool-approval-status` 返回 `status`；卡片仍为 `pending` 时还返回 `expiresAt`，即网页卡片倒计时的截止时间。`--outcome allowed-always-kind` 对应 `secret_cli` 卡片上的“总是允许此类”：批准这一次，并为同一程序、账号和环境变量名保存一条规则；`tool-approval-rules` 会以 `secret-cli` 类型列出它。其他卡片会拒绝这个选项。
 
 ### Agent 控制
 

@@ -3066,7 +3066,7 @@ export const zh = {
   'approval.cwd': '工作目录：{path}',
   'approval.risk': '此工具可能访问已授权文件夹以外的内容。请检查完整输入和批准范围。',
   'approval.secretCliRisk':
-    'Bot 想带着你填写的密钥运行一个命令行程序。这个程序会拿到密钥，也可能把它泄露出去。请核对程序名和每一个参数；这类调用每次都需要单独批准。',
+    'Bot 想带着你填写的密钥运行一个命令行程序。这个程序会拿到密钥，也可能把它泄露出去。请核对程序名和每一个参数。',
   'approval.secretMcpRisk':
     'Bot 想带着你填写的密钥启动一个 MCP 服务。这个程序会拿到密钥并持续运行，直到断开、撤销账号或重启；它也可能把密钥泄露出去。它还能把自己的说明写进 Bot 的系统提示，它的工具描述和返回结果也会进入 Bot 的上下文，可能影响 Bot 的行为。请只连接你信任的服务。请核对程序名和每一个参数。选“批准并记住”后，这个 Bot 每次启动都会自动连上它；其他 Bot 可以在各自的设置里启用它并使用这份密钥，直到你在设置里移除。',
   'approval.allowAndRemember': '批准并记住（其他 Bot 可在设置里启用）',
@@ -3089,6 +3089,9 @@ export const zh = {
   'approval.allowOnce': '仅批准这一次',
   'approval.fullAccessEntry': '不想每次都批准？可以为这个 Bot 开启完全访问…',
   'approval.allowExact': '始终允许相同调用',
+  'approval.allowKind': '总是允许此类',
+  'approval.allowKindRisk':
+    '“总是允许此类”之后，这个程序用同一账号、同一组环境变量名运行时不再询问，参数不限。',
   'approval.allowAll': '始终允许此范围全部不透明工具',
   'approval.allowAllRisk':
     '此 Bot 的当前角色和工作区以后运行任何不透明工具时都不再询问；这些工具可能访问授权目录之外。工作区授权变化会使此规则失效。',
@@ -3121,6 +3124,7 @@ export const zh = {
   'approval.revokeRule': '撤销规则',
   'approval.exactRule': '相同调用：{tool}',
   'approval.allRule': '此范围全部不透明工具',
+  'approval.secretCliRule': '密钥命令：{program}（账号 {account}）',
   'approval.reject': '拒绝',
   'approval.approved': '已批准这一次调用',
   'approval.waitingHumanCapacity': '等待审批，暂不占用事项运行名额。',
@@ -6684,7 +6688,7 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'approval.risk':
     'This tool may access files outside authorized folders. Review the full input and approval scope.',
   'approval.secretCliRisk':
-    'The Bot wants to run a command-line program with a secret you entered. The program receives the secret and could reveal it. Check the program name and every argument; each such call needs its own approval.',
+    'The Bot wants to run a command-line program with a secret you entered. The program receives the secret and could reveal it. Check the program name and every argument.',
   'approval.secretMcpRisk':
     'The Bot wants to start an MCP server with a secret you entered. The program receives the secret and keeps running until it is disconnected, the account is revoked or the Host restarts; it could reveal the secret. It can also add its own instructions to the system prompt of the Bot, and its tool descriptions and results enter the context of the Bot and can influence what it does. Connect only a server you trust. Check the program name and every argument. With Allow and remember, this Bot reconnects it whenever it starts; other Bots can enable it in their settings and use this secret, until you remove it in settings.',
   'approval.allowAndRemember': 'Allow and remember (other Bots can enable it)',
@@ -6707,6 +6711,9 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'approval.allowOnce': 'Allow once',
   'approval.fullAccessEntry': 'Tired of approving each time? Turn on full access for this Bot…',
   'approval.allowExact': 'Always allow this exact call',
+  'approval.allowKind': 'Always allow this kind',
+  'approval.allowKindRisk':
+    'Always allow lets this program run with any arguments, without asking, for the same account and environment variable names.',
   'approval.allowAll': 'Always allow all opaque tools in this scope',
   'approval.allowAllRisk':
     'This Bot role and workspace will no longer ask for opaque tools. They may access files outside authorized folders. Changing workspace grants invalidates this rule.',
@@ -6741,6 +6748,7 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'approval.revokeRule': 'Revoke rule',
   'approval.exactRule': 'Exact call: {tool}',
   'approval.allRule': 'All opaque tools in this scope',
+  'approval.secretCliRule': 'Secret command: {program} (account {account})',
   'approval.reject': 'Reject',
   'approval.approved': 'This call was approved',
   'approval.waitingHumanCapacity': 'Waiting for approval; no Assignment running slot is held.',

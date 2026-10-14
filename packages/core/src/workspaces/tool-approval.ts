@@ -9,7 +9,11 @@ import type { ApprovalOutcome } from '@deepseek-ai/dsh-user-approval';
 import { dmChannelId, type ChannelMessage } from '../channels/channel.js';
 import type { ChannelStore } from '../channels/store.js';
 import type { SessionOwnership, SessionOwnershipRecord } from '../sessions/ownership.js';
-import type { ToolApprovalRuleStore, ToolApprovalRule } from './tool-approval-rules.js';
+import {
+  secretCliKind,
+  type ToolApprovalRuleStore,
+  type ToolApprovalRule,
+} from './tool-approval-rules.js';
 import type { AssignmentApprovalWaitLease } from '../runtime/assignment-approval-capacity.js';
 
 export interface ToolApprovalRequestCard {
@@ -411,6 +415,8 @@ export class ChannelToolApproval {
       (external !== undefined || (!remember && !['allowed-once', 'rejected'].includes(outcome)))
     )
       return false;
+    const secretCli = pending.notice.toolName === 'secret_cli';
+    if (secretCli && outcome === 'allowed-always-all') return false;
     if (
       external &&
       (pending.notice.externalDecision === 'web-only' ||
@@ -448,17 +454,28 @@ export class ChannelToolApproval {
         this.#settle(messageId, 'unavailable');
         return false;
       }
-      const kind = eachUse
+      const kind: ToolApprovalRule['kind'] | undefined = eachUse
         ? undefined
         : outcome === 'allowed-always-exact'
-          ? 'exact'
+          ? secretCli
+            ? 'secret-cli'
+            : 'exact'
           : outcome === 'allowed-always-all'
             ? 'all-opaque'
             : undefined;
+      const externalKind = kind === 'secret-cli' ? 'exact' : kind;
+      const ruleInput =
+        kind === 'secret-cli'
+          ? secretCliKind(tracked.input)
+          : kind === 'exact'
+            ? tracked.input
+            : '';
+      if (ruleInput === undefined) return false;
       if (
         external &&
         kind &&
-        (external.rule?.kind !== kind ||
+        (!external.rule ||
+          external.rule.kind !== externalKind ||
           external.rule.scopeKey !== tracked.scopeKey ||
           !external.rule.authorized())
       )
@@ -471,8 +488,8 @@ export class ChannelToolApproval {
               role: tracked.role,
               scopeKey: tracked.scopeKey,
               kind,
-              toolName: kind === 'exact' ? tracked.toolName : '*',
-              input: kind === 'exact' ? tracked.input : '',
+              toolName: kind === 'all-opaque' ? '*' : tracked.toolName,
+              input: ruleInput,
               ...(external ? { externalCreator: external.actor } : {}),
             });
       if (kind !== undefined && rule === undefined) return false;
@@ -487,7 +504,9 @@ export class ChannelToolApproval {
               ? '已批准并记住这个服务'
               : kind === undefined
                 ? '已批准这一次工具调用'
-                : '已保存自动批准规则并批准这一次调用',
+                : kind === 'secret-cli'
+                  ? '已总是允许此类命令并批准这一次调用'
+                  : '已保存自动批准规则并批准这一次调用',
         replyTo: messageId,
         toolApprovalDecision: {
           requestMessageId: messageId,

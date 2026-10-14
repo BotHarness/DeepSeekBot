@@ -14,8 +14,14 @@ export type WireAuthor =
   | { kind: 'bridged'; source: string }
   | { kind: 'system' };
 
+export interface WireReaction {
+  emoji: string;
+  actors: { kind: 'human' | 'bot'; id: string }[];
+}
+
 export interface ChannelWireMessage extends WireMessage {
   author: WireAuthor;
+  reactions?: WireReaction[];
   attachments?: readonly AttachmentRef[];
   bridgeMedia?: { items: readonly BridgeMediaItem[] };
   bridgeOrigin?: { sourceEventId: string };
@@ -75,7 +81,7 @@ export interface WireDraftAppend {
 export type ChannelNotification =
   | { kind: 'admission'; channelId: string; messageId: string }
   | { kind: 'human-read'; channelId: string; humanId: string; revision: number }
-  | { kind: 'reaction'; channelId: string; messageId: string }
+  | { kind: 'reaction'; channelId: string; messageId: string; reactions: WireReaction[] }
   | { kind: 'draft-baseline'; channelId: string; revision: number; drafts: WireDraft[] }
   | { kind: 'draft'; draft: WireDraft }
   | { kind: 'draft-append'; append: WireDraftAppend }

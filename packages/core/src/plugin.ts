@@ -1434,7 +1434,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       const approval = ctx.get('approval') as ApprovalService | undefined;
       const untrack = toolApproval.track(
         execution,
-        eachUse ? 'each-use' : 'operation',
+        execution.name === 'secret_mcp_connect' ? 'each-use' : 'operation',
         execution.name === 'secret_mcp_connect',
       );
       if (approval === undefined || untrack === undefined) {

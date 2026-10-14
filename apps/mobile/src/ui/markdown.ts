@@ -36,7 +36,43 @@ export function parseMarkdown(source: string): Block[] {
   return parseBlocks(source.replace(/\r\n?/gu, '\n').split('\n'));
 }
 
-function parseBlocks(lines: string[]): Block[] {
+export interface MarkdownStream {
+  source: string;
+  frozenLength: number;
+  frozen: Block[];
+  blocks: Block[];
+}
+
+export function streamMarkdown(input: string, previous?: MarkdownStream): MarkdownStream {
+  const source = input.replace(/\r\n?/gu, '\n');
+  const reuse =
+    previous !== undefined && source.startsWith(previous.source.slice(0, previous.frozenLength));
+  let frozenLength = reuse ? previous.frozenLength : 0;
+  let frozen = reuse ? previous.frozen : [];
+  const lines = source.slice(frozenLength).split('\n');
+  const starts: number[] = [];
+  const tail = parseBlocks(lines, starts);
+  let cut = 0;
+  for (let block = starts.length - 1; block > 0; block -= 1) {
+    const line = starts[block]!;
+    if (
+      line < lines.length - 1 &&
+      lines[line - 1]!.trim() === '' &&
+      !/^\s/u.test(lines[line]!) &&
+      !ITEM.test(lines[line]!)
+    ) {
+      cut = block;
+      break;
+    }
+  }
+  if (cut > 0) {
+    frozen = [...frozen, ...tail.slice(0, cut)];
+    for (let line = 0; line < starts[cut]!; line += 1) frozenLength += lines[line]!.length + 1;
+  }
+  return { source, frozenLength, frozen, blocks: [...frozen, ...tail.slice(cut)] };
+}
+
+function parseBlocks(lines: string[], starts?: number[]): Block[] {
   const blocks: Block[] = [];
   let index = 0;
   while (index < lines.length) {
@@ -45,6 +81,7 @@ function parseBlocks(lines: string[]): Block[] {
       index += 1;
       continue;
     }
+    starts?.push(index);
     const fence = FENCE.exec(line);
     if (fence !== null) {
       const marker = fence[1]!;

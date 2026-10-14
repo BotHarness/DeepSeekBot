@@ -1,7 +1,13 @@
-import { Fragment, useMemo } from 'react';
+import { Fragment, memo, useMemo, useRef } from 'react';
 import { Linking, Platform, ScrollView, Text, View, type TextStyle } from 'react-native';
 
-import { parseMarkdown, type Block, type Inline } from './markdown';
+import {
+  parseMarkdown,
+  streamMarkdown,
+  type Block,
+  type Inline,
+  type MarkdownStream,
+} from './markdown';
 import { edge, radius, space } from './design/tokens';
 import { useDesignTheme, type DesignTheme } from './design/theme';
 
@@ -11,18 +17,25 @@ export function MarkdownView({
   source,
   color,
   selectable = true,
+  streaming = false,
 }: {
   source: string;
   color?: string;
   selectable?: boolean;
+  streaming?: boolean;
 }) {
   const theme = useDesignTheme();
-  const blocks = useMemo(() => parseMarkdown(source), [source]);
-  const base: TextStyle = {
-    color: color ?? theme.color.fg,
-    fontSize: theme.type.body.size,
-    lineHeight: theme.type.body.line,
-  };
+  const stream = useRef<MarkdownStream | undefined>(undefined);
+  const blocks = useMemo(() => {
+    if (!streaming) return parseMarkdown(source);
+    stream.current = streamMarkdown(source, stream.current);
+    return stream.current.blocks;
+  }, [source, streaming]);
+  const ink = color ?? theme.color.fg;
+  const base = useMemo<TextStyle>(
+    () => ({ color: ink, fontSize: theme.type.body.size, lineHeight: theme.type.body.line }),
+    [ink, theme],
+  );
   return (
     <View style={{ gap: space.x3 }}>
       {blocks.map((block, index) => (
@@ -32,7 +45,7 @@ export function MarkdownView({
   );
 }
 
-function BlockView({
+const BlockView = memo(function BlockView({
   block,
   base,
   theme,
@@ -141,7 +154,7 @@ function BlockView({
         />
       );
   }
-}
+});
 
 function Inlines({ nodes, theme }: { nodes: readonly Inline[]; theme: DesignTheme }) {
   return (
