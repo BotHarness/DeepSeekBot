@@ -21,7 +21,7 @@ The in-harness UI is part of the shell, not a standalone app (ADR-0028): style w
 
 - **Native lookups beat intuition**: extract the shipped CSS from the installed packages before adding spacing or a control (`references/native-contract.md` has the recipe).
 - **One authority per concept**: one mode entry, one projection of state; a second entry point reads as a second feature.
-- **Tokens over literals**; the guard test enforces it. Centralise fallbacks in one delimited alias table per bundle (`@bh-<bundle>-aliases`, values audited against the pinned theme); components read table names, never inline hex or bare `var(--dsw-*)`. A missing DSH token gets a table entry with rationale; content-fixed colours (video letterbox) live in a separate delimited block with rationale.
+- **Tokens over literals**; `design-system-tokens.test.ts` enforces it. StyleX styles and the plain CSS stylesheets (`styles.ts`, `*-styles.ts`, the Browser and Computer sheets) read spacing, type, radius, size and colour from `ds/tokens.stylex.ts`, interpolating the constants into CSS strings; no feature-local alias tables. A value off the scale either snaps to it (≤2px) or gets a named allowlist entry with a reason in that test; content-fixed colours (video letterbox) live in a separate delimited block with rationale.
 - **Baseline externals only** in the client bundle; adding one updates the bundle contract test in the same commit.
 - **Modes unwind**: shadows and listeners reconcile from a single store and dispose cleanly.
 
