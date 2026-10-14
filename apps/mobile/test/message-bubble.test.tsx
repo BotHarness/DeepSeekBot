@@ -28,7 +28,7 @@ vi.mock('react-native', () => {
   };
 });
 
-const { MessageBubble, DraftBubble, deliveryLabel } = await import('../src/ui/message-bubble');
+const { MessageBubble, DraftBubble, deliveryLabel } = await import('../src/ui/chat/message-bubble');
 const { t } = await import('../src/ui/strings');
 
 const human = (overrides: Partial<ConversationMessage>): ConversationMessage => ({

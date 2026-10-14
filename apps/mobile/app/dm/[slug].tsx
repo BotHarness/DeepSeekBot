@@ -1,36 +1,30 @@
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useHeaderHeight } from 'expo-router/react-navigation';
 import { useMemo, useState } from 'react';
-import {
-  ActivityIndicator,
-  FlatList,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, View } from 'react-native';
 
-import type { ConversationDraft, ConversationMessage } from '../../src/host/conversation';
+import type { ConversationDraft } from '../../src/host/conversation';
 import {
   useConversation,
   useConversationSnapshot,
   useHostSession,
   useHostSnapshot,
 } from '../../src/host/host-session';
-import { BotAvatar } from '../../src/ui/bot-avatar';
 import { botColor } from '../../src/ui/bot-color';
-import { AccentProvider } from '../../src/ui/design/theme';
+import { botBusy } from '../../src/ui/chat/bot-tone';
+import { ChatTitle } from '../../src/ui/chat/chat-title';
+import { Composer } from '../../src/ui/chat/composer';
+import { DraftBubble, MessageBubble } from '../../src/ui/chat/message-bubble';
+import { chatRows, type ChatRow } from '../../src/ui/chat/message-groups';
+import { StatusStrip } from '../../src/ui/chat/status-strip';
+import { TimeSeparator } from '../../src/ui/chat/time-separator';
+import { AccentProvider, useDesignTheme } from '../../src/ui/design/theme';
+import { space } from '../../src/ui/design/tokens';
 import { OpenFullClientButton } from '../../src/ui/open-full-client';
-import { DraftBubble, MessageBubble } from '../../src/ui/message-bubble';
+import { Text } from '../../src/ui/primitives/text';
 import { t } from '../../src/ui/strings';
-import { stateColor, useTheme } from '../../src/ui/theme';
 
-type Row =
-  | { kind: 'message'; message: ConversationMessage }
-  | { kind: 'draft'; draft: ConversationDraft };
+type Row = ChatRow | { kind: 'draft'; key: string; draft: ConversationDraft };
 
 export default function DmScreen() {
   const { slug } = useLocalSearchParams<{ slug: string }>();
@@ -44,8 +38,7 @@ export default function DmScreen() {
 }
 
 function DmConversation({ slug }: { slug: string | undefined }) {
-  const theme = useTheme();
-  const insets = useSafeAreaInsets();
+  const theme = useDesignTheme();
   const headerHeight = useHeaderHeight();
   const { client } = useHostSession();
   const host = useHostSnapshot(client);
@@ -64,11 +57,16 @@ function DmConversation({ slug }: { slug: string | undefined }) {
   const conversation = useConversation(client, target);
   const snapshot = useConversationSnapshot(conversation);
   const [draft, setDraft] = useState('');
+  const now = new Date();
 
   const rows = useMemo<Row[]>(
     () => [
-      ...snapshot.drafts.map((entry): Row => ({ kind: 'draft', draft: entry })),
-      ...[...snapshot.messages].reverse().map((message): Row => ({ kind: 'message', message })),
+      ...snapshot.drafts.map((entry): Row => ({
+        kind: 'draft',
+        key: `draft:${entry.draftId}`,
+        draft: entry,
+      })),
+      ...chatRows(snapshot.messages).reverse(),
     ],
     [snapshot.drafts, snapshot.messages],
   );
@@ -96,43 +94,28 @@ function DmConversation({ slug }: { slug: string | undefined }) {
       <Stack.Screen
         options={{
           headerLargeTitle: false,
+          headerTitleAlign: 'center',
+          headerShadowVisible: false,
+          headerStyle: { backgroundColor: theme.color.base },
+          headerTitle: () => <ChatTitle bot={bot} fallback={slug ?? ''} />,
           headerRight: () =>
             slug === undefined ? null : <OpenFullClientButton target={{ kind: 'dm', slug }} />,
-          headerTitle: () =>
-            bot === undefined ? (
-              <Text style={{ color: theme.ink, fontSize: 17, fontWeight: '600' }}>{slug}</Text>
-            ) : (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <BotAvatar bot={bot} size={28} />
-                <View>
-                  <Text
-                    style={{ color: theme.ink, fontSize: 16, fontWeight: '600' }}
-                    numberOfLines={1}
-                  >
-                    {bot.displayName}
-                  </Text>
-                  <Text style={{ color: stateColor(theme, bot.state), fontSize: 12 }}>
-                    {bot.paused ? t.paused : t.state[bot.state]}
-                  </Text>
-                </View>
-              </View>
-            ),
         }}
       />
       <KeyboardAvoidingView
-        style={{ flex: 1, backgroundColor: theme.background }}
+        style={{ flex: 1, backgroundColor: theme.color.base }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={headerHeight}
       >
         {notice === undefined ? null : (
           <Text
             accessibilityLiveRegion="polite"
+            variant="meta"
+            tone="warning"
             style={{
-              color: theme.warning,
-              backgroundColor: theme.warningSurface,
-              paddingHorizontal: 16,
-              paddingVertical: 8,
-              fontSize: 13,
+              backgroundColor: theme.color.warningSoft,
+              paddingHorizontal: space.x5,
+              paddingVertical: space.x3,
             }}
           >
             {notice}
@@ -141,16 +124,21 @@ function DmConversation({ slug }: { slug: string | undefined }) {
         <FlatList
           inverted
           style={{ flex: 1 }}
-          contentContainerStyle={{ paddingVertical: 8 }}
+          contentContainerStyle={{ paddingVertical: space.x3 }}
           data={rows}
-          keyExtractor={(row) =>
-            row.kind === 'draft' ? `draft:${row.draft.draftId}` : row.message.id
-          }
+          keyExtractor={(row) => row.key}
           renderItem={({ item }) =>
             item.kind === 'draft' ? (
               <DraftBubble draft={item.draft} />
+            ) : item.kind === 'separator' ? (
+              <TimeSeparator at={item.at} now={now} />
             ) : (
-              <MessageBubble message={item.message} onRetry={(id) => conversation?.retry(id)} />
+              <MessageBubble
+                message={item.message}
+                first={item.first}
+                last={item.last}
+                onRetry={(id) => conversation?.retry(id)}
+              />
             )
           }
           onEndReached={() => void conversation?.loadOlder()}
@@ -160,82 +148,34 @@ function DmConversation({ slug }: { slug: string | undefined }) {
           keyboardShouldPersistTaps="handled"
           ListFooterComponent={
             snapshot.loadingOlder ? (
-              <View style={{ padding: 12, alignItems: 'center', gap: 6 }}>
+              <View style={{ padding: space.x4, alignItems: 'center', gap: space.x2 }}>
                 <ActivityIndicator />
-                <Text style={{ color: theme.inkSoft, fontSize: 12 }}>{t.olderLoading}</Text>
+                <Text variant="meta" tone="muted">
+                  {t.olderLoading}
+                </Text>
               </View>
             ) : !snapshot.hasOlder && snapshot.status === 'live' ? (
-              <Text
-                style={{
-                  color: theme.inkSoft,
-                  fontSize: 12,
-                  textAlign: 'center',
-                  padding: 16,
-                }}
-              >
+              <Text variant="meta" tone="muted" style={{ textAlign: 'center', padding: space.x5 }}>
                 {t.beginning}
               </Text>
             ) : null
           }
           ListEmptyComponent={
             snapshot.status === 'opening' ? (
-              <View style={{ padding: 24, alignItems: 'center' }}>
+              <View style={{ padding: space.x6, alignItems: 'center' }}>
                 <ActivityIndicator />
               </View>
             ) : null
           }
         />
-        <View
-          style={{
-            flexDirection: 'row',
-            alignItems: 'flex-end',
-            gap: 8,
-            paddingHorizontal: 12,
-            paddingTop: 8,
-            paddingBottom: Math.max(insets.bottom, 8),
-            borderTopWidth: 1,
-            borderTopColor: theme.border,
-            backgroundColor: theme.surface,
-          }}
-        >
-          <TextInput
-            value={draft}
-            onChangeText={setDraft}
-            placeholder={t.messagePlaceholder}
-            placeholderTextColor={theme.inkSoft}
-            multiline
-            style={{
-              flex: 1,
-              maxHeight: 140,
-              minHeight: 38,
-              color: theme.ink,
-              fontSize: 16,
-              paddingHorizontal: 12,
-              paddingTop: 9,
-              paddingBottom: 9,
-              borderRadius: 19,
-              borderWidth: 1,
-              borderColor: theme.border,
-              backgroundColor: theme.background,
-            }}
-          />
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t.send}
-            disabled={draft.trim() === '' || conversation === undefined}
-            onPress={send}
-            style={({ pressed }) => ({
-              height: 38,
-              paddingHorizontal: 16,
-              borderRadius: 19,
-              justifyContent: 'center',
-              backgroundColor: theme.accent,
-              opacity: draft.trim() === '' ? 0.4 : pressed ? 0.7 : 1,
-            })}
-          >
-            <Text style={{ color: theme.humanInk, fontSize: 16, fontWeight: '600' }}>{t.send}</Text>
-          </Pressable>
-        </View>
+        {bot !== undefined && botBusy(bot) ? <StatusStrip bot={bot} /> : null}
+        <Composer
+          value={draft}
+          placeholder={bot === undefined ? t.messagePlaceholder : t.messageBot(bot.displayName)}
+          disabled={conversation === undefined}
+          onChange={setDraft}
+          onSend={send}
+        />
       </KeyboardAvoidingView>
     </>
   );

@@ -107,6 +107,8 @@ const en = {
           ? `${Math.floor(minutes / 60)} h ago`
           : `${Math.floor(minutes / 1440)} d ago`,
   messagePlaceholder: 'Message',
+  messageBot: (name: string) => `Message ${name}`,
+  yesterday: 'Yesterday',
   send: 'Send',
   sent: 'Sent',
   notSent: 'Not sent',
@@ -275,6 +277,8 @@ const zh: typeof en = {
           ? `${Math.floor(minutes / 60)} 小时前`
           : `${Math.floor(minutes / 1440)} 天前`,
   messagePlaceholder: '发消息',
+  messageBot: (name: string) => `发消息给 ${name}`,
+  yesterday: '昨天',
   send: '发送',
   sent: '已送达',
   notSent: '未发送',

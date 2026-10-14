@@ -1,11 +1,11 @@
 import { Pressable, View } from 'react-native';
 
-import type { ConversationDraft, ConversationMessage } from '../host/conversation';
-import { radius, space } from './design/tokens';
-import { useDesignTheme } from './design/theme';
-import { MarkdownView } from './markdown-view';
-import { Text } from './primitives/text';
-import { t } from './strings';
+import type { ConversationDraft, ConversationMessage } from '../../host/conversation';
+import { radius, space } from '../design/tokens';
+import { useDesignTheme } from '../design/theme';
+import { MarkdownView } from '../markdown-view';
+import { Text } from '../primitives/text';
+import { t } from '../strings';
 
 export function deliveryLabel(message: ConversationMessage): string | undefined {
   if (message.author !== 'human') return undefined;
@@ -16,9 +16,13 @@ export function deliveryLabel(message: ConversationMessage): string | undefined 
 
 export function MessageBubble({
   message,
+  first = true,
+  last = true,
   onRetry,
 }: {
   message: ConversationMessage;
+  first?: boolean;
+  last?: boolean;
   onRetry?: (messageId: string) => void;
 }) {
   const theme = useDesignTheme();
@@ -43,6 +47,15 @@ export function MessageBubble({
         alignSelf: human ? 'flex-end' : 'flex-start',
         backgroundColor: human ? theme.color.accent : theme.color.surface,
         borderRadius: radius.lg,
+        ...(human
+          ? {
+              borderTopRightRadius: first ? radius.lg : radius.xs,
+              borderBottomRightRadius: last ? radius.lg : radius.xs,
+            }
+          : {
+              borderTopLeftRadius: first ? radius.lg : radius.xs,
+              borderBottomLeftRadius: last ? radius.lg : radius.xs,
+            }),
         paddingHorizontal: space.x4,
         paddingVertical: space.x3,
         gap: space.x2,
@@ -69,7 +82,13 @@ export function MessageBubble({
     </View>
   );
   return (
-    <View style={{ paddingHorizontal: space.x4, paddingVertical: space.x1, gap: space.x1 }}>
+    <View
+      style={{
+        paddingHorizontal: space.x4,
+        paddingTop: first ? space.x3 : space.x1,
+        gap: space.x1,
+      }}
+    >
       {failed ? (
         <Pressable
           accessibilityRole="button"
@@ -98,7 +117,7 @@ export function MessageBubble({
 export function DraftBubble({ draft }: { draft: ConversationDraft }) {
   const theme = useDesignTheme();
   return (
-    <View style={{ paddingHorizontal: space.x4, paddingVertical: space.x1, gap: space.x1 }}>
+    <View style={{ paddingHorizontal: space.x4, paddingTop: space.x3, gap: space.x1 }}>
       <View
         style={{
           maxWidth: '80%',
