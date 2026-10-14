@@ -18,6 +18,8 @@ export const BROWSER_COMPUTER_OPTIONS = {
   dir: { type: 'string' },
   plugin: { type: 'string' },
   entity: { type: 'string' },
+  viewer: { type: 'string' },
+  probe: { type: 'boolean' },
 } as const;
 
 export const BROWSER_COMPUTER_COMMANDS = [
@@ -71,6 +73,15 @@ export const BROWSER_COMPUTER_COMMANDS = [
     command: 'computer-open-dir',
     description: 'open the Computer export folder in the Host file manager',
   },
+  {
+    command: 'computer-webrtc',
+    description: 'read whether a phone can call Container Computer over WebRTC (--probe signals)',
+  },
+  {
+    command: 'browser-webrtc',
+    description:
+      'read whether a phone can call a Container Browser over WebRTC (--viewer <id>, --probe)',
+  },
 ] as const;
 
 export interface BrowserComputerValues {
@@ -82,6 +93,8 @@ export interface BrowserComputerValues {
   dir?: string;
   plugin?: string;
   entity?: string;
+  viewer?: string;
+  probe?: boolean;
   out?: string;
   name?: string;
   bot?: string;
@@ -123,6 +136,68 @@ function record(value: unknown): Record<string, unknown> {
     : {};
 }
 
+const PROBE_DEADLINE_MS = 20_000;
+
+export function probeSignaling(
+  socket: WebSocket,
+  deadlineMs = PROBE_DEADLINE_MS,
+): Promise<Record<string, unknown>> {
+  const started = Date.now();
+  return new Promise((resolve) => {
+    let server = '';
+    let settled = false;
+    const finish = (result: Record<string, unknown>): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      socket.close();
+      resolve({ ...result, milliseconds: Date.now() - started });
+    };
+    const timer = setTimeout(
+      () => finish({ ok: false, code: 'signaling-timeout', session: server !== '' }),
+      deadlineMs,
+    );
+    socket.addEventListener('open', () =>
+      socket.send(
+        `HELLO client ${JSON.stringify({ client_type: 'controller', client_slot: -1, display_id: 'primary' })}`,
+      ),
+    );
+    socket.addEventListener('error', () => finish({ ok: false, code: 'signaling-refused' }));
+    socket.addEventListener('close', (event) =>
+      finish({ ok: false, code: 'signaling-closed', closeCode: event.code }),
+    );
+    socket.addEventListener('message', (event) => {
+      const text = String(event.data);
+      if (text === 'HELLO') return socket.send('SESSION server');
+      if (text.startsWith('SESSION_OK ')) {
+        server = text.slice('SESSION_OK '.length);
+        return;
+      }
+      if (text === 'ERROR peer server not found') {
+        setTimeout(() => {
+          if (!settled) socket.send('SESSION server');
+        }, 500);
+        return;
+      }
+      let message: { sdp?: { type?: string; sdp?: string } } = {};
+      try {
+        message = JSON.parse(text.slice(text.indexOf(' ') + 1)) as typeof message;
+      } catch {
+        return;
+      }
+      if (message.sdp?.type !== 'offer' || typeof message.sdp.sdp !== 'string') return;
+      const lines = message.sdp.sdp.split(/\r?\n/u);
+      const candidates = [...new Set(lines.filter((line) => line.startsWith('a=candidate:')))].map(
+        (line) => {
+          const [, , protocol, , address, port, , type] = line.split(' ');
+          return { protocol, address, port: Number(port), type };
+        },
+      );
+      finish({ ok: true, offer: true, iceLite: lines.includes('a=ice-lite'), candidates });
+    });
+  });
+}
+
 function count(value: string | undefined, flag: string, max: number): number | undefined {
   if (value === undefined) return undefined;
   const parsed = Number(value);
@@ -157,6 +232,11 @@ export async function runBrowserComputerCommand(
   if (values.out !== undefined && !absolute(values.out))
     usage('--out must be an absolute file path.');
   if (values.dir !== undefined && !absolute(values.dir)) usage('--dir must be an absolute folder.');
+  const viewer = values.viewer?.trim() ?? '';
+  if (command === 'browser-webrtc' && !/^[a-f0-9]{24}$/u.test(viewer))
+    usage(
+      'browser-webrtc needs --viewer <id>, the id in the Container Browser viewer path /botharness-browser/viewer/<id>/.',
+    );
   if (command === 'browser-profile-set' && !values.profile?.trim())
     usage('browser-profile-set requires --profile <name> or --profile default.');
   const packages = (values.package ?? []).map((name) => name.trim()).filter(Boolean);
@@ -317,5 +397,21 @@ export async function runBrowserComputerCommand(
         authorize: true,
         ...(values.dir === undefined ? {} : { dir: values.dir }),
       });
+    case 'computer-webrtc':
+    case 'browser-webrtc': {
+      const computer = command === 'computer-webrtc';
+      const status = await json(
+        computer ? '/api/computer/webrtc' : query('/api/browser/webrtc', { viewer }),
+      );
+      if (values.probe !== true || status['available'] !== true) return status;
+      const probe = await probeSignaling(
+        host.socket(
+          computer
+            ? '/api/computer/webrtc/signaling'
+            : query('/api/browser/webrtc/signaling', { viewer }),
+        ),
+      );
+      return { ...status, probe };
+    }
   }
 }

@@ -28,6 +28,7 @@ export interface BotBrowserRuntimesOptions {
   readonly driver?: () => 'current' | 'agent-browser';
   readonly onIdleStop?: (profile: string) => void;
   readonly onViewer?: ContainerBrowserOptions['onViewer'];
+  readonly tailnetAddress?: ContainerBrowserOptions['tailnetAddress'];
   readonly browserDir: string;
   readonly installDir: string;
   readonly browserPath?: string;
@@ -118,6 +119,9 @@ export function createBotBrowserRuntimes(options: BotBrowserRuntimesOptions): Bo
               onEvent: (detail) =>
                 options.onEvent?.(`[${profile === '' ? 'default' : profile}] ${detail}`),
               ...(options.onViewer === undefined ? {} : { onViewer: options.onViewer }),
+              ...(options.tailnetAddress === undefined
+                ? {}
+                : { tailnetAddress: options.tailnetAddress }),
             }),
           }
         : {}),

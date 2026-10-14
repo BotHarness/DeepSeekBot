@@ -1,3 +1,4 @@
+import type { SelkiesWebRtcContainer } from '../../core/src/http/selkies-webrtc.js';
 import type { ComputerProvider, ComputerRuntimeProbe, ComputerStatus } from './provider.js';
 
 export interface ComputerService {
@@ -8,6 +9,7 @@ export interface ComputerService {
   start(): Promise<void>;
   stop(): Promise<void>;
   upstream(): URL | undefined;
+  webrtc(): SelkiesWebRtcContainer | undefined;
   exportTo(destDir: string): Promise<string>;
   importFrom(archive: string): Promise<void>;
 }
@@ -47,6 +49,7 @@ export function createComputerService(): ComputerService {
       await requireProvider().stop();
     },
     upstream: () => registration?.provider.upstream(),
+    webrtc: () => registration?.provider.webrtc,
     exportTo: async (destDir: string) => {
       const provider = requireProvider();
       if (provider.exportTo === undefined) {

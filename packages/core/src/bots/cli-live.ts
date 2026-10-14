@@ -564,7 +564,16 @@ export async function connectLiveHost(values: LiveValues, io: BotCreateCliIo, si
     if (!response.ok) refuse(path, response.status, new Uint8Array(await response.arrayBuffer()));
     return response;
   };
-  return { rpc, importBotZip, http, stream };
+  const socket = (path: string): WebSocket => {
+    const url = new URL(path, base);
+    url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+    const Socket = WebSocket as unknown as new (
+      url: string,
+      init: { headers: Record<string, string> },
+    ) => WebSocket;
+    return new Socket(url.href, { headers: { cookie } });
+  };
+  return { rpc, importBotZip, http, stream, socket };
 }
 
 export async function runLiveCli(

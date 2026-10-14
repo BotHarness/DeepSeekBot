@@ -1,3 +1,5 @@
+import type { SelkiesWebRtcContainer } from '../../core/src/http/selkies-webrtc.js';
+
 export interface ComputerRuntimeResult {
   readonly code: number;
   readonly stdout: string;
@@ -70,6 +72,7 @@ export interface ComputerProvider {
   start(): Promise<void>;
   stop(): Promise<void>;
   upstream(): URL | undefined;
+  readonly webrtc?: SelkiesWebRtcContainer;
   exportTo?(destDir: string): Promise<string>;
   importFrom?(archive: string): Promise<void>;
 }

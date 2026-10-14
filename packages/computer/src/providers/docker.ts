@@ -10,6 +10,13 @@ import type {
   ComputerStatus,
   ComputerStorage,
 } from '../provider.js';
+import {
+  loopbackPort,
+  SELKIES_RTC_CONFIG_SCRIPT,
+  selkiesWebRtcEnv,
+  selkiesWebRtcMediaFromEnv,
+  type SelkiesWebRtcMedia,
+} from '../../../core/src/http/selkies-webrtc.js';
 
 export interface DockerComputerConfig {
   readonly image: string;
@@ -17,6 +24,7 @@ export interface DockerComputerConfig {
   readonly volumeName: string;
   readonly hostPort: number;
   readonly containerPort: number;
+  readonly webrtcPort: number;
   readonly dataDir: string;
   readonly cpus: number;
   readonly memory: string;
@@ -35,6 +43,7 @@ export const DEFAULT_DOCKER_CONFIG: DockerComputerConfig = {
   dataDir: '',
   hostPort: 39_001,
   containerPort: 3000,
+  webrtcPort: 39_002,
   cpus: 2,
   memory: '4g',
   resolution: '1280x800',
@@ -54,6 +63,7 @@ interface DockerComputerProviderOptions {
   readonly fetchImpl?: typeof fetch;
   readonly readyTimeoutMs?: number;
   readonly sleepImpl?: (ms: number) => Promise<void>;
+  readonly tailnetAddress?: () => Promise<string | undefined>;
 }
 
 function combine(config: Partial<DockerComputerConfig> | undefined): DockerComputerConfig {
@@ -189,6 +199,7 @@ export function createDockerComputerProvider(
   let lifecycle: Promise<unknown> = Promise.resolve();
   let cancelRequested = false;
   let lastObservedState: string | undefined;
+  let desiredMedia: SelkiesWebRtcMedia | undefined;
 
   const enqueue = <T>(task: () => Promise<T>): Promise<T> => {
     const run = lifecycle.then(task, task);
@@ -317,7 +328,10 @@ export function createDockerComputerProvider(
           ]),
       'PIXELFLUX_WAYLAND=false',
     ];
+    const webrtcMatches =
+      !allowRebuild || selkiesWebRtcEnv(desiredMedia).every((entry) => envText.includes(entry));
     const matches =
+      webrtcMatches &&
       image.trim() === config.image &&
       (expectedMemory === undefined || memory.trim() === String(expectedMemory)) &&
       (expectedMemory === undefined || swap.trim() === String(expectedMemory)) &&
@@ -478,6 +492,8 @@ export function createDockerComputerProvider(
 
   const runStart = async (): Promise<void> => {
     cancelRequested = false;
+    const address = await options.tailnetAddress?.().catch(() => undefined);
+    desiredMedia = address === undefined ? undefined : { address, port: config.webrtcPort };
     const probe = await probeRuntime();
     throwIfCancelled();
     if (!probe.available) {
@@ -568,6 +584,8 @@ export function createDockerComputerProvider(
       config.shmSize,
       '-p',
       `127.0.0.1:${config.hostPort}:${config.containerPort}`,
+      ...(desiredMedia === undefined ? [] : ['-p', `127.0.0.1::${String(desiredMedia.port)}/udp`]),
+      ...selkiesWebRtcEnv(desiredMedia).flatMap((entry) => ['-e', entry]),
       '-e',
       `HARDEN_DESKTOP=${config.hardenDesktop ? 'true' : 'false'}`,
       '-e',
@@ -759,6 +777,40 @@ export function createDockerComputerProvider(
     },
     upstream(): URL | undefined {
       return running ? new URL(`http://127.0.0.1:${config.hostPort}/`) : undefined;
+    },
+    webrtc: {
+      async media() {
+        if (!running) return undefined;
+        const env = await runner.run([
+          'docker',
+          'inspect',
+          '--format',
+          '{{range .Config.Env}}{{println .}}{{end}}',
+          config.containerName,
+        ]);
+        if (env.code !== 0) return undefined;
+        const advertised = selkiesWebRtcMediaFromEnv(env.stdout.split('\n'));
+        if (advertised === undefined) return undefined;
+        const port = await runner.run([
+          'docker',
+          'port',
+          config.containerName,
+          `${String(advertised.port)}/udp`,
+        ]);
+        const published = port.code === 0 ? loopbackPort(port.stdout) : undefined;
+        return published === undefined ? undefined : { advertised, loopbackPort: published };
+      },
+      async prepare() {
+        const result = await runner.run([
+          'docker',
+          'exec',
+          config.containerName,
+          'sh',
+          '-c',
+          SELKIES_RTC_CONFIG_SCRIPT,
+        ]);
+        if (result.code !== 0) throw failure(result.stderr.trim() || 'WebRTC setup failed');
+      },
     },
     exportTo: (destDir: string) => enqueue(() => exportTo(destDir)),
     importFrom: (archive: string) => enqueue(() => importFrom(archive)),

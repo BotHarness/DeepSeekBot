@@ -11,8 +11,7 @@
     "workspaceFileTarget": "UI-only: resolves a Workspace folder path so the Web UI can open it in the OS; grants lists the paths"
   },
   "routes": {
-    "/api/computer/diagnostics/viewer": "UI-only: the Web Client's Computer viewer reports its own connection events here; an agent reads them with computer-diagnostics",
-    "/api/remote.mux": "UI-only: the Web Client's multiplexed WebSocket for live Browser and Computer streams; agents use browser-frame, browser-observation and computer-tool"
+    "/api/computer/diagnostics/viewer": "UI-only: the Web Client's Computer viewer reports its own connection events here; an agent reads them with computer-diagnostics"
   },
   "tools": {
     "ask_secret": "Opens a private input card that resumes the calling Bot turn; the ask-secret-* commands cover the Human side.",

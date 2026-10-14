@@ -1,4 +1,5 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -290,6 +291,125 @@ describe('Container Computer transfer', () => {
     expect((await invoke(['computer-import', '../x.tar', '--confirm'], live.url)).code).toBe(2);
     expect((await invoke(['computer-upload', 'relative.tar'], live.url)).code).toBe(2);
     expect((await invoke(['computer-export', '--out', 'out.tar'], live.url)).code).toBe(2);
+    expect(live.calls).toEqual([]);
+  });
+});
+
+function frame(text: string): Buffer {
+  const payload = Buffer.from(text);
+  const header =
+    payload.length < 126
+      ? Buffer.from([0x81, payload.length])
+      : Buffer.from([0x81, 126, payload.length >> 8, payload.length & 0xff]);
+  return Buffer.concat([header, payload]);
+}
+
+function readFrames(buffer: Buffer): string[] {
+  const texts: string[] = [];
+  let offset = 0;
+  while (offset + 2 <= buffer.length) {
+    const opcode = buffer[offset]! & 0x0f;
+    let length = buffer[offset + 1]! & 0x7f;
+    let at = offset + 2;
+    if (length === 126) {
+      length = buffer.readUInt16BE(at);
+      at += 2;
+    }
+    const mask = buffer.subarray(at, at + 4);
+    const data = Buffer.from(buffer.subarray(at + 4, at + 4 + length));
+    for (let index = 0; index < data.length; index += 1) data[index]! ^= mask[index % 4]!;
+    if (opcode === 1) texts.push(data.toString());
+    offset = at + 4 + length;
+  }
+  return texts;
+}
+
+function selkiesSignaling(server: ReturnType<typeof createServer>, seen: string[]) {
+  server.on('upgrade', (req: IncomingMessage, socket) => {
+    seen.push(`${req.url ?? ''} cookie=${String(req.headers.cookie)}`);
+    const accept = createHash('sha1')
+      .update(`${String(req.headers['sec-websocket-key'])}258EAFA5-E914-47DA-95CA-C5AB0DC85B11`)
+      .digest('base64');
+    socket.write(
+      `HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\n\r\n`,
+    );
+    let sessions = 0;
+    socket.on('data', (chunk: Buffer) => {
+      if ((chunk[0]! & 0x0f) === 8) return void socket.destroy();
+      for (const text of readFrames(chunk)) {
+        seen.push(text);
+        if (text.startsWith('HELLO client ')) socket.write(frame('HELLO'));
+        if (text === 'SESSION server') {
+          sessions += 1;
+          if (sessions === 1) socket.write(frame('ERROR peer server not found'));
+          else {
+            socket.write(frame('SESSION_OK server-1'));
+            const sdp = [
+              'v=0',
+              'a=ice-lite',
+              'm=video 39002 UDP/TLS/RTP/SAVPF 96',
+              'a=candidate:1 1 udp 2130706431 100.101.102.103 39002 typ host',
+              'a=candidate:1 1 udp 2130706431 100.101.102.103 39002 typ host',
+            ].join('\r\n');
+            socket.write(frame(`server-1 ${JSON.stringify({ sdp: { type: 'offer', sdp } })}`));
+          }
+        }
+      }
+    });
+    socket.on('error', () => undefined);
+  });
+}
+
+describe('WebRTC commands', () => {
+  it('reads Computer WebRTC status and probes signalling up to the offer', async () => {
+    const seen: string[] = [];
+    const live = await host(() => ({
+      json: {
+        signaling: '/api/computer/webrtc/signaling',
+        available: true,
+        transport: 'webrtc',
+        address: '100.101.102.103',
+        port: 39_002,
+        iceServers: [],
+        calls: 0,
+      },
+    }));
+    selkiesSignaling(servers.at(-1)!, seen);
+    expect((await invoke(['computer-webrtc'], live.url)).json).toMatchObject({ available: true });
+    const probed = await invoke(['computer-webrtc', '--probe'], live.url);
+    expect(probed.json['probe']).toMatchObject({
+      ok: true,
+      offer: true,
+      iceLite: true,
+      candidates: [{ protocol: 'udp', address: '100.101.102.103', port: 39_002, type: 'host' }],
+    });
+    expect(seen[0]).toBe('/api/computer/webrtc/signaling cookie=authority=signed');
+    expect(seen.filter((line) => line === 'SESSION server')).toHaveLength(2);
+    expect(live.calls.map((call) => call.path)).toEqual([
+      '/api/computer/webrtc',
+      '/api/computer/webrtc',
+    ]);
+  });
+
+  it('skips the probe when the Host reports WebRTC unavailable', async () => {
+    const viewer = 'a'.repeat(24);
+    const live = await host(() => ({
+      json: { viewer, available: false, code: 'tailnet-unavailable', fallback: 'websocket' },
+    }));
+    const result = await invoke(['browser-webrtc', '--viewer', viewer, '--probe'], live.url);
+    expect(result.json).toEqual({
+      viewer,
+      available: false,
+      code: 'tailnet-unavailable',
+      fallback: 'websocket',
+    });
+    expect(live.calls.map((call) => call.path)).toEqual([`/api/browser/webrtc?viewer=${viewer}`]);
+  });
+
+  it('needs a Container Browser viewer id', async () => {
+    const live = await host(() => ({ json: {} }));
+    const result = await invoke(['browser-webrtc'], live.url);
+    expect(result.code).not.toBe(0);
     expect(live.calls).toEqual([]);
   });
 });

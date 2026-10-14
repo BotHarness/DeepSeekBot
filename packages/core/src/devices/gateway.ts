@@ -11,6 +11,10 @@ export const DEVICE_MUX_PATH = `${DEVICE_GATEWAY_PREFIX}/api/remote.mux`;
 export const DEVICE_WEB_PREFIX = `${DEVICE_GATEWAY_PREFIX}/web`;
 export const DEVICE_WEB_MUX_PATH = `${DEVICE_WEB_PREFIX}/api/remote.mux`;
 export const DEVICE_PUSH_PREFIX = `${DEVICE_GATEWAY_PREFIX}/push`;
+export const DEVICE_SIGNALING_PATHS = [
+  `${DEVICE_GATEWAY_PREFIX}/api/computer/webrtc/signaling`,
+  `${DEVICE_GATEWAY_PREFIX}/api/browser/webrtc/signaling`,
+] as const;
 export const DEVICE_WEB_COOKIE = 'botharness-device-web';
 const WEB_SESSION_TTL_MS = 12 * 60 * 60 * 1000;
 const MAX_WEB_SESSIONS = 256;
@@ -321,6 +325,7 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
   const openStream = (
     request: IncomingMessage,
     session: string,
+    path: string,
   ): Promise<
     | { kind: 'upgraded'; answer: IncomingMessage; socket: Duplex; head: Buffer }
     | { kind: 'refused'; status: number }
@@ -334,7 +339,7 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
       const upstream = httpRequest({
         host: '127.0.0.1',
         port: options.port(),
-        path: '/api/remote.mux',
+        path,
         method: 'GET',
         headers,
       });
@@ -384,17 +389,21 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
 
     async upgrade(request, socket, head) {
       if (crossOrigin(request)) return refuseUpgrade(socket, 403, 'origin-refused');
-      const web = new URL(request.url ?? '/', 'http://device').pathname === DEVICE_WEB_MUX_PATH;
+      const pathname = new URL(request.url ?? '/', 'http://device').pathname;
+      const web = pathname === DEVICE_WEB_MUX_PATH;
       const admission = web
         ? webAdmission(request, false)
         : pairing.admit(header(request, 'authorization'));
       if (!admission.ok) return refuseUpgrade(socket, 401, admission.code);
+      const target = (DEVICE_SIGNALING_PATHS as readonly string[]).includes(pathname)
+        ? (request.url ?? '/').slice(DEVICE_GATEWAY_PREFIX.length)
+        : '/api/remote.mux';
       let opened: Awaited<ReturnType<typeof openStream>> | undefined;
       try {
-        opened = await openStream(request, await hostSession());
+        opened = await openStream(request, await hostSession(), target);
         if (opened.kind === 'refused' && opened.status === 401) {
           cookie = undefined;
-          opened = await openStream(request, await mint());
+          opened = await openStream(request, await mint(), target);
         }
       } catch {
         opened = undefined;

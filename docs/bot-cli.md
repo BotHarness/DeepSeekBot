@@ -318,6 +318,8 @@ deepseekbot computer-export [--dir /abs/exports] [--out /tmp/computer.tar]
 deepseekbot computer-upload /abs/path/backup.tar [--name restore.tar]
 deepseekbot computer-import restore.tar --confirm
 deepseekbot computer-open-dir [--dir /abs/exports]
+deepseekbot computer-webrtc [--probe]
+deepseekbot browser-webrtc --viewer <id> [--probe]
 ```
 
 `browser-observation` returns the same state the Browser panel polls: whether the Browser runs, its tabs and focused tab, takeover state, stored profiles and target. The current picture is never printed as base64; it is summarized as `{mimeType, bytes}` and saved to `--out` when given. `browser-takeover-audit` lists a Bot's takeover events in time order. `browser-takeover-recording` reads one takeover and its recorded input; the token is the `takeover=` value from the takeover link and arrives on stdin. `browser-profile-set` picks the Bot's Browser profile (`default` resets it) with the same name rules as the panel.
@@ -325,6 +327,8 @@ deepseekbot computer-open-dir [--dir /abs/exports]
 `browser-open` refuses a machine without Chrome's system libraries with `provision-missing-libs` and lists the packages in its message. `browser-packages` reports whether the Host can install them (`access`) and the last install's progress; `browser-install-packages` installs the named packages and `computer-install-packages` installs what Local Computer reports missing. Both need `--confirm`, like the panel's install button, and `--wait` polls until the install settles. A Host without administrator rights refuses with `needs-administrator`.
 
 `computer-diagnostics` returns the Computer's recent diagnostic events and `computer-logs` the Host's operational log entries, filtered by plugin, Bot (`--bot`), entity, time (`--since`, epoch milliseconds) and count. The archive commands work with Container Computer only (`container-only` otherwise). `computer-export` writes an archive to the export folder (or `--dir`) and, with `--out`, downloads it right away; the one-time download token is never printed. `computer-upload` streams a local `.tar` into the export folder, `computer-exports` lists the archives there, and `computer-import <archive> --confirm` stops the container and restores its data from that archive. `computer-open-dir` opens the export folder in the Host's file manager.
+
+`computer-webrtc` reads whether a phone can call Container Computer over WebRTC (`/api/computer/webrtc`): the tailnet address and UDP port the container advertises, an empty ICE server list, and the number of open calls, or a refusal code with `fallback: "websocket"` (`not-running`, `media-unavailable`, `tailnet-unavailable`, `tailnet-changed`). `browser-webrtc --viewer <id>` does the same for the Container Browser whose viewer path is `/botharness-browser/viewer/<id>/`. `--probe` opens the signalling socket a phone uses (`/api/computer/webrtc/signaling`, `/api/browser/webrtc/signaling?viewer=<id>`), runs the Selkies handshake up to the server's offer and reports its ICE-lite flag and media candidates; while the probe is open the container streams over WebRTC, and closing it switches back to WebSockets, so a desktop viewer reconnects once. A phone reaches the same routes through `/botharness-device/api/…` on its device credential.
 
 The Web Client's live stream socket (`/api/remote.mux`) and its viewer event report (`/api/computer/diagnostics/viewer`) stay UI-only; `browser-frame`, `browser-observation` and `computer-diagnostics` give an agent the same information.
 

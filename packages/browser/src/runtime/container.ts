@@ -5,6 +5,14 @@ import { basename } from 'node:path';
 import { stat, mkdir } from 'node:fs/promises';
 import { promisify } from 'node:util';
 
+import {
+  freeUdpPort,
+  loopbackPort,
+  SELKIES_RTC_CONFIG_SCRIPT,
+  selkiesWebRtcEnv,
+  type SelkiesWebRtcContainer,
+  type SelkiesWebRtcMedia,
+} from '../../../core/src/http/selkies-webrtc.js';
 import type { BrowserExecution } from './browser.js';
 
 export const CONTAINER_BROWSER_IMAGE =
@@ -19,15 +27,23 @@ const RELAY =
 export interface ContainerBrowserOptions {
   readonly profileDirectory: string;
   readonly onEvent?: (detail: string) => void;
-  readonly onViewer?: (prefix: string, upstream: () => URL | undefined) => () => void;
+  readonly onViewer?: (
+    prefix: string,
+    upstream: () => URL | undefined,
+    webrtc: SelkiesWebRtcContainer,
+  ) => () => void;
   readonly run?: (args: readonly string[]) => Promise<string>;
+  readonly tailnetAddress?: () => Promise<string | undefined>;
 }
 
 export function containerBrowserIdentity(directory: string): string {
   return createHash('sha256').update(directory).digest('hex').slice(0, 24);
 }
 
-export function containerBrowserArgs(identity: string): readonly string[] {
+export function containerBrowserArgs(
+  identity: string,
+  media?: SelkiesWebRtcMedia,
+): readonly string[] {
   return [
     'run',
     '-d',
@@ -49,6 +65,8 @@ export function containerBrowserArgs(identity: string): readonly string[] {
     'no-new-privileges=true',
     '--publish',
     '127.0.0.1::3000',
+    ...(media === undefined ? [] : ['--publish', `127.0.0.1::${String(media.port)}/udp`]),
+    ...selkiesWebRtcEnv(media).flatMap((entry) => ['--env', entry]),
     '--mount',
     `type=volume,source=botharness-browser-${identity},target=/config`,
     '--env',
@@ -107,12 +125,25 @@ export function createContainerBrowserExecution(
   let active = false;
   let server: Server | undefined;
   let viewer: URL | undefined;
+  let media: SelkiesWebRtcMedia | undefined;
   let releaseViewer: (() => void) | undefined;
   let starting: Promise<{ endpoint: string; binary: string }> | undefined;
   let stopping = false;
   let uploadBytes = 0;
   const sockets = new Set<Socket>();
   const relays = new Set<ChildProcess>();
+
+  const webrtc: SelkiesWebRtcContainer = {
+    async media() {
+      const advertised = media;
+      if (!active || advertised === undefined) return undefined;
+      const published = loopbackPort(await run(['port', name, `${String(advertised.port)}/udp`]));
+      return published === undefined ? undefined : { advertised, loopbackPort: published };
+    },
+    async prepare() {
+      await run(['exec', name, 'sh', '-c', SELKIES_RTC_CONFIG_SCRIPT]);
+    },
+  };
 
   const inspectOwned = async (): Promise<boolean> => {
     const names = await run(['ps', '-a', '--filter', `name=^/${name}$`, '--format', '{{.Names}}']);
@@ -196,7 +227,15 @@ export function createContainerBrowserExecution(
         'rm -f /config/bot-browser/SingletonLock /config/bot-browser/SingletonCookie /config/bot-browser/SingletonSocket',
       ]);
       phase = 'launch';
-      await run(containerBrowserArgs(identity));
+      const tailnet = await options.tailnetAddress?.().catch(() => undefined);
+      media =
+        tailnet === undefined
+          ? undefined
+          : await freeUdpPort(tailnet).then(
+              (port) => ({ address: tailnet, port }),
+              () => undefined,
+            );
+      await run(containerBrowserArgs(identity, media));
       phase = 'readiness';
       let endpoint: string | undefined;
       const deadline = Date.now() + 90_000;
@@ -262,7 +301,7 @@ export function createContainerBrowserExecution(
       const match = /^127\.0\.0\.1:(\d+)$/u.exec(port);
       if (match === null) throw new Error('Container viewer is not bound exclusively to loopback');
       viewer = new URL(`http://127.0.0.1:${match[1]}${prefix}/`);
-      releaseViewer = options.onViewer?.(prefix, () => viewer);
+      releaseViewer = options.onViewer?.(prefix, () => viewer, webrtc);
       active = true;
       event(`initiator=browser phase=ready target=container durationMs=${Date.now() - started}`);
       return { endpoint: ws.href, binary: CONTAINER_BROWSER_IMAGE };

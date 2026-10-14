@@ -91,6 +91,18 @@ describe('Container Browser execution boundary', () => {
     expect(args).toContain('START_DOCKER=false');
   });
 
+  it('adds a loopback-only WebRTC media port when the Host is on a tailnet', () => {
+    const args = containerBrowserArgs('abc', { address: '100.101.102.103', port: 45_000 });
+    expect(args.filter((_, index) => args[index - 1] === '--publish')).toEqual([
+      '127.0.0.1::3000',
+      '127.0.0.1::45000/udp',
+    ]);
+    expect(args).toContain('SELKIES_WEBRTC_PUBLIC_IP=100.101.102.103');
+    expect(args).toContain('SELKIES_WEBRTC_UDP_MUX_PORT=45000');
+    expect(args).toContain('SELKIES_MODE=websockets');
+    expect(containerBrowserArgs('abc').join(' ')).not.toContain('SELKIES_MODE');
+  });
+
   it('refuses an existing foreign container without stopping or deleting it', async () => {
     const run = vi.fn(async (args: readonly string[]) => {
       if (args[0] === 'info') return '29';

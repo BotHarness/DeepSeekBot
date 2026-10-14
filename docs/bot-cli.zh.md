@@ -313,6 +313,8 @@ deepseekbot computer-export [--dir /abs/exports] [--out /tmp/computer.tar]
 deepseekbot computer-upload /abs/path/backup.tar [--name restore.tar]
 deepseekbot computer-import restore.tar --confirm
 deepseekbot computer-open-dir [--dir /abs/exports]
+deepseekbot computer-webrtc [--probe]
+deepseekbot browser-webrtc --viewer <id> [--probe]
 ```
 
 `browser-observation` 返回浏览器面板轮询的同一份状态：浏览器是否在运行、标签页和当前标签页、接管状态、已保存的 profile 和目标。当前画面不会以 base64 打印，只汇总为 `{mimeType, bytes}`，给出 `--out` 时保存到该文件。`browser-takeover-audit` 按时间顺序列出 Bot 的接管事件。`browser-takeover-recording` 读取一次接管及其录下的输入；token 是接管链接里 `takeover=` 的值，从 stdin 传入。`browser-profile-set` 为 Bot 选择浏览器 profile（`default` 恢复默认），命名规则与面板相同。
@@ -320,6 +322,8 @@ deepseekbot computer-open-dir [--dir /abs/exports]
 机器缺少 Chrome 所需的系统库时，`browser-open` 以 `provision-missing-libs` 拒绝，并在说明里列出需要的包。`browser-packages` 报告 Host 能否安装这些包（`access`）以及上次安装的进度；`browser-install-packages` 安装指定的包，`computer-install-packages` 安装本机 Computer 报告缺少的包。两者都和面板上的安装按钮一样需要 `--confirm`，`--wait` 会轮询到安装结束。Host 没有管理员权限时以 `needs-administrator` 拒绝。
 
 `computer-diagnostics` 返回 Computer 最近的诊断事件，`computer-logs` 返回 Host 的运行日志，可按插件、Bot（`--bot`）、实体、时间（`--since`，毫秒时间戳）和条数过滤。归档命令只适用于容器 Computer，否则返回 `container-only`。`computer-export` 把归档写入导出文件夹（或 `--dir`），带 `--out` 时立即下载；一次性下载 token 不会被打印。`computer-upload` 把本地 `.tar` 流式上传到导出文件夹，`computer-exports` 列出其中的归档，`computer-import <archive> --confirm` 会停止容器并用该归档恢复数据。`computer-open-dir` 在 Host 的文件管理器中打开导出文件夹。
+
+`computer-webrtc` 读取手机能否通过 WebRTC 呼叫容器 Computer（`/api/computer/webrtc`）：容器公布的 tailnet 地址和 UDP 端口、空的 ICE 服务器列表和当前通话数；不可用时返回拒绝码和 `fallback: "websocket"`（`not-running`、`media-unavailable`、`tailnet-unavailable`、`tailnet-changed`）。`browser-webrtc --viewer <id>` 对查看器路径为 `/botharness-browser/viewer/<id>/` 的容器 Browser 做同样的事。`--probe` 会打开手机使用的信令连接（`/api/computer/webrtc/signaling`、`/api/browser/webrtc/signaling?viewer=<id>`），完成 Selkies 握手直到收到服务端 offer，并报告其中的 ICE-lite 标志和媒体候选地址；试连期间容器改走 WebRTC，结束后切回 WebSocket，所以桌面端查看器会重连一次。手机用设备凭据通过 `/botharness-device/api/…` 访问同样的路由。
 
 Web 端的实时画面通道（`/api/remote.mux`）和查看器事件上报（`/api/computer/diagnostics/viewer`）保持仅限 UI；`browser-frame`、`browser-observation` 和 `computer-diagnostics` 为 Agent 提供同样的信息。
 

@@ -158,6 +158,83 @@ describe('Docker computer provider', () => {
     expect(verbs.indexOf('pull')).toBeLessThan(verbs.indexOf('run'));
   });
 
+  it('publishes WebRTC media on loopback only and advertises the tailnet address', async () => {
+    const calls: string[][] = [];
+    let created = false;
+    const provider = createDockerComputerProvider({
+      tailnetAddress: async () => '100.101.102.103',
+      runner: runnerWith((argv) => {
+        if (argv[1] === 'info') return ok('27.0.0');
+        if (argv[1] === 'run' && !argv.includes('--rm')) {
+          created = true;
+          return ok('container-id');
+        }
+        if (argv[1] === 'inspect') {
+          const format = argv.join(' ');
+          if (!created) return fail('Error: No such object: botharness-computer');
+          if (format.includes('range .Config.Env') && !format.includes('HostConfig'))
+            return ok(
+              'PATH=/bin\nSELKIES_WEBRTC_PUBLIC_IP=100.101.102.103\nSELKIES_WEBRTC_UDP_MUX_PORT=39002\n',
+            );
+          return ok('running\n');
+        }
+        if (argv[1] === 'port') return ok('127.0.0.1:32768\n');
+        return ok('ok');
+      }, calls),
+    });
+    await provider.start();
+
+    const run = calls.find((argv) => argv[1] === 'run' && !argv.includes('--rm')) ?? [];
+    expect(run[run.indexOf('127.0.0.1:39001:3000') + 2]).toBe('127.0.0.1::39002/udp');
+    expect(run.filter((arg) => /^-p$/u.test(arg))).toHaveLength(2);
+    expect(run).toContain('SELKIES_MODE=websockets');
+    expect(run).toContain('SELKIES_WEBRTC_PUBLIC_IP=100.101.102.103');
+    expect(run).toContain('SELKIES_WEBRTC_ICE_LITE=true');
+    expect(await provider.webrtc?.media()).toEqual({
+      advertised: { address: '100.101.102.103', port: 39_002 },
+      loopbackPort: 32_768,
+    });
+    await provider.webrtc?.prepare();
+    expect(calls.at(-1)?.slice(0, 4)).toEqual(['docker', 'exec', 'botharness-computer', 'sh']);
+  });
+
+  it('starts without WebRTC when the Host has no tailnet address', async () => {
+    const calls: string[][] = [];
+    const provider = createDockerComputerProvider({
+      tailnetAddress: async () => undefined,
+      runner: runnerWith((argv) => {
+        if (argv[1] === 'info') return ok('27.0.0');
+        if (argv[1] === 'inspect') return fail('Error: No such object: botharness-computer');
+        return ok('ok');
+      }, calls),
+    });
+    await provider.start();
+    const run = (calls.find((argv) => argv[1] === 'run' && !argv.includes('--rm')) ?? []).join(' ');
+    expect(run).not.toContain('/udp');
+    expect(run).not.toContain('SELKIES_MODE');
+  });
+
+  it('adds WebRTC to a stopped container on its next start but leaves a running one alone', async () => {
+    const start = async (state: string) => {
+      const calls: string[][] = [];
+      const provider = createDockerComputerProvider({
+        tailnetAddress: async () => '100.101.102.103',
+        runner: runnerWith((argv) => {
+          if (argv[1] === 'info') return ok('27.0.0');
+          if (argv[1] === 'inspect') {
+            if (argv.join(' ').includes('HostConfig.Memory')) return specLine();
+            return ok(`${state}\n`);
+          }
+          return ok('ok');
+        }, calls),
+      });
+      await provider.start();
+      return calls.some((argv) => argv[1] === 'rm');
+    };
+    expect(await start('exited')).toBe(true);
+    expect(await start('running')).toBe(false);
+  });
+
   it('starts an existing stopped container instead of creating a new one', async () => {
     const calls: string[][] = [];
     const provider = createDockerComputerProvider({

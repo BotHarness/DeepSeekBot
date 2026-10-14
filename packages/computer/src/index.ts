@@ -32,6 +32,8 @@ import { createComputerService, type ComputerService } from './service.js';
 import { createCuaDriver } from './tool/driver.js';
 import { createLocalCuaDriver } from './tool/local-driver.js';
 import { installSystemPackages } from '../../core/src/system/system-packages.js';
+import { detectTailnetAddress } from '../../core/src/devices/routes.js';
+import { createSelkiesWebRtc } from '../../core/src/http/selkies-webrtc.js';
 import { missingDesktopPackages } from './tool/local-display.js';
 import { createLocalComputerProvider } from './providers/local.js';
 import { computerTarget, createComputerTargetRuntime, type ComputerTarget } from './target.js';
@@ -329,6 +331,7 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
           hardenDesktop: config.hardenDesktop,
           language: config.language,
         },
+        tailnetAddress: () => detectTailnetAddress(),
       });
       const driver = createCuaDriver({
         runner,
@@ -450,6 +453,15 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
     return () => clearInterval(timer);
   }, 'botharness-computer: idle stop');
 
+  const webrtc = createSelkiesWebRtc({
+    label: 'computer',
+    upstream: () => (target() === 'container' ? service.upstream() : undefined),
+    container: () => (target() === 'container' ? service.webrtc() : undefined),
+    tailnetAddress: () => detectTailnetAddress(),
+    log: (detail) => diagnostics.record('container', detail),
+  });
+  ctx.effect(() => () => void webrtc.close(), 'botharness-computer: WebRTC calls');
+
   ctx.inject(['connection'], (connectionCtx) => {
     const connection = (connectionCtx as unknown as { connection: HostConnectionLike }).connection;
     const json = (value: unknown, status = 200): Response =>
@@ -457,6 +469,18 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
 
     const unknownToken = (kind: string): Response =>
       json({ ok: false, code: 'unknown-token', error: `unknown or expired ${kind} token` }, 404);
+
+    const webrtcRoute = {
+      path: '/api/computer/webrtc',
+      methods: ['GET'] as const,
+      requestBody: 'buffered' as const,
+      fetch: async (): Promise<Response> =>
+        json({ signaling: '/api/computer/webrtc/signaling', ...(await webrtc.status()) }),
+    };
+    connectionCtx.effect(
+      () => connection.fetch.register(webrtcRoute),
+      'botharness-computer: WebRTC status route',
+    );
 
     const statusRoute = {
       path: '/api/computer/status',
@@ -1136,6 +1160,26 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
     );
 
     if (webServer.registerUpgrade !== undefined) {
+      ctx.effect(
+        () =>
+          webServer.registerUpgrade?.({
+            path: '/api/computer/webrtc/signaling',
+            handler: (request, socket, head) => {
+              const rejection = connection.requestRejection({
+                headers: new Headers(request.headers as Record<string, string>),
+              });
+              if (rejection !== undefined) {
+                socket.destroy();
+                return;
+              }
+              watcher.touch();
+              const timer = setInterval(() => watcher.touch(), 60_000);
+              socket.once('close', () => clearInterval(timer));
+              void webrtc.signal(request, socket, head);
+            },
+          }) ?? (() => undefined),
+        'botharness-computer: WebRTC signaling',
+      );
       for (const socketPath of viewerUpgradePaths(VIEWER_PREFIX)) {
         ctx.effect(
           () =>

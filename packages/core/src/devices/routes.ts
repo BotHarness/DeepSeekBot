@@ -39,8 +39,7 @@ export function phoneRoute(input: string): PhoneRoute | undefined {
   const name = url.hostname;
   if (name === 'localhost' || name === '[::1]' || /^127\.\d+\.\d+\.\d+$/u.test(name))
     return { url: url.origin, kind: 'loopback', ready: true };
-  const tailnet =
-    name.endsWith('.ts.net') || /^100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d+\.\d+$/u.test(name);
+  const tailnet = name.endsWith('.ts.net') || TAILNET_IPV4.test(name);
   if (tailnet && url.protocol === 'https:')
     return { url: url.origin, kind: 'tailscale', ready: true };
   return undefined;
@@ -60,6 +59,24 @@ function servesPort(serve: unknown, dnsName: string, port: number): boolean | un
   } catch {
     return /^\d+$/u.test(proxy) && Number(proxy) === port;
   }
+}
+
+export const TAILNET_IPV4 = /^100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d+\.\d+$/u;
+
+export async function detectTailnetAddress(
+  options: { run?: RunCommand } = {},
+): Promise<string | undefined> {
+  const run = options.run ?? runFile;
+  for (const binary of TAILSCALE_BINARIES) {
+    try {
+      const address = (await run(binary, ['ip', '-4'])).split('\n')[0]?.trim() ?? '';
+      return TAILNET_IPV4.test(address) ? address : undefined;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue;
+      return undefined;
+    }
+  }
+  return undefined;
 }
 
 export async function detectPhoneRoutes(options: {

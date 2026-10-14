@@ -23,6 +23,12 @@ import {
   type SystemInstallAccess,
 } from '../../core/src/system/system-packages.js';
 import { openLogDatabase, type LogDatabase } from '../../core/src/logs/log-db.js';
+import { detectTailnetAddress } from '../../core/src/devices/routes.js';
+import {
+  createSelkiesWebRtc,
+  refuseWebRtcUpgrade,
+  type SelkiesWebRtc,
+} from '../../core/src/http/selkies-webrtc.js';
 import { createBotBrowserRuntimes, listStoredProfileNames } from './runtimes.js';
 import {
   browserToolNames,
@@ -164,19 +170,52 @@ export function apply(
   };
   let switching: Promise<void> = Promise.resolve();
   let registerViewer: ContainerBrowserOptions['onViewer'];
+  const webrtcCalls = new Map<string, SelkiesWebRtc>();
   ctx.inject(['connection', 'webServer'], (viewerCtx) => {
     const services = viewerCtx as unknown as {
       webServer: BrowserViewerHost;
       connection: { requestRejection(request: { headers: Headers }): number | undefined };
     };
-    registerViewer = (prefix, upstream) =>
-      registerBrowserViewer({
+    registerViewer = (prefix, upstream, container) => {
+      const release = registerBrowserViewer({
         host: services.webServer,
         prefix,
         upstream,
         rejection: (headers) => services.connection.requestRejection({ headers }),
       });
+      const viewer = prefix.slice(prefix.lastIndexOf('/') + 1);
+      const calls = createSelkiesWebRtc({
+        label: `browser viewer=${viewer}`,
+        upstream,
+        container: () => container,
+        tailnetAddress: () => detectTailnetAddress(),
+        log: (detail) => diagnostics.record('lifecycle', detail),
+      });
+      webrtcCalls.set(viewer, calls);
+      return () => {
+        if (webrtcCalls.get(viewer) === calls) webrtcCalls.delete(viewer);
+        void calls.close();
+        release();
+      };
+    };
+    const signaling = services.webServer.registerUpgrade({
+      path: '/api/browser/webrtc/signaling',
+      handler(request, socket, head) {
+        const headers = new Headers();
+        for (const [key, value] of Object.entries(request.headers))
+          if (typeof value === 'string') headers.set(key, value);
+        if (services.connection.requestRejection({ headers }) !== undefined) {
+          socket.destroy();
+          return;
+        }
+        const viewer = new URL(request.url ?? '/', 'http://127.0.0.1').searchParams.get('viewer');
+        const calls = viewer === null ? undefined : webrtcCalls.get(viewer);
+        if (calls === undefined) refuseWebRtcUpgrade(socket, 'not-running');
+        else void calls.signal(request, socket, head);
+      },
+    });
     return () => {
+      signaling();
       registerViewer = undefined;
     };
   });
@@ -185,11 +224,12 @@ export function apply(
     target: () => (target() === 'container' ? 'container' : 'local'),
     driver,
     onIdleStop: (profile) => provider.invalidateProfile(profile),
-    onViewer: (prefix, upstream) => {
+    onViewer: (prefix, upstream, container) => {
       if (registerViewer === undefined)
         throw new Error('The Container Browser viewer requires the DSH Web Host');
-      return registerViewer(prefix, upstream);
+      return registerViewer(prefix, upstream, container);
     },
+    tailnetAddress: () => detectTailnetAddress(),
     installDir: pinnedBrowserDirectory(),
     ...(config.browserPath.trim() === '' ? {} : { browserPath: config.browserPath.trim() }),
     ...(config.headless ? { headless: true } : {}),
@@ -463,6 +503,27 @@ export function apply(
     const connection = (connectionCtx as unknown as { connection: HostConnectionLike }).connection;
     const json = (value: unknown, status = 200): Response =>
       Response.json(value as Record<string, unknown>, { status });
+
+    connectionCtx.effect(
+      () =>
+        connection.fetch.register({
+          path: '/api/browser/webrtc',
+          methods: ['GET'],
+          requestBody: 'buffered',
+          fetch: async (request: Request): Promise<Response> => {
+            const viewer = new URL(request.url).searchParams.get('viewer') ?? '';
+            const calls = webrtcCalls.get(viewer);
+            return json({
+              viewer,
+              signaling: `/api/browser/webrtc/signaling?viewer=${encodeURIComponent(viewer)}`,
+              ...(calls === undefined
+                ? { available: false, code: 'not-running', fallback: 'websocket' }
+                : await calls.status()),
+            });
+          },
+        }),
+      'botharness-browser: WebRTC status route',
+    );
 
     for (const action of ['pair', 'forget'] as const) {
       connectionCtx.effect(
