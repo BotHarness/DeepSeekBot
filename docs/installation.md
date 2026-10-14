@@ -17,7 +17,7 @@ Click **Plugins (插件)** in the left sidebar, then **Add plugin (添加插件)
 Paste this exact value into **Package name or address (包名或地址)**:
 
 ```text
-deepseekbot@1.2.1
+deepseekbot@1.3.0
 ```
 
 Keep **npm official registry (npm 官方源)** as the installation source and click **Install (安装)**. Wait for the installation task to finish.
@@ -30,7 +30,7 @@ _This field imports the package source, not an uploaded file. Screenshots are hi
 
 Do not replace the exact spec with `deepseekbot` or `deepseekbot@latest`. With pnpm 11.7 defaults, both selected 1.2.0 during 1.2.1's 24-hour release-age window, even though DSH's preview displayed 1.2.1. Core 1.2.0 requires DSH 0.2.0-rc.1 exactly; Core 1.2.1 declares `>=0.1.7-0`. These are different installed packages, not a remaining version ceiling in 1.2.1.
 
-Retry using the exact spec above. For an existing Desktop Profile, fully quit Desktop before running `dsh plugin --profile desktop add deepseekbot@1.2.1`; restart afterwards and check the actual installed Product/Core versions. Preserve the Profile and its data; do not delete it to retry.
+Retry using the exact spec above. For an existing Desktop Profile, fully quit Desktop before running `dsh plugin --profile desktop add deepseekbot@1.3.0`; restart afterwards and check the actual installed Product/Core versions. Preserve the Profile and its data; do not delete it to retry.
 
 Explicit versions can record exact `minimumReleaseAgeExclude` entries under pnpm defaults. If strict policy prompts or refuses, obtain approval for only the verified package versions or wait for the policy window; do not globally disable supply-chain protection or use DSH version exemptions. These instructions do not claim native Windows Desktop verification or compatibility with every future DSH release.
 
@@ -87,12 +87,12 @@ When you import a Bot from an SSH address such as `git@github.com:owner/repo.git
 The [official DSH packaging reference](https://deepseek-harness.github.io/deepseek-harness/develop/basic/publish) also supports CLI installation into a named Profile:
 
 ```bash
-dsh plugin --profile <your-profile> add deepseekbot@1.2.1
+dsh plugin --profile <your-profile> add deepseekbot@1.3.0
 ```
 
 Use the Profile you actually start. Enable the plugin in that Profile's Plugins page afterward.
 
-To import the same precompiled archive, download the public npm tarball with `npm pack deepseekbot@1.2.1`, which saves `deepseekbot-<version>.tgz` in the current directory. In the Web interface, enter its **absolute path on the machine running DSH** in Package name or address; a path on a different browser machine is not a Host path. With the CLI you can instead use `dsh plugin --profile <your-profile> add ./deepseekbot-<version>.tgz` from the download directory.
+To import the same precompiled archive, download the public npm tarball with `npm pack deepseekbot@1.3.0`, which saves `deepseekbot-<version>.tgz` in the current directory. In the Web interface, enter its **absolute path on the machine running DSH** in Package name or address; a path on a different browser machine is not a Host path. With the CLI you can instead use `dsh plugin --profile <your-profile> add ./deepseekbot-<version>.tgz` from the download directory.
 
 ## If installation does not finish
 

@@ -27,10 +27,10 @@ DeepSeekBot installs into [DeepSeek Harness (DSH)](https://github.com/deepseek-a
 
 **Desktop:** in the DeepSeek Harness desktop app, go to **Plugins → Add plugin**, enter `deepseekbot`, keep the official npm registry and click **Install**, then **Enable now**. **Bot mode** appears in the sidebar.
 
-**CLI:** needs Node 22+ and the DSH 0.2 line from `0.2.0-rc.1`.
+**CLI:** needs Node 22+ and DSH 0.2.0 or later (previews included).
 
 ```bash
-npm i -g @deepseek-ai/dsh@0.2.0-rc.1
+npm i -g @deepseek-ai/dsh@0.2.0-rc.2
 dsh plugin --profile web add deepseekbot
 dsh web
 ```
@@ -91,7 +91,7 @@ DeepSeekBot 以一个插件装进 DeepSeek Harness（DSH）：Bot 名册、私�
 **命令行**：
 
 ```bash
-npm i -g @deepseek-ai/dsh@0.2.0-rc.1
+npm i -g @deepseek-ai/dsh@0.2.0-rc.2
 dsh plugin --profile web add deepseekbot
 dsh web
 ```

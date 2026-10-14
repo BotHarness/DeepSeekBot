@@ -17,7 +17,7 @@
 在 **包名或地址** 中粘贴完整内容：
 
 ```text
-deepseekbot@1.2.1
+deepseekbot@1.3.0
 ```
 
 安装源保持 **npm 官方源**，点击 **安装**，等待安装任务完成。
@@ -30,7 +30,7 @@ _这里通过来源地址导入插件，没有文件上传选择器。截图是�
 
 不要把精确版本改成 `deepseekbot` 或 `deepseekbot@latest`。在 1.2.1 发布后的 24 小时冷却期内，pnpm 11.7 默认策略下这两种写法都选择了 1.2.0，即使 DSH 预览显示 1.2.1。Core 1.2.0 精确要求 DSH 0.2.0-rc.1；Core 1.2.1 的声明为 `>=0.1.7-0`。这表示实际安装了不同的包，不是 1.2.1 仍有版本上限。
 
-请用上面的精确版本重试。已有 Desktop Profile 时，先完全退出桌面端，再运行 `dsh plugin --profile desktop add deepseekbot@1.2.1`；重启后核对实际安装的 Product/Core 版本。保留 Profile 和数据，不要删除 Profile 来重试。
+请用上面的精确版本重试。已有 Desktop Profile 时，先完全退出桌面端，再运行 `dsh plugin --profile desktop add deepseekbot@1.3.0`；重启后核对实际安装的 Product/Core 版本。保留 Profile 和数据，不要删除 Profile 来重试。
 
 pnpm 默认行为可能为精确版本记录 `minimumReleaseAgeExclude` 条目。如果严格策略要求审批或拒绝安装，只审批经过验证的精确包版本，或等待策略窗口结束；不要全局关闭供应链保护，也不要使用 DSH 版本豁免。本说明不代表已完成原生 Windows Desktop 复验，也不保证所有未来 DSH 版本的运行兼容性。
 
@@ -87,12 +87,12 @@ DeepSeekBot 设置里的 **Git** 一行会显示正在使用的 Git 版本，以
 [DSH 官方打包文档](https://deepseek-harness.github.io/deepseek-harness/develop/basic/publish)也支持通过 CLI 安装到指定 Profile：
 
 ```bash
-dsh plugin --profile <your-profile> add deepseekbot@1.2.1
+dsh plugin --profile <your-profile> add deepseekbot@1.3.0
 ```
 
 使用你实际启动的 Profile 名称，之后在该 Profile 的插件页启用插件。
 
-如果想导入同一份已编译安装包，可以运行 `npm pack deepseekbot@1.2.1` 下载公共 npm tarball，它会在当前目录保存 `deepseekbot-<version>.tgz`。在 Web 界面的「包名或地址」填写 **运行 DSH 的机器上的绝对路径**；另一台浏览器机器的路径不能替代 Host 路径。使用 CLI 时，也可以在下载目录运行 `dsh plugin --profile <your-profile> add ./deepseekbot-<version>.tgz`。
+如果想导入同一份已编译安装包，可以运行 `npm pack deepseekbot@1.3.0` 下载公共 npm tarball，它会在当前目录保存 `deepseekbot-<version>.tgz`。在 Web 界面的「包名或地址」填写 **运行 DSH 的机器上的绝对路径**；另一台浏览器机器的路径不能替代 Host 路径。使用 CLI 时，也可以在下载目录运行 `dsh plugin --profile <your-profile> add ./deepseekbot-<version>.tgz`。
 
 ## 安装遇到问题
 
