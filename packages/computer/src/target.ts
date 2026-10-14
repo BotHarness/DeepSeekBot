@@ -82,6 +82,18 @@ export function createComputerTargetRuntime(options: {
       target === options.target() && changing === undefined
         ? active.provider.upstream()
         : undefined,
+    webrtc: {
+      media: async () =>
+        target === options.target() && changing === undefined
+          ? active.provider.webrtc?.media()
+          : undefined,
+      prepare: async () => {
+        await sync();
+        if (active.provider.webrtc === undefined)
+          throw new Error('WebRTC is only available for Container Computer');
+        await active.provider.webrtc.prepare();
+      },
+    },
     exportTo: async (dir) => {
       await sync();
       if (target !== 'container' || active.provider.exportTo === undefined)

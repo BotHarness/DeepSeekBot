@@ -45,6 +45,17 @@ function fakeRuntime(target: ComputerTarget) {
     upstream: () => (target === 'container' ? new URL('http://127.0.0.1:3000') : undefined),
     exportTo: vi.fn(async () => '/exports/proof.tar'),
     importFrom: vi.fn(async () => undefined),
+    ...(target === 'container'
+      ? {
+          webrtc: {
+            media: vi.fn(async () => ({
+              advertised: { address: '100.101.102.103', port: 39_002 },
+              loopbackPort: 32_768,
+            })),
+            prepare: vi.fn(async () => undefined),
+          },
+        }
+      : {}),
   };
   return { provider, driver };
 }
@@ -362,7 +373,9 @@ describe('Profile Computer Target lifecycle', () => {
       onChange,
     });
     await expect(runtime.provider.exportTo?.('/exports')).resolves.toBe('/exports/proof.tar');
+    await expect(runtime.provider.webrtc?.media()).resolves.toMatchObject({ loopbackPort: 32_768 });
     target = 'local';
+    await expect(runtime.provider.webrtc?.media()).resolves.toBeUndefined();
     expect(runtime.isRunning()).toBe(false);
     await expect(runtime.driver.call('click', {})).rejects.toThrow('Target changed');
     expect(old.driver.call).not.toHaveBeenCalled();
@@ -371,6 +384,7 @@ describe('Profile Computer Target lifecycle', () => {
     expect(old.provider.stop).toHaveBeenCalledTimes(1);
     expect(runtime.provider.name).toBe('local');
     expect(runtime.isRunning()).toBe(false);
+    await expect(runtime.provider.webrtc?.prepare()).rejects.toThrow('Container Computer');
     await runtime.provider.start();
     expect(runtime.isRunning()).toBe(true);
     await runtime.driver.call('click', {});
