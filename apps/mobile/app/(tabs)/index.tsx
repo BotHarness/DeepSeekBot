@@ -62,15 +62,15 @@ export default function RosterScreen() {
     <>
       <Tabs.Screen
         options={{
-          headerLeft: () => (
+          headerTitleAlign: 'left',
+          headerTitle: () => (
             <Pressable
               onPress={() => router.push('/hosts')}
               accessibilityRole="button"
               accessibilityLabel={t.switchComputer(saved.hostName)}
               hitSlop={8}
-              style={{ paddingHorizontal: 16 }}
             >
-              <Text style={{ color: theme.ink, fontSize: 16, fontWeight: '600' }} numberOfLines={1}>
+              <Text style={{ color: theme.ink, fontSize: 17, fontWeight: '600' }} numberOfLines={1}>
                 {`${saved.hostName} ▾`}
               </Text>
             </Pressable>

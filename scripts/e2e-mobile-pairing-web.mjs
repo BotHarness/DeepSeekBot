@@ -259,8 +259,8 @@ async function main() {
     steps.push('pasted the link and tapped Pair: the Roster shows the PersonaBot');
 
     const credential = await page.evaluate(() => {
-      const raw = sessionStorage.getItem('deepseekbot.host.v2');
-      return raw === null ? null : JSON.parse(raw).credential;
+      const raw = sessionStorage.getItem('deepseekbot.hosts.v3');
+      return raw === null ? null : (JSON.parse(raw).hosts?.[0]?.credential ?? null);
     });
     checks.credentialStored = typeof credential === 'string';
     const second = await fetch(`${origin}/botharness-device/pair`, {

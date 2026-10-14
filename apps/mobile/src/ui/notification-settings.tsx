@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { ScrollView, Switch, Text, View } from 'react-native';
+import { ScrollView, Switch, View } from 'react-native';
 
 import {
   PUSH_KINDS,
@@ -9,9 +9,11 @@ import {
   type PushSettings,
 } from '../host/push';
 import type { PushStatus } from '../host/push-session';
-import { radius, space } from './design/tokens';
+import { space } from './design/tokens';
 import { useDesignTheme } from './design/theme';
 import { useMounted } from './mounted';
+import { SettingsGroup, SettingsRow } from './primitives/settings-row';
+import { Text } from './primitives/text';
 import { ActionButton, Loading, Notice, errorText } from './request-parts';
 import { t } from './strings';
 
@@ -80,13 +82,7 @@ export function NotificationSettings({
       style={{ backgroundColor: theme.color.base }}
       contentContainerStyle={{ padding: space.x5, gap: space.x5 }}
     >
-      <Text
-        style={{
-          color: theme.color.muted,
-          fontSize: theme.type.meta.size,
-          lineHeight: theme.type.meta.line,
-        }}
-      >
+      <Text variant="meta" tone="muted">
         {t.notificationsHint}
       </Text>
       {status.status === 'checking' ? <Loading /> : null}
@@ -118,55 +114,26 @@ export function NotificationSettings({
       {on && settings === undefined && error === undefined ? <Loading /> : null}
       {on && settings !== undefined ? (
         <View style={{ gap: space.x3 }}>
-          <Text
-            accessibilityRole="header"
-            style={{
-              color: theme.color.muted,
-              fontSize: theme.type.meta.size,
-              lineHeight: theme.type.meta.line,
-              fontWeight: theme.weight.strong,
-            }}
-          >
+          <Text accessibilityRole="header" variant="meta" tone="muted" strong>
             {t.notifyAbout}
           </Text>
-          <View
-            style={{
-              backgroundColor: theme.color.surface,
-              borderRadius: radius.md,
-              paddingHorizontal: space.x5,
-            }}
-          >
+          <SettingsGroup>
             {PUSH_KINDS.map((kind) => (
-              <View
+              <SettingsRow
                 key={kind}
-                style={{
-                  minHeight: theme.touch,
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: space.x4,
-                }}
-              >
-                <Text
-                  style={{
-                    color: theme.color.fg,
-                    fontSize: theme.type.body.size,
-                    lineHeight: theme.type.body.line,
-                    flexShrink: 1,
-                  }}
-                >
-                  {t.pushKind[kind]}
-                </Text>
-                <Switch
-                  accessibilityLabel={t.pushKind[kind]}
-                  value={settings.preferences[kind]}
-                  onValueChange={(value) => toggle(kind, value)}
-                  disabled={!settings.registered}
-                  trackColor={{ true: theme.color.accent, false: theme.color.borderStrong }}
-                />
-              </View>
+                label={t.pushKind[kind]}
+                trailing={
+                  <Switch
+                    accessibilityLabel={t.pushKind[kind]}
+                    value={settings.preferences[kind]}
+                    onValueChange={(value) => toggle(kind, value)}
+                    disabled={!settings.registered}
+                    trackColor={{ true: theme.color.accent, false: theme.color.borderStrong }}
+                  />
+                }
+              />
             ))}
-          </View>
+          </SettingsGroup>
           <View style={{ flexDirection: 'row', paddingTop: space.x3 }}>
             <ActionButton
               label={t.sendTest}
