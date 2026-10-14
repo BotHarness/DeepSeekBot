@@ -1,0 +1,47 @@
+export type PlatformOS = 'ios' | 'android';
+
+export const space = {
+  x1: 2,
+  x2: 4,
+  x3: 8,
+  x4: 12,
+  x5: 16,
+  x6: 24,
+} as const;
+
+export const radius = {
+  xs: 4,
+  sm: 8,
+  md: 12,
+  lg: 16,
+  round: 9999,
+} as const;
+
+export const edge = {
+  focus: 2,
+} as const;
+
+export type TypeRole = { size: number; line: number };
+
+export const typeScale: Record<PlatformOS, Record<'meta' | 'body' | 'title', TypeRole>> = {
+  ios: {
+    meta: { size: 13, line: 18 },
+    body: { size: 17, line: 22 },
+    title: { size: 17, line: 22 },
+  },
+  android: {
+    meta: { size: 12, line: 16 },
+    body: { size: 14, line: 20 },
+    title: { size: 16, line: 24 },
+  },
+};
+
+export const weight: Record<PlatformOS, { regular: '400'; strong: '500' | '600' }> = {
+  ios: { regular: '400', strong: '600' },
+  android: { regular: '400', strong: '500' },
+};
+
+export const touch: Record<PlatformOS, number> = {
+  ios: 44,
+  android: 48,
+};

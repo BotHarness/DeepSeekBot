@@ -11,7 +11,8 @@
     "export": "expo export --platform ios --platform android --output-dir dist",
     "export:web": "expo export --platform web --output-dir dist-web",
     "eas:dev": "eas build --profile development",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "generate:palette": "node scripts/generate-palette.mjs"
   },
   "dependencies": {
     "@expo/metro-runtime": "~57.0.16",
