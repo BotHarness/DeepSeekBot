@@ -88,9 +88,7 @@ node scripts/e2e-llm-scenarios.mjs --launch --scenario two-workers-report --atte
 node scripts/e2e-llm-scenarios.mjs --launch --changed-from origin/main  # only what your branch touches
 ```
 
-A scenario passes when any of its `--attempts` (default 2) passes; the JSON report under `.humanlayer/llm-e2e/` keeps every attempt and its transcript, so a flaky flow stays visible. The Host needs a model credential (see [AX shared default model](ax-model.md)); in a cloud container whose proxy injects `opencode.ai`, run `OPENCODE_GO_API_KEY=proxy-injected node scripts/dev-model.mjs setup --from-env` once.
-
-<<<<<<< HEAD
+A scenario passes when any of its `--attempts` (default 2) passes; the JSON report under `.humanlayer/llm-e2e/` keeps every attempt and its transcript, so a flaky flow stays visible. The Host needs a model credential (see [AX shared default model](ax-model.md)); in a cloud container whose proxy injects `opencode.ai`, run `node scripts/dev-model.mjs setup --from-env --model deepseek-v4.1-flash` once (`OPENCODE_GO_API_KEY` is set in the environment).
 
 ### Tokens and models
 
@@ -99,11 +97,11 @@ Each attempt also records what its Bots spent: uncached input, output, cache-rea
 ```bash
 # Measure: 5 independent runs per scenario on each model (no retry), saved as the baseline.
 node scripts/e2e-llm-scenarios.mjs --launch --runs 5 \
-  --model opencode-go/deepseek-v4-flash --model opencode-go/glm-5.3-flash@low \
+  --model opencode-go/deepseek-v4.1-flash --model opencode-go/glm-5.3-flash@low \
   --report .humanlayer/llm-e2e/baseline.json
 # After the change: same runs, with deltas against the baseline.
 node scripts/e2e-llm-scenarios.mjs --launch --runs 5 \
-  --model opencode-go/deepseek-v4-flash --model opencode-go/glm-5.3-flash@low \
+  --model opencode-go/deepseek-v4.1-flash --model opencode-go/glm-5.3-flash@low \
   --baseline .humanlayer/llm-e2e/baseline.json
 # Compare two saved reports without running anything.
 node scripts/e2e-llm-scenarios.mjs --compare before.json after.json
@@ -111,10 +109,7 @@ node scripts/e2e-llm-scenarios.mjs --compare before.json after.json
 
 Every run uses `opencode-go/deepseek-v4.1-flash` unless `--model` names others (`--model host-default` keeps the Host's own default). `--model provider/model[@effort]` applies a Model Preset to every scenario Bot; the route must be in the Host's model catalog (`deepseekbot model-catalog`), and an attempt whose usage shows a different route is flagged `routeMismatch`. `--runs` counts every run, so the pass rate is measured; `--attempts` keeps retrying until one passes and suits a gate. Each report gets a Markdown table next to it (`.md`, and the workflow's job summary) with pass rate, mean tokens per run in each bucket and the cache-hit rate (cache read over all prompt tokens); with `--baseline` it adds the pass-rate change and token delta per scenario and model. Usage is read after the totals stop moving for `--settle` seconds (default 12), since Bots keep working after the asserted state; a run whose usage never settled says `settled: false`. A table cell marked `(Host differs)` means the Host's usage total disagreed with the Session totals.
 
-The `llm e2e` workflow runs them nightly, after a push to `main` that touches a scenario's paths (only those scenarios), on manual dispatch, and on a pull request labeled `ci:llm-e2e`. It needs the `DEEPSEEK_API_KEY` repository secret and skips with a notice without it. It is never part of the required `verify` check. When a feature adds a model-driven flow, add a scenario with the paths it depends on.
-=======
-
-The `llm e2e` workflow runs them nightly, after a push to `main` that touches a scenario's paths (only those scenarios), on manual dispatch, and on a pull request labeled `ci:llm-e2e`. It uses the OpenCode Go subscription through the `OPENCODE_GO_API_KEY` repository secret (selected with `scripts/dev-model.mjs setup --from-env`) and skips with a notice without it. It is never part of the required `verify` check. When a feature adds a model-driven flow, add a scenario with the paths it depends on.
+The `llm e2e` workflow runs them nightly, after a push to `main` that touches a scenario's paths (only those scenarios), on manual dispatch, and on a pull request labeled `ci:llm-e2e`. It uses the OpenCode Go subscription through the `OPENCODE_GO_API_KEY` repository secret on `deepseek-v4.1-flash` (selected with `scripts/dev-model.mjs setup --from-env --model deepseek-v4.1-flash`) and skips with a notice without it. It is never part of the required `verify` check. When a feature adds a model-driven flow, add a scenario with the paths it depends on.
 
 > > > > > > > origin/claude/bot-mention-wake-te5p0m
 

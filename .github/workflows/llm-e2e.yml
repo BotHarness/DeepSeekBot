@@ -84,7 +84,7 @@ jobs:
         run: pnpm build
       - name: Select the OpenCode Go model
         if: steps.key.outputs.present == 'true'
-        run: node scripts/dev-model.mjs setup --from-env
+        run: node scripts/dev-model.mjs setup --from-env --model deepseek-v4.1-flash
       - name: Run scenarios
         if: steps.key.outputs.present == 'true'
         env:
