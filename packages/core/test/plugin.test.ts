@@ -496,6 +496,8 @@ describe('plugin entry', () => {
       'userQuestionAnswer',
       'sessions',
       'botToolTrace',
+      'botTools',
+      'botToolRun',
       'sessionArchiveSet',
       'sessionOwner',
       'botSessionIds',

@@ -62,6 +62,30 @@ describe('CLI parity check', () => {
     ]);
   });
 
+  it('counts Harness Bot tools as covered by bot-tool and keeps reasoned exemptions for refused ones', () => {
+    const runner = `${cli}\n  { command: 'bot-tool', description: 'run one Harness Bot tool' },\n`;
+    expect(
+      checkCliParity({
+        surfaces: { bridge: [], routes: [], tools: ['channel_send', 'create_assignment'] },
+        cliSource: runner,
+        baseline: {
+          bridge: {},
+          routes: {},
+          tools: { create_assignment: 'Starts work owned by the calling Bot turn.' },
+        },
+      }),
+    ).toEqual([]);
+    expect(
+      checkCliParity({
+        surfaces: { bridge: [], routes: [], tools: ['channel_send'] },
+        cliSource: runner,
+        baseline: { bridge: {}, routes: {}, tools: { channel_send: '#1690' } },
+      }),
+    ).toEqual([
+      'Bot tool channel_send is covered by the CLI now; remove it from scripts/cli-parity-baseline.json',
+    ]);
+  });
+
   it('extracts the surfaces from the Host sources', () => {
     expect(
       bridgeMethodsFrom(`const BRIDGE_METHODS = [\n  'sessions',\n  'botToolTrace',\n] as const;`),

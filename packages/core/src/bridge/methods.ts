@@ -1,4 +1,4 @@
-import { summarizeToolTrace, type TurnTrace } from '../bots/tool-trace.js';
+import { directToolTrace, summarizeToolTrace, type TurnTrace } from '../bots/tool-trace.js';
 import type { BotOnboarding, OnboardingSnapshot, TutorialAction } from '../onboarding/service.js';
 import type { HttpsFallback } from '../memory/clone.js';
 import {
@@ -240,6 +240,7 @@ import type {
   HumanAttentionPage,
   HumanAttentionCategory,
 } from '../runtime/human-attention.js';
+import { DirectBotToolError } from '../runtime/bot-runtime.js';
 import type {
   AssignmentActivity,
   AssignmentDetail,
@@ -247,6 +248,7 @@ import type {
   AssignmentSummary,
   BotRuntime,
   ChannelAssignmentSummary,
+  DirectBotToolSpec,
   DmAdmissionFailure,
 } from '../runtime/bot-runtime.js';
 import type { AssignmentExecutionWait } from '../runtime/assignment-approval-capacity.js';
@@ -591,6 +593,10 @@ export interface BridgeMethods {
   botToolTrace(
     payload: unknown,
   ): Promise<BridgeResult<{ slug: string; sessionId: string; turns: TurnTrace[] }>>;
+  botTools(payload: unknown): BridgeResult<{ sessionId: 'direct'; tools: DirectBotToolSpec[] }>;
+  botToolRun(
+    payload: unknown,
+  ): Promise<BridgeResult<{ slug: string; tool: string; sessionId: 'direct'; result: unknown }>>;
   sessionArchiveSet(payload: unknown): Promise<BridgeResult<{ archived: boolean }>>;
   sessionOwner(payload: unknown): BridgeResult<{ owner: OwnedSessionBot | null }>;
   botSessionIds(payload: unknown): BridgeResult<{ sessionIds: string[] }>;
@@ -881,6 +887,15 @@ function unknownAssignment(sessionId: string): BridgeResult<never> {
   return {
     ok: false,
     error: { code: 'not-found', message: `unknown Assignment: ${sessionId}` },
+  };
+}
+
+const DIRECT_TOOL_TIMEOUT_MS = 10 * 60_000;
+
+function directToolsUnavailable(): BridgeResult<never> {
+  return {
+    ok: false,
+    error: { code: 'unavailable', message: 'Direct Bot tools are unavailable on this Host' },
   };
 }
 
@@ -4619,6 +4634,15 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       const requested = source['sessionId'];
       if (requested !== undefined && typeof requested !== 'string')
         return invalidInput('sessionId must be a string');
+      if (requested === 'direct')
+        return {
+          ok: true,
+          value: {
+            slug,
+            sessionId: 'direct',
+            turns: directToolTrace(deps.runtime?.directBotToolCalls?.(slug) ?? [], { turns }),
+          },
+        };
       const sessionId =
         requested ??
         deps.runtime?.currentOrchestratorSessionId?.(slug) ??
@@ -4629,6 +4653,40 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       const log = await deps.readUsageSessionLog(sessionId);
       if (log === undefined) return unavailable();
       return { ok: true, value: { slug, sessionId, ...summarizeToolTrace(log.events, { turns }) } };
+    },
+    botTools() {
+      const tools = deps.runtime?.directBotTools?.();
+      if (tools === undefined) return directToolsUnavailable();
+      return { ok: true, value: { sessionId: 'direct', tools } };
+    },
+    async botToolRun(payload) {
+      const slug = asSlug(payload);
+      if (slug === undefined) return invalidInput('slug is required');
+      const source = asObject(payload);
+      const tool = source['tool'];
+      if (typeof tool !== 'string' || tool.trim() === '') return invalidInput('tool is required');
+      const args = source['args'] ?? {};
+      if (typeof args !== 'object' || args === null || Array.isArray(args))
+        return invalidInput('args must be an object of tool arguments');
+      if (deps.registry.get(slug) === undefined) return unknownBot(slug);
+      if (deps.runtime?.runDirectBotTool === undefined) return directToolsUnavailable();
+      try {
+        const run = await deps.runtime.runDirectBotTool(
+          slug,
+          tool.trim(),
+          args as Record<string, unknown>,
+          AbortSignal.timeout(DIRECT_TOOL_TIMEOUT_MS),
+        );
+        return { ok: true, value: { slug, ...run } };
+      } catch (error) {
+        return {
+          ok: false,
+          error: {
+            code: error instanceof DirectBotToolError ? error.code : 'tool-failed',
+            message: error instanceof Error ? error.message : String(error),
+          },
+        };
+      }
     },
     sessions(payload) {
       const slug = asSlug(payload);

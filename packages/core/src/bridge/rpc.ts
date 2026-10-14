@@ -102,6 +102,7 @@ import type {
   AssignmentDetail,
   AssignmentSummary,
   ChannelAssignmentSummary,
+  DirectBotToolSpec,
 } from '../runtime/bot-runtime.js';
 import type { BotAttentionPage, BotAttentionState } from '../runtime/attention.js';
 import type {
@@ -1267,6 +1268,20 @@ export class BotharnessBridgeService extends TypertRemoteService {
     );
   }
 
+  botTools(): { sessionId: 'direct'; tools: DirectBotToolSpec[] } {
+    return unwrap(this.methods.botTools({}));
+  }
+
+  botToolRun(
+    slug: string,
+    tool: string,
+    args?: Record<string, unknown>,
+  ): Promise<{ slug: string; tool: string; sessionId: 'direct'; result: unknown }> {
+    return unwrapAsync(
+      this.methods.botToolRun({ slug, tool, ...(args === undefined ? {} : { args }) }),
+    );
+  }
+
   sessionArchiveSet(
     slug: string,
     sessionId: string,
@@ -1683,6 +1698,8 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'userQuestionAnswer',
   'sessions',
   'botToolTrace',
+  'botTools',
+  'botToolRun',
   'sessionArchiveSet',
   'sessionOwner',
   'botSessionIds',

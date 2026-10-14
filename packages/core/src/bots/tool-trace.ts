@@ -1,4 +1,5 @@
 import type { DshSessionEvent } from '../sessions/source.js';
+import type { DirectBotToolCall } from '../runtime/bot-runtime.js';
 
 export type ToolCallOutcome = 'ok' | 'error' | 'denied' | 'cancelled' | 'pending';
 
@@ -160,4 +161,25 @@ export function summarizeToolTrace(
       };
     }),
   };
+}
+
+export function directToolTrace(
+  calls: readonly DirectBotToolCall[],
+  options: { turns: number },
+): TurnTrace[] {
+  return calls.slice(-options.turns).map((call, index, newest) => ({
+    turn: calls.length - newest.length + index + 1,
+    startedAt: call.at,
+    endReason: 'direct',
+    noToolCalls: false,
+    calls: [
+      {
+        name: call.tool,
+        callId: call.callId,
+        args: SECRET_TOOLS.has(call.tool) ? '[redacted]' : boundedArgs(call.args),
+        outcome: call.outcome,
+        result: SECRET_TOOLS.has(call.tool) ? '[redacted]' : clip(call.result, RESULT_LIMIT),
+      },
+    ],
+  }));
 }

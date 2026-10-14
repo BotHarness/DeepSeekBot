@@ -76,6 +76,7 @@ import { createPersonaBotRegistry, type PersonaBotRegistry } from './registry.js
 import { ZipArchiveError, writeZip, type ZipEntry } from './zip-archive.js';
 import { INBOX_HOST_COMMANDS } from './cli-inbox.js';
 import { CliLiveError, LIVE_COMMANDS, LIVE_OPTIONS, runLiveCli } from './cli-live.js';
+import { PROFILE_ONLINE_COMMANDS } from './cli-profile.js';
 import {
   isScheduleCommand,
   scheduleToggleFromFlags,
@@ -220,7 +221,6 @@ Usage:
   deepseekbot computer-stop
   deepseekbot browser-tools
   deepseekbot browser-tool <id> <tool> [--args-stdin] [--out <absolute-file>]
-  deepseekbot bot-trace <id> [--turns <1-20>] [--session <session-id>]
   deepseekbot memory-file-target|memory-graph|memory-commit-diff|memory-changes <id> [...]
   deepseekbot memory-working-diff <id> --path <file> --kind staged|unstaged|untracked|current
   deepseekbot memory-checkpoints|memory-versions <id>
@@ -245,6 +245,9 @@ Usage:
   deepseekbot bot-session-usage <id>
   deepseekbot bot-activity-history <id> [--before <YYYY-MM-DD>] [--weeks <1-104>]
   deepseekbot group-activity <channel>
+  deepseekbot bot-trace <id> [--turns <1-20>] [--session <session-id>|direct]
+  deepseekbot bot-tools
+  deepseekbot bot-tool <id> <tool> [--args-stdin]
   deepseekbot computer-tools
   deepseekbot computer-tool <id> <tool> [--args-stdin] [--out <absolute-file>]
   deepseekbot bot-attention <id> [--limit <1-100>] [--cursor <source-id>] [--state <state>]
@@ -268,6 +271,27 @@ Usage:
   deepseekbot bot-delete-preview <id>
   deepseekbot bot-delete-confirm <id> --confirmation-stdin
   deepseekbot bot-delete-retry <id>
+  deepseekbot bot-avatar-set|bot-banner-set <id> (--file <image> | --clear)
+  deepseekbot bot-banner-set|bot-appearance-set <id> --recipe-stdin
+  deepseekbot bot-primary-color-set <id> (--color <#rrggbb> | --automatic)
+  deepseekbot bot-source-policies <id>
+  deepseekbot bot-source-policy-set <id> --source-class <class> [--wake <w>] [--delivery steer|turn]
+                                    [--digest-count <n> --digest-interval <seconds>]
+  deepseekbot bot-source-policy-reset <id> --source-class <class>
+  deepseekbot bot-standing-limits-set <id> --soul <n> --core-memory <n>
+  deepseekbot developer-mode-set (--enabled | --disabled)
+  deepseekbot roster | human-identity | part-library
+  deepseekbot roster-batch pin|unpin|hide|move <channel>... [--section <section-id>]
+  deepseekbot roster-pins-set|roster-hidden-set [<channel>...]
+  deepseekbot roster-section-create <name>
+  deepseekbot roster-section-rename <section-id> --name <text>
+  deepseekbot roster-section-remove <section-id> --confirm
+  deepseekbot roster-section-reorder <section-id>...
+  deepseekbot roster-top-reorder section:<id>|channel:<id>...
+  deepseekbot part-library-add --part-stdin [--name <text>] [--parent <part-id>]
+  deepseekbot part-library-import --file <png|zip>
+  deepseekbot part-library-import-image --file <png> --slot <slot> --colors <n> [--name <text>]
+  deepseekbot part-library-export --out <absolute-file> [--part-id <id> | --part-stdin]
   deepseekbot im-apps
   deepseekbot im-authorize <feishu|weixin>
   deepseekbot im-credentials <attempt-id> --credentials-stdin
@@ -2530,6 +2554,7 @@ export async function runBotCreateCli(
         'memory-history',
         'memory-diff',
         'memory-save',
+        ...PROFILE_ONLINE_COMMANDS,
       ].includes(command) ||
         isScheduleCommand(command)) &&
         (values.host !== undefined || io.env['DEEPSEEKBOT_HOST'] !== undefined)) ||

@@ -27,14 +27,26 @@ export function botToolNamesFrom(grantExecutionSource) {
   return block === null ? [] : [...block[1].matchAll(/'([a-z_]+)'/g)].map((name) => name[1]);
 }
 
+function runner(surface) {
+  if (surface.startsWith('browser_')) return 'browser-tool';
+  if (surface.startsWith('computer_')) return 'computer-tool';
+  return 'bot-tool';
+}
+
 function covered(kind, surface, cliSource) {
   if (kind === 'routes') return cliSource.includes(surface);
   if (cliSource.includes(`'${surface}'`)) return true;
-  if (kind === 'tools' && surface.startsWith('browser_'))
-    return cliSource.includes("'browser-tool'");
-  if (kind === 'tools' && surface.startsWith('computer_'))
-    return cliSource.includes("'computer-tool'");
-  return false;
+  return kind === 'tools' && cliSource.includes(`'${runner(surface)}'`);
+}
+
+function runnerExemption(kind, surface, reason, cliSource) {
+  return (
+    kind === 'tools' &&
+    !cliSource.includes(`'${surface}'`) &&
+    typeof reason === 'string' &&
+    reason.trim() !== '' &&
+    !/^#\d+$/.test(reason.trim())
+  );
 }
 
 export function checkCliParity({ surfaces, cliSource, baseline }) {
@@ -52,7 +64,10 @@ export function checkCliParity({ surfaces, cliSource, baseline }) {
     for (const surface of Object.keys(recorded).sort()) {
       if (!present.has(surface))
         errors.push(`${label} ${surface} no longer exists; remove it from ${BASELINE}`);
-      else if (covered(kind, surface, cliSource))
+      else if (
+        covered(kind, surface, cliSource) &&
+        !runnerExemption(kind, surface, recorded[surface], cliSource)
+      )
         errors.push(`${label} ${surface} is covered by the CLI now; remove it from ${BASELINE}`);
       else if (typeof recorded[surface] !== 'string' || recorded[surface].trim() === '')
         errors.push(
