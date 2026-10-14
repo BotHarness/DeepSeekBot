@@ -382,6 +382,22 @@ Host 离线时返回 `host-unreachable`，不提交消息；过期令牌返回 `
 
 凭据写入在落盘前后验证真实 YAML；失败恢复原文件字节，新文件失败则删除。空的 `refs: {}` 转成块映射，保留注释与 records；含空行及尾换行的多行值可完整读回。null ref 值、空文件、非空内联 refs 映射返回 `bad-credentials` 且不改文件；编辑前请将 refs 改成块映射。
 
+### 待办示例插件
+
+这些命令对应待办示例插件（`@botharness/todo`，[ADR-0203](adr/0203-bot-mode-is-a-dockable-layout-that-plugins-extend-with-dock-panels.md)）。只有安装了该插件的 Host 才能使用，其他 Host 返回 `todo-plugin-missing`。
+
+```bash
+deepseekbot todos
+deepseekbot todo-add --title "续签护照"
+deepseekbot todo-update <todo-id> --done
+deepseekbot todo-update <todo-id> --title "续签两本护照" --not-done
+deepseekbot todo-remove <todo-id>
+deepseekbot todo-tools
+printf '{"title":"给植物浇水"}' | deepseekbot todo-tool <bot-id> todos_add --args-stdin
+```
+
+`todos` 返回 `{ok, todos}`，按创建时间从早到晚排列；每条待办包含 `id`、`title`、`done`、`createdAt`、`updatedAt` 和 `createdBy`（`{kind:"human"}` 或 `{kind:"bot", slug}`）。`todo-add`、`todo-update` 和 `todo-remove` 以 Human 身份修改列表，与之后的待办面板相同。`todo-tools` 列出 Bot 工具 `todos_list`、`todos_add`、`todos_update` 和 `todos_remove` 及其输入 schema；`todo-tool` 以指定 Bot 的身份直接运行其中一个工具，不经过模型，返回 `{ok, slug, tool, result}`。拒绝时带错误码：`invalid-input`（标题为空或过长、更新时没有要改的内容、未知工具）、`invalid-args`（工具参数不符合工具 schema）、`todo-not-found`、`todo-limit`（列表已有 1,000 条待办）和 `unknown-bot`。
+
 ### 模型、用量与活动
 
 ```bash

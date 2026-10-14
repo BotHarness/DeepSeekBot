@@ -113,6 +113,15 @@ export default defineConfig([
     clean: true,
   },
   {
+    entry: ['packages/todo/src/index.ts'],
+    outDir: 'packages/todo/dist',
+    format: ['esm'],
+    platform: 'node',
+    dts: true,
+    clean: true,
+    external: ['@deepseek-ai/dsh-tools'],
+  },
+  {
     entry: { 'bh-links': 'packages/links-cli/src/main.ts' },
     outDir: 'packages/links-cli/dist',
     format: ['esm'],

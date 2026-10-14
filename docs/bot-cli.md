@@ -389,6 +389,22 @@ Host-down commands fail `host-unreachable` without submitting a message. Expired
 
 Credential writes validate actual YAML before and after disk writes and restore exact previous bytes on failure (or remove a failed new file). Empty `refs: {}` becomes a block map while comments and records remain. Multiline values, including blank and trailing lines, round-trip. Null refs, empty stores and nonempty inline refs maps fail `bad-credentials` unchanged; use a block refs mapping for edits.
 
+### To-do example plugin
+
+These commands reach the to-do example plugin (`@botharness/todo`, [ADR-0203](adr/0203-bot-mode-is-a-dockable-layout-that-plugins-extend-with-dock-panels.md)). They work only on a Host where that plugin is installed; elsewhere they fail `todo-plugin-missing`.
+
+```bash
+deepseekbot todos
+deepseekbot todo-add --title "Renew the passport"
+deepseekbot todo-update <todo-id> --done
+deepseekbot todo-update <todo-id> --title "Renew both passports" --not-done
+deepseekbot todo-remove <todo-id>
+deepseekbot todo-tools
+printf '{"title":"Water the plants"}' | deepseekbot todo-tool <bot-id> todos_add --args-stdin
+```
+
+`todos` returns `{ok, todos}`, oldest first; each to-do has `id`, `title`, `done`, `createdAt`, `updatedAt` and `createdBy` (`{kind:"human"}` or `{kind:"bot", slug}`). `todo-add`, `todo-update` and `todo-remove` change the list as the Human, the same way the To-do panel will. `todo-tools` lists the Bot tools `todos_list`, `todos_add`, `todos_update` and `todos_remove` with their input schemas, and `todo-tool` runs one of them as that Bot with no model involved, returning `{ok, slug, tool, result}`. Refusals carry a code: `invalid-input` (an empty or too long title, an update with nothing to change, an unknown tool), `invalid-args` (tool arguments that fail the tool's schema), `todo-not-found`, `todo-limit` (the list holds 1,000 to-dos) and `unknown-bot`.
+
 ### Models, usage and activity
 
 ```bash

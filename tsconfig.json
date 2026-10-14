@@ -29,6 +29,7 @@
     "packages/core/src",
     "packages/deepseekbot/src",
     "packages/browser/src",
+    "packages/todo/src",
     "packages/market/src",
     "packages/ingest/src",
     "packages/links/src",

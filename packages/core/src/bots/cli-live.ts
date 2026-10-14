@@ -68,6 +68,13 @@ import {
   runProfileCommand,
   type ProfileValues,
 } from './cli-profile.js';
+import {
+  TODO_COMMANDS,
+  TODO_OPTIONS,
+  isTodoCommand,
+  runTodoCommand,
+  type TodoValues,
+} from './cli-todos.js';
 export { CliLiveError } from './cli-live-error.js';
 
 export const LIVE_OPTIONS = {
@@ -80,6 +87,7 @@ export const LIVE_OPTIONS = {
   ...SCHEDULE_OPTIONS,
   ...BROWSER_COMPUTER_OPTIONS,
   ...PROFILE_OPTIONS,
+  ...TODO_OPTIONS,
   host: { type: 'string' },
   'token-file': { type: 'string' },
   timeout: { type: 'string' },
@@ -159,6 +167,7 @@ export const LIVE_COMMANDS = [
   ...BROWSER_COMPUTER_COMMANDS,
   ...PROFILE_COMMANDS,
   ...BOT_TOOL_COMMANDS,
+  ...TODO_COMMANDS,
   {
     command: 'send',
     description: 'send a Human DM and collect its committed Bot reply from a live Host',
@@ -288,7 +297,8 @@ interface LiveValues
     InboxValues,
     ScheduleValues,
     BrowserComputerValues,
-    ProfileValues {
+    ProfileValues,
+    TodoValues {
   host?: string;
   'token-file'?: string;
   timeout?: string;
@@ -624,6 +634,10 @@ export async function runLiveCli(
       const signal = AbortSignal.timeout(timeoutMs(values.timeout));
       return (await connectLiveHost(values, io, signal)).rpc;
     });
+  if (isTodoCommand(command))
+    return runTodoCommand(command, rest, values, io, () =>
+      connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+    );
   if (BOT_TOOL_COMMANDS.some((entry) => entry.command === command))
     return runBotToolCommand(
       command as (typeof BOT_TOOL_COMMANDS)[number]['command'],
