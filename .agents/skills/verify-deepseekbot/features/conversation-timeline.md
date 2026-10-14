@@ -9,7 +9,7 @@ Reading a Bot DM or group: where the timeline opens, how it keeps your place, an
 - `fold` folds a settled message taller than 480px to 300px behind `Show all`.
 - `message-time` shows each grouped message's own HH:mm next to its hover actions.
 - `image-preview` opens a thumbnail in an in-page preview that steps through every image loaded in the Channel.
-- `reactions` adds the Human's emoji reaction from the hover bar picker, the long-press menu on narrow screens, or a chip under the bubble; Bots react with their `channel_react` tool; chips update live through `channel/reaction` and Bots read them in `channel_read`. The group avatar stays level with the bubble's bottom edge, not the chips.
+- `reactions` adds the Human's emoji reaction from the hover bar picker, the long-press menu on narrow screens, or a chip under the bubble; Bots react through `channel_send` `react_to` + `reaction` (empty `body` for a reaction only); chips update live through `channel/reaction` and Bots read them in `channel_read`. The group avatar stays level with the bubble's bottom edge, not the chips.
 - `search` opens with Ctrl/⌘+F, lists matches newest first and jumps to one with `openAround`.
 
 ## How to get to it (user POV)
@@ -26,7 +26,7 @@ Preconditions: a model credential, a Bot with a few replies (one long list), thr
 
 - **Divider.** Open the DM; `[data-unread-divider]` exists right after the marked message, and `rpc botharness/channelReadPosition` returns that message before the visit.
 - **Keep place.** Record `.bh-chat-body` `scrollTop`, open another DM, return; the value matches.
-- **Reactions.** `deepseekbot channel-react <dm> --message-id <id> --emoji 👍` returns `reactions`, and an open page shows `[data-reaction="👍"]` without a reload; `--remove` takes it away, and `--bot <bot-id>` reacts as that Bot through the `channel_react` tool code. In the page, `[data-reaction-picker-trigger]` opens `[data-reaction-picker]`; at 390px wide the long-press menu's `Add reaction` item opens it. A real Bot asked to acknowledge with ✅ calls `channel_react`, which `deepseekbot bot-trace` shows.
+- **Reactions.** `deepseekbot channel-react <dm> --message-id <id> --emoji 👍` returns `reactions`, and an open page shows `[data-reaction="👍"]` without a reload; `--remove` takes it away and `deepseekbot bot-tool <bot> channel_send --args-stdin` with `{"channel_id","body":"","react_to","reaction"}` reacts as that Bot. In the page, `[data-reaction-picker-trigger]` opens `[data-reaction-picker]`; at 390px wide the long-press menu's `Add reaction` item opens it. A real Bot asked to acknowledge with ✅ calls `channel_send` with `react_to`, which `deepseekbot bot-trace` shows.
 - **Search.** `deepseekbot channel-search <dm> --query <text>` lists matches newest first; in the page, Ctrl+F opens `[data-conversation-search]`, and `[data-search-result]` rows jump the timeline to their message.
 - **Fold and preview.** `[data-message-fold-toggle]` reads `Show all`; clicking a `.bh-message-image-link` opens `[role="dialog"]` named `Image preview: <file>`, with `2 / 3` style position text.
 

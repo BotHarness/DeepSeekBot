@@ -3301,46 +3301,6 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     );
     registerTool(
       defineTool({
-        name: 'channel_react',
-        description:
-          "Add or remove your emoji reaction on one message in a joined Channel, as lightweight acknowledgment instead of a reply. Use a message_id from this turn or channel_read; omit channel_id for the inbound Channel. Returns the message's reactions after the change. A reaction does not wake anyone and is not a reply: still use channel_send when the Human needs an answer.",
-        parameters: {
-          message_id: { type: 'string', required: true, description: 'Message ID to react to.' },
-          emoji: {
-            type: 'string',
-            required: true,
-            description: 'One emoji, such as 👍, ✅ or 👀. Text and shortcodes are refused.',
-          },
-          channel_id: {
-            type: 'string',
-            description: 'Channel id; defaults to the inbound Channel.',
-          },
-          remove: {
-            type: 'boolean',
-            description: 'true takes your reaction back instead of adding it.',
-          },
-        },
-        output: {
-          schema: { type: 'string' },
-          render: (_args, value) => [{ type: 'text', text: value }],
-        },
-        execute: async (args) => {
-          const active = this.#runs.get(run.sessionId);
-          if (active?.role !== 'orchestrator' || active.run.channels.react === undefined)
-            throw new Error('channel_react: Orchestrator run is unavailable');
-          return JSON.stringify(
-            active.run.channels.react({
-              messageId: args.message_id,
-              emoji: args.emoji,
-              active: args.remove !== true,
-              ...(args.channel_id === undefined ? {} : { channelId: args.channel_id }),
-            }),
-          );
-        },
-      }),
-    );
-    registerTool(
-      defineTool({
         name: 'bot_dm_send',
         description:
           'Send one private message to another active PersonaBot. The recipient receives it in a two-Bot DM and may reply there.',
@@ -3379,13 +3339,13 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       defineTool({
         name: 'channel_send',
         description:
-          'Deliver your actual reply to the Human or joined Channel. Assistant final text is private Session output and is NOT delivered: use this Tool even for a short acknowledgment, greeting, clarification or image answer. A request for "no tools" still needs this reply transport, but no unnecessary work Tools. Omit channel_id for the inbound Channel. Only a successful result with {channelId,messageId} proves a committed message; never resend blindly after an uncertain outcome. Forward trusted references from channel_read (including complete message_id/content_cursor reads), or use channel_attachment_import for a selected authorized local result. In a Group, mention_bot_ids identifies joined Bot recipients; the Host prepends their @ badges and independently wakes them. Use mention_human_ids from channel_list humanMembers to explicitly address a Human; plain @ names do not create personal mentions.',
+          'Deliver your actual reply to the Human or joined Channel. Assistant final text is private Session output and is NOT delivered: use this Tool even for a short acknowledgment, greeting, clarification or image answer. A request for "no tools" still needs this reply transport, but no unnecessary work Tools. Omit channel_id for the inbound Channel. Only a successful result with {channelId,messageId} proves a committed message; never resend blindly after an uncertain outcome. Forward trusted references from channel_read (including complete message_id/content_cursor reads), or use channel_attachment_import for a selected authorized local result. In a Group, mention_bot_ids identifies joined Bot recipients; the Host prepends their @ badges and independently wakes them. Use mention_human_ids from channel_list humanMembers to explicitly address a Human; plain @ names do not create personal mentions. To add or remove your emoji reaction on one message, as lightweight acknowledgment instead of a reply, set react_to and reaction with an empty body. A reaction does not wake anyone and is not a reply: still put an answer in body when the Human needs one.',
         parameters: {
           body: {
             type: 'string',
             required: true,
             description:
-              'The actual Human-facing answer to deliver, not a plan to send later. May be empty when attachments are present.',
+              'The actual Human-facing answer to deliver, not a plan to send later. May be empty when attachments are present or when only reacting.',
           },
           attachments: {
             type: 'array',
@@ -3419,6 +3379,19 @@ class DshBotAgentAdapter implements BotAgentAdapter {
               'At most 20 stable IDs of other active PersonaBots currently joined to the target Group. Do not repeat their names in body.',
             items: { type: 'string' },
           },
+          react_to: {
+            type: 'string',
+            description: 'Message ID to react to, from this turn or channel_read.',
+          },
+          reaction: {
+            type: 'string',
+            description:
+              'One emoji for react_to, such as 👍, ✅ or 👀, also when removing. Text and shortcodes are refused.',
+          },
+          remove_reaction: {
+            type: 'boolean',
+            description: 'true takes your reaction on react_to back instead of adding it.',
+          },
           mention_human_ids: {
             type: 'array',
             description:
@@ -3442,6 +3415,21 @@ class DshBotAgentAdapter implements BotAgentAdapter {
             throw new Error('channel_send: requires at most 10 trusted attachment references');
           if (args.mention_bot_ids !== undefined && args.mention_bot_ids.length > 20)
             throw new Error('channel_send: requires at most 20 mention Bot IDs');
+          if (args.react_to !== undefined && args.reaction === undefined)
+            throw new Error('channel_send: react_to needs reaction, the emoji to add or take back');
+          const reacted =
+            args.react_to === undefined || args.reaction === undefined
+              ? undefined
+              : active.run.channels.react?.({
+                  messageId: args.react_to,
+                  emoji: args.reaction,
+                  active: args.remove_reaction !== true,
+                  ...(args.channel_id === undefined ? {} : { channelId: args.channel_id }),
+                });
+          if (args.react_to !== undefined && reacted === undefined)
+            throw new Error('channel_send: reactions are unavailable');
+          if (reacted !== undefined && args.body === '' && args.attachments === undefined)
+            return JSON.stringify(reacted);
           const message = await active.run.channels.send({
             body: args.body,
             ...(exec.callId === undefined ? {} : { deliveryKey: String(exec.callId) }),
@@ -3459,6 +3447,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           return JSON.stringify({
             channelId: args.channel_id ?? active.run.inboundChannelId,
             messageId: message.id,
+            ...(reacted === undefined ? {} : { reactions: reacted.reactions }),
           });
         },
       }),

@@ -632,7 +632,6 @@ export interface BotRuntime {
   ): string | undefined;
   reconcileMemoryChangesOnStartup?(): void;
   retryDmMessage?(channelId: string, messageId: string): Promise<void>;
-  reactAsBot?(botSlug: string, input: BotReactionInput & { channelId: string }): BotReactionResult;
   admitDmMessage(input: HandleDmMessageInput): DmMessageAdmission;
 
   admitGroupMessage(channelId: string, messageId: string): void;
@@ -1509,16 +1508,12 @@ class BotRuntimeImplementation implements BotRuntime {
     }
   }
 
-  reactAsBot(botSlug: string, input: BotReactionInput & { channelId: string }): BotReactionResult {
-    return this.#react(botSlug, this.#requireMembership(botSlug, input.channelId), input);
-  }
-
   #react(botSlug: string, channel: ChannelRecord, input: BotReactionInput): BotReactionResult {
     const bot = this.#registry.get(botSlug);
     if (this.#closed || bot === undefined || bot.paused === true)
-      throw new Error('channel_react: Bot is unavailable');
+      throw new Error('channel_send: Bot is unavailable');
     if (this.#channels.setBotReaction === undefined)
-      throw new Error('channel_react: reactions are unavailable');
+      throw new Error('channel_send: reactions are unavailable');
     const reactions = this.#channels.setBotReaction(
       channel.id,
       botSlug,
@@ -1528,7 +1523,7 @@ class BotRuntimeImplementation implements BotRuntime {
     );
     if (reactions === undefined)
       throw new Error(
-        `channel_react: message ${input.messageId} cannot take this reaction in Channel ${channel.id}`,
+        `channel_send: message ${input.messageId} cannot take this reaction in Channel ${channel.id}`,
       );
     return { channelId: channel.id, messageId: input.messageId, reactions };
   }

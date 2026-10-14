@@ -1012,9 +1012,8 @@ export class BotharnessBridgeService extends TypertRemoteService {
     messageId: string,
     emoji: string,
     active: boolean,
-    botId?: string,
   ): { reactions: ChannelReaction[] } {
-    return unwrap(this.methods.channelReact({ channelId, messageId, emoji, active, botId }));
+    return unwrap(this.methods.channelReact({ channelId, messageId, emoji, active }));
   }
 
   channelSearch(

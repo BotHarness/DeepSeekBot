@@ -188,7 +188,6 @@ const BOT_TOOL_NAMES = new Set([
   'bot_schedule_update',
   'bot_schedule_delete',
   'group_leave',
-  'channel_react',
   'bot_dm_send',
   'channel_send',
 

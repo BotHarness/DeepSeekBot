@@ -152,7 +152,6 @@ describe('Workspace Grant execution boundary', () => {
       'group_rename',
       'group_remove_member',
       'group_leave',
-      'channel_react',
     ])
       expect(requiresHumanToolApproval(tool)).toBe(false);
     expect(requiresHumanToolApproval('bot_dm_send')).toBe(false);
