@@ -4,7 +4,7 @@ import { Platform } from 'react-native';
 
 import { actionCount } from '../../src/host/inbox';
 import { useHostSession, useInbox } from '../../src/host/host-session';
-import { adaptiveColor, useDesignTheme, type DesignTheme } from '../../src/ui/design/theme';
+import { useDesignTheme, type DesignTheme } from '../../src/ui/design/theme';
 import { t } from '../../src/ui/strings';
 
 export default function TabsLayout() {
@@ -41,7 +41,7 @@ export default function TabsLayout() {
 type Chrome = Omit<ComponentProps<typeof NativeTabs>, 'children'>;
 
 function chrome(theme: DesignTheme): Chrome {
-  if (Platform.OS === 'ios') return { tintColor: adaptiveColor(theme, 'fg') };
+  if (Platform.OS === 'ios') return { tintColor: theme.color.fg };
   return {
     tintColor: theme.color.fg,
     backgroundColor: theme.color.base,
