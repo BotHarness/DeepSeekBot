@@ -1,4 +1,4 @@
-import { radius, space, text } from './ds/tokens.stylex.js';
+import { border, color, radius, space, text } from './ds/tokens.stylex.js';
 import { useId, useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -25,7 +25,7 @@ export const COMBOBOX_CSS = `
 .bh-combobox-toggle {
   position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 24px; height: 24px;
   display: flex; align-items: center; justify-content: center;
-  border: 0; border-radius: ${radius.control}; padding: 0;
+  border: 0; border-radius: ${radius.sm}; padding: 0;
   color: var(--dsw-alias-label-secondary); background: transparent; cursor: pointer;
 }
 .bh-combobox-toggle:hover { background: var(--dsw-alias-interactive-bg-hover); }
@@ -39,11 +39,11 @@ export const COMBOBOX_CSS = `
 .bh-combobox-scroll > button {
   display: flex; align-items: baseline; justify-content: space-between; gap: ${space.x4};
   width: 100%; min-height: 34px; padding: ${space.x2} ${space.x3};
-  border: 0; border-radius: ${radius.control}; background: transparent;
+  border: 0; border-radius: ${radius.sm}; background: transparent;
   color: var(--dsw-alias-label-primary); text-align: left; font: inherit; font-size: ${text.bodySize}; line-height: ${text.bodyLine}; cursor: pointer;
   overflow-wrap: anywhere;
 }
-.bh-combobox-scroll > button[aria-selected="true"] { font-weight: ${text.heavy}; }
+.bh-combobox-scroll > button[aria-selected="true"] { font-weight: ${text.strong}; }
 .bh-combobox-scroll > button:disabled { color: var(--dsw-alias-label-tertiary); cursor: default; }
 .bh-combobox-scroll > button:not(:disabled):hover, .bh-combobox-scroll > button[data-active] {
   background: var(--dsw-alias-interactive-bg-hover);
@@ -51,7 +51,7 @@ export const COMBOBOX_CSS = `
 .bh-combobox-scroll { max-height: 260px; overflow-y: auto; padding: ${space.x2}; box-sizing: border-box; }
 .bh-combobox-hint { flex: none; color: var(--dsw-alias-label-secondary); font-size: ${text.metaSize}; font-weight: ${text.regular}; }
 .bh-combobox-empty { padding: ${space.x2} ${space.x3}; color: var(--dsw-alias-label-secondary); font-size: ${text.bodySize}; }
-.bh-combobox-scroll > .bh-combobox-action { justify-content: flex-start; align-items: center; gap: ${space.x2}; border-top: 1px solid var(--dsw-alias-border-l2); border-radius: 0; margin-top: ${space.x2}; }
+.bh-combobox-scroll > .bh-combobox-action { justify-content: flex-start; align-items: center; gap: ${space.x2}; border-top: ${border.hairline} solid ${color.divider}; border-radius: 0; margin-top: ${space.x2}; }
 `;
 
 export function Combobox({

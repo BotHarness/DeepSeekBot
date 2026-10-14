@@ -1,4 +1,4 @@
-import { radius, space, text } from '../../../client/src/client/ds/tokens.stylex.js';
+import { border, color, radius, space, text } from '../../../client/src/client/ds/tokens.stylex.js';
 import { COMBOBOX_CSS } from '../../../client/src/client/combobox.js';
 import { STYLEX_CSS } from '../../../client/src/client/ds/stylex-css.js';
 
@@ -12,12 +12,12 @@ export const styles =
 .bh-browser-borrow-url { color: var(--dsw-alias-label-secondary); }
 .bh-browser-access-power {
   display: flex; align-items: center; justify-content: center; width: 28px; height: 28px;
-  padding: 0; border: 0; border-radius: ${radius.menuItem}; background: transparent;
+  padding: 0; border: 0; border-radius: ${radius.md}; background: transparent;
   color: var(--dsw-alias-label-secondary); cursor: pointer;
 }
 .bh-browser-access-power:hover { background: var(--dsw-alias-interactive-bg-hover); }
 .bh-browser-access-power[aria-pressed='true'] { color: var(--dsw-alias-state-business-primary); background: var(--dsw-alias-interactive-bg-hover); }
-.bh-browser-access-power:focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary); outline-offset: 2px; }
+.bh-browser-access-power:focus-visible { outline: ${border.focus} solid var(--dsw-alias-state-business-primary); outline-offset: 2px; }
 .bh-browser-access-power:disabled { opacity: 0.5; cursor: default; }
 .bh-browser-access-power.bh-access-failed { color: var(--dsw-alias-state-error-primary); }
 .bh-browser-access-error { order: -1; padding: 0 ${space.x2}; color: var(--dsw-alias-state-error-primary); font-size: ${text.metaSize}; line-height: ${text.metaLine}; white-space: nowrap; }
@@ -28,10 +28,10 @@ export const styles =
 .bh-browser-card-field > span:first-child { flex: none; }
 .bh-browser-cards .bh-card-meta [role="status"] { color: inherit; }
 .bh-browser-note { color: var(--dsw-alias-label-secondary); }
-.bh-browser-frame { display: block; width: 100%; border: 1px solid var(--dsw-alias-border-l1); border-radius: ${radius.menuItem}; }
+.bh-browser-frame { display: block; width: 100%; border: ${border.hairline} solid ${color.divider}; border-radius: ${radius.md}; }
 .bh-browser-actions { display: flex; flex-wrap: wrap; gap: ${space.x3}; }
 .bh-browser-tab[aria-pressed="true"] { background: var(--dsw-alias-interactive-bg-hover); }
-.bh-browser-tab[aria-current="true"] .bh-browser-tab-title { font-weight: ${text.heavy}; }
+.bh-browser-tab[aria-current="true"] .bh-browser-tab-title { font-weight: ${text.strong}; }
 .bh-browser-tab .bh-browser-tab-url { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bh-browser-tabs .bh-card-main { padding: ${space.x3} ${space.x3}; }
 .bh-browser-error { color: var(--dsw-alias-state-error-primary); overflow-wrap: anywhere; }
@@ -42,7 +42,7 @@ export const styles =
 .bh-browser-progress { display: grid; gap: ${space.x2}; color: var(--dsw-alias-label-secondary); }
 .bh-browser-progress-bar { width: 100%; height: 6px; accent-color: var(--dsw-alias-state-business-primary); }
 .bh-browser-failure { display: grid; gap: ${space.x2}; overflow-wrap: anywhere; }
-.bh-browser-failure-title { color: var(--dsw-alias-label-primary); font-weight: ${text.heavy}; }
+.bh-browser-failure-title { color: var(--dsw-alias-label-primary); font-weight: ${text.strong}; }
 .bh-browser-failure-fault, .bh-browser-failure-action { color: var(--dsw-alias-label-secondary); }
 .bh-browser-failure-details { color: var(--dsw-alias-label-secondary); }
 .bh-browser-failure-details pre { overflow-x: auto; white-space: pre-wrap; font-size: ${text.metaSize}; }

@@ -1,6 +1,6 @@
 import * as stylex from '@stylexjs/stylex';
 
-import { color, radius, space, text } from './ds/tokens.stylex.js';
+import { border, color, radius, space, text } from './ds/tokens.stylex.js';
 
 export const COMPANION_FONT = 'var(--dsw-font-markdown-code-block-font-family)';
 export const COMPANION_RAISED = `color-mix(in srgb, ${color.fg} 4%, ${color.base})`;
@@ -24,7 +24,7 @@ export const companionSurface = stylex.create({
     width: '300px',
     maxWidth: 'calc(100vw - 16px)',
     backgroundColor: color.base,
-    borderWidth: '2px',
+    borderWidth: border.hairline,
     borderStyle: 'solid',
     borderColor: color.fg,
     borderRadius: radius.panel,

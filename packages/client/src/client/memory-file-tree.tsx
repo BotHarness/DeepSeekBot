@@ -14,7 +14,7 @@ import type { MemoryStandingUsage } from './bridge.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { memoryFileTree, type MemoryFileNode } from './memory-file-tree-model.js';
 import { IconButton } from './ds/icon-button.js';
-import { color, radius, size, space, text } from './ds/tokens.stylex.js';
+import { border, color, radius, size, space, text } from './ds/tokens.stylex.js';
 
 const styles = stylex.create({
   tree: { display: 'flex', flexDirection: 'column', gap: space.x1, minWidth: 0 },
@@ -23,7 +23,7 @@ const styles = stylex.create({
     display: 'flex',
     alignItems: 'center',
     minWidth: 0,
-    borderRadius: radius.row,
+    borderRadius: radius.sm,
     backgroundColor: { default: 'transparent', ':hover': color.hover },
   },
   row: {
@@ -40,7 +40,7 @@ const styles = stylex.create({
     paddingInline: space.x3,
     borderWidth: 0,
     borderStyle: 'none',
-    borderRadius: radius.row,
+    borderRadius: radius.sm,
     backgroundColor: { default: 'transparent', ':hover': color.hover },
     color: color.fg,
     fontFamily: 'inherit',
@@ -48,7 +48,7 @@ const styles = stylex.create({
     lineHeight: text.metaLine,
     textAlign: 'start',
     cursor: 'pointer',
-    outline: { default: 'none', ':focus-visible': `2px solid ${color.accent}` },
+    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
     outlineOffset: '-2px',
   },
   selected: {
@@ -71,9 +71,9 @@ const styles = stylex.create({
   group: {
     marginInlineStart: space.x3,
     paddingInlineStart: space.x3,
-    borderInlineStartWidth: '1px',
+    borderInlineStartWidth: border.hairline,
     borderInlineStartStyle: 'solid',
-    borderInlineStartColor: color.border,
+    borderInlineStartColor: color.divider,
   },
   more: {
     marginInlineEnd: space.x2,

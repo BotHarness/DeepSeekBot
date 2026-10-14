@@ -1,7 +1,7 @@
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactElement, ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
-import { color, radius, size, space, text } from './tokens.stylex.js';
+import { border, color, radius, size, space, text } from './tokens.stylex.js';
 
 export const pillStyles = stylex.create({
   pill: {
@@ -12,7 +12,7 @@ export const pillStyles = stylex.create({
     height: size.icon,
     paddingInline: `${space.x4} ${space.x3}`,
     borderWidth: 0,
-    borderRadius: radius.row,
+    borderRadius: radius.sm,
     backgroundColor: { default: color.surface, ':hover': color.hover },
     color: color.fg,
     fontFamily: 'inherit',
@@ -21,7 +21,7 @@ export const pillStyles = stylex.create({
     whiteSpace: 'nowrap',
     cursor: { default: 'pointer', ':disabled': 'default' },
     opacity: { default: 1, ':disabled': 0.5 },
-    outline: { default: 'none', ':focus-visible': `2px solid ${color.accent}` },
+    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
     outlineOffset: '1px',
   },
 });

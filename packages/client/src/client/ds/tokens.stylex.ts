@@ -16,20 +16,22 @@ export const text = stylex.defineConsts({
   bodyLine: '20px',
   titleSize: '14px',
   titleLine: '20px',
-  headingSize: '16px',
-  headingLine: '24px',
   regular: '400',
   strong: '500',
-  heavy: '600',
 });
 
 export const radius = stylex.defineConsts({
-  control: '6px',
-  row: '8px',
-  card: '10px',
-  panel: 'var(--dsw-radius-panel, 16px)',
-  menuItem: 'var(--dsw-radius-md, 12px)',
+  xs: 'var(--dsw-radius-xs, 4px)',
+  sm: 'var(--dsw-radius-sm, 8px)',
+  md: 'var(--dsw-radius-md, 12px)',
+  lg: 'var(--dsw-radius-lg, 16px)',
+  panel: 'var(--dsw-radius-panel)',
   round: '50%',
+});
+
+export const border = stylex.defineConsts({
+  hairline: '1px',
+  focus: 'var(--dsw-focus-ring-width, 2px)',
 });
 
 export const size = stylex.defineConsts({
@@ -50,8 +52,8 @@ export const color = stylex.defineConsts({
   fg: 'var(--dsw-alias-label-primary)',
   muted: 'var(--dsw-alias-label-secondary)',
   subtle: 'var(--dsw-alias-label-tertiary)',
+  divider: 'var(--dsw-alias-border-l1)',
   border: 'var(--dsw-alias-border-l2)',
-  borderSoft: 'var(--dsw-alias-border-l1)',
   borderStrong: 'var(--dsw-alias-border-l3)',
   hover: 'var(--dsw-alias-interactive-bg-hover)',
   selected: 'var(--dsw-alias-interactive-bg-active)',

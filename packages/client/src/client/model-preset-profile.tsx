@@ -21,7 +21,7 @@ import { errorMessage } from './bridge.js';
 import { Combobox, type ComboboxOption } from './combobox.js';
 import { Note } from './ds/note.js';
 import { PanelDialog } from './ds/panel-dialog.js';
-import { color, space } from './ds/tokens.stylex.js';
+import { border, color, space } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { ModelPicker } from './model-picker.js';
 import {
@@ -40,9 +40,9 @@ const styles = stylex.create({
     gap: space.x3,
     minWidth: 0,
     paddingBottom: space.x4,
-    borderBottomWidth: '1px',
+    borderBottomWidth: border.hairline,
     borderBottomStyle: 'solid',
-    borderBottomColor: color.border,
+    borderBottomColor: color.divider,
   },
   savePreset: {
     display: 'flex',

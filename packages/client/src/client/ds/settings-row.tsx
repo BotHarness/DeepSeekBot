@@ -1,7 +1,7 @@
 import { useId, type ReactElement, type ReactNode, type Ref } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
-import { color, space, text } from './tokens.stylex.js';
+import { border, color, space, text } from './tokens.stylex.js';
 
 const NARROW = '@media (max-width: 648px)';
 
@@ -37,9 +37,9 @@ const styles = stylex.create({
     gap: { default: space.x4, [NARROW]: space.x3 },
     minWidth: 0,
     paddingBlock: space.x4,
-    borderBottomWidth: '0.5px',
+    borderBottomWidth: border.hairline,
     borderBottomStyle: 'solid',
-    borderBottomColor: { default: color.border, ':last-child': 'transparent' },
+    borderBottomColor: { default: color.divider, ':last-child': 'transparent' },
   },
   text: {
     display: 'flex',

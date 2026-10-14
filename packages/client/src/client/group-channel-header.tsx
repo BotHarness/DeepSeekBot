@@ -10,7 +10,7 @@ import type { BotHarnessTranslate } from './locale.js';
 import type { ChannelSummary } from './store.js';
 import { CompanionPin } from './window-companions-view.js';
 import type { WindowCompanions } from './window-companions.js';
-import { color, radius, text } from './ds/tokens.stylex.js';
+import { border, color, radius, text } from './ds/tokens.stylex.js';
 
 const styles = stylex.create({
   title: {
@@ -21,7 +21,7 @@ const styles = stylex.create({
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
-    fontWeight: text.heavy,
+    fontWeight: text.strong,
   },
   mark: {
     display: 'inline-flex',
@@ -31,14 +31,11 @@ const styles = stylex.create({
     width: '22px',
     height: '22px',
     overflow: 'hidden',
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: color.border,
-    borderRadius: radius.control,
+    borderRadius: radius.sm,
     backgroundColor: color.elevated,
     color: color.muted,
     fontSize: text.metaSize,
-    fontWeight: text.heavy,
+    fontWeight: text.strong,
   },
   name: {
     display: 'inline-flex',
@@ -50,12 +47,12 @@ const styles = stylex.create({
     padding: 0,
     borderWidth: 0,
     borderStyle: 'none',
-    borderRadius: radius.control,
+    borderRadius: radius.sm,
     backgroundColor: 'transparent',
     color: 'inherit',
     fontFamily: 'inherit',
     cursor: 'pointer',
-    outline: { default: 'none', ':focus-visible': `2px solid ${color.accent}` },
+    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
     outlineOffset: '2px',
   },
 });

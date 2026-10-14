@@ -1,7 +1,7 @@
 import { useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
-import { color, radius, size, space, text } from './tokens.stylex.js';
+import { border, color, radius, size, space, text } from './tokens.stylex.js';
 
 const styles = stylex.create({
   wrap: {
@@ -13,7 +13,7 @@ const styles = stylex.create({
     display: 'inline-flex',
     alignItems: 'center',
     height: size.icon,
-    borderRadius: radius.row,
+    borderRadius: radius.sm,
     backgroundColor: color.surface,
     opacity: { default: 1, ':has(input:disabled)': 0.5 },
   },
@@ -25,11 +25,11 @@ const styles = stylex.create({
     height: size.icon,
     padding: 0,
     borderWidth: 0,
-    borderRadius: radius.row,
+    borderRadius: radius.sm,
     backgroundColor: { default: 'transparent', ':hover:enabled': color.hover },
     color: { default: color.fg, ':disabled': color.subtle },
     cursor: { default: 'pointer', ':disabled': 'default' },
-    outline: { default: 'none', ':focus-visible': `2px solid ${color.accent}` },
+    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
   },
   input: {
     width: '40px',
@@ -43,8 +43,8 @@ const styles = stylex.create({
     lineHeight: text.bodyLine,
     fontVariantNumeric: 'tabular-nums',
     textAlign: 'center',
-    outline: { default: 'none', ':focus-visible': `2px solid ${color.accent}` },
-    borderRadius: radius.control,
+    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
+    borderRadius: radius.sm,
   },
   unit: {
     color: color.muted,

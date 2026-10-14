@@ -1,4 +1,4 @@
-import { color, radius, space, text } from '../../../client/src/client/ds/tokens.stylex.js';
+import { border, color, radius, space, text } from '../../../client/src/client/ds/tokens.stylex.js';
 import {
   RemoteViewer,
   type ViewerLifecycleEvent,
@@ -47,12 +47,12 @@ const ACCESS_STYLE = `
 .bh-computer-access-control { position: relative; display: flex; align-items: center; }
 .bh-computer-access-power {
   display: flex; align-items: center; justify-content: center; width: 28px; height: 28px;
-  padding: 0; border: 0; border-radius: ${radius.menuItem}; background: transparent;
+  padding: 0; border: 0; border-radius: ${radius.md}; background: transparent;
   color: ${color.muted}; cursor: pointer;
 }
 .bh-computer-access-power:hover { background: ${color.hover}; }
 .bh-computer-access-power[aria-pressed='true'] { color: ${color.accent}; background: ${color.hover}; }
-.bh-computer-access-power:focus-visible { outline: 2px solid ${color.accent}; outline-offset: 2px; }
+.bh-computer-access-power:focus-visible { outline: ${border.focus} solid ${color.accent}; outline-offset: 2px; }
 .bh-computer-access-power:disabled { opacity: 0.5; cursor: default; }
 .bh-computer-access-power.bh-access-failed { color: ${color.danger}; }
 .bh-computer-access-error { order: -1; padding: 0 ${space.x2}; color: ${color.danger}; font-size: ${text.metaSize}; line-height: ${text.metaLine}; white-space: nowrap; }

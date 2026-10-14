@@ -2,7 +2,7 @@ import type { ReactElement, ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { IconChevronDownOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
 
-import { color, radius, size, space, text } from './tokens.stylex.js';
+import { border, color, radius, size, space, text } from './tokens.stylex.js';
 
 const styles = stylex.create({
   heading: {
@@ -15,7 +15,7 @@ const styles = stylex.create({
     paddingInline: space.x3,
     borderWidth: 0,
     borderStyle: 'none',
-    borderRadius: radius.row,
+    borderRadius: radius.sm,
     backgroundColor: 'transparent',
     color: color.fg,
     fontFamily: 'inherit',
@@ -24,7 +24,7 @@ const styles = stylex.create({
   toggle: {
     backgroundColor: { default: 'transparent', ':hover': color.hover },
     cursor: 'pointer',
-    outline: { default: 'none', ':focus-visible': `2px solid ${color.accent}` },
+    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
     outlineOffset: '-2px',
   },
   summary: { listStyle: 'none' },
@@ -44,7 +44,7 @@ const styles = stylex.create({
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
-    fontWeight: text.heavy,
+    fontWeight: text.strong,
   },
   count: {
     flexShrink: 0,

@@ -10,7 +10,7 @@ import type { BridgeActions } from './actions.js';
 import { FormDialog } from './ds/form-dialog.js';
 import { Note } from './ds/note.js';
 import { SettingsRow, SettingsRows } from './ds/settings-row.js';
-import { color, space, text } from './ds/tokens.stylex.js';
+import { border, color, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
 import { MessagingHelp } from './messaging-help.js';
@@ -65,9 +65,9 @@ const styles = stylex.create({
     alignItems: 'flex-start',
     gap: space.x3,
     paddingBlock: space.x3,
-    borderBottomWidth: '0.5px',
+    borderBottomWidth: border.hairline,
     borderBottomStyle: 'solid',
-    borderBottomColor: color.border,
+    borderBottomColor: color.divider,
   },
   sourceLabel: {
     display: 'flex',

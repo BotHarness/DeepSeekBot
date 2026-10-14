@@ -1,7 +1,7 @@
 import type { ReactElement, ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
-import { color, radius, space, text } from './tokens.stylex.js';
+import { border, color, radius, space, text } from './tokens.stylex.js';
 
 const styles = stylex.create({
   root: {
@@ -12,10 +12,10 @@ const styles = stylex.create({
     marginBlock: space.x4,
     paddingBlock: space.x6,
     paddingInline: space.x5,
-    borderWidth: '1px',
+    borderWidth: border.hairline,
     borderStyle: 'dashed',
     borderColor: color.border,
-    borderRadius: radius.card,
+    borderRadius: radius.md,
     textAlign: 'center',
   },
   title: {

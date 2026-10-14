@@ -31,7 +31,7 @@ import { MemoryFileActionButton, MemoryFileOpenButton } from './memory-file-acti
 import { WorkspaceFileActionButton } from './workspace-file-actions.js';
 import { Note } from './ds/note.js';
 import { PanelDialog } from './ds/panel-dialog.js';
-import { color, radius, space, text } from './ds/tokens.stylex.js';
+import { border, color, radius, space, text } from './ds/tokens.stylex.js';
 import { LoadingSkeleton } from './loading-skeleton.js';
 import { useMountedResource } from './mounted-resource.js';
 import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
@@ -225,13 +225,13 @@ const browserStyles = stylex.create({
     paddingBlock: space.x2,
     paddingInline: space.x3,
     borderWidth: 0,
-    borderRadius: radius.control,
+    borderRadius: radius.sm,
     backgroundColor: 'transparent',
     color: color.muted,
     fontSize: text.bodySize,
     lineHeight: text.bodyLine,
     cursor: 'pointer',
-    outlineWidth: { default: 0, ':focus-visible': '2px' },
+    outlineWidth: { default: 0, ':focus-visible': border.focus },
     outlineStyle: 'solid',
     outlineColor: color.fg,
     outlineOffset: '-2px',
@@ -241,10 +241,10 @@ const browserStyles = stylex.create({
     minHeight: '180px',
     maxHeight: 'min(360px, 50vh)',
     overflowY: 'auto',
-    borderWidth: '1px',
+    borderWidth: border.hairline,
     borderStyle: 'solid',
     borderColor: color.border,
-    borderRadius: radius.row,
+    borderRadius: radius.sm,
   },
   item: {
     display: 'flex',
@@ -260,7 +260,7 @@ const browserStyles = stylex.create({
     lineHeight: text.bodyLine,
     textAlign: 'left',
     cursor: 'pointer',
-    outlineWidth: { default: 0, ':focus-visible': '2px' },
+    outlineWidth: { default: 0, ':focus-visible': border.focus },
     outlineStyle: 'solid',
     outlineColor: color.fg,
     outlineOffset: '-2px',

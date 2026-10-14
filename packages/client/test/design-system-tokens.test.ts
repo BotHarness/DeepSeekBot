@@ -67,6 +67,8 @@ type Allowance = {
 
 const SPACING = /^(gap|row-gap|column-gap|padding(-[a-z]+)*|margin(-[a-z]+)*)$/;
 const RADIUS = /^border(-[a-z]+)*-radius$/;
+const BORDER_WIDTH =
+  /^(border(-(top|right|bottom|left|block|inline)(-(start|end))?)?(-width)?|outline(-width)?)$/;
 
 const ALLOWANCES: readonly Allowance[] = [
   {
@@ -82,36 +84,49 @@ const ALLOWANCES: readonly Allowance[] = [
     values: ['1px', '-1px'],
   },
   {
-    name: 'fine corner',
-    reason: 'Bars, swatches and drop lines are rounded less than the smallest control radius.',
-    property: RADIUS,
-    values: ['2px', '3px'],
-  },
-  {
-    name: 'large corner',
-    reason: 'Avatars, message bubbles, the composer panel and Market cards round past radius.card.',
-    property: RADIUS,
-    values: ['15px', '16px', '17px', '18px', '20px'],
-  },
-  {
     name: 'page gutter',
     reason: 'Page headers and profile sections keep their 20px rhythm, 4px from both neighbours.',
     property: SPACING,
     values: ['20px'],
   },
   {
+    name: 'composer panel',
+    reason: 'The expanded composer matches the native multiline input panel radius.',
+    property: RADIUS,
+    values: ['20px'],
+    selectors: ['.bh-composer-expanded', '.bh-composer-with-footer'],
+  },
+  {
     name: 'measured native geometry',
     reason:
-      'Rows, the rename input and the composer match measured DSH geometry pinned by styles-tokens.',
-    property: /^(gap|padding|border-radius)$/,
-    values: ['5px', '6px', '7px', '8px', '10px', '12px', '14px', '22px', '25px', '48px'],
+      'Rows, the search and rename inputs, the rail and the composer copy measured DSH geometry and edges.',
+    property: /^(gap|padding|border|border-top|border-radius|font-size|line-height)$/,
+    values: [
+      '0.5px',
+      '5px',
+      '6px',
+      '7px',
+      '8px',
+      '10px',
+      '12px',
+      '14px',
+      '16px',
+      '22px',
+      '24px',
+      '25px',
+      '48px',
+    ],
     selectors: [
       '.bh-section-head',
       '.bh-channel-row',
       '.bh-name-input',
+      '.bh-search-open',
+      '.bh-rail-divider',
+      '.bh-rail-preview-icon',
       '.bh-composer',
       '.bh-composer-with-footer',
       '.bh-composer-input',
+      "button:has(.bh-panel-glyph[data-wide='true']) > span:not(.bh-panel-glyph):not(.bh-panel-gear)",
     ],
   },
   {
@@ -157,7 +172,7 @@ const ALLOWANCES: readonly Allowance[] = [
     ],
   },
   {
-    name: 'badge type',
+    name: 'badge glyph',
     reason: 'Counter digits and upload status glyphs fit badges smaller than the 12/16 meta line.',
     property: /^(font-size|line-height)$/,
     values: ['9px', '13px'],
@@ -169,17 +184,18 @@ const ALLOWANCES: readonly Allowance[] = [
     ],
   },
   {
-    name: 'page heading',
-    reason:
-      'The full-page Inbox, Activity title and empty states keep the native page heading scale.',
-    property: /^(padding|font-size)$/,
-    values: ['6px', '24px', '28px', '64px'],
-    selectors: [
-      '.bh-human-inbox',
-      '.bh-human-inbox h1',
-      '.bh-activity-center-header h1',
-      '.bh-hidden-empty',
-    ],
+    name: 'page breathing room',
+    reason: 'The full-page Inbox and the hidden-channel empty state keep their page-level padding.',
+    property: /^padding$/,
+    values: ['28px', '64px'],
+    selectors: ['.bh-human-inbox', '.bh-hidden-empty'],
+  },
+  {
+    name: 'avatar knock-out ring',
+    reason: 'The profile avatar cuts a ring out of the banner in the card colour, not a border.',
+    property: /^border$/,
+    values: ['4px'],
+    selectors: ['.bh-profile-header-top .bh-profile-avatar-button'],
   },
 ];
 
@@ -242,7 +258,7 @@ const SCALED_PROPERTY =
   /^(gap|row-gap|column-gap|padding(-[a-z]+)*|margin(-[a-z]+)*|font|font-size|line-height|font-weight|border(-[a-z]+)*-radius|--bh-chat-card-inset|--bh-message-card-gap)$/;
 
 function literals({ property, value }: Declaration): string[] {
-  if (!SCALED_PROPERTY.test(property)) return [];
+  if (!SCALED_PROPERTY.test(property) && !BORDER_WIDTH.test(property)) return [];
   const lengths = [...value.matchAll(/-?\d*\.?\d+px\b/g)]
     .map((match) => match[0])
     .filter((length) => Number.parseFloat(length) !== 0);
@@ -282,9 +298,24 @@ function sheetOffenders(): string[] {
           ]
         : [];
     });
-    return [...colours, ...lengths];
+    const edges = parsed.flatMap((declaration) =>
+      /--dsw-alias-border-l(?![123]\b)/.test(declaration.value)
+        ? [`${file}:${declaration.line} ${declaration.selector} edge ${declaration.value}`]
+        : [],
+    );
+    return [
+      ...colours,
+      ...lengths,
+      ...edges.filter(
+        (edge) => !NATIVE_EDGES.some((selector) => edge.includes(` ${selector} edge `)),
+      ),
+    ];
   });
 }
+
+const NATIVE_EDGES = ['.bh-search-open', '.bh-name-input'];
+
+const EDGE_WIDTH = /\b(border\w*Width|outline(Width)?)\s*:.*\d+(\.\d+)?px/;
 
 const SCALED =
   /\b(fontSize|lineHeight|fontWeight|gap|rowGap|columnGap|padding\w*|margin\w*|borderRadius)\s*:\s*(['"])(?!0\2)/;
@@ -306,7 +337,7 @@ describe('design-system tokens', () => {
     );
   });
 
-  it('authors spacing, type and radius only through tokens', () => {
+  it('authors spacing, type, radius and edge widths only through tokens', () => {
     const offenders = stylexSources()
       .filter(({ name }) => !name.endsWith('/ds/tokens.stylex.ts'))
       .flatMap(({ name, source }) =>
@@ -314,7 +345,9 @@ describe('design-system tokens', () => {
           text
             .split('\n')
             .map((line, index) => ({ line, index }))
-            .filter(({ line }) => SCALED.test(line) || LITERAL_COLOUR.test(line))
+            .filter(
+              ({ line }) => SCALED.test(line) || EDGE_WIDTH.test(line) || LITERAL_COLOUR.test(line),
+            )
             .map(({ line, index }) => `${name}:${start + index + 1} ${line.trim()}`),
         ),
       );
@@ -330,15 +363,51 @@ describe('design-system tokens', () => {
     for (const allowance of ALLOWANCES) expect(allowance.reason.length).toBeGreaterThan(20);
   });
 
-  it('keeps tokens in the scale the Channel sidebar uses', () => {
+  it('keeps tokens on the tightened scale', () => {
     const tokens = readFileSync(`${dsDir}tokens.stylex.ts`, 'utf8');
     const block = (name: string) =>
       tokens.slice(tokens.indexOf(`export const ${name}`)).split('});')[0]!;
+    const entries = (name: string) =>
+      Object.fromEntries(
+        [...block(name).matchAll(/^\s+(\w+):\s*'([^']+)'/gm)].map((match) => [
+          match[1]!,
+          match[2]!,
+        ]),
+      );
     const px = (name: string) =>
       [...block(name).matchAll(/'(\d+)px'/g)].map((match) => Number(match[1]));
     expect(px('space')).toEqual([2, 4, 8, 12, 16, 24]);
-    expect(px('radius')).toEqual([6, 8, 10]);
     expect(px('size')).toEqual([26, 28, 32, 40]);
+    expect(entries('text')).toEqual({
+      metaSize: '12px',
+      metaLine: '16px',
+      bodySize: '13px',
+      bodyLine: '20px',
+      titleSize: '14px',
+      titleLine: '20px',
+      regular: '400',
+      strong: '500',
+    });
+    expect(entries('radius')).toEqual({
+      xs: 'var(--dsw-radius-xs, 4px)',
+      sm: 'var(--dsw-radius-sm, 8px)',
+      md: 'var(--dsw-radius-md, 12px)',
+      lg: 'var(--dsw-radius-lg, 16px)',
+      panel: 'var(--dsw-radius-panel)',
+      round: '50%',
+    });
+    expect(entries('border')).toEqual({
+      hairline: '1px',
+      focus: 'var(--dsw-focus-ring-width, 2px)',
+    });
+    const edges = Object.entries(entries('color')).filter(([name]) =>
+      /^(divider|border\w*)$/.test(name),
+    );
+    expect(edges).toEqual([
+      ['divider', 'var(--dsw-alias-border-l1)'],
+      ['border', 'var(--dsw-alias-border-l2)'],
+      ['borderStrong', 'var(--dsw-alias-border-l3)'],
+    ]);
     const widths = [...block('dialog').matchAll(/min\((\d+)px/g)].map((match) => Number(match[1]));
     expect(widths).toEqual([440, 760, 1060]);
   });

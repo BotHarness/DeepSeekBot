@@ -41,7 +41,7 @@ const styles = stylex.create({
     placeItems: 'center',
     width: '20px',
     height: '20px',
-    borderRadius: radius.control,
+    borderRadius: radius.sm,
     backgroundColor: `var(--bh-bot-color, ${color.fg})`,
     color: color.base,
   },

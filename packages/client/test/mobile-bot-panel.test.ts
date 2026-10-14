@@ -270,7 +270,7 @@ describe('Mobile Bot navigation', () => {
     ])
       expect(MOBILE_BOT_CSS).not.toContain(own);
     expect(MOBILE_BOT_CSS).not.toMatch(/#[0-9a-f]{3,8}\b|rgba?\(/i);
-    expect(MOBILE_BOT_CSS).toContain('.bh-mobile-list .bh-header-label { font-size: 16px;');
+    expect(MOBILE_BOT_CSS).toContain('.bh-mobile-list .bh-header-label { font-size: 14px;');
   });
 
   it('connects the conversation back and settings icons without truncating accessible names', () => {

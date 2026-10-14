@@ -5,7 +5,7 @@ import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 import { SettingsRow } from './ds/settings-row.js';
 import { Note } from './ds/note.js';
 import { PanelDialog } from './ds/panel-dialog.js';
-import { color, space, text } from './ds/tokens.stylex.js';
+import { border, color, space, text } from './ds/tokens.stylex.js';
 import { useMountedResource } from './mounted-resource.js';
 
 const styles = stylex.create({
@@ -16,15 +16,15 @@ const styles = stylex.create({
     gap: space.x3,
     minWidth: 0,
     paddingTop: space.x4,
-    borderTopWidth: '1px',
+    borderTopWidth: border.hairline,
     borderTopStyle: 'solid',
-    borderTopColor: color.border,
+    borderTopColor: color.divider,
   },
   heading: {
     margin: 0,
     fontSize: text.titleSize,
     lineHeight: text.titleLine,
-    fontWeight: text.heavy,
+    fontWeight: text.strong,
   },
   text: { margin: 0, overflowWrap: 'anywhere' },
   actions: {

@@ -1,11 +1,11 @@
-import { color, space, text } from './ds/tokens.stylex.js';
+import { border, color, space, text } from './ds/tokens.stylex.js';
 
 export const MOBILE_BOT_CSS = `
 [data-bh-mobile-sidebar='true'] { display: none !important; }
 .bh-mobile-nav button svg { flex: 0 0 auto; }
 .bh-mobile-list > .bh-region { padding: 0 ${space.x4} ${space.x3}; }
-.bh-mobile-list .bh-header { position: sticky; top: 0; z-index: 4; height: auto; min-height: 60px; margin-top: 0; padding: max(${space.x3}, env(safe-area-inset-top)) 0 ${space.x3}; border-radius: 0; border-bottom: 1px solid ${color.border}; background: ${color.base}; }
-.bh-mobile-list .bh-header-label { font-size: ${text.headingSize}; line-height: ${text.headingLine}; font-weight: ${text.heavy}; color: ${color.fg}; }
+.bh-mobile-list .bh-header { position: sticky; top: 0; z-index: 4; height: auto; min-height: 60px; margin-top: 0; padding: max(${space.x3}, env(safe-area-inset-top)) 0 ${space.x3}; border-radius: 0; border-bottom: ${border.hairline} solid ${color.border}; background: ${color.base}; }
+.bh-mobile-list .bh-header-label { font-size: ${text.titleSize}; line-height: ${text.titleLine}; font-weight: ${text.strong}; color: ${color.fg}; }
 .bh-mobile-list .bh-header button { min-width: 44px; min-height: 44px; }
 .bh-mobile-list .bh-header svg { width: 22px; height: 22px; }
 .bh-mobile-list .bh-header-actions { max-width: 92px; }

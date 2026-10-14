@@ -16,7 +16,7 @@ import { BotIcon } from './bot-icon.js';
 import type { BotModePrefsFace } from './bot-mode-prefs.js';
 import { Select } from './ds/select.js';
 import { SettingsRow } from './ds/settings-row.js';
-import { color, radius, space, text } from './ds/tokens.stylex.js';
+import { border, color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessKey } from './locale.js';
 
 export type BotModeSettingRowProps = PropsLocale<'botharness'> & InjectFace<BotModePrefsFace>;
@@ -54,10 +54,10 @@ const styles = stylex.create({
     minWidth: 0,
     paddingBlock: space.x3,
     paddingInline: space.x2,
-    borderWidth: '1px',
+    borderWidth: border.hairline,
     borderStyle: 'solid',
     borderColor: { default: color.border, ':is([aria-checked=true])': color.accent },
-    borderRadius: radius.card,
+    borderRadius: radius.md,
     backgroundColor: {
       default: 'transparent',
       ':hover': color.hover,
@@ -68,7 +68,7 @@ const styles = stylex.create({
     fontSize: text.metaSize,
     lineHeight: text.metaLine,
     cursor: 'pointer',
-    outline: { default: 'none', ':focus-visible': `2px solid ${color.accent}` },
+    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
   },
   art: {
     pointerEvents: 'none',

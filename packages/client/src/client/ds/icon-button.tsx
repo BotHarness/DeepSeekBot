@@ -1,7 +1,7 @@
 import { forwardRef, type ButtonHTMLAttributes } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
-import { color, radius, size as sizes } from './tokens.stylex.js';
+import { border, color, radius, size as sizes } from './tokens.stylex.js';
 
 const styles = stylex.create({
   base: {
@@ -13,7 +13,7 @@ const styles = stylex.create({
     padding: 0,
     borderWidth: 0,
     borderStyle: 'none',
-    borderRadius: radius.row,
+    borderRadius: radius.sm,
     backgroundColor: {
       default: 'transparent',
       ':hover': color.hover,
@@ -28,7 +28,7 @@ const styles = stylex.create({
     fontFamily: 'inherit',
     cursor: { default: 'pointer', ':disabled': 'default' },
     opacity: { default: 1, ':disabled': 0.5 },
-    outline: { default: 'none', ':focus-visible': `2px solid ${color.accent}` },
+    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
     outlineOffset: '-2px',
   },
   subtle: {
@@ -38,7 +38,7 @@ const styles = stylex.create({
       ':is([aria-expanded=true])': color.fg,
     },
   },
-  inline: { width: sizes.inlineIcon, height: sizes.inlineIcon, borderRadius: radius.control },
+  inline: { width: sizes.inlineIcon, height: sizes.inlineIcon, borderRadius: radius.sm },
   icon: { width: sizes.icon, height: sizes.icon },
   row: { width: sizes.row, height: sizes.row },
 });
