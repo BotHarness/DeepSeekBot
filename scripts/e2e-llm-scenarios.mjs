@@ -138,6 +138,122 @@ export const SCENARIOS = [
       );
     },
   },
+  {
+    id: 'mid-sentence-report',
+    summary: 'A worker writes @coordinator in the middle of its report, which still wakes it.',
+    areas: RUNTIME_AREAS,
+    bots: ['nexus', 'aura'],
+    async run(ctx) {
+      const group = await ctx.mentionsOnlyGroup(['nexus', 'aura']);
+      await ctx.humanSend(
+        group,
+        '请用一句话给出一个像素风 logo 的配色方案。大家都只在被 @ 时才会被唤醒。汇报时把 @总控 Nexus 写在句子中间，例如：配色已完成，请 @总控 Nexus 查收。',
+        ['aura'],
+      );
+      await ctx.waitFor('Aura mentions Nexus mid-sentence and Nexus wakes', () =>
+        ctx.messages(group).find((message) => ctx.mentionedAndWoken(message, 'aura', 'nexus')),
+      );
+    },
+  },
+  {
+    id: 'worker-to-worker-chain',
+    summary: 'A worker hands off to another worker, who then reports to the coordinator.',
+    areas: RUNTIME_AREAS,
+    bots: ['nexus', 'aura', 'atlas'],
+    async run(ctx) {
+      const group = await ctx.mentionsOnlyGroup(['nexus', 'aura', 'atlas']);
+      await ctx.humanSend(
+        group,
+        `请先用一句话给出一个像素风配色方案，然后在群里 @叙事 Atlas，请他根据配色写一句游戏口号。Atlas 写完口号后 @总控 Nexus 汇报。${REPORT_RULE}`,
+        ['aura'],
+      );
+      await ctx.waitFor('Aura wakes Atlas, then Atlas wakes Nexus', () => {
+        const messages = ctx.messages(group);
+        const handoff = messages.find((message) => ctx.mentionedAndWoken(message, 'aura', 'atlas'));
+        const report = messages.find((message) => ctx.mentionedAndWoken(message, 'atlas', 'nexus'));
+        return handoff && report ? [handoff, report] : undefined;
+      });
+    },
+  },
+  {
+    id: 'delegate-and-report-back',
+    summary:
+      'The coordinator delegates with @ and the worker reports back with @, a full round trip.',
+    areas: RUNTIME_AREAS,
+    bots: ['nexus', 'atlas'],
+    async run(ctx) {
+      const group = await ctx.mentionsOnlyGroup(['nexus', 'atlas']);
+      await ctx.humanSend(group, `请在群里 @叙事 Atlas，让他写一句游戏口号。${REPORT_RULE}`, [
+        'nexus',
+      ]);
+      await ctx.waitFor('Nexus wakes Atlas and Atlas wakes Nexus back', () => {
+        const messages = ctx.messages(group);
+        const ask = messages.find((message) => ctx.mentionedAndWoken(message, 'nexus', 'atlas'));
+        const answer = messages.find((message) => ctx.mentionedAndWoken(message, 'atlas', 'nexus'));
+        return ask && answer ? [ask, answer] : undefined;
+      });
+    },
+  },
+  {
+    id: 'repeat-reports',
+    summary:
+      'Two tasks in a row in one Group each wake the coordinator, so dedup keeps later reports.',
+    areas: RUNTIME_AREAS,
+    bots: ['nexus', 'aura'],
+    async run(ctx) {
+      const group = await ctx.mentionsOnlyGroup(['nexus', 'aura']);
+      await ctx.humanSend(group, `请用一句话给出一个像素风 logo 的配色方案。${REPORT_RULE}`, [
+        'aura',
+      ]);
+      const first = await ctx.waitFor('first report wakes Nexus', () =>
+        ctx.messages(group).find((message) => ctx.mentionedAndWoken(message, 'aura', 'nexus')),
+      );
+      await ctx.humanSend(group, `再用一句话给出一个赛博朋克风的配色方案。${REPORT_RULE}`, [
+        'aura',
+      ]);
+      await ctx.waitFor('second report wakes Nexus again', () => {
+        const second = ctx
+          .messages(group)
+          .find(
+            (message) =>
+              message.id !== first.id &&
+              message.channelRevision > first.channelRevision &&
+              ctx.mentionedAndWoken(message, 'aura', 'nexus'),
+          );
+        return second ? [first, second] : undefined;
+      });
+    },
+  },
+  {
+    id: 'unmentioned-stay-asleep',
+    summary:
+      'A worker that answers the Human without @ wakes no colleague in a mentions-only Group.',
+    areas: RUNTIME_AREAS,
+    bots: ['nexus', 'aura', 'atlas'],
+    async run(ctx) {
+      const group = await ctx.mentionsOnlyGroup(['nexus', 'aura', 'atlas']);
+      await ctx.humanSend(
+        group,
+        '请直接回复我：用一句话给出一个像素风 logo 的配色方案。这次不需要 @ 或通知任何同事。',
+        ['aura'],
+      );
+      const reply = await ctx.waitFor('Aura replies', () =>
+        ctx.messages(group).find((message) => ctx.isBot(message, 'aura')),
+      );
+      await ctx.settle(30);
+      const woken = ctx
+        .messages(group)
+        .filter((message) => message.channelRevision >= reply.channelRevision)
+        .flatMap((message) => message.deliveries ?? [])
+        .filter(
+          (delivery) =>
+            [ctx.slug('nexus'), ctx.slug('atlas')].includes(delivery.botSlug) &&
+            ['running', 'retryable', 'needs-repair', 'handled'].includes(delivery.state),
+        );
+      if (woken.length > 0)
+        throw new Error(`a colleague woke without a mention: ${JSON.stringify(woken)}`);
+    },
+  },
 ];
 
 export function parseScenarioArgs(argv) {
@@ -559,6 +675,14 @@ function createContext(instance, scenario, timeoutSeconds, log, presetId) {
           (delivery) => delivery.botSlug === slugs[toKey] && delivery.state === 'handled',
         )
       );
+    },
+    async settle(seconds) {
+      await delay(seconds * 1000);
+      messageCache = new Map();
+      for (const channelId of log.channels) {
+        const page = await call('channelMessages', { channelId, limit: 100 });
+        messageCache.set(channelId, page.messages);
+      }
     },
     async waitFor(label, predicate) {
       const deadline = Date.now() + timeoutSeconds * 1000;
