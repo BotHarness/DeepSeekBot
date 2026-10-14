@@ -460,6 +460,7 @@ describe('plugin entry', () => {
       'channelMarkAllRead',
       'channelReact',
       'channelSearch',
+      'channelUnreadCounts',
       'channelAllBotPreview',
       'channelSend',
       'channelSendStatus',
@@ -529,6 +530,7 @@ describe('plugin entry', () => {
       'topReorder',
       'pinsSet',
       'hiddenSet',
+      'channelMuteSet',
       'rosterBatch',
       'developerModeSet',
       'computerAccessSet',
@@ -588,6 +590,7 @@ describe('plugin entry', () => {
     expect(bridge?.rosterGet()).toEqual({
       pins: [],
       hidden: [],
+      muted: [],
       sectionOrder: [],
       sections: [],
       topOrder: undefined,

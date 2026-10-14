@@ -206,7 +206,11 @@ describe('client apply', () => {
       name: 'shell.overlay',
       id: 'botharness-bot-settings',
     });
-    const specs = registrations.slice(2);
+    expect(registrations[2]).toMatchObject({
+      name: 'shell.overlay',
+      id: 'botharness-shortcut-help',
+    });
+    const specs = registrations.slice(3);
 
     expect(specs.map((spec) => spec.name)).toEqual([
       'sidebar.panellist',
@@ -243,7 +247,7 @@ describe('client apply', () => {
     });
 
     store.setMode('bot');
-    specs.splice(0, specs.length, ...registrations.slice(2));
+    specs.splice(0, specs.length, ...registrations.slice(3));
     expect(specs.map((spec) => spec.name)).toEqual([
       'sidebar.panellist',
       'main',
@@ -264,6 +268,7 @@ describe('client apply', () => {
     expect(disposed.map((spec) => spec.name)).toEqual(['sidebar.workspaces', 'main']);
     expect(disposed).not.toContain(registrations[0]);
     expect(disposed).not.toContain(registrations[1]);
+    expect(disposed).not.toContain(registrations[2]);
   });
 
   it('registers Bot Settings on the overlay and its sections only while configForms is served', () => {

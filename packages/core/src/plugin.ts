@@ -588,6 +588,13 @@ export function createCore(
     options.activeQuestionMessageIds,
     options.activeToolApprovalMessageIds,
     options.activePrivateInputMessageIds,
+    () => {
+      try {
+        return roster.snapshot().muted;
+      } catch {
+        return [];
+      }
+    },
   );
   const humanAttentionDecisions = createHumanAttentionDecisions(humanAttentionDatabase);
   if (operationalDatabase.mode === 'ready') {

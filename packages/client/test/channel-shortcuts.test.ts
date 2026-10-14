@@ -1,10 +1,19 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  steppedConversationId,
+  isMacPlatform,
   webBotModeShortcut,
+  webQuickSwitcherBlocked,
+  webQuickSwitcherLabel,
+  webQuickSwitcherShortcut,
   webChannelShortcutIndex,
   webChannelShortcutLabel,
+  webConversationStepLabel,
+  webConversationStepShortcut,
+  webModalOpen,
   webShortcutBlocked,
+  webShortcutHelpShortcut,
 } from '../src/client/channel-shortcuts.js';
 
 const alt = { alt: true, ctrl: false, meta: false, shift: false };
@@ -55,5 +64,147 @@ describe('web channel number shortcuts', () => {
     expect(selector).toContain('dialog[open]');
     expect(selector).toContain('[role="alertdialog"][aria-modal="true"]');
     expect(webShortcutBlocked(null, { querySelector: () => null })).toBe(false);
+  });
+
+  it('opens the quick switcher with Ctrl+K, or Command+K on macOS', () => {
+    const none = { alt: false, ctrl: false, meta: false, shift: false };
+    const ctrl = { ...none, ctrl: true, mac: false };
+    const cmd = { ...none, meta: true, mac: true };
+    expect(webQuickSwitcherShortcut('k', 'KeyK', ctrl)).toBe(true);
+    expect(webQuickSwitcherShortcut('K', 'KeyK', ctrl)).toBe(true);
+    expect(webQuickSwitcherShortcut('k', 'KeyK', cmd)).toBe(true);
+    expect(webQuickSwitcherShortcut('k', 'KeyK', { ...ctrl, mac: true })).toBe(false);
+    expect(webQuickSwitcherShortcut('k', 'KeyK', { ...cmd, mac: false })).toBe(false);
+    expect(webQuickSwitcherShortcut('k', 'KeyK', { ...ctrl, meta: true })).toBe(false);
+    expect(webQuickSwitcherShortcut('k', 'KeyK', { ...ctrl, shift: true })).toBe(false);
+    expect(webQuickSwitcherShortcut('k', 'KeyK', { ...ctrl, alt: true })).toBe(false);
+    expect(webQuickSwitcherShortcut('k', 'KeyK', { ...ctrl, altGraph: true })).toBe(false);
+    expect(webQuickSwitcherShortcut('k', 'KeyK', { ...ctrl, composing: true })).toBe(false);
+    expect(webQuickSwitcherShortcut('k', 'KeyK', { ...ctrl, repeat: true })).toBe(false);
+    expect(webQuickSwitcherShortcut('k', 'KeyK', { ...ctrl, prevented: true })).toBe(false);
+    expect(webQuickSwitcherShortcut('k', 'KeyK', { ...none, mac: false })).toBe(false);
+    expect(webQuickSwitcherShortcut('k', 'KeyV', ctrl)).toBe(true);
+    expect(webQuickSwitcherShortcut('t', 'KeyK', ctrl)).toBe(false);
+    expect(webQuickSwitcherShortcut('л', 'KeyK', ctrl)).toBe(true);
+    expect(webQuickSwitcherShortcut('j', 'KeyJ', ctrl)).toBe(false);
+    expect(webQuickSwitcherLabel(false)).toBe('Ctrl+K');
+    expect(webQuickSwitcherLabel(true)).toBe('⌘K');
+  });
+
+  it('detects macOS from the browser platform', () => {
+    expect(isMacPlatform({ platform: 'MacIntel' })).toBe(true);
+    expect(isMacPlatform({ userAgentData: { platform: 'macOS' } })).toBe(true);
+    expect(isMacPlatform({ platform: 'iPad' })).toBe(true);
+    expect(isMacPlatform({ platform: 'Win32' })).toBe(false);
+    expect(isMacPlatform({ userAgentData: { platform: 'Linux' }, platform: 'MacIntel' })).toBe(
+      false,
+    );
+  });
+
+  it('keeps the quick switcher available in text fields but not over a modal', () => {
+    let selector = '';
+    const modalRoot = {
+      querySelector(value: string): object {
+        selector = value;
+        return {};
+      },
+    };
+    expect(webQuickSwitcherBlocked(null, modalRoot)).toBe(true);
+    expect(selector).toContain('[role="dialog"][aria-modal="true"]');
+    expect(webQuickSwitcherBlocked(null, { querySelector: () => null })).toBe(false);
+  });
+});
+
+describe('web conversation step shortcuts', () => {
+  it('maps Alt+↑/↓ to the previous or next conversation and adds Shift for unread only', () => {
+    expect(webConversationStepShortcut('ArrowUp', alt)).toEqual({
+      direction: -1,
+      unreadOnly: false,
+    });
+    expect(webConversationStepShortcut('ArrowDown', alt)).toEqual({
+      direction: 1,
+      unreadOnly: false,
+    });
+    expect(webConversationStepShortcut('ArrowDown', { ...alt, shift: true })).toEqual({
+      direction: 1,
+      unreadOnly: true,
+    });
+    expect(webConversationStepLabel({ direction: 1, unreadOnly: true })).toBe('Alt+Shift+↓');
+    expect(webConversationStepLabel({ direction: -1, unreadOnly: false })).toBe('Alt+↑');
+  });
+
+  it('leaves plain arrows, other modifiers, IME and handled events alone', () => {
+    expect(webConversationStepShortcut('ArrowUp', { ...alt, alt: false })).toBeUndefined();
+    expect(webConversationStepShortcut('ArrowUp', { ...alt, ctrl: true })).toBeUndefined();
+    expect(webConversationStepShortcut('ArrowUp', { ...alt, meta: true })).toBeUndefined();
+    expect(webConversationStepShortcut('ArrowUp', { ...alt, altGraph: true })).toBeUndefined();
+    expect(webConversationStepShortcut('ArrowUp', { ...alt, composing: true })).toBeUndefined();
+    expect(webConversationStepShortcut('ArrowUp', { ...alt, prevented: true })).toBeUndefined();
+    expect(webConversationStepShortcut('ArrowLeft', alt)).toBeUndefined();
+  });
+
+  it('steps through sidebar order and wraps at either end', () => {
+    const order = ['a', 'b', 'c'];
+    expect(steppedConversationId(order, 'b', 1)).toBe('c');
+    expect(steppedConversationId(order, 'c', 1)).toBe('a');
+    expect(steppedConversationId(order, 'a', -1)).toBe('c');
+    expect(steppedConversationId(order, undefined, 1)).toBe('a');
+    expect(steppedConversationId(order, undefined, -1)).toBe('c');
+    expect(steppedConversationId(order, 'gone', 1)).toBe('a');
+    expect(steppedConversationId([], 'a', 1)).toBeUndefined();
+    expect(steppedConversationId(['a'], 'a', 1)).toBeUndefined();
+  });
+
+  it('skips to the next eligible conversation for the unread jump', () => {
+    const order = ['a', 'b', 'c', 'd'];
+    const unread = new Set(['a', 'c']);
+    const eligible = (id: string) => unread.has(id);
+    expect(steppedConversationId(order, 'a', 1, eligible)).toBe('c');
+    expect(steppedConversationId(order, 'c', 1, eligible)).toBe('a');
+    expect(steppedConversationId(order, 'b', -1, eligible)).toBe('a');
+    expect(steppedConversationId(order, 'a', 1, () => false)).toBeUndefined();
+  });
+
+  it('is blocked only by an open modal, not by a focused text field', () => {
+    expect(webModalOpen({ querySelector: () => null })).toBe(false);
+    expect(webModalOpen({ querySelector: () => ({}) })).toBe(true);
+  });
+});
+
+describe('web shortcut list shortcut', () => {
+  const none = { alt: false, ctrl: false, meta: false, shift: false };
+
+  it('opens on ? and on Ctrl+/ or ⌘+/', () => {
+    expect(webShortcutHelpShortcut({ key: '?', code: 'Slash' }, { ...none, shift: true })).toBe(
+      'question',
+    );
+    expect(webShortcutHelpShortcut({ key: '/', code: 'Slash' }, { ...none, ctrl: true })).toBe(
+      'slash',
+    );
+    expect(webShortcutHelpShortcut({ key: '/', code: 'Slash' }, { ...none, meta: true })).toBe(
+      'slash',
+    );
+  });
+
+  it('leaves plain /, Alt, IME, repeats and handled keys alone', () => {
+    expect(webShortcutHelpShortcut({ key: '/', code: 'Slash' }, none)).toBeUndefined();
+    expect(
+      webShortcutHelpShortcut({ key: '?', code: 'Slash' }, { ...none, shift: true, alt: true }),
+    ).toBeUndefined();
+    expect(
+      webShortcutHelpShortcut({ key: '?', code: 'Slash' }, { ...none, composing: true }),
+    ).toBeUndefined();
+    expect(
+      webShortcutHelpShortcut({ key: '/', code: 'Slash' }, { ...none, ctrl: true, repeat: true }),
+    ).toBeUndefined();
+    expect(
+      webShortcutHelpShortcut(
+        { key: '/', code: 'Slash' },
+        { ...none, ctrl: true, prevented: true },
+      ),
+    ).toBeUndefined();
+    expect(
+      webShortcutHelpShortcut({ key: '?', code: 'Slash' }, { ...none, shift: true, ctrl: true }),
+    ).toBeUndefined();
   });
 });

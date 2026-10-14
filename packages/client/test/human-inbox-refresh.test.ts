@@ -86,6 +86,11 @@ describe('Human Inbox pagination refresh', () => {
       calls.push({ endpoint, payload });
       if (endpoint === 'humanAttentionStatus')
         return { ok: true, value: { unreadCount, hasAction: true } };
+      if (endpoint === 'channelUnreadCounts')
+        return {
+          ok: true,
+          value: { channels: unreadCount > 1 ? [{ channelId: 'group-team', unreadCount: 2 }] : [] },
+        };
       if (endpoint === 'channelMarkRead') {
         unreadCount = 1;
         return { ok: true, value: { position: { messageId: 'second' } } };
@@ -95,14 +100,18 @@ describe('Human Inbox pagination refresh', () => {
     const actions = createActions(call, clientStore);
     await actions.refreshHumanInboxStatus();
     expect(clientStore.getSnapshot().humanInbox).toMatchObject({ unreadCount: 3, hasAction: true });
+    expect(clientStore.getSnapshot().humanInbox.channelUnread).toEqual({ 'group-team': 2 });
     await actions.markRead('group-team', 'second');
     expect(calls.map((entry) => entry.endpoint)).toEqual([
       'humanAttentionStatus',
+      'channelUnreadCounts',
       'channelMarkRead',
       'humanAttentionStatus',
+      'channelUnreadCounts',
     ]);
-    expect(calls[1]?.payload).toEqual({ channelId: 'group-team', messageId: 'second' });
+    expect(calls[2]?.payload).toEqual({ channelId: 'group-team', messageId: 'second' });
     expect(clientStore.getSnapshot().humanInbox.unreadCount).toBe(1);
+    expect(clientStore.getSnapshot().humanInbox.channelUnread).toEqual({});
   });
   it('keeps loaded older items and their cursor across a background refresh', async () => {
     const clientStore = createStore();

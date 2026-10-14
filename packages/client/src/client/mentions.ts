@@ -83,6 +83,24 @@ export function selectMention(
   };
 }
 
+export function appendMention(
+  value: string,
+  mentions: readonly SelectedMention[],
+  botSlug: string,
+  label: string,
+): { value: string; mentions: SelectedMention[]; caret: number } {
+  if (mentions.some((item) => item.botSlug === botSlug))
+    return { value, mentions: [...mentions], caret: value.length };
+  const spaced = value.length === 0 || /\s$/u.test(value) ? value : value + ' ';
+  return selectMention(
+    spaced,
+    mentions,
+    { start: spaced.length, end: spaced.length, query: '' },
+    botSlug,
+    label,
+  );
+}
+
 export function mentionRuns(
   value: string,
   mentions: readonly SelectedMention[],

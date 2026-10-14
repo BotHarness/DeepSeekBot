@@ -19,6 +19,7 @@ export type TopOrderEntry = z.infer<typeof topOrderEntry>;
 export const rosterDomainState = z.object({
   pins: z.array(z.string()),
   hidden: z.array(z.string()).optional(),
+  muted: z.array(z.string()).optional(),
   sectionOrder: z.array(z.string()),
   topOrder: z.array(topOrderEntry).optional(),
 });

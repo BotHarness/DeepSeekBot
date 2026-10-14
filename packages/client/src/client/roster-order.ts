@@ -15,7 +15,7 @@ function updatedAtTime(updatedAt: string): number {
   return Number.isNaN(parsed) ? Number.NEGATIVE_INFINITY : parsed;
 }
 
-function recencyTime(channel: ChannelSummary): number {
+export function recencyTime(channel: ChannelSummary): number {
   return updatedAtTime(channel.latestMessage?.at ?? channel.updatedAt);
 }
 

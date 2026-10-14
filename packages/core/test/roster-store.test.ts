@@ -81,6 +81,7 @@ describe('roster store', () => {
     expect(store.snapshot()).toEqual({
       pins: [],
       hidden: [],
+      muted: [],
       sectionOrder: [second.id, first.id],
       sections: [
         { id: second.id, name: '工作流', channelIds: [] },
@@ -289,6 +290,20 @@ describe('roster store', () => {
     ).rejects.toBeInstanceOf(RosterUnknownSectionError);
     expect(storedWriteCount(store)).toBe(2);
     expect(onCommitted).toHaveBeenCalledTimes(2);
+  });
+
+  it('mutes and unmutes one Channel at a time without writing no-ops', async () => {
+    const fake = createFakeRosterDomain({ state: { pins: ['c1'], sectionOrder: [] } });
+    const store = createTestRosterStore();
+    await store.attach(fake.facility);
+
+    await expect(store.mutedSet('c3', true)).resolves.toEqual(['c3']);
+    const writes = storedWriteCount(store);
+    await expect(store.mutedSet('c3', true)).resolves.toEqual(['c3']);
+    expect(storedWriteCount(store)).toBe(writes);
+    expect(store.snapshot()).toMatchObject({ pins: ['c1'], muted: ['c3'] });
+    await expect(store.mutedSet('c3', false)).resolves.toEqual([]);
+    expect(store.snapshot().muted).toEqual([]);
   });
 
   it('sets hidden Channel ids without changing their placement or writing no-ops', async () => {

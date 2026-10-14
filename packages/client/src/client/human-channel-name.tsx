@@ -1,11 +1,8 @@
-import { useState, useSyncExternalStore, type ReactElement } from 'react';
+import { useState, type ReactElement, type ReactNode } from 'react';
 import {
   Button,
   Menu,
-  IconEllipsisOutlineRegular,
-  IconSettingsOutlineRegular,
   IconTrashOutlineRegular,
-  IconUserOutlineRegular,
   type MenuEntry,
 } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { BridgeActions } from './actions.js';
@@ -14,15 +11,18 @@ import type { BotHarnessTranslate } from './locale.js';
 import { FormDialog } from './ds/form-dialog.js';
 import { TextField } from './ds/field.js';
 import { PersonaBotDeletionView } from './personabot-deletion.js';
+import { toggleHiddenDmAction } from './dm-actions.js';
 import {
-  DM_ACTION_KINDS,
-  hiddenDmActionsSnapshot,
-  subscribeHiddenDmActions,
-  toggleHiddenDmAction,
-} from './dm-actions.js';
-import { IconButton } from './ds/icon-button.js';
+  CHANNEL_NICKNAME_ITEM,
+  CHANNEL_SETTINGS_ITEM,
+  channelNicknameItem,
+  channelSettingsItem,
+  dmActionKindOf,
+  dmActionsItem,
+  useHiddenDmActions,
+} from './channel-options.js';
 
-function NicknameDialog({
+export function NicknameDialog({
   channel,
   actions,
   t,
@@ -87,10 +87,18 @@ function NicknameDialog({
   );
 }
 
-export function HumanChannelNameMenu({
+export interface ChannelMenuTrigger {
+  readonly open: boolean;
+  readonly attention: boolean;
+  toggle(): void;
+}
+
+export function ChannelHeaderMenu({
   channel,
   actions,
   t,
+  anchor,
+  primaryAction,
   onOpenSettings,
   deleteBotSlug,
   settingsAttention = false,
@@ -98,64 +106,31 @@ export function HumanChannelNameMenu({
   channel: ChannelSummary;
   actions: BridgeActions;
   t: BotHarnessTranslate;
+  anchor: (trigger: ChannelMenuTrigger) => ReactNode;
+  primaryAction?: { label: string; icon: ReactNode; run(): void } | undefined;
   onOpenSettings?: (() => void) | undefined;
   deleteBotSlug?: string | undefined;
   settingsAttention?: boolean;
-}): ReactElement | null {
+}): ReactElement {
   const [menuOpen, setMenuOpen] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const dmBotSlug = channel.type === 'dm' ? channel.botSlug : undefined;
-  const hidden = useSyncExternalStore(
-    subscribeHiddenDmActions,
-    () => hiddenDmActionsSnapshot(dmBotSlug),
-    () => hiddenDmActionsSnapshot(dmBotSlug),
-  );
-  const channelItems = [
-    ...(onOpenSettings === undefined
-      ? []
-      : [
-          {
-            id: 'settings',
-            icon: <IconSettingsOutlineRegular size={16} />,
-            label: settingsAttention ? (
-              <span className="bh-channel-settings-attention-label">
-                {t('channelSettings.open')}
-                <span
-                  className="bh-channel-settings-attention-dot"
-                  role="img"
-                  aria-label={t('channelSettings.needsAttention')}
-                />
-              </span>
-            ) : (
-              t('channelSettings.open')
-            ),
-          },
-        ]),
-    ...(channel.humanNickname === undefined
-      ? []
-      : [
-          {
-            id: 'nickname',
-            label: t('humanNickname.title'),
-            icon: <IconUserOutlineRegular size={16} />,
-          },
-        ]),
+  const hidden = useHiddenDmActions(dmBotSlug);
+  const attention = settingsAttention && onOpenSettings !== undefined;
+  const optionItems: MenuEntry[] = [
+    ...(onOpenSettings === undefined ? [] : [channelSettingsItem(t, attention)]),
+    ...(channel.humanNickname === undefined ? [] : [channelNicknameItem(t)]),
+    ...(dmBotSlug === undefined ? [] : [dmActionsItem(t, hidden)]),
   ];
   const items: MenuEntry[] = [
-    ...channelItems,
-    ...(dmBotSlug === undefined
+    ...(primaryAction === undefined
       ? []
-      : [
-          ...(channelItems.length === 0
-            ? []
-            : [{ type: 'separator' as const, id: 'dm-separator' }]),
-          { type: 'label' as const, id: 'dm-label', text: t('dmTrace.menu') },
-          ...DM_ACTION_KINDS.map((kind) => ({
-            id: `dm:${kind}`,
-            label: t(`dmTrace.kind.${kind}`),
-          })),
-        ]),
+      : [{ id: 'primary', label: primaryAction.label, icon: primaryAction.icon }]),
+    ...(primaryAction === undefined || optionItems.length === 0
+      ? []
+      : [{ type: 'separator' as const, id: 'primary-separator' }]),
+    ...optionItems,
     ...(deleteBotSlug === undefined
       ? []
       : [
@@ -168,48 +143,26 @@ export function HumanChannelNameMenu({
           },
         ]),
   ];
-  if (items.length === 0) return null;
   return (
-    <span className="bh-channel-options">
+    <>
       <Menu
         open={menuOpen}
         portal
         dense
-        align="end"
-        anchor={
-          <IconButton
-            size="row"
-            tone="subtle"
-            aria-label={
-              settingsAttention && onOpenSettings !== undefined
-                ? `${t('humanNickname.menu')} · ${t('channelSettings.needsAttention')}`
-                : t('humanNickname.menu')
-            }
-            aria-haspopup="menu"
-            aria-expanded={menuOpen}
-            onClick={() => setMenuOpen((open) => !open)}
-          >
-            <IconEllipsisOutlineRegular size={16} />
-            {settingsAttention && onOpenSettings !== undefined ? (
-              <span className="bh-channel-settings-attention-dot bh-channel-options-dot" />
-            ) : null}
-          </IconButton>
-        }
+        anchor={anchor({ open: menuOpen, attention, toggle: () => setMenuOpen((open) => !open) })}
         items={items}
-        selectedIds={DM_ACTION_KINDS.filter((kind) => !hidden.includes(kind)).map(
-          (kind) => `dm:${kind}`,
-        )}
         onClose={() => setMenuOpen(false)}
         onSelect={(id) => {
-          const kind = DM_ACTION_KINDS.find((k) => id === `dm:${k}`);
+          const kind = dmActionKindOf(id);
           if (kind !== undefined) {
             if (dmBotSlug !== undefined) toggleHiddenDmAction(dmBotSlug, kind);
             return;
           }
           setMenuOpen(false);
-          if (id === 'settings') onOpenSettings?.();
+          if (id === 'primary') primaryAction?.run();
+          else if (id === CHANNEL_SETTINGS_ITEM) onOpenSettings?.();
+          else if (id === CHANNEL_NICKNAME_ITEM) setDialogOpen(true);
           else if (id === 'delete') setDeleting(true);
-          else setDialogOpen(true);
         }}
       />
       {dialogOpen ? (
@@ -229,6 +182,6 @@ export function HumanChannelNameMenu({
           onClose={() => setDeleting(false)}
         />
       ) : null}
-    </span>
+    </>
   );
 }

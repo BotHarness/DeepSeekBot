@@ -24,8 +24,11 @@ Shot options:
   --bot-mode                Enter Bot mode before acting.
   --click <name>            Click the element with this accessible name (repeatable, in order).
   --click-text <text>       Click the last visible button, link or tab in page order whose text contains this.
+  --right-click <name>      Right-click the element with this accessible name to open its context menu.
   --fill <name>=<text>      Type into the field with this accessible name (repeatable, in order).
-  --press <key>             Press a key in the focused element, for example Enter (repeatable, in order).
+  --hover <name>            Rest the pointer on the element with this accessible name (repeatable, in order).
+  --press <key>             Press a key or chord in the focused element, for example Enter or Control+K
+                            (repeatable, in order).
   --wait <name>             Wait until an element with this accessible name exists before the capture.
   --wait-text <text>        Wait until the page shows this text (for example a Bot reply), up to 180s.
   --theme light|dark        Color scheme (default light).
@@ -87,8 +90,14 @@ export function parseVerifyArgs(argv) {
       case '--click-text':
         options.actions.push({ kind: 'click-text', name: value() });
         break;
+      case '--right-click':
+        options.actions.push({ kind: 'right-click', name: value() });
+        break;
       case '--press':
         options.actions.push({ kind: 'press', name: value() });
+        break;
+      case '--hover':
+        options.actions.push({ kind: 'hover', name: value() });
         break;
       case '--fill': {
         const pair = value();
@@ -177,7 +186,10 @@ export async function rpc(instance, endpoint, args = {}) {
   const response = await fetch(`${origin}/api/${endpoint}`, {
     method: 'POST',
     signal: AbortSignal.timeout(60_000),
-    headers: { 'content-type': 'application/json', cookie: cookieFor(instance.home) },
+    headers: {
+      'content-type': 'application/json',
+      cookie: cookieFor(instance.home),
+    },
     body: JSON.stringify({
       type: 'client-request',
       rpcId: `verify-${Date.now()}`,
@@ -218,7 +230,9 @@ async function launch(options, paths) {
     throw new Error(`dev-instance.mjs failed with status ${result.status}`);
   }
   const instance = JSON.parse(result.stdout.slice(start));
-  writeFileSync(paths.instance, `${JSON.stringify(instance, null, 2)}\n`, { mode: 0o600 });
+  writeFileSync(paths.instance, `${JSON.stringify(instance, null, 2)}\n`, {
+    mode: 0o600,
+  });
   return {
     name: options.name,
     pid: instance.pid,
@@ -236,7 +250,10 @@ async function doctor(paths) {
   const expected = JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf8')).devDependencies[
     '@deepseek-ai/dsh'
   ];
-  const checks = { pidAlive: alive(instance.pid), worktree: instance.worktree === repoRoot };
+  const checks = {
+    pidAlive: alive(instance.pid),
+    worktree: instance.worktree === repoRoot,
+  };
   checks.dshVersion = JSON.parse(
     readFileSync(join(repoRoot, 'node_modules', '@deepseek-ai', 'dsh', 'package.json'), 'utf8'),
   ).version;
@@ -321,7 +338,11 @@ async function shot(options, paths) {
   try {
     page = await browser.newPage();
     await page.setExtraHTTPHeaders({ 'accept-language': lang });
-    await page.setViewport({ width: options.width, height: options.height, deviceScaleFactor: 1 });
+    await page.setViewport({
+      width: options.width,
+      height: options.height,
+      deviceScaleFactor: 1,
+    });
     await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: options.theme }]);
     page.on('console', (message) => {
       if (['error', 'warn'].includes(message.type()))
@@ -349,7 +370,11 @@ async function shot(options, paths) {
     for (const action of options.actions) {
       if (!options.keepOverlays) await dismissOverlays(page);
       if (action.kind === 'press') {
-        await page.keyboard.press(action.name);
+        const keys = action.name.length > 1 ? action.name.split('+') : [action.name];
+        const key = keys.pop();
+        for (const modifier of keys) await page.keyboard.down(modifier);
+        await page.keyboard.press(key);
+        for (const modifier of keys.reverse()) await page.keyboard.up(modifier);
       } else if (action.kind === 'click-text') {
         const handle = await page.waitForFunction(
           (text) =>
@@ -367,6 +392,8 @@ async function shot(options, paths) {
       } else {
         const locator = page.locator(aria(action.name)).setTimeout(15_000);
         if (action.kind === 'click') await locator.click();
+        else if (action.kind === 'hover') await locator.hover();
+        else if (action.kind === 'right-click') await locator.click({ button: 'right' });
         else await locator.fill(action.text);
       }
       steps.push(`${action.kind} ${JSON.stringify(action.name)}`);
@@ -390,7 +417,9 @@ async function shot(options, paths) {
     const tree = join(paths.evidence, `${label}.aria.txt`);
     const log = join(paths.evidence, `${label}.console.txt`);
     await page.screenshot({ path: png, waitForFonts: false });
-    const snapshot = await page.accessibility.snapshot({ interestingOnly: true });
+    const snapshot = await page.accessibility.snapshot({
+      interestingOnly: true,
+    });
     writeFileSync(tree, `${renderAria(snapshot).join('\n')}\n`);
     writeFileSync(log, consoleLines.length ? `${consoleLines.join('\n')}\n` : '');
     return {

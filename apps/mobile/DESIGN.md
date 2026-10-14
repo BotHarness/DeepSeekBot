@@ -50,6 +50,8 @@ References:
     - A colour too close to the chat background or the Bot bubble (under 1.3:1 against `base` or `surface`, such as black hair in dark mode) is first mixed toward `fg` until it separates from both.
     - Message text on it always reaches 4.5:1. A light colour (white under 3:1, such as yellow) keeps its value and takes dark text. Any other colour takes white text and is darkened just enough for white to reach 4.5:1.
   - Bubbles use radius `lg` and are at most 80% wide.
+  - Attachments sit inside the bubble: images as rounded thumbnails (one large, or a grid of squares), other files as a row with an icon, name and size. Tapping an image opens a full-screen viewer; tapping a file downloads it from the Host and opens the share sheet.
+    - The viewer follows the Photos app: pinch zooms around the fingers (up to 5×, springing back to fit below 1×), double-tap zooms to 2.5× at the tapped point and back, one finger pans a zoomed image, a vertical swipe at fit size closes it with the backdrop fading, and a single tap hides or shows the close and share buttons. The close button, Android back and the iOS escape gesture also close it.
   - Reactions are small chips on the bubble corner.
   - Delivery: pending shows at 70% opacity, failed offers "Not sent · Tap to retry", and sent shows nothing.
 - **Action cards** sit in the chat stream and share one layout: title and explanation, an optional preview, then buttons.
@@ -90,7 +92,7 @@ References:
 4. **Interactive elements meet the touch target and carry an `accessibilityLabel`.** The touch target is `theme.touch`: 44pt on iOS, 48dp on Android.
 5. **Lists virtualize.** The chat is an inverted list.
 6. **Motion and haptics are limited.**
-   - Motion uses Reanimated, only for bubble entry, card collapse and the status dot.
+   - Motion uses Reanimated, only for bubble entry, card collapse, the status dot and the image viewer's gestures.
    - Haptics fire only on send, approve or deny, and submitting a choice.
 7. **Copy lives in `src/ui/strings.ts`.** Internal ids and protocol names stay out of the UI.
 8. **UI PRs show the change.** They include light and dark screenshots from the web export, and a native check on a development build is recorded under Human QA.

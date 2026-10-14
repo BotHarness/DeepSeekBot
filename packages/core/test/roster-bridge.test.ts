@@ -82,7 +82,14 @@ describe('roster bridge methods with storage', () => {
     });
     expect(methods.rosterGet({})).toEqual({
       ok: true,
-      value: { pins: [], hidden: [], sectionOrder: [], sections: [], topOrder: undefined },
+      value: {
+        pins: [],
+        hidden: [],
+        muted: [],
+        sectionOrder: [],
+        sections: [],
+        topOrder: undefined,
+      },
     });
   });
 

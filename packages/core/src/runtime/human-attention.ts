@@ -64,6 +64,7 @@ export interface HumanAttentionQuery {
     limit?: number;
   }): HumanAttentionPage;
   status(): { unreadCount: number; hasAction: boolean };
+  unreadByChannel(): Array<{ channelId: string; unreadCount: number }>;
   durableAttention(): Array<{
     botSlug: string;
     waitingHumanCount: number;
@@ -364,6 +365,7 @@ export function createHumanAttentionQuery(
   activeQuestionMessageIds: () => readonly string[] = () => [],
   activeToolApprovalMessageIds: () => readonly string[] = () => [],
   activePrivateInputMessageIds: () => readonly string[] = () => [],
+  mutedChannelIds: () => readonly string[] = () => [],
 ): HumanAttentionQuery {
   return {
     item(id, sourceKey) {
@@ -828,14 +830,29 @@ SELECT 'handled:' || request.source_event_id AS id,
             db
               .prepare(`${CHANNEL_ATTENTION_CTE}
         SELECT count(DISTINCT source_event_id) AS unread_count FROM visible_unread
+         WHERE channel_id NOT IN (SELECT value FROM json_each(?))
       `)
-              .get(LOCAL_HUMAN_ID, LOCAL_HUMAN_ID) as { unread_count: number }
+              .get(LOCAL_HUMAN_ID, LOCAL_HUMAN_ID, JSON.stringify(mutedChannelIds())) as {
+              unread_count: number;
+            }
           ).unread_count,
       );
       return {
         unreadCount,
         hasAction: this.list({ category: 'action', limit: 1 }).items.length > 0,
       };
+    },
+    unreadByChannel() {
+      return database.read((db) =>
+        (
+          db
+            .prepare(`${CHANNEL_ATTENTION_CTE}
+        SELECT channel_id, count(DISTINCT source_event_id) AS unread_count
+          FROM visible_unread GROUP BY channel_id ORDER BY channel_id
+      `)
+            .all(LOCAL_HUMAN_ID, LOCAL_HUMAN_ID) as { channel_id: string; unread_count: number }[]
+        ).map((row) => ({ channelId: row.channel_id, unreadCount: row.unread_count })),
+      );
     },
   };
 }

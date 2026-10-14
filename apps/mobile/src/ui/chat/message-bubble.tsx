@@ -1,11 +1,16 @@
 import { Pressable, View } from 'react-native';
 
-import type { ConversationDraft, ConversationMessage } from '../../host/conversation';
+import type {
+  ConversationDraft,
+  ConversationMessage,
+  MessageAttachment,
+} from '../../host/conversation';
 import { radius, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { MarkdownView } from '../markdown-view';
 import { Text } from '../primitives/text';
 import { t } from '../strings';
+import { MessageAttachments } from './message-attachments';
 
 export function deliveryLabel(message: ConversationMessage): string | undefined {
   if (message.author !== 'human') return undefined;
@@ -19,11 +24,15 @@ export function MessageBubble({
   first = true,
   last = true,
   onRetry,
+  onOpenImage = () => {},
+  onShare = async () => {},
 }: {
   message: ConversationMessage;
   first?: boolean;
   last?: boolean;
   onRetry?: (messageId: string) => void;
+  onOpenImage?: (attachment: MessageAttachment) => void;
+  onShare?: (attachment: MessageAttachment) => Promise<void>;
 }) {
   const theme = useDesignTheme();
   const human = message.author === 'human';
@@ -69,10 +78,13 @@ export function MessageBubble({
       ) : (
         <MarkdownView source={message.body} color={theme.color[ink]} />
       )}
-      {message.attachments > 0 ? (
-        <Text variant="meta" tone={human ? ink : 'muted'} style={{ fontStyle: 'italic' }}>
-          📎 {t.attachments(message.attachments)}
-        </Text>
+      {message.attachments.length > 0 ? (
+        <MessageAttachments
+          attachments={message.attachments}
+          human={human}
+          onOpenImage={onOpenImage}
+          onShare={onShare}
+        />
       ) : null}
       {message.card ? (
         <Text variant="meta" tone={human ? ink : 'muted'} style={{ fontStyle: 'italic' }}>

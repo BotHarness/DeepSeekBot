@@ -849,6 +849,10 @@ export function ChannelComposer({
     (body) => {
       const element = body.querySelector<HTMLElement>('.bh-composer-input');
       if (replyId !== undefined || focusSignal > 0) element?.focus();
+      if (focusSignal > 0 && element !== null && element === richRef.current)
+        setRichSelection(element, readRichMentionDraft(element).value.length);
+      else if (focusSignal > 0 && element instanceof HTMLTextAreaElement)
+        element.setSelectionRange(element.value.length, element.value.length);
       if (element === null || typeof ResizeObserver === 'undefined') return;
 
       let width = element.clientWidth;

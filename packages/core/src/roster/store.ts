@@ -29,6 +29,7 @@ export interface RosterSnapshot {
   pins: string[];
 
   hidden: string[];
+  muted: string[];
   sectionOrder: string[];
   sections: RosterSection[];
 
@@ -117,6 +118,7 @@ function nextGlobalState(
   patch: {
     pins?: readonly string[];
     hidden?: readonly string[];
+    muted?: readonly string[];
     sectionOrder?: readonly string[];
     topOrder?: readonly TopOrderEntry[] | undefined;
   },
@@ -128,6 +130,8 @@ function nextGlobalState(
   };
   const hidden = patch.hidden ?? state.hidden;
   if (hidden !== undefined) next.hidden = [...hidden];
+  const muted = patch.muted ?? state.muted;
+  if (muted !== undefined) next.muted = [...muted];
   const topOrder = patch.topOrder ?? state.topOrder;
   if (topOrder !== undefined) next.topOrder = [...topOrder];
   return next;
@@ -277,6 +281,7 @@ export class RosterStore {
     return {
       pins: [...state.pins],
       hidden: [...(state.hidden ?? [])],
+      muted: [...(state.muted ?? [])],
       sectionOrder: sections.map((section) => section.id),
       sections,
       topOrder,
@@ -542,6 +547,21 @@ export class RosterStore {
       const state = global.get();
       if (!sameIds(next, state.hidden ?? [])) {
         global.set(nextGlobalState(state, { hidden: next }));
+      }
+      return next;
+    });
+  }
+
+  mutedSet(channelId: string, muted: boolean): Promise<string[]> {
+    return this.enqueue(() => {
+      const global = this.requireGlobal();
+      const state = global.get();
+      const current = uniqueStrings(state.muted ?? []);
+      const next = muted
+        ? uniqueStrings([...current, channelId])
+        : current.filter((id) => id !== channelId);
+      if (!sameIds(next, state.muted ?? [])) {
+        global.set(nextGlobalState(state, { muted: next }));
       }
       return next;
     });

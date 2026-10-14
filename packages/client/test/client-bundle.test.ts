@@ -247,6 +247,12 @@ describe('@botharness/ui browser bundle', () => {
         children: { 'botharness.settings.section': { kind: 'list', scope: 'root' } },
       },
       {
+        name: 'shell.overlay',
+        id: 'botharness-shortcut-help',
+        locale: 'botharness',
+        inject: expect.any(Function),
+      },
+      {
         name: 'sidebar.panellist',
         id: 'botharness',
         order: 10,

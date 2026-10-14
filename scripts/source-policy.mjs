@@ -22,6 +22,7 @@ const licenseHeaderHashes = new Map([
   ['packages/client/src/client/hash-icon.tsx', '8d64b9069cfcfaab'],
   ['packages/client/src/client/git-commit-icon.tsx', 'f12f09c727a3d8d5'],
   ['packages/client/src/client/inbox-icon.tsx', '8412a9519ce369b7'],
+  ['packages/client/src/client/at-sign-icon.tsx', '872b937bc972ab3c'],
 ]);
 const firstPartyPrefixes = ['packages/', 'scripts/', 'apps/docs/', 'apps/mobile/', 'design/'];
 

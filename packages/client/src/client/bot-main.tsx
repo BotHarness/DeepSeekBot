@@ -1,6 +1,11 @@
 import { OnboardingMemoryNavigation } from './onboarding-memory.js';
 import { OnboardingOverlay } from './onboarding-view.js';
-import { ChannelMark, ConversationTitle, GroupChannelHeader } from './group-channel-header.js';
+import {
+  ChannelMark,
+  ChannelMenuCaret,
+  ConversationTitle,
+  GroupChannelHeader,
+} from './group-channel-header.js';
 import { MobileConversationHeader } from './mobile-conversation-header.js';
 import { CompanionPin } from './window-companions-view.js';
 import { useDmComposerContext } from './dm-composer-context.js';
@@ -23,7 +28,9 @@ import {
   IconChecklistOutlineRegular,
   IconCopyOutlineRegular,
   IconGoalOutlineRegular,
+  IconNewChatOutlineRegular,
   IconPanelLeftOutlineRegular,
+  IconUserOutlineRegular,
   Menu,
   Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives';
@@ -57,10 +64,12 @@ import {
   useComposerRecovery,
 } from './conversation-draft.js';
 import { insertAttachmentReferences, removeAttachmentReferences } from './attachment-refs.js';
-import { rebaseMentions } from './mentions.js';
+import { appendMention, rebaseMentions } from './mentions.js';
+import { AtSignIcon } from './at-sign-icon.js';
 import { rebaseChannelRefs } from './channel-refs.js';
 import { channelHumanName, humanLabel } from './actor-names.js';
-import { HumanChannelNameMenu } from './human-channel-name.js';
+import { ChannelHeaderMenu, type ChannelMenuTrigger } from './human-channel-name.js';
+import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import type { ChannelHumanMember } from './store.js';
 import {
   ChannelMessageBody,
@@ -71,6 +80,7 @@ import { BridgeSourceAuthor } from './bridge-source-author.js';
 import { botNameColor, botNameSource, useConversationSurface } from './bot-primary-color.js';
 import { ChannelDeliveryReceipt } from './channel-delivery-receipt.js';
 import { MessageCopyAction } from './message-copy-action.js';
+import { MessageAuthorHoverCard, messageAuthorCardModel } from './message-author-card.js';
 import { isBotDmChannel, isHumanReadOnlyDmChannel } from './channel-kind.js';
 import { zhTranslate, type BotHarnessTranslate } from './locale.js';
 import { toolApprovalReplyPreview } from './approval-text.js';
@@ -449,6 +459,7 @@ function MessageGroupView({
   focusMessageId,
   currentDmBotSlug,
   onContextMenu,
+  onAvatarMenu,
   onReply,
   onReact,
   onJumpReply,
@@ -469,6 +480,7 @@ function MessageGroupView({
   currentDmBotSlug?: string | undefined;
   bots: readonly BotSummary[];
   onContextMenu(message: ChannelMessage, x: number, y: number): void;
+  onAvatarMenu?: ((botSlug: string, x: number, y: number) => void) | undefined;
   onReply?: ((message: ChannelMessage) => void) | undefined;
   onReact?: ((message: ChannelMessage, emoji: string, active: boolean) => void) | undefined;
   onRestoreFailed(message: ChannelMessage): void;
@@ -515,6 +527,35 @@ function MessageGroupView({
         avatarSeed={displayBot.avatarSeed}
         size={28}
         indicator={false}
+        nativeTitle={false}
+      />
+    );
+  const authorName = welcomeBot?.displayName ?? authorLabel(first, bots, t, humanName);
+  const authorCard =
+    first.bridgeOrigin !== undefined
+      ? undefined
+      : displayBot !== undefined
+        ? messageAuthorCardModel({ kind: 'bot', bot: displayBot }, currentDmBotSlug, t)
+        : human
+          ? messageAuthorCardModel({ kind: 'human', name: authorName }, currentDmBotSlug, t)
+          : undefined;
+  const withAuthorCard = (anchor: ReactElement): ReactElement =>
+    authorCard === undefined ? (
+      anchor
+    ) : (
+      <MessageAuthorHoverCard
+        anchor={anchor}
+        model={authorCard}
+        bot={displayBot}
+        onMessage={
+          displayBot === undefined ? undefined : () => void actions.openBot(displayBot.slug)
+        }
+        onProfile={
+          displayBot === undefined
+            ? undefined
+            : () => void actions.openBot(displayBot.slug, 'profile')
+        }
+        t={t}
       />
     );
   return (
@@ -522,31 +563,63 @@ function MessageGroupView({
       className={`bh-message-group${human ? ' bh-message-group-me' : ''}`}
       data-group-size={group.messages.length}
     >
-      {avatar === undefined ? null : author.kind === 'bot' && currentDmBotSlug !== author.slug ? (
-        <button
-          type="button"
-          className="bh-message-group-avatar bh-message-group-avatar-link"
-          aria-label={t('message.mention.openDm', { bot: displayBot?.displayName ?? '' })}
-          onClick={() => void actions.openBot(author.slug)}
-        >
-          {avatar}
-        </button>
-      ) : (
-        <span className="bh-message-group-avatar">{avatar}</span>
+      {avatar === undefined ? null : (
+        <span className="bh-message-group-avatar">
+          {withAuthorCard(
+            author.kind === 'bot' && currentDmBotSlug !== author.slug ? (
+              <button
+                type="button"
+                className="bh-message-group-avatar-link"
+                aria-label={t('message.mention.openDm', { bot: displayBot?.displayName ?? '' })}
+                {...(onAvatarMenu === undefined ? {} : { 'aria-haspopup': 'menu' as const })}
+                onClick={() => void actions.openBot(author.slug)}
+                onContextMenu={
+                  onAvatarMenu === undefined
+                    ? undefined
+                    : (event) => {
+                        event.preventDefault();
+                        const box = event.currentTarget.getBoundingClientRect();
+                        const keyboard = event.clientX === 0 && event.clientY === 0;
+                        onAvatarMenu(
+                          author.slug,
+                          keyboard ? box.left : event.clientX,
+                          keyboard ? box.bottom : event.clientY,
+                        );
+                      }
+                }
+              >
+                {avatar}
+              </button>
+            ) : (
+              <span
+                className="bh-message-group-avatar-focus"
+                role="group"
+                tabIndex={0}
+                aria-label={t('message.authorCard.label', {
+                  name: displayBot?.displayName ?? '',
+                })}
+              >
+                {avatar}
+              </span>
+            ),
+          )}
+        </span>
       )}
       <div className="bh-message-stack">
         <div className="bh-message-identity">
           {first.bridgeOrigin ? (
             <BridgeSourceAuthor origin={first.bridgeOrigin} t={t} />
           ) : (
-            <div
-              className="bh-bubble-author"
-              ref={nameColor === undefined ? undefined : surface.probe}
-              data-bot-name-color={nameColor}
-              style={nameColor === undefined ? undefined : { color: nameColor }}
-            >
-              {welcomeBot?.displayName ?? authorLabel(first, bots, t, humanName)}
-            </div>
+            withAuthorCard(
+              <span
+                className="bh-bubble-author"
+                ref={nameColor === undefined ? undefined : surface.probe}
+                data-bot-name-color={nameColor}
+                style={nameColor === undefined ? undefined : { color: nameColor }}
+              >
+                {authorName}
+              </span>,
+            )
           )}
           <time className="bh-bubble-time" dateTime={first.at} title={fullTime(first.at, t)}>
             {clockTime(first.at)}
@@ -742,6 +815,62 @@ function MessageActionMenu({
           else if (id === 'copy') {
             void navigator.clipboard?.writeText(request.message.body);
           } else if (id === 'select') onSelect?.(request.message);
+          onClose();
+        }}
+        onClose={onClose}
+      />
+    </span>
+  );
+}
+
+export interface AvatarMenuRequest {
+  botSlug: string;
+  x: number;
+  y: number;
+}
+
+export function BotAvatarMenu({
+  request,
+  canMention,
+  onMessage,
+  onMention,
+  onProfile,
+  onClose,
+  t,
+}: {
+  request: AvatarMenuRequest;
+  canMention: boolean;
+  onMessage(botSlug: string): void;
+  onMention(botSlug: string): void;
+  onProfile(botSlug: string): void;
+  onClose(): void;
+  t: BotHarnessTranslate;
+}): ReactElement {
+  const proxy = useRef<HTMLSpanElement | null>(null);
+  return (
+    <span className="bh-menu-anchor" style={{ left: request.x, top: request.y }}>
+      <Menu
+        open
+        portal
+        dense
+        autoFocus
+        anchor={<span ref={proxy} aria-hidden="true" />}
+        getAnchorRect={() => proxy.current?.getBoundingClientRect() ?? null}
+        items={[
+          {
+            id: 'message',
+            label: t('message.avatar.message'),
+            icon: <IconNewChatOutlineRegular />,
+          },
+          ...(canMention
+            ? [{ id: 'mention', label: t('message.avatar.mention'), icon: <AtSignIcon /> }]
+            : []),
+          { id: 'profile', label: t('message.avatar.profile'), icon: <IconUserOutlineRegular /> },
+        ]}
+        onSelect={(id) => {
+          if (id === 'message') onMessage(request.botSlug);
+          else if (id === 'mention') onMention(request.botSlug);
+          else if (id === 'profile') onProfile(request.botSlug);
           onClose();
         }}
         onClose={onClose}
@@ -967,6 +1096,7 @@ function ConversationView({
   const [unseen, setUnseen] = useState(0);
   const [atLatest, setAtLatest] = useState(true);
   const [messageMenu, setMessageMenu] = useState<MessageMenuRequest | undefined>();
+  const [avatarMenu, setAvatarMenu] = useState<AvatarMenuRequest | undefined>();
   const [diagnosticsTarget, setDiagnosticsTarget] = useState<
     | { channelId: string; fromMessageId: string; toMessageId?: string; messageIds: string[] }
     | undefined
@@ -1807,6 +1937,33 @@ function ConversationView({
     }
   };
 
+  const channelMenuLabel = (menu: ChannelMenuTrigger): string =>
+    `${title} · ${t('humanNickname.menu')}` +
+    (menu.attention ? ` · ${t('channelSettings.needsAttention')}` : '');
+  const channelHeaderMenu = (
+    primaryAction: { label: string; icon: ReactNode; run(): void },
+    anchor: (menu: ChannelMenuTrigger | undefined) => ReactNode,
+  ): ReactNode =>
+    onMobileBack !== undefined || channel === undefined ? (
+      anchor(undefined)
+    ) : (
+      <ChannelHeaderMenu
+        key={channel.id}
+        channel={channel}
+        actions={actions}
+        t={t}
+        anchor={anchor}
+        primaryAction={primaryAction}
+        deleteBotSlug={
+          profileBot === undefined || profileBot.deleted === true ? undefined : profileBot.slug
+        }
+        onOpenSettings={
+          hasChannelSettings ? () => channelSettings.open(settingsAttention[0]?.id) : undefined
+        }
+        settingsAttention={settingsAttention.length > 0}
+      />
+    );
+
   return (
     <div ref={conversationMount} className="bh-root bh-main">
       <span ref={allBotPreviewMount} hidden />
@@ -1829,25 +1986,6 @@ function ConversationView({
                 : undefined
             }
           >
-            {onMobileBack !== undefined || channel === undefined ? null : (
-              <HumanChannelNameMenu
-                key={channel.id}
-                channel={channel}
-                actions={actions}
-                t={t}
-                deleteBotSlug={
-                  profileBot === undefined || profileBot.deleted === true
-                    ? undefined
-                    : profileBot.slug
-                }
-                onOpenSettings={
-                  hasChannelSettings
-                    ? () => channelSettings.open(settingsAttention[0]?.id)
-                    : undefined
-                }
-                settingsAttention={settingsAttention.length > 0}
-              />
-            )}
             {onMobileBack !== undefined ? (
               <MobileConversationHeader
                 title={title}
@@ -1858,16 +1996,26 @@ function ConversationView({
               />
             ) : channel?.type === 'group' ? (
               <span className="bh-channel-island-wrap" ref={profileTriggerRef}>
-                <GroupChannelHeader
-                  channel={channel}
-                  title={title}
-                  members={channelFacepile}
-                  companion={companion}
-                  expanded={profilePopoverOpen}
-                  t={t}
-                  onOpenActivity={() => setProfilePopoverOpen(true)}
-                  onToggleProfile={() => setProfilePopoverOpen((open) => !open)}
-                />
+                {channelHeaderMenu(
+                  {
+                    label: t('groupProfile.label'),
+                    icon: <ChannelSidebarIcon name="id-card" size={16} />,
+                    run: () => setProfilePopoverOpen(true),
+                  },
+                  (menu) => (
+                    <GroupChannelHeader
+                      channel={channel}
+                      title={title}
+                      members={channelFacepile}
+                      companion={companion}
+                      expanded={profilePopoverOpen}
+                      menu={menu}
+                      t={t}
+                      onOpenActivity={() => setProfilePopoverOpen(true)}
+                      onToggleProfile={() => setProfilePopoverOpen((open) => !open)}
+                    />
+                  ),
+                )}
                 {profilePopoverOpen ? (
                   <GroupProfilePopover
                     members={channelFacepile}
@@ -1891,33 +2039,57 @@ function ConversationView({
               </span>
             ) : profileBot === undefined ? (
               <span className="bh-companion-chip">
-                <button
-                  type="button"
-                  className="bh-channel-island"
-                  aria-label={`${title} — ${t(sidebar.mode === 'hidden' ? 'sidebar.expand' : 'sidebar.collapse')}`}
-                  aria-controls="bh-channel-sidebar"
-                  aria-expanded={sidebar.mode !== 'hidden'}
-                  onClick={sidebar.toggle}
-                >
-                  {bot !== undefined ? (
-                    <PersonaBotAvatar
-                      t={t}
-                      personaBotId={bot.slug}
-                      name={bot.displayName}
-                      src={bot.avatar}
-                      appearance={bot.appearance}
-                      avatarSeed={bot.avatarSeed}
-                      state={botActivity}
-                      size={22}
-                      indicator={false}
-                    />
-                  ) : channelFacepile.length > 0 ? (
-                    <PersonaBotFacepile items={channelFacepile} size={22} indicator={false} t={t} />
-                  ) : (
-                    <ChannelMark />
-                  )}
-                  <ConversationTitle>{title}</ConversationTitle>
-                </button>
+                {channelHeaderMenu(
+                  {
+                    label: t(sidebar.mode === 'hidden' ? 'sidebar.expand' : 'sidebar.collapse'),
+                    icon: <ChannelSidebarIcon name="panels-top-left" size={16} />,
+                    run: sidebar.toggle,
+                  },
+                  (menu) => (
+                    <button
+                      type="button"
+                      className="bh-channel-island"
+                      {...(menu === undefined
+                        ? {
+                            'aria-label': `${title} — ${t(sidebar.mode === 'hidden' ? 'sidebar.expand' : 'sidebar.collapse')}`,
+                            'aria-controls': 'bh-channel-sidebar',
+                            'aria-expanded': sidebar.mode !== 'hidden',
+                            onClick: sidebar.toggle,
+                          }
+                        : {
+                            'aria-label': channelMenuLabel(menu),
+                            'aria-haspopup': 'menu' as const,
+                            'aria-expanded': menu.open,
+                            onClick: menu.toggle,
+                          })}
+                    >
+                      {bot !== undefined ? (
+                        <PersonaBotAvatar
+                          t={t}
+                          personaBotId={bot.slug}
+                          name={bot.displayName}
+                          src={bot.avatar}
+                          appearance={bot.appearance}
+                          avatarSeed={bot.avatarSeed}
+                          state={botActivity}
+                          size={22}
+                          indicator={false}
+                        />
+                      ) : channelFacepile.length > 0 ? (
+                        <PersonaBotFacepile
+                          items={channelFacepile}
+                          size={22}
+                          indicator={false}
+                          t={t}
+                        />
+                      ) : (
+                        <ChannelMark />
+                      )}
+                      <ConversationTitle>{title}</ConversationTitle>
+                      {menu === undefined ? null : <ChannelMenuCaret attention={menu.attention} />}
+                    </button>
+                  ),
+                )}
                 {bot && companion ? (
                   <CompanionPin
                     companion={companion}
@@ -1929,27 +2101,46 @@ function ConversationView({
               </span>
             ) : (
               <span className="bh-channel-island-wrap" ref={profileTriggerRef}>
-                <button
-                  type="button"
-                  className="bh-channel-island"
-                  aria-haspopup="dialog"
-                  aria-expanded={profilePopoverOpen}
-                  aria-label={t('profile.openAvatar', { name: profileBot.displayName })}
-                  onClick={() => setProfilePopoverOpen((open) => !open)}
-                >
-                  <PersonaBotAvatar
-                    t={t}
-                    personaBotId={profileBot.slug}
-                    name={profileBot.displayName}
-                    src={profileBot.avatar}
-                    appearance={profileBot.appearance}
-                    avatarSeed={profileBot.avatarSeed}
-                    state={profileBotActivity}
-                    size={22}
-                    indicator={false}
-                  />
-                  <ConversationTitle>{title}</ConversationTitle>
-                </button>
+                {channelHeaderMenu(
+                  {
+                    label: t('profile.label'),
+                    icon: <ChannelSidebarIcon name="id-card" size={16} />,
+                    run: () => setProfilePopoverOpen(true),
+                  },
+                  (menu) => (
+                    <button
+                      type="button"
+                      className="bh-channel-island"
+                      {...(menu === undefined
+                        ? {
+                            'aria-haspopup': 'dialog' as const,
+                            'aria-expanded': profilePopoverOpen,
+                            'aria-label': t('profile.openAvatar', { name: profileBot.displayName }),
+                            onClick: () => setProfilePopoverOpen((open) => !open),
+                          }
+                        : {
+                            'aria-haspopup': 'menu' as const,
+                            'aria-expanded': menu.open,
+                            'aria-label': channelMenuLabel(menu),
+                            onClick: menu.toggle,
+                          })}
+                    >
+                      <PersonaBotAvatar
+                        t={t}
+                        personaBotId={profileBot.slug}
+                        name={profileBot.displayName}
+                        src={profileBot.avatar}
+                        appearance={profileBot.appearance}
+                        avatarSeed={profileBot.avatarSeed}
+                        state={profileBotActivity}
+                        size={22}
+                        indicator={false}
+                      />
+                      <ConversationTitle>{title}</ConversationTitle>
+                      {menu === undefined ? null : <ChannelMenuCaret attention={menu.attention} />}
+                    </button>
+                  ),
+                )}
                 {companion ? (
                   <CompanionPin
                     companion={companion}
@@ -2238,8 +2429,17 @@ function ConversationView({
                               }
                               bots={state.bots}
                               onContextMenu={(message, x, y) => {
+                                setAvatarMenu(undefined);
                                 setMessageMenu({ message, x, y });
                               }}
+                              onAvatarMenu={
+                                channel?.type === 'group'
+                                  ? (botSlug, x, y) => {
+                                      setMessageMenu(undefined);
+                                      setAvatarMenu({ botSlug, x, y });
+                                    }
+                                  : undefined
+                              }
                               onReply={
                                 readOnlyDm ? undefined : (message) => setReplyTarget(message)
                               }
@@ -2568,6 +2768,36 @@ function ConversationView({
                   onClose={() => {
                     setMessageMenu(undefined);
                   }}
+                />
+              )}
+              {activeMemoryView !== undefined ||
+              avatarMenu === undefined ||
+              channel?.type !== 'group' ? null : (
+                <BotAvatarMenu
+                  request={avatarMenu}
+                  canMention={channelBots.some(
+                    (member) => member.slug === avatarMenu.botSlug && member.deleted !== true,
+                  )}
+                  t={t}
+                  onMessage={(botSlug) => void actions.openBot(botSlug)}
+                  onMention={(botSlug) => {
+                    const member = channelBots.find((candidate) => candidate.slug === botSlug);
+                    if (member === undefined) return;
+                    const next = appendMention(
+                      draft,
+                      mentionTokens,
+                      member.slug,
+                      member.displayName,
+                    );
+                    recovery.update({
+                      text: next.value,
+                      mentions: next.mentions,
+                      channelRefs: rebaseChannelRefs(draft, next.value, channelRefTokens),
+                    });
+                    setRestoreFocusSignal((value) => value + 1);
+                  }}
+                  onProfile={(botSlug) => void actions.openBot(botSlug, 'profile')}
+                  onClose={() => setAvatarMenu(undefined)}
                 />
               )}
               {diagnosticsTarget === undefined ? null : (

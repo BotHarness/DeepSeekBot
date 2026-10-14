@@ -255,6 +255,7 @@ function MobileNavigation(props: MobileBotPanelProps): ReactElement {
             actions={actions}
             companion={companion}
             useBotModePrefs={useBotModePrefs}
+            channelSidebar={props.channelSidebar}
             setSortMode={props.setSortMode}
             setSectionSortMode={props.setSectionSortMode}
             t={t}

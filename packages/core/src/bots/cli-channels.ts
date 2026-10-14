@@ -21,6 +21,7 @@ export const CHANNEL_OPTIONS = {
   confirm: { type: 'boolean' },
   emoji: { type: 'string' },
   remove: { type: 'boolean' },
+  off: { type: 'boolean' },
 } as const;
 
 export const CHANNEL_COMMANDS = [
@@ -59,6 +60,11 @@ export const CHANNEL_COMMANDS = [
     description: 'add or remove your emoji reaction on one Channel message',
   },
   { command: 'channel-search', description: "search a Channel's messages, newest first" },
+  { command: 'channel-unread', description: 'list unread message counts per Channel' },
+  {
+    command: 'channel-mute',
+    description: 'mute a Channel so it stays out of unread badges, or unmute it with --off',
+  },
   { command: 'channel-retry', description: 'retry a failed Bot reply to a Human DM message' },
   {
     command: 'channel-purge-preview',
@@ -101,6 +107,7 @@ interface ChannelValues {
   emoji?: string;
   remove?: boolean;
   query?: string;
+  off?: boolean;
 }
 
 const WAKE_MODES = new Set(['all', 'mentions', 'digest', 'silent']);
@@ -175,7 +182,10 @@ export async function runChannelCommand(
   connect: typeof connectLiveHost,
 ): Promise<unknown> {
   const values = input as ChannelValues;
-  const noTarget = command === 'channel-history' || command === 'channel-mark-all-read';
+  const noTarget =
+    command === 'channel-history' ||
+    command === 'channel-mark-all-read' ||
+    command === 'channel-unread';
   if (rest.length !== (noTarget ? 0 : 1))
     usage(
       `${command} ${noTarget ? 'takes no positional arguments' : 'needs exactly one Channel ID'}.`,
@@ -305,6 +315,14 @@ export async function runChannelCommand(
     case 'channel-mark-all-read':
       method = 'channelMarkAllRead';
       args = {};
+      break;
+    case 'channel-unread':
+      method = 'channelUnreadCounts';
+      args = {};
+      break;
+    case 'channel-mute':
+      method = 'channelMuteSet';
+      args.muted = values.off !== true;
       break;
     case 'channel-retry':
       method = 'channelRetry';

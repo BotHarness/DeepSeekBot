@@ -37,10 +37,12 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
     IconPinOutlineRegular: stub,
     IconTrashOutlineRegular: stub,
     FileTypeIcon: stub,
+    HoverCard: ({ anchor }: PropsWithChildren<{ anchor: unknown }>) =>
+      createElement('span', { 'data-hover-card': 'author' }, anchor as never),
     fileSizeText: (size: number) => `${size} B`,
     ImageLightbox: stub,
     Input: stub,
-    Menu: stub,
+    Menu: ({ anchor }: { anchor?: unknown }) => anchor ?? null,
     MenuItemButton: stub,
     MenuSurface: forwardRef<HTMLDivElement, PropsWithChildren>((props, ref) =>
       createElement('div', { ...props, ref }),
@@ -292,8 +294,9 @@ describe('Bot main Sessions pane', () => {
     expect(markup).toContain('会话');
     expect(markup).toContain('收起 Channel sidebar');
     expect(markup).toContain('class="bh-channel-island"');
-    expect(markup).toContain('aria-haspopup="dialog"');
-    expect(markup).toContain('aria-label="打开 Ada 的 Profile"');
+    expect(markup).toContain('aria-haspopup="menu"');
+    expect(markup).toContain('aria-label="Ada · ' + zhTranslate('humanNickname.menu') + '"');
+    expect(markup).toContain('data-channel-menu-caret=""');
     expect(markup).toMatch(/<span data-conversation-title="" class="[^"]+">Ada<\/span>/);
     expect(markup).not.toContain('bh-channel-sidebar-title');
     expect(markup).toContain('class="bh-chat-top-fade"');
@@ -348,8 +351,9 @@ describe('Bot main Sessions pane', () => {
 
     expect(markup).toContain('class="bh-channel-island bh-group-channel-header"');
     expect(markup).toContain('data-group-channel-name=""');
-    expect(markup).toContain('aria-label="打开 设计组 的群聊 Profile"');
-    expect(markup).toContain('aria-haspopup="dialog"');
+    expect(markup).toContain('aria-label="设计组 · ' + zhTranslate('humanNickname.menu') + '"');
+    expect(markup).toContain('aria-haspopup="menu"');
+    expect(markup).toContain('data-channel-menu-caret=""');
     expect(markup).toMatch(/<span data-conversation-title="" class="[^"]+">设计组<\/span>/);
 
     store.setRoster(previous.bots, previous.channels);
@@ -804,6 +808,11 @@ describe('Bot main Sessions pane', () => {
     expect(markup).toContain('data-group-position="last"');
     expect(markup.match(/class="bh-message-group-avatar"/g)).toHaveLength(1);
     expect(markup).not.toContain('bh-message-group-avatar-link');
+    expect(markup.match(/data-hover-card="author"/g)).toHaveLength(2);
+    expect(markup).toContain('class="bh-message-group-avatar-focus" role="group" tabindex="0"');
+    const group = markup.slice(markup.indexOf('class="bh-message-group"'));
+    expect(group).toContain('class="bh-persona-avatar"');
+    expect(group).not.toMatch(/class="bh-persona-avatar"[^>]*title=/);
     expect(markup.match(/class="bh-bubble-time"/g)).toHaveLength(1);
     expect(markup).toContain('dateTime="2026-09-21T00:01:00.000Z"');
     expect(markup.match(/class="bh-bubble-meta"/g)).toHaveLength(2);

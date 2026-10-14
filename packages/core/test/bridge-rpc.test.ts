@@ -171,6 +171,7 @@ describe('bridge typert service', () => {
       'channelMarkAllRead',
       'channelReact',
       'channelSearch',
+      'channelUnreadCounts',
       'channelAllBotPreview',
       'channelSend',
       'channelSendStatus',
@@ -240,6 +241,7 @@ describe('bridge typert service', () => {
       'topReorder',
       'pinsSet',
       'hiddenSet',
+      'channelMuteSet',
       'rosterBatch',
       'developerModeSet',
       'computerAccessSet',
@@ -409,6 +411,7 @@ describe('bridge typert service', () => {
     expect(parameterNames(service.topReorder)).toEqual(['order']);
     expect(parameterNames(service.pinsSet)).toEqual(['pins']);
     expect(parameterNames(service.hiddenSet)).toEqual(['hidden']);
+    expect(parameterNames(service.channelMuteSet)).toEqual(['channelId', 'muted']);
     expect(parameterNames(service.rosterBatch)).toEqual(['action', 'channelIds', 'sectionId']);
   });
 

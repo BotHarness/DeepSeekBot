@@ -18,6 +18,8 @@ describe('verify-app arguments', () => {
       'Enter',
       '--click-text',
       'Welcome',
+      '--right-click',
+      'DeepSeek Bot',
       '--wait-text',
       '42',
       '--size',
@@ -38,6 +40,7 @@ describe('verify-app arguments', () => {
         { kind: 'fill', name: 'Message DeepSeek Bot', text: 'a=b' },
         { kind: 'press', name: 'Enter' },
         { kind: 'click-text', name: 'Welcome' },
+        { kind: 'right-click', name: 'DeepSeek Bot' },
       ],
     });
   });

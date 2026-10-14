@@ -127,6 +127,7 @@ describe('DM conversation', () => {
       host: {
         call: (method, args) => client!.call(method, args),
         upload: (name, data) => client!.upload(name, data),
+        resource: (path) => client!.resource(path),
         follow: (endpoint, args, handlers) => {
           let cancel: (() => void) | undefined;
           void gate.then(() => {
@@ -230,7 +231,10 @@ describe('DM conversation', () => {
     });
     host.failing.add('channelSend');
     const id = target.send('two files', [file('a.txt', 'alpha'), file('b.txt', 'beta')]);
-    expect(target.getSnapshot().messages.at(-1)).toMatchObject({ attachments: 2 });
+    expect(target.getSnapshot().messages.at(-1)?.attachments).toEqual([
+      { key: `${id}:0`, kind: 'file', name: 'a.txt', local: false },
+      { key: `${id}:1`, kind: 'file', name: 'b.txt', local: false },
+    ]);
     await until(target, (s) => s.messages.at(-1)?.delivery === 'failed');
     expect(host.uploads).toEqual([
       { name: 'a.txt', type: 'application/octet-stream', text: 'alpha' },
@@ -245,6 +249,116 @@ describe('DM conversation', () => {
     expect(sent?.['attachments']).toEqual([
       expect.objectContaining({ name: 'a.txt', size: 5 }),
       expect.objectContaining({ name: 'b.txt', size: 4 }),
+    ]);
+  });
+
+  it('shows picked files at once and keeps their local copies after the Host commits them', async () => {
+    const host = new FakeHost();
+    host.channel(DM);
+    const target = open(host);
+    await until(target, (s) => s.status === 'live');
+    const id = target.send('', [
+      {
+        name: 'cat.jpg',
+        kind: 'image',
+        uri: 'file:///cache/cat.jpg',
+        read: async () => new Blob(['jpeg']),
+      },
+    ]);
+    expect(target.getSnapshot().messages.at(-1)?.attachments).toEqual([
+      {
+        key: `${id}:0`,
+        kind: 'image',
+        name: 'cat.jpg',
+        source: { uri: 'file:///cache/cat.jpg', headers: {} },
+        local: true,
+      },
+    ]);
+    const committed = await until(target, (s) => s.messages.at(-1)?.revision === 1);
+    expect(committed.messages.at(-1)?.attachments[0]).toMatchObject({
+      name: 'cat.jpg',
+      size: 4,
+      source: { uri: 'file:///cache/cat.jpg', headers: {} },
+      local: true,
+    });
+  });
+
+  it('loads committed attachments and bridged IM media through the device gateway', async () => {
+    const host = new FakeHost();
+    const channel = host.channel(DM);
+    channel.append(
+      {
+        id: 'bot-1',
+        author: { kind: 'bot', slug: SLUG },
+        body: 'here you go',
+        attachments: [
+          {
+            fileId: 'file:00000000-0000-4000-8000-000000000001',
+            name: 'chart.png',
+            mime: 'image/png',
+            size: 2048,
+          },
+          {
+            hash: `sha256:${'a'.repeat(64)}`,
+            name: 'report.pdf',
+            mime: 'application/pdf',
+            size: 3_500_000,
+          },
+        ],
+      },
+      false,
+    );
+    channel.append(
+      {
+        id: 'bridged-1',
+        author: { kind: 'bridged', source: 'lark' },
+        body: '',
+        bridgeMedia: { items: [{ id: 'img-1', kind: 'image', name: 'photo.jpg' }] },
+        bridgeOrigin: { sourceEventId: 'evt-9' } as never,
+      },
+      false,
+    );
+    const target = open(host);
+    const live = await until(target, (s) => s.messages.length === 2);
+    const headers = { authorization: `Device ${host.credential}` };
+    const gateway = `${ROUTE}/botharness-device/api/botharness/attachment?`;
+    expect(live.messages[0]?.attachments).toEqual([
+      {
+        key: 'bot-1:0',
+        kind: 'image',
+        name: 'chart.png',
+        mime: 'image/png',
+        size: 2048,
+        source: {
+          uri: `${gateway}${new URLSearchParams({ channelId: DM, messageId: 'bot-1', fileId: 'file:00000000-0000-4000-8000-000000000001' })}`,
+          headers,
+        },
+        local: false,
+      },
+      {
+        key: 'bot-1:1',
+        kind: 'file',
+        name: 'report.pdf',
+        mime: 'application/pdf',
+        size: 3_500_000,
+        source: {
+          uri: `${gateway}${new URLSearchParams({ hash: `sha256:${'a'.repeat(64)}`, name: 'report.pdf', channelId: DM, messageId: 'bot-1' })}`,
+          headers,
+        },
+        local: false,
+      },
+    ]);
+    expect(live.messages[1]?.attachments).toEqual([
+      {
+        key: 'bridged-1:bridge:img-1',
+        kind: 'image',
+        name: 'photo.jpg',
+        source: {
+          uri: `${gateway}${new URLSearchParams({ channelId: DM, sourceEventId: 'evt-9', attachmentId: 'img-1' })}`,
+          headers,
+        },
+        local: false,
+      },
     ]);
   });
 

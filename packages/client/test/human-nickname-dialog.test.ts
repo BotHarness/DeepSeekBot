@@ -10,7 +10,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { createElement: element } = await import('react');
   return {
     ...dialogPrimitives(),
-    IconEllipsisOutlineRegular: () => null,
+    IconCheckOutlineRegular: () => null,
     IconSettingsOutlineRegular: () => null,
     IconTrashOutlineRegular: () => null,
     IconUserOutlineRegular: () => null,
@@ -45,7 +45,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
 });
 
 import type { BridgeActions } from '../src/client/actions.js';
-import { HumanChannelNameMenu } from '../src/client/human-channel-name.js';
+import { ChannelHeaderMenu } from '../src/client/human-channel-name.js';
 import { zhTranslate as t } from '../src/client/locale.js';
 import type { ChannelSummary } from '../src/client/store.js';
 import { buttonNamed, dialog, fieldNamed, typeInto } from './primitive-mocks.js';
@@ -81,10 +81,12 @@ async function openNickname(
 ): Promise<void> {
   await act(async () =>
     root.render(
-      createElement(HumanChannelNameMenu, {
+      createElement(ChannelHeaderMenu, {
         channel,
         actions: { setHumanNickname } as unknown as BridgeActions,
         t,
+        anchor: ({ toggle }) =>
+          createElement('button', { 'aria-label': t('humanNickname.menu'), onClick: toggle }),
       }),
     ),
   );

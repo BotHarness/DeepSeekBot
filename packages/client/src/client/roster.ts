@@ -12,12 +12,13 @@ export interface TopOrderEntry {
 export interface RosterSnapshot {
   pins: string[];
   hidden: string[];
+  muted: string[];
   sections: RosterSection[];
   topOrder: TopOrderEntry[] | undefined;
 }
 
 export function emptyRosterSnapshot(): RosterSnapshot {
-  return { pins: [], hidden: [], sections: [], topOrder: undefined };
+  return { pins: [], hidden: [], muted: [], sections: [], topOrder: undefined };
 }
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
@@ -93,6 +94,7 @@ export function parseRosterSnapshot(value: unknown): RosterSnapshot {
   return {
     pins: uniqueStrings(record['pins']),
     hidden: uniqueStrings(record['hidden']),
+    muted: uniqueStrings(record['muted']),
     sections,
     topOrder: parseTopOrder(record),
   };
