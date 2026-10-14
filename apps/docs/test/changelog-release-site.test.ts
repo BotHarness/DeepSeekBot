@@ -92,8 +92,8 @@ Made bot work visible and dependable.
 
     const englishDirectory = resolve(root, "content/changelog");
     const chineseDirectory = resolve(root, "content/changelog-zh");
-    expect(readdirSync(englishDirectory)).toEqual(["development.mdx", "v1.0.1.mdx", "v1.0.2.mdx", "v1.1.0.mdx", "v1.2.0.mdx", "v1.2.1.mdx", "v1.3.0.mdx"]);
-    expect(readdirSync(chineseDirectory)).toEqual(["development.mdx", "v1.0.1.mdx", "v1.0.2.mdx", "v1.1.0.mdx", "v1.2.0.mdx", "v1.2.1.mdx", "v1.3.0.mdx"]);
+    expect(readdirSync(englishDirectory)).toEqual(["development.mdx", "v1.0.1.mdx", "v1.0.2.mdx", "v1.1.0.mdx", "v1.2.0.mdx", "v1.2.1.mdx", "v1.3.0.mdx", "v1.3.1.mdx"]);
+    expect(readdirSync(chineseDirectory)).toEqual(["development.mdx", "v1.0.1.mdx", "v1.0.2.mdx", "v1.1.0.mdx", "v1.2.0.mdx", "v1.2.1.mdx", "v1.3.0.mdx", "v1.3.1.mdx"]);
 
     const english = readFileSync(resolve(englishDirectory, "development.mdx"), "utf8");
     const chinese = readFileSync(resolve(chineseDirectory, "development.mdx"), "utf8");

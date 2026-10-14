@@ -6,7 +6,37 @@ Unreleased entries arrive as [change fragments](changes/README.md) and are folde
 
 ## [Unreleased]
 
-No changes since 1.3.0 yet.
+No changes since 1.3.1 yet.
+
+## [1.3.1] - 2026-10-14
+
+Entering `deepseekbot` on the DSH Plugins page installs it in one step again, now on DSH 0.2.0-rc.2 only; the `deepseekbot` CLI can configure a Host, operate a Bot's Browser and Computer and manage token-based IM apps; the Bot Browser panel streams page changes live; and a development build of the mobile app shows the Roster and native PersonaBot DMs.
+
+### Breaking Changes
+
+- DeepSeekBot 1.3.1 needs exactly DSH 0.2.0-rc.2, the only release its bundled Computer runtime works with. DSH 0.2.0-rc.1 and the 0.2.1 alphas refuse it at installation with a message naming DeepSeekBot; upgrade DSH to 0.2.0-rc.2 first, or stay on DeepSeekBot 1.3.0 ([#1672](https://github.com/BotHarness/DeepSeekBot/pull/1672)).
+
+### Added
+
+- The getting-started checklist adds "See how it works in DSH", a short walkthrough from the Bot's Sessions tab into the same session in DSH and back to the Bot DM ([#1496](https://github.com/BotHarness/DeepSeekBot/issues/1496)).
+- Added a development build of the DeepSeekBot mobile app that connects to the Human's Host over Tailscale HTTPS and shows the Roster of PersonaBots and Channels with live state, and recorded why it reads live state over DSH's Remote stream socket in [ADR-0200](docs/adr/0200-the-mobile-app-reads-live-state-over-the-dsh-remote-stream-socket.md) ([#1650](https://github.com/BotHarness/DeepSeekBot/issues/1650)).
+- Added a native PersonaBot DM to the mobile app's development build: tap a Bot in the Roster to read the DM from an on-device cache and then the Host, page back through older history, send with visible sending, sent and not-sent states (a retry never sends twice), watch the reply stream in, and resume after the app returns from the background without lost or repeated messages; replies render as selectable Markdown in system dark mode and zh/en ([#1651](https://github.com/BotHarness/DeepSeekBot/issues/1651)).
+- The `deepseekbot` CLI can now configure what the Web UI configures, so an agent can set up and test a Host on its own: `browser-access-set`, `computer-access-set`, `access` and `access-set` (full access needs `--acknowledge-risk`), `settings` and `settings-set`, `workspace-create` and `group-create` ([#1677](https://github.com/BotHarness/DeepSeekBot/issues/1677)).
+- The `deepseekbot` CLI can now operate a Bot's Browser and the Computer: `browser-open`, `browser-frame` (save the current picture to a file), `browser-takeover`, `browser-stop`, `computer-start`, `computer-status` and `computer-stop`. `grants` now also works against a live Host ([#1677](https://github.com/BotHarness/DeepSeekBot/issues/1677)).
+- The `deepseekbot` CLI can now add, inspect and remove token-based IM apps (Discord, Slack, QQ, DingTalk, WeCom, Matrix), bind and unbind them to a Bot, show each binding's reception, and connect an external group conversation to a Channel: `im-app-add`, `im-app-status`, `im-app-remove`, `im-bind`, `im-unbind`, `im-status`, `channel-connect` and `channel-ingests`. Credentials are read from stdin only and never printed ([#1677](https://github.com/BotHarness/DeepSeekBot/issues/1677)).
+
+### Changed
+
+- The Bot Browser panel in the Host web page now follows the page as it changes instead of refreshing once per second. Chrome pushes a new picture whenever the page repaints, so typing, scrolling and clicking show up in about a quarter of a second, and a page that does not change costs nothing. Runtimes that cannot stream keep the once-per-second picture ([#1636](https://github.com/BotHarness/DeepSeekBot/issues/1636)).
+
+### Documentation
+
+- Documented how a paired phone keeps reaching the Host across restarts: a device gateway on the same `dsh web` listener verifies a per-device credential, forwards to the native carriers, and revokes one device at once, including its open streams; runtime behavior is unchanged ([ADR-0199](docs/adr/0199-paired-devices-reach-the-host-through-a-same-listener-device-gateway.md), [#1649](https://github.com/BotHarness/DeepSeekBot/issues/1649)).
+- The GitHub README and installation guides now install `deepseekbot@1.3.0` and list its highlights, and the npm package README states the DSH 0.2.0 minimum ([#1667](https://github.com/BotHarness/DeepSeekBot/pull/1667)).
+
+### Fixed
+
+- Entering `deepseekbot` on the DSH Plugins page installs it in one step again; 1.3.0 first stopped to ask for `agent-browser` build approval. The Browser trial driver's `agent-browser` is now an optional add-on. DeepSeekBot now declares that it needs DSH 0.2.0-rc.2, the only release its bundled Computer runtime works with, so other DSH versions get a clear refusal naming DeepSeekBot. Every release is now installed into a fresh Profile before it is published ([#1672](https://github.com/BotHarness/DeepSeekBot/pull/1672)).
 
 ## [1.3.0] - 2026-10-14
 

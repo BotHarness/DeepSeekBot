@@ -6,7 +6,37 @@
 
 ## [Unreleased]
 
-1.3.0 之后暂无变化。
+1.3.1 之后暂无变化。
+
+## [1.3.1] - 2026-10-14
+
+在 DSH 插件页输入 `deepseekbot` 重新一步装好，现在只支持 DSH 0.2.0-rc.2；`deepseekbot` 命令行可以配置 Host、操作 Bot 的浏览器和 Computer、管理基于 token 的 IM 应用；Bot 浏览器面板随页面变化实时刷新；手机 App 开发版可以查看 Bot 列表并使用原生 PersonaBot 私信。
+
+### Breaking Changes
+
+- DeepSeekBot 1.3.1 只支持 DSH 0.2.0-rc.2（随包的 Computer 运行时只兼容这个版本）。DSH 0.2.0-rc.1 和 0.2.1 alpha 安装时会拒绝它，并给出点名 DeepSeekBot 的提示；请先把 DSH 升级到 0.2.0-rc.2，或继续使用 DeepSeekBot 1.3.0（[#1672](https://github.com/BotHarness/DeepSeekBot/pull/1672)）。
+
+### Added
+
+- 上手清单新增「看看它在 DSH 里怎么干活」：一段小导览，从 Bot 的「会话」标签跳到 DSH 里的同一个会话，再回到 Bot 私聊（[#1496](https://github.com/BotHarness/DeepSeekBot/issues/1496)）。
+- 新增 DeepSeekBot 手机 App 的开发版：通过 Tailscale HTTPS 连接用户自己的 Host，显示 PersonaBot 与频道列表及其实时状态；并在 [ADR-0200](docs/adr/0200-the-mobile-app-reads-live-state-over-the-dsh-remote-stream-socket.md) 记录了它通过 DSH Remote stream socket 读取实时状态的原因（[#1650](https://github.com/BotHarness/DeepSeekBot/issues/1650)）。
+- 手机 App 开发版新增原生 PersonaBot 私信：在列表中点开 Bot，先显示设备上的缓存再与 Host 对齐，可向上翻看更早的历史；发送时可见"发送中/已送达/未发送"，重试不会重复发送；Bot 回复实时流入；App 从后台回来后续接，不丢失也不重复消息；回复以可选中的 Markdown 显示，跟随系统深色模式与中英文（[#1651](https://github.com/BotHarness/DeepSeekBot/issues/1651)）。
+- `deepseekbot` 命令行现在可以完成 Web 界面里的这些配置，Agent 能独立搭建和测试 Host：`browser-access-set`、`computer-access-set`、`access` 与 `access-set`（完全访问需加 `--acknowledge-risk`）、`settings` 与 `settings-set`、`workspace-create` 和 `group-create`（[#1677](https://github.com/BotHarness/DeepSeekBot/issues/1677)）。
+- `deepseekbot` 命令行现在可以操作 Bot 的浏览器和 Computer：`browser-open`、`browser-frame`（把当前画面保存到文件）、`browser-takeover`、`browser-stop`、`computer-start`、`computer-status` 和 `computer-stop`。`grants` 现在也支持在线 Host（[#1677](https://github.com/BotHarness/DeepSeekBot/issues/1677)）。
+- `deepseekbot` 命令行现在可以添加、查看和移除基于 token 的 IM 应用（Discord、Slack、QQ、钉钉、企业微信、Matrix），把它们绑定到 Bot 或解绑，查看每个绑定的接收状态，并把外部群聊接入 Channel：`im-app-add`、`im-app-status`、`im-app-remove`、`im-bind`、`im-unbind`、`im-status`、`channel-connect` 和 `channel-ingests`。凭证只从标准输入读取，绝不打印（[#1677](https://github.com/BotHarness/DeepSeekBot/issues/1677)）。
+
+### Changed
+
+- Host 网页里的 Bot 浏览器面板现在随页面变化实时刷新，不再每秒刷新一次。页面每次重绘时 Chrome 都会推送新画面，所以输入、滚动和点击大约四分之一秒就能看到，页面不变时不产生额外开销。无法推流的运行方式仍保持每秒一张画面（[#1636](https://github.com/BotHarness/DeepSeekBot/issues/1636)）。
+
+### Documentation
+
+- 记录配对手机如何在 Host 重启后继续访问：同一 `dsh web` 监听器上的设备网关校验每台设备的凭据，转发到原生通道，并可立即撤销单台设备及其已打开的数据流；运行时行为不变（[ADR-0199](docs/adr/0199-paired-devices-reach-the-host-through-a-same-listener-device-gateway.md)，[#1649](https://github.com/BotHarness/DeepSeekBot/issues/1649)）。
+- GitHub README 和安装指南改为安装 `deepseekbot@1.3.0` 并列出它的亮点，npm 包说明写明最低需要 DSH 0.2.0（[#1667](https://github.com/BotHarness/DeepSeekBot/pull/1667)）。
+
+### Fixed
+
+- 在 DSH 插件页输入 `deepseekbot` 重新一步装好；1.3.0 会先停下来要求批准 `agent-browser` 构建。Browser 试用驱动用的 `agent-browser` 改为可选加装。DeepSeekBot 现在明确声明需要 DSH 0.2.0-rc.2（随包的 Computer 运行时只兼容这个版本），其他 DSH 版本会直接看到点名 DeepSeekBot 的不兼容提示。每次发版前都会先在全新 Profile 里实装验证（[#1672](https://github.com/BotHarness/DeepSeekBot/pull/1672)）。
 
 ## [1.3.0] - 2026-10-14
 
