@@ -19,8 +19,16 @@ export type DesignTheme = {
 
 const HEX = /^#([0-9a-f]{6})$/i;
 
+function rgb(hex: string): number {
+  const digits = hex.slice(1);
+  return Number.parseInt(
+    digits.length === 3 ? [...digits].map((digit) => digit + digit).join('') : digits,
+    16,
+  );
+}
+
 function luminance(hex: string): number {
-  const value = Number.parseInt(hex.slice(1), 16);
+  const value = rgb(hex);
   const channel = (shift: number) => {
     const c = ((value >> shift) & 0xff) / 255;
     return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
@@ -35,6 +43,39 @@ function contrast(a: string, b: string): number {
 
 const INK_LIGHT = '#ffffff';
 const INK_DARK = '#0f1115';
+const SEPARATION = 1.3;
+const LIGHT_INK_FLOOR = 3;
+
+function mix(from: string, to: string, amount: number): string {
+  const a = rgb(from);
+  const b = rgb(to);
+  return `#${[16, 8, 0]
+    .map((shift) => {
+      const start = (a >> shift) & 0xff;
+      const end = (b >> shift) & 0xff;
+      return Math.round(start + (end - start) * amount)
+        .toString(16)
+        .padStart(2, '0');
+    })
+    .join('')}`;
+}
+
+export function withAccent(
+  color: Record<ColorRole, string>,
+  source: string | undefined,
+): Record<ColorRole, string> {
+  if (source === undefined || !HEX.test(source)) return color;
+  const steps = Array.from({ length: 21 }, (_, step) => step / 20);
+  const amount =
+    steps.find((step) =>
+      [color.base, color.surface].every(
+        (behind) => contrast(mix(source.toLowerCase(), color.fg, step), behind) >= SEPARATION,
+      ),
+    ) ?? 1;
+  const accent = mix(source.toLowerCase(), color.fg, amount);
+  const onAccent = contrast(accent, INK_LIGHT) >= LIGHT_INK_FLOOR ? INK_LIGHT : INK_DARK;
+  return { ...color, accent, onAccent };
+}
 
 export function resolveTheme(
   system: ColorScheme,
@@ -43,11 +84,6 @@ export function resolveTheme(
 ): DesignTheme {
   const scheme =
     appearance.scheme === undefined || appearance.scheme === 'system' ? system : appearance.scheme;
-  const color: Record<ColorRole, string> = { ...palette[scheme] };
-  if (appearance.accent !== undefined && HEX.test(appearance.accent)) {
-    color.accent = appearance.accent.toLowerCase();
-    color.onAccent =
-      contrast(color.accent, INK_LIGHT) >= contrast(color.accent, INK_DARK) ? INK_LIGHT : INK_DARK;
-  }
+  const color = withAccent({ ...palette[scheme] }, appearance.accent);
   return { scheme, color, type: typeScale[os], weight: weight[os], touch: touch[os] };
 }

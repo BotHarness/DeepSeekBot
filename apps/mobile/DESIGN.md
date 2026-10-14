@@ -45,6 +45,9 @@ References:
 - Messages:
   - An inverted list. Messages from the same author within 5 minutes form a group, and a time separator appears after a 30-minute gap.
   - Bot bubbles are `surface`. Human bubbles are `accent` with `onAccent` text.
+  - In a DM, `accent` is that Bot's primary colour (`AccentProvider` with `botColor`), so each Bot's chat has its own Human bubble colour.
+    - Text on it is white when white reaches 3:1, as in iOS Messages, otherwise dark.
+    - A colour too close to the chat background or the Bot bubble (under 1.3:1 against `base` or `surface`, such as black hair in dark mode) is mixed toward `fg` until it separates from both.
   - Bubbles use radius `lg` and are at most 80% wide.
   - Reactions are small chips on the bubble corner.
   - Delivery: pending shows at 70% opacity, failed offers "Not sent · Tap to retry", and sent shows nothing.

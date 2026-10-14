@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest';
 
 import { palette as dshPalette, render } from '../scripts/generate-palette.mjs';
 import { palette } from '../src/ui/design/palette.generated';
-import { resolveTheme } from '../src/ui/design/resolve-theme';
+import { resolveTheme, withAccent } from '../src/ui/design/resolve-theme';
+import { botColor } from '../src/ui/bot-color';
 import { edge, radius, space } from '../src/ui/design/tokens';
 
 const webTokens = readFileSync(
@@ -80,5 +81,37 @@ describe('resolveTheme', () => {
       touch: 48,
       type: { body: { size: 14 } },
     });
+  });
+});
+
+describe('Bot colour on the Human bubble', () => {
+  const bot = { slug: 'ada', displayName: 'Ada', state: 'idle' as const, paused: false };
+
+  it('uses the Bot primary colour, custom first', () => {
+    expect(botColor({ ...bot, primaryColor: { mode: 'custom', color: '#2f9e8f' } })).toBe(
+      '#2f9e8f',
+    );
+    expect(botColor(bot)).toMatch(/^#[0-9a-f]{6}$/);
+    expect(botColor(bot)).toBe(botColor({ ...bot, displayName: 'Ada' }));
+  });
+
+  it('keeps a saturated colour and picks readable text on it', () => {
+    expect(withAccent(palette.light, '#d9475a')).toMatchObject({
+      accent: '#d9475a',
+      onAccent: '#ffffff',
+    });
+    expect(withAccent(palette.dark, '#c79a2b')).toMatchObject({
+      accent: '#c79a2b',
+      onAccent: '#0f1115',
+    });
+  });
+
+  it('lifts a colour that would vanish into the chat background', () => {
+    const dark = withAccent(palette.dark, '#141414');
+    expect(dark.accent).not.toBe('#141414');
+    expect(dark.accent).not.toBe(palette.dark.surface);
+    expect(dark.onAccent).toBe('#ffffff');
+    expect(withAccent(palette.light, '#fbf6ec').accent).not.toBe('#fbf6ec');
+    expect(withAccent(palette.light, undefined)).toEqual(palette.light);
   });
 });
