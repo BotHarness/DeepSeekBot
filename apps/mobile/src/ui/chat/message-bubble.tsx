@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Pressable, View } from 'react-native';
 
 import type {
@@ -19,7 +20,7 @@ export function deliveryLabel(message: ConversationMessage): string | undefined 
   return message.revision === undefined ? t.sent : undefined;
 }
 
-export function MessageBubble({
+export const MessageBubble = memo(function MessageBubble({
   message,
   first = true,
   last = true,
@@ -124,9 +125,9 @@ export function MessageBubble({
       )}
     </View>
   );
-}
+});
 
-export function DraftBubble({ draft }: { draft: ConversationDraft }) {
+export const DraftBubble = memo(function DraftBubble({ draft }: { draft: ConversationDraft }) {
   const theme = useDesignTheme();
   return (
     <View style={{ paddingHorizontal: space.x4, paddingTop: space.x3, gap: space.x1 }}>
@@ -143,7 +144,7 @@ export function DraftBubble({ draft }: { draft: ConversationDraft }) {
         {draft.body.trim() === '' ? (
           <Text tone="muted">…</Text>
         ) : (
-          <MarkdownView source={draft.body} />
+          <MarkdownView source={draft.body} streaming />
         )}
       </View>
       <Text variant="meta" tone="muted" accessibilityLiveRegion="polite">
@@ -151,4 +152,4 @@ export function DraftBubble({ draft }: { draft: ConversationDraft }) {
       </Text>
     </View>
   );
-}
+});
