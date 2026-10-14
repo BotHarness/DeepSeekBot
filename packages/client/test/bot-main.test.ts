@@ -4,6 +4,10 @@ import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
+const menus = vi.hoisted(
+  () => [] as Array<{ items?: Array<{ id: string }>; onSelect?(id: string): void }>,
+);
+
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
   const stub = () => null;
   const Tag = ({ children }: PropsWithChildren) => createElement('span', null, children);
@@ -19,6 +23,8 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
     IconDownloadOutlineRegular: stub,
     IconCloseFill14: stub,
     IconCopyOutlineRegular: stub,
+    IconGoalOutlineRegular: stub,
+    IconChecklistOutlineRegular: stub,
     IconCloseOutlineRegular: stub,
     IconEllipsisOutlineRegular: stub,
     IconSettingsOutlineRegular: stub,
@@ -42,7 +48,10 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
     fileSizeText: (size: number) => `${size} B`,
     ImageLightbox: stub,
     Input: stub,
-    Menu: ({ anchor }: { anchor?: unknown }) => anchor ?? null,
+    Menu: (props: { anchor?: unknown; items?: Array<{ id: string }> }) => {
+      menus.push(props);
+      return props.anchor ?? null;
+    },
     MenuItemButton: stub,
     MenuSurface: forwardRef<HTMLDivElement, PropsWithChildren>((props, ref) =>
       createElement('div', { ...props, ref }),
@@ -1030,6 +1039,33 @@ describe('Bot main Sessions pane', () => {
     expect(document.activeElement?.textContent).toBe('👍');
     await act(async () => thumbs!.click());
     expect(reactToMessage).toHaveBeenLastCalledWith('dm-ada', 'b1', '👍', true);
+    expect(document.body.querySelector('[data-reaction-picker]')).toBeNull();
+    menus.length = 0;
+    await act(async () =>
+      container.querySelector('.bh-bubble-wrap')!.dispatchEvent(
+        new MouseEvent('contextmenu', {
+          bubbles: true,
+          cancelable: true,
+          clientX: 40,
+          clientY: 60,
+        }),
+      ),
+    );
+    const menu = menus.findLast((props) => props.items?.some((item) => item.id === 'react'));
+    expect(menu?.items?.map((item) => item.id)).toEqual([
+      'reply',
+      'react',
+      'locate',
+      'copy',
+      'select',
+    ]);
+    await act(async () => menu!.onSelect!('react'));
+    const pressed = document.body.querySelector('[data-reaction-picker]');
+    expect(pressed).not.toBeNull();
+    await act(async () =>
+      pressed!.querySelector<HTMLButtonElement>('[aria-label="回应 🎉"]')!.click(),
+    );
+    expect(reactToMessage).toHaveBeenLastCalledWith('dm-ada', 'b1', '🎉', true);
     expect(document.body.querySelector('[data-reaction-picker]')).toBeNull();
     await act(async () => root.unmount());
     container.remove();

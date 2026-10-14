@@ -350,6 +350,7 @@ describe('bridge typert service', () => {
       'messageId',
       'emoji',
       'active',
+      'botId',
     ]);
     expect(parameterNames(service.channelSearch)).toEqual(['channelId', 'text', 'cursor', 'limit']);
     expect(parameterNames(service.releaseInstall)).toEqual(['version']);

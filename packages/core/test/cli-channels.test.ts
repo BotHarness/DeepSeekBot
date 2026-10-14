@@ -116,6 +116,7 @@ describe('Channel and group CLI commands', () => {
       [['channel-mark-all-read']],
       [['channel-react', 'grp-1', '--message-id', 'm-1', '--emoji', '👍']],
       [['channel-react', 'grp-1', '--message-id', 'm-1', '--emoji', '👍', '--remove']],
+      [['channel-react', 'grp-1', '--message-id', 'm-1', '--emoji', '✅', '--bot', 'ada']],
       [['channel-search', 'grp-1', '--query', 'launch', '--cursor', 'c-2', '--limit', '5']],
       [['channel-unread']],
       [['channel-mute', 'grp-1']],
@@ -200,6 +201,10 @@ describe('Channel and group CLI commands', () => {
       {
         method: 'channelReact',
         args: { channelId: 'grp-1', messageId: 'm-1', emoji: '👍', active: false },
+      },
+      {
+        method: 'channelReact',
+        args: { channelId: 'grp-1', messageId: 'm-1', emoji: '✅', active: true, botId: 'ada' },
       },
       {
         method: 'channelSearch',

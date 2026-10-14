@@ -3207,6 +3207,46 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       );
       registerTool(
         defineTool({
+          name: 'channel_react',
+          description:
+            "Add or remove your emoji reaction on one message in a joined Channel, as lightweight acknowledgment instead of a reply. Use a message_id from this turn or channel_read; omit channel_id for the inbound Channel. Returns the message's reactions after the change. A reaction does not wake anyone and is not a reply: still use channel_send when the Human needs an answer.",
+          parameters: {
+            message_id: { type: 'string', required: true, description: 'Message ID to react to.' },
+            emoji: {
+              type: 'string',
+              required: true,
+              description: 'One emoji, such as 👍, ✅ or 👀. Text and shortcodes are refused.',
+            },
+            channel_id: {
+              type: 'string',
+              description: 'Channel id; defaults to the inbound Channel.',
+            },
+            remove: {
+              type: 'boolean',
+              description: 'true takes your reaction back instead of adding it.',
+            },
+          },
+          output: {
+            schema: { type: 'string' },
+            render: (_args, value) => [{ type: 'text', text: value }],
+          },
+          execute: async (args) => {
+            const active = this.#runs.get(run.sessionId);
+            if (active?.role !== 'orchestrator' || active.run.channels.react === undefined)
+              throw new Error('channel_react: Orchestrator run is unavailable');
+            return JSON.stringify(
+              active.run.channels.react({
+                messageId: args.message_id,
+                emoji: args.emoji,
+                active: args.remove !== true,
+                ...(args.channel_id === undefined ? {} : { channelId: args.channel_id }),
+              }),
+            );
+          },
+        }),
+      );
+      registerTool(
+        defineTool({
           name: 'bot_dm_send',
           description:
             'Send one private message to another active PersonaBot. The recipient receives it in a two-Bot DM and may reply there.',

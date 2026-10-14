@@ -1327,6 +1327,7 @@ describe('DSH Bot Agent adapter', () => {
       'bot_schedule_update',
       'bot_schedule_delete',
       'group_leave',
+      'channel_react',
       'bot_dm_send',
       'channel_send',
     ]);

@@ -165,7 +165,12 @@ import {
 } from './timeline-position.js';
 import { TimelineUnreadDivider } from './timeline-unread-divider.js';
 import { foldableMessage, MessageFold } from './message-fold.js';
-import { MessageReactionChips, MessageReactionPicker } from './message-reactions.js';
+import {
+  MessageReactionChips,
+  MessageReactionPicker,
+  MessageReactionSurface,
+  ReactionIcon,
+} from './message-reactions.js';
 import { ConversationSearch } from './conversation-search.js';
 import { reactableMessage } from './message-reactions-model.js';
 import {
@@ -562,8 +567,42 @@ function MessageGroupView({
         t={t}
       />
     );
+  const lastMessage = group.messages[group.messages.length - 1];
+  const lastReactions = (lastMessage?.reactions ?? [])
+    .map((reaction) => `${reaction.emoji}${String(reaction.actors.length)}`)
+    .join(' ');
+  const groupMount = useMountedResource<HTMLDivElement>(
+    (node) => {
+      if (avatar === undefined || lastMessage === undefined || lastReactions === '') return;
+      const chips = Array.from(
+        node.querySelectorAll<HTMLElement>(
+          `.bh-bubble-wrap[data-message-id] > .bh-bubble-surface > [data-message-reactions]`,
+        ),
+      ).find(
+        (element) =>
+          element.closest<HTMLElement>('.bh-bubble-wrap')?.dataset.messageId === lastMessage.id,
+      );
+      if (chips === undefined) return;
+      const lift = (): void => {
+        const margin = Number.parseFloat(getComputedStyle(chips).marginTop) || 0;
+        node.style.setProperty(
+          '--bh-avatar-lift',
+          `${String(chips.getBoundingClientRect().height + margin)}px`,
+        );
+      };
+      lift();
+      const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(lift);
+      observer?.observe(chips);
+      return () => {
+        observer?.disconnect();
+        node.style.removeProperty('--bh-avatar-lift');
+      };
+    },
+    [avatar === undefined, lastMessage?.id, lastReactions],
+  );
   return (
     <div
+      ref={groupMount}
       className={`bh-message-group${human ? ' bh-message-group-me' : ''}`}
       data-group-size={group.messages.length}
     >
@@ -764,6 +803,7 @@ function MessageActionMenu({
   onLocate,
   onReply,
   onSelect,
+  onReact,
   request,
   onClose,
   t,
@@ -771,6 +811,7 @@ function MessageActionMenu({
   onLocate(messageId: string): void;
   onReply(message: ChannelMessage): void;
   onSelect?(message: ChannelMessage): void;
+  onReact?(request: MessageMenuRequest): void;
   request: MessageMenuRequest;
   onClose(): void;
   t: BotHarnessTranslate;
@@ -801,6 +842,9 @@ function MessageActionMenu({
           ...(request.message.pending === true || request.message.streaming === true
             ? []
             : [{ id: 'reply', label: t('message.reply'), icon: <ReplyIcon /> }]),
+          ...(onReact === undefined
+            ? []
+            : [{ id: 'react', label: t('message.react'), icon: <ReactionIcon /> }]),
           { id: 'locate', label: t('message.locate'), icon: <IconGoalOutlineRegular /> },
           { id: 'copy', label: t('message.copy'), icon: <IconCopyOutlineRegular /> },
           ...(onSelect === undefined || !selectableMessage(request.message)
@@ -815,6 +859,7 @@ function MessageActionMenu({
         ]}
         onSelect={(id) => {
           if (id === 'reply') onReply(request.message);
+          else if (id === 'react') onReact?.(request);
           else if (id === 'locate') onLocate(request.message.id);
           else if (id === 'copy') {
             void navigator.clipboard?.writeText(request.message.body);
@@ -1101,6 +1146,7 @@ function ConversationView({
   const [unseen, setUnseen] = useState(0);
   const [atLatest, setAtLatest] = useState(true);
   const [messageMenu, setMessageMenu] = useState<MessageMenuRequest | undefined>();
+  const [reactionMenu, setReactionMenu] = useState<MessageMenuRequest | undefined>();
   const [avatarMenu, setAvatarMenu] = useState<AvatarMenuRequest | undefined>();
   const [diagnosticsTarget, setDiagnosticsTarget] = useState<
     | { channelId: string; fromMessageId: string; toMessageId?: string; messageIds: string[] }
@@ -1241,6 +1287,15 @@ function ConversationView({
     timelineWorkingRowsCover(composerActivity, workingRows, streamingBotSlugs);
   const workingRowsKey = `${workingRows.items.map((item) => item.personaBotId).join(',')}+${workingRows.more}`;
   const channelId = channel?.id;
+  const reactToMessage =
+    readOnlyDm || channelId === undefined || actions.reactToMessage === undefined
+      ? undefined
+      : (message: ChannelMessage, emoji: string, active: boolean) =>
+          void actions
+            .reactToMessage?.(channelId, message.id, emoji, active)
+            .catch((error: unknown) => {
+              console.warn('botharness: reaction failed', error);
+            });
   const selectedIds =
     selectedMessages !== undefined && selectedMessages.channelId === channelId
       ? selectedMessages.ids
@@ -2519,16 +2574,7 @@ function ConversationView({
                               onReply={
                                 readOnlyDm ? undefined : (message) => setReplyTarget(message)
                               }
-                              onReact={
-                                readOnlyDm || channelId === undefined
-                                  ? undefined
-                                  : (message, emoji, active) =>
-                                      void actions
-                                        .reactToMessage?.(channelId, message.id, emoji, active)
-                                        .catch((error: unknown) => {
-                                          console.warn('botharness: reaction failed', error);
-                                        })
-                              }
+                              onReact={reactToMessage}
                               onJumpReply={(messageId) => {
                                 if (channelId !== undefined)
                                   void actions.openAround(channelId, messageId);
@@ -2837,6 +2883,9 @@ function ConversationView({
                 <MessageActionMenu
                   request={messageMenu}
                   t={t}
+                  {...(reactToMessage === undefined || !reactableMessage(messageMenu.message)
+                    ? {}
+                    : { onReact: setReactionMenu })}
                   onLocate={(messageId) => {
                     if (channelId !== undefined) void actions.openAround(channelId, messageId);
                   }}
@@ -2845,6 +2894,23 @@ function ConversationView({
                   onClose={() => {
                     setMessageMenu(undefined);
                   }}
+                />
+              )}
+              {reactionMenu === undefined || reactToMessage === undefined ? null : (
+                <MessageReactionSurface
+                  message={
+                    messages.find((message) => message.id === reactionMenu.message.id) ??
+                    reactionMenu.message
+                  }
+                  anchor={() => ({
+                    left: reactionMenu.x,
+                    top: reactionMenu.y,
+                    width: 0,
+                    bottom: reactionMenu.y,
+                  })}
+                  onReact={(emoji, active) => reactToMessage(reactionMenu.message, emoji, active)}
+                  onClose={() => setReactionMenu(undefined)}
+                  t={t}
                 />
               )}
               {activeMemoryView !== undefined ||

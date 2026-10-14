@@ -78,6 +78,7 @@ import {
   type BotMessageCausation,
   type ChannelMention,
   type ChannelMessage,
+  type ChannelReaction,
   type ChannelRecord,
 } from '../channels/channel.js';
 import { ChannelReplyTargetError, MAX_MESSAGE_PAGE } from '../channels/store.js';
@@ -482,6 +483,7 @@ export interface OrchestratorChannelAccess {
     intervalSeconds: number;
   }): GroupWakePolicyView;
   leaveGroup(input: { channelId: string }): { channelId: string; left: boolean };
+  react?(input: BotReactionInput & { channelId?: string }): BotReactionResult;
   sendToBot(input: {
     botSlug: string;
     body: string;
@@ -497,6 +499,18 @@ export interface OrchestratorChannelAccess {
     mentionHumanIds?: string[];
     deliveryKey?: string;
   }): Promise<ChannelMessage>;
+}
+
+export interface BotReactionInput {
+  messageId: string;
+  emoji: string;
+  active: boolean;
+}
+
+export interface BotReactionResult {
+  channelId: string;
+  messageId: string;
+  reactions: ChannelReaction[];
 }
 
 export interface BotAgentAdapter {
@@ -570,6 +584,7 @@ export interface BotRuntime {
   ): string | undefined;
   reconcileMemoryChangesOnStartup?(): void;
   retryDmMessage?(channelId: string, messageId: string): Promise<void>;
+  reactAsBot?(botSlug: string, input: BotReactionInput & { channelId: string }): BotReactionResult;
   admitDmMessage(input: HandleDmMessageInput): DmMessageAdmission;
 
   admitGroupMessage(channelId: string, messageId: string): void;
@@ -1432,6 +1447,30 @@ class BotRuntimeImplementation implements BotRuntime {
         }),
       );
     }
+  }
+
+  reactAsBot(botSlug: string, input: BotReactionInput & { channelId: string }): BotReactionResult {
+    return this.#react(botSlug, this.#requireMembership(botSlug, input.channelId), input);
+  }
+
+  #react(botSlug: string, channel: ChannelRecord, input: BotReactionInput): BotReactionResult {
+    const bot = this.#registry.get(botSlug);
+    if (this.#closed || bot === undefined || bot.paused === true)
+      throw new Error('channel_react: Bot is unavailable');
+    if (this.#channels.setBotReaction === undefined)
+      throw new Error('channel_react: reactions are unavailable');
+    const reactions = this.#channels.setBotReaction(
+      channel.id,
+      botSlug,
+      input.messageId,
+      input.emoji,
+      input.active,
+    );
+    if (reactions === undefined)
+      throw new Error(
+        `channel_react: message ${input.messageId} cannot take this reaction in Channel ${channel.id}`,
+      );
+    return { channelId: channel.id, messageId: input.messageId, reactions };
   }
 
   async retryDmMessage(channelId: string, messageId: string): Promise<void> {
@@ -5108,6 +5147,7 @@ class BotRuntimeImplementation implements BotRuntime {
         );
         return this.#channels.getGroupWakePolicy(channel.id, botSlug);
       },
+      react: (input) => this.#react(botSlug, resolve(input.channelId), input),
       leaveGroup: (input) => {
         const channel = this.#channels.get(input.channelId);
         if (channel === undefined) throw new Error('group_leave: channel-unavailable');

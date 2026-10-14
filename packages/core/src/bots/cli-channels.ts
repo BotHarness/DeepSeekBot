@@ -57,7 +57,8 @@ export const CHANNEL_COMMANDS = [
   { command: 'channel-mark-all-read', description: 'mark every Channel read' },
   {
     command: 'channel-react',
-    description: 'add or remove your emoji reaction on one Channel message',
+    description:
+      "add or remove your emoji reaction on one Channel message; --bot reacts as that Bot through the 'channel_react' Bot tool code",
   },
   { command: 'channel-search', description: "search a Channel's messages, newest first" },
   { command: 'channel-unread', description: 'list unread message counts per Channel' },
@@ -303,6 +304,7 @@ export async function runChannelCommand(
       args.messageId = required(values['message-id'], '--message-id');
       args.emoji = required(values.emoji, '--emoji');
       args.active = values.remove !== true;
+      if (values.bot !== undefined) args.botId = required(values.bot, '--bot');
       break;
     case 'channel-search': {
       method = 'channelSearch';

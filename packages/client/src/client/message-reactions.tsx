@@ -105,21 +105,33 @@ function moveFocus(event: KeyboardEvent<HTMLElement>): void {
   next?.focus();
 }
 
-export function MessageReactionPicker({
+interface PickerAnchor {
+  left: number;
+  top: number;
+  width: number;
+  bottom: number;
+}
+
+export function MessageReactionSurface({
   message,
+  anchor,
+  owner,
   onReact,
+  onClose,
   t,
 }: {
   message: ChannelMessage;
+  anchor(): PickerAnchor | undefined;
+  owner?: () => Element | null;
   onReact(emoji: string, active: boolean): void;
+  onClose(): void;
   t: BotHarnessTranslate;
 }): ReactElement {
-  const [open, setOpen] = useState<{ left: number; top: number } | undefined>();
-  const anchor = useRef<HTMLButtonElement | null>(null);
-  const closeRef = useRef(() => setOpen(undefined));
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
   const surface = useMountedResource<HTMLDivElement>((node) => {
     const bounds = node.getBoundingClientRect();
-    const trigger = anchor.current?.getBoundingClientRect();
+    const trigger = anchor();
     if (trigger !== undefined) {
       const left = Math.max(
         PICKER_MARGIN_PX,
@@ -135,7 +147,7 @@ export function MessageReactionPicker({
     const onPointerDown = (event: PointerEvent): void => {
       if (
         event.target instanceof Node &&
-        (node.contains(event.target) || anchor.current?.contains(event.target))
+        (node.contains(event.target) || owner?.()?.contains(event.target) === true)
       )
         return;
       closeRef.current();
@@ -145,7 +157,6 @@ export function MessageReactionPicker({
       event.preventDefault();
       event.stopPropagation();
       closeRef.current();
-      anchor.current?.focus();
     };
     const onScroll = (): void => closeRef.current();
     document.addEventListener('pointerdown', onPointerDown, true);
@@ -160,10 +171,56 @@ export function MessageReactionPicker({
       window.removeEventListener('resize', onScroll);
     };
   }, []);
-  const label = t('message.react');
   const mine = new Set(
     (message.reactions ?? []).filter(reactedByMe).map((reaction) => reaction.emoji),
   );
+  return createPortal(
+    <MenuSurface
+      ref={surface}
+      role="menu"
+      aria-label={t('message.react')}
+      aria-orientation="horizontal"
+      data-reaction-picker=""
+      className={stylex.props(styles.picker).className}
+      style={{ left: 0, top: 0 }}
+      onKeyDown={moveFocus}
+    >
+      {QUICK_REACTIONS.map((emoji) => {
+        const picked = mine.has(emoji);
+        return (
+          <button
+            key={emoji}
+            type="button"
+            role="menuitemcheckbox"
+            aria-checked={picked}
+            aria-label={t('message.reaction.toggle', { emoji })}
+            {...stylex.props(styles.pick, picked && styles.picked)}
+            onClick={() => {
+              onReact(emoji, !picked);
+              closeRef.current();
+            }}
+          >
+            {emoji}
+          </button>
+        );
+      })}
+    </MenuSurface>,
+    document.body,
+  );
+}
+
+export function MessageReactionPicker({
+  message,
+  onReact,
+  t,
+}: {
+  message: ChannelMessage;
+  onReact(emoji: string, active: boolean): void;
+  t: BotHarnessTranslate;
+}): ReactElement {
+  const [open, setOpen] = useState(false);
+  const anchor = useRef<HTMLButtonElement | null>(null);
+  const label = t('message.react');
   return (
     <>
       <Tooltip label={label} side="top" portal delayMs={400}>
@@ -173,49 +230,26 @@ export function MessageReactionPicker({
           className="bh-bubble-action"
           aria-label={label}
           aria-haspopup="menu"
-          aria-expanded={open !== undefined}
+          aria-expanded={open}
           data-reaction-picker-trigger=""
-          onClick={() => setOpen(open === undefined ? { left: 0, top: 0 } : undefined)}
+          onClick={() => setOpen(!open)}
         >
           <ReactionIcon />
         </button>
       </Tooltip>
-      {open === undefined
-        ? null
-        : createPortal(
-            <MenuSurface
-              ref={surface}
-              role="menu"
-              aria-label={label}
-              aria-orientation="horizontal"
-              data-reaction-picker=""
-              className={stylex.props(styles.picker).className}
-              style={{ left: open.left, top: open.top }}
-              onKeyDown={moveFocus}
-            >
-              {QUICK_REACTIONS.map((emoji) => {
-                const picked = mine.has(emoji);
-                return (
-                  <button
-                    key={emoji}
-                    type="button"
-                    role="menuitemcheckbox"
-                    aria-checked={picked}
-                    aria-label={t('message.reaction.toggle', { emoji })}
-                    {...stylex.props(styles.pick, picked && styles.picked)}
-                    onClick={() => {
-                      onReact(emoji, !picked);
-                      setOpen(undefined);
-                      anchor.current?.focus();
-                    }}
-                  >
-                    {emoji}
-                  </button>
-                );
-              })}
-            </MenuSurface>,
-            document.body,
-          )}
+      {open ? (
+        <MessageReactionSurface
+          message={message}
+          anchor={() => anchor.current?.getBoundingClientRect()}
+          owner={() => anchor.current}
+          onReact={onReact}
+          onClose={() => {
+            setOpen(false);
+            anchor.current?.focus();
+          }}
+          t={t}
+        />
+      ) : null}
     </>
   );
 }

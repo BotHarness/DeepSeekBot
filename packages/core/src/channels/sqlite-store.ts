@@ -49,7 +49,7 @@ import {
   isGroupAvatar,
   isValidChannelId,
   isReactionEmoji,
-  MAX_HUMAN_REACTIONS_PER_MESSAGE,
+  MAX_ACTOR_REACTIONS_PER_MESSAGE,
   type ChannelReaction,
   type LocalHumanIdentity,
   type ChannelMessage,
@@ -463,6 +463,63 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
         .get(id, LOCAL_HUMAN_ID),
     ) as { nickname: string } | undefined;
     return row?.nickname ?? null;
+  };
+  const setReaction = (
+    id: string,
+    actorKind: 'human' | 'bot',
+    actorId: string,
+    messageId: string,
+    emoji: string,
+    active: boolean,
+  ): ChannelReaction[] | undefined => {
+    if (!isReactionEmoji(emoji)) return undefined;
+    const row = database.read((db) =>
+      db
+        .prepare(`
+        SELECT e.payload_json, e.body FROM channel_placements p
+        JOIN source_events e ON e.source_event_id = p.source_event_id
+        WHERE p.channel_id = ? AND p.message_id = ?
+      `)
+        .get(id, messageId),
+    ) as { payload_json: string; body: string } | undefined;
+    const message =
+      row === undefined ? undefined : parseMessage(row.payload_json, row.body, messageId);
+    if (message === undefined || message.author.kind === 'system' || isChannelNotice(message))
+      return undefined;
+    if (active) {
+      const held = database.read((db) =>
+        db
+          .prepare(
+            `SELECT COUNT(*) AS count FROM channel_reactions
+                WHERE channel_id = ? AND message_id = ? AND actor_kind = ? AND actor_id = ? AND emoji <> ?`,
+          )
+          .get(id, messageId, actorKind, actorId, emoji),
+      ) as { count: number };
+      if (held.count >= MAX_ACTOR_REACTIONS_PER_MESSAGE) throw new ChannelReactionLimitError();
+    }
+    database.transaction(
+      (db) => {
+        if (active)
+          db.prepare(`
+          INSERT INTO channel_reactions (channel_id, message_id, actor_kind, actor_id, emoji, reacted_at)
+          VALUES (?, ?, ?, ?, ?, ?)
+          ON CONFLICT DO NOTHING
+        `).run(id, messageId, actorKind, actorId, emoji, now().toISOString());
+        else
+          db.prepare(`
+          DELETE FROM channel_reactions
+           WHERE channel_id = ? AND message_id = ? AND actor_kind = ? AND actor_id = ? AND emoji = ?
+        `).run(id, messageId, actorKind, actorId, emoji);
+      },
+      ['channel'],
+    );
+    const reactions = channelReactions(id, messageId).get(messageId) ?? [];
+    try {
+      options.onReactionChanged?.(id, messageId, reactions);
+    } catch (error) {
+      options.warn?.('Reaction notification failed: ' + String(error));
+    }
+    return reactions;
   };
   const participates = (id: string): boolean => {
     const channel = readRecord(id);
@@ -2341,54 +2398,14 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       return position;
     },
     setHumanReaction(id, messageId, emoji, active) {
-      if (!isReactionEmoji(emoji) || !participates(id)) return undefined;
-      const row = database.read((db) =>
-        db
-          .prepare(`
-        SELECT e.payload_json, e.body FROM channel_placements p
-        JOIN source_events e ON e.source_event_id = p.source_event_id
-        WHERE p.channel_id = ? AND p.message_id = ?
-      `)
-          .get(id, messageId),
-      ) as { payload_json: string; body: string } | undefined;
-      const message =
-        row === undefined ? undefined : parseMessage(row.payload_json, row.body, messageId);
-      if (message === undefined || message.author.kind === 'system' || isChannelNotice(message))
-        return undefined;
-      if (active) {
-        const held = database.read((db) =>
-          db
-            .prepare(
-              `SELECT COUNT(*) AS count FROM channel_reactions
-                WHERE channel_id = ? AND message_id = ? AND actor_kind = 'human' AND actor_id = ? AND emoji <> ?`,
-            )
-            .get(id, messageId, LOCAL_HUMAN_ID, emoji),
-        ) as { count: number };
-        if (held.count >= MAX_HUMAN_REACTIONS_PER_MESSAGE) throw new ChannelReactionLimitError();
-      }
-      database.transaction(
-        (db) => {
-          if (active)
-            db.prepare(`
-          INSERT INTO channel_reactions (channel_id, message_id, actor_kind, actor_id, emoji, reacted_at)
-          VALUES (?, ?, 'human', ?, ?, ?)
-          ON CONFLICT DO NOTHING
-        `).run(id, messageId, LOCAL_HUMAN_ID, emoji, now().toISOString());
-          else
-            db.prepare(`
-          DELETE FROM channel_reactions
-           WHERE channel_id = ? AND message_id = ? AND actor_kind = 'human' AND actor_id = ? AND emoji = ?
-        `).run(id, messageId, LOCAL_HUMAN_ID, emoji);
-        },
-        ['channel'],
-      );
-      const reactions = channelReactions(id, messageId).get(messageId) ?? [];
-      try {
-        options.onReactionChanged?.(id, messageId, reactions);
-      } catch (error) {
-        options.warn?.('Reaction notification failed: ' + String(error));
-      }
-      return reactions;
+      if (!participates(id)) return undefined;
+      return setReaction(id, 'human', LOCAL_HUMAN_ID, messageId, emoji, active);
+    },
+    setBotReaction(id, botSlug, messageId, emoji, active) {
+      const channel = readRecord(id);
+      if (channel === undefined || channel.deletedAt !== undefined) return undefined;
+      if (!channel.members.includes(botSlug)) return undefined;
+      return setReaction(id, 'bot', botSlug, messageId, emoji, active);
     },
     async appendMessage(id, message, origin) {
       const result = append(id, message, false, undefined, origin);

@@ -232,7 +232,7 @@ export interface ChannelReaction {
 }
 
 export const MAX_REACTION_EMOJI_LENGTH = 16;
-export const MAX_HUMAN_REACTIONS_PER_MESSAGE = 20;
+export const MAX_ACTOR_REACTIONS_PER_MESSAGE = 20;
 
 export function isReactionEmoji(value: unknown): value is string {
   return (

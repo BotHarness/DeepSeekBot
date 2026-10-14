@@ -3267,7 +3267,25 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         return invalidInput('channelId and messageId are required');
       if (!isReactionEmoji(emoji)) return invalidInput('emoji must be a single emoji');
       if (typeof active !== 'boolean') return invalidInput('active must be a boolean');
+      const botId = source['botId'];
+      if (botId !== undefined && (typeof botId !== 'string' || botId.trim() === ''))
+        return invalidInput('botId must be a PersonaBot id');
       if (deps.channels.get(channelId) === undefined) return unknownChannel(channelId);
+      if (botId !== undefined) {
+        if (deps.runtime?.reactAsBot === undefined)
+          return {
+            ok: false,
+            error: { code: 'unavailable', message: 'Bot reactions are unavailable' },
+          };
+        if (deps.registry.get(botId) === undefined) return unknownBot(botId);
+        try {
+          const result = deps.runtime.reactAsBot(botId, { channelId, messageId, emoji, active });
+          return { ok: true, value: { reactions: result.reactions } };
+        } catch (error) {
+          if (error instanceof ChannelReactionLimitError) return invalidInput(error.message);
+          return invalidInput((error as Error).message.replace(/^channel_react: /u, ''));
+        }
+      }
       if (deps.channels.setHumanReaction === undefined)
         return {
           ok: false,

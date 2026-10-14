@@ -389,6 +389,13 @@ export interface ChannelStore {
     emoji: string,
     active: boolean,
   ): ChannelReaction[] | undefined;
+  setBotReaction?(
+    id: string,
+    botSlug: string,
+    messageId: string,
+    emoji: string,
+    active: boolean,
+  ): ChannelReaction[] | undefined;
   appendMessage(
     id: string,
     message: ChannelMessage,
