@@ -1,11 +1,16 @@
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import { describe, expect, it, vi } from 'vitest';
 
-import { describe, expect, it } from 'vitest';
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({}));
 
-const source = readFileSync(
-  fileURLToPath(new URL('../src/client/styles.ts', import.meta.url)),
-  'utf8',
+import { COMBOBOX_CSS } from '../src/client/combobox.js';
+import { COMPOSER_CONTEXT_CSS } from '../src/client/composer-context-styles.js';
+import { INTERNAL_TOUR_CSS } from '../src/client/internal-tour-styles.js';
+import { CSS } from '../src/client/styles.js';
+import { WINDOW_COMPANION_CSS } from '../src/client/window-companion-styles.js';
+
+const source = [COMPOSER_CONTEXT_CSS, INTERNAL_TOUR_CSS, COMBOBOX_CSS, WINDOW_COMPANION_CSS].reduce(
+  (sheet, included) => sheet.replace(included, ''),
+  CSS,
 );
 
 const ALIAS_START = '/* @bh-brand-aliases:start';

@@ -7,6 +7,179 @@ window.__ModuleLoader__.load({
 		let react = require("react");
 		let _deepseek_ai_dsh_client_ui_primitives = require("@deepseek-ai/dsh-client-ui-primitives");
 		let react_jsx_runtime = require("react/jsx-runtime");
+		//#region node_modules/.pnpm/@stylexjs+stylex@0.19.1/node_modules/@stylexjs/stylex/lib/es/stylex.mjs
+		var styleq = {};
+		var hasRequiredStyleq;
+		function requireStyleq() {
+			if (hasRequiredStyleq) return styleq;
+			hasRequiredStyleq = 1;
+			Object.defineProperty(styleq, "__esModule", { value: true });
+			styleq.styleq = void 0;
+			var cache = /* @__PURE__ */ new WeakMap();
+			var compiledKey = "$$css";
+			function createStyleq(options) {
+				var disableCache;
+				var disableMix;
+				var transform;
+				if (options != null) {
+					disableCache = options.disableCache === true;
+					disableMix = options.disableMix === true;
+					transform = options.transform;
+				}
+				return function styleq() {
+					var definedProperties = [];
+					var className = "";
+					var inlineStyle = null;
+					var debugString = "";
+					var nextCache = disableCache ? null : cache;
+					var styles = new Array(arguments.length);
+					for (var i = 0; i < arguments.length; i++) styles[i] = arguments[i];
+					while (styles.length > 0) {
+						var possibleStyle = styles.pop();
+						if (possibleStyle == null || possibleStyle === false) continue;
+						if (Array.isArray(possibleStyle)) {
+							for (var _i = 0; _i < possibleStyle.length; _i++) styles.push(possibleStyle[_i]);
+							continue;
+						}
+						var style = transform != null ? transform(possibleStyle) : possibleStyle;
+						if (style.$$css != null) {
+							var classNameChunk = "";
+							if (nextCache != null && nextCache.has(style)) {
+								var cacheEntry = nextCache.get(style);
+								if (cacheEntry != null) {
+									classNameChunk = cacheEntry[0];
+									debugString = cacheEntry[2];
+									definedProperties.push.apply(definedProperties, cacheEntry[1]);
+									nextCache = cacheEntry[3];
+								}
+							} else {
+								var definedPropertiesChunk = [];
+								for (var prop in style) {
+									var value = style[prop];
+									if (prop === compiledKey) {
+										var compiledKeyValue = style[prop];
+										if (compiledKeyValue !== true) debugString = debugString ? compiledKeyValue + "; " + debugString : compiledKeyValue;
+										continue;
+									}
+									if (typeof value === "string" || value === null) {
+										if (!definedProperties.includes(prop)) {
+											definedProperties.push(prop);
+											if (nextCache != null) definedPropertiesChunk.push(prop);
+											if (typeof value === "string") classNameChunk += classNameChunk ? " " + value : value;
+										}
+									} else console.error("styleq: ".concat(prop, " typeof ").concat(String(value), " is not \"string\" or \"null\"."));
+								}
+								if (nextCache != null) {
+									var weakMap = /* @__PURE__ */ new WeakMap();
+									nextCache.set(style, [
+										classNameChunk,
+										definedPropertiesChunk,
+										debugString,
+										weakMap
+									]);
+									nextCache = weakMap;
+								}
+							}
+							if (classNameChunk) className = className ? classNameChunk + " " + className : classNameChunk;
+						} else if (disableMix) {
+							if (inlineStyle == null) inlineStyle = {};
+							inlineStyle = Object.assign({}, style, inlineStyle);
+						} else {
+							var subStyle = null;
+							for (var _prop in style) {
+								var _value = style[_prop];
+								if (_value !== void 0) {
+									if (!definedProperties.includes(_prop)) {
+										if (_value != null) {
+											if (inlineStyle == null) inlineStyle = {};
+											if (subStyle == null) subStyle = {};
+											subStyle[_prop] = _value;
+										}
+										definedProperties.push(_prop);
+										nextCache = null;
+									}
+								}
+							}
+							if (subStyle != null) inlineStyle = Object.assign(subStyle, inlineStyle);
+						}
+					}
+					return [
+						className,
+						inlineStyle,
+						debugString
+					];
+				};
+			}
+			var styleq$1 = styleq.styleq = createStyleq();
+			styleq$1.factory = createStyleq;
+			return styleq;
+		}
+		var styleqExports = /*@__PURE__*/ requireStyleq();
+		function props(...styles) {
+			const [className, style, dataStyleSrc] = styleqExports.styleq(styles);
+			const result = {};
+			if (className != null && className !== "") result.className = className;
+			if (style != null && Object.keys(style).length > 0) result.style = style;
+			if (dataStyleSrc != null && dataStyleSrc !== "") result["data-style-src"] = dataStyleSrc;
+			return result;
+		}
+		Object.freeze({});
+		//#endregion
+		//#region packages/client/src/client/ds/tokens.stylex.ts
+		const space = {
+			x1: "2px",
+			x2: "4px",
+			x3: "8px",
+			x4: "12px",
+			x5: "16px",
+			x6: "24px"
+		};
+		const text = {
+			metaSize: "12px",
+			metaLine: "16px",
+			bodySize: "13px",
+			bodyLine: "20px",
+			titleSize: "14px",
+			titleLine: "20px",
+			headingSize: "16px",
+			headingLine: "24px",
+			regular: "400",
+			strong: "500",
+			heavy: "600"
+		};
+		const radius = {
+			control: "6px",
+			row: "8px",
+			card: "10px",
+			panel: "var(--dsw-radius-panel, 16px)",
+			menuItem: "var(--dsw-radius-md, 12px)",
+			round: "50%"
+		};
+		const color = {
+			fg: "var(--dsw-alias-label-primary)",
+			muted: "var(--dsw-alias-label-secondary)",
+			subtle: "var(--dsw-alias-label-tertiary)",
+			border: "var(--dsw-alias-border-l2)",
+			borderSoft: "var(--dsw-alias-border-l1)",
+			borderStrong: "var(--dsw-alias-border-l3)",
+			hover: "var(--dsw-alias-interactive-bg-hover)",
+			selected: "var(--dsw-alias-interactive-bg-active)",
+			navSelected: "var(--dsw-specific-sidebar-nav-item-active)",
+			accent: "var(--dsw-alias-state-business-primary)",
+			onAccent: "var(--dsw-alias-label-primary-foreground)",
+			danger: "var(--dsw-alias-state-error-primary)",
+			onDanger: "var(--dsw-alias-label-primary-foreground)",
+			dangerEdge: "var(--dsw-alias-state-error-secondary)",
+			dangerSoft: "var(--dsw-alias-interactive-bg-hover-danger)",
+			warning: "var(--dsw-alias-state-warn-primary)",
+			warningEdge: "var(--dsw-alias-state-warn-secondary)",
+			warningSoft: "var(--dsw-alias-state-warn-tertiary)",
+			success: "var(--dsw-alias-state-success-primary)",
+			surface: "var(--dsw-alias-bg-module-platform)",
+			elevated: "var(--dsw-alias-button-elevated-fill)",
+			base: "var(--dsw-alias-bg-base)"
+		};
+		//#endregion
 		//#region packages/client/src/client/mounted-resource.ts
 		function useMountedResource$1(start, dependencies) {
 			const cleanup = (0, react.useRef)(void 0);
@@ -1554,124 +1727,6 @@ window.__ModuleLoader__.load({
 			}, dependencies);
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@stylexjs+stylex@0.19.1/node_modules/@stylexjs/stylex/lib/es/stylex.mjs
-		var styleq = {};
-		var hasRequiredStyleq;
-		function requireStyleq() {
-			if (hasRequiredStyleq) return styleq;
-			hasRequiredStyleq = 1;
-			Object.defineProperty(styleq, "__esModule", { value: true });
-			styleq.styleq = void 0;
-			var cache = /* @__PURE__ */ new WeakMap();
-			var compiledKey = "$$css";
-			function createStyleq(options) {
-				var disableCache;
-				var disableMix;
-				var transform;
-				if (options != null) {
-					disableCache = options.disableCache === true;
-					disableMix = options.disableMix === true;
-					transform = options.transform;
-				}
-				return function styleq() {
-					var definedProperties = [];
-					var className = "";
-					var inlineStyle = null;
-					var debugString = "";
-					var nextCache = disableCache ? null : cache;
-					var styles = new Array(arguments.length);
-					for (var i = 0; i < arguments.length; i++) styles[i] = arguments[i];
-					while (styles.length > 0) {
-						var possibleStyle = styles.pop();
-						if (possibleStyle == null || possibleStyle === false) continue;
-						if (Array.isArray(possibleStyle)) {
-							for (var _i = 0; _i < possibleStyle.length; _i++) styles.push(possibleStyle[_i]);
-							continue;
-						}
-						var style = transform != null ? transform(possibleStyle) : possibleStyle;
-						if (style.$$css != null) {
-							var classNameChunk = "";
-							if (nextCache != null && nextCache.has(style)) {
-								var cacheEntry = nextCache.get(style);
-								if (cacheEntry != null) {
-									classNameChunk = cacheEntry[0];
-									debugString = cacheEntry[2];
-									definedProperties.push.apply(definedProperties, cacheEntry[1]);
-									nextCache = cacheEntry[3];
-								}
-							} else {
-								var definedPropertiesChunk = [];
-								for (var prop in style) {
-									var value = style[prop];
-									if (prop === compiledKey) {
-										var compiledKeyValue = style[prop];
-										if (compiledKeyValue !== true) debugString = debugString ? compiledKeyValue + "; " + debugString : compiledKeyValue;
-										continue;
-									}
-									if (typeof value === "string" || value === null) {
-										if (!definedProperties.includes(prop)) {
-											definedProperties.push(prop);
-											if (nextCache != null) definedPropertiesChunk.push(prop);
-											if (typeof value === "string") classNameChunk += classNameChunk ? " " + value : value;
-										}
-									} else console.error("styleq: ".concat(prop, " typeof ").concat(String(value), " is not \"string\" or \"null\"."));
-								}
-								if (nextCache != null) {
-									var weakMap = /* @__PURE__ */ new WeakMap();
-									nextCache.set(style, [
-										classNameChunk,
-										definedPropertiesChunk,
-										debugString,
-										weakMap
-									]);
-									nextCache = weakMap;
-								}
-							}
-							if (classNameChunk) className = className ? classNameChunk + " " + className : classNameChunk;
-						} else if (disableMix) {
-							if (inlineStyle == null) inlineStyle = {};
-							inlineStyle = Object.assign({}, style, inlineStyle);
-						} else {
-							var subStyle = null;
-							for (var _prop in style) {
-								var _value = style[_prop];
-								if (_value !== void 0) {
-									if (!definedProperties.includes(_prop)) {
-										if (_value != null) {
-											if (inlineStyle == null) inlineStyle = {};
-											if (subStyle == null) subStyle = {};
-											subStyle[_prop] = _value;
-										}
-										definedProperties.push(_prop);
-										nextCache = null;
-									}
-								}
-							}
-							if (subStyle != null) inlineStyle = Object.assign(subStyle, inlineStyle);
-						}
-					}
-					return [
-						className,
-						inlineStyle,
-						debugString
-					];
-				};
-			}
-			var styleq$1 = styleq.styleq = createStyleq();
-			styleq$1.factory = createStyleq;
-			return styleq;
-		}
-		var styleqExports = /*@__PURE__*/ requireStyleq();
-		function props(...styles) {
-			const [className, style, dataStyleSrc] = styleqExports.styleq(styles);
-			const result = {};
-			if (className != null && className !== "") result.className = className;
-			if (style != null && Object.keys(style).length > 0) result.style = style;
-			if (dataStyleSrc != null && dataStyleSrc !== "") result["data-style-src"] = dataStyleSrc;
-			return result;
-		}
-		Object.freeze({});
-		//#endregion
 		//#region packages/client/src/client/ds/note.tsx
 		const styles = {
 			note: {
@@ -2585,15 +2640,15 @@ window.__ModuleLoader__.load({
 .bh-computer-access-control { position: relative; display: flex; align-items: center; }
 .bh-computer-access-power {
   display: flex; align-items: center; justify-content: center; width: 28px; height: 28px;
-  padding: 0; border: 0; border-radius: ${BH.radiusMd}; background: transparent;
-  color: ${BH.labelSecondary}; cursor: pointer;
+  padding: 0; border: 0; border-radius: ${radius.menuItem}; background: transparent;
+  color: ${color.muted}; cursor: pointer;
 }
-.bh-computer-access-power:hover { background: ${BH.hoverFill}; }
-.bh-computer-access-power[aria-pressed='true'] { color: ${BH.businessPrimary}; background: ${BH.hoverFill}; }
-.bh-computer-access-power:focus-visible { outline: 2px solid ${BH.businessPrimary}; outline-offset: 2px; }
+.bh-computer-access-power:hover { background: ${color.hover}; }
+.bh-computer-access-power[aria-pressed='true'] { color: ${color.accent}; background: ${color.hover}; }
+.bh-computer-access-power:focus-visible { outline: 2px solid ${color.accent}; outline-offset: 2px; }
 .bh-computer-access-power:disabled { opacity: 0.5; cursor: default; }
-.bh-computer-access-power.bh-access-failed { color: ${BH.errorPrimary}; }
-.bh-computer-access-error { order: -1; padding: 0 4px; color: ${BH.errorPrimary}; font-size: 11px; line-height: 16px; white-space: nowrap; }
+.bh-computer-access-power.bh-access-failed { color: ${color.danger}; }
+.bh-computer-access-error { order: -1; padding: 0 ${space.x2}; color: ${color.danger}; font-size: ${text.metaSize}; line-height: ${text.metaLine}; white-space: nowrap; }
 
 `;
 		const name = "botharness-computer-client";
