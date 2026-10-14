@@ -17,7 +17,14 @@ export interface AgentBrowserProcess {
 }
 
 function nativeBinary(): string {
-  const root = dirname(createRequire(import.meta.url).resolve('agent-browser/package.json'));
+  let root: string;
+  try {
+    root = dirname(createRequire(import.meta.url).resolve('agent-browser/package.json'));
+  } catch {
+    throw new Error(
+      `agent-browser ${AGENT_BROWSER_VERSION} is not installed in this Profile; add it before selecting the agent-browser driver`,
+    );
+  }
   let platform: string = process.platform;
   if (
     platform === 'linux' &&

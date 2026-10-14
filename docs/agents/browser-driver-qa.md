@@ -6,6 +6,8 @@
 
 Build this worktree and start an isolated DSH Profile with the [verified launcher](../../AGENTS.md#commands). Use a synthetic PersonaBot and disposable browser profile. Do not copy a daily browser profile, another DSH credential store, or a personal login.
 
+An installed product does not include agent-browser: it is an optional peer of Browser, so add `agent-browser@0.38.2` to the Profile and approve its build before selecting it. A source worktree already has it as a development dependency.
+
 In Bot settings choose **Local Browser → Local driver → Default / agent-browser (trial)**. Give only the QA Bot Browser Access. Keep automatic approval off and approve its native Browser request in each fresh Session. Open its Browser entry to reveal the task-owned window. Pause lets the Human edit the same page; Resume requires the Bot to observe again. Human Stop closes owned resources. Driver changes revoke Session approval and wait for prior cleanup before replacement work.
 
 The deterministic fixture runs with:

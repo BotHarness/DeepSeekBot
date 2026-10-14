@@ -16,7 +16,7 @@ concurrency:
 jobs:
   prepare:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 60
     permissions:
       contents: read
       actions: read
@@ -77,6 +77,15 @@ jobs:
           node scripts/npm-prerelease.mjs prepare --version "$RELEASE_VERSION" --provider-source .release-provider --output "$RUNNER_TEMP/npm-release"
           node --input-type=module -e 'import {readFileSync} from "node:fs"; import {assertCleanReleaseSource} from "./scripts/npm-prerelease.mjs"; assertCleanReleaseSource(JSON.parse(readFileSync(process.env.RUNNER_TEMP+"/npm-release/release-plan.json", "utf8")))'
           node -e 'const fs=require("fs"); const crypto=require("crypto"); const p=process.env.RUNNER_TEMP+"/npm-release/release-plan.json"; const sha=crypto.createHash("sha256").update(fs.readFileSync(p)).digest("hex"); fs.appendFileSync(process.env.GITHUB_OUTPUT,"sha256="+sha+"\n"); fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,"Plan SHA-256: `"+sha+"`\n\n```json\n"+fs.readFileSync(p)+"\n```\n")'
+      - name: Install the exact prepared packages into a fresh Profile on every supported DSH release
+        run: node scripts/e2e-fresh-profile-install.mjs "$RUNNER_TEMP/npm-release" "$RUNNER_TEMP/fresh-profile-install"
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fresh-profile-install-${{ steps.version.outputs.version }}
+          path: ${{ runner.temp }}/fresh-profile-install/report.json
+          if-no-files-found: ignore
+          retention-days: 30
       - uses: actions/upload-artifact@v4
         with:
           name: npm-release-${{ steps.version.outputs.version }}

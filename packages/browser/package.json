@@ -21,7 +21,6 @@
   "dependencies": {
     "@deepseek-ai/dsh-mcp-client": "0.2.0-rc.2",
     "@puppeteer/browsers": "3.2.2",
-    "agent-browser": "0.38.2",
     "playwright-core": "1.64.0-alpha-1790635538000"
   },
   "devDependencies": {
@@ -38,8 +37,17 @@
     "@stylexjs/stylex": "0.19.1",
     "@types/react": "~18.3.1",
     "@types/react-dom": "~18.3.0",
+    "agent-browser": "0.38.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
+  },
+  "peerDependencies": {
+    "agent-browser": "0.38.2"
+  },
+  "peerDependenciesMeta": {
+    "agent-browser": {
+      "optional": true
+    }
   },
   "engines": {
     "dsh": ">=0.2.0-rc.1 <0.3.0-0",

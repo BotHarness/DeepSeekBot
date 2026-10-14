@@ -14,6 +14,8 @@ parity; Human review owns notability, accuracy, and prose quality.
 
 Public install instructions use the published stable identity in `scripts/install-release.json`, not the development package version or npm's moving `latest` tag. After publishing and verifying registry bytes and qualification evidence, update that identity, run `pnpm install:sync` and `pnpm install:check`, and review the resulting README/guide changes. The check runs in lint and rejects drift. Never advance this file during prerelease preparation or before publication.
 
+Before publication, the `prepare` job of `npm-release.yml` runs `scripts/e2e-fresh-profile-install.mjs` on the exact prepared tarballs: for every supported DSH release it installs the product into a brand-new Profile with no pre-approved builds, then boots the Host, creates a Bot and DM, and restarts. A dependency that needs build approval fails the release, because users would otherwise have to approve it on the Plugins page before DeepSeekBot installs.
+
 In the product Site checkout, run `BOTHARNESS=<this-qualified-checkout> pnpm install:sync` to copy the identity and synchronize only the bilingual installation guides. Site copy buttons and CLI instructions derive from this identity. Ship the two PRs through their normal review gates; this is a repeatable release-sync command, not an automatic publication or npm candidate-selection bypass. Registry candidate selection/upgrade E2E and the DSH-owned preview/install mismatch remain separate gates.
 
 | Artifact                                  | Owns                                                                                                                        |

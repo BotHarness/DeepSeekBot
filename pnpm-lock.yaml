@@ -418,9 +418,6 @@ importers:
       '@puppeteer/browsers':
         specifier: 3.2.2
         version: 3.2.2
-      agent-browser:
-        specifier: 0.38.2
-        version: 0.38.2
       playwright-core:
         specifier: 1.64.0-alpha-1790635538000
         version: 1.64.0-alpha-1790635538000
@@ -461,6 +458,9 @@ importers:
       '@types/react-dom':
         specifier: ~18.3.0
         version: 18.3.7(@types/react@18.3.31)
+      agent-browser:
+        specifier: 0.38.2
+        version: 0.38.2
       react:
         specifier: ^18.2.0
         version: 18.3.1

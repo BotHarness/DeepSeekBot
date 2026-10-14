@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const state = vi.hoisted(() => ({
   version: '0.38.2',
   spawnFails: false,
+  packageMissing: false,
   streamEnabled: false,
   backendError: '',
   actions: [] as string[],
@@ -19,6 +20,21 @@ vi.mock('node:fs/promises', () => ({
   rm: state.removed,
 }));
 vi.mock('node:child_process', () => ({ spawn: state.spawn }));
+vi.mock('node:module', async (original) => {
+  const actual = await original<typeof import('node:module')>();
+  return {
+    ...actual,
+    createRequire: (from: string) => {
+      const require = actual.createRequire(from);
+      return Object.assign((id: string) => require(id), require, {
+        resolve: (id: string) => {
+          if (state.packageMissing) throw new Error(`Cannot find module '${id}'`);
+          return require.resolve(id);
+        },
+      });
+    },
+  };
+});
 vi.mock('node:net', () => ({
   createConnection: () => {
     const socket = new EventEmitter();
@@ -50,6 +66,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   state.version = '0.38.2';
   state.spawnFails = false;
+  state.packageMissing = false;
   state.streamEnabled = false;
   state.actions = [];
   state.backendError = '';
@@ -99,6 +116,15 @@ describe('owned candidate process startup boundary', () => {
     await expect(driver.start('ws://127.0.0.1:1234/owned')).rejects.toThrow();
     expect(state.kill).not.toHaveBeenCalled();
     expect(state.removed).toHaveBeenCalled();
+  });
+  it('explains that the optional agent-browser package must be added before the driver can start', async () => {
+    state.packageMissing = true;
+    const driver = createAgentBrowserProcess(() => undefined);
+    await expect(driver.start('ws://127.0.0.1:1234/owned')).rejects.toThrow(
+      'agent-browser 0.38.2 is not installed in this Profile',
+    );
+    expect(state.spawn).not.toHaveBeenCalled();
+    expect(driver.isRunning()).toBe(false);
   });
   it('rejects an unexpected native binary version before any browser command', async () => {
     state.version = '0.0.0';
