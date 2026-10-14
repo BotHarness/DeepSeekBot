@@ -68,7 +68,12 @@ export function synced(current, standard) {
   const start = current.indexOf(BEGIN);
   const end = current.indexOf(END);
   if (start < 0 || end < start) throw new Error('The product patch has no generated preset region');
-  return current.slice(0, start) + generatedRegion(standard) + current.slice(end + END.length);
+  const eol = current.includes('\r\n') ? '\r\n' : '\n';
+  return (
+    current.slice(0, start) +
+    generatedRegion(standard).replaceAll('\n', eol) +
+    current.slice(end + END.length)
+  );
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

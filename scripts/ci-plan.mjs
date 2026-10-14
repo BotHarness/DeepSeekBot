@@ -377,7 +377,10 @@ export function syncGuide(text) {
   const start = text.indexOf(TABLE_BEGIN);
   const end = text.indexOf(TABLE_END);
   if (start < 0 || end < start) throw new Error(`${GUIDE} has no generated CI plan table`);
-  return text.slice(0, start) + rulesTable() + text.slice(end + TABLE_END.length);
+  const eol = text.includes('\r\n') ? '\r\n' : '\n';
+  return (
+    text.slice(0, start) + rulesTable().replaceAll('\n', eol) + text.slice(end + TABLE_END.length)
+  );
 }
 
 export function checkClassification(files, rules = RULES) {
