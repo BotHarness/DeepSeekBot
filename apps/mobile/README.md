@@ -26,6 +26,19 @@ MOBILE_LIVE_HOST_URL='http://127.0.0.1:<port>/?token=<token>' pnpm vitest run ap
 pnpm --filter @botharness/mobile export          # Metro bundles for iOS and Android
 ```
 
+## Screenshots without a phone
+
+Cloud sessions have no simulator: the container has no KVM for the Android emulator, no macOS for the iOS simulator, and the egress policy blocks `expo.dev`, so EAS cannot be driven from there. For PR evidence they render the same screens through React Native Web and screenshot them at a 390 × 844 phone viewport:
+
+```bash
+EXPO_OFFLINE=1 pnpm --filter @botharness/mobile export:web
+python3 -m http.server 8099 --directory apps/mobile/dist-web &
+node apps/mobile/scripts/web-screenshot.mjs http://127.0.0.1:8099/ connect-light.png light
+node apps/mobile/scripts/web-screenshot.mjs http://127.0.0.1:8099/ connect-dark.png dark
+```
+
+The web render is layout evidence, not native evidence: it shows the app's own views, copy, spacing and theme, but not native headers, large titles, keyboard behavior or fonts. `expo-secure-store` has no web backend, so the web build always opens on the login screen. Native behavior is still checked on a development build (below) and reported in the PR's Human QA.
+
 ## Run the tracer on a phone
 
 1. **Host.** Start an isolated Host and note its token URL. Put it on the tailnet with HTTPS and trust that name:

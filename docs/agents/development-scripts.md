@@ -50,7 +50,9 @@ Run `node scripts/ci-plan.mjs --base origin/main` to print the plan and the exac
 | `apps/docs/test/**`                                                                                       | Related tests       | Yes       | Docs tests and fixtures                                      |
 | `apps/docs/**`                                                                                            | Related tests       | Yes       | Docs site                                                    |
 | `apps/presentations/**`                                                                                   | No tests of its own | Yes       | Slides embedded in the docs site                             |
-| `apps/mobile/**`                                                                                          | Related tests       |           | Mobile app source and tests                                  |
+| `apps/mobile/{app,src,test,scripts}/**`                                                                   | Related tests       |           | Mobile app source, tests and scripts                         |
+| `apps/mobile/{app.json,eas.json,metro.config.js}`                                                         | Related tests       |           | Mobile app config                                            |
+| `apps/mobile/{README.md,.gitignore}`                                                                      | No tests of its own |           | Mobile app prose and ignores                                 |
 | `scripts/test/**`                                                                                         | Related tests       |           | Script tests                                                 |
 | `scripts/fixtures/**`                                                                                     | Related tests       |           | Script test fixtures                                         |
 | `scripts/product-provider/**`                                                                             | Related tests       |           | Product provider scripts                                     |
