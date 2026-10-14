@@ -9,7 +9,7 @@ function Glyph({ d, color, size, focused }: IconProps & { d: string }) {
       <Path
         d={d}
         stroke={color}
-        fill={focused ? color : 'none'}
+        fill={color}
         fillOpacity={focused ? 0.15 : 0}
         strokeWidth={1.8}
         strokeLinejoin="round"
