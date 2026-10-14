@@ -6,6 +6,7 @@ import { humanLabel } from './actor-names.js';
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
 import type { ChannelHumanMember, BotSummary, ChannelMessage } from './store.js';
 import { useMountedResource } from './mounted-resource.js';
+import { color } from './ds/tokens.stylex.js';
 
 type Delivery = NonNullable<ChannelMessage['deliveries']>[number];
 type DeliveryState = Delivery['state'] | 'human-read' | 'human-unread';
@@ -24,6 +25,18 @@ const STATE_ORDER: readonly DeliveryState[] = [
   'human-read',
   'human-unread',
 ];
+
+const STATE_COLOR: Readonly<Record<DeliveryState, string>> = {
+  handled: color.success,
+  running: color.accent,
+  observed: color.fg,
+  pending: color.muted,
+  ignored: color.subtle,
+  retryable: color.danger,
+  'needs-repair': color.danger,
+  'human-read': color.success,
+  'human-unread': color.muted,
+};
 
 function stateLabel(state: DeliveryState, t: BotHarnessTranslate): string {
   return t(('message.delivery.' + state) as BotHarnessKey);
@@ -139,15 +152,15 @@ export function ChannelDeliveryReceipt({
   const separator = Math.min(1.6, Math.max(0.8, (360 / allRecipients) * 0.04));
   const pieBackground =
     sectors.length === 1
-      ? `var(--bh-delivery-color-${sectors[0]!.state})`
+      ? STATE_COLOR[sectors[0]!.state]
       : `conic-gradient(from 0deg, ${sectors
           .flatMap(({ state, length, offset: start }, index) => {
             const end = start + length;
             const fillEnd = index === sectors.length - 1 ? end : end - separator;
-            const color = `var(--bh-delivery-color-${state})`;
+            const fill = STATE_COLOR[state];
             return index === sectors.length - 1
-              ? [`${color} ${start}deg ${end}deg`]
-              : [`${color} ${start}deg ${fillEnd}deg`, `transparent ${fillEnd}deg ${end}deg`];
+              ? [`${fill} ${start}deg ${end}deg`]
+              : [`${fill} ${start}deg ${fillEnd}deg`, `transparent ${fillEnd}deg ${end}deg`];
           })
           .join(', ')})`;
 

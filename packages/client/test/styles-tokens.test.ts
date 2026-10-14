@@ -198,11 +198,11 @@ describe('client styles', () => {
     expect(source).toMatch(/\.bh-composer \{[^}]*min-height: 50px/);
     expect(source).toMatch(/\.bh-composer \{[^}]*border-radius: 25px/);
     expect(source).toMatch(/\.bh-composer-expanded \{[^}]*padding-bottom: 48px/);
-    expect(source).toMatch(
-      /\.bh-composer-expanded \{[^}]*border-radius: var\(--bh-composer-radius-panel\)/,
-    );
+    expect(source).toMatch(/\.bh-composer-expanded \{[^}]*border-radius: 20px/);
     expect(source).toMatch(/\.bh-composer-with-footer \{[^}]*padding: 10px 12px 48px/);
-    expect(source).toMatch(/\.bh-composer \{[^}]*background: var\(--bh-composer-panel-bg\)/);
+    expect(source).toMatch(
+      /\.bh-composer \{[^}]*background: var\(--dsw-alias-bg-module-platform\)/,
+    );
     expect(source).toMatch(/\.bh-composer-shell \{[^}]*safe-area-inset-bottom/);
     expect(source).toMatch(/\.bh-composer-activity-facepile \.bh-persona-avatar[^}]*border: 0/);
     expect(source).toMatch(
