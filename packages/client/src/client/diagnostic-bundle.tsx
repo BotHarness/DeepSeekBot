@@ -10,7 +10,7 @@ import {
 
 import { Callout } from './ds/callout.js';
 import { FormDialog } from './ds/form-dialog.js';
-import { color, radius, space, text } from './ds/tokens.stylex.js';
+import { border, color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
 
@@ -28,7 +28,7 @@ const styles = stylex.create({
     margin: 0,
     paddingBlock: space.x4,
     paddingInline: space.x5,
-    borderRadius: radius.card,
+    borderRadius: radius.md,
     backgroundColor: color.surface,
     color: color.fg,
   },
@@ -95,12 +95,12 @@ const styles = stylex.create({
   link: {
     padding: 0,
     borderWidth: 0,
-    borderRadius: radius.control,
+    borderRadius: radius.sm,
     backgroundColor: 'transparent',
     color: color.accent,
     font: 'inherit',
     cursor: 'pointer',
-    outline: { default: 'none', ':focus-visible': `2px solid ${color.accent}` },
+    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
     outlineOffset: '2px',
   },
 });

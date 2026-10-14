@@ -3,7 +3,7 @@ import * as stylex from '@stylexjs/stylex';
 import { IconChevronLeftOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import { hooked } from './ds/hooked.js';
-import { color, radius, space, text } from './ds/tokens.stylex.js';
+import { border, color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 
 const TOUCH = '44px';
@@ -19,9 +19,9 @@ const styles = stylex.create({
     paddingTop: `max(${space.x3}, env(safe-area-inset-top))`,
     paddingInline: space.x4,
     paddingBottom: space.x3,
-    borderBottomWidth: '1px',
+    borderBottomWidth: border.hairline,
     borderBottomStyle: 'solid',
-    borderBottomColor: color.border,
+    borderBottomColor: color.divider,
     backgroundColor: color.base,
     pointerEvents: 'auto',
   },
@@ -33,9 +33,9 @@ const styles = stylex.create({
     textOverflow: 'ellipsis',
     textAlign: 'center',
     color: color.fg,
-    fontSize: text.headingSize,
-    lineHeight: text.headingLine,
-    fontWeight: text.heavy,
+    fontSize: text.titleSize,
+    lineHeight: text.titleLine,
+    fontWeight: text.strong,
   },
   button: {
     display: 'inline-flex',
@@ -45,11 +45,11 @@ const styles = stylex.create({
     minWidth: TOUCH,
     padding: 0,
     borderWidth: 0,
-    borderRadius: radius.row,
+    borderRadius: radius.sm,
     backgroundColor: 'transparent',
     color: color.fg,
     cursor: 'pointer',
-    outline: { default: 'none', ':focus-visible': `2px solid ${color.accent}` },
+    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
     outlineOffset: '-2px',
   },
 });

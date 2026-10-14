@@ -7,7 +7,7 @@ import {
 } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import { Modal } from '../modal.js';
-import { color, radius, size, space, text } from './tokens.stylex.js';
+import { border, color, radius, size, space, text } from './tokens.stylex.js';
 
 const NARROW_QUERY = '(max-width: 648px)';
 
@@ -50,15 +50,15 @@ const styles = stylex.create({
     paddingTop: space.x5,
     paddingInline: space.x3,
     boxSizing: 'border-box',
-    borderRightWidth: '0.5px',
+    borderRightWidth: border.hairline,
     borderRightStyle: 'solid',
-    borderRightColor: color.border,
+    borderRightColor: color.divider,
   },
   navTitle: {
     paddingInline: space.x3,
     color: color.fg,
-    fontSize: text.headingSize,
-    lineHeight: text.headingLine,
+    fontSize: text.titleSize,
+    lineHeight: text.titleLine,
     fontWeight: text.strong,
   },
   navList: {
@@ -76,7 +76,7 @@ const styles = stylex.create({
     paddingInline: space.x3,
     boxSizing: 'border-box',
     borderWidth: 0,
-    borderRadius: radius.row,
+    borderRadius: radius.sm,
     backgroundColor: {
       default: 'transparent',
       ':hover': color.hover,
@@ -89,7 +89,7 @@ const styles = stylex.create({
     fontWeight: { default: 400, ':is([aria-current=page])': text.strong },
     textAlign: 'start',
     cursor: 'pointer',
-    outline: { default: 'none', ':focus-visible': `2px solid ${color.accent}` },
+    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
     outlineOffset: '-2px',
   },
   navLabel: {
@@ -141,8 +141,8 @@ const styles = stylex.create({
     margin: 0,
     minWidth: 0,
     color: color.fg,
-    fontSize: text.headingSize,
-    lineHeight: text.headingLine,
+    fontSize: text.titleSize,
+    lineHeight: text.titleLine,
     fontWeight: text.strong,
   },
   actions: {
@@ -159,11 +159,11 @@ const styles = stylex.create({
     height: size.icon,
     padding: 0,
     borderWidth: 0,
-    borderRadius: radius.row,
+    borderRadius: radius.sm,
     backgroundColor: { default: 'transparent', ':hover': color.hover },
     color: color.fg,
     cursor: 'pointer',
-    outline: { default: 'none', ':focus-visible': `2px solid ${color.accent}` },
+    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
   },
   picker: {
     display: 'inline-flex',
@@ -173,7 +173,7 @@ const styles = stylex.create({
     height: size.row,
     paddingInline: `${space.x4} ${space.x3}`,
     borderWidth: 0,
-    borderRadius: radius.row,
+    borderRadius: radius.sm,
     backgroundColor: { default: color.surface, ':hover': color.hover },
     color: color.fg,
     fontFamily: 'inherit',
@@ -181,7 +181,7 @@ const styles = stylex.create({
     lineHeight: text.titleLine,
     fontWeight: text.strong,
     cursor: 'pointer',
-    outline: { default: 'none', ':focus-visible': `2px solid ${color.accent}` },
+    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
   },
   body: {
     flexGrow: 1,

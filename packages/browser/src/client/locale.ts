@@ -107,6 +107,13 @@ export const zh = {
   'entry.fail.provision-no-permission.action':
     '请机器管理员放开浏览器目录的写权限后，再点一次“打开”。',
   'entry.fail.provision-missing-libs.title': '这台机器缺少浏览器需要的系统库。',
+  'entry.install.missing': '需要安装 {count} 个系统包。',
+  'entry.install.manual':
+    '安装需要管理员密码。请在这台机器的终端里运行下面的命令，装好后再点「打开」。',
+  'entry.install.button': '一键安装',
+  'entry.install.copy': '复制命令',
+  'entry.install.copied': '已复制',
+  'entry.install.progress': '正在安装系统库：{percent}%',
   'entry.fail.provision-missing-libs.fault': '这是机器环境的问题，不是浏览器设置的问题。',
   'entry.fail.provision-missing-libs.action':
     'Ubuntu 24.04 上按“详情”里的命令安装系统库，装好后再点“打开”。',
@@ -249,6 +256,13 @@ export const en: Record<BrowserKey, string> = {
     'Ask the machine owner to make the browser folder writable, then click Open again.',
   'entry.fail.provision-missing-libs.title':
     'This machine is missing system libraries the browser needs.',
+  'entry.install.missing': '{count} system packages need to be installed.',
+  'entry.install.manual':
+    'Installing needs an administrator password. Run this command in a terminal on this machine, then click Open again.',
+  'entry.install.button': 'Install',
+  'entry.install.copy': 'Copy command',
+  'entry.install.copied': 'Copied',
+  'entry.install.progress': 'Installing system libraries: {percent}%',
   'entry.fail.provision-missing-libs.fault':
     'This is about the machine setup, not your browser settings.',
   'entry.fail.provision-missing-libs.action':

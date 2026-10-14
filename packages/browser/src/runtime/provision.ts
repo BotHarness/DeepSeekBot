@@ -14,12 +14,19 @@ export const PROVISION_MIN_FREE_BYTES = 500 * 1024 * 1024;
 export class BrowserProvisionError extends Error {
   readonly code: BrowserFailureKind;
   readonly detail?: string;
+  readonly packages?: readonly string[];
 
-  constructor(code: BrowserFailureKind, message: string, detail?: string) {
+  constructor(
+    code: BrowserFailureKind,
+    message: string,
+    detail?: string,
+    packages?: readonly string[],
+  ) {
     super(message);
     this.name = 'BrowserProvisionError';
     this.code = code;
     if (detail !== undefined) this.detail = detail;
+    if (packages !== undefined) this.packages = packages;
   }
 }
 
@@ -28,6 +35,7 @@ export function toBrowserErrorBody(error: unknown): {
   error: string;
   code?: BrowserFailureKind;
   detail?: string;
+  packages?: readonly string[];
 } {
   if (error instanceof BrowserProvisionError) {
     return {
@@ -35,6 +43,7 @@ export function toBrowserErrorBody(error: unknown): {
       error: error.message,
       code: error.code,
       ...(error.detail === undefined ? {} : { detail: error.detail }),
+      ...(error.packages === undefined ? {} : { packages: error.packages }),
     };
   }
   const message = error instanceof Error ? error.message : String(error);
@@ -182,10 +191,17 @@ export const LINUX_CHROME_LIB_REQUIREMENTS: readonly LinuxLibRequirement[] = [
   { soname: 'libxcb.so.1', packages: ['libxcb1'] },
 ];
 
-export function aptInstallCommand(requirements: readonly LinuxLibRequirement[]): string {
-  const packages = [...new Set(requirements.flatMap((entry) => entry.packages))].sort();
-  return `sudo apt install -y ${packages.join(' ')}`;
+export function requiredPackages(requirements: readonly LinuxLibRequirement[]): string[] {
+  return [...new Set(requirements.flatMap((entry) => entry.packages))].sort();
 }
+
+export function aptInstallCommand(requirements: readonly LinuxLibRequirement[]): string {
+  return `sudo apt install -y ${requiredPackages(requirements).join(' ')}`;
+}
+
+export const CHROME_LIB_PACKAGES: ReadonlySet<string> = new Set(
+  requiredPackages(LINUX_CHROME_LIB_REQUIREMENTS),
+);
 
 export function parseLdconfigSonames(output: string): Set<string> {
   const found = new Set<string>();
@@ -252,7 +268,9 @@ export function missingLibsFailure(
       (name) => name === entry.soname || name.startsWith(entry.soname.replace(/\.so.*$/u, '')),
     ),
   );
-  const command = aptInstallCommand(relevant.length > 0 ? relevant : LINUX_CHROME_LIB_REQUIREMENTS);
+  const needed = relevant.length > 0 ? relevant : LINUX_CHROME_LIB_REQUIREMENTS;
+  const command = aptInstallCommand(needed);
+  const packages = requiredPackages(needed);
   const detail =
     `missing: ${names}\nUbuntu 24.04: ${command}` +
     (options?.exitCode === undefined || options.exitCode === null
@@ -263,12 +281,14 @@ export function missingLibsFailure(
       'provision-missing-libs',
       `The Bot Browser cannot run on this machine yet: system libraries are missing (${names}). Install them first with the command in Details — nothing was downloaded.`,
       detail,
+      packages,
     );
   }
   return new BrowserProvisionError(
     'provision-missing-libs',
     `The Bot Browser cannot start on this machine: system libraries are missing (${names}). Install them with the command in Details, then open the browser again.`,
     detail,
+    packages,
   );
 }
 

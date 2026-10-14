@@ -345,9 +345,7 @@ it('returns from QR settings to the retained bind dialog with newly paired and o
   await act(async () => button(zhTranslate('identity.bind')).click());
   const refreshButton = host.querySelector<HTMLButtonElement>('[aria-label="刷新应用"]')!;
   expect(refreshButton.textContent).toBe('');
-  expect(
-    refreshButton.closest('.bh-im-app-picker')?.querySelector('[role="combobox"]'),
-  ).not.toBeNull();
+  expect(refreshButton.parentElement?.querySelector('[role="combobox"]')).not.toBeNull();
   await chooseOption('应用', 'dsh-im/weixin:existing', host);
   expect(messagingSnapshot).toHaveBeenCalledTimes(2);
   await act(async () => button(zhTranslate('identity.manageApps')).click());

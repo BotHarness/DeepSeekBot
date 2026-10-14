@@ -12,7 +12,7 @@ import { BridgeCallError, type BotZipFileListing } from './bridge.js';
 import { Callout } from './ds/callout.js';
 import { FormDialog } from './ds/form-dialog.js';
 import { Note } from './ds/note.js';
-import { color, radius, size, space, text } from './ds/tokens.stylex.js';
+import { border, color, radius, size, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
 import { personaBotCreateError } from './persona-bot-create.js';
@@ -25,10 +25,10 @@ const styles = stylex.create({
     gap: space.x3,
     paddingBlock: space.x4,
     paddingInline: space.x4,
-    borderWidth: '1px',
+    borderWidth: border.hairline,
     borderStyle: 'dashed',
     borderColor: color.border,
-    borderRadius: radius.row,
+    borderRadius: radius.sm,
   },
   fileName: {
     flexGrow: 1,
@@ -69,10 +69,10 @@ const styles = stylex.create({
     paddingInline: 0,
     overflowY: 'auto',
     listStyle: 'none',
-    borderWidth: '1px',
+    borderWidth: border.hairline,
     borderStyle: 'solid',
     borderColor: color.border,
-    borderRadius: radius.row,
+    borderRadius: radius.sm,
   },
   group: { margin: 0, padding: 0, listStyle: 'none' },
   row: {
@@ -94,11 +94,11 @@ const styles = stylex.create({
     marginInlineStart: space.x3,
     padding: 0,
     borderWidth: 0,
-    borderRadius: radius.control,
+    borderRadius: radius.sm,
     backgroundColor: 'transparent',
     color: color.subtle,
     cursor: 'pointer',
-    outline: { default: 'none', ':focus-visible': `2px solid ${color.accent}` },
+    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
   },
   spacer: { cursor: 'default' },
   label: {
@@ -114,7 +114,7 @@ const styles = stylex.create({
   always: {
     flexShrink: 0,
     paddingInline: space.x3,
-    borderRadius: radius.control,
+    borderRadius: radius.sm,
     backgroundColor: color.hover,
     color: color.muted,
     fontSize: text.metaSize,

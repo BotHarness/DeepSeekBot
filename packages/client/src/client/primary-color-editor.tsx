@@ -16,7 +16,7 @@ import {
 } from './bot-primary-color.js';
 import { Field, TextField } from './ds/field.js';
 import { FormDialog } from './ds/form-dialog.js';
-import { color, radius, size, space, text } from './ds/tokens.stylex.js';
+import { border, color, radius, size, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import type { BotSummary, ChannelSummary } from './store.js';
 
@@ -40,23 +40,23 @@ const styles = stylex.create({
     alignSelf: 'flex-start',
     gap: space.x1,
     padding: space.x1,
-    borderWidth: '1px',
+    borderWidth: border.hairline,
     borderStyle: 'solid',
     borderColor: color.border,
-    borderRadius: radius.row,
+    borderRadius: radius.sm,
   },
   mode: {
     minHeight: size.inlineIcon,
     paddingInline: space.x4,
     borderWidth: 0,
-    borderRadius: radius.control,
+    borderRadius: radius.sm,
     backgroundColor: { default: 'transparent', ':hover': color.hover },
     color: color.muted,
     fontFamily: 'inherit',
     fontSize: text.bodySize,
     lineHeight: text.bodyLine,
     cursor: { default: 'pointer', ':disabled': 'default' },
-    outline: { default: 'none', ':focus-visible': `2px solid ${color.accent}` },
+    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
   },
   modeOn: {
     backgroundColor: { default: color.selected, ':hover': color.selected },
@@ -73,16 +73,16 @@ const styles = stylex.create({
     width: size.inlineIcon,
     height: size.inlineIcon,
     padding: 0,
-    borderWidth: '1px',
+    borderWidth: border.hairline,
     borderStyle: 'solid',
     borderColor: color.border,
     borderRadius: radius.round,
     cursor: { default: 'pointer', ':disabled': 'default' },
-    outline: { default: 'none', ':focus-visible': `2px solid ${color.accent}` },
+    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
     outlineOffset: '2px',
   },
   swatchOn: {
-    outline: `2px solid ${color.fg}`,
+    outline: `${border.focus} solid ${color.fg}`,
   },
   picker: {
     width: size.inlineIcon,
@@ -103,10 +103,10 @@ const styles = stylex.create({
     gap: space.x3,
     minWidth: 0,
     padding: space.x4,
-    borderWidth: '1px',
+    borderWidth: border.hairline,
     borderStyle: 'solid',
     borderColor: color.border,
-    borderRadius: radius.card,
+    borderRadius: radius.md,
     backgroundColor: 'var(--bh-primary-preview-surface)',
     color: 'var(--bh-primary-preview-label)',
   },
@@ -133,7 +133,7 @@ const styles = stylex.create({
   mention: {
     paddingBlock: space.x1,
     paddingInline: space.x3,
-    borderRadius: radius.control,
+    borderRadius: radius.sm,
     backgroundColor: 'color-mix(in srgb, currentColor 10%, transparent)',
     color: 'var(--bh-primary-preview-name)',
   },
@@ -147,7 +147,7 @@ const styles = stylex.create({
   chartSwatch: {
     width: '28px',
     height: '10px',
-    borderRadius: radius.control,
+    borderRadius: radius.sm,
     backgroundColor: 'var(--bh-primary-preview-swatch)',
     boxShadow: '0 0 0 1px color-mix(in srgb, currentColor 18%, transparent)',
   },

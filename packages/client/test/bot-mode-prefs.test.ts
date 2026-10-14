@@ -93,13 +93,29 @@ describe('BOT-mode policy store', () => {
       autoAcceptGroupInvites: true,
       assignmentConcurrencyLimit: 8,
       developerMode: false,
-      showBotSessions: false,
+      showBotSessions: true,
       effectiveMotion: 'full',
       sortMode: 'updated',
       sortModes: {},
       mode: 'memory',
       status: 'loading',
     });
+  });
+
+  it('shows Bot Sessions unless the Host holds an explicit choice to hide them', () => {
+    const { showBotSessions: _omitted, ...withoutChoice } = fakeHost().host.getSnapshot().value!;
+    const unset = new BotModePrefs();
+    unset.attach(fakeHost({ value: withoutChoice as never }).host);
+    expect(unset.source.getSnapshot().showBotSessions).toBe(true);
+
+    const hidden = new BotModePrefs();
+    hidden.attach(
+      fakeHost({
+        value: { ...withoutChoice, showBotSessions: false } as never,
+        user: { showBotSessions: false },
+      }).host,
+    );
+    expect(hidden.source.getSnapshot().showBotSessions).toBe(false);
   });
 
   it('adopts the accepted Host global and per-section values on every accepted change', () => {

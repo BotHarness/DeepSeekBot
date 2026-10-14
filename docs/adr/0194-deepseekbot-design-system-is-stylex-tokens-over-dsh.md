@@ -1,7 +1,7 @@
 ---
 Status: Accepted
 Date: 2026-10-13
-Issues: [#1589](https://github.com/BotHarness/DeepSeekBot/issues/1589), [#1591](https://github.com/BotHarness/DeepSeekBot/issues/1591)
+Issues: [#1589](https://github.com/BotHarness/DeepSeekBot/issues/1589), [#1591](https://github.com/BotHarness/DeepSeekBot/issues/1591), [#1603](https://github.com/BotHarness/DeepSeekBot/issues/1603)
 ---
 
 # The DeepSeekBot design system is StyleX tokens and components over DSH
@@ -14,7 +14,8 @@ The owner asked for the sidebar's qualities to become the product rule: show onl
 
 DeepSeekBot has a small design system layered on ADR-0028. It is a semantic layer over DSH, not a second design system: colours still resolve to `--dsw-*`, dark mode still follows `body[data-ds-dark-theme]`, and DSH primitives (Modal, Menu, Button, Input, Switch, Tag) stay the controls.
 
-- **Tokens** live in `packages/client/src/client/ds/tokens.stylex.ts`: spacing 2/4/8/12/16/24, type roles meta 12/16, body 13/20, title 14/20 at 500 and heading 16/24 at 500, radius roles control 6, row 8, card 10 and panel (DSH), control sizes 26/28/32/40, and colour roles that each name one `--dsw-alias-*` token.
+- **Tokens** live in `packages/client/src/client/ds/tokens.stylex.ts`: spacing 2/4/8/12/16/24; three type sizes, meta 12/16, body 13/20 and title 14/20, at two weights, regular 400 and strong 500; radius roles that follow DSH, `xs`, `sm`, `md`, `lg` and `panel` reading `--dsw-radius-*` (xs only for tiny chips, badges and checkboxes) plus `round`; edge widths `hairline` (1px) and `focus` (the DSH focus ring width, 2px by default); control sizes 26/28/32/40; and colour roles that each name one `--dsw-alias-*` token.
+- **Edges** use three colours: `divider` (`border-l1`) for separators inside a surface, `border` (`border-l2`) for the outer edge of inputs, controls and cards on the same background, and `borderStrong` (`border-l3`) for hover and emphasis. Spacing and background separate content first; a surface that already has its own fill gets no border, and a 2px edge is kept only for focus and selection.
 - **Components** live next to them in `ds/`: `SettingsDialog` (navigation, title, close, scrolling body, attention dots, narrow-screen picker), `SettingsSection`, `SettingsRow`, `Select` (a Menu pill), `NumberStepper`, `Note` and `EmptyState`. Bot settings and Channel settings share `SettingsDialog`.
 - **Content rules** apply to every surface built from them:
   - a row has one title, at most one line of description and one control;
@@ -42,6 +43,6 @@ The first slice had to meet every criterion in #1589 before any surface depended
 
 ## Consequences
 
-- New Bot-mode UI composes `ds/` components and tokens. A guard test rejects literal colours and literal spacing, type and radius values in StyleX code.
+- New Bot-mode UI composes `ds/` components and tokens. A guard test rejects literal colours and literal spacing, type, radius and edge-width values in StyleX code and in every plugin stylesheet; the plain CSS stylesheets interpolate the same constants, and the few values that cannot sit on the scale (measured native geometry, pill ends, overlay clearances) are a named allowlist with a reason each. Feature-local token alias tables are gone (#1603).
 - Bot settings is rebuilt on the system. Messaging shows one platform at a time as rows and applies each change at once; Window companion and the Assignment limit use steppers; the default name saves on Enter or blur; the IM apps empty state offers the one action that fixes it.
 - Channel settings sections, form and confirm modals, and the large workspace modals follow in later slices of #1589. Legacy `bh-` rules are deleted as surfaces stop rendering them.

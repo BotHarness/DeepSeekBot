@@ -51,7 +51,7 @@ describe('Channel delivery receipt', () => {
       expect(trigger?.getAttribute('aria-label')).toContain('1 已投递');
       const pie = trigger?.querySelector<HTMLElement>('.bh-delivery-pie');
       expect(pie?.getAttribute('style')).toContain('conic-gradient');
-      expect(pie?.getAttribute('style')).toContain('var(--bh-delivery-color-running)');
+      expect(pie?.getAttribute('style')).toContain('var(--dsw-alias-state-business-primary)');
       expect(trigger?.querySelector('svg')).toBeNull();
       expect(trigger?.hasAttribute('title')).toBe(false);
       expect(document.body.querySelector('.bh-delivery-panel')).toBeNull();
@@ -231,7 +231,7 @@ describe('Channel delivery receipt', () => {
         ),
       );
       expect(host.querySelector('.bh-delivery-pie')?.getAttribute('style')).toContain(
-        'var(--bh-delivery-color-handled)',
+        'var(--dsw-alias-state-success-primary)',
       );
       expect(host.querySelector('.bh-delivery-pie')?.getAttribute('style')).not.toContain(
         'conic-gradient',

@@ -14,7 +14,13 @@ import { createBorrowService } from './borrow.js';
 import { registerBorrowHttp } from './borrow-http.js';
 
 import { createBrowserDiagnostics, toLogEntry } from './diagnostics.js';
-import { toBrowserErrorBody } from './runtime/provision.js';
+import { CHROME_LIB_PACKAGES, toBrowserErrorBody } from './runtime/provision.js';
+import {
+  createSpawnRunner,
+  installSystemPackages,
+  systemInstallAccess,
+  type SystemInstallAccess,
+} from '../../core/src/system/system-packages.js';
 import { openLogDatabase, type LogDatabase } from '../../core/src/logs/log-db.js';
 import { createBotBrowserRuntimes, listStoredProfileNames } from './runtimes.js';
 import {
@@ -441,6 +447,17 @@ export function apply(
     return () => clearInterval(timer);
   }, 'botharness-browser: idle stop');
 
+  const packageRunner = createSpawnRunner();
+  let installAccess: Promise<SystemInstallAccess> | undefined;
+  let packageInstall:
+    | {
+        state: 'installing' | 'installed' | 'failed';
+        packages: readonly string[];
+        percent: number;
+        text: string;
+      }
+    | undefined;
+
   ctx.inject(['connection'], (connectionCtx) => {
     const connection = (connectionCtx as unknown as { connection: HostConnectionLike }).connection;
     const json = (value: unknown, status = 200): Response =>
@@ -576,6 +593,79 @@ export function apply(
         }
       },
     };
+    const installRoute = {
+      path: '/api/browser/install-packages',
+      methods: ['GET', 'POST'] as const,
+      requestBody: 'buffered' as const,
+      fetch: async (request: Request): Promise<Response> => {
+        if (request.method === 'GET') {
+          installAccess ??= systemInstallAccess(packageRunner);
+          return json({ ok: true, access: await installAccess, ...(packageInstall ?? {}) });
+        }
+        let body: { authorize?: unknown; packages?: unknown } = {};
+        try {
+          body = (await request.json()) as typeof body;
+        } catch {
+          void 0;
+        }
+        if (body.authorize !== true)
+          return json(
+            { ok: false, code: 'authorize-required', error: 'explicit authorization required' },
+            400,
+          );
+        const packages = Array.isArray(body.packages)
+          ? body.packages.filter((name): name is string => typeof name === 'string')
+          : [];
+        if (packages.length === 0 || packages.some((name) => !CHROME_LIB_PACKAGES.has(name)))
+          return json({ ok: false, code: 'packages-invalid', error: 'unknown packages' }, 400);
+        if (packageInstall?.state === 'installing')
+          return json({ ok: false, code: 'install-running', error: 'an install is running' }, 409);
+        installAccess ??= systemInstallAccess(packageRunner);
+        const access = await installAccess;
+        if (access === 'none')
+          return json(
+            { ok: false, code: 'needs-administrator', error: 'administrator rights required' },
+            403,
+          );
+        const started = Date.now();
+        packageInstall = { state: 'installing', packages, percent: 0, text: '' };
+        diagnostics.record(
+          'lifecycle',
+          `install-packages start packages=${packages.join(',')} access=${access}`,
+        );
+        void installSystemPackages({
+          packages,
+          access,
+          runner: packageRunner,
+          onProgress: (progress) => {
+            packageInstall = { state: 'installing', packages, ...progress };
+          },
+        })
+          .then(() => {
+            packageInstall = { state: 'installed', packages, percent: 100, text: '' };
+            diagnostics.record(
+              'lifecycle',
+              `install-packages done durationMs=${String(Date.now() - started)}`,
+            );
+          })
+          .catch((error: unknown) => {
+            const detail = error instanceof Error ? error.message : String(error);
+            packageInstall = {
+              state: 'failed',
+              packages,
+              percent: packageInstall?.percent ?? 0,
+              text: detail,
+            };
+            diagnostics.record('lifecycle', `install-packages refused detail=${detail}`);
+          });
+        return json({ ok: true, started: true });
+      },
+    };
+    connectionCtx.effect(
+      () => connection.fetch.register(installRoute),
+      'botharness-browser: install-packages route',
+    );
+
     connectionCtx.effect(
       () => connection.fetch.register(openRoute),
       'botharness-browser: open route',

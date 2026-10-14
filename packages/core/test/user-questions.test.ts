@@ -107,7 +107,13 @@ describe('native DSH questions in a PersonaBot DM', () => {
     await vi.waitFor(() => expect(state.channels.readMessages(channelId)).toHaveLength(1));
     const request = state.channels.readMessages(channelId)[0]!;
     expect(request.userQuestionRequest?.questions).toHaveLength(5);
-    const expected = { answers: many.map((item) => ({ id: item.id, selected: ['yes'] })) };
+    const expected = {
+      answers: many.map((item, index) =>
+        index === 0
+          ? { id: item.id, selected: [], custom: 'y'.repeat(5_000) }
+          : { id: item.id, selected: ['yes'] },
+      ),
+    };
     expect(await state.answerer.answer('ada', request.id, expected)).toBe(true);
     expect(await wait).toEqual(expected);
   });

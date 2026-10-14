@@ -129,12 +129,24 @@ Credentials are the Human's. Never type passwords, API keys, or recovery codes. 
 
 Before an externally visible action (posting, sending, purchasing, deleting), tell the Human what you are about to do in one short message. Computer Authorization lets you act; it is not blanket consent for surprising consequences. When done, report what you did with the window and outcome, and stop acting.`;
 
-export const LOCAL_COMPUTER_GUIDANCE =
-  COMPUTER_GUIDANCE.replace(
-    'a Linux (X11/XFCE) desktop inside a container with Chrome',
-    'the macOS desktop of the DSH Host, shared with the Human',
-  ).replace(
-    'the Human logs in through the Computer panel',
-    'the Human logs in directly on their own screen',
-  ) +
-  '\nLocal Computer has no viewer. Never assume a login is complete; ask the Human and re-observe the task window.';
+const LOCAL_DESKTOP: Readonly<Record<string, string>> = {
+  darwin: 'the macOS desktop of the DSH Host, shared with the Human',
+  win32: 'the Windows desktop of the DSH Host, shared with the Human',
+  linux:
+    'the Linux desktop of the DSH Host (its own display, or a private virtual display when the Host is a server), shared with the Human',
+};
+
+export function localComputerGuidance(platform: string = process.platform): string {
+  return (
+    COMPUTER_GUIDANCE.replace(
+      'a Linux (X11/XFCE) desktop inside a container with Chrome',
+      LOCAL_DESKTOP[platform] ?? 'the desktop of the DSH Host, shared with the Human',
+    ).replace(
+      'the Human logs in through the Computer panel',
+      'the Human logs in directly on their own screen',
+    ) +
+    '\nLocal Computer has no viewer. Never assume a login is complete; ask the Human and re-observe the task window.'
+  );
+}
+
+export const LOCAL_COMPUTER_GUIDANCE = localComputerGuidance('darwin');

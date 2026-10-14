@@ -367,7 +367,7 @@ export class BotModePrefs {
           ? section.assignmentConcurrencyLimit
           : DEFAULT_ASSIGNMENT_CONCURRENCY_LIMIT;
         draft.developerMode = section.developerMode === true;
-        draft.showBotSessions = section.showBotSessions === true;
+        draft.showBotSessions = section.showBotSessions !== false;
         draft.autoAcceptGroupInvites = section.autoAcceptGroupInvites !== false;
       }
     });

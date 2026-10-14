@@ -106,6 +106,20 @@ describe('Channel tool approval', () => {
     expect(broker.status(botSlug, state.messages[0]!.id)).toBe('expired');
   });
 
+  it('posts a card for a tool input longer than 16 KB instead of refusing the call', async () => {
+    const state = fixture();
+    const execution = {
+      ...state.execution(),
+      arguments: { command: 'echo ' + 'x'.repeat(20_000) },
+    } as ToolExecution;
+    expect(state.broker.track(execution)).toBeTypeOf('function');
+    const answer = state.broker.ask({ agent: state.agent, toolName: 'bash', callId: 'call-1' });
+    await vi.waitFor(() => expect(state.messages).toHaveLength(1));
+    expect(state.messages[0]!.toolApprovalRequest?.input.length).toBeGreaterThan(20_000);
+    expect(await state.broker.decide(botSlug, state.messages[0]!.id, 'allowed-once')).toBe(true);
+    expect(await answer).toBe('allowed-once');
+  });
+
   it('keeps one native tool call paused until a Human decision is committed', async () => {
     const state = fixture();
     const untrack = state.broker.track(state.execution());

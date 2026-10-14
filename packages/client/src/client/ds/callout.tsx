@@ -1,7 +1,7 @@
 import type { ReactElement, ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
-import { color, radius, space, text } from './tokens.stylex.js';
+import { border, color, radius, space, text } from './tokens.stylex.js';
 
 const styles = stylex.create({
   callout: {
@@ -11,15 +11,15 @@ const styles = stylex.create({
     minWidth: 0,
     paddingBlock: space.x3,
     paddingInline: space.x4,
-    borderWidth: '1px',
+    borderWidth: border.hairline,
     borderStyle: 'solid',
-    borderRadius: radius.row,
+    borderRadius: radius.sm,
     color: color.fg,
     fontSize: text.metaSize,
     lineHeight: text.metaLine,
     overflowWrap: 'anywhere',
   },
-  muted: { borderColor: color.border, backgroundColor: color.surface },
+  muted: { borderColor: 'transparent', backgroundColor: color.surface },
   warning: { borderColor: color.warningEdge, backgroundColor: color.warningSoft },
   danger: { borderColor: color.dangerEdge, backgroundColor: color.dangerSoft },
   borderless: { borderWidth: 0 },

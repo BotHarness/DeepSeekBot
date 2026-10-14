@@ -96,9 +96,7 @@ function validAnswer(questions: AskUserQuestionItem[], answer: AskUserQuestionAn
     if (item.selected.some((label) => !offered.has(label))) return false;
     if (
       item.custom !== undefined &&
-      (typeof item.custom !== 'string' ||
-        item.custom.trim().length === 0 ||
-        item.custom.length > 2_000)
+      (typeof item.custom !== 'string' || item.custom.trim().length === 0)
     )
       return false;
     if (item.selected.length === 0 && item.custom === undefined) return false;

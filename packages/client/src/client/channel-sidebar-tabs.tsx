@@ -24,11 +24,11 @@ import { useMountedResource } from './mounted-resource.js';
 import { sidebarStyles } from './channel-sidebar-styles.js';
 import { hooked } from './ds/hooked.js';
 import { IconButton } from './ds/icon-button.js';
-import { color, radius, size, space, text } from './ds/tokens.stylex.js';
+import { border, color, radius, size, space, text } from './ds/tokens.stylex.js';
 
 const noop = (): void => {};
 
-const focusRing = { default: 'none', ':focus-visible': `2px solid ${color.accent}` };
+const focusRing = { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` };
 
 const styles = stylex.create({
   head: {
@@ -59,7 +59,7 @@ const styles = stylex.create({
     paddingInline: space.x2,
     borderWidth: 0,
     borderStyle: 'none',
-    borderRadius: radius.row,
+    borderRadius: radius.sm,
     backgroundColor: { default: 'transparent', ':hover': color.hover },
     color: { default: color.subtle, ':hover': color.fg },
     fontFamily: 'inherit',
@@ -82,7 +82,7 @@ const styles = stylex.create({
     zIndex: 1101,
     width: '232px',
     padding: space.x2,
-    '--dsw-elevation-stroke-color': color.borderSoft,
+    '--dsw-elevation-stroke-color': color.divider,
     boxShadow: 'var(--dsw-elevation-prominent)',
   },
   menuLabel: {
@@ -96,7 +96,7 @@ const styles = stylex.create({
   row: {
     display: 'flex',
     alignItems: 'center',
-    borderRadius: radius.menuItem,
+    borderRadius: radius.md,
     backgroundColor: { default: 'transparent', ':hover': color.hover },
   },
   dragging: { opacity: 0.5 },
@@ -113,7 +113,7 @@ const styles = stylex.create({
     paddingInline: space.x3,
     borderWidth: 0,
     borderStyle: 'none',
-    borderRadius: radius.menuItem,
+    borderRadius: radius.md,
     backgroundColor: 'transparent',
     color: color.fg,
     fontFamily: 'inherit',
@@ -131,10 +131,10 @@ const styles = stylex.create({
     flexShrink: 0,
     width: '16px',
     height: '16px',
-    borderWidth: '1px',
+    borderWidth: border.hairline,
     borderStyle: 'solid',
     borderColor: color.borderStrong,
-    borderRadius: radius.control,
+    borderRadius: radius.xs,
     color: color.onAccent,
   },
   checked: { borderColor: color.accent, backgroundColor: color.accent },

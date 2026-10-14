@@ -24,7 +24,7 @@ export const DEFAULT_BOT_MODE_GROUP_AUTO_ACCEPT = true;
 
 export const BOT_MODE_SHOW_BOT_SESSIONS_FIELD = 'showBotSessions';
 
-export const DEFAULT_BOT_MODE_SHOW_BOT_SESSIONS = false;
+export const DEFAULT_BOT_MODE_SHOW_BOT_SESSIONS = true;
 
 export const BOT_MODE_SORT_MODES = ['updated', 'manual'] as const;
 

@@ -1,7 +1,7 @@
 import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
-import { color, radius, size, space, text } from './tokens.stylex.js';
+import { border, color, radius, size, space, text } from './tokens.stylex.js';
 
 const styles = stylex.create({
   chip: {
@@ -17,10 +17,10 @@ const styles = stylex.create({
     overflow: 'hidden',
     paddingBlock: space.x1,
     paddingInline: space.x3,
-    borderWidth: '1px',
+    borderWidth: border.hairline,
     borderStyle: 'solid',
     borderColor: color.border,
-    borderRadius: radius.row,
+    borderRadius: radius.sm,
     backgroundColor: {
       default: 'transparent',
       ':hover': color.hover,
@@ -37,7 +37,7 @@ const styles = stylex.create({
     whiteSpace: 'nowrap',
     textAlign: 'start',
     cursor: 'pointer',
-    outline: { default: 'none', ':focus-visible': `2px solid ${color.accent}` },
+    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
     outlineOffset: '-2px',
   },
   wrap: { whiteSpace: 'normal' },

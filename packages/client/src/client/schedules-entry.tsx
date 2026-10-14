@@ -22,7 +22,7 @@ import { Field, TextAreaField, TextField } from './ds/field.js';
 import { DangerTextButton, FormDialog } from './ds/form-dialog.js';
 import { Note } from './ds/note.js';
 import { SettingsRow } from './ds/settings-row.js';
-import { color, radius, space, text } from './ds/tokens.stylex.js';
+import { border, color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { LoadingSkeleton } from './loading-skeleton.js';
 import { useMountedResource } from './mounted-resource.js';
@@ -74,13 +74,13 @@ const styles = stylex.create({
     minWidth: '40px',
     paddingBlock: space.x3,
     paddingInline: 0,
-    borderWidth: '1px',
+    borderWidth: border.hairline,
     borderStyle: 'solid',
     borderColor: {
       default: color.border,
       ':is([aria-pressed=true])': color.fg,
     },
-    borderRadius: radius.row,
+    borderRadius: radius.sm,
     backgroundColor: {
       default: 'transparent',
       ':hover': color.hover,
@@ -93,7 +93,7 @@ const styles = stylex.create({
     fontFamily: 'inherit',
     fontSize: text.metaSize,
     cursor: 'pointer',
-    outline: { default: 'none', ':focus-visible': `2px solid ${color.accent}` },
+    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
     outlineOffset: '1px',
   },
   preview: {
@@ -102,7 +102,7 @@ const styles = stylex.create({
     gap: space.x2,
     paddingBlock: space.x3,
     paddingInline: space.x4,
-    borderRadius: radius.row,
+    borderRadius: radius.sm,
     backgroundColor: color.hover,
     fontSize: text.metaSize,
     lineHeight: text.metaLine,
@@ -124,9 +124,9 @@ const styles = stylex.create({
     flexDirection: 'column',
     gap: space.x3,
     paddingTop: space.x4,
-    borderTopWidth: '0.5px',
+    borderTopWidth: border.hairline,
     borderTopStyle: 'solid',
-    borderTopColor: color.border,
+    borderTopColor: color.divider,
   },
   historyTitle: {
     margin: 0,

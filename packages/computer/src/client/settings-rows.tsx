@@ -22,7 +22,7 @@ import { Note } from '../../../client/src/client/ds/note.js';
 import { PillButton, PillFileButton } from '../../../client/src/client/ds/pill-button.js';
 import { Select } from '../../../client/src/client/ds/select.js';
 import { SettingsRow, SettingsRows } from '../../../client/src/client/ds/settings-row.js';
-import { color, space, text } from '../../../client/src/client/ds/tokens.stylex.js';
+import { border, color, space, text } from '../../../client/src/client/ds/tokens.stylex.js';
 import { LocalComputerStatus } from './local-computer.js';
 import type { ComputerTarget } from '../target.js';
 
@@ -187,9 +187,9 @@ const styles = stylex.create({
     gap: space.x4,
     minWidth: 0,
     paddingBlock: space.x4,
-    borderBottomWidth: '0.5px',
+    borderBottomWidth: border.hairline,
     borderBottomStyle: 'solid',
-    borderBottomColor: color.border,
+    borderBottomColor: color.divider,
   },
   manualInput: {
     flexGrow: 1,

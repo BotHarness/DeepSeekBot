@@ -1,3 +1,4 @@
+import { border, color, radius, space, text } from './ds/tokens.stylex.js';
 import { useId, useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -18,13 +19,13 @@ export interface ComboboxOption {
 
 export const COMBOBOX_CSS = `
 .bh-combobox { position: relative; flex: 1; min-width: 0; }
-.bh-combobox-input { display: flex; padding-right: 26px; }
+.bh-combobox-input { display: flex; padding-right: ${space.x6}; }
 .bh-combobox input { width: 100%; text-overflow: ellipsis; }
 .bh-combobox input[readonly] { cursor: pointer; }
 .bh-combobox-toggle {
   position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 24px; height: 24px;
   display: flex; align-items: center; justify-content: center;
-  border: 0; border-radius: 6px; padding: 0;
+  border: 0; border-radius: ${radius.sm}; padding: 0;
   color: var(--dsw-alias-label-secondary); background: transparent; cursor: pointer;
 }
 .bh-combobox-toggle:hover { background: var(--dsw-alias-interactive-bg-hover); }
@@ -36,21 +37,21 @@ export const COMBOBOX_CSS = `
   box-shadow: var(--dsw-elevation-prominent);
 }
 .bh-combobox-scroll > button {
-  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
-  width: 100%; min-height: 34px; padding: 6px 8px;
-  border: 0; border-radius: 6px; background: transparent;
-  color: var(--dsw-alias-label-primary); text-align: left; font: inherit; font-size: 13px; line-height: 20px; cursor: pointer;
+  display: flex; align-items: baseline; justify-content: space-between; gap: ${space.x4};
+  width: 100%; min-height: 34px; padding: ${space.x2} ${space.x3};
+  border: 0; border-radius: ${radius.sm}; background: transparent;
+  color: var(--dsw-alias-label-primary); text-align: left; font: inherit; font-size: ${text.bodySize}; line-height: ${text.bodyLine}; cursor: pointer;
   overflow-wrap: anywhere;
 }
-.bh-combobox-scroll > button[aria-selected="true"] { font-weight: 600; }
+.bh-combobox-scroll > button[aria-selected="true"] { font-weight: ${text.strong}; }
 .bh-combobox-scroll > button:disabled { color: var(--dsw-alias-label-tertiary); cursor: default; }
 .bh-combobox-scroll > button:not(:disabled):hover, .bh-combobox-scroll > button[data-active] {
   background: var(--dsw-alias-interactive-bg-hover);
 }
-.bh-combobox-scroll { max-height: 260px; overflow-y: auto; padding: 4px; box-sizing: border-box; }
-.bh-combobox-hint { flex: none; color: var(--dsw-alias-label-secondary); font-size: 12px; font-weight: 400; }
-.bh-combobox-empty { padding: 6px 8px; color: var(--dsw-alias-label-secondary); font-size: 13px; }
-.bh-combobox-scroll > .bh-combobox-action { justify-content: flex-start; align-items: center; gap: 6px; border-top: 1px solid var(--dsw-alias-border-l2); border-radius: 0; margin-top: 4px; }
+.bh-combobox-scroll { max-height: 260px; overflow-y: auto; padding: ${space.x2}; box-sizing: border-box; }
+.bh-combobox-hint { flex: none; color: var(--dsw-alias-label-secondary); font-size: ${text.metaSize}; font-weight: ${text.regular}; }
+.bh-combobox-empty { padding: ${space.x2} ${space.x3}; color: var(--dsw-alias-label-secondary); font-size: ${text.bodySize}; }
+.bh-combobox-scroll > .bh-combobox-action { justify-content: flex-start; align-items: center; gap: ${space.x2}; border-top: ${border.hairline} solid ${color.divider}; border-radius: 0; margin-top: ${space.x2}; }
 `;
 
 export function Combobox({

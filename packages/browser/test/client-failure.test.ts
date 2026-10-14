@@ -2,6 +2,10 @@
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+  Button: ({ children, onClick }: { children: unknown; onClick?: () => void }) =>
+    createElement('button', { type: 'button', onClick }, children as string),
+}));
 
 import {
   BrowserApiError,
@@ -116,5 +120,67 @@ describe('BrowserProvisionProgress', () => {
     );
     expect(host.querySelector('[role="status"]')?.textContent).toContain('Preparing');
     expect(host.querySelector('progress')).toBeNull();
+  });
+});
+
+describe('missing system libraries', () => {
+  const t = ((key: BrowserKey) => en[key]) as BrowserTranslate;
+  const failure = {
+    message: 'raw',
+    code: 'provision-missing-libs',
+    detail: 'missing: libnss3.so',
+    packages: ['libnss3'],
+  };
+
+  it('installs with one click, shows progress, then opens the browser again', async () => {
+    const states = [
+      { ok: true, access: 'root' },
+      { ok: true, access: 'root', state: 'installing', percent: 40 },
+      { ok: true, access: 'root', state: 'installed', percent: 100 },
+    ];
+    const posted: unknown[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init?: RequestInit) => {
+        if (init?.method === 'POST') {
+          posted.push(JSON.parse(String(init.body)));
+          return Response.json({ ok: true, started: true });
+        }
+        return Response.json(states.length > 1 ? states.shift() : states[0]);
+      }),
+    );
+    const onRetry = vi.fn();
+    vi.useFakeTimers();
+    try {
+      await render(createElement(BrowserFailureNotice, { failure, t, onRetry }));
+      await act(async () => vi.advanceTimersByTimeAsync(0));
+      const install = [...host.querySelectorAll('button')].find(
+        (button) => button.textContent === en['entry.install.button'],
+      );
+      expect(install).toBeDefined();
+      expect(host.textContent).not.toContain('sudo apt install');
+      await act(async () => install?.click());
+      await act(async () => vi.advanceTimersByTimeAsync(0));
+      expect(posted).toEqual([{ authorize: true, packages: ['libnss3'] }]);
+      expect(host.querySelector('progress')).not.toBeNull();
+      await act(async () => vi.advanceTimersByTimeAsync(1000));
+      expect(onRetry).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('shows the command to copy when installing needs a password', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Response.json({ ok: true, access: 'none' })),
+    );
+    await render(createElement(BrowserFailureNotice, { failure, t }));
+    await act(async () => undefined);
+    expect(host.textContent).toContain('sudo apt install -y libnss3');
+    expect(host.textContent).toContain(en['entry.install.copy']);
+    expect([...host.querySelectorAll('button')].map((button) => button.textContent)).toEqual([
+      en['entry.install.copy'],
+    ]);
   });
 });

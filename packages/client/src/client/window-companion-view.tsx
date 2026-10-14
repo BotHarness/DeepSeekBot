@@ -33,7 +33,7 @@ import { beatStart } from './companion-beats.js';
 import type { AvatarAnchor } from './avatar-anchor.js';
 import { companionSurface } from './companion-surface.js';
 import { hooked } from './ds/hooked.js';
-import { color, radius, size, space, text } from './ds/tokens.stylex.js';
+import { border, color, radius, size, space, text } from './ds/tokens.stylex.js';
 
 const CHARACTER = '96px';
 const SHADOW = `color-mix(in srgb, ${color.fg} 16%, transparent)`;
@@ -115,7 +115,7 @@ const styles = stylex.create({
     gap: space.x1,
     padding: space.x2,
     backgroundColor: color.base,
-    borderWidth: '2px',
+    borderWidth: border.hairline,
     borderStyle: 'solid',
     borderColor: color.fg,
     borderRadius: radius.panel,
@@ -127,7 +127,7 @@ const styles = stylex.create({
     minWidth: size.icon,
     height: size.inlineIcon,
     borderWidth: 0,
-    borderRadius: radius.row,
+    borderRadius: radius.sm,
     backgroundColor: { default: 'transparent', ':hover': color.hover },
     color: color.fg,
     cursor: 'pointer',
@@ -141,7 +141,7 @@ const styles = stylex.create({
     height: '20px',
     paddingBlock: 0,
     paddingInline: space.x1,
-    borderWidth: '1px',
+    borderWidth: border.hairline,
     borderStyle: 'solid',
     borderColor: color.border,
     backgroundColor: color.base,

@@ -60,8 +60,6 @@ type Pending = {
   timer: ReturnType<typeof setTimeout>;
 };
 
-const MAX_APPROVAL_INPUT = 16_000;
-
 function callKey(sessionId: string, callId: string): string {
   return sessionId + ':' + callId;
 }
@@ -69,9 +67,7 @@ function callKey(sessionId: string, callId: string): string {
 function inputOf(execution: ToolExecution): string | undefined {
   try {
     const input = JSON.stringify(execution.arguments, null, 2);
-    return typeof input === 'string' && input.length > 0 && input.length <= MAX_APPROVAL_INPUT
-      ? input
-      : undefined;
+    return typeof input === 'string' && input.length > 0 ? input : undefined;
   } catch {
     return undefined;
   }

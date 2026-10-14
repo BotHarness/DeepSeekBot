@@ -21,6 +21,7 @@ import {
   startupTimeoutFailure,
   toBrowserErrorBody,
   LINUX_CHROME_LIB_REQUIREMENTS,
+  CHROME_LIB_PACKAGES,
   PROVISION_MIN_FREE_BYTES,
   BrowserProvisionError,
 } from '../src/runtime/provision.js';
@@ -217,6 +218,8 @@ describe('linux library pre-flight', () => {
     expect(failure.message).toMatch(/cannot start/);
     expect(failure.detail).toContain('exit code 127');
     expect(failure.detail).toContain('libatk1.0-0t64');
+    expect(toBrowserErrorBody(failure).packages).toEqual(['libatk1.0-0t64', 'libcups2t64']);
+    expect([...(failure.packages ?? [])].every((name) => CHROME_LIB_PACKAGES.has(name))).toBe(true);
   });
 });
 

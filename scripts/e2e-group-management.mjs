@@ -253,7 +253,7 @@ if (process.argv[2] === '--join-requests' || process.argv[2] === '--seed-join-re
       const button = section?.querySelector('[data-panel-head]');
       if (button?.getAttribute('aria-expanded') === 'false') button.click();
     });
-    await page.waitForSelector('.bh-group-management');
+    await page.waitForSelector('[data-sidebar-entry="group-management"] [data-sidebar-entry-body]');
     await page.click(
       'button[aria-label^="Invitations and join requests"], button[aria-label^="邀请与入群申请"]',
     );
@@ -361,7 +361,7 @@ try {
       const button = section?.querySelector('[data-panel-head]');
       if (button?.getAttribute('aria-expanded') === 'false') button.click();
     });
-    await page.waitForSelector('.bh-group-management');
+    await page.waitForSelector('[data-sidebar-entry="group-management"] [data-sidebar-entry-body]');
   }
 
   await openGroup(group.id);
@@ -382,8 +382,10 @@ try {
     throw new Error('Members section still contains management actions');
 
   const renamed = `Renamed QA ${stamp}`;
+  const groupName =
+    '[data-sidebar-entry="group-management"] input[aria-label="群名"], [data-sidebar-entry="group-management"] input[aria-label="Group name"]';
   await page.$eval(
-    '#bh-group-name',
+    groupName,
     (input, value) => {
       const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
       setter?.call(input, value);
@@ -391,10 +393,13 @@ try {
     },
     renamed,
   );
-  await page.click('.bh-group-setting button[type="submit"]');
+  await page.focus(groupName);
+  await page.keyboard.press('Enter');
   await waitFor(async () => (await groupRecord(group.id))?.name === renamed, 'Group rename');
 
-  await (await page.$('.bh-group-avatar-setting input[type="file"]')).uploadFile(avatarPath);
+  await (
+    await page.$('[data-sidebar-entry="group-management"] input[type="file"]')
+  ).uploadFile(avatarPath);
   await page.waitForSelector('.bh-group-avatar-crop-viewport img');
   await page.$eval('#bh-group-avatar-zoom', (input) => {
     const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
@@ -467,7 +472,7 @@ try {
     return {
       nativeNewSession: measure('button[aria-label="New Session"], button[aria-label="新会话"]'),
       members: measure('[data-panel-head]'),
-      groupManagement: measure('.bh-group-management'),
+      groupManagement: measure('[data-sidebar-entry="group-management"] [data-sidebar-entry-body]'),
     };
   });
   await page.screenshot({ path: `/tmp/bh390-group-management-${stamp}.png` });

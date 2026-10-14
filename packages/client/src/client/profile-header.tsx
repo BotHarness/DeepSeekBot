@@ -19,7 +19,7 @@ import { Field, TextField } from './ds/field.js';
 import { FormDialog } from './ds/form-dialog.js';
 import { Note } from './ds/note.js';
 import { PanelDialog } from './ds/panel-dialog.js';
-import { color, radius, space, text } from './ds/tokens.stylex.js';
+import { border, color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { BannerCropModal, PersonaBotAvatarCropModal } from './personabot-avatar-crop.js';
 import { botPrimaryColorOf } from './bot-primary-color.js';
@@ -39,16 +39,16 @@ const styles = stylex.create({
     width: '100%',
     resize: 'vertical',
     padding: space.x3,
-    borderWidth: '1px',
+    borderWidth: border.hairline,
     borderStyle: 'solid',
     borderColor: color.border,
-    borderRadius: radius.row,
+    borderRadius: radius.sm,
     backgroundColor: 'var(--dsw-alias-bg-base)',
     color: color.fg,
     fontFamily: 'inherit',
     fontSize: text.bodySize,
     lineHeight: text.bodyLine,
-    outline: { default: 'none', ':focus-visible': `2px solid ${color.accent}` },
+    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
     outlineOffset: '1px',
   },
   hint: {
@@ -64,16 +64,16 @@ const styles = stylex.create({
     marginBottom: space.x4,
     paddingBlock: space.x3,
     paddingInline: space.x4,
-    borderWidth: '1px',
+    borderWidth: border.hairline,
     borderStyle: 'solid',
     borderColor: color.border,
-    borderRadius: radius.card,
+    borderRadius: radius.md,
   },
   colorSwatch: {
     flexShrink: 0,
     width: '24px',
     height: '24px',
-    borderWidth: '1px',
+    borderWidth: border.hairline,
     borderStyle: 'solid',
     borderColor: color.border,
     borderRadius: radius.round,
@@ -92,10 +92,10 @@ const styles = stylex.create({
   bannerPreview: {
     aspectRatio: '3 / 1',
     overflow: 'hidden',
-    borderWidth: '1px',
+    borderWidth: border.hairline,
     borderStyle: 'solid',
     borderColor: color.border,
-    borderRadius: radius.card,
+    borderRadius: radius.md,
   },
   bannerActions: {
     display: 'flex',
@@ -112,10 +112,10 @@ const styles = stylex.create({
     flexDirection: 'column',
     gap: space.x2,
     padding: space.x2,
-    borderWidth: '1px',
+    borderWidth: border.hairline,
     borderStyle: 'solid',
     borderColor: color.border,
-    borderRadius: radius.row,
+    borderRadius: radius.sm,
     backgroundColor: { default: 'transparent', ':hover': color.hover },
     color: color.muted,
     fontFamily: 'inherit',
@@ -123,7 +123,7 @@ const styles = stylex.create({
     lineHeight: text.metaLine,
     textAlign: 'center',
     cursor: { default: 'pointer', ':disabled': 'default' },
-    outline: { default: 'none', ':focus-visible': `2px solid ${color.fg}` },
+    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.fg}` },
   },
   sceneOn: {
     borderColor: color.fg,
@@ -134,7 +134,7 @@ const styles = stylex.create({
     display: 'block',
     aspectRatio: '3 / 1',
     overflow: 'hidden',
-    borderRadius: radius.control,
+    borderRadius: radius.sm,
   },
 });
 

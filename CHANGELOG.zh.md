@@ -10,7 +10,7 @@
 
 ## [1.3.0] - 2026-10-14
 
-Bot 模式整体迁移到统一的 StyleX 设计系统，Channel 配置移入设置对话框，桌面 Channel 侧栏改为图标页签；Orchestrator 可以整理、稍后处理和解决自己的 Bot Inbox，Assignment 按状态分组；Bot 可以在逐次批准下使用 Owner 密钥运行命令行工具和 MCP 服务，一句话即可配置 MCP 服务并在多个 Bot 间共享；消息可多选导出为图片、对话文本或本地诊断包；输入框保留草稿并可召回已发送内容；Bot 主题色用于名字、图表和热力图；像素头像新增精灵、矮人、兽人、会说话的花和动物，并可自己绘制部件；记忆可以恢复到任意历史 commit；飞书、Slack、QQ 和微信新增配对审核、应用创建与权限控制；DeepSeekBot 现在需要 DSH 0.2.0 或更高版本。
+Bot 模式整体迁移到统一的 StyleX 设计系统，Channel 配置移入设置对话框，桌面 Channel 侧栏改为图标页签；Orchestrator 可以整理、稍后处理和解决自己的 Bot Inbox，Assignment 按状态分组；Bot 可以在逐次批准下使用 Owner 密钥运行命令行工具和 MCP 服务，一句话即可配置 MCP 服务并在多个 Bot 间共享；消息可多选导出为图片、对话文本或本地诊断包；输入框保留草稿并可召回已发送内容；Bot 主题色用于名字、图表和热力图；像素头像新增精灵、矮人、兽人、会说话的花和动物，并可自己绘制部件；记忆可以恢复到任意历史 commit；Local Computer 支持 Windows 和 Linux；飞书、Slack、QQ 和微信新增配对审核、应用创建与权限控制；DeepSeekBot 现在需要 DSH 0.2.0 或更高版本。
 
 ### Breaking Changes
 
@@ -108,6 +108,8 @@ Bot 模式整体迁移到统一的 StyleX 设计系统，Channel 配置移入设
 - PersonaBot 现在可以用 `inbox_snooze` 把暂时处理不了的 Bot Inbox 条目延后。条目会离开待办列表，到设定时间、或同一对话里有新消息时回来，并带着它留下的 note 唤醒它。Bot Inbox 视图把这些条目显示为「已延后」（[#1561](https://github.com/BotHarness/DeepSeekBot/issues/1561)）。
 - 侧栏频道菜单（右键，Android 上也可长按）和聊天顶部的 ··· 菜单新增「删除 Bot」，侧栏菜单的每一项都配上了图标（[#1564](https://github.com/BotHarness/DeepSeekBot/pull/1564)）。
 - 新增可复用的 Discord QA1／QA2／QA3 配置向导：代理准备测试资料后，只需隐藏输入 Bot Token；保留手动配置入口、安全状态查询和本机已有 Lark／Slack 数据（[#1123](https://github.com/BotHarness/DeepSeekBot/issues/1123)，[配置指南](../docs/agents/im-test-apps.md#reusable-discord-qa-apps)）。
+- 新增 Bot 设置 › 通用 › 在会话列表显示 Bot 会话，用来控制 Bot 的 Orchestrator 和 Assignment 会话是否出现在 DeepSeek Harness 自带的会话列表中。默认开启；关闭后这些会话会被隐藏（[#1567](https://github.com/BotHarness/DeepSeekBot/issues/1567)）。
+- 本机 Computer 现在除 macOS 外也支持 Windows 和 Linux：首次检查会安装对应平台的固定版本驱动，没有显示器的 Linux 服务器会自动启动一个私有虚拟桌面；已经运行 Xvfb 的服务器（例如给 Bot Browser 用的）会共用该显示，并补上窗口管理器，保证可以点击和输入。Computer 卡片会显示下载进度；缺少桌面组件时，DSH 有管理员权限就一键安装并显示进度，否则给出可复制的命令，装好后自动重新检查。Bot Browser 缺少 Linux 系统库时也提供同样的一键安装（[#1632](https://github.com/BotHarness/DeepSeekBot/issues/1632)）。
 
 ### Changed
 
@@ -141,7 +143,6 @@ Bot 模式整体迁移到统一的 StyleX 设计系统，Channel 配置移入设
 - 侧栏的 Bot 收件箱现在先列需要处理的条目，再列已延后的条目（按回来时间排序），最后是默认折叠的“已完成”分组。每行会显示 Bot 的处理备注；已延后的条目显示回来时间和备注。标签页角标只统计需要处理的条目，为 0 时隐藏。Sessions 标签页默认在“空闲”分组里显示空闲的 Assignment（[#1561](https://github.com/BotHarness/DeepSeekBot/issues/1561)）。
 - PersonaBot 回合结束后如果还有未处理的 Bot Inbox 条目，会被再次唤醒去分拣：处理、resolve、snooze 或忽略。某一轮没有进展就停止，直到有新的条目进来才再次开始。Assignment 汇报完成时，PersonaBot 会对照当初的要求验收，不合格就打回（[#1561](https://github.com/BotHarness/DeepSeekBot/issues/1561)）。
 - Sessions 标签页现在把 Assignment 分成“需要处理”“进行中”“空闲”“已完成”四组。“需要处理”包括待审批的工具调用、出错，以及最新报告是等你回复、受阻或失败的 Assignment。“已完成”收纳已归档和已停止的 Assignment，默认折叠。空闲和已完成的行带有归档或取消归档按钮，“进行中”标题显示运行数与上限。Orchestrator 行不再显示“空闲”标签，分拣回合运行时显示“整理收件箱 · n”。收件箱里的 Assignment 生命周期条目，作者改为显示 Assignment，不再是“System”（[#1561](https://github.com/BotHarness/DeepSeekBot/issues/1561)）。
-- Bot 的 Orchestrator 和 Assignment 会话默认不再出现在 DeepSeek Harness 自带的会话列表中；在 Bot 设置 › 通用 › 在会话列表显示 Bot 会话 中打开即可看到（[#1567](https://github.com/BotHarness/DeepSeekBot/issues/1567)）。
 - 窗口伙伴现在只用一个紧凑的气泡说话。回复按一两句一拍播放，不再叠出最多三张卡片；鼠标悬停时暂停并显示整条消息，排队的消息用计数显示。工具审批和提问一次只显示一项，按钮更紧凑；工作目录、原始输入和选项说明收进“详情”。头像上方的活动状态行已移除，因为头像本身已经表现 Bot 在做什么；连接中断时伙伴会变暗。气泡改为圆角描边，尾巴指向头像，每条新消息弹出并显示打字光标，提问选项带编号。头像走动时朝向行走方向，说话时停下来正脸朝向你（[#1576](https://github.com/BotHarness/DeepSeekBot/issues/1576)）。
 - Bot 每次请求的输入少了约 5k token。没有接入 IM 的 Bot 不再列出 15 个外部 IM 工具和相关说明，接入后从下一轮起自动出现。Bot 本来就调不了的原生 subagent 工具已移除，Bot 继续用 bot_subagent 委派。提醒工具不再重复 Bot 说明里已有的规则（[#1583](https://github.com/BotHarness/DeepSeekBot/pull/1583)）。
 - Bot 设置改用和频道侧栏一致的紧凑样式。每个分区都是同一种行：一个标题、一行说明、一个控件。选项改为小菜单，不再是浏览器原生下拉框，改动立即生效。「消息」一次只显示一个平台，去掉了表格和版本号；Assignment 并发上限和伙伴保留数量改用步进器；默认名字按回车或离开输入框就保存；「IM 应用」没有应用时会说明下一步该做什么。频道设置也使用同一个对话框外框（[#1591](https://github.com/BotHarness/DeepSeekBot/issues/1591)）。
@@ -149,6 +150,7 @@ Bot 模式整体迁移到统一的 StyleX 设计系统，Channel 配置移入设
 - 较大的对话框和表单统一成同一种布局：一个标题，间距与字号一致，操作按钮集中在底部一行，次要操作放在左侧。覆盖模型编辑、工作区文件夹浏览、头像与主色、IM 配对、审批与权限组、行为权限、角色与例外编辑、Bot 市场、资料备份、记忆备份、并行任务上限、外部来源详情、IM 授权、群工作区授权、私聊输入框里的模型与工作区面板、隐藏频道以及群邀请。角色、权限例外和删除权限组的对话框按回车即可提交，删除权限组使用红色按钮。对话框宽度统一为 440、760、1060 像素三档（[#1601](https://github.com/BotHarness/DeepSeekBot/issues/1601)）。
 - 频道侧栏及其会话、工作、Bot 收件箱和记忆标签页、会话标题栏、输入框上方的上下文栏、移动端 Bot 面板与会话标题栏、桌面窗口伴侣，以及 Computer 和 Browser 设置，现在统一从同一套设计令牌取间距、字号、圆角、尺寸和颜色。外观与之前一致，只做了少量对齐：部分间距和内边距调整 2px，小号文字从 11px 调到 12px，焦点框使用强调色，禁用按钮变暗（[#1602](https://github.com/BotHarness/DeepSeekBot/issues/1602)）。
 - 输入框下方的 token 用量标签现在只显示数字，比如“169.5K”，不再带“部分已知”和“tokens”。悬停提示和点开的用量面板仍保留完整说明（[#1640](https://github.com/BotHarness/DeepSeekBot/pull/1640)）。
+- Bot 模式改用更小、更统一的视觉刻度。文字只保留三种字号（12、13、14px）和两种字重，原本 15–24px 或粗体的标题改为 14px 中等字重；圆角改按 DSH 的圆角刻度，多数控件和卡片会更圆一些；自带底色的卡片、标签和代码块去掉描边，界面内部的分隔线改用更浅的分隔色。其余改动以内部整理为主：所有插件样式表（包括 Computer 和 Browser 设置）都从共享设计令牌取间距、字号、圆角、描边和颜色，少量间距和内边距调整至多 2px，不再使用的旧样式和各功能自带的令牌表已移除（[#1603](https://github.com/BotHarness/DeepSeekBot/issues/1603)）。
 
 ### Fixed
 
@@ -210,6 +212,7 @@ Bot 模式整体迁移到统一的 StyleX 设计系统，Channel 配置移入设
 - Bot 浏览器因系统拦截 Chrome 沙箱而无法启动时，面板不再让你去打开 headless：它本来就是开着的，打开也没用。在 Linux 上，面板现在会说明常见原因：Ubuntu 23.10 起 AppArmor 限制了用户命名空间。“详情”里附有一份 AppArmor 配置，只为 Bot 浏览器自带的 Chrome 放开这项限制（[#1635](https://github.com/BotHarness/DeepSeekBot/pull/1635)）。
 - 在中文或“。”等标点后面直接输入 @ 现在会弹出 Bot 列表，一条消息里可以连续 @ 多个 Bot，不用先打空格（[#1637](https://github.com/BotHarness/DeepSeekBot/pull/1637)）。
 - Bot 一次问超过 3 个问题，或问题说明很长时，现在也会在 Channel 和窗口伙伴里显示为提问卡，不再只出现在 DSH 自己的提问界面，回答时不用退出 Bot 模式（[#1641](https://github.com/BotHarness/DeepSeekBot/pull/1641)）。
+- 参数超过 16KB 的工具调用现在会出审批卡，不再被直接拒绝；提问卡里手写的回答也不再限制在 2000 字以内。Bot 模式的卡片现在和 DSH 本身接受的内容一致（[#1648](https://github.com/BotHarness/DeepSeekBot/pull/1648)）。
 
 ### Documentation
 

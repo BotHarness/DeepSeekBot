@@ -509,40 +509,35 @@ try {
     }
     if (sourceRole !== undefined) {
       const measureSources = () =>
-        page.$$eval(
-          sessionMode && phase === 'after'
-            ? '.bh-composer-activity-session'
-            : '.bh-composer-activity-source',
-          (rows) =>
-            rows.map((row) => {
-              const style = getComputedStyle(row);
-              return {
-                height: row.getBoundingClientRect().height,
-                width: row.getBoundingClientRect().width,
-                parentWidth: row.parentElement.getBoundingClientRect().width,
-                clientWidth: row.clientWidth,
-                scrollWidth: row.scrollWidth,
-                gap: style.gap,
-                padding: style.padding,
-                radius: style.borderRadius,
-                background: style.backgroundColor,
-                border: style.border,
-                fits: row.scrollWidth <= row.clientWidth,
-                icon: row.querySelector('[role="img"]')?.getAttribute('aria-label'),
-                count: row.querySelector('.bh-composer-activity-source-count')?.textContent,
-                name: row.querySelector('.bh-composer-activity-source-label')?.textContent,
-                nameOverflow: row.querySelector('.bh-composer-activity-source-label')
-                  ? getComputedStyle(row.querySelector('.bh-composer-activity-source-label'))
-                      .textOverflow
-                  : undefined,
-                nameTop: row
-                  .querySelector('.bh-composer-activity-source-label')
-                  ?.getBoundingClientRect().top,
-                latestTop: row
-                  .querySelector('.bh-composer-activity-session-latest')
-                  ?.getBoundingClientRect().top,
-              };
-            }),
+        page.$$eval('.bh-composer-activity-session', (rows) =>
+          rows.map((row) => {
+            const style = getComputedStyle(row);
+            return {
+              height: row.getBoundingClientRect().height,
+              width: row.getBoundingClientRect().width,
+              parentWidth: row.parentElement.getBoundingClientRect().width,
+              clientWidth: row.clientWidth,
+              scrollWidth: row.scrollWidth,
+              gap: style.gap,
+              padding: style.padding,
+              radius: style.borderRadius,
+              background: style.backgroundColor,
+              border: style.border,
+              fits: row.scrollWidth <= row.clientWidth,
+              icon: row.querySelector('[role="img"]')?.getAttribute('aria-label'),
+              name: row.querySelector('.bh-composer-activity-source-label')?.textContent,
+              nameOverflow: row.querySelector('.bh-composer-activity-source-label')
+                ? getComputedStyle(row.querySelector('.bh-composer-activity-source-label'))
+                    .textOverflow
+                : undefined,
+              nameTop: row
+                .querySelector('.bh-composer-activity-source-label')
+                ?.getBoundingClientRect().top,
+              latestTop: row
+                .querySelector('.bh-composer-activity-session-latest')
+                ?.getBoundingClientRect().top,
+            };
+          }),
         );
       sourceRows = await measureSources();
       assert.ok(sourceRows.length > 0);
