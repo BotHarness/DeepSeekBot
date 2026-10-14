@@ -202,7 +202,7 @@ try {
         new Set(['orchestrator', 'assignment']),
       );
       await overview();
-      await click('.bh-overview-refresh', '刷新');
+      await click('.bh-overview-toolbar button', '刷新');
       await page.waitForFunction(
         (slug) =>
           document
@@ -239,7 +239,7 @@ try {
         const current = (await rpc('activityOverview')).bots.find((b) => b.slug === bot.slug);
         return current?.sessions.length === 0;
       }, 'executions finish');
-      await click('.bh-overview-refresh', '刷新');
+      await click('.bh-overview-toolbar button', '刷新');
       await page.waitForFunction(
         (slug) =>
           document

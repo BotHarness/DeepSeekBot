@@ -225,12 +225,12 @@ try {
     row?.click();
   }, dirty?.id);
   await page.evaluate(() =>
-    Array.from(document.querySelectorAll('.bh-memory-recovery-selection button'))
-      .find((button) => /恢复此检查点|Restore this checkpoint/u.test(button.textContent ?? ''))
+    Array.from(document.querySelectorAll('.bh-memory-recovery-confirm button'))
+      .find((button) => /恢复到这时|Restore to this point/u.test(button.textContent ?? ''))
       ?.click(),
   );
   const confirmationVisible = await page.evaluate(() =>
-    /当前仓库会完整备份|current repository will be fully backed up/u.test(
+    /完整复制一份|Memory folder is copied first/u.test(
       document.querySelector('.bh-memory-recovery-confirm')?.textContent ?? '',
     ),
   );
@@ -239,7 +239,7 @@ try {
   await page.screenshot({ path: confirmation, fullPage: false });
   await page.evaluate(() =>
     Array.from(document.querySelectorAll('.bh-memory-recovery-confirm button'))
-      .find((button) => /备份并恢复|Back up and restore/u.test(button.textContent ?? ''))
+      .find((button) => /^(恢复|Restore)$/u.test(button.textContent?.trim() ?? ''))
       ?.click(),
   );
   await page.waitForFunction(

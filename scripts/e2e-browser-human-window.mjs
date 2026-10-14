@@ -87,7 +87,7 @@ try {
   const mode = 'button[aria-label="Bot mode"],button[aria-label="Bot 模式"]';
   await page.waitForSelector(mode);
   await page.waitForSelector('.bh-panel-glyph', { timeout: 15000 });
-  if (!(await page.$('.bh-panel-glyph-hit')))
+  if (!(await page.$('.bh-panel-activity[data-active="true"]')))
     await page.evaluate((selector) => document.querySelector(selector)?.click(), mode);
   await page.waitForSelector('.bh-root', { timeout: 15000 });
   await page
