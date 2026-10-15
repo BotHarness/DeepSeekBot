@@ -22,5 +22,11 @@ const FlatList = (props: {
 const View = (props: Props) => createElement('div', null, props.children);
 
 export default { FlatList, View };
+export const makeMutable = <T>(value: T) => ({ value });
+export const measure = () => null;
+export const useAnimatedRef = () => ({ current: null });
+export const useAnimatedStyle = (worklet: () => object) => worklet();
+export const useScrollOffset = () => ({ value: 0 });
+export const useSharedValue = <T>(value: T) => ({ value });
 export const FadeOut = transition;
 export const LinearTransition = transition;

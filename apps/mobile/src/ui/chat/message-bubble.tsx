@@ -1,4 +1,4 @@
-import { memo, type ReactNode } from 'react';
+import { memo } from 'react';
 import { Pressable, View } from 'react-native';
 
 import {
@@ -7,8 +7,6 @@ import {
   type ConversationMessage,
   type MessageAttachment,
 } from '../../host/conversation';
-import type { RosterBot } from '../../host/client';
-import { BotAvatar } from '../bot-avatar';
 import { radius, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { MarkdownView } from '../markdown-view';
@@ -18,6 +16,9 @@ import { bubbleRow, bubbleShape } from './bubble-shape';
 import { MessageAttachments } from './message-attachments';
 import { openMessageMenu } from './message-menu';
 import { ReactionChips } from './message-reactions';
+import { SpeakerRow, type Speaker } from './speaker-row';
+
+export type { Speaker } from './speaker-row';
 
 export function deliveryLabel(message: ConversationMessage): string | undefined {
   if (message.author !== 'human') return undefined;
@@ -25,10 +26,6 @@ export function deliveryLabel(message: ConversationMessage): string | undefined 
   if (message.delivery === 'failed') return `${t.notSent} · ${t.retrySend}`;
   return message.revision === undefined ? t.sent : undefined;
 }
-
-export type Speaker = { name: string; bot: RosterBot | undefined; first: boolean };
-
-const SPEAKER_AVATAR = 32;
 
 export const MessageBubble = memo(function MessageBubble({
   message,
@@ -100,28 +97,29 @@ export const MessageBubble = memo(function MessageBubble({
       ) : null}
     </View>
   );
-  const body = (
+  const surface =
+    failed || actionable ? (
+      <Pressable
+        {...(failed ? { accessibilityRole: 'button' as const, accessibilityLabel: label } : {})}
+        {...(actionable
+          ? {
+              accessibilityHint: onReact === undefined ? t.copyHint : t.messageActionsHint,
+              accessibilityActions: [
+                { name: 'longpress', label: onReact === undefined ? t.copy : t.messageActions },
+              ],
+              onAccessibilityAction: () => onLongPress(message),
+              onLongPress: () => onLongPress(message),
+            }
+          : {})}
+        {...(failed ? { onPress: () => onRetry?.(message.id) } : {})}
+      >
+        {bubble}
+      </Pressable>
+    ) : (
+      bubble
+    );
+  const after = (
     <>
-      {failed || actionable ? (
-        <Pressable
-          {...(failed ? { accessibilityRole: 'button' as const, accessibilityLabel: label } : {})}
-          {...(actionable
-            ? {
-                accessibilityHint: onReact === undefined ? t.copyHint : t.messageActionsHint,
-                accessibilityActions: [
-                  { name: 'longpress', label: onReact === undefined ? t.copy : t.messageActions },
-                ],
-                onAccessibilityAction: () => onLongPress(message),
-                onLongPress: () => onLongPress(message),
-              }
-            : {})}
-          {...(failed ? { onPress: () => onRetry?.(message.id) } : {})}
-        >
-          {bubble}
-        </Pressable>
-      ) : (
-        bubble
-      )}
       {reactions.length === 0 ? null : (
         <ReactionChips
           reactions={reactions}
@@ -144,60 +142,25 @@ export const MessageBubble = memo(function MessageBubble({
       )}
     </>
   );
+  const row = bubbleRow(first);
+  if (speaker !== undefined)
+    return (
+      <SpeakerRow
+        speaker={speaker}
+        rowKey={message.id}
+        inset={row.paddingTop}
+        style={row}
+        bubble={surface}
+        after={after}
+      />
+    );
   return (
-    <View style={bubbleRow(first)}>
-      {speaker === undefined ? (
-        <View style={{ gap: space.x1 }}>{body}</View>
-      ) : (
-        <SpeakerColumns speaker={speaker}>{body}</SpeakerColumns>
-      )}
+    <View style={{ ...row, gap: space.x1 }}>
+      {surface}
+      {after}
     </View>
   );
 });
-
-function SpeakerColumns({ speaker, children }: { speaker: Speaker; children: ReactNode }) {
-  return (
-    <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: space.x3 }}>
-      <View style={{ width: SPEAKER_AVATAR }}>
-        {speaker.first ? <SpeakerAvatar speaker={speaker} /> : null}
-      </View>
-      <View style={{ flex: 1, gap: space.x1 }}>
-        {speaker.first ? <AuthorName name={speaker.name} /> : null}
-        {children}
-      </View>
-    </View>
-  );
-}
-
-function SpeakerAvatar({ speaker }: { speaker: Speaker }) {
-  const theme = useDesignTheme();
-  if (speaker.bot !== undefined)
-    return <BotAvatar bot={speaker.bot} size={SPEAKER_AVATAR} ring={false} />;
-  return (
-    <View
-      style={{
-        width: SPEAKER_AVATAR,
-        height: SPEAKER_AVATAR,
-        borderRadius: radius.round,
-        backgroundColor: theme.color.surface,
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
-      <Text strong tone="muted">
-        {Array.from(speaker.name)[0] ?? ''}
-      </Text>
-    </View>
-  );
-}
-
-function AuthorName({ name }: { name: string }) {
-  return (
-    <Text variant="meta" tone="muted" strong numberOfLines={1}>
-      {name}
-    </Text>
-  );
-}
 
 export const DraftBubble = memo(function DraftBubble({
   draft,
@@ -207,36 +170,45 @@ export const DraftBubble = memo(function DraftBubble({
   speaker?: Speaker | undefined;
 }) {
   const theme = useDesignTheme();
-  const body = (
-    <>
-      <View
-        style={{
-          maxWidth: '80%',
-          alignSelf: 'flex-start',
-          backgroundColor: theme.color.surface,
-          borderRadius: radius.lg,
-          paddingHorizontal: space.x4,
-          paddingVertical: space.x3,
-        }}
-      >
-        {draft.body.trim() === '' ? (
-          <Text tone="muted">…</Text>
-        ) : (
-          <MarkdownView source={draft.body} streaming />
-        )}
-      </View>
-      <Text variant="meta" tone="muted" accessibilityLiveRegion="polite">
-        {t.typing}
-      </Text>
-    </>
-  );
-  return (
-    <View style={{ paddingHorizontal: space.x4, paddingTop: space.x3 }}>
-      {speaker === undefined ? (
-        <View style={{ gap: space.x1 }}>{body}</View>
+  const surface = (
+    <View
+      style={{
+        maxWidth: '80%',
+        alignSelf: 'flex-start',
+        backgroundColor: theme.color.surface,
+        borderRadius: radius.lg,
+        paddingHorizontal: space.x4,
+        paddingVertical: space.x3,
+      }}
+    >
+      {draft.body.trim() === '' ? (
+        <Text tone="muted">…</Text>
       ) : (
-        <SpeakerColumns speaker={speaker}>{body}</SpeakerColumns>
+        <MarkdownView source={draft.body} streaming />
       )}
+    </View>
+  );
+  const typing = (
+    <Text variant="meta" tone="muted" accessibilityLiveRegion="polite">
+      {t.typing}
+    </Text>
+  );
+  const row = { paddingHorizontal: space.x4, paddingTop: space.x3 };
+  if (speaker !== undefined)
+    return (
+      <SpeakerRow
+        speaker={speaker}
+        rowKey={`draft:${draft.draftId}`}
+        inset={row.paddingTop}
+        style={row}
+        bubble={surface}
+        after={typing}
+      />
+    );
+  return (
+    <View style={{ ...row, gap: space.x1 }}>
+      {surface}
+      {typing}
     </View>
   );
 });

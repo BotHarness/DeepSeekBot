@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { ConversationMessage } from '../src/host/conversation';
-import { chatRows, separatorLabel } from '../src/ui/chat/message-groups';
+import { chatRows, messageGroups, separatorLabel } from '../src/ui/chat/message-groups';
 
 const message = (
   id: string,
@@ -32,6 +32,22 @@ describe('chat message groups', () => {
         chatRows([by('a', '09:00', 'ada'), by('b', '09:01', 'ada'), by('c', '09:02', 'grace')]),
       ),
     ).toEqual(['|', 'a^', 'b$', 'c^$']);
+  });
+
+  it('keys every message row by the first message of its group', () => {
+    const by = (id: string, at: string, bot: string): ConversationMessage => ({
+      ...message(id, at),
+      bot,
+    });
+    expect(
+      messageGroups(
+        chatRows([by('a', '09:00', 'ada'), by('b', '09:01', 'ada'), by('c', '09:02', 'grace')]),
+      ),
+    ).toEqual([
+      { key: 'a', group: 'a' },
+      { key: 'b', group: 'a' },
+      { key: 'c', group: 'c' },
+    ]);
   });
 
   it('groups one author within 5 minutes and starts with a time separator', () => {

@@ -11,6 +11,8 @@ const native = vi.hoisted(() => ({
   pick: 0,
 }));
 
+vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
+
 vi.mock('react-native', () => {
   const host = (name: string) => {
     const Component = ({ children, ...props }: Record<string, unknown>) => {
@@ -215,26 +217,33 @@ describe('message states', () => {
     expect(draft).toContain(t.typing);
   });
 
-  it('shows the Bot avatar and name beside the first bubble of its group in a group Channel', () => {
+  it('names a group Channel Bot above its first bubble and puts its avatar at the last one', () => {
     const bot = human({ author: 'bot', bot: 'ada', body: 'On it' });
-    const first = renderToStaticMarkup(
-      <MessageBubble message={bot} speaker={{ name: 'Ada', bot: undefined, first: true }} />,
+    const speaker = { name: 'Ada', bot: undefined, group: 'g' };
+    const avatar = '"Text">A</div>';
+    const only = renderToStaticMarkup(
+      <MessageBubble message={bot} speaker={{ ...speaker, first: true, last: true }} />,
     );
-    expect(first).toContain('Ada');
-    expect(first).toContain('"Text">A</div>');
-    const later = renderToStaticMarkup(
-      <MessageBubble message={bot} speaker={{ name: 'Ada', bot: undefined, first: false }} />,
+    expect(only).toContain('>Ada<');
+    expect(only).toContain(avatar);
+    const opening = renderToStaticMarkup(
+      <MessageBubble message={bot} speaker={{ ...speaker, first: true, last: false }} />,
     );
-    expect(later).not.toContain('Ada');
-    expect(later).not.toContain('"Text">A</div>');
+    expect(opening).toContain('>Ada<');
+    expect(opening).not.toContain(avatar);
+    const closing = renderToStaticMarkup(
+      <MessageBubble message={bot} speaker={{ ...speaker, first: false, last: true }} />,
+    );
+    expect(closing).not.toContain('>Ada<');
+    expect(closing).toContain(avatar);
     expect(renderToStaticMarkup(<MessageBubble message={bot} />)).not.toContain('Ada');
     const draft = renderToStaticMarkup(
       <DraftBubble
         draft={{ draftId: 'd', botSlug: 'grace', body: 'Hel' }}
-        speaker={{ name: 'Grace', bot: undefined, first: true }}
+        speaker={{ name: 'Grace', bot: undefined, group: 'draft:d', first: true, last: true }}
       />,
     );
-    expect(draft).toContain('Grace');
+    expect(draft).toContain('>Grace<');
     expect(draft).toContain('"Text">G</div>');
   });
 

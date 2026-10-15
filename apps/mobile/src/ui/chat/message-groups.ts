@@ -39,6 +39,17 @@ export function chatRows(
   return rows;
 }
 
+export function messageGroups(rows: readonly ChatRow[]): Array<{ key: string; group: string }> {
+  const groups: Array<{ key: string; group: string }> = [];
+  let group = '';
+  for (const row of rows) {
+    if (row.kind !== 'message') continue;
+    if (row.first) group = row.key;
+    groups.push({ key: row.key, group });
+  }
+  return groups;
+}
+
 export function separatorLabel(iso: string, now: Date, yesterday: string, locale?: string): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return '';
