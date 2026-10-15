@@ -43,19 +43,20 @@ export default function HomeScreen() {
   const [query, setQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const action = list.status === 'ready' ? list.sections.action : NONE;
+  const unread = list.status === 'ready' ? list.unread : undefined;
   const hostId = saved?.hostId;
   const collapsed = useCollapsedSections(hostId);
   const searching = query.trim() !== '';
   const rows = useMemo(
     () =>
       searching
-        ? searchConversations(snapshot.roster, action, query).map((row): ChatListItem => ({
+        ? searchConversations(snapshot.roster, action, query, unread).map((row): ChatListItem => ({
             kind: 'row',
             key: row.key,
             row,
           }))
-        : chatList(snapshot.roster, action, collapsed),
-    [snapshot.roster, action, collapsed, query, searching],
+        : chatList(snapshot.roster, action, collapsed, unread),
+    [snapshot.roster, action, collapsed, query, searching, unread],
   );
   const now = new Date();
 
@@ -128,6 +129,7 @@ export default function HomeScreen() {
                     name={item.id === PINNED_SECTION ? t.pinnedSection : (item.name ?? '')}
                     count={item.count}
                     needsYou={item.needsYou}
+                    unread={item.unread}
                     collapsed={item.collapsed}
                     onToggle={() => sectionCollapse.toggle(saved.hostId, item.id)}
                   />

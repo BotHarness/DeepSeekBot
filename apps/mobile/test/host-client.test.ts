@@ -106,6 +106,7 @@ describe('Host client', () => {
     expect(snapshot.roster?.arrangement).toEqual({
       pins: [],
       hidden: ['group-lounge'],
+      muted: [],
       sections: [
         {
           id: work!.id,

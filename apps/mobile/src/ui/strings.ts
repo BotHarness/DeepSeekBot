@@ -236,12 +236,16 @@ const en = {
   stopNotWorking: (name: string) => `${name} had already finished.`,
   stopFailed: 'Could not stop:',
   needsYouCount: (count: number) => (count === 1 ? 'needs you' : `${count} need you`),
+  unreadCount: (count: number) => (count === 1 ? '1 unread message' : `${count} unread messages`),
+  mutedUnread: (count: number) =>
+    count === 1 ? 'muted, 1 unread message' : `muted, ${count} unread messages`,
   searchPlaceholder: 'Search PersonaBots and Channels',
   searchNoMatch: (query: string) => `No PersonaBot or Channel matches “${query}”.`,
   pinnedSection: 'Pinned',
-  sectionLabel: (name: string, count: number, needsYou: number) =>
+  sectionLabel: (name: string, count: number, needsYou: number, unread = 0) =>
     [name, count === 1 ? '1 conversation' : `${count} conversations`]
       .concat(needsYou === 0 ? [] : [needsYou === 1 ? 'needs you' : `${needsYou} need you`])
+      .concat(unread === 0 ? [] : [unread === 1 ? '1 unread message' : `${unread} unread messages`])
       .join(', '),
   connected: 'Connected',
   notifications: 'Notifications',
@@ -689,12 +693,15 @@ const zh: typeof en = {
   stopNotWorking: (name: string) => `${name} 已经结束了。`,
   stopFailed: '无法停止：',
   needsYouCount: (count: number) => (count === 1 ? '等你处理' : `${count} 项等你处理`),
+  unreadCount: (count: number) => `${count} 条未读消息`,
+  mutedUnread: (count: number) => `已静音，${count} 条未读消息`,
   searchPlaceholder: '搜索 PersonaBot 和频道',
   searchNoMatch: (query: string) => `没有名称包含“${query}”的 PersonaBot 或频道。`,
   pinnedSection: '已置顶',
-  sectionLabel: (name: string, count: number, needsYou: number) =>
+  sectionLabel: (name: string, count: number, needsYou: number, unread = 0) =>
     [name, `${count} 个对话`]
       .concat(needsYou === 0 ? [] : [needsYou === 1 ? '等你处理' : `${needsYou} 项等你处理`])
+      .concat(unread === 0 ? [] : [`${unread} 条未读消息`])
       .join('，'),
   connected: '已连接',
   notifications: '通知',

@@ -3,9 +3,10 @@ import { Pressable, View } from 'react-native';
 import { BotAvatar } from '../bot-avatar';
 import { radius, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
+import { CountBadge } from '../primitives/count-badge';
 import { Text } from '../primitives/text';
 import { t } from '../strings';
-import { shortTime, titleOf, type Conversation } from './conversations';
+import { countBadge, shortTime, titleOf, type Conversation } from './conversations';
 
 const AVATAR = 48;
 const RING = 6;
@@ -30,9 +31,15 @@ export function ConversationRow({
         ? t.workingPreview
         : (row.bot.preview ?? (row.bot.paused ? t.paused : ''))
       : (row.channel.preview ?? t.members(row.channel.memberCount));
+  const badge = countBadge(row);
   const label = [
     title,
     row.needsYou > 0 ? t.needsYouCount(row.needsYou) : undefined,
+    row.unread > 0
+      ? row.muted
+        ? t.mutedUnread(row.unread)
+        : t.unreadCount(row.unread)
+      : undefined,
     preview === '' ? undefined : preview,
   ]
     .filter((part) => part !== undefined)
@@ -99,30 +106,9 @@ export function ConversationRow({
           >
             {preview}
           </Text>
-          {row.needsYou > 0 ? <NeedsYouBadge count={row.needsYou} /> : null}
+          {badge === undefined ? null : <CountBadge count={badge.count} tone={badge.tone} />}
         </View>
       </View>
     </Pressable>
-  );
-}
-
-export function NeedsYouBadge({ count }: { count: number }) {
-  const theme = useDesignTheme();
-  return (
-    <View
-      style={{
-        minWidth: theme.type.meta.line + space.x2,
-        height: theme.type.meta.line + space.x2,
-        borderRadius: radius.round,
-        paddingHorizontal: space.x2,
-        backgroundColor: theme.color.warning,
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
-      <Text variant="meta" strong tone={theme.scheme === 'dark' ? 'base' : 'fg'}>
-        {count > 1 ? `! ${count}` : '!'}
-      </Text>
-    </View>
   );
 }

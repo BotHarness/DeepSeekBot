@@ -64,11 +64,11 @@ export const glass = {
 } as const;
 
 export const edgeFade = {
-  extend: 24,
-  bottom: 32,
+  top: 24,
+  bottom: 24,
   stops: [
-    { offset: 0, opacity: 1 },
-    { offset: 0.6, opacity: 0.85 },
+    { offset: 0, opacity: 0.8 },
+    { offset: 0.5, opacity: 0.4 },
     { offset: 1, opacity: 0 },
   ],
 } as const;

@@ -32,6 +32,7 @@ import { useHostLook } from '../../host/native-host-look';
 import { glassShadow, useDesignTheme } from '../design/theme';
 import { useMounted } from '../mounted';
 import { edge, motion, radius, scrim, space } from '../design/tokens';
+import { CountBadge } from '../primitives/count-badge';
 import { Text } from '../primitives/text';
 import { t } from '../strings';
 import { HostTile } from './host-tile';
@@ -40,7 +41,6 @@ import {
   drawerWidth,
   EDGE_WIDTH,
   hostDrawerRows,
-  badgeCount,
   hostRowBadge,
   settleOpen,
   type HostDrawerRow,
@@ -202,44 +202,6 @@ function DrawerTile({ hostId, name, current }: { hostId: string; name: string; c
   );
 }
 
-function CountChip({
-  count,
-  tone,
-  label,
-}: {
-  count: number;
-  tone: 'needs-you' | 'unread';
-  label: string;
-}) {
-  const theme = useDesignTheme();
-  const needsYou = tone === 'needs-you';
-  const ink = needsYou
-    ? theme.color[theme.scheme === 'dark' ? 'base' : 'fg']
-    : theme.color.onAccent;
-  return (
-    <View
-      accessibilityLabel={label}
-      style={{
-        height: theme.type.meta.line + space.x3,
-        minWidth: theme.type.meta.line + space.x3,
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingHorizontal: space.x3,
-        borderRadius: radius.sm,
-        backgroundColor: needsYou ? theme.color.warning : theme.color.accent,
-      }}
-    >
-      <Text
-        variant="meta"
-        strong
-        style={{ color: ink, textAlign: 'center', fontVariant: ['tabular-nums'] }}
-      >
-        {badgeCount(count)}
-      </Text>
-    </View>
-  );
-}
-
 function HostRow({ row }: { row: HostDrawerRow }) {
   const theme = useDesignTheme();
   const pending = row.glance.pending ?? 0;
@@ -298,7 +260,7 @@ function HostRow({ row }: { row: HostDrawerRow }) {
           </View>
         </View>
         {badge === undefined ? null : (
-          <CountChip
+          <CountBadge
             count={badge.count}
             tone={badge.tone}
             label={

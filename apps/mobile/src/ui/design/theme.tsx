@@ -52,6 +52,12 @@ export function useDesignTheme(): DesignTheme {
   return useMemo(() => resolveTheme(system, appearance, platformOS()), [system, appearance]);
 }
 
+export function frosted(fill: string): string {
+  if (!/^#[0-9a-f]{6}$/iu.test(fill)) return fill;
+  const alpha = Math.round((glass.tint / 100) * 255);
+  return `${fill}${alpha.toString(16).padStart(2, '0')}`;
+}
+
 export function glassTint(base: string): string {
   return `color-mix(in srgb, ${base} ${glass.tint}%, transparent)`;
 }

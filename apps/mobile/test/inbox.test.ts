@@ -125,6 +125,29 @@ describe('Human Inbox', () => {
     expect(inbox.find(approvalItem.id)).toBeUndefined();
   });
 
+  it('reads unread message counts per conversation with the list', async () => {
+    const fake = host();
+    fake.answers.set('channelUnreadCounts', () => ({
+      ok: true,
+      value: { channels: [{ channelId: 'dm-ada', unreadCount: 3 }] },
+    }));
+    inbox = createInbox(connect(fake));
+    const snapshot = await ready(inbox);
+    expect(snapshot.unread).toEqual({ 'dm-ada': 3 });
+  });
+
+  it('keeps the list without counts when the Host refuses unread counts', async () => {
+    const fake = host();
+    fake.answers.set('channelUnreadCounts', () => ({
+      ok: false,
+      error: { code: 'unknown-method', message: 'unknown method', details: {} },
+    }));
+    inbox = createInbox(connect(fake));
+    const snapshot = await ready(inbox);
+    expect(snapshot.sections.action).toHaveLength(1);
+    expect(snapshot.unread).toEqual({});
+  });
+
   it('keeps the last good list and marks it stale when a re-read fails', async () => {
     const fake = host();
     inbox = createInbox(connect(fake));

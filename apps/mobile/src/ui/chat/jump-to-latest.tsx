@@ -2,6 +2,7 @@ import { Pressable, View } from 'react-native';
 
 import { useDesignTheme } from '../design/theme';
 import { edge, radius, space } from '../design/tokens';
+import { badgeCount } from '../primitives/badge-count';
 import { Text } from '../primitives/text';
 import { ChevronDownIcon } from '../shell/icons';
 import { t } from '../strings';
@@ -49,7 +50,7 @@ export function JumpToLatest({ unseen, onPress }: { unseen: number; onPress(): v
           }}
         >
           <Text variant="meta" tone="onAccent" strong>
-            {unseen > 99 ? '99+' : String(unseen)}
+            {badgeCount(unseen)}
           </Text>
         </View>
       ) : null}

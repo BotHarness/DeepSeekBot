@@ -70,6 +70,7 @@ export interface TopOrderEntry {
 export interface RosterArrangement {
   pins: string[];
   hidden: string[];
+  muted?: string[];
   sections: RosterSection[];
   sectionOrder: string[];
   topOrder?: TopOrderEntry[];
@@ -229,6 +230,7 @@ export function arrangementOf(value: unknown): RosterArrangement | undefined {
   return {
     pins: strings(snapshot['pins']),
     hidden: strings(snapshot['hidden']),
+    ...(Array.isArray(snapshot['muted']) ? { muted: strings(snapshot['muted']) } : {}),
     sections,
     sectionOrder: strings(snapshot['sectionOrder']),
     ...(topOrder === undefined ? {} : { topOrder }),

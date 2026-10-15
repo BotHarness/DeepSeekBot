@@ -4,6 +4,10 @@ import type { HumanAttentionItem, HumanAttentionPage } from './wire';
 export const INBOX_SECTIONS = ['action', 'replies', 'handled'] as const;
 export type InboxSection = (typeof INBOX_SECTIONS)[number];
 
+interface UnreadCounts {
+  channels: Array<{ channelId: string; unreadCount: number }>;
+}
+
 const LIMITS: Record<InboxSection, number> = { action: 100, replies: 30, handled: 30 };
 
 export type InboxSnapshot =
@@ -12,6 +16,7 @@ export type InboxSnapshot =
   | {
       status: 'ready';
       sections: Record<InboxSection, HumanAttentionItem[]>;
+      unread?: Readonly<Record<string, number>>;
       stale?: string;
     }
   | { status: 'error'; error: string };
@@ -37,10 +42,16 @@ export function createInbox(client: HostClient): Inbox {
   };
 
   const readOnce = async (): Promise<void> => {
-    const pages = await Promise.all(
-      INBOX_SECTIONS.map((category) =>
-        client.call<HumanAttentionPage>('humanAttention', { category, limit: LIMITS[category] }),
+    const [pages, counts] = await Promise.all([
+      Promise.all(
+        INBOX_SECTIONS.map((category) =>
+          client.call<HumanAttentionPage>('humanAttention', { category, limit: LIMITS[category] }),
+        ),
       ),
+      client.call<UnreadCounts>('channelUnreadCounts').catch(() => ({ channels: [] })),
+    ]);
+    const unread = Object.fromEntries(
+      counts.channels.map((entry) => [entry.channelId, entry.unreadCount]),
     );
     if (stopped) return;
     const [action, replies, handled] = pages.map((page) => page.items) as [
@@ -48,7 +59,7 @@ export function createInbox(client: HostClient): Inbox {
       HumanAttentionItem[],
       HumanAttentionItem[],
     ];
-    publish({ status: 'ready', sections: { action, replies, handled } });
+    publish({ status: 'ready', sections: { action, replies, handled }, unread });
   };
 
   const refresh = (): Promise<void> => {
