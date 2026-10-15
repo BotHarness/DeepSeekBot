@@ -65,7 +65,9 @@ const HEX = /^#[0-9a-f]{6}$/i;
 export function bannerHex(value: string): string | undefined {
   const trimmed = value.trim().replace(/^#?/, '#').toLowerCase();
   if (/^#[0-9a-f]{3}$/.test(trimmed))
-    return `#${Array.from(trimmed.slice(1)).map((digit) => digit + digit).join('')}`;
+    return `#${Array.from(trimmed.slice(1))
+      .map((digit) => digit + digit)
+      .join('')}`;
   return HEX.test(trimmed) ? trimmed : undefined;
 }
 
