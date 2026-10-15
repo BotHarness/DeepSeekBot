@@ -1,3 +1,4 @@
+import type { FullClientLanding } from '../../../core/src/credentials/web-locator.js';
 import type { ClientStore } from './store.js';
 
 export function watchPrivateInputNavigation(
@@ -25,8 +26,8 @@ export function watchPrivateInputNavigation(
 
 export function watchFullClientLanding(
   store: Pick<ClientStore, 'subscribe' | 'getSnapshot'>,
-  locator: { kind: 'home' } | { kind: 'dm'; slug: string },
-  land: (slug: string | undefined) => void,
+  locator: FullClientLanding,
+  land: (target: FullClientLanding) => void,
 ): () => void {
   let landed = false;
   const navigate = (): void => {
@@ -34,11 +35,13 @@ export function watchFullClientLanding(
     if (landed || snapshot.status !== 'ready') return;
     landed = true;
     unsubscribe();
-    land(
-      locator.kind === 'dm' && snapshot.bots.some((bot) => bot.slug === locator.slug)
-        ? locator.slug
-        : undefined,
-    );
+    const exists =
+      locator.kind === 'dm'
+        ? snapshot.bots.some((bot) => bot.slug === locator.slug)
+        : locator.kind === 'channel'
+          ? snapshot.channels.some((channel) => channel.id === locator.channelId)
+          : true;
+    land(exists ? locator : { kind: 'home' });
   };
   const unsubscribe = store.subscribe(navigate);
   navigate();

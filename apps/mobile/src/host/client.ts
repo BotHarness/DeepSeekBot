@@ -56,9 +56,29 @@ export interface RosterChannel {
   previewAt?: string;
 }
 
+export interface RosterSection {
+  id: string;
+  name: string;
+  channelIds: string[];
+}
+
+export interface TopOrderEntry {
+  kind: 'section' | 'channel';
+  id: string;
+}
+
+export interface RosterArrangement {
+  pins: string[];
+  hidden: string[];
+  sections: RosterSection[];
+  sectionOrder: string[];
+  topOrder?: TopOrderEntry[];
+}
+
 export interface RosterView {
   bots: RosterBot[];
   channels: RosterChannel[];
+  arrangement?: RosterArrangement;
 }
 
 export interface HostSnapshot {
@@ -182,6 +202,39 @@ function previewOf(channel: ChannelListItem | undefined): { preview?: string; pr
   };
 }
 
+function strings(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string')
+    : [];
+}
+
+export function arrangementOf(value: unknown): RosterArrangement | undefined {
+  const snapshot = record(value);
+  if (!Array.isArray(snapshot['sections'])) return undefined;
+  const sections = snapshot['sections'].flatMap((entry): RosterSection[] => {
+    const section = record(entry);
+    return typeof section['id'] === 'string' && typeof section['name'] === 'string'
+      ? [{ id: section['id'], name: section['name'], channelIds: strings(section['channelIds']) }]
+      : [];
+  });
+  const topOrder = Array.isArray(snapshot['topOrder'])
+    ? snapshot['topOrder'].flatMap((entry): TopOrderEntry[] => {
+        const item = record(entry);
+        return (item['kind'] === 'section' || item['kind'] === 'channel') &&
+          typeof item['id'] === 'string'
+          ? [{ kind: item['kind'], id: item['id'] }]
+          : [];
+      })
+    : undefined;
+  return {
+    pins: strings(snapshot['pins']),
+    hidden: strings(snapshot['hidden']),
+    sections,
+    sectionOrder: strings(snapshot['sectionOrder']),
+    ...(topOrder === undefined ? {} : { topOrder }),
+  };
+}
+
 export function createHostClient(options: HostClientOptions): HostClient {
   const routes = options.routes;
   const authorization = { authorization: `Device ${options.credential}` };
@@ -194,6 +247,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
   let bots: PersonaBotSummary[] | undefined;
   let channels = new Map<string, ChannelListItem>();
   let states = new Map<string, WireBotActivity>();
+  let arrangement: RosterArrangement | undefined;
   let running = false;
   let everConnected = false;
   let attempt = 0;
@@ -259,6 +313,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
           };
         }),
       channels: groups,
+      ...(arrangement === undefined ? {} : { arrangement }),
     };
   };
 
@@ -406,12 +461,17 @@ export function createHostClient(options: HostClientOptions): HostClient {
   };
 
   const reloadOnce = async (): Promise<void> => {
-    const [list, channelList] = await Promise.all([
+    const [list, channelList, rosterArrangement] = await Promise.all([
       call<{ bots: PersonaBotSummary[] }>('list'),
       call<{ channels: ChannelListItem[] }>('channels'),
+      call<unknown>('rosterGet').then(arrangementOf, (error: unknown) => {
+        if (error instanceof MethodRefused) return undefined;
+        throw error;
+      }),
     ]);
     bots = list.bots;
     channels = new Map(channelList.channels.map((channel) => [channel.id, channel]));
+    arrangement = rosterArrangement;
     publish();
   };
 

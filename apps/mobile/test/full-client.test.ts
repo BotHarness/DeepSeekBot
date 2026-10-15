@@ -36,7 +36,16 @@ describe('full client in the app', () => {
       channelId: card.channelId,
       messageId: card.messageId,
     });
-    for (const target of [{ kind: 'home' } as const, { kind: 'dm', slug: 'ada' } as const, card])
+    const channel = new URL(
+      fullClientSource(ROUTE, CREDENTIAL, { kind: 'channel', channelId: 'team' }).uri,
+    );
+    expect(fullClientLocator(channel.hash)).toEqual({ kind: 'channel', channelId: 'team' });
+    for (const target of [
+      { kind: 'home' } as const,
+      { kind: 'dm', slug: 'ada' } as const,
+      { kind: 'channel', channelId: 'team' } as const,
+      card,
+    ])
       expect(fullClientTarget(fullClientParams(target))).toEqual(target);
     expect(fullClientTarget({ target: 'dm' })).toEqual({ kind: 'home' });
   });

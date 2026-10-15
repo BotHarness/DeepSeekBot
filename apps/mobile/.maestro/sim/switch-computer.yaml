@@ -7,11 +7,11 @@ appId: ai.botharness.deepseekbot.dev
 - extendedWaitUntil:
     visible: 'Pair a new computer'
     timeout: 10000
-# The current computer is the selected row ("Showing").
+# The current computer is the selected row ("Showing") in the Host drawer.
 - assertVisible:
-    text: '^${FROM}$'
+    text: '^${FROM}, Showing.*'
     selected: true
-- tapOn: '^${TO}$'
+- tapOn: '^${TO}, .*'
 - extendedWaitUntil:
     visible: '${TO}, switch computer'
     timeout: 20000
@@ -19,7 +19,7 @@ appId: ai.botharness.deepseekbot.dev
     visible: ${BOT}
     timeout: 20000
 - assertNotVisible: ${OTHER_BOT}
-# Switching dismisses the Computers sheet back to Chats; let that finish.
+# Switching closes the Host drawer; let the slide finish.
 - extendedWaitUntil:
     notVisible: 'Pair a new computer'
     timeout: 10000

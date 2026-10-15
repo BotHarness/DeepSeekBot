@@ -1,9 +1,14 @@
 import type { ChannelMessage } from './channel.js';
 
-const CHANNEL_NOTICE_FIELDS = ['botDmAction', 'botChannelPost', 'memoryCommit'] as const;
+const CHANNEL_NOTICE_FIELDS = [
+  'botDmAction',
+  'botChannelPost',
+  'memoryCommit',
+  'toolAutoApproval',
+] as const;
 
 export function isChannelNotice(
-  message: Pick<ChannelMessage, 'botDmAction' | 'botChannelPost' | 'memoryCommit'>,
+  message: Pick<ChannelMessage, (typeof CHANNEL_NOTICE_FIELDS)[number]>,
 ): boolean {
   return CHANNEL_NOTICE_FIELDS.some((field) => message[field] !== undefined);
 }

@@ -111,11 +111,14 @@ export const hostSession = {
     await commit(next);
     return true;
   },
-  async unpair(): Promise<void> {
-    const host = state.saved;
+  async unpair(hostId?: string): Promise<void> {
+    const host =
+      hostId === undefined ? state.saved : stored.hosts.find((entry) => entry.hostId === hostId);
     if (host === null || host === undefined) return;
+    const current = host.hostId === state.saved?.hostId;
     void pushSession.forget(host);
     await commit(withoutHost(stored, host.hostId));
+    if (!current) return;
     try {
       clearConversationCache();
     } catch {}

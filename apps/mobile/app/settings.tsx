@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import { fullClientParams } from '../src/host/full-client';
 import { hostSession, useHostSession, useHostSnapshot } from '../src/host/host-session';
 import { SettingsView } from '../src/ui/settings-view';
+import { openHostDrawer } from '../src/ui/shell/host-drawer';
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -16,7 +17,11 @@ export default function SettingsScreen() {
         onClose: () => router.back(),
         onOpenFullClient: () =>
           router.push({ pathname: '/full-client', params: fullClientParams({ kind: 'home' }) }),
-        onComputers: () => router.push('/hosts'),
+        onComputers: () => {
+          router.back();
+          openHostDrawer();
+        },
+        onHostLook: () => router.push('/host-look'),
         onNotifications: () => router.push('/notifications'),
         onUnpair: () => hostSession.unpair().then(() => router.dismissTo('/')),
       }}

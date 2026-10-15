@@ -5,6 +5,7 @@ import { cardHref } from '../../../src/host/push';
 import type { HumanAttentionItem } from '../../../src/host/wire';
 import { ConnectionBanner } from '../../../src/ui/connection-banner';
 import { ActivityFeed } from '../../../src/ui/shell/activity-feed';
+import { HostDrawerEdge } from '../../../src/ui/shell/host-drawer';
 import { t } from '../../../src/ui/strings';
 
 export default function ActivityScreen() {
@@ -33,20 +34,22 @@ export default function ActivityScreen() {
   return (
     <>
       <Stack.Screen options={{ title: t.activity }} />
-      <ActivityFeed
-        client={client}
-        inbox={inbox}
-        snapshot={list}
-        bot={(slug) => bots.find((bot) => bot.slug === slug)}
-        onOpen={open}
-        header={
-          <ConnectionBanner
-            connection={snapshot.connection}
-            onRetry={() => client?.retryNow()}
-            onPairAgain={() => router.push('/pair')}
-          />
-        }
-      />
+      <HostDrawerEdge>
+        <ActivityFeed
+          client={client}
+          inbox={inbox}
+          snapshot={list}
+          bot={(slug) => bots.find((bot) => bot.slug === slug)}
+          onOpen={open}
+          header={
+            <ConnectionBanner
+              connection={snapshot.connection}
+              onRetry={() => client?.retryNow()}
+              onPairAgain={() => router.push('/pair')}
+            />
+          }
+        />
+      </HostDrawerEdge>
     </>
   );
 }

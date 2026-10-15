@@ -123,6 +123,7 @@ import { GroupProfilePopover, GroupProfileView } from './group-profile.js';
 import { personaBotActivity } from './persona-activity.js';
 import { BotDmActionLabel } from './bot-dm-action-line.js';
 import { MemoryCommitLine } from './memory-commit-line.js';
+import { AutoApprovalLine } from './approval-template-entry.js';
 import { BotChannelPostLine, elsewhereAction } from './bot-channel-post-line.js';
 import {
   hiddenDmActionsSnapshot,
@@ -1362,7 +1363,8 @@ function ConversationView({
       item.botChannelPost === undefined &&
       item.memoryCommit === undefined &&
       item.memberDeparture === undefined &&
-      item.turnStop === undefined,
+      item.turnStop === undefined &&
+      item.toolAutoApproval === undefined,
   );
   const workingRows = timelineWorkingRows(
     conversation.status === 'ready' && !conversation.timeline.hasNewer
@@ -2611,7 +2613,14 @@ function ConversationView({
                         })}
                       </div>
                     ) : null}
-                    {first.turnStop !== undefined ? (
+                    {first.toolAutoApproval !== undefined ? (
+                      <AutoApprovalLine
+                        messageId={first.id}
+                        record={first.toolAutoApproval}
+                        bots={state.bots}
+                        t={t}
+                      />
+                    ) : first.turnStop !== undefined ? (
                       <div className="bh-member-departure" data-message-id={first.id}>
                         <span>
                           {t('turn.stopped', {

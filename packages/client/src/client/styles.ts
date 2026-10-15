@@ -5290,15 +5290,11 @@ html[data-botharness-motion='full'] .bh-motion-preview-sample i:nth-child(3) {
 .bh-tool-approval-diff-line[data-kind='add'] { background: color-mix(in srgb, ${color.success} 14%, transparent); }
 .bh-tool-approval-diff-line[data-kind='remove'] { background: color-mix(in srgb, ${color.danger} 14%, transparent); }
 .bh-tool-approval-diff-mark { display: inline-block; width: 1.5ch; color: var(--dsw-alias-label-tertiary); user-select: none; }
-.bh-tool-approval-confirm, .bh-access-warning { display: grid; gap: ${space.x3}; padding: ${space.x3}; border: ${border.hairline} solid ${color.borderStrong}; border-radius: ${radius.sm}; }
+.bh-tool-approval-confirm { display: grid; gap: ${space.x3}; padding: ${space.x3}; border: ${border.hairline} solid ${color.borderStrong}; border-radius: ${radius.sm}; }
 .bh-tool-approval-confirm { border: 0; border-radius: ${radius.md}; background: ${color.well}; }
 .bh-tool-approval-confirm .bh-request-secondary { background: var(--bh-well-inset); }
 .bh-tool-approval-confirm { --bh-message-card-gap: var(--bh-chat-card-inset); width: 100%; gap: var(--bh-message-card-gap); padding: var(--bh-chat-card-inset); }
 .bh-assignment-access-row { display: flex; align-items: center; justify-content: space-between; gap: ${space.x4}; }
-.bh-access-hint { padding: 0 ${space.x1}; color: var(--dsw-alias-state-error-primary); font-size: ${text.metaSize}; font-weight: ${text.strong}; line-height: 1.5; }
-.bh-access-scope { display: grid; gap: ${space.x2}; padding: 0 ${space.x1}; }
-.bh-access-scope-option { display: flex; align-items: center; gap: ${space.x3}; font-size: ${text.bodySize}; color: var(--dsw-alias-label-primary); }
-.bh-access-warning-active { border-color: var(--dsw-alias-state-error-primary); color: var(--dsw-alias-state-error-primary); font-weight: ${text.strong}; }
 
 .bh-memory-history {
   gap: 0;
@@ -6537,7 +6533,8 @@ button.bh-card-main:disabled {cursor:default;}
 .bh-card-row[data-muted="true"] .bh-card-icon,
 .bh-card-row[data-muted="true"] .bh-card-title {color:var(--dsw-alias-label-secondary);}
 .bh-card-trailing .bh-workspace-folder-remove {width:28px;height:28px;border-radius:${radius.sm};}
-.bh-assignment-access-card .bh-card-title {white-space:normal;}
+.bh-workspace-folder-add, .bh-workspace-folder-add .bh-card-title, .bh-workspace-folder-add .bh-card-leading {color:${color.accent};}
+.bh-workspace-folder-write {display:inline-flex;align-items:center;gap:${space.x2};font-size:${text.metaSize};line-height:${text.metaLine};white-space:nowrap;}
 .bh-card-detail > .bh-workspace-folder-detail {padding:0;}
 .bh-schedule-switch {display:inline-flex;}
 ` +

@@ -55,15 +55,28 @@ describe('full-client landing from the phone app', () => {
     watchFullClientLanding(store, { kind: 'dm', slug: 'ada' }, land);
     expect(land).not.toHaveBeenCalled();
     store.setRoster([ada], []);
-    expect(land).toHaveBeenCalledExactlyOnceWith('ada');
+    expect(land).toHaveBeenCalledExactlyOnceWith({ kind: 'dm', slug: 'ada' });
     store.setRoster([ada], []);
     expect(land).toHaveBeenCalledOnce();
 
     const missing = vi.fn();
     watchFullClientLanding(store, { kind: 'dm', slug: 'grace' }, missing);
-    expect(missing).toHaveBeenCalledExactlyOnceWith(undefined);
+    expect(missing).toHaveBeenCalledExactlyOnceWith({ kind: 'home' });
     const home = vi.fn();
     watchFullClientLanding(store, { kind: 'home' }, home);
-    expect(home).toHaveBeenCalledExactlyOnceWith(undefined);
+    expect(home).toHaveBeenCalledExactlyOnceWith({ kind: 'home' });
+  });
+
+  it('opens a Channel the phone searched for, and falls back to home when it is gone', () => {
+    const team = { id: 'team', type: 'group', name: 'team', members: [] } as never;
+    const store = createStore();
+    const land = vi.fn();
+    watchFullClientLanding(store, { kind: 'channel', channelId: 'team' }, land);
+    store.setRoster([], [team]);
+    expect(land).toHaveBeenCalledExactlyOnceWith({ kind: 'channel', channelId: 'team' });
+
+    const gone = vi.fn();
+    watchFullClientLanding(store, { kind: 'channel', channelId: 'old' }, gone);
+    expect(gone).toHaveBeenCalledExactlyOnceWith({ kind: 'home' });
   });
 });

@@ -6,6 +6,8 @@ Issues: [#1643](https://github.com/BotHarness/DeepSeekBot/issues/1643), [#1589](
 
 # The mobile design system maps the Web roles onto native components
 
+> The three-tab interaction baseline below is superseded by [ADR-0211](0211-the-mobile-app-has-two-tabs-with-settings-and-hosts-in-the-header.md). The rest stands.
+
 The mobile app (`apps/mobile`, Expo SDK 57) grew screen by screen with a hand-written slate palette, a JavaScript tab bar, painted header backgrounds and drawn tab icons. None of it matched the Web design system of ADR-0194, and nothing kept the next screen from inventing another value.
 
 The owner asked for a design system that works on iOS and Android, uses native components where they exist, and takes the Web Client's mobile layout as its interaction baseline. They also want Telegram-style personalisation: an accent of their choice and a chat wallpaper.
@@ -36,7 +38,7 @@ The owner asked for a design system that works on iOS and Android, uses native c
 
   BotHarness only builds the content components the Web `ds/` already defines, such as settings rows, pill buttons, notes and empty states, under the same content rules.
 
-- **Interaction baseline.** The Web Client's mobile shell (`packages/client/src/client/mobile-bot-panel.tsx`) sets the flow:
+- **Interaction baseline.** _Superseded by [ADR-0211](0211-the-mobile-app-has-two-tabs-with-settings-and-hosts-in-the-header.md): the app has Chats and Activity tabs, with search at the top of Chats and Settings and Host switching in the header._ The Web Client's mobile shell (`packages/client/src/client/mobile-bot-panel.tsx`) sets the flow:
   - Three tabs: Conversations, Inbox and Settings.
   - A conversation is pushed above the tabs, which hides the tab bar, with back, title and settings in its header.
 

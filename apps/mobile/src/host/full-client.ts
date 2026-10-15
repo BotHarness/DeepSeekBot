@@ -37,6 +37,7 @@ export type FullClientParams = {
 
 export function fullClientParams(target: FullClientTarget): FullClientParams {
   if (target.kind === 'dm') return { target: 'dm', slug: target.slug };
+  if (target.kind === 'channel') return { target: 'channel', channelId: target.channelId };
   if (target.kind === 'private-input')
     return { target: 'private-input', channelId: target.channelId, messageId: target.messageId };
   return { target: 'home' };
@@ -44,6 +45,8 @@ export function fullClientParams(target: FullClientTarget): FullClientParams {
 
 export function fullClientTarget(params: FullClientParams): FullClientTarget {
   if (params.target === 'dm' && params.slug !== undefined) return { kind: 'dm', slug: params.slug };
+  if (params.target === 'channel' && params.channelId !== undefined)
+    return { kind: 'channel', channelId: params.channelId };
   if (
     params.target === 'private-input' &&
     params.channelId !== undefined &&

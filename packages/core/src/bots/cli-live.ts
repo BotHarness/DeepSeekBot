@@ -76,6 +76,18 @@ import {
   runTodoCommand,
   type TodoValues,
 } from './cli-todos.js';
+import {
+  APPROVAL_TEMPLATE_COMMANDS,
+  isApprovalTemplateCommand,
+  runApprovalTemplateCommand,
+} from './cli-approval-templates.js';
+import {
+  APPROVAL_REVIEWER_COMMANDS,
+  APPROVAL_REVIEWER_OPTIONS,
+  isApprovalReviewerCommand,
+  runApprovalReviewerCommand,
+  type ApprovalReviewerValues,
+} from './cli-approval-reviewer.js';
 export { CliLiveError } from './cli-live-error.js';
 
 export const LIVE_OPTIONS = {
@@ -89,6 +101,7 @@ export const LIVE_OPTIONS = {
   ...BROWSER_COMPUTER_OPTIONS,
   ...PROFILE_OPTIONS,
   ...TODO_OPTIONS,
+  ...APPROVAL_REVIEWER_OPTIONS,
   host: { type: 'string' },
   'token-file': { type: 'string' },
   timeout: { type: 'string' },
@@ -174,6 +187,8 @@ export const LIVE_COMMANDS = [
   ...PROFILE_COMMANDS,
   ...BOT_TOOL_COMMANDS,
   ...TODO_COMMANDS,
+  ...APPROVAL_TEMPLATE_COMMANDS,
+  ...APPROVAL_REVIEWER_COMMANDS,
   {
     command: 'send',
     description: 'send a Human DM and collect its committed Bot reply from a live Host',
@@ -330,7 +345,8 @@ interface LiveValues
     ScheduleValues,
     BrowserComputerValues,
     ProfileValues,
-    TodoValues {
+    TodoValues,
+    ApprovalReviewerValues {
   host?: string;
   'token-file'?: string;
   timeout?: string;
@@ -674,6 +690,16 @@ export async function runLiveCli(
     );
   if (isProfileCommand(command))
     return runProfileCommand(command, rest, values, io, async () => {
+      const signal = AbortSignal.timeout(timeoutMs(values.timeout));
+      return (await connectLiveHost(values, io, signal)).rpc;
+    });
+  if (isApprovalReviewerCommand(command))
+    return runApprovalReviewerCommand(command, rest, values, async () => {
+      const signal = AbortSignal.timeout(timeoutMs(values.timeout));
+      return (await connectLiveHost(values, io, signal)).rpc;
+    });
+  if (isApprovalTemplateCommand(command))
+    return runApprovalTemplateCommand(command, rest, values, async () => {
       const signal = AbortSignal.timeout(timeoutMs(values.timeout));
       return (await connectLiveHost(values, io, signal)).rpc;
     });

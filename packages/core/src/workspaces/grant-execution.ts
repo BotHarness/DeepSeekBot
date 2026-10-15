@@ -1,3 +1,4 @@
+import { changesApprovalPolicy } from './approval-templates.js';
 import type { Session } from '@deepseek-ai/dsh-session';
 import type { SandboxPolicyService } from '@deepseek-ai/dsh-sandbox-policy';
 import type { ApprovalService } from '@deepseek-ai/dsh-user-approval';
@@ -203,7 +204,16 @@ export function requiresHumanToolApproval(name: string, args?: unknown): boolean
       args === null ||
       (args as Record<string, unknown>).access !== 'read'
     );
-  return name === 'secret_cli' || name === 'secret_mcp_connect';
+  if (name === 'secret_cli' || name === 'secret_mcp_connect') return true;
+  return isDshGovernedTool(name) && changesApprovalPolicy(policyInput(args));
+}
+
+function policyInput(args: unknown): string {
+  try {
+    return JSON.stringify(args) ?? '';
+  } catch {
+    return '';
+  }
 }
 
 export function isDshGovernedTool(name: string): boolean {

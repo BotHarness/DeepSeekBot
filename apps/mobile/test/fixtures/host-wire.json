@@ -242,6 +242,53 @@
           }
         }
       }
+    ],
+    "rosterGet": [
+      {
+        "status": 200,
+        "body": {
+          "type": "server-response",
+          "rpcId": "c060b905-162c-48d7-b0ad-1b6bec1fc385",
+          "result": {
+            "ok": true,
+            "value": {
+              "pins": [],
+              "hidden": ["group-lounge"],
+              "muted": [],
+              "sectionOrder": [
+                "23cfdc86-4438-4c97-81a9-78aed8c8220a",
+                "ae3c2db4-eabc-436b-b693-e930d0ee8dbc"
+              ],
+              "sections": [
+                {
+                  "id": "23cfdc86-4438-4c97-81a9-78aed8c8220a",
+                  "name": "Work",
+                  "channelIds": ["group-design", "dm-bot-48b744db619d4332bd5dbd20cf6eaf56"]
+                },
+                {
+                  "id": "ae3c2db4-eabc-436b-b693-e930d0ee8dbc",
+                  "name": "Later",
+                  "channelIds": []
+                }
+              ],
+              "topOrder": [
+                {
+                  "kind": "channel",
+                  "id": "group-ops"
+                },
+                {
+                  "kind": "section",
+                  "id": "23cfdc86-4438-4c97-81a9-78aed8c8220a"
+                },
+                {
+                  "kind": "section",
+                  "id": "ae3c2db4-eabc-436b-b693-e930d0ee8dbc"
+                }
+              ]
+            }
+          }
+        }
+      }
     ]
   },
   "mux": {

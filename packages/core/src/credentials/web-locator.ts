@@ -41,22 +41,29 @@ export function privateInputLocator(
 export type FullClientTarget =
   | { kind: 'home' }
   | { kind: 'dm'; slug: string }
+  | { kind: 'channel'; channelId: string }
   | { kind: 'private-input'; channelId: string; messageId: string };
 
+export type FullClientLanding = Exclude<FullClientTarget, { kind: 'private-input' }>;
+
 const OPEN_PREFIX = '#botharness-open=';
+const CHANNEL_ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 
 export function fullClientHash(target: FullClientTarget): string {
   if (target.kind === 'private-input')
     return PREFIX + encodeURIComponent(JSON.stringify([target.channelId, target.messageId]));
+  if (target.kind === 'channel') return `${OPEN_PREFIX}channel:${target.channelId}`;
   return OPEN_PREFIX + (target.kind === 'dm' ? `dm:${encodeURIComponent(target.slug)}` : 'home');
 }
 
-export function fullClientLocator(
-  hash: string,
-): { kind: 'home' } | { kind: 'dm'; slug: string } | undefined {
+export function fullClientLocator(hash: string): FullClientLanding | undefined {
   if (!hash.startsWith(OPEN_PREFIX) || hash.length > 256) return undefined;
   const value = hash.slice(OPEN_PREFIX.length);
   if (value === 'home') return { kind: 'home' };
+  if (value.startsWith('channel:')) {
+    const channelId = value.slice(8);
+    return CHANNEL_ID.test(channelId) ? { kind: 'channel', channelId } : undefined;
+  }
   if (!value.startsWith('dm:')) return undefined;
   try {
     const slug = decodeURIComponent(value.slice(3));

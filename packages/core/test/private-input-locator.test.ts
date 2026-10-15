@@ -12,6 +12,12 @@ it('locates an existing private card without authority or native login credentia
   expect(url.search).toBe('');
   expect(privateInputLocator(url.hash)).toEqual({ channelId: 'dm-ada', messageId: id });
   expect(privateInputLocator('#botharness-private-input=%')).toBeUndefined();
+  expect(fullClientLocator(fullClientHash({ kind: 'channel', channelId: 'team-42' }))).toEqual({
+    kind: 'channel',
+    channelId: 'team-42',
+  });
+  expect(fullClientLocator('#botharness-open=channel:..%2Fadmin')).toBeUndefined();
+  expect(fullClientLocator('#botharness-open=channel:')).toBeUndefined();
   expect(
     privateInputLocator(
       '#botharness-private-input=' + encodeURIComponent(JSON.stringify(['group-qa', id])),

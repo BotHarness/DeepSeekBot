@@ -1,5 +1,5 @@
 import type { ColorValue } from 'react-native';
-import Svg, { Path } from 'react-native-svg';
+import Svg, { Circle, Path } from 'react-native-svg';
 
 type IconProps = { color: ColorValue; size: number; focused?: boolean };
 
@@ -34,24 +34,6 @@ export function ActivityIcon(props: IconProps) {
 
 export function PersonIcon(props: IconProps) {
   return <Glyph {...props} d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7.5 8a7.5 7.5 0 0 1 15 0" />;
-}
-
-export function NeedsYouIcon(props: IconProps) {
-  return (
-    <Glyph
-      {...props}
-      d="M5 5h14a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-7l-4 3v-3H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Zm7 3v4m0 3h.01"
-    />
-  );
-}
-
-export function WorkingIcon(props: IconProps) {
-  return (
-    <Glyph
-      {...props}
-      d="M12 3v3m0 12v3M3 12h3m12 0h3M5.6 5.6l2.1 2.1m8.6 8.6 2.1 2.1M5.6 18.4l2.1-2.1m8.6-8.6 2.1-2.1"
-    />
-  );
 }
 
 export function StopIcon(props: IconProps) {
@@ -187,5 +169,15 @@ export function FolderIcon(props: IconProps) {
       {...props}
       d="M4 6a1 1 0 0 1 1-1h4.5l2 2H19a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6Z"
     />
+  );
+}
+
+export function MoreIcon({ color, size }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      <Circle cx={12} cy={5.5} r={1.8} fill={color} />
+      <Circle cx={12} cy={12} r={1.8} fill={color} />
+      <Circle cx={12} cy={18.5} r={1.8} fill={color} />
+    </Svg>
   );
 }

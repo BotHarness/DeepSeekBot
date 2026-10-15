@@ -96,6 +96,7 @@ import { BOT_BANNER_PATH, createBotBannerHttp } from './bots/banner-http.js';
 import { createChannelLiveHub, CHANNEL_STREAM_PATH, type ChannelLiveHub } from './channels/live.js';
 import type { ChannelDraftEvent } from './channels/draft.js';
 import { DeveloperModeSkillGate } from './logs/skill.js';
+import { openLogDatabase, type LogDatabase } from './logs/log-db.js';
 import type { ChannelStore } from './channels/store.js';
 import {
   personaBotOutputCommitted,
@@ -142,7 +143,10 @@ import {
   requiresHumanToolApproval,
   sessionHasFullAccess,
 } from './workspaces/grant-execution.js';
-import { ChannelToolApproval } from './workspaces/tool-approval.js';
+import { ChannelToolApproval, type ToolAutoApproval } from './workspaces/tool-approval.js';
+import { approvalTemplate, changesApprovalPolicy } from './workspaces/approval-templates.js';
+import { createApprovalReviewRunner } from './workspaces/approval-reviewer.js';
+import { createApprovalReviewerSettings } from './workspaces/approval-reviewer-settings.js';
 import { ChannelUserQuestions } from './channels/user-questions.js';
 import { mountPrivateInputs } from './credentials/mount.js';
 import type { PrivateInputs } from './credentials/private-inputs.js';
@@ -319,6 +323,14 @@ export interface BotHarnessCore {
   externalMessaging: OutboundMessaging;
   toolRules: ToolApprovalRuleStore;
   assignmentAccess: AssignmentAccessStore;
+}
+
+function reviewerRejectionText(reason: string): string {
+  return (
+    "The Approval Reviewer rejected this call under the Bot's Approval Template: " +
+    reason +
+    ' Try another way that the template allows, or ask the Human.'
+  );
 }
 
 function unavailableAgentAdapter(): BotAgentAdapter {
@@ -1211,6 +1223,55 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     },
     { global: true },
   );
+  const approvalReviewer = createApprovalReviewerSettings(join(dshHome, 'botharness'));
+  let reviewLogs: LogDatabase | undefined;
+  try {
+    reviewLogs = openLogDatabase({ dir: join(dshHome, 'botharness') });
+  } catch {
+    reviewLogs = undefined;
+  }
+  ctx.effect(() => () => reviewLogs?.close(), 'botharness: approval review logs');
+  const autoApproval: ToolAutoApproval = {
+    template: (slug) => {
+      const name = core.registry.get(slug)?.approvalTemplate;
+      const template = name === undefined ? undefined : approvalTemplate(name);
+      return template === undefined ? undefined : { name: template.name, text: template.text };
+    },
+    review: createApprovalReviewRunner({
+      setting: () => approvalReviewer.model(),
+      botRoute: (slug) => {
+        const own = core.registry.get(slug)?.modelPlan?.orchestrator;
+        if (own !== undefined) return own;
+        try {
+          return defaultModel.currentSelection();
+        } catch {
+          return undefined;
+        }
+      },
+      validate: (route) => modelCatalog.validate(route),
+      llm: () => ctx.get('llm'),
+      sessionId: () => randomUUID(),
+    }),
+    log: (entry) => {
+      const detail =
+        `approval-review bot=${entry.botSlug} template=${entry.template} tool=${entry.toolName}` +
+        (entry.model === undefined ? '' : ` model=${entry.model}`) +
+        (entry.reviewSession === undefined ? '' : ` reviewSession=${entry.reviewSession}`) +
+        ` outcome=${entry.outcome} latencyMs=${entry.latencyMs}` +
+        (entry.fallback === undefined ? '' : ` fallback=${entry.fallback}`) +
+        (entry.detail === undefined ? '' : ` detail=${JSON.stringify(entry.detail)}`);
+      ctx.logger.info(detail);
+      try {
+        reviewLogs?.write({
+          plugin: 'approval-reviewer',
+          owner: `bot:${entry.botSlug}`,
+          kind: entry.fallback === undefined ? entry.outcome : 'fallback',
+          detail,
+          bot: entry.botSlug,
+        });
+      } catch {}
+    },
+  };
   toolApproval = new ChannelToolApproval(
     core.channels,
     core.ownership,
@@ -1242,6 +1303,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     (sessionId, callId, signal) =>
       core.runtime.beginAssignmentApprovalWait?.(sessionId, callId, signal),
     (sessionId) => core.runtime.askChannel?.(sessionId),
+    autoApproval,
   );
   ctx.effect(
     () => core.externalMessaging.approvals.attach(toolApproval, core.channels),
@@ -1334,7 +1396,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           };
         const authorizationScope = computerTools.authorizationScope?.();
         const computerApproval = ctx.get('approval') as ApprovalService | undefined;
-        const untrackComputer = toolApproval.track(execution, 'web-only');
+        const untrackComputer = toolApproval.track(execution, 'web-only', false, 'computer');
         if (computerApproval === undefined || untrackComputer === undefined) {
           return { kind: 'deny', reason: 'The tool call cannot be presented for Human approval' };
         }
@@ -1347,7 +1409,14 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
             signal: execution.signal,
           });
           if (outcome !== 'allowed-once') {
-            return { kind: 'deny', reason: 'Human approval was ' + outcome };
+            const reviewed = toolApproval.takeReviewRejection(agent.session.id, execution.callId);
+            return {
+              kind: 'deny',
+              reason:
+                reviewed === undefined
+                  ? 'Human approval was ' + outcome
+                  : reviewerRejectionText(reviewed),
+            };
           }
           if (computerTools.markAuthorized?.(agent.session.id, authorizationScope) === false)
             return {
@@ -1393,7 +1462,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           };
         const browserAuthorizationScope = browserTools.authorizationScope?.(agent.session.id);
         const browserApproval = ctx.get('approval') as ApprovalService | undefined;
-        const untrackBrowser = toolApproval.track(execution, 'web-only');
+        const untrackBrowser = toolApproval.track(execution, 'web-only', false, 'browser');
         if (browserApproval === undefined || untrackBrowser === undefined) {
           return { kind: 'deny', reason: 'The tool call cannot be presented for Human approval' };
         }
@@ -1406,7 +1475,14 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
             signal: AbortSignal.any([execution.signal, browserSignal ?? execution.signal]),
           });
           if (outcome !== 'allowed-once') {
-            return { kind: 'deny', reason: 'Human approval was ' + outcome };
+            const reviewed = toolApproval.takeReviewRejection(agent.session.id, execution.callId);
+            return {
+              kind: 'deny',
+              reason:
+                reviewed === undefined
+                  ? 'Human approval was ' + outcome
+                  : reviewerRejectionText(reviewed),
+            };
           }
           if (browserTools.markAuthorized?.(agent.session.id, browserAuthorizationScope) === false)
             return {
@@ -1459,11 +1535,20 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
               reason:
                 execution.name === 'channel_attachment_open'
                   ? 'This PersonaBot wants to edit the selected original attachment. All references to this file will show its current contents.'
-                  : 'This PersonaBot wants to run a command-line tool with a secret you entered. The program receives the secret and could reveal it. Check the program and every argument.',
+                  : changesApprovalPolicy(JSON.stringify(execution.arguments) ?? '')
+                    ? 'This PersonaBot wants to change its own approval policy. Only a Human can approve this; neither a saved rule nor the Approval Reviewer answers it.'
+                    : 'This PersonaBot wants to run a command-line tool with a secret you entered. The program receives the secret and could reveal it. Check the program and every argument.',
               signal: execution.signal,
             });
         if (outcome !== 'allowed-once') {
-          return { kind: 'deny', reason: 'Human approval was ' + outcome };
+          const reviewed = toolApproval.takeReviewRejection(agent.session.id, execution.callId);
+          return {
+            kind: 'deny',
+            reason:
+              reviewed === undefined
+                ? 'Human approval was ' + outcome
+                : reviewerRejectionText(reviewed),
+          };
         }
         if (!toolApproval.validAfterDecision(agent, execution.callId))
           return { kind: 'deny', reason: 'Approval rule scope changed' };
@@ -1478,6 +1563,25 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       } finally {
         untrack();
       }
+    },
+    { global: true },
+  );
+
+  ctx.on(
+    'tools/post-execute',
+    async (execution, result, next) => {
+      const reason =
+        execution.agent === undefined
+          ? undefined
+          : toolApproval.takeReviewRejection(execution.agent.session.id, execution.callId);
+      const decision = await next();
+      if (reason === undefined || decision.kind !== 'accept' || decision.value !== undefined)
+        return decision;
+      const note = { type: 'text' as const, text: reviewerRejectionText(reason) };
+      return {
+        ...decision,
+        content: result.isError ? [note] : [...(decision.content ?? result.content), note],
+      };
     },
     { global: true },
   );
@@ -1585,6 +1689,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     }, 'botharness: release restarter');
   });
   const bridgeMethods = createBridgeMethods({
+    approvalReviewer,
     composerIdentity: () =>
       composerRecoveryIdentity(
         join(homedir(), '.config', 'botharness', 'composer-host-id'),

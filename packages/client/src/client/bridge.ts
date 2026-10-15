@@ -1048,7 +1048,30 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
   }
   let memberDeparture: ChannelMessage['memberDeparture'];
   let turnStop: ChannelMessage['turnStop'];
-  if (record['memberDeparture'] !== undefined) {
+  let toolAutoApproval: ChannelMessage['toolAutoApproval'];
+  if (record['toolAutoApproval'] !== undefined) {
+    const auto = asRecord(record['toolAutoApproval']);
+    if (
+      auto === undefined ||
+      author.kind !== 'system' ||
+      ['botSlug', 'sessionId', 'callId', 'toolName', 'template', 'reason'].some(
+        (key) => typeof auto[key] !== 'string' || (auto[key] as string).length === 0,
+      ) ||
+      typeof auto['input'] !== 'string' ||
+      (auto['outcome'] !== 'allowed' && auto['outcome'] !== 'rejected')
+    )
+      return undefined;
+    toolAutoApproval = {
+      botSlug: auto['botSlug'] as string,
+      sessionId: auto['sessionId'] as string,
+      callId: auto['callId'] as string,
+      toolName: auto['toolName'] as string,
+      input: auto['input'],
+      template: auto['template'] as string,
+      outcome: auto['outcome'],
+      reason: auto['reason'] as string,
+    };
+  } else if (record['memberDeparture'] !== undefined) {
     const departure = asRecord(record['memberDeparture']);
     if (
       departure === undefined ||
@@ -1490,6 +1513,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
     ...(memoryCommit === undefined ? {} : { memoryCommit }),
     ...(memberDeparture === undefined ? {} : { memberDeparture }),
     ...(turnStop === undefined ? {} : { turnStop }),
+    ...(toolAutoApproval === undefined ? {} : { toolAutoApproval }),
     ...(toolApprovalRequest === undefined ? {} : { toolApprovalRequest }),
     ...(sessionFailure === undefined ? {} : { sessionFailure }),
     ...(toolApprovalDecision === undefined ? {} : { toolApprovalDecision }),
@@ -2842,6 +2866,98 @@ export async function loadToolApprovalRules(
   const rules = response?.['rules'];
   if (!Array.isArray(rules)) throw new Error('invalid toolApprovalRules response');
   return rules as ToolApprovalRuleView[];
+}
+export interface ApprovalTemplateView {
+  name: string;
+  title: string;
+  description: string;
+}
+export async function loadApprovalTemplates(
+  call: BridgeCall,
+  slug: string,
+): Promise<{ templates: ApprovalTemplateView[]; selected: string | null }> {
+  const response = asRecord(await unwrap(call, 'approvalTemplates', { slug }));
+  const templates = response?.['templates'];
+  const selected = response?.['selected'];
+  if (!Array.isArray(templates) || (selected !== null && typeof selected !== 'string'))
+    throw new Error('invalid approvalTemplates response');
+  return {
+    templates: templates.flatMap((item: unknown) => {
+      const template = asRecord(item);
+      return typeof template?.['name'] === 'string' &&
+        typeof template['title'] === 'string' &&
+        typeof template['description'] === 'string'
+        ? [
+            {
+              name: template['name'],
+              title: template['title'],
+              description: template['description'],
+            },
+          ]
+        : [];
+    }),
+    selected,
+  };
+}
+export async function setBotApprovalTemplate(
+  call: BridgeCall,
+  slug: string,
+  template: string | null,
+): Promise<void> {
+  const response = asRecord(await unwrap(call, 'botApprovalTemplateSet', { slug, template }));
+  if (asRecord(response?.['bot'])?.['slug'] !== slug)
+    throw new Error('invalid botApprovalTemplateSet response');
+}
+export interface ApprovalReviewerModelView {
+  follows: 'bot' | 'model' | 'invalid';
+  model: ModelRouteView | null;
+  available?: boolean;
+  unavailableReason?: string;
+}
+function approvalReviewerModelView(response: unknown, method: string): ApprovalReviewerModelView {
+  const view = asRecord(response);
+  const follows = view?.['follows'];
+  const model = asRecord(view?.['model']);
+  if (
+    (follows !== 'bot' && follows !== 'model' && follows !== 'invalid') ||
+    (view?.['model'] !== null &&
+      (typeof model?.['provider'] !== 'string' || typeof model['model'] !== 'string'))
+  )
+    throw new Error(`invalid ${method} response`);
+  return {
+    follows,
+    model:
+      model === undefined
+        ? null
+        : {
+            provider: model['provider'] as string,
+            model: model['model'] as string,
+            ...(typeof model['reasoningEffort'] === 'string'
+              ? { reasoningEffort: model['reasoningEffort'] }
+              : {}),
+          },
+    ...(typeof view?.['available'] === 'boolean' ? { available: view['available'] } : {}),
+    ...(typeof view?.['unavailableReason'] === 'string'
+      ? { unavailableReason: view['unavailableReason'] }
+      : {}),
+  };
+}
+export async function loadApprovalReviewerModel(
+  call: BridgeCall,
+): Promise<ApprovalReviewerModelView> {
+  return approvalReviewerModelView(
+    await unwrap(call, 'approvalReviewerModel', {}),
+    'approvalReviewerModel',
+  );
+}
+export async function setApprovalReviewerModel(
+  call: BridgeCall,
+  model: ModelRouteView | null,
+): Promise<ApprovalReviewerModelView> {
+  return approvalReviewerModelView(
+    await unwrap(call, 'approvalReviewerModelSet', { model }),
+    'approvalReviewerModelSet',
+  );
 }
 export async function revokeToolApprovalRule(
   call: BridgeCall,

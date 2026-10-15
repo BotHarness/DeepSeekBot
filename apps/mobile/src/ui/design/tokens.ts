@@ -62,3 +62,12 @@ export const glass = {
   blur: 24,
   saturate: 180,
 } as const;
+
+export const motion = {
+  drawer: 250,
+} as const;
+
+export const scrim = {
+  light: 0.32,
+  dark: 0.6,
+} as const;

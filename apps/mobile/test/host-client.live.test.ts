@@ -6,6 +6,29 @@ import { nodeCarrier } from './node-carrier';
 
 const live = process.env['MOBILE_LIVE_HOST_URL'];
 
+async function operatorCall(
+  operator: ReturnType<typeof nodeCarrier>,
+  route: string,
+  method: string,
+  args: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const response = await operator.request(`${route}/api/botharness/${method}`, {
+    method: 'POST',
+    signal: AbortSignal.timeout(5000),
+    body: JSON.stringify({
+      type: 'client-request',
+      rpcId: crypto.randomUUID(),
+      method: `botharness/${method}`,
+      payload: { args },
+    }),
+  });
+  const body = JSON.parse(await response.text()) as {
+    result: { ok: boolean; value: Record<string, unknown> };
+  };
+  expect(body.result.ok).toBe(true);
+  return body.result.value;
+}
+
 async function until(client: HostClient, accept: (s: HostSnapshot) => boolean, ms = 20_000) {
   const deadline = Date.now() + ms;
   while (Date.now() < deadline) {
@@ -54,6 +77,46 @@ describe.skipIf(live === undefined)('Host client against a live isolated Host', 
           s.roster?.bots[0]?.state === 'idle',
       );
     } finally {
+      client.stop();
+    }
+  }, 60_000);
+
+  it('shows the Channel sections made on desktop and follows a section change live', async () => {
+    const { route, operator, host } = await pairWithLiveHost(live!, 'mobile sections live test');
+    const client = createHostClient({
+      routes: host.routes,
+      credential: host.credential,
+      carrier: nodeCarrier(),
+    });
+    client.start();
+    let sectionId: string | undefined;
+    try {
+      const connected = await until(client, (s) => s.connection.status === 'connected');
+      expect(connected.roster?.arrangement?.sections).toBeDefined();
+      const marker = Date.now().toString(36);
+      const created = await operatorCall(operator, route, 'channelCreate', {
+        name: `mobile sections ${marker}`,
+        members: connected.roster?.bots.slice(0, 1).map((bot) => bot.slug) ?? [],
+      });
+      const channelId = (created['channel'] as { id: string }).id;
+      const section = await operatorCall(operator, route, 'sectionCreate', {
+        name: `Phone ${marker}`,
+      });
+      sectionId = (section['section'] as { id: string }).id;
+      await operatorCall(operator, route, 'channelAssign', { channelId, sectionId });
+      const grouped = await until(
+        client,
+        (s) =>
+          s.roster?.arrangement?.sections.some(
+            (entry) => entry.id === sectionId && entry.channelIds.includes(channelId),
+          ) === true,
+      );
+      expect(grouped.roster?.arrangement?.sections.find((entry) => entry.id === sectionId)).toEqual(
+        { id: sectionId, name: `Phone ${marker}`, channelIds: [channelId] },
+      );
+    } finally {
+      if (sectionId !== undefined)
+        await operatorCall(operator, route, 'sectionRemove', { sectionId }).catch(() => undefined);
       client.stop();
     }
   }, 60_000);

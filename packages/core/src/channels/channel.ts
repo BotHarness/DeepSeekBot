@@ -163,6 +163,17 @@ export interface ChannelDelivery {
   state: 'pending' | 'observed' | 'running' | 'retryable' | 'needs-repair' | 'handled' | 'ignored';
 }
 
+export interface ChannelToolAutoApproval {
+  botSlug: string;
+  sessionId: string;
+  callId: string;
+  toolName: string;
+  input: string;
+  template: string;
+  outcome: 'allowed' | 'rejected';
+  reason: string;
+}
+
 export interface ChannelTurnStop {
   botSlug: string;
   botName: string;
@@ -278,6 +289,7 @@ export interface ChannelMessage {
   noticeOrigin?: { channelId: string };
   memberDeparture?: ChannelMemberDeparture;
   turnStop?: ChannelTurnStop;
+  toolAutoApproval?: ChannelToolAutoApproval;
   botCausation?: BotMessageCausation;
 
   grantRequest?: true;
@@ -748,6 +760,19 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
       ['botSlug', 'botName', 'humanName', 'sessionId'].some(
         (key) => typeof stop[key] !== 'string' || stop[key].length === 0,
       )
+    )
+      return false;
+  } else if (message['toolAutoApproval'] !== undefined) {
+    const record = message['toolAutoApproval'] as Record<string, unknown> | null;
+    if (
+      (message['author'] as ChannelMessageAuthor)?.kind !== 'system' ||
+      typeof record !== 'object' ||
+      record === null ||
+      ['botSlug', 'sessionId', 'callId', 'toolName', 'template', 'reason'].some(
+        (key) => typeof record[key] !== 'string' || record[key].length === 0,
+      ) ||
+      typeof record['input'] !== 'string' ||
+      (record['outcome'] !== 'allowed' && record['outcome'] !== 'rejected')
     )
       return false;
   } else if (

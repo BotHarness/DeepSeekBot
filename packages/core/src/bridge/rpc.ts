@@ -1,3 +1,4 @@
+import type { ApprovalTemplate } from '../workspaces/approval-templates.js';
 import type { TurnTrace } from '../bots/tool-trace.js';
 import type { PartLibraryEntry } from '../bots/part-library.js';
 import type { OnboardingSnapshot, TutorialAction } from '../onboarding/service.js';
@@ -47,7 +48,7 @@ import type {
 } from '../release/service.js';
 import type { TelemetryStatus } from '../telemetry/service.js';
 import type { OverviewMemory } from '../memory/overview.js';
-import type { OverviewUsage } from './methods.js';
+import type { ApprovalReviewerModelView, OverviewUsage } from './methods.js';
 import type { PersonaBotActivitySnapshot } from '../state/bot-state.js';
 import type { HumanAssignmentContext } from '../runtime/assignment-human-context.js';
 import type { ThreadReceptionInput } from '../messaging/thread-policy.js';
@@ -790,6 +791,22 @@ export class BotharnessBridgeService extends TypertRemoteService {
 
   browserProfileSet(slug: string, profile: string): { bot: PersonaBotDetail } {
     return unwrap(this.methods.browserProfileSet({ slug, profile }));
+  }
+
+  approvalTemplates(slug?: string): { templates: ApprovalTemplate[]; selected?: string | null } {
+    return unwrap(this.methods.approvalTemplates(slug === undefined ? {} : { slug }));
+  }
+
+  botApprovalTemplateSet(slug: string, template: string | null): { bot: PersonaBotDetail } {
+    return unwrap(this.methods.botApprovalTemplateSet({ slug, template }));
+  }
+
+  approvalReviewerModel(): Promise<ApprovalReviewerModelView> {
+    return unwrapAsync(this.methods.approvalReviewerModel({}));
+  }
+
+  approvalReviewerModelSet(model: ModelRoute | null): Promise<ApprovalReviewerModelView> {
+    return unwrapAsync(this.methods.approvalReviewerModelSet({ model }));
   }
 
   standingLimitsSet(slug: string, soul: number, coreMemory: number): { bot: PersonaBotDetail } {
@@ -1760,6 +1777,10 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'computerAccessSet',
   'browserAccessSet',
   'browserProfileSet',
+  'approvalTemplates',
+  'botApprovalTemplateSet',
+  'approvalReviewerModel',
+  'approvalReviewerModelSet',
   'standingLimitsSet',
   'botAvatarSet',
   'botAppearanceSet',

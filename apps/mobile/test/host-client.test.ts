@@ -92,7 +92,59 @@ describe('Host client', () => {
     await until(target, (s) => s.roster?.bots[0]?.preview === 'mobile tracer probe');
     expect(host.requests.length).toBe(reads);
     host.push('botharness/followRoster', { type: 'changed' });
-    await until(target, () => host.requests.length === reads + 2);
+    await until(target, () => host.requests.length === reads + 3);
+  });
+
+  it('carries the recorded Channel sections and refreshes them when the roster changes', async () => {
+    const host = new FakeHost();
+    const target = connect(host);
+    const snapshot = await until(target, (s) => s.connection.status === 'connected');
+    const recordedSections = (
+      wire.rpc.rosterGet.at(-1)!.body.result.value as { sections: Array<{ id: string }> }
+    ).sections;
+    const [work, later] = recordedSections;
+    expect(snapshot.roster?.arrangement).toEqual({
+      pins: [],
+      hidden: ['group-lounge'],
+      sections: [
+        {
+          id: work!.id,
+          name: 'Work',
+          channelIds: ['group-design', expect.stringMatching(/^dm-/u)],
+        },
+        { id: later!.id, name: 'Later', channelIds: [] },
+      ],
+      sectionOrder: [work!.id, later!.id],
+      topOrder: [
+        { kind: 'channel', id: 'group-ops' },
+        { kind: 'section', id: work!.id },
+        { kind: 'section', id: later!.id },
+      ],
+    });
+
+    host.methods.set('rosterGet', () => ({
+      pins: [],
+      hidden: [],
+      muted: [],
+      sectionOrder: ['s-1'],
+      sections: [{ id: 's-1', name: 'Desk', channelIds: [] }],
+      topOrder: undefined,
+    }));
+    host.push('botharness/followRoster', { type: 'changed' });
+    const changed = await until(target, (s) => s.roster?.arrangement?.sections[0]?.name === 'Desk');
+    expect(changed.roster?.arrangement?.topOrder).toBeUndefined();
+  });
+
+  it('still lists the Roster when an older Host refuses the sections read', async () => {
+    const host = new FakeHost();
+    host.answers.set('rosterGet', () => ({
+      ok: false,
+      error: { code: 'gateway/method-unknown', message: 'rosterGet is not a remote method' },
+    }));
+    const target = connect(host);
+    const snapshot = await until(target, (s) => s.connection.status === 'connected');
+    expect(snapshot.roster?.bots).toHaveLength(1);
+    expect(snapshot.roster?.arrangement).toBeUndefined();
   });
 
   it('shows unreachable while the Host is down and reconnects with the same credential after restart', async () => {

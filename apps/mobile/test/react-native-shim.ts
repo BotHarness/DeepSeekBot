@@ -104,12 +104,14 @@ export const FlatList = (props: {
   data: unknown[];
   keyExtractor(item: unknown): string;
   renderItem(info: { item: unknown; index: number }): ReactNode;
+  ListHeaderComponent?: ReactNode;
   ListEmptyComponent?: ReactNode;
   ref?: unknown;
 }) =>
   createElement(
     'div',
     { ref: props.ref },
+    props.ListHeaderComponent ?? null,
     ...(props.data.length === 0
       ? [props.ListEmptyComponent ?? null]
       : props.data.map((item, index) =>

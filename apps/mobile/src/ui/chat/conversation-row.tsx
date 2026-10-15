@@ -10,6 +10,8 @@ import { shortTime, titleOf, type Conversation } from './conversations';
 const AVATAR = 48;
 const RING = 6;
 
+export const AVATAR_EDGE = space.x5 + RING / 2;
+
 export function ConversationRow({
   row,
   now,
@@ -104,7 +106,7 @@ export function ConversationRow({
   );
 }
 
-function NeedsYouBadge({ count }: { count: number }) {
+export function NeedsYouBadge({ count }: { count: number }) {
   const theme = useDesignTheme();
   return (
     <View
