@@ -94,3 +94,9 @@ export function speechLang(tag: string): string {
   if (region !== undefined) return `${language}-${region.toUpperCase()}`;
   return language === 'zh' ? 'zh-CN' : language === 'en' ? 'en-US' : language;
 }
+
+export const composerMaxLines = 5;
+
+export function composerFieldHeight(content: number, line: number, padding: number): number {
+  return Math.min(Math.max(content, line + 2 * padding), composerMaxLines * line + 2 * padding);
+}

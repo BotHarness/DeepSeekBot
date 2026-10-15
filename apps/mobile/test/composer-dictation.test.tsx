@@ -38,6 +38,16 @@ vi.mock('react-native', async () => {
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
+vi.mock('react-native-reanimated', async () => {
+  const shim = await import('./react-native-shim');
+  return {
+    default: { View: shim.View },
+    ReduceMotion: { System: 'system' },
+    useSharedValue: (value: number) => ({ value }),
+    useAnimatedStyle: (style: () => object) => style(),
+    withTiming: (value: number) => value,
+  };
+});
 vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
 vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
 vi.mock('expo-speech-recognition', () => ({

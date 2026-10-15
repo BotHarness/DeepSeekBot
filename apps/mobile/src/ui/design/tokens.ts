@@ -80,6 +80,7 @@ export const pointer = {
 
 export const motion = {
   drawer: 250,
+  composer: 160,
   lift: 500,
   menu: 160,
 } as const;

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   composerActions,
+  composerFieldHeight,
   composerStacked,
   voiceDrag,
   voiceRelease,
@@ -131,5 +132,16 @@ describe('speech language', () => {
     expect(speechLang('en-GB')).toBe('en-GB');
     expect(speechLang('ja_JP')).toBe('ja-JP');
     expect(speechLang('es-419')).toBe('es-419');
+  });
+});
+
+describe('composer height', () => {
+  it('grows one line at a time up to five lines, then holds and scrolls', () => {
+    const line = 22;
+    const padding = 5;
+    expect(composerFieldHeight(0, line, padding)).toBe(32);
+    expect(composerFieldHeight(2 * line + 2 * padding, line, padding)).toBe(54);
+    expect(composerFieldHeight(5 * line + 2 * padding, line, padding)).toBe(120);
+    expect(composerFieldHeight(9 * line + 2 * padding, line, padding)).toBe(120);
   });
 });

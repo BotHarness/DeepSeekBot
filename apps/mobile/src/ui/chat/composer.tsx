@@ -9,11 +9,17 @@ import {
   View,
   type ViewStyle,
 } from 'react-native';
+import Animated, {
+  ReduceMotion,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { PickSource, PickedFile } from '../../host/pick-files';
 import { useDesignTheme } from '../design/theme';
-import { edge, radius, space } from '../design/tokens';
+import { edge, motion, radius, space } from '../design/tokens';
 import { Text } from '../primitives/text';
 import {
   ArrowUpIcon,
@@ -31,6 +37,7 @@ import { haptic } from '../haptics';
 import { t } from '../strings';
 import {
   composerActions,
+  composerFieldHeight,
   composerStacked,
   dictating,
   voiceDrag,
@@ -364,7 +371,19 @@ export function Composer({
   const [pill, setPill] = useState({ width: 0, height: 0 });
   const [wraps, setWraps] = useState(false);
   const lineHeight = theme.touch - space.x4;
+  const fieldPadding = (lineHeight - theme.type.body.line) / 2;
   const inset = space.x3;
+  const pillHeight = useSharedValue(lineHeight + 2 * (inset + edge.hairline));
+  const pillStyle = useAnimatedStyle(() => ({ height: pillHeight.value }));
+  const settlePill = (content: number) => {
+    const next = content + 2 * edge.hairline;
+    if (pill.height === 0) pillHeight.value = next;
+    else
+      pillHeight.value = withTiming(next, {
+        duration: motion.composer,
+        reduceMotion: ReduceMotion.System,
+      });
+  };
   const listening = dictating(dictation);
   const actions = composerActions({
     text: value,
@@ -380,7 +399,7 @@ export function Composer({
   const stacked = composerStacked(actions, files.length, wraps);
   const icon = theme.type.title.line;
   const button = theme.touch - space.x4;
-  const compactWidth = pill.width - 2 * (inset + edge.hairline + button + space.x2);
+  const compactWidth = pill.width - 2 * (inset + button + space.x2);
   const leading = held ? (
     <HoldDot key="lead" />
   ) : listening ? (
@@ -430,8 +449,13 @@ export function Composer({
       onContentSizeChange={(event) => setContentHeight(event.nativeEvent.contentSize.height)}
       style={{
         flex: 1,
-        height: wraps ? Math.min(Math.max(contentHeight, lineHeight), theme.touch * 3) : lineHeight,
-        paddingVertical: (lineHeight - theme.type.body.line) / 2,
+        ...(wraps
+          ? {
+              minHeight: composerFieldHeight(contentHeight, theme.type.body.line, fieldPadding),
+              maxHeight: composerFieldHeight(Infinity, theme.type.body.line, fieldPadding),
+            }
+          : { height: lineHeight }),
+        paddingVertical: fieldPadding,
         paddingHorizontal: stacked || leading === null ? space.x3 : 0,
         color: theme.color.fg,
         fontSize: theme.type.body.size,
@@ -475,57 +499,63 @@ export function Composer({
       }}
     >
       {above}
-      <View
-        style={{
-          borderRadius: (theme.touch - space.x4) / 2 + inset,
-          borderWidth: edge.hairline,
-          borderColor: theme.color.borderStrong,
-          backgroundColor: theme.color.surface,
-          overflow: 'hidden',
-        }}
-        onLayout={(event) =>
-          setPill({
-            width: event.nativeEvent.layout.width,
-            height: event.nativeEvent.layout.height,
-          })
-        }
+      <Animated.View
+        style={[
+          {
+            borderRadius: (theme.touch - space.x4) / 2 + inset,
+            borderWidth: edge.hairline,
+            borderColor: theme.color.borderStrong,
+            backgroundColor: theme.color.surface,
+            overflow: 'hidden',
+          },
+          pillStyle,
+        ]}
       >
-        {files.length > 0 ? (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ paddingHorizontal: space.x4, paddingTop: space.x2 }}
-          >
-            {files.map((file) => (
-              <AttachmentTile key={file.id} file={file} onRemove={() => onRemove(file.id)} />
-            ))}
-          </ScrollView>
-        ) : null}
-        <View style={{ padding: inset }}>
-          <View
-            style={{
-              flexDirection: 'row',
-              paddingLeft: stacked || leading === null ? 0 : button + space.x2,
-              paddingRight: stacked || trailing.length === 0 ? 0 : button + space.x2,
-            }}
-          >
-            {field}
-          </View>
-          <View
-            pointerEvents="box-none"
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: space.x2,
-              ...(stacked
-                ? { paddingTop: space.x2 }
-                : { position: 'absolute', left: inset, right: inset, bottom: inset }),
-            }}
-          >
-            {leading}
-            <View pointerEvents="none" style={{ flex: 1 }} />
-            {trailing}
+        <View
+          style={{ position: 'absolute', left: 0, right: 0, bottom: 0 }}
+          onLayout={(event) => {
+            const { width, height } = event.nativeEvent.layout;
+            settlePill(height);
+            setPill({ width, height: height + 2 * edge.hairline });
+          }}
+        >
+          {files.length > 0 ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{ paddingHorizontal: space.x4, paddingTop: space.x2 }}
+            >
+              {files.map((file) => (
+                <AttachmentTile key={file.id} file={file} onRemove={() => onRemove(file.id)} />
+              ))}
+            </ScrollView>
+          ) : null}
+          <View style={{ padding: inset }}>
+            <View
+              style={{
+                flexDirection: 'row',
+                paddingLeft: stacked || leading === null ? 0 : button + space.x2,
+                paddingRight: stacked || trailing.length === 0 ? 0 : button + space.x2,
+              }}
+            >
+              {field}
+            </View>
+            <View
+              pointerEvents="box-none"
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: space.x2,
+                ...(stacked
+                  ? { paddingTop: space.x2 }
+                  : { position: 'absolute', left: inset, right: inset, bottom: inset }),
+              }}
+            >
+              {leading}
+              <View pointerEvents="none" style={{ flex: 1 }} />
+              {trailing}
+            </View>
           </View>
         </View>
         {compactWidth > 0 ? (
@@ -541,7 +571,7 @@ export function Composer({
             {value === '' ? ' ' : value}
           </Text>
         ) : null}
-      </View>
+      </Animated.View>
       {footer === undefined ? null : (
         <View
           onLayout={(event) => setFooterHeight(event.nativeEvent.layout.height)}
