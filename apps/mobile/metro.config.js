@@ -30,6 +30,15 @@ if (process.env.EXPO_PUBLIC_BUILD_BRANCH === undefined) {
 }
 
 const config = getDefaultConfig(__dirname);
+// Production bundles inline EXPO_PUBLIC_* into Metro's transform cache, so a new commit has to
+// miss that cache. Development reads them at serialize time and keeps its cache.
+if (process.env.NODE_ENV === 'production') {
+  config.cacheVersion = [
+    config.cacheVersion,
+    process.env.EXPO_PUBLIC_BUILD_COMMIT,
+    process.env.EXPO_PUBLIC_BUILD_BRANCH,
+  ].join(':');
+}
 const packagesRoot = path.resolve(__dirname, '../../packages') + path.sep;
 
 config.resolver.resolveRequest = (context, moduleName, platform) => {
