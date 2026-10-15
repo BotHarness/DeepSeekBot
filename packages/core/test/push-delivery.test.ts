@@ -119,10 +119,11 @@ const approval = (id: string, createdAt: string): PushCandidate => ({
   createdAt,
   channelId: 'dm-ada',
   messageId: `msg-${id}`,
+  categoryId: 'tool-approval',
 });
 
 describe('Push delivery', () => {
-  it('sends one content-free notification per enabled device for a new approval', async () => {
+  it('sends one notification per enabled device for a new approval', async () => {
     const f = fixture();
     const phone = f.device('Phone');
     const tablet = f.device('Tablet');
@@ -140,11 +141,13 @@ describe('Push delivery', () => {
     expect(messages.map((message) => message.to).sort()).toEqual([TOKEN_A, TOKEN_B]);
     expect(messages[0]).toEqual({
       to: expect.any(String),
-      title: 'Ada needs your approval',
+      title: 'Ada',
+      body: 'Needs your approval',
       sound: 'default',
       badge: 1,
       priority: 'high',
       channelId: 'requests',
+      categoryId: 'tool-approval',
       data: {
         v: 1,
         hostId: f.pairing.host().id,
@@ -155,8 +158,69 @@ describe('Push delivery', () => {
         messageId: 'msg-approval:1',
       },
     });
-    expect(JSON.stringify(f.expo.sent)).not.toContain(SECRET_TEXT);
     expect(JSON.stringify(f.events)).not.toMatch(/ExponentPushToken/u);
+  });
+
+  it('titles a notification with its Channel and puts the request and its content below', async () => {
+    const f = fixture();
+    const phone = f.device('Phone');
+    const tablet = f.device('Tablet');
+    f.push.register(phone.device.id, { token: TOKEN_A, platform: 'ios' });
+    f.push.register(tablet.device.id, { token: TOKEN_B, platform: 'ios', locale: 'zh' });
+    f.advance(1000);
+    const at = f.at(0);
+    f.setInbox([
+      {
+        ...approval('approval:1', at),
+        channelId: 'g1',
+        channelName: 'ops',
+        preview: 'bash · date',
+      },
+      {
+        id: 'question:1',
+        kind: 'question',
+        attentionKind: 'user-question',
+        botSlug: 'ada',
+        createdAt: at,
+        channelId: 'dm-ada',
+        preview: 'Which branch?',
+      },
+      {
+        id: 'reply:1',
+        kind: 'reply',
+        attentionKind: 'channel-mention',
+        botSlug: 'ada',
+        createdAt: at,
+        channelId: 'g1',
+        channelName: 'ops',
+        preview: 'Done, see the log',
+      },
+      {
+        id: 'reply:2',
+        kind: 'reply',
+        attentionKind: 'channel-reply',
+        botSlug: 'ada',
+        createdAt: at,
+      },
+    ]);
+    await f.push.reconcile();
+    const shown = (token: string) =>
+      f.expo
+        .flat()
+        .filter((message) => message.to === token)
+        .map(({ title, body }) => [title, body]);
+    expect(shown(TOKEN_A)).toEqual([
+      ['#ops', 'Ada needs your approval: bash · date'],
+      ['Ada', 'Has a question for you: Which branch?'],
+      ['#ops', 'Ada: Done, see the log'],
+      ['Ada', 'Ada replied to you'],
+    ]);
+    expect(shown(TOKEN_B)).toEqual([
+      ['#ops', 'Ada 需要你审批：bash · date'],
+      ['Ada', '有问题问你：Which branch?'],
+      ['#ops', 'Ada：Done, see the log'],
+      ['Ada', 'Ada 回复了你'],
+    ]);
   });
 
   it('does not notify items from before registration, and keeps restarts from resending', async () => {
@@ -231,7 +295,7 @@ describe('Push delivery', () => {
     };
     f.setInbox([approval('approval:1', f.at(0)), question]);
     await f.push.reconcile();
-    expect(f.expo.flat().map((message) => message.title)).toEqual(['Ada has a question for you']);
+    expect(f.expo.flat().map((message) => message.body)).toEqual(['Has a question for you']);
 
     f.push.setPreferences(phone.device.id, { approval: true });
     await f.push.reconcile();
@@ -336,14 +400,14 @@ describe('Push delivery', () => {
 });
 
 describe('Human Inbox push source', () => {
-  it('projects approvals, questions, private input and unread replies by id only', () => {
+  it('projects approvals, questions, private input and unread replies with a short preview', () => {
     const item = (over: Partial<HumanAttentionItem>): HumanAttentionItem => ({
       id: 'x',
       category: 'action',
       kind: 'tool-approval',
       createdAt: '2026-10-14T08:00:00.000Z',
       botSlug: 'ada',
-      summary: SECRET_TEXT,
+      summary: '请求批准执行 bash',
       ...over,
     });
     const source = humanInboxPushSource(
@@ -352,12 +416,24 @@ describe('Human Inbox push source', () => {
           items:
             category === 'action'
               ? [
-                  item({ id: 'approval:1', channelId: 'c', messageId: 'm' }),
+                  item({
+                    id: 'approval:1',
+                    channelId: 'dm-ada',
+                    channelName: 'Ada',
+                    messageId: 'm',
+                  }),
+                  item({ id: 'approval:2', channelId: 'g1', channelName: 'ops', messageId: 'n' }),
                   item({ id: 'join:1', kind: 'group-join-request' }),
-                  item({ id: 'secret:1', kind: 'private-input' }),
+                  item({ id: 'secret:1', kind: 'private-input', summary: SECRET_TEXT }),
+                  item({ id: 'question:1', kind: 'user-question', summary: 'Which\n  branch?' }),
                 ]
               : [
-                  item({ id: 'reply:1', category: 'replies', kind: 'channel-mention' }),
+                  item({
+                    id: 'reply:1',
+                    category: 'replies',
+                    kind: 'channel-mention',
+                    summary: 'x'.repeat(300),
+                  }),
                   item({
                     id: 'reply:2',
                     category: 'replies',
@@ -369,13 +445,27 @@ describe('Human Inbox push source', () => {
         actionCount: () => 3,
       },
       () => 'Ada',
+      (_, messageId) =>
+        messageId === 'm'
+          ? { toolName: 'bash', input: JSON.stringify({ description: 'x', command: 'date > now' }) }
+          : { toolName: 'secret_cli', input: '{}' },
     );
     const pending = source.pending();
     expect(pending.badge).toBe(3);
-    expect(pending.items.map((entry) => [entry.id, entry.kind])).toEqual([
-      ['approval:1', 'approval'],
-      ['secret:1', 'private-input'],
-      ['reply:1', 'reply'],
+    expect(
+      pending.items.map((entry) => [
+        entry.id,
+        entry.kind,
+        entry.channelName,
+        entry.preview,
+        entry.categoryId,
+      ]),
+    ).toEqual([
+      ['approval:1', 'approval', undefined, 'bash · date > now', 'tool-approval'],
+      ['approval:2', 'approval', 'ops', 'secret_cli', 'tool-approval-once'],
+      ['secret:1', 'private-input', undefined, undefined, undefined],
+      ['question:1', 'question', undefined, 'Which branch?', undefined],
+      ['reply:1', 'reply', undefined, `${'x'.repeat(139)}…`, undefined],
     ]);
     expect(JSON.stringify(pending)).not.toContain(SECRET_TEXT);
   });

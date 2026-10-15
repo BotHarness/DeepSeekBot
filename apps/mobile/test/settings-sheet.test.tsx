@@ -4,6 +4,9 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('react-native', () => import('./react-native-shim'));
+vi.mock('react-native-safe-area-context', () => ({
+  useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
+}));
 vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
 
 import { humanNameOf } from '../src/host/human';
@@ -34,7 +37,6 @@ function actions(overrides: Partial<SettingsActions> = {}): SettingsActions {
     onClose: vi.fn(),
     onOpenFullClient: vi.fn(),
     onComputers: vi.fn(),
-    onHostLook: vi.fn(),
     onAppIcon: vi.fn(),
     onNotifications: vi.fn(),
     onUnpair: vi.fn(async () => undefined),
@@ -65,7 +67,6 @@ describe('Settings sheet', () => {
 
     const rows: [string, keyof SettingsActions][] = [
       [`${t.computers}, ${t.computersHint}`, 'onComputers'],
-      [`${t.hostLook}, ${t.hostLookHint}`, 'onHostLook'],
       [`${t.appIcon}, ${t.appIconHint}`, 'onAppIcon'],
       [t.notifications, 'onNotifications'],
       [t.openFullClient, 'onOpenFullClient'],

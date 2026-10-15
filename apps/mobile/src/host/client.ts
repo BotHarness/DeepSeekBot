@@ -52,6 +52,10 @@ export interface RosterChannel {
   name: string;
   memberCount: number;
   members: string[];
+  avatar?: string;
+  ownerBotSlug?: string;
+  pendingInvites?: Array<{ id: string; botSlug: string }>;
+  pendingJoins?: Array<{ id: string; botSlug: string }>;
   preview?: string;
   previewAt?: string;
 }
@@ -283,6 +287,14 @@ export function createHostClient(options: HostClientOptions): HostClient {
           name: channel.name,
           memberCount: channel.members.length,
           members: channel.members,
+          ...(channel.avatar === undefined ? {} : { avatar: channel.avatar }),
+          ...(channel.ownerBotSlug === undefined ? {} : { ownerBotSlug: channel.ownerBotSlug }),
+          pendingInvites: (channel.invitations ?? [])
+            .filter((invite) => invite.status === 'pending')
+            .map((invite) => ({ id: invite.id, botSlug: invite.targetBotSlug })),
+          pendingJoins: (channel.joinRequests ?? [])
+            .filter((request) => request.status === 'pending')
+            .map((request) => ({ id: request.id, botSlug: request.requesterBotSlug })),
           ...previewOf(channel),
         });
     }

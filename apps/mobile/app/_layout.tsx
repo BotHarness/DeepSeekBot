@@ -40,6 +40,16 @@ export default function RootLayout() {
               }}
             />
             <Stack.Screen
+              name="group/[id]"
+              options={{
+                title: t.groupInfo,
+                headerShown: false,
+                presentation: 'formSheet',
+                sheetAllowedDetents: [0.75, 1],
+                sheetGrabberVisible: true,
+              }}
+            />
+            <Stack.Screen
               name="settings"
               options={{
                 title: t.settings,

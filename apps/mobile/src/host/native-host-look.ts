@@ -3,15 +3,16 @@ import * as ImagePicker from 'expo-image-picker';
 import { useCallback, useSyncExternalStore } from 'react';
 
 import type { HostLook } from '../ui/design/host-look';
-import { createHostLooks } from './host-look';
+import { createHostLooks, LOOK_IMAGES, rebaseLookImages } from './host-look';
 
 const file = (): File => new File(Paths.document, 'deepseekbot-host-looks.json');
-const folder = (): Directory => new Directory(Paths.document, 'host-looks');
+const folder = (): Directory => new Directory(Paths.document, LOOK_IMAGES);
 
 export const hostLooks = createHostLooks({
   async read() {
     const stored = file();
-    return stored.exists ? (JSON.parse(await stored.text()) as unknown) : undefined;
+    if (!stored.exists) return undefined;
+    return rebaseLookImages(JSON.parse(await stored.text()) as unknown, folder().uri);
   },
   write(value) {
     try {

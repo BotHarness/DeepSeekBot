@@ -6,6 +6,7 @@ import { useDesignTheme } from '../design/theme';
 import { CountBadge } from '../primitives/count-badge';
 import { Text } from '../primitives/text';
 import { t } from '../strings';
+import { GroupMark } from './group-mark';
 import { countBadge, shortTime, titleOf, type Conversation } from './conversations';
 
 const AVATAR = 48;
@@ -71,20 +72,13 @@ export function ConversationRow({
             justifyContent: 'center',
           }}
         >
-          <View
-            style={{
-              width: AVATAR,
-              height: AVATAR,
-              borderRadius: radius.md,
-              backgroundColor: theme.color.surface,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <Text variant="title" tone="muted">
-              #
-            </Text>
-          </View>
+          <GroupMark
+            avatar={row.channel.avatar}
+            size={AVATAR}
+            corner={radius.md}
+            variant="title"
+            strong={false}
+          />
         </View>
       )}
       <View style={{ flex: 1, gap: space.x1 }}>

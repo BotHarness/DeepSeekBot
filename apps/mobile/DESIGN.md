@@ -19,13 +19,14 @@ The shell is set by [ADR-0211](../../docs/adr/0211-the-mobile-app-has-two-tabs-w
   - The app stays connected to every paired Host at once.
   - The Chats list and every chat show one Host at a time. The Chats header has a Slack-style band in the accent colour (a muted accent in dark mode); the list sits on a panel with rounded top corners below it.
   - The **Host chip** at the top left shows the Host's initial tile, its name and ▾. Tapping it opens the **Host drawer**.
-  - **Customize header** sets how each Host looks, kept on the phone per Host. It is a form sheet with a live preview of the band, opened from Settings → Interface.
+  - **Customize computer** sets how each Host looks, kept on the phone per Host. It is a form sheet with a live preview of the band, opened from that Host's ⋯ menu in the Host drawer (or a long press on its row), so each paired Host is customized where it is listed.
+    - Name: a local name shown in the Host chip and the drawer instead of the Host's own name; clearing it goes back to the Host's name.
     - Avatar: the initial tile (default), one of eight pixel portraits from the PersonaBot avatar generator, or a photo cropped square.
     - Banner: the accent band (default), a solid colour (ten swatches or a typed hex), a two-stop gradient (six presets or typed stops), or a picture under a dark scrim.
     - A custom colour goes through the accent band's steps, so dark mode mutes it the same way. The ink is white or near-black, whichever reads on every stop; a picture always takes white ink with a soft shadow.
 - **Host drawer** switches Hosts. It slides in from the left, covers about 85% of the width and dims the list behind it.
   - Like Slack's workspace drawer it has three parts on the `sheet` layer: a fixed "Computers" header, a scrolling list of Hosts, and a fixed footer with **Pair a new computer** (opens the pairing flow) and **Notifications** (opens notification settings), separated from the list by a divider.
-  - Each Host row has its Computer avatar tile (the same tile as the Host chip; the current Host's tile has an `fg` ring at radius `lg`, concentric with the tile, as Slack marks the current workspace), its name, an online/offline/checking dot and label, then one **count chip** on the right (see Count chip below). It shows **Needs you** when anything waits for the Human, because that matters most; otherwise it shows **Unread**, the count of unread conversations. A ⋯ button at the end opens the Host's menu: Show this computer and Unpair, which asks for confirmation.
+  - Each Host row has its Computer avatar tile (the same tile as the Host chip; the current Host's tile has an `fg` ring at radius `lg`, concentric with the tile, as Slack marks the current workspace), its name, an online/offline/checking dot and label, then one **count chip** on the right (see Count chip below). It shows **Needs you** when anything waits for the Human, because that matters most; otherwise it shows **Unread**, the count of unread conversations. A ⋯ button at the end, or a long press on the row, opens the Host's menu: Customize (name, avatar and banner), Show this computer, and Unpair, which asks for confirmation.
   - The Host chip opens it, and so does a swipe right from the left edge of a tab's root screen. The edge swipe is never attached inside a pushed chat, where it stays the system Back.
   - Tapping a Host switches to it and closes the drawer. Tapping the backdrop or swiping left closes it.
   - It takes screen-reader focus when it opens and returns focus to the Host chip when it closes. With Reduce Motion on it appears without sliding.
@@ -60,7 +61,7 @@ The shell is set by [ADR-0211](../../docs/adr/0211-the-mobile-app-has-two-tabs-w
   - Opening an item jumps to the card in its chat.
 - **Settings** is a form sheet with a large detent, opened from the avatar, and closed by swiping down or the close button. It reuses the settings row and section components, in groups:
   - **Connections**: the current Host and its connection status, Computers (paired Hosts, their status and unpairing, with the same confirmation and error notice as before), Notifications, and Open full client.
-  - **Interface**: Customize header, App icon (the shipped default icon or one of two DeepSeekBot portraits, the full one and the chibi one, each with dark and tinted variants on iOS), and Appearance (scheme, accent, chat wallpaper) once it exists.
+  - **Interface**: App icon (the shipped default icon or one of two DeepSeekBot portraits, the full one and the chibi one, each with dark and tinted variants on iOS), and Appearance (scheme, accent, chat wallpaper) once it exists. Each Host's name, avatar and banner are customized from its menu in the Host drawer, not here.
   - **Chats**: Channel sections and Hidden Channels, each pushing its own screen.
 
 ## Screens
@@ -137,7 +138,7 @@ The shell is set by [ADR-0211](../../docs/adr/0211-the-mobile-app-has-two-tabs-w
       3. **Auto approval template**: Off, Cautious and Get the work done (plus any other template on the Host), each with its one-line hint, the current one checked.
   - The mic dictates with the phone's speech recognizer, and the words fill the field so the Human edits them before sending. Like Telegram's voice button: hold the mic to talk and release to stop; while holding, a lock appears above the mic: slide left to cancel or up to lock. A tap works like a lock: it keeps listening until **■** stops it or the **×** that replaces **+** cancels it and clears the text. Dictation stays in the same row, and its status shows as the field's placeholder. A refused microphone or speech permission shows a notice and leaves the mic in place.
 - A group Channel opens the same chat screen, with these differences:
-  - The header is the same floating header. Its centered chip, on the same frosted `raised` with a hairline `edge` like the Bot chip, holds a round `#` mark, the Channel name and its member count; it opens nothing, since there is no profile. The full client button sits on the right.
+  - The header is the same floating header. Its centered chip, on the same frosted `raised` with a hairline `edge` like the Bot chip, holds the group's photo (or a round `#` mark), the Channel name and its member count; it opens **Group info**. The full client button sits on the right.
   - Like Slack and the Web Client, each Bot message sits in a row with a 32 pt avatar column on the left: a rounded square (`radius.sm`, no state ring). The first bubble of each Bot's group, and each Bot's streaming draft, carry the Bot's name above it in `meta`. The avatar rests beside the group's last bubble, its bottom edge level with that bubble's bottom edge, never with its reaction or delivery row. While the group scrolls past, the avatar sticks to the list's visible bottom edge (above the floating composer and its fade) and follows the group up until it reaches the group's first bubble. This runs on the UI thread from the list's scroll offset (Reanimated `useScrollOffset` and `measure`). A Bot missing from the roster gets a `surface` rounded square with its initial. A different Bot starts a new group even within 5 minutes.
   - `accent` stays the app's accent, since no one Bot owns the chat.
   - Working member Bots share one row: up to three avatars stacked (each ringed in `base`), then "Working…"; one Bot shows its own step.
@@ -145,10 +146,20 @@ The shell is set by [ADR-0211](../../docs/adr/0211-the-mobile-app-has-two-tabs-w
   - Typing `@` opens a suggestion list above the composer pill, on the `sheet` layer: **All Bots** (the Channel's active members, as the Web Client's "@All Bots") and the active member Bots with avatar and name, filtered by what follows the `@`. Choosing one inserts `@Name ` as a mention token, sent with the message like the Web Client's, so the mentioned Bots are woken even under a mentions-only wake policy. Editing inside a token turns it back into plain text.
   - A notification or Activity item for a group Channel reply, mention or card opens this chat, at the card when there is one.
 
+**Group info** (a form sheet, opened from a group Channel's header chip)
+
+- The group's photo (or `#` on a rounded square), its name and member count.
+- A **Group** settings group: **Name** opens a bottom sheet with the name field and Save; **Choose a photo** opens the photo picker, crops the photo square and sends it to the Host scaled to 256 × 256 px as a JPEG (the Host takes at most 96 KB); **Remove photo** appears once there is one.
+- **Join requests** (only while one is pending): each requesting Bot with **Allow** (primary) and **Decline**.
+- **Members**: **Invite a PersonaBot** first, while any roster Bot is neither a member nor invited, opening a bottom sheet of those Bots; then each member Bot with its 32 pt rounded-square avatar and "Creator" under the Bot that made the group. Tapping a member opens its profile; its ⋯ menu offers Open profile and **Remove from group**, which asks for confirmation. Pending invitations follow, marked "Invited · waiting for an answer", with **Cancel**.
+- **Disband group** is a danger row at the bottom; it asks for confirmation and on success returns to Chats.
+- A refused change shows a `danger` callout under the header and leaves the page as it was. Changes show on the phone and the desktop when the roster refreshes.
+- Group wake policy, group connectors and the group's work list stay on the computer.
+
 **Bot profile** (a form sheet)
 
 - Avatar, name, label and description.
-- Actions: Message (closes the sheet back to the DM), Computer (only when the Bot has Computer access; opens the live desktop view, where **Pause Bot and take control** lets the Human click and type, with a password keyboard), Notifications.
+- Actions: Message (closes the sheet back to the DM), Computer (only when the Bot has Computer access; opens the live desktop view, where touching the screen pauses the Bot so the Human can click and type, the Bot resumes 30 seconds after the last input or at once from the hand-back icon, and the password keyboard keeps it paused), Notifications.
 - Under the actions, a **Bot settings** group with the Model and Workspace rows (see Chat), each opening its sheet from the bottom over the profile.
 - Sections: Identity (the Soul: persona and standing rules), Memory (the Memory repository as a folder tree: folders first, each opens to its own list inside the sheet, and a file opens as read-only text), Routines (schedules), Channels (group Channels the Bot is in), Files (folders shared with the Bot).
 - Each section loads on its own: an empty section says so, and a failed one offers Try again without hiding the others.

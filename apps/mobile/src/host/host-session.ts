@@ -24,10 +24,15 @@ const listeners = new Set<() => void>();
 let state: HostSessionState = { saved: undefined, hosts: [], client: undefined, inbox: undefined };
 let stored: SavedHosts = { hosts: [] };
 let offInbox: (() => void) | undefined;
+let offConnection: (() => void) | undefined;
 
 export const hostPush = createHostPush(nativeCarrier());
 export const pushSession = createPushSession({
-  notifications: nativeNotifications(t.notificationsChannel),
+  notifications: nativeNotifications(t.notificationsChannel, {
+    always: t.alwaysAllow,
+    approve: t.allowOnce,
+    reject: t.reject,
+  }),
   hostPush,
   platform: Platform.OS === 'android' ? 'android' : 'ios',
   locale: locale === 'zh' ? 'zh' : 'en',
@@ -54,6 +59,7 @@ function adopt(next: SavedHosts): void {
     return;
   }
   offInbox?.();
+  offConnection?.();
   state.inbox?.stop();
   state.client?.stop();
   const client =
@@ -69,6 +75,12 @@ function adopt(next: SavedHosts): void {
     saved === null || inbox === undefined
       ? undefined
       : inbox.subscribe(() => reflectInbox(saved.hostId, inbox));
+  let connected = false;
+  offConnection = client?.subscribe(() => {
+    const now = client.getSnapshot().connection.status === 'connected';
+    if (now && !connected) void pushSession.retryFailed();
+    connected = now;
+  });
   state = { saved, hosts: next.hosts, client, inbox };
   client?.start();
   for (const listener of listeners) listener();
@@ -90,6 +102,7 @@ void loadSavedHosts().then(
 AppState.addEventListener('change', (next) => {
   if (next !== 'active') return;
   pushSession.reflectAgain();
+  void pushSession.retryFailed();
   state.client?.retryNow();
   if (state.client?.getSnapshot().connection.status === 'connected') void state.inbox?.refresh();
 });

@@ -2,6 +2,7 @@ import {
   bannerHex,
   DEFAULT_HOST_LOOK,
   HOST_AVATAR_PRESETS,
+  hostLookName,
   type HostAvatar,
   type HostBanner,
   type HostLook,
@@ -58,10 +59,36 @@ export function parseHostBanner(input: unknown): HostBanner {
 
 export function parseHostLook(input: unknown): HostLook {
   const value = record(input);
+  const name = hostLookName(value['name']);
   return {
+    ...(name === undefined ? {} : { name }),
     avatar: parseHostAvatar(value['avatar']),
     banner: parseHostBanner(value['banner']),
   };
+}
+
+export const LOOK_IMAGES = 'host-looks';
+
+export function rebaseLookImage(uri: string, folderUri: string): string {
+  const marker = `/${LOOK_IMAGES}/`;
+  const at = uri.lastIndexOf(marker);
+  if (at < 0) return uri;
+  return `${folderUri.replace(/\/?$/u, '/')}${uri.slice(at + marker.length)}`;
+}
+
+export function rebaseLookImages(input: unknown, folderUri: string): unknown {
+  const looks = record(input);
+  const slot = (value: unknown) => {
+    const part = record(value);
+    const uri = part['uri'];
+    return typeof uri === 'string' ? { ...part, uri: rebaseLookImage(uri, folderUri) } : value;
+  };
+  return Object.fromEntries(
+    Object.entries(looks).map(([hostId, look]) => {
+      const value = record(look);
+      return [hostId, { ...value, avatar: slot(value['avatar']), banner: slot(value['banner']) }];
+    }),
+  );
 }
 
 export function createHostLooks(storage: LookStorage): HostLooks {

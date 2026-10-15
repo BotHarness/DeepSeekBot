@@ -151,13 +151,23 @@ export function desktopInputCall(
       };
     }
     case 'type':
-      return { tool: 'type_text', args: { scope: 'desktop', text: input.text } };
+      return {
+        tool: 'type_text',
+        args: { scope: 'desktop', delivery_mode: 'foreground', text: input.text },
+      };
     case 'key':
       return input.modifiers.length === 0
-        ? { tool: 'press_key', args: { scope: 'desktop', key: input.key } }
+        ? {
+            tool: 'press_key',
+            args: { scope: 'desktop', delivery_mode: 'foreground', key: input.key },
+          }
         : {
             tool: 'hotkey',
-            args: { scope: 'desktop', keys: [...input.modifiers.map(driverModifier), input.key] },
+            args: {
+              scope: 'desktop',
+              delivery_mode: 'foreground',
+              keys: [...input.modifiers.map(driverModifier), input.key],
+            },
           };
   }
 }

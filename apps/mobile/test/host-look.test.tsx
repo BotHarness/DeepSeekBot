@@ -14,13 +14,14 @@ vi.mock('react-native-svg', () => ({
   Stop: () => null,
 }));
 
-import { createHostLooks, parseHostLook } from '../src/host/host-look';
+import { createHostLooks, parseHostLook, rebaseLookImages } from '../src/host/host-look';
 import {
   BANNER_COLORS,
   BANNER_GRADIENTS,
   bannerHex,
   DEFAULT_HOST_LOOK,
   hostBand,
+  shownHostName,
   type HostLook,
 } from '../src/ui/design/host-look';
 import { contrast, resolveTheme } from '../src/ui/design/resolve-theme';
@@ -56,6 +57,13 @@ describe('Host look model', () => {
     });
   });
 
+  it('keeps a trimmed local name and drops a blank one', () => {
+    expect(parseHostLook({ name: '  Studio Mac  ' }).name).toBe('Studio Mac');
+    expect(parseHostLook({ name: '   ' })).toEqual(DEFAULT_HOST_LOOK);
+    expect(shownHostName(parseHostLook({ name: 'Home' }), 'vm')).toBe('Home');
+    expect(shownHostName(DEFAULT_HOST_LOOK, 'vm')).toBe('vm');
+  });
+
   it('keeps one look per Host and saves every change', async () => {
     const write = vi.fn();
     const looks = createHostLooks({
@@ -73,6 +81,26 @@ describe('Host look model', () => {
       studio: { avatar: { kind: 'initial' }, banner: { kind: 'color', color: '#2e9e4f' } },
       laptop: next,
     });
+  });
+
+  it('finds picked pictures again after the app moves to a new folder', () => {
+    const old = 'file:///var/mobile/Containers/Data/Application/OLD/Documents/host-looks';
+    const now = 'file:///var/mobile/Containers/Data/Application/NEW/Documents/host-looks/';
+    const looks = rebaseLookImages(
+      {
+        studio: {
+          avatar: { kind: 'image', uri: `${old}/studio-avatar-1.jpg` },
+          banner: { kind: 'image', uri: 'https://example.com/banner.jpg' },
+        },
+        laptop: { avatar: { kind: 'initial' }, banner: { kind: 'accent' } },
+      },
+      now,
+    );
+    expect(parseHostLook((looks as Record<string, unknown>)['studio'])).toEqual({
+      avatar: { kind: 'image', uri: `${now}studio-avatar-1.jpg` },
+      banner: { kind: 'image', uri: 'https://example.com/banner.jpg' },
+    });
+    expect(parseHostLook((looks as Record<string, unknown>)['laptop'])).toEqual(DEFAULT_HOST_LOOK);
   });
 
   it('keeps the Host name readable on every preset band in both schemes', () => {
@@ -131,7 +159,7 @@ function actions(overrides: Partial<HostLookActions> = {}): HostLookActions {
 const button = (view: HTMLElement, label: string) =>
   view.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`);
 
-describe('Customize header sheet', () => {
+describe('Customize computer sheet', () => {
   it('picks a preset avatar and a solid banner colour', async () => {
     const handlers = actions();
     const view = await render(
@@ -155,6 +183,50 @@ describe('Customize header sheet', () => {
       avatar: { kind: 'initial' },
       banner: { kind: 'color', color: BANNER_COLORS[5] },
     });
+  });
+
+  it('renames the computer on the phone and falls back to its own name when cleared', async () => {
+    const handlers = actions();
+    const view = await render(
+      <HostLookEditor hostName="vm" look={DEFAULT_HOST_LOOK} actions={handlers} />,
+    );
+    const field = view.querySelector<HTMLTextAreaElement>(
+      `textarea[aria-label="${t.hostLookName}"]`,
+    )!;
+    expect(field.placeholder).toBe('vm');
+    const type = async (text: string) =>
+      act(async () => {
+        const setter = Object.getOwnPropertyDescriptor(
+          HTMLTextAreaElement.prototype,
+          'value',
+        )!.set!;
+        setter.call(field, text);
+        field.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+    await type('Studio ');
+    expect(handlers.onChange).toHaveBeenLastCalledWith({ ...DEFAULT_HOST_LOOK, name: 'Studio' });
+    await type('');
+    expect(handlers.onChange).toHaveBeenLastCalledWith(DEFAULT_HOST_LOOK);
+  });
+
+  it('shows a saved look that arrives after the sheet opens', async () => {
+    const handlers = actions();
+    const view = await render(
+      <HostLookEditor hostName="vm" look={DEFAULT_HOST_LOOK} actions={handlers} />,
+    );
+    const saved = {
+      name: 'Studio',
+      avatar: DEFAULT_HOST_LOOK.avatar,
+      banner: { kind: 'color', color: BANNER_COLORS[2] },
+    } as const;
+    await act(async () =>
+      root!.render(<HostLookEditor hostName="vm" look={saved} actions={handlers} />),
+    );
+    const field = view.querySelector<HTMLTextAreaElement>(
+      `textarea[aria-label="${t.hostLookName}"]`,
+    )!;
+    expect(field.value).toBe('Studio');
+    expect(button(view, t.bannerSwatch(BANNER_COLORS[2].toUpperCase()))).not.toBeNull();
   });
 
   it('applies a typed colour once it is a full hex value', async () => {

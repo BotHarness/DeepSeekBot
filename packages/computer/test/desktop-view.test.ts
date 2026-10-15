@@ -71,15 +71,18 @@ describe('desktop view input', () => {
     });
     expect(desktopInputCall({ kind: 'type', text: 'hi' }, undefined)).toEqual({
       tool: 'type_text',
-      args: { scope: 'desktop', text: 'hi' },
+      args: { scope: 'desktop', delivery_mode: 'foreground', text: 'hi' },
     });
     expect(desktopInputCall({ kind: 'key', key: 'return', modifiers: [] }, undefined)).toEqual({
       tool: 'press_key',
-      args: { scope: 'desktop', key: 'return' },
+      args: { scope: 'desktop', delivery_mode: 'foreground', key: 'return' },
     });
     expect(
       desktopInputCall({ kind: 'key', key: 'l', modifiers: ['meta', 'shift'] }, undefined),
-    ).toEqual({ tool: 'hotkey', args: { scope: 'desktop', keys: ['cmd', 'shift', 'l'] } });
+    ).toEqual({
+      tool: 'hotkey',
+      args: { scope: 'desktop', delivery_mode: 'foreground', keys: ['cmd', 'shift', 'l'] },
+    });
   });
 });
 

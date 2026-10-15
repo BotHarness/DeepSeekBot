@@ -17,7 +17,26 @@ export type HostBanner =
   | { kind: 'gradient'; from: string; to: string }
   | { kind: 'image'; uri: string };
 
-export type HostLook = { avatar: HostAvatar; banner: HostBanner };
+export type HostLook = { name?: string; avatar: HostAvatar; banner: HostBanner };
+
+export const HOST_NAME_MAX = 40;
+
+export function hostLookName(name: unknown): string | undefined {
+  if (typeof name !== 'string') return undefined;
+  const trimmed = name.trim().slice(0, HOST_NAME_MAX);
+  return trimmed === '' ? undefined : trimmed;
+}
+
+export function withHostName(look: HostLook, text: string): HostLook {
+  const name = hostLookName(text);
+  return name === undefined
+    ? { avatar: look.avatar, banner: look.banner }
+    : { name, avatar: look.avatar, banner: look.banner };
+}
+
+export function shownHostName(look: HostLook, hostName: string): string {
+  return look.name ?? hostName;
+}
 
 export const DEFAULT_HOST_LOOK: HostLook = {
   avatar: { kind: 'initial' },

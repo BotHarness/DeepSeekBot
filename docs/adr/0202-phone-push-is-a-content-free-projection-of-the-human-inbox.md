@@ -1,5 +1,5 @@
 ---
-Status: Accepted
+Status: Superseded in part by ADR-0213
 Date: 2026-10-14
 Issues: [#1655](https://github.com/BotHarness/DeepSeekBot/issues/1655), [#1646](https://github.com/BotHarness/DeepSeekBot/issues/1646), [#1643](https://github.com/BotHarness/DeepSeekBot/issues/1643)
 ---

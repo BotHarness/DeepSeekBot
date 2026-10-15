@@ -52,7 +52,9 @@ vi.mock('../src/host/native-section-collapse', () => ({
   sectionCollapse: { toggle: () => {} },
   useCollapsedSections: () => new Set(),
 }));
-vi.mock('../src/host/native-host-look', () => ({ useHostLook: () => undefined }));
+vi.mock('../src/host/native-host-look', () => ({
+  useHostLook: () => ({ avatar: { kind: 'initial' }, banner: { kind: 'accent' } }),
+}));
 vi.mock('../src/ui/chat/section-header', () => ({ SectionHeader: () => null }));
 vi.mock('../src/ui/shell/home-header', () => ({
   HomeHeader: ({ children }: { children: ReactNode }) => children,

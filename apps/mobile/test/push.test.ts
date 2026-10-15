@@ -23,6 +23,7 @@ import {
   type SavedHost,
 } from '../src/host/hosts';
 import { createHostPush, parsePushData, pushHref, PushRequestFailed } from '../src/host/push';
+import { decideFromPush } from '../src/host/push-actions';
 import {
   createPushSession,
   type NotificationsPort,
@@ -237,6 +238,60 @@ async function realHost() {
   };
 }
 
+describe('notification buttons', () => {
+  const approval = {
+    hostId: 'h2',
+    itemId: 'approval:e1',
+    kind: 'tool-approval',
+    botSlug: 'ada',
+    channelId: 'dm-ada',
+    messageId: 'm1',
+  };
+  const two = { ...host('h2'), routes: ['https://down.ts.net', 'https://up.ts.net'] };
+
+  it('decides the approval on the Host it came from, trying each route', async () => {
+    const calls: string[] = [];
+    const result = await decideFromPush(
+      [host('h1'), two],
+      approval,
+      'approve',
+      async (target, route, ref, outcome) => {
+        calls.push(`${target.hostId} ${route} ${ref.messageId} ${outcome}`);
+        if (route.includes('down')) throw new Error('unreachable');
+        return 'accepted';
+      },
+    );
+    expect(result).toBe('accepted');
+    expect(calls).toEqual([
+      'h2 https://down.ts.net m1 allowed-once',
+      'h2 https://up.ts.net m1 allowed-once',
+    ]);
+    expect(
+      await decideFromPush([two], approval, 'reject', async (_, __, ___, outcome) =>
+        outcome === 'rejected' ? 'decided' : 'accepted',
+      ),
+    ).toBe('decided');
+    const outcomes: string[] = [];
+    await decideFromPush([two], approval, 'always', async (_, __, ___, outcome) => {
+      outcomes.push(outcome);
+      return 'accepted';
+    });
+    expect(outcomes).toEqual(['allowed-always-exact']);
+  });
+
+  it('ignores other buttons and kinds, and fails for an unpaired or unreachable Host', async () => {
+    const never = async (): Promise<never> => {
+      throw new Error('called');
+    };
+    expect(await decideFromPush([two], approval, 'later', never)).toBeUndefined();
+    expect(
+      await decideFromPush([two], { ...approval, kind: 'user-question' }, 'approve', never),
+    ).toBeUndefined();
+    expect(await decideFromPush([host('h1')], approval, 'approve', never)).toBe('failed');
+    expect(await decideFromPush([two], approval, 'approve', never)).toBe('failed');
+  });
+});
+
 describe('push registration with a real Host gateway', () => {
   it('registers after the Human allows notifications, honours kinds, tests, and stops on unpair', async () => {
     const h = await realHost();
@@ -265,7 +320,8 @@ describe('push registration with a real Host gateway', () => {
     expect(h.sent).toEqual([
       expect.objectContaining({
         to: 'ExponentPushToken[phone-token-0001]',
-        title: 'Ada needs your approval',
+        title: 'Ada',
+        body: 'Needs your approval',
         data: expect.objectContaining({ hostId: h.saved.hostId, itemId: 'approval:1' }),
       }),
     ]);
@@ -308,6 +364,34 @@ describe('push registration with a real Host gateway', () => {
     });
     await session.sync([h.saved]);
     expect(session.getSnapshot()).toEqual({ status: 'unavailable', reason: 'missing-project-id' });
+    h.owner.close();
+  });
+
+  it('registers a Host that was offline at launch once it is reachable again', async () => {
+    const h = await realHost();
+    const real = createHostPush(nodeCarrier(), 2_000);
+    let offline = true;
+    const hostPush = {
+      ...real,
+      register: (...args: Parameters<typeof real.register>) =>
+        offline ? Promise.reject(new Error('unreachable')) : real.register(...args),
+    };
+    const session = createPushSession({
+      notifications: fakeNotifications('granted').port,
+      hostPush,
+      platform: 'ios',
+      locale: 'en',
+    });
+
+    await session.sync([h.saved]);
+    expect(session.getSnapshot()).toEqual({ status: 'on', failed: [h.saved.hostId] });
+    await session.retryFailed();
+    expect(session.getSnapshot()).toEqual({ status: 'on', failed: [h.saved.hostId] });
+
+    offline = false;
+    await Promise.all([session.retryFailed(), session.retryFailed()]);
+    expect(session.getSnapshot()).toEqual({ status: 'on', failed: [] });
+    expect((await real.settings(h.saved)).registered).toBe(true);
     h.owner.close();
   });
 

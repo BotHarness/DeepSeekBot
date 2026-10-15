@@ -131,16 +131,16 @@ export function ComputerMousePad({
 }
 
 const MODIFIERS: readonly (readonly [ComputerModifier, string, string])[] = [
-  ['meta', '⌘', 'Command'],
-  ['ctrl', '⌃', 'Control'],
-  ['alt', '⌥', 'Option'],
-  ['shift', '⇧', 'Shift'],
+  ['meta', '⌘', t.computerKeyCommand],
+  ['ctrl', '⌃', t.computerKeyControl],
+  ['alt', '⌥', t.computerKeyOption],
+  ['shift', '⇧', t.computerKeyShift],
 ];
 
 const KEYS: readonly (readonly [string, string, string])[] = [
-  [COMPUTER_KEYS.enter, '↵', 'Return'],
-  [COMPUTER_KEYS.tab, '⇥', 'Tab'],
-  [COMPUTER_KEYS.escape, '⎋', 'Escape'],
+  [COMPUTER_KEYS.enter, '↵', t.computerKeyReturn],
+  [COMPUTER_KEYS.tab, '⇥', t.computerKeyTab],
+  [COMPUTER_KEYS.escape, '⎋', t.computerKeyEscape],
 ];
 
 export function ComputerKeyBar({

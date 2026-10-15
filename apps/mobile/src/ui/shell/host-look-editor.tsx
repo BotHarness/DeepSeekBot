@@ -9,6 +9,10 @@ import {
   DEFAULT_HOST_LOOK,
   HEX_PLACEHOLDER,
   HOST_AVATAR_PRESETS,
+  HOST_NAME_MAX,
+  hostLookName,
+  shownHostName,
+  withHostName,
   type HostAvatar,
   type HostBanner,
   type HostLook,
@@ -22,7 +26,7 @@ import { t } from '../strings';
 import { Chip } from './activity-filters';
 import { GradientFill } from './gradient-fill';
 import { HostBandLayer, HostChipFace, useHostBand } from './host-band';
-import { HostTile, presetAvatarSvg } from './host-tile';
+import { hostInitial, HostTile, presetAvatarSvg } from './host-tile';
 
 export interface HostLookActions {
   onChange(look: HostLook): void;
@@ -224,6 +228,15 @@ export function HostLookEditor({
   const theme = useDesignTheme();
   const [kind, setKind] = useState<BannerKind>(look.banner.kind);
   const [pickError, setPickError] = useState(false);
+  const [nameDraft, setNameDraft] = useState(look.name ?? '');
+  const [stored, setStored] = useState(look);
+  if (stored !== look) {
+    setStored(look);
+    if (look.banner.kind !== stored.banner.kind) setKind(look.banner.kind);
+    if (look.name !== stored.name && hostLookName(nameDraft) !== look.name)
+      setNameDraft(look.name ?? '');
+  }
+  const shown = shownHostName(look, hostName);
   const setAvatar = (avatar: HostAvatar) => actions.onChange({ ...look, avatar });
   const setBanner = (banner: HostBanner) => actions.onChange({ ...look, banner });
   const banner = look.banner;
@@ -252,16 +265,12 @@ export function HostLookEditor({
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.color.base }}>
-      <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          paddingTop: space.x4,
-          paddingLeft: space.x5,
-          paddingRight: space.x2,
-        }}
-      >
+    <ScrollView
+      style={{ flex: 1, backgroundColor: theme.color.base }}
+      keyboardShouldPersistTaps="handled"
+      contentContainerStyle={{ gap: space.x6, padding: space.x5 }}
+    >
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: -space.x3 }}>
         <Text variant="title" accessibilityRole="header" style={{ flex: 1 }}>
           {t.hostLook}
         </Text>
@@ -283,144 +292,166 @@ export function HostLookEditor({
           </Text>
         </Pressable>
       </View>
-      <ScrollView
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ gap: space.x6, padding: space.x5 }}
-      >
-        <Preview hostName={hostName} look={look} />
+      <Preview hostName={shown} look={look} />
 
-        <Section title={t.hostAvatar}>
-          <Grid>
-            <Swatch
-              label={t.hostAvatarInitial}
-              selected={look.avatar.kind === 'initial'}
-              onPress={() => setAvatar({ kind: 'initial' })}
-            >
-              <Text variant="title">{Array.from(hostName.trim())[0]?.toUpperCase() ?? '?'}</Text>
-            </Swatch>
-            {HOST_AVATAR_PRESETS.map((id, index) => (
-              <Swatch
-                key={id}
-                label={t.hostAvatarPreset(index + 1)}
-                selected={look.avatar.kind === 'preset' && look.avatar.id === id}
-                onPress={() => setAvatar({ kind: 'preset', id })}
-              >
-                <SvgXml xml={presetAvatarSvg(id)} width="100%" height="100%" />
-              </Swatch>
-            ))}
-            <Swatch
-              label={t.hostAvatarPhoto}
-              selected={look.avatar.kind === 'image'}
-              onPress={() => pick('avatar')}
-            >
-              {look.avatar.kind === 'image' ? (
-                <HostTile
-                  hostName={hostName}
-                  avatar={look.avatar}
-                  size={theme.touch + space.x2}
-                  fill={theme.layer.raised.fill}
-                  letter={theme.color.fg}
-                />
-              ) : (
-                <Text variant="title" tone="muted">
-                  +
-                </Text>
-              )}
-            </Swatch>
-          </Grid>
-        </Section>
-
-        <Section title={t.hostBanner}>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.x3 }}>
-            {KINDS.map((option) => (
-              <Chip
-                key={option}
-                label={KIND_LABEL[option]}
-                selected={kind === option}
-                onPress={() => choose(option)}
-              />
-            ))}
-          </View>
-
-          {kind === 'color' ? (
-            <>
-              <Grid>
-                {BANNER_COLORS.map((hex) => (
-                  <Swatch
-                    key={hex}
-                    round
-                    label={t.bannerSwatch(hex.toUpperCase())}
-                    selected={banner.kind === 'color' && banner.color === hex}
-                    onPress={() => setBanner({ kind: 'color', color: hex })}
-                  >
-                    <View style={{ alignSelf: 'stretch', flex: 1, backgroundColor: hex }} />
-                  </Swatch>
-                ))}
-              </Grid>
-              <HexField
-                label={t.bannerCustom}
-                value={color.toUpperCase()}
-                onValid={(hex) => setBanner({ kind: 'color', color: hex })}
-              />
-            </>
-          ) : null}
-
-          {kind === 'gradient' ? (
-            <>
-              <Grid>
-                {BANNER_GRADIENTS.map((stops) => (
-                  <Swatch
-                    key={`${stops.from}-${stops.to}`}
-                    label={t.bannerGradientSwatch(stops.from.toUpperCase(), stops.to.toUpperCase())}
-                    selected={
-                      banner.kind === 'gradient' &&
-                      banner.from === stops.from &&
-                      banner.to === stops.to
-                    }
-                    onPress={() => setBanner({ kind: 'gradient', ...stops })}
-                  >
-                    <GradientFill
-                      gradient={{ ...stops, fromOpacity: 1, toOpacity: 1, direction: 'diagonal' }}
-                    />
-                  </Swatch>
-                ))}
-              </Grid>
-              <View style={{ flexDirection: 'row', gap: space.x3 }}>
-                <HexField
-                  label={t.bannerFrom}
-                  value={gradient.from.toUpperCase()}
-                  onValid={(from) => setBanner({ kind: 'gradient', from, to: gradient.to })}
-                />
-                <HexField
-                  label={t.bannerTo}
-                  value={gradient.to.toUpperCase()}
-                  onValid={(to) => setBanner({ kind: 'gradient', from: gradient.from, to })}
-                />
-              </View>
-            </>
-          ) : null}
-
-          {kind === 'image' ? (
-            <Button
-              on="canvas"
-              label={banner.kind === 'image' ? t.bannerChangePicture : t.bannerChoosePicture}
-              onPress={() => pick('banner')}
-            />
-          ) : null}
-        </Section>
-
-        {pickError ? <Notice tone="danger">{t.hostLookPickFailed}</Notice> : null}
-
-        <Button
-          on="canvas"
-          tone="danger"
-          label={t.hostLookReset}
-          onPress={() => {
-            setKind('accent');
-            actions.onChange(DEFAULT_HOST_LOOK);
+      <Section title={t.hostLookName}>
+        <TextInput
+          accessibilityLabel={t.hostLookName}
+          value={nameDraft}
+          placeholder={hostName}
+          placeholderTextColor={theme.color.subtle}
+          maxLength={HOST_NAME_MAX}
+          autoCorrect={false}
+          returnKeyType="done"
+          onChangeText={(text) => {
+            setNameDraft(text);
+            actions.onChange(withHostName(look, text));
+          }}
+          style={{
+            minHeight: theme.touch,
+            paddingHorizontal: space.x4,
+            borderRadius: radius.md,
+            borderWidth: edge.hairline,
+            borderColor: theme.layer.field.edge,
+            backgroundColor: theme.layer.field.fill,
+            color: theme.color.fg,
+            fontSize: theme.type.body.size,
           }}
         />
-      </ScrollView>
-    </View>
+      </Section>
+
+      <Section title={t.hostAvatar}>
+        <Grid>
+          <Swatch
+            label={t.hostAvatarInitial}
+            selected={look.avatar.kind === 'initial'}
+            onPress={() => setAvatar({ kind: 'initial' })}
+          >
+            <Text variant="title">{hostInitial(shown)}</Text>
+          </Swatch>
+          {HOST_AVATAR_PRESETS.map((id, index) => (
+            <Swatch
+              key={id}
+              label={t.hostAvatarPreset(index + 1)}
+              selected={look.avatar.kind === 'preset' && look.avatar.id === id}
+              onPress={() => setAvatar({ kind: 'preset', id })}
+            >
+              <SvgXml xml={presetAvatarSvg(id)} width="100%" height="100%" />
+            </Swatch>
+          ))}
+          <Swatch
+            label={t.hostAvatarPhoto}
+            selected={look.avatar.kind === 'image'}
+            onPress={() => pick('avatar')}
+          >
+            {look.avatar.kind === 'image' ? (
+              <HostTile
+                hostName={shown}
+                avatar={look.avatar}
+                size={theme.touch + space.x2}
+                fill={theme.layer.raised.fill}
+                letter={theme.color.fg}
+              />
+            ) : (
+              <Text variant="title" tone="muted">
+                +
+              </Text>
+            )}
+          </Swatch>
+        </Grid>
+      </Section>
+
+      <Section title={t.hostBanner}>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.x3 }}>
+          {KINDS.map((option) => (
+            <Chip
+              key={option}
+              label={KIND_LABEL[option]}
+              selected={kind === option}
+              onPress={() => choose(option)}
+            />
+          ))}
+        </View>
+
+        {kind === 'color' ? (
+          <>
+            <Grid>
+              {BANNER_COLORS.map((hex) => (
+                <Swatch
+                  key={hex}
+                  round
+                  label={t.bannerSwatch(hex.toUpperCase())}
+                  selected={banner.kind === 'color' && banner.color === hex}
+                  onPress={() => setBanner({ kind: 'color', color: hex })}
+                >
+                  <View style={{ alignSelf: 'stretch', flex: 1, backgroundColor: hex }} />
+                </Swatch>
+              ))}
+            </Grid>
+            <HexField
+              label={t.bannerCustom}
+              value={color.toUpperCase()}
+              onValid={(hex) => setBanner({ kind: 'color', color: hex })}
+            />
+          </>
+        ) : null}
+
+        {kind === 'gradient' ? (
+          <>
+            <Grid>
+              {BANNER_GRADIENTS.map((stops) => (
+                <Swatch
+                  key={`${stops.from}-${stops.to}`}
+                  label={t.bannerGradientSwatch(stops.from.toUpperCase(), stops.to.toUpperCase())}
+                  selected={
+                    banner.kind === 'gradient' &&
+                    banner.from === stops.from &&
+                    banner.to === stops.to
+                  }
+                  onPress={() => setBanner({ kind: 'gradient', ...stops })}
+                >
+                  <GradientFill
+                    gradient={{ ...stops, fromOpacity: 1, toOpacity: 1, direction: 'diagonal' }}
+                  />
+                </Swatch>
+              ))}
+            </Grid>
+            <View style={{ flexDirection: 'row', gap: space.x3 }}>
+              <HexField
+                label={t.bannerFrom}
+                value={gradient.from.toUpperCase()}
+                onValid={(from) => setBanner({ kind: 'gradient', from, to: gradient.to })}
+              />
+              <HexField
+                label={t.bannerTo}
+                value={gradient.to.toUpperCase()}
+                onValid={(to) => setBanner({ kind: 'gradient', from: gradient.from, to })}
+              />
+            </View>
+          </>
+        ) : null}
+
+        {kind === 'image' ? (
+          <Button
+            on="canvas"
+            label={banner.kind === 'image' ? t.bannerChangePicture : t.bannerChoosePicture}
+            onPress={() => pick('banner')}
+          />
+        ) : null}
+      </Section>
+
+      {pickError ? <Notice tone="danger">{t.hostLookPickFailed}</Notice> : null}
+
+      <Button
+        on="canvas"
+        tone="danger"
+        label={t.hostLookReset}
+        onPress={() => {
+          setKind('accent');
+          setNameDraft('');
+          actions.onChange(DEFAULT_HOST_LOOK);
+        }}
+      />
+    </ScrollView>
   );
 }

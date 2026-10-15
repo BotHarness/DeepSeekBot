@@ -29,6 +29,7 @@ import { createHostGlances, liveGlance, type HostStatus } from '../../host/host-
 import { hostSession, useHostSession, useHostSnapshot, useInbox } from '../../host/host-session';
 import { nativeCarrier } from '../../host/native-carrier';
 import { useHostLook } from '../../host/native-host-look';
+import { shownHostName, type HostLook } from '../design/host-look';
 import { glassShadow, useDesignTheme } from '../design/theme';
 import { useMounted } from '../mounted';
 import { edge, motion, radius, scrim, space } from '../design/tokens';
@@ -135,12 +136,12 @@ function statusText(status: HostStatus): string {
 }
 
 function closeThen(action: () => void): void {
-  slide(false);
+  settle(false);
   action();
 }
 
-function confirmUnpair(row: HostDrawerRow): void {
-  Alert.alert(t.unpairHost(row.hostName), t.unpairHostDetail, [
+function confirmUnpair(row: HostDrawerRow, name: string): void {
+  Alert.alert(t.unpairHost(name), t.unpairHostDetail, [
     { text: t.cancel, style: 'cancel' },
     {
       text: t.unpair,
@@ -150,17 +151,22 @@ function confirmUnpair(row: HostDrawerRow): void {
   ]);
 }
 
-function openHostMenu(row: HostDrawerRow): void {
+function openHostMenu(row: HostDrawerRow, name: string): void {
   const actions = [
+    {
+      label: t.hostCustomize,
+      run: () =>
+        closeThen(() => router.push({ pathname: '/host-look', params: { hostId: row.hostId } })),
+    },
     ...(row.current
       ? []
       : [{ label: t.showHost, run: () => closeThen(() => void hostDrawer.select(row.hostId)) }]),
-    { label: t.unpair, run: () => confirmUnpair(row), destructive: true },
+    { label: t.unpair, run: () => confirmUnpair(row, name), destructive: true },
   ];
   if (Platform.OS === 'ios') {
     ActionSheetIOS.showActionSheetWithOptions(
       {
-        title: row.hostName,
+        title: name,
         options: [...actions.map((action) => action.label), t.cancel],
         destructiveButtonIndex: actions.findIndex((action) => action.destructive === true),
         cancelButtonIndex: actions.length,
@@ -169,7 +175,7 @@ function openHostMenu(row: HostDrawerRow): void {
     );
     return;
   }
-  Alert.alert(row.hostName, undefined, [
+  Alert.alert(name, undefined, [
     { text: t.cancel, style: 'cancel' },
     ...actions.map((action) => ({
       text: action.label,
@@ -179,9 +185,8 @@ function openHostMenu(row: HostDrawerRow): void {
   ]);
 }
 
-function DrawerTile({ hostId, name, current }: { hostId: string; name: string; current: boolean }) {
+function DrawerTile({ look, name, current }: { look: HostLook; name: string; current: boolean }) {
   const theme = useDesignTheme();
-  const look = useHostLook(hostId);
   return (
     <View
       style={{
@@ -204,6 +209,8 @@ function DrawerTile({ hostId, name, current }: { hostId: string; name: string; c
 
 function HostRow({ row }: { row: HostDrawerRow }) {
   const theme = useDesignTheme();
+  const look = useHostLook(row.hostId);
+  const name = shownHostName(look, row.hostName);
   const pending = row.glance.pending ?? 0;
   const unread = row.glance.unread ?? 0;
   const badge = hostRowBadge(row.glance);
@@ -218,9 +225,10 @@ function HostRow({ row }: { row: HostDrawerRow }) {
     <View style={{ flexDirection: 'row', alignItems: 'center', paddingRight: space.x2 }}>
       <Pressable
         onPress={() => closeThen(() => void hostDrawer.select(row.hostId))}
+        onLongPress={() => openHostMenu(row, name)}
         accessibilityRole="button"
         accessibilityLabel={[
-          row.hostName,
+          name,
           row.current ? t.showing : undefined,
           status,
           pending > 0 ? t.hostPending(pending) : undefined,
@@ -240,10 +248,10 @@ function HostRow({ row }: { row: HostDrawerRow }) {
           backgroundColor: pressed ? theme.layer.sheet.pressed : theme.layer.sheet.fill,
         })}
       >
-        <DrawerTile hostId={row.hostId} name={row.hostName} current={row.current} />
+        <DrawerTile look={look} name={name} current={row.current} />
         <View style={{ flex: 1, gap: space.x1 }}>
           <Text strong numberOfLines={1}>
-            {row.hostName}
+            {name}
           </Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x3 }}>
             <View
@@ -270,9 +278,9 @@ function HostRow({ row }: { row: HostDrawerRow }) {
         )}
       </Pressable>
       <Pressable
-        onPress={() => openHostMenu(row)}
+        onPress={() => openHostMenu(row, name)}
         accessibilityRole="button"
-        accessibilityLabel={t.hostMore(row.hostName)}
+        accessibilityLabel={t.hostMore(name)}
         hitSlop={space.x2}
         style={({ pressed }) => ({
           width: theme.touch,

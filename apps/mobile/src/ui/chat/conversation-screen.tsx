@@ -696,7 +696,13 @@ function ChatConversation({ place, focus }: { place: ChatPlace; focus: string | 
               onPress={() => router.push(`/bot/${bot?.slug ?? slug}`)}
             />
           ) : (
-            <ChannelTitle channel={channel} fallback={channelId ?? ''} />
+            <ChannelTitle
+              channel={channel}
+              fallback={channelId ?? ''}
+              onPress={() =>
+                router.push({ pathname: '/group/[id]', params: { id: channel?.id ?? channelId } })
+              }
+            />
           )
         }
         right={

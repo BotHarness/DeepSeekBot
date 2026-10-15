@@ -16,6 +16,7 @@ export interface ComputerViewer {
   start(): void;
   stop(): void;
   setControl(active: boolean): Promise<void>;
+  hold(active: boolean): Promise<void>;
   send(input: BrowserInput): Promise<void>;
 }
 
@@ -23,6 +24,7 @@ export interface ComputerViewerOptions {
   client: Pick<HostClient, 'api'>;
   wait?: (ms: number, signal: AbortSignal) => Promise<void>;
   frameTimeoutMs?: number;
+  releaseMs?: number;
 }
 
 export type ComputerModifier = 'alt' | 'ctrl' | 'meta' | 'shift';
@@ -66,6 +68,7 @@ export function addedText(previous: string, next: string): string {
 }
 
 const RETRY_MS = 2000;
+const RELEASE_MS = 30_000;
 const FRAME_TIMEOUT_MS = 20_000;
 
 function record(value: unknown): Record<string, unknown> {
@@ -98,6 +101,21 @@ export function createComputerViewer(options: ComputerViewerOptions): ComputerVi
   let state: ComputerViewerState = { status: 'loading', control: false };
   let run: AbortController | undefined;
   let queue: Promise<void> = Promise.resolve();
+  const releaseMs = options.releaseMs ?? RELEASE_MS;
+  let release: ReturnType<typeof setTimeout> | undefined;
+  let held = false;
+  const disarm = (): void => {
+    if (release !== undefined) clearTimeout(release);
+    release = undefined;
+  };
+  const arm = (): void => {
+    disarm();
+    if (held) return;
+    release = setTimeout(() => {
+      release = undefined;
+      if (state.control) void takeover(false);
+    }, releaseMs);
+  };
 
   const update = (next: Partial<ComputerViewerState>): void => {
     state = { ...state, ...next };
@@ -193,11 +211,22 @@ export function createComputerViewer(options: ComputerViewerOptions): ComputerVi
     stop() {
       run?.abort();
       run = undefined;
+      disarm();
       if (state.control) void takeover(false);
     },
     async setControl(active) {
       if (active && state.status !== 'live') return;
+      if (!active) {
+        held = false;
+        disarm();
+      }
       await takeover(active);
+    },
+    async hold(active) {
+      held = active;
+      if (!active) return state.control ? arm() : undefined;
+      disarm();
+      if (!state.control && state.status === 'live') await takeover(true);
     },
     send(input) {
       const next = queue.then(() => deliver(input));
@@ -206,15 +235,18 @@ export function createComputerViewer(options: ComputerViewerOptions): ComputerVi
     },
   };
 
-  async function deliver(input: BrowserInput) {
+  async function deliver(input: BrowserInput, retry = true): Promise<void> {
+    if (state.status !== 'live') return;
+    if (!state.control) await takeover(true);
     if (!state.control) return;
     try {
       const answer = await request('/api/computer/input', {
         body: { ...input },
       });
-      if (answer.status === 200) return;
+      if (answer.status === 200) return arm();
       const code = record(answer.body)['code'];
       if (code === 'not-running' || code === 'not-paused') update({ control: false });
+      if (code === 'not-paused' && retry) return deliver(input, false);
       update({ notice: errorOf(answer) });
     } catch (error) {
       fail(error);

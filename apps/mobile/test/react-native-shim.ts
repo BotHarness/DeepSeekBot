@@ -57,6 +57,7 @@ export const SectionList = (props: {
   renderSectionHeader?(info: { section: Section }): ReactNode;
   renderSectionFooter?(info: { section: Section }): ReactNode;
   ListHeaderComponent?: ReactNode;
+  ListFooterComponent?: ReactNode;
   ref?: unknown;
 }) =>
   createElement(
@@ -74,6 +75,7 @@ export const SectionList = (props: {
         props.renderSectionFooter?.({ section }) ?? null,
       ),
     ),
+    props.ListFooterComponent ?? null,
   );
 
 export const useColorScheme = () => 'light';

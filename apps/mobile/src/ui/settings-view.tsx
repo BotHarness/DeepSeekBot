@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 
 import type { ConnectionState } from '../host/client';
+import { SHEET_GROUP } from './chat/sheet';
 import { useDesignTheme } from './design/theme';
 import { space } from './design/tokens';
 import { SettingsRow, SettingsSection } from './primitives/settings-row';
@@ -13,7 +14,6 @@ export interface SettingsActions {
   onClose(): void;
   onOpenFullClient(): void;
   onComputers(): void;
-  onHostLook(): void;
   onAppIcon(): void;
   onNotifications(): void;
   onUnpair(): Promise<void>;
@@ -41,16 +41,11 @@ export function SettingsView({
   const [unpairError, setUnpairError] = useState<string>();
   const status = [STATUS[connection.status], connection.route].filter((part) => part !== '');
   return (
-    <View style={{ flex: 1, backgroundColor: theme.color.base }}>
-      <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          paddingTop: space.x4,
-          paddingLeft: space.x5,
-          paddingRight: space.x2,
-        }}
-      >
+    <ScrollView
+      style={{ flex: 1, backgroundColor: theme.color.base }}
+      contentContainerStyle={{ gap: space.x6, padding: space.x5 }}
+    >
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: -space.x3 }}>
         <Text variant="title" accessibilityRole="header" style={{ flex: 1 }}>
           {t.settings}
         </Text>
@@ -72,29 +67,42 @@ export function SettingsView({
           </Text>
         </Pressable>
       </View>
-      <ScrollView contentContainerStyle={{ gap: space.x6, padding: space.x5 }}>
-        <SettingsSection title={t.connections}>
-          <SettingsRow title={hostName ?? '—'} detail={status.join(' · ')} />
-          <SettingsRow title={t.computers} detail={t.computersHint} onPress={actions.onComputers} />
-          <SettingsRow title={t.notifications} onPress={actions.onNotifications} />
-          <SettingsRow title={t.openFullClient} tone="accent" onPress={actions.onOpenFullClient} />
-          <SettingsRow
-            title={t.unpair}
-            tone="danger"
-            onPress={() => {
-              setUnpairError(undefined);
-              actions.onUnpair().catch((error: unknown) => setUnpairError(errorText(error)));
-            }}
-          />
-        </SettingsSection>
-        {unpairError === undefined ? null : (
-          <Notice tone="danger">{`${t.unpairFailed} ${unpairError}`}</Notice>
-        )}
-        <SettingsSection title={t.interface}>
-          <SettingsRow title={t.hostLook} detail={t.hostLookHint} onPress={actions.onHostLook} />
-          <SettingsRow title={t.appIcon} detail={t.appIconHint} onPress={actions.onAppIcon} />
-        </SettingsSection>
-      </ScrollView>
-    </View>
+      <SettingsSection title={t.connections} on={SHEET_GROUP}>
+        <SettingsRow on={SHEET_GROUP} title={hostName ?? '—'} detail={status.join(' · ')} />
+        <SettingsRow
+          on={SHEET_GROUP}
+          title={t.computers}
+          detail={t.computersHint}
+          onPress={actions.onComputers}
+        />
+        <SettingsRow on={SHEET_GROUP} title={t.notifications} onPress={actions.onNotifications} />
+        <SettingsRow
+          on={SHEET_GROUP}
+          title={t.openFullClient}
+          tone="accent"
+          onPress={actions.onOpenFullClient}
+        />
+        <SettingsRow
+          on={SHEET_GROUP}
+          title={t.unpair}
+          tone="danger"
+          onPress={() => {
+            setUnpairError(undefined);
+            actions.onUnpair().catch((error: unknown) => setUnpairError(errorText(error)));
+          }}
+        />
+      </SettingsSection>
+      {unpairError === undefined ? null : (
+        <Notice tone="danger">{`${t.unpairFailed} ${unpairError}`}</Notice>
+      )}
+      <SettingsSection title={t.interface} on={SHEET_GROUP}>
+        <SettingsRow
+          on={SHEET_GROUP}
+          title={t.appIcon}
+          detail={t.appIconHint}
+          onPress={actions.onAppIcon}
+        />
+      </SettingsSection>
+    </ScrollView>
   );
 }

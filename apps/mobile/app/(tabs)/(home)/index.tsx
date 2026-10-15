@@ -6,6 +6,7 @@ import { fullClientParams } from '../../../src/host/full-client';
 import { useHostSession, useHostSnapshot, useInbox } from '../../../src/host/host-session';
 import { loadHumanName } from '../../../src/host/human';
 import { useHostLook } from '../../../src/host/native-host-look';
+import { shownHostName } from '../../../src/ui/design/host-look';
 import { sectionCollapse, useCollapsedSections } from '../../../src/host/native-section-collapse';
 import { AVATAR_EDGE, ConversationRow } from '../../../src/ui/chat/conversation-row';
 import {
@@ -79,10 +80,10 @@ export default function HomeScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: saved.hostName, headerShown: false }} />
+      <Stack.Screen options={{ title: shownHostName(look, saved.hostName), headerShown: false }} />
       <HostDrawerEdge>
         <HomeHeader
-          hostName={saved.hostName}
+          hostName={shownHostName(look, saved.hostName)}
           look={look}
           actions={
             <>

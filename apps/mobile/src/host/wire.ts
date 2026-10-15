@@ -186,8 +186,24 @@ export interface ChannelListItem {
   name: string;
   members: string[];
   botSlug?: string;
+  avatar?: string;
+  ownerBotSlug?: string;
+  invitations?: WireGroupInvitation[];
+  joinRequests?: WireGroupJoinRequest[];
   deletedAt?: string;
   latestMessage?: WireMessage;
+}
+
+export interface WireGroupInvitation {
+  id: string;
+  targetBotSlug: string;
+  status: 'pending' | 'accepted' | 'declined' | 'cancelled';
+}
+
+export interface WireGroupJoinRequest {
+  id: string;
+  requesterBotSlug: string;
+  status: 'pending' | 'accepted' | 'declined' | 'cancelled';
 }
 
 export type RosterLiveFrame =

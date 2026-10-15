@@ -111,33 +111,68 @@ describe('Computer viewer', () => {
     expect(fake.calls[1]!.path).toBe('/api/computer/frame');
   });
 
-  it('pauses the Bot before sending input and hands back when the screen closes', async () => {
+  it('pauses the Bot on the first input, hands back when idle and when the screen closes', async () => {
     const fake = host([
-      (call) =>
-        call.path === '/api/computer/input'
-          ? { status: 200, body: { ok: true } }
-          : call.path === '/api/computer/takeover'
-            ? { status: 200, body: { ok: true, paused: call.body?.['active'] === true } }
-            : frame(1),
+      async (call) => {
+        if (call.path === '/api/computer/input') return { status: 200, body: { ok: true } };
+        if (call.path === '/api/computer/takeover')
+          return { status: 200, body: { ok: true, paused: call.body?.['active'] === true } };
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        return frame(1);
+      },
     ]);
     const viewer = createComputerViewer({
       client: fake.client,
       wait: async () => undefined,
+      releaseMs: 20,
     });
     viewer.start();
     await watch(viewer, (state) => state.status === 'live');
     await viewer.send({ kind: 'click', x: 3, y: 4 });
-    await viewer.setControl(true);
     expect(viewer.getState().control).toBe(true);
-    await viewer.send({ kind: 'click', x: 3, y: 4 });
+    await watch(viewer, (state) => !state.control);
+    await viewer.send({ kind: 'click', x: 5, y: 6 });
     viewer.stop();
     await settle();
     expect(fake.calls.filter((call) => !call.path.startsWith('/api/computer/frame'))).toEqual([
       { path: '/api/computer/takeover', body: { active: true } },
       { path: '/api/computer/input', body: { kind: 'click', x: 3, y: 4 } },
       { path: '/api/computer/takeover', body: { active: false } },
+      { path: '/api/computer/takeover', body: { active: true } },
+      { path: '/api/computer/input', body: { kind: 'click', x: 5, y: 6 } },
+      { path: '/api/computer/takeover', body: { active: false } },
     ]);
     expect(viewer.getState().control).toBe(false);
+  });
+
+  it('pauses again and resends when the pause lapsed on the Host', async () => {
+    let refused = false;
+    const fake = host([
+      (call) => {
+        if (call.path === '/api/computer/takeover')
+          return { status: 200, body: { ok: true, paused: call.body?.['active'] === true } };
+        if (call.path !== '/api/computer/input') return frame(1);
+        if (refused) return { status: 200, body: { ok: true } };
+        refused = true;
+        return { status: 409, body: { ok: false, code: 'not-paused', error: 'Pause first' } };
+      },
+    ]);
+    const viewer = createComputerViewer({ client: fake.client, wait: async () => undefined });
+    viewer.start();
+    await watch(viewer, (state) => state.status === 'live');
+    await viewer.setControl(true);
+    await viewer.send({ kind: 'type', text: 'a' });
+    viewer.stop();
+    expect(
+      fake.calls.filter((call) => !call.path.startsWith('/api/computer/frame')).map((c) => c.path),
+    ).toEqual([
+      '/api/computer/takeover',
+      '/api/computer/input',
+      '/api/computer/takeover',
+      '/api/computer/input',
+      '/api/computer/takeover',
+    ]);
+    expect(viewer.getState().notice).toBeUndefined();
   });
 
   it('sends input one at a time, in the order it was given', async () => {
