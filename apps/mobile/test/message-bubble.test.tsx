@@ -98,6 +98,7 @@ vi.mock('react-native-svg', () => ({
 }));
 
 const { MessageBubble, DraftBubble, deliveryLabel } = await import('../src/ui/chat/message-bubble');
+const { createSpeakerRegistry } = await import('../src/ui/chat/speaker-row');
 const { t } = await import('../src/ui/strings');
 const { openMessageMenu } = await import('../src/ui/chat/message-menu');
 
@@ -245,6 +246,26 @@ describe('message states', () => {
     );
     expect(draft).toContain('>Grace<');
     expect(draft).toContain('"Text">G</div>');
+  });
+
+  it('keeps sticky avatar spans only for rows still in the Channel', () => {
+    const registry = createSpeakerRegistry();
+    registry.setGroups([
+      { key: 'a', group: 'a' },
+      { key: 'b', group: 'a' },
+    ]);
+    registry.layout('a', 'a', { height: 80, bubbleTop: 30 });
+    registry.layout('b', 'a', { height: 50, bubbleTop: 4 });
+    const span = registry.span('a');
+    expect(span.value).toBe(50);
+    registry.setGroups([{ key: 'b', group: 'b' }]);
+    expect(registry.span('b').value).toBe(-4);
+    expect(registry.span('a')).not.toBe(span);
+    registry.setGroups([
+      { key: 'a', group: 'a' },
+      { key: 'b', group: 'a' },
+    ]);
+    expect(registry.span('a').value).toBe(0);
   });
 
   it('closes half-written Markdown in a streaming draft', () => {

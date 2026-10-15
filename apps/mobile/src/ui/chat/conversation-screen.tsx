@@ -1,7 +1,7 @@
 import { Stack, useRouter } from 'expo-router';
-import { memo, useCallback, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, View } from 'react-native';
-import Animated, { useAnimatedRef, useScrollOffset } from 'react-native-reanimated';
+import Animated, { useAnimatedRef, useScrollOffset, useSharedValue } from 'react-native-reanimated';
 
 import type { HostClient, RosterBot } from '../../host/client';
 import type {
@@ -257,16 +257,29 @@ function ChatConversation({ place, focus }: { place: ChatPlace; focus: string | 
   );
   const history = useMemo(() => [...chronological].reverse(), [chronological]);
   const [speakers] = useState(createSpeakerRegistry);
-  const groupOf = useMemo(() => {
-    const groups = messageGroups(chronological);
-    speakers.setGroups(groups);
-    return new Map(groups.map((entry) => [entry.key, entry.group]));
-  }, [chronological, speakers]);
+  const groups = useMemo(() => messageGroups(chronological), [chronological]);
+  const groupOf = useMemo(() => new Map(groups.map((entry) => [entry.key, entry.group])), [groups]);
+  useLayoutEffect(() => {
+    speakers.setGroups([
+      ...groups,
+      ...snapshot.drafts.map((entry) => {
+        const key = `draft:${entry.draftId}`;
+        return { key, group: key };
+      }),
+    ]);
+  }, [speakers, groups, snapshot.drafts]);
   const scroll = useScrollOffset(list);
   const viewport = useAnimatedRef<View>();
+  const viewportLayout = useSharedValue(0);
   const stage = useMemo(
-    () => ({ registry: speakers, scroll, viewport, floor: composerHeight + edgeFade.bottom }),
-    [speakers, scroll, viewport, composerHeight],
+    () => ({
+      registry: speakers,
+      scroll,
+      viewport,
+      viewportLayout,
+      floor: composerHeight + edgeFade.bottom,
+    }),
+    [speakers, scroll, viewport, viewportLayout, composerHeight],
   );
   const latest = useFollowLatest(list, visible);
   const readMount = useMarkRead(client, inbox, conversation, stopChannel, !latest.away);
@@ -547,7 +560,14 @@ function ChatConversation({ place, focus }: { place: ChatPlace; focus: string | 
             {notice}
           </Text>
         )}
-        <Animated.View ref={viewport} collapsable={false} style={{ flex: 1 }}>
+        <Animated.View
+          ref={viewport}
+          collapsable={false}
+          style={{ flex: 1 }}
+          onLayout={() => {
+            viewportLayout.value += 1;
+          }}
+        >
           <SpeakerStageContext.Provider value={dm ? undefined : stage}>
             <Animated.FlatList
               ref={list}

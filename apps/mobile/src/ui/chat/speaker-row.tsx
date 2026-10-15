@@ -49,7 +49,15 @@ export function createSpeakerRegistry() {
     span,
     setGroups(rows: ReadonlyArray<{ key: string; group: string }>): void {
       groups.clear();
-      for (const row of rows) groups.set(row.group, [...(groups.get(row.group) ?? []), row.key]);
+      const live = new Set<string>();
+      for (const row of rows) {
+        live.add(row.key);
+        const keys = groups.get(row.group);
+        if (keys === undefined) groups.set(row.group, [row.key]);
+        else keys.push(row.key);
+      }
+      for (const key of layouts.keys()) if (!live.has(key)) layouts.delete(key);
+      for (const group of spans.keys()) if (!groups.has(group)) spans.delete(group);
       for (const group of groups.keys()) refresh(group);
     },
     layout(key: string, group: string, patch: SpeakerRowLayout): void {
@@ -64,6 +72,7 @@ export type SpeakerStage = {
   registry: SpeakerRegistry;
   scroll: SharedValue<number>;
   viewport: AnimatedRef<View>;
+  viewportLayout: SharedValue<number>;
   floor: number;
 };
 
@@ -145,12 +154,14 @@ function StickyAvatar({
 }) {
   const scroll = stage?.scroll;
   const viewport = stage?.viewport;
+  const viewportLayout = stage?.viewportLayout;
   const floor = stage?.floor ?? 0;
   const span = stage?.registry.span(speaker.group);
   const motion = useAnimatedStyle(() => {
     if (scroll === undefined || viewport === undefined || span === undefined)
       return { opacity: 1, transform: [{ translateY: 0 }] };
-    const settled = Number.isFinite(scroll.value) && laidOut.value > 0;
+    const settled =
+      Number.isFinite(scroll.value) && laidOut.value > 0 && (viewportLayout?.value ?? 1) > 0;
     const rowFrame = measure(row);
     const bubbleFrame = measure(surface);
     const viewFrame = measure(viewport);
