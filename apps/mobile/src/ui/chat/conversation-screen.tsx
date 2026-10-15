@@ -474,7 +474,7 @@ function ChatConversation({ place, focus }: { place: ChatPlace; focus: string | 
           headerShadowVisible: false,
           headerTransparent: true,
           headerStyle: { backgroundColor: 'transparent' },
-          scrollEdgeEffects: { top: 'soft', bottom: 'soft', left: 'hidden', right: 'hidden' },
+          scrollEdgeEffects: { top: 'hidden', bottom: 'hidden', left: 'hidden', right: 'hidden' },
           ...(systemGlassBar
             ? {}
             : { headerLeft: () => <HeaderBackButton onPress={() => router.back()} /> }),
@@ -649,7 +649,7 @@ function ChatConversation({ place, focus }: { place: ChatPlace; focus: string | 
           onCancelDictation={dictation.cancel}
         />
       </KeyboardAvoidingView>
-      {systemGlassBar ? null : <EdgeFade edge="top" height={headerHeight + edgeFade.extend} />}
+      <EdgeFade edge="top" height={headerHeight + edgeFade.extend} />
       <ImageViewer attachment={viewing} onClose={() => setViewing(undefined)} onShare={share} />
       <MessageActions
         message={actionsFor}
