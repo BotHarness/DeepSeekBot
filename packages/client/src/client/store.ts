@@ -109,6 +109,13 @@ export type ChannelAttachmentRef = { name: string; mime: string; size: number } 
   | { hash: string; fileId?: never }
 );
 
+export interface BotCreatePreview {
+  memoryFolder: string;
+  defaultLocation: boolean;
+  avatar?: string;
+  avatarError?: string;
+}
+
 export interface ToolApprovalRequestCard {
   sessionId: string;
   callId: string;
@@ -116,6 +123,7 @@ export interface ToolApprovalRequestCard {
   role: 'orchestrator' | 'assignment';
   cwd: string;
   input: string;
+  botCreatePreview?: BotCreatePreview;
 }
 
 export interface ToolApprovalDecision {
@@ -202,6 +210,7 @@ export interface ChannelMessage {
       | 'ignored';
   }[];
   botDmAction?: { channelId: string; messageId: string; recipientBotSlug: string };
+  botCreateAction?: { botSlug: string; displayName: string };
   botChannelPost?: { channelId: string; messageId: string };
   botChannelPostPreview?: string | null;
   noticeOrigin?: { channelId: string };

@@ -6,7 +6,6 @@ import {
   IconEllipsisOutlineRegular,
   IconTrashOutlineRegular,
   Menu,
-  Tag,
   type MenuEntry,
 } from '@deepseek-ai/dsh-client-ui-primitives';
 
@@ -24,6 +23,7 @@ import type { BotHarnessTranslate } from './locale.js';
 import { BannerCropModal, PersonaBotAvatarCropModal } from './personabot-avatar-crop.js';
 import { botPrimaryColorOf } from './bot-primary-color.js';
 import { PrimaryColorModal } from './primary-color-editor.js';
+import { ProfileTags } from './profile-tags.js';
 import type { BotBannerView, BotSummary, ChannelSummary } from './store.js';
 import {
   MAX_BOT_BIO_LENGTH,
@@ -137,19 +137,6 @@ const styles = stylex.create({
     borderRadius: radius.sm,
   },
 });
-
-export function ProfileTags({ tags }: { tags: readonly string[] }): ReactElement | null {
-  if (tags.length === 0) return null;
-  return (
-    <span className="bh-profile-roles">
-      {tags.map((tag) => (
-        <Tag key={tag} tone="neutral">
-          {tag}
-        </Tag>
-      ))}
-    </span>
-  );
-}
 
 export function ProfileBio({ text }: { text: string | undefined }): ReactElement | null {
   if (text === undefined || text.length === 0) return null;

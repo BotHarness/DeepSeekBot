@@ -71,7 +71,7 @@ import {
   BOT_ZIP_MAX_ENTRIES,
   BOT_ZIP_HISTORY_PATH,
 } from './bot-zip.js';
-import type { PersonaBotRecord } from './persona-bot.js';
+import { personaBotAvatarFromBytes, type PersonaBotRecord } from './persona-bot.js';
 import { createPersonaBotRegistry, type PersonaBotRegistry } from './registry.js';
 import { ZipArchiveError, writeZip, type ZipEntry } from './zip-archive.js';
 import { INBOX_HOST_COMMANDS } from './cli-inbox.js';
@@ -122,7 +122,8 @@ export const BOT_CREATE_HELP = `deepseekbot: create PersonaBots without clicking
 
 Usage:
   deepseekbot create --name <name> [--persona <text> | --persona-stdin]
-                    [--description <text>] [--role <tag> ...]
+                    [--core-memory <text> | --core-memory-stdin]
+                    [--description <text>] [--role <tag> ...] [--avatar-file <image>]
                     [--preset <model-preset-id>] [--memory-location <absolute-dir>]
                     [--home <dsh-home>]
   deepseekbot create --name <name> --from-git <url | owner/repo> [...]
@@ -330,7 +331,8 @@ Machine contract:
   exits non-zero with {"error": {"code", "message"}} using a stable code
   (usage, secret-in-argv, bad-zip, bad-bundle, bad-ref, unknown-preset,
   unknown-bot, unknown-channel, duplicate-preset, git-not-found, git-clone-failed, git-clone-timeout,
-  memory-unavailable, lease-unavailable, bad-credentials, invalid-input). Human-readable lines go to stderr only.
+  memory-unavailable, lease-unavailable, bad-credentials, invalid-input, invalid-avatar,
+  file-unreadable). Human-readable lines go to stderr only.
   Stop the Host before offline database commands: the writer lease is exclusive.
 
 Live Host:
@@ -465,6 +467,7 @@ const CREATE_OPTIONS = {
   name: { type: 'string' },
   persona: { type: 'string' },
   'persona-stdin': { type: 'boolean' },
+  'core-memory-stdin': { type: 'boolean' },
   description: { type: 'string' },
   role: { type: 'string', multiple: true },
   preset: { type: 'string' },
@@ -759,6 +762,8 @@ function failureOf(reason: string, detail?: string): CliFailure {
 export interface ValidatedCreate {
   displayName: string | undefined;
   persona: string | undefined;
+  coreMemory?: string;
+  avatar?: string;
   roles: string[] | undefined;
   description: string | undefined;
   presetId: string | undefined;
@@ -788,6 +793,18 @@ async function validatedCreate(
   if (persona !== undefined && personaStdin) {
     throw usageError('Pass --persona or --persona-stdin, not both.');
   }
+  const coreMemory = trimmed(values['core-memory']);
+  const coreMemoryStdin = values['core-memory-stdin'] === true;
+  if (coreMemory !== undefined && coreMemoryStdin)
+    throw usageError('Pass --core-memory or --core-memory-stdin, not both.');
+  if (personaStdin && coreMemoryStdin)
+    throw usageError('Only one of --persona-stdin and --core-memory-stdin can read stdin.');
+  const avatarFile = trimmed(values['avatar-file']);
+  if (
+    (coreMemory !== undefined || coreMemoryStdin || avatarFile !== undefined) &&
+    (zip !== undefined || dir !== undefined || git !== undefined)
+  )
+    throw usageError('--core-memory and --avatar-file apply to blank bots only.');
   const description = trimmed(values.description);
   const roles =
     values.role === undefined
@@ -852,16 +869,38 @@ async function validatedCreate(
     };
   }
   if (name === undefined) throw usageError('--name is required for a blank bot.');
-  const piped = personaStdin === true ? (await readStdin()).trim() : '';
+  const avatar = avatarFile === undefined ? undefined : avatarFromFile(avatarFile);
+  const piped = personaStdin || coreMemoryStdin ? (await readStdin()).trim() : '';
+  const pipedCoreMemory = coreMemoryStdin && piped.length > 0 ? piped : undefined;
+  const chosenCoreMemory = coreMemory ?? pipedCoreMemory;
   return {
     displayName: name,
     persona: personaStdin === true ? (piped.length > 0 ? piped : undefined) : persona,
+    ...(chosenCoreMemory === undefined ? {} : { coreMemory: chosenCoreMemory }),
+    ...(avatar === undefined ? {} : { avatar }),
     roles,
     description,
     presetId,
     ...(memoryLocation === undefined ? {} : { memoryLocation }),
     source: { kind: 'blank' },
   };
+}
+
+function avatarFromFile(path: string): string {
+  let bytes: Buffer;
+  try {
+    bytes = readFileSync(resolve(path));
+  } catch {
+    throw new CliFailure('file-unreadable', `Cannot read --avatar-file ${path}.`, 1);
+  }
+  const avatar = personaBotAvatarFromBytes(bytes);
+  if (avatar === undefined)
+    throw new CliFailure(
+      'invalid-avatar',
+      '--avatar-file must be a PNG, JPEG or WebP image of at most 128 KiB.',
+      1,
+    );
+  return avatar;
 }
 
 function nextActions(
@@ -921,6 +960,8 @@ async function runCreate(
           slug: candidate,
           displayName: validated.displayName!,
           ...(validated.persona === undefined ? {} : { persona: validated.persona }),
+          ...(validated.coreMemory === undefined ? {} : { coreMemory: validated.coreMemory }),
+          ...(validated.avatar === undefined ? {} : { avatar: validated.avatar }),
           ...(validated.memoryLocation === undefined
             ? {}
             : { memoryLocation: validated.memoryLocation }),

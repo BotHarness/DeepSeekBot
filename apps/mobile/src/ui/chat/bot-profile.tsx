@@ -175,7 +175,15 @@ function ProfileAction({
   );
 }
 
-function ProfileHeader({ bot, actions }: { bot: RosterBot; actions: BotProfileActions }) {
+function ProfileHeader({
+  bot,
+  actions,
+  settings,
+}: {
+  bot: RosterBot;
+  actions: BotProfileActions;
+  settings: ReactNode;
+}) {
   return (
     <View style={{ alignItems: 'center', gap: space.x3, paddingBottom: space.x5 }}>
       <BotAvatar bot={bot} size={AVATAR} />
@@ -220,6 +228,9 @@ function ProfileHeader({ bot, actions }: { bot: RosterBot; actions: BotProfileAc
           onPress={actions.onNotifications}
         />
       </View>
+      {settings === undefined ? null : (
+        <View style={{ alignSelf: 'stretch', paddingTop: space.x3 }}>{settings}</View>
+      )}
     </View>
   );
 }
@@ -328,11 +339,13 @@ export function BotProfileSheet({
   channels,
   load,
   actions,
+  settings,
 }: {
   bot: RosterBot;
   channels: RosterChannel[];
   load: () => Promise<BotProfile>;
   actions: BotProfileActions;
+  settings?: ReactNode;
 }) {
   const theme = useDesignTheme();
   const [profile, setProfile] = useState<BotProfile | undefined>();
@@ -353,7 +366,7 @@ export function BotProfileSheet({
       stickySectionHeadersEnabled={false}
       style={{ flex: 1, backgroundColor: theme.color.surface }}
       contentContainerStyle={{ padding: space.x5, paddingTop: space.x6 }}
-      ListHeaderComponent={<ProfileHeader bot={bot} actions={actions} />}
+      ListHeaderComponent={<ProfileHeader bot={bot} actions={actions} settings={settings} />}
       renderSectionHeader={({ section }) => (
         <Text
           accessibilityRole="header"

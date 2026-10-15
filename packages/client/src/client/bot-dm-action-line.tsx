@@ -39,6 +39,7 @@ function BotChip({
 }
 
 export function BotDmActionLabel({
+  messageKey = 'botDm.action',
   senderSlug,
   senderName,
   recipientSlug,
@@ -46,6 +47,7 @@ export function BotDmActionLabel({
   bots,
   t,
 }: {
+  messageKey?: 'botDm.action' | 'botCreate.action';
   senderSlug: string | undefined;
   senderName: string;
   recipientSlug: string;
@@ -53,7 +55,7 @@ export function BotDmActionLabel({
   bots: readonly BotSummary[];
   t: BotHarnessTranslate;
 }): ReactElement {
-  const parts: ReactNode[] = t('botDm.action', { sender: SENDER, recipient: RECIPIENT })
+  const parts: ReactNode[] = t(messageKey, { sender: SENDER, recipient: RECIPIENT })
     .split(/(\uE000sender\uE000|\uE000recipient\uE000)/u)
     .filter((part) => part.length > 0)
     .map((part, index) =>

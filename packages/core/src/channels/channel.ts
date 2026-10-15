@@ -210,6 +210,11 @@ export interface BotDmAction {
   recipientBotSlug: string;
 }
 
+export interface BotCreateAction {
+  botSlug: string;
+  displayName: string;
+}
+
 export interface BotChannelPost {
   channelId: string;
   messageId: string;
@@ -298,6 +303,7 @@ export interface ChannelMessage {
   humanReceipts?: ChannelHumanReceipt[];
   reactions?: ChannelReaction[];
   botDmAction?: BotDmAction;
+  botCreateAction?: BotCreateAction;
   botChannelPost?: BotChannelPost;
   botChannelPostPreview?: string | null;
   memoryCommit?: ChannelMemoryCommit;
@@ -839,6 +845,19 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
       typeof action['channelId'] !== 'string' ||
       typeof action['messageId'] !== 'string' ||
       typeof action['recipientBotSlug'] !== 'string' ||
+      (message['author'] as ChannelMessageAuthor)?.kind !== 'bot'
+    )
+      return false;
+  }
+  const botCreateAction = message['botCreateAction'];
+  if (botCreateAction !== undefined) {
+    if (typeof botCreateAction !== 'object' || botCreateAction === null) return false;
+    const action = botCreateAction as Record<string, unknown>;
+    if (
+      typeof action['botSlug'] !== 'string' ||
+      action['botSlug'].length === 0 ||
+      typeof action['displayName'] !== 'string' ||
+      action['displayName'].length === 0 ||
       (message['author'] as ChannelMessageAuthor)?.kind !== 'bot'
     )
       return false;

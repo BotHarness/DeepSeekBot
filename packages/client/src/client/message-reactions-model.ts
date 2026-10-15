@@ -36,6 +36,7 @@ export function reactableMessage(message: ChannelMessage): boolean {
   return (
     message.author.kind !== 'system' &&
     message.botDmAction === undefined &&
+    message.botCreateAction === undefined &&
     message.botChannelPost === undefined &&
     message.memoryCommit === undefined &&
     message.channelRevision !== undefined &&

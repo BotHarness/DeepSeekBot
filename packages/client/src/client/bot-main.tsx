@@ -1360,6 +1360,7 @@ function ConversationView({
   const latestMessage = messages.findLast(
     (item) =>
       item.botDmAction === undefined &&
+      item.botCreateAction === undefined &&
       item.botChannelPost === undefined &&
       item.memoryCommit === undefined &&
       item.memberDeparture === undefined &&
@@ -2702,6 +2703,26 @@ function ConversationView({
                           void actions.openBot(commit.botSlug);
                         }}
                       />
+                    ) : first.botCreateAction !== undefined ? (
+                      <button
+                        type="button"
+                        className="bh-bot-dm-action"
+                        data-message-id={first.id}
+                        onClick={() => void actions.openBot(first.botCreateAction!.botSlug)}
+                      >
+                        <BotDmActionLabel
+                          messageKey="botCreate.action"
+                          senderSlug={first.author.kind === 'bot' ? first.author.slug : undefined}
+                          senderName={authorLabel(first, state.bots, t, channelHumanName(channel))}
+                          recipientSlug={first.botCreateAction.botSlug}
+                          recipientName={
+                            state.bots.find((bot) => bot.slug === first.botCreateAction!.botSlug)
+                              ?.displayName ?? first.botCreateAction.displayName
+                          }
+                          bots={state.bots}
+                          t={t}
+                        />
+                      </button>
                     ) : first.botDmAction === undefined ? (
                       <OnboardingMemoryNavigation.Provider
                         value={{

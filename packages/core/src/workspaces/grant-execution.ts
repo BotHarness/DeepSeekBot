@@ -187,6 +187,7 @@ const BOT_TOOL_NAMES = new Set([
   'bot_schedule_delete',
   'group_leave',
   'bot_dm_send',
+  'bot_create',
   'channel_send',
 
   'ask_user_question',
@@ -208,7 +209,7 @@ export function requiresHumanToolApproval(
       args === null ||
       (args as Record<string, unknown>).access !== 'read'
     );
-  if (name === 'secret_cli' || name === 'secret_mcp_connect') return true;
+  if (name === 'secret_cli' || name === 'secret_mcp_connect' || name === 'bot_create') return true;
   return isDshGovernedTool(name) && changesApprovalPolicy(policyInput(args), templateInUse);
 }
 
@@ -256,6 +257,10 @@ export function grantToolExecutionDenial(
     return !requiresHumanToolApproval(name, args) || allowedOnce
       ? undefined
       : 'Original attachment edit access requires Human approval';
+  if (name === 'bot_create')
+    return allowedOnce || sessionHasFullAccess(core, session.id)
+      ? undefined
+      : 'Creating a PersonaBot requires Human tool approval';
   if (BOT_TOOL_NAMES.has(name)) return undefined;
 
   if (core.hostTools.has(name)) return undefined;

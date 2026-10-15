@@ -1692,6 +1692,19 @@ describe('bridge methods', () => {
     expect(existsSync(join(root, 'plain', 'memory', 'SOUL.md'))).toBe(false);
   });
 
+  it('writes a supplied Core Memory instead of the template', () => {
+    const { root, methods } = setup([], ['cored']);
+
+    expect(methods.create({ displayName: 'Cored', coreMemory: '# Core\n- Fridays' }).ok).toBe(true);
+    expect(readFileSync(join(root, 'cored', 'memory', 'MEMORY.md'), 'utf8')).toBe(
+      '# Core\n- Fridays',
+    );
+    expect(methods.create({ displayName: 'Bad', coreMemory: 7 })).toEqual({
+      ok: false,
+      error: { code: 'invalid-input', message: 'invalid create payload' },
+    });
+  });
+
   it('creates Memory under a Human-chosen location and refuses a relative one', () => {
     const { root, methods } = setup([], ['bot-located', 'bot-relative']);
     const location = join(root, 'chosen');

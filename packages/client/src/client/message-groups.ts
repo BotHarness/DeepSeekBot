@@ -54,6 +54,8 @@ export function groupChannelMessages(
       previous?.bridgeOrigin === undefined &&
       message.botDmAction === undefined &&
       previous?.botDmAction === undefined &&
+      message.botCreateAction === undefined &&
+      previous?.botCreateAction === undefined &&
       sameDay &&
       last.messages.length < 8 &&
       at - previousAt >= 0 &&

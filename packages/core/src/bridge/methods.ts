@@ -2376,6 +2376,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         return invalidInput('displayName is required');
       }
       const persona = parseOptional(source, 'persona');
+      const coreMemory = parseOptional(source, 'coreMemory');
       const roles = parseRoles(source);
       const description = parseOptional(source, 'description');
       const model = parseOptional(source, 'model');
@@ -2386,6 +2387,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (
         !memoryLocation.ok ||
         !persona.ok ||
+        !coreMemory.ok ||
         !roles.ok ||
         !description.ok ||
         !model.ok ||
@@ -2400,6 +2402,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         slug,
         displayName,
         ...(persona.value === undefined ? {} : { persona: persona.value }),
+        ...(coreMemory.value === undefined ? {} : { coreMemory: coreMemory.value }),
         ...(roles.value === undefined ? {} : { roles: roles.value }),
         ...(description.value === undefined ? {} : { description: description.value }),
         ...(model.value === undefined ? {} : { model: model.value }),

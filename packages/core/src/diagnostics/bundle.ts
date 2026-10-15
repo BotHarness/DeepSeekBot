@@ -254,13 +254,15 @@ function channelTimelineEntry(channel: ExportedChannel, message: ChannelMessage)
     ? 'botChannelPost'
     : message.botDmAction
       ? 'botDmAction'
-      : message.memoryCommit
-        ? 'memoryCommit'
-        : message.sessionFailure
-          ? 'sessionFailure'
-          : message.toolApprovalRequest
-            ? 'toolApprovalRequest'
-            : undefined;
+      : message.botCreateAction
+        ? 'botCreateAction'
+        : message.memoryCommit
+          ? 'memoryCommit'
+          : message.sessionFailure
+            ? 'sessionFailure'
+            : message.toolApprovalRequest
+              ? 'toolApprovalRequest'
+              : undefined;
   return {
     at: message.at,
     source: 'channel',

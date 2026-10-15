@@ -269,6 +269,34 @@ describe('Workspace Grant execution boundary', () => {
     expect(gate('edit-original', true)).toBeUndefined();
   });
 
+  it('puts bot_create through Human tool approval unless allowed or full access', () => {
+    const state = fixture();
+    const session = {
+      id: 'botharness-orchestrator',
+      header: { cwd: '/tmp/memory' },
+    } as never;
+    expect(requiresHumanToolApproval('bot_create', { display_name: 'Tim' })).toBe(true);
+    expect(isDshGovernedTool('bot_create')).toBe(false);
+    const gate = (approved = false) =>
+      grantToolExecutionDenial(
+        state.core,
+        session,
+        state.policy,
+        state.approval,
+        'bot_create',
+        { display_name: 'Tim' },
+        approved,
+      );
+    expect(gate()).toMatch(/Human tool approval/);
+    expect(gate(true)).toBeUndefined();
+    (state.core as { assignmentAccess?: unknown }).assignmentAccess = {
+      get: () => ({ mode: 'danger-full-access', scope: 'chat' }),
+    };
+    state.resolvePolicy.mockReturnValue({ mode: 'danger-full-access' });
+    state.overrideOf.mockReturnValue('never');
+    expect(gate()).toBeUndefined();
+  });
+
   it('allows a valid Assignment and rejects native resume after revoke', () => {
     const state = fixture();
     expect(

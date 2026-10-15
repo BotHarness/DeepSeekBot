@@ -206,9 +206,11 @@ export async function runOnlineManagement(
               ...metadata,
               ...(create.source.kind === 'git'
                 ? { gitUrl: create.source.gitUrl }
-                : create.persona === undefined
-                  ? {}
-                  : { persona: create.persona }),
+                : {
+                    ...(create.persona === undefined ? {} : { persona: create.persona }),
+                    ...(create.coreMemory === undefined ? {} : { coreMemory: create.coreMemory }),
+                    ...(create.avatar === undefined ? {} : { avatar: create.avatar }),
+                  }),
               ...(create.memoryLocation === undefined
                 ? {}
                 : { memoryLocation: create.memoryLocation }),

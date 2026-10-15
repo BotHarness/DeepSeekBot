@@ -18,6 +18,7 @@ import { channelSettings } from './channel-settings-state.js';
 import { approvalCountdown } from './approval-countdown.js';
 import { ApprovalInput } from './approval-input.js';
 import { approvalSummary } from './approval-diff.js';
+import { BotCreateApprovalPreview, botCreateArgs } from './bot-create-approval.js';
 
 export function ToolApprovalCard({
   message,
@@ -248,16 +249,22 @@ export function ToolApprovalCard({
   const compact = companionTarget !== undefined;
   const size = compact ? 'sm' : 'md';
   const summary = approvalSummary(request.toolName, request.input);
+  const botCreate = request.toolName === 'bot_create' ? botCreateArgs(request.input) : undefined;
   const category = t(
-    request.toolName === 'bash'
-      ? 'approval.category.terminal'
-      : summary.file !== undefined
-        ? 'approval.category.file'
-        : request.toolName.startsWith('browser')
-          ? 'approval.category.browser'
-          : 'approval.category.tool',
+    botCreate !== undefined
+      ? 'approval.category.bot'
+      : request.toolName === 'bash'
+        ? 'approval.category.terminal'
+        : summary.file !== undefined
+          ? 'approval.category.file'
+          : request.toolName.startsWith('browser')
+            ? 'approval.category.browser'
+            : 'approval.category.tool',
   );
   const sentence =
+    (botCreate === undefined
+      ? undefined
+      : t('approval.botCreate.summary', { name: botCreate.displayName })) ??
     summary.description ??
     (summary.command !== undefined
       ? t('approval.summaryCommand')
@@ -314,11 +321,13 @@ export function ToolApprovalCard({
         {t(
           request.toolName === 'channel_attachment_open'
             ? 'approval.originalRisk'
-            : request.toolName === 'secret_cli'
-              ? 'approval.secretCliRisk'
-              : request.toolName === 'secret_mcp_connect'
-                ? 'approval.secretMcpRisk'
-                : 'approval.risk',
+            : request.toolName === 'bot_create'
+              ? 'approval.botCreateRisk'
+              : request.toolName === 'secret_cli'
+                ? 'approval.secretCliRisk'
+                : request.toolName === 'secret_mcp_connect'
+                  ? 'approval.secretMcpRisk'
+                  : 'approval.risk',
         )}
       </div>
     </div>
@@ -406,6 +415,9 @@ export function ToolApprovalCard({
             <span className="bh-tool-approval-sentence">{sentence}</span>
             {preview}
           </button>
+          {botCreate === undefined ? null : (
+            <BotCreateApprovalPreview args={botCreate} preview={request.botCreatePreview} t={t} />
+          )}
           {details}
         </>
       )}

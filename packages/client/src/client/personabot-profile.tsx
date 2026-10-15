@@ -12,7 +12,8 @@ import type { BridgeActions } from './actions.js';
 import type { ProfileActivity } from './bridge.js';
 import { PersonaBotDeletionView } from './personabot-deletion.js';
 import { PersonaBotAvatar } from './avatar.js';
-import { ProfileBio, ProfileHeader, ProfileTags } from './profile-header.js';
+import { ProfileBio, ProfileHeader } from './profile-header.js';
+import { ProfileTags } from './profile-tags.js';
 import type { BotHarnessTranslate } from './locale.js';
 import type {
   ProfileCardDescriptor,

@@ -106,6 +106,56 @@ describe('Channel tool approval', () => {
     expect(broker.status(botSlug, state.messages[0]!.id)).toBe('expired');
   });
 
+  it('shows the new-Bot preview on a bot_create card, and declining reports rejected', async () => {
+    const state = fixture();
+    const preview = { memoryFolder: '/bots/<new-bot-id>/memory', defaultLocation: true };
+    state.broker.track(
+      {
+        ...state.execution(),
+        name: 'bot_create',
+        arguments: { display_name: 'Tim', tags: ['translator'] },
+      } as ToolExecution,
+      'operation',
+      false,
+      undefined,
+      preview,
+    );
+    const answer = state.broker.ask({
+      agent: state.agent,
+      toolName: 'bot_create',
+      callId: 'call-1',
+    });
+    await vi.waitFor(() => expect(state.messages).toHaveLength(1));
+    expect(state.messages[0]?.toolApprovalRequest).toMatchObject({
+      toolName: 'bot_create',
+      botCreatePreview: preview,
+    });
+    expect(JSON.parse(state.messages[0]!.toolApprovalRequest!.input)).toEqual({
+      display_name: 'Tim',
+      tags: ['translator'],
+    });
+    expect(await state.broker.decide(botSlug, state.messages[0]!.id, 'rejected')).toBe(true);
+    expect(await answer).toBe('rejected');
+  });
+
+  it('lets a saved rule allow bot_create without a card', async () => {
+    const state = fixture();
+    const match = vi.fn(() => ({ id: 'rule-1' }));
+    const broker = new ChannelToolApproval(state.channels, state.ownership, {
+      match,
+    } as never);
+    broker.track({
+      ...state.execution(),
+      name: 'bot_create',
+      arguments: { display_name: 'Tim' },
+    } as ToolExecution);
+    expect(await broker.ask({ agent: state.agent, toolName: 'bot_create', callId: 'call-1' })).toBe(
+      'allowed-once',
+    );
+    expect(match).toHaveBeenCalledWith(expect.objectContaining({ toolName: 'bot_create' }));
+    expect(state.messages).toHaveLength(0);
+  });
+
   it('posts a card for a tool input longer than 16 KB instead of refusing the call', async () => {
     const state = fixture();
     const execution = {
