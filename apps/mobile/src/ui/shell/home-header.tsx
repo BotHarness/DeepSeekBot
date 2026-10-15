@@ -16,10 +16,12 @@ import { focusOn, hostDrawer, openHostDrawer, useHostDrawerOpen } from './host-d
 export function HomeHeader({
   hostName,
   look = DEFAULT_HOST_LOOK,
+  actions,
   children,
 }: {
   hostName: string;
   look?: HostLook;
+  actions?: ReactNode;
   children: ReactNode;
 }) {
   const theme = useDesignTheme();
@@ -36,24 +38,39 @@ export function HomeHeader({
       band={band}
       banner={look.banner}
       header={
-        <Pressable
-          ref={chip}
-          onPress={openHostDrawer}
-          accessibilityRole="button"
-          accessibilityLabel={t.switchComputer(hostName)}
-          accessibilityState={{ expanded: drawerOpen }}
-          style={({ pressed }) => ({
+        <View
+          style={{
             flexDirection: 'row',
             alignItems: 'center',
-            gap: space.x4,
+            gap: space.x3,
             paddingTop: insets.top + space.x4,
             paddingBottom: space.x5,
-            paddingHorizontal: space.x5,
-            opacity: pressed ? 0.7 : 1,
-          })}
+            paddingLeft: space.x5,
+            paddingRight: space.x4,
+          }}
         >
-          <HostChipFace hostName={hostName} avatar={look.avatar} band={band} />
-        </Pressable>
+          <Pressable
+            ref={chip}
+            onPress={openHostDrawer}
+            accessibilityRole="button"
+            accessibilityLabel={t.switchComputer(hostName)}
+            accessibilityState={{ expanded: drawerOpen }}
+            style={({ pressed }) => ({
+              flex: 1,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: space.x4,
+              opacity: pressed ? 0.7 : 1,
+            })}
+          >
+            <HostChipFace hostName={hostName} avatar={look.avatar} band={band} />
+          </Pressable>
+          {actions === undefined ? null : (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x2 }}>
+              {actions}
+            </View>
+          )}
+        </View>
       }
     >
       {focused ? <StatusBar style={band.lightInk ? 'light' : 'dark'} /> : null}

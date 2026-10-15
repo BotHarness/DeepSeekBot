@@ -471,7 +471,7 @@ async function main() {
       EXPECT: 'This build of the app cannot receive notifications.',
     });
     steps.push(
-      'Me → Notifications says this build cannot receive notifications (no EAS projectId)',
+      'Settings → Notifications says this build cannot receive notifications (no EAS projectId)',
     );
     await flow('4a-switch-from-header', 'switch-computer.yaml', {
       FROM: b.name,
@@ -479,12 +479,12 @@ async function main() {
       BOT: a.bot.displayName,
       OTHER_BOT: b.bot.displayName,
     });
-    await flow('4b-switch-from-me', 'switch-computer-from-me.yaml', {
+    await flow('4b-switch-from-settings', 'switch-computer-from-settings.yaml', {
       FROM: a.name,
       TO: b.name,
       BOT: b.bot.displayName,
     });
-    steps.push('switched computers from the Home header and from Me → Computers');
+    steps.push('switched computers from the Chats header and from Settings → Computers');
 
     if (options.approval) {
       const marker = join(tmpdir(), `bh-e2e-sim-${Date.now()}.txt`);

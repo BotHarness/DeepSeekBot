@@ -16,8 +16,14 @@ export default function TabsLayout() {
     <View style={{ flex: 1 }}>
       <NativeTabs {...chrome(theme)}>
         <NativeTabs.Trigger name="(home)">
-          <NativeTabs.Trigger.Icon sf={{ default: 'house', selected: 'house.fill' }} md="home" />
-          <NativeTabs.Trigger.Label>{t.home}</NativeTabs.Trigger.Label>
+          <NativeTabs.Trigger.Icon
+            sf={{
+              default: 'bubble.left.and.bubble.right',
+              selected: 'bubble.left.and.bubble.right.fill',
+            }}
+            md="chat"
+          />
+          <NativeTabs.Trigger.Label>{t.chats}</NativeTabs.Trigger.Label>
         </NativeTabs.Trigger>
         <NativeTabs.Trigger name="(activity)">
           <NativeTabs.Trigger.Icon
@@ -28,13 +34,6 @@ export default function TabsLayout() {
           {pending > 0 ? (
             <NativeTabs.Trigger.Badge>{String(pending)}</NativeTabs.Trigger.Badge>
           ) : null}
-        </NativeTabs.Trigger>
-        <NativeTabs.Trigger name="(me)">
-          <NativeTabs.Trigger.Icon
-            sf={{ default: 'person.crop.circle', selected: 'person.crop.circle.fill' }}
-            md="account_circle"
-          />
-          <NativeTabs.Trigger.Label>{t.me}</NativeTabs.Trigger.Label>
         </NativeTabs.Trigger>
       </NativeTabs>
       <HostDrawer />

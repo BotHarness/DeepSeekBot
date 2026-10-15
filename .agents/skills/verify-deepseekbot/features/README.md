@@ -14,6 +14,7 @@ One file per user-facing feature. Each file has four sections: `Sub-features`, `
 | Phone pairing and paired devices | no | `scripts/e2e-mobile-pairing-web.mjs`, `scripts/e2e-device-pairing.mjs` | [phone-pairing.md](phone-pairing.md) |
 | Phone notifications and paired computers (iOS Simulator) | for the approval step | `scripts/e2e-mobile-sim.mjs` (Mac) | [phone-notifications.md](phone-notifications.md) |
 | Bot Browser on the phone | no | `scripts/e2e-mobile-browser-web.mjs` | [phone-browser.md](phone-browser.md) |
+| Approval Templates, the Approval Reviewer and its self-escalation guard | for the reviewer and guard | none | [approval-templates.md](approval-templates.md) |
 
 ## Not mapped yet
 

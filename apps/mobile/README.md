@@ -101,7 +101,7 @@ Agents verify native UI on a Mac with Xcode: they drive a development build on t
    }
    ```
 
-   A test notification sends `{ "v": 1, "hostId": "…", "test": true }`, and a badge-only one sends `{ "v": 1, "hostId": "…" }` with `aps.badge`; both open Activity. The banner belongs to SpringBoard, so neither Maestro nor agent-device finds it by text: tap it by point while it shows, for example `npx agent-device press 196 90` on an iPhone 16, or `tapOn: { point: 50%,10% }` in a flow. For the home-screen badge and Notification Center, go home (`npx agent-device home`) and take `xcrun simctl io <udid> screenshot`. The Simulator cannot get an Expo push token without an EAS projectId, so Me → Notifications says this build cannot receive notifications.
+   A test notification sends `{ "v": 1, "hostId": "…", "test": true }`, and a badge-only one sends `{ "v": 1, "hostId": "…" }` with `aps.badge`; both open Activity. The banner belongs to SpringBoard, so neither Maestro nor agent-device finds it by text: tap it by point while it shows, for example `npx agent-device press 196 90` on an iPhone 16, or `tapOn: { point: 50%,10% }` in a flow. For the home-screen badge and Notification Center, go home (`npx agent-device home`) and take `xcrun simctl io <udid> screenshot`. The Simulator cannot get an Expo push token without an EAS projectId, so Settings → Notifications says this build cannot receive notifications.
 
 6. **MCP.** Agents that prefer tools over a shell can use `npx agent-device mcp` (stdio; tools mirror the CLI commands) or `maestro mcp` (stdio; runs flows and inspects the view hierarchy). [XcodeBuildMCP](https://github.com/getsentry/XcodeBuildMCP) is an alternative for building and driving the Simulator from Xcode's side.
 

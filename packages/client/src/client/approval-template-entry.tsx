@@ -24,7 +24,11 @@ const pageStyles = stylex.create({
   check: { display: 'inline-flex', color: color.fg },
 });
 
-function templateTitle(t: BotHarnessTranslate, name: string, fallback: string | undefined): string {
+export function templateTitle(
+  t: BotHarnessTranslate,
+  name: string,
+  fallback: string | undefined,
+): string {
   if (name === 'cautious') return t('autoApproval.template.cautious');
   if (name === 'get-work-done') return t('autoApproval.template.getWorkDone');
   return fallback ?? name;
@@ -34,7 +38,10 @@ export function autoApprovalTemplateTitle(t: BotHarnessTranslate, name: string):
   return templateTitle(t, name, undefined);
 }
 
-function templateDescription(t: BotHarnessTranslate, template: ApprovalTemplateView): string {
+export function templateDescription(
+  t: BotHarnessTranslate,
+  template: ApprovalTemplateView,
+): string {
   if (template.name === 'cautious') return t('autoApproval.template.cautiousHint');
   if (template.name === 'get-work-done') return t('autoApproval.template.getWorkDoneHint');
   return template.description;

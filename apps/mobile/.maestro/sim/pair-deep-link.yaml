@@ -1,4 +1,4 @@
-# Pairs with a Host through its deepseekbot://pair link and lands on its Home.
+# Pairs with a Host through its deepseekbot://pair link and lands on its Chats list.
 # -e LINK=deepseekbot://pair?p=…  -e HOST=<host name>  -e BOT=<a PersonaBot on it>
 appId: ai.botharness.deepseekbot.dev
 ---
@@ -6,7 +6,7 @@ appId: ai.botharness.deepseekbot.dev
 - tapOn:
     text: 'Open|打开'
     optional: true
-# The first pairing asks for notification permission a moment after Home opens.
+# The first pairing asks for notification permission a moment after Chats opens.
 - extendedWaitUntil:
     visible: '^(Allow|允许)$|${HOST}, switch computer'
     timeout: 30000

@@ -679,7 +679,7 @@ export function apply(ctx: ClientContext): void {
           order: 15,
           label: () => t('botSettings.section.autoApproval'),
           locale: LOCALE_NS,
-          inject: () => ({ actions }),
+          inject: () => ({ actions, call, store }),
         },
         AutoApprovalSection,
       ),

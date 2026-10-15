@@ -59,6 +59,7 @@ vi.mock('../src/ui/shell/home-header', () => ({
 vi.mock('../src/ui/shell/host-drawer', () => ({
   HostDrawerEdge: ({ children }: { children: ReactNode }) => children,
 }));
+vi.mock('../src/ui/shell/human-avatar', () => ({ HumanAvatarButton: () => null }));
 vi.mock('../src/ui/connection-banner', () => ({ ConnectionBanner: () => null }));
 vi.mock('../src/ui/bot-avatar', () => ({ BotAvatar: () => null }));
 

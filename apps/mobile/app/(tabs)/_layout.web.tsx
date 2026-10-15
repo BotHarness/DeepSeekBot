@@ -7,7 +7,7 @@ import { useHostSession, useInbox } from '../../src/host/host-session';
 import { glassShadow, glassTint, useDesignTheme } from '../../src/ui/design/theme';
 import { edge, glass, radius, space } from '../../src/ui/design/tokens';
 import { HostDrawer } from '../../src/ui/shell/host-drawer';
-import { ActivityIcon, HomeIcon, MeIcon } from '../../src/ui/shell/icons';
+import { ActivityIcon, ChatsIcon } from '../../src/ui/shell/icons';
 import { t } from '../../src/ui/strings';
 
 export default function TabsLayout() {
@@ -45,7 +45,7 @@ export default function TabsLayout() {
           sceneStyle: { backgroundColor: theme.color.base },
         }}
       >
-        <Tabs.Screen name="(home)" options={{ title: t.home, tabBarIcon: HomeIcon }} />
+        <Tabs.Screen name="(home)" options={{ title: t.chats, tabBarIcon: ChatsIcon }} />
         <Tabs.Screen
           name="(activity)"
           options={{
@@ -54,7 +54,6 @@ export default function TabsLayout() {
             ...(pending > 0 ? { tabBarBadge: pending } : {}),
           }}
         />
-        <Tabs.Screen name="(me)" options={{ title: t.me, tabBarIcon: MeIcon }} />
       </Tabs>
       <HostDrawer />
     </View>
