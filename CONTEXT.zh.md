@@ -185,8 +185,12 @@ Profile 级、由 Human 用 Markdown 写成的审批规范，说明哪些工具�
 _避免使用_：approval mode、auto mode、Tool Approval Rule
 
 **Approval Reviewer**：
-一个全新的、没有工具的 DSH Session，按 PersonaBot 的 Approval Template 判断一条待审批请求；上下文不含工具结果；结论是允许、拒绝并附理由，或交给 Human。它出错时一律退回 Human 审批卡。
+在 Approval Review Session 里按 PersonaBot 的 Approval Template 判断一条待审批请求的模型；上下文不含工具结果；结论是允许、拒绝并附理由，或交给 Human。它出错时一律退回 Human 审批卡。
 _避免使用_：classifier、guardian、auto-approver
+
+**Approval Review Session**：
+审批复核会话。Approval Reviewer 运行所在的全新、没有工具的 DSH Session，每次判断开一个、判断完就关闭。它不挂 Agent Preset、没有 Memory、只带复核提示词，不属于任何 PersonaBot，日志在 DeepSeek Harness 中仍可查看。会话列表默认隐藏它，Human 打开“显示审批复核会话”后才显示；这个开关与显示 Bot 会话分开。
+_避免使用_：reviewer Session、auto-approval Session、Orchestrator Session、Assignment Session
 
 **Assignment Access Preset**：
 Human 为单个 PersonaBot 选择、在新建 Assignment 时应用的权限预设。默认是 DSH workspace-write 与 ask；危险完全访问需要明确开启 DSH danger-full-access 与 never。所选模式固化在每个 Assignment 的权限快照中，仍须选择有效 Workspace Grant。

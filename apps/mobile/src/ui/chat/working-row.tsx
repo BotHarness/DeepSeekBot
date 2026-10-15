@@ -10,7 +10,7 @@ import { ChevronDownIcon, StopIcon } from '../shell/icons';
 import { t } from '../strings';
 import { stepLabel, stepRows } from './bot-steps';
 
-export function StatusStrip({
+export function WorkingRow({
   bot,
   stopping,
   onStop,
@@ -24,14 +24,13 @@ export function StatusStrip({
   const [open, setOpen] = useState(false);
   const rows = stepRows(bot);
   return (
-    <View accessibilityLiveRegion="polite" style={{ paddingVertical: space.x2 }}>
+    <View accessibilityLiveRegion="polite" style={{ paddingTop: space.x2 }}>
       <View
         style={{
           flexDirection: 'row',
           alignItems: 'center',
           gap: space.x3,
-          paddingLeft: space.x5,
-          paddingRight: space.x3,
+          paddingHorizontal: space.x4,
         }}
       >
         <Pressable
@@ -96,8 +95,8 @@ export function StatusStrip({
               style={{
                 flexDirection: 'row',
                 gap: space.x3,
-                paddingLeft: space.x5 + space.x3 + space.x3,
-                paddingRight: space.x5,
+                paddingLeft: space.x4 + space.x3 + space.x3,
+                paddingRight: space.x4,
                 paddingVertical: space.x1,
               }}
             >

@@ -1,6 +1,8 @@
 import type { HostClient, RemoteSource } from './client';
 import type {
   AttachmentRef,
+  WireAllBotMention,
+  WireMention,
   ChannelLiveFrame,
   ChannelNotification,
   ChannelWireMessage,
@@ -84,6 +86,7 @@ export interface ConversationMessage {
   revision?: number;
   at: string;
   author: 'human' | 'bot' | 'system';
+  bot?: string;
   body: string;
   attachments: MessageAttachment[];
   card?: MessageCard;
@@ -117,8 +120,8 @@ export interface CachedConversation {
 }
 
 export interface ConversationCache {
-  read(botSlug: string): Promise<CachedConversation | undefined>;
-  write(botSlug: string, value: CachedConversation): void;
+  read(key: string): Promise<CachedConversation | undefined>;
+  write(key: string, value: CachedConversation): void;
 }
 
 export interface Conversation {
@@ -127,16 +130,17 @@ export interface Conversation {
   start(): void;
   stop(): void;
   loadOlder(): Promise<void>;
-  send(body: string, files?: OutgoingFile[]): string;
+  send(body: string, files?: OutgoingFile[], tags?: MessageTags): string;
   retry(messageId: string): void;
   react(messageId: string, emoji: string, active: boolean): Promise<void>;
 }
 
 export interface ConversationOptions {
   host: Pick<HostClient, 'call' | 'follow' | 'upload' | 'resource'>;
-  botSlug: string;
+  botSlug?: string;
   displayName?: string;
   channelId?: string;
+  cacheKey?: string;
   cache?: ConversationCache;
   pageSize?: number;
   olderPageSize?: number;
@@ -158,10 +162,16 @@ const PREVIEWABLE = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp
 
 export const ATTACHMENT_PATH = '/api/botharness/attachment';
 
+export interface MessageTags {
+  mentions?: WireMention[];
+  allBotMention?: WireAllBotMention;
+}
+
 interface Outgoing {
   id: string;
   at: string;
   body: string;
+  tags: MessageTags;
   files: OutgoingFile[];
   refs: Array<AttachmentRef | undefined>;
   delivery: DeliveryState;
@@ -293,6 +303,7 @@ function present(
     revision: entry.revision,
     at: message.at,
     author: kind === 'human' ? 'human' : kind === 'bot' ? 'bot' : 'system',
+    ...(message.author.kind === 'bot' ? { bot: message.author.slug } : {}),
     body: message.body,
     attachments: attachmentsOf(entry, resolve, picked),
     ...(card === undefined ? {} : { card }),
@@ -310,6 +321,7 @@ export function createConversation(options: ConversationOptions): Conversation {
   const cachedEntries = options.cachedEntries ?? 50;
   const newMessageId = options.messageId ?? (() => `human-${uuid()}`);
   const draftDelayMs = options.draftDelayMs ?? 50;
+  const cacheKey = options.cacheKey ?? options.botSlug ?? options.channelId;
   const listeners = new Set<() => void>();
   let channelId = options.channelId;
   let window: JournalEntry[] = [];
@@ -399,11 +411,11 @@ export function createConversation(options: ConversationOptions): Conversation {
 
   const persist = (): void => {
     const cache = options.cache;
-    if (cache === undefined || fromCache) return;
+    if (cache === undefined || cacheKey === undefined || fromCache) return;
     clearTimeout(cacheTimer);
     cacheTimer = setTimeout(() => {
       const tail = window.slice(-cachedEntries);
-      cache.write(options.botSlug, {
+      cache.write(cacheKey, {
         entries: tail,
         hasOlder: hasOlder || tail.length < window.length,
       });
@@ -553,6 +565,7 @@ export function createConversation(options: ConversationOptions): Conversation {
 
   const ensureChannel = async (): Promise<string> => {
     if (channelId !== undefined) return channelId;
+    if (options.botSlug === undefined) throw new Error('The Channel could not be opened.');
     const result = await options.host.call<{ channel: { id: string } }>('channelDm', {
       slug: options.botSlug,
       ...(options.displayName === undefined ? {} : { displayName: options.displayName }),
@@ -631,6 +644,12 @@ export function createConversation(options: ConversationOptions): Conversation {
         body: item.body,
         messageId: item.id,
         ...(attachments.length === 0 ? {} : { attachments }),
+        ...(item.tags.mentions === undefined || item.tags.mentions.length === 0
+          ? {}
+          : { mentions: item.tags.mentions }),
+        ...(item.tags.allBotMention === undefined
+          ? {}
+          : { allBotMention: item.tags.allBotMention }),
       });
       if (outgoing.get(item.id) !== item) return;
       item.delivery = 'committed';
@@ -657,7 +676,9 @@ export function createConversation(options: ConversationOptions): Conversation {
       status = 'opening';
       publish();
       const cached =
-        options.cache?.read(options.botSlug).catch(() => undefined) ?? Promise.resolve(undefined);
+        (cacheKey === undefined
+          ? undefined
+          : options.cache?.read(cacheKey).catch(() => undefined)) ?? Promise.resolve(undefined);
       void cached.then((value) => {
         if (current !== session) return;
         if (value !== undefined && window.length === 0 && value.entries.length > 0) {
@@ -701,11 +722,12 @@ export function createConversation(options: ConversationOptions): Conversation {
         publish();
       }
     },
-    send(body, files = []) {
+    send(body, files = [], tags = {}) {
       const item: Outgoing = {
         id: newMessageId(),
         at: new Date().toISOString(),
         body,
+        tags,
         files,
         refs: files.map(() => undefined),
         delivery: 'pending',

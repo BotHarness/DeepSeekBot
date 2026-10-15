@@ -316,6 +316,27 @@ export function BotSessionsVisibilitySetting({
   );
 }
 
+export function ApprovalReviewSessionsVisibilitySetting({
+  t,
+  useBotModePrefs,
+  setShowApprovalReviewSessions,
+}: BotModeSettingRowProps): ReactElement {
+  const shown = useBotModePrefs((value) => value.showApprovalReviewSessions);
+  return (
+    <SettingsRow
+      title={t('approvalReviewSessions.row.title')}
+      description={t('approvalReviewSessions.row.description')}
+      control={
+        <Switch
+          checked={shown}
+          onChange={setShowApprovalReviewSessions}
+          label={t('approvalReviewSessions.row.title')}
+        />
+      }
+    />
+  );
+}
+
 export function GroupAutoAcceptSetting({
   t,
   useBotModePrefs,

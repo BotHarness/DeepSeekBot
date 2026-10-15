@@ -33,6 +33,7 @@ Every approval that reaches step 3 is eligible: DSH asks such as Shell `sandbox_
 ### Approval Reviewer
 
 - The reviewer is a fresh DSH Session with no tools and no Memory. It is created for one decision and then closed. It does not inherit the Bot's Session.
+- **Approval Review Session.** Each review is a real DSH Session whose id starts with `approval-review-`, titled `Approval review · <bot> · <tool>`, in the folder `botharness/approval-reviews` under the DSH home. It mounts no Agent Preset: its only system prompt section is the reviewer prompt, runtime context is suppressed and the tool list is empty. Closing it keeps its log, so the Human can open it in DeepSeek Harness to see how a call was judged. The session list hides these Sessions unless the Human turns on "Show Approval Review Sessions", which is off by default and separate from the Bot Sessions switch. A step that BotHarness is not driving is refused, so typing into an old review cannot turn it into a working Session.
 - **Model.** The reviewer uses the Bot's own model by default. A Profile-wide setting can name a single reviewer model for every Bot instead.
 - **Context.** The reviewer gets the template text, the pending call (tool name, full input, working directory, Session role, Channel) and a bounded excerpt of the Session: the Human's messages and the Bot's earlier tool calls. Tool results, web pages, file contents and the Bot's own prose are left out. This keeps text the Bot read from steering the reviewer, as in Claude Code's auto mode. Boundaries the Human stated in the conversation ("don't send anything yet") reach the reviewer and count as reasons to refuse.
 - **Outcome.** The reviewer answers with one of three outcomes and a short reason:
@@ -46,6 +47,7 @@ Every approval that reaches step 3 is eligible: DSH asks such as Shell `sandbox_
 - An allowed call leaves a folded record in the Channel where the card would have gone (`Auto-approved by <template>: <reason>`). It sends no notification.
 - A rejected call also becomes a Human Inbox item with the reason. From there the Human can **allow this once anyway**. The override covers that exact call only. The Bot is told and may retry it, and later calls are still judged by the template.
 - **Circuit breaker.** After 3 rejections in a row, or 20 in one Session, auto approval pauses for that Session and every request goes back to a card. The next approval the Human gives resumes it. The thresholds are fixed.
+- **Restart.** The breaker and unused overrides live in Host memory. A Host restart resumes auto approval with fresh counts and drops an override the Bot has not used yet ([#1826](https://github.com/BotHarness/DeepSeekBot/issues/1826)).
 
 ### What the reviewer can never approve
 

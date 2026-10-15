@@ -80,6 +80,7 @@ import { ShortcutHelp, ShortcutHelpView } from './shortcut-help.js';
 import { mountTabTitle } from './tab-title.js';
 import { createChannelSidebarRegistry } from './channel-sidebar.js';
 import { createDockPanelRegistry } from './dock-panels.js';
+import { createActivityCenterPanel } from './activity-center-panel.js';
 import { createProfileCardBuiltins } from './profile-cards-builtins.js';
 import { createGroupProfileCards } from './group-profile.js';
 import { createProfileCardRegistry } from './profile-cards.js';
@@ -361,6 +362,7 @@ export function apply(ctx: ClientContext): void {
         ...createChannelSidebarBuiltins(t, prefs, nativeSessions).map((entry) =>
           channelSidebar.register(entry),
         ),
+        dockPanels.register(createActivityCenterPanel(actions, t, nativeSessions)),
       ];
     };
     reconcile();
@@ -677,7 +679,7 @@ export function apply(ctx: ClientContext): void {
           order: 15,
           label: () => t('botSettings.section.autoApproval'),
           locale: LOCALE_NS,
-          inject: () => ({ actions }),
+          inject: () => ({ actions, call, store }),
         },
         AutoApprovalSection,
       ),
@@ -926,6 +928,7 @@ export function apply(ctx: ClientContext): void {
             actions,
             companion,
             channelSidebar,
+            dockPanels,
             shortcutBindings,
             ...botModePrefsFace(prefs),
             exitBotMode: () => ctx.layout.selectPanel(null),

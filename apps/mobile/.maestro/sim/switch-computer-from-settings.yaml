@@ -1,8 +1,9 @@
-# Opens the Host drawer from Me → Computers, switches computers and checks the Notifications row.
+# Opens the Host drawer from Settings → Computers, switches computers and checks the Notifications row.
 # -e FROM=<shown host> -e TO=<other host> -e BOT=<a PersonaBot on TO>
 appId: ai.botharness.deepseekbot.dev
 ---
-- tapOn: 'Me'
+- tapOn: 'Chats'
+- tapOn: 'Settings'
 - extendedWaitUntil:
     visible: 'Computers.*'
     timeout: 10000
@@ -18,7 +19,7 @@ appId: ai.botharness.deepseekbot.dev
 - extendedWaitUntil:
     notVisible: 'Pair a new computer'
     timeout: 10000
-- tapOn: 'Home'
+- tapOn: 'Chats'
 - extendedWaitUntil:
     visible: '${TO}, switch computer'
     timeout: 20000

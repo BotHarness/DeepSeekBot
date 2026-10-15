@@ -12,6 +12,7 @@ import { useDesignTheme } from '../design/theme';
 import { MarkdownView } from '../markdown-view';
 import { Text } from '../primitives/text';
 import { t } from '../strings';
+import { bubbleRow, bubbleShape } from './bubble-shape';
 import { MessageAttachments } from './message-attachments';
 import { openMessageMenu } from './message-menu';
 import { ReactionChips } from './message-reactions';
@@ -33,6 +34,7 @@ export const MessageBubble = memo(function MessageBubble({
   onLongPress = (pressed) => openMessageMenu(pressed.body),
   onReact,
   botName = (id) => id,
+  author,
 }: {
   message: ConversationMessage;
   first?: boolean;
@@ -43,6 +45,7 @@ export const MessageBubble = memo(function MessageBubble({
   onLongPress?: (message: ConversationMessage) => void;
   onReact?: (messageId: string, emoji: string, active: boolean) => void;
   botName?: (id: string) => string;
+  author?: string | undefined;
 }) {
   const theme = useDesignTheme();
   const human = message.author === 'human';
@@ -65,21 +68,8 @@ export const MessageBubble = memo(function MessageBubble({
   const bubble = (
     <View
       style={{
-        maxWidth: '80%',
-        alignSelf: human ? 'flex-end' : 'flex-start',
+        ...bubbleShape(human, { first, last }),
         backgroundColor: human ? theme.color.accent : theme.color.surface,
-        borderRadius: radius.lg,
-        ...(human
-          ? {
-              borderTopRightRadius: first ? radius.lg : radius.xs,
-              borderBottomRightRadius: last ? radius.lg : radius.xs,
-            }
-          : {
-              borderTopLeftRadius: first ? radius.lg : radius.xs,
-              borderBottomLeftRadius: last ? radius.lg : radius.xs,
-            }),
-        paddingHorizontal: space.x4,
-        paddingVertical: space.x3,
         gap: space.x2,
         opacity: message.delivery === 'pending' ? 0.7 : 1,
       }}
@@ -105,13 +95,8 @@ export const MessageBubble = memo(function MessageBubble({
     </View>
   );
   return (
-    <View
-      style={{
-        paddingHorizontal: space.x4,
-        paddingTop: first ? space.x3 : space.x1,
-        gap: space.x1,
-      }}
-    >
+    <View style={{ ...bubbleRow(first), gap: space.x1 }}>
+      {author === undefined ? null : <AuthorName name={author} />}
       {failed || actionable ? (
         <Pressable
           {...(failed ? { accessibilityRole: 'button' as const, accessibilityLabel: label } : {})}
@@ -156,10 +141,25 @@ export const MessageBubble = memo(function MessageBubble({
   );
 });
 
-export const DraftBubble = memo(function DraftBubble({ draft }: { draft: ConversationDraft }) {
+function AuthorName({ name }: { name: string }) {
+  return (
+    <Text variant="meta" tone="muted" strong numberOfLines={1} style={{ paddingLeft: space.x2 }}>
+      {name}
+    </Text>
+  );
+}
+
+export const DraftBubble = memo(function DraftBubble({
+  draft,
+  author,
+}: {
+  draft: ConversationDraft;
+  author?: string | undefined;
+}) {
   const theme = useDesignTheme();
   return (
     <View style={{ paddingHorizontal: space.x4, paddingTop: space.x3, gap: space.x1 }}>
+      {author === undefined ? null : <AuthorName name={author} />}
       <View
         style={{
           maxWidth: '80%',

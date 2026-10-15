@@ -1049,7 +1049,29 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
   let memberDeparture: ChannelMessage['memberDeparture'];
   let turnStop: ChannelMessage['turnStop'];
   let toolAutoApproval: ChannelMessage['toolAutoApproval'];
-  if (record['toolAutoApproval'] !== undefined) {
+  let toolAutoApprovalPause: ChannelMessage['toolAutoApprovalPause'];
+  if (record['toolAutoApprovalPause'] !== undefined) {
+    const pause = asRecord(record['toolAutoApprovalPause']);
+    if (
+      pause === undefined ||
+      author.kind !== 'system' ||
+      ['botSlug', 'sessionId', 'template'].some(
+        (key) => typeof pause[key] !== 'string' || (pause[key] as string).length === 0,
+      ) ||
+      (pause['state'] !== 'paused' && pause['state'] !== 'resumed') ||
+      (pause['reason'] !== undefined &&
+        pause['reason'] !== 'consecutive' &&
+        pause['reason'] !== 'session')
+    )
+      return undefined;
+    toolAutoApprovalPause = {
+      botSlug: pause['botSlug'] as string,
+      sessionId: pause['sessionId'] as string,
+      template: pause['template'] as string,
+      state: pause['state'],
+      ...(pause['reason'] === undefined ? {} : { reason: pause['reason'] }),
+    };
+  } else if (record['toolAutoApproval'] !== undefined) {
     const auto = asRecord(record['toolAutoApproval']);
     if (
       auto === undefined ||
@@ -1514,6 +1536,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
     ...(memberDeparture === undefined ? {} : { memberDeparture }),
     ...(turnStop === undefined ? {} : { turnStop }),
     ...(toolAutoApproval === undefined ? {} : { toolAutoApproval }),
+    ...(toolAutoApprovalPause === undefined ? {} : { toolAutoApprovalPause }),
     ...(toolApprovalRequest === undefined ? {} : { toolApprovalRequest }),
     ...(sessionFailure === undefined ? {} : { sessionFailure }),
     ...(toolApprovalDecision === undefined ? {} : { toolApprovalDecision }),
@@ -2871,33 +2894,80 @@ export interface ApprovalTemplateView {
   name: string;
   title: string;
   description: string;
+  builtIn: boolean;
+  usedBy: string[];
+  text?: string;
+}
+function parseApprovalTemplate(item: unknown): ApprovalTemplateView | undefined {
+  const template = asRecord(item);
+  if (
+    typeof template?.['name'] !== 'string' ||
+    typeof template['title'] !== 'string' ||
+    typeof template['description'] !== 'string'
+  )
+    return undefined;
+  const text = template['text'];
+  return {
+    name: template['name'],
+    title: template['title'],
+    description: template['description'],
+    builtIn: template['builtIn'] !== false,
+    usedBy: stringArray(template['usedBy']),
+    ...(typeof text === 'string' ? { text } : {}),
+  };
 }
 export async function loadApprovalTemplates(
   call: BridgeCall,
-  slug: string,
+  slug?: string,
 ): Promise<{ templates: ApprovalTemplateView[]; selected: string | null }> {
-  const response = asRecord(await unwrap(call, 'approvalTemplates', { slug }));
+  const response = asRecord(
+    await unwrap(call, 'approvalTemplates', slug === undefined ? {} : { slug }),
+  );
   const templates = response?.['templates'];
-  const selected = response?.['selected'];
+  const selected = response?.['selected'] ?? null;
   if (!Array.isArray(templates) || (selected !== null && typeof selected !== 'string'))
     throw new Error('invalid approvalTemplates response');
   return {
     templates: templates.flatMap((item: unknown) => {
-      const template = asRecord(item);
-      return typeof template?.['name'] === 'string' &&
-        typeof template['title'] === 'string' &&
-        typeof template['description'] === 'string'
-        ? [
-            {
-              name: template['name'],
-              title: template['title'],
-              description: template['description'],
-            },
-          ]
-        : [];
+      const template = parseApprovalTemplate(item);
+      return template === undefined ? [] : [template];
     }),
     selected,
   };
+}
+async function writtenApprovalTemplate(
+  call: BridgeCall,
+  endpoint: 'approvalTemplateCreate' | 'approvalTemplateUpdate',
+  payload: Record<string, unknown>,
+): Promise<ApprovalTemplateView> {
+  const template = parseApprovalTemplate(
+    asRecord(await unwrap(call, endpoint, payload))?.['template'],
+  );
+  if (template === undefined) throw new Error('invalid ' + endpoint + ' response');
+  return template;
+}
+export function createApprovalTemplate(
+  call: BridgeCall,
+  name: string,
+  source: { text: string } | { from: string },
+): Promise<ApprovalTemplateView> {
+  return writtenApprovalTemplate(call, 'approvalTemplateCreate', { name, ...source });
+}
+export function updateApprovalTemplate(
+  call: BridgeCall,
+  name: string,
+  text: string,
+): Promise<ApprovalTemplateView> {
+  return writtenApprovalTemplate(call, 'approvalTemplateUpdate', { name, text });
+}
+export async function deleteApprovalTemplate(
+  call: BridgeCall,
+  name: string,
+): Promise<{ clearedBots: string[] }> {
+  const response = asRecord(await unwrap(call, 'approvalTemplateDelete', { name }));
+  if (!Array.isArray(response?.['clearedBots']))
+    throw new Error('invalid approvalTemplateDelete response');
+  return { clearedBots: stringArray(response['clearedBots']) };
 }
 export async function setBotApprovalTemplate(
   call: BridgeCall,
@@ -3314,6 +3384,7 @@ function parseHumanAttentionPage(value: unknown): HumanAttentionPage {
       item['kind'] !== 'user-question' &&
       item['kind'] !== 'private-input' &&
       item['kind'] !== 'tool-approval' &&
+      item['kind'] !== 'auto-rejection' &&
       item['kind'] !== 'workspace-grant-request' &&
       item['kind'] !== 'bot-dm-message' &&
       item['kind'] !== 'assignment-waiting-human' &&
@@ -3352,6 +3423,24 @@ function parseHumanAttentionPage(value: unknown): HumanAttentionPage {
     if (item['messageId'] !== undefined && typeof item['messageId'] !== 'string') return undefined;
     if (item['snoozedUntil'] !== undefined && typeof item['snoozedUntil'] !== 'string')
       return undefined;
+    if (
+      item['kind'] === 'auto-rejection' &&
+      (item['category'] !== 'action' ||
+        typeof item['messageId'] !== 'string' ||
+        typeof item['sourceEventId'] !== 'string')
+    )
+      return undefined;
+    if (item['autoRejection'] !== undefined) {
+      const detail = asRecord(item['autoRejection']);
+      if (
+        item['kind'] !== 'auto-rejection' ||
+        detail === undefined ||
+        ['sessionId', 'toolName', 'input', 'template', 'reason'].some(
+          (key) => typeof detail[key] !== 'string',
+        )
+      )
+        return undefined;
+    }
     if (
       item['kind'] === 'private-input' &&
       (item['category'] !== 'action' ||
@@ -3466,6 +3555,11 @@ export async function dismissHumanInboxItem(
 ): Promise<void> {
   const value = asRecord(await unwrap(call, 'humanAttentionDismiss', { itemId, sourceKey }));
   if (value?.['accepted'] !== true) throw new Error('Inbox dismissal was not confirmed');
+}
+
+export async function overrideAutoRejection(call: BridgeCall, itemId: string): Promise<void> {
+  const value = asRecord(await unwrap(call, 'toolAutoRejectionOverride', { itemId }));
+  if (value?.['accepted'] !== true) throw new Error('Auto-rejection override was not confirmed');
 }
 
 export async function snoozeHumanInboxItem(

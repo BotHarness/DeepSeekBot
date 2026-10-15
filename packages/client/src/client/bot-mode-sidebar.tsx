@@ -14,6 +14,7 @@ import { BotIcon } from './bot-icon.js';
 import type { BotModePrefsSnapshot } from './bot-mode-prefs.js';
 import { BotSidebar, useClientState } from './bot-sidebar.js';
 import type { ChannelSidebarRegistry } from './channel-sidebar.js';
+import { ACTIVITY_CENTER_PANEL, type DockPanelRegistry } from './dock-panels.js';
 import { hooked } from './ds/hooked.js';
 import { border, color, radius, space, text } from './ds/tokens.stylex.js';
 import { ExitIcon } from './exit-icon.js';
@@ -21,6 +22,7 @@ import { InboxIcon } from './inbox-icon.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
 import { OnboardingLauncher } from './onboarding-checklist-view.js';
+import { PinnedPanelCards } from './pinned-panel-cards.js';
 import type { ShortcutBindings } from './shortcut-bindings.js';
 import type { WindowCompanions } from './window-companions.js';
 
@@ -32,6 +34,7 @@ export interface BotModeSidebarProps {
   actions: BridgeActions;
   companion?: WindowCompanions | undefined;
   channelSidebar?: ChannelSidebarRegistry | undefined;
+  dockPanels?: DockPanelRegistry | undefined;
   shortcutBindings?: ShortcutBindings | undefined;
   useBotModePrefs: SnapshotSelectorHook<BotModePrefsSnapshot>;
   setSortMode: (mode: BotModeSortMode) => void;
@@ -48,11 +51,11 @@ export function BotModeSidebar(props: BotModeSidebarProps): ReactElement {
   const icon = useBotModePrefs((prefs) => prefs.botIcon);
   const state = useClientState();
   const unread = state.humanInbox.unreadCount;
-  const inboxLabel = [
-    t('activityCenter.title'),
+  const inboxNotes = [
     ...(unread > 0 ? [t('humanInbox.unreadCount', { count: String(unread) })] : []),
     ...(state.humanInbox.hasAction ? [t('humanInbox.action')] : []),
-  ].join(' · ');
+  ];
+  const inboxLabel = [t('activityCenter.title'), ...inboxNotes].join(' · ');
   const inboxCurrent = state.selection?.kind === 'inbox';
   const toggleLabel = t(collapsed ? 'panel.sidebar.open' : 'panel.sidebar.collapse');
   const darwin = isDarwinDesktop();
@@ -154,24 +157,46 @@ export function BotModeSidebar(props: BotModeSidebarProps): ReactElement {
           </button>
         </Tooltip>
       </div>
-      <div {...stylex.props(styles.list, collapsed && styles.listCollapsed)}>
-        {row(
-          inboxLabel,
-          <InboxIcon size={wide ? 16 : 18} />,
-          () => {
-            void actions.openActivityCenter();
-          },
-          {
-            tour: 'inbox',
-            current: inboxCurrent,
-            dot: unread > 0 || state.humanInbox.hasAction,
-            trailing:
-              unread > 0 ? (
-                <span {...stylex.props(styles.count)}>{unread > 99 ? '99+' : unread}</span>
-              ) : null,
-          },
-        )}
-      </div>
+      {props.dockPanels === undefined ? (
+        <div {...stylex.props(styles.list, collapsed && styles.listCollapsed)}>
+          {row(
+            inboxLabel,
+            <InboxIcon size={wide ? 16 : 18} />,
+            () => {
+              void actions.openActivityCenter();
+            },
+            {
+              tour: 'inbox',
+              current: inboxCurrent,
+              dot: unread > 0 || state.humanInbox.hasAction,
+              trailing:
+                unread > 0 ? (
+                  <span {...stylex.props(styles.count)}>{unread > 99 ? '99+' : unread}</span>
+                ) : null,
+            },
+          )}
+        </div>
+      ) : (
+        <PinnedPanelCards
+          registry={props.dockPanels}
+          collapsed={collapsed}
+          current={inboxCurrent ? ACTIVITY_CENTER_PANEL : undefined}
+          badge={(id) =>
+            id === ACTIVITY_CENTER_PANEL
+              ? {
+                  count: unread,
+                  dot: state.humanInbox.hasAction,
+                  label: inboxNotes.length === 0 ? undefined : inboxNotes.join(' · '),
+                }
+              : undefined
+          }
+          fallback={(id) =>
+            id === ACTIVITY_CENTER_PANEL ? () => void actions.openActivityCenter() : undefined
+          }
+          tourOf={(id) => (id === ACTIVITY_CENTER_PANEL ? 'inbox' : undefined)}
+          t={t}
+        />
+      )}
       <div {...stylex.props(styles.region, collapsed && styles.regionCollapsed)}>
         <BotSidebar
           wide={wide}

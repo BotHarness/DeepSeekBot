@@ -215,6 +215,16 @@ describe('message states', () => {
     expect(draft).toContain(t.typing);
   });
 
+  it('names the Bot above its group bubbles and its draft in a group Channel', () => {
+    const bot = human({ author: 'bot', bot: 'ada', body: 'On it' });
+    expect(renderToStaticMarkup(<MessageBubble message={bot} author="Ada" />)).toContain('Ada');
+    expect(renderToStaticMarkup(<MessageBubble message={bot} />)).not.toContain('Ada');
+    const draft = renderToStaticMarkup(
+      <DraftBubble draft={{ draftId: 'd', botSlug: 'grace', body: 'Hel' }} author="Grace" />,
+    );
+    expect(draft).toContain('Grace');
+  });
+
   it('closes half-written Markdown in a streaming draft', () => {
     const draft = renderToStaticMarkup(
       <DraftBubble draft={{ draftId: 'd', botSlug: 'b', body: 'Use **pnpm te' }} />,

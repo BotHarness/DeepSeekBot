@@ -24,8 +24,8 @@ export interface BrowserViewerState {
 }
 
 export type BrowserInput =
-  | { kind: 'click'; x: number; y: number; button?: 'left' | 'right' }
-  | { kind: 'scroll'; direction: 'up' | 'down'; amount: number }
+  | { kind: 'click'; x: number; y: number; button?: 'left' | 'right'; count?: 2 }
+  | { kind: 'scroll'; direction: 'up' | 'down'; amount: number; x?: number; y?: number }
   | { kind: 'type'; text: string }
   | { kind: 'key'; key: string; modifiers?: readonly ('alt' | 'ctrl' | 'meta' | 'shift')[] };
 

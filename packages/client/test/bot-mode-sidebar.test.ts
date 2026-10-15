@@ -28,7 +28,9 @@ vi.mock('../src/client/onboarding-checklist-view.js', () => ({
 
 import type { BotModePrefsSnapshot } from '../src/client/bot-mode-prefs.js';
 import { BotModeSidebar, type BotModeSidebarProps } from '../src/client/bot-mode-sidebar.js';
+import { createDockPanelRegistry } from '../src/client/dock-panels.js';
 import { en, type BotHarnessTranslate } from '../src/client/locale.js';
+import { store } from '../src/client/store.js';
 
 const t = ((key: keyof typeof en, params?: Record<string, string>) =>
   en[key].replace(
@@ -122,5 +124,84 @@ describe('Bot mode sidebar', () => {
     expect(button('Open sidebar')).toBeTruthy();
     expect(button('Exit Bot mode').classList.contains('bh-mode-sidebar-logo')).toBe(true);
     expect(node.textContent).not.toContain('DeepSeekBot');
+  });
+
+  it('shows one pinned card per Dock panel and toggles it in the mounted dock', () => {
+    const dockPanels = createDockPanelRegistry();
+    dockPanels.register({
+      id: 'activity-center',
+      title: 'Activity Center',
+      icon: 'bell',
+      scope: 'global',
+      order: -100,
+      component: () => null,
+    });
+    dockPanels.register({ id: 'todo', title: 'To-do', scope: 'global', component: () => null });
+    act(() => store.setHumanInbox({ unreadCount: 3, hasAction: true }));
+    const { calls, container: node } = render({ dockPanels });
+    const card = (id: string): HTMLButtonElement =>
+      node.querySelector<HTMLButtonElement>(`[data-pinned-panel="${id}"]`)!;
+
+    expect(node.querySelector('[role="group"][aria-label="Panels"]')).not.toBeNull();
+    expect(
+      [...node.querySelectorAll('[data-pinned-panel]')].map((el) =>
+        el.getAttribute('data-pinned-panel'),
+      ),
+    ).toEqual(['activity-center', 'todo']);
+    expect(card('activity-center').getAttribute('data-bh-tour')).toBe('inbox');
+    expect(card('activity-center').getAttribute('aria-label')).toBe(
+      'Activity Center · 3 unread · Needs my action',
+    );
+    expect(card('activity-center').querySelector('[data-pinned-panel-count]')?.textContent).toBe(
+      '3',
+    );
+
+    expect(card('todo').getAttribute('aria-disabled')).toBe('true');
+    act(() => card('todo').click());
+    act(() => card('activity-center').click());
+    expect(calls.openActivityCenter).toHaveBeenCalledTimes(1);
+
+    const opened: string[] = [];
+    let detach = () => {};
+    act(() => {
+      detach = dockPanels.attach({
+        open: (id) => {
+          opened.push(`open:${id}`);
+          dockPanels.reportOpen([...dockPanels.openPanels(), id]);
+        },
+        close: (id) => {
+          opened.push(`close:${id}`);
+          dockPanels.reportOpen(dockPanels.openPanels().filter((open) => open !== id));
+        },
+      });
+    });
+    expect(card('todo').hasAttribute('aria-disabled')).toBe(false);
+    act(() => card('activity-center').click());
+    expect(card('activity-center').getAttribute('aria-pressed')).toBe('true');
+    act(() => card('activity-center').click());
+    act(() => card('todo').click());
+    expect(opened).toEqual(['open:activity-center', 'close:activity-center', 'open:todo']);
+    expect(card('activity-center').getAttribute('aria-pressed')).toBe('false');
+    expect(card('todo').getAttribute('data-open')).toBe('true');
+    expect(calls.openActivityCenter).toHaveBeenCalledTimes(1);
+    act(() => detach());
+    act(() => store.setHumanInbox({ unreadCount: 0, hasAction: false }));
+  });
+
+  it('stacks the pinned cards as icons on the collapsed rail', () => {
+    const dockPanels = createDockPanelRegistry();
+    dockPanels.register({
+      id: 'activity-center',
+      title: 'Activity Center',
+      icon: 'bell',
+      scope: 'global',
+      component: () => null,
+    });
+    act(() => store.setHumanInbox({ unreadCount: 2, hasAction: false }));
+    const { container: node } = render({ dockPanels, collapsed: true, width: 56 });
+    const card = node.querySelector('[data-pinned-panel="activity-center"]')!;
+    expect(card.querySelector('[data-pinned-panel-count]')).toBeNull();
+    expect(card.querySelector('[data-pinned-panel-dot]')).not.toBeNull();
+    act(() => store.setHumanInbox({ unreadCount: 0, hasAction: false }));
   });
 });

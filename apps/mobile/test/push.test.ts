@@ -106,6 +106,23 @@ describe('notification taps', () => {
       pathname: '/activity',
     });
   });
+
+  it('opens a group Channel reply, mention or card in that Channel', () => {
+    const group = (id: string) => id === 'launch';
+    const reply = parsePushData({ ...approval, kind: 'channel-mention', channelId: 'launch' })!;
+    expect(pushHref(reply, () => 'dm-ada', group)).toEqual({
+      pathname: '/channel/[id]',
+      params: { id: 'launch' },
+    });
+    const card = parsePushData({ ...approval, channelId: 'launch' })!;
+    expect(pushHref(card, () => 'dm-ada', group)).toEqual({
+      pathname: '/channel/[id]',
+      params: { id: 'launch', focus: 'm1' },
+    });
+    expect(pushHref({ ...card, channelId: 'gone' }, () => 'dm-ada', group)).toMatchObject({
+      pathname: '/inbox/[id]',
+    });
+  });
 });
 
 function fakeNotifications(permission: PermissionState) {

@@ -59,6 +59,7 @@ vi.mock('../src/ui/shell/home-header', () => ({
 vi.mock('../src/ui/shell/host-drawer', () => ({
   HostDrawerEdge: ({ children }: { children: ReactNode }) => children,
 }));
+vi.mock('../src/ui/shell/human-avatar', () => ({ HumanAvatarButton: () => null }));
 vi.mock('../src/ui/connection-banner', () => ({ ConnectionBanner: () => null }));
 vi.mock('../src/ui/bot-avatar', () => ({ BotAvatar: () => null }));
 
@@ -114,8 +115,8 @@ describe('Search at the top of Chats', () => {
     await type(view, 'launch');
     await act(async () => view.querySelector('button')!.click());
     expect(push).toHaveBeenLastCalledWith({
-      pathname: '/full-client',
-      params: { target: 'channel', channelId: 'launch-team' },
+      pathname: '/channel/[id]',
+      params: { id: 'launch-team' },
     });
   });
 

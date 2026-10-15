@@ -174,6 +174,21 @@ export interface ChannelToolAutoApproval {
   reason: string;
 }
 
+export interface ChannelToolAutoApprovalPause {
+  botSlug: string;
+  sessionId: string;
+  template: string;
+  state: 'paused' | 'resumed';
+  reason?: 'consecutive' | 'session';
+}
+
+export interface ChannelToolAutoApprovalOverride {
+  recordMessageId: string;
+  botSlug: string;
+  sessionId: string;
+  toolName: string;
+}
+
 export interface ChannelTurnStop {
   botSlug: string;
   botName: string;
@@ -290,6 +305,8 @@ export interface ChannelMessage {
   memberDeparture?: ChannelMemberDeparture;
   turnStop?: ChannelTurnStop;
   toolAutoApproval?: ChannelToolAutoApproval;
+  toolAutoApprovalPause?: ChannelToolAutoApprovalPause;
+  toolAutoApprovalOverride?: ChannelToolAutoApprovalOverride;
   botCausation?: BotMessageCausation;
 
   grantRequest?: true;
@@ -593,6 +610,20 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
     )
       return false;
   }
+  const autoOverride = message['toolAutoApprovalOverride'];
+  if (autoOverride !== undefined) {
+    const target = autoOverride as Record<string, unknown> | null;
+    if (
+      (message['author'] as ChannelMessageAuthor)?.kind !== 'human' ||
+      typeof target !== 'object' ||
+      target === null ||
+      ['recordMessageId', 'botSlug', 'sessionId', 'toolName'].some(
+        (key) => typeof target[key] !== 'string' || target[key].length === 0,
+      ) ||
+      message['replyTo'] !== target['recordMessageId']
+    )
+      return false;
+  }
   const toolDecision = message['toolApprovalDecision'];
   if (toolDecision !== undefined) {
     if (
@@ -773,6 +804,21 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
       ) ||
       typeof record['input'] !== 'string' ||
       (record['outcome'] !== 'allowed' && record['outcome'] !== 'rejected')
+    )
+      return false;
+  } else if (message['toolAutoApprovalPause'] !== undefined) {
+    const pause = message['toolAutoApprovalPause'] as Record<string, unknown> | null;
+    if (
+      (message['author'] as ChannelMessageAuthor)?.kind !== 'system' ||
+      typeof pause !== 'object' ||
+      pause === null ||
+      ['botSlug', 'sessionId', 'template'].some(
+        (key) => typeof pause[key] !== 'string' || pause[key].length === 0,
+      ) ||
+      (pause['state'] !== 'paused' && pause['state'] !== 'resumed') ||
+      (pause['reason'] !== undefined &&
+        pause['reason'] !== 'consecutive' &&
+        pause['reason'] !== 'session')
     )
       return false;
   } else if (

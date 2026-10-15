@@ -20,6 +20,7 @@ import { errorText } from '../request-parts';
 import { haptic } from '../haptics';
 import { t } from '../strings';
 import { ActionCard, CardButtons, CardLine, DetailRow, type CardLineTone } from './action-card';
+import type { BubbleGroup } from './bubble-shape';
 
 export interface ApprovalCardPort {
   load(): Promise<ApprovalRequest>;
@@ -79,6 +80,7 @@ export function ApprovalCard({
   subject,
   resolution,
   focused = false,
+  group,
   wide = false,
   onSettled,
 }: {
@@ -86,6 +88,7 @@ export function ApprovalCard({
   subject?: string;
   resolution?: Extract<CardResolution, { kind: 'tool-approval' }>;
   focused?: boolean;
+  group?: BubbleGroup;
   wide?: boolean;
   onSettled?(result: DecisionResult): void;
 }) {
@@ -123,7 +126,12 @@ export function ApprovalCard({
   if (line !== undefined)
     return (
       <View ref={mount}>
-        <CardLine text={line.text} tone={line.tone} focused={focused} />
+        <CardLine
+          text={line.text}
+          tone={line.tone}
+          focused={focused}
+          {...(group === undefined ? {} : { group })}
+        />
       </View>
     );
 

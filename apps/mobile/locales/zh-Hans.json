@@ -1,0 +1,6 @@
+{
+  "NSCameraUsageDescription": "DeepSeekBot 使用相机扫描电脑上显示的配对二维码，并拍摄你要发给 PersonaBot 的照片。",
+  "NSMicrophoneUsageDescription": "DeepSeekBot 使用麦克风把你说的话转成消息，你可以先编辑再发给 PersonaBot。",
+  "NSPhotoLibraryUsageDescription": "DeepSeekBot 打开你的照片，让你把它们发给 PersonaBot。",
+  "NSSpeechRecognitionUsageDescription": "DeepSeekBot 把你说的话转成文字，方便你发给 PersonaBot。发送前你可以查看并编辑这些文字。"
+}

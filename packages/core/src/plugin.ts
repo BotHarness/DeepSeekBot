@@ -24,6 +24,7 @@ import {
 import { mountContentPurge } from './purge/owner.js';
 import type { ContentPurge } from './purge/contracts.js';
 import { createDshImProvider } from './messaging/dsh-im.js';
+import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { createCompanionFeed, COMPANION_PATH, type CompanionFeed } from './companions/feed.js';
@@ -141,11 +142,19 @@ import {
   orchestratorPermission,
   isDshGovernedTool,
   requiresHumanToolApproval,
+  approvalTemplateInUse,
   sessionHasFullAccess,
 } from './workspaces/grant-execution.js';
 import { ChannelToolApproval, type ToolAutoApproval } from './workspaces/tool-approval.js';
-import { approvalTemplate, changesApprovalPolicy } from './workspaces/approval-templates.js';
-import { createApprovalReviewRunner } from './workspaces/approval-reviewer.js';
+import {
+  changesApprovalPolicy,
+  createApprovalTemplateLibrary,
+} from './workspaces/approval-templates.js';
+import {
+  APPROVAL_REVIEW_SESSION_PREFIX,
+  createApprovalReviewRunner,
+  isApprovalReviewSession,
+} from './workspaces/approval-reviewer.js';
 import { createApprovalReviewerSettings } from './workspaces/approval-reviewer-settings.js';
 import { ChannelUserQuestions } from './channels/user-questions.js';
 import { mountPrivateInputs } from './credentials/mount.js';
@@ -329,7 +338,7 @@ function reviewerRejectionText(reason: string): string {
   return (
     "The Approval Reviewer rejected this call under the Bot's Approval Template: " +
     reason +
-    ' Try another way that the template allows, or ask the Human.'
+    ' Try another way that the template allows, or ask the Human. The Human can still allow this exact call once from the Inbox; you will be told if they do.'
   );
 }
 
@@ -1210,9 +1219,12 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         })
         .catch(() => undefined);
   };
+  const reviewing = new Set<string>();
   ctx.on(
     'agent/pre-step',
     async ({ agent, signal }, next) => {
+      if (isApprovalReviewSession(agent.session.id))
+        return reviewing.has(agent.session.id) ? next() : { kind: 'reject' };
       try {
         await core.runtime.ensureAssignmentCapacity?.(agent.session.id, signal);
       } catch {
@@ -1223,6 +1235,9 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     },
     { global: true },
   );
+  const approvalTemplates = createApprovalTemplateLibrary(
+    join(dshHome, 'botharness', 'approval-templates'),
+  );
   const approvalReviewer = createApprovalReviewerSettings(join(dshHome, 'botharness'));
   let reviewLogs: LogDatabase | undefined;
   try {
@@ -1231,12 +1246,14 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     reviewLogs = undefined;
   }
   ctx.effect(() => () => reviewLogs?.close(), 'botharness: approval review logs');
+  const templateInUse = approvalTemplateInUse(core.registry);
   const autoApproval: ToolAutoApproval = {
     template: (slug) => {
       const name = core.registry.get(slug)?.approvalTemplate;
-      const template = name === undefined ? undefined : approvalTemplate(name);
+      const template = name === undefined ? undefined : approvalTemplates.get(name);
       return template === undefined ? undefined : { name: template.name, text: template.text };
     },
+    templateInUse,
     review: createApprovalReviewRunner({
       setting: () => approvalReviewer.model(),
       botRoute: (slug) => {
@@ -1249,8 +1266,25 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         }
       },
       validate: (route) => modelCatalog.validate(route),
-      llm: () => ctx.get('llm'),
-      sessionId: () => randomUUID(),
+      agents: () => ctx.agents,
+      session: (request) => {
+        const sessionId = APPROVAL_REVIEW_SESSION_PREFIX + randomUUID();
+        const cwd = join(dshHome, 'botharness', 'approval-reviews');
+        mkdirSync(cwd, { recursive: true });
+        const titles = ctx.get('sessionTitle') as
+          | { rename?: (session: unknown, title: string) => void }
+          | undefined;
+        reviewing.add(sessionId);
+        return {
+          sessionId,
+          cwd,
+          botName: core.registry.get(request.botSlug)?.displayName ?? request.botSlug,
+          ...(typeof titles?.rename === 'function'
+            ? { rename: (session, title) => titles.rename!(session, title) }
+            : {}),
+        };
+      },
+      settle: (sessionId) => reviewing.delete(sessionId),
     }),
     log: (entry) => {
       const detail =
@@ -1355,7 +1389,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         return next();
       if (
         !isDshGovernedTool(execution.name) &&
-        !requiresHumanToolApproval(execution.name, execution.arguments)
+        !requiresHumanToolApproval(execution.name, execution.arguments, templateInUse)
       )
         return next();
       const storeDenial = credentialStoreDenial(
@@ -1503,10 +1537,15 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       }
       const denial = permissionDenial(agent.session);
       if (denial !== undefined) return { kind: 'deny', reason: denial };
-      if (!requiresHumanToolApproval(execution.name, execution.arguments)) return next();
+      if (!requiresHumanToolApproval(execution.name, execution.arguments, templateInUse))
+        return next();
       const eachUse = execution.name === 'secret_cli' || execution.name === 'secret_mcp_connect';
       const fullAccess = sessionHasFullAccess(core, agent.session.id);
-      if (fullAccess) return next();
+      if (
+        fullAccess &&
+        !changesApprovalPolicy(JSON.stringify(execution.arguments) ?? '', templateInUse)
+      )
+        return next();
       const approval = ctx.get('approval') as ApprovalService | undefined;
       const untrack = toolApproval.track(
         execution,
@@ -1535,7 +1574,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
               reason:
                 execution.name === 'channel_attachment_open'
                   ? 'This PersonaBot wants to edit the selected original attachment. All references to this file will show its current contents.'
-                  : changesApprovalPolicy(JSON.stringify(execution.arguments) ?? '')
+                  : changesApprovalPolicy(JSON.stringify(execution.arguments) ?? '', templateInUse)
                     ? 'This PersonaBot wants to change its own approval policy. Only a Human can approve this; neither a saved rule nor the Approval Reviewer answers it.'
                     : 'This PersonaBot wants to run a command-line tool with a secret you entered. The program receives the secret and could reveal it. Check the program and every argument.',
               signal: execution.signal,
@@ -1613,7 +1652,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       if (owner === undefined) return next();
       const untrack =
         isDshGovernedTool(execution.name) &&
-        !requiresHumanToolApproval(execution.name, execution.arguments)
+        !requiresHumanToolApproval(execution.name, execution.arguments, templateInUse)
           ? toolApproval.track(execution)
           : undefined;
       try {
@@ -1698,6 +1737,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       ),
     warn: (message) => ctx.logger.warn(message),
     registry: core.registry,
+    approvalTemplates,
     deletions: core.deletions,
     contentPurge: core.contentPurge,
     modelPresets: core.modelPresets,

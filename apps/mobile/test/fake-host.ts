@@ -158,7 +158,10 @@ export class FakeHost {
           }),
         );
       }
-      const method = parsed.pathname.replace('/botharness-device/api/botharness/', '') as Rpc;
+      const method = parsed.pathname.replace(
+        /^\/botharness-device\/api\/(?:botharness\/)?/u,
+        '',
+      ) as Rpc;
       const body = JSON.parse(String(init.body ?? '{}')) as {
         rpcId: string;
         payload: { args: Record<string, unknown> };

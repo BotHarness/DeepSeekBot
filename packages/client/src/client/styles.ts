@@ -6179,6 +6179,11 @@ button:has(.bh-panel-glyph):is(:hover, :focus-within) .bh-panel-activity[data-wi
 .bh-activity-center-header {padding:20px ${space.x6} 0; flex-shrink:0;}
 .bh-activity-center-header h1 {margin:0 0 ${space.x5};font-size:${text.titleSize};line-height:${text.titleLine};font-weight:${text.strong};}
 .bh-activity-center > .bh-human-inbox {min-height:0;flex:1;}
+.bh-activity-center-panel {height:100%;min-height:0;container-type:inline-size;}
+.bh-activity-center-panel .bh-activity-center-header {padding:0;}
+.bh-activity-center-panel .bh-overview {padding:${space.x4} 0 0;}
+.bh-activity-center-panel > .bh-human-inbox {padding:${space.x4} 0 0;}
+@container (max-width:480px){.bh-activity-center-panel .bh-overview-unread{align-items:flex-start;flex-direction:column}.bh-activity-center-panel .bh-overview-toolbar{gap:${space.x3}}}
 .bh-overview {padding:${space.x5} ${space.x6} ${space.x6};overflow-y:auto;min-height:0;}
 .bh-overview-toolbar {display:flex;flex-wrap:wrap;justify-content:flex-start;align-items:center;gap:${space.x4};margin-bottom:${space.x5};}
 .bh-overview-bot-header,.bh-overview-session {color:var(--dsw-alias-label-primary);font:inherit;cursor:pointer;}

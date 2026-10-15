@@ -1,4 +1,3 @@
-import type { ApprovalTemplate } from '../workspaces/approval-templates.js';
 import type { TurnTrace } from '../bots/tool-trace.js';
 import type { PartLibraryEntry } from '../bots/part-library.js';
 import type { OnboardingSnapshot, TutorialAction } from '../onboarding/service.js';
@@ -85,6 +84,7 @@ import type {
   ChannelListItem,
   MessagingAppsView,
   PersonaBotDetail,
+  ApprovalTemplateEntry,
   PersonaBotSummary,
   OwnedSessionSummary,
   OwnedSessionBot,
@@ -793,8 +793,33 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.browserProfileSet({ slug, profile }));
   }
 
-  approvalTemplates(slug?: string): { templates: ApprovalTemplate[]; selected?: string | null } {
+  approvalTemplates(slug?: string): {
+    templates: ApprovalTemplateEntry[];
+    selected?: string | null;
+  } {
     return unwrap(this.methods.approvalTemplates(slug === undefined ? {} : { slug }));
+  }
+
+  approvalTemplateCreate(
+    name: string,
+    text?: string,
+    from?: string,
+  ): { template: ApprovalTemplateEntry } {
+    return unwrap(
+      this.methods.approvalTemplateCreate({
+        name,
+        ...(text === undefined ? {} : { text }),
+        ...(from === undefined ? {} : { from }),
+      }),
+    );
+  }
+
+  approvalTemplateUpdate(name: string, text: string): { template: ApprovalTemplateEntry } {
+    return unwrap(this.methods.approvalTemplateUpdate({ name, text }));
+  }
+
+  approvalTemplateDelete(name: string): { template: { name: string }; clearedBots: string[] } {
+    return unwrap(this.methods.approvalTemplateDelete({ name }));
   }
 
   botApprovalTemplateSet(slug: string, template: string | null): { bot: PersonaBotDetail } {
@@ -1138,9 +1163,19 @@ export class BotharnessBridgeService extends TypertRemoteService {
     cursor?: string,
     sort?: 'newest' | 'oldest',
     snoozed?: boolean,
+    kind?: 'auto-rejection',
   ): HumanAttentionPage {
     return unwrap(
-      this.methods.humanAttention({ category, botSlug, channelId, limit, cursor, sort, snoozed }),
+      this.methods.humanAttention({
+        category,
+        botSlug,
+        channelId,
+        limit,
+        cursor,
+        sort,
+        snoozed,
+        kind,
+      }),
     );
   }
   humanAttentionStatus(): { unreadCount: number; hasAction: boolean } {
@@ -1260,6 +1295,12 @@ export class BotharnessBridgeService extends TypertRemoteService {
     outcome: 'allowed-once' | 'allowed-always-exact' | 'allowed-always-all' | 'rejected',
   ): Promise<{ accepted: boolean }> {
     return unwrapAsync(this.methods.toolApprovalDecide({ channelId, messageId, outcome }));
+  }
+
+  toolAutoRejectionOverride(
+    itemId: string,
+  ): Promise<{ accepted: true; channelId: string; messageId: string }> {
+    return unwrapAsync(this.methods.toolAutoRejectionOverride({ itemId }));
   }
 
   userQuestionStatus(
@@ -1729,6 +1770,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'toolApprovalRuleRevoke',
   'toolApprovalStatus',
   'toolApprovalDecide',
+  'toolAutoRejectionOverride',
   'userQuestionStatus',
   'userQuestionAnswer',
   'sessions',
@@ -1778,6 +1820,9 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'browserAccessSet',
   'browserProfileSet',
   'approvalTemplates',
+  'approvalTemplateCreate',
+  'approvalTemplateUpdate',
+  'approvalTemplateDelete',
   'botApprovalTemplateSet',
   'approvalReviewerModel',
   'approvalReviewerModelSet',

@@ -6,9 +6,16 @@
     "version": "0.0.1",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
+    "locales": {
+      "zh-Hans": "./locales/zh-Hans.json"
+    },
     "ios": {
       "bundleIdentifier": "ai.botharness.deepseekbot.dev",
-      "supportsTablet": false
+      "supportsTablet": false,
+      "infoPlist": {
+        "CFBundleDevelopmentRegion": "en",
+        "CFBundleLocalizations": ["en", "zh-Hans"]
+      }
     },
     "android": {
       "package": "ai.botharness.deepseekbot.dev"
@@ -39,6 +46,35 @@
           "microphonePermission": "DeepSeekBot uses the microphone to turn what you say into a message you can edit before sending to a PersonaBot.",
           "speechRecognitionPermission": "DeepSeekBot turns what you say into text so you can send it to a PersonaBot. You see and edit the text before it is sent."
         }
+      ],
+      [
+        "expo-alternate-app-icons",
+        [
+          {
+            "name": "DeepSeekBot",
+            "ios": {
+              "light": "./assets/app-icons/deepseekbot-light.png",
+              "dark": "./assets/app-icons/deepseekbot-dark.png",
+              "tinted": "./assets/app-icons/deepseekbot-tinted.png"
+            },
+            "android": {
+              "foregroundImage": "./assets/app-icons/deepseekbot-android-foreground.png",
+              "backgroundColor": "#FFFFFF"
+            }
+          },
+          {
+            "name": "DeepSeekBotSimple",
+            "ios": {
+              "light": "./assets/app-icons/deepseekbot-simple-light.png",
+              "dark": "./assets/app-icons/deepseekbot-simple-dark.png",
+              "tinted": "./assets/app-icons/deepseekbot-simple-tinted.png"
+            },
+            "android": {
+              "foregroundImage": "./assets/app-icons/deepseekbot-simple-android-foreground.png",
+              "backgroundColor": "#FFFFFF"
+            }
+          }
+        ]
       ]
     ],
     "experiments": {

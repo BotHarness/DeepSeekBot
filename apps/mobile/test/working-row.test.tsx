@@ -31,7 +31,7 @@ vi.mock('react-native', () => {
 });
 vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
 
-const { StatusStrip } = await import('../src/ui/chat/status-strip');
+const { WorkingRow } = await import('../src/ui/chat/working-row');
 const { stepLabel, stepRows } = await import('../src/ui/chat/bot-steps');
 const { t } = await import('../src/ui/strings');
 
@@ -62,11 +62,9 @@ const mika: RosterBot = {
   ],
 };
 
-describe('working status strip', () => {
+describe('working row', () => {
   it('shows the current step and a Stop button named for the Bot', () => {
-    const html = renderToStaticMarkup(
-      <StatusStrip bot={mika} stopping={false} onStop={() => {}} />,
-    );
+    const html = renderToStaticMarkup(<WorkingRow bot={mika} stopping={false} onStop={() => {}} />);
     expect(html).toContain(`Mika · ${t.effect.executing} · bash…`);
     expect(html).toContain(`data-accessibilitylabel="${t.stopBot('Mika')}"`);
     expect(html).toContain(t.stop);
@@ -74,7 +72,7 @@ describe('working status strip', () => {
   });
 
   it('shows Stopping while the Host ends the turn', () => {
-    const html = renderToStaticMarkup(<StatusStrip bot={mika} stopping onStop={() => {}} />);
+    const html = renderToStaticMarkup(<WorkingRow bot={mika} stopping onStop={() => {}} />);
     expect(html).toContain(t.stopping);
   });
 

@@ -69,13 +69,17 @@ describe('desktop view input', () => {
       tool: 'scroll',
       args: { scope: 'desktop', direction: 'up', amount: 3, x: 40, y: 50 },
     });
-    expect(desktopInputCall({ kind: 'key', key: 'Return', modifiers: [] }, undefined)).toEqual({
+    expect(desktopInputCall({ kind: 'type', text: 'hi' }, undefined)).toEqual({
+      tool: 'type_text',
+      args: { scope: 'desktop', text: 'hi' },
+    });
+    expect(desktopInputCall({ kind: 'key', key: 'return', modifiers: [] }, undefined)).toEqual({
       tool: 'press_key',
-      args: { key: 'Return' },
+      args: { scope: 'desktop', key: 'return' },
     });
     expect(
       desktopInputCall({ kind: 'key', key: 'l', modifiers: ['meta', 'shift'] }, undefined),
-    ).toEqual({ tool: 'hotkey', args: { keys: ['cmd', 'shift', 'l'] } });
+    ).toEqual({ tool: 'hotkey', args: { scope: 'desktop', keys: ['cmd', 'shift', 'l'] } });
   });
 });
 

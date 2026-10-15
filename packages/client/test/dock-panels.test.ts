@@ -72,6 +72,18 @@ describe('dockPanels registry', () => {
     registry.open('todo');
     expect(calls).toHaveLength(2);
   });
+
+  it('reports whether a layout is mounted so the sidebar cards can enable themselves', () => {
+    const registry = createDockPanelRegistry();
+    const seen: boolean[] = [];
+    registry.subscribe(() => seen.push(registry.available()));
+    expect(registry.available()).toBe(false);
+    const detach = registry.attach({ open: () => {}, close: () => {} });
+    expect(registry.available()).toBe(true);
+    detach();
+    expect(registry.available()).toBe(false);
+    expect(seen).toEqual([true, false]);
+  });
 });
 
 describe('channelSidebar on top of dockPanels', () => {

@@ -19,11 +19,11 @@ function Glyph({ d, color, size, focused = false }: IconProps & { d: string }) {
   );
 }
 
-export function HomeIcon(props: IconProps) {
+export function ChatsIcon(props: IconProps) {
   return (
     <Glyph
       {...props}
-      d="M4 10.5 12 4l8 6.5V19a1 1 0 0 1-1 1h-4.5v-5.5h-5V20H5a1 1 0 0 1-1-1v-8.5Z"
+      d="M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-8l-4 3.5V16H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z"
     />
   );
 }
@@ -32,7 +32,7 @@ export function ActivityIcon(props: IconProps) {
   return <Glyph {...props} d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15L6 16Zm4 4a2 2 0 0 0 4 0" />;
 }
 
-export function MeIcon(props: IconProps) {
+export function PersonIcon(props: IconProps) {
   return <Glyph {...props} d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7.5 8a7.5 7.5 0 0 1 15 0" />;
 }
 
@@ -48,6 +48,10 @@ export function StopIcon(props: IconProps) {
 
 export function ChevronDownIcon(props: IconProps) {
   return <Glyph {...props} d="m6 9 6 6 6-6" />;
+}
+
+export function ChevronLeftIcon(props: IconProps) {
+  return <Glyph {...props} d="m15 6-6 6 6 6" />;
 }
 
 export function ChevronRightIcon(props: IconProps) {
@@ -172,6 +176,72 @@ export function FolderIcon(props: IconProps) {
   );
 }
 
+export function MouseIcon(props: IconProps) {
+  return <Glyph {...props} d="M12 3a6 6 0 0 1 6 6v6a6 6 0 0 1-12 0V9a6 6 0 0 1 6-6Zm0 3v4" />;
+}
+
+export function ControlsIcon(props: IconProps) {
+  return <Glyph {...props} d="M4 7h9m4 0h3M4 17h3m4 0h9M15 5v4M9 15v4" />;
+}
+
+export function KeyboardHideIcon(props: IconProps) {
+  return (
+    <Glyph
+      {...props}
+      d="M4 4h16a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Zm3 4h.01M11 8h.01M15 8h.01M8 11h8m-6 6 2 2 2-2"
+    />
+  );
+}
+
+export function MouseButtonIcon({
+  color,
+  size,
+  side,
+  mark,
+}: IconProps & { side: 'left' | 'right'; mark: ColorValue }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d={side === 'left' ? 'M12 4a5 5 0 0 0-5 5v1h5V4Z' : 'M12 4a5 5 0 0 1 5 5v1h-5V4Z'}
+        fill={mark}
+      />
+      <Path
+        d="M12 3a6 6 0 0 1 6 6v6a6 6 0 0 1-12 0V9a6 6 0 0 1 6-6Zm-6 7h12M12 3v7"
+        stroke={color}
+        strokeWidth={1.8}
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
+    </Svg>
+  );
+}
+
+export function PointerArrow({
+  size,
+  fill,
+  rim,
+}: {
+  size: number;
+  fill: ColorValue;
+  rim: ColorValue;
+}) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      <Path
+        d="M3 2v18l5-4.6 3.3 7.2 3-1.4-3.2-7H18L3 2Z"
+        fill={fill}
+        stroke={rim}
+        strokeWidth={1.5}
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
+export function HandBackIcon(props: IconProps) {
+  return <Glyph {...props} d="M14 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M10 8l-4 4 4 4M6 12h10" />;
+}
+
 export function MoreIcon({ color, size }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">
@@ -180,4 +250,17 @@ export function MoreIcon({ color, size }: IconProps) {
       <Circle cx={12} cy={18.5} r={1.8} fill={color} />
     </Svg>
   );
+}
+
+export function CpuIcon(props: IconProps) {
+  return (
+    <Glyph
+      {...props}
+      d="M8 6h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Zm2 4h4v4h-4v-4ZM10 3v3m4-3v3m-4 12v3m4-3v3M3 10h3m-3 4h3m12-4h3m-3 4h3"
+    />
+  );
+}
+
+export function CheckIcon(props: IconProps) {
+  return <Glyph {...props} d="m5 12.5 4.5 4.5L19 7.5" />;
 }

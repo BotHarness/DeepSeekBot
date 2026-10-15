@@ -1,3 +1,7 @@
+import type { Context } from '@deepseek-ai/cordis';
+import type { Agent, AgentHandle, CreateAgentOptions } from '@deepseek-ai/dsh-agent';
+import { createUserMessage, ReasoningEffortId } from '@deepseek-ai/dsh-llm';
+import { SessionId } from '@deepseek-ai/dsh-session';
 import type { ApprovalReviewerModelSetting } from './approval-reviewer-settings.js';
 
 export type ApprovalReviewOutcome = 'allow' | 'reject' | 'ask-human';
@@ -290,59 +294,129 @@ export async function resolveReviewerRoute(
   return setting.route;
 }
 
+export const APPROVAL_REVIEW_SESSION_PREFIX = 'approval-review-';
+
+export function isApprovalReviewSession(sessionId: string): boolean {
+  return sessionId.startsWith(APPROVAL_REVIEW_SESSION_PREFIX);
+}
+
+export function approvalReviewSessionTitle(botName: string, toolName: string): string {
+  return `Approval review · ${botName} · ${toolName}`;
+}
+
+export interface ApprovalReviewAgents {
+  create(options: CreateAgentOptions): Promise<AgentHandle>;
+}
+
+export interface ApprovalReviewSession {
+  sessionId: string;
+  cwd: string;
+  botName?: string;
+  rename?: (session: Agent['session'], title: string) => void;
+  timeoutMs?: number;
+}
+
+function composeReviewer(agentCtx: Context): void {
+  agentCtx.systemPrompt.section({
+    name: 'botharness:approval-reviewer',
+    order: 0,
+    text: REVIEWER_SYSTEM_PROMPT,
+    interpolate: false,
+    complete: true,
+  });
+  agentCtx.systemPrompt.suppressRuntimeContext();
+  agentCtx.on('system-prompt/assemble', async (_assembly, _context, next) => {
+    const assembly = await next();
+    assembly.tools = [];
+    return assembly;
+  });
+  agentCtx.tools.guard(({ name }) => `${name} is not available to the Approval Reviewer`);
+}
+
+function finalText(events: readonly { type: string; data?: unknown }[]): string {
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index]!;
+    if (event.type !== 'assistant/message') continue;
+    const message = (event.data as { message?: { content?: unknown } } | undefined)?.message;
+    return textOf(message?.content);
+  }
+  return '';
+}
+
 export async function runApprovalReview(
-  llm: unknown,
+  agents: ApprovalReviewAgents,
   route: ApprovalReviewerRoute | undefined,
   request: ApprovalReviewRequest,
-  sessionId: string,
-  timeoutMs = REVIEW_TIMEOUT_MS,
+  session: ApprovalReviewSession,
 ): Promise<ApprovalReview> {
   if (route === undefined) throw new ApprovalReviewError('no-model');
-  const service = llm as { stream?: (options: Record<string, unknown>) => AsyncIterable<unknown> };
-  if (typeof service?.stream !== 'function') throw new ApprovalReviewError('llm-unavailable');
-  const timeout = AbortSignal.timeout(timeoutMs);
+  const timeout = AbortSignal.timeout(session.timeoutMs ?? REVIEW_TIMEOUT_MS);
   const signal = AbortSignal.any([request.signal, timeout]);
-  let text = '';
+  let handle: AgentHandle;
   try {
-    for await (const raw of service.stream({
-      provider: route.provider,
-      model: route.model,
-      ...(route.reasoningEffort === undefined ? {} : { reasoningEffort: route.reasoningEffort }),
-      system: REVIEWER_SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: [{ type: 'text', text: reviewerUserPrompt(request) }] }],
-      maxTokens: 2_000,
+    handle = await agents.create({
+      sessionId: SessionId(session.sessionId),
+      meta: { cwd: session.cwd },
+      agentOptions: {
+        provider: route.provider,
+        model: route.model,
+        ...(route.reasoningEffort === undefined
+          ? {}
+          : { reasoningEffort: ReasoningEffortId(route.reasoningEffort) }),
+        maxTokens: 2_000,
+      },
       signal,
-      sessionId,
-    })) {
-      const chunk = raw as {
-        type?: string;
-        text?: string;
-        reason?: { kind?: string; failure?: { code?: string } };
-      };
-      if (chunk.type === 'text-delta' && typeof chunk.text === 'string') text += chunk.text;
-      if (chunk.type === 'finish') {
-        const kind = chunk.reason?.kind;
-        if (kind === 'aborted')
-          throw new ApprovalReviewError(timeout.aborted ? 'timeout' : 'model-error', 'aborted');
-        if (kind === 'error')
-          throw new ApprovalReviewError('model-error', chunk.reason?.failure?.code ?? 'error');
-      }
-    }
+      setup: composeReviewer,
+    });
+  } catch (error) {
+    if (timeout.aborted) throw new ApprovalReviewError('timeout');
+    throw new ApprovalReviewError(
+      'llm-unavailable',
+      error instanceof Error ? error.message : undefined,
+    );
+  }
+  const cancel = () => handle.agent.cancel({ kind: 'user' });
+  try {
+    try {
+      session.rename?.(
+        handle.agent.session,
+        approvalReviewSessionTitle(session.botName ?? request.botSlug, request.call.toolName),
+      );
+    } catch {}
+    const fromSeq = handle.agent.session.seq;
+    signal.addEventListener('abort', cancel, { once: true });
+    handle.agent.followup(
+      createUserMessage({
+        content: [{ type: 'text', text: reviewerUserPrompt(request) }],
+        source: { kind: 'user' },
+      }),
+    );
+    await handle.agent.whenIdle();
+    const events = handle.agent.session.snapshotEvents(fromSeq);
+    const turnEnd = events.find((event) => event.type === 'turn/end');
+    const reason = turnEnd?.type === 'turn/end' ? turnEnd.data.reason : undefined;
+    if (reason === undefined || reason.kind === 'aborted')
+      throw new ApprovalReviewError(timeout.aborted ? 'timeout' : 'model-error', 'aborted');
+    if (reason.kind === 'error') throw new ApprovalReviewError('model-error', reason.error.code);
+    const review = parseApprovalReview(finalText(events));
+    if (review === undefined) throw new ApprovalReviewError('unparseable');
+    return review;
   } catch (error) {
     if (error instanceof ApprovalReviewError) throw error;
     throw new ApprovalReviewError(timeout.aborted ? 'timeout' : 'model-error');
+  } finally {
+    signal.removeEventListener('abort', cancel);
+    await handle.dispose().catch(() => undefined);
   }
-  const review = parseApprovalReview(text);
-  if (review === undefined) throw new ApprovalReviewError('unparseable');
-  return review;
 }
 
 export function createApprovalReviewRunner(options: {
   setting: () => ApprovalReviewerModelSetting;
   botRoute: (botSlug: string) => ApprovalReviewerRoute | undefined;
   validate: (route: ApprovalReviewerRoute) => Promise<void>;
-  llm: () => unknown;
-  sessionId: () => string;
+  agents: () => ApprovalReviewAgents;
+  session: (request: ApprovalReviewRequest) => ApprovalReviewSession;
+  settle?: (sessionId: string) => void;
 }): (request: ApprovalReviewRequest) => Promise<ApprovalReviewResult> {
   return async (request) => {
     const route = await resolveReviewerRoute(
@@ -351,9 +425,10 @@ export function createApprovalReviewRunner(options: {
       options.validate,
     );
     const model = route === undefined ? undefined : routeLabel(route);
-    const sessionId = options.sessionId();
+    const session = options.session(request);
+    const sessionId = session.sessionId;
     try {
-      const review = await runApprovalReview(options.llm(), route, request, sessionId);
+      const review = await runApprovalReview(options.agents(), route, request, session);
       return { ...review, sessionId, ...(model === undefined ? {} : { model }) };
     } catch (error) {
       if (error instanceof ApprovalReviewError) {
@@ -361,6 +436,8 @@ export function createApprovalReviewRunner(options: {
         if (model !== undefined) error.model = model;
       }
       throw error;
+    } finally {
+      options.settle?.(sessionId);
     }
   };
 }

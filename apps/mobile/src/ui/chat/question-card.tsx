@@ -21,6 +21,7 @@ import { errorText } from '../request-parts';
 import { haptic } from '../haptics';
 import { t } from '../strings';
 import { ActionCard, CardButtons, CardLine, type CardLineTone } from './action-card';
+import type { BubbleGroup } from './bubble-shape';
 
 export interface QuestionCardPort {
   load(): Promise<QuestionRequest>;
@@ -240,6 +241,7 @@ export function QuestionCard({
   subject,
   resolution,
   focused = false,
+  group,
   wide = false,
   replyInChat = false,
   answeredHere = false,
@@ -250,6 +252,7 @@ export function QuestionCard({
   subject?: string;
   resolution?: Extract<CardResolution, { kind: 'user-question' }>;
   focused?: boolean;
+  group?: BubbleGroup;
   wide?: boolean;
   replyInChat?: boolean;
   answeredHere?: boolean;
@@ -285,7 +288,12 @@ export function QuestionCard({
   if (line !== undefined)
     return (
       <View ref={mount}>
-        <CardLine text={line.text} tone={line.tone} focused={focused} />
+        <CardLine
+          text={line.text}
+          tone={line.tone}
+          focused={focused}
+          {...(group === undefined ? {} : { group })}
+        />
       </View>
     );
 

@@ -16,6 +16,8 @@ export interface WorkspaceListSnapshot {
   archivedSessionIds?: readonly string[];
 }
 
+export const APPROVAL_REVIEW_SESSION_PREFIX = 'approval-review-';
+
 interface Observable<T> {
   subscribe(listener: () => void): () => void;
   getSnapshot(): T;
@@ -24,7 +26,7 @@ interface Observable<T> {
 export interface BotSessionVisibilityOptions {
   sessions: Observable<SessionListSnapshot>;
   workspaces: Observable<WorkspaceListSnapshot | undefined>;
-  prefs: Observable<Pick<BotModePrefsSnapshot, 'showBotSessions'>>;
+  prefs: Observable<Pick<BotModePrefsSnapshot, 'showBotSessions' | 'showApprovalReviewSessions'>>;
   loadBotSessionIds: () => Promise<readonly string[]>;
   warn?: (message: string, error: unknown) => void;
 }
@@ -94,11 +96,15 @@ export function createBotSessionVisibility(
 
   return {
     hidden() {
-      if (prefs.getSnapshot().showBotSessions) return { sessionIds: [], groupKeys: [] };
+      const { showBotSessions, showApprovalReviewSessions } = prefs.getSnapshot();
+      if (showBotSessions && showApprovalReviewSessions) return { sessionIds: [], groupKeys: [] };
       const list = sessions.getSnapshot();
       const hiddenIds = new Set(
         list.ids.filter(
-          (id) => botIds.has(id) && (list.byId[id]?.retainedBy?.['mainView'] ?? 0) === 0,
+          (id) =>
+            ((!showBotSessions && botIds.has(id)) ||
+              (!showApprovalReviewSessions && id.startsWith(APPROVAL_REVIEW_SESSION_PREFIX))) &&
+            (list.byId[id]?.retainedBy?.['mainView'] ?? 0) === 0,
         ),
       );
       if (hiddenIds.size === 0) return { sessionIds: [], groupKeys: [] };

@@ -59,3 +59,19 @@ export function buttonColors(theme: DesignTheme, tone: ButtonTone, on: LayerName
     label: readable(theme.color.danger, behind.danger, theme.color.fg),
   };
 }
+
+export type SwitchColors = {
+  trackOn: string;
+  trackOff: string;
+  thumb: string;
+};
+
+const THUMB = '#ffffff';
+
+export function switchColors(theme: DesignTheme, on: LayerName): SwitchColors {
+  return {
+    trackOn: theme.color.accent,
+    trackOff: theme.layer[on].selected,
+    thumb: THUMB,
+  };
+}

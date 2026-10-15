@@ -185,8 +185,12 @@ A Profile-wide, Human-written Markdown policy that says which tool approvals may
 _Avoid_: approval mode, auto mode, Tool Approval Rule
 
 **Approval Reviewer**:
-A fresh, tool-less DSH Session that applies a PersonaBot's Approval Template to one pending approval request, without tool results in its context, and answers allow, reject with a reason, or ask Human. Its failure always falls back to the Human card.
+The model that applies a PersonaBot's Approval Template to one pending approval request inside an Approval Review Session, without tool results in its context, and answers allow, reject with a reason, or ask Human. Its failure always falls back to the Human card.
 _Avoid_: classifier, guardian, auto-approver
+
+**Approval Review Session**:
+The fresh, tool-less DSH Session the Approval Reviewer runs in, created for one decision and closed after it. It has no Agent Preset, no Memory and only the reviewer prompt, belongs to no PersonaBot, and its log stays readable in DeepSeek Harness. The session list hides it unless the Human shows Approval Review Sessions, which is separate from showing Bot Sessions.
+_Avoid_: reviewer Session, auto-approval Session, Orchestrator Session, Assignment Session
 
 **Assignment Access Preset**:
 A Human-controlled per-PersonaBot choice applied when a new Assignment is created. The default is DSH workspace-write with ask; dangerous full access is an explicit opt-in to DSH danger-full-access with never. The chosen mode is frozen in each Assignment's permission snapshot, while its selected Workspace Grant remains required.

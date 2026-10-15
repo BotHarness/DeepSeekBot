@@ -26,6 +26,10 @@ export const BOT_MODE_SHOW_BOT_SESSIONS_FIELD = 'showBotSessions';
 
 export const DEFAULT_BOT_MODE_SHOW_BOT_SESSIONS = true;
 
+export const BOT_MODE_SHOW_APPROVAL_REVIEW_SESSIONS_FIELD = 'showApprovalReviewSessions';
+
+export const DEFAULT_BOT_MODE_SHOW_APPROVAL_REVIEW_SESSIONS = false;
+
 export const BOT_MODE_SEND_KEY_FIELD = 'sendKey';
 
 export const BOT_MODE_SORT_MODES = ['updated', 'manual'] as const;
@@ -75,6 +79,7 @@ export interface BotModeSettings {
   autoAcceptGroupInvites?: boolean;
   developerMode: boolean;
   showBotSessions?: boolean;
+  showApprovalReviewSessions?: boolean;
   motionPreference: BotModeMotionPreference;
   botIcon: BotModeIcon;
   sendKey?: BotModeSendKey;

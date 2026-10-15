@@ -171,6 +171,22 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
     ]);
   });
 
+  it('lists auto-rejected calls and allows one once anyway', async () => {
+    const live = await host(echo);
+    await invoke(['inbox', '--category', 'action', '--kind', 'auto-rejection'], live.url);
+    await invoke(['inbox-allow-once', 'autoreject:src-1'], live.url);
+    for (const argv of [
+      ['inbox', '--kind', 'tool-approval'],
+      ['inbox-allow-once'],
+      ['inbox-allow-once', 'approval:src-1'],
+    ])
+      expect((await invoke(argv, live.url)).json.error.code).toBe('usage');
+    expect(live.calls).toEqual([
+      { method: 'humanAttention', args: { category: 'action', kind: 'auto-rejection' } },
+      { method: 'toolAutoRejectionOverride', args: { itemId: 'autoreject:src-1' } },
+    ]);
+  });
+
   it('refuses malformed Inbox queries before reaching the Host', async () => {
     const live = await host(echo);
     for (const argv of [

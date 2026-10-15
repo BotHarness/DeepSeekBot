@@ -355,7 +355,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
     via: string = route,
   ): Promise<T> =>
     withDeadline(async (signal) => {
-      const name = `botharness/${method}`;
+      const name = method.includes('/') ? method : `botharness/${method}`;
       const request: ClientRequest = {
         type: 'client-request',
         rpcId: id(),

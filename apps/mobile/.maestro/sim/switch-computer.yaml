@@ -1,8 +1,8 @@
-# Switches computers from the Home header.
+# Switches computers from the Chats header.
 # -e FROM=<shown host> -e TO=<other host> -e BOT=<a PersonaBot on TO> -e OTHER_BOT=<one only on FROM>
 appId: ai.botharness.deepseekbot.dev
 ---
-- tapOn: 'Home'
+- tapOn: 'Chats'
 - tapOn: '${FROM}, switch computer'
 - extendedWaitUntil:
     visible: 'Pair a new computer'

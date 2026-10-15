@@ -78,8 +78,10 @@ import {
 } from './cli-todos.js';
 import {
   APPROVAL_TEMPLATE_COMMANDS,
+  APPROVAL_TEMPLATE_OPTIONS,
   isApprovalTemplateCommand,
   runApprovalTemplateCommand,
+  type ApprovalTemplateValues,
 } from './cli-approval-templates.js';
 import {
   APPROVAL_REVIEWER_COMMANDS,
@@ -101,6 +103,7 @@ export const LIVE_OPTIONS = {
   ...BROWSER_COMPUTER_OPTIONS,
   ...PROFILE_OPTIONS,
   ...TODO_OPTIONS,
+  ...APPROVAL_TEMPLATE_OPTIONS,
   ...APPROVAL_REVIEWER_OPTIONS,
   host: { type: 'string' },
   'token-file': { type: 'string' },
@@ -346,6 +349,7 @@ interface LiveValues
     BrowserComputerValues,
     ProfileValues,
     TodoValues,
+    ApprovalTemplateValues,
     ApprovalReviewerValues {
   host?: string;
   'token-file'?: string;
@@ -699,7 +703,7 @@ export async function runLiveCli(
       return (await connectLiveHost(values, io, signal)).rpc;
     });
   if (isApprovalTemplateCommand(command))
-    return runApprovalTemplateCommand(command, rest, values, async () => {
+    return runApprovalTemplateCommand(command, rest, values, io, async () => {
       const signal = AbortSignal.timeout(timeoutMs(values.timeout));
       return (await connectLiveHost(values, io, signal)).rpc;
     });

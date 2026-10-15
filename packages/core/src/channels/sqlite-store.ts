@@ -895,6 +895,11 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
                         ...(channel.type === 'group' && grantRequester(durable, previous)
                           ? [grantRequester(durable, previous)!]
                           : []),
+                        ...(channel.type === 'group' &&
+                        durable.toolAutoApprovalOverride !== undefined &&
+                        channel.members.includes(durable.toolAutoApprovalOverride.botSlug)
+                          ? [durable.toolAutoApprovalOverride.botSlug]
+                          : []),
                       ]),
                     ].map((botSlug) => ({
                       botSlug,

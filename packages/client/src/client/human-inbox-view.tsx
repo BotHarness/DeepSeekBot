@@ -24,6 +24,11 @@ import { HumanInboxDismiss } from './human-inbox-detail-controls.js';
 import { HumanInboxWorkspaceAction } from './human-inbox-workspace-action.js';
 import { useHumanActionScope } from './human-inbox-scope.js';
 import { HumanInboxAssignment } from './human-inbox-assignment.js';
+import {
+  AllowAutoRejectionButton,
+  HumanInboxAutoRejection,
+  autoRejectionMeta,
+} from './human-inbox-auto-rejection.js';
 
 const categoryCopy = {
   unread: { title: 'humanInbox.unread', empty: 'humanInbox.empty.unread' },
@@ -320,21 +325,23 @@ export function HumanInboxView({
             ? t('humanInbox.question', { bot: botName(item.botSlug) })
             : item.kind === 'tool-approval'
               ? t('humanInbox.approval', { bot: botName(item.botSlug) })
-              : item.kind === 'workspace-grant-request'
-                ? t('humanInbox.grant', { bot: botName(item.botSlug) })
-                : item.kind === 'assignment-waiting-human'
-                  ? t('humanInbox.assignmentWaiting', { bot: botName(item.botSlug) })
-                  : item.kind === 'assignment-blocked'
-                    ? t('humanInbox.assignmentBlocked', {
-                        bot: botName(item.botSlug),
-                      })
-                    : item.kind === 'assignment-report'
-                      ? t('humanInbox.assignmentReport', {
+              : item.kind === 'auto-rejection'
+                ? t('humanInbox.autoRejection', { bot: botName(item.botSlug) })
+                : item.kind === 'workspace-grant-request'
+                  ? t('humanInbox.grant', { bot: botName(item.botSlug) })
+                  : item.kind === 'assignment-waiting-human'
+                    ? t('humanInbox.assignmentWaiting', { bot: botName(item.botSlug) })
+                    : item.kind === 'assignment-blocked'
+                      ? t('humanInbox.assignmentBlocked', {
                           bot: botName(item.botSlug),
                         })
-                      : item.kind === 'bot-message-needs-repair'
-                        ? t('humanInbox.repair', { bot: botName(item.botSlug) })
-                        : botName(item.botSlug);
+                      : item.kind === 'assignment-report'
+                        ? t('humanInbox.assignmentReport', {
+                            bot: botName(item.botSlug),
+                          })
+                        : item.kind === 'bot-message-needs-repair'
+                          ? t('humanInbox.repair', { bot: botName(item.botSlug) })
+                          : botName(item.botSlug);
 
   const changeCategory = (category: HumanInboxCategory): void => {
     if (category === inbox.category) return;
@@ -352,7 +359,16 @@ export function HumanInboxView({
   };
 
   const renderSource = (source: HumanAttentionItem, onClose: () => void): ReactElement =>
-    source.kind === 'assignment-waiting-human' || source.kind === 'assignment-blocked' ? (
+    source.kind === 'auto-rejection' ? (
+      <HumanInboxAutoRejection
+        key={source.id}
+        source={source}
+        actions={actions}
+        t={t}
+        title={itemTitle(source)}
+        onClose={onClose}
+      />
+    ) : source.kind === 'assignment-waiting-human' || source.kind === 'assignment-blocked' ? (
       <HumanInboxAssignment
         key={source.assignmentSessionId + ':' + source.sourceEventId}
         source={source}
@@ -720,6 +736,20 @@ export function HumanInboxView({
                       {item.summary}
                     </div>
                   ) : null}
+                  {item.kind === 'auto-rejection' ? (
+                    <div
+                      className="bh-human-inbox-row-summary"
+                      title={
+                        autoRejectionMeta(item, t) +
+                        ' · ' +
+                        (item.autoRejection?.reason ?? item.summary)
+                      }
+                    >
+                      {autoRejectionMeta(item, t) +
+                        ' · ' +
+                        (item.autoRejection?.reason ?? item.summary)}
+                    </div>
+                  ) : null}
                   {item.snoozedUntil === undefined ? null : (
                     <div className="bh-human-inbox-unread-meta">
                       <time dateTime={item.snoozedUntil}>
@@ -794,6 +824,18 @@ export function HumanInboxView({
                     >
                       {t('humanInbox.handled.response')}
                     </Button>
+                  ) : null}
+                  {item.kind === 'auto-rejection' ? (
+                    <AllowAutoRejectionButton
+                      item={item}
+                      actions={actions}
+                      t={t}
+                      onDone={() => {
+                        if (replySource !== undefined && itemKey(replySource) === itemKey(item))
+                          setReplySource(undefined);
+                      }}
+                      onError={() => setActionError(t('humanInbox.failed'))}
+                    />
                   ) : null}
                   {item.kind === 'group-join-request' ? (
                     <>

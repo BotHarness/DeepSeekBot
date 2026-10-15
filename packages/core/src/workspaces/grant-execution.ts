@@ -197,7 +197,11 @@ const BOT_TOOL_NAMES = new Set([
   'report_to_orchestrator',
 ]);
 
-export function requiresHumanToolApproval(name: string, args?: unknown): boolean {
+export function requiresHumanToolApproval(
+  name: string,
+  args?: unknown,
+  templateInUse?: (template: string) => boolean,
+): boolean {
   if (name === 'channel_attachment_open')
     return (
       typeof args !== 'object' ||
@@ -205,7 +209,13 @@ export function requiresHumanToolApproval(name: string, args?: unknown): boolean
       (args as Record<string, unknown>).access !== 'read'
     );
   if (name === 'secret_cli' || name === 'secret_mcp_connect') return true;
-  return isDshGovernedTool(name) && changesApprovalPolicy(policyInput(args));
+  return isDshGovernedTool(name) && changesApprovalPolicy(policyInput(args), templateInUse);
+}
+
+export function approvalTemplateInUse(
+  registry: Pick<BotHarnessCore['registry'], 'list'>,
+): (template: string) => boolean {
+  return (template) => registry.list().some((record) => record.approvalTemplate === template);
 }
 
 function policyInput(args: unknown): string {
@@ -263,7 +273,7 @@ export function grantToolExecutionDenial(
   )
     return undefined;
   if (NATIVE_FILE_TOOL_NAMES.has(name)) return nativeFileToolDenial(core, session, name, args);
-  if (requiresHumanToolApproval(name, args) && !allowedOnce)
+  if (requiresHumanToolApproval(name, args, approvalTemplateInUse(core.registry)) && !allowedOnce)
     return name + ' requires Human approval';
   return undefined;
 }

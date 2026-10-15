@@ -7,6 +7,7 @@ import { ApprovalReviewerModelSetting } from './approval-reviewer-model-setting.
 import {
   AssignmentConcurrencyRow,
   BotIconSetting,
+  ApprovalReviewSessionsVisibilitySetting,
   BotSessionsVisibilitySetting,
   DeveloperModeSetting,
   GroupAutoAcceptSetting,
@@ -14,6 +15,7 @@ import {
   SendKeySetting,
   SortSetting,
 } from './bot-mode-setting-rows.js';
+import { ApprovalTemplateLibrarySettings } from './approval-template-library.js';
 import type { BotModePrefsFace } from './bot-mode-prefs.js';
 import type { BridgeCall } from './bridge.js';
 import type { DesktopNotificationPrefs } from './desktop-notifications.js';
@@ -63,6 +65,7 @@ export function GeneralSection(props: SectionProps<GeneralSectionFace>): ReactEl
       <SortSetting {...props} />
       <SendKeySetting {...props} />
       <BotSessionsVisibilitySetting {...props} />
+      <ApprovalReviewSessionsVisibilitySetting {...props} />
       <DesktopNotificationSetting desktopNotifications={props.desktopNotifications} t={props.t} />
       <ShortcutHelpSetting shortcutHelp={props.shortcutHelp} t={props.t} />
       <OnboardingSetting
@@ -85,12 +88,15 @@ export function ModelsSection(
   );
 }
 
-export function AutoApprovalSection(props: SectionProps<{ actions: BridgeActions }>): ReactElement {
+export function AutoApprovalSection(
+  props: SectionProps<{ actions: BridgeActions; call: BridgeCall; store: ClientStore }>,
+): ReactElement {
   return (
     <Rows>
       <SettingsSection>
         <ApprovalReviewerModelSetting actions={props.actions} t={props.t} />
       </SettingsSection>
+      <ApprovalTemplateLibrarySettings call={props.call} store={props.store} t={props.t} />
     </Rows>
   );
 }

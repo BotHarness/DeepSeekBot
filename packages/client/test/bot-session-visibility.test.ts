@@ -48,7 +48,7 @@ describe('Bot Session visibility', () => {
     const workspaces = observable<WorkspaceListSnapshot | undefined>({
       items: [{ workspaceId: 'project', sessionIds: ['user', 'task'] }],
     });
-    const prefs = observable({ showBotSessions: false });
+    const prefs = observable({ showBotSessions: false, showApprovalReviewSessions: false });
     const visibility = createBotSessionVisibility({
       sessions,
       workspaces,
@@ -58,7 +58,25 @@ describe('Bot Session visibility', () => {
     await vi.waitFor(() => expect(visibility.hidden().sessionIds).toHaveLength(2));
 
     expect(visibility.hidden()).toEqual({ sessionIds: ['orch', 'task'], groupKeys: [''] });
-    prefs.set({ showBotSessions: true });
+    prefs.set({ showBotSessions: true, showApprovalReviewSessions: false });
+    expect(visibility.hidden()).toEqual({ sessionIds: [], groupKeys: [] });
+    visibility.dispose();
+  });
+
+  it('hides Approval Review Sessions on their own switch, even while Bot Sessions show', async () => {
+    const sessions = observable(list({ user: {}, orch: {}, 'approval-review-1': {} }));
+    const prefs = observable({ showBotSessions: true, showApprovalReviewSessions: false });
+    const visibility = createBotSessionVisibility({
+      sessions,
+      workspaces: observable<WorkspaceListSnapshot | undefined>(undefined),
+      prefs,
+      loadBotSessionIds: async () => ['orch'],
+    });
+    await vi.waitFor(() => expect(visibility.hidden().sessionIds).toEqual(['approval-review-1']));
+
+    prefs.set({ showBotSessions: false, showApprovalReviewSessions: true });
+    expect(visibility.hidden().sessionIds).toEqual(['orch']);
+    prefs.set({ showBotSessions: true, showApprovalReviewSessions: true });
     expect(visibility.hidden()).toEqual({ sessionIds: [], groupKeys: [] });
     visibility.dispose();
   });
@@ -68,7 +86,7 @@ describe('Bot Session visibility', () => {
     const visibility = createBotSessionVisibility({
       sessions,
       workspaces: observable<WorkspaceListSnapshot | undefined>(undefined),
-      prefs: observable({ showBotSessions: false }),
+      prefs: observable({ showBotSessions: false, showApprovalReviewSessions: false }),
       loadBotSessionIds: async () => ['orch'],
     });
     await Promise.resolve();
@@ -85,7 +103,7 @@ describe('Bot Session visibility', () => {
     const visibility = createBotSessionVisibility({
       sessions,
       workspaces: observable<WorkspaceListSnapshot | undefined>(undefined),
-      prefs: observable({ showBotSessions: false }),
+      prefs: observable({ showBotSessions: false, showApprovalReviewSessions: false }),
       loadBotSessionIds,
     });
     await vi.runAllTimersAsync();

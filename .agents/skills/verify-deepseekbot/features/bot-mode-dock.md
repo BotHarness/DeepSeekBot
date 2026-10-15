@@ -7,6 +7,7 @@ On a desktop-width window (961px and wider), Bot mode lays out the Channel body 
 - `default-layout` opens the Channel body with Sessions above Bot Inbox on the right. Other panels start closed.
 - `panels-menu` lists every registered panel from the `Panels` button, reopens a closed one where it was, and has `Reset layout`.
 - `dock-panels-service` lets another plugin `inject(['dockPanels'])` and `register({ id, title, icon, scope, defaultPosition, order, component })`. A `global` panel keeps its content and place when the active Channel changes; a `channel` panel receives the active Channel. `open`, `close`, `toggle`, `isOpen` and `openPanels` drive the mounted layout.
+- `pinned-cards` toggles any panel from its card in the Bot mode sidebar; `activity-center` is a built-in `global` panel opened from the first card.
 - `close` closes any panel except the Channel body.
 - `drag-split` drags a panel by its header to split beside another panel or the layout edge. A drop on a panel's center is refused, so panels never become tabs.
 - `persist` saves the layout to `localStorage` key `botharness.bot-mode-layout` (versioned dockview serialization) and restores it on reload.

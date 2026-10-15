@@ -13,7 +13,10 @@ import type { ChannelMessage, ChannelRecord } from '../src/channels/channel.js';
 import type { ChannelStore } from '../src/channels/store.js';
 import type { ModelRoute } from '../src/models/presets.js';
 import type { SessionOwnership } from '../src/sessions/ownership.js';
-import { createApprovalReviewRunner } from '../src/workspaces/approval-reviewer.js';
+import {
+  createApprovalReviewRunner,
+  type ApprovalReviewAgents,
+} from '../src/workspaces/approval-reviewer.js';
 import {
   APPROVAL_REVIEWER_SETTINGS_FILE,
   createApprovalReviewerSettings,
@@ -63,11 +66,31 @@ function gate(settings: ApprovalReviewerSettings) {
     session: { id: sessionId, header: { cwd: '/tmp/project' }, snapshotEvents: () => [] },
   } as unknown as Agent;
   const streamed: Record<string, unknown>[] = [];
-  const llm = {
-    async *stream(options: Record<string, unknown>) {
-      streamed.push(options);
-      yield { type: 'text-delta', text: '{"outcome":"allow","reason":"Planning is allowed."}' };
-      yield { type: 'finish', reason: { kind: 'stop' } };
+  const agents: ApprovalReviewAgents = {
+    async create(options) {
+      streamed.push({ ...options.agentOptions, sessionId: String(options.sessionId) });
+      const events = [
+        {
+          type: 'assistant/message',
+          data: {
+            message: {
+              content: [
+                { type: 'text', text: '{"outcome":"allow","reason":"Planning is allowed."}' },
+              ],
+            },
+          },
+        },
+        { type: 'turn/end', data: { reason: { kind: 'completed' } } },
+      ];
+      return {
+        agent: {
+          session: { seq: 0, snapshotEvents: () => events },
+          followup: () => undefined,
+          cancel: () => undefined,
+          whenIdle: async () => undefined,
+        },
+        dispose: async () => undefined,
+      } as never;
     },
   };
   let reviewSessions = 0;
@@ -89,8 +112,8 @@ function gate(settings: ApprovalReviewerSettings) {
         setting: () => settings.model(),
         botRoute: () => botRoute,
         validate,
-        llm: () => llm,
-        sessionId: () => `review-${++reviewSessions}`,
+        agents: () => agents,
+        session: () => ({ sessionId: `review-${++reviewSessions}`, cwd: '/reviews' }),
       }),
       log,
     },

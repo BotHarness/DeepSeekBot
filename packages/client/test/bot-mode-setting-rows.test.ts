@@ -49,6 +49,7 @@ function snapshot(patch?: Partial<BotModePrefsSnapshot>): BotModePrefsSnapshot {
     assignmentConcurrencyLimit: 3,
     developerMode: false,
     showBotSessions: false,
+    showApprovalReviewSessions: false,
     effectiveMotion: 'full',
     sortMode: 'updated',
     sortModes: {},

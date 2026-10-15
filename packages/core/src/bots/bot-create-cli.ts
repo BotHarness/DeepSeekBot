@@ -263,8 +263,10 @@ Usage:
   deepseekbot bot-activity <id> [--limit <1-100>]
   deepseekbot inbox [--category action|info|unread|replies|handled] [--bot <id>] [--channel <id>]
                     [--limit <1-100>] [--cursor <cursor>] [--sort newest|oldest] [--snoozed]
+                    [--kind auto-rejection]
   deepseekbot inbox-status
   deepseekbot inbox-dismiss <item-id> [--source-key <source-event-id>]
+  deepseekbot inbox-allow-once <autoreject:item-id>
   deepseekbot inbox-snooze <item-id> [--source-key <source-event-id>] (--until <ISO time> | --clear)
   deepseekbot inbox-ignore <source-event-id>
   deepseekbot assignment-context <id> --session <session-id> --source <source-event-id>

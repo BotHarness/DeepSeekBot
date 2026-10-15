@@ -108,6 +108,7 @@ export function useHumanActionScope(actions: BridgeActions, botSlug: string | un
       replyToHumanAssignment: after(actions.replyToHumanAssignment),
       decideGroupJoin: after(actions.decideGroupJoin),
       dismissHumanInbox: after(actions.dismissHumanInbox),
+      allowAutoRejectionOnce: after(actions.allowAutoRejectionOnce),
       snoozeHumanInbox: after(actions.snoozeHumanInbox),
     };
   }, [actions, botSlug, refresh]);

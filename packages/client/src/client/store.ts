@@ -216,6 +216,7 @@ export interface ChannelMessage {
   };
   turnStop?: { botName: string; humanName: string };
   toolAutoApproval?: import('../../../core/src/channels/channel.js').ChannelToolAutoApproval;
+  toolAutoApprovalPause?: import('../../../core/src/channels/channel.js').ChannelToolAutoApprovalPause;
   memberDeparture?: {
     memberKind: 'bot' | 'human';
     memberId: string;
@@ -285,6 +286,7 @@ export interface HumanAttentionItem {
     | 'user-question'
     | 'private-input'
     | 'tool-approval'
+    | 'auto-rejection'
     | 'workspace-grant-request'
     | 'bot-dm-message'
     | 'assignment-waiting-human'
@@ -308,6 +310,13 @@ export interface HumanAttentionItem {
   responseMessageId?: string;
   responseSourceEventId?: string;
   snoozedUntil?: string;
+  autoRejection?: {
+    sessionId: string;
+    toolName: string;
+    input: string;
+    template: string;
+    reason: string;
+  };
 }
 
 export interface HumanAttentionPage {

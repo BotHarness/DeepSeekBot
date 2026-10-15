@@ -14,6 +14,7 @@ export type DesignTheme = {
   scheme: ColorScheme;
   color: Record<ColorRole, string>;
   layer: Record<LayerName, Layer>;
+  scrim: string;
   type: (typeof typeScale)[PlatformOS];
   weight: (typeof weight)[PlatformOS];
   touch: number;
@@ -47,6 +48,7 @@ export function contrast(a: string, b: string): number {
 const INK_LIGHT = '#ffffff';
 const INK_DARK = '#0f1115';
 const SEPARATION = 1.3;
+const SCRIM: Record<ColorScheme, string> = { light: '#0f111566', dark: '#00000099' };
 const BODY_CONTRAST = 4.5;
 const LIGHT_SURFACE = 3;
 
@@ -129,6 +131,7 @@ export function resolveTheme(
     scheme,
     color,
     layer: layers(scheme, color),
+    scrim: SCRIM[scheme],
     type: typeScale[os],
     weight: weight[os],
     touch: touch[os],

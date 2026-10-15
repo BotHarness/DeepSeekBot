@@ -123,7 +123,7 @@ import { GroupProfilePopover, GroupProfileView } from './group-profile.js';
 import { personaBotActivity } from './persona-activity.js';
 import { BotDmActionLabel } from './bot-dm-action-line.js';
 import { MemoryCommitLine } from './memory-commit-line.js';
-import { AutoApprovalLine } from './approval-template-entry.js';
+import { AutoApprovalLine, AutoApprovalPauseLine } from './approval-template-entry.js';
 import { BotChannelPostLine, elsewhereAction } from './bot-channel-post-line.js';
 import {
   hiddenDmActionsSnapshot,
@@ -1364,7 +1364,8 @@ function ConversationView({
       item.memoryCommit === undefined &&
       item.memberDeparture === undefined &&
       item.turnStop === undefined &&
-      item.toolAutoApproval === undefined,
+      item.toolAutoApproval === undefined &&
+      item.toolAutoApprovalPause === undefined,
   );
   const workingRows = timelineWorkingRows(
     conversation.status === 'ready' && !conversation.timeline.hasNewer
@@ -2617,6 +2618,13 @@ function ConversationView({
                       <AutoApprovalLine
                         messageId={first.id}
                         record={first.toolAutoApproval}
+                        bots={state.bots}
+                        t={t}
+                      />
+                    ) : first.toolAutoApprovalPause !== undefined ? (
+                      <AutoApprovalPauseLine
+                        messageId={first.id}
+                        record={first.toolAutoApprovalPause}
                         bots={state.bots}
                         t={t}
                       />

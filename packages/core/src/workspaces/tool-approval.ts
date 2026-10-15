@@ -50,6 +50,7 @@ export interface ToolApprovalDecision {
 
 export interface ToolAutoApproval {
   template(botSlug: string): { name: string; text: string } | undefined;
+  templateInUse?(template: string): boolean;
   review(request: ApprovalReviewRequest): Promise<ApprovalReviewResult>;
   log(entry: {
     botSlug: string;
@@ -89,8 +90,50 @@ type Pending = {
   timer: ReturnType<typeof setTimeout>;
 };
 
+export const AUTO_APPROVAL_CONSECUTIVE_REJECTIONS = 3;
+export const AUTO_APPROVAL_SESSION_REJECTIONS = 20;
+
+type Breaker = {
+  botSlug: string;
+  channelId: string;
+  template: string;
+  consecutive: number;
+  total: number;
+  paused: boolean;
+};
+
+export type AutoRejectionOverrideResult =
+  | { ok: true; message: ChannelMessage }
+  | { ok: false; code: 'not-rejected' | 'already-overridden' | 'unavailable' };
+
 function callKey(sessionId: string, callId: string): string {
   return sessionId + ':' + callId;
+}
+
+function canonical(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonical);
+  if (value === null || typeof value !== 'object') return value;
+  return Object.fromEntries(
+    Object.keys(value)
+      .sort()
+      .map((key) => [key, canonical((value as Record<string, unknown>)[key])]),
+  );
+}
+
+function canonicalInput(input: string): string {
+  try {
+    return JSON.stringify(canonical(JSON.parse(input)));
+  } catch {
+    return input;
+  }
+}
+
+function overrideKey(call: { sessionId: string; toolName: string; input: string }): string {
+  return JSON.stringify([call.sessionId, call.toolName, canonicalInput(call.input)]);
+}
+
+function bounded(set: Set<string>, limit: number): void {
+  while (set.size > limit) set.delete(set.values().next().value!);
 }
 
 function inputOf(execution: ToolExecution): string | undefined {
@@ -125,6 +168,9 @@ export class ChannelToolApproval {
     | undefined;
   readonly #autoApproval: ToolAutoApproval | undefined;
   readonly #reviewRejections = new Map<string, string>();
+  readonly #breakers = new Map<string, Breaker>();
+  readonly #overrides = new Set<string>();
+  readonly #overridden = new Set<string>();
 
   constructor(
     channels: ChannelStore,
@@ -218,7 +264,7 @@ export class ChannelToolApproval {
       this.#scope(request.agent, owner) !== tracked.scopeKey
     )
       return 'unavailable';
-    const policyChange = changesApprovalPolicy(tracked.toolName + ' ' + tracked.input);
+    const policyChange = this.#changesPolicy(tracked);
     if (
       !policyChange &&
       tracked.externalDecision !== 'each-use' &&
@@ -237,8 +283,9 @@ export class ChannelToolApproval {
     const channel = this.#channels.get(channelId) ?? this.#channels.getOrCreateDm(tracked.botSlug);
     if (channel === undefined) return 'unavailable';
     if (channel.type !== 'group' && channel.botSlug !== tracked.botSlug) return 'unavailable';
+    if (!policyChange && this.#overrides.delete(overrideKey(tracked))) return 'allowed-once';
     const template = policyChange ? undefined : this.#autoApproval?.template(tracked.botSlug);
-    if (template !== undefined) {
+    if (template !== undefined && this.#breakers.get(tracked.sessionId)?.paused !== true) {
       const reviewed = await this.#review(tracked, template, channelId, request.signal);
       if (reviewed !== undefined) return reviewed;
       if (request.signal?.aborted) return 'cancelled';
@@ -377,7 +424,7 @@ export class ChannelToolApproval {
       tracked !== undefined &&
       tracked.agent === agent &&
       (tracked.externalDecision === 'each-use' ||
-        changesApprovalPolicy(tracked.toolName + ' ' + tracked.input) ||
+        this.#changesPolicy(tracked) ||
         this.#rules?.match(tracked) === undefined)
     );
   }
@@ -587,6 +634,7 @@ export class ChannelToolApproval {
           external.authorized() && (!kind || external.rule?.authorized() === true);
       if (remember) tracked.remembered = true;
       this.#settle(messageId, outcome === 'rejected' ? 'rejected' : 'allowed-once');
+      if (outcome !== 'rejected') await this.#resume(tracked.sessionId);
       return true;
     } finally {
       pending.deciding = false;
@@ -597,6 +645,139 @@ export class ChannelToolApproval {
     for (const id of this.#pending.keys()) this.#settle(id, 'cancelled');
     this.#tracked.clear();
     this.#reviewRejections.clear();
+    this.#breakers.clear();
+    this.#overrides.clear();
+    this.#overridden.clear();
+  }
+
+  autoApprovalPaused(sessionId: string): boolean {
+    return this.#breakers.get(sessionId)?.paused === true;
+  }
+
+  async overrideRejection(
+    channelId: string,
+    recordMessageId: string,
+  ): Promise<AutoRejectionOverrideResult> {
+    const record = this.#channels.message(channelId, recordMessageId)?.toolAutoApproval;
+    if (record === undefined || record.outcome !== 'rejected')
+      return { ok: false, code: 'not-rejected' };
+    const recordKey = channelId + ':' + recordMessageId;
+    if (this.#overridden.has(recordKey)) return { ok: false, code: 'already-overridden' };
+    this.#overridden.add(recordKey);
+    const message: ChannelMessage = {
+      id: randomUUID(),
+      at: new Date().toISOString(),
+      author: { kind: 'human' },
+      body: '已允许这一次被自动拒绝的 ' + record.toolName + ' 调用',
+      replyTo: recordMessageId,
+      toolAutoApprovalOverride: {
+        recordMessageId,
+        botSlug: record.botSlug,
+        sessionId: record.sessionId,
+        toolName: record.toolName,
+      },
+    };
+    let appended: ChannelMessage | undefined;
+    try {
+      appended = await this.#channels.appendMessage(channelId, message);
+    } catch {
+      appended = undefined;
+    }
+    if (appended === undefined) {
+      this.#overridden.delete(recordKey);
+      return { ok: false, code: 'unavailable' };
+    }
+    bounded(this.#overridden, 1024);
+    this.#overrides.add(overrideKey(record));
+    bounded(this.#overrides, 256);
+    await this.#resume(record.sessionId);
+    return { ok: true, message: appended };
+  }
+
+  async #trip(
+    tracked: TrackedCall,
+    template: string,
+    channelId: string,
+    allowed: boolean,
+  ): Promise<void> {
+    const breaker = this.#breakers.get(tracked.sessionId) ?? {
+      botSlug: tracked.botSlug,
+      channelId,
+      template,
+      consecutive: 0,
+      total: 0,
+      paused: false,
+    };
+    breaker.channelId = channelId;
+    breaker.template = template;
+    if (allowed) {
+      breaker.consecutive = 0;
+    } else {
+      breaker.consecutive += 1;
+      breaker.total += 1;
+    }
+    this.#breakers.delete(tracked.sessionId);
+    this.#breakers.set(tracked.sessionId, breaker);
+    if (this.#breakers.size > 1024) this.#breakers.delete(this.#breakers.keys().next().value!);
+    const reason =
+      breaker.consecutive >= AUTO_APPROVAL_CONSECUTIVE_REJECTIONS
+        ? 'consecutive'
+        : breaker.total >= AUTO_APPROVAL_SESSION_REJECTIONS
+          ? 'session'
+          : undefined;
+    if (reason === undefined || breaker.paused) return;
+    breaker.paused = true;
+    await this.#pauseNotice(tracked.sessionId, breaker, 'paused', reason);
+  }
+
+  async #resume(sessionId: string): Promise<void> {
+    const breaker = this.#breakers.get(sessionId);
+    if (breaker?.paused !== true) return;
+    this.#breakers.delete(sessionId);
+    await this.#pauseNotice(sessionId, breaker, 'resumed');
+  }
+
+  async #pauseNotice(
+    sessionId: string,
+    breaker: Breaker,
+    state: 'paused' | 'resumed',
+    reason?: 'consecutive' | 'session',
+  ): Promise<void> {
+    const body =
+      state === 'resumed'
+        ? 'Auto approval resumed for this Session.'
+        : reason === 'consecutive'
+          ? 'Auto approval paused for this Session after ' +
+            AUTO_APPROVAL_CONSECUTIVE_REJECTIONS +
+            ' rejections in a row. Every request posts a card until you approve one.'
+          : 'Auto approval paused for this Session after ' +
+            AUTO_APPROVAL_SESSION_REJECTIONS +
+            ' rejections. Every request posts a card until you approve one.';
+    try {
+      await this.#channels.appendMessage(breaker.channelId, {
+        id: randomUUID(),
+        at: new Date().toISOString(),
+        author: { kind: 'system' },
+        body,
+        toolAutoApprovalPause: {
+          botSlug: breaker.botSlug,
+          sessionId,
+          template: breaker.template,
+          state,
+          ...(reason === undefined ? {} : { reason }),
+        },
+      });
+    } catch {
+      this.#attention?.warn('auto-approval-pause-notice-failed');
+    }
+  }
+
+  #changesPolicy(tracked: TrackedCall): boolean {
+    const inUse = this.#autoApproval?.templateInUse;
+    return changesApprovalPolicy(
+      tracked.toolName + ' ' + tracked.input,
+      inUse === undefined ? undefined : (name) => inUse(name),
+    );
   }
 
   takeReviewRejection(sessionId: string, callId: string): string | undefined {
@@ -708,6 +889,7 @@ export class ChannelToolApproval {
       return undefined;
     }
     log(review.outcome);
+    await this.#trip(tracked, template.name, channelId, allowed);
     if (!allowed) {
       if (this.#reviewRejections.size >= 256)
         this.#reviewRejections.delete(this.#reviewRejections.keys().next().value!);

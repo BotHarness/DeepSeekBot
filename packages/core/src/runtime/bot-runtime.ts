@@ -3106,6 +3106,12 @@ class BotRuntimeImplementation implements BotRuntime {
       return '[Bot Inbox: Group join request]\n' + body;
     if (channel !== undefined && isBotDmChannel(channel) && message?.author.kind === 'bot')
       return `[Bot Inbox: direct message from PersonaBot ${message.author.slug}]\nChannel: ${channelId}\nMessage ID: ${messageId}\n${body}\nDecide whether a reply would be useful. You may finish without replying; if you speak in this Bot DM, use channel_send.`;
+    if (message?.author.kind === 'human' && message.toolAutoApprovalOverride !== undefined) {
+      const target = message.toolAutoApprovalOverride;
+      const input =
+        this.#channels.message(channelId, target.recordMessageId)?.toolAutoApproval?.input ?? '';
+      return `[Bot Inbox: Human allowed an auto-rejected call once]\nChannel: ${channelId}\nMessage ID: ${messageId}\nTool: ${target.toolName}\nSession: ${target.sessionId}\nInput:\n${input}\nThe Approval Reviewer rejected this call earlier, and the Human allowed it once anyway. You may retry it in that Session with exactly this input, every argument unchanged; that one retry runs without review. Later calls are still reviewed under your Approval Template. If the call came from an Assignment Session, relay this with send_assignment_request.`;
+    }
     if (channel?.type === 'group' && message?.mentions?.length)
       return this.#groupMentionPrompt(channelId, messageId, body);
     if (channel?.type === 'group' && message?.grantRequestResolution !== undefined)

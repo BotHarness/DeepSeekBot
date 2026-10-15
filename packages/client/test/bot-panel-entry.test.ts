@@ -46,6 +46,7 @@ const useBotModePrefs = ((selector: (value: BotModePrefsSnapshot) => unknown) =>
     assignmentConcurrencyLimit: 3,
     developerMode: false,
     showBotSessions: false,
+    showApprovalReviewSessions: false,
     effectiveMotion: 'full',
     sortMode: 'updated',
     sortModes: {},

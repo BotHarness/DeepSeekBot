@@ -12,12 +12,14 @@ import {
   BOT_MODE_SEND_KEY_FIELD,
   BOT_MODE_SORT_FIELD,
   BOT_MODE_SORT_MODES_FIELD,
+  BOT_MODE_SHOW_APPROVAL_REVIEW_SESSIONS_FIELD,
   BOT_MODE_SHOW_BOT_SESSIONS_FIELD,
   DEFAULT_BOT_MODE_ICON,
   DEFAULT_BOT_MODE_DEVELOPER,
   DEFAULT_BOT_MODE_MOTION,
   DEFAULT_BOT_MODE_SEND_KEY,
   DEFAULT_BOT_MODE_SORT,
+  DEFAULT_BOT_MODE_SHOW_APPROVAL_REVIEW_SESSIONS,
   DEFAULT_BOT_MODE_SHOW_BOT_SESSIONS,
   isBotModeIcon,
   isBotModeMotionPreference,
@@ -64,6 +66,7 @@ export interface BotModePrefsSnapshot {
   autoAcceptGroupInvites: boolean;
   developerMode: boolean;
   showBotSessions: boolean;
+  showApprovalReviewSessions: boolean;
   motionPreference: BotModeMotionPreference;
   botIcon: BotModeIcon;
   sendKey: BotModeSendKey;
@@ -93,6 +96,7 @@ export interface BotModePrefsFace {
   setSendKey: (sendKey: BotModeSendKey) => void;
   setDeveloperMode: (enabled: boolean) => void;
   setShowBotSessions: (enabled: boolean) => void;
+  setShowApprovalReviewSessions: (enabled: boolean) => void;
   setAutoAcceptGroupInvites: (enabled: boolean) => void;
   setSortMode: (mode: BotModeSortMode) => void;
   setSectionSortMode: (sectionId: string, mode: BotModeSortMode | undefined) => void;
@@ -117,6 +121,9 @@ export function botModePrefsFace(prefs: BotModePrefs): BotModePrefsFace {
     },
     setShowBotSessions: (enabled) => {
       prefs.setShowBotSessions(enabled);
+    },
+    setShowApprovalReviewSessions: (enabled) => {
+      prefs.setShowApprovalReviewSessions(enabled);
     },
     setSortMode: (mode) => {
       prefs.setSortMode(mode);
@@ -178,6 +185,7 @@ export class BotModePrefs {
       sendKey: DEFAULT_BOT_MODE_SEND_KEY,
       developerMode: DEFAULT_BOT_MODE_DEVELOPER,
       showBotSessions: DEFAULT_BOT_MODE_SHOW_BOT_SESSIONS,
+      showApprovalReviewSessions: DEFAULT_BOT_MODE_SHOW_APPROVAL_REVIEW_SESSIONS,
       effectiveMotion: resolveEffectiveMotion(DEFAULT_BOT_MODE_MOTION, this.systemReduced),
       sortMode: DEFAULT_BOT_MODE_SORT,
       sortModes: {},
@@ -302,6 +310,15 @@ export class BotModePrefs {
       this.persist(this.host.set(BOT_MODE_SHOW_BOT_SESSIONS_FIELD, enabled));
   }
 
+  setShowApprovalReviewSessions(enabled: boolean): void {
+    if (this.source.getSnapshot().showApprovalReviewSessions === enabled) return;
+    this.source.update((draft) => {
+      draft.showApprovalReviewSessions = enabled;
+    });
+    if (this.host !== undefined)
+      this.persist(this.host.set(BOT_MODE_SHOW_APPROVAL_REVIEW_SESSIONS_FIELD, enabled));
+  }
+
   setSortMode(mode: BotModeSortMode): void {
     if (this.source.getSnapshot().sortMode === mode) return;
     this.source.update((draft) => {
@@ -389,6 +406,7 @@ export class BotModePrefs {
           : DEFAULT_ASSIGNMENT_CONCURRENCY_LIMIT;
         draft.developerMode = section.developerMode === true;
         draft.showBotSessions = section.showBotSessions !== false;
+        draft.showApprovalReviewSessions = section.showApprovalReviewSessions === true;
         draft.autoAcceptGroupInvites = section.autoAcceptGroupInvites !== false;
       }
     });

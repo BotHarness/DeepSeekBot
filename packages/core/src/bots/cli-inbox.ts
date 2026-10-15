@@ -22,6 +22,10 @@ export const INBOX_COMMANDS = [
   { command: 'inbox', description: 'list Human Inbox items by category, Bot or Channel' },
   { command: 'inbox-status', description: 'read the Human Inbox unread count and action flag' },
   { command: 'inbox-dismiss', description: 'dismiss one Human Inbox item' },
+  {
+    command: 'inbox-allow-once',
+    description: 'allow one auto-rejected call once anyway, from its Human Inbox item',
+  },
   { command: 'inbox-ignore', description: 'ignore an informational assignment report' },
   {
     command: 'inbox-snooze',
@@ -58,6 +62,7 @@ export const INBOX_HOST_COMMANDS = ['grant-revoke', 'grant-write-set'] as const;
 
 export interface InboxValues {
   category?: string;
+  kind?: string;
   channel?: string;
   bot?: string;
   sort?: string;
@@ -161,6 +166,8 @@ function prepare(
         usage(`--category must be one of ${CATEGORIES.join(', ')}.`);
       if (values.sort !== undefined && values.sort !== 'newest' && values.sort !== 'oldest')
         usage('--sort must be newest or oldest.');
+      if (values.kind !== undefined && values.kind !== 'auto-rejection')
+        usage('--kind must be auto-rejection.');
       const limit = values.limit === undefined ? undefined : Number(values.limit);
       if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 1 || limit > 100))
         usage('--limit must be 1–100.');
@@ -176,8 +183,15 @@ function prepare(
           ...(values.cursor === undefined ? {} : { cursor: values.cursor }),
           ...(values.sort === undefined ? {} : { sort: values.sort }),
           ...(values.snoozed === true ? { snoozed: true } : {}),
+          ...(values.kind === undefined ? {} : { kind: values.kind }),
         },
       };
+    }
+    case 'inbox-allow-once': {
+      const [itemId] = positionals(command, rest, 1, 'exactly one auto-rejection item id');
+      if (!itemId!.startsWith('autoreject:'))
+        usage('inbox-allow-once takes an auto-rejection item id (autoreject:…).');
+      return { method: 'toolAutoRejectionOverride', args: { itemId } };
     }
     case 'inbox-status':
       positionals(command, rest, 0, '');

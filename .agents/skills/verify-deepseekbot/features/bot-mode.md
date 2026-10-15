@@ -5,7 +5,7 @@ Bot mode swaps the native DSH session view for the BotHarness conversation view.
 ## Sub-features
 
 - `enter` switches from the native view to Bot mode.
-- `sidebar` is the desktop Bot mode sidebar: a `DeepSeekBot` header, Activity Center, the Messages Roster and Bot settings, in the column DSH sizes and collapses.
+- `sidebar` is the desktop Bot mode sidebar: a `DeepSeekBot` header, pinned panel cards (one per Dock panel, Activity Center first with its unread count), the Messages Roster and Bot settings, in the column DSH sizes and collapses. A card toggles its panel in the dock and is pressed while the panel is open; before a Channel is open only the Activity Center card works, and it opens the full Activity Center page.
 - `exit` leaves Bot mode with the header logo, which morphs into **Exit Bot mode** on hover or keyboard focus, and brings back the native left column.
 - `default-bot` creates DeepSeek Bot and its DM on first entry.
 - `welcome-letter` shows the welcome letter with suggested replies, a model chooser and Create Bot.
@@ -23,7 +23,7 @@ Preconditions: a fresh instance that passes `doctor`.
 - **Enter.** Run `node scripts/verify-app.mjs shot bot-mode --name <n> --bot-mode`. The ARIA file has `StaticText "Messages"` and `button "Bot settings"`.
 - **Default Bot.** Run the same command a second time. The ARIA file has a button whose name starts with `DeepSeek Bot`, a `textbox "Message DeepSeek Bot"` and `button "Create Bot"`.
 - **Canonical state.** Run `node scripts/verify-app.mjs rpc botharness/list --name <n>`. `bots` holds one entry with `displayName` `DeepSeek Bot`.
-- **Sidebar and exit.** Run `BH_E2E_INSTANCE=.humanlayer/verify/<n>/instance.json node scripts/e2e-bot-mode-sidebar.mjs`. It checks that the Bot mode sidebar fills the column with no native `Bot mode` row, selects a Roster row, collapses and reopens the rail, then exits and checks that `New Session`, `Plugins` and `Settings` are back. It prints `BOT MODE SIDEBAR PASS`.
+- **Sidebar and exit.** Run `BH_E2E_INSTANCE=.humanlayer/verify/<n>/instance.json node scripts/e2e-bot-mode-sidebar.mjs`. It checks that the Bot mode sidebar fills the column with no native `Bot mode` row, selects a Roster row, opens and closes the Activity Center panel from its pinned card (`[data-pinned-panel="activity-center"]`), collapses and reopens the rail, then exits and checks that `New Session`, `Plugins` and `Settings` are back. It prints `BOT MODE SIDEBAR PASS`.
 - **Exit by hand.** Run `node scripts/verify-app.mjs shot exit --name <n> --bot-mode --click "Exit Bot mode" --wait "Plugins"`. The ARIA file has `button "Bot mode"` and `button "Plugins"` again.
 - **Tutorial.** Add `--keep-overlays`. The screenshot shows the `Get started with DeepSeekBot` checklist.
 

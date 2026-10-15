@@ -3,12 +3,13 @@ import { Pressable, View } from 'react-native';
 import type { RosterBot } from '../../host/client';
 import { BotAvatar } from '../bot-avatar';
 import { useDesignTheme } from '../design/theme';
-import { space } from '../design/tokens';
+import { edge, radius, space } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { t } from '../strings';
-import { botStateTone } from './bot-tone';
+import { botDotTone } from './bot-tone';
 
 const AVATAR = 28;
+const DOT = space.x3;
 
 export function ChatTitle({
   bot,
@@ -20,36 +21,44 @@ export function ChatTitle({
   onPress(): void;
 }) {
   const theme = useDesignTheme();
-  if (bot === undefined)
-    return (
-      <Text variant="title" numberOfLines={1}>
-        {fallback}
-      </Text>
-    );
-  const status = bot.paused ? t.paused : t.state[bot.state];
+  const status = bot === undefined ? undefined : bot.paused ? t.paused : t.state[bot.state];
+  const name = bot?.displayName ?? fallback;
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${bot.displayName}, ${status}`}
+      accessibilityLabel={status === undefined ? name : `${name}, ${status}`}
       accessibilityHint={t.openProfile}
+      disabled={bot === undefined}
       onPress={onPress}
       style={({ pressed }) => ({
-        minHeight: theme.touch,
+        maxWidth: '100%',
         flexDirection: 'row',
         alignItems: 'center',
         gap: space.x3,
-        opacity: pressed ? 0.6 : 1,
+        height: theme.touch,
+        paddingLeft: bot === undefined ? theme.touch / 2 : (theme.touch - AVATAR) / 2,
+        paddingRight: bot === undefined ? theme.touch / 2 : (theme.touch - DOT) / 2,
+        borderRadius: radius.round,
+        borderWidth: edge.hairline,
+        borderColor: theme.layer.raised.edge,
+        backgroundColor: pressed ? theme.layer.raised.pressed : theme.layer.raised.fill,
       })}
     >
-      <BotAvatar bot={bot} size={AVATAR} />
-      <View>
-        <Text strong numberOfLines={1}>
-          {bot.displayName}
-        </Text>
-        <Text variant="meta" tone={botStateTone(bot)} numberOfLines={1}>
-          {status}
-        </Text>
-      </View>
+      {bot === undefined ? null : <BotAvatar bot={bot} size={AVATAR} ring={false} />}
+      <Text strong numberOfLines={1} style={{ flexShrink: 1 }}>
+        {name}
+      </Text>
+      {bot === undefined ? null : (
+        <View
+          testID="chat-title-state"
+          style={{
+            width: DOT,
+            height: DOT,
+            borderRadius: radius.round,
+            backgroundColor: theme.color[botDotTone(bot)],
+          }}
+        />
+      )}
     </Pressable>
   );
 }

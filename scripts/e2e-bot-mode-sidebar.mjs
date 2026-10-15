@@ -70,9 +70,36 @@ try {
   );
   await page.waitForSelector('[data-bh-tour="composer"]', { timeout: 20_000 });
 
+  const card = '.bh-mode-sidebar [data-pinned-panel="activity-center"]';
+  await page.waitForSelector(`${card}:not([aria-disabled])`, { timeout: 20_000 });
+  if ((await page.$(`${card}[aria-pressed="true"]`)) !== null) {
+    await page.click(card);
+    await page.waitForSelector(`${card}[aria-pressed="false"]`, { timeout: 10_000 });
+  }
+  await page.click(card);
+  await page.waitForFunction(
+    (selector) =>
+      document.querySelector(`${selector}[aria-pressed="true"]`) !== null &&
+      document.querySelector(
+        '.bh-dock [data-dock-panel="activity-center"] .bh-activity-center-panel',
+      ) !== null &&
+      document.querySelector('.bh-dock [data-bh-tour="composer"]') !== null,
+    { timeout: 20_000 },
+    card,
+  );
+  await page.screenshot({ path: resolve(shots, '02-activity-center-panel.png') });
+  await page.click(card);
+  await page.waitForFunction(
+    (selector) =>
+      document.querySelector(`${selector}[aria-pressed="false"]`) !== null &&
+      document.querySelector('.bh-dock [data-dock-panel="activity-center"]') === null,
+    { timeout: 10_000 },
+    card,
+  );
+
   await page.click('button[aria-label="Collapse sidebar"]');
   await page.waitForSelector('.bh-mode-sidebar[data-collapsed="true"]', { timeout: 10_000 });
-  await page.screenshot({ path: resolve(shots, '02-bot-mode-rail.png') });
+  await page.screenshot({ path: resolve(shots, '03-bot-mode-rail.png') });
   await page.click('button[aria-label="Open sidebar"]');
   await page.waitForFunction(
     () => document.querySelector('.bh-mode-sidebar:not([data-collapsed])') !== null,
@@ -93,7 +120,7 @@ try {
   for (const label of ['New Session', 'Plugins', 'Settings'])
     if (!native.some((text) => text.includes(label)))
       throw new Error(`Native App Sidebar is missing ${label} after exit`);
-  await page.screenshot({ path: resolve(shots, '03-native-after-exit.png') });
+  await page.screenshot({ path: resolve(shots, '04-native-after-exit.png') });
   if (pageErrors.length > 0) throw new Error(`Page errors: ${pageErrors.join(' | ')}`);
   console.log('BOT MODE SIDEBAR PASS');
 } finally {

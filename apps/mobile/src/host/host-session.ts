@@ -159,21 +159,19 @@ export interface DmTarget {
 
 const conversations = new WeakMap<HostClient, Map<string, Conversation>>();
 
-function conversationFor(client: HostClient, bot: DmTarget): Conversation {
-  let byBot = conversations.get(client);
-  if (byBot === undefined) {
-    byBot = new Map();
-    conversations.set(client, byBot);
+function conversationFor(
+  client: HostClient,
+  key: string,
+  options: Omit<Parameters<typeof createConversation>[0], 'host' | 'cache'>,
+): Conversation {
+  let byKey = conversations.get(client);
+  if (byKey === undefined) {
+    byKey = new Map();
+    conversations.set(client, byKey);
   }
-  const existing = byBot.get(bot.slug);
+  const existing = byKey.get(key);
   if (existing !== undefined) return existing;
-  const inner = createConversation({
-    host: client,
-    botSlug: bot.slug,
-    ...(bot.displayName === undefined ? {} : { displayName: bot.displayName }),
-    ...(bot.dmChannelId === undefined ? {} : { channelId: bot.dmChannelId }),
-    cache: nativeConversationCache,
-  });
+  const inner = createConversation({ host: client, ...options, cache: nativeConversationCache });
   let watchers = 0;
   let idle: ReturnType<typeof setTimeout> | undefined;
   const conversation: Conversation = {
@@ -190,12 +188,12 @@ function conversationFor(client: HostClient, bot: DmTarget): Conversation {
         idle = setTimeout(() => {
           if (watchers > 0) return;
           inner.stop();
-          byBot.delete(bot.slug);
+          byKey.delete(key);
         }, 0);
       };
     },
   };
-  byBot.set(bot.slug, conversation);
+  byKey.set(key, conversation);
   return conversation;
 }
 
@@ -205,8 +203,31 @@ export function useConversation(
 ): Conversation | undefined {
   const slug = bot?.slug;
   return useMemo(
-    () => (client === undefined || bot === undefined ? undefined : conversationFor(client, bot)),
+    () =>
+      client === undefined || bot === undefined
+        ? undefined
+        : conversationFor(client, bot.slug, {
+            botSlug: bot.slug,
+            ...(bot.displayName === undefined ? {} : { displayName: bot.displayName }),
+            ...(bot.dmChannelId === undefined ? {} : { channelId: bot.dmChannelId }),
+          }),
     [client, slug],
+  );
+}
+
+export function useChannelConversation(
+  client: HostClient | undefined,
+  channelId: string | undefined,
+): Conversation | undefined {
+  return useMemo(
+    () =>
+      client === undefined || channelId === undefined
+        ? undefined
+        : conversationFor(client, `channel:${channelId}`, {
+            channelId,
+            cacheKey: `channel:${channelId}`,
+          }),
+    [client, channelId],
   );
 }
 

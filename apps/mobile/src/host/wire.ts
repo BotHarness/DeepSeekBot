@@ -19,6 +19,25 @@ export interface WireReaction {
   actors: { kind: 'human' | 'bot'; id: string }[];
 }
 
+export interface WireMention {
+  botSlug: string;
+  label: string;
+  start: number;
+  end: number;
+}
+
+export interface WireAllBotPreview {
+  revision: string;
+  recipients: { botSlug: string; label: string }[];
+}
+
+export interface WireAllBotMention {
+  start: number;
+  end: number;
+  label: string;
+  preview: WireAllBotPreview;
+}
+
 export interface ChannelWireMessage extends WireMessage {
   author: WireAuthor;
   reactions?: WireReaction[];

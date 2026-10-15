@@ -2,6 +2,8 @@ import type { ComponentType } from 'react';
 
 import type { ChannelSidebarEntry } from './channel-sidebar.js';
 
+export const ACTIVITY_CENTER_PANEL = 'activity-center';
+
 export type DockPanelScope = 'global' | 'channel';
 
 export interface DockPanelPosition {
@@ -42,6 +44,7 @@ export interface DockPanelRegistry {
   register(panel: DockPanel): () => void;
   panels(): readonly DockPanelRegistration[];
   openPanels(): readonly string[];
+  available(): boolean;
   isOpen(id: string): boolean;
   open(id: string): void;
   close(id: string): void;
@@ -109,6 +112,7 @@ export function createDockPanelRegistry(): DockPanelHost {
       }),
     panels: () => ordered,
     openPanels: () => open,
+    available: () => layout !== undefined,
     isOpen: (id) => open.includes(id),
     open: (id) => layout?.open(id),
     close: (id) => layout?.close(id),
@@ -121,10 +125,10 @@ export function createDockPanelRegistry(): DockPanelHost {
     },
     attach(next) {
       layout = next;
+      notify();
       return () => {
         if (layout !== next) return;
         layout = undefined;
-        if (open.length === 0) return;
         open = NO_IDS;
         notify();
       };

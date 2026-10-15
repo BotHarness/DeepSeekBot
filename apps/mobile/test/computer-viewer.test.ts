@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
 import type { HostApiAnswer, HostApiInit } from '../src/host/client';
-import { createComputerViewer, type ComputerViewerState } from '../src/host/computer-viewer';
+import {
+  addedText,
+  createComputerViewer,
+  typedInputs,
+  wheelInput,
+  WHEEL_STEP,
+  type ComputerViewerState,
+} from '../src/host/computer-viewer';
 
 type Call = { path: string; body?: Record<string, unknown> };
 
@@ -131,5 +138,71 @@ describe('Computer viewer', () => {
       { path: '/api/computer/takeover', body: { active: false } },
     ]);
     expect(viewer.getState().control).toBe(false);
+  });
+
+  it('sends input one at a time, in the order it was given', async () => {
+    let release: () => void = () => {};
+    const slowFirst = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let inputs = 0;
+    const fake = host([
+      async (call) => {
+        if (call.path === '/api/computer/takeover')
+          return { status: 200, body: { ok: true, paused: true } };
+        if (call.path !== '/api/computer/input') {
+          await new Promise((resolve) => setTimeout(resolve, 5));
+          return frame(1);
+        }
+        inputs += 1;
+        if (inputs === 1) await slowFirst;
+        return { status: 200, body: { ok: true } };
+      },
+    ]);
+    const viewer = createComputerViewer({ client: fake.client, wait: async () => undefined });
+    viewer.start();
+    await watch(viewer, (state) => state.status === 'live');
+    await viewer.setControl(true);
+    const typed = viewer.send({ kind: 'type', text: 'hi' });
+    const chord = viewer.send({ kind: 'key', key: 'a', modifiers: ['meta'] });
+    await settle();
+    const sent = () => fake.calls.filter((call) => call.path === '/api/computer/input');
+    expect(sent()).toHaveLength(1);
+    release();
+    await Promise.all([typed, chord]);
+    viewer.stop();
+    expect(sent().map((call) => call.body)).toEqual([
+      { kind: 'type', text: 'hi' },
+      { kind: 'key', key: 'a', modifiers: ['meta'] },
+    ]);
+  });
+});
+
+describe('Computer pointer and keys', () => {
+  it('turns wheel travel into notches scrolled under the pointer', () => {
+    expect(wheelInput(WHEEL_STEP - 1)).toBeUndefined();
+    expect(wheelInput(-WHEEL_STEP * 2.5, { x: 10.4, y: 20.6 })).toEqual({
+      kind: 'scroll',
+      direction: 'down',
+      amount: 2,
+      x: 10,
+      y: 21,
+    });
+    expect(wheelInput(WHEEL_STEP * 100)).toEqual({ kind: 'scroll', direction: 'up', amount: 15 });
+  });
+
+  it('types plain text, and turns text into chords while a modifier is latched', () => {
+    expect(typedInputs('', ['meta'])).toEqual([]);
+    expect(typedInputs('Hello', [])).toEqual([{ kind: 'type', text: 'Hello' }]);
+    expect(typedInputs('C', ['meta', 'shift'])).toEqual([
+      { kind: 'key', key: 'c', modifiers: ['meta', 'shift'] },
+    ]);
+  });
+
+  it('reads each keystroke as the text added to the hidden field', () => {
+    expect(addedText('', 'H')).toBe('H');
+    expect(addedText('He', 'Hel')).toBe('l');
+    expect(addedText('Hel', 'He')).toBe('');
+    expect(addedText('abc', 'x')).toBe('');
   });
 });

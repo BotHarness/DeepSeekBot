@@ -331,6 +331,10 @@ export function Composer({
   onDictate,
   onStopDictation,
   onCancelDictation,
+  footer,
+  above,
+  selection,
+  onSelection,
 }: {
   value: string;
   placeholder: string;
@@ -346,9 +350,14 @@ export function Composer({
   onDictate(): void;
   onStopDictation(): void;
   onCancelDictation(): void;
+  footer?: ReactNode;
+  above?: ReactNode;
+  selection?: { start: number; end: number } | undefined;
+  onSelection?(caret: number): void;
 }) {
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
+  const [footerHeight, setFooterHeight] = useState(0);
   const [menu, setMenu] = useState(false);
   const [held, setHeld] = useState(false);
   const [contentHeight, setContentHeight] = useState(0);
@@ -397,6 +406,13 @@ export function Composer({
       key="field"
       value={value}
       onChangeText={onChange}
+      {...(selection === undefined ? {} : { selection })}
+      {...(onSelection === undefined
+        ? {}
+        : {
+            onSelectionChange: (event: { nativeEvent: { selection: { end: number } } }) =>
+              onSelection(event.nativeEvent.selection.end),
+          })}
       onFocus={() => setMenu(false)}
       placeholder={
         held
@@ -459,6 +475,7 @@ export function Composer({
         backgroundColor: theme.color.base,
       }}
     >
+      {above}
       <View
         style={{
           borderRadius: (theme.touch - space.x4) / 2 + inset,
@@ -526,12 +543,24 @@ export function Composer({
           </Text>
         ) : null}
       </View>
+      {footer === undefined ? null : (
+        <View
+          onLayout={(event) => setFooterHeight(event.nativeEvent.layout.height)}
+          style={{ paddingTop: space.x2 }}
+        >
+          {footer}
+        </View>
+      )}
       {held ? (
         <LockHint
           style={{
             position: 'absolute',
             right: space.x4 + edge.hairline + inset,
-            bottom: Math.max(insets.bottom, space.x3) + pill.height + space.x3,
+            bottom:
+              Math.max(insets.bottom, space.x3) +
+              (footer === undefined ? 0 : footerHeight) +
+              pill.height +
+              space.x3,
           }}
         />
       ) : null}

@@ -7,7 +7,15 @@ import { resolvedAvatarRecipe } from '../../../../packages/core/src/bots/primary
 import type { RosterBot } from '../host/client';
 import { stateColor, useTheme } from './theme';
 
-export function BotAvatar({ bot, size }: { bot: RosterBot; size: number }) {
+export function BotAvatar({
+  bot,
+  size,
+  ring = true,
+}: {
+  bot: RosterBot;
+  size: number;
+  ring?: boolean;
+}) {
   const theme = useTheme();
   const svg = useMemo(() => {
     if (bot.avatarUrl !== undefined) return undefined;
@@ -19,15 +27,15 @@ export function BotAvatar({ bot, size }: { bot: RosterBot; size: number }) {
     });
     return recipe === undefined ? undefined : avatarSvg(recipe);
   }, [bot.avatarUrl, bot.slug, bot.displayName, bot.appearance, bot.avatarSeed]);
-  const ring = stateColor(theme, bot.state);
+  const frame = ring ? 6 : 0;
   return (
     <View
       style={{
-        width: size + 6,
-        height: size + 6,
-        borderRadius: (size + 6) / 2,
-        borderWidth: 2,
-        borderColor: bot.state === 'idle' ? 'transparent' : ring,
+        width: size + frame,
+        height: size + frame,
+        borderRadius: (size + frame) / 2,
+        borderWidth: ring ? 2 : 0,
+        borderColor: bot.state === 'idle' ? 'transparent' : stateColor(theme, bot.state),
         alignItems: 'center',
         justifyContent: 'center',
         opacity: bot.paused ? 0.5 : 1,

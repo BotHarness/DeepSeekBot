@@ -730,3 +730,70 @@ it('keeps a newer unread query when read reconciliation returns an older snapsho
   await reading;
   expect(store.getSnapshot().humanInbox.unreadCount).toBe(1);
 });
+
+it('runs as a Dock panel beside a Channel without changing the selection', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  const calls: string[] = [];
+  const item = {
+    id: 'join:r1',
+    category: 'action',
+    kind: 'group-join-request',
+    botSlug: 'ada',
+    channelId: 'team',
+    channelName: 'Team',
+    summary: '',
+    requestId: 'r1',
+    createdAt: '2026-10-02T00:00:00Z',
+  };
+  const actions = createActions(async (endpoint) => {
+    calls.push(endpoint);
+    if (endpoint === 'activityOverview')
+      return {
+        ok: true,
+        value: {
+          actionCount: 1,
+          bots: [
+            {
+              slug: 'ada',
+              displayName: 'Ada',
+              state: 'working',
+              paused: false,
+              hasAction: false,
+              sessions: [],
+            },
+          ],
+        },
+      };
+    if (endpoint === 'humanAttentionStatus')
+      return { ok: true, value: { unreadCount: 3, hasAction: true } };
+    if (endpoint === 'humanAttention') return { ok: true, value: { items: [item] } };
+    if (endpoint === 'channelUnreadCounts') return { ok: true, value: { channels: [] } };
+    throw new Error(endpoint);
+  }, store);
+  store.select({ kind: 'channel', channelId: 'dm-ada' });
+  await actions.refreshHumanInbox();
+  expect(calls).not.toContain('humanAttention');
+  const container = document.createElement('div');
+  document.body.append(container);
+  const root = createRoot(container);
+  try {
+    await act(async () => {
+      root.render(createElement(ActivityCenterView, { actions, placement: 'panel' }));
+    });
+    expect(container.querySelector('h1')).toBeNull();
+    expect(container.querySelector('.bh-activity-center-panel')).not.toBeNull();
+    expect(container.querySelector('[data-bot-id=ada]')).not.toBeNull();
+    const inboxTab = [...container.querySelectorAll<HTMLButtonElement>('[role=tab]')][1]!;
+    await act(async () => inboxTab.click());
+    expect(inboxTab.getAttribute('aria-selected')).toBe('true');
+    expect(container.querySelector('[data-attention-id="join:r1"]')).not.toBeNull();
+    expect(store.getSnapshot().selection).toEqual({ kind: 'channel', channelId: 'dm-ada' });
+  } finally {
+    await act(async () => root.unmount());
+    container.remove();
+  }
+  const loads = calls.filter((endpoint) => endpoint === 'humanAttention').length;
+  await actions.refreshHumanInbox();
+  expect(calls.filter((endpoint) => endpoint === 'humanAttention')).toHaveLength(loads);
+  store.select(undefined);
+});

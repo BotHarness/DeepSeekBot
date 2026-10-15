@@ -13,6 +13,7 @@ import { ChannelActivityView } from './channel-activity-view.js';
 import { HumanInboxView } from './human-inbox-view.js';
 import { zhTranslate, type BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
+import type { ActivityCenterTab } from './last-view.js';
 import type { NativeSessionCatalog } from './sessions-entry.js';
 import { SessionRoleIcon } from './session-role-icon.js';
 
@@ -26,11 +27,15 @@ export function ActivityCenterView({
   actions,
   t = zhTranslate,
   nativeSessions = fallbackSessions,
+  placement = 'page',
 }: {
   actions: BridgeActions;
   t?: BotHarnessTranslate;
   nativeSessions?: NativeSessionCatalog | undefined;
+  placement?: 'page' | 'panel';
 }): ReactElement {
+  const panel = placement === 'panel';
+  const [panelView, setPanelView] = useState<ActivityCenterTab>('overview');
   const state = useClientState();
   const native = useSyncExternalStore(
     nativeSessions.subscribe,
@@ -73,7 +78,34 @@ export function ActivityCenterView({
       if (active.current) setReadBusy(false);
     }
   };
-  const overview = state.selection?.kind === 'inbox' && state.selection.view === 'overview';
+  const overview = panel
+    ? panelView === 'overview'
+    : state.selection?.kind === 'inbox' && state.selection.view === 'overview';
+  const panelMount = useMountedResource<HTMLSpanElement>(() => {
+    if (!panel) return;
+    const detach = actions.attachActivityCenterPanel();
+    void actions.refreshHumanInboxStatus();
+    void actions.refreshOverview();
+    return detach;
+  }, [actions, panel]);
+  const showOverview = (): void => {
+    if (!panel) {
+      void actions.openActivityCenter('overview');
+      return;
+    }
+    setPanelView('overview');
+    void actions.refreshOverview();
+  };
+  const showInbox = (category?: 'action'): void => {
+    if (!panel) {
+      void actions
+        .openHumanInbox()
+        .then(() => (category === undefined ? undefined : actions.refreshHumanInbox(category)));
+      return;
+    }
+    setPanelView('inbox');
+    void actions.refreshHumanInbox(category);
+  };
   const mount = useMountedResource<HTMLDivElement>(() => {
     if (!overview) return;
     active.current = true;
@@ -99,24 +131,20 @@ export function ActivityCenterView({
       )
       .sort((a, b) => Number(b.hasAction) - Number(a.hasAction)) ?? [];
   return (
-    <div className="bh-root bh-main bh-activity-center" ref={mount}>
+    <div
+      className={
+        panel ? 'bh-activity-center bh-activity-center-panel' : 'bh-root bh-main bh-activity-center'
+      }
+      ref={mount}
+    >
+      <span ref={panelMount} hidden />
       <header className="bh-activity-center-header">
-        <h1>{t('activityCenter.title')}</h1>
+        {panel ? null : <h1>{t('activityCenter.title')}</h1>}
         <div className="bh-human-inbox-tabs" role="tablist" aria-label={t('activityCenter.title')}>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={overview}
-            onClick={() => void actions.openActivityCenter('overview')}
-          >
+          <button type="button" role="tab" aria-selected={overview} onClick={showOverview}>
             {t('activityCenter.overview')}
           </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={!overview}
-            onClick={() => void actions.openHumanInbox()}
-          >
+          <button type="button" role="tab" aria-selected={!overview} onClick={() => showInbox()}>
             {t('activityCenter.inbox')}
           </button>
         </div>
@@ -129,9 +157,7 @@ export function ActivityCenterView({
                 className="bh-overview-action-count"
                 variant={value.actionCount > 0 ? 'primary' : 'outline'}
                 size="sm"
-                onClick={() => {
-                  void actions.openHumanInbox().then(() => actions.refreshHumanInbox('action'));
-                }}
+                onClick={() => showInbox('action')}
               >
                 <IconInfoOutlineRegular size={16} />
                 <span>{t('activityCenter.actions')}</span>
