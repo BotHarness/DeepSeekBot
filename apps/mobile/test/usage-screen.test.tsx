@@ -10,7 +10,8 @@ vi.mock('react-native-safe-area-context', () => ({
 vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null, SvgXml: () => null }));
 
 import type { OverviewMemory, OverviewUsage, UsagePeriod } from '../src/host/usage';
-import { dayLabel } from '../src/host/usage-days';
+import { MethodRefused } from '../src/host/client';
+import { dayLabel, trailingDays } from '../src/host/usage-days';
 import { SettingsView, type SettingsActions } from '../src/ui/settings-view';
 import { daysLabel, tokenAmount } from '../src/ui/shell/usage-card';
 import { t } from '../src/ui/strings';
@@ -23,6 +24,19 @@ const active = usageWire.rpc.active;
 const week = () => structuredClone(active.overviewUsage.week) as OverviewUsage;
 const today = () => structuredClone(active.overviewUsage.today) as OverviewUsage;
 const memory = () => structuredClone(active.overviewMemory) as OverviewMemory;
+
+function longer(period: 'month' | 'quarter'): OverviewUsage {
+  const value = week();
+  value.period = period;
+  value.days = trailingDays(value.end, period === 'month' ? 28 : 84).map((day) => ({
+    ...value.days[0]!,
+    day,
+    totalTokens: 100,
+  }));
+  value.start = value.days[0]!.day;
+  value.totals.totalTokens = value.days.length * 100;
+  return value;
+}
 
 let root: Root | undefined;
 let host: HTMLElement | undefined;
@@ -147,7 +161,9 @@ describe('Usage card in Settings', () => {
 describe('Usage screen', () => {
   function sources(overrides: Partial<UsageSources> = {}): UsageSources {
     return {
-      loadUsage: vi.fn(async (period: UsagePeriod) => (period === 'week' ? week() : today())),
+      loadUsage: vi.fn(async (period: UsagePeriod) =>
+        period === 'week' ? week() : period === 'today' ? today() : longer(period),
+      ),
       loadMoreUsage: vi.fn(async (current: OverviewUsage) => current),
       loadMemory: vi.fn(async () => memory()),
       loadMoreMemory: vi.fn(async (current: OverviewMemory) => current),
@@ -187,9 +203,9 @@ describe('Usage screen', () => {
     expect(source.loadUsage).toHaveBeenLastCalledWith('today');
     expect(view.textContent).toContain(tokenAmount(active.overviewUsage.today.totals.totalTokens));
     expect(button(view, t.usageToday)!.getAttribute('aria-selected')).toBe('true');
-    await act(async () => button(view, t.usageWeek)!.click());
+    await act(async () => button(view, t.usagePeriodWeek)!.click());
     expect(source.loadUsage).toHaveBeenLastCalledWith('week');
-    expect(source.loadUsage).toHaveBeenCalledTimes(3);
+    expect(source.loadUsage).toHaveBeenCalledTimes(4);
     expect(source.loadMemory).toHaveBeenCalledTimes(1);
   });
 
@@ -258,9 +274,118 @@ describe('Usage screen', () => {
       view.querySelector<HTMLButtonElement>(`[data-testid="day-bar-${first}"]`)!.click(),
     );
     await act(async () => button(view, t.usageToday)!.click());
-    await act(async () => button(view, t.usageWeek)!.click());
+    await act(async () => button(view, t.usagePeriodWeek)!.click());
     expect(view.querySelector('[role="header"]')!.textContent).toContain(
       tokenAmount(active.overviewUsage.week.totals.totalTokens),
     );
+  });
+
+  it('refetches 4 weeks as 28 daily bars and 12 weeks as 12 selectable weekly bars', async () => {
+    const source = sources();
+    const view = await render(<UsageView sources={source} roster={[]} onOpenBot={vi.fn()} />);
+    await act(async () => button(view, t.usageMonth)!.click());
+    expect(source.loadUsage).toHaveBeenLastCalledWith('month');
+    expect(view.querySelectorAll('[data-testid^="day-bar-"]')).toHaveLength(28);
+    expect(view.textContent).toContain(`${longer('month').start} – ${longer('month').end}`);
+    await act(async () => button(view, t.usageQuarter)!.click());
+    expect(source.loadUsage).toHaveBeenLastCalledWith('quarter');
+    expect(view.querySelectorAll('[data-testid^="day-bar-"]')).toHaveLength(12);
+    expect(view.querySelector('[role="header"]')!.textContent).toContain(tokenAmount(8400));
+    const days = longer('quarter').days;
+    await act(async () =>
+      view.querySelector<HTMLButtonElement>(`[data-testid="day-bar-${days[0]!.day}"]`)!.click(),
+    );
+    expect(view.querySelector('[role="header"]')!.textContent).toContain(tokenAmount(700));
+    expect(view.textContent).toContain(`${dayLabel(days[0]!.day)} – ${dayLabel(days[6]!.day)}`);
+  });
+
+  it('keeps only Today and 7 days on a legacy Host without exposing its refusal', async () => {
+    const source = sources({
+      loadUsage: vi.fn(async (period: UsagePeriod) => {
+        if (period === 'month' || period === 'quarter')
+          throw new MethodRefused('invalid-input', 'Unsupported period');
+        return period === 'week' ? week() : today();
+      }),
+    });
+    const view = await render(<UsageView sources={source} roster={[]} onOpenBot={vi.fn()} />);
+    expect(view.querySelectorAll('[role="tab"]')).toHaveLength(2);
+    expect(button(view, t.usageMonth)).toBeNull();
+    expect(button(view, t.usageQuarter)).toBeNull();
+    expect(view.textContent).not.toContain('Unsupported period');
+    expect(view.textContent).not.toContain(t.usageFailed);
+    await act(async () => button(view, t.usageToday)!.click());
+    expect(source.loadUsage).toHaveBeenLastCalledWith('today');
+  });
+
+  it('falls back to the week if a longer period is refused after capability detection', async () => {
+    const source = sources({
+      loadUsage: vi.fn(async (period: UsagePeriod) => {
+        if (period === 'quarter') throw new MethodRefused('invalid-input', 'Unsupported period');
+        return period === 'month' ? longer(period) : period === 'week' ? week() : today();
+      }),
+    });
+    const view = await render(<UsageView sources={source} roster={[]} onOpenBot={vi.fn()} />);
+    await act(async () => button(view, t.usageQuarter)!.click());
+    expect(button(view, t.usageMonth)).toBeNull();
+    expect(button(view, t.usagePeriodWeek)!.getAttribute('aria-selected')).toBe('true');
+    expect(view.textContent).not.toContain('Unsupported period');
+    expect(view.textContent).not.toContain(t.usageFailed);
+  });
+
+  it('keeps real longer-period errors visible instead of treating them as incompatibility', async () => {
+    const source = sources();
+    const view = await render(<UsageView sources={source} roster={[]} onOpenBot={vi.fn()} />);
+    vi.mocked(source.loadUsage).mockRejectedValueOnce(new Error('Network unavailable'));
+    await act(async () => button(view, t.usageMonth)!.click());
+    expect(view.textContent).toContain('Network unavailable');
+    expect(button(view, t.usageQuarter)).not.toBeNull();
+  });
+
+  it('preserves longer-period notes and passes its cursor through Show more', async () => {
+    const quarter = longer('quarter');
+    quarter.freshness = 'degraded';
+    quarter.totals.partial = true;
+    quarter.nextCursor = quarter.bots[0]!.slug;
+    quarter.bots = quarter.bots.slice(0, 1);
+    const source = sources({
+      loadUsage: vi.fn(async (period: UsagePeriod) =>
+        period === 'quarter' ? quarter : period === 'month' ? longer(period) : week(),
+      ),
+      loadMoreUsage: vi.fn(async () => longer('quarter')),
+    });
+    const view = await render(<UsageView sources={source} roster={[]} onOpenBot={vi.fn()} />);
+    await act(async () => button(view, t.usageQuarter)!.click());
+    expect(view.textContent).toContain(t.usageDegraded);
+    expect(view.textContent).toContain(t.usagePartial);
+    await act(async () => button(view, t.usageMore)!.click());
+    expect(source.loadMoreUsage).toHaveBeenCalledWith(quarter);
+    expect(button(view, t.usageMore)).toBeNull();
+    expect(view.querySelectorAll('[data-testid^="day-bar-"]')).toHaveLength(12);
+  });
+
+  it('does not expose capabilities from a previous Host after sources change', async () => {
+    let resolveProbe!: (value: OverviewUsage) => void;
+    const first = sources({
+      loadUsage: vi.fn((period: UsagePeriod) =>
+        period === 'month'
+          ? new Promise<OverviewUsage>((resolve) => {
+              resolveProbe = resolve;
+            })
+          : Promise.resolve(week()),
+      ),
+    });
+    const view = await render(<UsageView sources={first} roster={[]} onOpenBot={vi.fn()} />);
+    const legacy = sources({
+      loadUsage: vi.fn(async (period: UsagePeriod) => {
+        if (period === 'month') throw new MethodRefused('invalid-input', 'Unsupported period');
+        return week();
+      }),
+    });
+    await act(async () =>
+      root!.render(<UsageView sources={legacy} roster={[]} onOpenBot={vi.fn()} />),
+    );
+    await act(async () => resolveProbe(longer('month')));
+    expect(button(view, t.usageMonth)).toBeNull();
+    expect(view.textContent).not.toContain(t.usageFailed);
   });
 });

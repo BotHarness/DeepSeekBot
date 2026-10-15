@@ -49,7 +49,7 @@ describe('reportViewerEvent', () => {
     }) as unknown as typeof fetch;
     await reportViewerEvent(fetchImpl, 'viewer mount docked');
     expect(calls).toHaveLength(1);
-    expect(calls[0]?.url).toBe('/api/computer/diagnostics/viewer');
+    expect(calls[0]?.url).toBe('./api/computer/diagnostics/viewer');
     expect(JSON.parse(calls[0]?.body ?? '{}')).toEqual({ detail: 'viewer mount docked' });
     const failing = (async () => {
       throw new Error('network down');
@@ -64,6 +64,6 @@ describe('reportViewerEvent', () => {
       return { ok: true };
     }) as unknown as typeof fetch);
     await reportViewerEvent(undefined, 'viewer mount docked');
-    expect(calls).toEqual(['/api/computer/diagnostics/viewer']);
+    expect(calls).toEqual(['./api/computer/diagnostics/viewer']);
   });
 });

@@ -105,7 +105,7 @@ beforeEach(async () => {
     'fetch',
     vi.fn(async (url: string, init?: RequestInit) => {
       urls.push(url);
-      if (url === '/api/browser/takeover') takeover = JSON.parse(String(init?.body)).active;
+      if (url === './api/browser/takeover') takeover = JSON.parse(String(init?.body)).active;
       return { ok: true, json: async () => observation(url) };
     }),
   );
@@ -158,7 +158,7 @@ describe('Browser current work versus Human preview', () => {
       let failed = true;
       let failStop = true;
       vi.mocked(fetch).mockImplementation(async (url, init) => {
-        if (url === '/api/browser/stop') {
+        if (url === './api/browser/stop') {
           expect(JSON.parse(String(init?.body))).toEqual({ slug: 'qa' });
           if (failStop) {
             failStop = false;
@@ -229,7 +229,7 @@ describe('Browser current work versus Human preview', () => {
     expect(host.querySelector('img')?.getAttribute('src')).toBe('frame:home');
     expect(host.querySelector('button[title]')?.getAttribute('title')).toBe('http://fixture/work');
     expect(current).toBe('work');
-    expect(urls.every((url) => url.startsWith('/api/browser/observation?'))).toBe(true);
+    expect(urls.every((url) => url.startsWith('./api/browser/observation?'))).toBe(true);
   });
 });
 
@@ -344,7 +344,7 @@ describe('Container Human viewer', () => {
     const frame = await expand();
     let resolve!: (value: Response) => void;
     vi.mocked(fetch).mockImplementation((url) =>
-      url === '/api/browser/takeover'
+      url === './api/browser/takeover'
         ? new Promise<Response>((done) => {
             resolve = done;
           })
@@ -367,7 +367,7 @@ describe('Container Human viewer', () => {
   it('shows a failed takeover in fullscreen and stays in watch mode', async () => {
     const frame = await expand();
     vi.mocked(fetch).mockImplementation(async (url) => {
-      if (url === '/api/browser/takeover') throw new Error('Pause failed');
+      if (url === './api/browser/takeover') throw new Error('Pause failed');
       return { ok: true, json: async () => observation(String(url)) } as Response;
     });
     await act(async () =>
@@ -485,7 +485,7 @@ describe('Container Human viewer', () => {
         .find((b) => b.textContent === 'Open Bot Browser')!
         .click(),
     );
-    expect(fetch.mock.calls.at(-1)?.[0]).toBe('/api/browser/open');
+    expect(fetch.mock.calls.at(-1)?.[0]).toBe('./api/browser/open');
     await act(async () => resolve({ ok: true, json: async () => observation('/observation') }));
     expect(fetch.mock.calls.length).toBe(count + 2);
   });
@@ -497,7 +497,7 @@ describe('Local Human viewer', () => {
     viewer = true;
     await poll();
     const frame = host.querySelector('iframe')!;
-    expect(frame.getAttribute('src')).toBe('/viewer/qa/?mode=direct');
+    expect(frame.getAttribute('src')).toBe('./viewer/qa/?mode=direct');
     expect(frame.style.pointerEvents).toBe('auto');
     expect(host.textContent).toContain("qa's Browser");
   });

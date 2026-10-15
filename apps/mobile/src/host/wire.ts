@@ -51,6 +51,7 @@ export interface ChannelWireMessage extends WireMessage {
   grantRequest?: true;
   toolApprovalDecision?: unknown;
   userQuestionResolution?: unknown;
+  onboardingWelcome?: unknown;
 }
 
 export interface BridgeMediaItem {

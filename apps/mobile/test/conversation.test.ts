@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { createHostClient, type HostClient } from '../src/host/client';
 import {
   createConversation,
+  shownInChat,
   type CachedConversation,
   type Conversation,
   type ConversationSnapshot,
@@ -148,6 +149,39 @@ describe('DM conversation', () => {
       requestId: 'ask-question',
       resolution: { kind: 'user-question', state: 'cancelled' },
     });
+  });
+
+  it('leaves the onboarding welcome and empty notices out of the chat', async () => {
+    const host = new FakeHost();
+    const channel = host.channel(DM);
+    const bot = { kind: 'bot' as const, slug: SLUG };
+    channel.append({ id: 'answer', author: bot, body: 'done' });
+    channel.append({
+      id: 'bot-channel-post-1',
+      author: bot,
+      body: '',
+      botChannelPost: { channelId: 'group-launch', messageId: 'm1' },
+    } as never);
+    channel.append({
+      id: 'memory-commit-1',
+      author: { kind: 'system' },
+      body: '',
+      memoryCommit: { botSlug: SLUG, sha: 'abc' },
+    } as never);
+    channel.append({
+      id: 'onboarding-welcome-v1',
+      author: { kind: 'system' },
+      body: 'Welcome to DeepSeek Bot',
+      onboardingWelcome: { version: 1 },
+    } as never);
+    const live = await until(open(host), (snapshot) => snapshot.status === 'live');
+    expect(ids(live)).toEqual([
+      'answer',
+      'bot-channel-post-1',
+      'memory-commit-1',
+      'onboarding-welcome-v1',
+    ]);
+    expect(live.messages.filter(shownInChat).map((message) => message.id)).toEqual(['answer']);
   });
 
   it('shows the cached page at once, then reconciles it with the Host window', async () => {

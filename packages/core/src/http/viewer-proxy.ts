@@ -2,6 +2,8 @@ import { request as httpRequest } from 'node:http';
 import type { IncomingMessage } from 'node:http';
 import type { Duplex } from 'node:stream';
 
+import { DEVICE_WEB_PREFIX } from '../devices/gateway.js';
+
 const SCRUBBED_HEADERS = [
   'x-frame-options',
   'content-security-policy',
@@ -30,6 +32,22 @@ export function joinUpstream(base: URL, requestUrl: URL, prefix: string): URL {
 
 export function viewerUpgradePaths(prefix: string): readonly string[] {
   return [`${prefix}/api/websockets`, `${prefix}/websockets`, `${prefix}/websocket`];
+}
+
+export type DeviceViewerUpgrade = (request: IncomingMessage, socket: Duplex, head: Buffer) => void;
+
+export function deviceViewerUpgradeRoutes(
+  prefix: string,
+  forward: () => DeviceViewerUpgrade | undefined,
+): { path: string; handler(request: IncomingMessage, socket: Duplex, head: Buffer): void }[] {
+  return viewerUpgradePaths(prefix).map((path) => ({
+    path: `${DEVICE_WEB_PREFIX}${path}`,
+    handler(request, socket, head) {
+      const upgrade = forward();
+      if (upgrade === undefined) socket.destroy();
+      else upgrade(request, socket, head);
+    },
+  }));
 }
 
 export interface ViewerProxyOptions {

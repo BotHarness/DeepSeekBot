@@ -456,7 +456,7 @@ const T = ${JSON.stringify(VIEWER_STRINGS[locale]).replace(/</g, '\\u003c')};
   }
   const readTakeover = async () => {
         try {
-          const response = await fetch('/api/browser/observation?slug=' + encodeURIComponent(slug), {
+          const response = await fetch('../../../api/browser/observation?slug=' + encodeURIComponent(slug), {
             cache: 'no-store',
           });
           if (!response.ok) return undefined;
@@ -472,7 +472,7 @@ const T = ${JSON.stringify(VIEWER_STRINGS[locale]).replace(/</g, '\\u003c')};
       };
       const flipTakeover = async (active) => {
         try {
-          const response = await fetch('/api/browser/takeover', {
+          const response = await fetch('../../../api/browser/takeover', {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ slug, active }),
@@ -564,7 +564,7 @@ const T = ${JSON.stringify(VIEWER_STRINGS[locale]).replace(/</g, '\\u003c')};
   });
   void (async () => {
     try {
-      const response = await fetch('/api/browser/observation?slug=' + encodeURIComponent(slug), {
+      const response = await fetch('../../../api/browser/observation?slug=' + encodeURIComponent(slug), {
         cache: 'no-store',
       });
       if (!response.ok) return;

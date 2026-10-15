@@ -37,7 +37,7 @@ export function BorrowedBrowser({
     setBusy(true);
     setError(undefined);
     setPair(undefined);
-    void fetch(`/api/browser/borrow/${action}`, {
+    void fetch(`./api/browser/borrow/${action}`, {
       method: 'POST',
       cache: 'no-store',
       headers: { 'content-type': 'application/json' },

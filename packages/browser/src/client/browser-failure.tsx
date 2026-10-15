@@ -50,7 +50,7 @@ interface InstallState {
   readonly text?: string;
 }
 
-const INSTALL_ENDPOINT = '/api/browser/install-packages';
+const INSTALL_ENDPOINT = './api/browser/install-packages';
 
 function BrowserMissingLibs({
   packages,

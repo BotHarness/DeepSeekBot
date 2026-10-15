@@ -11,12 +11,13 @@ import {
 import Animated, { useAnimatedRef, useScrollOffset, useSharedValue } from 'react-native-reanimated';
 
 import type { HostClient, RosterBot } from '../../host/client';
-import type {
-  CardResolution,
-  ConversationDraft,
-  ConversationMessage,
-  MessageAttachment,
-  MessageCard,
+import {
+  shownInChat,
+  type CardResolution,
+  type ConversationDraft,
+  type ConversationMessage,
+  type MessageAttachment,
+  type MessageCard,
 } from '../../host/conversation';
 import type { Inbox } from '../../host/inbox';
 import type { WireAllBotPreview } from '../../host/wire';
@@ -96,14 +97,6 @@ export function ConversationScreen({
     <AccentProvider accent={bot === undefined ? undefined : botColor(bot)}>
       <ChatConversation place={place} focus={focus} />
     </AccentProvider>
-  );
-}
-
-function hiddenResolution(message: ConversationMessage): boolean {
-  const resolution = message.resolves?.resolution;
-  return (
-    resolution?.kind === 'tool-approval' ||
-    (resolution?.kind === 'user-question' && resolution.state === 'cancelled')
   );
 }
 
@@ -247,10 +240,7 @@ function ChatConversation({ place, focus }: { place: ChatPlace; focus: string | 
     [snapshot.messages],
   );
 
-  const visible = useMemo(
-    () => snapshot.messages.filter((message) => !hiddenResolution(message)),
-    [snapshot.messages],
-  );
+  const visible = useMemo(() => snapshot.messages.filter(shownInChat), [snapshot.messages]);
   const chronological = useMemo(
     () =>
       chatRows(

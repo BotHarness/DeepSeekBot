@@ -1872,7 +1872,7 @@ window.__ModuleLoader__.load({
 			};
 			return { message: cause instanceof Error ? cause.message : String(cause) };
 		}
-		const INSTALL_ENDPOINT = "/api/browser/install-packages";
+		const INSTALL_ENDPOINT = "./api/browser/install-packages";
 		function BrowserMissingLibs({ packages, t, onRetry }) {
 			const [install, setInstall] = (0, react.useState)({});
 			const [busy, setBusy] = (0, react.useState)(false);
@@ -2443,7 +2443,7 @@ window.__ModuleLoader__.load({
 				setBusy(true);
 				setError(void 0);
 				setPair(void 0);
-				fetch(action === "pause" ? "/api/browser/takeover" : `/api/browser/profile/${action}`, {
+				fetch(action === "pause" ? "./api/browser/takeover" : `./api/browser/profile/${action}`, {
 					method: "POST",
 					cache: "no-store",
 					headers: { "content-type": "application/json" },
@@ -2551,7 +2551,7 @@ window.__ModuleLoader__.load({
 				if (busy || slug === void 0) return;
 				setBusy(true);
 				setError(void 0);
-				fetch(action === "pause" ? "/api/browser/takeover" : `/api/browser/daily/${action}`, {
+				fetch(action === "pause" ? "./api/browser/takeover" : `./api/browser/daily/${action}`, {
 					method: "POST",
 					headers: { "content-type": "application/json" },
 					body: JSON.stringify({
@@ -2683,7 +2683,7 @@ window.__ModuleLoader__.load({
 				setBusy(true);
 				setError(void 0);
 				setPair(void 0);
-				fetch(`/api/browser/borrow/${action}`, {
+				fetch(`./api/browser/borrow/${action}`, {
 					method: "POST",
 					cache: "no-store",
 					headers: { "content-type": "application/json" },
@@ -2958,10 +2958,11 @@ window.__ModuleLoader__.load({
 		//#endregion
 		//#region packages/browser/src/client/index.tsx
 		const ENTRY_ID = "botharness-browser";
-		const OBSERVATION_ENDPOINT = "/api/browser/observation";
-		const TAKEOVER_ENDPOINT = "/api/browser/takeover";
-		const OPEN_ENDPOINT = "/api/browser/open";
-		const STOP_ENDPOINT = "/api/browser/stop";
+		const OBSERVATION_ENDPOINT = "./api/browser/observation";
+		const TAKEOVER_ENDPOINT = "./api/browser/takeover";
+		const OPEN_ENDPOINT = "./api/browser/open";
+		const STOP_ENDPOINT = "./api/browser/stop";
+		const baseRelative = (path) => path === null || path === void 0 ? void 0 : path.startsWith("/") ? `.${path}` : path;
 		const name = "botharness-browser-client";
 		const inject = [
 			"channelSidebar",
@@ -3215,7 +3216,7 @@ window.__ModuleLoader__.load({
 			if (failureNotice !== null) visibleError = void 0;
 			const provisioning = observation?.provisioning ?? null;
 			const paused = observation?.takeover === true;
-			const viewerUrl = observation?.running === true && (observation?.target === "container" || observation?.target === "local") ? observation.viewerUrl ?? void 0 : void 0;
+			const viewerUrl = observation?.running === true && (observation?.target === "container" || observation?.target === "local") ? baseRelative(observation.viewerUrl) : void 0;
 			const narrowViewer = typeof window !== "undefined" && window.innerWidth < 700;
 			const viewerDesign = observation?.target === "local" && (inputMode === "trackpad" || narrowViewer) ? {
 				width: 390,
@@ -3320,7 +3321,7 @@ window.__ModuleLoader__.load({
 				}).then((result) => {
 					if (typeof result.takeover === "boolean") store.confirmTakeover(result.takeover);
 					if (endpoint === OPEN_ENDPOINT && result.viewerUrl !== void 0 && result.viewerUrl !== null) {
-						setViewer(result.viewerUrl);
+						setViewer(baseRelative(result.viewerUrl));
 						setInteraction(false);
 					}
 					if (endpoint === STOP_ENDPOINT) {

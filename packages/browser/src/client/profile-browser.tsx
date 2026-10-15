@@ -35,7 +35,7 @@ export function ProfileBrowserControl({
     setBusy(true);
     setError(undefined);
     setPair(undefined);
-    void fetch(action === 'pause' ? '/api/browser/takeover' : `/api/browser/profile/${action}`, {
+    void fetch(action === 'pause' ? './api/browser/takeover' : `./api/browser/profile/${action}`, {
       method: 'POST',
       cache: 'no-store',
       headers: { 'content-type': 'application/json' },

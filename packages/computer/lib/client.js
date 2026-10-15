@@ -981,7 +981,7 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region packages/computer/src/client/viewer-events.ts
-		const VIEWER_EVENT_ENDPOINT = "/api/computer/diagnostics/viewer";
+		const VIEWER_EVENT_ENDPOINT = "./api/computer/diagnostics/viewer";
 		function viewerEventText(event) {
 			switch (event.type) {
 				case "mount": return "viewer mount docked";
@@ -1985,7 +1985,7 @@ window.__ModuleLoader__.load({
 			const [busy, setBusy] = (0, react.useState)(false);
 			const [error, setError] = (0, react.useState)();
 			const refresh = (0, react.useCallback)(async (signal) => {
-				const response = await fetch("/api/computer/status", {
+				const response = await fetch("./api/computer/status", {
 					credentials: "same-origin",
 					...signal === void 0 ? {} : { signal }
 				});
@@ -2034,11 +2034,11 @@ window.__ModuleLoader__.load({
 					await refresh();
 				}).catch((error) => setError(String(error))).finally(() => setBusy(false));
 			};
-			const check = () => post("/api/computer/start", {
+			const check = () => post("./api/computer/start", {
 				authorize: true,
 				target: "local"
 			});
-			const install = () => post("/api/computer/install-packages", { authorize: true });
+			const install = () => post("./api/computer/install-packages", { authorize: true });
 			const granted = payload?.status?.state === "running";
 			const download = payload?.status?.progress;
 			const installLabel = installing ? {
@@ -2214,14 +2214,14 @@ window.__ModuleLoader__.load({
 			120,
 			240
 		];
-		const EXPORT_ENDPOINT = "/api/computer/export";
-		const IMPORT_ENDPOINT = "/api/computer/import";
-		const EXPORTS_ENDPOINT = "/api/computer/exports";
-		const STATUS_ENDPOINT$1 = "/api/computer/status";
-		const OPEN_DIR_ENDPOINT = "/api/computer/open-dir";
-		const DOWNLOAD_ENDPOINT = "/api/computer/download";
-		const UPLOAD_ENDPOINT = "/api/computer/upload";
-		const UPLOAD_CONTENT_ENDPOINT = "/api/computer/upload-content";
+		const EXPORT_ENDPOINT = "./api/computer/export";
+		const IMPORT_ENDPOINT = "./api/computer/import";
+		const EXPORTS_ENDPOINT = "./api/computer/exports";
+		const STATUS_ENDPOINT$1 = "./api/computer/status";
+		const OPEN_DIR_ENDPOINT = "./api/computer/open-dir";
+		const DOWNLOAD_ENDPOINT = "./api/computer/download";
+		const UPLOAD_ENDPOINT = "./api/computer/upload";
+		const UPLOAD_CONTENT_ENDPOINT = "./api/computer/upload-content";
 		async function requestJson$1(url, init) {
 			const response = await fetch(url, {
 				credentials: "same-origin",
@@ -2781,10 +2781,10 @@ window.__ModuleLoader__.load({
 			"connection",
 			"locale"
 		];
-		const STATUS_ENDPOINT = "/api/computer/status";
-		const START_ENDPOINT = "/api/computer/start";
-		const STOP_ENDPOINT = "/api/computer/stop";
-		const VIEWER_SRC = "/botharness-computer/viewer/";
+		const STATUS_ENDPOINT = "./api/computer/status";
+		const START_ENDPOINT = "./api/computer/start";
+		const STOP_ENDPOINT = "./api/computer/stop";
+		const VIEWER_SRC = "./botharness-computer/viewer/";
 		const APPROVED_KEY = "botharness-computer-start-approved";
 		const ENTRY_ID = "botharness-computer";
 		let connectionRpc;
@@ -2856,7 +2856,7 @@ window.__ModuleLoader__.load({
 			const [failed, setFailed] = (0, react.useState)(false);
 			const loadResource = useMountedResource(() => {
 				const controller = new AbortController();
-				requestJson("/api/computer/logs?limit=10", { signal: controller.signal }).then((result) => {
+				requestJson("./api/computer/logs?limit=10", { signal: controller.signal }).then((result) => {
 					if (!controller.signal.aborted) setEntries(result.entries);
 				}).catch(() => {
 					if (!controller.signal.aborted) setFailed(true);

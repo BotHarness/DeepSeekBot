@@ -29,7 +29,7 @@ export function DailyBrowserControl({
     if (busy || slug === undefined) return;
     setBusy(true);
     setError(undefined);
-    void fetch(action === 'pause' ? '/api/browser/takeover' : `/api/browser/daily/${action}`, {
+    void fetch(action === 'pause' ? './api/browser/takeover' : `./api/browser/daily/${action}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ slug, ...(action === 'pause' ? { active: !paused } : {}) }),

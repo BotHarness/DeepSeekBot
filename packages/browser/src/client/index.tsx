@@ -40,10 +40,12 @@ import { BorrowedBrowser, type BorrowedTabView } from './borrowed-browser.js';
 import { styles } from './styles.js';
 
 const ENTRY_ID = 'botharness-browser';
-const OBSERVATION_ENDPOINT = '/api/browser/observation';
-const TAKEOVER_ENDPOINT = '/api/browser/takeover';
-const OPEN_ENDPOINT = '/api/browser/open';
-const STOP_ENDPOINT = '/api/browser/stop';
+const OBSERVATION_ENDPOINT = './api/browser/observation';
+const TAKEOVER_ENDPOINT = './api/browser/takeover';
+const OPEN_ENDPOINT = './api/browser/open';
+const STOP_ENDPOINT = './api/browser/stop';
+const baseRelative = (path: string | null | undefined): string | undefined =>
+  path === null || path === undefined ? undefined : path.startsWith('/') ? `.${path}` : path;
 
 import { AccessPowerIcon } from './access-power-icon.js';
 import { TakeoverIcon, TrackpadIcon } from './viewer-icons.js';
@@ -459,7 +461,7 @@ function BrowserBody({ botSlug, t }: ChannelSidebarEntryProps): ReactElement {
   const viewerUrl =
     observation?.running === true &&
     (observation?.target === 'container' || observation?.target === 'local')
-      ? (observation.viewerUrl ?? undefined)
+      ? baseRelative(observation.viewerUrl)
       : undefined;
   const narrowViewer = typeof window !== 'undefined' && window.innerWidth < 700;
   const viewerDesign =
@@ -584,7 +586,7 @@ function BrowserBody({ botSlug, t }: ChannelSidebarEntryProps): ReactElement {
           result.viewerUrl !== undefined &&
           result.viewerUrl !== null
         ) {
-          setViewer(result.viewerUrl);
+          setViewer(baseRelative(result.viewerUrl));
           setInteraction(false);
         }
         if (endpoint === STOP_ENDPOINT) {

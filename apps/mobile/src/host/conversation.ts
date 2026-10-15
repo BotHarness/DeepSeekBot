@@ -93,6 +93,22 @@ export function reactable(message: ConversationMessage): boolean {
   );
 }
 
+export function shownInChat(message: ConversationMessage): boolean {
+  const resolution = message.resolves?.resolution;
+  if (
+    resolution?.kind === 'tool-approval' ||
+    (resolution?.kind === 'user-question' && resolution.state === 'cancelled')
+  )
+    return false;
+  if (message.welcome === true) return false;
+  return (
+    message.body.trim() !== '' ||
+    message.attachments.length > 0 ||
+    message.card !== undefined ||
+    message.resolves !== undefined
+  );
+}
+
 export interface ConversationMessage {
   id: string;
   revision?: number;
@@ -106,6 +122,7 @@ export interface ConversationMessage {
   reactions?: ConversationReaction[];
   delivery: DeliveryState;
   error?: string;
+  welcome?: true;
 }
 
 export interface ConversationDraft {
@@ -324,6 +341,7 @@ function present(
       ? {}
       : { reactions: message.reactions }),
     delivery: 'committed',
+    ...(kind === 'system' && message.onboardingWelcome !== undefined ? { welcome: true } : {}),
   };
 }
 

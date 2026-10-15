@@ -52,18 +52,22 @@ export function tokenAmount(tokens: number | null, partial = false): string {
   return partial ? `${compactTokenCount(tokens)}+` : compactTokenCount(tokens);
 }
 
-type Day = { day: string; tokens: number | null };
+type Day = { day: string; end?: string; tokens: number | null; partial?: boolean };
 
 export function dayBars(days: readonly Day[]): DayBar[] {
   return days.map(({ day, tokens }) => ({
     key: day,
     segments: [tokens ?? 0],
-    label: weekdayLabel(day),
+    ...(days.length <= 7 ? { label: weekdayLabel(day) } : {}),
   }));
 }
 
 export function daysLabel(days: readonly Day[]): string {
-  return days.map(({ day, tokens }) => t.usageBar(day, tokenAmount(tokens))).join(', ');
+  return days
+    .map(({ day, end, tokens, partial }) =>
+      t.usageBar(end === undefined ? day : `${day} – ${end}`, tokenAmount(tokens, partial)),
+    )
+    .join(', ');
 }
 
 const EMPTY_WEEK: DayBar[] = Array.from({ length: 7 }, (_, index) => ({

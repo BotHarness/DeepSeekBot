@@ -115,7 +115,7 @@ describe('Computer Settings transfer interaction', () => {
     await view.click('Export to…');
     await view.click('Authorize and export');
     expect(view.writes).toEqual([{ field: 'exportDir', value: '/picked' }]);
-    expect(view.requests).toContain('/api/computer/export');
+    expect(view.requests).toContain('./api/computer/export');
     expect(view.container.textContent).toContain('Current: /picked');
   });
 

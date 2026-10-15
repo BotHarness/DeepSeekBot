@@ -26,10 +26,18 @@ queue. Never commit them.
 ## The queue
 
 The Simulator runs one thing at a time, so one queue owner schedules all native checks. The
-queue is a single Markdown file kept by the owner. Today that is `simulator-queue.md` in the
-project's shared folder, owned by the "模拟器测试排队" (Simulator queue) thread. An agent that
-cannot read it (for example a session on the Mac) gets its instructions from the owner or the
-Human, and never boots its own Simulator to skip the line.
+queue is one Markdown file on the Mac, at `.humanlayer/device-qa/queue.md` in the main
+BotHarness checkout (`.humanlayer/` is gitignored, so the file is never committed). Every agent on
+the Mac reads it there. Agents without access to the Mac (cloud sessions) reach it through the
+Mac's folder tools or a session on the Mac. The "模拟器测试排队" (Simulator queue) thread owns
+it today.
+
+- Read the queue before you use the Simulator, the phone or the QA Host. Never boot your own
+  Simulator to skip the line.
+- Only the owner cuts batches and names the runner. Other agents add or update only their own
+  entries under "Next batch". The runner adds the results for its batch.
+- Keep each edit small: re-read the file just before you change it, because other agents write
+  to it too.
 
 Checks run in **batches**: several PRs are merged into one local branch and checked in one run,
 not one run per PR.

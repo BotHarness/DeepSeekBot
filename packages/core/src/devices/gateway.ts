@@ -390,14 +390,16 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
     async upgrade(request, socket, head) {
       if (crossOrigin(request)) return refuseUpgrade(socket, 403, 'origin-refused');
       const pathname = new URL(request.url ?? '/', 'http://device').pathname;
-      const web = pathname === DEVICE_WEB_MUX_PATH;
+      const web = pathname.startsWith(`${DEVICE_WEB_PREFIX}/`);
       const admission = web
         ? webAdmission(request, false)
         : pairing.admit(header(request, 'authorization'));
       if (!admission.ok) return refuseUpgrade(socket, 401, admission.code);
-      const target = (DEVICE_SIGNALING_PATHS as readonly string[]).includes(pathname)
-        ? (request.url ?? '/').slice(DEVICE_GATEWAY_PREFIX.length)
-        : '/api/remote.mux';
+      const target = web
+        ? (request.url ?? '/').slice(DEVICE_WEB_PREFIX.length)
+        : (DEVICE_SIGNALING_PATHS as readonly string[]).includes(pathname)
+          ? (request.url ?? '/').slice(DEVICE_GATEWAY_PREFIX.length)
+          : '/api/remote.mux';
       let opened: Awaited<ReturnType<typeof openStream>> | undefined;
       try {
         opened = await openStream(request, await hostSession(), target);

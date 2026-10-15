@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { createHostClient } from '../src/host/client';
+import { createHostClient, MethodRefused } from '../src/host/client';
 import {
   loadMemoryActivity,
   loadMoreMemoryActivity,
@@ -9,10 +9,12 @@ import {
   usageIsPartial,
   usageShare,
   usageWeek,
+  usageChartDays,
   type OverviewMemory,
   type OverviewUsage,
 } from '../src/host/usage';
 import { FakeHost } from './fake-host';
+import { trailingDays } from '../src/host/usage-days';
 import usageWire from './fixtures/usage-wire.json';
 
 const ROUTE = 'https://studio.tailnet-example.ts.net';
@@ -33,6 +35,60 @@ function host(): FakeHost {
 }
 
 describe('Host usage', () => {
+  it('preserves the legacy Host invalid-input code for capability detection', async () => {
+    const fake = host();
+    fake.methods.set('overviewUsage', () => {
+      throw new Error('Unsupported period');
+    });
+    await expect(loadUsage(client(fake), 'month')).rejects.toEqual(
+      new MethodRefused('invalid-input', 'Unsupported period'),
+    );
+  });
+
+  it.each(['month', 'quarter'] as const)(
+    'reads and preserves the %s wire period',
+    async (period) => {
+      const fake = host();
+      const value = structuredClone(active.overviewUsage.week) as OverviewUsage;
+      value.period = period;
+      value.days = trailingDays(value.end, period === 'month' ? 28 : 84).map((day) => ({
+        ...value.days[0]!,
+        day,
+      }));
+      value.start = value.days[0]!.day;
+      fake.methods.set('overviewUsage', () => value);
+      const result = await loadUsage(client(fake), period);
+      expect(result).toEqual(value);
+      expect(fake.calls[0]!.args).toEqual({ period });
+      expect(usageChartDays(result)).toHaveLength(period === 'month' ? 28 : 12);
+    },
+  );
+
+  it('buckets the 84-day range from its first day, preserving partial and unknown totals', () => {
+    const value = structuredClone(active.overviewUsage.week) as OverviewUsage;
+    value.period = 'quarter';
+    value.days = trailingDays('2026-03-15', 84).map((day) => ({
+      ...value.days[0]!,
+      day,
+      totalTokens: 10,
+    }));
+    value.days[0]!.totalTokens = null;
+    value.days[8]!.partial = true;
+    for (let index = 14; index < 21; index += 1) value.days[index]!.totalTokens = null;
+    const bars = usageChartDays(value);
+    expect(bars).toHaveLength(12);
+    expect(bars[0]).toMatchObject({
+      day: value.days[0]!.day,
+      end: value.days[6]!.day,
+      tokens: 60,
+      partial: true,
+    });
+    expect(bars[1]).toMatchObject({ tokens: 70, partial: true });
+    expect(bars[2]).toMatchObject({ tokens: null, partial: true });
+    expect(bars[11]!.end).toBe('2026-03-15');
+    expect(bars.reduce((sum, bar) => sum + (bar.tokens ?? 0), 0)).toBe(760);
+  });
+
   it("reads the Host's week and sums it as the Web activity view does", async () => {
     const fake = host();
     const week = await loadUsage(client(fake), 'week');

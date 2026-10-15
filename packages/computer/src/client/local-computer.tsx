@@ -44,7 +44,7 @@ export function LocalComputerStatus({ t }: { t: ComputerTranslate }): ReactEleme
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const refresh = useCallback(async (signal?: AbortSignal) => {
-    const response = await fetch('/api/computer/status', {
+    const response = await fetch('./api/computer/status', {
       credentials: 'same-origin',
       ...(signal === undefined ? {} : { signal }),
     });
@@ -100,8 +100,8 @@ export function LocalComputerStatus({ t }: { t: ComputerTranslate }): ReactEleme
       .catch((error: unknown) => setError(String(error)))
       .finally(() => setBusy(false));
   };
-  const check = (): void => post('/api/computer/start', { authorize: true, target: 'local' });
-  const install = (): void => post('/api/computer/install-packages', { authorize: true });
+  const check = (): void => post('./api/computer/start', { authorize: true, target: 'local' });
+  const install = (): void => post('./api/computer/install-packages', { authorize: true });
   const granted = payload?.status?.state === 'running';
   const download = payload?.status?.progress;
   const installLabel = installing

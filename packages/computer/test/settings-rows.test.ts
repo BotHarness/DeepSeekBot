@@ -199,11 +199,11 @@ describe('computer settings face', () => {
     vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
       calls.push({ url, init });
       const body =
-        url === '/api/computer/export'
+        url === './api/computer/export'
           ? { ok: true, archive: '/exports/a.tar', downloadToken: 'dl-1' }
-          : url === '/api/computer/exports'
+          : url === './api/computer/exports'
             ? { ok: true, files: ['a.tar'] }
-            : url === '/api/computer/status'
+            : url === './api/computer/status'
               ? { exportDir: '/exports' }
               : { ok: true };
       return Promise.resolve(
@@ -220,15 +220,15 @@ describe('computer settings face', () => {
       archive: '/exports/a.tar',
       downloadToken: 'dl-1',
     });
-    expect(face.downloadUrl('t 1/2')).toBe('/api/computer/download?token=t%201%2F2');
+    expect(face.downloadUrl('t 1/2')).toBe('./api/computer/download?token=t%201%2F2');
     await face.importArchive('a.tar');
     expect(await face.listArchives()).toEqual(['a.tar']);
     expect(await face.hostExportDir()).toBe('/exports');
     expect(await face.pickDirectory()).toBeNull();
 
-    const exportCall = calls.find((call) => call.url === '/api/computer/export');
+    const exportCall = calls.find((call) => call.url === './api/computer/export');
     expect(JSON.parse(String(exportCall?.init?.body))).toEqual({ authorize: true });
-    const importCall = calls.find((call) => call.url === '/api/computer/import');
+    const importCall = calls.find((call) => call.url === './api/computer/import');
     expect(JSON.parse(String(importCall?.init?.body))).toEqual({
       authorize: true,
       file: 'a.tar',
@@ -265,12 +265,12 @@ describe('computer settings face', () => {
     expect(prefs.getSnapshot().exportDir).toBe('/target');
     await face.openDirectory('/target');
 
-    const exportCall = calls.find((call) => call.url === '/api/computer/export');
+    const exportCall = calls.find((call) => call.url === './api/computer/export');
     expect(JSON.parse(String(exportCall?.init?.body))).toEqual({
       authorize: true,
       dir: '/target',
     });
-    const openCall = calls.find((call) => call.url === '/api/computer/open-dir');
+    const openCall = calls.find((call) => call.url === './api/computer/open-dir');
     expect(JSON.parse(String(openCall?.init?.body))).toEqual({ authorize: true, dir: '/target' });
     expect(face.pickerAvailable).toBe(false);
   });
@@ -301,18 +301,18 @@ describe('computer settings face', () => {
       onerror: null as (() => void) | null,
       open(method: string, url: string): void {
         expect(method).toBe('POST');
-        expect(url).toBe('/api/computer/upload-content?token=up-1');
+        expect(url).toBe('./api/computer/upload-content?token=up-1');
       },
       setRequestHeader(name: string, value: string): void {
         xhr.headers[name] = value;
       },
       send(file: unknown): void {
-        uploaded.push({ url: '/api/computer/upload-content?token=up-1', file });
+        uploaded.push({ url: './api/computer/upload-content?token=up-1', file });
         xhr.onload?.();
       },
     };
     vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
-      expect(url).toBe('/api/computer/upload');
+      expect(url).toBe('./api/computer/upload');
       expect(JSON.parse(String(init?.body))).toEqual({ authorize: true, file: 'a.tar' });
       return Promise.resolve(
         new Response(JSON.stringify({ ok: true, uploadToken: 'up-1' }), {

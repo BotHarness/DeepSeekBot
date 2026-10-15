@@ -208,14 +208,14 @@ const styles = stylex.create({
   },
 });
 
-const EXPORT_ENDPOINT = '/api/computer/export';
-const IMPORT_ENDPOINT = '/api/computer/import';
-const EXPORTS_ENDPOINT = '/api/computer/exports';
-const STATUS_ENDPOINT = '/api/computer/status';
-const OPEN_DIR_ENDPOINT = '/api/computer/open-dir';
-const DOWNLOAD_ENDPOINT = '/api/computer/download';
-const UPLOAD_ENDPOINT = '/api/computer/upload';
-const UPLOAD_CONTENT_ENDPOINT = '/api/computer/upload-content';
+const EXPORT_ENDPOINT = './api/computer/export';
+const IMPORT_ENDPOINT = './api/computer/import';
+const EXPORTS_ENDPOINT = './api/computer/exports';
+const STATUS_ENDPOINT = './api/computer/status';
+const OPEN_DIR_ENDPOINT = './api/computer/open-dir';
+const DOWNLOAD_ENDPOINT = './api/computer/download';
+const UPLOAD_ENDPOINT = './api/computer/upload';
+const UPLOAD_CONTENT_ENDPOINT = './api/computer/upload-content';
 
 async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, { credentials: 'same-origin', ...init });

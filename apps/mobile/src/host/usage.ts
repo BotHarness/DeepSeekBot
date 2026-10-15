@@ -5,6 +5,7 @@ export type { OverviewMemory, OverviewUsage, UsagePeriod } from './wire';
 
 export interface UsageDay {
   day: string;
+  end?: string;
   tokens: number | null;
   partial?: boolean;
 }
@@ -75,6 +76,26 @@ export function usageWeek(usage: OverviewUsage): UsageWeek {
       ...(row.partial === true ? { partial: true } : {}),
     })),
   };
+}
+
+export function usageChartDays(usage: OverviewUsage): UsageDay[] {
+  const days = usageWeek(usage).days;
+  if (usage.period !== 'quarter') return days;
+  const weeks: UsageDay[] = [];
+  for (let offset = 0; offset < days.length; offset += 7) {
+    const group = days.slice(offset, offset + 7);
+    const first = group[0]!;
+    const known = group.filter((day) => day.tokens !== null);
+    weeks.push({
+      day: first.day,
+      end: group[group.length - 1]!.day,
+      tokens: known.length === 0 ? null : known.reduce((sum, day) => sum + day.tokens!, 0),
+      ...(known.length !== group.length || group.some((day) => day.partial === true)
+        ? { partial: true }
+        : {}),
+    });
+  }
+  return weeks;
 }
 
 export function usageIsPartial(usage: OverviewUsage): boolean {

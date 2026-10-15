@@ -689,7 +689,7 @@ describe('Computer viewer mounted lifecycle', () => {
   it('aborts status reads when the sidebar entry unmounts', async () => {
     const view = mountEntry(async () => ({ ok: true, value: { bots: [] } }), 'ada');
     await view.render();
-    const statusCall = vi.mocked(fetch).mock.calls.find(([url]) => url === '/api/computer/status');
+    const statusCall = vi.mocked(fetch).mock.calls.find(([url]) => url === './api/computer/status');
     expect(statusCall).toBeDefined();
     const signal = statusCall?.[1]?.signal;
     expect(signal?.aborted).toBe(false);

@@ -24,7 +24,12 @@ afterEach(async () => {
 });
 
 async function fakeDsh() {
-  const state = { secret: 1, token: 'launch-token', seen: [] as Record<string, unknown>[] };
+  const state = {
+    secret: 1,
+    token: 'launch-token',
+    seen: [] as Record<string, unknown>[],
+    upgrades: [] as string[],
+  };
   const cookie = () => `dsh=${String(state.secret)}`;
   let gateway: ReturnType<typeof createDeviceGateway> | undefined;
   const server = createServer((req, res) => {
@@ -52,6 +57,7 @@ async function fakeDsh() {
       socket.end('HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\n\r\n');
       return;
     }
+    state.upgrades.push(req.url ?? '');
     state.seen.push({ upgrade: req.url });
     socket.write(
       'HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n',
@@ -314,6 +320,28 @@ describe('device gateway', () => {
       const after = await web(host, '/', { cookie });
       expect([after.status, await after.json()]).toEqual([401, { code: 'device-revoked' }]);
       expect(await stream(host.port, { cookie }, mux)).toEqual({
+        status: 401,
+        body: '{"code":"device-revoked"}',
+      });
+    });
+
+    it('forwards a viewer socket under the directory and closes it on revoke', async () => {
+      const host = await fakeDsh();
+      const paired = await pair(host.base, host.pairing.createOffer().offer);
+      const cookie = sessionCookie(
+        await web(host, '/', { authorization: `Device ${paired.body.credential}` }),
+      );
+      const viewer = '/botharness-device/web/botharness-computer/viewer/websockets?token=x';
+      expect((await stream(host.port, {}, viewer)).status).toBe(401);
+      const open = await stream(host.port, { cookie, origin: host.base }, viewer);
+      expect(open.status).toBe(101);
+      expect(host.state.upgrades).toEqual(['/botharness-computer/viewer/websockets?token=x']);
+      expect(await echo(open.socket!, 'pointer')).toBe('pointer');
+
+      const closed = new Promise((resolve) => open.socket!.on('close', resolve));
+      expect(host.pairing.revoke(paired.body.deviceId!).closedStreams).toBe(1);
+      await closed;
+      expect(await stream(host.port, { cookie }, viewer)).toEqual({
         status: 401,
         body: '{"code":"device-revoked"}',
       });

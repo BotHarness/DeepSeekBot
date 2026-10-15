@@ -63,10 +63,10 @@ export const name = 'botharness-computer-client';
 
 export const inject = ['slots', 'channelSidebar', 'connection', 'locale'];
 
-const STATUS_ENDPOINT = '/api/computer/status';
-const START_ENDPOINT = '/api/computer/start';
-const STOP_ENDPOINT = '/api/computer/stop';
-const VIEWER_SRC = '/botharness-computer/viewer/';
+const STATUS_ENDPOINT = './api/computer/status';
+const START_ENDPOINT = './api/computer/start';
+const STOP_ENDPOINT = './api/computer/stop';
+const VIEWER_SRC = './botharness-computer/viewer/';
 const APPROVED_KEY = 'botharness-computer-start-approved';
 const ENTRY_ID = 'botharness-computer';
 
@@ -214,7 +214,7 @@ export function RecentLogs({ t }: { readonly t: ComputerTranslate }): ReactEleme
   const [failed, setFailed] = useState(false);
   const loadResource = useMountedResource<HTMLSpanElement>(() => {
     const controller = new AbortController();
-    requestJson<{ entries: RecentLogRow[] }>('/api/computer/logs?limit=10', {
+    requestJson<{ entries: RecentLogRow[] }>('./api/computer/logs?limit=10', {
       signal: controller.signal,
     })
       .then((result) => {

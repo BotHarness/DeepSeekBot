@@ -47,7 +47,11 @@ export function DayBars({
       accessible
       accessibilityRole="image"
       accessibilityLabel={accessibilityLabel}
-      style={{ flexDirection: 'row', alignItems: 'flex-end', gap: space.x2 }}
+      style={{
+        flexDirection: 'row',
+        alignItems: 'flex-end',
+        gap: bars.length > 14 ? space.x1 : space.x2,
+      }}
     >
       {bars.map((bar, index) => {
         const segments = heights[index] ?? [];

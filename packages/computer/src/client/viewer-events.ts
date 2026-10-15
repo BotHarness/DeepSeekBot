@@ -1,4 +1,4 @@
-export const VIEWER_EVENT_ENDPOINT = '/api/computer/diagnostics/viewer';
+export const VIEWER_EVENT_ENDPOINT = './api/computer/diagnostics/viewer';
 
 export type { ViewerLifecycleEvent } from '../../../client/src/client/remote-viewer/index.js';
 import type { ViewerLifecycleEvent } from '../../../client/src/client/remote-viewer/index.js';

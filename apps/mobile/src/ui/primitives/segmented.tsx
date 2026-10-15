@@ -11,12 +11,14 @@ export function Segmented<T extends string>({
   value,
   on = 'canvas',
   onChange,
+  compact = false,
 }: {
   label: string;
   options: readonly { value: T; label: string }[];
   value: T;
   on?: LayerName;
   onChange(value: T): void;
+  compact?: boolean;
 }) {
   const theme = useDesignTheme();
   const layer = theme.layer[on];
@@ -53,7 +55,7 @@ export function Segmented<T extends string>({
               backgroundColor: selected ? layer.fill : pressed ? layer.pressed : layer.inset,
             })}
           >
-            <Text strong={selected} numberOfLines={1}>
+            <Text variant={compact ? 'meta' : 'body'} strong={selected} numberOfLines={1}>
               {option.label}
             </Text>
           </Pressable>

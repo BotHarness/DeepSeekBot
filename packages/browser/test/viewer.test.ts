@@ -6,7 +6,7 @@ import { registerBrowserViewer, type BrowserViewerHost } from '../src/viewer.js'
 afterEach(() => vi.unstubAllGlobals());
 
 describe('Container viewer authenticated Host adapter', () => {
-  function fixture() {
+  function fixture(deviceUpgrade?: () => ((...args: unknown[]) => void) | undefined) {
     let http!: Parameters<BrowserViewerHost['register']>[0];
     const upgrades: Parameters<BrowserViewerHost['registerUpgrade']>[0][] = [];
     const release = vi.fn();
@@ -27,6 +27,7 @@ describe('Container viewer authenticated Host adapter', () => {
       prefix: '/botharness-browser/viewer/qa',
       upstream: () => new URL('http://127.0.0.1:39001/botharness-browser/viewer/qa/'),
       rejection,
+      ...(deviceUpgrade === undefined ? {} : { deviceUpgrade }),
     });
     const response = { writeHead: vi.fn(), end: vi.fn() };
     return { http, upgrades, dispose, release, rejection, response };
@@ -49,6 +50,25 @@ describe('Container viewer authenticated Host adapter', () => {
     expect(socket.destroyed).toBe(true);
     f.dispose();
     expect(f.release).toHaveBeenCalledTimes(4);
+  });
+  it('hands the device web twin of each socket path to the device gateway', () => {
+    const forward = vi.fn();
+    let gateway: typeof forward | undefined;
+    const f = fixture(() => gateway);
+    const twin = f.upgrades.find(
+      (route) => route.path === '/botharness-device/web/botharness-browser/viewer/qa/websockets',
+    )!;
+    const request = { headers: {}, method: 'GET' } as IncomingMessage;
+    const refused = new PassThrough();
+    twin.handler(request, refused, Buffer.alloc(0));
+    expect(refused.destroyed).toBe(true);
+    gateway = forward;
+    const socket = new PassThrough();
+    twin.handler(request, socket, Buffer.alloc(0));
+    expect(forward).toHaveBeenCalledWith(request, socket, expect.any(Buffer));
+    expect(f.rejection).not.toHaveBeenCalled();
+    f.dispose();
+    expect(f.release).toHaveBeenCalledTimes(7);
   });
   it('uses native authentication and strips Host credentials from an allowed HTTP request', async () => {
     const f = fixture();
