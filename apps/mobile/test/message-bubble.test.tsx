@@ -8,6 +8,7 @@ const native = vi.hoisted(() => ({
   copied: [] as string[],
   sheets: [] as Array<{ options: string[]; cancelButtonIndex?: number }>,
   toasts: [] as string[],
+  shared: [] as string[],
   pick: 0,
 }));
 
@@ -42,7 +43,11 @@ vi.mock('react-native', () => {
     Text: host('Text'),
     Pressable: host('Pressable'),
     ScrollView: host('ScrollView'),
+    Modal: ({ visible, children }: { visible: boolean; children: unknown }) =>
+      visible ? <div data-native="Modal">{children as never}</div> : null,
     Image: host('Image'),
+    Share: { share: async ({ message }: { message: string }) => native.shared.push(message) },
+    useWindowDimensions: () => ({ width: 390, height: 844 }),
     ActivityIndicator: host('ActivityIndicator'),
     Linking: { openURL: async () => undefined },
     Platform: {
@@ -64,6 +69,11 @@ vi.mock('react-native', () => {
     useColorScheme: () => 'light',
   };
 });
+
+vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
+vi.mock('react-native-safe-area-context', () => ({
+  useSafeAreaInsets: () => ({ top: 47, right: 0, bottom: 34, left: 0 }),
+}));
 
 vi.mock('expo-image', async () => ({ Image: (await import('react-native')).Image }));
 vi.mock('expo-clipboard', () => ({
@@ -100,13 +110,17 @@ vi.mock('react-native-svg', () => ({
 const { MessageBubble, DraftBubble, deliveryLabel } = await import('../src/ui/chat/message-bubble');
 const { createSpeakerRegistry } = await import('../src/ui/chat/speaker-row');
 const { t } = await import('../src/ui/strings');
-const { openMessageMenu } = await import('../src/ui/chat/message-menu');
+const { openMessageMenu, shareText } = await import('../src/ui/chat/message-menu');
+const { MessageActions, menuTime, messageMenuActions } =
+  await import('../src/ui/chat/message-actions');
+const { MENU_REACTIONS, QUICK_REACTIONS } = await import('../src/host/conversation');
 
 beforeEach(() => {
   native.os = 'ios';
   native.copied.length = 0;
   native.sheets.length = 0;
   native.toasts.length = 0;
+  native.shared.length = 0;
   native.pick = 0;
 });
 
@@ -346,5 +360,71 @@ describe('copying a message', () => {
     expect(native.sheets).toEqual([]);
     expect(native.copied).toEqual(['hello']);
     expect(native.toasts).toEqual([t.copied]);
+  });
+});
+
+describe('the long-press menu', () => {
+  const anchor = { x: 16, y: 400, width: 200, height: 60 };
+  const group = { first: true, last: true };
+  const bot: ConversationMessage = {
+    id: 'bot-1',
+    revision: 3,
+    at: '2026-10-14T08:00:00.000Z',
+    author: 'bot',
+    body: 'Which one first?',
+    attachments: [],
+    delivery: 'committed',
+    reactions: [{ emoji: '🔥', actors: [{ kind: 'human', id: 'local-human' }] }],
+  };
+  const menu = (message: ConversationMessage) =>
+    renderToStaticMarkup(
+      <MessageActions
+        target={{ message, anchor, group }}
+        onClose={() => {}}
+        onReact={() => {}}
+        onCopy={() => {}}
+        onShareText={() => {}}
+      />,
+    );
+
+  it('offers the Web Client reactions first, then more in a scrolling island', () => {
+    expect(MENU_REACTIONS.slice(0, QUICK_REACTIONS.length)).toEqual([...QUICK_REACTIONS]);
+    const html = menu(bot);
+    expect(html).toContain(`data-accessibilitylabel="${t.reactions}"`);
+    for (const emoji of MENU_REACTIONS)
+      expect(html).toContain(
+        `data-accessibilitylabel="${emoji === '🔥' ? t.unreact(emoji) : t.react(emoji)}"`,
+      );
+  });
+
+  it('lifts the pressed bubble between the island and the actions', () => {
+    const html = menu(bot);
+    const island = html.indexOf(t.reactions);
+    const bubble = html.indexOf('Which one first?');
+    const copy = html.indexOf(`data-accessibilitylabel="${t.copy}"`);
+    expect(island).toBeGreaterThan(-1);
+    expect(bubble).toBeGreaterThan(island);
+    expect(copy).toBeGreaterThan(bubble);
+    expect(html).toContain(`data-accessibilitylabel="${t.shareText}"`);
+  });
+
+  it('shows no island for a message that cannot take reactions, and no actions without text', () => {
+    const { revision: _, ...unsent } = bot;
+    const pending = menu({ ...unsent, delivery: 'pending' });
+    expect(pending).not.toContain(t.reactions);
+    expect(pending).toContain(`data-accessibilitylabel="${t.copy}"`);
+    expect(messageMenuActions({ ...bot, body: '  ' })).toEqual([]);
+  });
+
+  it('heads the actions with the message time, marking today', () => {
+    const now = new Date('2026-10-14T09:00:00.000Z');
+    expect(menuTime(bot.at, now).startsWith(`${t.today} `)).toBe(true);
+    expect(menuTime('2026-10-13T08:00:00.000Z', now).startsWith(t.yesterday)).toBe(true);
+  });
+
+  it('shares the whole text through the system share sheet', async () => {
+    shareText('Line one\n\nLine two');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(native.shared).toEqual(['Line one\n\nLine two']);
   });
 });

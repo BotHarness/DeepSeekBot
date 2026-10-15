@@ -1,5 +1,5 @@
 import * as Clipboard from 'expo-clipboard';
-import { ActionSheetIOS, Platform, ToastAndroid } from 'react-native';
+import { ActionSheetIOS, Platform, Share, ToastAndroid } from 'react-native';
 
 import { t } from '../strings';
 
@@ -10,6 +10,10 @@ export function copyMessage(text: string): void {
     },
     () => undefined,
   );
+}
+
+export function shareText(text: string): void {
+  void Share.share({ message: text }).catch(() => undefined);
 }
 
 export function openMessageMenu(text: string): void {

@@ -297,12 +297,25 @@ async function main() {
 
     await longPress('The staging deploy finished. All 214 tests passed.');
     await label('React with 🎉');
-    checks.sheetOffersReactions = true;
-    checks.sheetOffersCopy = await page.evaluate(() => document.body.innerText.includes('Copy'));
-    await shot('1-long-press-sheet');
-    steps.push('long-pressed the Bot message: the sheet offers quick reactions, Copy and Cancel');
+    await label('React with 🤔');
+    checks.menuOffersReactions = true;
+    checks.menuOffersActions = await page.evaluate(
+      () =>
+        document.querySelector('[aria-label="Copy"]') !== null &&
+        document.querySelector('[aria-label="Share"]') !== null,
+    );
+    checks.menuAnchoredAtBubble = await page.evaluate(() => {
+      const island = document.querySelector('[aria-label="Reactions"]')?.getBoundingClientRect();
+      const copy = document.querySelector('[aria-label="Copy"]')?.getBoundingClientRect();
+      return island !== undefined && copy !== undefined && island.bottom < copy.top;
+    });
+    await shot('1-long-press-menu');
+    steps.push(
+      'long-pressed the Bot message: the reaction island opens above the bubble and Copy and Share below it',
+    );
 
     await page.locator('::-p-aria(React with 🎉)').click();
+    await page.waitForSelector('[aria-label="Reactions"]', { hidden: true });
     await label('You reacted with 🎉');
     checks.humanReactionStored = (await stored(replyId)).some(
       (reaction) =>
@@ -328,6 +341,22 @@ async function main() {
     );
     await shot('3-removed');
     steps.push("tapped the 🎉 chip: only the Human's reaction was taken back");
+
+    const composer = await page.waitForSelector(`[placeholder="Message ${displayName}"]`);
+    await composer.type('Great, ship it to production after lunch.');
+    await page.locator('::-p-aria(Send)').click();
+    await text('Great, ship it to production after lunch.');
+    await page.waitForFunction(() => !document.body.innerText.includes('Sending'), {
+      timeout: 30_000,
+    });
+    await longPress('Great, ship it to production after lunch.');
+    await label('React with 👍');
+    checks.humanMenuOpens = await page.evaluate(() => {
+      const copy = document.querySelector('[aria-label="Copy"]')?.getBoundingClientRect();
+      return copy !== undefined && copy.right > window.innerWidth / 2;
+    });
+    await shot('4-long-press-human');
+    steps.push("long-pressed the Human's own message: the menu opens on the right, at the bubble");
 
     const log = console_.join('\n');
     writeFileSync(join(paths.evidence, 'console.txt'), redact(log));

@@ -30,3 +30,11 @@ export const useScrollOffset = () => ({ value: 0 });
 export const useSharedValue = <T>(value: T) => ({ value });
 export const FadeOut = transition;
 export const LinearTransition = transition;
+export const useReducedMotion = () => false;
+export const withTiming = <T>(value: T) => value;
+export const Easing = { out: (curve: unknown) => curve, quad: (t: number) => t * t };
+export class Keyframe {
+  duration() {
+    return this;
+  }
+}

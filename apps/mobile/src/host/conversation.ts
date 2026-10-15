@@ -42,6 +42,18 @@ export const LOCAL_HUMAN = 'local-human';
 
 export const QUICK_REACTIONS = ['👍', '❤️', '😂', '🎉', '👀', '✅'] as const;
 
+export const MENU_REACTIONS = [
+  ...QUICK_REACTIONS,
+  '🙏',
+  '🔥',
+  '💯',
+  '😮',
+  '😢',
+  '👎',
+  '🙌',
+  '🤔',
+] as const;
+
 export type ConversationReaction = WireReaction;
 
 export function reactedByMe(reaction: ConversationReaction): boolean {

@@ -2,7 +2,7 @@ import { createContext, useContext, useMemo, type ReactNode } from 'react';
 import { Platform, useColorScheme } from 'react-native';
 
 import { resolveTheme, type Appearance, type ColorScheme, type DesignTheme } from './resolve-theme';
-import { glass, type PlatformOS } from './tokens';
+import { glass, PRESS_TINT, type PlatformOS } from './tokens';
 
 export {
   headerBand,
@@ -56,6 +56,13 @@ export function frosted(fill: string): string {
   if (!/^#[0-9a-f]{6}$/iu.test(fill)) return fill;
   const alpha = Math.round((glass.tint / 100) * 255);
   return `${fill}${alpha.toString(16).padStart(2, '0')}`;
+}
+
+export function pressTint(ink: string): string {
+  if (!/^#[0-9a-f]{6}$/iu.test(ink)) return ink;
+  return `${ink}${Math.round(PRESS_TINT * 255)
+    .toString(16)
+    .padStart(2, '0')}`;
 }
 
 export function glassTint(base: string): string {

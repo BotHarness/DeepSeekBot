@@ -80,7 +80,13 @@ export const pointer = {
 
 export const motion = {
   drawer: 250,
+  lift: 500,
+  menu: 160,
 } as const;
+
+export const lift = 0.96;
+
+export const PRESS_TINT = 0.12;
 
 export const scrim = {
   light: 0.32,

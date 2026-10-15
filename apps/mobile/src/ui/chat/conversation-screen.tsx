@@ -43,7 +43,7 @@ import { useFollowLatest } from './follow-latest';
 import { useMarkRead } from './mark-read';
 import { ImageViewer } from './image-viewer';
 import { JumpToLatest } from './jump-to-latest';
-import { MessageActions } from './message-actions';
+import { MessageActions, type MessageMenuTarget } from './message-actions';
 import {
   activeMentionQuery,
   chooseMention,
@@ -55,7 +55,8 @@ import {
 } from './mention-draft';
 import { MentionSuggestions } from './mention-suggestions';
 import { DraftBubble, MessageBubble, type Speaker } from './message-bubble';
-import { copyMessage } from './message-menu';
+import { copyMessage, shareText } from './message-menu';
+import type { Rect } from './menu-placement';
 import { chatRows, messageGroups, type ChatRow } from './message-groups';
 import { createSpeakerRegistry, SpeakerStageContext } from './speaker-row';
 import { QuestionCard } from './question-card';
@@ -220,7 +221,7 @@ function ChatConversation({ place, focus }: { place: ChatPlace; focus: string | 
   const dictation = useDictation(setDraft);
   const [shareError, setShareError] = useState(false);
   const [viewing, setViewing] = useState<MessageAttachment>();
-  const [actionsFor, setActionsFor] = useState<ConversationMessage>();
+  const [actionsFor, setActionsFor] = useState<MessageMenuTarget>();
   const [reactError, setReactError] = useState(false);
   const [composerHeight, setComposerHeight] = useState(0);
   const list = useAnimatedRef<FlatList<Row>>();
@@ -396,6 +397,12 @@ function ChatConversation({ place, focus }: { place: ChatPlace; focus: string | 
 
   const retry = useCallback((id: string) => conversation?.retry(id), [conversation]);
 
+  const openActions = useCallback(
+    (message: ConversationMessage, anchor: Rect, group: BubbleGroup) =>
+      setActionsFor({ message, anchor, group }),
+    [],
+  );
+
   const react = useCallback(
     (messageId: string, emoji: string, active: boolean): void => {
       setReactError(false);
@@ -464,7 +471,8 @@ function ChatConversation({ place, focus }: { place: ChatPlace; focus: string | 
           onRetry={retry}
           onOpenImage={setViewing}
           onShare={share}
-          onLongPress={setActionsFor}
+          onLongPress={openActions}
+          lifted={item.message.id === actionsFor?.message.id}
           onReact={react}
           botName={botName}
           speaker={
@@ -482,6 +490,8 @@ function ChatConversation({ place, focus }: { place: ChatPlace; focus: string | 
       focus,
       answered,
       retry,
+      openActions,
+      actionsFor,
       share,
       react,
       botName,
@@ -699,10 +709,11 @@ function ChatConversation({ place, focus }: { place: ChatPlace; focus: string | 
       />
       <ImageViewer attachment={viewing} onClose={() => setViewing(undefined)} onShare={share} />
       <MessageActions
-        message={actionsFor}
+        target={actionsFor}
         onClose={() => setActionsFor(undefined)}
         onReact={(message, emoji, active) => react(message.id, emoji, active)}
         onCopy={copyMessage}
+        onShareText={shareText}
       />
     </>
   );

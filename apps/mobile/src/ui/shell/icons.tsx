@@ -153,6 +153,15 @@ export function RecordingStopIcon({ color, size }: IconProps) {
   );
 }
 
+export function CopyIcon(props: IconProps) {
+  return (
+    <Glyph
+      {...props}
+      d="M9 9h9a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1zM5 15H4.5A.5.5 0 0 1 4 14.5V5a1 1 0 0 1 1-1h9.5a.5.5 0 0 1 .5.5V5"
+    />
+  );
+}
+
 export function ShareIcon(props: IconProps) {
   return <Glyph {...props} d="M12 15V4M8 8l4-4 4 4M6 12v7a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-7" />;
 }

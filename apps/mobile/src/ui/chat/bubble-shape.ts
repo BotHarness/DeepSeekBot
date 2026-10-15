@@ -2,10 +2,8 @@ import { radius, space } from '../design/tokens';
 
 export type BubbleGroup = { first: boolean; last: boolean };
 
-export function bubbleShape(human: boolean, { first, last }: BubbleGroup) {
+export function bubbleCorners(human: boolean, { first, last }: BubbleGroup) {
   return {
-    maxWidth: '80%',
-    alignSelf: human ? 'flex-end' : 'flex-start',
     borderRadius: radius.lg,
     ...(human
       ? {
@@ -16,6 +14,14 @@ export function bubbleShape(human: boolean, { first, last }: BubbleGroup) {
           borderTopLeftRadius: first ? radius.lg : radius.xs,
           borderBottomLeftRadius: last ? radius.lg : radius.xs,
         }),
+  } as const;
+}
+
+export function bubbleShape(human: boolean, group: BubbleGroup) {
+  return {
+    maxWidth: '80%',
+    alignSelf: human ? 'flex-end' : 'flex-start',
+    ...bubbleCorners(human, group),
     paddingHorizontal: space.x4,
     paddingVertical: space.x3,
   } as const;
