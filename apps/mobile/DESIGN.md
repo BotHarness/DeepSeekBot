@@ -9,23 +9,44 @@ References:
 | Manus     | The chat: one Bot is one contact, the conversation reads like IM, and action cards sit in the chat.                                                                                          |
 | Grok Bot  | Bots and group chats in one list, with separate "needs you" and "new result" states. Approval cards with **Allow once / Always allow / Deny**, and the Human taking over the Bot's computer. |
 | Meta Muse | A Bot profile whose identity and memory are visible and editable.                                                                                                                            |
-| Slack     | Workspace switching, a row of shortcut cards on Home, an Activity feed with filters, and agent steps with a Stop button.                                                                     |
+| Slack     | Workspace switching, a row of shortcut cards on Chats, an Activity feed with filters, and agent steps with a Stop button.                                                                    |
 
 ## Structure
 
+The shell is set by [ADR-0211](../../docs/adr/0211-the-mobile-app-has-two-tabs-with-settings-and-hosts-in-the-header.md): what the Human does most sits under the thumb, and what they do rarely sits in the header.
+
 - **Hosts are workspaces.** Each paired computer is a Host.
   - The app stays connected to every paired Host at once.
-  - Home and chats show one Host at a time. Home has a Slack-style header band in the accent colour (a muted accent in dark mode) with the Host's initial tile, the Host name and ▾; tap it to open the Host switcher. The list sits on a panel with rounded top corners below it. The switcher lists each Host with its status and pending count, plus "Pair a new computer".
-- **Tabs** are native (`NativeTabs`): **Home**, **Activity** and **Me**.
+  - The Chats list and every chat show one Host at a time. The Chats header has a Slack-style band in the accent colour (a muted accent in dark mode); the list sits on a panel with rounded top corners below it.
+  - The **Host chip** at the top left shows the Host's initial tile, its name and ▾. Tapping it opens the **Host drawer**.
+- **Host drawer** switches Hosts. It slides in from the left, covers about 85% of the width and dims the list behind it.
+  - It lists each Host with its initial tile, online or offline status and pending count, the current one marked, plus "Pair a new computer", which opens the pairing flow.
+  - The Host chip opens it, and so does a swipe right from the left edge of a tab's root screen. The edge swipe is never attached inside a pushed chat, where it stays the system Back.
+  - Tapping a Host switches to it and closes the drawer. Tapping the backdrop or swiping left closes it.
+  - It takes screen-reader focus when it opens and returns focus to the Host chip when it closes. With Reduce Motion on it appears without sliding.
+  - Android uses the standard Material navigation drawer with the same contents.
+- **Tabs** are native (`NativeTabs`): **Chats** and **Activity**, plus the system search tab on iOS.
+  - Activity carries a badge with the Human Inbox action count.
+  - The search tab (`role="search"`) comes last. iOS 26 draws it as a separate round glass button at the bottom right, beside the tab capsule.
   - A chat is pushed above the tabs, so the tab bar hides while it is open.
-  - iOS draws the system tab bar with no background colour of ours: Liquid Glass on iOS 26 (a floating capsule above the home indicator, with the system's glass pill behind the selected tab), the translucent system bar before it. The selected tint is the resolved `fg`, passed as a plain colour so the bar re-tints when the scheme changes while the app is open.
+  - iOS draws the system tab bar with no background colour of ours: Liquid Glass on iOS 26 (a floating capsule above the home indicator, with the system's glass pill behind the selected tab), the translucent system bar before it. The selected tint is the resolved `fg`, passed as a plain colour so the bar re-tints when the scheme changes while the app is open. Minimize on scroll stays off.
   - Content scrolls under the bar. Each tab's list sets `contentInsetAdjustmentBehavior="automatic"`, so its last row clears the bar and the home indicator.
-  - Android keeps the Material 3 bar on `base`: like Slack, the selected tab is the foreground colour with a pill behind its icon (the Material indicator), and the others are muted.
-  - The web preview draws a floating translucent capsule standing in for the glass, with the selection bubble behind the whole item (icon and label) as iOS draws it.
-- **Home** shows the current Host:
-  - A row of shortcut cards: **Needs you** and **Working**, each an icon, a name and a count that filters the list when tapped. **Unread** joins them once the Host reports unread counts.
-  - One list of PersonaBot DMs and Channels together, by latest activity.
-  - The header has search and **+** (new Bot, new Channel).
+  - Android keeps two Material 3 tabs on `base`: like Slack, the selected tab is the foreground colour with a pill behind its icon (the Material indicator), and the others are muted.
+  - The web preview draws a floating translucent capsule with the two tabs, standing in for the glass, with the selection bubble behind the whole item (icon and label) as iOS draws it, and a round search button beside it.
+- **Chats** shows the current Host:
+  - The header has the Host chip on the left, and on the right a compose button and the Human's avatar.
+    - Compose opens a native menu: **New PersonaBot** and **New Channel**. They open the app's create flow, or the full client where the app has none yet. Android has no compose button in the header; a Material FAB at the bottom right, above the tab bar, opens the same menu.
+    - The avatar opens **Settings**. Until the Human has an avatar of their own it shows their initial on a neutral layer fill.
+  - A row of shortcut cards: **Needs you** and **Working**, each an icon, a name and a count that filters the list when tapped. The filter applies across all Channel sections. **Unread** joins them once the Host reports unread counts.
+  - One list of PersonaBot DMs and Channels together, grouped by the Host's **Channel sections** as on the desktop sidebar:
+    - Sections come in the desktop's order. Ungrouped DMs and Channels sit between them in the desktop's top-level order.
+    - A section header shows its name and Channel count and collapses or expands on tap. A collapsed section still shows a "Needs you" mark when something inside needs the Human. The collapse state is kept on the phone, per Host.
+    - Hidden Channels stay out of the list. Pins and the sort mode follow `CONTEXT.md`.
+    - Changes made on the desktop show when the roster refreshes. Creating, renaming, reordering and moving Channels between sections stays on the desktop for now.
+    - A Host with no sections shows one flat list by latest activity.
+- **Search** finds a PersonaBot or Channel on the current Host:
+  - On iOS the search tab opens with the field at the bottom, above the keyboard. Android has a search bar at the top of Chats.
+  - It matches PersonaBot display names and Channel titles on the device, and a result opens its chat. When nothing matches it says so. Message full-text search is not part of it.
 - **Activity** is the Human Inbox across all Hosts:
   - Filter chips with counts: All / Needs my action / Mentions & replies / Handled, and a Bot row once more than one Bot is listed. They match the Web Client Inbox's categories and Bot filter; a Host filter comes with more than one Host.
   - Section headers stick to the top while their items scroll and show the section's count.
@@ -33,7 +54,10 @@ References:
   - Posts and rows are separated by space and layer fills, not divider lines.
   - A row's title is `category · Bot`; a reply keeps its text on a second line, and a handled item collapses to one line: `category · Bot · summary`.
   - Opening an item jumps to the card in its chat.
-- **Me** holds appearance (scheme, accent, chat wallpaper), notifications, paired Hosts and unpairing.
+- **Settings** is a form sheet with a large detent, opened from the avatar, and closed by swiping down or the close button. It reuses the settings row and section components, in groups:
+  - **Connections**: Computers (paired Hosts, their status and unpairing, with the same confirmation and error notice as before), Notifications, and Open full client.
+  - **Interface**: Appearance (scheme, accent, chat wallpaper).
+  - **Chats**: Channel sections and Hidden Channels, each pushing its own screen.
 
 ## Screens
 
@@ -115,7 +139,7 @@ Each layer has `fill`, `pressed`, `selected` (neutral, such as the current tab),
 - `src/ui/design/` holds the tokens and theme (ADR-0201).
 - `src/ui/primitives/` holds `Text` (variant `meta` / `body` / `title`, and a tone that is a colour role), and later `Icon`, `IconButton`, `Button`, `Avatar`, `Badge`, `Card`, `SettingsRow` and `EmptyState`.
 - `src/ui/chat/` will hold the conversation row, bubble, message group, time separator, action cards, composer, status strip and scroll-to-bottom.
-- `src/ui/shell/` will hold the Host switcher, shortcut cards and activity item.
+- `src/ui/shell/` will hold the Host drawer, the Human avatar button, shortcut cards, Channel section headers and the activity item.
 - `app/` routes, reads the Host client, and composes these components.
 
 ## Code rules
