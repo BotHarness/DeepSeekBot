@@ -316,19 +316,20 @@ async function main() {
     ];
     for (const [key, value] of Object.entries(env)) args.push('-e', `${key}=${value}`);
     args.push(join(flows, file));
+    const driverStartup = Number(process.env['MAESTRO_DRIVER_STARTUP_TIMEOUT'] ?? 300_000);
     const child = spawn(maestro, args, {
       env: {
         ...process.env,
         JAVA_HOME: javaHome,
         MAESTRO_CLI_NO_ANALYTICS: '1',
-        MAESTRO_DRIVER_STARTUP_TIMEOUT: process.env['MAESTRO_DRIVER_STARTUP_TIMEOUT'] ?? '300000',
+        MAESTRO_DRIVER_STARTUP_TIMEOUT: String(driverStartup),
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     let output = '';
     child.stdout.on('data', (chunk) => (output += chunk));
     child.stderr.on('data', (chunk) => (output += chunk));
-    const timer = setTimeout(() => child.kill('SIGTERM'), 300_000);
+    const timer = setTimeout(() => child.kill('SIGTERM'), driverStartup + 300_000);
     const status = await new Promise((done) => child.on('close', done));
     clearTimeout(timer);
     writeFileSync(join(paths.evidence, `${label}.maestro.txt`), output);
