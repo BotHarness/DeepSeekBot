@@ -93,13 +93,12 @@ export function SpeakerRow({
     stage?.registry.layout(rowKey, speaker.group, patch);
   };
   return (
-    <Animated.View
-      ref={row}
+    <View
       style={style}
       onLayout={(event: LayoutChangeEvent) => report({ height: event.nativeEvent.layout.height })}
     >
       <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: space.x3 }}>
-        <View style={{ width: SPEAKER_AVATAR, alignSelf: 'stretch' }}>
+        <Animated.View ref={row} style={{ width: SPEAKER_AVATAR, alignSelf: 'stretch' }}>
           {speaker.last ? (
             <StickyAvatar
               speaker={speaker}
@@ -107,9 +106,10 @@ export function SpeakerRow({
               row={row}
               surface={surface}
               laidOut={laidOut}
+              inset={inset}
             />
           ) : null}
-        </View>
+        </Animated.View>
         <View style={{ flex: 1, gap: space.x1 }}>
           {speaker.first ? <AuthorName name={speaker.name} /> : null}
           <Animated.View
@@ -124,7 +124,7 @@ export function SpeakerRow({
           {after}
         </View>
       </View>
-    </Animated.View>
+    </View>
   );
 }
 
@@ -134,12 +134,14 @@ function StickyAvatar({
   row,
   surface,
   laidOut,
+  inset,
 }: {
   speaker: Speaker;
   stage: SpeakerStage | undefined;
   row: AnimatedRef<View>;
   surface: AnimatedRef<View>;
   laidOut: SharedValue<number>;
+  inset: number;
 }) {
   const scroll = stage?.scroll;
   const viewport = stage?.viewport;
@@ -160,7 +162,7 @@ function StickyAvatar({
       bubbleBottom,
       floor: viewFrame.pageY + viewFrame.height - floor,
       rest,
-      span: span.value,
+      span: span.value + inset,
     });
     return { opacity: 1, transform: [{ translateY: rest - lift }] };
   });
@@ -174,13 +176,13 @@ function StickyAvatar({
 function SpeakerAvatar({ speaker }: { speaker: Speaker }) {
   const theme = useDesignTheme();
   if (speaker.bot !== undefined)
-    return <BotAvatar bot={speaker.bot} size={SPEAKER_AVATAR} ring={false} />;
+    return <BotAvatar bot={speaker.bot} size={SPEAKER_AVATAR} ring={false} corner={radius.sm} />;
   return (
     <View
       style={{
         width: SPEAKER_AVATAR,
         height: SPEAKER_AVATAR,
-        borderRadius: radius.round,
+        borderRadius: radius.sm,
         backgroundColor: theme.color.surface,
         alignItems: 'center',
         justifyContent: 'center',

@@ -11,10 +11,12 @@ export function BotAvatar({
   bot,
   size,
   ring = true,
+  corner,
 }: {
   bot: RosterBot;
   size: number;
   ring?: boolean;
+  corner?: number;
 }) {
   const theme = useTheme();
   const svg = useMemo(() => {
@@ -33,7 +35,7 @@ export function BotAvatar({
       style={{
         width: size + frame,
         height: size + frame,
-        borderRadius: (size + frame) / 2,
+        borderRadius: corner === undefined ? (size + frame) / 2 : corner + frame / 2,
         borderWidth: ring ? 2 : 0,
         borderColor: bot.state === 'idle' ? 'transparent' : stateColor(theme, bot.state),
         alignItems: 'center',
@@ -45,7 +47,7 @@ export function BotAvatar({
         style={{
           width: size,
           height: size,
-          borderRadius: size / 2,
+          borderRadius: corner ?? size / 2,
           overflow: 'hidden',
           backgroundColor: theme.border,
         }}
