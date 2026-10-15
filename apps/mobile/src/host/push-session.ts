@@ -27,6 +27,7 @@ export interface PushSession {
   sync(hosts: readonly SavedHost[]): Promise<void>;
   enable(hosts: readonly SavedHost[]): Promise<void>;
   forget(host: SavedHost): Promise<void>;
+  retryFailed(): Promise<void>;
   reflect(hostId: string, unresolved: ReadonlySet<string> | undefined, count: number): void;
   reflectAgain(): void;
   stop(): void;
@@ -45,6 +46,7 @@ export function createPushSession(options: {
   let snapshot: PushStatus = { status: 'checking' };
   let latest: readonly SavedHost[] = [];
   let reflected = '';
+  let retrying: Promise<void> | undefined;
 
   const publish = (next: PushStatus): void => {
     snapshot = next;
@@ -96,7 +98,19 @@ export function createPushSession(options: {
       publish({ status: permission === 'denied' ? 'denied' : 'off' });
     },
     async forget(host) {
+      latest = latest.filter((entry) => entry.hostId !== host.hostId);
       await hostPush.unregister(host).catch(() => undefined);
+    },
+    retryFailed() {
+      if (retrying !== undefined) return retrying;
+      if (snapshot.status !== 'on') return Promise.resolve();
+      const failed = new Set(snapshot.failed);
+      const hosts = latest.filter((entry) => failed.has(entry.hostId));
+      if (hosts.length === 0) return Promise.resolve();
+      retrying = registerAll(hosts).finally(() => {
+        retrying = undefined;
+      });
+      return retrying;
     },
     reflect(hostId, unresolved, count) {
       const key = `${hostId}:${String(count)}:${[...(unresolved ?? [])].sort().join(',')}`;

@@ -311,6 +311,34 @@ describe('push registration with a real Host gateway', () => {
     h.owner.close();
   });
 
+  it('registers a Host that was offline at launch once it is reachable again', async () => {
+    const h = await realHost();
+    const real = createHostPush(nodeCarrier(), 2_000);
+    let offline = true;
+    const hostPush = {
+      ...real,
+      register: (...args: Parameters<typeof real.register>) =>
+        offline ? Promise.reject(new Error('unreachable')) : real.register(...args),
+    };
+    const session = createPushSession({
+      notifications: fakeNotifications('granted').port,
+      hostPush,
+      platform: 'ios',
+      locale: 'en',
+    });
+
+    await session.sync([h.saved]);
+    expect(session.getSnapshot()).toEqual({ status: 'on', failed: [h.saved.hostId] });
+    await session.retryFailed();
+    expect(session.getSnapshot()).toEqual({ status: 'on', failed: [h.saved.hostId] });
+
+    offline = false;
+    await Promise.all([session.retryFailed(), session.retryFailed()]);
+    expect(session.getSnapshot()).toEqual({ status: 'on', failed: [] });
+    expect((await real.settings(h.saved)).registered).toBe(true);
+    h.owner.close();
+  });
+
   it('mirrors the badge and clears banners for items resolved elsewhere', async () => {
     const phone = fakeNotifications('granted');
     phone.state.presented = [
