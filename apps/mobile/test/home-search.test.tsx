@@ -115,8 +115,8 @@ describe('Search at the top of Chats', () => {
     await type(view, 'launch');
     await act(async () => view.querySelector('button')!.click());
     expect(push).toHaveBeenLastCalledWith({
-      pathname: '/full-client',
-      params: { target: 'channel', channelId: 'launch-team' },
+      pathname: '/channel/[id]',
+      params: { id: 'launch-team' },
     });
   });
 

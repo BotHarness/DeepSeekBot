@@ -50,7 +50,7 @@ The shell is set by [ADR-0211](../../docs/adr/0211-the-mobile-app-has-two-tabs-w
     - A Host with no sections shows one flat list by latest activity.
 - **Search** finds a PersonaBot or Channel on the current Host:
   - Typing in the Chats search field filters the list in place, as chat apps do; there is no separate search tab.
-  - It matches PersonaBot display names and Channel titles on the device, ignoring case and full-width forms, with names that start with the query first. Hidden Channels stay out. A DM result opens its chat; a Channel opens the full client at that Channel until the app has a native Channel chat. When nothing matches it says so. Message full-text search is not part of it.
+  - It matches PersonaBot display names and Channel titles on the device, ignoring case and full-width forms, with names that start with the query first. Hidden Channels stay out. A DM result opens its chat, and a Channel result opens that Channel's chat. When nothing matches it says so. Message full-text search is not part of it.
 - **Activity** is the Human Inbox across all Hosts:
   - Filter chips with counts: All / Needs my action / Mentions & replies / Handled, and a Bot row once more than one Bot is listed. They match the Web Client Inbox's categories and Bot filter; a Host filter comes with more than one Host.
   - Section headers stick to the top while their items scroll and show the section's count.
@@ -60,7 +60,7 @@ The shell is set by [ADR-0211](../../docs/adr/0211-the-mobile-app-has-two-tabs-w
   - Opening an item jumps to the card in its chat.
 - **Settings** is a form sheet with a large detent, opened from the avatar, and closed by swiping down or the close button. It reuses the settings row and section components, in groups:
   - **Connections**: the current Host and its connection status, Computers (paired Hosts, their status and unpairing, with the same confirmation and error notice as before), Notifications, and Open full client.
-  - **Interface**: Customize header, and Appearance (scheme, accent, chat wallpaper) once it exists.
+  - **Interface**: Customize header, App icon (the shipped default icon or one of two DeepSeekBot portraits, the full one and the chibi one, each with dark and tinted variants on iOS), and Appearance (scheme, accent, chat wallpaper) once it exists.
   - **Chats**: Channel sections and Hidden Channels, each pushing its own screen.
 
 ## Screens
@@ -110,7 +110,8 @@ The shell is set by [ADR-0211](../../docs/adr/0211-the-mobile-app-has-two-tabs-w
   - No keyboard shortcut hints, no explanatory boilerplate, and no paths or ids outside Details.
   - Regions are told apart by layer fills, not borders. The card is `raised` with no outline, and an outline appears only on the focused card (`edge.focus` in the accent).
   - A decided card collapses to one line: a coloured dot, then "subject · outcome" (for example "bash · Allowed once"). A card decided on another device or expired says so.
-- While the Bot works, a status strip above the composer shows the current step and a **Stop** button. Tapping it shows the steps.
+    - The collapsed line is a Bot bubble with different content: the same left edge, `surface` fill, padding, 80% width cap and radius `lg`, and it joins the Bot's message group (`xs` corners on the joined side, the tighter group gap), so it lines up with the bubbles above and below it. In a group Channel it stands alone, so the next bubble still carries the Bot's name.
+- While the Bot works (thinking or working), a working row at the bottom of the message list, after the newest message, shows "{Bot} · current step…" and a **Stop** button, like the Web Client's timeline working rows. Tapping it shows the steps. Nothing sits fixed above the composer, so the composer never moves when a Bot starts or stops; scrolled up, the row is out of view like any new message.
 - The composer is a pill: **+** for attachments, the placeholder "Message {Bot}", and a mic that becomes Send once there is text. In a DM a footer row with the Model and Workspace chips sits under it.
   - With one trailing button (the mic or Send) the pill is one row: **+**, the field and the button, bottom-aligned as the field grows. When the text no longer fits that one row, or with more (attached files, or the mic next to Send), it stacks like the web composer: the field on top at full width, and a row below with **+** (or **×**) on the left and the buttons on the right.
   - **+** opens Photos, Camera and File below the pill. Picked files show as removable tiles inside the pill, up to 10 per message. Send appears once there is text or a file.
@@ -122,6 +123,14 @@ The shell is set by [ADR-0211](../../docs/adr/0211-the-mobile-app-has-two-tabs-w
       2. **Access**: a **Full access** switch. Turning it on first shows the danger confirmation in place, in an inset box with a red "I understand, enable" button and Cancel; once on, a warning callout and a **Scope of full access** group (Chat and new Assignments, or New Assignments only) follow.
       3. **Auto approval template**: Off, Cautious and Get the work done (plus any other template on the Host), each with its one-line hint, the current one checked.
   - The mic dictates with the phone's speech recognizer, and the words fill the field so the Human edits them before sending. Like Telegram's voice button: hold the mic to talk and release to stop; while holding, a lock appears above the mic: slide left to cancel or up to lock. A tap works like a lock: it keeps listening until **■** stops it or the **×** that replaces **+** cancels it and clears the text. Dictation stays in the same row, and its status shows as the field's placeholder. A refused microphone or speech permission shows a notice and leaves the mic in place.
+- A group Channel opens the same chat screen, with these differences:
+  - The header is the same transparent header. Its centered chip, on `raised` with a hairline `edge` like the Bot chip, holds a round `#` mark, the Channel name and its member count; it opens nothing, since there is no profile. The full client button sits on the right.
+  - The first bubble of each Bot's group, and each Bot's streaming draft, carry the Bot's name above it in `meta`. A different Bot starts a new group even within 5 minutes.
+  - `accent` stays the app's accent, since no one Bot owns the chat.
+  - Each working member Bot gets its own working row, and its **Stop** stops that Bot in this Channel.
+  - The composer says "Message #{Channel}" and has no Model and Workspace footer, since those belong to one Bot. A question card keeps its own Other field instead of "Or reply in the chat below.", because a message in a group goes to every member.
+  - Typing `@` opens a suggestion list above the composer pill, on the `sheet` layer: **All Bots** (the Channel's active members, as the Web Client's "@All Bots") and the active member Bots with avatar and name, filtered by what follows the `@`. Choosing one inserts `@Name ` as a mention token, sent with the message like the Web Client's, so the mentioned Bots are woken even under a mentions-only wake policy. Editing inside a token turns it back into plain text.
+  - A notification or Activity item for a group Channel reply, mention or card opens this chat, at the card when there is one.
 
 **Bot profile** (a form sheet)
 
@@ -155,7 +164,7 @@ Each layer has `fill`, `pressed`, `selected` (neutral, such as the current tab),
 
 - `src/ui/design/` holds the tokens and theme (ADR-0201).
 - `src/ui/primitives/` holds `Text` (variant `meta` / `body` / `title`, and a tone that is a colour role), `Button`, `Toggle`, `SettingsRow`, `SettingsSection` and `SettingsGroupItem`, and later `Icon`, `IconButton`, `Button`, `Avatar`, `Badge`, `Card`, `SettingsRow` and `EmptyState`.
-- `src/ui/chat/` will hold the conversation row, bubble, message group, time separator, action cards, composer, status strip and scroll-to-bottom.
+- `src/ui/chat/` will hold the conversation row, bubble, message group, time separator, action cards, composer, working row and scroll-to-bottom.
 - `src/ui/shell/` will hold the Host drawer, the Human avatar button, shortcut cards, Channel section headers and the activity item.
 - `app/` routes, reads the Host client, and composes these components.
 

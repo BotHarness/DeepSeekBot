@@ -11,6 +11,7 @@ function a11y(props: Props): Record<string, unknown> {
       ? {}
       : { 'aria-label': props['accessibilityLabel'] }),
     ...(state['checked'] === undefined ? {} : { 'aria-checked': String(state['checked']) }),
+    ...(state['selected'] === undefined ? {} : { 'aria-selected': String(state['selected']) }),
   };
 }
 

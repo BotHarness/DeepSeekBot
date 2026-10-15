@@ -7,6 +7,7 @@ import { edge, radius, space } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { ChevronDownIcon } from '../shell/icons';
 import { t } from '../strings';
+import { bubbleRow, bubbleShape, type BubbleGroup } from './bubble-shape';
 
 export type CardLineTone = 'success' | 'danger' | 'subtle';
 
@@ -161,30 +162,28 @@ export function CardLine({
   text,
   tone,
   focused = false,
+  group = { first: true, last: true },
 }: {
   text: string;
   tone: CardLineTone;
   focused?: boolean;
+  group?: BubbleGroup;
 }) {
   const theme = useDesignTheme();
   const dot: ColorRole = tone;
   return (
-    <Frame>
+    <View style={bubbleRow(group.first)}>
       <View
         testID="card-line"
         accessibilityLabel={text}
         style={{
-          maxWidth: '92%',
-          alignSelf: 'flex-start',
+          ...bubbleShape(false, group),
           flexDirection: 'row',
           alignItems: 'center',
           gap: space.x3,
-          backgroundColor: theme.layer.raised.fill,
-          borderRadius: radius.round,
+          backgroundColor: theme.color.surface,
           borderWidth: focused ? edge.focus : 0,
           borderColor: theme.color.accent,
-          paddingHorizontal: space.x4,
-          paddingVertical: space.x3,
         }}
       >
         <View
@@ -195,11 +194,11 @@ export function CardLine({
             backgroundColor: theme.color[dot],
           }}
         />
-        <Text variant="meta" tone="muted" numberOfLines={1} style={{ flexShrink: 1 }}>
+        <Text tone="muted" numberOfLines={1} style={{ flexShrink: 1 }}>
           {text}
         </Text>
       </View>
-    </Frame>
+    </View>
   );
 }
 

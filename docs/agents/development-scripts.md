@@ -53,6 +53,7 @@ Run `node scripts/ci-plan.mjs --base origin/main` to print the plan and the exac
 | `apps/mobile/{app,src,test,scripts}/**`                                                                   | Related tests       |           | Mobile app source, tests and scripts                         |
 | `apps/mobile/{app.json,eas.json,metro.config.js}`                                                         | Related tests       |           | Mobile app config                                            |
 | `apps/mobile/locales/**`                                                                                  | Related tests       |           | Translated iOS permission prompts                            |
+| `apps/mobile/assets/**`                                                                                   | Related tests       |           | Mobile app icons and bundled images                          |
 | `apps/mobile/.maestro/**`                                                                                 | No tests of its own |           | Maestro flows, run on a Mac simulator                        |
 | `apps/mobile/{README.md,AGENTS.md,CLAUDE.md,DESIGN.md,.gitignore}`                                        | No tests of its own |           | Mobile app prose, agent rules and ignores                    |
 | `scripts/test/**`                                                                                         | Related tests       |           | Script tests                                                 |

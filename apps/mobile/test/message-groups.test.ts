@@ -22,6 +22,18 @@ const shape = (rows: ReturnType<typeof chatRows>) =>
   );
 
 describe('chat message groups', () => {
+  it('starts a new group when another Bot speaks in a group Channel', () => {
+    const by = (id: string, at: string, bot: string): ConversationMessage => ({
+      ...message(id, at),
+      bot,
+    });
+    expect(
+      shape(
+        chatRows([by('a', '09:00', 'ada'), by('b', '09:01', 'ada'), by('c', '09:02', 'grace')]),
+      ),
+    ).toEqual(['|', 'a^', 'b$', 'c^$']);
+  });
+
   it('groups one author within 5 minutes and starts with a time separator', () => {
     expect(
       shape(
@@ -47,6 +59,22 @@ describe('chat message groups', () => {
         ]),
       ),
     ).toEqual(['|', 'a^$', '|', 'b^$', 's^$', 'c^$']);
+  });
+
+  it('keeps a standalone row, such as an open request card, out of the groups around it', () => {
+    expect(
+      shape(
+        chatRows(
+          [
+            message('a', '09:00'),
+            message('card', '09:01'),
+            message('b', '09:02'),
+            message('c', '09:03'),
+          ],
+          (row) => row.id === 'card',
+        ),
+      ),
+    ).toEqual(['|', 'a^$', 'card^$', 'b^', 'c$']);
   });
 
   it('labels a separator with the time today, "yesterday", or the date', () => {

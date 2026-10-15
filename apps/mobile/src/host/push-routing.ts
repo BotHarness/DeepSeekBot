@@ -23,6 +23,7 @@ export function usePushRouting(): RefCallback<View> {
       const href = pushHref(
         target,
         (slug) => roster?.bots.find((bot) => bot.slug === slug)?.dmChannelId,
+        (channelId) => roster?.channels.some((channel) => channel.id === channelId) ?? false,
       );
       setTimeout(() => router.push(href), 0);
     };

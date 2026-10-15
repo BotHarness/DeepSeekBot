@@ -53,43 +53,60 @@ export function parsePushData(input: unknown): PushTarget | undefined {
   return target;
 }
 
+export type ChatHref =
+  | { pathname: '/dm/[slug]'; params: { slug: string; focus?: string } }
+  | { pathname: '/channel/[id]'; params: { id: string; focus?: string } };
+
 export type PushHref =
   | { pathname: '/inbox/[id]'; params: Record<string, string> }
-  | { pathname: '/dm/[slug]'; params: { slug: string; focus?: string } }
+  | ChatHref
   | { pathname: '/activity' };
 
 const REPLIES = new Set(['channel-reply', 'channel-mention']);
 const CARDS = new Set(['tool-approval', 'user-question']);
 
+function chatHref(
+  botSlug: string,
+  channelId: string,
+  dmChannelOf: (slug: string) => string | undefined,
+  isGroup: (channelId: string) => boolean,
+  focus?: string,
+): ChatHref | undefined {
+  const at = focus === undefined ? {} : { focus };
+  if (dmChannelOf(botSlug) === channelId)
+    return { pathname: '/dm/[slug]', params: { slug: botSlug, ...at } };
+  if (isGroup(channelId)) return { pathname: '/channel/[id]', params: { id: channelId, ...at } };
+  return undefined;
+}
+
 export function cardHref(
   item: { kind?: string; botSlug?: string; channelId?: string; messageId?: string },
   dmChannelOf: (slug: string) => string | undefined,
-): { pathname: '/dm/[slug]'; params: { slug: string; focus: string } } | undefined {
+  isGroup: (channelId: string) => boolean = () => false,
+): ChatHref | undefined {
   if (
     item.kind === undefined ||
     !CARDS.has(item.kind) ||
     item.botSlug === undefined ||
     item.messageId === undefined ||
-    item.channelId === undefined ||
-    dmChannelOf(item.botSlug) !== item.channelId
+    item.channelId === undefined
   )
     return undefined;
-  return { pathname: '/dm/[slug]', params: { slug: item.botSlug, focus: item.messageId } };
+  return chatHref(item.botSlug, item.channelId, dmChannelOf, isGroup, item.messageId);
 }
 
 export function pushHref(
   target: PushTarget,
   dmChannelOf: (slug: string) => string | undefined,
+  isGroup: (channelId: string) => boolean = () => false,
 ): PushHref {
   if (target.itemId === undefined || target.kind === undefined || target.botSlug === undefined)
     return { pathname: '/activity' };
-  if (
-    REPLIES.has(target.kind) &&
-    target.channelId !== undefined &&
-    dmChannelOf(target.botSlug) === target.channelId
-  )
-    return { pathname: '/dm/[slug]', params: { slug: target.botSlug } };
-  const card = cardHref(target, dmChannelOf);
+  if (REPLIES.has(target.kind) && target.channelId !== undefined) {
+    const chat = chatHref(target.botSlug, target.channelId, dmChannelOf, isGroup);
+    if (chat !== undefined) return chat;
+  }
+  const card = cardHref(target, dmChannelOf, isGroup);
   if (card !== undefined) return card;
   return {
     pathname: '/inbox/[id]',

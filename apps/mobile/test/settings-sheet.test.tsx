@@ -35,6 +35,7 @@ function actions(overrides: Partial<SettingsActions> = {}): SettingsActions {
     onOpenFullClient: vi.fn(),
     onComputers: vi.fn(),
     onHostLook: vi.fn(),
+    onAppIcon: vi.fn(),
     onNotifications: vi.fn(),
     onUnpair: vi.fn(async () => undefined),
     ...overrides,
@@ -65,6 +66,7 @@ describe('Settings sheet', () => {
     const rows: [string, keyof SettingsActions][] = [
       [`${t.computers}, ${t.computersHint}`, 'onComputers'],
       [`${t.hostLook}, ${t.hostLookHint}`, 'onHostLook'],
+      [`${t.appIcon}, ${t.appIconHint}`, 'onAppIcon'],
       [t.notifications, 'onNotifications'],
       [t.openFullClient, 'onOpenFullClient'],
       [t.done, 'onClose'],

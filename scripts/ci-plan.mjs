@@ -63,6 +63,7 @@ export const RULES = [
   related('apps/mobile/{app,src,test,scripts}/**', 'Mobile app source, tests and scripts'),
   related('apps/mobile/{app.json,eas.json,metro.config.js}', 'Mobile app config'),
   related('apps/mobile/locales/**', 'Translated iOS permission prompts'),
+  related('apps/mobile/assets/**', 'Mobile app icons and bundled images'),
   none('apps/mobile/.maestro/**', 'Maestro flows, run on a Mac simulator'),
   none(
     'apps/mobile/{README.md,AGENTS.md,CLAUDE.md,DESIGN.md,.gitignore}',

@@ -28,6 +28,7 @@ export default function RootLayout() {
           >
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="dm/[slug]" options={{ title: '' }} />
+            <Stack.Screen name="channel/[id]" options={{ title: '' }} />
             <Stack.Screen
               name="bot/[slug]"
               options={{
@@ -51,6 +52,7 @@ export default function RootLayout() {
             <Stack.Screen name="pair" options={{ title: t.pairTitle, presentation: 'modal' }} />
             <Stack.Screen name="inbox/[id]" options={{ title: t.inbox }} />
             <Stack.Screen name="notifications" options={{ title: t.notifications }} />
+            <Stack.Screen name="app-icon" options={{ title: t.appIcon }} />
             <Stack.Screen
               name="browser/[slug]"
               options={{

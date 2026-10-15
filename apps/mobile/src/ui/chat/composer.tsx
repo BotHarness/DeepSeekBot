@@ -332,6 +332,9 @@ export function Composer({
   onStopDictation,
   onCancelDictation,
   footer,
+  above,
+  selection,
+  onSelection,
 }: {
   value: string;
   placeholder: string;
@@ -348,6 +351,9 @@ export function Composer({
   onStopDictation(): void;
   onCancelDictation(): void;
   footer?: ReactNode;
+  above?: ReactNode;
+  selection?: { start: number; end: number } | undefined;
+  onSelection?(caret: number): void;
 }) {
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
@@ -400,6 +406,13 @@ export function Composer({
       key="field"
       value={value}
       onChangeText={onChange}
+      {...(selection === undefined ? {} : { selection })}
+      {...(onSelection === undefined
+        ? {}
+        : {
+            onSelectionChange: (event: { nativeEvent: { selection: { end: number } } }) =>
+              onSelection(event.nativeEvent.selection.end),
+          })}
       onFocus={() => setMenu(false)}
       placeholder={
         held
@@ -462,6 +475,7 @@ export function Composer({
         backgroundColor: theme.color.base,
       }}
     >
+      {above}
       <View
         style={{
           borderRadius: (theme.touch - space.x4) / 2 + inset,

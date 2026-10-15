@@ -14,9 +14,14 @@ export default function ActivityScreen() {
   const snapshot = useHostSnapshot(client);
   const list = useInbox(inbox);
   const bots = snapshot.roster?.bots ?? [];
+  const channels = snapshot.roster?.channels ?? [];
 
   const open = (item: HumanAttentionItem) => {
-    const card = cardHref(item, (slug) => bots.find((bot) => bot.slug === slug)?.dmChannelId);
+    const card = cardHref(
+      item,
+      (slug) => bots.find((bot) => bot.slug === slug)?.dmChannelId,
+      (channelId) => channels.some((channel) => channel.id === channelId),
+    );
     if (card !== undefined) return router.push(card);
     router.push({
       pathname: '/inbox/[id]',

@@ -22,6 +22,7 @@ export default function SettingsScreen() {
           openHostDrawer();
         },
         onHostLook: () => router.push('/host-look'),
+        onAppIcon: () => router.push('/app-icon'),
         onNotifications: () => router.push('/notifications'),
         onUnpair: () => hostSession.unpair().then(() => router.dismissTo('/')),
       }}
