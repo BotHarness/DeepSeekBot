@@ -79,4 +79,13 @@ describe('full-client landing from the phone app', () => {
     watchFullClientLanding(store, { kind: 'channel', channelId: 'old' }, gone);
     expect(gone).toHaveBeenCalledExactlyOnceWith({ kind: 'home' });
   });
+
+  it('lands on a create target once the roster is ready', () => {
+    const store = createStore();
+    const land = vi.fn();
+    watchFullClientLanding(store, { kind: 'new-channel' }, land);
+    expect(land).not.toHaveBeenCalled();
+    store.setRoster([], []);
+    expect(land).toHaveBeenCalledExactlyOnceWith({ kind: 'new-channel' });
+  });
 });

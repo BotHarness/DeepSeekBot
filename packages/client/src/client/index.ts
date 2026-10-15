@@ -17,6 +17,7 @@ import {
   fullClientLocator,
   privateInputLocator,
 } from '../../../core/src/credentials/web-locator.js';
+import { requestCreation } from './create-request.js';
 import { watchFullClientLanding, watchPrivateInputNavigation } from './private-input-navigation.js';
 import { createNativeHostFiles } from './host-file-actions.js';
 import { createFileOpenPreferences } from './file-open-preferences.js';
@@ -1052,6 +1053,11 @@ export function apply(ctx: ClientContext): void {
     ctx.effect(
       () =>
         watchFullClientLanding(store, landing, (target) => {
+          if (target.kind === 'new-bot' || target.kind === 'new-channel') {
+            ctx.layout.selectPanel(PANEL_ID);
+            requestCreation(target.kind === 'new-bot' ? 'bot' : 'channel');
+            return;
+          }
           if (target.kind !== 'home') expectMobileConversation();
           ctx.layout.selectPanel(PANEL_ID);
           if (target.kind === 'home') return;

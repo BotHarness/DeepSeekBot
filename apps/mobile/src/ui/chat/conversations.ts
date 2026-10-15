@@ -7,9 +7,26 @@ import type {
 } from '../../host/client';
 import type { HumanAttentionItem } from '../../host/wire';
 
+interface Attention {
+  needsYou: number;
+  unread: number;
+  muted: boolean;
+}
+
 export type Conversation =
-  | { kind: 'bot'; key: string; bot: RosterBot; at?: string; needsYou: number }
-  | { kind: 'channel'; key: string; channel: RosterChannel; at?: string; needsYou: number };
+  | ({ kind: 'bot'; key: string; bot: RosterBot; at?: string } & Attention)
+  | ({ kind: 'channel'; key: string; channel: RosterChannel; at?: string } & Attention);
+
+export type UnreadCounts = Readonly<Record<string, number>>;
+
+export type CountBadgeState = { tone: 'needs-you' | 'unread' | 'muted'; count: number } | undefined;
+
+export function countBadge(attention: Attention): CountBadgeState {
+  if (attention.needsYou > 0) return { tone: 'needs-you', count: attention.needsYou };
+  if (attention.unread > 0)
+    return { tone: attention.muted ? 'muted' : 'unread', count: attention.unread };
+  return undefined;
+}
 
 function needsYouFor(bot: RosterBot, action: HumanAttentionItem[]): number {
   return action.filter(
@@ -22,23 +39,30 @@ function needsYouFor(bot: RosterBot, action: HumanAttentionItem[]): number {
 export function conversations(
   roster: RosterView | undefined,
   action: HumanAttentionItem[],
+  unread: UnreadCounts = {},
 ): Conversation[] {
   if (roster === undefined) return [];
   const hidden = new Set(roster.arrangement?.hidden);
+  const muted = new Set(roster.arrangement?.muted);
+  const attention = (channelId: string | undefined, needsYou: number): Attention => ({
+    needsYou,
+    unread: channelId === undefined ? 0 : (unread[channelId] ?? 0),
+    muted: channelId !== undefined && muted.has(channelId),
+  });
   const rows: Conversation[] = [
     ...roster.bots.map((bot): Conversation => ({
       kind: 'bot',
       key: `bot:${bot.slug}`,
       bot,
       ...(bot.previewAt === undefined ? {} : { at: bot.previewAt }),
-      needsYou: needsYouFor(bot, action),
+      ...attention(bot.dmChannelId, needsYouFor(bot, action)),
     })),
     ...roster.channels.map((channel): Conversation => ({
       kind: 'channel',
       key: `channel:${channel.id}`,
       channel,
       ...(channel.previewAt === undefined ? {} : { at: channel.previewAt }),
-      needsYou: action.filter((item) => item.channelId === channel.id).length,
+      ...attention(channel.id, action.filter((item) => item.channelId === channel.id).length),
     })),
   ];
   return rows.filter((row) => !hidden.has(channelIdOf(row) ?? '')).sort(byLatest);
@@ -59,6 +83,7 @@ export type ChatListItem =
       name?: string;
       count: number;
       needsYou: number;
+      unread: number;
       collapsed: boolean;
     };
 
@@ -77,6 +102,7 @@ function sectionItem(
       ...(name === undefined ? {} : { name }),
       count: rows.length,
       needsYou: rows.reduce((sum, row) => sum + row.needsYou, 0),
+      unread: rows.reduce((sum, row) => sum + (row.muted ? 0 : row.unread), 0),
       collapsed: folded,
     },
     ...(folded
@@ -109,8 +135,9 @@ export function chatList(
   roster: RosterView | undefined,
   action: HumanAttentionItem[],
   collapsed: ReadonlySet<string> = new Set(),
+  unread: UnreadCounts = {},
 ): ChatListItem[] {
-  const rows = conversations(roster, action);
+  const rows = conversations(roster, action, unread);
   const arrangement = roster?.arrangement;
   const flat = rows.map((row): ChatListItem => ({ kind: 'row', key: row.key, row }));
   if (arrangement === undefined || arrangement.sections.length === 0) return flat;
@@ -194,11 +221,12 @@ export function searchConversations(
   roster: RosterView | undefined,
   action: HumanAttentionItem[],
   query: string,
+  unread: UnreadCounts = {},
 ): Conversation[] {
   const needle = searchKey(query);
   if (needle === '' || roster === undefined) return [];
   const rank = (row: Conversation): number => (searchKey(titleOf(row)).startsWith(needle) ? 0 : 1);
-  return conversations(roster, action)
+  return conversations(roster, action, unread)
     .filter((row) => searchKey(titleOf(row)).includes(needle))
     .map((row, index) => ({ row, index }))
     .sort((a, b) => rank(a.row) - rank(b.row) || a.index - b.index)

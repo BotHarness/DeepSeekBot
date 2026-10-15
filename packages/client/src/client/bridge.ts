@@ -2617,10 +2617,39 @@ export interface JournalPage {
   hasOlder: boolean;
 }
 
+export function parseStoredChannelMessage(value: unknown): ChannelMessage | undefined {
+  const parsed = parseChannelMessage(value);
+  if (parsed !== undefined) return parsed;
+  const record = asRecord(value);
+  const id = record?.['id'];
+  const at = record?.['at'];
+  const body = record?.['body'];
+  if (
+    typeof id !== 'string' ||
+    id.length === 0 ||
+    typeof at !== 'string' ||
+    at.length === 0 ||
+    typeof body !== 'string'
+  )
+    return undefined;
+  const revision = record?.['channelRevision'];
+  console.warn('botharness: showing an unreadable Channel message as plain text', id);
+  return {
+    id,
+    at,
+    author: parseAuthor(record?.['author']) ?? { kind: 'system' },
+    body,
+    format: 'text',
+    ...(typeof revision === 'number' && Number.isSafeInteger(revision) && revision >= 1
+      ? { channelRevision: revision }
+      : {}),
+  };
+}
+
 export function parseJournalEntry(value: unknown): JournalEntry | undefined {
   const record = asRecord(value);
   const revision = record?.['revision'];
-  const message = parseChannelMessage(record?.['message']);
+  const message = parseStoredChannelMessage(record?.['message']);
   if (
     typeof record?.['channelId'] !== 'string' ||
     typeof revision !== 'number' ||
@@ -2674,13 +2703,15 @@ export async function loadTimelinePage(
   );
   const revision = response?.['revision'];
   const raw = asRecord(response?.['page']);
-  const entries = raw?.['entries'];
+  const entries = Array.isArray(raw?.['entries'])
+    ? raw['entries'].map((entry: unknown) => parseStoredChannelMessage(entry))
+    : undefined;
   if (
     typeof revision !== 'number' ||
     !Number.isSafeInteger(revision) ||
     revision < 0 ||
-    !Array.isArray(entries) ||
-    !entries.every((entry) => parseChannelMessage(entry) !== undefined) ||
+    entries === undefined ||
+    entries.some((entry) => entry === undefined) ||
     !(raw?.['olderCursor'] === null || typeof raw?.['olderCursor'] === 'string') ||
     !(raw?.['newerCursor'] === null || typeof raw?.['newerCursor'] === 'string') ||
     typeof raw?.['hasOlder'] !== 'boolean' ||
@@ -2690,7 +2721,7 @@ export async function loadTimelinePage(
   return {
     revision,
     page: {
-      entries: entries.map((entry) => parseChannelMessage(entry)!),
+      entries: entries as ChannelMessage[],
       olderCursor: raw['olderCursor'] as string | null,
       newerCursor: raw['newerCursor'] as string | null,
       hasOlder: raw['hasOlder'],

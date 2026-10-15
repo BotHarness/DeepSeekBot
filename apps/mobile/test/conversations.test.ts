@@ -5,6 +5,7 @@ import type { HumanAttentionItem } from '../src/host/wire';
 import {
   chatList,
   conversations,
+  countBadge,
   searchConversations,
   shortTime,
   type ChatListItem,
@@ -87,6 +88,33 @@ describe('Home conversations', () => {
     expect(rows.find((row) => row.key === 'channel:team')?.needsYou).toBe(1);
   });
 
+  it('reads unread messages from the DM or the Channel, with needs you first', () => {
+    const rows = conversations(roster, [item({ id: '1', channelId: 'team' })], {
+      'dm-ada': 3,
+      team: 140,
+      'dm-cy': 9,
+    });
+    const ada = rows.find((row) => row.key === 'bot:ada')!;
+    const team = rows.find((row) => row.key === 'channel:team')!;
+    expect(ada.unread).toBe(3);
+    expect(countBadge(ada)).toEqual({ tone: 'unread', count: 3 });
+    expect(team.unread).toBe(140);
+    expect(countBadge(team)).toEqual({ tone: 'needs-you', count: 1 });
+    expect(rows.find((row) => row.key === 'bot:cy')?.unread).toBe(0);
+    expect(countBadge(rows.find((row) => row.key === 'bot:bo')!)).toBeUndefined();
+  });
+
+  it('gives a muted conversation the neutral chip', () => {
+    const muted = {
+      ...roster,
+      arrangement: { pins: [], hidden: [], muted: ['team'], sections: [], sectionOrder: [] },
+    };
+    const team = conversations(muted, [], { team: 4 }).find((row) => row.key === 'channel:team')!;
+    expect(team.muted).toBe(true);
+    expect(countBadge(team)).toEqual({ tone: 'muted', count: 4 });
+    expect(countBadge({ ...team, needsYou: 1 })).toEqual({ tone: 'needs-you', count: 1 });
+  });
+
   it('shows a clock time today and a date otherwise', () => {
     const now = new Date('2026-10-14T12:00:00');
     expect(shortTime(new Date('2026-10-14T09:05:00').toISOString(), now, 'en-GB')).toMatch(
@@ -133,7 +161,7 @@ const arranged: RosterView = {
 const shape = (items: ChatListItem[]) =>
   items.map((item) =>
     item.kind === 'section'
-      ? `[${item.id} ${item.count}${item.collapsed ? ' collapsed' : ''}${item.needsYou > 0 ? ` !${item.needsYou}` : ''}]`
+      ? `[${item.id} ${item.count}${item.collapsed ? ' collapsed' : ''}${item.needsYou > 0 ? ` !${item.needsYou}` : ''}${item.unread > 0 ? ` +${item.unread}` : ''}]`
       : item.key,
   );
 
@@ -175,6 +203,18 @@ describe('Chats grouped by Channel section', () => {
     expect(shape(chatList(arranged, action, new Set(['work'])))).toEqual([
       'channel:ops',
       '[work 3 collapsed !2]',
+      'bot:bo',
+      '[later 0]',
+      'bot:cy',
+    ]);
+  });
+
+  it('sums unread messages into a section, leaving muted conversations out', () => {
+    const muted = { ...arranged, arrangement: { ...arranged.arrangement!, muted: ['design'] } };
+    const unread = { team: 2, 'dm-ada': 5, design: 7, ops: 1 };
+    expect(shape(chatList(muted, [], new Set(['work']), unread))).toEqual([
+      'channel:ops',
+      '[work 3 collapsed +7]',
       'bot:bo',
       '[later 0]',
       'bot:cy',
@@ -234,6 +274,10 @@ describe('Search', () => {
   it('puts names that start with the query first', () => {
     expect(keys('ad')).toEqual(['bot:ada', 'bot:adam']);
     expect(keys('a')[0]).toBe('bot:ada');
+  });
+
+  it('carries unread counts into search results', () => {
+    expect(searchConversations(roster, [], 'team', { team: 2 })[0]?.unread).toBe(2);
   });
 
   it('finds nothing for an empty query or before the roster loads', () => {

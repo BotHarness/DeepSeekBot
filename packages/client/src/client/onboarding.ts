@@ -1,6 +1,7 @@
 import type { OnboardingSnapshot, TutorialAction } from '../../../core/src/onboarding/types.js';
 import type { BridgeActions } from './actions.js';
 import { errorMessage, type ModelRouteView } from './bridge.js';
+import { requestCreation } from './create-request.js';
 import { store } from './store.js';
 import { invalidateModelPlan } from './model-plan-store.js';
 import type { WindowCompanions } from './window-companions.js';
@@ -378,5 +379,5 @@ export function onboardingFor(actions: BridgeActions): OnboardingController {
   return controller;
 }
 export function requestBotCreation(): void {
-  document.dispatchEvent(new Event('botharness/create-bot'));
+  requestCreation('bot');
 }

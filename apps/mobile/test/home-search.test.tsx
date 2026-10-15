@@ -33,6 +33,7 @@ const roster: RosterView = {
 };
 
 vi.mock('react-native', () => import('./react-native-shim'));
+vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
 vi.mock('expo-router', () => {
   const Stack = () => null;
   Stack.Screen = () => null;

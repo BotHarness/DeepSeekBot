@@ -41,6 +41,7 @@ import { ChatTitle } from './chat-title';
 import { Composer } from './composer';
 import { EdgeFade, HeaderBackButton, systemGlassBar } from './header-chrome';
 import { useFollowLatest } from './follow-latest';
+import { useMarkRead } from './mark-read';
 import { ImageViewer } from './image-viewer';
 import { JumpToLatest } from './jump-to-latest';
 import { MessageActions } from './message-actions';
@@ -253,6 +254,15 @@ function ChatConversation({ place, focus }: { place: ChatPlace; focus: string | 
     [visible, resolutions, dm],
   );
   const latest = useFollowLatest(list, visible);
+  const readMount = useMarkRead(client, inbox, conversation, stopChannel, !latest.away);
+  const mountRef = dictation.mountRef;
+  const screenRef = useCallback(
+    (node: unknown) => {
+      mountRef(node);
+      readMount(node);
+    },
+    [mountRef, readMount],
+  );
 
   const asking = snapshot.messages.findLast(
     (message) => message.card?.kind === 'user-question' && !resolutions.has(message.id),
@@ -500,7 +510,7 @@ function ChatConversation({ place, focus }: { place: ChatPlace; focus: string | 
         }}
       />
       <KeyboardAvoidingView
-        ref={dictation.mountRef}
+        ref={screenRef}
         style={{ flex: 1, backgroundColor: theme.color.base }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >

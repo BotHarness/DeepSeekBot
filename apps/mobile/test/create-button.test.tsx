@@ -1,0 +1,138 @@
+// @vitest-environment jsdom
+import { act, type ReactNode } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+const { push, platform, showActionSheetWithOptions, alert } = vi.hoisted(() => ({
+  push: vi.fn(),
+  platform: { OS: 'ios' },
+  showActionSheetWithOptions: vi.fn(),
+  alert: vi.fn(),
+}));
+
+vi.mock('react-native', async () => ({
+  ...(await import('./react-native-shim')),
+  Platform: platform,
+  ActionSheetIOS: { showActionSheetWithOptions },
+  Alert: { alert },
+}));
+vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
+vi.mock('expo-router', () => {
+  const Stack = () => null;
+  Stack.Screen = () => null;
+  return { Redirect: () => null, Stack, useRouter: () => ({ push }) };
+});
+vi.mock('../src/host/host-session', () => ({
+  useHostSession: () => ({
+    saved: { hostId: 'h1', hostName: 'studio' },
+    client: undefined,
+    inbox: undefined,
+  }),
+  useHostSnapshot: () => ({
+    connection: { status: 'connected', route: '' },
+    roster: { bots: [], channels: [] },
+  }),
+  useInbox: () => ({ status: 'loading' }),
+}));
+vi.mock('../src/host/native-section-collapse', () => ({
+  sectionCollapse: { toggle: () => {} },
+  useCollapsedSections: () => new Set(),
+}));
+vi.mock('../src/host/native-host-look', () => ({ useHostLook: () => undefined }));
+vi.mock('../src/ui/shell/home-header', () => ({
+  HomeHeader: ({ actions, children }: { actions: ReactNode; children: ReactNode }) => (
+    <>
+      <header>{actions}</header>
+      {children}
+    </>
+  ),
+}));
+vi.mock('../src/ui/shell/host-drawer', () => ({
+  HostDrawerEdge: ({ children }: { children: ReactNode }) => children,
+}));
+vi.mock('../src/ui/shell/human-avatar', () => ({ HumanAvatarButton: () => null }));
+vi.mock('../src/ui/connection-banner', () => ({ ConnectionBanner: () => null }));
+
+import HomeScreen from '../app/(tabs)/(home)/index';
+import { t } from '../src/ui/strings';
+
+Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+
+let root: Root | undefined;
+let host: HTMLElement | undefined;
+afterEach(() => {
+  act(() => root?.unmount());
+  host?.remove();
+  root = undefined;
+  push.mockReset();
+  showActionSheetWithOptions.mockReset();
+  alert.mockReset();
+});
+
+async function home(os: 'ios' | 'android'): Promise<HTMLElement> {
+  platform.OS = os;
+  host = document.createElement('div');
+  document.body.append(host);
+  root = createRoot(host);
+  await act(async () => root!.render(<HomeScreen />));
+  return host;
+}
+
+const createButton = (view: HTMLElement) =>
+  view.querySelector<HTMLButtonElement>(`button[aria-label="${t.create}"]`);
+
+describe('Create from Chats', () => {
+  it('iOS: the header + button opens a menu whose choices open their create flow', async () => {
+    const view = await home('ios');
+    expect(view.querySelector('header')!.contains(createButton(view))).toBe(true);
+
+    const pick = async (index: number) => {
+      await act(async () => createButton(view)!.click());
+      const [options, choose] = showActionSheetWithOptions.mock.lastCall!;
+      expect(options).toEqual({
+        options: [t.newPersonaBot, t.newChannel, t.cancel],
+        cancelButtonIndex: 2,
+      });
+      await act(async () => choose(index));
+    };
+
+    await pick(0);
+    expect(push).toHaveBeenLastCalledWith({
+      pathname: '/full-client',
+      params: { target: 'new-bot' },
+    });
+    await pick(1);
+    expect(push).toHaveBeenLastCalledWith({
+      pathname: '/full-client',
+      params: { target: 'new-channel' },
+    });
+    await pick(2);
+    expect(push).toHaveBeenCalledTimes(2);
+  });
+
+  it('Android: the same header + button opens the same choices', async () => {
+    const view = await home('android');
+    const button = createButton(view)!;
+    expect(view.querySelector('header')!.contains(button)).toBe(true);
+
+    await act(async () => button.click());
+    const [title, message, buttons] = alert.mock.lastCall!;
+    expect(title).toBe(t.create);
+    expect(message).toBeUndefined();
+    expect(buttons.map((choice: { text: string }) => choice.text)).toEqual([
+      t.cancel,
+      t.newPersonaBot,
+      t.newChannel,
+    ]);
+    await act(async () => buttons[1].onPress());
+    expect(push).toHaveBeenLastCalledWith({
+      pathname: '/full-client',
+      params: { target: 'new-bot' },
+    });
+    await act(async () => buttons[2].onPress());
+    expect(push).toHaveBeenLastCalledWith({
+      pathname: '/full-client',
+      params: { target: 'new-channel' },
+    });
+  });
+});

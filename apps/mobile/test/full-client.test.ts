@@ -44,6 +44,8 @@ describe('full client in the app', () => {
       { kind: 'home' } as const,
       { kind: 'dm', slug: 'ada' } as const,
       { kind: 'channel', channelId: 'team' } as const,
+      { kind: 'new-bot' } as const,
+      { kind: 'new-channel' } as const,
       card,
     ])
       expect(fullClientTarget(fullClientParams(target))).toEqual(target);

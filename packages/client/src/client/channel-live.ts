@@ -6,6 +6,7 @@ import {
 import { parseContentRedactions } from './content-redactions.js';
 import {
   parseChannelMessage,
+  parseStoredChannelMessage,
   parseReactions,
   type JournalEntry,
   type JournalPage,
@@ -42,7 +43,7 @@ function parseFrame(value: unknown): ChannelFrame | undefined {
   if (typeof decoded !== 'object' || decoded === null) return undefined;
   const record = decoded as Record<string, unknown>;
   const revision = record['revision'];
-  const message = parseChannelMessage(record['message']);
+  const message = parseStoredChannelMessage(record['message']);
   if (
     typeof record['channelId'] !== 'string' ||
     typeof revision !== 'number' ||

@@ -5,29 +5,33 @@ import { useDesignTheme } from '../design/theme';
 import { Text } from '../primitives/text';
 import { ChevronDownIcon, ChevronRightIcon } from '../shell/icons';
 import { t } from '../strings';
-import { NeedsYouBadge } from './conversation-row';
+import { CountBadge } from '../primitives/count-badge';
+import { countBadge } from './conversations';
 
 export function SectionHeader({
   name,
   count,
   needsYou,
+  unread,
   collapsed,
   onToggle,
 }: {
   name: string;
   count: number;
   needsYou: number;
+  unread: number;
   collapsed: boolean;
   onToggle(): void;
 }) {
   const theme = useDesignTheme();
   const Chevron = collapsed ? ChevronRightIcon : ChevronDownIcon;
+  const badge = collapsed ? countBadge({ needsYou, unread, muted: false }) : undefined;
   return (
     <Pressable
       onPress={onToggle}
       accessibilityRole="button"
       accessibilityState={{ expanded: !collapsed }}
-      accessibilityLabel={t.sectionLabel(name, count, needsYou)}
+      accessibilityLabel={t.sectionLabel(name, count, needsYou, unread)}
       style={({ pressed }) => ({
         flexDirection: 'row',
         alignItems: 'center',
@@ -46,7 +50,7 @@ export function SectionHeader({
         {count}
       </Text>
       <View style={{ flex: 1 }} />
-      {collapsed && needsYou > 0 ? <NeedsYouBadge count={needsYou} /> : null}
+      {badge === undefined ? null : <CountBadge count={badge.count} tone={badge.tone} />}
     </Pressable>
   );
 }

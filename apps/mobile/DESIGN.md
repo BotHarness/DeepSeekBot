@@ -25,7 +25,7 @@ The shell is set by [ADR-0211](../../docs/adr/0211-the-mobile-app-has-two-tabs-w
     - A custom colour goes through the accent band's steps, so dark mode mutes it the same way. The ink is white or near-black, whichever reads on every stop; a picture always takes white ink with a soft shadow.
 - **Host drawer** switches Hosts. It slides in from the left, covers about 85% of the width and dims the list behind it.
   - Like Slack's workspace drawer it has three parts on the `sheet` layer: a fixed "Computers" header, a scrolling list of Hosts, and a fixed footer with **Pair a new computer** (opens the pairing flow) and **Notifications** (opens notification settings), separated from the list by a divider.
-  - Each Host row has its Computer avatar tile (the same tile as the Host chip; the current Host's tile has an `fg` ring at radius `lg`, concentric with the tile, as Slack marks the current workspace), its name, an online/offline/checking dot and label, then one count badge on the right: a rounded rectangle at radius `sm` with the number centred in tabular figures, capped at 99+. It shows **Needs you** (`warning` fill, the count only) when anything waits for the Human, because that matters most; otherwise it shows **Unread** (`accent` fill, the count of unread conversations only). A ⋯ button at the end opens the Host's menu: Show this computer and Unpair, which asks for confirmation.
+  - Each Host row has its Computer avatar tile (the same tile as the Host chip; the current Host's tile has an `fg` ring at radius `lg`, concentric with the tile, as Slack marks the current workspace), its name, an online/offline/checking dot and label, then one **count chip** on the right (see Count chip below). It shows **Needs you** when anything waits for the Human, because that matters most; otherwise it shows **Unread**, the count of unread conversations. A ⋯ button at the end opens the Host's menu: Show this computer and Unpair, which asks for confirmation.
   - The Host chip opens it, and so does a swipe right from the left edge of a tab's root screen. The edge swipe is never attached inside a pushed chat, where it stays the system Back.
   - Tapping a Host switches to it and closes the drawer. Tapping the backdrop or swiping left closes it.
   - It takes screen-reader focus when it opens and returns focus to the Host chip when it closes. With Reduce Motion on it appears without sliding.
@@ -38,8 +38,8 @@ The shell is set by [ADR-0211](../../docs/adr/0211-the-mobile-app-has-two-tabs-w
   - Android keeps two Material 3 tabs on `base`: like Slack, the selected tab is the foreground colour with a pill behind its icon (the Material indicator), and the others are muted.
   - The web preview draws a floating translucent capsule with the two tabs, standing in for the glass, with the selection bubble behind the whole item (icon and label) as iOS draws it.
 - **Chats** shows the current Host:
-  - The header has the Host chip on the left, and on the right a compose button and the Human's avatar.
-    - Compose opens a native menu: **New PersonaBot** and **New Channel**. They open the app's create flow, or the full client where the app has none yet. Android has no compose button in the header; a Material FAB at the bottom right, above the tab bar, opens the same menu.
+  - The header has the Host chip on the left, and on the right a **+** button and the Human's avatar, on both iOS and Android.
+    - **+** is a round button on the `raised` layer fill, the same size as the avatar, so it stays visible on any Host band. It opens a native menu: **New PersonaBot** and **New Channel**. They open the app's create flow, or the full client where the app has none yet.
     - The avatar opens **Settings**. Until the Human has an avatar of their own it shows their initial on a neutral layer fill.
   - A **search field** at the top of the list panel, inset so its left edge lines up with the row avatars (`AVATAR_EDGE`), with corners concentric with the panel's rounded top: the field uses `radius.md` and the panel `radius.md + AVATAR_EDGE`. It scrolls away with the list. There are no shortcut cards: Activity already gathers what needs the Human.
   - One list of PersonaBot DMs and Channels together, grouped by the Host's **Channel sections** as on the desktop sidebar:
@@ -70,9 +70,16 @@ The shell is set by [ADR-0211](../../docs/adr/0211-the-mobile-app-has-two-tabs-w
 - A 48pt avatar: the Bot's round avatar with its state ring, or a rounded square with `#` for a Channel.
 - First line: title, IM channel badges and time.
 - Second line: a one-line preview.
-- "Needs you" (a warning `!`, with the count when more than one) takes priority over unread (an accent count).
+- One count chip at the end of the preview line: **Needs you** (how many requests wait for the Human) takes priority over **Unread** (how many messages arrived since the Human last read the conversation, from the Host's `channelUnreadCounts`). A muted conversation's unread count uses the neutral tone.
+- A collapsed Channel section shows one count chip for everything inside it: Needs you first, otherwise the unread sum, leaving muted conversations out.
+- Opening a conversation marks it read on the Host (`channelMarkRead`) whenever the Human is at the newest message, so the chip clears on the phone and on desktop.
 - A working Bot's preview reads "Working…".
 - Swipe for pin and mute; long-press opens a native menu.
+
+**Count chip**
+
+- One shared primitive (`CountBadge`) for every count in a list row: a rounded rectangle at radius `sm`, `type.meta.line + space.x3` tall and at least as wide, padded `space.x3`, with the number centred in `meta` strong tabular figures and capped at 99+.
+- Tones: **Needs you** is `warning` with `fg` ink (`base` in dark); **Unread** is `accent` with `onAccent` ink; **Muted** is `inset` with `muted` ink.
 
 **Chat**
 
@@ -165,7 +172,7 @@ Each layer has `fill`, `pressed`, `selected` (neutral, such as the current tab),
 ## Components
 
 - `src/ui/design/` holds the tokens and theme (ADR-0201).
-- `src/ui/primitives/` holds `Text` (variant `meta` / `body` / `title`, and a tone that is a colour role), `Button`, `Toggle`, `SettingsRow`, `SettingsSection` and `SettingsGroupItem`, and later `Icon`, `IconButton`, `Button`, `Avatar`, `Badge`, `Card`, `SettingsRow` and `EmptyState`.
+- `src/ui/primitives/` holds `Text` (variant `meta` / `body` / `title`, and a tone that is a colour role), `Button`, `Toggle`, `SettingsRow`, `SettingsSection` and `SettingsGroupItem`, `CountBadge`, and later `Icon`, `IconButton`, `Button`, `Avatar`, `Card`, `SettingsRow` and `EmptyState`.
 - `src/ui/chat/` will hold the conversation row, bubble, message group, time separator, action cards, composer, working row and scroll-to-bottom.
 - `src/ui/shell/` will hold the Host drawer, the Human avatar button, shortcut cards, Channel section headers and the activity item.
 - `app/` routes, reads the Host client, and composes these components.

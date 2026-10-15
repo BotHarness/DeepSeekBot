@@ -149,6 +149,7 @@ import {
 } from './section-management.js';
 import { store, type BotSummary, type ChannelSummary, type ClientState } from './store.js';
 import { useMountedResource } from './mounted-resource.js';
+import { onCreationRequest } from './create-request.js';
 
 export function useClientState(): ClientState {
   return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
@@ -1006,11 +1007,13 @@ export function BotSidebar({
   const [unpinZoneArmed, setUnpinZoneArmed] = useState(false);
   const [unpinZoneHovered, setUnpinZoneHovered] = useState(false);
   const [createRequest, setCreateRequest] = useState<CreateRequest | undefined>(undefined);
-  const createFromWelcome = useMountedResource<HTMLSpanElement>(() => {
-    const create = (): void => setCreateRequest({ kind: 'bot', source: 'empty' });
-    document.addEventListener('botharness/create-bot', create);
-    return () => document.removeEventListener('botharness/create-bot', create);
-  }, []);
+  const createFromWelcome = useMountedResource<HTMLSpanElement>(
+    () =>
+      onCreationRequest((intent) =>
+        setCreateRequest(intent === 'bot' ? { kind: 'bot', source: 'empty' } : { kind: 'channel' }),
+      ),
+    [],
+  );
   const [renameTarget, setRenameTarget] = useState<RosterSection | undefined>(undefined);
   const [deleteTarget, setDeleteTarget] = useState<RosterSection | undefined>(undefined);
   const searchInput = useRef<HTMLInputElement | null>(null);

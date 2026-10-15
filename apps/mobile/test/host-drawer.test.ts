@@ -6,13 +6,13 @@ import type { SavedHost } from '../src/host/hosts';
 import type { InboxSnapshot } from '../src/host/inbox';
 import type { HumanAttentionItem } from '../src/host/wire';
 import {
-  badgeCount,
   createHostDrawer,
   drawerWidth,
   hostDrawerRows,
   hostRowBadge,
   settleOpen,
 } from '../src/ui/shell/host-drawer-model';
+import { badgeCount } from '../src/ui/primitives/badge-count';
 
 const host = (hostId: string, hostName: string): SavedHost => ({
   hostId,

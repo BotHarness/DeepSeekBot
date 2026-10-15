@@ -53,3 +53,11 @@ it('round-trips the full-client landing targets the phone app opens', () => {
   expect(fullClientLocator('#botharness-open=dm:%')).toBeUndefined();
   expect(fullClientLocator('#botharness-open=settings')).toBeUndefined();
 });
+
+it('round-trips the create targets behind the phone app compose button', () => {
+  expect(fullClientLocator(fullClientHash({ kind: 'new-bot' }))).toEqual({ kind: 'new-bot' });
+  expect(fullClientLocator(fullClientHash({ kind: 'new-channel' }))).toEqual({
+    kind: 'new-channel',
+  });
+  expect(fullClientLocator('#botharness-open=new:section')).toBeUndefined();
+});
