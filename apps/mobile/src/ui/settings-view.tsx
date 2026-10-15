@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 
 import type { ConnectionState } from '../host/client';
@@ -48,11 +48,6 @@ export function SettingsView({
   const theme = useDesignTheme();
   const [unpairError, setUnpairError] = useState<string>();
   const [versionCopied, setVersionCopied] = useState(false);
-  useEffect(() => {
-    if (!versionCopied) return;
-    const timer = setTimeout(() => setVersionCopied(false), 1500);
-    return () => clearTimeout(timer);
-  }, [versionCopied]);
   const status = [STATUS[connection.status], connection.route].filter((part) => part !== '');
   return (
     <ScrollView
@@ -142,6 +137,7 @@ export function SettingsView({
               : () => {
                   actions.onCopyVersion(version);
                   setVersionCopied(true);
+                  setTimeout(() => setVersionCopied(false), 1500);
                 }
           }
         />

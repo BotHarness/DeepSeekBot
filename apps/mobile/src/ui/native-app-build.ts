@@ -3,8 +3,6 @@ import { Platform } from 'react-native';
 
 import type { AppBuild } from './app-build';
 
-// Metro inlines EXPO_PUBLIC_BUILD_* when it bundles (see metro.config.js), so the commit names
-// the JavaScript that is running, which is what a test build is told apart by.
 export function currentAppBuild(): AppBuild {
   const config = Constants.expoConfig;
   const buildNumber =

@@ -2,8 +2,6 @@ const { execFileSync } = require('node:child_process');
 const path = require('node:path');
 const { getDefaultConfig } = require('expo/metro-config');
 
-// Settings → About shows which commit the running JavaScript was bundled from. EAS builds have
-// no .git, so they fall back to the commit EAS records.
 function git(...args) {
   try {
     return execFileSync('git', args, {
@@ -30,8 +28,6 @@ if (process.env.EXPO_PUBLIC_BUILD_BRANCH === undefined) {
 }
 
 const config = getDefaultConfig(__dirname);
-// Production bundles inline EXPO_PUBLIC_* into Metro's transform cache, so a new commit has to
-// miss that cache. Development reads them at serialize time and keeps its cache.
 if (process.env.NODE_ENV === 'production') {
   config.cacheVersion = [
     config.cacheVersion,
