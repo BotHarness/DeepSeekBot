@@ -247,7 +247,7 @@ const en = {
   notifications: 'Notifications',
   notificationsChannel: 'Requests from PersonaBots',
   notificationsHint:
-    'Get a notification when a PersonaBot needs you. It names the PersonaBot and what it needs, never the message, the command or the question.',
+    'Get a notification when a PersonaBot needs you or replies to you. It shows the Channel, what the PersonaBot needs, and a short preview of the command, question or message. Private input requests never show their content.',
   notificationsOn: (host: string) => `Notifications from ${host} are on.`,
   notificationsOff: 'Notifications are off for this phone.',
   notificationsDenied: 'Notifications are turned off for DeepSeekBot in the phone settings.',
@@ -697,7 +697,7 @@ const zh: typeof en = {
   notifications: '通知',
   notificationsChannel: 'PersonaBot 的请求',
   notificationsHint:
-    'PersonaBot 需要你时发通知。通知只写是哪个 PersonaBot、需要什么，不包含消息、命令或问题内容。',
+    'PersonaBot 需要你或回复你时发通知。通知显示所在频道、PersonaBot 需要什么，以及命令、问题或消息的简短预览。私密输入请求不显示内容。',
   notificationsOn: (host: string) => `已开启来自 ${host} 的通知。`,
   notificationsOff: '这台手机的通知已关闭。',
   notificationsDenied: '手机设置里关闭了 DeepSeekBot 的通知。',

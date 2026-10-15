@@ -1105,6 +1105,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       source: humanInboxPushSource(
         core.humanAttention,
         (slug) => core.registry.get(slug)?.displayName,
+        (channelId, messageId) => core.channels.message(channelId, messageId)?.toolApprovalRequest,
       ),
       watch: (changed) => {
         const offDatabase = core.operationalDatabase.subscribe(({ topics }) => {

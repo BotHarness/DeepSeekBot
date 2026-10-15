@@ -28,6 +28,8 @@ export interface PushCandidate {
   createdAt: string;
   channelId?: string;
   messageId?: string;
+  channelName?: string;
+  preview?: string;
 }
 
 export interface PushSource {
@@ -164,6 +166,31 @@ const TITLES: Record<PushLocale, Record<PushKind | 'channel-mention', (bot: stri
   },
 };
 
+const LEADS: Record<
+  PushLocale,
+  Record<PushKind | 'channel-mention', (bot: string | undefined) => string>
+> = {
+  en: {
+    approval: (bot) => (bot === undefined ? 'Needs your approval' : `${bot} needs your approval`),
+    question: (bot) =>
+      bot === undefined ? 'Has a question for you' : `${bot} has a question for you`,
+    'private-input': (bot) =>
+      bot === undefined ? 'Needs private input from you' : `${bot} needs private input from you`,
+    reply: (bot) => bot ?? '',
+    'channel-mention': (bot) => bot ?? '',
+  },
+  zh: {
+    approval: (bot) => (bot === undefined ? '需要你审批' : `${bot} 需要你审批`),
+    question: (bot) => (bot === undefined ? '有问题问你' : `${bot} 有问题问你`),
+    'private-input': (bot) =>
+      bot === undefined ? '需要你提供私密输入' : `${bot} 需要你提供私密输入`,
+    reply: (bot) => bot ?? '',
+    'channel-mention': (bot) => bot ?? '',
+  },
+};
+
+const SEPARATOR: Record<PushLocale, string> = { en: ': ', zh: '：' };
+
 const TEST: Record<PushLocale, { title: string; body: (host: string) => string }> = {
   en: { title: 'Notifications are on', body: (host) => `Sent from ${host}.` },
   zh: { title: '通知已开启', body: (host) => `来自 ${host}。` },
@@ -173,9 +200,23 @@ function localeOf(value: unknown): PushLocale {
   return value === 'zh' ? 'zh' : 'en';
 }
 
-function title(candidate: PushCandidate, bot: string, locale: PushLocale): string {
+function text(
+  candidate: PushCandidate,
+  bot: string,
+  locale: PushLocale,
+): { title: string; body: string } {
   const key = candidate.attentionKind === 'channel-mention' ? 'channel-mention' : candidate.kind;
-  return TITLES[locale][key](bot);
+  const lead = LEADS[locale][key](candidate.channelName === undefined ? undefined : bot);
+  const body =
+    candidate.preview === undefined
+      ? lead
+      : lead === ''
+        ? candidate.preview
+        : `${lead}${SEPARATOR[locale]}${candidate.preview}`;
+  return {
+    title: candidate.channelName === undefined ? bot : `#${candidate.channelName}`,
+    body: body === '' ? TITLES[locale][key](bot) : body,
+  };
 }
 
 export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
@@ -297,7 +338,7 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
       const notify = fresh.filter((item) => preferences[item.kind]);
       const messages: ExpoMessage[] = notify.map((item) => ({
         to: device.token,
-        title: title(item, source.botName(item.botSlug) ?? item.botSlug, localeOf(device.locale)),
+        ...text(item, source.botName(item.botSlug) ?? item.botSlug, localeOf(device.locale)),
         sound: 'default',
         badge,
         priority: 'high',

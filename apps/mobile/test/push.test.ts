@@ -265,7 +265,8 @@ describe('push registration with a real Host gateway', () => {
     expect(h.sent).toEqual([
       expect.objectContaining({
         to: 'ExponentPushToken[phone-token-0001]',
-        title: 'Ada needs your approval',
+        title: 'Ada',
+        body: 'Needs your approval',
         data: expect.objectContaining({ hostId: h.saved.hostId, itemId: 'approval:1' }),
       }),
     ]);
