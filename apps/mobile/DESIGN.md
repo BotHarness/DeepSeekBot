@@ -76,12 +76,12 @@ The shell is set by [ADR-0211](../../docs/adr/0211-the-mobile-app-has-two-tabs-w
 
 **Chat**
 
-- Header: transparent, with no fill of its own, so the messages scroll under it. Back on the left, the Bot's computer on the right, and a centered chip that opens the Bot profile.
+- Header: filled with `base`, the same colour as the chat, so it reads as no bar at all. Back on the left, the Bot's computer on the right, and a centered chip that opens the Bot profile.
   - The chip is a full-round pill on `raised` with a hairline `edge`, so it stays readable over the messages. In one row it holds the Bot's avatar (no state ring), its name, and a state dot: `success` when idle, `accent` while thinking or working, `warning` when it waits for the Human, `danger` when blocked, `muted` when paused. The state is read out in the chip's accessibility label.
   - The chip's padding is concentric with its corners: it is `theme.touch` tall, so its corner radius is half that, and the avatar and the dot each sit that same distance from their end of the pill (padding = corner radius − the item's own radius).
   - Back and the computer button are round buttons of `theme.touch`. On iOS 26 they are the system's Liquid Glass bar buttons; elsewhere they are drawn as circles on `raised` with a hairline `edge`, like the chip.
-  - Messages fade out under the header and the status bar: a static gradient from `base` to transparent covers the header and a little below it, on every platform. UIKit's scroll edge effects are turned off (`scrollEdgeEffects` all `hidden`): on the inverted list they did not show at the top on iOS 26. There is no live blur, because a blur view over a scrolling list re-renders every frame and needs a native module.
-  - The list leaves the header's height free at its top, so the oldest message still clears the header.
+  - The header is not `headerTransparent`. With a transparent header on iOS 26, UIKit puts a dimming overlay over the whole inverted message list, and turning the scroll edge effects off on the screen does not remove it. So the list starts below the header.
+  - Messages fade out at the top of the list, just under the header: a static gradient from `base` to transparent (`edgeFade.top` tall) on every platform, and the list keeps that much space above the oldest message. UIKit's scroll edge effects stay off (`scrollEdgeEffects` all `hidden`). There is no live blur, because a blur view over a scrolling list re-renders every frame and needs a native module.
   - The same fade runs at the bottom of the list, just above the composer: a static `base` gradient (`edgeFade.bottom` tall) on every platform, and the list keeps that much space below the newest message so it rests clear of the fade.
 - Messages:
   - An inverted list. Messages from the same author within 5 minutes form a group, and a time separator appears after a 30-minute gap.
@@ -125,7 +125,7 @@ The shell is set by [ADR-0211](../../docs/adr/0211-the-mobile-app-has-two-tabs-w
       3. **Auto approval template**: Off, Cautious and Get the work done (plus any other template on the Host), each with its one-line hint, the current one checked.
   - The mic dictates with the phone's speech recognizer, and the words fill the field so the Human edits them before sending. Like Telegram's voice button: hold the mic to talk and release to stop; while holding, a lock appears above the mic: slide left to cancel or up to lock. A tap works like a lock: it keeps listening until **■** stops it or the **×** that replaces **+** cancels it and clears the text. Dictation stays in the same row, and its status shows as the field's placeholder. A refused microphone or speech permission shows a notice and leaves the mic in place.
 - A group Channel opens the same chat screen, with these differences:
-  - The header is the same transparent header. Its centered chip, on `raised` with a hairline `edge` like the Bot chip, holds a round `#` mark, the Channel name and its member count; it opens nothing, since there is no profile. The full client button sits on the right.
+  - The header is the same `base` header. Its centered chip, on `raised` with a hairline `edge` like the Bot chip, holds a round `#` mark, the Channel name and its member count; it opens nothing, since there is no profile. The full client button sits on the right.
   - The first bubble of each Bot's group, and each Bot's streaming draft, carry the Bot's name above it in `meta`. A different Bot starts a new group even within 5 minutes.
   - `accent` stays the app's accent, since no one Bot owns the chat.
   - Each working member Bot gets its own working row, and its **Stop** stops that Bot in this Channel.

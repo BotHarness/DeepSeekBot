@@ -472,8 +472,7 @@ function ChatConversation({ place, focus }: { place: ChatPlace; focus: string | 
           headerLargeTitle: false,
           headerTitleAlign: 'center',
           headerShadowVisible: false,
-          headerTransparent: true,
-          headerStyle: { backgroundColor: 'transparent' },
+          headerStyle: { backgroundColor: theme.color.base },
           scrollEdgeEffects: { top: 'hidden', bottom: 'hidden', left: 'hidden', right: 'hidden' },
           ...(systemGlassBar
             ? {}
@@ -503,6 +502,7 @@ function ChatConversation({ place, focus }: { place: ChatPlace; focus: string | 
         ref={dictation.mountRef}
         style={{ flex: 1, backgroundColor: theme.color.base }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={headerHeight}
       >
         {notice === undefined ? null : (
           <Text
@@ -510,7 +510,6 @@ function ChatConversation({ place, focus }: { place: ChatPlace; focus: string | 
             variant="meta"
             tone="warning"
             style={{
-              marginTop: headerHeight,
               backgroundColor: theme.color.warningSoft,
               paddingHorizontal: space.x5,
               paddingVertical: space.x3,
@@ -526,7 +525,7 @@ function ChatConversation({ place, focus }: { place: ChatPlace; focus: string | 
             style={{ flex: 1 }}
             contentContainerStyle={{
               paddingTop: edgeFade.bottom,
-              paddingBottom: (notice === undefined ? headerHeight : 0) + space.x3,
+              paddingBottom: edgeFade.top,
             }}
             data={rows}
             keyExtractor={(row) => row.key}
@@ -599,6 +598,7 @@ function ChatConversation({ place, focus }: { place: ChatPlace; focus: string | 
               ) : null
             }
           />
+          <EdgeFade edge="top" height={edgeFade.top} />
           <EdgeFade edge="bottom" height={edgeFade.bottom} />
           {latest.away ? (
             <View
@@ -649,7 +649,6 @@ function ChatConversation({ place, focus }: { place: ChatPlace; focus: string | 
           onCancelDictation={dictation.cancel}
         />
       </KeyboardAvoidingView>
-      <EdgeFade edge="top" height={headerHeight + edgeFade.extend} />
       <ImageViewer attachment={viewing} onClose={() => setViewing(undefined)} onShare={share} />
       <MessageActions
         message={actionsFor}
