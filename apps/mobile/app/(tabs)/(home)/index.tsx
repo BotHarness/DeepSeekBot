@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, RefreshControl, View } from 'react-native';
 
 import { useHostSession, useHostSnapshot, useInbox } from '../../../src/host/host-session';
+import { loadHumanName } from '../../../src/host/human';
 import { ConversationRow } from '../../../src/ui/chat/conversation-row';
 import {
   conversations,
@@ -13,6 +14,7 @@ import { ConnectionBanner } from '../../../src/ui/connection-banner';
 import { space } from '../../../src/ui/design/tokens';
 import { Text } from '../../../src/ui/primitives/text';
 import { HomeHeader } from '../../../src/ui/shell/home-header';
+import { HumanAvatarButton } from '../../../src/ui/shell/human-avatar';
 import { ShortcutCards } from '../../../src/ui/shell/shortcut-cards';
 import { t } from '../../../src/ui/strings';
 import type { HumanAttentionItem } from '../../../src/host/wire';
@@ -24,6 +26,11 @@ export default function HomeScreen() {
   const { saved, client, inbox } = useHostSession();
   const snapshot = useHostSnapshot(client);
   const list = useInbox(inbox);
+  const connected = snapshot.connection.status === 'connected';
+  const loadName = useMemo(
+    () => (client === undefined || !connected ? undefined : () => loadHumanName(client)),
+    [client, connected],
+  );
   const [filter, setFilter] = useState<ConversationFilter>('all');
   const [refreshing, setRefreshing] = useState(false);
   const action = list.status === 'ready' ? list.sections.action : NONE;
@@ -51,7 +58,10 @@ export default function HomeScreen() {
   return (
     <>
       <Stack.Screen options={{ title: saved.hostName, headerShown: false }} />
-      <HomeHeader hostName={saved.hostName}>
+      <HomeHeader
+        hostName={saved.hostName}
+        actions={<HumanAvatarButton loadName={loadName} onPress={() => router.push('/settings')} />}
+      >
         <FlatList
           data={rows}
           contentInsetAdjustmentBehavior="automatic"

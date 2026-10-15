@@ -4,20 +4,20 @@ The phone app keeps every paired computer and shows one. A push notification nam
 
 ## Sub-features
 
-- `switch` changes the shown computer from the Home header (the "<name>, switch computer" button) or Me → Computers; the current row is selected ("Showing").
-- `permission` shows Me → Notifications as off, denied (with "Open phone settings"), unavailable (a build without an EAS projectId), or on, with a switch per kind and "Send a test notification".
+- `switch` changes the shown computer from the Home header (the "<name>, switch computer" button) or Settings (the avatar at the top right of Chats) → Computers; the current row is selected ("Showing").
+- `permission` shows Settings → Notifications as off, denied (with "Open phone settings"), unavailable (a build without an EAS projectId), or on, with a switch per kind and "Send a test notification".
 - `tap` routes a notification: a Tool approval or question opens the request (`/inbox/[id]`, or the card in the Bot's DM when the shown computer's Roster has that DM), a reply opens the DM, and a test or badge-only notification opens Activity. A notification for another computer switches first.
 - `badge` sets the app badge to the shown computer's unresolved actions and dismisses banners for items no longer unresolved whenever the shown computer's Inbox changes.
 - `register` stores one Expo push token per device on the Host (`/botharness-device/push/register`); revoking the device deletes it, and the Host log records `push phase=…` lines without the token.
 
 ## How to get to it (user POV)
 
-- Phone: pair a second computer from Me → Computers → "Pair a new computer"; switch from the Home header. Me → Notifications holds the permission state, the switches and the test button.
+- Phone: pair a second computer from Settings → Computers → "Pair a new computer"; switch from the Chats header. Settings → Notifications holds the permission state, the switches and the test button.
 - Notification: approve a Tool call by tapping the banner, then Allow once.
 
 ## Driving it with verify-app
 
-- **Native app (Mac, default).** `node scripts/e2e-mobile-sim.mjs` creates its own Simulator, starts Metro on a free port, builds and installs the development build, launches two isolated Hosts (Mac A with Ada, Mac B with Bea), pairs with both by deep link, checks Me → Notifications, switches computers both ways, makes Ada ask for a real Tool approval, taps its notification while Mac B is shown, taps Allow once and checks the command ran, then taps a test and a badge-only notification. It prints JSON with `"result":"pass"`; screenshots and Maestro output go to `.humanlayer/verify/mobile-sim/evidence/`. `--app <path.app>` installs an existing build instead of building (the first run prints the path), `--no-approval` skips the model step, `--keep` leaves the Simulator, Metro and Hosts running, `--device <name>` picks another iPhone. The flows are in `apps/mobile/.maestro/sim/`.
+- **Native app (Mac, default).** `node scripts/e2e-mobile-sim.mjs` creates its own Simulator, starts Metro on a free port, builds and installs the development build, launches two isolated Hosts (Mac A with Ada, Mac B with Bea), pairs with both by deep link, checks Settings → Notifications, switches computers both ways, makes Ada ask for a real Tool approval, taps its notification while Mac B is shown, taps Allow once and checks the command ran, then taps a test and a badge-only notification. It prints JSON with `"result":"pass"`; screenshots and Maestro output go to `.humanlayer/verify/mobile-sim/evidence/`. `--app <path.app>` installs an existing build instead of building (the first run prints the path), `--no-approval` skips the model step, `--keep` leaves the Simulator, Metro and Hosts running, `--device <name>` picks another iPhone. The flows are in `apps/mobile/.maestro/sim/`.
 - **Host side.** `apps/mobile/test/push.test.ts` and `packages/core/test/push-delivery.test.ts` cover registration, preferences, the content-free payload, receipts and revoke. By hand: redeem an offer at `/botharness-device/pair`, `POST /botharness-device/push/register` with `{"token":"ExponentPushToken[…]","platform":"ios","locale":"en"}` and the `Authorization: Device …` header, revoke the device, then check `push_devices` in `<home>/botharness/botharness.db` and the `push` rows in `<home>/botharness/logs.db`.
 
 ## Gotchas

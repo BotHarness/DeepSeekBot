@@ -5,7 +5,7 @@ import { actionCount } from '../../src/host/inbox';
 import { useHostSession, useInbox } from '../../src/host/host-session';
 import { glassShadow, glassTint, useDesignTheme } from '../../src/ui/design/theme';
 import { edge, glass, radius, space } from '../../src/ui/design/tokens';
-import { ActivityIcon, HomeIcon, MeIcon } from '../../src/ui/shell/icons';
+import { ActivityIcon, ChatsIcon } from '../../src/ui/shell/icons';
 import { t } from '../../src/ui/strings';
 
 export default function TabsLayout() {
@@ -34,7 +34,9 @@ export default function TabsLayout() {
           borderColor: theme.color.border,
           borderTopColor: theme.color.border,
           backgroundColor: glassTint(theme.color.base),
-          ...({ backdropFilter: `blur(${glass.blur}px) saturate(${glass.saturate}%)` } as object),
+          ...({
+            backdropFilter: `blur(${glass.blur}px) saturate(${glass.saturate}%)`,
+          } as object),
           boxShadow: glassShadow(theme.scheme),
         },
         tabBarItemStyle: { borderRadius: radius.round, overflow: 'hidden' },
@@ -42,7 +44,7 @@ export default function TabsLayout() {
         sceneStyle: { backgroundColor: theme.color.base },
       }}
     >
-      <Tabs.Screen name="(home)" options={{ title: t.home, tabBarIcon: HomeIcon }} />
+      <Tabs.Screen name="(home)" options={{ title: t.chats, tabBarIcon: ChatsIcon }} />
       <Tabs.Screen
         name="(activity)"
         options={{
@@ -51,7 +53,6 @@ export default function TabsLayout() {
           ...(pending > 0 ? { tabBarBadge: pending } : {}),
         }}
       />
-      <Tabs.Screen name="(me)" options={{ title: t.me, tabBarIcon: MeIcon }} />
     </Tabs>
   );
 }

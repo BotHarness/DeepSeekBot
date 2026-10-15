@@ -36,6 +36,16 @@ export default function RootLayout() {
               sheetGrabberVisible: true,
             }}
           />
+          <Stack.Screen
+            name="settings"
+            options={{
+              title: t.settings,
+              headerShown: false,
+              presentation: 'formSheet',
+              sheetAllowedDetents: [1],
+              sheetGrabberVisible: true,
+            }}
+          />
           <Stack.Screen name="pair" options={{ title: t.pairTitle, presentation: 'modal' }} />
           <Stack.Screen name="inbox/[id]" options={{ title: t.inbox }} />
           <Stack.Screen name="notifications" options={{ title: t.notifications }} />

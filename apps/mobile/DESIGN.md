@@ -9,20 +9,20 @@ References:
 | Manus     | The chat: one Bot is one contact, the conversation reads like IM, and action cards sit in the chat.                                                                                          |
 | Grok Bot  | Bots and group chats in one list, with separate "needs you" and "new result" states. Approval cards with **Allow once / Always allow / Deny**, and the Human taking over the Bot's computer. |
 | Meta Muse | A Bot profile whose identity and memory are visible and editable.                                                                                                                            |
-| Slack     | Workspace switching, a row of shortcut cards on Home, an Activity feed with filters, and agent steps with a Stop button.                                                                     |
+| Slack     | Workspace switching, a row of shortcut cards on Chats, an Activity feed with filters, and agent steps with a Stop button.                                                                    |
 
 ## Structure
 
 - **Hosts are workspaces.** Each paired computer is a Host.
   - The app stays connected to every paired Host at once.
-  - Home and chats show one Host at a time. Home has a Slack-style header band in the accent colour (a muted accent in dark mode) with the Host's initial tile, the Host name and ▾; tap it to open the Host switcher. The list sits on a panel with rounded top corners below it. The switcher lists each Host with its status and pending count, plus "Pair a new computer".
-- **Tabs** are native (`NativeTabs`): **Home**, **Activity** and **Me**.
+  - Chats and each chat show one Host at a time. Chats has a Slack-style header band in the accent colour (a muted accent in dark mode) with the Host's initial tile, the Host name and ▾ on the left (tap it to open the Host switcher) and an action cluster on the right that starts with the Human's avatar. The list sits on a panel with rounded top corners below it. The switcher lists each Host with its status and pending count, plus "Pair a new computer".
+- **Tabs** are native (`NativeTabs`): **Chats** and **Activity**.
   - A chat is pushed above the tabs, so the tab bar hides while it is open.
   - iOS draws the system tab bar with no background colour of ours: Liquid Glass on iOS 26 (a floating capsule above the home indicator, with the system's glass pill behind the selected tab), the translucent system bar before it. The selected tint is the resolved `fg`, passed as a plain colour so the bar re-tints when the scheme changes while the app is open.
   - Content scrolls under the bar. Each tab's list sets `contentInsetAdjustmentBehavior="automatic"`, so its last row clears the bar and the home indicator.
   - Android keeps the Material 3 bar on `base`: like Slack, the selected tab is the foreground colour with a pill behind its icon (the Material indicator), and the others are muted.
   - The web preview draws a floating translucent capsule standing in for the glass, with the selection bubble behind the whole item (icon and label) as iOS draws it.
-- **Home** shows the current Host:
+- **Chats** shows the current Host:
   - A row of shortcut cards: **Needs you** and **Working**, each an icon, a name and a count that filters the list when tapped. **Unread** joins them once the Host reports unread counts.
   - One list of PersonaBot DMs and Channels together, by latest activity.
   - The header has search and **+** (new Bot, new Channel).
@@ -33,7 +33,7 @@ References:
   - Posts and rows are separated by space and layer fills, not divider lines.
   - A row's title is `category · Bot`; a reply keeps its text on a second line, and a handled item collapses to one line: `category · Bot · summary`.
   - Opening an item jumps to the card in its chat.
-- **Me** holds appearance (scheme, accent, chat wallpaper), notifications, paired Hosts and unpairing.
+- **Settings** opens from the Human's avatar at the top right of the Chats header, as a form sheet with a large detent. Until the Human has a picture, the avatar is their initial (from the Host's Human identity) on the `raised` layer fill. Settings groups its rows: Connections holds the current Host and its status, Computers, Notifications, Open full client and Unpair; Interface (appearance: scheme, accent, chat wallpaper) joins once it exists.
 
 ## Screens
 

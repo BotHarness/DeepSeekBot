@@ -1,8 +1,9 @@
-# Switches computers from Me → Computers and checks the Notifications row.
+# Switches computers from Settings → Computers and checks the Notifications row.
 # -e FROM=<shown host> -e TO=<other host> -e BOT=<a PersonaBot on TO>
 appId: ai.botharness.deepseekbot.dev
 ---
-- tapOn: 'Me'
+- tapOn: 'Chats'
+- tapOn: 'Settings'
 - extendedWaitUntil:
     visible: 'Computers.*'
     timeout: 10000
@@ -21,7 +22,7 @@ appId: ai.botharness.deepseekbot.dev
 - extendedWaitUntil:
     visible: ${BOT}
     timeout: 20000
-# Switching dismisses the Computers sheet back to Home; let that finish.
+# Switching dismisses the Computers and Settings sheets back to Chats; let that finish.
 - extendedWaitUntil:
     notVisible: 'Pair a new computer'
     timeout: 10000

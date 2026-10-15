@@ -10,7 +10,15 @@ import { Text } from '../primitives/text';
 import { t } from '../strings';
 import { ChevronDownIcon } from './icons';
 
-export function HomeHeader({ hostName, children }: { hostName: string; children: ReactNode }) {
+export function HomeHeader({
+  hostName,
+  actions,
+  children,
+}: {
+  hostName: string;
+  actions?: ReactNode;
+  children: ReactNode;
+}) {
   const theme = useDesignTheme();
   const router = useRouter();
   const focused = useIsFocused();
@@ -27,39 +35,54 @@ export function HomeHeader({ hostName, children }: { hostName: string; children:
       }}
     >
       {focused ? <StatusBar style={band.lightInk ? 'light' : 'dark'} /> : null}
-      <Pressable
-        onPress={() => router.push('/hosts')}
-        accessibilityRole="button"
-        accessibilityLabel={t.switchComputer(hostName)}
-        style={({ pressed }) => ({
+      <View
+        style={{
           flexDirection: 'row',
           alignItems: 'center',
-          gap: space.x4,
+          gap: space.x3,
           paddingTop: insets.top + space.x4,
           paddingBottom: space.x5,
-          paddingHorizontal: space.x5,
-          opacity: pressed ? 0.7 : 1,
-        })}
+          paddingLeft: space.x5,
+          paddingRight: space.x4,
+        }}
       >
-        <View
-          style={{
-            width: tile,
-            height: tile,
-            borderRadius: radius.md,
-            backgroundColor: ink,
+        <Pressable
+          onPress={() => router.push('/hosts')}
+          accessibilityRole="button"
+          accessibilityLabel={t.switchComputer(hostName)}
+          style={({ pressed }) => ({
+            flex: 1,
+            flexDirection: 'row',
             alignItems: 'center',
-            justifyContent: 'center',
-          }}
+            gap: space.x4,
+            opacity: pressed ? 0.7 : 1,
+          })}
         >
-          <Text variant="title" style={{ color: band.top }}>
-            {Array.from(hostName.trim())[0]?.toUpperCase() ?? '?'}
+          <View
+            style={{
+              width: tile,
+              height: tile,
+              borderRadius: radius.md,
+              backgroundColor: ink,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Text variant="title" style={{ color: band.top }}>
+              {Array.from(hostName.trim())[0]?.toUpperCase() ?? '?'}
+            </Text>
+          </View>
+          <Text variant="display" tone={band.ink} numberOfLines={1} style={{ flexShrink: 1 }}>
+            {hostName}
           </Text>
-        </View>
-        <Text variant="display" tone={band.ink} numberOfLines={1} style={{ flexShrink: 1 }}>
-          {hostName}
-        </Text>
-        <ChevronDownIcon color={ink} size={theme.type.title.size + space.x2} />
-      </Pressable>
+          <ChevronDownIcon color={ink} size={theme.type.title.size + space.x2} />
+        </Pressable>
+        {actions === undefined ? null : (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x2 }}>
+            {actions}
+          </View>
+        )}
+      </View>
       <View
         style={{
           flex: 1,
