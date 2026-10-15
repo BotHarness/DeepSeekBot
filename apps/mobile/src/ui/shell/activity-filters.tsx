@@ -15,7 +15,7 @@ export const ALL_ACTIVITY: ActivityFilter = { section: 'all', bot: undefined };
 
 const SECTIONS: readonly ActivitySection[] = ['all', ...INBOX_SECTIONS];
 
-function Chip({
+export function Chip({
   label,
   count,
   selected,

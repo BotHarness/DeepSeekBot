@@ -3018,7 +3018,7 @@ export const zh = {
   'privateAccounts.removeConfirm':
     '删除密钥「{account}」？这会停止本地使用并立即清除保存的值，但不会在服务商那里撤销令牌；如果令牌可能泄露，请到服务商处轮换。',
   'grant.safeDefault':
-    'Bot 可读取有效授权文件夹。开启文件夹的写入权限后，也可直接处理其中的文件；命令执行仍需单独审批。',
+    '新添加的文件夹默认允许 Bot 写入，可逐个关闭以保持只读；命令执行仍需单独审批。',
   'grant.orchestratorWrite': '允许 Bot 写入此文件夹',
   'grant.chip.write': '可写',
   'grant.chip.read': '只读',
@@ -3223,6 +3223,8 @@ export const zh = {
   'grant.pathLabel': '工作区文件夹路径',
   'grant.pathPlaceholder': '/home/user/project',
   'grant.removeFolder': '移除授权',
+  'grant.delete': '删除',
+  'grant.memoryDeleteUnavailable': '记忆仓库是 Bot 必需的读写位置，不能删除',
   'grant.registeredFolders': '已在 DSH 登记的文件夹',
   'grant.history': '已撤销的授权',
   'grant.loading': '正在加载工作区…',
@@ -3330,7 +3332,7 @@ export const zh = {
     '逐成员提交，不承诺全部成功；不会发送消息或自动创建任务。失败或未知结果先读回，再重试。',
   'groupGrant.retry': '读回并重试',
   'composerContext.grantScope':
-    '已解析目录：{path}。仅建立此 Bot 的 Workspace Grant；不启用 Orchestrator 项目写入，不更改 Assignment 权限或审批规则。',
+    '已解析目录：{path}。为此 Bot 建立 Workspace Grant，默认允许写入（可在列表里关闭）；不更改 Assignment 权限或审批规则。',
   'composerCommand.memory': '查看记忆',
   'composerCommand.sessions': '查看 Sessions',
   'composerCommand.profile': '打开资料页',
@@ -6665,7 +6667,7 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'privateAccounts.removeConfirm':
     'Remove secret “{account}”? This stops local use and erases the stored values now, but does not revoke the token at the provider. Rotate it there if it may have leaked.',
   'grant.safeDefault':
-    'The Bot can read authorized folders. Enable write access to let it process files there; commands still require separate approval.',
+    'New folders are writable by default; turn write access off per folder to keep one read-only. Commands still require separate approval.',
   'grant.orchestratorWrite': 'Allow Bot to write in this folder',
   'grant.chip.write': 'Writable',
   'grant.chip.read': 'Read-only',
@@ -6887,6 +6889,9 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'grant.pathLabel': 'Workspace folder path',
   'grant.pathPlaceholder': '/home/user/project',
   'grant.removeFolder': 'Remove access',
+  'grant.delete': 'Delete',
+  'grant.memoryDeleteUnavailable':
+    'The Memory Repository is the Bot’s required read-write location and cannot be removed',
   'grant.registeredFolders': 'Folders registered in DSH',
   'grant.history': 'Revoked access',
   'grant.loading': 'Loading workspaces…',
@@ -6998,7 +7003,7 @@ My relationship with you, established lore and topics to avoid: [fill in].
     'Members commit independently, not atomically. No message or task is sent. Read back failed or unknown outcomes before retrying.',
   'groupGrant.retry': 'Read back and retry',
   'composerContext.grantScope':
-    'Resolved directory: {path}. Creates only this Bot’s Workspace Grant; does not enable Orchestrator project writes or change Assignment access or approval rules.',
+    'Resolved directory: {path}. Creates this Bot’s Workspace Grant with write access on by default (you can turn it off in the list); does not change Assignment access or approval rules.',
   'composerCommand.memory': 'View memory',
   'composerCommand.sessions': 'View Sessions',
   'composerCommand.profile': 'Open profile',

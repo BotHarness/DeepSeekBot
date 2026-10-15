@@ -38,7 +38,7 @@ The owner asked for a design system that works on iOS and Android, uses native c
 
   BotHarness only builds the content components the Web `ds/` already defines, such as settings rows, pill buttons, notes and empty states, under the same content rules.
 
-- **Interaction baseline.** _Superseded by [ADR-0211](0211-the-mobile-app-has-two-tabs-with-settings-and-hosts-in-the-header.md): the app has Chats and Activity tabs plus search, with Settings and Host switching in the header._ The Web Client's mobile shell (`packages/client/src/client/mobile-bot-panel.tsx`) sets the flow:
+- **Interaction baseline.** _Superseded by [ADR-0211](0211-the-mobile-app-has-two-tabs-with-settings-and-hosts-in-the-header.md): the app has Chats and Activity tabs, with search at the top of Chats and Settings and Host switching in the header._ The Web Client's mobile shell (`packages/client/src/client/mobile-bot-panel.tsx`) sets the flow:
   - Three tabs: Conversations, Inbox and Settings.
   - A conversation is pushed above the tabs, which hides the tab bar, with back, title and settings in its header.
 

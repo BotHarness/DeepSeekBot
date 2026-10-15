@@ -25,6 +25,8 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   IconChevronDownOutlineRegular: () => null,
   IconCloseOutlineRegular: () => null,
   IconFolderOpenOutlineRegular: () => null,
+  IconPlusOutlineRegular: () => null,
+  IconTrashOutlineRegular: () => null,
 }));
 
 const ada: BotSummary = {

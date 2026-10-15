@@ -6533,6 +6533,8 @@ button.bh-card-main:disabled {cursor:default;}
 .bh-card-row[data-muted="true"] .bh-card-icon,
 .bh-card-row[data-muted="true"] .bh-card-title {color:var(--dsw-alias-label-secondary);}
 .bh-card-trailing .bh-workspace-folder-remove {width:28px;height:28px;border-radius:${radius.sm};}
+.bh-workspace-folder-add, .bh-workspace-folder-add .bh-card-title, .bh-workspace-folder-add .bh-card-leading {color:${color.accent};}
+.bh-workspace-folder-write {display:inline-flex;align-items:center;gap:${space.x2};font-size:${text.metaSize};line-height:${text.metaLine};white-space:nowrap;}
 .bh-card-detail > .bh-workspace-folder-detail {padding:0;}
 .bh-schedule-switch {display:inline-flex;}
 ` +

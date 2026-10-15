@@ -19,13 +19,13 @@ Other gaps sat around it:
 
 ## Decision
 
-- **Two tabs and the search tab.** `NativeTabs` keeps the tab bar. The tabs are **Chats** (formerly Home) and **Activity**, which keeps its badge from the Human Inbox action count. On iOS a search tab with the `search` role comes last; iOS 26 draws it as a separate round glass button at the bottom right. The Liquid Glass bar keeps no background of ours (#1800), and minimize on scroll stays off.
+- **Two tabs.** `NativeTabs` keeps the tab bar. The tabs are **Chats** (formerly Home) and **Activity**, which keeps its badge from the Human Inbox action count. There is no search tab. The Liquid Glass bar keeps no background of ours (#1800), and minimize on scroll stays off.
 - **Settings behind the Human's avatar.** The Chats header shows the Human's avatar at the top right, as Apple's own apps on iOS 26 do. It opens Settings as a form sheet with a large detent, grouped into Connections (Computers, Notifications, Open full client), Interface (Appearance) and Chats (Channel sections, Hidden Channels). Every row of the Me tab moves here, unpairing included. Until the Human has an avatar of their own, it shows their initial on a neutral layer fill.
 - **Host drawer.** Host switching is a left drawer that covers the list over a dimmed backdrop. The Host chip at the top left opens it, and so does an edge swipe on a tab's root screen only, so the system back gesture in a pushed chat stays Back. It lists each Host with its status and pending count, plus "Pair a new computer". It is built with Reanimated and Gesture Handler; no navigation library is added.
 - **Create in the header.** On iOS a compose button in the Chats header opens a native menu: New PersonaBot, New Channel. Android uses a Material FAB at the bottom right instead.
-- **Search.** The search screen filters the current Host's PersonaBots and Channels by name on the device, with the field at the bottom above the keyboard. A result opens its chat. Message full-text search is out of scope.
+- **Search at the top of Chats.** A search field sits at the top of the Chats list, above the shortcut cards, and scrolls away with the list, as chat apps put it. Typing filters the current Host's PersonaBots and Channels by name in place, on the device, and a result opens its chat. Message full-text search is out of scope. This replaces the iOS search tab first planned in #1848 (changed in #1851): search is not frequent enough to earn a bottom slot.
 - **Channel sections.** Chats groups Channels by the Host's Channel sections, read through the existing `rosterGet` method. Ungrouped Channels sit between sections in the desktop's top-level order, and Hidden Channels stay out. Sections collapse; the collapse state is local to the phone and kept per Host, because a Channel section is a local display arrangement. The Needs you and Working shortcut cards still filter across all sections. A Host with no sections shows today's flat list.
-- **Android** keeps two Material 3 tabs and adds a top search bar, the FAB, the avatar and a standard navigation drawer.
+- **Android** keeps two Material 3 tabs and the same search field, and adds the FAB, the avatar and a standard navigation drawer.
 
 The Web Client's mobile shell does not change. No Bot tool or Host capability is added, so there is no new CLI command.
 
@@ -34,7 +34,7 @@ The Web Client's mobile shell does not change. No Bot tool or Host capability is
 - **Keep three tabs.** Me holds a high-traffic slot for low-frequency settings.
 - **Remove the tab bar** and move Activity to a header bell. The Activity badge, the main "something waits for you" signal, would leave thumb reach.
 - **An X-style compose FAB on iOS.** It sits where iOS 26 puts the system search button, and a FAB is not an iOS convention.
-- **Search and create both in the header.** Search is used far more than create, and the iOS 26 search tab puts it under the thumb at no cost.
+- **An iOS 26 search tab** (`role="search"`, the round glass button at the bottom right). It was the first plan. A bottom slot says search is one of the most frequent actions, and on a chat list it is not; chat apps put search at the top of the list.
 
 ## Consequences
 
