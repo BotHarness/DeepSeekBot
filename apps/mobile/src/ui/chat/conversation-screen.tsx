@@ -224,6 +224,7 @@ function ChatConversation({ place, focus }: { place: ChatPlace; focus: string | 
   const [viewing, setViewing] = useState<MessageAttachment>();
   const [actionsFor, setActionsFor] = useState<ConversationMessage>();
   const [reactError, setReactError] = useState(false);
+  const [composerHeight, setComposerHeight] = useState(0);
   const list = useRef<FlatList<Row>>(null);
   const jumped = useRef<string | undefined>(undefined);
   const [answered, setAnswered] = useState<ReadonlySet<string>>(new Set());
@@ -524,7 +525,7 @@ function ChatConversation({ place, focus }: { place: ChatPlace; focus: string | 
             inverted
             style={{ flex: 1 }}
             contentContainerStyle={{
-              paddingTop: edgeFade.bottom,
+              paddingTop: composerHeight + edgeFade.bottom,
               paddingBottom: edgeFade.top,
             }}
             data={rows}
@@ -599,13 +600,13 @@ function ChatConversation({ place, focus }: { place: ChatPlace; focus: string | 
             }
           />
           <EdgeFade edge="top" height={edgeFade.top} />
-          <EdgeFade edge="bottom" height={edgeFade.bottom} />
+          <EdgeFade edge="bottom" height={composerHeight + edgeFade.bottom} />
           {latest.away ? (
             <View
               pointerEvents="box-none"
               style={{
                 position: 'absolute',
-                bottom: space.x4,
+                bottom: composerHeight + space.x4,
                 left: 0,
                 right: 0,
                 alignItems: 'center',
@@ -614,40 +615,45 @@ function ChatConversation({ place, focus }: { place: ChatPlace; focus: string | 
               <JumpToLatest unseen={latest.unseen} onPress={latest.jumpToLatest} />
             </View>
           ) : null}
+          <View
+            onLayout={(event) => setComposerHeight(event.nativeEvent.layout.height)}
+            style={{ position: 'absolute', left: 0, right: 0, bottom: 0 }}
+          >
+            <Composer
+              value={draft}
+              placeholder={
+                bot !== undefined
+                  ? t.messageBot(bot.displayName)
+                  : channel !== undefined
+                    ? t.messageBot(`#${channel.name}`)
+                    : t.messagePlaceholder
+              }
+              disabled={conversation === undefined}
+              files={files}
+              canAttach={files.length < MAX_PICKED}
+              dictation={dictation.state.status}
+              canDictate={conversation !== undefined}
+              onChange={edit}
+              selection={selection}
+              onSelection={(next) => {
+                setSelection(undefined);
+                setCaret(next);
+              }}
+              {...(candidates.length === 0
+                ? {}
+                : { above: <MentionSuggestions candidates={candidates} onChoose={mention} /> })}
+              onSend={send}
+              onPick={pick}
+              onRemove={(id) => setFiles((current) => current.filter((file) => file.id !== id))}
+              onDictate={() => {
+                setAttachError(false);
+                dictation.start();
+              }}
+              onStopDictation={dictation.stop}
+              onCancelDictation={dictation.cancel}
+            />
+          </View>
         </View>
-        <Composer
-          value={draft}
-          placeholder={
-            bot !== undefined
-              ? t.messageBot(bot.displayName)
-              : channel !== undefined
-                ? t.messageBot(`#${channel.name}`)
-                : t.messagePlaceholder
-          }
-          disabled={conversation === undefined}
-          files={files}
-          canAttach={files.length < MAX_PICKED}
-          dictation={dictation.state.status}
-          canDictate={conversation !== undefined}
-          onChange={edit}
-          selection={selection}
-          onSelection={(next) => {
-            setSelection(undefined);
-            setCaret(next);
-          }}
-          {...(candidates.length === 0
-            ? {}
-            : { above: <MentionSuggestions candidates={candidates} onChoose={mention} /> })}
-          onSend={send}
-          onPick={pick}
-          onRemove={(id) => setFiles((current) => current.filter((file) => file.id !== id))}
-          onDictate={() => {
-            setAttachError(false);
-            dictation.start();
-          }}
-          onStopDictation={dictation.stop}
-          onCancelDictation={dictation.cancel}
-        />
       </KeyboardAvoidingView>
       <ImageViewer attachment={viewing} onClose={() => setViewing(undefined)} onShare={share} />
       <MessageActions
