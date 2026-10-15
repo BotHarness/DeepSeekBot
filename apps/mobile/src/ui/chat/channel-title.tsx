@@ -1,7 +1,7 @@
 import { View } from 'react-native';
 
 import type { RosterChannel } from '../../host/client';
-import { useDesignTheme } from '../design/theme';
+import { frosted, useDesignTheme } from '../design/theme';
 import { edge, radius, space } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { t } from '../strings';
@@ -34,7 +34,7 @@ export function ChannelTitle({
         borderRadius: radius.round,
         borderWidth: edge.hairline,
         borderColor: theme.layer.raised.edge,
-        backgroundColor: theme.layer.raised.fill,
+        backgroundColor: frosted(theme.layer.raised.fill),
       }}
     >
       <View

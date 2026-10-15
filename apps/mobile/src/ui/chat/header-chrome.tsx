@@ -1,16 +1,55 @@
 import { useId, type ReactNode } from 'react';
-import { Platform, Pressable, View } from 'react-native';
+import { Pressable, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
-import { useDesignTheme } from '../design/theme';
-import { edge, edgeFade, radius } from '../design/tokens';
+import { frosted, useDesignTheme } from '../design/theme';
+import { edge, edgeFade, radius, space } from '../design/tokens';
 import { ChevronLeftIcon } from '../shell/icons';
 import { t } from '../strings';
 
 const ICON = 22;
 
-export const systemGlassBar =
-  Platform.OS === 'ios' && Number.parseInt(String(Platform.Version), 10) >= 26;
+export function useChatHeaderHeight(): number {
+  const theme = useDesignTheme();
+  return useSafeAreaInsets().top + theme.touch + space.x2 * 2;
+}
+
+export function ChatHeader({
+  left,
+  center,
+  right,
+}: {
+  left: ReactNode;
+  center: ReactNode;
+  right: ReactNode;
+}) {
+  const theme = useDesignTheme();
+  const insets = useSafeAreaInsets();
+  return (
+    <View
+      pointerEvents="box-none"
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        paddingTop: insets.top + space.x2,
+        paddingBottom: space.x2,
+        paddingHorizontal: space.x4,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: space.x3,
+      }}
+    >
+      <View style={{ width: theme.touch }}>{left}</View>
+      <View pointerEvents="box-none" style={{ flex: 1, alignItems: 'center' }}>
+        {center}
+      </View>
+      <View style={{ width: theme.touch }}>{right}</View>
+    </View>
+  );
+}
 
 export function HeaderCircleButton({
   label,
@@ -35,7 +74,7 @@ export function HeaderCircleButton({
         justifyContent: 'center',
         borderWidth: edge.hairline,
         borderColor: theme.layer.raised.edge,
-        backgroundColor: pressed ? theme.layer.raised.pressed : theme.layer.raised.fill,
+        backgroundColor: pressed ? theme.layer.raised.pressed : frosted(theme.layer.raised.fill),
       })}
     >
       {children}

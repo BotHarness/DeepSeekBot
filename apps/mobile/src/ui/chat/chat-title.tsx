@@ -2,7 +2,7 @@ import { Pressable, View } from 'react-native';
 
 import type { RosterBot } from '../../host/client';
 import { BotAvatar } from '../bot-avatar';
-import { useDesignTheme } from '../design/theme';
+import { frosted, useDesignTheme } from '../design/theme';
 import { edge, radius, space } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { t } from '../strings';
@@ -41,7 +41,7 @@ export function ChatTitle({
         borderRadius: radius.round,
         borderWidth: edge.hairline,
         borderColor: theme.layer.raised.edge,
-        backgroundColor: pressed ? theme.layer.raised.pressed : theme.layer.raised.fill,
+        backgroundColor: pressed ? theme.layer.raised.pressed : frosted(theme.layer.raised.fill),
       })}
     >
       {bot === undefined ? null : <BotAvatar bot={bot} size={AVATAR} ring={false} />}

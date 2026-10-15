@@ -1,5 +1,4 @@
 import { Stack, useRouter } from 'expo-router';
-import { useHeaderHeight } from 'expo-router/react-navigation';
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, View } from 'react-native';
 
@@ -39,7 +38,7 @@ import { botBusy } from './bot-tone';
 import { ChannelTitle } from './channel-title';
 import { ChatTitle } from './chat-title';
 import { Composer } from './composer';
-import { EdgeFade, HeaderBackButton, systemGlassBar } from './header-chrome';
+import { ChatHeader, EdgeFade, HeaderBackButton, useChatHeaderHeight } from './header-chrome';
 import { useFollowLatest } from './follow-latest';
 import { ImageViewer } from './image-viewer';
 import { JumpToLatest } from './jump-to-latest';
@@ -177,7 +176,7 @@ const RequestCard = memo(function RequestCard({
 function ChatConversation({ place, focus }: { place: ChatPlace; focus: string | undefined }) {
   const theme = useDesignTheme();
   const router = useRouter();
-  const headerHeight = useHeaderHeight();
+  const headerHeight = useChatHeaderHeight();
   const { client, inbox } = useHostSession();
   const host = useHostSnapshot(client);
   const dm = place.kind === 'dm';
@@ -470,40 +469,14 @@ function ChatConversation({ place, focus }: { place: ChatPlace; focus: string | 
     <>
       <Stack.Screen
         options={{
-          headerLargeTitle: false,
-          headerTitleAlign: 'center',
-          headerShadowVisible: false,
-          headerStyle: { backgroundColor: theme.color.base },
+          headerShown: false,
           scrollEdgeEffects: { top: 'hidden', bottom: 'hidden', left: 'hidden', right: 'hidden' },
-          ...(systemGlassBar
-            ? {}
-            : { headerLeft: () => <HeaderBackButton onPress={() => router.back()} /> }),
-          headerTitle: () =>
-            dm ? (
-              <ChatTitle
-                bot={bot}
-                fallback={slug ?? ''}
-                onPress={() => router.push(`/bot/${bot?.slug ?? slug}`)}
-              />
-            ) : (
-              <ChannelTitle channel={channel} fallback={channelId ?? ''} />
-            ),
-          headerRight: () =>
-            slug !== undefined ? (
-              <OpenFullClientButton target={{ kind: 'dm', slug }} round={!systemGlassBar} />
-            ) : channelId !== undefined ? (
-              <OpenFullClientButton
-                target={{ kind: 'channel', channelId }}
-                round={!systemGlassBar}
-              />
-            ) : null,
         }}
       />
       <KeyboardAvoidingView
         ref={dictation.mountRef}
         style={{ flex: 1, backgroundColor: theme.color.base }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={headerHeight}
       >
         {notice === undefined ? null : (
           <Text
@@ -511,6 +484,7 @@ function ChatConversation({ place, focus }: { place: ChatPlace; focus: string | 
             variant="meta"
             tone="warning"
             style={{
+              marginTop: headerHeight,
               backgroundColor: theme.color.warningSoft,
               paddingHorizontal: space.x5,
               paddingVertical: space.x3,
@@ -526,7 +500,7 @@ function ChatConversation({ place, focus }: { place: ChatPlace; focus: string | 
             style={{ flex: 1 }}
             contentContainerStyle={{
               paddingTop: composerHeight + edgeFade.bottom,
-              paddingBottom: edgeFade.top,
+              paddingBottom: (notice === undefined ? headerHeight : 0) + space.x3,
             }}
             data={rows}
             keyExtractor={(row) => row.key}
@@ -599,7 +573,6 @@ function ChatConversation({ place, focus }: { place: ChatPlace; focus: string | 
               ) : null
             }
           />
-          <EdgeFade edge="top" height={edgeFade.top} />
           <EdgeFade edge="bottom" height={composerHeight + edgeFade.bottom} />
           {latest.away ? (
             <View
@@ -655,6 +628,28 @@ function ChatConversation({ place, focus }: { place: ChatPlace; focus: string | 
           </View>
         </View>
       </KeyboardAvoidingView>
+      <EdgeFade edge="top" height={headerHeight + edgeFade.top} />
+      <ChatHeader
+        left={<HeaderBackButton onPress={() => router.back()} />}
+        center={
+          dm ? (
+            <ChatTitle
+              bot={bot}
+              fallback={slug ?? ''}
+              onPress={() => router.push(`/bot/${bot?.slug ?? slug}`)}
+            />
+          ) : (
+            <ChannelTitle channel={channel} fallback={channelId ?? ''} />
+          )
+        }
+        right={
+          slug !== undefined ? (
+            <OpenFullClientButton target={{ kind: 'dm', slug }} round />
+          ) : channelId !== undefined ? (
+            <OpenFullClientButton target={{ kind: 'channel', channelId }} round />
+          ) : null
+        }
+      />
       <ImageViewer attachment={viewing} onClose={() => setViewing(undefined)} onShare={share} />
       <MessageActions
         message={actionsFor}
