@@ -46,7 +46,6 @@ async function keep(uri: string, hostId: string, slot: 'avatar' | 'banner'): Pro
   }
 }
 
-/** Removes a picture this module copied once no look points at it anymore. */
 export function forgetImage(uri: string | undefined): void {
   if (uri === undefined) return;
   try {
@@ -57,10 +56,6 @@ export function forgetImage(uri: string | undefined): void {
   } catch {}
 }
 
-/**
- * Picks a photo for a Host's avatar (cropped square) or banner (kept whole; the header covers
- * it), and copies it next to the app's documents so it outlives the picker's cache.
- */
 export async function pickLookImage(
   hostId: string,
   slot: 'avatar' | 'banner',

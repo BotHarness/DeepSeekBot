@@ -25,10 +25,6 @@ export function hostInitial(hostName: string): string {
   return Array.from(hostName.trim())[0]?.toUpperCase() ?? '?';
 }
 
-/**
- * The Host's tile: its initial on the band's ink by default, or a preset pixel portrait or a
- * picture the Human chose.
- */
 export function HostTile({
   hostName,
   avatar,
@@ -39,9 +35,7 @@ export function HostTile({
   hostName: string;
   avatar: HostAvatar;
   size: number;
-  /** Tile fill behind the initial. */
   fill: string;
-  /** The initial's colour. */
   letter: string;
 }) {
   return (

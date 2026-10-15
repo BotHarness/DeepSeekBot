@@ -26,7 +26,6 @@ import { HostTile, presetAvatarSvg } from './host-tile';
 
 export interface HostLookActions {
   onChange(look: HostLook): void;
-  /** Resolves to the kept picture's URI, or undefined when the Human cancels. */
   onPickImage(slot: 'avatar' | 'banner'): Promise<string | undefined>;
   onClose(): void;
 }
@@ -93,7 +92,6 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-/** A tappable swatch with the selection ring the chips use. */
 function Swatch({
   label,
   selected,

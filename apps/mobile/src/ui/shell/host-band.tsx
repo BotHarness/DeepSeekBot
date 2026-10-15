@@ -23,10 +23,6 @@ export function useHostBand(banner: HostBanner): HostBand {
 
 const FILL = { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 } as const;
 
-/**
- * The Slack-style band behind the Chats header. `header` sits on the band; `children` is the
- * panel below it, whose rounded top corners show the band (or the banner picture) behind them.
- */
 export function HostBandLayer({
   band,
   banner,
@@ -65,7 +61,6 @@ export function HostBandLayer({
   );
 }
 
-/** The Host chip's tile, name and ▾, inked for the band behind them. */
 export function HostChipFace({
   hostName,
   avatar,

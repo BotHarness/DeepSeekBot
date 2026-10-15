@@ -64,7 +64,6 @@ export function parseHostLook(input: unknown): HostLook {
   };
 }
 
-/** How each paired Host looks in the Chats header, kept on the phone and keyed by Host. */
 export function createHostLooks(storage: LookStorage): HostLooks {
   const byHost = new Map<string, HostLook>();
   const listeners = new Set<() => void>();

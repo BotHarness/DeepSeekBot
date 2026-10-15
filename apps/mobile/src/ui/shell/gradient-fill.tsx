@@ -3,10 +3,6 @@ import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 import type { BandGradient } from '../design/host-look';
 
-/**
- * A two-stop gradient that fills its parent. Drawn with SVG so it renders the same on iOS,
- * Android and the web preview, which has no CSS background images.
- */
 export function GradientFill({ gradient }: { gradient: BandGradient }) {
   const id = `band-${useId().replace(/[^a-z0-9]/giu, '')}`;
   const diagonal = gradient.direction === 'diagonal';

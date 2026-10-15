@@ -24,7 +24,6 @@ export const DEFAULT_HOST_LOOK: HostLook = {
   banner: { kind: 'accent' },
 };
 
-/** Seeds for `seededAvatarFor`: the same pixel portraits PersonaBots get, picked by hand. */
 export const HOST_AVATAR_PRESETS = [
   'sora',
   'studio',
@@ -74,15 +73,11 @@ export function bannerHex(value: string): string | undefined {
 export type HostBand = {
   top: string;
   bottom: string;
-  /** Text and icon colour on the band. */
   ink: string;
-  /** The initial tile's letter colour: the band colour behind the tile. */
   tileInk: string;
   lightInk: boolean;
   image?: string;
-  /** Painted across the header row: a gradient banner, or the scrim over a picture. */
   fill?: BandGradient;
-  /** A soft shadow behind the ink on a picture. */
   shadow?: string;
 };
 
@@ -113,11 +108,6 @@ function band(
   return { top: own.top, bottom: own.bottom };
 }
 
-/**
- * The Chats header band for a Host's look. Custom colours go through the same steps as the
- * accent band (separated from the page, muted in dark mode), and the ink is the one of white or
- * near-black that reads best on every stop.
- */
 export function hostBand(
   scheme: ColorScheme,
   color: Record<ColorRole, string>,
@@ -163,12 +153,10 @@ export function hostBand(
   return { ...stops, ink, tileInk: stops.top, lightInk };
 }
 
-/** The fill behind the whole Chats screen, under the panel. */
 export function screenBackground(value: HostBand): string {
   return `linear-gradient(180deg, ${value.top} 0%, ${value.bottom} 40%)`;
 }
 
-/** A gradient banner paints the header row itself, corner to corner. */
 export function headerFill(value: HostBand, banner: HostBanner): BandGradient | undefined {
   if (banner.kind === 'gradient')
     return {
