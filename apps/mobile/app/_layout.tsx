@@ -59,6 +59,16 @@ export default function RootLayout() {
             }}
           />
           <Stack.Screen
+            name="host-look"
+            options={{
+              title: t.hostLook,
+              headerShown: false,
+              presentation: 'formSheet',
+              sheetAllowedDetents: [1],
+              sheetGrabberVisible: true,
+            }}
+          />
+          <Stack.Screen
             name="full-client"
             options={{
               title: t.fullClient,
