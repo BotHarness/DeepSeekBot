@@ -12,7 +12,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { PickSource, PickedFile } from '../../host/pick-files';
-import { frosted, useDesignTheme } from '../design/theme';
+import { useDesignTheme } from '../design/theme';
 import { edge, radius, space } from '../design/tokens';
 import { Text } from '../primitives/text';
 import {
@@ -480,7 +480,7 @@ export function Composer({
           borderRadius: (theme.touch - space.x4) / 2 + inset,
           borderWidth: edge.hairline,
           borderColor: theme.color.borderStrong,
-          backgroundColor: frosted(theme.color.surface),
+          backgroundColor: theme.color.surface,
           overflow: 'hidden',
         }}
         onLayout={(event) =>
