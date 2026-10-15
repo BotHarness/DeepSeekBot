@@ -111,6 +111,7 @@ export interface PersonaBotRegistry {
   setComputerAccess(slug: string, enabled: boolean): UpdatePersonaBotResult;
   setBrowserAccess(slug: string, enabled: boolean): UpdatePersonaBotResult;
   setBrowserProfile(slug: string, profile: string): UpdatePersonaBotResult;
+  setApprovalTemplate(slug: string, template: string | undefined): UpdatePersonaBotResult;
   setStandingLimits(slug: string, limits: StandingLimits): UpdatePersonaBotResult;
   inheritModel(slug: string, expectedRevision: number): UpdatePersonaBotResult;
   applyModelPreset(slug: string, preset: ModelPreset): UpdatePersonaBotResult;
@@ -203,6 +204,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       'computerAccess',
       'browserAccess',
       'browserProfile',
+      'approvalTemplate',
     ] as const) {
       if (record[key] !== undefined) Object.assign(result, { [key]: record[key] });
     }
@@ -743,6 +745,14 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       const trimmed = profile.trim();
       if (trimmed === '') delete record.browserProfile;
       else record.browserProfile = trimmed;
+      write(record);
+      return { ok: true, record };
+    },
+    setApprovalTemplate(slug, template) {
+      const record = active(slug);
+      if (record === undefined) return { ok: false, reason: 'not-found' };
+      if (template === undefined) delete record.approvalTemplate;
+      else record.approvalTemplate = template;
       write(record);
       return { ok: true, record };
     },

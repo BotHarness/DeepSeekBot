@@ -1,3 +1,4 @@
+import type { ApprovalTemplate } from '../workspaces/approval-templates.js';
 import type { TurnTrace } from '../bots/tool-trace.js';
 import type { PartLibraryEntry } from '../bots/part-library.js';
 import type { OnboardingSnapshot, TutorialAction } from '../onboarding/service.js';
@@ -790,6 +791,14 @@ export class BotharnessBridgeService extends TypertRemoteService {
 
   browserProfileSet(slug: string, profile: string): { bot: PersonaBotDetail } {
     return unwrap(this.methods.browserProfileSet({ slug, profile }));
+  }
+
+  approvalTemplates(slug?: string): { templates: ApprovalTemplate[]; selected?: string | null } {
+    return unwrap(this.methods.approvalTemplates(slug === undefined ? {} : { slug }));
+  }
+
+  botApprovalTemplateSet(slug: string, template: string | null): { bot: PersonaBotDetail } {
+    return unwrap(this.methods.botApprovalTemplateSet({ slug, template }));
   }
 
   standingLimitsSet(slug: string, soul: number, coreMemory: number): { bot: PersonaBotDetail } {
@@ -1760,6 +1769,8 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'computerAccessSet',
   'browserAccessSet',
   'browserProfileSet',
+  'approvalTemplates',
+  'botApprovalTemplateSet',
   'standingLimitsSet',
   'botAvatarSet',
   'botAppearanceSet',

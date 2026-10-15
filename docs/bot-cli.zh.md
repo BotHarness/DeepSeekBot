@@ -416,6 +416,19 @@ printf '{"title":"给植物浇水"}' | deepseekbot todo-tool <bot-id> todos_add 
 
 `todos` 返回 `{ok, todos}`，按创建时间从早到晚排列；每条待办包含 `id`、`title`、`done`、`createdAt`、`updatedAt` 和 `createdBy`（`{kind:"human"}` 或 `{kind:"bot", slug}`）。`todo-add`、`todo-update` 和 `todo-remove` 以 Human 身份修改列表，与之后的待办面板相同。`todo-tools` 列出 Bot 工具 `todos_list`、`todos_add`、`todos_update` 和 `todos_remove` 及其输入 schema；`todo-tool` 以指定 Bot 的身份直接运行其中一个工具，不经过模型，返回 `{ok, slug, tool, result}`。拒绝时带错误码：`invalid-input`（标题为空或过长、更新时没有要改的内容、未知工具）、`invalid-args`（工具参数不符合工具 schema）、`todo-not-found`、`todo-limit`（列表已有 1,000 条待办）和 `unknown-bot`。
 
+### 自动审批（审批模板）
+
+PersonaBot 可以选择一个审批模板（[ADR-0207](adr/0207-an-approval-template-lets-a-reviewer-session-answer-tool-approvals.md)）。选中后，审批员会先按模板回答此 Bot 的操作审批（越出沙箱的 Shell 命令、文件工具、打开附件），再决定是否发卡片。密钥工具、浏览器和电脑授权，以及任何修改审批策略的调用，仍然以卡片交给 Human。本版本内置两个只读模板：`cautious` 和 `get-work-done`。
+
+```bash
+deepseekbot approval-templates [--bot <bot-id>]
+deepseekbot approval-template-show cautious
+deepseekbot approval-template-set <bot-id> get-work-done
+deepseekbot approval-template-set <bot-id> off
+```
+
+`approval-templates` 返回 `{templates}`，每个模板含 `name`、`title`、`description` 和 `builtIn`；加 `--bot` 时还返回该 Bot 当前选中的 `selected`，未选为 `null`。`approval-template-show` 返回 `{template}`，含完整 Markdown `text`。`approval-template-set` 返回 `{bot}`，其中是新的 `approvalTemplate`。Bot 在自己的 Shell 里运行 `approval-template-set` 时，这次调用一定会变成发给人类的审批卡片，已保存的规则和审批员都不能替你回答。拒绝时带错误码：`invalid-input`（未知模板）、`unknown-template` 和 `unknown-bot`。
+
 ### 模型、用量与活动
 
 ```bash

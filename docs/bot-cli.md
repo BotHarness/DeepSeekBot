@@ -423,6 +423,19 @@ printf '{"title":"Water the plants"}' | deepseekbot todo-tool <bot-id> todos_add
 
 `todos` returns `{ok, todos}`, oldest first; each to-do has `id`, `title`, `done`, `createdAt`, `updatedAt` and `createdBy` (`{kind:"human"}` or `{kind:"bot", slug}`). `todo-add`, `todo-update` and `todo-remove` change the list as the Human, the same way the To-do panel will. `todo-tools` lists the Bot tools `todos_list`, `todos_add`, `todos_update` and `todos_remove` with their input schemas, and `todo-tool` runs one of them as that Bot with no model involved, returning `{ok, slug, tool, result}`. Refusals carry a code: `invalid-input` (an empty or too long title, an update with nothing to change, an unknown tool), `invalid-args` (tool arguments that fail the tool's schema), `todo-not-found`, `todo-limit` (the list holds 1,000 to-dos) and `unknown-bot`.
 
+### Auto approval (Approval Templates)
+
+A PersonaBot can select one Approval Template ([ADR-0207](adr/0207-an-approval-template-lets-a-reviewer-session-answer-tool-approvals.md)). While one is selected, an Approval Reviewer answers the Bot's operation approvals (Shell commands that leave the sandbox, file tools, opening an attachment) by the template before any card is posted. Secret tools, Browser and Computer authorization, and any call that changes approval policy still go to the Human as cards. This release ships two read-only templates, `cautious` and `get-work-done`.
+
+```bash
+deepseekbot approval-templates [--bot <bot-id>]
+deepseekbot approval-template-show cautious
+deepseekbot approval-template-set <bot-id> get-work-done
+deepseekbot approval-template-set <bot-id> off
+```
+
+`approval-templates` returns `{templates}` with each template's `name`, `title`, `description` and `builtIn`; with `--bot` it also returns that Bot's `selected` template, or `null`. `approval-template-show` returns `{template}` with its full Markdown `text`. `approval-template-set` returns `{bot}` with the new `approvalTemplate`. When a Bot runs `approval-template-set` from its own Shell, the call always becomes a Human approval card; neither a saved rule nor the Approval Reviewer can answer it. Refusals carry a code: `invalid-input` (an unknown template), `unknown-template` and `unknown-bot`.
+
 ### Models, usage and activity
 
 ```bash

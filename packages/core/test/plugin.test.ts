@@ -541,6 +541,8 @@ describe('plugin entry', () => {
       'computerAccessSet',
       'browserAccessSet',
       'browserProfileSet',
+      'approvalTemplates',
+      'botApprovalTemplateSet',
       'standingLimitsSet',
       'botAvatarSet',
       'botAppearanceSet',

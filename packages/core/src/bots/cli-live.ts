@@ -76,6 +76,11 @@ import {
   runTodoCommand,
   type TodoValues,
 } from './cli-todos.js';
+import {
+  APPROVAL_TEMPLATE_COMMANDS,
+  isApprovalTemplateCommand,
+  runApprovalTemplateCommand,
+} from './cli-approval-templates.js';
 export { CliLiveError } from './cli-live-error.js';
 
 export const LIVE_OPTIONS = {
@@ -174,6 +179,7 @@ export const LIVE_COMMANDS = [
   ...PROFILE_COMMANDS,
   ...BOT_TOOL_COMMANDS,
   ...TODO_COMMANDS,
+  ...APPROVAL_TEMPLATE_COMMANDS,
   {
     command: 'send',
     description: 'send a Human DM and collect its committed Bot reply from a live Host',
@@ -674,6 +680,11 @@ export async function runLiveCli(
     );
   if (isProfileCommand(command))
     return runProfileCommand(command, rest, values, io, async () => {
+      const signal = AbortSignal.timeout(timeoutMs(values.timeout));
+      return (await connectLiveHost(values, io, signal)).rpc;
+    });
+  if (isApprovalTemplateCommand(command))
+    return runApprovalTemplateCommand(command, rest, values, async () => {
       const signal = AbortSignal.timeout(timeoutMs(values.timeout));
       return (await connectLiveHost(values, io, signal)).rpc;
     });

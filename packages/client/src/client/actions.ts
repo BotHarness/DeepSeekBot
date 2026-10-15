@@ -139,6 +139,9 @@ import {
   loadWorkspaceOptions,
   loadWorkspaceGrants,
   loadToolApprovalRules,
+  loadApprovalTemplates,
+  setBotApprovalTemplate,
+  type ApprovalTemplateView,
   loadAssignmentAccess,
   setAssignmentAccess,
   type AssignmentAccessPresetView,
@@ -667,6 +670,10 @@ export interface BridgeActions {
     scope?: 'chat' | 'assignments',
   ): Promise<AssignmentAccessPresetView>;
   listToolApprovalRules(slug: string): Promise<ToolApprovalRuleView[]>;
+  approvalTemplates?(
+    slug: string,
+  ): Promise<{ templates: ApprovalTemplateView[]; selected: string | null }>;
+  setBotApprovalTemplate?(slug: string, template: string | null): Promise<void>;
   revokeToolApprovalRule(slug: string, id: string): Promise<void>;
   toolApprovalStatus(channelId: string, messageId: string): Promise<'pending' | 'expired'>;
   privateInputStatus?(
@@ -1585,6 +1592,8 @@ export function createActions(
     setAssignmentAccess: (slug, mode, acknowledgeRisk, scope) =>
       setAssignmentAccess(call, slug, mode, acknowledgeRisk, scope),
     listToolApprovalRules: (slug) => loadToolApprovalRules(call, slug),
+    approvalTemplates: (slug) => loadApprovalTemplates(call, slug),
+    setBotApprovalTemplate: (slug, template) => setBotApprovalTemplate(call, slug, template),
     revokeToolApprovalRule: (slug, id) => revokeToolApprovalRule(call, slug, id),
     toolApprovalStatus: (channelId, messageId) =>
       loadToolApprovalStatus(call, channelId, messageId),

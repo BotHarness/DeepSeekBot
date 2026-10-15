@@ -258,6 +258,11 @@ import type {
   DmAdmissionFailure,
 } from '../runtime/bot-runtime.js';
 import type { AssignmentExecutionWait } from '../runtime/assignment-approval-capacity.js';
+import {
+  approvalTemplate,
+  listApprovalTemplates,
+  type ApprovalTemplate,
+} from '../workspaces/approval-templates.js';
 import type {
   AggregatedState,
   BotStateSnapshot,
@@ -299,6 +304,7 @@ export interface PersonaBotSummary {
   avatarSeed?: 2;
   paused?: boolean;
   deleted?: boolean;
+  approvalTemplate?: string;
   standingLimits: StandingLimits;
   aggregateState: AggregatedState;
   workspaces: string[];
@@ -661,6 +667,10 @@ export interface BridgeMethods {
   computerAccessSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
   browserAccessSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
   browserProfileSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
+  approvalTemplates(
+    payload?: unknown,
+  ): BridgeResult<{ templates: ApprovalTemplate[]; selected?: string | null }>;
+  botApprovalTemplateSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
   standingLimitsSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
   botAvatarSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
   botBannerSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
@@ -1054,6 +1064,7 @@ function summarize(record: PersonaBotRecord, snapshot: BotStateSnapshot): Person
     ...(record.computerAccess === undefined ? {} : { computerAccess: record.computerAccess }),
     ...(record.browserAccess === undefined ? {} : { browserAccess: record.browserAccess }),
     ...(record.browserProfile === undefined ? {} : { browserProfile: record.browserProfile }),
+    ...(record.approvalTemplate === undefined ? {} : { approvalTemplate: record.approvalTemplate }),
   };
 }
 
@@ -2563,6 +2574,26 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       const result = deps.registry.setBrowserProfile(slug, normalized);
       if (!result.ok) return unknownBot(slug);
       deps.browserProfile?.changed(slug);
+      return { ok: true, value: detailOf(result.record) };
+    },
+    approvalTemplates(payload) {
+      const templates = listApprovalTemplates();
+      if (asObject(payload)['slug'] === undefined) return { ok: true, value: { templates } };
+      const slug = asSlug(payload);
+      if (slug === undefined) return invalidInput('slug must be a Bot id');
+      const record = deps.registry.get(slug);
+      if (record === undefined) return unknownBot(slug);
+      return { ok: true, value: { templates, selected: record.approvalTemplate ?? null } };
+    },
+    botApprovalTemplateSet(payload) {
+      const slug = asSlug(payload);
+      const template = asObject(payload)['template'];
+      if (slug === undefined || (template !== null && typeof template !== 'string'))
+        return invalidInput('slug and template (a template name, or null for none) are required');
+      if (typeof template === 'string' && approvalTemplate(template) === undefined)
+        return invalidInput('unknown Approval Template ' + template);
+      const result = deps.registry.setApprovalTemplate(slug, template ?? undefined);
+      if (!result.ok) return unknownBot(slug);
       return { ok: true, value: detailOf(result.record) };
     },
     standingLimitsSet(payload) {

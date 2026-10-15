@@ -215,6 +215,7 @@ export interface ChannelMessage {
     moreFiles: number;
   };
   turnStop?: { botName: string; humanName: string };
+  toolAutoApproval?: import('../../../core/src/channels/channel.js').ChannelToolAutoApproval;
   memberDeparture?: {
     memberKind: 'bot' | 'human';
     memberId: string;
