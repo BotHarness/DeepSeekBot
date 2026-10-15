@@ -3,8 +3,10 @@ import type { PushTarget } from './push';
 import type { ApprovalChoice, DecisionResult, RequestRef } from './requests';
 
 export const APPROVAL_CATEGORY = 'tool-approval';
+export const APPROVAL_ONCE_CATEGORY = 'tool-approval-once';
 
 export const APPROVAL_ACTIONS: Readonly<Record<string, ApprovalChoice>> = {
+  always: 'allowed-always-exact',
   approve: 'allowed-once',
   reject: 'rejected',
 };

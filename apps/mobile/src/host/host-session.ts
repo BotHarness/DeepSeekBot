@@ -29,6 +29,7 @@ let offConnection: (() => void) | undefined;
 export const hostPush = createHostPush(nativeCarrier());
 export const pushSession = createPushSession({
   notifications: nativeNotifications(t.notificationsChannel, {
+    always: t.alwaysAllow,
     approve: t.allowOnce,
     reject: t.reject,
   }),

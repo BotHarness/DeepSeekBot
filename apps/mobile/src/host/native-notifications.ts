@@ -2,7 +2,7 @@ import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
-import { APPROVAL_ACTIONS, APPROVAL_CATEGORY } from './push-actions';
+import { APPROVAL_ACTIONS, APPROVAL_CATEGORY, APPROVAL_ONCE_CATEGORY } from './push-actions';
 import type { NotificationsPort, PermissionState } from './push-session';
 
 export const REQUESTS_CHANNEL = 'requests';
@@ -31,19 +31,25 @@ let channelReady: Promise<unknown> | undefined;
 
 export function nativeNotifications(
   channelName: string,
-  buttons: { approve: string; reject: string },
+  buttons: { always: string; approve: string; reject: string },
 ): NotificationsPort {
+  const button = (identifier: 'always' | 'approve' | 'reject') => ({
+    identifier,
+    buttonTitle: buttons[identifier],
+    options: {
+      opensAppToForeground: true,
+      isAuthenticationRequired: true,
+      isDestructive: identifier === 'reject',
+    },
+  });
   void Notifications.setNotificationCategoryAsync(APPROVAL_CATEGORY, [
-    {
-      identifier: 'approve',
-      buttonTitle: buttons.approve,
-      options: { opensAppToForeground: true, isAuthenticationRequired: true },
-    },
-    {
-      identifier: 'reject',
-      buttonTitle: buttons.reject,
-      options: { opensAppToForeground: true, isAuthenticationRequired: true, isDestructive: true },
-    },
+    button('always'),
+    button('approve'),
+    button('reject'),
+  ]).catch(() => undefined);
+  void Notifications.setNotificationCategoryAsync(APPROVAL_ONCE_CATEGORY, [
+    button('approve'),
+    button('reject'),
   ]).catch(() => undefined);
   const ensureChannel = (): Promise<unknown> => {
     if (Platform.OS !== 'android') return Promise.resolve();

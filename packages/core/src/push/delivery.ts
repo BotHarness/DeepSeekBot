@@ -30,6 +30,7 @@ export interface PushCandidate {
   messageId?: string;
   channelName?: string;
   preview?: string;
+  categoryId?: string;
 }
 
 export interface PushSource {
@@ -344,7 +345,7 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
         badge,
         priority: 'high',
         channelId: 'requests',
-        ...(item.attentionKind === 'tool-approval' ? { categoryId: 'tool-approval' } : {}),
+        ...(item.categoryId === undefined ? {} : { categoryId: item.categoryId }),
         data: {
           v: 1,
           hostId,

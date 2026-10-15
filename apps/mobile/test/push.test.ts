@@ -271,6 +271,12 @@ describe('notification buttons', () => {
         outcome === 'rejected' ? 'decided' : 'accepted',
       ),
     ).toBe('decided');
+    const outcomes: string[] = [];
+    await decideFromPush([two], approval, 'always', async (_, __, ___, outcome) => {
+      outcomes.push(outcome);
+      return 'accepted';
+    });
+    expect(outcomes).toEqual(['allowed-always-exact']);
   });
 
   it('ignores other buttons and kinds, and fails for an unpaired or unreachable Host', async () => {

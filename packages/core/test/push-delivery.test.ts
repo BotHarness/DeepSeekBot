@@ -119,6 +119,7 @@ const approval = (id: string, createdAt: string): PushCandidate => ({
   createdAt,
   channelId: 'dm-ada',
   messageId: `msg-${id}`,
+  categoryId: 'tool-approval',
 });
 
 describe('Push delivery', () => {
@@ -447,18 +448,24 @@ describe('Human Inbox push source', () => {
       (_, messageId) =>
         messageId === 'm'
           ? { toolName: 'bash', input: JSON.stringify({ description: 'x', command: 'date > now' }) }
-          : { toolName: 'read', input: '{}' },
+          : { toolName: 'secret_cli', input: '{}' },
     );
     const pending = source.pending();
     expect(pending.badge).toBe(3);
     expect(
-      pending.items.map((entry) => [entry.id, entry.kind, entry.channelName, entry.preview]),
+      pending.items.map((entry) => [
+        entry.id,
+        entry.kind,
+        entry.channelName,
+        entry.preview,
+        entry.categoryId,
+      ]),
     ).toEqual([
-      ['approval:1', 'approval', undefined, 'bash · date > now'],
-      ['approval:2', 'approval', 'ops', 'read'],
-      ['secret:1', 'private-input', undefined, undefined],
-      ['question:1', 'question', undefined, 'Which branch?'],
-      ['reply:1', 'reply', undefined, `${'x'.repeat(139)}…`],
+      ['approval:1', 'approval', undefined, 'bash · date > now', 'tool-approval'],
+      ['approval:2', 'approval', 'ops', 'secret_cli', 'tool-approval-once'],
+      ['secret:1', 'private-input', undefined, undefined, undefined],
+      ['question:1', 'question', undefined, 'Which branch?', undefined],
+      ['reply:1', 'reply', undefined, `${'x'.repeat(139)}…`, undefined],
     ]);
     expect(JSON.stringify(pending)).not.toContain(SECRET_TEXT);
   });

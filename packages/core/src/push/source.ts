@@ -40,18 +40,34 @@ function inputPreview(input: string): string {
   return value === undefined ? '' : typeof value === 'string' ? value : JSON.stringify(value);
 }
 
-function preview(
+const ONCE_ONLY_TOOLS = new Set(['secret_cli']);
+
+function approvalOf(
+  item: HumanAttentionItem,
+  approval: PushApprovalLookup | undefined,
+): { preview?: string; categoryId: string } {
+  const request =
+    item.channelId === undefined || item.messageId === undefined
+      ? undefined
+      : approval?.(item.channelId, item.messageId);
+  if (request === undefined) return { categoryId: 'tool-approval-once' };
+  const shown = inputPreview(request.input);
+  const preview = clip(shown.trim() === '' ? request.toolName : `${request.toolName} · ${shown}`);
+  return {
+    ...(preview === undefined ? {} : { preview }),
+    categoryId: ONCE_ONLY_TOOLS.has(request.toolName) ? 'tool-approval-once' : 'tool-approval',
+  };
+}
+
+function details(
   item: HumanAttentionItem,
   kind: PushKind,
   approval: PushApprovalLookup | undefined,
-): string | undefined {
-  if (kind === 'private-input') return undefined;
-  if (kind !== 'approval') return clip(item.summary);
-  if (item.channelId === undefined || item.messageId === undefined) return undefined;
-  const request = approval?.(item.channelId, item.messageId);
-  if (request === undefined) return undefined;
-  const shown = inputPreview(request.input);
-  return clip(shown.trim() === '' ? request.toolName : `${request.toolName} · ${shown}`);
+): { preview?: string; categoryId?: string } {
+  if (kind === 'private-input') return {};
+  if (kind === 'approval') return approvalOf(item, approval);
+  const preview = clip(item.summary);
+  return preview === undefined ? {} : { preview };
 }
 
 function candidate(
@@ -60,7 +76,6 @@ function candidate(
 ): PushCandidate[] {
   const kind = KIND[item.kind];
   if (kind === undefined || item.botSlug === '') return [];
-  const text = preview(item, kind, approval);
   const channelName =
     item.channelId === dmChannelId(item.botSlug) ? undefined : item.channelName?.trim();
   return [
@@ -73,7 +88,7 @@ function candidate(
       ...(item.channelId === undefined ? {} : { channelId: item.channelId }),
       ...(item.messageId === undefined ? {} : { messageId: item.messageId }),
       ...(channelName === undefined || channelName === '' ? {} : { channelName }),
-      ...(text === undefined ? {} : { preview: text }),
+      ...details(item, kind, approval),
     },
   ];
 }
