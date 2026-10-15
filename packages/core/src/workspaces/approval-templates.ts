@@ -91,7 +91,8 @@ export function listApprovalTemplates(): ApprovalTemplate[] {
 
 const POLICY_CHANGE_PATTERNS: readonly RegExp[] = [
   /approval-template[\s\S]*\b(set|edit|delete|rm|remove)\b/iu,
-  /approval-reviewer/iu,
+  /approval-reviewer[\s\S]*\b(set|edit|delete|rm|remove)\b/iu,
+  /approval-reviewer\.json/iu,
   /botApprovalTemplateSet|approvalReviewerModelSet/u,
   /botharness\.db|persona_bots|tool_approval_rules/iu,
 ];

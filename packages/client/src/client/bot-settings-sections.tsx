@@ -3,6 +3,7 @@ import type { ReactElement, ReactNode } from 'react';
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 
 import type { BridgeActions } from './actions.js';
+import { ApprovalReviewerModelSetting } from './approval-reviewer-model-setting.js';
 import {
   AssignmentConcurrencyRow,
   BotIconSetting,
@@ -80,6 +81,16 @@ export function ModelsSection(
     <Rows>
       <DefaultModelSettings actions={props.actions} t={props.t} />
       <AssignmentConcurrencyRow {...props} />
+    </Rows>
+  );
+}
+
+export function AutoApprovalSection(props: SectionProps<{ actions: BridgeActions }>): ReactElement {
+  return (
+    <Rows>
+      <SettingsSection>
+        <ApprovalReviewerModelSetting actions={props.actions} t={props.t} />
+      </SettingsSection>
     </Rows>
   );
 }

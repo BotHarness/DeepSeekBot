@@ -263,6 +263,7 @@ import {
   listApprovalTemplates,
   type ApprovalTemplate,
 } from '../workspaces/approval-templates.js';
+import type { ApprovalReviewerSettings } from '../workspaces/approval-reviewer-settings.js';
 import type {
   AggregatedState,
   BotStateSnapshot,
@@ -671,6 +672,8 @@ export interface BridgeMethods {
     payload?: unknown,
   ): BridgeResult<{ templates: ApprovalTemplate[]; selected?: string | null }>;
   botApprovalTemplateSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
+  approvalReviewerModel(payload?: unknown): Promise<BridgeResult<ApprovalReviewerModelView>>;
+  approvalReviewerModelSet(payload: unknown): Promise<BridgeResult<ApprovalReviewerModelView>>;
   standingLimitsSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
   botAvatarSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
   botBannerSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
@@ -708,7 +711,15 @@ export interface BridgeMethods {
   schedulePreview(payload: unknown): BridgeResult<{ occurrences: string[] }>;
 }
 
+export interface ApprovalReviewerModelView {
+  follows: 'bot' | 'model' | 'invalid';
+  model: ModelRoute | null;
+  available?: boolean;
+  unavailableReason?: string;
+}
+
 export interface BridgeMethodsDeps {
+  approvalReviewer?: ApprovalReviewerSettings;
   composerIdentity?: () => ComposerRecoveryIdentity;
   warn?: (message: string) => void;
   registry: PersonaBotRegistry;
@@ -1080,6 +1091,23 @@ function detail(record: PersonaBotRecord, snapshot: BotStateSnapshot): PersonaBo
 }
 
 export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
+  const reviewerModelView = async (
+    route: ModelRoute | undefined,
+  ): Promise<ApprovalReviewerModelView> => {
+    if (route === undefined) return { follows: 'bot', model: null };
+    if (deps.modelCatalog === undefined) return { follows: 'model', model: route };
+    try {
+      await deps.modelCatalog.validate(route);
+      return { follows: 'model', model: route, available: true };
+    } catch (error) {
+      return {
+        follows: 'model',
+        model: route,
+        available: false,
+        unavailableReason: error instanceof Error ? error.message : String(error),
+      };
+    }
+  };
   const askingBot = (channelId: string, messageId: string): string | undefined => {
     const channel = deps.channels.get(channelId);
     if (channel === undefined) return undefined;
@@ -2595,6 +2623,48 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       const result = deps.registry.setApprovalTemplate(slug, template ?? undefined);
       if (!result.ok) return unknownBot(slug);
       return { ok: true, value: detailOf(result.record) };
+    },
+    async approvalReviewerModel() {
+      if (deps.approvalReviewer === undefined) return unavailable();
+      const setting = deps.approvalReviewer.model();
+      if (setting.kind === 'invalid')
+        return {
+          ok: true,
+          value: {
+            follows: 'invalid',
+            model: null,
+            available: false,
+            unavailableReason: 'The reviewer model setting cannot be read.',
+          },
+        };
+      return {
+        ok: true,
+        value: await reviewerModelView(setting.kind === 'bot' ? undefined : setting.route),
+      };
+    },
+    async approvalReviewerModelSet(payload) {
+      if (deps.approvalReviewer === undefined) return unavailable();
+      const model = asObject(payload)['model'];
+      if (model !== null && !isModelRoute(model))
+        return invalidInput(
+          'model must be {provider, model, reasoningEffort?}, or null to follow each Bot',
+        );
+      const route =
+        model === null
+          ? undefined
+          : {
+              provider: model.provider.trim(),
+              model: model.model.trim(),
+              ...(model.reasoningEffort === undefined
+                ? {}
+                : { reasoningEffort: model.reasoningEffort.trim() }),
+            };
+      try {
+        deps.approvalReviewer.setModel(route);
+      } catch (error) {
+        return invalidInput(error instanceof Error ? error.message : String(error));
+      }
+      return { ok: true, value: await reviewerModelView(route) };
     },
     standingLimitsSet(payload) {
       const slug = asSlug(payload);

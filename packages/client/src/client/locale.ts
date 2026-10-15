@@ -645,6 +645,7 @@ export const zh = {
   'botSettings.picker': 'Bot 设置分区：{section}',
   'botSettings.section.general': '通用',
   'botSettings.section.models': '模型与运行',
+  'botSettings.section.autoApproval': '自动审批',
   'botSettings.section.messaging': '消息',
   'botSettings.section.imApps': 'IM 应用',
   'imApps.description': '本 Profile 的所有应用，以及使用它们的 Bot。',
@@ -3106,6 +3107,13 @@ export const zh = {
   'approval.externalCreator':
     'Lark 创建人：{actor}；每次调用前检查当前配对及 approve／save-rules 权限，失效后不自动恢复。',
   'approval.ruleDetails': '查看适用范围',
+  'autoApproval.reviewerModel.title': '审批员模型',
+  'autoApproval.reviewerModel.description':
+    '审批员替你回答工具审批时用的模型。默认跟随每个 Bot 自己的模型；也可以让所有 Bot 共用一个便宜又快的模型。',
+  'autoApproval.reviewerModel.followBot': '跟随每个 Bot',
+  'autoApproval.reviewerModel.missing': '{model}（不可用）',
+  'autoApproval.reviewerModel.unavailable':
+    '这个模型现在不可用，所有审批都会改发卡片给你，不会换用别的模型。',
   'autoApproval.title': '自动审批模板',
   'autoApproval.off': '关闭',
   'autoApproval.section': '自动审批',
@@ -4163,6 +4171,7 @@ export const en = {
   'botSettings.picker': 'Bot settings section: {section}',
   'botSettings.section.general': 'General',
   'botSettings.section.models': 'Models & execution',
+  'botSettings.section.autoApproval': 'Auto approval',
   'botSettings.section.messaging': 'Messaging',
   'botSettings.section.imApps': 'IM apps',
   'imApps.description': 'Every app in this profile and the Bot that uses it.',
@@ -6746,6 +6755,13 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'approval.externalCreator':
     'Lark creator: {actor}; current pairing and approve/save-rules authority are checked before each call. Disabled rules do not reactivate automatically.',
   'approval.ruleDetails': 'View scope',
+  'autoApproval.reviewerModel.title': 'Reviewer model',
+  'autoApproval.reviewerModel.description':
+    "The model the Approval Reviewer uses to answer tool approvals for you. By default it follows each Bot's own model; you can make every Bot share one cheap, fast model instead.",
+  'autoApproval.reviewerModel.followBot': 'Follow each Bot',
+  'autoApproval.reviewerModel.missing': '{model} (unavailable)',
+  'autoApproval.reviewerModel.unavailable':
+    'This model is unavailable now, so every approval goes to you as a card. No other model is used instead.',
   'autoApproval.title': 'Auto approval template',
   'autoApproval.off': 'Off',
   'autoApproval.section': 'Auto approval',

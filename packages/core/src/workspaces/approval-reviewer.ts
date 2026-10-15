@@ -1,8 +1,15 @@
+import type { ApprovalReviewerModelSetting } from './approval-reviewer-settings.js';
+
 export type ApprovalReviewOutcome = 'allow' | 'reject' | 'ask-human';
 
 export interface ApprovalReview {
   outcome: ApprovalReviewOutcome;
   reason: string;
+}
+
+export interface ApprovalReviewResult extends ApprovalReview {
+  model?: string;
+  sessionId?: string;
 }
 
 export interface ApprovalReviewRequest {
@@ -160,18 +167,48 @@ export interface ApprovalReviewerRoute {
 
 export type ApprovalReviewFailure =
   | 'no-model'
+  | 'model-unavailable'
+  | 'settings-invalid'
   | 'llm-unavailable'
   | 'timeout'
   | 'model-error'
   | 'unparseable';
 
 export class ApprovalReviewError extends Error {
+  model?: string;
+  sessionId?: string;
+
   constructor(
     readonly code: ApprovalReviewFailure,
-    detail?: string,
+    readonly detail?: string,
   ) {
     super(detail === undefined ? code : `${code}: ${detail}`);
   }
+}
+
+export function routeLabel(route: ApprovalReviewerRoute): string {
+  return route.provider + '/' + route.model;
+}
+
+export async function resolveReviewerRoute(
+  setting: ApprovalReviewerModelSetting,
+  botRoute: () => ApprovalReviewerRoute | undefined,
+  validate: (route: ApprovalReviewerRoute) => Promise<void>,
+): Promise<ApprovalReviewerRoute | undefined> {
+  if (setting.kind === 'invalid')
+    throw new ApprovalReviewError('settings-invalid', 'the reviewer model setting cannot be read');
+  if (setting.kind === 'bot') return botRoute();
+  try {
+    await validate(setting.route);
+  } catch (error) {
+    const failure = new ApprovalReviewError(
+      'model-unavailable',
+      error instanceof Error ? error.message : String(error),
+    );
+    failure.model = routeLabel(setting.route);
+    throw failure;
+  }
+  return setting.route;
 }
 
 export async function runApprovalReview(
@@ -219,4 +256,32 @@ export async function runApprovalReview(
   const review = parseApprovalReview(text);
   if (review === undefined) throw new ApprovalReviewError('unparseable');
   return review;
+}
+
+export function createApprovalReviewRunner(options: {
+  setting: () => ApprovalReviewerModelSetting;
+  botRoute: (botSlug: string) => ApprovalReviewerRoute | undefined;
+  validate: (route: ApprovalReviewerRoute) => Promise<void>;
+  llm: () => unknown;
+  sessionId: () => string;
+}): (request: ApprovalReviewRequest) => Promise<ApprovalReviewResult> {
+  return async (request) => {
+    const route = await resolveReviewerRoute(
+      options.setting(),
+      () => options.botRoute(request.botSlug),
+      options.validate,
+    );
+    const model = route === undefined ? undefined : routeLabel(route);
+    const sessionId = options.sessionId();
+    try {
+      const review = await runApprovalReview(options.llm(), route, request, sessionId);
+      return { ...review, sessionId, ...(model === undefined ? {} : { model }) };
+    } catch (error) {
+      if (error instanceof ApprovalReviewError) {
+        error.sessionId = sessionId;
+        if (model !== undefined) error.model = model;
+      }
+      throw error;
+    }
+  };
 }

@@ -429,6 +429,18 @@ deepseekbot approval-template-set <bot-id> off
 
 `approval-templates` 返回 `{templates}`，每个模板含 `name`、`title`、`description` 和 `builtIn`；加 `--bot` 时还返回该 Bot 当前选中的 `selected`，未选为 `null`。`approval-template-show` 返回 `{template}`，含完整 Markdown `text`。`approval-template-set` 返回 `{bot}`，其中是新的 `approvalTemplate`。Bot 在自己的 Shell 里运行 `approval-template-set` 时，这次调用一定会变成发给人类的审批卡片，已保存的规则和审批员都不能替你回答。拒绝时带错误码：`invalid-input`（未知模板）、`unknown-template` 和 `unknown-bot`。
 
+### 审批员模型
+
+默认情况下，每个 Bot 的审批员用这个 Bot 自己的模型。一个 Profile 级设置可以改成所有 Bot 共用一个审批员模型，比如一个便宜又快的模型。
+
+```bash
+deepseekbot approval-reviewer-model
+deepseekbot approval-reviewer-model-set deepseek/<model> [--effort <effort>]
+deepseekbot approval-reviewer-model-set bot
+```
+
+两个命令都返回 `{follows, model}`：`follows` 为 `bot`（跟随每个 Bot 自己的模型，`model` 为 `null`）、`model`（所有审批都用指定模型）或 `invalid`（设置文件读不出来）。指定模型时还会返回 `available`，为 `false` 时附带 `unavailableReason`。不在模型目录里、或服务商没有可用密钥的模型仍会保存，但之后每次审批都会改发普通的人类审批卡片，并在 `logs.db` 里写入 `fallback=model-unavailable` 和原因；审批员绝不会自己换用别的模型。`logs.db` 里每条 `approval-review` 记录都写明这次用的 `model` 和 `reviewSession`。Bot 在自己的 Shell 里运行 `approval-reviewer-model-set` 时，这次调用一定会变成发给人类的审批卡片，已保存的规则和审批员都不能替你回答。拒绝时带错误码：`usage`（没有 `<provider>/<model>`，或对 `bot` 加了 `--effort`）和 `invalid-input`。
+
 ### 模型、用量与活动
 
 ```bash

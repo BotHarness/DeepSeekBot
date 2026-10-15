@@ -48,6 +48,7 @@ import {
   GeneralSection,
   MessagingSection,
   ModelsSection,
+  AutoApprovalSection,
 } from './bot-settings-sections.js';
 import { ReleaseNotesController } from './release-notes.js';
 import { TelemetryNoticeController } from './telemetry-notice.js';
@@ -666,6 +667,19 @@ export function apply(ctx: ClientContext): void {
           inject: () => ({ ...botModePrefsFace(prefs), actions }),
         },
         ModelsSection,
+      ),
+    );
+    settingsCtx.slots.inject('botharness.settings.section', () =>
+      settingsCtx.slots.register(
+        {
+          name: 'botharness.settings.section',
+          id: BOT_SETTINGS_SECTIONS.autoApproval,
+          order: 15,
+          label: () => t('botSettings.section.autoApproval'),
+          locale: LOCALE_NS,
+          inject: () => ({ actions }),
+        },
+        AutoApprovalSection,
       ),
     );
     settingsCtx.slots.inject('botharness.settings.section', () =>

@@ -2908,6 +2908,57 @@ export async function setBotApprovalTemplate(
   if (asRecord(response?.['bot'])?.['slug'] !== slug)
     throw new Error('invalid botApprovalTemplateSet response');
 }
+export interface ApprovalReviewerModelView {
+  follows: 'bot' | 'model' | 'invalid';
+  model: ModelRouteView | null;
+  available?: boolean;
+  unavailableReason?: string;
+}
+function approvalReviewerModelView(response: unknown, method: string): ApprovalReviewerModelView {
+  const view = asRecord(response);
+  const follows = view?.['follows'];
+  const model = asRecord(view?.['model']);
+  if (
+    (follows !== 'bot' && follows !== 'model' && follows !== 'invalid') ||
+    (view?.['model'] !== null &&
+      (typeof model?.['provider'] !== 'string' || typeof model['model'] !== 'string'))
+  )
+    throw new Error(`invalid ${method} response`);
+  return {
+    follows,
+    model:
+      model === undefined
+        ? null
+        : {
+            provider: model['provider'] as string,
+            model: model['model'] as string,
+            ...(typeof model['reasoningEffort'] === 'string'
+              ? { reasoningEffort: model['reasoningEffort'] }
+              : {}),
+          },
+    ...(typeof view?.['available'] === 'boolean' ? { available: view['available'] } : {}),
+    ...(typeof view?.['unavailableReason'] === 'string'
+      ? { unavailableReason: view['unavailableReason'] }
+      : {}),
+  };
+}
+export async function loadApprovalReviewerModel(
+  call: BridgeCall,
+): Promise<ApprovalReviewerModelView> {
+  return approvalReviewerModelView(
+    await unwrap(call, 'approvalReviewerModel', {}),
+    'approvalReviewerModel',
+  );
+}
+export async function setApprovalReviewerModel(
+  call: BridgeCall,
+  model: ModelRouteView | null,
+): Promise<ApprovalReviewerModelView> {
+  return approvalReviewerModelView(
+    await unwrap(call, 'approvalReviewerModelSet', { model }),
+    'approvalReviewerModelSet',
+  );
+}
 export async function revokeToolApprovalRule(
   call: BridgeCall,
   slug: string,

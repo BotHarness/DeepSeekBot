@@ -436,6 +436,18 @@ deepseekbot approval-template-set <bot-id> off
 
 `approval-templates` returns `{templates}` with each template's `name`, `title`, `description` and `builtIn`; with `--bot` it also returns that Bot's `selected` template, or `null`. `approval-template-show` returns `{template}` with its full Markdown `text`. `approval-template-set` returns `{bot}` with the new `approvalTemplate`. When a Bot runs `approval-template-set` from its own Shell, the call always becomes a Human approval card; neither a saved rule nor the Approval Reviewer can answer it. Refusals carry a code: `invalid-input` (an unknown template), `unknown-template` and `unknown-bot`.
 
+### Approval Reviewer model
+
+By default each Bot's Approval Reviewer runs on that Bot's own model. One Profile-wide setting can name a single reviewer model for every Bot instead, for example a cheap, fast one.
+
+```bash
+deepseekbot approval-reviewer-model
+deepseekbot approval-reviewer-model-set deepseek/<model> [--effort <effort>]
+deepseekbot approval-reviewer-model-set bot
+```
+
+Both commands return `{follows, model}`: `follows` is `bot` (each Bot's own model, `model` is `null`), `model` (the named model is used for every review) or `invalid` (the setting file cannot be read). For a named model they also return `available` and, when it is `false`, `unavailableReason`. A model that is not in the catalog, or whose provider has no working key, is still saved, but every review then posts the ordinary Human card and writes `fallback=model-unavailable` with the reason to `logs.db`; the reviewer never switches to another model on its own. Each review's `approval-review` line in `logs.db` names the `model` and the `reviewSession` it used. When a Bot runs `approval-reviewer-model-set` from its own Shell, the call always becomes a Human approval card; neither a saved rule nor the Approval Reviewer can answer it. Refusals carry a code: `usage` (no `<provider>/<model>`, or `--effort` with `bot`) and `invalid-input`.
+
 ### Models, usage and activity
 
 ```bash

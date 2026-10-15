@@ -9,6 +9,7 @@ import type { BotHarnessTranslate } from './locale.js';
 export const BOT_SETTINGS_SECTIONS = {
   general: 'general',
   models: 'models',
+  autoApproval: 'auto-approval',
   messaging: 'messaging',
   imApps: 'im-apps',
   companions: 'companions',

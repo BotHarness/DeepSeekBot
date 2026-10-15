@@ -19,6 +19,7 @@ import {
   approvalSessionExcerpt,
   type ApprovalReview,
   type ApprovalReviewRequest,
+  type ApprovalReviewResult,
 } from './approval-reviewer.js';
 import { changesApprovalPolicy } from './approval-templates.js';
 
@@ -48,14 +49,17 @@ export interface ToolApprovalDecision {
 
 export interface ToolAutoApproval {
   template(botSlug: string): { name: string; text: string } | undefined;
-  review(request: ApprovalReviewRequest): Promise<ApprovalReview>;
+  review(request: ApprovalReviewRequest): Promise<ApprovalReviewResult>;
   log(entry: {
     botSlug: string;
     template: string;
     toolName: string;
     outcome: ApprovalReview['outcome'];
     latencyMs: number;
+    model?: string;
+    reviewSession?: string;
     fallback?: string;
+    detail?: string;
   }): void;
 }
 
@@ -610,7 +614,9 @@ export class ChannelToolApproval {
     const auto = this.#autoApproval;
     if (auto === undefined) return undefined;
     const started = Date.now();
-    const log = (outcome: ApprovalReview['outcome'], fallback?: string) => {
+    let model: string | undefined;
+    let reviewSession: string | undefined;
+    const log = (outcome: ApprovalReview['outcome'], fallback?: string, detail?: string) => {
       try {
         auto.log({
           botSlug: tracked.botSlug,
@@ -618,13 +624,16 @@ export class ChannelToolApproval {
           toolName: tracked.toolName,
           outcome,
           latencyMs: Date.now() - started,
+          ...(model === undefined ? {} : { model }),
+          ...(reviewSession === undefined ? {} : { reviewSession }),
           ...(fallback === undefined ? {} : { fallback }),
+          ...(detail === undefined ? {} : { detail }),
         });
       } catch {
         this.#attention?.warn('approval-review-log-failed');
       }
     };
-    let review: ApprovalReview;
+    let review: ApprovalReviewResult;
     try {
       review = await auto.review({
         botSlug: tracked.botSlug,
@@ -640,13 +649,17 @@ export class ChannelToolApproval {
         signal: signal ?? new AbortController().signal,
       });
     } catch (error) {
-      const code =
-        typeof (error as { code?: unknown })?.code === 'string'
-          ? (error as { code: string }).code
-          : 'review-failed';
-      log('ask-human', code);
+      const failure = error as
+        | { code?: unknown; detail?: unknown; model?: unknown; sessionId?: unknown }
+        | undefined;
+      const code = typeof failure?.code === 'string' ? failure.code : 'review-failed';
+      if (typeof failure?.model === 'string') model = failure.model;
+      if (typeof failure?.sessionId === 'string') reviewSession = failure.sessionId;
+      log('ask-human', code, typeof failure?.detail === 'string' ? failure.detail : undefined);
       return undefined;
     }
+    model = review.model;
+    reviewSession = review.sessionId;
     if (signal?.aborted) {
       log('ask-human', 'cancelled');
       return undefined;

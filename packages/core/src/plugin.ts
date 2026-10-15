@@ -145,7 +145,8 @@ import {
 } from './workspaces/grant-execution.js';
 import { ChannelToolApproval, type ToolAutoApproval } from './workspaces/tool-approval.js';
 import { approvalTemplate, changesApprovalPolicy } from './workspaces/approval-templates.js';
-import { runApprovalReview } from './workspaces/approval-reviewer.js';
+import { createApprovalReviewRunner } from './workspaces/approval-reviewer.js';
+import { createApprovalReviewerSettings } from './workspaces/approval-reviewer-settings.js';
 import { ChannelUserQuestions } from './channels/user-questions.js';
 import { mountPrivateInputs } from './credentials/mount.js';
 import type { PrivateInputs } from './credentials/private-inputs.js';
@@ -1222,6 +1223,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     },
     { global: true },
   );
+  const approvalReviewer = createApprovalReviewerSettings(join(dshHome, 'botharness'));
   let reviewLogs: LogDatabase | undefined;
   try {
     reviewLogs = openLogDatabase({ dir: join(dshHome, 'botharness') });
@@ -1235,22 +1237,29 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       const template = name === undefined ? undefined : approvalTemplate(name);
       return template === undefined ? undefined : { name: template.name, text: template.text };
     },
-    review: (request) => {
-      let route: { provider: string; model: string; reasoningEffort?: string } | undefined =
-        core.registry.get(request.botSlug)?.modelPlan?.orchestrator;
-      if (route === undefined) {
+    review: createApprovalReviewRunner({
+      setting: () => approvalReviewer.model(),
+      botRoute: (slug) => {
+        const own = core.registry.get(slug)?.modelPlan?.orchestrator;
+        if (own !== undefined) return own;
         try {
-          route = defaultModel.currentSelection();
+          return defaultModel.currentSelection();
         } catch {
-          route = undefined;
+          return undefined;
         }
-      }
-      return runApprovalReview(ctx.get('llm'), route, request, randomUUID());
-    },
+      },
+      validate: (route) => modelCatalog.validate(route),
+      llm: () => ctx.get('llm'),
+      sessionId: () => randomUUID(),
+    }),
     log: (entry) => {
       const detail =
-        `approval-review bot=${entry.botSlug} template=${entry.template} tool=${entry.toolName} outcome=${entry.outcome} latencyMs=${entry.latencyMs}` +
-        (entry.fallback === undefined ? '' : ` fallback=${entry.fallback}`);
+        `approval-review bot=${entry.botSlug} template=${entry.template} tool=${entry.toolName}` +
+        (entry.model === undefined ? '' : ` model=${entry.model}`) +
+        (entry.reviewSession === undefined ? '' : ` reviewSession=${entry.reviewSession}`) +
+        ` outcome=${entry.outcome} latencyMs=${entry.latencyMs}` +
+        (entry.fallback === undefined ? '' : ` fallback=${entry.fallback}`) +
+        (entry.detail === undefined ? '' : ` detail=${JSON.stringify(entry.detail)}`);
       ctx.logger.info(detail);
       try {
         reviewLogs?.write({
@@ -1666,6 +1675,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     }, 'botharness: release restarter');
   });
   const bridgeMethods = createBridgeMethods({
+    approvalReviewer,
     composerIdentity: () =>
       composerRecoveryIdentity(
         join(homedir(), '.config', 'botharness', 'composer-host-id'),

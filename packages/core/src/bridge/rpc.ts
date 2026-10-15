@@ -48,7 +48,7 @@ import type {
 } from '../release/service.js';
 import type { TelemetryStatus } from '../telemetry/service.js';
 import type { OverviewMemory } from '../memory/overview.js';
-import type { OverviewUsage } from './methods.js';
+import type { ApprovalReviewerModelView, OverviewUsage } from './methods.js';
 import type { PersonaBotActivitySnapshot } from '../state/bot-state.js';
 import type { HumanAssignmentContext } from '../runtime/assignment-human-context.js';
 import type { ThreadReceptionInput } from '../messaging/thread-policy.js';
@@ -799,6 +799,14 @@ export class BotharnessBridgeService extends TypertRemoteService {
 
   botApprovalTemplateSet(slug: string, template: string | null): { bot: PersonaBotDetail } {
     return unwrap(this.methods.botApprovalTemplateSet({ slug, template }));
+  }
+
+  approvalReviewerModel(): Promise<ApprovalReviewerModelView> {
+    return unwrapAsync(this.methods.approvalReviewerModel({}));
+  }
+
+  approvalReviewerModelSet(model: ModelRoute | null): Promise<ApprovalReviewerModelView> {
+    return unwrapAsync(this.methods.approvalReviewerModelSet({ model }));
   }
 
   standingLimitsSet(slug: string, soul: number, coreMemory: number): { bot: PersonaBotDetail } {
@@ -1771,6 +1779,8 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'browserProfileSet',
   'approvalTemplates',
   'botApprovalTemplateSet',
+  'approvalReviewerModel',
+  'approvalReviewerModelSet',
   'standingLimitsSet',
   'botAvatarSet',
   'botAppearanceSet',

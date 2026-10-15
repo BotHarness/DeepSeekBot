@@ -254,6 +254,8 @@ describe('bridge typert service', () => {
       'browserProfileSet',
       'approvalTemplates',
       'botApprovalTemplateSet',
+      'approvalReviewerModel',
+      'approvalReviewerModelSet',
       'standingLimitsSet',
       'botAvatarSet',
       'botAppearanceSet',
