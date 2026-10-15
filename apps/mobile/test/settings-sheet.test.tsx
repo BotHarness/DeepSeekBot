@@ -140,28 +140,32 @@ describe('App version', () => {
     expect(view.textContent).toContain(t.appVersionUnknown);
   });
 
-  it('joins version, build number, commit and branch', () => {
+  it('joins version, build number, commit, local build time and branch', () => {
+    const time = new Date(2026, 9, 15, 18, 5).toISOString();
     expect(
       appBuildLabel({
         version: '0.0.1',
         buildNumber: '7',
-        commit: '1c8d179-dirty',
+        commit: '1c8d179ab-dirty',
+        time,
         branch: 'qa/batch-3',
       }),
-    ).toBe('0.0.1 (7) · 1c8d179-dirty · qa/batch-3');
+    ).toBe('0.0.1 (7) · 1c8d179ab-dirty · 2026-10-15 18:05 · qa/batch-3');
     expect(
       appBuildLabel({
         version: '0.0.1',
         buildNumber: undefined,
-        commit: '1c8d179',
+        commit: '1c8d179ab',
+        time: 'not a date',
         branch: undefined,
       }),
-    ).toBe('0.0.1 · 1c8d179');
+    ).toBe('0.0.1 · 1c8d179ab');
     expect(
       appBuildLabel({
         version: undefined,
         buildNumber: undefined,
         commit: undefined,
+        time: undefined,
         branch: undefined,
       }),
     ).toBe('');

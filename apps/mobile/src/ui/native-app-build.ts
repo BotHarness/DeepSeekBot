@@ -11,6 +11,7 @@ export function currentAppBuild(): AppBuild {
     version: config?.version,
     buildNumber: buildNumber === undefined ? undefined : String(buildNumber),
     commit: process.env.EXPO_PUBLIC_BUILD_COMMIT,
+    time: process.env.EXPO_PUBLIC_BUILD_TIME,
     branch: process.env.EXPO_PUBLIC_BUILD_BRANCH,
   };
 }

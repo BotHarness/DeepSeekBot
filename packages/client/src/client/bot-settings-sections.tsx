@@ -16,10 +16,11 @@ import {
   SortSetting,
 } from './bot-mode-setting-rows.js';
 import { ApprovalTemplateLibrarySettings } from './approval-template-library.js';
+import { buildLabel, clientBuild } from './build-id.js';
 import type { BotModePrefsFace } from './bot-mode-prefs.js';
 import type { BridgeCall } from './bridge.js';
 import type { DesktopNotificationPrefs } from './desktop-notifications.js';
-import { SettingsRows, SettingsSection } from './ds/settings-row.js';
+import { SettingsRow, SettingsRows, SettingsSection } from './ds/settings-row.js';
 import { GitSettings } from './git-settings.js';
 import { HumanNameSettings } from './human-name-settings.js';
 import { MessagingDefaultsSettings } from './messaging-defaults-settings.js';
@@ -160,6 +161,10 @@ export function AboutSection({
   return (
     <Rows>
       <ReleaseSettings releaseNotes={releaseNotes} t={t} />
+      <SettingsRow
+        title={t('build.row.title')}
+        description={<span data-build-id>{buildLabel(clientBuild())}</span>}
+      />
     </Rows>
   );
 }

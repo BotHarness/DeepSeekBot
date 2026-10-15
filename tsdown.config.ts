@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { defineConfig, type UserConfig } from 'tsdown';
 
@@ -50,11 +51,36 @@ function clientBundle(id: string, entry: string[], outDir: string): UserConfig {
 
 export const CLIENT_BUNDLE_OUT_DIR = 'packages/client/lib';
 
-export const clientBundleOptions: UserConfig = clientBundle(
+export function buildStamp(env: NodeJS.ProcessEnv = process.env): { sha: string; time: string } {
+  let sha = env['BOTHARNESS_BUILD_SHA']?.trim();
+  if (!sha) {
+    try {
+      sha = execFileSync('git', ['rev-parse', '--short=9', 'HEAD'], {
+        cwd: ROOT_DIR,
+        stdio: ['ignore', 'pipe', 'ignore'],
+      })
+        .toString()
+        .trim();
+    } catch {
+      sha = undefined;
+    }
+  }
+  return {
+    sha: sha || 'dev',
+    time: env['BOTHARNESS_BUILD_TIME']?.trim() || new Date().toISOString(),
+  };
+}
+
+const clientBase = clientBundle(
   CLIENT_ID,
   ['packages/client/src/client/index.ts'],
   CLIENT_BUNDLE_OUT_DIR,
 );
+
+export const clientBundleOptions: UserConfig = {
+  ...clientBase,
+  define: { ...clientBase.define, __BOTHARNESS_BUILD__: JSON.stringify(buildStamp()) },
+};
 
 export const computerClientBundleOptions: UserConfig = clientBundle(
   '@botharness/computer',
