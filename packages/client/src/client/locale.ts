@@ -3415,7 +3415,7 @@ export const zh = {
   'telemetry.notice.close': '关闭',
   'botSettings.section.devices': '设备',
   'devices.pair.title': '配对手机',
-  'devices.pair.description': '用 DeepSeekBot App 扫码。二维码只能用一次，5 分钟后失效。',
+  'devices.pair.description': '用 DeepSeekBot App 扫码。二维码只能用一次，10 分钟后失效。',
   'devices.pair.open': '配对手机',
   'devices.pair.dialogTitle': '用手机扫码配对',
   'devices.pair.dialogDescription': '在手机上打开 DeepSeekBot App，用它的相机对准这个二维码。',
@@ -7065,7 +7065,7 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'botSettings.section.devices': 'Devices',
   'devices.pair.title': 'Pair a phone',
   'devices.pair.description':
-    'Scan a QR code with the DeepSeekBot app. The code works once and expires after 5 minutes.',
+    'Scan a QR code with the DeepSeekBot app. The code works once and expires after 10 minutes.',
   'devices.pair.open': 'Pair a phone',
   'devices.pair.dialogTitle': 'Scan to pair your phone',
   'devices.pair.dialogDescription':

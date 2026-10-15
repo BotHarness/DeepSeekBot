@@ -2,7 +2,7 @@ import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 
-export const PAIRING_OFFER_TTL_MS = 5 * 60 * 1000;
+export const PAIRING_OFFER_TTL_MS = 10 * 60 * 1000;
 const LAST_SEEN_RESOLUTION_MS = 60 * 1000;
 const MAX_OPEN_OFFERS = 16;
 const DEVICE_NAME_MAX = 60;
