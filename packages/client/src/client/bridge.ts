@@ -961,6 +961,22 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
       (request['role'] !== 'orchestrator' && request['role'] !== 'assignment')
     )
       return undefined;
+    const preview = asRecord(request['botCreatePreview']);
+    const botCreatePreview =
+      preview !== undefined &&
+      typeof preview['memoryFolder'] === 'string' &&
+      typeof preview['defaultLocation'] === 'boolean'
+        ? {
+            memoryFolder: preview['memoryFolder'],
+            defaultLocation: preview['defaultLocation'],
+            ...(typeof preview['avatar'] === 'string' && preview['avatar'].startsWith('data:image/')
+              ? { avatar: preview['avatar'] }
+              : {}),
+            ...(typeof preview['avatarError'] === 'string'
+              ? { avatarError: preview['avatarError'] }
+              : {}),
+          }
+        : undefined;
     toolApprovalRequest = {
       sessionId: request['sessionId'],
       callId: request['callId'],
@@ -968,6 +984,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
       role: request['role'],
       cwd: request['cwd'],
       input: request['input'],
+      ...(botCreatePreview === undefined ? {} : { botCreatePreview }),
     };
   }
   let userQuestionRequest: ChannelMessage['userQuestionRequest'];
@@ -1189,6 +1206,18 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
       messageId: action['messageId'],
       recipientBotSlug: action['recipientBotSlug'],
     };
+  }
+  let botCreateAction: ChannelMessage['botCreateAction'];
+  if (record['botCreateAction'] !== undefined) {
+    const action = asRecord(record['botCreateAction']);
+    if (
+      action === undefined ||
+      author.kind !== 'bot' ||
+      typeof action['botSlug'] !== 'string' ||
+      typeof action['displayName'] !== 'string'
+    )
+      return undefined;
+    botCreateAction = { botSlug: action['botSlug'], displayName: action['displayName'] };
   }
   let botChannelPost: ChannelMessage['botChannelPost'];
   if (record['botChannelPost'] !== undefined) {
@@ -1525,6 +1554,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
     ...(grantRequestResolution === undefined ? {} : { grantRequestResolution }),
     ...(assignmentReply === undefined ? {} : { assignmentReply }),
     ...(botDmAction === undefined ? {} : { botDmAction }),
+    ...(botCreateAction === undefined ? {} : { botCreateAction }),
     ...(botChannelPost === undefined ? {} : { botChannelPost }),
     ...(botChannelPost === undefined || botChannelPostPreview === undefined
       ? {}

@@ -24,6 +24,13 @@ import {
 } from './approval-reviewer.js';
 import { changesApprovalPolicy } from './approval-templates.js';
 
+export interface BotCreatePreview {
+  memoryFolder: string;
+  defaultLocation: boolean;
+  avatar?: string;
+  avatarError?: string;
+}
+
 export interface ToolApprovalRequestCard {
   sessionId: string;
   callId: string;
@@ -32,6 +39,7 @@ export interface ToolApprovalRequestCard {
   cwd: string;
   input: string;
   externalDecision?: 'operation' | 'web-only' | 'each-use';
+  botCreatePreview?: BotCreatePreview;
 }
 
 export interface ToolApprovalNotice extends ToolApprovalRequestCard {
@@ -202,6 +210,7 @@ export class ChannelToolApproval {
     externalDecision: 'operation' | 'web-only' | 'each-use' = 'operation',
     rememberable = false,
     device?: 'computer' | 'browser',
+    botCreatePreview?: BotCreatePreview,
   ): (() => void) | undefined {
     const agent = execution.agent;
     if (agent === undefined) return undefined;
@@ -232,6 +241,7 @@ export class ChannelToolApproval {
       externalDecision,
       ...(rememberable ? { rememberable } : {}),
       ...(device === undefined ? {} : { device }),
+      ...(botCreatePreview === undefined ? {} : { botCreatePreview }),
     });
     return () => {
       if (this.#tracked.get(key)?.agent === agent) {
@@ -303,6 +313,9 @@ export class ChannelToolApproval {
         cwd: tracked.cwd,
         input: tracked.input,
         externalDecision: tracked.externalDecision ?? 'operation',
+        ...(tracked.botCreatePreview === undefined
+          ? {}
+          : { botCreatePreview: tracked.botCreatePreview }),
       },
     };
     let resolve!: (outcome: ApprovalOutcome) => void;

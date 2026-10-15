@@ -3,8 +3,7 @@ import { useHeaderHeight } from 'expo-router/react-navigation';
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, View } from 'react-native';
 
-import { botSettings } from '../../host/bot-settings';
-import type { HostClient } from '../../host/client';
+import type { HostClient, RosterBot } from '../../host/client';
 import type {
   CardResolution,
   ConversationDraft,
@@ -35,14 +34,12 @@ import {
 import { useDictation } from '../../host/speech';
 import { botColor } from '../bot-color';
 import { ApprovalCard } from './approval-card';
+import type { BubbleGroup } from './bubble-shape';
 import { botBusy } from './bot-tone';
 import { ChannelTitle } from './channel-title';
 import { ChatTitle } from './chat-title';
 import { Composer } from './composer';
-import { HeaderBackButton, HeaderEdgeFade, systemGlassBar } from './header-chrome';
-import { useComposerContext } from './composer-context';
-import { modelLabel, workspaceLabel } from './composer-labels';
-import { ComposerFooter } from './composer-footer';
+import { EdgeFade, HeaderBackButton, systemGlassBar } from './header-chrome';
 import { useFollowLatest } from './follow-latest';
 import { ImageViewer } from './image-viewer';
 import { JumpToLatest } from './jump-to-latest';
@@ -57,16 +54,14 @@ import {
   type SelectedMention,
 } from './mention-draft';
 import { MentionSuggestions } from './mention-suggestions';
-import { ModelSheet } from './model-sheet';
 import { DraftBubble, MessageBubble } from './message-bubble';
 import { copyMessage } from './message-menu';
 import { chatRows, type ChatRow } from './message-groups';
 import { QuestionCard } from './question-card';
-import { StatusStrip } from './status-strip';
+import { WorkingRow } from './working-row';
 import { TimeSeparator } from './time-separator';
-import { WorkspaceSheet } from './workspace-sheet';
 import { AccentProvider, useDesignTheme } from '../design/theme';
-import { space } from '../design/tokens';
+import { edgeFade, space } from '../design/tokens';
 import { OpenFullClientButton } from '../open-full-client';
 import { Text } from '../primitives/text';
 import { t } from '../strings';
@@ -114,6 +109,7 @@ const RequestCard = memo(function RequestCard({
   focused,
   replyInChat,
   answeredHere,
+  group,
 }: {
   client: HostClient;
   inbox: Inbox | undefined;
@@ -125,6 +121,7 @@ const RequestCard = memo(function RequestCard({
   focused: boolean;
   replyInChat: boolean;
   answeredHere: boolean;
+  group: BubbleGroup;
 }) {
   const ref = useMemo<RequestRef>(
     () => ({ channelId: card.channelId, messageId: message.id, botSlug }),
@@ -160,6 +157,7 @@ const RequestCard = memo(function RequestCard({
         {...subject}
         {...(resolution?.kind === 'tool-approval' ? { resolution } : {})}
         focused={focused}
+        group={group}
       />
     );
   return (
@@ -169,6 +167,7 @@ const RequestCard = memo(function RequestCard({
       {...subject}
       {...(resolution?.kind === 'user-question' ? { resolution } : {})}
       focused={focused}
+      group={group}
       replyInChat={replyInChat}
       answeredHere={answeredHere}
     />
@@ -207,11 +206,7 @@ function ChatConversation({ place, focus }: { place: ChatPlace; focus: string | 
         : (host.roster?.bots ?? []).filter((entry) => channel.members.includes(entry.slug)),
     [channel, host.roster],
   );
-  const working = dm
-    ? bot !== undefined && botBusy(bot)
-      ? bot
-      : undefined
-    : members.find(botBusy);
+  const working = dm ? (bot !== undefined && botBusy(bot) ? [bot] : []) : members.filter(botBusy);
   const stopChannel = dm ? bot?.dmChannelId : channelId;
   const snapshot = useConversationSnapshot(conversation);
   const [draft, setDraft] = useState('');
@@ -222,18 +217,13 @@ function ChatConversation({ place, focus }: { place: ChatPlace; focus: string | 
   const [files, setFiles] = useState<PickedFile[]>([]);
   const [attachError, setAttachError] = useState(false);
   const dictation = useDictation(setDraft);
-  const [stop, setStop] = useState<StopOutcome | { status: 'stopping' } | undefined>();
+  const [stop, setStop] = useState<
+    ((StopOutcome | { status: 'stopping' }) & { bot: RosterBot }) | undefined
+  >();
   const [shareError, setShareError] = useState(false);
   const [viewing, setViewing] = useState<MessageAttachment>();
   const [actionsFor, setActionsFor] = useState<ConversationMessage>();
   const [reactError, setReactError] = useState(false);
-  const [settingsSheet, setSettingsSheet] = useState<'model' | 'workspace'>();
-  const [workspaceOpened, setWorkspaceOpened] = useState(0);
-  const settings = useMemo(
-    () => (client === undefined || slug === undefined ? undefined : botSettings(client, slug)),
-    [client, slug],
-  );
-  const context = useComposerContext(settings);
   const list = useRef<FlatList<Row>>(null);
   const jumped = useRef<string | undefined>(undefined);
   const [answered, setAnswered] = useState<ReadonlySet<string>>(new Set());
@@ -254,7 +244,14 @@ function ChatConversation({ place, focus }: { place: ChatPlace; focus: string | 
     () => snapshot.messages.filter((message) => !hiddenResolution(message)),
     [snapshot.messages],
   );
-  const history = useMemo(() => chatRows(visible).reverse(), [visible]);
+  const history = useMemo(
+    () =>
+      chatRows(
+        visible,
+        (message) => message.card !== undefined && (!dm || !resolutions.has(message.id)),
+      ).reverse(),
+    [visible, resolutions, dm],
+  );
   const latest = useFollowLatest(list, visible);
 
   const asking = snapshot.messages.findLast(
@@ -358,17 +355,11 @@ function ChatConversation({ place, focus }: { place: ChatPlace; focus: string | 
       .catch(() => setAttachError(true));
   };
 
-  const stopRun = () => {
-    if (
-      client === undefined ||
-      working === undefined ||
-      stopChannel === undefined ||
-      stop?.status === 'stopping'
-    )
-      return;
-    setStop({ status: 'stopping' });
-    void stopBot(client, stopChannel, working.slug).then((outcome) =>
-      setStop(outcome.status === 'stopped' ? undefined : outcome),
+  const stopRun = (target: RosterBot) => {
+    if (client === undefined || stopChannel === undefined || stop?.status === 'stopping') return;
+    setStop({ status: 'stopping', bot: target });
+    void stopBot(client, stopChannel, target.slug).then((outcome) =>
+      setStop(outcome.status === 'stopped' ? undefined : { ...outcome, bot: target }),
     );
   };
 
@@ -418,6 +409,7 @@ function ChatConversation({ place, focus }: { place: ChatPlace; focus: string | 
             focused={item.message.id === focus}
             replyInChat={dm}
             answeredHere={answered.has(item.message.id)}
+            group={item}
           />
         );
       return (
@@ -461,8 +453,8 @@ function ChatConversation({ place, focus }: { place: ChatPlace; focus: string | 
                 ? t.shareFailed
                 : reactError
                   ? t.reactFailed
-                  : stop?.status === 'not-working' && working !== undefined
-                    ? t.stopNotWorking(working.displayName)
+                  : stop?.status === 'not-working'
+                    ? t.stopNotWorking(stop.bot.displayName)
                     : stop?.status === 'failed'
                       ? `${t.stopFailed} ${stop.reason}`
                       : dictation.state.status === 'denied'
@@ -482,7 +474,7 @@ function ChatConversation({ place, focus }: { place: ChatPlace; focus: string | 
           headerShadowVisible: false,
           headerTransparent: true,
           headerStyle: { backgroundColor: 'transparent' },
-          scrollEdgeEffects: { top: 'soft', bottom: 'soft', left: 'hidden', right: 'hidden' },
+          scrollEdgeEffects: { top: 'hidden', bottom: 'hidden', left: 'hidden', right: 'hidden' },
           ...(systemGlassBar
             ? {}
             : { headerLeft: () => <HeaderBackButton onPress={() => router.back()} /> }),
@@ -533,7 +525,7 @@ function ChatConversation({ place, focus }: { place: ChatPlace; focus: string | 
             inverted
             style={{ flex: 1 }}
             contentContainerStyle={{
-              paddingTop: space.x3,
+              paddingTop: edgeFade.bottom,
               paddingBottom: (notice === undefined ? headerHeight : 0) + space.x3,
             }}
             data={rows}
@@ -561,6 +553,20 @@ function ChatConversation({ place, focus }: { place: ChatPlace; focus: string | 
             scrollEventThrottle={32}
             keyboardDismissMode="interactive"
             keyboardShouldPersistTaps="handled"
+            ListHeaderComponent={
+              working.length === 0 ? null : (
+                <View>
+                  {working.map((entry) => (
+                    <WorkingRow
+                      key={entry.slug}
+                      bot={entry}
+                      stopping={stop?.status === 'stopping' && stop.bot.slug === entry.slug}
+                      onStop={() => stopRun(entry)}
+                    />
+                  ))}
+                </View>
+              )
+            }
             ListFooterComponent={
               snapshot.loadingOlder ? (
                 <View
@@ -593,6 +599,7 @@ function ChatConversation({ place, focus }: { place: ChatPlace; focus: string | 
               ) : null
             }
           />
+          <EdgeFade edge="bottom" height={edgeFade.bottom} />
           {latest.away ? (
             <View
               pointerEvents="box-none"
@@ -608,9 +615,6 @@ function ChatConversation({ place, focus }: { place: ChatPlace; focus: string | 
             </View>
           ) : null}
         </View>
-        {working === undefined ? null : (
-          <StatusStrip bot={working} stopping={stop?.status === 'stopping'} onStop={stopRun} />
-        )}
         <Composer
           value={draft}
           placeholder={
@@ -643,65 +647,15 @@ function ChatConversation({ place, focus }: { place: ChatPlace; focus: string | 
           }}
           onStopDictation={dictation.stop}
           onCancelDictation={dictation.cancel}
-          {...(bot === undefined
-            ? {}
-            : {
-                footer: (
-                  <ComposerFooter
-                    mountRef={context.mount}
-                    botName={bot.displayName}
-                    model={modelLabel(context.model)}
-                    workspace={workspaceLabel(context.grants)}
-                    onModel={() => {
-                      if (context.model.status !== 'ready') context.reloadModel();
-                      setSettingsSheet('model');
-                    }}
-                    onWorkspace={() => {
-                      context.openWorkspace();
-                      setWorkspaceOpened((count) => count + 1);
-                      setSettingsSheet('workspace');
-                    }}
-                  />
-                ),
-              })}
         />
       </KeyboardAvoidingView>
-      {systemGlassBar ? null : <HeaderEdgeFade height={headerHeight} />}
+      <EdgeFade edge="top" height={headerHeight + edgeFade.extend} />
       <ImageViewer attachment={viewing} onClose={() => setViewing(undefined)} onShare={share} />
       <MessageActions
         message={actionsFor}
         onClose={() => setActionsFor(undefined)}
         onReact={(message, emoji, active) => react(message.id, emoji, active)}
         onCopy={copyMessage}
-      />
-      <ModelSheet
-        visible={settingsSheet === 'model'}
-        botName={bot?.displayName ?? slug ?? ''}
-        model={context.model}
-        onRetry={context.reloadModel}
-        onChoose={async (model, entry) => {
-          await settings?.chooseModel(model, entry);
-          context.reloadModel();
-        }}
-        onPreset={async (presetId) => {
-          await settings?.applyPreset(presetId);
-          context.reloadModel();
-        }}
-        onClose={() => setSettingsSheet(undefined)}
-      />
-      <WorkspaceSheet
-        key={workspaceOpened}
-        visible={settingsSheet === 'workspace'}
-        botName={bot?.displayName ?? slug ?? ''}
-        settings={settings}
-        grants={context.grants}
-        access={context.access}
-        templates={context.templates}
-        onRetryGrants={context.reloadGrants}
-        onGrantsChanged={context.reloadGrants}
-        onAccess={context.setAccess}
-        onTemplates={context.setTemplates}
-        onClose={() => setSettingsSheet(undefined)}
       />
     </>
   );

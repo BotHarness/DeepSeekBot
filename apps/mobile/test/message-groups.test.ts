@@ -61,6 +61,22 @@ describe('chat message groups', () => {
     ).toEqual(['|', 'a^$', '|', 'b^$', 's^$', 'c^$']);
   });
 
+  it('keeps a standalone row, such as an open request card, out of the groups around it', () => {
+    expect(
+      shape(
+        chatRows(
+          [
+            message('a', '09:00'),
+            message('card', '09:01'),
+            message('b', '09:02'),
+            message('c', '09:03'),
+          ],
+          (row) => row.id === 'card',
+        ),
+      ),
+    ).toEqual(['|', 'a^$', 'card^$', 'b^', 'c$']);
+  });
+
   it('labels a separator with the time today, "yesterday", or the date', () => {
     const now = new Date('2026-10-14T12:00:00');
     const at = (day: number) => new Date(`2026-10-${day}T09:05:00`).toISOString();

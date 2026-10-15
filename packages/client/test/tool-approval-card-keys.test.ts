@@ -16,6 +16,7 @@ import { ToolApprovalCard } from '../src/client/tool-approval-card.js';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   Button: ({ children, variant: _variant, ...props }: { children: ReactNode; variant?: string }) =>
     createElement('button', props, children),
+  Tag: ({ children }: { children: ReactNode }) => createElement('span', null, children),
 }));
 
 const message = (toolName = 'bash', input = '{"command":"echo QA"}'): ChannelMessage =>
@@ -105,6 +106,37 @@ describe('Tool approval card layout', () => {
     ).toEqual(['仅批准这一次', '始终允许相同调用', '始终允许此范围全部不透明工具', '拒绝']);
     expect(card.querySelector('kbd')).toBeNull();
   });
+  it('previews the new Bot on a bot_create card', async () => {
+    const value = message(
+      'bot_create',
+      JSON.stringify({
+        display_name: 'Tim',
+        description: '翻译发布说明',
+        tags: ['translator', 'zh-en'],
+        soul: '# Tim\n冷静\n准确\n第四行',
+        memory_location: '/data/bots',
+      }),
+    );
+    value.toolApprovalRequest!.botCreatePreview = {
+      memoryFolder: '/data/bots/<new-bot-id>',
+      defaultLocation: false,
+    };
+    const card = await render(value);
+    expect(card.querySelector('.bh-request-category')?.textContent).toBe('新 Bot');
+    expect(card.querySelector('.bh-tool-approval-sentence')?.textContent).toBe('创建 Bot「Tim」');
+    const preview = card.querySelector('.bh-bot-create-preview')!;
+    expect(preview.querySelector('.bh-bot-create-name')?.textContent).toBe('Tim');
+    expect(preview.querySelector('.bh-bot-create-bio')?.textContent).toBe('翻译发布说明');
+    expect(preview.textContent).toContain('translator');
+    expect(preview.textContent).toContain('zh-en');
+    const excerpts = [...preview.querySelectorAll('.bh-bot-create-excerpt')];
+    expect(excerpts.map((item) => item.textContent)).toEqual(['# Tim\n冷静\n准确\n…']);
+    expect(preview.textContent).toContain('使用默认的核心记忆模板');
+    expect(preview.querySelector('.bh-bot-create-path')?.textContent).toBe(
+      '/data/bots/<new-bot-id>',
+    );
+  });
+
   it('opens and closes the details from anywhere on the card except its buttons', async () => {
     const card = await render();
     await act(async () => card.querySelector<HTMLElement>('.bh-request-head')!.click());

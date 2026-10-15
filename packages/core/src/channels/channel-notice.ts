@@ -2,6 +2,7 @@ import type { ChannelMessage } from './channel.js';
 
 const CHANNEL_NOTICE_FIELDS = [
   'botDmAction',
+  'botCreateAction',
   'botChannelPost',
   'memoryCommit',
   'toolAutoApproval',

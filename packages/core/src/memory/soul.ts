@@ -221,7 +221,7 @@ function writeIfAbsent(path: string, text: string): boolean {
 
 export function seedStandingFiles(
   root: string,
-  options: { soul?: string; coreMemoryTemplate: boolean },
+  options: { soul?: string; coreMemory?: string; coreMemoryTemplate: boolean },
 ): string[] {
   const written: string[] = [];
   const soul = options.soul;
@@ -233,9 +233,10 @@ export function seedStandingFiles(
   ) {
     written.push(SOUL_FILE);
   }
+  const coreMemory = options.coreMemory?.trim() ? options.coreMemory : undefined;
   if (
-    options.coreMemoryTemplate &&
-    writeIfAbsent(join(root, CORE_MEMORY_FILE), CORE_MEMORY_TEMPLATE)
+    (coreMemory !== undefined || options.coreMemoryTemplate) &&
+    writeIfAbsent(join(root, CORE_MEMORY_FILE), coreMemory ?? CORE_MEMORY_TEMPLATE)
   ) {
     written.push(CORE_MEMORY_FILE);
   }

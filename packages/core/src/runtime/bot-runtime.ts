@@ -53,10 +53,15 @@ import {
   type InboxTriage,
   type OrchestratorInboxTriage,
 } from './inbox-triage.js';
-import { join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 
-import type { PersonaBotRecord } from '../bots/persona-bot.js';
+import {
+  MAX_PERSONA_BOT_AVATAR_BYTES,
+  personaBotAvatarFromBytes,
+  type PersonaBotRecord,
+} from '../bots/persona-bot.js';
+import { readFileSync, statSync } from 'node:fs';
 import {
   isAssignmentModelChoice,
   isModelRoute,
@@ -66,6 +71,7 @@ import {
 import { isValidSlug } from '../bots/slug.js';
 import type { AssignmentAccessStore } from '../workspaces/assignment-access.js';
 import type { PersonaBotRegistry } from '../bots/registry.js';
+import type { BotCreatePreview } from '../workspaces/tool-approval.js';
 import type { MemoryChangeDelta, MemoryChangeScan } from '../memory/accepted.js';
 import type { MemoryService } from '../memory/service.js';
 import {
@@ -440,6 +446,30 @@ export interface ChannelQueryPage {
   nextCursor?: string;
 }
 
+export interface BotCreateInput {
+  displayName: string;
+  description?: string;
+  tags?: string[];
+  avatarPath?: string;
+  soul?: string;
+  coreMemory?: string;
+  memoryLocation?: string;
+}
+
+export interface BotCreateOutcome {
+  botId: string;
+  displayName: string;
+  dmChannelId: string;
+  memoryDir: string;
+  model: 'host-default' | 'set';
+}
+
+export const NEW_BOT_ID_PLACEHOLDER = '<new-bot-id>';
+export const MAX_CREATED_BOT_NAME_LENGTH = 60;
+export const MAX_CREATED_BOT_TAGS = 8;
+export const MAX_CREATED_BOT_TAG_LENGTH = 32;
+export const MAX_CREATED_BOT_BIO_LENGTH = 160;
+
 export interface OrchestratorChannelAccess {
   list(input?: ChannelListInput): ChannelListPage;
   read(input?: { channelId?: string; before?: string; limit?: number }): ChannelMessageView[];
@@ -501,6 +531,7 @@ export interface OrchestratorChannelAccess {
     replyTo?: string;
     deliveryKey?: string;
   }): Promise<{ channelId: string; message: ChannelMessage }>;
+  createBot?(input: BotCreateInput): BotCreateOutcome;
   send(input: {
     body: string;
     channelId?: string;
@@ -603,6 +634,7 @@ export type DmMessageAdmission =
   | { admitted: false; reason: DmAdmissionFailure };
 
 export interface BotRuntime {
+  botCreatePreview?(botSlug: string, args: unknown): BotCreatePreview | undefined;
   canRequestPrivateInput?(sessionId: string, sourceEventId?: string): boolean;
   askChannel?(sessionId: string): string | undefined;
   askNotice?(sessionId: string, toolName: string): string | undefined;
@@ -740,6 +772,7 @@ export interface BotRuntimeOptions {
   createSessionId?: () => string;
   createEventId?: () => string;
   createMessageId?: () => string;
+  createBotId?: () => string;
 }
 
 interface AssignmentRow {
@@ -1194,6 +1227,7 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #workspaceRoot: string | undefined;
   readonly #orchestratorCwd: ((bot: PersonaBotRecord) => string | undefined) | undefined;
   readonly #registry: PersonaBotRegistry;
+  readonly #createBotId: () => string;
   readonly #channels: ChannelStore;
   readonly #inboxHistory: InboxHistoryQuery;
   readonly #inboxTriage: InboxTriage;
@@ -1295,6 +1329,7 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#createSessionId = options.createSessionId ?? (() => `botharness-${randomUUID()}`);
     this.#createEventId = options.createEventId ?? (() => randomUUID());
     this.#createMessageId = options.createMessageId ?? (() => randomUUID());
+    this.#createBotId = options.createBotId ?? (() => 'bot-' + randomUUID().replaceAll('-', ''));
     const configuredLimit =
       options.assignmentConcurrencyLimit ?? DEFAULT_ASSIGNMENT_CONCURRENCY_LIMIT;
     this.#assignmentConcurrencyLimit =
@@ -3206,6 +3241,30 @@ class BotRuntimeImplementation implements BotRuntime {
     if (channel.type === 'group')
       return channel.members.includes(owner.botSlug) ? channel.id : undefined;
     return channel.botSlug === owner.botSlug ? channel.id : undefined;
+  }
+
+  botCreatePreview(botSlug: string, args: unknown): BotCreatePreview | undefined {
+    if (typeof args !== 'object' || args === null) return undefined;
+    const input = args as Record<string, unknown>;
+    const location =
+      typeof input['memory_location'] === 'string' ? input['memory_location'].trim() : '';
+    let avatar: string | undefined;
+    let avatarError: string | undefined;
+    if (typeof input['avatar_path'] === 'string')
+      try {
+        avatar = this.#readCreatedAvatar(botSlug, input['avatar_path']);
+      } catch (error) {
+        avatarError = error instanceof Error ? error.message : 'invalid-avatar';
+      }
+    return {
+      memoryFolder:
+        location.length > 0
+          ? join(location, NEW_BOT_ID_PLACEHOLDER)
+          : join(this.#registry.rootDir, NEW_BOT_ID_PLACEHOLDER, 'memory'),
+      defaultLocation: location.length === 0,
+      ...(avatar === undefined ? {} : { avatar }),
+      ...(avatarError === undefined ? {} : { avatarError }),
+    };
   }
 
   askNotice(sessionId: string, toolName: string): string | undefined {
@@ -5389,6 +5448,7 @@ class BotRuntimeImplementation implements BotRuntime {
         this.#channels.removeGroupMember(channel.id, botSlug, 'left');
         return { channelId: channel.id, left: true };
       },
+      createBot: (input) => this.#createBot(botSlug, sourceEventId, beforeSend, input),
       sendToBot: async (input) => {
         const sender = this.#registry.get(botSlug);
         const target = this.#registry.get(input.botSlug);
@@ -5988,6 +6048,126 @@ class BotRuntimeImplementation implements BotRuntime {
             .update(Uint8Array.of(0))
             .update(deliveryKey)
             .digest('hex');
+  }
+
+  #createBot(
+    botSlug: string,
+    sourceEventId: string,
+    beforeSend: () => void,
+    input: BotCreateInput,
+  ): BotCreateOutcome {
+    const refuse = (code: string, message: string): never => {
+      throw new DirectBotToolError(code, `${code}: ${message}`);
+    };
+    const creator = this.#registry.get(botSlug);
+    if (this.#closed || creator === undefined || creator.paused === true)
+      refuse('creator-unavailable', 'The creating PersonaBot is no longer active');
+    const displayName = input.displayName.trim();
+    if (displayName.length === 0 || [...displayName].length > MAX_CREATED_BOT_NAME_LENGTH)
+      refuse(
+        'invalid-input',
+        `display_name must be 1 to ${MAX_CREATED_BOT_NAME_LENGTH} characters`,
+      );
+    const description = input.description?.trim();
+    if (description !== undefined && [...description].length > MAX_CREATED_BOT_BIO_LENGTH)
+      refuse(
+        'invalid-input',
+        `description must be at most ${MAX_CREATED_BOT_BIO_LENGTH} characters`,
+      );
+    const tags = [
+      ...new Set((input.tags ?? []).map((tag) => tag.trim()).filter((tag) => tag.length > 0)),
+    ];
+    if (
+      tags.length > MAX_CREATED_BOT_TAGS ||
+      tags.some((tag) => [...tag].length > MAX_CREATED_BOT_TAG_LENGTH)
+    )
+      refuse(
+        'invalid-input',
+        `tags allows at most ${MAX_CREATED_BOT_TAGS} tags of at most ${MAX_CREATED_BOT_TAG_LENGTH} characters`,
+      );
+    const memoryLocation = input.memoryLocation?.trim();
+    if (memoryLocation !== undefined && memoryLocation.length > 0 && !isAbsolute(memoryLocation))
+      refuse('invalid-memory-dir', 'memory_location must be an absolute folder path');
+    const avatar =
+      input.avatarPath === undefined
+        ? undefined
+        : this.#readCreatedAvatar(botSlug, input.avatarPath);
+    const slug = this.#createBotId();
+    beforeSend();
+    const created = this.#registry.create({
+      slug,
+      displayName,
+      ...(input.soul === undefined ? {} : { persona: input.soul }),
+      ...(input.coreMemory === undefined ? {} : { coreMemory: input.coreMemory }),
+      ...(tags.length === 0 ? {} : { roles: tags }),
+      ...(description ? { description } : {}),
+      ...(avatar === undefined ? {} : { avatar }),
+      ...(memoryLocation ? { memoryLocation } : {}),
+    });
+    if (!created.ok)
+      refuse(
+        created.reason === 'invalid-memory-dir' ||
+          created.reason === 'git-not-found' ||
+          created.reason === 'memory-unavailable'
+          ? created.reason
+          : 'invalid-input',
+        created.reason === 'invalid-memory-dir'
+          ? 'memory_location must be an existing absolute folder that does not already hold this Bot'
+          : created.reason === 'git-not-found'
+            ? 'Git is required to create a Memory Repository'
+            : (created.detail ?? 'The PersonaBot could not be created'),
+      );
+    const record = (created as Extract<typeof created, { ok: true }>).record;
+    const dm = this.#channels.getOrCreateDm(record.slug, record.displayName);
+    try {
+      this.#channels.appendBotCreateAction?.({
+        botSlug,
+        causeSourceEventId: sourceEventId,
+        created: { botSlug: record.slug, displayName: record.displayName },
+      });
+    } catch (error) {
+      this.#warn?.(
+        `bot-create-action-record-failed bot=${botSlug} created=${record.slug} reason=${error instanceof Error ? error.name : 'unknown'}`,
+      );
+    }
+    return {
+      botId: record.slug,
+      displayName: record.displayName,
+      dmChannelId: dm?.id ?? dmChannelId(record.slug),
+      memoryDir: this.#registry.memoryDirFor(record.slug) ?? '',
+      model: record.modelPlan === undefined && record.model === undefined ? 'host-default' : 'set',
+    };
+  }
+
+  #readCreatedAvatar(botSlug: string, path: string): string {
+    const refuse = (message: string): never => {
+      throw new DirectBotToolError('invalid-avatar', `invalid-avatar: ${message}`);
+    };
+    if (!isAbsolute(path)) refuse('avatar_path must be an absolute file path');
+    const roots = (this.#grants?.list(botSlug) ?? [])
+      .filter((grant) => grant.revokedAt === undefined)
+      .flatMap((grant) => {
+        try {
+          return [this.#grants!.requireActive(botSlug, grant.id).workspacePath];
+        } catch {
+          return [];
+        }
+      });
+    const memory = this.#registry.memoryDirFor(botSlug);
+    if (memory !== undefined) roots.push(memory);
+    if (authorizedPathRoot(roots, path) === undefined)
+      refuse('avatar_path is outside your Memory Repository and Workspace Grants');
+    let bytes: Buffer;
+    try {
+      const size = statSync(path).size;
+      if (size > MAX_PERSONA_BOT_AVATAR_BYTES)
+        refuse(`the image is larger than ${MAX_PERSONA_BOT_AVATAR_BYTES} bytes`);
+      bytes = readFileSync(path);
+    } catch (error) {
+      if (error instanceof DirectBotToolError) throw error;
+      return refuse('the image file cannot be read');
+    }
+    return personaBotAvatarFromBytes(bytes) ?? refuse('the image must be a PNG, JPEG or WebP file');
   }
 
   async #sendBotDm(input: {

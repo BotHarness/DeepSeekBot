@@ -459,6 +459,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
     }
     const seeded = seedStandingFiles(targetMemoryDir, {
       ...(input.persona === undefined ? {} : { soul: input.persona }),
+      ...(input.coreMemory === undefined ? {} : { coreMemory: input.coreMemory }),
       coreMemoryTemplate: sync,
     });
     const initialized = options.initializeMemory?.(targetMemoryDir) ?? { ok: true };

@@ -52,17 +52,24 @@ export function HeaderBackButton({ onPress }: { onPress(): void }) {
   );
 }
 
-export function HeaderEdgeFade({ height }: { height: number }) {
+export function EdgeFade({ edge: side, height }: { edge: 'top' | 'bottom'; height: number }) {
   const theme = useDesignTheme();
   const id = `fade-${useId().replace(/[^a-z0-9]/giu, '')}`;
+  const top = side === 'top';
   return (
     <View
       pointerEvents="none"
-      style={{ position: 'absolute', top: 0, left: 0, right: 0, height: height + edgeFade.extend }}
+      style={{
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        height,
+        ...(top ? { top: 0 } : { bottom: 0 }),
+      }}
     >
       <Svg width="100%" height="100%" preserveAspectRatio="none">
         <Defs>
-          <LinearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+          <LinearGradient id={id} x1="0" y1={top ? '0' : '1'} x2="0" y2={top ? '1' : '0'}>
             {edgeFade.stops.map((stop) => (
               <Stop
                 key={stop.offset}

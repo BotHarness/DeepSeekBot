@@ -25,6 +25,7 @@ import {
   isGroupAvatar,
   isValidChannelId,
   type LocalHumanIdentity,
+  type BotCreateAction,
   type ChannelMemoryCommit,
   type ChannelMessage,
   type ChannelReaction,
@@ -372,6 +373,11 @@ export interface ChannelStore {
     causeSourceEventId: string;
     commits: ReadonlyArray<Omit<ChannelMemoryCommit, 'botSlug'>>;
   }): ChannelMessage[];
+  appendBotCreateAction?(input: {
+    botSlug: string;
+    causeSourceEventId: string;
+    created: BotCreateAction;
+  }): ChannelMessage | undefined;
   rename(id: string, name: string): ChannelRecord | undefined;
   previewAllBotMention(id: string): AllBotPreview;
   appendMessageOnce(

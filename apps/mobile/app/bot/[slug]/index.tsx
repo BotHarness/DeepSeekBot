@@ -5,6 +5,7 @@ import { View } from 'react-native';
 import { botChannels, loadBotProfile } from '../../../src/host/bot-profile';
 import { useHostSession, useHostSnapshot } from '../../../src/host/host-session';
 import { BotProfileSheet } from '../../../src/ui/chat/bot-profile';
+import { BotSettingsPanel } from '../../../src/ui/chat/bot-settings-panel';
 import { useDesignTheme } from '../../../src/ui/design/theme';
 import { space } from '../../../src/ui/design/tokens';
 import { Text } from '../../../src/ui/primitives/text';
@@ -42,6 +43,7 @@ export default function BotProfileScreen() {
       bot={bot}
       channels={channels}
       load={load}
+      settings={client === undefined ? undefined : <BotSettingsPanel client={client} bot={bot} />}
       actions={{
         onMessage: () => (router.canGoBack() ? router.back() : router.replace(`/dm/${bot.slug}`)),
         ...(bot.browserAccess

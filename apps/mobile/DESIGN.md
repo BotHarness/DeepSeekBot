@@ -60,7 +60,7 @@ The shell is set by [ADR-0211](../../docs/adr/0211-the-mobile-app-has-two-tabs-w
   - Opening an item jumps to the card in its chat.
 - **Settings** is a form sheet with a large detent, opened from the avatar, and closed by swiping down or the close button. It reuses the settings row and section components, in groups:
   - **Connections**: the current Host and its connection status, Computers (paired Hosts, their status and unpairing, with the same confirmation and error notice as before), Notifications, and Open full client.
-  - **Interface**: Customize header, and Appearance (scheme, accent, chat wallpaper) once it exists.
+  - **Interface**: Customize header, App icon (the shipped default icon or one of two DeepSeekBot portraits, the full one and the chibi one, each with dark and tinted variants on iOS), and Appearance (scheme, accent, chat wallpaper) once it exists.
   - **Chats**: Channel sections and Hidden Channels, each pushing its own screen.
 
 ## Screens
@@ -80,8 +80,9 @@ The shell is set by [ADR-0211](../../docs/adr/0211-the-mobile-app-has-two-tabs-w
   - The chip is a full-round pill on `raised` with a hairline `edge`, so it stays readable over the messages. In one row it holds the Bot's avatar (no state ring), its name, and a state dot: `success` when idle, `accent` while thinking or working, `warning` when it waits for the Human, `danger` when blocked, `muted` when paused. The state is read out in the chip's accessibility label.
   - The chip's padding is concentric with its corners: it is `theme.touch` tall, so its corner radius is half that, and the avatar and the dot each sit that same distance from their end of the pill (padding = corner radius − the item's own radius).
   - Back and the computer button are round buttons of `theme.touch`. On iOS 26 they are the system's Liquid Glass bar buttons; elsewhere they are drawn as circles on `raised` with a hairline `edge`, like the chip.
-  - Messages fade out under the header. On iOS 26 this is the system's soft scroll edge effect (`scrollEdgeEffects`), drawn by UIKit at no JavaScript cost. Elsewhere a static gradient from `base` to transparent covers the header and a little below it; there is no live blur, because a blur view over a scrolling list re-renders every frame and needs a native module.
+  - Messages fade out under the header and the status bar: a static gradient from `base` to transparent covers the header and a little below it, on every platform. UIKit's scroll edge effects are turned off (`scrollEdgeEffects` all `hidden`): on the inverted list they did not show at the top on iOS 26. There is no live blur, because a blur view over a scrolling list re-renders every frame and needs a native module.
   - The list leaves the header's height free at its top, so the oldest message still clears the header.
+  - The same fade runs at the bottom of the list, just above the composer: a static `base` gradient (`edgeFade.bottom` tall) on every platform, and the list keeps that much space below the newest message so it rests clear of the fade.
 - Messages:
   - An inverted list. Messages from the same author within 5 minutes form a group, and a time separator appears after a 30-minute gap.
   - At the newest message the list follows a streaming reply. Once the Human drags or scrolls up into history, nothing moves the list under them: new text and messages land below while the part they are reading stays put. A round jump button (`raised`, with a ⌄) then floats centered above the composer, with an accent badge counting the Bot messages that arrived since they left (99+ at most), like the Web Client's "Return to latest messages". Tapping it, sending a message, or scrolling back down to the newest message follows again and hides the button.
@@ -110,12 +111,13 @@ The shell is set by [ADR-0211](../../docs/adr/0211-the-mobile-app-has-two-tabs-w
   - No keyboard shortcut hints, no explanatory boilerplate, and no paths or ids outside Details.
   - Regions are told apart by layer fills, not borders. The card is `raised` with no outline, and an outline appears only on the focused card (`edge.focus` in the accent).
   - A decided card collapses to one line: a coloured dot, then "subject · outcome" (for example "bash · Allowed once"). A card decided on another device or expired says so.
-- While the Bot works, a status strip above the composer shows the current step and a **Stop** button. Tapping it shows the steps.
-- The composer is a pill: **+** for attachments, the placeholder "Message {Bot}", and a mic that becomes Send once there is text. In a DM a footer row with the Model and Workspace chips sits under it.
+    - The collapsed line is a Bot bubble with different content: the same left edge, `surface` fill, padding, 80% width cap and radius `lg`, and it joins the Bot's message group (`xs` corners on the joined side, the tighter group gap), so it lines up with the bubbles above and below it. In a group Channel it stands alone, so the next bubble still carries the Bot's name.
+- While the Bot works (thinking or working), a working row at the bottom of the message list, after the newest message, shows "{Bot} · current step…" and a **Stop** button, like the Web Client's timeline working rows. Tapping it shows the steps. Nothing sits fixed above the composer, so the composer never moves when a Bot starts or stops; scrolled up, the row is out of view like any new message.
+- The composer is a pill: **+** for attachments, the placeholder "Message {Bot}", and a mic that becomes Send once there is text.
   - With one trailing button (the mic or Send) the pill is one row: **+**, the field and the button, bottom-aligned as the field grows. When the text no longer fits that one row, or with more (attached files, or the mic next to Send), it stacks like the web composer: the field on top at full width, and a row below with **+** (or **×**) on the left and the buttons on the right.
   - **+** opens Photos, Camera and File below the pill. Picked files show as removable tiles inside the pill, up to 10 per message. Send appears once there is text or a file.
   - Sending uploads each file to the Host first. A retry keeps the uploads that already finished.
-  - Under the pill, in a DM, a footer row holds two compact chips like the Web Client's composer footer: **Model** (a chip icon and the Bot's current model name, or "Loading…", "No model set" or "Unavailable") and **Workspace** (a folder icon and the folder count, "N folders"). Chips are `canvas.selected` pills with `meta` text, and their touch area reaches `theme.touch`.
+  - Nothing sits under the pill, so the chat stays clean. A DM's Model and Workspace settings live in the Bot profile, in a **Bot settings** group under the profile actions: a **Model** row (the Bot's current model name, or "Loading…", "No model set" or "Unavailable") and a **Workspace** row (the folder count, "N folders"), each with a chevron.
     - **Model** opens a sheet from the bottom titled "Model · {Bot}": Presets (when the Host has any) and the Models list, the current one checked. Picking a model changes only the Bot's main model; its Assignment models stay as they are. A model whose provider needs a key is shown muted and cannot be picked. The sheet closes once the Host accepts the change. Advanced settings (reasoning effort, Assignment models) stay on the computer.
     - **Workspace** opens a sheet titled "Workspace · {Bot}" with three sections, the same actions as the Web composer's workspace panel:
       1. **Folders**: each granted folder as a row (name, then "Can edit" or "Read only" and its path) with a × that removes access, then **Add folder**. Add folder turns the sheet into a folder browser of the computer: folders registered on the computer, the path as tappable crumbs, and the subfolders; **Authorize this folder** resolves the current folder and asks for a scoped confirmation ("Confirm authorization for {Bot}" with the resolved path) before granting it.
@@ -126,7 +128,7 @@ The shell is set by [ADR-0211](../../docs/adr/0211-the-mobile-app-has-two-tabs-w
   - The header is the same transparent header. Its centered chip, on `raised` with a hairline `edge` like the Bot chip, holds a round `#` mark, the Channel name and its member count; it opens nothing, since there is no profile. The full client button sits on the right.
   - The first bubble of each Bot's group, and each Bot's streaming draft, carry the Bot's name above it in `meta`. A different Bot starts a new group even within 5 minutes.
   - `accent` stays the app's accent, since no one Bot owns the chat.
-  - The status strip shows the first member Bot that is working, and **Stop** stops that Bot in this Channel.
+  - Each working member Bot gets its own working row, and its **Stop** stops that Bot in this Channel.
   - The composer says "Message #{Channel}" and has no Model and Workspace footer, since those belong to one Bot. A question card keeps its own Other field instead of "Or reply in the chat below.", because a message in a group goes to every member.
   - Typing `@` opens a suggestion list above the composer pill, on the `sheet` layer: **All Bots** (the Channel's active members, as the Web Client's "@All Bots") and the active member Bots with avatar and name, filtered by what follows the `@`. Choosing one inserts `@Name ` as a mention token, sent with the message like the Web Client's, so the mentioned Bots are woken even under a mentions-only wake policy. Editing inside a token turns it back into plain text.
   - A notification or Activity item for a group Channel reply, mention or card opens this chat, at the card when there is one.
@@ -135,6 +137,7 @@ The shell is set by [ADR-0211](../../docs/adr/0211-the-mobile-app-has-two-tabs-w
 
 - Avatar, name, label and description.
 - Actions: Message (closes the sheet back to the DM), Computer (only when the Bot has Computer access; opens the live desktop view, where **Pause Bot and take control** lets the Human click and type, with a password keyboard), Notifications.
+- Under the actions, a **Bot settings** group with the Model and Workspace rows (see Chat), each opening its sheet from the bottom over the profile.
 - Sections: Identity (the Soul: persona and standing rules), Memory (the Memory repository as a folder tree: folders first, each opens to its own list inside the sheet, and a file opens as read-only text), Routines (schedules), Channels (group Channels the Bot is in), Files (folders shared with the Bot).
 - Each section loads on its own: an empty section says so, and a failed one offers Try again without hiding the others.
 - Read-only for now; editing Identity and Memory from the phone comes later.
@@ -163,7 +166,7 @@ Each layer has `fill`, `pressed`, `selected` (neutral, such as the current tab),
 
 - `src/ui/design/` holds the tokens and theme (ADR-0201).
 - `src/ui/primitives/` holds `Text` (variant `meta` / `body` / `title`, and a tone that is a colour role), `Button`, `Toggle`, `SettingsRow`, `SettingsSection` and `SettingsGroupItem`, and later `Icon`, `IconButton`, `Button`, `Avatar`, `Badge`, `Card`, `SettingsRow` and `EmptyState`.
-- `src/ui/chat/` will hold the conversation row, bubble, message group, time separator, action cards, composer, status strip and scroll-to-bottom.
+- `src/ui/chat/` will hold the conversation row, bubble, message group, time separator, action cards, composer, working row and scroll-to-bottom.
 - `src/ui/shell/` will hold the Host drawer, the Human avatar button, shortcut cards, Channel section headers and the activity item.
 - `app/` routes, reads the Host client, and composes these components.
 

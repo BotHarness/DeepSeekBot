@@ -45,6 +45,7 @@ export interface CreatePersonaBotInput {
   slug: string;
   displayName: string;
   persona?: string;
+  coreMemory?: string;
   roles?: string[];
   description?: string;
   avatar?: string;
@@ -104,6 +105,20 @@ export function isPersonaBotAvatar(value: unknown): value is string {
     : match[1] === 'jpeg'
       ? bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff
       : bytes.toString('ascii', 0, 4) === 'RIFF' && bytes.toString('ascii', 8, 12) === 'WEBP';
+}
+
+export function personaBotAvatarFromBytes(bytes: Uint8Array): string | undefined {
+  const data = Buffer.from(bytes);
+  const type = data.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+    ? 'png'
+    : data[0] === 0xff && data[1] === 0xd8 && data[2] === 0xff
+      ? 'jpeg'
+      : data.toString('ascii', 0, 4) === 'RIFF' && data.toString('ascii', 8, 12) === 'WEBP'
+        ? 'webp'
+        : undefined;
+  if (type === undefined) return undefined;
+  const avatar = `data:image/${type};base64,${data.toString('base64')}`;
+  return isPersonaBotAvatar(avatar) ? avatar : undefined;
 }
 
 export function isUsableAvatarAppearance(
