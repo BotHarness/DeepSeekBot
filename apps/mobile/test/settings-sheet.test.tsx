@@ -10,6 +10,7 @@ vi.mock('react-native-safe-area-context', () => ({
 vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
 
 import { humanNameOf } from '../src/host/human';
+import { appBuildLabel } from '../src/ui/app-build';
 import { SettingsView, type SettingsActions } from '../src/ui/settings-view';
 import { HumanAvatarButton } from '../src/ui/shell/human-avatar';
 import { t } from '../src/ui/strings';
@@ -41,6 +42,7 @@ function actions(overrides: Partial<SettingsActions> = {}): SettingsActions {
     onAppIcon: vi.fn(),
     onNotifications: vi.fn(),
     onUnpair: vi.fn(async () => undefined),
+    onCopyVersion: vi.fn(),
     ...overrides,
   };
 }
@@ -57,7 +59,11 @@ describe('Settings sheet', () => {
     const view = await render(
       <SettingsView
         hostName="studio"
-        connection={{ status: 'connected', route: 'https://studio.tail.ts.net' }}
+        connection={{
+          status: 'connected',
+          route: 'https://studio.tail.ts.net',
+        }}
+        version="0.0.1 · 1c8d179"
         actions={handlers}
       />,
     );
@@ -89,6 +95,7 @@ describe('Settings sheet', () => {
       <SettingsView
         hostName="studio"
         connection={{ status: 'connecting', route: '' }}
+        version=""
         actions={actions({ onUnpair })}
       />,
     );
@@ -98,6 +105,66 @@ describe('Settings sheet', () => {
     await act(async () => button(view, t.unpair)!.click());
     expect(onUnpair).toHaveBeenCalledTimes(2);
     expect(dangerNotices(view)).toEqual([]);
+  });
+});
+
+describe('App version', () => {
+  it('shows the build in About and copies it on tap', async () => {
+    const handlers = actions();
+    const view = await render(
+      <SettingsView
+        hostName="studio"
+        connection={{ status: 'connected', route: '' }}
+        version="0.0.1 · 1c8d179 · main"
+        actions={handlers}
+      />,
+    );
+    expect(view.textContent).toContain(t.about);
+    expect(view.textContent).toContain('0.0.1 · 1c8d179 · main');
+    await act(async () =>
+      button(view, `${t.appVersion}, 0.0.1 · 1c8d179 · main, ${t.copy}`)!.click(),
+    );
+    expect(handlers.onCopyVersion).toHaveBeenCalledWith('0.0.1 · 1c8d179 · main');
+    expect(view.textContent).toContain(`0.0.1 · 1c8d179 · main · ${t.copied}`);
+  });
+
+  it('says the version is unknown when nothing was recorded', async () => {
+    const view = await render(
+      <SettingsView
+        hostName="studio"
+        connection={{ status: 'connected', route: '' }}
+        version=""
+        actions={actions()}
+      />,
+    );
+    expect(view.textContent).toContain(t.appVersionUnknown);
+  });
+
+  it('joins version, build number, commit and branch', () => {
+    expect(
+      appBuildLabel({
+        version: '0.0.1',
+        buildNumber: '7',
+        commit: '1c8d179-dirty',
+        branch: 'qa/batch-3',
+      }),
+    ).toBe('0.0.1 (7) · 1c8d179-dirty · qa/batch-3');
+    expect(
+      appBuildLabel({
+        version: '0.0.1',
+        buildNumber: undefined,
+        commit: '1c8d179',
+        branch: undefined,
+      }),
+    ).toBe('0.0.1 · 1c8d179');
+    expect(
+      appBuildLabel({
+        version: undefined,
+        buildNumber: undefined,
+        commit: undefined,
+        branch: undefined,
+      }),
+    ).toBe('');
   });
 });
 
@@ -117,9 +184,13 @@ describe('Human avatar', () => {
   });
 
   it('reads the display name from the Host identity', () => {
-    expect(humanNameOf({ humanId: 'h1', defaultDisplayName: null, displayName: 'Vain' })).toBe(
-      'Vain',
-    );
+    expect(
+      humanNameOf({
+        humanId: 'h1',
+        defaultDisplayName: null,
+        displayName: 'Vain',
+      }),
+    ).toBe('Vain');
     expect(humanNameOf({ displayName: '  ' })).toBeUndefined();
     expect(humanNameOf(null)).toBeUndefined();
   });

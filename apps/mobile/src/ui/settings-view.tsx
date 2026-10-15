@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 
 import type { ConnectionState } from '../host/client';
@@ -20,6 +20,7 @@ export interface SettingsActions {
   onAppIcon(): void;
   onNotifications(): void;
   onUnpair(): Promise<void>;
+  onCopyVersion(text: string): void;
 }
 
 const STATUS: Record<ConnectionState['status'], string> = {
@@ -35,22 +36,36 @@ export function SettingsView({
   hostName,
   connection,
   loadUsage,
+  version,
   actions,
 }: {
   hostName: string | undefined;
   connection: ConnectionState;
   loadUsage?: (() => Promise<OverviewUsage>) | undefined;
+  version: string;
   actions: SettingsActions;
 }) {
   const theme = useDesignTheme();
   const [unpairError, setUnpairError] = useState<string>();
+  const [versionCopied, setVersionCopied] = useState(false);
+  useEffect(() => {
+    if (!versionCopied) return;
+    const timer = setTimeout(() => setVersionCopied(false), 1500);
+    return () => clearTimeout(timer);
+  }, [versionCopied]);
   const status = [STATUS[connection.status], connection.route].filter((part) => part !== '');
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: theme.color.base }}
       contentContainerStyle={{ gap: space.x6, padding: space.x5 }}
     >
-      <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: -space.x3 }}>
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          marginRight: -space.x3,
+        }}
+      >
         <Text variant="title" accessibilityRole="header" style={{ flex: 1 }}>
           {t.settings}
         </Text>
@@ -107,6 +122,28 @@ export function SettingsView({
           title={t.appIcon}
           detail={t.appIconHint}
           onPress={actions.onAppIcon}
+        />
+      </SettingsSection>
+      <SettingsSection title={t.about} on={SHEET_GROUP}>
+        <SettingsRow
+          on={SHEET_GROUP}
+          title={t.appVersion}
+          detail={
+            version === ''
+              ? t.appVersionUnknown
+              : versionCopied
+                ? `${version} · ${t.copied}`
+                : version
+          }
+          accessibilityLabel={`${t.appVersion}, ${version === '' ? t.appVersionUnknown : version}, ${t.copy}`}
+          onPress={
+            version === ''
+              ? undefined
+              : () => {
+                  actions.onCopyVersion(version);
+                  setVersionCopied(true);
+                }
+          }
         />
       </SettingsSection>
     </ScrollView>
