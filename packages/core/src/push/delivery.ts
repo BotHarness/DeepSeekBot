@@ -57,6 +57,7 @@ export interface ExpoMessage {
   data: PushData;
   priority?: 'high';
   channelId?: string;
+  categoryId?: string;
 }
 
 export type ExpoTicket =
@@ -343,6 +344,7 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
         badge,
         priority: 'high',
         channelId: 'requests',
+        ...(item.attentionKind === 'tool-approval' ? { categoryId: 'tool-approval' } : {}),
         data: {
           v: 1,
           hostId,

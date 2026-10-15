@@ -146,6 +146,7 @@ describe('Push delivery', () => {
       badge: 1,
       priority: 'high',
       channelId: 'requests',
+      categoryId: 'tool-approval',
       data: {
         v: 1,
         hostId: f.pairing.host().id,

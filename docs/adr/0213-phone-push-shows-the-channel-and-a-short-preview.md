@@ -19,9 +19,11 @@ The first real-phone push test showed that a notification naming only the Person
   - Private input request: only what is needed, never the account or the request text.
   - In a group Channel the body starts with the PersonaBot's name (`Ada needs your approval: …`, `Ada: …`); in the DM it does not repeat it.
 - **Bounded.** Whitespace collapses to single spaces and the preview stops at 140 characters with `…`. The phone shows the full content after reading the item from the Host.
+- **Approve or reject from the notification.** A Tool approval push carries the `tool-approval` category. The app registers two buttons for it, Allow once and Reject, both requiring the phone to be unlocked. A button opens the app, which sends the decision to the Host named in the push data (each saved route in turn) and then shows the card in its conversation, already decided. If the decision cannot be sent, the card stays pending there. Always allow is not offered from a notification.
 - **Data and logs are unchanged.** The data payload still holds only ids, and the `push` developer log still never records the token or any content.
 
 ## Consequences
 
 - Notification text now passes through Expo Push Service and APNs or FCM. The Notifications settings screen says so, and each kind can still be turned off per phone.
 - An approval preview needs the request message, so the push source reads it from the Channel store by Channel and message id.
+- The buttons open the app because iOS does not run the app's JavaScript for a background action when the app was closed. Deciding without opening the app would need native code.

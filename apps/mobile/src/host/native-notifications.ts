@@ -2,6 +2,7 @@ import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
+import { APPROVAL_ACTIONS, APPROVAL_CATEGORY } from './push-actions';
 import type { NotificationsPort, PermissionState } from './push-session';
 
 export const REQUESTS_CHANNEL = 'requests';
@@ -28,7 +29,22 @@ function state(status: Notifications.NotificationPermissionsStatus): PermissionS
 
 let channelReady: Promise<unknown> | undefined;
 
-export function nativeNotifications(channelName: string): NotificationsPort {
+export function nativeNotifications(
+  channelName: string,
+  buttons: { approve: string; reject: string },
+): NotificationsPort {
+  void Notifications.setNotificationCategoryAsync(APPROVAL_CATEGORY, [
+    {
+      identifier: 'approve',
+      buttonTitle: buttons.approve,
+      options: { opensAppToForeground: true, isAuthenticationRequired: true },
+    },
+    {
+      identifier: 'reject',
+      buttonTitle: buttons.reject,
+      options: { opensAppToForeground: true, isAuthenticationRequired: true, isDestructive: true },
+    },
+  ]).catch(() => undefined);
   const ensureChannel = (): Promise<unknown> => {
     if (Platform.OS !== 'android') return Promise.resolve();
     channelReady ??= Notifications.setNotificationChannelAsync(REQUESTS_CHANNEL, {
@@ -69,15 +85,19 @@ export function nativeNotifications(channelName: string): NotificationsPort {
   };
 }
 
-export function onNotificationTap(open: (data: unknown) => void): () => void {
+export function onNotificationTap(
+  open: (data: unknown, action: string | undefined) => void,
+): () => void {
   const seen = new Set<string>();
   const handle = (response: Notifications.NotificationResponse | null): void => {
-    if (response === null || response.actionIdentifier !== Notifications.DEFAULT_ACTION_IDENTIFIER)
-      return;
+    if (response === null) return;
+    const action = response.actionIdentifier;
+    const tapped = action === Notifications.DEFAULT_ACTION_IDENTIFIER;
+    if (!tapped && APPROVAL_ACTIONS[action] === undefined) return;
     const id = response.notification.request.identifier;
     if (seen.has(id)) return;
     seen.add(id);
-    open(response.notification.request.content.data);
+    open(response.notification.request.content.data, tapped ? undefined : action);
     Notifications.clearLastNotificationResponse();
   };
   try {
