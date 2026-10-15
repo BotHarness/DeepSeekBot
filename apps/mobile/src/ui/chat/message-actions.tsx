@@ -1,4 +1,4 @@
-import { Fragment, type ReactNode } from 'react';
+import { Fragment, useRef, type ReactNode } from 'react';
 import { Modal, Pressable, ScrollView, View, useWindowDimensions } from 'react-native';
 import Animated, { Easing, Keyframe } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -191,6 +191,7 @@ function MessageMenu({
 }) {
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
+  const pressedIn = useRef(false);
   const { width: screen, height } = useWindowDimensions();
   const { message, anchor, group } = target;
   const human = message.author === 'human';
@@ -218,7 +219,13 @@ function MessageMenu({
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={t.cancel}
-        onPress={onClose}
+        onPressIn={() => {
+          pressedIn.current = true;
+        }}
+        onPress={() => {
+          if (pressedIn.current) onClose();
+        }}
+        onAccessibilityTap={onClose}
         style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }}
       />
       <View

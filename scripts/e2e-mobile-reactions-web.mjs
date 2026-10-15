@@ -258,16 +258,18 @@ async function main() {
       const handle = await page.waitForFunction(
         (value) =>
           [...document.querySelectorAll('[aria-describedby], [tabindex], div')]
-            .filter((node) => node.innerText?.trim() === value)
+            .filter((node) => node.innerText?.trim().startsWith(value))
             .at(-1),
         {},
         needle,
       );
-      const box = await handle.asElement().boundingBox();
-      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-      await page.mouse.down();
+      const pressable = await handle.evaluateHandle((node) => node.closest('[tabindex]') ?? node);
+      const box = await pressable.asElement().boundingBox();
+      const x = box.x + Math.min(box.width / 2, 40);
+      const y = (Math.max(box.y, 60) + Math.min(box.y + box.height, 760)) / 2;
+      await page.touchscreen.touchStart(x, y);
       await new Promise((done) => setTimeout(done, 900));
-      await page.mouse.up();
+      await page.touchscreen.touchEnd();
     };
 
     await page.goto(`${origin}/`, { waitUntil: 'networkidle0' });
@@ -341,6 +343,85 @@ async function main() {
     );
     await shot('3-removed');
     steps.push("tapped the 🎉 chip: only the Human's reaction was taken back");
+
+    const close = async () => {
+      const share = await page.$eval('[aria-label="Share"]', (node) =>
+        node.getBoundingClientRect().toJSON(),
+      );
+      await page.mouse.click(share.right + 40 > 390 ? 20 : share.right + 40, share.top);
+      await page.waitForFunction(() => document.querySelector('[aria-modal="true"]') === null);
+    };
+    const inBounds = () =>
+      page.evaluate(() => {
+        const island = document.querySelector('[aria-label="Reactions"]')?.getBoundingClientRect();
+        const share = document.querySelector('[aria-label="Share"]')?.getBoundingClientRect();
+        return (
+          island !== undefined &&
+          share !== undefined &&
+          island.top >= 0 &&
+          share.bottom <= window.innerHeight &&
+          island.bottom < share.top
+        );
+      });
+
+    const paragraph =
+      'Step result: the build compiled, the migrations ran, and every check in the release list passed without a retry.';
+    const long = `Long report begins.\n\n${Array.from({ length: 24 }, (_, i) => `${i + 1}. ${paragraph}`).join('\n')}`;
+    await botSend({ body: long });
+    await text('Long report begins.');
+    await new Promise((done) => setTimeout(done, 1000));
+    await longPress('Long report begins.');
+    await label('React with 👍');
+    checks.longMessageFits = await inBounds();
+    await shot('5-stress-long');
+    steps.push(
+      'long-pressed a message taller than the screen: the bubble is clipped and the island and menu stay on screen',
+    );
+    await close();
+
+    for (let i = 1; i <= 16; i += 1)
+      await botSend({ body: `Filler message ${i} to fill the screen.` });
+    await botSend({ body: 'Bottom edge marker.' });
+    await text('Bottom edge marker.');
+    const jump = await page.$('[aria-label*="atest"]');
+    if (jump !== null) await jump.click();
+    await new Promise((done) => setTimeout(done, 1500));
+    await longPress('Bottom edge marker.');
+    await label('React with 👍');
+    checks.bottomMessageFits = await inBounds();
+    await shot('6-stress-bottom');
+    steps.push(
+      'long-pressed the newest message at the bottom: the group slides up above the composer',
+    );
+    await close();
+
+    const fillerTop = () =>
+      page.evaluate(
+        () =>
+          [...document.querySelectorAll('div')]
+            .filter((node) => node.innerText?.trim() === 'Filler message 1 to fill the screen.')
+            .at(-1)
+            ?.getBoundingClientRect().top ?? 0,
+      );
+    await page.mouse.move(195, 400);
+    let sign = 1;
+    for (let i = 0; i < 12; i += 1) {
+      const before = await fillerTop();
+      if (before > 70 && before < 140) break;
+      await page.mouse.wheel({ deltaY: sign * (before - 100) });
+      await new Promise((done) => setTimeout(done, 400));
+      const after = await fillerTop();
+      if (Math.abs(after - 100) > Math.abs(before - 100)) sign = -sign;
+    }
+    await new Promise((done) => setTimeout(done, 800));
+    await longPress('Filler message 1 to fill the screen.');
+    await label('React with 👍');
+    checks.topMessageFits = await inBounds();
+    await shot('7-stress-top');
+    steps.push(
+      'long-pressed a message under the header: the group slides down below the status bar',
+    );
+    await close();
 
     const composer = await page.waitForSelector(`[placeholder="Message ${displayName}"]`);
     await composer.type('Great, ship it to production after lunch.');
