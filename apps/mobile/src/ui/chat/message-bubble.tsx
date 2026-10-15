@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, type ReactNode } from 'react';
 import { Pressable, View } from 'react-native';
 
 import {
@@ -7,6 +7,8 @@ import {
   type ConversationMessage,
   type MessageAttachment,
 } from '../../host/conversation';
+import type { RosterBot } from '../../host/client';
+import { BotAvatar } from '../bot-avatar';
 import { radius, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { MarkdownView } from '../markdown-view';
@@ -24,6 +26,10 @@ export function deliveryLabel(message: ConversationMessage): string | undefined 
   return message.revision === undefined ? t.sent : undefined;
 }
 
+export type Speaker = { name: string; bot: RosterBot | undefined; first: boolean };
+
+const SPEAKER_AVATAR = 32;
+
 export const MessageBubble = memo(function MessageBubble({
   message,
   first = true,
@@ -34,7 +40,7 @@ export const MessageBubble = memo(function MessageBubble({
   onLongPress = (pressed) => openMessageMenu(pressed.body),
   onReact,
   botName = (id) => id,
-  author,
+  speaker,
 }: {
   message: ConversationMessage;
   first?: boolean;
@@ -45,7 +51,7 @@ export const MessageBubble = memo(function MessageBubble({
   onLongPress?: (message: ConversationMessage) => void;
   onReact?: (messageId: string, emoji: string, active: boolean) => void;
   botName?: (id: string) => string;
-  author?: string | undefined;
+  speaker?: Speaker | undefined;
 }) {
   const theme = useDesignTheme();
   const human = message.author === 'human';
@@ -94,9 +100,8 @@ export const MessageBubble = memo(function MessageBubble({
       ) : null}
     </View>
   );
-  return (
-    <View style={{ ...bubbleRow(first), gap: space.x1 }}>
-      {author === undefined ? null : <AuthorName name={author} />}
+  const body = (
+    <>
       {failed || actionable ? (
         <Pressable
           {...(failed ? { accessibilityRole: 'button' as const, accessibilityLabel: label } : {})}
@@ -137,13 +142,58 @@ export const MessageBubble = memo(function MessageBubble({
           {label}
         </Text>
       )}
+    </>
+  );
+  return (
+    <View style={bubbleRow(first)}>
+      {speaker === undefined ? (
+        <View style={{ gap: space.x1 }}>{body}</View>
+      ) : (
+        <SpeakerColumns speaker={speaker}>{body}</SpeakerColumns>
+      )}
     </View>
   );
 });
 
+function SpeakerColumns({ speaker, children }: { speaker: Speaker; children: ReactNode }) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: space.x3 }}>
+      <View style={{ width: SPEAKER_AVATAR }}>
+        {speaker.first ? <SpeakerAvatar speaker={speaker} /> : null}
+      </View>
+      <View style={{ flex: 1, gap: space.x1 }}>
+        {speaker.first ? <AuthorName name={speaker.name} /> : null}
+        {children}
+      </View>
+    </View>
+  );
+}
+
+function SpeakerAvatar({ speaker }: { speaker: Speaker }) {
+  const theme = useDesignTheme();
+  if (speaker.bot !== undefined)
+    return <BotAvatar bot={speaker.bot} size={SPEAKER_AVATAR} ring={false} />;
+  return (
+    <View
+      style={{
+        width: SPEAKER_AVATAR,
+        height: SPEAKER_AVATAR,
+        borderRadius: radius.round,
+        backgroundColor: theme.color.surface,
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <Text strong tone="muted">
+        {Array.from(speaker.name)[0] ?? ''}
+      </Text>
+    </View>
+  );
+}
+
 function AuthorName({ name }: { name: string }) {
   return (
-    <Text variant="meta" tone="muted" strong numberOfLines={1} style={{ paddingLeft: space.x2 }}>
+    <Text variant="meta" tone="muted" strong numberOfLines={1}>
       {name}
     </Text>
   );
@@ -151,15 +201,14 @@ function AuthorName({ name }: { name: string }) {
 
 export const DraftBubble = memo(function DraftBubble({
   draft,
-  author,
+  speaker,
 }: {
   draft: ConversationDraft;
-  author?: string | undefined;
+  speaker?: Speaker | undefined;
 }) {
   const theme = useDesignTheme();
-  return (
-    <View style={{ paddingHorizontal: space.x4, paddingTop: space.x3, gap: space.x1 }}>
-      {author === undefined ? null : <AuthorName name={author} />}
+  const body = (
+    <>
       <View
         style={{
           maxWidth: '80%',
@@ -179,6 +228,15 @@ export const DraftBubble = memo(function DraftBubble({
       <Text variant="meta" tone="muted" accessibilityLiveRegion="polite">
         {t.typing}
       </Text>
+    </>
+  );
+  return (
+    <View style={{ paddingHorizontal: space.x4, paddingTop: space.x3 }}>
+      {speaker === undefined ? (
+        <View style={{ gap: space.x1 }}>{body}</View>
+      ) : (
+        <SpeakerColumns speaker={speaker}>{body}</SpeakerColumns>
+      )}
     </View>
   );
 });

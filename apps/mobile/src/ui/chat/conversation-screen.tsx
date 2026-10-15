@@ -54,7 +54,7 @@ import {
   type SelectedMention,
 } from './mention-draft';
 import { MentionSuggestions } from './mention-suggestions';
-import { DraftBubble, MessageBubble } from './message-bubble';
+import { DraftBubble, MessageBubble, type Speaker } from './message-bubble';
 import { copyMessage } from './message-menu';
 import { chatRows, type ChatRow } from './message-groups';
 import { QuestionCard } from './question-card';
@@ -384,11 +384,23 @@ function ChatConversation({ place, focus }: { place: ChatPlace; focus: string | 
     [roster],
   );
 
+  const speakerOf = useCallback(
+    (id: string, first: boolean): Speaker => ({
+      name: botName(id),
+      bot: roster?.bots.find((entry) => entry.slug === id),
+      first,
+    }),
+    [roster, botName],
+  );
+
   const renderItem = useCallback(
     ({ item }: { item: Row }) => {
       if (item.kind === 'draft')
         return (
-          <DraftBubble draft={item.draft} author={dm ? undefined : botName(item.draft.botSlug)} />
+          <DraftBubble
+            draft={item.draft}
+            speaker={dm ? undefined : speakerOf(item.draft.botSlug, true)}
+          />
         );
       if (item.kind === 'separator') return <TimeSeparator at={item.at} />;
       const author = item.message.bot ?? slug;
@@ -423,15 +435,28 @@ function ChatConversation({ place, focus }: { place: ChatPlace; focus: string | 
           onLongPress={setActionsFor}
           onReact={react}
           botName={botName}
-          author={
-            !dm && item.first && item.message.bot !== undefined
-              ? botName(item.message.bot)
+          speaker={
+            !dm && item.message.bot !== undefined
+              ? speakerOf(item.message.bot, item.first)
               : undefined
           }
         />
       );
     },
-    [dm, client, slug, inbox, resolutions, focus, answered, retry, share, react, botName],
+    [
+      dm,
+      client,
+      slug,
+      inbox,
+      resolutions,
+      focus,
+      answered,
+      retry,
+      share,
+      react,
+      botName,
+      speakerOf,
+    ],
   );
 
   const notice =
