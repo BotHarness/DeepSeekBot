@@ -455,7 +455,7 @@ Orchestrator 的应用定义 channel_list 工具从当前 PersonaBot 的 Session
 
 ### 手机推送
 
-[ADR-0202](../adr/0202-phone-push-is-a-content-free-projection-of-the-human-inbox.md)（[#1655](https://github.com/BotHarness/DeepSeekBot/issues/1655)）：应用定义的 Push delivery 模块（`packages/core/src/push/`）是 Human Inbox 的投影，不另设通知权威。Human Inbox 表或 PersonaBot 的审批、提问、私密输入计数变化时（以及每分钟一次的兜底扫描），模块读取 `action` 项与未读的 `replies` 项，对每台已登记的配对设备只发送一次新项，并经 Expo Push Service 投递；推送标题为频道名（`#名称`，私信为 PersonaBot 名称），正文为所需操作加上工具与主要参数、问题或消息的简短预览（折叠空白，最多 140 字符）；私密输入请求不含内容（[ADR-0212](../adr/0212-phone-push-shows-the-channel-and-a-short-preview.md)）。数据字段只含 Host 标识、Human Inbox 项标识、PersonaBot 标识与读取请求所需的 Channel／消息标识，并携带未处理 Human 操作数作为角标。设备经设备网关的 `/botharness-device/push` 登记 Expo push token、切换各类通知、发送测试通知；撤销设备或 Expo 回报 `DeviceNotRegistered` 时删除 token。发送失败有界重试，结果写入不含内容的 `push` 开发者日志。App 保存每台配对的 Host，点按通知先切换到对应 Host，再打开该审批、提问或私信。
+[ADR-0202](../adr/0202-phone-push-is-a-content-free-projection-of-the-human-inbox.md)（[#1655](https://github.com/BotHarness/DeepSeekBot/issues/1655)）：应用定义的 Push delivery 模块（`packages/core/src/push/`）是 Human Inbox 的投影，不另设通知权威。Human Inbox 表或 PersonaBot 的审批、提问、私密输入计数变化时（以及每分钟一次的兜底扫描），模块读取 `action` 项与未读的 `replies` 项，对每台已登记的配对设备只发送一次新项，并经 Expo Push Service 投递；推送标题为频道名（`#名称`，私信为 PersonaBot 名称），正文为所需操作加上工具与主要参数、问题或消息的简短预览（折叠空白，最多 140 字符）；私密输入请求不含内容（[ADR-0213](../adr/0213-phone-push-shows-the-channel-and-a-short-preview.md)）。数据字段只含 Host 标识、Human Inbox 项标识、PersonaBot 标识与读取请求所需的 Channel／消息标识，并携带未处理 Human 操作数作为角标。设备经设备网关的 `/botharness-device/push` 登记 Expo push token、切换各类通知、发送测试通知；撤销设备或 Expo 回报 `DeviceNotRegistered` 时删除 token。发送失败有界重试，结果写入不含内容的 `push` 开发者日志。App 保存每台配对的 Host，点按通知先切换到对应 Host，再打开该审批、提问或私信。
 
 ## 5 · Orchestrator 与 Assignment control plane
 
