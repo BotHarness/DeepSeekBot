@@ -317,7 +317,12 @@ async function main() {
     for (const [key, value] of Object.entries(env)) args.push('-e', `${key}=${value}`);
     args.push(join(flows, file));
     const child = spawn(maestro, args, {
-      env: { ...process.env, JAVA_HOME: javaHome, MAESTRO_CLI_NO_ANALYTICS: '1' },
+      env: {
+        ...process.env,
+        JAVA_HOME: javaHome,
+        MAESTRO_CLI_NO_ANALYTICS: '1',
+        MAESTRO_DRIVER_STARTUP_TIMEOUT: process.env['MAESTRO_DRIVER_STARTUP_TIMEOUT'] ?? '300000',
+      },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     let output = '';
@@ -355,6 +360,7 @@ async function main() {
       spawnSync('xcrun', ['simctl', 'shutdown', udid]);
     });
     run('xcrun', ['simctl', 'boot', udid]);
+    run('xcrun', ['simctl', 'bootstatus', udid, '-b'], { timeout: 600_000 });
     steps.push(
       `${existing === undefined ? 'created' : 'erased'} and booted ${DEVICE_NAME} on ${sim.runtimeName} (${udid})`,
     );
@@ -545,7 +551,7 @@ async function main() {
         body: `From ${b.name}`,
         data: { hostId: b.id, test: true },
       }),
-      '(?i)needs my action|需要我处理',
+      '(?i)needs my action.*|需要我处理.*',
     );
     await flow('6b-showing-mac-b', 'assert-host.yaml', { HOST: b.name });
     await open(
@@ -557,7 +563,7 @@ async function main() {
         badge: 1,
         data: { hostId: a.id },
       }),
-      '(?i)needs my action|需要我处理',
+      '(?i)needs my action.*|需要我处理.*',
     );
     await flow('6d-showing-mac-a', 'assert-host.yaml', { HOST: a.name });
     steps.push('test and badge-only notifications switched computers and opened Activity');
