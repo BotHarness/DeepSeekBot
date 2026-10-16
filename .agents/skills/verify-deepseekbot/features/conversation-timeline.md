@@ -11,6 +11,7 @@ Reading a Bot DM or group: where the timeline opens, how it keeps your place, an
 - `image-preview` opens a thumbnail in an in-page preview that steps through every image loaded in the Channel.
 - `reactions` adds the Human's emoji reaction from the hover bar picker, the long-press menu on narrow screens, or a chip under the bubble; Bots react through `channel_send` `react_to` + `reaction` (empty `body` for a reaction only); chips update live through `channel/reaction` and Bots read them in `channel_read`. The group avatar stays level with the bubble's bottom edge, not the chips.
 - `search` opens with Ctrl/⌘+F, lists matches newest first and jumps to one with `openAround`.
+- `member-mention` offers icon + label actions in the Channel sidebar member menu. Right-click, Shift+F10, and the member's ellipsis button all offer Mention, which appends one structured Bot mention to the current draft and focuses the composer without opening a DM.
 
 ## How to get to it (user POV)
 
@@ -19,6 +20,7 @@ Reading a Bot DM or group: where the timeline opens, how it keeps your place, an
 - Click an image in a message: the preview opens; `←`/`→` or the side buttons step, `Esc` closes.
 - Hover a message and click the smiley in its action bar, then pick an emoji; click the chip under the bubble to take it back. On a phone-width page, long-press the bubble and choose `Add reaction`.
 - Press Ctrl/⌘+F in an open conversation, type a word, and press `Enter` or click a result.
+- In a group Channel, open Members in the Channel sidebar. Right-click a Bot row (or use its ellipsis button / Shift+F10), then choose Mention (`@ TA` in Chinese).
 
 ## Driving it with verify-app
 
@@ -28,6 +30,7 @@ Preconditions: a model credential, a Bot with a few replies (one long list), thr
 - **Keep place.** Record `.bh-chat-body` `scrollTop`, open another DM, return; the value matches.
 - **Reactions.** `deepseekbot channel-react <dm> --message-id <id> --emoji 👍` returns `reactions`, and an open page shows `[data-reaction="👍"]` without a reload; `--remove` takes it away and `deepseekbot bot-tool <bot> channel_send --args-stdin` with `{"channel_id","body":"","react_to","reaction"}` reacts as that Bot. In the page, `[data-reaction-picker-trigger]` opens `[data-reaction-picker]`; at 390px wide the long-press menu's `Add reaction` item opens it. A real Bot asked to acknowledge with ✅ calls `channel_send` with `react_to`, which `deepseekbot bot-trace` shows.
 - **Search.** `deepseekbot channel-search <dm> --query <text>` lists matches newest first; in the page, Ctrl+F opens `[data-conversation-search]`, and `[data-search-result]` rows jump the timeline to their message.
+- **Member mention.** In a group with a Bot member, type a draft, open that member's menu and choose Mention. Check that every action has an icon, `.bh-composer-rich-input [data-bot-id]` identifies the selected Bot, existing text remains and focus/caret are at the draft end. Repeat from the ellipsis and Shift+F10; a second Mention does not duplicate the chip. Send a uniquely marked message and read `botharness/channelMessages`: its Human message must retain the selected Bot's structured `mentions` metadata. No model is needed to verify insertion or submission; a reply requires one.
 - **Fold and preview.** `[data-message-fold-toggle]` reads `Show all`; clicking a `.bh-message-image-link` opens `[role="dialog"]` named `Image preview: <file>`, with `2 / 3` style position text.
 
 ## Gotchas

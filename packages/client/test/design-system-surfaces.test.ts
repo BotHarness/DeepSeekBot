@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   IconChevronDownOutlineRegular: () => null,
+  Modal: ({ children, title }: { children: ReactNode; title: string }) =>
+    createElement('section', { role: 'dialog', 'aria-label': title }, children),
   Tooltip: ({ children }: { children: ReactNode }) => children,
 }));
 

@@ -127,6 +127,7 @@ const styles = stylex.create({
     },
     outlineOffset: '-2px',
     borderRadius: radius.md,
+    cornerShape: 'round',
     color: color.muted,
     backgroundColor: {
       default: color.hover,

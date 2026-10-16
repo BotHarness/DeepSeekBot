@@ -1372,7 +1372,10 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.sessionOwner({ sessionId }));
   }
 
-  botSessionIds(): { sessionIds: string[] } {
+  botSessionIds(): {
+    sessionIds: string[];
+    groups: { botSlug: string; displayName: string; sessionIds: string[] }[];
+  } {
     return unwrap(this.methods.botSessionIds({}));
   }
 

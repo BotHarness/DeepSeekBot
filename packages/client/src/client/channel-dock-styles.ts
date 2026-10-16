@@ -88,9 +88,13 @@ export const CHANNEL_DOCK_CSS =
 }
 .bh-dock-body > .bh-chat-pane { flex: 1 1 0; }
 .bh-dock-menu {
+  display: none;
   position: absolute;
   top: calc((var(--bh-channel-header-height) - ${size.icon}) / 2);
   right: ${space.x3};
   z-index: 7;
 }
+/* The expanded App Sidebar already exposes the panel toggles. Use the native
+   frame's resolved state, including responsive collapse and hidden sidebars. */
+[data-sidebar-collapsed] .bh-dock-menu { display: block; }
 `;

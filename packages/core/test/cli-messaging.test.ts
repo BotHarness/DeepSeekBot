@@ -475,6 +475,40 @@ describe('IM messaging commands', () => {
       expect((await invoke(argv, live.url)).json.error.code).toBe('usage');
   });
 
+  it('passes independent default-off DM controls through the existing channel bridge command', async () => {
+    const live = await snapshotHost(() => ({ updated: true }));
+    for (const [dmMirror, dmForward] of [
+      [false, false],
+      [true, false],
+      [false, true],
+    ]) {
+      const input = {
+        kind: 'update',
+        grantId: GRANT,
+        routeId: 'inbox',
+        expectedGrantRevision: 2,
+        expectedRevision: 1,
+        delivery: 'inbox',
+        name: 'Owner',
+        enabled: true,
+        collection: 'all',
+        collectionInheritance: 'custom',
+        dmMirror,
+        dmForward,
+      };
+      const result = await invoke(
+        ['channel-bridge', 'dm-ada', '--input-stdin'],
+        live.url,
+        JSON.stringify(input),
+      );
+      expect(result.code).toBe(0);
+      expect(live.calls.at(-1)).toEqual({
+        method: 'channelBridge',
+        args: { channelId: 'dm-ada', input },
+      });
+    }
+  });
+
   it("reports the Host's refusal code and lists Channel bridges", async () => {
     const refused = await host(() => ({
       ok: false,

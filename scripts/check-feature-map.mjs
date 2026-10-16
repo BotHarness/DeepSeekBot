@@ -3,7 +3,8 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-export const mapDirectory = '.agents/skills/verify-deepseekbot/features';
+import { auditInventory, mapDirectory } from './verification-inventory.mjs';
+export { mapDirectory };
 const sections = [
   'Sub-features',
   'How to get to it (user POV)',
@@ -85,6 +86,9 @@ export function checkFeatureMap(repo = root) {
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const result = checkFeatureMap();
+  const inventory = auditInventory();
+  result.errors.push(...inventory.errors);
+  result.ok = result.errors.length === 0;
   console.log(JSON.stringify(result, null, 2));
   process.exitCode = result.ok ? 0 : 1;
 }

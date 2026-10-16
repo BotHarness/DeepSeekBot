@@ -1,5 +1,6 @@
 import type { PixelBannerRecipe } from '@botharness/pixel-banner';
 import { onboardingFor } from './onboarding.js';
+import { loadAveragePerf, type AveragePerfView } from './message-perf.js';
 import { invalidateInheritedModelPlans } from './model-plan-store.js';
 import type { ProviderAppSetup } from './provider-app-setup.js';
 import type { OnboardingSnapshot, TutorialAction } from '../../../core/src/onboarding/types.js';
@@ -500,6 +501,7 @@ export interface BridgeActions {
   loadMoreBotInbox(slug: string): Promise<void>;
   openChannel(channelId: string): Promise<void>;
   openChannelAtMessage(channelId: string, messageId: string): Promise<void>;
+  averageReplyPerf(channelId: string, signal?: AbortSignal): Promise<AveragePerfView | undefined>;
   humanInboxContext(
     channelId: string,
     messageId: string,
@@ -2012,6 +2014,13 @@ export function createActions(
       )
         throw new Error('Source message is no longer available');
       return page;
+    },
+    averageReplyPerf(channelId, signal) {
+      return loadAveragePerf(async (request) => {
+        signal?.throwIfAborted();
+        const { page } = await loadTimelinePage(call, channelId, request, signal);
+        return page;
+      });
     },
     async snoozeHumanInbox(item, until) {
       await snoozeHumanInboxItem(call, item.id, item.sourceEventId ?? '', until);

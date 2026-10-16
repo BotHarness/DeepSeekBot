@@ -628,7 +628,10 @@ export interface BridgeMethods {
     payload: unknown,
   ): Promise<BridgeResult<{ memoryDir: string; moved: boolean; leftover?: string }>>;
   sessionOwner(payload: unknown): BridgeResult<{ owner: OwnedSessionBot | null }>;
-  botSessionIds(payload: unknown): BridgeResult<{ sessionIds: string[] }>;
+  botSessionIds(payload: unknown): BridgeResult<{
+    sessionIds: string[];
+    groups: { botSlug: string; displayName: string; sessionIds: string[] }[];
+  }>;
   messageAttachmentTarget(payload: unknown): BridgeResult<{ target: MemoryFileTarget }>;
   channelMediaTarget(payload: unknown): Promise<BridgeResult<{ target: MemoryFileTarget }>>;
   memoryFileTarget(payload: unknown): BridgeResult<{ target: MemoryFileTarget }>;
@@ -5159,10 +5162,18 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       };
     },
     botSessionIds() {
-      const sessionIds = deps.registry
-        .list()
-        .flatMap((bot) => deps.ownership.rootsFor(bot.slug).map((root) => root.sessionId));
-      return { ok: true, value: { sessionIds } };
+      const groups = deps.registry.list().map((bot) => ({
+        botSlug: bot.slug,
+        displayName: bot.displayName,
+        sessionIds: deps.ownership
+          .rootsFor(bot.slug)
+          .filter((root) => deps.ownership.contentAvailable(root.sessionId))
+          .map((root) => root.sessionId),
+      }));
+      return {
+        ok: true,
+        value: { sessionIds: groups.flatMap((group) => group.sessionIds), groups },
+      };
     },
     memoryFileTarget(payload) {
       const source = asObject(payload);

@@ -181,9 +181,9 @@ export function mountContentPurge(options: {
           );
           for (const pending of db
             .prepare(
-              "SELECT id, state, body FROM messaging_outbox WHERE json_extract(body, '$.sourceEventId') = ?",
+              "SELECT id, state, body FROM messaging_outbox WHERE (json_extract(body, '$.sourceEventId') = ? OR json_extract(body, '$.forwardSourceEventId') = ?) OR 'dm-mirror-' || id = ?",
             )
-            .all(fact.sourceEventId)) {
+            .all(fact.sourceEventId, fact.sourceEventId, fact.sourceEventId)) {
             const intent = JSON.parse(String(pending.body));
             const state =
               pending.state === 'pending'
@@ -192,6 +192,25 @@ export function mountContentPurge(options: {
                   ? 'unknown-outcome'
                   : pending.state;
             delete intent.file;
+            for (const mirror of db
+              .prepare(
+                "SELECT source_event_id, payload_json FROM source_events WHERE json_extract(payload_json, '$.outboxOrigin.intentId') = ?",
+              )
+              .all(String(pending.id))) {
+              const payload = JSON.parse(String(mirror.payload_json));
+              db.prepare(
+                "UPDATE source_events SET body = '', payload_json = ?, attempt_state = 'needs-repair' WHERE source_event_id = ?",
+              ).run(
+                JSON.stringify({
+                  id: payload.id,
+                  at: payload.at,
+                  author: payload.author,
+                  outboxOrigin: payload.outboxOrigin,
+                  contentPurge: { actor: fact.actor, at: fact.acceptedAt, reason: fact.reason },
+                }),
+                String(mirror.source_event_id),
+              );
+            }
             const interrupted =
               pending.state === 'pending' || (pending.state === 'in-flight' && recover);
             const settledAt = now().toISOString();
@@ -313,9 +332,9 @@ export function mountContentPurge(options: {
           });
         for (const entry of db
           .prepare(
-            "SELECT id, state, body FROM messaging_outbox WHERE json_extract(body, '$.sourceEventId') = ? ORDER BY id",
+            "SELECT id, state, body FROM messaging_outbox WHERE (json_extract(body, '$.sourceEventId') = ? OR json_extract(body, '$.forwardSourceEventId') = ?) OR 'dm-mirror-' || id = ? ORDER BY id",
           )
-          .all(id)) {
+          .all(id, id, id)) {
           effects.push({ id: String(entry.id), kind: 'outbox', state: String(entry.state) });
           dependencies.push(entry);
         }
@@ -333,9 +352,9 @@ export function mountContentPurge(options: {
         }
         for (const entry of db
           .prepare(
-            "SELECT source_event_id, attempt_state FROM source_events WHERE source_event_id != ? AND (json_extract(payload_json, '$.botCausation.rootSourceEventId') = ? OR json_extract(payload_json, '$.botCausation.parentSourceEventId') = ?) ORDER BY source_event_id",
+            "SELECT source_event_id, attempt_state FROM source_events WHERE source_event_id != ? AND (json_extract(payload_json, '$.botCausation.rootSourceEventId') = ? OR json_extract(payload_json, '$.botCausation.parentSourceEventId') = ? OR json_extract(payload_json, '$.outboxOrigin.sourceEventId') = ?) ORDER BY source_event_id",
           )
-          .all(id, id, id)) {
+          .all(id, id, id, id)) {
           effects.push({
             id: String(entry.source_event_id),
             kind: 'causal-source',

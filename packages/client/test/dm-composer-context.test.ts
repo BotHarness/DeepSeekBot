@@ -11,7 +11,6 @@ import { CompanionPin } from '../src/client/window-companions-view.js';
 import { zhTranslate } from '../src/client/locale.js';
 import { rememberModelPlan } from '../src/client/model-plan-store.js';
 import { publishWorkspaceGrantChange } from '../src/client/workspace-grant-events.js';
-import { MOBILE_BOT_QUERY } from '../src/client/mobile-viewport.js';
 
 it('refreshes mounted inherited footers after a successful global model save without changing fixed models', async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -127,7 +126,7 @@ const ada: BotSummary = {
 };
 const grace = { ...ada, slug: 'composer-grace', displayName: 'Grace' };
 
-it('keeps only the model in mobile layouts and restores desktop workspace and usage actions', async () => {
+it('keeps model, workspace and usage actions available across mobile and desktop layouts', async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   let mobile = false;
   const listeners = new Set<() => void>();
@@ -180,10 +179,12 @@ it('keeps only the model in mobile layouts and restores desktop workspace and us
     );
     expect(document.body.querySelector('.bh-composer-usage-popover')).not.toBeNull();
     await resize(true);
-    expect(matchMedia).toHaveBeenCalledWith(MOBILE_BOT_QUERY);
-    expect(host.querySelectorAll('[data-composer-context] button')).toHaveLength(1);
-    expect(host.querySelector('[data-composer-context]')!.textContent).toBe('DeepSeek-V41-Flash');
-    expect(document.body.querySelector('.bh-composer-usage-popover')).toBeNull();
+    expect(host.querySelectorAll('[data-composer-context] button')).toHaveLength(3);
+    expect(host.querySelector('[data-composer-chip="workspace"]')).not.toBeNull();
+    expect(document.body.querySelector('.bh-composer-usage-popover')).not.toBeNull();
+    await act(async () =>
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })),
+    );
     await act(async () =>
       host.querySelector<HTMLButtonElement>('[data-composer-context] button')!.click(),
     );

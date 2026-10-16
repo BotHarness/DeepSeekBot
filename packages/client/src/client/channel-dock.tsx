@@ -495,6 +495,17 @@ function ChannelDockPanelsMenu({
   onReset(): void;
 }): ReactElement {
   const [open, setOpen] = useState(false);
+  const menuMount = useMountedResource<HTMLSpanElement>(
+    (node) => {
+      if (!open || typeof ResizeObserver === 'undefined') return;
+      const observer = new ResizeObserver(() => {
+        if (node.getClientRects().length === 0) setOpen(false);
+      });
+      observer.observe(node);
+      return () => observer.disconnect();
+    },
+    [open],
+  );
   const label = t('dock.panels');
   const items: MenuEntry[] = [
     { type: 'label', id: 'bh:dock-panels', text: label },
@@ -509,7 +520,7 @@ function ChannelDockPanelsMenu({
     { id: RESET_ID, label: t('dock.reset') },
   ];
   return (
-    <span className="bh-dock-menu" data-dock-menu="">
+    <span ref={menuMount} className="bh-dock-menu" data-dock-menu="">
       <Menu
         open={open}
         portal

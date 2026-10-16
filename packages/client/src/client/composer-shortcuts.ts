@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 
 export type ComposerShortcutId =
+  | 'footer'
   | 'model'
   | 'effort'
   | 'workspace'

@@ -1,4 +1,11 @@
-import { useCallback, useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
+import {
+  useCallback,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type Ref,
+  type ReactElement,
+} from 'react';
 import { Toast } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { BridgeActions } from './actions.js';
 import type {
@@ -30,11 +37,11 @@ import {
   workspaceGrantRevision,
 } from './workspace-grant-events.js';
 import { profileTokenChipText, profileTokenSummaryText } from './profile-token-summary.js';
+import type { AveragePerfView } from './message-perf.js';
 import { PROFILE_ACTIVITY_WEEKS } from './profile-cards-builtins.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { DmComposerUsagePopover } from './dm-composer-usage.js';
-import { useMobileBotViewport } from './mobile-viewport.js';
-import { ComposerContextBar } from './composer-context-bar.js';
+import { ComposerContextBar, type ComposerFooterHandle } from './composer-context-bar.js';
 import { ChipButton } from './ds/chip-button.js';
 
 const subscribeUnavailable = (): (() => void) => () => {};
@@ -49,6 +56,7 @@ export function useDmComposerContext({
   loading,
   t,
   onUsage,
+  avgPerf,
 }: {
   bot: BotSummary | undefined;
   channelId: string | undefined;
@@ -58,7 +66,9 @@ export function useDmComposerContext({
   loading: boolean;
   t: BotHarnessTranslate;
   onUsage(): void;
+  avgPerf?: AveragePerfView | undefined;
 }): ComposerContext | undefined {
+  const footerSettings = useRef<ComposerFooterHandle>(null);
   const [panel, setPanel] = useState<{ slug: string; kind: 'model' | 'workspace' }>();
   const plan = useSyncExternalStore(
     subscribeModelPlans,
@@ -224,12 +234,14 @@ export function useDmComposerContext({
   ];
   return {
     target: bot.slug,
-    shortcuts,
+    shortcuts: [...shortcuts, { id: 'footer', label: t('footer.settings'), run: () => footerSettings.current?.open() }],
     content: (
       <>
         <span ref={modelMount} aria-hidden="true" style={{ display: 'contents' }} />
         <DmComposerContextView
           key={bot.slug}
+          footerSettings={footerSettings}
+          avgPerf={avgPerf}
           bot={bot}
           channelId={channelId}
           actions={actions}
@@ -258,6 +270,7 @@ export function useDmComposerContext({
 }
 
 function DmComposerContextView({
+  footerSettings,
   bot,
   channelId,
   actions,
@@ -265,6 +278,7 @@ function DmComposerContextView({
   loading,
   t,
   onUsage,
+  avgPerf,
   onOpen,
   panel,
   onClose,
@@ -272,6 +286,7 @@ function DmComposerContextView({
   modelStatus,
   route,
 }: {
+  footerSettings?: Ref<ComposerFooterHandle>;
   bot: BotSummary;
   channelId: string;
   actions: BridgeActions;
@@ -279,6 +294,7 @@ function DmComposerContextView({
   loading: boolean;
   t: BotHarnessTranslate;
   onUsage(): void;
+  avgPerf?: AveragePerfView | undefined;
   onOpen(kind: 'model' | 'workspace'): void;
   panel: 'model' | 'workspace' | undefined;
   onClose(): void;
@@ -286,7 +302,6 @@ function DmComposerContextView({
   modelStatus: 'loading' | 'ready' | 'unavailable';
   route: ModelRouteView | undefined;
 }): ReactElement {
-  const mobile = useMobileBotViewport();
   const [grants, setGrants] = useState<WorkspaceGrantView[]>();
   const [grantError, setGrantError] = useState(false);
   const [usageOpen, setUsageOpen] = useState(false);
@@ -358,43 +373,52 @@ function DmComposerContextView({
   return (
     <>
       <ComposerContextBar
+        settingsRef={footerSettings}
+        t={t}
         label={t('composerContext.label')}
         trailing={
-          mobile ? null : (
-            <ChipButton
-              ref={usageMount}
-              trailing
-              data-composer-chip="usage"
-              icon={<ChannelSidebarIcon name="ruler" size={14} />}
-              label={compactUsage}
-              onClick={() => setUsageOpen((open) => !open)}
-              aria-label={usageLabel}
-              aria-haspopup="dialog"
-              aria-expanded={usageOpen}
-            />
-          )
+          <ChipButton
+            ref={usageMount}
+            data-composer-chip="usage"
+            icon={<ChannelSidebarIcon name="ruler" size={14} />}
+            label={compactUsage}
+            onClick={() => setUsageOpen((open) => !open)}
+            aria-label={usageLabel}
+            aria-haspopup="dialog"
+            aria-expanded={usageOpen}
+          />
         }
       >
         <ChipButton
-          wrap
           data-composer-chip="model"
+          collapseLabel
           icon={<ChannelSidebarIcon name="cpu" size={14} />}
           label={modelLabel}
+          title={modelLabel}
           onClick={() => onOpen('model')}
           aria-label={`${t('entry.model')} · ${bot.displayName} · ${modelLabel}`}
         />
-        {mobile ? null : (
+        {avgPerf === undefined ? null : (
           <ChipButton
-            ref={grantMount}
-            data-composer-chip="workspace"
-            icon={<ChannelSidebarIcon name="folder-key" size={14} />}
-            label={workspaceLabel}
-            onClick={() => onOpen('workspace')}
-            aria-label={`${t('entry.workspaceGrants')} · ${bot.displayName} · ${workspaceLabel}`}
+            data-composer-chip="avg-perf"
+            icon={<ChannelSidebarIcon name="gauge" size={14} />}
+            label={t('message.perf.speed', { tps: avgPerf.tokensPerSecond })}
+            title={t('composerContext.avgPerf.title', { count: avgPerf.count })}
+            tabIndex={-1}
+            disabled
           />
         )}
+        <ChipButton
+          ref={grantMount}
+          data-composer-chip="workspace"
+          collapseLabel
+          icon={<ChannelSidebarIcon name="folder-key" size={14} />}
+          label={workspaceLabel}
+          onClick={() => onOpen('workspace')}
+          aria-label={`${t('entry.workspaceGrants')} · ${bot.displayName} · ${workspaceLabel}`}
+        />
       </ComposerContextBar>
-      {!mobile && usageOpen ? (
+      {usageOpen ? (
         <DmComposerUsagePopover
           bot={bot}
           channelId={channelId}

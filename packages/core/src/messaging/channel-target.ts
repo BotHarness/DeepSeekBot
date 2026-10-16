@@ -79,15 +79,28 @@ export function bridgeAttachmentKind(
   return undefined;
 }
 
-export function projectBridgeMessage(source: ExternalSource, body: string): ChannelMessage {
+export function projectBridgeMessage(
+  source: ExternalSource,
+  body: string,
+  channelId?: string,
+): ChannelMessage {
+  const mirror = channelId !== undefined && source.dmMirrorChannelId === channelId;
   const senderName = source.event.actor.name?.trim() || undefined;
+  const weixinDm = source.platform === 'weixin' && source.event.conversation.kind === 'dm';
   return {
     id: source.id,
     at: source.at,
-    body,
+    body: mirror
+      ? [body, ...(source.event.attachments ?? []).map((item) => item.name)]
+          .filter(Boolean)
+          .join('\n')
+      : weixinDm && !body.trim()
+        ? source.event.attachments?.map((item) => item.name).join('\n') || body
+        : body,
     format: 'text',
-    ...((source.platform === 'qq' && source.event.voice) ||
-    source.event.attachments?.some((item) => bridgeAttachmentKind(source, item) !== undefined)
+    ...(!mirror &&
+    ((source.platform === 'qq' && source.event.voice) ||
+      source.event.attachments?.some((item) => bridgeAttachmentKind(source, item) !== undefined))
       ? {
           bridgeMedia: {
             items: (source.event.attachments ?? []).flatMap((item) => {
@@ -117,7 +130,10 @@ export function projectBridgeMessage(source: ExternalSource, body: string): Chan
           },
         }
       : {}),
-    author: { kind: 'bridged', source: senderName ?? source.event.actor.id },
+    author: {
+      kind: 'bridged',
+      source: senderName ?? (weixinDm ? 'WeChat' : source.event.actor.id),
+    },
     bridgeOrigin: {
       sourceEventId: source.id,
       platform: source.platform,
@@ -167,7 +183,10 @@ export function placeBridgeSource(
   ).run(source.localChannelId, source.id, source.id);
   return {
     channelId: source.localChannelId,
-    message: { ...projectBridgeMessage(source, source.body), channelRevision: next.revision },
+    message: {
+      ...projectBridgeMessage(source, source.body, source.localChannelId),
+      channelRevision: next.revision,
+    },
     revision: next.revision,
   };
 }

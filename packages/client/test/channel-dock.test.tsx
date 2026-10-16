@@ -223,6 +223,32 @@ describe('desktop Bot mode dock', () => {
     expect(Object.keys(panels())).toEqual([CHANNEL_BODY_PANEL, 'sessions', 'bot-inbox']);
     expect(values.has(CHANNEL_DOCK_STORAGE_KEY)).toBe(true);
   });
+
+  it('dismisses the open menu when its trigger is hidden without a pointer click', async () => {
+    await render(builtins);
+    let notifyHidden: (() => void) | undefined;
+    const disconnect = vi.fn();
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(private notify: () => void) {}
+        observe(node: Element) {
+          if (node.matches('[data-dock-menu]')) notifyHidden = this.notify;
+        }
+        disconnect = disconnect;
+      },
+    );
+    await click('[data-dock-menu] button');
+    expect(host.querySelector('[data-menu-item="sessions"]')).not.toBeNull();
+    expect(notifyHidden).toBeDefined();
+    act(() => notifyHidden!());
+    await settle();
+    expect(host.querySelector('[data-menu-item="sessions"]')).toBeNull();
+    expect(disconnect).toHaveBeenCalledOnce();
+    expect(Object.keys(panels())).toEqual([CHANNEL_BODY_PANEL, 'sessions', 'bot-inbox']);
+    await click('[data-dock-menu] button');
+    expect(host.querySelector('[data-menu-item="sessions"]')).not.toBeNull();
+  });
 });
 
 describe('dockPanels Service in the dock', () => {

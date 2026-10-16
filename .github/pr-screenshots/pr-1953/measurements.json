@@ -1,0 +1,36 @@
+{
+  "before": {
+    "viewport": "1440x600",
+    "scroll": {
+      "scrollTop": 150,
+      "height": 564,
+      "rows": 25
+    },
+    "expandedTransform": "matrix(-1, 0, 0, -1, 0, 0)",
+    "collapsedTransform": "none",
+    "animationCalls": 175,
+    "animatedRows": 25,
+    "initialTransforms": [
+      "translateY(150px)",
+      "translateY(-150px)",
+      "translateY(300px)",
+      "translateY(-450px)",
+      "translateY(750px)",
+      "translateY(-1200px)",
+      "translateY(1950px)"
+    ]
+  },
+  "after": {
+    "viewport": "1440x600",
+    "scroll": {
+      "scrollTop": 150,
+      "height": 564,
+      "rows": 25
+    },
+    "expandedTransform": "none",
+    "collapsedTransform": "matrix(-1, 0, 0, -1, 0, 0)",
+    "animationCalls": 0,
+    "animatedRows": 0,
+    "initialTransforms": []
+  }
+}

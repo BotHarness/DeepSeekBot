@@ -50,6 +50,10 @@ function baselineModuleStub(id: string): Record<string, unknown> {
         const listeners = new Set<() => void>();
         return {
           getSnapshot: () => snapshot,
+          set(next: Record<string, unknown>) {
+            snapshot = next;
+            for (const listener of listeners) listener();
+          },
           subscribe(listener: () => void) {
             listeners.add(listener);
             return () => {
@@ -241,6 +245,12 @@ describe('@botharness/ui browser bundle', () => {
     (plugin['apply'] as (ctx: unknown) => void)(scoped);
 
     expect(registered).toEqual([
+      {
+        name: 'shell.overlay',
+        id: 'botharness-bot-session-folders',
+        locale: 'botharness',
+        inject: expect.any(Function),
+      },
       {
         name: 'shell.overlay',
         id: 'botharness-window-companion',

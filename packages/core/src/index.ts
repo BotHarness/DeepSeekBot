@@ -66,6 +66,7 @@ export type {
   ChannelMessage,
   ChannelMessageAuthor,
   ChannelMessageExternal,
+  ChannelMessagePerf,
   ChannelRecord,
   ChannelType,
 } from './channels/channel.js';

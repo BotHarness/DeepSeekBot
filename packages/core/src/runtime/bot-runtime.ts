@@ -84,10 +84,12 @@ import {
   type BotMessageCausation,
   type ChannelMention,
   type ChannelMessage,
+  type ChannelMessagePerf,
   type ChannelReaction,
   type ChannelRecord,
 } from '../channels/channel.js';
 import { ChannelReplyTargetError, MAX_MESSAGE_PAGE } from '../channels/store.js';
+import type { MessagePerfTracker } from '../usage/message-perf.js';
 import { attachmentIdentity, type ChannelAttachmentRef } from '../attachments/ref.js';
 import type { ChannelMessageQueryOptions, ChannelStore } from '../channels/store.js';
 import { boundModelPage, readModelContent } from './channel-model-read.js';
@@ -728,6 +730,7 @@ export interface BotRuntime {
 export interface BotRuntimeOptions {
   inboxHistory?: InboxHistoryQuery;
   triageContinuation?: boolean;
+  messagePerf?: MessagePerfTracker;
   requireExecution?: (botSlug: string) => void;
   beginAssignmentWait?: (botSlug: string, orchestratorSessionId: string) => () => void;
   externalMessaging?: OutboundMessaging;
@@ -1249,6 +1252,7 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #saveReportSpill: BotRuntimeOptions['saveReportSpill'];
   readonly #readAssignmentTail: BotRuntimeOptions['readAssignmentTail'];
   readonly #readAssignmentReportPage: BotRuntimeOptions['readAssignmentReportPage'];
+  readonly #messagePerf: MessagePerfTracker | undefined;
   readonly #now: () => Date;
   readonly #createSessionId: () => string;
   readonly #sessionArchived: ((sessionId: string) => boolean) | undefined;
@@ -1334,6 +1338,7 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#saveReportSpill = options.saveReportSpill;
     this.#readAssignmentTail = options.readAssignmentTail;
     this.#readAssignmentReportPage = options.readAssignmentReportPage;
+    this.#messagePerf = options.messagePerf;
     this.#now = options.now ?? (() => new Date());
     this.#createSessionId = options.createSessionId ?? (() => `botharness-${randomUUID()}`);
     this.#createEventId = options.createEventId ?? (() => randomUUID());
@@ -5859,6 +5864,7 @@ class BotRuntimeImplementation implements BotRuntime {
           body,
           ...(input.attachments === undefined ? {} : { attachments: input.attachments }),
           ...(input.replyTo === undefined ? {} : { replyTo: input.replyTo }),
+          ...this.#perf(sessionId, body),
         };
         const appended = await this.#channels.appendMessage(channel.id, message, {
           sessionId,
@@ -5965,6 +5971,7 @@ class BotRuntimeImplementation implements BotRuntime {
       ...(humanMentions.length === 0 ? {} : { humanMentions }),
       ...(input.replyTo === undefined ? {} : { replyTo: input.replyTo }),
       ...(input.attachments === undefined ? {} : { attachments: input.attachments }),
+      ...this.#perf(input.sessionId, body),
     };
     input.beforeSend();
     const result = await this.#channels.appendMessageOnce(channel.id, message, undefined, {
@@ -5995,6 +6002,11 @@ class BotRuntimeImplementation implements BotRuntime {
         `memory-commit-record-failed bot=${botSlug} reason=${error instanceof Error ? error.name : 'unknown'}`,
       );
     }
+  }
+
+  #perf(sessionId: string, body: string): { perf?: ChannelMessagePerf } {
+    const perf = this.#messagePerf?.forSession(sessionId, body);
+    return perf === undefined ? {} : { perf };
   }
 
   #turnSourceIn(
@@ -6236,6 +6248,7 @@ class BotRuntimeImplementation implements BotRuntime {
       botCausation,
       ...(input.replyTo === undefined ? {} : { replyTo: input.replyTo }),
       ...(input.attachments === undefined ? {} : { attachments: input.attachments }),
+      ...this.#perf(input.sessionId, input.body),
     };
     input.beforeSend();
     const result = await this.#channels.appendMessageOnce(channel.id, message, undefined, {

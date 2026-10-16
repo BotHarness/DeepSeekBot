@@ -4,7 +4,9 @@ import * as stylex from '@stylexjs/stylex';
 import {
   Button,
   IconEllipsisOutlineRegular,
+  IconNewChatOutlineRegular,
   IconPlusOutlineRegular,
+  IconTrashOutlineRegular,
   Menu,
   Tag,
   Tooltip,
@@ -13,6 +15,7 @@ import {
 
 import type { BridgeActions } from './actions.js';
 import { PersonaBotAvatar } from './avatar.js';
+import { AtSignIcon } from './at-sign-icon.js';
 import { useClientState } from './bot-sidebar.js';
 import type { ChannelSidebarEntryProps } from './channel-sidebar.js';
 import { useDelayedSearch } from './delayed-search.js';
@@ -548,7 +551,12 @@ export function MembersEntry(props: ChannelSidebarEntryProps): ReactElement {
   return <MembersEntryForChannel key={props.channelId} {...props} />;
 }
 
-function MembersEntryForChannel({ actions, t, channelId }: ChannelSidebarEntryProps): ReactElement {
+function MembersEntryForChannel({
+  actions,
+  t,
+  channelId,
+  onMentionBot,
+}: ChannelSidebarEntryProps): ReactElement {
   const state = useClientState();
   const channel = state.conversation.channel;
   const group = channel?.type === 'group' && channel.id === channelId ? channel : undefined;
@@ -557,13 +565,21 @@ function MembersEntryForChannel({ actions, t, channelId }: ChannelSidebarEntryPr
   const [error, setError] = useState(false);
   const proxy = useRef<HTMLSpanElement | null>(null);
   const members = group?.members ?? [];
-  const menuItems: readonly MenuEntry[] = [
-    { id: 'dm', label: t('members.openDm') },
-    { id: 'policy', label: t('members.policy') },
-    { type: 'separator', id: 'member-separator' },
-    { id: 'remove', label: t('members.remove') },
-  ];
   const selectedMember = menu?.slug;
+  const canMention =
+    onMentionBot !== undefined &&
+    state.bots.some(
+      (bot) => bot.slug === selectedMember && bot.deleted !== true && members.includes(bot.slug),
+    );
+  const menuItems: readonly MenuEntry[] = [
+    { id: 'dm', label: t('members.openDm'), icon: <IconNewChatOutlineRegular size={16} /> },
+    ...(canMention
+      ? [{ id: 'mention', label: t('message.avatar.mention'), icon: <AtSignIcon /> }]
+      : []),
+    { id: 'policy', label: t('members.policy'), icon: <BellIcon /> },
+    { type: 'separator', id: 'member-separator' },
+    { id: 'remove', label: t('members.remove'), icon: <IconTrashOutlineRegular size={16} /> },
+  ];
   return (
     <>
       {group?.ownerBotSlug === undefined && group !== undefined ? (
@@ -651,6 +667,7 @@ function MembersEntryForChannel({ actions, t, channelId }: ChannelSidebarEntryPr
             onSelect={(id) => {
               setMenu(undefined);
               if (id === 'dm') void actions.openBot(selectedMember);
+              else if (id === 'mention' && canMention) onMentionBot?.(selectedMember);
               else if (id === 'policy') setPolicySlug(selectedMember);
               else if (
                 id === 'remove' &&

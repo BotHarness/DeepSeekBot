@@ -25,7 +25,7 @@ function stylexSources(): { name: string; source: string }[] {
   ];
   return files
     .map((path) => ({
-      name: path.slice(path.indexOf('packages/')),
+      name: path.replaceAll('\\', '/').slice(path.replaceAll('\\', '/').indexOf('packages/')),
       source: readFileSync(path, 'utf8'),
     }))
     .filter(({ source }) => source.includes('@stylexjs/stylex'));

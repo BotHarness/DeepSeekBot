@@ -1,4 +1,5 @@
 import { createElement } from 'react';
+import { createSnapshotStore } from '@deepseek-ai/dsh-client-store';
 import type { Context as ClientContext } from '@deepseek-ai/cordis';
 import type {} from '@deepseek-ai/dsh-client-locale/client';
 import type { InputTriggerSource } from '@deepseek-ai/dsh-client-ui-input-trigger/client';
@@ -24,6 +25,12 @@ import { createFileOpenPreferences } from './file-open-preferences.js';
 import { createActions, type BridgeActions } from './actions.js';
 import { ProviderAppSetup } from './provider-app-setup.js';
 import { BotModePrefs, botModePrefsFace } from './bot-mode-prefs.js';
+import {
+  BotSessionFolders,
+  mountBotFolderProjection,
+  type NativeBotFolderMount,
+  type BotSessionGroup,
+} from './bot-session-folders.js';
 import {
   createBotSessionVisibility,
   mountBotSessionVisibility,
@@ -91,7 +98,7 @@ import {
   loadJournalPage,
   connectionRpc,
   loadActivitySnapshot,
-  loadBotSessionIds,
+  loadBotSessionGroups,
   loadSessionBotOwner,
   loadHumanAttention,
   botExists,
@@ -255,6 +262,26 @@ export function apply(ctx: ClientContext): void {
     };
   }, 'botharness: independent Window Companion owner');
   const prefs = new BotModePrefs(storage);
+  const botFolderGroups = createSnapshotStore<readonly BotSessionGroup[]>([]);
+  const botFolderHost = createSnapshotStore<HTMLElement | null>(null);
+  let botFolderMount: NativeBotFolderMount | undefined;
+  ctx.slots.inject('shell.overlay', () =>
+    ctx.slots.register(
+      {
+        name: 'shell.overlay',
+        id: 'botharness-bot-session-folders',
+        locale: LOCALE_NS,
+        inject: () => ({
+          storage,
+          openSession: (id: string) => ctx.uiWorkspace.openSession(id as SessionId),
+          roster: store,
+          hooks: { botFolderGroups, botFolderPrefs: prefs.source, botFolderHost },
+          setMounted: (node: HTMLElement | null) => botFolderMount?.setMounted(node),
+        }),
+      },
+      BotSessionFolders,
+    ),
+  );
   const botSettings = new BotSettings();
   const shortcutHelp = new ShortcutHelp();
   const desktopNotifications = new DesktopNotificationPrefs(storage, browserNotificationApi());
@@ -336,15 +363,41 @@ export function apply(ctx: ClientContext): void {
           getSnapshot(): WorkspaceListSnapshot | undefined;
         }
       | undefined) ?? { subscribe: () => () => {}, getSnapshot: () => undefined };
+    const controller = new AbortController();
+    if (typeof document !== 'undefined')
+      botFolderMount = mountBotFolderProjection({
+        sessions: nativeSessions,
+        workspaces: workspaceList,
+        prefs: prefs.source,
+        groups: botFolderGroups,
+        setHost: (host) => botFolderHost.set(host),
+      });
     const visibility = createBotSessionVisibility({
       sessions: nativeSessions,
       workspaces: workspaceList,
       prefs: prefs.source,
-      loadBotSessionIds: () => loadBotSessionIds(call),
+      loadBotSessionIds: async () => {
+        const groups = await loadBotSessionGroups(call, controller.signal);
+        if (!controller.signal.aborted) botFolderGroups.set(groups);
+        return groups.flatMap((group) => group.sessionIds);
+      },
       warn: (message, error) => ctx.logger.warn(message, error),
+    });
+    let roster = '';
+    const offRoster = store.subscribe(() => {
+      const next = JSON.stringify(
+        store.getSnapshot().bots.map((bot) => [bot.slug, bot.displayName]),
+      );
+      if (next === roster) return;
+      roster = next;
+      visibility.refresh();
     });
     const unmount = mountBotSessionVisibility(visibility);
     return () => {
+      controller.abort();
+      botFolderMount?.dispose();
+      botFolderMount = undefined;
+      offRoster();
       unmount();
       visibility.dispose();
     };

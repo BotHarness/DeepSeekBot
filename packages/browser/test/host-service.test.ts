@@ -55,32 +55,39 @@ async function setup(
     | undefined;
   const opened: { slug: string; profile: string; reuse: string | undefined }[] = [];
   const captureScreenshot = vi.fn(async () => ({ mimeType: 'image/png', data: 'frame' }));
+  const openWindow = vi.fn(async (slug: string) => ({
+    tabId: `${slug}-default`,
+    url: 'about:blank',
+    title: 'Work',
+  }));
   const stopAll = vi.fn(async () => undefined);
   const stop = vi.fn(async (_slug: string) => undefined);
   const closeIdle = vi.fn(async () => undefined);
   const ensureFailure: { error?: unknown } = {};
+  const runtimeFor = (slug: string) => ({
+    ensure: async () => {
+      if ('error' in ensureFailure) throw ensureFailure.error;
+    },
+    open: async (url: string, reuse: string | undefined) => {
+      const profile = profiles.get(slug) ?? '';
+      opened.push({ slug, profile, reuse });
+      return { tabId: `${slug}-${profile || 'default'}`, url, title: 'Work' };
+    },
+    click: async (tabId: string) => ({ tabId, url: 'https://example.com', title: 'Work' }),
+    clickAt: async (tabId: string) => ({ tabId, url: 'https://example.com', title: 'Work' }),
+    openWindow: () => openWindow(slug),
+    listTabs: async () =>
+      [...profiles].map(([owner, profile]) => ({
+        targetId: `${owner}-${profile || 'default'}`,
+        url: 'https://example.com',
+        title: 'Work',
+      })),
+    isRunning: () => true,
+    captureScreenshot,
+  });
+  const runtimes = new Map([...profiles.keys()].map((slug) => [slug, runtimeFor(slug)]));
   mocks.runtimes.mockReturnValue({
-    for: (slug: string) => ({
-      ensure: async () => {
-        if ('error' in ensureFailure) throw ensureFailure.error;
-      },
-      open: async (url: string, reuse: string | undefined) => {
-        const profile = profiles.get(slug) ?? '';
-        opened.push({ slug, profile, reuse });
-        return { tabId: `${slug}-${profile || 'default'}`, url, title: 'Work' };
-      },
-      click: async (tabId: string) => ({ tabId, url: 'https://example.com', title: 'Work' }),
-      clickAt: async (tabId: string) => ({ tabId, url: 'https://example.com', title: 'Work' }),
-      openWindow: async () => ({ tabId: `${slug}-default`, url: 'about:blank', title: 'Work' }),
-      listTabs: async () =>
-        [...profiles].map(([owner, profile]) => ({
-          targetId: `${owner}-${profile || 'default'}`,
-          url: 'https://example.com',
-          title: 'Work',
-        })),
-      isRunning: () => true,
-      captureScreenshot,
-    }),
+    for: (slug: string) => runtimes.get(slug),
     profileOf: (slug: string) => profiles.get(slug) ?? '',
     installProgress: () => undefined,
     touch: () => undefined,
@@ -157,11 +164,43 @@ async function setup(
     stop,
     closeIdle,
     captureScreenshot,
+    openWindow,
     ensureFailure,
   };
 }
 
 describe('published Browser Host service', () => {
+  it('does not publish the local viewer while the Human window has no owned current tab', async () => {
+    const h = await setup();
+    let finish!: () => void;
+    h.openWindow.mockImplementationOnce(async () => {
+      await new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+      return { tabId: 'bot-a-default', url: 'about:blank', title: 'Work' };
+    });
+    const opening = h.routes.get('/api/browser/open')!.fetch(
+      new Request('http://localhost/api/browser/open', {
+        method: 'POST',
+        body: JSON.stringify({ slug: 'bot-a' }),
+      }),
+    );
+    await vi.waitFor(() => expect(h.openWindow).toHaveBeenCalledOnce());
+    const pending = await h.observation('bot-a');
+    const prematureFrame = await h.routes
+      .get('/api/browser/frame')!
+      .fetch(new Request('http://localhost/api/browser/frame?slug=bot-a'));
+    expect(prematureFrame.status).toBe(404);
+    expect(await prematureFrame.json()).toEqual({ ok: false, error: 'no browser tab' });
+    finish();
+    expect((await opening).status).toBe(200);
+    expect(await h.observation('bot-a')).toMatchObject({
+      focused: 'bot-a-default',
+      viewerUrl: '/botharness-browser/viewer/local/?slug=bot-a',
+    });
+    expect(pending).toMatchObject({ running: true, focused: null, viewerUrl: null });
+  });
+
   it('serves the live frame and paused Human input to native viewers through Host routes', async () => {
     const h = await setup();
     await h.open('bot-a');

@@ -126,6 +126,10 @@ const glyphs: Record<string, readonly [string, Record<string, string | number>][
       },
     ],
   ],
+  gauge: [
+    ['path', { d: 'm12 14 4-4' }],
+    ['path', { d: 'M3.34 19a10 10 0 1 1 17.32 0' }],
+  ],
   'user-check': [
     ['path', { d: 'm16 11 2 2 4-4' }],
     ['path', { d: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2' }],

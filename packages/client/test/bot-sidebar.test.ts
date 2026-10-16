@@ -504,6 +504,7 @@ function stubActions(): BridgeActions {
     moveToFlat: vi.fn(async () => true),
     ensureChannelPins: vi.fn(async () => true),
     ensureFlatTopOrder: vi.fn(async () => true),
+    averageReplyPerf: vi.fn(async () => undefined),
   };
 }
 

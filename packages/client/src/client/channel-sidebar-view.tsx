@@ -641,6 +641,7 @@ export function ChannelSidebar({
   actions,
   controller,
   t,
+  onMentionBot,
   onMemoryCommitSelect,
   selectedMemoryCommitSha,
   onMemoryFileSelect,
@@ -653,6 +654,7 @@ export function ChannelSidebar({
   actions: BridgeActions;
   controller: ChannelSidebarController;
   t: BotHarnessTranslate;
+  onMentionBot?: ChannelSidebarEntryProps['onMentionBot'];
   onMemoryCommitSelect?: ((sha: string) => void) | undefined;
   selectedMemoryCommitSha?: string | undefined;
   onMemoryFileSelect?: ((path: string) => void) | undefined;
@@ -704,6 +706,7 @@ export function ChannelSidebar({
           botSlug: selectedBotSlug,
           actions,
           t,
+          onMentionBot,
           onMemoryCommitSelect,
           selectedMemoryCommitSha,
           onMemoryFileSelect,

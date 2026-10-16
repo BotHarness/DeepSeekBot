@@ -682,6 +682,8 @@ _Avoid_: caller-supplied author, transport metadata (bare)
 
 ### Chats and replies
 
+**IM conversation mirror** is an opt-in local presentation of one bound external private conversation. It reuses canonical content without another Inbox Admission or wake. **Local DM forwarding** is an independent opt-in external send path through the same Binding and authorized conversation. Both default off; they do not grant reception or proactive-send permissions. See ADR-0217.
+
 **Chat**:
 A Feishu/Lark conversation — group or p2p — that a PersonaBot takes part in, identified by `chat_id`.
 _Avoid_: room, channel, group (when p2p is meant too)

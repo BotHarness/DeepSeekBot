@@ -1,6 +1,6 @@
 import type { BridgeActions } from '../src/client/actions.js';
 
-export const inertSubmissionActions: Pick<BridgeActions, 'submissions'> = {
+export const inertSubmissionActions: Pick<BridgeActions, 'submissions' | 'averageReplyPerf'> = {
   submissions: {
     subscribe: () => () => {},
     snapshot: () => undefined,
@@ -10,4 +10,5 @@ export const inertSubmissionActions: Pick<BridgeActions, 'submissions'> = {
     check: async () => 'unknown',
     reconcile: async () => {},
   },
+  averageReplyPerf: async () => undefined,
 };

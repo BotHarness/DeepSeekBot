@@ -4,6 +4,7 @@ import type {} from '@deepseek-ai/dsh-api-session-controller/client';
 import type { PairingRequest, PairingReviewInput } from '../../../core/src/messaging/pairing.js';
 import type { SenderAccessInput } from '../../../core/src/messaging/sender-access.js';
 import { parsePublicAttention } from './activity-attention.js';
+import { parseMessagePerf } from './message-perf.js';
 import {
   isAvatarAppearance,
   isRetainedAvatarAppearance,
@@ -906,6 +907,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
   if (typeof body !== 'string') return undefined;
   const author = parseAuthor(record['author']);
   if (author === undefined) return undefined;
+  const perf = author.kind === 'bot' ? parseMessagePerf(record['perf']) : undefined;
   const memorySwitchTarget = record['memorySwitchTarget'];
   if (
     memorySwitchTarget !== undefined &&
@@ -1254,7 +1256,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
   if (record['bridgeOrigin'] !== undefined) {
     const origin = asRecord(record['bridgeOrigin']);
     if (
-      author.kind !== 'bridged' ||
+      (author.kind !== 'bridged' && author.kind !== 'bot') ||
       !origin ||
       ![
         'sourceEventId',
@@ -1584,6 +1586,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
     ...(bridgeMedia === undefined ? {} : { bridgeMedia }),
     ...(replyTo === undefined ? {} : { replyTo }),
     ...(replyToPreview === undefined ? {} : { replyToPreview }),
+    ...(perf === undefined ? {} : { perf }),
   };
 }
 
@@ -3646,6 +3649,31 @@ export async function loadBotSessionIds(call: BridgeCall, signal?: AbortSignal):
       ? (value as { sessionIds?: unknown }).sessionIds
       : [];
   return Array.isArray(ids) ? ids.filter((id): id is string => typeof id === 'string') : [];
+}
+
+export async function loadBotSessionGroups(
+  call: BridgeCall,
+  signal?: AbortSignal,
+): Promise<{ botSlug: string; displayName: string; sessionIds: string[] }[]> {
+  const value = asRecord(await unwrap(call, 'botSessionIds', {}, signal));
+  const groups = value?.['groups'];
+  if (!Array.isArray(groups)) return [];
+  return groups.flatMap((item) => {
+    const group = asRecord(item);
+    if (
+      typeof group?.['botSlug'] !== 'string' ||
+      typeof group['displayName'] !== 'string' ||
+      !Array.isArray(group['sessionIds'])
+    )
+      return [];
+    return [
+      {
+        botSlug: group['botSlug'],
+        displayName: group['displayName'],
+        sessionIds: group['sessionIds'].filter((id): id is string => typeof id === 'string'),
+      },
+    ];
+  });
 }
 
 export async function loadSessions(

@@ -48,6 +48,7 @@ export interface ChannelSidebarEntryProps {
   requestRefresh?: () => void;
   botSlug: string | undefined;
   actions: BridgeActions;
+  onMentionBot?: ((botSlug: string) => void) | undefined;
   onMemoryCommitSelect?: ((sha: string) => void) | undefined;
   selectedMemoryCommitSha?: string | undefined;
   onMemoryFileSelect?: ((path: string) => void) | undefined;

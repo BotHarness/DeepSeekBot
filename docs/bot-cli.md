@@ -258,6 +258,8 @@ deepseekbot failure-alerts-test <bot-id>
 deepseekbot failure-alerts-retry <bot-id> --delivery <delivery-id>
 ```
 
+For a qualified WeChat private connector, the update JSON also accepts independent `dmMirror` and `dmForward` booleans; both default to `false`. Read `channel-bridges` first and send its current grant/route revisions with the update. The preference is shared by entries for the same Binding and conversation. Turning a switch off stops uncommitted work, including offline; it does not purge history or revoke normal reply authority. Forwarding requires an existing proactive target in the same account. For example, add `"dmMirror":true,"dmForward":false` to an otherwise unchanged update payload to enable local presentation only.
+
 These call the same Host bridge methods as the Bot's IM settings, the Channel bridge list and the approval and failure-alert cards, so the Host applies the same checks and refuses with the same codes. `messaging-grants` lists the Bot's authorized conversations (grant ids, revisions, reception, group and thread policies) and bindings with their post limits, without target digests or app fingerprints. Structured changes read one JSON object from `--input-stdin` in the shape the Web UI sends, including its `expectedRevision`, so a concurrent change fails instead of being overwritten; `approval-route`, `failure-alerts-set` and `messaging-post-limit` read the current revision themselves. `messaging-send` and `messaging-post` print the `requestId` they used: retrying with the same `--request-id` returns the existing post instead of sending twice, and `messaging-post-status` reads it back without posting. Like the confirmation dialogs in the Web UI, `messaging-revoke`, blocking a conversation, deleting a bridge and `delete-*` sender-access changes need `--confirm`. Send only to IM conversations you are authorized to test in.
 
 ### Browser and Computer from the CLI
@@ -342,6 +344,8 @@ deepseekbot computer-open-dir [--dir /abs/exports]
 deepseekbot computer-webrtc [--probe]
 deepseekbot browser-webrtc --viewer <id> [--probe]
 ```
+
+`browser-observation` with a running local process but no owned current tab returns `viewerUrl: null`; process readiness alone is not viewer readiness. `browser-frame` preserves a stopped/no-tab refusal (404) and reports an unavailable first frame after the bounded wait as `host-refused` (503).
 
 `browser-observation` returns the same state the Browser panel polls: whether the Browser runs, its tabs and focused tab, takeover state, stored profiles and target. The current picture is never printed as base64; it is summarized as `{mimeType, bytes}` and saved to `--out` when given. `browser-takeover-audit` lists a Bot's takeover events in time order. `browser-takeover-recording` reads one takeover and its recorded input; the token is the `takeover=` value from the takeover link and arrives on stdin. `browser-profile-set` picks the Bot's Browser profile (`default` resets it) with the same name rules as the panel.
 

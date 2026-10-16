@@ -7,6 +7,7 @@ import type { MessagingInboundEvent, MessagingReplyRoute } from '../src/messagin
 import type { OrchestratorAgentRun, BotAgentAdapter } from '../src/runtime/bot-runtime.js';
 import type { MessagingIdentityInput } from '../src/messaging/identity.js';
 import { createBridgeMethods } from '../src/bridge/methods.js';
+import { readSourceSenderPermissions } from '../src/messaging/sender-access.js';
 import { createTempRoot } from './helpers.js';
 
 const fingerprint = 'c'.repeat(64);
@@ -2138,4 +2139,154 @@ it('QQ allowing a blocked conversation refuses redelivery from the blocked inter
   await fx.receive({ ...qqMention('after-allow'), at: new Date(Date.now() + 1000).toISOString() });
   expect(fx.core.attention.list({ botSlug: 'ada' }).items).toHaveLength(2);
   expect(fx.runs).toHaveLength(2);
+});
+
+it('Weixin sender permissions say the platform has no Role policy instead of reporting a replaced binding', async () => {
+  const fx = await fixture('weixin', [
+    { targetId: 'owner', name: 'QR paired owner', kind: 'user', route: { toUserId: 'oc_owner' } },
+  ]);
+  const fresh = (id: string) => dm(id, { at: new Date(Date.now() + 1000).toISOString() });
+  await fx.receive(fresh('weixin-first'));
+  const source = fx.sourceId('om-weixin-first');
+  expect(fx.core.externalMessaging.senderPermissions('ada', source)).toMatchObject({
+    status: 'unavailable',
+    reason: 'role-policy-not-supported-for-platform',
+  });
+  expect(fx.core.externalMessaging.senderPermissions('ada', source).reason).not.toBe(
+    'binding-replaced',
+  );
+  await fx.update({ enabled: false });
+  expect(fx.core.externalMessaging.senderPermissions('ada', source)).toMatchObject({
+    status: 'unavailable',
+    reason: 'identity-disabled',
+  });
+  const current = (await fx.core.externalMessaging.snapshot('ada')).identities![0]!;
+  await fx.core.externalMessaging.identity('ada', {
+    kind: 'unbind',
+    id: current.id,
+    expectedRevision: current.revision,
+  });
+  await fx.core.externalMessaging.identity('ada', {
+    kind: 'bind',
+    providerId: 'dsh-im/weixin',
+    accountRef: 'lark-app',
+    fingerprint,
+  });
+  await fx.settle();
+  expect(fx.core.externalMessaging.senderPermissions('ada', source)).toMatchObject({
+    status: 'unavailable',
+    reason: 'binding-replaced',
+  });
+});
+
+it('a replaced Binding still reports binding-replaced where the Role policy applies', async () => {
+  const fx = await fixture('feishu');
+  await fx.receive(dm('feishu-before-rebind'));
+  const source = fx.sourceId('om-feishu-before-rebind');
+  const current = (await fx.core.externalMessaging.snapshot('ada')).identities![0]!;
+  await fx.core.externalMessaging.identity('ada', {
+    kind: 'unbind',
+    id: current.id,
+    expectedRevision: current.revision,
+  });
+  await fx.core.externalMessaging.identity('ada', {
+    kind: 'bind',
+    providerId: 'dsh-im/feishu',
+    accountRef: 'lark-app',
+    fingerprint,
+  });
+  await fx.settle();
+  expect(fx.core.externalMessaging.senderPermissions('ada', source)).toMatchObject({
+    status: 'unavailable',
+    reason: 'binding-replaced',
+  });
+});
+
+it('Weixin revoked source grants do not become benign unsupported Role lookups', async () => {
+  const fx = await fixture('weixin', [
+    { targetId: 'owner', name: 'QR paired owner', kind: 'user', route: { toUserId: 'oc_owner' } },
+  ]);
+  await fx.receive(dm('weixin-revoked-source', { at: new Date(Date.now() + 1000).toISOString() }));
+  const source = fx.sourceId('om-weixin-revoked-source');
+  const grant = (await fx.core.externalMessaging.snapshot('ada')).grants[0]!;
+  fx.core.externalMessaging.revoke('ada', grant.id);
+  expect(fx.core.externalMessaging.senderPermissions('ada', source)).toMatchObject({
+    status: 'unavailable',
+    reason: 'grant-revoked',
+  });
+});
+
+it('unsupported Role diagnostics require a user and exact current source scope', async () => {
+  const fx = await fixture('weixin', [
+    { targetId: 'owner', name: 'QR paired owner', kind: 'user', route: { toUserId: 'oc_owner' } },
+  ]);
+  await fx.receive(dm('weixin-scope', { at: new Date(Date.now() + 1000).toISOString() }));
+  const source = fx.core.externalMessaging.inbound.read('ada', fx.sourceId('om-weixin-scope'));
+  const grant = (await fx.core.externalMessaging.snapshot('ada')).grants[0]!;
+  const read = (event: typeof source.event, authority = grant) =>
+    attachOperationalModule(fx.core.operationalDatabase, 'test').read((db) =>
+      readSourceSenderPermissions(db, 'ada', event, new Date(), authority),
+    );
+  expect(
+    read(JSON.parse(JSON.stringify({ ...source.event, actor: { kind: 'bot', id: 'automated' } }))),
+  ).toMatchObject({
+    status: 'unavailable',
+    reason: 'no-current-scoped-identity',
+  });
+  expect(read(source.event, { ...grant, fingerprint: 'e'.repeat(64) })).toMatchObject({
+    status: 'unavailable',
+    reason: 'binding-replaced',
+  });
+  expect(read(source.event, { ...grant, accountRef: 'another-account' })).toMatchObject({
+    status: 'unavailable',
+    reason: 'binding-replaced',
+  });
+  expect(read(source.event, { ...grant, suspendedReason: 'rebind-required' })).toMatchObject({
+    status: 'unavailable',
+    reason: 'rebind-required',
+  });
+  expect(
+    read(source.event, { ...grant, receiveScope: { kind: 'dm', conversationId: 'another-owner' } }),
+  ).toMatchObject({
+    status: 'unavailable',
+    reason: 'source-unavailable',
+  });
+});
+
+it('sender permissions do not borrow a Role Binding from another Provider with matching account identity', async () => {
+  const fx = await fixture();
+  await fx.receive(dm('original-provider'));
+  expect(
+    fx.core.externalMessaging.senderPermissions('ada', fx.sourceId('om-original-provider')),
+  ).toMatchObject({ status: 'visitor', sender: { bindingId: fx.identity.id } });
+
+  const otherProvider = {
+    ...createDshImProvider(fx.service, 'feishu')!,
+    id: 'another-provider/feishu',
+  };
+  fx.core.externalMessaging.register(otherProvider);
+  const otherIdentity = await fx.core.externalMessaging.identity('ada', {
+    kind: 'bind',
+    providerId: otherProvider.id,
+    accountRef: 'lark-app',
+    fingerprint,
+  });
+  await fx.settle();
+  await fx.receive(fresh(dm('other-provider')));
+  const sourceId = fx.sourceId('om-other-provider');
+  const source = fx.core.externalMessaging.inbound.read('ada', sourceId);
+  const sourceGrant = (await fx.core.externalMessaging.snapshot('ada')).grants.find(
+    (grant) => grant.id === source.grantId,
+  )!;
+  expect(sourceGrant).toMatchObject({
+    providerId: otherProvider.id,
+    bindingId: otherIdentity.id,
+    accountRef: 'lark-app',
+    fingerprint,
+  });
+  expect(otherIdentity.id).not.toBe(fx.identity.id);
+  expect(fx.core.externalMessaging.senderPermissions('ada', sourceId)).toMatchObject({
+    status: 'unavailable',
+    reason: 'binding-replaced',
+  });
 });

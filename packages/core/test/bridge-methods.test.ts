@@ -2506,6 +2506,13 @@ describe('bridge methods', () => {
       'session-assignment',
       'session-orchestrator',
     ]);
+    expect(result.value.groups).toEqual([
+      {
+        botSlug: 'ada',
+        displayName: 'Ada',
+        sessionIds: expect.arrayContaining(['session-orchestrator', 'session-assignment']),
+      },
+    ]);
   });
 
   it('rejects malformed or unknown session reads', () => {
