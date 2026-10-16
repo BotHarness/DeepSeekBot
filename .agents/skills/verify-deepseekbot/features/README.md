@@ -29,6 +29,8 @@ One file per user-facing feature. Each file has four sections: `Sub-features`, `
 | Composer footer customization and optional reply speed | yes for a speed sample | none (Web interaction path) | [composer-footer.md](composer-footer.md) |
 | Disposable Memory history, restore and stale-head refusal | no | `scripts/e2e-memory-restore.mjs` | [memory-restore.md](memory-restore.md) |
 
+| Container Computer start, real frame and stop (candidate; Engine prerequisite) | no | `scripts/e2e-computer-lifecycle.mjs` | [computer-lifecycle.md](computer-lifecycle.md) |
+
 ## Coverage and maintenance
 
 The index routes verification; it is not a list of features proven on the current commit.

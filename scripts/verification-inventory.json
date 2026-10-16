@@ -365,11 +365,11 @@
     },
     {
       "id": "desktop.computer.lifecycle",
-      "label": "Enable/stop Computer and export/restore container state",
+      "label": "Broader Computer lifecycle and export/restore container state",
       "source": "packages/core/src/bots/cli-browser-computer.ts",
       "guide": null,
       "task": 1977,
-      "gap": "No maintained feature-map recipe binds this behavior to setup, user actions, authoritative read, cleanup and failure observation. Historical scripts below are candidates, not qualified paths."
+      "gap": "Container start/frame/stop has a separate bounded row; export/restore and broader lifecycle remain unmapped and unqualified."
     },
     {
       "id": "desktop.computer.native",
@@ -466,17 +466,17 @@
       "guide": ".agents/skills/verify-deepseekbot/features/composer-footer.md",
       "task": 1958,
       "gap": null
+    },
+    {
+      "id": "desktop.computer.container-start-frame-stop",
+      "label": "Start one task-owned Container Computer, observe its real frame and stop",
+      "source": "packages/computer/src/client/index.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/computer-lifecycle.md",
+      "task": 1977,
+      "gap": null
     }
   ],
   "scripts": [
-    {
-      "path": "scripts/e2e-bot-session-folders.mjs",
-      "category": "mapped",
-      "behaviors": ["desktop.sessions.bot-folders"],
-      "reason": "Prepared isolated Host with explicit Bot-owned roots; verifies product icon, Bot avatars, independent folding, reload, native navigation and retained cwd, with optional owned-Host restart.",
-      "task": 1997,
-      "sha256": "df0d4696321bab94ea2364c4c32b768fef20104757d2321bd68e73fdc87bb46b"
-    },
     {
       "path": "scripts/e2e-activity-entry.mjs",
       "category": "needs-repair",
@@ -708,6 +708,14 @@
       "reason": "Private launcher JSON; real browser enters/exits Bot mode and checks sidebar ownership and page errors.",
       "task": 1967,
       "sha256": "9c506b8a3c4d497b0759cb2ef59d760199a58634465f97c54eb1a64e1ea25398"
+    },
+    {
+      "path": "scripts/e2e-bot-session-folders.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.sessions.bot-folders"],
+      "reason": "Prepared isolated Host with explicit Bot-owned roots; verifies product icon, Bot avatars, independent folding, reload, native navigation and retained cwd, with optional owned-Host restart.",
+      "task": 1997,
+      "sha256": "df0d4696321bab94ea2364c4c32b768fef20104757d2321bd68e73fdc87bb46b"
     },
     {
       "path": "scripts/e2e-browser-access.mjs",
@@ -972,6 +980,14 @@
       "reason": "Prepared Computer with separate UI result file; checks Access on/off header and actual stopped state.",
       "task": 1977,
       "sha256": "bfd0a4efda98bb5357a372f3d6ba9a4107ee7a536feced5f2fa4548b0df734fa"
+    },
+    {
+      "path": "scripts/e2e-computer-lifecycle.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.computer.container-start-frame-stop"],
+      "task": 1977,
+      "reason": "Candidate isolated Container-only Web/CLI lifecycle journey; requires existing healthy Docker Engine/image and fresh task-owned Profile/container/volume. Runtime qualification is blocked until genuine frame evidence exists. No Local Computer, input, import/export or phone WebRTC.",
+      "sha256": "eaa22adf38495b3bac0c454701a8d06401c68618896265aec9362a7074a6e70b"
     },
     {
       "path": "scripts/e2e-computer-settings.mjs",
