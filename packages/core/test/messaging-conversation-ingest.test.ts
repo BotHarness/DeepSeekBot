@@ -462,7 +462,6 @@ it('resolves a shared ingested source from a different Group placement', async (
   await fx.settle();
   await fx.receive(chatter('shared-permissions'));
   const id = fx.sourceId('om-shared-permissions');
-  // Ada reads through the second placement, while the original Ingest belongs to the first.
   fx.core.channels.removeGroupMember(group.id, 'ada');
   expect(fx.core.externalMessaging.senderPermissions('ada', id)).toMatchObject({
     status: 'visitor',
