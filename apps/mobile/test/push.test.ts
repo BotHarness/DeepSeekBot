@@ -210,7 +210,15 @@ async function realHost() {
     authenticatedUrl: (base) => base,
     push: createDevicePushHttp(push),
   });
-  const server = createServer((req, res) => void gateway.handle(req, res));
+  const server = createServer((req, res) => {
+    if (req.url === '/botharness-device/api/botharness/devices/compatibility') {
+      const admitted = pairing.admit(req.headers.authorization);
+      res.writeHead(admitted.ok ? 404 : 401, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ code: admitted.ok ? 'not-found' : admitted.code }));
+      return;
+    }
+    void gateway.handle(req, res);
+  });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   servers.push(server);
   const route = `http://127.0.0.1:${String((server.address() as AddressInfo).port)}`;
@@ -310,6 +318,53 @@ describe('notification buttons', () => {
 });
 
 describe('push registration with a real Host gateway', () => {
+  it.each(['', 'Not Found'])(
+    'preserves legacy push when compatibility returns a non-JSON 404: %j',
+    async (body) => {
+      const requests: string[] = [];
+      const carrier = nodeCarrier();
+      const legacy = createHostPush({
+        ...carrier,
+        request: async (url) => {
+          requests.push(url);
+          return url.endsWith('/compatibility')
+            ? new Response(body, { status: 404 })
+            : new Response('{}');
+        },
+      });
+      await expect(legacy.test(host('a'))).resolves.toBeUndefined();
+      expect(requests.at(-1)).toBe('https://mac.tailnet.ts.net/botharness-device/push/test');
+    },
+  );
+
+  it('does not register or test notifications when the Host explicitly lacks push support', async () => {
+    const requests: string[] = [];
+    const carrier = nodeCarrier();
+    const guarded = createHostPush({
+      ...carrier,
+      request: async (url) => {
+        requests.push(url);
+        return new Response(
+          JSON.stringify({
+            schemaVersion: 1,
+            protocol: { min: 1, max: 1 },
+            host: {
+              version: '2.0.0-beta.1',
+              source: 'abc123456',
+              platform: 'darwin',
+              arch: 'arm64',
+            },
+            features: { push: false },
+          }),
+        );
+      },
+    });
+    await expect(guarded.test(host('a'))).rejects.toMatchObject({ code: 'push-unsupported' });
+    expect(requests).toEqual([
+      'https://mac.tailnet.ts.net/botharness-device/api/botharness/devices/compatibility',
+    ]);
+  });
+
   it('registers after the Human allows notifications, honours kinds, tests, and stops on unpair', async () => {
     const h = await realHost();
     const hostPush = createHostPush(nodeCarrier(), 2_000);

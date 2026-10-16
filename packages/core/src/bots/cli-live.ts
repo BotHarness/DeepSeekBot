@@ -180,6 +180,10 @@ const CONTROL_COMMANDS = [
 ] as const;
 
 export const LIVE_COMMANDS = [
+  {
+    command: 'device-compatibility',
+    description: 'read phone protocol, Host build and optional features',
+  },
   ...IM_COMMANDS,
   ...MESSAGING_COMMANDS,
   ...MODELS_USAGE_COMMANDS,
@@ -655,6 +659,19 @@ export async function runLiveCli(
   values: LiveValues,
   io: BotCreateCliIo,
 ): Promise<unknown> {
+  if (command === 'device-compatibility') {
+    if (rest.length !== 0) usage('device-compatibility takes no positional arguments.');
+    const host = await connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout)));
+    const { bytes } = await host.http('/api/botharness/devices/compatibility');
+    try {
+      return JSON.parse(new TextDecoder().decode(bytes)) as unknown;
+    } catch {
+      throw new CliLiveError(
+        'host-protocol-error',
+        'The Host returned invalid compatibility information.',
+      );
+    }
+  }
   if (IM_COMMANDS.some((entry) => entry.command === command)) {
     const operation = await prepareImAuthorization(command, rest, values, io);
     const signal = AbortSignal.timeout(timeoutMs(values.timeout));

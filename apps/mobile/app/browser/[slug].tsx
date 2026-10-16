@@ -62,8 +62,13 @@ export default function BrowserScreen() {
 
   const close = () => (router.canGoBack() ? router.back() : router.replace('/'));
   const revoked = state.status === 'refused' || snapshot.connection.status === 'refused';
+  const incompatible =
+    snapshot.connection.status === 'refused' &&
+    snapshot.connection.code === 'protocol-incompatible';
   const message = revoked
-    ? t.browserRevoked
+    ? incompatible
+      ? t.compatibilityBlocked
+      : t.browserRevoked
     : state.status === 'no-access'
       ? t.browserNoAccess
       : state.status === 'not-running'
@@ -145,9 +150,11 @@ export default function BrowserScreen() {
                   {!revoked ? null : (
                     <View style={{ alignSelf: 'stretch', marginTop: space.x5 }}>
                       <Button
-                        label={t.pairAgain}
+                        label={incompatible ? t.retry : t.pairAgain}
                         tone="primary"
-                        onPress={() => router.replace('/pair')}
+                        onPress={() =>
+                          incompatible ? client?.retryNow() : router.replace('/pair')
+                        }
                       />
                     </View>
                   )}

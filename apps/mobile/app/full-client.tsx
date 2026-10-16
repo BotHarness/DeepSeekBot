@@ -23,6 +23,9 @@ export default function FullClientScreen() {
   const route =
     snapshot.connection.route !== '' ? snapshot.connection.route : (saved?.routes[0] ?? '');
   const revoked = saved === null || state === 'refused' || snapshot.connection.status === 'refused';
+  const incompatible =
+    snapshot.connection.status === 'refused' &&
+    snapshot.connection.code === 'protocol-incompatible';
 
   const close = () => (router.canGoBack() ? router.back() : router.replace('/'));
   const retry = () => {
@@ -38,7 +41,11 @@ export default function FullClientScreen() {
             accessibilityRole="alert"
             style={{ color: theme.ink, fontSize: 17, fontWeight: '600', textAlign: 'center' }}
           >
-            {revoked ? t.fullClientRevoked : t.fullClientUnreachable}
+            {incompatible
+              ? t.compatibilityBlocked
+              : revoked
+                ? t.fullClientRevoked
+                : t.fullClientUnreachable}
           </Text>
           {state === 'unreachable' && !revoked ? (
             <Text selectable style={{ color: theme.inkSoft, fontSize: 13, textAlign: 'center' }}>
@@ -46,7 +53,16 @@ export default function FullClientScreen() {
             </Text>
           ) : null}
           <Pressable
-            onPress={revoked ? () => router.replace('/pair') : retry}
+            onPress={
+              incompatible
+                ? () => {
+                    client?.retryNow();
+                    retry();
+                  }
+                : revoked
+                  ? () => router.replace('/pair')
+                  : retry
+            }
             accessibilityRole="button"
             style={{
               alignSelf: 'center',
@@ -57,11 +73,11 @@ export default function FullClientScreen() {
             }}
           >
             <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600' }}>
-              {revoked ? t.pairAgain : t.retry}
+              {revoked && !incompatible ? t.pairAgain : t.retry}
             </Text>
           </Pressable>
         </View>
-      ) : saved === undefined || route === '' ? (
+      ) : saved === undefined || route === '' || snapshot.connection.status !== 'connected' ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <ActivityIndicator />
         </View>

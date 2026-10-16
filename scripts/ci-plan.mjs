@@ -61,7 +61,7 @@ export const RULES = [
   related('apps/docs/**', 'Docs site', true),
   none('apps/presentations/**', 'Slides embedded in the docs site', true),
   related('apps/mobile/{app,src,test,scripts}/**', 'Mobile app source, tests and scripts'),
-  related('apps/mobile/{app.json,eas.json,metro.config.js}', 'Mobile app config'),
+  related('apps/mobile/{app.json,app.config.js,eas.json,metro.config.js}', 'Mobile app config'),
   related('apps/mobile/locales/**', 'Translated iOS permission prompts'),
   related('apps/mobile/assets/**', 'Mobile app icons and bundled images'),
   none('apps/mobile/.maestro/**', 'Maestro flows, run on a Mac simulator'),

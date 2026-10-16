@@ -8,6 +8,8 @@ import { attachOperationalModule, mountOperationalDatabase } from '../src/databa
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createDeviceGateway, DEVICE_GATEWAY_PREFIX } from '../src/devices/gateway.js';
 import { createDevicePairing } from '../src/devices/pairing.js';
+import { createDevicesHttp } from '../src/devices/http.js';
+import { deviceCompatibility } from '../src/devices/compatibility.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
 
 const servers: Server[] = [];
@@ -32,6 +34,7 @@ async function fakeDsh() {
   };
   const cookie = () => `dsh=${String(state.secret)}`;
   let gateway: ReturnType<typeof createDeviceGateway> | undefined;
+  let devicesHttp: ReturnType<typeof createDevicesHttp>;
   const server = createServer((req, res) => {
     const url = new URL(req.url ?? '/', 'http://x');
     if (url.pathname.startsWith(DEVICE_GATEWAY_PREFIX)) return void gateway!.handle(req, res);
@@ -42,6 +45,13 @@ async function fakeDsh() {
     if (req.headers.cookie !== cookie()) {
       res.writeHead(401);
       return res.end();
+    }
+    if (url.pathname === '/api/botharness/devices/compatibility') {
+      void devicesHttp(new Request(url, { method: req.method! })).then(async (answer) => {
+        res.writeHead(answer.status, Object.fromEntries(answer.headers));
+        res.end(await answer.text());
+      });
+      return;
     }
     const chunks: Buffer[] = [];
     req.on('data', (chunk: Buffer) => chunks.push(chunk));
@@ -79,6 +89,11 @@ async function fakeDsh() {
     pairing,
     port: () => port,
     authenticatedUrl: (base) => `${base}?token=${state.token}`,
+  });
+  devicesHttp = createDevicesHttp({
+    pairing,
+    routes: async () => ({ routes: [], tailscale: 'missing', serveCommand: '' }),
+    compatibility: () => deviceCompatibility('2.0.0-beta.1', false),
   });
   return { state, port, pairing, base: `http://127.0.0.1:${String(port)}` };
 }
@@ -127,6 +142,25 @@ const echo = (socket: Socket, text: string) =>
   });
 
 describe('device gateway', () => {
+  it('protects compatibility with device admission and honors revocation', async () => {
+    const host = await fakeDsh();
+    const url = `${host.base}/botharness-device/api/botharness/devices/compatibility`;
+    expect((await fetch(url)).status).toBe(401);
+    const paired = await pair(host.base, host.pairing.createOffer().offer);
+    const headers = { authorization: `Device ${paired.body.credential}` };
+    const response = await fetch(url, { headers });
+    expect(response.status).toBe(200);
+    expect(response.headers.get('set-cookie')).toBeNull();
+    expect(await response.json()).toMatchObject({
+      schemaVersion: 1,
+      protocol: { min: 1, max: 1 },
+      host: { version: '2.0.0-beta.1' },
+      features: { push: false },
+    });
+    host.pairing.revoke(paired.body.deviceId!);
+    expect((await fetch(url, { headers })).status).toBe(401);
+  });
+
   it('pairs once and forwards unary calls with the Host-held session only', async () => {
     const host = await fakeDsh();
     const { offer } = host.pairing.createOffer();

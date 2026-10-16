@@ -109,6 +109,7 @@ export default defineConfig([
   {
     entry: ['packages/core/src/index.ts'],
     outDir: 'packages/core/dist',
+    define: { __BOTHARNESS_HOST_BUILD__: JSON.stringify(buildStamp()) },
     format: ['esm'],
     platform: 'node',
     dts: true,

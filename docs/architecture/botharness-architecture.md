@@ -735,6 +735,20 @@ Registry 在 Generation 66 持久化不可恢复的身份关闭状态和确认�
 4. #78 可与上述工作并行研究 Feishu provider contract，但 #48 的 adapter 实现受它约束。
 5. #74 的 Memory 工作在上述主链通过后，以独立 optional Provider tracer bullet 推进；#75、#76 保持 focused design/grill，避免阻塞首个可体验闭环。
 
+## 跨端 Beta 发布（设计已接受，首个兼容切片已实现）
+
+#1931 在既有 Device Pairing 模块的已认证 HTTP seam 增加 `/api/botharness/devices/compatibility`，CLI 为 `device-compatibility`。手机在 RPC / live-stream 前检查应用协议范围；404 旧版 Host 标记为未验证，范围不交集返回 `protocol-incompatible` 并引导更新而非重新配对，缺少推送时仅禁用通知。Settings 展示两端版本标识。发布组合校验复用既有 npm 产物完整性验证并绑定手机校验和及组合证据；此实现不等于精确安装包、真机或 Human 验收完成，不启动构建、分发或晋升。流程见 [Beta 组合验收](../agents/beta-release-pair.md)。
+
+[ADR-0214](../adr/0214-beta-promotes-verified-phone-computer-combinations.md) 与 [#1930](https://github.com/BotHarness/DeepSeekBot/issues/1930) 定义手机和电脑端的共同发布边界：内部候选 → 精确产物的 Release Combination 验证 → Human 批准 → 邀请制 Beta；正式发布另行批准。该流程是 application-defined 产品发布机制，不改变 DSH Profile/Bundle、Host 数据 owner 或聊天 Channel 的含义。
+
+- **节奏与额度：** 每日可以检查相关变更，不保证每日构建。构建去重、复用未变化产物，常规 Beta 最多每周一次；严重修复例外仍需批准。只使用现有已批准套餐额度，不足或未知则暂停，不升级套餐、不超额付费。首期不做 OTA，手机走商店新安装包，电脑复用现有安装/发布机制。
+- **配套兼容：** 手机和电脑独立选择 Beta。每个连接检查既有 Host 能力，兼容时保留基础功能，缺少能力时仅禁用相关功能，真正协议不兼容才给出明确拒绝和升级指引。验证当前正式版与最近两个已批准 Beta 电脑端基线；首个支持手机的基线必须实测建立，未知组合不等于已兼容或不兼容。
+- **平台覆盖：** 一个手机包可连接不同系统、不同版本的多个 Host，商店不能可靠按电脑系统定向分发。因此按组合推进验证不能破坏该包可触达的受支持组合；共同协议或数据格式变化需全部受影响组合通过。两家商店并非原子上线，部分可安装不得宣称全平台完成。
+- **证据与审批：** 发布记录绑定源码/配置、不可变产物、组合、测试结果与批准。安装/升级、配对、真实消息回复、重连、通知与兼容性均需证据；自动检查、native/runtime、Human QA、上传、处理及测试者可安装分开记录。产物变化使原批准失效。
+- **控制与恢复：** 电脑更新由用户确认，不自动重启或中断任务；同一版本不反复提示。不可逆迁移不得自动执行，必须先备份、确认并验证恢复路径。故障停发、优先修复，不承诺立即降级；退出 Beta 不破坏数据或假称已有可安装正式替代版。
+- **反馈 owner：** 复用现有 Web/PostHog 负责模块及同意/退出约定，不重复建设、不扩大内容采集、不合并跨端身份；主动诊断包须预览、脱敏并明确提交。收集失败不阻断使用。
+- **实施顺序：** [#1931](https://github.com/BotHarness/DeepSeekBot/issues/1931) 先人工跑通一个真实配套安装与使用闭环；[#1932](https://github.com/BotHarness/DeepSeekBot/issues/1932) 验证升级、反馈与退出；[#1933](https://github.com/BotHarness/DeepSeekBot/issues/1933) 再自动化额度内候选与证据，保留人工晋升。本次文档不启用发布工作流。
+
 ## 9 · 如何维护
 
 - 模块、数据流、事务边界或 authority 发生结构变化时，同步本文件、英文镜像和 `docs/architecture/diagrams/*.mmd`。

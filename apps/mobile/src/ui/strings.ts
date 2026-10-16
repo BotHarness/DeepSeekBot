@@ -42,6 +42,14 @@ const en = {
     botDm: 'Bot-to-Bot DM · read-only',
   },
   roster: 'DeepSeekBot',
+  compatibility: 'Phone / computer compatibility',
+  compatibilityUnknown:
+    'This computer does not report compatibility. This release combination is unverified; use the versions listed in your Beta invitation.',
+  compatibilityProtocol:
+    'Protocol compatible; this is not packaged-artifact or Human QA approval. Check the exact versions in your Beta invitation.',
+  compatibilityBlocked:
+    'Protocol incompatible. Update the phone and computer apps to a supported release combination, then retry. Do not pair again.',
+  hostVersion: 'Computer version',
   bots: 'PersonaBots',
   channels: 'Channels',
   noBots: 'No PersonaBots on this computer yet.',
@@ -331,6 +339,10 @@ const en = {
   testSent: 'Test sent. It should arrive in a few seconds.',
   testFailed: 'The test notification was not sent:',
   pushFailed: {
+    'push-unsupported':
+      'this computer does not support notifications. Update or enable push on the computer; chat still works.',
+    'protocol-incompatible':
+      'update the phone and computer apps to a supported release combination.',
     'push-not-registered': 'this phone is not registered with your computer yet.',
     'push-token-invalid': 'the phone gave an invalid notification address.',
     'push-send-failed': 'your computer could not reach the notification service.',
@@ -662,6 +674,11 @@ const en = {
 };
 
 const zh: typeof en = {
+  compatibility: '手机 / 电脑兼容性',
+  compatibilityUnknown: '此电脑未提供兼容信息。此发布组合尚未验证；请使用 Beta 邀请中列出的版本。',
+  compatibilityProtocol: '协议兼容不代表已通过安装包验证或人工验收。请核对 Beta 邀请中的精确版本。',
+  compatibilityBlocked: '协议不兼容。请将手机和电脑端更新到受支持的发布组合后重试，无需重新配对。',
+  hostVersion: '电脑端版本',
   activityRow: {
     dm: (recipient: string) => `向 ${recipient} 发送了私聊消息`,
     actions: '活动详情',
@@ -972,6 +989,8 @@ const zh: typeof en = {
   testSent: '测试通知已发送，几秒内会到。',
   testFailed: '测试通知没有发出：',
   pushFailed: {
+    'push-unsupported': '此电脑不支持通知。请更新电脑端或启用推送；聊天仍可使用。',
+    'protocol-incompatible': '请将手机和电脑端更新到受支持的发布组合。',
     'push-not-registered': '这台手机还没在电脑上登记通知。',
     'push-token-invalid': '手机提供的通知地址无效。',
     'push-send-failed': '电脑连不上通知服务。',

@@ -20,6 +20,7 @@
     "@expo/metro-runtime": "~57.0.17",
     "expo": "57.0.30",
     "expo-alternate-app-icons": "8.0.0",
+    "expo-application": "~57.0.3",
     "expo-camera": "~57.0.6",
     "expo-clipboard": "~57.0.2",
     "expo-constants": "~57.0.22",

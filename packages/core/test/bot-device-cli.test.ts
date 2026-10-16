@@ -105,6 +105,24 @@ async function invoke(argv: string[], url: string) {
 }
 
 describe('Agent Browser and Computer commands', () => {
+  it('reads phone compatibility through the authenticated Host connection', async () => {
+    const compatibility = {
+      schemaVersion: 1,
+      protocol: { min: 1, max: 1 },
+      features: { push: false },
+    };
+    const live = await host(() => ({ json: compatibility }));
+    expect(await invoke(['device-compatibility'], live.url)).toEqual({
+      code: 0,
+      json: compatibility,
+    });
+    expect(live.calls).toEqual([
+      { method: 'GET', path: '/api/botharness/devices/compatibility', body: undefined },
+    ]);
+    expect((await invoke(['device-compatibility', 'unexpected'], live.url)).code).not.toBe(0);
+    expect(live.calls).toHaveLength(1);
+  });
+
   it('opens a Bot browser, saves one frame, and takes over and releases it', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'bh-frame-'));
     dirs.push(dir);

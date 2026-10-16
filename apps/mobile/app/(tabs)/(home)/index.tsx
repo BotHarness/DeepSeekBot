@@ -103,6 +103,7 @@ export default function HomeScreen() {
               <>
                 <ConnectionBanner
                   connection={snapshot.connection}
+                  compatibility={snapshot.compatibility}
                   onRetry={() => client?.retryNow()}
                   onPairAgain={() => router.push('/pair')}
                 />

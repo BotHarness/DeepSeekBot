@@ -49,6 +49,7 @@ export default function ActivityScreen() {
           header={
             <ConnectionBanner
               connection={snapshot.connection}
+              compatibility={snapshot.compatibility}
               onRetry={() => client?.retryNow()}
               onPairAgain={() => router.push('/pair')}
             />

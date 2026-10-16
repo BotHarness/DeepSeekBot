@@ -15,6 +15,7 @@ import {
   DEVICE_WEB_MUX_PATH,
 } from './gateway.js';
 import { createDevicesHttp, DEVICES_PATH } from './http.js';
+import { DEVICE_COMPATIBILITY_PATH, deviceCompatibility } from './compatibility.js';
 import { createDevicePairing, type DevicePairingEvent } from './pairing.js';
 import { detectPhoneRoutes } from './routes.js';
 import {
@@ -79,7 +80,12 @@ export type DeviceWebUpgrade = (request: IncomingMessage, socket: Duplex, head: 
 
 export function mountDevicePairing(
   ctx: Context,
-  options: { database: OperationalDatabaseOwner; dshHome: string; push?: DevicePushOptions },
+  options: {
+    database: OperationalDatabaseOwner;
+    dshHome: string;
+    runningVersion: string;
+    push?: DevicePushOptions;
+  },
 ): DeviceWebUpgrade | undefined {
   if (options.database.mode !== 'ready') return undefined;
   let live: DeviceGateway | undefined;
@@ -145,9 +151,14 @@ export function mountDevicePairing(
     const connection = (webCtx as unknown as { connection: ConnectionLike }).connection;
     const webServer = (webCtx as unknown as { webServer: WebServerLike }).webServer;
     const routes = () => detectPhoneRoutes({ port: webServer.port });
-    const http = createDevicesHttp({ pairing, routes });
+    const http = createDevicesHttp({
+      pairing,
+      routes,
+      compatibility: () => deviceCompatibility(options.runningVersion, push !== undefined),
+    });
     for (const [path, methods] of [
       [DEVICES_PATH, ['GET']],
+      [DEVICE_COMPATIBILITY_PATH, ['GET']],
       [`${DEVICES_PATH}/offer`, ['POST']],
       [`${DEVICES_PATH}/revoke`, ['POST']],
     ] as const)

@@ -100,6 +100,7 @@ export class FakeHost {
   revoked = false;
   up = true;
   olderHost = false;
+  compatibility: { status: number; body: unknown } = { status: 404, body: { code: 'not-found' } };
   private sockets = new Set<Socket>();
   readonly requests: string[] = [];
   readonly unreachable = new Set<string>();
@@ -141,6 +142,8 @@ export class FakeHost {
       }
       const refusal = this.refusal(init.headers?.['authorization']);
       if (refusal !== undefined) return response(401, JSON.stringify({ code: refusal }));
+      if (parsed.pathname === '/botharness-device/api/botharness/devices/compatibility')
+        return response(this.compatibility.status, JSON.stringify(this.compatibility.body));
       if (parsed.pathname === '/botharness-device/api/botharness/attachment/upload') {
         if (this.failing.has('upload')) throw new TypeError('Network request failed');
         const name = parsed.searchParams.get('name') ?? '';

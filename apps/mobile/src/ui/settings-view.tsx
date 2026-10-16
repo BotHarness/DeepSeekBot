@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 
 import type { ConnectionState } from '../host/client';
+import type { Compatibility } from '../host/compatibility';
+import { compatibilityDetail } from './shell/compatibility-notice';
 import type { OverviewUsage } from '../host/usage';
 import { SHEET_GROUP } from './chat/sheet';
 import { useDesignTheme } from './design/theme';
@@ -35,12 +37,14 @@ const STATUS: Record<ConnectionState['status'], string> = {
 export function SettingsView({
   hostName,
   connection,
+  compatibility,
   loadUsage,
   version,
   actions,
 }: {
   hostName: string | undefined;
   connection: ConnectionState;
+  compatibility?: Compatibility | undefined;
   loadUsage?: (() => Promise<OverviewUsage>) | undefined;
   version: string;
   actions: SettingsActions;
@@ -84,6 +88,13 @@ export function SettingsView({
       </View>
       <UsageCard load={loadUsage} on={SHEET_GROUP} onOpen={actions.onUsage} />
       <SettingsSection title={t.connections} on={SHEET_GROUP}>
+        {compatibility === undefined ? null : (
+          <SettingsRow
+            on={SHEET_GROUP}
+            title={t.compatibility}
+            detail={compatibilityDetail(compatibility)}
+          />
+        )}
         <SettingsRow on={SHEET_GROUP} title={hostName ?? '—'} detail={status.join(' · ')} />
         <SettingsRow
           on={SHEET_GROUP}
@@ -120,6 +131,14 @@ export function SettingsView({
         />
       </SettingsSection>
       <SettingsSection title={t.about} on={SHEET_GROUP}>
+        {compatibility === undefined || compatibility.status === 'unverified' ? null : (
+          <SettingsRow
+            on={SHEET_GROUP}
+            title={t.hostVersion}
+            detail={`${compatibility.host.version} · ${compatibility.host.source} · ${compatibility.host.platform}/${compatibility.host.arch}`}
+            onPress={() => actions.onCopyVersion(JSON.stringify(compatibility.host))}
+          />
+        )}
         <SettingsRow
           on={SHEET_GROUP}
           title={t.appVersion}

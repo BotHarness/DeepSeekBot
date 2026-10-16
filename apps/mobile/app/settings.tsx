@@ -13,7 +13,7 @@ import { openHostDrawer } from '../src/ui/shell/host-drawer';
 export default function SettingsScreen() {
   const router = useRouter();
   const { saved, client } = useHostSession();
-  const { connection } = useHostSnapshot(client);
+  const { connection, compatibility } = useHostSnapshot(client);
   const usage = useMemo(
     () => (client === undefined ? undefined : () => loadUsage(client, 'week')),
     [client],
@@ -23,6 +23,7 @@ export default function SettingsScreen() {
       key={saved?.hostId}
       hostName={saved?.hostName}
       connection={connection}
+      compatibility={compatibility}
       loadUsage={usage}
       version={appBuildLabel(currentAppBuild())}
       actions={{

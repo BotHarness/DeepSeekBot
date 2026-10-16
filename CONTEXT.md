@@ -887,3 +887,9 @@ _Avoid_: ad, promotion
 **Campaign Link**:
 A short link on `go.botharness.ai` for one post or video in a Campaign, carrying its platform and media type; resolving it redirects to the product site with UTM parameters and counts the click.
 _Avoid_: short URL, UTM link, referral link
+
+### Release qualification
+
+**Release Combination**:
+An exact DeepSeekBot phone app and computer product artifact pair, together with the platform combination for which their interoperability has been qualified. It is not a requirement for matching version numbers or a claim about untested combinations.
+_Avoid_: matching versions, release Channel, DSH Profile

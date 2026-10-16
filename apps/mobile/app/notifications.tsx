@@ -5,6 +5,7 @@ import {
   hostPush,
   hostSession,
   useHostSession,
+  useHostSnapshot,
   usePushStatus,
   pushSession,
 } from '../src/host/host-session';
@@ -12,9 +13,11 @@ import {
   NotificationSettings,
   type NotificationSettingsPort,
 } from '../src/ui/notification-settings';
+import { CompatibilityNotice } from '../src/ui/shell/compatibility-notice';
 
 export default function NotificationsScreen() {
-  const { saved } = useHostSession();
+  const { saved, client } = useHostSession();
+  const { compatibility } = useHostSnapshot(client);
   const status = usePushStatus();
   const port = useMemo<NotificationSettingsPort | undefined>(
     () =>
@@ -28,6 +31,11 @@ export default function NotificationsScreen() {
     [saved],
   );
   if (saved === null || saved === undefined || port === undefined) return null;
+  if (
+    compatibility?.status === 'incompatible' ||
+    (compatibility?.status === 'compatible' && !compatibility.features.push)
+  )
+    return <CompatibilityNotice info={compatibility} onRetry={() => client?.retryNow()} />;
   return (
     <NotificationSettings
       status={status}

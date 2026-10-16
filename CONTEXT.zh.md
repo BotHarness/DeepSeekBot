@@ -885,3 +885,9 @@ _避免使用_：广告、促销
 **Campaign Link**：
 `go.botharness.ai` 上对应 Campaign 中某一条帖子或视频的短链，带有平台和媒体类型；访问时重定向到官网并附上 UTM 参数，同时计入点击。
 _避免使用_：短网址、UTM 链接、邀请链接
+
+### 发布资格验证
+
+**Release Combination**：
+准确标识的 DeepSeekBot 手机 App 与电脑端产品产物配对，以及已验证二者互操作的平台组合。它不要求两端版本号相同，也不声称未经测试的组合兼容。
+_避免使用_：相同版本、发布 Channel、DSH Profile

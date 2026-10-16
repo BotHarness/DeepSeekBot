@@ -1,6 +1,7 @@
 import type { HostCarrier } from './carrier';
 import type { SavedHost } from './hosts';
 import { DEVICE_PREFIX } from './pairing';
+import { COMPATIBILITY_PATH, readCompatibility } from './compatibility';
 
 export const PUSH_KINDS = ['approval', 'question', 'private-input', 'reply'] as const;
 export type PushKind = (typeof PUSH_KINDS)[number];
@@ -12,6 +13,8 @@ export interface PushSettings {
 }
 
 export type PushRefusal =
+  | 'push-unsupported'
+  | 'protocol-incompatible'
   | 'push-not-registered'
   | 'push-token-invalid'
   | 'push-send-failed'
@@ -157,6 +160,29 @@ export function createHostPush(carrier: HostCarrier, timeoutMs = 10_000): HostPu
       let status: number;
       let text: string;
       try {
+        if (path !== '/unregister') {
+          const probe = await carrier.request(`${route}${DEVICE_PREFIX}${COMPATIBILITY_PATH}`, {
+            method: 'GET',
+            headers: { authorization: `Device ${host.credential}` },
+            signal: controller.signal,
+          });
+          const probeBody = await probe.text();
+          const info: unknown = probe.status === 404 ? undefined : JSON.parse(probeBody);
+          if (probe.status === 401) {
+            const code = record(info)['code'];
+            if (
+              code === 'device-revoked' ||
+              code === 'device-unknown' ||
+              code === 'device-credential-missing'
+            )
+              throw new PushRequestFailed(code);
+          }
+          const compatibility = readCompatibility(probe.status, info);
+          if (compatibility.status === 'incompatible')
+            throw new PushRequestFailed('protocol-incompatible');
+          if (compatibility.status === 'compatible' && !compatibility.features.push)
+            throw new PushRequestFailed('push-unsupported');
+        }
         const response = await carrier.request(`${route}${DEVICE_PREFIX}/push${path}`, {
           method: body === undefined ? 'GET' : 'POST',
           headers: { authorization: `Device ${host.credential}` },
@@ -165,7 +191,8 @@ export function createHostPush(carrier: HostCarrier, timeoutMs = 10_000): HostPu
         });
         status = response.status;
         text = await response.text();
-      } catch {
+      } catch (error) {
+        if (error instanceof PushRequestFailed) throw error;
         continue;
       } finally {
         clearTimeout(timer);

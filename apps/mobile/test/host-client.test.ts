@@ -48,6 +48,182 @@ async function until(
 }
 
 describe('Host client', () => {
+  it.each(['call', 'api', 'upload'] as const)(
+    'never dispatches %s after a stop queued behind successful admission',
+    async (operation) => {
+      const host = new FakeHost();
+      let stopped = false;
+      const lateRequests: string[] = [];
+      client = createHostClient({
+        routes: [ROUTE],
+        credential: host.credential,
+        carrier: {
+          ...host.carrier,
+          request: (...args) => {
+            if (stopped) lateRequests.push(args[0]);
+            return host.carrier.request(...args);
+          },
+        },
+      });
+      const target = client;
+      target.start();
+      await until(target, (snapshot) => snapshot.connection.status === 'connected');
+      const pending =
+        operation === 'call'
+          ? target.call('list')
+          : operation === 'api'
+            ? target.api('/api/botharness/devices/compatibility', {})
+            : target.upload('test.txt', new Blob(['test']));
+      queueMicrotask(() => {
+        stopped = true;
+        target.stop();
+      });
+      await pending.catch(() => {});
+      expect(lateRequests).toEqual([]);
+    },
+  );
+
+  it('does not open a live socket when stopped during the admission roster request', async () => {
+    const host = new FakeHost();
+    let release: () => void = () => {};
+    let reached: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const roster = new Promise<void>((resolve) => {
+      reached = resolve;
+    });
+    let opened = 0;
+    client = createHostClient({
+      routes: [ROUTE],
+      credential: host.credential,
+      carrier: {
+        ...host.carrier,
+        request: async (...args) => {
+          if (args[0].endsWith('/list')) {
+            reached();
+            await gate;
+          }
+          return host.carrier.request(...args);
+        },
+        openSocket: (...args) => {
+          opened += 1;
+          return host.carrier.openSocket(...args);
+        },
+      },
+      timeoutMs: 50,
+    });
+    client.start();
+    await roster;
+    client.stop();
+    release();
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(opened).toBe(0);
+    expect(host.calls).toHaveLength(1);
+    expect(client.getSnapshot().connection.status).toBe('stopped');
+  });
+
+  it('does not dispatch a queued operation after its client is stopped during admission', async () => {
+    const host = new FakeHost();
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    client = createHostClient({
+      routes: [ROUTE],
+      credential: host.credential,
+      carrier: {
+        ...host.carrier,
+        request: async (...args) => {
+          await gate;
+          return host.carrier.request(...args);
+        },
+      },
+    });
+    const pending = client.call('list');
+    client.stop();
+    release();
+    await expect(pending).rejects.toThrow('stopped');
+    expect(host.calls).toHaveLength(0);
+  });
+
+  it('requires protocol admission for a notification-created client that never starts live streams', async () => {
+    const host = new FakeHost();
+    host.compatibility = {
+      status: 200,
+      body: {
+        schemaVersion: 1,
+        protocol: { min: 2, max: 2 },
+        host: { version: '3.0.0', source: 'def123456', platform: 'darwin', arch: 'arm64' },
+        features: { push: true },
+      },
+    };
+    client = createHostClient({
+      routes: [ROUTE],
+      credential: host.credential,
+      carrier: host.carrier,
+    });
+    await expect(client.call('toolApprovalDecide', { decision: 'approve' })).rejects.toMatchObject({
+      code: 'protocol-incompatible',
+    });
+    expect(host.calls).toHaveLength(0);
+  });
+
+  it('refuses a genuinely incompatible protocol before RPC and can retry after an explicit update', async () => {
+    const host = new FakeHost();
+    host.compatibility = {
+      status: 200,
+      body: {
+        schemaVersion: 1,
+        protocol: { min: 2, max: 2 },
+        host: { version: '3.0.0', source: 'def123456', platform: 'darwin', arch: 'arm64' },
+        features: { push: true },
+      },
+    };
+    const target = connect(host);
+    const snapshot = await until(target, (state) => state.connection.status === 'refused');
+    expect(snapshot.connection).toMatchObject({
+      code: 'protocol-incompatible',
+      reason: expect.stringContaining('Update'),
+    });
+    expect(host.calls).toHaveLength(0);
+    await expect(target.call('send', {})).rejects.toMatchObject({ code: 'protocol-incompatible' });
+    await expect(target.api('/api/botharness/anything', { body: {} })).rejects.toMatchObject({
+      code: 'protocol-incompatible',
+    });
+    host.compatibility = { status: 404, body: { code: 'not-found' } };
+    target.retryNow();
+    const reconnected = await until(target, (state) => state.connection.status === 'connected');
+    expect(reconnected.compatibility).toEqual({
+      status: 'unverified',
+      qualification: 'unverified',
+    });
+  });
+
+  it('connects with matching protocol while keeping artifact qualification unverified', async () => {
+    const host = new FakeHost();
+    host.compatibility = {
+      status: 200,
+      body: {
+        schemaVersion: 1,
+        protocol: { min: 1, max: 1 },
+        host: { version: '2.0.0-beta.1', source: 'abc123456', platform: 'darwin', arch: 'arm64' },
+        features: { push: false },
+      },
+    };
+    const target = connect(host);
+    const snapshot = await until(target, (state) => state.connection.status === 'connected');
+    expect(snapshot.compatibility).toMatchObject({
+      status: 'compatible',
+      qualification: 'unverified',
+      features: { push: false },
+    });
+    expect(snapshot.roster?.bots).toHaveLength(1);
+    expect(host.requests[0]).toBe(
+      `GET ${ROUTE}/botharness-device/api/botharness/devices/compatibility`,
+    );
+  });
+
   it('retains Bot DM metadata for activity links without listing it as a group', async () => {
     const host = new FakeHost();
     host.methods.set('channels', () => ({ channels: wire.activityJournal.channels }));
@@ -72,8 +248,10 @@ describe('Host client', () => {
     ]);
     expect(snapshot.roster?.bots[0]).toMatchObject({ avatarSeed: 2 });
     expect(snapshot.roster?.bots[0]?.avatarUrl).toBeUndefined();
-    expect(host.requests[0]).toBe(`POST ${ROUTE}/botharness-device/api/botharness/list`);
-    expect(host.requests.some((line) => line.startsWith('GET'))).toBe(false);
+    expect(host.requests[0]).toBe(
+      `GET ${ROUTE}/botharness-device/api/botharness/devices/compatibility`,
+    );
+    expect(snapshot.compatibility).toEqual({ status: 'unverified', qualification: 'unverified' });
   });
 
   it('shows a Host state change live, from the recorded Activity frames', async () => {

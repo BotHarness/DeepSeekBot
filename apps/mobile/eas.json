@@ -1,9 +1,17 @@
 {
   "cli": {
-    "version": ">= 18.0.0",
-    "appVersionSource": "local"
+    "version": "24.14.0",
+    "appVersionSource": "remote"
   },
   "build": {
+    "store-test": {
+      "distribution": "store",
+      "developmentClient": false,
+      "corepack": true,
+      "autoIncrement": true,
+      "env": { "DEEPSEEKBOT_APP_VARIANT": "store" },
+      "android": { "buildType": "app-bundle" }
+    },
     "development": {
       "developmentClient": true,
       "distribution": "internal",
@@ -17,6 +25,12 @@
       "ios": {
         "simulator": true
       }
+    }
+  },
+  "submit": {
+    "store-test": {
+      "ios": { "ascAppId": "6823306258" },
+      "android": { "track": "internal", "releaseStatus": "draft" }
     }
   }
 }

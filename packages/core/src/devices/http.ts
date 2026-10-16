@@ -1,4 +1,5 @@
 import { encode } from 'uqr';
+import { DEVICE_COMPATIBILITY_PATH, type DeviceCompatibility } from './compatibility.js';
 
 import type { DevicePairing, HostIdentity, PairedDevice } from './pairing.js';
 import { phoneRoute, type PhoneRoute, type RouteStatus } from './routes.js';
@@ -80,10 +81,13 @@ async function body(request: Request): Promise<Record<string, unknown>> {
 export function createDevicesHttp(options: {
   pairing: DevicePairing;
   routes: () => Promise<RouteStatus>;
+  compatibility?: () => DeviceCompatibility;
 }): (request: Request) => Promise<Response> {
   const { pairing } = options;
   return async (request) => {
     const path = new URL(request.url).pathname;
+    if (request.method === 'GET' && path === DEVICE_COMPATIBILITY_PATH && options.compatibility)
+      return json(options.compatibility());
     if (request.method === 'GET' && path === DEVICES_PATH) {
       const snapshot: DevicesSnapshot = {
         host: pairing.host(),

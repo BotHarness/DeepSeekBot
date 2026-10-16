@@ -1,19 +1,29 @@
 import { Pressable, Text, View } from 'react-native';
 
 import type { ConnectionState } from '../host/client';
+import type { Compatibility } from '../host/compatibility';
+import { CompatibilityNotice } from './shell/compatibility-notice';
 import { t } from './strings';
 import { useTheme } from './theme';
 
 export function ConnectionBanner({
   connection,
+  compatibility,
   onRetry,
   onPairAgain,
 }: {
   connection: ConnectionState;
+  compatibility?: Compatibility | undefined;
   onRetry(): void;
   onPairAgain(): void;
 }) {
   const theme = useTheme();
+  if (
+    compatibility !== undefined &&
+    (connection.status === 'connected' ||
+      (connection.status === 'refused' && connection.code === 'protocol-incompatible'))
+  )
+    return <CompatibilityNotice info={compatibility} onRetry={onRetry} />;
   if (connection.status === 'connected' || connection.status === 'stopped') return null;
   const severe = connection.status === 'refused' || connection.status === 'unreachable';
   const title =

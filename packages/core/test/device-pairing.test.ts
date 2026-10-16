@@ -39,6 +39,31 @@ function fixture() {
 }
 
 describe('Device Pairing', () => {
+  it('reports the running phone protocol and optional push support without exposing device secrets', async () => {
+    const { pairing } = fixture().open();
+    const http = createDevicesHttp({
+      pairing,
+      routes: async () => ({ routes: [], tailscale: 'missing', serveCommand: '' }),
+      compatibility: () => ({
+        schemaVersion: 1,
+        protocol: { min: 1, max: 1 },
+        host: { version: '2.0.0-beta.1', source: 'abc123456', platform: 'darwin', arch: 'arm64' },
+        features: { push: false },
+      }),
+    });
+    const response = await http(
+      new Request('http://localhost/api/botharness/devices/compatibility'),
+    );
+    expect(response.status).toBe(200);
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(await response.json()).toEqual({
+      schemaVersion: 1,
+      protocol: { min: 1, max: 1 },
+      host: { version: '2.0.0-beta.1', source: 'abc123456', platform: 'darwin', arch: 'arm64' },
+      features: { push: false },
+    });
+  });
+
   it('redeems an offer once, admits the device across a Host restart, and refuses it after revocation', () => {
     const f = fixture();
     let host = f.open();

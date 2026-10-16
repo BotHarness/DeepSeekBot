@@ -4,6 +4,10 @@
 
 ## 用法
 
+`deepseekbot device-compatibility --host <host-origin> --token-file <private-file>` 读取已认证 Host 的手机协议范围、
+安装版本 / 源码标识及可选推送支持。不接受位置参数，不创建配对邀请，也不代表发布产物已验收。
+详见 [Beta 组合验收](agents/beta-release-pair.md)。
+
 ```bash
 deepseekbot create --name <name> [--persona <text> | --persona-stdin]
                    [--core-memory <text> | --core-memory-stdin]
