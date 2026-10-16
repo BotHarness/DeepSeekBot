@@ -1,7 +1,7 @@
 import { toBlob } from 'html-to-image';
 
 const SNAPSHOT_STRIP =
-  '.bh-bubble-check, .bh-bubble-side, .bh-bubble-toolbar, .bh-bubble-failed-action, [data-message-fold-toggle]';
+  '.bh-bubble-check, .bh-bubble-side, .bh-bubble-toolbar, .bh-bubble-failed-action, [data-message-fold-toggle], [data-dispatch-group-summary]';
 
 function snapshotGroup(group: Element, selected: ReadonlySet<string>): HTMLElement | undefined {
   const copy = group.cloneNode(true) as HTMLElement;

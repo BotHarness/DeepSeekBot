@@ -86,6 +86,7 @@ import {
   MessageDeveloperMode,
   type NativeChatFailureText,
 } from './channel-message-body.js';
+import { SubagentDispatchGroup } from './subagent-dispatch-card.js';
 import { BridgeSourceAuthor } from './bridge-source-author.js';
 import {
   botNameColor,
@@ -270,6 +271,7 @@ function fullTime(at: string, t: BotHarnessTranslate): string {
 }
 
 const messageStyles = stylex.create({
+  collapsedDispatches: { height: 0, overflow: 'hidden' },
   metaTime: {
     color: color.subtle,
     fontSize: text.metaSize,
@@ -607,6 +609,22 @@ function MessageGroupView({
       : undefined;
   const bubbleStyle = humanBubbleStyle(botNameSource(dmBot));
   const lastMessage = group.messages[group.messages.length - 1];
+  const allDispatches =
+    group.messages.length > 1 &&
+    group.messages.every(
+      (message) => message.subagentDispatch !== undefined && message.contentPurged !== true,
+    )
+      ? group.messages.map((message) => message.subagentDispatch!)
+      : undefined;
+  const selection = useMessageSelection();
+  const focusedDispatchId = group.messages.find((message) => message.id === focusMessageId)?.id;
+  const [previousFocusedDispatchId, setPreviousFocusedDispatchId] = useState(focusedDispatchId);
+  const [dispatchesToggled, setDispatchesToggled] = useState(focusedDispatchId !== undefined);
+  if (previousFocusedDispatchId !== focusedDispatchId) {
+    setPreviousFocusedDispatchId(focusedDispatchId);
+    if (focusedDispatchId !== undefined) setDispatchesToggled(true);
+  }
+  const dispatchesOpen = selection?.active === true || dispatchesToggled;
   const lastReactions = (lastMessage?.reactions ?? [])
     .map((reaction) => `${reaction.emoji}${String(reaction.actors.length)}`)
     .join(' ');
@@ -708,134 +726,166 @@ function MessageGroupView({
             {clockTime(first.at)}
           </time>
         </div>
-        {group.messages.map((message, index) => {
-          const position =
-            group.messages.length === 1
-              ? 'solo'
-              : index === 0
-                ? 'first'
-                : index === group.messages.length - 1
+        {allDispatches === undefined ? null : (
+          <div
+            className="bh-bubble-surface"
+            data-dispatch-group-summary=""
+            data-dispatch-group-read-anchor={dispatchesOpen ? undefined : lastMessage?.id}
+          >
+            <div className="bh-bubble" data-group-position={dispatchesOpen ? 'first' : 'solo'}>
+              <SubagentDispatchGroup
+                dispatches={allDispatches}
+                open={dispatchesOpen}
+                onToggle={() => {
+                  if (selection?.active !== true) setDispatchesToggled(!dispatchesOpen);
+                }}
+                t={t}
+              />
+            </div>
+          </div>
+        )}
+        <div
+          {...(allDispatches === undefined || dispatchesOpen
+            ? { style: { display: 'contents' } }
+            : {
+                ...stylex.props(messageStyles.collapsedDispatches),
+                inert: '',
+                'aria-hidden': true,
+              })}
+        >
+          {group.messages.map((message, index) => {
+            const position =
+              allDispatches !== undefined
+                ? index === group.messages.length - 1
                   ? 'last'
-                  : 'middle';
-          return (
-            <MessageBubbleWrap
-              key={message.id}
-              message={message}
-              focused={focusMessageId === message.id}
-              onContextMenu={onContextMenu}
-            >
-              <div
-                className={`bh-bubble-surface${message.failed === undefined ? '' : ' bh-bubble-surface-failed'}`}
+                  : 'middle'
+                : group.messages.length === 1
+                  ? 'solo'
+                  : index === 0
+                    ? 'first'
+                    : index === group.messages.length - 1
+                      ? 'last'
+                      : 'middle';
+            return (
+              <MessageBubbleWrap
+                key={message.id}
+                message={message}
+                focused={focusMessageId === message.id}
+                onContextMenu={onContextMenu}
               >
-                {message.failed === undefined ? null : (
-                  <button
-                    type="button"
-                    className="bh-bubble-failed-action"
-                    aria-label={t(
-                      message.unconfirmed === true
-                        ? 'message.unconfirmedRestore'
-                        : 'message.failedRestore',
-                    )}
-                    title={message.failed}
-                    onClick={() => onRestoreFailed(message)}
-                  >
-                    {t(message.unconfirmed === true ? 'message.unconfirmed' : 'message.failed')}
-                  </button>
-                )}
                 <div
-                  className={`bh-bubble${human ? ' bh-bubble-me' : ''}${message.pending === true || message.streaming === true ? ' bh-bubble-pending' : ''}${message.failed === undefined ? '' : ' bh-bubble-failed'}`}
-                  data-group-position={position}
+                  className={`bh-bubble-surface${message.failed === undefined ? '' : ' bh-bubble-surface-failed'}`}
                 >
-                  <ReplyQuote
-                    humanName={humanName}
-                    message={message}
-                    bots={bots}
-                    onJump={onJumpReply}
+                  {message.failed === undefined ? null : (
+                    <button
+                      type="button"
+                      className="bh-bubble-failed-action"
+                      aria-label={t(
+                        message.unconfirmed === true
+                          ? 'message.unconfirmedRestore'
+                          : 'message.failedRestore',
+                      )}
+                      title={message.failed}
+                      onClick={() => onRestoreFailed(message)}
+                    >
+                      {t(message.unconfirmed === true ? 'message.unconfirmed' : 'message.failed')}
+                    </button>
+                  )}
+                  <div
+                    className={`bh-bubble${human ? ' bh-bubble-me' : ''}${message.pending === true || message.streaming === true ? ' bh-bubble-pending' : ''}${message.failed === undefined ? '' : ' bh-bubble-failed'}`}
+                    data-group-position={position}
+                  >
+                    <ReplyQuote
+                      humanName={humanName}
+                      message={message}
+                      bots={bots}
+                      onJump={onJumpReply}
+                      t={t}
+                    />
+                    <ImageGalleryScope value={gallery}>
+                      <MessageFold messageId={message.id} enabled={foldableMessage(message)} t={t}>
+                        <ChannelMessageBody
+                          message={message}
+                          channelId={channelId}
+                          t={t}
+                          nativeChatT={nativeChatT}
+                          actions={actions}
+                          bots={bots}
+                          humanMembers={humanMembers}
+                          grantRequestResolved={resolvedGrantRequests.has(message.id)}
+                          toolApprovalDecision={toolApprovalDecisions.get(message.id)}
+                          userQuestionResolution={userQuestionResolutions.get(message.id)}
+                        />
+                      </MessageFold>
+                    </ImageGalleryScope>
+                    {message.pending === true || message.streaming === true ? (
+                      <span className="bh-bubble-status" role="status">
+                        {t(message.streaming === true ? 'message.generating' : 'message.sending')}
+                      </span>
+                    ) : null}
+                  </div>
+                  <MessageReactionChips
+                    reactions={message.reactions ?? []}
+                    mine={human}
+                    names={reactorName}
+                    onReact={
+                      onReact === undefined || !reactableMessage(message)
+                        ? undefined
+                        : (emoji, active) => onReact(message, emoji, active)
+                    }
                     t={t}
                   />
-                  <ImageGalleryScope value={gallery}>
-                    <MessageFold messageId={message.id} enabled={foldableMessage(message)} t={t}>
-                      <ChannelMessageBody
-                        message={message}
-                        channelId={channelId}
-                        t={t}
-                        nativeChatT={nativeChatT}
-                        actions={actions}
-                        bots={bots}
-                        humanMembers={humanMembers}
-                        grantRequestResolved={resolvedGrantRequests.has(message.id)}
-                        toolApprovalDecision={toolApprovalDecisions.get(message.id)}
-                        userQuestionResolution={userQuestionResolutions.get(message.id)}
-                      />
-                    </MessageFold>
-                  </ImageGalleryScope>
-                  {message.pending === true || message.streaming === true ? (
-                    <span className="bh-bubble-status" role="status">
-                      {t(message.streaming === true ? 'message.generating' : 'message.sending')}
-                    </span>
-                  ) : null}
-                </div>
-                <MessageReactionChips
-                  reactions={message.reactions ?? []}
-                  mine={human}
-                  names={reactorName}
-                  onReact={
-                    onReact === undefined || !reactableMessage(message)
-                      ? undefined
-                      : (emoji, active) => onReact(message, emoji, active)
-                  }
-                  t={t}
-                />
-                <div className="bh-bubble-toolbar">
-                  <div className="bh-bubble-actions">
-                    {onReact !== undefined && reactableMessage(message) ? (
-                      <MessageReactionPicker
-                        message={message}
-                        onReact={(emoji, active) => onReact(message, emoji, active)}
-                        t={t}
-                      />
-                    ) : null}
-                    {onReply !== undefined &&
-                    message.pending !== true &&
-                    message.streaming !== true &&
-                    message.failed === undefined ? (
-                      <Tooltip label={t('message.reply')} side="top" portal delayMs={400}>
-                        <IconButton
-                          size="inline"
-                          data-bubble-action=""
-                          aria-label={t('message.reply')}
-                          onClick={() => onReply(message)}
-                        >
-                          <ReplyIcon />
-                        </IconButton>
-                      </Tooltip>
-                    ) : null}
-                    <MessageCopyAction body={message.body} t={t} />
+                  <div className="bh-bubble-toolbar">
+                    <div className="bh-bubble-actions">
+                      {onReact !== undefined && reactableMessage(message) ? (
+                        <MessageReactionPicker
+                          message={message}
+                          onReact={(emoji, active) => onReact(message, emoji, active)}
+                          t={t}
+                        />
+                      ) : null}
+                      {onReply !== undefined &&
+                      message.pending !== true &&
+                      message.streaming !== true &&
+                      message.failed === undefined ? (
+                        <Tooltip label={t('message.reply')} side="top" portal delayMs={400}>
+                          <IconButton
+                            size="inline"
+                            data-bubble-action=""
+                            aria-label={t('message.reply')}
+                            onClick={() => onReply(message)}
+                          >
+                            <ReplyIcon />
+                          </IconButton>
+                        </Tooltip>
+                      ) : null}
+                      <MessageCopyAction body={message.body} t={t} />
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div className="bh-bubble-side">
-                <ChannelDeliveryReceipt
-                  message={message}
-                  bots={bots}
-                  humanMembers={humanMembers}
-                  t={t}
-                />
-                <div className="bh-bubble-meta">
-                  {index === 0 || clockTime(message.at) === '' ? null : (
-                    <time
-                      dateTime={message.at}
-                      title={fullTime(message.at, t)}
-                      {...stylex.props(messageStyles.metaTime)}
-                    >
-                      {clockTime(message.at)}
-                    </time>
-                  )}
+                <div className="bh-bubble-side">
+                  <ChannelDeliveryReceipt
+                    message={message}
+                    bots={bots}
+                    humanMembers={humanMembers}
+                    t={t}
+                  />
+                  <div className="bh-bubble-meta">
+                    {index === 0 || clockTime(message.at) === '' ? null : (
+                      <time
+                        dateTime={message.at}
+                        title={fullTime(message.at, t)}
+                        {...stylex.props(messageStyles.metaTime)}
+                      >
+                        {clockTime(message.at)}
+                      </time>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </MessageBubbleWrap>
-          );
-        })}
+              </MessageBubbleWrap>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
@@ -1584,15 +1634,19 @@ function ConversationView({
     if (channelId === undefined || element === null || conversation.status !== 'ready') return;
     const committedIds = committedMessageIds(messages);
     const viewport = element.getBoundingClientRect();
-    const visible = Array.from(element.querySelectorAll<HTMLElement>('[data-message-id]'))
-      .filter((candidate) => {
-        const id = candidate.dataset['messageId'];
-        if (id === undefined || !committedIds.has(id)) return false;
+    const visibleIds = new Set(
+      Array.from(
+        element.querySelectorAll<HTMLElement>(
+          '[data-message-id], [data-dispatch-group-read-anchor]',
+        ),
+      ).flatMap((candidate) => {
+        const id = candidate.dataset['messageId'] ?? candidate.dataset['dispatchGroupReadAnchor'];
+        if (id === undefined || !committedIds.has(id) || candidate.closest('[inert]')) return [];
         const bounds = candidate.getBoundingClientRect();
-        return bounds.top < viewport.bottom && bounds.bottom > viewport.top;
-      })
-      .at(-1);
-    const messageId = visible?.dataset['messageId'];
+        return bounds.top < viewport.bottom && bounds.bottom > viewport.top ? [id] : [];
+      }),
+    );
+    const messageId = messages.findLast((message) => visibleIds.has(message.id))?.id;
     if (messageId === undefined) return;
     window.clearTimeout(readMarkTimer.current);
     readMarkTimer.current = window.setTimeout(() => {

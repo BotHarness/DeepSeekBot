@@ -4,6 +4,7 @@ import type {} from '@deepseek-ai/dsh-api-session-controller/client';
 import type { PairingRequest, PairingReviewInput } from '../../../core/src/messaging/pairing.js';
 import type { SenderAccessInput } from '../../../core/src/messaging/sender-access.js';
 import { parsePublicAttention } from './activity-attention.js';
+import { parseSubagentDispatch } from './subagent-dispatch.js';
 import {
   isAvatarAppearance,
   isRetainedAvatarAppearance,
@@ -906,6 +907,8 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
   if (typeof body !== 'string') return undefined;
   const author = parseAuthor(record['author']);
   if (author === undefined) return undefined;
+  const subagentDispatch =
+    author.kind === 'system' ? parseSubagentDispatch(record['subagentDispatch']) : undefined;
   const memorySwitchTarget = record['memorySwitchTarget'];
   if (
     memorySwitchTarget !== undefined &&
@@ -1146,7 +1149,11 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
     )
       return undefined;
     turnStop = { botName: stop['botName'], humanName: stop['humanName'] };
-  } else if (author.kind === 'system' && asRecord(record['onboardingWelcome'])?.['version'] !== 1) {
+  } else if (
+    author.kind === 'system' &&
+    asRecord(record['onboardingWelcome'])?.['version'] !== 1 &&
+    record['subagentDispatch'] === undefined
+  ) {
     return undefined;
   }
   let memoryCommit: ChannelMessage['memoryCommit'];
@@ -1572,6 +1579,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
     ...(toolAutoApprovalPause === undefined ? {} : { toolAutoApprovalPause }),
     ...(toolApprovalRequest === undefined ? {} : { toolApprovalRequest }),
     ...(sessionFailure === undefined ? {} : { sessionFailure }),
+    ...(subagentDispatch === undefined ? {} : { subagentDispatch }),
     ...(toolApprovalDecision === undefined ? {} : { toolApprovalDecision }),
     ...(record['privateInputRequest'] === undefined
       ? {}

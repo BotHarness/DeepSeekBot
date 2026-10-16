@@ -196,6 +196,8 @@ function ensureSource(): void {
     'channel/admission',
     'channel/human-read',
     'channel/reaction',
+    'channel/subagent-dispatch',
+    'channel/subagent-dispatch-baseline',
     'channel/draft-baseline',
     'channel/draft',
     'channel/draft-settled',

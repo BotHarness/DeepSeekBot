@@ -14,6 +14,8 @@ import { resolveSubagentRoute } from '../models/subagent-route.js';
 
 type DelegationProvider = 'spawn' | 'fork';
 
+type SubagentStarted = (callId: string, childSessionId: string, jobId?: string) => void;
+
 function agentOptions(parent: AgentOptions, route: ModelRoute): AgentOptions {
   const { reasoningEffort: _previousEffort, ...rest } = parent;
   return {
@@ -54,6 +56,7 @@ function installOne(
   ctx: Context,
   provider: DelegationProvider,
   resolvePlan: () => PersonaBotModelPlan | undefined,
+  onStarted?: SubagentStarted,
 ): void {
   const name = provider === 'spawn' ? 'bot_subagent' : 'bot_subagent_fork';
   ctx.tools.register(
@@ -125,6 +128,7 @@ function installOne(
             request,
             signal: exec.signal,
           });
+          if (exec.callId !== undefined) onStarted?.(exec.callId, started.childId);
           return `${notice}Started Subagent ${started.childId} on ${decision.route.provider}/${decision.route.model}.`;
         }
         if (background) {
@@ -134,19 +138,19 @@ function installOne(
             kind: 'subagent',
             label: args.description,
             owner: parent.id,
-            run: () => {
+            run: (job) => {
               const controller = new AbortController();
               return {
                 cancel: (reason) => controller.abort(reason ?? 'Subagent Job cancelled'),
                 done: (async () => {
                   try {
-                    return await settleRun(
-                      await subagents.start(provider, {
-                        ...request,
-                        label: args.description,
-                        signal: controller.signal,
-                      }),
-                    );
+                    const run = await subagents.start(provider, {
+                      ...request,
+                      label: args.description,
+                      signal: controller.signal,
+                    });
+                    if (exec.callId !== undefined) onStarted?.(exec.callId, run.id, job.id);
+                    return await settleRun(run);
                   } catch (error) {
                     return controller.signal.aborted
                       ? { status: 'killed' as const }
@@ -163,6 +167,7 @@ function installOne(
           label: args.description,
           signal: exec.signal,
         });
+        if (exec.callId !== undefined) onStarted?.(exec.callId, run.id);
         return notice + (await collect(run));
       },
     }),
@@ -173,6 +178,7 @@ export function installBotSubagentModelTools(
   ctx: Context,
   agent: Agent,
   resolvePlan: () => PersonaBotModelPlan | undefined,
+  onStarted?: SubagentStarted,
 ): void {
   if (ctx.get('subagents') === undefined) return;
   ctx.tools.guard((execution) =>
@@ -187,8 +193,8 @@ export function installBotSubagentModelTools(
     order: 10_360,
     text: 'For DSH Subagents in this PersonaBot, use bot_subagent or bot_subagent_fork. Call list_bot_subagent_models before an explicit model choice. The current Human-selected Assignment model set is checked when each child starts.',
   });
-  installOne(ctx, 'spawn', resolvePlan);
-  installOne(ctx, 'fork', resolvePlan);
+  installOne(ctx, 'spawn', resolvePlan, onStarted);
+  installOne(ctx, 'fork', resolvePlan, onStarted);
   ctx.tools.register(
     defineTool({
       name: 'list_bot_subagent_models',

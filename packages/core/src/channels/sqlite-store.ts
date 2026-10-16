@@ -656,6 +656,27 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     const previous = allMessages(id);
     const existing = previous.find((item) => item.id === message.id);
     if (existing !== undefined) {
+      if (
+        !once &&
+        existing.subagentDispatch !== undefined &&
+        message.subagentDispatch !== undefined
+      ) {
+        database.transaction(
+          (db) =>
+            db
+              .prepare(`
+            UPDATE source_events
+               SET payload_json = json_set(payload_json, '$.subagentDispatch', json(?))
+             WHERE channel_id = ? AND message_id = ?
+          `)
+              .run(JSON.stringify(message.subagentDispatch), id, message.id),
+          ['channel', 'source-event'],
+        );
+        return {
+          status: 'appended' as const,
+          message: { ...existing, subagentDispatch: message.subagentDispatch },
+        };
+      }
       if (!once || !sameIntent(existing, message)) return { status: 'conflict' as const };
       return { status: 'existing' as const, message: project(previous, existing) };
     }

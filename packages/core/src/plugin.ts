@@ -96,6 +96,15 @@ import { createModelRouteReadiness } from './models/readiness.js';
 import { createBotAvatarHttp, botAvatarUrl, BOT_AVATAR_PATH } from './bots/avatar-http.js';
 import { BOT_BANNER_PATH, createBotBannerHttp } from './bots/banner-http.js';
 import { createChannelLiveHub, CHANNEL_STREAM_PATH, type ChannelLiveHub } from './channels/live.js';
+import {
+  createSubagentDispatchRegistry,
+  type SubagentDispatchRegistry,
+} from './channels/subagent-dispatch.js';
+import {
+  createSubagentDispatchProjection,
+  subscribeSubagentJobs,
+  type SubagentDispatchJobs,
+} from './runtime/subagent-dispatch-projection.js';
 import type { ChannelDraftEvent } from './channels/draft.js';
 import { DeveloperModeSkillGate } from './logs/skill.js';
 import { openLogDatabase, type LogDatabase } from './logs/log-db.js';
@@ -320,6 +329,7 @@ export interface BotHarnessCore {
 
   usage?: UsageProjection;
   channels: ChannelStore;
+  subagentDispatches: SubagentDispatchRegistry;
   attachments: AttachmentStore;
   live: ChannelLiveHub;
   companions: CompanionFeed;
@@ -603,6 +613,7 @@ export function createCore(
       live?.publishReaction(channelId, messageId, reactions),
     ...(options.warn === undefined ? {} : { warn: options.warn }),
   });
+  const subagentDispatches = createSubagentDispatchRegistry();
   const attention = createBotAttentionQuery(
     attachOperationalModule(operationalDatabase, 'messaging'),
     channels,
@@ -666,6 +677,7 @@ export function createCore(
       onChange: (changed) => states.onActivity(() => changed()),
     },
     () => contentPurge.redactions(),
+    subagentDispatches,
   );
   if (operationalDatabase.mode === 'ready')
     for (const bot of registry.list())
@@ -901,6 +913,7 @@ export function createCore(
     toolRules,
     assignmentAccess,
     channels,
+    subagentDispatches,
     attention,
     inboxHistory,
     sourcePolicy,
@@ -1728,6 +1741,38 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
 
   const dshSessions = (ctx as unknown as { sessions: DshSessionStore }).sessions;
 
+  const subagentDispatchProjection = createSubagentDispatchProjection({
+    registry: core.subagentDispatches,
+    channelForSession: (sessionId) => core.runtime.askChannel?.(sessionId),
+    commit: async (input) => {
+      const message = await core.channels.appendMessage(input.channelId, {
+        id: input.messageId,
+        at: input.at,
+        author: { kind: 'system' },
+        body: input.body,
+        format: 'text',
+        subagentDispatch: input.projection,
+      });
+      if (message === undefined)
+        throw new Error(`Subagent dispatch write refused: ${input.messageId}`);
+    },
+    publish: (record) => core.live.publishSubagentDispatch(record),
+    warn: (message) => ctx.logger.warn(message),
+  });
+
+  ctx.inject(['jobs'], (jobCtx) => {
+    jobCtx.effect(() => {
+      const jobs = jobCtx.get('jobs') as SubagentDispatchJobs | undefined;
+      return subscribeSubagentJobs(jobs?.events, { owners: 'scope' }, (event) =>
+        subagentDispatchProjection.handleJobEvent(event),
+      );
+    }, 'botharness: subagent dispatch jobs');
+  });
+
+  ctx.on('subagent/end', (info) => subagentDispatchProjection.handleSubagentEnd(info), {
+    global: true,
+  });
+
   const developerModeTarget: { gate?: DeveloperModeSkillGate } = {};
   const releaseInstaller: { current: ReleaseInstaller | undefined } = { current: undefined };
   ctx.inject(['pluginManager'], (managerCtx) => {
@@ -2170,6 +2215,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           .catch(() => ctx.logger.warn('user-question-reconciliation-failed'));
       });
       activity.handleSessionEvent(session.id, event);
+      subagentDispatchProjection.handleSessionEvent(session.id, event);
       try {
         core.externalMessaging.approvals.result(session.id, event);
       } catch {
@@ -2194,11 +2240,27 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       activity.handleAgentCreated(agent.session);
       core.usage?.primeSession(agent.session.id, agent.session.snapshotEvents());
       const owner = core.ownership.resolve(agent.session.id);
+      const parentSessionId = agent.session.header.parentSession;
+      if (parentSessionId !== undefined)
+        subagentDispatchProjection.bindChild(
+          agent.session.id,
+          parentSessionId,
+          owner?.provenance,
+          agent.session.snapshotEvents().find((event) => event.type === 'subagent/descriptor')
+            ?.data,
+        );
       if (owner !== undefined) {
         installBotSubagentModelTools(
           agent.ctx,
           agent,
           () => core.registry.get(owner.botSlug)?.modelPlan,
+          (callId, childSessionId, jobId) =>
+            subagentDispatchProjection.bindDispatch(
+              agent.session.id,
+              callId,
+              childSessionId,
+              jobId,
+            ),
         );
       }
     },
@@ -2216,6 +2278,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     ({ agent }) => {
       userQuestions.cancelSession(agent.session.id);
       activity.handleSessionDisposed(agent.session.id);
+      subagentDispatchProjection.handleSessionDisposed(agent.session.id);
     },
     { global: true },
   );
