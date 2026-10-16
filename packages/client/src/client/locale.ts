@@ -4,9 +4,8 @@ export const LOCALE_NS = 'botharness';
 
 export const zh = {
   'subagentDispatch.title': 'DSH 子代理',
-  'subagentDispatch.model': '实际模型',
+  'subagentDispatch.group': '{count} 个 DSH 子代理',
   'subagentDispatch.modelUnavailable': '未提供',
-  'subagentDispatch.effort': '推理强度',
   'subagentDispatch.status.queued': '已排队',
   'subagentDispatch.status.running': '运行中',
   'subagentDispatch.status.completed': '已完成',
@@ -3564,9 +3563,8 @@ export function zhTranslate(key: BotHarnessKey | string, params?: Record<string,
 
 export const en = {
   'subagentDispatch.title': 'DSH Subagent',
-  'subagentDispatch.model': 'Actual model',
+  'subagentDispatch.group': '{count} DSH subagents',
   'subagentDispatch.modelUnavailable': 'Not provided',
-  'subagentDispatch.effort': 'Reasoning effort',
   'subagentDispatch.status.queued': 'Queued',
   'subagentDispatch.status.running': 'Running',
   'subagentDispatch.status.completed': 'Completed',

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { parseChannelMessage } from '../src/client/bridge.js';
+import { groupChannelMessages } from '../src/client/message-groups.js';
 import {
   newerSubagentDispatch,
   parseSubagentDispatch,
@@ -27,7 +28,7 @@ describe('client subagent dispatch parsing', () => {
     expect(parseSubagentDispatch({ ...projection, kind: 'other' })).toBeUndefined();
   });
 
-  it('rejects a system message whose dispatch field is malformed', () => {
+  it('preserves a system message while omitting malformed dispatch metadata', () => {
     const anchor = {
       id: 'message-1',
       at: '2026-10-15T06:00:00.000Z',
@@ -35,9 +36,13 @@ describe('client subagent dispatch parsing', () => {
       body: 'Subagent: Read the changelog',
       subagentDispatch: { ...projection, status: 'invented' },
     };
-    expect(parseChannelMessage(anchor)).toBeUndefined();
-    expect(parseChannelMessage({ ...anchor, subagentDispatch: null })).toBeUndefined();
-    expect(parseChannelMessage({ ...anchor, onboardingWelcome: { version: 1 } })).toBeUndefined();
+    const message = { id: anchor.id, at: anchor.at, author: anchor.author, body: anchor.body };
+    expect(parseChannelMessage(anchor)).toEqual(message);
+    expect(parseChannelMessage({ ...anchor, subagentDispatch: null })).toEqual(message);
+    expect(parseChannelMessage({ ...anchor, onboardingWelcome: { version: 1 } })).toEqual({
+      ...message,
+      onboardingWelcome: { version: 1 },
+    });
     expect(
       parseChannelMessage({ ...anchor, subagentDispatch: projection })?.subagentDispatch,
     ).toMatchObject({ status: 'running' });
@@ -71,5 +76,50 @@ describe('client subagent dispatch overlays', () => {
       dispatch,
     );
     expect(preserveSubagentDispatches([], [message])[0]).toBe(message);
+  });
+});
+
+describe('client subagent dispatch groups', () => {
+  it('folds consecutive subagent dispatch system messages into one group', () => {
+    const dispatch = (id: string, seconds: number): ChannelMessage => ({
+      id,
+      at: new Date(Date.UTC(2026, 8, 22, 0, 0, seconds)).toISOString(),
+      author: { kind: 'system' },
+      body: id,
+      subagentDispatch: {
+        dispatchId: id,
+        kind: 'subagent',
+        description: id,
+        status: 'running',
+        revision: 1,
+        updatedAt: new Date(Date.UTC(2026, 8, 22, 0, 0, seconds)).toISOString(),
+        parentSessionId: 'session-parent',
+      },
+    });
+    const other: ChannelMessage = {
+      id: 'other',
+      at: '2026-09-22T00:00:15.000Z',
+      author: { kind: 'system' },
+      body: 'note',
+    };
+    expect(
+      groupChannelMessages([
+        dispatch('a', 0),
+        dispatch('b', 5),
+        dispatch('c', 10),
+        other,
+        dispatch('d', 20),
+      ]).map((group) => group.messages.map((item) => item.id)),
+    ).toEqual([['a', 'b', 'c'], ['other'], ['d']]);
+    expect(
+      groupChannelMessages([dispatch('a', 0), dispatch('b', 300)]).map((group) =>
+        group.messages.map((item) => item.id),
+      ),
+    ).toEqual([['a'], ['b']]);
+    expect(
+      groupChannelMessages([dispatch('a', 0), dispatch('b', 5)], 'a').map((group) =>
+        group.messages.map((item) => item.id),
+      ),
+    ).toEqual([['a'], ['b']]);
   });
 });

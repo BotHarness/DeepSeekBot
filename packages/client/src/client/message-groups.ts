@@ -35,6 +35,18 @@ export function groupChannelMessages(
       Number.isFinite(at) &&
       Number.isFinite(previousAt) &&
       new Date(at).toDateString() === new Date(previousAt).toDateString();
+    if (
+      last !== undefined &&
+      message.author.kind === 'system' &&
+      message.subagentDispatch !== undefined &&
+      previous?.author.kind === 'system' &&
+      previous.subagentDispatch !== undefined &&
+      sameDay &&
+      at - firstAt <= 180_000
+    ) {
+      last.messages.push(message);
+      continue;
+    }
     if (message.botChannelPost !== undefined || previous?.botChannelPost !== undefined) {
       if (
         last !== undefined &&

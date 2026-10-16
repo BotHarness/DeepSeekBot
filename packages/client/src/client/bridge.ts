@@ -909,8 +909,6 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
   if (author === undefined) return undefined;
   const subagentDispatch =
     author.kind === 'system' ? parseSubagentDispatch(record['subagentDispatch']) : undefined;
-  if (author.kind === 'system' && record['subagentDispatch'] !== undefined && !subagentDispatch)
-    return undefined;
   const memorySwitchTarget = record['memorySwitchTarget'];
   if (
     memorySwitchTarget !== undefined &&
@@ -1154,7 +1152,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
   } else if (
     author.kind === 'system' &&
     asRecord(record['onboardingWelcome'])?.['version'] !== 1 &&
-    subagentDispatch === undefined
+    record['subagentDispatch'] === undefined
   ) {
     return undefined;
   }
