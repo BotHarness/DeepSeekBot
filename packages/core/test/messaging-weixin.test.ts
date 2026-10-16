@@ -24,7 +24,7 @@ it.each<{ voice?: MessagingVoice }>([
   { voice: { transcript: 'platform', itemId: 'voice-item', durationMs: 2500 } },
   { voice: { transcript: 'unavailable' } },
 ])(
-  'WeChat paired-owner DM retains source provenance and canonical Inbox with local DM mirrors (%j)',
+  'WeChat paired-owner DM retains source provenance and canonical Inbox without opt-in local DM mirrors (%j)',
   async ({ voice }) => {
     const fingerprint = 'd'.repeat(64);
     let consumer: Parameters<NonNullable<DshImOutboundService['consumeInbound']>>[1] | undefined;
@@ -223,18 +223,8 @@ it.each<{ voice?: MessagingVoice }>([
     ).toMatchObject([{ reason: 'human-dm', attempt_state: 'handled' }]);
     expect(
       db.read((database) => database.prepare('SELECT * FROM channel_placements').all()),
-    ).toHaveLength(2);
-    expect(core.channels.readMessages(dm.id).reverse()).toMatchObject([
-      {
-        author: { kind: 'bridged' },
-        body: source.text,
-        bridgeOrigin: { sourceEventId: core.attention.list({ botSlug: 'ada' }).items[0]!.id },
-      },
-      {
-        author: { kind: 'bot', slug: 'ada' },
-        body: 'WECHAT-QA-OK',
-      },
-    ]);
+    ).toHaveLength(0);
+    expect(core.channels.readMessages(dm.id)).toEqual([]);
     await core.externalMessaging.revoke('ada', grant.id);
     await expect(consumer!.onEvent(source, { signal: consumer!.signal })).rejects.toThrow();
     expect(replies).toHaveLength(1);

@@ -18,6 +18,8 @@ One file per user-facing feature. Each file has four sections: `Sub-features`, `
 | Routines on the phone                                                                              | no                         | `scripts/e2e-mobile-routines-web.mjs`                                  | [phone-routines.md](phone-routines.md)               |
 | Approval Templates, the Approval Reviewer and its self-escalation guard                            | for the reviewer and guard | none                                                                   | [approval-templates.md](approval-templates.md)       |
 
+| IM conversation mirroring and forwarding settings | no for settings; yes for a model-generated reply | `verify-app` settings path; real IM destination required for delivery | [im-conversation-mirroring.md](im-conversation-mirroring.md) |
+
 ## Not mapped yet
 
 Native activity layout and explicit menu navigation: [phone-activity.md](phone-activity.md).

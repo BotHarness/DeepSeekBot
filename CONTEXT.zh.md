@@ -680,6 +680,8 @@ _避免使用_：caller-supplied author、transport metadata（单独使用）
 
 ### 聊天与回复
 
+**IM 会话镜像**是针对一个已绑定外部私聊的可选本地展示，复用 canonical content，不新增 Inbox Admission 或唤醒。**本地私聊转发**是另一项独立选择，通过同一 Binding 和已授权会话执行外部发送。两者均默认关闭，不新增接收或主动发送权限。见 ADR-0217。
+
 **Chat**：
 PersonaBot 参与的 Feishu/Lark conversation——group 或 p2p——通过 `chat_id` 识别。
 _避免使用_：room、channel、group（当含义也包括 p2p 时）

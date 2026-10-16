@@ -514,7 +514,6 @@ export function createCore(
     channels: {
       get: (id) => channels.get(id),
       getOrCreateDm: (slug) => channels.getOrCreateDm(slug),
-      appendMessageOnce: (...args) => channels.appendMessageOnce(...args),
     },
     ownsFailure: (slug, sessionId, role) => {
       const owner = ownership.resolve(sessionId);

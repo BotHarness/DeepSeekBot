@@ -1,3 +1,4 @@
+import { MessagingHelp } from './messaging-help.js';
 import { externalPlatformLabel } from './bridge-source-label.js';
 import { subscribeMessagingDefaults } from './messaging-defaults-live.js';
 import type {} from '@deepseek-ai/dsh-api-session-controller/client';
@@ -123,8 +124,8 @@ export function ChannelBridgeList({
   const [sourceId, setSourceId] = useState('');
   const [name, setName] = useState('');
   const [delivery, setDelivery] = useState<'channel' | 'inbox'>('channel');
-  const [dmMirror, setDmMirror] = useState(true);
-  const [webToWeixin, setWebToWeixin] = useState(true);
+  const [dmMirror, setDmMirror] = useState(false);
+  const [dmForward, setDmForward] = useState(false);
   const [enabled, setEnabled] = useState(true);
   const [collection, setCollection] = useState<'mentions' | 'all' | 'inherit'>('inherit');
   const [busy, setBusy] = useState(false);
@@ -198,8 +199,8 @@ export function ChannelBridgeList({
     setName(row?.name ?? '');
     setSourceId('');
     setEnabled(row?.enabled ?? true);
-    setDmMirror(row?.dmMirror !== false);
-    setWebToWeixin(row?.webToWeixin !== false);
+    setDmMirror(row?.dmMirror === true);
+    setDmForward(row?.dmForward === true);
     setCollection(
       row ? (row.collectionInheritance === 'inherit' ? 'inherit' : row.collection) : 'inherit',
     );
@@ -236,7 +237,7 @@ export function ChannelBridgeList({
               expectedRevision: selected.revision,
               name,
               enabled,
-              ...(privateSource ? { dmMirror, webToWeixin } : {}),
+              ...(privateSource ? { dmMirror, dmForward } : {}),
               collection: privateSource
                 ? 'all'
                 : collection === 'inherit'
@@ -383,8 +384,8 @@ export function ChannelBridgeList({
                     setSourceId(value);
                     const chosen = snapshot?.sources.find((s) => s.grantId === value);
                     setName(chosen?.conversationName ?? '');
-                    setDmMirror(chosen?.dmMirror !== false);
-                    setWebToWeixin(chosen?.webToWeixin !== false);
+                    setDmMirror(chosen?.dmMirror === true);
+                    setDmForward(chosen?.dmForward === true);
                   }}
                   options={(snapshot?.sources ?? []).map((s) => ({
                     value: s.grantId,
@@ -496,7 +497,19 @@ export function ChannelBridgeList({
           </Field>
           {privateSource && mode === 'edit' ? (
             <>
-              <Field label={t('bridge.dmMirror')} hint={t('bridge.dmMirrorHint')} group>
+              <Field
+                label={
+                  <>
+                    {t('bridge.dmMirror')}{' '}
+                    <MessagingHelp
+                      title={t('bridge.dmMirror')}
+                      text={t('bridge.dmMirrorHint')}
+                      t={t}
+                    />
+                  </>
+                }
+                group
+              >
                 {() => (
                   <Switch
                     checked={dmMirror}
@@ -507,20 +520,25 @@ export function ChannelBridgeList({
                 )}
               </Field>
               <Field
-                label={t('bridge.webToWeixin')}
-                hint={t(
-                  selected?.webToWeixinAvailable
-                    ? 'bridge.webToWeixinHint'
-                    : 'bridge.webToWeixinUnavailable',
-                )}
+                label={
+                  <>
+                    {t('bridge.dmForward')}{' '}
+                    <MessagingHelp
+                      title={t('bridge.dmForward')}
+                      text={t('bridge.dmForwardHint')}
+                      t={t}
+                    />
+                  </>
+                }
+                hint={!selected?.dmForwardAvailable ? t('bridge.dmForwardUnavailable') : undefined}
                 group
               >
                 {() => (
                   <Switch
-                    checked={webToWeixin && selected?.webToWeixinAvailable === true}
-                    disabled={busy || !selected?.webToWeixinAvailable}
-                    label={t('bridge.webToWeixin')}
-                    onChange={setWebToWeixin}
+                    checked={dmForward}
+                    disabled={busy || (!dmForward && !selected?.dmForwardAvailable)}
+                    label={t('bridge.dmForward')}
+                    onChange={setDmForward}
                   />
                 )}
               </Field>

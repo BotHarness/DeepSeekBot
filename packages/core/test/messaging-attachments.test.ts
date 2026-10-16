@@ -229,7 +229,7 @@ async function fixture(
 }
 
 it.each(['feishu', 'slack', 'weixin', 'discord'] as const)(
-  '%s trusted source reaches writable native files and a selected same-topic file reply with default WeChat DM mirroring',
+  '%s trusted source reaches writable native files and a selected same-topic file reply without creating a Channel',
   async (platform) => {
     let grantId = '';
     let resultId = '';
@@ -260,26 +260,13 @@ it.each(['feishu', 'slack', 'weixin', 'discord'] as const)(
     const workspaceGrant = await fx.core.grants.create('ada', 'project');
     grantId = workspaceGrant.id;
     fx.core.grants.setOrchestratorWrite('ada', grantId, true);
-    const sourceEventId = await fx.source();
+    await fx.source();
     expect(fx.observed).toEqual([{ state: 'in-flight', body: 'processed bytes' }]);
     expect(fx.core.externalMessaging.history('ada')[0]?.state).toBe('provider-accepted');
     expect(fx.reply).toHaveBeenCalledTimes(1);
     expect(fx.reply.mock.calls[0]?.[1]).toEqual(fx.platformEvent.reply);
     expect(fx.core.externalMessaging.history('ada')[0]?.file?.fileId).toBe(resultId);
-    if (platform === 'weixin') {
-      expect(fx.core.channels.list()).toMatchObject([{ id: 'dm-ada' }]);
-      expect(fx.core.channels.readMessages('dm-ada').reverse()).toMatchObject([
-        {
-          author: { kind: 'bridged' },
-          body: fx.platformEvent.text + '\nsource.zip',
-          bridgeOrigin: { sourceEventId },
-        },
-        {
-          author: { kind: 'bot', slug: 'ada' },
-          body: 'work.zip',
-        },
-      ]);
-    } else expect(fx.core.channels.list()).toEqual([]);
+    expect(fx.core.channels.list()).toEqual([]);
   },
 );
 
@@ -497,14 +484,7 @@ it('WeChat preserves large-file metadata for inspection without treating it as a
     incoming.attachments,
   );
   expect(fx.download).not.toHaveBeenCalled();
-  expect(fx.core.channels.list()).toMatchObject([{ id: 'dm-ada' }]);
-  expect(fx.core.channels.readMessages('dm-ada')).toMatchObject([
-    {
-      author: { kind: 'bridged' },
-      body: incoming.text + '\nsource.zip',
-      bridgeOrigin: { sourceEventId: id },
-    },
-  ]);
+  expect(fx.core.channels.list()).toEqual([]);
 });
 
 it('WeChat image input is capability-opted-in and native result MIME comes from canonical bytes', async () => {
