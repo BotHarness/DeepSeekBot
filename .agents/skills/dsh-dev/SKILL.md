@@ -214,3 +214,7 @@ Qualify an external Provider's exported Service contract, not only a test fixtur
 ## Additional verified pitfall — #1155
 
 Direct Controller and Runtime tests do not qualify the application-defined Provider's production factory. In a DSH `0.2.0-rc.2` Host, real QQ plain text reached the native SDK but ordinary delivery stayed unverified because the factory dropped the consumer's `ordinaryText` accessor. Cover the actual production factory through the exported Delivery Service and Runtime, then rebuild and install the immutable Provider artifact. Verify a fresh native event on the new receiver lease; replaying the failed event does not establish recovery. Ordinary delivery qualification and explicit collection opt-in remain separate checks.
+
+## Additional verified pitfall — #1988
+
+The pinned dsh-im Provider (`beaed4a6`, DSH `0.2.0-rc.2`) exports checked WeChat proactive text, receipt and final-send fence capabilities per account, but no global `postFenceVersion`. Requiring that field hides a real paired-owner forwarding target even though reception is ready. Qualify the account capabilities and receipt contract, pass `beforeSend`, and reject any missing capability before an external effect. The real Host reproduced `canPost: false`; the contract regression omits the legacy field and retains missing-capability/final-revocation cases. Actual phone delivery remains a separate E2E check.

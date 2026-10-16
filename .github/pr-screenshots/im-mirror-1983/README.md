@@ -10,3 +10,7 @@ Captured 2026-10-16 through the real isolated DSH 0.2.0-rc.2 Web Client. Viewpor
 - `restart-independent.png`: CLI disables forwarding only; after Host restart, mirror remains on and forwarding remains off.
 
 The account and owner are task-local simulated Provider fixtures. These images prove UI behavior and settings persistence, not real WeChat delivery. All captured journeys reported zero browser console issues. Profile credentials and login URLs are excluded. Real WeChat and Human QA remain required before merge.
+
+## Real Provider qualification follow-up
+
+`real-provider-before.png` and `real-provider-after.png`: 1440×900, Chinese, light theme, same isolated Host and paired test account. Before is a57d851 with forwarding incorrectly disabled; after uses the account-level checked text/receipt/fence contract. Both preferences remain off. The native account label is masked; no credentials or QR codes are included. Background test-message history and clock advanced between captures. This pair proves control availability; phone delivery is verified separately.
