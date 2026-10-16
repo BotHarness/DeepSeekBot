@@ -1578,7 +1578,7 @@ window.__ModuleLoader__.load({
 			return typeof value === "string" && BROWSER_FAILURE_KINDS.includes(value);
 		}
 		//#endregion
-		//#region ../../../Users/doodlebear/Documents/code/BotHarness/node_modules/.pnpm/@stylexjs+stylex@0.19.1/node_modules/@stylexjs/stylex/lib/es/stylex.mjs
+		//#region node_modules/.pnpm/@stylexjs+stylex@0.19.1/node_modules/@stylexjs/stylex/lib/es/stylex.mjs
 		var styleq = {};
 		var hasRequiredStyleq;
 		function requireStyleq() {

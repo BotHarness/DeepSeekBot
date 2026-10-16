@@ -7,7 +7,7 @@ window.__ModuleLoader__.load({
 		let react = require("react");
 		let _deepseek_ai_dsh_client_ui_primitives = require("@deepseek-ai/dsh-client-ui-primitives");
 		let react_jsx_runtime = require("react/jsx-runtime");
-		//#region ../../../Users/doodlebear/Documents/code/BotHarness/node_modules/.pnpm/@stylexjs+stylex@0.19.1/node_modules/@stylexjs/stylex/lib/es/stylex.mjs
+		//#region node_modules/.pnpm/@stylexjs+stylex@0.19.1/node_modules/@stylexjs/stylex/lib/es/stylex.mjs
 		var styleq = {};
 		var hasRequiredStyleq;
 		function requireStyleq() {
