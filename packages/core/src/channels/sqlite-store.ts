@@ -85,6 +85,7 @@ interface SqliteChannelStoreOptions extends ChannelStoreOptions {
 
 interface PlacementRow {
   message_id: string;
+  created_at: string;
   revision: number;
   source_event_id: string;
   payload_json: string;
@@ -563,7 +564,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     const rows = database.read((db) =>
       db
         .prepare(`
-      SELECT p.revision, p.source_event_id, p.message_id, e.payload_json, e.body,
+      SELECT p.revision, p.source_event_id, p.message_id, e.payload_json, e.body, e.created_at,
              e.channel_id AS home_channel_id
         FROM channel_placements p
         JOIN source_events e ON e.source_event_id = p.source_event_id
@@ -574,8 +575,12 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     const members = humanMembers(id);
     const reactionsById = channelReactions(id);
     return rows.flatMap((row) => {
-      const original = parseMessage(row.payload_json, row.body, row.message_id);
-      if (original === undefined) return [];
+      const original: ChannelMessage = parseMessage(row.payload_json, row.body, row.message_id) ?? {
+        id: row.message_id,
+        at: row.created_at,
+        author: { kind: 'system' },
+        body: 'This message was written by a newer version and cannot be shown.',
+      };
       const message = attachmentMigration.project(row.source_event_id, original);
       const deliveries = admissionStatuses(row.source_event_id);
       const humanReceipts = humanReceiptsFor(message, row.revision, members);
