@@ -4,6 +4,7 @@ import { isChannelNotice } from './channel-notice.js';
 import type { ChannelDraft, ChannelDraftEvent } from './draft.js';
 import type { ChannelMessage, ChannelReaction } from './channel.js';
 import type { ChannelMessageCommit, ChannelStore } from './store.js';
+import type { SubagentDispatchProjection, SubagentDispatchRecord } from './subagent-dispatch.js';
 import { MAX_MESSAGE_PAGE, type ChannelJournalPage } from './timeline.js';
 
 export const CHANNEL_STREAM_PATH = '/api/botharness/stream';
@@ -16,6 +17,8 @@ export const CHANNEL_DRAFT_APPEND_EVENT = 'channel/draft-append';
 export const CHANNEL_DRAFT_BASELINE_EVENT = 'channel/draft-baseline';
 export const CHANNEL_DRAFT_SETTLED_EVENT = 'channel/draft-settled';
 export const CHANNEL_DRAFT_ABANDONED_EVENT = 'channel/draft-abandoned';
+export const CHANNEL_SUBAGENT_DISPATCH_EVENT = 'channel/subagent-dispatch';
+export const CHANNEL_SUBAGENT_DISPATCH_BASELINE_EVENT = 'channel/subagent-dispatch-baseline';
 export const ROSTER_CHANGED_EVENT = 'roster/changed';
 export const ROSTER_LATEST_EVENT = 'roster/latest';
 export const CONTENT_PURGED_EVENT = 'content/purged';
@@ -51,6 +54,8 @@ interface Subscriber {
   pushAdmission(messageId: string, message: ChannelMessage): void;
   pushHumanRead(humanId: string, revision: number): void;
   pushReaction(messageId: string, reactions: ChannelReaction[]): void;
+  pushSubagentDispatch(record: SubagentDispatchRecord): void;
+  pushSubagentDispatchBaseline(records: readonly SubagentDispatchRecord[]): void;
   close(): void;
 }
 
@@ -80,6 +85,17 @@ export type ChannelLiveNotification =
   | {
       kind: 'draft-settled' | 'draft-abandoned';
       event: Exclude<PublishedDraftEvent, { type: 'update' }>;
+    }
+  | {
+      kind: 'subagent-dispatch';
+      channelId: string;
+      messageId: string;
+      subagentDispatch: SubagentDispatchProjection;
+    }
+  | {
+      kind: 'subagent-dispatch-baseline';
+      channelId: string;
+      dispatches: { messageId: string; subagentDispatch: SubagentDispatchProjection }[];
     };
 
 export type ChannelLiveFrame =
@@ -120,6 +136,14 @@ function encodeChannelFrame(frame: ChannelLiveFrame): string {
     const { kind: _kind, ...data } = notification;
     return `event: ${CHANNEL_DRAFT_BASELINE_EVENT}\ndata: ${JSON.stringify(data)}\n\n`;
   }
+  if (notification.kind === 'subagent-dispatch') {
+    const { kind: _kind, ...data } = notification;
+    return `event: ${CHANNEL_SUBAGENT_DISPATCH_EVENT}\ndata: ${JSON.stringify(data)}\n\n`;
+  }
+  if (notification.kind === 'subagent-dispatch-baseline') {
+    const { kind: _kind, ...data } = notification;
+    return `event: ${CHANNEL_SUBAGENT_DISPATCH_BASELINE_EVENT}\ndata: ${JSON.stringify(data)}\n\n`;
+  }
   if (notification.kind === 'draft')
     return `event: ${CHANNEL_DRAFT_EVENT}\ndata: ${JSON.stringify(notification.draft)}\n\n`;
   if (notification.kind === 'draft-append')
@@ -155,6 +179,7 @@ export interface ChannelLiveHub {
   publishHumanRead(channelId: string, humanId: string, revision: number): void;
   publishReaction(channelId: string, messageId: string, reactions: ChannelReaction[]): void;
   publishDraft(event: ChannelDraftEvent): void;
+  publishSubagentDispatch(record: SubagentDispatchRecord): void;
   publishRosterCommitted(): void;
   publishContentPurged(): void;
   close(): void;
@@ -169,6 +194,10 @@ function parseRevision(value: string | null): number | undefined {
 interface ActivitySource {
   snapshot(): PersonaBotActivitySnapshot;
   onChange(listener: () => void): () => void;
+}
+
+export interface ChannelSubagentDispatchSource {
+  forChannel(channelId: string): readonly SubagentDispatchRecord[];
 }
 
 function combineLiveResponses(channel: Response, roster: Response): Response {
@@ -228,6 +257,7 @@ export function createChannelLiveHub(
   channels: ChannelStore,
   activity?: ActivitySource,
   redactions?: () => PurgedPlacement[],
+  dispatches?: ChannelSubagentDispatchSource,
 ): ChannelLiveHub {
   const subscribers = new Map<string, Set<Subscriber>>();
   const drafts = new Map<string, Map<string, PublishedDraft>>();
@@ -579,6 +609,31 @@ export function createChannelLiveHub(
                 : { kind: 'draft-abandoned', event },
         });
       },
+      pushSubagentDispatch(record) {
+        emit({
+          type: 'notification',
+          notification: {
+            kind: 'subagent-dispatch',
+            channelId,
+            messageId: record.messageId,
+            subagentDispatch: record.projection,
+          },
+        });
+      },
+      pushSubagentDispatchBaseline(records) {
+        if (records.length === 0) return;
+        emit({
+          type: 'notification',
+          notification: {
+            kind: 'subagent-dispatch-baseline',
+            channelId,
+            dispatches: records.map((record) => ({
+              messageId: record.messageId,
+              subagentDispatch: record.projection,
+            })),
+          },
+        });
+      },
       close() {
         if (ended) return;
         ended = true;
@@ -612,6 +667,11 @@ export function createChannelLiveHub(
         drafts: [...(drafts.get(channelId)?.values() ?? [])],
       },
     });
+    subscriber.pushSubagentDispatchBaseline(
+      (dispatches?.forChannel(channelId) ?? []).filter(
+        (record) => channels.observeOutput(channelId, record.messageId)?.canRead === true,
+      ),
+    );
     return subscriber;
   };
   async function* followChannel(
@@ -771,6 +831,12 @@ export function createChannelLiveHub(
     publishReaction(channelId, messageId, reactions) {
       for (const subscriber of subscribers.get(channelId) ?? [])
         subscriber.pushReaction(messageId, reactions);
+    },
+    publishSubagentDispatch(record) {
+      if (channels.get(record.channelId) === undefined) return;
+      if (channels.observeOutput(record.channelId, record.messageId)?.canRead !== true) return;
+      for (const subscriber of subscribers.get(record.channelId) ?? [])
+        subscriber.pushSubagentDispatch(record);
     },
     publishDraft(event) {
       const channelId = event.type === 'update' ? event.draft.channelId : event.channelId;

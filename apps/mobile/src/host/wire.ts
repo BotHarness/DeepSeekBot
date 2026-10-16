@@ -113,6 +113,12 @@ export type ChannelNotification =
   | { kind: 'draft-baseline'; channelId: string; revision: number; drafts: WireDraft[] }
   | { kind: 'draft'; draft: WireDraft }
   | { kind: 'draft-append'; append: WireDraftAppend }
+  | { kind: 'subagent-dispatch'; channelId: string; messageId: string; subagentDispatch: unknown }
+  | {
+      kind: 'subagent-dispatch-baseline';
+      channelId: string;
+      dispatches: { messageId: string; subagentDispatch: unknown }[];
+    }
   | {
       kind: 'draft-settled' | 'draft-abandoned';
       event: { channelId: string; draftId: string; attemptId: string; revision: number };

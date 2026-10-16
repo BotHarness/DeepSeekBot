@@ -1,3 +1,4 @@
+import { SubagentDispatchCard } from './subagent-dispatch-card.js';
 import { BridgeAudio } from './bridge-audio.js';
 import { BridgeFile } from './bridge-file.js';
 import { UserQuestionCard } from './user-question-card.js';
@@ -359,6 +360,8 @@ export function ChannelMessageBody({
   const format =
     message.format ?? (message.author.kind === 'human' && !humanMarkdown ? 'text' : 'markdown');
   if (message.contentPurged) return <div className="bh-bubble-body">{t('purge.purged')}</div>;
+  if (message.author.kind === 'system' && message.subagentDispatch !== undefined)
+    return <SubagentDispatchCard dispatch={message.subagentDispatch} t={t} />;
   if (message.onboardingWelcome !== undefined && actions !== undefined && channelId !== undefined)
     return <OnboardingWelcome actions={actions} channelId={channelId} t={t} />;
   if (message.sessionFailure !== undefined)

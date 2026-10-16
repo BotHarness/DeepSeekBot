@@ -868,7 +868,29 @@ export function createChannelStore(options: ChannelStoreOptions): ChannelStore {
       return enqueue(id, () => {
         const record = read(id);
         if (record === undefined) return undefined;
-        const priorMessages = message.replyTo === undefined ? [] : readValidMessages(id);
+        const priorMessages =
+          message.replyTo === undefined && message.subagentDispatch === undefined
+            ? []
+            : readValidMessages(id);
+        const existing = priorMessages.find((item) => item.id === message.id);
+        if (existing !== undefined && message.subagentDispatch !== undefined) {
+          if (existing.subagentDispatch === undefined) return undefined;
+          const updated = { ...existing, subagentDispatch: message.subagentDispatch };
+          const lines = readFileSync(messagesFile(id), 'utf8').split('\n');
+          const content = lines.map((line) => {
+            let parsed: unknown;
+            try {
+              parsed = JSON.parse(line);
+            } catch {
+              return line;
+            }
+            return isChannelMessage(parsed) && parsed.id === message.id
+              ? JSON.stringify(updated)
+              : line;
+          });
+          atomicWriteFile(messagesFile(id), content.join('\n'));
+          return updated;
+        }
         if (
           message.replyTo !== undefined &&
           !priorMessages.some((candidate) => candidate.id === message.replyTo)

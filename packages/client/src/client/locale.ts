@@ -3,6 +3,15 @@ import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots';
 export const LOCALE_NS = 'botharness';
 
 export const zh = {
+  'subagentDispatch.title': 'DSH 子代理',
+  'subagentDispatch.model': '实际模型',
+  'subagentDispatch.modelUnavailable': '未提供',
+  'subagentDispatch.effort': '推理强度',
+  'subagentDispatch.status.queued': '已排队',
+  'subagentDispatch.status.running': '运行中',
+  'subagentDispatch.status.completed': '已完成',
+  'subagentDispatch.status.failed': '失败',
+  'subagentDispatch.status.declined': '已拒绝',
   'mobile.back': '返回会话列表',
   'mobile.conversations': '会话',
   'mobile.host': '退出 Bot 模式',
@@ -3554,6 +3563,15 @@ export function zhTranslate(key: BotHarnessKey | string, params?: Record<string,
 }
 
 export const en = {
+  'subagentDispatch.title': 'DSH Subagent',
+  'subagentDispatch.model': 'Actual model',
+  'subagentDispatch.modelUnavailable': 'Not provided',
+  'subagentDispatch.effort': 'Reasoning effort',
+  'subagentDispatch.status.queued': 'Queued',
+  'subagentDispatch.status.running': 'Running',
+  'subagentDispatch.status.completed': 'Completed',
+  'subagentDispatch.status.failed': 'Failed',
+  'subagentDispatch.status.declined': 'Declined',
   'mobile.back': 'Back to conversations',
   'mobile.conversations': 'Conversations',
   'mobile.host': 'Exit Bot mode',

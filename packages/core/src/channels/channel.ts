@@ -5,6 +5,10 @@ import { isChannelAttachmentRef, type ChannelAttachmentRef } from '../attachment
 import type { ToolApprovalDecision, ToolApprovalRequestCard } from '../workspaces/tool-approval.js';
 import type { ChannelQuestionRequest, ChannelQuestionResolution } from './user-questions.js';
 import {
+  parseSubagentDispatchProjection,
+  type SubagentDispatchProjection,
+} from './subagent-dispatch.js';
+import {
   privateRequestSchema,
   type PrivateInputCard,
   type PrivateInputResolution,
@@ -324,6 +328,8 @@ export interface ChannelMessage {
   toolApprovalRequest?: ToolApprovalRequestCard;
 
   sessionFailure?: SessionFailureCard;
+
+  subagentDispatch?: SubagentDispatchProjection;
 
   toolApprovalDecision?: ToolApprovalDecision;
 
@@ -833,9 +839,19 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
       typeof message['onboardingWelcome'] === 'object' &&
       message['onboardingWelcome'] !== null &&
       (message['onboardingWelcome'] as { version?: unknown }).version === 1
-    )
+    ) &&
+    message['subagentDispatch'] === undefined
   ) {
     return false;
+  }
+  if (message['subagentDispatch'] !== undefined) {
+    if ((message['author'] as ChannelMessageAuthor)?.kind !== 'system')
+      delete message['subagentDispatch'];
+    else {
+      const dispatch = parseSubagentDispatchProjection(message['subagentDispatch']);
+      if (dispatch === undefined) return false;
+      message['subagentDispatch'] = dispatch;
+    }
   }
   const botDmAction = message['botDmAction'];
   if (botDmAction !== undefined) {

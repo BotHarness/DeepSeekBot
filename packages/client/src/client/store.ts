@@ -13,6 +13,7 @@ import type { RosterSection, TopOrderEntry } from './roster.js';
 import type { PurgedPlacement } from '../../../core/src/purge/contracts.js';
 import type { PixelBannerRecipe } from '@botharness/pixel-banner';
 import { createContentRedactions } from './content-redactions.js';
+import { preserveSubagentDispatches, type SubagentDispatch } from './subagent-dispatch.js';
 
 export type ClientMode = 'dsh' | 'bot';
 
@@ -238,6 +239,7 @@ export interface ChannelMessage {
   grantRequestResolution?: { requestMessageId: string; grantId: string };
   toolApprovalRequest?: ToolApprovalRequestCard;
   sessionFailure?: SessionFailureCard;
+  subagentDispatch?: SubagentDispatch;
   toolApprovalDecision?: ToolApprovalDecision;
   userQuestionRequest?: UserQuestionRequestCard;
   userQuestionResolution?: UserQuestionResolution;
@@ -820,7 +822,18 @@ export function createStore(): ClientStore {
       });
     },
     setConversation(patch) {
-      update({ conversation: { ...state.conversation, ...patch } });
+      const channelId = patch.channel?.id ?? state.conversation.channel?.id;
+      const messages =
+        patch.messages && channelId === state.conversation.channel?.id
+          ? preserveSubagentDispatches(state.conversation.messages, patch.messages)
+          : patch.messages;
+      update({
+        conversation: {
+          ...state.conversation,
+          ...patch,
+          ...(messages === undefined ? {} : { messages }),
+        },
+      });
     },
     updateCachedConversation(channelId, apply) {
       const cached = conversations.get(channelId);
