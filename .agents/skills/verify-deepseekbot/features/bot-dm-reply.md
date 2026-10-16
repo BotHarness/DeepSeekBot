@@ -16,6 +16,7 @@ A Human sends a message in a Bot's DM, the Bot runs a session on its configured 
 
 Preconditions: `launch` reported a model credential, `doctor` passes, and the default DeepSeek Bot exists (see [bot-mode.md](bot-mode.md)).
 
+- **Scripted model path.** `node scripts/e2e-llm-scenarios.mjs --name <n> --scenario dm-reply --model host-default` checks the model/API path; the composer path below is a separate UI proof.
 - **Send and wait.** Run `node scripts/verify-app.mjs shot dm-reply --name <n> --bot-mode --fill "Message DeepSeek Bot=What is 6 times 7? Answer with digits only." --press Enter --wait-text 42`. The step list ends with `saw text "42"`, and the screenshot shows the Human message and the Bot reply.
 - **Canonical state.** Get the slug from `rpc botharness/list`, then the Channel id from `rpc botharness/channelDm '{"slug":"<slug>","displayName":"DeepSeek Bot"}'`, then run `rpc botharness/channelTimeline '{"channelId":"<id>"}'`. The entries end with a `human` entry holding the prompt and a `bot` entry holding the reply.
 

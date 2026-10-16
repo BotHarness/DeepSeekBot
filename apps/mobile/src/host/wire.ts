@@ -52,6 +52,14 @@ export interface ChannelWireMessage extends WireMessage {
   toolApprovalDecision?: unknown;
   userQuestionResolution?: unknown;
   onboardingWelcome?: unknown;
+  botDmAction?: unknown;
+  botChannelPost?: unknown;
+  botChannelPostPreview?: unknown;
+  memoryCommit?: unknown;
+  noticeOrigin?: unknown;
+  botCreateAction?: unknown;
+  memberDeparture?: unknown;
+  turnStop?: unknown;
 }
 
 export interface BridgeMediaItem {

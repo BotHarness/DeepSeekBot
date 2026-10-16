@@ -193,8 +193,18 @@ export function ReleaseNotesAnnouncement({
 function statusText(snapshot: ReleaseNotesSnapshot, t: BotHarnessTranslate): string {
   const version = snapshot.version;
   if (version === undefined) return t('release.status.loading');
+  const identity = snapshot.identity;
+  if (identity === undefined) return t('release.status.legacy');
+  if (identity.kind === 'unknown') return t('release.status.unknown', { reason: identity.reason });
+  if (identity.kind === 'development')
+    return t('release.status.source', {
+      revision: identity.source?.revision.slice(0, 9) ?? '',
+      dirty: identity.source?.dirty === true ? t('release.status.dirty') : '',
+    });
   const update = snapshot.update;
   switch (update.status) {
+    case 'unknown':
+      return t('release.status.unknown', { reason: update.reason });
     case 'development':
       return t('release.status.development', { version });
     case 'available':
@@ -214,6 +224,7 @@ const INSTALL_FAILURE_KEYS: Record<
   Extract<ReleaseInstallState, { status: 'failed' }>['reason'],
   BotHarnessKey
 > = {
+  'identity-invalid': 'release.install.failed.generic',
   unavailable: 'release.install.failed.unavailable',
   'invalid-version': 'release.install.failed.generic',
   network: 'release.install.failed.network',
@@ -333,6 +344,9 @@ export function ReleaseSettings({ releaseNotes, t }: ReleaseSettingsProps): Reac
               variant="outline"
               disabled={
                 installing ||
+                (snapshot.identity?.kind === 'unknown' &&
+                  snapshot.identity.reason !== 'composition-unverified') ||
+                snapshot.identity?.kind === 'development' ||
                 update.status === 'checking' ||
                 update.status === 'development' ||
                 update.status === 'restart-required'
@@ -346,7 +360,7 @@ export function ReleaseSettings({ releaseNotes, t }: ReleaseSettingsProps): Reac
           </>
         }
       />
-      {update.status === 'available' ? (
+      {update.status === 'available' && snapshot.identity?.kind !== 'unknown' ? (
         <div className="bh-release-update" data-release-update={update.latest}>
           <div className="bh-release-update-head">
             <span className="bh-release-update-title">

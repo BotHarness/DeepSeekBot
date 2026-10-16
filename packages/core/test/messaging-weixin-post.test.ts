@@ -163,7 +163,7 @@ it.each([
   expect(calls).toBe(1);
 });
 
-it('WeChat rejects a borrowed correspondence or falsely native receipt and hides unfenced capability', async () => {
+it('WeChat rejects a borrowed correspondence or falsely native receipt', async () => {
   const { core, transport, grant } = await fixture();
   for (const [requestId, receipt] of [
     [
@@ -184,21 +184,26 @@ it('WeChat rejects a borrowed correspondence or falsely native receipt and hides
   }
 });
 
-it.each(['proactive-receipt-checked', 'proactive-fence-checked'])(
-  'a WeChat account without %s is unavailable for posting and causes no native send',
+it.each(['proactive-text-checked', 'proactive-receipt-checked', 'proactive-fence-checked'])(
+  'a WeChat account without %s stays unavailable even with the legacy global fence version',
   async (missing) => {
-    const fx = await fixture();
-    const describe = fx.transport.describeBot;
-    fx.transport.describeBot = async (ref) => {
+    const { core, transport, grant } = await fixture();
+    transport.postFenceVersion = 1;
+    const describe = transport.describeBot;
+    transport.describeBot = async (ref) => {
       const info = await describe(ref);
       return { ...info, capabilities: info.capabilities.filter((cap) => cap !== missing) };
     };
-    const sendChecked = vi.fn(fx.transport.sendChecked);
-    fx.transport.sendChecked = sendChecked;
-    expect((await fx.core.externalMessaging.snapshot('ada')).grants[0]?.canPost).toBe(false);
-    expect(
-      await fx.core.externalMessaging.post('ada', fx.grant.id, 'unqualified_weixin', 'Result'),
-    ).toMatchObject({ state: 'failed', reason: 'capability-unavailable' });
-    expect(sendChecked).not.toHaveBeenCalled();
+    core.externalMessaging.register(createDshImProvider(transport, 'weixin')!);
+    expect((await core.externalMessaging.snapshot('ada')).grants[0]?.canPost).toBe(false);
+    const pending = core.externalMessaging.post('ada', grant.id, 'unqualified_1988', 'Result');
+    if (missing === 'proactive-text-checked')
+      await expect(pending).rejects.toThrow('provider-incompatible');
+    else
+      await expect(pending).resolves.toMatchObject({
+        state: 'failed',
+        reason: 'capability-unavailable',
+      });
+    expect(transport.sendChecked).not.toHaveBeenCalled();
   },
 );

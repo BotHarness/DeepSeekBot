@@ -1,4 +1,4 @@
-import type { PairingRefusal } from '../host/pairing';
+import type { PairingFailure } from '../host/pairing';
 import type { PushKind, PushRefusal } from '../host/push';
 import type { AggregatedState } from '../host/wire';
 
@@ -12,6 +12,35 @@ function toolGroup(tool: string): ToolGroup {
 }
 
 const en = {
+  activityRow: {
+    dm: (recipient: string) => `sent a direct message to ${recipient}`,
+    actions: 'Activity details',
+    actionsHint: 'Long-press for full details and navigation.',
+    openMemory: 'Open memory',
+    openChat: 'Open conversation',
+    openBot: 'Open new Bot',
+    created: (recipient: string) => `created a new Bot, ${recipient}`,
+    posted: (place: string, count: number) =>
+      count === 1 ? `posted in ${place}:` : `posted ${count} messages in ${place}, latest:`,
+    messaged: (name: string, count: number) =>
+      count === 1 ? `messaged ${name}:` : `sent ${name} ${count} messages, latest:`,
+    memory: 'updated memory',
+    memoryIn: (place: string) => `updated memory in ${place}`,
+    memoryMessaging: (name: string) => `updated memory while messaging ${name}`,
+    moreFiles: (count: number) => `and ${count} more ${count === 1 ? 'file' : 'files'}`,
+    unavailable: 'Original message unavailable',
+    unavailablePlace: 'an unavailable Channel',
+    unavailableBot: 'Unavailable Bot',
+    left: 'left the Channel',
+    removed: 'was removed from the Channel',
+    stopped: (name: string) => `stopped ${name}`,
+    human: 'You',
+    show: 'Show in this chat',
+    posts: 'Posts in groups and Bot DMs',
+    updates: 'Memory updates',
+    footnote: (name: string) => `Shows what ${name} did elsewhere.`,
+    botDm: 'Bot-to-Bot DM · read-only',
+  },
   roster: 'DeepSeekBot',
   bots: 'PersonaBots',
   channels: 'Channels',
@@ -63,6 +92,22 @@ const en = {
     waiting: 'Waiting for you',
     blocked: 'Blocked',
   } satisfies Record<AggregatedState, string>,
+  statisticsTitle: 'Anonymous phone statistics',
+  statisticsNoticeTitle: 'About anonymous statistics',
+  statisticsNoticeSummary:
+    'DeepSeekBot sends anonymous phone statistics by default to improve pairing, connections and first-chat reliability. You can turn them off at the bottom of Settings at any time.',
+  statisticsPrivacy: 'Privacy',
+  statisticsPrivacyUrl: 'https://deepseekbot.botharness.ai/en/privacy',
+  statisticsSource: 'View source',
+  statisticsOpenSettings: 'Open Settings',
+  statisticsGotIt: 'Got it',
+  statisticsLinkError: 'Could not open the link. Please try again.',
+  statisticsDetails: 'About anonymous statistics',
+  statisticsHideDetails: 'Hide statistics details',
+  statisticsNotice:
+    'Helps improve pairing, connections and first-chat reliability. PostHog receives a random phone statistics ID, app version and coarse operation results. No chat content, files, pairing links, credentials or Host identity. You can turn this off at any time without affecting the app. This switch is separate from computer statistics. Turning it off clears the phone ID and unsent events; already received events remain.',
+  statisticsStorageError:
+    'Could not save this choice. Statistics are paused on this launch. Please try again.',
   pairTitle: 'Pair with your computer',
   pairHint:
     'On your computer, open DeepSeekBot settings → Devices → Pair a phone, then scan the code.',
@@ -76,8 +121,11 @@ const en = {
       'Your computer offered no address this phone can use. Set up Tailscale on it first.',
     'offer-invalid': 'This code was already used. Show a new code on your computer.',
     'offer-expired': 'This code has expired. Show a new code on your computer.',
+    'storage-failure': 'Could not save the pairing on this phone. Show a new code and try again.',
+    cancelled: 'Pairing was cancelled.',
+    unknown: 'Could not pair. Show a new code and try again.',
     unreachable: 'Cannot reach your computer. Check that this phone is on your tailnet.',
-  } satisfies Record<PairingRefusal, string>,
+  } satisfies Record<PairingFailure, string>,
   unpair: 'Unpair',
   unpairFailed: 'Could not unpair:',
   fullClient: 'Full client',
@@ -633,6 +681,35 @@ const en = {
 };
 
 const zh: typeof en = {
+  activityRow: {
+    dm: (recipient: string) => `向 ${recipient} 发送了私聊消息`,
+    actions: '活动详情',
+    actionsHint: '长按查看完整内容和跳转操作。',
+    openMemory: '打开记忆',
+    openChat: '打开会话',
+    openBot: '打开新 Bot',
+    created: (recipient: string) => `创建了新 Bot ${recipient}`,
+    posted: (place: string, count: number) =>
+      count === 1 ? `在 ${place} 发言：` : `在 ${place} 发言 ${count} 条，最新：`,
+    messaged: (name: string, count: number) =>
+      count === 1 ? `私信 ${name}：` : `私信 ${name} ${count} 条，最新：`,
+    memory: '更新了记忆',
+    memoryIn: (place: string) => `在 ${place} 更新了记忆`,
+    memoryMessaging: (name: string) => `和 ${name} 私信时更新了记忆`,
+    moreFiles: (count: number) => `另有 ${count} 个文件`,
+    unavailable: '原消息已不可用',
+    unavailablePlace: '已不可用的会话',
+    unavailableBot: '已不可用的 Bot',
+    left: '退出了频道',
+    removed: '被移出了频道',
+    stopped: (name: string) => `停止了 ${name}`,
+    human: '你',
+    show: '在此聊天中显示',
+    posts: '群聊和 Bot 私信中的发言',
+    updates: '记忆更新',
+    footnote: (name: string) => `显示 ${name} 在别处的动作。`,
+    botDm: 'Bot 之间的私聊 · 仅供查看',
+  },
   roster: 'DeepSeekBot',
   bots: 'PersonaBot',
   channels: '频道',
@@ -683,6 +760,21 @@ const zh: typeof en = {
     waiting: '等你处理',
     blocked: '受阻',
   },
+  statisticsTitle: '手机匿名使用统计',
+  statisticsNoticeTitle: '关于匿名使用统计',
+  statisticsNoticeSummary:
+    'DeepSeekBot 默认发送匿名手机统计，帮助改善配对、连接和首次聊天的可靠性。你可以随时在设置页最底部关闭。',
+  statisticsPrivacy: '隐私说明',
+  statisticsPrivacyUrl: 'https://deepseekbot.botharness.ai/privacy',
+  statisticsSource: '查看源码',
+  statisticsOpenSettings: '打开设置',
+  statisticsGotIt: '知道了',
+  statisticsLinkError: '无法打开链接，请重试。',
+  statisticsDetails: '了解匿名统计',
+  statisticsHideDetails: '收起统计说明',
+  statisticsNotice:
+    '帮助改善配对、连接和首次聊天的可靠性。PostHog 接收随机手机统计标识、应用版本和粗略操作结果，不含聊天内容、文件、配对链接、凭证或电脑身份。你可以随时关闭，不影响应用功能。此开关独立于电脑端统计。关闭后清除手机统计标识和未发送事件，已接收的事件仍会保留。',
+  statisticsStorageError: '无法保存此选择，本次运行已暂停统计，请重试。',
   pairTitle: '与电脑配对',
   pairHint: '在电脑上打开 DeepSeekBot 设置 → 设备 → 配对手机，然后扫描二维码。',
   allowCamera: '允许使用相机扫码',
@@ -694,6 +786,9 @@ const zh: typeof en = {
     'no-route': '电脑没有提供手机能用的地址，请先在电脑上设置 Tailscale。',
     'offer-invalid': '这个二维码已经用过了，请在电脑上换一个。',
     'offer-expired': '二维码已失效，请在电脑上换一个。',
+    'storage-failure': '无法在手机上保存配对，请在电脑上换一个二维码后重试。',
+    cancelled: '已取消配对。',
+    unknown: '无法配对，请换一个二维码后重试。',
     unreachable: '连不上你的电脑，请确认手机已加入你的 tailnet。',
   },
   unpair: '取消配对',
@@ -1243,3 +1338,4 @@ export const locale: 'zh' | 'en' = Intl.DateTimeFormat()
   : 'en';
 
 export const t = locale === 'zh' ? zh : en;
+export const activityStrings = { en: en.activityRow, zh: zh.activityRow };

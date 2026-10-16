@@ -561,6 +561,10 @@ Channel Content Purge and its restore-safe ledger remain #897.
 - Memory cross-device sync is the Orchestrator's native Git behavior, not a Host service. BotHarness holds no remote or credentials and offers no one-click sync; owners who do not operate Git migrate through Portability (ADR-0084).
 - Roadmap Project #1 stays private. Docs sync reads only explicit `In Progress` and Artifact values with `read:project`, then commits public JSON only after a fail-closed allowlist projection. Project notes, private items, assignees, backlog, and ETA never cross this publication boundary.
 
+### Product release identity (accepted design; enforcement pending)
+
+[ADR-0216](../adr/0216-dsb-product-versions-identify-immutable-package-sets.md) unifies computer-side DSB software and npm product identity. Core/UI/Browser/Computer co-release; DSH, the independent Provider and mobile retain their versions. Existing preparation freezes a Release Plan binding source and the complete artifact set, not a new version service. QA handoff freezes version-to-bytes identity; Beta-to-stable qualifies new stable packages. The existing Host Release Service projects actual running identity separately from a staged version through the authenticated bridge to CLI/Web; missing release metadata cannot masquerade as a source build. Publication verifies dependencies before advancing the product entry and resumes the same plan/bytes after failure without claiming multi-package atomicity. See the [version policy](../agents/version-policy.md) and the three slices under [#1979](https://github.com/BotHarness/DeepSeekBot/issues/1979). This target is not completed runtime enforcement or authority to migrate tags, publish or use shared devices.
+
 ## 8 · Implementation order and parallel work
 
 1. #77 validates the pinned DSH Agent/SessionPersistence/Subagent seams while #79 builds the operational database owner. These can proceed in parallel.

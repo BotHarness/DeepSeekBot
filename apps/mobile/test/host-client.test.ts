@@ -48,6 +48,13 @@ async function until(
 }
 
 describe('Host client', () => {
+  it('retains Bot DM metadata for activity links without listing it as a group', async () => {
+    const host = new FakeHost();
+    host.methods.set('channels', () => ({ channels: wire.activityJournal.channels }));
+    const snapshot = await until(connect(host), (state) => state.connection.status === 'connected');
+    expect(snapshot.roster?.activityChannels).toEqual(wire.activityJournal.channels);
+    expect(snapshot.roster?.channels.map((channel) => channel.id)).toEqual(['group-research']);
+  });
   it('calls the device gateway with its credential and renders the recorded Roster', async () => {
     const host = new FakeHost();
     const target = connect(host);
@@ -309,4 +316,50 @@ describe('pairing', () => {
       await redeemPairing({ payload: parsed.payload, deviceName: 'iPhone', carrier: host.carrier }),
     ).toEqual({ ok: false, code: 'offer-invalid' });
   });
+});
+
+it('reports telemetry ready only after the authenticated Roster reload, including manual retry', async () => {
+  const host = new FakeHost();
+  let holdChannels: (() => void) | undefined;
+  let delay = new Promise<void>((resolve) => {
+    holdChannels = resolve;
+  });
+  const updates: string[] = [];
+  client = createHostClient({
+    routes: [ROUTE],
+    credential: host.credential,
+    timeoutMs: 1000,
+    carrier: {
+      ...host.carrier,
+      request: async (url, init) => {
+        if (url.endsWith('/channels')) await delay;
+        return host.carrier.request(url, init);
+      },
+    },
+    telemetry: {
+      begin: (trigger) => {
+        updates.push(trigger);
+      },
+      update: (status) => {
+        updates.push(status);
+      },
+      dispose() {},
+    },
+  });
+  client.start();
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  expect(updates).toEqual(['connecting']);
+  holdChannels?.();
+  await until(client, (s) => s.connection.status === 'connected');
+  expect(updates).toEqual(['connecting', 'connected']);
+  delay = new Promise<void>((resolve) => {
+    holdChannels = resolve;
+  });
+  client.retryNow();
+  host.push('botharness/followActivity', thinking);
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  expect(updates).toEqual(['connecting', 'connected', 'manual_retry']);
+  holdChannels?.();
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  expect(updates).toEqual(['connecting', 'connected', 'manual_retry', 'connected']);
 });

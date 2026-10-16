@@ -404,7 +404,7 @@ export function createDshImProvider(
       name: info.account.name ?? ref,
       fingerprint: info.account.fingerprint,
       connected: info.connected,
-      ...(platform === 'qq' || platform === 'weixin'
+      ...(['qq', 'weixin'].includes(platform)
         ? {
             postSupported:
               host.receiptVersion === 1 &&
@@ -1422,7 +1422,10 @@ export function createDshImProvider(
               throw new MessagingProviderError('account-changed', 'not-started');
             if (!info.capabilities.includes('proactive-receipt-checked'))
               throw new MessagingProviderError('capability-unavailable', 'not-started');
-            if (platform === 'qq' && !info.capabilities.includes('proactive-text-checked'))
+            if (
+              (platform === 'qq' || platform === 'weixin') &&
+              !info.capabilities.includes('proactive-text-checked')
+            )
               throw new MessagingProviderError('capability-unavailable', 'not-started');
             if (
               (platform === 'weixin' || platform === 'qq') &&
