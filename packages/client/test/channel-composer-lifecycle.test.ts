@@ -213,6 +213,57 @@ describe('mounted Channel composer', () => {
     expect(onSubmit).toHaveBeenCalledOnce();
   });
 
+  it('keeps argument commands with no choices instead of sending them', async () => {
+    const onSubmit = vi.fn();
+    const run = vi.fn();
+    function Harness() {
+      const [value, setValue] = useState('');
+      return createElement(ChannelComposer, {
+        value,
+        placeholder: 'Message',
+        sending: false,
+        context: {
+          target: 'ada',
+          content: null,
+          shortcuts: [
+            { id: 'model', label: 'Model', run, choices: () => [] },
+            { id: 'effort', label: 'Effort', run, choices: () => [] },
+          ],
+        },
+        onChange: setValue,
+        onSubmit,
+      });
+    }
+    await act(async () => root.render(createElement(Harness)));
+    const input = host.querySelector<HTMLTextAreaElement>('textarea')!;
+    const type = async (value: string) =>
+      act(async () => {
+        Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(
+          input,
+          value,
+        );
+        input.setSelectionRange(value.length, value.length);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+    await type('/model text');
+    const enter = new KeyboardEvent('keydown', {
+      key: 'Enter',
+      bubbles: true,
+      cancelable: true,
+    });
+    await act(async () => input.dispatchEvent(enter));
+    expect(enter.defaultPrevented).toBe(true);
+    expect(input.value).toBe('/model text');
+    await type('/effort max');
+    await act(async () => {
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      host.querySelector<HTMLButtonElement>('.bh-send-btn')!.click();
+    });
+    expect(input.value).toBe('/effort max');
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(run).not.toHaveBeenCalled();
+  });
+
   it('inserts a new line on Enter and sends on Ctrl/⌘+Enter when that send key is chosen', async () => {
     const onSubmit = vi.fn();
     const attachment = {

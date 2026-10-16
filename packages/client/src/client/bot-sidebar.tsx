@@ -157,6 +157,7 @@ import {
   type ModelRouteView,
 } from './bridge.js';
 import { rememberModelPlan } from './model-plan-store.js';
+import { applyBotModelRoute, botModelMenuGroups, type BotModelGroup } from './bot-model-route.js';
 import { useMountedResource } from './mounted-resource.js';
 import { onCreationRequest } from './create-request.js';
 
@@ -1015,20 +1016,8 @@ export function BotSidebar({
   const applyMenuModel = (route: ModelRouteView): void => {
     if (menuBotSlug === undefined || menuModelData === undefined || menuModelBusy) return;
     setMenuModelBusy(true);
-    const request =
-      menuModelData.state.plan !== undefined
-        ? actions.customizeModelPlan(menuBotSlug, route)
-        : actions.setModelPlan(menuBotSlug, menuModelData.state.revision ?? 0, route, route, [
-            {
-              provider: route.provider,
-              model: route.model,
-              allowedEfforts: [route.reasoningEffort ?? ''],
-              defaultEffort: route.reasoningEffort ?? '',
-            },
-          ]);
-    void request
+    void applyBotModelRoute(actions, menuBotSlug, menuModelData.state, route)
       .then((plan) => {
-        rememberModelPlan(menuBotSlug, plan);
         setMenuModelOptions((current) =>
           current?.slug === menuBotSlug
             ? { ...current, state: { revision: plan.revision, plan } }
@@ -3222,49 +3211,6 @@ export function BulkChannelMenu({
       />
     </span>
   );
-}
-
-interface BotModelChoice {
-  label: string;
-  route: ModelRouteView;
-  current: boolean;
-}
-
-interface BotModelGroup {
-  key: string;
-  label: string;
-  current: boolean;
-  efforts: BotModelChoice[];
-}
-
-function botModelMenuGroups(
-  current: ModelRouteView | undefined,
-  catalog: ModelCatalogView | undefined,
-  defaultEffortLabel: string,
-): BotModelGroup[] {
-  const groups = (catalog?.models ?? [])
-    .filter((entry) => entry.credential === undefined)
-    .map((entry) => {
-      const efforts = [{ id: '', name: defaultEffortLabel }, ...entry.efforts];
-      return {
-        key: JSON.stringify([entry.provider, entry.model]),
-        label: entry.modelName,
-        current: current?.provider === entry.provider && current.model === entry.model,
-        efforts: efforts.map((effort) => ({
-          label: effort.name,
-          route: {
-            provider: entry.provider,
-            model: entry.model,
-            ...(effort.id === '' ? {} : { reasoningEffort: effort.id }),
-          },
-          current:
-            current?.provider === entry.provider &&
-            current.model === entry.model &&
-            (current.reasoningEffort ?? '') === effort.id,
-        })),
-      };
-    });
-  return groups.sort((one, other) => Number(other.current) - Number(one.current));
 }
 
 function BotModelMenu({

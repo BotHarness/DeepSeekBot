@@ -20,6 +20,7 @@ import {
 import {
   Button,
   FileTypeIcon,
+  IconCheckOutlineRegular,
   IconCloseOutlineRegular,
   IconChevronDownOutlineRegular,
   IconPaperclipOutlineRegular,
@@ -607,6 +608,12 @@ export function ChannelComposer({
     context?.shortcuts ?? [],
     slashTarget.current === context?.target ? slashQuery : undefined,
   );
+  const hasShortcutArgument =
+    slashTarget.current === context?.target &&
+    slashQuery?.argument !== undefined &&
+    context?.shortcuts.some(
+      (shortcut) => shortcut.id === slashQuery.filter && shortcut.choices !== undefined,
+    ) === true;
   const clearShortcut = (): void => {
     if (slashQuery === undefined) return;
     const next = value.slice(0, slashQuery.start) + value.slice(slashQuery.end);
@@ -903,6 +910,15 @@ export function ChannelComposer({
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLElement>): void => {
+    if (
+      hasShortcutArgument &&
+      shortcutOptions.length === 0 &&
+      event.key === 'Enter' &&
+      !event.nativeEvent.isComposing
+    ) {
+      event.preventDefault();
+      return;
+    }
     if (shortcutOptions.length > 0 && !event.nativeEvent.isComposing) {
       if (event.key === 'Escape') {
         event.preventDefault();
@@ -1115,7 +1131,11 @@ export function ChannelComposer({
         >
           {shortcutOptions.map((shortcut, index) => (
             <button
-              key={shortcut.id}
+              key={shortcut.key ?? shortcut.id}
+              ref={(node) => {
+                if (index === shortcutIndex % shortcutOptions.length)
+                  node?.scrollIntoView?.({ block: 'nearest' });
+              }}
               type="button"
               role="menuitem"
               disabled={shortcut.disabled}
@@ -1134,7 +1154,11 @@ export function ChannelComposer({
                 {shortcut.label}
                 {shortcut.reason === undefined ? null : <small> · {shortcut.reason}</small>}
               </span>
-              <small>/{shortcut.id}</small>
+              {shortcut.key === undefined ? (
+                <small>/{shortcut.id}</small>
+              ) : shortcut.selected ? (
+                <IconCheckOutlineRegular size={16} />
+              ) : null}
             </button>
           ))}
         </div>
@@ -1419,7 +1443,7 @@ export function ChannelComposer({
                 if (shortcutOptions.length > 0) {
                   const shortcut = shortcutOptions[shortcutIndex % shortcutOptions.length];
                   if (shortcut !== undefined) chooseShortcut(shortcut);
-                } else void onSubmit();
+                } else if (!hasShortcutArgument) void onSubmit();
               }}
             />
           )}

@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 
 export type ComposerShortcutId =
   | 'model'
+  | 'effort'
   | 'workspace'
   | 'companion'
   | 'profile'
@@ -12,12 +13,14 @@ export type ComposerShortcutId =
 
 export interface ComposerShortcut {
   id: ComposerShortcutId;
+  key?: string;
   label: string;
   icon?: ReactNode;
   disabled?: boolean;
   reason?: string | undefined;
   selected?: boolean;
   run(): void;
+  choices?(argument: string): readonly ComposerShortcut[];
 }
 
 export interface ComposerContext {
@@ -30,17 +33,36 @@ export interface ComposerSlashQuery {
   start: number;
   end: number;
   filter: string;
+  argument?: string;
 }
 
 export function composerSlashQuery(value: string, caret: number): ComposerSlashQuery | undefined {
-  const match = /(?:^|\n)\/([a-z]*)$/iu.exec(value.slice(0, caret));
-  if (match === null) return;
-  return { start: caret - match[1]!.length - 1, end: caret, filter: match[1]!.toLowerCase() };
+  const before = value.slice(0, caret);
+  const command = /(?:^|\n)\/([a-z]*)$/iu.exec(before);
+  if (command !== null)
+    return {
+      start: caret - command[1]!.length - 1,
+      end: caret,
+      filter: command[1]!.toLowerCase(),
+    };
+  const argument = /(?:^|\n)\/([a-z]+) ([^\n]*)$/iu.exec(before);
+  if (argument === null) return;
+  return {
+    start: caret - argument[2]!.length - argument[1]!.length - 2,
+    end: caret,
+    filter: argument[1]!.toLowerCase(),
+    argument: argument[2]!,
+  };
 }
 
 export function composerShortcutOptions(
   shortcuts: readonly ComposerShortcut[],
   query: ComposerSlashQuery | undefined,
 ): readonly ComposerShortcut[] {
-  return query === undefined ? [] : shortcuts.filter((item) => item.id.startsWith(query.filter));
+  if (query === undefined) return [];
+  if (query.argument !== undefined) {
+    const shortcut = shortcuts.find((item) => item.id === query.filter);
+    return shortcut?.choices?.(query.argument) ?? [];
+  }
+  return shortcuts.filter((item) => item.id.startsWith(query.filter));
 }

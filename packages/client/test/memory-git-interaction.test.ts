@@ -13,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
   const stub = () => null;
   return {
+    Toast: stub,
     IconCodeOutlineRegular: () => null,
     HoverCard: ({ anchor }: { anchor: unknown }) => anchor,
     Button: ({
