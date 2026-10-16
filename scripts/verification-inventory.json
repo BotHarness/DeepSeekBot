@@ -442,6 +442,14 @@
       "guide": ".agents/skills/verify-deepseekbot/features/workspace-grant.md",
       "task": 1974,
       "gap": null
+    },
+    {
+      "id": "desktop.composer.footer",
+      "label": "Customize footer visibility, order and alignment; opt into bounded reply speed",
+      "source": "packages/client/src/client/composer-context-bar.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/composer-footer.md",
+      "task": 1958,
+      "gap": null
     }
   ],
   "scripts": [

@@ -206,7 +206,12 @@ export function GroupComposerContextView({
   const retry = results.some((row) => row.status === 'unknown' || row.status === 'failed');
   return (
     <div ref={mount}>
-      <ComposerContextBar label={t('composerContext.label')} hidden={mobile}>
+      <ComposerContextBar
+        available={['workspace', 'avg-perf']}
+        t={t}
+        label={t('composerContext.label')}
+        hidden={mobile}
+      >
         <ChipButton
           ref={factMount}
           data-composer-chip="workspace"

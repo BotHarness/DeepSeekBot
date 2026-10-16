@@ -265,12 +265,13 @@ function DmComposerContextView({
   return (
     <>
       <ComposerContextBar
+        t={t}
+        compact={mobile}
         label={t('composerContext.label')}
         trailing={
           mobile ? null : (
             <ChipButton
               ref={usageMount}
-              trailing
               data-composer-chip="usage"
               icon={<ChannelSidebarIcon name="ruler" size={14} />}
               label={compactUsage}
@@ -284,14 +285,14 @@ function DmComposerContextView({
       >
         <ChipButton
           ref={modelMount}
-          wrap
           data-composer-chip="model"
           icon={<ChannelSidebarIcon name="cpu" size={14} />}
           label={modelLabel}
+          title={modelLabel}
           onClick={() => onOpen('model')}
           aria-label={`${t('entry.model')} · ${bot.displayName} · ${modelLabel}`}
         />
-        {avgPerf === undefined ? null : (
+        {mobile || avgPerf === undefined ? null : (
           <ChipButton
             data-composer-chip="avg-perf"
             icon={<ChannelSidebarIcon name="gauge" size={14} />}

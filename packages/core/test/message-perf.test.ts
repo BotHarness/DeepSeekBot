@@ -157,3 +157,36 @@ describe('message generation speed estimate', () => {
     expect(perf.forSession('s', '你')).toBeUndefined();
   });
 });
+
+it('keeps streamed reasoning tokens inside the measured generation window', () => {
+  const tracker = createMessagePerfTracker();
+  const event = hiddenReasoning({ outputTokens: 1020, reasoningTokens: 1000 }, 11000, 12000);
+  const data = event.data as { stream: unknown[] };
+  data.stream.unshift({
+    type: 'reasoning-chunks',
+    time0: 1000,
+    index: 0,
+    dt: [9000],
+    texts: ['thinking', 'done'],
+  });
+  tracker.observeSessionEvent('s', event);
+  expect(tracker.forSession('s', '你'.repeat(20))).toEqual({
+    outputTokens: 1020,
+    elapsedMs: 11000,
+    estimated: false,
+  });
+});
+
+it('excludes late finish events and trailing empty chunks from the generation window', () => {
+  const tracker = createMessagePerfTracker();
+  const event = hiddenReasoning({ outputTokens: 20 }, 1000, 2000);
+  const data = event.data as { stream: unknown[] };
+  data.stream.push({ type: 'text-chunks', time0: 4000, index: 0, dt: [], texts: [''] });
+  data.stream.push({ type: 'chunk', time: 12000, chunk: { type: 'finish', finishReason: 'stop' } });
+  tracker.observeSessionEvent('s', event);
+  expect(tracker.forSession('s', '你'.repeat(20))).toEqual({
+    outputTokens: 20,
+    elapsedMs: 1000,
+    estimated: false,
+  });
+});

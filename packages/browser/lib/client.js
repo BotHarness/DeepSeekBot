@@ -938,6 +938,7 @@ window.__ModuleLoader__.load({
 				cy: "12",
 				r: "10"
 			}], ["path", { d: "m16.24 7.76-1.804 5.411a2 2 0 0 1-1.265 1.265L7.76 16.24l1.804-5.411a2 2 0 0 1 1.265-1.265z" }]],
+			gauge: [["path", { d: "m12 14 4-4" }], ["path", { d: "M3.34 19a10 10 0 1 1 17.32 0" }]],
 			"user-check": [
 				["path", { d: "m16 11 2 2 4-4" }],
 				["path", { d: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" }],
@@ -1577,7 +1578,7 @@ window.__ModuleLoader__.load({
 			return typeof value === "string" && BROWSER_FAILURE_KINDS.includes(value);
 		}
 		//#endregion
-		//#region node_modules/.pnpm/@stylexjs+stylex@0.19.1/node_modules/@stylexjs/stylex/lib/es/stylex.mjs
+		//#region ../../../Users/doodlebear/Documents/code/BotHarness/node_modules/.pnpm/@stylexjs+stylex@0.19.1/node_modules/@stylexjs/stylex/lib/es/stylex.mjs
 		var styleq = {};
 		var hasRequiredStyleq;
 		function requireStyleq() {

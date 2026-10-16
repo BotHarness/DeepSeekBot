@@ -1,4 +1,8 @@
-import { assistantStreamFirstTokenTime, type AssistantStreamRecord } from '@deepseek-ai/dsh-llm';
+import {
+  assistantStreamFirstTokenTime,
+  isTokenDelta,
+  type AssistantStreamRecord,
+} from '@deepseek-ai/dsh-llm';
 
 import type { ChannelMessagePerf } from '../channels/channel.js';
 import type { DshSessionEvent } from '../sessions/source.js';
@@ -14,6 +18,7 @@ export interface MessagePerfTracker {
 interface SessionPerf {
   elapsedMs: number | undefined;
   outputTokens: number | undefined;
+  trustedUsage: boolean;
 }
 
 function record(value: unknown): Record<string, unknown> | undefined {
@@ -32,10 +37,28 @@ function generationTimeMs(event: DshSessionEvent): number | undefined {
   try {
     const records = stream as readonly AssistantStreamRecord[];
     const start = assistantStreamFirstTokenTime(records);
-    const last = records.at(-1);
-    if (start === undefined || last === undefined) return undefined;
-    const end =
-      last.type === 'chunk' ? last.time : last.dt.reduce((time, gap) => time + gap, last.time0);
+    if (start === undefined) return undefined;
+    let end: number | undefined;
+    for (let index = records.length - 1; index >= 0 && end === undefined; index -= 1) {
+      const item = records[index]!;
+      if (item.type === 'chunk') {
+        if (isTokenDelta(item.chunk)) end = item.time;
+        continue;
+      }
+      const fragments = item.type === 'tool-call-chunks' ? item.args : item.texts;
+      let time = item.dt.reduce((value, gap) => value + gap, item.time0);
+      for (let member = fragments.length - 1; member >= 0; member -= 1) {
+        if (
+          fragments[member] !== '' ||
+          (item.type === 'tool-call-chunks' && member === 0 && item.name !== undefined)
+        ) {
+          end = time;
+          break;
+        }
+        if (member > 0) time -= item.dt[member - 1]!;
+      }
+    }
+    if (end === undefined) return undefined;
     const elapsedMs = end - start;
     return Number.isFinite(elapsedMs) && elapsedMs >= MIN_WINDOW_MS ? elapsedMs : undefined;
   } catch {
@@ -43,11 +66,14 @@ function generationTimeMs(event: DshSessionEvent): number | undefined {
   }
 }
 
-function timedOutputTokens(event: DshSessionEvent): number | undefined {
+function timedOutputTokens(event: DshSessionEvent): {
+  outputTokens: number | undefined;
+  trustedUsage: boolean;
+} {
   const data = record(event.data);
   const usage = record(data?.['usage']);
   const output = safeCount(usage?.['outputTokens']);
-  if (output === undefined) return undefined;
+  if (output === undefined) return { outputTokens: undefined, trustedUsage: false };
   const stream = data?.['stream'];
   const streamedReasoning =
     Array.isArray(stream) &&
@@ -57,7 +83,10 @@ function timedOutputTokens(event: DshSessionEvent): number | undefined {
         (item.type === 'chunk' && item.chunk.type === 'reasoning-delta' && item.chunk.text !== ''),
     );
   const reasoning = streamedReasoning ? 0 : (safeCount(usage?.['reasoningTokens']) ?? 0);
-  return reasoning > output ? undefined : output - reasoning;
+  return {
+    outputTokens: reasoning > output ? undefined : output - reasoning,
+    trustedUsage: streamedReasoning || safeCount(usage?.['reasoningTokens']) !== undefined,
+  };
 }
 
 const NARROW = 4;
@@ -82,7 +111,7 @@ class PerfTracker implements MessagePerfTracker {
     } else if (event.type === 'assistant/message') {
       this.#sessions.set(sessionId, {
         elapsedMs: generationTimeMs(event),
-        outputTokens: timedOutputTokens(event),
+        ...timedOutputTokens(event),
       });
     }
   }
@@ -92,7 +121,10 @@ class PerfTracker implements MessagePerfTracker {
     const state = this.#sessions.get(sessionId);
     if (state === undefined || state.elapsedMs === undefined) return undefined;
     this.#sessions.delete(sessionId);
-    const estimate = estimateOutputTokens(body);
+    const estimate =
+      state.trustedUsage && state.outputTokens !== undefined
+        ? undefined
+        : estimateOutputTokens(body);
     const reported =
       state.outputTokens !== undefined &&
       (estimate === undefined || state.outputTokens <= estimate * UNTIMED_OUTPUT_RATIO)

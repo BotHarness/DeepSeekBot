@@ -31,6 +31,7 @@ function isPerfEligible(
   message: ChannelMessage,
 ): message is ChannelMessage & { perf: ChannelMessagePerf } {
   return (
+    message.contentPurged !== true &&
     message.author.kind === 'bot' &&
     message.streaming !== true &&
     message.pending !== true &&
@@ -47,8 +48,11 @@ export async function loadAveragePerf(
   const measured: ChannelMessage[] = [];
   let request: TimelinePageRequest = {};
   let scanned = 0;
-  while (measured.length < AVERAGE_PERF_WINDOW && scanned < AVERAGE_PERF_SCAN) {
+  let pages = 0;
+  while (measured.length < AVERAGE_PERF_WINDOW && scanned < AVERAGE_PERF_SCAN && pages < 4) {
+    pages += 1;
     const page = await loadPage(request);
+    if (page.entries.length === 0) break;
     for (let index = page.entries.length - 1; index >= 0; index -= 1) {
       if (scanned >= AVERAGE_PERF_SCAN) break;
       scanned += 1;

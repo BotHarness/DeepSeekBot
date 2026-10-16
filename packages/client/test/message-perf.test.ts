@@ -150,3 +150,24 @@ describe('message generation speed label', () => {
     });
   });
 });
+
+it('does not follow an empty pagination page indefinitely', async () => {
+  const load = vi.fn(async (): Promise<TimelinePage> => ({
+    entries: [],
+    hasOlder: true,
+    olderCursor: 'empty',
+    hasNewer: false,
+    newerCursor: null,
+  }));
+  expect(await loadAveragePerf(load)).toBeUndefined();
+  expect(load).toHaveBeenCalledTimes(1);
+});
+
+it('ignores purged measurements', () => {
+  const purged = message({
+    contentPurged: true,
+    perf: { outputTokens: 100, elapsedMs: 1000, estimated: false },
+  });
+  expect(messagePerfView(purged)).toBeUndefined();
+  expect(averagePerfView([purged])).toBeUndefined();
+});

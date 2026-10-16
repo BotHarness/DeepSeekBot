@@ -472,6 +472,7 @@ export interface RosterState {
 }
 
 export interface ClientState {
+  contentPurgeRevision?: number;
   composerIdentity?:
     | import('../../../core/src/bridge/composer-recovery.js').ComposerRecoveryIdentity
     | undefined;
@@ -716,11 +717,13 @@ export function createStore(): ClientStore {
 
   return {
     purgeContent(placements) {
+      if (placements.length === 0) return;
       redactions.accept(placements);
       for (const [id, conversation] of conversations)
         conversations.set(id, redactions.conversation(conversation));
       for (const [slug, inbox] of inboxesByBot) inboxesByBot.set(slug, redactions.botInbox(inbox));
       update({
+        contentPurgeRevision: (state.contentPurgeRevision ?? 0) + 1,
         channels: state.channels,
         conversation: state.conversation,
         botInbox: state.botInbox,

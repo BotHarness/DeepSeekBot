@@ -829,6 +829,12 @@ Messaging 的 bindings／grants 事务提交，以及进程内 Consumer lease �
 
 [ADR-0113](../adr/0113-shared-external-traffic-uses-member-channel-harvest.md) 将明确收件并首次放入 Group Channel 的普通外部来源，在同一 canonical 事务中按当前活跃成员各自的频道覆盖／Bot 默认策略建立 Admission。重投不会补发给后来加入的成员或重写策略快照；直接外部 @ 仍只走接收身份的既有提及路径。每成员使用既有 Channel count/time digest、有界最旧优先 harvest、安全 turn 排队和恢复；已放入 Group 的普通来源不再走身份专属外部 digest。接收 Bot 明确设置的话题 wake 覆盖保持独立分区，不影响其他成员。来源文本保留发送者、平台、外部消息 ID 和 Source Event；共享收件不授权借用身份。群频道侧栏的唤醒策略项按成员卡片读取 Host 的实际有效策略与继承来源，编辑沿用既有审计 owner；频道连接器仍只控制收件。无远端离线回填、新队列或共享 Inbox 存储。
 
+## Composer footer preferences and generation speed（#1958）
+
+The application-defined Client footer owns a browser-local display preference (`botharness.composer-footer.v1`): visible item order and left/right placement. Defaults show model, Workspace and token usage; speed is opt-in. Preferences never grant access or cross devices. A context menu and temporary pointer/keyboard arrangement mode share this preference. Desktop labels stay on one line with ellipsis; phone-width Web keeps its compact layout.
+
+The Host observes committed DSH `assistant/message` SessionEvents and keeps one process-local measurement per Session until the next step, reply consumption or Session disposal. A completed reply may carry optional `perf` metadata through the existing Channel/Source Event persistence and timeline projection; old messages require no backfill. Provider output counts are used when usable, otherwise reply text yields a labeled estimate. This is diagnostic metadata, not billing authority. The Client only loads averages while enabled on desktop: at most four pages/200 messages for up to 20 measured replies, refreshed on a completed measured reply, without polling or per-token scans. Hidden or purged content is excluded from displayed measurements.
+
 ## Client-local composer recovery（#1459）
 
 DM 与 Group 的未发送撰写上下文由 application-defined Client recovery owner 保存于浏览器 localStorage（ADR-0184；原设计编号 0160 已被其他决策占用），不进入 Source Event、Session Persistence、Bot Memory 或 telemetry。Host/Profile 通过 Host bridge 返回持久 opaque identity，组合可信 Human 与 canonical Channel ID 隔离草稿；身份未就绪或切换时不展示旧范围输入。正文、明确 mentions／Channel references、reply ID 和已上传附件引用逐次保存，不依赖卸载事件，也不保存 File 字节。
