@@ -1,3 +1,4 @@
+import { isChannelNotice } from '../channels/channel-notice.js';
 import { sourceContentPurged } from '../purge/fence.js';
 import { effectiveDmControls } from './dm-controls.js';
 import { decodeQqVoice } from '../attachments/qq-audio.js';
@@ -722,7 +723,25 @@ export function createOutboundMessaging(options: {
     }
   };
   const webDmText = (message: ChannelMessage): string | undefined => {
-    if (message.author.kind === 'bridged' || message.author.kind === 'system') return undefined;
+    if (
+      message.author.kind === 'bridged' ||
+      message.author.kind === 'system' ||
+      isChannelNotice(message) ||
+      message.toolApprovalRequest ||
+      message.toolApprovalDecision ||
+      message.userQuestionRequest ||
+      message.userQuestionResolution ||
+      message.privateInputRequest ||
+      message.privateInputResolution ||
+      message.sessionFailure ||
+      message.grantRequest ||
+      message.grantRequestResolution ||
+      message.onboardingWelcome ||
+      message.memberDeparture ||
+      message.turnStop ||
+      message.toolAutoApprovalOverride
+    )
+      return undefined;
     const text = [message.body, ...(message.attachments ?? []).map((item) => item.name)]
       .filter((line) => line.trim() !== '')
       .join('\n');

@@ -7,7 +7,7 @@ import type { OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
 import { attachOperationalModule } from '../src/database/owner.js';
 import { createBridgeMethods } from '../src/bridge/methods.js';
 import { channelBridgeRoutes } from '../src/messaging/channel-bridge.js';
-import { dmChannelId } from '../src/channels/channel.js';
+import { dmChannelId, type ChannelMessage } from '../src/channels/channel.js';
 import { createTempRoot } from './helpers.js';
 
 const cores: BotHarnessCore[] = [];
@@ -1032,4 +1032,55 @@ it('replays a projection-ready notification received during an active recovery p
   } finally {
     spy.mockRestore();
   }
+});
+
+it('keeps structured local Bot cards out of WeChat while forwarding ordinary replies', async () => {
+  const { core, transport, dm } = await fixture();
+  const cards = [
+    {
+      toolApprovalRequest: {
+        sessionId: 'session',
+        callId: 'call',
+        toolName: 'shell',
+        role: 'orchestrator',
+        cwd: '/workspace',
+        input: 'private operation',
+      },
+    },
+    { userQuestionRequest: { sessionId: 'session', questions: [] } },
+    {
+      privateInputRequest: {
+        account: 'test',
+        purpose: 'Private credential setup',
+        fields: [{ id: 'token', label: 'Token', required: true }],
+      },
+    },
+    {
+      sessionFailure: { role: 'orchestrator', sessionId: 'session', detail: 'Internal diagnostic' },
+    },
+    { grantRequest: true },
+    { botDmAction: { channelId: 'dm-other', messageId: 'other', recipientBotSlug: 'other' } },
+    { botChannelPost: { channelId: 'group-test', messageId: 'post' } },
+    { botCreateAction: { botSlug: 'other', displayName: 'Other' } },
+  ] satisfies Partial<ChannelMessage>[];
+  for (const card of cards) {
+    const message: ChannelMessage = {
+      id: randomUUID(),
+      at: new Date().toISOString(),
+      author: { kind: 'bot', slug: 'ada' },
+      body: 'Local control card, not conversation text',
+      ...card,
+    };
+    await core.externalMessaging.forwardWebDm({ channelId: dm.id, revision: 1, message });
+  }
+  expect(transport.sendChecked).not.toHaveBeenCalled();
+  expect((await core.externalMessaging.snapshot('ada')).intents).toHaveLength(0);
+  await core.channels.appendMessage(dm.id, {
+    id: randomUUID(),
+    at: new Date().toISOString(),
+    author: { kind: 'bot', slug: 'ada' },
+    body: 'Ordinary reply',
+  });
+  await vi.waitFor(() => expect(transport.sendChecked).toHaveBeenCalledTimes(1));
+  expect(vi.mocked(transport.sendChecked).mock.calls[0]?.[2]).toBe('Ordinary reply');
 });
