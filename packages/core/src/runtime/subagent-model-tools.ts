@@ -200,7 +200,7 @@ export function installBotSubagentModelTools(
       },
       execute: async () => {
         const plan = resolvePlan();
-        if (plan === undefined)
+        if (plan?.assignmentDefault === undefined)
           return 'No Model Preset is applied; Subagents inherit the parent route.';
         return JSON.stringify({
           default: plan.assignmentDefault,

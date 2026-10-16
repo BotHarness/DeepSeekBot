@@ -101,7 +101,7 @@ _避免使用_：Channel pin、Channel membership、Agent Scope
 _避免使用_：DSH Agent preset、SoulSnapshot
 
 **PersonaBot Model Plan**：
-PersonaBot 模型方案。某个 PersonaBot 持有的模型预设快照或 Human 自定义选择，决定其 Orchestrator 路由与后续 Assignment 的模型选择。它属于运行配置，不属于 Soul 或 Memory。
+PersonaBot 模型方案。某个 PersonaBot 持有的模型预设快照或 Human 自定义选择，决定其 Orchestrator 路由与后续 Assignment 的模型选择。其 Assignment 策略可继续继承全局模型，而 Orchestrator 独立定制。它属于运行配置，不属于 Soul 或 Memory。
 _避免使用_：Soul、DSH Agent preset、model usage
 
 ### 支撑与执行

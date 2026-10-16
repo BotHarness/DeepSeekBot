@@ -1034,7 +1034,7 @@ function SessionsHeaderWithSettings({
           },
           {
             id: 'model:assignment',
-            label: `${t('modelPreset.assignment')} · ${plan === null ? t('onboarding.inherit') : routeLabel(plan?.assignmentDefault)}`,
+            label: `${t('modelPreset.assignment')} · ${plan === undefined ? '…' : plan?.assignmentDefault === undefined ? t('onboarding.inherit') : routeLabel(plan.assignmentDefault)}`,
           },
         ]),
     ...(prefs === undefined || limit === undefined

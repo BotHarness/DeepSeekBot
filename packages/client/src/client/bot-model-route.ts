@@ -94,22 +94,16 @@ export function botEffortChoices(
 }
 
 export function applyBotModelRoute(
-  actions: Pick<BridgeActions, 'customizeModelPlan' | 'setModelPlan'>,
+  actions: Pick<BridgeActions, 'customizeModelPlan'>,
   slug: string,
   state: ModelPlanStateView,
   route: ModelRouteView,
 ): Promise<ModelPlanView> {
-  const request =
-    state.plan !== undefined
-      ? actions.customizeModelPlan(slug, route)
-      : actions.setModelPlan(slug, state.revision ?? 0, route, route, [
-          {
-            provider: route.provider,
-            model: route.model,
-            allowedEfforts: [route.reasoningEffort ?? ''],
-            defaultEffort: route.reasoningEffort ?? '',
-          },
-        ]);
+  const request = actions.customizeModelPlan(
+    slug,
+    route,
+    state.plan?.revision ?? state.revision ?? 0,
+  );
   return request.then((plan) => {
     rememberModelPlan(slug, plan);
     return plan;

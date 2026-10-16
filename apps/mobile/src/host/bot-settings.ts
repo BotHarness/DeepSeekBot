@@ -32,7 +32,7 @@ export interface ModelPlan {
   sourcePresetId: string;
   sourcePresetName: string;
   orchestrator: ModelRoute;
-  assignmentDefault: ModelRoute;
+  assignmentDefault?: ModelRoute;
   assignmentModels?: AssignmentModelOption[];
 }
 
@@ -125,7 +125,11 @@ function plan(value: unknown): ModelPlan | undefined {
   const row = record(value);
   const orchestrator = route(row?.['orchestrator']);
   const assignmentDefault = route(row?.['assignmentDefault']);
-  if (row === undefined || orchestrator === undefined || assignmentDefault === undefined)
+  if (
+    row === undefined ||
+    orchestrator === undefined ||
+    (row['assignmentDefault'] !== undefined && assignmentDefault === undefined)
+  )
     return undefined;
   if (typeof row['revision'] !== 'number') return undefined;
   const assignmentModels = Array.isArray(row['assignmentModels'])
@@ -136,7 +140,7 @@ function plan(value: unknown): ModelPlan | undefined {
     sourcePresetId: text(row['sourcePresetId']) ? row['sourcePresetId'] : '',
     sourcePresetName: text(row['sourcePresetName']) ? row['sourcePresetName'] : '',
     orchestrator,
-    assignmentDefault,
+    ...(assignmentDefault === undefined ? {} : { assignmentDefault }),
     ...(assignmentModels === undefined ? {} : { assignmentModels }),
   };
 }
@@ -232,8 +236,6 @@ export function modelChoice(
 ): {
   expectedRevision: number;
   orchestrator: ModelRoute;
-  assignmentDefault: ModelRoute;
-  assignmentModels: AssignmentModelOption[];
 } {
   const previous = model.plan?.orchestrator;
   const effort = sameModel(entry, previous) ? previous?.reasoningEffort : undefined;
@@ -242,20 +244,9 @@ export function modelChoice(
     model: entry.model,
     ...(effort === undefined ? {} : { reasoningEffort: effort }),
   };
-  const assignmentDefault = model.plan?.assignmentDefault ?? orchestrator;
-  const assignmentModels = model.plan?.assignmentModels ?? [
-    {
-      provider: assignmentDefault.provider,
-      model: assignmentDefault.model,
-      allowedEfforts: [assignmentDefault.reasoningEffort ?? ''],
-      defaultEffort: assignmentDefault.reasoningEffort ?? '',
-    },
-  ];
   return {
     expectedRevision: model.plan?.revision ?? model.revision,
     orchestrator,
-    assignmentDefault,
-    assignmentModels,
   };
 }
 
@@ -266,8 +257,8 @@ export async function chooseModel(
   entry: Pick<ModelCatalogEntry, 'provider' | 'model'>,
 ): Promise<ModelPlan> {
   return planResult(
-    await client.call<unknown>('modelPlanSet', { slug, ...modelChoice(model, entry) }),
-    'modelPlanSet',
+    await client.call<unknown>('modelPlanCustomize', { slug, ...modelChoice(model, entry) }),
+    'modelPlanCustomize',
   );
 }
 

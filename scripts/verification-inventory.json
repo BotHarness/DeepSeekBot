@@ -466,6 +466,13 @@
       "guide": ".agents/skills/verify-deepseekbot/features/composer-footer.md",
       "task": 1958,
       "gap": null
+    },
+    {
+      "id": "orchestrator-model-switch",
+      "label": "Orchestrator-only quick model switching with Assignment inheritance",
+      "source": "packages/client/src/client/dm-composer-context.tsx",
+      "task": 2000,
+      "guide": ".agents/skills/verify-deepseekbot/features/orchestrator-model-switch.md"
     }
   ],
   "scripts": [

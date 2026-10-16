@@ -19,6 +19,7 @@ export interface ComposerShortcut {
   icon?: ReactNode;
   disabled?: boolean;
   reason?: string | undefined;
+  scope?: string;
   selected?: boolean;
   run(): void;
   choices?(argument: string): readonly ComposerShortcut[];

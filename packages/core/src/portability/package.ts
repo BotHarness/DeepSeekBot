@@ -409,7 +409,8 @@ export async function exportProfileBackup(
             for (const [role, route] of [
               ['orchestrator', bot.modelPlan.orchestrator],
               ['assignment', bot.modelPlan.assignmentDefault],
-            ] as const)
+            ] as const) {
+              if (route === undefined) continue;
               dependencies.push({
                 kind: 'model',
                 scope: bot.slug + '/' + role,
@@ -417,6 +418,7 @@ export async function exportProfileBackup(
                 required: true,
                 contract: 'model-route/1',
               });
+            }
             for (const option of bot.modelPlan.assignmentModels ?? [])
               dependencies.push({
                 kind: 'model',

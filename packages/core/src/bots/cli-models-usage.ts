@@ -256,8 +256,12 @@ export async function runModelsUsage(
     const effort = values['orchestrator-effort']?.trim();
     if (!provider || !model)
       usage('--orchestrator-provider and --orchestrator-model are required.');
-    return (await connect())('modelPlanCustomize', {
+    const rpc = await connect();
+    const expectedRevision =
+      expected ?? (await rpc<ModelPlanState>('modelPlan', { slug: target })).revision ?? 0;
+    return rpc('modelPlanCustomize', {
       slug: target,
+      expectedRevision,
       orchestrator: {
         provider,
         model,

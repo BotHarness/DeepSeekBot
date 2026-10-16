@@ -79,9 +79,10 @@ interface ModelDraft {
 }
 
 function allowedOf(
-  assignmentDefault: ModelRouteView,
+  assignmentDefault: ModelRouteView | undefined,
   assignmentModels: readonly AssignmentModelOptionView[] | undefined,
 ): AssignmentModelOptionView[] {
+  if (assignmentDefault === undefined) return [];
   return (
     assignmentModels ?? [
       {
@@ -104,8 +105,8 @@ function draftOf(
       effort: source.orchestrator.reasoningEffort ?? '',
     },
     assignment: {
-      key: modelKey(source.assignmentDefault),
-      effort: source.assignmentDefault.reasoningEffort ?? '',
+      key: source.assignmentDefault === undefined ? '' : modelKey(source.assignmentDefault),
+      effort: source.assignmentDefault?.reasoningEffort ?? '',
     },
     allowed: allowedOf(source.assignmentDefault, source.assignmentModels),
     advanced:
@@ -306,7 +307,7 @@ export function ModelPresetProfile({
   const canSave =
     draft !== undefined &&
     inCatalog(draft.orchestrator.key) &&
-    inCatalog(draft.assignment.key) &&
+    (draft.assignment.key === '' || inCatalog(draft.assignment.key)) &&
     !busy;
 
   const finish = (applied: ModelPlanView): void => {
@@ -326,13 +327,19 @@ export function ModelPresetProfile({
       const applied =
         draft.presetId !== '' && presets.some((preset) => preset.id === draft.presetId)
           ? await actions.applyModelPreset(slug, draft.presetId)
-          : await actions.setModelPlan(
-              slug,
-              plan?.revision ?? revision,
-              routeOfKey(draft.orchestrator.key, draft.orchestrator.effort),
-              assignmentRoute(draft),
-              finalAllowed(draft),
-            );
+          : draft.assignment.key === ''
+            ? await actions.customizeModelPlan(
+                slug,
+                routeOfKey(draft.orchestrator.key, draft.orchestrator.effort),
+                plan?.revision ?? revision,
+              )
+            : await actions.setModelPlan(
+                slug,
+                plan?.revision ?? revision,
+                routeOfKey(draft.orchestrator.key, draft.orchestrator.effort),
+                assignmentRoute(draft),
+                finalAllowed(draft),
+              );
       finish(applied);
     } catch (failure) {
       setError(errorMessage(failure));
@@ -343,7 +350,7 @@ export function ModelPresetProfile({
 
   const saveAsPreset = async (): Promise<void> => {
     const name = presetName?.trim() ?? '';
-    if (!canSave || draft === undefined || name === '') return;
+    if (!canSave || draft === undefined || draft.assignment.key === '' || name === '') return;
     setBusy(true);
     setError(undefined);
     try {
@@ -532,7 +539,7 @@ export function ModelPresetProfile({
   };
 
   const modeControl =
-    draft === undefined ? null : (
+    draft === undefined || draft.assignment.key === '' ? null : (
       <SegmentedControl
         id="bh-model-task-mode"
         value={draft.advanced ? 'advanced' : 'simple'}
@@ -576,7 +583,11 @@ export function ModelPresetProfile({
             hint={t('modelPreset.assignmentHint')}
             choice={draft.assignment}
             catalog={catalog}
-            options={modelOptions}
+            options={
+              plan?.assignmentDefault === undefined
+                ? [{ value: '', label: t('onboarding.inherit') }, ...modelOptions]
+                : modelOptions
+            }
             onChange={(assignment) =>
               edit({
                 assignment,
@@ -683,7 +694,11 @@ export function ModelPresetProfile({
                 <Tag tone="quiet">{t('modelPreset.moreAllowed', { count: extraAllowed })}</Tag>
               ) : undefined
             }
-            meta={routeLabel(plan.assignmentDefault, t('modelPreset.providerDefault'))}
+            meta={
+              plan.assignmentDefault === undefined
+                ? t('onboarding.inherit')
+                : routeLabel(plan.assignmentDefault, t('modelPreset.providerDefault'))
+            }
             onClick={openEditor}
             dialog
           />
@@ -700,7 +715,7 @@ export function ModelPresetProfile({
           secondary={
             <Button
               variant="ghost"
-              disabled={!canSave || presetName !== undefined}
+              disabled={!canSave || draft?.assignment.key === '' || presetName !== undefined}
               onClick={() => setPresetName('')}
             >
               {t('modelPreset.saveAs')}

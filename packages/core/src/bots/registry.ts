@@ -227,7 +227,9 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
         sourcePresetName: plan.sourcePresetName,
         appliedAt: plan.appliedAt,
         orchestrator: route(plan.orchestrator),
-        assignmentDefault: route(plan.assignmentDefault),
+        ...(plan.assignmentDefault === undefined
+          ? {}
+          : { assignmentDefault: route(plan.assignmentDefault) }),
         ...(plan.assignmentModels === undefined
           ? {}
           : {
@@ -826,12 +828,12 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
     customizeModelPlan(slug, orchestrator, expectedRevision) {
       const record = active(slug);
       if (record === undefined) return { ok: false, reason: 'not-found' };
-      if (record.modelPlan === undefined) return { ok: false, reason: 'invalid-input' };
-      if (record.modelPlan.revision !== expectedRevision)
-        return { ok: false, reason: 'invalid-input' };
+      if (record.model !== undefined) return { ok: false, reason: 'invalid-input' };
+      const revision = record.modelPlan?.revision ?? record.modelPlanRevision ?? 0;
+      if (revision !== expectedRevision) return { ok: false, reason: 'invalid-input' };
       record.modelPlan = {
         ...record.modelPlan,
-        revision: record.modelPlan.revision + 1,
+        revision: revision + 1,
         sourcePresetId: '',
         sourcePresetName: '',
         orchestrator: { ...orchestrator },

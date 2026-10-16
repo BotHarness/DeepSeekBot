@@ -6,7 +6,7 @@ import {
   type Ref,
   type ReactElement,
 } from 'react';
-import { Toast } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Button, Toast } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { BridgeActions } from './actions.js';
 import type {
   ModelCatalogView,
@@ -43,6 +43,8 @@ import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { DmComposerUsagePopover } from './dm-composer-usage.js';
 import { ComposerContextBar, type ComposerFooterHandle } from './composer-context-bar.js';
 import { ChipButton } from './ds/chip-button.js';
+import { ModelPicker } from './model-picker.js';
+import { Note } from './ds/note.js';
 
 const subscribeUnavailable = (): (() => void) => () => {};
 const unavailableSnapshot = () => undefined;
@@ -69,7 +71,10 @@ export function useDmComposerContext({
   avgPerf?: AveragePerfView | undefined;
 }): ComposerContext | undefined {
   const footerSettings = useRef<ComposerFooterHandle>(null);
-  const [panel, setPanel] = useState<{ slug: string; kind: 'model' | 'workspace' }>();
+  const [panel, setPanel] = useState<{
+    slug: string;
+    kind: 'model' | 'model-settings' | 'workspace';
+  }>();
   const plan = useSyncExternalStore(
     subscribeModelPlans,
     () => modelPlanOf(bot?.slug),
@@ -160,7 +165,7 @@ export function useDmComposerContext({
   const selected = companion?.get(bot.slug) !== undefined;
   const ready = companionState?.ready === true;
   const slug = bot.slug;
-  const open = (kind: 'model' | 'workspace') => setPanel({ slug, kind });
+  const open = (kind: 'model' | 'model-settings' | 'workspace') => setPanel({ slug, kind });
   const route = plan?.orchestrator ?? data?.inheritedRoute;
   const defaultEffort = t('modelPreset.providerDefault');
   const applyModelRoute = (route: ModelRouteView): void => {
@@ -194,7 +199,8 @@ export function useDmComposerContext({
   const shortcuts: ComposerShortcut[] = [
     {
       id: 'model',
-      label: t('entry.model'),
+      scope: t('composerModel.scope'),
+      label: t('composerModel.title'),
       icon: <ChannelSidebarIcon name="cpu" />,
       run: () => open('model'),
       choices: (argument) =>
@@ -204,6 +210,7 @@ export function useDmComposerContext({
     },
     {
       id: 'effort',
+      scope: t('composerModel.scope'),
       label: t('composerCommand.effort'),
       icon: <ChannelSidebarIcon name="ruler" />,
       run: () => open('model'),
@@ -234,7 +241,10 @@ export function useDmComposerContext({
   ];
   return {
     target: bot.slug,
-    shortcuts: [...shortcuts, { id: 'footer', label: t('footer.settings'), run: () => footerSettings.current?.open() }],
+    shortcuts: [
+      ...shortcuts,
+      { id: 'footer', label: t('footer.settings'), run: () => footerSettings.current?.open() },
+    ],
     content: (
       <>
         <span ref={modelMount} aria-hidden="true" style={{ display: 'contents' }} />
@@ -255,6 +265,8 @@ export function useDmComposerContext({
           models={catalog?.models ?? []}
           modelStatus={modelStatus}
           route={route}
+          modelBusy={modelBusy}
+          applyModelRoute={applyModelRoute}
         />
         {modelError === undefined ? null : (
           <Toast
@@ -285,6 +297,8 @@ function DmComposerContextView({
   models,
   modelStatus,
   route,
+  modelBusy,
+  applyModelRoute,
 }: {
   footerSettings?: Ref<ComposerFooterHandle>;
   bot: BotSummary;
@@ -295,12 +309,14 @@ function DmComposerContextView({
   t: BotHarnessTranslate;
   onUsage(): void;
   avgPerf?: AveragePerfView | undefined;
-  onOpen(kind: 'model' | 'workspace'): void;
-  panel: 'model' | 'workspace' | undefined;
+  onOpen(kind: 'model' | 'model-settings' | 'workspace'): void;
+  panel: 'model' | 'model-settings' | 'workspace' | undefined;
   onClose(): void;
   models: readonly ModelCatalogEntryView[];
   modelStatus: 'loading' | 'ready' | 'unavailable';
   route: ModelRouteView | undefined;
+  modelBusy: boolean;
+  applyModelRoute(route: ModelRouteView): void;
 }): ReactElement {
   const [grants, setGrants] = useState<WorkspaceGrantView[]>();
   const [grantError, setGrantError] = useState(false);
@@ -437,11 +453,56 @@ function DmComposerContextView({
         <PanelDialog
           size="medium"
           fill
-          title={`${t(panel === 'model' ? 'entry.model' : 'entry.workspaceGrants')} · ${bot.displayName}`}
+          title={`${t(panel === 'model' ? 'composerModel.title' : panel === 'model-settings' ? 'entry.model' : 'entry.workspaceGrants')} · ${bot.displayName}`}
           closeLabel={t('approval.cancel')}
           onClose={onClose}
         >
           {panel === 'model' ? (
+            <>
+              <ModelPicker
+                title={t('composerModel.title')}
+                hint={t('composerModel.scope')}
+                choice={{
+                  key: route === undefined ? '' : JSON.stringify([route.provider, route.model]),
+                  effort: route?.reasoningEffort ?? '',
+                }}
+                catalog={models}
+                options={models
+                  .filter((entry) => entry.credential === undefined)
+                  .map((entry) => ({
+                    value: JSON.stringify([entry.provider, entry.model]),
+                    label: entry.modelName,
+                    hint: entry.providerName,
+                  }))}
+                onChange={(choice) => {
+                  const entry = models.find(
+                    (entry) => JSON.stringify([entry.provider, entry.model]) === choice.key,
+                  );
+                  if (entry === undefined) return;
+                  const same = route?.provider === entry.provider && route.model === entry.model;
+                  const effort = same
+                    ? choice.effort
+                    : botModelChoices(
+                        route,
+                        { models: [entry] },
+                        t('modelPreset.providerDefault'),
+                        '',
+                      )[0]?.route.reasoningEffort;
+                  applyModelRoute({
+                    provider: entry.provider,
+                    model: entry.model,
+                    ...(effort ? { reasoningEffort: effort } : {}),
+                  });
+                }}
+                disabled={modelBusy || modelStatus !== 'ready'}
+                t={t}
+              />
+              <Note>{t('composerModel.nextTurn')}</Note>
+              <Button variant="ghost" onClick={() => onOpen('model-settings')}>
+                {t('composerModel.taskSettings')}
+              </Button>
+            </>
+          ) : panel === 'model-settings' ? (
             <ModelPresetProfile slug={bot.slug} actions={actions} t={t} />
           ) : (
             <WorkspaceGrantsEntry

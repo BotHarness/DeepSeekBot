@@ -437,7 +437,11 @@ export interface BridgeActions {
     assignmentDefault: ModelRouteView,
   ): Promise<ModelPresetView>;
   applyModelPreset(slug: string, presetId: string): Promise<ModelPlanView>;
-  customizeModelPlan(slug: string, orchestrator: ModelRouteView): Promise<ModelPlanView>;
+  customizeModelPlan(
+    slug: string,
+    orchestrator: ModelRouteView,
+    expectedRevision?: number,
+  ): Promise<ModelPlanView>;
   setStandingLimits(slug: string, limits: StandingLimitsView): Promise<BotSummary>;
   setModelPlanAssignments(
     slug: string,
@@ -1562,7 +1566,8 @@ export function createActions(
     updateModelPreset: (id, expectedRevision, name, orchestrator, assignmentDefault) =>
       updateModelPreset(call, id, expectedRevision, name, orchestrator, assignmentDefault),
     applyModelPreset: (slug, presetId) => applyModelPreset(call, slug, presetId),
-    customizeModelPlan: (slug, orchestrator) => customizeModelPlan(call, slug, orchestrator),
+    customizeModelPlan: (slug, orchestrator, expectedRevision) =>
+      customizeModelPlan(call, slug, orchestrator, expectedRevision),
     setStandingLimits: (slug, limits) => setStandingLimits(call, slug, limits),
     setModelPlanAssignments: (slug, expectedRevision, assignmentDefault, assignmentModels) =>
       setModelPlanAssignments(call, slug, expectedRevision, assignmentDefault, assignmentModels),

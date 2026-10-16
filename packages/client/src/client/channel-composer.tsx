@@ -1129,6 +1129,12 @@ export function ChannelComposer({
           role="menu"
           aria-label={t('composerContext.actions')}
         >
+          {slashQuery?.argument !== undefined &&
+          context?.shortcuts.find((item) => item.id === slashQuery.filter)?.scope ? (
+            <div className="bh-note" role="presentation">
+              {context.shortcuts.find((item) => item.id === slashQuery.filter)?.scope}
+            </div>
+          ) : null}
           {shortcutOptions.map((shortcut, index) => (
             <button
               key={shortcut.key ?? shortcut.id}

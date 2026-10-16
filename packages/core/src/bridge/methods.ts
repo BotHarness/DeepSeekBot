@@ -2120,8 +2120,16 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       }
       const bot = deps.registry.get(slug);
       if (bot === undefined) return unknownBot(slug);
-      if (bot.modelPlan === undefined) return invalidInput('Apply a Model Preset first');
-      const expectedRevision = bot.modelPlan.revision;
+      if (bot.model !== undefined)
+        return invalidInput('Repair the legacy model before customizing');
+      const expectedRevision =
+        source['expectedRevision'] ?? bot.modelPlan?.revision ?? bot.modelPlanRevision ?? 0;
+      if (
+        typeof expectedRevision !== 'number' ||
+        !Number.isSafeInteger(expectedRevision) ||
+        expectedRevision < 0
+      )
+        return invalidInput('A valid expected revision is required');
       try {
         await deps.modelCatalog.validate(orchestrator);
         const result = deps.registry.customizeModelPlan(slug, orchestrator, expectedRevision);

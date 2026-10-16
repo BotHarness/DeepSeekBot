@@ -650,7 +650,7 @@ describe('bridge methods', () => {
     });
     const readiness = createModelRouteReadiness(registry, catalog);
     await expect(readiness.prepare('ada', 'orchestrator')).resolves.toBeUndefined();
-    await expect(readiness.prepare('ada', 'assignment')).rejects.toThrow(
+    await expect(readiness.prepare('ada', 'assignment', missing)).rejects.toThrow(
       'select an available Model Preset',
     );
     const preset = modelPresets.create({
@@ -1199,6 +1199,43 @@ describe('bridge methods', () => {
       revision: 2,
       orchestrator: low,
     });
+  });
+  it('creates only an Orchestrator override, validates revisions, and keeps Assignment inheritance at readiness', async () => {
+    const route = { provider: 'deepseek', model: 'flash' };
+    const validate = vi.fn(async () => undefined);
+    const catalog: ModelCatalog = { list: async () => [], validate };
+    const { registry, methods } = setup(
+      [],
+      ['ada'],
+      undefined,
+      createTestOwnership(),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      catalog,
+    );
+    registry.create({ slug: 'ada', displayName: 'Ada' });
+    const result = await methods.modelPlanCustomize({
+      slug: 'ada',
+      orchestrator: route,
+      expectedRevision: 0,
+    });
+    expect(result).toMatchObject({
+      ok: true,
+      value: { plan: { revision: 1, orchestrator: route } },
+    });
+    expect(registry.get('ada')?.modelPlan).not.toHaveProperty('assignmentDefault');
+    expect(registry.get('ada')?.modelPlan).not.toHaveProperty('assignmentModels');
+    expect(
+      await methods.modelPlanCustomize({ slug: 'ada', orchestrator: route, expectedRevision: 0 }),
+    ).toMatchObject({ ok: false });
+    const readiness = createModelRouteReadiness(registry, catalog);
+    validate.mockClear();
+    await readiness.prepare('ada', 'assignment');
+    expect(validate).not.toHaveBeenCalled();
+    await readiness.prepare('ada', 'orchestrator');
+    expect(validate).toHaveBeenCalledWith(route);
   });
   it('rejects stale customization when a preset is applied during model validation', async () => {
     const high = { provider: 'deepseek', model: 'flash', reasoningEffort: 'high' };

@@ -1606,6 +1606,50 @@ describe('DSH Bot Agent adapter', () => {
     await adapter.close();
   });
 
+  it.each([undefined, { provider: 'fixed', model: 'assignment' }])(
+    'keeps a retained Assignment route or global inheritance after an Orchestrator-only change: %j',
+    async (retained) => {
+      const host = new FakeAgentHost();
+      let globalRoute = { provider: 'global', model: 'before' };
+      let plan = {
+        revision: 1,
+        sourcePresetId: '',
+        sourcePresetName: '',
+        orchestrator: { provider: 'chat', model: 'one' },
+        appliedAt: BOT.createdAt,
+      };
+      const adapter = createDshBotAgentAdapter({
+        agents: host,
+        defaultModel: { currentSelection: () => globalRoute },
+        resolveModelPlan: () => plan,
+        orchestratorCwd: () => '/memory/ada',
+        ensureWorkspace: () => undefined,
+      });
+      const run: AssignmentAgentRun = {
+        sessionId: 'inherited-assignment',
+        bot: BOT,
+        purpose: 'Inspect',
+        ...(retained === undefined ? {} : { modelRoute: retained }),
+        permission: {
+          grantId: 'grant-1',
+          workspaceId: 'workspace-1',
+          primaryCwd: '/project',
+          mode: 'workspace-write',
+          approval: 'ask',
+          presetRevision: 0,
+        },
+        report: async (input) => ({ ...input, at: BOT.createdAt }),
+      };
+      await adapter.runAssignment(run);
+      expect(await host.selectedModel(run.sessionId)).toEqual(retained ?? globalRoute);
+      plan = { ...plan, revision: 2, orchestrator: { provider: 'chat', model: 'two' } };
+      globalRoute = { provider: 'global', model: 'after' };
+      const next = adapter.requestAssignment({ ...run, resume: true, purpose: 'Continue' });
+      if (next.delivery === 'followup') await next.done;
+      expect(await host.selectedModel(run.sessionId)).toEqual(retained ?? globalRoute);
+      await adapter.close();
+    },
+  );
   it('uses a distinct prompt for a dangerous Assignment snapshot', async () => {
     const host = new FakeAgentHost();
     const adapter = createDshBotAgentAdapter({

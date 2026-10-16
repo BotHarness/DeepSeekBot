@@ -124,7 +124,7 @@ describe('Bot model from the composer', () => {
 
   it('switches the main model and keeps the Assignment models of the current plan', async () => {
     const fake = new FakeHost();
-    fake.methods.set('modelPlanSet', (args) => ({
+    fake.methods.set('modelPlanCustomize', (args) => ({
       plan: { ...plan, revision: 5, orchestrator: args['orchestrator'] },
     }));
     const model = {
@@ -138,13 +138,11 @@ describe('Bot model from the composer', () => {
 
     expect(calls(fake)).toEqual([
       [
-        'modelPlanSet',
+        'modelPlanCustomize',
         {
           slug,
           expectedRevision: 4,
           orchestrator: flash,
-          assignmentDefault: flash,
-          assignmentModels: plan.assignmentModels,
         },
       ],
     ]);
@@ -155,21 +153,21 @@ describe('Bot model from the composer', () => {
     expect(fake.calls[0]?.args['orchestrator']).toEqual({ ...pro, reasoningEffort: 'high' });
   });
 
-  it('starts a plan from the chosen model when the Bot inherits the default', async () => {
+  it('customizes only the Orchestrator when the Bot inherits the default', async () => {
     const fake = new FakeHost();
-    fake.methods.set('modelPlanSet', (args) => ({ plan: { ...plan, ...args, revision: 3 } }));
+    fake.methods.set('modelPlanCustomize', (args) => ({
+      plan: { revision: 3, orchestrator: args['orchestrator'] },
+    }));
 
     await chooseModel(client(fake), slug, { revision: 2, models: [], presets: [] }, pro);
 
     expect(calls(fake)).toEqual([
       [
-        'modelPlanSet',
+        'modelPlanCustomize',
         {
           slug,
           expectedRevision: 2,
           orchestrator: pro,
-          assignmentDefault: pro,
-          assignmentModels: [{ ...pro, allowedEfforts: [''], defaultEffort: '' }],
         },
       ],
     ]);

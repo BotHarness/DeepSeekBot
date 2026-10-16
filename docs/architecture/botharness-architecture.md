@@ -197,6 +197,8 @@ Model Preset 的当前模板存储由 Profile SQLite 的 owning module 管理，
 
 Model Preset 是部署本地可复用模板；Human 在 Profile 应用时，PersonaBot 保存独立 Model Plan 快照，后续模板编辑不传播到已应用的 Bot。Plan 固定 Orchestrator 的 provider／model／reasoning effort，并定义 Assignment 可用的精确模型、各模型允许及默认的 effort 和默认模型。Host 在每个执行入口按当前 Plan 验证选择，而 DSH SessionEvent 记录实际调用：Orchestrator 的变更在当前 Turn 结束后生效，已有 Assignment 保留当前路由，之后的显式切换按最新 Plan 校验；新建 DSH Subagent 默认继承仍获允许的父路由，否则选当前 Assignment 默认并告知父 Agent。不可用或有歧义的路由停止请求，交由 Human 修复，不静默回退。Model Preset 与 Model Plan 可进入保持身份的 Profile Backup，不进入 SoulSnapshot 或 PersonaBot Export（ADR-0027、ADR-0093，#488）。
 
+快捷模型／effort 切换只修改此 PersonaBot 的 Orchestrator，并在下一 Turn 生效；DM 不猜测某个 Assignment 作为目标。Model Plan 可以同时省略 `assignmentDefault` 与 `assignmentModels`，表示任务继续继承 Profile 全局模型；既有固定任务配置不变。Registry 的 `modelPlanCustomize` 用 revision 校验创建或修改这种独立配置，Web、移动端和 CLI 共用该 Host 操作。已有 Assignment 仅使用自己保留的路由；没有保留路由时继续继承全局，不补用后来出现的 Bot 任务默认值。完整模型设置显示继承状态，选择完整模板或任务模型才建立固定任务策略（[ADR-0218](../adr/0218-quick-model-selection-only-customizes-the-orchestrator.md)，#2000）。
+
 当前命名模板保存在 `botharness.db` 的 `model_presets` 表（#883，取代 #498 初始 JSON 存储），应用后的独立快照及修订号保存在 owning Registry 的 SQLite 记录中（#884），后续模板修改不会自动替换。Profile 经现有 Host Bridge 读取 DSH 当前注册的 provider、model 与 effort 能力，并在创建及应用时校验确切路由；Orchestrator 的 Agent-scoped Model Selection 在每个新 Turn 前读取最新快照，不修改 DSH 部署默认值。DSH 请求头仍是实际调用路由的事实来源（#498）。
 
 后续切片允许 Human 修订命名模板而只改变未来应用的值与模板修订；Profile 的紧凑切换按当前模板复制新 Bot 快照，手动改一个 Bot 的 Orchestrator 路由则清除模板来源标记、保留 Assignment 默认值并增加 Bot 计划修订。Host Bridge 在写入前验证现有 DSH 路由，正在执行的 Turn 持续使用其已组装选择，下一 Turn 才重新读取 Bot 快照（#501）。

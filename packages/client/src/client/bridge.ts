@@ -182,7 +182,7 @@ export interface ModelPlanView {
   sourcePresetId: string;
   sourcePresetName: string;
   orchestrator: ModelRouteView;
-  assignmentDefault: ModelRouteView;
+  assignmentDefault?: ModelRouteView;
   assignmentModels?: AssignmentModelOptionView[];
   appliedAt: string;
 }
@@ -293,8 +293,11 @@ export async function customizeModelPlan(
   call: BridgeCall,
   slug: string,
   orchestrator: ModelRouteView,
+  expectedRevision?: number,
 ): Promise<ModelPlanView> {
-  const value = asRecord(await unwrap(call, 'modelPlanCustomize', { slug, orchestrator }));
+  const value = asRecord(
+    await unwrap(call, 'modelPlanCustomize', { slug, orchestrator, expectedRevision }),
+  );
   if (asRecord(value?.['plan']) === undefined) throw new Error('Invalid Model Plan result');
   return value!['plan'] as ModelPlanView;
 }

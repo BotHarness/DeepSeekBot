@@ -662,8 +662,9 @@ export class BotharnessBridgeService extends TypertRemoteService {
   modelPlanCustomize(
     slug: string,
     orchestrator: ModelRoute,
+    expectedRevision?: number,
   ): Promise<{ plan: PersonaBotModelPlan }> {
-    return unwrapAsync(this.methods.modelPlanCustomize({ slug, orchestrator }));
+    return unwrapAsync(this.methods.modelPlanCustomize({ slug, orchestrator, expectedRevision }));
   }
 
   modelPlanAssignmentsSet(

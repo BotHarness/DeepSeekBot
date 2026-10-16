@@ -255,9 +255,8 @@ function agentOptions(
   defaultSelection: ModelSelection,
   plan: PersonaBotModelPlan | undefined,
 ): ModelSelection {
-  if (plan !== undefined) {
-    const route: ModelRoute =
-      'inboundChannelId' in run ? plan.orchestrator : (run.modelRoute ?? plan.assignmentDefault);
+  const route = 'inboundChannelId' in run ? plan?.orchestrator : run.modelRoute;
+  if (route !== undefined) {
     return {
       provider: route.provider,
       model: route.model,
@@ -894,7 +893,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
             throw new Error('list_assignment_models: Orchestrator run is unavailable');
           const plan = this.#resolveModelPlan?.(run.bot.slug) ?? run.bot.modelPlan;
           return JSON.stringify(
-            plan === undefined
+            plan?.assignmentDefault === undefined
               ? { configured: false, message: 'Ask the Human to apply a Model Preset first' }
               : {
                   configured: true,

@@ -197,9 +197,10 @@ describe('Model commands', () => {
         .error.code,
     ).toBe('usage');
     expect(live.calls).toEqual([
+      { method: 'modelPlan', args: { slug: 'ada' } },
       {
         method: 'modelPlanCustomize',
-        args: { slug: 'ada', orchestrator: route('reasoner', 'high') },
+        args: { slug: 'ada', orchestrator: route('reasoner', 'high'), expectedRevision: 3 },
       },
       { method: 'modelPlan', args: { slug: 'ada' } },
       {

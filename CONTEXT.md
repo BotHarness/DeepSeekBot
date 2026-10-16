@@ -101,7 +101,7 @@ A reusable, deployment-local Human-authored model plan for PersonaBots: one Orch
 _Avoid_: DSH Agent preset, SoulSnapshot
 
 **PersonaBot Model Plan**:
-The PersonaBot-local snapshot of a Model Preset or Human custom choices that governs its Orchestrator route and future Assignment model selections. It is operational configuration, not Soul or Memory.
+The PersonaBot-local snapshot of a Model Preset or Human custom choices that governs its Orchestrator route and future Assignment model selections. Its Assignment policy may remain inherited from the global model while its Orchestrator is customized independently. It is operational configuration, not Soul or Memory.
 _Avoid_: Soul, DSH Agent preset, model usage
 
 ### Support and execution
