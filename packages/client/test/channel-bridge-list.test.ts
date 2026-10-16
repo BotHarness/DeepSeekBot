@@ -195,6 +195,8 @@ it('WeChat DM connector edits expose only supported paired-owner intake', async 
       enabled: true,
       collection: 'all',
       collectionInheritance: 'custom',
+      dmMirror: true,
+      webToWeixin: true,
     });
   } finally {
     await act(async () => root.unmount());

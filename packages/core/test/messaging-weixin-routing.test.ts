@@ -184,8 +184,16 @@ it('fans out a WeChat DM through one canonical source with independent Channel h
   await expect(f.core.externalMessaging.reply('bea', source.id, 'Cannot borrow')).rejects.toThrow(
     'own-reply-grant-unavailable',
   );
-  expect(f.core.channels.readMessages(f.dm.id)).toHaveLength(0);
-  expect(f.query('SELECT * FROM source_events')).toHaveLength(1);
+  expect(f.core.channels.readMessages(f.dm.id)).toMatchObject([
+    {
+      author: { kind: 'bridged' },
+      body: 'WeChat one',
+      bridgeOrigin: { sourceEventId: source.id },
+    },
+  ]);
+  expect(f.query("SELECT * FROM source_events WHERE source_kind = 'bridge-message'")).toHaveLength(
+    1,
+  );
   expect(f.query('SELECT * FROM messaging_source_paths')).toHaveLength(3);
   await f.restart();
   await f.receive('two');
@@ -199,7 +207,9 @@ it('fans out a WeChat DM through one canonical source with independent Channel h
   expect(
     f.core.channels.readMessages(f.group.id).filter((m) => m.author.kind === 'bridged'),
   ).toHaveLength(2);
-  expect(f.query('SELECT * FROM source_events')).toHaveLength(2);
+  expect(f.query("SELECT * FROM source_events WHERE source_kind = 'bridge-message'")).toHaveLength(
+    2,
+  );
 });
 it('keeps accepted history across toggle, delete, receiver membership loss and restart without replaying into new routes', async () => {
   const f = await fixture();
@@ -254,7 +264,19 @@ it('keeps accepted history across toggle, delete, receiver membership loss and r
   expect(
     f.core.channels.readMessages(f.group.id).filter((m) => m.author.kind === 'bridged'),
   ).toHaveLength(2);
-  expect(f.core.channels.readMessages(f.dm.id)).toHaveLength(0);
+  const sources = f.query(
+    "SELECT source_event_id, body FROM source_events WHERE source_kind = 'bridge-message'",
+  );
+  expect(f.core.channels.readMessages(f.dm.id).reverse()).toMatchObject(
+    ['first', 'paused', 'fresh', 'deleted', 'no-member'].map((messageId) => ({
+      author: { kind: 'bridged' },
+      body: 'WeChat ' + messageId,
+      bridgeOrigin: {
+        sourceEventId: sources.find((source) => source.body === 'WeChat ' + messageId)!
+          .source_event_id,
+      },
+    })),
+  );
 });
 
 it('places WeChat in a local DM only when explicitly connected, keeping the private-message policy', async () => {
@@ -266,7 +288,9 @@ it('places WeChat in a local DM only when explicitly connected, keeping the priv
   expect(messages).toHaveLength(1);
   expect(messages[0]!.author.kind).toBe('bridged');
   expect(f.core.channels.readMessages(f.group.id)).toHaveLength(0);
-  expect(f.query('SELECT * FROM source_events')).toHaveLength(1);
+  expect(f.query("SELECT * FROM source_events WHERE source_kind = 'bridge-message'")).toHaveLength(
+    1,
+  );
   const source = f.core.externalMessaging.inbound.read('ada', messages[0]!.id);
   expect(source.event.conversation.kind).toBe('dm');
   expect(source.receptionPaths).toHaveLength(2);

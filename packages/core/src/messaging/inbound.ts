@@ -60,7 +60,12 @@ import {
   type GroupReceptionPolicy,
 } from './group-policy.js';
 import type { BotSourcePolicyEditor } from '../runtime/source-policy.js';
-import { bridgeChannel, humanBridgeChannel, placeBridgeSource } from './channel-target.js';
+import {
+  bridgeChannel,
+  humanBridgeChannel,
+  placeBridgeSource,
+  projectBridgeMessage,
+} from './channel-target.js';
 import { admitBridgeMembers } from './member-admission.js';
 import { messagingDefaults } from './defaults.js';
 import { assertMessagingIdentity } from './identity.js';
@@ -69,7 +74,7 @@ import {
   channelBridgeInput,
   type ChannelBridgeInput,
 } from './channel-bridge.js';
-import type { ChannelMessageCommit } from '../channels/store.js';
+import type { ChannelMessageCommit, ChannelStore } from '../channels/store.js';
 import type { ChannelRecord } from '../channels/channel.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { relatedReport, recordReportEcho, type RelatedReport } from './report.js';
@@ -230,6 +235,7 @@ export function createInboundMessaging(options: {
     signal: AbortSignal,
   ): Promise<import('./provider.js').MessagingApprovalAck>;
   database: OperationalDatabaseModulePort;
+  channels?: Pick<ChannelStore, 'getOrCreateDm' | 'appendMessageOnce'>;
   pairing?: BotPairing;
   onPairingRequest?(request: PairingRequest): void;
   bindingAvailable?(id: string): boolean;
@@ -414,6 +420,53 @@ export function createInboundMessaging(options: {
       );
     }
     return id;
+  };
+  const mirrorDm = async (value: MessagingGrant, sourceEventId: string): Promise<void> => {
+    if (
+      value.platform !== 'weixin' ||
+      value.receiveScope?.kind !== 'dm' ||
+      value.dmMirror === false
+    )
+      return;
+    try {
+      const channel = options.channels?.getOrCreateDm(value.botSlug);
+      if (!channel) throw new MessagingError('channel-unavailable');
+      const message = database.read((db) => {
+        if (
+          db
+            .prepare(
+              'SELECT 1 FROM channel_placements WHERE source_event_id = ? AND channel_id = ?',
+            )
+            .get(sourceEventId, channel.id)
+        )
+          return undefined;
+        const row = db
+          .prepare('SELECT body, payload_json FROM source_events WHERE source_event_id = ?')
+          .get(sourceEventId) as { body: string; payload_json: string };
+        const source = (JSON.parse(row.payload_json) as { external: ExternalSource }).external;
+        const { bridgeMedia: _media, ...message } = projectBridgeMessage(source, row.body);
+        const names = row.body.trim()
+          ? (source.event.attachments ?? []).map((item) => item.name)
+          : [];
+        return { ...message, body: [message.body, ...names].join('\n') };
+      });
+      if (!message) return;
+      const result = await options.channels!.appendMessageOnce(channel.id, {
+        ...message,
+        id: 'dm-mirror-' + sourceEventId,
+      });
+      if (result.status !== 'appended' && result.status !== 'existing')
+        throw new MessagingError('channel-unavailable');
+    } catch {
+      options.warn?.(
+        JSON.stringify({
+          event: 'weixin-dm-mirror',
+          phase: 'failed',
+          grantId: value.id,
+          sourceEventId,
+        }),
+      );
+    }
   };
   const admitDirect = (db: DatabaseSync, value: MessagingGrant, event: MessagingInboundEvent) => {
     const sourceEventId = persistSource(db, value, event);
@@ -680,11 +733,13 @@ export function createInboundMessaging(options: {
               },
               ['source-event', 'bot-inbox'],
             );
-            if (id !== undefined)
+            if (id !== undefined) {
               setImmediate(() => {
                 options.onAdmissionCommitted?.(value.botSlug, id);
                 if (!closed && valid(grant(value.id))) options.onAdmitted(value.botSlug, id);
               });
+              await mirrorDm(latest, id);
+            }
             return { accepted: true };
           }
           if (event.conversation.kind === 'group' && !event.mentionedAccount) {
@@ -866,6 +921,7 @@ export function createInboundMessaging(options: {
               ['source-event', 'channel', 'bot-inbox'],
             );
             if (id) {
+              await mirrorDm(latest, id);
               options.onAdmissionCommitted?.(value.botSlug, id);
               for (const commit of placed) {
                 try {
@@ -1492,6 +1548,7 @@ export function createInboundMessaging(options: {
       return { accepted: true };
     }
     const { value, created, sourceEventId } = admitted;
+    if (sourceEventId !== undefined) await mirrorDm(value, sourceEventId);
     const reception = created || !leases.has(value.id) ? start(value) : undefined;
     if (created) receptionChanged();
     if (sourceEventId !== undefined) {
@@ -2148,12 +2205,28 @@ export function createInboundMessaging(options: {
                 ];
           const { channelBridge: _bridge, receiveTargetChannelId: _target, ...rest } = latest;
           const { receiveScope: priorScope, ...withoutScope } = rest;
+          const switchesChanged =
+            privateSource &&
+            input.kind === 'update' &&
+            ((input.dmMirror !== undefined && input.dmMirror !== (latest.dmMirror !== false)) ||
+              (input.webToWeixin !== undefined &&
+                input.webToWeixin !== (latest.webToWeixin !== false)));
           const next: MessagingGrant = {
             ...withoutScope,
-            bridgeRoutes: nextRoutes,
+            bridgeRoutes: switchesChanged
+              ? nextRoutes.map((route) =>
+                  route.id === current?.id ? route : { ...route, revision: route.revision + 1 },
+                )
+              : nextRoutes,
             revision: nextRoutes.length ? latest.revision : latest.revision + 1,
             ...(nextRoutes.length && (inspected?.target.receiveScope ?? priorScope)
               ? { receiveScope: inspected?.target.receiveScope ?? priorScope }
+              : {}),
+            ...(privateSource && input.kind === 'update' && input.dmMirror !== undefined
+              ? { dmMirror: input.dmMirror }
+              : {}),
+            ...(privateSource && input.kind === 'update' && input.webToWeixin !== undefined
+              ? { webToWeixin: input.webToWeixin }
               : {}),
           };
           db.prepare('UPDATE messaging_grants SET body = ?, revision = ? WHERE id = ?').run(

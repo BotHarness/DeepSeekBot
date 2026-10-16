@@ -123,6 +123,8 @@ export function ChannelBridgeList({
   const [sourceId, setSourceId] = useState('');
   const [name, setName] = useState('');
   const [delivery, setDelivery] = useState<'channel' | 'inbox'>('channel');
+  const [dmMirror, setDmMirror] = useState(true);
+  const [webToWeixin, setWebToWeixin] = useState(true);
   const [enabled, setEnabled] = useState(true);
   const [collection, setCollection] = useState<'mentions' | 'all' | 'inherit'>('inherit');
   const [busy, setBusy] = useState(false);
@@ -132,6 +134,9 @@ export function ChannelBridgeList({
   const generation = useRef(0);
   const source = mode === 'add' ? snapshot?.sources.find((s) => s.grantId === sourceId) : selected;
   const privateSource = source?.platform === 'weixin';
+  const inboxHint = t(
+    privateSource && dmMirror ? 'bridge.inboxMirrorHint' : 'bridge.inboxOnlyHint',
+  );
   const alreadyConnected =
     mode === 'add' &&
     snapshot?.bridges.some(
@@ -193,6 +198,8 @@ export function ChannelBridgeList({
     setName(row?.name ?? '');
     setSourceId('');
     setEnabled(row?.enabled ?? true);
+    setDmMirror(row?.dmMirror !== false);
+    setWebToWeixin(row?.webToWeixin !== false);
     setCollection(
       row ? (row.collectionInheritance === 'inherit' ? 'inherit' : row.collection) : 'inherit',
     );
@@ -229,6 +236,7 @@ export function ChannelBridgeList({
               expectedRevision: selected.revision,
               name,
               enabled,
+              ...(privateSource ? { dmMirror, webToWeixin } : {}),
               collection: privateSource
                 ? 'all'
                 : collection === 'inherit'
@@ -375,6 +383,8 @@ export function ChannelBridgeList({
                     setSourceId(value);
                     const chosen = snapshot?.sources.find((s) => s.grantId === value);
                     setName(chosen?.conversationName ?? '');
+                    setDmMirror(chosen?.dmMirror !== false);
+                    setWebToWeixin(chosen?.webToWeixin !== false);
                   }}
                   options={(snapshot?.sources ?? []).map((s) => ({
                     value: s.grantId,
@@ -396,7 +406,7 @@ export function ChannelBridgeList({
           {mode === 'add' && snapshot?.canTargetInbox ? (
             <Field
               label={t('bridge.destination')}
-              hint={delivery === 'inbox' ? t('bridge.inboxOnlyHint') : undefined}
+              hint={delivery === 'inbox' ? inboxHint : undefined}
               group
             >
               {() => (
@@ -417,7 +427,7 @@ export function ChannelBridgeList({
           ) : (
             <>
               <p {...stylex.props(styles.text)}>{target}</p>
-              {delivery === 'inbox' ? <Note>{t('bridge.inboxOnlyHint')}</Note> : null}
+              {delivery === 'inbox' ? <Note>{inboxHint}</Note> : null}
             </>
           )}
           <TextField
@@ -484,6 +494,38 @@ export function ChannelBridgeList({
               />
             )}
           </Field>
+          {privateSource && mode === 'edit' ? (
+            <>
+              <Field label={t('bridge.dmMirror')} hint={t('bridge.dmMirrorHint')} group>
+                {() => (
+                  <Switch
+                    checked={dmMirror}
+                    disabled={busy}
+                    label={t('bridge.dmMirror')}
+                    onChange={setDmMirror}
+                  />
+                )}
+              </Field>
+              <Field
+                label={t('bridge.webToWeixin')}
+                hint={t(
+                  selected?.webToWeixinAvailable
+                    ? 'bridge.webToWeixinHint'
+                    : 'bridge.webToWeixinUnavailable',
+                )}
+                group
+              >
+                {() => (
+                  <Switch
+                    checked={webToWeixin && selected?.webToWeixinAvailable === true}
+                    disabled={busy || !selected?.webToWeixinAvailable}
+                    label={t('bridge.webToWeixin')}
+                    onChange={setWebToWeixin}
+                  />
+                )}
+              </Field>
+            </>
+          ) : null}
         </FormDialog>
       ) : null}
     </div>

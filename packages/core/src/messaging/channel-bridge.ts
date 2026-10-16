@@ -39,6 +39,8 @@ const configuration = {
   enabled: z.boolean(),
   collection: z.enum(['mentions', 'all']),
   collectionInheritance: z.enum(['inherit', 'custom']).optional(),
+  dmMirror: z.boolean().optional(),
+  webToWeixin: z.boolean().optional(),
   expectedDefaultRevision: z.number().int().min(0).optional(),
 };
 export const channelBridgeInput = z.discriminatedUnion('kind', [
@@ -59,6 +61,9 @@ export type ChannelBridgeInput = z.infer<typeof channelBridgeInput>;
 export interface ChannelBridgeSource {
   grantId: string;
   grantRevision: number;
+  dmMirror?: boolean;
+  webToWeixin?: boolean;
+  webToWeixinAvailable?: boolean;
   botSlug: string;
   platform: string;
   accountName: string;

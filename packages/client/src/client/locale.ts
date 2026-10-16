@@ -1491,6 +1491,7 @@ export const zh = {
   'bridge.dmTarget': 'DM 消息历史 · {name}',
   'bridge.inboxOnly': '仅 Bot Inbox',
   'bridge.inboxOnlyHint': '直接进入此 Bot 的 Inbox，不添加 DM 历史消息。',
+  'bridge.inboxMirrorHint': '直接进入此 Bot 的 Inbox，并同步到私聊记录，不产生第二次唤醒。',
   'bridge.contextOnly': '仅作上下文',
   'bridge.paths': '收件路径',
   'bridge.pathEvidence': '连接器 {route} · 配置 v{revision} · {target}',
@@ -1543,6 +1544,13 @@ export const zh = {
   'bridge.ownerDM': '扫码绑定者私聊消息',
   'bridge.wechatDMHint':
     '仅接收已授权的扫码绑定者私聊。微信没有子话题；投递到本地群不代表支持微信群。',
+  'bridge.dmMirror': '同步到私聊记录',
+  'bridge.dmMirrorHint': '把微信私聊的收发消息同步到这个 Bot 的 DM 历史消息，仅作展示。',
+  'bridge.webToWeixin': '网页私聊同步到微信',
+  'bridge.webToWeixinHint':
+    '把你在网页私聊里发的消息和 Bot 的回复转发到微信（使用主动发送，受每小时发送上限和微信私聊上下文限制）。',
+  'bridge.webToWeixinUnavailable':
+    '需要先在「IM 应用」里为这个微信私聊设置主动发送目标，才能把网页私聊同步到微信。',
   'bridge.mentions': '仅收 @ 接收身份',
   'bridge.all': '所有普通文字消息',
   'bridge.enableFor': '启用外部连接器：{name}',
@@ -5117,6 +5125,8 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'bridge.dmTarget': 'DM history · {name}',
   'bridge.inboxOnly': 'Bot Inbox only',
   'bridge.inboxOnlyHint': 'Deliver directly to this Bot’s Inbox without adding a DM message.',
+  'bridge.inboxMirrorHint':
+    'Deliver directly to this Bot’s Inbox and mirror to DM history without waking the Bot again.',
   'bridge.contextOnly': 'Context only',
   'bridge.paths': 'Reception paths',
   'bridge.pathEvidence': 'Connector {route} · configuration v{revision} · {target}',
@@ -5175,6 +5185,14 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'bridge.ownerDM': 'Paired-owner DM messages',
   'bridge.wechatDMHint':
     'Receives only the authorized paired-owner DM. WeChat has no topics here; delivery to a local Group does not enable native WeChat groups.',
+  'bridge.dmMirror': 'Mirror to DM history',
+  'bridge.dmMirrorHint':
+    'Show WeChat messages and replies in this Bot’s DM history without waking the Bot again.',
+  'bridge.webToWeixin': 'Send web DM to WeChat',
+  'bridge.webToWeixinHint':
+    'Forward your web DM messages and the Bot’s replies to WeChat (uses proactive sending; subject to the hourly post limit and WeChat’s private-chat context).',
+  'bridge.webToWeixinUnavailable':
+    'Set up a proactive-send target for this WeChat DM under IM apps first to send web DMs to WeChat.',
   'bridge.mentions': 'Only mentions of the receiving identity',
   'bridge.all': 'All ordinary text messages',
   'bridge.enableFor': 'Enable connector: {name}',

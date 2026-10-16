@@ -73,13 +73,14 @@ import {
   type MessagingConversationInput,
 } from './conversations.js';
 import { bridgeChannel, humanBridgeChannel } from './channel-target.js';
+import { dmChannelId, type ChannelMessage } from '../channels/channel.js';
 import {
   channelBridgeRoutes,
   type ChannelBridgeRoute,
   type ChannelBridgeSnapshot,
   type ChannelBridgeConfiguration,
 } from './channel-bridge.js';
-import type { ChannelMessageCommit } from '../channels/store.js';
+import type { ChannelMessageCommit, ChannelStore } from '../channels/store.js';
 import { attachmentIdentity, type ChannelAttachmentRef } from '../attachments/ref.js';
 import type { AttachmentStore } from '../attachments/store.js';
 import { createChannelMediaAccess } from './channel-media.js';
@@ -163,6 +164,8 @@ export interface MessagingGrant {
   receiveAfter?: string;
   receiveScope?: { kind: 'group' | 'dm'; conversationId: string };
   receiveTargetChannelId?: string;
+  dmMirror?: boolean;
+  webToWeixin?: boolean;
   receptionInheritance?: 'inherit' | 'custom';
   channelBridge?: ChannelBridgeConfiguration;
   bridgeRoutes?: ChannelBridgeRoute[];
@@ -367,6 +370,7 @@ export interface OutboundMessaging {
     report?: boolean,
   ): Promise<OutboxIntent>;
   post(botSlug: string, grantId: string, requestId: string, text: string): Promise<OutboxIntent>;
+  forwardWebDm(commit: ChannelMessageCommit): Promise<void>;
   inspectIntent(botSlug: string, intentId: string): OutboxIntent;
   history(botSlug: string): OutboxIntent[];
   close(): void;
@@ -383,6 +387,7 @@ export function connectorType(platform: string): string {
 
 export function createOutboundMessaging(options: {
   database: OperationalDatabaseModulePort;
+  channels?: Pick<ChannelStore, 'get' | 'getOrCreateDm' | 'appendMessageOnce'>;
   attachments?: AttachmentStore;
   isBotActive(slug: string): boolean;
   ownsFailure?(slug: string, sessionId: string, role: 'orchestrator' | 'assignment'): boolean;
@@ -551,13 +556,154 @@ export function createOutboundMessaging(options: {
       throw new MessagingError('request-conflict');
     return value;
   };
+  const mirrorAccepted = async (value: StoredIntent): Promise<void> => {
+    try {
+      if (value.requestId.startsWith('web-mirror-')) return;
+      const acceptedGrant = grant(value.botSlug, value.grantId);
+      if (acceptedGrant.platform !== 'weixin') return;
+      const conversationId =
+        acceptedGrant.receiveScope?.kind === 'dm'
+          ? acceptedGrant.receiveScope.conversationId
+          : (await check(acceptedGrant)).inspected.target.receiveScope?.conversationId;
+      const rows = database.read((db) =>
+        db.prepare('SELECT body FROM messaging_grants WHERE bot_slug = ?').all(value.botSlug),
+      ) as { body: string }[];
+      if (
+        conversationId === undefined ||
+        !rows.some((row) => {
+          const receiver = JSON.parse(row.body) as MessagingGrant;
+          return (
+            receiver.platform === 'weixin' &&
+            receiver.revokedAt === undefined &&
+            receiver.receiveScope?.kind === 'dm' &&
+            receiver.receiveScope.conversationId === conversationId &&
+            receiver.dmMirror !== false
+          );
+        })
+      )
+        return;
+      const channel = options.channels?.getOrCreateDm(value.botSlug);
+      if (!channel) throw new MessagingError('channel-unavailable');
+      const result = await options.channels!.appendMessageOnce(channel.id, {
+        id: 'dm-mirror-' + value.id,
+        at: value.settledAt!,
+        body: value.file?.name ?? value.text,
+        format: 'text',
+        author: { kind: 'bot', slug: value.botSlug },
+      });
+      if (result.status !== 'appended' && result.status !== 'existing')
+        throw new MessagingError('channel-unavailable');
+    } catch {
+      options.warn?.(
+        JSON.stringify({ event: 'weixin-dm-mirror', phase: 'failed', intentId: value.id }),
+      );
+    }
+  };
+  const webDmText = (message: ChannelMessage): string | undefined => {
+    if (message.author.kind === 'bridged' || message.author.kind === 'system') return undefined;
+    const text = [message.body, ...(message.attachments ?? []).map((item) => item.name)]
+      .filter((line) => line.trim() !== '')
+      .join('\n');
+    if (text === '') return undefined;
+    return message.author.kind === 'bot' ? text : `【网页】我：${text}`;
+  };
+  const forwardWebDm = async (commit: ChannelMessageCommit): Promise<void> => {
+    const warn = (error: unknown, grantId?: string) => {
+      options.warn?.(
+        JSON.stringify({
+          event: 'weixin-web-mirror',
+          phase: 'failed',
+          grantId,
+          messageId: commit.message.id,
+          reason: error instanceof MessagingError ? error.code : 'provider-unavailable',
+        }),
+      );
+    };
+    try {
+      const message = commit.message;
+      if (message.id.startsWith('dm-mirror-')) return;
+      const channel = options.channels?.get(commit.channelId);
+      const botSlug = channel?.botSlug;
+      if (
+        channel === undefined ||
+        channel.type !== 'dm' ||
+        botSlug === undefined ||
+        channel.id !== dmChannelId(botSlug)
+      )
+        return;
+      if (message.author.kind === 'bot' && message.author.slug !== botSlug) return;
+      const text = webDmText(message);
+      if (text === undefined) return;
+      const rows = database.read((db) =>
+        db.prepare('SELECT body FROM messaging_grants WHERE bot_slug = ?').all(botSlug),
+      ) as { body: string }[];
+      const grants = rows
+        .map((row) => JSON.parse(row.body) as MessagingGrant)
+        .filter(
+          (value) =>
+            value.platform === 'weixin' &&
+            value.revokedAt === undefined &&
+            value.suspendedReason === undefined,
+        );
+      const conversations = new Set(
+        grants.flatMap((value) =>
+          value.receiveScope?.kind === 'dm' &&
+          value.webToWeixin !== false &&
+          channelBridgeRoutes(value).some((route) => route.enabled)
+            ? [value.receiveScope.conversationId]
+            : [],
+        ),
+      );
+      for (const conversationId of conversations) {
+        let offset = 0;
+        let part = 0;
+        for (const value of grants) {
+          if (offset >= text.length) break;
+          try {
+            const identity = binding(value.bindingId);
+            if (!identity.enabled || identity.revokedAt !== undefined) continue;
+            const checked = await check(value);
+            if (
+              checked.inspected.account.postSupported === false ||
+              checked.inspected.target.receiveScope?.conversationId !== conversationId
+            )
+              continue;
+            const requestId = 'web-mirror-' + value.id + '-' + message.id;
+            let stopped = false;
+            while (offset < text.length) {
+              let end = Math.min(offset + 4000, text.length);
+              if (end < text.length && /[\uD800-\uDBFF]/.test(text[end - 1]!)) end--;
+              const intent = await service.post(
+                botSlug,
+                value.id,
+                text.length > 4000 ? requestId + '-' + (part + 1) : requestId,
+                text.slice(offset, end),
+              );
+              if (intent.state === 'failed' || intent.state === 'grant-revoked') break;
+              if (intent.state !== 'provider-accepted') {
+                stopped = true;
+                break;
+              }
+              part++;
+              offset = end;
+            }
+            if (stopped) break;
+          } catch (error) {
+            warn(error, value.id);
+          }
+        }
+      }
+    } catch (error) {
+      warn(error);
+    }
+  };
   const settle = (
     id: string,
     state: OutboxState,
     reason?: string,
     receipt?: MessagingReceipt,
   ): OutboxIntent => {
-    return transaction(
+    const value = transaction(
       (db) => {
         const existing = readIntent(id);
         if (existing.state !== 'pending' && existing.state !== 'in-flight') return existing;
@@ -580,6 +726,8 @@ export function createOutboundMessaging(options: {
       },
       ['outbox'],
     );
+    if (value.state === 'provider-accepted') void mirrorAccepted(value);
+    return value;
   };
   if (options.recover !== false)
     transaction(
@@ -754,6 +902,7 @@ export function createOutboundMessaging(options: {
     onPairingRequest: (request) => pairingCards.notify(request),
     pairing,
     database,
+    ...(options.channels ? { channels: options.channels } : {}),
     bindingAvailable(id) {
       try {
         enabledBinding(id);
@@ -1778,6 +1927,7 @@ export function createOutboundMessaging(options: {
         throw new MessagingError('capability-unavailable');
       return service.send(botSlug, grantId, requestId, text, undefined, undefined, true);
     },
+    forwardWebDm,
     inspectIntent(botSlug, intentId) {
       const value = readIntent(intentId);
       if (value.botSlug !== botSlug) throw new MessagingError('intent-unavailable');
@@ -1799,6 +1949,15 @@ export function createOutboundMessaging(options: {
       const source = (g: MessagingSnapshot['grants'][number]) => ({
         grantId: g.id,
         grantRevision: g.revision,
+        dmMirror: g.dmMirror !== false,
+        webToWeixin: g.webToWeixin !== false,
+        webToWeixinAvailable: grants.some(
+          (other) =>
+            other.botSlug === g.botSlug &&
+            other.platform === 'weixin' &&
+            other.canPost === true &&
+            other.postConversationId === g.receiveScope?.conversationId,
+        ),
         botSlug: g.botSlug,
         platform: g.platform,
         accountName: g.accountName,
