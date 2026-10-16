@@ -22,7 +22,6 @@ async function fixture() {
   const transport: DshImOutboundService = {
     contractVersion: 1,
     receiptVersion: 1,
-    postFenceVersion: 1,
     listBots: async () => [{ botId: 'wechat-own', channel: 'weixin' }],
     listTargets: async () => [
       { targetId: 'owner', name: 'Paired owner', kind: 'user', route: { toUserId: 'owner' } },
@@ -183,7 +182,23 @@ it('WeChat rejects a borrowed correspondence or falsely native receipt and hides
       'unknown-outcome',
     );
   }
-  expect(
-    createDshImProvider({ ...transport, postFenceVersion: undefined }, 'weixin')!.post,
-  ).toBeUndefined();
 });
+
+it.each(['proactive-receipt-checked', 'proactive-fence-checked'])(
+  'a WeChat account without %s is unavailable for posting and causes no native send',
+  async (missing) => {
+    const fx = await fixture();
+    const describe = fx.transport.describeBot;
+    fx.transport.describeBot = async (ref) => {
+      const info = await describe(ref);
+      return { ...info, capabilities: info.capabilities.filter((cap) => cap !== missing) };
+    };
+    const sendChecked = vi.fn(fx.transport.sendChecked);
+    fx.transport.sendChecked = sendChecked;
+    expect((await fx.core.externalMessaging.snapshot('ada')).grants[0]?.canPost).toBe(false);
+    expect(
+      await fx.core.externalMessaging.post('ada', fx.grant.id, 'unqualified_weixin', 'Result'),
+    ).toMatchObject({ state: 'failed', reason: 'capability-unavailable' });
+    expect(sendChecked).not.toHaveBeenCalled();
+  },
+);

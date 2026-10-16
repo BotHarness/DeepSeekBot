@@ -404,7 +404,7 @@ export function createDshImProvider(
       name: info.account.name ?? ref,
       fingerprint: info.account.fingerprint,
       connected: info.connected,
-      ...(platform === 'qq'
+      ...(platform === 'qq' || platform === 'weixin'
         ? {
             postSupported:
               host.receiptVersion === 1 &&
@@ -1412,7 +1412,7 @@ export function createDshImProvider(
     ...((platform === 'feishu' ||
       platform === 'slack' ||
       platform === 'qq' ||
-      (platform === 'weixin' && host.postFenceVersion === 1)) &&
+      platform === 'weixin') &&
     host.receiptVersion === 1
       ? {
           async post(input: Parameters<NonNullable<MessagingProvider['post']>>[0]) {
