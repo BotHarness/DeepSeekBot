@@ -4290,6 +4290,10 @@ html[data-botharness-motion='reduce'] .bh-composer-footer {
   position: static;
 }
 .bh-sidebar-settings-list > [role="presentation"] { overflow: visible; }
+.bh-model-menu-anchor { display: flex; width: 100%; min-width: 0; }
+.bh-model-menu-list { max-height: min(60vh, calc(100vh - 12px - max(12px, var(--dsh-frame-overlay-top, 12px)))); min-width: 0; max-width: min(360px, calc(100vw - 24px)); }
+.bh-model-menu-list > [role="presentation"] { overflow: auto; }
+.bh-model-menu-list .bh-move-checked { min-width: 0; }
 .bh-sidebar-settings-group { position: relative; }
 .bh-sidebar-settings-trigger { display: flex; align-items: center; gap: ${space.x2}; width: 100%; min-height: 30px; padding: ${space.x2} ${space.x3}; border: 0; border-radius: ${radius.md}; background: transparent; color: var(--dsw-alias-label-primary); font-size: ${text.bodySize}; line-height: ${text.bodyLine}; text-align: left; cursor: pointer; }
 .bh-sidebar-settings-trigger > span { flex: 1; white-space: nowrap; }
