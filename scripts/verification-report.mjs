@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { behavior as idleBehavior, coverageRow } from './activity-idle-report.mjs';
 import { behavior as grantBehavior, coverageRow as grantRow } from './workspace-grant-report.mjs';
+import { behavior as memoryBehavior, coverageRow as memoryRow } from './memory-restore-report.mjs';
 import { checkFeatureMap } from './check-feature-map.mjs';
 import { auditInventory, categories } from './verification-inventory.mjs';
 
@@ -19,6 +20,7 @@ export function verificationReport({
   dirty = false,
   activityRun,
   workspaceRun,
+  memoryRun,
   inventory,
 } = {}) {
   if (!sha(commit)) throw new Error('Report requires a full source commit');
@@ -52,6 +54,19 @@ export function verificationReport({
       errors.push('Selected Workspace evidence run record is missing or invalid');
     }
   }
+  const memory = memoryRow(memoryRun, commit, dirty);
+  if (memoryRun && !audit.inventory.behaviors.some((row) => row.id === memoryBehavior))
+    errors.push('Selected Memory evidence has no matching inventory behavior');
+  if (memoryRun) {
+    try {
+      if (
+        JSON.parse(readFileSync(resolve(memoryRun, 'run.json'), 'utf8')).behavior !== memoryBehavior
+      )
+        errors.push('Selected Memory evidence belongs to a different behavior');
+    } catch {
+      errors.push('Selected Memory evidence run record is missing or invalid');
+    }
+  }
   const rows = audit.inventory.behaviors.map((row) => {
     const scripts = unique(
       audit.inventory.scripts
@@ -73,17 +88,19 @@ export function verificationReport({
           ? idle
           : row.id === grantBehavior
             ? workspace
-            : {
-                status: 'not-run',
-                commit,
-                reason:
-                  'No current run selected; instructions and script assertions are not execution evidence',
-                evidence: [],
-                humanQA: 'not-run',
-                model: 'not-run',
-                native: 'not-run',
-                im: 'not-run',
-              },
+            : row.id === memoryBehavior
+              ? memory
+              : {
+                  status: 'not-run',
+                  commit,
+                  reason:
+                    'No current run selected; instructions and script assertions are not execution evidence',
+                  evidence: [],
+                  humanQA: 'not-run',
+                  model: 'not-run',
+                  native: 'not-run',
+                  im: 'not-run',
+                },
     };
   });
   const classification = Object.fromEntries(
@@ -140,7 +157,12 @@ const safe = (value) =>
 const link = (label, target) => `[${safe(label)}](${target})`;
 export function reportMarkdown(
   report,
-  { sourcePrefix = '.', evidencePrefix = '.', workspaceEvidencePrefix = '.' } = {},
+  {
+    sourcePrefix = '.',
+    evidencePrefix = '.',
+    workspaceEvidencePrefix = '.',
+    memoryEvidencePrefix = '.',
+  } = {},
 ) {
   const source = (path) => link(path, `${sourcePrefix}/${path}`);
   const { metrics } = report;
@@ -182,7 +204,12 @@ export function reportMarkdown(
   ];
   for (const row of report.behaviors.filter((entry) => entry.result.recordedStatus)) {
     const result = row.result;
-    const prefix = row.id === grantBehavior ? workspaceEvidencePrefix : evidencePrefix;
+    const prefix =
+      row.id === memoryBehavior
+        ? memoryEvidencePrefix
+        : row.id === grantBehavior
+          ? workspaceEvidencePrefix
+          : evidencePrefix;
     lines.push(
       `### ${row.id}`,
       '',
@@ -226,6 +253,8 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     options: {
       json: { type: 'boolean' },
       'activity-run': { type: 'string' },
+      'memory-run': { type: 'string' },
+      'memory-evidence-prefix': { type: 'string' },
       'workspace-run': { type: 'string' },
       'workspace-evidence-prefix': { type: 'string' },
       'source-prefix': { type: 'string' },
@@ -238,12 +267,16 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     dirty: git('status', '--porcelain').length > 0,
     activityRun: values['activity-run'],
     workspaceRun: values['workspace-run'],
+    memoryRun: values['memory-run'],
   });
   console.log(
     values.json
       ? JSON.stringify(report, null, 2)
       : reportMarkdown(report, {
           sourcePrefix: values['source-prefix'],
+          memoryEvidencePrefix:
+            values['memory-evidence-prefix'] ??
+            (values['memory-run'] ? relative(process.cwd(), resolve(values['memory-run'])) : '.'),
           workspaceEvidencePrefix:
             values['workspace-evidence-prefix'] ??
             (values['workspace-run']

@@ -26,7 +26,7 @@ behaviors and a behavior to several scripts; each file and behavior is counted o
   paths and are not an exhaustive count of product features. Scripted/manual/gap counts
   describe this catalogue only; a mapped script may cover just part of a grouped row.
 - **Qualified catalogue rows** count only current evidence accepted by the behavior-specific
-  Activity Center or Workspace Grant validator. Manual instructions and past CI results
+  Activity Center, Workspace Grant or Memory validator. Manual instructions and past CI results
   never become passes.
 
 This audit includes every current map document and E2E file, and additional implemented
@@ -111,3 +111,10 @@ outside that evidence. The Activity Center row stays unrun unless separately sel
 (Activity Center), so two selected runs never point at each other's files. Keep the entire
 packet external or ignored and generate output to an external temporary file before copying,
 as above. Inspect all three screenshots and ARIA snapshots before recording visual review.
+
+Memory's bounded row accepts `--memory-run <attempt>` and its own
+`--memory-evidence-prefix <prefix>`. Follow the [Memory recipe](../../.agents/skills/verify-deepseekbot/features/memory-restore.md)
+for two owner-saved versions, historical diff, descendant restore commit and stale-head
+refusal. `memory-restore-report.mjs` requires all four visual phases, matching CLI
+content/HEAD/ancestry/checkpoint evidence and an applicable visual receipt. Retain the
+test Memory repository when stopping this slice's exact Host PID.

@@ -229,11 +229,11 @@
     },
     {
       "id": "desktop.memory.read-restore",
-      "label": "Browse current/history/diff Memory and recover safely",
+      "label": "Disposable Memory historical read, descendant restore and stale-head refusal",
       "source": "packages/client/src/client/memory-recovery.tsx",
-      "guide": null,
+      "guide": ".agents/skills/verify-deepseekbot/features/memory-restore.md",
       "task": 1975,
-      "gap": "No maintained feature-map recipe binds this behavior to setup, user actions, authoritative read, cleanup and failure observation. Historical scripts below are candidates, not qualified paths."
+      "gap": null
     },
     {
       "id": "desktop.assignment.lifecycle",
@@ -1508,6 +1508,14 @@
       "reason": "Dedicated temporary sample outside Host data; actual Web Grant authorization, direct attachment-import read, explicit CLI revocation, same-read denial and before/after visible evidence. No model/native file tool/Shell security claim.",
       "task": 1974,
       "sha256": "4d06c35370b6a936c644e5f662d33644f30201a3203a92f6fbefebb0cefc0cf4"
+    },
+    {
+      "path": "scripts/e2e-memory-restore.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.memory.read-restore"],
+      "reason": "Own isolated Host; two owner-saved versions, real Web/CLI read, descendant restore and stale-head refusal; immutable evidence; retains Memory.",
+      "task": 1975,
+      "sha256": "dfe816b10b04620373e7cbbb33926462bc6bf67914a71d2fc23c75d3bf0aaef8"
     }
   ],
   "native": [
