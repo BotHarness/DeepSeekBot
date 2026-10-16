@@ -253,7 +253,7 @@ export function createMobileTelemetry(options: TelemetryOptions) {
       };
     },
     async setEnabled(next: boolean): Promise<boolean> {
-      await ready;
+      if (!loaded) await ready;
       if (disposed) return false;
       if (next === enabled && !snapshot.storageError) return true;
       generation += 1;
