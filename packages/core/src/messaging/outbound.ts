@@ -1071,7 +1071,8 @@ export function createOutboundMessaging(options: {
         if (
           authority?.botSlug === botSlug &&
           authority.bindingId &&
-          authority.bindingId !== result.sender?.bindingId
+          result.sender !== undefined &&
+          authority.bindingId !== result.sender.bindingId
         )
           return { queriedAt: result.queriedAt, status: 'unavailable', reason: 'binding-replaced' };
         return result;

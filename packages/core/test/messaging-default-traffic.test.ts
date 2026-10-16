@@ -2139,3 +2139,64 @@ it('QQ allowing a blocked conversation refuses redelivery from the blocked inter
   expect(fx.core.attention.list({ botSlug: 'ada' }).items).toHaveLength(2);
   expect(fx.runs).toHaveLength(2);
 });
+
+it('Weixin sender permissions say the platform has no Role policy instead of reporting a replaced binding', async () => {
+  const fx = await fixture('weixin', [
+    { targetId: 'owner', name: 'QR paired owner', kind: 'user', route: { toUserId: 'oc_owner' } },
+  ]);
+  const fresh = (id: string) => dm(id, { at: new Date(Date.now() + 1000).toISOString() });
+  await fx.receive(fresh('weixin-first'));
+  const source = fx.sourceId('om-weixin-first');
+  expect(fx.core.externalMessaging.senderPermissions('ada', source)).toMatchObject({
+    status: 'unavailable',
+    reason: 'role-policy-not-supported-for-platform',
+  });
+  expect(fx.core.externalMessaging.senderPermissions('ada', source).reason).not.toBe(
+    'binding-replaced',
+  );
+  await fx.update({ enabled: false });
+  expect(fx.core.externalMessaging.senderPermissions('ada', source)).toMatchObject({
+    status: 'unavailable',
+    reason: 'role-policy-not-supported-for-platform',
+  });
+  const current = (await fx.core.externalMessaging.snapshot('ada')).identities![0]!;
+  await fx.core.externalMessaging.identity('ada', {
+    kind: 'unbind',
+    id: current.id,
+    expectedRevision: current.revision,
+  });
+  await fx.core.externalMessaging.identity('ada', {
+    kind: 'bind',
+    providerId: 'dsh-im/weixin',
+    accountRef: 'lark-app',
+    fingerprint,
+  });
+  await fx.settle();
+  expect(fx.core.externalMessaging.senderPermissions('ada', source)).toMatchObject({
+    status: 'unavailable',
+    reason: 'role-policy-not-supported-for-platform',
+  });
+});
+
+it('a replaced Binding still reports binding-replaced where the Role policy applies', async () => {
+  const fx = await fixture('feishu');
+  await fx.receive(dm('feishu-before-rebind'));
+  const source = fx.sourceId('om-feishu-before-rebind');
+  const current = (await fx.core.externalMessaging.snapshot('ada')).identities![0]!;
+  await fx.core.externalMessaging.identity('ada', {
+    kind: 'unbind',
+    id: current.id,
+    expectedRevision: current.revision,
+  });
+  await fx.core.externalMessaging.identity('ada', {
+    kind: 'bind',
+    providerId: 'dsh-im/feishu',
+    accountRef: 'lark-app',
+    fingerprint,
+  });
+  await fx.settle();
+  expect(fx.core.externalMessaging.senderPermissions('ada', source)).toMatchObject({
+    status: 'unavailable',
+    reason: 'binding-replaced',
+  });
+});

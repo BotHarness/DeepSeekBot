@@ -145,6 +145,8 @@ export function readSenderPermissions(
   at: Date,
 ): SenderPermissions {
   const queriedAt = at.toISOString();
+  if (!chatPairingApplies(event))
+    return { queriedAt, status: 'unavailable', reason: 'role-policy-not-supported-for-platform' };
   const sender = trustedSenderReference(db, botSlug, event);
   if (!sender) return { queriedAt, status: 'unavailable', reason: 'no-current-scoped-identity' };
   const policy = readSenderPolicy(db, botSlug);
