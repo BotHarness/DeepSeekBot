@@ -49,7 +49,8 @@ import {
   type MarketplaceTopic,
 } from '../../../core/src/marketplace/client.js';
 import { parseChallenge, type AltchaChallenge } from '../../../core/src/marketplace/altcha.js';
-import type { OverviewUsage } from '../../../core/src/bridge/methods.js';
+import type { OverviewUsage, SubagentAdvisorView } from '../../../core/src/bridge/methods.js';
+export type { SubagentAdvisorView } from '../../../core/src/bridge/methods.js';
 import type { ProfileSessionUsage } from '../../../core/src/bridge/methods.js';
 export type { ProfileSessionUsage } from '../../../core/src/bridge/methods.js';
 import {
@@ -2892,6 +2893,29 @@ export interface AssignmentAccessPresetView {
   scope?: 'chat' | 'assignments';
   revision: number;
   changedAt?: string;
+}
+export async function loadSubagentAdvisor(
+  call: BridgeCall,
+  slug: string,
+): Promise<SubagentAdvisorView> {
+  return unwrap(call, 'subagentAdvisor', { slug }) as Promise<SubagentAdvisorView>;
+}
+export async function setSubagentAdvisorEnabled(
+  call: BridgeCall,
+  slug: string,
+  enabled: boolean,
+): Promise<SubagentAdvisorView> {
+  return unwrap(call, 'subagentAdvisorSet', { slug, enabled }) as Promise<SubagentAdvisorView>;
+}
+export async function setSubagentAdvisorKey(
+  call: BridgeCall,
+  slug: string,
+  key: string | undefined,
+): Promise<SubagentAdvisorView> {
+  return unwrap(call, 'subagentAdvisorKeySet', {
+    slug,
+    key: key ?? null,
+  }) as Promise<SubagentAdvisorView>;
 }
 export async function loadAssignmentAccess(
   call: BridgeCall,

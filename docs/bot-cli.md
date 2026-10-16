@@ -111,6 +111,9 @@ These commands let an agent configure a Bot's capabilities and the Host without 
 ```bash
 deepseekbot browser-access-set <bot-id> --enabled
 deepseekbot computer-access-set <bot-id> --disabled
+deepseekbot subagent-advisor <bot-id>
+deepseekbot subagent-advisor-set <bot-id> (--enabled | --disabled)
+printf '<api-key>' | deepseekbot subagent-advisor-key-set <bot-id> --key-stdin
 deepseekbot access <bot-id>
 deepseekbot access-set <bot-id> --mode danger-full-access --scope chat --acknowledge-risk
 deepseekbot access-set <bot-id> --mode workspace-write
@@ -120,7 +123,7 @@ deepseekbot workspace-create /srv/bots/workspace
 deepseekbot group-create "Skill Lab" --member <bot-id> --member <bot-id>
 ```
 
-`access-set` refuses `danger-full-access` unless `--acknowledge-risk` is given: full access lets the Bot run any command and use the Browser and Computer without an approval card. `--scope chat` also applies it to the Bot's own chat; `assignments` keeps it to new Assignments. `settings` returns `{ns, revision, value}` for one namespace; `settings-set` reads a JSON object of fields from stdin and applies it against that revision, so a concurrent change fails instead of being overwritten. Only fields the Host marks as live can be changed this way. `workspace-create` takes an absolute path and returns the Host workspace, whose id `grant-create` uses.
+`access-set` refuses `danger-full-access` unless `--acknowledge-risk` is given: full access lets the Bot run any command and use the Browser and Computer without an approval card. `--scope chat` also applies it to the Bot's own chat; `assignments` keeps it to new Assignments. `subagent-advisor` reports `{slug, enabled, keyConfigured}` for the optional Jev advisor that picks a subagent model and effort when a Bot starts one without naming a model. `subagent-advisor-key-set` reads the key from stdin (pass an empty stdin to remove it) and never echoes it. When the advisor is on but unavailable or off, delegation behaves exactly as before. `settings` returns `{ns, revision, value}` for one namespace; `settings-set` reads a JSON object of fields from stdin and applies it against that revision, so a concurrent change fails instead of being overwritten. Only fields the Host marks as live can be changed this way. `workspace-create` takes an absolute path and returns the Host workspace, whose id `grant-create` uses.
 
 ### Channels and groups
 

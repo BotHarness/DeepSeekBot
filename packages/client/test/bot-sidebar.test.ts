@@ -453,6 +453,21 @@ function stubActions(): BridgeActions {
       mode: 'workspace-write' as const,
       revision: 0,
     })),
+    subagentAdvisor: vi.fn(async (slug: string) => ({
+      slug,
+      enabled: false,
+      keyConfigured: false,
+    })),
+    setSubagentAdvisorEnabled: vi.fn(async (slug: string, enabled: boolean) => ({
+      slug,
+      enabled,
+      keyConfigured: false,
+    })),
+    setSubagentAdvisorKey: vi.fn(async (slug: string) => ({
+      slug,
+      enabled: false,
+      keyConfigured: true,
+    })),
     listToolApprovalRules: vi.fn(async () => []),
     revokeToolApprovalRule: vi.fn(async () => undefined),
     toolApprovalStatus: vi.fn(async () => 'expired' as const),

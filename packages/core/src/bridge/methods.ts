@@ -691,6 +691,9 @@ export interface BridgeMethods {
   botApprovalTemplateSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
   approvalReviewerModel(payload?: unknown): Promise<BridgeResult<ApprovalReviewerModelView>>;
   approvalReviewerModelSet(payload: unknown): Promise<BridgeResult<ApprovalReviewerModelView>>;
+  subagentAdvisor(payload: unknown): Promise<BridgeResult<SubagentAdvisorView>>;
+  subagentAdvisorSet(payload: unknown): Promise<BridgeResult<SubagentAdvisorView>>;
+  subagentAdvisorKeySet(payload: unknown): Promise<BridgeResult<SubagentAdvisorView>>;
   standingLimitsSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
   botAvatarSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
   botBannerSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
@@ -735,8 +738,18 @@ export interface ApprovalReviewerModelView {
   unavailableReason?: string;
 }
 
+export interface SubagentAdvisorView {
+  slug: string;
+  enabled: boolean;
+  keyConfigured: boolean;
+}
+
 export interface BridgeMethodsDeps {
   approvalReviewer?: ApprovalReviewerSettings;
+  subagentAdvisor?: {
+    configured(slug: string): Promise<boolean>;
+    setKey(slug: string, key: string | undefined): Promise<void>;
+  };
   composerIdentity?: () => ComposerRecoveryIdentity;
   warn?: (message: string) => void;
   registry: PersonaBotRegistry;
@@ -2757,6 +2770,53 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         return invalidInput(error instanceof Error ? error.message : String(error));
       }
       return { ok: true, value: await reviewerModelView(route) };
+    },
+    async subagentAdvisor(payload) {
+      if (deps.subagentAdvisor === undefined) return unavailable();
+      const slug = asSlug(payload);
+      if (slug === undefined) return invalidInput('slug is required');
+      const record = deps.registry.get(slug);
+      if (record === undefined) return unknownBot(slug);
+      try {
+        return {
+          ok: true,
+          value: {
+            slug,
+            enabled: record.subagentAdvisor === true,
+            keyConfigured: await deps.subagentAdvisor.configured(slug),
+          },
+        };
+      } catch {
+        return unavailable();
+      }
+    },
+    async subagentAdvisorSet(payload) {
+      if (deps.subagentAdvisor === undefined) return unavailable();
+      const slug = asSlug(payload);
+      const enabled = asObject(payload)['enabled'];
+      if (slug === undefined || typeof enabled !== 'boolean')
+        return invalidInput('slug and enabled are required');
+      const result = deps.registry.setSubagentAdvisor(slug, enabled);
+      if (!result.ok) return unknownBot(slug);
+      return this.subagentAdvisor({ slug });
+    },
+    async subagentAdvisorKeySet(payload) {
+      if (deps.subagentAdvisor === undefined) return unavailable();
+      const slug = asSlug(payload);
+      if (slug === undefined) return invalidInput('slug is required');
+      const record = deps.registry.get(slug);
+      if (record === undefined) return unknownBot(slug);
+      const key = asObject(payload)['key'];
+      if (key !== null && typeof key !== 'string')
+        return invalidInput('key must be a string or null to remove it');
+      const value = typeof key === 'string' ? key : undefined;
+      if (value !== undefined && value.trim() === '') return invalidInput('key must not be blank');
+      try {
+        await deps.subagentAdvisor.setKey(slug, value);
+      } catch {
+        return invalidInput('Could not save the Subagent advisor key');
+      }
+      return this.subagentAdvisor({ slug });
     },
     standingLimitsSet(payload) {
       const slug = asSlug(payload);

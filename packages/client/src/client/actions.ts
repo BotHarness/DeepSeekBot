@@ -149,6 +149,10 @@ import {
   loadAssignmentAccess,
   setAssignmentAccess,
   type AssignmentAccessPresetView,
+  loadSubagentAdvisor,
+  setSubagentAdvisorEnabled,
+  setSubagentAdvisorKey,
+  type SubagentAdvisorView,
   revokeToolApprovalRule,
   type ToolApprovalRuleView,
   createWorkspaceGrant,
@@ -675,6 +679,9 @@ export interface BridgeActions {
     enabled: boolean,
   ): Promise<WorkspaceGrantView>;
   assignmentAccess(slug: string): Promise<AssignmentAccessPresetView>;
+  subagentAdvisor(slug: string): Promise<SubagentAdvisorView>;
+  setSubagentAdvisorEnabled(slug: string, enabled: boolean): Promise<SubagentAdvisorView>;
+  setSubagentAdvisorKey(slug: string, key: string | undefined): Promise<SubagentAdvisorView>;
   setAssignmentAccess(
     slug: string,
     mode: AssignmentAccessPresetView['mode'],
@@ -1613,6 +1620,9 @@ export function createActions(
     setWorkspaceGrantWrite: (slug, grantId, enabled) =>
       setWorkspaceGrantWrite(call, slug, grantId, enabled),
     assignmentAccess: (slug) => loadAssignmentAccess(call, slug),
+    subagentAdvisor: (slug) => loadSubagentAdvisor(call, slug),
+    setSubagentAdvisorEnabled: (slug, enabled) => setSubagentAdvisorEnabled(call, slug, enabled),
+    setSubagentAdvisorKey: (slug, key) => setSubagentAdvisorKey(call, slug, key),
     setAssignmentAccess: (slug, mode, acknowledgeRisk, scope) =>
       setAssignmentAccess(call, slug, mode, acknowledgeRisk, scope),
     listToolApprovalRules: (slug) => loadToolApprovalRules(call, slug),

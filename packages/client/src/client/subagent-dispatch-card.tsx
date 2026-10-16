@@ -139,6 +139,15 @@ export function DispatchRow({
       : `${route.provider}/${route.model}${
           route.reasoningEffort === undefined ? '' : ` · ${route.reasoningEffort}`
         }`;
+  const advisor = dispatch.advisor;
+  const advisorText =
+    advisor === undefined
+      ? undefined
+      : advisor === 'unavailable'
+        ? t('subagentDispatch.advisorUnavailable')
+        : `${t('subagentDispatch.advisorSuggested')} · ${advisor.provider}/${advisor.model}${
+            advisor.reasoningEffort === undefined ? '' : ` · ${advisor.reasoningEffort}`
+          }`;
   return (
     <div {...stylex.props(styles.row)}>
       <span
@@ -155,6 +164,11 @@ export function DispatchRow({
         <span {...stylex.props(styles.meta)} title={routeText}>
           {routeText}
         </span>
+        {advisorText === undefined ? null : (
+          <span {...stylex.props(styles.meta)} title={advisorText}>
+            {advisorText}
+          </span>
+        )}
       </span>
       <span {...stylex.props(styles.pill, statusStyles[dispatch.status])}>
         {t(`subagentDispatch.status.${dispatch.status}`)}

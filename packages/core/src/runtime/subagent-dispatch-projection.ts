@@ -6,6 +6,7 @@ import {
   parseSubagentDispatchRoute,
   terminalSubagentStatus,
   type SubagentDispatchProjection,
+  type SubagentDispatchAdvisor,
   type SubagentDispatchRecord,
   type SubagentDispatchRegistry,
   type SubagentDispatchStatus,
@@ -43,6 +44,7 @@ interface DispatchIntent {
   oneShot: boolean;
   settled: boolean;
   toolSettled: boolean;
+  advisor?: SubagentDispatchAdvisor;
 }
 
 interface DeferredChild {
@@ -75,6 +77,7 @@ export interface SubagentDispatchProjectionHost {
     callId: string,
     childSessionId: string,
     jobId?: string,
+    advisor?: SubagentDispatchAdvisor,
   ): void;
   handleJobEvent(event: { type: string; job?: ReportedJob }): void;
   handleSubagentEnd(info: unknown): void;
@@ -147,6 +150,7 @@ export function createSubagentDispatchProjection(
         status: status ?? intent.status,
         at,
         description: intent.description,
+        ...(intent.advisor === undefined ? {} : { advisor: intent.advisor }),
         ...(resolvedRoute === undefined ? {} : { resolvedRoute }),
       };
       const record = registry.preview(transition);
@@ -320,18 +324,22 @@ export function createSubagentDispatchProjection(
         oneShot: data?.['mode'] === 'one-shot',
       });
     },
-    bindDispatch(parentSessionId, callId, childSessionId, jobId) {
+    bindDispatch(parentSessionId, callId, childSessionId, jobId, advisor) {
       const intent = pendingBySession
         .get(parentSessionId)
         ?.findLast((candidate) => candidate.callId === callId);
       if (intent === undefined || intent.settled) return;
+      if (advisor !== undefined) intent.advisor = advisor;
       if (jobId !== undefined) {
         intent.jobId = jobId;
         intentsByJob.set(jobId, intent);
       }
       const pending = deferred.get(childSessionId);
       if (pending !== undefined) attachDeferred(intent, childSessionId, pending);
-      else attach(intent, childSessionId);
+      else {
+        attach(intent, childSessionId);
+        apply(intent, intent.status);
+      }
       const job = jobId === undefined ? undefined : deferredJobs.get(jobId);
       if (job !== undefined) attachJob(intent, job);
     },

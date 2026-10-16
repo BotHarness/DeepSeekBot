@@ -286,6 +286,30 @@ describe('plugin entry', () => {
     expect(core?.states.snapshot('ada').sessions).toEqual({ 'stale-1': 'done' });
   });
 
+  it('keeps Bot deletion incomplete when advisor credential cleanup fails and retries it', async () => {
+    const { ctx } = createStubContext();
+    const deleteRecord = vi
+      .fn<() => Promise<void>>()
+      .mockRejectedValueOnce(new Error('Credential store is locked'))
+      .mockResolvedValue(undefined);
+    ctx.provide('credentials', { listRecords: async () => [], deleteRecord } as never);
+    apply(ctx, { enabled: true });
+
+    const core = ctx.get('botharness') as BotHarnessCore;
+    expect(core.registry.create({ slug: 'advisor-bot', displayName: 'Advisor Bot' }).ok).toBe(true);
+    const reviewed = core.deletions.preview('advisor-bot');
+    expect(await core.deletions.confirm('advisor-bot', reviewed.token, false)).toMatchObject({
+      phase: 'incomplete',
+      failure: 'Credential store is locked',
+    });
+    expect(core.deletions.get('advisor-bot')?.phase).toBe('incomplete');
+    expect(await core.deletions.retry('advisor-bot')).toMatchObject({ phase: 'complete' });
+    expect(deleteRecord.mock.calls).toEqual([
+      ['botharness-subagent-advisor/bot-advisor-bot'],
+      ['botharness-subagent-advisor/bot-advisor-bot'],
+    ]);
+  });
+
   it('closes the operational database last with the plugin fiber', async () => {
     const home = createTempRoot('botharness-plugin-lifecycle-');
     vi.stubEnv('DSH_HOME', home);
@@ -550,6 +574,9 @@ describe('plugin entry', () => {
       'botApprovalTemplateSet',
       'approvalReviewerModel',
       'approvalReviewerModelSet',
+      'subagentAdvisor',
+      'subagentAdvisorSet',
+      'subagentAdvisorKeySet',
       'standingLimitsSet',
       'botAvatarSet',
       'botAppearanceSet',

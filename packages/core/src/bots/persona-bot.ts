@@ -38,6 +38,8 @@ export interface PersonaBotRecord {
 
   approvalTemplate?: string;
 
+  subagentAdvisor?: boolean;
+
   standingLimits?: StandingLimits;
 }
 
@@ -153,6 +155,8 @@ export function isPersonaBotRecord(value: unknown, slug: string): value is Perso
   if (record['browserProfile'] !== undefined && typeof record['browserProfile'] !== 'string')
     return false;
   if (record['approvalTemplate'] !== undefined && typeof record['approvalTemplate'] !== 'string')
+    return false;
+  if (record['subagentAdvisor'] !== undefined && typeof record['subagentAdvisor'] !== 'boolean')
     return false;
   if (
     record['appearance'] !== undefined &&

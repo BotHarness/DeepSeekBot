@@ -106,6 +106,9 @@ deepseekbot grant-create <bot-id> --workspace <workspace-id>
 ```bash
 deepseekbot browser-access-set <bot-id> --enabled
 deepseekbot computer-access-set <bot-id> --disabled
+deepseekbot subagent-advisor <bot-id>
+deepseekbot subagent-advisor-set <bot-id> (--enabled | --disabled)
+printf '<api-key>' | deepseekbot subagent-advisor-key-set <bot-id> --key-stdin
 deepseekbot access <bot-id>
 deepseekbot access-set <bot-id> --mode danger-full-access --scope chat --acknowledge-risk
 deepseekbot access-set <bot-id> --mode workspace-write
@@ -115,7 +118,7 @@ deepseekbot workspace-create /srv/bots/workspace
 deepseekbot group-create "Skill Lab" --member <bot-id> --member <bot-id>
 ```
 
-`access-set` 设置 `danger-full-access` 时必须带 `--acknowledge-risk`：完全访问下 Bot 可以执行任意命令，并且使用浏览器和 Computer 都不弹审批卡。`--scope chat` 同时作用于 Bot 自己的对话；`assignments` 只作用于新的 Assignment。`settings` 返回一个命名空间的 `{ns, revision, value}`；`settings-set` 从标准输入读取一个字段 JSON 对象，并基于该版本号应用，所以并发修改会失败而不是被覆盖。只有 Host 标记为可在线修改的字段才能这样改。`workspace-create` 接受绝对路径并返回 Host 工作区，其 id 供 `grant-create` 使用。
+`access-set` 设置 `danger-full-access` 时必须带 `--acknowledge-risk`：完全访问下 Bot 可以执行任意命令，并且使用浏览器和 Computer 都不弹审批卡。`--scope chat` 同时作用于 Bot 自己的对话；`assignments` 只作用于新的 Assignment。`subagent-advisor` 返回可选 Jev 子代理顾问的 `{slug, enabled, keyConfigured}`；顾问开启后，Bot 启动未指定模型的子代理时会先咨询 Jev 选择模型和推理强度。`subagent-advisor-key-set` 从标准输入读取密钥（传入空 stdin 即移除），从不回显。顾问关闭或不可用时，委派行为与之前完全一致。`settings` 返回一个命名空间的 `{ns, revision, value}`；`settings-set` 从标准输入读取一个字段 JSON 对象，并基于该版本号应用，所以并发修改会失败而不是被覆盖。只有 Host 标记为可在线修改的字段才能这样改。`workspace-create` 接受绝对路径并返回 Host 工作区，其 id 供 `grant-create` 使用。
 
 ### 频道与群组
 

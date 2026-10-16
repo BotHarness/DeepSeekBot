@@ -112,6 +112,7 @@ export interface PersonaBotRegistry {
   setBrowserAccess(slug: string, enabled: boolean): UpdatePersonaBotResult;
   setBrowserProfile(slug: string, profile: string): UpdatePersonaBotResult;
   setApprovalTemplate(slug: string, template: string | undefined): UpdatePersonaBotResult;
+  setSubagentAdvisor(slug: string, enabled: boolean): UpdatePersonaBotResult;
   setStandingLimits(slug: string, limits: StandingLimits): UpdatePersonaBotResult;
   inheritModel(slug: string, expectedRevision: number): UpdatePersonaBotResult;
   applyModelPreset(slug: string, preset: ModelPreset): UpdatePersonaBotResult;
@@ -205,6 +206,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       'browserAccess',
       'browserProfile',
       'approvalTemplate',
+      'subagentAdvisor',
     ] as const) {
       if (record[key] !== undefined) Object.assign(result, { [key]: record[key] });
     }
@@ -754,6 +756,14 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       if (record === undefined) return { ok: false, reason: 'not-found' };
       if (template === undefined) delete record.approvalTemplate;
       else record.approvalTemplate = template;
+      write(record);
+      return { ok: true, record };
+    },
+    setSubagentAdvisor(slug, enabled) {
+      const record = active(slug);
+      if (record === undefined) return { ok: false, reason: 'not-found' };
+      if (enabled) record.subagentAdvisor = true;
+      else delete record.subagentAdvisor;
       write(record);
       return { ok: true, record };
     },

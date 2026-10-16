@@ -81,6 +81,7 @@ import {
 import { readDailyUsageCounts, startDailyUsage } from './telemetry/daily-usage.js';
 import { deliverPendingExceptions, installExceptionCapture } from './telemetry/exceptions.js';
 import { createPersonaBotRegistry, type PersonaBotRegistry } from './bots/registry.js';
+import { createSubagentAdvisorSettings } from './bots/subagent-advisor-settings.js';
 import { createPersonaBotDeletions, type PersonaBotDeletions } from './bots/deletion.js';
 import {
   backfillBotBanners,
@@ -1072,6 +1073,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     erasePrivateAccounts: async (slug) => {
       await privateInputs?.mcpServers?.erase(slug);
       await privateInputs?.eraseBot(slug);
+      await subagentAdvisor.setKey(slug, undefined);
     },
     capture: (event, properties) => telemetry.capture(event, properties),
     warn: (message) => ctx.logger.warn(message),
@@ -1255,6 +1257,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     join(dshHome, 'botharness', 'approval-templates'),
   );
   const approvalReviewer = createApprovalReviewerSettings(join(dshHome, 'botharness'));
+  const subagentAdvisor = createSubagentAdvisorSettings(() => ctx.get('credentials'));
   let reviewLogs: LogDatabase | undefined;
   try {
     reviewLogs = openLogDatabase({ dir: join(dshHome, 'botharness') });
@@ -1787,6 +1790,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   });
   const bridgeMethods = createBridgeMethods({
     approvalReviewer,
+    subagentAdvisor,
     composerIdentity: () =>
       composerRecoveryIdentity(
         join(homedir(), '.config', 'botharness', 'composer-host-id'),
@@ -2241,13 +2245,19 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           agent.ctx,
           agent,
           () => core.registry.get(owner.botSlug)?.modelPlan,
-          (callId, childSessionId, jobId) =>
+          (callId, childSessionId, jobId, advisor) =>
             subagentDispatchProjection.bindDispatch(
               agent.session.id,
               callId,
               childSessionId,
               jobId,
+              advisor,
             ),
+          async () => {
+            if (core.registry.get(owner.botSlug)?.subagentAdvisor !== true) return undefined;
+            const key = await subagentAdvisor.key(owner.botSlug);
+            return { enabled: true, ...(key === undefined ? {} : { key }) };
+          },
         );
       }
     },

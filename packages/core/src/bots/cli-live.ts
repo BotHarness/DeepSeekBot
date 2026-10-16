@@ -105,6 +105,7 @@ export const LIVE_OPTIONS = {
   ...TODO_OPTIONS,
   ...APPROVAL_TEMPLATE_OPTIONS,
   ...APPROVAL_REVIEWER_OPTIONS,
+  'key-stdin': { type: 'boolean' },
   host: { type: 'string' },
   'token-file': { type: 'string' },
   timeout: { type: 'string' },
@@ -169,6 +170,9 @@ const IM_CONTROL_COMMANDS = [
 const TOKEN_IM_PLATFORMS = new Set(['discord', 'slack', 'qq', 'dingtalk', 'wecom', 'matrix']);
 
 const CONTROL_COMMANDS = [
+  'subagent-advisor',
+  'subagent-advisor-set',
+  'subagent-advisor-key-set',
   'browser-access-set',
   'computer-access-set',
   'access',
@@ -192,6 +196,18 @@ export const LIVE_COMMANDS = [
   ...TODO_COMMANDS,
   ...APPROVAL_TEMPLATE_COMMANDS,
   ...APPROVAL_REVIEWER_COMMANDS,
+  {
+    command: 'subagent-advisor',
+    description: 'show the Bot Subagent advisor settings without its key',
+  },
+  {
+    command: 'subagent-advisor-set',
+    description: 'toggle the Subagent advisor (--enabled | --disabled)',
+  },
+  {
+    command: 'subagent-advisor-key-set',
+    description: 'save or remove the advisor key from --key-stdin',
+  },
   {
     command: 'send',
     description: 'send a Human DM and collect its committed Bot reply from a live Host',
@@ -351,6 +367,7 @@ interface LiveValues
     TodoValues,
     ApprovalTemplateValues,
     ApprovalReviewerValues {
+  'key-stdin'?: boolean;
   host?: string;
   'token-file'?: string;
   timeout?: string;
@@ -1055,9 +1072,19 @@ async function runControlCommand(
   if (rest.length !== 1 || !rest[0]?.trim()) usage(`${command} needs exactly one target.`);
   const target = rest[0].trim();
   let patch: Record<string, unknown> | undefined;
-  if (command === 'browser-access-set' || command === 'computer-access-set') {
+  if (
+    command === 'browser-access-set' ||
+    command === 'computer-access-set' ||
+    command === 'subagent-advisor-set'
+  ) {
     if (values.enabled === values.disabled)
       usage(`${command} needs exactly one of --enabled or --disabled.`);
+  }
+  let advisorKey: string | undefined;
+  if (command === 'subagent-advisor-key-set') {
+    if (!values['key-stdin'] || io.readStdin === undefined)
+      usage('subagent-advisor-key-set requires --key-stdin.');
+    advisorKey = (await io.readStdin()).trim();
   }
   if (command === 'access-set') {
     if (values.mode !== 'workspace-write' && values.mode !== 'danger-full-access')
@@ -1092,6 +1119,11 @@ async function runControlCommand(
       slug: target,
       enabled: values.enabled === true,
     });
+  if (command === 'subagent-advisor') return rpc('subagentAdvisor', { slug: target });
+  if (command === 'subagent-advisor-set')
+    return rpc('subagentAdvisorSet', { slug: target, enabled: values.enabled === true });
+  if (command === 'subagent-advisor-key-set')
+    return rpc('subagentAdvisorKeySet', { slug: target, key: advisorKey || null });
   if (command === 'access') return rpc('assignmentAccessGet', { slug: target });
   if (command === 'access-set')
     return rpc('assignmentAccessSet', {

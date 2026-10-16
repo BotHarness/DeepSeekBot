@@ -19,7 +19,10 @@ export interface SubagentDispatchProjection {
   updatedAt: string;
   parentSessionId: string;
   resolvedRoute?: SubagentDispatchRoute;
+  advisor?: SubagentDispatchAdvisor;
 }
+
+export type SubagentDispatchAdvisor = 'unavailable' | SubagentDispatchRoute;
 
 export interface SubagentDispatchRecord {
   channelId: string;
@@ -35,6 +38,7 @@ export interface SubagentDispatchTransition {
   at: string;
   description?: string;
   resolvedRoute?: SubagentDispatchRoute;
+  advisor?: SubagentDispatchAdvisor;
 }
 
 export interface SubagentDispatchRegistry {
@@ -101,6 +105,10 @@ export function parseSubagentDispatchProjection(
   if (typeof projection['updatedAt'] !== 'string') return undefined;
   if (typeof projection['revision'] !== 'number') return undefined;
   const resolvedRoute = parseSubagentDispatchRoute(projection['resolvedRoute']);
+  const advisor =
+    projection['advisor'] === 'unavailable'
+      ? 'unavailable'
+      : parseSubagentDispatchRoute(projection['advisor']);
   return {
     kind: SUBAGENT_DISPATCH_KIND,
     dispatchId: projection['dispatchId'],
@@ -110,6 +118,7 @@ export function parseSubagentDispatchProjection(
     updatedAt: projection['updatedAt'],
     revision: projection['revision'],
     ...(resolvedRoute === undefined ? {} : { resolvedRoute }),
+    ...(advisor === undefined ? {} : { advisor }),
   };
 }
 
@@ -139,7 +148,16 @@ export function createSubagentDispatchRegistry(): SubagentDispatchRegistry {
   const channels = new Map<string, Map<string, SubagentDispatchRecord>>();
 
   return {
-    preview({ channelId, dispatchId, parentSessionId, status, description, resolvedRoute, at }) {
+    preview({
+      channelId,
+      dispatchId,
+      parentSessionId,
+      status,
+      description,
+      resolvedRoute,
+      advisor,
+      at,
+    }) {
       const existing = channels.get(channelId)?.get(dispatchId);
       const previous = existing?.projection;
       if (previous !== undefined) {
@@ -148,6 +166,7 @@ export function createSubagentDispatchRegistry(): SubagentDispatchRegistry {
           return undefined;
       }
       const route = status === 'declined' ? undefined : (resolvedRoute ?? previous?.resolvedRoute);
+      const hint = advisor ?? previous?.advisor;
       const text =
         previous !== undefined && previous.description.length > 0
           ? previous.description
@@ -156,6 +175,7 @@ export function createSubagentDispatchRegistry(): SubagentDispatchRegistry {
         previous !== undefined &&
         status === previous.status &&
         sameRoute(route, previous.resolvedRoute) &&
+        JSON.stringify(hint) === JSON.stringify(previous.advisor) &&
         text === previous.description
       )
         return undefined;
@@ -168,6 +188,7 @@ export function createSubagentDispatchRegistry(): SubagentDispatchRegistry {
         updatedAt: at,
         parentSessionId,
         ...(route === undefined ? {} : { resolvedRoute: route }),
+        ...(hint === undefined ? {} : { advisor: hint }),
       };
       const record: SubagentDispatchRecord = {
         channelId,

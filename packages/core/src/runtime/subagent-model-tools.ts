@@ -10,11 +10,17 @@ import {
   type ModelRoute,
   type PersonaBotModelPlan,
 } from '../models/presets.js';
-import { resolveSubagentRoute } from '../models/subagent-route.js';
+import { adviseSubagentRoute, type SubagentAdvisorResolver } from './subagent-advisor.js';
+import type { SubagentDispatchAdvisor } from '../channels/subagent-dispatch.js';
 
 type DelegationProvider = 'spawn' | 'fork';
 
-type SubagentStarted = (callId: string, childSessionId: string, jobId?: string) => void;
+type SubagentStarted = (
+  callId: string,
+  childSessionId: string,
+  jobId?: string,
+  advisor?: SubagentDispatchAdvisor,
+) => void;
 
 function agentOptions(parent: AgentOptions, route: ModelRoute): AgentOptions {
   const { reasoningEffort: _previousEffort, ...rest } = parent;
@@ -57,6 +63,7 @@ function installOne(
   provider: DelegationProvider,
   resolvePlan: () => PersonaBotModelPlan | undefined,
   onStarted?: SubagentStarted,
+  resolveAdvisor?: SubagentAdvisorResolver,
 ): void {
   const name = provider === 'spawn' ? 'bot_subagent' : 'bot_subagent_fork';
   ctx.tools.register(
@@ -93,10 +100,12 @@ function installOne(
         if (parent === undefined) throw new Error(`${name} requires a calling Agent`);
         const subagents = ctx.get('subagents');
         if (subagents === undefined) throw new Error('DSH Subagent service is unavailable');
-        const decision = resolveSubagentRoute(
-          resolvePlan(),
+        const decision = await adviseSubagentRoute(
+          resolvePlan,
           parentAgentOptionsForDelegation(parent),
           args,
+          exec.signal,
+          resolveAdvisor,
         );
         const options = agentOptions(parentAgentOptionsForDelegation(parent), decision.route);
         const llm = ctx.get('llm');
@@ -128,7 +137,8 @@ function installOne(
             request,
             signal: exec.signal,
           });
-          if (exec.callId !== undefined) onStarted?.(exec.callId, started.childId);
+          if (exec.callId !== undefined)
+            onStarted?.(exec.callId, started.childId, undefined, decision.advisor);
           return `${notice}Started Subagent ${started.childId} on ${decision.route.provider}/${decision.route.model}.`;
         }
         if (background) {
@@ -149,7 +159,8 @@ function installOne(
                       label: args.description,
                       signal: controller.signal,
                     });
-                    if (exec.callId !== undefined) onStarted?.(exec.callId, run.id, job.id);
+                    if (exec.callId !== undefined)
+                      onStarted?.(exec.callId, run.id, job.id, decision.advisor);
                     return await settleRun(run);
                   } catch (error) {
                     return controller.signal.aborted
@@ -167,7 +178,8 @@ function installOne(
           label: args.description,
           signal: exec.signal,
         });
-        if (exec.callId !== undefined) onStarted?.(exec.callId, run.id);
+        if (exec.callId !== undefined)
+          onStarted?.(exec.callId, run.id, undefined, decision.advisor);
         return notice + (await collect(run));
       },
     }),
@@ -179,6 +191,7 @@ export function installBotSubagentModelTools(
   agent: Agent,
   resolvePlan: () => PersonaBotModelPlan | undefined,
   onStarted?: SubagentStarted,
+  resolveAdvisor?: SubagentAdvisorResolver,
 ): void {
   if (ctx.get('subagents') === undefined) return;
   ctx.tools.guard((execution) =>
@@ -193,8 +206,8 @@ export function installBotSubagentModelTools(
     order: 10_360,
     text: 'For DSH Subagents in this PersonaBot, use bot_subagent or bot_subagent_fork. Call list_bot_subagent_models before an explicit model choice. The current Human-selected Assignment model set is checked when each child starts.',
   });
-  installOne(ctx, 'spawn', resolvePlan, onStarted);
-  installOne(ctx, 'fork', resolvePlan, onStarted);
+  installOne(ctx, 'spawn', resolvePlan, onStarted, resolveAdvisor);
+  installOne(ctx, 'fork', resolvePlan, onStarted, resolveAdvisor);
   ctx.tools.register(
     defineTool({
       name: 'list_bot_subagent_models',

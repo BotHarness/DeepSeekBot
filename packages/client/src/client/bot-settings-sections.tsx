@@ -31,6 +31,7 @@ import { ProfileBackupSettings } from './profile-backup.js';
 import type { ReleaseNotesController } from './release-notes.js';
 import type { ShortcutHelp } from './shortcut-help.js';
 import { ReleaseSettings } from './release-notes-view.js';
+import { SubagentAdvisorSetting } from './subagent-advisor-setting.js';
 import type { ClientStore } from './store.js';
 import { TelemetrySettings } from './telemetry-settings.js';
 import type { WindowCompanions } from './window-companions.js';
@@ -79,12 +80,13 @@ export function GeneralSection(props: SectionProps<GeneralSectionFace>): ReactEl
 }
 
 export function ModelsSection(
-  props: SectionProps<BotModePrefsFace & { actions: BridgeActions }>,
+  props: SectionProps<BotModePrefsFace & { actions: BridgeActions; store: ClientStore }>,
 ): ReactElement {
   return (
     <Rows>
       <DefaultModelSettings actions={props.actions} t={props.t} />
       <AssignmentConcurrencyRow {...props} />
+      <SubagentAdvisorSetting actions={props.actions} store={props.store} t={props.t} />
     </Rows>
   );
 }

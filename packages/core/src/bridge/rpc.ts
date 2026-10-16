@@ -47,7 +47,7 @@ import type {
 } from '../release/service.js';
 import type { TelemetryStatus } from '../telemetry/service.js';
 import type { OverviewMemory } from '../memory/overview.js';
-import type { ApprovalReviewerModelView, OverviewUsage } from './methods.js';
+import type { ApprovalReviewerModelView, OverviewUsage, SubagentAdvisorView } from './methods.js';
 import type { PersonaBotActivitySnapshot } from '../state/bot-state.js';
 import type { HumanAssignmentContext } from '../runtime/assignment-human-context.js';
 import type { ThreadReceptionInput } from '../messaging/thread-policy.js';
@@ -827,6 +827,18 @@ export class BotharnessBridgeService extends TypertRemoteService {
 
   approvalReviewerModelSet(model: ModelRoute | null): Promise<ApprovalReviewerModelView> {
     return unwrapAsync(this.methods.approvalReviewerModelSet({ model }));
+  }
+
+  subagentAdvisor(slug: string): Promise<SubagentAdvisorView> {
+    return unwrapAsync(this.methods.subagentAdvisor({ slug }));
+  }
+
+  subagentAdvisorSet(slug: string, enabled: boolean): Promise<SubagentAdvisorView> {
+    return unwrapAsync(this.methods.subagentAdvisorSet({ slug, enabled }));
+  }
+
+  subagentAdvisorKeySet(slug: string, key: string | null): Promise<SubagentAdvisorView> {
+    return unwrapAsync(this.methods.subagentAdvisorKeySet({ slug, key }));
   }
 
   standingLimitsSet(slug: string, soul: number, coreMemory: number): { bot: PersonaBotDetail } {
@@ -1830,6 +1842,9 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'botApprovalTemplateSet',
   'approvalReviewerModel',
   'approvalReviewerModelSet',
+  'subagentAdvisor',
+  'subagentAdvisorSet',
+  'subagentAdvisorKeySet',
   'standingLimitsSet',
   'botAvatarSet',
   'botAppearanceSet',
