@@ -1412,6 +1412,7 @@ export function ChannelComposer({
                 mentions.some(
                   (item) => item.kind === 'all-bots' && item.preview.recipients.length === 0,
                 ) ||
+                attachments.length > 10 ||
                 attachments.some((item) => item.status !== 'ready')
               }
               onClick={() => {
