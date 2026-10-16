@@ -508,6 +508,7 @@ deepseekbot marketplace-detail <owner/repo>
 deepseekbot marketplace-submit https://github.com/<owner>/<repo>
 deepseekbot marketplace-report <owner/repo> [--reason <说明>]
 deepseekbot release-check
+deepseekbot release-prompt 1.2.0-beta.1 --confirm
 deepseekbot release-channel
 deepseekbot release-channel-set beta --confirm
 deepseekbot release-channel-set stable --confirm
@@ -532,6 +533,12 @@ deepseekbot pairing-review <bot-id> <pairing-id> --decision revoke --confirm
 未加入时显式安装预发布版本返回 `release-beta-not-enabled`；更新变更期间切换返回 `release-busy`；
 无法持久化返回 `release-storage-unavailable`。失败时非零退出。
 参见 [Beta 选择验证步骤](agents/release-beta-choice.md)；真实 QA 是独立门槛。
+
+`release-prompt <version> --confirm` 消耗当前 Beta Profile 对所选候选版本的自动设置页提醒，
+不会安装或重启。`claimed` 表示已先保存记录；重复或更旧版本返回 `suppressed` / `already-prompted`。
+其他抑制原因为 `not-beta`、`busy`、`changed`、`no-update`。存储、版本参数或活动检查失败时，
+以非零退出并返回 `release-<原因>`。只读检查请用 `release-check`，它不消耗提醒。
+提交后丢失响应不会自动重试，手动检查仍可使用。参见 [Beta 提醒验证步骤](agents/release-beta-prompt.md)。
 
 `marketplace-submit` 和 `marketplace-report` 会像网页一样先完成 Host 下发的工作量证明，因此可能需要几秒；市场本身的拒绝（`repository-missing-topic`、`rate-limited` 等）作为错误码返回。举报说明最多 500 个字符。`release-check` 返回更新状态（`current`、`available`、`restart-required`、`development` 或 `unavailable`）。`release-install` 和 `release-restart` 必须带 `--confirm`；安装或重启失败时以非零退出，错误码为 `release-<原因>`，例如 `release-network` 或 `release-not-pending`。只在自己负责的 Host 上请求变更。`pairing-list` 列出 Bot 的配对请求和角色；`pairing-review` 自行读取当前版本号，期间被改动过的请求会被拒绝而不是被覆盖。对话类请求用一个 `--role` 批准，管理类请求用 `--capability` 批准。
 

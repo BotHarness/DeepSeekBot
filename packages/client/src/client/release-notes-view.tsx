@@ -325,10 +325,10 @@ export type ReleaseSettingsProps = PropsLocale<'botharness'> &
 
 export function ReleaseSettings({ releaseNotes, t }: ReleaseSettingsProps): ReactElement {
   const snapshot = useReleaseNotes(releaseNotes);
-  const mount = useMountedResource<HTMLDivElement>(() => {
-    void releaseNotes.loadChannel();
-    void releaseNotes.start().then(() => releaseNotes.checkUpdate());
-  }, [releaseNotes]);
+  const mount = useMountedResource<HTMLDivElement>(
+    () => releaseNotes.openSettings(),
+    [releaseNotes],
+  );
   const update = snapshot.update;
   const install = snapshot.install;
   const installing = install.status === 'installing';
@@ -408,8 +408,7 @@ export function ReleaseSettings({ releaseNotes, t }: ReleaseSettingsProps): Reac
                 update.status === 'restart-required'
               }
               onClick={() => {
-                void releaseNotes.loadChannel();
-                void releaseNotes.checkUpdate(true);
+                void releaseNotes.checkManually();
               }}
             >
               {t('release.check')}
@@ -417,7 +416,10 @@ export function ReleaseSettings({ releaseNotes, t }: ReleaseSettingsProps): Reac
           </>
         }
       />
-      {update.status === 'available' ? (
+      {update.status === 'available' && !snapshot.updateVisible ? (
+        <Note>{t('release.prompt.quiet')}</Note>
+      ) : null}
+      {update.status === 'available' && snapshot.updateVisible ? (
         <div className="bh-release-update" data-release-update={update.latest}>
           <div className="bh-release-update-head">
             <span className="bh-release-update-title">
@@ -451,7 +453,20 @@ export function ReleaseSettings({ releaseNotes, t }: ReleaseSettingsProps): Reac
                 {t(installing ? 'release.install.running' : 'release.install.action')}
               </Button>
             ) : null}
+            {snapshot.channel?.channel === 'beta' ? (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={installing}
+                onClick={() => releaseNotes.dismissUpdate()}
+              >
+                {t('release.prompt.later')}
+              </Button>
+            ) : null}
           </div>
+          {snapshot.channel?.channel === 'beta' ? (
+            <Note>{t('release.prompt.candidate')}</Note>
+          ) : null}
           {update.installable && install.status !== 'failed' ? (
             <div className="bh-settings-row-desc">
               {t(installing ? 'release.install.progress' : 'release.install.hint')}

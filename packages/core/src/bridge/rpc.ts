@@ -39,6 +39,7 @@ import type {
   MarketplaceTopic,
 } from '../marketplace/client.js';
 import type { AltchaChallenge } from '../marketplace/altcha.js';
+import type { ReleasePrompt } from '../release/prompt.js';
 import type {
   ReleaseInfo,
   ReleaseInstall,
@@ -1598,6 +1599,10 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrapAsync(this.methods.releaseUpdate());
   }
 
+  async releasePrompt(version: string): Promise<ReleasePrompt> {
+    return unwrapAsync(this.methods.releasePrompt({ version }));
+  }
+
   async releaseChannel(): Promise<ReleaseChannelStatus> {
     return unwrap(this.methods.releaseChannel());
   }
@@ -1861,6 +1866,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'marketplaceReport',
   'releaseInfo',
   'releaseUpdate',
+  'releasePrompt',
   'releaseChannel',
   'releaseChannelSet',
   'releaseInstall',

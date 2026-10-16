@@ -76,6 +76,7 @@ import type {
 } from '../release/service.js';
 import type { TelemetryCapture, TelemetryStatus } from '../telemetry/service.js';
 import type { ReleaseChannelStatus, ReleaseChannelChange } from '../release/channel.js';
+import type { ReleasePrompt } from '../release/prompt.js';
 import {
   AssignmentReplyTargetError,
   type HumanAssignmentContext,
@@ -716,6 +717,7 @@ export interface BridgeMethods {
   releaseChannel(): BridgeResult<ReleaseChannelStatus>;
   releaseChannelSet(payload: unknown): BridgeResult<ReleaseChannelChange>;
   releaseUpdate(): Promise<BridgeResult<ReleaseUpdate>>;
+  releasePrompt(payload: unknown): Promise<BridgeResult<ReleasePrompt>>;
   releaseInstall(payload: unknown): Promise<BridgeResult<ReleaseInstall>>;
   releaseRestart(payload: unknown): Promise<BridgeResult<ReleaseRestart>>;
   telemetryStatus(): BridgeResult<TelemetryStatus>;
@@ -2486,6 +2488,12 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
     async releaseUpdate() {
       if (deps.release === undefined) return releaseUnavailable();
       return { ok: true, value: await deps.release.update() };
+    },
+    async releasePrompt(payload) {
+      if (deps.release === undefined) return releaseUnavailable();
+      const version = asObject(payload)['version'];
+      if (typeof version !== 'string') return invalidInput('version is required');
+      return { ok: true, value: await deps.release.claimPrompt(version) };
     },
     releaseChannel() {
       if (deps.release === undefined) return releaseUnavailable();

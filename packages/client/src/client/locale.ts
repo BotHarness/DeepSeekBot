@@ -3468,6 +3468,10 @@ export const zh = {
   'release.status.unavailable': '当前版本 {version}，暂时无法连接 npm 检查更新',
   'release.changelog': '更新日志',
   'release.check': '检查更新',
+  'release.prompt.later': '稍后再看',
+  'release.prompt.quiet': '可点击“检查更新”查看候选版本；不会自动安装或重启。',
+  'release.prompt.candidate':
+    '这是更新候选，不代表手机与电脑组合已通过验证。请先确认兼容性，再选择是否安装。',
   'release.update.title': '可以更新到 {latest}',
   'release.update.notes': '查看新版本内容',
   'release.update.dialog': 'DeepSeekBot {latest} 更新内容',
@@ -7227,6 +7231,11 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'release.status.unavailable': 'Version {version}, could not reach npm to check for updates',
   'release.changelog': 'Changelog',
   'release.check': 'Check for updates',
+  'release.prompt.later': 'Later',
+  'release.prompt.quiet':
+    'Use Check for updates to view candidates. Nothing installs or restarts automatically.',
+  'release.prompt.candidate':
+    'This is an update candidate, not a verified phone/computer combination. Check compatibility before choosing to install.',
   'release.update.title': 'Update to {latest}',
   'release.update.notes': "See what's new",
   'release.update.dialog': "What's new in DeepSeekBot {latest}",

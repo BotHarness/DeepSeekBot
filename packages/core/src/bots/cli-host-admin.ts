@@ -38,6 +38,10 @@ export const HOST_ADMIN_COMMANDS = [
   },
   { command: 'marketplace-report', description: 'report a Bot Marketplace listing for review' },
   { command: 'release-check', description: 'check the release channel for a newer version' },
+  {
+    command: 'release-prompt',
+    description: 'consume this Profile/version Beta reminder; needs --confirm; never installs',
+  },
   { command: 'release-channel', description: 'read this Host stable/Beta choice' },
   {
     command: 'release-channel-set',
@@ -85,6 +89,7 @@ const POSITIONALS: Record<HostAdminCommand, number> = {
   'marketplace-submit': 1,
   'marketplace-report': 1,
   'release-check': 0,
+  'release-prompt': 1,
   'release-channel': 0,
   'release-channel-set': 1,
   'release-install': 1,
@@ -142,6 +147,10 @@ function validate(command: HostAdminCommand, rest: string[], values: HostAdminVa
     );
   if (command === 'telemetry-set' && values.enabled === values.disabled)
     usage('telemetry-set needs exactly one of --enabled or --disabled.');
+  if (command === 'release-prompt' && values.confirm !== true)
+    usage(
+      'release-prompt consumes the automatic reminder for this Profile/version. Pass --confirm; use release-check for a read-only check.',
+    );
   if (
     command === 'release-channel-set' &&
     (values.confirm !== true || !['stable', 'beta'].includes(rest[0]!))
@@ -260,6 +269,15 @@ export async function runHostAdminCommand(
     }
     case 'release-check':
       return rpc('releaseUpdate', {});
+    case 'release-prompt': {
+      const result = record(await rpc('releasePrompt', { version: target }));
+      if (result['status'] === 'failed')
+        throw new CliLiveError(
+          `release-${String(result['reason'])}`,
+          'Release reminder was not claimed. Manual release-check remains available.',
+        );
+      return result;
+    }
     case 'release-channel':
       return rpc('releaseChannel', {});
     case 'release-channel-set': {

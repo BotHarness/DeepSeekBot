@@ -195,6 +195,147 @@ describe('release service', () => {
     expect(createReleaseService(options).channel().channel).toBe('stable');
   });
 
+  it('grants one Beta prompt per version across concurrent readers and Host restarts', async () => {
+    const options = {
+      dataDir: home(),
+      version: () => '1.0.1',
+      ledgers,
+      activity: () => 'idle' as const,
+      registries: ['https://registry.test'],
+      noteSources: [],
+      fetchImpl: vi.fn(async () => jsonResponse({ latest: '1.1.0' })),
+    };
+    const service = createReleaseService(options);
+    service.setChannel('beta');
+    expect(await service.update()).toMatchObject({ status: 'available', latest: '1.1.0' });
+    const results = await Promise.all([service.claimPrompt('1.1.0'), service.claimPrompt('1.1.0')]);
+    expect(results).toEqual([
+      { status: 'claimed' },
+      { status: 'suppressed', reason: 'already-prompted' },
+    ]);
+    expect(await createReleaseService(options).claimPrompt('1.1.0')).toEqual({
+      status: 'suppressed',
+      reason: 'already-prompted',
+    });
+    expect(await service.update()).toMatchObject({ status: 'available', latest: '1.1.0' });
+  });
+
+  it('does not consume a reminder while stable, busy or unable to check activity', async () => {
+    let activity: 'idle' | 'busy' | 'unknown' = 'busy';
+    const service = createReleaseService({
+      dataDir: home(),
+      version: () => '1.0.1',
+      ledgers,
+      activity: () => activity,
+      registries: ['https://registry.test'],
+      noteSources: [],
+      fetchImpl: async () => jsonResponse({ latest: '1.1.0' }),
+    });
+    expect(await service.claimPrompt('1.1.0')).toEqual({
+      status: 'suppressed',
+      reason: 'not-beta',
+    });
+    service.setChannel('beta');
+    expect(await service.claimPrompt('1.1.0')).toEqual({ status: 'suppressed', reason: 'busy' });
+    activity = 'unknown';
+    expect(await service.claimPrompt('1.1.0')).toEqual({
+      status: 'failed',
+      reason: 'activity-unavailable',
+    });
+    activity = 'idle';
+    expect(await service.claimPrompt('garbage')).toEqual({
+      status: 'failed',
+      reason: 'invalid-version',
+    });
+    expect(await service.claimPrompt('1.9.0')).toEqual({
+      status: 'suppressed',
+      reason: 'no-update',
+    });
+    expect(await service.claimPrompt('1.1.0')).toEqual({ status: 'claimed' });
+  });
+
+  it('suppresses stale prompts after leaving Beta while discovery is in flight', async () => {
+    let resolveTags!: (response: Response) => void;
+    const response = new Promise<Response>((resolve) => {
+      resolveTags = resolve;
+    });
+    const service = createReleaseService({
+      dataDir: home(),
+      version: () => '1.0.1',
+      ledgers,
+      activity: () => 'idle',
+      registries: ['https://registry.test'],
+      noteSources: [],
+      fetchImpl: async () => (await response).clone(),
+    });
+    service.setChannel('beta');
+    const pendingPrompt = service.claimPrompt('1.2.0-beta.1');
+    await Promise.resolve();
+    service.setChannel('stable');
+    resolveTags(jsonResponse({ latest: '1.1.0', beta: '1.2.0-beta.1' }));
+    expect(await pendingPrompt).toEqual({ status: 'suppressed', reason: 'changed' });
+    service.setChannel('beta');
+    expect(await service.claimPrompt('1.2.0-beta.1')).toEqual({ status: 'claimed' });
+  });
+
+  it('keeps a Profile-local high-water mark across tag rollback and leaving/rejoining Beta', async () => {
+    const dataDir = home();
+    const make = (latest: string, directory = dataDir) =>
+      createReleaseService({
+        dataDir: directory,
+        version: () => '1.0.1',
+        ledgers,
+        activity: () => 'idle',
+        registries: ['https://registry.test'],
+        noteSources: [],
+        fetchImpl: async () => jsonResponse({ latest }),
+      });
+    const first = make('1.1.0');
+    first.setChannel('beta');
+    expect(await first.claimPrompt('1.1.0')).toEqual({ status: 'claimed' });
+    const next = make('1.2.0');
+    expect(await next.claimPrompt('1.2.0')).toEqual({ status: 'claimed' });
+    next.setChannel('stable');
+    next.setChannel('beta');
+    expect(await next.claimPrompt('1.2.0')).toEqual({
+      status: 'suppressed',
+      reason: 'already-prompted',
+    });
+    expect(await make('1.1.0').claimPrompt('1.1.0')).toEqual({
+      status: 'suppressed',
+      reason: 'already-prompted',
+    });
+    const independent = make('1.1.0', home());
+    independent.setChannel('beta');
+    expect(await independent.claimPrompt('1.1.0')).toEqual({ status: 'claimed' });
+  });
+
+  it('fails closed on damaged or unwritable reminder storage without disabling manual checks', async () => {
+    const dataDir = home();
+    const service = createReleaseService({
+      dataDir,
+      version: () => '1.0.1',
+      ledgers,
+      activity: () => 'idle',
+      registries: ['https://registry.test'],
+      noteSources: [],
+      fetchImpl: async () => jsonResponse({ latest: '1.1.0' }),
+    });
+    service.setChannel('beta');
+    writeFileSync(join(dataDir, 'release-prompt.json'), '{broken');
+    expect(await service.claimPrompt('1.1.0')).toEqual({
+      status: 'failed',
+      reason: 'storage-unavailable',
+    });
+    expect(await service.update()).toMatchObject({ status: 'available' });
+    rmSync(dataDir, { recursive: true });
+    writeFileSync(dataDir, 'not a directory');
+    expect(await service.claimPrompt('1.1.0')).toEqual({
+      status: 'failed',
+      reason: 'storage-unavailable',
+    });
+  });
+
   it('does not infer Beta enrollment from an installed prerelease', async () => {
     const service = createReleaseService({
       version: () => '1.2.0-beta.1',

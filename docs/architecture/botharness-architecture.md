@@ -987,6 +987,16 @@ mutation. Stable checks exclude prerelease `latest`; Beta additionally reads `be
 `next`. Neither tag is qualification evidence. Exit leaves staged/installed artifacts and data
 untouched, without promising a stable replacement. See [verification](../agents/release-beta-choice.md).
 
+The same Service owns the Profile-local `botharness/release-prompt.json` high-water mark
+([ADR-0215](../adr/0215-beta-reminders-are-claimed-once-per-profile-before-display.md)). The
+authenticated `releasePrompt(version)` command rechecks candidate, choice revision and activity,
+then atomically records a newer version before granting the Settings card. This suppresses
+duplicate/older automatic reminders across clients and restarts; it is not display acknowledgement
+or artifact qualification. Missing history allows a first claim; damaged history fails closed.
+The Web does not retry lost claims, while explicit manual checks remain usable. CLI parity is
+`release-prompt <version> --confirm`; read-only `release-check` never consumes the reminder.
+See [the assigned-window verification path](../agents/release-beta-prompt.md).
+
 The application-defined Release Service keeps update/restart authority behind the existing
 authenticated bridge and matching CLI. Its process-local activity probe reads DSH-native live
 Agents, their queued Inbox input, and unowned plus live-Agent-owned Jobs. Otherwise-idle Agents

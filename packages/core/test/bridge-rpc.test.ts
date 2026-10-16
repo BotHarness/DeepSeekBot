@@ -80,6 +80,11 @@ describe('bridge typert service', () => {
         ok: true,
         value: { channel: 'stable', writable: true },
       });
+      expect(await methods.releasePrompt({ version: '1.2.0' })).toEqual({
+        ok: true,
+        value: { status: 'suppressed', reason: 'not-beta' },
+      });
+      expect((await methods.releasePrompt({})).ok).toBe(false);
       expect(methods.releaseChannelSet({ channel: 'beta' })).toEqual({
         ok: true,
         value: { status: 'saved', channel: 'beta' },
@@ -308,6 +313,7 @@ describe('bridge typert service', () => {
       'marketplaceReport',
       'releaseInfo',
       'releaseUpdate',
+      'releasePrompt',
       'releaseChannel',
       'releaseChannelSet',
       'releaseInstall',
@@ -398,6 +404,7 @@ describe('bridge typert service', () => {
     expect(parameterNames(service.marketplaceReport)).toEqual(['id', 'altcha', 'reason']);
     expect(parameterNames(service.releaseInfo)).toEqual(['since']);
     expect(parameterNames(service.releaseUpdate)).toEqual([]);
+    expect(parameterNames(service.releasePrompt)).toEqual(['version']);
     expect(parameterNames(service.releaseChannel)).toEqual([]);
     expect(parameterNames(service.releaseChannelSet)).toEqual(['channel']);
     expect(parameterNames(service.channelReact)).toEqual([

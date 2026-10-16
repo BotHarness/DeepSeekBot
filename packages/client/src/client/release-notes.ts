@@ -54,6 +54,7 @@ export interface ReleaseNotesSnapshot {
   firstRun: boolean;
   viewing: ReleaseNote[] | undefined;
   update: ReleaseUpdateState;
+  updateVisible: boolean;
   install: ReleaseInstallState;
   restart: ReleaseRestartState;
 }
@@ -173,6 +174,8 @@ export class ReleaseNotesController {
   private started: Promise<void> | undefined;
   private updateRequest = 0;
   private channelRequest = 0;
+  private settingsRevision = 0;
+  private settingsOpen = false;
 
   constructor(
     call: BridgeCall,
@@ -191,6 +194,7 @@ export class ReleaseNotesController {
       firstRun: false,
       viewing: undefined,
       update: { status: 'idle' },
+      updateVisible: false,
       install: { status: 'idle' },
       restart: { status: 'idle' },
     });
@@ -224,28 +228,88 @@ export class ReleaseNotesController {
     });
   }
 
-  async checkUpdate(force = false): Promise<void> {
+  openSettings(): () => void {
+    const visit = ++this.settingsRevision;
+    this.settingsOpen = true;
+    this.updateRequest += 1;
+    this.source.update((draft) => {
+      const mutating =
+        draft.install.status === 'installing' || draft.restart.status === 'restarting';
+      draft.updateVisible = mutating;
+      if (!mutating && draft.update.status !== 'restart-required')
+        draft.update = { status: 'idle' };
+    });
+    void this.loadChannel(false)
+      .then(() => this.start())
+      .then(() => {
+        if (visit === this.settingsRevision) return this.checkUpdate();
+      });
+    return () => {
+      if (visit !== this.settingsRevision) return;
+      this.settingsRevision += 1;
+      this.settingsOpen = false;
+      this.dismissUpdate();
+    };
+  }
+
+  async checkManually(): Promise<void> {
+    const visit = this.settingsRevision;
+    await this.loadChannel(false);
+    if (visit === this.settingsRevision) await this.checkUpdate('manual');
+  }
+
+  async checkUpdate(intent: 'automatic' | 'manual' = 'automatic'): Promise<void> {
+    const manual = intent === 'manual';
     if (this.source.getSnapshot().channelSaving) return;
     const current = this.source.getSnapshot().update.status;
-    if (current === 'checking' || (!force && current !== 'idle')) return;
+    if (current === 'checking' || (!manual && current !== 'idle')) return;
     const request = ++this.updateRequest;
     this.source.update((draft) => {
       draft.update = { status: 'checking' };
+      draft.updateVisible = false;
     });
     let update: ReleaseUpdate | undefined;
+    let visible = manual;
+    let claimedBeta = false;
     try {
       const result = await this.call('releaseUpdate', {});
       update = result.ok ? parseReleaseUpdate(result.value) : undefined;
+      if (request === this.updateRequest && !manual && update?.status === 'available') {
+        const claim = await this.call('releasePrompt', { version: update.latest });
+        const value = claim.ok ? record(claim.value) : undefined;
+        claimedBeta = value?.['status'] === 'claimed';
+        visible =
+          claimedBeta ||
+          (value?.['status'] === 'suppressed' &&
+            value['reason'] === 'not-beta' &&
+            !update.latest.includes('-'));
+      }
     } catch {
-      update = undefined;
+      visible = false;
     }
-    if (request === this.updateRequest)
+    if (request === this.updateRequest) {
+      if (claimedBeta) this.channelRequest += 1;
       this.source.update((draft) => {
+        if (claimedBeta) {
+          draft.channel = { channel: 'beta', writable: true };
+          if (draft.channelError === 'read') draft.channelError = undefined;
+        }
         draft.update = update ?? { status: 'unavailable', current: draft.version ?? '' };
+        draft.updateVisible = visible;
       });
+    }
   }
 
-  async loadChannel(): Promise<void> {
+  dismissUpdate(): void {
+    this.updateRequest += 1;
+    this.source.update((draft) => {
+      draft.updateVisible = false;
+      draft.viewing = undefined;
+      if (draft.update.status === 'checking') draft.update = { status: 'idle' };
+    });
+  }
+
+  async loadChannel(refreshUpdate = true): Promise<void> {
     const request = ++this.channelRequest;
     try {
       const response = await this.call('releaseChannel', {});
@@ -263,10 +327,11 @@ export class ReleaseNotesController {
         if (draft.channelError === 'read') draft.channelError = undefined;
         if (changed) {
           draft.update = { status: 'idle' };
+          draft.updateVisible = false;
           draft.viewing = undefined;
         }
       });
-      if (changed) await this.checkUpdate(true);
+      if (changed && refreshUpdate) await this.checkUpdate();
     } catch {
       if (request !== this.channelRequest) return;
       this.source.update((draft) => {
@@ -277,6 +342,7 @@ export class ReleaseNotesController {
   }
 
   async setChannel(channel: ReleaseChannel): Promise<void> {
+    const visit = this.settingsRevision;
     const snapshot = this.source.getSnapshot();
     if (
       !snapshot.channel?.writable ||
@@ -291,6 +357,7 @@ export class ReleaseNotesController {
       draft.channelSaving = true;
       draft.channelError = undefined;
       draft.update = { status: 'idle' };
+      draft.updateVisible = false;
       draft.viewing = undefined;
     });
     try {
@@ -312,7 +379,8 @@ export class ReleaseNotesController {
         draft.channelSaving = false;
       });
     }
-    await this.checkUpdate(true);
+    if (visit === this.settingsRevision) await this.checkUpdate('manual');
+    else if (this.settingsOpen) await this.checkUpdate();
   }
 
   async install(version: string): Promise<void> {

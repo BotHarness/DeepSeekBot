@@ -515,6 +515,7 @@ deepseekbot marketplace-detail <owner/repo>
 deepseekbot marketplace-submit https://github.com/<owner>/<repo>
 deepseekbot marketplace-report <owner/repo> [--reason <text>]
 deepseekbot release-check
+deepseekbot release-prompt 1.2.0-beta.1 --confirm
 deepseekbot release-channel
 deepseekbot release-channel-set beta --confirm
 deepseekbot release-channel-set stable --confirm
@@ -541,6 +542,14 @@ a verified upgrade or maintainer-guided recovery is available. An explicit prere
 opt-in returns `release-beta-not-enabled`. A concurrent release mutation returns `release-busy`;
 missing or failed preference persistence returns `release-storage-unavailable`. Failures exit nonzero.
 See the [Beta choice verification path](agents/release-beta-choice.md); live QA remains a separate gate.
+
+`release-prompt <version> --confirm` consumes the automatic Settings reminder for the selected
+candidate in this Beta Profile; it never installs or restarts. `claimed` records the version
+before returning; repeated/older versions return `suppressed` / `already-prompted`. Other
+suppression reasons include `not-beta`, `busy`, `changed` and `no-update`. Storage, invalid-version
+or activity-check failures exit nonzero as `release-<reason>`. Use `release-check` for read-only
+inspection: it does not consume a reminder. Lost responses after commit are not retried; manual
+checks remain available. See [Beta reminder verification](agents/release-beta-prompt.md).
 
 `marketplace-submit` and `marketplace-report` first solve the Host's proof-of-work challenge, as the Web page does, so they can take a few seconds; the Marketplace's own refusals (`repository-missing-topic`, `rate-limited`, …) come back as the error code. A report reason is at most 500 characters. `release-check` returns the update status (`current`, `available`, `restart-required`, `development` or `unavailable`). `release-install` and `release-restart` need `--confirm`; a failed install or restart exits non-zero with `release-<reason>`, such as `release-network` or `release-not-pending`. Only request changes on a Host you own. `pairing-list` shows a Bot's pairing requests and its roles; `pairing-review` reads the current revisions itself, so a request that changed in between is refused instead of overwritten. Approve with one `--role` for a conversation request or with `--capability` for a management request.
 

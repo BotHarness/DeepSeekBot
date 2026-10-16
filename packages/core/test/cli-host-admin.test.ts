@@ -1,4 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
 import { createChallenge, verifySolution } from '../src/marketplace/altcha.js';
@@ -70,6 +73,54 @@ async function invoke(argv: string[], url: string) {
 }
 
 const ok = (value: unknown) => ({ ok: true, value });
+
+it('shares the real Host reminder claim over authenticated HTTP without consuming read-only checks', async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), 'release-prompt-cli-'));
+  try {
+    const release = createReleaseService({
+      dataDir,
+      version: () => '1.0.1',
+      ledgers: () => undefined,
+      activity: () => 'idle',
+      registries: ['https://registry.test'],
+      noteSources: [],
+      fetchImpl: async () => new Response(JSON.stringify({ latest: '1.1.0' })),
+    });
+    release.setChannel('beta');
+    const live = await host(async (method, args) =>
+      ok(
+        method === 'releasePrompt'
+          ? await release.claimPrompt(String(args['version']))
+          : await release.update(),
+      ),
+    );
+    expect((await invoke(['release-check'], live.url)).json.status).toBe('available');
+    expect((await invoke(['release-prompt', '1.1.0', '--confirm'], live.url)).json.status).toBe(
+      'claimed',
+    );
+    expect((await invoke(['release-prompt', '1.1.0', '--confirm'], live.url)).json).toEqual({
+      status: 'suppressed',
+      reason: 'already-prompted',
+    });
+    expect((await invoke(['release-check'], live.url)).json.status).toBe('available');
+  } finally {
+    rmSync(dataDir, { recursive: true, force: true });
+  }
+});
+
+it('claims a release prompt only with confirmation and preserves coded storage failure', async () => {
+  const live = await host(() => ok({ status: 'claimed' }));
+  expect((await invoke(['release-prompt', '1.1.0'], live.url)).json.error.code).toBe('usage');
+  expect(live.calls).toEqual([]);
+  expect((await invoke(['release-prompt', '1.1.0', '--confirm'], live.url)).json).toEqual({
+    status: 'claimed',
+  });
+  expect(live.calls).toEqual([{ method: 'releasePrompt', args: { version: '1.1.0' } }]);
+  const failed = await host(() => ok({ status: 'failed', reason: 'storage-unavailable' }));
+  const result = await invoke(['release-prompt', '1.1.0', '--confirm'], failed.url);
+  expect(result.code).not.toBe(0);
+  expect(result.json.error.code).toBe('release-storage-unavailable');
+});
 
 describe('Bot Marketplace commands', () => {
   it('browses, filters and reads listings through the Host', async () => {

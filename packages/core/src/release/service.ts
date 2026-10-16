@@ -11,6 +11,7 @@ import {
 import { pairReleaseLedgers, selectReleaseNotes, type ReleaseNote } from './notes.js';
 import type { ReleaseActivityRefusal, ReleaseRestarter } from './restart.js';
 import { compareVersions, isReleaseVersion } from './version.js';
+import { claimReleasePrompt, type ReleasePrompt } from './prompt.js';
 
 export const RELEASE_PACKAGE = 'deepseekbot';
 export const RELEASE_NOTES_PACKAGE = '@botharness/core';
@@ -101,6 +102,7 @@ export interface ReleaseService {
   setChannel(channel: ReleaseChannel): ReleaseChannelChange;
   info(since?: string): ReleaseInfo;
   update(): Promise<ReleaseUpdate>;
+  claimPrompt(version: string): Promise<ReleasePrompt>;
   install(version: string): Promise<ReleaseInstall>;
   restart(): Promise<ReleaseRestart>;
 }
@@ -361,6 +363,23 @@ export function createReleaseService(options: ReleaseServiceOptions): ReleaseSer
     }
   };
 
+  const update = async (): Promise<ReleaseUpdate> => {
+    const current = options.version();
+    const bundle = await profileBundle();
+    const pendingVersion = installed ?? newerInProfile(current, bundle?.version);
+    if (pendingVersion !== undefined) {
+      return {
+        status: 'restart-required',
+        current,
+        installed: pendingVersion,
+        restartable: options.restarter?.() !== undefined,
+      };
+    }
+    const result = await checked();
+    if (result.status !== 'available') return result;
+    return { ...result, installable: bundle !== undefined };
+  };
+
   return {
     channel: () => ({ channel, writable: options.dataDir !== undefined }),
     setChannel(next) {
@@ -387,21 +406,20 @@ export function createReleaseService(options: ReleaseServiceOptions): ReleaseSer
             : selectReleaseNotes(installedNotes(), { after: since, through: version }),
       };
     },
-    async update() {
-      const current = options.version();
-      const bundle = await profileBundle();
-      const pendingVersion = installed ?? newerInProfile(current, bundle?.version);
-      if (pendingVersion !== undefined) {
-        return {
-          status: 'restart-required',
-          current,
-          installed: pendingVersion,
-          restartable: options.restarter?.() !== undefined,
-        };
-      }
-      const result = await checked();
-      if (result.status !== 'available') return result;
-      return { ...result, installable: bundle !== undefined };
+    update,
+    async claimPrompt(version) {
+      if (!isReleaseVersion(version)) return { status: 'failed', reason: 'invalid-version' };
+      if (channel !== 'beta') return { status: 'suppressed', reason: 'not-beta' };
+      const revision = channelRevision;
+      const result = await update();
+      if (revision !== channelRevision) return { status: 'suppressed', reason: 'changed' };
+      if (installed !== undefined || result.status !== 'available' || result.latest !== version)
+        return { status: 'suppressed', reason: 'no-update' };
+      if (installing !== undefined || restarting) return { status: 'suppressed', reason: 'busy' };
+      const refusal = activityRefusal();
+      if (refusal === 'busy') return { status: 'suppressed', reason: 'busy' };
+      if (refusal !== undefined) return { status: 'failed', reason: refusal };
+      return claimReleasePrompt(options.dataDir, version);
     },
     install(version) {
       if (restarting) return Promise.resolve(refuse('install', 'admission', 'busy', now()));

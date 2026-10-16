@@ -84,6 +84,8 @@ function bridge(
     if (endpoint === 'releaseUpdate') return { ok: true, value: update };
     if (endpoint === 'releaseChannel')
       return { ok: true, value: { channel: 'stable', writable: true } };
+    if (endpoint === 'releasePrompt')
+      return { ok: true, value: { status: 'suppressed', reason: 'not-beta' } };
     if (endpoint === 'releaseInstall') return { ok: true, value: install };
     if (endpoint === 'releaseRestart') return { ok: true, value: restart };
     throw new Error(`unexpected ${endpoint}`);
@@ -389,6 +391,8 @@ describe('release notes views', () => {
       createElement(ReleaseSettings, { releaseNotes: controller, t } as never),
     );
     try {
+      expect(view.host.querySelector('[data-release-update]')).toBeNull();
+      await act(async () => buttonNamed(view.host, '检查更新')!.click());
       expect(buttonNamed(view.host, '立即更新')?.disabled).toBe(true);
       await act(async () => {
         await controller.install('1.2.0-beta.1');
@@ -694,7 +698,7 @@ describe('release notes views', () => {
           }),
         );
         await act(async () => {
-          await controller.checkUpdate(true);
+          await controller.checkUpdate('manual');
         });
         expect(view.host.querySelector('code')).toBeNull();
         call.mockImplementation(
@@ -707,7 +711,7 @@ describe('release notes views', () => {
           ),
         );
         await act(async () => {
-          await controller.checkUpdate(true);
+          await controller.checkUpdate('manual');
         });
         await act(async () => {
           buttonNamed(view.host, '立即重启')!.click();
@@ -750,6 +754,265 @@ describe('release notes views', () => {
       view.unmount();
       delete (globalThis as { dshDesktop?: unknown }).dshDesktop;
     }
+  });
+
+  it('shows a Beta update card once, defers it, and preserves explicit manual checks', async () => {
+    let claimed = false;
+    const fallback = bridge('1.0.1', () => [], {
+      status: 'available',
+      current: '1.0.1',
+      latest: '1.2.0-beta.1',
+      releases: [],
+      installable: true,
+    });
+    const call = vi.fn<BridgeCall>(async (method, payload) => {
+      if (method === 'releaseChannel')
+        return { ok: true, value: { channel: 'beta', writable: true } };
+      if (method === 'releasePrompt') {
+        const value = claimed
+          ? { status: 'suppressed', reason: 'already-prompted' }
+          : { status: 'claimed' };
+        claimed = true;
+        return { ok: true, value };
+      }
+      return fallback(method, payload);
+    });
+    const controller = new ReleaseNotesController(call, memoryStorage());
+    let view = await render(
+      createElement(ReleaseSettings, { releaseNotes: controller, t } as never),
+    );
+    try {
+      expect(view.host.querySelector('[data-release-update]')).not.toBeNull();
+      const later = buttonNamed(view.host, '稍后再看');
+      expect(later).toBeDefined();
+      await act(async () => later!.click());
+      expect(view.host.querySelector('[data-release-update]')).toBeNull();
+      view.unmount();
+      const second = new ReleaseNotesController(call, memoryStorage());
+      view = await render(createElement(ReleaseSettings, { releaseNotes: second, t } as never));
+      expect(view.host.querySelector('[data-release-update]')).toBeNull();
+      await act(async () => buttonNamed(view.host, '检查更新')!.click());
+      expect(view.host.querySelector('[data-release-update]')).not.toBeNull();
+      expect(call.mock.calls.filter(([method]) => method === 'releasePrompt')).toHaveLength(2);
+      expect(
+        call.mock.calls.some(
+          ([method]) => method === 'releaseInstall' || method === 'releaseRestart',
+        ),
+      ).toBe(false);
+    } finally {
+      view.unmount();
+    }
+  });
+
+  it('does not resurrect a dismissed card when its Host claim finishes late', async () => {
+    let finish!: (value: Awaited<ReturnType<BridgeCall>>) => void;
+    const claim = new Promise<Awaited<ReturnType<BridgeCall>>>((resolve) => {
+      finish = resolve;
+    });
+    const fallback = bridge('1.0.1', () => [], {
+      status: 'available',
+      current: '1.0.1',
+      latest: '1.2.0-beta.1',
+      releases: [],
+      installable: true,
+    });
+    const call: BridgeCall = async (method, payload) => {
+      if (method === 'releaseChannel')
+        return { ok: true, value: { channel: 'beta', writable: true } };
+      if (method === 'releasePrompt') return claim;
+      return fallback(method, payload);
+    };
+    const controller = new ReleaseNotesController(call, memoryStorage());
+    await controller.loadChannel();
+    const pendingCheck = controller.checkUpdate();
+    await Promise.resolve();
+    controller.dismissUpdate();
+    finish({ ok: true, value: { status: 'claimed' } });
+    await pendingCheck;
+    expect(controller.source.getSnapshot().updateVisible).toBe(false);
+    expect(controller.source.getSnapshot().update.status).toBe('idle');
+  });
+
+  it('keeps automatic Beta cards quiet on old Hosts without disabling manual checks', async () => {
+    const fallback = bridge('1.0.1', () => [], {
+      status: 'available',
+      current: '1.0.1',
+      latest: '1.2.0-beta.1',
+      releases: [],
+      installable: true,
+    });
+    const call: BridgeCall = async (method, payload) => {
+      if (method === 'releaseChannel')
+        return { ok: true, value: { channel: 'beta', writable: true } };
+      if (method === 'releasePrompt') throw new Error('unsupported method');
+      return fallback(method, payload);
+    };
+    const controller = new ReleaseNotesController(call, memoryStorage());
+    const view = await render(
+      createElement(ReleaseSettings, { releaseNotes: controller, t } as never),
+    );
+    try {
+      expect(view.host.querySelector('[data-release-update]')).toBeNull();
+      await act(async () => buttonNamed(view.host, '检查更新')!.click());
+      expect(view.host.querySelector('[data-release-update]')).not.toBeNull();
+    } finally {
+      view.unmount();
+    }
+  });
+
+  it('claims against the Host even when its cached channel still says stable', async () => {
+    const fallback = bridge('1.0.1', () => [], {
+      status: 'available',
+      current: '1.0.1',
+      latest: '1.2.0-beta.1',
+      releases: [],
+      installable: true,
+    });
+    const call = vi.fn<BridgeCall>(async (method, payload) => {
+      if (method === 'releasePrompt')
+        return { ok: true, value: { status: 'suppressed', reason: 'already-prompted' } };
+      return fallback(method, payload);
+    });
+    const controller = new ReleaseNotesController(call, memoryStorage());
+    const view = await render(
+      createElement(ReleaseSettings, { releaseNotes: controller, t } as never),
+    );
+    try {
+      expect(call).toHaveBeenCalledWith('releasePrompt', { version: '1.2.0-beta.1' });
+      expect(view.host.querySelector('[data-release-update]')).toBeNull();
+    } finally {
+      view.unmount();
+    }
+  });
+
+  it('projects successful Beta claim authority before rendering controls from a stale stable cache', async () => {
+    const fallback = bridge('1.0.1', () => [], {
+      status: 'available',
+      current: '1.0.1',
+      latest: '1.2.0-beta.1',
+      releases: [],
+      installable: true,
+    });
+    const call: BridgeCall = async (method, payload) =>
+      method === 'releasePrompt'
+        ? { ok: true, value: { status: 'claimed' } }
+        : fallback(method, payload);
+    const controller = new ReleaseNotesController(call, memoryStorage());
+    const view = await render(
+      createElement(ReleaseSettings, { releaseNotes: controller, t } as never),
+    );
+    try {
+      expect(buttonNamed(view.host, '稍后再看')).toBeDefined();
+      expect(buttonNamed(view.host, '立即更新')?.disabled).toBe(false);
+      expect(view.host.textContent).toContain('不代表手机与电脑组合已通过验证');
+      expect(controller.source.getSnapshot().channel?.channel).toBe('beta');
+    } finally {
+      view.unmount();
+    }
+  });
+
+  it('resumes the new Settings visit after an older visit finishes saving its channel', async () => {
+    let finish!: (value: Awaited<ReturnType<BridgeCall>>) => void;
+    const save = new Promise<Awaited<ReturnType<BridgeCall>>>((resolve) => {
+      finish = resolve;
+    });
+    const call = vi.fn<BridgeCall>(async (method, payload) => {
+      if (method === 'releaseChannelSet') return save;
+      if (method === 'releasePrompt') return { ok: true, value: { status: 'claimed' } };
+      return bridge('1.0.1', () => [], {
+        status: 'available',
+        current: '1.0.1',
+        latest: '1.2.0-beta.1',
+        releases: [],
+        installable: true,
+      })(method, payload);
+    });
+    const controller = new ReleaseNotesController(call, memoryStorage());
+    let view = await render(
+      createElement(ReleaseSettings, { releaseNotes: controller, t } as never),
+    );
+    let pendingSave!: Promise<void>;
+    await act(async () => {
+      pendingSave = controller.setChannel('beta');
+    });
+    view.unmount();
+    view = await render(createElement(ReleaseSettings, { releaseNotes: controller, t } as never));
+    try {
+      await act(async () => {
+        finish({ ok: true, value: { status: 'saved', channel: 'beta' } });
+        await pendingSave;
+      });
+      expect(controller.source.getSnapshot().update.status).toBe('available');
+      expect(view.host.querySelector('[data-release-update]')).not.toBeNull();
+      expect(call.mock.calls.filter(([method]) => method === 'releasePrompt')).toHaveLength(2);
+    } finally {
+      view.unmount();
+    }
+  });
+
+  it('checks a newer candidate when Settings reopens with the same controller', async () => {
+    let latest = '1.2.0-beta.1';
+    const fallback = bridge('1.0.1', () => []);
+    const call: BridgeCall = async (method, payload) => {
+      if (method === 'releaseChannel')
+        return { ok: true, value: { channel: 'beta', writable: true } };
+      if (method === 'releaseUpdate')
+        return {
+          ok: true,
+          value: { status: 'available', current: '1.0.1', latest, releases: [], installable: true },
+        };
+      if (method === 'releasePrompt') return { ok: true, value: { status: 'claimed' } };
+      return fallback(method, payload);
+    };
+    const controller = new ReleaseNotesController(call, memoryStorage());
+    let view = await render(
+      createElement(ReleaseSettings, { releaseNotes: controller, t } as never),
+    );
+    expect(
+      view.host.querySelector('[data-release-update]')?.getAttribute('data-release-update'),
+    ).toBe(latest);
+    view.unmount();
+    latest = '1.2.0-beta.2';
+    view = await render(createElement(ReleaseSettings, { releaseNotes: controller, t } as never));
+    try {
+      expect(
+        view.host.querySelector('[data-release-update]')?.getAttribute('data-release-update'),
+      ).toBe(latest);
+    } finally {
+      view.unmount();
+    }
+  });
+
+  it('does not start a delayed manual check after Settings closes', async () => {
+    let channelReads = 0;
+    let finish!: (value: Awaited<ReturnType<BridgeCall>>) => void;
+    const delayed = new Promise<Awaited<ReturnType<BridgeCall>>>((resolve) => {
+      finish = resolve;
+    });
+    const fallback = bridge('1.0.1', () => [], {
+      status: 'available',
+      current: '1.0.1',
+      latest: '1.2.0-beta.1',
+      releases: [],
+      installable: true,
+    });
+    const call = vi.fn<BridgeCall>(async (method, payload) => {
+      if (method === 'releaseChannel') {
+        if (++channelReads > 1) return delayed;
+        return { ok: true, value: { channel: 'beta', writable: true } };
+      }
+      if (method === 'releasePrompt') return { ok: true, value: { status: 'claimed' } };
+      return fallback(method, payload);
+    });
+    const controller = new ReleaseNotesController(call, memoryStorage());
+    const view = await render(
+      createElement(ReleaseSettings, { releaseNotes: controller, t } as never),
+    );
+    await act(async () => buttonNamed(view.host, '检查更新')!.click());
+    view.unmount();
+    await act(async () => finish({ ok: true, value: { channel: 'beta', writable: true } }));
+    expect(controller.source.getSnapshot().updateVisible).toBe(false);
+    expect(call.mock.calls.filter(([method]) => method === 'releaseUpdate')).toHaveLength(1);
   });
 
   it('shows why the install failed and falls back to the manual command', async () => {
