@@ -408,6 +408,7 @@ export function createOutboundMessaging(options: {
   onPlaced?(commit: ChannelMessageCommit): void;
   onShared?(botSlugs: string[]): void;
   onIngested?(channelId: string, messageId: string): void;
+  imCommands?(): import('./im-commands.js').ImCommandServices | undefined;
   timeoutMs?: number;
   recover?: boolean;
   now?: () => Date;
@@ -1123,6 +1124,7 @@ export function createOutboundMessaging(options: {
     },
     ...(options.onShared ? { onShared: options.onShared } : {}),
     ...(options.onIngested ? { onIngested: options.onIngested } : {}),
+    ...(options.imCommands === undefined ? {} : { imCommands: options.imCommands }),
     ...(options.warn === undefined ? {} : { warn: options.warn }),
   });
   const sourceForReply = (botSlug: string, sourceEventId: string, value: MessagingGrant) => {

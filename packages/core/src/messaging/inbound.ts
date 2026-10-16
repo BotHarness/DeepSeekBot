@@ -66,6 +66,13 @@ import { admitBridgeMembers } from './member-admission.js';
 import { messagingDefaults } from './defaults.js';
 import { assertMessagingIdentity } from './identity.js';
 import {
+  executeImCommand,
+  imCommandAuthority,
+  imCommandRequiresAuthority,
+  parseImCommand,
+  type ImCommandServices,
+} from './im-commands.js';
+import {
   channelBridgeRoutes,
   channelBridgeInput,
   type ChannelBridgeInput,
@@ -240,6 +247,7 @@ export function createInboundMessaging(options: {
   bindingAvailable?(id: string): boolean;
   sourcePolicy: BotSourcePolicyStore;
   isBotActive(slug: string): boolean;
+  imCommands?(): ImCommandServices | undefined;
   onAdmitted(botSlug: string, sourceEventId: string): void;
   onAdmissionCommitted?(botSlug: string, sourceEventId: string): void;
   onReceptionChanged?(): void;
@@ -1461,6 +1469,7 @@ export function createInboundMessaging(options: {
       throw new MessagingError('untrusted-source');
     if (identity.receiveAfter && Date.parse(event.at) < Date.parse(identity.receiveAfter))
       return { accepted: true };
+    if (await commandIntake(entry.provider, event, signal, true)) return { accepted: true };
     if (event.conversation.kind === 'group' && !event.mentionedAccount) {
       placeIngests(identity, event);
       return { accepted: true };
@@ -1478,7 +1487,8 @@ export function createInboundMessaging(options: {
     entry: NonNullable<ReturnType<typeof providers.get>>,
     event: MessagingInboundEvent,
     signal: AbortSignal,
-  ): Promise<{ accepted: true }> => {
+    claimCommand = false,
+  ): Promise<{ accepted: true; commandClaimed?: boolean }> => {
     if (
       identity.platform === 'weixin' &&
       (event.conversation.kind !== 'dm' ||
@@ -1501,7 +1511,7 @@ export function createInboundMessaging(options: {
         )
           return undefined;
         const entries = renameEntries(db, conversationEntries(db, id, event.conversation), event);
-        if (entries.some((item) => item.origin !== 'implicit')) return undefined;
+        if (!claimCommand && entries.some((item) => item.origin !== 'implicit')) return undefined;
         let value: MessagingGrant | undefined = entries[0];
         if (
           identity.platform === 'weixin' &&
@@ -1583,6 +1593,10 @@ export function createInboundMessaging(options: {
           event.conversation.kind === 'dm'
             ? admitDirect(db, value, event)
             : admitMention(db, value, event);
+        if (claimCommand)
+          db.prepare(
+            "UPDATE inbox_admissions SET attempt_state = 'handled', handled_at = ? WHERE source_event_id = ? AND bot_slug = ?",
+          ).run(new Date().toISOString(), sourceEventId, identity.botSlug);
         return { value, created, sourceEventId };
       },
       ['grants', 'source-event', 'bot-inbox'],
@@ -1593,6 +1607,10 @@ export function createInboundMessaging(options: {
       return { accepted: true };
     }
     const { value, created, sourceEventId } = admitted;
+    if (claimCommand) {
+      if (created) receptionChanged();
+      return { accepted: true, commandClaimed: sourceEventId !== undefined };
+    }
     if (sourceEventId !== undefined) await mirrorDm(value, sourceEventId);
     const reception = created || !leases.has(value.id) ? start(value) : undefined;
     if (created) receptionChanged();
@@ -1921,6 +1939,151 @@ export function createInboundMessaging(options: {
     });
     return true;
   };
+  const commandIntake = async (
+    provider: MessagingProvider,
+    event: MessagingInboundEvent,
+    signal: AbortSignal,
+    defaultOnly = false,
+  ): Promise<boolean> => {
+    const command = parseImCommand(event.text);
+    if (command === undefined) return false;
+    const host = options.imCommands?.();
+    if (host === undefined || !provider.reply || provider.id !== `dsh-im/${event.channel}`)
+      return true;
+    if (event.conversation.kind !== 'dm' || event.attachments?.length) return true;
+    signal.throwIfAborted();
+    const row = database.read((db) =>
+      db
+        .prepare(
+          'SELECT id FROM messaging_bindings WHERE provider_id = ? AND account_ref = ? AND fingerprint = ? AND revoked_at IS NULL',
+        )
+        .get(provider.id, event.botId, event.fingerprint),
+    ) as { id: string } | undefined;
+    if (!row) return true;
+    const lease = controls.get(row.id);
+    if (!lease || lease.controller.signal.aborted) return true;
+    const identity = database.read((db) => readMessagingIdentity(db, row.id));
+    if (
+      !identity.enabled ||
+      identity.revokedAt ||
+      options.bindingAvailable?.(row.id) === false ||
+      !options.isBotActive(identity.botSlug) ||
+      (identity.receiveAfter && Date.parse(event.at) < Date.parse(identity.receiveAfter))
+    )
+      return true;
+    const admitted = database.read((db) => {
+      if (readBlock(db, identity.botSlug, identity.fingerprint, event.conversation)) return false;
+      const entries = conversationEntries(db, row.id, event.conversation);
+      const allowedConversation = entries.length
+        ? entries.every((value) => value.origin === 'implicit') ||
+          (!defaultOnly &&
+            entries.some(
+              (value) =>
+                !value.revokedAt &&
+                !value.suspendedReason &&
+                targetAvailable(value) &&
+                !(value.receiveAfter && Date.parse(event.at) < Date.parse(value.receiveAfter)) &&
+                channelBridgeRoutes(value).some(
+                  (route) =>
+                    route.enabled &&
+                    !(route.intakeAfter && Date.parse(event.at) < Date.parse(route.intakeAfter)),
+                ),
+            ))
+        : identity.newConversations === 'auto' &&
+          admissionBound(db, row.id, new Date()) === undefined;
+      return allowedConversation && senderAdmissionAllowed(db, identity.botSlug, event);
+    });
+    if (!admitted) return true;
+    const entry = providers.get(identity.providerId);
+    if (!entry || entry.token !== lease.token) return true;
+    const claimed = await admitDefault(row.id, lease, identity, entry, event, signal, true);
+    if (!claimed.commandClaimed) return true;
+    const managementPairing =
+      imCommandRequiresAuthority(command) &&
+      event.channel !== 'weixin' &&
+      options.pairing
+        ?.list(identity.botSlug)
+        .some(
+          (item) =>
+            item.purpose !== 'conversation' &&
+            item.status === 'approved' &&
+            item.bindingId === row.id &&
+            item.actorId === event.actor.id,
+        ) === true;
+    const manage = imCommandAuthority({
+      command,
+      platform: event.channel,
+      pairingAvailable: options.pairing !== undefined,
+      managementPairing,
+    });
+    setImmediate(() => {
+      if (
+        closed ||
+        signal.aborted ||
+        lease.controller.signal.aborted ||
+        controls.get(row.id) !== lease
+      )
+        return;
+      void (async () => {
+        let text: string;
+        try {
+          text = await executeImCommand({
+            command,
+            chinese: command.chinese,
+            botSlug: identity.botSlug,
+            botDisplayName: host.botDisplayName(identity.botSlug) ?? identity.botSlug,
+            working: host.turnRunning(identity.botSlug),
+            manage,
+            host,
+          });
+        } catch {
+          options.warn?.(
+            JSON.stringify({
+              event: 'bot-im-command',
+              phase: 'execution-failed',
+              initiator: 'command-intake',
+              command: command.name,
+            }),
+          );
+          text = command.chinese
+            ? '命令执行失败，请重试或改用 Web 端。'
+            : 'Could not complete the command; try again or use the Web app.';
+        }
+        try {
+          await bounded(
+            provider.reply!({
+              accountRef: event.botId,
+              fingerprint: event.fingerprint,
+              route: event.reply,
+              text,
+              signal: AbortSignal.any([signal, lease.controller.signal]),
+              beforeSend: () => {
+                try {
+                  const current = database.read((db) => assertMessagingIdentity(db, row.id));
+                  return (
+                    current.fingerprint === event.fingerprint &&
+                    current.accountRef === event.botId &&
+                    options.isBotActive(current.botSlug)
+                  );
+                } catch {
+                  return false;
+                }
+              },
+            }),
+          );
+        } catch {
+          options.warn?.(
+            JSON.stringify({
+              event: 'bot-im-command',
+              phase: 'reply-unconfirmed',
+              initiator: 'command-intake',
+            }),
+          );
+        }
+      })();
+    });
+    return true;
+  };
   const service: InboundMessaging = {
     pairingRouteAvailable(request) {
       try {
@@ -1970,7 +2133,9 @@ export function createInboundMessaging(options: {
           ? {
               consume: fanoutMessagingConsumer(
                 provider.consume.bind(provider),
-                (event, signal) => controlIntake(provider, event, signal),
+                async (event, signal) =>
+                  (await controlIntake(provider, event, signal)) ||
+                  (await commandIntake(provider, event, signal)),
                 options.onApprovalAction
                   ? (event, signal) => options.onApprovalAction!(provider.id, event, signal)
                   : undefined,

@@ -698,6 +698,8 @@ export interface BotRuntime {
   listAssignments(botSlug: string): AssignmentSummary[];
   currentOrchestratorSessionId?(botSlug: string): string | undefined;
   replaceOrchestrator?<T>(botSlug: string, body: () => T): Promise<OrchestratorReplacement<T>>;
+  startFreshOrchestrator?(botSlug: string): Promise<'started' | 'busy'>;
+  turnRunning?(botSlug: string): boolean;
   directBotTools?(): DirectBotToolSpec[];
   directBotToolCalls?(botSlug: string): readonly DirectBotToolCall[];
   runDirectBotTool?(
@@ -3718,6 +3720,15 @@ class BotRuntimeImplementation implements BotRuntime {
     });
     if (result === undefined) throw new Error(`Unknown PersonaBot: ${botSlug}`);
     return result;
+  }
+
+  async startFreshOrchestrator(botSlug: string): Promise<'started' | 'busy'> {
+    const outcome = await this.replaceOrchestrator(botSlug, () => undefined);
+    return outcome.outcome === 'refused' ? 'busy' : 'started';
+  }
+
+  turnRunning(botSlug: string): boolean {
+    return this.#turnSources.has(botSlug) && this.#activeTurns.has(botSlug);
   }
 
   async #replaceOrchestrator<T>(

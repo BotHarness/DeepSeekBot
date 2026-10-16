@@ -449,6 +449,7 @@ export interface BridgeMethods {
   modelPlanInherit(payload: unknown): BridgeResult<{ revision: number }>;
   onboardingModel(payload: unknown): Promise<BridgeResult<{ revision: number }>>;
   channelRetry(payload: unknown): Promise<BridgeResult<{ accepted: true }>>;
+  botNewSession(payload: unknown): Promise<BridgeResult<{ started: true }>>;
   channelBotStop(
     payload: unknown,
   ): Promise<BridgeResult<{ stopped: { botSlug: string; sessionId: string; messageId: string } }>>;
@@ -1905,6 +1906,26 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         return { ok: true, value: { accepted: true } };
       } catch (error) {
         return invalidInput(error instanceof Error ? error.message : 'Retry unavailable');
+      }
+    },
+    async botNewSession(payload) {
+      const slug = asSlug(payload);
+      if (slug === undefined) return invalidInput('slug is required');
+      if (deps.registry.get(slug) === undefined) return unknownBot(slug);
+      if (deps.runtime?.startFreshOrchestrator === undefined) return unavailable();
+      try {
+        const outcome = await deps.runtime.startFreshOrchestrator(slug);
+        if (outcome === 'busy')
+          return {
+            ok: false,
+            error: { code: 'bot-busy', message: 'Stop the Bot before starting a fresh Session' },
+          };
+        return { ok: true, value: { started: true } };
+      } catch {
+        return {
+          ok: false,
+          error: { code: 'session-reset-failed', message: 'Could not start a fresh Session' },
+        };
       }
     },
     async channelBotStop(payload) {

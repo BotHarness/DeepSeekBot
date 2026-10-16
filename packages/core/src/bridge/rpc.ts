@@ -608,6 +608,9 @@ export class BotharnessBridgeService extends TypertRemoteService {
   channelRetry(channelId: string, messageId: string): Promise<{ accepted: true }> {
     return unwrapAsync(this.methods.channelRetry({ channelId, messageId }));
   }
+  botNewSession(slug: string): Promise<{ started: true }> {
+    return unwrapAsync(this.methods.botNewSession({ slug }));
+  }
   channelBotStop(
     channelId: string,
     botSlug: string,
@@ -1691,6 +1694,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'onboardingModel',
   'modelPlanInherit',
   'channelRetry',
+  'botNewSession',
   'channelBotStop',
   'modelCatalog',
   'modelPresets',
