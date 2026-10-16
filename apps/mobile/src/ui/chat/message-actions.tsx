@@ -1,4 +1,4 @@
-import { Fragment, useRef, type ReactNode } from 'react';
+import { Fragment, useRef, useState, type ReactNode } from 'react';
 import { Modal, Platform, Pressable, ScrollView, View, useWindowDimensions } from 'react-native';
 import Animated, { Easing, Keyframe } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -12,20 +12,32 @@ import {
 import { edge, motion, radius, space } from '../design/tokens';
 import { glassShadow, useDesignTheme, type DesignTheme } from '../design/theme';
 import { Text } from '../primitives/text';
-import { CopyIcon, ShareIcon } from '../shell/icons';
+import { ChevronRightIcon, CopyIcon, ShareIcon } from '../shell/icons';
 import { t } from '../strings';
 import type { BubbleGroup } from './bubble-shape';
 import { BubbleBody } from './message-bubble';
 import { separatorLabel } from './message-groups';
 import { placeMenu, type Rect } from './menu-placement';
 
-export type MessageMenuTarget = { message: ConversationMessage; anchor: Rect; group: BubbleGroup };
+export type ActivityMenuLink = { label?: string; onOpen?: () => void };
+export type MessageMenuTarget = {
+  message: ConversationMessage;
+  anchor: Rect;
+  group: BubbleGroup;
+  activity?: ActivityMenuLink;
+};
 
-export type MessageMenuAction = { key: 'copy' | 'share'; label: string };
+export type MessageMenuAction = { key: 'copy' | 'share' | 'open'; label: string };
 
-export function messageMenuActions(message: ConversationMessage): MessageMenuAction[] {
+export function messageMenuActions(
+  message: ConversationMessage,
+  activity?: ActivityMenuLink,
+): MessageMenuAction[] {
   if (message.body.trim() === '') return [];
   return [
+    ...(activity?.onOpen === undefined || activity.label === undefined
+      ? []
+      : [{ key: 'open' as const, label: activity.label }]),
     { key: 'copy', label: t.copy },
     { key: 'share', label: t.shareText },
   ];
@@ -149,7 +161,9 @@ function ActionIcon({
   color: string;
   size: number;
 }) {
-  return action.key === 'copy' ? (
+  return action.key === 'open' ? (
+    <ChevronRightIcon color={color} size={size} />
+  ) : action.key === 'copy' ? (
     <CopyIcon color={color} size={size} />
   ) : (
     <ShareIcon color={color} size={size} />
@@ -158,12 +172,14 @@ function ActionIcon({
 
 export function MessageActions({
   target,
+  readOnly = false,
   onClose,
   onReact,
   onCopy,
   onShareText,
 }: {
   target: MessageMenuTarget | undefined;
+  readOnly?: boolean;
   onClose(): void;
   onReact(message: ConversationMessage, emoji: string, active: boolean): void;
   onCopy(text: string): void;
@@ -183,10 +199,12 @@ export function MessageActions({
         <MessageMenu
           key={target.message.id}
           target={target}
+          readOnly={readOnly}
           onClose={onClose}
           onReact={onReact}
           onCopy={onCopy}
           onShareText={(text) => queue.after(() => onShareText(text))}
+          onOpen={() => queue.after(() => target.activity?.onOpen?.())}
         />
       )}
     </Modal>
@@ -195,28 +213,37 @@ export function MessageActions({
 
 function MessageMenu({
   target,
+  readOnly,
   onClose,
   onReact,
   onCopy,
   onShareText,
+  onOpen,
 }: {
   target: MessageMenuTarget;
+  readOnly: boolean;
   onClose(): void;
   onReact(message: ConversationMessage, emoji: string, active: boolean): void;
   onCopy(text: string): void;
   onShareText(text: string): void;
+  onOpen(): void;
 }) {
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
   const pressedIn = useRef(false);
   const { width: screen, height } = useWindowDimensions();
   const { message, anchor, group } = target;
+  const [previewHeight, setPreviewHeight] = useState(anchor.height);
+  const activity = target.activity !== undefined;
+  const previewAnchor = activity
+    ? { ...anchor, x: space.x4, width: screen - space.x4 * 2, height: previewHeight }
+    : anchor;
   const human = message.author === 'human';
-  const actions = messageMenuActions(message);
-  const reactions = reactable(message);
+  const actions = messageMenuActions(message, target.activity);
+  const reactions = !activity && !readOnly && reactable(message);
   const sizes = menuSizes(theme, actions.length, reactions);
   const place = placeMenu({
-    anchor,
+    anchor: previewAnchor,
     top: insets.top + space.x3,
     bottom: height - insets.bottom - space.x3,
     bar: sizes.bar,
@@ -247,7 +274,7 @@ function MessageMenu({
       />
       <View
         accessibilityViewIsModal
-        accessibilityLabel={t.messageActions}
+        accessibilityLabel={activity ? t.activityRow.actions : t.messageActions}
         onAccessibilityEscape={onClose}
         pointerEvents="box-none"
         style={{ flex: 1 }}
@@ -274,19 +301,33 @@ function MessageMenu({
           </Pop>
         ) : null}
         <View
-          pointerEvents="none"
+          pointerEvents={activity ? 'auto' : 'none'}
           style={{
             position: 'absolute',
             top: place.bubbleTop,
-            left: anchor.x,
-            width: anchor.width,
+            left: previewAnchor.x,
+            width: previewAnchor.width,
           }}
         >
-          <BubbleBody
-            message={message}
-            group={group}
-            fill={{ maxWidth: '100%', width: anchor.width, maxHeight: place.bubbleHeight }}
-          />
+          {activity ? (
+            <ScrollView
+              style={{
+                height: place.bubbleHeight,
+                borderRadius: radius.lg,
+                backgroundColor: theme.color.surface,
+              }}
+              contentContainerStyle={{ padding: space.x4 }}
+              onContentSizeChange={(_width, contentHeight) => setPreviewHeight(contentHeight)}
+            >
+              <Text selectable>{message.body}</Text>
+            </ScrollView>
+          ) : (
+            <BubbleBody
+              message={message}
+              group={group}
+              fill={{ maxWidth: '100%', width: anchor.width, maxHeight: place.bubbleHeight }}
+            />
+          )}
         </View>
         {actions.length === 0 ? null : (
           <Pop
@@ -294,7 +335,7 @@ function MessageMenu({
             style={{
               ...card,
               top: place.menuTop,
-              left: sideOffset(anchor, human, menuWidth, screen),
+              left: sideOffset(previewAnchor, human, menuWidth, screen),
               width: menuWidth,
               borderRadius: radius.lg,
             }}
@@ -322,7 +363,8 @@ function MessageMenu({
                   accessibilityRole="button"
                   accessibilityLabel={action.label}
                   onPress={() => {
-                    if (action.key === 'copy') onCopy(message.body);
+                    if (action.key === 'open') onOpen();
+                    else if (action.key === 'copy') onCopy(message.body);
                     else onShareText(message.body);
                     onClose();
                   }}

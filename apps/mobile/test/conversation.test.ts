@@ -1,14 +1,17 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createHostClient, type HostClient } from '../src/host/client';
 import {
   createConversation,
+  reactable,
   shownInChat,
   type CachedConversation,
   type Conversation,
   type ConversationSnapshot,
 } from '../src/host/conversation';
 import { FakeHost, type FakeChannel } from './fake-host';
+import wire from './fixtures/host-wire.json';
+import type { ChannelMessage } from '../../../packages/core/src/channels/channel';
 
 const ROUTE = 'https://studio.tailnet-example.ts.net';
 const SLUG = 'bot-59296301f8d044d2b022d8784c5ed3fe';
@@ -85,6 +88,23 @@ function contiguous(snapshot: ConversationSnapshot): boolean {
 }
 
 describe('DM conversation', () => {
+  it('presents recorded activity through the live journal and keeps every revision for read tracking', async () => {
+    const host = new FakeHost();
+    const channel = host.channel(DM);
+    for (const entry of wire.activityJournal.page.entries)
+      channel.append(entry.message as ChannelMessage, false);
+    const live = await until(open(host), (snapshot) => snapshot.status === 'live');
+    expect(live.messages.map((message) => message.activity?.kind)).toEqual([
+      'channel-post',
+      'dm-action',
+      'memory',
+      'bot-create',
+      'departure',
+      'turn-stop',
+    ]);
+    expect(revisions(live)).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(live.messages.filter(shownInChat)).toHaveLength(6);
+  });
   it('opens on the Host tail page and pages older history without gaps or duplicates', async () => {
     const host = new FakeHost();
     seed(host.channel(DM), 25);
@@ -151,7 +171,7 @@ describe('DM conversation', () => {
     });
   });
 
-  it('leaves the onboarding welcome and empty notices out of the chat', async () => {
+  it('shows recognized activity while hiding the welcome and malformed empty notices', async () => {
     const host = new FakeHost();
     const channel = host.channel(DM);
     const bot = { kind: 'bot' as const, slug: SLUG };
@@ -181,7 +201,17 @@ describe('DM conversation', () => {
       'memory-commit-1',
       'onboarding-welcome-v1',
     ]);
-    expect(live.messages.filter(shownInChat).map((message) => message.id)).toEqual(['answer']);
+    expect(live.messages.filter(shownInChat).map((message) => message.id)).toEqual([
+      'answer',
+      'bot-channel-post-1',
+    ]);
+    expect(live.messages[1]?.activity).toEqual({
+      kind: 'channel-post',
+      channelId: 'group-launch',
+      messageId: 'm1',
+      preview: null,
+    });
+    expect(reactable(live.messages[1]!)).toBe(false);
   });
 
   it('shows the cached page at once, then reconciles it with the Host window', async () => {
@@ -861,4 +891,56 @@ describe('group Channel mentions on send', () => {
       mentions,
     });
   });
+});
+
+it('observes activation only after an accepted foreground send and a new committed Bot entry', async () => {
+  const host = new FakeHost();
+  const channel = host.channel(DM);
+  seed(channel, 2);
+  const accepted = vi.fn(() => true);
+  const observed = vi.fn();
+  const target = open(host, { telemetry: { send: () => ({ accepted, observed }) } });
+  target.setForeground?.(true);
+  await until(target, (s) => s.status === 'live');
+  expect(observed).not.toHaveBeenCalled();
+  host.failing.add('channelSend');
+  const id = target.send('SENTINEL chat');
+  expect(accepted).not.toHaveBeenCalled();
+  await until(target, (s) => s.messages.at(-1)?.delivery === 'failed');
+  expect(accepted).not.toHaveBeenCalled();
+  host.failing.delete('channelSend');
+  target.retry(id);
+  await until(target, (s) => s.messages.some((m) => m.id === id && m.revision !== undefined));
+  expect(accepted).toHaveBeenCalledTimes(1);
+  channel.emit({
+    type: 'entry',
+    entry: { channelId: DM, revision: 2, message: channel.messages[1]! },
+  });
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  expect(observed).not.toHaveBeenCalled();
+  channel.append({ id: 'new-bot', body: 'SENTINEL reply', author: { kind: 'bot', slug: SLUG } });
+  await until(target, (s) => s.messages.at(-1)?.id === 'new-bot');
+  expect(observed).toHaveBeenCalledTimes(1);
+  target.setForeground?.(false);
+  channel.append({ id: 'hidden-bot', author: { kind: 'bot', slug: SLUG } });
+  await until(target, (s) => s.messages.at(-1)?.id === 'hidden-bot');
+  expect(observed).toHaveBeenCalledTimes(1);
+});
+
+it('records Host acceptance after leaving the conversation without observing hidden Bot entries', async () => {
+  const host = new FakeHost();
+  const channel = host.channel(DM);
+  seed(channel, 2);
+  const accepted = vi.fn(() => true);
+  const observed = vi.fn();
+  const target = open(host, { telemetry: { send: () => ({ accepted, observed }) } });
+  target.setForeground?.(true);
+  await until(target, (s) => s.status === 'live');
+  const id = target.send('accepted after navigation');
+  target.setForeground?.(false);
+  await until(target, (s) => s.messages.some((m) => m.id === id && m.revision !== undefined));
+  expect(accepted).toHaveBeenCalledTimes(1);
+  channel.append({ id: 'hidden-after-acceptance', author: { kind: 'bot', slug: SLUG } });
+  await until(target, (s) => s.messages.at(-1)?.id === 'hidden-after-acceptance');
+  expect(observed).not.toHaveBeenCalled();
 });

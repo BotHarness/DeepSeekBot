@@ -1,4 +1,230 @@
 {
+  "activityJournal": {
+    "recordedFrom": "2026-10-16, in-process production Host core with isolated SQLite; readHumanJournalPage, the channelJournalPage RPC owner. Seeded notice payloads, no model or DSH transport.",
+    "channelId": "dm-ada",
+    "channels": [
+      {
+        "id": "dm-ada",
+        "type": "dm",
+        "name": "Ada",
+        "members": ["ada"],
+        "botSlug": "ada"
+      },
+      {
+        "id": "group-research",
+        "type": "group",
+        "name": "research",
+        "members": ["ada", "bob"]
+      },
+      {
+        "id": "dm-bots-858eda840989ff1840b4ed07f9334fba",
+        "type": "dm",
+        "name": "Ada, Bob",
+        "members": ["ada", "bob"]
+      }
+    ],
+    "page": {
+      "entries": [
+        {
+          "channelId": "dm-ada",
+          "message": {
+            "id": "bot-channel-post-target-post",
+            "at": "2026-10-16T00:00:00.000Z",
+            "author": {
+              "kind": "bot",
+              "slug": "ada"
+            },
+            "botChannelPost": {
+              "channelId": "group-research",
+              "messageId": "target-post"
+            },
+            "causeSourceEventId": "d87d5176-7a6e-4dea-9a9b-61072ab51b7b",
+            "body": "",
+            "channelRevision": 1,
+            "botChannelPostPreview": "Launch on Friday"
+          },
+          "revision": 1
+        },
+        {
+          "channelId": "dm-ada",
+          "message": {
+            "at": "2026-10-16T00:00:00.000Z",
+            "id": "dm-action",
+            "author": {
+              "kind": "bot",
+              "slug": "ada"
+            },
+            "botDmAction": {
+              "channelId": "dm-bots-858eda840989ff1840b4ed07f9334fba",
+              "messageId": "target-dm",
+              "recipientBotSlug": "bob"
+            },
+            "body": "",
+            "channelRevision": 2
+          },
+          "revision": 2
+        },
+        {
+          "channelId": "dm-ada",
+          "message": {
+            "id": "memory-commit-c85382f2-952b-41d6-b949-821694a1b1ee",
+            "at": "2026-10-15T19:00:26.228Z",
+            "author": {
+              "kind": "system"
+            },
+            "memoryCommit": {
+              "botSlug": "ada",
+              "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "subject": "Remember the launch date",
+              "authorName": "Ada",
+              "authoredAt": "2026-10-16T00:00:00.000Z",
+              "files": [
+                {
+                  "path": "notes/launch.md",
+                  "added": 2,
+                  "deleted": 1
+                }
+              ],
+              "moreFiles": 0
+            },
+            "causeSourceEventId": "d87d5176-7a6e-4dea-9a9b-61072ab51b7b",
+            "body": "",
+            "noticeOrigin": {
+              "channelId": "group-research"
+            },
+            "channelRevision": 3,
+            "deliveries": [
+              {
+                "botSlug": "ada",
+                "state": "handled"
+              }
+            ]
+          },
+          "revision": 3
+        },
+        {
+          "channelId": "dm-ada",
+          "message": {
+            "at": "2026-10-16T00:00:00.000Z",
+            "id": "created",
+            "author": {
+              "kind": "bot",
+              "slug": "ada"
+            },
+            "botCreateAction": {
+              "botSlug": "bob",
+              "displayName": "Bob"
+            },
+            "body": "",
+            "channelRevision": 4
+          },
+          "revision": 4
+        },
+        {
+          "channelId": "dm-ada",
+          "message": {
+            "at": "2026-10-16T00:00:00.000Z",
+            "id": "departure",
+            "author": {
+              "kind": "system"
+            },
+            "memberDeparture": {
+              "memberKind": "bot",
+              "memberId": "bob",
+              "displayName": "Bob",
+              "departureType": "left"
+            },
+            "body": "",
+            "channelRevision": 5
+          },
+          "revision": 5
+        },
+        {
+          "channelId": "dm-ada",
+          "message": {
+            "at": "2026-10-16T00:00:00.000Z",
+            "id": "stopped",
+            "author": {
+              "kind": "system"
+            },
+            "turnStop": {
+              "botSlug": "ada",
+              "botName": "Ada",
+              "humanName": "Human",
+              "sessionId": "fixture-turn"
+            },
+            "body": "",
+            "channelRevision": 6
+          },
+          "revision": 6
+        }
+      ],
+      "olderCursor": "eyJ2IjoxLCJjaGFubmVsSWQiOiJkbS1hZGEiLCJhdCI6IjIwMjYtMTAtMTZUMDA6MDA6MDAuMDAwWiIsImlkIjoiYm90LWNoYW5uZWwtcG9zdC10YXJnZXQtcG9zdCJ9",
+      "hasOlder": false
+    },
+    "groupPage": {
+      "entries": [
+        {
+          "channelId": "group-research",
+          "message": {
+            "at": "2026-10-16T00:00:00.000Z",
+            "id": "target-post",
+            "author": {
+              "kind": "bot",
+              "slug": "ada"
+            },
+            "body": "Launch on Friday",
+            "channelRevision": 1,
+            "humanReceipts": [
+              {
+                "humanId": "local-human",
+                "displayName": "Human",
+                "state": "unread"
+              }
+            ]
+          },
+          "revision": 1
+        },
+        {
+          "channelId": "group-research",
+          "message": {
+            "id": "memory-commit-c85382f2-952b-41d6-b949-821694a1b1ee",
+            "at": "2026-10-15T19:00:26.228Z",
+            "author": {
+              "kind": "system"
+            },
+            "memoryCommit": {
+              "botSlug": "ada",
+              "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "subject": "Remember the launch date",
+              "authorName": "Ada",
+              "authoredAt": "2026-10-16T00:00:00.000Z",
+              "files": [
+                {
+                  "path": "notes/launch.md",
+                  "added": 2,
+                  "deleted": 1
+                }
+              ],
+              "moreFiles": 0
+            },
+            "causeSourceEventId": "d87d5176-7a6e-4dea-9a9b-61072ab51b7b",
+            "body": "",
+            "channelRevision": 2,
+            "deliveries": [
+              {
+                "botSlug": "ada",
+                "state": "handled"
+              }
+            ]
+          },
+          "revision": 2
+        }
+      ],
+      "olderCursor": "eyJ2IjoxLCJjaGFubmVsSWQiOiJncm91cC1yZXNlYXJjaCIsImF0IjoiMjAyNi0xMC0xNlQwMDowMDowMC4wMDBaIiwiaWQiOiJ0YXJnZXQtcG9zdCJ9",
+      "hasOlder": false
+    }
+  },
   "recordedFrom": "isolated Host via scripts/dev-instance.mjs, DSH 0.2.0-rc.2, 2026-10-14; profileActivity from an isolated Host via scripts/verify-app.mjs, DSH 0.2.0-rc.2, opencode-go/step-5-preview-free, 2026-10-15 (two DM replies)",
   "login": {
     "accepted": {

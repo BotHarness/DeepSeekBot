@@ -35,6 +35,7 @@ vi.mock('../src/host/host-session', () => ({
   useConversationSnapshot: () => state.conversation,
 }));
 vi.mock('../src/host/share-attachment', () => ({ shareAttachment: vi.fn() }));
+vi.mock('../src/host/native-dm-activity', () => ({ useHiddenDmActivity: () => [] }));
 vi.mock('../src/host/pick-files', () => ({ MAX_PICKED: 10, pickFiles: vi.fn() }));
 vi.mock('../src/host/speech', () => ({
   useDictation: () => ({ state: { status: 'idle' }, mountRef: () => undefined }),
@@ -57,6 +58,7 @@ vi.mock('../src/ui/chat/speaker-row', async () => {
   };
 });
 vi.mock('../src/ui/chat/approval-card', () => ({ ApprovalCard: () => null }));
+vi.mock('../src/ui/chat/activity-row', () => ({ ActivityRow: () => null }));
 vi.mock('../src/ui/chat/question-card', () => ({ QuestionCard: () => null }));
 vi.mock('../src/ui/chat/channel-title', () => ({ ChannelTitle: () => null }));
 vi.mock('../src/ui/chat/chat-title', () => ({ ChatTitle: () => null }));

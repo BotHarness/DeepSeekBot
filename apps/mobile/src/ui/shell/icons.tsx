@@ -69,6 +69,10 @@ export function PlusIcon(props: IconProps) {
   return <Glyph {...props} d="M12 5v14M5 12h14" />;
 }
 
+export function GitCommitIcon(props: IconProps) {
+  return <Glyph {...props} d="M3 12h5m8 0h5m-5 0a4 4 0 1 1-8 0 4 4 0 0 1 8 0" />;
+}
+
 export function CloseIcon(props: IconProps) {
   return <Glyph {...props} d="m7 7 10 10M17 7 7 17" />;
 }

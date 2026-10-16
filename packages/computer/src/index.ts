@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { stampReleaseComponent } from '../../core/src/release/component.js';
 import { createReadStream, createWriteStream, existsSync } from 'node:fs';
 import { mkdir, readdir, rename, rm, stat } from 'node:fs/promises';
 import type { IncomingMessage } from 'node:http';
@@ -50,6 +51,7 @@ import {
 } from './viewer.js';
 
 export const name = 'botharness-computer';
+stampReleaseComponent(apply, import.meta.url);
 
 const TAKEOVER_DRAIN_MS = 10_000;
 

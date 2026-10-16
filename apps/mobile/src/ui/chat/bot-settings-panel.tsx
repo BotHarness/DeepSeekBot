@@ -3,8 +3,9 @@ import { View } from 'react-native';
 
 import { botSettings } from '../../host/bot-settings';
 import type { HostClient, RosterBot } from '../../host/client';
+import { useHostSession } from '../../host/host-session';
 import { useDesignTheme } from '../design/theme';
-import { edge } from '../design/tokens';
+import { edge, space } from '../design/tokens';
 import { SettingsRow, SettingsSection } from '../primitives/settings-row';
 import { ChevronRightIcon, CpuIcon, FolderIcon } from '../shell/icons';
 import { t } from '../strings';
@@ -12,11 +13,13 @@ import { useComposerContext } from './composer-context';
 import { modelLabel, workspaceLabel } from './composer-labels';
 import { ModelSheet } from './model-sheet';
 import { WorkspaceSheet } from './workspace-sheet';
+import { DmActivitySettings } from './dm-activity-settings';
 
 const ICON = 20;
 
 export function BotSettingsPanel({ client, bot }: { client: HostClient; bot: RosterBot }) {
   const theme = useDesignTheme();
+  const { saved } = useHostSession();
   const settings = useMemo(() => botSettings(client, bot.slug), [client, bot.slug]);
   const context = useComposerContext(settings);
   const [sheet, setSheet] = useState<'model' | 'workspace'>();
@@ -25,7 +28,7 @@ export function BotSettingsPanel({ client, bot }: { client: HostClient; bot: Ros
   const workspace = workspaceLabel(context.grants);
   const chevron = <ChevronRightIcon color={theme.color.muted} size={ICON} />;
   return (
-    <View ref={context.mount} style={{ alignSelf: 'stretch' }}>
+    <View ref={context.mount} style={{ alignSelf: 'stretch', gap: space.x4 }}>
       <SettingsSection title={t.composerContext}>
         <SettingsRow
           title={t.contextModel}
@@ -53,6 +56,9 @@ export function BotSettingsPanel({ client, bot }: { client: HostClient; bot: Ros
           />
         </View>
       </SettingsSection>
+      {saved == null ? null : (
+        <DmActivitySettings hostId={saved.hostId} botSlug={bot.slug} name={bot.displayName} />
+      )}
       <ModelSheet
         visible={sheet === 'model'}
         botName={bot.displayName}

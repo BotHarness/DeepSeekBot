@@ -36,7 +36,7 @@ describe('bubbleShape', () => {
   });
 
   it('uses the tighter gap inside a group', () => {
-    expect(bubbleRow(true).paddingTop).toBe(space.x3);
+    expect(bubbleRow(true).paddingTop).toBe(space.x4);
     expect(bubbleRow(false).paddingTop).toBe(space.x1);
   });
 });

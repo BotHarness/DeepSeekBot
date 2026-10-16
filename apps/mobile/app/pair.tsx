@@ -1,7 +1,7 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import Constants from 'expo-constants';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Keyboard,
@@ -15,7 +15,10 @@ import {
 
 import { hostSession } from '../src/host/host-session';
 import { nativeCarrier } from '../src/host/native-carrier';
-import { parsePairingLink, redeemPairing, type PairingRefusal } from '../src/host/pairing';
+import { pairHost, type PairingFailure } from '../src/host/pairing';
+import { mobileTelemetry } from '../src/telemetry/native';
+import type { PairingMethod } from '../src/telemetry/schema';
+import { Button } from '../src/ui/primitives/button';
 import { useMounted } from '../src/ui/mounted';
 import { t } from '../src/ui/strings';
 import { useTheme } from '../src/ui/theme';
@@ -31,7 +34,9 @@ export default function PairScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [link, setLink] = useState('');
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<PairingRefusal | undefined>();
+  const [error, setError] = useState<PairingFailure | undefined>();
+  const lastMethod = useRef<PairingMethod>('paste');
+  const pending = useRef<AbortController | undefined>(undefined);
   const handled = useRef<string | undefined>(undefined);
   const scroll = useRef<ScrollView | null>(null);
   const showPair = () => scroll.current?.scrollToEnd({ animated: true });
@@ -44,26 +49,38 @@ export default function PairScreen() {
     };
   }, []);
 
-  const pair = async (text: string): Promise<void> => {
-    if (busy || handled.current === text) return;
+  const pair = async (text: string, method: PairingMethod, retry = false): Promise<void> => {
+    if (pending.current !== undefined || (!retry && method === 'qr' && handled.current === text))
+      return;
     handled.current = text;
-    const parsed = parsePairingLink(text);
-    if (!parsed.ok) return setError(parsed.code);
+    lastMethod.current = method;
+    const operation = new AbortController();
+    pending.current = operation;
     setBusy(true);
     setError(undefined);
-    const result = await redeemPairing({
-      payload: parsed.payload,
+    const result = await pairHost({
+      text,
+      method,
       deviceName: deviceName(),
       carrier: nativeCarrier(),
+      save: hostSession.pair,
+      telemetry: mobileTelemetry,
+      signal: operation.signal,
     });
+    pending.current = undefined;
     setBusy(false);
+    if (operation.signal.aborted) return;
     if (!result.ok) return setError(result.code);
-    await hostSession.pair(result.host);
     router.replace('/');
   };
 
-  if (typeof params.p === 'string' && handled.current === undefined)
-    void pair(`deepseekbot://pair?p=${params.p}`);
+  useFocusEffect(
+    useCallback(() => {
+      if (typeof params.p === 'string' && handled.current === undefined)
+        void pair(`deepseekbot://pair?p=${params.p}`, 'deep_link');
+      return () => pending.current?.abort();
+    }, [params.p]),
+  );
 
   const button = {
     backgroundColor: theme.brand,
@@ -100,7 +117,7 @@ export default function PairScreen() {
             style={{ width: '100%', height: '100%' }}
             facing="back"
             barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-            onBarcodeScanned={busy ? undefined : ({ data }) => void pair(data)}
+            onBarcodeScanned={busy ? undefined : ({ data }) => void pair(data, 'qr')}
           />
         ) : (
           <Pressable
@@ -118,6 +135,12 @@ export default function PairScreen() {
       {error !== undefined ? (
         <Text style={{ color: theme.danger }}>{t.pairRefused[error]}</Text>
       ) : null}
+      {error !== undefined && handled.current !== undefined ? (
+        <Button
+          label={t.retry}
+          onPress={() => void pair(handled.current!, lastMethod.current, true)}
+        />
+      ) : null}
       <Text style={{ color: theme.ink, fontWeight: '600' }}>{t.pasteLink}</Text>
       <TextInput
         value={link}
@@ -130,7 +153,7 @@ export default function PairScreen() {
         autoCapitalize="none"
         autoCorrect={false}
         returnKeyType="go"
-        onSubmitEditing={() => void pair(link)}
+        onSubmitEditing={() => void pair(link, 'paste')}
         style={{
           borderWidth: 1,
           borderColor: theme.border,
@@ -142,7 +165,7 @@ export default function PairScreen() {
         }}
       />
       <Pressable
-        onPress={() => void pair(link)}
+        onPress={() => void pair(link, 'paste')}
         disabled={busy || link.trim() === ''}
         accessibilityRole="button"
         style={button}

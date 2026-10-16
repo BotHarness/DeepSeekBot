@@ -30,5 +30,5 @@ export function bubbleShape(human: boolean, group: BubbleGroup) {
 }
 
 export function bubbleRow(first: boolean) {
-  return { paddingHorizontal: space.x4, paddingTop: first ? space.x3 : space.x1 } as const;
+  return { paddingHorizontal: space.x4, paddingTop: first ? space.x4 : space.x1 } as const;
 }

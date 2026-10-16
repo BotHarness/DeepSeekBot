@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { afterEach, describe, expect, it } from 'vitest';
 import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
 import { createChallenge, verifySolution } from '../src/marketplace/altcha.js';
+import { createReleaseService } from '../src/release/service.js';
 
 const servers: ReturnType<typeof createServer>[] = [];
 afterEach(async () => {
@@ -169,6 +170,41 @@ describe('Bot Marketplace commands', () => {
 });
 
 describe('release commands', () => {
+  it('exposes the Host identity and preserves its coded update/restart refusal', async () => {
+    const service = createReleaseService({
+      version: () => 'unknown',
+      ledgers: () => undefined,
+      identity: () => ({ kind: 'unknown', reason: 'component-mismatch' }),
+    });
+    const live = await host(async (method, args) =>
+      ok(
+        method === 'releaseInfo'
+          ? service.info()
+          : method === 'releaseUpdate'
+            ? await service.update()
+            : method === 'releaseInstall'
+              ? await service.install(String(args['version']))
+              : await service.restart(),
+      ),
+    );
+    expect((await invoke(['release-info'], live.url)).json.identity).toEqual({
+      kind: 'unknown',
+      reason: 'component-mismatch',
+    });
+    expect((await invoke(['release-check'], live.url)).json).toEqual({
+      status: 'unknown',
+      current: 'unknown',
+      reason: 'component-mismatch',
+    });
+    for (const argv of [
+      ['release-install', '2.0.0', '--confirm'],
+      ['release-restart', '--confirm'],
+    ]) {
+      const refused = await invoke(argv, live.url);
+      expect(refused.code).not.toBe(0);
+      expect(refused.json.error.code).toBe('release-identity-invalid');
+    }
+  });
   it('checks, installs and restarts only with --confirm', async () => {
     const live = await host((method, args) =>
       ok(

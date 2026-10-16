@@ -1,3 +1,4 @@
+import type { ConnectionTelemetry } from '../telemetry/connection';
 import type { BotPrimaryColor } from '../../../../packages/core/src/bots/primary-color';
 import type { HostCarrier, HostSocket } from './carrier';
 import { DEVICE_PREFIX } from './pairing';
@@ -83,6 +84,7 @@ export interface RosterArrangement {
 export interface RosterView {
   bots: RosterBot[];
   channels: RosterChannel[];
+  activityChannels?: ChannelListItem[];
   arrangement?: RosterArrangement;
 }
 
@@ -107,7 +109,7 @@ export interface HostClient {
   subscribe(listener: () => void): () => void;
   start(): void;
   stop(): void;
-  retryNow(): void;
+  retryNow(trigger?: 'resume' | 'manual_retry'): void;
   refresh(): Promise<void>;
   call<T>(method: string, args?: Record<string, unknown>): Promise<T>;
   upload(name: string, data: Blob): Promise<AttachmentRef>;
@@ -129,6 +131,7 @@ export interface HostApiAnswer {
 }
 
 export interface HostClientOptions {
+  telemetry?: ConnectionTelemetry;
   routes: string[];
   credential: string;
   carrier: HostCarrier;
@@ -267,11 +270,17 @@ export function createHostClient(options: HostClientOptions): HostClient {
   let liveSocket: { generation: number; send(frame: MuxClientFrame): void } | undefined;
   let streams = new Map<string, { item(value: unknown): void; end(frame: MuxServerFrame): void }>();
 
-  const publish = (connection: ConnectionState = snapshot.connection): void => {
+  const publish = (connection?: ConnectionState): void => {
     snapshot = {
-      connection,
+      connection: connection ?? snapshot.connection,
       ...(bots === undefined ? {} : { roster: view(bots) }),
     };
+    if (connection !== undefined)
+      options.telemetry?.update(
+        connection.status,
+        'attempt' in connection ? connection.attempt : 0,
+        connection.status === 'refused' ? connection.code : 'none',
+      );
     for (const listener of listeners) listener();
   };
 
@@ -327,6 +336,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
           };
         }),
       channels: groups,
+      activityChannels: [...channels.values()].filter((channel) => channel.deletedAt === undefined),
       ...(arrangement === undefined ? {} : { arrangement }),
     };
   };
@@ -751,9 +761,20 @@ export function createHostClient(options: HostClientOptions): HostClient {
       socket?.close();
       socket = undefined;
       publish({ status: 'stopped', route });
+      options.telemetry?.dispose();
     },
-    retryNow() {
+    retryNow(trigger = 'manual_retry') {
       if (!running) return;
+      options.telemetry?.begin(trigger);
+      if (snapshot.connection.status === 'connected') {
+        void reload().then(
+          () => {
+            if (running && snapshot.connection.status === 'connected')
+              options.telemetry?.update('connected');
+          },
+          () => {},
+        );
+      }
       clearTimeout(retryTimer);
       wake?.();
     },

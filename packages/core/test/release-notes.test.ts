@@ -1,4 +1,7 @@
-import { readFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -9,12 +12,18 @@ import {
 } from '../src/release/notes.js';
 import {
   createReleaseService,
+  createLoadingReleaseService,
   installedRelease,
   type ReleaseInstaller,
   type ReleaseInstallerResult,
 } from '../src/release/service.js';
 import { compareVersions, isReleaseVersion } from '../src/release/version.js';
 import type { ReleaseRestarter } from '../src/release/restart.js';
+import {
+  loadedReleaseComponent,
+  loadedReleaseComponents,
+  stampReleaseComponent,
+} from '../src/release/component.js';
 
 const english = `# DeepSeekBot Changelog
 
@@ -156,11 +165,154 @@ describe('release notes', () => {
 describe('release service', () => {
   const ledgers = () => ({ english, chinese });
 
+  it('reports missing installed metadata as unknown and refuses updates, not development', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'release-identity-'));
+    try {
+      const fetchImpl = vi.fn();
+      const service = createReleaseService({
+        ...installedRelease(pathToFileURL(join(directory, 'dist/index.mjs')).href),
+        fetchImpl,
+      });
+      expect(service.info()).toMatchObject({
+        version: 'unknown',
+        identity: { kind: 'unknown', reason: 'metadata-missing' },
+      });
+      expect(await service.update()).toEqual({
+        status: 'unknown',
+        current: 'unknown',
+        reason: 'metadata-missing',
+      });
+      expect(await service.install('2.0.0')).toMatchObject({
+        status: 'failed',
+        reason: 'identity-invalid',
+      });
+      expect(fetchImpl).not.toHaveBeenCalled();
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
   it('returns only the installed release on first open and the gap afterwards', () => {
     const service = createReleaseService({ version: () => '1.1.0', ledgers });
     expect(service.info().releases.map((note) => note.version)).toEqual(['1.1.0']);
     expect(service.info('1.0.0').releases.map((note) => note.version)).toEqual(['1.1.0', '1.0.1']);
     expect(service.info('1.1.0').releases).toEqual([]);
+  });
+
+  it('qualifies the product package set and keeps running identity after staged files change', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'release-product-'));
+    try {
+      const components = [
+        '@botharness/core',
+        '@botharness/ui',
+        '@botharness/browser',
+        '@botharness/computer',
+      ];
+      const manifests = new Map<string, string>();
+      for (const name of ['deepseekbot', ...components]) {
+        const packageDirectory = join(directory, 'node_modules', name);
+        mkdirSync(join(packageDirectory, 'dist'), { recursive: true });
+        const manifestPath = join(packageDirectory, 'package.json');
+        manifests.set(name, manifestPath);
+        writeFileSync(
+          manifestPath,
+          JSON.stringify({
+            name,
+            version: '2.0.0',
+            main: './dist/index.mjs',
+            ...(name === 'deepseekbot'
+              ? {
+                  dependencies: Object.fromEntries(
+                    components.map((component) => [component, '2.0.0']),
+                  ),
+                }
+              : {}),
+          }),
+        );
+        writeFileSync(join(packageDirectory, 'dist/index.mjs'), '');
+      }
+      const moduleUrl = pathToFileURL(
+        join(directory, 'node_modules/@botharness/core/dist/index.mjs'),
+      ).href;
+      const release = installedRelease(moduleUrl);
+      const anchors = [join(directory, 'package.json')];
+      const loaded = components.map((component) => {
+        const callback = () => undefined;
+        stampReleaseComponent(
+          callback,
+          pathToFileURL(join(directory, 'node_modules', component, 'dist/index.mjs')).href,
+        );
+        return loadedReleaseComponent(callback)!;
+      });
+      expect(release.identity(anchors)).toEqual({
+        kind: 'unknown',
+        reason: 'composition-unverified',
+      });
+      let active = loaded.slice(0, 1);
+      const loading = createLoadingReleaseService({
+        ...release,
+        identity: () => release.identity(anchors, active),
+      });
+      expect(loading.info().identity).toEqual({
+        kind: 'unknown',
+        reason: 'composition-unverified',
+      });
+      expect(await loading.install('2.0.1')).toEqual({
+        status: 'failed',
+        reason: 'identity-invalid',
+      });
+      active = loaded;
+      expect(loading.info().identity).toEqual({ kind: 'release', version: '2.0.0' });
+      active = loaded.map((component) =>
+        component.name === '@botharness/ui' ? { ...component, version: '2.0.1' } : component,
+      );
+      expect(loading.info().identity).toEqual({ kind: 'unknown', reason: 'component-mismatch' });
+      expect(await loading.restart()).toEqual({ status: 'failed', reason: 'identity-invalid' });
+      active = loaded;
+      expect(loading.info().identity).toEqual({ kind: 'release', version: '2.0.0' });
+      expect(release.identity(anchors, [...loaded, loaded[1]!])).toEqual({
+        kind: 'unknown',
+        reason: 'component-mismatch',
+      });
+      expect(
+        loadedReleaseComponents([
+          { name: 'botharness-client', callback: () => undefined, fibers: [{ state: 2 }] },
+        ]),
+      ).toEqual([{ name: '@botharness/ui', version: 'unknown', directory: '', private: true }]);
+      expect(
+        release.identity(
+          anchors,
+          loaded.map((component) =>
+            component.name === '@botharness/ui'
+              ? { ...component, directory: '/different/loaded/ui' }
+              : component,
+          ),
+        ),
+      ).toEqual({ kind: 'unknown', reason: 'component-mismatch' });
+      const service = createReleaseService({
+        ...release,
+        identity: () => release.identity(anchors, loaded),
+      });
+      expect(service.info()).toMatchObject({
+        version: '2.0.0',
+        identity: { kind: 'release', version: '2.0.0' },
+      });
+      writeFileSync(
+        manifests.get('@botharness/ui')!,
+        JSON.stringify({ name: '@botharness/ui', version: '2.0.1' }),
+      );
+      expect(service.info().version).toBe('2.0.0');
+      expect(release.identity(anchors, loaded)).toEqual({ kind: 'release', version: '2.0.0' });
+      const restarted = installedRelease(moduleUrl);
+      const mismatch = createReleaseService({
+        ...restarted,
+        identity: () => restarted.identity(anchors, loaded),
+      });
+      expect(mismatch.info().identity).toEqual({ kind: 'unknown', reason: 'component-mismatch' });
+      expect(await mismatch.restart()).toEqual({ status: 'failed', reason: 'identity-invalid' });
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
   });
 
   it('treats a source build as a development version without notes or checks', async () => {
@@ -407,7 +559,31 @@ describe('release service', () => {
   it('reads the installed version and ledgers next to the module', () => {
     const release = installedRelease(new URL('../src/plugin.ts', import.meta.url).href);
     expect(release.version()).toBe('0.0.0');
+    expect(release.identity()).toEqual({
+      kind: 'development',
+      source: { revision: expect.stringMatching(/^[a-f0-9]{40}$/u), dirty: expect.any(Boolean) },
+    });
     expect(release.ledgers()?.english).toContain('# DeepSeekBot Changelog');
     expect(release.ledgers()?.chinese).toContain('# DeepSeekBot 更新日志');
+  });
+
+  it.each([
+    '{',
+    'null',
+    '[]',
+    '{}',
+    '{"name":"@botharness/core","version":"0.0.0","private":true}',
+  ])('does not disguise invalid installed metadata %s as a source checkout', (bytes) => {
+    const directory = mkdtempSync(join(tmpdir(), 'release-invalid-'));
+    try {
+      writeFileSync(join(directory, 'package.json'), bytes);
+      const release = installedRelease(pathToFileURL(join(directory, 'dist/index.mjs')).href);
+      expect(createReleaseService(release).info().identity).toEqual({
+        kind: 'unknown',
+        reason: 'metadata-invalid',
+      });
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
   });
 });

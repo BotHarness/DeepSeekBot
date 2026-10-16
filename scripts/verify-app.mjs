@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process';
+import { diagnosticVerdict, readClientDiagnostics } from './dev-client-diagnostics.mjs';
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { createServer } from 'node:net';
@@ -16,6 +17,7 @@ Drive an isolated DeepSeekBot instance the way a user does and keep the evidence
 Commands:
   launch [--port <n>] [--build]   Start an isolated DSH Host through dev-instance.mjs.
   doctor                          Check that the recorded instance is ours, alive and authenticated.
+  observe                         Save Host health and browser-reported Client diagnostics as JSON.
   rpc <namespace/method> [json]   Call one authenticated /api method with JSON args.
   shot <label> [shot options]     Open the Web Client, act, then save a screenshot and ARIA snapshot.
   stop                            Stop the recorded Host and delete its temporary DSH_HOME.
@@ -272,6 +274,40 @@ async function doctor(paths) {
   return checks;
 }
 
+export async function collectObservation({ health, diagnostics }) {
+  const [hostResult, clientResult] = await Promise.allSettled([health(), diagnostics()]);
+  const host =
+    hostResult.status === 'fulfilled'
+      ? hostResult.value
+      : { ok: false, reason: 'health-check-unavailable' };
+  const client =
+    clientResult.status === 'fulfilled'
+      ? { ...diagnosticVerdict(clientResult.value), report: clientResult.value }
+      : { state: 'unavailable', exitCode: 2, reason: 'client-diagnostics-unavailable' };
+  const exitCode = !host.ok ? 1 : client.exitCode;
+  return {
+    version: 1,
+    observedAt: new Date().toISOString(),
+    state: exitCode === 0 ? 'shell-observed' : exitCode === 1 ? 'failed' : 'incomplete',
+    exitCode,
+    host,
+    client,
+    verification: 'unverified: drive the feature, inspect visible evidence and canonical state',
+  };
+}
+
+async function observe(paths) {
+  const instance = readInstance(paths);
+  const result = await collectObservation({
+    health: () => doctor(paths),
+    diagnostics: () => readClientDiagnostics(instance),
+  });
+  mkdirSync(paths.evidence, { recursive: true });
+  const evidence = join(paths.evidence, `observe-${result.observedAt.replace(/[:.]/gu, '-')}.json`);
+  writeFileSync(evidence, `${JSON.stringify(result, null, 2)}\n`, { mode: 0o600 });
+  return { ...result, evidence };
+}
+
 function loadPuppeteer() {
   const store = join(repoRoot, 'node_modules', '.pnpm');
   const entry = readdirSync(store).find((name) => name.startsWith('puppeteer@'));
@@ -477,6 +513,9 @@ async function main() {
     case 'doctor':
       result = await doctor(paths);
       break;
+    case 'observe':
+      result = await observe(paths);
+      break;
     case 'rpc': {
       const [endpoint, json] = options.positional;
       if (!endpoint?.includes('/')) throw new Error('rpc needs <namespace/method>');
@@ -495,6 +534,7 @@ async function main() {
   }
   console.log(JSON.stringify(result, null, 2));
   if (options.command === 'doctor' && !result.ok) process.exit(1);
+  if (options.command === 'observe') process.exitCode = result.exitCode;
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

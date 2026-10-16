@@ -22,6 +22,44 @@ const shape = (rows: ReturnType<typeof chatRows>) =>
   );
 
 describe('chat message groups', () => {
+  it('folds consecutive same-day posts to one destination and keeps activity out of bubbles', () => {
+    const post = (
+      id: string,
+      at: string,
+      bot = 'ada',
+      channelId = 'research',
+    ): ConversationMessage => ({
+      ...message(id, at),
+      bot,
+      activity: { kind: 'channel-post', channelId, messageId: `target-${id}`, preview: id },
+    });
+    const rows = chatRows([
+      { ...message('reply', '09:00'), bot: 'ada' },
+      post('a', '09:01'),
+      post('b', '10:00'),
+      post('c', '10:01', 'bob'),
+      post('d', '10:02', 'bob', 'launch'),
+      message('human', '10:03', 'human'),
+      post('e', '10:04'),
+      { ...post('next-day', '10:05'), at: '2026-10-16T10:05:00.000Z' },
+    ]);
+    expect(shape(rows)).toEqual([
+      '|',
+      'reply^$',
+      'b^$',
+      'c^$',
+      'd^$',
+      'human^$',
+      'e^$',
+      '|',
+      'next-day^$',
+    ]);
+    expect(rows[2]).toMatchObject({
+      key: 'b',
+      activityCount: 2,
+      message: { activity: { messageId: 'target-b', preview: 'b' } },
+    });
+  });
   it('starts a new group when another Bot speaks in a group Channel', () => {
     const by = (id: string, at: string, bot: string): ConversationMessage => ({
       ...message(id, at),
