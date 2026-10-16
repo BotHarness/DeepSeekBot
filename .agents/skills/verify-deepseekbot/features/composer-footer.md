@@ -29,3 +29,5 @@ Launch an isolated named Host and run doctor. Use its dedicated QA Bot and the r
 - Provider quota can prevent a real speed measurement even while UI/API checks pass. Preserve the failure; use an already configured test route if available, and distinguish a real reply from a fixture.
 - The source PR showed speed by default. Current defaults deliberately hide both average and per-reply labels.
 - A temporary localStorage write failure leaves settings usable in memory for the current page. A fresh page uses defaults if no valid stored preferences exist.
+
+- When capturing a pointer drag with Puppeteer, use `captureBeyondViewport: false`. The default clipped screenshot can briefly resize even a blank page to 1×1, switch responsive layouts and cancel the drag. Wait for visible controls instead of network-idle on the live SSE Client.
