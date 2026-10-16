@@ -4,6 +4,16 @@
 
 ## 语言
 
+### 产品发布
+
+**Product Release Version**：
+电脑端 DeepSeekBot 产品及其同步发布组件共用的唯一发布身份；它与独立版本的 DSH runtime、Provider、工具／Skill 和手机应用不同。
+_避免使用_：独立桌面版本、独立 npm 版本、未限定的 Version
+
+**Development Build Identity**：
+未发布 DeepSeekBot 构建的身份及源码状态。它不是 Product Release Version，也不证明发布产物已通过资格验证。
+_避免使用_：已安装发布版、latest 版本、0.0.0 发布版
+
 ### PersonaBot（持久机器人身份）
 
 **PersonaBot**：
@@ -670,6 +680,8 @@ _避免使用_：caller-supplied author、transport metadata（单独使用）
 
 ### 聊天与回复
 
+**IM 会话镜像**是针对一个已绑定外部私聊的可选本地展示，复用 canonical content，不新增 Inbox Admission 或唤醒。**本地私聊转发**是另一项独立选择，通过同一 Binding 和已授权会话执行外部发送。两者均默认关闭，不新增接收或主动发送权限。见 ADR-0217。
+
 **Chat**：
 PersonaBot 参与的 Feishu/Lark conversation——group 或 p2p——通过 `chat_id` 识别。
 _避免使用_：room、channel、group（当含义也包括 p2p 时）
@@ -869,6 +881,12 @@ _避免使用_：whitelist、permissions、ACL
 _避免使用_：secret、API key、token
 
 ### 遥测与推广活动
+
+**Mobile Telemetry**：
+Expo 手机应用内默认开启、可在设置底部关闭的粗粒度统计，独立于 Host 统计。只观察配对、实时连接和首次聊天结果，不拥有产品权威，不包含聊天内容或领域标识（ADR-0214）。
+
+**Mobile Install ID**：
+启用统计时保存在手机上的随机统计 UUID，与 Host Install ID、配对设备身份、Human 账号及网站访客均独立。关闭统计会清除标识和待发队列，再开启生成新标识；系统恢复应用数据可能恢复已保存的选择与标识。
 
 **Telemetry**：
 Host 发送到项目分析服务的匿名产品使用事件，默认开启，可用插件配置 `telemetry: false`、`DO_NOT_TRACK=1` 或 `BOTHARNESS_TELEMETRY=0` 关闭。从不包含名称、Memory、对话内容、路径或 IP 地址（ADR-0132）。

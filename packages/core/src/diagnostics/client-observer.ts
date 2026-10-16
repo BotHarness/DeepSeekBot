@@ -143,12 +143,20 @@ export function installClientObserver(win: Window & typeof globalThis): void {
   };
   win.addEventListener('error', onError, true);
   win.addEventListener('unhandledrejection', onRejection);
+  const shellPresent = (): boolean => {
+    if (win.document.querySelector('[data-dsh-boot]')) return false;
+    const surfaces = [
+      win.document.querySelector('.bh-panel-glyph')?.closest('button'),
+      win.document.querySelector('.bh-root.bh-main'),
+    ];
+    return surfaces.some((surface) => {
+      const rect = surface?.getBoundingClientRect();
+      return !!rect && rect.width > 0 && rect.height > 0;
+    });
+  };
   const inspect = (): void => {
     if (disposed) return;
-    const nav = win.document.querySelector('.bh-panel-glyph')?.closest('button');
-    const rect = nav?.getBoundingClientRect();
-    const present =
-      !!rect && rect.width > 0 && rect.height > 0 && !win.document.querySelector('[data-dsh-boot]');
+    const present = shellPresent();
     if (!present && mounted) {
       mounted = false;
       record('shell-lost', 'lifecycle', true);
@@ -156,17 +164,7 @@ export function installClientObserver(win: Window & typeof globalThis): void {
     if (!present || mounted || frame) return;
     frame = win.requestAnimationFrame(() => {
       frame = 0;
-      const bounds = win.document
-        .querySelector('.bh-panel-glyph')
-        ?.closest('button')
-        ?.getBoundingClientRect();
-      if (
-        !bounds ||
-        bounds.width <= 0 ||
-        bounds.height <= 0 ||
-        win.document.querySelector('[data-dsh-boot]')
-      )
-        return;
+      if (!shellPresent()) return;
       mounted = true;
       if (!data.firstFailure) data.state = 'shell-ready';
       record('shell-mounted', 'lifecycle');

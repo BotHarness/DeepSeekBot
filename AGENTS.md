@@ -139,7 +139,7 @@ Building or changing in-harness UI follows the `dsh-ui` skill: DSH tokens (centr
 
 ### Verify behavior
 
-Before claiming a feature or fix works, reproducing a bug in the running app, or capturing PR screenshots, follow the `verify-deepseekbot` skill: it launches an isolated Host, drives the Web Client by accessible name, and keeps screenshots, ARIA snapshots and console output as evidence. Its feature map names each mapped feature's user path and the observable result that proves it; update the map in the same change when the app moves.
+Before claiming a feature or fix works, reproducing a bug in the running app, or capturing PR screenshots, follow the `verify-deepseekbot` skill: it launches an isolated Host, drives the Web Client by accessible name, and keeps screenshots, ARIA snapshots and console output as evidence. Its feature map names each mapped feature's user path and the observable result that proves it; update the map in the same change when the app moves. `node scripts/check-feature-map.mjs` (in lint) checks map references; run the touched journey to verify behavior. For a failed or surprising drive, use `verify-app observe` and the skill’s observation guide before retrying.
 
 ### DSH development
 

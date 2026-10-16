@@ -62,6 +62,8 @@ import {
   type ChannelComposerStop,
   type ChannelComposerUpload,
 } from './channel-composer.js';
+import { GeneratedFilesContext } from './generated-files-panel.js';
+import { attachmentIdentity } from '../../../core/src/attachments/ref.js';
 import { stoppableBots } from './composer-stop.js';
 import type { SelectedMention } from './mentions.js';
 import type { SelectedChannelRef } from './channel-refs.js';
@@ -149,6 +151,7 @@ import {
 import {
   store,
   type BotSummary,
+  type ChannelAttachmentRef,
   type ChannelMessage,
   type ChannelSummary,
   type ClientState,
@@ -2058,6 +2061,40 @@ function ConversationView({
       });
   };
 
+  const toggleGeneratedFile = (ref: ChannelAttachmentRef): void => {
+    if (readOnlyDm || conversation.sending || recovery.blocked) return;
+    const existing = uploadItems.find(
+      (item) => item.ref !== undefined && attachmentIdentity(item.ref) === attachmentIdentity(ref),
+    );
+    if (existing === undefined && uploadItems.length >= 10) return;
+    const item: ChannelComposerUpload = existing ?? {
+      id: attachmentIdentity(ref),
+      file: new File([], ref.name, { type: ref.mime }),
+      fileAvailable: false,
+      ref,
+      status: 'ready',
+    };
+    const inserted = existing === undefined ? insertAttachmentReferences(draft, [item]) : undefined;
+    const selected =
+      inserted === undefined
+        ? removeAttachmentReferences(draft, item, mentionTokens, channelRefTokens)
+        : {
+            value: inserted.value,
+            mentions: rebaseMentions(draft, inserted.value, mentionTokens),
+            channelRefs: rebaseChannelRefs(draft, inserted.value, channelRefTokens),
+          };
+    recovery.update({
+      text: selected.value,
+      mentions: selected.mentions,
+      channelRefs: selected.channelRefs,
+      uploads:
+        existing === undefined
+          ? [...uploadItems, item]
+          : uploadItems.filter((entry) => entry.id !== existing.id),
+    });
+    setRestoreFocusSignal((value) => value + 1);
+  };
+
   const addFiles = (files: File[], selection?: { start: number; end: number }): number | void => {
     const available = Math.max(0, 10 - uploadItems.length);
     const added = files
@@ -2116,6 +2153,7 @@ function ConversationView({
     if (allBotMention?.preview.recipients.length === 0) return;
     if (
       (body.length === 0 && uploadItems.length === 0) ||
+      uploadItems.length > 10 ||
       uploadItems.some((item) => item.status !== 'ready' || item.ref === undefined) ||
       conversation.sending ||
       submitting.current
@@ -3149,19 +3187,28 @@ function ConversationView({
       <span ref={searchShortcutMount} hidden />
       <span ref={dockInboxMount} hidden />
       <div className="bh-chat-layout" data-sidebar={docked ? 'dock' : sidebar.mode}>
-        {docked ? (
-          <ChannelDock
-            body={chatPane}
-            panels={dockPanelList}
-            channel={dockChannel}
-            registry={dockPanels}
-            entryProps={dockEntryProps}
-            shows={(entry) => entry.scope === settingsScope && (entry.visible?.(state) ?? true)}
-            t={t}
-          />
-        ) : (
-          chatPane
-        )}
+        <GeneratedFilesContext.Provider
+          value={{
+            attachments: uploadItems.flatMap((item) => (item.ref === undefined ? [] : [item.ref])),
+            full: uploadItems.length >= 10,
+            disabled: readOnlyDm || conversation.sending || recovery.blocked,
+            toggle: toggleGeneratedFile,
+          }}
+        >
+          {docked ? (
+            <ChannelDock
+              body={chatPane}
+              panels={dockPanelList}
+              channel={dockChannel}
+              registry={dockPanels}
+              entryProps={dockEntryProps}
+              shows={(entry) => entry.scope === settingsScope && (entry.visible?.(state) ?? true)}
+              t={t}
+            />
+          ) : (
+            chatPane
+          )}
+        </GeneratedFilesContext.Provider>
         <ChannelSettingsDialog registry={channelSidebar} state={state} actions={actions} t={t} />
         <ChannelSettingsAttention registry={channelSidebar} state={state} actions={actions} t={t} />
         {docked ? null : (

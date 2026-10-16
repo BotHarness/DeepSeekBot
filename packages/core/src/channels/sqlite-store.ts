@@ -115,6 +115,7 @@ function parseMessage(
   value: string,
   body?: string,
   messageId?: string,
+  channelId?: string,
 ): ChannelMessage | undefined {
   try {
     const parsed: unknown = JSON.parse(value);
@@ -124,7 +125,7 @@ function parseMessage(
         : undefined;
     const payload =
       external && body !== undefined
-        ? projectBridgeMessage(external, body)
+        ? projectBridgeMessage(external, body, channelId)
         : body === undefined
           ? parsed
           : { ...(parsed as object), body };
@@ -483,7 +484,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
         .get(id, messageId),
     ) as { payload_json: string; body: string } | undefined;
     const message =
-      row === undefined ? undefined : parseMessage(row.payload_json, row.body, messageId);
+      row === undefined ? undefined : parseMessage(row.payload_json, row.body, messageId, id);
     if (message === undefined || message.author.kind === 'system' || isChannelNotice(message))
       return undefined;
     if (active) {
@@ -574,7 +575,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     const members = humanMembers(id);
     const reactionsById = channelReactions(id);
     return rows.flatMap((row) => {
-      const original = parseMessage(row.payload_json, row.body, row.message_id);
+      const original = parseMessage(row.payload_json, row.body, row.message_id, id);
       if (original === undefined) return [];
       const message = attachmentMigration.project(row.source_event_id, original);
       const deliveries = admissionStatuses(row.source_event_id);
@@ -2323,7 +2324,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
           'payload_json' | 'body' | 'message_id'
         >[];
         const replies = rows.flatMap((row) => {
-          const message = parseMessage(row.payload_json, row.body, row.message_id);
+          const message = parseMessage(row.payload_json, row.body, row.message_id, id);
           return message &&
             !isChannelNotice(message) &&
             !message.toolApprovalRequest &&
@@ -2353,7 +2354,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
             position: number;
           })
         | undefined;
-      const message = row && parseMessage(row.payload_json, row.body, row.message_id);
+      const message = row && parseMessage(row.payload_json, row.body, row.message_id, id);
       if (!row || !message || message.id !== messageId) return undefined;
       const member = humanMembers(id).find((entry) => entry.human_id === LOCAL_HUMAN_ID);
       return {
@@ -2579,7 +2580,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       const members = humanMembers(id);
       const reactionsById = channelReactions(id);
       const selected = rows.slice(0, query.limit).flatMap((row) => {
-        const original = parseMessage(row.payload_json, row.body, row.message_id);
+        const original = parseMessage(row.payload_json, row.body, row.message_id, id);
         if (original === undefined) return [];
         const message = attachmentMigration.project(row.source_event_id, original);
         const deliveries = admissionStatuses(row.source_event_id);
@@ -2615,7 +2616,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
             .all(id, ...replyIds),
         ) as unknown as Array<Pick<PlacementRow, 'message_id' | 'payload_json' | 'body'>>;
         for (const row of replies) {
-          const message = parseMessage(row.payload_json, row.body, row.message_id);
+          const message = parseMessage(row.payload_json, row.body, row.message_id, id);
           if (message !== undefined) byId.set(message.id, message);
         }
       }

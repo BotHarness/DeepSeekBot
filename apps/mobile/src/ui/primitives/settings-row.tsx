@@ -15,6 +15,7 @@ export function SettingsRow({
   leading,
   trailing,
   selected,
+  expanded,
   accessibilityLabel,
   on = 'sheet',
   onPress,
@@ -26,6 +27,7 @@ export function SettingsRow({
   leading?: ReactNode;
   trailing?: ReactNode;
   selected?: boolean;
+  expanded?: boolean;
   accessibilityLabel?: string;
   on?: LayerName;
   onPress?: (() => void) | undefined;
@@ -42,7 +44,9 @@ export function SettingsRow({
           ? undefined
           : (accessibilityLabel ?? (detail === undefined ? title : `${title}, ${detail}`))
       }
-      accessibilityState={selected === undefined ? undefined : { selected }}
+      accessibilityState={
+        selected === undefined && expanded === undefined ? undefined : { selected, expanded }
+      }
       style={({ pressed }) => ({
         minHeight: theme.touch,
         flexDirection: 'row',
@@ -76,7 +80,7 @@ export function SettingsSection({
   children,
 }: {
   title?: string;
-  footer?: string;
+  footer?: string | undefined;
   on?: LayerName;
   children: ReactNode;
 }) {

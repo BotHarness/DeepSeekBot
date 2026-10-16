@@ -2,6 +2,10 @@ import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client
 
 import { parseReleaseNotes, type ReleaseNote } from '../../../core/src/release/notes.js';
 import type {
+  ReleaseIdentity,
+  ReleaseIdentityFailure,
+} from '../../../core/src/release/identity.js';
+import type {
   ReleaseInfo,
   ReleaseInstall,
   ReleaseInstallFailure,
@@ -46,6 +50,7 @@ export type ReleaseRestartState =
 
 export interface ReleaseNotesSnapshot {
   version: string | undefined;
+  identity?: ReleaseIdentity | undefined;
   announcement: ReleaseNote[] | undefined;
   firstRun: boolean;
   viewing: ReleaseNote[] | undefined;
@@ -55,6 +60,7 @@ export interface ReleaseNotesSnapshot {
 }
 
 const INSTALL_FAILURES: readonly ReleaseInstallFailure[] = [
+  'identity-invalid',
   'unavailable',
   'invalid-version',
   'network',
@@ -69,11 +75,52 @@ function record(value: unknown): Record<string, unknown> | undefined {
     : undefined;
 }
 
+const IDENTITY_FAILURES: readonly ReleaseIdentityFailure[] = [
+  'metadata-missing',
+  'metadata-invalid',
+  'composition-unverified',
+  'component-mismatch',
+];
+
+function parseIdentity(value: unknown, version: string): ReleaseIdentity {
+  const identity = record(value);
+  if (
+    identity?.['kind'] === 'release' &&
+    identity['version'] === version &&
+    isReleaseVersion(version)
+  )
+    return { kind: 'release', version };
+  if (identity?.['kind'] === 'development' && version === '0.0.0') {
+    const source = record(identity['source']);
+    if (
+      typeof source?.['revision'] === 'string' &&
+      /^[a-f0-9]{40}$/u.test(source['revision']) &&
+      typeof source['dirty'] === 'boolean'
+    ) {
+      return {
+        kind: 'development',
+        source: { revision: source['revision'], dirty: source['dirty'] },
+      };
+    }
+  }
+  const reason = IDENTITY_FAILURES.find((candidate) => candidate === identity?.['reason']);
+  return {
+    kind: 'unknown',
+    reason: identity?.['kind'] === 'unknown' && reason !== undefined ? reason : 'metadata-invalid',
+  };
+}
+
 export function parseReleaseInfo(value: unknown): ReleaseInfo | undefined {
   const source = record(value);
   const releases = parseReleaseNotes(source?.['releases']);
   return typeof source?.['version'] === 'string' && releases !== undefined
-    ? { version: source['version'], releases }
+    ? {
+        version: source['version'],
+        releases,
+        ...(source['identity'] === undefined
+          ? {}
+          : { identity: parseIdentity(source['identity'], source['version']) }),
+      }
     : undefined;
 }
 
@@ -83,6 +130,10 @@ export function parseReleaseUpdate(value: unknown): ReleaseUpdate | undefined {
   const latest = source?.['latest'];
   if (typeof current !== 'string') return undefined;
   switch (source?.['status']) {
+    case 'unknown': {
+      const reason = IDENTITY_FAILURES.find((candidate) => candidate === source['reason']);
+      return reason === undefined ? undefined : { status: 'unknown', current, reason };
+    }
     case 'development':
     case 'unavailable':
       return { status: source['status'], current };
@@ -139,7 +190,8 @@ export function parseReleaseRestart(value: unknown): ReleaseRestart | undefined 
   const source = record(value);
   if (source?.['status'] === 'restarting') return { status: 'restarting' };
   const reason = source?.['reason'];
-  return source?.['status'] === 'failed' && (reason === 'unavailable' || reason === 'not-pending')
+  return source?.['status'] === 'failed' &&
+    (reason === 'unavailable' || reason === 'not-pending' || reason === 'identity-invalid')
     ? { status: 'failed', reason }
     : undefined;
 }
@@ -209,11 +261,24 @@ export class ReleaseNotesController {
   }
 
   async checkUpdate(force = false): Promise<void> {
+    let identity = this.source.getSnapshot().identity;
+    const retryIdentity =
+      identity?.kind === 'unknown' && identity.reason === 'composition-unverified';
     const current = this.source.getSnapshot().update.status;
-    if (current === 'checking' || (!force && current !== 'idle')) return;
+    if (current === 'checking' || (!force && current !== 'idle' && !retryIdentity)) return;
     this.source.update((draft) => {
       draft.update = { status: 'checking' };
     });
+    if (retryIdentity) {
+      await this.announce().catch(() => undefined);
+      identity = this.source.getSnapshot().identity;
+    }
+    if (identity?.kind === 'unknown') {
+      this.source.update((draft) => {
+        draft.update = { status: 'unknown', current: 'unknown', reason: identity.reason };
+      });
+      return;
+    }
     let update: ReleaseUpdate | undefined;
     try {
       const result = await this.call('releaseUpdate', {});
@@ -259,7 +324,7 @@ export class ReleaseNotesController {
       draft.restart = { status: 'restarting' };
     });
     const update = this.source.getSnapshot().update;
-    const running = update.status === 'restart-required' ? update.current : undefined;
+    const expected = update.status === 'restart-required' ? update.installed : undefined;
     let outcome: ReleaseRestart | undefined;
     try {
       const result = await this.call('releaseRestart', {});
@@ -273,20 +338,24 @@ export class ReleaseNotesController {
       });
       return;
     }
-    await this.awaitRestart(running);
+    await this.awaitRestart(expected);
   }
 
-  private async awaitRestart(running: string | undefined): Promise<void> {
+  private async awaitRestart(expected: string | undefined): Promise<void> {
     for (let attempt = 0; attempt < RESTART_POLL_LIMIT; attempt += 1) {
       await this.watch.wait(RESTART_POLL_MS);
       let version: string | undefined;
       try {
         const result = await this.call('releaseInfo', {});
-        version = result.ok ? parseReleaseInfo(result.value)?.version : undefined;
+        const info = result.ok ? parseReleaseInfo(result.value) : undefined;
+        version =
+          this.source.getSnapshot().identity === undefined || info?.identity?.kind === 'release'
+            ? info?.version
+            : undefined;
       } catch {
         version = undefined;
       }
-      if (version !== undefined && version !== running) {
+      if (expected !== undefined && version === expected) {
         this.watch.reload();
         return;
       }
@@ -303,10 +372,12 @@ export class ReleaseNotesController {
     const info = parseReleaseInfo(result.value);
     if (info === undefined) throw new Error('invalid releaseInfo response');
     const fresh =
+      info.identity?.kind !== 'unknown' &&
       isReleaseVersion(info.version) &&
       (seen === undefined || compareVersions(info.version, seen) > 0);
     this.source.update((draft) => {
       draft.version = info.version;
+      draft.identity = info.identity;
       draft.announcement = fresh && info.releases.length > 0 ? info.releases : undefined;
       draft.firstRun = seen === undefined;
     });

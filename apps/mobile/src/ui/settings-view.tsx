@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 
 import type { ConnectionState } from '../host/client';
@@ -38,12 +38,14 @@ export function SettingsView({
   loadUsage,
   version,
   actions,
+  statistics,
 }: {
   hostName: string | undefined;
   connection: ConnectionState;
   loadUsage?: (() => Promise<OverviewUsage>) | undefined;
   version: string;
   actions: SettingsActions;
+  statistics?: ReactNode;
 }) {
   const theme = useDesignTheme();
   const [unpairError, setUnpairError] = useState<string>();
@@ -142,6 +144,7 @@ export function SettingsView({
           }
         />
       </SettingsSection>
+      {statistics}
     </ScrollView>
   );
 }

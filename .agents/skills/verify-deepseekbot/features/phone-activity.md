@@ -1,5 +1,15 @@
 # Native activity rows
 
+## Sub-features
+
+DM/group activity layout, full details, explicit navigation and device-local DM visibility switches.
+
+## How to get to it (user POV)
+
+Open the dedicated QA DM or group in the paired phone app. Activity rows appear in its conversation timeline; long-press a row for details and explicit destinations.
+
+## Driving it with verify-app
+
 Use the shared device queue; reuse its sole assigned Simulator and existing dev
 client for this JavaScript-only change. Do not run a second Simulator or restart
 the shared QA Host. Use only the dedicated QA conversations.
@@ -23,3 +33,7 @@ the shared QA Host. Use only the dedicated QA conversations.
 5. Confirm ordinary bubble reactions/Copy/Share and DM-only activity filters
    still work. Record source and integrated batch SHAs and capture DM/group/menu
    before/after in light/dark; disclose physical-device and Android gaps.
+
+## Gotchas
+
+This is a shared-Simulator manual path using existing QA records, not a fresh-Host scripted journey. Follow [shared device QA](../../../../docs/agents/device-qa.md). The recorded evidence in [PR #1928](https://github.com/BotHarness/DeepSeekBot/pull/1928) has its own commit and limitations; this map update does not requalify touch timing, overflow scrolling, Android or a physical phone.

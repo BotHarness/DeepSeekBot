@@ -124,6 +124,56 @@ describe('early real Client diagnostic observer', () => {
     expect(observer().snapshot().state).toBe('failed');
   });
 
+  it('keeps the shell ready when Bot mode replaces the native sidebar and when it exits', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }));
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      width: 30,
+      height: 30,
+    } as DOMRect);
+    installClientObserver(window);
+    for (const html of [
+      '<button><span class="bh-panel-glyph"></span></button>',
+      '<div class="bh-root bh-main">Bot mode</div>',
+      '<button><span class="bh-panel-glyph"></span></button>',
+    ]) {
+      document.body.innerHTML = html;
+      await Promise.resolve();
+      await vi.advanceTimersByTimeAsync(300);
+      expect(observer().snapshot()).toMatchObject({ state: 'shell-ready' });
+      expect(observer().snapshot().firstFailure).toBeUndefined();
+    }
+    document.body.innerHTML = '<div class="bh-root">Window Companion</div>';
+    await Promise.resolve();
+    await vi.advanceTimersByTimeAsync(300);
+    expect(observer().snapshot()).toMatchObject({
+      state: 'failed',
+      firstFailure: { code: 'shell-lost' },
+    });
+  });
+
+  it('requires a visible Bot mode main surface after the boot screen is gone', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }));
+    installClientObserver(window);
+    document.body.innerHTML = '<div class="bh-root bh-main"></div>';
+    await Promise.resolve();
+    await vi.advanceTimersByTimeAsync(300);
+    expect(observer().snapshot().state).toBe('starting');
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      width: 30,
+      height: 30,
+    } as DOMRect);
+    document.body.insertAdjacentHTML('beforeend', '<div data-dsh-boot></div>');
+    await Promise.resolve();
+    await vi.advanceTimersByTimeAsync(300);
+    expect(observer().snapshot().state).toBe('starting');
+    document.querySelector('[data-dsh-boot]')!.remove();
+    await Promise.resolve();
+    await vi.advanceTimersByTimeAsync(300);
+    expect(observer().snapshot().state).toBe('shell-ready');
+  });
+
   it('preserves first failure and bounds a flood, with finite delivery retries and cleanup', async () => {
     vi.useFakeTimers();
     const send = vi.fn().mockRejectedValue(new Error('private network detail'));

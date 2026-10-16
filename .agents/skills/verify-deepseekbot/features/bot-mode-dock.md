@@ -1,6 +1,6 @@
 # Bot mode dock (desktop layout)
 
-On a desktop-width window (961px and wider), Bot mode lays out the Channel body and the Channel sidebar entries as Dock panels. The App Sidebar stays native and outside the dock. Narrower windows keep the overlay Channel sidebar.
+On a desktop-width window (961px and wider), Bot mode lays out the Channel body and the Channel sidebar entries as Dock panels. The Bot mode App Sidebar occupies the native-sized column outside the dock; see [bot-mode.md](bot-mode.md). Narrower windows keep the overlay Channel sidebar.
 
 ## Sub-features
 
