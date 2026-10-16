@@ -3478,7 +3478,11 @@ export const zh = {
   'release.restart.desktop': '桌面版：完全退出 DSH 后重新打开。',
   'release.restart.action': '立即重启',
   'release.restart.running': '正在重启…',
-  'release.restart.hint': '重启会中断正在运行的任务，页面会自动重新连接。',
+  'release.restart.hint': '仅在电脑空闲时重启，忙碌时会拒绝；页面会自动重新连接。',
+  'release.refused.busy':
+    '电脑正在处理任务或更新，未执行本次操作。请等工作结束后手动重试，不会自动更新或重启。',
+  'release.refused.activityUnavailable':
+    '暂时无法确认电脑是否空闲，未执行本次操作。请恢复活动状态服务后重试，不要强制更新或重启。',
   'release.restart.progress': '正在重启 DSH，页面会在几秒后自动重新连接…',
   'release.restart.failed': '没能自动重启，请按下面的方式手动重启。',
   'telemetry.notice.title': '关于匿名使用统计',
@@ -7221,7 +7225,12 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'release.restart.desktop': 'Desktop app: quit DSH completely and open it again.',
   'release.restart.action': 'Restart now',
   'release.restart.running': 'Restarting…',
-  'release.restart.hint': 'Restarting stops running tasks. This page reconnects on its own.',
+  'release.restart.hint':
+    'Restarts only when the computer is idle; busy requests are refused. This page reconnects on its own.',
+  'release.refused.busy':
+    'The computer is working or updating. This request was refused. Wait for work to finish, then retry; no update or restart is queued.',
+  'release.refused.activityUnavailable':
+    'Computer activity could not be checked. This request was refused. Restore the activity services, then retry; do not force an update or restart.',
   'release.restart.progress': 'Restarting DSH. This page reconnects in a few seconds…',
   'release.restart.failed': 'DSH could not restart itself. Restart it by hand as shown below.',
   'telemetry.notice.title': 'Anonymous usage statistics',

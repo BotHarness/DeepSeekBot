@@ -214,6 +214,8 @@ const INSTALL_FAILURE_KEYS: Record<
   Extract<ReleaseInstallState, { status: 'failed' }>['reason'],
   BotHarnessKey
 > = {
+  busy: 'release.refused.busy',
+  'activity-unavailable': 'release.refused.activityUnavailable',
   unavailable: 'release.install.failed.unavailable',
   'invalid-version': 'release.install.failed.generic',
   network: 'release.install.failed.network',
@@ -262,6 +264,25 @@ function RestartGuide({
   onRestart: () => void;
   t: BotHarnessTranslate;
 }): ReactElement {
+  if (
+    state.status === 'failed' &&
+    (state.reason === 'busy' || state.reason === 'activity-unavailable')
+  ) {
+    return (
+      <div className="bh-release-update-head">
+        <div className="bh-release-install-error" role="alert" data-release-restart-error>
+          {t(
+            state.reason === 'busy'
+              ? 'release.refused.busy'
+              : 'release.refused.activityUnavailable',
+          )}
+        </div>
+        <Button size="sm" variant="primary" onClick={onRestart} data-release-restart-action>
+          {t('release.restart.action')}
+        </Button>
+      </div>
+    );
+  }
   if (runsInDesktop()) {
     return <div className="bh-settings-row-desc">{t('release.restart.desktop')}</div>;
   }
@@ -395,7 +416,11 @@ export function ReleaseSettings({ releaseNotes, t }: ReleaseSettingsProps): Reac
               )}
             </div>
           ) : null}
-          {!update.installable || install.status === 'failed' ? (
+          {(!update.installable || install.status === 'failed') &&
+          !(
+            install.status === 'failed' &&
+            (install.reason === 'busy' || install.reason === 'activity-unavailable')
+          ) ? (
             <ManualUpdate latest={update.latest} t={t} />
           ) : null}
         </div>

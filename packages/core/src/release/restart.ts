@@ -4,8 +4,12 @@ const RESTART_DELAY_MS = 300;
 const RELAUNCH_FALLBACK_MS = 8_000;
 const FORWARDED_SIGNALS = ['SIGTERM', 'SIGHUP'] as const;
 
+export type ReleaseActivityRefusal = 'busy' | 'activity-unavailable';
+
 export interface ReleaseRestarter {
-  restart(): void;
+  restart(
+    check: () => ReleaseActivityRefusal | undefined,
+  ): Promise<ReleaseActivityRefusal | undefined> | void;
 }
 
 export interface RestartHost {
@@ -38,12 +42,11 @@ export function createProcessRestarter(options: ProcessRestarterOptions): Releas
   const host = options.host ?? process;
   const spawn = options.spawn ?? spawnProcess;
   const setTimer = options.setTimer ?? setTimeout;
-  let requested = false;
+  let pending: Promise<ReleaseActivityRefusal | undefined> | undefined;
 
   return {
-    restart() {
-      if (requested) return;
-      requested = true;
+    restart(check) {
+      if (pending !== undefined) return pending;
       const args = [...host.execArgv, ...relaunchArguments(host.argv)];
       let child: ChildProcess | undefined;
       const relaunch = (): void => {
@@ -63,12 +66,27 @@ export function createProcessRestarter(options: ProcessRestarterOptions): Releas
           host.exitCode = code ?? 1;
         });
       };
-      setTimer(() => {
-        host.once('beforeExit', relaunch);
-        host.once('exit', relaunch);
-        setTimer(relaunch, RELAUNCH_FALLBACK_MS).unref();
-        options.exit(0);
-      }, RESTART_DELAY_MS);
+      pending = new Promise((resolve) => {
+        setTimer(() => {
+          let refusal: ReleaseActivityRefusal | undefined;
+          try {
+            refusal = check();
+          } catch {
+            refusal = 'activity-unavailable';
+          }
+          if (refusal !== undefined) {
+            pending = undefined;
+            resolve(refusal);
+            return;
+          }
+          host.once('beforeExit', relaunch);
+          host.once('exit', relaunch);
+          setTimer(relaunch, RELAUNCH_FALLBACK_MS).unref();
+          options.exit(0);
+          resolve(undefined);
+        }, RESTART_DELAY_MS);
+      });
+      return pending;
     },
   };
 }

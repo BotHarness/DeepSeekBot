@@ -271,7 +271,10 @@ describe('ReleaseNotesController install', () => {
       memoryStorage(),
     );
     await controller.restart();
-    expect(controller.source.getSnapshot().restart).toEqual({ status: 'failed' });
+    expect(controller.source.getSnapshot().restart).toEqual({
+      status: 'failed',
+      reason: 'unavailable',
+    });
   });
 
   it('keeps the update offer and records why an install failed', async () => {
@@ -421,7 +424,7 @@ describe('release notes views', () => {
       expect(view.host.textContent).toContain('已更新到 1.1.0，重启 DSH 后生效');
       expect(view.host.textContent).toContain('当前运行 1.0.1，已安装 1.1.0，重启 DSH 后生效');
       expect(buttonNamed(view.host, '检查更新')?.disabled).toBe(true);
-      expect(view.host.textContent).toContain('重启会中断正在运行的任务');
+      expect(view.host.textContent).toContain('仅在电脑空闲时重启');
       await act(async () => {
         buttonNamed(view.host, '立即重启')?.click();
       });
@@ -436,6 +439,70 @@ describe('release notes views', () => {
       view.unmount();
     }
   });
+
+  it.each(['busy', 'activity-unavailable'])(
+    'offers explicit retry without manual commands after a %s refusal',
+    async (reason) => {
+      const call = bridge(
+        '1.0.1',
+        () => [],
+        { status: 'available', current: '1.0.1', latest: '1.1.0', releases: [], installable: true },
+        { status: 'failed', reason },
+        { status: 'failed', reason },
+      );
+      const wait = vi.fn();
+      const reload = vi.fn();
+      const controller = new ReleaseNotesController(call, memoryStorage(), { wait, reload });
+      const view = await render(
+        createElement(ReleaseSettings, { releaseNotes: controller, t } as never),
+      );
+      try {
+        await act(async () => {
+          buttonNamed(view.host, '立即更新')!.click();
+        });
+        expect(view.host.querySelector('[role="alert"]')?.textContent).toContain('重试');
+        expect(view.host.querySelector('code')).toBeNull();
+        expect(buttonNamed(view.host, '立即更新')?.disabled).toBe(false);
+        call.mockImplementation(
+          bridge('1.0.1', () => [], {
+            status: 'available',
+            current: '1.0.1',
+            latest: '1.1.0',
+            releases: [],
+            installable: false,
+          }),
+        );
+        await act(async () => {
+          await controller.checkUpdate(true);
+        });
+        expect(view.host.querySelector('code')).toBeNull();
+        call.mockImplementation(
+          bridge(
+            '1.0.1',
+            () => [],
+            { status: 'restart-required', current: '1.0.1', installed: '1.1.0', restartable: true },
+            undefined,
+            { status: 'failed', reason },
+          ),
+        );
+        await act(async () => {
+          await controller.checkUpdate(true);
+        });
+        await act(async () => {
+          buttonNamed(view.host, '立即重启')!.click();
+        });
+        expect(view.host.querySelector('[role="alert"]')?.textContent).toContain('重试');
+        expect(view.host.textContent).not.toContain('Ctrl+C');
+        expect(view.host.textContent).not.toContain('完全退出');
+        expect(buttonNamed(view.host, '立即重启')?.disabled).toBe(false);
+        expect(wait).not.toHaveBeenCalled();
+        expect(reload).not.toHaveBeenCalled();
+        expect(call.mock.calls.filter(([method]) => method === 'releaseRestart')).toHaveLength(1);
+      } finally {
+        view.unmount();
+      }
+    },
+  );
 
   it('shows only the Desktop restart step inside DSH Desktop', async () => {
     Object.assign(globalThis, { dshDesktop: {} });

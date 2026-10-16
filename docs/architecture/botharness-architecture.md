@@ -975,6 +975,20 @@ Pages contain at most 50 items and 300 Unicode characters per snippet. Literal s
 
 应用定义的 Client 诊断 collector 扩展既有 ADR-0063／0064 开发者日志边界。在明确启用的 Host 中（隔离 AX launcher 只为自己的子进程启用），Host Cordis Fiber 通过原生 `webServer.tapIndex` 在 Client 导入前安装 observer，并在 `/api/botharness/client-diagnostics` 注册精确、经过认证的 Connection Fetch route。浏览器报告白名单错误／生命周期 code、顺序化文档 attempt、固定保留的首次失败与 shell 挂载记录及有界遗漏；Host 保留有界实时 read model，并将同一过程证据写入既有 `logs.db`。它不创建 SessionEvent、产品状态、额外 SSE 或操作权威。API 健康、已提交且可见的 shell 观测、新鲜度、真实浏览器 console／DOM 核验分别成立；未知、后台延后及失败证据不能隐式变成成功。见 [agent 核验流程](../dev/guides/client-startup-diagnostics.zh.md) 与 [#1184](https://github.com/BotHarness/DeepSeekBot/issues/1184)。
 
+### Release activity guard (#1932 first slice)
+
+The application-defined Release Service keeps update/restart authority behind the existing
+authenticated bridge and matching CLI. Its process-local activity probe reads DSH-native live
+Agents, their queued Inbox input, and unowned plus live-Agent-owned Jobs. Otherwise-idle Agents
+must admit a short no-op through native `runMaintenance`, because public idle status can hide
+active compaction. These gates settle at the next microtask; busy and unknown states
+refuse changes without a second durable store. Asynchronous preflight and the delayed process
+restart both recheck activity. Web preserves coded refusal and offers explicit retry rather than
+a manual bypass. This bounded admission guard is not a process-wide maintenance lock: it does
+not freeze new work during package download or asynchronous shutdown, and does not inspect
+arbitrary OS processes. Installed-pair qualification, Beta policy, telemetry and distribution
+remain separate gates. See [scope and verification](../agents/release-busy-guard.md).
+
 ### Provider-owned inline app setup (#1111)
 
 The optional application-defined `setupVersion: 1` / `describeSetup(channel)` capability on the public same-Host Service supplies only a versioned settings endpoint descriptor. The browser calls the Provider-owned `dsh-im/app-setup` management transport directly; BotHarness Host has no credential or QR-session command. Provider-owned bounded attempts retain setup state, create the account in `external-consumer` mode before its first connection, and return only its opaque account reference and authenticated `describeBot` projection. The Client hands the existing Binding command only provider/account reference and fingerprint; the existing identity owner revalidates it and acquires the exclusive intake Registration. Closing the dialog leaves the browser handle resumable for the Provider attempt's lifetime; cancellation prevents a not-yet-committed account, while an account already created remains available to bind. Older Providers keep the existing Settings-and-return path. This adds no operational schema, credential store or second message receiver. The candidate covers Lark credentials and WeChat QR/code setup. QR attempts use the same Provider-owned transport and bounded lifetime, refuse replacement of existing configured accounts, and are revoked with their originating Registration. Lark native DM/group replies are qualified on the earlier packaged candidate; native WeChat pairing and final visual/recording qualification remain required before #1111 is complete.

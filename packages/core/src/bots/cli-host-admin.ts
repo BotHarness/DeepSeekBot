@@ -100,6 +100,13 @@ interface PairingReview {
   roleId?: string;
 }
 
+function releaseActivityGuidance(reason: unknown): string | undefined {
+  if (reason === 'busy') return 'The Host is busy. Wait for work to finish, then retry explicitly.';
+  if (reason === 'activity-unavailable')
+    return 'Host activity could not be checked. Restore the activity services, then retry.';
+  return undefined;
+}
+
 function validate(command: HostAdminCommand, rest: string[], values: HostAdminValues) {
   const expected = POSITIONALS[command];
   if (rest.length !== expected || rest.some((value) => !value.trim()))
@@ -121,7 +128,7 @@ function validate(command: HostAdminCommand, rest: string[], values: HostAdminVa
     usage(
       command === 'release-install'
         ? 'release-install replaces the installed DeepSeekBot. Pass --confirm to install.'
-        : 'release-restart stops every running Bot turn on this Host. Pass --confirm to restart.',
+        : 'release-restart restarts this Host only when idle. Pass --confirm to request a restart.',
     );
   if (command === 'telemetry-set' && values.enabled === values.disabled)
     usage('telemetry-set needs exactly one of --enabled or --disabled.');
@@ -243,6 +250,7 @@ export async function runHostAdminCommand(
           `release-${String(result['reason'])}`,
           [
             `Release ${target} was not installed (${String(result['reason'])}).`,
+            releaseActivityGuidance(result['reason']),
             typeof result['diagnostic'] === 'string' ? result['diagnostic'] : '',
             typeof result['logPath'] === 'string' ? `Log: ${result['logPath']}` : '',
           ]
@@ -256,9 +264,10 @@ export async function runHostAdminCommand(
       if (result['status'] === 'failed')
         throw new CliLiveError(
           `release-${String(result['reason'])}`,
-          result['reason'] === 'not-pending'
-            ? 'No installed release is waiting for a restart.'
-            : 'This Host cannot restart itself; restart it from its launcher.',
+          releaseActivityGuidance(result['reason']) ??
+            (result['reason'] === 'not-pending'
+              ? 'No installed release is waiting for a restart.'
+              : 'This Host cannot restart itself; restart it from its launcher.'),
         );
       return result;
     }

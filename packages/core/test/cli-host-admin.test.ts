@@ -1,7 +1,8 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
 import { createChallenge, verifySolution } from '../src/marketplace/altcha.js';
+import { createReleaseService } from '../src/release/service.js';
 
 const servers: ReturnType<typeof createServer>[] = [];
 afterEach(async () => {
@@ -169,6 +170,45 @@ describe('Bot Marketplace commands', () => {
 });
 
 describe('release commands', () => {
+  it.each(['busy', 'unknown'] as const)(
+    'preserves %s release refusals over authenticated HTTP without manual restart advice',
+    async (activity) => {
+      const installBundle = vi.fn();
+      const restart = vi.fn();
+      const release = createReleaseService({
+        version: () => '1.0.1',
+        ledgers: () => undefined,
+        activity: () => activity,
+        installer: () => ({
+          listBundles: async () => [{ name: 'deepseekbot', installed: true, version: '1.1.0' }],
+          installBundle,
+        }),
+        restarter: () => ({ restart }),
+      });
+      const live = await host(async (method, args) =>
+        ok(
+          method === 'releaseInstall'
+            ? await release.install(String(args['version']))
+            : await release.restart(),
+        ),
+      );
+      for (const argv of [
+        ['release-install', '1.2.0', '--confirm'],
+        ['release-restart', '--confirm'],
+      ]) {
+        const refused = await invoke(argv, live.url);
+        expect(refused.code).not.toBe(0);
+        expect(refused.json.error.code).toBe(
+          activity === 'busy' ? 'release-busy' : 'release-activity-unavailable',
+        );
+        expect(refused.json.error.message).toContain('retry');
+        expect(refused.json.error.message).not.toContain('launcher');
+      }
+      expect(installBundle).not.toHaveBeenCalled();
+      expect(restart).not.toHaveBeenCalled();
+    },
+  );
+
   it('checks, installs and restarts only with --confirm', async () => {
     const live = await host((method, args) =>
       ok(

@@ -58,8 +58,8 @@ describe('process restarter', () => {
     const exit = vi.fn();
     const restarter = createProcessRestarter({ exit, host, spawn, setTimer: timers.setTimer });
 
-    restarter.restart();
-    restarter.restart();
+    void restarter.restart(() => undefined);
+    void restarter.restart(() => undefined);
     expect(exit).not.toHaveBeenCalled();
     timers.run(300);
     expect(exit).toHaveBeenCalledExactlyOnceWith(0);
@@ -84,7 +84,9 @@ describe('process restarter', () => {
     const { host } = fakeHost(['node', '/dsh/bin.js', 'web']);
     const timers = fakeTimers();
     const spawn = vi.fn(() => Object.assign(new EventEmitter(), { kill: vi.fn() }) as never);
-    createProcessRestarter({ exit: vi.fn(), host, spawn, setTimer: timers.setTimer }).restart();
+    void createProcessRestarter({ exit: vi.fn(), host, spawn, setTimer: timers.setTimer }).restart(
+      () => undefined,
+    );
     timers.run(300);
     timers.run(8_000);
     expect(spawn).toHaveBeenCalledTimes(1);

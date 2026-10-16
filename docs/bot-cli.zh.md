@@ -521,7 +521,9 @@ deepseekbot pairing-review <bot-id> <pairing-id> --decision reject
 deepseekbot pairing-review <bot-id> <pairing-id> --decision revoke --confirm
 ```
 
-`marketplace-submit` 和 `marketplace-report` 会像网页一样先完成 Host 下发的工作量证明，因此可能需要几秒；市场本身的拒绝（`repository-missing-topic`、`rate-limited` 等）作为错误码返回。举报说明最多 500 个字符。`release-check` 返回更新状态（`current`、`available`、`restart-required`、`development` 或 `unavailable`）。`release-install` 和 `release-restart` 必须带 `--confirm`；安装或重启失败时以非零退出，错误码为 `release-<原因>`，例如 `release-network` 或 `release-not-pending`。重启会中断所有正在运行的 Bot 回合，只在自己负责的 Host 上执行。`pairing-list` 列出 Bot 的配对请求和角色；`pairing-review` 自行读取当前版本号，期间被改动过的请求会被拒绝而不是被覆盖。对话类请求用一个 `--role` 批准，管理类请求用 `--capability` 批准。
+`marketplace-submit` 和 `marketplace-report` 会像网页一样先完成 Host 下发的工作量证明，因此可能需要几秒；市场本身的拒绝（`repository-missing-topic`、`rate-limited` 等）作为错误码返回。举报说明最多 500 个字符。`release-check` 返回更新状态（`current`、`available`、`restart-required`、`development` 或 `unavailable`）。`release-install` 和 `release-restart` 必须带 `--confirm`；安装或重启失败时以非零退出，错误码为 `release-<原因>`，例如 `release-network` 或 `release-not-pending`。只在自己负责的 Host 上请求变更。`pairing-list` 列出 Bot 的配对请求和角色；`pairing-review` 自行读取当前版本号，期间被改动过的请求会被拒绝而不是被覆盖。对话类请求用一个 `--role` 批准，管理类请求用 `--capability` 批准。
+
+有正在运行的 Agent、Agent 排队输入或正在运行／停止中的 Job 时，发布操作返回 `release-busy`。安装或重启尚未完成时拒绝另一次重启，重启期间也拒绝安装。`release-activity-unavailable` 表示无法确认空闲状态，应恢复活动状态服务后重试，不要绕过检查；`--confirm` 不会强制执行。拒绝不会安排自动重试。异步预检结束后、延迟重启实际调用启动器前都会再次检查。这是 DSH 管理的活动准入检查，不是操作系统全局空闲检测，也不是覆盖下载和 Host 关闭全过程的新任务禁入锁。参见[安全发布请求](agents/release-busy-guard.md)。
 
 ## IM 应用授权
 

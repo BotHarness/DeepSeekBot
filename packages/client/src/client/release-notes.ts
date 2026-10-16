@@ -42,7 +42,7 @@ export type ReleaseInstallState =
 export type ReleaseRestartState =
   | { status: 'idle' }
   | { status: 'restarting' }
-  | { status: 'failed' };
+  | { status: 'failed'; reason?: Extract<ReleaseRestart, { status: 'failed' }>['reason'] };
 
 export interface ReleaseNotesSnapshot {
   version: string | undefined;
@@ -55,6 +55,8 @@ export interface ReleaseNotesSnapshot {
 }
 
 const INSTALL_FAILURES: readonly ReleaseInstallFailure[] = [
+  'busy',
+  'activity-unavailable',
   'unavailable',
   'invalid-version',
   'network',
@@ -139,7 +141,11 @@ export function parseReleaseRestart(value: unknown): ReleaseRestart | undefined 
   const source = record(value);
   if (source?.['status'] === 'restarting') return { status: 'restarting' };
   const reason = source?.['reason'];
-  return source?.['status'] === 'failed' && (reason === 'unavailable' || reason === 'not-pending')
+  return source?.['status'] === 'failed' &&
+    (reason === 'unavailable' ||
+      reason === 'not-pending' ||
+      reason === 'busy' ||
+      reason === 'activity-unavailable')
     ? { status: 'failed', reason }
     : undefined;
 }
@@ -269,7 +275,7 @@ export class ReleaseNotesController {
     }
     if (outcome?.status !== 'restarting') {
       this.source.update((draft) => {
-        draft.restart = { status: 'failed' };
+        draft.restart = outcome ?? { status: 'failed' };
       });
       return;
     }
