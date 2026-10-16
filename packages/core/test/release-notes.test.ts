@@ -1,5 +1,7 @@
-import { readFileSync } from 'node:fs';
-import { describe, expect, it, vi } from 'vitest';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   absolutizeLedgerLinks,
@@ -156,6 +158,116 @@ describe('release notes', () => {
 
 describe('release service', () => {
   const ledgers = () => ({ english, chinese });
+  const homes: string[] = [];
+  const home = () => {
+    const path = mkdtempSync(join(tmpdir(), 'release-choice-'));
+    homes.push(path);
+    return path;
+  };
+  afterEach(() =>
+    homes.splice(0).forEach((path) => rmSync(path, { recursive: true, force: true })),
+  );
+
+  it('persists explicit Beta selection only for this Host and leaves without a downgrade', async () => {
+    const options = {
+      dataDir: home(),
+      version: () => '1.2.0-beta.1',
+      ledgers,
+      registries: ['https://registry.test'],
+      noteSources: [],
+      fetchImpl: vi.fn(async () =>
+        jsonResponse({ latest: '1.1.0', beta: '1.2.0-beta.2', next: '1.3.0-nightly.1' }),
+      ),
+    };
+    const service = createReleaseService(options);
+    expect(service.channel()).toEqual({ channel: 'stable', writable: true });
+    await service.update();
+    expect(service.setChannel('beta')).toEqual({ status: 'saved', channel: 'beta' });
+    expect(await service.update()).toMatchObject({ status: 'available', latest: '1.2.0-beta.2' });
+    expect(createReleaseService(options).channel().channel).toBe('beta');
+    expect(createReleaseService({ ...options, dataDir: home() }).channel().channel).toBe('stable');
+    expect(service.setChannel('stable')).toEqual({ status: 'saved', channel: 'stable' });
+    expect(await service.update()).toEqual({
+      status: 'current',
+      current: '1.2.0-beta.1',
+      latest: '1.1.0',
+    });
+    expect(createReleaseService(options).channel().channel).toBe('stable');
+  });
+
+  it('does not infer Beta enrollment from an installed prerelease', async () => {
+    const service = createReleaseService({
+      version: () => '1.2.0-beta.1',
+      ledgers,
+      registries: ['https://registry.test'],
+      noteSources: [],
+      fetchImpl: vi.fn(async () =>
+        jsonResponse({ latest: '1.1.0', next: '1.3.0-beta.1', beta: '1.2.0-beta.2' }),
+      ),
+    });
+    expect(await service.update()).toEqual({
+      status: 'current',
+      current: '1.2.0-beta.1',
+      latest: '1.1.0',
+    });
+  });
+
+  it('defaults malformed preference to stable and rejects prerelease latest as a stable candidate', async () => {
+    const dataDir = home();
+    writeFileSync(join(dataDir, 'release-channel.json'), '{bad json');
+    const service = createReleaseService({
+      dataDir,
+      version: () => '1.1.0',
+      ledgers,
+      registries: ['https://registry.test'],
+      noteSources: [],
+      fetchImpl: vi.fn(async () =>
+        jsonResponse({ latest: '1.2.0-beta.1', next: '1.3.0-nightly.1' }),
+      ),
+    });
+    expect(service.channel().channel).toBe('stable');
+    expect(await service.update()).toEqual({ status: 'unavailable', current: '1.1.0' });
+    expect(service.setChannel('beta')).toEqual({ status: 'saved', channel: 'beta' });
+    expect(await service.update()).toEqual({ status: 'unavailable', current: '1.1.0' });
+  });
+
+  it('discards an in-flight Beta check after leaving while release notes load', async () => {
+    let finishNotes: (() => void) | undefined;
+    const waiting = new Promise<void>((resolve) => {
+      finishNotes = resolve;
+    });
+    let notesStarted: (() => void) | undefined;
+    const started = new Promise<void>((resolve) => {
+      notesStarted = resolve;
+    });
+    const service = createReleaseService({
+      dataDir: home(),
+      version: () => '1.1.0',
+      ledgers,
+      registries: ['https://registry.test'],
+      noteSources: [() => 'https://notes.test/'],
+      fetchImpl: vi.fn(async (input: string | URL | Request) => {
+        if (String(input).endsWith('/dist-tags'))
+          return jsonResponse({ latest: '1.1.0', beta: '1.2.0-beta.1' });
+        notesStarted?.();
+        await waiting;
+        return new Response('', { status: 404 });
+      }),
+    });
+    service.setChannel('beta');
+    const checking = service.update();
+    await started;
+    service.setChannel('stable');
+    const secondCheck = service.update();
+    finishNotes?.();
+    expect(await checking).toEqual({ status: 'current', current: '1.1.0', latest: '1.1.0' });
+    expect(await secondCheck).toEqual({ status: 'current', current: '1.1.0', latest: '1.1.0' });
+    expect(await service.update()).toEqual({
+      status: 'current',
+      current: '1.1.0',
+      latest: '1.1.0',
+    });
+  });
 
   it('returns only the installed release on first open and the gap afterwards', () => {
     const service = createReleaseService({ version: () => '1.1.0', ledgers });
@@ -293,6 +405,53 @@ describe('release service', () => {
       /^release-change initiator=explicit-request operation=install phase=admission outcome=refused reason=busy durationMs=\d+$/u,
     );
     expect(logs[1]).toContain('operation=restart phase=admission outcome=refused reason=busy');
+  });
+
+  it('requires Beta choice for prerelease installation and refuses choice changes during installation', async () => {
+    let finishInstall: (() => void) | undefined;
+    const waiting = new Promise<void>((resolve) => {
+      finishInstall = resolve;
+    });
+    const manager = {
+      listBundles: async () => [{ name: 'deepseekbot', installed: true }],
+      installBundle: vi.fn(async () => {
+        await waiting;
+        return { application: 'restart-required' };
+      }),
+    };
+    const service = createReleaseService({
+      dataDir: home(),
+      version: () => '1.1.0',
+      ledgers,
+      activity: () => 'idle',
+      installer: () => manager,
+    });
+    expect(await service.install('1.2.0-beta.1')).toEqual({
+      status: 'failed',
+      reason: 'beta-not-enabled',
+    });
+    expect(manager.installBundle).not.toHaveBeenCalled();
+    service.setChannel('beta');
+    const installing = service.install('1.2.0-beta.1');
+    expect(service.setChannel('stable')).toEqual({ status: 'failed', reason: 'busy' });
+    finishInstall?.();
+    expect(await installing).toMatchObject({ status: 'installed', installed: '1.2.0-beta.1' });
+    expect(service.setChannel('stable')).toEqual({ status: 'saved', channel: 'stable' });
+    expect(await service.update()).toMatchObject({
+      status: 'restart-required',
+      installed: '1.2.0-beta.1',
+    });
+  });
+
+  it('does not report saved consent when persistence is unavailable', () => {
+    const service = createReleaseService({ version: () => '1.1.0', ledgers });
+    expect(service.setChannel('beta')).toEqual({ status: 'failed', reason: 'storage-unavailable' });
+    expect(service.channel()).toEqual({ channel: 'stable', writable: false });
+    const path = join(home(), 'file');
+    writeFileSync(path, 'not a directory');
+    const failed = createReleaseService({ dataDir: path, version: () => '1.1.0', ledgers });
+    expect(failed.setChannel('beta')).toEqual({ status: 'failed', reason: 'storage-unavailable' });
+    expect(failed.channel().channel).toBe('stable');
   });
 
   it('restarts DSH only when an installed update is waiting and the launcher allows it', async () => {

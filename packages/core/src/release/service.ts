@@ -1,5 +1,13 @@
 import { readFileSync } from 'node:fs';
 
+import {
+  readReleaseChannel,
+  writeReleaseChannel,
+  type ReleaseChannel,
+  type ReleaseChannelStatus,
+  type ReleaseChannelChange,
+} from './channel.js';
+
 import { pairReleaseLedgers, selectReleaseNotes, type ReleaseNote } from './notes.js';
 import type { ReleaseActivityRefusal, ReleaseRestarter } from './restart.js';
 import { compareVersions, isReleaseVersion } from './version.js';
@@ -45,6 +53,7 @@ export type ReleaseUpdate =
   | { status: 'restart-required'; current: string; installed: string; restartable: boolean };
 
 export type ReleaseInstallFailure =
+  | 'beta-not-enabled'
   | 'busy'
   | 'activity-unavailable'
   | 'unavailable'
@@ -88,6 +97,8 @@ export interface ReleaseInstaller {
 }
 
 export interface ReleaseService {
+  channel(): ReleaseChannelStatus;
+  setChannel(channel: ReleaseChannel): ReleaseChannelChange;
   info(since?: string): ReleaseInfo;
   update(): Promise<ReleaseUpdate>;
   install(version: string): Promise<ReleaseInstall>;
@@ -95,6 +106,7 @@ export interface ReleaseService {
 }
 
 export interface ReleaseServiceOptions {
+  dataDir?: string;
   version: () => string;
   ledgers: () => ReleaseLedgers | undefined;
   fetchImpl?: typeof fetch;
@@ -139,12 +151,14 @@ export function installedRelease(
   };
 }
 
-function newestTag(tags: unknown, current: string): string | undefined {
+function newestTag(tags: unknown, channel: ReleaseChannel): string | undefined {
   if (typeof tags !== 'object' || tags === null) return undefined;
   const source = tags as Record<string, unknown>;
-  const candidates = [source['latest'], current.includes('-') ? source['next'] : undefined].filter(
-    (value): value is string => typeof value === 'string' && isReleaseVersion(value),
-  );
+  const stable = source['latest'];
+  const candidates = [
+    typeof stable === 'string' && !stable.includes('-') ? stable : undefined,
+    channel === 'beta' ? source['beta'] : undefined,
+  ].filter((value): value is string => typeof value === 'string' && isReleaseVersion(value));
   return candidates.sort(compareVersions).at(-1);
 }
 
@@ -176,10 +190,12 @@ export function createReleaseService(options: ReleaseServiceOptions): ReleaseSer
   const timeoutMs = options.timeoutMs ?? REQUEST_TIMEOUT_MS;
   let notes: ReleaseNote[] | undefined;
   let cached: { at: number; result: CheckResult } | undefined;
-  let pending: Promise<CheckResult> | undefined;
+  let pending: { revision: number; result: Promise<CheckResult> } | undefined;
   let installed: string | undefined;
   let installing: Promise<ReleaseInstall> | undefined;
   let restarting = false;
+  let channel = readReleaseChannel(options.dataDir);
+  let channelRevision = 0;
 
   const refuse = (
     operation: 'install' | 'restart',
@@ -236,6 +252,8 @@ export function createReleaseService(options: ReleaseServiceOptions): ReleaseSer
     if (!isReleaseVersion(version) || compareVersions(version, current) <= 0) {
       return { status: 'failed', reason: 'invalid-version' };
     }
+    if (version.includes('-') && channel !== 'beta')
+      return { status: 'failed', reason: 'beta-not-enabled' };
     const refusal = activityRefusal();
     if (refusal !== undefined) return refuse('install', 'admission', refusal, started);
     const installer = (await profileBundle())?.installer;
@@ -283,14 +301,14 @@ export function createReleaseService(options: ReleaseServiceOptions): ReleaseSer
     }
   };
 
-  const latestVersion = async (current: string): Promise<string | undefined> => {
+  const latestVersion = async (selected: ReleaseChannel): Promise<string | undefined> => {
     for (const registry of registries) {
       const body = await text(
         `${registry.replace(/\/+$/u, '')}/-/package/${RELEASE_PACKAGE}/dist-tags`,
       );
       if (body === undefined) continue;
       try {
-        const latest = newestTag(JSON.parse(body), current);
+        const latest = newestTag(JSON.parse(body), selected);
         if (latest !== undefined) return latest;
       } catch {
         continue;
@@ -316,30 +334,48 @@ export function createReleaseService(options: ReleaseServiceOptions): ReleaseSer
   const check = async (): Promise<CheckResult> => {
     const current = options.version();
     if (!isReleaseVersion(current)) return { status: 'development', current };
-    const latest = await latestVersion(current);
+    const latest = await latestVersion(channel);
     if (latest === undefined) return { status: 'unavailable', current };
     if (compareVersions(latest, current) <= 0) return { status: 'current', current, latest };
     return { status: 'available', current, latest, releases: await newerNotes(current, latest) };
   };
 
-  const checked = (): Promise<CheckResult> => {
-    if (cached !== undefined) {
-      const age = now() - cached.at;
-      const limit = cached.result.status === 'unavailable' ? FAILURE_CACHE_MS : CHECK_CACHE_MS;
-      if (age < limit) return Promise.resolve(cached.result);
+  const checked = async (): Promise<CheckResult> => {
+    while (true) {
+      if (cached !== undefined) {
+        const age = now() - cached.at;
+        const limit = cached.result.status === 'unavailable' ? FAILURE_CACHE_MS : CHECK_CACHE_MS;
+        if (age < limit) return cached.result;
+      }
+      pending ??= {
+        revision: channelRevision,
+        result: check().finally(() => {
+          pending = undefined;
+        }),
+      };
+      const { revision, result: checking } = pending;
+      const result = await checking;
+      if (revision !== channelRevision) continue;
+      cached = { at: now(), result };
+      return result;
     }
-    pending ??= check()
-      .then((result) => {
-        cached = { at: now(), result };
-        return result;
-      })
-      .finally(() => {
-        pending = undefined;
-      });
-    return pending;
   };
 
   return {
+    channel: () => ({ channel, writable: options.dataDir !== undefined }),
+    setChannel(next) {
+      if (installing !== undefined || restarting) return { status: 'failed', reason: 'busy' };
+      if (options.dataDir === undefined) return { status: 'failed', reason: 'storage-unavailable' };
+      try {
+        writeReleaseChannel(options.dataDir, next);
+      } catch {
+        return { status: 'failed', reason: 'storage-unavailable' };
+      }
+      channel = next;
+      channelRevision += 1;
+      cached = undefined;
+      return { status: 'saved', channel };
+    },
     info(since) {
       const version = options.version();
       return {

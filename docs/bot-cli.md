@@ -515,6 +515,9 @@ deepseekbot marketplace-detail <owner/repo>
 deepseekbot marketplace-submit https://github.com/<owner>/<repo>
 deepseekbot marketplace-report <owner/repo> [--reason <text>]
 deepseekbot release-check
+deepseekbot release-channel
+deepseekbot release-channel-set beta --confirm
+deepseekbot release-channel-set stable --confirm
 deepseekbot release-install <version> --confirm
 deepseekbot release-restart --confirm
 deepseekbot telemetry-status
@@ -527,6 +530,17 @@ deepseekbot pairing-review <bot-id> <pairing-id> --decision approve --capability
 deepseekbot pairing-review <bot-id> <pairing-id> --decision reject
 deepseekbot pairing-review <bot-id> <pairing-id> --decision revoke --confirm
 ```
+
+`release-channel` reads this Host Profile's saved choice. It defaults to `stable`, even when the
+running package is a prerelease. `release-channel-set beta|stable --confirm` saves only that choice;
+it never installs, restarts, downgrades, cancels a staged update, changes mobile enrollment or
+changes statistics. Stable checks use a non-prerelease `latest`; Beta also considers `beta`, never
+`next`. These registry candidates are not proof of a qualified phone/computer combination.
+Leaving Beta does not guarantee a compatible stable replacement; keep the installed version until
+a verified upgrade or maintainer-guided recovery is available. An explicit prerelease install without
+opt-in returns `release-beta-not-enabled`. A concurrent release mutation returns `release-busy`;
+missing or failed preference persistence returns `release-storage-unavailable`. Failures exit nonzero.
+See the [Beta choice verification path](agents/release-beta-choice.md); live QA remains a separate gate.
 
 `marketplace-submit` and `marketplace-report` first solve the Host's proof-of-work challenge, as the Web page does, so they can take a few seconds; the Marketplace's own refusals (`repository-missing-topic`, `rate-limited`, …) come back as the error code. A report reason is at most 500 characters. `release-check` returns the update status (`current`, `available`, `restart-required`, `development` or `unavailable`). `release-install` and `release-restart` need `--confirm`; a failed install or restart exits non-zero with `release-<reason>`, such as `release-network` or `release-not-pending`. Only request changes on a Host you own. `pairing-list` shows a Bot's pairing requests and its roles; `pairing-review` reads the current revisions itself, so a request that changed in between is refused instead of overwritten. Approve with one `--role` for a conversation request or with `--capability` for a management request.
 

@@ -82,6 +82,8 @@ function bridge(
       return { ok: true, value: { version, releases: releases(since) } };
     }
     if (endpoint === 'releaseUpdate') return { ok: true, value: update };
+    if (endpoint === 'releaseChannel')
+      return { ok: true, value: { channel: 'stable', writable: true } };
     if (endpoint === 'releaseInstall') return { ok: true, value: install };
     if (endpoint === 'releaseRestart') return { ok: true, value: restart };
     throw new Error(`unexpected ${endpoint}`);
@@ -309,6 +311,225 @@ describe('ReleaseNotesController install', () => {
 });
 
 describe('release notes views', () => {
+  it('refreshes the offer when another client changes the Host choice', async () => {
+    let channel = 'beta';
+    const call = vi.fn<BridgeCall>(async (method) => {
+      if (method === 'releaseChannel') return { ok: true, value: { channel, writable: true } };
+      return {
+        ok: true,
+        value:
+          channel === 'beta'
+            ? {
+                status: 'available',
+                current: '1.1.0',
+                latest: '1.2.0-beta.1',
+                releases: [],
+                installable: true,
+              }
+            : { status: 'current', current: '1.1.0', latest: '1.1.0' },
+      };
+    });
+    const controller = new ReleaseNotesController(call, memoryStorage());
+    await controller.loadChannel();
+    await controller.checkUpdate();
+    channel = 'stable';
+    await controller.loadChannel();
+    expect(controller.source.getSnapshot().update).toEqual({
+      status: 'current',
+      current: '1.1.0',
+      latest: '1.1.0',
+    });
+  });
+  it('does not let a Settings read started during saving overwrite the confirmed choice', async () => {
+    let finishSave: (() => void) | undefined;
+    let finishRead: (() => void) | undefined;
+    const saving = new Promise<void>((resolve) => {
+      finishSave = resolve;
+    });
+    const reading = new Promise<void>((resolve) => {
+      finishRead = resolve;
+    });
+    let reads = 0;
+    const fallback = bridge('1.1.0', () => []);
+    const call = vi.fn<BridgeCall>(async (method, args) => {
+      if (method === 'releaseChannelSet') {
+        await saving;
+        return { ok: true, value: { status: 'saved', channel: 'beta' } };
+      }
+      if (method === 'releaseChannel') {
+        reads += 1;
+        if (reads > 1) await reading;
+        return { ok: true, value: { channel: 'stable', writable: true } };
+      }
+      return fallback(method, args);
+    });
+    const controller = new ReleaseNotesController(call, memoryStorage());
+    await controller.loadChannel();
+    const save = controller.setChannel('beta');
+    const read = controller.loadChannel();
+    finishSave?.();
+    await save;
+    finishRead?.();
+    await read;
+    expect(controller.source.getSnapshot().channel?.channel).toBe('beta');
+  });
+  it('blocks prerelease installs and manual commands when Host enrollment cannot be confirmed', async () => {
+    const call = bridge('1.1.0', () => [], {
+      status: 'available',
+      current: '1.1.0',
+      latest: '1.2.0-beta.1',
+      releases: [],
+      installable: true,
+    });
+    const unavailable = vi.fn<BridgeCall>(async (method, args) =>
+      method === 'releaseChannel' ? { ok: true, value: undefined } : call(method, args),
+    );
+    const controller = new ReleaseNotesController(unavailable, memoryStorage());
+    const view = await render(
+      createElement(ReleaseSettings, { releaseNotes: controller, t } as never),
+    );
+    try {
+      expect(buttonNamed(view.host, '立即更新')?.disabled).toBe(true);
+      await act(async () => {
+        await controller.install('1.2.0-beta.1');
+      });
+      expect(call.mock.calls.some(([method]) => method === 'releaseInstall')).toBe(false);
+      expect(view.host.querySelector('code')).toBeNull();
+    } finally {
+      view.unmount();
+    }
+  });
+
+  it('never suggests a different Profile manual command after a Beta install fails', async () => {
+    const fallback = bridge(
+      '1.1.0',
+      () => [],
+      {
+        status: 'available',
+        current: '1.1.0',
+        latest: '1.2.0-beta.1',
+        releases: [],
+        installable: true,
+      },
+      { status: 'failed', reason: 'network' },
+    );
+    const call = vi.fn<BridgeCall>(async (method, args) =>
+      method === 'releaseChannel'
+        ? { ok: true, value: { channel: 'beta', writable: true } }
+        : fallback(method, args),
+    );
+    const controller = new ReleaseNotesController(call, memoryStorage());
+    const view = await render(
+      createElement(ReleaseSettings, { releaseNotes: controller, t } as never),
+    );
+    try {
+      await act(async () => {
+        await controller.install('1.2.0-beta.1');
+      });
+      expect(controller.source.getSnapshot().install).toEqual({
+        status: 'failed',
+        reason: 'network',
+      });
+      expect(view.host.querySelector('code')).toBeNull();
+    } finally {
+      view.unmount();
+    }
+  });
+  it('joins and leaves Beta only on the connected Host, with no install or downgrade', async () => {
+    let channel = 'stable';
+    const fallback = bridge('1.2.0-beta.1', () => []);
+    const call = vi.fn<BridgeCall>(async (method, args) => {
+      if (method === 'releaseChannel') return { ok: true, value: { channel, writable: true } };
+      if (method === 'releaseChannelSet') {
+        channel = String(args['channel']);
+        return { ok: true, value: { status: 'saved', channel } };
+      }
+      return fallback(method, args);
+    });
+    const controller = new ReleaseNotesController(call, memoryStorage());
+    const view = await render(
+      createElement(ReleaseSettings, { releaseNotes: controller, t } as never),
+    );
+    try {
+      expect(view.host.textContent).toContain('这台电脑的 Beta 更新');
+      const join = buttonNamed(view.host, '加入 Beta');
+      expect(join).toBeDefined();
+      await act(async () => {
+        join?.click();
+      });
+      expect(channel).toBe('beta');
+      expect(view.host.textContent).toContain('不代表手机与电脑组合已验证');
+      await act(async () => {
+        buttonNamed(view.host, '退出 Beta')?.click();
+      });
+      expect(channel).toBe('stable');
+      expect(view.host.textContent).toContain('不会降级或撤销已安装的更新');
+      expect(view.host.textContent).toContain('不保证已有兼容的正式版可替换');
+      expect(
+        call.mock.calls.some(
+          ([method]) => method === 'releaseInstall' || method === 'releaseRestart',
+        ),
+      ).toBe(false);
+    } finally {
+      view.unmount();
+    }
+  });
+
+  it('keeps the last confirmed choice on save failure and can retry an unavailable channel read', async () => {
+    let available = false;
+    let canSave = false;
+    const fallback = bridge('1.1.0', () => []);
+    const call = vi.fn<BridgeCall>(async (method, args) => {
+      if (method === 'releaseChannel')
+        return available
+          ? { ok: true, value: { channel: 'stable', writable: true } }
+          : { ok: false, error: { code: 'unavailable', message: 'offline', details: {} } };
+      if (method === 'releaseChannelSet')
+        return {
+          ok: true,
+          value: canSave
+            ? { status: 'saved', channel: 'beta' }
+            : { status: 'failed', reason: 'storage-unavailable' },
+        };
+      return fallback(method, args);
+    });
+    const view = await render(
+      createElement(ReleaseSettings, {
+        releaseNotes: new ReleaseNotesController(call, memoryStorage()),
+        t,
+      } as never),
+    );
+    try {
+      expect(buttonNamed(view.host, '加入 Beta')?.disabled).toBe(true);
+      available = true;
+      await act(async () => {
+        buttonNamed(view.host, '检查更新')?.click();
+      });
+      expect(buttonNamed(view.host, '加入 Beta')?.disabled).toBe(false);
+      await act(async () => {
+        buttonNamed(view.host, '加入 Beta')?.click();
+      });
+      expect(view.host.querySelector('[role="alert"]')?.textContent).toContain(
+        '无法确认这台电脑的更新选择',
+      );
+      expect(buttonNamed(view.host, '加入 Beta')).toBeDefined();
+      expect(buttonNamed(view.host, '退出 Beta')).toBeUndefined();
+      await act(async () => {
+        buttonNamed(view.host, '检查更新')?.click();
+      });
+      expect(view.host.querySelector('[role="alert"]')?.textContent).toContain(
+        '无法确认这台电脑的更新选择',
+      );
+      canSave = true;
+      await act(async () => {
+        buttonNamed(view.host, '加入 Beta')?.click();
+      });
+      expect(view.host.querySelector('[role="alert"]')).toBeNull();
+      expect(buttonNamed(view.host, '退出 Beta')).toBeDefined();
+    } finally {
+      view.unmount();
+    }
+  });
   it('pops the changelog when Bot mode opens and closes it for good on Got it', async () => {
     const storage = memoryStorage();
     const controller = new ReleaseNotesController(

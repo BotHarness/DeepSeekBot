@@ -75,6 +75,7 @@ import type {
   ReleaseUpdate,
 } from '../release/service.js';
 import type { TelemetryCapture, TelemetryStatus } from '../telemetry/service.js';
+import type { ReleaseChannelStatus, ReleaseChannelChange } from '../release/channel.js';
 import {
   AssignmentReplyTargetError,
   type HumanAssignmentContext,
@@ -712,6 +713,8 @@ export interface BridgeMethods {
   marketplaceChallenge(): Promise<BridgeResult<AltchaChallenge>>;
   marketplaceReport(payload: unknown): Promise<BridgeResult<{ received: true }>>;
   releaseInfo(payload: unknown): BridgeResult<ReleaseInfo>;
+  releaseChannel(): BridgeResult<ReleaseChannelStatus>;
+  releaseChannelSet(payload: unknown): BridgeResult<ReleaseChannelChange>;
   releaseUpdate(): Promise<BridgeResult<ReleaseUpdate>>;
   releaseInstall(payload: unknown): Promise<BridgeResult<ReleaseInstall>>;
   releaseRestart(payload: unknown): Promise<BridgeResult<ReleaseRestart>>;
@@ -2483,6 +2486,17 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
     async releaseUpdate() {
       if (deps.release === undefined) return releaseUnavailable();
       return { ok: true, value: await deps.release.update() };
+    },
+    releaseChannel() {
+      if (deps.release === undefined) return releaseUnavailable();
+      return { ok: true, value: deps.release.channel() };
+    },
+    releaseChannelSet(payload) {
+      if (deps.release === undefined) return releaseUnavailable();
+      const channel = asObject(payload)['channel'];
+      if (channel !== 'stable' && channel !== 'beta')
+        return invalidInput('channel must be stable or beta');
+      return { ok: true, value: deps.release.setChannel(channel) };
     },
     async releaseInstall(payload) {
       if (deps.release === undefined) return releaseUnavailable();

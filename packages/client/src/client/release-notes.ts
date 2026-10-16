@@ -11,6 +11,7 @@ import type {
 import { compareVersions, isReleaseVersion } from '../../../core/src/release/version.js';
 import type { BridgeCall } from './bridge.js';
 import type { ConfigStorage } from './roster-config.js';
+import type { ReleaseChannel, ReleaseChannelStatus } from '../../../core/src/release/channel.js';
 
 export const RELEASE_NOTES_SEEN_KEY = 'botharness.releaseNotes.seenVersion';
 
@@ -45,6 +46,9 @@ export type ReleaseRestartState =
   | { status: 'failed'; reason?: Extract<ReleaseRestart, { status: 'failed' }>['reason'] };
 
 export interface ReleaseNotesSnapshot {
+  channel: ReleaseChannelStatus | undefined;
+  channelSaving: boolean;
+  channelError: 'read' | 'save' | undefined;
   version: string | undefined;
   announcement: ReleaseNote[] | undefined;
   firstRun: boolean;
@@ -55,6 +59,7 @@ export interface ReleaseNotesSnapshot {
 }
 
 const INSTALL_FAILURES: readonly ReleaseInstallFailure[] = [
+  'beta-not-enabled',
   'busy',
   'activity-unavailable',
   'unavailable',
@@ -166,6 +171,8 @@ export class ReleaseNotesController {
   private readonly storage: ConfigStorage | undefined;
   private readonly watch: ReleaseRestartWatch;
   private started: Promise<void> | undefined;
+  private updateRequest = 0;
+  private channelRequest = 0;
 
   constructor(
     call: BridgeCall,
@@ -176,6 +183,9 @@ export class ReleaseNotesController {
     this.storage = storage;
     this.watch = watch;
     this.source = createSnapshotStore<ReleaseNotesSnapshot>({
+      channel: undefined,
+      channelSaving: false,
+      channelError: undefined,
       version: undefined,
       announcement: undefined,
       firstRun: false,
@@ -215,8 +225,10 @@ export class ReleaseNotesController {
   }
 
   async checkUpdate(force = false): Promise<void> {
+    if (this.source.getSnapshot().channelSaving) return;
     const current = this.source.getSnapshot().update.status;
     if (current === 'checking' || (!force && current !== 'idle')) return;
+    const request = ++this.updateRequest;
     this.source.update((draft) => {
       draft.update = { status: 'checking' };
     });
@@ -227,12 +239,90 @@ export class ReleaseNotesController {
     } catch {
       update = undefined;
     }
+    if (request === this.updateRequest)
+      this.source.update((draft) => {
+        draft.update = update ?? { status: 'unavailable', current: draft.version ?? '' };
+      });
+  }
+
+  async loadChannel(): Promise<void> {
+    const request = ++this.channelRequest;
+    try {
+      const response = await this.call('releaseChannel', {});
+      const value = response.ok ? record(response.value) : undefined;
+      if (value?.['channel'] !== 'stable' && value?.['channel'] !== 'beta')
+        throw new Error('invalid channel');
+      const channel = value['channel'];
+      if (request !== this.channelRequest) return;
+      const changed =
+        channel !== this.source.getSnapshot().channel?.channel &&
+        this.source.getSnapshot().update.status !== 'idle';
+      if (changed) this.updateRequest += 1;
+      this.source.update((draft) => {
+        draft.channel = { channel, writable: value['writable'] === true };
+        if (draft.channelError === 'read') draft.channelError = undefined;
+        if (changed) {
+          draft.update = { status: 'idle' };
+          draft.viewing = undefined;
+        }
+      });
+      if (changed) await this.checkUpdate(true);
+    } catch {
+      if (request !== this.channelRequest) return;
+      this.source.update((draft) => {
+        draft.channel = undefined;
+        draft.channelError ??= 'read';
+      });
+    }
+  }
+
+  async setChannel(channel: ReleaseChannel): Promise<void> {
+    const snapshot = this.source.getSnapshot();
+    if (
+      !snapshot.channel?.writable ||
+      snapshot.channelSaving ||
+      snapshot.install.status === 'installing' ||
+      snapshot.restart.status === 'restarting'
+    )
+      return;
+    this.updateRequest += 1;
+    this.channelRequest += 1;
     this.source.update((draft) => {
-      draft.update = update ?? { status: 'unavailable', current: draft.version ?? '' };
+      draft.channelSaving = true;
+      draft.channelError = undefined;
+      draft.update = { status: 'idle' };
+      draft.viewing = undefined;
     });
+    try {
+      const response = await this.call('releaseChannelSet', { channel });
+      const result = response.ok ? record(response.value) : undefined;
+      if (result?.['status'] !== 'saved' || result['channel'] !== channel)
+        throw new Error('channel not saved');
+      this.source.update((draft) => {
+        draft.channel = { channel, writable: true };
+      });
+    } catch {
+      await this.loadChannel();
+      this.source.update((draft) => {
+        draft.channelError = 'save';
+      });
+    } finally {
+      this.channelRequest += 1;
+      this.source.update((draft) => {
+        draft.channelSaving = false;
+      });
+    }
+    await this.checkUpdate(true);
   }
 
   async install(version: string): Promise<void> {
+    if (version.includes('-') && this.source.getSnapshot().channel?.channel !== 'beta') {
+      this.source.update((draft) => {
+        draft.install = { status: 'failed', reason: 'beta-not-enabled' };
+      });
+      return;
+    }
+    if (this.source.getSnapshot().channelSaving) return;
     if (this.source.getSnapshot().install.status === 'installing') return;
     this.source.update((draft) => {
       draft.install = { status: 'installing', version };

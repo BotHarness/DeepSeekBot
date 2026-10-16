@@ -170,6 +170,36 @@ describe('Bot Marketplace commands', () => {
 });
 
 describe('release commands', () => {
+  it('reads and explicitly changes this Host channel without installing or restarting', async () => {
+    const live = await host((method, args) =>
+      ok(
+        method === 'releaseChannel'
+          ? { channel: 'stable', writable: true }
+          : { status: 'saved', channel: args['channel'] },
+      ),
+    );
+    expect((await invoke(['release-channel'], live.url)).json.channel).toBe('stable');
+    expect((await invoke(['release-channel-set', 'beta'], live.url)).json.error.code).toBe('usage');
+    expect(
+      (await invoke(['release-channel-set', 'nightly', '--confirm'], live.url)).json.error.code,
+    ).toBe('usage');
+    expect((await invoke(['release-channel-set', 'beta', '--confirm'], live.url)).json).toEqual({
+      status: 'saved',
+      channel: 'beta',
+    });
+    expect(
+      (await invoke(['release-channel-set', 'stable', '--confirm'], live.url)).json.channel,
+    ).toBe('stable');
+    expect(live.calls).toEqual([
+      { method: 'releaseChannel', args: {} },
+      { method: 'releaseChannelSet', args: { channel: 'beta' } },
+      { method: 'releaseChannelSet', args: { channel: 'stable' } },
+    ]);
+    const failed = await host(() => ok({ status: 'failed', reason: 'storage-unavailable' }));
+    const refusal = await invoke(['release-channel-set', 'beta', '--confirm'], failed.url);
+    expect(refusal.code).not.toBe(0);
+    expect(refusal.json.error.code).toBe('release-storage-unavailable');
+  });
   it.each(['busy', 'unknown'] as const)(
     'preserves %s release refusals over authenticated HTTP without manual restart advice',
     async (activity) => {

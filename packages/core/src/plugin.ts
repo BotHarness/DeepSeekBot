@@ -914,6 +914,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   const dshHome = resolveDshHome();
   mountClientDiagnostics(ctx, dshHome);
   const release = installedRelease(import.meta.url);
+  const releaseProfileDir = (ctx.get('profileContext') as { dir: string } | undefined)?.dir;
   const telemetryChoice = telemetryDecision(config.telemetry);
   const telemetryDir = join(dshHome, 'botharness');
   const telemetry = createTelemetryService({
@@ -1811,6 +1812,9 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       baseUrl: config.marketplaceUrl ?? DEFAULT_MARKETPLACE_URL,
     }),
     release: createReleaseService({
+      ...(releaseProfileDir === undefined
+        ? {}
+        : { dataDir: join(releaseProfileDir, 'botharness') }),
       version: () => runningRelease.version,
       ledgers: () => runningRelease.ledgers,
       installer: () => releaseInstaller.current,

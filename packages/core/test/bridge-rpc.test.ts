@@ -20,6 +20,7 @@ import {
   type BotSourcePolicyStore,
 } from '../src/runtime/source-policy.js';
 import { createTestOwnership } from './helpers.js';
+import { createReleaseService, type ReleaseService } from '../src/release/service.js';
 
 const roots: string[] = [];
 
@@ -30,7 +31,7 @@ afterEach(() => {
   }
 });
 
-function setup(sourcePolicy?: BotSourcePolicyStore) {
+function setup(sourcePolicy?: BotSourcePolicyStore, release?: ReleaseService) {
   const root = mkdtempSync(join(tmpdir(), 'botharness-bridge-rpc-'));
   roots.push(root);
   const registry = createTestRegistry({ rootDir: root });
@@ -46,6 +47,7 @@ function setup(sourcePolicy?: BotSourcePolicyStore) {
     roster: createTestRosterStore({ database: registryDatabase(root) }),
     createBotId: () => 'ada',
     ...(sourcePolicy === undefined ? {} : { sourcePolicy }),
+    ...(release === undefined ? {} : { release }),
   });
   const ctx = new Context();
   const service = registerBridge(ctx, methods);
@@ -65,6 +67,33 @@ function parameterNames(method: (...args: never[]) => unknown): string[] {
 }
 
 describe('bridge typert service', () => {
+  it('exposes only explicit stable/Beta choice through the owning release service', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'release-rpc-'));
+    try {
+      const release = createReleaseService({
+        dataDir: root,
+        version: () => '1.1.0',
+        ledgers: () => undefined,
+      });
+      const { methods } = setup(undefined, release);
+      expect(methods.releaseChannel()).toEqual({
+        ok: true,
+        value: { channel: 'stable', writable: true },
+      });
+      expect(methods.releaseChannelSet({ channel: 'beta' })).toEqual({
+        ok: true,
+        value: { status: 'saved', channel: 'beta' },
+      });
+      expect(methods.releaseChannelSet({ channel: 'nightly' }).ok).toBe(false);
+      expect(methods.releaseChannelSet({}).ok).toBe(false);
+      expect(methods.releaseChannel()).toEqual({
+        ok: true,
+        value: { channel: 'beta', writable: true },
+      });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
   it('registers under the gateway service key with the botharness namespace', () => {
     const { service } = setup();
 
@@ -279,6 +308,8 @@ describe('bridge typert service', () => {
       'marketplaceReport',
       'releaseInfo',
       'releaseUpdate',
+      'releaseChannel',
+      'releaseChannelSet',
       'releaseInstall',
       'releaseRestart',
       'telemetryStatus',
@@ -367,6 +398,8 @@ describe('bridge typert service', () => {
     expect(parameterNames(service.marketplaceReport)).toEqual(['id', 'altcha', 'reason']);
     expect(parameterNames(service.releaseInfo)).toEqual(['since']);
     expect(parameterNames(service.releaseUpdate)).toEqual([]);
+    expect(parameterNames(service.releaseChannel)).toEqual([]);
+    expect(parameterNames(service.releaseChannelSet)).toEqual(['channel']);
     expect(parameterNames(service.channelReact)).toEqual([
       'channelId',
       'messageId',

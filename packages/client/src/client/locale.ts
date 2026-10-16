@@ -3443,6 +3443,22 @@ export const zh = {
   'releaseNotes.section.removed': '移除',
   'releaseNotes.section.security': '安全',
   'release.row.title': 'DeepSeekBot 版本',
+  'release.channel.title': '这台电脑的 Beta 更新',
+  'release.channel.summaryUnknown': '尚未确认更新选择',
+  'release.channel.summaryStable': '只检查正式版',
+  'release.channel.summaryBeta': '检查正式版和 Beta 候选',
+  'release.channel.unknown':
+    '尚未确认这台电脑的更新选择。请检查更新以重新读取；不会自动加入 Beta。',
+  'release.channel.stable':
+    '只检查正式版。退出 Beta 不会降级或撤销已安装的更新，也不保证已有兼容的正式版可替换；需要时请等待验证后的版本或联系维护者。手机和其他电脑的选择不受影响。',
+  'release.channel.beta':
+    '额外检查 Beta 候选，不自动安装或重启，也不代表手机与电脑组合已验证。手机和其他电脑需要单独加入；Beta 选择不改变统计设置。',
+  'release.channel.join': '加入 Beta',
+  'release.channel.leave': '退出 Beta',
+  'release.channel.saving': '保存中…',
+  'release.channel.failed':
+    '无法确认这台电脑的更新选择。没有自动安装或重启；请检查连接和存储后显式重试。',
+  'release.channel.required': '这台电脑尚未加入 Beta；请先明确加入，再重试。',
   'build.row.title': '构建',
   'release.status.loading': '正在读取当前版本…',
   'release.status.development': '源码构建（{version}），不检查更新',
@@ -7185,6 +7201,23 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'releaseNotes.section.removed': 'Removed',
   'releaseNotes.section.security': 'Security',
   'release.row.title': 'DeepSeekBot version',
+  'release.channel.title': 'Beta updates for this computer',
+  'release.channel.summaryUnknown': 'Update choice not yet confirmed',
+  'release.channel.summaryStable': 'Check stable releases only',
+  'release.channel.summaryBeta': 'Check stable releases and Beta candidates',
+  'release.channel.unknown':
+    'This computer’s update choice is not confirmed. Check for updates to read it again; Beta is never enabled automatically.',
+  'release.channel.stable':
+    'Check stable releases only. Leaving Beta never downgrades or cancels an installed update, and does not guarantee a compatible stable replacement. Wait for a verified release or contact the maintainer if needed. Your phone and other computers keep their own choice.',
+  'release.channel.beta':
+    'Also check Beta candidates. No automatic install or restart; this does not qualify the phone/computer combination. Phones and other computers opt in separately. This choice does not change statistics settings.',
+  'release.channel.join': 'Join Beta',
+  'release.channel.leave': 'Leave Beta',
+  'release.channel.saving': 'Saving…',
+  'release.channel.failed':
+    'Could not confirm this computer’s update choice. Nothing was automatically installed or restarted. Check the connection and storage, then retry explicitly.',
+  'release.channel.required':
+    'This computer has not joined Beta. Opt in explicitly before retrying.',
   'build.row.title': 'Build',
   'release.status.loading': 'Reading the installed version…',
   'release.status.development': 'Source build ({version}); updates are not checked',

@@ -45,6 +45,11 @@ import type {
   ReleaseRestart,
   ReleaseUpdate,
 } from '../release/service.js';
+import type {
+  ReleaseChannel,
+  ReleaseChannelStatus,
+  ReleaseChannelChange,
+} from '../release/channel.js';
 import type { TelemetryStatus } from '../telemetry/service.js';
 import type { OverviewMemory } from '../memory/overview.js';
 import type { ApprovalReviewerModelView, OverviewUsage } from './methods.js';
@@ -1593,6 +1598,14 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrapAsync(this.methods.releaseUpdate());
   }
 
+  async releaseChannel(): Promise<ReleaseChannelStatus> {
+    return unwrap(this.methods.releaseChannel());
+  }
+
+  async releaseChannelSet(channel: ReleaseChannel): Promise<ReleaseChannelChange> {
+    return unwrap(this.methods.releaseChannelSet({ channel }));
+  }
+
   async releaseInstall(version: string): Promise<ReleaseInstall> {
     return unwrapAsync(this.methods.releaseInstall({ version }));
   }
@@ -1848,6 +1861,8 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'marketplaceReport',
   'releaseInfo',
   'releaseUpdate',
+  'releaseChannel',
+  'releaseChannelSet',
   'releaseInstall',
   'releaseRestart',
   'telemetryStatus',

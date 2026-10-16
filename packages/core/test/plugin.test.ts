@@ -568,6 +568,8 @@ describe('plugin entry', () => {
       'marketplaceReport',
       'releaseInfo',
       'releaseUpdate',
+      'releaseChannel',
+      'releaseChannelSet',
       'releaseInstall',
       'releaseRestart',
       'telemetryStatus',

@@ -977,6 +977,16 @@ Pages contain at most 50 items and 300 Unicode characters per snippet. Literal s
 
 ### Release activity guard (#1932 first slice)
 
+The application-defined Release Service also owns the explicit stable/Beta choice for the
+current DSH Profile. Its atomic `botharness/release-channel.json` record is rooted in the
+launcher-owned `profileContext.dir`, not browser storage or the shared DSH home. Missing Profile
+context disables preference writes. Missing or unreadable state selects stable; an installed
+prerelease is not consent. Authenticated Typert commands and the CLI/Web consume this one owner.
+Saving a choice invalidates old checks, never installs/restarts, and cannot overlap a release
+mutation. Stable checks exclude prerelease `latest`; Beta additionally reads `beta`, not internal
+`next`. Neither tag is qualification evidence. Exit leaves staged/installed artifacts and data
+untouched, without promising a stable replacement. See [verification](../agents/release-beta-choice.md).
+
 The application-defined Release Service keeps update/restart authority behind the existing
 authenticated bridge and matching CLI. Its process-local activity probe reads DSH-native live
 Agents, their queued Inbox input, and unowned plus live-Agent-owned Jobs. Otherwise-idle Agents
