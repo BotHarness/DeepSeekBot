@@ -189,6 +189,7 @@ import {
   MessageReactionSurface,
   ReactionIcon,
 } from './message-reactions.js';
+import type { AveragePerfView } from './message-perf.js';
 import { ConversationSearch } from './conversation-search.js';
 import { reactableMessage } from './message-reactions-model.js';
 import {
@@ -1736,6 +1737,26 @@ function ConversationView({
     messages.findLast((message) => !message.pending && !message.failed && !message.streaming)?.id,
   ]);
 
+  const [replyPerf, setReplyPerf] = useState<{
+    channelId: string;
+    average: AveragePerfView | undefined;
+  }>();
+  const replyPerfMount = useMountedResource<HTMLSpanElement>(() => {
+    if (channelId === undefined) return;
+    const controller = new AbortController();
+    void actions.averageReplyPerf(channelId, controller.signal).then(
+      (average) => {
+        if (!controller.signal.aborted) setReplyPerf({ channelId, average });
+      },
+      (error: unknown) => {
+        if (controller.signal.aborted) return;
+        setReplyPerf(undefined);
+        console.warn('botharness: average reply speed failed', error);
+      },
+    );
+    return () => controller.abort();
+  }, [actions, channelId, state.channels.find((item) => item.id === channelId)?.latestMessage?.id]);
+  const avgPerf = replyPerf?.channelId === channelId ? replyPerf?.average : undefined;
   const dmComposerContext = useDmComposerContext({
     bot: channel?.type === 'dm' && !readOnlyDm ? profileBot : undefined,
     channelId,
@@ -1744,6 +1765,7 @@ function ConversationView({
     activity: profileActivity,
     loading: profileUsageLoading,
     t,
+    avgPerf,
     onUsage: () => {
       setProfilePopoverOpen(false);
       setProfileViewOpen(true);
@@ -1755,6 +1777,7 @@ function ConversationView({
     members: channelBots,
     actions,
     t,
+    avgPerf,
   });
   const baseComposerContext = dmComposerContext ?? groupComposerContext;
   const openProfileView = (): void => {
@@ -3147,6 +3170,7 @@ function ConversationView({
     <div ref={conversationMount} className="bh-root bh-main">
       <span ref={allBotPreviewMount} hidden />
       <span ref={searchShortcutMount} hidden />
+      <span ref={replyPerfMount} hidden />
       <span ref={dockInboxMount} hidden />
       <div className="bh-chat-layout" data-sidebar={docked ? 'dock' : sidebar.mode}>
         {docked ? (

@@ -357,6 +357,14 @@ export interface ChannelMessage {
   replyTo?: string;
 
   replyToPreview?: ChannelReplyPreview | null;
+
+  perf?: ChannelMessagePerf;
+}
+
+export interface ChannelMessagePerf {
+  outputTokens: number;
+  elapsedMs: number;
+  estimated: boolean;
 }
 
 export const MAX_BOT_HOPS = 8;

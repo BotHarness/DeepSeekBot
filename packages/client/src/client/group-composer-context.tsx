@@ -22,6 +22,7 @@ import { authorizeGroupMembers, type GroupGrantResult } from './group-workspace-
 import { useMobileBotViewport } from './mobile-viewport.js';
 import { ComposerContextBar } from './composer-context-bar.js';
 import { ChipButton } from './ds/chip-button.js';
+import type { AveragePerfView } from './message-perf.js';
 
 interface PreviewMember {
   slug: string;
@@ -35,11 +36,13 @@ export function useGroupComposerContext({
   members,
   actions,
   t,
+  avgPerf,
 }: {
   channel: ChannelSummary | undefined;
   members: BotSummary[];
   actions: BridgeActions;
   t: BotHarnessTranslate;
+  avgPerf?: AveragePerfView | undefined;
 }): ComposerContext | undefined {
   const [openChannel, setOpenChannel] = useState<string>();
   if (channel?.type !== 'group') return;
@@ -63,6 +66,7 @@ export function useGroupComposerContext({
         t={t}
         open={openChannel === channel.id}
         onOpen={open}
+        avgPerf={avgPerf}
         onClose={() => setOpenChannel(undefined)}
       />
     ),
@@ -76,6 +80,7 @@ export function GroupComposerContextView({
   t,
   open,
   onOpen,
+  avgPerf,
   onClose,
 }: {
   channelId: string;
@@ -84,6 +89,7 @@ export function GroupComposerContextView({
   t: BotHarnessTranslate;
   open: boolean;
   onOpen(): void;
+  avgPerf?: AveragePerfView | undefined;
   onClose(): void;
 }): ReactElement {
   const mobile = useMobileBotViewport();
@@ -208,6 +214,16 @@ export function GroupComposerContextView({
           label={chip}
           onClick={onOpen}
         />
+        {avgPerf === undefined ? null : (
+          <ChipButton
+            data-composer-chip="avg-perf"
+            icon={<ChannelSidebarIcon name="gauge" size={14} />}
+            label={`${avgPerf.estimated ? '≈ ' : ''}${t('composerContext.avgPerf', { tps: avgPerf.tokensPerSecond })}`}
+            title={t('composerContext.avgPerf.title', { count: avgPerf.count })}
+            tabIndex={-1}
+            disabled
+          />
+        )}
       </ComposerContextBar>
       {open ? (
         <PanelDialog

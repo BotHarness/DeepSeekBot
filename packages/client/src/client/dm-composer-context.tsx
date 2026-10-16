@@ -20,6 +20,7 @@ import {
   workspaceGrantRevision,
 } from './workspace-grant-events.js';
 import { profileTokenChipText, profileTokenSummaryText } from './profile-token-summary.js';
+import type { AveragePerfView } from './message-perf.js';
 import { PROFILE_ACTIVITY_WEEKS } from './profile-cards-builtins.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { DmComposerUsagePopover } from './dm-composer-usage.js';
@@ -39,6 +40,7 @@ export function useDmComposerContext({
   loading,
   t,
   onUsage,
+  avgPerf,
 }: {
   bot: BotSummary | undefined;
   channelId: string | undefined;
@@ -48,6 +50,7 @@ export function useDmComposerContext({
   loading: boolean;
   t: BotHarnessTranslate;
   onUsage(): void;
+  avgPerf?: AveragePerfView | undefined;
 }): ComposerContext | undefined {
   const [panel, setPanel] = useState<{ slug: string; kind: 'model' | 'workspace' }>();
   const companionState = useSyncExternalStore(
@@ -98,6 +101,7 @@ export function useDmComposerContext({
         loading={loading}
         t={t}
         onUsage={onUsage}
+        avgPerf={avgPerf}
         onOpen={open}
         panel={panel?.slug === bot.slug ? panel.kind : undefined}
         onClose={() => setPanel(undefined)}
@@ -114,6 +118,7 @@ function DmComposerContextView({
   loading,
   t,
   onUsage,
+  avgPerf,
   onOpen,
   panel,
   onClose,
@@ -125,6 +130,7 @@ function DmComposerContextView({
   loading: boolean;
   t: BotHarnessTranslate;
   onUsage(): void;
+  avgPerf?: AveragePerfView | undefined;
   onOpen(kind: 'model' | 'workspace'): void;
   panel: 'model' | 'workspace' | undefined;
   onClose(): void;
@@ -285,6 +291,16 @@ function DmComposerContextView({
           onClick={() => onOpen('model')}
           aria-label={`${t('entry.model')} · ${bot.displayName} · ${modelLabel}`}
         />
+        {avgPerf === undefined ? null : (
+          <ChipButton
+            data-composer-chip="avg-perf"
+            icon={<ChannelSidebarIcon name="gauge" size={14} />}
+            label={`${avgPerf.estimated ? '≈ ' : ''}${t('composerContext.avgPerf', { tps: avgPerf.tokensPerSecond })}`}
+            title={t('composerContext.avgPerf.title', { count: avgPerf.count })}
+            tabIndex={-1}
+            disabled
+          />
+        )}
         {mobile ? null : (
           <ChipButton
             ref={grantMount}

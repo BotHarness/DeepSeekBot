@@ -251,6 +251,7 @@ export interface ChannelMessage {
   failed?: string;
   unconfirmed?: boolean;
   streaming?: boolean;
+  perf?: import('../../../core/src/channels/channel.js').ChannelMessagePerf;
 }
 
 export interface ChannelDraft {

@@ -3437,6 +3437,7 @@ body[data-ds-dark-theme] .bh-message-group-me {
 .bh-message-attachment { position: relative; min-width: 0; }
 .bh-message-file-more { flex: none; color: inherit; }
 .bh-message-attachments { display: grid; gap: ${space.x3}; margin-top: ${space.x3}; }
+.bh-message-perf { margin-top: ${space.x2}; color: var(--dsw-alias-label-tertiary); font-size: ${text.metaSize}; line-height: ${text.metaLine}; font-variant-numeric: tabular-nums; }
 .bh-bridge-media-content { white-space: pre-wrap; }
 .bh-bridge-image { max-width: min(100%, 320px); }
 .bh-bridge-image-button { display: block; padding: 0; border: 0; background: transparent; cursor: zoom-in; border-radius: ${radius.md}; }

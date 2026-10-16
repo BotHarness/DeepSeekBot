@@ -1368,6 +1368,11 @@ export const zh = {
   'message.draftInterrupted': '回复已中断，未发送。',
   'message.draftExpired': '回复草稿未发送。',
   'message.sending': '发送中',
+  'message.perf.exact': '{tps} tok/s',
+  'message.perf.estimated': '≈ {tps} tok/s · 估算',
+  'composerContext.avgPerf': '平均 {tps} tok/s',
+  'composerContext.avgPerf.title':
+    '本频道最近 200 条消息中，最近 {count} 条 Bot 回复的平均输出速度',
   'message.mention.openDm': '打开与 {bot} 的私聊',
   'message.avatar.message': '发送消息',
   'message.avatar.mention': '@ TA',
@@ -4989,6 +4994,11 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'message.draftInterrupted': 'Reply interrupted and not sent.',
   'message.draftExpired': 'Draft reply was not sent.',
   'message.sending': 'Sending',
+  'message.perf.exact': '{tps} tok/s',
+  'message.perf.estimated': '≈ {tps} tok/s · estimated',
+  'composerContext.avgPerf': 'avg {tps} tok/s',
+  'composerContext.avgPerf.title':
+    "Average output speed of the last {count} Bot replies among this chat's latest 200 messages",
   'main.group.note':
     'Invite Bots or connect an external conversation under External connectors in the Channel sidebar.',
   'main.localChat': 'Local chat',

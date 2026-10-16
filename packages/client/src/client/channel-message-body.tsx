@@ -32,6 +32,7 @@ import type { BridgeActions, HostDirectoryListing } from './actions.js';
 import { FolderBrowser } from './workspace-grants-entry.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { toolApprovalText } from './approval-text.js';
+import { messagePerfView } from './message-perf.js';
 import { store, type BotSummary, type ChannelMessage } from './store.js';
 import { useMountedResource } from './mounted-resource.js';
 
@@ -356,6 +357,7 @@ export function ChannelMessageBody({
   const message =
     approvalBody === undefined ? storedMessage : { ...storedMessage, body: approvalBody };
   const humanMarkdown = rendersHumanMarkdown(message);
+  const perf = messagePerfView(message);
   const format =
     message.format ?? (message.author.kind === 'human' && !humanMarkdown ? 'text' : 'markdown');
   if (message.contentPurged) return <div className="bh-bubble-body">{t('purge.purged')}</div>;
@@ -673,6 +675,13 @@ export function ChannelMessageBody({
           ))}
         </div>
       ) : null}
+      {perf === undefined ? null : (
+        <div className="bh-message-perf">
+          {perf.estimated
+            ? t('message.perf.estimated', { tps: perf.tokensPerSecond })
+            : t('message.perf.exact', { tps: perf.tokensPerSecond })}
+        </div>
+      )}
     </div>
   );
 }

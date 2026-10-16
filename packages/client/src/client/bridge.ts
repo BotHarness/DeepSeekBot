@@ -4,6 +4,7 @@ import type {} from '@deepseek-ai/dsh-api-session-controller/client';
 import type { PairingRequest, PairingReviewInput } from '../../../core/src/messaging/pairing.js';
 import type { SenderAccessInput } from '../../../core/src/messaging/sender-access.js';
 import { parsePublicAttention } from './activity-attention.js';
+import { parseMessagePerf } from './message-perf.js';
 import {
   isAvatarAppearance,
   isRetainedAvatarAppearance,
@@ -906,6 +907,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
   if (typeof body !== 'string') return undefined;
   const author = parseAuthor(record['author']);
   if (author === undefined) return undefined;
+  const perf = author.kind === 'bot' ? parseMessagePerf(record['perf']) : undefined;
   const memorySwitchTarget = record['memorySwitchTarget'];
   if (
     memorySwitchTarget !== undefined &&
@@ -1584,6 +1586,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
     ...(bridgeMedia === undefined ? {} : { bridgeMedia }),
     ...(replyTo === undefined ? {} : { replyTo }),
     ...(replyToPreview === undefined ? {} : { replyToPreview }),
+    ...(perf === undefined ? {} : { perf }),
   };
 }
 
