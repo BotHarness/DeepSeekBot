@@ -391,3 +391,80 @@ it('shows the real group name on the connection, the placed source and the bound
     ),
   ).toEqual([{ name: 'Team chat' }]);
 });
+
+it('checks the original ingress Binding before resolving a connected group sender Role', async () => {
+  const { fx } = await connected();
+  await fx.receive(chatter('sender-permissions'));
+  const id = fx.sourceId('om-sender-permissions');
+  const permissions = () => fx.core.externalMessaging.senderPermissions('ada', id);
+  expect(permissions()).toMatchObject({ status: 'visitor', sender: { bindingId: fx.identity.id } });
+  await fx.update({ enabled: false });
+  expect(permissions()).toMatchObject({ status: 'unavailable', reason: 'identity-disabled' });
+  await fx.update({ enabled: true });
+  const current = (await fx.core.externalMessaging.snapshot('ada')).identities![0]!;
+  await fx.core.externalMessaging.identity('ada', {
+    kind: 'unbind',
+    id: current.id,
+    expectedRevision: current.revision,
+  });
+  await fx.core.externalMessaging.identity('ada', {
+    kind: 'bind',
+    providerId: 'dsh-im/feishu',
+    accountRef: 'lark-app',
+    fingerprint,
+  });
+  await fx.settle();
+  expect(permissions()).toMatchObject({ status: 'unavailable', reason: 'binding-replaced' });
+  await fx.receive(chatter('fresh-sender-permissions'));
+  expect(
+    fx.core.externalMessaging.senderPermissions('ada', fx.sourceId('om-fresh-sender-permissions')),
+  ).toMatchObject({ status: 'visitor' });
+});
+
+it('does not guess a replacement Binding for legacy ingested sources without ingress evidence', async () => {
+  const { fx } = await connected();
+  await fx.receive(chatter('legacy-sender'));
+  const id = fx.sourceId('om-legacy-sender');
+  attachOperationalModule(fx.core.operationalDatabase, 'test').transaction((db) => {
+    db.prepare(
+      "UPDATE source_events SET payload_json = json_remove(payload_json, '$.external.ingressBindingId') WHERE source_event_id = ?",
+    ).run(id);
+  });
+  expect(fx.core.externalMessaging.senderPermissions('ada', id)).toMatchObject({
+    status: 'unavailable',
+    reason: 'no-current-scoped-identity',
+  });
+});
+
+it('rejects sender Role lookup after its Conversation Ingest is paused', async () => {
+  const { fx, group, ingest } = await connected();
+  await fx.receive(chatter('paused-ingest'));
+  const current = ingest();
+  await fx.core.externalMessaging.inbound.ingest(group.id, {
+    kind: 'update',
+    ingestId: current.id,
+    expectedRevision: current.revision,
+    enabled: false,
+  });
+  expect(
+    fx.core.externalMessaging.senderPermissions('ada', fx.sourceId('om-paused-ingest')),
+  ).toMatchObject({ status: 'unavailable', reason: 'ingest-disabled' });
+});
+
+it('resolves a shared ingested source from a different Group placement', async () => {
+  const { fx, group } = await connected();
+  const second = fx.core.channels.createGroup({ name: 'Second', members: ['ada', 'bea'] });
+  await fx.core.externalMessaging.inbound.ingest(second.id, {
+    kind: 'add',
+    bindingId: fx.identity.id,
+    conversation: { kind: 'group', id: 'oc_team' },
+  });
+  await fx.settle();
+  await fx.receive(chatter('shared-permissions'));
+  const id = fx.sourceId('om-shared-permissions');
+  // Ada reads through the second placement, while the original Ingest belongs to the first.
+  fx.core.channels.removeGroupMember(group.id, 'ada');
+  expect(fx.core.externalMessaging.senderPermissions('ada', id)).toMatchObject({
+    status: 'visitor',
+  });
+});

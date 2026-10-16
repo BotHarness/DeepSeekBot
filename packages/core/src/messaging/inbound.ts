@@ -154,6 +154,7 @@ export interface ExternalSource {
   event: Omit<MessagingInboundEvent, 'text'>;
   grantId: string;
   grantRevision: number;
+  ingressBindingId?: string;
   ingestId?: string;
   ingestRevision?: number;
   defaultRevision?: number;
@@ -328,7 +329,7 @@ export function createInboundMessaging(options: {
     event.conversation.name || ingest.conversation.name;
   const persistSource = (
     db: DatabaseSync,
-    value: MessagingGrant | { ingest: ConversationIngest; botSlug: string },
+    value: MessagingGrant | { ingest: ConversationIngest; botSlug: string; bindingId: string },
     event: MessagingInboundEvent,
   ): string => {
     if (!('ingest' in value)) value = effectiveDmControls(db, value);
@@ -386,6 +387,7 @@ export function createInboundMessaging(options: {
               event: evidence,
               grantId: '',
               grantRevision: 0,
+              ingressBindingId: value.bindingId,
               ingestId: value.ingest.id,
               ingestRevision: value.ingest.revision,
               defaultRevision: messagingDefaults(db, value.ingest.platform).revision,
@@ -1383,7 +1385,11 @@ export function createInboundMessaging(options: {
             continue;
           }
           if (channel.type !== 'group') continue;
-          const id = persistSource(db, { ingest, botSlug: identity.botSlug }, event);
+          const id = persistSource(
+            db,
+            { ingest, botSlug: identity.botSlug, bindingId: identity.id },
+            event,
+          );
           const row = db
             .prepare('SELECT payload_json FROM source_events WHERE source_event_id = ?')
             .get(id) as { payload_json: string };

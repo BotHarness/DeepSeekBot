@@ -11,7 +11,7 @@ import { channelBridgeRoutes } from './channel-bridge.js';
 import { behaviorPermissionInputs, changeBehaviorPermission } from './behavior-permissions.js';
 import { messagingDefaults } from './defaults.js';
 import { threadReceptionPolicy } from './thread-policy.js';
-import { matchingIngests } from './conversation-ingest.js';
+import { matchingIngests, type ConversationIngest } from './conversation-ingest.js';
 import { bridgeChannel } from './channel-target.js';
 import { chatPairingApplies, chatSenderIdentity, type ChatSenderNamespace } from './chat-sender.js';
 import {
@@ -138,6 +138,83 @@ export function trustedSenderReference(
     namespace: scoped.namespace,
   };
 }
+export function readSourceSenderPermissions(
+  db: DatabaseSync,
+  botSlug: string,
+  event: Omit<MessagingInboundEvent, 'text'>,
+  at: Date,
+  authority:
+    | MessagingGrant
+    | { ingest: ConversationIngest; bindingId: string | undefined }
+    | undefined,
+): SenderPermissions {
+  const queriedAt = at.toISOString();
+  const unavailable = (reason: string): SenderPermissions => ({
+    queriedAt,
+    status: 'unavailable',
+    reason,
+  });
+  if (event.actor.kind !== 'user') return unavailable('no-current-scoped-identity');
+  if (!authority) return unavailable('source-unavailable');
+  if (!authority.bindingId) return unavailable('no-current-scoped-identity');
+  const scope = 'ingest' in authority ? authority.ingest : authority;
+  let identity;
+  try {
+    identity = readMessagingIdentity(db, authority.bindingId);
+  } catch (error) {
+    if (!(error instanceof MessagingError)) throw error;
+    return unavailable('no-current-scoped-identity');
+  }
+  if (identity.revokedAt) return unavailable('binding-replaced');
+  if (
+    (!('ingest' in authority) && identity.botSlug !== authority.botSlug) ||
+    identity.providerId !== scope.providerId ||
+    identity.accountRef !== event.botId ||
+    identity.fingerprint !== event.fingerprint ||
+    identity.platform !== event.channel ||
+    scope.accountRef !== event.botId ||
+    scope.fingerprint !== event.fingerprint ||
+    scope.platform !== event.channel
+  )
+    return unavailable('binding-replaced');
+  if (!identity.enabled) return unavailable('identity-disabled');
+  if ('ingest' in authority) {
+    if (!authority.ingest.enabled) return unavailable('ingest-disabled');
+    if (
+      authority.ingest.conversation.kind !== event.conversation.kind ||
+      authority.ingest.conversation.id !== event.conversation.id
+    )
+      return unavailable('source-unavailable');
+  } else {
+    if (authority.revokedAt) return unavailable('grant-revoked');
+    if (authority.suspendedReason) return unavailable('rebind-required');
+    if (
+      authority.receiveScope?.kind !== event.conversation.kind ||
+      authority.receiveScope.conversationId !== event.conversation.id
+    )
+      return unavailable('source-unavailable');
+  }
+  if (readBlock(db, identity.botSlug, event.fingerprint, event.conversation))
+    return unavailable('conversation-blocked');
+  if (identity.botSlug !== botSlug) {
+    const own = db
+      .prepare(
+        'SELECT id FROM messaging_bindings WHERE bot_slug = ? AND provider_id = ? AND account_ref = ? AND fingerprint = ? AND revoked_at IS NULL',
+      )
+      .get(botSlug, scope.providerId, event.botId, event.fingerprint) as { id: string } | undefined;
+    if (!own) return unavailable('no-current-scoped-identity');
+    identity = readMessagingIdentity(db, own.id);
+    if (!identity.enabled) return unavailable('identity-disabled');
+    if (readBlock(db, botSlug, event.fingerprint, event.conversation))
+      return unavailable('conversation-blocked');
+  }
+  if (!chatPairingApplies(event))
+    return { queriedAt, status: 'unavailable', reason: 'role-policy-not-supported-for-platform' };
+  const result = readSenderPermissions(db, botSlug, event, at);
+  if (result.sender && result.sender.bindingId !== identity.id)
+    return unavailable('binding-replaced');
+  return result;
+}
 export function readSenderPermissions(
   db: DatabaseSync,
   botSlug: string,
@@ -145,8 +222,6 @@ export function readSenderPermissions(
   at: Date,
 ): SenderPermissions {
   const queriedAt = at.toISOString();
-  if (!chatPairingApplies(event))
-    return { queriedAt, status: 'unavailable', reason: 'role-policy-not-supported-for-platform' };
   const sender = trustedSenderReference(db, botSlug, event);
   if (!sender) return { queriedAt, status: 'unavailable', reason: 'no-current-scoped-identity' };
   const policy = readSenderPolicy(db, botSlug);

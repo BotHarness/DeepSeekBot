@@ -1,3 +1,4 @@
+import { readIngest } from './conversation-ingest.js';
 import { isChannelNotice } from '../channels/channel-notice.js';
 import { sourceContentPurged } from '../purge/fence.js';
 import { effectiveDmControls } from './dm-controls.js';
@@ -32,7 +33,7 @@ import {
   bumpSenderPolicy,
   externalUserRoles,
   readSenderPolicy,
-  readSenderPermissions,
+  readSourceSenderPermissions,
   type SenderPermissions,
   type SenderAccessInput,
   type SenderPolicy,
@@ -1411,21 +1412,42 @@ export function createOutboundMessaging(options: {
         throw new MessagingError('source-unavailable');
       const source = inbound.readShared(botSlug, sourceEventId);
       return database.read((db) => {
-        const result = readSenderPermissions(db, botSlug, source.event, new Date());
+        if (source.ingestId) {
+          let ingest;
+          try {
+            ingest = readIngest(db, source.ingestId);
+          } catch (error) {
+            if (!(error instanceof MessagingError)) throw error;
+            return {
+              queriedAt: new Date().toISOString(),
+              status: 'unavailable',
+              reason: 'source-unavailable',
+            };
+          }
+          if (
+            !db
+              .prepare(
+                'SELECT 1 FROM channel_placements WHERE source_event_id = ? AND channel_id = ?',
+              )
+              .get(source.id, ingest.channelId)
+          )
+            return {
+              queriedAt: new Date().toISOString(),
+              status: 'unavailable',
+              reason: 'source-unavailable',
+            };
+          return readSourceSenderPermissions(db, botSlug, source.event, new Date(), {
+            ingest,
+            bindingId: source.ingressBindingId,
+          });
+        }
         const sourceGrant = db
           .prepare('SELECT body FROM messaging_grants WHERE id = ?')
           .get(source.grantId) as { body: string } | undefined;
         const authority = sourceGrant
           ? (JSON.parse(sourceGrant.body) as MessagingGrant)
           : undefined;
-        if (
-          authority?.botSlug === botSlug &&
-          authority.bindingId &&
-          result.sender !== undefined &&
-          authority.bindingId !== result.sender.bindingId
-        )
-          return { queriedAt: result.queriedAt, status: 'unavailable', reason: 'binding-replaced' };
-        return result;
+        return readSourceSenderPermissions(db, botSlug, source.event, new Date(), authority);
       });
     },
     directory(botSlug, query) {
