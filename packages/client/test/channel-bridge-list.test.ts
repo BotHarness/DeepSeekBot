@@ -5,6 +5,9 @@ import { expect, it, vi } from 'vitest';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).comboboxPrimitives(),
   ...(await import('./primitive-mocks.js')).dialogPrimitives(),
+  IconInfoOutlineRegular: () => createElement('span'),
+  Tooltip: ({ children, label }: PropsWithChildren<{ label: string }>) =>
+    createElement('span', { title: label }, children),
   Tag: ({ children }: PropsWithChildren) => createElement('span', null, children),
   Switch: ({
     checked,
@@ -182,6 +185,23 @@ it('WeChat DM connector edits expose only supported paired-owner intake', async 
     expect(
       dialog.querySelector(`input[aria-label="${zhTranslate('bridge.condition')}"]`),
     ).toBeNull();
+    expect(
+      dialog
+        .querySelector('[aria-label="' + zhTranslate('bridge.dmMirror') + '"]')
+        ?.getAttribute('aria-checked'),
+    ).toBe('false');
+    expect(
+      dialog
+        .querySelector('[aria-label="' + zhTranslate('bridge.dmForward') + '"]')
+        ?.getAttribute('aria-checked'),
+    ).toBe('false');
+    for (const key of ['bridge.dmMirror', 'bridge.dmForward'] as const) {
+      expect(
+        dialog.querySelector(
+          '[aria-label="' + zhTranslate('im.infoFor', { title: zhTranslate(key) }) + '"]',
+        ),
+      ).not.toBeNull();
+    }
     const save = [...dialog.querySelectorAll<HTMLButtonElement>('button')].find(
       (b) => b.textContent === zhTranslate('bridge.save'),
     )!;
@@ -195,6 +215,8 @@ it('WeChat DM connector edits expose only supported paired-owner intake', async 
       enabled: true,
       collection: 'all',
       collectionInheritance: 'custom',
+      dmMirror: false,
+      dmForward: false,
     });
   } finally {
     await act(async () => root.unmount());

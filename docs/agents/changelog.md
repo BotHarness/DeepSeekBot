@@ -12,6 +12,12 @@ parity; Human review owns notability, accuracy, and prose quality.
 
 ## Artifact boundaries
 
+The accepted [product version policy](version-policy.md) binds computer-side DSB software, its npm
+product/component packages, Git tag and ledger identity to one frozen Release Plan. DSH, the
+independent Provider, tools/Skill and mobile retain their own versions. Enforcement is tracked in
+[#1979](https://github.com/BotHarness/DeepSeekBot/issues/1979); this documentation does not claim
+that all identity, channel and recovery gates have shipped or authorize a live tag change.
+
 Public install instructions use the published stable identity in `scripts/install-release.json`, not the development package version or npm's moving `latest` tag. After publishing and verifying registry bytes and qualification evidence, update that identity, run `pnpm install:sync` and `pnpm install:check`, and review the resulting README/guide changes. The check runs in lint and rejects drift. Never advance this file during prerelease preparation or before publication.
 
 Before publication, the `prepare` job of `npm-release.yml` runs `scripts/e2e-fresh-profile-install.mjs` on the exact prepared tarballs: for every supported DSH release it installs the product into a brand-new Profile with no pre-approved builds, then boots the Host, creates a Bot and DM, and restarts. A dependency that needs build approval fails the release, because users would otherwise have to approve it on the Plugins page before DeepSeekBot installs.

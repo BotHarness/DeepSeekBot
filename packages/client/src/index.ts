@@ -1,6 +1,7 @@
 import type { Context, Volatile } from '@deepseek-ai/cordis';
 import type {} from '@deepseek-ai/dsh-settings';
 import Schema from '@deepseek-ai/schemastery';
+import { stampReleaseComponent } from '../../core/src/release/component.js';
 
 import {
   BOT_MODE_ICONS,
@@ -24,6 +25,7 @@ import {
 } from './bot-mode-settings.js';
 
 export const name = 'botharness-client';
+stampReleaseComponent(apply, import.meta.url);
 
 export interface Config {
   assignmentConcurrencyLimit: Volatile<number>;

@@ -1256,7 +1256,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
   if (record['bridgeOrigin'] !== undefined) {
     const origin = asRecord(record['bridgeOrigin']);
     if (
-      author.kind !== 'bridged' ||
+      (author.kind !== 'bridged' && author.kind !== 'bot') ||
       !origin ||
       ![
         'sourceEventId',

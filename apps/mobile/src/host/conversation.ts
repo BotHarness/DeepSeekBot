@@ -157,7 +157,12 @@ export interface ConversationCache {
   write(key: string, value: CachedConversation): void;
 }
 
+export interface SendObservation {
+  accepted(): boolean;
+  observed(): void;
+}
 export interface Conversation {
+  setForeground?(visible: boolean): void;
   getSnapshot(): ConversationSnapshot;
   subscribe(listener: () => void): () => void;
   start(): void;
@@ -169,6 +174,7 @@ export interface Conversation {
 }
 
 export interface ConversationOptions {
+  telemetry?: { send(): SendObservation };
   host: Pick<HostClient, 'call' | 'follow' | 'upload' | 'resource'>;
   botSlug?: string;
   displayName?: string;
@@ -201,6 +207,8 @@ export interface MessageTags {
 }
 
 interface Outgoing {
+  observation?: SendObservation;
+  acceptanceObserved?: boolean;
   id: string;
   at: string;
   body: string;
@@ -372,6 +380,8 @@ export function createConversation(options: ConversationOptions): Conversation {
   const outgoing = new Map<string, Outgoing>();
   const sentFiles = new Map<string, OutgoingFile[]>();
   let running = false;
+  let foreground = false;
+  let acceptedSend: SendObservation | undefined;
   let session = 0;
   let unfollow: (() => void) | undefined;
   let frames: Promise<void> = Promise.resolve();
@@ -441,8 +451,17 @@ export function createConversation(options: ConversationOptions): Conversation {
   const first = (): number => window[0]?.revision ?? 0;
   const last = (): number => window.at(-1)?.revision ?? 0;
 
+  const accepted = (item: Outgoing): void => {
+    if (item.acceptanceObserved) return;
+    item.acceptanceObserved = true;
+    if (item.observation?.accepted() && foreground) acceptedSend = item.observation;
+  };
   const settleOutgoing = (): void => {
-    for (const entry of window) outgoing.delete(entry.message.id);
+    for (const entry of window) {
+      const item = outgoing.get(entry.message.id);
+      if (item !== undefined) accepted(item);
+      outgoing.delete(entry.message.id);
+    }
   };
 
   const persist = (): void => {
@@ -565,6 +584,8 @@ export function createConversation(options: ConversationOptions): Conversation {
       reason = undefined;
     } else if (frame.type === 'entry') {
       const entry = frame.entry;
+      const newlyObserved =
+        foreground && status === 'live' && !fromCache && entry.revision > last();
       if (entry.revision <= last()) {
         if (entry.revision >= first()) merge([entry]);
       } else if (entry.revision === last() + 1) merge([entry]);
@@ -573,6 +594,7 @@ export function createConversation(options: ConversationOptions): Conversation {
         if (current !== session) return;
         await advance(entry.revision, repair);
       }
+      if (newlyObserved && entry.message.author.kind === 'bot') acceptedSend?.observed();
       if (entry.message.author.kind === 'bot')
         for (const [draftId, draft] of drafts)
           if (draft.botSlug === entry.message.author.slug) deleteDraft(draftId);
@@ -687,6 +709,7 @@ export function createConversation(options: ConversationOptions): Conversation {
           ? {}
           : { allBotMention: item.tags.allBotMention }),
       });
+      accepted(item);
       if (outgoing.get(item.id) !== item) return;
       item.delivery = 'committed';
       delete item.error;
@@ -699,6 +722,10 @@ export function createConversation(options: ConversationOptions): Conversation {
   };
 
   return {
+    setForeground(visible) {
+      foreground = visible;
+      if (!visible) acceptedSend = undefined;
+    },
     getSnapshot: () => snapshot,
     subscribe(listener) {
       listeners.add(listener);
@@ -729,6 +756,7 @@ export function createConversation(options: ConversationOptions): Conversation {
     },
     stop() {
       running = false;
+      acceptedSend = undefined;
       session += 1;
       unfollow?.();
       unfollow = undefined;
@@ -767,6 +795,9 @@ export function createConversation(options: ConversationOptions): Conversation {
         files,
         refs: files.map(() => undefined),
         delivery: 'pending',
+        ...(foreground && options.telemetry !== undefined
+          ? { observation: options.telemetry.send() }
+          : {}),
       };
       outgoing.set(item.id, item);
       if (files.some((file) => file.uri !== undefined)) sentFiles.set(item.id, files);

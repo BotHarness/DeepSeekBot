@@ -105,10 +105,30 @@ export const coreCliBundleOptions: UserConfig = {
   deps: { alwaysBundle: [/^@deepseek-ai\//] },
 };
 
+function sourceBuildStamp(): { revision: string; dirty: boolean } | null {
+  try {
+    const git = (args: string[]): string =>
+      execFileSync('git', args, {
+        cwd: ROOT_DIR,
+        encoding: 'utf8',
+        timeout: 2_000,
+        maxBuffer: 1024 * 1024,
+        stdio: ['ignore', 'pipe', 'ignore'],
+      }).trim();
+    return {
+      revision: git(['rev-parse', 'HEAD']),
+      dirty: git(['status', '--porcelain', '--untracked-files=normal']).length > 0,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export default defineConfig([
   {
     entry: ['packages/core/src/index.ts'],
     outDir: 'packages/core/dist',
+    define: { __BOTHARNESS_SOURCE__: JSON.stringify(sourceBuildStamp()) },
     format: ['esm'],
     platform: 'node',
     dts: true,

@@ -336,6 +336,7 @@ minimumReleaseAgeExclude:
   - expo@57.0.29 || 57.0.30
   - '@expo/router-server@57.0.13'
   - babel-preset-expo@57.0.16
+  - posthog-react-native@4.81.2
 
 patchedDependencies:
   '@deepseek-ai/dsh-tool-fs@0.2.0-rc.2': patches/@deepseek-ai__dsh-tool-fs@0.2.0-rc.2.patch

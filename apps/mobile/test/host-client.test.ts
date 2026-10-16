@@ -317,3 +317,49 @@ describe('pairing', () => {
     ).toEqual({ ok: false, code: 'offer-invalid' });
   });
 });
+
+it('reports telemetry ready only after the authenticated Roster reload, including manual retry', async () => {
+  const host = new FakeHost();
+  let holdChannels: (() => void) | undefined;
+  let delay = new Promise<void>((resolve) => {
+    holdChannels = resolve;
+  });
+  const updates: string[] = [];
+  client = createHostClient({
+    routes: [ROUTE],
+    credential: host.credential,
+    timeoutMs: 1000,
+    carrier: {
+      ...host.carrier,
+      request: async (url, init) => {
+        if (url.endsWith('/channels')) await delay;
+        return host.carrier.request(url, init);
+      },
+    },
+    telemetry: {
+      begin: (trigger) => {
+        updates.push(trigger);
+      },
+      update: (status) => {
+        updates.push(status);
+      },
+      dispose() {},
+    },
+  });
+  client.start();
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  expect(updates).toEqual(['connecting']);
+  holdChannels?.();
+  await until(client, (s) => s.connection.status === 'connected');
+  expect(updates).toEqual(['connecting', 'connected']);
+  delay = new Promise<void>((resolve) => {
+    holdChannels = resolve;
+  });
+  client.retryNow();
+  host.push('botharness/followActivity', thinking);
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  expect(updates).toEqual(['connecting', 'connected', 'manual_retry']);
+  holdChannels?.();
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  expect(updates).toEqual(['connecting', 'connected', 'manual_retry', 'connected']);
+});

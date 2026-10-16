@@ -5,6 +5,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { usePushRouting } from '../src/host/push-routing';
+import { StatisticsNotice } from '../src/ui/shell/statistics-notice';
 import { t } from '../src/ui/strings';
 import { useTheme } from '../src/ui/theme';
 
@@ -104,6 +105,7 @@ export default function RootLayout() {
               }}
             />
           </Stack>
+          <StatisticsNotice />
         </View>
       </SafeAreaProvider>
     </GestureHandlerRootView>

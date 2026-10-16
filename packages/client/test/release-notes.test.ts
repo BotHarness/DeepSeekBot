@@ -32,7 +32,11 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
 import type { ReleaseNote } from '../../core/src/release/notes.js';
 import type { BridgeCall } from '../src/client/bridge.js';
 import { zhTranslate, type BotHarnessTranslate } from '../src/client/locale.js';
-import { RELEASE_NOTES_SEEN_KEY, ReleaseNotesController } from '../src/client/release-notes.js';
+import {
+  RELEASE_NOTES_SEEN_KEY,
+  ReleaseNotesController,
+  parseReleaseInfo,
+} from '../src/client/release-notes.js';
 import {
   ReleaseNotesAnnouncement,
   ReleaseSettings,
@@ -79,7 +83,14 @@ function bridge(
   return vi.fn<BridgeCall>(async (endpoint, payload) => {
     if (endpoint === 'releaseInfo') {
       const since = typeof payload['since'] === 'string' ? payload['since'] : undefined;
-      return { ok: true, value: { version, releases: releases(since) } };
+      return {
+        ok: true,
+        value: {
+          version,
+          releases: releases(since),
+          ...(version === '0.0.0' ? {} : { identity: { kind: 'release', version } }),
+        },
+      };
     }
     if (endpoint === 'releaseUpdate') return { ok: true, value: update };
     if (endpoint === 'releaseInstall') return { ok: true, value: install };
@@ -109,6 +120,79 @@ async function render(element: ReturnType<typeof createElement>) {
 }
 
 describe('ReleaseNotesController', () => {
+  it('can retry About identity while the remaining Host components are starting', async () => {
+    let ready = false;
+    const call = vi.fn<BridgeCall>(async (endpoint) => ({
+      ok: true,
+      value:
+        endpoint === 'releaseInfo'
+          ? ready
+            ? { version: '2.0.0', identity: { kind: 'release', version: '2.0.0' }, releases: [] }
+            : {
+                version: 'unknown',
+                identity: { kind: 'unknown', reason: 'composition-unverified' },
+                releases: [],
+              }
+          : { status: 'current', current: '2.0.0', latest: '2.0.0' },
+    }));
+    const controller = new ReleaseNotesController(call, memoryStorage());
+    const view = await render(
+      createElement(ReleaseSettings, { releaseNotes: controller, t } as never),
+    );
+    try {
+      const button = [...view.host.querySelectorAll('button')].find(
+        (element) => element.textContent === t('release.check'),
+      )!;
+      expect(button.disabled).toBe(false);
+      ready = true;
+      await act(async () => {
+        button.click();
+      });
+      expect(controller.source.getSnapshot().identity).toEqual({
+        kind: 'release',
+        version: '2.0.0',
+      });
+      expect(view.host.textContent).toContain('2.0.0');
+    } finally {
+      view.unmount();
+    }
+  });
+  it.each([
+    [
+      { kind: 'development', source: { revision: 'a'.repeat(40), dirty: true } },
+      '源码开发构建 aaaaaaaaa（含未提交修改）',
+    ],
+    [{ kind: 'unknown', reason: 'metadata-missing' }, '无法验证运行版本（metadata-missing）'],
+    [undefined, '旧版电脑端未提供可验证的运行身份'],
+  ])('renders explicit identity without a fake 0.0.0 release: %j', async (identity, expected) => {
+    const call = vi.fn<BridgeCall>(async (endpoint) => ({
+      ok: true,
+      value:
+        endpoint === 'releaseInfo'
+          ? { version: '0.0.0', releases: [], ...(identity === undefined ? {} : { identity }) }
+          : { status: 'development', current: '0.0.0' },
+    }));
+    const controller = new ReleaseNotesController(call, memoryStorage());
+    const view = await render(
+      createElement(ReleaseSettings, { releaseNotes: controller, t } as never),
+    );
+    try {
+      expect(view.host.textContent).toContain(expected);
+      expect(view.host.textContent).not.toContain('0.0.0');
+    } finally {
+      view.unmount();
+    }
+  });
+
+  it('does not accept a release identity that disagrees with its version', () => {
+    expect(
+      parseReleaseInfo({
+        version: '1.0.0',
+        releases: [],
+        identity: { kind: 'release', version: '2.0.0' },
+      })?.identity,
+    ).toEqual({ kind: 'unknown', reason: 'metadata-invalid' });
+  });
   it('announces only the installed release on first install and remembers it', async () => {
     const storage = memoryStorage();
     const call = bridge('1.0.1', () => [note('1.0.1')]);
@@ -253,6 +337,7 @@ describe('ReleaseNotesController install', () => {
       wait: async () => {
         polls += 1;
         down = polls === 1;
+        if (polls === 2) hostVersion = '1.0.2';
         if (polls === 3) hostVersion = '1.1.0';
       },
       reload,

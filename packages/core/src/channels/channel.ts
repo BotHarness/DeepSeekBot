@@ -926,7 +926,7 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
     if (
       typeof bridgeOrigin !== 'object' ||
       bridgeOrigin === null ||
-      (message['author'] as ChannelMessageAuthor)?.kind !== 'bridged'
+      !['bridged', 'bot'].includes((message['author'] as ChannelMessageAuthor)?.kind)
     )
       return false;
     const origin = bridgeOrigin as Record<string, unknown>;

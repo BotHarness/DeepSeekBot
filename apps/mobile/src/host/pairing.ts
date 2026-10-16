@@ -132,3 +132,53 @@ export async function redeemPairing(options: {
   }
   return { ok: false, code: 'unreachable' };
 }
+
+export type PairingFailure = PairingRefusal | 'storage-failure' | 'cancelled' | 'unknown';
+
+export async function pairHost(options: {
+  text: string;
+  method: import('../telemetry/schema').PairingMethod;
+  deviceName: string;
+  carrier: HostCarrier;
+  save(host: SavedHost): Promise<void>;
+  telemetry: Pick<import('../telemetry/mobile-telemetry').MobileTelemetry, 'pairing'>;
+  signal?: AbortSignal;
+}): Promise<{ ok: true } | { ok: false; code: PairingFailure }> {
+  const observation = options.telemetry.pairing(options.method);
+  const cancelled = () => observation.finish('cancelled');
+  options.signal?.addEventListener('abort', cancelled, { once: true });
+  try {
+    if (options.signal?.aborted) {
+      cancelled();
+      return { ok: false, code: 'cancelled' };
+    }
+    const parsed = parsePairingLink(options.text);
+    if (!parsed.ok) {
+      observation.finish('refused', parsed.code);
+      return parsed;
+    }
+    const redeemed = await redeemPairing({
+      payload: parsed.payload,
+      deviceName: options.deviceName,
+      carrier: options.carrier,
+    });
+    if (options.signal?.aborted) return { ok: false, code: 'cancelled' };
+    if (!redeemed.ok) {
+      observation.finish(redeemed.code === 'unreachable' ? 'failed' : 'refused', redeemed.code);
+      return redeemed;
+    }
+    try {
+      await options.save(redeemed.host);
+    } catch {
+      observation.finish('failed', 'storage-failure');
+      return { ok: false, code: 'storage-failure' };
+    }
+    observation.finish('success');
+    return { ok: true };
+  } catch {
+    observation.finish('failed', 'unknown');
+    return { ok: false, code: 'unknown' };
+  } finally {
+    options.signal?.removeEventListener('abort', cancelled);
+  }
+}

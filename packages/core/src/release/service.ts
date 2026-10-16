@@ -1,5 +1,13 @@
 import { readFileSync } from 'node:fs';
 
+import {
+  captureReleaseComposition,
+  readReleaseIdentity,
+  type ReleaseIdentity,
+  type ReleaseIdentityFailure,
+} from './identity.js';
+import type { LoadedReleaseComponent } from './component.js';
+
 import { pairReleaseLedgers, selectReleaseNotes, type ReleaseNote } from './notes.js';
 import type { ReleaseRestarter } from './restart.js';
 import { compareVersions, isReleaseVersion } from './version.js';
@@ -28,10 +36,12 @@ export interface ReleaseLedgers {
 
 export interface ReleaseInfo {
   version: string;
+  identity?: ReleaseIdentity;
   releases: ReleaseNote[];
 }
 
 export type ReleaseUpdate =
+  | { status: 'unknown'; current: string; reason: ReleaseIdentityFailure }
   | { status: 'development'; current: string }
   | { status: 'unavailable'; current: string }
   | { status: 'current'; current: string; latest: string }
@@ -45,6 +55,7 @@ export type ReleaseUpdate =
   | { status: 'restart-required'; current: string; installed: string; restartable: boolean };
 
 export type ReleaseInstallFailure =
+  | 'identity-invalid'
   | 'unavailable'
   | 'invalid-version'
   | 'network'
@@ -63,7 +74,7 @@ export type ReleaseInstall =
 
 export type ReleaseRestart =
   | { status: 'restarting' }
-  | { status: 'failed'; reason: 'unavailable' | 'not-pending' };
+  | { status: 'failed'; reason: 'unavailable' | 'not-pending' | 'identity-invalid' };
 
 type CheckResult =
   | Exclude<ReleaseUpdate, { status: 'available' } | { status: 'restart-required' }>
@@ -94,6 +105,7 @@ export interface ReleaseService {
 
 export interface ReleaseServiceOptions {
   version: () => string;
+  identity?: () => ReleaseIdentity;
   ledgers: () => ReleaseLedgers | undefined;
   fetchImpl?: typeof fetch;
   now?: () => number;
@@ -115,17 +127,34 @@ function readFirst(candidates: readonly URL[]): string | undefined {
   return undefined;
 }
 
-export function installedRelease(
-  moduleUrl: string,
-): Pick<ReleaseServiceOptions, 'version' | 'ledgers'> {
+export function installedRelease(moduleUrl: string): Pick<
+  ReleaseServiceOptions,
+  'version' | 'ledgers'
+> & {
+  identity(
+    anchors?: readonly string[],
+    loaded?: readonly LoadedReleaseComponent[],
+  ): ReleaseIdentity;
+} {
+  const identity = readReleaseIdentity(moduleUrl);
+  const qualified = new Map<string, ReturnType<typeof captureReleaseComposition>>();
   const ledger = (name: string): string | undefined =>
     readFirst([new URL(`../${name}`, moduleUrl), new URL(`../../../${name}`, moduleUrl)]);
   return {
-    version: () => {
-      const manifest = readFirst([new URL('../package.json', moduleUrl)]);
-      if (manifest === undefined) return '0.0.0';
-      const version: unknown = (JSON.parse(manifest) as { version?: unknown }).version;
-      return typeof version === 'string' ? version : '0.0.0';
+    version: () =>
+      identity.kind === 'release'
+        ? identity.version
+        : identity.kind === 'development'
+          ? '0.0.0'
+          : 'unknown',
+    identity: (anchors = [], loaded = []) => {
+      const key = JSON.stringify(anchors);
+      let snapshot = qualified.get(key);
+      if (snapshot === undefined) {
+        snapshot = captureReleaseComposition(identity, moduleUrl, anchors);
+        qualified.set(key, snapshot);
+      }
+      return snapshot(loaded);
     },
     ledgers: () => {
       const english = ledger('CHANGELOG.md');
@@ -164,7 +193,36 @@ function failureOf(result: ReleaseInstallerResult): ReleaseInstall {
   };
 }
 
+export function createLoadingReleaseService(options: ReleaseServiceOptions): ReleaseService {
+  let ready: ReleaseService | undefined;
+  const version = options.version();
+  const current = (): ReleaseService => {
+    const identity = options.identity?.();
+    if (ready !== undefined && JSON.stringify(identity) === JSON.stringify(ready.info().identity))
+      return ready;
+    const checked: ReleaseIdentity | undefined =
+      ready === undefined || identity?.kind === 'unknown'
+        ? identity
+        : { kind: 'unknown', reason: 'component-mismatch' };
+    const service = createReleaseService({
+      ...options,
+      version: () => version,
+      ...(checked === undefined ? {} : { identity: () => checked }),
+    });
+    if (ready === undefined && checked?.kind !== 'unknown') ready = service;
+    return service;
+  };
+  return {
+    info: (since) => current().info(since),
+    update: () => current().update(),
+    install: (version) => current().install(version),
+    restart: () => current().restart(),
+  };
+}
+
 export function createReleaseService(options: ReleaseServiceOptions): ReleaseService {
+  const identity = options.identity?.();
+  const runningVersion = identity?.kind === 'unknown' ? 'unknown' : options.version();
   const fetchImpl = options.fetchImpl ?? fetch;
   const now = options.now ?? Date.now;
   const registries = options.registries ?? DEFAULT_RELEASE_REGISTRIES;
@@ -180,7 +238,12 @@ export function createReleaseService(options: ReleaseServiceOptions): ReleaseSer
     { installer: ReleaseInstaller; version: string | undefined } | undefined
   > => {
     const installer = options.installer?.();
-    if (installer === undefined || !isReleaseVersion(options.version())) return undefined;
+    if (
+      installer === undefined ||
+      identity?.kind === 'unknown' ||
+      !isReleaseVersion(runningVersion)
+    )
+      return undefined;
     try {
       const bundle = (await installer.listBundles()).find(
         (candidate) => candidate.name === RELEASE_PACKAGE && candidate.installed,
@@ -197,7 +260,8 @@ export function createReleaseService(options: ReleaseServiceOptions): ReleaseSer
       : undefined;
 
   const runInstall = async (version: string): Promise<ReleaseInstall> => {
-    const current = options.version();
+    const current = runningVersion;
+    if (identity?.kind === 'unknown') return { status: 'failed', reason: 'identity-invalid' };
     if (!isReleaseVersion(version) || compareVersions(version, current) <= 0) {
       return { status: 'failed', reason: 'invalid-version' };
     }
@@ -275,7 +339,9 @@ export function createReleaseService(options: ReleaseServiceOptions): ReleaseSer
   };
 
   const check = async (): Promise<CheckResult> => {
-    const current = options.version();
+    const current = runningVersion;
+    if (identity?.kind === 'unknown')
+      return { status: 'unknown', current, reason: identity.reason };
     if (!isReleaseVersion(current)) return { status: 'development', current };
     const latest = await latestVersion(current);
     if (latest === undefined) return { status: 'unavailable', current };
@@ -302,9 +368,10 @@ export function createReleaseService(options: ReleaseServiceOptions): ReleaseSer
 
   return {
     info(since) {
-      const version = options.version();
+      const version = runningVersion;
       return {
         version,
+        ...(identity === undefined ? {} : { identity }),
         releases: !isReleaseVersion(version)
           ? []
           : since === undefined
@@ -313,7 +380,7 @@ export function createReleaseService(options: ReleaseServiceOptions): ReleaseSer
       };
     },
     async update() {
-      const current = options.version();
+      const current = runningVersion;
       const bundle = await profileBundle();
       const pendingVersion = installed ?? newerInProfile(current, bundle?.version);
       if (pendingVersion !== undefined) {
@@ -335,10 +402,11 @@ export function createReleaseService(options: ReleaseServiceOptions): ReleaseSer
       return installing;
     },
     async restart() {
+      if (identity?.kind === 'unknown') return { status: 'failed', reason: 'identity-invalid' };
       const restarter = options.restarter?.();
       if (restarter === undefined) return { status: 'failed', reason: 'unavailable' };
       const pendingVersion =
-        installed ?? newerInProfile(options.version(), (await profileBundle())?.version);
+        installed ?? newerInProfile(runningVersion, (await profileBundle())?.version);
       if (pendingVersion === undefined) return { status: 'failed', reason: 'not-pending' };
       restarter.restart();
       return { status: 'restarting' };
