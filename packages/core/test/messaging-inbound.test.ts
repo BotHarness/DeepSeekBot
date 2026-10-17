@@ -7,6 +7,7 @@ import type { MessagingInboundEvent, MessagingReplyRoute } from '../src/messagin
 import type { OrchestratorAgentRun, BotAgentAdapter } from '../src/runtime/bot-runtime.js';
 import { createBridgeMethods } from '../src/bridge/methods.js';
 import { createTempRoot } from './helpers.js';
+import { parseImCommand, type ImCommandServices } from '../src/messaging/im-commands.js';
 
 const fingerprint = 'a'.repeat(64);
 const cores: BotHarnessCore[] = [];
@@ -48,6 +49,7 @@ function event(overrides: Partial<MessagingInboundEvent> = {}): MessagingInbound
 async function fixture(
   options: {
     onRun?: (run: OrchestratorAgentRun) => Promise<void>;
+    imCommands?: () => ImCommandServices;
     steer?: (botSlug: string, text: string) => boolean;
     receipts?: boolean;
     secondIdentity?: boolean;
@@ -70,7 +72,7 @@ async function fixture(
     async close() {},
     ...(options.steer === undefined ? {} : { steerOrchestrator: options.steer }),
   };
-  let core = createCore({ dshHome: home, agents });
+  let core = createCore({ dshHome: home, agents, imCommands: () => options.imCommands?.() });
   cores.push(core);
   expect(core.registry.create({ slug: 'ada', displayName: 'Ada' }).ok).toBe(true);
   type Consumer = Parameters<NonNullable<DshImOutboundService['consumeInbound']>>[1];
@@ -244,7 +246,7 @@ async function fixture(
       await core.runtime.close();
       core.operationalDatabase.close();
       cores.splice(cores.indexOf(core), 1);
-      core = createCore({ dshHome: home, agents });
+      core = createCore({ dshHome: home, agents, imCommands: () => options.imCommands?.() });
       cores.push(core);
       dispose = register();
       await tick();
@@ -252,6 +254,64 @@ async function fixture(
     },
   };
 }
+
+it('passes malformed slash commands unchanged to the Bot through DM intake', async () => {
+  const host: ImCommandServices = {
+    botDisplayName: () => 'Ada',
+    plan: vi.fn(async () => undefined),
+    catalog: vi.fn(async () => []),
+    applyModel: vi.fn(async () => {}),
+    stopTurn: vi.fn(async () => undefined),
+    startFreshOrchestrator: vi.fn(async (): Promise<'started'> => 'started'),
+    turnRunning: () => false,
+  };
+  const fx = await fixture({ imCommands: () => host });
+  const reply = vi.fn(async () => ({ sent: true as const }));
+  fx.publicService.replyChecked = reply;
+  const bound = (await fx.core.externalMessaging.snapshot('ada')).identities![0]!;
+  await fx.core.externalMessaging.identity('ada', {
+    kind: 'update',
+    id: bound.id,
+    expectedRevision: bound.revision,
+    name: bound.name,
+    enabled: true,
+    newConversations: 'auto',
+  });
+  const dm = (text: string, messageId: string) =>
+    event({
+      text,
+      eventId: messageId,
+      messageId,
+      at: new Date().toISOString(),
+      conversation: { kind: 'dm', id: 'oc-private' },
+      mentions: [],
+      mentionedAccount: false,
+      reply: { messageId, conversationId: 'oc-private', actorId: 'ou-human' },
+    });
+  expect(parseImCommand(' \n／status\r\n ')).toEqual({ name: 'status', chinese: false });
+  await fx.receive(dm('/status', 'command-status'));
+  await fx.idle();
+  expect(reply).toHaveBeenCalledTimes(1);
+  expect(fx.runs).toHaveLength(0);
+  for (const [index, text] of [
+    '/\nstop',
+    '/ stop',
+    '/model 2\nPlease explain',
+    '/\nnew',
+    '／ stop',
+    '/model 2\rPlease explain',
+  ].entries()) {
+    expect(parseImCommand(text)).toBeUndefined();
+    expect(await fx.receive(dm(text, `ordinary-${index}`))).toEqual({ accepted: true });
+    await fx.idle();
+    expect(fx.runs).toHaveLength(index + 1);
+    expect(fx.runs[index]!.inbox).toContain(JSON.stringify(text));
+  }
+  expect(reply).toHaveBeenCalledTimes(1);
+  expect(host.applyModel).not.toHaveBeenCalled();
+  expect(host.stopTurn).not.toHaveBeenCalled();
+  expect(host.startFreshOrchestrator).not.toHaveBeenCalled();
+});
 
 it('requires Human receive authorization, commits before ACK, runs the real Inbox without a DM placement, and replies via the trusted source', async () => {
   const fx = await fixture({
