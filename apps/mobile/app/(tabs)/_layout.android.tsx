@@ -77,7 +77,8 @@ function AndroidTabLayout() {
             tabBarInactiveTintColor: theme.color.muted,
             tabBarStyle: {
               position: 'absolute',
-              left: (width - barWidth + insets.left - insets.right) / 2,
+              marginLeft: (width - barWidth + insets.left - insets.right) / 2,
+              marginRight: (width - barWidth - insets.left + insets.right) / 2,
               width: barWidth,
               bottom,
               height,
