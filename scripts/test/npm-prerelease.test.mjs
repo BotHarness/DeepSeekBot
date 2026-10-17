@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -17,6 +17,7 @@ import {
   releaseVersion,
   verifyRelease,
   reusePublishedProvider,
+  prepareRelease,
 } from '../npm-prerelease.mjs';
 import { providerReleasePlan } from '../npm-provider-release.mjs';
 import { productDsh, productImProvider } from '../product-artifacts.mjs';
@@ -90,6 +91,250 @@ function fixture(productVersion = '0.1.0-alpha.1') {
 }
 
 describe('reviewed npm prerelease', () => {
+  it('retains an actual interrupted pack and releases its preparation lock', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'candidate-failed-pack-'));
+    roots.push(directory);
+    const repoRoot = join(directory, 'repo');
+    execFileSync('git', ['init', '--quiet', repoRoot]);
+    execFileSync(
+      'git',
+      [
+        '-c',
+        'user.name=Test',
+        '-c',
+        'user.email=test@example.com',
+        'commit',
+        '--allow-empty',
+        '-qm',
+        'fixture',
+      ],
+      { cwd: repoRoot },
+    );
+    mkdirSync(join(repoRoot, 'packages/deepseekbot'), { recursive: true });
+    writeFileSync(
+      join(repoRoot, 'packages/deepseekbot/package.json'),
+      JSON.stringify({ name: 'deepseekbot' }),
+    );
+    const outputDirectory = join(directory, 'candidate');
+    const request = {
+      repoRoot,
+      outputDirectory,
+      version: '2.0.0-beta.1',
+      providerSource: join(directory, 'absent-provider'),
+    };
+    await expect(prepareRelease(request)).rejects.toThrow('ENOENT');
+    expect(existsSync(join(outputDirectory, 'packages'))).toBe(true);
+    expect(existsSync(join(outputDirectory, 'release-plan.json'))).toBe(false);
+    expect(existsSync(`${outputDirectory}.prepare-lock`)).toBe(false);
+    await expect(prepareRelease(request)).rejects.toThrow('release-output-not-empty');
+  });
+
+  it('preserves frozen bytes and releases the lock when the consumer fails', async () => {
+    const { root, plan } = fixture();
+    const request = {
+      outputDirectory: root,
+      version: plan.productVersion,
+      sourceSha: plan.sourceSha,
+      planSha256: sha256(readFileSync(join(root, 'release-plan.json'))),
+    };
+    await expect(
+      prepareRelease(request, async () => {
+        throw new Error('dry-run unavailable');
+      }),
+    ).rejects.toThrow('dry-run unavailable');
+    expect((await prepareRelease(request)).planSha256).toBe(request.planSha256);
+  });
+
+  it('rejects unignored checkout output before writing partial artifacts', async () => {
+    const repoRoot = mkdtempSync(join(tmpdir(), 'candidate-location-'));
+    roots.push(repoRoot);
+    execFileSync('git', ['init', '--quiet', repoRoot]);
+    const outputDirectory = join(repoRoot, 'candidate');
+    await expect(
+      prepareRelease({
+        repoRoot,
+        outputDirectory,
+        version: '2.0.0-beta.1',
+        providerSource: 'absent',
+      }),
+    ).rejects.toThrow('release-output-in-source');
+    expect(existsSync(outputDirectory)).toBe(false);
+  });
+
+  it('keeps the reservation until the prepared-byte consumer finishes', async () => {
+    const { root, plan } = fixture();
+    const request = {
+      outputDirectory: root,
+      version: plan.productVersion,
+      sourceSha: plan.sourceSha,
+      planSha256: sha256(readFileSync(join(root, 'release-plan.json'))),
+    };
+    let releaseConsumer;
+    const consumerGate = new Promise((resolve) => {
+      releaseConsumer = resolve;
+    });
+    let enteredConsumer;
+    const entered = new Promise((resolve) => {
+      enteredConsumer = resolve;
+    });
+    const first = prepareRelease(request, async (release) => {
+      enteredConsumer();
+      await consumerGate;
+      return release;
+    });
+    await Promise.race([entered, first]);
+    try {
+      await expect(prepareRelease(request)).rejects.toThrow('release-prepare-busy');
+    } finally {
+      releaseConsumer();
+      await first;
+    }
+    expect((await prepareRelease(request)).plan).toEqual(plan);
+  });
+
+  it('admits only one simultaneous preparation and permits a later same-byte retry', async () => {
+    const { root, plan } = fixture();
+    const request = {
+      outputDirectory: root,
+      version: plan.productVersion,
+      sourceSha: plan.sourceSha,
+      planSha256: sha256(readFileSync(join(root, 'release-plan.json'))),
+    };
+    const results = await Promise.allSettled([prepareRelease(request), prepareRelease(request)]);
+    expect(results[0].status).toBe('fulfilled');
+    expect(results[1].status).toBe('rejected');
+    expect(results[1].reason.message).toContain('release-prepare-busy');
+    expect((await prepareRelease(request)).planSha256).toBe(request.planSha256);
+  });
+
+  it('does not rebuild when a reviewed retry has lost the whole artifact directory', async () => {
+    const { root, plan } = fixture();
+    await expect(
+      prepareRelease({
+        outputDirectory: join(root, 'missing'),
+        version: plan.productVersion,
+        sourceSha: plan.sourceSha,
+        planSha256: sha256(readFileSync(join(root, 'release-plan.json'))),
+      }),
+    ).rejects.toThrow('release-plan-missing');
+  });
+
+  it('refuses the wrong source before attempting a new build', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'candidate-source-'));
+    roots.push(directory);
+    const repoRoot = join(directory, 'repo');
+    execFileSync('git', ['init', '--quiet', repoRoot]);
+    execFileSync(
+      'git',
+      [
+        '-c',
+        'user.name=Test',
+        '-c',
+        'user.email=test@example.com',
+        'commit',
+        '--allow-empty',
+        '-qm',
+        'fixture',
+      ],
+      { cwd: repoRoot },
+    );
+    await expect(
+      prepareRelease({
+        repoRoot,
+        outputDirectory: join(directory, 'candidate'),
+        version: '2.0.0-beta.1',
+        sourceSha: 'f'.repeat(40),
+        providerSource: join(repoRoot, 'absent-provider'),
+      }),
+    ).rejects.toThrow('release-source-mismatch');
+  });
+
+  it.each([
+    { version: '1.0.0' },
+    { sourceSha: 'c'.repeat(40) },
+    { planSha256: '0'.repeat(64) },
+    { sourceSha: undefined },
+    { planSha256: undefined },
+  ])('refuses a conflicting or unreviewed retry %j', async (conflict) => {
+    const { root, plan } = fixture();
+    const bytes = readFileSync(join(root, 'release-plan.json'));
+    await expect(
+      prepareRelease({
+        outputDirectory: root,
+        version: plan.productVersion,
+        sourceSha: plan.sourceSha,
+        planSha256: sha256(bytes),
+        ...conflict,
+      }),
+    ).rejects.toThrow(/Reviewed release plan|release-plan-required/);
+    expect(readFileSync(join(root, 'release-plan.json'))).toEqual(bytes);
+  });
+
+  it.each(['missing', 'corrupt', 'inventory', 'plan'])(
+    'refuses %s frozen artifacts rather than rebuilding',
+    async (damage) => {
+      const { root, plan } = fixture();
+      const planSha256 = sha256(readFileSync(join(root, 'release-plan.json')));
+      if (damage === 'missing') rmSync(join(root, '0.tgz'));
+      if (damage === 'corrupt') writeFileSync(join(root, '0.tgz'), 'changed');
+      if (damage === 'inventory') writeFileSync(join(root, 'artifacts.json'), '{}');
+      if (damage === 'plan') writeFileSync(join(root, 'release-plan.json'), '{}');
+      await expect(
+        prepareRelease({
+          outputDirectory: root,
+          version: plan.productVersion,
+          sourceSha: plan.sourceSha,
+          planSha256,
+        }),
+      ).rejects.toThrow();
+    },
+  );
+
+  it('refuses a competing preparation and retains its reservation', async () => {
+    const { root, plan } = fixture();
+    const lock = `${root}.prepare-lock`;
+    roots.push(lock);
+    mkdirSync(lock);
+    writeFileSync(join(lock, 'owner'), 'other preparation');
+    const request = {
+      outputDirectory: root,
+      version: plan.productVersion,
+      sourceSha: plan.sourceSha,
+      planSha256: sha256(readFileSync(join(root, 'release-plan.json'))),
+    };
+    await expect(prepareRelease(request)).rejects.toThrow('release-prepare-busy');
+    expect(readFileSync(join(lock, 'owner'), 'utf8')).toBe('other preparation');
+    rmSync(lock, { recursive: true });
+    expect((await prepareRelease(request)).plan).toEqual(plan);
+  });
+
+  it('preserves an incomplete output instead of rebuilding over its tarballs', async () => {
+    const { root, plan } = fixture();
+    rmSync(join(root, 'release-plan.json'));
+    const inventory = readFileSync(join(root, 'artifacts.json'));
+    await expect(
+      prepareRelease({ outputDirectory: root, version: plan.productVersion }),
+    ).rejects.toThrow('release-output-not-empty');
+    expect(readFileSync(join(root, 'artifacts.json'))).toEqual(inventory);
+  });
+
+  it('retries the reviewed tarballs without requiring build sources or changing bytes', async () => {
+    const { root, plan } = fixture();
+    const planBytes = readFileSync(join(root, 'release-plan.json'));
+    const inventoryBytes = readFileSync(join(root, 'artifacts.json'));
+    const release = await prepareRelease({
+      outputDirectory: root,
+      version: plan.productVersion,
+      sourceSha: plan.sourceSha,
+      planSha256: sha256(planBytes),
+      repoRoot: join(root, 'absent-source'),
+    });
+    expect(release.plan).toEqual(plan);
+    expect(release.packages).toHaveLength(6);
+    expect(readFileSync(join(root, 'release-plan.json'))).toEqual(planBytes);
+    expect(readFileSync(join(root, 'artifacts.json'))).toEqual(inventoryBytes);
+  });
+
   function providerReadbackFixture() {
     const { root } = fixture();
     const inventory = JSON.parse(readFileSync(join(root, 'artifacts.json')));

@@ -1,7 +1,17 @@
 import { createHash } from 'node:crypto';
 import { execFileSync, spawn } from 'node:child_process';
-import { readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  rmdirSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import semver from 'semver';
 import { packProduct, productDsh, productImProvider } from './product-artifacts.mjs';
@@ -327,6 +337,113 @@ async function registryPreflight(packages) {
   return existing;
 }
 
+export async function prepareRelease(options, consume = (release) => release) {
+  releaseVersion(options.version);
+  const output = resolve(options.outputDirectory);
+  mkdirSync(dirname(output), { recursive: true });
+  const directory = join(realpathSync(dirname(output)), basename(output));
+  if (existsSync(directory) && lstatSync(directory).isSymbolicLink())
+    throw new Error('release-output-symlink: use the real artifact directory');
+  const lock = `${directory}.prepare-lock`;
+  try {
+    mkdirSync(lock);
+  } catch (error) {
+    if (error.code === 'EEXIST')
+      throw new Error(
+        'release-prepare-busy: another preparation owns this output; preserve its lock',
+      );
+    throw error;
+  }
+  try {
+    const release = await prepareLockedRelease({ ...options, outputDirectory: directory });
+    return await consume(release);
+  } finally {
+    rmdirSync(lock);
+  }
+}
+
+async function prepareLockedRelease({
+  outputDirectory,
+  version,
+  providerSource,
+  sourceSha,
+  planSha256,
+  repoRoot = root,
+}) {
+  releaseVersion(version);
+  const directory = resolve(outputDirectory);
+  if (existsSync(join(directory, 'release-plan.json'))) {
+    if (!sourceSha || !planSha256)
+      throw new Error(
+        'release-plan-required: retry needs the reviewed source SHA and plan SHA-256',
+      );
+    return verifyRelease(directory, { version, sourceSha, planSha256 });
+  }
+  if (existsSync(directory) && readdirSync(directory).length)
+    throw new Error(
+      'release-output-not-empty: preserve incomplete artifacts and use a new candidate',
+    );
+  if (planSha256)
+    throw new Error('release-plan-missing: a reviewed retry cannot rebuild missing artifacts');
+  if (!providerSource) throw new Error('Qualified --provider-source is required');
+  const outputPath = relative(realpathSync(repoRoot), directory);
+  if (!isAbsolute(outputPath) && outputPath !== '..' && !outputPath.startsWith(`..${sep}`)) {
+    for (const path of [directory, `${directory}.prepare-lock`]) {
+      try {
+        execFileSync('git', ['check-ignore', '--quiet', '--', path], {
+          cwd: repoRoot,
+          stdio: 'ignore',
+        });
+      } catch {
+        throw new Error(
+          'release-output-in-source: output and lock must be Git-ignored or outside the checkout',
+        );
+      }
+    }
+  }
+  const readSource = () => ({
+    sourceSha: execFileSync('git', ['rev-parse', 'HEAD'], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+    }).trim(),
+    ...readReleaseSourceState(repoRoot),
+  });
+  const sourceState = readSource();
+  if (sourceSha && sourceSha !== sourceState.sourceSha)
+    throw new Error('release-source-mismatch: source differs from the requested commit');
+  packProduct({
+    repoRoot,
+    outputDirectory: directory,
+    providerSource: resolve(providerSource),
+    version,
+  });
+  await reusePublishedProvider(directory);
+  if (JSON.stringify(readSource()) !== JSON.stringify(sourceState))
+    throw new Error(
+      'release-source-changed: source changed during preparation; preserve the incomplete output',
+    );
+  if (sourceState.sourceDirty)
+    console.warn(JSON.stringify({ code: 'release-source-dirty', ...sourceState }));
+  writeFileSync(
+    join(directory, 'release-plan.json'),
+    `${JSON.stringify(
+      {
+        productVersion: version,
+        distTag: distTagFor(version),
+        ...sourceState,
+        providerSource: productImProvider.upstream.source,
+        dsh: productDsh,
+        publicationOrder,
+        artifactsSha256: digest(readFileSync(join(directory, 'artifacts.json'))),
+      },
+      null,
+      2,
+    )}\n`,
+    { flag: 'wx' },
+  );
+  return verifyRelease(directory, { version, sourceSha, planSha256 });
+}
+
 async function main() {
   const mode = process.argv[2];
   const args = new Map();
@@ -338,39 +455,21 @@ async function main() {
   )
     throw new Error('Use prepare --output, verify/publish --artifacts');
   if (mode === 'prepare') {
-    const version = releaseVersion(args.get('--version'));
-    if (!args.get('--provider-source')) throw new Error('Qualified --provider-source is required');
-    packProduct({
-      repoRoot: root,
-      outputDirectory: directory,
-      providerSource: resolve(args.get('--provider-source')),
-      version,
-    });
-    await reusePublishedProvider(directory);
-    const sourceState = readReleaseSourceState(root);
-    if (sourceState.sourceDirty)
-      console.warn(JSON.stringify({ code: 'release-source-dirty', ...sourceState }));
-    writeFileSync(
-      join(directory, 'release-plan.json'),
-      `${JSON.stringify(
-        {
-          productVersion: version,
-          distTag: distTagFor(version),
-          sourceSha: execFileSync('git', ['rev-parse', 'HEAD'], {
-            cwd: root,
-            encoding: 'utf8',
-          }).trim(),
-          ...sourceState,
-          providerSource: productImProvider.upstream.source,
-          dsh: productDsh,
-          publicationOrder,
-          artifactsSha256: digest(readFileSync(join(directory, 'artifacts.json'))),
-        },
-        null,
-        2,
-      )}\n`,
+    return prepareRelease(
+      {
+        outputDirectory: directory,
+        providerSource: args.get('--provider-source'),
+        version: args.get('--version'),
+        sourceSha: args.get('--source-sha'),
+        planSha256: args.get('--plan-sha256'),
+      },
+      () => runPreparedRelease(mode, args, directory),
     );
   }
+  return runPreparedRelease(mode, args, directory);
+}
+
+async function runPreparedRelease(mode, args, directory) {
   const release = verifyRelease(directory, {
     version: args.get('--version'),
     sourceSha: args.get('--source-sha'),

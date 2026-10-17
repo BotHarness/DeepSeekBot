@@ -79,6 +79,45 @@ node scripts/npm-prerelease.mjs verify --artifacts /path/to/fresh-artifacts
 Use a fresh output directory. The Provider needs its lockfile dependencies installed with
 scripts disabled; staging rebuilds the managed Host/Client entrypoints.
 
+## Frozen candidate retries
+
+Keep the entire prepared directory (all six tarballs, `artifacts.json` and
+`release-plan.json`) and record the returned plan SHA-256 outside that directory with
+the QA evidence. Do not recompute an approval digest from changed files. Retry with the
+reviewed version, source commit and digest:
+
+```sh
+node scripts/npm-prerelease.mjs prepare --output /path/to/retained-artifacts \
+  --version 2.0.0-beta.1 --source-sha <reviewed-commit> --plan-sha256 <reviewed-plan-digest>
+```
+
+This path verifies and dry-runs the original bytes. It does not require the source checkout
+or Provider build inputs and never rebuilds or replaces a tarball. `verify` accepts the
+same three identity arguments with `--artifacts`; use them to bind post-QA checks to the
+reviewed evidence. A different version (including Beta-to-stable) requires a fresh candidate
+and its own QA, not an edited plan.
+
+Preparation holds an exclusive sibling `<output>.prepare-lock` directory until registry
+preflight and npm dry-runs finish. For a new candidate, put both output and its sibling lock
+outside the checkout or under Git-ignored paths; otherwise preparation refuses before packing
+with `release-output-in-source`, so its own files cannot contaminate source checks.
+A competing preparation fails with `release-prepare-busy`; it never deletes the owner's
+lock. A crashed process can leave a lock: verify that its owner has stopped before manually
+removing that empty lock directory. A nonempty output without a plan fails with
+`release-output-not-empty`; a reviewed retry with missing output fails with
+`release-plan-missing`. Preserve incomplete or damaged output for diagnosis. Missing review
+arguments, conflicting identities, altered inventory and missing/corrupt tarballs all refuse
+instead of rebuilding. Output symlinks are refused; use the real directory.
+
+This is a same-output guard, **not** repository-wide or cross-machine version reservation.
+Separate output directories can still prepare the same version; coordinated allocation and
+channel migration remain follow-up work in #1981/#1982. The existing GitHub publication lane
+is unchanged. Retain the uploaded artifacts before their retention deadline; rerunning a whole
+workflow is not a same-byte retry. No new npm tag, ledger or publication authority is created.
+Dirty experiments remain internal/unqualified and cannot pass the existing clean publication
+gate. Initial preparation checks the requested source commit before building and rejects a
+changed commit or Git status observed across preparation; this is not a snapshot of dirty bytes.
+
 ## When preparation reports a dirty source checkout
 
 Preparation records `sourceDirty`, `sourceChangeCount` and up to 50 Git status/path entries in `release-plan.json`. It also prints the bounded diagnostic under the stable code `release-source-dirty`. The release workflow and publisher use the same check, so a refusal names modified, deleted, renamed and untracked paths instead of only saying the checkout is dirty; additional entries are counted as omitted. Paths are repository-relative and file contents are never included.

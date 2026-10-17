@@ -69,6 +69,21 @@ node scripts/npm-prerelease.mjs verify --artifacts /path/to/fresh-artifacts
 
 使用新的输出目录。Provider 需以禁用脚本的方式安装 lockfile 依赖；暂存会重建托管的 Host／Client 入口。
 
+## 冻结候选产物后重试
+
+保留整个准备目录（全部六个 tarball、`artifacts.json` 和 `release-plan.json`），并把返回的 plan SHA-256 与 QA 证据一起记录在该目录之外。不要从变更后的文件重新计算“批准摘要”。使用已经审核的版本、源码 commit 和摘要重试：
+
+```sh
+node scripts/npm-prerelease.mjs prepare --output /path/to/retained-artifacts \
+  --version 2.0.0-beta.1 --source-sha <reviewed-commit> --plan-sha256 <reviewed-plan-digest>
+```
+
+该路径只校验和 dry-run 原字节，不需要原源码工作区或 Provider 构建输入，绝不重建或替换 tarball。`verify --artifacts` 接受相同的三个身份参数；QA 后检查应使用这些参数绑定已审核证据。不同版本（包括 Beta 转正式版）必须准备新候选并单独 QA，不能修改旧 plan。
+
+准备期间独占相邻的 `<output>.prepare-lock` 目录，直到 registry 预检和 npm dry-run 结束。首次准备的输出与相邻锁都必须位于工作区之外或被 Git 忽略，否则在打包前返回 `release-output-in-source`，避免自身输出污染源码检查。竞争者返回 `release-prepare-busy`，不会删除持有者的锁。进程崩溃可能留下锁；确认持有者已停止后才可手动移除空锁目录。非空输出缺少 plan 时返回 `release-output-not-empty`，已审核重试的产物目录丢失时返回 `release-plan-missing`。保留不完整或损坏输出供诊断。缺少审核参数、身份冲突、清单被改、tarball 缺失或损坏都会拒绝，不会改为重新构建。输出目录不能是符号链接，请使用真实路径。
+
+这只是同一输出目录的互斥保护，**不是**仓库全局或跨机器版本预留；不同目录仍可准备同一版本。协调分配和发布频道迁移留给 #1981/#1982 后续片段，现有 GitHub 发布通道保持不变。上传产物必须在保留期限到期前归档；重跑整个 workflow 不等于原字节重试。本片不创建 npm tag、账本或发布权限。脏工作区实验仍是内部、未验收状态，不能通过现有干净源码发布门禁。首次准备会在构建前核对指定 commit，并在准备前后观察到 commit 或 Git 状态变化时拒绝；这不是脏文件字节快照。
+
 ## 准备阶段提示工作区不干净时
 
 准备结果的 `release-plan.json` 会记录 `sourceDirty`、`sourceChangeCount`，以及最多 50 条 Git 状态与变更路径；日志使用固定代码 `release-source-dirty` 输出同一份有界诊断。发布 workflow 和 publisher 复用此检查，拒绝时列出修改、删除、重命名和未跟踪文件，超过上限的条目显示省略数量。路径相对于仓库，不包含文件内容。
