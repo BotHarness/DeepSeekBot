@@ -1,0 +1,22 @@
+[
+  {
+    "mode": "dark",
+    "groupConfirmation": true,
+    "cancelRetainsGroup": true
+  },
+  {
+    "mode": "light",
+    "groupConfirmation": true,
+    "cancelRetainsGroup": true
+  },
+  {
+    "keyboardBeforeVisible": true,
+    "keyboardAfterVisible": false,
+    "menuVisible": true
+  },
+  {
+    "coldOpenPairingRetained": true,
+    "qaGroupRetained": true,
+    "noDestructiveSubmit": true
+  }
+]

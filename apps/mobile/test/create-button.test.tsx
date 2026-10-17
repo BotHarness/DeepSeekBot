@@ -61,6 +61,7 @@ vi.mock('../src/ui/connection-banner', () => ({ ConnectionBanner: () => null }))
 
 import HomeScreen from '../app/(tabs)/(home)/index';
 import { t } from '../src/ui/strings';
+import { appDialogs } from '../src/ui/primitives/dialog-state';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -73,6 +74,7 @@ afterEach(() => {
   push.mockReset();
   showActionSheetWithOptions.mockReset();
   alert.mockReset();
+  appDialogs.dismiss();
 });
 
 async function home(os: 'ios' | 'android'): Promise<HTMLElement> {
@@ -124,20 +126,23 @@ describe('Create from Chats', () => {
     expect(button.parentElement!.querySelector('textarea')).not.toBeNull();
 
     await act(async () => button.click());
-    const [title, message, buttons] = alert.mock.lastCall!;
-    expect(title).toBe(t.create);
-    expect(message).toBeUndefined();
+    const dialog = appDialogs.getSnapshot()!;
+    const buttons = dialog.actions;
+    expect(alert).not.toHaveBeenCalled();
+    expect(dialog.title).toBe(t.create);
+    expect(dialog.message).toBeUndefined();
     expect(buttons.map((choice: { text: string }) => choice.text)).toEqual([
       t.cancel,
       t.newPersonaBot,
       t.newChannel,
     ]);
-    await act(async () => buttons[1].onPress());
+    await act(async () => appDialogs.choose(1));
     expect(push).toHaveBeenLastCalledWith({
       pathname: '/full-client',
       params: { target: 'new-bot' },
     });
-    await act(async () => buttons[2].onPress());
+    await act(async () => button.click());
+    await act(async () => appDialogs.choose(2));
     expect(push).toHaveBeenLastCalledWith({
       pathname: '/full-client',
       params: { target: 'new-channel' },

@@ -12,6 +12,7 @@ function toolGroup(tool: string): ToolGroup {
 }
 
 const en = {
+  dialogFailed: 'That did not go through. Try again.',
   modelSettings: {
     title: 'Models and presets',
     global: 'Global default model',
@@ -749,6 +750,7 @@ const en = {
 };
 
 const zh: typeof en = {
+  dialogFailed: '操作没有成功，请重试。',
   modelSettings: {
     title: '模型与预设',
     global: '全局默认模型',

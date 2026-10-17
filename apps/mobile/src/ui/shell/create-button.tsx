@@ -1,9 +1,10 @@
-import { ActionSheetIOS, Alert, Platform, Pressable, View } from 'react-native';
+import { ActionSheetIOS, Platform, Pressable, View } from 'react-native';
 
 import type { FullClientTarget } from '../../host/full-client';
 import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
 import { t } from '../strings';
+import { showAppDialog } from '../primitives/app-dialog';
 import { PlusIcon } from './icons';
 
 export type CreateTarget = Extract<FullClientTarget, { kind: 'new-bot' | 'new-channel' }>;
@@ -27,10 +28,11 @@ export function openCreateMenu(onPick: (target: CreateTarget) => void): void {
     );
     return;
   }
-  Alert.alert(t.create, undefined, [
+  showAppDialog(t.create, undefined, [
     { text: t.cancel, style: 'cancel' },
     ...CREATE_CHOICES.map((choice) => ({
       text: choice.label,
+      icon: choice.target.kind === 'new-bot' ? ('person' as const) : ('chat' as const),
       onPress: () => onPick(choice.target),
     })),
   ]);

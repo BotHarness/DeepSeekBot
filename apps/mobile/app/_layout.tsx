@@ -7,6 +7,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { usePushRouting } from '../src/host/push-routing';
 import { StatisticsNotice } from '../src/ui/shell/statistics-notice';
 import { KeyboardRoot } from '../src/ui/primitives/keyboard-frame';
+import { AppDialogHost } from '../src/ui/primitives/app-dialog-host';
 import { sheetScreenOptions } from '../src/ui/primitives/sheet-screen';
 import { useDesignTheme } from '../src/ui/design/theme';
 import { t } from '../src/ui/strings';
@@ -97,6 +98,7 @@ export default function RootLayout() {
               />
             </Stack>
             <StatisticsNotice />
+            <AppDialogHost />
           </View>
         </SafeAreaProvider>
       </KeyboardRoot>

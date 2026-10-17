@@ -1,7 +1,7 @@
 import { contrast, type DesignTheme } from './resolve-theme';
 import { distance, over, SEPARATION, tint, type LayerName } from './layers';
 
-export const BUTTON_TONES = ['primary', 'secondary', 'danger'] as const;
+export const BUTTON_TONES = ['primary', 'secondary', 'tonal', 'danger'] as const;
 export type ButtonTone = (typeof BUTTON_TONES)[number];
 
 export type ButtonColors = {
@@ -38,6 +38,25 @@ export function buttonColors(theme: DesignTheme, tone: ButtonTone, on: LayerName
       fill,
       pressed: tint(fill, behind.fill, 0.25),
       label: readable(theme.color.base, fill, behind.fill),
+    };
+  }
+  if (tone === 'tonal') {
+    const alternatives = [
+      behind.fill,
+      behind.danger,
+      buttonColors(theme, 'secondary', on).fill,
+      theme.color.fg,
+    ];
+    const fill =
+      Array.from({ length: 21 }, (_, step) =>
+        tint(behind.chosen, theme.color.accent, step / 20),
+      ).find((candidate) =>
+        alternatives.every((color) => distance(candidate, color) >= SEPARATION),
+      ) ?? behind.chosen;
+    return {
+      fill,
+      pressed: tint(fill, theme.color.fg, 0.16),
+      label: readable(theme.color.accent, fill, theme.color.fg),
     };
   }
   if (tone === 'secondary') {

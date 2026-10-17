@@ -1,0 +1,136 @@
+{
+  "beforeSource": "c7dc11fddfde5432c597671cce17422fe4283b93",
+  "base": "ccfcbd17175df2eb019cf5e71b2e038ddd41d14f",
+  "beforeDialogCodeMatchesBase": true,
+  "afterRuntime": "704fa745bd190d57b491b9b6e56589ffdfbc908b",
+  "afterCodeUnchangedAt": "50d810da197c748fabcb92bf38b6e25a3d5fd0d0",
+  "android": 16,
+  "client": "Expo SDK58 development client; JS-only change",
+  "viewport": {
+    "width": 1220,
+    "height": 2712,
+    "density": 3.25
+  },
+  "crop": {
+    "top": 650,
+    "height": 1500,
+    "reason": "Fixed matching dialog-focused crop; includes every panel in full and omits status bar and developer chrome. Full frames retained privately."
+  },
+  "groups": [
+    {
+      "kind": "unpair",
+      "mode": "dark",
+      "font": 1,
+      "stem": "dark-1-unpair"
+    },
+    {
+      "kind": "unpair",
+      "mode": "dark",
+      "font": 1.3,
+      "stem": "dark-1.3-unpair"
+    },
+    {
+      "kind": "unpair",
+      "mode": "dark",
+      "font": 2,
+      "stem": "dark-2-unpair"
+    },
+    {
+      "kind": "unpair",
+      "mode": "light",
+      "font": 1,
+      "stem": "light-1-unpair"
+    },
+    {
+      "kind": "unpair",
+      "mode": "light",
+      "font": 1.3,
+      "stem": "light-1.3-unpair"
+    },
+    {
+      "kind": "unpair",
+      "mode": "light",
+      "font": 2,
+      "stem": "light-2-unpair"
+    },
+    {
+      "kind": "menu",
+      "mode": "dark",
+      "font": 1,
+      "stem": "dark-1-menu"
+    },
+    {
+      "kind": "menu",
+      "mode": "dark",
+      "font": 1.3,
+      "stem": "dark-1.3-menu"
+    },
+    {
+      "kind": "menu",
+      "mode": "dark",
+      "font": 2,
+      "stem": "dark-2-menu"
+    },
+    {
+      "kind": "menu",
+      "mode": "light",
+      "font": 1,
+      "stem": "light-1-menu"
+    },
+    {
+      "kind": "menu",
+      "mode": "light",
+      "font": 1.3,
+      "stem": "light-1.3-menu"
+    },
+    {
+      "kind": "menu",
+      "mode": "light",
+      "font": 2,
+      "stem": "light-2-menu"
+    },
+    {
+      "kind": "create",
+      "mode": "dark",
+      "font": 1,
+      "stem": "dark-create"
+    },
+    {
+      "kind": "create",
+      "mode": "light",
+      "font": 1,
+      "stem": "light-create"
+    },
+    {
+      "kind": "disband",
+      "mode": "dark",
+      "font": 1,
+      "stem": "dark-disband"
+    },
+    {
+      "kind": "disband",
+      "mode": "light",
+      "font": 1,
+      "stem": "light-disband"
+    }
+  ],
+  "qualified": [
+    "native theme/font matrix for Host menu and unpair confirmation",
+    "Cancel, Back and backdrop preserve drawer/pairing",
+    "create menu cancellation",
+    "group disband confirmation cancellation",
+    "real search IME dismissed when menu opens",
+    "cold reopen retains original Host and QA group"
+  ],
+  "notQualified": [
+    "iOS native",
+    "TalkBack gestures",
+    "native destructive submission on shared QA data",
+    "native failure/retry injection",
+    "120FPS"
+  ],
+  "observations": [
+    "Expo Router duplicate-linking warnings occurred during ADB font-scale configuration changes in the development client; bounds/interactions passed and normal cold reopen was checked separately."
+  ],
+  "publicSafety": "No raw XML, pairing offers, credentials, user reference-app attachments or unrelated app captures published."
+}

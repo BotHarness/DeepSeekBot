@@ -17,6 +17,7 @@ function walk(node, visit, ancestors = []) {
 }
 
 export function uiSurfacesFrom(file, source) {
+  file = file.replaceAll('\\', '/');
   const ast = parse(source, { sourceType: 'module', plugins: ['typescript', 'jsx'] });
   const text = (node) => source.slice(node.start, node.end).replace(/\s+/g, ' ').trim();
   const surfaces = new Set();

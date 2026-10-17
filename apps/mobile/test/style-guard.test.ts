@@ -45,6 +45,13 @@ function violations(file: string): string[] {
 const files = [...sources(join(root, 'app')), ...sources(join(root, 'src/ui'))];
 
 describe('mobile style guard', () => {
+  it('keeps app-owned native alerts behind the platform dialog adapter', () => {
+    expect(
+      files
+        .filter((file) => file !== 'src/ui/primitives/app-dialog.ts')
+        .filter((file) => /\bAlert\s*\.\s*alert\s*\(/.test(readFileSync(join(root, file), 'utf8'))),
+    ).toEqual([]);
+  });
   it('keeps colour, type, spacing, radius and edge values on the design tokens', () => {
     expect(files.filter((file) => !LEGACY.has(file)).flatMap(violations)).toEqual([]);
   });
