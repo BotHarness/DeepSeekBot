@@ -13,6 +13,7 @@ import { edge, edgeFade, navigationBar, radius, space } from '../../src/ui/desig
 import { FloatingTabInset } from '../../src/ui/shell/floating-tab-inset';
 import { HostDrawer } from '../../src/ui/shell/host-drawer';
 import { ActivityIcon, ChatsIcon } from '../../src/ui/shell/icons';
+import { NavigationButton } from '../../src/ui/shell/navigation-button.android';
 import {
   ScrollChromeProvider,
   useChromeHidden,
@@ -73,6 +74,7 @@ function AndroidTabLayout() {
           tabBar={(props) => <ScrollTabBar {...props} reserved={reserved} />}
           screenOptions={{
             headerShown: false,
+            tabBarButton: (props) => <NavigationButton {...props} />,
             tabBarActiveTintColor: theme.color.fg,
             tabBarInactiveTintColor: theme.color.muted,
             tabBarStyle: {
@@ -97,6 +99,11 @@ function AndroidTabLayout() {
               overflow: 'hidden',
               minHeight: theme.touch,
             },
+            tabBarIconStyle: {
+              width: navigationBar.indicatorWidth,
+              height: navigationBar.indicatorHeight,
+            },
+            tabBarBadgeStyle: { top: space.x1, end: -space.x1 },
             tabBarLabel: ({ color, children }) => (
               <Text variant="meta" strong style={{ color, textAlign: 'center' }}>
                 {children}

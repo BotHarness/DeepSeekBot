@@ -28,7 +28,7 @@ export const navigationBar = {
   height: 64,
   itemWidth: 80,
   radius: 20,
-  indicatorWidth: 56,
+  indicatorWidth: 40,
   indicatorHeight: 32,
   indicatorRadius: radius.md,
   itemPadding: 6,
