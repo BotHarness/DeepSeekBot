@@ -1,6 +1,6 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { View } from 'react-native';
+import { Platform, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -56,6 +56,7 @@ export default function RootLayout() {
                 options={{
                   title: t.settings,
                   ...sheetScreenOptions(design, true),
+                  ...(Platform.OS === 'ios' ? { presentation: 'modal' as const } : {}),
                 }}
               />
               <Stack.Screen name="pair" options={{ title: t.pairTitle, presentation: 'modal' }} />

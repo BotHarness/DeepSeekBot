@@ -1,0 +1,36 @@
+# Run on the assigned iOS device with an existing QA pairing and English locale.
+# Does not erase data, enable notifications, or change the pairing.
+appId: ai.botharness.deepseekbot.dev
+---
+- tapOn: 'Chats'
+- tapOn: 'Settings'
+- extendedWaitUntil:
+    visible: 'Done'
+    timeout: 10000
+- scrollUntilVisible:
+    element: 'Computers.*'
+    direction: DOWN
+- assertVisible: 'Computers.*'
+- scrollUntilVisible:
+    element: 'Notifications'
+    direction: DOWN
+- tapOn: 'Notifications'
+- extendedWaitUntil:
+    visible: 'Get a notification when a PersonaBot needs you or replies to you.*'
+    timeout: 10000
+- tapOn: 'Settings'
+- scrollUntilVisible:
+    element: 'Done'
+    direction: UP
+- tapOn: 'Done'
+- assertVisible: 'Chats'
+- assertNotVisible: 'Computers.*'
+- tapOn: 'Settings'
+- assertVisible: 'Done'
+- scrollUntilVisible:
+    element: 'Computers.*'
+    direction: DOWN
+- scrollUntilVisible:
+    element: 'Done'
+    direction: UP
+- tapOn: 'Done'
