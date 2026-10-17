@@ -1,4 +1,5 @@
 import { BottomTabBar, Tabs } from 'expo-router/js-tabs';
+import { useSegments } from 'expo-router';
 import type { ComponentProps } from 'react';
 import { View, useWindowDimensions } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
@@ -7,13 +8,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { actionCount } from '../../src/host/inbox';
 import { useHostSession, useInbox } from '../../src/host/host-session';
 import { EdgeFade } from '../../src/ui/chat/header-chrome';
-import { glassShadow, useDesignTheme } from '../../src/ui/design/theme';
+import { useDesignTheme } from '../../src/ui/design/theme';
 import { Text } from '../../src/ui/primitives/text';
 import { edge, edgeFade, navigationBar, radius, space } from '../../src/ui/design/tokens';
 import { FloatingTabInset } from '../../src/ui/shell/floating-tab-inset';
 import { HostDrawer } from '../../src/ui/shell/host-drawer';
 import { ActivityIcon, ChatsIcon } from '../../src/ui/shell/icons';
 import { NavigationButton } from '../../src/ui/shell/navigation-button.android';
+import { NavigationIcon } from '../../src/ui/shell/navigation-icon.android';
 import {
   ScrollChromeProvider,
   useChromeHidden,
@@ -58,12 +60,14 @@ function AndroidTabLayout() {
   const { width, fontScale } = useWindowDimensions();
   const { inbox } = useHostSession();
   const pending = actionCount(useInbox(inbox));
+  const activitySelected = useSegments().includes('(activity)');
   const scale = Math.max(1, fontScale);
   const barWidth = Math.min(
     width - insets.left - insets.right - space.x6 * 2,
     navigationBar.itemWidth * 2 * scale + space.x3 * 2,
   );
-  const height = navigationBar.height + theme.type.meta.line * (scale - 1);
+  const iconHeight = Math.max(navigationBar.indicatorHeight, theme.type.title.line * scale);
+  const height = iconHeight + theme.type.meta.line * scale + space.x5;
   const bottom = Math.max(insets.bottom, space.x4);
   const reserved = height + bottom + space.x5;
   return (
@@ -92,7 +96,8 @@ function AndroidTabLayout() {
               borderColor: theme.layer.raised.edge,
               borderTopColor: theme.layer.raised.edge,
               backgroundColor: theme.layer.raised.fill,
-              boxShadow: glassShadow(theme.scheme),
+              elevation: 0,
+              boxShadow: navigationBar.shadow[theme.scheme],
             },
             tabBarItemStyle: {
               borderRadius: radius.lg,
@@ -100,10 +105,9 @@ function AndroidTabLayout() {
               minHeight: theme.touch,
             },
             tabBarIconStyle: {
-              width: navigationBar.indicatorWidth,
-              height: navigationBar.indicatorHeight,
+              width: (barWidth - space.x2 * 2 - edge.hairline * 2) / 2,
+              height: iconHeight,
             },
-            tabBarBadgeStyle: { top: space.x1, end: -space.x1 },
             tabBarLabel: ({ color, children }) => (
               <Text variant="meta" strong style={{ color, textAlign: 'center' }}>
                 {children}
@@ -118,18 +122,9 @@ function AndroidTabLayout() {
             options={{
               title: t.chats,
               tabBarIcon: ({ color, focused }) => (
-                <View
-                  style={{
-                    width: navigationBar.indicatorWidth,
-                    height: navigationBar.indicatorHeight,
-                    borderRadius: navigationBar.indicatorRadius,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    backgroundColor: focused ? theme.layer.raised.chosen : undefined,
-                  }}
-                >
+                <NavigationIcon focused={focused} color={color}>
                   <ChatsIcon color={color} size={theme.type.title.line} />
-                </View>
+                </NavigationIcon>
               ),
             }}
           />
@@ -137,21 +132,17 @@ function AndroidTabLayout() {
             name="(activity)"
             options={{
               title: t.activity,
+              tabBarAccessibilityLabel: pending > 0 ? `${pending}, ${t.activity}` : t.activity,
               tabBarIcon: ({ color, focused }) => (
-                <View
-                  style={{
-                    width: navigationBar.indicatorWidth,
-                    height: navigationBar.indicatorHeight,
-                    borderRadius: navigationBar.indicatorRadius,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    backgroundColor: focused ? theme.layer.raised.chosen : undefined,
-                  }}
+                <NavigationIcon
+                  focused={focused}
+                  color={color}
+                  count={pending}
+                  countVisible={!activitySelected}
                 >
                   <ActivityIcon color={color} size={theme.type.title.line} />
-                </View>
+                </NavigationIcon>
               ),
-              ...(pending > 0 ? { tabBarBadge: pending } : {}),
             }}
           />
         </Tabs>
