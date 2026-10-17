@@ -5,8 +5,8 @@ import { View, useWindowDimensions } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { actionCount } from '../../src/host/inbox';
-import { useHostSession, useInbox } from '../../src/host/host-session';
+import { useActivityCount } from '../../src/host/native-activity-count';
+import { badgeCount } from '../../src/ui/primitives/badge-count';
 import { EdgeFade } from '../../src/ui/chat/header-chrome';
 import { useDesignTheme } from '../../src/ui/design/theme';
 import { Text } from '../../src/ui/primitives/text';
@@ -58,8 +58,7 @@ function AndroidTabLayout() {
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
   const { width, fontScale } = useWindowDimensions();
-  const { inbox } = useHostSession();
-  const pending = actionCount(useInbox(inbox));
+  const pending = useActivityCount().count ?? 0;
   const activitySelected = useSegments().includes('(activity)');
   const scale = Math.max(1, fontScale);
   const barWidth = Math.min(
@@ -132,7 +131,8 @@ function AndroidTabLayout() {
             name="(activity)"
             options={{
               title: t.activity,
-              tabBarAccessibilityLabel: pending > 0 ? `${pending}, ${t.activity}` : t.activity,
+              tabBarAccessibilityLabel:
+                pending > 0 ? `${badgeCount(pending)}, ${t.activity}` : t.activity,
               tabBarIcon: ({ color, focused }) => (
                 <NavigationIcon
                   focused={focused}

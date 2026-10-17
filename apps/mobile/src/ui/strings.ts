@@ -12,6 +12,18 @@ function toolGroup(tool: string): ToolGroup {
 }
 
 const en = {
+  activityCountSettings: {
+    title: 'Activity count',
+    hint: 'Choose what the navigation number includes. Each pending item or unread conversation counts once. This device only; push notifications are unchanged.',
+    none: 'Show icon only',
+    error: 'Could not save this choice. Change a switch to retry.',
+    approvals: 'Tool approvals',
+    questions: 'Questions awaiting your answer',
+    privateInput: 'Private input requests',
+    otherActions: 'Other requests needing you',
+    replies: 'Unread mentions and replies',
+    unread: 'Other unread conversations',
+  },
   activityRow: {
     dm: (recipient: string) => `sent a direct message to ${recipient}`,
     actions: 'Activity details',
@@ -711,6 +723,18 @@ const en = {
 };
 
 const zh: typeof en = {
+  activityCountSettings: {
+    title: '动态数字',
+    hint: '多选数字包含的类型。每条待办或每个未读会话计一项。仅保存在这台设备，不改变推送通知。',
+    none: '仅显示图标',
+    error: '未能保存选择。请重新切换开关以重试。',
+    approvals: '工具审批',
+    questions: '等待回答的正式问答',
+    privateInput: '私密输入请求',
+    otherActions: '其他需要你处理的请求',
+    replies: '未读提及与回复',
+    unread: '其他未读会话',
+  },
   activityRow: {
     dm: (recipient: string) => `向 ${recipient} 发送了私聊消息`,
     actions: '活动详情',

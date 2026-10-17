@@ -9,6 +9,7 @@ import { copyMessage } from '../../src/ui/chat/message-menu';
 import { currentAppBuild } from '../../src/ui/native-app-build';
 import { StatisticsSettings } from '../../src/ui/shell/statistics-settings';
 import { MessageDisplaySettings } from '../../src/ui/shell/message-display-settings';
+import { ActivityCountLink } from '../../src/ui/shell/activity-count-settings';
 import { SettingsView } from '../../src/ui/settings-view';
 import { openHostDrawer } from '../../src/ui/shell/host-drawer';
 
@@ -24,6 +25,7 @@ export default function SettingsScreen() {
     <SettingsView
       statistics={<StatisticsSettings />}
       messageDisplay={<MessageDisplaySettings />}
+      activityCount={<ActivityCountLink />}
       key={saved?.hostId}
       hostName={saved?.hostName}
       connection={connection}
