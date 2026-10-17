@@ -380,7 +380,7 @@ function ChannelDockTab({ api, params }: IDockviewPanelHeaderProps<{ entryId?: s
             onMouseDown={(event) => event.stopPropagation()}
           >
             {entryId === CHANNEL_BODY_PANEL && dock.channel && dock.files && (
-              <Tooltip label={dock.t('generatedFiles.title')} side="bottom" delayMs={500}>
+              <Tooltip label={dock.t('generatedFiles.title')} side="bottom" portal delayMs={500}>
                 <IconButton
                   aria-label={dock.t('generatedFiles.title')}
                   aria-expanded={dock.files.open}
@@ -397,7 +397,7 @@ function ChannelDockTab({ api, params }: IDockviewPanelHeaderProps<{ entryId?: s
               </Tooltip>
             )}
             {entryId === CHANNEL_BODY_PANEL && dock.channel?.type === 'dm' && dock.inbox && (
-              <Tooltip label={dock.t('entry.botInbox')} side="bottom" delayMs={500}>
+              <Tooltip label={dock.t('entry.botInbox')} side="bottom" portal delayMs={500}>
                 <IconButton
                   aria-label={dock.t('entry.botInbox')}
                   aria-expanded={dock.inbox.open}
@@ -411,13 +411,15 @@ function ChannelDockTab({ api, params }: IDockviewPanelHeaderProps<{ entryId?: s
               </Tooltip>
             )}
             {entryId === CHANNEL_BODY_PANEL && dock.channel?.type === 'group' && dock.members && (
-              <IconButton
-                aria-label={dock.t('entry.members')}
-                aria-pressed={dock.members.open}
-                onClick={() => dock.members?.setOpen(!dock.members.open)}
-              >
-                <ChannelSidebarIcon name="users" />
-              </IconButton>
+              <Tooltip label={dock.t('entry.members')} side="bottom" portal delayMs={500}>
+                <IconButton
+                  aria-label={dock.t('entry.members')}
+                  aria-pressed={dock.members.open}
+                  onClick={() => dock.members?.setOpen(!dock.members.open)}
+                >
+                  <ChannelSidebarIcon name="users" />
+                </IconButton>
+              </Tooltip>
             )}
             {entryId === CHANNEL_BODY_PANEL && dock.header?.actions}
             {HeaderAction === undefined || props === undefined ? null : <HeaderAction {...props} />}
@@ -428,7 +430,7 @@ function ChannelDockTab({ api, params }: IDockviewPanelHeaderProps<{ entryId?: s
               <span className="bh-workspace-channel-actions" ref={dock.setChannelsHeader} />
             )}
             {!dock.rail && (
-              <Tooltip label={closeLabel} side="bottom" delayMs={500}>
+              <Tooltip label={closeLabel} side="bottom" portal delayMs={500}>
                 <IconButton
                   tone="subtle"
                   aria-label={closeLabel}
@@ -1050,7 +1052,7 @@ function ChannelDockPanelsMenu({
         dense
         align="end"
         anchor={
-          <Tooltip label={label} side="bottom" delayMs={500}>
+          <Tooltip label={label} side="bottom" portal delayMs={500}>
             <IconButton
               tone="subtle"
               aria-label={label}
