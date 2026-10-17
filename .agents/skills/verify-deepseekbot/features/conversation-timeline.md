@@ -38,6 +38,9 @@ Preconditions: a model credential, a Bot with a few replies (one long list), thr
 
 ## Gotchas
 
+- The #1023 Lark parent-video candidate needs a native `media` parent quoted by an actual Bot-mentioned Human request in a synced conversation. Open that Channel and confirm there is no video/cover request before **Prepare video**. Prepare, then manually play, pause and seek; verify advancing decoded frames rather than only a successful HTTP response. Original download is independent, and a missing/failed native cover must not block playback. Use a fresh native resource to verify stop-before-acquisition; reusing an acquired parent tests cached access instead. Native and installed-product qualification remain pending in `docs/dev/verification/lark-1023-channel-video.md`; do not fabricate a Source Event or rename an ordinary file to qualify video.
+- Open the same event's Bot Inbox source inspector before preparing the Channel video. It must acquire neither video nor cover automatically; an explicit original download should still work. An automatic request here defeats the stop-before-acquisition precondition even when the Channel player itself is lazy.
+
 - Read positions only move forward. To see the divider again, post a new message so the Bot replies after the anchor.
 - Headless Chromium reports `hover: none`, which hides hover-only times and shows the hover actions permanently. Launch it with `--blink-settings=primaryHoverType=2,availableHoverTypes=2,primaryPointerType=4,availablePointerTypes=4` to capture desktop hover states.
 - `deepseekbot pause` and `resume` have no online adapter; you cannot pause a Bot on a live Host to keep it from answering seeded messages.

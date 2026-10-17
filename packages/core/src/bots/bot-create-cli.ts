@@ -153,7 +153,7 @@ Usage:
   deepseekbot channels [--home <dsh-home>]
   deepseekbot channel-messages <channel> [--limit <n>] [--before <id>] [--home <dsh-home>]
   deepseekbot channel-media-target <channel> --source-event <id> --attachment <id>
-  deepseekbot channel-media-download <channel> --source-event <id> --attachment <id> --out <path>
+  deepseekbot channel-media-download <channel> --source-event <id> --attachment <id> --out <path> [--representation playback]
   deepseekbot grants <id> [--home <dsh-home>]
   deepseekbot grant-revoke <id> --grant <grant> [--home <dsh-home>]   online: add --confirm
   deepseekbot grant-write-set <id> --grant <grant> (--enabled | --disabled) [--home <dsh-home>]

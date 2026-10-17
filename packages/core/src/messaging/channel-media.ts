@@ -228,7 +228,8 @@ export function createChannelMediaAccess(options: {
         );
       }
       validate();
-      if (input.representation === 'playback') {
+      const video = bridgeAttachmentKind(initial.source, initial.attachment) === 'video';
+      if (input.representation === 'playback' && !video) {
         if (
           !initial.source.event.voice ||
           initial.attachment.mediaType !== 'audio/unknown' ||
@@ -252,8 +253,9 @@ export function createChannelMediaAccess(options: {
         throw new ChannelAttachmentError('Attachment exceeds limit', 'too-large');
       }
       if (
-        initial.attachment.mediaType?.startsWith('image/') &&
-        !['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(downloaded.ref.mime)
+        (initial.attachment.mediaType?.startsWith('image/') &&
+          !['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(downloaded.ref.mime)) ||
+        (input.representation === 'playback' && video && downloaded.ref.mime !== 'video/mp4')
       ) {
         await downloaded.body.cancel();
         throw new MessagingError('media-format-unsupported');

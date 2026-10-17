@@ -125,6 +125,7 @@ deepseekbot group-create "Skill Lab" --member <bot-id> --member <bot-id>
 deepseekbot channel-rename <channel> --name "Skill Lab"
 deepseekbot channel-media-target <channel> --source-event <source-event-id> --attachment <attachment-id>
 deepseekbot channel-media-download <channel> --source-event <source-event-id> --attachment <attachment-id> --out ./original.csv
+deepseekbot channel-media-download <channel> --source-event <source-event-id> --attachment <video-id> --representation playback --out ./playback.mp4
 deepseekbot group-avatar-set <channel> --avatar-file ./avatar.png
 deepseekbot group-avatar-set <channel> --clear
 deepseekbot group-invite <channel> --bot <bot-id>
@@ -158,6 +159,8 @@ deepseekbot channel-purge-preview <channel> --source-event <id> | jq '{token}' \
 `group-delete` 和 `channel-purge-confirm` 无法撤销，必须带 `--confirm`。`channel-history` 列出已删除、内容仍可清除的群组。清除与历史页面一样分两步：`channel-purge-preview` 列出所选 Source Event 将删除的消息、Bot 受理记录、文件和后续效果，并返回短时有效的 `token`；`channel-purge-confirm` 从标准输入读取 `{"token": …}`，针对同一组 Source Event 执行，范围变化时以错误码拒绝。Source Event 从 `channel-history-sources` 中选取，它用返回的 `before` 游标分页。
 
 `channel-media-target` 通过当前 Human Channel 授权取得受检来源媒体，返回其 canonical Host 文件目标。`channel-media-download` 使用与卡片相同的认证附件路径，将原件字节写入新的本地 `--out` 文件，并在 JSON 中返回大小、MIME 和 SHA-256；目标已存在时拒绝覆盖。两条命令只使用 Channel、Source Event 和 attachment，不选择 Bot，也不调用模型；来源撤销仍返回明确错误码。默认上限为 25 MiB。
+
+对 `channel-media-download` 明确传入 `--representation playback`，可使用与 Channel 播放器相同的准备路径。#1023 Lark 引用视频候选只返回字节识别为 MP4 的原件，不转码，也不能代替浏览器解码验收。不传该参数始终下载原件；不支持播放的格式返回明确错误码，原件仍可独立下载。真实平台和安装包资格见[候选检查点](dev/verification/lark-1023-channel-video.md)。
 
 ### Bot 资料、侧边栏与部件库
 

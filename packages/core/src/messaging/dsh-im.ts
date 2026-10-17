@@ -247,6 +247,11 @@ const inboundSchema = z
         itemId: identifier.optional(),
         reportedSizeBytes: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).optional(),
         playLength: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).optional(),
+        durationMs: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).optional(),
+        posterAttachmentId: z
+          .string()
+          .regex(/^[a-f0-9]{64}$/)
+          .optional(),
       })
       .strict()
       .optional(),
@@ -303,6 +308,32 @@ const inboundSchema = z
       message: 'Invalid voice source',
     },
   );
+
+function isLarkVideo(event: z.infer<typeof inboundSchema>, images: boolean): boolean {
+  const video = event.video;
+  const items = event.attachments ?? [];
+  if (
+    !video ||
+    !event.mentionedAccount ||
+    !event.reply.parentId ||
+    event.reply.parentId === event.messageId ||
+    event.contentParts ||
+    event.voice ||
+    video.playLength !== undefined ||
+    video.reportedSizeBytes !== undefined ||
+    items.length !== (video.posterAttachmentId === undefined ? 1 : 2)
+  )
+    return false;
+  return (
+    items.every((item) =>
+      item.messageId !== event.reply.parentId
+        ? false
+        : item.id === video.itemId
+          ? item.mediaType === 'video/unknown'
+          : images && item.id === video.posterAttachmentId && item.mediaType === 'image/unknown',
+    ) && items.some((item) => item.id === video.itemId)
+  );
+}
 
 function providerFailure(error: unknown): MessagingProviderError {
   if (error instanceof MessagingProviderError) return error;
@@ -779,6 +810,10 @@ export function createDshImProvider(
               (platform !== 'qq' ||
                 (info.capabilities.includes('source-generic-file-checked') &&
                   info.capabilities.includes('reply-file-fence-checked')));
+            const larkVideos =
+              platform === 'feishu' &&
+              sourceFiles &&
+              info.capabilities.includes('source-video-checked');
             return host.consumeInbound!(input.accountRef, {
               expectedFingerprint: input.fingerprint,
               signal: input.signal,
@@ -799,10 +834,11 @@ export function createDshImProvider(
               info.capabilities.includes('source-voice-audio-checked')
                 ? { sourceVoiceAudio: true }
                 : {}),
-              ...(platform === 'weixin' &&
-              host.fileVersion === 1 &&
-              info.capabilities.includes('source-video-checked') &&
-              info.capabilities.includes('reply-video-fence-checked')
+              ...(larkVideos ||
+              (platform === 'weixin' &&
+                host.fileVersion === 1 &&
+                info.capabilities.includes('source-video-checked') &&
+                info.capabilities.includes('reply-video-fence-checked'))
                 ? { sourceVideos: true }
                 : {}),
               ...(platform === 'feishu' &&
@@ -927,6 +963,7 @@ export function createDshImProvider(
                 : {}),
               onEvent: async (raw, context) => {
                 const parsed = inboundSchema.parse(raw);
+                const larkVideo = larkVideos && isLarkVideo(parsed, sourceImages);
                 const qqAttachments = parsed.attachments?.every((item) =>
                   item.mediaType?.startsWith('image/')
                     ? sourceImages
@@ -947,6 +984,7 @@ export function createDshImProvider(
                     (parsed.attachments?.length ?? 0) > 1 ||
                     (platform === 'feishu' &&
                       parsed.attachments?.some((item) => item.mediaType?.startsWith('image/')))) &&
+                    !larkVideo &&
                     (platform === 'qq'
                       ? !qqAttachments
                       : platform !== 'feishu' ||
@@ -969,7 +1007,11 @@ export function createDshImProvider(
                   (parsed.voice &&
                     parsed.attachments?.length &&
                     !info.capabilities.includes('source-voice-audio-checked')) ||
+                  (platform !== 'feishu' &&
+                    (parsed.video?.durationMs !== undefined ||
+                      parsed.video?.posterAttachmentId !== undefined)) ||
                   (parsed.video &&
+                    !larkVideo &&
                     (platform !== 'weixin' ||
                       !info.capabilities.includes('source-video-checked') ||
                       !info.capabilities.includes('reply-video-fence-checked') ||
@@ -1055,7 +1097,7 @@ export function createDshImProvider(
                   event.attachments?.some(
                     (item) =>
                       item.messageId !==
-                      (platform === 'feishu' && !item.mediaType?.startsWith('image/')
+                      (platform === 'feishu' && (larkVideo || !item.mediaType?.startsWith('image/'))
                         ? event.reply.parentId
                         : event.messageId),
                   )
@@ -1229,6 +1271,9 @@ export function createDshImProvider(
             if (
               info.account.fingerprint !== input.fingerprint ||
               !info.capabilities.includes('source-file-checked') ||
+              (platform === 'feishu' &&
+                input.attachment.mediaType === 'video/unknown' &&
+                !info.capabilities.includes('source-video-checked')) ||
               (platform === 'qq' &&
                 !input.attachment.mediaType?.startsWith('image/') &&
                 (input.attachment.mediaType === 'audio/unknown'

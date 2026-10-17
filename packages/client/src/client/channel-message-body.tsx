@@ -1,5 +1,6 @@
 import { BridgeAudio } from './bridge-audio.js';
 import { BridgeFile } from './bridge-file.js';
+import { BridgeVideo } from './bridge-video.js';
 import { UserQuestionCard } from './user-question-card.js';
 import { PrivateInputCard } from './private-input-card.js';
 import { ToolApprovalCard } from './tool-approval-card.js';
@@ -422,7 +423,20 @@ export function ChannelMessageBody({
     const media = message.bridgeMedia;
     const renderMedia = (id: string, index: number) => {
       const item = media.items.find((item) => item.id === id);
-      return item?.kind === 'audio' ? (
+      if (id === media.video?.posterAttachmentId) return null;
+      return item?.kind === 'video' ? (
+        <BridgeVideo
+          key={index}
+          channelId={channelId}
+          sourceEventId={message.bridgeOrigin!.sourceEventId}
+          attachmentId={id}
+          name={item.name}
+          sizeBytes={item.sizeBytes}
+          durationMs={media.video?.durationMs}
+          posterAttachmentId={media.video?.posterAttachmentId}
+          t={t}
+        />
+      ) : item?.kind === 'audio' ? (
         <BridgeAudio
           key={index}
           channelId={channelId}

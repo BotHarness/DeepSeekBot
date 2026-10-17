@@ -24,6 +24,7 @@ export const CHANNEL_OPTIONS = {
   remove: { type: 'boolean' },
   off: { type: 'boolean' },
   attachment: { type: 'string' },
+  representation: { type: 'string' },
 } as const;
 
 export const CHANNEL_COMMANDS = [
@@ -120,6 +121,7 @@ interface ChannelValues {
   query?: string;
   off?: boolean;
   attachment?: string;
+  representation?: string;
   out?: string;
 }
 
@@ -220,6 +222,11 @@ export async function runChannelCommand(
       args.sourceEventId = required(values['source-event'][0], '--source-event');
       args.attachmentId = required(values.attachment, '--attachment');
       if (command === 'channel-media-download') required(values.out, '--out');
+      if (
+        values.representation !== undefined &&
+        (command !== 'channel-media-download' || values.representation !== 'playback')
+      )
+        usage('--representation playback is only supported by channel-media-download.');
       break;
     case 'channel-rename':
       method = 'channelRename';
@@ -381,6 +388,7 @@ export async function runChannelCommand(
           channelId,
           sourceEventId: String(args.sourceEventId),
           attachmentId: String(args.attachmentId),
+          ...(values.representation === 'playback' ? { representation: 'playback' } : {}),
         }),
     );
     if (bytes.byteLength > 25 * 1024 * 1024)

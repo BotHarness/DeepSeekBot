@@ -51,7 +51,7 @@ function errorResponse(error: unknown): Response {
     );
   if (error instanceof MessagingError && error.code === 'media-format-unsupported')
     return Response.json(
-      { error: { code: error.code, message: 'Image format cannot be previewed' } },
+      { error: { code: error.code, message: 'Media format cannot be previewed' } },
       { status: 422, headers: { 'cache-control': 'no-store' } },
     );
   if (error instanceof MessagingError)

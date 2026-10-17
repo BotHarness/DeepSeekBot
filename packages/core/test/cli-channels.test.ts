@@ -78,6 +78,44 @@ const ok = (method: string, args: Record<string, unknown>) => ({
 });
 
 describe('Channel and group CLI commands', () => {
+  it('requests playback explicitly without changing the original download default or allowing arbitrary representations', async () => {
+    const live = await host(ok, { status: 200, body: Buffer.from('video') });
+    const path = join(mkdtempSync(join(tmpdir(), 'cli-playback-')), 'playback.mp4');
+    const args = [
+      'channel-media-download',
+      'group',
+      '--source-event',
+      'source',
+      '--attachment',
+      'video',
+      '--out',
+      path,
+    ];
+    expect((await invoke([...args, '--representation', 'playback'], live.url)).code).toBe(0);
+    expect(live.downloads[0]?.url).toContain('&representation=playback');
+    expect(live.downloads[0]?.authorized).toBe(true);
+    expect(
+      (await invoke([...args, '--representation', 'transcode'], live.url)).json.error.code,
+    ).toBe('usage');
+    expect(
+      (
+        await invoke(
+          [
+            'channel-media-target',
+            'group',
+            '--source-event',
+            'source',
+            '--attachment',
+            'video',
+            '--representation',
+            'playback',
+          ],
+          live.url,
+        )
+      ).json.error.code,
+    ).toBe('usage');
+    expect(live.downloads).toHaveLength(1);
+  });
   it('downloads exact original bytes with owner authorization without overwriting an existing file', async () => {
     const bytes = Buffer.from('name,quantity\nalpha,17\n');
     const live = await host(ok, { status: 200, body: bytes });

@@ -531,6 +531,36 @@ describe('DM conversation', () => {
     ]);
   });
 
+  it('keeps bridged video as an explicit original-file action and does not expose its cover as an eager image', async () => {
+    const host = new FakeHost();
+    const channel = host.channel(DM);
+    channel.append(
+      {
+        id: 'native-video',
+        author: { kind: 'bridged', source: 'lark' },
+        body: '',
+        bridgeMedia: {
+          video: { attachmentId: 'clip', posterAttachmentId: 'cover' },
+          items: [
+            { id: 'clip', kind: 'video', name: 'clip.mp4' },
+            { id: 'cover', kind: 'image', name: 'cover' },
+          ],
+        },
+        bridgeOrigin: { sourceEventId: 'video-event' } as never,
+      },
+      false,
+    );
+    const target = open(host);
+    const live = await until(target, (s) => s.messages.length === 1);
+    expect(live.messages[0]?.attachments).toHaveLength(1);
+    expect(live.messages[0]?.attachments[0]).toMatchObject({
+      kind: 'file',
+      name: 'clip.mp4',
+      local: false,
+      source: { uri: expect.stringContaining('attachmentId=clip') },
+    });
+  });
+
   it('streams a Bot draft live and replaces it with the committed reply', async () => {
     const host = new FakeHost();
     const channel = host.channel(DM);

@@ -42,7 +42,10 @@ export interface ChannelWireMessage extends WireMessage {
   author: WireAuthor;
   reactions?: WireReaction[];
   attachments?: readonly AttachmentRef[];
-  bridgeMedia?: { items: readonly BridgeMediaItem[] };
+  bridgeMedia?: {
+    items: readonly BridgeMediaItem[];
+    video?: { attachmentId: string; durationMs?: number; posterAttachmentId?: string };
+  };
   bridgeOrigin?: { sourceEventId: string };
   toolApprovalRequest?: unknown;
   userQuestionRequest?: unknown;
@@ -64,7 +67,7 @@ export interface ChannelWireMessage extends WireMessage {
 
 export interface BridgeMediaItem {
   id: string;
-  kind: 'image' | 'file' | 'audio';
+  kind: 'image' | 'file' | 'audio' | 'video';
   name: string;
   sizeBytes?: number;
 }

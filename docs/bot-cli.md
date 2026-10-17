@@ -130,6 +130,7 @@ These commands manage Channels and groups through the same Host owners and check
 deepseekbot channel-rename <channel> --name "Skill Lab"
 deepseekbot channel-media-target <channel> --source-event <source-event-id> --attachment <attachment-id>
 deepseekbot channel-media-download <channel> --source-event <source-event-id> --attachment <attachment-id> --out ./original.csv
+deepseekbot channel-media-download <channel> --source-event <source-event-id> --attachment <video-id> --representation playback --out ./playback.mp4
 deepseekbot group-avatar-set <channel> --avatar-file ./avatar.png
 deepseekbot group-avatar-set <channel> --clear
 deepseekbot group-invite <channel> --bot <bot-id>
@@ -163,6 +164,8 @@ Renaming a Bot DM renames that Bot, as in the Web UI. `group-avatar-set` reads a
 `group-delete` and `channel-purge-confirm` cannot be undone and need `--confirm`. `channel-history` lists deleted groups whose content can still be purged. Purging works in two steps like the history page: `channel-purge-preview` lists the messages, Bot admissions, files and effects the chosen Source Events would remove and returns a short-lived `token`; `channel-purge-confirm` reads `{"token": …}` from stdin for the same Source Events and fails coded when the scope changed. Pick Source Events from `channel-history-sources`, which pages with the `before` cursor it returns.
 
 `channel-media-target` acquires checked source media through current Human Channel authorization and returns its canonical Host file target. `channel-media-download` uses the same authenticated attachment route as the card, writes the original bytes to a new local `--out` file and returns size, MIME and SHA-256 in its JSON result. It refuses an existing output instead of overwriting it. Both commands use `channel + source-event + attachment` without a Bot selector or model call; source revocation remains a coded refusal. The default bound is 25 MiB.
+
+Use `--representation playback` on `channel-media-download` to request the same explicit preparation as the Channel player. For the #1023 Lark parent-video candidate this serves an original whose bytes identify MP4; it does not transcode or validate browser decoding. Omitting the flag always keeps original-download semantics. Unsupported formats return a coded refusal, and the original remains separately downloadable. Real native and installed-product qualification is recorded in [the candidate checkpoint](dev/verification/lark-1023-channel-video.md).
 
 ### Bot profile, roster and Part Library
 
