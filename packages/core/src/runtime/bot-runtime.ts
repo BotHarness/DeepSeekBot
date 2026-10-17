@@ -561,6 +561,8 @@ export interface OrchestratorChannelAccess {
   dropDraft?(input: {
     channelId: string;
     draftId: string;
+    observationId?: string;
+    yieldToMessageIds?: string[];
   }): import('../channels/send-review.js').SendReviewOutcome;
   send(input: {
     observationId?: string;
@@ -5947,7 +5949,17 @@ class BotRuntimeImplementation implements BotRuntime {
       },
       dropDraft: (input) => {
         resolve(input.channelId);
-        return this.groupSendReview.drop(reviewOwner, input.channelId, input.draftId);
+        return this.groupSendReview.drop(
+          reviewOwner,
+          input.channelId,
+          input.draftId,
+          input.yieldToMessageIds === undefined
+            ? undefined
+            : {
+                observationId: input.observationId ?? '',
+                messageIds: input.yieldToMessageIds,
+              },
+        );
       },
       send: async (input) => {
         requireReplySource();
@@ -6050,8 +6062,17 @@ class BotRuntimeImplementation implements BotRuntime {
               content: bounded.output,
               complete: bounded.included.length === error.outcome.changedMessageCount,
               observedMessageIds: bounded.included.map((view) => view.message.id),
+              peerMessageIds: bounded.included
+                .filter(
+                  ({ message }) =>
+                    message.author.kind === 'bot' &&
+                    message.author.slug !== botSlug &&
+                    !message.sessionFailure &&
+                    !!message.body.trim(),
+                )
+                .map(({ message }) => message.id),
               responsibility:
-                'These messages join this turn. On your recheck or drop, explicitly pass resolve_inbox_ids for these IDs and the original request if complete. They resolve only after a committed send or dropped draft; held/refused never resolve them. Unrelated FYI needs no reply or addition to the original draft. Cancelled work should be dropped silently. Keep unfinished work open.',
+                'These messages join this turn. Compare committed peer replies with your remaining responsibility. If they fully answer it, drop silently with yield_to_message_ids and observation_id; no agreement message is needed. Otherwise send the missing fact, independent evidence or requested second opinion. A new Human question is separate work even with the same words. Peer IDs identify observed messages, not proof of semantic completion. Explicitly resolve_inbox_ids only for work you judge complete after send/drop. Held/refused never resolve work. Unrelated FYI needs no reply. Cancelled work should be dropped silently. Keep unfinished work open.',
             };
             if (JSON.stringify({ ...error.outcome, review }).length > CHANNEL_READ_OUTPUT_LIMIT)
               throw error;

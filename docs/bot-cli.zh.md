@@ -164,6 +164,13 @@ deepseekbot channel-purge-preview <channel> --source-event <id> | jq '{token}' \
 携带 `draft_id`、新观察凭据和改写（或保持原文）的 `body` 再提交一次。`drop: true` 配合 `draft_id`
 和空 `body` 放弃草稿，不会解决 Inbox 事项。`expired`、`refused`、`requires-review` 停止自动发送。
 凭据不能跨 Bot owner 或 Group 使用。
+主动让话使用同一条 `bot-tool <bot> channel_send --args-stdin`，传入
+`{"channel_id":"...","body":"","drop":true,"draft_id":"...","observation_id":"...","yield_to_message_ids":["..."]}`。
+先读同伴完整答复；`review.peerMessageIds` 标出已完整返回的同伴消息。成功返回
+`dropped`、`reason: explicit-peer-yield` 和 `yieldedToMessageIds`，依据保留在草稿审计与
+`bot-trace` 中。未观察、已变更、已清除、自己的消息、Human 消息或仅预览的引用返回
+`peer-answer-not-observed`，不会放弃草稿或结清 Inbox。Host 不替模型判断答复是否充分；
+独立补充与新直接问题仍走原发送路径，Inbox 只结清显式选择的已完成事项。
 `held.review.content` 包含有限新增正文；`review.complete` 为 true 时，可直接把
 `review.observationId` 作为 `observation_id` 复核，无需额外 `channel_read`。内容未完整返回时仍须读取缺失部分；省略的内容不会计作已观察。
 

@@ -129,11 +129,14 @@ async function fixture(
       messageId: string;
       observationIds: Record<string, string>;
       changedMessageIds?: string[];
+      reason?: string;
+      yieldedToMessageIds?: string[];
       review?: {
         observationId: string;
         content: string;
         complete: boolean;
         observedMessageIds: string[];
+        peerMessageIds?: string[];
       };
     }>;
   }) => Promise<void>,
@@ -190,6 +193,125 @@ async function fixture(
 }
 
 describe('Group send review through the same direct model tools', () => {
+  it('records a deliberate yield to an observed committed peer answer without a public acknowledgment or implicit Inbox completion', async () => {
+    await fixture(async ({ core, channelId, human, tool }) => {
+      await human('question', 'What is the release date?');
+      const read = await tool('channel_read', {});
+      const peerRead = await tool('channel_read', {}, 'bob');
+      const peer = await tool(
+        'channel_send',
+        { body: 'October 20', observation_id: peerRead.observationIds[channelId] },
+        'bob',
+      );
+      const held = await tool('channel_send', {
+        body: 'October 20',
+        observation_id: read.observationIds[channelId],
+      });
+      expect(held.review?.peerMessageIds).toEqual([peer.messageId]);
+      expect(held.review?.content).toContain('October 20');
+      const dropped = await tool('channel_send', {
+        body: '',
+        drop: true,
+        draft_id: held.draftId,
+        observation_id: held.review!.observationId,
+        yield_to_message_ids: [peer.messageId],
+      });
+      expect(dropped).toMatchObject({
+        status: 'dropped',
+        reason: 'explicit-peer-yield',
+        yieldedToMessageIds: [peer.messageId],
+      });
+      expect(
+        core.channels.readMessages(channelId).filter((m) => m.author.kind === 'bot'),
+      ).toHaveLength(1);
+      const stored = attachOperationalModule(core.operationalDatabase, 'peer-test').read((db) =>
+        db
+          .prepare('SELECT record_json FROM group_send_review_drafts WHERE id = ?')
+          .get(held.draftId!),
+      );
+      expect(JSON.parse(String(stored?.record_json)).yieldedToMessageIds).toEqual([peer.messageId]);
+      const open = attachOperationalModule(core.operationalDatabase, 'peer-test').read((db) =>
+        db
+          .prepare(
+            "SELECT COUNT(*) AS count FROM inbox_admissions WHERE bot_slug = 'ada' AND resolution IS NULL",
+          )
+          .get(),
+      );
+      expect(Number(open?.count)).toBeGreaterThan(0);
+    });
+  });
+
+  it('does not suppress independent evidence or a new direct question with repeated words', async () => {
+    await fixture(async ({ core, channelId, human, tool }) => {
+      await human('question', 'What is the release date?');
+      const read = await tool('channel_read', {});
+      const peerRead = await tool('channel_read', {}, 'bob');
+      await tool(
+        'channel_send',
+        { body: 'October 20', observation_id: peerRead.observationIds[channelId] },
+        'bob',
+      );
+      const held = await tool('channel_send', {
+        body: 'The signed release record specifies 09:00 UTC',
+        observation_id: read.observationIds[channelId],
+      });
+      const sent = await tool('channel_send', {
+        body: 'The signed release record specifies 09:00 UTC',
+        draft_id: held.draftId,
+        observation_id: held.review!.observationId,
+      });
+      expect(sent.status).toBe('committed');
+      await human('new-question', 'What is the release date in Tokyo? Ada, convert the time.');
+      const fresh = await tool('channel_read', {});
+      const answer = await tool('channel_send', {
+        body: 'October 20, 18:00 JST',
+        observation_id: fresh.observationIds[channelId],
+      });
+      expect(answer.status).toBe('committed');
+      expect(core.channels.message(channelId, 'new-question')?.id).toBe('new-question');
+    });
+  });
+
+  it('refuses Human, invented preview, own and unobserved peer IDs as yielding evidence without dropping the draft', async () => {
+    await fixture(async ({ channelId, human, tool }) => {
+      await human('question', 'Question');
+      const ownRead = await tool('channel_read', {});
+      const own = await tool('channel_send', {
+        body: 'Earlier response',
+        observation_id: ownRead.observationIds[channelId],
+      });
+      const read = await tool('channel_read', {});
+      const peerRead = await tool('channel_read', {}, 'bob');
+      const peer = await tool(
+        'channel_send',
+        { body: 'Answer', observation_id: peerRead.observationIds[channelId] },
+        'bob',
+      );
+      const held = await tool('channel_send', {
+        body: 'Answer',
+        observation_id: read.observationIds[channelId],
+      });
+      for (const id of ['question', 'preview-not-committed', own.messageId, peer.messageId]) {
+        const refused = await tool('channel_send', {
+          body: '',
+          drop: true,
+          draft_id: held.draftId,
+          observation_id: read.observationIds[channelId],
+          yield_to_message_ids: [id],
+        });
+        expect(refused).toMatchObject({ status: 'refused', reason: 'peer-answer-not-observed' });
+      }
+      const drop = await tool('channel_send', {
+        body: '',
+        drop: true,
+        draft_id: held.draftId,
+        observation_id: held.review!.observationId,
+        yield_to_message_ids: [peer.messageId],
+      });
+      expect(drop.status).toBe('dropped');
+    });
+  });
+
   it('holds an obsolete answer without a public message, then commits a revision from actual new content', async () => {
     await fixture(async ({ core, channelId, human, tool }) => {
       await human('old', 'Meet at 10:00');

@@ -58,7 +58,7 @@ marked in the exported JSON. Check undo, skipped pairs, full message bodies and 
 - A successful tool call returning `held` is not delivery. Missing usage remains unknown.
 - Draft previews are public temporary content; they are retained separately in reports.
 - Tool handles cannot cross owners or Groups. Source purge removes derived draft bodies.
-- After one failed recheck, automatic retries stop. This slice does not implement #2054–2056.
+- After one failed recheck, automatic retries stop. Busy-group policies and recovery (#2055–2056) remain separate.
 - Human acceptance requires independent review of full histories; no test or LLM signs it.
 
 ## Explicit completion and revoked-source regression
@@ -75,3 +75,22 @@ A send without explicit completion IDs returns `inboxResolution.outcome: not-req
 Verify the Bot handles completion in the current turn, rather than creating a second cleanup
 turn. Drop may omit channel_id only when an inbound Channel exists; the draft owner/channel
 checks remain unchanged.
+
+## Peer-answer yielding (#2054)
+
+Run two actual Bots on the same Group request. When B commits while A is generating, A's
+held result identifies fully returned committed peers in `review.peerMessageIds`. Read the
+content; A may drop silently with `yield_to_message_ids` and `observation_id`. Direct CLI uses
+the same `channel_send` tool. Verify `explicit-peer-yield`, durable evidence IDs and no public
+agreement bubble; Inbox work stays open unless explicitly resolved. An invented preview ID,
+Human/self message, missing observation or changed/purged peer cannot certify yielding.
+Verify independent evidence still commits and a repeated-word new Human question is answered.
+
+`node scripts/e2e-group-peer-review.mjs --baseline-instance <accepted-2053-json>
+--candidate-instance <candidate-json> --original-instance <B0-json> --report <json>` runs a
+diagnostic triplet. `--formal` freezes four families of ten triplets, including same-length
+FYI/explicit-request controls. Both Bots' real preparatory and target turns count in usage.
+Natural timing may miss the race: retain those attempts as incomparable, not replacement
+successes. Export the two pairwise comparisons without double-counting shared candidate cost.
+Capture full Group history in Messages and compare with direct CLI/trace evidence; judge
+complete histories in both orders before giving the Human the offline preference cards.

@@ -1,6 +1,6 @@
 # ADR-0224: Group send review shares the Channel commit transaction
 
-- Status: Proposed; opt-in pilot, Human history feedback received; quantitative acceptance unresolved
+- Status: Accepted for #2053 with explicit Human quiet-latency exception; #2054 peer-yield extension awaits its own evaluation
 - Date: 2026-10-17
 - Issue: [#2053](https://github.com/BotHarness/DeepSeekBot/issues/2053)
 - Specification: [#2051](https://github.com/BotHarness/DeepSeekBot/issues/2051)
@@ -70,3 +70,14 @@ all Group/DM outputs so destination changes cannot masquerade as successful sile
 Omitting explicit completion returns `inboxResolution.outcome: not-requested`, so the
 Consumer does not imply sending completed Inbox work. Drop shares the send Tool's inbound
 Channel default; the existing draft owner/channel check still decides whether it can drop.
+
+For #2054, the same held result identifies fully returned committed peer messages as
+`peerMessageIds`. These IDs describe observed content, not semantic completion. The model
+compares that content with its remaining responsibility, keeps independent evidence and new
+direct questions, and can drop redundant work without an agreement message. A drop may include
+`yield_to_message_ids` and its observation handle. The existing owner checks each cited ID
+against the current canonical content and the owner's actual observation, excluding Human,
+own, failure, purged and preview-only content. It stores the evidence IDs in the existing draft
+JSON and returns `explicit-peer-yield`. No database generation or second content store is added.
+The trace records the model's deliberate choice, not a Host verdict that all work is complete.
+Inbox resolution remains a separate explicit selection, including after a peer yield.

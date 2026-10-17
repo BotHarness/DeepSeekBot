@@ -1,7 +1,8 @@
 # BotHarness 架构与数据流
 
 #2053 的本地 Group 发送复核试点由 Channel owner 在正式 Source Event / placement 追加的同一事务内比较实际观察依据。
-待复核草稿保存在现有 Operational Database，仅正式提交进入 Channel/Inbox；drop 不解决 Inbox，过期或重启不自动恢复。
+#2054 复用该 owner：held 标出实际返回的同伴正式消息；Bot 可引用这些消息显式让话，或提交独立补充。Host 只核对引用是否真实观察且仍有效，不判断语义重复，也不自动结清 Inbox；让话依据随现有草稿 JSON 保存。
+待复核草稿保存在现有 Operational Database，仅正式提交进入 Channel/Inbox；drop 不自动解决 Inbox，过期或重启不自动恢复。
 原始依据与修订草稿归同一 owner，purge 清除派生内容。默认关闭，按群 opt-in；CLI 与模型使用同一契约。
 held 工具结果复用 Channel 的有界模型读取投影直接返回新增正文与显式观察凭据；仅完整返回的内容计入观察，省略内容仍需读取，后续提交仍在同一事务重查。其持久边界和保守取舍见 [ADR-0224](../adr/0224-group-send-review-shares-the-channel-commit.md)，效果与 Human 验收仍由试点评估决定。
 

@@ -253,6 +253,26 @@ describe('explicit Inbox completion with channel_send', () => {
       expect(send).not.toHaveBeenCalled();
     });
   });
+  it('rejects yielding without a drop or observed handle before any side effect', async () => {
+    await fixture(async (run, call) => {
+      const send = vi.spyOn(run.channels, 'send');
+      const resolve = vi.spyOn(run.triage!, 'resolve');
+      for (const args of [
+        { body: 'Answer', yield_to_message_ids: ['peer'], observation_id: 'seen' },
+        { body: '', drop: true, draft_id: 'draft', yield_to_message_ids: ['peer'] },
+        {
+          body: '',
+          drop: true,
+          draft_id: 'draft',
+          observation_id: 'seen',
+          yield_to_message_ids: [],
+        },
+      ])
+        await expect(call(args)).rejects.toThrow('yield_to_message_ids');
+      expect(send).not.toHaveBeenCalled();
+      expect(resolve).not.toHaveBeenCalled();
+    });
+  });
 });
 
 describe('DSH Bot Agent adapter', () => {

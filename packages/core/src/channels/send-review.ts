@@ -15,11 +15,13 @@ export type SendReviewOutcome = {
   reason: string;
   changedMessageIds?: string[];
   changedMessageCount?: number;
+  yieldedToMessageIds?: string[];
   review?: {
     observationId: string;
     content: string;
     complete: boolean;
     observedMessageIds: string[];
+    peerMessageIds?: string[];
     responsibility: string;
   };
   read?: { channel_id: string; limit: number };
@@ -50,6 +52,7 @@ export type ReviewDraft = {
   current: ChannelMessage;
   basis: Seen[];
   initialBasis: Seen[];
+  yieldedToMessageIds?: string[];
 };
 
 export class GroupSendReview {
@@ -105,18 +108,69 @@ export class GroupSendReview {
     return this.database.read((db) => this.#load(db, owner, channelId, draftId));
   }
 
-  drop(owner: string, channelId: string, draftId: string): SendReviewOutcome {
+  drop(
+    owner: string,
+    channelId: string,
+    draftId: string,
+    evidence?: { observationId: string; messageIds: string[] },
+  ): SendReviewOutcome {
     return this.database.transaction((db) => {
       const draft = this.#load(db, owner, channelId, draftId);
       if (!draft || draft.state === 'committed')
         return { status: 'refused', channelId, draftId, reason: 'draft-unavailable' };
+      if (evidence && draft.state !== 'dropped') {
+        const observation = this.#observations.get(evidence.observationId);
+        const botSlug = draft.original.author.kind === 'bot' ? draft.original.author.slug : '';
+        const validObservation =
+          observation?.owner === owner &&
+          observation.channelId === channelId &&
+          observation.expires > this.now().getTime();
+        const validPeers =
+          evidence.messageIds.length > 0 &&
+          evidence.messageIds.length <= 20 &&
+          evidence.messageIds.every((id) => {
+            const seen = validObservation && observation.seen.find((item) => item.id === id);
+            if (!seen) return false;
+            const row = db
+              .prepare(`SELECT e.payload_json, e.body FROM channel_placements p
+                JOIN source_events e ON e.source_event_id = p.source_event_id
+                WHERE p.channel_id = ? AND p.message_id = ?
+                AND NOT EXISTS (SELECT 1 FROM messaging_purge_facts f
+                  WHERE f.channel_id = p.channel_id AND f.message_id = p.message_id)`)
+              .get(channelId, id);
+            if (!row) return false;
+            const message = {
+              ...JSON.parse(String(row.payload_json)),
+              body: String(row.body),
+            } as ChannelMessage;
+            return (
+              message.author.kind === 'bot' &&
+              message.author.slug !== botSlug &&
+              !isChannelNotice(message) &&
+              !message.sessionFailure &&
+              !!message.body.trim() &&
+              fingerprint(message) === seen.hash
+            );
+          });
+        if (!validPeers)
+          return {
+            status: 'refused',
+            channelId,
+            draftId,
+            reason: 'peer-answer-not-observed',
+          };
+        draft.yieldedToMessageIds = [...new Set(evidence.messageIds)];
+      }
       draft.state = 'dropped';
       this.#save(db, draft);
       return {
         status: 'dropped',
         channelId,
         draftId,
-        reason: 'explicit-drop-does-not-resolve-inbox',
+        reason: draft.yieldedToMessageIds
+          ? 'explicit-peer-yield'
+          : 'explicit-drop-does-not-resolve-inbox',
+        ...(draft.yieldedToMessageIds ? { yieldedToMessageIds: draft.yieldedToMessageIds } : {}),
       };
     });
   }
