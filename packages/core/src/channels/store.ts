@@ -1,3 +1,4 @@
+import type { DatabaseSync } from 'node:sqlite';
 import { allBotPreview, assertAllBotPreview, type AllBotPreview } from './all-bot-mention.js';
 import type { AttachmentMigrationResult } from '../attachments/legacy-migration.js';
 import { projectAttachmentFiles } from '../attachments/message-files.js';
@@ -385,7 +386,7 @@ export interface ChannelStore {
     message: ChannelMessage,
     preview?: AllBotPreview,
     origin?: ChannelMessageOrigin,
-    canCommit?: () => boolean,
+    canCommit?: (database?: DatabaseSync) => boolean,
   ): Promise<ChannelAppendOnceResult>;
   readPosition(id: string): ChannelReadPosition | undefined;
   markRead(id: string, messageId: string): Promise<ChannelReadPosition | undefined>;

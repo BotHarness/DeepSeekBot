@@ -1,5 +1,10 @@
 # BotHarness 架构与数据流
 
+#2053 的本地 Group 发送复核试点由 Channel owner 在正式 Source Event / placement 追加的同一事务内比较实际观察依据。
+待复核草稿保存在现有 Operational Database，仅正式提交进入 Channel/Inbox；drop 不解决 Inbox，过期或重启不自动恢复。
+原始依据与修订草稿归同一 owner，purge 清除派生内容。默认关闭，按群 opt-in；CLI 与模型使用同一契约。
+held 工具结果复用 Channel 的有界模型读取投影直接返回新增正文与显式观察凭据；仅完整返回的内容计入观察，省略内容仍需读取，后续提交仍在同一事务重查。其持久边界和保守取舍见 [ADR-0224](../adr/0224-group-send-review-shares-the-channel-commit.md)，效果与 Human 验收仍由试点评估决定。
+
 Group composer 的 `/workspace` 和工作区 chip 复用 DM 的目录选择器与授权确认组件。默认选中当前未暂停、未删除的全部 Bot；Human 可以取消勾选，只授权指定几个。Group 只是逐 Bot 授权的入口，不持有权限；预览固定确认目标，后来加入的 Bot 不自动继承 Grant。共享目录预览相对于权限是只读的：native Workspace controller 可以登记、解析一个 DSH Workspace，但确认前不会建立任何 Workspace Grant。确认展示每个 Bot、canonical 目录、既有 Assignment mode 和 Orchestrator 写入状态；这些权限设置保持不变。逐 Bot 调用既有 `grantCreate`，可选的 application-defined Group scope 仅约束当前 Channel 成员与确认目录，并在异步 Workspace status 检查后、没有后续 await 的实际写入边界再次校验。SQLite `workspace_grants` 仍是唯一授权权威；无 Channel Workspace Binding、Group Grant 或统一 cwd。成功、有效 Grant 复用、拒绝和未知结果分别展示；失败/未知成员重试前通过同一个 `grants` readback 验证成员、撤销状态与当前目录，读回失败不发起写入。原侧栏与 chip 使用既有逐 Bot 变更通知刷新，正常委派仍通过原 Channel、Orchestrator 与 Assignment seam（#1433）。
 
 #1386 已在 Human 授权的隔离 Linux Profile 中复验既有 QA2 PersonaBot：真实 Lark → Owner Web 多字段输入 → 既有审批 → 固定 CLI/MCP 引用认证 → 原私聊回帖；普通容器 CLI/MCP、真实 Spill、跨 Bot 拒绝、轮换／撤销及停止活跃使用、重启与自然到期 Schedule 均保留 native／canonical 证据。模型 wire 正文及运行记录扫描未发现私密 canary；结论限于记录的实际安装版本和两个固定消费者，不推导任意 CLI/MCP。Linux 接收器已停止并恢复原 Windows QA2，正常回帖已核对。当前仍为 opt-in，Linux 工作区文件权限需显式准备。详见[复验记录](https://github.com/BotHarness/DeepSeekBot/blob/main/docs/research/2026-10-12-private-input-linux-qualification.md)与[双语 Linux 指南](https://github.com/BotHarness/DeepSeekBot/blob/main/docs/dev/guides/private-input-linux.md)。
@@ -49,6 +54,8 @@ Channel 的消息引用（#145）只保存同 Channel 的已提交目标 ID；Hu
 拥有该 Session 的 Orchestrator 可复制 `channel_read`（含通过 `message_id` / `content_cursor` 完整读取的内容）或旧版授权读取结果中的最多 10 个可信附件引用，四个字段原样保留：`{fileId,name,mime,size}`。#577 后旧消息投影迁移后的文件身份；过期 `{hash,name,mime,size}` 结果必须先重新读取所属消息再转发，旧 hash 图片读取仍须带所属消息以解析当前字节。Orchestrator 还可通过 `channel_attachment_import` 明确选择并导入已授权的本地结果文件；不能猜测身份与元数据。DSH schema 将 `size` 声明为整数；Host 继续校验 0–9007199254740991 的安全非负字节范围。固定版本的 DSH schema 不支持 `maxItems` 或数值上下界，因此数组上限由描述与运行时校验共同表达。Group 最多接受 20 个提及 ID，每个都必须是其他活跃现成员。`channel_send` 只有在 Messaging 权威接受写入后才返回紧凑的 `{channelId,messageId}` JSON；省略目标时使用入站 Channel。该结果取代原文本确认；附件身份、profile 归属、当前文件语义、回复目标、delivery-key 重试与因果循环边界继续沿用（[#570](https://github.com/BotHarness/BotHarness/issues/570)）。
 
 应用定义的 `group_leave` Tool 只在规范成员移除提交后返回 `{channelId,left:true,outcome:"changed"}`；Bot 当前不是该群成员时返回 `{channelId,left:false,outcome:"unchanged",reason:"not-member"}`。无变更既包括重复退出，也包括从未加入的群；不推断历史成员身份，不返回未加入群的名称或名单。缺失 Channel 抛出 `group_leave: channel-unavailable`，非群聊目标抛出 `group_leave: group-required`，替代旧的含糊 `left:false` 成功结果；Tool 异常保持为失败。既有 `{channelId,left}` 字段及 Core 返回结构保持兼容，调用方须处理新的无效目标失败。ADR-0073 的同一事务仍承担创建者移交 Human、待处理 Admission 撤销、单条持久离群通知及剩余成员注意力策略；提交后的实时通知警告不否定已提交变更。读写权限立即撤销，因此 Bot 应通过仍可访问的 Channel 向 Human 报告（[#571](https://github.com/BotHarness/BotHarness/issues/571)）。
+
+The reply Consumer can compose an explicit `resolve_inbox_ids` selection with a successful send/drop, using the existing Inbox triage owner afterward; completion failures remain separate from delivery. A revoked initiating opted-in Group prevents that run from continuing in another Channel. A later independent DM remains available (ADR-0224).
 
 Home/Tob（#2082，[ADR-0223](../adr/0223-tob-is-a-protected-local-personabot.md)）复用现有 PersonaBot、Memory、Workspace、Channel、审批和 native Settings owners。全局 Home 不保存第二份对话；提交进入 Tob 的同一个 Human DM，消息面板继续展示。空 Profile 的 onboarding 使用 Tob，已有普通 DeepSeek Bot 保持原身份和历史。Generation 96 的本地单例引用决定 Tob 身份，名字、Soul 或导入内容不授予权限。首片只开放全局 Assignment 并发上限的读取／审批修改；执行时校验 Tob root Orchestrator、原始 Human DM Source Event 与旧值／revision，CLI 直接工具读取可诊断但不能伪造对话来源写入。布局 v8 保留 v7 子树与比例，并备份升级前原文；Home 默认快捷键使用独立稳定 ID。
 

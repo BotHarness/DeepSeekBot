@@ -151,7 +151,7 @@ export function verifyPaths(name, root = repoRoot) {
   };
 }
 
-function cookieFor(home) {
+export function cookieFor(home) {
   const jar = join(tmpdir(), `dsh-${basename(home).replace(/[^a-zA-Z0-9-]/gu, '-')}.cookies`);
   if (!existsSync(jar)) throw new Error(`no login cookie at ${jar}; relaunch the instance`);
   return readFileSync(jar, 'utf8').split(';')[0];

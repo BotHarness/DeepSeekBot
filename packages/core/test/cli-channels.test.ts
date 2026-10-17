@@ -390,3 +390,18 @@ describe('Channel and group CLI commands', () => {
     });
   });
 });
+
+it('reads and explicitly toggles Group send review through the live CLI', async () => {
+  const live = await host(ok);
+  for (const args of [[], ['--accept'], ['--off']]) {
+    expect((await invoke(['group-send-review', 'group', ...args], live.url)).code).toBe(0);
+  }
+  expect(live.calls.map((call) => call.args)).toEqual([
+    { channelId: 'group' },
+    { channelId: 'group', enabled: true },
+    { channelId: 'group', enabled: false },
+  ]);
+  expect(
+    (await invoke(['group-send-review', 'group', '--accept', '--off'], live.url)).code,
+  ).not.toBe(0);
+});

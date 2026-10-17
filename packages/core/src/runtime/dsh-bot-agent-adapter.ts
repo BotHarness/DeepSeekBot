@@ -1,3 +1,4 @@
+import { GroupReplySourceRevoked, SendReviewRequired } from '../channels/send-review.js';
 import { AssignmentInboxAcceptanceUncertainError } from './assignment-delivery.js';
 import { isChannelAttachmentRef } from '../attachments/ref.js';
 import type { Context } from '@deepseek-ai/cordis';
@@ -116,7 +117,7 @@ const ROLE_PROMPT_ORDER = 10_350;
 const REPLY_DELIVERY_PROMPT = `## Before ending this Orchestrator turn
 MUST deliver any intended Human-facing answer with channel_send({body: your actual answer}). Final assistant text is NOT sent to the Channel. This includes "only reply", "no tools", greetings and image answers: channel_send is the required reply transport, not optional extra work. Do not follow earlier assistant-only examples. Omit channel_id for the inbound Channel. Each turn names its source and Channel in a leading bracketed header such as [Human DM] or [Bot Inbox: ...]; that Channel is this turn's inbound Channel, and requests from earlier turns belong to the Channel named in their own header. When a message from another Channel joins a running turn, address every channel_send in that turn: pass channel_id, or reply_to with the message ID you are answering. What a Human says in your DM, and your answer to it, stays in that DM: post it in a Group only when the Human asked for it to be shared there. A [Host: ...] line reports Host state such as an interrupted turn; it is not a request.
 中文：要回答用户，就必须调用 channel_send，body 填实际答复；纯文本 final 不会发送给用户。“只回复”“不要调用工具”指不要额外工作，仍须用 channel_send 送达答复。读完图片后也必须发送回答。
-If no reply is wanted, remain silent. External IM replies use bridge_reply/bridge_reply_file to their trusted source instead. Do not duplicate a successful send, claim a failed send succeeded, or blindly retry an uncertain outcome. All authorization checks still apply.`;
+If no reply is wanted, remain silent. A cancellation ends the task: drop a held draft silently, without an acknowledgement unless requested. A refused Group send or revoked membership does not authorize a DM fallback, a copied draft or an unsolicited explanation elsewhere. Stop that task. For completed work, pass resolve_inbox_ids on channel_send to explicitly resolve those Inbox items only after a successful send or drop, avoiding a separate cleanup call. If omitted, Inbox work remains open: explicitly inbox_resolve completed items before ending this turn. Do not include unfinished work. External IM replies use bridge_reply/bridge_reply_file to their trusted source instead. Do not duplicate a successful send, claim a failed send succeeded, or blindly retry an uncertain outcome. All authorization checks still apply.`;
 const REPLY_DELIVERY_REMINDER =
   '[Host reply transport reminder] If you answer this message, put the actual answer in channel_send, not assistant final text. "No tools" means no extra work, not skipping reply transport. If no reply is wanted, stay silent. External replies keep their trusted bridge route. Do not repeat a successful send or retry an uncertain outcome. 要回答就用发送工具送达；纯文本不会发给用户。';
 const NATIVE_SCHEDULE_TOOLS = new Set([
@@ -3456,13 +3457,34 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       defineTool({
         name: 'channel_send',
         description:
-          'Deliver your actual reply to the Human or joined Channel. Assistant final text is private Session output and is NOT delivered: use this Tool even for a short acknowledgment, greeting, clarification or image answer. A request for "no tools" still needs this reply transport, but no unnecessary work Tools. Omit channel_id for the inbound Channel. Only a successful result with {channelId,messageId} proves a committed message; never resend blindly after an uncertain outcome. Forward trusted references from channel_read (including complete message_id/content_cursor reads), or use channel_attachment_import for a selected authorized local result. In a Group, mention a joined Bot colleague with mention_bot_ids or by writing @ and its exact display name in body; either way the Host shows its @ badge and wakes it, even when it wakes only on mentions. To hand work over or report a result to a colleague, mention it. Use mention_human_ids from channel_list humanMembers to explicitly address a Human; plain @ names do not create personal mentions. To add or remove your emoji reaction on one message, as lightweight acknowledgment instead of a reply, set react_to and reaction with an empty body. A reaction does not wake anyone and is not a reply: still put an answer in body when the Human needs one.',
+          'Deliver your actual reply to the Human or joined Channel. Assistant final text is private Session output and is NOT delivered: use this Tool even for a short acknowledgment, greeting, clarification or image answer. A request for "no tools" still needs this reply transport, but no unnecessary work Tools. Omit channel_id for the inbound Channel. In an opted-in Group a held result is NOT sent. Read review.content when present: it contains newly observed messages. If review.complete is true, use review.observationId as observation_id with draft_id to revise, keep the same body for unrelated changes, or drop a cancelled task; no extra channel_read is needed. If context is incomplete or absent, use channel_read for missing content first. A second change returns requires-review: stop this automatic attempt and keep unfinished Inbox responsibility open. Only a successful result with {channelId,messageId} proves a committed message; never resend blindly after an uncertain outcome. Forward trusted references from channel_read (including complete message_id/content_cursor reads), or use channel_attachment_import for a selected authorized local result. In a Group, mention a joined Bot colleague with mention_bot_ids or by writing @ and its exact display name in body; either way the Host shows its @ badge and wakes it, even when it wakes only on mentions. To hand work over or report a result to a colleague, mention it. Use mention_human_ids from channel_list humanMembers to explicitly address a Human; plain @ names do not create personal mentions. To add or remove your emoji reaction on one message, as lightweight acknowledgment instead of a reply, set react_to and reaction with an empty body. A reaction does not wake anyone and is not a reply: still put an answer in body when the Human needs one.',
         parameters: {
+          resolve_inbox_ids: {
+            type: 'array',
+            items: { type: 'string' },
+            description:
+              'Explicitly mark these 1–200 observed Source Event or Message IDs done ONLY after this send commits or this draft is dropped. Include the original request and handled FYI/correction IDs when complete. Saves a separate inbox_resolve call. Held/refused sends never resolve them. Check inboxResolution; a resolution failure does not undo delivery or justify resending.',
+          },
+          observation_id: {
+            type: 'string',
+            description:
+              'Host observationId/observationIds from channel_read, or review.observationId in a held result whose content you read. Never guess. Required after a held send.',
+          },
+          draft_id: {
+            type: 'string',
+            description:
+              'The held draftId to revise or drop. One explicit recheck is allowed; unchanged body is valid.',
+          },
+          drop: {
+            type: 'boolean',
+            description:
+              'Drop draft_id without sending. channel_id defaults to the inbound Channel. Keep unresolved Inbox work open unless explicitly selected in resolve_inbox_ids.',
+          },
           body: {
             type: 'string',
             required: true,
             description:
-              'The actual Human-facing answer to deliver, not a plan to send later. May be empty when attachments are present or when only reacting.',
+              'The actual Human-facing answer to deliver, not a plan to send later. May be empty when dropping a draft, attachments are present or when only reacting.',
           },
           attachments: {
             type: 'array',
@@ -3526,6 +3548,46 @@ class DshBotAgentAdapter implements BotAgentAdapter {
             throw new Error('channel_send: Orchestrator run is unavailable');
           }
           if (
+            args.resolve_inbox_ids !== undefined &&
+            (!Array.isArray(args.resolve_inbox_ids) ||
+              args.resolve_inbox_ids.length < 1 ||
+              args.resolve_inbox_ids.length > 200 ||
+              args.resolve_inbox_ids.some((id) => typeof id !== 'string' || !id.trim()) ||
+              active.run.triage === undefined ||
+              args.react_to !== undefined)
+          )
+            throw new Error(
+              'channel_send: resolve_inbox_ids requires 1–200 IDs, an Inbox, and a send or drop (not a reaction)',
+            );
+          const resolveCompleted = () => {
+            if (args.resolve_inbox_ids === undefined)
+              return active.run.triage === undefined
+                ? {}
+                : {
+                    inboxResolution: {
+                      outcome: 'not-requested',
+                      instruction:
+                        'This send/drop did not resolve Inbox work. Explicitly inbox_resolve completed items before ending this turn; leave unfinished items open.',
+                    },
+                  };
+            try {
+              return {
+                inboxResolution: active.run.triage!.resolve({
+                  ids: args.resolve_inbox_ids,
+                  outcome: 'done',
+                }),
+              };
+            } catch {
+              return {
+                inboxResolution: {
+                  outcome: 'failed',
+                  reason: 'inbox-resolution-failed',
+                  retry: 'inbox_resolve',
+                },
+              };
+            }
+          };
+          if (
             args.attachments !== undefined &&
             (args.attachments.length > 10 || !args.attachments.every(isChannelAttachmentRef))
           )
@@ -3534,6 +3596,22 @@ class DshBotAgentAdapter implements BotAgentAdapter {
             throw new Error('channel_send: requires at most 20 mention Bot IDs');
           if (args.react_to !== undefined && args.reaction === undefined)
             throw new Error('channel_send: react_to needs reaction, the emoji to add or take back');
+          if (args.drop === true) {
+            const dropChannelId = args.channel_id ?? active.run.inboundChannelId;
+            if (!args.draft_id || !dropChannelId || !active.run.channels.dropDraft)
+              throw new Error(
+                'channel_send: drop requires draft_id and an explicit or inbound channel_id',
+              );
+            const outcome = active.run.channels.dropDraft({
+              channelId: dropChannelId,
+              draftId: args.draft_id,
+            });
+            this.#drafts.discard(run.sessionId, dropChannelId);
+            return JSON.stringify({
+              ...outcome,
+              ...(outcome.status === 'dropped' ? resolveCompleted() : {}),
+            });
+          }
           const reacted =
             args.react_to === undefined || args.reaction === undefined
               ? undefined
@@ -3547,23 +3625,46 @@ class DshBotAgentAdapter implements BotAgentAdapter {
             throw new Error('channel_send: reactions are unavailable');
           if (reacted !== undefined && args.body.trim() === '' && args.attachments === undefined)
             return JSON.stringify(reacted);
-          const message = await active.run.channels.send({
-            body: args.body,
-            ...(exec.callId === undefined ? {} : { deliveryKey: String(exec.callId) }),
-            ...(args.attachments === undefined ? {} : { attachments: args.attachments }),
-            ...(args.channel_id === undefined ? {} : { channelId: args.channel_id }),
-            ...(args.reply_to === undefined ? {} : { replyTo: args.reply_to }),
-            ...(args.mention_bot_ids === undefined ? {} : { mentionBotIds: args.mention_bot_ids }),
-            ...(args.mention_human_ids === undefined
-              ? {}
-              : { mentionHumanIds: args.mention_human_ids }),
-          });
+          let message;
+          try {
+            message = await active.run.channels.send({
+              ...(args.observation_id === undefined ? {} : { observationId: args.observation_id }),
+              ...(args.draft_id === undefined ? {} : { draftId: args.draft_id }),
+              body: args.body,
+              ...(exec.callId === undefined ? {} : { deliveryKey: String(exec.callId) }),
+              ...(args.attachments === undefined ? {} : { attachments: args.attachments }),
+              ...(args.channel_id === undefined ? {} : { channelId: args.channel_id }),
+              ...(args.reply_to === undefined ? {} : { replyTo: args.reply_to }),
+              ...(args.mention_bot_ids === undefined
+                ? {}
+                : { mentionBotIds: args.mention_bot_ids }),
+              ...(args.mention_human_ids === undefined
+                ? {}
+                : { mentionHumanIds: args.mention_human_ids }),
+            });
+          } catch (error) {
+            const failedChannelId = args.channel_id ?? run.inboundChannelId;
+            if (failedChannelId !== undefined) this.#drafts.discard(run.sessionId, failedChannelId);
+            if (error instanceof GroupReplySourceRevoked)
+              return JSON.stringify({
+                status: 'refused',
+                reason: error.code,
+                channelId: error.channelId,
+                instruction:
+                  'Stop this task. Do not send its draft or an explanation in another Channel. Explicitly resolve only work that is finished.',
+              });
+            if (!(error instanceof SendReviewRequired)) throw error;
+            this.#drafts.discard(run.sessionId, error.outcome.channelId);
+            return JSON.stringify(error.outcome);
+          }
           const draftChannelId = args.channel_id ?? run.inboundChannelId;
           if (draftChannelId !== undefined)
             this.#drafts.settle(run.sessionId, draftChannelId, message.body);
           return JSON.stringify({
             channelId: args.channel_id ?? active.run.inboundChannelId,
             messageId: message.id,
+            status: 'committed',
+            ...resolveCompleted(),
             ...(reacted === undefined ? {} : { reactions: reacted.reactions }),
           });
         },

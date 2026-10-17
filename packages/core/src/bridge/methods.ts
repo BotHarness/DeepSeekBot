@@ -550,6 +550,7 @@ export interface BridgeMethods {
   channelGroupInviteCancel(payload: unknown): BridgeResult<{ channel: ChannelRecord }>;
   channelGroupJoinDecide(payload: unknown): BridgeResult<{ channel: ChannelRecord }>;
   channelGroupMemberRemove(payload: unknown): BridgeResult<{ channel: ChannelRecord }>;
+  channelGroupSendReview(payload: unknown): BridgeResult<{ enabled: boolean }>;
   channelGroupWakePolicies(payload: unknown): BridgeResult<{ members: GroupMemberWakePolicy[] }>;
   channelGroupWakeSet(payload: unknown): BridgeResult<{ channel: ChannelRecord }>;
   channelGroupDelete(payload: unknown): BridgeResult<{ deleted: boolean }>;
@@ -3299,6 +3300,27 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       } catch (error) {
         return invalidInput(String(error));
       }
+    },
+    channelGroupSendReview(payload) {
+      const parsed = z
+        .object({ channelId: z.string().min(1), enabled: z.boolean().optional() })
+        .strict()
+        .safeParse(payload);
+      if (!parsed.success) return invalidInput('Invalid send review configuration');
+      const { channelId, enabled } = parsed.data;
+      const channel = deps.channels.get(channelId);
+      if (
+        channel?.type !== 'group' ||
+        channel.deletedAt ||
+        !deps.channels
+          .listHumanMembers(channelId)
+          .some((member) => member.humanId === 'local-human')
+      )
+        return invalidInput('A local Group with the current Human is required');
+      const review = deps.runtime?.groupSendReview;
+      if (!review) return unavailable();
+      if (enabled !== undefined) review.configure(channelId, enabled);
+      return { ok: true, value: { enabled: review.enabled(channelId) } };
     },
     channelGroupWakePolicies(payload) {
       const parsed = z.object({ channelId: z.string().min(1) }).safeParse(asObject(payload));

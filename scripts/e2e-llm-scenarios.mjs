@@ -86,7 +86,12 @@ export const SCENARIOS = [
       const dm = await ctx.dm('aura');
       await ctx.humanSend(dm, 'What is 6 times 7? Answer with digits only.');
       await ctx.waitFor('Bot reply with 42', () =>
-        ctx.messages(dm).find((message) => ctx.isBot(message, 'aura') && /42/u.test(message.body)),
+        ctx
+          .messages(dm)
+          .find(
+            (message) =>
+              ctx.isBot(message, 'aura') && message.body.trim() === '42' && !message.sessionFailure,
+          ),
       );
     },
   },
@@ -402,7 +407,9 @@ export const TOKEN_BUCKETS = ['inputTokens', 'outputTokens', 'cacheReadTokens', 
 export function sumHostRows(rows) {
   const usage = { routes: [...new Set(rows.map((row) => `${row.provider}/${row.model}`))].sort() };
   for (const bucket of [...TOKEN_BUCKETS, 'totalTokens'])
-    usage[bucket] = rows.some((row) => typeof row[bucket] !== 'number')
+    usage[bucket] = rows.some(
+      (row) => typeof row[bucket] !== 'number' || (row.unknownBuckets?.[bucket] ?? 0) > 0,
+    )
       ? null
       : rows.reduce((total, row) => total + row[bucket], 0);
   return usage;
@@ -429,7 +436,7 @@ export function sumSessionTotals(records, slugs) {
   return { ...usage, sessions, routes: [...routes].sort() };
 }
 
-function readSessionRecords(home) {
+export function readSessionRecords(home) {
   const folder = join(home, 'storages', 'session_projcache', 'sessions');
   if (!existsSync(folder)) return [];
   return readdirSync(folder)
@@ -558,7 +565,7 @@ function localDay(date = new Date()) {
   return `${date.getFullYear()}-${month}-${day}`;
 }
 
-function createContext(instance, scenario, timeoutSeconds, log, presetId) {
+export function createContext(instance, scenario, timeoutSeconds, log, presetId) {
   const slugs = {};
   const call = (method, args) => rpc(instance, `botharness/${method}`, args);
   let messageCache = new Map();
@@ -594,7 +601,7 @@ function createContext(instance, scenario, timeoutSeconds, log, presetId) {
         if (result.freshness !== 'ready') ready = false;
         rows.push(...result.rows);
       }
-      return { ...sumHostRows(rows), ready };
+      return { ...sumHostRows(rows), ready, rows };
     },
     async settledUsage(start, settleSeconds) {
       const deadline = Date.now() + (settleSeconds + 60) * 1000;
@@ -625,7 +632,10 @@ function createContext(instance, scenario, timeoutSeconds, log, presetId) {
       }
     },
     slug: (key) => slugs[key],
-    isBot: (message, key) => message.author.kind === 'bot' && message.author.slug === slugs[key],
+    isBot: (message, key) =>
+      message.author.kind === 'bot' &&
+      message.author.slug === slugs[key] &&
+      !message.sessionFailure,
     async dm(key) {
       const dm = await call('channelDm', {
         slug: slugs[key],
@@ -714,6 +724,7 @@ function createContext(instance, scenario, timeoutSeconds, log, presetId) {
           messageCache.get(channelId) ??
           (await call('channelMessages', { channelId, limit: 50 }).catch(() => ({ messages: [] })))
             .messages;
+        messageCache.set(channelId, messages);
         for (const message of messages) {
           if (message.toolApprovalRequest === undefined || approved.has(message.id)) continue;
           approved.add(message.id);
@@ -738,6 +749,8 @@ function createContext(instance, scenario, timeoutSeconds, log, presetId) {
       const deadline = Date.now() + timeoutSeconds * 1000;
       while (Date.now() < deadline) {
         await ctx.refresh();
+        const failure = [...messageCache.values()].flat().find((message) => message.sessionFailure);
+        if (failure) throw new Error(failure.body);
         const found = predicate();
         if (found) {
           log.proof = { label, found };
@@ -755,7 +768,9 @@ function summarize(message) {
   return {
     id: message.id,
     author: message.author.kind === 'bot' ? message.author.slug : message.author.kind,
-    body: message.body.slice(0, 300),
+    body: message.body,
+    at: message.at,
+    ...(message.sessionFailure ? { sessionFailure: message.sessionFailure } : {}),
     mentions: message.mentions?.map((mention) => mention.botSlug),
     deliveries: message.deliveries,
   };
@@ -826,7 +841,7 @@ async function runScenario(instance, scenario, options, route, presetId) {
   };
 }
 
-async function presetFor(instance, route) {
+export async function presetFor(instance, route) {
   const call = (method, args) => rpc(instance, `botharness/${method}`, args);
   const { models } = await call('modelCatalog', {});
   const known = models.find(

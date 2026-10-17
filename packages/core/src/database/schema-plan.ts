@@ -2304,6 +2304,22 @@ const TOB_IDENTITY_MIGRATION: SchemaMigration = {
   },
 };
 
+const GROUP_SEND_REVIEW_MIGRATION: SchemaMigration = {
+  generation: 97,
+  module: 'channel-send-review',
+  description: 'Opt-in local Group send review and bounded durable draft intents',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE group_send_review_enabled (channel_id TEXT PRIMARY KEY);
+      CREATE TABLE group_send_review_drafts (
+        id TEXT PRIMARY KEY, owner TEXT NOT NULL, channel_id TEXT NOT NULL,
+        source_event_id TEXT NOT NULL, record_json TEXT NOT NULL
+      );
+      CREATE INDEX group_send_review_source ON group_send_review_drafts(source_event_id);
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -2400,4 +2416,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   CHANNEL_REACTION_MIGRATION,
   SECRET_CLI_TOOL_RULE_MIGRATION,
   TOB_IDENTITY_MIGRATION,
+  GROUP_SEND_REVIEW_MIGRATION,
 ]);

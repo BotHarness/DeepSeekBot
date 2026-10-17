@@ -47,6 +47,10 @@ export const CHANNEL_COMMANDS = [
     description: "accept or decline a Bot's request to join a group",
   },
   { command: 'group-member-remove', description: 'remove a Bot from a group Channel' },
+  {
+    command: 'group-send-review',
+    description: 'read Group send review; --accept enables and --off disables it',
+  },
   { command: 'group-wake-policies', description: "read each group member's wake policy" },
   { command: 'group-wake-set', description: "set or reset one group member's wake policy" },
   { command: 'group-delete', description: 'delete a group Channel; needs --confirm' },
@@ -249,6 +253,11 @@ export async function runChannelCommand(
     case 'group-member-remove':
       method = 'channelGroupMemberRemove';
       args.botSlug = required(values.bot, '--bot');
+      break;
+    case 'group-send-review':
+      method = 'channelGroupSendReview';
+      if (values.accept && values.off) usage('Choose --accept or --off');
+      if (values.accept || values.off) args.enabled = values.accept === true;
       break;
     case 'group-wake-policies':
       method = 'channelGroupWakePolicies';

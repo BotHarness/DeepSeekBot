@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { createDshBotAgentAdapter } from '../src/runtime/dsh-bot-agent-adapter.js';
 import { BotScheduleError } from '../src/schedules/bot-schedules.js';
+import { SendReviewRequired } from '../src/channels/send-review.js';
 import { isDshGovernedTool } from '../src/workspaces/grant-execution.js';
 import type { AssignmentAgentRun, OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
 import { FakeAgentHost, FAKE_BOT as BOT } from './dsh-agent-host-fixture.js';
@@ -88,6 +89,171 @@ const reportRun: OrchestratorAgentRun = {
     },
   },
 };
+
+describe('explicit Inbox completion with channel_send', () => {
+  async function fixture(
+    check: (
+      run: OrchestratorAgentRun,
+      call: (args: Record<string, unknown>) => Promise<Record<string, unknown>>,
+    ) => Promise<void>,
+  ) {
+    const adapter = createDshBotAgentAdapter({
+      agents: new FakeAgentHost(),
+      defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+      orchestratorCwd: () => '/memory/ada',
+      ensureWorkspace: () => undefined,
+    });
+    const run: OrchestratorAgentRun = {
+      ...reportRun,
+      channels: { ...reportRun.channels },
+      triage: {
+        current: () => [],
+        list: () => ({ total: 0, snoozed: 0, groups: [] }),
+        snooze: () => {
+          throw new Error('unexpected snooze');
+        },
+        resolve: ({ ids }) => ({ outcome: 'resolved', resolved: ids ?? [], alreadyResolved: [] }),
+      },
+    };
+    try {
+      await check(run, async (args) =>
+        JSON.parse(
+          JSON.stringify(
+            await adapter.runDirectTool!(run, 'channel_send', args, new AbortController().signal),
+          ),
+        ),
+      );
+    } finally {
+      await adapter.close();
+    }
+  }
+  it('resolves explicitly selected work only after delivery commits', async () => {
+    await fixture(async (run, call) => {
+      const events: string[] = [];
+      run.channels.send = async (input) => {
+        events.push('commit');
+        return {
+          id: 'sent',
+          at: BOT.createdAt,
+          author: { kind: 'bot', slug: BOT.slug },
+          body: input.body,
+        };
+      };
+      run.triage!.resolve = ({ ids }) => {
+        events.push('resolve');
+        return { outcome: 'resolved', resolved: ids!, alreadyResolved: [] };
+      };
+      expect(await call({ body: 'Answer', resolve_inbox_ids: ['request'] })).toMatchObject({
+        status: 'committed',
+        messageId: 'sent',
+        inboxResolution: { resolved: ['request'] },
+      });
+      expect(events).toEqual(['commit', 'resolve']);
+    });
+  });
+  it('keeps Inbox work open when held or when sending fails', async () => {
+    await fixture(async (run, call) => {
+      const resolve = vi.spyOn(run.triage!, 'resolve');
+      run.channels.send = async () => {
+        throw new SendReviewRequired({
+          status: 'held',
+          channelId: 'group',
+          draftId: 'draft',
+          reason: 'changed',
+        });
+      };
+      expect(await call({ body: 'Old', resolve_inbox_ids: ['request'] })).toMatchObject({
+        status: 'held',
+      });
+      run.channels.send = async () => {
+        throw new Error('refused');
+      };
+      await expect(call({ body: 'Old', resolve_inbox_ids: ['request'] })).rejects.toThrow(
+        'refused',
+      );
+      expect(resolve).not.toHaveBeenCalled();
+    });
+  });
+  it('reports a resolution failure separately from successful delivery', async () => {
+    await fixture(async (run, call) => {
+      run.triage!.resolve = () => {
+        throw new Error('unobserved item');
+      };
+      expect(await call({ body: 'Answer', resolve_inbox_ids: ['unseen'] })).toMatchObject({
+        status: 'committed',
+        messageId: 'bot-1',
+        inboxResolution: { outcome: 'failed', retry: 'inbox_resolve' },
+      });
+    });
+  });
+  it('drop alone does not resolve; an explicit selection does, and refused drops never do', async () => {
+    await fixture(async (run, call) => {
+      const resolve = vi.spyOn(run.triage!, 'resolve');
+      run.channels.dropDraft = (input) => ({
+        status: 'dropped',
+        channelId: input.channelId,
+        draftId: input.draftId,
+        reason: 'explicit-drop',
+      });
+      const args = { body: '', channel_id: 'group', draft_id: 'draft', drop: true };
+      await call(args);
+      expect(resolve).not.toHaveBeenCalled();
+      expect(await call({ ...args, resolve_inbox_ids: ['request'] })).toMatchObject({
+        status: 'dropped',
+        inboxResolution: { resolved: ['request'] },
+      });
+      run.channels.dropDraft = (input) => ({
+        status: 'refused',
+        channelId: input.channelId,
+        draftId: input.draftId,
+        reason: 'unavailable',
+      });
+      await call({ ...args, resolve_inbox_ids: ['request'] });
+      expect(resolve).toHaveBeenCalledTimes(1);
+    });
+  });
+  it('reports omitted completion without resolving work or hiding committed delivery', async () => {
+    await fixture(async (run, call) => {
+      const resolve = vi.spyOn(run.triage!, 'resolve');
+      expect(await call({ body: 'Answer' })).toMatchObject({
+        status: 'committed',
+        messageId: 'bot-1',
+        inboxResolution: { outcome: 'not-requested' },
+      });
+      expect(resolve).not.toHaveBeenCalled();
+    });
+  });
+  it('uses the inbound Channel for drop and preserves explicit Channel and refusal checks', async () => {
+    await fixture(async (run, call) => {
+      const drop = vi.fn((input: { channelId: string; draftId: string }) => ({
+        status: 'refused' as const,
+        channelId: input.channelId,
+        draftId: input.draftId,
+        reason: 'draft-channel-mismatch' as const,
+      }));
+      run.channels.dropDraft = drop;
+      const resolve = vi.spyOn(run.triage!, 'resolve');
+      const args = { body: '', draft_id: 'draft', drop: true, resolve_inbox_ids: ['request'] };
+      expect(await call(args)).toMatchObject({ status: 'refused', channelId: 'dm-test' });
+      expect(drop).toHaveBeenLastCalledWith({ channelId: 'dm-test', draftId: 'draft' });
+      await call({ ...args, channel_id: 'explicit-group' });
+      expect(drop).toHaveBeenLastCalledWith({ channelId: 'explicit-group', draftId: 'draft' });
+      run.inboundChannelId = undefined;
+      await expect(call(args)).rejects.toThrow('explicit or inbound channel_id');
+      expect(drop).toHaveBeenCalledTimes(2);
+      expect(resolve).not.toHaveBeenCalled();
+    });
+  });
+  it('rejects malformed completion IDs before delivery', async () => {
+    await fixture(async (run, call) => {
+      const send = vi.spyOn(run.channels, 'send');
+      await expect(call({ body: 'Answer', resolve_inbox_ids: [] })).rejects.toThrow(
+        'resolve_inbox_ids',
+      );
+      expect(send).not.toHaveBeenCalled();
+    });
+  });
+});
 
 describe('DSH Bot Agent adapter', () => {
   it.each<TurnEndCancelCause>([

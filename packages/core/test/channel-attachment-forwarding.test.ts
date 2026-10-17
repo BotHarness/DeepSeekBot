@@ -39,7 +39,14 @@ async function call(
 }
 async function send(f: Fixture, args: unknown, callId?: string) {
   const result = JSON.parse(String(await call(f.tools, 'channel_send', args, callId)));
-  expect(Object.keys(result).sort()).toEqual(['channelId', 'messageId']);
+  expect(Object.keys(result).sort()).toEqual([
+    'channelId',
+    'inboxResolution',
+    'messageId',
+    'status',
+  ]);
+  expect(result.status).toBe('committed');
+  expect(result.inboxResolution).toMatchObject({ outcome: 'not-requested' });
   expect(f.core.channels.message(result.channelId, result.messageId)).toBeDefined();
   return result;
 }

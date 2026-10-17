@@ -448,6 +448,7 @@ describe('plugin entry', () => {
       'channelGroupInviteCancel',
       'channelGroupMemberRemove',
       'channelGroupJoinDecide',
+      'channelGroupSendReview',
       'channelGroupWakeSet',
       'channelGroupWakePolicies',
       'channelGroupDelete',

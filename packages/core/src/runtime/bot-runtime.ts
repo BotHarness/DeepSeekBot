@@ -1,3 +1,8 @@
+import {
+  GroupReplySourceRevoked,
+  GroupSendReview,
+  SendReviewRequired,
+} from '../channels/send-review.js';
 import { TobError, type TobService, type TobSetting } from '../tob/service.js';
 import { AssignmentInboxAcceptanceUncertainError } from './assignment-delivery.js';
 import {
@@ -93,7 +98,11 @@ import { ChannelReplyTargetError, MAX_MESSAGE_PAGE } from '../channels/store.js'
 import type { MessagePerfTracker } from '../usage/message-perf.js';
 import { attachmentIdentity, type ChannelAttachmentRef } from '../attachments/ref.js';
 import type { ChannelMessageQueryOptions, ChannelStore } from '../channels/store.js';
-import { boundModelPage, readModelContent } from './channel-model-read.js';
+import {
+  boundModelPage,
+  readModelContent,
+  CHANNEL_READ_OUTPUT_LIMIT,
+} from './channel-model-read.js';
 import {
   discoverBotContacts,
   type BotContactQuery,
@@ -549,7 +558,13 @@ export interface OrchestratorChannelAccess {
     expectedRevision: number;
   }): Promise<TobSetting>;
   createBot?(input: BotCreateInput): BotCreateOutcome;
+  dropDraft?(input: {
+    channelId: string;
+    draftId: string;
+  }): import('../channels/send-review.js').SendReviewOutcome;
   send(input: {
+    observationId?: string;
+    draftId?: string;
     body: string;
     channelId?: string;
     replyTo?: string;
@@ -573,6 +588,7 @@ export interface BotReactionResult {
 }
 
 export interface OrchestratorServiceTurn {
+  modelContent?: string;
   sessionId: string;
   channelId: string | undefined;
   sourceEventId: string;
@@ -651,6 +667,7 @@ export type DmMessageAdmission =
   | { admitted: false; reason: DmAdmissionFailure };
 
 export interface BotRuntime {
+  groupSendReview?: GroupSendReview;
   botCreatePreview?(botSlug: string, args: unknown): BotCreatePreview | undefined;
   validateTobSetting?(sessionId: string, args: unknown): void;
   canRequestPrivateInput?(sessionId: string, sourceEventId?: string): boolean;
@@ -1249,6 +1266,7 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #registry: PersonaBotRegistry;
   readonly #createBotId: () => string;
   readonly #channels: ChannelStore;
+  readonly groupSendReview: GroupSendReview;
   readonly #inboxHistory: InboxHistoryQuery;
   readonly #inboxTriage: InboxTriage;
   readonly #sourcePolicy: BotSourcePolicyStore;
@@ -1331,6 +1349,10 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#registry = options.registry;
     this.#requireExecution = options.requireExecution;
     this.#channels = options.channels;
+    this.groupSendReview = new GroupSendReview(
+      attachOperationalModule(options.database, 'channel-send-review'),
+      options.now,
+    );
     this.#inboxHistory =
       options.inboxHistory ??
       createInboxHistoryQuery(
@@ -3631,6 +3653,20 @@ class BotRuntimeImplementation implements BotRuntime {
       );
     this.#requireExecution?.(bot.slug);
     const sessionId = `direct-${randomUUID()}`;
+    const directChannel =
+      typeof args.channel_id === 'string'
+        ? this.#requireMembership(botSlug, args.channel_id)
+        : undefined;
+    const directSource =
+      directChannel === undefined
+        ? undefined
+        : this.#database.read((db) =>
+            db
+              .prepare(
+                'SELECT source_event_id FROM channel_placements WHERE channel_id = ? ORDER BY revision DESC LIMIT 1',
+              )
+              .get(directChannel.id),
+          );
     const run: OrchestratorAgentRun = {
       sessionId,
       resume: false,
@@ -3641,7 +3677,9 @@ class BotRuntimeImplementation implements BotRuntime {
       ...this.#orchestratorServices(bot, {
         sessionId,
         channelId: undefined,
-        sourceEventId: `direct-${randomUUID()}`,
+        sourceEventId: directSource
+          ? String(directSource.source_event_id)
+          : `direct-${randomUUID()}`,
         markSideEffect: () => undefined,
         readAdmissions: new Set(),
         importedFiles: new Map(),
@@ -4248,6 +4286,7 @@ class BotRuntimeImplementation implements BotRuntime {
           turnSources,
           observeMemory,
           observeReads: true,
+          modelContent: body + '\n' + inbox,
         }),
       });
       if (observeMemory) {
@@ -4524,6 +4563,7 @@ class BotRuntimeImplementation implements BotRuntime {
         turn.readAdmissions,
         (ref) => turn.importedFiles.set(attachmentIdentity(ref), ref),
         turn.observeReads,
+        turn.modelContent,
       ),
       sourcePolicy: {
         list: () => this.#sourcePolicy.list(bot.slug),
@@ -5042,9 +5082,56 @@ class BotRuntimeImplementation implements BotRuntime {
     readAdmissions: Set<string>,
     onImport?: (ref: ChannelAttachmentRef) => void,
     observeReads = true,
+    modelContent?: string,
   ): OrchestratorChannelAccess {
+    const reviewOwner = sessionId.startsWith('direct-')
+      ? `direct:${botSlug}`
+      : `${botSlug}:${sessionId}`;
+    const observations = new Map<string, string>();
+    const recordObservation = (views: ChannelMessageView[]): void => {
+      for (const id of new Set(views.map((view) => view.channelId))) {
+        if (!this.groupSendReview.enabled(id)) continue;
+        observations.set(
+          id,
+          this.groupSendReview.observe(
+            reviewOwner,
+            id,
+            views.filter((view) => view.channelId === id).map((view) => view.message),
+            observations.get(id),
+          ),
+        );
+      }
+    };
+    const initial = this.#database.read((db) =>
+      db
+        .prepare('SELECT channel_id, message_id FROM source_events WHERE source_event_id = ?')
+        .get(sourceEventId),
+    );
+    if (initial?.channel_id && initial.message_id && !sessionId.startsWith('direct-')) {
+      const id = String(initial.channel_id);
+      const message = this.#channels.message(id, String(initial.message_id));
+      if (
+        message &&
+        message.body.length > 0 &&
+        modelContent?.includes(sessionMentionText(message.body, message.mentions ?? [])) &&
+        this.groupSendReview.enabled(id)
+      )
+        observations.set(id, this.groupSendReview.observe(reviewOwner, id, [message]));
+    }
+    const initialObservations = new Map(observations);
+    const reviewSourceChannelId =
+      initial?.channel_id && this.groupSendReview.enabled(String(initial.channel_id))
+        ? String(initial.channel_id)
+        : undefined;
+    const requireReplySource = () => {
+      if (reviewSourceChannelId === undefined) return;
+      const source = this.#channels.get(reviewSourceChannelId);
+      if (!source || !this.#isMember(botSlug, source))
+        throw new GroupReplySourceRevoked(reviewSourceChannelId);
+    };
     const authorize = beforeSend;
     beforeSend = () => {
+      requireReplySource();
       this.#database.read((db) => requireSourceEffects(db, sourceEventId, botSlug));
       authorize();
     };
@@ -5665,13 +5752,21 @@ class BotRuntimeImplementation implements BotRuntime {
           const message = this.#channels.message(channel.id, messageId);
           if (message === undefined) throw new Error('channel_read: message not found');
           const view = viewOf(channel, message);
-          const chunk = readModelContent(view, contentCursor);
+          const chunk = readModelContent(
+            view,
+            contentCursor,
+            this.groupSendReview.enabled(view.channelId) ? 100 : 0,
+          );
           const previous = contentProgress.get(chunk.hash) ?? 0;
           const progress = chunk.start <= previous ? Math.max(previous, chunk.end) : previous;
           contentProgress.set(chunk.hash, progress);
           if (observeReads && progress === chunk.total)
             this.#observeReadMessages(botSlug, [view], readAdmissions);
-          return chunk.output;
+          if (progress === chunk.total) recordObservation([view]);
+          const observationId = observations.get(view.channelId);
+          return observationId === undefined
+            ? chunk.output
+            : JSON.stringify({ ...JSON.parse(chunk.output), observationId });
         }
         if (input.contentCursor !== undefined)
           throw new Error('channel_read: content_cursor requires message_id');
@@ -5679,9 +5774,26 @@ class BotRuntimeImplementation implements BotRuntime {
         const bounded = boundModelPage(
           page,
           (count) => queryPage({ ...input, limit: count }).nextCursor,
+          (included) => {
+            const ids = [...new Set(included.map((view) => view.channelId))].filter((id) =>
+              this.groupSendReview.enabled(id),
+            );
+            return ids.length === 0
+              ? 0
+              : JSON.stringify(Object.fromEntries(ids.map((id) => [id, 'x'.repeat(36)]))).length +
+                  24;
+          },
         );
         if (observeReads) this.#observeReadMessages(botSlug, bounded.included, readAdmissions);
-        return bounded.output;
+        recordObservation(bounded.included);
+        const observationIds = Object.fromEntries(
+          [...new Set(bounded.included.map((view) => view.channelId))].flatMap((id) =>
+            observations.has(id) ? [[id, observations.get(id)]] : [],
+          ),
+        );
+        return Object.keys(observationIds).length === 0
+          ? bounded.output
+          : JSON.stringify({ ...JSON.parse(bounded.output), observationIds });
       },
       openAttachment: (input) => {
         const target = this.#originalAttachments.open(sessionId, input, () => {
@@ -5833,7 +5945,12 @@ class BotRuntimeImplementation implements BotRuntime {
         if (appended === undefined) throw new Error(`Channel disappeared: ${channel.id}`);
         return appended;
       },
+      dropDraft: (input) => {
+        resolve(input.channelId);
+        return this.groupSendReview.drop(reviewOwner, input.channelId, input.draftId);
+      },
       send: async (input) => {
+        requireReplySource();
         const steered = this.#turnSources.get(botSlug);
         const turnChannelIds =
           steered?.sessionId === sessionId && steered.steeredChannelIds.size > 0
@@ -5870,7 +5987,6 @@ class BotRuntimeImplementation implements BotRuntime {
               )}. Call channel_send again with channel_id for the Channel this reply belongs to, or with reply_to set to the message ID you are answering.`,
           );
         const channel = resolve(input.channelId);
-        if (steered?.sessionId === sessionId) steered.spokenChannelIds.add(channel.id);
         if (input.mentionBotIds?.length && channel.type !== 'group')
           throw new Error('Bot mentions require a Group Channel');
         if (input.mentionHumanIds?.length && channel.type !== 'group')
@@ -5892,10 +6008,14 @@ class BotRuntimeImplementation implements BotRuntime {
             attachments: input.attachments,
             deliveryKey: input.deliveryKey,
           });
+          if (steered?.sessionId === sessionId) steered.spokenChannelIds.add(channel.id);
           return sent.message;
         }
         if (channel.type === 'group') {
-          return this.#sendBotGroup({
+          const sent = await this.#sendBotGroup({
+            reviewOwner,
+            observationId: input.observationId ?? initialObservations.get(channel.id),
+            draftId: input.draftId,
             botSlug,
             channel,
             sourceEventId,
@@ -5909,7 +6029,47 @@ class BotRuntimeImplementation implements BotRuntime {
             mentionBotIds: input.mentionBotIds,
             mentionHumanIds: input.mentionHumanIds,
             deliveryKey: input.deliveryKey,
+          }).catch((error: unknown) => {
+            if (!(error instanceof SendReviewRequired) || error.outcome.status !== 'held')
+              throw error;
+            const changed = error.outcome.changedMessageIds;
+            if (!changed?.length) throw error;
+            const current = resolve(channel.id);
+            const views = changed.flatMap((id) => {
+              const message = this.#channels.message(current.id, id);
+              return message === undefined ? [] : [viewOf(current, message)];
+            });
+            const bounded = boundModelPage(
+              { messages: views },
+              () => undefined,
+              () => 2_000,
+            );
+            if (!bounded.included.length) throw error;
+            const review = {
+              observationId: 'x'.repeat(36),
+              content: bounded.output,
+              complete: bounded.included.length === error.outcome.changedMessageCount,
+              observedMessageIds: bounded.included.map((view) => view.message.id),
+              responsibility:
+                'These messages join this turn. On your recheck or drop, explicitly pass resolve_inbox_ids for these IDs and the original request if complete. They resolve only after a committed send or dropped draft; held/refused never resolve them. Unrelated FYI needs no reply or addition to the original draft. Cancelled work should be dropped silently. Keep unfinished work open.',
+            };
+            if (JSON.stringify({ ...error.outcome, review }).length > CHANNEL_READ_OUTPUT_LIMIT)
+              throw error;
+            const observationId = this.groupSendReview.observe(
+              reviewOwner,
+              current.id,
+              bounded.included.map((view) => view.message),
+              input.observationId ?? initialObservations.get(current.id),
+            );
+            observations.set(current.id, observationId);
+            if (observeReads) this.#observeReadMessages(botSlug, bounded.included, readAdmissions);
+            throw new SendReviewRequired({
+              ...error.outcome,
+              review: { ...review, observationId },
+            });
           });
+          if (steered?.sessionId === sessionId) steered.spokenChannelIds.add(channel.id);
+          return sent;
         }
         const body = input.body;
         if (!body.trim() && !input.attachments?.length)
@@ -5933,12 +6093,16 @@ class BotRuntimeImplementation implements BotRuntime {
           sourceEventId,
         });
         if (appended === undefined) throw new Error(`Channel disappeared: ${channel.id}`);
+        if (steered?.sessionId === sessionId) steered.spokenChannelIds.add(channel.id);
         return appended;
       },
     };
   }
 
   async #sendBotGroup(input: {
+    reviewOwner?: string | undefined;
+    observationId?: string | undefined;
+    draftId?: string | undefined;
     botSlug: string;
     channel: ChannelRecord;
     sourceEventId: string;
@@ -6036,10 +6200,57 @@ class BotRuntimeImplementation implements BotRuntime {
       ...this.#perf(input.sessionId, body),
     };
     input.beforeSend();
-    const result = await this.#channels.appendMessageOnce(channel.id, message, undefined, {
-      sessionId: input.sessionId,
-      sourceEventId: input.sourceEventId,
-    });
+    let reviewOutcome: import('../channels/send-review.js').SendReviewOutcome | undefined;
+    const result = await this.#channels.appendMessageOnce(
+      channel.id,
+      message,
+      undefined,
+      {
+        sessionId: input.sessionId,
+        sourceEventId: input.sourceEventId,
+      },
+      (db) => {
+        this.#requireMembership(botSlug, channel.id);
+        const current = this.#registry.get(botSlug);
+        if (this.#closed || !current || current.paused)
+          throw new Error('Bot Group sender is unavailable');
+        if (
+          !input.sessionId.startsWith('direct-') &&
+          (this.groupSendReview.enabled(channel.id) || input.draftId !== undefined)
+        ) {
+          const owner = this.#ownership?.resolve(input.sessionId);
+          if (
+            owner?.botSlug !== botSlug ||
+            owner.rootRole !== 'orchestrator' ||
+            !this.#ownership?.contentAvailable(input.sessionId)
+          )
+            throw new Error('Group sender Session ownership changed');
+        }
+        this.#database.read((database) =>
+          requireSourceEffects(database, input.sourceEventId, botSlug),
+        );
+        if (this.groupSendReview.enabled(channel.id) || input.draftId !== undefined) {
+          if (!db || !input.reviewOwner)
+            throw new Error('Group send review requires the owning transaction');
+          reviewOutcome = this.groupSendReview.check(db, {
+            owner: input.reviewOwner,
+            channelId: channel.id,
+            sourceEventId: input.sourceEventId,
+            message,
+            ...(input.observationId === undefined ? {} : { observationId: input.observationId }),
+            ...(input.draftId === undefined ? {} : { draftId: input.draftId }),
+          });
+          if (reviewOutcome) return false;
+        }
+        return true;
+      },
+    );
+    if (reviewOutcome) {
+      this.#warn?.(
+        `group-send-review phase=${reviewOutcome.status} channel=${channel.id} draft=${reviewOutcome.draftId} reason=${reviewOutcome.reason}`,
+      );
+      throw new SendReviewRequired(reviewOutcome);
+    }
     if (result.status === 'missing') throw new Error(`Group Channel disappeared: ${channel.id}`);
     if (result.status === 'conflict') throw new Error('Group delivery key has different content');
     input.afterSend?.();

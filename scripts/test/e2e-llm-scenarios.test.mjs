@@ -222,3 +222,26 @@ describe('scenario token usage and model matrix', () => {
     expect(markdown).toContain('| coordinator-delegates | a/b | new |');
   });
 });
+
+describe('DM reply oracle', () => {
+  it('does not mistake a 429 error or incidental digits for the exact requested answer', async () => {
+    const dm = SCENARIOS.find((scenario) => scenario.id === 'dm-reply');
+    for (const message of [
+      { body: 'Session failed: QUOTA: 429', sessionFailure: {} },
+      { body: '142' },
+      { body: '42' },
+    ]) {
+      let accepted;
+      await dm.run({
+        dm: async () => 'dm',
+        humanSend: async () => {},
+        waitFor: async (_, predicate) => {
+          accepted = !!predicate();
+        },
+        messages: () => [message],
+        isBot: () => true,
+      });
+      expect(accepted).toBe(message.body === '42');
+    }
+  });
+});

@@ -137,6 +137,7 @@ deepseekbot group-invite-cancel <channel> --invitation <invitation-id>
 deepseekbot group-join-decide <channel> --request <request-id> --accept
 deepseekbot group-join-decide <channel> --request <request-id> --decline
 deepseekbot group-member-remove <channel> --bot <bot-id>
+deepseekbot group-send-review <channel> [--accept | --off]
 deepseekbot group-wake-policies <channel>
 deepseekbot group-wake-set <channel> --bot <bot-id> --mode digest --count 5 --interval 30
 deepseekbot group-wake-set <channel> --bot <bot-id> --inherit
@@ -157,6 +158,21 @@ deepseekbot channel-purge-preview <channel> --source-event <id> [--source-event 
 deepseekbot channel-purge-preview <channel> --source-event <id> | jq '{token}' \
   | deepseekbot channel-purge-confirm <channel> --source-event <id> --confirm --confirmation-stdin
 ```
+
+`channel_send` accepts optional `resolve_inbox_ids`: an explicit selection of 1–200 observed Source Event or Message IDs to mark done after a committed send or successful drop. Omitting it preserves Inbox responsibility. Held/refused outcomes never resolve these IDs. When the selection is omitted, `inboxResolution.outcome` is `not-requested`: complete remaining work with `inbox_resolve` before ending the turn. Drop uses the inbound Channel when `channel_id` is omitted. Inspect `inboxResolution` separately: if it fails, repair with `inbox_resolve`, never resend a committed reply. The same parameters work through `bot-tool <bot> channel_send --args-stdin`.
+
+If membership in the initiating opted-in Group is revoked, this run cannot redirect its reply to another Channel. `channel_send` returns `refused` with reason `group-reply-source-revoked`. A later independent DM is unaffected.
+
+`group-send-review <channel> --accept` enables the opt-in freshness check for a local Group;
+`--off` disables it and no flag reads its state. It does not change wake settings.
+A direct `bot-tool <bot> channel_read --args-stdin` returns `observationIds` for enabled Groups.
+Pass the target's handle as `observation_id` to `channel_send`. A `held` result is not a sent
+message: read `review.content` when present. If `review.complete` is true, pass its
+`review.observationId` as `observation_id` without another `channel_read`; otherwise read the
+missing content first. Then pass `draft_id` with the new observation and revised
+(or unchanged) `body`. Only one recheck is allowed. Send `drop: true`, `draft_id` and an empty
+`body` to abandon the draft without resolving its Inbox item. `expired`, `refused` and
+`requires-review` are terminal for automatic sending. Handles cannot cross Bot owners or Groups.
 
 Renaming a Bot DM renames that Bot, as in the Web UI. `group-avatar-set` reads a PNG, JPEG or WebP file of at most 96 KiB. Invitation and join-request IDs are in the group's `invitations` and `joinRequests`, returned by `channels` and by every group command. `group-wake-set` sets when a member Bot wakes for ordinary group messages: `all`, `mentions`, `digest` (after `--count` messages or `--interval` seconds; defaults 5 and 30) or `silent`; `--inherit` returns the member to its Bot's default. `channel-timeline` and `channel-journal` page messages the way the chat view does; take the `revision` from `channel-timeline` as `--through`. `channel-retry` asks the Bot to answer a Human DM message again after a failed reply. `channel-unread` lists the unread Bot message count of each Channel that has any; these are the numbers the sidebar shows on each row. `channel-mute` mutes a Channel the way the sidebar menu does: it keeps its row greyed and its unread messages out of the Activity total; `--off` unmutes it. `channel-bot-stop` stops the Bot's current turn, as the Stop button on the working status does: the Bot goes idle, the Channel records that the Human stopped it, and a Bot that is not working is refused with `not-working`. Assignments the Bot delegated keep running. `channel-react` adds your reaction to one message, or removes it with `--remove`, and returns the message's `reactions`; a message holds at most 20 of your reactions, and the emoji must be a single emoji. Bots react through `channel_send` with `react_to` and `reaction`, and an empty `body` when they only react; `bot-tool <bot> channel_send --args-stdin` runs that without the model. `channel-search` matches `--query` without case in the messages you can see, newest first, and pages with the `nextCursor` it returns.
 

@@ -649,7 +649,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     once: boolean,
     preview?: AllBotPreview,
     origin?: ChannelMessageOrigin,
-    canCommit?: () => boolean,
+    canCommit?: (database?: DatabaseSync) => boolean,
   ) => {
     const channel = readRecord(id);
     if (channel === undefined) return once ? { status: 'missing' as const } : undefined;
@@ -797,7 +797,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     try {
       database.transaction(
         (db) => {
-          if (canCommit?.() === false) {
+          if (canCommit?.(db) === false) {
             refused = true;
             return;
           }

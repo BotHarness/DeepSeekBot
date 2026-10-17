@@ -505,6 +505,14 @@
       "guide": ".agents/skills/verify-deepseekbot/features/tob-home.md",
       "task": 2082,
       "gap": null
+    },
+    {
+      "id": "desktop.group.send-review",
+      "label": "Hold stale Group replies and revise or drop with full paired history review",
+      "source": "packages/core/src/channels/send-review.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/group-send-review.md",
+      "task": 2053,
+      "gap": null
     }
   ],
   "scripts": [
@@ -1301,14 +1309,6 @@
       "sha256": "97a5bdbec53537520a529cc2db50f0f75d4682f1fd61740a1f8c8380d49c474c"
     },
     {
-      "path": "scripts/e2e-llm-scenarios.mjs",
-      "category": "mapped",
-      "behaviors": ["desktop.dm.reply", "desktop.group.mention"],
-      "reason": "verify-app instance/optional owned launch and real model scenarios; DM reply and mention wake, model-specific results only.",
-      "task": 1967,
-      "sha256": "c6627745e3c9595da42c280bcc968686dd545fb8ed9bc901d70012bc41ceebbc"
-    },
-    {
       "path": "scripts/e2e-local-computer-idle.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.computer.native"],
@@ -1693,6 +1693,22 @@
       "reason": "Home model configuration, canonical identity, actual reply and approval through the shared Web/native UI.",
       "task": 2082,
       "sha256": "7e99a006c12f3fc1b67f07c7a3e7add5f6ec6e7b2dd90648318d0a6980417c5e"
+    },
+    {
+      "path": "scripts/e2e-llm-scenarios.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.dm.reply", "desktop.group.mention"],
+      "reason": "Real model DM/mention scenarios; exact committed DM oracle rejects failure cards; retain full histories and unknown usage for paired send-review evaluation.",
+      "task": 2053,
+      "sha256": "4940ba3a8c8e3892b11e01c959efc874a3e12b16527e076db62345f87b4508d6"
+    },
+    {
+      "path": "scripts/e2e-group-send-review.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.group.send-review"],
+      "reason": "Task-owned isolated paired pilot with whole Group/DM history, silent cancellation, revoked-source continuation check, explicit Inbox completion, versioned multi-turn ingest supplement and complete usage; Human acceptance remains separate.",
+      "task": 2053,
+      "sha256": "44bd60a1a1e4138f5002ad4dc6ae4b5929e62ca8559eabeaa080f6d4b183a013"
     }
   ],
   "native": [
