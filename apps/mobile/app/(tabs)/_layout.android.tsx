@@ -1,6 +1,6 @@
 import { BottomTabBar, Tabs } from 'expo-router/js-tabs';
 import type { ComponentProps } from 'react';
-import { View } from 'react-native';
+import { View, useWindowDimensions } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -8,6 +8,7 @@ import { actionCount } from '../../src/host/inbox';
 import { useHostSession, useInbox } from '../../src/host/host-session';
 import { EdgeFade } from '../../src/ui/chat/header-chrome';
 import { glassShadow, useDesignTheme } from '../../src/ui/design/theme';
+import { Text } from '../../src/ui/primitives/text';
 import { edge, edgeFade, navigationBar, radius, space } from '../../src/ui/design/tokens';
 import { FloatingTabInset } from '../../src/ui/shell/floating-tab-inset';
 import { HostDrawer } from '../../src/ui/shell/host-drawer';
@@ -53,9 +54,15 @@ function ScrollTabBar({
 function AndroidTabLayout() {
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
+  const { width, fontScale } = useWindowDimensions();
   const { inbox } = useHostSession();
   const pending = actionCount(useInbox(inbox));
-  const height = navigationBar.height;
+  const scale = Math.max(1, fontScale);
+  const barWidth = Math.min(
+    width - insets.left - insets.right - space.x6 * 2,
+    navigationBar.itemWidth * 2 * scale + space.x3 * 2,
+  );
+  const height = navigationBar.height + theme.type.meta.line * (scale - 1);
   const bottom = Math.max(insets.bottom, space.x4);
   const reserved = height + bottom + space.x5;
   return (
@@ -70,12 +77,13 @@ function AndroidTabLayout() {
             tabBarInactiveTintColor: theme.color.muted,
             tabBarStyle: {
               position: 'absolute',
-              marginHorizontal: space.x6,
+              left: (width - barWidth + insets.left - insets.right) / 2,
+              width: barWidth,
               bottom,
               height,
               paddingVertical: navigationBar.itemPadding,
               paddingHorizontal: space.x2,
-              borderRadius: radius.round,
+              borderRadius: navigationBar.radius,
               borderTopWidth: edge.hairline,
               borderWidth: edge.hairline,
               borderColor: theme.layer.raised.edge,
@@ -84,11 +92,15 @@ function AndroidTabLayout() {
               boxShadow: glassShadow(theme.scheme),
             },
             tabBarItemStyle: {
-              borderRadius: radius.round,
+              borderRadius: radius.lg,
               overflow: 'hidden',
               minHeight: theme.touch,
             },
-            tabBarLabelStyle: { fontSize: theme.type.meta.size },
+            tabBarLabel: ({ color, children }) => (
+              <Text variant="meta" strong style={{ color, textAlign: 'center' }}>
+                {children}
+              </Text>
+            ),
             tabBarLabelPosition: 'below-icon',
             sceneStyle: { backgroundColor: theme.color.base },
           }}
@@ -102,10 +114,10 @@ function AndroidTabLayout() {
                   style={{
                     width: navigationBar.indicatorWidth,
                     height: navigationBar.indicatorHeight,
-                    borderRadius: radius.round,
+                    borderRadius: navigationBar.indicatorRadius,
                     alignItems: 'center',
                     justifyContent: 'center',
-                    backgroundColor: focused ? theme.layer.raised.selected : undefined,
+                    backgroundColor: focused ? theme.layer.raised.chosen : undefined,
                   }}
                 >
                   <ChatsIcon color={color} size={theme.type.title.line} />
@@ -122,10 +134,10 @@ function AndroidTabLayout() {
                   style={{
                     width: navigationBar.indicatorWidth,
                     height: navigationBar.indicatorHeight,
-                    borderRadius: radius.round,
+                    borderRadius: navigationBar.indicatorRadius,
                     alignItems: 'center',
                     justifyContent: 'center',
-                    backgroundColor: focused ? theme.layer.raised.selected : undefined,
+                    backgroundColor: focused ? theme.layer.raised.chosen : undefined,
                   }}
                 >
                   <ActivityIcon color={color} size={theme.type.title.line} />

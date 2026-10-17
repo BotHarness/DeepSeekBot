@@ -51,6 +51,8 @@ Use the loopback [fixed-replay and video-check instructions](../../../../apps/mo
 
 The keyboard journey requires `ffmpeg` on PATH and the dark portrait QA theme. It captures a five-second native screen recording, focuses the empty composer, checks the final input bounds against the real Android IME, and tracks the composer fill at 30 fps. It fails `COMPOSER_JUMPS` when the movement has fewer than four intermediate positions or one frame contains at least half the travel. Keep the theme, IME, viewport, draft and frame rate fixed across A/B runs. Read the MP4 too: the bounded pixel check detects a jump and final overlap, not every possible timing defect.
 
+For the Android navigation island, cold-open Chats and switch to Activity in light/dark at system font scales 1, 1.3 and 2. Capture both tabs and native accessibility bounds: exactly two enabled tab targets, selected state, readable labels and pending badge; each target is at least 48dp and stays inside the safe viewport. Confirm the compact rounded rectangle at default size, expanded geometry at large text, scroll hide/reveal on a long Activity page, a short Chats list that keeps navigation visible, and no bar inside a pushed chat. Restore the original system font/theme. Edge-back cancellation must retain the pushed page; completing must pop once. The current stable Stack does not provide the reference's intra-app predictive preview; do not count a system back-to-home animation as proof.
+
 ## Gotchas
 
 PNG/XML, MP4 and JSON proof stay in the batch's machine-local evidence directory. The script refuses capture on a pairing-link screen. It does not create a Host, change a model, send a message, erase storage, or prove iOS behavior, notifications or background delivery.

@@ -26,8 +26,11 @@ export const edge = {
 export const sheetHandle = { width: 32, height: 4 } as const;
 export const navigationBar = {
   height: 64,
+  itemWidth: 80,
+  radius: 20,
   indicatorWidth: 56,
   indicatorHeight: 32,
+  indicatorRadius: radius.md,
   itemPadding: 6,
 } as const;
 export const modalRail = { maxWidth: 360 } as const;
