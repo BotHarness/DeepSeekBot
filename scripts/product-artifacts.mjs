@@ -15,16 +15,16 @@ export const productDshVersions = Object.freeze([productDsh]);
 
 export const productImProvider = Object.freeze({
   name: '@botharness/im-provider',
-  version: '4.32.0-botharness.21',
+  version: '4.32.0-botharness.22',
   sourceManifestSha256: '3331e8f771a91abf396eb4e7ed5c0acc4c3b504cdccc7d715e37062708384cc2',
   sourceLockSha256: '3476c34c7d4515000d2617beaf2568b2a794b60de9b350cd8eafb7a2bf21adef',
   upstream: Object.freeze({
     package: '@xmanrui/dsh-im',
     packageVersion: '4.32.0',
-    source: 'beaed4a6dabb583654d28fb09298716267039b4a',
+    source: '1fc80010ab7cfd10ecc4f63c1d46c098e829c6a6',
     dsh: '0.2.0-rc.2',
     runtimeFiles: 421,
-    runtimeSha256: '42e1140e67ba2f74122db3d49bb2c8aece239b7d75f9564ce713a8a491902706',
+    runtimeSha256: '8e9416fc17b44d5af993654794e8a795b1a01784bcda68115e1479b1f6695358',
   }),
 });
 
