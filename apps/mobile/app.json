@@ -2,6 +2,7 @@
   "expo": {
     "name": "DeepSeekBot Dev",
     "slug": "deepseekbot",
+    "owner": "deepseekbots-team",
     "scheme": ["deepseekbot-dev", "deepseekbot"],
     "version": "0.0.1",
     "orientation": "portrait",
@@ -86,6 +87,11 @@
     },
     "experiments": {
       "typedRoutes": false
+    },
+    "extra": {
+      "eas": {
+        "projectId": "40cf3888-5864-4238-9cfb-82e285d568f6"
+      }
     }
   }
 }
