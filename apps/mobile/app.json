@@ -2,7 +2,7 @@
   "expo": {
     "name": "DeepSeekBot Dev",
     "slug": "deepseekbot",
-    "scheme": ["deepseekbot-dev", "deepseekbot"],
+    "scheme": ["deepseekbot-dev", "deepseekbot", "ai.botharness.deepseekbot.dev"],
     "version": "0.0.1",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
@@ -79,7 +79,8 @@
       "expo-font",
       "expo-image",
       "expo-sharing",
-      "expo-status-bar"
+      "expo-status-bar",
+      "expo-web-browser"
     ],
     "web": {
       "output": "single"

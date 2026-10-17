@@ -12,6 +12,52 @@ function toolGroup(tool: string): ToolGroup {
 }
 
 const en = {
+  cloud: {
+    title: 'Cloud services',
+    hint: 'Import the UAT configuration supplied by your deployer. Cloud sign-in is separate from pairing a computer.',
+    scan: 'Scan configuration',
+    paste: 'Paste configuration',
+    pasteHint:
+      'Paste the complete public JSON supplied by your deployer. Do not paste API keys or login credentials.',
+    configurationText: 'Public configuration JSON',
+    reviewConfig: 'Review configuration',
+    camera: 'Allow camera',
+    cancel: 'Cancel',
+    trust:
+      'Confirm that this server address belongs to the instance you trust. A matching public configuration does not prove who operates the server.',
+    importConfig: 'Trust and import',
+    replace: 'Replace configuration and remove its saved session',
+    replaceHint:
+      'Connection settings changed. Verify the new configuration with the deployer before replacing it. The old remote session may remain active.',
+    login: 'Sign in',
+    verify: 'Check session',
+    refresh: 'Refresh session',
+    logout: 'Sign out',
+    signedIn: 'Signed in · Instance administrator',
+    savedSession: 'Saved session · Check to verify',
+    signedOut: 'Signed out',
+    imported: 'Configuration imported',
+    loggedOut: 'Signed out on this phone and remote session revoked.',
+    localOnly:
+      'Signed out on this phone. Remote revocation was not confirmed; the remote session may still be active.',
+    empty: 'No cloud instances yet.',
+    working: 'Working…',
+    loading: 'Loading secure storage…',
+    error: 'Could not complete this step. You can retry. Details:',
+    blocked: 'Secure storage is unavailable. Restart the app and try again.',
+    permission: 'Camera access is required to scan the deployment configuration.',
+    settings: 'Open camera settings',
+    changed: 'Configuration changed: obtain and verify a new QR code from the deployer.',
+    denied:
+      'This account is not admitted to this instance. Use the initialized administrator account.',
+    cancelled: 'Sign-in cancelled. You can start again.',
+    expired: 'Sign-in expired. Start again.',
+    required:
+      'Sign-in is required. Sign out locally before starting again if a saved session remains.',
+    storage: 'Secure storage could not be updated. The operation is not complete.',
+    invalid:
+      'This is not a supported cloud configuration. Use the public configuration supplied by the deployer.',
+  },
   activityRow: {
     dm: (recipient: string) => `sent a direct message to ${recipient}`,
     actions: 'Activity details',
@@ -711,6 +757,45 @@ const en = {
 };
 
 const zh: typeof en = {
+  cloud: {
+    title: '云服务',
+    hint: '导入部署者提供的 UAT 配置。云服务登录与电脑配对相互独立。',
+    scan: '扫描配置二维码',
+    paste: '粘贴配置',
+    pasteHint: '粘贴部署者提供的完整公开 JSON 配置。不要粘贴 API key 或登录凭证。',
+    configurationText: '公开 JSON 配置',
+    reviewConfig: '核对配置',
+    camera: '允许使用相机',
+    cancel: '取消',
+    trust: '请确认这个服务地址属于你信任的实例。公开配置一致并不能证明服务运营者的身份。',
+    importConfig: '信任并导入',
+    replace: '替换配置并清除已保存的会话',
+    replaceHint: '连接配置已变更。请向部署者核验新配置后再替换；原来的远程会话可能仍然有效。',
+    login: '登录',
+    verify: '核验会话',
+    refresh: '刷新会话',
+    logout: '退出登录',
+    signedIn: '已登录 · 实例管理员',
+    savedSession: '已保存会话 · 待核验',
+    signedOut: '未登录',
+    imported: '配置已导入',
+    loggedOut: '已退出本机登录，并撤销远程会话。',
+    localOnly: '已退出本机登录。远程撤销未确认，远程会话可能仍然有效。',
+    empty: '尚未添加云服务。',
+    working: '正在处理…',
+    loading: '正在读取安全存储…',
+    error: '操作未完成，可以重试。详情：',
+    blocked: '安全存储暂不可用，请重启 App 后重试。',
+    permission: '扫描部署配置需要相机权限。',
+    settings: '打开相机设置',
+    changed: '配置已变更，请向部署者获取并核验新的二维码。',
+    denied: '此账号尚无实例访问权限，请使用初始化管理员账号。',
+    cancelled: '已取消登录，可以重新开始。',
+    expired: '登录已过期，请重新开始。',
+    required: '需要重新登录。如果仍有已保存的会话，请先退出本机登录。',
+    storage: '安全存储未能更新，此操作尚未完成。',
+    invalid: '这不是支持的云服务配置，请使用部署者提供的公开配置。',
+  },
   activityRow: {
     dm: (recipient: string) => `向 ${recipient} 发送了私聊消息`,
     actions: '活动详情',
