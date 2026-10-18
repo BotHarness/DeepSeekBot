@@ -2,7 +2,7 @@
 import { act, createElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
-const fixture = vi.hoisted(() => ({ scope: 'all' }));
+const fixture = vi.hoisted(() => ({ scope: 'all', index: 0, enter: vi.fn(), navigate: vi.fn() }));
 vi.mock('react-native', async () => ({
   ...(await import('./react-native-shim')),
   Keyboard: { dismiss: vi.fn() },
@@ -21,14 +21,15 @@ vi.mock('expo-router/js-tabs', () => ({
     ({ tabBar }: { tabBar: (props: object) => ReactNode }) =>
       tabBar({
         state: {
-          index: 0,
+          index: fixture.index,
           routes: [
             { key: 'home', name: '(home)' },
             { key: 'activity', name: '(activity)' },
+            { key: 'search', name: '(search)' },
           ],
         },
-        emitter: { emit: vi.fn() },
-        navigateToTab: vi.fn(),
+        emitter: { emit: () => ({ defaultPrevented: false }) },
+        navigateToTab: fixture.navigate,
       }),
     { Screen: () => null },
   ),
@@ -49,6 +50,7 @@ vi.mock('../src/host/native-conversation-filter', () => ({
   useConversationFilter: () => [fixture.scope],
 }));
 vi.mock('../src/host/native-activity-count', () => ({ useActivityCount: () => ({ count: 0 }) }));
+vi.mock('../src/host/native-retained-search', () => ({ retainedSearch: { enter: fixture.enter } }));
 vi.mock('../src/cloud/native', () => ({ cloudClient: {} }));
 vi.mock('../src/cloud/native-conversations', () => ({
   useCloudConversations: () => ({ workspaces: [] }),
@@ -76,5 +78,42 @@ it('does not resurrect an open menu after a source changes away and back', async
   } finally {
     act(() => root.unmount());
     host.remove();
+  }
+});
+
+it('enters Search with the inherited scope and hides creation without resetting an active search', async () => {
+  const host = document.createElement('div');
+  document.body.append(host);
+  const root = createRoot(host);
+  fixture.scope = '["computer","a"]';
+  fixture.index = 0;
+  fixture.enter.mockClear();
+  try {
+    await act(async () => root.render(<BottomNavigation />));
+    await act(async () =>
+      [...host.querySelectorAll('button')]
+        .find((b) => b.getAttribute('aria-label') === t.localSearch.title)!
+        .click(),
+    );
+    expect(fixture.enter).toHaveBeenCalledWith(fixture.scope);
+    expect(fixture.navigate).toHaveBeenCalledWith('search');
+    fixture.index = 2;
+    await act(async () => root.render(<BottomNavigation />));
+    expect(
+      [...host.querySelectorAll('button')].some(
+        (b) => b.getAttribute('aria-label') === t.createHere,
+      ),
+    ).toBe(false);
+    await act(async () =>
+      [...host.querySelectorAll('button')]
+        .find((b) => b.getAttribute('aria-label') === t.localSearch.title)!
+        .click(),
+    );
+    expect(fixture.enter).toHaveBeenCalledTimes(1);
+  } finally {
+    act(() => root.unmount());
+    host.remove();
+    fixture.index = 0;
+    fixture.scope = 'all';
   }
 });

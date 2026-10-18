@@ -12,6 +12,22 @@ function toolGroup(tool: string): ToolGroup {
 }
 
 const en = {
+  localSearch: {
+    title: 'Search',
+    placeholder: 'Search conversations and messages',
+    conversations: 'Conversations',
+    messages: 'Messages',
+    coverage: 'Only messages retained on this device are searched. Results may be incomplete.',
+    cloudUnavailable: 'Cloud message search is not available yet.',
+    unavailable: (names: string) => `Some local caches could not be read: ${names}`,
+    empty: 'No retained matches.',
+    start: 'Enter a name or message text.',
+    retained: 'Showing messages retained on this device.',
+    missing: 'This message is no longer on this device.',
+    notFound: 'This message was not found in the available history.',
+    recover: 'Load from Computer',
+  },
+
   createHere: 'Create or join',
   chooseCreationTarget: 'Choose where to create',
   noCreationTargets: 'No available actions for this environment.',
@@ -999,6 +1015,22 @@ const en = {
 };
 
 const zh: typeof en = {
+  localSearch: {
+    title: '搜索',
+    placeholder: '搜索会话和消息',
+    conversations: '会话',
+    messages: '消息',
+    coverage: '仅搜索本设备保留的消息，结果可能不完整。',
+    cloudUnavailable: '暂不支持云端消息搜索。',
+    unavailable: (names: string) => `部分本机缓存无法读取：${names}`,
+    empty: '没有本机匹配结果。',
+    start: '输入会话名称或消息文字。',
+    retained: '正在查看本设备保留的消息。',
+    missing: '该消息已不在本设备上。',
+    notFound: '未在可读取的历史中找到该消息。',
+    recover: '从电脑加载',
+  },
+
   createHere: '创建或加入',
   chooseCreationTarget: '选择创建位置',
   noCreationTargets: '当前环境没有可用操作。',

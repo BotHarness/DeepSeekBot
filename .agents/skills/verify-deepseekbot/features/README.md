@@ -37,6 +37,8 @@ One file per user-facing feature. Each file has four sections: `Sub-features`, `
 
 | Activity Center: approvals, Channel mute and independent control-rail indicator; page and Dock | yes (real pending requests) | `scripts/e2e-inbox-tool-approval.mjs`, `scripts/e2e-activity-live.mjs`, `scripts/e2e-activity-approve-sync.mjs`, `scripts/e2e-activity-load.mjs` | [activity-inline-approval.md](activity-inline-approval.md) |
 
+| Retained Computer search on mobile | no | public controller tests and assigned native UAT path | [phone-retained-search.md](phone-retained-search.md) |
+
 ## Coverage and maintenance
 
 | IM DM commands, current authority and canonical reply outcomes | no for commands; yes for ordinary follow-up | none (isolated Host, CLI and authorized native IM path) | [im-dm-commands.md](im-dm-commands.md) |

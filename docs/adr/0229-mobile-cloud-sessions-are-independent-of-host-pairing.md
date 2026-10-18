@@ -57,3 +57,11 @@ The display scope also includes the stored session's user ID. This is a local ca
 The device-local conversation filter is shared with Activity as a browsing scope, not a Host switch or new grant. Chats alone owns its selector. The stable strip lists All, the active Computer, then enrolled sources' member/guest Organizations in directory order, including empty member Organizations. Account/configuration-qualified keys prevent colliding Organization IDs or names from sharing a page. The existing native pager used by Activity supplies gesture navigation; no native dependency or alternate navigation lifecycle is introduced.
 
 Activity preserves its category pager. Unsupported Cloud scope hides unrelated Computer data/actions and its badge; All explicitly discloses incomplete coverage. This does not supply Cloud attention contracts or concurrent multiple-Computer aggregation. Existing source-bound messages/drafts and explicit sends remain unchanged.
+
+## Retained Computer search (#2196)
+
+Search inherits the Chats environment and has no independent source selector. Its catalogue is a projection of the existing bounded conversation-cache files, qualified by Host ID and paired device ID. It never adopts legacy Host-only caches into a new identity. Opening a conversation online fills the new namespace naturally; cache eviction is expected and is not message deletion on the Host.
+
+Queries enumerate only still-paired identities. Unpair, definitive refusal and credential replacement invalidate that identity's cache and pending reads/writes. Transient disconnection retains the last authorized local content. Search and result resolution make no remote history requests. Selecting a result rereads its cache in the existing conversation screen, highlights the exact message and explicitly reports eviction; loading from the Computer is an explicit action. Returning preserves the in-memory query and scroll, while entering Search anew inherits Chats and resets the query. Cloud cache search remains a separate slice.
+
+This adds no Host route, bridge method, Bot tool or durable message authority. The public search controller and existing conversation API provide the agent-testable boundary; native rendering and navigation require the shared-device UAT path.

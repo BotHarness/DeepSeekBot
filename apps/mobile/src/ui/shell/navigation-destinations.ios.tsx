@@ -31,7 +31,7 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
         ]}
       >
         {items.map((item) => {
-          const label = item.activity ? t.activity : t.chats;
+          const label = item.search ? t.localSearch.title : item.activity ? t.activity : t.chats;
           const accessibility = item.count > 0 ? `${label}, ${badgeCount(item.count)}` : label;
           return (
             <Button
@@ -55,13 +55,15 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
                 <HStack spacing={space.x2}>
                   <Image
                     systemName={
-                      item.activity
-                        ? item.focused
-                          ? 'bell.fill'
-                          : 'bell'
-                        : item.focused
-                          ? 'bubble.left.and.bubble.right.fill'
-                          : 'bubble.left.and.bubble.right'
+                      item.search
+                        ? 'magnifyingglass'
+                        : item.activity
+                          ? item.focused
+                            ? 'bell.fill'
+                            : 'bell'
+                          : item.focused
+                            ? 'bubble.left.and.bubble.right.fill'
+                            : 'bubble.left.and.bubble.right'
                     }
                     modifiers={[font({ textStyle: 'title2' })]}
                   />

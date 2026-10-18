@@ -88,6 +88,84 @@ function contiguous(snapshot: ConversationSnapshot): boolean {
 }
 
 describe('DM conversation', () => {
+  it('removes an already displayed retained window when its source is invalidated', async () => {
+    const host = new FakeHost();
+    let invalidate!: () => void;
+    const current = open(host, {
+      retainedOnly: true,
+      cache: {
+        read: async () => ({
+          entries: [
+            {
+              channelId: DM,
+              revision: 1,
+              message: {
+                id: 'private',
+                body: 'retained',
+                at: '2026-10-19T00:00:00Z',
+                author: { kind: 'human' },
+              },
+            },
+          ],
+          hasOlder: false,
+        }),
+        write: vi.fn(),
+        onInvalidated: (listener) => {
+          invalidate = listener;
+          return () => {};
+        },
+      },
+    });
+    expect(ids(await until(current, (s) => s.status === 'retained'))).toEqual(['private']);
+    invalidate();
+    expect(current.getSnapshot()).toMatchObject({ status: 'refused', messages: [] });
+  });
+  it('opens retained messages without a history request and connects only on explicit recovery', async () => {
+    const host = new FakeHost();
+    const channel = host.channel(DM);
+    seed(channel, 3);
+    const cached: CachedConversation = {
+      entries: [
+        {
+          channelId: DM,
+          revision: 1,
+          message: {
+            id: 'human-1',
+            body: 'retained needle',
+            at: '2026-10-19T00:00:00Z',
+            author: { kind: 'human' },
+          },
+        },
+      ],
+      hasOlder: true,
+    };
+    const current = open(host, {
+      retainedOnly: true,
+      cache: { read: async () => cached, write: vi.fn() },
+    });
+    const local = await until(current, (s) => s.status === 'retained');
+    expect(ids(local)).toEqual(['human-1']);
+    expect(channel.follows).toHaveLength(0);
+    expect(
+      host.calls.filter((c) => c.method === 'channelJournalPage' || c.method === 'botDmOpen'),
+    ).toEqual([]);
+    expect(() => current.send('not while retained')).toThrow('Connect before sending');
+    await expect(current.react('one', '👍', true)).rejects.toThrow('Connect before reacting');
+    await current.loadOlder();
+    expect(channel.follows).toHaveLength(0);
+    current.connect?.();
+    expect(ids(await until(current, (s) => s.status === 'live'))).toContain('human-3');
+    expect(channel.follows).toHaveLength(1);
+  });
+  it('reports a completed empty retained window when the file has been evicted', async () => {
+    const host = new FakeHost();
+    const current = open(host, {
+      retainedOnly: true,
+      cache: { read: async () => undefined, write: vi.fn() },
+    });
+    expect((await until(current, (s) => s.status === 'retained')).messages).toEqual([]);
+    expect(host.calls.filter((c) => c.method === 'channelJournalPage')).toEqual([]);
+  });
   it('presents recorded activity through the live journal and keeps every revision for read tracking', async () => {
     const host = new FakeHost();
     const channel = host.channel(DM);

@@ -188,6 +188,14 @@
       "gap": null
     },
     {
+      "id": "phone.retained-search",
+      "label": "Search paired-identity Computer caches and locate retained messages",
+      "source": "apps/mobile/src/host/retained-search.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-retained-search.md",
+      "task": 2196,
+      "gap": null
+    },
+    {
       "id": "phone.activity.rows",
       "label": "Render DM/group activity, full details and explicit menu navigation; local DM filters",
       "source": "apps/mobile/src/ui/chat/activity-row.tsx",

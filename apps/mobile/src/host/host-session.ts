@@ -1,3 +1,4 @@
+import { createHostTransitions } from './host-transitions';
 import { sourceDrafts } from './native-source-drafts';
 import { useCallback, useMemo, useSyncExternalStore } from 'react';
 import { useFocusEffect } from 'expo-router';
@@ -9,7 +10,7 @@ import { createConversation, type Conversation, type ConversationSnapshot } from
 import { createConversationPlayback, type ConversationPlayback } from './conversation-playback';
 import { useVisibleSnapshot } from './use-visible-snapshot';
 import { currentHost, selectHost, withHost, withoutHost, type SavedHosts } from './hosts';
-import { clearConversationCache, nativeConversationCache } from './native-cache';
+import { retainedCache } from './native-cache';
 import { nativeCarrier } from './native-carrier';
 import { nativeNotifications } from './native-notifications';
 import { createHostPush } from './push';
@@ -18,6 +19,7 @@ import { loadSavedHosts, saveHosts, type SavedHost } from './saved-host';
 import { mobileTelemetry } from '../telemetry/native';
 import { createConnectionTelemetry } from '../telemetry/connection';
 import type { ConnectionTrigger } from '../telemetry/schema';
+import type { ComputerCacheSource, RetainedTarget } from './retained-search';
 import { locale, t } from '../ui/strings';
 
 export interface HostSessionState {
@@ -27,7 +29,7 @@ export interface HostSessionState {
   inbox: Inbox | undefined;
 }
 
-const clientHosts = new WeakMap<HostClient, string>();
+const clientHosts = new WeakMap<HostClient, ComputerCacheSource>();
 const listeners = new Set<() => void>();
 let state: HostSessionState = { saved: undefined, hosts: [], client: undefined, inbox: undefined };
 let stored: SavedHosts = { hosts: [] };
@@ -61,7 +63,8 @@ function adopt(next: SavedHosts, trigger: ConnectionTrigger = 'open'): void {
   if (
     previous !== undefined &&
     previous?.hostId === saved?.hostId &&
-    previous?.credential === saved?.credential
+    previous?.credential === saved?.credential &&
+    previous?.deviceId === saved?.deviceId
   ) {
     state = { ...state, saved, hosts: next.hosts };
     for (const listener of listeners) listener();
@@ -80,7 +83,7 @@ function adopt(next: SavedHosts, trigger: ConnectionTrigger = 'open'): void {
           carrier: nativeCarrier(),
           telemetry: createConnectionTelemetry(mobileTelemetry, trigger),
         });
-  if (client && saved) clientHosts.set(client, saved.hostId);
+  if (client && saved) clientHosts.set(client, { hostId: saved.hostId, deviceId: saved.deviceId });
   const inbox = client === undefined ? undefined : createInbox(client);
   offInbox =
     saved === null || inbox === undefined
@@ -88,7 +91,10 @@ function adopt(next: SavedHosts, trigger: ConnectionTrigger = 'open'): void {
       : inbox.subscribe(() => reflectInbox(saved.hostId, inbox));
   let connected = false;
   offConnection = client?.subscribe(() => {
-    const now = client.getSnapshot().connection.status === 'connected';
+    const status = client.getSnapshot().connection.status;
+    const now = status === 'connected';
+    if (saved && status === 'refused') retainedCache.forget(saved);
+    if (saved && now) retainedCache.authorize(saved);
     if (now && !connected) void pushSession.retryFailed();
     connected = now;
   });
@@ -97,10 +103,11 @@ function adopt(next: SavedHosts, trigger: ConnectionTrigger = 'open'): void {
   for (const listener of listeners) listener();
 }
 
-async function commit(next: SavedHosts, trigger: ConnectionTrigger = 'switch'): Promise<void> {
-  await saveHosts(next);
-  adopt(next, trigger);
-}
+const commit = createHostTransitions<ConnectionTrigger>({
+  read: () => stored,
+  save: saveHosts,
+  adopt,
+});
 
 void loadSavedHosts().then(
   (hosts) => {
@@ -126,21 +133,24 @@ export const hostSession = {
   },
   getState: (): HostSessionState => state,
   async pair(host: SavedHost): Promise<void> {
-    await commit(withHost(stored, host), 'pair');
+    const previous = stored.hosts.find((item) => item.hostId === host.hostId);
+    if (
+      previous &&
+      (previous.deviceId !== host.deviceId || previous.credential !== host.credential)
+    )
+      retainedCache.forget(previous);
+    await commit((current) => withHost(current, host), 'pair');
     void pushSession.enable(stored.hosts);
   },
-  async switchTo(hostId: string): Promise<boolean> {
-    if (stored.current === hostId) return true;
-    const next = selectHost(stored, hostId);
-    if (next === undefined) return false;
-    await commit(next);
-    return true;
+  async switchTo(hostId: string, valid = () => true): Promise<boolean> {
+    if (stored.current === hostId) return valid();
+    return commit((current) => selectHost(current, hostId), 'switch', valid);
   },
   async unpair(hostId?: string): Promise<void> {
     const host =
       hostId === undefined ? state.saved : stored.hosts.find((entry) => entry.hostId === hostId);
     if (host === null || host === undefined) return;
-    const current = host.hostId === state.saved?.hostId;
+    retainedCache.forget(host);
     void pushSession.forget(host);
     await sourceDrafts.ready;
     sourceDrafts.removeWhere((key) => {
@@ -151,11 +161,7 @@ export const hostSession = {
         return false;
       }
     });
-    await commit(withoutHost(stored, host.hostId));
-    if (!current) return;
-    try {
-      clearConversationCache();
-    } catch {}
+    await commit((current) => withoutHost(current, host.hostId), 'switch');
   },
 };
 
@@ -199,13 +205,33 @@ function conversationFor(
     byKey = new Map();
     conversations.set(client, byKey);
   }
-  const existing = byKey.get(key);
+  const instanceKey = `${key}:${options.retainedOnly === true ? 'retained' : 'live'}`;
+  const existing = byKey.get(instanceKey);
   if (existing !== undefined) return existing;
+  const source = clientHosts.get(client);
+  const descriptor = (): RetainedTarget => {
+    const roster = client.getSnapshot().roster;
+    return options.botSlug === undefined
+      ? {
+          kind: 'channel',
+          id: options.channelId!,
+          name:
+            roster?.channels.find((c) => c.id === options.channelId)?.name ?? options.channelId!,
+        }
+      : {
+          kind: 'dm',
+          id: options.botSlug,
+          name:
+            roster?.bots.find((b) => b.slug === options.botSlug)?.displayName ??
+            options.displayName ??
+            options.botSlug,
+        };
+  };
   const inner = createConversation({
     host: client,
     ...options,
-    cache: nativeConversationCache,
-    cacheKey: JSON.stringify(['computer', clientHosts.get(client), key]),
+    ...(source ? { cache: retainedCache.conversation(source, descriptor) } : {}),
+    cacheKey: key,
     telemetry: { send: () => mobileTelemetry.send(options.botSlug === undefined ? 'group' : 'dm') },
   });
   let watchers = 0;
@@ -224,18 +250,19 @@ function conversationFor(
         idle = setTimeout(() => {
           if (watchers > 0) return;
           inner.stop();
-          byKey.delete(key);
+          byKey.delete(instanceKey);
         }, 0);
       };
     },
   };
-  byKey.set(key, conversation);
+  byKey.set(instanceKey, conversation);
   return conversation;
 }
 
 export function useConversation(
   client: HostClient | undefined,
   bot: DmTarget | undefined,
+  retainedOnly = false,
 ): Conversation | undefined {
   const slug = bot?.slug;
   return useMemo(
@@ -244,16 +271,18 @@ export function useConversation(
         ? undefined
         : conversationFor(client, bot.slug, {
             botSlug: bot.slug,
+            retainedOnly,
             ...(bot.displayName === undefined ? {} : { displayName: bot.displayName }),
             ...(bot.dmChannelId === undefined ? {} : { channelId: bot.dmChannelId }),
           }),
-    [client, slug],
+    [client, slug, retainedOnly],
   );
 }
 
 export function useChannelConversation(
   client: HostClient | undefined,
   channelId: string | undefined,
+  retainedOnly = false,
 ): Conversation | undefined {
   return useMemo(
     () =>
@@ -261,9 +290,10 @@ export function useChannelConversation(
         ? undefined
         : conversationFor(client, `channel:${channelId}`, {
             channelId,
+            retainedOnly,
             cacheKey: `channel:${channelId}`,
           }),
-    [client, channelId],
+    [client, channelId, retainedOnly],
   );
 }
 

@@ -28,6 +28,7 @@ import { NavigationAction } from './navigation-action';
 import { CreationPanel } from './creation-panel';
 import { FloatingTabInset } from './floating-tab-inset';
 import { ScrollChromeProvider, useChromeHidden, useChromeProgress } from './scroll-chrome';
+import { retainedSearch } from '../../host/native-retained-search';
 import { t } from '../strings';
 
 type TabBarProps = ComponentProps<typeof BottomTabBar>;
@@ -61,6 +62,7 @@ function NavigationLayout() {
       >
         <Tabs.Screen name="(home)" options={{ title: t.chats }} />
         <Tabs.Screen name="(activity)" options={{ title: t.activity }} />
+        <Tabs.Screen name="(search)" options={{ title: t.localSearch.title }} />
       </Tabs>
     </FloatingTabInset.Provider>
   );
@@ -187,6 +189,7 @@ function ScopedNavigationBar({
               key: route.key,
               focused: state.index === index,
               activity: route.name === '(activity)',
+              search: route.name === '(search)',
               count: route.name === '(activity)' ? pending : 0,
               onPress: () => {
                 const event = emitter.emit({
@@ -194,21 +197,26 @@ function ScopedNavigationBar({
                   target: route.key,
                   canPreventDefault: true,
                 });
-                if (state.index !== index && !event.defaultPrevented) navigateToTab(route.key);
+                if (state.index !== index && !event.defaultPrevented) {
+                  if (route.name === '(search)') retainedSearch.enter(scope);
+                  navigateToTab(route.key);
+                }
               },
               onLongPress: () => emitter.emit({ type: 'tabLongPress', target: route.key }),
             }))}
           />
         </View>
-        <NavigationAction
-          size={navigationBar.height}
-          label={t.createHere}
-          onPress={() => {
-            Keyboard.dismiss();
-            setError(undefined);
-            setMenu(scope);
-          }}
-        />
+        {state.routes[state.index]?.name !== '(search)' && (
+          <NavigationAction
+            size={navigationBar.height}
+            label={t.createHere}
+            onPress={() => {
+              Keyboard.dismiss();
+              setError(undefined);
+              setMenu(scope);
+            }}
+          />
+        )}
       </Animated.View>
       {menu === scope && (
         <CreationPanel

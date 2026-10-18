@@ -4,7 +4,7 @@ import { navigationBar, radius } from '../design/tokens';
 import { NavigationIcon } from './navigation-icon';
 import { Text } from '../primitives/text';
 import { badgeCount } from '../primitives/badge-count';
-import { ChatsIcon, ActivityIcon } from './icons';
+import { ChatsIcon, ActivityIcon, ActivitySearchIcon } from './icons';
 import { t } from '../strings';
 import type { NavigationDestination } from './navigation-destination';
 export function NavigationDestinations({ items }: { items: NavigationDestination[] }) {
@@ -13,17 +13,19 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
     <>
       {items.map((item) => {
         const { focused, activity, count: pending } = item;
-        const Icon = activity ? ActivityIcon : ChatsIcon;
+        const Icon = item.search ? ActivitySearchIcon : activity ? ActivityIcon : ChatsIcon;
         return (
           <Pressable
             key={item.key}
             accessibilityRole="tab"
             accessibilityLabel={
-              activity && pending > 0
-                ? `${t.activity}, ${badgeCount(pending)}`
-                : activity
-                  ? t.activity
-                  : t.chats
+              item.search
+                ? t.localSearch.title
+                : activity && pending > 0
+                  ? `${t.activity}, ${badgeCount(pending)}`
+                  : activity
+                    ? t.activity
+                    : t.chats
             }
             accessibilityState={{ selected: focused }}
             onPress={item.onPress}
@@ -59,7 +61,7 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
               </NavigationIcon>
             </View>
             <Text variant="meta" tone={focused ? 'fg' : 'muted'}>
-              {activity ? t.activity : t.chats}
+              {item.search ? t.localSearch.title : activity ? t.activity : t.chats}
             </Text>
           </Pressable>
         );

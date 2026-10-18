@@ -28,6 +28,9 @@ export function chatRows(
   for (const message of messages) {
     const before = rows.at(-1);
     if (
+      !standalone(message) &&
+      previous !== undefined &&
+      !standalone(previous) &&
       message.activity?.kind === 'channel-post' &&
       previous?.activity?.kind === 'channel-post' &&
       previous.bot === message.bot &&

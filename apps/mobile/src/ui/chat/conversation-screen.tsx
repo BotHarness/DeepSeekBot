@@ -96,12 +96,16 @@ export type ChatPlace =
 
 export function ConversationScreen({
   expectedHostId,
+  expectedDeviceId,
+  retainedOnly = false,
   place,
   focus,
   latestWindowOnly = false,
 }: {
   place: ChatPlace;
   expectedHostId?: string | undefined;
+  expectedDeviceId?: string | undefined;
+  retainedOnly?: boolean;
   focus: string | undefined;
   latestWindowOnly?: boolean;
 }) {
@@ -119,15 +123,20 @@ export function ConversationScreen({
   );
   const bot =
     place.kind === 'dm' ? roster?.bots.find((entry) => entry.slug === place.slug) : undefined;
-  if (expectedHostId && saved?.hostId !== expectedHostId) return <Text>{t.sourceChanged}</Text>;
+  if (
+    (expectedHostId && saved?.hostId !== expectedHostId) ||
+    (expectedDeviceId && saved?.deviceId !== expectedDeviceId)
+  )
+    return <Text>{t.sourceChanged}</Text>;
   return (
     <AccentProvider accent={bot === undefined ? undefined : botColor(bot)}>
       <MessageIdentities.Provider value={identities}>
         <ChatConversation
-          key={JSON.stringify([saved?.hostId, place])}
+          key={JSON.stringify([saved?.hostId, saved?.deviceId, place, retainedOnly])}
           place={place}
           focus={focus}
           latestWindowOnly={latestWindowOnly}
+          retainedOnly={retainedOnly}
           focused={focused}
         />
       </MessageIdentities.Provider>
@@ -216,12 +225,14 @@ function ChatConversation({
   place,
   focus,
   latestWindowOnly,
+  retainedOnly,
   focused,
 }: {
   focused: boolean;
   place: ChatPlace;
   focus: string | undefined;
   latestWindowOnly: boolean;
+  retainedOnly: boolean;
 }) {
   const theme = useDesignTheme();
   const router = useRouter();
@@ -249,8 +260,8 @@ function ChatConversation({
           },
     [slug, bot !== undefined],
   );
-  const dmConversation = useConversation(client, target);
-  const channelConversation = useChannelConversation(client, channelId);
+  const dmConversation = useConversation(client, target, retainedOnly);
+  const channelConversation = useChannelConversation(client, channelId, retainedOnly);
   const conversation = dm ? dmConversation : channelConversation;
   const members = useMemo(
     () =>
@@ -306,17 +317,21 @@ function ChatConversation({
 
   const visible = useMemo(() => {
     const shown = snapshot.messages.filter(shownInChat);
-    return dm ? visibleDmActivity(shown, hiddenActivity) : shown;
-  }, [snapshot.messages, dm, hiddenActivity]);
+    if (!dm) return shown;
+    const allowed = new Set(visibleDmActivity(shown, hiddenActivity).map((m) => m.id));
+    return shown.filter((m) => m.id === focus || allowed.has(m.id));
+  }, [snapshot.messages, dm, hiddenActivity, focus]);
   const chronological = useMemo(
     () =>
       chatRows(
         visible,
-        (message) => message.card !== undefined && (!dm || !resolutions.has(message.id)),
+        (message) =>
+          message.id === focus ||
+          (message.card !== undefined && (!dm || !resolutions.has(message.id))),
       ).map((row) =>
         row.kind === 'message' ? { ...row, key: playback?.rowKey(row.message.id) ?? row.key } : row,
       ),
-    [visible, resolutions, dm, playback],
+    [visible, resolutions, dm, playback, focus],
   );
   const history = useMemo(() => [...chronological].reverse(), [chronological]);
   const [speakers] = useState(createSpeakerRegistry);
@@ -349,7 +364,13 @@ function ChatConversation({
     () => ({ scroll, viewport, layout: viewportLayout, active: focused }),
     [scroll, viewport, viewportLayout, focused],
   );
-  const readMount = useMarkRead(client, inbox, conversation, activeChannel, !latest.away);
+  const readMount = useMarkRead(
+    client,
+    inbox,
+    conversation,
+    activeChannel,
+    !latest.away && snapshot.status === 'live',
+  );
   const mountRef = dictation.mountRef;
   const screenRef = useCallback(
     (node: unknown) => {
@@ -514,36 +535,43 @@ function ChatConversation({
       if (item.kind === 'separator') return <TimeSeparator at={item.at} />;
       if (item.message.activity !== undefined)
         return (
-          <ActivityRow
-            message={item.message}
-            activity={item.message.activity}
-            roster={roster}
-            count={item.activityCount ?? 1}
-            dmSlug={slug}
-            lifted={item.message.id === actionsFor?.message.id}
-            onLongPress={(anchor, label, target) =>
-              setActionsFor({
-                message: { ...item.message, body: label },
-                anchor,
-                group: { first: true, last: true },
-                activity:
-                  target === undefined
-                    ? {}
-                    : {
-                        label:
-                          item.message.activity?.kind === 'memory'
-                            ? t.activityRow.openMemory
-                            : item.message.activity?.kind === 'bot-create'
-                              ? t.activityRow.openBot
-                              : t.activityRow.openChat,
-                        onOpen: () => router.push(target),
-                      },
-              })
-            }
-          />
+          <View
+            style={{
+              backgroundColor: item.message.id === focus ? theme.color.accentTint : 'transparent',
+            }}
+          >
+            <ActivityRow
+              message={item.message}
+              activity={item.message.activity}
+              roster={roster}
+              count={item.activityCount ?? 1}
+              dmSlug={slug}
+              lifted={item.message.id === actionsFor?.message.id}
+              onLongPress={(anchor, label, target) =>
+                setActionsFor({
+                  message: { ...item.message, body: label },
+                  anchor,
+                  group: { first: true, last: true },
+                  activity:
+                    target === undefined
+                      ? {}
+                      : {
+                          label:
+                            item.message.activity?.kind === 'memory'
+                              ? t.activityRow.openMemory
+                              : item.message.activity?.kind === 'bot-create'
+                                ? t.activityRow.openBot
+                                : t.activityRow.openChat,
+                          onOpen: () => router.push(target),
+                        },
+                })
+              }
+            />
+          </View>
         );
       const author = item.message.bot ?? slug;
       if (
+        snapshot.status !== 'retained' &&
         client !== undefined &&
         author !== undefined &&
         (item.message.card?.kind === 'tool-approval' || item.message.card?.kind === 'user-question')
@@ -564,23 +592,29 @@ function ChatConversation({
           />
         );
       return (
-        <PlaybackBubble
-          playback={playback}
-          queueKey={item.key}
-          message={item.message}
-          first={item.first}
-          last={item.last}
-          onRetry={retry}
-          onOpenImage={setViewing}
-          onShare={share}
-          onLongPress={openActions}
-          lifted={item.message.id === actionsFor?.message.id}
-          {...(botDm ? {} : { onReact: react })}
-          botName={botName}
-          speaker={
-            !dm && item.message.bot !== undefined ? speakerOf(item.message.bot, item) : undefined
-          }
-        />
+        <View
+          style={{
+            backgroundColor: item.message.id === focus ? theme.color.accentTint : 'transparent',
+          }}
+        >
+          <PlaybackBubble
+            playback={playback}
+            queueKey={item.key}
+            message={item.message}
+            first={item.first}
+            last={item.last}
+            onRetry={retry}
+            onOpenImage={setViewing}
+            onShare={share}
+            onLongPress={openActions}
+            lifted={item.message.id === actionsFor?.message.id}
+            {...(botDm || snapshot.status === 'retained' ? {} : { onReact: react })}
+            botName={botName}
+            speaker={
+              !dm && item.message.bot !== undefined ? speakerOf(item.message.bot, item) : undefined
+            }
+          />
+        </View>
       );
     },
     [
@@ -603,6 +637,8 @@ function ChatConversation({
       roster,
       botDm,
       router,
+      theme.color.accentTint,
+      snapshot.status,
     ],
   );
 
@@ -610,33 +646,48 @@ function ChatConversation({
   const missing =
     host.roster !== undefined && (dm ? bot === undefined : channel === undefined && !botDm);
   const leave = () => leaveScreen(router);
+  const retainedMissing =
+    snapshot.status === 'retained' &&
+    (!focus ? snapshot.messages.length === 0 : !snapshot.messages.some((m) => m.id === focus));
+  const focusMissing =
+    retainedOnly &&
+    focus &&
+    snapshot.status === 'live' &&
+    !snapshot.hasOlder &&
+    !snapshot.messages.some((m) => m.id === focus);
   const notice = hostRefused
     ? t.refused
     : snapshot.status === 'refused'
       ? dm
         ? t.dmRefused
         : t.channelRefused
-      : missing
-        ? dm
-          ? t.noBot
-          : t.noChannel
-        : snapshot.fromCache && host.connection.status !== 'connected'
-          ? t.offline
-          : snapshot.status === 'interrupted'
-            ? t.liveInterrupted
-            : attachError
-              ? t.attachFailed
-              : shareError
-                ? t.shareFailed
-                : reactError
-                  ? t.reactFailed
-                  : dictation.state.status === 'denied'
-                    ? t.dictationDenied
-                    : dictation.state.status === 'unavailable'
-                      ? t.dictationUnavailable
-                      : dictation.state.status === 'failed'
-                        ? t.dictationFailed
-                        : undefined;
+      : snapshot.status === 'retained'
+        ? retainedMissing
+          ? t.localSearch.missing
+          : t.localSearch.retained
+        : focusMissing
+          ? t.localSearch.notFound
+          : missing
+            ? dm
+              ? t.noBot
+              : t.noChannel
+            : snapshot.fromCache && host.connection.status !== 'connected'
+              ? t.offline
+              : snapshot.status === 'interrupted'
+                ? t.liveInterrupted
+                : attachError
+                  ? t.attachFailed
+                  : shareError
+                    ? t.shareFailed
+                    : reactError
+                      ? t.reactFailed
+                      : dictation.state.status === 'denied'
+                        ? t.dictationDenied
+                        : dictation.state.status === 'unavailable'
+                          ? t.dictationUnavailable
+                          : dictation.state.status === 'failed'
+                            ? t.dictationFailed
+                            : undefined;
 
   return (
     <>
@@ -669,7 +720,12 @@ function ChatConversation({
                       ? t.messageBot(`#${channel.name}`)
                       : t.messagePlaceholder
                 }
-                disabled={conversation === undefined || host.connection.status !== 'connected'}
+                disabled={
+                  conversation === undefined ||
+                  host.connection.status !== 'connected' ||
+                  snapshot.status === 'retained' ||
+                  snapshot.status === 'refused'
+                }
                 files={files}
                 canAttach={files.length < MAX_PICKED}
                 dictation={dictation.state.status}
@@ -727,6 +783,10 @@ function ChatConversation({
                   {t.pairAgain}
                 </Text>
               </Pressable>
+            ) : snapshot.status === 'retained' && host.connection.status === 'connected' ? (
+              <Pressable accessibilityRole="button" onPress={() => conversation?.connect?.()}>
+                <Text tone="accent">{t.localSearch.recover}</Text>
+              </Pressable>
             ) : notice === t.noBot || notice === t.noChannel ? (
               <Pressable
                 accessibilityRole="button"
@@ -759,7 +819,7 @@ function ChatConversation({
                   paddingTop: composerHeight + edgeFade.bottom,
                   paddingBottom: (notice === undefined ? headerHeight : 0) + space.x3,
                 }}
-                data={rows}
+                data={hostRefused || snapshot.status === 'refused' || retainedMissing ? [] : rows}
                 keyExtractor={(row) => row.key}
                 renderItem={renderItem}
                 onContentSizeChange={jump}
@@ -877,7 +937,7 @@ function ChatConversation({
       <ImageViewer attachment={viewing} onClose={() => setViewing(undefined)} onShare={share} />
       <MessageActions
         target={actionsFor}
-        readOnly={botDm}
+        readOnly={botDm || snapshot.status === 'retained' || snapshot.status === 'refused'}
         onClose={() => setActionsFor(undefined)}
         onReact={(message, emoji, active) => react(message.id, emoji, active)}
         onCopy={copyMessage}
