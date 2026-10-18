@@ -1,11 +1,17 @@
 import { useRef, useState, type ReactElement } from 'react';
 
+import {
+  AVATAR_OUTPUT_SIZE,
+  AVATAR_SOURCE_BYTES,
+  GROUP_AVATAR_BYTES,
+  encodeAvatar,
+} from './avatar-encoding.js';
 import { FormDialog } from './ds/form-dialog.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
 
 const PREVIEW_SIZE = 280;
-const OUTPUT_SIZE = 128;
+const OUTPUT_SIZE = AVATAR_OUTPUT_SIZE;
 
 export function GroupAvatarCropModal({
   file,
@@ -37,7 +43,10 @@ export function GroupAvatarCropModal({
     setSource(undefined);
     setDimensions(undefined);
     setError(false);
-    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 5_000_000) {
+    if (
+      !['image/png', 'image/jpeg', 'image/webp'].includes(file.type) ||
+      file.size > AVATAR_SOURCE_BYTES
+    ) {
       setError(true);
       return;
     }
@@ -76,9 +85,7 @@ export function GroupAvatarCropModal({
           renderWidth * scale,
           renderHeight * scale,
         );
-        const avatar = canvas.toDataURL('image/webp', 0.82);
-        if (!avatar.startsWith('data:image/webp;base64,') || avatar.length > 131_072)
-          throw new Error('avatar too large');
+        const avatar = encodeAvatar(canvas, GROUP_AVATAR_BYTES);
         if (await onSave(avatar)) onClose();
         else setError(true);
       } finally {

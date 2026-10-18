@@ -260,7 +260,7 @@ export async function parseAgentManagement(
   if (marketplace) return marketplace;
   const transfer = parseBotTransfer(command, rest, values, true);
   if (transfer) return transfer;
-  const channel = parseAgentChannels(command, rest, values);
+  const channel = await parseAgentChannels(command, rest, values);
   if (channel) return channel;
   const bot = await parseAgentBots(command, rest, values, io);
   if (bot) return bot;

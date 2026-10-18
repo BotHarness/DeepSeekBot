@@ -42,6 +42,7 @@ Run `node scripts/ci-plan.mjs --base origin/main` to print the plan and the exac
 | `packages/*/extension/**`                                                                                 | Related tests       |           | Browser extension sources                                    |
 | `packages/*/profile-extension/**`                                                                         | Related tests       |           | Browser profile extension sources                            |
 | `packages/*/assets/**`                                                                                    | Related tests       |           | Package assets                                               |
+| `packages/core/skills/**`                                                                                 | Related tests       |           | Installed CLI skill guidance                                 |
 | `packages/*/migrations/**`                                                                                | Related tests       |           | D1 migrations read by worker test harnesses                  |
 | `packages/*/scripts/**`                                                                                   | Related tests       |           | Package scripts                                              |
 | `packages/*/*.yml`                                                                                        | Related tests       |           | Product patches                                              |

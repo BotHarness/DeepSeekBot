@@ -3,6 +3,7 @@ import { dmChannelId } from '../channels/channel.js';
 import type { BotCreateCliIo } from './bot-create-cli.js';
 import { CliLiveError } from './cli-live-error.js';
 import { channelExpectedState } from './cli-channels.js';
+import { AvatarSourceError, prepareAvatarImage, readAvatarSource } from './avatar-source.js';
 
 export const PROFILE_OPTIONS = {
   file: { type: 'string' },
@@ -148,16 +149,18 @@ function readBytes(path: string | undefined, flag = '--file'): Buffer {
   }
 }
 
-function imageDataUrl(bytes: Buffer): string {
-  const type = bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
-    ? 'png'
-    : bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff
-      ? 'jpeg'
-      : bytes.toString('ascii', 0, 4) === 'RIFF' && bytes.toString('ascii', 8, 12) === 'WEBP'
-        ? 'webp'
-        : undefined;
-  if (type === undefined) usage('--file must be a PNG, JPEG or WebP image.');
-  return `data:image/${type};base64,${bytes.toString('base64')}`;
+async function avatarFromFile(path: string | undefined): Promise<string> {
+  if (!path?.trim()) usage('--file <path> is required.');
+  try {
+    return await prepareAvatarImage(readAvatarSource(path));
+  } catch (error) {
+    if (error instanceof AvatarSourceError)
+      throw new CliLiveError(
+        error.code === 'file-unreadable' ? error.code : 'usage',
+        error.message,
+      );
+    throw error;
+  }
 }
 
 async function stdinJson(io: BotCreateCliIo, flag: string): Promise<unknown> {
@@ -201,7 +204,7 @@ export async function profileCall(
         usage('bot-avatar-set needs exactly one of --file or --clear.');
       return [
         'botAvatarSet',
-        { channelId, avatar: values.clear ? null : imageDataUrl(readBytes(values.file)) },
+        { channelId, avatar: values.clear ? null : await avatarFromFile(values.file) },
       ];
     }
     case 'bot-banner-set': {

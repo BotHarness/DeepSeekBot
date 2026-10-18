@@ -1,29 +1,20 @@
 import { useRef, useState, type ReactElement } from 'react';
 
+import { AVATAR_OUTPUT_SIZE, AVATAR_SOURCE_BYTES, encodeAvatar } from './avatar-encoding.js';
 import { FormDialog } from './ds/form-dialog.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
 
 const PREVIEW_SIZE = 280;
-const OUTPUT_SIZE = 512;
-const MAX_AVATAR_BYTES = 131_072;
+const OUTPUT_SIZE = AVATAR_OUTPUT_SIZE;
 const MAX_BANNER_BYTES = 2_000_000;
 const BANNER_WIDTHS = [1500, 1200, 900, 600];
-const MAX_SOURCE_BYTES = 5_000_000;
+const MAX_SOURCE_BYTES = AVATAR_SOURCE_BYTES;
 
 function decodedBase64Bytes(dataUrl: string): number {
   const base64 = dataUrl.slice(dataUrl.indexOf(',') + 1);
   const padding = base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0;
   return Math.floor((base64.length * 3) / 4) - padding;
-}
-
-function encodeAvatar(canvas: HTMLCanvasElement): string {
-  for (let quality = 0.85; quality >= 0.5; quality -= 0.05) {
-    const dataUrl = canvas.toDataURL('image/webp', quality);
-    if (!dataUrl.startsWith('data:image/webp;base64,')) throw new Error('unsupported canvas');
-    if (decodedBase64Bytes(dataUrl) <= MAX_AVATAR_BYTES) return dataUrl;
-  }
-  throw new Error('avatar too large');
 }
 
 function encodeBanner(canvas: HTMLCanvasElement): string {

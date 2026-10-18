@@ -97,11 +97,11 @@ function integer(value: unknown, flag: string, max: number, fallback: number): n
     usage(`${flag} must be an integer from 1 to ${String(max)}.`);
   return result;
 }
-export function parseAgentChannels(
+export async function parseAgentChannels(
   command: string,
   rest: string[],
   values: Record<string, unknown>,
-): AgentManagementInvocation | undefined {
+): Promise<AgentManagementInvocation | undefined> {
   if (!Object.hasOwn(OPTIONS, command)) return undefined;
   const allowed = new Set(['compact', 'help', 'timeout', ...OPTIONS[command]!]);
   if (Object.entries(values).some(([key, value]) => value !== undefined && !allowed.has(key)))
@@ -182,7 +182,7 @@ export function parseAgentChannels(
         args.avatar =
           values.clear === true
             ? null
-            : channelAvatarDataUrl(text(values['avatar-file'], '--avatar-file'));
+            : await channelAvatarDataUrl(text(values['avatar-file'], '--avatar-file'));
         break;
       case 'group-invite-cancel':
         args.invitationId = text(values.invitation, '--invitation');

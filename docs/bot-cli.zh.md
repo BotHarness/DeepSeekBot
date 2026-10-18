@@ -42,15 +42,29 @@ deepseekbot schedule-run-now <id> --sid <schedule> [--home <dsh-home>]
 deepseekbot schedule-preview (--every <s> | --daily ... | ...) [--home <dsh-home>]
 deepseekbot pairings <id> [--home <dsh-home>]
 deepseekbot search <words>
+deepseekbot skills list
+deepseekbot skills show <skill-id>
 ```
 
 每次创建只能指定一种来源。空白创建和 GitHub 导入必须传 `--name`；包导入时 `--name` 会覆盖 `.botharness/bot.json`（或文件名）中的名字。`--from-git` 接受完整 Git 地址（`https://`、`ssh://`、`git@host:path`）或 `owner/repo` 简写（即 `https://github.com/owner/repo.git`），Bot 市场条目可用其克隆地址走同一路径。`--from-dir` 会跳过 `.git` 下的文件，但存在时将其打包为历史记录。
 
 `--memory-location <绝对路径>` 让空白 Bot 的记忆存放在 DSH 数据目录之外（例如另一块磁盘）：记忆仓库会建在新的 `<目录>/<bot-id>` 文件夹中，`dataDir` 返回该路径。路径必须是已存在文件夹的绝对路径，且这个 Bot 的文件夹不能已存在（`invalid-memory-dir`）；导入的 Bot 仍使用默认位置。创建对话框的 **进阶设置 → 记忆文件位置** 提供同样的选择。
 
-空白 Bot 还可以用 `--core-memory <文本>` 或 `--core-memory-stdin` 写入根目录的 `MEMORY.md`（核心记忆）以代替默认模板，用 `--avatar-file <图片>` 从不超过 128 KiB 的 PNG、JPEG 或 WebP 文件设置头像（否则返回 `invalid-avatar`，文件无法读取时返回 `file-unreadable`）。`--persona-stdin` 和 `--core-memory-stdin` 只能有一个读取标准输入。Bot 也可以在聊天中用 `bot_create` 工具创建同样的空白 Bot，见下文“绕过模型调用 Harness Bot 工具”。
+空白 Bot 还可以用 `--core-memory <文本>` 或 `--core-memory-stdin` 写入根目录的 `MEMORY.md`（核心记忆）以代替默认模板，用 `--avatar-file <图片>` 从不超过 5 MB（5,000,000 字节）的 PNG、JPEG 或 WebP 源文件设置头像。CLI 会应用方向信息，按需降低质量和尺寸，统一转成不超过 1024 × 1024 像素、128 KiB 的 WebP（图片不符合要求时返回 `invalid-avatar`，文件无法读取时返回 `file-unreadable`）。`--persona-stdin` 和 `--core-memory-stdin` 只能有一个读取标准输入。Bot 也可以在聊天中用 `bot_create` 工具创建同样的空白 Bot，见下文“绕过模型调用 Harness Bot 工具”。
 
 `--home` 指向目标 `DSH_HOME`；全新目录零点击可用。不传时使用环境中的 `DSH_HOME`。离线数据库命令须先停 Host，否则独占写租约返回 `lease-unavailable`。凭据文件命令可在线执行；以下在线命令走已认证的 Host RPC。
+
+## 随安装包提供的工作流 Skill
+
+```bash
+deepseekbot skills list
+deepseekbot skills show bot-management
+deepseekbot skills show avatar-management
+```
+
+这些只读命令输出一个 JSON 文档，不需要模型、运行中的 Host、源码仓库或另行安装的 Skill，Human CLI 和 Tob 受限执行均可查询。`skills list` 返回精选 Skill 的 ID、说明和相关命令；`skills show <skill-id>` 在 `skill.body` 中返回完整 Markdown。两者均返回 `schemaVersion`、`packageName` 和 `packageVersion`，版本来自实际执行该 CLI 的安装包。支持 `--compact`，不接受目标、认证或变更参数。未知 ID 返回 `unknown-skill`；安装包元数据或内容缺失时返回 `skills-unavailable`。
+
+Tob 先用 `capabilities` 发现当前可用操作，再读取相关 Skill 后准备提案。头像任务读取 `avatar-management`，其中包含源图片准备、自动转换、Bot／群组命令、指纹、审核和回读。安装包中的指导不增加命令权限或文件访问范围，仍由实时能力目录和现有 owner 判断可用性与授权。直接调用 Harness 的 `bot_create` 工具仍沿用原有 128 KiB 源文件契约；更大的源图片额度只适用于 CLI 路径。
 
 ## 在线 Host 命令
 
@@ -182,7 +196,7 @@ deepseekbot channel-purge-preview <channel> --source-event <id> | jq '{token}' \
 
 `channel <group-channel>` 返回 `{channel, channelFingerprint, invitationPolicy:{autoAccept}, wakePolicies}`，拒绝非群频道。稳定创建／邀请参数及重试语义见 [Tob 建群与邀请](#tob-建群与邀请)，Human 在线命令也可使用。
 
-与 Web 界面一样，重命名 Bot 私聊会同时重命名该 Bot。`group-avatar-set` 读取不超过 96 KiB 的 PNG、JPEG 或 WebP 文件。邀请 ID 和入群申请 ID 位于群组的 `invitations` 和 `joinRequests` 中，`channels` 和每个群组命令都会返回。`group-wake-set` 设置成员 Bot 对普通群消息何时唤醒：`all`、`mentions`、`digest`（累计 `--count` 条消息或经过 `--interval` 秒后唤醒，默认 5 和 30）或 `silent`；`--inherit` 让该成员恢复其 Bot 的默认设置。`channel-timeline` 和 `channel-journal` 按聊天视图的方式分页读取消息；`channel-journal` 的 `--through` 取 `channel-timeline` 返回的 `revision`。`channel-retry` 在 Bot 回复失败后让它重新回答一条 Human 私聊消息。`channel-unread` 列出每个有未读的频道的 Bot 未读消息数，即侧边栏每行显示的数字。`channel-mute` 与侧边栏菜单一样把频道设为免打扰：该行变灰，未读消息不计入活动中心的未读总数；`--off` 取消免打扰。`channel-bot-stop` 停止 Bot 当前这一轮工作，与工作状态条上的“停止”按钮相同：Bot 回到空闲，Channel 里记录 Human 停止了它；Bot 没在工作时以 `not-working` 拒绝。Bot 已委派的 Assignment 继续运行。`channel-react` 给一条消息加上你的表情回应，带 `--remove` 则撤回，并返回该消息的 `reactions`；每条消息最多保留你的 20 个回应，表情必须是单个 emoji。Bot 通过 `channel_send` 的 `react_to` 和 `reaction` 回应，只回应时 `body` 留空；`bot-tool <bot> channel_send --args-stdin` 可以不经过模型执行它。`channel-search` 在你可见的消息中不区分大小写地匹配 `--query`，按时间从新到旧返回，并用返回的 `nextCursor` 翻页。
+与 Web 界面一样，重命名 Bot 私聊会同时重命名该 Bot。`group-avatar-set` 接受不超过 5 MB（5,000,000 字节）的 PNG、JPEG 或 WebP 源文件，统一转成不超过 1024 × 1024 像素、98,286 字节的 WebP，同时满足既有 96 KiB 图片限制和序列化 data URL 限制。邀请 ID 和入群申请 ID 位于群组的 `invitations` 和 `joinRequests` 中，`channels` 和每个群组命令都会返回。`group-wake-set` 设置成员 Bot 对普通群消息何时唤醒：`all`、`mentions`、`digest`（累计 `--count` 条消息或经过 `--interval` 秒后唤醒，默认 5 和 30）或 `silent`；`--inherit` 让该成员恢复其 Bot 的默认设置。`channel-timeline` 和 `channel-journal` 按聊天视图的方式分页读取消息；`channel-journal` 的 `--through` 取 `channel-timeline` 返回的 `revision`。`channel-retry` 在 Bot 回复失败后让它重新回答一条 Human 私聊消息。`channel-unread` 列出每个有未读的频道的 Bot 未读消息数，即侧边栏每行显示的数字。`channel-mute` 与侧边栏菜单一样把频道设为免打扰：该行变灰，未读消息不计入活动中心的未读总数；`--off` 取消免打扰。`channel-bot-stop` 停止 Bot 当前这一轮工作，与工作状态条上的“停止”按钮相同：Bot 回到空闲，Channel 里记录 Human 停止了它；Bot 没在工作时以 `not-working` 拒绝。Bot 已委派的 Assignment 继续运行。`channel-react` 给一条消息加上你的表情回应，带 `--remove` 则撤回，并返回该消息的 `reactions`；每条消息最多保留你的 20 个回应，表情必须是单个 emoji。Bot 通过 `channel_send` 的 `react_to` 和 `reaction` 回应，只回应时 `body` 留空；`bot-tool <bot> channel_send --args-stdin` 可以不经过模型执行它。`channel-search` 在你可见的消息中不区分大小写地匹配 `--query`，按时间从新到旧返回，并用返回的 `nextCursor` 翻页。
 
 `group-delete` 和 `channel-purge-confirm` 无法撤销，必须带 `--confirm`。`channel-history` 列出已删除、内容仍可清除的群组。清除与历史页面一样分两步：`channel-purge-preview` 列出所选 Source Event 将删除的消息、Bot 受理记录、文件和后续效果，并返回短时有效的 `token`；`channel-purge-confirm` 从标准输入读取 `{"token": …}`，针对同一组 Source Event 执行，范围变化时以错误码拒绝。Source Event 从 `channel-history-sources` 中选取，它用返回的 `before` 游标分页。
 
@@ -227,7 +241,7 @@ deepseekbot part-library-export --out /tmp/part-library.zip
 deepseekbot part-library-export --part-id <part-id> --out /tmp/part.png
 ```
 
-图片从文件路径读取：头像可以是 PNG、JPEG 或 WebP；横幅是 3:1 的 PNG；`--clear` 把头像恢复默认、把横幅恢复为按名字生成的场景。`bot-appearance-set` 接受与头像编辑器相同的像素配方，并据此重绘头像。`--source-class` 取 `assignment-report`（`--wake conditional|immediate`）、`group-ordinary`（`--wake immediate|digest|mentions|silent`，配合 `--digest-count` 和以秒计的 `--digest-interval`），或 `human-dm`、`bot-dm`、`group-mention`（`--delivery steer|turn`）。侧边栏命令使用 Channel id（私聊为 `dm-<bot-id>`）；`roster-pins-set` 和 `roster-hidden-set` 整体替换列表，不传 id 即清空；`roster-batch move` 不带 `--section` 时移到顶层。`roster-section-remove` 必须带 `--confirm`，分组里的 Channel 会移到顶层。设置了 `--host` 或 `DEEPSEEKBOT_HOST` 时，`human-name-set` 和 `channel-human-name-set` 走 Host；带 `--home` 时仍走离线路径。`part-library-export` 把部件 PNG 或整个部件库的 zip 写入 `--out`，并输出文件名和大小；`--part-stdin` 导出以 JSON 给出的已穿戴部件。
+图片从文件路径读取：头像源文件可以是静态 PNG、JPEG 或 WebP，最大 5 MB（5,000,000 字节），解码后最多 4000 万像素。CLI 保留源文件，应用方向信息，在不放大的前提下缩至 1024 × 1024 像素以内，并压缩为 WebP（Bot 最大 128 KiB，群组最大 98,286 字节）。为满足限制可能继续降低质量和尺寸；CLI 没有交互裁切，应先准备好构图。动画、超限或无法解码的图片会被拒绝。横幅是 3:1 的 PNG；`--clear` 把头像恢复默认、把横幅恢复为按名字生成的场景。`bot-appearance-set` 接受与头像编辑器相同的像素配方，并据此重绘头像。`--source-class` 取 `assignment-report`（`--wake conditional|immediate`）、`group-ordinary`（`--wake immediate|digest|mentions|silent`，配合 `--digest-count` 和以秒计的 `--digest-interval`），或 `human-dm`、`bot-dm`、`group-mention`（`--delivery steer|turn`）。侧边栏命令使用 Channel id（私聊为 `dm-<bot-id>`）；`roster-pins-set` 和 `roster-hidden-set` 整体替换列表，不传 id 即清空；`roster-batch move` 不带 `--section` 时移到顶层。`roster-section-remove` 必须带 `--confirm`，分组里的 Channel 会移到顶层。设置了 `--host` 或 `DEEPSEEKBOT_HOST` 时，`human-name-set` 和 `channel-human-name-set` 走 Host；带 `--home` 时仍走离线路径。`part-library-export` 把部件 PNG 或整个部件库的 zip 写入 `--out`，并输出文件名和大小；`--part-stdin` 导出以 JSON 给出的已穿戴部件。
 
 ### 用命令行管理 IM 应用
 

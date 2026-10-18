@@ -1,0 +1,34 @@
+{
+  "issue": 2165,
+  "sourceHead": "cedae4f8f43ba7e5cbd7cb8834f896dffc49bfd4",
+  "base": "f978f109670787ba48f8dae4e9ce2c6ac8834206",
+  "platform": "macOS Desktop, isolated synthetic Profile",
+  "source": { "format": "png", "width": 1024, "height": 1024, "bytes": 1133598 },
+  "baselineCli": { "accepted": false, "error": "invalid-input" },
+  "candidateCli": {
+    "accepted": true,
+    "format": "webp",
+    "width": 1024,
+    "height": 1024,
+    "bytes": 79414
+  },
+  "candidateNativeCrop": {
+    "accepted": true,
+    "format": "webp",
+    "width": 1024,
+    "height": 1024,
+    "bytes": 115450
+  },
+  "screenshots": {
+    "before": "Old avatar retained after baseline CLI refusal",
+    "after": "Saved candidate avatar shown after Desktop restart",
+    "crop": "Candidate native crop with 1024px guidance"
+  },
+  "limits": [
+    "Before and after window widths differ slightly",
+    "CLI-to-UI instant refresh not qualified",
+    "Group native crop and model-driven approval not rerun",
+    "No published registry install tested; isolated package fixture tested",
+    "No browser UI testing"
+  ]
+}

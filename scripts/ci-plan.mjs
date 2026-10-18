@@ -49,6 +49,7 @@ export const RULES = [
   related('packages/*/extension/**', 'Browser extension sources'),
   related('packages/*/profile-extension/**', 'Browser profile extension sources'),
   related('packages/*/assets/**', 'Package assets'),
+  related('packages/core/skills/**', 'Installed CLI skill guidance'),
   related('packages/*/migrations/**', 'D1 migrations read by worker test harnesses'),
   related('packages/*/scripts/**', 'Package scripts'),
   related('packages/*/*.yml', 'Product patches'),

@@ -1,5 +1,13 @@
 import { execFile } from 'node:child_process';
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+  cpSync,
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -20,8 +28,18 @@ it('starts the shipped CLI entry outside DSH without Host-only packages', async 
     mkdirSync(core, { recursive: true });
     writeFileSync(
       join(core, 'package.json'),
-      JSON.stringify({ type: 'module', exports: { './cli': './cli/index.mjs' } }),
+      JSON.stringify({
+        name: '@botharness/core',
+        version: '9.8.7-test.1',
+        type: 'module',
+        exports: { './cli': './cli/index.mjs' },
+      }),
     );
+    const manifest = JSON.parse(
+      readFileSync(new URL('../../packages/core/package.json', import.meta.url), 'utf8'),
+    );
+    expect(manifest.files).toContain('skills');
+    cpSync(join(root, 'packages/core/skills'), join(core, 'skills'), { recursive: true });
     mkdirSync(join(temporary, 'node_modules', '@resvg'), { recursive: true });
     symlinkSync(
       dirname(coreRequire.resolve('@resvg/resvg-js/package.json')),
@@ -37,6 +55,43 @@ it('starts the shipped CLI entry outside DSH without Host-only packages', async 
     const help = await exec(process.execPath, [entry, '--help'], { timeout: 20_000 });
     expect(help.stdout).toContain('channel-media-download');
     expect(help.stdout).toContain('channel-media-target');
+    const list = await exec(process.execPath, [entry, 'skills', 'list'], {
+      cwd: temporary,
+      timeout: 20_000,
+    });
+    expect(JSON.parse(list.stdout)).toMatchObject({
+      packageName: '@botharness/core',
+      packageVersion: '9.8.7-test.1',
+      skills: expect.arrayContaining([expect.objectContaining({ id: 'avatar-management' })]),
+    });
+    const shown = await exec(process.execPath, [entry, 'skills', 'show', 'avatar-management'], {
+      cwd: temporary,
+      timeout: 20_000,
+    });
+    expect(JSON.parse(shown.stdout)).toMatchObject({
+      packageVersion: '9.8.7-test.1',
+      skill: { id: 'avatar-management', body: expect.stringContaining('5 MB (5,000,000 bytes)') },
+    });
+    rmSync(join(core, 'skills'), { recursive: true });
+    const missing = await exec(process.execPath, [entry, 'skills', 'show', 'avatar-management'], {
+      cwd: temporary,
+      timeout: 20_000,
+    }).catch((error) => error);
+    expect(JSON.parse(missing.stdout).error.code).toBe('skills-unavailable');
+    writeFileSync(
+      join(core, 'package.json'),
+      JSON.stringify({
+        name: '@botharness/core',
+        version: null,
+        type: 'module',
+        exports: { './cli': './cli/index.mjs' },
+      }),
+    );
+    const invalidMetadata = await exec(process.execPath, [entry, 'skills', 'list'], {
+      cwd: temporary,
+      timeout: 20_000,
+    }).catch((error) => error);
+    expect(JSON.parse(invalidMetadata.stdout).error.code).toBe('skills-unavailable');
     const output = await exec(process.execPath, [entry, 'channel-media-download', 'channel'], {
       timeout: 20_000,
     }).catch((error) => error);

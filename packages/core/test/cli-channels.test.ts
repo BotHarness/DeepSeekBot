@@ -1,3 +1,4 @@
+import sharp from 'sharp';
 import { realpathSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { tmpdir } from 'node:os';
@@ -344,7 +345,12 @@ describe('Channel and group CLI commands', () => {
   it('maps each command to the bridge method and arguments the Web UI uses', async () => {
     const live = await host(ok);
     const png = join(mkdtempSync(join(tmpdir(), 'cli-channels-')), 'avatar.png');
-    writeFileSync(png, Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 1, 2, 3]));
+    writeFileSync(
+      png,
+      await sharp({ create: { width: 16, height: 8, channels: 3, background: '#3388aa' } })
+        .png()
+        .toBuffer(),
+    );
     const runs: Array<[string[], string?]> = [
       [['channel-rename', 'grp-1', '--name', ' Skill Lab ']],
       [['group-avatar-set', 'grp-1', '--avatar-file', png]],
@@ -416,7 +422,7 @@ describe('Channel and group CLI commands', () => {
       { method: 'channelRename', args: { channelId: 'grp-1', name: 'Skill Lab' } },
       {
         method: 'channelGroupAvatarSet',
-        args: { channelId: 'grp-1', avatar: 'data:image/png;base64,iVBORw0KGgoBAgM=' },
+        args: { channelId: 'grp-1', avatar: expect.stringMatching(/^data:image\/webp;base64,/u) },
       },
       { method: 'channelGroupAvatarSet', args: { channelId: 'grp-1', avatar: null } },
       { method: 'channelGroupInvite', args: { channelId: 'grp-1', botSlug: 'ada' } },

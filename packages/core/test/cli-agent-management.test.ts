@@ -1,3 +1,4 @@
+import sharp from 'sharp';
 import { realpathSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -383,10 +384,25 @@ describe('scoped Group settings CLI', () => {
         ...flags,
       });
     try {
-      for (const [type, bytes] of [
-        ['png', Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 1])],
-        ['jpeg', Buffer.from([255, 216, 255, 1])],
-        ['webp', Buffer.from('RIFF1234WEBP1234')],
+      for (const [, bytes] of [
+        [
+          'png',
+          await sharp({ create: { width: 16, height: 8, channels: 3, background: '#3388aa' } })
+            .png()
+            .toBuffer(),
+        ],
+        [
+          'jpeg',
+          await sharp({ create: { width: 16, height: 8, channels: 3, background: '#3388aa' } })
+            .jpeg()
+            .toBuffer(),
+        ],
+        [
+          'webp',
+          await sharp({ create: { width: 16, height: 8, channels: 3, background: '#3388aa' } })
+            .webp()
+            .toBuffer(),
+        ],
       ] as const) {
         writeFileSync(path, bytes);
         expect(await parse({ 'avatar-file': path })).toEqual({
@@ -394,7 +410,7 @@ describe('scoped Group settings CLI', () => {
           args: {
             channelId: 'team',
             expectedChannel,
-            avatar: `data:image/${type};base64,${bytes.toString('base64')}`,
+            avatar: expect.stringMatching(/^data:image\/webp;base64,/u),
           },
           write: true,
         });

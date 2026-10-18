@@ -71,13 +71,15 @@ import {
   BOT_ZIP_MAX_ENTRIES,
   BOT_ZIP_HISTORY_PATH,
 } from './bot-zip.js';
-import { personaBotAvatarFromBytes, type PersonaBotRecord } from './persona-bot.js';
+import type { PersonaBotRecord } from './persona-bot.js';
+import { AvatarSourceError, prepareAvatarImage, readAvatarSource } from './avatar-source.js';
 import { createPersonaBotRegistry, type PersonaBotRegistry } from './registry.js';
 import { ZipArchiveError, writeZip, type ZipEntry } from './zip-archive.js';
 import { INBOX_HOST_COMMANDS } from './cli-inbox.js';
 import { CliLiveError, LIVE_COMMANDS, LIVE_OPTIONS, runLiveCli } from './cli-live.js';
 import { CLIENT_PREFERENCE_USAGE } from './cli-client-preferences.js';
 import { hasAgentCliContext, runAgentCli } from './cli-agent.js';
+import { runCliSkills } from './cli-skills.js';
 import { PROFILE_ONLINE_COMMANDS } from './cli-profile.js';
 import {
   isScheduleCommand,
@@ -176,6 +178,8 @@ Usage:
   deepseekbot secret-list [--home <dsh-home>]                  names, sources, writability; never values
   deepseekbot secret-unset <NAME> [--home <dsh-home>]
   deepseekbot search <words>                                   find commands by words
+  deepseekbot skills list                                     installed workflow guidance
+  deepseekbot skills show <skill-id>                           version-matched Markdown in JSON
   deepseekbot send <id> (--body <text> | --body-stdin) [--message-id human-<UUID>] [--timeout <seconds>]
   deepseekbot send-status <id> --message-id <Human-message-id>
   deepseekbot tool-approval-status <channel> --message-id <card-id>
@@ -927,7 +931,7 @@ export async function validatedCreate(
     };
   }
   if (name === undefined) throw usageError('--name is required for a blank bot.');
-  const avatar = avatarFile === undefined ? undefined : avatarFromFile(avatarFile);
+  const avatar = avatarFile === undefined ? undefined : await avatarFromFile(avatarFile);
   const piped = personaStdin || coreMemoryStdin ? (await readStdin()).trim() : '';
   const pipedCoreMemory = coreMemoryStdin && piped.length > 0 ? piped : undefined;
   const chosenCoreMemory = coreMemory ?? pipedCoreMemory;
@@ -944,21 +948,13 @@ export async function validatedCreate(
   };
 }
 
-function avatarFromFile(path: string): string {
-  let bytes: Buffer;
+async function avatarFromFile(path: string): Promise<string> {
   try {
-    bytes = readFileSync(resolve(path));
-  } catch {
-    throw new CliFailure('file-unreadable', `Cannot read --avatar-file ${path}.`, 1);
+    return await prepareAvatarImage(readAvatarSource(resolve(path)));
+  } catch (error) {
+    if (error instanceof AvatarSourceError) throw new CliFailure(error.code, error.message, 1);
+    throw error;
   }
-  const avatar = personaBotAvatarFromBytes(bytes);
-  if (avatar === undefined)
-    throw new CliFailure(
-      'invalid-avatar',
-      '--avatar-file must be a PNG, JPEG or WebP image of at most 128 KiB.',
-      1,
-    );
-  return avatar;
 }
 
 function nextActions(
@@ -2585,6 +2581,7 @@ const SEARCH_INDEX: ReadonlyArray<{ command: string; description: string }> = [
   { command: 'secret-list', description: 'list secret names without values' },
   { command: 'secret-unset', description: 'delete a secret' },
   { command: 'search', description: 'search CLI commands by words' },
+  { command: 'skills', description: 'list or show installed version-matched CLI skill guidance' },
 ];
 
 function runSearch(rest: readonly string[]): {
@@ -2647,6 +2644,10 @@ export async function runBotCreateCli(
     });
     const [command, ...rest] = positionals;
     compactOutput = values.compact === true;
+    if (command === 'skills') {
+      out.stdout(JSON.stringify(runCliSkills(rest, values), null, 2));
+      return 0;
+    }
     if (hasAgentCliContext(io.env)) {
       out.stdout(JSON.stringify(await runAgentCli(command, rest, values, io), null, 2));
       return 0;

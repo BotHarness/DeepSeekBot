@@ -1,3 +1,4 @@
+import sharp from 'sharp';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -200,7 +201,11 @@ describe('scoped Bot CLI parsing', () => {
     const dir = mkdtempSync(join(tmpdir(), 'scoped-avatar-'));
     directories.push(dir);
     const file = join(dir, 'avatar.png');
-    const bytes = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+    const bytes = await sharp({
+      create: { width: 1600, height: 800, channels: 3, background: '#3388aa' },
+    })
+      .png()
+      .toBuffer();
     writeFileSync(file, bytes);
     const { parse } = parser();
     expect(
@@ -211,7 +216,7 @@ describe('scoped Bot CLI parsing', () => {
       args: {
         slug: 'helper',
         expectedProfile: fingerprint,
-        avatar: 'data:image/png;base64,' + bytes.toString('base64'),
+        avatar: expect.stringMatching(/^data:image\/webp;base64,/u),
       },
     });
   });

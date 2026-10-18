@@ -1,3 +1,4 @@
+import sharp from 'sharp';
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { tmpdir } from 'node:os';
@@ -61,7 +62,9 @@ async function invoke(argv: string[], url: string, stdin = '') {
 }
 
 const ok = () => ({ ok: true, value: { done: true } });
-const PNG = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82]);
+const PNG = await sharp({ create: { width: 16, height: 8, channels: 4, background: '#3388aa80' } })
+  .png()
+  .toBuffer();
 
 function file(name: string, bytes: Buffer): string {
   const path = join(mkdtempSync(join(tmpdir(), 'cli-profile-')), name);
@@ -87,7 +90,10 @@ describe('Bot profile and appearance commands', () => {
     await invoke(['bot-primary-color-set', 'ada', '--automatic'], live.url);
     const dataUrl = `data:image/png;base64,${PNG.toString('base64')}`;
     expect(live.calls).toEqual([
-      { method: 'botAvatarSet', args: { channelId: 'dm-ada', avatar: dataUrl } },
+      {
+        method: 'botAvatarSet',
+        args: { channelId: 'dm-ada', avatar: expect.stringMatching(/^data:image\/webp;base64,/u) },
+      },
       { method: 'botAvatarSet', args: { channelId: 'dm-ada', avatar: null } },
       { method: 'botBannerSet', args: { channelId: 'dm-ada', banner: { image: dataUrl } } },
       {

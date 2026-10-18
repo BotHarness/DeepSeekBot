@@ -1,3 +1,4 @@
+import sharp from 'sharp';
 import { execFileSync } from 'node:child_process';
 import {
   chmodSync,
@@ -223,8 +224,19 @@ describe('deepseekbot create', () => {
     const avatar = join(home, 'tim.png');
     writeFileSync(
       avatar,
-      Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), Buffer.from('tiny')]),
+      await sharp({
+        create: {
+          width: 1200,
+          height: 600,
+          channels: 3,
+          background: '#3388aa',
+          noise: { type: 'gaussian', mean: 128, sigma: 30 },
+        },
+      })
+        .png()
+        .toBuffer(),
     );
+    expect(statSync(avatar).size).toBeGreaterThan(131_072);
     const result = await invoke(
       ['create', '--name', 'Tim', '--avatar-file', avatar, '--core-memory', '# Core\n- Fridays'],
       home,
@@ -237,7 +249,12 @@ describe('deepseekbot create', () => {
         rootDir: join(home, 'botharness', 'bots'),
         database: owner,
       });
-      expect(registry.get(result.json.bot.id)?.avatar).toMatch(/^data:image\/png;base64,/u);
+      const saved = registry.get(result.json.bot.id)?.avatar;
+      expect(saved).toMatch(/^data:image\/webp;base64,/u);
+      expect(await sharp(Buffer.from(saved!.split(',')[1]!, 'base64')).metadata()).toMatchObject({
+        width: 1024,
+        height: 512,
+      });
     } finally {
       owner.close();
     }

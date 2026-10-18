@@ -1,4 +1,10 @@
-import { readFileSync, writeFileSync } from 'node:fs';
+import {
+  AvatarSourceError,
+  MAX_GROUP_AVATAR_IMAGE_BYTES,
+  prepareAvatarImage,
+  readAvatarSource,
+} from './avatar-source.js';
+import { writeFileSync } from 'node:fs';
 import { attachmentUploadInput } from './cli-attachment-upload.js';
 import { createHash } from 'node:crypto';
 import type { BotCreateCliIo } from './bot-create-cli.js';
@@ -150,7 +156,6 @@ interface ChannelValues {
 
 const WAKE_MODES = new Set(['all', 'mentions', 'digest', 'silent']);
 const DIRECTIONS = new Set(['older', 'newer', 'around']);
-const MAX_AVATAR_BYTES = 98_304;
 
 function usage(message: string): never {
   throw new CliLiveError('usage', message);
@@ -188,23 +193,13 @@ function required(value: string | undefined, flag: string): string {
   return trimmed;
 }
 
-export function channelAvatarDataUrl(path: string): string {
-  let bytes: Buffer;
+export async function channelAvatarDataUrl(path: string): Promise<string> {
   try {
-    bytes = readFileSync(path);
-  } catch {
-    usage('Cannot read --avatar-file.');
+    return await prepareAvatarImage(readAvatarSource(path), MAX_GROUP_AVATAR_IMAGE_BYTES);
+  } catch (error) {
+    if (error instanceof AvatarSourceError) usage(error.message);
+    throw error;
   }
-  if (bytes.length === 0 || bytes.length > MAX_AVATAR_BYTES)
-    usage(`--avatar-file must be 1 to ${String(MAX_AVATAR_BYTES)} bytes.`);
-  const type = bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
-    ? 'png'
-    : bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff
-      ? 'jpeg'
-      : bytes.toString('ascii', 0, 4) === 'RIFF' && bytes.toString('ascii', 8, 12) === 'WEBP'
-        ? 'webp'
-        : usage('--avatar-file must be a PNG, JPEG or WebP image.');
-  return `data:image/${type};base64,${bytes.toString('base64')}`;
 }
 
 async function purgeToken(io: BotCreateCliIo): Promise<string> {
@@ -297,7 +292,8 @@ export async function runChannelCommand(
       method = 'channelGroupAvatarSet';
       if ((values['avatar-file'] === undefined) === (values.clear !== true))
         usage('group-avatar-set needs exactly one of --avatar-file <path> or --clear.');
-      args.avatar = values.clear === true ? null : channelAvatarDataUrl(values['avatar-file']!);
+      args.avatar =
+        values.clear === true ? null : await channelAvatarDataUrl(values['avatar-file']!);
       break;
     case 'group-invite':
       method = 'channelGroupInvite';

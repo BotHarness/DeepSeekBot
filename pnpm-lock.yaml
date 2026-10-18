@@ -770,6 +770,9 @@ importers:
       '@resvg/resvg-js':
         specifier: 2.6.2
         version: 2.6.2
+      sharp:
+        specifier: 0.35.4
+        version: 0.35.4(@types/node@22.20.3)
       silk-wasm:
         specifier: 3.7.1
         version: 3.7.1
