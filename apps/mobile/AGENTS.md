@@ -1,6 +1,6 @@
 # Mobile app — Agent Guide
 
-You are working on the Expo app in `apps/mobile` (Expo SDK 57, React Native 0.86, React 19.2, Expo Router, pnpm workspace with the isolated linker). The repository rules in the root `AGENTS.md` still apply. This file adds the mobile-only rules.
+You are working on the Expo app in `apps/mobile` (Expo SDK 58, React Native 0.88, React 19.3, Expo Router, pnpm workspace with the isolated linker). The repository rules in the root `AGENTS.md` still apply. This file adds the mobile-only rules.
 
 ## Which skill to use
 
@@ -13,17 +13,22 @@ Load `expo-overview` first for any Expo or EAS task; it routes to the right skil
 - Performance (jank, re-renders, lists, bundle size, memory): `react-native-best-practices`. Measure before optimizing, with the loop in [Profiling](#profiling).
 - Component tests: `react-native-testing`. Today the app's tests are Vitest in Node against the Host client (`test/`); adding React Native component tests is a separate decision.
 
-Read docs for SDK 57 (`https://docs.expo.dev/versions/v57.0.0/...`), not `latest`.
+Read docs for SDK 58 (`https://docs.expo.dev/versions/v58.0.0/...`), not `latest`.
 
 ## Design rules
 
 Screens follow [DESIGN.md](./DESIGN.md): the Host-as-workspace structure, the screen anatomy, and the code rules. No literal colours, type, spacing, radii or edge widths outside `src/ui/design/` (`test/style-guard.test.ts`); text through `src/ui/primitives/text`; new visual elements land in `src/ui/primitives`, `chat` or `shell` before a screen uses them.
 
+**System text and large-text usability are required for every new or changed UI.** Read the [implementation and acceptance contract](./DESIGN.md#system-text-and-large-text-acceptance). Preserve iOS semantic Dynamic Type and Android native scaling; fix layout with wrapping, stacking, scrolling and reachable actions instead of disabling scaling or capping all text. Text/input adapter changes must preserve live drafts and editable-field identity. The PR records default/intermediate/maximum × light/dark native checks for both platforms, matched screenshots, actual interactions and explicit blockers. Do not infer Android or Human acceptance from iOS screenshots or source tests.
+
 ## Hard rules
+
+- **Keyboard visibility is required for every text input on iOS and Android.** Follow [Keyboard and text entry](./DESIGN.md#keyboard-and-text-entry) for chat, search, pairing, answers, sheets and forms. Verify a real keyboard, focus changes, multiline growth and reachable submission; a covered caret or required action fails acceptance.
 
 - **Native projects are generated.** `ios/` and `android/` are not committed (CNG). Change native configuration through `app.json` and config plugins, never by editing generated native files.
 - **Keep packages on the SDK's versions.** Add Expo and React Native packages with `npx expo install <pkg>`. Where the Expo API is unreachable (cloud sessions block `expo.dev`), take the range from `node_modules/expo/bundledNativeModules.json` and add it with `pnpm --filter @botharness/mobile add <pkg>@<range>`. Never hand-bump `expo`, `react`, `react-native` or `expo-*` versions; that is an `expo-upgrade` task.
-- **Do not use `expo@57.0.8` or older.** Those releases have the Hermes V1 memory regression.
+- **Use the SDK 58 dependency matrix.** Keep Hermes on the SDK default. SDK upgrades require native rebuilds; do not load this JavaScript into an SDK 57 development client.
+- **File writes are explicit.** SDK 58 `File.write()` is asynchronous. The existing synchronous persistence adapters use `File.writeSync()` so their failure handling and callers retain the same contract.
 - **A native change needs a new development build.** Adding a package with native code, a config plugin, or an `app.json` native field change means the installed dev build is stale; say so in the PR. JavaScript-only changes reload through Metro.
 - **No secrets in the bundle.** Anything in `EXPO_PUBLIC_*` variables or `app.json` ships inside the app. Tokens live only in `expo-secure-store` and are never logged.
 - **HTTPS only.** iOS App Transport Security and Android cleartext rules block plain `http://` on device; the Host is reached over Tailscale HTTPS.
@@ -32,13 +37,15 @@ Screens follow [DESIGN.md](./DESIGN.md): the Host-as-workspace structure, the sc
 
 ## Native UI verification
 
-- On a Mac, start with `node scripts/e2e-mobile-sim.mjs`: one command makes its own Simulator and Metro port, builds the app, pairs with two isolated Hosts and opens notifications sent with `xcrun simctl push`; read the screenshots it keeps.
+- **First reserve the shared device lane** through [shared device QA](../../docs/agents/device-qa.md). Do not start a separate Simulator, Metro, Host or build outside the assigned batch. The runner may use `node scripts/e2e-mobile-sim.mjs` only when its Simulator/build/Host lifecycle fits the assigned window; it is not a bypass of the queue.
 - On a Mac, verify native UI with Callstack's `agent-device` on the iOS Simulator: open the development build, read its accessibility snapshot, act by ref, and save a screenshot. The commands are in `README.md` ("Drive it on the iOS Simulator").
 - Regression flows live in `.maestro/` and run with `pnpm --filter @botharness/mobile e2e:ios`. Target elements by their visible text from the snapshot, not by coordinates.
-- The Mac, its Simulator, the physical iPhone and the QA Host are shared by every agent. Queue, branch, build, Host and reporting rules are in [shared device QA](../../docs/agents/device-qa.md).
+- Native devices and QA Hosts are shared by every agent. Read [shared device QA](../../docs/agents/device-qa.md) before builds or device interaction; it routes Mac/iOS and Windows/Android to their own batch queues. Windows emulator/USB phone control and scrcpy evidence use `scripts/android-qa.ps1` from the repo root.
 - Cloud sessions have no simulator. They use the web screenshots ("Screenshots without a phone") and reach a Mac through Remote Control for native checks.
 
 ## Profiling
+
+**The bar.** In a Release build on a ProMotion iPhone, a DM holds 120 FPS (8.3 ms frames) while a reply streams, while the user scrolls long history, and while both happen at once ([#1845](https://github.com/BotHarness/DeepSeekBot/issues/1845)). No frame may hitch over 16.7 ms. Numbers from a development build or the Simulator are evidence for a change, not proof that the bar is met.
 
 Performance work is measured, not guessed. Before you change code for speed (jank, re-renders, a slow list, a long stream), profile the scenario, then profile it again after the change. The PR records both sets of numbers. `scripts/rn-profile.mjs` lets an agent read the profile itself, the way the Chrome DevTools MCP does for the web: no one clicks in DevTools.
 
@@ -73,7 +80,12 @@ Performance work is measured, not guessed. Before you change code for speed (jan
   - Expo's inspector proxy drops any debugger socket whose `Origin` is not exactly `http://127.0.0.1:<port>`. Node's built-in `WebSocket` cannot set it, so the script uses `ws`.
   - Hermes rejects `Profiler.enable`, `Tracing.*` and `HeapProfiler.*`, but `Profiler.start` and `Profiler.stop` work.
   - `Page.reload` replays the URL the app was launched with. To restart cleanly, relaunch with `simctl terminate` and the dev-client URL.
-- **Not covered yet.** UI-thread FPS and native dropped frames, from the Performance Monitor or `xctrace`. Say so in the PR when they matter.
+- **Release builds and the UI thread.** `rn-profile.mjs` needs Metro, so it can't attach to a Release build and only sees the JS thread. For the bar above:
+  - Measure JS cost with production JS (`expo start --no-dev --minify`) on the dev build, and say it ran on a Debug native binary.
+  - Measure the UI thread and render server on a Release build on a real ProMotion iPhone with `xcrun xctrace record --template "Animation Hitches"`. Report the hitch time ratio (ms of hitches per second), hitches over 8.3 ms and 16.7 ms, and the frame rate reached.
+  - The iOS Simulator doesn't emulate ProMotion and runs on the Mac's CPU and GPU. Use it only for before/after comparisons, never for a 120 FPS claim.
+  - The `requestAnimationFrame` FPS in `summary.json` is capped by the display link, so it can't show more than 60 FPS unless the app opts in to higher frame rates.
+- **Scenarios.** Cover streaming a long reply, fling-scrolling a DM with several hundred history messages that include tables and code blocks, and scrolling while a reply streams.
 
 ## Checks
 

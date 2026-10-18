@@ -1,6 +1,6 @@
 import { MOBILE_BOT_QUERY } from './mobile-viewport.js';
 
-export const BOT_MODE_SIDEBAR_QUERY = '(min-width: 960px)';
+export const BOT_MODE_SIDEBAR_QUERY = '(min-width: 961px)';
 
 function matches(query: string): boolean {
   return window.matchMedia(query).matches;

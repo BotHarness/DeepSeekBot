@@ -19,6 +19,9 @@ export const View = (props: Props) =>
   createElement('div', { ...a11y(props), ref: props['ref'] }, props.children);
 export const Text = (props: Props) => createElement('span', a11y(props), props.children);
 export const ScrollView = View;
+export const Animated = { View };
+export const I18nManager = { isRTL: false };
+export const KeyboardAvoidingView = View;
 export const Modal = (props: Props) =>
   props['visible'] === true ? createElement('div', { role: 'dialog' }, props.children) : null;
 export const useWindowDimensions = () => ({ width: 390, height: 844, scale: 3, fontScale: 1 });
@@ -43,6 +46,7 @@ export const TextInput = (props: Props) =>
     ...a11y(props),
     value: props['value'] as string,
     placeholder: props['placeholder'] as string,
+    onBlur: props['onBlur'] as (() => void) | undefined,
     disabled: props['editable'] === false,
     onChange: (event: { target: { value: string } }) =>
       (props['onChangeText'] as ((text: string) => void) | undefined)?.(event.target.value),
@@ -111,6 +115,7 @@ export const FlatList = (props: {
   keyExtractor(item: unknown): string;
   renderItem(info: { item: unknown; index: number }): ReactNode;
   ListHeaderComponent?: ReactNode;
+  ListFooterComponent?: ReactNode;
   ListEmptyComponent?: ReactNode;
   ref?: unknown;
 }) =>
@@ -127,4 +132,13 @@ export const FlatList = (props: {
             props.renderItem({ item, index }),
           ),
         )),
+    props.ListFooterComponent ?? null,
   );
+
+export const StyleSheet = {
+  flatten(style: unknown): object | undefined {
+    if (Array.isArray(style))
+      return Object.assign({}, ...style.map((item) => StyleSheet.flatten(item)));
+    return style && typeof style === 'object' ? style : undefined;
+  },
+};

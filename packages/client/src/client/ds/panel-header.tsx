@@ -42,7 +42,7 @@ const styles = stylex.create({
     pointerEvents: 'none',
   },
   dimmed: { cursor: 'default', opacity: 0.6 },
-  fixed: { flexGrow: 0, flexBasis: 'auto' },
+  fixed: { flexGrow: 0, flexBasis: 'auto', maxWidth: '40%' },
   chevron: {
     display: 'inline-flex',
     flexShrink: 0,
@@ -81,11 +81,15 @@ const styles = stylex.create({
     flexShrink: 1,
     flexBasis: 0,
     minWidth: 0,
+    overflowX: 'auto',
+    whiteSpace: 'nowrap',
   },
   action: {
     display: 'inline-flex',
     alignItems: 'center',
-    flexShrink: 0,
+    minWidth: 0,
+    maxWidth: { default: 'none', ':has([data-session-target])': '60%' },
+    flexShrink: { default: 0, ':has([data-session-target])': 1 },
     paddingInlineEnd: space.x1,
   },
 });
@@ -129,6 +133,7 @@ export function PanelHeader({
       )}
       <span
         data-panel-label=""
+        title={typeof label === 'string' ? label : undefined}
         {...stylex.props(styles.label, fixed && styles.labelFixed, struck && styles.struck)}
       >
         {label}
@@ -178,7 +183,11 @@ export function PanelHeader({
           {content}
         </button>
       )}
-      {tabs === undefined ? null : <span {...stylex.props(styles.tabs)}>{tabs}</span>}
+      {tabs === undefined ? null : (
+        <span data-panel-tabs="" {...stylex.props(styles.tabs)}>
+          {tabs}
+        </span>
+      )}
       {action === undefined ? null : <span {...stylex.props(styles.action)}>{action}</span>}
     </div>
   );

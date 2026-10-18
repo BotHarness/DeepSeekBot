@@ -92,13 +92,15 @@ export function AppIconSettings({
 
   return (
     <ScrollView
+      nestedScrollEnabled
       contentInsetAdjustmentBehavior="automatic"
       contentContainerStyle={{ gap: space.x6, padding: space.x5 }}
     >
       {port.supported ? null : <Notice tone="warning">{t.appIconUnsupported}</Notice>}
-      <SettingsSection footer={t.appIconFooter}>
+      <SettingsSection on="raised" footer={t.appIconFooter}>
         {APP_ICONS.map((name) => (
           <SettingsRow
+            on="raised"
             key={name}
             title={LABEL[name].title}
             detail={LABEL[name].detail}

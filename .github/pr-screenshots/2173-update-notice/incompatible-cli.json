@@ -1,0 +1,13 @@
+{
+  "status": "blocked",
+  "current": "1.3.1",
+  "latest": "1.4.2",
+  "compatibility": {
+    "status": "incompatible",
+    "dshVersion": "0.2.1-rc.2",
+    "package": "deepseekbot",
+    "requirements": {
+      "engines.dsh": ">=0.2.2"
+    }
+  }
+}

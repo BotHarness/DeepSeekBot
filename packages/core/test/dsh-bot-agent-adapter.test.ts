@@ -1,14 +1,34 @@
-import type { AssistantStreamFrame } from '@deepseek-ai/dsh-agent';
+import { Context } from '@deepseek-ai/cordis';
+import type { Agent, AssistantStreamFrame } from '@deepseek-ai/dsh-agent';
+import { ToolCallId } from '@deepseek-ai/dsh-llm';
+import { createScope } from '@deepseek-ai/dsh-scope';
 import { SessionId, type TurnEndCancelCause } from '@deepseek-ai/dsh-session';
-import type { ToolRunContext } from '@deepseek-ai/dsh-tools';
+import { ToolRuntime, defineTool, type ToolRunContext } from '@deepseek-ai/dsh-tools';
 
 import { describe, expect, it, vi } from 'vitest';
 
 import { createDshBotAgentAdapter } from '../src/runtime/dsh-bot-agent-adapter.js';
 import { BotScheduleError } from '../src/schedules/bot-schedules.js';
+import { SendReviewRequired } from '../src/channels/send-review.js';
 import { isDshGovernedTool } from '../src/workspaces/grant-execution.js';
 import type { AssignmentAgentRun, OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
 import { FakeAgentHost, FAKE_BOT as BOT } from './dsh-agent-host-fixture.js';
+
+const TOB_GROUP_TOOL_CASES = [
+  ['group_create', { name: 'Group' }, 'createGroup'],
+  ['group_invite_bot', { channel_id: 'group', bot_id: 'peer' }, 'inviteGroup'],
+  ['group_invite_respond', { invite_id: 'invite', accept: true }, 'respondToGroupInvite'],
+  ['group_join_request', { channel_id: 'group' }, 'requestGroupJoin'],
+  [
+    'group_join_decide',
+    { channel_id: 'group', request_id: 'request', accept: true },
+    'decideGroupJoin',
+  ],
+  ['group_rename', { channel_id: 'group', name: 'Renamed' }, 'renameGroup'],
+  ['group_remove_member', { channel_id: 'group', bot_id: 'peer' }, 'removeGroupMember'],
+  ['group_leave', { channel_id: 'group' }, 'leaveGroup'],
+] as const;
+const TOB_CLI_TOOL_NAMES = ['bot_create', ...TOB_GROUP_TOOL_CASES.map(([name]) => name)];
 
 const ASSIGNMENT = {
   sessionId: 'assignment-1',
@@ -89,7 +109,475 @@ const reportRun: OrchestratorAgentRun = {
   },
 };
 
+describe('explicit Inbox completion with channel_send', () => {
+  async function fixture(
+    check: (
+      run: OrchestratorAgentRun,
+      call: (args: Record<string, unknown>) => Promise<Record<string, unknown>>,
+    ) => Promise<void>,
+  ) {
+    const adapter = createDshBotAgentAdapter({
+      agents: new FakeAgentHost(),
+      defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+      orchestratorCwd: () => '/memory/ada',
+      ensureWorkspace: () => undefined,
+    });
+    const run: OrchestratorAgentRun = {
+      ...reportRun,
+      channels: { ...reportRun.channels },
+      triage: {
+        current: () => [],
+        list: () => ({ total: 0, snoozed: 0, groups: [] }),
+        snooze: () => {
+          throw new Error('unexpected snooze');
+        },
+        resolve: ({ ids }) => ({ outcome: 'resolved', resolved: ids ?? [], alreadyResolved: [] }),
+      },
+    };
+    try {
+      await check(run, async (args) =>
+        JSON.parse(
+          JSON.stringify(
+            await adapter.runDirectTool!(run, 'channel_send', args, new AbortController().signal),
+          ),
+        ),
+      );
+    } finally {
+      await adapter.close();
+    }
+  }
+  it('resolves explicitly selected work only after delivery commits', async () => {
+    await fixture(async (run, call) => {
+      const events: string[] = [];
+      run.channels.send = async (input) => {
+        events.push('commit');
+        return {
+          id: 'sent',
+          at: BOT.createdAt,
+          author: { kind: 'bot', slug: BOT.slug },
+          body: input.body,
+        };
+      };
+      run.triage!.resolve = ({ ids }) => {
+        events.push('resolve');
+        return { outcome: 'resolved', resolved: ids!, alreadyResolved: [] };
+      };
+      expect(await call({ body: 'Answer', resolve_inbox_ids: ['request'] })).toMatchObject({
+        status: 'committed',
+        messageId: 'sent',
+        inboxResolution: { resolved: ['request'] },
+      });
+      expect(events).toEqual(['commit', 'resolve']);
+    });
+  });
+  it('keeps Inbox work open when held or when sending fails', async () => {
+    await fixture(async (run, call) => {
+      const resolve = vi.spyOn(run.triage!, 'resolve');
+      run.channels.send = async () => {
+        throw new SendReviewRequired({
+          status: 'held',
+          channelId: 'group',
+          draftId: 'draft',
+          reason: 'changed',
+        });
+      };
+      expect(await call({ body: 'Old', resolve_inbox_ids: ['request'] })).toMatchObject({
+        status: 'held',
+      });
+      run.channels.send = async () => {
+        throw new Error('refused');
+      };
+      await expect(call({ body: 'Old', resolve_inbox_ids: ['request'] })).rejects.toThrow(
+        'refused',
+      );
+      expect(resolve).not.toHaveBeenCalled();
+    });
+  });
+  it('reports a resolution failure separately from successful delivery', async () => {
+    await fixture(async (run, call) => {
+      run.triage!.resolve = () => {
+        throw new Error('unobserved item');
+      };
+      expect(await call({ body: 'Answer', resolve_inbox_ids: ['unseen'] })).toMatchObject({
+        status: 'committed',
+        messageId: 'bot-1',
+        inboxResolution: { outcome: 'failed', retry: 'inbox_resolve' },
+      });
+    });
+  });
+  it('drop alone does not resolve; an explicit selection does, and refused drops never do', async () => {
+    await fixture(async (run, call) => {
+      const resolve = vi.spyOn(run.triage!, 'resolve');
+      run.channels.dropDraft = (input) => ({
+        status: 'dropped',
+        channelId: input.channelId,
+        draftId: input.draftId,
+        reason: 'explicit-drop',
+      });
+      const args = { body: '', channel_id: 'group', draft_id: 'draft', drop: true };
+      await call(args);
+      expect(resolve).not.toHaveBeenCalled();
+      expect(await call({ ...args, resolve_inbox_ids: ['request'] })).toMatchObject({
+        status: 'dropped',
+        inboxResolution: { resolved: ['request'] },
+      });
+      run.channels.dropDraft = (input) => ({
+        status: 'refused',
+        channelId: input.channelId,
+        draftId: input.draftId,
+        reason: 'unavailable',
+      });
+      await call({ ...args, resolve_inbox_ids: ['request'] });
+      expect(resolve).toHaveBeenCalledTimes(1);
+    });
+  });
+  it('keeps the exhausted draft source open while resolving selected completed background work', async () => {
+    await fixture(async (run, call) => {
+      const resolve = vi.spyOn(run.triage!, 'resolve');
+      run.channels.dropDraft = (input) => ({
+        status: 'dropped',
+        channelId: input.channelId,
+        draftId: input.draftId,
+        reason: 'explicit-drop-does-not-resolve-inbox',
+        budget: { used: 2, limit: 2, exhausted: true },
+        keepOpenInboxIds: ['request-source', 'request-message'],
+      });
+      const args = { body: '', channel_id: 'group', draft_id: 'draft', drop: true };
+      const continuation = {
+        reason: 'exhausted-drop-keeps-original-work-open',
+        instruction: expect.stringContaining('Use inbox_snooze'),
+      };
+      expect(await call(args)).toMatchObject({
+        inboxResolution: { outcome: 'not-requested', ...continuation },
+      });
+      expect(resolve).not.toHaveBeenCalled();
+      expect(await call({ ...args, resolve_inbox_ids: ['fyi'] })).toMatchObject({
+        inboxResolution: { resolved: ['fyi'], ...continuation },
+      });
+      resolve.mockClear();
+      expect(
+        await call({ ...args, resolve_inbox_ids: ['request-source', 'request-message', 'fyi'] }),
+      ).toMatchObject({
+        status: 'dropped',
+        inboxResolution: {
+          resolved: ['fyi'],
+          keptOpen: ['request-source', 'request-message'],
+          reason: 'exhausted-drop-keeps-original-work-open',
+        },
+      });
+      expect(resolve).toHaveBeenCalledWith({ ids: ['fyi'], outcome: 'done' });
+      resolve.mockClear();
+      expect(await call({ ...args, resolve_inbox_ids: ['request-message'] })).toMatchObject({
+        inboxResolution: { outcome: 'kept-open', keptOpen: ['request-message'] },
+      });
+      expect(resolve).not.toHaveBeenCalled();
+      run.channels.dropDraft = (input) => ({
+        status: 'dropped',
+        channelId: input.channelId,
+        draftId: input.draftId,
+        reason: 'explicit-peer-yield',
+        budget: { used: 2, limit: 2, exhausted: true },
+        yieldedToMessageIds: ['peer-answer'],
+      });
+      expect(await call({ ...args, resolve_inbox_ids: ['request-message'] })).toMatchObject({
+        inboxResolution: { resolved: ['request-message'] },
+      });
+    });
+  });
+  it('reports omitted completion without resolving work or hiding committed delivery', async () => {
+    await fixture(async (run, call) => {
+      const resolve = vi.spyOn(run.triage!, 'resolve');
+      expect(await call({ body: 'Answer' })).toMatchObject({
+        status: 'committed',
+        messageId: 'bot-1',
+        inboxResolution: { outcome: 'not-requested' },
+      });
+      expect(resolve).not.toHaveBeenCalled();
+    });
+  });
+  it('uses the inbound Channel for drop and preserves explicit Channel and refusal checks', async () => {
+    await fixture(async (run, call) => {
+      const drop = vi.fn((input: { channelId: string; draftId: string }) => ({
+        status: 'refused' as const,
+        channelId: input.channelId,
+        draftId: input.draftId,
+        reason: 'draft-channel-mismatch' as const,
+      }));
+      run.channels.dropDraft = drop;
+      const resolve = vi.spyOn(run.triage!, 'resolve');
+      const args = { body: '', draft_id: 'draft', drop: true, resolve_inbox_ids: ['request'] };
+      expect(await call(args)).toMatchObject({ status: 'refused', channelId: 'dm-test' });
+      expect(drop).toHaveBeenLastCalledWith({ channelId: 'dm-test', draftId: 'draft' });
+      await call({ ...args, channel_id: 'explicit-group' });
+      expect(drop).toHaveBeenLastCalledWith({ channelId: 'explicit-group', draftId: 'draft' });
+      run.inboundChannelId = undefined;
+      await expect(call(args)).rejects.toThrow('explicit or inbound channel_id');
+      expect(drop).toHaveBeenCalledTimes(2);
+      expect(resolve).not.toHaveBeenCalled();
+    });
+  });
+  it('rejects malformed completion IDs before delivery', async () => {
+    await fixture(async (run, call) => {
+      const send = vi.spyOn(run.channels, 'send');
+      await expect(call({ body: 'Answer', resolve_inbox_ids: [] })).rejects.toThrow(
+        'resolve_inbox_ids',
+      );
+      expect(send).not.toHaveBeenCalled();
+    });
+  });
+  it('rejects yielding without a drop or observed handle before any side effect', async () => {
+    await fixture(async (run, call) => {
+      const send = vi.spyOn(run.channels, 'send');
+      const resolve = vi.spyOn(run.triage!, 'resolve');
+      for (const args of [
+        { body: 'Answer', yield_to_message_ids: ['peer'], observation_id: 'seen' },
+        { body: '', drop: true, draft_id: 'draft', yield_to_message_ids: ['peer'] },
+        {
+          body: '',
+          drop: true,
+          draft_id: 'draft',
+          observation_id: 'seen',
+          yield_to_message_ids: [],
+        },
+      ])
+        await expect(call(args)).rejects.toThrow('yield_to_message_ids');
+      expect(send).not.toHaveBeenCalled();
+      expect(resolve).not.toHaveBeenCalled();
+    });
+  });
+});
+
 describe('DSH Bot Agent adapter', () => {
+  it.each([true, false])(
+    'installs trusted CLI guidance only for Host-resolved Tob identity (%s)',
+    async (tobCli) => {
+      const host = new FakeAgentHost({ kind: 'completed' }, { onTurn: async () => undefined });
+      const adapter = createDshBotAgentAdapter({
+        agents: host,
+        defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+        orchestratorCwd: () => '/memory/ada',
+        ensureWorkspace: () => undefined,
+      });
+      try {
+        await adapter.runOrchestrator({ ...reportRun, tobCli });
+        const scope = host.scopes.get(reportRun.sessionId)!;
+        const rolePrompt = scope.sections.find(
+          (section) => section.name === 'botharness:orchestrator-role',
+        )?.text;
+        const prompt = scope.sections.find(
+          (section) => section.name === 'botharness:tob-cli',
+        )?.text;
+        if (tobCli) {
+          expect(rolePrompt).toContain('scoped deepseekbot CLI');
+          expect(rolePrompt).not.toContain('Create a new PersonaBot with bot_create');
+          expect(scope.tools.map((tool) => tool.name)).not.toContain('bot_create');
+          expect(
+            scope.guards.some((guard) =>
+              guard({ name: 'bot_create' })?.includes('scoped deepseekbot CLI'),
+            ),
+          ).toBe(true);
+          expect(prompt).toContain('deepseekbot capabilities');
+          expect(prompt).toContain('deepseekbot settings botharness-client');
+          expect(prompt).toContain('--patch-stdin --expected-revision');
+          expect(prompt).toContain('What can you do?');
+          expect(prompt).toContain('read-only discovery');
+          expect(prompt).toContain('THIS installed version');
+          expect(prompt).toContain('does not need to know commands');
+          expect(prompt).not.toContain('only assignmentConcurrencyLimit');
+          expect(prompt).toContain('private steward and secretary');
+          expect(prompt).toContain('never replace a required Human decision with your own');
+        } else {
+          expect(prompt).toBeUndefined();
+          expect(rolePrompt).toContain('Create a new PersonaBot with bot_create');
+          expect(scope.tools.map((tool) => tool.name)).toContain('bot_create');
+          expect(
+            scope.guards.some((guard) =>
+              guard({ name: 'bot_create' })?.includes('scoped deepseekbot CLI'),
+            ),
+          ).toBe(false);
+        }
+        for (const [name] of TOB_GROUP_TOOL_CASES) {
+          expect(scope.tools.some((tool) => tool.name === name)).toBe(!tobCli);
+          expect(
+            scope.guards.some((guard) => guard({ name })?.includes('scoped deepseekbot CLI')),
+          ).toBe(tobCli);
+        }
+        expect(scope.tools.map((tool) => tool.name)).toContain('channel_send');
+        expect(scope.tools.map((tool) => tool.name)).toContain('channel_read');
+        expect(
+          rolePrompt?.includes("Tob is the Human's private steward, never a Group participant"),
+        ).toBe(tobCli);
+        expect(rolePrompt?.includes('You may create a Group with group_create')).toBe(!tobCli);
+        expect(scope.tools.map((tool) => tool.name)).not.toContain('tob_assignment_limit_read');
+        expect(scope.tools.map((tool) => tool.name)).not.toContain('tob_assignment_limit_set');
+        expect(scope.tools.map((tool) => tool.name)).toContain('create_assignment');
+      } finally {
+        await adapter.close();
+      }
+    },
+  );
+
+  it('rejects a retained ordinary Bot creation callback during a Tob run', async () => {
+    let invokeLegacy: (() => Promise<unknown>) | undefined;
+    let turn = 0;
+    const createBot = vi.fn(() => ({
+      botId: 'created',
+      displayName: 'Created',
+      dmChannelId: 'dm-created',
+      memoryDir: '/memory/created',
+      model: 'host-default' as const,
+    }));
+    const host = new FakeAgentHost(
+      { kind: 'completed' },
+      {
+        onTurn: async (_session, tools) => {
+          if (turn++ === 0) {
+            const tool = tools.find((candidate) => candidate.name === 'bot_create')!;
+            invokeLegacy = async () =>
+              tool.execute({ display_name: 'Created' }, {} as ToolRunContext);
+            await invokeLegacy();
+          } else {
+            await expect(invokeLegacy!()).rejects.toThrow(
+              'Tob must use the scoped deepseekbot CLI',
+            );
+          }
+        },
+      },
+    );
+    const adapter = createDshBotAgentAdapter({
+      agents: host,
+      defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+      orchestratorCwd: () => '/memory/ada',
+      ensureWorkspace: () => undefined,
+    });
+    const run = { ...reportRun, channels: { ...reportRun.channels, createBot } };
+    try {
+      await adapter.runOrchestrator({ ...run, tobCli: false });
+      await adapter.runOrchestrator({ ...run, resume: true, tobCli: true });
+      expect(createBot).toHaveBeenCalledOnce();
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it.each(TOB_GROUP_TOOL_CASES)(
+    'rejects retained ordinary %s callbacks during a Tob run',
+    async (name, args, method) => {
+      let invokeLegacy!: () => Promise<unknown>;
+      let turn = 0;
+      const action = vi.fn(() => {
+        throw new Error('ordinary Group method reached');
+      });
+      const host = new FakeAgentHost(
+        { kind: 'completed' },
+        {
+          onTurn: async (_session, tools) => {
+            if (turn++ === 0) {
+              const tool = tools.find((candidate) => candidate.name === name)!;
+              invokeLegacy = async () => tool.execute(args, {} as ToolRunContext);
+              await expect(invokeLegacy()).rejects.toThrow('ordinary Group method reached');
+            } else
+              await expect(invokeLegacy()).rejects.toThrow(
+                'Tob must use the scoped deepseekbot CLI',
+              );
+          },
+        },
+      );
+      const adapter = createDshBotAgentAdapter({
+        agents: host,
+        defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+        orchestratorCwd: () => '/memory/ada',
+        ensureWorkspace: () => undefined,
+      });
+      const run = { ...reportRun, channels: { ...reportRun.channels, [method]: action } };
+      try {
+        await adapter.runOrchestrator({ ...run, tobCli: false });
+        await adapter.runOrchestrator({ ...run, resume: true, tobCli: true });
+        expect(action).toHaveBeenCalledOnce();
+      } finally {
+        await adapter.close();
+      }
+    },
+  );
+
+  it.each(TOB_CLI_TOOL_NAMES)(
+    'uses the pinned ToolRuntime guard for local-only %s without global restriction lookup',
+    async (toolName) => {
+      const host = new FakeAgentHost({ kind: 'completed' }, { onTurn: async () => undefined });
+      const adapter = createDshBotAgentAdapter({
+        agents: host,
+        defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+        orchestratorCwd: () => '/memory/ada',
+        ensureWorkspace: () => undefined,
+      });
+      await adapter.runOrchestrator({ ...reportRun, tobCli: true });
+      const fence = host.scopes
+        .get(reportRun.sessionId)!
+        .guards.find((guard) => guard({ name: toolName })?.includes('scoped deepseekbot CLI'))!;
+      const ctx = new Context();
+      const providers = ctx.plugin({
+        name: 'test-tob-creation-native-tools',
+        apply(c: Context) {
+          c.provide('systemPrompt', {
+            tools: () => () => undefined,
+            section: () => () => undefined,
+            getSectionOrder: () => 1,
+          });
+        },
+      });
+      await providers.await();
+      const runtime = ctx.plugin(ToolRuntime, {});
+      await runtime.await();
+      const tob = { session: { id: 'tob-creation', header: { cwd: '/memory/tob' } } } as Agent;
+      const ordinary = {
+        session: { id: 'ordinary-creation', header: { cwd: '/memory/ordinary' } },
+      } as Agent;
+      const tobScope = createScope(ctx, tob);
+      const ordinaryScope = createScope(ctx, ordinary);
+      Object.assign(tob, { ctx: tobScope.ctx });
+      Object.assign(ordinary, { ctx: ordinaryScope.ctx });
+      const effects = vi.fn(async () => 'created');
+      const tool = defineTool({
+        name: toolName,
+        description: 'Local-only creation',
+        parameters: {},
+        output: {
+          schema: { type: 'string' },
+          render: (_args, value) => [{ type: 'text', text: value }],
+        },
+        execute: effects,
+      });
+      tobScope.ctx.get('tools')!.register(tool);
+      ordinaryScope.ctx.get('tools')!.register(tool);
+      tobScope.ctx.get('tools')!.presentAs('native');
+      ordinaryScope.ctx.get('tools')!.presentAs('native');
+      try {
+        expect(() => tobScope.ctx.get('tools')!.restrict({ deny: [toolName] })).toThrow(
+          'unknown global tool',
+        );
+        expect(() => tobScope.ctx.get('tools')!.guard(fence)).not.toThrow();
+        const execute = (agent: Agent) =>
+          ctx.get('tools')!.execute({
+            agent,
+            callId: ToolCallId(agent.session.id),
+            name: toolName,
+            arguments: {},
+            signal: new AbortController().signal,
+          });
+        expect((await execute(tob)).isError).toBe(true);
+        expect(effects).not.toHaveBeenCalled();
+        expect((await execute(ordinary)).isError).not.toBe(true);
+        expect(effects).toHaveBeenCalledOnce();
+      } finally {
+        await tobScope.dispose();
+        await ordinaryScope.dispose();
+        await runtime.dispose();
+        await providers.dispose();
+        await adapter.close();
+      }
+    },
+  );
+
   it.each<TurnEndCancelCause>([
     { kind: 'user' },
     { kind: 'parent' },
@@ -1606,6 +2094,50 @@ describe('DSH Bot Agent adapter', () => {
     await adapter.close();
   });
 
+  it.each([undefined, { provider: 'fixed', model: 'assignment' }])(
+    'keeps a retained Assignment route or global inheritance after an Orchestrator-only change: %j',
+    async (retained) => {
+      const host = new FakeAgentHost();
+      let globalRoute = { provider: 'global', model: 'before' };
+      let plan = {
+        revision: 1,
+        sourcePresetId: '',
+        sourcePresetName: '',
+        orchestrator: { provider: 'chat', model: 'one' },
+        appliedAt: BOT.createdAt,
+      };
+      const adapter = createDshBotAgentAdapter({
+        agents: host,
+        defaultModel: { currentSelection: () => globalRoute },
+        resolveModelPlan: () => plan,
+        orchestratorCwd: () => '/memory/ada',
+        ensureWorkspace: () => undefined,
+      });
+      const run: AssignmentAgentRun = {
+        sessionId: 'inherited-assignment',
+        bot: BOT,
+        purpose: 'Inspect',
+        ...(retained === undefined ? {} : { modelRoute: retained }),
+        permission: {
+          grantId: 'grant-1',
+          workspaceId: 'workspace-1',
+          primaryCwd: '/project',
+          mode: 'workspace-write',
+          approval: 'ask',
+          presetRevision: 0,
+        },
+        report: async (input) => ({ ...input, at: BOT.createdAt }),
+      };
+      await adapter.runAssignment(run);
+      expect(await host.selectedModel(run.sessionId)).toEqual(retained ?? globalRoute);
+      plan = { ...plan, revision: 2, orchestrator: { provider: 'chat', model: 'two' } };
+      globalRoute = { provider: 'global', model: 'after' };
+      const next = adapter.requestAssignment({ ...run, resume: true, purpose: 'Continue' });
+      if (next.delivery === 'followup') await next.done;
+      expect(await host.selectedModel(run.sessionId)).toEqual(retained ?? globalRoute);
+      await adapter.close();
+    },
+  );
   it('uses a distinct prompt for a dangerous Assignment snapshot', async () => {
     const host = new FakeAgentHost();
     const adapter = createDshBotAgentAdapter({

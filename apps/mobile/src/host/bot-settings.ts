@@ -24,6 +24,8 @@ export interface ModelCatalogEntry {
   providerName: string;
   model: string;
   modelName: string;
+  efforts?: { id: string; name: string }[];
+  defaultEffort?: string;
   credential?: 'missing' | 'invalid';
 }
 
@@ -32,14 +34,17 @@ export interface ModelPlan {
   sourcePresetId: string;
   sourcePresetName: string;
   orchestrator: ModelRoute;
-  assignmentDefault: ModelRoute;
+  assignmentDefault?: ModelRoute;
   assignmentModels?: AssignmentModelOption[];
 }
 
 export interface ModelPreset {
   id: string;
   name: string;
+  revision?: number;
   orchestrator: ModelRoute;
+  assignmentDefault?: ModelRoute;
+  assignmentModels?: AssignmentModelOption[];
 }
 
 export interface BotModel {
@@ -125,7 +130,11 @@ function plan(value: unknown): ModelPlan | undefined {
   const row = record(value);
   const orchestrator = route(row?.['orchestrator']);
   const assignmentDefault = route(row?.['assignmentDefault']);
-  if (row === undefined || orchestrator === undefined || assignmentDefault === undefined)
+  if (
+    row === undefined ||
+    orchestrator === undefined ||
+    (row['assignmentDefault'] !== undefined && assignmentDefault === undefined)
+  )
     return undefined;
   if (typeof row['revision'] !== 'number') return undefined;
   const assignmentModels = Array.isArray(row['assignmentModels'])
@@ -136,7 +145,7 @@ function plan(value: unknown): ModelPlan | undefined {
     sourcePresetId: text(row['sourcePresetId']) ? row['sourcePresetId'] : '',
     sourcePresetName: text(row['sourcePresetName']) ? row['sourcePresetName'] : '',
     orchestrator,
-    assignmentDefault,
+    ...(assignmentDefault === undefined ? {} : { assignmentDefault }),
     ...(assignmentModels === undefined ? {} : { assignmentModels }),
   };
 }
@@ -162,6 +171,17 @@ function catalogEntry(value: unknown): ModelCatalogEntry | undefined {
     providerName: row['providerName'],
     model: row['model'],
     modelName: row['modelName'],
+    ...(Array.isArray(row['efforts'])
+      ? {
+          efforts: some(row['efforts'], (value) => {
+            const effort = record(value);
+            return text(effort?.['id']) && text(effort['name'])
+              ? { id: effort['id'], name: effort['name'] }
+              : undefined;
+          }),
+        }
+      : {}),
+    ...(text(row['defaultEffort']) ? { defaultEffort: row['defaultEffort'] } : {}),
     ...(credential === 'missing' || credential === 'invalid' ? { credential } : {}),
   };
 }
@@ -170,7 +190,17 @@ function preset(value: unknown): ModelPreset | undefined {
   const row = record(value);
   const orchestrator = route(row?.['orchestrator']);
   if (!text(row?.['id']) || !text(row['name']) || orchestrator === undefined) return undefined;
-  return { id: row['id'], name: row['name'], orchestrator };
+  const assignmentDefault = route(row['assignmentDefault']);
+  return {
+    id: row['id'],
+    name: row['name'],
+    orchestrator,
+    ...(typeof row['revision'] === 'number' ? { revision: row['revision'] } : {}),
+    ...(assignmentDefault === undefined ? {} : { assignmentDefault }),
+    ...(Array.isArray(row['assignmentModels'])
+      ? { assignmentModels: row['assignmentModels'] as AssignmentModelOption[] }
+      : {}),
+  };
 }
 
 function some<T>(rows: unknown, parse: (value: unknown) => T | undefined): T[] {
@@ -182,11 +212,18 @@ function some<T>(rows: unknown, parse: (value: unknown) => T | undefined): T[] {
     : [];
 }
 
-export async function loadBotModel(client: HostClient, slug: string): Promise<BotModel> {
+export async function loadBotModel(
+  client: HostClient,
+  slug: string,
+  requirePresets = false,
+): Promise<BotModel> {
   const [state, catalog, presets] = await Promise.all([
     client.call<unknown>('modelPlan', { slug }),
     client.call<unknown>('modelCatalog', {}),
-    client.call<unknown>('modelPresets', {}).catch(() => ({ presets: [] })),
+    client.call<unknown>('modelPresets', {}).catch((cause: unknown) => {
+      if (requirePresets) throw cause;
+      return { presets: [] };
+    }),
   ]);
   const models = record(catalog)?.['models'];
   if (!Array.isArray(models)) throw new HostAnswerInvalid('modelCatalog returned no models.');
@@ -202,6 +239,22 @@ export async function loadBotModel(client: HostClient, slug: string): Promise<Bo
     models: some(models, catalogEntry),
     ...(fallback === undefined ? {} : { fallback }),
     presets: some(record(presets)?.['presets'], preset),
+  };
+}
+
+export async function loadGlobalModel(client: HostClient): Promise<BotModel> {
+  const [catalog, presets] = await Promise.all([
+    client.call<unknown>('modelCatalog', {}),
+    client.call<unknown>('modelPresets', {}),
+  ]);
+  const models = record(catalog)?.['models'];
+  if (!Array.isArray(models)) throw new HostAnswerInvalid('modelCatalog returned no models.');
+  const fallback = route(record(catalog)?.['default']);
+  return {
+    revision: 0,
+    models: some(models, catalogEntry),
+    presets: some(record(presets)?.['presets'], preset),
+    ...(fallback === undefined ? {} : { fallback }),
   };
 }
 
@@ -232,8 +285,6 @@ export function modelChoice(
 ): {
   expectedRevision: number;
   orchestrator: ModelRoute;
-  assignmentDefault: ModelRoute;
-  assignmentModels: AssignmentModelOption[];
 } {
   const previous = model.plan?.orchestrator;
   const effort = sameModel(entry, previous) ? previous?.reasoningEffort : undefined;
@@ -242,20 +293,9 @@ export function modelChoice(
     model: entry.model,
     ...(effort === undefined ? {} : { reasoningEffort: effort }),
   };
-  const assignmentDefault = model.plan?.assignmentDefault ?? orchestrator;
-  const assignmentModels = model.plan?.assignmentModels ?? [
-    {
-      provider: assignmentDefault.provider,
-      model: assignmentDefault.model,
-      allowedEfforts: [assignmentDefault.reasoningEffort ?? ''],
-      defaultEffort: assignmentDefault.reasoningEffort ?? '',
-    },
-  ];
   return {
     expectedRevision: model.plan?.revision ?? model.revision,
     orchestrator,
-    assignmentDefault,
-    assignmentModels,
   };
 }
 
@@ -266,8 +306,8 @@ export async function chooseModel(
   entry: Pick<ModelCatalogEntry, 'provider' | 'model'>,
 ): Promise<ModelPlan> {
   return planResult(
-    await client.call<unknown>('modelPlanSet', { slug, ...modelChoice(model, entry) }),
-    'modelPlanSet',
+    await client.call<unknown>('modelPlanCustomize', { slug, ...modelChoice(model, entry) }),
+    'modelPlanCustomize',
   );
 }
 

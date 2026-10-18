@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import ComputerUseRegistry from './native-registry.js';
 import { stampReleaseComponent } from '../../core/src/release/component.js';
 import { createReadStream, createWriteStream, existsSync } from 'node:fs';
 import { mkdir, readdir, rename, rm, stat } from 'node:fs/promises';
@@ -265,6 +266,7 @@ interface HostWebServerLike {
 export const VIEWER_PREFIX = '/botharness-computer/viewer';
 
 export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
+  ctx.plugin(ComputerUseRegistry);
   if (!config.enabled) return;
 
   let logDb: LogDatabase | undefined;

@@ -69,6 +69,16 @@ async function boot({ dsh, runtime, env, port, log }) {
     await stop();
     throw new Error('Host printed no sign-in URL; inspect the private boot log');
   }
+  try {
+    assert.doesNotMatch(
+      readFileSync(log, 'utf8'),
+      /disabling profile plugin row|incompatible with dsh/u,
+      'A product Plugin was disabled by native preflight',
+    );
+  } catch (error) {
+    await stop();
+    throw error;
+  }
   const [base, token] = url.split('/?token=');
   const login = await fetch(`${base}/?token=${token}`, { redirect: 'manual' });
   const cookie = login.headers.get('set-cookie')?.split(';')[0];

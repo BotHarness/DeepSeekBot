@@ -1,5 +1,6 @@
 import type { HostGlance } from '../../host/host-glance';
 import type { SavedHost } from '../../host/hosts';
+import { modalRail } from '../design/tokens';
 
 export const DRAWER_SHARE = 0.85;
 export const EDGE_WIDTH = 24;
@@ -45,7 +46,7 @@ export function hostRowBadge(glance: HostGlance): HostRowBadge {
 }
 
 export function drawerWidth(windowWidth: number): number {
-  return Math.round(windowWidth * DRAWER_SHARE);
+  return Math.min(modalRail.maxWidth, Math.round(windowWidth * DRAWER_SHARE));
 }
 
 export function settleOpen(progress: number, velocityX: number): boolean {

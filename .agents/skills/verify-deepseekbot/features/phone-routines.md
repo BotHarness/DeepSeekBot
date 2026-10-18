@@ -4,11 +4,11 @@ A paired phone runs, pauses, resumes, deletes, creates and edits a PersonaBot's 
 
 ## Sub-features
 
-- `detail` opens a routine from the profile's Routines section: its trigger in plain words, the next run (or Off) and the last five firings from `scheduleHistory`.
+- `detail` pushes a page inside the profile drawer from its Routines section: its trigger in plain words, the next run (or Off) and the last five firings from `scheduleHistory`.
 - `run-now` calls `scheduleRunNow`; the manual firing shows under Recent runs.
 - `pause` calls `scheduleUpdate` with `enabled`; the button flips between Pause and Resume.
 - `delete` asks in place, then calls `scheduleDelete`.
-- `author` creates (`scheduleCreate`) or edits (`scheduleUpdate`) a daily, weekly or every-N-hours routine, previewing the next runs with `schedulePreview`. Minute, once and cron triggers say the phone cannot edit them and open the full client.
+- `author` uses a nested Edit or New routine page inside that same drawer, and creates (`scheduleCreate`) or edits (`scheduleUpdate`) a daily, weekly or every-N-hours routine, previewing the next runs with `schedulePreview`. Minute, once and cron triggers say the phone cannot edit them and open the full client.
 
 ## How to get to it (user POV)
 
@@ -22,5 +22,6 @@ Preconditions: no model credential is needed.
 
 ## Gotchas
 
+- Native acceptance: open a routine, pause it, push Edit, save a renamed title, return to refreshed detail, then return to the profile list. New routine must open immediately with the same handle/back header. A failed save retains the draft; Delete asks in place and returns to the refreshed list only after success. Use only task-owned routines, schedule them safely in the future, and remove them after the journey.
 - The web export is layout evidence. The native keyboard over the form and the sheet's safe areas need a development build on a phone.
 - Weekdays are ISO, Monday 1 through Sunday 7, as the Host's Schedule rules take them.

@@ -5,6 +5,20 @@ Date: 2026-09-30
 
 # Activity Center separates overview from the personal Human Inbox
 
+## Presentation superseded by #2026 (2026-10-17)
+
+The accepted [mobile-aligned Activity Center specification](https://github.com/BotHarness/DeepSeekBot/issues/2026)
+supersedes the Overview/Inbox navigation and statistics presentation below. Activity Center
+now opens Human Inbox directly in both the page and Dock. Its first slice presents Tool
+approvals inline, with expandable context beneath the card, explicit selection mode for
+batch work, and a short inert exit transition after the owning request disappears. A failed
+submission stays retryable. Only the owning Channel approval command can resolve a request;
+previewing a card does not advance read positions. Following Human QA, the page and Dock share independently collapsible Needs you, For you
+and Other unread sections. Search and filtering use the existing Host query before
+pagination; sorting and history live in the header menu. Section counts describe the loaded
+window, with a plus sign when more results remain. The projection, identity, read and decision authority
+boundaries described below remain in force; the former Overview presentation is historical.
+
 The Bot mode Activity Center has two views: Overview answers what is happening across PersonaBots and Channels, while Human Inbox answers what the current Human has not read and what requires a decision. This extends ADR-0071's first Human Inbox projection without copying Source Event content, Bot Inbox Admissions, DSH Session logs, or usage facts into a second authority. The first delivery slice is local to the existing Human identity; read positions and projections remain keyed by Human identity so later multi-Human support does not share a person's unread state.
 
 Overview shows the count of unresolved explicit Human actions, each PersonaBot's live state, and currently executing Orchestrator and Assignment Sessions. A Bot opens its DM; a Session opens that exact Session in DSH's original mode. Waiting, blocked, and idle Sessions remain visible through status or action attention but are not called active work. Today's Channel chart counts committed messages once per Channel, splits Human and Bot authors, and offers per-author detail. Token usage is shown globally and per PersonaBot, with a seven-day trend; it is never estimated per Channel. Memory activity shows seven-day committed-change counts and a separate current uncommitted-change indicator. These cards consume the owning activity, Channel, usage, and Memory read models; unavailable data is not presented as zero.

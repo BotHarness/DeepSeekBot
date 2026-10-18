@@ -57,6 +57,65 @@ async function invoke(argv: string[], url: string, stdin = '') {
 }
 
 describe('Harness Bot tool runner commands', () => {
+  it('carries an explicit Group freshness decision and returns the owning coded outcome', async () => {
+    const args = {
+      channel_id: 'group',
+      body: 'Corrected answer',
+      draft_id: 'draft',
+      observation_id: 'observed',
+      freshness_override: { draftVersion: 3, reason: 'Necessary answer after review' },
+    };
+    const live = await host(() => ({
+      ok: true,
+      value: {
+        slug: 'ada',
+        tool: 'channel_send',
+        sessionId: 'direct',
+        result: { status: 'refused', reason: 'draft-version-changed' },
+      },
+    }));
+    const result = await invoke(
+      ['bot-tool', 'ada', 'channel_send', '--args-stdin'],
+      live.url,
+      JSON.stringify(args),
+    );
+    expect(result.json.result).toEqual({ status: 'refused', reason: 'draft-version-changed' });
+    expect(live.calls).toEqual([
+      { method: 'botToolRun', args: { slug: 'ada', tool: 'channel_send', args } },
+    ]);
+  });
+
+  it('passes Group inspection and explicit recovery to the same direct Tool owner', async () => {
+    const live = await host(() => ({
+      ok: true,
+      value: { tool: 'channel_send', result: { status: 'inspected' } },
+    }));
+    for (const args of [
+      { channel_id: 'group-review', body: '', review_action: 'inspect', draft_id: 'draft-a' },
+      {
+        channel_id: 'group-review',
+        body: '11:00',
+        review_action: 'recover',
+        draft_id: 'draft-a',
+        observation_id: 'fresh-read',
+      },
+    ]) {
+      expect(
+        (
+          await invoke(
+            ['bot-tool', 'ada', 'channel_send', '--args-stdin'],
+            live.url,
+            JSON.stringify(args),
+          )
+        ).code,
+      ).toBe(0);
+      expect(live.calls.at(-1)).toEqual({
+        method: 'botToolRun',
+        args: { slug: 'ada', tool: 'channel_send', args },
+      });
+    }
+  });
+
   it('lists the direct tools and runs one as a Bot with args from stdin', async () => {
     const live = await host((call) =>
       call.method === 'botTools'

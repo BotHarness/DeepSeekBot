@@ -1,14 +1,14 @@
-# Bot mode entry and the default DeepSeek Bot
+# Bot mode entry and the protected Tob
 
-Bot mode swaps the native DSH session view for the BotHarness conversation view. On desktop (960 px and wider) it also replaces the whole left column with the Bot mode sidebar (ADR-0203). On the first entry into a fresh Profile, the product creates a default DeepSeek Bot and opens its DM with a welcome letter.
+Bot mode swaps the native DSH session view for the BotHarness conversation view. On qualified Web/macOS windows at least 961px wide it opens the [workspace](bot-mode-dock.md); other shells retain the original Bot mode sidebar fallback (ADR-0203). On the first entry into a fresh Profile, the product prepares protected Tob and opens Home. See [Home and Tob](tob-home.md) for the current first-run journey. Existing ordinary DeepSeek Bots and their welcome letters remain unchanged.
 
 ## Sub-features
 
 - `enter` switches from the native view to Bot mode.
 - `sidebar` is the desktop Bot mode sidebar: a `DeepSeekBot` header, pinned panel cards (one per Dock panel, Activity Center first with its unread count), the Messages Roster and Bot settings, in the column DSH sizes and collapses. A card toggles its panel in the dock and is pressed while the panel is open; before a Channel is open only the Activity Center card works, and it opens the full Activity Center page.
 - `exit` leaves Bot mode with the header logo, which morphs into **Exit Bot mode** on hover or keyboard focus, and brings back the native left column.
-- `default-bot` creates DeepSeek Bot and its DM on first entry.
-- `welcome-letter` shows the welcome letter with suggested replies, a model chooser and Create Bot.
+- `default-bot` prepares Tob and its DM on first entry.
+- `welcome-letter` preserves the older DeepSeek Bot welcome; fresh Tob uses a once-only fixed greeting.
 - `getting-started` opens the tutorial checklist.
 
 ## How to get to it (user POV)
@@ -16,13 +16,15 @@ Bot mode swaps the native DSH session view for the BotHarness conversation view.
 - Choose `Bot mode` in the global sidebar.
 - On desktop, choose the logo at the top left of the Bot mode sidebar (its accessible name is `Exit Bot mode`) to return to the native view. Between 760 and 960 px wide, the native sidebar stays and `Bot mode` is chosen again instead.
 
+The workspace rail carries the exit control and panel switches; the independent Channel list carries the Roster. Both remain available without a selected Channel.
+
 ## Driving it with verify-app
 
-Preconditions: a fresh instance that passes `doctor`.
+Preconditions: a fresh instance that passes `doctor`. For the qualified workspace run `scripts/e2e-panel-workspace.mjs` as described in [the workspace feature](bot-mode-dock.md); the old sidebar journey below applies to fallback shells only.
 
 - **Enter.** Run `node scripts/verify-app.mjs shot bot-mode --name <n> --bot-mode`. The ARIA file has `StaticText "Messages"` and `button "Bot settings"`.
-- **Default Bot.** Run the same command a second time. The ARIA file has a button whose name starts with `DeepSeek Bot`, a `textbox "Message DeepSeek Bot"` and `button "Create Bot"`.
-- **Canonical state.** Run `node scripts/verify-app.mjs rpc botharness/list --name <n>`. `bots` holds one entry with `displayName` `DeepSeek Bot`.
+- **Default Bot.** Run the same command a second time. The ARIA file has a Tob row and Home; submitting from Home reveals `Message Tob`.
+- **Canonical state.** Run `node scripts/verify-app.mjs rpc botharness/list --name <n>`. `bots` holds one entry with `displayName` `Tob`.
 - **Observation.** Keep the page open and run `node scripts/verify-app.mjs observe --name <n>` before entering Bot mode, inside it and after exiting. A healthy transition keeps `client.state` at `shell-ready`; a visible Bot mode main surface replaces the native sidebar marker. Inspect the DOM and any first failure separately.
 - **Sidebar and exit.** Run `BH_E2E_INSTANCE=.humanlayer/verify/<n>/instance.json node scripts/e2e-bot-mode-sidebar.mjs`. It checks that the Bot mode sidebar fills the column with no native `Bot mode` row, selects a Roster row, opens and closes the Activity Center panel from its pinned card (`[data-pinned-panel="activity-center"]`), collapses and reopens the rail, then exits and checks that `New Session`, `Plugins` and `Settings` are back. It waits for the Channel content, checks `shell-ready` before entry, inside Bot mode, with Activity Center open, with the rail collapsed and after exit, and saves `client-observations.json` beside the screenshots. It prints `BOT MODE SIDEBAR PASS`. Each invocation writes a distinct `attempt-<time>-<pid>/` evidence directory so retries retain earlier results. Failed runs preserve `failure.png`, `failure-aria.json`, `page-errors.json` and `failure-observation.json` (the failing step and bounded diagnostic snapshot) before closing the browser.
 - **Exit by hand.** Run `node scripts/verify-app.mjs shot exit --name <n> --bot-mode --click "Exit Bot mode" --wait "Plugins"`. The ARIA file has `button "Bot mode"` and `button "Plugins"` again.

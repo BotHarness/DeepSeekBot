@@ -34,6 +34,7 @@ export const SNOOZED_SQL = `(a.snoozed_until IS NOT NULL AND NOT EXISTS (
   SELECT 1 FROM inbox_admissions later_admission
     JOIN source_events later ON later.source_event_id = later_admission.source_event_id
    WHERE later_admission.bot_slug = a.bot_slug
+     AND later_admission.observed_at IS NOT NULL
      AND later.created_at > a.snoozed_at
      AND later.source_event_id <> a.source_event_id
      AND ${conversationSql('later')} = ${conversationSql('e')}))`;

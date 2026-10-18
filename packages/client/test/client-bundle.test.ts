@@ -50,6 +50,10 @@ function baselineModuleStub(id: string): Record<string, unknown> {
         const listeners = new Set<() => void>();
         return {
           getSnapshot: () => snapshot,
+          set(next: Record<string, unknown>) {
+            snapshot = next;
+            for (const listener of listeners) listener();
+          },
           subscribe(listener: () => void) {
             listeners.add(listener);
             return () => {
@@ -100,6 +104,7 @@ beforeAll(async () => {
       },
     },
     fetch: globalThis.fetch,
+    queueMicrotask,
     TextEncoder,
     TextDecoder,
     AbortController,
@@ -170,10 +175,12 @@ describe('@botharness/ui browser bundle', () => {
     expect(plugin['name']).toBe('botharness-client');
     expect(plugin['inject']).toEqual([
       'slots',
+      'shortcuts',
       'connection',
       'inputTriggers',
       'layout',
       'locale',
+      'theme',
       'sessions',
       'uiWorkspace',
       'workspaces',
@@ -190,6 +197,11 @@ describe('@botharness/ui browser bundle', () => {
     }[] = [];
     const sources: unknown[] = [];
     const scoped = {
+      shortcuts: {
+        register: () => () => undefined,
+        config: { getSnapshot: () => ({ status: 'loading' }), subscribe: () => () => undefined },
+        catalog: { getSnapshot: () => [], subscribe: () => () => undefined },
+      },
       slots: {
         inject: (_name: string, callback: () => unknown) => callback(),
         register: (spec: {
@@ -243,6 +255,12 @@ describe('@botharness/ui browser bundle', () => {
     expect(registered).toEqual([
       {
         name: 'shell.overlay',
+        id: 'botharness-bot-session-folders',
+        locale: 'botharness',
+        inject: expect.any(Function),
+      },
+      {
+        name: 'shell.overlay',
         id: 'botharness-window-companion',
         locale: 'botharness',
         inject: expect.any(Function),
@@ -253,12 +271,6 @@ describe('@botharness/ui browser bundle', () => {
         locale: 'botharness',
         inject: expect.any(Function),
         children: { 'botharness.settings.section': { kind: 'list', scope: 'root' } },
-      },
-      {
-        name: 'shell.overlay',
-        id: 'botharness-shortcut-help',
-        locale: 'botharness',
-        inject: expect.any(Function),
       },
       {
         name: 'sidebar.panellist',

@@ -26,6 +26,21 @@ async function* chunks(text: string) {
   yield Buffer.from(text);
 }
 
+it('versions all current attachment bytes and refuses unavailable or oversized review evidence', async () => {
+  const files = createAttachmentStore({ rootDir: createTempRoot(), maxBytes: 100_000 });
+  const ref = await files.upload({ data: chunks('a'.repeat(70_000)), name: 'agenda.txt' });
+  const path = files.fileTarget(ref.fileId!).path;
+  const original = files.contentVersion(ref);
+  writeFileSync(path, 'a'.repeat(69_999) + 'b');
+  expect(files.current(ref).size).toBe(ref.size);
+  expect(files.contentVersion(ref)).not.toBe(original);
+  writeFileSync(path, 'a'.repeat(100_001));
+  expect(() => files.contentVersion(ref)).toThrow(/size limit/);
+  writeFileSync(path, 'a');
+  files.purgeReviewed(ref.fileId!, () => new Set());
+  expect(() => files.contentVersion(ref)).toThrow(/purged|unavailable/);
+});
+
 function fixture(sqlite: boolean) {
   const root = createTempRoot();
   const files = createAttachmentStore({ rootDir: join(root, 'attachments') });

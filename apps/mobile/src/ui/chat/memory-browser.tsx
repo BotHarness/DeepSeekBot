@@ -1,5 +1,12 @@
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, ScrollView, View } from 'react-native';
+import {
+  ActivityIndicator,
+  FlatList,
+  Pressable,
+  ScrollView,
+  View,
+  type ScrollViewInstance,
+} from 'react-native';
 
 import { memoryEntries, type MemoryEntry } from '../../host/bot-profile';
 import type { MemoryFile } from '../../host/wire';
@@ -134,7 +141,7 @@ export function MemoryFolderView({
       ref={mount}
       data={entries}
       keyExtractor={(entry) => entry.path}
-      style={{ flex: 1, backgroundColor: theme.color.surface }}
+      style={{ flex: 1, backgroundColor: theme.overlay.fill }}
       contentContainerStyle={{ padding: space.x5 }}
       renderItem={({ item, index }) => (
         <MemoryEntryRow
@@ -159,11 +166,11 @@ export function MemoryFolderView({
 
 export function MemoryFileView({ load }: { load: () => Promise<MemoryFile | undefined> }) {
   const theme = useDesignTheme();
-  const { state, read, mount } = useLoad<MemoryFile | undefined, ScrollView>(load);
+  const { state, read, mount } = useLoad<MemoryFile | undefined, ScrollViewInstance>(load);
   return (
     <ScrollView
       ref={mount}
-      style={{ flex: 1, backgroundColor: theme.color.surface }}
+      style={{ flex: 1, backgroundColor: theme.overlay.fill }}
       contentContainerStyle={{ padding: space.x5 }}
     >
       {state.status !== 'ready' ? (

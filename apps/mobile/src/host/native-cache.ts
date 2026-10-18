@@ -19,7 +19,7 @@ export const nativeConversationCache: ConversationCache = {
     try {
       const directory = root();
       if (!directory.exists) directory.create({ intermediates: true, idempotent: true });
-      fileFor(key).write(JSON.stringify(value));
+      fileFor(key).writeSync(JSON.stringify(value));
     } catch {}
   },
 };

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ComponentType } from 'react';
 import { ActivityIndicator, SectionList } from 'react-native';
 
 import {
@@ -16,6 +16,7 @@ import { CheckIcon } from '../shell/icons';
 import { t } from '../strings';
 import {
   Sheet,
+  type SheetPageProps,
   SheetCallout,
   SheetFailed,
   SheetHeading,
@@ -35,6 +36,7 @@ function credentialHint(entry: ModelCatalogEntry): string {
 }
 
 export function ModelSheet({
+  page,
   visible,
   botName,
   model,
@@ -43,6 +45,7 @@ export function ModelSheet({
   onPreset,
   onClose,
 }: {
+  page?: ComponentType<SheetPageProps> | undefined;
   visible: boolean;
   botName: string;
   model: Loadable<BotModel>;
@@ -148,8 +151,8 @@ export function ModelSheet({
       );
     };
     body = (
-      <SectionList<Row, { title: string }>
-        style={{ flexShrink: 1 }}
+      <SectionList<Row, { title: string; data: readonly Row[] }>
+        style={page !== undefined ? { flex: 1 } : { flexShrink: 1 }}
         sections={sections}
         keyExtractor={(row) => row.key}
         stickySectionHeadersEnabled={false}
@@ -180,6 +183,7 @@ export function ModelSheet({
 
   return (
     <Sheet
+      page={page}
       visible={visible}
       label={t.modelTitle(botName)}
       title={t.modelTitle(botName)}

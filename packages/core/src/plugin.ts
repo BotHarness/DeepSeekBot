@@ -1,4 +1,39 @@
+import { CloudConnections } from './cloud/connections.js';
+import { createCloudProvider } from './cloud/provider.js';
+import { createChannelManagement, type ChannelManagementService } from './channels/management.js';
+import { CloudWork } from './cloud/work.js';
+import { createCloudWorkTool } from './cloud/work-tool.js';
+import {
+  createTobChannelOperations,
+  TOB_CHANNEL_CAPABILITIES,
+} from './tob/cli-channel-operations.js';
+import { createBotCreation, type BotCreationService } from './bots/creation.js';
+import {
+  createTobBotCreationOperations,
+  TOB_BOT_CREATE_CAPABILITIES,
+} from './tob/cli-bot-create.js';
+import {
+  createTobBotProfileOperations,
+  TOB_BOT_PROFILE_CAPABILITIES,
+} from './tob/cli-bot-profile-operations.js';
 import { followCompanion } from './companions/live.js';
+import {
+  createTobService,
+  TobError,
+  type TobService,
+  type TobSettingsProvider,
+} from './tob/service.js';
+import {
+  createTobModelOperations,
+  TOB_MODEL_CAPABILITIES,
+  type TobNativeSettings,
+} from './tob/cli-model-operations.js';
+import {
+  createTobMaintenanceOperations,
+  TOB_MAINTENANCE_CAPABILITIES,
+} from './tob/cli-maintenance-operations.js';
+import { installTobCliShell } from './tob/cli-shell.js';
+import { approveTobCliOperation } from './tob/cli-approval.js';
 import { onboardingNewsAvailable } from './onboarding/search.js';
 import { nativeTimedQuestions } from './channels/native-timed-questions.js';
 import { credentialStoreDenial } from './credentials/store-guard.js';
@@ -196,6 +231,7 @@ import { ActivityToolDetails, createToolDetailIndex } from './state/tool-details
 import { createDshActivityProjection } from './state/dsh-activity.js';
 import { readPublicToolDetail } from './state/tool-activity.js';
 import { createUsageProjection, type UsageProjection } from './usage/usage.js';
+import { createMessagePerfTracker, type MessagePerfTracker } from './usage/message-perf.js';
 import { installBotSubagentModelTools } from './runtime/subagent-model-tools.js';
 
 export const name = 'botharness-core';
@@ -215,7 +251,15 @@ const runningRelease = {
   ledgers: installedPackage.ledgers(),
 };
 
-export const inject = ['tools', 'systemPrompt', 'sessions', 'agents', 'agentDefaultModel', 'llm'];
+export const inject = [
+  'tools',
+  'systemPrompt',
+  'sessions',
+  'agents',
+  'agentDefaultModel',
+  'llm',
+  'credentials',
+];
 
 export const PERSONA_SECTION_ORDER = 10400;
 
@@ -295,6 +339,9 @@ export interface BotHarnessCore {
   profileRecovery: ProfileRecovery;
   rootDir: string;
   onboarding: BotOnboarding;
+  tob: TobService;
+  creations: BotCreationService;
+  channelManagement: ChannelManagementService;
   partLibrary: PartLibrary;
   operationalDatabase: OperationalDatabaseOwner;
   registry: PersonaBotRegistry;
@@ -319,6 +366,7 @@ export interface BotHarnessCore {
   memory: MemoryService;
 
   usage?: UsageProjection;
+  messagePerf: MessagePerfTracker;
   channels: ChannelStore;
   attachments: AttachmentStore;
   live: ChannelLiveHub;
@@ -333,6 +381,8 @@ export interface BotHarnessCore {
   humanAttentionDecisions: HumanAttentionDecisions;
   grants: WorkspaceGrantStore;
   externalMessaging: OutboundMessaging;
+  cloudConnections?: CloudConnections;
+  cloudWork?: CloudWork;
   toolRules: ToolApprovalRuleStore;
   assignmentAccess: AssignmentAccessStore;
 }
@@ -381,6 +431,8 @@ export function createCore(
       offset: number,
     ) => Promise<AssignmentReportPage>;
     workspaces?: () => DshWorkspaceLookup | undefined;
+    ensureTobWorkspace?: (path: string) => Promise<{ id: string }>;
+    tobSettings?: () => TobSettingsProvider | undefined;
     sessionArchive?: () => NativeSessionArchive | undefined;
     autoAcceptGroupInvitations?: () => boolean;
     triageContinuation?: boolean;
@@ -740,6 +792,30 @@ export function createCore(
   const assignmentAccess = createAssignmentAccessStore(
     attachOperationalModule(operationalDatabase, 'assignment-access'),
   );
+  const tob = createTobService({
+    database: attachOperationalModule(operationalDatabase, 'tob'),
+    registry,
+    channels,
+    grants,
+    workspaceRoot: join(dshHome, 'botharness', 'tob-workspaces'),
+    ...(options.ensureTobWorkspace ? { ensureWorkspace: options.ensureTobWorkspace } : {}),
+    ...(options.tobSettings ? { settings: options.tobSettings } : {}),
+  });
+  const creations = createBotCreation({
+    database: attachOperationalModule(operationalDatabase, 'bot-creation'),
+    registry,
+    channels,
+  });
+  const channelManagement = createChannelManagement({
+    database: attachOperationalModule(operationalDatabase, 'channel-management'),
+    channels,
+    registry,
+    isProtectedBot: (slug) => tob.isTob(slug),
+    autoAcceptGroupInvitations: () =>
+      (groupInvitationPolicies.at(-1)?.policy ?? initialGroupInvitationPolicy)(),
+    onInvitation: (dmId, invitationId) => runtime?.admitGroupInvitation(dmId, invitationId),
+    onJoinDecision: (dmId, requestId) => runtime?.admitGroupJoinDecision?.(dmId, requestId),
+  });
   const profileRecovery = createProfileRecovery(operationalDatabase, registry, ownership);
   const orchestratorCwd = (bot: { slug: string }): string | undefined =>
     registry.memoryDirFor(bot.slug);
@@ -768,9 +844,12 @@ export function createCore(
     onAdmitted: (slug) => runtime?.admitScheduleFiring?.(slug),
     ...(options.warn === undefined ? {} : { warn: options.warn }),
   });
+  const messagePerf: MessagePerfTracker = createMessagePerfTracker();
   runtime = createBotRuntime({
+    tob,
     triageContinuation: options.triageContinuation === true,
     inboxHistory,
+    messagePerf,
     requireExecution: (slug) => profileRecovery.requireExecution(slug),
     schedules,
     assignmentConcurrencyLimit: () =>
@@ -861,6 +940,7 @@ export function createCore(
   });
   const onboarding = createBotOnboarding({
     database: attachOperationalModule(operationalDatabase, 'bot-onboarding'),
+    tob,
     registry,
     channels,
   });
@@ -870,6 +950,9 @@ export function createCore(
     profileRecovery,
     contentPurge,
     onboarding,
+    tob,
+    creations,
+    channelManagement,
     partLibrary,
     rootDir,
     operationalDatabase,
@@ -899,6 +982,7 @@ export function createCore(
     ownership,
     memory,
     ...(usage === undefined ? {} : { usage }),
+    messagePerf,
     grants,
     toolRules,
     assignmentAccess,
@@ -1044,6 +1128,87 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         agent,
         ctx.get('agentPresets') as DshAgentPresetHost | undefined,
         (name, args) => nativeExecutionRoot(core, agent.session, name, args),
+        (shellCtx, shell) =>
+          installTobCliShell(shellCtx, shell, {
+            capture: (execution) => {
+              const actor = execution.agent;
+              if (
+                !actor ||
+                !core.tob.isTob(core.ownership.resolve(actor.session.id)?.botSlug ?? '')
+              )
+                return undefined;
+
+              let source: (() => void) & { markSideEffect?: () => void };
+              try {
+                source =
+                  core.runtime.captureTobCliAuthority?.(actor.session.id) ??
+                  (() => {
+                    throw new TobError('tob-authority-required');
+                  });
+              } catch (error) {
+                source = () => {
+                  throw error;
+                };
+              }
+              const authorize = () => {
+                if (execution.signal.aborted) throw new TobError('agent-context-expired');
+                source();
+                const denial = grantExecutionDenial(
+                  core,
+                  actor.session,
+                  ctx.get('sandboxPolicy'),
+                  ctx.get('approval'),
+                );
+                if (denial) throw new TobError('tob-authority-required');
+              };
+              const started = Date.now();
+              return {
+                signal: execution.signal,
+                authorize,
+                prepareOperation: async (command, args) =>
+                  (await tobModelOperations(command, args)) ??
+                  (await tobMaintenanceOperations(command, args)) ??
+                  (await tobBotCreationOperations(command, args)) ??
+                  (await tobBotProfileOperations(command, args)) ??
+                  (await tobChannelOperations(command, args)),
+                capabilities: [
+                  ...TOB_MODEL_CAPABILITIES,
+                  ...TOB_MAINTENANCE_CAPABILITIES,
+                  ...TOB_BOT_CREATE_CAPABILITIES,
+                  ...TOB_BOT_PROFILE_CAPABILITIES,
+                  ...TOB_CHANNEL_CAPABILITIES,
+                ],
+                beforeWrite: () => source.markSideEffect?.(),
+                readSetting: () => core.tob.readSetting(),
+                writeSetting: (value, revision, guard) =>
+                  core.tob.writeSetting(value, revision, () => {
+                    guard();
+                    source.markSideEffect?.();
+                  }),
+                approve: async (operation, signal) => {
+                  source();
+                  return approveTobCliOperation({
+                    execution,
+                    operation,
+                    signal,
+                    authorize: source,
+                    approval: ctx.get('approval') as ApprovalService | undefined,
+                    channelApproval: toolApproval,
+                    fullAccess: () => sessionHasFullAccess(core, actor.session.id),
+                  });
+                },
+                log: (phase, details) =>
+                  ctx.logger.info('tob-cli %j', {
+                    phase,
+                    sessionId: actor.session.id,
+                    callId: execution.callId,
+                    initiator: 'tob-native-shell',
+                    durationMs: Date.now() - started,
+                    ...details,
+                  }),
+              };
+            },
+          }),
       ),
     authorizeBorrow: (agent, role) => {
       const owner = core.ownership.resolve(agent.session.id);
@@ -1106,6 +1271,14 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       if (query === undefined) throw new Error('DSH Session Query is unavailable');
       return readAssignmentReportPage(query, sessionId, acceptedSummary, offset);
     },
+    ensureTobWorkspace: async (path) => {
+      const owner = ctx.get('workspaceRegistry') as unknown as
+        | { create(path: string, title: string): Promise<{ id: string }> }
+        | undefined;
+      if (!owner) throw new Error('workspace-unavailable');
+      return owner.create(path, 'Tob');
+    },
+    tobSettings: () => ctx.get('settings') as unknown as TobSettingsProvider | undefined,
     workspaces: () => ctx.get('workspaceRegistry') as unknown as DshWorkspaceLookup | undefined,
     sessionArchive: () =>
       ctx.get('workspaceRegistry') as unknown as NativeSessionArchive | undefined,
@@ -1182,6 +1355,58 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     secretMcpStore,
   );
   ctx.effect(() => () => core.externalMessaging.close(), 'botharness: external messaging');
+  const cloudConnections = new CloudConnections(
+    attachOperationalModule(core.operationalDatabase, 'messaging'),
+    () => ctx.get('credentials'),
+    undefined,
+    (phase, id) => ctx.logger.info('cloud-connection %j', { phase, id }),
+  );
+  core.cloudConnections = cloudConnections;
+  const cloudWork = new CloudWork(
+    attachOperationalModule(core.operationalDatabase, 'messaging'),
+    cloudConnections,
+    core.externalMessaging.inbound,
+    (slug) => {
+      const bot = core.registry.get(slug);
+      return bot !== undefined && bot.paused !== true;
+    },
+    (phase, requestId) => ctx.logger.info('cloud-work %j', { phase, requestId }),
+  );
+  core.cloudWork = cloudWork;
+  ctx.effect(() => () => cloudWork.close(), 'botharness: cloud work');
+  core.hostTools.add('cloud_work');
+  ctx.effect(
+    () => () => {
+      core.hostTools.delete('cloud_work');
+    },
+    'botharness: cloud work tool name',
+  );
+  ctx.effect(
+    () =>
+      core.contributeBotAgentSetup((agentCtx, agent, info) => {
+        if (info.rootRole === 'orchestrator')
+          agentCtx.tools.register(
+            createCloudWorkTool(
+              cloudWork,
+              info.botSlug,
+              (call) =>
+                call.agent === agent &&
+                ctx.agents.get(agent.id) === agent &&
+                core.ownership.resolve(agent.session.id)?.botSlug === info.botSlug,
+            ),
+          );
+      }),
+    'botharness: cloud work tool',
+  );
+  ctx.effect(() => () => cloudConnections.close(), 'botharness: cloud connections');
+  if (core.operationalDatabase.mode === 'ready')
+    ctx.effect(() =>
+      core.externalMessaging.register(
+        createCloudProvider(cloudConnections, (phase, id, code) =>
+          ctx.logger.info('cloud-messaging %j', { phase, id, code }),
+        ),
+      ),
+    );
   ctx.inject(['dshIm'], (child) => {
     for (const platform of ['feishu', 'slack', 'discord', 'weixin', 'qq'] as const) {
       const provider = createDshImProvider(child.get('dshIm'), platform);
@@ -1733,6 +1958,33 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   const dshSessions = (ctx as unknown as { sessions: DshSessionStore }).sessions;
 
   const developerModeTarget: { gate?: DeveloperModeSkillGate } = {};
+  const syncDeveloperMode = () => {
+    let enabled = false;
+    try {
+      const settings = ctx.get('settings') as unknown as TobNativeSettings | undefined;
+      const value = settings
+        ?.describe({ redactSecrets: true })
+        .find((entry) => entry.ns === 'botharness-client')?.value;
+      enabled =
+        typeof value === 'object' &&
+        value !== null &&
+        'developerMode' in value &&
+        value.developerMode === true;
+    } catch {}
+    developerModeTarget.gate?.set(enabled);
+  };
+  ctx.inject(['settings'], (settingsCtx) => {
+    const events = settingsCtx as unknown as {
+      on(event: 'settings/document-updated', listener: (namespace: string) => void): void;
+    };
+    events.on('settings/document-updated', (namespace) => {
+      if (namespace === 'botharness-client') syncDeveloperMode();
+    });
+    settingsCtx.effect(() => {
+      syncDeveloperMode();
+      return () => developerModeTarget.gate?.set(false);
+    }, 'botharness: developer mode settings');
+  });
   const releaseInstaller: { current: ReleaseInstaller | undefined } = { current: undefined };
   ctx.inject(['pluginManager'], (managerCtx) => {
     managerCtx.effect(() => {
@@ -1755,7 +2007,37 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       };
     }, 'botharness: release restarter');
   });
+  const releaseService = createLoadingReleaseService({
+    version: () => runningRelease.version,
+    ...(profile === undefined
+      ? {}
+      : { profileId: createHash('sha256').update(profile.dir).digest('hex').slice(0, 24) }),
+    identity: () =>
+      installedPackage.identity(releaseAnchors, loadedReleaseComponents(ctx.registry.values())),
+    ledgers: () => runningRelease.ledgers,
+    installer: () => releaseInstaller.current,
+    restarter: () => releaseRestarter.current,
+    warn: (message) => ctx.logger.warn(message),
+  });
+  const tobModelOperations = createTobModelOperations({
+    registry: core.registry,
+    presets: core.modelPresets,
+    catalog: modelCatalog,
+    settings: () => ctx.get('settings') as unknown as TobNativeSettings | undefined,
+    defaultModel,
+    runtimeChanged: (patch) => {
+      if (typeof patch.developerMode === 'boolean')
+        developerModeTarget.gate?.set(patch.developerMode);
+    },
+  });
+  const tobMaintenanceOperations = createTobMaintenanceOperations({
+    telemetry,
+    git,
+    release: releaseService,
+  });
   const bridgeMethods = createBridgeMethods({
+    cloudConnections,
+    cloudWork,
     approvalReviewer,
     composerIdentity: () =>
       composerRecoveryIdentity(
@@ -1768,10 +2050,14 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     approvalTemplates,
     deletions: core.deletions,
     contentPurge: core.contentPurge,
+    defaultModelSettings: () => ctx.get('settings') as unknown as TobNativeSettings | undefined,
     modelPresets: core.modelPresets,
     modelCatalog,
     modelReadiness,
     onboarding: core.onboarding,
+    tob: core.tob,
+    creations: core.creations,
+    channelManagement: core.channelManagement,
     partLibrary: core.partLibrary,
     onboardingNews: (slug) =>
       onboardingNewsAvailable(
@@ -1824,14 +2110,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     marketplace: createMarketplaceClient({
       baseUrl: config.marketplaceUrl ?? DEFAULT_MARKETPLACE_URL,
     }),
-    release: createLoadingReleaseService({
-      version: () => runningRelease.version,
-      identity: () =>
-        installedPackage.identity(releaseAnchors, loadedReleaseComponents(ctx.registry.values())),
-      ledgers: () => runningRelease.ledgers,
-      installer: () => releaseInstaller.current,
-      restarter: () => releaseRestarter.current,
-    }),
+    release: releaseService,
     telemetry,
     git,
     developerMode: {
@@ -1920,6 +2199,22 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     startFreshOrchestrator: (slug) => core.runtime.startFreshOrchestrator!(slug),
     turnRunning: (slug) => core.runtime.turnRunning!(slug),
   };
+  const tobBotCreationOperations = createTobBotCreationOperations({
+    registry: core.registry,
+    creations: core.creations,
+    bridge: bridgeMethods,
+  });
+  const tobBotProfileOperations = createTobBotProfileOperations({
+    registry: core.registry,
+    bridge: () => bridgeMethods,
+    isProtectedBot: (slug) => core.tob.isTob(slug),
+  });
+  const tobChannelOperations = createTobChannelOperations({
+    management: core.channelManagement,
+    channels: core.channels,
+    registry: core.registry,
+    isProtectedBot: (slug) => core.tob.isTob(slug),
+  });
   registerBridge(ctx, bridgeMethods, privateInputs, {
     followRoster: (signal) => core.live.followRoster(signal),
     followActivity: (signal) => core.live.followActivity(signal),
@@ -1949,7 +2244,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         };
       }
     ).skills;
-    developerModeTarget.gate = new DeveloperModeSkillGate({
+    const gate = new DeveloperModeSkillGate({
       register: (definition) => {
         let dispose: (() => void) | undefined;
         skillsCtx.effect(() => {
@@ -1959,6 +2254,14 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         return () => dispose?.();
       },
     });
+    developerModeTarget.gate = gate;
+    skillsCtx.effect(() => {
+      syncDeveloperMode();
+      return () => {
+        gate.set(false);
+        if (developerModeTarget.gate === gate) delete developerModeTarget.gate;
+      };
+    }, 'botharness: developer mode skill gate');
   });
 
   ctx.inject(['connection'], (connectionCtx) => {
@@ -2228,6 +2531,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         ctx.logger.warn('approval-result-publication-failed');
       }
       core.usage?.handleSessionEvent(session.id, event);
+      core.messagePerf.observeSessionEvent(session.id, event);
       handleCompactionEvent(
         {
           ownership: core.ownership,
@@ -2268,6 +2572,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     ({ agent }) => {
       userQuestions.cancelSession(agent.session.id);
       activity.handleSessionDisposed(agent.session.id);
+      core.messagePerf.clear(agent.session.id);
     },
     { global: true },
   );

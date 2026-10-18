@@ -78,6 +78,8 @@ type TrackedCall = ToolApprovalRequestCard & {
   agent: Agent;
   scopeKey: string;
   automatic?: boolean;
+  requireHumanReview?: boolean;
+  humanReviewed?: boolean;
   rememberable?: boolean;
   remembered?: boolean;
   execution: ToolExecution;
@@ -211,6 +213,7 @@ export class ChannelToolApproval {
     rememberable = false,
     device?: 'computer' | 'browser',
     botCreatePreview?: BotCreatePreview,
+    options?: { requireHumanReview?: boolean },
   ): (() => void) | undefined {
     const agent = execution.agent;
     if (agent === undefined) return undefined;
@@ -238,8 +241,9 @@ export class ChannelToolApproval {
       input,
       scopeKey,
       execution,
-      externalDecision,
-      ...(rememberable ? { rememberable } : {}),
+      externalDecision: options?.requireHumanReview ? 'each-use' : externalDecision,
+      ...(options?.requireHumanReview ? { requireHumanReview: true } : {}),
+      ...(rememberable && !options?.requireHumanReview ? { rememberable } : {}),
       ...(device === undefined ? {} : { device }),
       ...(botCreatePreview === undefined ? {} : { botCreatePreview }),
     });
@@ -277,6 +281,7 @@ export class ChannelToolApproval {
     const policyChange = this.#changesPolicy(tracked);
     if (
       !policyChange &&
+      !tracked.requireHumanReview &&
       tracked.externalDecision !== 'each-use' &&
       this.#rules?.match(tracked) !== undefined
     ) {
@@ -293,8 +298,16 @@ export class ChannelToolApproval {
     const channel = this.#channels.get(channelId) ?? this.#channels.getOrCreateDm(tracked.botSlug);
     if (channel === undefined) return 'unavailable';
     if (channel.type !== 'group' && channel.botSlug !== tracked.botSlug) return 'unavailable';
-    if (!policyChange && this.#overrides.delete(overrideKey(tracked))) return 'allowed-once';
-    const template = policyChange ? undefined : this.#autoApproval?.template(tracked.botSlug);
+    if (
+      !policyChange &&
+      !tracked.requireHumanReview &&
+      this.#overrides.delete(overrideKey(tracked))
+    )
+      return 'allowed-once';
+    const template =
+      policyChange || tracked.requireHumanReview
+        ? undefined
+        : this.#autoApproval?.template(tracked.botSlug);
     if (template !== undefined && this.#breakers.get(tracked.sessionId)?.paused !== true) {
       const reviewed = await this.#review(tracked, template, channelId, request.signal);
       if (reviewed !== undefined) return reviewed;
@@ -388,6 +401,7 @@ export class ChannelToolApproval {
         name === tracked.toolName &&
         inputOf({ ...tracked.execution, arguments: args }) === tracked.input &&
         tracked.authorized?.() !== false &&
+        (!tracked.requireHumanReview || tracked.humanReviewed === true) &&
         (!tracked.automatic || this.#rules?.match(tracked) !== undefined)
       );
     };
@@ -436,7 +450,8 @@ export class ChannelToolApproval {
     return (
       tracked !== undefined &&
       tracked.agent === agent &&
-      (tracked.externalDecision === 'each-use' ||
+      (tracked.requireHumanReview === true ||
+        tracked.externalDecision === 'each-use' ||
         this.#changesPolicy(tracked) ||
         this.#rules?.match(tracked) === undefined)
     );
@@ -646,6 +661,8 @@ export class ChannelToolApproval {
         tracked.authorized = () =>
           external.authorized() && (!kind || external.rule?.authorized() === true);
       if (remember) tracked.remembered = true;
+      if (tracked.requireHumanReview && outcome === 'allowed-once' && external === undefined)
+        tracked.humanReviewed = true;
       this.#settle(messageId, outcome === 'rejected' ? 'rejected' : 'allowed-once');
       if (outcome !== 'rejected') await this.#resume(tracked.sessionId);
       return true;

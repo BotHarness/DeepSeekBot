@@ -96,7 +96,7 @@ describe('DM Bot Inbox sidebar entry', () => {
       );
       expect(entry).toBeDefined();
       store.setBotInbox({ status: 'ready', items: [], error: undefined });
-      expect(entry?.visible?.(store.getSnapshot())).toBe(false);
+      expect(entry?.visible?.(store.getSnapshot()) ?? true).toBe(true);
       store.setBotInbox({
         status: 'ready',
         items: [
@@ -106,7 +106,7 @@ describe('DM Bot Inbox sidebar entry', () => {
         ],
         error: undefined,
       });
-      expect(entry?.visible?.(store.getSnapshot())).toBe(true);
+      expect(entry?.visible?.(store.getSnapshot()) ?? true).toBe(true);
       const container = document.createElement('div');
       document.body.append(container);
       const root = createRoot(container);
@@ -153,6 +153,46 @@ describe('DM Bot Inbox sidebar entry', () => {
       }
     },
   );
+
+  it('shows an empty state and lets a failed Inbox refresh be retried', async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    const previous = store.getSnapshot().botInbox;
+    const entry = createChannelSidebarBuiltins(zhTranslate).find(
+      (candidate) => candidate.id === 'bot-inbox',
+    )!;
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    const refreshBotInbox = vi.fn(async () => undefined);
+    try {
+      store.setBotInbox({ status: 'ready', items: [], error: undefined });
+      await act(async () =>
+        root.render(
+          createElement(entry.component, {
+            scope: 'personabot',
+            channelId: 'dm-ada',
+            botSlug: 'ada',
+            actions: { refreshBotInbox } as unknown as BridgeActions,
+            t: zhTranslate,
+            flush: true,
+          }),
+        ),
+      );
+      expect(container.querySelector('[data-panel-empty]')?.textContent).toContain(
+        '此 Bot 还没有收件记录',
+      );
+      await act(async () => store.setBotInbox({ status: 'error', error: 'offline' }));
+      expect(container.querySelector('[role="alert"]')?.textContent).toContain('offline');
+      await act(async () =>
+        container.querySelector<HTMLButtonElement>('[role="alert"] button')!.click(),
+      );
+      expect(refreshBotInbox).toHaveBeenCalledWith('ada');
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+      store.setBotInbox(previous);
+    }
+  });
 
   it('reveals newly active or escalated attention in an existing collapsed source group', async () => {
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });

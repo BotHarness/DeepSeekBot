@@ -98,7 +98,7 @@ describe('Bot Activity screen', () => {
     expect(text).toContain('deepseek-v4');
     expect(text).toContain(t.activityReason['group-mention']);
     expect(text).toContain(t.activityCount(2));
-    expect(text).not.toContain(t.activityPartial);
+    expect(text).not.toContain(t.usagePartial);
     expect(button(view, t.activityLater).disabled).toBe(true);
     expect(button(view, t.activityWindow[1]!).getAttribute('aria-selected')).toBe('true');
   });
@@ -110,8 +110,8 @@ describe('Bot Activity screen', () => {
     await act(async () => button(view, t.activityWindow[4]!).click());
     await act(async () => undefined);
     expect(load).toHaveBeenLastCalledWith({ weeks: 4 });
-    expect(view.textContent).toContain(t.activityTokens(t.activityPartialCount('4,000')));
-    expect(view.textContent).toContain(t.activityPartial);
+    expect(view.textContent).toContain(t.activityTokens('4,000'));
+    expect(view.textContent).toContain(t.usagePartial);
 
     await act(async () => button(view, t.activityEarlier).click());
     await act(async () => undefined);

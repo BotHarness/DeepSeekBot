@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const speech = vi.hoisted(() => ({
+  scale: 1,
   listeners: new Map<string, (event: unknown) => void>(),
   available: true,
   granted: true,
@@ -14,6 +15,7 @@ const speech = vi.hoisted(() => ({
   gesture: undefined as Record<string, (...args: unknown[]) => unknown> | undefined,
 }));
 
+vi.mock('react-native-keyboard-controller', async () => import('./keyboard-controller-shim'));
 vi.mock('react-native', async () => {
   const shim = await import('./react-native-shim');
   const { createElement } = await import('react');
@@ -30,6 +32,7 @@ vi.mock('react-native', async () => {
   };
   return {
     ...shim,
+    useWindowDimensions: () => ({ width: 402, height: 874, scale: 3, fontScale: speech.scale }),
     View,
     Keyboard: { dismiss() {} },
     PanResponder: { create: (config: unknown) => ({ panHandlers: { __gesture: config } }) },
@@ -83,6 +86,11 @@ function Harness() {
       </span>
       <Composer
         value={draft}
+        above={
+          <button type="button" aria-label="Pick Mika" onClick={() => setDraft('@Mika ')}>
+            Mika
+          </button>
+        }
         placeholder="Message Mika"
         disabled={false}
         files={[]}
@@ -105,6 +113,7 @@ let root: Root | undefined;
 let host: HTMLElement;
 
 beforeEach(async () => {
+  speech.scale = 1;
   speech.listeners.clear();
   speech.available = true;
   speech.granted = true;
@@ -272,5 +281,42 @@ describe('Holding the mic', () => {
     await emit('start');
     await grab(80);
     expect(speech.stop).toHaveBeenCalled();
+  });
+});
+
+describe('expanded draft', () => {
+  it('shares edits with the existing composer and sends the current draft once', async () => {
+    const original = field();
+    speech.scale = 3.571;
+    await act(async () => root!.render(<Harness />));
+    expect(field()).toBe(original);
+    await press(t.expandDraft);
+    expect(host.querySelectorAll('button[aria-label="Pick Mika"]')).toHaveLength(1);
+    const choice = host.querySelector<HTMLButtonElement>(
+      '[role="dialog"] button[aria-label="Pick Mika"]',
+    )!;
+    await act(async () => choice.click());
+    const editor = host.querySelector<HTMLTextAreaElement>('[role="dialog"] textarea')!;
+    expect(editor.value).toBe('@Mika ');
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(
+        editor,
+        'Long draft updated',
+      );
+      editor.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    expect(original.value).toBe('Long draft updated');
+    await press(t.done);
+    expect(host.querySelector('[role="dialog"]')).toBeNull();
+    expect(field()).toBe(original);
+    expect(field().value).toBe('Long draft updated');
+    await press(t.expandDraft);
+    await act(async () =>
+      host
+        .querySelector<HTMLButtonElement>(`[role="dialog"] button[aria-label="${t.send}"]`)!
+        .click(),
+    );
+    expect(sent).toHaveBeenCalledExactlyOnceWith('Long draft updated');
+    expect(host.querySelector('[role="dialog"]')).toBeNull();
   });
 });

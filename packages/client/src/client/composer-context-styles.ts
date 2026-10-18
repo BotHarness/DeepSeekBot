@@ -7,8 +7,8 @@ export const COMPOSER_CONTEXT_CSS = `
 .bh-group-grant-directory {overflow-wrap:anywhere;}
 .bh-group-grant-actions {display:flex;flex-wrap:wrap;gap:${space.x3};margin-top:${space.x4};}
 .bh-group-grant-policy summary {cursor:pointer;color:var(--dsw-alias-label-secondary);}
-.bh-composer-shortcuts {position:absolute;bottom:100%;left:0;right:0;z-index:4;display:flex;flex-direction:column;gap:${space.x1};padding:${space.x2};border:${border.hairline} solid ${color.border};border-radius:${radius.md};background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary);}
-.bh-composer-shortcuts button {display:flex;justify-content:space-between;gap:${space.x3};align-items:center;font:inherit;text-align:start;padding:${space.x3};border:0;border-radius:${radius.sm};background:transparent;color:inherit;cursor:pointer;}
+.bh-composer-shortcuts {position:absolute;bottom:100%;left:0;right:0;z-index:4;display:flex;flex-direction:column;max-height:50dvh;overflow-y:auto;gap:${space.x1};padding:${space.x2};border:${border.hairline} solid ${color.border};border-radius:${radius.md};background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary);}
+.bh-composer-shortcuts button {display:flex;flex-shrink:0;justify-content:space-between;gap:${space.x3};align-items:center;font:inherit;text-align:start;padding:${space.x3};border:0;border-radius:${radius.sm};background:transparent;color:inherit;cursor:pointer;}
 .bh-composer-shortcuts button[data-active='true'],.bh-composer-shortcuts button:hover {background:var(--dsw-alias-interactive-bg-hover);}
 .bh-composer-shortcuts button:disabled {color:var(--dsw-alias-label-tertiary);cursor:default;}
 .bh-composer-shortcuts small {color:var(--dsw-alias-label-secondary);}

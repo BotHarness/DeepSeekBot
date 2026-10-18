@@ -40,6 +40,7 @@ export interface WireAllBotMention {
 
 export interface ChannelWireMessage extends WireMessage {
   author: WireAuthor;
+  mentions?: WireMention[];
   reactions?: WireReaction[];
   attachments?: readonly AttachmentRef[];
   bridgeMedia?: { items: readonly BridgeMediaItem[] };
@@ -223,6 +224,7 @@ export interface ProfileActivityTokensDay extends ProfileTokenBuckets {
 }
 
 export interface ProfileModelUsageRow {
+  partial?: boolean;
   day: string;
   purpose: string;
   provider: string;
@@ -345,9 +347,12 @@ export interface HumanAttentionItem {
   summary: string;
   messageId?: string;
   responseMessageId?: string;
+  unreadCount?: number;
+  isUnread?: boolean;
 }
 
 export interface HumanAttentionPage {
+  queryVersion?: number;
   items: HumanAttentionItem[];
   nextCursor?: string;
 }

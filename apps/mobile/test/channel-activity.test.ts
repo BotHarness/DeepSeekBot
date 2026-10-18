@@ -130,7 +130,9 @@ describe('Channel activity on mobile', () => {
 
   it('uses recorded names or localized missing-Bot copy instead of internal IDs', () => {
     const views = messages.map(presented);
-    const lines = views.map((message) => activityText(message, message.activity!, undefined));
+    const lines = views.map((message) =>
+      activityText(message, message.activity!, undefined, 1, activityStrings.en),
+    );
     expect(lines[0]?.name).toBe(activityStrings.en.unavailableBot);
     expect(lines[1]?.verb).toBe(activityStrings.en.dm(activityStrings.en.unavailableBot));
     expect(lines[2]?.name).toBe('Ada');

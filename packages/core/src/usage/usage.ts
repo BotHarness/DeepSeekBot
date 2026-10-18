@@ -25,6 +25,7 @@ export interface UsageDayRow {
   cacheReadTokens: number;
   cacheWriteTokens: number;
   totalTokens?: number | null;
+  reportedTotalTokens?: number;
   unknownBuckets?: {
     inputTokens: number;
     outputTokens: number;
@@ -589,6 +590,17 @@ export function createUsageProjection(options: {
         cacheReadTokens: row.cache_read_tokens,
         cacheWriteTokens: row.cache_write_tokens,
         totalTokens: row.unknown_total > 0 ? null : row.total_tokens,
+        ...(row.unknown_total > 0
+          ? {
+              reportedTotalTokens: Math.max(
+                row.total_tokens,
+                row.input_tokens +
+                  row.output_tokens +
+                  row.cache_read_tokens +
+                  row.cache_write_tokens,
+              ),
+            }
+          : {}),
         ...([
           row.unknown_input,
           row.unknown_output,

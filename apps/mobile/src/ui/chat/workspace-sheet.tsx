@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useState, type ComponentType, type ReactNode } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, SectionList, View } from 'react-native';
 
 import {
@@ -25,6 +25,7 @@ import { CheckIcon, ChevronRightIcon, CloseIcon, FolderIcon, PlusIcon } from '..
 import { t } from '../strings';
 import {
   Sheet,
+  type SheetPageProps,
   SheetActions,
   SheetCallout,
   SheetFailed,
@@ -154,6 +155,7 @@ function Crumbs({
   const theme = useDesignTheme();
   return (
     <ScrollView
+      nestedScrollEnabled
       horizontal
       showsHorizontalScrollIndicator={false}
       accessibilityRole="toolbar"
@@ -196,6 +198,7 @@ function Crumbs({
 }
 
 export function WorkspaceSheet({
+  page,
   visible,
   botName,
   settings,
@@ -208,6 +211,7 @@ export function WorkspaceSheet({
   onTemplates,
   onClose,
 }: {
+  page?: ComponentType<SheetPageProps> | undefined;
   visible: boolean;
   botName: string;
   settings: BotSettings | undefined;
@@ -250,6 +254,7 @@ export function WorkspaceSheet({
   if (settings === undefined)
     return (
       <Sheet
+        page={page}
         visible={visible}
         label={t.workspaceTitle(botName)}
         title={t.workspaceTitle(botName)}
@@ -358,6 +363,7 @@ export function WorkspaceSheet({
         .pop() ?? pending.path;
     return (
       <Sheet
+        page={page}
         visible={visible}
         label={t.confirmGrant(botName)}
         title={t.confirmGrant(botName)}
@@ -444,6 +450,7 @@ export function WorkspaceSheet({
     ];
     return (
       <Sheet
+        page={page}
         visible={visible}
         label={t.browseTitle}
         title={t.addFolder}
@@ -457,8 +464,11 @@ export function WorkspaceSheet({
             onOpen={(path) => browse(path)}
           />
         ) : null}
-        <SectionList<BrowseRow, { key: string; title: string; footer?: string | undefined }>
-          style={{ flexShrink: 1 }}
+        <SectionList<
+          BrowseRow,
+          { key: string; title: string; footer?: string | undefined; data: readonly BrowseRow[] }
+        >
+          style={page !== undefined ? { flex: 1 } : { flexShrink: 1 }}
           sections={sections}
           keyExtractor={(row) => row.key}
           stickySectionHeadersEnabled={false}
@@ -784,13 +794,15 @@ export function WorkspaceSheet({
 
   return (
     <Sheet
+      page={page}
       visible={visible}
       label={t.workspaceTitle(botName)}
       title={t.workspaceTitle(botName)}
       onClose={close}
     >
       <SectionList<MainRow, MainSection>
-        style={{ flexShrink: 1 }}
+        nestedScrollEnabled
+        style={page !== undefined ? { flex: 1 } : { flexShrink: 1 }}
         sections={sections}
         keyExtractor={(item) => item.key}
         stickySectionHeadersEnabled={false}

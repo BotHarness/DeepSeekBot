@@ -4,19 +4,15 @@ import { switchColors } from '../design/controls';
 import type { LayerName } from '../design/layers';
 import { useDesignTheme } from '../design/theme';
 
-export function Toggle({
-  label,
-  value,
-  disabled = false,
-  on = 'sheet',
-  onChange,
-}: {
+export type ToggleProps = {
   label: string;
   value: boolean;
   disabled?: boolean;
   on?: LayerName;
   onChange(value: boolean): void;
-}) {
+};
+
+export function Toggle({ label, value, disabled = false, on = 'sheet', onChange }: ToggleProps) {
   const theme = useDesignTheme();
   const colors = switchColors(theme, on);
   return (

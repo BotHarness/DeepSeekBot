@@ -27,7 +27,7 @@ export function Segmented<T extends string>({
       accessibilityRole="tablist"
       accessibilityLabel={label}
       style={{
-        flexDirection: 'row',
+        flexDirection: theme.largeText ? 'column' : 'row',
         padding: space.x1,
         gap: space.x1,
         borderRadius: radius.md,
@@ -47,7 +47,9 @@ export function Segmented<T extends string>({
               if (!selected) onChange(option.value);
             }}
             style={({ pressed }) => ({
-              flex: 1,
+              ...(theme.largeText ? {} : { flex: 1 }),
+              paddingHorizontal: space.x3,
+              paddingVertical: space.x3,
               minHeight: theme.touch - space.x1 * 2,
               alignItems: 'center',
               justifyContent: 'center',
@@ -55,7 +57,11 @@ export function Segmented<T extends string>({
               backgroundColor: selected ? layer.fill : pressed ? layer.pressed : layer.inset,
             })}
           >
-            <Text variant={compact ? 'meta' : 'body'} strong={selected} numberOfLines={1}>
+            <Text
+              variant={compact ? 'meta' : 'body'}
+              strong={selected}
+              style={{ textAlign: 'center' }}
+            >
               {option.label}
             </Text>
           </Pressable>

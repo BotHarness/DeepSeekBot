@@ -1,0 +1,38 @@
+[
+  {
+    "size": "large",
+    "theme": "light",
+    "requestReachable": true,
+    "ownerCreationAbsent": true
+  },
+  {
+    "size": "large",
+    "theme": "dark",
+    "requestReachable": true,
+    "ownerCreationAbsent": true
+  },
+  {
+    "size": "accessibility-medium",
+    "theme": "light",
+    "requestReachable": true,
+    "ownerCreationAbsent": true
+  },
+  {
+    "size": "accessibility-medium",
+    "theme": "dark",
+    "requestReachable": true,
+    "ownerCreationAbsent": true
+  },
+  {
+    "size": "accessibility-extra-extra-extra-large",
+    "theme": "light",
+    "requestReachable": true,
+    "ownerCreationAbsent": true
+  },
+  {
+    "size": "accessibility-extra-extra-extra-large",
+    "theme": "dark",
+    "requestReachable": true,
+    "ownerCreationAbsent": true
+  }
+]

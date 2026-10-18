@@ -3,7 +3,8 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { ConversationMessage } from '../src/host/conversation';
 
-vi.mock('react-native', () => {
+vi.mock('react-native', async () => {
+  const { useWindowDimensions, StyleSheet } = await import('./react-native-shim');
   const host = (name: string) => {
     const Component = ({ children, ...props }: Record<string, unknown>) => {
       const attributes: Record<string, string> = {};
@@ -20,6 +21,8 @@ vi.mock('react-native', () => {
     return Component;
   };
   return {
+    useWindowDimensions,
+    StyleSheet,
     View: host('View'),
     Text: host('Text'),
     Pressable: host('Pressable'),

@@ -1,0 +1,36 @@
+{
+  "issue": 2171,
+  "pr": 2172,
+  "base": "3be6b52c384812f801d2b9d58013580c0d6e4c0f",
+  "runtime": "4185d28a380bd37f68eafb765d28d24ee947af4a",
+  "native": "494a20f1eb4f0666a2c90bc3c758af4e7ff5f46b",
+  "ci": 39109396184,
+  "environment": "local iOS Simulator, existing UAT signed-out configuration",
+  "viewport": "402x874",
+  "matrices": {
+    "drawer": "3 text sizes x light/dark",
+    "sheet": "3 text sizes x light/dark"
+  },
+  "pass": [
+    "native title material",
+    "maximum-text close in drawer and sheet",
+    "drawer close/reopen/backdrop",
+    "sheet body scroll",
+    "Reduce Transparency on/opaque and off/glass restored"
+  ],
+  "unverified": [
+    "Android native",
+    "physical phone",
+    "Human and VoiceOver",
+    "older iOS native fallback",
+    "Settings / SheetStack adoption"
+  ],
+  "cleanup": [
+    "large/light restored",
+    "Reduce Transparency restored off",
+    "original statistics preferences restored byte-for-byte",
+    "own app/driver/Metro stopped",
+    "no login or service writes",
+    "other Hosts and physical phone unchanged"
+  ]
+}

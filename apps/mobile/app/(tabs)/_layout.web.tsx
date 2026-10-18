@@ -6,7 +6,6 @@ import { actionCount } from '../../src/host/inbox';
 import { useHostSession, useInbox } from '../../src/host/host-session';
 import { glassShadow, glassTint, useDesignTheme } from '../../src/ui/design/theme';
 import { edge, glass, radius, space } from '../../src/ui/design/tokens';
-import { HostDrawer } from '../../src/ui/shell/host-drawer';
 import { ActivityIcon, ChatsIcon } from '../../src/ui/shell/icons';
 import { t } from '../../src/ui/strings';
 
@@ -55,7 +54,6 @@ export default function TabsLayout() {
           }}
         />
       </Tabs>
-      <HostDrawer />
     </View>
   );
 }

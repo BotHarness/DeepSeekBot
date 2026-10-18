@@ -351,6 +351,9 @@ export function createInboundMessaging(options: {
       if (
         existing.body !== event.text ||
         previous.event.actor.id !== event.actor.id ||
+        previous.event.actor.kind !== event.actor.kind ||
+        JSON.stringify(previous.event.cloudWork ?? null) !==
+          JSON.stringify(event.cloudWork ?? null) ||
         JSON.stringify(previous.event.reply) !== JSON.stringify(event.reply) ||
         JSON.stringify(previous.event.attachments ?? []) !==
           JSON.stringify(event.attachments ?? []) ||

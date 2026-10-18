@@ -97,6 +97,15 @@ export function speechLang(tag: string): string {
 
 export const composerMaxLines = 5;
 
-export function composerFieldHeight(content: number, line: number, padding: number): number {
-  return Math.min(Math.max(content, line + 2 * padding), composerMaxLines * line + 2 * padding);
+export function composerFieldHeight(
+  content: number,
+  line: number,
+  padding: number,
+  available = Infinity,
+): number {
+  const minimum = line + 2 * padding;
+  return Math.min(
+    Math.max(content, minimum),
+    Math.max(minimum, Math.min(available, composerMaxLines * line + 2 * padding)),
+  );
 }

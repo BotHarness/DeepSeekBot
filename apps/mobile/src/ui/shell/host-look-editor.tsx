@@ -1,5 +1,7 @@
+import { TextInput } from '../primitives/system-text';
 import { useState, type ReactNode } from 'react';
-import { Pressable, ScrollView, TextInput, View } from 'react-native';
+import { Pressable, View } from 'react-native';
+import { KeyboardFormScroll } from '../primitives/keyboard-form';
 import { SvgXml } from 'react-native-svg';
 
 import {
@@ -23,7 +25,7 @@ import { Button } from '../primitives/button';
 import { Text } from '../primitives/text';
 import { Notice } from '../request-parts';
 import { t } from '../strings';
-import { Chip } from './activity-filters';
+import { Chip } from '../primitives/chip';
 import { GradientFill } from './gradient-fill';
 import { HostBandLayer, HostChipFace, useHostBand } from './host-band';
 import { hostInitial, HostTile, presetAvatarSvg } from './host-tile';
@@ -265,8 +267,9 @@ export function HostLookEditor({
   };
 
   return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: theme.color.base }}
+    <KeyboardFormScroll
+      nestedScrollEnabled
+      style={{ flex: 1 }}
       keyboardShouldPersistTaps="handled"
       contentContainerStyle={{ gap: space.x6, padding: space.x5 }}
     >
@@ -452,6 +455,6 @@ export function HostLookEditor({
           actions.onChange(DEFAULT_HOST_LOOK);
         }}
       />
-    </ScrollView>
+    </KeyboardFormScroll>
   );
 }

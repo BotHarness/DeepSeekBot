@@ -1,3 +1,4 @@
+import { PanelEmptyState } from '../../../client/src/client/ds/empty-state.js';
 import { border, color, radius, space, text } from '../../../client/src/client/ds/tokens.stylex.js';
 import {
   RemoteViewer,
@@ -486,11 +487,7 @@ export function createComputerEntry(
   return function ComputerEntryWithLocale(props: ChannelSidebarEntryProps): ReactElement {
     const { computerAccess } = useBotInfo(props.botSlug);
     if (computerAccess === false)
-      return (
-        <div className="bh-computer-access-off" style={noteStyle}>
-          {t('entry.access.description')}
-        </div>
-      );
+      return <PanelEmptyState icon="monitor">{t('entry.access.description')}</PanelEmptyState>;
     return <ComputerEntry {...props} t={t} />;
   };
 }

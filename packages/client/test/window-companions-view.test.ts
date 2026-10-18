@@ -5,7 +5,7 @@ import { expect, it, vi } from 'vitest';
 import { WindowCompanions } from '../src/client/window-companions.js';
 import { WindowCompanionsView, CompanionSettings } from '../src/client/window-companions-view.js';
 import { zhTranslate } from '../src/client/locale.js';
-import { GroupChannelHeader } from '../src/client/group-channel-header.js';
+import { CompanionPin } from '../src/client/window-companions-view.js';
 import { CompanionSound } from '../src/client/companion-sound.js';
 import { companionPosition } from './companion-position.js';
 
@@ -119,26 +119,15 @@ it('pins independently, exposes right-click controls and applies global bounded 
         createElement(
           'div',
           {},
-          createElement(GroupChannelHeader, {
-            companion: owner,
-            channel: {
-              id: 'qa-group',
-              type: 'group',
-              name: 'QA',
-              members: ['ada', 'grace'],
-              createdAt: '2026-10-08T00:00:00Z',
-              updatedAt: '2026-10-08T00:00:00Z',
-            },
-            title: 'QA',
-            members: [
-              { personaBotId: 'ada', name: 'Ada' },
-              { personaBotId: 'grace', name: 'Grace' },
-            ],
-            expanded: false,
-            onOpenActivity() {},
-            onToggleProfile() {},
-            t: zhTranslate,
-          }),
+          ...['ada', 'grace'].map((botId) =>
+            createElement(CompanionPin, {
+              key: botId,
+              companion: owner,
+              botId,
+              name: botId === 'ada' ? 'Ada' : 'Grace',
+              t: zhTranslate,
+            }),
+          ),
           createElement(WindowCompanionsView, {
             companion: owner,
             openDm() {},

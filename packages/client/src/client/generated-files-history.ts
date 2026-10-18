@@ -2,7 +2,7 @@ import type { ChannelAttachmentRef, ChannelMessage } from './store.js';
 
 export type GeneratedFile = { messageId: string; ref: ChannelAttachmentRef };
 
-export function createGeneratedFilesHistory(botSlug: string) {
+export function createGeneratedFilesHistory() {
   const entries = new Map<string, { at: string; files: GeneratedFile[] }>();
   const liveIds = new Set<string>();
   const purgedIds = new Set<string>();
@@ -13,13 +13,7 @@ export function createGeneratedFilesHistory(botSlug: string) {
         if (source === 'live') liveIds.add(message.id);
         if (message.contentPurged) purgedIds.add(message.id);
         entries.delete(message.id);
-        if (
-          purgedIds.has(message.id) ||
-          message.author.kind !== 'bot' ||
-          message.author.slug !== botSlug ||
-          !message.attachments?.length
-        )
-          continue;
+        if (purgedIds.has(message.id) || !message.attachments?.length) continue;
         entries.set(message.id, {
           at: message.at,
           files: message.attachments.map((ref) => ({ messageId: message.id, ref })),

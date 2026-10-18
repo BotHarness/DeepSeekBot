@@ -1021,6 +1021,9 @@ it('drags inside the shell, lands on the floor without opening DM, persists keyb
     expect(surface.dataset['motion']).toBe('drag');
     await act(() => {
       pointer('pointerup', 400, 400);
+    });
+    await act(() => vi.advanceTimersByTimeAsync(50));
+    await act(() => {
       character.click();
     });
     expect(Number.parseFloat(companionPosition(surface).bottom)).toBe(lifted);
@@ -1118,7 +1121,10 @@ it('drags inside the shell, lands on the floor without opening DM, persists keyb
     expect(companionPosition(surface).bottom).toBe('0px');
     await act(() => vi.runOnlyPendingTimers());
     delete document.documentElement.dataset['botharnessMotion'];
-    await act(() => character.click());
+    await act(() => {
+      character.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      character.click();
+    });
     expect(openDm).toHaveBeenCalledExactlyOnceWith('ada');
     await act(() => {
       owner.configure({ activity: false });

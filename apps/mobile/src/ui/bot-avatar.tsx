@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
+import { Image as CachedImage } from 'expo-image';
 import { Image, View } from 'react-native';
-import { SvgXml } from 'react-native-svg';
 
 import { avatarSvg } from '../../../../packages/core/src/bots/avatar-appearance';
 import { resolvedAvatarRecipe } from '../../../../packages/core/src/bots/primary-color';
@@ -58,7 +58,12 @@ export function BotAvatar({
             style={{ width: size, height: size }}
           />
         ) : svg !== undefined ? (
-          <SvgXml xml={svg} width={size} height={size} />
+          <CachedImage
+            source={{ uri: `data:image/svg+xml;base64,${btoa(svg)}` }}
+            cachePolicy="memory"
+            contentFit="contain"
+            style={{ width: size, height: size }}
+          />
         ) : null}
       </View>
     </View>

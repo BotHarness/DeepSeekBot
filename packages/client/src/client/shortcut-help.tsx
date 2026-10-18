@@ -1,3 +1,5 @@
+import type { Shortcuts } from '@deepseek-ai/dsh-client-shortcuts/client';
+import { useMountedResource } from './mounted-resource.js';
 import {
   Fragment,
   useState,
@@ -136,6 +138,7 @@ const SEND_KEY_COMBOS: Readonly<
   Record<BotModeSendKey, { send: readonly ShortcutKey[]; newline: readonly ShortcutKey[] }>
 > = {
   enter: { send: ['Enter'], newline: ['Shift', 'Enter'] },
+  'shift-enter': { send: ['Shift', 'Enter'], newline: ['Enter'] },
   'mod-enter': { send: ['Mod', 'Enter'], newline: ['Enter'] },
 };
 
@@ -262,17 +265,45 @@ export function ShortcutHelpList({
   t,
   apple = isApplePlatform(),
   sendKey = 'enter',
+  query = '',
+  nativeShortcuts,
   shortcutBindings,
 }: {
   t: BotHarnessTranslate;
   apple?: boolean;
   sendKey?: BotModeSendKey;
+  query?: string;
+  nativeShortcuts?: Pick<Shortcuts, 'recording'>;
   shortcutBindings?: ShortcutBindings | undefined;
 }): ReactElement {
   const source = shortcutBindings ?? staticBindings;
   useSyncExternalStore(source.subscribe, source.getSnapshot, source.getSnapshot);
   const [recording, setRecording] = useState<string | undefined>(undefined);
   const [status, setStatus] = useState<RowStatus | undefined>(undefined);
+  const [nativeReady, setNativeReady] = useState(false);
+  const [nativeError, setNativeError] = useState(false);
+  const recordingMount = useMountedResource<HTMLSpanElement>(() => {
+    if (!recording || !nativeShortcuts) return;
+    let active = true;
+    setNativeReady(false);
+    setNativeError(false);
+    void nativeShortcuts
+      .recording(true)
+      .then(() => {
+        if (active) setNativeReady(true);
+      })
+      .catch(() => {
+        if (active) {
+          setNativeError(true);
+          setRecording(undefined);
+        }
+      });
+    return () => {
+      active = false;
+      void nativeShortcuts.recording(false).catch(() => {});
+    };
+  }, [recording, nativeShortcuts]);
+
   const record = (
     event: KeyboardEvent<HTMLButtonElement>,
     entry: ShortcutHelpEntry,
@@ -281,6 +312,7 @@ export function ShortcutHelpList({
     if (shortcutBindings === undefined || event.nativeEvent.isComposing) return;
     event.preventDefault();
     event.stopPropagation();
+    if (nativeShortcuts && !nativeReady) return;
     if (isModifierOnly(event)) return;
     if (
       event.key === 'Escape' &&
@@ -316,99 +348,118 @@ export function ShortcutHelpList({
   };
   return (
     <>
-      {SHORTCUT_HELP_GROUPS.map((group) => (
-        <section
-          key={group.id}
-          aria-labelledby={`bh-shortcuts-${group.id}`}
-          {...stylex.props(styles.group)}
-        >
-          <h3 id={`bh-shortcuts-${group.id}`} {...stylex.props(styles.heading)}>
-            {t(group.title)}
-          </h3>
-          <dl {...stylex.props(styles.list)}>
-            {group.entries.map((entry) => {
-              const action = shortcutBindings === undefined ? undefined : entry.action;
-              const rowStatus = status?.id === entry.id ? status : undefined;
-              return (
-                <div key={entry.id} data-shortcut={entry.id} {...stylex.props(styles.row)}>
-                  <dt {...stylex.props(styles.label)}>
-                    <span>{t(entry.label)}</span>
-                    {entry.note === undefined ? null : (
-                      <span {...stylex.props(styles.note)}>{t(entry.note)}</span>
-                    )}
-                    {rowStatus === undefined ? null : rowStatus.kind === 'problem' ? (
-                      <span role="alert" {...stylex.props(styles.problem)}>
-                        {rowStatus.text}
-                      </span>
-                    ) : (
-                      <span role="status" {...stylex.props(styles.saved)}>
-                        {t('shortcuts.saved')}
-                      </span>
-                    )}
-                  </dt>
-                  <dd {...stylex.props(styles.keys)}>
-                    {recording === entry.id
-                      ? null
-                      : shortcutEntryKeys(entry, sendKey, shortcutBindings).map((combo, index) => (
-                          <Fragment key={combo.join('+')}>
-                            {index > 0 ? <span>{t('shortcuts.or')}</span> : null}
-                            <KeyCombo keys={combo} apple={apple} />
-                          </Fragment>
-                        ))}
-                    {shortcutBindings === undefined ? null : action === undefined ? (
-                      <Tooltip label={t(lockedReason(entry))} side="top" align="end" portal>
-                        <IconButton
-                          size="inline"
-                          tone="subtle"
-                          aria-label={t('shortcuts.change.label', { action: t(entry.label) })}
-                          aria-disabled
-                          data-shortcut-locked=""
-                          xstyle={styles.locked}
-                          onClick={(event) => event.preventDefault()}
-                        >
-                          <IconEditOutlineRegular size={14} />
-                        </IconButton>
-                      </Tooltip>
-                    ) : recording === entry.id ? (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        autoFocus
-                        data-shortcut-recorder=""
-                        onKeyDown={(event) => record(event, entry, action)}
-                        onBlur={() => setRecording(undefined)}
-                        onClick={() => setRecording(undefined)}
-                      >
-                        {t('shortcuts.recording')}
-                      </Button>
-                    ) : (
-                      <>
-                        {shortcutBindings.isCustom(action) ? (
-                          <Button size="sm" variant="ghost" onClick={() => reset(entry, action)}>
-                            {t('shortcuts.reset')}
-                          </Button>
-                        ) : null}
-                        <Tooltip label={t('shortcuts.change')} side="top" align="end" portal>
+      <span ref={recordingMount} hidden />
+      {nativeError ? <p role="alert">{t('settings.shortcuts.saveFailed')}</p> : null}
+      {SHORTCUT_HELP_GROUPS.map((group) => ({
+        ...group,
+        entries: group.entries.filter((entry) =>
+          [
+            t(group.title),
+            t(entry.label),
+            entry.note ? t(entry.note) : '',
+            ...shortcutEntryKeys(entry, sendKey, shortcutBindings).flat(),
+          ]
+            .join(' ')
+            .toLocaleLowerCase()
+            .includes(query.trim().toLocaleLowerCase()),
+        ),
+      }))
+        .filter((group) => group.entries.length)
+        .map((group) => (
+          <section
+            key={group.id}
+            aria-labelledby={`bh-shortcuts-${group.id}`}
+            {...stylex.props(styles.group)}
+          >
+            <h3 id={`bh-shortcuts-${group.id}`} {...stylex.props(styles.heading)}>
+              {t(group.title)}
+            </h3>
+            <dl {...stylex.props(styles.list)}>
+              {group.entries.map((entry) => {
+                const action = shortcutBindings === undefined ? undefined : entry.action;
+                const rowStatus = status?.id === entry.id ? status : undefined;
+                return (
+                  <div key={entry.id} data-shortcut={entry.id} {...stylex.props(styles.row)}>
+                    <dt {...stylex.props(styles.label)}>
+                      <span>{t(entry.label)}</span>
+                      {entry.note === undefined ? null : (
+                        <span {...stylex.props(styles.note)}>{t(entry.note)}</span>
+                      )}
+                      {rowStatus === undefined ? null : rowStatus.kind === 'problem' ? (
+                        <span role="alert" {...stylex.props(styles.problem)}>
+                          {rowStatus.text}
+                        </span>
+                      ) : (
+                        <span role="status" {...stylex.props(styles.saved)}>
+                          {t('shortcuts.saved')}
+                        </span>
+                      )}
+                    </dt>
+                    <dd {...stylex.props(styles.keys)}>
+                      {recording === entry.id
+                        ? null
+                        : shortcutEntryKeys(entry, sendKey, shortcutBindings).map(
+                            (combo, index) => (
+                              <Fragment key={combo.join('+')}>
+                                {index > 0 ? <span>{t('shortcuts.or')}</span> : null}
+                                <KeyCombo keys={combo} apple={apple} />
+                              </Fragment>
+                            ),
+                          )}
+                      {shortcutBindings === undefined ? null : action === undefined ? (
+                        <Tooltip label={t(lockedReason(entry))} side="top" align="end" portal>
                           <IconButton
                             size="inline"
+                            tone="subtle"
                             aria-label={t('shortcuts.change.label', { action: t(entry.label) })}
-                            onClick={() => {
-                              setStatus(undefined);
-                              setRecording(entry.id);
-                            }}
+                            aria-disabled
+                            data-shortcut-locked=""
+                            xstyle={styles.locked}
+                            onClick={(event) => event.preventDefault()}
                           >
                             <IconEditOutlineRegular size={14} />
                           </IconButton>
                         </Tooltip>
-                      </>
-                    )}
-                  </dd>
-                </div>
-              );
-            })}
-          </dl>
-        </section>
-      ))}
+                      ) : recording === entry.id ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          autoFocus
+                          data-shortcut-recorder=""
+                          onKeyDown={(event) => record(event, entry, action)}
+                          onBlur={() => setRecording(undefined)}
+                          onClick={() => setRecording(undefined)}
+                        >
+                          {t('shortcuts.recording')}
+                        </Button>
+                      ) : (
+                        <>
+                          {shortcutBindings.isCustom(action) ? (
+                            <Button size="sm" variant="ghost" onClick={() => reset(entry, action)}>
+                              {t('shortcuts.reset')}
+                            </Button>
+                          ) : null}
+                          <Tooltip label={t('shortcuts.change')} side="top" align="end" portal>
+                            <IconButton
+                              size="inline"
+                              aria-label={t('shortcuts.change.label', { action: t(entry.label) })}
+                              onClick={() => {
+                                setStatus(undefined);
+                                setRecording(entry.id);
+                              }}
+                            >
+                              <IconEditOutlineRegular size={14} />
+                            </IconButton>
+                          </Tooltip>
+                        </>
+                      )}
+                    </dd>
+                  </div>
+                );
+              })}
+            </dl>
+          </section>
+        ))}
     </>
   );
 }

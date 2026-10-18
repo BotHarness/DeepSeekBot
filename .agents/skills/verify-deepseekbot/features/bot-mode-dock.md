@@ -1,35 +1,122 @@
-# Bot mode dock (desktop layout)
+# Bot mode workspace and dock
 
-On a desktop-width window (961px and wider), Bot mode lays out the Channel body and the Channel sidebar entries as Dock panels. The Bot mode App Sidebar occupies the native-sized column outside the dock; see [bot-mode.md](bot-mode.md). Narrower windows keep the overlay Channel sidebar.
+At 961px and wider on a qualified rc.2 Web/macOS shell, the workspace contains a full-height control rail, independent Channel list, one closable Messages panel and Dock panels. Unsupported shells and Windows captions keep the legacy sidebar/dock fallback.
 
 ## Sub-features
 
-- `default-layout` opens the Channel body with Sessions above Bot Inbox on the right. Other panels start closed.
-- `panels-menu` lists every registered panel from the `Panels` button, reopens a closed one where it was, and has `Reset layout`.
-- `dock-panels-service` lets another plugin `inject(['dockPanels'])` and `register({ id, title, icon, scope, defaultPosition, order, component })`. A `global` panel keeps its content and place when the active Channel changes; a `channel` panel receives the active Channel. `open`, `close`, `toggle`, `isOpen` and `openPanels` drive the mounted layout.
-- `pinned-cards` toggles any panel from its card in the Bot mode sidebar; `activity-center` is a built-in `global` panel opened from the first card.
-- `close` closes any panel except the Channel body.
-- `drag-split` drags a panel by its header to split beside another panel or the layout edge. A drop on a panel's center is refused, so panels never become tabs.
-- `persist` saves the layout to `localStorage` key `botharness.bot-mode-layout` (versioned dockview serialization) and restores it on reload.
-- `narrow` falls back to the overlay sidebar below 961px and returns to the dock when widened.
+- `workspace-shell`: native sidebar allocation is released only in Bot mode and restored on exit, narrow layout or disposal.
+- `control-rail`: exactly one nonclosable full-height rail; move left/right/between root columns using its grip/menu. No half-height, tabs or floating placement.
+- `channel-list`: global panel retains Roster selection and actions; close/reopen remembers its neighbor.
+- `shortcuts`: native sidebar command toggles the Channel list while active, and resumes native behavior after exit. DSH keyboard settings customize each panel command; verify a changed binding after reload, then reset it in the isolated profile.
+- `spacing`: continuous 0–16px slider, default 4px; original dark background, slightly lighter panels, small round corners and a smaller header/body gap.
+- `persist`: version 3 of `botharness.bot-mode-layout` holds proportional geometry, parked panels, gap, switch order and member split preferences; v1/v2 migrate without discarding custom layout.
+- `messages`: close/reopen and refresh preserve visibility; group header opens Members as an internal resizable split, absent in DMs.
+- `switch-order`: drag switches or use Alt+Up/Down; order survives refresh.
+- `live-content`: moving rail/panels or dragging the companion preserves mounted content and unsent drafts.
+- `empty-states`: Sessions, Inbox, Channels search, files, schedules, group work and Messages use a centered panel icon above their description; loading/errors stay distinct. Workspace content has 2px on each side, with no doubled native-sidebar inset. Check empty → populated and window resizing.
+- `global-panels`: Activity Center opens before or after selecting a Channel. Channel-scoped panels without a Channel show an empty state.
+- `macos-chrome`: only the traffic-light corner gets clearance; other panels start at the top. Move the rail to every column and verify native window dragging, fullscreen and restored native layout.
+- `fallback`: below 961px retain the responsive UI without overwriting the saved workspace.
 
 ## How to get to it (user POV)
 
-- Enter Bot mode in a window at least 961px wide and open any Channel.
-- Use the `Panels` button at the top right of the Channel body, or the close button in each panel header.
+Enter Bot mode. Use the rail’s panel switches, grip menu, bottom settings control and top DSB exit control. Drag Channel headers to rearrange panels. Bot Settings → Appearance → Workspace layout contains the continuous spacing slider and Reset layout. The grip retains its original icon/button styling above Settings, hidden until hover or keyboard focus. Channels header owns Search, list options and Create; expanded Search aligns both edges with Channel row backgrounds without clipping, including narrow panels; the windowed macOS top-left header retains its traffic-light clearance; the body does not repeat the Messages heading. Workspace panel headers have no close buttons: use rail switches. Right-click a Bot DM, verify the menu tracks viewport pointer coordinates and opens the full profile detail view directly; repeat with Messages closed and verify it reopens and activates with the requested Bot. The header’s View profile opens the same detail view without a popover or profile-card pin controls; Back/Escape returns to chat. Chinese shows 频道列表 and 查看资料.
 
 ## Driving it with verify-app
 
-Preconditions: a fresh instance that passes `doctor`.
+Launch a task-owned rc.2 Host and run doctor. Seed one Bot DM and one Group Channel so Alt+1/2 can exercise distinct Channels. Then run:
 
-- **Default layout.** Run `node scripts/verify-app.mjs shot dock --name <n> --bot-mode`. The ARIA file has `region "Bot mode layout"`, `button "Panels"`, `button "Close Sessions"` and `button "Close Bot Inbox"`, and no close button for the Channel body.
-- **Close and reopen.** Add `--click "Close Bot Inbox" --click Panels --click "Bot Inbox"`. Bot Inbox is back below Sessions.
-- **Narrow.** `shot` captures at 1440px. From a Puppeteer script, `page.setViewport({ width: 900, height: 800 })` after Bot mode loads: the ARIA tree has no `region "Bot mode layout"` and the old sidebar toggle is back. Widen again and the dock returns.
-- **Plugin panel.** In the page, after Bot mode loads, register a test panel through the Client context the way a plugin does, then open it from `Panels`. The panel's title is in the menu and its header has `Close <title>`. Switch Channels: a `global` panel stays put.
-- **Canonical state.** The layout is browser state, not Host state: read `localStorage.getItem('botharness.bot-mode-layout')` from the page. `version` is `1` and `layout.panels` lists the open panels.
+```sh
+BH_E2E_INSTANCE=.humanlayer/verify/<name>/instance.json node scripts/e2e-panel-workspace.mjs
+```
+
+The script enters Bot mode, presses the sidebar shortcut, moves the rail right and between columns, drags Channels (Web), changes gap to 0/16/12, reorders rail switches with a visible insertion line and dimmed dragged switch (including a drop after the last switch), closes and reopens Channels and Messages, opens Activity Center, refreshes, verifies proportional resizing (Web), crosses the narrow threshold and exits. It checks visible geometry, canonical localStorage and restored native sidebar width, and saves screenshots, results and page errors in a unique attempt directory.
+
+For native macOS, install the task Bundle into a separate rc.2 Desktop Profile and connect with `BH_DESKTOP_CDP=http://127.0.0.1:<task-debug-port>` using the same command. This uses the existing `dsh-app:` page; never navigate the native window to a Web URL or fake `data-platform`. Desktop diagnostics availability differs from the Web verification launcher, so native proof uses actual UI, geometry and localStorage. Keep the task Desktop foreground: rc.2 deliberately ignores native shortcuts from an unfocused app. Desktop defaults to ⌘B; macOS Web uses ⌘⌥B. Customized bindings, traffic-light hit targets, fullscreen and window dragging need supplemental native checks. A Web group fixture must open Members from the Messages header, resize the inner split, then reload and verify the saved ratio. Drag the visible Window Companion and confirm the existing message DOM stays connected. rc.2 has no sidebar-toggle menu item; do not claim a nonexistent menu path.
 
 ## Gotchas
 
-- `shot` has no drag action. Drag and drop uses HTML5 drag events, which plain `page.mouse` moves in headless Chromium never fire. Drive drags from a Puppeteer script with `page.setDragInterception(true)`, then `page.mouse.drag(from, to)`, `dragEnter`, `dragOver` and `drop` at a point near the target's edge.
-- A drop near the top of a panel header resolves to a split on the layout edge, not a tab. That is expected.
-- The layout is one per browser, not per Channel. In a group Channel, the DM panels (Sessions, Bot Inbox) stay open and show `Nothing to show for this Channel.`, and Members starts closed.
+- A successful layout command unit test is not proof of native shortcut dispatch. Preserve native failures separately from Web evidence.
+- Select the visible `.bh-workspace-rail` when querying pinned cards: the fallback sidebar remains mounted but hidden.
+- The slider and its SettingsRow share an accessible name; target the slider role/input rather than the group.
+- Human feedback is required after this slice before extending the full panel matrix. Windows and Linux Desktop are not qualified by macOS evidence.
+- Legacy `scripts/e2e-bot-mode-sidebar.mjs` tests the old fallback surface. Use the workspace journey for the qualified wide-shell path.
+
+- When reordering rail switches, check both themes: the blue insertion line tracks the upper/lower half and gaps, clears on leaving or cancelling, and never toggles a Panel. Alt+Up/Down remains available; refresh preserves the resulting order.
+
+- `channel-switch-stability`: Alt+1/2 and roster clicks change the active Channel without replacing the control rail, Channel list or Activity Center DOM. Channel-specific transient search/menu/profile state resets; per-Channel drafts stay separate. Test loading → ready and repeated store updates as well as switching back.
+
+
+- `settings-navigation`: the rail gear opens Bot Settings. Search its sidebar for “spacing” / “间距” from General, select the result, and verify Appearance scrolls to the highlighted slider. Search results must only reference registered pages. Repeat at 600px using the same search above the page picker; no horizontal overflow.
+- `settings-preferences`: Appearance owns the DSH-native Light/Dark/System preference and language, plus motion, Bot icon and layout. Change theme/language and reload to verify native persistence. Messaging owns default name, Enter/Shift+Enter/Ctrl-or-Command+Enter send behavior, and IM defaults; it no longer repeats Channel sorting. Notifications has its own page. Browser/Computer navigation is 浏览器控制/电脑控制 in Chinese.
+- `settings-shortcuts`: open Keyboard shortcuts, filter Panel and conversation commands, edit a Panel binding, reload and verify its keycaps and dispatch, then reset. Conflicts/reserved keys and failed saves must retain the accepted binding. Bot help shortcut opens this page without a second modal. Native recorder interception still requires actual Desktop qualification.
+- `settings-tour`: General → Onboarding tutorial → Show me around starts driver.js over the Control Rail, Channels, Messages, workspace resizing and additional Panels. Hidden Channels/Messages use their visible rail switches as targets. Finishing or cancelling returns control; narrow layout retains its original tutorial.
+
+- `panel-visibility-menus`: right-click the Control Rail (or Shift+F10 while focused). Each row has the Panel icon, label and trailing checked/unchecked box. Hiding a global Panel removes its switch and closes its Panel without replacing Messages; refresh preserves the hidden choice. Checking it again restores only the switch; click it to reopen the Panel. Right-click a Panel header → Close removes the Panel but retains its switch. Escape cancels either menu. Hover a switch to see its name and native shortcut keycaps outside the rail; edit the binding in Keyboard shortcuts and confirm both the tooltip and actual dispatch update. Reset layout restores all default switches.
+
+- `pointer-menu-position`: the workspace script measures Panel-header and Channel-row menus at 100% / 125% CSS zoom (within one rendered pixel), then right/bottom edge clamping and Escape dismissal. Native Desktop positioning is separately qualified. Every Control Rail Panel is opened in turn: verify its header menu at normal scale, Escape focus restoration, Shift+F10 anchoring, and Close removing only that Panel while keeping its switch and parked layout position. Other Panel headers must stay mounted. All pointer menus share `ds/PointerMenu`; feature code must not correct coordinates locally.
+
+- `scrollbar-activity`: scroll Messages and another overflow area independently. The active thumb appears immediately, begins fading after 800ms and is hidden by 1000ms; hover alone does not reveal it. Verify no content-width shift, a second scroll cancels the previous fade, reduced motion skips interpolation, and native dragging still works. Check light/dark and leave Bot mode to verify cleanup. The workspace journey asserts numeric thumb visibility and DOM identity.
+
+For headless scrollbar evidence, launch Puppeteer with `ignoreDefaultArgs: ['--hide-scrollbars']`: its default flag suppresses painted native thumbs and native dragging even when computed thumb colors look correct. Compare actual scrolling/idle screenshots as well as computed alpha and geometry.
+
+- `unified-sessions`: Sessions lives inside Messages; its switch is in the Messages header, and its existing command remains in shortcut settings. DM shows its Bot; Group defaults to Current channel. Select a named member Bot without changing Messages or its draft; switch back and open the same Assignment Session. Refresh retains the per-Channel selection; removing the selected member clears it. Historical Channel assignments still show their original Bot. The Channel query cap is 200 and does not claim unlimited history.
+- `sessions-migration`: inspect v1/v2 layouts with Work only, Sessions only, both and neither open. Keep Sessions geometry when present, otherwise replace Work in place; closed panels remain closed. Confirm parked neighbors, hidden switches and order survive and the pre-v3 backup is present. Migrate Work custom shortcuts only when Sessions has no override and no conflict. Check explicit unbinding, conflicting commands and failed persistence; the notice leads to Keyboard shortcuts. Work's old command must be absent from settings and its default must not fire. The dormant native override is intentionally retained for rollback.
+
+The unified Sessions journey uses `scripts/e2e-channel-sessions.mjs` with `BH_E2E_INSTANCE` and a task-owned `BH_SESSION_SCENE` JSON containing existing Group/Bot identifiers. It reads existing canonical assignments; prepare a real Assignment through a Group model request first. The native supplement `scripts/e2e-channel-sessions-desktop.mjs` connects only to the task's existing `dsh-app:` window and checks native key dispatch. It never treats mocked data or Web platform emulation as native evidence.
+
+Default-following Sessions headers omit a redundant scope label. Group scope choices live in the existing view-options menu; only an explicit member-Bot override shows `Bot · name` in the header.
+
+The rc.2 native navigator clears archived Sessions. If the real Orchestrator auto-archives the completed QA Assignment, use the existing explicit Restore action in Bot scope first, then assert the same native `session/follow` identity and report from both scopes. This is not evidence that direct archived navigation works.
+- `channel-files`: select a DM, then open Channel files from the Messages header. It is a transient inner split, not a Dock panel or rail switch. Verify Human and Bot attachments, older history, preview and Reference/Unreference with a preserved draft. Repeat in a Group with files from multiple authors, without selecting a Bot; switch between Members and Channel files and resize the shared divider. Closing the list stops history loading. Switch Channels and verify the list closes and reopens with only that Channel's files. At a narrow width or in the legacy shell, the chat header opens the same list in a dismissible dialog. Check empty, retry and purged-file states; restoring a saved layout with the old `generated-files` panel must remove that panel without discarding other panel geometry.
+
+- `channel-files-compact`: the file list body has zero padding and each row owns its content inset. File name/size and icon actions share one row when space permits; narrow the inner split until the whole action group wraps to a second row, still aligned to the trailing edge. Verify Reference/Unreference accessible names and selected state, image preview, download, keyboard focus and both themes.
+
+
+- `bot-inbox-header`: select a PersonaBot DM and open Bot Inbox from the Messages header. The transient inner split has no outer body padding and preserves grouping, count, source navigation and pagination. It is the selected Bot's complete Inbox, including admitted Group/system sources. Verify empty/loading/error-retry states, preserved composer drafts, files/Inbox exclusivity, old `bot-inbox` layout pruning and the existing Inbox shortcut reopening Messages. Selecting a Group removes the entry and closes the split. Narrow Web opens the same Inbox in a dismissible dialog. Activity Center repair fallback requests the Inbox view of that Bot directly. Cross-check a real DM reply with the matching canonical Bot Inbox Admission; no Group Inbox is introduced.
+
+- `channel-header-profile`: the desktop Messages header reads Messages → Channel name using a Lucide ChevronRight; long names truncate with a full title. Profile and Channel settings are direct trailing icon buttons, with settings last. No floating profile chip remains over the conversation. Verify DM and Group profile opening and Back/Escape, files/Inbox/Members, keyboard focus, narrow panel layout, both themes and unsent drafts. Open Channel settings → My nickname; Enter/blur saves only this Channel, Restore default clears it, failure keeps the draft and shows an error. Reload and cross-check the canonical Channel nickname. DM activity visibility is available in the settings navigation; narrow/legacy Web retains its existing header.
+
+
+## Channel workspace Sessions slice (#2049)
+
+Prepare the Web browser profile with the pre-v4 UI and a visible Sessions panel, then upgrade the task Bundle. Set `BH_BROWSER_PROFILE` to that same isolated browser directory, `BH_E2E_INSTANCE` to the verified Host manifest and `BH_SESSION_SCENE` to existing test Channel/Bot identifiers. Optionally set `BH_LEGACY_LAYOUT` to the original v3 JSON captured from that old UI to replay the migration on the same isolated profile. Run `scripts/e2e-channel-sessions.mjs`; it reads real existing Assignments without sending a model request. The native supplement `scripts/e2e-channel-sessions-desktop.mjs` also requires `BH_DESKTOP_MAIN_CDP` for Electron input dispatch and `BH_SCREENSHOT_DIR`. Never attach to another task's window.
+
+- `channel-session-workspace`: Sessions leaves the outer layout and Control Rail. Messages owns its localized switch, shortcut tooltip and a header context menu for switch visibility (icon, label and checkbox; no separate management button). Hide the Sessions switch from that menu and verify both switch and child disappear, refresh, then recover it from the same menu. Keyboard ContextMenu/Shift+F10 must reach the same menu. Move Sessions to all four sides, drag its header through an indicated target, resize, then refresh. The same message/composer/session nodes survive rearrangement. Side and proportions are independent per stable Channel ID. A header context menu provides keyboard-accessible placement and Close.
+- `channel-session-shortcut`: close Messages, invoke the existing Sessions shortcut, and observe both parent and child. Invoke again to close only the child, then reopen. Customize the binding in Keyboard shortcuts, reload and verify dispatch and tooltip. Explicit unbinding and Work binding precedence/conflicts remain covered by existing shortcut regression tests.
+- `channel-session-migration`: v1/v2 first normalize Work, then v3/v4 migration moves only Sessions. Inspect the original `.before-channel-workspace-v4` backup, unrelated geometry, closed/missing Messages, unknown registrations and explicit hidden switches. Existing per-Channel state wins over the lazy seed. Failed writes keep the original recoverable record. Pure migration and mounted-layout tests cover closed parents and storage failure; do not substitute those for the real Web upgrade.
+- `channel-session-scope`: DM and Group retain separate open states and geometry. Group remains on its existing Assignment query; explicit member-Bot scope must not enable Memory files, Memory evolution, Schedules, Browser, Computer or Bot Profile controls. Opening or closing Sessions changes no Host execution or permission. No-Channel commands are unavailable.
+
+The former flat Sessions scripts are retained only as historical evidence; the new scripts are the maintained entry points. The first slice does not move all other panels, qualify Windows/Linux Desktop, or claim improvements to Browser/Computer empty states. Review captures before publication: test prompts can include local authorization identifiers and must be cropped out.
+
+
+## Bot Memory and Schedules workspace (#2067)
+
+- `bot-channel-subpanels`: capture a real v4 layout with Memory files, Memory evolution and Schedules open in a task-owned Bot DM before upgrading. Run `scripts/e2e-bot-subpanels.mjs` with `BH_E2E_INSTANCE`, `BH_BROWSER_PROFILE` and `BH_LEGACY_LAYOUT` pointing to that saved JSON. The prepared profile has two disposable Bot DMs named Sessions QA Ada/Bob and a Group named Sessions QA Group. The journey restores only the captured local layout as its migration precondition; it sends no model request and never edits Memory or schedules. Verify the v5 raw backup, absence from the outer rail, real existing file/evolution content or scoped empty states, simultaneous child layout, stable nodes through resizing, refresh after selecting the same Bot, separate states for two Bots, Group exclusion, and right-click/keyboard recovery of hidden header switches. No selection-persistence claim is implied.
+- `bot-channel-shortcuts`: verify Primary+Alt+Shift+6 / E / 9 individually: closed parent restores parent plus requested child; visible parent toggles only that child. Customize Memory files, reload and inspect effective binding, then restore the default. Native supplement `scripts/e2e-channel-sessions-desktop.mjs` now also drives all three child commands through Electron input on the task-owned macOS window and checks persistence after reload. Command identities/config authority are unchanged; regression coverage retains native null/custom handling.
+
+The v5 migration passes v1–v4 through the existing owner and preserves earlier Sessions state, unknown plugins, hidden switches, closed parents and unrelated geometry. Each child has a fixed content container and splits the remaining message area; moves use its four sides. Browser/Computer migration remains outside this slice. Keep first failed runs and report which layer failed; screenshots must omit private Memory or local authorization IDs.
+
+## Browser and Computer subpanels (#2069)
+
+Capture an actual v5 layout with both outer panels open, then run `scripts/e2e-browser-computer-subpanels.mjs` using the same task-owned profile and `BH_LEGACY_LAYOUT`. It verifies the v6 raw backup, stable inner nodes during pointer drag and resize, per-Bot state and refresh, Group exclusion, right-click visibility and default/custom Browser/Computer shortcuts. Disabled access must show centered icons/descriptions; verify no access/start/stop request results from layout actions. Preserve existing v5 Memory/Schedules state. The native supplement also checks Browser B / Computer 0 using actual macOS input and verifies actual MEMORY.md rows rather than assuming SOUL.md exists. Opening a panel never authorizes enabling tools; off-state UI checks do not qualify remote execution.
+
+## Panel dimensions across visibility changes (#2071)
+
+Run `scripts/e2e-panel-size-persistence.mjs` against the same disposable two-Bot Web profile with `BH_E2E_INSTANCE` and `BH_BROWSER_PROFILE`. Drag the outer Channel sash, cycle Channels and Messages, refresh while closed and reopen. Compare actual widths/heights (2px tolerance) rather than only stored flags. Resize and cycle Sessions and all Bot subpanels and their parent; verify each ratio survives and the parent's geometry stays stable. Resize the Activity vertical split, repeat three times and refresh while closed. Keep failed runs and before/after measurements. Global saved dimensions use rendered proportions, converted to pre-gap allocations when restoring; old records without sizes keep their placement fallback.
+
+Dockview 8.4.1's `setSize` expects a pre-gap allocation while its rendered group dimensions and serialized sizes exclude the split margin. Restore adds `gap × (sibling count − 1) / sibling count` on each affected axis, derived from the reopened tree. Without this conversion every reopen loses pixels.
+
+Sequential closes preserve the pre-close geometry of surviving panels too, so temporary expansion cannot replace the user's dimensions. Active-panel resize or move clears these retained snapshots; closed-panel preferences stay intact. The journey also closes both global panels, refreshes, restores them in sequence, and changes viewport size while Activity is closed.
+
+## Continuous resize and fixed Channel placement (#2074)
+
+Run `scripts/e2e-panel-resize-stability.mjs` against the task-owned Web instance with `BH_E2E_INSTANCE` and `BH_BROWSER_PROFILE`, or an authorized native rc.2 window with `BH_DESKTOP_CDP`. Prepare a Bot DM with Memory files and Memory evolution switches available. The script opens both, holds the outer sash through eight pointer positions and samples five stationary frames each time; the sash must stay within 3px of the requested position. A screenshot only after releasing the pointer cannot prove this behavior. It also asserts that each visible subpanel's axis matches its saved direction even below 520px, and that saved ratios/visibility are untouched.
+
+Dockview 8.4.1 calls its shell layout when **any** options change; new theme or dndEdges objects on a size-driven React render can restore cached proportions during an active drag. Keep both identities stable until their actual values change. Channel subpanels have no width-based axis fallback: only an explicit placement action changes sides. Retain failed probes, inspect screenshots and page errors, and rerun the dimensions-across-visibility journey after changing this path.
+
+## Nested Channel splits and narrow headers (#2076)
+
+Run `scripts/e2e-nested-channel-panels.mjs` with the task-owned Web profile (`BH_E2E_INSTANCE`, `BH_BROWSER_PROFILE`) or authorized native window (`BH_DESKTOP_CDP`, `BH_DESKTOP_MAIN_CDP`). It verifies the v7 backup, drags Memory evolution below Memory files using native HTML drag data, captures the target preview, resizes the nested row, cycles visibility, restores Messages through the existing shortcut, refreshes, and verifies fixed placement and usable narrow headers. Web additionally switches to the Group and back. Keep failed runs. Never enable Browser/Computer access as part of layout QA.
+
+The maintained continuous-resize journey now compares every visible tree branch axis and the persisted tree, replacing the legacy fixed-wrapper selectors. Channel split geometry is version-7 tree authority; the older per-child ratio field is only a migration seed.

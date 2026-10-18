@@ -181,6 +181,18 @@ export class ChannelDraftTracker {
     match.attempt.calls.delete(match.draftId);
   }
 
+  discard(sessionId: string, channelId: string): void {
+    const run = this.#runs.get(sessionId);
+    if (!run) return;
+    for (const [attemptId, attempt] of run.attempts) {
+      for (const [draftId, call] of attempt.calls) {
+        if (call.published?.channelId !== channelId) continue;
+        this.#publish({ type: 'abandoned', channelId, draftId, attemptId, reason: 'interrupted' });
+        attempt.calls.delete(draftId);
+      }
+    }
+  }
+
   end(sessionId: string): void {
     const run = this.#runs.get(sessionId);
     if (run === undefined) return;

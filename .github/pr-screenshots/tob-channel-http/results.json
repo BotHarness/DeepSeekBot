@@ -1,0 +1,40 @@
+{
+  "mobileRuntime": "5d2ef0fe8a13654a75779ea0320394b13c00764c",
+  "nativeRuntime": "494a20f1eb4f0666a2c90bc3c758af4e7ff5f46b",
+  "serviceRuntime": "b26150224a60808d89daf7e9cd8863faf26ed75f",
+  "uatOnly": true,
+  "nativeRebuilt": false,
+  "organizationCounts": {
+    "a": 3,
+    "b": 1
+  },
+  "channelCounts": {
+    "aSelectedWorkspace": 4,
+    "bSelectedWorkspace": 0
+  },
+  "mobileCliExactMessages": 7,
+  "maximumKeyboardGeometry": {
+    "sendButtonBottom": 521,
+    "predictionBarTop": 529,
+    "passed": true
+  },
+  "coldRestart": true,
+  "sessionRefresh": true,
+  "phoneSessionRevoked": true,
+  "latestPhoneRefreshRejected": true,
+  "localPhoneSessionRemoved": true,
+  "independentCliAAndBUsable": true,
+  "originalAppearanceRestored": "light",
+  "originalContentSizeRestored": "large",
+  "unverified": [
+    "Android native",
+    "physical phone",
+    "Human visual QA",
+    "new Hosted AuthKit login",
+    "WebSocket",
+    "invitations",
+    "Agent credentials",
+    "cross-Host communication",
+    "history grants and membership rejoin"
+  ]
+}

@@ -1,20 +1,29 @@
+import { StatusBar } from 'expo-status-bar';
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
 import type { ComponentProps } from 'react';
 import { Platform, View } from 'react-native';
 
-import { actionCount } from '../../src/host/inbox';
-import { useHostSession, useInbox } from '../../src/host/host-session';
+import { useActivityCount } from '../../src/host/native-activity-count';
+import { badgeCount } from '../../src/ui/primitives/badge-count';
 import { useDesignTheme, type DesignTheme } from '../../src/ui/design/theme';
-import { HostDrawer } from '../../src/ui/shell/host-drawer';
+import { ScrollChromeProvider, useChromeHidden } from '../../src/ui/shell/scroll-chrome';
 import { t } from '../../src/ui/strings';
 
 export default function TabsLayout() {
+  return (
+    <ScrollChromeProvider>
+      <NativeTabLayout />
+    </ScrollChromeProvider>
+  );
+}
+
+function NativeTabLayout() {
   const theme = useDesignTheme();
-  const { inbox } = useHostSession();
-  const pending = actionCount(useInbox(inbox));
+  const pending = useActivityCount().count ?? 0;
+  const hidden = useChromeHidden();
   return (
     <View style={{ flex: 1 }}>
-      <NativeTabs {...chrome(theme)}>
+      <NativeTabs {...chrome(theme)} hidden={hidden}>
         <NativeTabs.Trigger name="(home)">
           <NativeTabs.Trigger.Icon
             sf={{
@@ -25,18 +34,22 @@ export default function TabsLayout() {
           />
           <NativeTabs.Trigger.Label>{t.chats}</NativeTabs.Trigger.Label>
         </NativeTabs.Trigger>
-        <NativeTabs.Trigger name="(activity)">
+        <NativeTabs.Trigger
+          name="(activity)"
+          unstable_nativeProps={{
+            onDidAppear: () => StatusBar.setStyle(theme.scheme === 'dark' ? 'light' : 'dark'),
+          }}
+        >
           <NativeTabs.Trigger.Icon
             sf={{ default: 'bell', selected: 'bell.fill' }}
             md="notifications"
           />
           <NativeTabs.Trigger.Label>{t.activity}</NativeTabs.Trigger.Label>
           {pending > 0 ? (
-            <NativeTabs.Trigger.Badge>{String(pending)}</NativeTabs.Trigger.Badge>
+            <NativeTabs.Trigger.Badge>{badgeCount(pending)}</NativeTabs.Trigger.Badge>
           ) : null}
         </NativeTabs.Trigger>
       </NativeTabs>
-      <HostDrawer />
     </View>
   );
 }

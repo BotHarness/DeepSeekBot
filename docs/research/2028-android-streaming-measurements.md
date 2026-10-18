@@ -1,0 +1,78 @@
+# Android streaming measurements for #2028
+
+Measured 2026-10-17 on the shared Android 16 arm64 phone, physical 120 Hz display, Expo 57 / React Native 0.86.3 native development client. These are diagnostic measurements, not a 120 FPS qualification or release-build benchmark.
+
+## Matched-input comparison
+
+Six runs alternated A, B, B, A, A, B. Every run restarted the app and Metro, opened a separately prepared QA DM with one historical Human message, waited three seconds and received one 21,492-character reply from the fixed local provider through the real Host. The provider emitted 281 argument chunks on a 32 ms absolute clock, approximately 8.96 seconds in each run. It allowed one reply per armed run; autonomous follow-ups returned `Done`. The roster was held constant during these six runs. Battery temperature was approximately 34°C.
+
+A used mobile commit `e0f08b5010203d15d12e358a25cc391125993f52`, before draft subscription/buffering and the Android renderer change. B used the subsequent buffered Android text renderer, plus an experimental Android `freezeOnBlur` option. That option did not prevent background Home renders and was removed afterwards; therefore B is an intermediate experiment, not an exact final-head benchmark. Both variants used the same installed native client and development-mode JS. Hermes/React profiling was active.
+
+| Run | ChatConversation renders | MessageBubble renders | React render time, ms | Native sampled-frame completion p95, ms | Longest JS-probe interval, ms |
+| --- | -----------------------: | --------------------: | --------------------: | --------------------------------------: | ----------------------------: |
+| A4  |                       31 |                    19 |               6,395.5 |                                   175.0 |                       1,882.1 |
+| B4  |                       12 |                    19 |              12,438.1 |                                    33.6 |                       4,820.0 |
+| B5  |                       12 |                    19 |              12,697.0 |                                    35.1 |                       4,845.4 |
+| A5  |                       31 |                    19 |               6,386.4 |                                   179.3 |                       1,884.0 |
+| A6  |                       30 |                    19 |               6,737.5 |                                   178.9 |                       1,916.3 |
+| B6  |                       12 |                    19 |              12,888.2 |                                    45.2 |                       5,671.2 |
+
+React render time is the profiler's accumulated commit render duration, not wall-clock response latency. Native completion is `FrameCompleted - IntendedVsync` from deduplicated `gfxinfo framestats` entries, including the device's flag-32 samples (283–309 entries per run). It is not compositor presentation FPS. `DisplayPresentTime` was zero, and the device's dynamic frame deadlines were not a fixed 8.33 ms budget. The script attempted a continuous drag; its actual scroll progression was not independently qualified, so these numbers must not be presented as sustained scroll FPS. The existing JS probe assumes a 60 Hz reference and cannot qualify 120 Hz.
+
+The results show fewer parent invalidations and better sampled native p95, but substantially more React work and multi-second JS stalls. The new synchronous renderer fixes the visible disappearance at the cost of mounting many nodes in a huge bubble, especially at draft settlement. Do not report this as an overall performance win. Visibility and performance need separate acceptance.
+
+## Historical-row correction
+
+The unchanged 19 MessageBubble renders exposed a second invalidation: every roster status update recreated the display-name lookup callback. The final implementation derives that callback only from Bot IDs/names, retaining it for status-only updates while rebuilding it on renames or a different Host's names. A regression test drives a memoized historical consumer through those transitions.
+
+A focused native follow-up with the same 21,492-character fixture recorded **0 MessageBubble rerenders / 2 mounts**, while the live draft rendered 13 times. This run started without the historical seed and after the QA roster was cleaned up, so it is evidence for eliminating the callback invalidation, not a matched overall-speed comparison. Total React work and a roughly 4.8-second JS-probe stall remained. Group speaker/appearance updates and background Home subscription work remain separate optimization targets.
+
+## Remaining qualification
+
+- Keep the passing native text-visibility cases in [the buffering investigation](2028-native-streaming-buffer.md).
+- Reduce long-bubble node/mount and settlement costs without changing Markdown semantics or hiding previously shown content.
+- Verify actual scroll displacement before measuring its frame cadence; collect real compositor presentation timestamps or a native trace, without CPU/React profiling overhead.
+- Run matched production/profile builds and use the actual 120 Hz frame budget. Production JS inside a native debug client is a diagnostic step, not a release-build substitute.
+- Investigate keyboard timing separately using [the Telegram source findings](2028-telegram-android-keyboard-motion.md); neither the attempted translation mode nor blur freezing materially changed the slow keyboard-event span.
+
+Raw profiles, frame samples, canonical replies and recordings stay in this task's ignored evidence directory. The fixed replay and narrow visibility checker are committed under `apps/mobile/scripts/`; their setup and limits are documented in [stream-replay.md](../../apps/mobile/scripts/stream-replay.md).
+
+## Human QA follow-up: overlay defaults and rejected fade-only playback
+
+The Human accepted content-first sheet dragging and requested a reusable frame, consistent header/body/handle colours and a softer incremental prose reveal. `SheetScreen`/`sheetScreenOptions` now serve Settings, Bot/group profiles and Host appearance. The default surface is `theme.overlay.fill` (the canonical sheet colour), the grabber is `theme.overlay.handle` (38% foreground tint), and grouped contents use raised fill. Android keeps its native scroll/dismiss coordination; iOS keeps the system grabber.
+
+This intermediate, subsequently rejected prose tail used one shared UI-thread clock and at most 48 grapheme spans, fading text-colour alpha over 180ms with up to 72ms stagger. Older text becomes a plain stable prefix; burst overflow settled immediately. The 80ms source batching did not wait for paragraph boundaries. This exposed network-chunk cadence, and commitment still bypassed the presentation backlog. The Human rejected its reading rhythm; the reserved playback below supersedes that policy. Reduced Motion bypasses the reveal; Complete bubbles retains committed-message semantics.
+
+Native findings:
+
+- The installed Hermes reports `typeof Intl.Segmenter === 'undefined'`. The initial direct constructor prevented chat routes loading; the failure and observation were retained privately. `unicode-segmenter@0.17.3` is JavaScript-only and supplies grapheme segmentation without a global polyfill. Its primary [README](https://github.com/cometkim/unicode-segmenter/tree/v0.17.3) documents Hermes compatibility.
+- Opacity-only nested spans (`f19`) and opacity plus a layout commit (`f21`) did not visibly establish a gradual reveal. Colour-alpha animation (`f22`) shows intermediate glyph intensities in consecutive native frames while the older prefix stays readable. A zero `top` style keeps nested-text updates on the Fabric commit path; it does not displace text. This follows the native nested-text constraint described in the upstream [Reanimated discussion](https://github.com/software-mansion/react-native-reanimated/discussions/6570), then verified in this installed client.
+- `f17` and `f18` were Complete bubbles runs and are excluded from streaming evidence. The setting was selected through native UI before the final Streaming runs. The `gentle` fixture contains 112 UTF-16 characters and uses 3-grapheme tool-argument chunks every 100ms, not slowed video playback.
+- `f23` intermediate fade-only fast prose: 21,492 UTF-16 characters through the real Host; 180/180 sampled frames retain the bubble, zero nearly blank frames (5–11 seconds). This is a visibility regression check, not 120 FPS.
+- Native profile and Settings journeys retain their content-first bounds (286→286 and 377→377) and handle-drag close after extraction. Their screenshots show continuous handle/header/body fill.
+- Local mobile suite: 486 passed / 8 skipped; root typecheck passed. CI for the earlier code head does not qualify this follow-up until rerun.
+
+The raw recordings retain original speed and canonical replies. Public frame provenance is in `.github/pr-screenshots/2028-android-presentation/followup/README.md`. [Reanimated supported properties](https://docs.swmansion.com/react-native-reanimated/docs/guides/supported-properties/) and [React Native nested Text](https://reactnative.dev/docs/text) describe the underlying interfaces, but do not substitute for native visibility or frame-time measurements. Large-bubble mount/settlement costs and keyboard timing remain unresolved.
+
+## Reserved playback and history-reading follow-up
+
+The Human rejected chunk-sized fades and subsequently accepted the direction of the reserved, clock-driven native playback (`f27`), requesting speed and ending polish. This is direction approval, not final long-response or frame-rate acceptance. Received body, displayed grapheme cursor and authoritative committed body are now separate. A conversation-level owner retains the draft row key across commitment and drains the remainder; it does not flush when the Host finishes. Punctuation pauses shrink with high queue-driven rates, consecutive newlines share a pause, and the established rate survives source close. Tick credit and release size remain bounded after delayed callbacks. Complete bubbles and opened history do not use this playback queue.
+
+The Android fade is a decoration on that paced prefix. Slow appends retain individual grapheme spans; faster same-frame appends share up to eight new fade spans to bound React/Reanimated mounts. At most 48 active spans remain, with older contents in a stable plain prefix. Grouping never cuts an emoji or combining cluster. Reduced Motion skips this decoration. Code and tables follow the cursor without per-glyph decoration.
+
+Native findings and limits:
+
+- The 306-grapheme `rhythm` article traverses the real Host with 800/600ms additional provider gaps. `f39` records 91 bounded playback samples, from cursor 0 / received 128 through cursor 306 / pending 0 / complete, over approximately 9.5 seconds of observed playback. Its original-speed video shows continued progression after commitment. This is one diagnostic run, not a frame-rate benchmark.
+- In the latest article run, a 681ms interval with received count fixed at 150 still advanced the cursor from 58 to 81; its draining target stayed approximately 135 graphemes/s.
+- A prior probe (`f26`) established 607ms with unchanged received count while the cursor advanced 12 graphemes. Source close had then braked approximately 143→42 graphemes/s; the regression now holds the pre-close rate (`f28`: approximately 148 throughout draining). This rate is the controller target, not measured glyphs per wall-clock second or FPS.
+- A punctuation-rich 21,492-character pure-clock replay originally required approximately 151 seconds; rate-aware pauses reduce that model result to approximately 29 seconds. The native development app still incurs substantial render/layout overhead: `f30` and `f31` had not finished their 21,492-character presentation at 100 seconds (cursors 8,114 and 10,975). They must not be reported as successful long-response latency or 120 FPS qualification. The fresh native paths below separate history anchoring from that unresolved throughput cost.
+- The Human then reported visible jank and history being pulled by a growing bubble. A drag now synchronously holds visual playback while transport and commitment continue. A completed return gesture or explicit jump resumes it; a near-bottom layout callback cannot rearm following. In `f34`, cursor 1,056 remained unchanged through commitment of all 21,492 characters. After inertia settled, the historical cell anchor remained 1,041.538 points for 3.394 seconds; the raw scroll offset changed with the removed working header, so raw offset equality would have been an incorrect oracle. Clicking the native jump button returned offset to zero and advanced the cursor to 1,484.
+- Exploratory profiler windows also found covered Chats rendering 16 times / 288 ConversationRow renders. Focus-gating its roster and Inbox view subscriptions reduced a later window to one focus-transition render / 19 rows. Windows and observer overhead differ and are not a three-run matched performance comparison. Covered conversation screens also retain their Host-view snapshot. Shared Host/Inbox transport continues; visible views catch up synchronously, and a different Host starts from its own snapshot.
+- Fresh-app `f40` renders 120 code lines and 40 table rows through the real Host, reaches cursor/received 4,374 and complete approximately 14.1 seconds after the first playback sample, and retains the exact canonical 4,504-UTF16-character reply. The older checker window at 5–11 seconds has no nearly blank frames but only 145/180 occupied frames during startup and correctly fails its occupancy criterion; the qualified 8–14-second active window has 180/180 occupied frames and zero nearly blank frames.
+- The private driver initially mistook inertia and native header compensation for reading-position failure (`f32`/`f33`); failures and observation were retained. Its final criterion waits for inertia and compares the same cell anchor, together with held playback cursor and actual video. A later capture used the wrong task ADB context (`f35`), and another did not establish ready state (`f36`); these are excluded. A diagnostic observer's bounded tree search was exhausted by accumulated QA navigation screens (`f37`/`f38`), so their videos alone do not provide queue measurements. Fresh-app runs reset the navigation stack.
+
+Pure-clock and subscription regressions cover reserve depletion during a temporary gap, bounded releases, punctuation, grapheme-safe corrections, committed draining, per-Bot bubble order, retained history, background cleanup, drag ownership and focus catch-up/Host isolation. These checks do not prove native compositor cadence. Release/profile-build measurements, the 120Hz budget, long-bubble layout costs, keyboard timing and iOS native checks remain outstanding.
+
+Latest local checks: 498 mobile tests passed / 8 skipped; root typecheck, lint, formatting, change fragments and feature-map checks passed. Native `f41` checks Complete bubbles with a real canonical reply, force-stops/reopens the development app, verifies the persisted Complete selection through Settings and restores Streaming. CI for the earlier 2648266 code head does not qualify this follow-up.
+
+Final-code native history replay `f42` repeats the gesture proof: cursor 1,258 and the 1,321.538-point cell anchor both stay fixed after inertia, while the canonical reply commits; explicit jump resumes to cursor 1,762 at the bottom. The task retains a symbolicated cold-start warning from Expo Router `useLinking.native.js`; no LogBox suppression or SDK patch is included.

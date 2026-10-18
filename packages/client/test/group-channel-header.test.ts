@@ -12,7 +12,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   IconPinOutlineRegular: () => null,
 }));
 import { GroupChannelHeader } from '../src/client/group-channel-header.js';
-import { GroupProfilePopover } from '../src/client/group-profile.js';
+import { GroupProfileView } from '../src/client/group-profile.js';
 import { EMPTY_PROFILE_CARDS } from '../src/client/profile-cards.js';
 import { PersonaBotFacepile, type PersonaBotFacepileItem } from '../src/client/avatar.js';
 import type { ChannelSummary } from '../src/client/store.js';
@@ -69,17 +69,16 @@ it('keeps the custom Group identity alongside live member avatars and an empty G
   expect(empty).toContain('data-channel-mark=""');
   expect(empty).not.toContain('bh-avatar-facepile-button');
 });
-it('shows at most three active-first member chips and overflow in the existing Group Profile popover', () => {
+it('shows at most three active-first member chips and overflow in the Group Profile detail view', () => {
   const html = renderToStaticMarkup(
-    createElement(GroupProfilePopover, {
+    createElement(GroupProfileView, {
       channel,
       members,
       activity: undefined,
       cards: EMPTY_PROFILE_CARDS,
-      pinned: [],
       botNames: new Map(),
       t: zhTranslate,
-      onExpand: noop,
+      onClose: noop,
     }),
   );
   expect(html).toContain('实时活动');
@@ -92,7 +91,9 @@ it('shows at most three active-first member chips and overflow in the existing G
   expect(html).toContain('正在工作');
   expect(html).toContain('正在思考');
   expect(html).toContain('空闲');
-  expect(html).toContain('bh-profile-expand');
+  expect(html).toContain('bh-profile-view');
+  expect(html).not.toContain('bh-profile-pin');
+  expect(html).not.toContain('bh-profile-popover');
 });
 
 it('keeps active late members visible before idle ones and caps even a larger requested max', () => {
@@ -125,15 +126,14 @@ it('keeps active late members visible before idle ones and caps even a larger re
 it('uses the same bounded active-first preview for chips when working members follow idle ones', () => {
   const ordered = [members[2]!, members[3]!, members[0]!, members[1]!];
   const html = renderToStaticMarkup(
-    createElement(GroupProfilePopover, {
+    createElement(GroupProfileView, {
       channel,
       members: ordered,
       activity: undefined,
       cards: EMPTY_PROFILE_CARDS,
-      pinned: [],
       botNames: new Map(),
       t: zhTranslate,
-      onExpand: noop,
+      onClose: noop,
     }),
   );
   expect(html.match(/data-bot-id=/gu)).toHaveLength(3);

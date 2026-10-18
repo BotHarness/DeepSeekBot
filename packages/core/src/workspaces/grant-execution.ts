@@ -153,6 +153,7 @@ const BOT_TOOL_NAMES = new Set([
   'bridge_read',
   'bridge_share',
   'bridge_reply',
+  'cloud_work',
   'bridge_context',
   'bridge_group_policy_list',
   'bridge_group_policy_set',

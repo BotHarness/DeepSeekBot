@@ -85,14 +85,15 @@ export function ChannelSettingsDialog({
     setExpanded: noop,
     setExpandable: noop,
   };
-  const title =
-    scope === 'personabot'
-      ? t('channelSettings.titleBot', { name: channel.name })
-      : t('channelSettings.titleGroup', { name: channel.name });
   const bot =
     scope === 'personabot'
       ? state.bots.find((candidate) => candidate.slug === context.botSlug)
       : undefined;
+  const channelName = bot?.displayName ?? channel.name;
+  const title =
+    scope === 'personabot'
+      ? t('channelSettings.titleBot', { name: channelName })
+      : t('channelSettings.titleGroup', { name: channelName });
   const caption = (
     <div className="bh-channel-settings-caption" aria-label={title}>
       <span className="bh-channel-settings-caption-avatar" aria-hidden="true">
@@ -100,7 +101,7 @@ export function ChannelSettingsDialog({
           <PersonaBotAvatar
             t={t}
             personaBotId={context.botSlug ?? channel.id}
-            name={channel.name}
+            name={channelName}
             src={bot?.avatar}
             appearance={bot?.appearance}
             avatarSeed={bot?.avatarSeed}
@@ -115,8 +116,8 @@ export function ChannelSettingsDialog({
         )}
       </span>
       <span className="bh-channel-settings-caption-text">
-        <span className="bh-channel-settings-caption-title" title={channel.name}>
-          {channel.name}
+        <span className="bh-channel-settings-caption-title" title={channelName}>
+          {channelName}
         </span>
         <span className="bh-channel-settings-caption-kind">
           {scope === 'personabot'
@@ -149,7 +150,7 @@ export function ChannelSettingsDialog({
       }}
       className="bh-root bh-channel-settings"
     >
-      <Section {...entryProps} />
+      <Section key={`${channel.id}:${active.id}`} {...entryProps} />
     </SettingsDialog>
   );
 }

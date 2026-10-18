@@ -1,9 +1,14 @@
+import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
   BUNDLE_ID,
   DEVICE_NAME,
   derivedDataFolder,
   missingTools,
+  nativeFingerprint,
   parseArgs,
   pickSimulator,
   pushPayload,
@@ -12,6 +17,33 @@ import {
 } from '../e2e-mobile-sim.mjs';
 
 describe('iOS Simulator phone journey', () => {
+  it('invalidates the cached native app when its displayed version changes', async () => {
+    const project = mkdtempSync(join(tmpdir(), 'mobile-fingerprint-'));
+    try {
+      writeFileSync(
+        join(project, 'package.json'),
+        JSON.stringify({ name: 'fingerprint-test', version: '1.0.0' }),
+      );
+      symlinkSync(
+        fileURLToPath(new URL('../../apps/mobile/node_modules', import.meta.url)),
+        join(project, 'node_modules'),
+        'dir',
+      );
+      const config = (version) =>
+        writeFileSync(
+          join(project, 'app.json'),
+          JSON.stringify({ expo: { name: 'Fingerprint test', slug: 'fingerprint-test', version } }),
+        );
+      config('1.0.0');
+      const original = await nativeFingerprint(project);
+      expect(await nativeFingerprint(project)).toBe(original);
+      config('1.0.1');
+      expect(await nativeFingerprint(project)).not.toBe(original);
+    } finally {
+      rmSync(project, { recursive: true, force: true });
+    }
+  }, 30_000);
+
   it('reads its flags', () => {
     expect(parseArgs([])).toEqual({
       app: undefined,

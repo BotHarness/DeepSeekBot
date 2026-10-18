@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import type { View } from 'react-native';
+import type { ViewInstance } from 'react-native';
 
 import {
   errorText,
@@ -44,7 +44,7 @@ export function useComposerContext(settings: BotSettings | undefined) {
   const grants = useLoadable(settings?.loadGrants);
   const access = useLoadable(settings?.loadAccess);
   const templates = useLoadable(settings?.loadTemplates);
-  const mount = useMounted<View>(() => {
+  const mount = useMounted<ViewInstance>(() => {
     model.reset();
     grants.reset();
     return () => {

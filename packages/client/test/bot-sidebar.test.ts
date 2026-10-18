@@ -10,7 +10,19 @@ const captured = vi.hoisted(() => ({
     items: readonly Record<string, unknown>[];
     selectedId?: string | undefined;
     onSelect?: (id: string) => void;
+    point?: { x: number; y: number };
   }>,
+}));
+
+vi.mock('../src/client/ds/pointer-menu.js', () => ({
+  PointerMenu: (props: {
+    point: { x: number; y: number };
+    items: readonly Record<string, unknown>[];
+    onSelect?: (id: string) => void;
+  }) => {
+    captured.menus.push({ ...props, open: true });
+    return null;
+  },
 }));
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
@@ -114,6 +126,8 @@ const NO_INSTALL = { installable: false, install: { phase: 'idle' as const } };
 
 function stubActions(): BridgeActions {
   return {
+    tobHome: vi.fn(),
+    sendHome: vi.fn(),
     channelHistory: vi.fn(),
     channelHistorySources: vi.fn(),
     channelPurgePreview: vi.fn(),
@@ -250,8 +264,7 @@ function stubActions(): BridgeActions {
     refreshBotInbox: vi.fn(async () => undefined),
     openActivityCenter: vi.fn(async () => undefined),
     attachActivityCenterPanel: vi.fn(() => () => undefined),
-    refreshOverview: vi.fn(async () => undefined),
-    humanActionPage: vi.fn(async () => ({ items: [] })),
+    activityPage: vi.fn(),
     openHumanInbox: vi.fn(async () => undefined),
     refreshHumanInboxStatus: vi.fn(async () => undefined),
     refreshHumanInbox: vi.fn(async () => undefined),
@@ -287,6 +300,7 @@ function stubActions(): BridgeActions {
     applyChannelTail: vi.fn(),
     dismissFailedMessage: vi.fn(() => false),
     openSession: vi.fn(() => undefined),
+    readSessions: vi.fn(async () => []),
     refreshSessions: vi.fn(async () => undefined),
     setSessionArchived: vi.fn(async () => undefined),
     messageAttachmentTarget: vi.fn(async () => ({
@@ -504,6 +518,7 @@ function stubActions(): BridgeActions {
     moveToFlat: vi.fn(async () => true),
     ensureChannelPins: vi.fn(async () => true),
     ensureFlatTopOrder: vi.fn(async () => true),
+    averageReplyPerf: vi.fn(async () => undefined),
   };
 }
 
@@ -1549,6 +1564,26 @@ describe('bot sidebar rows', () => {
     expect(markup).toContain('空分组');
     expect(markup).not.toContain('bh-empty-drop');
     expect(markup).not.toContain('bh-drop-scope');
+  });
+
+  it('anchors a Channel menu at viewport coordinates and exposes localized profile navigation', () => {
+    const profileAction = vi.fn();
+    renderToStaticMarkup(
+      createElement(ChannelMoveMenu, {
+        menu: { channelId: DM_CHANNEL.id, x: 140, y: 180 },
+        sections: [],
+        currentSectionId: undefined,
+        t: zhTranslate,
+        profileAction,
+        onPick: vi.fn(),
+        onClose: vi.fn(),
+      }),
+    );
+    const menu = captured.menus.at(-1)!;
+    expect(menu.point).toMatchObject({ x: 140, y: 180 });
+    expect(menu.items[0]).toMatchObject({ id: 'profile', label: '查看资料' });
+    menu.onSelect?.('profile');
+    expect(profileAction).toHaveBeenCalledOnce();
   });
 
   it('renders the 移动到 menu from every section plus 未分组 and maps picks to scopes', () => {

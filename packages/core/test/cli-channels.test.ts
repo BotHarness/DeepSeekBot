@@ -78,6 +78,130 @@ const ok = (method: string, args: Record<string, unknown>) => ({
 });
 
 describe('Channel and group CLI commands', () => {
+  it('reads group snapshots and forwards stable create and invite identity without changing unkeyed calls', async () => {
+    const live = await host(ok);
+    expect((await invoke(['channel', 'team'], live.url)).json).toMatchObject({
+      method: 'channelGet',
+      args: { channelId: 'team' },
+    });
+    expect((await invoke(['group-create', 'Empty team'], live.url)).code).toBe(0);
+    expect(live.calls.at(-1)).toEqual({
+      method: 'channelCreate',
+      args: { name: 'Empty team', members: [] },
+    });
+    expect(
+      (
+        await invoke(
+          [
+            'group-create',
+            'Team',
+            '--member',
+            'ada',
+            '--member',
+            'bob',
+            '--operation-key',
+            'team-create-1',
+          ],
+          live.url,
+        )
+      ).code,
+    ).toBe(0);
+    expect(live.calls.at(-1)).toEqual({
+      method: 'channelCreate',
+      args: { name: 'Team', members: ['ada', 'bob'], operationKey: 'team-create-1' },
+    });
+    expect(
+      (
+        await invoke(
+          [
+            'group-invite',
+            'team',
+            '--bot',
+            'ada',
+            '--operation-key',
+            'team-invite-1',
+            '--expected-channel',
+            'fingerprint',
+          ],
+          live.url,
+        )
+      ).code,
+    ).toBe(0);
+    expect(live.calls.at(-1)).toEqual({
+      method: 'channelGroupInvite',
+      args: {
+        channelId: 'team',
+        botSlug: 'ada',
+        operationKey: 'team-invite-1',
+        expectedChannel: 'fingerprint',
+      },
+    });
+    expect((await invoke(['group-invite', 'team', '--bot', 'ada'], live.url)).code).toBe(0);
+    expect(live.calls.at(-1)).toEqual({
+      method: 'channelGroupInvite',
+      args: { channelId: 'team', botSlug: 'ada' },
+    });
+  });
+
+  it('rejects invalid operation identity before connecting and preserves owner refusal codes', async () => {
+    const live = await host(() => ({
+      ok: false,
+      error: { code: 'stale-channel', message: 'Channel changed' },
+    }));
+    for (const argv of [
+      ['group-create', 'Team', '--operation-key', 'short'],
+      ['group-invite', 'team', '--bot', 'ada', '--operation-key', 'bad key value'],
+      ['group-invite', 'team', '--bot', 'ada', '--expected-channel', ''],
+    ])
+      expect((await invoke(argv, live.url)).json.error.code).toBe('usage');
+    expect(live.calls).toEqual([]);
+    const refused = await invoke(
+      ['group-invite', 'team', '--bot', 'ada', '--expected-channel', 'old'],
+      live.url,
+    );
+    expect(refused.code).not.toBe(0);
+    expect(refused.json.error.code).toBe('stale-channel');
+  });
+
+  it('forwards optional observed fingerprints on Human Group changes and preserves unguarded compatibility', async () => {
+    const live = await host(ok);
+    const expectedChannel = 'b'.repeat(64);
+    const commands = [
+      ['channel-rename', 'team', '--name', 'New name'],
+      ['group-avatar-set', 'team', '--clear'],
+      ['group-wake-set', 'team', '--bot', 'ada', '--mode', 'mentions'],
+      ['group-wake-set', 'team', '--bot', 'ada', '--inherit'],
+      ['group-member-remove', 'team', '--bot', 'ada'],
+      ['group-invite-cancel', 'team', '--invitation', 'invite-1'],
+      ['group-join-decide', 'team', '--request', 'request-1', '--accept'],
+      ['group-join-decide', 'team', '--request', 'request-2', '--decline'],
+    ];
+    for (const argv of commands) {
+      expect((await invoke(argv, live.url)).code).toBe(0);
+      const original = live.calls.at(-1)!;
+      expect((await invoke([...argv, '--expected-channel', expectedChannel], live.url)).code).toBe(
+        0,
+      );
+      expect(live.calls.at(-1)).toEqual({
+        ...original,
+        args: { ...original.args, expectedChannel },
+      });
+    }
+    const count = live.calls.length;
+    for (const argv of commands) {
+      for (const invalid of ['', 'old', 'A'.repeat(64)])
+        expect(
+          (await invoke([...argv, '--expected-channel', invalid], live.url)).json.error.code,
+        ).toBe('usage');
+    }
+    for (const command of ['group-wake-policies', 'channel', 'group-delete'])
+      expect(
+        (await invoke([command, 'team', '--expected-channel', expectedChannel], live.url)).json
+          .error.code,
+      ).toBe('usage');
+    expect(live.calls).toHaveLength(count);
+  });
+
   it('downloads exact original bytes with owner authorization without overwriting an existing file', async () => {
     const bytes = Buffer.from('name,quantity\nalpha,17\n');
     const live = await host(ok, { status: 200, body: bytes });
@@ -389,4 +513,19 @@ describe('Channel and group CLI commands', () => {
       message: 'Ada is not working right now',
     });
   });
+});
+
+it('reads and explicitly toggles Group send review through the live CLI', async () => {
+  const live = await host(ok);
+  for (const args of [[], ['--accept'], ['--off']]) {
+    expect((await invoke(['group-send-review', 'group', ...args], live.url)).code).toBe(0);
+  }
+  expect(live.calls.map((call) => call.args)).toEqual([
+    { channelId: 'group' },
+    { channelId: 'group', enabled: true },
+    { channelId: 'group', enabled: false },
+  ]);
+  expect(
+    (await invoke(['group-send-review', 'group', '--accept', '--off'], live.url)).code,
+  ).not.toBe(0);
 });

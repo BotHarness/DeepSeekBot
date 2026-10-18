@@ -1,5 +1,7 @@
 import { afterEach, expect, it, vi } from 'vitest';
 
+const disk = vi.hoisted(() => ({ value: undefined as string | undefined, fail: false }));
+
 const native = vi.hoisted(() => ({
   physical: true,
   platform: 'ios',
@@ -35,15 +37,29 @@ vi.mock('../src/telemetry/posthog-sender', () => ({ createPostHogSender: () => w
 vi.mock('expo-file-system', () => ({
   Paths: { document: 'test' },
   File: class {
-    exists = false;
-    create() {
-      this.exists = true;
+    get exists() {
+      return disk.value !== undefined;
     }
-    write() {}
+    create() {
+      disk.value = '';
+    }
+    async text() {
+      return disk.value;
+    }
+    writeSync(value: string) {
+      if (disk.fail) throw new Error('disk unavailable');
+      disk.value = value;
+    }
+    async write(value: string) {
+      await Promise.resolve();
+      this.writeSync(value);
+    }
   },
 }));
 
 afterEach(() => {
+  disk.value = undefined;
+  disk.fail = false;
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
   vi.clearAllMocks();
@@ -94,3 +110,23 @@ it.each([
     }
   },
 );
+
+it('restores a saved opt-out and reports a failed preference write without enabling collection', async () => {
+  vi.stubGlobal('__DEV__', true);
+  disk.value = JSON.stringify({ version: 1, enabled: false, noticeSeen: true });
+  const { mobileTelemetry } = await import('../src/telemetry/native');
+  try {
+    await mobileTelemetry.ready;
+    expect(mobileTelemetry.getSnapshot()).toMatchObject({ enabled: false, noticeOpen: false });
+    disk.fail = true;
+    expect(await mobileTelemetry.setEnabled(true)).toBe(false);
+    expect(mobileTelemetry.getSnapshot()).toMatchObject({ enabled: false, storageError: true });
+    expect(JSON.parse(disk.value)).toMatchObject({ enabled: false });
+    expect(wire.send).not.toHaveBeenCalled();
+    disk.fail = false;
+    expect(await mobileTelemetry.setEnabled(true)).toBe(true);
+    expect(JSON.parse(disk.value)).toMatchObject({ enabled: true });
+  } finally {
+    mobileTelemetry.dispose();
+  }
+});

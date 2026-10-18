@@ -31,7 +31,7 @@ const items = (count: number) =>
 
 const ready = (action: number): InboxSnapshot => ({
   status: 'ready',
-  sections: { action: items(action), replies: [], handled: [] },
+  sections: { action: items(action), replies: [], unread: [], handled: [] },
 });
 
 const connection = (status: ConnectionState['status']) =>
@@ -145,6 +145,7 @@ describe('Host drawer', () => {
 
   it('covers about 85% of the screen', () => {
     expect(drawerWidth(390)).toBe(332);
+    expect(drawerWidth(900)).toBe(360);
   });
 });
 

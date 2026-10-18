@@ -186,7 +186,7 @@ function ids(rest: string[]): string[] {
   return rest.map((id) => id.trim()).filter((id) => id.length > 0);
 }
 
-async function profileCall(
+export async function profileCall(
   command: string,
   rest: string[],
   values: ProfileValues,

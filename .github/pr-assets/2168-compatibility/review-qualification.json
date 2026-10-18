@@ -1,0 +1,274 @@
+{
+  "runtimeSource": "7f94eefc2c1d0a89da62896679b3950e32a2cd3d",
+  "date": "2026-10-18",
+  "artifacts": [
+    {
+      "name": "@botharness/core",
+      "version": "1.4.0",
+      "filename": "botharness-core-1.4.0.tgz",
+      "integrity": "sha512-afUX7y1KDGSFWdIymYB+/mJh+IyDrXGetxZ2AbLpPoG/sEvk1JJR5HBpT8w5vZoLMcjJ/fgqzjSwmUTJylZzHA=="
+    },
+    {
+      "name": "@botharness/ui",
+      "version": "1.4.0",
+      "filename": "botharness-ui-1.4.0.tgz",
+      "integrity": "sha512-X3GCX70lpDYheohrtmI7Coe5tn3ZGL39ULobi2pkqUqT3UgNYIZ/KHQxJNXGyujRL/3+o0KnOWkMzMI9CC4KLg=="
+    },
+    {
+      "name": "@botharness/browser",
+      "version": "1.4.0",
+      "filename": "botharness-browser-1.4.0.tgz",
+      "integrity": "sha512-NgQNltOGbHYv9OXuQbX/rFvsImgRTbqSZGRBi27AJT/CGar5R5DqDV4lanWF+QeE30pZTGOe8chhvJdXkb5img=="
+    },
+    {
+      "name": "@botharness/computer",
+      "version": "1.4.0",
+      "filename": "botharness-computer-1.4.0.tgz",
+      "integrity": "sha512-ELNcrsRyA1JlrPpJYaWpXYM9M14j0hr3+OWBznqFnFcTbfQaP5JlxN4CVh/yQt8/tEmrZFwsTIjOKvbR82VnKw=="
+    },
+    {
+      "name": "@botharness/im-provider",
+      "version": "4.32.0-botharness.21",
+      "filename": "botharness-im-provider-4.32.0-botharness.21.tgz",
+      "integrity": "sha512-7FqHt1er/sVN4L8l663SYxoscynGjyuwYTCw8zppxekBiAAZjxETQe8vkiRVht53Uvg/e6cLicz8AfFTcW8a7w=="
+    },
+    {
+      "name": "deepseekbot",
+      "version": "1.4.0",
+      "filename": "deepseekbot-1.4.0.tgz",
+      "integrity": "sha512-EVui4JFpAivir79Fl3OIiPOANPP9P04ybaE+xG43R+zXvIRg4aW7NBfpLr4JblLFNbn9K/c/mJvEWYPDNzrVaA=="
+    }
+  ],
+  "freshInstall": {
+    "productVersion": "1.4.0",
+    "node": "v24.21.0",
+    "platform": "darwin",
+    "scope": "Fresh Profile, no pre-approved builds: one install step, Host boot, Bot and DM creation, restart persistence. Browser, model and IM delivery are separate gates.",
+    "rows": [
+      {
+        "dsh": "0.2.0-rc.2",
+        "state": "passed"
+      },
+      {
+        "dsh": "0.2.1-rc.2",
+        "state": "passed"
+      }
+    ]
+  },
+  "desktop": [
+    {
+      "version": "0.2.0-rc.2",
+      "entry": "native Desktop DM composer",
+      "sessionId": "botharness-0f697ed2-c37b-4b7e-a75e-2a4f59cafcc7",
+      "turns": [
+        {
+          "turn": 1,
+          "endReason": "completed",
+          "calls": [
+            {
+              "name": "list_workspace_grants",
+              "outcome": "ok",
+              "background": null
+            },
+            {
+              "name": "list_assignments",
+              "outcome": "ok",
+              "background": null
+            },
+            {
+              "name": "create_assignment",
+              "outcome": "ok",
+              "background": null
+            },
+            {
+              "name": "bot_subagent",
+              "outcome": "ok",
+              "background": true
+            },
+            {
+              "name": "wait_for_assignment",
+              "outcome": "ok",
+              "background": null
+            },
+            {
+              "name": "read",
+              "outcome": "ok",
+              "background": null
+            },
+            {
+              "name": "channel_send",
+              "outcome": "ok",
+              "background": null
+            },
+            {
+              "name": "inbox_list",
+              "outcome": "ok",
+              "background": null
+            },
+            {
+              "name": "inbox_resolve",
+              "outcome": "ok",
+              "background": null
+            },
+            {
+              "name": "archive_assignment",
+              "outcome": "ok",
+              "background": null
+            }
+          ]
+        },
+        {
+          "turn": 2,
+          "calls": [],
+          "endReason": "completed"
+        }
+      ],
+      "nativeBackgroundDelivery": [
+        {
+          "type": "user/message",
+          "sequence": 44,
+          "sourceKind": "subagent-settled",
+          "child": "0ed169bb-0844-4957-85fc-282945384896",
+          "text": "9*9 = 81"
+        }
+      ],
+      "fileReadback": {
+        "text": "DSH-COMPAT-42",
+        "bytes": 13,
+        "sha256": "96046e7c4e0bdde3d361edabac7e9af9fd9967e15aa7008921d49fff917e595c"
+      },
+      "screenshot": "review-old-result.png",
+      "nativeTurnEnds": [
+        {
+          "sequence": 74,
+          "data": {
+            "turn": 1,
+            "reason": {
+              "kind": "completed"
+            }
+          }
+        },
+        {
+          "sequence": 89,
+          "data": {
+            "turn": 2,
+            "reason": {
+              "kind": "completed"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "version": "0.2.1-rc.2",
+      "entry": "native Desktop DM composer",
+      "sessionId": "botharness-35d66ef4-d324-496b-aeca-90f10c7b9e58",
+      "turns": [
+        {
+          "turn": 1,
+          "endReason": "completed",
+          "calls": [
+            {
+              "name": "list_workspace_grants",
+              "outcome": "ok",
+              "background": null
+            },
+            {
+              "name": "bot_subagent",
+              "outcome": "ok",
+              "background": true
+            },
+            {
+              "name": "list_assignments",
+              "outcome": "ok",
+              "background": null
+            },
+            {
+              "name": "create_assignment",
+              "outcome": "ok",
+              "background": null
+            },
+            {
+              "name": "wait_for_assignment",
+              "outcome": "ok",
+              "background": null
+            },
+            {
+              "name": "read",
+              "outcome": "ok",
+              "background": null
+            },
+            {
+              "name": "bash",
+              "outcome": "ok",
+              "background": null
+            },
+            {
+              "name": "channel_send",
+              "outcome": "ok",
+              "background": null
+            }
+          ]
+        },
+        {
+          "turn": 2,
+          "endReason": "completed",
+          "calls": [
+            {
+              "name": "inbox_resolve",
+              "outcome": "ok",
+              "background": null
+            }
+          ]
+        }
+      ],
+      "nativeBackgroundDelivery": [
+        {
+          "type": "user/message",
+          "sequence": 45,
+          "sourceKind": "subagent-settled",
+          "child": "e64a7235-878f-433a-a5bd-9abc00b53d5f",
+          "text": "81"
+        }
+      ],
+      "fileReadback": {
+        "text": "DSH-COMPAT-42",
+        "bytes": 13,
+        "sha256": "96046e7c4e0bdde3d361edabac7e9af9fd9967e15aa7008921d49fff917e595c"
+      },
+      "screenshot": "review-new-result.png",
+      "nativeTurnEnds": [
+        {
+          "sequence": 67,
+          "data": {
+            "turn": 1,
+            "reason": {
+              "kind": "completed"
+            }
+          }
+        },
+        {
+          "sequence": 82,
+          "data": {
+            "turn": 2,
+            "reason": {
+              "kind": "completed"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "regression": {
+    "focusedTests": 14,
+    "files": 3,
+    "legacyTwoBotIsolation": "passed; disposing one Agent preserves peer file tools",
+    "legacyAndNativeReadImage": "passed; explicit workingDirectory injection"
+  },
+  "limits": [
+    "Foreground spawn/fork and Desktop restart qualified in earlier cb2 candidate; latest pack reruns DM, Assignment write/read and background result delivery.",
+    "Actual Browser/Computer operations and external IM delivery remain publication gates.",
+    "Future 0.2.x admission is not runtime qualification."
+  ],
+  "published": false
+}

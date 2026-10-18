@@ -1,13 +1,14 @@
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
+import { TextInput } from '../../src/ui/primitives/system-text';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
   ActivityIndicator,
   Keyboard,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
-  TextInput,
   View,
+  type ViewInstance,
+  type TextInputInstance,
 } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSharedValue } from 'react-native-reanimated';
@@ -60,7 +61,7 @@ export default function ComputerScreen() {
   );
   const [mode, setMode] = useState<BrowserTouchMode>('trackpad');
   const [tool, setTool] = useState<ComputerTool>('mouse');
-  const keyboard = useRef<TextInput>(null);
+  const keyboard = useRef<TextInputInstance>(null);
   const typed = useRef('');
   const resetField = () => {
     keyboard.current?.clear();
@@ -92,7 +93,7 @@ export default function ComputerScreen() {
     setTool(next);
   };
 
-  const mount = useMounted<View>(() => {
+  const mount = useMounted<ViewInstance>(() => {
     viewer?.start();
     const hidden = Keyboard.addListener('keyboardDidHide', () =>
       setTool((current) => (current === 'keyboard' ? 'mouse' : current)),
@@ -189,10 +190,7 @@ export default function ComputerScreen() {
         )}
       </View>
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
         <View ref={mount} style={{ flex: 1 }}>
           {live ? (
             <BrowserStage

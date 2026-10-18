@@ -23,3 +23,9 @@ On 2026-09-30, #424 extends that same surface to Group Channels in v1.0: the Gro
 - While the Profile view is open the composer is absent: a Human leaves the Profile to write. Switching Channels returns to the Chat.
 - Cards consume Host read models only, through the Client bridge; the Profile never reads DSH Session logs, `botharness.db`, or price files directly.
 - Unknown or unavailable Profile Cards are ignored rather than rendered as placeholders; the popover shows its empty state when nothing is pinned.
+
+## 2026-10-17 revision — direct profile navigation (#2017)
+
+The Messages workspace panel now hosts the full Profile view directly. View profile in the conversation header or Channel list no longer opens a Profile popover. The Channel-list entry opens and activates Messages before selecting the requested PersonaBot, restoring its parked position when available. The newly mounted dock also honors that navigation intent after restoring the saved layout, so an old closed-panel record cannot hide the destination. Back or Escape restores chat. Group Profile uses the same direct detail path and retains its bounded live member preview.
+
+The popover and client-local pinned Profile Card preferences are retired; the registry and Host read models remain unchanged. Existing persisted pin keys are ignored, without a migration or deleting unrelated preferences. Header companion-pin shortcuts are removed; showing a Window Companion remains available through the Channel menu and uses the same owner. This supersedes the popover/pinning presentation above, not its identity, registry or authority boundaries.

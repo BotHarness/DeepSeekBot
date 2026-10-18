@@ -4,6 +4,8 @@ export const INBOX_OPTIONS = {
   category: { type: 'string' },
   channel: { type: 'string' },
   sort: { type: 'string' },
+  search: { type: 'string' },
+  unread: { type: 'boolean' },
   'source-key': { type: 'string' },
   source: { type: 'string' },
   section: { type: 'string' },
@@ -66,6 +68,8 @@ export interface InboxValues {
   channel?: string;
   bot?: string;
   sort?: string;
+  search?: string;
+  unread?: boolean;
   limit?: string;
   cursor?: string;
   session?: string;
@@ -139,6 +143,11 @@ export async function runInboxCommand(
   const call = prepare(command, rest, values);
   const { rpc } = await connect();
   const result = await rpc<Record<string, unknown>>(call.method, call.args);
+  if (call.args['queryVersion'] === 1 && result['queryVersion'] !== 1)
+    throw new CliLiveError(
+      'host-query-unsupported',
+      'Update the Host to use Activity search, unread filtering and mention ordering.',
+    );
   if (call.method === 'privateMcpServerEnable' && result['accepted'] !== true)
     throw new CliLiveError(
       'private-mcp-server-unavailable',
@@ -164,8 +173,15 @@ function prepare(
       positionals(command, rest, 0, '');
       if (values.category !== undefined && !CATEGORIES.includes(values.category))
         usage(`--category must be one of ${CATEGORIES.join(', ')}.`);
-      if (values.sort !== undefined && values.sort !== 'newest' && values.sort !== 'oldest')
-        usage('--sort must be newest or oldest.');
+      if (
+        values.sort !== undefined &&
+        values.sort !== 'newest' &&
+        values.sort !== 'oldest' &&
+        !(values.sort === 'mentions-first' && values.category === 'replies')
+      )
+        usage('--sort must be newest, oldest, or mentions-first with --category replies.');
+      if (values.search !== undefined && values.search.length > 200)
+        usage('--search must be at most 200 characters.');
       if (values.kind !== undefined && values.kind !== 'auto-rejection')
         usage('--kind must be auto-rejection.');
       const limit = values.limit === undefined ? undefined : Number(values.limit);
@@ -182,6 +198,11 @@ function prepare(
           ...(limit === undefined ? {} : { limit }),
           ...(values.cursor === undefined ? {} : { cursor: values.cursor }),
           ...(values.sort === undefined ? {} : { sort: values.sort }),
+          ...(values.search === undefined ? {} : { search: values.search }),
+          ...(values.search !== undefined || values.unread || values.sort === 'mentions-first'
+            ? { queryVersion: 1 }
+            : {}),
+          ...(values.unread ? { unreadOnly: true } : {}),
           ...(values.snoozed === true ? { snoozed: true } : {}),
           ...(values.kind === undefined ? {} : { kind: values.kind }),
         },

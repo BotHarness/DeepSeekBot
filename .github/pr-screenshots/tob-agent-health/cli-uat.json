@@ -1,0 +1,8 @@
+{
+  "stableRequestReplay": true,
+  "separateProcessExecutionOnce": true,
+  "memberAllowedByCloudButDeniedLocally": true,
+  "explicitLocalMemberGrant": true,
+  "exactThreeRequestsThreeResults": true,
+  "revokedAgentDenied": true
+}

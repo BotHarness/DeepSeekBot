@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+  Input: (props: object) => createElement('input', props),
   Modal: ({
     open,
     onClose,
@@ -313,4 +314,43 @@ it('renders only a section dropdown in narrow frames and switches sections from 
   ).toBe('关于');
   expect(document.querySelector('[role="menuitem"]')).toBeNull();
   vi.unstubAllGlobals();
+});
+
+it('searches another page and focuses the matching setting after navigation', () => {
+  const settings = new BotSettings();
+  const rows = [
+    { id: 'general', order: 0, label: '通用' },
+    { id: 'appearance', order: 5, label: '界面设置' },
+  ];
+  act(() => {
+    root.render(
+      createElement(BotSettingsView, {
+        botSettings: settings,
+        sections: { getSnapshot: () => rows, subscribe: () => () => {} },
+        t: zhTranslate,
+        renderSlot: ((_name: string, _owner: unknown, options: { only: string }) =>
+          createElement(
+            'div',
+            { role: 'group', 'aria-labelledby': 'gap-title' },
+            createElement(
+              'div',
+              { id: 'gap-title' },
+              options.only === 'appearance' ? '面板间距' : '新手教程',
+            ),
+          )) as never,
+      }),
+    );
+    settings.open();
+  });
+  const input = document.querySelector<HTMLInputElement>('input')!;
+  act(() => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, '间距');
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  const result = document.querySelector<HTMLButtonElement>('.bh-settings-search-results button')!;
+  expect(result.textContent).toContain('面板间距');
+  act(() => result.click());
+  expect(settings.getSnapshot().sectionId).toBe('appearance');
+  expect(document.activeElement?.getAttribute('data-settings-highlight')).toBe('');
+  expect(input.value).toBe('');
 });

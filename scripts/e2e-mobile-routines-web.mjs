@@ -18,6 +18,7 @@ import { basename, extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { verifyPaths } from './verify-app.mjs';
+import { pnpmCommand } from './dev-package-manager.mjs';
 
 const root = resolve(fileURLToPath(import.meta.url), '../..');
 const args = process.argv.slice(2);
@@ -183,14 +184,21 @@ async function main() {
   mkdirSync(paths.evidence, { recursive: true });
 
   if (!skipExport || !existsSync(join(dist, 'index.html'))) {
-    const exported = spawnSync('pnpm', ['--filter', '@botharness/mobile', 'export:web'], {
+    const [exportCommand, exportArgs] = pnpmCommand([
+      '--filter',
+      '@botharness/mobile',
+      'export:web',
+    ]);
+    const exported = spawnSync(exportCommand, exportArgs, {
       cwd: root,
       encoding: 'utf8',
       env: { ...process.env, EXPO_OFFLINE: '1' },
       timeout: 600_000,
       maxBuffer: 16 * 1024 * 1024,
     });
-    if (exported.status !== 0) throw new Error(`export:web failed: ${exported.stderr.slice(-800)}`);
+    if (exported.error !== undefined) throw exported.error;
+    if (exported.status !== 0)
+      throw new Error(`export:web failed: ${(exported.stderr ?? '').slice(-800)}`);
     steps.push('exported the app for web');
   }
 
@@ -220,7 +228,7 @@ async function main() {
         trigger: { kind: 'daily', time: '09:00', timeZone },
       },
     });
-    await call(hostOrigin, 'scheduleCreate', {
+    const { schedule: advanced } = await call(hostOrigin, 'scheduleCreate', {
       slug: bot.slug,
       input: {
         title: 'Weekly cleanup',
@@ -239,6 +247,8 @@ async function main() {
     const link = `deepseekbot://pair?p=${Buffer.from(JSON.stringify(payload)).toString('base64url')}`;
 
     page = await browser.newPage();
+    const localeSession = await page.createCDPSession();
+    await localeSession.send('Emulation.setLocaleOverride', { locale: 'en-US' });
     await page.emulate({
       viewport: { width: 390, height: 844, deviceScaleFactor: 3, isMobile: true, hasTouch: true },
       userAgent:
@@ -254,20 +264,17 @@ async function main() {
       );
     const settle = () => new Promise((done) => setTimeout(done, 400));
     const tap = async (label) => {
-      await page.waitForFunction(
-        (name) =>
-          [...document.querySelectorAll('[aria-label]')].some(
-            (node) => node.getAttribute('aria-label') === name,
-          ),
-        { timeout: 30_000 },
-        label,
-      );
-      await page.evaluate((name) => {
-        const nodes = [...document.querySelectorAll('[aria-label]')].filter(
-          (node) => node.getAttribute('aria-label') === name,
-        );
-        nodes.at(-1).click();
-      }, label);
+      const selector = `[aria-label="${label}"]`;
+      await page.waitForSelector(selector, { visible: true, timeout: 30_000 });
+      const handles = await page.$$(selector);
+      let pressed = false;
+      for (const handle of handles.reverse()) {
+        if (!(await handle.isVisible())) continue;
+        await handle.click();
+        pressed = true;
+        break;
+      }
+      if (!pressed) throw new Error(`No visible control: ${label}`);
       await settle();
     };
     const fill = async (label, value) => {
@@ -303,7 +310,22 @@ async function main() {
     await text(displayName);
     steps.push('paired the app by pasting the link');
 
-    await page.goto(`${origin}/bot/${bot.slug}`, { waitUntil: 'networkidle0' });
+    await page.goto(`${origin}/dm/${bot.slug}`, { waitUntil: 'networkidle0' });
+    await page.waitForFunction(
+      (name) =>
+        [...document.querySelectorAll('[aria-label]')].some((node) =>
+          node.getAttribute('aria-label')?.startsWith(`${name},`),
+        ),
+      { timeout: 30_000 },
+      displayName,
+    );
+    await page.evaluate(
+      (name) =>
+        [...document.querySelectorAll('[aria-label]')]
+          .find((node) => node.getAttribute('aria-label')?.startsWith(`${name},`))
+          ?.click(),
+      displayName,
+    );
     await text('Morning digest');
     await page.evaluate(() => {
       const target = [...document.querySelectorAll('[aria-label]')].find((node) =>
@@ -315,15 +337,13 @@ async function main() {
     await shot('1-profile-routines');
     steps.push('the profile lists both routines and a New routine row');
 
-    await page.evaluate(() => {
-      [...document.querySelectorAll('[aria-label]')]
-        .find((node) => node.getAttribute('aria-label')?.startsWith('Morning digest, opens'))
-        .click();
-    });
+    await page.locator('[aria-label^="Morning digest, opens"]').click();
     await text('Recent runs');
     await text('Not run yet.');
     await shot('2-routine-detail');
-    steps.push('tapping the routine opened its sheet with its trigger, next run and empty history');
+    steps.push(
+      'tapping the routine pushed its page inside the profile drawer with its trigger, next run and empty history',
+    );
 
     await tap('Pause');
     await text('Resume');
@@ -353,20 +373,26 @@ async function main() {
     await text('Delete “Morning digest”?');
     await shot('6-routine-delete-confirm');
     await tap('Delete');
-    await page.waitForFunction(() => !document.body.innerText.includes('Recent runs'), {
-      timeout: 30_000,
-    });
+    await page.waitForFunction(
+      (slug) => new URL(location.href).pathname.replace(/\/$/u, '') === `/bot/${slug}`,
+      { timeout: 30_000 },
+      bot.slug,
+    );
+    await text('Weekly cleanup');
     checks.deletedOnHost = !(await list()).some((entry) => entry.id === digest.id);
     steps.push('Delete asked first, then removed the routine on the Host');
 
-    await page.evaluate(() => {
-      [...document.querySelectorAll('[aria-label]')]
-        .find((node) => node.getAttribute('aria-label')?.startsWith('Weekly cleanup, opens'))
-        .click();
-    });
+    await page.locator('[aria-label^="Weekly cleanup, opens"]').click();
+    await settle();
+    checks.advancedRouteMatchesHost = new URL(page.url()).pathname.endsWith(
+      `/routine/${advanced.id}`,
+    );
+    if (!checks.advancedRouteMatchesHost)
+      throw new Error('Routine route does not match the selected Host routine');
     await text('The phone cannot edit this schedule');
     await shot('7-routine-advanced');
-    await tap('Close');
+    await page.goBack({ waitUntil: 'networkidle0' });
+    await text('New routine');
     steps.push('a cron routine says the phone cannot edit it and offers the full client');
 
     await tap('New routine');
@@ -388,11 +414,9 @@ async function main() {
       0,
       5,
     );
-    const shown = await page.evaluate(() => document.body.innerText);
-    checks.previewMatchesHost =
-      expected.length > 0 &&
-      expected.every((at) =>
-        shown.includes(
+    const expectedLabels = await page.evaluate(
+      (occurrences) =>
+        occurrences.map((at) =>
           new Date(at).toLocaleString(undefined, {
             weekday: 'short',
             month: 'short',
@@ -401,7 +425,11 @@ async function main() {
             minute: '2-digit',
           }),
         ),
-      );
+      expected,
+    );
+    const shown = await page.evaluate(() => document.body.innerText);
+    checks.previewMatchesHost =
+      expectedLabels.length > 0 && expectedLabels.every((label) => shown.includes(label));
     await shot('8-routine-new');
     await tap('Create');
     await page.waitForFunction(() => !document.body.innerText.includes('Next runs'), {
@@ -422,6 +450,10 @@ async function main() {
     checks.noPageErrors = !log.includes('pageerror:');
   } catch (error) {
     await page?.screenshot({ path: join(paths.evidence, 'failure.png') }).catch(() => {});
+    writeFileSync(
+      join(paths.evidence, 'failure-route.json'),
+      redact(JSON.stringify({ url: page?.url() })),
+    );
     writeFileSync(join(paths.evidence, 'failure.console.txt'), redact(console_.join('\n')));
     throw error;
   } finally {

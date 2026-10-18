@@ -25,7 +25,7 @@ function stylexSources(): { name: string; source: string }[] {
   ];
   return files
     .map((path) => ({
-      name: path.slice(path.indexOf('packages/')),
+      name: path.replaceAll('\\', '/').slice(path.replaceAll('\\', '/').indexOf('packages/')),
       source: readFileSync(path, 'utf8'),
     }))
     .filter(({ source }) => source.includes('@stylexjs/stylex'));
@@ -47,6 +47,7 @@ function styleBlocks(source: string): { text: string; start: number }[] {
 }
 
 const STYLESHEETS: readonly { file: string; sheet: string }[] = [
+  { file: 'client/src/client/workspace-styles.ts', sheet: 'WORKSPACE_CSS' },
   { file: 'client/src/client/styles.ts', sheet: 'CSS' },
   { file: 'client/src/client/composer-context-styles.ts', sheet: 'COMPOSER_CONTEXT_CSS' },
   { file: 'client/src/client/internal-tour-styles.ts', sheet: 'INTERNAL_TOUR_CSS' },

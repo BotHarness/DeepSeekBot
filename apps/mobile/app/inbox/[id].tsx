@@ -1,6 +1,7 @@
+import { Text } from '../../src/ui/primitives/system-text';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 
 import { fullClientParams, type FullClientTarget } from '../../src/host/full-client';
 import { useHostSession, useHostSnapshot, useInbox } from '../../src/host/host-session';

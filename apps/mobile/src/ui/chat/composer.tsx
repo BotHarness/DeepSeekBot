@@ -1,3 +1,4 @@
+import { TextInput } from '../primitives/system-text';
 import { useRef, useState, type ReactNode } from 'react';
 import {
   Image,
@@ -5,8 +6,8 @@ import {
   PanResponder,
   Pressable,
   ScrollView,
-  TextInput,
   View,
+  useWindowDimensions,
   type ViewStyle,
 } from 'react-native';
 import Animated, {
@@ -33,6 +34,7 @@ import {
   PlusIcon,
   RecordingStopIcon,
 } from '../shell/icons';
+import { DraftEditor } from './draft-editor';
 import { haptic } from '../haptics';
 import { t } from '../strings';
 import {
@@ -109,7 +111,8 @@ function AttachmentTile({ file, onRemove }: { file: PickedFile; onRemove(): void
       ) : (
         <View
           style={{
-            height: tile,
+            minHeight: tile,
+            paddingVertical: space.x3,
             maxWidth: tile * 3,
             flexDirection: 'row',
             alignItems: 'center',
@@ -281,7 +284,8 @@ function AttachMenu({ onPick }: { onPick(source: PickSource): void }) {
   return (
     <View
       style={{
-        flexDirection: 'row',
+        flexDirection: theme.largeText ? 'column' : 'row',
+        gap: space.x3,
         justifyContent: 'space-around',
         paddingTop: space.x5,
         paddingBottom: space.x2,
@@ -367,11 +371,19 @@ export function Composer({
   const [footerHeight, setFooterHeight] = useState(0);
   const [menu, setMenu] = useState(false);
   const [held, setHeld] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [contentHeight, setContentHeight] = useState(0);
   const [pill, setPill] = useState({ width: 0, height: 0 });
   const [wraps, setWraps] = useState(false);
-  const lineHeight = theme.touch - space.x4;
-  const fieldPadding = (lineHeight - theme.type.body.line) / 2;
+  const { height: viewportHeight } = useWindowDimensions();
+  const [measuredLine, setMeasuredLine] = useState({ scale: 0, height: 0 });
+  const textLine =
+    measuredLine.scale === theme.fontScale
+      ? measuredLine.height
+      : theme.type.body.line * theme.fontScale;
+  const lineHeight = Math.max(theme.touch - space.x4, textLine);
+  const fieldPadding = Math.max(space.x2, (lineHeight - textLine) / 2);
+  const fieldLimit = Math.max(textLine + 2 * fieldPadding, viewportHeight / 5);
   const inset = space.x3;
   const pillHeight = useSharedValue(lineHeight + 2 * (inset + edge.hairline));
   const pillStyle = useAnimatedStyle(() => ({ height: pillHeight.value }));
@@ -396,7 +408,8 @@ export function Composer({
     if (!menu) Keyboard.dismiss();
     setMenu(!menu);
   };
-  const stacked = composerStacked(actions, files.length, wraps);
+  const expanded = theme.largeText || wraps;
+  const stacked = composerStacked(actions, files.length, expanded);
   const icon = theme.type.title.line;
   const button = theme.touch - space.x4;
   const compactWidth = pill.width - 2 * (inset + button + space.x2);
@@ -449,12 +462,12 @@ export function Composer({
       onContentSizeChange={(event) => setContentHeight(event.nativeEvent.contentSize.height)}
       style={{
         flex: 1,
-        ...(wraps
+        ...(expanded
           ? {
-              minHeight: composerFieldHeight(contentHeight, theme.type.body.line, fieldPadding),
-              maxHeight: composerFieldHeight(Infinity, theme.type.body.line, fieldPadding),
+              minHeight: composerFieldHeight(contentHeight, textLine, fieldPadding, fieldLimit),
+              maxHeight: composerFieldHeight(Infinity, textLine, fieldPadding, fieldLimit),
             }
-          : { height: lineHeight }),
+          : { height: textLine + fieldPadding * 2 }),
         paddingVertical: fieldPadding,
         paddingHorizontal: stacked || leading === null ? space.x3 : 0,
         color: theme.color.fg,
@@ -498,7 +511,40 @@ export function Composer({
         paddingBottom: Math.max(insets.bottom, space.x3),
       }}
     >
-      {above}
+      {editing ? (
+        <DraftEditor
+          value={value}
+          placeholder={placeholder}
+          canSend={actions.includes('send')}
+          above={above}
+          selection={selection}
+          onSelection={onSelection}
+          onChange={onChange}
+          onClose={() => setEditing(false)}
+          onSend={() => {
+            haptic('send');
+            onSend();
+            setEditing(false);
+          }}
+        />
+      ) : null}
+      {editing ? null : above}
+      <Text
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+        onTextLayout={(event) => {
+          const height = event.nativeEvent.lines[0]?.height;
+          if (height !== undefined && height > 0)
+            setMeasuredLine((current) =>
+              current.scale === theme.fontScale && current.height === height
+                ? current
+                : { scale: theme.fontScale, height },
+            );
+        }}
+        style={{ position: 'absolute', opacity: 0 }}
+      >
+        M
+      </Text>
       <Animated.View
         style={[
           {
@@ -553,6 +599,11 @@ export function Composer({
               }}
             >
               {leading}
+              {expanded && !listening ? (
+                <RoundButton label={t.expandDraft} filled={false} onPress={() => setEditing(true)}>
+                  <ChevronUpIcon color={theme.color.muted} size={icon} />
+                </RoundButton>
+              ) : null}
               <View pointerEvents="none" style={{ flex: 1 }} />
               {trailing}
             </View>
@@ -563,9 +614,7 @@ export function Composer({
             variant="body"
             accessibilityElementsHidden
             importantForAccessibility="no-hide-descendants"
-            onLayout={(event) =>
-              setWraps(event.nativeEvent.layout.height > theme.type.body.line * 1.5)
-            }
+            onLayout={(event) => setWraps(event.nativeEvent.layout.height > textLine * 1.5)}
             style={{ position: 'absolute', opacity: 0, width: compactWidth, left: 0, top: 0 }}
           >
             {value === '' ? ' ' : value}

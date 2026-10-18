@@ -523,3 +523,118 @@ describe('IM messaging commands', () => {
     expect(live.calls).toEqual([{ method: 'channelBridges', args: { channelId: 'group-lab' } }]);
   });
 });
+
+it('imports a cloud Agent only from stdin over authenticated Host RPC and keeps secrets out of output', async () => {
+  const live = await host((method, args) => {
+    expect(method).toBe('cloudConnections');
+    expect(args.input).toMatchObject({
+      operation: 'import',
+      credential: { secret: 'c'.repeat(64) },
+    });
+    return { ok: true, value: { connections: [{ active: true, revision: 1 }] } };
+  });
+  const { publicInstance } = await import('../src/cloud/instance-contract.js');
+  const config = publicInstance({
+    instanceId: 'uat-test',
+    environment: 'uat',
+    server: 'https://uat.example.test',
+    clientId: 'client_test',
+    issuer: 'https://api.workos.com/user_management/client_test',
+    authkitDomain: 'test-staging.authkit.app',
+  });
+  const credential = {
+    version: 1,
+    config,
+    organizationId: 'org_test',
+    channelId: 'ch_' + 'a'.repeat(64),
+    actorId: 'ag_' + 'b'.repeat(64),
+    ownerUserId: 'user_owner',
+    name: 'Test',
+    operationId: 'cli-import-test-0001',
+    secret: 'c'.repeat(64),
+  };
+  const result = await invoke(
+    ['cloud', 'import', '--input-stdin'],
+    live.url,
+    JSON.stringify(credential),
+  );
+  expect(result.code, result.text).toBe(0);
+  expect(result.text).not.toContain(credential.secret);
+  expect(live.calls).toHaveLength(1);
+  const invalid = await invoke(
+    ['cloud', 'import', '--input-stdin'],
+    live.url,
+    JSON.stringify({ ...credential, secret: 'canary-invalid-secret' }),
+  );
+  expect(invalid.code).toBe(1);
+  expect(invalid.text).not.toContain('canary-invalid-secret');
+  expect(live.calls).toHaveLength(1);
+});
+it('cloud list and revisioned policy/removal use the same owner, requiring explicit removal confirmation', async () => {
+  const live = await host((_method, args) => ({
+    ok: true,
+    value: { connections: [], operation: args.input },
+  }));
+  const id = 'cloud-' + 'a'.repeat(64);
+  const listed = await invoke(['cloud', 'list'], live.url);
+  expect(listed.code, listed.text).toBe(0);
+  expect(
+    (
+      await invoke(
+        ['cloud', 'policy', '--input-stdin'],
+        live.url,
+        JSON.stringify({
+          id,
+          revision: 2,
+          policy: { allowedUsers: [], forwardTargets: [], environment: 'host-a' },
+        }),
+      )
+    ).code,
+  ).toBe(0);
+  expect(
+    (
+      await invoke(
+        ['cloud', 'remove', '--input-stdin'],
+        live.url,
+        JSON.stringify({ id, revision: 2 }),
+      )
+    ).code,
+  ).toBe(2);
+  expect(live.calls).toHaveLength(2);
+  expect(
+    (
+      await invoke(
+        ['cloud', 'remove', '--input-stdin', '--confirm'],
+        live.url,
+        JSON.stringify({ id, revision: 2 }),
+      )
+    ).code,
+  ).toBe(0);
+  expect(live.calls[2]?.args).toEqual({
+    input: { operation: 'remove', id, revision: 2, confirm: true },
+  });
+});
+
+it('runs cloud_work through authenticated CLI parity and refuses caller-supplied authority before contacting Host', async () => {
+  const input = { operation: 'execute', source_event_id: 'im-' + 'a'.repeat(64) };
+  const live = await host((method, args) => {
+    expect(method).toBe('cloudWork');
+    expect(args).toEqual({ slug: 'cloud-a', input });
+    return { ok: true, value: { state: 'finished', executed: 1 } };
+  });
+  const result = await invoke(
+    ['cloud-work', 'cloud-a', '--input-stdin'],
+    live.url,
+    JSON.stringify(input),
+  );
+  expect(result.code, result.text).toBe(0);
+  expect(result.json).toEqual({ state: 'finished', executed: 1 });
+  const bad = await invoke(
+    ['cloud-work', 'cloud-a', '--input-stdin'],
+    live.url,
+    JSON.stringify({ ...input, requesterUserId: 'canary-authority' }),
+  );
+  expect(bad.code).toBe(1);
+  expect(bad.text).not.toContain('canary-authority');
+  expect(live.calls).toHaveLength(1);
+});

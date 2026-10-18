@@ -1,0 +1,86 @@
+[
+  {
+    "theme": "light",
+    "font": 1,
+    "result": "pass",
+    "mode": "form-keyboard",
+    "proof": [
+      {
+        "step": "focused-form-clearance",
+        "keyboardTop": 1457,
+        "inputBounds": [52, 1086, 1168, 1242],
+        "actionChecked": true
+      }
+    ]
+  },
+  {
+    "theme": "light",
+    "font": 1.3,
+    "result": "pass",
+    "mode": "form-keyboard",
+    "proof": [
+      {
+        "step": "focused-form-clearance",
+        "keyboardTop": 1457,
+        "inputBounds": [52, 1060, 1168, 1216],
+        "actionChecked": true
+      }
+    ]
+  },
+  {
+    "theme": "light",
+    "font": 2,
+    "result": "pass",
+    "mode": "form-keyboard",
+    "proof": [
+      {
+        "step": "focused-form-clearance",
+        "keyboardTop": 1457,
+        "inputBounds": [52, 991, 1168, 1171],
+        "actionChecked": true
+      }
+    ]
+  },
+  {
+    "theme": "dark",
+    "font": 1,
+    "result": "pass",
+    "mode": "form-keyboard",
+    "proof": [
+      {
+        "step": "focused-form-clearance",
+        "keyboardTop": 1457,
+        "inputBounds": [52, 1086, 1168, 1242],
+        "actionChecked": true
+      }
+    ]
+  },
+  {
+    "theme": "dark",
+    "font": 1.3,
+    "result": "pass",
+    "mode": "form-keyboard",
+    "proof": [
+      {
+        "step": "focused-form-clearance",
+        "keyboardTop": 1457,
+        "inputBounds": [52, 1060, 1168, 1216],
+        "actionChecked": true
+      }
+    ]
+  },
+  {
+    "theme": "dark",
+    "font": 2,
+    "result": "pass",
+    "mode": "form-keyboard",
+    "proof": [
+      {
+        "step": "focused-form-clearance",
+        "keyboardTop": 1457,
+        "inputBounds": [52, 991, 1168, 1171],
+        "actionChecked": true
+      }
+    ]
+  }
+]

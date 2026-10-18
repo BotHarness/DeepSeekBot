@@ -1,0 +1,38 @@
+[
+  {
+    "kind": "drawer",
+    "size": "large",
+    "theme": "light",
+    "closeAccessible": true
+  },
+  {
+    "kind": "drawer",
+    "size": "large",
+    "theme": "dark",
+    "closeAccessible": true
+  },
+  {
+    "kind": "drawer",
+    "size": "extra-extra-extra-large",
+    "theme": "light",
+    "closeAccessible": true
+  },
+  {
+    "kind": "drawer",
+    "size": "extra-extra-extra-large",
+    "theme": "dark",
+    "closeAccessible": true
+  },
+  {
+    "kind": "drawer",
+    "size": "accessibility-extra-extra-extra-large",
+    "theme": "light",
+    "closeAccessible": true
+  },
+  {
+    "kind": "drawer",
+    "size": "accessibility-extra-extra-extra-large",
+    "theme": "dark",
+    "closeAccessible": true
+  }
+]

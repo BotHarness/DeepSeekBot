@@ -23,6 +23,7 @@ import {
   sessionViewPreferenceSnapshot,
   updateSessionViewPreference,
 } from '../src/client/session-view-prefs.js';
+import { setSessionTarget } from '../src/client/session-target.js';
 import { store } from '../src/client/store.js';
 
 afterEach(() => localStorage.clear());
@@ -177,5 +178,79 @@ it('pins the Orchestrator on top and groups Assignments by needs input, working,
     await act(async () => root.unmount());
     container.remove();
     store.setSessions(previous);
+  }
+});
+
+it('switches a Group from channel assignments to an explicit Bot without changing the conversation or accepting a stale response', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  const previous = store.getSnapshot();
+  const channel = {
+    id: 'group-scope-qa',
+    type: 'group' as const,
+    name: 'Scope QA',
+    members: ['scope-ada', 'scope-bob'],
+    createdAt: '2026-01-01',
+    updatedAt: '2026-01-01',
+  };
+  const bots = ['scope-ada', 'scope-bob'].map((slug) => ({
+    ...previous.bots[0],
+    slug,
+    displayName: slug,
+  }));
+  store.setRoster(bots as typeof previous.bots, [...previous.channels, channel]);
+  store.setConversation({ channel });
+  let finishAda: ((value: unknown[]) => void) | undefined;
+  const actions = {
+    channelAssignments: vi.fn(async () => []),
+    readSessions: vi.fn((slug: string) =>
+      slug === 'scope-ada'
+        ? new Promise((resolve) => {
+            finishAda = resolve;
+          })
+        : Promise.resolve([
+            { sessionId: 'bob-session', role: 'orchestrator', createdAt: '2026-01-01' },
+          ]),
+    ),
+    openSession: vi.fn(),
+  } as unknown as BridgeActions;
+  const host = document.createElement('div');
+  document.body.append(host);
+  const root = createRoot(host);
+  const props = {
+    channelId: channel.id,
+    scope: 'channel' as const,
+    botSlug: undefined,
+    t: zhTranslate,
+    actions,
+    nativeSessions: catalog({
+      'bob-session': { displayTitle: 'Bob only', updatedAt: 1, running: false },
+      'ada-session': { displayTitle: 'Late Ada', updatedAt: 1, running: false },
+    }),
+  };
+  try {
+    await act(async () => root.render(createElement(SessionsEntry, props)));
+    expect(actions.channelAssignments).toHaveBeenCalledWith(channel.id);
+    await act(async () => setSessionTarget(channel.id, 'scope-ada'));
+    await act(async () => setSessionTarget(channel.id, 'scope-bob'));
+    expect(host.textContent).toContain('Bob only');
+    await act(async () =>
+      finishAda!([{ sessionId: 'ada-session', role: 'orchestrator', createdAt: '2026-01-01' }]),
+    );
+    expect(host.textContent).not.toContain('Late Ada');
+    expect(store.getSnapshot().conversation.channel?.id).toBe(channel.id);
+    await act(async () => host.querySelector<HTMLButtonElement>('.bh-card-main')!.click());
+    expect(actions.openSession).toHaveBeenCalledWith('bob-session');
+    await act(async () =>
+      store.setConversation({ channel: { ...channel, members: ['scope-ada'] } }),
+    );
+    expect(host.textContent).not.toContain('Bob only');
+    expect(JSON.parse(localStorage.getItem('botharness/session-targets.v1')!)[channel.id]).toBe('');
+    await act(async () => store.setConversation({ channel }));
+    expect(host.textContent).not.toContain('Bob only');
+  } finally {
+    await act(async () => root.unmount());
+    host.remove();
+    store.setRoster(previous.bots, previous.channels);
+    store.setConversation(previous.conversation);
   }
 });

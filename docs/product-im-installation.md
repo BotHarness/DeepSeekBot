@@ -26,7 +26,7 @@ prove Bot receipt. First-time guided setup is the separate #824 tracer. Personal
 ## Maintainer: build the distribution artifacts
 
 Use Node ≥22 and the repository's pnpm version. The product targets DSH
-`0.2.0-rc.2`; its Provider provenance records that qualified Host separately. The Provider revision below is
+`0.2.1-rc.2`; its Provider provenance records that qualified Host separately. The Provider revision below is
 the one whose manifest, lockfile and runtime digests match `productImProvider` in
 `scripts/product-artifacts.mjs`; when that record changes, update this revision with it.
 Keep the Provider input outside the product workspace. Its immutable input

@@ -5,6 +5,8 @@ import { AppState, Platform } from 'react-native';
 import { createHostClient, type HostClient, type HostSnapshot } from './client';
 import { createInbox, type Inbox, type InboxSnapshot } from './inbox';
 import { createConversation, type Conversation, type ConversationSnapshot } from './conversation';
+import { createConversationPlayback, type ConversationPlayback } from './conversation-playback';
+import { useVisibleSnapshot } from './use-visible-snapshot';
 import { currentHost, selectHost, withHost, withoutHost, type SavedHosts } from './hosts';
 import { clearConversationCache, nativeConversationCache } from './native-cache';
 import { nativeCarrier } from './native-carrier';
@@ -154,21 +156,17 @@ export function usePushStatus(): PushStatus {
 }
 
 const detached: HostSnapshot = { connection: { status: 'stopped', route: '' } };
+const detachedSource = { getSnapshot: () => detached, subscribe: () => () => {} };
 
-export function useHostSnapshot(client: HostClient | undefined): HostSnapshot {
-  return useSyncExternalStore(
-    useCallback((listener: () => void) => client?.subscribe(listener) ?? (() => {}), [client]),
-    () => client?.getSnapshot() ?? detached,
-  );
+export function useHostSnapshot(client: HostClient | undefined, visible = true): HostSnapshot {
+  return useVisibleSnapshot(client ?? detachedSource, visible);
 }
 
 const idle: InboxSnapshot = { status: 'idle' };
+const idleSource = { getSnapshot: () => idle, subscribe: () => () => {} };
 
-export function useInbox(inbox: Inbox | undefined): InboxSnapshot {
-  return useSyncExternalStore(
-    useCallback((listener: () => void) => inbox?.subscribe(listener) ?? (() => {}), [inbox]),
-    () => inbox?.getSnapshot() ?? idle,
-  );
+export function useInbox(inbox: Inbox | undefined, visible = true): InboxSnapshot {
+  return useVisibleSnapshot(inbox ?? idleSource, visible);
 }
 
 export interface DmTarget {
@@ -265,24 +263,57 @@ const closed: ConversationSnapshot = {
   fromCache: false,
 };
 
-export function useConversationSnapshot(conversation: Conversation | undefined) {
+function useConversationForeground(
+  conversation: Conversation | undefined,
+  playback?: ConversationPlayback,
+) {
   useFocusEffect(
     useCallback(() => {
-      conversation?.setForeground?.(AppState.currentState === 'active');
+      const foreground = (active: boolean) => {
+        conversation?.setForeground?.(active);
+        playback?.setActive(active);
+      };
+      foreground(AppState.currentState === 'active');
       const subscription = AppState.addEventListener('change', (next) =>
-        conversation?.setForeground?.(next === 'active'),
+        foreground(next === 'active'),
       );
       return () => {
         subscription.remove();
-        conversation?.setForeground?.(false);
+        foreground(false);
       };
-    }, [conversation]),
+    }, [conversation, playback]),
   );
+}
+
+export function useConversationSnapshot(conversation: Conversation | undefined) {
+  useConversationForeground(conversation);
   return useSyncExternalStore(
     useCallback(
       (listener: () => void) => conversation?.subscribe(listener) ?? (() => {}),
       [conversation],
     ),
     () => conversation?.getSnapshot() ?? closed,
+  );
+}
+
+export function useStreamPlayback(conversation: Conversation | undefined, enabled: boolean) {
+  return useMemo(
+    () =>
+      conversation === undefined || !enabled ? undefined : createConversationPlayback(conversation),
+    [conversation, enabled],
+  );
+}
+
+export function useConversationTimelineSnapshot(
+  conversation: Conversation | undefined,
+  playback?: ConversationPlayback,
+) {
+  useConversationForeground(conversation, playback);
+  return useSyncExternalStore(
+    useCallback(
+      (listener: () => void) => (playback ?? conversation)?.subscribe(listener) ?? (() => {}),
+      [conversation, playback],
+    ),
+    () => conversation?.getTimelineSnapshot() ?? closed,
   );
 }

@@ -296,7 +296,6 @@ export function WindowCompanionView({
   const [stride, setStride] = useState<'left' | 'right' | undefined>(undefined);
   const hovering = useRef(false);
   const exit = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const clickReset = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const suppressClick = useRef(false);
   const [menu, setMenu] = useState(false);
   const menuClass = `bh-companion-menu-${useId()}`;
@@ -544,7 +543,6 @@ export function WindowCompanionView({
         window.removeEventListener('resize', measure);
         document.removeEventListener('visibilitychange', visibility);
         if (exit.current !== undefined) clearTimeout(exit.current);
-        if (clickReset.current !== undefined) clearTimeout(clickReset.current);
         pointer.current = undefined;
         presentPoint.current = setPoint;
         if (latest.current.selection) bubbleOwner.remove(latest.current.selection.botId);
@@ -879,8 +877,10 @@ export function WindowCompanionView({
           title={condition}
           onClick={() => {
             if (!suppressClick.current) openDm(bot.slug);
+            suppressClick.current = false;
           }}
           onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') suppressClick.current = false;
             if (event.key === 'ContextMenu' || (event.key === 'F10' && event.shiftKey)) {
               event.preventDefault();
               enter();
@@ -896,7 +896,6 @@ export function WindowCompanionView({
           }}
           onPointerDown={(event) => {
             if (event.button !== 0 || pointer.current) return;
-            if (clickReset.current !== undefined) clearTimeout(clickReset.current);
             suppressClick.current = false;
             event.currentTarget.setPointerCapture(event.pointerId);
             pointer.current = {
@@ -934,10 +933,6 @@ export function WindowCompanionView({
               releaseMotion();
               persistPosition();
               event.preventDefault();
-              clickReset.current = setTimeout(() => {
-                clickReset.current = undefined;
-                suppressClick.current = false;
-              }, 0);
             } else {
               releaseMotion(true);
             }

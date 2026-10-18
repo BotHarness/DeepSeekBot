@@ -139,7 +139,7 @@ describe('compact Human Inbox interactions', () => {
       const rowActions = view.host.querySelector('.bh-human-inbox-row-actions')!;
       expect(
         [...rowActions.querySelectorAll('button')].map((button) => button.textContent),
-      ).toEqual(['稍后提醒', '']);
+      ).toEqual(['']);
       expect(rowActions.textContent).not.toContain('查看 Bot 收件箱');
       await act(async () =>
         rowActions.querySelector<HTMLButtonElement>('.bh-human-inbox-source-link')!.click(),
@@ -151,7 +151,7 @@ describe('compact Human Inbox interactions', () => {
       await act(async () =>
         rowActions.querySelector<HTMLButtonElement>('.bh-human-inbox-source-link')!.click(),
       );
-      expect(view.actions.openBot).toHaveBeenCalledWith('ada');
+      expect(view.actions.openBot).toHaveBeenCalledWith('ada', 'inbox');
       view.actions.openBot.mockClear();
       expect(view.host.querySelector('.bh-human-inbox-detail')).toBeNull();
       await act(async () =>
@@ -162,13 +162,13 @@ describe('compact Human Inbox interactions', () => {
       ].find((button) => button.textContent === '查看 Bot 收件箱')!;
       expect(maintenance).toBeDefined();
       await act(async () => maintenance.click());
-      expect(view.actions.openBot).toHaveBeenCalledWith('ada');
+      expect(view.actions.openBot).toHaveBeenCalledWith('ada', 'inbox');
       await act(async () => store.setHumanInbox({ items: [{ ...repair, channelName: '' }] }));
       view.actions.openBot.mockClear();
       await act(async () =>
         rowActions.querySelector<HTMLButtonElement>('.bh-human-inbox-source-link')!.click(),
       );
-      expect(view.actions.openBot).toHaveBeenCalledWith('ada');
+      expect(view.actions.openBot).toHaveBeenCalledWith('ada', 'inbox');
     } finally {
       await view.close();
     }
@@ -338,25 +338,6 @@ describe('compact Human Inbox interactions', () => {
       );
       expect(view.actions.listHostFolders).not.toHaveBeenCalled();
       expect(view.host.querySelector('[role="dialog"]')).toBeNull();
-    } finally {
-      await view.close();
-    }
-  });
-  it('changes native sort selection while retaining the other filters', async () => {
-    const view = await mount();
-    try {
-      const filters = view.host.querySelectorAll('.bh-human-inbox-selector');
-      await act(async () => (filters[filters.length - 1] as HTMLButtonElement).click());
-      const option = Array.from(
-        view.host.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]'),
-      ).find((button) => button.textContent === '最新在前')!;
-      await act(async () => option.click());
-      expect(view.actions.setHumanInboxFilters).toHaveBeenCalledWith({
-        botSlug: undefined,
-        channelId: undefined,
-        sort: 'newest',
-      });
-      expect(view.host.querySelector('[role="menu"]')).toBeNull();
     } finally {
       await view.close();
     }

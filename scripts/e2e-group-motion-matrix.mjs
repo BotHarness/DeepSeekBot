@@ -389,7 +389,7 @@ async function measure(g, preference, systemReduced, theme, width) {
   for (const a of profile.avatars)
     assert.equal(a.infinite > 0, expected === 'full' && a.state === 'working');
   const geometry = await page.evaluate(() => {
-    const pop = document.querySelector('.bh-profile-popover').getBoundingClientRect();
+    const pop = document.querySelector('.bh-profile-view').getBoundingClientRect();
     const header = document.querySelector('.bh-group-channel-header').getBoundingClientRect();
     return {
       documentOverflow: document.documentElement.scrollWidth > innerWidth,
@@ -426,7 +426,7 @@ async function measure(g, preference, systemReduced, theme, width) {
     geometry,
   });
   await page.keyboard.press('Escape');
-  await page.waitForFunction(() => !document.querySelector('.bh-profile-popover'));
+  await page.waitForFunction(() => !document.querySelector('.bh-profile-view'));
 }
 try {
   await boot();

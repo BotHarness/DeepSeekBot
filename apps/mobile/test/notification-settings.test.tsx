@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('react-native', () => import('./react-native-shim'));
+vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
 
 import { PushRequestFailed, type PushSettings } from '../src/host/push';
 import {

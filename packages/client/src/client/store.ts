@@ -2,7 +2,6 @@ import type {
   PersonaBotAttention,
   PersonaBotSessionActivity,
 } from '../../../core/src/state/bot-state.js';
-import type { ActivityOverview } from '../../../core/src/bridge/methods.js';
 import type { PersonaBotToolActivity } from '../../../core/src/state/tool-activity.js';
 import type { PersonaBotActivityState } from './avatar.js';
 import type { AvatarAppearance } from '../../../core/src/bots/avatar-appearance.js';
@@ -179,7 +178,7 @@ export interface ChannelReaction {
 }
 
 export interface ChannelMessage {
-  onboardingWelcome?: { version: 1 };
+  onboardingWelcome?: { version: 1; kind?: 'tob' };
   contentPurged?: true;
   bridgeOrigin?: import('../../../core/src/channels/channel.js').ChannelMessage['bridgeOrigin'];
   bridgeMedia?: import('../../../core/src/channels/channel.js').ChannelMessage['bridgeMedia'];
@@ -251,6 +250,7 @@ export interface ChannelMessage {
   failed?: string;
   unconfirmed?: boolean;
   streaming?: boolean;
+  perf?: import('../../../core/src/channels/channel.js').ChannelMessagePerf;
 }
 
 export interface ChannelDraft {
@@ -348,9 +348,9 @@ export interface HumanInboxState {
   error: string | undefined;
 }
 export type ConversationSelection =
-  | { kind: 'bot'; slug: string; profile?: true }
+  | { kind: 'bot'; slug: string; profile?: true; inboxRequest?: number }
   | { kind: 'channel'; channelId: string }
-  | { kind: 'inbox'; view?: 'overview' };
+  | { kind: 'inbox' };
 
 export interface ConversationTimeline {
   olderCursor: string | null;
@@ -471,6 +471,7 @@ export interface RosterState {
 }
 
 export interface ClientState {
+  contentPurgeRevision?: number;
   composerIdentity?:
     | import('../../../core/src/bridge/composer-recovery.js').ComposerRecoveryIdentity
     | undefined;
@@ -488,11 +489,6 @@ export interface ClientState {
   sessions: SessionsState;
   botInbox: BotInboxState;
   humanInbox: HumanInboxState;
-  overview: {
-    status: ClientStatus;
-    value: ActivityOverview | undefined;
-    error: string | undefined;
-  };
   activitySync: 'live' | 'stale';
   git: GitAvailability | undefined;
 }
@@ -537,7 +533,6 @@ export interface ClientStore {
   ): void;
   setSessions(patch: Partial<SessionsState>): void;
   setBotInbox(patch: Partial<BotInboxState>): void;
-  setOverview(patch: Partial<ClientState['overview']>): void;
   setHumanInbox(patch: Partial<HumanInboxState>): void;
 }
 
@@ -600,9 +595,13 @@ function sameSelection(
 ): boolean {
   if (left === right) return true;
   if (left === undefined || right === undefined) return false;
-  if (left.kind === 'inbox' && right.kind === 'inbox') return left.view === right.view;
+  if (left.kind === 'inbox' && right.kind === 'inbox') return true;
   if (left.kind === 'bot' && right.kind === 'bot')
-    return left.slug === right.slug && left.profile === right.profile;
+    return (
+      left.slug === right.slug &&
+      left.profile === right.profile &&
+      left.inboxRequest === right.inboxRequest
+    );
   if (left.kind === 'channel' && right.kind === 'channel')
     return left.channelId === right.channelId;
   return false;
@@ -670,7 +669,6 @@ export function createStore(): ClientStore {
     conversation: initialConversation(),
     sessions: initialSessions(),
     botInbox: initialBotInbox(),
-    overview: { status: 'idle', value: undefined, error: undefined },
     humanInbox: initialHumanInbox(),
     activitySync: 'live',
     git: undefined,
@@ -715,11 +713,13 @@ export function createStore(): ClientStore {
 
   return {
     purgeContent(placements) {
+      if (placements.length === 0) return;
       redactions.accept(placements);
       for (const [id, conversation] of conversations)
         conversations.set(id, redactions.conversation(conversation));
       for (const [slug, inbox] of inboxesByBot) inboxesByBot.set(slug, redactions.botInbox(inbox));
       update({
+        contentPurgeRevision: (state.contentPurgeRevision ?? 0) + 1,
         channels: state.channels,
         conversation: state.conversation,
         botInbox: state.botInbox,
@@ -832,9 +832,6 @@ export function createStore(): ClientStore {
     },
     setBotInbox(patch) {
       update({ botInbox: { ...state.botInbox, ...patch } });
-    },
-    setOverview(patch) {
-      update({ overview: { ...state.overview, ...patch } });
     },
     setHumanInbox(patch) {
       update({ humanInbox: { ...state.humanInbox, ...patch } });

@@ -151,7 +151,7 @@ export function verifyPaths(name, root = repoRoot) {
   };
 }
 
-function cookieFor(home) {
+export function cookieFor(home) {
   const jar = join(tmpdir(), `dsh-${basename(home).replace(/[^a-zA-Z0-9-]/gu, '-')}.cookies`);
   if (!existsSync(jar)) throw new Error(`no login cookie at ${jar}; relaunch the instance`);
   return readFileSync(jar, 'utf8').split(';')[0];
@@ -190,6 +190,7 @@ export async function rpc(instance, endpoint, args = {}) {
     signal: AbortSignal.timeout(60_000),
     headers: {
       'content-type': 'application/json',
+      connection: 'close',
       cookie: cookieFor(instance.home),
     },
     body: JSON.stringify({
@@ -396,7 +397,8 @@ async function shot(options, paths) {
     );
     if (!options.keepOverlays) await dismissOverlays(page);
     if (options.botMode) {
-      if ((await page.$('.bh-root.bh-main')) === null) await page.locator(aria('Bot mode')).click();
+      if ((await page.$('.bh-root.bh-main')) === null)
+        await page.locator(aria(options.locale === 'zh' ? 'Bot 模式' : 'Bot mode')).click();
       await page.waitForSelector('.bh-root.bh-main', { timeout: 30_000 });
       steps.push('entered Bot mode');
       await new Promise((done) => setTimeout(done, 1500));

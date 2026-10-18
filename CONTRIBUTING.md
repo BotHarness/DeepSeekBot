@@ -51,6 +51,14 @@ Use the current toolchain and commands in [AGENTS.md](AGENTS.md#commands), the [
 
 Start with relevant checks, then broaden as appropriate. Record exact commands and results, including blocked or unrun checks. Avoid unrelated refactors and generated-file edits. Consult [product vocabulary](CONTEXT.md) and [architecture](docs/architecture/botharness-architecture.md) when your change needs those boundaries.
 
+### Expo / React Native app contributions
+
+Read the [mobile agent guide](apps/mobile/AGENTS.md) and the [system text and large-text contract](apps/mobile/DESIGN.md#system-text-and-large-text-acceptance) before changing mobile UI.
+
+- Follow iOS semantic Dynamic Type and Android native font scaling through the shared primitives. Adapt wrapping, row height, metadata, sheets and editing space; do not hide layout defects by disabling scaling, shrinking text or imposing a global cap. Essential content and actions must remain usable with the keyboard open.
+- Check the affected flow at default, intermediate enlarged and maximum system font sizes, in light and dark appearance, on each platform. Use actual system settings and exercise the controls, live draft/query retention and real outcomes. Record exact categories/percentages and any blocked/unrun cases; one platform's results do not qualify the other.
+- Submit native QA through the [shared device queue](docs/agents/device-qa.md). Add matched, sanitized native before/after images to the PR and verify they load. Source tests, web previews, native interactions and Human acceptance are separate evidence. See the contract for the per-surface matrix and screenshot requirements.
+
 ## PRs and review
 
 - Keep one coherent scope. Link the issue and discussion when applicable; use `Closes #...` only for complete work and `Refs #...` for partial work.

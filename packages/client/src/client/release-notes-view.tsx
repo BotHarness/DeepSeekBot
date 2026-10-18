@@ -1,3 +1,4 @@
+import type { ReleaseCompatibility } from '../../../core/src/release/compatibility.js';
 import { useMemo, useState, useSyncExternalStore, type ReactElement } from 'react';
 
 import {
@@ -160,20 +161,32 @@ export function ReleaseNotesDialog({
 export function ReleaseNotesAnnouncement({
   controller,
   t,
+  deferred = false,
 }: {
   controller: ReleaseNotesController;
   t: BotHarnessTranslate;
+  deferred?: boolean;
 }): ReactElement {
   const snapshot = useReleaseNotes(controller);
   const mount = useMountedResource<HTMLSpanElement>(() => {
-    void controller.start();
+    const check = () => {
+      void controller.enter();
+    };
+    check();
+    const timer = setInterval(check, 30_000);
+    window.addEventListener('online', check);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('online', check);
+    };
   }, [controller]);
   const version = snapshot.version ?? '';
   return (
     <>
       <span ref={mount} hidden aria-hidden="true" />
+      <UpgradeNotice controller={controller} snapshot={snapshot} deferred={deferred} t={t} />
       <ReleaseNotesDialog
-        releases={snapshot.announcement}
+        releases={deferred ? undefined : snapshot.announcement}
         title={t('releaseNotes.announce.title', { version })}
         badge={t('releaseNotes.current')}
         description={t(
@@ -187,6 +200,112 @@ export function ReleaseNotesAnnouncement({
         t={t}
       />
     </>
+  );
+}
+
+function compatibilityText(compatibility: ReleaseCompatibility, t: BotHarnessTranslate): string {
+  if (compatibility.status === 'compatible')
+    return t('release.compatible', { dsh: compatibility.dshVersion });
+  if (compatibility.status === 'unknown') return t('release.compatibilityUnknown');
+  return t('release.incompatible', {
+    dsh: compatibility.dshVersion,
+    requirement: Object.values(compatibility.requirements).join(', '),
+  });
+}
+
+function UpgradeNotice({
+  controller,
+  snapshot,
+  deferred,
+  t,
+}: {
+  controller: ReleaseNotesController;
+  snapshot: ReleaseNotesSnapshot;
+  deferred: boolean;
+  t: BotHarnessTranslate;
+}): ReactElement | null {
+  const update = snapshot.update;
+  if (update.status === 'restart-required')
+    return (
+      <Modal
+        open={snapshot.updateNotice && snapshot.announcement === undefined && !deferred}
+        title={t('release.restart.title', { installed: update.installed })}
+        closeLabel={t('releaseNotes.close')}
+        onClose={() => controller.dismissUpdate()}
+      >
+        <RestartGuide
+          restartable={update.restartable}
+          state={snapshot.restart}
+          onRestart={() => {
+            void controller.restart();
+          }}
+          t={t}
+        />
+      </Modal>
+    );
+  if (update.status !== 'available' && update.status !== 'blocked') return null;
+  const installing = snapshot.install.status === 'installing';
+  const close = () => {
+    if (!installing) controller.dismissUpdate();
+  };
+  return (
+    <Modal
+      open={snapshot.updateNotice && snapshot.announcement === undefined && !deferred}
+      title={t('release.notice.title', { latest: update.latest })}
+      description={t('release.notice.identity', {
+        current: update.current,
+        dsh: update.compatibility?.dshVersion ?? t('release.compatibilityUnknown'),
+      })}
+      closeLabel={t('releaseNotes.close')}
+      onClose={close}
+      className="bh-release-dialog"
+      footer={
+        <>
+          <Button variant="outline" disabled={installing} onClick={close}>
+            {t('release.notice.later')}
+          </Button>
+          <Button variant="outline" onClick={() => openSite(t)}>
+            {t('releaseNotes.site')}
+          </Button>
+          {update.status === 'available' && update.installable ? (
+            <Button
+              variant="primary"
+              disabled={installing}
+              onClick={() => {
+                void controller.install(update.latest);
+              }}
+            >
+              {t(installing ? 'release.install.running' : 'release.install.action')}
+            </Button>
+          ) : null}
+        </>
+      }
+    >
+      {update.compatibility ? <p>{compatibilityText(update.compatibility, t)}</p> : null}
+      {update.status === 'available' && update.blockedLatest ? (
+        <p>
+          {t('release.notice.blockedLatest', { version: update.blockedLatest.version })}{' '}
+          {compatibilityText(update.blockedLatest.compatibility, t)}
+        </p>
+      ) : null}
+      {snapshot.install.status === 'failed' ? (
+        <p role="alert">{t(INSTALL_FAILURE_KEYS[snapshot.install.reason])}</p>
+      ) : null}
+      {update.status === 'available' ? (
+        <>
+          {!update.installable ? (
+            <ManualUpdate latest={update.latest} t={t} />
+          ) : (
+            <p>{t('release.install.hint')}</p>
+          )}
+          {update.releases.length > 0 ? (
+            <ReleaseNotesList releases={update.releases} badge={t('releaseNotes.latest')} t={t} />
+          ) : (
+            <p>{t('release.notice.noNotes')}</p>
+          )}
+        </>
+      ) : null}
+    </Modal>
   );
 }
 
@@ -209,6 +328,8 @@ function statusText(snapshot: ReleaseNotesSnapshot, t: BotHarnessTranslate): str
       return t('release.status.development', { version });
     case 'available':
       return t('release.status.available', { version, latest: update.latest });
+    case 'blocked':
+      return compatibilityText(update.compatibility, t);
     case 'current':
       return t('release.status.current', { version });
     case 'restart-required':
@@ -362,6 +483,13 @@ export function ReleaseSettings({ releaseNotes, t }: ReleaseSettingsProps): Reac
       />
       {update.status === 'available' && snapshot.identity?.kind !== 'unknown' ? (
         <div className="bh-release-update" data-release-update={update.latest}>
+          {update.compatibility ? <p>{compatibilityText(update.compatibility, t)}</p> : null}
+          {update.blockedLatest ? (
+            <p>
+              {t('release.notice.blockedLatest', { version: update.blockedLatest.version })}{' '}
+              {compatibilityText(update.blockedLatest.compatibility, t)}
+            </p>
+          ) : null}
           <div className="bh-release-update-head">
             <span className="bh-release-update-title">
               {t('release.update.title', { latest: update.latest })}

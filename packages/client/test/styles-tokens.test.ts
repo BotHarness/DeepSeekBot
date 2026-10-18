@@ -151,8 +151,8 @@ describe('client styles', () => {
     expect(source).toMatch(/\.bh-pinned\.bh-drag-source \{\s*opacity: 0\.4/);
   });
 
-  it('anchors the channel move menu at the cursor proxy', () => {
-    expect(source).toMatch(/\.bh-menu-anchor \{\s*position: fixed/);
+  it('keeps context-menu positioning out of feature CSS', () => {
+    expect(source).not.toContain('.bh-menu-anchor');
     expect(source).toMatch(/\.bh-move-checked \{\s*display: flex/);
   });
 

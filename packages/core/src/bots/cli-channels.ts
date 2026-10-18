@@ -6,6 +6,7 @@ import type { connectLiveHost } from './cli-live.js';
 
 export const CHANNEL_OPTIONS = {
   'avatar-file': { type: 'string' },
+  'expected-channel': { type: 'string' },
   invitation: { type: 'string' },
   request: { type: 'string' },
   accept: { type: 'boolean' },
@@ -27,6 +28,7 @@ export const CHANNEL_OPTIONS = {
 } as const;
 
 export const CHANNEL_COMMANDS = [
+  { command: 'channel', description: 'read a group Channel and its current fingerprint' },
   {
     command: 'channel-media-target',
     description: 'acquire authorized source media and resolve its Host file target',
@@ -47,6 +49,10 @@ export const CHANNEL_COMMANDS = [
     description: "accept or decline a Bot's request to join a group",
   },
   { command: 'group-member-remove', description: 'remove a Bot from a group Channel' },
+  {
+    command: 'group-send-review',
+    description: 'read Group send review; --accept enables and --off disables it',
+  },
   { command: 'group-wake-policies', description: "read each group member's wake policy" },
   { command: 'group-wake-set', description: "set or reset one group member's wake policy" },
   { command: 'group-delete', description: 'delete a group Channel; needs --confirm' },
@@ -90,6 +96,8 @@ export const CHANNEL_COMMANDS = [
 type ChannelCommand = (typeof CHANNEL_COMMANDS)[number]['command'];
 
 interface ChannelValues {
+  'operation-key'?: string;
+  'expected-channel'?: string;
   timeout?: string;
   name?: string;
   clear?: boolean;
@@ -131,6 +139,14 @@ function usage(message: string): never {
   throw new CliLiveError('usage', message);
 }
 
+export function channelOperationKey(value: string): string {
+  if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/u.test(value))
+    usage(
+      '--operation-key must be 8–128 letters, digits, dots, underscores, colons or hyphens, starting with a letter or digit.',
+    );
+  return value;
+}
+
 export function isChannelCommand(command: string): command is ChannelCommand {
   return CHANNEL_COMMANDS.some((entry) => entry.command === command);
 }
@@ -149,7 +165,7 @@ function required(value: string | undefined, flag: string): string {
   return trimmed;
 }
 
-function avatarDataUrl(path: string): string {
+export function channelAvatarDataUrl(path: string): string {
   let bytes: Buffer;
   try {
     bytes = readFileSync(path);
@@ -212,6 +228,9 @@ export async function runChannelCommand(
   let args: Record<string, unknown> = { channelId };
   let method: string;
   switch (command) {
+    case 'channel':
+      method = 'channelGet';
+      break;
     case 'channel-media-target':
     case 'channel-media-download':
       method = 'channelMediaTarget';
@@ -229,11 +248,15 @@ export async function runChannelCommand(
       method = 'channelGroupAvatarSet';
       if ((values['avatar-file'] === undefined) === (values.clear !== true))
         usage('group-avatar-set needs exactly one of --avatar-file <path> or --clear.');
-      args.avatar = values.clear === true ? null : avatarDataUrl(values['avatar-file']!);
+      args.avatar = values.clear === true ? null : channelAvatarDataUrl(values['avatar-file']!);
       break;
     case 'group-invite':
       method = 'channelGroupInvite';
       args.botSlug = required(values.bot, '--bot');
+      if (values['operation-key'] !== undefined)
+        args.operationKey = channelOperationKey(values['operation-key']);
+      if (values['expected-channel'] !== undefined)
+        args.expectedChannel = required(values['expected-channel'], '--expected-channel');
       break;
     case 'group-invite-cancel':
       method = 'channelGroupInviteCancel';
@@ -249,6 +272,11 @@ export async function runChannelCommand(
     case 'group-member-remove':
       method = 'channelGroupMemberRemove';
       args.botSlug = required(values.bot, '--bot');
+      break;
+    case 'group-send-review':
+      method = 'channelGroupSendReview';
+      if (values.accept && values.off) usage('Choose --accept or --off');
+      if (values.accept || values.off) args.enabled = values.accept === true;
       break;
     case 'group-wake-policies':
       method = 'channelGroupWakePolicies';
@@ -373,6 +401,13 @@ export async function runChannelCommand(
       break;
     }
   }
+  if (values['expected-channel'] !== undefined && command !== 'group-invite') {
+    const fingerprint = required(values['expected-channel'], '--expected-channel');
+    if (!/^[a-f0-9]{64}$/u.test(fingerprint))
+      usage('--expected-channel must be the observed Channel fingerprint.');
+    args.expectedChannel = fingerprint;
+  }
+
   const host = await connect(values, io, AbortSignal.timeout(Math.ceil(seconds * 1000)));
   if (command === 'channel-media-download') {
     const { bytes, response } = await host.http(

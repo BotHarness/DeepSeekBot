@@ -26,7 +26,7 @@ function StatusPill({ label }: { label: string }) {
         paddingVertical: space.x1,
       }}
     >
-      <Text variant="meta" strong tone="warning" numberOfLines={1}>
+      <Text variant="meta" strong tone="warning">
         {label}
       </Text>
     </View>
@@ -135,10 +135,11 @@ export function ActionCard({
               flexDirection: 'row',
               alignItems: 'center',
               justifyContent: 'space-between',
+              flexWrap: 'wrap',
               gap: space.x4,
             }}
           >
-            <Text strong numberOfLines={1} style={{ flexShrink: 1 }}>
+            <Text strong style={{ flexShrink: 1 }}>
               {category}
             </Text>
             {status === undefined ? null : <StatusPill label={status} />}

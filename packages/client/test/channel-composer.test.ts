@@ -431,3 +431,23 @@ it('identifies Session ownership with avatars only when multiple Bots are active
   expect(body).not.toContain('<strong>Ada</strong>');
   expect(body).not.toContain('<strong>Bob</strong>');
 });
+
+it('supports Shift+Enter sending while plain Enter remains a newline', () => {
+  const event = {
+    key: 'Enter',
+    shiftKey: false,
+    nativeEvent: { isComposing: false, keyCode: 13 } as KeyboardEvent,
+  };
+  expect(shouldSubmitComposerKey(event, 'shift-enter')).toBe(false);
+  expect(shouldSubmitComposerKey({ ...event, shiftKey: true }, 'shift-enter')).toBe(true);
+  expect(
+    shouldSubmitComposerKey(
+      {
+        ...event,
+        shiftKey: true,
+        nativeEvent: { ...event.nativeEvent, isComposing: true } as KeyboardEvent,
+      },
+      'shift-enter',
+    ),
+  ).toBe(false);
+});

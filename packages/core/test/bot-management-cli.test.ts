@@ -84,6 +84,68 @@ async function invoke(argv: string[], url: string, stdin = '') {
 }
 
 describe('online CLI management', () => {
+  it('updates through the live owner with the caller-observed profile and supports clearing profile fields', async () => {
+    const fingerprint = 'a'.repeat(64);
+    const live = await host((method) => ({
+      ok: true,
+      value:
+        method === 'get'
+          ? { bot: { slug: 'owned' }, profileFingerprint: fingerprint }
+          : { bot: { slug: 'owned', description: '', roles: [] } },
+    }));
+    const shown = await invoke(['show', 'owned'], live.url);
+    expect(shown.value.profileFingerprint).toBe(fingerprint);
+    const result = await invoke(
+      ['update', 'owned', '--expected-profile', fingerprint, '--description', '', '--role', ''],
+      live.url,
+    );
+    expect(result.code).toBe(0);
+    expect(live.calls).toEqual([
+      { method: 'get', args: { slug: 'owned' } },
+      {
+        method: 'update',
+        args: {
+          slug: 'owned',
+          expectedProfile: fingerprint,
+          patch: { description: '', roles: [] },
+        },
+      },
+    ]);
+  });
+
+  it('rejects invalid online update flags before contacting the Host and never refreshes a stale profile', async () => {
+    const live = await host(() => ({
+      ok: false,
+      error: { code: 'stale-profile', message: 'Profile changed' },
+    }));
+    for (const args of [
+      ['update', 'owned', '--name', 'Changed'],
+      [
+        'update',
+        'owned',
+        '--name',
+        'Changed',
+        '--expected-profile',
+        'a'.repeat(64),
+        '--session',
+        'other',
+      ],
+    ])
+      expect((await invoke(args, live.url)).code).not.toBe(0);
+    expect(live.calls).toEqual([]);
+    const refused = await invoke(
+      ['update', 'owned', '--name', 'Changed', '--expected-profile', 'a'.repeat(64)],
+      live.url,
+    );
+    expect(refused.value.error.code).toBe('stale-profile');
+    expect(live.calls).toEqual([
+      {
+        method: 'update',
+        args: { slug: 'owned', expectedProfile: 'a'.repeat(64), patch: { displayName: 'Changed' } },
+      },
+    ]);
+  });
+
   it('requires reviewed stdin deletion scope, retains Memory and passes stale scope refusal without retry', async () => {
     const live = await host((method) =>
       method === 'deletionConfirm'
@@ -100,14 +162,14 @@ describe('online CLI management', () => {
     expect(
       (
         await invoke(
-          ['bot-delete-confirm', 'owned', '--confirmation-stdin'],
+          ['bot-delete-confirm', 'owned', '--confirmation-stdin', '--confirm'],
           live.url,
           '{"token":"reviewed-scope","eraseMemory":true}',
         )
       ).value.error.code,
     ).toBe('usage');
     const confirmed = await invoke(
-      ['bot-delete-confirm', 'owned', '--confirmation-stdin'],
+      ['bot-delete-confirm', 'owned', '--confirmation-stdin', '--confirm'],
       live.url,
       '{"token":"reviewed-scope"}',
     );
@@ -335,6 +397,66 @@ describe('online CLI management', () => {
     ]);
   });
 
+  it('carries a stable creation key and returns the canonical receipt', async () => {
+    const operationKey = 'human-create-operation-01';
+    const live = await host((method) => ({
+      ok: true,
+      value: {
+        bot: { slug: 'minted', displayName: 'Ada', memoryDir: 'host/memory' },
+        ...(method === 'create'
+          ? {
+              receipt: {
+                operationKey,
+                botSlug: 'minted',
+                status: 'created',
+                channelId: 'dm-minted',
+              },
+            }
+          : {}),
+      },
+    }));
+    const result = await invoke(
+      ['create', '--name', 'Ada', '--operation-key', operationKey],
+      live.url,
+    );
+    expect(result.code).toBe(0);
+    expect(live.calls[0]?.args).toEqual({ displayName: 'Ada', operationKey });
+    expect(result.value.operation).toEqual({
+      operationKey,
+      botSlug: 'minted',
+      status: 'created',
+      channelId: 'dm-minted',
+    });
+  });
+
+  it('returns the stable key after a lost response and refuses ambiguous keyed creation modes', async () => {
+    const live = await host(() => 'lost-response');
+    const operationKey = 'human-create-operation-02';
+    const result = await invoke(
+      ['create', '--name', 'Ada', '--operation-key', operationKey],
+      live.url,
+    );
+    expect(result.value).toMatchObject({
+      outcome: 'unknown',
+      operation: { operationKey, status: 'unknown' },
+    });
+    expect(live.calls).toHaveLength(1);
+    for (const flags of [
+      ['--preset', 'preset'],
+      ['--memory-location', '/tmp'],
+      ['--from-git', 'owner/repo'],
+    ])
+      expect(
+        (
+          await invoke(
+            ['create', '--name', 'Ada', '--operation-key', operationKey, ...flags],
+            live.url,
+          )
+        ).value.error.code,
+      ).toBe('usage');
+    expect(live.calls).toHaveLength(1);
+  });
+
   it('marks a lost create response unknown and never resends the mutation', async () => {
     const live = await host(() => 'lost-response');
     const result = await invoke(['create', '--name', 'Ada'], live.url);
@@ -360,14 +482,92 @@ describe('online CLI management', () => {
     expect(live.calls).toEqual([]);
   });
 
-  it('refuses retry of a previously accepted Memory erasure', async () => {
-    const live = await host(() => ({
-      ok: true,
-      value: { preview: { deletion: { eraseMemory: true, phase: 'incomplete' } } },
-    }));
-    const result = await invoke(['bot-delete-retry', 'owned'], live.url);
+  it.each([false, true])(
+    'retries accepted cleanup without overriding eraseMemory=%s',
+    async (eraseMemory) => {
+      const live = await host((method) => ({
+        ok: true,
+        value:
+          method === 'deletionPreview'
+            ? { preview: { deletion: { eraseMemory, phase: 'incomplete' } } }
+            : { deletion: { eraseMemory, phase: 'complete' } },
+      }));
+      expect((await invoke(['bot-delete-retry', 'owned'], live.url)).value.error.code).toBe(
+        'usage',
+      );
+      expect(
+        (await invoke(['bot-delete-retry', 'owned', '--confirm', '--erase-memory'], live.url)).value
+          .error.code,
+      ).toBe('usage');
+      const result = await invoke(['bot-delete-retry', 'owned', '--confirm'], live.url);
+      expect(result.value.deletion).toEqual({ eraseMemory, phase: 'complete' });
+      expect(live.calls).toEqual([
+        { method: 'deletionPreview', args: { slug: 'owned' } },
+        { method: 'deletionRetry', args: { slug: 'owned' } },
+      ]);
+    },
+  );
+
+  it('refuses retry without an accepted deletion and never submits a new scope', async () => {
+    const live = await host(() => ({ ok: true, value: { preview: { token: 'unaccepted' } } }));
+    const result = await invoke(['bot-delete-retry', 'owned', '--confirm'], live.url);
     expect(result.value.error.code).toBe('usage');
-    expect(live.calls.map((call) => call.method)).toEqual(['deletionPreview']);
+    expect(live.calls).toEqual([{ method: 'deletionPreview', args: { slug: 'owned' } }]);
+  });
+
+  it('requires explicit confirmation and an explicit flag to erase reviewed Memory', async () => {
+    const live = await host(() => ({ ok: true, value: { deletion: { memory: 'erased' } } }));
+    const token = JSON.stringify({ token: 'reviewed-scope' });
+    expect(
+      (
+        await invoke(
+          ['bot-delete-confirm', 'owned', '--confirmation-stdin', '--erase-memory'],
+          live.url,
+          token,
+        )
+      ).value.error.code,
+    ).toBe('usage');
+    expect(
+      (
+        await invoke(
+          ['bot-delete-confirm', 'owned', '--confirmation-stdin', '--confirm', '--erase-memory'],
+          live.url,
+          token,
+        )
+      ).code,
+    ).toBe(0);
+    expect(live.calls).toEqual([
+      {
+        method: 'deletionConfirm',
+        args: { slug: 'owned', token: 'reviewed-scope', eraseMemory: true },
+      },
+    ]);
+  });
+
+  it('queries only the owner-selected Memory folder and passes its coded refusal through', async () => {
+    const target = { path: '/host/memory/owned', relativePath: '.', kind: 'directory' };
+    const live = await host((_method, args) =>
+      args.slug === 'missing'
+        ? {
+            ok: false,
+            error: { code: 'botharness/invalid-input', message: 'Memory folder unavailable' },
+          }
+        : { ok: true, value: { target } },
+    );
+    expect((await invoke(['bot-delete-memory-folder', 'owned'], live.url)).value).toEqual({
+      target,
+    });
+    expect(
+      (await invoke(['bot-delete-memory-folder', 'owned', '--path', '/unrelated'], live.url)).value
+        .error.code,
+    ).toBe('usage');
+    expect((await invoke(['bot-delete-memory-folder', 'missing'], live.url)).value.error.code).toBe(
+      'botharness/invalid-input',
+    );
+    expect(live.calls).toEqual([
+      { method: 'deletionMemoryFolder', args: { slug: 'owned' } },
+      { method: 'deletionMemoryFolder', args: { slug: 'missing' } },
+    ]);
   });
 
   it('queries Channel discovery and bounded attention and Session summaries through their owners', async () => {

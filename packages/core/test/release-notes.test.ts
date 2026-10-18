@@ -1,3 +1,4 @@
+import { releaseManifestResponse, testReleaseRuntime } from './release-registry-fixture.js';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -325,6 +326,8 @@ describe('release service', () => {
 
   it('reports a newer npm release with its notes from the published package', async () => {
     const fetchImpl = vi.fn(async (input: string | URL | Request) => {
+      const manifest = releaseManifestResponse(input);
+      if (manifest) return manifest;
       const url = String(input);
       if (url === 'https://registry.test/-/package/deepseekbot/dist-tags')
         return jsonResponse({ latest: '1.1.0', next: '1.1.0' });
@@ -334,6 +337,7 @@ describe('release service', () => {
     });
     const service = createReleaseService({
       version: () => '1.0.1',
+      runtime: testReleaseRuntime,
       ledgers,
       fetchImpl: fetchImpl as typeof fetch,
       registries: ['https://registry.test'],
@@ -345,7 +349,7 @@ describe('release service', () => {
       '1.1.0',
     ]);
     await service.update();
-    expect(fetchImpl).toHaveBeenCalledTimes(3);
+    expect(fetchImpl).toHaveBeenCalledTimes(8);
   });
 
   it('falls through registries and reports up to date or unavailable', async () => {
@@ -381,10 +385,12 @@ describe('release service', () => {
     expect(offline).toHaveBeenCalledTimes(2);
   });
 
-  const newerRelease = vi.fn(async (input: string | URL | Request) =>
-    String(input).endsWith('/dist-tags')
-      ? jsonResponse({ latest: '1.1.0' })
-      : new Response('', { status: 404 }),
+  const newerRelease = vi.fn(
+    async (input: string | URL | Request) =>
+      releaseManifestResponse(input) ??
+      (String(input).endsWith('/dist-tags')
+        ? jsonResponse({ latest: '1.1.0' })
+        : new Response('', { status: 404 })),
   );
 
   function installer(
@@ -409,6 +415,7 @@ describe('release service', () => {
   ) {
     return createReleaseService({
       version: () => version,
+      runtime: testReleaseRuntime,
       ledgers,
       fetchImpl: newerRelease as typeof fetch,
       registries: ['https://registry.test'],
@@ -554,6 +561,35 @@ describe('release service', () => {
     });
     finish({ application: 'restart-required' });
     expect(await first).toEqual(await second);
+  });
+
+  it('does not let a guarded or different-version install join an ongoing Human install', async () => {
+    let finish: (value: ReleaseInstallerResult) => void = () => undefined;
+    const manager = {
+      listBundles: vi.fn(async () => [{ name: 'deepseekbot', installed: true }]),
+      installBundle: vi.fn(
+        () =>
+          new Promise<ReleaseInstallerResult>((resolve) => {
+            finish = resolve;
+          }),
+      ),
+    };
+    const service = installable(manager);
+    const human = service.install('1.1.0');
+    await vi.waitFor(() => expect(manager.installBundle).toHaveBeenCalledTimes(1));
+    const guard = vi.fn();
+    expect(await service.install('1.1.0', guard)).toEqual({
+      status: 'failed',
+      reason: 'unavailable',
+    });
+    expect(await service.install('1.2.0', guard)).toEqual({
+      status: 'failed',
+      reason: 'unavailable',
+    });
+    expect(await service.install('1.2.0')).toEqual({ status: 'failed', reason: 'unavailable' });
+    expect(manager.installBundle).toHaveBeenCalledTimes(1);
+    finish({ application: 'restart-required' });
+    expect(await human).toMatchObject({ status: 'installed', installed: '1.1.0' });
   });
 
   it('reads the installed version and ledgers next to the module', () => {

@@ -32,6 +32,19 @@ import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 const roots: string[] = [];
 const modelOwners: OperationalDatabaseOwner[] = [];
 
+it('reports unavailable Group review without blaming roster storage', () => {
+  const { registry, channels, methods } = setup();
+  registry.create({ slug: 'ada', displayName: 'Ada' });
+  const channel = channels.createGroup({ name: 'Review', members: ['ada'] });
+  vi.spyOn(channels, 'listHumanMembers').mockReturnValue([
+    { humanId: 'local-human', displayName: 'Human' },
+  ]);
+  expect(methods.channelGroupSendReview({ channelId: channel.id })).toEqual({
+    ok: false,
+    error: { code: 'unavailable', message: 'Group send review is unavailable on this Host' },
+  });
+});
+
 describe('composer recovery reference validation', () => {
   it('uses current Human-visible reply and attachment facts without accepting draft text', async () => {
     const { channels, attachments, methods } = setup();
@@ -650,7 +663,7 @@ describe('bridge methods', () => {
     });
     const readiness = createModelRouteReadiness(registry, catalog);
     await expect(readiness.prepare('ada', 'orchestrator')).resolves.toBeUndefined();
-    await expect(readiness.prepare('ada', 'assignment')).rejects.toThrow(
+    await expect(readiness.prepare('ada', 'assignment', missing)).rejects.toThrow(
       'select an available Model Preset',
     );
     const preset = modelPresets.create({
@@ -1199,6 +1212,43 @@ describe('bridge methods', () => {
       revision: 2,
       orchestrator: low,
     });
+  });
+  it('creates only an Orchestrator override, validates revisions, and keeps Assignment inheritance at readiness', async () => {
+    const route = { provider: 'deepseek', model: 'flash' };
+    const validate = vi.fn(async () => undefined);
+    const catalog: ModelCatalog = { list: async () => [], validate };
+    const { registry, methods } = setup(
+      [],
+      ['ada'],
+      undefined,
+      createTestOwnership(),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      catalog,
+    );
+    registry.create({ slug: 'ada', displayName: 'Ada' });
+    const result = await methods.modelPlanCustomize({
+      slug: 'ada',
+      orchestrator: route,
+      expectedRevision: 0,
+    });
+    expect(result).toMatchObject({
+      ok: true,
+      value: { plan: { revision: 1, orchestrator: route } },
+    });
+    expect(registry.get('ada')?.modelPlan).not.toHaveProperty('assignmentDefault');
+    expect(registry.get('ada')?.modelPlan).not.toHaveProperty('assignmentModels');
+    expect(
+      await methods.modelPlanCustomize({ slug: 'ada', orchestrator: route, expectedRevision: 0 }),
+    ).toMatchObject({ ok: false });
+    const readiness = createModelRouteReadiness(registry, catalog);
+    validate.mockClear();
+    await readiness.prepare('ada', 'assignment');
+    expect(validate).not.toHaveBeenCalled();
+    await readiness.prepare('ada', 'orchestrator');
+    expect(validate).toHaveBeenCalledWith(route);
   });
   it('rejects stale customization when a preset is applied during model validation', async () => {
     const high = { provider: 'deepseek', model: 'flash', reasoningEffort: 'high' };
@@ -1761,6 +1811,41 @@ describe('bridge methods', () => {
 
     expect(first.ok && first.value.bot.slug).toBe('bot-one');
     expect(second.ok && second.value.bot.slug).toBe('bot-two');
+  });
+
+  it('guards explicit CLI profile updates with the observed fingerprint while keeping the existing UI update path', () => {
+    const { registry, methods } = setup();
+    registry.create({ slug: 'ada', displayName: 'Ada', description: 'Before', roles: ['old'] });
+    const before = methods.get({ slug: 'ada' });
+    if (!before.ok) throw new Error('missing Bot');
+    expect(before.value.profileFingerprint).toMatch(/^[a-f0-9]{64}$/u);
+    expect(
+      methods.update({
+        slug: 'ada',
+        expectedProfile: before.value.profileFingerprint,
+        patch: { description: '', roles: [] },
+      }).ok,
+    ).toBe(true);
+    const changed = registry.get('ada');
+    expect(changed?.description).toBeUndefined();
+    expect(changed?.roles).toBeUndefined();
+    expect(
+      methods.update({
+        slug: 'ada',
+        expectedProfile: before.value.profileFingerprint,
+        patch: { displayName: 'Stale overwrite' },
+      }),
+    ).toMatchObject({ ok: false, error: { code: 'stale-profile' } });
+    expect(registry.get('ada')).toEqual(changed);
+    expect(
+      methods.update({
+        slug: 'ada',
+        expectedProfile: 42,
+        patch: { displayName: 'Bad fingerprint' },
+      }).ok,
+    ).toBe(false);
+    expect(methods.update({ slug: 'ada', patch: { displayName: 'UI update' } }).ok).toBe(true);
+    expect(registry.get('ada')?.displayName).toBe('UI update');
   });
 
   it('updates editable fields and leaves persona untouched', () => {
@@ -2506,6 +2591,13 @@ describe('bridge methods', () => {
       'session-assignment',
       'session-orchestrator',
     ]);
+    expect(result.value.groups).toEqual([
+      {
+        botSlug: 'ada',
+        displayName: 'Ada',
+        sessionIds: expect.arrayContaining(['session-orchestrator', 'session-assignment']),
+      },
+    ]);
   });
 
   it('rejects malformed or unknown session reads', () => {
@@ -2554,6 +2646,48 @@ describe('bridge methods', () => {
     expect(methods.developerModeSet({ enabled: true })).toEqual({
       ok: true,
       value: { accepted: false },
+    });
+  });
+
+  it('keeps the same reported lower bound in Profile and Overview usage', () => {
+    const usage = {
+      activity: () => [
+        {
+          day: '2026-10-17',
+          purpose: 'orchestrator',
+          provider: 'deepseek',
+          model: 'flash',
+          inputTokens: 67711,
+          outputTokens: 3040,
+          cacheReadTokens: 603904,
+          cacheWriteTokens: 0,
+          totalTokens: null,
+          reportedTotalTokens: 674655,
+          unknownBuckets: {
+            inputTokens: 1,
+            outputTokens: 1,
+            cacheReadTokens: 1,
+            cacheWriteTokens: 2,
+          },
+        },
+      ],
+    } as unknown as UsageProjection;
+    const { registry, channels, methods } = setup(
+      [],
+      ['ada'],
+      undefined,
+      createTestOwnership(),
+      undefined,
+      undefined,
+      undefined,
+      usage,
+    );
+    registry.create({ slug: 'ada', displayName: 'Ada' });
+    const dm = channels.getOrCreateDm('ada', 'Ada')!;
+    const result = methods.profileActivity({ channelId: dm.id });
+    expect(result.ok && result.value.modelUsageRows[0]).toMatchObject({
+      totalTokens: 674655,
+      partial: true,
     });
   });
 

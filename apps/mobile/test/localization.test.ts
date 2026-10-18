@@ -1,8 +1,13 @@
-import { readFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const read = (path: string) => JSON.parse(readFileSync(new URL(path, import.meta.url), 'utf8'));
 const expo = read('../app.json').expo;
+const require = createRequire(import.meta.url);
+const { AndroidConfig } = require('expo/config-plugins');
 
 describe('system language', () => {
   it('declares Simplified Chinese, since iOS hands an app only the languages its bundle declares', () => {
@@ -24,8 +29,26 @@ describe('system language', () => {
         if (option in keyFor) declared.add(keyFor[option]!);
       }
     }
-    const zh = read('../locales/zh-Hans.json');
+    const zh = read('../locales/zh-Hans.json').ios;
     expect(Object.keys(zh).sort()).toEqual([...declared].sort());
     for (const text of Object.values(zh)) expect(text).toMatch(/[一-鿿]/u);
+  });
+
+  it('does not generate iOS permission keys as Android string translations', async () => {
+    const projectRoot = mkdtempSync(join(tmpdir(), 'botharness-mobile-locales-'));
+    try {
+      mkdirSync(join(projectRoot, 'android/app/src/main/res'), { recursive: true });
+      await AndroidConfig.Locales.setLocalesAsync(
+        { locales: { 'zh-Hans': read('../locales/zh-Hans.json') } },
+        { projectRoot },
+      );
+      const xml = readFileSync(
+        join(projectRoot, 'android/app/src/main/res/values-b+zh+Hans/strings.xml'),
+        'utf8',
+      );
+      expect(xml).not.toMatch(/name="NS\w+UsageDescription"/u);
+    } finally {
+      rmSync(projectRoot, { recursive: true, force: true });
+    }
   });
 });

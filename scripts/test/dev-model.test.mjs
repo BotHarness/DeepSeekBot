@@ -49,7 +49,7 @@ describe('AX native OpenCode Go reuse', () => {
     );
     expect(workspace.allowBuilds).toEqual({ koffi: true });
     expect(workspace.patchedDependencies.other).toBe('other.patch');
-    expect(workspace.patchedDependencies['@deepseek-ai/dsh-llm-pi-ai@0.2.0-rc.2']).toBe(
+    expect(workspace.patchedDependencies['@deepseek-ai/dsh-llm-pi-ai@0.2.1-rc.2']).toBe(
       GO_RUNTIME_PATCH,
     );
     const staged = join(runtime, GO_RUNTIME_PATCH);
@@ -66,8 +66,8 @@ describe('AX native OpenCode Go reuse', () => {
       '@deepseek-ai/dsh-llm-pi-ai@0.2.0-rc.1': GO_RUNTIME_PATCH,
     });
     expect(readFileSync(join(runtime, GO_RUNTIME_PATCH))).toEqual(readFileSync(GO_SESSION_PATCH));
-    expect(goSessionQualified('0.2.0-rc.2', false)).toBe(true);
-    expect(goSessionQualified('0.2.0-rc.2', true)).toBe(true);
+    expect(goSessionQualified('0.2.1-rc.2', false)).toBe(true);
+    expect(goSessionQualified('0.2.1-rc.2', true)).toBe(true);
     expect(goSessionQualified('0.2.0-rc.1', true)).toBe(true);
     expect(goSessionQualified('0.2.0-rc.1', false)).toBe(false);
     expect(goSessionQualified('0.2.1', true)).toBe(false);

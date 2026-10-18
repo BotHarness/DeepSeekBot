@@ -35,7 +35,7 @@ export function ChatTitle({
         flexDirection: 'row',
         alignItems: 'center',
         gap: space.x3,
-        height: theme.touch,
+        minHeight: Math.max(theme.touch, theme.type.body.line * theme.fontScale + space.x3),
         paddingLeft: bot === undefined ? theme.touch / 2 : (theme.touch - AVATAR) / 2,
         paddingRight: bot === undefined ? theme.touch / 2 : (theme.touch - DOT) / 2,
         borderRadius: radius.round,

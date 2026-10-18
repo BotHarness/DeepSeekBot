@@ -330,8 +330,8 @@ export function exportTimedQuestionEvidence(proof) {
         }
       : {}),
     issue: 1220,
-    dsh: '0.2.0-rc.2',
-    upstream: '639ed015397290b3745d163aafe02ffee4aa3f84',
+    dsh: '0.2.1-rc.2',
+    upstream: '687f282e8625c6b8d11ff58211a90524be2e4317',
     applicationBaseline: proof.applicationBaseline,
     startedAt: proof.startedAt,
     request: read('channel-question'),

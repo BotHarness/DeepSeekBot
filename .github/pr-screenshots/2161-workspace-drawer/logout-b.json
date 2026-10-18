@@ -1,0 +1,6 @@
+{
+  "event": "uat_logout_verified",
+  "ownSessionRevoked": true,
+  "latestRefreshRejected": true,
+  "otherSessionsPreserved": true
+}

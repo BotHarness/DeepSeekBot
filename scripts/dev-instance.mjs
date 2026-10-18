@@ -300,7 +300,7 @@ async function main() {
         ];
     if (options.axModel && !goSessionQualified(version, options.productArtifacts !== null))
       throw new Error(
-        'AX Go session qualification requires DSH 0.2.0-rc.2, or 0.2.0-rc.1 with product artifacts',
+        'AX Go session qualification requires DSH 0.2.1-rc.2, or 0.2.0-rc.1 with product artifacts',
       );
     options.runtime = join(options.home, options.productArtifacts ? 'packaged-cli' : 'ax-cli');
     mkdirSync(options.runtime, { recursive: true });

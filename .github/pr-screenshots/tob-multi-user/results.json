@@ -1,0 +1,30 @@
+{
+  "date": "2026-10-18",
+  "environment": "UAT",
+  "runtime": "9f71dd3d9",
+  "service": "c4c8aa44fd86dcd53650440a8350442c20420938",
+  "passed": [
+    "ordinary-user-admission",
+    "default-replay",
+    "mobile-create-third-org",
+    "mobile-default-to-third-switch",
+    "independent-cli-exact-org-agreement",
+    "cold-restart",
+    "refresh-rotation",
+    "selected-org-retained",
+    "phone-remote-logout",
+    "phone-refresh-rejected",
+    "local-session-cleared",
+    "independent-cli-sessions-retained"
+  ],
+  "not_claimed": [
+    "new-hosted-authkit",
+    "physical-device",
+    "channels",
+    "invitations",
+    "cross-host",
+    "human-acceptance",
+    "merge",
+    "production"
+  ]
+}

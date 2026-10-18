@@ -40,10 +40,20 @@ export async function installOrchestratorFileTools(
     throw new Error('Orchestrator native filesystem, Shell and Policy Providers are required');
   const shells = presetShells(agentCtx, agent);
   const callPolicy = new AsyncLocalStorage<Policy>();
-  const scoped = agentCtx.isolate('sandboxPolicy').isolate('fs').isolate('shell');
+  let scoped = agentCtx.isolate('sandboxPolicy').isolate('fs').isolate('shell');
+  if (scoped.get('workingDirectory') === undefined) scoped = scoped.isolate('workingDirectory');
   const fiber = scoped.plugin({
     name: 'botharness-orchestrator-file-tools',
     apply(ctx: Context) {
+      if (ctx.get('workingDirectory') === undefined)
+        ctx.provide('workingDirectory', {
+          async ensure(caller: Agent, signal?: AbortSignal) {
+            signal?.throwIfAborted();
+            const cwd = caller.session.header.cwd;
+            if (cwd === undefined) throw new Error('DSH Session working directory is unavailable');
+            return cwd;
+          },
+        });
       ctx.provide('fs', fs);
       if (shellFor === undefined) ctx.provide('shell', shell);
       else shellFor(ctx, shell);

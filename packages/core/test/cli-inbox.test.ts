@@ -87,10 +87,46 @@ const echo = (method: string, args: Record<string, unknown>) => ({
         ? { removed: true }
         : method === 'channelAssign'
           ? {}
-          : { method, args },
+          : { method, args, ...(args['queryVersion'] === 1 ? { queryVersion: 1 } : {}) },
 });
 
 describe('Human Inbox, assignment, Session and approval-rule commands', () => {
+  it('refuses an older Host that ignores Activity query capabilities', async () => {
+    const live = await host(() => ({ ok: true, value: { items: [] } }));
+    const result = await invoke(['inbox', '--search', 'budget'], live.url);
+    expect(result.code).not.toBe(0);
+    expect(result.text).toContain('host-query-unsupported');
+  });
+
+  it('searches and orders personal Activity through the same Host query', async () => {
+    const live = await host(echo);
+    const result = await invoke(
+      [
+        'inbox',
+        '--category',
+        'replies',
+        '--sort',
+        'mentions-first',
+        '--search',
+        'budget',
+        '--unread',
+      ],
+      live.url,
+    );
+    expect(result.code).toBe(0);
+    expect(live.calls).toEqual([
+      {
+        method: 'humanAttention',
+        args: {
+          category: 'replies',
+          sort: 'mentions-first',
+          search: 'budget',
+          unreadOnly: true,
+          queryVersion: 1,
+        },
+      },
+    ]);
+  });
   it('lists, counts, dismisses and ignores Human Inbox items through the live Host', async () => {
     const live = await host(echo);
     const listed = await invoke(

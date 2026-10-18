@@ -313,9 +313,10 @@ try {
     assert.ok(!chipTip.includes('setTimeout'));
     await shot('group-chip-tooltip-light');
     await page.keyboard.press('Escape');
-    await page.waitForFunction(() => !document.querySelector('.bh-profile-popover'));
+    await page.waitForFunction(() => !document.querySelector('.bh-profile-view'));
     await page.click('[data-group-channel-name]');
-    await page.waitForSelector('.bh-profile-popover .bh-profile-expand');
+    await page.locator('::-p-aria(Group Profile)').click();
+    await page.waitForSelector('.bh-profile-view .bh-profile-back');
     await page.keyboard.press('Escape');
   }
   await page.click('.bh-composer-activity-toggle');

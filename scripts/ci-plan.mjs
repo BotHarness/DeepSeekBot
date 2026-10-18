@@ -61,6 +61,7 @@ export const RULES = [
   related('apps/docs/**', 'Docs site', true),
   none('apps/presentations/**', 'Slides embedded in the docs site', true),
   related('apps/mobile/{app,src,test,scripts}/**', 'Mobile app source, tests and scripts'),
+  none('apps/mobile/modules/**', 'Local Expo modules, checked by Android native unit tests'),
   related('apps/mobile/{app.json,eas.json,metro.config.js}', 'Mobile app config'),
   related('apps/mobile/locales/**', 'Translated iOS permission prompts'),
   related('apps/mobile/assets/**', 'Mobile app icons and bundled images'),
@@ -453,6 +454,15 @@ export async function check(root = ROOT) {
   return problems;
 }
 
+export function androidNativeTests(tests, changes) {
+  return (
+    tests === 'full' ||
+    changes.some((change) =>
+      [change.path, change.previous].some((path) => path?.startsWith('apps/mobile/modules/')),
+    )
+  );
+}
+
 function githubPlan(changesFile) {
   const event = process.env.GITHUB_EVENT_NAME;
   const payload = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
@@ -465,7 +475,7 @@ function githubPlan(changesFile) {
   const result = plan({ event, labels, changes, truncated: changedCount > changes.length, index });
   appendFileSync(
     process.env.GITHUB_OUTPUT,
-    `tests=${result.tests}\ndocs-site=${result.docsSite}\nrelated=${JSON.stringify(result.related)}\n`,
+    `tests=${result.tests}\ndocs-site=${result.docsSite}\nandroid-native=${androidNativeTests(result.tests, changes)}\nrelated=${JSON.stringify(result.related)}\n`,
   );
   const listed = result.related.map((file) => `- \`${file}\``).join('\n');
   appendFileSync(

@@ -42,10 +42,10 @@ async function exercise(
   });
   try {
     core.registry.create({ slug: 'owner', displayName: 'Owner' });
-    const registry =
-      count > 50
-        ? createTestRegistry({ rootDir: core.registry.rootDir, database: core.operationalDatabase })
-        : core.registry;
+    const registry = createTestRegistry({
+      rootDir: core.registry.rootDir,
+      database: core.operationalDatabase,
+    });
     for (let index = count - 1; index >= 0; index--) {
       expect(
         registry.create({
@@ -235,8 +235,12 @@ describe('Orchestrator bounded contact discovery', () => {
   it('bounds escaped names/descriptions while advancing from the last returned identity', async () => {
     let checked = false;
     await exercise(25, async (run, core) => {
-      for (const bot of core.registry.list().filter((bot) => bot.slug.startsWith('colleague-'))) {
-        core.registry.update(bot.slug, {
+      const registry = createTestRegistry({
+        rootDir: core.registry.rootDir,
+        database: core.operationalDatabase,
+      });
+      for (const bot of registry.list().filter((bot) => bot.slug.startsWith('colleague-'))) {
+        registry.update(bot.slug, {
           displayName: '\u0001'.repeat(2_000),
           description: '\u0002'.repeat(3_000),
         });

@@ -1,13 +1,12 @@
+import { ActivityInboxHeader } from './activity-inbox-menu.js';
 import type { BridgeActions } from './actions.js';
 import { ActivityCenterView } from './activity-center-view.js';
 import { ACTIVITY_CENTER_PANEL, type DockPanel } from './dock-panels.js';
 import type { BotHarnessTranslate } from './locale.js';
-import type { NativeSessionCatalog } from './sessions-entry.js';
 
 export function createActivityCenterPanel(
   actions: BridgeActions,
   t: BotHarnessTranslate,
-  nativeSessions?: NativeSessionCatalog | undefined,
 ): DockPanel {
   return {
     id: ACTIVITY_CENTER_PANEL,
@@ -16,13 +15,7 @@ export function createActivityCenterPanel(
     scope: 'global',
     order: -100,
     defaultPosition: { zone: 'right' },
-    component: () => (
-      <ActivityCenterView
-        actions={actions}
-        t={t}
-        nativeSessions={nativeSessions}
-        placement="panel"
-      />
-    ),
+    headerAction: () => <ActivityInboxHeader actions={actions} t={t} />,
+    component: () => <ActivityCenterView actions={actions} t={t} placement="panel" />,
   };
 }

@@ -1,3 +1,4 @@
+import { PanelEmptyState } from '../../../client/src/client/ds/empty-state.js';
 import { RemoteViewer } from '../../../client/src/client/remote-viewer/index.js';
 import type { ViewerTranslate } from '../../../client/src/client/remote-viewer/locale.js';
 import {
@@ -919,7 +920,7 @@ function createBrowserBody(t: BrowserTranslate): ComponentType<ChannelSidebarEnt
     const store = botInfoStore(props.botSlug);
     const info = useSyncExternalStore(store.subscribe, store.getSnapshot);
     if (info.browserAccess === false)
-      return <div className="bh-browser-note">{t('entry.access.description')}</div>;
+      return <PanelEmptyState icon="globe">{t('entry.access.description')}</PanelEmptyState>;
     return <BrowserBody {...props} t={t} />;
   };
 }

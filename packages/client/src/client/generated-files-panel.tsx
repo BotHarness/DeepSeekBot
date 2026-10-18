@@ -1,15 +1,19 @@
+import {
+  Tooltip,
+  IconPaperclipOutlineRegular,
+  IconCheckOutlineRegular,
+} from '@deepseek-ai/dsh-client-ui-primitives';
+import { IconButton } from './ds/icon-button.js';
+import { PanelEmptyState } from './ds/empty-state.js';
 import { createContext, useContext, useState, type ReactElement } from 'react';
 import { attachmentIdentity } from '../../../core/src/attachments/ref.js';
 import type { BridgeActions } from './actions.js';
-import { useClientState } from './bot-sidebar.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { MessageAttachment } from './message-attachment.js';
 import { useMountedResource } from './mounted-resource.js';
 import { store, type ChannelAttachmentRef } from './store.js';
 import { createGeneratedFilesHistory, type GeneratedFile } from './generated-files-history.js';
 import { subscribeMessagingDefaults } from './messaging-defaults-live.js';
-import type { DockPanel, DockPanelProps } from './dock-panels.js';
-import { Select } from './ds/select.js';
 
 export const GeneratedFilesContext = createContext<
   | {
@@ -21,17 +25,16 @@ export const GeneratedFilesContext = createContext<
   | undefined
 >(undefined);
 
-function GeneratedFilesPanel({
-  channel,
+export function ChannelFiles({
+  channelId,
   actions,
   t,
-}: DockPanelProps & { actions: BridgeActions; t: BotHarnessTranslate }): ReactElement {
-  const state = useClientState();
+}: {
+  channelId: string;
+  actions: BridgeActions;
+  t: BotHarnessTranslate;
+}): ReactElement {
   const composer = useContext(GeneratedFilesContext);
-  const [selectedBot, setSelectedBot] = useState('');
-  const botSlug = channel?.botSlug ?? selectedBot;
-  const channelId = channel?.id;
-  const members = state.channels.find((item) => item.id === channelId)?.members ?? [];
   const [history, setHistory] = useState<GeneratedFile[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
@@ -40,9 +43,8 @@ function GeneratedFilesPanel({
     setHistory([]);
     setError(undefined);
     setLoading(false);
-    if (channelId === undefined || !botSlug) return;
     const controller = new AbortController();
-    const cache = createGeneratedFilesHistory(botSlug);
+    const cache = createGeneratedFilesHistory();
     const reconcile = (): void => {
       const snapshot = store.getSnapshot();
       const latest = snapshot.channels.find((item) => item.id === channelId)?.latestMessage;
@@ -89,7 +91,7 @@ function GeneratedFilesPanel({
       unsubscribe();
       stopRedactions();
     };
-  }, [channelId, botSlug, actions, retry]);
+  }, [channelId, actions, retry]);
   const files = new Map<string, GeneratedFile>();
   for (const file of history) {
     const id = attachmentIdentity(file.ref);
@@ -98,20 +100,6 @@ function GeneratedFilesPanel({
   const selected = new Set(composer?.attachments.map(attachmentIdentity));
   return (
     <div ref={mount} className="bh-generated-files">
-      {channel?.type === 'group' ? (
-        <Select
-          label={t('generatedFiles.bot')}
-          value={selectedBot}
-          onChange={setSelectedBot}
-          options={[
-            { value: '', label: t('generatedFiles.bot') },
-            ...members.map((slug) => ({
-              value: slug,
-              label: state.bots.find((bot) => bot.slug === slug)?.displayName ?? slug,
-            })),
-          ]}
-        />
-      ) : null}
       {loading ? <p role="status">{t('generatedFiles.loading')}</p> : null}
       {error === undefined ? null : (
         <div role="alert">
@@ -121,51 +109,50 @@ function GeneratedFilesPanel({
           </button>
         </div>
       )}
-      {botSlug && !loading && error === undefined && files.size === 0 ? (
-        <p className="bh-generated-files-empty">{t('generatedFiles.empty')}</p>
+      {!loading && error === undefined && files.size === 0 ? (
+        <PanelEmptyState icon="file">{t('generatedFiles.empty')}</PanelEmptyState>
       ) : null}
       <ul className="bh-generated-files-list">
         {[...files].map(([id, file]) => (
           <li key={id} className="bh-generated-file">
             <MessageAttachment
+              compact
+              trailingAction={
+                <Tooltip
+                  label={
+                    selected.has(id) ? t('generatedFiles.release') : t('generatedFiles.reference')
+                  }
+                  side="bottom"
+                  delayMs={500}
+                >
+                  <IconButton
+                    aria-label={`${selected.has(id) ? t('generatedFiles.release') : t('generatedFiles.reference')}: ${file.ref.name}`}
+                    data-file-reference=""
+                    aria-pressed={selected.has(id)}
+                    disabled={
+                      composer === undefined ||
+                      composer.disabled ||
+                      (composer.full && !selected.has(id))
+                    }
+                    onClick={() => composer?.toggle(file.ref)}
+                  >
+                    {selected.has(id) ? (
+                      <IconCheckOutlineRegular size={16} />
+                    ) : (
+                      <IconPaperclipOutlineRegular size={16} />
+                    )}
+                  </IconButton>
+                </Tooltip>
+              }
               attachment={file.ref}
               channelId={channelId}
               messageId={file.messageId}
               actions={actions}
               t={t}
             />
-            <button
-              type="button"
-              className="bh-generated-file-reference"
-              data-mounted={selected.has(id) ? 'true' : undefined}
-              aria-pressed={selected.has(id)}
-              disabled={
-                composer === undefined || composer.disabled || (composer.full && !selected.has(id))
-              }
-              onClick={() => composer?.toggle(file.ref)}
-            >
-              {selected.has(id) ? t('generatedFiles.release') : t('generatedFiles.reference')}
-            </button>
           </li>
         ))}
       </ul>
     </div>
   );
-}
-
-export function createGeneratedFilesPanel(
-  actions: BridgeActions,
-  t: BotHarnessTranslate,
-): DockPanel {
-  return {
-    id: 'generated-files',
-    title: t('generatedFiles.title'),
-    icon: 'archive',
-    scope: 'channel',
-    order: -90,
-    defaultPosition: { zone: 'right' },
-    component: ({ channel }) => (
-      <GeneratedFilesPanel key={channel?.id} channel={channel} actions={actions} t={t} />
-    ),
-  };
 }

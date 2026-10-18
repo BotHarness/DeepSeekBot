@@ -55,7 +55,7 @@ export function HostTile({
       ) : avatar.kind === 'image' ? (
         <Image source={{ uri: avatar.uri }} style={{ width: size, height: size }} />
       ) : (
-        <Text variant="title" style={{ color: letter }}>
+        <Text allowFontScaling={false} variant="title" style={{ color: letter }}>
           {hostInitial(hostName)}
         </Text>
       )}

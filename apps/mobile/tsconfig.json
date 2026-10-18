@@ -1,5 +1,5 @@
 {
-  "extends": "expo/tsconfig.base",
+  "extends": "expo/tsconfig.base.json",
   "compilerOptions": {
     "strict": true,
     "noUncheckedIndexedAccess": true,
@@ -14,6 +14,7 @@
     "src",
     "test/posthog-sender.test.ts",
     "test/native-telemetry.test.ts",
+    "test/native-persistence.test.ts",
     "test/inbox-screens.test.ts",
     "test/action-cards.test.ts",
     "test/activity-feed.test.ts",

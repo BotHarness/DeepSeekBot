@@ -117,3 +117,37 @@ export function openExternalBindingSettings(
     watcher?.disconnect();
   };
 }
+
+export function openModelsSettingsAndReturn(returned: () => void): () => void {
+  let stopped = false;
+  let dialog: Element | undefined;
+  const finish = () => {
+    if (stopped) return;
+    stopped = true;
+    observer.disconnect();
+    clearTimeout(timer);
+    returned();
+  };
+  const inspect = () => {
+    if (stopped) return;
+    if (!dialog)
+      dialog = [...document.querySelectorAll('[role="dialog"]')].find((node) =>
+        [...node.querySelectorAll('button')].some((button) =>
+          ['模型', 'Models'].includes(button.textContent?.trim() ?? ''),
+        ),
+      );
+    else if (!dialog.isConnected) finish();
+  };
+  const observer = new MutationObserver(inspect);
+  observer.observe(document.body, { childList: true, subtree: true });
+  const timer = setTimeout(() => {
+    if (!dialog) finish();
+  }, 10000);
+  openModelsSettings();
+  inspect();
+  return () => {
+    stopped = true;
+    observer.disconnect();
+    clearTimeout(timer);
+  };
+}

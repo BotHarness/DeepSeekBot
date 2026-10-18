@@ -33,7 +33,7 @@ export function ChannelTitle({
         flexDirection: 'row',
         alignItems: 'center',
         gap: space.x3,
-        height: theme.touch,
+        minHeight: Math.max(theme.touch, theme.type.body.line * theme.fontScale + space.x3),
         paddingLeft: (theme.touch - MARK) / 2,
         paddingRight: theme.touch / 2,
         borderRadius: radius.round,

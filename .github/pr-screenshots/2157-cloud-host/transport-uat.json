@@ -1,0 +1,32 @@
+{
+  "runtime": "eee4047bf8ca51dcf81a2fadfc1935e15f0dc629",
+  "initialRuntime": "1a4983f5a69e7f5c7d44ef9fae421912852fde7e",
+  "cloudRelease": "3eeed5b05782276b1a02cc2412dd04ab0ec60bca",
+  "twoIsolatedHosts": true,
+  "canonicalAgentAuthors": true,
+  "exactFourMessagesAfterRestartAndIdempotentResend": true,
+  "hosts": [
+    {
+      "side": "a",
+      "cursor": 4,
+      "receiving": true,
+      "localWorkAllowListEmpty": true,
+      "noNewTurnObserved": true
+    },
+    {
+      "side": "b",
+      "cursor": 4,
+      "receiving": true,
+      "localWorkAllowListEmpty": true,
+      "noNewTurnObserved": true
+    }
+  ],
+  "limits": [
+    "No bounded work execution or model-mediated forwarding proof",
+    "No receipt/checkpoint interruption injection",
+    "No connection-removal runtime proof",
+    "Ordinary message wake overrides and bridge paths require further boundary coverage",
+    "B trace reports no session; not an execution-ledger proof",
+    "No WebSocket, organization-wide Agent membership, phone, Android, Human QA, Prod or merge"
+  ]
+}

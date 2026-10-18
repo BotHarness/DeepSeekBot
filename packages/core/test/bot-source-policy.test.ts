@@ -10,6 +10,40 @@ import { BOT_SOURCE_DEFAULTS, createBotSourcePolicyStore } from '../src/runtime/
 import { createTempRoot } from './helpers.js';
 
 describe('per-PersonaBot source policy defaults', () => {
+  it('reads inherited Group defaults without creating revisions or transactions', () => {
+    const database = mountOperationalDatabase({
+      dshHome: createTempRoot('source-policy-read-only-'),
+      schemaPlan: BOT_HARNESS_SCHEMA_PLAN,
+    });
+    try {
+      const module = attachOperationalModule(database, 'source-policy-read-only');
+      const store = createBotSourcePolicyStore(module);
+      const initial = database.diagnostics().metrics.transactionsCommitted;
+      expect(store.readGroupOrdinary('fresh-bot')).toMatchObject({
+        wake: 'digest',
+        digestCount: 5,
+        digestIntervalSeconds: 30,
+        overrideActive: false,
+      });
+      expect(database.diagnostics().metrics.transactionsCommitted).toBe(initial);
+      expect(
+        module.read((db) => db.prepare('SELECT bot_slug FROM bot_source_policy_revisions').all()),
+      ).toEqual([]);
+      store.setGroupOrdinary('fresh-bot', 'digest', 7, 45, { kind: 'human' });
+      store.setGroupOrdinary('fresh-bot', 'silent', 7, 45, { kind: 'human' });
+      const after = database.diagnostics().metrics.transactionsCommitted;
+      expect(store.readGroupOrdinary('fresh-bot')).toMatchObject({
+        wake: 'silent',
+        digestCount: 7,
+        digestIntervalSeconds: 45,
+        overrideActive: true,
+      });
+      expect(database.diagnostics().metrics.transactionsCommitted).toBe(after);
+    } finally {
+      database.close();
+    }
+  });
+
   it('upgrades a prior Host without changing historical Admission facts', () => {
     const home = createTempRoot('botharness-source-policy-upgrade-');
     const prior = mountOperationalDatabase({

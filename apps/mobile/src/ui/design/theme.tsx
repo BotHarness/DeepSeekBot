@@ -1,5 +1,5 @@
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
-import { Platform, useColorScheme } from 'react-native';
+import { Platform, useColorScheme, useWindowDimensions } from 'react-native';
 
 import { resolveTheme, type Appearance, type ColorScheme, type DesignTheme } from './resolve-theme';
 import { glass, PRESS_TINT, type PlatformOS } from './tokens';
@@ -49,7 +49,15 @@ export function AccentProvider({
 export function useDesignTheme(): DesignTheme {
   const appearance = useContext(AppearanceContext);
   const system: ColorScheme = useColorScheme() === 'dark' ? 'dark' : 'light';
-  return useMemo(() => resolveTheme(system, appearance, platformOS()), [system, appearance]);
+  const { fontScale } = useWindowDimensions();
+  return useMemo(
+    () => ({
+      ...resolveTheme(system, appearance, platformOS()),
+      fontScale,
+      largeText: fontScale > 1.3,
+    }),
+    [system, appearance, fontScale],
+  );
 }
 
 export function frosted(fill: string): string {

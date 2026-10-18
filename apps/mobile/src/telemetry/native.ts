@@ -48,7 +48,7 @@ export const mobileTelemetry = createMobileTelemetry({
     write(value) {
       const current = file();
       if (!current.exists) current.create();
-      current.write(JSON.stringify(value));
+      current.writeSync(JSON.stringify(value));
     },
   },
   sender: transport.send,

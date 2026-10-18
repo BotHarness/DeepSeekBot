@@ -107,7 +107,7 @@ describe('Stop in the composer', () => {
       }
       return { ok: false, error: { code: 'unavailable', message: endpoint, details: {} } };
     };
-    const actions = createActions(call, createStore(), undefined, undefined);
+    const actions = createActions(call, createStore());
 
     await expect(actions.stopBot('dm-ada', 'ada')).resolves.toBe('stopped');
     await expect(actions.stopBot('dm-ada', 'ada')).resolves.toBe('not-working');

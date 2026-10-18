@@ -51,7 +51,7 @@ const grant: WorkspaceGrantView = {
   orchestratorWrite: false,
 };
 
-it('hides the Group workspace footer on mobile and restores its facts and action on desktop', async () => {
+it('keeps the Group workspace footer and its action available on mobile and desktop', async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   let mobile = true;
   const listeners = new Set<() => void>();
@@ -84,7 +84,11 @@ it('hides the Group workspace footer on mobile and restores its facts and action
         }),
       ),
     );
-    expect(container.querySelector<HTMLElement>('[data-composer-context]')!.hidden).toBe(true);
+    expect(container.querySelector<HTMLElement>('[data-composer-context]')!.hidden).toBe(false);
+    await act(async () =>
+      container.querySelector<HTMLButtonElement>('[data-composer-chip="workspace"]')!.click(),
+    );
+    expect(onOpen).toHaveBeenCalledOnce();
     await act(async () => {
       mobile = false;
       for (const listener of listeners) listener();
@@ -94,7 +98,7 @@ it('hides the Group workspace footer on mobile and restores its facts and action
     await act(async () =>
       container.querySelector<HTMLButtonElement>('[data-composer-context] button')!.click(),
     );
-    expect(onOpen).toHaveBeenCalledOnce();
+    expect(onOpen).toHaveBeenCalledTimes(2);
   } finally {
     await act(async () => root.unmount());
     container.remove();
@@ -317,7 +321,7 @@ it('defaults loaded eligible Bots without writing, and preserves a custom empty 
     Array.from(container.querySelectorAll<HTMLInputElement>('input[type=checkbox]'));
   try {
     await act(async () => root.render(createElement(Harness)));
-    await act(async () => context!.shortcuts[0]!.run());
+    await act(async () => context!.shortcuts.find((item) => item.id === 'workspace')!.run());
     expect(checks()).toHaveLength(0);
     members = [ada, bea, { ...bob, paused: true }, { ...ada, slug: 'deleted', deleted: true }];
     await act(async () => root.render(createElement(Harness)));
@@ -370,8 +374,8 @@ it('offers only the shared workspace shortcut in Group and resets scope on Chann
   }
   try {
     await act(async () => root.render(createElement(Harness)));
-    expect(context!.shortcuts.map((item) => item.id)).toEqual(['workspace']);
-    await act(async () => context!.shortcuts[0]!.run());
+    expect(context!.shortcuts.map((item) => item.id)).toEqual(['workspace', 'footer']);
+    await act(async () => context!.shortcuts.find((item) => item.id === 'workspace')!.run());
     expect(container.querySelector('[role=dialog]')).not.toBeNull();
     id = 'two';
     await act(async () => root.render(createElement(Harness)));

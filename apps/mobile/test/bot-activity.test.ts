@@ -134,6 +134,26 @@ describe('Bot activity', () => {
     ).toEqual({ status: 'partial', total: 300 });
   });
 
+  it('does not mark an exact reported total as a lower bound just because a split is unknown', () => {
+    expect(
+      tokenTotal({ modelUsageStatus: 'ready' }, [
+        { ...row('2026-10-15', 1000), cacheReadTokens: null },
+      ]),
+    ).toEqual({ status: 'ready', total: 1000 });
+  });
+
+  it('keeps reported partial totals and treats zero plus unknown calls as unknown', () => {
+    const reported = parseProfileActivity({
+      today: '2026-10-15',
+      modelUsageStatus: 'ready',
+      modelUsageRows: [{ ...row('2026-10-15', 674655), partial: true }],
+    });
+    expect(weekGlance(reported).total).toEqual({ status: 'partial', total: 674655 });
+    expect(
+      tokenTotal({ modelUsageStatus: 'ready' }, [row('2026-10-15', 0), row('2026-10-15', null)]),
+    ).toEqual({ status: 'unknown', total: null });
+  });
+
   it('splits the window into cache read, input and output, by model and by reason', () => {
     const detail = activityDetail(activity());
     expect(detail.first).toBe('2026-10-09');

@@ -5,7 +5,7 @@ import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node
 import { isAbsolute, join, relative, resolve } from 'node:path';
 import { Document, isMap, isSeq, parseDocument } from 'yaml';
 
-const version = '0.2.0-rc.2';
+const version = '0.2.1-rc.2';
 const root = process.cwd();
 const taskRoot = resolve('.humanlayer/tasks/1220');
 const withinTask = (input) => {
@@ -42,8 +42,8 @@ if (command === 'prepare') {
   const patchKeys = patches.items.map((pair) => pair.key.value);
   for (const key of patchKeys) {
     if (!key.startsWith('@deepseek-ai/dsh')) continue;
-    assert.ok(key.endsWith('@0.2.0-rc.2'), 'review new native patch targets before copying');
-    const target = key.replace(/@0\.2\.0-rc\.2$/u, '@' + version);
+    assert.ok(key.endsWith('@0.2.1-rc.2'), 'review new native patch targets before copying');
+    const target = key.replace(/@0\.2\.1-rc\.2$/u, '@' + version);
     const file = patches.get(key);
     assert.ok(file.startsWith('patches/'), 'patch must come from the repository patch directory');
     patches.delete(key);
@@ -82,7 +82,7 @@ if (command === 'prepare') {
         applicationBaseline: execFileSync('git', ['rev-parse', 'HEAD'], {
           encoding: 'utf8',
         }).trim(),
-        upstream: '639ed015397290b3745d163aafe02ffee4aa3f84',
+        upstream: '687f282e8625c6b8d11ff58211a90524be2e4317',
         applicationRuntime:
           'copied existing build artifacts; all candidate native dependency and peer pins explicitly RC2',
         patches: qualifiedPatches,

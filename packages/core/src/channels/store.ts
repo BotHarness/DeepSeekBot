@@ -1,3 +1,4 @@
+import type { DatabaseSync } from 'node:sqlite';
 import { allBotPreview, assertAllBotPreview, type AllBotPreview } from './all-bot-mention.js';
 import type { AttachmentMigrationResult } from '../attachments/legacy-migration.js';
 import { projectAttachmentFiles } from '../attachments/message-files.js';
@@ -268,6 +269,7 @@ export function queryChannelMessages(
 }
 
 export interface CreateChannelGroupInput {
+  id?: string;
   name: string;
   members: string[];
   ownerBotSlug?: string;
@@ -295,6 +297,7 @@ export interface ChannelStore {
 
   referencedAttachmentHashes(): ReadonlySet<string>;
   migrateAttachments?(signal?: AbortSignal): Promise<AttachmentMigrationResult>;
+  projectMessageAttachments?(sourceEventId: string, message: ChannelMessage): ChannelMessage;
   attachmentReference?(
     channelId: string,
     messageId: string,
@@ -309,6 +312,7 @@ export interface ChannelStore {
   createGroup(input: CreateChannelGroupInput): ChannelRecord;
 
   inviteGroupBot(input: {
+    invitationId?: string;
     channelId: string;
     inviterBotSlug?: string;
     inviterHuman?: true;
@@ -385,7 +389,7 @@ export interface ChannelStore {
     message: ChannelMessage,
     preview?: AllBotPreview,
     origin?: ChannelMessageOrigin,
-    canCommit?: () => boolean,
+    canCommit?: (database?: DatabaseSync) => boolean,
   ): Promise<ChannelAppendOnceResult>;
   readPosition(id: string): ChannelReadPosition | undefined;
   markRead(id: string, messageId: string): Promise<ChannelReadPosition | undefined>;
@@ -800,7 +804,9 @@ export function createChannelStore(options: ChannelStoreOptions): ChannelStore {
       return record;
     },
     createGroup(input) {
-      const id = nextGroupId(input.name);
+      const id = input.id ?? nextGroupId(input.name);
+      if (!isValidChannelId(id) || read(id) !== undefined)
+        throw new Error('Group Channel identity is unavailable');
       const name = input.name.trim();
       const timestamp = now().toISOString();
       const record: ChannelRecord = {

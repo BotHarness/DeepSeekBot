@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, SectionList, View } from 'react-native';
+import { ActivityIndicator, Pressable, SectionList, View, type ViewInstance } from 'react-native';
 
 import type { RosterBot } from '../host/client';
 import { MethodRefused } from '../host/client';
@@ -165,9 +165,10 @@ function UsageSummary({
       </View>
       {usage === undefined ? null : (
         <View style={{ paddingHorizontal: space.x5 }}>
-          <SettingsSection title={t.usageKinds}>
+          <SettingsSection on="raised" title={t.usageKinds}>
             {USAGE_SPLIT.map((kind) => (
               <SettingsRow
+                on="raised"
                 key={kind}
                 title={t.usageKind[kind]}
                 trailing={
@@ -242,6 +243,7 @@ function UsageRow({
     const share = usageShare(bot.totalTokens, row.total);
     body = (
       <SettingsRow
+        on="raised"
         title={bot.displayName}
         {...(!bot.current
           ? { detail: t.usageRemoved }
@@ -264,6 +266,7 @@ function UsageRow({
     const { bot } = row;
     body = (
       <SettingsRow
+        on="raised"
         title={bot.displayName}
         detail={bot.state === 'ready' ? t.memoryChanges(bot.total) : t.memoryUnavailable}
         trailing={
@@ -283,7 +286,7 @@ function UsageRow({
     );
   }
   return (
-    <SettingsGroupItem first={row.first} last={row.last}>
+    <SettingsGroupItem on="raised" first={row.first} last={row.last}>
       {body}
     </SettingsGroupItem>
   );
@@ -335,8 +338,8 @@ export function UsageView({
     [sources, selectedPeriod],
   );
   const loadMemory = useMemo(() => () => sources.loadMemory(), [sources]);
-  const usage = useLoaded<OverviewUsage, View>(loadUsage);
-  const memory = useLoaded<OverviewMemory, View>(loadMemory);
+  const usage = useLoaded<OverviewUsage, ViewInstance>(loadUsage);
+  const memory = useLoaded<OverviewMemory, ViewInstance>(loadMemory);
   const current = forPeriod(usage.state, selectedPeriod);
 
   const sections = [
@@ -389,9 +392,10 @@ export function UsageView({
   ];
 
   return (
-    <View ref={usage.mount} style={{ flex: 1, backgroundColor: theme.color.surface }}>
+    <View ref={usage.mount} style={{ flex: 1, backgroundColor: theme.overlay.fill }}>
       <View ref={memory.mount} style={{ flex: 1 }}>
         <SectionList
+          nestedScrollEnabled
           ref={capability}
           sections={sections}
           keyExtractor={(row) => row.key}

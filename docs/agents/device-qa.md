@@ -1,4 +1,8 @@
-# Shared device QA (iOS Simulator and iPhone)
+# Shared device QA
+
+On **Windows 11**, use [Windows Android QA](android-device-qa.md) for the shared emulator,
+physical Android phone, batch queue and scrcpy capture helper. Windows has its own queue and
+one runner across both Android lanes. The rest of this page describes the **Mac/iOS** lane.
 
 Native checks for `apps/mobile` run on one Mac that several coding agents share (Claude Code,
 Codex, or anything else). That Mac has one QA Simulator, one physical iPhone, one QA Host and a
@@ -58,7 +62,8 @@ not one run per PR.
 5. **Report.** See [Reporting results](#reporting-results). A failure is fixed in its PR and
    rides the next batch.
 
-Android items are marked untested: the Mac has no Android device.
+Android items go to the Windows queue; a Mac batch marks them untested until the Android
+runner records its separate result.
 
 ## Branches and worktrees
 

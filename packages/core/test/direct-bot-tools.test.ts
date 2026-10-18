@@ -50,7 +50,7 @@ function setup() {
 }
 
 describe('direct Bot tool runner', () => {
-  it('lists every Harness Bot tool except the turn-only ones the parity baseline exempts', () => {
+  it('lists runtime Bot tools while cloud_work has its dedicated direct CLI', () => {
     const { runtime } = setup();
     const listed = runtime.directBotTools!().map((tool) => tool.name);
     expect(listed).toContain('channel_list');
@@ -70,9 +70,14 @@ describe('direct Bot tool runner', () => {
       JSON.parse(readFileSync(join(repo, 'scripts/cli-parity-baseline.json'), 'utf8')).tools,
     );
     expect(listed.filter((name) => botTools.includes(name)).sort()).toEqual(
-      botTools.filter((name) => !exempt.includes(name)).sort(),
+      botTools.filter((name) => !exempt.includes(name) && name !== 'cloud_work').sort(),
     );
     expect(listed.every((name) => botTools.includes(name))).toBe(true);
+    expect(botTools).toContain('cloud_work');
+    expect(exempt).not.toContain('cloud_work');
+    expect(readFileSync(join(repo, 'packages/core/src/bots/cli-live.ts'), 'utf8')).toContain(
+      "command: 'cloud-work'",
+    );
   });
 
   it('runs a Bot tool as that Bot without a model turn and records it as session direct', async () => {

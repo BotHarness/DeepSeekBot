@@ -188,7 +188,7 @@ describe('Human Inbox native question', () => {
         ]);
         expect(store.getSnapshot().selection).toEqual({ kind: 'inbox' });
         expect(store.getSnapshot().humanInbox.items.map((i) => i.botSlug)).toEqual(['bea']);
-        expect(container.textContent).toContain(outcome === 'stale' ? '已过期' : '已回答');
+        expect(container.querySelector('[data-attention-id="question:ada"]')).toBeNull();
         expect(button('回答并继续')).toBeUndefined();
         expect(calls.some((c) => c.endpoint === 'channelSend')).toBe(false);
       } finally {

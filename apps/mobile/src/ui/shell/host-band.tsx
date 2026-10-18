@@ -65,10 +65,12 @@ export function HostChipFace({
   hostName,
   avatar,
   band,
+  singleLine = false,
 }: {
   hostName: string;
   avatar: HostAvatar;
   band: HostBand;
+  singleLine?: boolean;
 }) {
   const theme = useDesignTheme();
   return (
@@ -81,10 +83,13 @@ export function HostChipFace({
         letter={band.tileInk}
       />
       <Text
-        variant="display"
-        numberOfLines={1}
+        variant="title"
+        strong
+        numberOfLines={singleLine ? 1 : theme.largeText ? 2 : 1}
+        ellipsizeMode="tail"
         style={{
           flexShrink: 1,
+          minWidth: 0,
           color: band.ink,
           textShadowColor: band.shadow,
           textShadowRadius: band.shadow === undefined ? 0 : radius.xs,

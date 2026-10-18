@@ -20,12 +20,12 @@ export const GO_KEY_REF = 'OPENCODE_GO_API_KEY';
 export const DEFAULT_GO_MODEL = 'deepseek-v4.1-flash';
 export const GO_SESSION_PATCH = resolve(
   import.meta.dirname,
-  '../patches/@deepseek-ai__dsh-llm-pi-ai@0.2.0-rc.2.patch',
+  '../patches/@deepseek-ai__dsh-llm-pi-ai@0.2.1-rc.2.patch',
 );
 
-export const GO_RUNTIME_PATCH = 'patches/dsh-llm-pi-ai-0.2.0-rc.2.patch';
+export const GO_RUNTIME_PATCH = 'patches/dsh-llm-pi-ai-0.2.1-rc.2.patch';
 
-export const GO_SESSION_DSH = '0.2.0-rc.2';
+export const GO_SESSION_DSH = '0.2.1-rc.2';
 export const GO_SESSION_PACKAGED_DSH = '0.2.0-rc.1';
 
 export function goSessionQualified(version, packaged) {

@@ -37,7 +37,7 @@ New Orchestrator tools:
   - `inbox_ignore` stays as the by-message-id shortcut for one Channel message, including one not yet observed; it records the same ignored outcome.
 - `inbox_snooze`: takes `ids[]` or a filter, `until` and `note`.
   - The item leaves the open list.
-  - At `until` it returns and wakes the Orchestrator. It returns early if a new Source Event arrives in the same Channel conversation or Assignment.
+  - At `until` it returns and wakes the Orchestrator. It returns early when the Bot observes a new Source Event in the same Channel conversation or Assignment. A later unobserved Admission that did not wake the Bot must not suppress the deadline return (clarified by #2055 / ADR-0231).
   - Re-snoozing never moves the return time earlier, and a snooze is limited to 30 days.
   - A filter uses the same count-then-confirm flow as `inbox_resolve`.
   - The return wake is not a new Source Event. A Host timer runs one Orchestrator turn anchored on the earliest returning item, listing every item that came back with its note; the items stay open. If that turn fails, the items are snoozed again for five minutes. An item that already came back early returns silently.

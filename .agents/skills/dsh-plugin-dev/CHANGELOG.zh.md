@@ -9,6 +9,8 @@ artifact；DSH 版本与上游 revision 记录这些内容是基于什么版本�
 
 ### Documentation
 
+- 在[本地开发指南](../dsh-dev/SKILL.md)记录 rc.2 快捷键定义就绪时序与已归档 Session 导航核验，经真实 Web 升级和 Session 导航验证；DSH／Cordis Context 与 Skill 行为保持不变（[#2034](https://github.com/BotHarness/DeepSeekBot/issues/2034)）。
+
 - 在[本地开发指南](../dsh-dev/SKILL.md)记录生产工厂选项透传与新接收器真实事件核验，以 DSH `0.2.0-rc.2` Host 和固定提交的 dsh-im 普通文本候选核验；DSH／Cordis Context 与 Skill 行为保持不变（[#1155](https://github.com/BotHarness/DeepSeekBot/issues/1155)）。
 
 - 在[本地开发指南](../dsh-dev/SKILL.md)记录外部 Provider 导出的 Service 与逐账户主动发送能力核验，以 DSH `0.2.0-rc.2` Host 和 dsh-im `.20` 核验；DSH／Cordis Context 与 Skill 行为保持不变（[#1154](https://github.com/BotHarness/DeepSeekBot/issues/1154)）。

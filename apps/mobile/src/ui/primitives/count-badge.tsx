@@ -33,7 +33,8 @@ export function CountBadge({
     <View
       accessibilityLabel={label}
       style={{
-        height: theme.type.meta.line + space.x3,
+        minHeight: theme.type.meta.line + space.x3,
+        paddingVertical: space.x2,
         minWidth: theme.type.meta.line + space.x3,
         alignItems: 'center',
         justifyContent: 'center',

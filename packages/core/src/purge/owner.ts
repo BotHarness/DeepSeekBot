@@ -173,6 +173,9 @@ export function mountContentPurge(options: {
           db.prepare(
             "UPDATE inbox_admissions SET attempt_state = 'needs-repair', last_error = 'content-purged' WHERE source_event_id = ?",
           ).run(fact.sourceEventId);
+          db.prepare(
+            'DELETE FROM group_send_review_drafts WHERE channel_id = ? OR source_event_id = ?',
+          ).run(fact.channelId, fact.sourceEventId);
           db.prepare('DELETE FROM attachment_file_bindings WHERE source_event_id = ?').run(
             fact.sourceEventId,
           );

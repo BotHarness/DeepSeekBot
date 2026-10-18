@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import { View } from 'react-native';
+import { View, type ViewInstance } from 'react-native';
 
 import type { CardResolution } from '../../host/conversation';
 import {
@@ -117,7 +117,7 @@ export function ApprovalCard({
     }
   }, [port]);
 
-  const mount = useMounted<View>(() => {
+  const mount = useMounted<ViewInstance>(() => {
     if (!known.current) void load();
   }, [load]);
 

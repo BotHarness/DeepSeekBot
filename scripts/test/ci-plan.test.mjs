@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  androidNativeTests,
   checkClassification,
   checkTestInclude,
   checkWorkflow,
@@ -52,6 +53,28 @@ const pr = (...paths) => ({
 });
 
 describe('CI test plan', () => {
+  it('runs native module tests for Kotlin, native config, removals and full runs', () => {
+    expect(
+      androidNativeTests('none', [
+        { path: 'apps/mobile/modules/stream-reveal/android/src/main/java/TextReveal.kt' },
+      ]),
+    ).toBe(true);
+    expect(
+      androidNativeTests('none', [
+        { path: 'apps/mobile/modules/stream-reveal/expo-module.config.json' },
+      ]),
+    ).toBe(true);
+    expect(
+      androidNativeTests('affected', [
+        { path: 'elsewhere.kt', previous: 'apps/mobile/modules/stream-reveal/old.kt' },
+      ]),
+    ).toBe(true);
+    expect(androidNativeTests('full', [])).toBe(true);
+    expect(
+      androidNativeTests('affected', [{ path: 'apps/mobile/src/ui/chat/message-bubble.tsx' }]),
+    ).toBe(false);
+    expect(androidNativeTests('none', [{ path: 'docs/research/rendering.md' }])).toBe(false);
+  });
   it('runs related tests without the docs site for a Client-only change', () => {
     const result = plan(pr('packages/client/src/client/chip.tsx', 'changes/1640-chip.md'));
     expect(result).toMatchObject({ tests: 'affected', docsSite: false });

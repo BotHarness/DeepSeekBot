@@ -16,4 +16,6 @@ Show the smallest useful before/after or structural outline / 简明展示变更
 
 For UI or interaction changes, embed sanitized GitHub-rendered before/after screenshots, or explain the concrete capture blocker and runnable review path / UI 或交互变化附脱敏前后截图，无法捕获时说明阻塞与验收路径。
 
+For Expo / React Native UI, follow the [system text acceptance matrix](https://github.com/BotHarness/DeepSeekBot/blob/main/apps/mobile/DESIGN.md#system-text-and-large-text-acceptance): record iOS and Android default/intermediate/maximum system font sizes × light/dark, native interactions and matched screenshots; name blocked/unrun cases separately / 手机端 UI 须记录两个平台三档系统字号与浅深色的原生交互及同条件截图，分别说明阻塞与未测项。Source tests and web previews do not qualify native usability / 源码测试与 Web 预览不代表原生可用性通过。
+
 AI assistance is welcome; the submitter must understand and validate the change. Do not include secrets or private data / 欢迎 AI 辅助，提交者负责理解与验证；不附敏感信息。

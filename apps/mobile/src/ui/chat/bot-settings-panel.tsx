@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useMemo, useCallback } from 'react';
 import { View } from 'react-native';
 
 import { botSettings } from '../../host/bot-settings';
@@ -11,8 +12,6 @@ import { ChevronRightIcon, CpuIcon, FolderIcon } from '../shell/icons';
 import { t } from '../strings';
 import { useComposerContext } from './composer-context';
 import { modelLabel, workspaceLabel } from './composer-labels';
-import { ModelSheet } from './model-sheet';
-import { WorkspaceSheet } from './workspace-sheet';
 import { DmActivitySettings } from './dm-activity-settings';
 
 const ICON = 20;
@@ -22,8 +21,13 @@ export function BotSettingsPanel({ client, bot }: { client: HostClient; bot: Ros
   const { saved } = useHostSession();
   const settings = useMemo(() => botSettings(client, bot.slug), [client, bot.slug]);
   const context = useComposerContext(settings);
-  const [sheet, setSheet] = useState<'model' | 'workspace'>();
-  const [workspaceOpened, setWorkspaceOpened] = useState(0);
+  const router = useRouter();
+  useFocusEffect(
+    useCallback(() => {
+      context.reloadModel();
+      context.reloadGrants();
+    }, [settings]),
+  );
   const model = modelLabel(context.model);
   const workspace = workspaceLabel(context.grants);
   const chevron = <ChevronRightIcon color={theme.color.muted} size={ICON} />;
@@ -37,8 +41,7 @@ export function BotSettingsPanel({ client, bot }: { client: HostClient; bot: Ros
           leading={<CpuIcon color={theme.color.fg} size={ICON} />}
           trailing={chevron}
           onPress={() => {
-            if (context.model.status !== 'ready') context.reloadModel();
-            setSheet('model');
+            router.push({ pathname: '/bot/[slug]/model', params: { slug: bot.slug } });
           }}
         />
         <View style={{ borderTopWidth: edge.hairline, borderTopColor: theme.layer.sheet.divider }}>
@@ -49,45 +52,28 @@ export function BotSettingsPanel({ client, bot }: { client: HostClient; bot: Ros
             leading={<FolderIcon color={theme.color.fg} size={ICON} />}
             trailing={chevron}
             onPress={() => {
-              context.openWorkspace();
-              setWorkspaceOpened((count) => count + 1);
-              setSheet('workspace');
+              router.push({ pathname: '/bot/[slug]/workspace', params: { slug: bot.slug } });
             }}
           />
         </View>
       </SettingsSection>
+      {saved == null || !bot.dmChannelId ? null : (
+        <SettingsSection title={t.chatBackground.title}>
+          <SettingsRow
+            title={t.chatBackground.title}
+            trailing={chevron}
+            onPress={() =>
+              router.push({
+                pathname: '/bot/[slug]/chat-background',
+                params: { slug: bot.slug, hostId: saved.hostId, channelId: bot.dmChannelId },
+              })
+            }
+          />
+        </SettingsSection>
+      )}
       {saved == null ? null : (
         <DmActivitySettings hostId={saved.hostId} botSlug={bot.slug} name={bot.displayName} />
       )}
-      <ModelSheet
-        visible={sheet === 'model'}
-        botName={bot.displayName}
-        model={context.model}
-        onRetry={context.reloadModel}
-        onChoose={async (choice, entry) => {
-          await settings.chooseModel(choice, entry);
-          context.reloadModel();
-        }}
-        onPreset={async (presetId) => {
-          await settings.applyPreset(presetId);
-          context.reloadModel();
-        }}
-        onClose={() => setSheet(undefined)}
-      />
-      <WorkspaceSheet
-        key={workspaceOpened}
-        visible={sheet === 'workspace'}
-        botName={bot.displayName}
-        settings={settings}
-        grants={context.grants}
-        access={context.access}
-        templates={context.templates}
-        onRetryGrants={context.reloadGrants}
-        onGrantsChanged={context.reloadGrants}
-        onAccess={context.setAccess}
-        onTemplates={context.setTemplates}
-        onClose={() => setSheet(undefined)}
-      />
     </View>
   );
 }

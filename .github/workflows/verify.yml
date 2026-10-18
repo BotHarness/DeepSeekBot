@@ -31,6 +31,7 @@ jobs:
       tests: ${{ steps.plan.outputs.tests }}
       docs-site: ${{ steps.plan.outputs.docs-site }}
       related: ${{ steps.plan.outputs.related }}
+      android-native: ${{ steps.plan.outputs.android-native }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -68,6 +69,52 @@ jobs:
       - run: pnpm --filter @botharness/mobile expo:doctor
       - run: pnpm build
       - run: git diff --exit-code -- packages/computer/lib/client.js packages/computer/lib/client.js.map packages/browser/lib/client.js packages/browser/lib/client.js.map
+
+  mobile-export:
+    name: mobile bundles (iOS and Android)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @botharness/mobile export
+        env:
+          CI: '1'
+          EXPO_OFFLINE: '1'
+
+  mobile-native:
+    name: Android native module tests
+    needs: plan
+    if: needs.plan.outputs.android-native == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @botharness/mobile exec expo prebuild --platform android --no-install
+        env:
+          CI: '1'
+          EXPO_OFFLINE: '1'
+      - run: bash apps/mobile/android/gradlew -p apps/mobile/android :stream-reveal:testDebugUnitTest -PreactNativeArchitectures=x86_64 --max-workers=2 --console=plain
 
   test-full:
     name: test (shard ${{ matrix.shard }})
@@ -154,7 +201,8 @@ jobs:
 
   verify:
     name: lint, format, typecheck, test, build, docs
-    needs: [plan, static, test-full, test-affected, docs-site, e2e-smoke]
+    needs:
+      [plan, static, mobile-export, mobile-native, test-full, test-affected, docs-site, e2e-smoke]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -162,5 +210,5 @@ jobs:
       - env:
           NEEDS: ${{ toJSON(needs) }}
         run: |
-          jq -e '.plan.result == "success" and .static.result == "success"' <<<"$NEEDS"
+          jq -e '.plan.result == "success" and .static.result == "success" and .["mobile-export"].result == "success"' <<<"$NEEDS"
           jq -e 'to_entries | all(.value.result == "success" or .value.result == "skipped")' <<<"$NEEDS"

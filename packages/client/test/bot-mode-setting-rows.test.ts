@@ -253,16 +253,17 @@ describe('send key setting', () => {
     const { markup, items } = renderSendKey(true, 'mod-enter');
     expect(markup).toContain('<kbd title="Command"');
     expect(markup).not.toContain('Ctrl');
-    expect(items.map((item) => item.id)).toEqual(['enter', 'mod-enter']);
+    expect(items.map((item) => item.id)).toEqual(['enter', 'shift-enter', 'mod-enter']);
     expect(items[0]?.markup).toMatch(/>↵<\/kbd>.*发送.*>⇧<\/kbd>.*>↵<\/kbd>.*换行/u);
-    expect(items[1]?.markup).toMatch(/>⌘<\/kbd>.*>↵<\/kbd>.*发送.*>↵<\/kbd>.*换行/u);
+    expect(items[2]?.markup).toMatch(/>⌘<\/kbd>.*>↵<\/kbd>.*发送.*>↵<\/kbd>.*换行/u);
+    expect(items[1]?.markup).toMatch(/>⇧<\/kbd>.*>↵<\/kbd>.*发送.*>↵<\/kbd>.*换行/u);
     expect(items.some((item) => item.markup.includes('Enter<'))).toBe(false);
   });
 
   it('shows Ctrl on other platforms and writes the picked key', () => {
     const { items, setSendKey } = renderSendKey(false, 'enter');
-    expect(items[1]?.markup).toMatch(/>Ctrl<\/kbd>.*>↵<\/kbd>.*发送/u);
-    expect(items[1]?.markup).not.toContain('⌘');
+    expect(items[2]?.markup).toMatch(/>Ctrl<\/kbd>.*>↵<\/kbd>.*发送/u);
+    expect(items[2]?.markup).not.toContain('⌘');
     const onSelect = menuWithItem('mod-enter')['onSelect'] as (id: string) => void;
     onSelect('mod-enter');
     expect(setSendKey).toHaveBeenCalledWith('mod-enter');

@@ -3,14 +3,13 @@ import { parseToolApprovalActor } from '../../../core/src/workspaces/tool-approv
 import type {} from '@deepseek-ai/dsh-api-session-controller/client';
 import type { PairingRequest, PairingReviewInput } from '../../../core/src/messaging/pairing.js';
 import type { SenderAccessInput } from '../../../core/src/messaging/sender-access.js';
-import { parsePublicAttention } from './activity-attention.js';
+import { parseMessagePerf } from './message-perf.js';
 import {
   isAvatarAppearance,
   isRetainedAvatarAppearance,
   type AvatarAppearance,
   type AvatarRecipe,
 } from '../../../core/src/bots/avatar-appearance.js';
-import { parsePublicToolActivity } from './activity-detail.js';
 import type {} from '@deepseek-ai/dsh-api-session-controller/client';
 import type {
   MessagingDefaults,
@@ -61,7 +60,6 @@ import type { MessagingConversationInput } from '../../../core/src/messaging/con
 import { isPartLibraryEntry, type PartLibraryEntry } from '../../../core/src/bots/part-library.js';
 import type { PixelCustomPart } from '../../../core/src/bots/avatar-appearance.js';
 import { isBotPrimaryColor } from '../../../core/src/bots/primary-color.js';
-import type { ActivityOverview } from '../../../core/src/bridge/methods.js';
 import type { ExternalSource } from '../../../core/src/messaging/inbound.js';
 import type {
   ConversationIngestInput,
@@ -181,7 +179,7 @@ export interface ModelPlanView {
   sourcePresetId: string;
   sourcePresetName: string;
   orchestrator: ModelRouteView;
-  assignmentDefault: ModelRouteView;
+  assignmentDefault?: ModelRouteView;
   assignmentModels?: AssignmentModelOptionView[];
   appliedAt: string;
 }
@@ -292,8 +290,11 @@ export async function customizeModelPlan(
   call: BridgeCall,
   slug: string,
   orchestrator: ModelRouteView,
+  expectedRevision?: number,
 ): Promise<ModelPlanView> {
-  const value = asRecord(await unwrap(call, 'modelPlanCustomize', { slug, orchestrator }));
+  const value = asRecord(
+    await unwrap(call, 'modelPlanCustomize', { slug, orchestrator, expectedRevision }),
+  );
   if (asRecord(value?.['plan']) === undefined) throw new Error('Invalid Model Plan result');
   return value!['plan'] as ModelPlanView;
 }
@@ -906,6 +907,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
   if (typeof body !== 'string') return undefined;
   const author = parseAuthor(record['author']);
   if (author === undefined) return undefined;
+  const perf = author.kind === 'bot' ? parseMessagePerf(record['perf']) : undefined;
   const memorySwitchTarget = record['memorySwitchTarget'];
   if (
     memorySwitchTarget !== undefined &&
@@ -1527,7 +1529,14 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
     author,
     body,
     ...(asRecord(record['onboardingWelcome'])?.['version'] === 1 && author.kind === 'system'
-      ? { onboardingWelcome: { version: 1 as const } }
+      ? {
+          onboardingWelcome: {
+            version: 1 as const,
+            ...(asRecord(record['onboardingWelcome'])?.['kind'] === 'tob'
+              ? { kind: 'tob' as const }
+              : {}),
+          },
+        }
       : {}),
     ...(body === '' && asRecord(record['contentPurge'])?.['actor'] === 'local-human'
       ? { contentPurged: true as const }
@@ -1584,6 +1593,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
     ...(bridgeMedia === undefined ? {} : { bridgeMedia }),
     ...(replyTo === undefined ? {} : { replyTo }),
     ...(replyToPreview === undefined ? {} : { replyToPreview }),
+    ...(perf === undefined ? {} : { perf }),
   };
 }
 
@@ -3552,19 +3562,26 @@ export async function loadHumanAttention(
   category: HumanInboxCategory,
   limit = 50,
   cursor?: string,
-  filters: HumanInboxFilters = { botSlug: undefined, channelId: undefined, sort: 'newest' },
+  filters: HumanInboxFilters & { search?: string; mentionsFirst?: boolean } = {
+    botSlug: undefined,
+    channelId: undefined,
+    sort: 'newest',
+  },
 ): Promise<HumanAttentionPage> {
-  return parseHumanAttentionPage(
-    await unwrap(call, 'humanAttention', {
-      category,
-      limit,
-      cursor,
-      botSlug: filters.botSlug,
-      channelId: filters.channelId,
-      sort: filters.sort,
-      ...(filters.snoozed === true ? { snoozed: true } : {}),
-    }),
-  );
+  const extended = filters.search !== undefined || filters.mentionsFirst === true;
+  const value = await unwrap(call, 'humanAttention', {
+    category,
+    limit,
+    cursor,
+    botSlug: filters.botSlug,
+    channelId: filters.channelId,
+    sort: filters.mentionsFirst ? 'mentions-first' : filters.sort,
+    ...(extended ? { queryVersion: 1, search: filters.search } : {}),
+    ...(filters.snoozed === true ? { snoozed: true } : {}),
+  });
+  if (extended && asRecord(value)?.['queryVersion'] !== 1)
+    throw new Error('Update the Host to search Activity.');
+  return parseHumanAttentionPage(value);
 }
 export async function loadHumanAttentionStatus(
   call: BridgeCall,
@@ -3646,6 +3663,31 @@ export async function loadBotSessionIds(call: BridgeCall, signal?: AbortSignal):
       ? (value as { sessionIds?: unknown }).sessionIds
       : [];
   return Array.isArray(ids) ? ids.filter((id): id is string => typeof id === 'string') : [];
+}
+
+export async function loadBotSessionGroups(
+  call: BridgeCall,
+  signal?: AbortSignal,
+): Promise<{ botSlug: string; displayName: string; sessionIds: string[] }[]> {
+  const value = asRecord(await unwrap(call, 'botSessionIds', {}, signal));
+  const groups = value?.['groups'];
+  if (!Array.isArray(groups)) return [];
+  return groups.flatMap((item) => {
+    const group = asRecord(item);
+    if (
+      typeof group?.['botSlug'] !== 'string' ||
+      typeof group['displayName'] !== 'string' ||
+      !Array.isArray(group['sessionIds'])
+    )
+      return [];
+    return [
+      {
+        botSlug: group['botSlug'],
+        displayName: group['displayName'],
+        sessionIds: group['sessionIds'].filter((id): id is string => typeof id === 'string'),
+      },
+    ];
+  });
 }
 
 export async function loadSessions(
@@ -5161,58 +5203,6 @@ export async function readMessagingSource(
   )
     throw new BridgeCallError('invalid-response', 'Invalid context messages');
   return source as unknown as ExternalSource;
-}
-
-export async function loadActivityOverview(call: BridgeCall): Promise<ActivityOverview> {
-  const row = asRecord(await unwrap(call, 'activityOverview', {}));
-  if (
-    row === undefined ||
-    !Number.isSafeInteger(row['actionCount']) ||
-    (row['actionCount'] as number) < 0 ||
-    !Array.isArray(row['bots'])
-  )
-    throw new Error('Invalid Activity Center overview');
-  const bots = row['bots'].map((value: unknown) => {
-    const bot = asRecord(value);
-    if (
-      bot === undefined ||
-      typeof bot['slug'] !== 'string' ||
-      typeof bot['displayName'] !== 'string' ||
-      typeof bot['paused'] !== 'boolean' ||
-      (bot['hasAction'] !== undefined && typeof bot['hasAction'] !== 'boolean') ||
-      (bot['attention'] !== undefined && parsePublicAttention(bot['attention']) === undefined) ||
-      !['idle', 'thinking', 'working', 'waiting', 'blocked'].includes(String(bot['state'])) ||
-      !Array.isArray(bot['sessions']) ||
-      (bot['avatar'] !== undefined && typeof bot['avatar'] !== 'string')
-    )
-      throw new Error('Invalid Overview Bot');
-    const activity =
-      bot['activity'] === undefined ? undefined : parsePublicToolActivity(bot['activity']);
-    if (bot['activity'] !== undefined && (activity === undefined || bot['state'] !== 'working'))
-      throw new Error('Invalid Overview activity');
-    const sessions = bot['sessions'].map((value: unknown) => {
-      const session = asRecord(value);
-      if (
-        session === undefined ||
-        typeof session['sessionId'] !== 'string' ||
-        !['orchestrator', 'assignment'].includes(String(session['role'])) ||
-        !['thinking', 'working'].includes(String(session['state'])) ||
-        (session['purpose'] !== undefined && typeof session['purpose'] !== 'string')
-      )
-        throw new Error('Invalid Overview Session');
-      return session as unknown as ActivityOverview['bots'][number]['sessions'][number];
-    });
-    return {
-      ...bot,
-      hasAction: bot['hasAction'] === true,
-      ...(bot['attention'] === undefined
-        ? {}
-        : { attention: parsePublicAttention(bot['attention']) }),
-      ...(activity === undefined ? {} : { activity }),
-      sessions,
-    } as unknown as ActivityOverview['bots'][number];
-  });
-  return { actionCount: row['actionCount'] as number, bots };
 }
 
 export async function loadChannelActivityToday(call: BridgeCall): Promise<ChannelActivityToday> {

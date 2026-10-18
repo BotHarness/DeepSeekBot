@@ -516,7 +516,7 @@ try {
     JSON.stringify(
       await page.evaluate(() => ({
         groupName: document.querySelector('[data-group-channel-name]')?.outerHTML,
-        popover: document.querySelector('.bh-profile-popover')?.outerHTML,
+        profile: document.querySelector('.bh-profile-view')?.outerHTML,
         chips: [...document.querySelectorAll('.bh-group-activity-chip')].map(
           (node) => node.outerHTML,
         ),

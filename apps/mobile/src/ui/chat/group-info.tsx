@@ -1,5 +1,8 @@
+import { TextInput } from '../primitives/system-text';
 import { useState, type ReactNode } from 'react';
-import { Alert, FlatList, Pressable, SectionList, TextInput, View } from 'react-native';
+import { FlatList, Pressable, SectionList, View } from 'react-native';
+import { showAppDialog } from '../primitives/app-dialog';
+import { KeyboardFormScroll } from '../primitives/keyboard-form';
 
 import { errorText } from '../../host/bot-settings';
 import {
@@ -97,7 +100,7 @@ function MemberAvatar({ entry }: { entry: { slug: string; bot?: RosterBot } }) {
         justifyContent: 'center',
       }}
     >
-      <Text strong tone="muted">
+      <Text strong tone="muted" allowFontScaling={false}>
         {Array.from(memberName(entry))[0] ?? ''}
       </Text>
     </View>
@@ -121,7 +124,7 @@ function MenuButton({ label, onPress }: { label: string; onPress(): void }) {
         alignItems: 'center',
         justifyContent: 'center',
         borderRadius: radius.round,
-        backgroundColor: pressed ? theme.layer.sheet.pressed : theme.layer.sheet.fill,
+        backgroundColor: pressed ? theme.layer.raised.pressed : theme.layer.raised.fill,
       })}
     >
       <MoreIcon color={theme.color.muted} size={ICON} />
@@ -151,42 +154,50 @@ function RenameSheet({
     if (ok) onClose();
   };
   return (
-    <Sheet visible={visible} label={t.groupRename} title={t.groupRename} onClose={onClose}>
-      <TextInput
-        value={draft}
-        onChangeText={setDraft}
-        accessibilityLabel={t.groupName}
-        maxLength={GROUP_NAME_MAX}
-        autoFocus
-        returnKeyType="done"
-        onSubmitEditing={() => {
-          if (next !== '' && next !== name) void save();
-        }}
-        style={{
-          minHeight: theme.touch,
-          marginHorizontal: space.x5,
-          paddingHorizontal: space.x4,
-          borderRadius: radius.md,
-          backgroundColor: theme.layer[SHEET_GROUP].fill,
-          color: theme.color.fg,
-          fontSize: theme.type.body.size,
-        }}
-      />
-      <SheetActions>
-        <View>
-          <Button label={t.cancel} on="canvas" onPress={onClose} />
-        </View>
-        <View>
-          <Button
-            label={t.groupRenameSave}
-            tone="primary"
-            on="canvas"
-            busy={busy}
-            disabled={next === '' || next === name}
-            onPress={() => void save()}
-          />
-        </View>
-      </SheetActions>
+    <Sheet
+      visible={visible}
+      label={t.groupRename}
+      title={t.groupRename}
+      onClose={onClose}
+      avoidKeyboard
+    >
+      <KeyboardFormScroll enabled={false}>
+        <TextInput
+          value={draft}
+          onChangeText={setDraft}
+          accessibilityLabel={t.groupName}
+          maxLength={GROUP_NAME_MAX}
+          autoFocus
+          returnKeyType="done"
+          onSubmitEditing={() => {
+            if (next !== '' && next !== name) void save();
+          }}
+          style={{
+            minHeight: theme.touch,
+            marginHorizontal: space.x5,
+            paddingHorizontal: space.x4,
+            borderRadius: radius.md,
+            backgroundColor: theme.layer[SHEET_GROUP].fill,
+            color: theme.color.fg,
+            fontSize: theme.type.body.size,
+          }}
+        />
+        <SheetActions>
+          <View>
+            <Button label={t.cancel} on="canvas" onPress={onClose} />
+          </View>
+          <View>
+            <Button
+              label={t.groupRenameSave}
+              tone="primary"
+              on="canvas"
+              busy={busy}
+              disabled={next === '' || next === name}
+              onPress={() => void save()}
+            />
+          </View>
+        </SheetActions>
+      </KeyboardFormScroll>
     </Sheet>
   );
 }
@@ -238,12 +249,14 @@ export function GroupInfoSheet({
   pickAvatar,
   onOpenBot,
   onDisbanded,
+  background,
 }: {
   info: GroupInfo;
   actions: GroupActions;
   pickAvatar(): Promise<string | undefined>;
   onOpenBot(slug: string): void;
   onDisbanded(): void;
+  background?: ReactNode;
 }) {
   const theme = useDesignTheme();
   const [busy, setBusy] = useState<string | undefined>();
@@ -280,19 +293,18 @@ export function GroupInfoSheet({
 
   const memberMenu = (member: GroupMember) => {
     const name = memberName(member);
-    Alert.alert(name, undefined, [
+    showAppDialog(name, undefined, [
       { text: t.groupOpenProfile, onPress: () => onOpenBot(member.slug) },
       {
         text: t.groupRemove,
         style: 'destructive',
         onPress: () =>
-          Alert.alert(t.groupRemoveConfirm(name), undefined, [
+          showAppDialog(t.groupRemoveConfirm(name), undefined, [
             { text: t.cancel, style: 'cancel' },
             {
               text: t.groupRemove,
               style: 'destructive',
-              onPress: () =>
-                void run(`member:${member.slug}`, () => actions.removeMember(member.slug)),
+              onPress: () => run(`member:${member.slug}`, () => actions.removeMember(member.slug)),
             },
           ]),
       },
@@ -301,14 +313,15 @@ export function GroupInfoSheet({
   };
 
   const confirmDisband = () =>
-    Alert.alert(t.groupDisbandConfirm(channel.name), t.groupDisbandDetail, [
+    showAppDialog(t.groupDisbandConfirm(channel.name), t.groupDisbandDetail, [
       { text: t.cancel, style: 'cancel' },
       {
         text: t.groupDisband,
         style: 'destructive',
         onPress: () =>
-          void run('disband', actions.disband).then((ok) => {
+          run('disband', actions.disband).then((ok) => {
             if (ok) onDisbanded();
+            return ok;
           }),
       },
     ]);
@@ -331,6 +344,7 @@ export function GroupInfoSheet({
           <SheetCallout tone="danger">{error}</SheetCallout>
         </View>
       )}
+      {background}
       <SettingsSection title={t.groupSettingsSection}>
         <SettingsRow
           title={t.groupName}
@@ -380,41 +394,44 @@ export function GroupInfoSheet({
 
   return (
     <>
-      <SectionList
-        sections={groupRows(info)}
-        keyExtractor={(row) => row.key}
-        stickySectionHeadersEnabled={false}
-        style={{ flex: 1, backgroundColor: theme.color.surface }}
-        contentContainerStyle={{ paddingTop: space.x6, paddingBottom: space.x5 }}
-        ListHeaderComponent={header}
-        ListFooterComponent={footer}
-        renderSectionHeader={({ section }) => (
-          <View
-            style={{ paddingTop: space.x5, paddingBottom: space.x2, paddingHorizontal: space.x5 }}
-          >
-            <SettingsHeading>
-              {section.section === 'joins' ? t.groupJoinsSection : t.groupMembersSection}
-            </SettingsHeading>
-          </View>
-        )}
-        renderItem={({ item }) => (
-          <SettingsGroupItem first={item.first} last={item.last}>
-            <GroupRow
-              row={item}
-              busy={busy}
-              onInvite={() => setSheet('invite')}
-              onOpenBot={onOpenBot}
-              onMenu={memberMenu}
-              onCancelInvite={(pending) =>
-                void run(`invite:${pending.id}`, () => actions.cancelInvite(pending.id))
-              }
-              onDecide={(pending, accept) =>
-                void run(`join:${pending.id}`, () => actions.decideJoin(pending.id, accept))
-              }
-            />
-          </SettingsGroupItem>
-        )}
-      />
+      <View style={{ flex: 1 }}>
+        <SectionList
+          sections={groupRows(info)}
+          keyExtractor={(row) => row.key}
+          stickySectionHeadersEnabled={false}
+          nestedScrollEnabled
+          style={{ flex: 1 }}
+          contentContainerStyle={{ paddingTop: space.x6, paddingBottom: space.x5 }}
+          ListHeaderComponent={header}
+          ListFooterComponent={footer}
+          renderSectionHeader={({ section }) => (
+            <View
+              style={{ paddingTop: space.x5, paddingBottom: space.x2, paddingHorizontal: space.x5 }}
+            >
+              <SettingsHeading>
+                {section.section === 'joins' ? t.groupJoinsSection : t.groupMembersSection}
+              </SettingsHeading>
+            </View>
+          )}
+          renderItem={({ item }) => (
+            <SettingsGroupItem first={item.first} last={item.last}>
+              <GroupRow
+                row={item}
+                busy={busy}
+                onInvite={() => setSheet('invite')}
+                onOpenBot={onOpenBot}
+                onMenu={memberMenu}
+                onCancelInvite={(pending) =>
+                  void run(`invite:${pending.id}`, () => actions.cancelInvite(pending.id))
+                }
+                onDecide={(pending, accept) =>
+                  void run(`join:${pending.id}`, () => actions.decideJoin(pending.id, accept))
+                }
+              />
+            </SettingsGroupItem>
+          )}
+        />
+      </View>
       <InviteSheet
         visible={sheet === 'invite'}
         candidates={info.candidates}
@@ -442,7 +459,7 @@ function Divider() {
       style={{
         height: 0,
         borderTopWidth: edge.hairline,
-        borderTopColor: theme.layer.sheet.divider,
+        borderTopColor: theme.layer.raised.divider,
       }}
     />
   );

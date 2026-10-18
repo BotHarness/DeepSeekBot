@@ -1,0 +1,38 @@
+[
+  {
+    "size": "large",
+    "theme": "light",
+    "nameVisible": true,
+    "cloudLabel": false
+  },
+  {
+    "size": "large",
+    "theme": "dark",
+    "nameVisible": true,
+    "cloudLabel": false
+  },
+  {
+    "size": "accessibility-medium",
+    "theme": "light",
+    "nameVisible": true,
+    "cloudLabel": false
+  },
+  {
+    "size": "accessibility-medium",
+    "theme": "dark",
+    "nameVisible": true,
+    "cloudLabel": false
+  },
+  {
+    "size": "accessibility-extra-extra-extra-large",
+    "theme": "light",
+    "nameVisible": true,
+    "cloudLabel": false
+  },
+  {
+    "size": "accessibility-extra-extra-extra-large",
+    "theme": "dark",
+    "nameVisible": true,
+    "cloudLabel": false
+  }
+]

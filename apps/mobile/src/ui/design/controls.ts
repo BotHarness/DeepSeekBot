@@ -1,7 +1,7 @@
 import { contrast, type DesignTheme } from './resolve-theme';
 import { distance, over, SEPARATION, tint, type LayerName } from './layers';
 
-export const BUTTON_TONES = ['primary', 'secondary', 'danger'] as const;
+export const BUTTON_TONES = ['primary', 'secondary', 'tonal', 'danger'] as const;
 export type ButtonTone = (typeof BUTTON_TONES)[number];
 
 export type ButtonColors = {
@@ -40,6 +40,25 @@ export function buttonColors(theme: DesignTheme, tone: ButtonTone, on: LayerName
       label: readable(theme.color.base, fill, behind.fill),
     };
   }
+  if (tone === 'tonal') {
+    const alternatives = [
+      behind.fill,
+      behind.danger,
+      buttonColors(theme, 'secondary', on).fill,
+      theme.color.fg,
+    ];
+    const fill =
+      Array.from({ length: 21 }, (_, step) =>
+        tint(behind.chosen, theme.color.accent, step / 20),
+      ).find((candidate) =>
+        alternatives.every((color) => distance(candidate, color) >= SEPARATION),
+      ) ?? behind.chosen;
+    return {
+      fill,
+      pressed: tint(fill, theme.color.fg, 0.16),
+      label: readable(theme.color.accent, fill, theme.color.fg),
+    };
+  }
   if (tone === 'secondary') {
     const next = theme.layer[NEXT[on]];
     const fill =
@@ -73,5 +92,13 @@ export function switchColors(theme: DesignTheme, on: LayerName): SwitchColors {
     trackOn: theme.color.accent,
     trackOff: theme.layer[on].selected,
     thumb: THUMB,
+  };
+}
+
+export function settingsColors(theme: DesignTheme, on: LayerName) {
+  return {
+    heading: readable(theme.color.accent, theme.overlay.fill, theme.color.fg),
+    selected: theme.layer[on].chosen,
+    selectedText: readable(theme.color.accent, theme.layer[on].chosen, theme.color.fg),
   };
 }

@@ -22,13 +22,12 @@ const plan: PersonaBotModelPlan = {
 describe('Bot-owned DSH Subagent tools', () => {
   it('fails before creating a child when the current default cannot resolve', async () => {
     const definitions = new Map<string, ToolDefinition>();
-    const start = vi.fn();
-    const startContinuable = vi.fn();
+    const startActivation = vi.fn();
     const resolveCallConfig = vi.fn().mockRejectedValue(new Error('Selected model is unavailable'));
     const guards: Array<(execution: { name: string }) => string | undefined> = [];
     const context = {
       get(name: string) {
-        if (name === 'subagents') return { resolveMaxDepth: () => 1, start, startContinuable };
+        if (name === 'subagents') return { resolveMaxDepth: () => 1, startActivation };
         if (name === 'llm') return { resolveCallConfig };
         return undefined;
       },
@@ -67,8 +66,7 @@ describe('Bot-owned DSH Subagent tools', () => {
       { provider: 'deepseek', model: 'pro', reasoningEffort: ReasoningEffortId('off') },
       expect.any(AbortSignal),
     );
-    expect(start).not.toHaveBeenCalled();
-    expect(startContinuable).not.toHaveBeenCalled();
+    expect(startActivation).not.toHaveBeenCalled();
     expect(guards[0]?.({ name: 'subagent' })).toContain('Bot-scoped');
     expect(guards[0]?.({ name: 'bot_subagent' })).toBeUndefined();
   });

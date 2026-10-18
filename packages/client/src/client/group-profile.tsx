@@ -12,9 +12,6 @@ import {
   Pill,
   Tooltip,
   IconChevronLeftOutlineRegular,
-  IconChevronRightOutlineRegular,
-  IconPinFillRegular,
-  IconPinOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { GroupProfileActivity, GroupProfileAuthorActivity } from './bridge.js';
@@ -141,37 +138,38 @@ export interface GroupProfileProps {
   channel: ChannelSummary;
   activity: GroupProfileActivity | undefined;
   cards: ProfileCardRegistry;
-  pinned: readonly string[];
+  members?: readonly PersonaBotFacepileItem[];
   botNames: ReadonlyMap<string, string>;
   t: BotHarnessTranslate;
 }
 
-export function GroupProfilePopover({
-  members = [],
+export function GroupProfileView({
   channel,
   activity,
   cards,
-  pinned,
+  members = [],
   botNames,
   t,
-  onExpand,
+  onClose,
 }: GroupProfileProps & {
-  members?: readonly PersonaBotFacepileItem[];
-  onExpand(): void;
+  onClose(): void;
 }): ReactElement {
   const preview = personaBotActivityPreview(members);
   const remaining = members.length - preview.length;
-  const pinnedCards = cards.listGroup().filter((card) => pinned.includes(card.id));
   return (
-    <div className="bh-profile-popover" role="dialog" aria-label={t('groupProfile.label')}>
-      <div className="bh-profile-popover-identity">
-        <GroupAvatar channel={channel} size="small" />
-        <span className="bh-profile-popover-text">
-          <span className="bh-profile-name">{channel.name}</span>
+    <div className="bh-profile-view">
+      <button type="button" className="bh-profile-back" onClick={onClose}>
+        <IconChevronLeftOutlineRegular />
+        <span>{t('profile.close')}</span>
+      </button>
+      <div className="bh-profile-view-identity">
+        <GroupAvatar channel={channel} size="large" />
+        <div className="bh-profile-view-heading">
+          <h2 className="bh-profile-view-name">{channel.name}</h2>
           <span className="bh-profile-description">
             {t('groupProfile.botCount', { count: channel.members.length })}
           </span>
-        </span>
+        </div>
       </div>
       {members.length === 0 ? null : (
         <section className="bh-group-live-activity">
@@ -216,70 +214,14 @@ export function GroupProfilePopover({
           </div>
         </section>
       )}
-      {pinnedCards.length === 0 ? null : (
-        <div className="bh-profile-popover-cards">
-          {pinnedCards.map((card) => (
-            <section key={card.id} className="bh-profile-card bh-profile-card-compact">
-              <span className="bh-profile-card-label">{card.label}</span>
-              {card.render({ channel, activity, botNames, t, compact: true })}
-            </section>
-          ))}
-        </div>
-      )}
-      <button type="button" className="bh-profile-expand" onClick={onExpand}>
-        <span>{t('profile.open')}</span>
-        <IconChevronRightOutlineRegular />
-      </button>
-    </div>
-  );
-}
-
-export function GroupProfileView({
-  channel,
-  activity,
-  cards,
-  pinned,
-  botNames,
-  t,
-  onTogglePin,
-  onClose,
-}: GroupProfileProps & {
-  onTogglePin(id: string): void;
-  onClose(): void;
-}): ReactElement {
-  return (
-    <div className="bh-profile-view">
-      <button type="button" className="bh-profile-back" onClick={onClose}>
-        <IconChevronLeftOutlineRegular />
-        <span>{t('profile.close')}</span>
-      </button>
-      <div className="bh-profile-view-identity">
-        <GroupAvatar channel={channel} size="large" />
-        <div className="bh-profile-view-heading">
-          <h2 className="bh-profile-view-name">{channel.name}</h2>
-          <span className="bh-profile-description">
-            {t('groupProfile.botCount', { count: channel.members.length })}
-          </span>
-        </div>
-      </div>
       <section className="bh-profile-section" aria-label={t('profile.activitySection')}>
         <h2 className="bh-profile-section-title">{t('profile.activitySection')}</h2>
         <div className="bh-profile-cards">
           {cards.listGroup().map((card) => {
-            const isPinned = pinned.includes(card.id);
             return (
               <section key={card.id} className="bh-profile-card">
                 <header className="bh-profile-card-head">
                   <span className="bh-profile-card-label">{card.label}</span>
-                  <button
-                    type="button"
-                    className="bh-profile-pin"
-                    aria-pressed={isPinned}
-                    aria-label={isPinned ? t('profile.unpin') : t('profile.pin')}
-                    onClick={() => onTogglePin(card.id)}
-                  >
-                    {isPinned ? <IconPinFillRegular /> : <IconPinOutlineRegular />}
-                  </button>
                 </header>
                 {card.render({ channel, activity, botNames, t, compact: false })}
               </section>

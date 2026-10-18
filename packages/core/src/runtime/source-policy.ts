@@ -44,6 +44,7 @@ export interface BotSourcePolicy {
 export interface BotSourcePolicyStore {
   resolveIn(database: DatabaseSync, botSlug: string, sourceClass: BotSourceClass): BotSourcePolicy;
   list(botSlug: string): BotSourcePolicy[];
+  readGroupOrdinary(botSlug: string): BotSourcePolicy;
   setAssignmentReport(
     botSlug: string,
     wake: 'conditional' | 'immediate',
@@ -111,26 +112,28 @@ export function createBotSourcePolicyStore(
     db: DatabaseSync,
     botSlug: string,
     sourceClass: BotSourceClass,
+    persistDefault = true,
   ): BotSourcePolicy => {
     const builtIn = BOT_SOURCE_DEFAULTS[sourceClass];
     const digestCount = 'digestCount' in builtIn ? builtIn.digestCount : null;
     const digestIntervalSeconds =
       'digestIntervalSeconds' in builtIn ? builtIn.digestIntervalSeconds : null;
-    db.prepare(`
+    if (persistDefault)
+      db.prepare(`
       INSERT OR IGNORE INTO bot_source_policy_revisions
         (bot_slug, source_class, revision, actor_kind, changed_at,
          admission_mode, wake_mode, digest_count, digest_interval_seconds, delivery)
       VALUES (?, ?, 1, 'built-in', ?, 'admit', ?, ?, ?, ?)
     `).run(
-      botSlug,
-      sourceClass,
-      now().toISOString(),
-      builtIn.wake,
-      digestCount,
-      digestIntervalSeconds,
-      'delivery' in builtIn ? builtIn.delivery : 'steer',
-    );
-    const row = db
+        botSlug,
+        sourceClass,
+        now().toISOString(),
+        builtIn.wake,
+        digestCount,
+        digestIntervalSeconds,
+        'delivery' in builtIn ? builtIn.delivery : 'steer',
+      );
+    const stored = db
       .prepare(`
         SELECT revision, changed_at, admission_mode, wake_mode, actor_kind,
                actor_bot_slug, digest_count, digest_interval_seconds, override_active, delivery
@@ -138,7 +141,19 @@ export function createBotSourcePolicyStore(
          WHERE bot_slug = ? AND source_class = ?
          ORDER BY revision DESC LIMIT 1
       `)
-      .get(botSlug, sourceClass) as unknown as SourcePolicyRow;
+      .get(botSlug, sourceClass) as SourcePolicyRow | undefined;
+    const row: SourcePolicyRow = stored ?? {
+      revision: 1,
+      changed_at: now().toISOString(),
+      admission_mode: 'admit',
+      wake_mode: builtIn.wake,
+      actor_kind: 'built-in',
+      actor_bot_slug: null,
+      digest_count: digestCount,
+      digest_interval_seconds: digestIntervalSeconds,
+      override_active: 0,
+      delivery: 'delivery' in builtIn ? builtIn.delivery : 'steer',
+    };
     if (row.admission_mode !== 'admit')
       throw new Error(`Protected ${sourceClass} admission mode is invalid`);
     if (sourceClass === 'assignment-report') {
@@ -276,6 +291,9 @@ export function createBotSourcePolicyStore(
   };
   return {
     resolveIn,
+    readGroupOrdinary(botSlug) {
+      return database.read((db) => resolveIn(db, botSlug, 'group-ordinary', false));
+    },
     list(botSlug) {
       return database.transaction((db) =>
         (Object.keys(BOT_SOURCE_DEFAULTS) as BotSourceClass[]).map((sourceClass) =>

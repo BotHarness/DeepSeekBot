@@ -1,5 +1,6 @@
+import { Text } from './primitives/system-text';
 import type { ReactNode } from 'react';
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, View } from 'react-native';
 
 import { t } from './strings';
 import { useTheme } from './theme';

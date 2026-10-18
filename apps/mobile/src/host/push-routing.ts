@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import type { RefCallback } from 'react';
-import type { View } from 'react-native';
+import type { ViewInstance } from 'react-native';
 
 import { useMounted } from '../ui/mounted';
 import { createHostClient } from './client';
@@ -11,9 +11,9 @@ import { parsePushData, pushHref, type PushTarget } from './push';
 import { decideFromPush } from './push-actions';
 import { decideApproval } from './requests';
 
-export function usePushRouting(): RefCallback<View> {
+export function usePushRouting(): RefCallback<ViewInstance> {
   const router = useRouter();
-  return useMounted<View>(() => {
+  return useMounted<ViewInstance>(() => {
     let pending: { target: PushTarget; action: string | undefined } | undefined;
     const drain = async (): Promise<void> => {
       const next = pending;

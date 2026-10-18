@@ -9,7 +9,7 @@ import { MemoryLoadFeedback } from './memory-load-feedback.js';
 import { useClientState } from './bot-sidebar.js';
 import { SidebarCardList } from './sidebar-card.js';
 import { StandingLimitsRow } from './standing-limits.js';
-import { Note } from './ds/note.js';
+import { PanelEmptyState } from './ds/empty-state.js';
 
 type MemoryFilesProps = ChannelSidebarEntryProps & { showLimits?: boolean };
 
@@ -100,9 +100,7 @@ function MemoryFilesForScope({
           <LoadingSkeleton kind="sidebar" label={t('memory.loading')} />
         ) : null
       ) : snapshot.files.length === 0 ? (
-        <Note tone="subtle" inset>
-          {t('memory.empty')}
-        </Note>
+        <PanelEmptyState icon="brain">{t('memory.empty')}</PanelEmptyState>
       ) : (
         <MemoryFileTree
           paths={snapshot.files}

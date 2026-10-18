@@ -1,3 +1,4 @@
+import { PointerMenu } from './ds/pointer-menu.js';
 import { useRef, useState, type MouseEvent, type KeyboardEvent, type ReactElement } from 'react';
 import {
   IconChevronDownOutlineRegular,
@@ -8,7 +9,6 @@ import {
   IconFolderOpenOutlineRegular,
   IconRefreshOutlineRegular,
   IconSettingsOutlineRegular,
-  Menu,
   Tooltip,
   writeClipboard,
   type MenuEntry,
@@ -325,15 +325,13 @@ function HostFileMenu({
     }
   };
   return (
-    <span ref={mount} className="bh-menu-anchor" style={{ left: request.x, top: request.y }}>
+    <span ref={mount} hidden>
       <span ref={focusMenu} />
-      <Menu
-        open
-        portal
+      <PointerMenu
+        point={request}
         dense
         autoFocus
         anchor={<span ref={proxy} aria-hidden="true" />}
-        getAnchorRect={() => proxy.current?.getBoundingClientRect() ?? null}
         items={items}
         onSelect={(id) => {
           void select(id);

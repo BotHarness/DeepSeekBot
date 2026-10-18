@@ -7,11 +7,12 @@ export function useFlipList<T extends HTMLElement>(): RefObject<T> {
     const root = container.current;
     if (root === null) return;
     const next = new Map<string, number>();
+    const origin = root.getBoundingClientRect().top - root.scrollTop;
     const reduced =
       typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
     for (const element of root.querySelectorAll<HTMLElement>('[data-flip-key]')) {
       const key = element.dataset['flipKey']!;
-      const top = element.getBoundingClientRect().top;
+      const top = element.getBoundingClientRect().top - origin;
       next.set(key, top);
       const previous = positions.current.get(key);
       if (

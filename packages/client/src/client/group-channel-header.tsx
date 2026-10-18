@@ -10,8 +10,6 @@ import { ChannelAttentionDot } from './channel-options.js';
 import type { ChannelMenuTrigger } from './human-channel-name.js';
 import type { BotHarnessTranslate } from './locale.js';
 import type { ChannelSummary } from './store.js';
-import { CompanionPin } from './window-companions-view.js';
-import type { WindowCompanions } from './window-companions.js';
 import { border, color, radius, space, text } from './ds/tokens.stylex.js';
 
 const styles = stylex.create({
@@ -112,7 +110,6 @@ export function GroupChannelHeader({
   t,
   onOpenActivity,
   onToggleProfile,
-  companion,
   menu,
 }: {
   channel: ChannelSummary;
@@ -122,7 +119,6 @@ export function GroupChannelHeader({
   t: BotHarnessTranslate;
   onOpenActivity(): void;
   onToggleProfile(): void;
-  companion?: WindowCompanions | undefined;
   menu?: ChannelMenuTrigger | undefined;
 }): ReactElement {
   return (
@@ -149,21 +145,12 @@ export function GroupChannelHeader({
                   type="button"
                   className="bh-avatar-facepile-button"
                   aria-label={label}
-                  aria-haspopup="dialog"
                   aria-expanded={expanded}
                   onClick={onOpenActivity}
                 >
                   {avatar}
                 </button>
               </Tooltip>
-              {companion ? (
-                <CompanionPin
-                  companion={companion}
-                  botId={item.personaBotId}
-                  name={item.name}
-                  t={t}
-                />
-              ) : null}
             </span>
           );
         }}
@@ -174,7 +161,6 @@ export function GroupChannelHeader({
         {...stylex.props(styles.name, menu !== undefined && styles.nameWithCaret)}
         {...(menu === undefined
           ? {
-              'aria-haspopup': 'dialog' as const,
               'aria-expanded': expanded,
               'aria-label': t('groupProfile.openAvatar', { name: channel.name }),
               onClick: onToggleProfile,

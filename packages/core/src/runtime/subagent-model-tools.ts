@@ -1,8 +1,9 @@
 import type { Context } from '@deepseek-ai/cordis';
 import type { Agent, AgentOptions } from '@deepseek-ai/dsh-agent';
+import type { JobOutcome } from '@deepseek-ai/dsh-jobs';
 import { ReasoningEffortId } from '@deepseek-ai/dsh-llm';
-import { parentAgentOptionsForDelegation, settleRun } from '@deepseek-ai/dsh-subagent';
-import type { SubagentRun, SubagentStartRequest } from '@deepseek-ai/dsh-subagent';
+import { parentAgentOptionsForDelegation } from '@deepseek-ai/dsh-subagent';
+import type { SubagentActivationSpec } from '@deepseek-ai/dsh-subagent';
 import { defineTool } from '@deepseek-ai/dsh-tools';
 
 import {
@@ -11,6 +12,13 @@ import {
   type PersonaBotModelPlan,
 } from '../models/presets.js';
 import { resolveSubagentRoute } from '../models/subagent-route.js';
+import { startCallerActivation, startParentActivation, type CallerRun } from './subagent-compat.js';
+
+declare module '@deepseek-ai/dsh-jobs' {
+  interface JobKindMap {
+    subagent: 'subagent';
+  }
+}
 
 type DelegationProvider = 'spawn' | 'fork';
 
@@ -26,7 +34,40 @@ function agentOptions(parent: AgentOptions, route: ModelRoute): AgentOptions {
   };
 }
 
-async function collect(run: SubagentRun): Promise<string> {
+async function settleJob(run: CallerRun): Promise<JobOutcome> {
+  let outcome: JobOutcome;
+  try {
+    const result = await run.result;
+    outcome =
+      result.stopReason === 'completed'
+        ? {
+            status: 'completed',
+            result: result.output
+              .filter((block) => block.type === 'text')
+              .map((block) => block.text)
+              .join(''),
+          }
+        : result.stopReason === 'aborted' && result.diagnostic === undefined
+          ? { status: 'killed' }
+          : {
+              status: 'failed',
+              detail: `${result.stopReason}${result.diagnostic === undefined ? '' : `; diagnostic: ${result.diagnostic}`}`,
+            };
+  } catch (error) {
+    outcome = { status: 'failed', detail: String(error) };
+  }
+  try {
+    await run.dispose();
+  } catch (error) {
+    return {
+      status: 'failed',
+      detail: `${outcome.detail === undefined ? '' : `${outcome.detail}; `}dispose failed: ${String(error)}`,
+    };
+  }
+  return outcome;
+}
+
+async function collect(run: CallerRun): Promise<string> {
   const [result] = await Promise.allSettled([run.result]);
   const [disposal] = await Promise.allSettled([run.dispose()]);
   if (result.status === 'rejected') {
@@ -40,14 +81,14 @@ async function collect(run: SubagentRun): Promise<string> {
   if (disposal.status === 'rejected') throw disposal.reason;
   if (result.value.stopReason !== 'completed') {
     throw new Error(
-      `Subagent ${run.id} ended ${result.value.stopReason}${result.value.diagnostic === undefined ? '' : `: ${result.value.diagnostic}`}`,
+      `Subagent ${run.childId} ended ${result.value.stopReason}${result.value.diagnostic === undefined ? '' : `: ${result.value.diagnostic}`}`,
     );
   }
   const output = result.value.output
     .filter((block) => block.type === 'text')
     .map((block) => block.text)
     .join('');
-  return `Subagent ${run.id} completed.${output.length === 0 ? '' : `\n${output}`}`;
+  return `Subagent ${run.childId} completed.${output.length === 0 ? '' : `\n${output}`}`;
 }
 
 function installOne(
@@ -110,7 +151,7 @@ function installOne(
         );
         exec.signal.throwIfAborted();
         const maxDepth = subagents.resolveMaxDepth();
-        const request: Omit<SubagentStartRequest, 'label' | 'signal'> = {
+        const request: SubagentActivationSpec['request'] = {
           parent,
           prompt: [{ type: 'text', text: args.prompt }],
           agentOptions: options,
@@ -119,12 +160,14 @@ function installOne(
         const notice = decision.notice === undefined ? '' : `${decision.notice}\n`;
         const background = args.run_in_background ?? provider === 'spawn';
         if (background && provider === 'spawn') {
-          const started = await subagents.startContinuable({
-            provider,
-            label: args.description,
-            request,
-            signal: exec.signal,
-          });
+          const started = await startParentActivation(
+            subagents,
+            { provider, label: args.description, request, signal: exec.signal },
+            (childId, error) =>
+              ctx.logger.warn(
+                `botharness: subagent activation ${childId} failed: ${String(error)}`,
+              ),
+          );
           return `${notice}Started Subagent ${started.childId} on ${decision.route.provider}/${decision.route.model}.`;
         }
         if (background) {
@@ -140,9 +183,10 @@ function installOne(
                 cancel: (reason) => controller.abort(reason ?? 'Subagent Job cancelled'),
                 done: (async () => {
                   try {
-                    return await settleRun(
-                      await subagents.start(provider, {
-                        ...request,
+                    return await settleJob(
+                      await startCallerActivation(subagents, {
+                        provider,
+                        request,
                         label: args.description,
                         signal: controller.signal,
                       }),
@@ -158,8 +202,9 @@ function installOne(
           });
           return `${notice}Started background Subagent Job ${jobId} on ${decision.route.provider}/${decision.route.model}.`;
         }
-        const run = await subagents.start(provider, {
-          ...request,
+        const run = await startCallerActivation(subagents, {
+          provider,
+          request,
           label: args.description,
           signal: exec.signal,
         });
@@ -200,7 +245,7 @@ export function installBotSubagentModelTools(
       },
       execute: async () => {
         const plan = resolvePlan();
-        if (plan === undefined)
+        if (plan?.assignmentDefault === undefined)
           return 'No Model Preset is applied; Subagents inherit the parent route.';
         return JSON.stringify({
           default: plan.assignmentDefault,

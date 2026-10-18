@@ -3,9 +3,13 @@ import { act, createElement, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('react-native-keyboard-controller', async () => import('./keyboard-controller-shim'));
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
 vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
+vi.mock('react-native-safe-area-context', () => ({
+  useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
+}));
 
 import { createHostClient, type HostClient } from '../src/host/client';
 import {
@@ -317,6 +321,20 @@ describe('Question card in the DM', () => {
     const view = await render(card(connect(fake)));
     await type(view, `${t.otherAnswer}: Which colour?`, 'violet');
     expect(button(view, t.submitChoice).disabled).toBe(false);
+  });
+
+  it('retains an expanded chat answer across closing and reopening without submitting it', async () => {
+    const fake = host();
+    const view = await render(card(connect(fake), { expandInput: true }));
+    const label = `${t.otherAnswer}: Which colour?`;
+    await press(button(view, label));
+    await type(view, t.editDraft, 'violet\nsecond line');
+    await press(button(view, t.done));
+    expect(view.querySelector('textarea')).toBeNull();
+    expect(button(view, label).textContent).toContain('violet');
+    await press(button(view, label));
+    expect(view.querySelector('textarea')?.value).toBe('violet\nsecond line');
+    expect(fake.requests.filter((request) => request.includes('userQuestionAnswer'))).toEqual([]);
   });
 
   it('collapses as answered here when the chat answered it', async () => {

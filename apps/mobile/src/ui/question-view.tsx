@@ -1,5 +1,6 @@
+import { Text, TextInput } from './primitives/system-text';
 import { useCallback, useRef, useState } from 'react';
-import { Keyboard, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Pressable, View, type ViewInstance } from 'react-native';
 
 import {
   buildAnswer,
@@ -20,6 +21,7 @@ import {
   type NoticeTone,
 } from './request-parts';
 import { useMounted } from './mounted';
+import { KeyboardFormScroll } from './primitives/keyboard-form';
 import { haptic } from './haptics';
 import { t } from './strings';
 import { useTheme } from './theme';
@@ -70,30 +72,8 @@ export function QuestionView({
     }
   }, [port]);
 
-  const scroll = useRef<ScrollView | null>(null);
-  const height = useRef(0);
-  const blocks = useRef<Record<string, { bottom: number; last: boolean }>>({});
-  const focused = useRef<string | undefined>(undefined);
-  const reveal = (keyboard: number) => {
-    const block = focused.current === undefined ? undefined : blocks.current[focused.current];
-    if (block === undefined) return;
-    if (block.last) return scroll.current?.scrollToEnd({ animated: true });
-    const y = block.bottom + 16 - (height.current - keyboard);
-    if (y > 0) scroll.current?.scrollTo({ y, animated: true });
-  };
-  const scrolled = useMounted<ScrollView>((node) => {
-    scroll.current = node;
-    const shown = Keyboard.addListener('keyboardDidShow', (event) =>
-      reveal(event.endCoordinates.height),
-    );
-    return () => {
-      shown.remove();
-      scroll.current = null;
-    };
-  }, []);
-
   const seen = useRef<boolean | undefined>(undefined);
-  const mount = useMounted<View>(() => {
+  const mount = useMounted<ViewInstance>(() => {
     const first = seen.current === undefined;
     const dropped = seen.current === true && !listed;
     seen.current = listed;
@@ -142,33 +122,18 @@ export function QuestionView({
 
   return (
     <View ref={mount} style={{ flex: 1 }}>
-      <ScrollView
-        ref={scrolled}
-        onLayout={(event) => {
-          height.current = event.nativeEvent.layout.height;
-        }}
+      <KeyboardFormScroll
         contentInsetAdjustmentBehavior="automatic"
-        automaticallyAdjustKeyboardInsets
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
         contentContainerStyle={{ padding: 16, gap: 20 }}
         style={{ backgroundColor: theme.background }}
       >
         <Text style={{ color: theme.inkSoft, fontSize: 15 }}>{t.asks(botName)}</Text>
-        {request.questions.map((question, index) => {
+        {request.questions.map((question) => {
           const draft = drafts[question.id] ?? emptyDraft();
           return (
-            <View
-              key={question.id}
-              style={{ gap: 10 }}
-              onLayout={(event) => {
-                const { y, height: tall } = event.nativeEvent.layout;
-                blocks.current[question.id] = {
-                  bottom: y + tall,
-                  last: index === request.questions.length - 1,
-                };
-              }}
-            >
+            <View key={question.id} style={{ gap: 10 }}>
               {question.header === undefined ? null : (
                 <Text style={{ color: theme.inkSoft, fontSize: 13, fontWeight: '600' }}>
                   {question.header}
@@ -219,11 +184,6 @@ export function QuestionView({
                 placeholderTextColor={theme.inkSoft}
                 editable={pending && phase.busy !== true}
                 multiline
-                onFocus={() => {
-                  focused.current = question.id;
-                  const keyboard = Keyboard.metrics();
-                  if (keyboard !== undefined) reveal(keyboard.height);
-                }}
                 value={draft.custom}
                 onChangeText={(text) => update(question, typeCustom(question, draft, text))}
                 style={{
@@ -253,7 +213,7 @@ export function QuestionView({
             />
           </View>
         ) : null}
-      </ScrollView>
+      </KeyboardFormScroll>
     </View>
   );
 }

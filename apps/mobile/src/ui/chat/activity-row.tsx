@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { Pressable, View } from 'react-native';
+import { Pressable, View, type ViewInstance } from 'react-native';
 
 import type { ChannelActivity } from '../../host/channel-activity';
 import type { RosterView } from '../../host/client';
@@ -40,7 +40,7 @@ export function ActivityRow({
   lifted?: boolean;
   onLongPress(anchor: Rect, label: string, target: ActivityTarget | undefined): void;
 }) {
-  const ref = useRef<View>(null);
+  const ref = useRef<ViewInstance>(null);
   const theme = useDesignTheme();
   const line = activityText(message, activity, roster, count);
   const actor = roster?.bots.find((entry) => entry.slug === line.botSlug);

@@ -8,10 +8,12 @@ import { readComposedReleaseLedgers } from './change-fragments.mjs';
 import { providerRuntimeDigest } from './dev-im-provider.mjs';
 import { pnpmCommand } from './dev-package-manager.mjs';
 
-export const productDsh = '0.2.0-rc.2';
-export const productDshRange = productDsh;
+export const productDsh = '0.2.1-rc.2';
+export const productDshRange = '>=0.2.0-rc.2 <0.3.0-0';
+export const productDshPeerRange = `${productDshRange} || >=0.2.1-0 <0.3.0-0`;
 export const providerDshRange = '>=0.2.0-0';
-export const productDshVersions = Object.freeze([productDsh]);
+export const providerDshPeerRange = `${providerDshRange} || >=0.2.1-0`;
+export const productDshVersions = Object.freeze(['0.2.0-rc.2', productDsh]);
 
 export const productImProvider = Object.freeze({
   name: '@botharness/im-provider',
@@ -147,7 +149,7 @@ export function providerManifest(original) {
       Object.entries(manifest.peerDependencies ?? {}).map(([name, range]) => [
         name,
         name === '@deepseek-ai/dsh' || name.startsWith('@deepseek-ai/dsh-')
-          ? providerDshRange
+          ? providerDshPeerRange
           : range,
       ]),
     ),

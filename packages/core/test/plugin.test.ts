@@ -2,6 +2,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { Context } from '@deepseek-ai/cordis';
+import { credentialRef } from '@deepseek-ai/dsh-credentials';
+import LocalCredentialProvider from '@deepseek-ai/dsh-credentials-local';
 import { remoteMethods } from '@deepseek-ai/dsh-typert-protocol';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -64,6 +66,34 @@ function createStubContext(): { ctx: Context; stubs: Stubs } {
 }
 
 describe('plugin entry', () => {
+  it('waits for the native credential Provider before starting a restored runtime Consumer', async () => {
+    const { ctx } = createStubContext();
+    ctx.provide('agentDefaultModel', {} as never);
+    ctx.provide('llm', {} as never);
+    vi.stubEnv('BH_SYNTHETIC_RESTART_KEY', 'synthetic-test-only');
+    const checks: boolean[] = [];
+    const consumer = ctx.plugin({
+      name: 'restored-runtime-readiness-probe',
+      inject,
+      async apply(c: Context) {
+        const credentials = c.get('credentials');
+        checks.push(
+          credentials !== undefined &&
+            (await credentials.describe(credentialRef('BH_SYNTHETIC_RESTART_KEY'))).configured,
+        );
+      },
+    });
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(checks).toEqual([]);
+    const provider = ctx.plugin(LocalCredentialProvider, {
+      path: join(process.env['DSH_HOME']!, '.credentials.yaml'),
+      watch: false,
+    });
+    await provider.await();
+    await consumer.await();
+    expect(checks).toEqual([true]);
+  });
+
   it('declares its identity', () => {
     expect(name).toBe('botharness-core');
     expect(inject).toEqual([
@@ -73,6 +103,7 @@ describe('plugin entry', () => {
       'agents',
       'agentDefaultModel',
       'llm',
+      'credentials',
     ]);
   });
 
@@ -207,6 +238,40 @@ describe('plugin entry', () => {
     expect(stubs.skills.register).not.toHaveBeenCalled();
   });
 
+  it('restores and updates developer mode from native settings without a Client', async () => {
+    const { ctx, stubs } = createStubContext();
+    const settingsEvents = ctx as unknown as {
+      emit(name: 'settings/document-updated', namespace: string, revision: number): void;
+    };
+    let enabled = true;
+    const dispose = vi.fn();
+    stubs.skills.register.mockReturnValue(dispose);
+    ctx.provide('settings', {
+      describe: () => [{ ns: 'botharness-client', revision: 1, value: { developerMode: enabled } }],
+    } as never);
+    apply(ctx, { enabled: true });
+    await vi.waitFor(() => expect(stubs.skills.register).toHaveBeenCalledOnce());
+    enabled = false;
+    settingsEvents.emit('settings/document-updated', 'botharness-client', 2);
+    expect(dispose).toHaveBeenCalledOnce();
+    enabled = true;
+    settingsEvents.emit('settings/document-updated', 'unrelated', 3);
+    expect(stubs.skills.register).toHaveBeenCalledOnce();
+    settingsEvents.emit('settings/document-updated', 'botharness-client', 4);
+    expect(stubs.skills.register).toHaveBeenCalledTimes(2);
+  });
+
+  it('applies persisted developer mode when native Settings becomes available later', async () => {
+    const { ctx, stubs } = createStubContext();
+    apply(ctx, { enabled: true });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(stubs.skills.register).not.toHaveBeenCalled();
+    ctx.provide('settings', {
+      describe: () => [{ ns: 'botharness-client', revision: 0, value: { developerMode: true } }],
+    } as never);
+    await vi.waitFor(() => expect(stubs.skills.register).toHaveBeenCalledOnce());
+  });
+
   it('rebuilds the activity projection from owned Session logs and follows live events', () => {
     const home = createTempRoot('botharness-plugin-activity-');
     vi.stubEnv('DSH_HOME', home);
@@ -323,6 +388,8 @@ describe('plugin entry', () => {
       expect(core?.registry).toBeDefined();
       expect(core?.memory).toBeDefined();
       expect(core?.channels).toBeDefined();
+      expect(core?.cloudConnections).toBeDefined();
+      expect(() => core?.cloudConnections?.list()).toThrow(/recovery mode/);
       expect(() =>
         core?.ownership.claim({
           sessionId: 'session-1',
@@ -396,6 +463,8 @@ describe('plugin entry', () => {
       'failureAlertsRetry',
       'pairingReview',
       'senderAccess',
+      'cloudConnections',
+      'cloudWork',
       'messagingApps',
       'messagingSnapshot',
       'messagingTargets',
@@ -407,6 +476,7 @@ describe('plugin entry', () => {
       'messagingRevoke',
       'messagingConversation',
       'messagingSend',
+      'tobHome',
       'onboarding',
       'onboardingModel',
       'modelPlanInherit',
@@ -441,6 +511,7 @@ describe('plugin entry', () => {
       'humanNameSet',
       'channelHumanNameSet',
       'channelDm',
+      'channelGet',
       'channelCreate',
       'channelRename',
       'channelGroupAvatarSet',
@@ -448,6 +519,7 @@ describe('plugin entry', () => {
       'channelGroupInviteCancel',
       'channelGroupMemberRemove',
       'channelGroupJoinDecide',
+      'channelGroupSendReview',
       'channelGroupWakeSet',
       'channelGroupWakePolicies',
       'channelGroupDelete',

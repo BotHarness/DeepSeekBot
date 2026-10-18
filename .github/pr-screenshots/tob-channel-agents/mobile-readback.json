@@ -1,0 +1,6 @@
+{
+  "phoneIssuedAgentVisibleInCli": true,
+  "exactTwoMessageHistory": true,
+  "agentAuthorMatches": true,
+  "noDuplicateReply": true
+}

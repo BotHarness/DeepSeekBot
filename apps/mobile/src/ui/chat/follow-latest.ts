@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState, type RefObject } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import type { FlatList, NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 
 import type { ConversationMessage } from '../../host/conversation';
@@ -27,6 +27,7 @@ type ScrollEvent = NativeSyntheticEvent<NativeScrollEvent>;
 export function useFollowLatest<Row>(
   list: RefObject<FlatList<Row> | null>,
   messages: readonly ConversationMessage[],
+  onFollowingChange?: (following: boolean) => void,
 ) {
   const [following, setFollowing] = useState(true);
   const [away, setAway] = useState(false);
@@ -36,20 +37,26 @@ export function useFollowLatest<Row>(
   const jumping = useRef(false);
   const latestId = useRef<string | undefined>(undefined);
   latestId.current = messages.at(-1)?.id;
+  useLayoutEffect(() => {
+    if (!followingNow.current) onFollowingChange?.(false);
+  }, [onFollowingChange]);
 
   const hold = useCallback(() => {
     if (!followingNow.current) return;
     followingNow.current = false;
+    onFollowingChange?.(false);
+    setAway(true);
     setAnchor(latestId.current);
     setFollowing(false);
-  }, []);
+  }, [onFollowingChange]);
 
   const follow = useCallback(() => {
     jumping.current = false;
+    if (!followingNow.current) onFollowingChange?.(true);
     followingNow.current = true;
     setFollowing(true);
     setAway(false);
-  }, []);
+  }, [onFollowingChange]);
 
   const settle = useCallback(
     (offset: number) => {
@@ -63,15 +70,12 @@ export function useFollowLatest<Row>(
   const onScroll = useCallback(
     (event: ScrollEvent) => {
       const offset = event.nativeEvent.contentOffset.y;
-      if (atLatest(offset)) {
-        if (dragging.current) setAway(false);
-        else follow();
-      } else if (!jumping.current) {
+      if (!atLatest(offset) && !jumping.current) {
         setAway(true);
         hold();
       }
     },
-    [hold, follow],
+    [hold],
   );
 
   const onScrollBeginDrag = useCallback(() => {

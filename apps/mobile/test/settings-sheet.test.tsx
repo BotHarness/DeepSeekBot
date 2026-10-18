@@ -3,7 +3,9 @@ import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('react-native-keyboard-controller', async () => import('./keyboard-controller-shim'));
 vi.mock('react-native', () => import('./react-native-shim'));
+vi.mock('expo-router', () => ({ useRouter: () => ({ back() {} }) }));
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
@@ -51,6 +53,7 @@ function actions(overrides: Partial<SettingsActions> = {}): SettingsActions {
     onComputers: vi.fn(),
     onAppIcon: vi.fn(),
     onNotifications: vi.fn(),
+    onModels: vi.fn(),
     onUnpair: vi.fn(async () => undefined),
     onCopyVersion: vi.fn(),
     ...overrides,
@@ -86,6 +89,7 @@ describe('Settings sheet', () => {
       [`${t.computers}, ${t.computersHint}`, 'onComputers'],
       [`${t.appIcon}, ${t.appIconHint}`, 'onAppIcon'],
       [t.notifications, 'onNotifications'],
+      [`${t.modelSettings.title}, ${t.modelSettings.global}`, 'onModels'],
       [t.openFullClient, 'onOpenFullClient'],
       [t.done, 'onClose'],
     ];

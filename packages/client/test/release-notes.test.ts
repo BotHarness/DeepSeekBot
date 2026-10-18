@@ -302,6 +302,7 @@ describe('ReleaseNotesController install', () => {
     await controller.install('1.1.0');
     expect(call).toHaveBeenCalledWith('releaseInstall', { version: '1.1.0' });
     expect(controller.source.getSnapshot().install).toEqual({ status: 'idle' });
+    expect(controller.source.getSnapshot().updateNotice).toBe(true);
     expect(controller.source.getSnapshot().update).toEqual({
       status: 'restart-required',
       current: '1.0.1',
@@ -581,4 +582,87 @@ describe('release notes views', () => {
       view.unmount();
     }
   });
+});
+
+describe('automatic upgrade notice', () => {
+  it('checks on Bot entry and remembers one exact target separately from installed notes', async () => {
+    const storage = memoryStorage({ [RELEASE_NOTES_SEEN_KEY]: '1.3.1' });
+    let profileId = 'profile-a';
+    let latest = '1.4.0';
+    const call: BridgeCall = async (method) => ({
+      ok: true,
+      value:
+        method === 'releaseInfo'
+          ? {
+              version: '1.3.1',
+              identity: { kind: 'release', version: '1.3.1' },
+              profileId,
+              releases: [],
+            }
+          : {
+              status: 'available',
+              current: '1.3.1',
+              latest,
+              installable: true,
+              releases: [],
+              compatibility: { status: 'compatible', dshVersion: '0.2.1-rc.2' },
+            },
+    });
+    const controller = new ReleaseNotesController(call, storage);
+    await controller.enter();
+    expect(controller.source.getSnapshot().updateNotice).toBe(true);
+    controller.dismissUpdate();
+    const restarted = new ReleaseNotesController(call, storage);
+    await restarted.enter();
+    expect(restarted.source.getSnapshot().updateNotice).toBe(false);
+    expect(restarted.source.getSnapshot().update.status).toBe('available');
+    profileId = 'profile-b';
+    const otherProfile = new ReleaseNotesController(call, storage);
+    await otherProfile.enter();
+    expect(otherProfile.source.getSnapshot().updateNotice).toBe(true);
+    profileId = 'profile-a';
+    latest = '1.4.1';
+    const nextTarget = new ReleaseNotesController(call, storage);
+    await nextTarget.enter();
+    expect(nextTarget.source.getSnapshot().updateNotice).toBe(true);
+  });
+});
+
+it('shows a pending restart independently after a fresh Client starts', async () => {
+  const controller = new ReleaseNotesController(
+    async (method) => ({
+      ok: true,
+      value:
+        method === 'releaseInfo'
+          ? { version: '1.3.1', releases: [], profileId: 'profile-a' }
+          : { status: 'restart-required', current: '1.3.1', installed: '1.4.0', restartable: true },
+    }),
+    memoryStorage(),
+  );
+  await controller.enter();
+  expect(controller.source.getSnapshot().updateNotice).toBe(true);
+});
+
+it('serializes installed notes before the pending restart modal', async () => {
+  const controller = new ReleaseNotesController(
+    async (method) => ({
+      ok: true,
+      value:
+        method === 'releaseInfo'
+          ? { version: '1.3.1', releases: [note('1.3.1')], profileId: 'profile-a' }
+          : { status: 'restart-required', current: '1.3.1', installed: '1.4.0', restartable: true },
+    }),
+    memoryStorage(),
+  );
+  await controller.enter();
+  const view = await render(createElement(ReleaseNotesAnnouncement, { controller, t }));
+  try {
+    expect(view.host.querySelectorAll('[role="dialog"]')).toHaveLength(1);
+    expect(view.host.textContent).toContain('1.3.1');
+    await act(async () => controller.dismiss());
+    expect(view.host.querySelectorAll('[role="dialog"]')).toHaveLength(1);
+    expect(view.host.textContent).toContain('1.4.0');
+  } finally {
+    view.unmount();
+  }
 });

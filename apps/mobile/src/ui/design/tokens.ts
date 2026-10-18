@@ -14,12 +14,40 @@ export const radius = {
   sm: 8,
   md: 12,
   lg: 16,
+  xl: 28,
   round: 9999,
 } as const;
 
 export const edge = {
   hairline: 1,
   focus: 2,
+} as const;
+
+export const sheetHandle = { width: 32, height: 4 } as const;
+export const navigationBar = {
+  height: 64,
+  itemWidth: 80,
+  radius: 20,
+  indicatorWidth: 40,
+  indicatorHeight: 32,
+  indicatorRadius: radius.md,
+  itemPadding: 6,
+  shadow: {
+    light: '0 2px 8px rgba(15, 17, 21, 0.06)',
+    dark: '0 2px 8px rgba(0, 0, 0, 0.12)',
+  },
+} as const;
+export const modalRail = { maxWidth: 360 } as const;
+
+export const androidSettings = {
+  radius: radius.xl,
+  rowHeight: 56,
+  supportingRowHeight: 72,
+  inset: space.x5,
+  vertical: space.x5,
+  sectionGap: space.x4,
+  switchWidth: 52,
+  switchHeight: 48,
 } as const;
 
 export type TypeRole = { size: number; line: number };
@@ -85,7 +113,24 @@ export const motion = {
   menu: 160,
 } as const;
 
+export const markdownTable = { minColumnWidth: 96, maxColumnWidth: 280 } as const;
+
+export const drawerSpring = { duration: 280, dampingRatio: 1 } as const;
+
+export const streamReveal = {
+  duration: 180,
+  stagger: 72,
+  maxGlyphs: 48,
+  maxFreshSpans: 8,
+} as const;
+
 export const lift = 0.96;
+
+export const tabMotion = {
+  inactiveIconScale: 0.72,
+} as const;
+
+export const scrollChrome = { threshold: 12, top: 2, duration: 180 } as const;
 
 export const PRESS_TINT = 0.12;
 

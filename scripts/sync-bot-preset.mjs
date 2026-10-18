@@ -49,6 +49,10 @@ export function botPreset(standard) {
     const row = `              - id: ${id}\n                name: '@deepseek-ai/dsh-tool-subagent'\n`;
     body = replaceOnce(body, row, `${row}                disabled: true\n`);
   }
+  body = body.replace(
+    /^ {10}- id: (?:time-context|tool-schedule)\n(?: {12,}[^\n]*(?:\n|$)|[ \t]*\n)*/gm,
+    '',
+  );
   return body;
 }
 

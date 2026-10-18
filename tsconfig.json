@@ -41,6 +41,8 @@
   "exclude": [
     "apps/mobile/test/posthog-sender.test.ts",
     "apps/mobile/test/native-telemetry.test.ts",
+    "apps/mobile/test/native-persistence.test.ts",
+    "apps/mobile/test/native-chat-background.test.ts",
     "apps/mobile/test/inbox-screens.test.ts",
     "apps/mobile/test/action-cards.test.ts",
     "apps/mobile/test/activity-feed.test.ts",

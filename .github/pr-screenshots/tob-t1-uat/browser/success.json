@@ -1,0 +1,11 @@
+{
+  "scenario": "success",
+  "authorizeS256": true,
+  "nativeCallbackRedirect": true,
+  "tokenRequests": 1,
+  "publicClient": true,
+  "verifierMatchesChallenge": true,
+  "exchangeStatus": 200,
+  "replayedCodeRejected": true,
+  "fixtureIdentityVerified": true
+}

@@ -1,0 +1,234 @@
+{
+  "runtimeSource": "cb2a201d62847977e7329ca9e92d4cccdf7721f2",
+  "earlierOldDesktopSource": "511ce4dc290ce15f037a02cfdd76518252a8ad33",
+  "date": "2026-10-18",
+  "productVersion": "1.4.0",
+  "published": false,
+  "admission": ">=0.2.0-rc.2 <0.3.0-0",
+  "artifacts": [
+    {
+      "name": "@botharness/core",
+      "version": "1.4.0",
+      "filename": "botharness-core-1.4.0.tgz",
+      "integrity": "sha512-cNzkdpeWHhXa/YOGm5NWcp6nT4FDVp0r/Eq/xbjEvctMuWkxSbImb0XjAfAH9MUaafNDClEX3ftcWgKTpcuLRw=="
+    },
+    {
+      "name": "@botharness/ui",
+      "version": "1.4.0",
+      "filename": "botharness-ui-1.4.0.tgz",
+      "integrity": "sha512-qR+cna5yOyLoniIE/owvtmBUz9AAQvBamN3i+euDNrubhSWEaiXpjlvlFW1BledH1D1pVgH0vXE4SPMfRQGYQg=="
+    },
+    {
+      "name": "@botharness/browser",
+      "version": "1.4.0",
+      "filename": "botharness-browser-1.4.0.tgz",
+      "integrity": "sha512-NgQNltOGbHYv9OXuQbX/rFvsImgRTbqSZGRBi27AJT/CGar5R5DqDV4lanWF+QeE30pZTGOe8chhvJdXkb5img=="
+    },
+    {
+      "name": "@botharness/computer",
+      "version": "1.4.0",
+      "filename": "botharness-computer-1.4.0.tgz",
+      "integrity": "sha512-ELNcrsRyA1JlrPpJYaWpXYM9M14j0hr3+OWBznqFnFcTbfQaP5JlxN4CVh/yQt8/tEmrZFwsTIjOKvbR82VnKw=="
+    },
+    {
+      "name": "@botharness/im-provider",
+      "version": "4.32.0-botharness.21",
+      "filename": "botharness-im-provider-4.32.0-botharness.21.tgz",
+      "integrity": "sha512-7FqHt1er/sVN4L8l663SYxoscynGjyuwYTCw8zppxekBiAAZjxETQe8vkiRVht53Uvg/e6cLicz8AfFTcW8a7w=="
+    },
+    {
+      "name": "deepseekbot",
+      "version": "1.4.0",
+      "filename": "deepseekbot-1.4.0.tgz",
+      "integrity": "sha512-ahgf2WwR7gA0j0TIpCL0cD+6snWK56hiNw9mA2jlom591iQDvz7mKJQvvLuEaLBeBfMNvzqMl9LTQUWLEKtj5Q=="
+    }
+  ],
+  "freshInstall": {
+    "productVersion": "1.4.0",
+    "node": "v24.21.0",
+    "platform": "darwin",
+    "scope": "Fresh Profile, no pre-approved builds: one install step, Host boot, Bot and DM creation, restart persistence. Browser, model and IM delivery are separate gates.",
+    "rows": [
+      {
+        "dsh": "0.2.0-rc.2",
+        "state": "passed"
+      },
+      {
+        "dsh": "0.2.1-rc.2",
+        "state": "passed"
+      }
+    ]
+  },
+  "uiAutomation": "native macOS CUA only; no browser automation or CDP",
+  "checks": {
+    "focusedTests": {
+      "files": 9,
+      "passed": 136
+    },
+    "lint": "passed",
+    "format": "passed repository-wide before evidence follow-up; evidence files rechecked separately",
+    "scopedTypecheck": "passed",
+    "build": "passed"
+  },
+  "limits": [
+    "The earlier new-Desktop journey delivered its verified tool results before a later provider QUOTA error; that failure remains recorded. The final old-Desktop rerun completed normally after credit was restored.",
+    "Browser/Computer settings and registry tested; actual OS/browser control and IM delivery are separate release gates.",
+    "Future DSH versions: admission strings tested, runtime unverified."
+  ],
+  "nativeToolTraces": {
+    "0.2.0-rc.2": [
+      {
+        "tool": "list_workspace_grants",
+        "outcome": "ok",
+        "background": null
+      },
+      {
+        "tool": "bot_subagent",
+        "outcome": "ok",
+        "background": false
+      },
+      {
+        "tool": "bot_subagent",
+        "outcome": "ok",
+        "background": true
+      },
+      {
+        "tool": "bot_subagent_fork",
+        "outcome": "ok",
+        "background": false
+      },
+      {
+        "tool": "create_assignment",
+        "outcome": "ok",
+        "background": null
+      },
+      {
+        "tool": "wait_for_assignment",
+        "outcome": "ok",
+        "background": null
+      },
+      {
+        "tool": "read",
+        "outcome": "ok",
+        "background": null
+      },
+      {
+        "tool": "channel_send",
+        "outcome": "ok",
+        "background": null
+      },
+      {
+        "tool": "inbox_list",
+        "outcome": "ok",
+        "background": null
+      },
+      {
+        "tool": "inbox_resolve",
+        "outcome": "ok",
+        "background": null
+      },
+      {
+        "tool": "inbox_resolve",
+        "outcome": "ok",
+        "background": null
+      }
+    ],
+    "0.2.1-rc.2": [
+      {
+        "tool": "list_workspace_grants",
+        "outcome": "ok",
+        "background": null
+      },
+      {
+        "tool": "bot_subagent_fork",
+        "outcome": "ok",
+        "background": null
+      },
+      {
+        "tool": "bot_subagent",
+        "outcome": "ok",
+        "background": false
+      },
+      {
+        "tool": "bot_subagent",
+        "outcome": "ok",
+        "background": true
+      },
+      {
+        "tool": "create_assignment",
+        "outcome": "ok",
+        "background": null
+      },
+      {
+        "tool": "wait_for_assignment",
+        "outcome": "ok",
+        "background": null
+      },
+      {
+        "tool": "read",
+        "outcome": "ok",
+        "background": null
+      },
+      {
+        "tool": "channel_send",
+        "outcome": "ok",
+        "background": null
+      },
+      {
+        "tool": "inbox_list",
+        "outcome": "ok",
+        "background": null
+      },
+      {
+        "tool": "inbox_resolve",
+        "outcome": "ok",
+        "background": null
+      }
+    ]
+  },
+  "fileReadback": {
+    "oldEarlierCandidate": "97330de4c2403d5258c95f996993e3c77493d1b8ec72e11d8bf235fbbfd2317e",
+    "newFinalCandidate": "97330de4c2403d5258c95f996993e3c77493d1b8ec72e11d8bf235fbbfd2317e",
+    "oldFinalCandidate": {
+      "sha256": "96046e7c4e0bdde3d361edabac7e9af9fd9967e15aa7008921d49fff917e595c",
+      "bytes": 13,
+      "text": "DSH-COMPAT-42"
+    },
+    "earlierAndNewExpectedText": "DSH-COMPAT-42\n"
+  },
+  "finalOldDesktop": {
+    "runtimeSource": "cb2a201d62847977e7329ca9e92d4cccdf7721f2",
+    "version": "0.2.0-rc.2",
+    "entry": "native macOS Desktop DM composer",
+    "result": "passed",
+    "turnEndReasons": ["completed", "completed"],
+    "assignmentSessionId": "botharness-ab91315e-8551-4a88-9494-410edd05cdc8",
+    "foregroundSpawnResult": "64",
+    "foregroundForkResult": "42",
+    "restart": {
+      "sameDmResultRetained": true,
+      "sameAssignmentOpenedInNativeSession": true,
+      "fileReadbackRetained": true
+    }
+  },
+  "backgroundDelivery": {
+    "0.2.0-rc.2": {
+      "parentEventType": "user/message",
+      "sequence": 42,
+      "time": 1792305807226,
+      "sourceKind": "subagent-settled",
+      "childSessionId": "ca200eb1-973e-44a4-b2ca-6205b0569621",
+      "closingMessage": "81",
+      "visibleInDm": true
+    },
+    "0.2.1-rc.2": {
+      "parentEventType": "user/message",
+      "sequence": 42,
+      "time": 1792304717987,
+      "sourceKind": "subagent-settled",
+      "childSessionId": "a1142944-fc2b-4558-8399-e140f3f52479",
+      "closingMessage": "9 * 9 = 81",
+      "visibleInDm": true
+    }
+  }
+}

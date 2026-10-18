@@ -1,0 +1,37 @@
+{
+  "runtimeHead": "1a2c1c385fd842958a078da05bb85c841d69934e",
+  "baseline": "9a2b651844d8686a0381cbd2d991da6d5199e924",
+  "serviceHead": "f10437bfbe46c4cbcbfb71bc6b599e9551669051",
+  "nativeBinary": "494a20f1eb4f0666a2c90bc3c758af4e7ff5f46b",
+  "acceptance": {
+    "nativeAccepted": true,
+    "sameGuestChannel": true,
+    "noOrgMembership": true,
+    "siblingDenied": true,
+    "at": "2026-10-18T05:56:30.885Z"
+  },
+  "revocation": {
+    "oneNativeMessage": true,
+    "ownGrantRevoked": true,
+    "oldSessionReadDenied": true,
+    "previewRevoked": true,
+    "at": "2026-10-18T05:58:28.877Z"
+  },
+  "phoneSession": {
+    "synthetic": true,
+    "refreshed": true,
+    "coldRestart": true,
+    "localDeleted": true,
+    "remoteRevoked": true,
+    "latestRefreshRejected": true,
+    "otherSessionsPreserved": true
+  },
+  "remaining": [
+    "sender native copy/share",
+    "new-instance trust and HostedAuthKit return with invitation",
+    "physical camera QR",
+    "Android",
+    "QR rendering/save",
+    "combined workspace drawer"
+  ]
+}

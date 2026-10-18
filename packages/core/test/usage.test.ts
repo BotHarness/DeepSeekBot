@@ -50,6 +50,17 @@ function expectedDay(time: number): string {
 }
 
 describe('Usage projection', () => {
+  it('preserves reported usage when the same model also has unreported calls', () => {
+    const { usage } = usageProjection({ root: { botSlug: 'ada', rootRole: 'orchestrator' } });
+    usage.handleSessionEvent('root', event('assistant/message', TURN_END));
+    const missing = event('assistant/message', TURN_END + 1);
+    missing.data.usage = {} as never;
+    usage.handleSessionEvent('root', missing);
+    expect(usage.activity('ada', SINCE)).toMatchObject([
+      { totalTokens: null, reportedTotalTokens: 155 },
+    ]);
+  });
+
   it('reads scoped Session totals through the same bucket rules, skips inherited/duplicate events, and makes no writes', async () => {
     const { usage, ownership } = usageProjection({
       root: { botSlug: 'ada', rootRole: 'orchestrator' },

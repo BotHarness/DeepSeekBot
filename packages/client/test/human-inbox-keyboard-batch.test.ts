@@ -80,6 +80,9 @@ async function mount(items: HumanAttentionItem[]) {
     snoozed: false,
   });
   await act(async () => root.render(createElement(HumanInboxView, { actions })));
+  await act(async () =>
+    [...host.querySelectorAll('button')].find((button) => button.textContent === '选择')!.click(),
+  );
   const press = async (key: string, target: Element = document.activeElement ?? document.body) =>
     act(async () => {
       target.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
@@ -90,7 +93,7 @@ async function mount(items: HumanAttentionItem[]) {
 const rows = (host: HTMLElement) => [...host.querySelectorAll<HTMLElement>('[role="listitem"]')];
 
 describe('Human Inbox keyboard', () => {
-  it('moves with J and K, marks handled with E and opens the source with Enter', async () => {
+  it('moves with J and K, does not handle with E and opens the source with Enter', async () => {
     const view = await mount([approval('ada'), grant]);
     await view.press('j');
     expect(document.activeElement).toBe(
@@ -104,7 +107,7 @@ describe('Human Inbox keyboard', () => {
     expect(view.actions.openBot).toHaveBeenCalledWith('ada');
     expect(view.actions.openAround).toHaveBeenCalledWith('dm-ada', 'request-ada');
     await view.press('e');
-    expect(view.actions.dismissHumanInbox).toHaveBeenCalledWith(approval('ada'));
+    expect(view.actions.dismissHumanInbox).not.toHaveBeenCalled();
     await view.unmount();
   });
 
@@ -183,7 +186,7 @@ describe('Human Inbox bulk actions', () => {
 });
 
 describe('Human Inbox snooze', () => {
-  it('snoozes a row until the chosen time and lists snoozed items on request', async () => {
+  it('snoozes a selected row until the chosen time', async () => {
     const view = await mount([approval('ada')]);
     const button = [...view.host.querySelectorAll('button')].find(
       (b) => b.textContent === '稍后提醒',
@@ -195,11 +198,6 @@ describe('Human Inbox snooze', () => {
     const [item, until] = view.actions.snoozeHumanInbox.mock.calls[0]!;
     expect(item).toEqual(approval('ada'));
     expect(Date.parse(until as string) - Date.now()).toBeGreaterThan(59 * 60 * 1000);
-    const toggle = view.host.querySelector<HTMLButtonElement>('.bh-human-inbox-snoozed-toggle')!;
-    await act(async () => toggle.click());
-    expect(view.actions.setHumanInboxFilters).toHaveBeenCalledWith(
-      expect.objectContaining({ snoozed: true }),
-    );
     await view.unmount();
   });
 

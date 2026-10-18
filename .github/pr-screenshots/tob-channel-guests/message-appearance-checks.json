@@ -1,0 +1,38 @@
+[
+  {
+    "size": "large",
+    "theme": "light",
+    "draftPreserved": true,
+    "focused": true
+  },
+  {
+    "size": "large",
+    "theme": "dark",
+    "draftPreserved": true,
+    "focused": true
+  },
+  {
+    "size": "accessibility-medium",
+    "theme": "light",
+    "draftPreserved": true,
+    "focused": true
+  },
+  {
+    "size": "accessibility-medium",
+    "theme": "dark",
+    "draftPreserved": true,
+    "focused": true
+  },
+  {
+    "size": "accessibility-extra-extra-extra-large",
+    "theme": "light",
+    "draftPreserved": true,
+    "focused": true
+  },
+  {
+    "size": "accessibility-extra-extra-extra-large",
+    "theme": "dark",
+    "draftPreserved": true,
+    "focused": true
+  }
+]

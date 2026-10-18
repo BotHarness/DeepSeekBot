@@ -1,5 +1,5 @@
 import { createContext, useContext, type ReactNode } from 'react';
-import { View, type LayoutChangeEvent, type ViewStyle } from 'react-native';
+import { View, type LayoutChangeEvent, type ViewStyle, type ViewInstance } from 'react-native';
 import Animated, {
   makeMutable,
   measure,
@@ -72,7 +72,7 @@ export function createSpeakerRegistry() {
 export type SpeakerStage = {
   registry: SpeakerRegistry;
   scroll: SharedValue<number>;
-  viewport: AnimatedRef<View>;
+  viewport: AnimatedRef<ViewInstance>;
   viewportLayout: SharedValue<number>;
   floor: number;
 };
@@ -95,8 +95,8 @@ export function SpeakerRow({
   after?: ReactNode;
 }) {
   const stage = useContext(SpeakerStageContext);
-  const row = useAnimatedRef<View>();
-  const surface = useAnimatedRef<View>();
+  const row = useAnimatedRef<ViewInstance>();
+  const surface = useAnimatedRef<ViewInstance>();
   const laidOut = useSharedValue(0);
   const report = (patch: SpeakerRowLayout) => {
     laidOut.value += 1;
@@ -148,8 +148,8 @@ function StickyAvatar({
 }: {
   speaker: Speaker;
   stage: SpeakerStage | undefined;
-  row: AnimatedRef<View>;
-  surface: AnimatedRef<View>;
+  row: AnimatedRef<ViewInstance>;
+  surface: AnimatedRef<ViewInstance>;
   laidOut: SharedValue<number>;
   inset: number;
 }) {

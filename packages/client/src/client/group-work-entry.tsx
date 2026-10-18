@@ -1,3 +1,6 @@
+import type { NativeSessionCatalog } from './sessions-entry.js';
+import { personaBotSessionRows } from './session-rows.js';
+import { useSyncExternalStore } from 'react';
 import { useState, type ReactElement } from 'react';
 
 import * as stylex from '@stylexjs/stylex';
@@ -11,12 +14,10 @@ import { LoadingSkeleton } from './loading-skeleton.js';
 import { useMountedResource } from './mounted-resource.js';
 import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
 import { GroupHeading } from './ds/group-heading.js';
-import { Note } from './ds/note.js';
-import { color, space } from './ds/tokens.stylex.js';
+import { PanelEmptyState } from './ds/empty-state.js';
+import { color } from './ds/tokens.stylex.js';
 
 const styles = stylex.create({
-  group: { marginBlock: space.x1 },
-  list: { marginTop: space.x1, marginBottom: space.x2 },
   summary: {
     display: '-webkit-box',
     overflow: 'hidden',
@@ -31,31 +32,30 @@ export type GroupWorkGroup = 'waiting' | 'working' | 'idle' | 'done';
 
 const GROUPS: readonly GroupWorkGroup[] = ['waiting', 'working', 'idle', 'done'];
 
-export function groupWorkGroup(assignment: ChannelAssignmentSummary): GroupWorkGroup {
-  const report = assignment.latestReport?.state;
-  if (report === 'waiting-human' || report === 'blocked') return 'waiting';
-  if (
-    report === 'completed' ||
-    report === 'failed' ||
-    assignment.activity === 'stopped' ||
-    assignment.activity === 'error'
-  )
-    return 'done';
-  if (assignment.activity === 'working' || assignment.activity === 'stopping') return 'working';
-  return 'idle';
-}
-
 type Load =
   | { status: 'loading'; assignments: readonly ChannelAssignmentSummary[] }
   | { status: 'ready'; assignments: readonly ChannelAssignmentSummary[] }
   | { status: 'error'; assignments: readonly ChannelAssignmentSummary[]; error: string };
 
-function GroupWorkPanel({ channelId, actions, t }: ChannelSidebarEntryProps): ReactElement {
+const EMPTY_CATALOG = { ids: [], byId: {} };
+const emptySubscribe = () => () => {};
+function GroupWorkPanel({
+  channelId,
+  actions,
+  t,
+  nativeSessions,
+}: ChannelSidebarEntryProps & { nativeSessions?: NativeSessionCatalog }): ReactElement {
+  const native = useSyncExternalStore(
+    nativeSessions?.subscribe ?? emptySubscribe,
+    nativeSessions?.getSnapshot ?? (() => EMPTY_CATALOG),
+    nativeSessions?.getSnapshot ?? (() => EMPTY_CATALOG),
+  );
   const state = useClientState();
   const revision =
     state.conversation.channel?.id === channelId ? state.conversation.revision : undefined;
   const [load, setLoad] = useState<Load>({ status: 'loading', assignments: [] });
   const [doneOpen, setDoneOpen] = useState(false);
+  const signature = native.ids.map((id) => `${id}:${native.byId[id]?.running === true}`).join('|');
   const mount = useMountedResource<HTMLDivElement>(() => {
     let live = true;
     actions.channelAssignments(channelId).then(
@@ -64,9 +64,9 @@ function GroupWorkPanel({ channelId, actions, t }: ChannelSidebarEntryProps): Re
       },
       (error: unknown) => {
         if (live)
-          setLoad((current) => ({
+          setLoad(() => ({
             status: 'error',
-            assignments: current.assignments,
+            assignments: [],
             error: error instanceof Error ? error.message : String(error),
           }));
       },
@@ -74,21 +74,45 @@ function GroupWorkPanel({ channelId, actions, t }: ChannelSidebarEntryProps): Re
     return () => {
       live = false;
     };
-  }, [actions, channelId, revision]);
+  }, [actions, channelId, revision, signature]);
 
   const labels: Record<GroupWorkGroup, string> = {
-    waiting: t('groupWork.waiting'),
-    working: t('groupWork.working'),
-    idle: t('groupWork.idle'),
-    done: t('groupWork.done'),
+    waiting: t('sessions.section.needs-input'),
+    working: t('sessions.section.working'),
+    idle: t('sessions.section.idle'),
+    done: t('sessions.section.resolved'),
   };
   const now = Date.now();
+  const rows = personaBotSessionRows(
+    load.assignments.map((assignment) => ({
+      sessionId: assignment.sessionId,
+      role: 'assignment',
+      createdAt: assignment.createdAt,
+      assignmentActivity: assignment.activity,
+      ...(assignment.latestReport ? { assignmentReportState: assignment.latestReport.state } : {}),
+      assignmentPurpose: assignment.purpose,
+    })),
+    native.byId,
+    'all',
+  );
+  const sessionRows = new Map(rows.map((row) => [row.sessionId, row]));
+  const sectionGroup = {
+    'needs-input': 'waiting',
+    working: 'working',
+    idle: 'idle',
+    resolved: 'done',
+  } as const;
+  const groupFor = (assignment: ChannelAssignmentSummary): GroupWorkGroup => {
+    const row = sessionRows.get(assignment.sessionId);
+    return row?.section ? sectionGroup[row.section] : 'idle';
+  };
   const renderRow = (assignment: ChannelAssignmentSummary): ReactElement => {
     const bot = state.bots.find((candidate) => candidate.slug === assignment.botSlug);
     const name = bot?.displayName ?? assignment.botSlug;
     return (
       <SidebarCardRow
         key={assignment.sessionId}
+        flipKey={assignment.sessionId}
         leading={
           <PersonaBotAvatar
             t={t}
@@ -104,14 +128,21 @@ function GroupWorkPanel({ channelId, actions, t }: ChannelSidebarEntryProps): Re
         title={assignment.purpose}
         hint={name}
         mainClassName="bh-group-work-row"
-        state={groupWorkGroup(assignment)}
+        state={groupFor(assignment)}
+        disabled={nativeSessions !== undefined && native.byId[assignment.sessionId] === undefined}
         onClick={() => actions.openSession(assignment.sessionId)}
         meta={
           <>
             {assignment.latestReport === undefined ? null : (
-              <span {...stylex.props(styles.summary)}>{assignment.latestReport.summary}</span>
+              <span {...stylex.props(styles.summary)}>
+                {t(`inbox.report.${assignment.latestReport.state}`)} ·{' '}
+                {assignment.latestReport.summary}
+              </span>
             )}
             <span>{name}</span>
+            {nativeSessions && !native.byId[assignment.sessionId] ? (
+              <span>{t('sessions.status.unavailable')}</span>
+            ) : null}
             <span>{formatRelativeTime(Date.parse(assignment.updatedAt), now, t)}</span>
           </>
         }
@@ -121,7 +152,7 @@ function GroupWorkPanel({ channelId, actions, t }: ChannelSidebarEntryProps): Re
 
   const grouped = GROUPS.map((group) => ({
     group,
-    rows: load.assignments.filter((assignment) => groupWorkGroup(assignment) === group),
+    rows: load.assignments.filter((assignment) => groupFor(assignment) === group),
   })).filter((entry) => entry.rows.length > 0);
 
   return (
@@ -133,26 +164,23 @@ function GroupWorkPanel({ channelId, actions, t }: ChannelSidebarEntryProps): Re
         <div className="bh-error">{t('groupWork.error', { error: load.error })}</div>
       ) : null}
       {load.status === 'ready' && load.assignments.length === 0 ? (
-        <Note tone="subtle" inset>
-          {t('groupWork.empty')}
-        </Note>
+        <PanelEmptyState icon="text-quote">{t('groupWork.empty')}</PanelEmptyState>
       ) : null}
+      {load.assignments.length >= 200 ? <p role="note">{t('sessions.channel.limit')}</p> : null}
       {grouped.map(({ group, rows }) => {
         const collapsible = group === 'done';
         const expanded = !collapsible || doneOpen;
         return (
-          <section key={group} data-group={group} {...stylex.props(styles.group)}>
+          <section key={group} data-group={group}>
             <GroupHeading
+              flush
               label={labels[group]}
               count={rows.length}
               expanded={expanded}
               onToggle={collapsible ? () => setDoneOpen((open) => !open) : undefined}
             />
             {expanded ? (
-              <SidebarCardList
-                label={labels[group]}
-                className={stylex.props(styles.list).className}
-              >
+              <SidebarCardList flush label={labels[group]}>
                 {rows.map(renderRow)}
               </SidebarCardList>
             ) : null}
@@ -163,6 +191,8 @@ function GroupWorkPanel({ channelId, actions, t }: ChannelSidebarEntryProps): Re
   );
 }
 
-export function GroupWorkEntry(props: ChannelSidebarEntryProps): ReactElement {
+export function GroupWorkEntry(
+  props: ChannelSidebarEntryProps & { nativeSessions?: NativeSessionCatalog },
+): ReactElement {
   return <GroupWorkPanel key={props.channelId} {...props} />;
 }

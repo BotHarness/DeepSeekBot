@@ -11,7 +11,6 @@ import { CompanionPin } from '../src/client/window-companions-view.js';
 import { zhTranslate } from '../src/client/locale.js';
 import { rememberModelPlan } from '../src/client/model-plan-store.js';
 import { publishWorkspaceGrantChange } from '../src/client/workspace-grant-events.js';
-import { MOBILE_BOT_QUERY } from '../src/client/mobile-viewport.js';
 
 it('refreshes mounted inherited footers after a successful global model save without changing fixed models', async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -108,7 +107,13 @@ vi.mock('../src/client/workspace-grants-entry.js', () => ({
   WorkspaceGrantsEntry: ({ botSlug }: { botSlug: string }) =>
     createElement('div', null, `workspace:${botSlug}`),
 }));
+vi.mock('../src/client/model-picker.js', () => ({
+  ModelPicker: ({ title, hint }: { title: string; hint: string }) =>
+    createElement('div', null, title, hint),
+}));
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+  Button: ({ children, onClick }: { children: ReactNode; onClick(): void }) =>
+    createElement('button', { onClick }, children),
   IconPinFillRegular: () => null,
   IconPinOutlineRegular: () => null,
   IconCloseOutlineRegular: () => null,
@@ -127,7 +132,7 @@ const ada: BotSummary = {
 };
 const grace = { ...ada, slug: 'composer-grace', displayName: 'Grace' };
 
-it('keeps only the model in mobile layouts and restores desktop workspace and usage actions', async () => {
+it('keeps model, workspace and usage actions available across mobile and desktop layouts', async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   let mobile = false;
   const listeners = new Set<() => void>();
@@ -180,14 +185,18 @@ it('keeps only the model in mobile layouts and restores desktop workspace and us
     );
     expect(document.body.querySelector('.bh-composer-usage-popover')).not.toBeNull();
     await resize(true);
-    expect(matchMedia).toHaveBeenCalledWith(MOBILE_BOT_QUERY);
-    expect(host.querySelectorAll('[data-composer-context] button')).toHaveLength(1);
-    expect(host.querySelector('[data-composer-context]')!.textContent).toBe('DeepSeek-V41-Flash');
-    expect(document.body.querySelector('.bh-composer-usage-popover')).toBeNull();
+    expect(host.querySelectorAll('[data-composer-context] button')).toHaveLength(3);
+    expect(host.querySelector('[data-composer-chip="workspace"]')).not.toBeNull();
+    expect(document.body.querySelector('.bh-composer-usage-popover')).not.toBeNull();
+    await act(async () =>
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })),
+    );
     await act(async () =>
       host.querySelector<HTMLButtonElement>('[data-composer-context] button')!.click(),
     );
-    expect(host.querySelector('[role="dialog"]')!.textContent).toContain(`model:${bot.slug}`);
+    expect(host.querySelector('[role="dialog"]')!.textContent).toContain(
+      '仅此 Bot 的 Orchestrator',
+    );
     await resize(false);
     expect(host.querySelectorAll('[data-composer-context] button')).toHaveLength(3);
     expect(host.querySelector('[data-composer-context-leading]')!.textContent).toContain(
@@ -255,7 +264,9 @@ it('shows the full catalog model name for inherited and custom routes and keeps 
     expect(model().getAttribute('aria-label')).not.toContain('继承全局');
     expect(model().getAttribute('aria-label')).not.toContain('DeepSeek Provider');
     await act(async () => model().click());
-    expect(host.querySelector('[role="dialog"]')!.textContent).toContain(`model:${bot.slug}`);
+    expect(host.querySelector('[role="dialog"]')!.textContent).toContain(
+      '仅此 Bot 的 Orchestrator',
+    );
     await act(async () =>
       rememberModelPlan(bot.slug, {
         revision: 3,
@@ -383,7 +394,9 @@ it('shares header pin, restores preferences, rejects unavailable and old targets
     expect(host.textContent).toContain('qa-selected');
     expect(modelPlanState).toHaveBeenCalledTimes(2);
     await click('[data-action="model"]');
-    expect(host.querySelector('[role="dialog"]')!.textContent).toContain(ada.slug);
+    expect(host.querySelector('[role="dialog"]')!.textContent).toContain(
+      '仅此 Bot 的 Orchestrator',
+    );
     bot = grace;
     await render();
     expect(host.querySelector('[role="dialog"]')).toBeNull();

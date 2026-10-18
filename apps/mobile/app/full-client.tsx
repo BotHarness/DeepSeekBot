@@ -1,7 +1,8 @@
+import { Text } from '../src/ui/primitives/system-text';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, View } from 'react-native';
 
 import { fullClientSource, fullClientTarget, type FullClientParams } from '../src/host/full-client';
 import { useHostSession, useHostSnapshot } from '../src/host/host-session';

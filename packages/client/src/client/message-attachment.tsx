@@ -1,4 +1,4 @@
-import { useMemo, type ReactElement } from 'react';
+import { useMemo, type ReactElement, type ReactNode } from 'react';
 import {
   FileTypeIcon,
   IconDownloadOutlineRegular,
@@ -25,9 +25,13 @@ export function MessageAttachment({
   channelId,
   messageId,
   actions,
+  compact = false,
+  trailingAction,
   t,
 }: {
   attachment: ChannelAttachmentRef;
+  compact?: boolean;
+  trailingAction?: ReactNode;
   channelId?: string | undefined;
   messageId: string;
   actions?:
@@ -64,7 +68,7 @@ export function MessageAttachment({
     channelId !== undefined ? channelAttachmentUrl(ref, { channelId, messageId }) : undefined;
   const image = inlineImageAttachment(ref.mime);
   const audio = ref.mime.startsWith('audio/');
-  if (audio) {
+  if (audio && !compact) {
     return (
       <div
         className="bh-message-attachment"
@@ -80,7 +84,7 @@ export function MessageAttachment({
   const contents = (
     <>
       <span className="bh-message-file-icon" aria-hidden="true">
-        <FileTypeIcon path={ref.name} size={28} />
+        <FileTypeIcon path={ref.name} size={compact ? 16 : 28} />
       </span>
       <span className="bh-message-file-copy">
         <span className="bh-message-file-name" title={ref.name}>
@@ -123,13 +127,32 @@ export function MessageAttachment({
         </button>
       </Tooltip>
     );
+  const fileActions = (
+    <>
+      {id === undefined || channelId === undefined || commands === undefined ? null : (
+        <>
+          <span className="bh-message-file-divider" aria-hidden="true" />
+          <HostFileOpenButton
+            compact={compact}
+            actions={commands}
+            slug={channelId}
+            path={id}
+            name={ref.name}
+            t={t}
+          />
+        </>
+      )}
+      {downloadAction}
+      {trailingAction}
+    </>
+  );
   return (
     <div
       className="bh-message-attachment"
       onContextMenu={id === undefined ? undefined : (event) => menu.open(id, event)}
       onKeyDown={id === undefined ? undefined : (event) => menu.onKey(id, event)}
     >
-      {image ? (
+      {image && !compact ? (
         <div className="bh-message-image-row">
           {url === undefined ? (
             <img className="bh-message-image" alt={ref.name} />
@@ -159,6 +182,21 @@ export function MessageAttachment({
             <a className="bh-message-file-main" href={url} download={ref.name}>
               {contents}
             </a>
+          ) : image && compact && url !== undefined ? (
+            <SingleImageGallery t={t}>
+              {(openAlone) => (
+                <button
+                  type="button"
+                  className="bh-message-file-main"
+                  aria-label={t('message.image.open', { name: ref.name })}
+                  onClick={() =>
+                    openAlone({ key: galleryImageKey(messageId, ref), src: url, alt: ref.name })
+                  }
+                >
+                  {contents}
+                </button>
+              )}
+            </SingleImageGallery>
           ) : (
             <button
               type="button"
@@ -171,19 +209,9 @@ export function MessageAttachment({
               {contents}
             </button>
           )}
-          {id === undefined || channelId === undefined || commands === undefined ? null : (
-            <>
-              <span className="bh-message-file-divider" aria-hidden="true" />
-              <HostFileOpenButton
-                actions={commands}
-                slug={channelId}
-                path={id}
-                name={ref.name}
-                t={t}
-              />
-            </>
-          )}
-          {downloadAction}
+          <span className={compact ? 'bh-channel-file-actions' : 'bh-message-file-actions'}>
+            {fileActions}
+          </span>
         </div>
       )}
       {menu.menu}

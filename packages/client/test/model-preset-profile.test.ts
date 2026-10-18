@@ -232,7 +232,7 @@ describe('Model entry', () => {
         _slug: string,
         _revision: number,
         orchestrator: ModelPlanView['orchestrator'],
-        assignmentDefault: ModelPlanView['assignmentDefault'],
+        assignmentDefault: NonNullable<ModelPlanView['assignmentDefault']>,
         assignmentModels: NonNullable<ModelPlanView['assignmentModels']>,
       ) => {
         plan = {
@@ -430,7 +430,7 @@ describe('Model entry', () => {
       async (
         name: string,
         orchestrator: ModelPlanView['orchestrator'],
-        assignmentDefault: ModelPlanView['assignmentDefault'],
+        assignmentDefault: NonNullable<ModelPlanView['assignmentDefault']>,
         assignmentModels: ModelPlanView['assignmentModels'],
       ) => {
         const preset = {
@@ -782,4 +782,34 @@ it('refreshes the already-open Bot model card after onboarding saves a fixed mod
   await act(async () => controller.saveModel(route, true, 1));
   expect(cards(host)).toContain('Inherit global');
   expect(modelPlanOf('ada')).toBeNull();
+});
+
+it('keeps inherited Assignment settings when editing an Orchestrator-only plan', async () => {
+  const plan: ModelPlanView = {
+    revision: 7,
+    sourcePresetId: '',
+    sourcePresetName: '',
+    orchestrator: catalog[0]!,
+    appliedAt: '',
+  };
+  const customizeModelPlan = vi.fn(async () => ({ ...plan, revision: 8 }));
+  const setModelPlan = vi.fn();
+  const host = await render({
+    modelPlanState: async () => ({ revision: 7, plan }),
+    modelCatalog: async () => ({ models: catalog }),
+    modelPresets: async () => [],
+    customizeModelPlan,
+    setModelPlan,
+  } as unknown as BridgeActions);
+  expect(cards(host)).toContain(translate('onboarding.inherit'));
+  await openEditor(host);
+  expect(combobox(translate('modelPreset.assignment')).value).toBe(translate('onboarding.inherit'));
+  expect(button(translate('modelPreset.saveAs')).disabled).toBe(true);
+  await act(async () => button(translate('modelPreset.save')).click());
+  expect(customizeModelPlan).toHaveBeenCalledExactlyOnceWith(
+    'ada',
+    expect.objectContaining({ provider: catalog[0]!.provider, model: catalog[0]!.model }),
+    7,
+  );
+  expect(setModelPlan).not.toHaveBeenCalled();
 });

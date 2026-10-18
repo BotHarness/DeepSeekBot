@@ -1,3 +1,4 @@
+import { isTob, TobError } from '../tob/service.js';
 import { createHash } from 'node:crypto';
 import { existsSync, lstatSync, readdirSync, realpathSync, rmSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
@@ -254,6 +255,7 @@ export function createPersonaBotDeletions(options: {
     return actual;
   };
   const preview = (slug: string): PersonaBotDeletionPreview => {
+    if (isTob(port, slug)) throw new TobError('protected-bot');
     const record = options.registry.getHistorical(slug);
     if (record === undefined) throw new Error('PersonaBot does not exist');
     const state = get(slug);

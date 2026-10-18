@@ -5,8 +5,8 @@ window.__ModuleLoader__.load({
 		var exports = module.exports;
 		Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
 		let react = require("react");
-		let _deepseek_ai_dsh_client_ui_primitives = require("@deepseek-ai/dsh-client-ui-primitives");
 		let react_jsx_runtime = require("react/jsx-runtime");
+		let _deepseek_ai_dsh_client_ui_primitives = require("@deepseek-ai/dsh-client-ui-primitives");
 		//#region node_modules/.pnpm/@stylexjs+stylex@0.19.1/node_modules/@stylexjs/stylex/lib/es/stylex.mjs
 		var styleq = {};
 		var hasRequiredStyleq;
@@ -125,6 +125,447 @@ window.__ModuleLoader__.load({
 		}
 		Object.freeze({});
 		//#endregion
+		//#region packages/client/src/client/channel-sidebar-icon.tsx
+		/**
+		* Vendored Channel sidebar glyphs from lucide-react@1.46.0 (ISC, ADR-0032).
+		*
+		* Source: the matching lucide `dist/esm/icons/*.mjs` glyph data. Vendored at the
+		* stock 2-unit stroke without adding a `lucide-react` runtime dependency.
+		*
+		* ISC License
+		*
+		* Copyright (c) for portions of Lucide are held by Cole Bemis 2013-2022 as part of Feather (MIT).
+		* All other copyright (c) for Lucide are held by Lucide Contributors 2022.
+		*
+		* Permission to use, copy, modify, and/or distribute this software for any
+		* purpose with or without fee is hereby granted, provided that the above
+		* copyright notice and this permission notice appear in all copies.
+		*
+		* THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+		* REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+		* AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+		* INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+		* LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
+		* OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+		* PERFORMANCE OF THIS SOFTWARE.
+		*/
+		const glyphs = {
+			"chevron-right": [["path", { d: "m9 18 6-6-6-6" }]],
+			house: [["path", { d: "m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z" }]],
+			hash: [
+				["line", {
+					x1: "4",
+					x2: "20",
+					y1: "9",
+					y2: "9"
+				}],
+				["line", {
+					x1: "4",
+					x2: "20",
+					y1: "15",
+					y2: "15"
+				}],
+				["line", {
+					x1: "10",
+					x2: "8",
+					y1: "3",
+					y2: "21"
+				}],
+				["line", {
+					x1: "16",
+					x2: "14",
+					y1: "3",
+					y2: "21"
+				}]
+			],
+			"messages-circle": [["path", { d: "M19.95 10.05a7 7 0 011.412 7.872 1 1 0 00-.058.787l.675 2.089a1 1 0 01-1.236 1.168l-2.155-.631a1 1 0 00-.745.06 7 7 0 01-7.793-1.445" }], ["path", { d: "M2.696 12.708a1 1 0 00-.058-.785 7 7 0 113.518 3.473 1 1 0 00-.744-.061l-2.155.63a1 1 0 01-1.236-1.167z" }]],
+			"text-quote": [
+				["path", { d: "M17 5H3" }],
+				["path", { d: "M21 12H8" }],
+				["path", { d: "M21 19H8" }],
+				["path", { d: "M3 12v7" }]
+			],
+			brain: [
+				["path", { d: "M12 18V5" }],
+				["path", { d: "M15 13a4.17 4.17 0 0 1-3-4 4.17 4.17 0 0 1-3 4" }],
+				["path", { d: "M17.598 6.5A3 3 0 1 0 12 5a3 3 0 1 0-5.598 1.5" }],
+				["path", { d: "M17.997 5.125a4 4 0 0 1 2.526 5.77" }],
+				["path", { d: "M18 18a4 4 0 0 0 2-7.464" }],
+				["path", { d: "M19.967 17.483A4 4 0 1 1 12 18a4 4 0 1 1-7.967-.517" }],
+				["path", { d: "M6 18a4 4 0 0 1-2-7.464" }],
+				["path", { d: "M6.003 5.125a4 4 0 0 0-2.526 5.77" }]
+			],
+			file: [["path", { d: "M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z" }], ["path", { d: "M14 2v5a1 1 0 0 0 1 1h5" }]],
+			terminal: [["path", { d: "M12 19h8" }], ["path", { d: "m4 17 6-6-6-6" }]],
+			archive: [
+				["rect", {
+					width: "20",
+					height: "5",
+					x: "2",
+					y: "3",
+					rx: "1"
+				}],
+				["path", { d: "M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8" }],
+				["path", { d: "M10 12h4" }]
+			],
+			"archive-restore": [
+				["rect", {
+					width: "20",
+					height: "5",
+					x: "2",
+					y: "3",
+					rx: "1"
+				}],
+				["path", { d: "M4 8v11a2 2 0 0 0 2 2h2" }],
+				["path", { d: "M20 8v11a2 2 0 0 1-2 2h-2" }],
+				["path", { d: "m9 15 3-3 3 3" }],
+				["path", { d: "M12 12v9" }]
+			],
+			"alarm-clock": [
+				["circle", {
+					cx: "12",
+					cy: "13",
+					r: "8"
+				}],
+				["path", { d: "M12 9v4l2 2" }],
+				["path", { d: "M5 3 2 6" }],
+				["path", { d: "m22 6-3-3" }],
+				["path", { d: "M6.38 18.7 4 21" }],
+				["path", { d: "M17.64 18.67 20 21" }]
+			],
+			"bell-ring": [
+				["path", { d: "M10.268 21a2 2 0 0 0 3.464 0" }],
+				["path", { d: "M22 8c0-2.3-.8-4.3-2-6" }],
+				["path", { d: "M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326" }],
+				["path", { d: "M4 2C2.8 3.7 2 5.7 2 8" }]
+			],
+			bell: [["path", { d: "M10.268 21a2 2 0 0 0 3.464 0" }], ["path", { d: "M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326" }]],
+			"bell-off": [
+				["path", { d: "M10.268 21a2 2 0 0 0 3.464 0" }],
+				["path", { d: "M17 17H4a1 1 0 0 1-.74-1.673C4.59 13.956 6 12.499 6 8a6 6 0 0 1 .258-1.742" }],
+				["path", { d: "m2 2 20 20" }],
+				["path", { d: "M8.668 3.01A6 6 0 0 1 18 8c0 2.687.77 4.653 1.707 6.05" }]
+			],
+			cpu: [
+				["path", { d: "M12 20v2" }],
+				["path", { d: "M12 2v2" }],
+				["path", { d: "M17 20v2" }],
+				["path", { d: "M17 2v2" }],
+				["path", { d: "M2 12h2" }],
+				["path", { d: "M2 17h2" }],
+				["path", { d: "M2 7h2" }],
+				["path", { d: "M20 12h2" }],
+				["path", { d: "M20 17h2" }],
+				["path", { d: "M20 7h2" }],
+				["path", { d: "M7 20v2" }],
+				["path", { d: "M7 2v2" }],
+				["rect", {
+					x: "4",
+					y: "4",
+					width: "16",
+					height: "16",
+					rx: "2"
+				}],
+				["rect", {
+					x: "8",
+					y: "8",
+					width: "8",
+					height: "8",
+					rx: "1"
+				}]
+			],
+			"id-card": [
+				["path", { d: "M13 19a4 4 0 00-8 0" }],
+				["path", { d: "M16 10h2" }],
+				["path", { d: "M16 14h2" }],
+				["circle", {
+					cx: "9",
+					cy: "12",
+					r: "3"
+				}],
+				["rect", {
+					x: "2",
+					y: "5",
+					width: "20",
+					height: "14",
+					rx: "2"
+				}]
+			],
+			plug: [
+				["path", { d: "M12 22v-5" }],
+				["path", { d: "M15 8V2" }],
+				["path", { d: "M17 8a1 1 0 0 1 1 1v4a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1z" }],
+				["path", { d: "M9 8V2" }]
+			],
+			ruler: [
+				["path", { d: "M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.41 2.41 0 0 1 0-3.4l2.6-2.6a2.41 2.41 0 0 1 3.4 0Z" }],
+				["path", { d: "m14.5 12.5 2-2" }],
+				["path", { d: "m11.5 9.5 2-2" }],
+				["path", { d: "m8.5 6.5 2-2" }],
+				["path", { d: "m17.5 15.5 2-2" }]
+			],
+			compass: [["circle", {
+				cx: "12",
+				cy: "12",
+				r: "10"
+			}], ["path", { d: "m16.24 7.76-1.804 5.411a2 2 0 0 1-1.265 1.265L7.76 16.24l1.804-5.411a2 2 0 0 1 1.265-1.265z" }]],
+			gauge: [["path", { d: "m12 14 4-4" }], ["path", { d: "M3.34 19a10 10 0 1 1 17.32 0" }]],
+			"user-check": [
+				["path", { d: "m16 11 2 2 4-4" }],
+				["path", { d: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" }],
+				["circle", {
+					cx: "9",
+					cy: "7",
+					r: "4"
+				}]
+			],
+			"shield-check": [["path", { d: "M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" }], ["path", { d: "m9 12 2 2 4-4" }]],
+			plus: [["path", { d: "M5 12h14" }], ["path", { d: "M12 5v14" }]],
+			user: [["path", { d: "M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" }], ["circle", {
+				cx: "12",
+				cy: "7",
+				r: "4"
+			}]],
+			bot: [
+				["path", { d: "M12 8V4H8" }],
+				["rect", {
+					width: "16",
+					height: "12",
+					x: "4",
+					y: "8",
+					rx: "2"
+				}],
+				["path", { d: "M2 14h2" }],
+				["path", { d: "M20 14h2" }],
+				["path", { d: "M15 13v2" }],
+				["path", { d: "M9 13v2" }]
+			],
+			"list-checks": [
+				["path", { d: "M13 5h8" }],
+				["path", { d: "M13 12h8" }],
+				["path", { d: "M13 19h8" }],
+				["path", { d: "m3 17 2 2 4-4" }],
+				["path", { d: "m3 7 2 2 4-4" }]
+			],
+			palette: [
+				["path", { d: "M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z" }],
+				["circle", {
+					cx: "13.5",
+					cy: "6.5",
+					r: ".5",
+					fill: "currentColor"
+				}],
+				["circle", {
+					cx: "17.5",
+					cy: "10.5",
+					r: ".5",
+					fill: "currentColor"
+				}],
+				["circle", {
+					cx: "6.5",
+					cy: "12.5",
+					r: ".5",
+					fill: "currentColor"
+				}],
+				["circle", {
+					cx: "8.5",
+					cy: "7.5",
+					r: ".5",
+					fill: "currentColor"
+				}]
+			],
+			"image-up": [
+				["path", { d: "M10.3 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10l-3.1-3.1a2 2 0 0 0-2.814.014L6 21" }],
+				["path", { d: "m14 19.5 3-3 3 3" }],
+				["path", { d: "M17 22v-5.5" }],
+				["circle", {
+					cx: "9",
+					cy: "9",
+					r: "2"
+				}]
+			],
+			lock: [["rect", {
+				width: "18",
+				height: "11",
+				x: "3",
+				y: "11",
+				rx: "2",
+				ry: "2"
+			}], ["path", { d: "M7 11V7a5 5 0 0 1 10 0v4" }]],
+			play: [["path", { d: "M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z" }]],
+			"lock-open": [["rect", {
+				width: "18",
+				height: "11",
+				x: "3",
+				y: "11",
+				rx: "2",
+				ry: "2"
+			}], ["path", { d: "M7 11V7a5 5 0 0 1 9.9-1" }]],
+			eye: [["path", { d: "M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0" }], ["circle", {
+				cx: "12",
+				cy: "12",
+				r: "3"
+			}]],
+			"eye-off": [
+				["path", { d: "M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49" }],
+				["path", { d: "M14.084 14.158a3 3 0 0 1-4.242-4.242" }],
+				["path", { d: "M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143" }],
+				["path", { d: "m2 2 20 20" }]
+			],
+			files: [
+				["path", { d: "M15 2h-4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V8" }],
+				["path", { d: "M16.706 2.706A2.4 2.4 0 0 0 15 2v5a1 1 0 0 0 1 1h5a2.4 2.4 0 0 0-.706-1.706z" }],
+				["path", { d: "M5 7a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h8a2 2 0 0 0 1.732-1" }]
+			],
+			"git-branch": [
+				["path", { d: "M15 6a9 9 0 0 0-9 9V3" }],
+				["circle", {
+					cx: "18",
+					cy: "6",
+					r: "3"
+				}],
+				["circle", {
+					cx: "6",
+					cy: "18",
+					r: "3"
+				}]
+			],
+			"messages-square": [["path", { d: "M16 10a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 14.286V4a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" }], ["path", { d: "M20 9a2 2 0 0 1 2 2v10.286a.71.71 0 0 1-1.212.502l-2.202-2.202A2 2 0 0 0 17.172 19H10a2 2 0 0 1-2-2v-1" }]],
+			inbox: [["polyline", { points: "22 12 16 12 14 15 10 15 8 12 2 12" }], ["path", { d: "M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" }]],
+			"folder-key": [
+				["path", { d: "M13 20H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H20a2 2 0 0 1 2 2v1.36" }],
+				["path", { d: "M19 12v6" }],
+				["path", { d: "M19 14h2" }],
+				["circle", {
+					cx: "19",
+					cy: "20",
+					r: "2"
+				}]
+			],
+			users: [
+				["path", { d: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" }],
+				["path", { d: "M16 3.128a4 4 0 0 1 0 7.744" }],
+				["path", { d: "M22 21v-2a4 4 0 0 0-3-3.87" }],
+				["circle", {
+					cx: "9",
+					cy: "7",
+					r: "4"
+				}]
+			],
+			"settings-2": [
+				["path", { d: "M14 17H5" }],
+				["path", { d: "M19 7h-9" }],
+				["circle", {
+					cx: "17",
+					cy: "17",
+					r: "3"
+				}],
+				["circle", {
+					cx: "7",
+					cy: "7",
+					r: "3"
+				}]
+			],
+			settings: [["path", { d: "M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915" }], ["circle", {
+				cx: "12",
+				cy: "12",
+				r: "3"
+			}]],
+			monitor: [
+				["rect", {
+					width: "20",
+					height: "14",
+					x: "2",
+					y: "3",
+					rx: "2"
+				}],
+				["line", {
+					x1: "8",
+					x2: "16",
+					y1: "21",
+					y2: "21"
+				}],
+				["line", {
+					x1: "12",
+					x2: "12",
+					y1: "17",
+					y2: "21"
+				}]
+			],
+			globe: [
+				["circle", {
+					cx: "12",
+					cy: "12",
+					r: "10"
+				}],
+				["path", { d: "M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" }],
+				["path", { d: "M2 12h20" }]
+			],
+			"panels-top-left": [
+				["rect", {
+					width: "18",
+					height: "18",
+					x: "3",
+					y: "3",
+					rx: "2"
+				}],
+				["path", { d: "M3 9h18" }],
+				["path", { d: "M9 21V9" }]
+			],
+			"grip-vertical": [
+				["circle", {
+					cx: "9",
+					cy: "12",
+					r: "1"
+				}],
+				["circle", {
+					cx: "9",
+					cy: "5",
+					r: "1"
+				}],
+				["circle", {
+					cx: "9",
+					cy: "19",
+					r: "1"
+				}],
+				["circle", {
+					cx: "15",
+					cy: "12",
+					r: "1"
+				}],
+				["circle", {
+					cx: "15",
+					cy: "5",
+					r: "1"
+				}],
+				["circle", {
+					cx: "15",
+					cy: "19",
+					r: "1"
+				}]
+			],
+			x: [["path", { d: "M18 6 6 18" }], ["path", { d: "m6 6 12 12" }]],
+			check: [["path", { d: "M20 6 9 17l-5-5" }]]
+		};
+		function ChannelSidebarIcon({ name = "panels-top-left", size = 16 }) {
+			const nodes = Object.hasOwn(glyphs, name) ? glyphs[name] : glyphs["panels-top-left"];
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+				width: size,
+				height: size,
+				viewBox: "0 0 24 24",
+				fill: "none",
+				stroke: "currentColor",
+				strokeWidth: 2,
+				strokeLinecap: "round",
+				strokeLinejoin: "round",
+				"aria-hidden": "true",
+				children: nodes.map(([tag, attributes], index) => (0, react.createElement)(tag, {
+					...attributes,
+					key: index
+				}))
+			});
+		}
+		//#endregion
 		//#region packages/client/src/client/ds/tokens.stylex.ts
 		const space = {
 			x1: "2px",
@@ -182,6 +623,33 @@ window.__ModuleLoader__.load({
 			well: "var(--dsw-alias-bg-base)",
 			accentTint: "var(--dsw-alias-state-business-tertiary)"
 		};
+		//#endregion
+		//#region packages/client/src/client/ds/empty-state.tsx
+		function PanelEmptyState({ icon, children, action }) {
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				role: "status",
+				"data-panel-empty": "",
+				className: "bhx78zum5 bhxdt5ytf bhx6s0dn4 bhxl56j7k bhx1iyjqo2 bhx1mckxr8 bhx1tsjn1a bhx9f619 bhx2b8uid bhxr3raxm",
+				children: [
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+						"aria-hidden": "true",
+						className: "bhx1i1gie9 bhxdkzj7d bhx2lah0s bhxwq55zj",
+						children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ChannelSidebarIcon, {
+							name: icon,
+							size: "100%"
+						})
+					}),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+						className: "bhx1ghz6dp bhxxc7z9f bhxr3raxm bhxgowt09 bhx12cu2lo",
+						children
+					}),
+					action === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+						"data-panel-empty-action": "",
+						children: action
+					})
+				]
+			});
+		}
 		//#endregion
 		//#region packages/client/src/client/mounted-resource.ts
 		function useMountedResource$1(start, dependencies) {
@@ -1079,7 +1547,7 @@ window.__ModuleLoader__.load({
 			"entry.elapsed": "已用时 {seconds}s",
 			"entry.updated": "最后更新 {seconds}s 前",
 			"entry.setup": "未检测到容器运行时。任选其一安装后重试：\n\nColima（推荐，MIT）：\n  brew install colima docker\n  brew services start colima\n\n或 Docker Desktop：https://www.docker.com/products/docker-desktop/",
-			"section.title": "Computer",
+			"section.title": "电脑控制",
 			"section.description": "操作目标与 Computer 权限",
 			"rows.exportDir.title": "Computer 导出目录",
 			"rows.exportDir.current": "当前：{dir}",
@@ -1241,403 +1709,11 @@ window.__ModuleLoader__.load({
 			importing: "entry.phase.importing"
 		};
 		//#endregion
-		//#region packages/client/src/client/channel-sidebar-icon.tsx
-		/**
-		* Vendored Channel sidebar glyphs from lucide-react@1.46.0 (ISC, ADR-0032).
-		*
-		* Source: the matching lucide `dist/esm/icons/*.mjs` glyph data. Vendored at the
-		* stock 2-unit stroke without adding a `lucide-react` runtime dependency.
-		*
-		* ISC License
-		*
-		* Copyright (c) for portions of Lucide are held by Cole Bemis 2013-2022 as part of Feather (MIT).
-		* All other copyright (c) for Lucide are held by Lucide Contributors 2022.
-		*
-		* Permission to use, copy, modify, and/or distribute this software for any
-		* purpose with or without fee is hereby granted, provided that the above
-		* copyright notice and this permission notice appear in all copies.
-		*
-		* THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
-		* REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-		* AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
-		* INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-		* LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
-		* OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-		* PERFORMANCE OF THIS SOFTWARE.
-		*/
-		const glyphs = {
-			archive: [
-				["rect", {
-					width: "20",
-					height: "5",
-					x: "2",
-					y: "3",
-					rx: "1"
-				}],
-				["path", { d: "M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8" }],
-				["path", { d: "M10 12h4" }]
-			],
-			"archive-restore": [
-				["rect", {
-					width: "20",
-					height: "5",
-					x: "2",
-					y: "3",
-					rx: "1"
-				}],
-				["path", { d: "M4 8v11a2 2 0 0 0 2 2h2" }],
-				["path", { d: "M20 8v11a2 2 0 0 1-2 2h-2" }],
-				["path", { d: "m9 15 3-3 3 3" }],
-				["path", { d: "M12 12v9" }]
-			],
-			"alarm-clock": [
-				["circle", {
-					cx: "12",
-					cy: "13",
-					r: "8"
-				}],
-				["path", { d: "M12 9v4l2 2" }],
-				["path", { d: "M5 3 2 6" }],
-				["path", { d: "m22 6-3-3" }],
-				["path", { d: "M6.38 18.7 4 21" }],
-				["path", { d: "M17.64 18.67 20 21" }]
-			],
-			"bell-ring": [
-				["path", { d: "M10.268 21a2 2 0 0 0 3.464 0" }],
-				["path", { d: "M22 8c0-2.3-.8-4.3-2-6" }],
-				["path", { d: "M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326" }],
-				["path", { d: "M4 2C2.8 3.7 2 5.7 2 8" }]
-			],
-			bell: [["path", { d: "M10.268 21a2 2 0 0 0 3.464 0" }], ["path", { d: "M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326" }]],
-			"bell-off": [
-				["path", { d: "M10.268 21a2 2 0 0 0 3.464 0" }],
-				["path", { d: "M17 17H4a1 1 0 0 1-.74-1.673C4.59 13.956 6 12.499 6 8a6 6 0 0 1 .258-1.742" }],
-				["path", { d: "m2 2 20 20" }],
-				["path", { d: "M8.668 3.01A6 6 0 0 1 18 8c0 2.687.77 4.653 1.707 6.05" }]
-			],
-			cpu: [
-				["path", { d: "M12 20v2" }],
-				["path", { d: "M12 2v2" }],
-				["path", { d: "M17 20v2" }],
-				["path", { d: "M17 2v2" }],
-				["path", { d: "M2 12h2" }],
-				["path", { d: "M2 17h2" }],
-				["path", { d: "M2 7h2" }],
-				["path", { d: "M20 12h2" }],
-				["path", { d: "M20 17h2" }],
-				["path", { d: "M20 7h2" }],
-				["path", { d: "M7 20v2" }],
-				["path", { d: "M7 2v2" }],
-				["rect", {
-					x: "4",
-					y: "4",
-					width: "16",
-					height: "16",
-					rx: "2"
-				}],
-				["rect", {
-					x: "8",
-					y: "8",
-					width: "8",
-					height: "8",
-					rx: "1"
-				}]
-			],
-			"id-card": [
-				["path", { d: "M13 19a4 4 0 00-8 0" }],
-				["path", { d: "M16 10h2" }],
-				["path", { d: "M16 14h2" }],
-				["circle", {
-					cx: "9",
-					cy: "12",
-					r: "3"
-				}],
-				["rect", {
-					x: "2",
-					y: "5",
-					width: "20",
-					height: "14",
-					rx: "2"
-				}]
-			],
-			plug: [
-				["path", { d: "M12 22v-5" }],
-				["path", { d: "M15 8V2" }],
-				["path", { d: "M17 8a1 1 0 0 1 1 1v4a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1z" }],
-				["path", { d: "M9 8V2" }]
-			],
-			ruler: [
-				["path", { d: "M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.41 2.41 0 0 1 0-3.4l2.6-2.6a2.41 2.41 0 0 1 3.4 0Z" }],
-				["path", { d: "m14.5 12.5 2-2" }],
-				["path", { d: "m11.5 9.5 2-2" }],
-				["path", { d: "m8.5 6.5 2-2" }],
-				["path", { d: "m17.5 15.5 2-2" }]
-			],
-			compass: [["circle", {
-				cx: "12",
-				cy: "12",
-				r: "10"
-			}], ["path", { d: "m16.24 7.76-1.804 5.411a2 2 0 0 1-1.265 1.265L7.76 16.24l1.804-5.411a2 2 0 0 1 1.265-1.265z" }]],
-			"user-check": [
-				["path", { d: "m16 11 2 2 4-4" }],
-				["path", { d: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" }],
-				["circle", {
-					cx: "9",
-					cy: "7",
-					r: "4"
-				}]
-			],
-			"shield-check": [["path", { d: "M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" }], ["path", { d: "m9 12 2 2 4-4" }]],
-			plus: [["path", { d: "M5 12h14" }], ["path", { d: "M12 5v14" }]],
-			user: [["path", { d: "M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" }], ["circle", {
-				cx: "12",
-				cy: "7",
-				r: "4"
-			}]],
-			bot: [
-				["path", { d: "M12 8V4H8" }],
-				["rect", {
-					width: "16",
-					height: "12",
-					x: "4",
-					y: "8",
-					rx: "2"
-				}],
-				["path", { d: "M2 14h2" }],
-				["path", { d: "M20 14h2" }],
-				["path", { d: "M15 13v2" }],
-				["path", { d: "M9 13v2" }]
-			],
-			"list-checks": [
-				["path", { d: "M13 5h8" }],
-				["path", { d: "M13 12h8" }],
-				["path", { d: "M13 19h8" }],
-				["path", { d: "m3 17 2 2 4-4" }],
-				["path", { d: "m3 7 2 2 4-4" }]
-			],
-			palette: [
-				["path", { d: "M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z" }],
-				["circle", {
-					cx: "13.5",
-					cy: "6.5",
-					r: ".5",
-					fill: "currentColor"
-				}],
-				["circle", {
-					cx: "17.5",
-					cy: "10.5",
-					r: ".5",
-					fill: "currentColor"
-				}],
-				["circle", {
-					cx: "6.5",
-					cy: "12.5",
-					r: ".5",
-					fill: "currentColor"
-				}],
-				["circle", {
-					cx: "8.5",
-					cy: "7.5",
-					r: ".5",
-					fill: "currentColor"
-				}]
-			],
-			"image-up": [
-				["path", { d: "M10.3 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10l-3.1-3.1a2 2 0 0 0-2.814.014L6 21" }],
-				["path", { d: "m14 19.5 3-3 3 3" }],
-				["path", { d: "M17 22v-5.5" }],
-				["circle", {
-					cx: "9",
-					cy: "9",
-					r: "2"
-				}]
-			],
-			lock: [["rect", {
-				width: "18",
-				height: "11",
-				x: "3",
-				y: "11",
-				rx: "2",
-				ry: "2"
-			}], ["path", { d: "M7 11V7a5 5 0 0 1 10 0v4" }]],
-			play: [["path", { d: "M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z" }]],
-			"lock-open": [["rect", {
-				width: "18",
-				height: "11",
-				x: "3",
-				y: "11",
-				rx: "2",
-				ry: "2"
-			}], ["path", { d: "M7 11V7a5 5 0 0 1 9.9-1" }]],
-			eye: [["path", { d: "M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0" }], ["circle", {
-				cx: "12",
-				cy: "12",
-				r: "3"
-			}]],
-			"eye-off": [
-				["path", { d: "M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49" }],
-				["path", { d: "M14.084 14.158a3 3 0 0 1-4.242-4.242" }],
-				["path", { d: "M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143" }],
-				["path", { d: "m2 2 20 20" }]
-			],
-			files: [
-				["path", { d: "M15 2h-4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V8" }],
-				["path", { d: "M16.706 2.706A2.4 2.4 0 0 0 15 2v5a1 1 0 0 0 1 1h5a2.4 2.4 0 0 0-.706-1.706z" }],
-				["path", { d: "M5 7a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h8a2 2 0 0 0 1.732-1" }]
-			],
-			"git-branch": [
-				["path", { d: "M15 6a9 9 0 0 0-9 9V3" }],
-				["circle", {
-					cx: "18",
-					cy: "6",
-					r: "3"
-				}],
-				["circle", {
-					cx: "6",
-					cy: "18",
-					r: "3"
-				}]
-			],
-			"messages-square": [["path", { d: "M16 10a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 14.286V4a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" }], ["path", { d: "M20 9a2 2 0 0 1 2 2v10.286a.71.71 0 0 1-1.212.502l-2.202-2.202A2 2 0 0 0 17.172 19H10a2 2 0 0 1-2-2v-1" }]],
-			inbox: [["polyline", { points: "22 12 16 12 14 15 10 15 8 12 2 12" }], ["path", { d: "M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" }]],
-			"folder-key": [
-				["path", { d: "M13 20H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H20a2 2 0 0 1 2 2v1.36" }],
-				["path", { d: "M19 12v6" }],
-				["path", { d: "M19 14h2" }],
-				["circle", {
-					cx: "19",
-					cy: "20",
-					r: "2"
-				}]
-			],
-			users: [
-				["path", { d: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" }],
-				["path", { d: "M16 3.128a4 4 0 0 1 0 7.744" }],
-				["path", { d: "M22 21v-2a4 4 0 0 0-3-3.87" }],
-				["circle", {
-					cx: "9",
-					cy: "7",
-					r: "4"
-				}]
-			],
-			"settings-2": [
-				["path", { d: "M14 17H5" }],
-				["path", { d: "M19 7h-9" }],
-				["circle", {
-					cx: "17",
-					cy: "17",
-					r: "3"
-				}],
-				["circle", {
-					cx: "7",
-					cy: "7",
-					r: "3"
-				}]
-			],
-			settings: [["path", { d: "M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915" }], ["circle", {
-				cx: "12",
-				cy: "12",
-				r: "3"
-			}]],
-			monitor: [
-				["rect", {
-					width: "20",
-					height: "14",
-					x: "2",
-					y: "3",
-					rx: "2"
-				}],
-				["line", {
-					x1: "8",
-					x2: "16",
-					y1: "21",
-					y2: "21"
-				}],
-				["line", {
-					x1: "12",
-					x2: "12",
-					y1: "17",
-					y2: "21"
-				}]
-			],
-			globe: [
-				["circle", {
-					cx: "12",
-					cy: "12",
-					r: "10"
-				}],
-				["path", { d: "M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" }],
-				["path", { d: "M2 12h20" }]
-			],
-			"panels-top-left": [
-				["rect", {
-					width: "18",
-					height: "18",
-					x: "3",
-					y: "3",
-					rx: "2"
-				}],
-				["path", { d: "M3 9h18" }],
-				["path", { d: "M9 21V9" }]
-			],
-			"grip-vertical": [
-				["circle", {
-					cx: "9",
-					cy: "12",
-					r: "1"
-				}],
-				["circle", {
-					cx: "9",
-					cy: "5",
-					r: "1"
-				}],
-				["circle", {
-					cx: "9",
-					cy: "19",
-					r: "1"
-				}],
-				["circle", {
-					cx: "15",
-					cy: "12",
-					r: "1"
-				}],
-				["circle", {
-					cx: "15",
-					cy: "5",
-					r: "1"
-				}],
-				["circle", {
-					cx: "15",
-					cy: "19",
-					r: "1"
-				}]
-			],
-			x: [["path", { d: "M18 6 6 18" }], ["path", { d: "m6 6 12 12" }]],
-			check: [["path", { d: "M20 6 9 17l-5-5" }]]
-		};
-		function ChannelSidebarIcon({ name = "panels-top-left", size = 16 }) {
-			const nodes = Object.hasOwn(glyphs, name) ? glyphs[name] : glyphs["panels-top-left"];
-			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
-				width: size,
-				height: size,
-				viewBox: "0 0 24 24",
-				fill: "none",
-				stroke: "currentColor",
-				strokeWidth: 2,
-				strokeLinecap: "round",
-				strokeLinejoin: "round",
-				"aria-hidden": "true",
-				children: nodes.map(([tag, attributes], index) => (0, react.createElement)(tag, {
-					...attributes,
-					key: index
-				}))
-			});
-		}
-		//#endregion
 		//#region packages/client/src/client/sidebar-card.tsx
-		function SidebarCardList({ label, className, listRef, children }) {
+		function SidebarCardList({ label, className, listRef, flush = false, children }) {
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("ul", {
 				ref: listRef,
+				"data-flush": flush || void 0,
 				className: className === void 0 ? "bh-card-list" : "bh-card-list " + className,
 				"aria-label": label,
 				children
@@ -2756,7 +2832,7 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region packages/client/src/client/ds/stylex-css.ts
-		const STYLEX_CSS = "\n.bhx-level-0{}\n.bhx-level-1:not(#\\#){}\n.bhx1ghz6dp:not(#\\#){margin:0}\n.bhx-level-2:not(#\\#):not(#\\#){}\n.bhx4g09nt:not(#\\#):not(#\\#){border-radius:var(--dsw-radius-sm, 8px)}\n.bhxc342km:not(#\\#):not(#\\#){border-width:0}\n.bhx1mckxr8:not(#\\#):not(#\\#){gap:12px}\n.bhx5v8n67:not(#\\#):not(#\\#){gap:2px}\n.bhx12e6dxb:not(#\\#):not(#\\#){gap:4px}\n.bhx2zm2ee:not(#\\#):not(#\\#){gap:8px}\n.bhx1a2a7pz:not(#\\#):not(#\\#){outline:none}\n.bhxb3r6kr:not(#\\#):not(#\\#){overflow:hidden}\n.bhxe74ayl:not(#\\#):not(#\\#){padding-block:12px}\n.bhx89kiln:not(#\\#):not(#\\#){padding-block:4px}\n.bhx1vid4s1:not(#\\#):not(#\\#){padding-inline:12px 8px}\n.bhx1w8vjyx:not(#\\#):not(#\\#){padding-inline:4px}\n.bhx1m95a6t:focus-visible:not(#\\#):not(#\\#){outline:var(--dsw-focus-ring-width, 2px) solid var(--dsw-alias-state-business-primary)}\n@media (max-width: 648px){.bhxv0lzym.bhxv0lzym:not(#\\#):not(#\\#){gap:8px}}\n.bhx-level-3:not(#\\#):not(#\\#):not(#\\#){}\n.bhx1g31g6d:not(#\\#):not(#\\#):not(#\\#){accent-color:var(--dsw-alias-state-business-primary)}\n.bhx6s0dn4:not(#\\#):not(#\\#):not(#\\#){align-items:center}\n.bhxw43b1w:not(#\\#):not(#\\#):not(#\\#){background-color:var(--dsw-alias-bg-module-platform)}\n.bhx1xojs80:not(#\\#):not(#\\#):not(#\\#){background-color:var(--dsw-alias-interactive-bg-hover)}\n.bhx9f619:not(#\\#):not(#\\#):not(#\\#){box-sizing:border-box}\n.bhx24dycr:not(#\\#):not(#\\#):not(#\\#){color:var(--dsw-alias-label-primary)}\n.bhxr3raxm:not(#\\#):not(#\\#):not(#\\#){color:var(--dsw-alias-label-secondary)}\n.bhxwq55zj:not(#\\#):not(#\\#):not(#\\#){color:var(--dsw-alias-label-tertiary)}\n.bhx8ay0r6:not(#\\#):not(#\\#):not(#\\#){color:var(--dsw-alias-state-error-primary)}\n.bhx1pideu2:not(#\\#):not(#\\#):not(#\\#){color:var(--dsw-alias-state-success-primary)}\n.bhxz9v26x:not(#\\#):not(#\\#):not(#\\#){color:var(--dsw-alias-state-warn-primary)}\n.bhx1ypdohk:not(#\\#):not(#\\#):not(#\\#){cursor:pointer}\n.bhx78zum5:not(#\\#):not(#\\#):not(#\\#){display:flex}\n.bhxrvj5dj:not(#\\#):not(#\\#):not(#\\#){display:grid}\n.bhx3nfvp2:not(#\\#):not(#\\#):not(#\\#){display:inline-flex}\n.bhx1r8uery:not(#\\#):not(#\\#):not(#\\#){flex-basis:0}\n.bhxdt5ytf:not(#\\#):not(#\\#):not(#\\#){flex-direction:column}\n.bhx1q0g3np:not(#\\#):not(#\\#):not(#\\#){flex-direction:row}\n.bhx1iyjqo2:not(#\\#):not(#\\#):not(#\\#){flex-grow:1}\n.bhx2lah0s:not(#\\#):not(#\\#):not(#\\#){flex-shrink:0}\n.bhxs83m0k:not(#\\#):not(#\\#):not(#\\#){flex-shrink:1}\n.bhx1a02dak:not(#\\#):not(#\\#):not(#\\#){flex-wrap:wrap}\n.bhxjb2p0i:not(#\\#):not(#\\#):not(#\\#){font-family:inherit}\n.bhxmz2490:not(#\\#):not(#\\#):not(#\\#){font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}\n.bhxgowt09:not(#\\#):not(#\\#):not(#\\#){font-size:12px}\n.bhx5g6txa:not(#\\#):not(#\\#):not(#\\#){font-size:13px}\n.bhxskcadq:not(#\\#):not(#\\#):not(#\\#){font-size:14px}\n.bhx1nj67n:not(#\\#):not(#\\#):not(#\\#){font-weight:500}\n.bhx13a6bvl:not(#\\#):not(#\\#):not(#\\#){justify-content:flex-end}\n.bhx619ttb:not(#\\#):not(#\\#):not(#\\#){justify-items:start}\n.bhx12cu2lo:not(#\\#):not(#\\#):not(#\\#){line-height:16px}\n.bhx1gy5ux2:not(#\\#):not(#\\#):not(#\\#){line-height:20px}\n.bhx3350y7:not(#\\#):not(#\\#):not(#\\#){line-height:20px}\n.bhx1hc1fzr:not(#\\#):not(#\\#):not(#\\#){opacity:1}\n.bhx1y3gkto:not(#\\#):not(#\\#):not(#\\#){outline-offset:1px}\n.bhxj0a0fe:not(#\\#):not(#\\#):not(#\\#){overflow-wrap:anywhere}\n.bhxp4054r:not(#\\#):not(#\\#):not(#\\#){text-align:end}\n.bhxlyipyv:not(#\\#):not(#\\#):not(#\\#){text-overflow:ellipsis}\n.bhxuxw1ft:not(#\\#):not(#\\#):not(#\\#){white-space:nowrap}\n.bhx126k92a:not(#\\#):not(#\\#):not(#\\#){white-space:pre-wrap}\n.bhxtgyt42:disabled:not(#\\#):not(#\\#):not(#\\#){cursor:default}\n.bhxijokvz:disabled:not(#\\#):not(#\\#):not(#\\#){opacity:.5}\n.bhx1lc0nsx:hover:not(#\\#):not(#\\#):not(#\\#){background-color:var(--dsw-alias-interactive-bg-hover)}\n@media (max-width: 648px){.bhx15bqsqq.bhx15bqsqq:not(#\\#):not(#\\#):not(#\\#){align-items:stretch}}\n@media (max-width: 648px){.bhx1uptv2i.bhx1uptv2i:not(#\\#):not(#\\#):not(#\\#){flex-direction:column}}\n@media (max-width: 648px){.bhx3xz8fp.bhx3xz8fp:not(#\\#):not(#\\#):not(#\\#){justify-content:flex-start}}\n.bhx-level-4:not(#\\#):not(#\\#):not(#\\#):not(#\\#){}\n.bhxnoyelg:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-color:var(--dsw-alias-border-l1)}\n.bhx1q0q8m5:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-style:solid}\n.bhxrvphhj:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-width:1px}\n.bhxxevliy:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:28px}\n.bhxols6we:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:6px}\n.bhx193iq5w:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:100%}\n.bhxh9uqaf:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:60%}\n.bhxeuugli:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-width:0}\n.bhx1e1oj2y:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-bottom:4px}\n.bhxb590mu:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-top:16px}\n.bhxh8yej3:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:100%}\n.bhx10zg81t:first-child:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-top:0}\n.bhx1bta2m4:last-child:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-color:transparent}\n@media (max-width: 648px){.bhx1cnm762.bhx1cnm762:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:100%}}\n";
+		const STYLEX_CSS = "\n.bhx-level-0{}\n.bhx-level-1:not(#\\#){}\n.bhx1ghz6dp:not(#\\#){margin:0}\n.bhx1tsjn1a:not(#\\#){padding:16px}\n.bhx-level-2:not(#\\#):not(#\\#){}\n.bhx7vmdhn:not(#\\#):not(#\\#){border-color:var(--dsw-alias-border-l2)}\n.bhx10e1no3:not(#\\#):not(#\\#){border-radius:var(--dsw-radius-md, 12px)}\n.bhx4g09nt:not(#\\#):not(#\\#){border-radius:var(--dsw-radius-sm, 8px)}\n.bhxbsl7fq:not(#\\#):not(#\\#){border-style:dashed}\n.bhxc342km:not(#\\#):not(#\\#){border-width:0}\n.bhx1sfpsak:not(#\\#):not(#\\#){border-width:1px}\n.bhx1mckxr8:not(#\\#):not(#\\#){gap:12px}\n.bhx5v8n67:not(#\\#):not(#\\#){gap:2px}\n.bhx12e6dxb:not(#\\#):not(#\\#){gap:4px}\n.bhx2zm2ee:not(#\\#):not(#\\#){gap:8px}\n.bhx1d3k6p2:not(#\\#):not(#\\#){margin-block:12px}\n.bhx1a2a7pz:not(#\\#):not(#\\#){outline:none}\n.bhxb3r6kr:not(#\\#):not(#\\#){overflow:hidden}\n.bhxe74ayl:not(#\\#):not(#\\#){padding-block:12px}\n.bhx1tv32aw:not(#\\#):not(#\\#){padding-block:24px}\n.bhx89kiln:not(#\\#):not(#\\#){padding-block:4px}\n.bhx1vid4s1:not(#\\#):not(#\\#){padding-inline:12px 8px}\n.bhx1xa34d1:not(#\\#):not(#\\#){padding-inline:16px}\n.bhx1w8vjyx:not(#\\#):not(#\\#){padding-inline:4px}\n.bhx1m95a6t:focus-visible:not(#\\#):not(#\\#){outline:var(--dsw-focus-ring-width, 2px) solid var(--dsw-alias-state-business-primary)}\n@media (max-width: 648px){.bhxv0lzym.bhxv0lzym:not(#\\#):not(#\\#){gap:8px}}\n.bhx-level-3:not(#\\#):not(#\\#):not(#\\#){}\n.bhx1g31g6d:not(#\\#):not(#\\#):not(#\\#){accent-color:var(--dsw-alias-state-business-primary)}\n.bhx6s0dn4:not(#\\#):not(#\\#):not(#\\#){align-items:center}\n.bhxw43b1w:not(#\\#):not(#\\#):not(#\\#){background-color:var(--dsw-alias-bg-module-platform)}\n.bhx1xojs80:not(#\\#):not(#\\#):not(#\\#){background-color:var(--dsw-alias-interactive-bg-hover)}\n.bhx9f619:not(#\\#):not(#\\#):not(#\\#){box-sizing:border-box}\n.bhx24dycr:not(#\\#):not(#\\#):not(#\\#){color:var(--dsw-alias-label-primary)}\n.bhxr3raxm:not(#\\#):not(#\\#):not(#\\#){color:var(--dsw-alias-label-secondary)}\n.bhxwq55zj:not(#\\#):not(#\\#):not(#\\#){color:var(--dsw-alias-label-tertiary)}\n.bhx8ay0r6:not(#\\#):not(#\\#):not(#\\#){color:var(--dsw-alias-state-error-primary)}\n.bhx1pideu2:not(#\\#):not(#\\#):not(#\\#){color:var(--dsw-alias-state-success-primary)}\n.bhxz9v26x:not(#\\#):not(#\\#):not(#\\#){color:var(--dsw-alias-state-warn-primary)}\n.bhx1ypdohk:not(#\\#):not(#\\#):not(#\\#){cursor:pointer}\n.bhx78zum5:not(#\\#):not(#\\#):not(#\\#){display:flex}\n.bhxrvj5dj:not(#\\#):not(#\\#):not(#\\#){display:grid}\n.bhx3nfvp2:not(#\\#):not(#\\#):not(#\\#){display:inline-flex}\n.bhx1r8uery:not(#\\#):not(#\\#):not(#\\#){flex-basis:0}\n.bhxdt5ytf:not(#\\#):not(#\\#):not(#\\#){flex-direction:column}\n.bhx1q0g3np:not(#\\#):not(#\\#):not(#\\#){flex-direction:row}\n.bhx1iyjqo2:not(#\\#):not(#\\#):not(#\\#){flex-grow:1}\n.bhx2lah0s:not(#\\#):not(#\\#):not(#\\#){flex-shrink:0}\n.bhxs83m0k:not(#\\#):not(#\\#):not(#\\#){flex-shrink:1}\n.bhx1a02dak:not(#\\#):not(#\\#):not(#\\#){flex-wrap:wrap}\n.bhxjb2p0i:not(#\\#):not(#\\#):not(#\\#){font-family:inherit}\n.bhxmz2490:not(#\\#):not(#\\#):not(#\\#){font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}\n.bhxgowt09:not(#\\#):not(#\\#):not(#\\#){font-size:12px}\n.bhx5g6txa:not(#\\#):not(#\\#):not(#\\#){font-size:13px}\n.bhxskcadq:not(#\\#):not(#\\#):not(#\\#){font-size:14px}\n.bhx1nj67n:not(#\\#):not(#\\#):not(#\\#){font-weight:500}\n.bhxl56j7k:not(#\\#):not(#\\#):not(#\\#){justify-content:center}\n.bhx13a6bvl:not(#\\#):not(#\\#):not(#\\#){justify-content:flex-end}\n.bhx619ttb:not(#\\#):not(#\\#):not(#\\#){justify-items:start}\n.bhx12cu2lo:not(#\\#):not(#\\#):not(#\\#){line-height:16px}\n.bhx1gy5ux2:not(#\\#):not(#\\#):not(#\\#){line-height:20px}\n.bhx3350y7:not(#\\#):not(#\\#):not(#\\#){line-height:20px}\n.bhx1hc1fzr:not(#\\#):not(#\\#):not(#\\#){opacity:1}\n.bhx1y3gkto:not(#\\#):not(#\\#):not(#\\#){outline-offset:1px}\n.bhxj0a0fe:not(#\\#):not(#\\#):not(#\\#){overflow-wrap:anywhere}\n.bhx2b8uid:not(#\\#):not(#\\#):not(#\\#){text-align:center}\n.bhxp4054r:not(#\\#):not(#\\#):not(#\\#){text-align:end}\n.bhxlyipyv:not(#\\#):not(#\\#):not(#\\#){text-overflow:ellipsis}\n.bhxuxw1ft:not(#\\#):not(#\\#):not(#\\#){white-space:nowrap}\n.bhx126k92a:not(#\\#):not(#\\#):not(#\\#){white-space:pre-wrap}\n.bhxtgyt42:disabled:not(#\\#):not(#\\#):not(#\\#){cursor:default}\n.bhxijokvz:disabled:not(#\\#):not(#\\#):not(#\\#){opacity:.5}\n.bhx1lc0nsx:hover:not(#\\#):not(#\\#):not(#\\#){background-color:var(--dsw-alias-interactive-bg-hover)}\n@media (max-width: 648px){.bhx15bqsqq.bhx15bqsqq:not(#\\#):not(#\\#):not(#\\#){align-items:stretch}}\n@media (max-width: 648px){.bhx1uptv2i.bhx1uptv2i:not(#\\#):not(#\\#):not(#\\#){flex-direction:column}}\n@media (max-width: 648px){.bhx3xz8fp.bhx3xz8fp:not(#\\#):not(#\\#):not(#\\#){justify-content:flex-start}}\n.bhx-level-4:not(#\\#):not(#\\#):not(#\\#):not(#\\#){}\n.bhxnoyelg:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-color:var(--dsw-alias-border-l1)}\n.bhx1q0q8m5:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-style:solid}\n.bhxrvphhj:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-width:1px}\n.bhxxevliy:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:28px}\n.bhxdkzj7d:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:40px}\n.bhxols6we:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:6px}\n.bhx193iq5w:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:100%}\n.bhxxc7z9f:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:360px}\n.bhxh9uqaf:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:60%}\n.bhxeuugli:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-width:0}\n.bhx1e1oj2y:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-bottom:4px}\n.bhxb590mu:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-top:16px}\n.bhxh8yej3:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:100%}\n.bhx1i1gie9:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:40px}\n.bhx10zg81t:first-child:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-top:0}\n.bhx1bta2m4:last-child:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-color:transparent}\n@media (max-width: 648px){.bhx1cnm762.bhx1cnm762:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:100%}}\n";
 		//#endregion
 		//#region packages/computer/src/client/index.tsx
 		const ACCESS_STYLE = `
@@ -3068,9 +3144,8 @@ window.__ModuleLoader__.load({
 		function createComputerEntry(t) {
 			return function ComputerEntryWithLocale(props) {
 				const { computerAccess } = useBotInfo(props.botSlug);
-				if (computerAccess === false) return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-					className: "bh-computer-access-off",
-					style: noteStyle,
+				if (computerAccess === false) return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(PanelEmptyState, {
+					icon: "monitor",
 					children: t("entry.access.description")
 				});
 				return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ComputerEntry, {

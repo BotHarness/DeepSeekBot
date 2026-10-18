@@ -108,7 +108,7 @@ import { createGroupProfileCards } from '../src/client/group-profile.js';
 import { loadGroupProfileActivity, type GroupProfileActivity } from '../src/client/bridge.js';
 import { createProfileCardBuiltins } from '../src/client/profile-cards-builtins.js';
 import { createProfileCardRegistry } from '../src/client/profile-cards.js';
-import { ProfilePopover } from '../src/client/personabot-profile.js';
+import { ProfileView } from '../src/client/personabot-profile.js';
 import { store } from '../src/client/store.js';
 import { inertSubmissionActions } from './inert-submissions.js';
 import { fieldNamed } from './primitive-mocks.js';
@@ -142,7 +142,7 @@ function click(container: HTMLElement, selector: string): void {
 }
 
 describe('PersonaBot Profile surface', () => {
-  it('opens from the DM avatar, expands into the Channel body, and edits the profile', async () => {
+  it('opens profile details directly from the DM header and edits the profile without pinning', async () => {
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
     const previous = store.getSnapshot();
     const bot = {
@@ -270,19 +270,6 @@ describe('PersonaBot Profile surface', () => {
 
       await act(async () => click(container, '.bh-channel-island'));
       await act(async () => click(container, '[data-menu-id="primary"]'));
-      const popover = container.querySelector('.bh-profile-popover');
-      expect(popover).not.toBeNull();
-      expect(popover?.textContent).toContain('Ada');
-      expect(popover?.textContent).toContain('研究员');
-      expect(popover?.textContent).toContain('与你一起发布研究。');
-      expect(popover?.textContent).toContain('查看详细');
-      expect(popover?.textContent).toContain('Token 用量');
-      expect(popover?.textContent).toContain('事件活跃');
-      expect(popover?.textContent).not.toContain('Memory 提交');
-      expect(popover?.textContent).toContain('该时间段暂无记录');
-      expect(container.querySelector('.bh-channel-sidebar')).not.toBeNull();
-
-      await act(async () => click(container, '.bh-profile-expand'));
       expect(container.querySelector('.bh-profile-popover')).toBeNull();
       expect(container.querySelector('.bh-profile-view')).not.toBeNull();
       expect(container.querySelector<HTMLElement>('.bh-topbar')?.dataset['channelDetail']).toBe(
@@ -324,7 +311,8 @@ describe('PersonaBot Profile surface', () => {
       expect(sidebarLabels).not.toContain('唤醒策略');
       expect(sidebarLabels).not.toContain('外部身份');
       expect(sidebarLabels).not.toContain('外部连接器');
-      expect(container.querySelectorAll('.bh-profile-pin[aria-pressed="true"]').length).toBe(2);
+      expect(container.querySelector('.bh-profile-card-head .bh-profile-pin')).toBeNull();
+      expect(container.querySelector('.bh-topbar .bh-companion-pin')).toBeNull();
 
       const headerButton = (label: string) =>
         [...container.querySelectorAll<HTMLButtonElement>('.bh-profile-header button')].find(
@@ -415,7 +403,8 @@ describe('PersonaBot Profile surface', () => {
 
       await act(async () => click(container, '.bh-channel-island'));
       await act(async () => click(container, '[data-menu-id="primary"]'));
-      expect(container.querySelector('.bh-profile-popover')).not.toBeNull();
+      expect(container.querySelector('.bh-profile-view')).not.toBeNull();
+      expect(container.querySelector('.bh-profile-popover')).toBeNull();
       await act(async () => {
         document.body.dispatchEvent(new Event('pointerdown', { bubbles: true }));
       });
@@ -470,7 +459,8 @@ describe('PersonaBot Profile surface', () => {
       expect(island?.getAttribute('aria-haspopup')).toBe('menu');
       await act(async () => click(container, '[data-group-channel-name]'));
       await act(async () => click(container, '[data-menu-id="primary"]'));
-      expect(container.querySelector('.bh-profile-popover')).not.toBeNull();
+      expect(container.querySelector('.bh-profile-view')).not.toBeNull();
+      expect(container.querySelector('.bh-profile-popover')).toBeNull();
     } finally {
       await act(async () => root.unmount());
       container.remove();
@@ -605,15 +595,27 @@ describe('Profile activity windows', () => {
       expect(container.querySelector('.bh-profile-card-body > .bh-note')).toBeNull();
       const registry = createProfileCardRegistry();
       registry.register(tokenCard);
-      const popoverProps = {
+      const viewProps = {
         bot: props.bot,
         activity: partial.activity,
         cards: registry,
-        pinned: ['token-usage'],
+        channel: {
+          name: 'Ada',
+          id: 'dm-ada',
+          type: 'dm' as const,
+          botSlug: 'ada',
+          members: ['ada'],
+          createdAt: '',
+          updatedAt: '',
+        },
+        actions: {
+          profileUsage: vi.fn(async () => undefined),
+          profileActivity: vi.fn(async () => undefined),
+        } as unknown as BridgeActions,
         t: zhTranslate,
-        onExpand: vi.fn(),
+        onClose: vi.fn(),
       };
-      await act(async () => root.render(createElement(ProfilePopover, popoverProps)));
+      await act(async () => root.render(createElement(ProfileView, viewProps)));
       const label = container.querySelector('.bh-profile-card-label');
       expect(label?.textContent).toBe(tokenCard.label);
       expect(label?.querySelector('button')?.getAttribute('aria-label')).toBe(
@@ -630,7 +632,7 @@ describe('Profile activity windows', () => {
       expect(tokenCard.help?.({ ...props, activity: completeActivity })).toBeUndefined();
       expect(tokenCard.help?.({ ...props, activity: undefined })).toBeUndefined();
       await act(async () =>
-        root.render(createElement(ProfilePopover, { ...popoverProps, activity: completeActivity })),
+        root.render(createElement(ProfileView, { ...viewProps, activity: completeActivity })),
       );
       expect(container.querySelector('.bh-profile-card-label button')).toBeNull();
     } finally {

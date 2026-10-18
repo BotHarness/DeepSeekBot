@@ -1,0 +1,34 @@
+{
+  "source": "1acc8d060",
+  "preset": {
+    "id": "da117272-6a1f-4711-93ba-c12d4915700f",
+    "name": "AX CLI QA 2086 Updated",
+    "revision": 2,
+    "createdAt": "2026-10-17T16:45:34.966Z",
+    "orchestrator": {
+      "provider": "opencode-go",
+      "model": "deepseek-v4-pro"
+    },
+    "assignmentDefault": {
+      "provider": "opencode-go",
+      "model": "deepseek-v4-flash"
+    },
+    "assignmentModels": [
+      {
+        "provider": "opencode-go",
+        "model": "deepseek-v4-flash",
+        "allowedEfforts": ["", "high"],
+        "defaultEffort": "",
+        "note": "QA retain this note"
+      },
+      {
+        "provider": "opencode-go",
+        "model": "deepseek-v4-pro",
+        "allowedEfforts": [""],
+        "defaultEffort": ""
+      }
+    ]
+  },
+  "botSlug": "bot-afc8192f474649f3af7c5a81ba2bc9bc",
+  "passed": true
+}

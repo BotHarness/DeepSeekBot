@@ -1,0 +1,46 @@
+{
+  "productVersion": "1.2.1",
+  "dsh": "0.2.1-rc.2",
+  "providerRuntime": {
+    "runtimeFiles": 422,
+    "runtimeSha256": "302dfdcca0d36f93fe02098d13764ba4eccd11ce324ffb0c415c3f971a7d0275"
+  },
+  "artifacts": [
+    {
+      "name": "@botharness/core",
+      "version": "1.2.1",
+      "filename": "botharness-core-1.2.1.tgz",
+      "integrity": "sha512-nFAkjp2rI4bvFlDHFbiuXH7LK0d/l47B0bTpccI3y4aEMMd2LDitzsmpb7zxVRtS9KS3KCLDfun9NhFWZLiQ2w=="
+    },
+    {
+      "name": "@botharness/ui",
+      "version": "1.2.1",
+      "filename": "botharness-ui-1.2.1.tgz",
+      "integrity": "sha512-096KZpxgjIGJRMwys9DGS7uhxoWVS1xKe10Tr4lzjxrW/Jf/5/xMGOTJpUNTC5twTSiJU6Bmgx82em25jOUlSA=="
+    },
+    {
+      "name": "@botharness/browser",
+      "version": "1.2.1",
+      "filename": "botharness-browser-1.2.1.tgz",
+      "integrity": "sha512-3gRi0vQ9+C5RZVZeYsx0EltOr+OFeHDdFRZtLG3bE4SU9l5n4zas5r/bUvOcD4kzXGVhcAgwBLm7SwzJTZ6bjA=="
+    },
+    {
+      "name": "@botharness/computer",
+      "version": "1.2.1",
+      "filename": "botharness-computer-1.2.1.tgz",
+      "integrity": "sha512-l80yzzRsjHop5y/TAIen+YRRrPqB/6Qtd+HOc0Z41SZjMOlGufilN+3PJEvT+aDgFNASSXTYsfjnERjnUjynVQ=="
+    },
+    {
+      "name": "@botharness/im-provider",
+      "version": "4.32.0-botharness.21",
+      "filename": "botharness-im-provider-4.32.0-botharness.21.tgz",
+      "integrity": "sha512-7FqHt1er/sVN4L8l663SYxoscynGjyuwYTCw8zppxekBiAAZjxETQe8vkiRVht53Uvg/e6cLicz8AfFTcW8a7w=="
+    },
+    {
+      "name": "deepseekbot",
+      "version": "1.2.1",
+      "filename": "deepseekbot-1.2.1.tgz",
+      "integrity": "sha512-20TyZAKnMIziHslLP/VH61QuNoFIhgoR/v1aO9NuYRN7gwo8+ffgOU72JTnBvzK83FulGFxG6+TfQGzlU8RzLg=="
+    }
+  ]
+}

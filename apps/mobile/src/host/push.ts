@@ -95,6 +95,15 @@ export function cardHref(
   return chatHref(item.botSlug, item.channelId, dmChannelOf, isGroup, item.messageId);
 }
 
+export function unreadHref(
+  item: { kind: string; botSlug: string; channelId?: string },
+  dmChannelOf: (slug: string) => string | undefined,
+  isGroup: (channelId: string) => boolean = () => false,
+): ChatHref | undefined {
+  if (item.kind !== 'channel-unread' || item.channelId === undefined) return undefined;
+  return chatHref(item.botSlug, item.channelId, dmChannelOf, isGroup);
+}
+
 export function pushHref(
   target: PushTarget,
   dmChannelOf: (slug: string) => string | undefined,

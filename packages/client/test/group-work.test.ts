@@ -88,6 +88,18 @@ const render = () =>
         botSlug: undefined,
         actions,
         t: zhTranslate,
+        nativeSessions: (() => {
+          const snapshot = {
+            ids: assignments.map((a) => a.sessionId),
+            byId: Object.fromEntries(
+              assignments.map((a) => [
+                a.sessionId,
+                { displayTitle: a.purpose, updatedAt: 1, running: a.activity === 'working' },
+              ]),
+            ),
+          };
+          return { subscribe: () => () => {}, getSnapshot: () => snapshot };
+        })(),
       }),
     ),
   );
@@ -111,13 +123,13 @@ it('groups the Group’s Assignments and keeps Done collapsed', async () => {
   ]);
   const titles = () =>
     [...host.querySelectorAll('.bh-card-title')].map((title) => title.textContent);
-  expect(titles()).toEqual(['Pick a branch', 'Run the build', 'Draft notes']);
+  expect(titles()).toEqual(['Pick a branch', 'Run the build', 'Draft notes', 'Ship docs']);
   expect(host.querySelector('.bh-card-row')?.textContent).toContain('Pick a branch report');
   expect(host.querySelector('.bh-card-row')?.textContent).toContain('Bob');
 
   const done = host.querySelector<HTMLButtonElement>('section[data-group="done"] button')!;
   expect(done.getAttribute('aria-expanded')).toBe('false');
-  expect(done.textContent).toContain(zhTranslate('groupWork.done'));
+  expect(done.textContent).toContain(zhTranslate('sessions.section.resolved'));
   await act(async () => done.click());
   expect(titles()).toEqual([
     'Pick a branch',

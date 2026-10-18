@@ -247,7 +247,6 @@ describe('release composition', () => {
       { id: 'botharness-core', name: '@botharness/core' },
       { id: 'botharness-client', name: '@botharness/ui' },
       { id: 'botharness-browser', name: '@botharness/browser' },
-      { id: 'computer-use', name: '@deepseek-ai/dsh-computer-use' },
       { id: 'botharness-computer', name: '@botharness/computer' },
     ];
     expect(() => verifyProductComposition(entries)).not.toThrow();
@@ -257,14 +256,14 @@ describe('release composition', () => {
     expect(() =>
       verifyProductComposition([...entries, { id: 'legacy', name: '@xmanrui/dsh-im' }]),
     ).toThrow('Standalone upstream');
-    expect(() => verifyProductComposition(entries.slice(1))).toThrow('all six');
+    expect(() => verifyProductComposition(entries.slice(1))).toThrow('all five');
     expect(() =>
       verifyProductComposition([{ ...entries[0], disabled: true }, ...entries.slice(1)]),
     ).toThrow('conflicts');
   });
   it('reads native JS tags as data and refuses dynamic component disabling without evaluating code', () => {
     const entries = parseProductComposition(
-      "- id: unrelated\n  name: native\n  disabled: !!js 'throw new Error(\"must not execute\")'\n- id: xmanrui-dsh-im\n  name: '@botharness/im-provider'\n- id: botharness-core\n  name: '@botharness/core'\n- id: botharness-client\n  name: '@botharness/ui'\n- id: botharness-browser\n  name: '@botharness/browser'\n- id: computer-use\n  name: '@deepseek-ai/dsh-computer-use'\n- id: botharness-computer\n  name: '@botharness/computer'\n",
+      "- id: unrelated\n  name: native\n  disabled: !!js 'throw new Error(\"must not execute\")'\n- id: xmanrui-dsh-im\n  name: '@botharness/im-provider'\n- id: botharness-core\n  name: '@botharness/core'\n- id: botharness-client\n  name: '@botharness/ui'\n- id: botharness-browser\n  name: '@botharness/browser'\n- id: botharness-computer\n  name: '@botharness/computer'\n",
     );
     expect(entries[0].disabled.__jsExpr).toContain('must not execute');
     expect(() => verifyProductComposition(entries)).not.toThrow();

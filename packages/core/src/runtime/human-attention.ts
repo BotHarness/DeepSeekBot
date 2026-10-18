@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { notChannelNoticeSql } from '../channels/channel-notice.js';
 import { LOCAL_HUMAN_ID } from '../channels/channel.js';
 import {
@@ -7,7 +8,7 @@ import {
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 
 export type HumanAttentionCategory = 'action' | 'info' | 'unread' | 'replies' | 'handled';
-export type HumanAttentionSort = 'newest' | 'oldest';
+export type HumanAttentionSort = 'newest' | 'oldest' | 'mentions-first';
 
 export interface HumanAttentionItem {
   id: string;
@@ -51,6 +52,7 @@ export interface HumanAttentionItem {
 }
 
 export interface HumanAttentionPage {
+  queryVersion?: 1;
   items: HumanAttentionItem[];
   nextCursor?: string;
 }
@@ -69,6 +71,8 @@ export interface HumanAttentionQuery {
     category?: HumanAttentionCategory;
     kind?: HumanAttentionItem['kind'];
     sort?: HumanAttentionSort;
+    search?: string;
+    unreadOnly?: boolean;
     botSlug?: string;
     channelId?: string;
     cursor?: string;
@@ -106,6 +110,7 @@ interface AttentionRow {
 }
 
 interface Cursor {
+  mention?: number;
   version: 1;
   filters: string;
   createdAt: string;
@@ -402,6 +407,7 @@ export function createHumanAttentionQuery(
   mutedChannelIds: () => readonly string[] = () => [],
   now: () => Date = () => new Date(),
 ): HumanAttentionQuery {
+  let lowerRegistered = false;
   const activeSnooze = (id: string, source: string, at: string): string =>
     `EXISTS (SELECT 1 FROM human_inbox_snoozes s WHERE s.human_id = '${LOCAL_HUMAN_ID}' AND s.item_id = ${id} AND s.source_key = coalesce(${source}, '') AND s.until > '${at}')`;
   const snoozedUntil = (items: HumanAttentionItem[]): HumanAttentionItem[] => {
@@ -499,9 +505,35 @@ export function createHumanAttentionQuery(
         throw new Error('Human attention limit must be 1-100');
       const category = input.category ?? 'action';
       const sort = input.sort ?? (category === 'action' ? 'oldest' : 'newest');
-      if (sort !== 'newest' && sort !== 'oldest') throw new Error('Invalid Human attention sort');
-      const direction = sort === 'newest' ? 'DESC' : 'ASC';
-      const cursorComparison = sort === 'newest' ? '<' : '>';
+      if (
+        sort !== 'newest' &&
+        sort !== 'oldest' &&
+        !(sort === 'mentions-first' && category === 'replies')
+      )
+        throw new Error('Invalid Human attention sort');
+      if (
+        input.search !== undefined &&
+        (typeof input.search !== 'string' || input.search.length > 200)
+      )
+        throw new Error('Search must be at most 200 characters');
+      const search = input.search?.trim().toLowerCase() ?? '';
+      if (search !== '' && !lowerRegistered) {
+        database.read((db) =>
+          db.function('botharness_activity_lower', { deterministic: true }, (value: unknown) =>
+            typeof value === 'string' ? value.toLowerCase() : '',
+          ),
+        );
+        lowerRegistered = true;
+      }
+      const searchCte = 'WITH activity_search AS (SELECT ? AS term), ';
+      const match = (body: string, channel: string, bot: string) =>
+        search === ''
+          ? ''
+          : `AND instr(botharness_activity_lower(coalesce(${body}, '') || ' ' || coalesce(${channel}, '') || ' ' || coalesce(${bot}, '')), (SELECT term FROM activity_search)) > 0`;
+      const channelCte = CHANNEL_ATTENTION_CTE.replace('WITH ', searchCte);
+      const actionCte = ACTION_ATTENTION_CTE.replace('WITH ', searchCte);
+      const direction = sort === 'oldest' ? 'ASC' : 'DESC';
+      const cursorComparison = sort === 'oldest' ? '>' : '<';
       const snoozedOnly = input.snoozed === true;
       if (snoozedOnly && (category === 'unread' || category === 'handled')) return { items: [] };
       const filters = JSON.stringify([
@@ -511,6 +543,8 @@ export function createHumanAttentionQuery(
         sort,
         ...(snoozedOnly ? ['snoozed'] : []),
         ...(input.kind === undefined ? [] : [input.kind]),
+        ...(search === '' ? [] : ['search', createHash('sha256').update(search).digest('hex')]),
+        ...(input.unreadOnly ? ['unreadOnly'] : []),
       ]);
       const at = now().toISOString();
       const dismissFilter = (id: string, source: string): string =>
@@ -518,6 +552,13 @@ export function createHumanAttentionQuery(
           ? ''
           : `AND NOT EXISTS (SELECT 1 FROM human_inbox_dismissals d WHERE d.human_id = '${LOCAL_HUMAN_ID}' AND d.item_id = ${id} AND d.source_key = coalesce(${source}, '')) AND ${snoozedOnly ? '' : 'NOT '}${activeSnooze(id, source, at)}`;
       const cursor = input.cursor === undefined ? undefined : decodeCursor(input.cursor, filters);
+      if (
+        sort === 'mentions-first' &&
+        cursor !== undefined &&
+        cursor.mention !== 0 &&
+        cursor.mention !== 1
+      )
+        throw new Error('Human attention cursor is invalid for these filters');
       if (category === 'handled') {
         const pageParameters = [
           input.itemId ?? null,
@@ -535,7 +576,7 @@ export function createHumanAttentionQuery(
         ];
         const rows = database.read((db) =>
           db
-            .prepare(`WITH native_handled AS (
+            .prepare(`${searchCte}native_handled AS (
 SELECT 'handled:' || request.source_event_id AS id,
                  'handled' AS category, CASE WHEN json_extract(request.payload_json, '$.userQuestionRequest') IS NOT NULL THEN 'user-question' WHEN json_extract(request.payload_json, '$.toolApprovalRequest') IS NOT NULL THEN 'tool-approval' ELSE 'workspace-grant-request' END AS kind,
                  response.created_at, c.channel_id, json_extract(c.record_json, '$.name') AS channel_name,
@@ -577,6 +618,7 @@ SELECT 'handled:' || request.source_event_id AS id,
                   OR json_extract(request.payload_json, '$.grantRequest') = 1)
 
 
+             ${match('request.body', "json_extract(c.record_json, '$.name')", 'request.bot_slug')}
              AND (? IS NULL OR ('handled:' || request.source_event_id) = ?)
              ${dismissFilter("'handled:' || request.source_event_id", 'request.source_event_id')}
              AND (? IS NULL OR request.bot_slug = ?) AND (? IS NULL OR c.channel_id = ?)
@@ -611,6 +653,7 @@ SELECT 'handled:' || request.source_event_id AS id,
                  AND earlier.rowid < response.rowid)
              AND json_extract(request.payload_json, '$.assignmentReport.state') IN ('blocked', 'waiting-human')
 
+             ${match('request.body', "json_extract(c.record_json, '$.name')", 'request.bot_slug')}
              AND (? IS NULL OR ('handled:' || request.source_event_id) = ?)
              ${dismissFilter("'handled:' || request.source_event_id", 'request.source_event_id')}
              AND (? IS NULL OR a.bot_slug = ?) AND (? IS NULL OR c.channel_id = ?)
@@ -621,7 +664,7 @@ SELECT 'handled:' || request.source_event_id AS id,
           )
           SELECT * FROM native_handled UNION ALL SELECT * FROM assignment_handled
           ORDER BY created_at ${direction}, id ${direction} LIMIT ?`)
-            .all(...pageParameters, ...pageParameters, limit + 1),
+            .all(search, ...pageParameters, ...pageParameters, limit + 1),
         ) as unknown as AttentionRow[];
         const page = rows.slice(0, limit);
         const last = page.at(-1);
@@ -644,22 +687,27 @@ SELECT 'handled:' || request.source_event_id AS id,
       if (category === 'replies') {
         const rows = database.read((db) =>
           db
-            .prepare(`${CHANNEL_ATTENTION_CTE}
+            .prepare(`${channelCte}
           SELECT 'reply:' || source_event_id AS id, channel_id, channel_name,
                  created_at, message_id, source_event_id, body AS summary, bot_slug,
                  revision > read_revision AS is_unread, is_mention
             FROM visible_messages
            WHERE (is_reply = 1 OR is_mention = 1)
+             ${match('body', 'channel_name', 'bot_slug')}
+             ${input.unreadOnly ? 'AND revision > read_revision' : ''}
              AND (? IS NULL OR ('reply:' || source_event_id) = ?)
              ${dismissFilter("'reply:' || source_event_id", 'source_event_id')}
              AND (? IS NULL OR bot_slug = ?)
              AND (? IS NULL OR channel_id = ?)
-             AND (? IS NULL OR created_at ${cursorComparison} ? OR
+             AND (${sort === 'mentions-first' ? '(? IS NULL OR is_mention < ? OR (is_mention = ? AND ' : ''}
+                  (? IS NULL OR created_at ${cursorComparison} ? OR
                   (created_at = ? AND ('reply:' || source_event_id) ${cursorComparison} ?))
-           ORDER BY created_at ${direction}, id ${direction}
+                  ${sort === 'mentions-first' ? '))' : ''})
+           ORDER BY ${sort === 'mentions-first' ? 'is_mention DESC,' : ''} created_at ${direction}, id ${direction}
            LIMIT ?
         `)
             .all(
+              search,
               LOCAL_HUMAN_ID,
               LOCAL_HUMAN_ID,
               input.itemId ?? null,
@@ -668,6 +716,9 @@ SELECT 'handled:' || request.source_event_id AS id,
               input.botSlug ?? null,
               input.channelId ?? null,
               input.channelId ?? null,
+              ...(sort === 'mentions-first'
+                ? [cursor?.mention ?? null, cursor?.mention ?? null, cursor?.mention ?? null]
+                : []),
               cursor?.createdAt ?? null,
               cursor?.createdAt ?? null,
               cursor?.createdAt ?? null,
@@ -711,6 +762,7 @@ SELECT 'handled:' || request.source_event_id AS id,
                     filters,
                     createdAt: last.created_at,
                     id: last.id,
+                    ...(sort === 'mentions-first' ? { mention: last.is_mention } : {}),
                   } satisfies Cursor),
                 ).toString('base64url'),
               }
@@ -721,9 +773,10 @@ SELECT 'handled:' || request.source_event_id AS id,
         const rows = database.read(
           (db) =>
             db
-              .prepare(`${CHANNEL_ATTENTION_CTE},
+              .prepare(`${channelCte},
           filtered_unread AS (
             SELECT * FROM visible_unread v WHERE ${input.includeDismissed ? '' : `NOT EXISTS (SELECT 1 FROM human_inbox_dismissals d WHERE d.human_id = '${LOCAL_HUMAN_ID}' AND d.item_id = 'unread:' || v.channel_id AND v.revision <= d.through_revision) AND`} is_reply = 0 AND is_mention = 0 AND (? IS NULL OR bot_slug = ?)
+            ${match('body', 'channel_name', 'bot_slug')}
           ),
           unread_channels AS (
             SELECT channel_id, count(DISTINCT source_event_id) AS unread_count, max(revision) AS last_revision
@@ -743,6 +796,7 @@ SELECT 'handled:' || request.source_event_id AS id,
            LIMIT ?
         `)
               .all(
+                search,
                 LOCAL_HUMAN_ID,
                 LOCAL_HUMAN_ID,
                 input.botSlug ?? null,
@@ -802,9 +856,10 @@ SELECT 'handled:' || request.source_event_id AS id,
         (db) =>
           db
             .prepare(`
-        ${ACTION_ATTENTION_CTE}
+        ${actionCte}
         SELECT * FROM attention
          WHERE category = ?
+           ${match('summary', 'channel_name', 'bot_slug')}
            AND (? IS NULL OR kind = ?)
            AND (? IS NULL OR id = ?)
            ${dismissFilter('attention.id', 'attention.source_event_id')}
@@ -816,6 +871,7 @@ SELECT 'handled:' || request.source_event_id AS id,
          LIMIT ?
       `)
             .all(
+              search,
               JSON.stringify(activeQuestionMessageIds()),
               JSON.stringify(activeToolApprovalMessageIds()),
               JSON.stringify(activePrivateInputMessageIds()),

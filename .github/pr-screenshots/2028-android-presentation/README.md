@@ -1,0 +1,10 @@
+# Android presentation evidence
+
+Native Android 16 phone, portrait 1220×2712, dark theme, Chinese locale, same isolated QA Host and shared development APK. Every conversation shown is task-owned QA data. No pairing QR or token is included.
+
+- `before-{home,hosts,activity,settings,chat,profile}.png`: mobile source from parent `cba13535e02edfb36f1d46d3afd9d556faf7696c`, using the current installed dependencies/native client. The package manifest retained the installed dependency superset to avoid pnpm reinstalling the shared native environment. Generated version text reads the checkout HEAD rather than this temporary source snapshot; it is not the baseline source identity.
+- Corresponding `after-*` images: source `209fe8dcd1d8fe06bec2fe6542a68a2f246f510a` plus the subsequently committed stable Bot-name lookup. This last change does not alter the captured screen's appearance. Same QA data, locale, viewport and app states. Different native Markdown layout produces slightly different text wrapping at the same latest-message position.
+- `after-message-display.png`: new device-local display setting, scrolled so both choices can be reviewed; baseline entry point is `before-settings.png`.
+- `before-stream.png` / `after-stream.png`: unchanged frames selected from deterministic native recordings f4/f8. Selection: seek to 4 seconds, normalize sampling to 30 fps and select sample 3, matching the visibility checker. Different QA Bot labels/avatars are fixture identities; both receive the same prose. The baseline retains the gray bubble while text disappears. Over the full six-second window the baseline has 128/180 nearly blank sampled frames; the fix has 0/180. Early baseline replay allowed another follow-up reply later; this comparison window precedes that follow-up and concerns the first body only.
+
+Full native recordings, accessibility XML, CLI canonical replies and frame profiles remain private in the batch evidence. Reproduction and detector limits: [fixed replay](../../../apps/mobile/scripts/stream-replay.md). Measurements and unresolved 120 FPS work: [streaming measurements](../../../docs/research/2028-android-streaming-measurements.md).

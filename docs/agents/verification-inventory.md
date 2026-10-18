@@ -25,8 +25,9 @@ behaviors and a behavior to several scripts; each file and behavior is counted o
   product behavior denominator is incomplete. Catalogue rows group related acceptance
   paths and are not an exhaustive count of product features. Scripted/manual/gap counts
   describe this catalogue only; a mapped script may cover just part of a grouped row.
-- **Qualified catalogue rows** count only current evidence accepted by the existing
-  Activity Center validator. Manual instructions and past CI results never become passes.
+- **Qualified catalogue rows** count only current evidence accepted by the behavior-specific
+  Activity Center, Workspace Grant or Memory validator. Manual instructions and past CI results
+  never become passes.
 
 This audit includes every current map document and E2E file, and additional implemented
 Client, CLI and mobile entry points found in those scripts and their owning modules.
@@ -97,3 +98,31 @@ Native provenance cites [#1919](https://github.com/BotHarness/DeepSeekBot/issues
 SHAs, device, capture scope and outstanding checks. Recheck their latest handoffs when
 updating those rows. Mobile Web export scripts are not native acceptance; all native work
 uses the [shared device queue](device-qa.md). This report never claims that queue or a receiver.
+
+## Temporary Workspace Grant evidence
+
+Use `--workspace-run <attempt>` to select the separate
+[Workspace Grant path](../../.agents/skills/verify-deepseekbot/features/workspace-grant.md).
+It qualifies only authorization → direct attachment-import read → explicit revocation →
+refusal for the same Bot/Workspace/Grant. Native file tools, Shell, #1841 and #1957 remain
+outside that evidence. The Activity Center row stays unrun unless separately selected.
+
+`--workspace-evidence-prefix` sets links for this path independently of `--evidence-prefix`
+(Activity Center), so two selected runs never point at each other's files. Keep the entire
+packet external or ignored and generate output to an external temporary file before copying,
+as above. Inspect all three screenshots and ARIA snapshots before recording visual review.
+
+Memory's bounded row accepts `--memory-run <attempt>` and its own
+`--memory-evidence-prefix <prefix>`. Follow the [Memory recipe](../../.agents/skills/verify-deepseekbot/features/memory-restore.md)
+for two owner-saved versions, historical diff, descendant restore commit and stale-head
+refusal. `memory-restore-report.mjs` requires all four visual phases, matching CLI
+content/HEAD/ancestry/checkpoint evidence and an applicable visual receipt. Retain the
+test Memory repository when stopping this slice's exact Host PID.
+
+## Default Bot Browser evidence
+
+Select `--browser-run <attempt>` for the independent `desktop.browser.open-observe-stop`
+row. Publish its evidence with `--browser-evidence-prefix ./verified`. The broader Browser
+lifecycle/tools rows remain gaps: this result does not qualify multi-tab, upload, profile
+reset, takeover, alternate targets or model use. Inspect four Web states and the captured
+Browser frame before recording `browser-lifecycle-report.mjs --visual-review pass`.

@@ -33,7 +33,7 @@ export function GroupMark({
       }}
     >
       {avatar === undefined ? (
-        <Text variant={variant} strong={strong} tone="muted">
+        <Text allowFontScaling={false} variant={variant} strong={strong} tone="muted">
           #
         </Text>
       ) : (

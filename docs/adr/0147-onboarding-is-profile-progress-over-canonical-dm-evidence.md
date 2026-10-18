@@ -28,3 +28,7 @@ DSH seams remain Service Definition/Provider/Consumer and Typert/API Gateway for
 ## Consequences
 
 Generation 71 is forward-only; a binary supporting only generation 70 cannot reopen this Profile safely. Rollback requires a compatible binary or the pre-upgrade backup, while retaining the independent Purge Ledger and enforcing its monotonic facts as required by generation 68. The receipt can be recomputed from canonical evidence after a missed notification, while unsent text and companion preferences remain isolated to the Client. After Human feedback, the welcome offers capability introduction, today’s news, a daily news summary and a ten-minute schedule test as ordinary Human DM requests through existing execution capabilities. These examples do not introduce another news or scheduler authority. Optional guided Memory/IM breadth still requires Human feedback before expansion.
+
+## Refinement: independent Orchestrator selection
+
+[ADR-0218](0218-quick-model-selection-only-customizes-the-orchestrator.md) allows a Bot Model Plan to fix only its Orchestrator while its Assignment policy continues to inherit the Profile default. Both `assignmentDefault` and `assignmentModels` are absent in that case. Existing complete plans and reusable Model Presets retain their previous semantics. An Assignment without a retained route continues to inherit on later requests, rather than adopting a subsequently configured Bot default.

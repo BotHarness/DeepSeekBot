@@ -16,6 +16,7 @@ import {
   publishInWaves,
   releaseVersion,
   verifyRelease,
+  verifyPackedCli,
   reusePublishedProvider,
 } from '../npm-prerelease.mjs';
 import { providerReleasePlan } from '../npm-provider-release.mjs';
@@ -33,7 +34,21 @@ function fixture(productVersion = '0.1.0-alpha.1') {
     mkdirSync(join(dir, 'package'), { recursive: true });
     const version = name === productImProvider.name ? productImProvider.version : productVersion;
     const manifest = { name, version, license: 'MIT', main: './index.js' };
+    if (name === '@botharness/core') {
+      manifest.exports = { './cli': './cli/index.mjs' };
+      mkdirSync(join(dir, 'package/cli'));
+      writeFileSync(
+        join(dir, 'package/cli/index.mjs'),
+        'export const runBotCreateCli = () => { if (process.env.PATH !== "" || process.env.DEEPSEEKBOT_HOST_TOKEN || process.env.DEEPSEEKBOT_AGENT_TOKEN || process.env.NODE_PATH) throw new Error("ambient dependency"); console.log("deepseekbot packed help"); };',
+      );
+    }
     if (name === 'deepseekbot') {
+      manifest.bin = { deepseekbot: './dist/deepseekbot.mjs' };
+      mkdirSync(join(dir, 'package/dist'));
+      writeFileSync(
+        join(dir, 'package/dist/deepseekbot.mjs'),
+        'import { runBotCreateCli } from "@botharness/core/cli"; runBotCreateCli();',
+      );
       manifest.dependencies = Object.fromEntries(
         publicationOrder
           .slice(0, -1)
@@ -42,7 +57,7 @@ function fixture(productVersion = '0.1.0-alpha.1') {
       manifest.dsh = { bundle: { patch: './cordis.im.patch.yml' } };
       writeFileSync(
         join(dir, 'package/cordis.im.patch.yml'),
-        "- insert:\n    - id: xmanrui-dsh-im\n      name: '@botharness/im-provider'\n    - id: botharness-core\n      name: '@botharness/core'\n    - id: botharness-client\n      name: '@botharness/ui'\n    - id: botharness-browser\n      name: '@botharness/browser'\n    - id: computer-use\n      name: '@deepseek-ai/dsh-computer-use'\n    - id: botharness-computer\n      name: '@botharness/computer'\n",
+        "- insert:\n    - id: xmanrui-dsh-im\n      name: '@botharness/im-provider'\n    - id: botharness-core\n      name: '@botharness/core'\n    - id: botharness-client\n      name: '@botharness/ui'\n    - id: botharness-browser\n      name: '@botharness/browser'\n    - id: botharness-computer\n      name: '@botharness/computer'\n",
       );
     }
     if (name === productImProvider.name) {
@@ -224,6 +239,7 @@ describe('reviewed npm prerelease', () => {
       ...artifact,
       license: 'MIT',
       main: './dist/index.mjs',
+      exports: { './cli': './cli/index.mjs' },
       dependencies: { other: 'link:../other' },
     };
     expect(() => checkPackage(manifest, artifact, ['package/LICENSE'], [artifact])).toThrow(
@@ -233,6 +249,68 @@ describe('reviewed npm prerelease', () => {
     expect(() => checkPackage(manifest, artifact, ['package/LICENSE'], [artifact])).toThrow(
       'Missing packed entry',
     );
+  });
+  it('rejects a core archive without the CLI used by Tob even if its Host entry remains', () => {
+    const artifact = { name: '@botharness/core', version: '0.1.0-alpha.1' };
+    const manifest = {
+      ...artifact,
+      license: 'MIT',
+      main: './dist/index.mjs',
+      exports: { './cli': './cli/index.mjs' },
+    };
+    const hostOnly = ['package/LICENSE', 'package/dist/index.mjs'];
+    expect(() => checkPackage(manifest, artifact, hostOnly, [artifact])).toThrow(
+      'Missing packed entry: @botharness/core:./cli/index.mjs',
+    );
+    const complete = [...hostOnly, 'package/cli/index.mjs'];
+    expect(() => checkPackage(manifest, artifact, complete, [artifact])).not.toThrow();
+    delete manifest.exports['./cli'];
+    expect(() => checkPackage(manifest, artifact, complete, [artifact])).toThrow(
+      'must export its bundled CLI',
+    );
+  });
+  it('rejects an umbrella archive without its CLI executable rather than relying on a global install', () => {
+    const artifact = { name: 'deepseekbot', version: '0.1.0-alpha.1' };
+    const manifest = {
+      ...artifact,
+      license: 'MIT',
+      bin: { deepseekbot: './dist/deepseekbot.mjs' },
+    };
+    expect(() => checkPackage(manifest, artifact, ['package/LICENSE'], [artifact])).toThrow(
+      'Missing packed entry: deepseekbot:./dist/deepseekbot.mjs',
+    );
+    const files = ['package/LICENSE', 'package/dist/deepseekbot.mjs'];
+    expect(() => checkPackage(manifest, artifact, files, [artifact])).not.toThrow();
+    delete manifest.bin.deepseekbot;
+    expect(() => checkPackage(manifest, artifact, files, [artifact])).toThrow(
+      'must provide its bundled deepseekbot executable',
+    );
+  });
+  it('executes the archived product CLI without a source checkout or global CLI in its environment', () => {
+    const { root } = fixture();
+    const { packages } = verifyRelease(root);
+    expect(verifyPackedCli(root, packages, '/unused-no-dependencies')).toEqual({
+      executable: 'deepseekbot',
+      packedCoreExport: './cli/index.mjs',
+      isolatedHelp: true,
+    });
+  });
+  it('rejects an archived CLI whose imports depend on unpublished source files', () => {
+    const { root } = fixture();
+    const { packages } = verifyRelease(root);
+    const productIndex = publicationOrder.indexOf('deepseekbot');
+    writeFileSync(
+      join(root, String(productIndex), 'package/dist/deepseekbot.mjs'),
+      'import "../src/unpublished.mjs";',
+    );
+    execFileSync('tar', [
+      '-czf',
+      join(root, `${productIndex}.tgz`),
+      '-C',
+      join(root, String(productIndex)),
+      'package',
+    ]);
+    expect(() => verifyPackedCli(root, packages, '/unused-no-dependencies')).toThrow();
   });
   it('recovers a partial publication only when the existing version has identical bytes', () => {
     const artifact = { name: 'deepseekbot', version: '0.1.0-alpha.1', integrity: 'sha512-test' };

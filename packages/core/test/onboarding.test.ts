@@ -43,17 +43,30 @@ describe('Bot onboarding through the public Host bridge', () => {
       if (!first.ok) throw new Error(first.error.message);
       const bot = core.registry.list()[0]!;
       expect(core.registry.list()).toHaveLength(1);
-      expect(bot.displayName).toBe('DeepSeek Bot');
+      expect(bot.displayName).toBe('Tob');
       expect(bot.appearance?.recipe).toEqual(DEEPSEEKBOT_RECIPE);
       expect(core.registry.memoryDirFor(bot.slug)).toBeTruthy();
       expect(core.channels.readMessages(first.value.channelId!)).toMatchObject([
-        { author: { kind: 'system' }, onboardingWelcome: { version: 1 } },
+        { author: { kind: 'system' }, id: 'tob-welcome-v1' },
       ]);
       expect(first.value.completed).toBe(false);
       core.registry.update(bot.slug, { displayName: 'Renamed' });
       await bridge.onboarding({ action: 'restart' });
       expect(core.registry.get(bot.slug)?.appearance?.recipe).toEqual(DEEPSEEKBOT_RECIPE);
       expect(core.channels.readMessages(first.value.channelId!)).toHaveLength(1);
+    });
+  });
+  it('continues first-run onboarding after Home already provisioned Tob', async () => {
+    await withCore(async (core) => {
+      const home = await core.tob.ensure();
+      const first = await core.onboarding.enter();
+      expect(first).toMatchObject({
+        defaultBotSlug: home.botSlug,
+        channelId: home.channelId,
+        completed: false,
+      });
+      expect(core.registry.list()).toHaveLength(1);
+      expect(core.channels.readMessages(home.channelId)).toHaveLength(1);
     });
   });
   it('reuses existing Bots, lets the Human select among several, and never resurrects the default Bot', async () => {
@@ -75,10 +88,9 @@ describe('Bot onboarding through the public Host bridge', () => {
     });
     await withCore(async (core) => {
       const first = await core.onboarding.enter();
-      const preview = core.deletions.preview(first.defaultBotSlug!);
-      await core.deletions.confirm(first.defaultBotSlug!, preview.token, false);
+      expect(() => core.deletions.preview(first.defaultBotSlug!)).toThrow('protected-bot');
       await core.onboarding.enter();
-      expect(core.registry.list()).toHaveLength(0);
+      expect(core.registry.list()).toHaveLength(1);
     });
   });
   it('keeps skip/pause independent from real-reply completion and recovers completion after a Host restart', async () => {
@@ -125,7 +137,9 @@ describe('Bot onboarding through the public Host bridge', () => {
       });
       expect(restored.registry.list()).toHaveLength(1);
       expect(
-        restored.channels.readMessages(channelId!).filter((message) => message.onboardingWelcome),
+        restored.channels
+          .readMessages(channelId!)
+          .filter((message) => message.id === 'tob-welcome-v1'),
       ).toHaveLength(1);
     } finally {
       await restored.runtime.close();
@@ -334,5 +348,116 @@ it('projects current search readiness through onboarding without persisting it a
       ok: true,
       value: { newsAvailable: false, completed: false },
     });
+  });
+});
+
+it('guards the native default owner revision without modifying independent Bot plans', async () => {
+  await withCore(async (core) => {
+    core.registry.create({ slug: 'fixed', displayName: 'Fixed' });
+    const fixed = { provider: 'official', model: 'fixed' };
+    core.registry.customizeModelPlan('fixed', fixed, 0);
+    let current = { provider: 'official', model: 'old' };
+    let revision = 5;
+    let duringValidate = () => {};
+    const bridge = createBridgeMethods({
+      ...core,
+      modelCatalog: { list: async () => [], validate: async () => duringValidate() },
+      defaultModel: {
+        currentSelection: () => current,
+        saveSelection: async () => {
+          throw new Error('unguarded owner must not run');
+        },
+      },
+      defaultModelSettings: () => ({
+        describe: () => [{ ns: 'agent-default-model', value: current, revision }],
+        replace: async (_ns, value, expected) => {
+          if (revision !== expected)
+            throw Object.assign(new Error('conflict'), { code: 'SETTINGS_CONFLICT' });
+          current = value as typeof current;
+          revision++;
+        },
+      }),
+    });
+    expect(await bridge.modelCatalog({})).toMatchObject({
+      ok: true,
+      value: { defaultRevision: 5, default: current },
+    });
+    const route = { provider: 'official', model: 'new', reasoningEffort: 'high' };
+    expect(
+      await bridge.onboardingModel({
+        route,
+        globalDefault: true,
+        expectedRevision: 0,
+        expectedDefaultRevision: 5,
+      }),
+    ).toEqual({ ok: true, value: { revision: 6 } });
+    expect(current).toEqual(route);
+    expect(core.registry.get('fixed')!.modelPlan!.orchestrator).toEqual(fixed);
+    duringValidate = () => {
+      revision++;
+    };
+    expect(
+      await bridge.onboardingModel({
+        route: fixed,
+        globalDefault: true,
+        expectedRevision: 0,
+        expectedDefaultRevision: 6,
+      }),
+    ).toMatchObject({ ok: false, error: { code: 'stale-setting' } });
+    expect(current).toEqual(route);
+  });
+});
+
+it('rechecks both model preset and Bot revisions after asynchronous catalog validation', async () => {
+  await withCore(async (core) => {
+    core.registry.create({ slug: 'target', displayName: 'Target' });
+    const route = { provider: 'official', model: 'fast' };
+    const preset = core.modelPresets.create({
+      name: 'Default',
+      orchestrator: route,
+      assignmentDefault: route,
+    });
+    let changed = false;
+    const bridge = createBridgeMethods({
+      ...core,
+      modelCatalog: {
+        list: async () => [],
+        validate: async () => {
+          if (changed) return;
+          changed = true;
+          core.modelPresets.update(preset.id, {
+            name: 'Changed',
+            orchestrator: route,
+            assignmentDefault: route,
+            expectedRevision: 1,
+          });
+        },
+      },
+    });
+    expect(
+      await bridge.modelPresetApply({
+        slug: 'target',
+        presetId: preset.id,
+        expectedRevision: 0,
+        expectedPresetRevision: 1,
+      }),
+    ).toMatchObject({ ok: false, error: { code: 'stale-setting' } });
+    expect(core.registry.get('target')!.modelPlan).toBeUndefined();
+    expect(
+      await bridge.modelPresetApply({
+        slug: 'target',
+        presetId: preset.id,
+        expectedRevision: 0,
+        expectedPresetRevision: 2,
+      }),
+    ).toMatchObject({ ok: true, value: { plan: { revision: 1 } } });
+    expect(
+      await bridge.modelPresetApply({
+        slug: 'target',
+        presetId: preset.id,
+        expectedRevision: 0,
+        expectedPresetRevision: 2,
+      }),
+    ).toMatchObject({ ok: false, error: { code: 'stale-setting' } });
   });
 });

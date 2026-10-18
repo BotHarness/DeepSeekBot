@@ -8,7 +8,9 @@ import type {
   WorkspaceGrantSummary,
 } from './wire';
 
-export type ProfilePart<T> = { status: 'ready'; value: T } | { status: 'failed'; error: string };
+export type ProfilePart<T> =
+  | { status: 'ready'; value: T; staleError?: string }
+  | { status: 'failed'; error: string };
 
 export interface ProfileMemory {
   files: string[];
@@ -30,6 +32,83 @@ export interface BotProfile {
   routines: ProfilePart<BotScheduleSummary[]>;
   files: ProfilePart<WorkspaceGrantSummary[]>;
   activity: ProfilePart<ProfileActivity>;
+}
+
+export interface BotProfileResource {
+  peek(): BotProfile | undefined;
+  refresh(): Promise<BotProfile>;
+}
+
+const profiles = new WeakMap<
+  HostClient,
+  { queries: QueryClient; resources: Map<string, BotProfileResource> }
+>();
+const PROFILE_CACHE_LIMIT = 24;
+
+function keepSuccessful<T>(
+  next: ProfilePart<T>,
+  previous: ProfilePart<T> | undefined,
+): ProfilePart<T> {
+  return next.status === 'failed' && previous?.status === 'ready'
+    ? { ...previous, staleError: next.error }
+    : next;
+}
+
+export function botProfileResource(client: HostClient, bot: ProfileBotRef): BotProfileResource {
+  let owner = profiles.get(client);
+  if (owner === undefined) {
+    owner = {
+      queries: new QueryClient({
+        defaultOptions: { queries: { retry: false, gcTime: 10 * 60 * 1000 } },
+      }),
+      resources: new Map(),
+    };
+    profiles.set(client, owner);
+  }
+  const { queries, resources: cache } = owner;
+  const key = `${bot.slug}:${bot.dmChannelId ?? ''}`;
+  const queryKey = ['bot-profile', key];
+  const existing = cache.get(key);
+  if (existing !== undefined) {
+    cache.delete(key);
+    cache.set(key, existing);
+    return existing;
+  }
+  let pending: Promise<BotProfile> | undefined;
+  const resource: BotProfileResource = {
+    peek: () => queries.getQueryData<BotProfile>(queryKey),
+    refresh() {
+      pending ??= queries
+        .fetchQuery({
+          queryKey,
+          staleTime: 0,
+          queryFn: async () => {
+            const next = await loadBotProfile(client, bot);
+            const value = queries.getQueryData<BotProfile>(queryKey);
+            return {
+              identity: keepSuccessful(next.identity, value?.identity),
+              memory: keepSuccessful(next.memory, value?.memory),
+              routines: keepSuccessful(next.routines, value?.routines),
+              files: keepSuccessful(next.files, value?.files),
+              activity: keepSuccessful(next.activity, value?.activity),
+            };
+          },
+        })
+        .finally(() => {
+          pending = undefined;
+        });
+      return pending;
+    },
+  };
+  cache.set(key, resource);
+  if (cache.size > PROFILE_CACHE_LIMIT) {
+    const oldest = cache.keys().next().value;
+    if (oldest !== undefined) {
+      cache.delete(oldest);
+      queries.removeQueries({ queryKey: ['bot-profile', oldest], exact: true });
+    }
+  }
+  return resource;
 }
 
 const SOUL = 'SOUL.md';
@@ -142,3 +221,4 @@ export async function loadBotProfile(client: HostClient, bot: ProfileBotRef): Pr
 export function botChannels(roster: RosterView | undefined, slug: string): RosterChannel[] {
   return roster?.channels.filter((channel) => channel.members.includes(slug)) ?? [];
 }
+import { QueryClient } from '@tanstack/react-query';

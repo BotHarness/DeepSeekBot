@@ -1,5 +1,11 @@
 # Desktop Activity Center: one idle PersonaBot
 
+This Overview UI was retired by #2026. The instructions and original behavior ID below
+are historical evidence only; running the old journey on the new UI is expected to fail,
+not evidence of an unavailable Host or idle PersonaBot regression. Use
+[inline approval verification](activity-inline-approval.md) for the current entry.
+The Host activity readers remain available independently of the retired Overview.
+
 ## Sub-features
 
 - Behavior ID: `desktop.activity-center.idle-personabot`.

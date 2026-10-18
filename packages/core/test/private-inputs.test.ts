@@ -850,12 +850,12 @@ describe('private input native authority and reference contract', () => {
 
   it('checks the actual Remote invocation peer rather than a Client-supplied Owner', async () => {
     const f = await fixture();
-    const operator = {};
-    f.ctx.provide('connection', { operator });
     const remote = registerBridge(f.ctx, {} as BridgeMethods, f.owner);
     expect(() => remote.privateInputStatus('dm-ada', 'missing')).toThrow(/authenticated Owner/);
     const forged = Object.create(remote) as typeof remote;
-    Object.defineProperty(forged, 'ctx', { value: f.ctx.extend({ invocation: { peer: {} } }) });
+    Object.defineProperty(forged, 'ctx', {
+      value: f.ctx.extend({ invocation: { peer: { principal: { kind: 'guest' } } } }),
+    });
     expect(() => forged.privateInputStatus('dm-ada', 'missing')).toThrow(/authenticated Owner/);
     for (const method of [
       'privateAccountStatus',

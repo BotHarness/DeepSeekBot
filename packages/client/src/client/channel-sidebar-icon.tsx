@@ -25,6 +25,57 @@
 import { createElement, type ReactElement } from 'react';
 
 const glyphs: Record<string, readonly [string, Record<string, string | number>][]> = {
+  'chevron-right': [['path', { d: 'm9 18 6-6-6-6' }]],
+  house: [['path', { d: 'm3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z' }]],
+  hash: [
+    ['line', { x1: '4', x2: '20', y1: '9', y2: '9' }],
+    ['line', { x1: '4', x2: '20', y1: '15', y2: '15' }],
+    ['line', { x1: '10', x2: '8', y1: '3', y2: '21' }],
+    ['line', { x1: '16', x2: '14', y1: '3', y2: '21' }],
+  ],
+  'messages-circle': [
+    [
+      'path',
+      {
+        d: 'M19.95 10.05a7 7 0 011.412 7.872 1 1 0 00-.058.787l.675 2.089a1 1 0 01-1.236 1.168l-2.155-.631a1 1 0 00-.745.06 7 7 0 01-7.793-1.445',
+      },
+    ],
+    [
+      'path',
+      {
+        d: 'M2.696 12.708a1 1 0 00-.058-.785 7 7 0 113.518 3.473 1 1 0 00-.744-.061l-2.155.63a1 1 0 01-1.236-1.167z',
+      },
+    ],
+  ],
+  'text-quote': [
+    ['path', { d: 'M17 5H3' }],
+    ['path', { d: 'M21 12H8' }],
+    ['path', { d: 'M21 19H8' }],
+    ['path', { d: 'M3 12v7' }],
+  ],
+  brain: [
+    ['path', { d: 'M12 18V5' }],
+    ['path', { d: 'M15 13a4.17 4.17 0 0 1-3-4 4.17 4.17 0 0 1-3 4' }],
+    ['path', { d: 'M17.598 6.5A3 3 0 1 0 12 5a3 3 0 1 0-5.598 1.5' }],
+    ['path', { d: 'M17.997 5.125a4 4 0 0 1 2.526 5.77' }],
+    ['path', { d: 'M18 18a4 4 0 0 0 2-7.464' }],
+    ['path', { d: 'M19.967 17.483A4 4 0 1 1 12 18a4 4 0 1 1-7.967-.517' }],
+    ['path', { d: 'M6 18a4 4 0 0 1-2-7.464' }],
+    ['path', { d: 'M6.003 5.125a4 4 0 0 0-2.526 5.77' }],
+  ],
+  file: [
+    [
+      'path',
+      {
+        d: 'M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z',
+      },
+    ],
+    ['path', { d: 'M14 2v5a1 1 0 0 0 1 1h5' }],
+  ],
+  terminal: [
+    ['path', { d: 'M12 19h8' }],
+    ['path', { d: 'm4 17 6-6-6-6' }],
+  ],
   archive: [
     ['rect', { width: '20', height: '5', x: '2', y: '3', rx: '1' }],
     ['path', { d: 'M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8' }],
@@ -125,6 +176,10 @@ const glyphs: Record<string, readonly [string, Record<string, string | number>][
         d: 'm16.24 7.76-1.804 5.411a2 2 0 0 1-1.265 1.265L7.76 16.24l1.804-5.411a2 2 0 0 1 1.265-1.265z',
       },
     ],
+  ],
+  gauge: [
+    ['path', { d: 'm12 14 4-4' }],
+    ['path', { d: 'M3.34 19a10 10 0 1 1 17.32 0' }],
   ],
   'user-check': [
     ['path', { d: 'm16 11 2 2 4-4' }],
@@ -504,7 +559,7 @@ export function ChannelSidebarIcon({
   size = 16,
 }: {
   name?: string | undefined;
-  size?: number;
+  size?: number | string;
 }): ReactElement {
   const nodes = Object.hasOwn(glyphs, name) ? glyphs[name]! : glyphs['panels-top-left']!;
   return (

@@ -1,13 +1,14 @@
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
+import { TextInput } from '../../src/ui/primitives/system-text';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
   ActivityIndicator,
   Keyboard,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
-  TextInput,
   View,
+  type ViewInstance,
+  type TextInputInstance,
 } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -45,10 +46,10 @@ export default function BrowserScreen() {
     () => viewer?.getState() ?? idle,
   );
   const [mode, setMode] = useState<BrowserTouchMode>('direct');
-  const keyboard = useRef<TextInput>(null);
+  const keyboard = useRef<TextInputInstance>(null);
   const [typing, setTyping] = useState(false);
 
-  const mount = useMounted<View>(() => {
+  const mount = useMounted<ViewInstance>(() => {
     viewer?.start();
     const shown = Keyboard.addListener('keyboardDidShow', () => setTyping(true));
     const hidden = Keyboard.addListener('keyboardDidHide', () => setTyping(false));
@@ -114,10 +115,7 @@ export default function BrowserScreen() {
         </View>
       </View>
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
         <View ref={mount} style={{ flex: 1 }}>
           {live ? (
             <BrowserStage

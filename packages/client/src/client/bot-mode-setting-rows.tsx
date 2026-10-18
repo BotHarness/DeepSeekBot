@@ -51,6 +51,7 @@ const SEND_KEY_OPTIONS: readonly {
   newline: readonly ShortcutKey[];
 }[] = [
   { id: 'enter', send: ['Enter'], newline: ['Shift', 'Enter'] },
+  { id: 'shift-enter', send: ['Shift', 'Enter'], newline: ['Enter'] },
   { id: 'mod-enter', send: ['Mod', 'Enter'], newline: ['Enter'] },
 ];
 

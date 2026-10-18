@@ -25,4 +25,4 @@ Preconditions: `launch` reported a model credential, `doctor` passes, and the de
 - The bottom-right Window Companion covers the `Send` button at 1440×900, so `--click Send` lands on the companion. Press Enter instead.
 - `--wait-text` ignores the composer value but matches the sent Human message. A reply word that also appears in the prompt passes before the Bot answers.
 - On a keyless Host the message sends and the session fails. That is a missing precondition, not a product failure.
-- `--click-text "DeepSeek Bot"` matches the conversation header chip last and opens the Bot profile popover. The DM is already selected on first entry.
+- `--click-text "DeepSeek Bot"` matches the conversation header chip last and opens the conversation menu (View profile goes directly to the full profile). The DM is already selected on first entry.

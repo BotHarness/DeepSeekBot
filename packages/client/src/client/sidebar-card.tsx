@@ -6,16 +6,19 @@ export function SidebarCardList({
   label,
   className,
   listRef,
+  flush = false,
   children,
 }: {
   label?: string | undefined;
   className?: string | undefined;
   listRef?: Ref<HTMLUListElement> | undefined;
+  flush?: boolean | undefined;
   children: ReactNode;
 }): ReactElement {
   return (
     <ul
       ref={listRef}
+      data-flush={flush || undefined}
       className={className === undefined ? 'bh-card-list' : 'bh-card-list ' + className}
       aria-label={label}
     >

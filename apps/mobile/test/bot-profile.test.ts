@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   botChannels,
+  botProfileResource,
   loadBotProfile,
   loadMemoryFile,
   loadMemoryFiles,
@@ -40,6 +41,48 @@ function client(fake: FakeHost) {
 }
 
 describe('Bot profile', () => {
+  it('shows the previous profile during refresh, deduplicates reads and isolates Hosts', async () => {
+    const fake = host();
+    const connection = client(fake);
+    const bot = { slug, dmChannelId: dm };
+    const resource = botProfileResource(connection, bot);
+    expect(resource.peek()).toBeUndefined();
+    const first = await resource.refresh();
+    expect(botProfileResource(connection, bot)).toBe(resource);
+    let release: (() => void) | undefined;
+    fake.methods.set(
+      'scheduleList',
+      () =>
+        new Promise((done) => {
+          release = () => done({ schedules: [] });
+        }),
+    );
+    const refresh = resource.refresh();
+    expect(resource.refresh()).toBe(refresh);
+    expect(resource.peek()).toBe(first);
+    await new Promise((done) => setTimeout(done, 0));
+    expect(release).toBeDefined();
+    release?.();
+    expect((await refresh).routines).toEqual({ status: 'ready', value: [] });
+    expect(botProfileResource(client(host()), bot).peek()).toBeUndefined();
+    expect(
+      botProfileResource(connection, { slug: 'another', dmChannelId: 'other' }).peek(),
+    ).toBeUndefined();
+  });
+
+  it('keeps last successful sections with an explicit stale error when refresh fails', async () => {
+    const fake = host();
+    const resource = botProfileResource(client(fake), { slug, dmChannelId: dm });
+    const first = await resource.refresh();
+    fake.methods.set('memorySnapshot', () => {
+      throw new Error('offline');
+    });
+    const next = await resource.refresh();
+    expect(next.memory).toEqual({ ...first.memory, staleError: 'offline' });
+    fake.methods.set('memorySnapshot', recorded('memorySnapshot'));
+    expect((await resource.refresh()).memory).toEqual(first.memory);
+  });
+
   it('reads the Soul, Core Memory, Memory files, routines and shared folders through the DM', async () => {
     const fake = host();
     const profile = await loadBotProfile(client(fake), { slug, dmChannelId: dm });

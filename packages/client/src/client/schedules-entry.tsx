@@ -1,3 +1,4 @@
+import { PanelEmptyState } from './ds/empty-state.js';
 import { useId, useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import {
@@ -892,12 +893,16 @@ export function BotSchedulesEntry({ botSlug, actions, t }: ChannelSidebarEntryPr
         </p>
       )}
       {schedules !== undefined && schedules.length === 0 ? (
-        <div className="bh-schedule-empty">
-          <p className="bh-schedule-muted">{t('schedule.empty')}</p>
-          <Button variant="outline" size="sm" onClick={() => requestCreate(botSlug)}>
-            {t('schedule.add')}
-          </Button>
-        </div>
+        <PanelEmptyState
+          icon="alarm-clock"
+          action={
+            <Button variant="outline" size="sm" onClick={() => requestCreate(botSlug)}>
+              {t('schedule.add')}
+            </Button>
+          }
+        >
+          {t('schedule.empty')}
+        </PanelEmptyState>
       ) : null}
       {schedules === undefined || schedules.length === 0 ? null : (
         <SidebarCardList label={t('entry.schedules')}>

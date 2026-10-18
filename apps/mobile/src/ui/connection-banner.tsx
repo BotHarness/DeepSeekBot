@@ -1,4 +1,5 @@
-import { Pressable, Text, View } from 'react-native';
+import { Text } from './primitives/system-text';
+import { Pressable, View } from 'react-native';
 
 import type { ConnectionState } from '../host/client';
 import { t } from './strings';

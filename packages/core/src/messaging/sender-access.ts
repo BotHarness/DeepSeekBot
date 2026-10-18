@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { cloudMessageAllowed } from '../cloud/admission.js';
 import type { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
 import { readMessagingIdentity } from './identity.js';
@@ -460,6 +461,7 @@ export function senderAdmissionAllowed(
   botSlug: string,
   event: Omit<MessagingInboundEvent, 'text'>,
 ): boolean {
+  if (event.channel === 'tob') return cloudMessageAllowed(db, botSlug, event, false);
   return (
     !chatPairingApplies(event) ||
     !readSenderPolicy(db, botSlug).restricted ||
@@ -517,6 +519,7 @@ export function senderContextAllowed(
   botSlug: string,
   event: Omit<MessagingInboundEvent, 'text'>,
 ): boolean {
+  if (event.channel === 'tob') return cloudMessageAllowed(db, botSlug, event, true);
   if (senderAdmissionAllowed(db, botSlug, event)) return true;
   if (event.channel !== 'feishu' || event.conversation.kind !== 'group' || event.mentionedAccount)
     return false;
@@ -579,7 +582,6 @@ export function sourceSenderAllowed(
   sourceEventId: string,
   context = false,
 ): boolean {
-  if (!readSenderPolicy(db, botSlug).restricted) return true;
   const row = db
     .prepare(
       "SELECT payload_json FROM source_events WHERE source_event_id = ? AND source_kind = 'bridge-message'",
@@ -589,6 +591,8 @@ export function sourceSenderAllowed(
   const event = (
     JSON.parse(row.payload_json) as { external?: { event?: Omit<MessagingInboundEvent, 'text'> } }
   ).external?.event;
+  if (event?.channel === 'tob') return cloudMessageAllowed(db, botSlug, event, context);
+  if (!readSenderPolicy(db, botSlug).restricted) return true;
   return (
     !!event &&
     (context

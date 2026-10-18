@@ -569,3 +569,8 @@ describe('Workspace Grant execution boundary', () => {
     );
   });
 });
+
+it('does not keep retired Tob management tools in the Bot tool policy', () => {
+  expect(isDshGovernedTool('tob_assignment_limit_read')).toBe(true);
+  expect(isDshGovernedTool('tob_assignment_limit_set')).toBe(true);
+});

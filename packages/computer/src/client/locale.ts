@@ -82,7 +82,7 @@ export const zh = {
   'entry.updated': '最后更新 {seconds}s 前',
   'entry.setup':
     '未检测到容器运行时。任选其一安装后重试：\n\nColima（推荐，MIT）：\n  brew install colima docker\n  brew services start colima\n\n或 Docker Desktop：https://www.docker.com/products/docker-desktop/',
-  'section.title': 'Computer',
+  'section.title': '电脑控制',
   'section.description': '操作目标与 Computer 权限',
   'rows.exportDir.title': 'Computer 导出目录',
   'rows.exportDir.current': '当前：{dir}',

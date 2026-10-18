@@ -1,4 +1,4 @@
-export const paletteSource = '@deepseek-ai/dsh-client-ui-theme@0.2.0-rc.2';
+export const paletteSource = '@deepseek-ai/dsh-client-ui-theme@0.2.1-rc.2';
 
 export const palette = {
   light: {

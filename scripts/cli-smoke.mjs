@@ -133,7 +133,7 @@ export function runCliSmoke({
       for (const botId of owned.bots) {
         const preview = command(['bot-delete-preview', botId]);
         const result = command(
-          ['bot-delete-confirm', botId, '--confirmation-stdin'],
+          ['bot-delete-confirm', botId, '--confirmation-stdin', '--confirm'],
           JSON.stringify({ token: preview.preview.token }),
         );
         if (result.deletion?.phase !== 'complete' || result.deletion?.memory !== 'retained')

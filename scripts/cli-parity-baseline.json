@@ -4,10 +4,8 @@
     "channelReadPosition": "UI-only: Web unread divider position for one viewer",
     "composerIdentity": "UI-only: names the identity the Web composer shows; send already posts as the Host owner",
     "composerValidate": "UI-only: pre-send check for the Web composer's attachments and reply target; send runs the same Host checks",
-    "deletionMemoryFolder": "#1690",
     "messageAttachmentTarget": "UI-only: resolves a local file path so the Web UI can open or reveal an attachment in the OS",
     "onboarding": "UI-only: Web tutorial progress and steps",
-    "onboardingModel": "UI-only: the Web tutorial's model step; model-preset-apply and model-plan configure models from the CLI",
     "workspaceFileTarget": "UI-only: resolves a Workspace folder path so the Web UI can open it in the OS; grants lists the paths"
   },
   "routes": {

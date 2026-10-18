@@ -866,7 +866,9 @@ export function apply(
           target: target(),
           viewerUrl:
             runtime.viewerUrl?.() ??
-            (target() === 'local' && runtime.isRunning() ? localViewerUrl(slug) : null),
+            (target() === 'local' && runtime.isRunning() && tabId !== undefined
+              ? localViewerUrl(slug)
+              : null),
           provisioning: runtimes.installProgress(slug) ?? null,
         });
       },

@@ -1,15 +1,31 @@
 {
   "version": 1,
-  "auditedBase": "fd337d929a5dbd794af69aa96d40041c4287c899",
+  "auditedBase": "1d1f8ac0cfeb26a8f3bf3a04550e6b92cee52bd9",
   "boundary": "All scripts/e2e-*.mjs files and all current feature-map documents, augmented by implemented Client/CLI/mobile source entry points. Behavior rows group related acceptance paths; they are not an exhaustive product behavior denominator. Planned unmerged #1954 work and packaged/restart identity promises are excluded.",
   "behaviors": [
     {
+      "id": "desktop.sessions.bot-folders",
+      "label": "Group native Sessions under DeepSeekBot and Bot-avatar subgroups without changing execution directories",
+      "source": "packages/client/src/client/bot-session-folders.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/bot-session-folders.md",
+      "task": 1997,
+      "gap": null
+    },
+    {
+      "id": "desktop.sessions.unified",
+      "label": "Follow Channel scope in one Sessions panel and migrate legacy Work layouts and shortcuts",
+      "source": "packages/client/src/client/sessions-entry.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/bot-mode-dock.md",
+      "task": 2034,
+      "gap": null
+    },
+    {
       "id": "desktop.activity-center.idle-personabot",
-      "label": "Show one idle PersonaBot with no sessions or actions",
+      "label": "Historical Overview idle PersonaBot (presentation retired by #2026)",
       "source": "packages/client/src/client/activity-center-panel.tsx",
       "guide": ".agents/skills/verify-deepseekbot/features/activity-center-idle.md",
       "task": 1972,
-      "gap": null
+      "gap": "The Overview entry and Show idle Bots control were removed by #2026. The retained recipe and script document historical behavior and cannot qualify current Activity Center UI."
     },
     {
       "id": "desktop.bot-mode.entry",
@@ -124,6 +140,14 @@
       "gap": null
     },
     {
+      "id": "phone.android-interactions",
+      "label": "Android profile/settings content scrolls before dismissal and chat composer follows keyboard frames",
+      "source": "apps/mobile/src/ui/primitives/keyboard-frame.android.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-android-interactions.md",
+      "task": 2021,
+      "gap": null
+    },
+    {
       "id": "phone.notifications",
       "label": "Switch Host, configure notifications and route simulated push; physical delivery separate",
       "source": "apps/mobile/src/host/push-routing.ts",
@@ -229,11 +253,11 @@
     },
     {
       "id": "desktop.memory.read-restore",
-      "label": "Browse current/history/diff Memory and recover safely",
+      "label": "Disposable Memory historical read, descendant restore and stale-head refusal",
       "source": "packages/client/src/client/memory-recovery.tsx",
-      "guide": null,
+      "guide": ".agents/skills/verify-deepseekbot/features/memory-restore.md",
       "task": 1975,
-      "gap": "No maintained feature-map recipe binds this behavior to setup, user actions, authoritative read, cleanup and failure observation. Historical scripts below are candidates, not qualified paths."
+      "gap": null
     },
     {
       "id": "desktop.assignment.lifecycle",
@@ -341,11 +365,11 @@
     },
     {
       "id": "desktop.browser.lifecycle",
-      "label": "Enable/start/stop Browser, profile isolation/reset, pause/takeover/resume",
+      "label": "Broader Browser lifecycle: profile isolation/reset, pause/takeover/resume and alternate targets",
       "source": "packages/core/src/bots/cli-browser-computer.ts",
       "guide": null,
       "task": 1976,
-      "gap": "No maintained feature-map recipe binds this behavior to setup, user actions, authoritative read, cleanup and failure observation. Historical scripts below are candidates, not qualified paths."
+      "gap": "The separate default local open/observe/stop row does not qualify profile isolation/reset, takeover/resume or alternate targets."
     },
     {
       "id": "desktop.browser.tools",
@@ -434,9 +458,87 @@
       "guide": ".agents/skills/verify-deepseekbot/features/im-conversation-mirroring.md",
       "task": 1983,
       "gap": null
+    },
+    {
+      "id": "desktop.grants.temporary-read-revoke",
+      "label": "Authorize one temporary Workspace, read through direct attachment import, explicitly revoke and refuse the same read",
+      "source": "packages/core/src/workspaces/grants.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/workspace-grant.md",
+      "task": 1974,
+      "gap": null
+    },
+    {
+      "id": "desktop.browser.open-observe-stop",
+      "label": "Default local Browser: one fixture tab, observation, stop and Access-off refusal",
+      "source": "packages/browser/src/client/index.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/browser-lifecycle.md",
+      "task": 1976,
+      "gap": null
+    },
+    {
+      "id": "desktop.composer.footer",
+      "label": "Customize footer visibility, order and alignment; opt into bounded reply speed",
+      "source": "packages/client/src/client/composer-context-bar.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/composer-footer.md",
+      "task": 1958,
+      "gap": null
+    },
+    {
+      "id": "orchestrator-model-switch",
+      "label": "Orchestrator-only quick model switching with Assignment inheritance",
+      "source": "packages/client/src/client/dm-composer-context.tsx",
+      "task": 2000,
+      "guide": ".agents/skills/verify-deepseekbot/features/orchestrator-model-switch.md"
+    },
+    {
+      "id": "desktop.activity-center.inline-tool-approval",
+      "label": "Decide Tool approvals inline on the full page and Dock, with below-card context and retry",
+      "source": "packages/client/src/client/activity-approval.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/activity-inline-approval.md",
+      "task": 2026,
+      "gap": null
+    },
+    {
+      "id": "desktop.tob.home",
+      "label": "Home model setup and protected Tob DM with approved global concurrency change",
+      "source": "packages/client/src/client/home-panel.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/tob-home.md",
+      "task": 2082,
+      "gap": null
+    },
+    {
+      "id": "desktop.group.send-review",
+      "label": "Hold stale Group replies and revise or drop with full paired history review",
+      "source": "packages/core/src/channels/send-review.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/group-send-review.md",
+      "task": 2053,
+      "gap": null
+    },
+    {
+      "id": "phone.chat-backgrounds",
+      "label": "Device-local chat backgrounds and transactional native editor",
+      "source": "apps/mobile/src/host/chat-background.ts",
+      "task": 2118,
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-chat-backgrounds.md"
+    },
+    {
+      "id": "cloud.host.connections",
+      "label": "Import a cloud Agent into an explicit Host, bind a PersonaBot and preserve source identity on replay",
+      "source": "packages/core/src/cloud/provider.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/cloud-host-connections.md",
+      "task": 2155,
+      "gap": null
     }
   ],
   "scripts": [
+    {
+      "path": "scripts/e2e-bot-session-folders.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.sessions.bot-folders"],
+      "reason": "Prepared isolated Host with explicit Bot-owned roots; verifies product icon, Bot avatars, independent folding, reload, native navigation and retained cwd, with optional owned-Host restart.",
+      "task": 1997,
+      "sha256": "df0d4696321bab94ea2364c4c32b768fef20104757d2321bd68e73fdc87bb46b"
+    },
     {
       "path": "scripts/e2e-activity-entry.mjs",
       "category": "needs-repair",
@@ -726,6 +828,14 @@
       "sha256": "fd70f45c2366250c615887b2d19d3aa4642bbef668f9cf6e941adbb6e2a18e54"
     },
     {
+      "path": "scripts/e2e-browser-lifecycle.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.browser.open-observe-stop"],
+      "task": 2012,
+      "reason": "One disposable Bot on an isolated Host; deterministic loopback fixture; real panel lifecycle and same-owner CLI/direct tools; cold start must pass without reconnect; no model.",
+      "sha256": "f2ecf326adba03de7c862189de7ac24e751b760319168de1ebb02fc6fa5b5e7c"
+    },
+    {
       "path": "scripts/e2e-browser-multitab.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.browser.lifecycle"],
@@ -995,15 +1105,15 @@
       "behaviors": ["desktop.usage"],
       "reason": "Existing execution fixture Bot required; browser period/model/child filtering agrees with Profile usage reads.",
       "task": 1967,
-      "sha256": "83a34c03eceed0933835353a07768fbd009204ca065977fe242acc3007cb3bdf"
+      "sha256": "1a41b06be4aa8e3107c74868efb0e99bb9dd87017955fc2b3b15702566bbf2c9"
     },
     {
       "path": "scripts/e2e-fresh-profile-install.mjs",
       "category": "historical-regression",
       "behaviors": ["product.fresh-install"],
-      "reason": "Exact prepared artifact manifest and fresh output directory; installs/restarts real Host, creates Bot/DM; no Client check.",
+      "reason": "Exact prepared artifacts and fresh Profile; installs/restarts real Host, rejects native preflight plugin disablement, creates Bot/DM; no Client check.",
       "task": 1980,
-      "sha256": "8cee7c889b55c115cba0c17d0057a9a79a60e1aa643051e35c80509cbf1eec5b"
+      "sha256": "15d101840fae11397b69a8b516ac992bfcd3221dde767ffdf1040e234a6cc16b"
     },
     {
       "path": "scripts/e2e-grant-attention.mjs",
@@ -1019,7 +1129,7 @@
       "behaviors": ["desktop.group.activity"],
       "reason": "Task group and live model; measures header/profile state and overflow against Host activity snapshot.",
       "task": 1967,
-      "sha256": "e9a64187ae6fda5f1bd01451591c14448ecec242e4d57bf1cb0a82b26bc343be"
+      "sha256": "102a56f34894cbd603700a35e3221075dee85b6cc0e831410bcf06c92221e64d"
     },
     {
       "path": "scripts/e2e-group-assignment-activity.mjs",
@@ -1027,7 +1137,7 @@
       "behaviors": ["desktop.group.activity", "desktop.assignment.lifecycle"],
       "reason": "#124 real native timer and Group reply; layout and successful Assignment result precede committed completion.",
       "task": 1967,
-      "sha256": "44be2db1cc61a329173fed19dba54dd3c0c6ebc8a4bde2b34a24a999e72f8147"
+      "sha256": "594d95d7c486377ecd72beaf45fd4654470dca1042a2e547b5f94de2b4790d1d"
     },
     {
       "path": "scripts/e2e-group-assignment-proof.mjs",
@@ -1083,7 +1193,7 @@
       "behaviors": ["desktop.group.activity"],
       "reason": "#124 live tool and model; full/reduced motion matrix, overflow and completion ordering in Group header/profile.",
       "task": 1967,
-      "sha256": "e947294f11a38bd60224d1fa73dfb60fff0f73cade1e9181f7175b4cef1a6244"
+      "sha256": "f03dc611942e8d4d0aa0157d438b53022cbbe5f1ea7be3c1e7c74fab367b063b"
     },
     {
       "path": "scripts/e2e-group-motion-proof.mjs",
@@ -1099,7 +1209,7 @@
       "behaviors": ["desktop.group.manage"],
       "reason": "Task Group messages; aggregate counts and heatmap, reject DM misuse and render Group identity.",
       "task": 1967,
-      "sha256": "7f152651c5d6f9cc9a9d8582c105d0d23437aca661cb63560d184982102a9a03"
+      "sha256": "4be71ce14cb8c48e223699c5d971a75f4305440bd789c16e6a49284b7af541bb"
     },
     {
       "path": "scripts/e2e-group-shell-proof.mjs",
@@ -1191,11 +1301,11 @@
     },
     {
       "path": "scripts/e2e-inbox-tool-approval.mjs",
-      "category": "historical-regression",
-      "behaviors": ["desktop.inbox.requests"],
-      "reason": "#550 real native tool approvals; one allow/reject audit, other Bot independence and stale decision refusal.",
-      "task": 1967,
-      "sha256": "90d2b8495c708a65b17dcf5ecc52c196809ac2cbc6b3130526d67f89b182f6de"
+      "category": "mapped",
+      "behaviors": ["desktop.activity-center.inline-tool-approval"],
+      "reason": "Task-owned isolated Host with two real pending native requests; validates exact harmless marker commands, page failed-response retry/allow/native file effect, Dock reject, context, focus safety, canonical audit and light/dark evidence. Does not qualify other request kinds or multi-window stale UI.",
+      "task": 2026,
+      "sha256": "6145ee06184f09742dc846febda0d6615da9bc4f4a81fab2de1e984979b20268"
     },
     {
       "path": "scripts/e2e-informational-attention.mjs",
@@ -1214,14 +1324,6 @@
       "sha256": "97a5bdbec53537520a529cc2db50f0f75d4682f1fd61740a1f8c8380d49c474c"
     },
     {
-      "path": "scripts/e2e-llm-scenarios.mjs",
-      "category": "mapped",
-      "behaviors": ["desktop.dm.reply", "desktop.group.mention"],
-      "reason": "verify-app instance/optional owned launch and real model scenarios; DM reply and mention wake, model-specific results only.",
-      "task": 1967,
-      "sha256": "c6627745e3c9595da42c280bcc968686dd545fb8ed9bc901d70012bc41ceebbc"
-    },
-    {
       "path": "scripts/e2e-local-computer-idle.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.computer.native"],
@@ -1236,6 +1338,14 @@
       "reason": "Native fixture PID and model; captures real image/readback, induces driver failure and checks Access-off Turn; no shared device implied.",
       "task": 1977,
       "sha256": "229f70c342aadb16e985b0e8f8df2760edc6a4f742967699ca190a635ba2f1d4"
+    },
+    {
+      "path": "scripts/e2e-memory-restore.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.memory.read-restore"],
+      "reason": "Own isolated Host; two owner-saved versions, real Web/CLI read, descendant restore and stale-head refusal; immutable evidence; retains Memory.",
+      "task": 1975,
+      "sha256": "dfe816b10b04620373e7cbbb33926462bc6bf67914a71d2fc23c75d3bf0aaef8"
     },
     {
       "path": "scripts/e2e-message-inline-actions.mjs",
@@ -1289,17 +1399,33 @@
       "path": "scripts/e2e-mobile-routines-web.mjs",
       "category": "mapped",
       "behaviors": ["phone.routines"],
-      "reason": "Own task Host and Expo Web export; routine mutations/history in Web, scheduler/model and native layers separate.",
-      "task": 1967,
-      "sha256": "e29724093fff370ef0a621c5784ec4715e46b3eb24b176b3349a10a653cf2f13"
+      "reason": "Own task Host and Expo Web export; verifies routine mutation/history, explicit selected routine IDs and preview dates against the Host. Drives visible controls after return completes, pins selector locale and formats expected dates in the browser; uses the Windows package-manager adapter. Native gestures and scheduler/model execution are separate.",
+      "task": 2028,
+      "sha256": "48702c190e4584f5265e7fe8832940b344d8d7b3d58c0c0dfd9607b8e3cf96f0"
+    },
+    {
+      "path": "scripts/e2e-mobile-android-interactions.mjs",
+      "category": "mapped",
+      "behaviors": ["phone.android-interactions"],
+      "reason": "Matching Windows Android lease only: profile/settings content-first scroll and handle gestures, dark-theme 30fps composer motion, and focused form/input action clearance against a real soft IME. Form mode accepts prepared sheets and refuses hidden/floating keyboards; it does not submit drafts. Scroll selection excludes the dimmed chat. Prepared QA surface and native build required; FFmpeg for motion only; no model or iOS claim.",
+      "task": 2028,
+      "sha256": "d35b879777ac522e4ba66a218a53f287c36e78258dd252edae43fd5b0a2000dc"
+    },
+    {
+      "path": "scripts/e2e-mobile-pair-android.mjs",
+      "category": "mapped",
+      "behaviors": ["phone.pairing"],
+      "reason": "Queued Windows Android lease only: real IME geometry and, after Human QR/paste pairing, isolated Host device facts plus visible roster across app restart; does not prove Host restart, revoke or notification delivery.",
+      "task": 2021,
+      "sha256": "281deb822273ba865e6a151ff70ce1040e0ee025185020fb26d301cf100cf9da"
     },
     {
       "path": "scripts/e2e-mobile-sim.mjs",
       "category": "mapped",
       "behaviors": ["phone.pairing", "phone.notifications"],
-      "reason": "Shared-device queue only: creates its own Simulator/Metro/two Hosts, resets evidence directory; simulated push is not APNs/FCM; approval model phase optional.",
-      "task": 1967,
-      "sha256": "6c921afffb1506daac494835616d3881b974e4eba5b7b12cac9a9bd7f7018512"
+      "reason": "Shared-device queue only: creates its own Simulator/Metro/two Hosts, resets evidence directory; simulated push is not APNs/FCM; approval model phase optional. SDK 58 cache uses strict native fingerprints, including app-version fields; unit fingerprint checks are not device evidence.",
+      "task": 2020,
+      "sha256": "f78a7b9e9c52d6a813cb1dfccc15c99f85d2f6dda4b6d97e2715828eb53964f6"
     },
     {
       "path": "scripts/e2e-mobile-usage-web.mjs",
@@ -1323,7 +1449,7 @@
       "behaviors": ["desktop.usage", "desktop.model.routing"],
       "reason": "Real model selection and native usage compared with Profile totals and theme/refresh; requires usable catalog route.",
       "task": 1967,
-      "sha256": "45a499b7a200b17a3111e0efa6c61d802eba9829388dc13901323e4a682b9747"
+      "sha256": "74bdf0052bbee85bd3ba8a6fe07891a4bc7191ace208cf9cdfe2698bf0e949df"
     },
     {
       "path": "scripts/e2e-orchestrator-activity.mjs",
@@ -1387,7 +1513,7 @@
       "behaviors": ["desktop.usage"],
       "reason": "Prepared task profile; browser hover tooltip geometry/screenshot only, not model or full usage qualification.",
       "task": 1967,
-      "sha256": "e2771c342d21b6104118c511d3d29d2e7fb422a482808a98193032e317f8307b"
+      "sha256": "44262146478902c348881ebbd88af4e640d13b83d1f08973c013501c38cd4ed1"
     },
     {
       "path": "scripts/e2e-question-attention.mjs",
@@ -1419,7 +1545,7 @@
       "behaviors": ["desktop.usage"],
       "reason": "Prepared real execution Bot and source logs; temporarily removes/restores owned logs to verify retained usage projection.",
       "task": 1967,
-      "sha256": "98acd015f3d03bebd917808347d3003bd9f47da897f2d0a555089b88ca82ccdb"
+      "sha256": "ca929e7b343afddc54d4937b50bd2a11f983bdc2eee99014cc7ad57db9b87f3f"
     },
     {
       "path": "scripts/e2e-roster-live.mjs",
@@ -1484,6 +1610,184 @@
       "reason": "Private launcher/fixture and installed macOS apps; public target guards and browser actions; dispatch alone does not prove native window.",
       "task": 1974,
       "sha256": "22b1dbd5e85b6429fac6f9d27a561b016fe4267a9d29e2f73757c5e3bb733622"
+    },
+    {
+      "path": "scripts/e2e-workspace-grant.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.grants.temporary-read-revoke"],
+      "reason": "Dedicated temporary sample outside Host data; actual Web Grant authorization, direct attachment-import read, explicit CLI revocation, same-read denial and before/after visible evidence. No model/native file tool/Shell security claim.",
+      "task": 1974,
+      "sha256": "4d06c35370b6a936c644e5f662d33644f30201a3203a92f6fbefebb0cefc0cf4"
+    },
+    {
+      "path": "scripts/e2e-panel-workspace.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.bot-mode.entry", "desktop.bot-mode.dock"],
+      "reason": "Runs qualified Web/macOS workspace movement, spacing, shortcut routing, persistence and exit restoration against a real isolated Client. Profile navigation now uses the Messages header icon; no floating chip is expected (#2042). Layout persistence now expects v4; Sessions-specific controls are qualified by the nested journey.",
+      "task": 2049,
+      "sha256": "a2f1074845b99788dafc4e6dace834e8af7e53693dbf7f1e5d29e2fde01d9bf6"
+    },
+    {
+      "path": "scripts/e2e-unified-sessions.mjs",
+      "category": "superseded",
+      "behaviors": ["desktop.sessions.unified", "desktop.bot-mode.dock"],
+      "reason": "Historical flat Sessions journey; replaced by the Messages-owned Sessions slice. Existing scope and shortcut unit tests remain active.",
+      "task": 2049,
+      "sha256": "e957a7921820ac79a58a3fd200f8f9501e29e6bc6ea29b55705694f02d86e9b5",
+      "replacement": "scripts/e2e-channel-sessions.mjs"
+    },
+    {
+      "path": "scripts/e2e-unified-sessions-desktop.mjs",
+      "category": "superseded",
+      "behaviors": ["desktop.sessions.unified", "desktop.bot-mode.dock"],
+      "reason": "Historical flat Sessions journey; replaced by the Messages-owned Sessions slice. Existing scope and shortcut unit tests remain active.",
+      "task": 2049,
+      "sha256": "8c0887eb84b21d0a6b1f2ad725555ce409c5bd0c940630a4bdaa17d7c69efc90",
+      "replacement": "scripts/e2e-channel-sessions-desktop.mjs"
+    },
+    {
+      "path": "scripts/e2e-channel-sessions.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.sessions.unified", "desktop.bot-mode.dock"],
+      "reason": "Real Web old-layout upgrade, same Assignment navigation, nested drag/resize, stable content, per-Channel persistence and native shortcut catalog customization.",
+      "task": 2049,
+      "sha256": "47a783d03f8a622c30f48b9a7f136ee58a02a5681903b376f7b1a5481b80785b"
+    },
+    {
+      "path": "scripts/e2e-channel-sessions-desktop.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.sessions.unified", "desktop.bot-mode.dock"],
+      "reason": "Task-owned macOS dsh-app window with Electron input dispatch for parent/child default and custom shortcuts, reload and Group exclusions.",
+      "task": 2049,
+      "sha256": "5f0146f8cd1ef6c29f7ed59494d22269b442e98532c7ef92912c97ad7ef15460"
+    },
+    {
+      "path": "scripts/e2e-bot-subpanels.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.bot-mode.dock"],
+      "reason": "Real v4 upgrade, three Bot-specific nested panels, per-Channel persistence, stable resizing/drag, context menu and native shortcut catalog.",
+      "task": 2067,
+      "sha256": "f05b410aef7948c1c04636939a3c847dec04451f0c81ba89638d72f13b0339a4"
+    },
+    {
+      "path": "scripts/e2e-browser-computer-subpanels.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.bot-mode.dock"],
+      "reason": "Real v5 Browser/Computer upgrade, stable Bot subpanels, per-Channel state, Group exclusion and shortcuts.",
+      "task": 2069,
+      "sha256": "cf0e8a8bf6e11527b9752df3edc1c4a4537b90b588edfe3765194f3d7321f26a"
+    },
+    {
+      "path": "scripts/e2e-panel-size-persistence.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.bot-mode.dock"],
+      "reason": "Actual global width/height and child ratios across repeated toggles, closed refresh and parent recovery.",
+      "task": 2071,
+      "sha256": "745b8be62c9f4a699bfbcd3d8e9653939bc70da9a0eece7999683b231226463d"
+    },
+    {
+      "path": "scripts/e2e-panel-resize-stability.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.bot-mode.dock"],
+      "reason": "Continuous pointer-held global resize must not snap back; Channel split placement remains fixed across narrow widths on Web and macOS.",
+      "task": 2074,
+      "sha256": "5fb02975e38188c0e2597490f19e323386636df5de18ca5b5bd9b6f134c51a5d"
+    },
+    {
+      "path": "scripts/e2e-nested-channel-panels.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.bot-mode.dock"],
+      "reason": "Nested sibling drops, narrow headers, stable content, per-Channel topology, reload and shortcut recovery on Web and macOS.",
+      "task": 2076,
+      "sha256": "b4c12797d82402e181762bd864acfc4b35a927161f090c2b096af31f26f2d0b9"
+    },
+    {
+      "path": "scripts/e2e-tob-home.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.tob.home"],
+      "reason": "Home model configuration, canonical identity, native Shell CLI discovery/read/write and structured approval/deny/stale through the shared Web/native UI.",
+      "task": 2087,
+      "sha256": "514e694627ffa1b018ddc0ab3eb236b54978965dcaa260a9e0924ab2c6e11c89"
+    },
+    {
+      "path": "scripts/e2e-tob-model-runtime.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.tob.home"],
+      "reason": "Scoped CLI model/runtime discovery and actual Tob approval, denial, stale refusal and settings UI persistence in Web and native Desktop.",
+      "task": 2088,
+      "sha256": "cbd8d9837eb8657672c2ec765f2fd5f8cd7a302dc1950e362d2135cfae01a578"
+    },
+    {
+      "path": "scripts/e2e-tob-bot-management.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.tob.home"],
+      "reason": "Natural Tob creation, profile and optional model changes through rendered approval, completed native Shell turns, canonical identity/Memory/DM replay, deny/protected refusals and separate restart readback on Web and Desktop.",
+      "task": 2089,
+      "sha256": "a0ba72ab479894cab9050ed440c72d32b20330b9694c3d9edcab2dd49183e5f8"
+    },
+    {
+      "path": "scripts/e2e-llm-scenarios.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.dm.reply", "desktop.group.mention"],
+      "reason": "Real model DM/mention scenarios; exact committed DM oracle rejects failure cards; retain full histories and unknown usage for paired send-review evaluation.",
+      "task": 2053,
+      "sha256": "4940ba3a8c8e3892b11e01c959efc874a3e12b16527e076db62345f87b4508d6"
+    },
+    {
+      "path": "scripts/e2e-tob-channel-management.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.tob.home"],
+      "reason": "Natural Tob Group creation and invitation through rendered approval, default automatic acceptance and visible Members; optional invitee-decision opt-out, denial, protected identity and receipt replay/conflict, plus separate same-Profile restart on Web/macOS.",
+      "task": 2090,
+      "sha256": "bef6529005d394eba0f34a2c6e4e5be9d61891501c44b14140ba49fa2c1ec907"
+    },
+    {
+      "path": "scripts/e2e-group-send-review.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.group.send-review"],
+      "reason": "Task-owned isolated paired pilot with whole Group/DM history, silent cancellation, revoked-source continuation check, explicit Inbox completion, versioned multi-turn ingest supplement and complete usage; Human acceptance remains separate. Native export also includes inbox_snooze arguments/results for bounded review and deferred-resume assessment (#2055).",
+      "task": 2053,
+      "sha256": "5215105fca692ef6e1255c47754f3b81dd01ec7a7a8f172c29f43d9595ada3cf"
+    },
+    {
+      "path": "scripts/e2e-group-peer-review.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.group.send-review"],
+      "reason": "Real two-Bot peer-answer triplets with accepted Bi and original B0, full histories and all-Bot usage; missed race windows and Human acceptance remain explicit.",
+      "task": 2054,
+      "sha256": "f39b2cdc6af7be38ee79867702c22a3947bb961a38346afdaf9ed3167f4719d7"
+    },
+    {
+      "path": "scripts/e2e-tob-group-settings.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.tob.home"],
+      "reason": "Natural Tob Group rename, member attention and removal through rendered approval, denial and stale refusal; independent avatar clearing, canonical readback and actual settings/Members UI, plus same-Profile restart on Web/macOS.",
+      "task": 2090,
+      "sha256": "61d1770c1471e8a598df11d385585182082e1c8189b591d0814a15e658a543c0"
+    },
+    {
+      "path": "scripts/e2e-tob-group-decisions.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.tob.home"],
+      "reason": "Natural Tob pending-invitation cancellation and join acceptance/decline through rendered approval, denial and concurrent stale refusal; actual ordinary-Bot selected-Group join preconditions, canonical decision history and Members UI, terminal refusal and Web/macOS restart.",
+      "task": 2090,
+      "sha256": "6998a510585f53ccbe6210f73458fd8c666716df6dbb257c8388f1e345cf916e"
+    },
+    {
+      "path": "scripts/e2e-group-busy-review.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.group.send-review"],
+      "reason": "Real DSH busy-Group triplets with full records and all-Bot costs. v3 bounds outcome time and waits for original, observed and snoozed canonical Inbox responsibility before early settlement; preserves frozen older cohorts, unknown future cost and separate semantic judgment.",
+      "task": 2055,
+      "sha256": "27a142b32d0219d5d7a04f7a6123bfb004881c20a63e8db4a633a96bb05b970b"
+    },
+    {
+      "path": "scripts/e2e-group-responsibility.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.group.send-review"],
+      "reason": "Read-only isolated Profile helper for Group episode completion. Counts all unresolved observed/snoozed Admissions plus the acting original across Channels, excludes unopened silent peer copies, bounds evidence not totals, refuses missing canonical facts.",
+      "task": 2055,
+      "sha256": "03b1f454483c43716fd11e784dee3ffaf08d3b1fc4cea2a15d1ca6ca325de5eb"
     }
   ],
   "native": [

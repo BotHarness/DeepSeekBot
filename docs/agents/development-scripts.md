@@ -4,9 +4,28 @@ Source-file comments were removed under [#449](https://github.com/BotHarness/Bot
 
 Vitest runs test files in parallel workers, one isolated worker per file; Git-backed fixtures each use their own temporary repository. Run `pnpm test` and `pnpm docs:build` sequentially; Vitest cannot coordinate a separately launched docs build.
 
+## Group evaluation completion
+
+`scripts/e2e-group-busy-review.mjs` v3 ends an episode early only after an output or exposed
+revocation, completed interventions, settled responsibility, and 12 seconds of idle, stable
+usage. `scripts/e2e-group-responsibility.mjs` reads the isolated loopback Profile's existing
+database without writing: the acting Bot's original Admission and every episode Bot's
+observed or snoozed Admission must be resolved or ignored. Unopened silent peer copies do
+not owe work. Use fresh Bots per episode; the reader deliberately includes their work across
+Channels, including prelude and DM work. Missing source facts or read errors fail collection
+instead of implying an empty Inbox. The retained pending list is bounded to 100 entries;
+the count and completion decision include all entries.
+
+Keep the 240-second logical outcome cutoff separate from actual stop and final usage
+settlement. A reply before cutoff can be correct while accounting remains censored because
+the original request is still snoozed. Conversely, resolved Admissions do not prove semantic
+completion: the reviewer must read the full Session, Tools and conversations. Preserve older
+frozen cohorts and report any unobserved future cost; never silently replace their protocol
+or treat a preparation reply as the final task outcome.
+
 ## CI test plan
 
-The `verify` workflow runs lint, format, typecheck and build on every pull request. Tests and the docs site build run only where `scripts/ci-plan.mjs` says the change can reach them:
+The `verify` workflow runs lint, format, typecheck, Expo Doctor, repository build and iOS/Android mobile bundle exports on every pull request. The `mobile-export` job uses the frozen workspace lockfile and pinned Node/pnpm toolchain, and must succeed for the required aggregate check to pass. Bundle exports do not replace native compilation or device QA. Tests and the docs site build run only where `scripts/ci-plan.mjs` says the change can reach them:
 
 - **Full**: pushes to `main`, the nightly schedule, manual dispatch, the `ci:full` label, and any pull request that changes a full-run input below. The suite runs in parallel shards.
 - **Affected**: every other pull request runs `vitest related` on its changed files, plus every test-area file that names a changed path as a string (for example a fixture, migration, workflow or script read with `fs` or run as a subprocess) and the import closure of such a named script.
@@ -51,6 +70,7 @@ Run `node scripts/ci-plan.mjs --base origin/main` to print the plan and the exac
 | `apps/docs/**`                                                                                            | Related tests       | Yes       | Docs site                                                    |
 | `apps/presentations/**`                                                                                   | No tests of its own | Yes       | Slides embedded in the docs site                             |
 | `apps/mobile/{app,src,test,scripts}/**`                                                                   | Related tests       |           | Mobile app source, tests and scripts                         |
+| `apps/mobile/modules/**`                                                                                  | No tests of its own |           | Local Expo modules, checked by Android native unit tests     |
 | `apps/mobile/{app.json,eas.json,metro.config.js}`                                                         | Related tests       |           | Mobile app config                                            |
 | `apps/mobile/locales/**`                                                                                  | Related tests       |           | Translated iOS permission prompts                            |
 | `apps/mobile/assets/**`                                                                                   | Related tests       |           | Mobile app icons and bundled images                          |

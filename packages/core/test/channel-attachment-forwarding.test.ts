@@ -11,6 +11,7 @@ import { createCore } from '../src/plugin.js';
 import { createDshBotAgentAdapter } from '../src/runtime/dsh-bot-agent-adapter.js';
 import { FakeAgentHost } from './dsh-agent-host-fixture.js';
 import { createTempRoot } from './helpers.js';
+import { createTestRegistry } from './registry-fixture.js';
 
 const png = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a3ioAAAAASUVORK5CYII=',
@@ -39,7 +40,14 @@ async function call(
 }
 async function send(f: Fixture, args: unknown, callId?: string) {
   const result = JSON.parse(String(await call(f.tools, 'channel_send', args, callId)));
-  expect(Object.keys(result).sort()).toEqual(['channelId', 'messageId']);
+  expect(Object.keys(result).sort()).toEqual([
+    'channelId',
+    'inboxResolution',
+    'messageId',
+    'status',
+  ]);
+  expect(result.status).toBe('committed');
+  expect(result.inboxResolution).toMatchObject({ outcome: 'not-requested' });
   expect(f.core.channels.message(result.channelId, result.messageId)).toBeDefined();
   return result;
 }
@@ -78,9 +86,13 @@ async function fixture(check: (f: Fixture) => Promise<void>, recipients = 0) {
   try {
     core.registry.create({ slug: 'ada', displayName: 'Ada' });
     const members = ['ada'];
+    const registry = createTestRegistry({
+      rootDir: core.registry.rootDir,
+      database: core.operationalDatabase,
+    });
     for (let index = 0; index < recipients; index += 1) {
       const slug = 'peer-' + index;
-      core.registry.create({ slug, displayName: 'Peer ' + index });
+      expect(registry.create({ slug, displayName: 'Peer ' + index }).ok).toBe(true);
       members.push(slug);
     }
     groupId = core.channels.createGroup({ name: 'Destination', members }).id;

@@ -66,3 +66,24 @@ describe('Bot Inbox pagination refresh', () => {
     expect(clientStore.getSnapshot().botInbox.items.map((entry) => entry.id)).toEqual(['new']);
   });
 });
+
+it('treats an Inbox deep link as a distinct view of the same Bot', () => {
+  const clientStore = createStore();
+  clientStore.select({ kind: 'bot', slug: 'ada' });
+  clientStore.setBotInbox({ status: 'ready', items: [item('from-group')] });
+  clientStore.select({ kind: 'bot', slug: 'ada', inboxRequest: 1 });
+  expect(clientStore.getSnapshot().selection).toEqual({
+    kind: 'bot',
+    slug: 'ada',
+    inboxRequest: 1,
+  });
+  expect(clientStore.getSnapshot().botInbox.items.map((item) => item.id)).toEqual(['from-group']);
+  clientStore.select({ kind: 'bot', slug: 'ada', inboxRequest: 2 });
+  expect(clientStore.getSnapshot().selection).toEqual({
+    kind: 'bot',
+    slug: 'ada',
+    inboxRequest: 2,
+  });
+  clientStore.select({ kind: 'bot', slug: 'ada' });
+  expect(clientStore.getSnapshot().selection).toEqual({ kind: 'bot', slug: 'ada' });
+});

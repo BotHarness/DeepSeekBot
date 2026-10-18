@@ -33,6 +33,7 @@ export function ConversationRow({
         : (row.bot.preview ?? (row.bot.paused ? t.paused : ''))
       : (row.channel.preview ?? t.members(row.channel.memberCount));
   const badge = countBadge(row);
+  const time = shortTime(row.at, now);
   const label = [
     title,
     row.needsYou > 0 ? t.needsYouCount(row.needsYou) : undefined,
@@ -81,15 +82,22 @@ export function ConversationRow({
           />
         </View>
       )}
-      <View style={{ flex: 1, gap: space.x1 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x3 }}>
-          <Text strong numberOfLines={1} style={{ flexShrink: 1 }}>
+      <View style={{ flex: 1, minWidth: 0, gap: space.x1 }}>
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: space.x3,
+          }}
+        >
+          <Text strong numberOfLines={1} ellipsizeMode="tail" style={{ flex: 1, minWidth: 0 }}>
             {title}
           </Text>
-          <View style={{ flex: 1 }} />
-          <Text variant="meta" tone="subtle">
-            {shortTime(row.at, now)}
-          </Text>
+          {time === '' ? null : (
+            <Text variant="meta" tone="subtle" numberOfLines={1} style={{ flexShrink: 0 }}>
+              {time}
+            </Text>
+          )}
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x3 }}>
           <Text

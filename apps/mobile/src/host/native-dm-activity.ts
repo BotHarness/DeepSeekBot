@@ -14,7 +14,7 @@ export const dmActivityPreferences = createDmActivityPreferences({
     try {
       const stored = file();
       if (!stored.exists) stored.create();
-      stored.write(JSON.stringify(value));
+      stored.writeSync(JSON.stringify(value));
     } catch {}
   },
 });

@@ -23,7 +23,7 @@ The web client calls `/api/<endpoint>` over plain HTTP (`fetch` + auth cookie). 
 
 ## Dev loop (WSL, fnm node)
 
-Use the worktree's local `@deepseek-ai/dsh@0.2.0-rc.2`, not a global `dsh` binary. The launcher checks the installed version, creates an isolated Web Profile, links all Bundle members as dependencies, enables only the `deepseekbot` umbrella, and probes the authenticated API.
+Use the worktree's local `@deepseek-ai/dsh@0.2.1-rc.2`, not a global `dsh` binary. The launcher checks the installed version, creates an isolated Web Profile, links all Bundle members as dependencies, enables only the `deepseekbot` umbrella, and probes the authenticated API.
 
 ```bash
 corepack pnpm build
@@ -35,6 +35,19 @@ The launch summary includes the Host PID and local login URL. For Client edits, 
 
 The helper injects a shared machine-local DeepSeek key when available; `node scripts/dev-secret.mjs check` reports its source without a value. Existing Profile credentials are another DSH source. Confirm model access with a real DM reply. `node scripts/dev-secret.mjs adopt-profile --home <existing-DSH_HOME>` copies only the DeepSeek reference into a private local file for later isolated Profiles.
 
+## DSH 0.2.1 migration contracts
+
+Source inspection of `dsh-subagent/lib/types/types.d.ts` and `lib/index.js` in `0.2.1-rc.2`:
+`startActivation` replaces `start` and `startContinuable`; `delivery: 'parent'` sends the result
+to the parent, while `'caller'` returns it only to the caller. Its signal owns startup only;
+callers that retain cancellation ownership must connect later aborts to the receipt's `dispose()`.
+The old `settleRun` export is gone. `dsh-client-connection` also replaces the shared `operator`
+with per-Peer identity; Owner-only Remote methods check `invocation.peer.principal.kind`.
+
+### Supporting the 0.2.0 floor while building against 0.2.1
+
+Use application adapters for both API generations rather than raising the install floor to the SDK pin. Detect `startActivation` before starting; otherwise use native `start` / `startContinuable`. Never retry a failed modern operation through the legacy path. Owner checks use the trusted native principal when present, otherwise the exact legacy connection operator object, never caller-supplied identity. Resolve native Shell Plugins from the running Host. A bundled scoped file Plugin must retain the reviewed `read_image` injection patch and adapt the missing `workingDirectory` service locally to the legacy Session cwd. Do not discard that patch by blindly externalizing file tools. A preset containing 0.2.1-only Plugins also fails on the old Host before an adapter can help. Conversely, the old persona `{{cwd}}` suffix fails at conversation assembly on 0.2.1, where that variable is no longer registered; do not inject it into the common preset. The legacy workingDirectory fallback must isolate that Service before providing it; Agent Scope alone does not isolate Cordis Services. Exercise two Agents and dispose one to prove the other retains its file tools. Check the entire boot log: a disabled native dependency can leave an apparently healthy Host with missing features. The product bundles the unchanged ComputerUseRegistry as an owned child Plugin to avoid an incompatible separately installed native manifest. Qualify the same packed product on both released versions; a SemVer preflight is only admission evidence.
+
 ## Profile model
 
 - Isolated `DSH_HOME` (one directory per worktree/port); profiles live in `$DSH_HOME/profiles/<name>`: `package.json` (`dsh.profile.bundles`), `cordis.yml`, user patch layer `cordis.patch.yml`, `node_modules` (our bundles via `link:`).
@@ -43,6 +56,8 @@ The helper injects a shared machine-local DeepSeek key when available; `node scr
 - `cordis.patch.yml` is the bisect tool: disable a plugin (`- id: botharness-core` / `disabled: true`) or override config, no reinstall needed.
 
 ## Pitfall log
+
+Restored application runtime work can run before an undeclared native Service Provider loads. In #2056 a real held-draft Host restart resumed an Orchestrator before `ctx.credentials` existed and published a model-readiness failure, although the same configured key worked after startup. BotHarness now declares `credentials` in its required `inject` dependencies. A real Cordis/LocalCredentialProvider regression starts the Consumer before the Provider and verifies readiness is not attempted until that Provider is available. Do not hide this race with a credential fallback, polling delay or suppressed failure; use the Service dependency lifecycle.
 
 When a DSH-side bug or trap is diagnosed, **record it here (or in the playbook) in the same change**. Entries:
 
@@ -153,7 +168,7 @@ DSH 0.2.0 provider token reports use disjoint uncached input, output, cache-read
 
 Pre-execution refusal can leave an application-owned Session ID without a DSH Session. Before retrying that reserved identity, use Session Persistence `stat(id)` to distinguish an absent stored Session from an existing one: create only when `stat` returns `undefined`, and propagate storage failures. Do not infer persistent existence from the live Session Store or blindly resume a reserved ID. Verified against DSH 0.2.0-rc.1 in #500 with a rejected model route followed by a successful Human repair.
 
-- **DSH source checkout**: `reference/deepseek-harness` (gitignored, in this worktree) pinned to the installed tag — currently `dsh-v0.2.0-rc.2`. Read the TypeScript source (`packages/typert`, `packages/*connection*`, `packages/*gateway*`, `apps/cli/reference/README.md`) when the how/why matters; the installed `lib/*.js` is bundled output. Re-pin when DSH is bumped: `git fetch --depth 1 origin tag <tag> && git checkout <tag>`.
+- **DSH source checkout**: `reference/deepseek-harness` (gitignored, in this worktree) must match the installed tag, now `dsh-v0.2.1-rc.2`. Read the TypeScript source (`packages/typert`, `packages/*connection*`, `packages/*gateway*`, `apps/cli/reference/README.md`) when the how/why matters; the installed `lib/*.js` is bundled output. Re-pin when DSH is bumped: `git fetch --depth 1 origin tag <tag> && git checkout <tag>`.
 - `references/debugging-playbook.md` — boot verification, status-code semantics, WS mux probe, bisect recipes, headless puppeteer probe.
 - `references/probe-web.mjs` — headless browser probe (console errors, failed requests, WS, internal fetch); run from the repo.
 - `dsh-ui` skill — in-harness UI rules; `docs/client-bridge.md` §7 — dev loop; ADR-0023 / #50 — bridge transport contract.
@@ -219,3 +234,30 @@ Direct Controller and Runtime tests do not qualify the application-defined Provi
 ## Additional verified pitfall — #1988
 
 The pinned dsh-im Provider (`beaed4a6`, DSH `0.2.0-rc.2`) exports checked WeChat proactive text, receipt and final-send fence capabilities per account, but no global `postFenceVersion`. Requiring that field hides a real paired-owner forwarding target even though reception is ready. Qualify the account capabilities and receipt contract, pass `beforeSend`, and reject any missing capability before an external effect. The real Host reproduced `canPost: false`; the contract regression omits the legacy field and retains missing-capability/final-revocation cases. Actual phone delivery remains a separate E2E check.
+
+## Additional verified pitfall — #2017 pointer menus
+
+In the pinned DSH `0.2.0-rc.2` Web Client, native `Menu` with a viewport `getAnchorRect` and a body portal uses CSS positioning coordinates that diverge under body CSS zoom. At 125%, a click at `(136.25, 20)` rendered the popup at `(170, 30)`; 100% retained only the native dropdown gap. The application `ds/PointerMenu` now measures the rendered scale and native popup rectangle, owns the body portal and viewport/traffic-light clamping, and leaves ordinary anchored dropdowns native. Callers pass raw viewport points, without local correction constants. The isolated Web regression covers normal/zoomed placement and edge avoidance; native macOS remains a separate check.
+
+The rc.2 native `Menu` handles Escape by calling `onClose` and then restoring its own anchor focus. A pointer menu's placeholder anchor contains no trigger button, so its fallback can focus the closing menu row after the application synchronously restores the Panel header. `usePanelMenu` defers trigger focus to a microtask, after native dismissal, and only focuses the same still-connected trigger. This also avoids focusing a header removed by Close. Restore only when focus remains on the closing menu or page body; an outside click that focuses the composer must retain that focus. Verify Escape and Shift+F10 on every Panel header in the workspace journey.
+
+
+## Additional verified pitfalls — #2034
+
+In rc.2, the Client shortcut catalog can expose a newly registered command before the native preference adapter accepts its definitions. An immediate revision-checked edit can return `not-ready` (or `stale` after a concurrent config publication). Retain accepted bindings and retry those transient outcomes with a bounded delay; show a migration refusal only after the bound or a terminal result. A real old-to-new Web Client upgrade qualified the custom-binding migration and dispatch.
+
+The native Workspace navigator clears a current Session that appears in `archivedSessionIds`. Opening an auto-archived Assignment directly can leave the landing screen and log a released Sidebar Session reference. Restore the Session through its existing explicit archive action before qualifying navigation; merely leaving an application panel does not prove the target opened. The real rc.2 journey verified the same restored Session ID and visible report from both application views.
+
+## Additional verified pitfalls — #2054 evaluation
+
+In the pinned DSH `0.2.0-rc.2` Session log, `request/header` records request configuration; it is not a per-turn generation barrier. The real two-Bot diagnostic had one header but later `step/start` events in additional turns. Use native `step/start` timestamps to establish that generation began, and separately record application draft frames and canonical message commits. A missing later header does not prove the Bot never started that turn. Preserve the original misclassified diagnostic when correcting instrumentation.
+
+Summing only `assistant/message` usage omits failed native `assistant/attempt` events. The same diagnostic recorded an attempt ending with `TRANSPORT` and no usage before a successful response. The existing Host Usage Projection correctly returned unknown totals for that Bot. Export failure metadata and any reported usage separately; completed-response totals are a lower bound, not a replacement for unknown full usage. Retain unknown auxiliary/provider retry coverage and omit hidden reasoning chunks from public evidence.
+
+## Additional verified pitfall — #2089
+
+In rc.2, `tools.restrict({ deny: [...] })` validates names against the global Tool registry even when called from an Agent scope. Naming an application-defined Tool registered only in that Agent scope, or intentionally omitted there, fails Agent setup with `names unknown global tool` before the model runs. Tob creation reproduced this on macOS Desktop with `bot_create`. Omit the legacy registration and use an Agent-scoped `tools.guard` for execution refusal, retaining the callback's current-run authority check for stale references. A mocked restriction collector cannot qualify this behavior; test the pinned `ToolRuntime` with real Cordis scopes.
+
+## Additional verified pitfall — #2056 verification transport
+
+Against an idle RC2 Host on Windows, Node's pooled `fetch` reproduced `ECONNRESET` after the probe's event loop was blocked for six seconds: it reused a connection whose close event had not been consumed. An asynchronous six-second wait and a request with `Connection: close` both succeeded. The `verify-app` RPC helper uses one connection per request; it preserves a lost mutation response as an error instead of retrying a possibly committed write. Distinguish this test transport failure from a model-provider failure, and correlate Host health with any deliberate restart before diagnosing a crash. Preserve failed cohort attempts; register changed transport settings before a new comparison rather than replacing old results.

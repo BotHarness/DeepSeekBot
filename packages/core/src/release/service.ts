@@ -1,4 +1,12 @@
 import { readFileSync } from 'node:fs';
+import {
+  nativeReleaseRuntime,
+  releaseMetadata,
+  evaluateReleaseManifest,
+  type ReleaseRuntime,
+  type ReleaseCompatibility,
+} from './compatibility.js';
+import { releaseComponentNames } from './component.js';
 
 import {
   captureReleaseComposition,
@@ -35,6 +43,7 @@ export interface ReleaseLedgers {
 }
 
 export interface ReleaseInfo {
+  profileId?: string;
   version: string;
   identity?: ReleaseIdentity;
   releases: ReleaseNote[];
@@ -45,12 +54,15 @@ export type ReleaseUpdate =
   | { status: 'development'; current: string }
   | { status: 'unavailable'; current: string }
   | { status: 'current'; current: string; latest: string }
+  | { status: 'blocked'; current: string; latest: string; compatibility: ReleaseCompatibility }
   | {
       status: 'available';
       current: string;
       latest: string;
       releases: ReleaseNote[];
       installable: boolean;
+      compatibility?: ReleaseCompatibility;
+      blockedLatest?: { version: string; compatibility: ReleaseCompatibility };
     }
   | { status: 'restart-required'; current: string; installed: string; restartable: boolean };
 
@@ -76,14 +88,7 @@ export type ReleaseRestart =
   | { status: 'restarting' }
   | { status: 'failed'; reason: 'unavailable' | 'not-pending' | 'identity-invalid' };
 
-type CheckResult =
-  | Exclude<ReleaseUpdate, { status: 'available' } | { status: 'restart-required' }>
-  | {
-      status: 'available';
-      current: string;
-      latest: string;
-      releases: ReleaseNote[];
-    };
+type CheckResult = Exclude<ReleaseUpdate, { status: 'restart-required' }>;
 
 export interface ReleaseInstallerResult {
   application: string;
@@ -98,13 +103,16 @@ export interface ReleaseInstaller {
 
 export interface ReleaseService {
   info(since?: string): ReleaseInfo;
-  update(): Promise<ReleaseUpdate>;
-  install(version: string): Promise<ReleaseInstall>;
-  restart(): Promise<ReleaseRestart>;
+  update(force?: boolean): Promise<ReleaseUpdate>;
+  install(version: string, beforeEffect?: () => void): Promise<ReleaseInstall>;
+  restart(beforeEffect?: (pendingVersion: string) => void): Promise<ReleaseRestart>;
 }
 
 export interface ReleaseServiceOptions {
   version: () => string;
+  profileId?: string;
+  runtime?: () => Promise<ReleaseRuntime | undefined>;
+  warn?: (message: string) => void;
   identity?: () => ReleaseIdentity;
   ledgers: () => ReleaseLedgers | undefined;
   fetchImpl?: typeof fetch;
@@ -168,7 +176,10 @@ function newestTag(tags: unknown, current: string): string | undefined {
   if (typeof tags !== 'object' || tags === null) return undefined;
   const source = tags as Record<string, unknown>;
   const candidates = [source['latest'], current.includes('-') ? source['next'] : undefined].filter(
-    (value): value is string => typeof value === 'string' && isReleaseVersion(value),
+    (value): value is string =>
+      typeof value === 'string' &&
+      isReleaseVersion(value) &&
+      (current.includes('-') || !value.includes('-')),
   );
   return candidates.sort(compareVersions).at(-1);
 }
@@ -214,9 +225,9 @@ export function createLoadingReleaseService(options: ReleaseServiceOptions): Rel
   };
   return {
     info: (since) => current().info(since),
-    update: () => current().update(),
-    install: (version) => current().install(version),
-    restart: () => current().restart(),
+    update: (force) => current().update(force),
+    install: (version, beforeEffect) => current().install(version, beforeEffect),
+    restart: (beforeEffect) => current().restart(beforeEffect),
   };
 }
 
@@ -233,6 +244,7 @@ export function createReleaseService(options: ReleaseServiceOptions): ReleaseSer
   let pending: Promise<CheckResult> | undefined;
   let installed: string | undefined;
   let installing: Promise<ReleaseInstall> | undefined;
+  let installingVersion: string | undefined;
 
   const profileBundle = async (): Promise<
     { installer: ReleaseInstaller; version: string | undefined } | undefined
@@ -259,7 +271,10 @@ export function createReleaseService(options: ReleaseServiceOptions): ReleaseSer
       ? version
       : undefined;
 
-  const runInstall = async (version: string): Promise<ReleaseInstall> => {
+  const runInstall = async (
+    version: string,
+    beforeEffect?: () => void,
+  ): Promise<ReleaseInstall> => {
     const current = runningVersion;
     if (identity?.kind === 'unknown') return { status: 'failed', reason: 'identity-invalid' };
     if (!isReleaseVersion(version) || compareVersions(version, current) <= 0) {
@@ -267,6 +282,13 @@ export function createReleaseService(options: ReleaseServiceOptions): ReleaseSer
     }
     const installer = (await profileBundle())?.installer;
     if (installer === undefined) return { status: 'failed', reason: 'unavailable' };
+    const eligibility = await targetCompatibility(version);
+    if (eligibility.status !== 'compatible')
+      return {
+        status: 'failed',
+        reason: eligibility.status === 'incompatible' ? 'incompatible' : 'unavailable',
+      };
+    beforeEffect?.();
     let result: ReleaseInstallerResult;
     try {
       result = await installer.installBundle(`${RELEASE_PACKAGE}@${version}`);
@@ -308,18 +330,64 @@ export function createReleaseService(options: ReleaseServiceOptions): ReleaseSer
     }
   };
 
-  const latestVersion = async (current: string): Promise<string | undefined> => {
+  const json = async (url: string): Promise<unknown> => {
+    const body = await text(url);
+    try {
+      return body === undefined ? undefined : JSON.parse(body);
+    } catch {
+      return undefined;
+    }
+  };
+  const runtime = options.runtime ?? nativeReleaseRuntime;
+  const manifestCompatibility = async (
+    registry: string,
+    version: string,
+    host: ReleaseRuntime,
+  ): Promise<ReleaseCompatibility> => {
+    const manifest = releaseMetadata(await json(`${registry}/${RELEASE_PACKAGE}/${version}`));
+    const bundle = evaluateReleaseManifest(host, manifest, RELEASE_PACKAGE, version);
+    if (bundle.status !== 'compatible') return bundle;
+    const dependencies = releaseMetadata(manifest?.['dependencies']);
+    const components = Object.values(releaseComponentNames);
+    if (components.some((name) => dependencies?.[name] !== version))
+      return { status: 'unknown', reason: 'metadata-unavailable', dshVersion: host.version };
+    const provider = dependencies?.['@botharness/im-provider'];
+    if (provider !== undefined && (typeof provider !== 'string' || !isReleaseVersion(provider)))
+      return { status: 'unknown', reason: 'metadata-unavailable', dshVersion: host.version };
+    const entries = components.map((name) => ({ name, version }));
+    if (typeof provider === 'string')
+      entries.push({ name: '@botharness/im-provider', version: provider });
+    const results = await Promise.all(
+      entries.map(async (entry) =>
+        evaluateReleaseManifest(
+          host,
+          await json(`${registry}/${encodeURIComponent(entry.name)}/${entry.version}`),
+          entry.name,
+          entry.version,
+        ),
+      ),
+    );
+    return results.find((result) => result.status !== 'compatible') ?? bundle;
+  };
+  const targetCompatibility = async (version: string): Promise<ReleaseCompatibility> => {
+    const host = await runtime();
+    if (host === undefined) return { status: 'unknown', reason: 'runtime-unavailable' };
     for (const registry of registries) {
-      const body = await text(
-        `${registry.replace(/\/+$/u, '')}/-/package/${RELEASE_PACKAGE}/dist-tags`,
+      const result = await manifestCompatibility(registry.replace(/\/+$/u, ''), version, host);
+      if (result.status !== 'unknown') return result;
+    }
+    return { status: 'unknown', reason: 'metadata-unavailable', dshVersion: host.version };
+  };
+  const latestVersion = async (
+    current: string,
+  ): Promise<{ latest: string; registry: string } | undefined> => {
+    for (const source of registries) {
+      const registry = source.replace(/\/+$/u, '');
+      const latest = newestTag(
+        await json(`${registry}/-/package/${RELEASE_PACKAGE}/dist-tags`),
+        current,
       );
-      if (body === undefined) continue;
-      try {
-        const latest = newestTag(JSON.parse(body), current);
-        if (latest !== undefined) return latest;
-      } catch {
-        continue;
-      }
+      if (latest !== undefined) return { latest, registry };
     }
     return undefined;
   };
@@ -340,19 +408,84 @@ export function createReleaseService(options: ReleaseServiceOptions): ReleaseSer
 
   const check = async (): Promise<CheckResult> => {
     const current = runningVersion;
+    const deadline = Date.now() + 30_000;
     if (identity?.kind === 'unknown')
       return { status: 'unknown', current, reason: identity.reason };
     if (!isReleaseVersion(current)) return { status: 'development', current };
-    const latest = await latestVersion(current);
-    if (latest === undefined) return { status: 'unavailable', current };
+    const found = await latestVersion(current);
+    if (found === undefined) return { status: 'unavailable', current };
+    const { latest, registry } = found;
     if (compareVersions(latest, current) <= 0) return { status: 'current', current, latest };
-    return { status: 'available', current, latest, releases: await newerNotes(current, latest) };
+    const host = await runtime();
+    if (host === undefined)
+      return {
+        status: 'blocked',
+        current,
+        latest,
+        compatibility: { status: 'unknown', reason: 'runtime-unavailable' },
+      };
+    const compatibility = await manifestCompatibility(registry, latest, host);
+    if (compatibility.status === 'compatible')
+      return {
+        status: 'available',
+        current,
+        latest,
+        compatibility,
+        installable: false,
+        releases: await newerNotes(current, latest),
+      };
+    const incomplete = (): CheckResult => ({
+      status: 'blocked',
+      current,
+      latest,
+      compatibility: {
+        status: 'unknown',
+        reason: 'metadata-unavailable',
+        dshVersion: host.version,
+      },
+    });
+    if (compatibility.status === 'incompatible') {
+      const packument = releaseMetadata(await json(`${registry}/${RELEASE_PACKAGE}`));
+      const versions = releaseMetadata(packument?.['versions']);
+      if (versions === undefined) return incomplete();
+      const candidates = Object.keys(versions)
+        .filter(
+          (version) =>
+            isReleaseVersion(version) &&
+            (current.includes('-') || !version.includes('-')) &&
+            compareVersions(version, current) > 0 &&
+            compareVersions(version, latest) < 0,
+        )
+        .sort((a, b) => compareVersions(b, a));
+      for (const version of candidates) {
+        if (Date.now() >= deadline) return incomplete();
+        const candidate = await manifestCompatibility(registry, version, host);
+        if (candidate.status === 'compatible')
+          return {
+            status: 'available',
+            current,
+            latest: version,
+            compatibility: candidate,
+            blockedLatest: { version: latest, compatibility },
+            installable: false,
+            releases: await newerNotes(current, version),
+          };
+        if (candidate.status === 'unknown') return incomplete();
+      }
+    }
+    options.warn?.(`release/check blocked target=${latest} compatibility=${compatibility.status}`);
+    return { status: 'blocked', current, latest, compatibility };
   };
 
-  const checked = (): Promise<CheckResult> => {
-    if (cached !== undefined) {
+  const checked = (force = false): Promise<CheckResult> => {
+    if (!force && cached !== undefined) {
       const age = now() - cached.at;
-      const limit = cached.result.status === 'unavailable' ? FAILURE_CACHE_MS : CHECK_CACHE_MS;
+      const limit =
+        cached.result.status === 'unavailable' ||
+        cached.result.status === 'unknown' ||
+        (cached.result.status === 'blocked' && cached.result.compatibility.status === 'unknown')
+          ? FAILURE_CACHE_MS
+          : CHECK_CACHE_MS;
       if (age < limit) return Promise.resolve(cached.result);
     }
     pending ??= check()
@@ -371,6 +504,7 @@ export function createReleaseService(options: ReleaseServiceOptions): ReleaseSer
       const version = runningVersion;
       return {
         version,
+        ...(options.profileId === undefined ? {} : { profileId: options.profileId }),
         ...(identity === undefined ? {} : { identity }),
         releases: !isReleaseVersion(version)
           ? []
@@ -379,7 +513,7 @@ export function createReleaseService(options: ReleaseServiceOptions): ReleaseSer
             : selectReleaseNotes(installedNotes(), { after: since, through: version }),
       };
     },
-    async update() {
+    async update(force = false) {
       const current = runningVersion;
       const bundle = await profileBundle();
       const pendingVersion = installed ?? newerInProfile(current, bundle?.version);
@@ -391,23 +525,30 @@ export function createReleaseService(options: ReleaseServiceOptions): ReleaseSer
           restartable: options.restarter?.() !== undefined,
         };
       }
-      const result = await checked();
+      const result = await checked(force);
       if (result.status !== 'available') return result;
       return { ...result, installable: bundle !== undefined };
     },
-    install(version) {
-      installing ??= runInstall(version).finally(() => {
-        installing = undefined;
-      });
+    install(version, beforeEffect) {
+      if (installing && (beforeEffect !== undefined || installingVersion !== version))
+        return Promise.resolve({ status: 'failed', reason: 'unavailable' });
+      if (!installing) {
+        installingVersion = version;
+        installing = runInstall(version, beforeEffect).finally(() => {
+          installing = undefined;
+          installingVersion = undefined;
+        });
+      }
       return installing;
     },
-    async restart() {
+    async restart(beforeEffect) {
       if (identity?.kind === 'unknown') return { status: 'failed', reason: 'identity-invalid' };
       const restarter = options.restarter?.();
       if (restarter === undefined) return { status: 'failed', reason: 'unavailable' };
       const pendingVersion =
         installed ?? newerInProfile(runningVersion, (await profileBundle())?.version);
       if (pendingVersion === undefined) return { status: 'failed', reason: 'not-pending' };
+      beforeEffect?.(pendingVersion);
       restarter.restart();
       return { status: 'restarting' };
     },

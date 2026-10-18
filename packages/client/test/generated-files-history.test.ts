@@ -12,7 +12,7 @@ it('retains live files across timeline windows and keeps redactions ahead of sta
   });
   const older = message('older', '2026-10-01T00:00:00Z');
   const newer = message('newer', '2026-10-02T00:00:00Z');
-  const cache = createGeneratedFilesHistory('ada');
+  const cache = createGeneratedFilesHistory();
   const ids = () => cache.files().map((file) => file.messageId);
   cache.accept([older], 'history');
   cache.accept([newer], 'live');
@@ -29,4 +29,24 @@ it('retains live files across timeline windows and keeps redactions ahead of sta
   cache.purge([pending.id]);
   cache.accept([pending], 'history');
   expect(ids()).toEqual([]);
+});
+
+it('includes Human and every Bot attachment, including former group members', () => {
+  const cache = createGeneratedFilesHistory();
+  const authors: ChannelMessage['author'][] = [
+    { kind: 'human' },
+    { kind: 'bot', slug: 'ada' },
+    { kind: 'bot', slug: 'former-member' },
+  ];
+  cache.accept(
+    authors.map((author, index) => ({
+      id: String(index),
+      at: `2026-10-0${index + 1}T00:00:00Z`,
+      author,
+      body: '',
+      attachments: [{ fileId: String(index), name: `${index}.txt`, mime: 'text/plain', size: 1 }],
+    })),
+    'history',
+  );
+  expect(cache.files().map((file) => file.messageId)).toEqual(['2', '1', '0']);
 });

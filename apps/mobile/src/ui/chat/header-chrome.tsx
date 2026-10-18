@@ -12,7 +12,11 @@ const ICON = 22;
 
 export function useChatHeaderHeight(): number {
   const theme = useDesignTheme();
-  return useSafeAreaInsets().top + theme.touch + space.x2 * 2;
+  return (
+    useSafeAreaInsets().top +
+    Math.max(theme.touch, theme.type.body.line * theme.fontScale + space.x3) +
+    space.x2 * 2
+  );
 }
 
 export function ChatHeader({
@@ -55,16 +59,19 @@ export function HeaderCircleButton({
   label,
   onPress,
   children,
+  selected = false,
 }: {
   label: string;
   onPress(): void;
   children: ReactNode;
+  selected?: boolean;
 }) {
   const theme = useDesignTheme();
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
+      accessibilityState={{ selected }}
       onPress={onPress}
       style={({ pressed }) => ({
         width: theme.touch,
@@ -108,7 +115,7 @@ export function EdgeFade({ edge: side, height }: { edge: 'top' | 'bottom'; heigh
     >
       <Svg width="100%" height="100%" preserveAspectRatio="none">
         <Defs>
-          <LinearGradient id={id} x1="0" y1={top ? '0' : '1'} x2="0" y2={top ? '1' : '0'}>
+          <LinearGradient id={id} x1="0%" y1={top ? '0%' : '100%'} x2="0%" y2={top ? '100%' : '0%'}>
             {edgeFade.stops.map((stop) => (
               <Stop
                 key={stop.offset}

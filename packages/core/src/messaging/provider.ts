@@ -1,3 +1,5 @@
+import type { WorkRequest } from '../cloud/work-contract.js';
+
 export interface MessagingAccount {
   ref: string;
   platform: string;
@@ -74,12 +76,13 @@ export type MessagingContextScope = MessagingHistoryScope | 'retained' | 'retain
 
 export interface MessagingInboundEvent {
   version: 1;
-  channel: 'feishu' | 'slack' | 'discord' | 'weixin' | 'qq';
+  channel: 'feishu' | 'slack' | 'discord' | 'weixin' | 'qq' | 'tob';
   botId: string;
   fingerprint: string;
   eventId: string;
   messageId: string;
-  actor: { kind: 'user'; id: string; name?: string };
+  actor: { kind: 'user' | 'agent'; id: string; name?: string };
+  cloudWork?: WorkRequest;
   conversation: { kind: 'group' | 'dm'; id: string; name?: string };
   mentions: { id: string; key: string; name?: string }[];
   mentionedAccount: boolean;
@@ -91,7 +94,9 @@ export interface MessagingInboundEvent {
   video?: MessagingVideo;
   quote?: MessagingQuote;
   reply: MessagingReplyRoute;
-  replay: { kind: 'provider-redelivery'; resumeCursor: false; gapPossible: true };
+  replay:
+    | { kind: 'provider-redelivery'; resumeCursor: false; gapPossible: true }
+    | { kind: 'durable-channel-history'; resumeCursor: true; gapPossible: false };
 }
 
 export interface MessagingReplyRoute {
@@ -283,6 +288,7 @@ export interface MessagingProvider {
     onState(state: MessagingTypingState): void;
   }): Promise<MessagingTypingLease>;
   reply?(input: {
+    operationId?: string;
     accountRef: string;
     fingerprint: string;
     route: MessagingReplyRoute;
@@ -319,6 +325,7 @@ export interface MessagingProvider {
     cursor?: string;
   }): Promise<MessagingReachablePage>;
   postConversation?(input: {
+    operationId?: string;
     accountRef: string;
     fingerprint: string;
     conversationId: string;
@@ -327,6 +334,7 @@ export interface MessagingProvider {
     beforeSend: () => boolean;
   }): Promise<{ accepted: true; receipt: MessagingReceipt }>;
   post?(input: {
+    operationId?: string;
     accountRef: string;
     targetRef: string;
     fingerprint: string;
@@ -337,6 +345,8 @@ export interface MessagingProvider {
     beforeSend?: () => boolean;
   }): Promise<{ accepted: true; receipt: MessagingReceipt }>;
   send(input: {
+    operationId?: string;
+    beforeSend?: () => boolean;
     accountRef: string;
     targetRef: string;
     fingerprint: string;

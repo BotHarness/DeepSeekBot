@@ -105,6 +105,25 @@ describe('Registry database authority', () => {
       '# Handwritten Soul\n',
     );
   });
+  it('persists an Orchestrator-only override and retains Assignment inheritance across restart and later edits', () => {
+    const f = fixture();
+    const owner = mount(f.home);
+    const registry = createPersonaBotRegistry({ rootDir: f.rootDir, database: owner });
+    registry.create({ slug: 'new', displayName: 'New' });
+    expect(registry.customizeModelPlan('new', route, 0).ok).toBe(true);
+    const saved = registry.get('new')!.modelPlan!;
+    expect(saved.orchestrator).toEqual(route);
+    expect(saved).not.toHaveProperty('assignmentDefault');
+    expect(saved).not.toHaveProperty('assignmentModels');
+    expect(registry.customizeModelPlan('new', route, 0).ok).toBe(false);
+    owner.close();
+    const reopened = createPersonaBotRegistry({ rootDir: f.rootDir, database: mount(f.home) });
+    expect(reopened.get('new')?.modelPlan).toEqual(saved);
+    expect(reopened.customizeModelPlan('new', { ...route, reasoningEffort: 'high' }, 1).ok).toBe(
+      true,
+    );
+    expect(reopened.get('new')?.modelPlan).not.toHaveProperty('assignmentDefault');
+  });
   it('marks an empty import and ignores later introduced JSON records', () => {
     const f = fixture();
     const owner = mount(f.home);

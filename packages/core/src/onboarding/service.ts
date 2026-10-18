@@ -1,3 +1,4 @@
+import type { TobService } from '../tob/service.js';
 import { randomUUID } from 'node:crypto';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import type { PersonaBotRegistry } from '../bots/registry.js';
@@ -42,6 +43,7 @@ export const DEEPSEEKBOT_RECIPE = detailedAvatarRecipe({
 export function createBotOnboarding(options: {
   database: OperationalDatabaseModulePort;
   registry: PersonaBotRegistry;
+  tob?: TobService;
   channels: ChannelStore;
   now?: () => Date;
 }): BotOnboarding {
@@ -55,8 +57,14 @@ export function createBotOnboarding(options: {
   const enter = async (slug?: string, action?: TutorialAction): Promise<OnboardingSnapshot> => {
     let state = receipt();
     if (state === undefined) {
+      const historical = registry.listHistorical();
       const defaultSlug =
-        registry.listHistorical().length === 0 ? 'bot-' + randomUUID().replaceAll('-', '') : null;
+        historical.length === 0 ||
+        (historical.length === 1 && options.tob?.isTob(historical[0]!.slug))
+          ? options.tob
+            ? (await options.tob.ensure()).botSlug
+            : 'bot-' + randomUUID().replaceAll('-', '')
+          : null;
       database.transaction((db) =>
         db
           .prepare(`INSERT INTO bot_onboarding
@@ -98,7 +106,7 @@ export function createBotOnboarding(options: {
       selected === undefined
         ? undefined
         : channels.getOrCreateDm(selected.slug, selected.displayName);
-    if (channel !== undefined) {
+    if (channel !== undefined && !options.tob?.isTob(selected!.slug)) {
       const welcomeId = 'onboarding-welcome-v1';
       if (!channels.hasMessage(channel.id, welcomeId)) {
         const appended = await channels.appendMessageOnce(channel.id, {

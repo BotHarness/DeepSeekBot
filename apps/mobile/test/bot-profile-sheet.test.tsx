@@ -1,7 +1,25 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactElement } from 'react';
+import { act, createElement, useLayoutEffect, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+
+const navigation = vi.hoisted(() => {
+  const listeners = new Set<(event: { data: { closing: boolean } }) => void>();
+  return {
+    listeners,
+    addListener(_event: string, listener: (event: { data: { closing: boolean } }) => void) {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+  };
+});
+vi.mock('expo-router', () => ({
+  useRouter: () => ({ back() {} }),
+  useNavigation: () => navigation,
+  useFocusEffect: (work: () => () => void) => useLayoutEffect(work, [work]),
+}));
 
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('../src/ui/bot-avatar', () => ({
@@ -35,14 +53,19 @@ afterEach(() => {
   act(() => root?.unmount());
   host?.remove();
   root = undefined;
+  vi.useRealTimers();
 });
 
-async function render(element: ReactElement): Promise<HTMLElement> {
+async function render(element: ReactElement, opened = true): Promise<HTMLElement> {
   host = document.createElement('div');
   document.body.append(host);
   root = createRoot(host);
   await act(async () => root!.render(element));
   await act(async () => undefined);
+  if (opened)
+    await act(async () => {
+      for (const listener of navigation.listeners) listener({ data: { closing: false } });
+    });
   return host;
 }
 
@@ -131,6 +154,31 @@ const headers = (view: HTMLElement) =>
   [...view.querySelectorAll('[role="header"]')].map((node) => node.textContent);
 
 describe('Bot profile sheet', () => {
+  it('opens a lightweight shell before data resolves and keeps cached content during refresh', async () => {
+    const request = Promise.withResolvers<BotProfile>();
+    const view = await render(
+      <BotProfileSheet
+        bot={bot}
+        channels={[]}
+        initialProfile={full}
+        load={() => request.promise}
+        settings={<span>Full settings</span>}
+        actions={actions()}
+      />,
+      false,
+    );
+    expect(headers(view)).toContain(bot.displayName);
+    expect(view.querySelector('[role="progressbar"]')).not.toBeNull();
+    expect(view.textContent).not.toContain('Full settings');
+    await act(async () => {
+      for (const listener of navigation.listeners) listener({ data: { closing: false } });
+    });
+    expect(view.textContent).toContain('Full settings');
+    expect(view.textContent).toContain('Standing rules:');
+    await act(async () => request.resolve(empty));
+    expect(view.textContent).not.toContain('Standing rules:');
+  });
+
   it('shows the identity, persona, memory, routines, Channels and folders', async () => {
     const view = await render(
       <BotProfileSheet
@@ -206,6 +254,17 @@ describe('Bot profile sheet', () => {
     expect(onBrowser).toHaveBeenCalled();
   });
 
+  it('reveals cached sections when an initial entry has no opening transition event', async () => {
+    vi.useFakeTimers();
+    const view = await render(
+      <BotProfileSheet bot={bot} channels={[]} load={async () => full} actions={actions()} />,
+      false,
+    );
+    expect(view.textContent).not.toContain('Morning digest');
+    await act(async () => vi.advanceTimersByTime(600));
+    expect(view.textContent).toContain('Morning digest');
+  });
+
   it('closes back to the DM, opens notifications and retries a failed section', async () => {
     const handlers = actions();
     let attempt = 0;
@@ -261,46 +320,25 @@ describe('Bot profile sheet', () => {
     ]);
   });
 
-  it('opens a routine or a new one in its sheet, and refreshes the list after a change', async () => {
-    const sheet = vi.fn(
-      (host: { target: { kind: string; routine?: { title: string } }; onChanged(): void }) => {
-        latest = host;
-        return createElement(
-          'span',
-          { 'data-testid': 'routine-sheet' },
-          host.target.routine?.title ?? 'new',
-        );
-      },
-    );
-    let latest: { onChanged(): void } | undefined;
-    const renamed = {
-      ...profileWire.rpc.scheduleList.schedules[0]!,
-      title: 'Evening digest',
-    };
+  it('navigates routines and creation without mounting another sheet', async () => {
+    const onOpenRoutine = vi.fn();
+    const onNewRoutine = vi.fn();
     const view = await render(
       <BotProfileSheet
         bot={bot}
         channels={[]}
         load={async () => full}
-        actions={actions()}
-        routines={{
-          load: async () => [renamed] as never,
-          sheet: sheet as never,
-        }}
+        actions={{ ...actions(), onOpenRoutine, onNewRoutine }}
       />,
     );
     const open = [...view.querySelectorAll('button')].find((node) =>
       node.getAttribute('aria-label')?.startsWith(t.routineOpen('Morning digest')),
     )!;
     await act(async () => open.click());
-    expect(view.querySelector('[data-testid="routine-sheet"]')?.textContent).toBe('Morning digest');
-
-    await act(async () => latest!.onChanged());
-    await act(async () => undefined);
-    expect(view.textContent).toContain('Evening digest');
-
+    expect(onOpenRoutine).toHaveBeenCalledWith(profileWire.rpc.scheduleList.schedules[0]);
     await act(async () => button(view, t.routineNew)!.click());
-    expect(view.querySelector('[data-testid="routine-sheet"]')?.textContent).toBe('new');
+    expect(onNewRoutine).toHaveBeenCalledTimes(1);
+    expect(view.querySelector('[role="dialog"]')).toBeNull();
   });
 
   it('keeps routines read-only without a Host to change them', async () => {
@@ -325,6 +363,27 @@ describe('Bot profile sheet', () => {
     expect(glance.textContent).not.toContain(t.activityQuiet);
     await act(async () => glance.click());
     expect(handlers.onOpenActivity).toHaveBeenCalledTimes(1);
+  });
+
+  it('formats reported partial usage like global Settings without a partial-known label', async () => {
+    const partial = {
+      ...full,
+      activity: {
+        status: 'ready' as const,
+        value: {
+          ...week,
+          modelUsageRows: [{ ...week.modelUsageRows[0]!, totalTokens: 674655, partial: true }],
+        },
+      },
+    };
+    const view = await render(
+      <BotProfileSheet bot={bot} channels={[]} load={async () => partial} actions={actions()} />,
+    );
+    const glance = view.querySelector<HTMLButtonElement>(
+      `button[aria-label^="${t.activityHeading}"]`,
+    )!;
+    expect(glance.textContent).toContain(t.activityTokens('674.7K+'));
+    expect(glance.textContent).not.toContain(t.activityPartialCount('674.7K'));
   });
 
   it('shows a quiet week for a Bot with no activity, and Try again when the call fails', async () => {

@@ -98,3 +98,14 @@ describe('CLI parity check', () => {
     ).toEqual(['channel_send', 'inbox_list']);
   });
 });
+
+it('requires the dedicated cloud-work runner rather than accepting the generic bot-tool catalog', () => {
+  const surfaces = { bridge: [], routes: [], tools: ['cloud_work'] };
+  const baseline = { bridge: {}, routes: {}, tools: {} };
+  expect(checkCliParity({ surfaces, baseline, cliSource: "{ command: 'bot-tool' }" })).toHaveLength(
+    1,
+  );
+  expect(checkCliParity({ surfaces, baseline, cliSource: "{ command: 'cloud-work' }" })).toEqual(
+    [],
+  );
+});

@@ -214,6 +214,8 @@ export interface SettingsDialogProps {
   readonly title: string;
   readonly navTitle?: ReactNode;
   readonly caption?: ReactNode;
+  readonly navigationSearch?: ReactNode;
+  readonly navigationResults?: ReactNode;
   readonly sections: readonly SettingsDialogSection[];
   readonly activeId: string | undefined;
   readonly onSelect: (id: string) => void;
@@ -232,6 +234,8 @@ export function SettingsDialog({
   title,
   navTitle,
   caption,
+  navigationSearch,
+  navigationResults,
   sections,
   activeId,
   onSelect,
@@ -255,27 +259,35 @@ export function SettingsDialog({
         <nav aria-label={labels.nav} {...stylex.props(styles.nav)}>
           {navTitle === undefined ? null : <div {...stylex.props(styles.navTitle)}>{navTitle}</div>}
           {caption}
+          {navigationSearch}
           <div {...stylex.props(styles.navList)}>
-            {sections.map((section) => (
-              <button
-                key={section.id}
-                type="button"
-                data-settings-section={section.id}
-                aria-current={section.id === active?.id ? 'page' : undefined}
-                data-modal-autofocus={section.id === active?.id ? '' : undefined}
-                onClick={() => {
-                  onSelect(section.id);
-                }}
-                {...stylex.props(styles.navCell)}
-              >
-                <span {...stylex.props(styles.navLabel)}>{section.label}</span>
-                {section.attention === true ? <AttentionDot label={labels.attention} /> : null}
-              </button>
-            ))}
+            {navigationResults ??
+              sections.map((section) => (
+                <button
+                  key={section.id}
+                  type="button"
+                  data-settings-section={section.id}
+                  aria-current={section.id === active?.id ? 'page' : undefined}
+                  data-modal-autofocus={section.id === active?.id ? '' : undefined}
+                  onClick={() => {
+                    onSelect(section.id);
+                  }}
+                  {...stylex.props(styles.navCell)}
+                >
+                  <span {...stylex.props(styles.navLabel)}>{section.label}</span>
+                  {section.attention === true ? <AttentionDot label={labels.attention} /> : null}
+                </button>
+              ))}
           </div>
         </nav>
       )}
       <div {...stylex.props(styles.content)}>
+        {narrow && navigationSearch !== undefined ? (
+          <div {...stylex.props(styles.captionNarrow)}>
+            {navigationSearch}
+            {navigationResults}
+          </div>
+        ) : null}
         {narrow && caption !== undefined ? (
           <div {...stylex.props(styles.captionNarrow)}>{caption}</div>
         ) : null}

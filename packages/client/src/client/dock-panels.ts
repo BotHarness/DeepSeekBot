@@ -2,6 +2,14 @@ import type { ComponentType } from 'react';
 
 import type { ChannelSidebarEntry } from './channel-sidebar.js';
 
+export const BOT_ONLY_CHANNEL_PANELS: readonly string[] = [
+  'botharness-browser',
+  'botharness-computer',
+  'memory-files',
+  'memory-evolution',
+  'schedules',
+];
+
 export const ACTIVITY_CENTER_PANEL = 'activity-center';
 
 export type DockPanelScope = 'global' | 'channel';
@@ -29,6 +37,7 @@ export interface DockPanel {
   readonly defaultPosition?: DockPanelPosition | undefined;
   readonly order?: number | undefined;
   readonly component: ComponentType<DockPanelProps>;
+  readonly headerAction?: ComponentType<DockPanelProps> | undefined;
 }
 
 export interface DockPanelRegistration extends DockPanel {
@@ -36,6 +45,7 @@ export interface DockPanelRegistration extends DockPanel {
 }
 
 export interface DockPanelLayout {
+  canOpen?(id: string): boolean;
   open(id: string): void;
   close(id: string): void;
 }
@@ -45,6 +55,7 @@ export interface DockPanelRegistry {
   panels(): readonly DockPanelRegistration[];
   openPanels(): readonly string[];
   available(): boolean;
+  canOpen?(id: string): boolean;
   isOpen(id: string): boolean;
   open(id: string): void;
   close(id: string): void;
@@ -113,6 +124,7 @@ export function createDockPanelRegistry(): DockPanelHost {
     panels: () => ordered,
     openPanels: () => open,
     available: () => layout !== undefined,
+    canOpen: (id) => layout?.canOpen?.(id) ?? true,
     isOpen: (id) => open.includes(id),
     open: (id) => layout?.open(id),
     close: (id) => layout?.close(id),

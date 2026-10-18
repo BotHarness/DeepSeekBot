@@ -17,7 +17,7 @@ for (const path of [launchPath, output]) {
 const launch = JSON.parse(readFileSync(launchPath, 'utf8').replace(/^\uFEFF/u, ''));
 const manifest = JSON.parse(readFileSync(join(launch.worktree, 'package.json'), 'utf8'));
 assert.equal(manifest.name, 'botharness-native-question-rc2-qa');
-assert.equal(manifest.devDependencies['@deepseek-ai/dsh'], '0.2.0-rc.2');
+assert.equal(manifest.devDependencies['@deepseek-ai/dsh'], '0.2.1-rc.2');
 const origin = new URL(launch.url).origin;
 const { rpc, nativeSnapshot, cookie } = assignmentProbe({ origin, home: launch.home });
 const qualification = JSON.parse(readFileSync(join(launch.worktree, 'qualification.json'), 'utf8'));

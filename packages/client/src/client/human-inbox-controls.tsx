@@ -1,7 +1,6 @@
-import { useId, useState, type ReactElement } from 'react';
+import { useState, type ReactElement } from 'react';
 import {
   Button,
-  IconChevronDownOutlineRegular,
   IconRightUpOutlineRegular,
   Menu,
   Tooltip,
@@ -10,59 +9,6 @@ import { PersonaBotAvatar } from './avatar.js';
 import type { BotHarnessTranslate } from './locale.js';
 import type { BotSummary, ChannelSummary, HumanAttentionItem } from './store.js';
 import { HUMAN_INBOX_SNOOZE_CHOICES, humanInboxSnoozeUntil } from './human-inbox-snooze.js';
-
-export function HumanInboxFilter({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  options: readonly { id: string; label: string }[];
-  onChange: (value: string) => void;
-}): ReactElement {
-  const [open, setOpen] = useState(false);
-  const labelId = useId();
-  const valueId = useId();
-  return (
-    <div className="bh-human-inbox-filter">
-      <span id={labelId}>{label}</span>
-      <Menu
-        open={open}
-        portal
-        selectedId={value}
-        items={options}
-        onSelect={(id) => {
-          setOpen(false);
-          onChange(id);
-        }}
-        onClose={() => setOpen(false)}
-        anchor={
-          <Button
-            variant="outline"
-            className="bh-human-inbox-selector"
-            aria-labelledby={labelId + ' ' + valueId}
-            aria-haspopup="menu"
-            aria-expanded={open}
-            onClick={() => setOpen((current) => !current)}
-            onKeyDown={(event) => {
-              if (!open && event.key === 'ArrowDown') {
-                event.preventDefault();
-                setOpen(true);
-              }
-            }}
-          >
-            <span id={valueId}>
-              {options.find((option) => option.id === value)?.label ?? options[0]?.label}
-            </span>
-            <IconChevronDownOutlineRegular />
-          </Button>
-        }
-      />
-    </div>
-  );
-}
 
 export function HumanInboxSourceButton({
   item,

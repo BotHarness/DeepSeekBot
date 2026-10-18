@@ -2,7 +2,7 @@ import { Pressable, View } from 'react-native';
 
 import { weekGlance, type TokenTotal } from '../../host/bot-activity';
 import type { RosterBot } from '../../host/client';
-import { compactTokenCount, dayLabel, weekdayLabel } from '../../host/usage-days';
+import { dayLabel, weekdayLabel } from '../../host/usage-days';
 import type { ProfileActivity } from '../../host/wire';
 import { botColor } from '../bot-color';
 import { chart } from '../design/chart';
@@ -12,12 +12,13 @@ import { DayBars } from '../primitives/day-bars';
 import { Text } from '../primitives/text';
 import { ChevronRightIcon } from '../shell/icons';
 import { t } from '../strings';
+import { tokenAmount } from '../shell/usage-card';
 
 export function tokenTotalText(total: TokenTotal, compact = true): string {
   if (total.total === null)
     return total.status === 'unknown' ? t.activityUnknown : t.activityUnavailable;
-  const count = compact ? compactTokenCount(total.total) : total.total.toLocaleString();
-  return total.status === 'partial' ? t.activityPartialCount(count) : count;
+  if (compact) return tokenAmount(total.total, total.status === 'partial');
+  return `${total.total.toLocaleString()}${total.status === 'partial' ? '+' : ''}`;
 }
 
 function Glance({ activity, onOpen }: { activity: ProfileActivity; onOpen(): void }) {
@@ -29,7 +30,7 @@ function Glance({ activity, onOpen }: { activity: ProfileActivity; onOpen(): voi
   );
   const tokens = t.activityTokens(tokenTotalText(glance.total));
   const times = t.activityCount(glance.activity.reduce((sum, value) => sum + value, 0));
-  const empty = theme.layer.sheet.inset;
+  const empty = theme.layer.raised.inset;
   return (
     <Pressable
       accessibilityRole="button"
@@ -40,7 +41,7 @@ function Glance({ activity, onOpen }: { activity: ProfileActivity; onOpen(): voi
         gap: space.x4,
         padding: space.x5,
         borderRadius: radius.md,
-        backgroundColor: pressed ? theme.layer.sheet.pressed : theme.layer.sheet.fill,
+        backgroundColor: pressed ? theme.layer.raised.pressed : theme.layer.raised.fill,
       })}
     >
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x3 }}>

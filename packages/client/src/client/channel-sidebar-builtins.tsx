@@ -1,3 +1,4 @@
+import { ChannelNicknameEntry, ChannelTraceEntry } from './channel-personal-settings.js';
 import type { ExternalSource } from '../../../core/src/messaging/inbound.js';
 import { useCallback, useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
@@ -45,12 +46,13 @@ import { MemoryRecovery } from './memory-recovery.js';
 import { cachedMemory, invalidateMemory } from './memory-read-cache.js';
 import { MemoryFilesEntry } from './memory-files-entry.js';
 import { Note } from './ds/note.js';
+import { PanelEmptyState } from './ds/empty-state.js';
 import { PanelDialog } from './ds/panel-dialog.js';
 import { ExternalSourceContent } from './external-source-content.js';
 import { externalPlatformLabel, externalSenderLabel } from './bridge-source-label.js';
 import { DisbandGroupDialog, GroupManagementSettings } from './group-management-settings.js';
 import { MembersEntry, MembersHeaderAction } from './group-member-controls.js';
-import { GroupWorkEntry } from './group-work-entry.js';
+import { setSessionTarget, useSessionTarget } from './session-target.js';
 import { PrivateAccountsSection } from './private-accounts-section.js';
 import { BotSchedulesEntry, BotSchedulesHeaderAction, ScheduleDialog } from './schedules-entry.js';
 import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
@@ -70,12 +72,30 @@ import {
   type InboxSection,
 } from './inbox-sections.js';
 import type { BotHarnessTranslate } from './locale.js';
-import type { BotAttentionItem } from './store.js';
+import type { BotAttentionItem, ClientState } from './store.js';
 import { IconButton } from './ds/icon-button.js';
 import { GroupHeading } from './ds/group-heading.js';
 import { border, color, radius, space, text } from './ds/tokens.stylex.js';
 
 const styles = stylex.create({
+  sessionTarget: {
+    minWidth: 0,
+    flexShrink: 1,
+    maxWidth: '160px',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    color: color.muted,
+    fontSize: text.metaSize,
+  },
+  flushInboxGroup: {
+    paddingBlock: 0,
+    marginTop: 0,
+    borderTopWidth: { default: border.hairline, ':first-child': 0 },
+    borderTopStyle: 'solid',
+    borderTopColor: color.divider,
+  },
+  flushInboxList: { marginBottom: 0 },
   inboxGroup: { paddingBlock: space.x1 },
   inboxSpaced: { marginTop: space.x3 },
   inboxList: { marginTop: 0, marginBottom: space.x2 },
@@ -632,11 +652,13 @@ function BotInboxItemRow({
 
 function BotInboxGroup({
   name,
+  flush,
   items,
   actions,
   t,
 }: {
   name: string;
+  flush?: boolean | undefined;
   items: BotAttentionItem[];
   actions: ChannelSidebarEntryProps['actions'];
   t: BotHarnessTranslate;
@@ -659,9 +681,10 @@ function BotInboxGroup({
       onToggle={(event) =>
         setExpansion({ signature: activeSignature, expanded: event.currentTarget.open })
       }
-      {...stylex.props(styles.inboxGroup)}
+      {...stylex.props(styles.inboxGroup, flush && styles.flushInboxGroup)}
     >
       <GroupHeading
+        flush={flush}
         summary
         quiet
         label={name}
@@ -669,7 +692,11 @@ function BotInboxGroup({
         expanded={expanded}
         count={<Tag tone="neutral">{items.length}</Tag>}
       />
-      <SidebarCardList label={name} className={stylex.props(styles.inboxList).className}>
+      <SidebarCardList
+        flush={flush}
+        label={name}
+        className={stylex.props(styles.inboxList, flush && styles.flushInboxList).className}
+      >
         {INBOX_SECTIONS.flatMap((section) => inboxSections(items)[section]).map((item) => (
           <BotInboxItemRow key={item.id} item={item} actions={actions} t={t} />
         ))}
@@ -680,6 +707,7 @@ function BotInboxGroup({
 
 function BotInboxSection({
   section,
+  flush,
   items,
   sourceLabel,
   spaced,
@@ -687,6 +715,7 @@ function BotInboxSection({
   t,
 }: {
   section: Exclude<InboxSection, 'active'>;
+  flush?: boolean | undefined;
   spaced: boolean;
   items: BotAttentionItem[];
   sourceLabel: (item: BotAttentionItem) => string;
@@ -701,16 +730,25 @@ function BotInboxSection({
       data-section={section}
       open={expanded}
       onToggle={(event) => setExpanded(event.currentTarget.open)}
-      {...stylex.props(styles.inboxGroup, spaced && styles.inboxSpaced)}
+      {...stylex.props(
+        styles.inboxGroup,
+        spaced && styles.inboxSpaced,
+        flush && styles.flushInboxGroup,
+      )}
     >
       <GroupHeading
+        flush={flush}
         summary
         quiet
         label={name}
         expanded={expanded}
         count={<Tag tone="neutral">{items.length}</Tag>}
       />
-      <SidebarCardList label={name} className={stylex.props(styles.inboxList).className}>
+      <SidebarCardList
+        flush={flush}
+        label={name}
+        className={stylex.props(styles.inboxList, flush && styles.flushInboxList).className}
+      >
         {items.map((item) => (
           <BotInboxItemRow
             key={item.id}
@@ -724,7 +762,7 @@ function BotInboxSection({
     </details>
   );
 }
-function BotInboxEntry({ actions, t, botSlug }: ChannelSidebarEntryProps): ReactElement {
+function BotInboxEntry({ actions, t, botSlug, flush }: ChannelSidebarEntryProps): ReactElement {
   const state = useClientState();
   const inbox = state.botInbox;
   const layout = useSyncExternalStore(
@@ -768,12 +806,18 @@ function BotInboxEntry({ actions, t, botSlug }: ChannelSidebarEntryProps): React
       {inbox.status === 'error' ? (
         <div className="bh-error" role="alert">
           {t('inbox.error', { error: inbox.error ?? '' })}
+          <button type="button" onClick={() => botSlug && void actions.refreshBotInbox(botSlug)}>
+            {t('inbox.retry')}
+          </button>
         </div>
+      ) : null}
+      {inbox.status === 'ready' && inbox.items.length === 0 ? (
+        <PanelEmptyState icon="inbox">{t('inbox.empty')}</PanelEmptyState>
       ) : null}
       {layout === 'time' ? (
         <>
           {sections.active.length === 0 ? null : (
-            <SidebarCardList label={t('inbox.section.active')}>
+            <SidebarCardList flush={flush} label={t('inbox.section.active')}>
               {sections.active.map((item) => (
                 <BotInboxItemRow
                   key={item.id}
@@ -788,6 +832,7 @@ function BotInboxEntry({ actions, t, botSlug }: ChannelSidebarEntryProps): React
           {(['snoozed', 'done'] as const).map((section) =>
             sections[section].length === 0 ? null : (
               <BotInboxSection
+                flush={flush}
                 key={section}
                 section={section}
                 spaced={
@@ -803,7 +848,14 @@ function BotInboxEntry({ actions, t, botSlug }: ChannelSidebarEntryProps): React
         </>
       ) : (
         [...groups.entries()].map(([key, group]) => (
-          <BotInboxGroup key={key} name={group.name} items={group.items} actions={actions} t={t} />
+          <BotInboxGroup
+            flush={flush}
+            key={key}
+            name={group.name}
+            items={group.items}
+            actions={actions}
+            t={t}
+          />
         ))
       )}
       {inbox.nextCursor !== undefined && botSlug !== undefined ? (
@@ -1011,8 +1063,14 @@ function AssignmentLimitDialog({
 
 function SessionsHeaderWithSettings({
   prefs,
+  targetItems,
+  targetId,
   ...props
-}: ChannelSidebarEntryProps & { prefs: BotModePrefs | undefined }): ReactElement {
+}: ChannelSidebarEntryProps & {
+  prefs: BotModePrefs | undefined;
+  targetItems: readonly MenuEntry[];
+  targetId: string | undefined;
+}): ReactElement {
   const { botSlug, actions, t } = props;
   const [plan, mount] = useModelPlan(botSlug, actions);
   const readLimit = () => prefs?.source.getSnapshot().assignmentConcurrencyLimit;
@@ -1023,7 +1081,8 @@ function SessionsHeaderWithSettings({
   );
   const [limitOpen, setLimitOpen] = useState(false);
   const extraItems: MenuEntry[] = [
-    ...(botSlug === undefined
+    ...targetItems,
+    ...(botSlug === undefined || props.scope === 'channel'
       ? []
       : [
           { type: 'separator' as const, id: 'model-separator' },
@@ -1034,7 +1093,7 @@ function SessionsHeaderWithSettings({
           },
           {
             id: 'model:assignment',
-            label: `${t('modelPreset.assignment')} · ${plan === null ? t('onboarding.inherit') : routeLabel(plan?.assignmentDefault)}`,
+            label: `${t('modelPreset.assignment')} · ${plan === undefined ? '…' : plan?.assignmentDefault === undefined ? t('onboarding.inherit') : routeLabel(plan.assignmentDefault)}`,
           },
         ]),
     ...(prefs === undefined || limit === undefined
@@ -1050,8 +1109,14 @@ function SessionsHeaderWithSettings({
       <SessionsHeaderAction
         {...props}
         extraItems={extraItems}
+        extraSelectedIds={targetId ? [targetId] : []}
         onExtraSelect={(id) => {
-          if (id === 'limit:edit') setLimitOpen(true);
+          if (id.startsWith('target:'))
+            setSessionTarget(
+              props.channelId,
+              id === 'target:channel' ? '' : id.slice('target:bot:'.length),
+            );
+          else if (id === 'limit:edit') setLimitOpen(true);
           else channelSettings.open('model');
         }}
       />
@@ -1068,12 +1133,12 @@ export function createChannelSidebarBuiltinTabs(
   return [
     {
       id: 'conversation',
-      icon: 'messages-square',
+      icon: 'messages-circle',
       label: t('tab.conversation'),
       order: 1,
       scope: 'personabot',
     },
-    { id: 'memory', icon: 'files', label: t('tab.memory'), order: 2, scope: 'personabot' },
+    { id: 'memory', icon: 'brain', label: t('tab.memory'), order: 2, scope: 'personabot' },
     { id: 'screen', icon: 'monitor', label: t('tab.screen'), order: 3, scope: 'personabot' },
   ];
 }
@@ -1106,7 +1171,51 @@ export function createChannelSidebarBuiltins(
     return <WorkspaceGrantsEntry {...props} developerMode={developerMode} />;
   }
   function SessionsHeader(props: ChannelSidebarEntryProps): ReactElement {
-    return <SessionsHeaderWithSettings {...props} prefs={prefs} />;
+    const target = useSessionTarget(props);
+    const state = useClientState();
+    const group = props.botSlug === undefined;
+    const channel =
+      state.conversation.channel?.id === props.channelId
+        ? state.conversation.channel
+        : state.channels.find((channel) => channel.id === props.channelId);
+    const bots = state.bots.filter((bot) => channel?.members.includes(bot.slug));
+    const selected =
+      target.kind === 'bot' ? state.bots.find((bot) => bot.slug === target.slug) : undefined;
+    const targetId = group
+      ? target.kind === 'channel'
+        ? 'target:channel'
+        : `target:bot:${target.slug}`
+      : undefined;
+    const targetItems: MenuEntry[] = group
+      ? [
+          { type: 'label', id: 'target-label', text: props.t('sessions.target.label') },
+          { id: 'target:channel', label: props.t('sessions.target.channel') },
+          ...bots.map((bot) => ({
+            id: `target:bot:${bot.slug}`,
+            label: props.t('sessions.target.bot', { name: bot.displayName }),
+          })),
+        ]
+      : [];
+    return (
+      <>
+        {group && selected ? (
+          <span
+            data-session-target=""
+            title={selected.displayName}
+            {...stylex.props(styles.sessionTarget)}
+          >
+            {props.t('sessions.target.bot', { name: selected.displayName })}
+          </span>
+        ) : null}
+        <SessionsHeaderWithSettings
+          {...props}
+          botSlug={target.kind === 'bot' ? target.slug : undefined}
+          prefs={group ? undefined : prefs}
+          targetItems={targetItems}
+          targetId={targetId}
+        />
+      </>
+    );
   }
   function MemoryEvolutionEntry(props: ChannelSidebarEntryProps): ReactElement {
     return <MemoryEntry {...props} showFiles={false} />;
@@ -1115,7 +1224,7 @@ export function createChannelSidebarBuiltins(
     {
       id: 'memory-files',
       tab: 'memory',
-      icon: 'files',
+      icon: 'brain',
       label: t('entry.memoryFiles'),
       order: 5,
       scope: 'personabot',
@@ -1135,11 +1244,10 @@ export function createChannelSidebarBuiltins(
     },
     {
       id: 'sessions',
-      tab: 'conversation',
-      icon: 'messages-square',
+      icon: 'text-quote',
       label: t('entry.sessions'),
       order: 10,
-      scope: 'personabot',
+      scope: 'both',
       component: SessionsWithNative,
       headerAction: SessionsHeader,
     },
@@ -1153,10 +1261,6 @@ export function createChannelSidebarBuiltins(
       component: BotInboxEntry,
       badge: BotInboxBadge,
       headerAction: BotInboxHeaderAction,
-      visible: (state) =>
-        state.botInbox.status === 'loading' ||
-        state.botInbox.status === 'error' ||
-        state.botInbox.items.length > 0,
     },
     {
       id: 'schedules',
@@ -1167,6 +1271,25 @@ export function createChannelSidebarBuiltins(
       scope: 'personabot',
       component: BotSchedulesEntry,
       headerAction: BotSchedulesHeaderAction,
+    },
+    ...(['personabot', 'channel'] as const).map((scope) => ({
+      id: scope === 'personabot' ? 'human-nickname' : 'group-human-nickname',
+      surface: 'settings' as const,
+      icon: 'user',
+      label: t('humanNickname.title'),
+      order: 1,
+      scope,
+      component: ChannelNicknameEntry,
+      visible: (state: ClientState) => state.conversation.channel?.humanNickname !== undefined,
+    })),
+    {
+      id: 'dm-trace',
+      surface: 'settings',
+      icon: 'eye',
+      label: t('dmTrace.menu'),
+      order: 2,
+      scope: 'personabot',
+      component: ChannelTraceEntry,
     },
     {
       id: 'workspace-grants',
@@ -1234,14 +1357,6 @@ export function createChannelSidebarBuiltins(
       order: 29,
       scope: 'personabot',
       component: PrivateAccountsSection,
-    },
-    {
-      id: 'group-work',
-      icon: 'list-checks',
-      label: t('entry.groupWork'),
-      order: 5,
-      scope: 'channel',
-      component: GroupWorkEntry,
     },
     {
       id: 'members',

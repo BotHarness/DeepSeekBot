@@ -2293,6 +2293,96 @@ const SECRET_CLI_TOOL_RULE_MIGRATION: SchemaMigration = {
   },
 };
 
+const TOB_IDENTITY_MIGRATION: SchemaMigration = {
+  generation: 96,
+  module: 'tob',
+  description: 'Reserve the protected local Tob identity',
+  migrate(database) {
+    database.exec(`CREATE TABLE tob_identity (
+      singleton INTEGER PRIMARY KEY CHECK (singleton = 1), bot_slug TEXT NOT NULL UNIQUE
+    );`);
+  },
+};
+
+const BOT_CREATION_OPERATION_MIGRATION: SchemaMigration = {
+  generation: 97,
+  module: 'bot-creation',
+  description: 'Reserve stable Bot creation identities for idempotent live CLI retries',
+  migrate(database) {
+    database.exec(`CREATE TABLE bot_creation_operations (
+      operation_key TEXT PRIMARY KEY, payload_hash TEXT NOT NULL,
+      bot_slug TEXT NOT NULL UNIQUE, status TEXT NOT NULL CHECK(status IN ('reserved','created'))
+    );`);
+  },
+};
+
+const CHANNEL_MANAGEMENT_OPERATION_MIGRATION: SchemaMigration = {
+  generation: 98,
+  module: 'channel-management',
+  description: 'Reserve canonical Channel and invitation identities for scoped CLI retries',
+  migrate(database) {
+    database.exec(`CREATE TABLE channel_management_operations (
+      operation_key TEXT PRIMARY KEY, kind TEXT NOT NULL CHECK(kind IN ('create','invite')),
+      payload_hash TEXT NOT NULL, channel_id TEXT NOT NULL, invitation_id TEXT,
+      targets_json TEXT NOT NULL, status TEXT NOT NULL CHECK(status IN ('reserved','completed'))
+    );`);
+  },
+};
+
+const GROUP_SEND_REVIEW_MIGRATION: SchemaMigration = {
+  generation: 99,
+  module: 'channel-send-review',
+  description: 'Opt-in local Group send review and bounded durable draft intents',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE group_send_review_enabled (channel_id TEXT PRIMARY KEY);
+      CREATE TABLE group_send_review_drafts (
+        id TEXT PRIMARY KEY, owner TEXT NOT NULL, channel_id TEXT NOT NULL,
+        source_event_id TEXT NOT NULL, record_json TEXT NOT NULL
+      );
+      CREATE INDEX group_send_review_source ON group_send_review_drafts(source_event_id);
+    `);
+  },
+};
+
+const CLOUD_CONNECTION_MIGRATION: SchemaMigration = {
+  generation: 100,
+  module: 'messaging',
+  description: 'Track explicit cloud Agent connections without storing secret values',
+  migrate(database) {
+    database.exec(`CREATE TABLE cloud_connections (
+      id TEXT PRIMARY KEY,
+      connection_json TEXT NOT NULL,
+      credential_revision TEXT NOT NULL,
+      active INTEGER NOT NULL CHECK (active IN (0,1)),
+      cursor INTEGER NOT NULL CHECK (cursor >= 0),
+      policy_json TEXT NOT NULL,
+      revision INTEGER NOT NULL CHECK (revision >= 1)
+    );`);
+  },
+};
+
+const CLOUD_WORK_MIGRATION: SchemaMigration = {
+  generation: 101,
+  module: 'messaging',
+  description: 'Fence bounded cloud work execution and forwarding across retries',
+  migrate(database) {
+    database.exec(`CREATE TABLE cloud_work (
+      connection_id TEXT NOT NULL,
+      request_id TEXT NOT NULL,
+      bot_slug TEXT NOT NULL,
+      source_event_id TEXT NOT NULL,
+      request_hash TEXT NOT NULL,
+      state TEXT NOT NULL CHECK (state IN ('authorizing','started','outbox','finished','forwarding','forwarded')),
+      target_actor_id TEXT,
+      environment TEXT NOT NULL,
+      execution_count INTEGER NOT NULL CHECK (execution_count IN (0,1)),
+      outcome_json TEXT,
+      PRIMARY KEY (connection_id,request_id)
+    );`);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -2388,4 +2478,10 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   HUMAN_INBOX_SNOOZE_MIGRATION,
   CHANNEL_REACTION_MIGRATION,
   SECRET_CLI_TOOL_RULE_MIGRATION,
+  TOB_IDENTITY_MIGRATION,
+  BOT_CREATION_OPERATION_MIGRATION,
+  CHANNEL_MANAGEMENT_OPERATION_MIGRATION,
+  GROUP_SEND_REVIEW_MIGRATION,
+  CLOUD_CONNECTION_MIGRATION,
+  CLOUD_WORK_MIGRATION,
 ]);

@@ -136,6 +136,10 @@ describe('speech language', () => {
 });
 
 describe('composer height', () => {
+  it('reserves room for the conversation and actions at accessibility sizes without clipping a line', () => {
+    expect(composerFieldHeight(400, 64, 5, 175)).toBe(175);
+    expect(composerFieldHeight(400, 64, 5, 50)).toBe(74);
+  });
   it('grows one line at a time up to five lines, then holds and scrolls', () => {
     const line = 22;
     const padding = 5;

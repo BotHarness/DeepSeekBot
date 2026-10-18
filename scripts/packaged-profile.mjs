@@ -13,7 +13,6 @@ export function verifyProductComposition(entries) {
     ['botharness-core', '@botharness/core'],
     ['botharness-client', '@botharness/ui'],
     ['botharness-browser', '@botharness/browser'],
-    ['computer-use', '@deepseek-ai/dsh-computer-use'],
     ['botharness-computer', '@botharness/computer'],
   ]);
   const found = new Map();
@@ -45,7 +44,7 @@ export function verifyProductComposition(entries) {
   }
   visit(entries);
   if (found.size !== expected.size)
-    throw new Error('Product Patch did not activate all six qualified components');
+    throw new Error('Product Patch did not activate all five qualified components');
 }
 
 export function parseProductComposition(source) {

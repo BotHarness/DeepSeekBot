@@ -119,6 +119,7 @@ export interface ConversationMessage {
   author: 'human' | 'bot' | 'system';
   bot?: string;
   body: string;
+  mentions?: WireMention[];
   attachments: MessageAttachment[];
   card?: MessageCard;
   resolves?: { requestId: string; resolution: CardResolution };
@@ -135,6 +136,8 @@ export interface ConversationDraft {
   body: string;
 }
 
+export type ConversationDraftReference = Pick<ConversationDraft, 'draftId' | 'botSlug'>;
+
 export type ConversationStatus = 'opening' | 'live' | 'interrupted' | 'refused';
 
 export interface ConversationSnapshot {
@@ -145,6 +148,40 @@ export interface ConversationSnapshot {
   hasOlder: boolean;
   loadingOlder: boolean;
   fromCache: boolean;
+}
+
+export interface ConversationTimelineSnapshot extends Omit<ConversationSnapshot, 'drafts'> {
+  drafts: ConversationDraftReference[];
+}
+
+function timelineOf(
+  current: ConversationSnapshot,
+  previous?: ConversationTimelineSnapshot,
+): ConversationTimelineSnapshot {
+  const sameDrafts =
+    previous !== undefined &&
+    current.drafts.length === previous.drafts.length &&
+    current.drafts.every(
+      (draft, index) =>
+        draft.draftId === previous.drafts[index]?.draftId &&
+        draft.botSlug === previous.drafts[index]?.botSlug,
+    );
+  if (
+    sameDrafts &&
+    current.messages === previous.messages &&
+    current.status === previous.status &&
+    current.reason === previous.reason &&
+    current.hasOlder === previous.hasOlder &&
+    current.loadingOlder === previous.loadingOlder &&
+    current.fromCache === previous.fromCache
+  )
+    return previous;
+  return {
+    ...current,
+    drafts: sameDrafts
+      ? previous.drafts
+      : current.drafts.map(({ draftId, botSlug }) => ({ draftId, botSlug })),
+  };
 }
 
 export interface CachedConversation {
@@ -164,6 +201,7 @@ export interface SendObservation {
 export interface Conversation {
   setForeground?(visible: boolean): void;
   getSnapshot(): ConversationSnapshot;
+  getTimelineSnapshot(): ConversationTimelineSnapshot;
   subscribe(listener: () => void): () => void;
   start(): void;
   stop(): void;
@@ -347,6 +385,7 @@ function present(
     author: kind === 'human' ? 'human' : kind === 'bot' ? 'bot' : 'system',
     ...(message.author.kind === 'bot' ? { bot: message.author.slug } : {}),
     body: message.body,
+    ...(message.mentions === undefined ? {} : { mentions: message.mentions }),
     attachments: attachmentsOf(entry, resolve, picked),
     ...(card === undefined ? {} : { card }),
     ...(resolves === undefined ? {} : { resolves }),
@@ -388,6 +427,7 @@ export function createConversation(options: ConversationOptions): Conversation {
   const presented = new WeakMap<JournalEntry, ConversationMessage>();
   let messages: ConversationMessage[] = [];
   let snapshot: ConversationSnapshot = build(true);
+  let timelineSnapshot = timelineOf(snapshot);
   let cacheTimer: ReturnType<typeof setTimeout> | undefined;
   let draftTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -422,6 +462,7 @@ export function createConversation(options: ConversationOptions): Conversation {
         at: item.at,
         author: 'human',
         body: item.body,
+        ...(item.tags.mentions === undefined ? {} : { mentions: item.tags.mentions }),
         attachments: item.files.map((file, index) => ({
           key: `${item.id}:${index}`,
           kind: file.kind ?? 'file',
@@ -441,6 +482,7 @@ export function createConversation(options: ConversationOptions): Conversation {
     clearTimeout(draftTimer);
     draftTimer = undefined;
     snapshot = build(withMessages);
+    timelineSnapshot = timelineOf(snapshot, timelineSnapshot);
     for (const listener of listeners) listener();
   };
 
@@ -727,6 +769,7 @@ export function createConversation(options: ConversationOptions): Conversation {
       if (!visible) acceptedSend = undefined;
     },
     getSnapshot: () => snapshot,
+    getTimelineSnapshot: () => timelineSnapshot,
     subscribe(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);

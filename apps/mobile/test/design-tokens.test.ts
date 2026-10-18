@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import { palette as dshPalette, render } from '../scripts/generate-palette.mjs';
 import { palette } from '../src/ui/design/palette.generated';
-import { BUTTON_TONES, buttonColors } from '../src/ui/design/controls';
+import { BUTTON_TONES, buttonColors, settingsColors } from '../src/ui/design/controls';
 import { distance, LAYER_PARENT, LAYERS, SEPARATION } from '../src/ui/design/layers';
 import { headerBand, resolveTheme, withAccent } from '../src/ui/design/resolve-theme';
 import { botColor } from '../src/ui/bot-color';
@@ -175,6 +175,20 @@ describe('Button tones', () => {
                 distance(tones[a]![1].fill, tones[b]![1].fill),
                 `${scheme} ${accent ?? 'default'} ${tones[a]![0]}~${tones[b]![0]} on ${on}`,
               ).toBeGreaterThanOrEqual(SEPARATION);
+        }
+      }
+  });
+});
+
+describe('Android settings readability', () => {
+  it('keeps accent headings and selected labels readable in both schemes and custom accents', () => {
+    for (const scheme of ['light', 'dark'] as const)
+      for (const accent of [undefined, '#d9475a', '#c79a2b', '#000000', '#ffffff']) {
+        const theme = resolveTheme(scheme, accent === undefined ? {} : { accent }, 'android');
+        for (const on of LAYERS) {
+          const colors = settingsColors(theme, on);
+          expect(contrastOf(colors.heading, theme.overlay.fill)).toBeGreaterThanOrEqual(4.5);
+          expect(contrastOf(colors.selectedText, colors.selected)).toBeGreaterThanOrEqual(4.5);
         }
       }
   });

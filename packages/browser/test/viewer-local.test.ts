@@ -1,6 +1,7 @@
+// @vitest-environment jsdom
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { Readable } from 'node:stream';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { LOCAL_VIEWER_PREFIX, localViewerUrl, registerLocalViewer } from '../src/viewer-local.js';
 import { createTakeoverService, type TakeoverService } from '../src/takeover.js';
@@ -12,6 +13,7 @@ function fixture(options?: {
   rejected?: number;
   takeover?: boolean;
   stream?: boolean;
+  currentTab?: () => string | undefined;
 }) {
   const running = options?.running ?? true;
   const shot = options?.shot ?? {
@@ -55,7 +57,7 @@ function fixture(options?: {
   );
   const captureScreenshot = vi.fn(async () => shot);
   const runtime = {
-    isRunning: () => running,
+    isRunning: () => options?.running ?? true,
     captureScreenshot,
     ...(options?.stream === true ? { streamFrames } : {}),
     clickAt,
@@ -73,7 +75,7 @@ function fixture(options?: {
       registerUpgrade: () => release,
     },
     runtimes: { for: () => runtime } as never,
-    currentTab: () => (running ? 'tab-1' : undefined),
+    currentTab: () => options?.currentTab?.() ?? (running ? 'tab-1' : undefined),
     isTakeover: () => options?.takeover ?? true,
     touch,
     hasAccess: () => options?.access ?? true,
@@ -119,7 +121,48 @@ function fixture(options?: {
   };
 }
 
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.useRealTimers();
+  document.body.innerHTML = '';
+});
+
 describe('local browser viewer stream', () => {
+  it.each([
+    [404, 'browser not running', 'browser not running'],
+    [404, 'no browser tab', 'No browser tab'],
+    [503, 'frame unavailable', 'frame unavailable (503)'],
+  ])(
+    'shows the first-frame wait, then the actual %s refusal without endless polling (%s)',
+    async (code, reason, visible) => {
+      const f = fixture();
+      const response = await f.call(`${LOCAL_VIEWER_PREFIX}/?slug=qa`);
+      const html = String(response.end.mock.calls[0]?.[0]);
+      document.documentElement.innerHTML = html;
+      window.history.replaceState({}, '', '?slug=qa');
+      vi.stubGlobal('matchMedia', () => ({ matches: false }));
+      let deliver!: (response: Response) => void;
+      const fetchFrame = vi.fn(
+        (_url: string) =>
+          new Promise<Response>((resolve) => {
+            deliver = resolve;
+          }),
+      );
+      vi.stubGlobal('fetch', fetchFrame);
+      vi.useFakeTimers();
+      new Function(document.querySelector('script')!.textContent!)();
+      expect(document.getElementById('status')!.textContent).toBe('Waiting for the first frame…');
+      deliver(new Response(reason, { status: code }));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(document.getElementById('status')!.textContent).toBe(visible);
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(
+        fetchFrame.mock.calls.filter((args) => String(args[0]).startsWith('frame?')),
+      ).toHaveLength(1);
+      f.dispose();
+    },
+  );
+
   it('exposes a Host-served viewer URL for the local target', () => {
     expect(localViewerUrl('qa')).toBe(`${LOCAL_VIEWER_PREFIX}/?slug=qa`);
     expect(localViewerUrl('a b')).toContain('slug=a%20b');
@@ -433,6 +476,56 @@ describe('local browser viewer stream', () => {
     );
     expect(response.writeHead).toHaveBeenCalledWith(400, expect.anything());
     expect(f.clickAt).not.toHaveBeenCalled();
+    f.dispose();
+  });
+
+  it('reports unavailable first frames separately from a stopped Browser after the bounded wait', async () => {
+    const f = fixture({ stream: true });
+    f.captureScreenshot.mockRejectedValue(new Error('first frame not ready'));
+    const response = await f.call(`${LOCAL_VIEWER_PREFIX}/frame?slug=qa`);
+    expect(response.writeHead).toHaveBeenCalledWith(503, expect.anything());
+    expect(response.end).toHaveBeenCalledWith('frame unavailable');
+    f.dispose();
+  });
+
+  it('does not deliver a delayed frame after Browser Access is revoked', async () => {
+    const options = { stream: true, access: true };
+    const f = fixture(options);
+    const pending = f.call(`${LOCAL_VIEWER_PREFIX}/frame?slug=qa`);
+    await vi.waitFor(() => expect(f.streamFrames).toHaveBeenCalledOnce());
+    options.access = false;
+    f.push('private frame');
+    const response = await pending;
+    expect(response.writeHead).toHaveBeenCalledWith(403, expect.anything());
+    expect(response.end).toHaveBeenCalledWith('Browser Access is off for this PersonaBot');
+    f.dispose();
+  });
+
+  it('discards a delayed frame when following another tab', async () => {
+    let tab = 'tab-1';
+    const f = fixture({ stream: true, currentTab: () => tab });
+    const pending = f.call(`${LOCAL_VIEWER_PREFIX}/frame?slug=qa`);
+    await vi.waitFor(() => expect(f.streamFrames).toHaveBeenCalledOnce());
+    tab = 'tab-2';
+    f.push('old tab pixels');
+    expect((await pending).writeHead).toHaveBeenCalledWith(204, expect.anything());
+    const next = f.call(`${LOCAL_VIEWER_PREFIX}/frame?slug=qa`);
+    await vi.waitFor(() => expect(f.streamFrames).toHaveBeenCalledTimes(2));
+    f.push('new tab pixels');
+    expect((await next).end).toHaveBeenCalledWith(Buffer.from('new tab pixels'));
+    f.dispose();
+  });
+
+  it('does not deliver a delayed frame after the Browser stops', async () => {
+    const options = { stream: true, running: true };
+    const f = fixture(options);
+    const pending = f.call(`${LOCAL_VIEWER_PREFIX}/frame?slug=qa`);
+    await vi.waitFor(() => expect(f.streamFrames).toHaveBeenCalledOnce());
+    options.running = false;
+    f.push('stale pixels');
+    const response = await pending;
+    expect(response.writeHead).toHaveBeenCalledWith(404, expect.anything());
+    expect(response.end).toHaveBeenCalledWith('browser not running');
     f.dispose();
   });
 
