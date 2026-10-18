@@ -4130,3 +4130,24 @@ it('changing the app post limit keeps its authenticated inbound subscription usa
   await fx.idle();
   expect(fx.runs).toHaveLength(1);
 });
+
+it.each(['ordinary group text', '/model'])(
+  'preserves admitted group text outside DM command scope: %s',
+  async (text) => {
+    const host: ImCommandServices = {
+      botDisplayName: () => 'Ada',
+      plan: async () => undefined,
+      catalog: async () => [],
+      applyModel: async () => {},
+      stopTurn: async () => undefined,
+      startFreshOrchestrator: async () => 'started',
+      turnRunning: () => false,
+    };
+    const fx = await fixture({ imCommands: () => host });
+    await fx.enable();
+    await fx.receive(event({ text }));
+    await fx.idle();
+    expect(fx.runs).toHaveLength(1);
+    expect(fx.runs[0]!.inbox).toContain(JSON.stringify(text));
+  },
+);

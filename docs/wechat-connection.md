@@ -283,6 +283,23 @@ This is a candidate review path, not a released build.
 
 ![WeChat global reception and typing defaults](https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/evidence/issue-912/defaults-after-zh-dark.jpg)
 
+## Commands in the owner DM
+
+Send `/commands` (or `/命令`) for help, `/status` for the current model and activity,
+`/model` for numbered model choices, and `/effort` for the current model's reasoning choices.
+`/model <number|name>` changes only the Orchestrator model; `/effort <level>` changes its effort.
+Assignment model choices retain their existing settings or inheritance.
+Use `/stop` to stop the active turn, then `/new` to retire an idle Orchestrator Session.
+The next ordinary message starts a fresh Session; the Bot's identity and Memory remain.
+
+Commands must occupy one text-only DM message. Chinese aliases and full-width `／` work;
+multi-line instructions, messages with attachments and group messages keep their normal path.
+The Host answers directly without spending a model turn. Commands use the same owner-DM admission,
+block and account checks as other messages. Replies retain accepted, failed or unknown Outbox
+outcomes; redelivery does not repeat an action or blindly resend an unknown result.
+The command path has isolated-Host and automated coverage; a fresh native WeChat command exchange
+must be checked separately from that evidence.
+
 ## Pause or reconnect
 
 Mute the DM to stop it waking the Bot, or Block it to refuse future messages, while retaining history. Unbind the app to remove its authority. Re-pairing changes the identity fingerprint and needs a new binding; stale source continuations must not be reused. Restart with the same Profile to retain local pairing, canonical source records and Outbox outcomes.

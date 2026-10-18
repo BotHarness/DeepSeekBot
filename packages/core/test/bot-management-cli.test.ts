@@ -84,6 +84,22 @@ async function invoke(argv: string[], url: string, stdin = '') {
 }
 
 describe('online CLI management', () => {
+  it.each(['started', 'busy'] as const)(
+    'starts a fresh Session through its Host owner or preserves the %s refusal',
+    async (outcome) => {
+      const live = await host(() =>
+        outcome === 'started'
+          ? { ok: true, value: { started: true } }
+          : { ok: false, error: { code: 'bot-busy', message: 'Stop the Bot first' } },
+      );
+      const result = await invoke(['bot-new-session', 'owned'], live.url);
+      expect(live.calls).toEqual([{ method: 'botNewSession', args: { slug: 'owned' } }]);
+      expect(result.code === 0).toBe(outcome === 'started');
+      expect(outcome === 'started' ? result.value.started : result.value.error.code).toBe(
+        outcome === 'started' ? true : 'bot-busy',
+      );
+    },
+  );
   it('updates through the live owner with the caller-observed profile and supports clearing profile fields', async () => {
     const fingerprint = 'a'.repeat(64);
     const live = await host((method) => ({

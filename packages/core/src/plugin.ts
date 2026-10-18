@@ -2161,28 +2161,18 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     },
     catalog: () => modelCatalog.list(),
     defaultRoute: () => modelCatalog.defaultRoute?.(),
-    applyModel: async (slug, route) => {
+    applyModel: async (slug, route, assertCurrent) => {
       const state = await bridgeMethods.modelPlan({ slug });
       if (!state.ok) throw new Error(state.error.message);
-      if (state.value.plan !== undefined) {
-        const result = await bridgeMethods.modelPlanCustomize({ slug, orchestrator: route });
-        if (!result.ok) throw new Error(result.error.message);
-        return;
-      }
-      const result = await bridgeMethods.modelPlanSet({
-        slug,
-        expectedRevision: state.value.revision ?? 0,
-        orchestrator: route,
-        assignmentDefault: route,
-        assignmentModels: [
-          {
-            provider: route.provider,
-            model: route.model,
-            allowedEfforts: [route.reasoningEffort ?? ''],
-            defaultEffort: route.reasoningEffort ?? '',
-          },
-        ],
-      });
+      assertCurrent?.();
+      const result = await bridgeMethods.modelPlanCustomize(
+        {
+          slug,
+          expectedRevision: state.value.revision ?? 0,
+          orchestrator: route,
+        },
+        assertCurrent,
+      );
       if (!result.ok) throw new Error(result.error.message);
     },
     stopTurn: async (slug) => {
@@ -2196,7 +2186,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       if (stopped.error.code === 'not-working') return undefined;
       throw new Error(stopped.error.message);
     },
-    startFreshOrchestrator: (slug) => core.runtime.startFreshOrchestrator!(slug),
+    startFreshOrchestrator: (slug, assertCurrent) =>
+      core.runtime.startFreshOrchestrator!(slug, assertCurrent),
     turnRunning: (slug) => core.runtime.turnRunning!(slug),
   };
   const tobBotCreationOperations = createTobBotCreationOperations({

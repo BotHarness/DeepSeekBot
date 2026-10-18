@@ -7,6 +7,7 @@ import type { MessagingInboundEvent, MessagingProvider } from '../src/messaging/
 import { createTempRoot } from './helpers.js';
 import {
   executeImCommand,
+  createImCommandExecutor,
   imCommandAuthority,
   imCommandRequiresAuthority,
   parseImCommand,
@@ -486,4 +487,45 @@ it('claims redelivered DM commands once, including implicit Weixin DMs with disa
     service.close();
     owner.close();
   }
+});
+
+it('serializes model and effort changes without restoring the previous model', async () => {
+  let route: ModelRoute = { provider: 'deepseek', model: 'deepseek-chat' };
+  let catalogCalls = 0;
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const host: ImCommandServices = {
+    botDisplayName: () => 'Ada',
+    plan: async () => plan(route),
+    catalog: async () => {
+      if (++catalogCalls === 2) await gate;
+      return catalog;
+    },
+    applyModel: async (_slug, next) => {
+      route = next;
+    },
+    stopTurn: async () => undefined,
+    startFreshOrchestrator: async () => 'started',
+    turnRunning: () => false,
+  };
+  const execute = createImCommandExecutor();
+  const run = (text: string) =>
+    execute(() => ({
+      command: parseImCommand(text)!,
+      chinese: false,
+      botSlug: 'ada',
+      botDisplayName: 'Ada',
+      working: false,
+      manage: 'allowed',
+      host,
+    }));
+  const switching = run('/model 2');
+  const effort = run('/effort high');
+  await switching;
+  expect(route.model).toBe('deepseek-reasoner');
+  release();
+  await effort;
+  expect(route.model).toBe('deepseek-reasoner');
 });

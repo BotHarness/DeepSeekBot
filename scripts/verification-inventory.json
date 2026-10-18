@@ -4,6 +4,14 @@
   "boundary": "All scripts/e2e-*.mjs files and all current feature-map documents, augmented by implemented Client/CLI/mobile source entry points. Behavior rows group related acceptance paths; they are not an exhaustive product behavior denominator. Planned unmerged #1954 work and packaged/restart identity promises are excluded.",
   "behaviors": [
     {
+      "id": "messaging.im-dm-commands",
+      "label": "Handle whole-text IM DM commands with current authority and canonical Outbox replies",
+      "source": "packages/core/src/messaging/im-commands.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/im-dm-commands.md",
+      "task": 2005,
+      "gap": "Controlled-Provider and isolated-Host paths do not establish a fresh native WeChat command exchange."
+    },
+    {
       "id": "desktop.sessions.bot-folders",
       "label": "Group native Sessions under DeepSeekBot and Bot-avatar subgroups without changing execution directories",
       "source": "packages/client/src/client/bot-session-folders.tsx",

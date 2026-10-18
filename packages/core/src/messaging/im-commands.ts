@@ -69,9 +69,9 @@ export interface ImCommandServices {
   plan(botSlug: string): Promise<PersonaBotModelPlan | undefined>;
   catalog(): Promise<ModelCatalogEntry[]>;
   defaultRoute?(): ModelRoute | undefined;
-  applyModel(botSlug: string, route: ModelRoute): Promise<void>;
+  applyModel(botSlug: string, route: ModelRoute, assertCurrent?: () => void): Promise<void>;
   stopTurn(botSlug: string): Promise<{ sessionId: string } | undefined>;
-  startFreshOrchestrator(botSlug: string): Promise<'started' | 'busy'>;
+  startFreshOrchestrator(botSlug: string, assertCurrent?: () => void): Promise<'started' | 'busy'>;
   turnRunning(botSlug: string): boolean;
 }
 
@@ -82,6 +82,7 @@ export interface ImCommandDeps {
   botDisplayName: string;
   working: boolean;
   manage: ImCommandManage;
+  assertCurrent?(): void;
   host: ImCommandServices;
 }
 
@@ -249,11 +250,16 @@ async function changeModel(deps: ImCommandDeps): Promise<string> {
       ? current.reasoningEffort
       : undefined;
   try {
-    await deps.host.applyModel(deps.botSlug, {
-      provider: entry.provider,
-      model: entry.model,
-      ...(effort === undefined ? {} : { reasoningEffort: effort }),
-    });
+    deps.assertCurrent?.();
+    await deps.host.applyModel(
+      deps.botSlug,
+      {
+        provider: entry.provider,
+        model: entry.model,
+        ...(effort === undefined ? {} : { reasoningEffort: effort }),
+      },
+      deps.assertCurrent,
+    );
   } catch {
     return zh
       ? '切换模型失败，请重试或改用 Web 端。'
@@ -284,11 +290,16 @@ async function changeEffort(deps: ImCommandDeps, current: ModelRoute): Promise<s
   }
   if (option === undefined) return candidateList([], (item) => item.name, zh, options);
   try {
-    await deps.host.applyModel(deps.botSlug, {
-      provider: current.provider,
-      model: current.model,
-      ...(option.id === '' ? {} : { reasoningEffort: option.id }),
-    });
+    deps.assertCurrent?.();
+    await deps.host.applyModel(
+      deps.botSlug,
+      {
+        provider: current.provider,
+        model: current.model,
+        ...(option.id === '' ? {} : { reasoningEffort: option.id }),
+      },
+      deps.assertCurrent,
+    );
   } catch {
     return zh
       ? '设置强度失败，请重试或改用 Web 端。'
@@ -304,6 +315,7 @@ async function currentRoute(deps: ImCommandDeps): Promise<ModelRoute | undefined
 
 async function stopText(deps: ImCommandDeps): Promise<string> {
   const zh = deps.chinese;
+  deps.assertCurrent?.();
   const stopped = await deps.host.stopTurn(deps.botSlug);
   return stopped === undefined
     ? zh
@@ -316,7 +328,8 @@ async function stopText(deps: ImCommandDeps): Promise<string> {
 
 async function freshText(deps: ImCommandDeps): Promise<string> {
   const zh = deps.chinese;
-  const outcome = await deps.host.startFreshOrchestrator(deps.botSlug);
+  deps.assertCurrent?.();
+  const outcome = await deps.host.startFreshOrchestrator(deps.botSlug, deps.assertCurrent);
   return outcome === 'busy'
     ? zh
       ? 'Bot 正在运行，请先 /stop 再试。'
@@ -330,6 +343,7 @@ export async function executeImCommand(deps: ImCommandDeps): Promise<string> {
   const { command } = deps;
   if (imCommandRequiresAuthority(command) && deps.manage !== 'allowed')
     return refuseChange(deps.manage, deps.chinese);
+  deps.assertCurrent?.();
   switch (command.name) {
     case 'commands':
     case 'help':
@@ -357,4 +371,21 @@ export async function executeImCommand(deps: ImCommandDeps): Promise<string> {
     case 'new':
       return freshText(deps);
   }
+}
+
+export function createImCommandExecutor(): (deps: () => ImCommandDeps) => Promise<string> {
+  const tails = new Map<string, Promise<unknown>>();
+  return (getDeps) => {
+    const slug = getDeps().botSlug;
+    const pending = (tails.get(slug) ?? Promise.resolve())
+      .catch(() => undefined)
+      .then(() => executeImCommand(getDeps()));
+    tails.set(slug, pending);
+    void pending
+      .finally(() => {
+        if (tails.get(slug) === pending) tails.delete(slug);
+      })
+      .catch(() => undefined);
+    return pending;
+  };
 }

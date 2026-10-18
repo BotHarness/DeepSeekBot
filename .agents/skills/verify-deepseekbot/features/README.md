@@ -38,6 +38,8 @@ One file per user-facing feature. Each file has four sections: `Sub-features`, `
 
 ## Coverage and maintenance
 
+| IM DM commands, current authority and canonical reply outcomes | no for commands; yes for ordinary follow-up | none (isolated Host, CLI and authorized native IM path) | [im-dm-commands.md](im-dm-commands.md) |
+
 The index routes verification; it is not a list of features proven on the current commit.
 Some files contain manual paths or API-only journeys. Read each file's preconditions and
 limits. Native journeys run only through the [shared device QA queue](../../../../docs/agents/device-qa.md).

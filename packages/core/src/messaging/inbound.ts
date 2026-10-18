@@ -66,7 +66,7 @@ import { admitBridgeMembers } from './member-admission.js';
 import { messagingDefaults } from './defaults.js';
 import { assertMessagingIdentity } from './identity.js';
 import {
-  executeImCommand,
+  createImCommandExecutor,
   imCommandAuthority,
   imCommandRequiresAuthority,
   parseImCommand,
@@ -248,6 +248,7 @@ export function createInboundMessaging(options: {
   sourcePolicy: BotSourcePolicyStore;
   isBotActive(slug: string): boolean;
   imCommands?(): ImCommandServices | undefined;
+  replyCommand?(botSlug: string, sourceEventId: string, text: string): Promise<void>;
   onAdmitted(botSlug: string, sourceEventId: string): void;
   onAdmissionCommitted?(botSlug: string, sourceEventId: string): void;
   onReceptionChanged?(): void;
@@ -302,6 +303,7 @@ export function createInboundMessaging(options: {
   >();
   const retries = new Map<string, { timer: ReturnType<typeof setTimeout>; token: object }>();
   const replyStarts = new Map<string, Promise<void>>();
+  const executeCommand = createImCommandExecutor();
   let closed = false;
   const cursors = new Map<
     string,
@@ -1491,7 +1493,7 @@ export function createInboundMessaging(options: {
     event: MessagingInboundEvent,
     signal: AbortSignal,
     claimCommand = false,
-  ): Promise<{ accepted: true; commandClaimed?: boolean }> => {
+  ): Promise<{ accepted: true; commandClaimed?: string }> => {
     if (
       identity.platform === 'weixin' &&
       (event.conversation.kind !== 'dm' ||
@@ -1598,7 +1600,7 @@ export function createInboundMessaging(options: {
             : admitMention(db, value, event);
         if (claimCommand)
           db.prepare(
-            "UPDATE inbox_admissions SET attempt_state = 'handled', handled_at = ? WHERE source_event_id = ? AND bot_slug = ?",
+            "UPDATE inbox_admissions SET attempt_state = 'handled', handled_at = ?, last_error = 'im-command-pending' WHERE source_event_id = ? AND bot_slug = ?",
           ).run(new Date().toISOString(), sourceEventId, identity.botSlug);
         return { value, created, sourceEventId };
       },
@@ -1612,7 +1614,10 @@ export function createInboundMessaging(options: {
     const { value, created, sourceEventId } = admitted;
     if (claimCommand) {
       if (created) receptionChanged();
-      return { accepted: true, commandClaimed: sourceEventId !== undefined };
+      return {
+        accepted: true,
+        ...(sourceEventId === undefined ? {} : { commandClaimed: sourceEventId }),
+      };
     }
     if (sourceEventId !== undefined) await mirrorDm(value, sourceEventId);
     const reception = created || !leases.has(value.id) ? start(value) : undefined;
@@ -1951,9 +1956,19 @@ export function createInboundMessaging(options: {
     const command = parseImCommand(event.text);
     if (command === undefined) return false;
     const host = options.imCommands?.();
-    if (host === undefined || !provider.reply || provider.id !== `dsh-im/${event.channel}`)
-      return true;
-    if (event.conversation.kind !== 'dm' || event.attachments?.length) return true;
+    if (
+      host === undefined ||
+      !options.replyCommand ||
+      !provider.reply ||
+      provider.id !== `dsh-im/${event.channel}`
+    )
+      return false;
+    if (
+      event.conversation.kind !== 'dm' ||
+      event.attachments?.length ||
+      event.actor.kind !== 'user'
+    )
+      return false;
     signal.throwIfAborted();
     const row = database.read((db) =>
       db
@@ -1974,34 +1989,36 @@ export function createInboundMessaging(options: {
       (identity.receiveAfter && Date.parse(event.at) < Date.parse(identity.receiveAfter))
     )
       return true;
-    const admitted = database.read((db) => {
-      if (readBlock(db, identity.botSlug, identity.fingerprint, event.conversation)) return false;
-      const entries = conversationEntries(db, row.id, event.conversation);
-      const allowedConversation = entries.length
-        ? entries.every((value) => value.origin === 'implicit') ||
-          (!defaultOnly &&
-            entries.some(
-              (value) =>
-                !value.revokedAt &&
-                !value.suspendedReason &&
-                targetAvailable(value) &&
-                !(value.receiveAfter && Date.parse(event.at) < Date.parse(value.receiveAfter)) &&
-                channelBridgeRoutes(value).some(
-                  (route) =>
-                    route.enabled &&
-                    !(route.intakeAfter && Date.parse(event.at) < Date.parse(route.intakeAfter)),
-                ),
-            ))
-        : identity.newConversations === 'auto' &&
-          admissionBound(db, row.id, new Date()) === undefined;
-      return allowedConversation && senderAdmissionAllowed(db, identity.botSlug, event);
-    });
-    if (!admitted) return true;
+    const admissionAllowed = () =>
+      database.read((db) => {
+        if (readBlock(db, identity.botSlug, identity.fingerprint, event.conversation)) return false;
+        const entries = conversationEntries(db, row.id, event.conversation);
+        const allowedConversation = entries.length
+          ? entries.every((value) => value.origin === 'implicit') ||
+            (!defaultOnly &&
+              entries.some(
+                (value) =>
+                  !value.revokedAt &&
+                  !value.suspendedReason &&
+                  targetAvailable(value) &&
+                  !(value.receiveAfter && Date.parse(event.at) < Date.parse(value.receiveAfter)) &&
+                  channelBridgeRoutes(value).some(
+                    (route) =>
+                      route.enabled &&
+                      !(route.intakeAfter && Date.parse(event.at) < Date.parse(route.intakeAfter)),
+                  ),
+              ))
+          : identity.newConversations === 'auto' &&
+            admissionBound(db, row.id, new Date()) === undefined;
+        return allowedConversation && senderAdmissionAllowed(db, identity.botSlug, event);
+      });
+    if (!admissionAllowed()) return true;
     const entry = providers.get(identity.providerId);
     if (!entry || entry.token !== lease.token) return true;
     const claimed = await admitDefault(row.id, lease, identity, entry, event, signal, true);
     if (!claimed.commandClaimed) return true;
-    const managementPairing =
+    const source = read(identity.botSlug, claimed.commandClaimed);
+    const managementPairing = () =>
       imCommandRequiresAuthority(command) &&
       event.channel !== 'weixin' &&
       options.pairing
@@ -2010,15 +2027,53 @@ export function createInboundMessaging(options: {
           (item) =>
             item.purpose !== 'conversation' &&
             item.status === 'approved' &&
+            item.capabilities.includes('approve') &&
             item.bindingId === row.id &&
             item.actorId === event.actor.id,
         ) === true;
-    const manage = imCommandAuthority({
-      command,
-      platform: event.channel,
-      pairingAvailable: options.pairing !== undefined,
-      managementPairing,
-    });
+    const manage = () =>
+      imCommandAuthority({
+        command,
+        platform: event.channel,
+        pairingAvailable: options.pairing !== undefined,
+        managementPairing: managementPairing(),
+      });
+    const assertSourceCurrent = () => {
+      signal.throwIfAborted();
+      lease.controller.signal.throwIfAborted();
+      if (
+        closed ||
+        controls.get(row.id) !== lease ||
+        providers.get(identity.providerId) !== entry ||
+        options.bindingAvailable?.(row.id) === false ||
+        !options.isBotActive(identity.botSlug)
+      )
+        throw new MessagingError('consumer-unavailable');
+      database.read((db) => assertMessagingIdentity(db, row.id, identity.revision));
+      const currentGrant = grant(source.grantId);
+      if (
+        currentGrant.revokedAt ||
+        currentGrant.suspendedReason ||
+        currentGrant.revision !== source.grantRevision ||
+        !admissionAllowed() ||
+        database.read((db) => sourceContentPurged(db, claimed.commandClaimed!))
+      )
+        throw new MessagingError('source-unavailable');
+    };
+    const assertCurrent = () => {
+      assertSourceCurrent();
+      if (imCommandRequiresAuthority(command) && manage() !== 'allowed')
+        throw new MessagingError('pairing-required');
+    };
+    const commandState = (reason: string | null) =>
+      transaction(
+        (db) => {
+          db.prepare(
+            'UPDATE inbox_admissions SET last_error = ? WHERE source_event_id = ? AND bot_slug = ?',
+          ).run(reason, claimed.commandClaimed!, identity.botSlug);
+        },
+        ['bot-inbox'],
+      );
     setImmediate(() => {
       if (
         closed ||
@@ -2030,14 +2085,18 @@ export function createInboundMessaging(options: {
       void (async () => {
         let text: string;
         try {
-          text = await executeImCommand({
-            command,
-            chinese: command.chinese,
-            botSlug: identity.botSlug,
-            botDisplayName: host.botDisplayName(identity.botSlug) ?? identity.botSlug,
-            working: host.turnRunning(identity.botSlug),
-            manage,
-            host,
+          text = await executeCommand(() => {
+            assertSourceCurrent();
+            return {
+              command,
+              chinese: command.chinese,
+              botSlug: identity.botSlug,
+              botDisplayName: host.botDisplayName(identity.botSlug) ?? identity.botSlug,
+              working: host.turnRunning(identity.botSlug),
+              manage: manage(),
+              assertCurrent,
+              host,
+            };
           });
         } catch {
           options.warn?.(
@@ -2053,28 +2112,14 @@ export function createInboundMessaging(options: {
             : 'Could not complete the command; try again or use the Web app.';
         }
         try {
-          await bounded(
-            provider.reply!({
-              accountRef: event.botId,
-              fingerprint: event.fingerprint,
-              route: event.reply,
-              text,
-              signal: AbortSignal.any([signal, lease.controller.signal]),
-              beforeSend: () => {
-                try {
-                  const current = database.read((db) => assertMessagingIdentity(db, row.id));
-                  return (
-                    current.fingerprint === event.fingerprint &&
-                    current.accountRef === event.botId &&
-                    options.isBotActive(current.botSlug)
-                  );
-                } catch {
-                  return false;
-                }
-              },
-            }),
-          );
+          assertSourceCurrent();
+          commandState('im-command-reply-pending');
+          await service.ensureReplyConsumer(identity.botSlug, source.grantId, signal);
+          assertSourceCurrent();
+          await options.replyCommand!(identity.botSlug, claimed.commandClaimed!, text);
+          commandState(null);
         } catch {
+          if (!closed) commandState('im-command-reply-unconfirmed');
           options.warn?.(
             JSON.stringify({
               event: 'bot-im-command',

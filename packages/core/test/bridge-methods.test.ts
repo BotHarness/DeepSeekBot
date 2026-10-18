@@ -1250,6 +1250,35 @@ describe('bridge methods', () => {
     await readiness.prepare('ada', 'orchestrator');
     expect(validate).toHaveBeenCalledWith(route);
   });
+  it('checks an IM caller fence after model validation and before changing the saved plan', async () => {
+    let authorized = true;
+    const catalog: ModelCatalog = {
+      list: async () => [],
+      validate: async () => {
+        authorized = false;
+      },
+    };
+    const { registry, methods } = setup(
+      [],
+      ['ada'],
+      undefined,
+      createTestOwnership(),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      catalog,
+    );
+    registry.create({ slug: 'ada', displayName: 'Ada' });
+    const result = await methods.modelPlanCustomize(
+      { slug: 'ada', orchestrator: { provider: 'deepseek', model: 'flash' }, expectedRevision: 0 },
+      () => {
+        if (!authorized) throw new Error('Pairing revoked');
+      },
+    );
+    expect(result).toMatchObject({ ok: false });
+    expect(registry.get('ada')?.modelPlan).toBeUndefined();
+  });
   it('rejects stale customization when a preset is applied during model validation', async () => {
     const high = { provider: 'deepseek', model: 'flash', reasoningEffort: 'high' };
     const low = { provider: 'deepseek', model: 'flash', reasoningEffort: 'low' };

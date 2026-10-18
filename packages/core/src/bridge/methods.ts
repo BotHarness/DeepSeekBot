@@ -540,7 +540,10 @@ export interface BridgeMethods {
   modelPresetUpdate(payload: unknown): Promise<BridgeResult<{ preset: ModelPreset }>>;
   modelPresetApply(payload: unknown): Promise<BridgeResult<{ plan: PersonaBotModelPlan }>>;
   modelPlan(payload: unknown): Promise<BridgeResult<ModelPlanState>>;
-  modelPlanCustomize(payload: unknown): Promise<BridgeResult<{ plan: PersonaBotModelPlan }>>;
+  modelPlanCustomize(
+    payload: unknown,
+    beforeCommit?: () => void,
+  ): Promise<BridgeResult<{ plan: PersonaBotModelPlan }>>;
   modelPlanAssignmentsSet(payload: unknown): Promise<BridgeResult<{ plan: PersonaBotModelPlan }>>;
   modelPlanSet(payload: unknown): Promise<BridgeResult<{ plan: PersonaBotModelPlan }>>;
   list(payload: unknown): BridgeResult<{ bots: PersonaBotSummary[] }>;
@@ -2322,7 +2325,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         },
       };
     },
-    async modelPlanCustomize(payload) {
+    async modelPlanCustomize(payload, beforeCommit) {
       if (deps.modelCatalog === undefined) return unavailable();
       const source = asObject(payload);
       const slug = source['slug'];
@@ -2344,6 +2347,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         return invalidInput('A valid expected revision is required');
       try {
         await deps.modelCatalog.validate(orchestrator);
+        beforeCommit?.();
         const result = deps.registry.customizeModelPlan(slug, orchestrator, expectedRevision);
         if (!result.ok)
           return result.reason === 'not-found'
