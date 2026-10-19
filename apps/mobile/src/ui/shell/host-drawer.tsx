@@ -37,14 +37,16 @@ import { hostSession, useHostSession, useHostSnapshot, useInbox } from '../../ho
 import { nativeCarrier } from '../../host/native-carrier';
 import { useHostLook } from '../../host/native-host-look';
 import { shownHostName, type HostLook } from '../design/host-look';
-import { glassShadow, useDesignTheme } from '../design/theme';
+import { glassShadow, pressTint, useDesignTheme, type DesignTheme } from '../design/theme';
 import { useMounted } from '../mounted';
-import { drawerSpring, edge, motion, radius, scrim, space } from '../design/tokens';
+import { drawerSpring, edge, motion, radius, scrim, sidebar, space } from '../design/tokens';
+import { SidebarMaterial, useLiquidGlass } from '../primitives/drawer-material';
 import { CountBadge } from '../primitives/count-badge';
 import { Text } from '../primitives/text';
 import { showActionMenu, showAppDialog } from '../primitives/app-dialog';
 import { t } from '../strings';
 import { HostTile } from './host-tile';
+import { HostMenuButton, type HostMenuAction } from './host-menu-button';
 import { WorkspaceTabs, type WorkspaceTab } from './workspace-tabs';
 import { WorkspaceAddButton } from './workspace-add';
 import {
@@ -56,7 +58,7 @@ import {
   settleOpen,
   type HostDrawerRow,
 } from './host-drawer-model';
-import { ActivityIcon, CloudIcon, ComputerIcon, MoreIcon, PlusIcon } from './icons';
+import { ActivityIcon, CloudIcon, ComputerIcon, PlusIcon } from './icons';
 
 export const hostDrawer = createHostDrawer({
   switchTo: async (hostId) => {
@@ -169,11 +171,11 @@ function confirmUnpair(row: HostDrawerRow, name: string): void {
   ]);
 }
 
-function openHostMenu(row: HostDrawerRow, name: string): void {
-  const actions = [
+function hostMenuActions(row: HostDrawerRow, name: string): HostMenuAction[] {
+  return [
     {
       label: t.hostCustomize,
-      icon: 'settings' as const,
+      icon: 'settings',
       run: () =>
         closeThen(() => router.push({ pathname: '/host-look', params: { hostId: row.hostId } })),
     },
@@ -188,14 +190,17 @@ function openHostMenu(row: HostDrawerRow, name: string): void {
         ]),
     {
       label: t.unpair,
-      icon: 'close' as const,
+      icon: 'close',
       run: () => confirmUnpair(row, name),
       destructive: true,
     },
   ];
+}
+
+function openHostMenu(row: HostDrawerRow, name: string): void {
   showActionMenu(
     name,
-    actions.map((action) => ({
+    hostMenuActions(row, name).map((action) => ({
       text: action.label,
       icon: action.icon,
       style: action.destructive === true ? ('destructive' as const) : ('default' as const),
@@ -204,15 +209,26 @@ function openHostMenu(row: HostDrawerRow, name: string): void {
   );
 }
 
+function rowStyle(theme: DesignTheme, glass: boolean, active: boolean) {
+  if (!glass)
+    return { backgroundColor: active ? theme.layer.sheet.pressed : theme.layer.sheet.fill };
+  return {
+    marginHorizontal: space.x3,
+    borderRadius: radius.lg,
+    backgroundColor: active ? pressTint(theme.color.fg) : 'transparent',
+  };
+}
+
 function DrawerTile({ look, name, current }: { look: HostLook; name: string; current: boolean }) {
   const theme = useDesignTheme();
+  const glass = useLiquidGlass();
   return (
     <View
       style={{
         padding: space.x1,
         borderRadius: radius.lg,
         borderWidth: edge.focus,
-        borderColor: current ? theme.color.fg : theme.layer.sheet.fill,
+        borderColor: current ? theme.color.fg : glass ? 'transparent' : theme.layer.sheet.fill,
       }}
     >
       <HostTile
@@ -228,6 +244,7 @@ function DrawerTile({ look, name, current }: { look: HostLook; name: string; cur
 
 function HostRow({ row, address }: { row: HostDrawerRow; address: string }) {
   const theme = useDesignTheme();
+  const glass = useLiquidGlass();
   const look = useHostLook(row.hostId);
   const name = shownHostName(look, row.hostName);
   const pending = row.glance.pending ?? 0;
@@ -241,7 +258,12 @@ function HostRow({ row, address }: { row: HostDrawerRow; address: string }) {
         ? theme.color.warning
         : theme.color.subtle;
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', paddingRight: space.x2 }}>
+    <View
+      style={[
+        { flexDirection: 'row', alignItems: 'center', paddingRight: space.x2 },
+        glass ? rowStyle(theme, glass, row.current) : null,
+      ]}
+    >
       <Pressable
         onPress={() => closeThen(() => void hostDrawer.select(row.hostId))}
         onLongPress={() => openHostMenu(row, name)}
@@ -262,9 +284,16 @@ function HostRow({ row, address }: { row: HostDrawerRow; address: string }) {
           flexDirection: 'row',
           alignItems: 'center',
           gap: space.x4,
-          paddingLeft: space.x4,
+          paddingLeft: glass ? space.x3 : space.x4,
           paddingVertical: space.x3,
-          backgroundColor: pressed ? theme.layer.sheet.pressed : theme.layer.sheet.fill,
+          borderRadius: glass ? radius.lg : 0,
+          backgroundColor: glass
+            ? pressed
+              ? pressTint(theme.color.fg)
+              : 'transparent'
+            : pressed
+              ? theme.layer.sheet.pressed
+              : theme.layer.sheet.fill,
         })}
       >
         <DrawerTile look={look} name={name} current={row.current} />
@@ -301,28 +330,18 @@ function HostRow({ row, address }: { row: HostDrawerRow; address: string }) {
           />
         )}
       </Pressable>
-      <Pressable
-        onPress={() => openHostMenu(row, name)}
-        accessibilityRole="button"
-        accessibilityLabel={t.hostMore(name)}
-        hitSlop={space.x2}
-        style={({ pressed }) => ({
-          width: theme.touch,
-          height: theme.touch,
-          borderRadius: radius.round,
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: pressed ? theme.layer.sheet.pressed : theme.layer.sheet.fill,
-        })}
-      >
-        <MoreIcon color={theme.color.muted} size={theme.type.title.size + space.x2} />
-      </Pressable>
+      <HostMenuButton
+        label={t.hostMore(name)}
+        actions={hostMenuActions(row, name)}
+        onOpen={() => openHostMenu(row, name)}
+      />
     </View>
   );
 }
 
 function FooterRow({ label, icon, onPress }: { label: string; icon: ReactNode; onPress(): void }) {
   const theme = useDesignTheme();
+  const glass = useLiquidGlass();
   return (
     <Pressable
       onPress={onPress}
@@ -333,9 +352,9 @@ function FooterRow({ label, icon, onPress }: { label: string; icon: ReactNode; o
         flexDirection: 'row',
         alignItems: 'center',
         gap: space.x5,
-        paddingHorizontal: space.x5,
+        paddingHorizontal: glass ? space.x4 : space.x5,
         paddingVertical: space.x3,
-        backgroundColor: pressed ? theme.layer.sheet.pressed : theme.layer.sheet.fill,
+        ...rowStyle(theme, glass, pressed),
       })}
     >
       {icon}
@@ -362,6 +381,7 @@ function CloudServiceRow({
   onPress(): void;
 }) {
   const theme = useDesignTheme();
+  const glass = useLiquidGlass();
   return (
     <Pressable
       accessibilityRole="button"
@@ -373,7 +393,7 @@ function CloudServiceRow({
         flexDirection: 'row',
         alignItems: 'center',
         gap: space.x4,
-        backgroundColor: pressed ? theme.layer.sheet.pressed : theme.layer.sheet.fill,
+        ...rowStyle(theme, glass, pressed),
       })}
     >
       <CloudIcon color={theme.color.muted} size={theme.type.title.line + space.x3} />
@@ -429,6 +449,7 @@ function WorkspaceRow({
   onPress(): void;
 }) {
   const theme = useDesignTheme();
+  const glass = useLiquidGlass();
   return (
     <Pressable
       onPress={onPress}
@@ -446,7 +467,7 @@ function WorkspaceRow({
         gap: space.x4,
         padding: space.x4,
         minHeight: theme.touch + space.x3,
-        backgroundColor: pressed || selected ? theme.layer.sheet.pressed : theme.layer.sheet.fill,
+        ...rowStyle(theme, glass, pressed || selected),
       })}
     >
       <HostTile
@@ -474,6 +495,7 @@ function WorkspaceRow({
 
 export function HostDrawer() {
   const theme = useDesignTheme();
+  const glass = useLiquidGlass();
   const insets = useSafeAreaInsets();
   const width = drawerWidth(useWindowDimensions().width);
   const reduced = useReducedMotion();
@@ -565,8 +587,9 @@ export function HostDrawer() {
         ]);
   const fade = theme.scheme === 'dark' ? scrim.dark : scrim.light;
   const backdropStyle = useAnimatedStyle(() => ({ opacity: clamp(progress.value) * fade }));
+  const travel = glass ? width + sidebar.inset : width;
   const panelStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: (progress.value - 1) * width }],
+    transform: [{ translateX: (progress.value - 1) * travel }],
   }));
 
   const swipe = Gesture.Pan()
@@ -614,25 +637,36 @@ export function HostDrawer() {
           accessible={false}
           onAccessibilityEscape={() => settle(false)}
           style={[
-            {
-              position: 'absolute',
-              top: 0,
-              bottom: 0,
-              left: 0,
-              width,
-              backgroundColor: theme.overlay.fill,
-              borderTopRightRadius: radius.lg,
-              borderBottomRightRadius: radius.lg,
-              boxShadow: glassShadow(theme.scheme),
-              overflow: 'hidden',
-            },
+            glass
+              ? {
+                  position: 'absolute',
+                  top: sidebar.inset,
+                  bottom: sidebar.inset,
+                  left: sidebar.inset,
+                  width,
+                  borderRadius: sidebar.radius,
+                  overflow: 'hidden',
+                }
+              : {
+                  position: 'absolute',
+                  top: 0,
+                  bottom: 0,
+                  left: 0,
+                  width,
+                  backgroundColor: theme.overlay.fill,
+                  borderTopRightRadius: radius.lg,
+                  borderBottomRightRadius: radius.lg,
+                  boxShadow: glassShadow(theme.scheme),
+                  overflow: 'hidden',
+                },
             panelStyle,
           ]}
         >
+          {glass ? <SidebarMaterial cornerRadius={sidebar.radius} /> : null}
           <View
             ref={tabMount}
             style={{
-              paddingTop: insets.top + space.x5,
+              paddingTop: Math.max(insets.top - (glass ? sidebar.inset : 0), 0) + space.x5,
               paddingHorizontal: space.x5,
               paddingBottom: space.x4,
             }}
@@ -642,6 +676,7 @@ export function HostDrawer() {
             )}
           </View>
           <WorkspaceAddButton
+            glass={glass}
             label={tab === 'computers' ? t.pairAnother : t.workspaceAdd.join}
             onPress={() =>
               closeThen(() => {
@@ -746,7 +781,7 @@ export function HostDrawer() {
           <View
             style={{
               paddingTop: space.x2,
-              paddingBottom: insets.bottom + space.x2,
+              paddingBottom: Math.max(insets.bottom - (glass ? sidebar.inset : 0), 0) + space.x2,
               borderTopWidth: edge.hairline,
               borderTopColor: theme.layer.sheet.edge,
             }}

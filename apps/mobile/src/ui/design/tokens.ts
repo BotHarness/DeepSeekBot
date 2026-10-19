@@ -23,6 +23,8 @@ export const edge = {
   focus: 2,
 } as const;
 
+export const sidebar = { inset: 8, radius: 44 } as const;
+
 export const sheetHandle = { width: 32, height: 4 } as const;
 export const navigationBar = {
   height: 64,

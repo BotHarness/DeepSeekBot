@@ -30,6 +30,36 @@ function subscribeTransparency(notify: () => void) {
   };
 }
 
+export function useLiquidGlass(): boolean {
+  const reduceTransparency = useSyncExternalStore(subscribeTransparency, readTransparency);
+  return Number.parseInt(String(Platform.Version), 10) >= 26 && !reduceTransparency;
+}
+
+export function SidebarMaterial({ cornerRadius }: { cornerRadius: number }) {
+  const theme = useDesignTheme();
+  return (
+    <Host
+      key={theme.scheme}
+      style={StyleSheet.absoluteFill}
+      colorScheme={theme.scheme}
+      pointerEvents="none"
+    >
+      <RoundedRectangle
+        cornerRadius={cornerRadius}
+        modifiers={[
+          foregroundStyle('transparent'),
+          glassEffect({
+            glass: { variant: 'regular' },
+            shape: 'roundedRectangle',
+            cornerRadius,
+          }),
+          accessibilityHidden(),
+        ]}
+      />
+    </Host>
+  );
+}
+
 export function DrawerMaterial({
   rounded = false,
   glassPanel = false,

@@ -1,11 +1,19 @@
 import { Pressable } from 'react-native';
 
 import { edge, radius, space } from '../design/tokens';
-import { useDesignTheme } from '../design/theme';
+import { frosted, useDesignTheme } from '../design/theme';
 import { Text } from '../primitives/text';
 import { PlusIcon } from './icons';
 
-export function WorkspaceAddButton({ label, onPress }: { label: string; onPress(): void }) {
+export function WorkspaceAddButton({
+  label,
+  glass = false,
+  onPress,
+}: {
+  label: string;
+  glass?: boolean;
+  onPress(): void;
+}) {
   const theme = useDesignTheme();
   return (
     <Pressable
@@ -23,7 +31,11 @@ export function WorkspaceAddButton({ label, onPress }: { label: string; onPress(
         borderRadius: radius.xl,
         borderWidth: edge.hairline,
         borderColor: theme.layer.raised.edge,
-        backgroundColor: pressed ? theme.layer.raised.pressed : theme.layer.raised.fill,
+        backgroundColor: glass
+          ? frosted(pressed ? theme.layer.raised.pressed : theme.layer.raised.fill)
+          : pressed
+            ? theme.layer.raised.pressed
+            : theme.layer.raised.fill,
       })}
     >
       <PlusIcon color={theme.color.fg} size={theme.type.title.line} />
