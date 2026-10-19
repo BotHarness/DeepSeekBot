@@ -6,6 +6,8 @@ import {
   ActivityIndicator,
   FlatList,
   Platform,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
   Pressable,
   useWindowDimensions,
   View,
@@ -59,11 +61,13 @@ import type { BubbleGroup } from './bubble-shape';
 import { botBusy } from './bot-tone';
 import { ChannelTitle } from './channel-title';
 import { ChatTitle } from './chat-title';
-import { Composer } from './composer';
+import { Composer, type ComposerInput } from './composer';
 import { EdgeFade, HeaderBackButton } from './header-chrome';
 import { ScrollEdgeElement, nativeScrollEdge } from '../primitives/scroll-edge-element';
 import { barLabelStyle, glassHeader, useHeaderOverlap } from './native-header';
 import { useFollowLatest } from './follow-latest';
+import { usePullToCompose } from './pull-to-compose';
+import { PullToComposeHint } from './pull-to-compose-hint';
 import { useMarkRead } from './mark-read';
 import { useBotNames } from './use-bot-names';
 import { ImageViewer } from './image-viewer';
@@ -89,7 +93,7 @@ import { QuestionCard } from './question-card';
 import { WorkingStatus } from './working-status';
 import { TimeSeparator } from './time-separator';
 import { AccentProvider, useDesignTheme } from '../design/theme';
-import { edgeFade, space } from '../design/tokens';
+import { edgeFade, pullToCompose, space } from '../design/tokens';
 import { OpenFullClientButton } from '../open-full-client';
 import { fullClientParams, type FullClientTarget } from '../../host/full-client';
 import { leaveScreen } from '../shell/leave-screen';
@@ -100,6 +104,8 @@ import { t } from '../strings';
 
 type Row = ChatRow | { kind: 'draft'; key: string; draft: ConversationDraftReference };
 const NO_DRAFTS: ConversationDraftReference[] = [];
+
+type ScrollEvent = NativeSyntheticEvent<NativeScrollEvent>;
 
 export type ChatPlace =
   | { kind: 'dm'; slug: string | undefined }
@@ -366,6 +372,18 @@ function ChatConversation({
     [speakers, scroll, viewport, viewportLayout, composerHeight],
   );
   const latest = useFollowLatest(list, visible, playback?.setFollowing, headerOverlap);
+  const composerInput = useRef<ComposerInput>(null);
+  const composable =
+    Platform.OS === 'ios' &&
+    !botDm &&
+    conversation !== undefined &&
+    host.connection.status === 'connected';
+  const compose = useCallback(() => composerInput.current?.focus(), []);
+  const pull = usePullToCompose({
+    enabled: composable,
+    threshold: pullToCompose.threshold,
+    onCompose: compose,
+  });
   const markdownViewport = useMemo(
     () => ({ scroll, viewport, content, layout: viewportLayout, active: focused }),
     [scroll, viewport, content, viewportLayout, focused],
@@ -810,6 +828,7 @@ function ChatConversation({
                 }}
                 onStopDictation={dictation.stop}
                 onCancelDictation={dictation.cancel}
+                inputRef={composerInput}
               />
             )}
           </ScrollEdgeElement>
@@ -907,6 +926,18 @@ function ChatConversation({
                 {...(latest.ready ? { onStartReached: () => void conversation?.loadOlder() } : {})}
                 onStartReachedThreshold={0.5}
                 {...latest.listProps}
+                onScrollBeginDrag={(event: ScrollEvent) => {
+                  pull.onScrollBeginDrag(event);
+                  latest.listProps.onScrollBeginDrag();
+                }}
+                onScroll={(event: ScrollEvent) => {
+                  latest.listProps.onScroll(event);
+                  pull.onScroll(event);
+                }}
+                onScrollEndDrag={(event: ScrollEvent) => {
+                  latest.listProps.onScrollEndDrag(event);
+                  pull.onScrollEndDrag(event);
+                }}
                 onContentSizeChange={(width: number, height: number) => {
                   latest.listProps.onContentSizeChange(width, height);
                   jump();
@@ -952,6 +983,13 @@ function ChatConversation({
           {nativeScrollEdge ? null : (
             <EdgeFade edge="bottom" height={composerHeight + edgeFade.bottom} />
           )}
+          {composable ? (
+            <PullToComposeHint
+              progress={pull.progress}
+              ready={pull.ready}
+              bottom={composerHeight + space.x3}
+            />
+          ) : null}
           {latest.away ? (
             <View
               pointerEvents="box-none"

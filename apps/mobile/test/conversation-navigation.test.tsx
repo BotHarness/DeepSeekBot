@@ -144,6 +144,8 @@ vi.mock('../src/ui/chat/chat-title', () => ({ ChatTitle: () => null }));
 vi.mock('../src/ui/chat/composer', () => ({ Composer: () => null }));
 vi.mock('../src/ui/chat/image-viewer', () => ({ ImageViewer: () => null }));
 vi.mock('../src/ui/chat/jump-to-latest', () => ({ JumpToLatest: () => null }));
+vi.mock('../src/ui/chat/pull-to-compose-hint', () => ({ PullToComposeHint: () => null }));
+vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
 vi.mock('../src/ui/chat/message-actions', () => ({ MessageActions: () => null }));
 vi.mock('../src/ui/chat/message-bubble', () => ({
   PlaybackBubble: ({ message }: { message?: { body: string } }) =>

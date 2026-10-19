@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
 
-export type HapticMoment = 'send' | 'approve' | 'deny' | 'submit' | 'menu';
+export type HapticMoment = 'send' | 'approve' | 'deny' | 'submit' | 'menu' | 'pull';
 
 export function haptic(moment: HapticMoment): void {
   const done =
