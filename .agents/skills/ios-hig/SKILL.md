@@ -27,13 +27,13 @@ Apple's Human Interface Guidelines decide **which** control an iOS surface uses 
 | run one of several commands tied to one button's purpose              | **pull-down button** (menu of actions; ⋯ "More" for secondary actions) | one pull-down holding every action on the screen               |
 | act on a specific item (row, message, attachment)                     | **context menu** on long-press, with the same actions reachable elsewhere | a context menu that is the only path to an action             |
 | choose among options that need explanation, a long list, or input     | **sheet** (form sheet, detents, grabber)                               | a menu                                                         |
-| confirm a destructive choice                                          | **confirmation** (action sheet / `showAppDialog` per `DESIGN.md`)       | doing it straight from the menu item                           |
+| confirm a destructive choice                                          | **confirmation** (`showAppDialog`, a system alert on iOS)               | doing it straight from the menu item                           |
 | move between top-level sections                                       | **tab bar** (our tab island, ADR-0235)                                 | tabs that trigger actions; a hidden or disabled tab            |
 | act on the current screen                                             | **toolbar** items in the navigation bar                                | a row of tinted buttons in the content                         |
 
 Pop-up versus pull-down is the common confusion: a **pop-up** shows _state_ (its label changes to the chosen value; choosing is the whole interaction), a **pull-down** offers _verbs_ (its label stays; each item does something). If the menu needs submenus, multiple selection or actions, it is a pull-down.
 
-Known drift: `DESIGN.md` sends app-owned menus and confirmations on both platforms through `showAppDialog`, so today's ⋯ menus and choice menus are app-drawn rather than native pop-up or pull-down menus on iOS. Follow `DESIGN.md` until a Human amends it; when your change touches such a menu, say in the PR which HIG component it would be.
+`DESIGN.md` → iOS menus and native controls adopts these rules: action menus are native pull-down and context menus, single choices are native pop-up menus, and system alerts are for confirmations only. It also lists the iOS screens not yet migrated.
 
 ## Liquid Glass
 

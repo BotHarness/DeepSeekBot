@@ -13,11 +13,23 @@ References:
 
 ## Android application dialogs
 
-- Application-owned menus and confirmations use `showAppDialog` and the root `AppDialogHost`, matching the accepted OCAT-inspired Settings surfaces. Do not call React Native `Alert.alert` directly from a screen or feature. iOS retains its existing system alerts/action sheets; operating-system permission prompts, photo pickers and the share sheet remain system-owned.
+- Application-owned menus and confirmations use `showAppDialog` and the root `AppDialogHost`, matching the accepted OCAT-inspired Settings surfaces. Do not call React Native `Alert.alert` directly from a screen or feature. On iOS `showAppDialog` shows the system alert and is for confirmations only; iOS menus follow [iOS menus and native controls](#ios-menus-and-native-controls). Operating-system permission prompts, photo pickers and the share sheet remain system-owned.
 - Use `theme.overlay.fill`, the same `androidSettings.radius` as Settings groups, the shared scrim, semantic text and existing Button/SettingsRow primitives. Keep the panel centered with safe-area gutters and a bounded width; do not stretch a short confirmation to fill the screen or add heavy shadows. Contents scroll at large system text sizes; confirmation actions stack when horizontal space is limited. Never cap font scaling or truncate the consequence text.
 - Choice menus show separate filled tonal buttons for same-priority actions, with icons, visible containers and pressed/ripple feedback. Use the shared accent container and readable on-container label; do not leave key actions as unbounded text. Omit the redundant Cancel button in these menus: backdrop, Back and accessibility escape dismiss without choosing. Use colors rather than button outlines. Destructive menu choices use the shared danger fill and open a second confirmation describing the consequence, with a low-emphasis explicit Cancel and a destructive action. Keep the current drawer/page underneath. This adapts the [Android button hierarchy](https://developer.android.com/develop/ui/compose/quick-guides/content/create-button) to our OCAT-inspired app surfaces; a menu's equivalent actions are not all primary final confirmations.
 - While an asynchronous action is pending, disable repeat submission and dismissal; close after success. On failure, keep the prompt and retry available. A menu opening a confirmation must not dismiss the newer prompt when its old callback finishes. Dialog requests are transient UI state, never a second persistence or authorization owner.
 - Native checks include cancel/button/Back/backdrop paths, nested confirmation, light/dark and default/intermediate/maximum text. Verify the original pairing/group remains unchanged after cancellation, keyboard dismissal from focused search, and the actual rendering above an open drawer or profile. Record iOS and TalkBack qualification separately.
+
+## iOS menus and native controls
+
+iOS uses the system's own controls wherever one exists, following the Apple HIG (the `ios-hig` skill maps each component to our stack). Build them with `@expo/ui` SwiftUI views or native navigation, not with React Native views drawn to look like them. Android keeps the Material and `showAppDialog` surfaces above.
+
+- **Action menus are native pull-down menus.** A ⋯ button opens a SwiftUI `Menu` anchored to it; a long press on a row opens a native context menu with the same actions. Items are commands with title-case labels, most-used first, related items grouped, at most one submenu level. Destructive items carry the destructive role and still open a confirmation describing the consequence.
+- **Choices of one value are native pop-up menus.** A short, fixed set of mutually exclusive options shows the current value on the control and opens a menu-style picker with a checkmark on the selection. Two to five peer modes that should stay visible use a segmented control. Options that need explanation, search or a long list use a sheet.
+- **Alerts are for confirmations and errors only.** A system alert asks one question with a Cancel and at most one or two actions; it never lists a menu of unrelated commands.
+- **Exceptions stay as recorded.** The chat bubble menu (reaction island and action card, see Chat) and app-owned tab presentation (ADR-0235) are deliberate custom surfaces. Any new custom surface where the system has a control needs the reason written here first.
+- Native menus inherit Liquid Glass, Dynamic Type, VoiceOver and Reduce Transparency from the system; do not restyle them. Every action in a context menu is also reachable from a visible control or an accessibility action.
+
+Current iOS gaps: the Host drawer's ⋯ menu (`src/ui/shell/host-drawer.tsx`) and the group member ⋯ menu (`src/ui/chat/group-info.tsx`) still open a system alert listing their actions; both move to native pull-down menus.
 
 ## Activity query controls
 

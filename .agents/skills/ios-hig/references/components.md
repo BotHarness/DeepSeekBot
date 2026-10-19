@@ -16,7 +16,7 @@ Native-first order for building: Expo Router native presentation (`expo-router` 
 
 Build: a SwiftUI `Picker` with the menu picker style, or a `Menu` whose label is the current value and whose items carry a checkmark on the selected one. Android: an exposed dropdown menu (Material 3).
 
-Today: choice rows push pages or open `showAppDialog` choice menus (e.g. `PickerLink` in `src/ui/chat/model-settings-screen.tsx`). Candidates for a pop-up when the option set is small and fixed.
+Today: choice rows push pages (e.g. `PickerLink` in `src/ui/chat/model-settings-screen.tsx`). Where the option set is small and fixed, `DESIGN.md` now prefers a native pop-up.
 
 ## Pull-down buttons
 
@@ -31,7 +31,7 @@ Today: choice rows push pages or open `showAppDialog` choice menus (e.g. `Picker
 
 Build: a SwiftUI `Menu` with `Button` items (destructive role for destructive items), triggered from a toolbar item or a ⋯ button. Android: a Material dropdown menu anchored to the overflow icon.
 
-Today: ⋯ menus (Host drawer rows, group members in `src/ui/chat/group-info.tsx`) open app-owned `showAppDialog` menus on both platforms, as `DESIGN.md` prescribes. On iOS the HIG expects a native pull-down here. That is **drift for a Human to decide**: changing it means amending `DESIGN.md` first.
+Today: `DESIGN.md` requires native pull-down menus on iOS. The Host drawer's ⋯ menu (`src/ui/shell/host-drawer.tsx`) and the group member ⋯ menu (`src/ui/chat/group-info.tsx`) still open a system alert listing their actions and are the open migrations.
 
 ## Menus (shared rules for pop-up, pull-down and context menus)
 
