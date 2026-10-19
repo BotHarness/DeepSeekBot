@@ -9,6 +9,7 @@ import {
 import { SHEET_GROUP } from '../chat/sheet';
 import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
+import { RowIcon } from '../primitives/row-icon';
 import { SettingsRow, SettingsSection } from '../primitives/settings-row';
 import { Toggle } from '../primitives/toggle';
 import { t } from '../strings';
@@ -20,6 +21,7 @@ export function ActivityCountLink() {
     <SettingsRow
       on={SHEET_GROUP}
       title={t.activityCountSettings.title}
+      leading={<RowIcon name="activityCount" />}
       detail={
         kinds.length
           ? kinds.map((kind) => t.activityCountSettings[kind]).join(' · ')
