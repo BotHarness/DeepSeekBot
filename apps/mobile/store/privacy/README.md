@@ -11,7 +11,7 @@ These answers describe the `store-test` build: `EXPO_PUBLIC_DEEPSEEKBOT_CLOUD=of
 | Pairing credential                                  | Phone only: SecureStore, `WHEN_UNLOCKED_THIS_DEVICE_ONLY`                     | `src/host/saved-host.ts`                      |
 | Conversation cache, drafts                          | Phone only: app cache directory                                               | `src/host/native-cache.ts`                    |
 | Messages, photos, files, dictated text              | Only the Human's own Computer, over Tailscale HTTPS                           | `src/host/route.ts`                           |
-| Expo push token                                     | Phone → own Computer → `exp.host`; Expo handles it only for delivery          | `src/host/push.ts`, `packages/core/src/push/` |
+| Expo push token                                     | Phone → own Computer → `exp.host`; Expo keeps it to deliver notifications     | `src/host/push.ts`, `packages/core/src/push/` |
 | Notification text (Bot/channel name, short preview) | Sent by the Computer through Expo to APNs/FCM, not by the app                 | `packages/core/src/push/delivery.ts`          |
 | Voice                                               | System speech recognizer (Apple/Google); the app records and uploads no audio | `src/host/speech.ts`                          |
 | Statistics                                          | Not sent by `store-test`                                                      | `src/telemetry/native.ts`                     |
@@ -19,24 +19,24 @@ These answers describe the `store-test` build: `EXPO_PUBLIC_DEEPSEEKBOT_CLOUD=of
 
 ## Google Play: Data safety
 
-| Question                                                              | Answer                                                                                                                                 |
-| --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| Does your app collect or share any of the required user data types?   | Yes                                                                                                                                    |
-| Data types                                                            | **Device or other IDs** only (the push token passes through our Expo project)                                                          |
-| Collected / shared                                                    | Collected; not shared (Expo is a service provider)                                                                                     |
-| Processed ephemerally?                                                | Yes                                                                                                                                    |
-| Required or optional?                                                 | Optional (the Human can refuse notifications)                                                                                          |
-| Purpose                                                               | App functionality                                                                                                                      |
-| Is all data encrypted in transit?                                     | Yes                                                                                                                                    |
-| Account creation                                                      | My app does not allow users to create an account                                                                                       |
-| Do you provide a way for users to request that their data is deleted? | Yes. Nothing is kept on our servers; Unpair removes the push token from the Human's own Computer, and uninstalling removes local data. |
-| Independent security review                                           | No                                                                                                                                     |
+| Question                                                              | Answer                                                                                                                                                        |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Does your app collect or share any of the required user data types?   | Yes                                                                                                                                                           |
+| Data types                                                            | **Device or other IDs** only (the push token passes through our Expo project)                                                                                 |
+| Collected / shared                                                    | Collected; not shared (Expo is a service provider)                                                                                                            |
+| Processed ephemerally?                                                | No (Expo keeps the token so it can deliver later notifications)                                                                                               |
+| Required or optional?                                                 | Optional (the Human can refuse notifications)                                                                                                                 |
+| Purpose                                                               | App functionality                                                                                                                                             |
+| Is all data encrypted in transit?                                     | Yes                                                                                                                                                           |
+| Account creation                                                      | My app does not allow users to create an account                                                                                                              |
+| Do you provide a way for users to request that their data is deleted? | No. There is no account to delete; Unpair removes the token from the Human's own Computer, but the copy Expo keeps for delivery has no deletion request flow. |
+| Independent security review                                           | No                                                                                                                                                            |
 
 Every other category stays undeclared: it is used on the phone only, or the Human sends it to their own device, which we cannot access. Notification previews pass through Expo but are sent by the Computer, so Messages is not declared.
 
 ## App Store: App Privacy
 
-**Data Not Collected.** Content goes only to the Human's own Computer, Expo handles the token and notifications only to deliver them, and speech recognition is Apple's system service. Machine-readable: [`app-store-privacy.json`](app-store-privacy.json).
+**Identifiers → Device ID**, purpose **App Functionality**, **not linked** to the Human, **not used for tracking**. Expo keeps the push token so it can deliver notifications. Nothing else is collected: content goes only to the Human's own Computer, Expo does not keep notification content after delivery, and speech recognition is Apple's system service. Machine-readable: [`app-store-privacy.json`](app-store-privacy.json).
 
 ## Apply
 
@@ -60,10 +60,10 @@ It replaces all existing answers and publishes them. Add `skip_publish:true` to 
 3. For later changes, edit the CSV and upload it with the service account key that `eas submit` uses:
 
    ```sh
-   gcloud auth activate-service-account --key-file=<play-service-account>.json
+   export GOOGLE_APPLICATION_CREDENTIALS=<play-service-account>.json
    jq -Rs '{safetyLabels: .}' play-data-safety.csv |
      curl -sS -X POST \
-       -H "Authorization: Bearer $(gcloud auth print-access-token --scopes=https://www.googleapis.com/auth/androidpublisher)" \
+       -H "Authorization: Bearer $(gcloud auth application-default print-access-token --scopes=https://www.googleapis.com/auth/androidpublisher)" \
        -H 'Content-Type: application/json' --data @- \
        https://androidpublisher.googleapis.com/androidpublisher/v3/applications/app.deepseekbot.mobile/dataSafety
    ```
@@ -73,4 +73,4 @@ It replaces all existing answers and publishes them. Add `skip_publish:true` to 
 A build with `EXPO_PUBLIC_MOBILE_TELEMETRY=production` changes both answers ([what it sends](../../../../docs/mobile-statistics.md)):
 
 - **Play:** add App activity → App interactions; App info and performance → Other app performance data; add Analytics to Device or other IDs. All collected, not shared, not ephemeral, optional (Settings switch), purpose Analytics.
-- **App Store:** use [`app-store-privacy.statistics.json`](app-store-privacy.statistics.json): Device ID, Product Interaction, Other Diagnostic Data, all for Analytics, not linked to the Human, not used for tracking.
+- **App Store:** use [`app-store-privacy.statistics.json`](app-store-privacy.statistics.json): Device ID (App Functionality and Analytics), Product Interaction and Other Diagnostic Data (Analytics), all not linked to the Human and not used for tracking.
