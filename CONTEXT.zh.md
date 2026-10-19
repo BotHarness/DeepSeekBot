@@ -230,6 +230,10 @@ _避免使用_：integration、connector、channel binding
 PersonaBot 长期存在的 dispatch root Session：同时至多一个处于 active，负责消费 Bot Inbox，并决定 reply、dispatch 以及是否创建新 Assignment Session。它的 working directory 始终是 PersonaBot 的 Memory Repository；它是 PersonaBot 的对外发声者，不是由 Human 管理的 Conversation，也不是 Assignment 列表中的一行。普通 Session output 只保留为 execution history；只有从可信 Session ownership 推导身份、并经过 Channel membership 授权的显式 Channel messaging command，才会向 Human-facing Channel 发声。
 _避免使用_：main agent、brain、supervisor
 
+**Idle Compaction**：
+「空闲压缩」。Orchestrator Session 空闲（没有正在运行的 turn，也没有待处理的 Bot Inbox Admission）达到其模型路由预估 prompt cache 寿命的一部分后，由 Host 发起的 DSH compaction，趁长历史仍能按缓存命中价读取时完成压缩。它不会启动 Bot turn，也不会在 Channel 中发声。
+_避免使用_：auto-compact、后台摘要、cache warming
+
 **Developer Mode**：
 Human 拥有的 Bot-mode 偏好，用于揭示默认隐藏的诊断表面（operational log 视图、verbose 状态）。它只控制 Human 的可见性——绝不是 agent 能力的门：有 shell 通道的 agent 总能触及同一份底层数据，因此绝不能把 Developer Mode 描述或依赖为读取边界。
 _避免使用_：debug flag、admin mode、agent permission、read boundary

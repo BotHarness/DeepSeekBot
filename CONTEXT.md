@@ -230,6 +230,10 @@ _Avoid_: integration, connector, channel binding
 The PersonaBot's long-lived dispatch root Session: at most one is active, consuming the Bot Inbox and deciding replies, dispatch, and new Assignment Sessions. Its working directory is always the PersonaBot's Memory Repository; it is the PersonaBot's social voice, not a Human-managed Conversation or an Assignment row. Ordinary Session output remains execution history; only an explicit Channel messaging command authorized from trusted Session ownership and Channel membership speaks to a Human-facing Channel.
 _Avoid_: main agent, brain, supervisor
 
+**Idle Compaction**:
+Host-initiated DSH compaction of an Orchestrator Session after it has been idle (no running turn, no pending Bot Inbox Admission) for part of its model route's estimated prompt-cache lifetime, so the long history is condensed while it can still be read at the cache-hit price. It never starts a Bot turn and never speaks in a Channel.
+_Avoid_: auto-compact, background summary, cache warming
+
 **Developer Mode**:
 A Human-owned Bot-mode preference that reveals diagnostics surfaces (operational log views, verbose states) otherwise hidden by default. It gates Human visibility only — never agent capability: an agent with shell access can always reach the same underlying data, so Developer Mode must never be described or relied upon as a read boundary.
 _Avoid_: debug flag, admin mode, agent permission, read boundary
