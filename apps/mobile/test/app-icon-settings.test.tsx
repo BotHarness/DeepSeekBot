@@ -33,7 +33,7 @@ async function render(element: ReactElement): Promise<HTMLElement> {
 }
 
 const previews: AppIconPreviews = {
-  DeepSeekBot: { light: 1, dark: 2 },
+  default: { light: 1, dark: 2 },
   DeepSeekBotSimple: { light: 3, dark: 4 },
 };
 
@@ -57,25 +57,25 @@ const selected = (view: HTMLElement) =>
   );
 
 describe('App icon settings', () => {
-  it('marks the icon the phone shows now and keeps the shipped icon as the default', async () => {
+  it('marks the icon the phone shows now and ships the DeepSeekBot portrait as the default', async () => {
     const view = await render(<AppIconSettings port={port()} previews={previews} />);
-    expect(selected(view)).toEqual([t.appIconDefault]);
-    expect(row(view, t.appIconDeepSeekBot)).toBeDefined();
+    expect(selected(view)).toEqual([t.appIconDeepSeekBot]);
+    expect(view.textContent).toContain(t.appIconDefaultHint);
     expect(row(view, t.appIconDeepSeekBotSimple)).toBeDefined();
+    expect(view.querySelectorAll('[role="button"]')).toHaveLength(2);
   });
 
   it('switches the home screen icon and back to the default', async () => {
-    const icons = port('DeepSeekBot');
+    const icons = port();
     const view = await render(<AppIconSettings port={icons} previews={previews} />);
-    expect(selected(view)).toEqual([t.appIconDeepSeekBot]);
 
     await act(async () => row(view, t.appIconDeepSeekBotSimple).click());
     expect(icons.set).toHaveBeenLastCalledWith('DeepSeekBotSimple');
     expect(selected(view)).toEqual([t.appIconDeepSeekBotSimple]);
 
-    await act(async () => row(view, t.appIconDefault).click());
+    await act(async () => row(view, t.appIconDeepSeekBot).click());
     expect(icons.set).toHaveBeenLastCalledWith('default');
-    expect(selected(view)).toEqual([t.appIconDefault]);
+    expect(selected(view)).toEqual([t.appIconDeepSeekBot]);
   });
 
   it('keeps the old icon selected and says why when the phone refuses', async () => {
@@ -85,8 +85,8 @@ describe('App icon settings', () => {
       }),
     });
     const view = await render(<AppIconSettings port={icons} previews={previews} />);
-    await act(async () => row(view, t.appIconDeepSeekBot).click());
-    expect(selected(view)).toEqual([t.appIconDefault]);
+    await act(async () => row(view, t.appIconDeepSeekBotSimple).click());
+    expect(selected(view)).toEqual([t.appIconDeepSeekBot]);
     expect(view.textContent).toContain(`${t.appIconFailed} denied`);
   });
 

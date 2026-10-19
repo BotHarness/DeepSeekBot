@@ -1,14 +1,14 @@
 import { useState } from 'react';
-import { ActivityIndicator, Image, ScrollView, View, type ImageSourcePropType } from 'react-native';
+import { ActivityIndicator, Image, ScrollView, type ImageSourcePropType } from 'react-native';
 
 import { useDesignTheme } from './design/theme';
-import { edge, radius, space } from './design/tokens';
+import { radius, space } from './design/tokens';
 import { SettingsRow, SettingsSection } from './primitives/settings-row';
 import { Notice, errorText } from './request-parts';
 import { CheckIcon } from './shell/icons';
 import { t } from './strings';
 
-export const APP_ICONS = ['default', 'DeepSeekBot', 'DeepSeekBotSimple'] as const;
+export const APP_ICONS = ['default', 'DeepSeekBotSimple'] as const;
 export type AppIconName = (typeof APP_ICONS)[number];
 
 export interface AppIconPort {
@@ -17,19 +17,12 @@ export interface AppIconPort {
   set(name: AppIconName): Promise<void>;
 }
 
-export type AppIconPreviews = Record<
-  Exclude<AppIconName, 'default'>,
-  Record<'light' | 'dark', ImageSourcePropType>
->;
+export type AppIconPreviews = Record<AppIconName, Record<'light' | 'dark', ImageSourcePropType>>;
 
 const ICON_SIZE = 48;
 
 const LABEL: Record<AppIconName, { title: string; detail: string }> = {
-  default: { title: t.appIconDefault, detail: t.appIconDefaultHint },
-  DeepSeekBot: {
-    title: t.appIconDeepSeekBot,
-    detail: t.appIconDeepSeekBotHint,
-  },
+  default: { title: t.appIconDeepSeekBot, detail: t.appIconDefaultHint },
   DeepSeekBotSimple: {
     title: t.appIconDeepSeekBotSimple,
     detail: t.appIconDeepSeekBotSimpleHint,
@@ -43,18 +36,6 @@ function IconPreview({ name, previews }: { name: AppIconName; previews: AppIconP
     height: ICON_SIZE,
     borderRadius: radius.md,
   } as const;
-  if (name === 'default') {
-    return (
-      <View
-        style={{
-          ...frame,
-          backgroundColor: theme.layer.well.fill,
-          borderWidth: edge.hairline,
-          borderColor: theme.color.border,
-        }}
-      />
-    );
-  }
   return (
     <Image source={previews[name][theme.scheme]} style={frame} accessibilityIgnoresInvertColors />
   );
