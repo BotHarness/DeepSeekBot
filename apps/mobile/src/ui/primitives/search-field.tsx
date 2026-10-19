@@ -5,21 +5,26 @@ import { TextInput } from './system-text';
 import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
 import { ActivitySearchIcon } from '../shell/icons';
+import { DrawerMaterial } from './drawer-material';
 
 export function SearchField({
   trailing,
   autoFocus,
+  onFocus,
   onBlur,
   value,
   inset,
+  floating = false,
   placeholder,
   onChangeText,
 }: {
   trailing?: ReactNode;
   autoFocus?: boolean;
+  onFocus?(): void;
   onBlur?(): void;
   value: string;
   inset: number;
+  floating?: boolean;
   placeholder: string;
   onChangeText(text: string): void;
 }) {
@@ -31,8 +36,8 @@ export function SearchField({
         alignItems: 'center',
         gap: space.x3,
         marginHorizontal: inset,
-        marginTop: space.x5,
-        marginBottom: space.x3,
+        marginTop: floating ? 0 : space.x5,
+        marginBottom: floating ? 0 : space.x3,
       }}
     >
       <View
@@ -43,13 +48,15 @@ export function SearchField({
           alignItems: 'center',
           gap: space.x3,
           paddingLeft: space.x4,
-          borderRadius: radius.md,
-          backgroundColor: theme.layer.raised.fill,
+          borderRadius: floating ? radius.round : radius.md,
+          backgroundColor: floating ? 'transparent' : theme.layer.raised.fill,
         }}
       >
+        {floating ? <DrawerMaterial /> : null}
         <ActivitySearchIcon color={theme.color.subtle} size={theme.type.body.size} />
         <TextInput
           autoFocus={autoFocus}
+          onFocus={onFocus}
           onBlur={onBlur}
           value={value}
           onChangeText={onChangeText}

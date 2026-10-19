@@ -17,8 +17,9 @@ import { conversations, searchKey, type Conversation } from '../../../src/ui/cha
 import { CloudConversationRow } from '../../../src/ui/chat/cloud-conversation-row';
 import { useConversationFilter } from '../../../src/host/native-conversation-filter';
 import { ConnectionBanner } from '../../../src/ui/connection-banner';
+import { useDesignTheme } from '../../../src/ui/design/theme';
 import { space } from '../../../src/ui/design/tokens';
-import { SearchField } from '../../../src/ui/primitives/search-field';
+import { BottomSearch, bottomSearchHeight } from '../../../src/ui/shell/bottom-search';
 import { EnvironmentPager } from '../../../src/ui/shell/environment-pager';
 import {
   conversationEnvironments,
@@ -92,13 +93,15 @@ const HomeContent = memo(function HomeContent({
       };
     }, [router, client]),
   );
-  const onScroll = useChromeScroll();
+  const [query, setQuery] = useState('');
+  const [searching, setSearching] = useState(false);
+  const onScroll = useChromeScroll(true, searching || query !== '');
   const chrome = useScrollChrome();
-  const bottom = useFloatingTabInset();
+  const theme = useDesignTheme();
+  const bottom = useFloatingTabInset() + bottomSearchHeight(theme.touch);
   const look = useHostLook(saved?.hostId);
   const cloud = useCloudSnapshot();
   const directory = useCloudConversations();
-  const [query, setQuery] = useState('');
   const [filter, setFilter] = useConversationFilter();
   const [refreshing, setRefreshing] = useState(false);
   const [opening, setOpening] = useState(false);
@@ -287,12 +290,6 @@ const HomeContent = memo(function HomeContent({
                           onPairAgain={() => router.push('/pair')}
                         />
                       )}
-                    <SearchField
-                      inset={space.x5}
-                      value={query}
-                      placeholder={t.searchPlaceholder}
-                      onChangeText={setQuery}
-                    />
                     {(directory.errors.length > 0 || cloud.error || error) && (
                       <Text tone="muted" style={{ paddingHorizontal: space.x5 }}>
                         {t.cloudListUnavailable}
@@ -334,6 +331,12 @@ const HomeContent = memo(function HomeContent({
             )}
           />
         </HomeHeader>
+        <BottomSearch
+          value={query}
+          placeholder={t.searchPlaceholder}
+          onChangeText={setQuery}
+          onFocusChange={setSearching}
+        />
       </HostDrawerEdge>
     </>
   );
