@@ -103,7 +103,7 @@ The shell is set by [ADR-0211](../../docs/adr/0211-the-mobile-app-has-two-tabs-w
     - **By kind**: Input, Output, Cache read and Cache write. **By PersonaBot**: avatar, name, share of the total and tokens; tapping a current Bot opens its profile, a deleted one reads "Removed". **Memory activity**: each Bot's Memory changes for the week with a small bar per day. Both lists page with Show more.
     - Everything comes from the Host's `overviewUsage` and `overviewMemory`, the same reads as the Web Client's activity view; the card's week total matches its week total.
   - **Connections**: the current Host and its connection status, Computers (paired Hosts, their status and unpairing, with the same confirmation and error notice as before), Notifications, and Open full client.
-  - **Interface**: App icon (the shipped default icon or one of two DeepSeekBot portraits, the full one and the chibi one, each with dark and tinted variants on iOS), and Appearance (scheme, accent, chat wallpaper) once it exists. Each Host's name, avatar and banner are customized from its menu in the Host drawer, not here.
+  - **Interface**: App icon (the full DeepSeekBot portrait ships as the default icon; the chibi portrait is the alternate; both have dark and tinted variants on iOS), and Appearance (scheme, accent, chat wallpaper) once it exists. Each Host's name, avatar and banner are customized from its menu in the Host drawer, not here.
   - **Chats**: Channel sections and Hidden Channels, each pushing its own screen.
 
 ## Sheet and drawer surfaces

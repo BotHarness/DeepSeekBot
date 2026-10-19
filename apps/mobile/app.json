@@ -6,19 +6,29 @@
     "version": "0.0.1",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
+    "icon": "./assets/app-icons/deepseekbot-light.png",
     "locales": {
       "zh-Hans": "./locales/zh-Hans.json"
     },
     "ios": {
       "bundleIdentifier": "ai.botharness.deepseekbot.dev",
       "supportsTablet": false,
+      "icon": {
+        "light": "./assets/app-icons/deepseekbot-light.png",
+        "dark": "./assets/app-icons/deepseekbot-dark.png",
+        "tinted": "./assets/app-icons/deepseekbot-tinted.png"
+      },
       "infoPlist": {
         "CFBundleDevelopmentRegion": "en",
         "CFBundleLocalizations": ["en", "zh-Hans"]
       }
     },
     "android": {
-      "package": "ai.botharness.deepseekbot.dev"
+      "package": "ai.botharness.deepseekbot.dev",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/app-icons/deepseekbot-android-foreground.png",
+        "backgroundColor": "#FFFFFF"
+      }
     },
     "plugins": [
       "expo-router",
@@ -50,18 +60,6 @@
       [
         "expo-alternate-app-icons",
         [
-          {
-            "name": "DeepSeekBot",
-            "ios": {
-              "light": "./assets/app-icons/deepseekbot-light.png",
-              "dark": "./assets/app-icons/deepseekbot-dark.png",
-              "tinted": "./assets/app-icons/deepseekbot-tinted.png"
-            },
-            "android": {
-              "foregroundImage": "./assets/app-icons/deepseekbot-android-foreground.png",
-              "backgroundColor": "#FFFFFF"
-            }
-          },
           {
             "name": "DeepSeekBotSimple",
             "ios": {
