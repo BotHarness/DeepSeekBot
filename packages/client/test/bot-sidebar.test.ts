@@ -667,10 +667,7 @@ describe('bot sidebar rows', () => {
       expect(time.textContent).toBe(
         formatChannelListTime(Date.parse(latestAt), Date.now(), zhTranslate),
       );
-      expect(
-        titleRow.lastElementChild === time ||
-          time.nextElementSibling?.classList.contains('bh-row-glyph'),
-      ).toBe(true);
+      expect(titleRow.lastElementChild).toBe(time);
       expect(time.getAttribute('title')).toBe(new Date(latestAt).toLocaleString());
     }
     expect(container.querySelector(`[data-channel-id="${FLAT_CHANNEL.id}"] time`)).toBeNull();
@@ -1969,7 +1966,7 @@ it('announces pending approvals in the Rail button while preserving working exec
   }
 });
 
-it('shows one trailing status glyph on the contact row instead of avatar badges', () => {
+it('shows one status glyph at the end of the preview line instead of avatar badges', () => {
   store.setRoster([BOT], [DM_CHANNEL]);
   store.applyActivity({
     generation: 'row-status-host',
@@ -1981,12 +1978,14 @@ it('shows one trailing status glyph on the contact row instead of avatar badges'
     const markup = renderSidebar();
     const row = markup.slice(markup.indexOf('class="bh-contact'));
     const avatar = row.slice(0, row.indexOf('class="bh-body"'));
-    const top = row.slice(row.indexOf('class="bh-top"'), row.indexOf('class="bh-msg"'));
+    const top = row.slice(row.indexOf('class="bh-top"'), row.indexOf('class="bh-bottom"'));
+    const bottom = row.slice(row.indexOf('class="bh-bottom"'), row.indexOf('</button>'));
     expect(avatar).not.toContain('bh-avatar-attention');
     expect(avatar).not.toContain('bh-avatar-botui');
     expect(top).not.toContain('bh-avatar-botui');
-    expect(top).toContain('class="bh-row-glyph" data-status="needs-you"');
-    expect(top).toContain('aria-label="正在等待你"');
+    expect(top).not.toContain('bh-row-glyph');
+    expect(bottom).toContain('class="bh-row-glyph" data-status="needs-you"');
+    expect(bottom).toContain('aria-label="正在等待你"');
     expect(markup).toContain('<span class="bh-section-needs">1 个需要你</span>');
   } finally {
     store.applyActivity({

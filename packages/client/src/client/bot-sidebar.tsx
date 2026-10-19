@@ -668,10 +668,10 @@ function BotRow({
             <span className="bh-name">{bot.displayName}</span>
             {muted ? <MutedMark t={t} /> : null}
             <ChannelMessageTime channel={channel} now={now} t={t} />
-            <ChannelRowStatusGlyph status={status} t={t} />
           </span>
           <span className="bh-bottom">
             <span className="bh-msg">{preview}</span>
+            <ChannelRowStatusGlyph status={status} t={t} />
           </span>
         </span>
         {showShortcutHints && shortcut !== undefined ? (
