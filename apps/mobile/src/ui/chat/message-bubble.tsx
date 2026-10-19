@@ -25,12 +25,13 @@ import Animated, {
 
 import {
   reactable,
+  reactedByMe,
   type ConversationDraft,
   type ConversationMessage,
   type MessageAttachment,
 } from '../../host/conversation';
 import type { ConversationPlayback } from '../../host/conversation-playback';
-import { lift, motion, radius, space } from '../design/tokens';
+import { doubleTap, lift, motion, radius, space } from '../design/tokens';
 import { pressTint, useDesignTheme } from '../design/theme';
 import { MessageBody } from './message-body';
 import { Text } from '../primitives/text';
@@ -109,6 +110,7 @@ function PressableBubble({
   accessibilityActionLabel,
   onPress,
   onLongPress,
+  onDoubleTap,
   children,
 }: {
   human: boolean;
@@ -120,12 +122,14 @@ function PressableBubble({
   accessibilityActionLabel?: string;
   onPress?: () => void;
   onLongPress?: (anchor: Rect) => void;
+  onDoubleTap?: () => void;
   children: ReactNode;
 }) {
   const theme = useDesignTheme();
   const reduced = useReducedMotion();
   const ref = useRef<ViewInstance>(null);
   const anchor = useRef<Rect | undefined>(undefined);
+  const tapped = useRef<number | undefined>(undefined);
   const scale = useSharedValue(1);
   const held = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
   const shrinks = Platform.OS === 'ios' && !reduced && onLongPress !== undefined;
@@ -174,7 +178,20 @@ function PressableBubble({
                 open();
               },
             })}
-        {...(onPress === undefined ? {} : { onPress })}
+        {...(onPress !== undefined
+          ? { onPress }
+          : onDoubleTap === undefined
+            ? {}
+            : {
+                onPress: () => {
+                  const now = Date.now();
+                  if (secondTap(tapped.current, now)) {
+                    tapped.current = undefined;
+                    haptic('react');
+                    onDoubleTap();
+                  } else tapped.current = now;
+                },
+              })}
         delayLongPress={motion.lift}
         android_ripple={{
           color: pressTint(human ? theme.color.onAccent : theme.color.fg),
@@ -197,6 +214,10 @@ function PressableBubble({
       </Pressable>
     </Animated.View>
   );
+}
+
+export function secondTap(last: number | undefined, now: number): boolean {
+  return last !== undefined && now - last <= doubleTap.window;
 }
 
 export const MessageBubble = memo(function MessageBubble({
@@ -270,6 +291,18 @@ export const MessageBubble = memo(function MessageBubble({
             }
           : {})}
         {...(failed ? { onPress: () => onRetry?.(message.id) } : {})}
+        {...(!streaming && onReact !== undefined && reactable(message) && Platform.OS === 'ios'
+          ? {
+              onDoubleTap: () =>
+                onReact(
+                  message.id,
+                  doubleTap.emoji,
+                  !(message.reactions ?? []).some(
+                    (reaction) => reaction.emoji === doubleTap.emoji && reactedByMe(reaction),
+                  ),
+                ),
+            }
+          : {})}
       >
         {bubble}
       </PressableBubble>

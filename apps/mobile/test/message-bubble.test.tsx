@@ -20,8 +20,9 @@ vi.mock('react-native', async () => {
   const { useWindowDimensions, StyleSheet } = await import('./react-native-shim');
   const host = (name: string) => {
     const Component = ({ children, ...props }: Record<string, unknown>) => {
-      if (typeof props['onPress'] === 'function' && typeof props['accessibilityLabel'] === 'string')
-        native.presses.set(props['accessibilityLabel'], props['onPress'] as () => void);
+      const pressKey = props['accessibilityLabel'] ?? props['accessibilityHint'];
+      if (typeof props['onPress'] === 'function' && typeof pressKey === 'string')
+        native.presses.set(pressKey, props['onPress'] as () => void);
       const attributes: Record<string, string> = {};
       for (const key of [
         'accessibilityLabel',
@@ -124,7 +125,8 @@ vi.mock('react-native-svg', () => ({
   Rect: () => null,
 }));
 
-const { MessageBubble, DraftBubble, deliveryLabel } = await import('../src/ui/chat/message-bubble');
+const { MessageBubble, DraftBubble, deliveryLabel, secondTap } =
+  await import('../src/ui/chat/message-bubble');
 const { createSpeakerRegistry } = await import('../src/ui/chat/speaker-row');
 const { t } = await import('../src/ui/strings');
 const { openMessageMenu, shareText } = await import('../src/ui/chat/message-menu');
@@ -378,6 +380,47 @@ describe('copying a message', () => {
     expect(native.sheets).toEqual([]);
     expect(native.copied).toEqual(['hello']);
     expect(native.toasts).toEqual([t.copied]);
+  });
+});
+
+describe('double-tap to react', () => {
+  const bot: ConversationMessage = {
+    id: 'bot-1',
+    revision: 3,
+    at: '2026-10-14T08:00:00.000Z',
+    author: 'bot',
+    body: 'Done.',
+    attachments: [],
+    delivery: 'committed',
+  };
+  const doubleTap = (message: ConversationMessage) => {
+    const onReact = vi.fn();
+    renderToStaticMarkup(<MessageBubble message={message} onReact={onReact} />);
+    const press = native.presses.get(t.messageActionsHint);
+    press?.();
+    press?.();
+    return onReact;
+  };
+
+  it('counts a second tap only inside the double-tap window', () => {
+    expect(secondTap(undefined, 1000)).toBe(false);
+    expect(secondTap(1000, 1300)).toBe(true);
+    expect(secondTap(1000, 1301)).toBe(false);
+  });
+
+  it('adds a thumbs up on iOS', () => {
+    expect(doubleTap(bot)).toHaveBeenCalledWith('bot-1', '👍', true);
+  });
+
+  it('takes the thumbs up back when it is already mine', () => {
+    const mine = { emoji: '👍', actors: [{ kind: 'human' as const, id: 'local-human' }] };
+    expect(doubleTap({ ...bot, reactions: [mine] })).toHaveBeenCalledWith('bot-1', '👍', false);
+  });
+
+  it('leaves Android and messages that cannot take reactions alone', () => {
+    expect(doubleTap({ ...bot, revision: undefined })).not.toHaveBeenCalled();
+    native.os = 'android';
+    expect(doubleTap(bot)).not.toHaveBeenCalled();
   });
 });
 
