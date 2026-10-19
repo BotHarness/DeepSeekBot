@@ -3463,11 +3463,12 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
   position: static;
 }
 /* A grouped message's own time occupies the author's left gutter, so it reads
-   as the avatar-column timestamp instead of crowding the hover actions. */
+   as the avatar-column timestamp instead of crowding the hover actions. The
+   reaction row height keeps it on the bubble instead of under the chips. */
 .bh-bubble-meta {
   position: absolute;
   right: 100%;
-  bottom: 0;
+  bottom: var(--bh-reaction-row, 0px);
   display: flex;
   align-items: center;
   gap: ${space.x2};

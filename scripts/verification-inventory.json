@@ -1463,9 +1463,17 @@
       "path": "scripts/e2e-message-inline-actions.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.timeline.messages"],
-      "reason": "Private pre-existing message fixture; hover/touch inline actions and timestamps checked with viewport bounds.",
+      "reason": "Private pre-existing message fixture; historical hover/touch inline actions and old right-side timestamp assertions. Kept for regression history; scripts/e2e-message-hover-time.mjs is the repeatable per-message time check.",
       "task": 1967,
       "sha256": "2443aefb4b2b995e2e29d81f8b486a1f89d3b7e7e714ce4f6eb9f56a6c5ac62e"
+    },
+    {
+      "path": "scripts/e2e-message-hover-time.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.timeline.messages"],
+      "reason": "Task-owned isolated Host; seeds a two-message group through channel_send, then asserts the second message's left-column time, hide-on-leave without layout shift, reaction-row alignment, selection mode and 390px hover:none; light and dark evidence.",
+      "task": 1735,
+      "sha256": "830b45e7c56eafe21f97f0f4be43dd4dcc184ee00e8386c09b52791b93475fa0"
     },
     {
       "path": "scripts/e2e-mobile-browser-web.mjs",
