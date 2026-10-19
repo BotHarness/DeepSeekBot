@@ -1,6 +1,6 @@
 # #1735 per-message hover time — visual evidence
 
-Final source commit: `22a16f44e0dbcba23c5d69dffbb1db44e619310c`
+Final source commit: `498c0dd50ed2add7490c44aec01768f5d36ac603` (E2E/audit only; product code is unchanged since `22a16f44e0dbcba23c5d69dffbb1db44e619310c`)
 Base revision: `87340ee0eb3edd7bd1a2438b992a44af54048931`
 Parent implementation commit for the matched pair: `1b56886`
 
@@ -24,14 +24,14 @@ PUPPETEER_EXECUTABLE_PATH="C:\Program Files (x86)\Microsoft\Edge\Application\mse
 BH_E2E_REQUIRE_CLEAN=1 node scripts/e2e-message-hover-time.mjs
 ```
 
-Result: `PASS E:\codes\dshbot\.humanlayer\verify\hover-time-final\evidence\hover-time-1792429521979`, with `sourceCommit` = `22a16f4…` and `dirty` = `""`.
+Result: `PASS E:\codes\dshbot\.humanlayer\verify\hover-time-final2\evidence\hover-time-1792430394815`, with `sourceCommit` = `498c0dd…` and `dirty` = `""`.
 
 The final E2E seeded the pair with `botharness/botToolRun` (`channel_send`), then asserted:
 
-- second message: own `01:06 AM` (`01:05 AM` first message), left of the bubble, bubble rect unchanged within 0.5px on hover
-- first message: group header time `01:05 AM` stays in place; no per-message time appears
-- pointer-away: second message time opacity returns to `0`
-- reaction chip: time bottom `661.5` = bubble bottom `661.5`, chip top `665.5`
+- second message: own `01:21 AM` (`01:20 AM` first message), left of the bubble, bubble rect unchanged within 0.5px on hover
+- first message: group header time `01:20 AM` stays in place; no per-message time appears
+- pointer-away: second message time opacity returns to `0`, avatar opacity returns to `1`, and the bubble remains at `left 114 / top 640 / width 182.03 / height 48` (identical to the initial measurement within 0.5px)
+- reaction chip: time bottom `662` = bubble bottom `662`, chip top `666`
 - selection mode: `.bh-bubble-side` is `display: none`, avatar opacity `1`
 - 390px touch: `(hover: none)` true, hover time `display: none`, avatar opacity `1`, group time opacity `1`
 - dark theme: hover time opacity `1`, avatar opacity `0`, reaction chip present
