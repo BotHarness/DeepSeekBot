@@ -1,5 +1,10 @@
 import { Capsule, Host, Mask, Rectangle, RoundedRectangle } from '@expo/ui/swift-ui';
-import { accessibilityHidden, foregroundStyle, glassEffect } from '@expo/ui/swift-ui/modifiers';
+import {
+  accessibilityHidden,
+  foregroundStyle,
+  glassEffect,
+  ignoreSafeArea,
+} from '@expo/ui/swift-ui/modifiers';
 import { useSyncExternalStore } from 'react';
 import { AccessibilityInfo, Platform, StyleSheet, View } from 'react-native';
 
@@ -70,8 +75,8 @@ export function EdgeMaterial({ edge: side, solid }: { edge: 'top' | 'bottom'; so
       colorScheme={theme.scheme}
       pointerEvents="none"
     >
-      <Mask modifiers={[accessibilityHidden()]}>
-        <Rectangle modifiers={[foregroundStyle({ type: 'material', material: 'ultraThin' })]} />
+      <Mask modifiers={[accessibilityHidden(), ignoreSafeArea({ edges: 'all' })]}>
+        <Rectangle modifiers={[foregroundStyle({ type: 'material', material: 'thin' })]} />
         <Mask.Content>
           <Rectangle
             modifiers={[

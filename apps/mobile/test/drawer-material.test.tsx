@@ -27,6 +27,7 @@ vi.mock('@expo/ui/swift-ui/modifiers', () => ({
   foregroundStyle: () => ({}),
   accessibilityHidden: () => ({}),
   glassEffect: () => ({}),
+  ignoreSafeArea: () => ({}),
 }));
 vi.mock('@expo/ui/swift-ui', () => ({
   Host: ({ children }: { children: ReactNode }) => createElement('div', null, children),
