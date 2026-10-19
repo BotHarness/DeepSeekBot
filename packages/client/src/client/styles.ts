@@ -3454,7 +3454,6 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
   flex-direction: row-reverse;
 }
 .bh-bubble-side {
-  position: relative;
   flex: none;
   display: flex;
   align-items: center;
@@ -3463,9 +3462,11 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
 .bh-bubble-side .bh-delivery-trigger {
   position: static;
 }
+/* A grouped message's own time occupies the author's left gutter, so it reads
+   as the avatar-column timestamp instead of crowding the hover actions. */
 .bh-bubble-meta {
   position: absolute;
-  left: 100%;
+  right: 100%;
   bottom: 0;
   display: flex;
   align-items: center;
@@ -3475,14 +3476,24 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
   opacity: 0;
   pointer-events: none;
 }
-.bh-message-group-me .bh-bubble-meta {
-  left: auto;
-  right: 100%;
-}
 .bh-bubble-wrap:hover .bh-bubble-meta,
 .bh-bubble-wrap:focus-within .bh-bubble-meta {
   opacity: 1;
   pointer-events: auto;
+}
+/* The hover time reuses the avatar slot; hiding the avatar keeps both readable
+   without reserving another column or moving the message content. */
+@media (hover: hover) and (min-width: 641px) {
+  .bh-message-group:has(
+      .bh-bubble-wrap:not(.bh-bubble-selecting):hover .bh-bubble-meta > time
+    )
+    .bh-message-group-avatar,
+  .bh-message-group:has(
+      .bh-bubble-wrap:not(.bh-bubble-selecting):focus-within .bh-bubble-meta > time
+    )
+    .bh-message-group-avatar {
+    opacity: 0;
+  }
 }
 .bh-bubble-time {
   color: var(--dsw-alias-label-tertiary);

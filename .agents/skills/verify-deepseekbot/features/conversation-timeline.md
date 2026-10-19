@@ -7,7 +7,7 @@ Reading a Bot DM or group: where the timeline opens, how it keeps your place, an
 - `new-messages` opens the Channel at the Human's read anchor and draws a `New messages` divider after it when someone else wrote since.
 - `keep-place` puts a Channel back at the message you were reading when you switch away and back within the same page.
 - `fold` folds a settled message taller than 480px to 300px behind `Show all`.
-- `message-time` shows each grouped message's own HH:mm next to its hover actions.
+- `message-time` shows each grouped message's own HH:mm in the left avatar column on hover; the group avatar yields that slot while the message is hovered, so nothing moves.
 - `file-layout` keeps attachment names and sizes readable while Open and download controls wrap inside narrow message bubbles. Bubbles fit the larger of their prose and attachments; prose stays left-aligned with `text-wrap: pretty`.
 - `image-preview` opens a thumbnail in an in-page preview that steps through every image loaded in the Channel.
 - `reactions` adds the Human's emoji reaction from the hover bar picker, the long-press menu on narrow screens, or a chip under the bubble; Bots react through `channel_send` `react_to` + `reaction` (empty `body` for a reaction only); chips update live through `channel/reaction` and Bots read them in `channel_read`. The group avatar stays level with the bubble's bottom edge, not the chips.
@@ -21,6 +21,7 @@ Reading a Bot DM or group: where the timeline opens, how it keeps your place, an
 - Send a file with a long name, then narrow the Messages dock panel: the file information and action controls stay inside both Human and Bot bubbles. Open the file menu and download the file.
 - Click an image in a message: the preview opens; `←`/`→` or the side buttons step, `Esc` closes.
 - Hover a message and click the smiley in its action bar, then pick an emoji; click the chip under the bubble to take it back. On a phone-width page, long-press the bubble and choose `Add reaction`.
+- In a merged group, hover the second message: its own HH:mm appears in the left avatar column while the group avatar yields the slot; move the pointer away and the time disappears without moving the message.
 - Press Ctrl/⌘+F in an open conversation, type a word, and press `Enter` or click a result.
 - In a group Channel, open Members in the Channel sidebar. Right-click a Bot row (or use its ellipsis button / Shift+F10), then choose Mention (`@ TA` in Chinese).
 
