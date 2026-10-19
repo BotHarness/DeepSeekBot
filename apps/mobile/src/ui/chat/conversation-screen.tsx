@@ -363,7 +363,12 @@ function ChatConversation({
   const attachList = useCallback(
     (node: FlatList<Row> | null) => {
       list(node);
-      content(node?.getNativeScrollRef()?.getInnerViewRef() ?? null);
+      const scroll = node?.getNativeScrollRef?.();
+      content(
+        scroll !== null && scroll !== undefined && 'getInnerViewRef' in scroll
+          ? scroll.getInnerViewRef()
+          : null,
+      );
     },
     [list, content],
   );
