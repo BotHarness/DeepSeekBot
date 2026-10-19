@@ -46,6 +46,7 @@
     "apps/mobile/test/inbox-screens.test.ts",
     "apps/mobile/test/action-cards.test.ts",
     "apps/mobile/test/activity-feed.test.ts",
+    "apps/mobile/test/open-conversation.test.ts",
     "apps/mobile/test/reanimated-shim.ts",
     "apps/mobile/test/**/*.tsx"
   ]
