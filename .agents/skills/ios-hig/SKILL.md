@@ -7,7 +7,7 @@ description: Apple HIG and Liquid Glass rules for the mobile app's iOS 26+ surfa
 
 Apple's Human Interface Guidelines decide **which** control an iOS surface uses and how it behaves; `apps/mobile/DESIGN.md` records what this app already decided; `expo-ui`, `expo-router` and `expo-native-ui` say how to build it. This skill is the bridge: HIG rules in our words, each pointing at the component we build it with.
 
-**Precedence.** A decision written in `DESIGN.md` (or an ADR it cites) wins over this skill. When the HIG disagrees with one, keep the shipped behaviour and name the drift in the PR, so a Human decides; never change it silently. Where `DESIGN.md` is silent, the HIG decides.
+**Precedence.** The platform's native design and components are the standard on both iOS and Android (`DESIGN.md` → Native first). A decision written in `DESIGN.md` (or an ADR it cites) wins over this skill. When the HIG disagrees with one, keep the shipped behaviour and name the drift in the PR, so a Human decides; never change it silently. Where `DESIGN.md` is silent, the HIG decides.
 
 ## Steps
 
@@ -15,7 +15,7 @@ Apple's Human Interface Guidelines decide **which** control an iOS surface uses 
 2. **Pick the component** from the [decision table](#decision-table). Done when every interactive element maps to one HIG component and the choice is defensible from its row.
 3. **Build it native first.** Use the mapping in [references/components.md](references/components.md): system navigation and `@expo/ui` SwiftUI views before hand-drawn RN look-alikes. Done when no RN view imitates a control the system provides.
 4. **Apply the glass rules** in [Liquid Glass](#liquid-glass). Done when glass sits only on functional elements and every glass surface has its fallbacks.
-5. **Check the platform split.** Android keeps Material 3 and the opaque OCAT surfaces (`DESIGN.md`); nothing from this skill crosses to Android. Done when the Android branch of each change is named, even if unchanged.
+5. **Check the platform split.** Android follows Material 3 with its own native components (`@expo/ui` Jetpack Compose), per `DESIGN.md` → Native first; no iOS look crosses to Android. Done when the Android branch of each change is named and uses the Material counterpart.
 6. **Review** with the [checklist](#review-checklist), and capture light and dark screenshots for the PR as the project requires.
 
 ## Decision table

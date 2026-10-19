@@ -11,6 +11,12 @@ References:
 | Meta Muse | A Bot profile whose identity and memory are visible and editable.                                                                                                                            |
 | Slack     | Workspace switching, a row of shortcut cards on Chats, an Activity feed with filters, and agent steps with a Stop button.                                                                    |
 
+## Native first
+
+On both platforms the system's own design and components are the standard: Apple's Human Interface Guidelines on iOS, Material 3 on Android. Where the platform has a component for the job, use it (native navigation, `@expo/ui` SwiftUI views on iOS, `@expo/ui` Jetpack Compose views on Android) and keep its default look and behaviour; do not draw a React Native look-alike or restyle it into a house style. A custom surface is allowed only where no native component fits, and its reason is written in this file first.
+
+Older rules below that prescribe a custom surface where a native component exists (for example the OCAT-inspired Android choice menus, or iOS menus shown as alerts) describe the current implementation, not the target. Change them to the native component when the screen is next touched, and update the rule in the same change.
+
 ## Android application dialogs
 
 - Application-owned menus and confirmations use `showAppDialog` and the root `AppDialogHost`, matching the accepted OCAT-inspired Settings surfaces. Do not call React Native `Alert.alert` directly from a screen or feature. On iOS `showAppDialog` shows the system alert and is for confirmations only; iOS menus follow [iOS menus and native controls](#ios-menus-and-native-controls). Operating-system permission prompts, photo pickers and the share sheet remain system-owned.
@@ -21,7 +27,7 @@ References:
 
 ## iOS menus and native controls
 
-iOS uses the system's own controls wherever one exists, following the Apple HIG (the `ios-hig` skill maps each component to our stack). Build them with `@expo/ui` SwiftUI views or native navigation, not with React Native views drawn to look like them. Android keeps the Material and `showAppDialog` surfaces above.
+This applies [Native first](#native-first) to iOS menus, following the Apple HIG (the `ios-hig` skill maps each component to our stack). Build them with `@expo/ui` SwiftUI views or native navigation, not with React Native views drawn to look like them. On Android the same jobs use Material 3 components: a dropdown menu for ⋯ actions, an exposed dropdown menu or radio dialog for a single choice, and a Material dialog for confirmations.
 
 - **Action menus are native pull-down menus.** A ⋯ button opens a SwiftUI `Menu` anchored to it; a long press on a row opens a native context menu with the same actions. Items are commands with title-case labels, most-used first, related items grouped, at most one submenu level. Destructive items carry the destructive role and still open a confirmation describing the consequence.
 - **Choices of one value are native pop-up menus.** A short, fixed set of mutually exclusive options shows the current value on the control and opens a menu-style picker with a checkmark on the selection. Two to five peer modes that should stay visible use a segmented control. Options that need explanation, search or a long list use a sheet.
