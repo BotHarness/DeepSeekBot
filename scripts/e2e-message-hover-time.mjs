@@ -434,6 +434,17 @@ try {
   for (const action of secondHover.second.actions)
     assert.equal(action.hit, 'self', `action is covered: ${action.label}`);
   await shot('second-hover-light');
+  step('move-away');
+  await moveAway();
+  const secondRest = await measure(firstMessage.id, secondMessage.id);
+  assert.equal(secondRest.second.metaOpacity, '0', 'hover time stayed visible after moving away');
+  assert.equal(secondRest.avatarOpacity, '1', 'avatar stayed hidden after moving away');
+  for (const key of ['left', 'top', 'width', 'height'])
+    assert.ok(
+      Math.abs(secondRest.second.bubble[key] - initial.second.bubble[key]) <= 0.5,
+      `bubble ${key} moved after moving away`,
+    );
+  result.secondRest = secondRest;
   step('add-reaction');
   await rpc(instance, 'botharness/channelReact', {
     channelId: dm.channel.id,

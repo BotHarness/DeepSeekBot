@@ -1473,7 +1473,7 @@
       "behaviors": ["desktop.timeline.messages"],
       "reason": "Task-owned isolated Host; seeds a two-message group through channel_send, then asserts the second message's left-column time, hide-on-leave without layout shift, reaction-row alignment, selection mode and 390px hover:none; light and dark evidence.",
       "task": 1735,
-      "sha256": "830b45e7c56eafe21f97f0f4be43dd4dcc184ee00e8386c09b52791b93475fa0"
+      "sha256": "fb19d09336887f4fa29b65941aefa2ff4d8ddeb3a28ec0475db1d6294ab1ccaf"
     },
     {
       "path": "scripts/e2e-mobile-browser-web.mjs",
