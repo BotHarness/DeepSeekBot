@@ -13,7 +13,7 @@ References:
 
 ## Native first
 
-On both platforms the system's own design and components are the standard: Apple's Human Interface Guidelines on iOS, Material 3 on Android. Where the platform has a component for the job, use it (native navigation, `@expo/ui` SwiftUI views on iOS, `@expo/ui` Jetpack Compose views on Android) and keep its default look and behaviour; do not draw a React Native look-alike or restyle it into a house style. A custom surface is allowed only where no native component fits, and its reason is written in this file first.
+On both platforms the system's own design and components are the standard: Apple's Human Interface Guidelines on iOS (`ios-hig` skill), Material 3 on Android (`android-material` skill). Where the platform has a component for the job, use it (native navigation, `@expo/ui` SwiftUI views on iOS, `@expo/ui` Jetpack Compose views on Android) and keep its default look and behaviour; do not draw a React Native look-alike or restyle it into a house style. A custom surface is allowed only where no native component fits, and its reason is written in this file first.
 
 Older rules below that prescribe a custom surface where a native component exists (for example the OCAT-inspired Android choice menus, or iOS menus shown as alerts) describe the current implementation, not the target. Change them to the native component when the screen is next touched, and update the rule in the same change.
 

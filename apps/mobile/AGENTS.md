@@ -8,6 +8,7 @@ Load `expo-overview` first for any Expo or EAS task; it routes to the right skil
 
 - Screens and styling: `expo-native-ui`. Native components (`@expo/ui` SwiftUI/Compose views, menus, pickers, sheets): `expo-ui`. Navigation: `expo-router`. Motion, gestures and haptics: `expo-animation`.
 - iOS control choice and Liquid Glass (pop-up/pull-down buttons, menus, sheets, toolbars, tab bar, scroll edge effects): `ios-hig`. It maps Apple's HIG onto this app; a decision already in `DESIGN.md` wins, and drift from the HIG is named in the PR.
+- Android control choice (menus, exposed dropdowns, dialogs, bottom sheets, app bars, navigation bar), edge-to-edge and predictive back: `android-material`, the Material 3 twin of `ios-hig`. Spec detail (tokens, colour, type, shape, motion): `material-3`.
 - Network calls and loading/error states: `expo-data-fetching`. The Host client in `src/host/` is ours: screens read it through `useHostSnapshot()` and never call `fetch` themselves.
 - Development builds: `expo-dev-client`. Store builds and submission: `eas-app-stores`. OTA updates: `eas-update`. EAS CI: `eas-workflows`.
 - Native modules: `expo-module`. SDK upgrades: `expo-upgrade`.
