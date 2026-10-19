@@ -1328,6 +1328,87 @@ html[data-botharness-motion='reduce'] .bh-avatar-botui i {
   height: 16px;
   padding: 0 ${space.x1};
 }
+.bh-row-avatar {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+}
+/* Channel list rows use a rounded-square avatar frame (Bot and group alike). */
+.bh-row-avatar > .bh-persona-avatar {
+  overflow: hidden;
+  border-radius: 28%;
+}
+.bh-row-avatar .bh-avatar-media-image {
+  border-radius: 0;
+}
+.bh-paused .bh-row-avatar > .bh-persona-avatar {
+  opacity: 0.5;
+}
+.bh-unread-count.bh-unread-corner {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  z-index: 1;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 ${space.x1};
+  border-radius: ${radius.xs};
+  box-shadow: 0 0 0 2px var(--dsw-alias-bg-base);
+  pointer-events: none;
+}
+.bh-contact .bh-name,
+.bh-channel-row .bh-name {
+  font-weight: ${text.regular};
+}
+.bh-contact.bh-has-unread .bh-name,
+.bh-channel-row.bh-has-unread .bh-name {
+  font-weight: ${text.strong};
+}
+.bh-row-glyph {
+  flex: none;
+  display: block;
+  width: 16px;
+  height: 16px;
+  color: var(--dsw-alias-label-primary);
+}
+.bh-row-glyph-track,
+.bh-row-glyph-arc,
+.bh-row-glyph-ring,
+.bh-row-glyph-check,
+.bh-row-glyph-cut {
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.bh-row-glyph-track { stroke: currentColor; stroke-opacity: 0.18; }
+.bh-row-glyph-arc,
+.bh-row-glyph-ring,
+.bh-row-glyph-check { stroke: currentColor; }
+.bh-row-glyph-check { stroke-width: 1.6; }
+.bh-row-glyph-fill { fill: currentColor; }
+.bh-row-glyph-cut { stroke: var(--dsw-alias-bg-base); stroke-width: 1.7; }
+.bh-row-glyph-dot { fill: var(--dsw-alias-bg-base); }
+.bh-row-glyph[data-status='working'] { animation: bh-row-glyph-spin 900ms linear infinite; }
+.bh-row-glyph[data-status='needs-you'] { color: var(--dsw-alias-state-warn-primary); }
+.bh-row-glyph[data-status='blocked'] { color: var(--dsw-alias-state-error-primary); }
+.bh-row-glyph[data-status='done'],
+.bh-row-glyph[data-status='paused'] { color: var(--dsw-alias-label-tertiary); }
+@keyframes bh-row-glyph-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+html[data-botharness-motion='reduce'] .bh-row-glyph[data-status='working'] {
+  animation: none;
+}
+.bh-section-needs {
+  flex: none;
+  margin-left: ${space.x2};
+  color: var(--dsw-alias-state-warn-primary);
+  font-size: ${text.metaSize};
+  line-height: ${text.bodyLine};
+}
 .bh-unread-count-muted {
   background: var(--dsw-alias-button-elevated-fill);
   color: var(--dsw-alias-label-secondary);

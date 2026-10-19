@@ -613,6 +613,7 @@ const en = {
     'generic-working': 'Working',
   },
   needsYouCount: (count: number) => (count === 1 ? 'needs you' : `${count} need you`),
+  sectionNeedsYou: (count: number) => (count === 1 ? '1 needs you' : `${count} need you`),
   unreadCount: (count: number) => (count === 1 ? '1 unread message' : `${count} unread messages`),
   mutedUnread: (count: number) =>
     count === 1 ? 'muted, 1 unread message' : `muted, ${count} unread messages`,
@@ -1595,6 +1596,7 @@ const zh: typeof en = {
     'generic-working': '工作中',
   },
   needsYouCount: (count: number) => (count === 1 ? '等你处理' : `${count} 项等你处理`),
+  sectionNeedsYou: (count: number) => `${count} 个需要你`,
   unreadCount: (count: number) => `${count} 条未读消息`,
   mutedUnread: (count: number) => `已静音，${count} 条未读消息`,
   closeSearch: '关闭搜索',

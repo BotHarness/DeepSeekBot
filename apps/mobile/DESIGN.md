@@ -141,11 +141,11 @@ The shell is set by [ADR-0211](../../docs/adr/0211-the-mobile-app-has-two-tabs-w
 
 - On the Activity and Chats root lists, deliberate downward content scrolling hides the global bottom navigation; upward travel or reaching the top restores it. Clamp elastic overscroll so bounce does not toggle chrome. Activity also collapses its title/filter/search row, leaving the three tabs pinned below the safe area; no gradient covers rows beneath the tabs. Searching and filtering keep controls visible. Page changes restore chrome without discarding each page's scroll position. Scroll intent and transforms run on the UI thread; only native visibility/accessibility boundaries cross to React. List geometry stays fixed during the animation.
 
-- A 48pt avatar: the Bot's round avatar with its state ring, or a rounded square with `#` for a Channel.
-- First line: title, IM channel badges and time.
-- Second line: a one-line preview.
-- One count chip at the end of the preview line: **Needs you** (how many requests wait for the Human) takes priority over **Unread** (how many messages arrived since the Human last read the conversation, from the Host's `channelUnreadCounts`). A muted conversation's unread count uses the neutral tone.
-- A collapsed Channel section shows one count chip for everything inside it: Needs you first, otherwise the unread sum, leaving muted conversations out.
+- A 48pt avatar: the Bot's avatar as a rounded square (`radius.md`) inside its state ring, or a rounded square with `#` for a Channel. The ring follows the avatar's corner: `accent` while thinking or working, with a short run travelling the edge (static under Reduce Motion); `warning` when it waits for the Human; `danger` when blocked; none when idle.
+- First line: title, IM channel badges and time. The time follows IM lists: the clock time today, then Yesterday, the weekday within the last week, month/day this year, and the full date before that.
+- Second line: a one-line preview, in `fg` while the conversation has unread messages.
+- One count chip on the avatar's top-right corner, cut out of the row with a `canvas` edge: **Needs you** (how many requests wait for the Human) takes priority over **Unread** (how many messages arrived since the Human last read the conversation, from the Host's `channelUnreadCounts`). A muted conversation's unread count uses the neutral tone.
+- A collapsed Channel section shows one count chip for everything inside it: Needs you first, otherwise the unread sum, leaving muted conversations out. An expanded section that holds Bots waiting for the Human says how many, in `warning`.
 - Opening a conversation marks it read on the Host (`channelMarkRead`) whenever the Human is at the newest message, so the chip clears on the phone and on desktop.
 - A working Bot's preview reads "Working…".
 - Swipe for pin and mute; long-press opens a native menu.
@@ -308,7 +308,7 @@ Each layer has `fill`, `pressed`, `selected` (neutral, such as the current tab),
 4. **Interactive elements meet the touch target and carry an `accessibilityLabel`.** The touch target is `theme.touch`: 44pt on iOS, 48dp on Android.
 5. **Lists virtualize.** The chat is an inverted list.
 6. **Motion and haptics are limited.**
-   - Motion uses Reanimated, only for bubble entry, a held bubble's lift, the message menu, card collapse, the status dot, the Host drawer, the image viewer's gestures and the composer growing line by line (up to five lines, then it scrolls).
+   - Motion uses Reanimated, only for bubble entry, a held bubble's lift, the message menu, card collapse, the status dot, the working state ring, the Host drawer, the image viewer's gestures and the composer growing line by line (up to five lines, then it scrolls).
    - Haptics fire only on send, approve or deny, submitting a choice, and opening a message's menu.
 7. **Copy lives in `src/ui/strings.ts`** and follows [UI copy](../../docs/agents/ui-copy.md): say Bot, keep hints and captions short and plain. Internal ids and protocol names stay out of the UI.
 8. **UI PRs show the change.** Follow the [visual evidence rules](../../docs/agents/pr-ui-visual-evidence.md). Font, keyboard, native chrome and native control behavior require native captures and interaction checks; web previews are supplementary. Record source checks, platform-native results and Human QA separately.

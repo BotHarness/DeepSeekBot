@@ -50,6 +50,11 @@ export function SectionHeader({
         {count}
       </Text>
       <View style={{ flex: 1 }} />
+      {!collapsed && needsYou > 0 ? (
+        <Text variant="meta" tone="warning" numberOfLines={1}>
+          {t.sectionNeedsYou(needsYou)}
+        </Text>
+      ) : null}
       {badge === undefined ? null : <CountBadge count={badge.count} tone={badge.tone} />}
     </Pressable>
   );

@@ -3,7 +3,7 @@ import { SourceName } from './source-name';
 import { Pressable, View } from 'react-native';
 
 import { BotAvatar } from '../bot-avatar';
-import { radius, space } from '../design/tokens';
+import { edge, radius, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { CountBadge } from '../primitives/count-badge';
 import { Text } from '../primitives/text';
@@ -56,11 +56,12 @@ export function ConversationRow({
       preview={preview}
       time={time}
       busy={busy}
+      unread={row.unread > 0 && !row.muted}
       badge={badge}
       onPress={onPress}
       avatar={
         row.kind === 'bot' ? (
-          <BotAvatar bot={row.bot} size={AVATAR} />
+          <BotAvatar bot={row.bot} size={AVATAR} corner={radius.md} />
         ) : (
           <ConversationGroupAvatar avatar={row.channel.avatar} />
         )
@@ -91,6 +92,7 @@ export function ConversationRowFrame({
   preview,
   time = '',
   busy = false,
+  unread = false,
   badge,
   avatar,
   onPress,
@@ -103,6 +105,7 @@ export function ConversationRowFrame({
   preview: string;
   time?: string;
   busy?: boolean;
+  unread?: boolean;
   badge?: ReturnType<typeof countBadge>;
   avatar: ReactNode;
   onPress?: (() => void) | undefined;
@@ -127,7 +130,23 @@ export function ConversationRowFrame({
         backgroundColor: pressed ? theme.layer.canvas.pressed : theme.layer.canvas.fill,
       })}
     >
-      {avatar}
+      <View>
+        {avatar}
+        {badge === undefined ? null : (
+          <View
+            style={{
+              position: 'absolute',
+              top: -space.x2,
+              right: -space.x3,
+              padding: edge.focus,
+              borderRadius: radius.sm + edge.focus,
+              backgroundColor: theme.layer.canvas.fill,
+            }}
+          >
+            <CountBadge count={badge.count} tone={badge.tone} />
+          </View>
+        )}
+      </View>
       <View style={{ flex: 1, minWidth: 0, gap: space.x1 }}>
         <View
           style={{
@@ -146,13 +165,12 @@ export function ConversationRowFrame({
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x3 }}>
           <Text
             variant="meta"
-            tone={busy ? 'accent' : 'muted'}
+            tone={busy ? 'accent' : unread ? 'fg' : 'muted'}
             numberOfLines={1}
             style={{ flex: 1 }}
           >
             {preview}
           </Text>
-          {badge === undefined ? null : <CountBadge count={badge.count} tone={badge.tone} />}
         </View>
       </View>
     </Pressable>

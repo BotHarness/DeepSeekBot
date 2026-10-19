@@ -32,7 +32,13 @@ vi.mock('react-native', async () => {
     useColorScheme: () => 'light',
   };
 });
-vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null, SvgXml: () => null }));
+vi.mock('react-native-svg', () => ({
+  default: () => null,
+  Path: () => null,
+  Rect: () => null,
+  SvgXml: () => null,
+}));
+vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
 
 const { WorkingStatus, workingLabel } = await import('../src/ui/chat/working-status');
 const { stepLabel } = await import('../src/ui/chat/bot-steps');

@@ -121,6 +121,7 @@ vi.mock('react-native-enriched-markdown', () => ({
 vi.mock('react-native-svg', () => ({
   default: () => <svg />,
   Path: () => null,
+  Rect: () => null,
 }));
 
 const { MessageBubble, DraftBubble, deliveryLabel } = await import('../src/ui/chat/message-bubble');

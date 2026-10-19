@@ -37,6 +37,8 @@ export const FadeOut = transition;
 export const LinearTransition = transition;
 export const useReducedMotion = () => false;
 export const withTiming = <T>(value: T) => value;
+export const withRepeat = <T>(value: T) => value;
+export const useAnimatedProps = (worklet: () => object) => worklet();
 export const interpolateColor = (_value: number, _range: number[], colors: string[]) =>
   colors.at(-1);
 export const cancelAnimation = () => {};

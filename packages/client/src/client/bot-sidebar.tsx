@@ -53,13 +53,18 @@ import type { BridgeActions } from './actions.js';
 import type { WindowCompanions } from './window-companions.js';
 import {
   PersonaBotAvatar,
-  PersonaBotStatusBadges,
   personaBotPresentationSummary,
   type PersonaBotActivityState,
 } from './avatar.js';
 import { BotIcon, botBackdropUri } from './bot-icon.js';
 import { sectionSortMode, type BotModePrefsSnapshot } from './bot-mode-prefs.js';
 import { GroupChannelIcon } from './group-avatar-stack.js';
+import {
+  ChannelRowStatusGlyph,
+  channelRowStatus,
+  formatChannelListTime,
+  useMinuteNow,
+} from './channel-row-status.js';
 import { InboxIcon } from './inbox-icon.js';
 import { LoadingSkeleton } from './loading-skeleton.js';
 import {
@@ -92,7 +97,7 @@ import {
   type ScopeId,
   type SectionDropTarget,
 } from './channel-drag.js';
-import { needsYou, toBotState, ungroupedLabel } from './labels.js';
+import { ungroupedLabel } from './labels.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { toolApprovalText } from './approval-text.js';
 import { personaBotActivity } from './persona-activity.js';
@@ -453,14 +458,22 @@ function RoleBadges({ roles }: { roles: readonly string[] }): ReactElement | nul
   );
 }
 
-function ChannelMessageTime({ channel }: { channel: ChannelSummary }): ReactElement | null {
+function ChannelMessageTime({
+  channel,
+  now,
+  t,
+}: {
+  channel: ChannelSummary;
+  now: number;
+  t: BotHarnessTranslate;
+}): ReactElement | null {
   const at = channel.latestMessage?.at;
   if (at === undefined) return null;
   const date = new Date(at);
   if (Number.isNaN(date.getTime())) return null;
   return (
     <time className="bh-channel-message-time" dateTime={at} title={date.toLocaleString()}>
-      {date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+      {formatChannelListTime(date.getTime(), now, t)}
     </time>
   );
 }
@@ -472,16 +485,18 @@ export function unreadCountLabel(count: number): string {
 function UnreadCount({
   count,
   muted = false,
+  corner = false,
   t,
 }: {
   count: number;
   muted?: boolean;
+  corner?: boolean;
   t: BotHarnessTranslate;
 }): ReactElement | null {
   if (count <= 0) return null;
   return (
     <span
-      className={`bh-unread-count${muted ? ' bh-unread-count-muted' : ''}`}
+      className={`bh-unread-count${corner ? ' bh-unread-corner' : ''}${muted ? ' bh-unread-count-muted' : ''}`}
       aria-label={t('roster.unreadCount', { count })}
     >
       {unreadCountLabel(count)}
@@ -568,7 +583,16 @@ function BotRow({
   onPinDragEnd: () => void;
   t: BotHarnessTranslate;
 }): ReactElement {
-  const botState = toBotState(bot.aggregateState);
+  const now = useMinuteNow();
+  const status = channelRowStatus({
+    activity,
+    attention: bot.attention,
+    paused: bot.paused,
+    unread,
+    botSlug: bot.slug,
+    latest: channel.latestMessage,
+    now,
+  });
   const markerClass =
     drag.marker === 'before' ? ' bh-drop-before' : drag.marker === 'after' ? ' bh-drop-after' : '';
   const sourceClass = drag.source ? ' bh-drag-source' : '';
@@ -581,7 +605,7 @@ function BotRow({
       <button
         type="button"
         data-channel-id={channel.id}
-        className={`bh-contact${unread > 0 ? ' bh-has-unread' : ''}${muted ? ' bh-muted' : ''}${selected ? ' bh-selected' : ''}${multiSelected ? ' bh-multi-selected' : ''}${showShortcutHints && shortcut !== undefined ? ' bh-shortcut-active' : ''}${markerClass}${sourceClass}`}
+        className={`bh-contact${unread > 0 ? ' bh-has-unread' : ''}${bot.paused ? ' bh-paused' : ''}${muted ? ' bh-muted' : ''}${selected ? ' bh-selected' : ''}${multiSelected ? ' bh-multi-selected' : ''}${showShortcutHints && shortcut !== undefined ? ' bh-shortcut-active' : ''}${markerClass}${sourceClass}`}
         aria-pressed={multiSelected}
         aria-keyshortcuts={shortcut}
         title={shortcut === undefined ? undefined : t('shortcut.web.open', { key: shortcut })}
@@ -622,32 +646,32 @@ function BotRow({
           onMenu({ channelId: channel.id, x: rect.left + 8, y: rect.bottom });
         }}
       >
-        <PersonaBotAvatar
-          t={t}
-          personaBotId={bot.slug}
-          name={bot.displayName}
-          src={bot.avatar}
-          appearance={bot.appearance}
-          avatarSeed={bot.avatarSeed}
-          state={activity}
-          activity={bot?.activity}
-          attention={bot?.attention}
-          size={34}
-          indicator={false}
-        />
+        <span className="bh-row-avatar">
+          <PersonaBotAvatar
+            t={t}
+            personaBotId={bot.slug}
+            name={bot.displayName}
+            src={bot.avatar}
+            appearance={bot.appearance}
+            avatarSeed={bot.avatarSeed}
+            state={activity}
+            activity={bot?.activity}
+            attention={bot?.attention}
+            size={34}
+            indicator={false}
+            still
+          />
+          <UnreadCount count={unread} muted={muted} corner t={t} />
+        </span>
         <span className="bh-body">
           <span className="bh-top">
             <span className="bh-name">{bot.displayName}</span>
             {muted ? <MutedMark t={t} /> : null}
-            {needsYou(botState) ? (
-              <span className="bh-unread" title={t('roster.needsYou')} />
-            ) : null}
-            <PersonaBotStatusBadges state={activity} attention={bot?.attention} />
-            <ChannelMessageTime channel={channel} />
+            <ChannelMessageTime channel={channel} now={now} t={t} />
+            <ChannelRowStatusGlyph status={status} t={t} />
           </span>
           <span className="bh-bottom">
             <span className="bh-msg">{preview}</span>
-            <UnreadCount count={unread} muted={muted} t={t} />
           </span>
         </span>
         {showShortcutHints && shortcut !== undefined ? (
@@ -692,6 +716,7 @@ function ChannelRow({
   onPinDragEnd?: (() => void) | undefined;
   t: BotHarnessTranslate;
 }): ReactElement {
+  const now = useMinuteNow();
   const marker = drag?.marker ?? null;
   const markerClass =
     marker === 'before' ? ' bh-drop-before' : marker === 'after' ? ' bh-drop-after' : '';
@@ -756,24 +781,26 @@ function ChannelRow({
         onMenu({ channelId: channel.id, x: rect.left + 8, y: rect.bottom });
       }}
     >
-      <GroupChannelIcon
-        channel={channel}
-        bots={bots}
-        className="bh-channel-slot"
-        groupClassName="bh-group-channel-slot"
-        size={34}
-        hashSize={18}
-        t={t}
-      />
+      <span className="bh-row-avatar">
+        <GroupChannelIcon
+          channel={channel}
+          bots={bots}
+          className="bh-channel-slot"
+          groupClassName="bh-group-channel-slot"
+          size={34}
+          hashSize={18}
+          t={t}
+        />
+        <UnreadCount count={unread} muted={muted} corner t={t} />
+      </span>
       <span className="bh-body">
         <span className="bh-top">
           <span className="bh-name">{channel.name}</span>
           {muted ? <MutedMark t={t} /> : null}
-          <ChannelMessageTime channel={channel} />
+          <ChannelMessageTime channel={channel} now={now} t={t} />
         </span>
         <span className="bh-bottom">
           <span className="bh-msg">{preview}</span>
-          <UnreadCount count={unread} muted={muted} t={t} />
         </span>
       </span>
       {showShortcutHints && shortcut !== undefined ? (
@@ -960,6 +987,7 @@ export function BotSidebar({
   const [pinSortMenuOpen, setPinSortMenuOpen] = useState(false);
   const [hiddenManagerOpen, setHiddenManagerOpen] = useState(false);
   const [channelHistoryOpen, setChannelHistoryOpen] = useState(false);
+  const listNow = useMinuteNow();
   const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false);
   const [sectionMenuId, setSectionMenuId] = useState<string | undefined>(undefined);
   const [sectionCreateMenuId, setSectionCreateMenuId] = useState<string | undefined>(undefined);
@@ -2381,9 +2409,17 @@ export function BotSidebar({
                       <span className="bh-name">
                         {bot?.displayName ?? channel.name}
                         {bot === undefined ? null : (
-                          <PersonaBotStatusBadges
-                            state={personaBotActivity(state, bot)}
-                            attention={bot.attention}
+                          <ChannelRowStatusGlyph
+                            status={channelRowStatus({
+                              activity: personaBotActivity(state, bot),
+                              attention: bot.attention,
+                              paused: bot.paused,
+                              unread: channelUnread[channel.id] ?? 0,
+                              botSlug: bot.slug,
+                              latest: channel.latestMessage,
+                              now: listNow,
+                            })}
+                            t={t}
                           />
                         )}
                       </span>
@@ -2504,6 +2540,23 @@ export function BotSidebar({
             );
           }
           const { section, channels: sectionChannels } = block;
+          const needCount = sectionChannels.filter((channel) => {
+            const bot =
+              channel.type === 'dm' && channel.botSlug !== undefined
+                ? botBySlug.get(channel.botSlug)
+                : undefined;
+            if (bot === undefined) return false;
+            const status = channelRowStatus({
+              activity: personaBotActivity(state, bot),
+              attention: bot.attention,
+              paused: bot.paused,
+              unread: 0,
+              botSlug: bot.slug,
+              latest: undefined,
+              now: listNow,
+            });
+            return status === 'needs-you' || status === 'blocked';
+          }).length;
           const sectionIndex = state.roster.sections.findIndex((item) => item.id === section.id);
           const collapsed = state.config.collapsed[section.id] === true;
           const menuOpenForSection = sectionMenuId === section.id;
@@ -2625,6 +2678,13 @@ export function BotSidebar({
                     }
                   />
                   <span className="bh-section-count">{sectionChannels.length}</span>
+                  {needCount > 0 ? (
+                    <span className="bh-section-needs">
+                      {t(needCount === 1 ? 'roster.needsYouCountOne' : 'roster.needsYouCount', {
+                        count: needCount,
+                      })}
+                    </span>
+                  ) : null}
                   <span className="bh-row-actions">
                     <Menu
                       open={menuOpenForSection}

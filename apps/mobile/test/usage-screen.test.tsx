@@ -11,7 +11,13 @@ vi.mock('expo-router', () => ({ useRouter: () => ({ back() {} }) }));
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
-vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null, SvgXml: () => null }));
+vi.mock('react-native-svg', () => ({
+  default: () => null,
+  Path: () => null,
+  Rect: () => null,
+  SvgXml: () => null,
+}));
+vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
 
 import type { OverviewMemory, OverviewUsage, UsagePeriod } from '../src/host/usage';
 import { MethodRefused } from '../src/host/client';

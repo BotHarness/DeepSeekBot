@@ -76,6 +76,7 @@ import { UNGROUPED_MOVE_TARGET } from '../src/client/section-management.js';
 import type { BotModePrefsSnapshot } from '../src/client/bot-mode-prefs.js';
 import { PINNED_SORT_SCOPE_ID } from '../src/bot-mode-settings.js';
 import { zh, zhTranslate } from '../src/client/locale.js';
+import { formatChannelListTime } from '../src/client/channel-row-status.js';
 import type { RosterConfig } from '../src/client/roster-config.js';
 import type { RosterSection, RosterSnapshot } from '../src/client/roster.js';
 import { store } from '../src/client/store.js';
@@ -664,12 +665,12 @@ describe('bot sidebar rows', () => {
       const time = titleRow.querySelector('time')!;
       expect(time.getAttribute('datetime')).toBe(latestAt);
       expect(time.textContent).toBe(
-        new Date(latestAt).toLocaleTimeString([], {
-          hour: '2-digit',
-          minute: '2-digit',
-        }),
+        formatChannelListTime(Date.parse(latestAt), Date.now(), zhTranslate),
       );
-      expect(titleRow.lastElementChild).toBe(time);
+      expect(
+        titleRow.lastElementChild === time ||
+          time.nextElementSibling?.classList.contains('bh-row-glyph'),
+      ).toBe(true);
       expect(time.getAttribute('title')).toBe(new Date(latestAt).toLocaleString());
     }
     expect(container.querySelector(`[data-channel-id="${FLAT_CHANNEL.id}"] time`)).toBeNull();
@@ -885,7 +886,7 @@ describe('bot sidebar rows', () => {
 
   it('shows each conversation unread count on its row, pinned card and rail icon', () => {
     store.setRoster(
-      [BOT],
+      [{ ...BOT, aggregateState: 'idle' }],
       [
         {
           ...DM_CHANNEL,
@@ -902,7 +903,10 @@ describe('bot sidebar rows', () => {
     store.setHumanInbox({ channelUnread: { [DM_CHANNEL.id]: 3 } });
     const wide = renderSidebar();
     expect(wide).toContain('bh-has-unread');
-    expect(wide).toMatch(/<span class="bh-unread-count" aria-label="3 条未读">3<\/span>/u);
+    expect(wide).toMatch(
+      /<span class="bh-row-avatar">.*?<span class="bh-unread-count bh-unread-corner" aria-label="3 条未读">3<\/span><\/span>/u,
+    );
+    expect(wide).toContain('data-status="done-unread"');
     store.setHumanInbox({ channelUnread: { [DM_CHANNEL.id]: 120 } });
     expect(renderSidebar(false)).toContain('>99+</span>');
   });
@@ -914,7 +918,7 @@ describe('bot sidebar rows', () => {
     const markup = renderSidebar();
     expect(markup).toContain('bh-muted');
     expect(markup).toContain('aria-label="已免打扰"');
-    expect(markup).toContain('bh-unread-count bh-unread-count-muted');
+    expect(markup).toContain('bh-unread-count bh-unread-corner bh-unread-count-muted');
   });
 
   it('shows recent activity for a bodyless latest DM message', () => {
@@ -1965,13 +1969,14 @@ it('announces pending approvals in the Rail button while preserving working exec
   }
 });
 
-it('shows the contact row status beside the name instead of on the avatar', () => {
+it('shows one trailing status glyph on the contact row instead of avatar badges', () => {
   store.setRoster([BOT], [DM_CHANNEL]);
   store.applyActivity({
     generation: 'row-status-host',
     revision: 1,
     bots: [{ slug: BOT.slug, state: 'working', attention: { approvalCount: 3 } }],
   });
+  setRoster({ sections: [section('s1', '工作流', [DM_CHANNEL.id])] });
   try {
     const markup = renderSidebar();
     const row = markup.slice(markup.indexOf('class="bh-contact'));
@@ -1979,9 +1984,10 @@ it('shows the contact row status beside the name instead of on the avatar', () =
     const top = row.slice(row.indexOf('class="bh-top"'), row.indexOf('class="bh-msg"'));
     expect(avatar).not.toContain('bh-avatar-attention');
     expect(avatar).not.toContain('bh-avatar-botui');
-    expect(top).toContain('class="bh-row-status" data-state="working"');
-    expect(top).toContain('data-approval-count="3"');
-    expect(top).toContain('bh-avatar-botui');
+    expect(top).not.toContain('bh-avatar-botui');
+    expect(top).toContain('class="bh-row-glyph" data-status="needs-you"');
+    expect(top).toContain('aria-label="正在等待你"');
+    expect(markup).toContain('<span class="bh-section-needs">1 个需要你</span>');
   } finally {
     store.applyActivity({
       generation: 'row-status-host',

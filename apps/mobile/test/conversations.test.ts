@@ -123,12 +123,14 @@ describe('Home conversations', () => {
     expect(countBadge(team)).toEqual({ tone: 'muted', count: 4 });
   });
 
-  it('shows a clock time today and a date otherwise', () => {
+  it('follows IM list conventions for the time', () => {
     const now = new Date('2026-10-14T12:00:00');
-    expect(shortTime(new Date('2026-10-14T09:05:00').toISOString(), now, 'en-GB')).toMatch(
-      /^0?9:05$/,
-    );
-    expect(shortTime(new Date('2026-10-12T09:05:00').toISOString(), now, 'en-GB')).toBe('12/10');
+    const at = (iso: string) => new Date(iso).toISOString();
+    expect(shortTime(at('2026-10-14T09:05:00'), now, 'en-GB')).toMatch(/^0?9:05$/);
+    expect(shortTime(at('2026-10-13T23:59:00'), now, 'en-GB', 'Yesterday')).toBe('Yesterday');
+    expect(shortTime(at('2026-10-12T09:05:00'), now, 'en-GB')).toBe('Mon');
+    expect(shortTime(at('2026-10-02T09:05:00'), now, 'en-GB')).toBe('02/10');
+    expect(shortTime(at('2025-12-30T09:05:00'), now, 'en-GB')).toBe('30/12/2025');
     expect(shortTime(undefined, now)).toBe('');
   });
 });

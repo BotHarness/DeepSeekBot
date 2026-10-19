@@ -6,6 +6,7 @@ import type {
   TopOrderEntry,
 } from '../../host/client';
 import type { HumanAttentionItem } from '../../host/wire';
+import { t } from '../strings';
 
 interface Attention {
   needsYou: number;
@@ -234,13 +235,27 @@ export function searchConversations(
     .map(({ row }) => row);
 }
 
-export function shortTime(iso: string | undefined, now: Date, locale?: string): string {
+export function shortTime(
+  iso: string | undefined,
+  now: Date,
+  locale?: string,
+  yesterday: string = t.yesterday,
+): string {
   if (iso === undefined) return '';
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return '';
-  const sameDay = at.toDateString() === now.toDateString();
+  const startOfDay = (value: Date) =>
+    new Date(value.getFullYear(), value.getMonth(), value.getDate()).getTime();
+  const days = Math.round((startOfDay(now) - startOfDay(at)) / 86_400_000);
+  if (days === 1) return yesterday;
   return new Intl.DateTimeFormat(
     locale,
-    sameDay ? { hour: 'numeric', minute: '2-digit' } : { month: 'numeric', day: 'numeric' },
+    days <= 0
+      ? { hour: 'numeric', minute: '2-digit' }
+      : days < 7
+        ? { weekday: 'short' }
+        : at.getFullYear() === now.getFullYear()
+          ? { month: 'numeric', day: 'numeric' }
+          : { year: 'numeric', month: 'numeric', day: 'numeric' },
   ).format(at);
 }
