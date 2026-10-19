@@ -52,7 +52,6 @@ async function render(element: ReactElement): Promise<HTMLElement> {
 
 function actions(overrides: Partial<SettingsActions> = {}): SettingsActions {
   return {
-    onClose: vi.fn(),
     onUsage: vi.fn(),
     onOpenFullClient: vi.fn(),
     onComputers: vi.fn(),
@@ -85,7 +84,7 @@ describe('Settings sheet', () => {
         actions={handlers}
       />,
     );
-    expect(view.textContent).toContain(t.settings);
+    expect(button(view, t.done)).toBeNull();
     expect(view.textContent).toContain(t.connections);
     expect(view.textContent).toContain('studio');
     expect(view.textContent).toContain(`${t.connected} · https://studio.tail.ts.net`);
@@ -96,7 +95,6 @@ describe('Settings sheet', () => {
       [t.notifications, 'onNotifications'],
       [`${t.modelSettings.title}, ${t.modelSettings.global}`, 'onModels'],
       [t.openFullClient, 'onOpenFullClient'],
-      [t.done, 'onClose'],
     ];
     for (const [label, action] of rows) {
       await act(async () => button(view, label)!.click());

@@ -4,9 +4,15 @@ import { t } from '../../src/ui/strings';
 
 export default function SettingsLayout() {
   return (
-    <SheetStack>
+    <SheetStack modalGrabber>
       <Stack.Screen name="chat-background" options={{ title: t.chatBackground.global }} />
-      <Stack.Screen name="index" options={{ headerShown: false }} />
+      <Stack.Screen
+        name="index"
+        options={{
+          title: t.settings,
+          headerShown: false,
+        }}
+      />
       <Stack.Screen name="usage" options={{ title: t.usage }} />
       <Stack.Screen name="app-icon" options={{ title: t.appIcon }} />
       <Stack.Screen name="activity-count" options={{ title: t.activityCountSettings.title }} />

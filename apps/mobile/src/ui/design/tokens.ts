@@ -34,6 +34,7 @@ export const navigationBar = {
   indicatorHeight: 32,
   indicatorRadius: radius.md,
   itemPadding: 6,
+  labelMinScale: 0.5,
   shadow: {
     light: '0 2px 8px rgba(15, 17, 21, 0.06)',
     dark: '0 2px 8px rgba(0, 0, 0, 0.12)',

@@ -45,7 +45,6 @@ export default function SettingsScreen() {
       loadUsage={usage}
       version={appBuildLabel(currentAppBuild())}
       actions={{
-        onClose: () => router.back(),
         onUsage: () => router.push('/settings/usage'),
         onOpenFullClient: () =>
           router.push({

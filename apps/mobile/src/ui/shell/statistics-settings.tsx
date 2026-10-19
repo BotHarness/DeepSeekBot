@@ -1,5 +1,4 @@
 import { useState, useSyncExternalStore } from 'react';
-import { Platform } from 'react-native';
 import { mobileTelemetry } from '../../telemetry/native';
 import { SHEET_GROUP } from '../chat/sheet';
 import { SettingsRow, SettingsSection } from '../primitives/settings-row';
@@ -10,7 +9,7 @@ export function StatisticsSettings() {
   const state = useSyncExternalStore(mobileTelemetry.subscribe, mobileTelemetry.getSnapshot);
   const [saving, setSaving] = useState(false);
   const [expanded, setExpanded] = useState(false);
-  const on = Platform.OS === 'android' ? SHEET_GROUP : 'sheet';
+  const on = SHEET_GROUP;
   return (
     <SettingsSection
       on={on}
@@ -41,7 +40,6 @@ export function StatisticsSettings() {
       <SettingsRow
         on={on}
         title={expanded ? t.statisticsHideDetails : t.statisticsDetails}
-        tone="muted"
         onPress={() => setExpanded(!expanded)}
         expanded={expanded}
       />

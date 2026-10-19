@@ -24,7 +24,9 @@ function SheetStackHeader({ back, navigation, options, route }: NativeStackHeade
         backgroundColor: theme.overlay.fill,
       }}
     >
-      {back === undefined ? null : (
+      {back === undefined ? (
+        options.headerLeft?.({ tintColor: theme.color.fg, canGoBack: false })
+      ) : (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={t.back}
@@ -46,13 +48,19 @@ function SheetStackHeader({ back, navigation, options, route }: NativeStackHeade
   );
 }
 
-export function SheetStack({ children }: { children: ReactNode }) {
+export function SheetStack({
+  children,
+  modalGrabber = false,
+}: {
+  children: ReactNode;
+  modalGrabber?: boolean;
+}) {
   const theme = useDesignTheme();
   const navigation = useNavigation('/');
   const insets = useSafeAreaInsets();
   const contentInsets = useMemo(() => ({ ...insets, top: 0 }), [insets]);
   return (
-    <SheetScreen onClose={() => navigation.goBack()}>
+    <SheetScreen modalGrabber={modalGrabber} onClose={() => navigation.goBack()}>
       <SafeAreaInsetsContext value={contentInsets}>
         <Stack
           screenOptions={{

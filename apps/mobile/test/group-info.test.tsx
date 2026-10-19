@@ -173,7 +173,10 @@ describe('Group info', () => {
   it('removes a member only after the confirmation', async () => {
     const props = sheet();
     const view = await render(<GroupInfoSheet {...props} />);
-    await act(async () => button(view, t.groupMemberMenu('Bo'))!.click());
+    const menu = button(view, t.groupMemberMenu('Bo'))!;
+    expect(menu.parentElement?.closest('button')).toBeNull();
+    await act(async () => menu.click());
+    expect(props.onOpenBot).not.toHaveBeenCalled();
     await pressAlert(0, t.groupRemove);
     expect(props.actions.removeMember).not.toHaveBeenCalled();
     expect(alert.mock.calls[1]![0]).toBe(t.groupRemoveConfirm('Bo'));

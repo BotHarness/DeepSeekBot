@@ -1,0 +1,37 @@
+# Run on the assigned iOS device with an existing QA pairing and English locale.
+# Does not erase data, enable notifications, or change the pairing.
+# Close is the fixed handle button, not a header X. Native drag and real VoiceOver
+# activation/escape need their separate device checks.
+appId: ai.botharness.deepseekbot.dev
+---
+- tapOn: 'Chats'
+- tapOn: 'Settings'
+- extendedWaitUntil:
+    visible: 'Close'
+    timeout: 10000
+- scrollUntilVisible:
+    element: 'Computers.*'
+    direction: DOWN
+- assertVisible: 'Computers.*'
+- scrollUntilVisible:
+    element: 'Notifications'
+    direction: DOWN
+- tapOn: 'Notifications'
+- extendedWaitUntil:
+    visible: 'Get a notification when a PersonaBot needs you or replies to you.*'
+    timeout: 10000
+- tapOn: 'Settings'
+- assertVisible: 'Close'
+- tapOn: 'Close'
+- assertVisible: 'Chats'
+- assertNotVisible: 'Computers.*'
+- tapOn: 'Settings'
+- assertVisible: 'Close'
+- scrollUntilVisible:
+    element: 'Computers.*'
+    direction: DOWN
+- scrollUntilVisible:
+    element: 'About anonymous statistics'
+    direction: DOWN
+- assertVisible: 'Close'
+- tapOn: 'Close'

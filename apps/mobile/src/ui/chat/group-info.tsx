@@ -496,7 +496,7 @@ function GroupRow({
         title={memberName(row.member)}
         {...(row.member.owner ? { detail: t.groupOwner } : {})}
         leading={<MemberAvatar entry={row.member} />}
-        trailing={
+        accessory={
           <ActionMenuButton
             label={t.groupMemberMenu(memberName(row.member))}
             actions={memberActions(row.member)}

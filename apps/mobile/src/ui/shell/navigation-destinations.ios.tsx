@@ -6,15 +6,16 @@ import {
   buttonBorderShape,
   buttonStyle,
   font,
-  fixedSize,
   foregroundStyle,
   frame,
+  lineLimit,
+  minimumScaleFactor,
   monospacedDigit,
   onLongPressGesture,
 } from '@expo/ui/swift-ui/modifiers';
 import { Platform } from 'react-native';
 import { useDesignTheme } from '../design/theme';
-import { space } from '../design/tokens';
+import { navigationBar, space } from '../design/tokens';
 import { badgeCount } from '../primitives/badge-count';
 import { t } from '../strings';
 import type { NavigationDestination } from './navigation-destination';
@@ -79,7 +80,8 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
                 <Text
                   modifiers={[
                     font({ textStyle: 'caption2' }),
-                    fixedSize({ horizontal: false, vertical: true }),
+                    lineLimit(1),
+                    minimumScaleFactor(navigationBar.labelMinScale),
                   ]}
                 >
                   {label}

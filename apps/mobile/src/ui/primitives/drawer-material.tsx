@@ -28,4 +28,4 @@ export function useLiquidGlass(): boolean {
 
 export const SidebarMaterial: (props: { cornerRadius: number }) => null = () => null;
 
-export const EdgeMaterial: (props: { edge: 'top' | 'bottom' }) => null = () => null;
+export const EdgeMaterial: (props: { edge: 'top' | 'bottom'; solid: number }) => null = () => null;

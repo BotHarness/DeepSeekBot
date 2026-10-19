@@ -15,6 +15,7 @@ import { clearsPastedLink, pairingFailureText } from '../src/ui/pairing-failure'
 import { mobileTelemetry } from '../src/telemetry/native';
 import type { PairingMethod } from '../src/telemetry/schema';
 import { Button } from '../src/ui/primitives/button';
+import { DrawerHeader } from '../src/ui/primitives/drawer-header';
 import { KeyboardFormScroll } from '../src/ui/primitives/keyboard-form';
 import { cloudAvailable } from '../src/cloud/available';
 import { t } from '../src/ui/strings';
@@ -96,6 +97,10 @@ export default function PairScreen() {
       style={{ flex: 1, backgroundColor: theme.overlay.fill }}
       contentContainerStyle={{ padding: space.x5, gap: space.x4 }}
     >
+      <DrawerHeader
+        title={t.pairTitle}
+        {...(router.canGoBack() ? { onClose: () => router.back() } : {})}
+      />
       <View
         style={{
           alignItems: 'center',

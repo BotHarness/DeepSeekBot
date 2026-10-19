@@ -112,7 +112,15 @@ export function HeaderBackButton({ onPress }: { onPress(): void }) {
   );
 }
 
-export function EdgeFade({ edge: side, height }: { edge: 'top' | 'bottom'; height: number }) {
+export function EdgeFade({
+  edge: side,
+  height,
+  fade,
+}: {
+  edge: 'top' | 'bottom';
+  height: number;
+  fade: number;
+}) {
   const theme = useDesignTheme();
   const glass = useLiquidGlass();
   const id = `fade-${useId().replace(/[^a-z0-9]/giu, '')}`;
@@ -128,7 +136,9 @@ export function EdgeFade({ edge: side, height }: { edge: 'top' | 'bottom'; heigh
         ...(top ? { top: 0 } : { bottom: 0 }),
       }}
     >
-      {glass ? <EdgeMaterial edge={side} /> : null}
+      {glass ? (
+        <EdgeMaterial edge={side} solid={height > fade ? (height - fade) / height : 0} />
+      ) : null}
       <Svg width="100%" height="100%" preserveAspectRatio="none">
         <Defs>
           <LinearGradient id={id} x1="0%" y1={top ? '0%' : '100%'} x2="0%" y2={top ? '100%' : '0%'}>
