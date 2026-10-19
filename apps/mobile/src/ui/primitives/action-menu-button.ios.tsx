@@ -2,17 +2,19 @@ import { Button, Host, Image, Menu } from '@expo/ui/swift-ui';
 import { accessibilityLabel, font, foregroundStyle, frame } from '@expo/ui/swift-ui/modifiers';
 
 import { useDesignTheme } from '../design/theme';
-import type { HostMenuAction, HostMenuButtonProps } from './host-menu-button';
+import type { MenuAction, ActionMenuButtonProps } from './action-menu-button';
 
-export type { HostMenuAction } from './host-menu-button';
+export type { MenuAction } from './action-menu-button';
 
 const SYMBOL = {
   settings: 'paintbrush',
   computer: 'desktopcomputer',
   close: 'xmark.circle',
-} as const satisfies Record<HostMenuAction['icon'], string>;
+  person: 'person.crop.circle',
+  remove: 'person.badge.minus',
+} as const satisfies Record<MenuAction['icon'], string>;
 
-export function HostMenuButton({ label, actions }: HostMenuButtonProps) {
+export function ActionMenuButton({ label, actions }: ActionMenuButtonProps) {
   const theme = useDesignTheme();
   return (
     <Host

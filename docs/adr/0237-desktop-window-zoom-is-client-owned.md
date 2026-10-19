@@ -75,10 +75,12 @@ the running executable's version. macOS 0.2.1-rc.2 Desktop with the matching Hos
 is the qualified combination. The composed Host release is a selection guard, not an
 independent executable-version attestation; remote Hosts and other shell versions need their
 own qualification. An SDK version alone is insufficient.
-The current native protocol rejects numberpad codes, so S1 reset is available in Settings/CLI
-and as a custom-bindable command. Default reset and numberpad bindings remain an outstanding
-requirement tracked in [#2318](https://github.com/BotHarness/DeepSeekBot/issues/2318), rather than
-part of the qualified S2 behavior.
+The qualified macOS reset command defaults to Cmd+0 and restores the saved device default,
+which may differ from 100%. Existing explicit assignments or unbinding keep native precedence.
+The current native protocol rejects numberpad codes. In
+[#2318](https://github.com/BotHarness/DeepSeekBot/issues/2318), the Human confirmed default reset
+as the delivery scope and retained numberpad support as an explicit pinned-version limitation.
+Neither a Client-only key substitution nor a competing input router is introduced.
 
 ## CLI and lifecycle
 

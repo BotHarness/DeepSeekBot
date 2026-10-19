@@ -2,22 +2,22 @@ import { Pressable } from 'react-native';
 
 import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
-import { MoreIcon } from './icons';
+import { MoreIcon } from '../shell/icons';
 
-export type HostMenuAction = {
+export type MenuAction = {
   label: string;
-  icon: 'settings' | 'computer' | 'close';
+  icon: 'settings' | 'computer' | 'close' | 'person' | 'remove';
   run(): void;
   destructive?: boolean;
 };
 
-export type HostMenuButtonProps = {
+export type ActionMenuButtonProps = {
   label: string;
-  actions: HostMenuAction[];
+  actions: MenuAction[];
   onOpen(): void;
 };
 
-export function HostMenuButton({ label, onOpen }: HostMenuButtonProps) {
+export function ActionMenuButton({ label, onOpen }: ActionMenuButtonProps) {
   const theme = useDesignTheme();
   return (
     <Pressable

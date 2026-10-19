@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   normalizeBinding,
   parseShortcutDefinitions,
+  effectiveShortcuts,
 } from '@deepseek-ai/dsh-client-shortcuts/protocol';
 import type { ShortcutCommand } from '@deepseek-ai/dsh-client-shortcuts/client';
 import { mountWindowZoom } from '../src/client/window-zoom-mount.js';
@@ -56,7 +57,9 @@ describe('desktop zoom shortcut ownership', () => {
     const f = fixture();
     await vi.waitFor(() => expect(f.mounted.surface.getSnapshot()).not.toBeNull());
     expect(f.commands.size).toBe(4);
-    expect(f.commands.get('botharness.zoom.reset')?.defaults).toEqual({});
+    expect(f.commands.get('botharness.zoom.reset')?.defaults).toEqual({
+      'desktop:macos': { code: 'Digit0', modifiers: ['primary'] },
+    });
     const action = f.commands
       .get('botharness.zoom.increase')!
       .resolve({ region: 'editable', modal: null, target: null });
@@ -71,6 +74,64 @@ describe('desktop zoom shortcut ownership', () => {
     expect(f.commands.size).toBe(0);
     expect(f.order.at(-1)).toBe('font-restored');
     expect(f.release).toHaveBeenCalledTimes(1);
+  });
+  it('resets through the registered command to the saved device default', async () => {
+    const f = fixture();
+    await vi.waitFor(() => expect(f.mounted.surface.getSnapshot()).not.toBeNull());
+    const owner = f.mounted.surface.getSnapshot()!;
+    owner.execute({ type: 'default', level: 1 });
+    owner.execute({ type: 'set', level: 3 });
+    const command = f.commands.get('botharness.zoom.reset')!;
+    expect(command.defaults['desktop:macos']).toEqual({
+      code: 'Digit0',
+      modifiers: ['primary'],
+    });
+    const action = command.resolve({ region: 'editable', modal: null, target: null });
+    expect(action.status).toBe('handled');
+    if (action.status === 'handled') action.run();
+    expect(owner.getSnapshot().document.defaultLevel).toBe(1);
+    expect(owner.getSnapshot().document.primaryLevel).toBe(1);
+    expect(document.documentElement.style.zoom).toBe('1.2');
+    await f.mounted.dispose();
+  });
+  it('preserves existing custom bindings and yields the new default to an existing assignment', async () => {
+    const f = fixture();
+    await vi.waitFor(() => expect(f.mounted.surface.getSnapshot()).not.toBeNull());
+    const definitions = parseShortcutDefinitions([
+      ...[...f.commands.values()].map(({ id, defaults }) => ({ id, defaults })),
+      { id: 'botharness.existing', defaults: {} },
+    ]);
+    const preferences: Parameters<typeof effectiveShortcuts>[1] = {
+      schemaVersion: 1,
+      profiles: {
+        'desktop:macos': {
+          'botharness.existing': { code: 'Digit0', modifiers: ['primary'] },
+        },
+      },
+    };
+    const original = JSON.stringify(preferences);
+    const rows = effectiveShortcuts(definitions, preferences, 'desktop', 'macos');
+    expect(rows.find(({ id }) => id === 'botharness.zoom.reset')?.conflicts).toEqual([
+      'botharness.existing',
+    ]);
+    expect(rows.find(({ id }) => id === 'botharness.existing')?.conflicts).toEqual([]);
+    expect(JSON.stringify(preferences)).toBe(original);
+    const unbound: Parameters<typeof effectiveShortcuts>[1] = {
+      ...preferences,
+      profiles: {
+        ...preferences.profiles,
+        'desktop:macos': {
+          ...preferences.profiles['desktop:macos'],
+          'botharness.zoom.reset': null,
+        },
+      },
+    };
+    expect(
+      effectiveShortcuts(definitions, unbound, 'desktop', 'macos').find(
+        ({ id }) => id === 'botharness.zoom.reset',
+      )?.binding,
+    ).toBeNull();
+    await f.mounted.dispose();
   });
   it('makes partial registration failure visible and returns the original font bindings exactly once', async () => {
     const f = fixture(true);

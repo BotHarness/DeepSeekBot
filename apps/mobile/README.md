@@ -155,7 +155,17 @@ npx eas-cli build:version:get -p all -e store-test   # once: compare with App St
 npx eas-cli build --profile store-test --platform all --auto-submit
 ```
 
-`--auto-submit` uploads iOS to TestFlight (`ascAppId` in `eas.json`) and Android to the Play internal track as a draft, which is rolled out in Play Console. Google Play needs one manual AAB upload before the API (and so `eas submit`) can upload, plus a Google service account key in EAS credentials. Android push needs FCM credentials (`npx eas-cli credentials`); without them the app works but cannot register for notifications.
+`--auto-submit` uploads iOS to TestFlight (`ascAppId` in `eas.json`) and Android to the Play internal track as a draft, which is rolled out in Play Console. Google Play needs one manual AAB upload before the API (and so `eas submit`) can upload, plus a Google service account key in EAS credentials. Android push needs two things from the Firebase project for `app.deepseekbot.mobile`: its `google-services.json`, stored as the EAS file environment variable `GOOGLE_SERVICES_JSON` (`npx eas-cli env:create --name GOOGLE_SERVICES_JSON --type file --value ./google-services.json --visibility secret --environment production --environment preview`), which `app.config.js` passes to `android.googleServicesFile`; and the FCM V1 service account key, uploaded with `npx eas-cli credentials`. Without them the app works but cannot register for notifications.
+
+### Store privacy answers
+
+Both stores refuse an external TestFlight review or a Play rollout until the app's privacy answers and policy are in place. The answers live in [`store/privacy/`](store/privacy/README.md); the public policy is the "Mobile app" section of <https://deepseekbot.app/en/privacy/#mobile-app>.
+
+1. **Re-check before each store build** whether anything the app sends changed: cloud on, statistics on, a new permission, SDK or data flow. If it did, update `store/privacy/` and the site's `content/privacy/{en,zh}.md` in the same change.
+2. **Publish the policy.** The site does not deploy on merge: after the site PR merges, run `pnpm deploy` in `deepseekbot-site` (after `npx wrangler login`) and check the live page.
+3. **App Store:** upload `app-store-privacy.json` with fastlane ([command](store/privacy/README.md#apply)). It replaces and publishes the answers.
+4. **Google Play:** the first time, fill App content → Data safety in Play Console from the table in `store/privacy/README.md`, export it and commit `play-data-safety.csv`. After that, edit the CSV and upload it through the Play Developer API ([command](store/privacy/README.md#apply)).
+5. Put the policy URL in both store listings, then submit the build for review.
 
 ## Optional statistics
 

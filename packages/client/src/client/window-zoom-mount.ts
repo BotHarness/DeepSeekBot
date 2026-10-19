@@ -86,7 +86,7 @@ export function mountWindowZoom(options: {
         ['increase', 'Equal', false, 1],
         ['increaseShift', 'Equal', true, 1],
         ['decrease', 'Minus', false, -1],
-        ['reset', null, false, 0],
+        ['reset', 'Digit0', false, 0],
       ] as const;
       for (const [name, code, shift, delta] of definitions) {
         const command: ShortcutCommand = {
@@ -94,11 +94,9 @@ export function mountWindowZoom(options: {
           label: () =>
             t(delta === 1 ? 'zoom.increase' : delta === -1 ? 'zoom.decrease' : 'zoom.reset'),
           aliases: ['window', 'zoom'],
-          defaults: code
-            ? {
-                'desktop:macos': { code, modifiers: shift ? ['primary', 'shift'] : ['primary'] },
-              }
-            : {},
+          defaults: {
+            'desktop:macos': { code, modifiers: shift ? ['primary', 'shift'] : ['primary'] },
+          },
           regions: ['page', 'editable', 'terminal'],
           modals: ['other'],
           resolve: () => ({

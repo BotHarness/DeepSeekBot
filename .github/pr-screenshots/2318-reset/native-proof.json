@@ -1,0 +1,163 @@
+{
+  "scope": "Cmd+0 only; numeric keypad unsupported by accepted scope",
+  "desktopVersion": "0.2.1-rc.2",
+  "candidateClientVersion": "0.0.0-zoom.2318.1",
+  "candidateClientSha256": "1d91a105521a2dd9089492c8ae95b9495efc198a776ca7548860d759d5a25d29",
+  "installation": "Immutable Client package override in existing isolated desktop Profile over product 0.0.0-zoom.2268.16; no installed-app edits; not a fresh full-product install qualification",
+  "inputDriver": "CUA native super+0; no synthetic DOM keyboard events",
+  "baseline": {
+    "document": {
+      "version": 1,
+      "revision": "76c8e1a9-ef22-4075-a995-782ff52858cb",
+      "defaultLevel": 0,
+      "primaryLevel": 2
+    },
+    "appliedLevel": 2,
+    "visibility": "hidden",
+    "error": null
+  },
+  "nativeProtocol": {
+    "desktopVersion": "0.2.1-rc.2",
+    "nativeMainSha256": "6f3d1ddd1106371452c2204be6dfb2e5460a8e8259cdd05cdccb5387b3f9a85a",
+    "boundary": "actual installed Electron main parseShortcutDefinitions",
+    "results": [
+      {
+        "code": "Digit0",
+        "accepted": true
+      },
+      {
+        "code": "NumpadAdd",
+        "accepted": false,
+        "error": "Unsupported shortcut code: NumpadAdd"
+      },
+      {
+        "code": "NumpadSubtract",
+        "accepted": false,
+        "error": "Unsupported shortcut code: NumpadSubtract"
+      },
+      {
+        "code": "Numpad0",
+        "accepted": false,
+        "error": "Unsupported shortcut code: Numpad0"
+      }
+    ],
+    "nativeInputUsesPhysicalCode": true,
+    "nativeInputRequiresRegisteredKey": true
+  },
+  "checks": [
+    {
+      "case": "main-reset",
+      "document": {
+        "version": 1,
+        "revision": "5004ee93-2790-42ce-b489-2f9a5108b713",
+        "defaultLevel": 0,
+        "primaryLevel": 0
+      },
+      "rootZoom": "1",
+      "active": {
+        "tag": "TEXTAREA",
+        "id": ""
+      },
+      "originalDraftPreserved": true,
+      "lastWrite": {
+        "version": 1,
+        "revision": "5004ee93-2790-42ce-b489-2f9a5108b713",
+        "defaultLevel": 0,
+        "primaryLevel": 0
+      },
+      "writesSincePreviousOperation": 1,
+      "nativeFonts": "Measured at final paired embedded checkpoints: 15px/11px/13px",
+      "guestNativeZoom": null,
+      "guestInputPreserved": null
+    },
+    {
+      "case": "non100-reset",
+      "document": {
+        "version": 1,
+        "revision": "87561af7-1351-4b58-bd72-14bb71f2a884",
+        "defaultLevel": 1,
+        "primaryLevel": 1
+      },
+      "rootZoom": "1.2",
+      "active": {
+        "tag": "TEXTAREA",
+        "id": ""
+      },
+      "originalDraftPreserved": true,
+      "lastWrite": {
+        "version": 1,
+        "revision": "87561af7-1351-4b58-bd72-14bb71f2a884",
+        "defaultLevel": 1,
+        "primaryLevel": 1
+      },
+      "writesSincePreviousOperation": 1,
+      "nativeFonts": "Measured at final paired embedded checkpoints: 15px/11px/13px",
+      "guestNativeZoom": null,
+      "guestInputPreserved": null
+    },
+    {
+      "case": "iframe-after",
+      "document": {
+        "version": 1,
+        "revision": "b8541e6c-f45e-4bea-9c1c-ddb11077d784",
+        "defaultLevel": 1,
+        "primaryLevel": 1
+      },
+      "rootZoom": "1.2",
+      "active": {
+        "tag": "IFRAME",
+        "id": "reset-iframe"
+      },
+      "originalDraftPreserved": true,
+      "lastWrite": {
+        "version": 1,
+        "revision": "b8541e6c-f45e-4bea-9c1c-ddb11077d784",
+        "defaultLevel": 1,
+        "primaryLevel": 1
+      },
+      "writesSincePreviousOperation": 1,
+      "nativeFonts": [
+        ["--dsh-content-font-size", "15px"],
+        ["--dsh-code-font-size", "11px"],
+        ["--dsh-terminal-font-size", "13px"]
+      ],
+      "guestNativeZoom": null,
+      "guestInputPreserved": true
+    },
+    {
+      "case": "webview-after-nativezoom",
+      "document": {
+        "version": 1,
+        "revision": "60da163a-a489-4179-b357-9b685bea509e",
+        "defaultLevel": 1,
+        "primaryLevel": 1
+      },
+      "rootZoom": "1.2",
+      "active": {
+        "tag": "WEBVIEW",
+        "id": "reset-guest"
+      },
+      "originalDraftPreserved": true,
+      "lastWrite": {
+        "version": 1,
+        "revision": "60da163a-a489-4179-b357-9b685bea509e",
+        "defaultLevel": 1,
+        "primaryLevel": 1
+      },
+      "writesSincePreviousOperation": 1,
+      "nativeFonts": [
+        ["--dsh-content-font-size", "15px"],
+        ["--dsh-code-font-size", "11px"],
+        ["--dsh-terminal-font-size", "13px"]
+      ],
+      "guestNativeZoom": 1,
+      "guestInputPreserved": true
+    }
+  ],
+  "limits": [
+    "Physical keypad unsupported; no workaround",
+    "Windows/Linux qualification remains #2270",
+    "Composition/recording/repeat owner unchanged; no new physical IME test in this slice",
+    "Native iframe/webview fixtures use existing authorized embedding seams; incorrect initial unleased guest was refused and replaced with leased guest"
+  ]
+}

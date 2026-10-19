@@ -5,12 +5,12 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
-import type { HostMenuButtonProps } from './host-menu-button';
-import { MoreIcon } from './icons';
+import type { ActionMenuButtonProps } from './action-menu-button';
+import { MoreIcon } from '../shell/icons';
 
-export type { HostMenuAction } from './host-menu-button';
+export type { MenuAction } from './action-menu-button';
 
-export function HostMenuButton({ label, actions }: HostMenuButtonProps) {
+export function ActionMenuButton({ label, actions }: ActionMenuButtonProps) {
   const theme = useDesignTheme();
   const [open, setOpen] = useState(false);
   return (

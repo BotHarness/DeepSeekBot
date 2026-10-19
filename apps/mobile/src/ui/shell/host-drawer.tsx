@@ -46,7 +46,7 @@ import { Text } from '../primitives/text';
 import { showActionMenu, showAppDialog } from '../primitives/app-dialog';
 import { t } from '../strings';
 import { HostTile } from './host-tile';
-import { HostMenuButton, type HostMenuAction } from './host-menu-button';
+import { ActionMenuButton, type MenuAction } from '../primitives/action-menu-button';
 import { WorkspaceTabs, type WorkspaceTab } from './workspace-tabs';
 import { WorkspaceAddButton } from './workspace-add';
 import {
@@ -171,7 +171,7 @@ function confirmUnpair(row: HostDrawerRow, name: string): void {
   ]);
 }
 
-function hostMenuActions(row: HostDrawerRow, name: string): HostMenuAction[] {
+function hostMenuActions(row: HostDrawerRow, name: string): MenuAction[] {
   return [
     {
       label: t.hostCustomize,
@@ -202,7 +202,6 @@ function openHostMenu(row: HostDrawerRow, name: string): void {
     name,
     hostMenuActions(row, name).map((action) => ({
       text: action.label,
-      icon: action.icon,
       style: action.destructive === true ? ('destructive' as const) : ('default' as const),
       onPress: action.run,
     })),
@@ -330,7 +329,7 @@ function HostRow({ row, address }: { row: HostDrawerRow; address: string }) {
           />
         )}
       </Pressable>
-      <HostMenuButton
+      <ActionMenuButton
         label={t.hostMore(name)}
         actions={hostMenuActions(row, name)}
         onOpen={() => openHostMenu(row, name)}

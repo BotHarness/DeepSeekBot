@@ -14,7 +14,13 @@ module.exports = ({ config }) => {
       ? {
           name: 'DeepSeekBot',
           scheme: 'deepseekbot',
-          android: { ...config.android, package: 'app.deepseekbot.mobile' },
+          android: {
+            ...config.android,
+            package: 'app.deepseekbot.mobile',
+            ...(process.env.GOOGLE_SERVICES_JSON
+              ? { googleServicesFile: process.env.GOOGLE_SERVICES_JSON }
+              : {}),
+          },
         }
       : {}),
   };

@@ -26,7 +26,7 @@ vi.mock('@expo/ui/jetpack-compose', () => {
 vi.mock('../src/ui/shell/icons', () => ({ MoreIcon: () => null }));
 vi.mock('@expo/ui/jetpack-compose/modifiers', () => ({ fillMaxSize: () => ({}) }));
 
-import { HostMenuButton } from '../src/ui/shell/host-menu-button.android';
+import { ActionMenuButton } from '../src/ui/primitives/action-menu-button.android';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 let root: Root | undefined;
@@ -36,7 +36,7 @@ afterEach(() => {
   host?.remove();
 });
 
-describe('Android Host menu', () => {
+describe('Android action menu', () => {
   it('opens a native dropdown from ⋯ and runs the chosen action', () => {
     const customize = vi.fn();
     const unpair = vi.fn();
@@ -45,7 +45,7 @@ describe('Android Host menu', () => {
     root = createRoot(host);
     act(() =>
       root?.render(
-        createElement(HostMenuButton, {
+        createElement(ActionMenuButton, {
           label: 'More for Studio',
           onOpen: () => undefined,
           actions: [
@@ -57,7 +57,7 @@ describe('Android Host menu', () => {
     );
     const menu = () => host?.querySelector('[data-expanded]');
     expect(menu()?.getAttribute('data-expanded')).toBe('false');
-    act(() => (host?.querySelector('[aria-label="More for Studio"]') as HTMLElement).click());
+    act(() => host?.querySelector<HTMLElement>('[aria-label="More for Studio"]')?.click());
     expect(menu()?.getAttribute('data-expanded')).toBe('true');
     const items = [...(host?.querySelectorAll('li') ?? [])];
     expect(items.map((item) => item.textContent)).toEqual(['Customize', 'Unpair']);

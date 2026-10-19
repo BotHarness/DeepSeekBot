@@ -11,12 +11,30 @@ References:
 | Meta Muse | A Bot profile whose identity and memory are visible and editable.                                                                                                                            |
 | Slack     | Workspace switching, a row of shortcut cards on Chats, an Activity feed with filters, and agent steps with a Stop button.                                                                    |
 
+## Native first
+
+On both platforms the system's own design and components are the standard: Apple's Human Interface Guidelines on iOS (`ios-hig` skill), Material 3 on Android (`android-material` skill). Where the platform has a component for the job, use it (native navigation, `@expo/ui` SwiftUI views on iOS, `@expo/ui` Jetpack Compose views on Android) and keep its default look and behaviour; do not draw a React Native look-alike or restyle it into a house style. A custom surface is allowed only where no native component fits, and its reason is written in this file first.
+
+Older rules below that prescribe a custom surface where a native component exists describe the current implementation, not the target. Change them to the native component when the screen is next touched, and update the rule in the same change.
+
 ## Application dialogs
 
-- Application-owned menus and confirmations use `showAppDialog` (or `confirmDestructive` / `showActionMenu`) and the root `AppDialogHost`. Do not call React Native `Alert.alert` directly from a screen or feature. System components are the standard on both platforms: iOS shows system alerts and action sheets, and Android shows the Material 3 `AlertDialog` from `@expo/ui/jetpack-compose`, themed by `seedColor` = accent. Operating-system permission prompts, photo pickers and the share sheet remain system-owned.
+- Application-owned confirmations and choice menus use `showAppDialog` (or `confirmDestructive` / `showActionMenu`) and the root `AppDialogHost`. Do not call React Native `Alert.alert` directly from a screen or feature. Per Native first, iOS shows system alerts (menus follow [iOS menus and native controls](#ios-menus-and-native-controls)), and Android shows the Material 3 `AlertDialog` from `@expo/ui/jetpack-compose`, themed by `seedColor` = accent. Operating-system permission prompts, photo pickers and the share sheet remain system-owned.
 - A confirmation puts Cancel in the dialog's dismiss slot and the action in its confirm slot as text buttons; a destructive action's label uses `danger`. A choice menu lists its choices as full-width text buttons in the dialog body, destructive last in `danger`, with Cancel in the dismiss slot. Destructive menu choices open a second confirmation describing the consequence. Back and a tap outside dismiss without choosing. The system dialog handles width, scrolling at large text sizes, focus and TalkBack.
 - While an asynchronous action is pending, disable repeat submission and dismissal; close after success. On failure, keep the prompt and retry available. A menu opening a confirmation must not dismiss the newer prompt when its old callback finishes. Dialog requests are transient UI state, never a second persistence or authorization owner.
 - Native checks include cancel/button/Back/backdrop paths, nested confirmation, light/dark and default/intermediate/maximum text. Verify the original pairing/group remains unchanged after cancellation, keyboard dismissal from focused search, and the actual rendering above an open drawer or profile. Record iOS and TalkBack qualification separately.
+
+## iOS menus and native controls
+
+This applies [Native first](#native-first) to iOS menus, following the Apple HIG (the `ios-hig` skill maps each component to our stack). Build them with `@expo/ui` SwiftUI views or native navigation, not with React Native views drawn to look like them. On Android the same jobs use Material 3 components: a dropdown menu for ⋯ actions, an exposed dropdown menu or radio dialog for a single choice, and a Material dialog for confirmations.
+
+- **Action menus are native pull-down menus.** A ⋯ button opens a SwiftUI `Menu` anchored to it; a long press on a row opens a native context menu with the same actions. Items are commands with title-case labels, most-used first, related items grouped, at most one submenu level. Destructive items carry the destructive role and still open a confirmation describing the consequence.
+- **Choices of one value are native pop-up menus.** A short, fixed set of mutually exclusive options shows the current value on the control and opens a menu-style picker with a checkmark on the selection. Two to five peer modes that should stay visible use a segmented control. Options that need explanation, search or a long list use a sheet.
+- **Alerts are for confirmations and errors only.** A system alert asks one question with a Cancel and at most one or two actions; it never lists a menu of unrelated commands.
+- **Exceptions stay as recorded.** The chat bubble menu (reaction island and action card, see Chat) and app-owned tab presentation (ADR-0235) are deliberate custom surfaces. Any new custom surface where the system has a control needs the reason written here first.
+- Native menus inherit Liquid Glass, Dynamic Type, VoiceOver and Reduce Transparency from the system; do not restyle them. Every action in a context menu is also reachable from a visible control or an accessibility action.
+
+Build a ⋯ menu with `ActionMenuButton` (`src/ui/primitives/action-menu-button`): a SwiftUI pull-down `Menu` with SF Symbols on iOS and a Material 3 `DropdownMenu` on Android, both anchored to the button. The Host drawer and the group member ⋯ menus use it. Long press on a row still opens `showActionMenu` (an action sheet on iOS).
 
 ## Activity query controls
 
@@ -208,7 +226,7 @@ The shell is set by [ADR-0211](../../docs/adr/0211-the-mobile-app-has-two-tabs-w
 - The group's photo (or `#` on a rounded square), its name and member count.
 - A **Group** settings group: **Name** opens a bottom sheet with the name field and Save; **Choose a photo** opens the photo picker, crops the photo square and sends it to the Host scaled to 256 × 256 px as a JPEG (the Host takes at most 96 KB); **Remove photo** appears once there is one.
 - **Join requests** (only while one is pending): each requesting Bot with **Allow** (primary) and **Decline**.
-- **Members**: **Invite a PersonaBot** first, while any roster Bot is neither a member nor invited, opening a bottom sheet of those Bots; then each member Bot with its 32 pt rounded-square avatar and "Creator" under the Bot that made the group. Tapping a member opens its profile; its ⋯ menu offers Open profile and **Remove from group**, which asks for confirmation. Pending invitations follow, marked "Invited · waiting for an answer", with **Cancel**.
+- **Members**: **Invite a PersonaBot** first, while any roster Bot is neither a member nor invited, opening a bottom sheet of those Bots; then each member Bot with its 32 pt rounded-square avatar and "Creator" under the Bot that made the group. Tapping a member opens its profile; its ⋯ opens a native pull-down menu (Material dropdown on Android) with Open profile and **Remove from group**, which asks for confirmation. Pending invitations follow, marked "Invited · waiting for an answer", with **Cancel**.
 - **Disband group** is a danger row at the bottom; it asks for confirmation and on success returns to Chats.
 - A refused change shows a `danger` callout under the header and leaves the page as it was. Changes show on the phone and the desktop when the roster refreshes.
 - Group wake policy, group connectors and the group's work list stay on the computer.

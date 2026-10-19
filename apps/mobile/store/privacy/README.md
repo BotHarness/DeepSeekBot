@@ -40,6 +40,8 @@ Every other category stays undeclared: it is used on the phone only, or the Huma
 
 ## Apply
 
+Replace `<apple-id-email>` and `<play-service-account>` with your own values, without the angle brackets, before running either command.
+
 **App Store, from the command line** (any Mac, with an App Store Connect admin Apple ID; fastlane logs in with the Apple ID, not an API key):
 
 ```sh
@@ -70,7 +72,7 @@ It replaces all existing answers and publishes them. Add `skip_publish:true` to 
 
 ## When phone statistics ship
 
-A build with `EXPO_PUBLIC_MOBILE_TELEMETRY=production` changes both answers ([what it sends](../../../../docs/mobile-statistics.md)):
+A build that actually sends statistics changes both answers. That needs all of `EXPO_PUBLIC_MOBILE_TELEMETRY=production`, a public `phc_` token, a physical release build and `EXPO_PUBLIC_MOBILE_TELEMETRY_QUALIFIED=true` ([what it sends](../../../../docs/mobile-statistics.md)):
 
 - **Play:** add App activity → App interactions; App info and performance → Other app performance data; add Analytics to Device or other IDs. All collected, not shared, not ephemeral, optional (Settings switch), purpose Analytics.
 - **App Store:** use [`app-store-privacy.statistics.json`](app-store-privacy.statistics.json): Device ID (App Functionality and Analytics), Product Interaction and Other Diagnostic Data (Analytics), all not linked to the Human and not used for tracking.

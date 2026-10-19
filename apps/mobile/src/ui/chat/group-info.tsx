@@ -1,6 +1,7 @@
 import { TextField } from '../primitives/text-field';
 import { useState, type ReactNode } from 'react';
-import { FlatList, Pressable, SectionList, View } from 'react-native';
+import { FlatList, SectionList, View } from 'react-native';
+import { ActionMenuButton, type MenuAction } from '../primitives/action-menu-button';
 import { confirmDestructive, showActionMenu, showAppDialog } from '../primitives/app-dialog';
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
 
@@ -25,7 +26,7 @@ import {
   SettingsSection,
 } from '../primitives/settings-row';
 import { Text } from '../primitives/text';
-import { ChevronRightIcon, MoreIcon, PlusIcon } from '../shell/icons';
+import { ChevronRightIcon, PlusIcon } from '../shell/icons';
 import { t } from '../strings';
 import { GroupMark } from './group-mark';
 import { SHEET_GROUP, Sheet, SheetActions, SheetCallout, SheetNote } from './sheet';
@@ -109,27 +110,6 @@ function MemberAvatar({ entry }: { entry: { slug: string; bot?: RosterBot } }) {
 
 function RowButtons({ children }: { children: ReactNode }) {
   return <View style={{ flexDirection: 'row', gap: space.x2 }}>{children}</View>;
-}
-
-function MenuButton({ label, onPress }: { label: string; onPress(): void }) {
-  const theme = useDesignTheme();
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      onPress={onPress}
-      style={({ pressed }) => ({
-        width: theme.touch,
-        height: theme.touch,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderRadius: radius.round,
-        backgroundColor: pressed ? theme.layer.raised.pressed : theme.layer.raised.fill,
-      })}
-    >
-      <MoreIcon color={theme.color.muted} size={ICON} />
-    </Pressable>
-  );
 }
 
 function RenameSheet({
@@ -283,20 +263,30 @@ export function GroupInfoSheet({
     if (avatar !== undefined) await run('avatar', () => actions.setAvatar(avatar));
   };
 
-  const memberMenu = (member: GroupMember) => {
+  const memberActions = (member: GroupMember): MenuAction[] => {
     const name = memberName(member);
-    showActionMenu(name, [
-      { text: t.groupOpenProfile, onPress: () => onOpenBot(member.slug) },
+    return [
+      { label: t.groupOpenProfile, icon: 'person', run: () => onOpenBot(member.slug) },
       {
-        text: t.groupRemove,
-        style: 'destructive',
-        onPress: () =>
+        label: t.groupRemove,
+        icon: 'remove',
+        destructive: true,
+        run: () =>
           confirmDestructive(t.groupRemoveConfirm(name), undefined, t.groupRemove, () =>
             run(`member:${member.slug}`, () => actions.removeMember(member.slug)),
           ),
       },
-    ]);
+    ];
   };
+  const memberMenu = (member: GroupMember) =>
+    showActionMenu(
+      memberName(member),
+      memberActions(member).map((action) => ({
+        text: action.label,
+        onPress: action.run,
+        ...(action.destructive === true ? { style: 'destructive' as const } : {}),
+      })),
+    );
 
   const confirmDisband = () =>
     showAppDialog(t.groupDisbandConfirm(channel.name), t.groupDisbandDetail, [
@@ -407,6 +397,7 @@ export function GroupInfoSheet({
                 onInvite={() => setSheet('invite')}
                 onOpenBot={onOpenBot}
                 onMenu={memberMenu}
+                memberActions={memberActions}
                 onCancelInvite={(pending) =>
                   void run(`invite:${pending.id}`, () => actions.cancelInvite(pending.id))
                 }
@@ -457,6 +448,7 @@ function GroupRow({
   onInvite,
   onOpenBot,
   onMenu,
+  memberActions,
   onCancelInvite,
   onDecide,
 }: {
@@ -465,6 +457,7 @@ function GroupRow({
   onInvite(): void;
   onOpenBot(slug: string): void;
   onMenu(member: GroupMember): void;
+  memberActions(member: GroupMember): MenuAction[];
   onCancelInvite(pending: GroupPending): void;
   onDecide(pending: GroupPending, accept: boolean): void;
 }) {
@@ -504,9 +497,10 @@ function GroupRow({
         {...(row.member.owner ? { detail: t.groupOwner } : {})}
         leading={<MemberAvatar entry={row.member} />}
         trailing={
-          <MenuButton
+          <ActionMenuButton
             label={t.groupMemberMenu(memberName(row.member))}
-            onPress={() => onMenu(row.member)}
+            actions={memberActions(row.member)}
+            onOpen={() => onMenu(row.member)}
           />
         }
         onPress={

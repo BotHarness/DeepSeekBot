@@ -9,7 +9,7 @@
 ## How to get to it (user POV)
 
 In the isolated desktop, enter Bot mode → Bot Settings → General → Window zoom.
-Set a default, press ordinary Cmd+= once, and reset to the saved default. The sidebar,
+Set a default, press ordinary Cmd+= once, and press Cmd+0 to reset to the saved default. The sidebar,
 settings modal and content must change together while manual font sizes remain unchanged.
 Ordinary product install carries the pinned adapter but does not enable it. Use the explicit
 `deepseekbot-zoom-setup enable --home <home> --profile desktop --desktop-app <app>`
@@ -62,7 +62,12 @@ as well: the browser fixture does not render the operating system traffic lights
 ## Gotchas
 
 - The native 0.2.1-rc.2 shortcut protocol rejects NumpadAdd/NumpadSubtract/Numpad0.
-  S1 leaves reset unbound but operable through Settings and CLI; do not claim numberpad support.
+  Cmd+0 restores the saved device default through the existing native owner. Explicit custom
+  assignments or unbinding retain precedence; do not claim numberpad support.
+- For reset qualification, save a non-100% default, change the current zoom, then press
+  Cmd+0 once from the composer, an owned iframe and a leased webview input. Each must
+  produce one state write to the saved default, keep input/focus and native font values,
+  and leave the guest native zoom factor unchanged. Restore the original device preference.
 - Whole-window native pixels are required: a clipped CDP screenshot can omit native guests.
 - Loaded DOM, working input and a visible-document flag do not prove a webview painted.
 - Create and resize guests while hidden, restore normally at unchanged geometry, and compare
