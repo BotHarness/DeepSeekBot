@@ -56,6 +56,7 @@ const en = {
     verify: 'Check session',
     refresh: 'Refresh session',
     logout: 'Sign out',
+    logoutDetail: 'This phone stops receiving this service. You can sign in again later.',
     signedIn: 'Signed in · Instance administrator',
     signedInUser: 'Signed in',
     onboardingIncomplete:
@@ -108,6 +109,7 @@ const en = {
     reload: 'Reload agents',
     empty: 'No agents in this channel.',
     revoke: 'Revoke agent',
+    revokeDetail: 'The agent loses access to this organization at once.',
     states: { active: 'Active', revoked: 'Revoked', expired: 'Expired' },
   },
   cloudJoin: {
@@ -144,6 +146,7 @@ const en = {
     inbox: 'Channel invitations',
     role: 'Channel guest',
     revoke: 'Revoke channel access',
+    revokeDetail: 'The guest loses access to this channel at once.',
     hint: 'Access to this channel only. Joining does not add you to its workspace. New messages are visible after you accept.',
     manage: 'Invite channel guest',
     empty: 'No guest channels. Accept a channel invitation first.',
@@ -161,6 +164,7 @@ const en = {
     empty: 'No invitations.',
     accept: 'Accept invitation',
     revoke: 'Revoke invitation',
+    revokeDetail: 'The invitation stops working and can no longer be accepted.',
     expires: 'Expires:',
     required:
       'Verify your session. Managing invitations also requires the selected workspace owner.',
@@ -1046,6 +1050,7 @@ const zh: typeof en = {
     verify: '核验会话',
     refresh: '刷新会话',
     logout: '退出登录',
+    logoutDetail: '这台手机将不再接收此服务的消息，之后可以重新登录。',
     signedIn: '已登录 · 实例管理员',
     signedInUser: '已登录',
     onboardingIncomplete: '登录会话已保存，工作区尚未准备完成。请检查会话以重试。',
@@ -1092,6 +1097,7 @@ const zh: typeof en = {
     reload: '刷新 Agent',
     empty: '这个频道还没有 Agent。',
     revoke: '撤销 Agent',
+    revokeDetail: '该 Agent 会立即失去对这个组织的访问权限。',
     states: { active: '有效', revoked: '已撤销', expired: '已过期' },
   },
   cloudJoin: {
@@ -1126,6 +1132,7 @@ const zh: typeof en = {
     inbox: '频道邀请',
     role: '频道访客',
     revoke: '撤销频道访问',
+    revokeDetail: '该访客会立即失去对这个频道的访问权限。',
     hint: '仅可访问此频道，不会加入其工作区。接受邀请后可读取新消息。',
     manage: '邀请频道访客',
     empty: '尚无访客频道，请先接受频道邀请。',
@@ -1143,6 +1150,7 @@ const zh: typeof en = {
     empty: '暂无邀请。',
     accept: '接受邀请',
     revoke: '撤销邀请',
+    revokeDetail: '邀请会立即失效，无法再被接受。',
     expires: '到期时间：',
     required: '请核验登录状态，管理邀请还需要当前工作区所有者权限。',
     states: { pending: '待接受', accepted: '已接受', revoked: '已撤销', expired: '已过期' },

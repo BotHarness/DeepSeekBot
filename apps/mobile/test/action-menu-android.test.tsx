@@ -21,7 +21,14 @@ vi.mock('@expo/ui/jetpack-compose', () => {
     elementColors?: { textColor?: string };
   }) => createElement('li', { onClick, 'data-color': elementColors?.textColor ?? '' }, children);
   DropdownMenuItem.Text = pass;
-  return { Box: () => null, DropdownMenu, DropdownMenuItem, Host: pass, Text: pass };
+  return {
+    Box: () => null,
+    DropdownMenu,
+    DropdownMenuItem,
+    HorizontalDivider: () => createElement('hr'),
+    Host: pass,
+    Text: pass,
+  };
 });
 vi.mock('../src/ui/shell/icons', () => ({ MoreIcon: () => null }));
 vi.mock('@expo/ui/jetpack-compose/modifiers', () => ({ fillMaxSize: () => ({}) }));
@@ -62,6 +69,7 @@ describe('Android action menu', () => {
     const items = [...(host?.querySelectorAll('li') ?? [])];
     expect(items.map((item) => item.textContent)).toEqual(['Customize', 'Unpair']);
     expect(items[1]?.getAttribute('data-color')).not.toBe('');
+    expect(items[1]?.previousElementSibling?.tagName).toBe('HR');
     act(() => items[1]?.click());
     expect(unpair).toHaveBeenCalledOnce();
     expect(customize).not.toHaveBeenCalled();

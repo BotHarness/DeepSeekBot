@@ -46,9 +46,38 @@ vi.mock('@expo/ui/jetpack-compose', () => {
       { onClick, disabled: enabled === false, 'data-color': colors?.contentColor ?? '' },
       children,
     );
-  return { AlertDialog, Column: pass, Host: pass, Text: pass, TextButton };
+  const ModalBottomSheet = ({ children }: { children: ReactNode }) =>
+    createElement('div', { role: 'menu' }, children);
+  const ListItem = ({
+    children,
+    modifiers,
+  }: {
+    children: ReactNode;
+    modifiers?: Array<{ onClick?: () => void }>;
+  }) =>
+    createElement(
+      'li',
+      {
+        onClick: modifiers?.[0]?.onClick,
+        'data-clickable': String(modifiers !== undefined),
+      },
+      children,
+    );
+  ListItem.HeadlineContent = pass;
+  return {
+    AlertDialog,
+    Column: pass,
+    HorizontalDivider: () => createElement('hr'),
+    Host: pass,
+    ListItem,
+    ModalBottomSheet,
+    Text: pass,
+    TextButton,
+  };
 });
-vi.mock('@expo/ui/jetpack-compose/modifiers', () => ({ fillMaxWidth: () => ({}) }));
+vi.mock('@expo/ui/jetpack-compose/modifiers', () => ({
+  clickable: (onClick: () => void) => ({ onClick }),
+}));
 
 import { AppDialogHost } from '../src/ui/primitives/app-dialog-host';
 import { appDialogs } from '../src/ui/primitives/dialog-state';
@@ -94,26 +123,25 @@ describe('Android dialogs use the Material 3 AlertDialog', () => {
     expect(view.querySelector('[role="dialog"]')).toBeNull();
   });
 
-  it('lists menu choices in the dialog body and Cancel never runs them', () => {
+  it('shows a menu as a Material bottom sheet list with a divider before the destructive item', () => {
     const open = vi.fn();
     const remove = vi.fn();
     const view = mount();
     act(() =>
       appDialogs.open('Ada', undefined, [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Open profile', onPress: open },
         { text: 'Remove', style: 'destructive', onPress: remove },
+        { text: 'Open profile', onPress: open },
       ]),
     );
-    expect(buttons(view, 'text').map((button) => button.textContent)).toEqual([
-      'Open profile',
-      'Remove',
-    ]);
-    expect(buttons(view, 'confirm')).toEqual([]);
-    act(() => buttons(view, 'dismiss')[0]?.click());
-    expect(open).not.toHaveBeenCalled();
-    expect(remove).not.toHaveBeenCalled();
     expect(view.querySelector('[role="dialog"]')).toBeNull();
+    const items = [...view.querySelectorAll('[role="menu"] li')];
+    expect(items.map((item) => item.textContent)).toEqual(['Ada', 'Remove', 'Open profile']);
+    expect(view.querySelector('[role="menu"] hr')).not.toBeNull();
+    expect(items[0]?.getAttribute('data-clickable')).toBe('false');
+    act(() => (items[2] as HTMLElement).click());
+    expect(open).toHaveBeenCalledOnce();
+    expect(remove).not.toHaveBeenCalled();
   });
 
   it('blocks Back and both buttons while the action is pending', async () => {

@@ -263,7 +263,7 @@ function Agents({
               onPress={() =>
                 confirmDestructive(
                   t.confirmAction(t.cloudAgents.revoke),
-                  undefined,
+                  t.cloudAgents.revokeDetail,
                   t.cloudAgents.revoke,
                   () =>
                     void run(async () => {

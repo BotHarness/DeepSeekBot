@@ -1,6 +1,13 @@
-import { Box, DropdownMenu, DropdownMenuItem, Host, Text } from '@expo/ui/jetpack-compose';
+import {
+  Box,
+  DropdownMenu,
+  DropdownMenuItem,
+  HorizontalDivider,
+  Host,
+  Text,
+} from '@expo/ui/jetpack-compose';
 import { fillMaxSize } from '@expo/ui/jetpack-compose/modifiers';
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { useDesignTheme } from '../design/theme';
@@ -16,20 +23,24 @@ export function ActionMenuButton({ label, actions }: ActionMenuButtonProps) {
   return (
     <View style={{ width: theme.touch, height: theme.touch }}>
       <Pressable
-        testID="host-menu-trigger"
+        testID="action-menu-trigger"
         onPress={() => setOpen(true)}
         accessibilityRole="button"
         accessibilityLabel={label}
         accessibilityState={{ expanded: open }}
         hitSlop={space.x2}
-        style={({ pressed }) => ({
+        android_ripple={{
+          borderless: true,
+          radius: theme.touch / 2,
+          color: theme.layer.sheet.pressed,
+        }}
+        style={{
           width: theme.touch,
           height: theme.touch,
           borderRadius: radius.round,
           alignItems: 'center',
           justifyContent: 'center',
-          backgroundColor: pressed ? theme.layer.sheet.pressed : 'transparent',
-        })}
+        }}
       >
         <MoreIcon color={theme.color.muted} size={theme.type.title.size + space.x2} />
       </Pressable>
@@ -45,20 +56,22 @@ export function ActionMenuButton({ label, actions }: ActionMenuButtonProps) {
           </DropdownMenu.Trigger>
           <DropdownMenu.Items>
             {actions.map((action) => (
-              <DropdownMenuItem
-                key={action.label}
-                {...(action.destructive === true
-                  ? { elementColors: { textColor: theme.color.danger } }
-                  : {})}
-                onClick={() => {
-                  setOpen(false);
-                  action.run();
-                }}
-              >
-                <DropdownMenuItem.Text>
-                  <Text>{action.label}</Text>
-                </DropdownMenuItem.Text>
-              </DropdownMenuItem>
+              <Fragment key={action.label}>
+                {action.destructive === true ? <HorizontalDivider /> : null}
+                <DropdownMenuItem
+                  {...(action.destructive === true
+                    ? { elementColors: { textColor: theme.color.danger } }
+                    : {})}
+                  onClick={() => {
+                    setOpen(false);
+                    action.run();
+                  }}
+                >
+                  <DropdownMenuItem.Text>
+                    <Text>{action.label}</Text>
+                  </DropdownMenuItem.Text>
+                </DropdownMenuItem>
+              </Fragment>
             ))}
           </DropdownMenu.Items>
         </DropdownMenu>

@@ -19,6 +19,11 @@ import { confirmDestructive } from '../primitives/app-dialog';
 function revokeLabel(guest: boolean, state: string): string {
   return guest && state === 'accepted' ? t.cloudGuests.revoke : t.cloudInvitations.revoke;
 }
+function revokeDetail(guest: boolean, state: string): string {
+  return guest && state === 'accepted'
+    ? t.cloudGuests.revokeDetail
+    : t.cloudInvitations.revokeDetail;
+}
 
 function InvitationScroll(props: ScrollViewProps) {
   const theme = useDesignTheme();
@@ -272,7 +277,7 @@ function InvitationWorkspace({
                   onPress={() =>
                     confirmDestructive(
                       t.confirmAction(revokeLabel(guest, item.state)),
-                      undefined,
+                      revokeDetail(guest, item.state),
                       revokeLabel(guest, item.state),
                       () =>
                         void run(async () => {

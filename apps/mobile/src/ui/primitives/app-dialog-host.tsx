@@ -1,12 +1,15 @@
 import {
   AlertDialog,
   Column,
+  HorizontalDivider,
   Host,
+  ListItem,
+  ModalBottomSheet,
   Text,
   TextButton,
   type ButtonColors,
 } from '@expo/ui/jetpack-compose';
-import { fillMaxWidth } from '@expo/ui/jetpack-compose/modifiers';
+import { clickable } from '@expo/ui/jetpack-compose/modifiers';
 import { useSyncExternalStore } from 'react';
 import { Platform, StyleSheet } from 'react-native';
 
@@ -37,7 +40,6 @@ export function AppDialogHost() {
       key={index}
       enabled={idle}
       colors={colors(action)}
-      {...(menu ? { modifiers: [fillMaxWidth()] } : {})}
       onClick={() => {
         void appDialogs.choose(index, shown.id);
       }}
@@ -45,7 +47,62 @@ export function AppDialogHost() {
       <Text>{shown.busy === index ? `${action.text}…` : action.text}</Text>
     </TextButton>
   );
-  const single = menu ? undefined : choices[0];
+  if (menu)
+    return (
+      <Host
+        key={shown.id}
+        colorScheme={theme.scheme}
+        seedColor={theme.color.accent}
+        pointerEvents="box-none"
+        style={StyleSheet.absoluteFill}
+      >
+        <ModalBottomSheet
+          onDismissRequest={dismiss}
+          skipPartiallyExpanded
+          properties={{ shouldDismissOnBackPress: idle, shouldDismissOnClickOutside: idle }}
+        >
+          <Column>
+            <ListItem>
+              <ListItem.HeadlineContent>
+                <Text color={theme.color.muted}>{shown.title}</Text>
+              </ListItem.HeadlineContent>
+            </ListItem>
+            {choices.map(({ action, index }) => (
+              <Column key={index}>
+                {action.style === 'destructive' ? <HorizontalDivider /> : null}
+                <ListItem
+                  {...(idle
+                    ? {
+                        modifiers: [
+                          clickable(() => {
+                            void appDialogs.choose(index, shown.id);
+                          }),
+                        ],
+                      }
+                    : {})}
+                >
+                  <ListItem.HeadlineContent>
+                    <Text
+                      {...(action.style === 'destructive' ? { color: theme.color.danger } : {})}
+                    >
+                      {shown.busy === index ? `${action.text}…` : action.text}
+                    </Text>
+                  </ListItem.HeadlineContent>
+                </ListItem>
+              </Column>
+            ))}
+            {shown.error === undefined ? null : (
+              <ListItem>
+                <ListItem.HeadlineContent>
+                  <Text color={theme.color.danger}>{`${t.dialogFailed} ${shown.error}`}</Text>
+                </ListItem.HeadlineContent>
+              </ListItem>
+            )}
+          </Column>
+        </ModalBottomSheet>
+      </Host>
+    );
+  const single = choices[0];
   return (
     <Host
       key={shown.id}
@@ -61,14 +118,13 @@ export function AppDialogHost() {
         <AlertDialog.Title>
           <Text>{shown.title}</Text>
         </AlertDialog.Title>
-        {shown.message === undefined && shown.error === undefined && !menu ? null : (
+        {shown.message === undefined && shown.error === undefined ? null : (
           <AlertDialog.Text>
             <Column>
               {shown.message === undefined ? null : <Text>{shown.message}</Text>}
               {shown.error === undefined ? null : (
                 <Text color={theme.color.danger}>{`${t.dialogFailed} ${shown.error}`}</Text>
               )}
-              {menu ? choices.map(choiceButton) : null}
             </Column>
           </AlertDialog.Text>
         )}

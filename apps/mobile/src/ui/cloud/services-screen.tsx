@@ -336,7 +336,7 @@ export function CloudServicesScreen() {
                 onPress={() =>
                   confirmDestructive(
                     t.confirmAction(t.cloud.logout),
-                    undefined,
+                    t.cloud.logoutDetail,
                     t.cloud.logout,
                     () =>
                       run(async () => {
