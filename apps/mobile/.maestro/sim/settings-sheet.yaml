@@ -20,7 +20,7 @@ appId: ai.botharness.deepseekbot.dev
 - extendedWaitUntil:
     visible: 'Get a notification when a PersonaBot needs you or replies to you.*'
     timeout: 10000
-- tapOn: 'Settings'
+- tapOn: 'Back'
 - assertVisible: 'Close'
 - tapOn: 'Close'
 - assertVisible: 'Chats'

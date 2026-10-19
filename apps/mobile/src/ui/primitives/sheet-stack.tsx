@@ -69,6 +69,7 @@ export function SheetStack({
             headerTintColor: theme.color.fg,
             headerShadowVisible: false,
             headerBackButtonDisplayMode: 'minimal',
+            headerBackTitle: t.back,
             contentStyle: { backgroundColor: theme.overlay.fill },
           }}
         >

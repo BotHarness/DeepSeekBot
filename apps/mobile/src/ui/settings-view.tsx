@@ -8,6 +8,7 @@ import { useDesignTheme } from './design/theme';
 import { space } from './design/tokens';
 import { confirmDestructive } from './primitives/app-dialog';
 import { RowIcon } from './primitives/row-icon';
+import { DrawerHeader } from './primitives/drawer-header';
 import { SettingsRow, SettingsSection } from './primitives/settings-row';
 import { errorText, Notice } from './request-parts';
 import { UsageCard } from './shell/usage-card';
@@ -60,6 +61,9 @@ export function SettingsView({
   const status = [STATUS[connection.status], connection.route].filter((part) => part !== '');
   return (
     <View style={{ flex: 1, backgroundColor: theme.overlay.fill }}>
+      <View style={{ paddingHorizontal: space.x5, paddingTop: space.x5 }}>
+        <DrawerHeader title={t.settings} />
+      </View>
       <ScrollView
         nestedScrollEnabled
         style={{ flex: 1 }}
