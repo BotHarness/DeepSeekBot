@@ -20,6 +20,7 @@ export default function NotificationsScreen() {
         : {
             load: () => hostPush.settings(saved),
             set: (preferences) => hostPush.setPreferences(saved, preferences),
+            setEnabled: (enabled) => hostPush.setEnabled(saved, enabled),
             test: () => hostPush.test(saved),
           },
     [saved],

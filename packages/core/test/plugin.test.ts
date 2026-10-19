@@ -482,6 +482,7 @@ describe('plugin entry', () => {
       'modelPlanInherit',
       'channelRetry',
       'botNewSession',
+      'botCompact',
       'channelBotStop',
       'modelCatalog',
       'modelPresets',

@@ -47,6 +47,17 @@ Glass is the functional layer's material on iOS 26+. Its rules:
 - **Fallbacks ship with the glass:** iOS < 26 → bordered/opaque `raised` surface; **Reduce Transparency** → opaque (follow `DrawerMaterial` in `src/ui/primitives/drawer-material.ios.tsx`); **Increase Contrast** → stronger edge; **Reduce Motion** → no morph; accessibility text sizes → an opaque rounded rectangle when text wraps inside a capsule.
 - **Hit targets** stay ≥ 44 × 44 pt however small the glass shape looks.
 
+### Native header recipes
+
+Lessons from a production Expo 58 app with iOS 26 glass (t3code; notes in `/mnt/project-files/t3code-design-ref/`), checked against our stack:
+
+- **Transparent native header:** leave the header `backgroundColor` undefined. Any colour, even fully transparent, replaces the system material.
+- **Edge blur needs automatic insets.** Give the screen's scroll view `contentInsetAdjustmentBehavior="automatic"` and keep the top scroll edge effect `automatic`. A manual `contentInset` zeroes UIKit's adjusted inset, and the header blur disappears.
+- **No hand-made glass on bar buttons.** Declare header items (SF Symbol, stable identifier, native menu) and let UIKit draw their shared glass background. Adding `glassEffect` to a bar item draws a second, thinner capsule.
+- **Keep list and detail in one native stack** so iOS 26 can morph the header and matching bar buttons between them; a nested navigator in between breaks the morph.
+- **No inverted list under a native header.** UIKit dims and mis-blurs it, which is why the chat screen hides the native header (`DESIGN.md` → Chat).
+- **Gate glass on capability, not only the OS version.** With `expo-glass-effect`, check `isGlassEffectAPIAvailable()`; with `@expo/ui`, follow `DrawerMaterial`. Fall back to `expo-blur` or the opaque `raised` surface, and pass the app's `colorScheme` explicitly so glass follows the in-app appearance setting.
+
 ## Review checklist
 
 - Every interactive element maps to a row of the decision table; pop-ups show state, pull-downs offer verbs.

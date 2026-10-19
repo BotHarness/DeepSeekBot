@@ -36,18 +36,29 @@ export default function GroupInfoScreen() {
       info={info}
       background={
         saved && id ? (
-          <SettingsSection>
-            <SettingsRow
-              title={t.chatBackground.title}
-              disclosure
-              onPress={() =>
-                router.push({
-                  pathname: '/group/[id]/chat-background',
-                  params: { id, hostId: saved.hostId, channelId: id },
-                })
-              }
-            />
-          </SettingsSection>
+          <>
+            <SettingsSection>
+              <SettingsRow
+                title={t.chatBackground.title}
+                disclosure
+                onPress={() =>
+                  router.push({
+                    pathname: '/group/[id]/chat-background',
+                    params: { id, hostId: saved.hostId, channelId: id },
+                  })
+                }
+              />
+            </SettingsSection>
+            <SettingsSection>
+              <SettingsRow
+                title={t.notifications}
+                disclosure
+                onPress={() =>
+                  router.push({ pathname: '/group/[id]/notifications', params: { id } })
+                }
+              />
+            </SettingsSection>
+          </>
         ) : null
       }
       actions={actions}

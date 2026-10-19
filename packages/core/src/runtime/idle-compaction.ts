@@ -259,7 +259,16 @@ export interface IdleCompactionRouteView {
   observedColdGapSeconds: number | null;
 }
 
+export type ManualCompactionOutcome = 'compacted' | 'nothing' | 'busy' | 'not-loaded';
+
+export interface ManualCompactionResult {
+  outcome: ManualCompactionOutcome;
+  tokensBefore: number | null;
+  tokensAfter: number | null;
+}
+
 export interface IdleCompaction {
+  compactNow(sessionId: string): Promise<ManualCompactionResult>;
   observeEvent(sessionId: string, event: DshSessionEvent): void;
   agentStatus(sessionId: string, status: string): void;
   rescan(sessionIds: readonly string[]): void;
@@ -488,6 +497,40 @@ export function createIdleCompaction<Agent extends IdleCompactionAgent>(
   };
 
   return {
+    async compactNow(sessionId) {
+      const botSlug = ports.orchestratorBot(sessionId);
+      const agent = ports.agent(sessionId);
+      if (closed || botSlug === undefined || agent === undefined)
+        return { outcome: 'not-loaded', tokensBefore: null, tokensAfter: null };
+      if (running.has(sessionId) || agent.status !== 'idle' || ports.botBusy(botSlug))
+        return { outcome: 'busy', tokensBefore: null, tokensAfter: null };
+      cancel(sessionId);
+      const anchor = anchorOf(sessionId, agent);
+      if (anchor !== undefined) done.set(sessionId, anchor);
+      const tokensBefore = ports.measure(agent) ?? null;
+      const controller = new AbortController();
+      running.set(sessionId, controller);
+      try {
+        const result = await ports.compactNow(agent, controller.signal);
+        const tokensAfter = ports.measure(agent) ?? null;
+        ports.log({
+          event: 'manual',
+          botSlug,
+          outcome: result === null ? 'nothing' : 'compacted',
+          tokensBefore,
+          tokensAfter,
+        });
+        return { outcome: result === null ? 'nothing' : 'compacted', tokensBefore, tokensAfter };
+      } catch (error) {
+        if (errorCode(error) === 'busy')
+          return { outcome: 'busy', tokensBefore: null, tokensAfter: null };
+        if (errorCode(error) === 'summary')
+          return { outcome: 'nothing', tokensBefore, tokensAfter: tokensBefore };
+        throw error;
+      } finally {
+        running.delete(sessionId);
+      }
+    },
     observeEvent(sessionId, event) {
       if (event.type === 'compaction/end') {
         lastAnswerAt.delete(sessionId);

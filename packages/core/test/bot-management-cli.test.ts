@@ -100,6 +100,22 @@ describe('online CLI management', () => {
       );
     },
   );
+  it.each(['compacted', 'busy'] as const)(
+    'compacts the Orchestrator Session through its Host owner or preserves the %s refusal',
+    async (outcome) => {
+      const live = await host(() =>
+        outcome === 'compacted'
+          ? { ok: true, value: { outcome, tokensBefore: 400_000, tokensAfter: 20_000 } }
+          : { ok: false, error: { code: 'bot-busy', message: 'Stop the Bot first' } },
+      );
+      const result = await invoke(['bot-compact', 'owned'], live.url);
+      expect(live.calls).toEqual([{ method: 'botCompact', args: { slug: 'owned' } }]);
+      expect(result.code === 0).toBe(outcome === 'compacted');
+      expect(outcome === 'compacted' ? result.value.tokensAfter : result.value.error.code).toBe(
+        outcome === 'compacted' ? 20_000 : 'bot-busy',
+      );
+    },
+  );
   it('updates through the live owner with the caller-observed profile and supports clearing profile fields', async () => {
     const fingerprint = 'a'.repeat(64);
     const live = await host((method) => ({

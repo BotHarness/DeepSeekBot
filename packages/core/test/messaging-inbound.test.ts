@@ -264,6 +264,7 @@ it('passes malformed slash commands unchanged to the Bot through DM intake', asy
     stopTurn: vi.fn(async () => undefined),
     startFreshOrchestrator: vi.fn(async (): Promise<'started'> => 'started'),
     turnRunning: () => false,
+    compact: async () => ({ outcome: 'nothing', tokensBefore: null, tokensAfter: null }),
   };
   const fx = await fixture({ imCommands: () => host });
   const reply = vi.fn(async () => ({ sent: true as const }));
@@ -4142,6 +4143,7 @@ it.each(['ordinary group text', '/model'])(
       stopTurn: async () => undefined,
       startFreshOrchestrator: async () => 'started',
       turnRunning: () => false,
+      compact: async () => ({ outcome: 'nothing', tokensBefore: null, tokensAfter: null }),
     };
     const fx = await fixture({ imCommands: () => host });
     await fx.enable();

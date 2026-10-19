@@ -4,6 +4,7 @@ import {
   type IdleCompaction,
   type IdleCompactionRecord,
   type IdleCompactionRouteView,
+  type ManualCompactionResult,
 } from '../runtime/idle-compaction.js';
 import {
   isCacheLifetimeSeconds,
@@ -493,6 +494,7 @@ export interface BridgeMethods {
   onboardingModel(payload: unknown): Promise<BridgeResult<{ revision: number }>>;
   channelRetry(payload: unknown): Promise<BridgeResult<{ accepted: true }>>;
   botNewSession(payload: unknown): Promise<BridgeResult<{ started: true }>>;
+  botCompact(payload: unknown): Promise<BridgeResult<ManualCompactionResult>>;
   channelBotStop(
     payload: unknown,
   ): Promise<BridgeResult<{ stopped: { botSlug: string; sessionId: string; messageId: string } }>>;
@@ -820,6 +822,7 @@ export interface IdleCompactionDeps {
   scheduler: Pick<IdleCompaction, 'describe' | 'scheduled'>;
   routes(): IdleCompactionRoute[];
   rescan(): void;
+  compactBot?(slug: string): Promise<ManualCompactionResult>;
 }
 
 export interface BridgeMethodsDeps {
@@ -2163,6 +2166,26 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         return {
           ok: false,
           error: { code: 'session-reset-failed', message: 'Could not start a fresh Session' },
+        };
+      }
+    },
+    async botCompact(payload) {
+      const slug = asSlug(payload);
+      if (slug === undefined) return invalidInput('slug is required');
+      if (deps.registry.get(slug) === undefined) return unknownBot(slug);
+      if (deps.idleCompaction?.compactBot === undefined) return unavailable();
+      try {
+        const result = await deps.idleCompaction.compactBot(slug);
+        if (result.outcome === 'busy')
+          return {
+            ok: false,
+            error: { code: 'bot-busy', message: 'Stop the Bot before compacting its Session' },
+          };
+        return { ok: true, value: result };
+      } catch {
+        return {
+          ok: false,
+          error: { code: 'compaction-failed', message: 'Could not compact the Session' },
         };
       }
     },

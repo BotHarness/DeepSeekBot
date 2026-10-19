@@ -2288,6 +2288,32 @@ export function parseIdleCompactionStatus(value: unknown): IdleCompactionStatus 
   return { enabled: item['enabled'], settingReadable: item['settingReadable'] !== false };
 }
 
+export interface BotCompactResult {
+  outcome: 'compacted' | 'nothing' | 'busy' | 'not-loaded';
+  tokensBefore: number | null;
+  tokensAfter: number | null;
+}
+
+export function parseBotCompactResult(value: unknown): BotCompactResult {
+  const item =
+    typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
+  const outcome = item['outcome'];
+  if (
+    outcome !== 'compacted' &&
+    outcome !== 'nothing' &&
+    outcome !== 'busy' &&
+    outcome !== 'not-loaded'
+  )
+    throw new Error('invalid compaction result');
+  const tokens = (raw: unknown) =>
+    typeof raw === 'number' && Number.isFinite(raw) && raw >= 0 ? raw : null;
+  return {
+    outcome,
+    tokensBefore: tokens(item['tokensBefore']),
+    tokensAfter: tokens(item['tokensAfter']),
+  };
+}
+
 export async function loadIdleCompaction(
   call: BridgeCall,
   signal?: AbortSignal,

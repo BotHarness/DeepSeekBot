@@ -95,6 +95,8 @@ import {
   readMessagingSource,
   loadMessageAttachmentTarget,
   loadChannelMediaTarget,
+  parseBotCompactResult,
+  type BotCompactResult,
 } from './bridge.js';
 import {
   applyRosterBatch,
@@ -358,6 +360,7 @@ export interface BridgeActions {
   inheritModel(slug: string, expectedRevision: number): Promise<{ revision: number }>;
   retryMessage(channelId: string, messageId: string): Promise<void>;
   stopBot(channelId: string, botSlug: string): Promise<'stopped' | 'not-working'>;
+  compactBot(botSlug: string): Promise<BotCompactResult>;
 
   channelBridges(channelId: string): Promise<ChannelBridgeSnapshot>;
   channelBridge(channelId: string, input: ChannelBridgeInput): Promise<void>;
@@ -1567,6 +1570,15 @@ export function createActions(
     async retryMessage(channelId, messageId) {
       await invoke('channelRetry', { channelId, messageId });
       await actions.refreshChannelMessages(channelId);
+    },
+    async compactBot(botSlug) {
+      try {
+        return parseBotCompactResult(await invoke('botCompact', { slug: botSlug }));
+      } catch (error) {
+        if (error instanceof BridgeCallError && error.code === 'bot-busy')
+          return { outcome: 'busy', tokensBefore: null, tokensAfter: null };
+        throw error;
+      }
     },
     async stopBot(channelId, botSlug) {
       try {

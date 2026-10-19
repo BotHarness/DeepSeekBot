@@ -531,6 +531,7 @@ describe('bridge typert service', () => {
       'modelPlanInherit',
       'channelRetry',
       'botNewSession',
+      'botCompact',
       'channelBotStop',
       'modelCatalog',
       'modelPresets',

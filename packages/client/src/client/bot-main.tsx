@@ -44,6 +44,7 @@ import {
   IconNewChatOutlineRegular,
   IconPanelLeftOutlineRegular,
   IconUserOutlineRegular,
+  Toast,
   Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives';
 
@@ -1138,6 +1139,14 @@ function ConversationView({
   >(scopeKey, undefined);
   const [recallNotice, setRecallNotice] = useScopedState<string>(scopeKey);
   const [submissionNotice, setSubmissionNotice] = useScopedState<string>(scopeKey);
+  const [compactNotice, setCompactNotice] = useScopedState<{
+    seq: number;
+    text: string;
+    tone?: 'success';
+    holdMs: number;
+  }>(scopeKey);
+  const [compacting, setCompacting] = useScopedState(scopeKey, false);
+  const compactSeq = useRef(0);
   const submissionChannelId = draftScope === undefined ? undefined : state.conversation.channel?.id;
   const readSubmissions = () =>
     submissionChannelId === undefined
@@ -1758,6 +1767,43 @@ function ConversationView({
     setSelectedMemoryView(undefined);
     setProfileViewOpen(true);
   };
+  const compactProfileBot = async (): Promise<void> => {
+    if (profileBot === undefined) return;
+    const show = (text: string, holdMs: number, tone?: 'success') => {
+      compactSeq.current += 1;
+      setCompactNotice({ seq: compactSeq.current, text, holdMs, ...(tone ? { tone } : {}) });
+    };
+    setCompacting(true);
+    show(t('composerCompact.running'), 120000);
+    try {
+      const result = await actions.compactBot(profileBot.slug);
+      const tokens = (value: number | null) => (value === null ? '?' : value.toLocaleString());
+      if (result.outcome === 'compacted')
+        show(
+          t('composerCompact.done', {
+            before: tokens(result.tokensBefore),
+            after: tokens(result.tokensAfter),
+          }),
+          4000,
+          'success',
+        );
+      else
+        show(
+          t(
+            result.outcome === 'busy'
+              ? 'composerCompact.busy'
+              : result.outcome === 'not-loaded'
+                ? 'composerCompact.notLoaded'
+                : 'composerCompact.nothing',
+          ),
+          result.outcome === 'nothing' ? 3000 : 6000,
+        );
+    } catch {
+      show(t('composerCompact.failed'), 6000);
+    } finally {
+      setCompacting(false);
+    }
+  };
   const conversationShortcuts: ComposerShortcut[] = [
     ...(dmComposerContext === undefined
       ? []
@@ -1773,6 +1819,13 @@ function ConversationView({
             label: t('composerCommand.sessions'),
             icon: <ChannelSidebarIcon name="text-quote" />,
             run: () => sidebar.openTab('conversation'),
+          },
+          {
+            id: 'compact' as const,
+            label: t('composerCommand.compact'),
+            icon: <ChannelSidebarIcon name="archive" />,
+            disabled: compacting,
+            run: () => void compactProfileBot(),
           },
         ]),
     {
@@ -2950,6 +3003,19 @@ function ConversationView({
                   activeMemoryView === undefined && selectedIds === undefined ? 'contents' : 'none',
               }}
             >
+              {compactNotice === undefined ? null : (
+                <Toast
+                  key={compactNotice.seq}
+                  text={compactNotice.text}
+                  holdMs={compactNotice.holdMs}
+                  {...(compactNotice.tone ? { tone: compactNotice.tone } : {})}
+                  onDone={() =>
+                    setCompactNotice((current) =>
+                      current?.seq === compactNotice.seq ? undefined : current,
+                    )
+                  }
+                />
+              )}
               <div
                 className="bh-composer-recovery"
                 ref={recovery.mount}

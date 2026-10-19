@@ -8,7 +8,6 @@ import { useDesignTheme } from './design/theme';
 import { space } from './design/tokens';
 import { confirmDestructive } from './primitives/app-dialog';
 import { RowIcon } from './primitives/row-icon';
-import { DrawerHeader } from './primitives/drawer-header';
 import { SettingsRow, SettingsSection } from './primitives/settings-row';
 import { errorText, Notice } from './request-parts';
 import { UsageCard } from './shell/usage-card';
@@ -66,7 +65,6 @@ export function SettingsView({
         style={{ flex: 1 }}
         contentContainerStyle={{ gap: space.x6, padding: space.x5 }}
       >
-        <DrawerHeader title={t.settings} />
         <UsageCard load={loadUsage} on={SHEET_GROUP} onOpen={actions.onUsage} />
         <SettingsSection title={t.modelSettings.title} on={SHEET_GROUP}>
           <SettingsRow

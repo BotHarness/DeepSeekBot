@@ -9,6 +9,7 @@ export type ComposerShortcutId =
   | 'profile'
   | 'memory'
   | 'sessions'
+  | 'compact'
   | 'settings'
   | 'sidebar';
 

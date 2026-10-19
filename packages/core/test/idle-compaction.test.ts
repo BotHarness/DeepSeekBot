@@ -301,6 +301,44 @@ describe('idle compaction scheduler', () => {
     expect(h.timers).toEqual([]);
   });
 
+  it('compacts on demand, refuses while busy and does not compact the same history again', async () => {
+    const h = harness();
+    h.answer(h.clock);
+    h.idle.agentStatus('orchestrator', 'idle');
+    h.busy.inbox = true;
+    await expect(h.idle.compactNow('orchestrator')).resolves.toEqual({
+      outcome: 'busy',
+      tokensBefore: null,
+      tokensAfter: null,
+    });
+    h.busy.inbox = false;
+    h.agent.status = 'running';
+    await expect(h.idle.compactNow('orchestrator')).resolves.toMatchObject({ outcome: 'busy' });
+    h.agent.status = 'idle';
+    await expect(h.idle.compactNow('assignment')).resolves.toMatchObject({
+      outcome: 'not-loaded',
+    });
+    await expect(h.idle.compactNow('orchestrator')).resolves.toEqual({
+      outcome: 'compacted',
+      tokensBefore: 400_000,
+      tokensAfter: 30_000,
+    });
+    expect(h.timers).toEqual([]);
+    h.idle.observeEvent('orchestrator', { type: 'compaction/end', time: h.clock, data: {} });
+    h.idle.agentStatus('orchestrator', 'idle');
+    await h.advance(3 * HOUR);
+    expect(h.compactNow).toHaveBeenCalledTimes(1);
+    expect(h.records).toEqual([]);
+    h.compactNow.mockResolvedValueOnce(null as never);
+    await expect(h.idle.compactNow('orchestrator')).resolves.toMatchObject({ outcome: 'nothing' });
+    h.compactNow.mockRejectedValueOnce(Object.assign(new Error('busy'), { code: 'busy' }));
+    await expect(h.idle.compactNow('orchestrator')).resolves.toMatchObject({ outcome: 'busy' });
+    h.compactNow.mockRejectedValueOnce(Object.assign(new Error('x'), { code: 'summary' }));
+    await expect(h.idle.compactNow('orchestrator')).resolves.toMatchObject({ outcome: 'nothing' });
+    h.compactNow.mockRejectedValueOnce(Object.assign(new Error('x'), { code: 'persistence' }));
+    await expect(h.idle.compactNow('orchestrator')).rejects.toThrow('x');
+  });
+
   it('learns from the idle gap before a Human message and that request’s cache hits', () => {
     const h = harness();
     h.answer(h.clock);
@@ -399,6 +437,38 @@ describe('idle compaction settings and bridge', () => {
     expect(bridge.idleCompaction({})).toMatchObject({
       ok: true,
       value: { enabled: false, settingReadable: false },
+    });
+  });
+
+  it('compacts a Bot on demand and maps a busy Bot to bot-busy', async () => {
+    const compactBot = vi.fn(async (slug: string) =>
+      slug === 'busy'
+        ? { outcome: 'busy' as const, tokensBefore: null, tokensAfter: null }
+        : { outcome: 'compacted' as const, tokensBefore: 400_000, tokensAfter: 30_000 },
+    );
+    const bridge = createBridgeMethods({
+      registry: { get: (slug: string) => (slug === 'missing' ? undefined : { slug }) },
+      idleCompaction: {
+        settings: createIdleCompactionSettings(profileDir()),
+        scheduler: { describe: () => [], scheduled: () => 0 },
+        routes: () => [],
+        rescan: () => undefined,
+        compactBot,
+      },
+    } as unknown as BridgeMethodsDeps);
+    await expect(bridge.botCompact({ slug: 'ada' })).resolves.toEqual({
+      ok: true,
+      value: { outcome: 'compacted', tokensBefore: 400_000, tokensAfter: 30_000 },
+    });
+    await expect(bridge.botCompact({ slug: 'busy' })).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'bot-busy' },
+    });
+    await expect(bridge.botCompact({ slug: 'missing' })).resolves.toMatchObject({ ok: false });
+    compactBot.mockRejectedValueOnce(new Error('boom'));
+    await expect(bridge.botCompact({ slug: 'ada' })).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'compaction-failed' },
     });
   });
 

@@ -21,11 +21,37 @@ import { t } from './strings';
 export interface NotificationSettingsPort {
   load(): Promise<PushSettings>;
   set(preferences: Partial<PushPreferences>): Promise<PushSettings>;
+  setEnabled(enabled: boolean): Promise<PushSettings>;
   test(): Promise<void>;
 }
 
 function failure(error: unknown): string {
   return error instanceof PushRequestFailed ? t.pushFailed[error.code] : errorText(error);
+}
+
+function PushSwitch({
+  label,
+  value,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  value: boolean;
+  disabled: boolean;
+  onChange(value: boolean): void;
+}) {
+  const theme = useDesignTheme();
+  return Platform.OS === 'android' ? (
+    <Toggle on="raised" label={label} value={value} onChange={onChange} disabled={disabled} />
+  ) : (
+    <Switch
+      accessibilityLabel={label}
+      value={value}
+      onValueChange={onChange}
+      disabled={disabled}
+      trackColor={{ true: theme.color.accent, false: theme.color.borderStrong }}
+    />
+  );
 }
 
 export function NotificationSettings({
@@ -61,6 +87,15 @@ export function NotificationSettings({
     if (settings === undefined) return;
     setSettings({ ...settings, preferences: { ...settings.preferences, [kind]: value } });
     port.set({ [kind]: value }).then(setSettings, (reason: unknown) => {
+      setError(failure(reason));
+      load();
+    });
+  };
+
+  const allow = (enabled: boolean) => {
+    if (settings === undefined) return;
+    setSettings({ ...settings, enabled });
+    port.setEnabled(enabled).then(setSettings, (reason: unknown) => {
       setError(failure(reason));
       load();
     });
@@ -115,6 +150,25 @@ export function NotificationSettings({
       {error !== undefined ? <Notice tone="danger">{error}</Notice> : null}
       {on && settings === undefined && error === undefined ? <Loading /> : null}
       {on && settings !== undefined ? (
+        <SettingsSection
+          on="raised"
+          footer={settings.enabled ? undefined : t.allowNotificationsOff}
+        >
+          <SettingsRow
+            on="raised"
+            title={t.allowNotifications}
+            trailing={
+              <PushSwitch
+                label={t.allowNotifications}
+                value={settings.enabled}
+                onChange={allow}
+                disabled={!settings.registered}
+              />
+            }
+          />
+        </SettingsSection>
+      ) : null}
+      {on && settings?.enabled === true ? (
         <View style={{ gap: space.x3 }}>
           <Text accessibilityRole="header" variant="meta" tone="muted" strong>
             {t.notifyAbout}
@@ -126,23 +180,12 @@ export function NotificationSettings({
                 key={kind}
                 title={t.pushKind[kind]}
                 trailing={
-                  Platform.OS === 'android' ? (
-                    <Toggle
-                      on="raised"
-                      label={t.pushKind[kind]}
-                      value={settings.preferences[kind]}
-                      onChange={(value) => toggle(kind, value)}
-                      disabled={!settings.registered}
-                    />
-                  ) : (
-                    <Switch
-                      accessibilityLabel={t.pushKind[kind]}
-                      value={settings.preferences[kind]}
-                      onValueChange={(value) => toggle(kind, value)}
-                      disabled={!settings.registered}
-                      trackColor={{ true: theme.color.accent, false: theme.color.borderStrong }}
-                    />
-                  )
+                  <PushSwitch
+                    label={t.pushKind[kind]}
+                    value={settings.preferences[kind]}
+                    onChange={(value) => toggle(kind, value)}
+                    disabled={!settings.registered}
+                  />
                 }
               />
             ))}

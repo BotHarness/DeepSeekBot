@@ -1,7 +1,16 @@
 import type { ModelCatalogEntry } from '../models/catalog.js';
 import type { ModelRoute, PersonaBotModelPlan } from '../models/presets.js';
+import type { ManualCompactionResult } from '../runtime/idle-compaction.js';
 
-export type ImCommandName = 'commands' | 'help' | 'status' | 'model' | 'effort' | 'stop' | 'new';
+export type ImCommandName =
+  | 'commands'
+  | 'help'
+  | 'status'
+  | 'model'
+  | 'effort'
+  | 'stop'
+  | 'new'
+  | 'compact';
 
 export interface ParsedImCommand {
   name: ImCommandName;
@@ -24,6 +33,8 @@ const aliases: readonly (readonly [string, ImCommandName, boolean])[] = [
   ['停止', 'stop', true],
   ['new', 'new', false],
   ['新会话', 'new', true],
+  ['compact', 'compact', false],
+  ['压缩', 'compact', true],
 ];
 
 const takesArgument = new Set<ImCommandName>(['model', 'effort']);
@@ -48,7 +59,7 @@ export type ImCommandManage = 'allowed' | 'pairing-required' | 'web-only';
 
 export function imCommandRequiresAuthority(command: ParsedImCommand): boolean {
   if (command.name === 'model' || command.name === 'effort') return command.argument !== undefined;
-  return command.name === 'stop' || command.name === 'new';
+  return command.name === 'stop' || command.name === 'new' || command.name === 'compact';
 }
 
 export function imCommandAuthority(input: {
@@ -73,6 +84,7 @@ export interface ImCommandServices {
   stopTurn(botSlug: string): Promise<{ sessionId: string } | undefined>;
   startFreshOrchestrator(botSlug: string, assertCurrent?: () => void): Promise<'started' | 'busy'>;
   turnRunning(botSlug: string): boolean;
+  compact(botSlug: string): Promise<ManualCompactionResult>;
 }
 
 export interface ImCommandDeps {
@@ -149,6 +161,7 @@ function commandList(zh: boolean): string {
           '/effort（/强度）- 列出强度；/effort <序号|名称> 设置强度',
           '/stop（/停止）- 停止当前运行的任务',
           '/new（/新会话）- 让下一条消息开启新会话',
+          '/compact（/压缩）- 立即压缩当前会话的上下文',
         ]
       : [
           '/commands - list every command',
@@ -158,6 +171,7 @@ function commandList(zh: boolean): string {
           '/effort - list efforts; /effort <number|name> sets effort',
           '/stop - stop the running turn',
           '/new - start a fresh session on the next message',
+          '/compact - compact the current session context now',
         ]
   ).join('\n');
 }
@@ -339,6 +353,36 @@ async function freshText(deps: ImCommandDeps): Promise<string> {
       : 'A fresh session is ready; your next message starts a new one.';
 }
 
+async function compactText(deps: ImCommandDeps): Promise<string> {
+  const zh = deps.chinese;
+  deps.assertCurrent?.();
+  let result: ManualCompactionResult;
+  try {
+    result = await deps.host.compact(deps.botSlug);
+  } catch {
+    return zh ? '压缩失败，请稍后再试。' : 'Compaction failed; try again later.';
+  }
+  switch (result.outcome) {
+    case 'busy':
+      return zh
+        ? 'Bot 正在运行，请等它完成或先 /stop 再试。'
+        : 'The Bot is working right now; wait for it or /stop it first.';
+    case 'not-loaded':
+      return zh
+        ? '当前会话还没有加载，先发一条消息再试。'
+        : 'The session is not loaded yet; send a message first.';
+    case 'nothing':
+      return zh ? '没有可压缩的内容。' : 'Nothing to compact.';
+    case 'compacted': {
+      const tokens = (value: number | null) =>
+        value === null ? '?' : value.toLocaleString('en-US');
+      return zh
+        ? `已压缩上下文：${tokens(result.tokensBefore)} → ${tokens(result.tokensAfter)} token。`
+        : `Compacted the context: ${tokens(result.tokensBefore)} → ${tokens(result.tokensAfter)} tokens.`;
+    }
+  }
+}
+
 export async function executeImCommand(deps: ImCommandDeps): Promise<string> {
   const { command } = deps;
   if (imCommandRequiresAuthority(command) && deps.manage !== 'allowed')
@@ -370,6 +414,8 @@ export async function executeImCommand(deps: ImCommandDeps): Promise<string> {
       return stopText(deps);
     case 'new':
       return freshText(deps);
+    case 'compact':
+      return compactText(deps);
   }
 }
 

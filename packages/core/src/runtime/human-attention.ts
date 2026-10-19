@@ -86,6 +86,7 @@ export interface HumanAttentionQuery {
   }): HumanAttentionPage;
   status(messageCounts?: boolean): HumanAttentionStatus;
   unreadByChannel(): Array<{ channelId: string; unreadCount: number }>;
+  dmReplies(limit: number): HumanAttentionItem[];
   durableAttention(): Array<{
     botSlug: string;
     waitingHumanCount: number;
@@ -357,6 +358,16 @@ const channelAttentionCte = (excludeMuted: boolean): string => `
   ), visible_unread AS (
     SELECT * FROM visible_messages WHERE revision > read_revision
   )`;
+
+const DM_CARD_FIELDS = [
+  'toolApprovalRequest',
+  'toolApprovalDecision',
+  'userQuestionRequest',
+  'userQuestionResolution',
+  'privateInputRequest',
+  'privateInputResolution',
+  'grantRequest',
+];
 
 const CHANNEL_ATTENTION_CTE = channelAttentionCte(false);
 const INBOX_CHANNEL_ATTENTION_CTE = channelAttentionCte(true);
@@ -1026,6 +1037,49 @@ SELECT 'handled:' || request.source_event_id AS id,
           ? { messageCounts: { replies: counts.replies, other: counts.other } }
           : {}),
       };
+    },
+    dmReplies(limit) {
+      const rows = database.read(
+        (db) =>
+          db
+            .prepare(`${INBOX_CHANNEL_ATTENTION_CTE}
+        SELECT v.channel_id, v.message_id, v.source_event_id, v.created_at, v.body, v.bot_slug
+          FROM visible_unread v
+          JOIN source_events e ON e.source_event_id = v.source_event_id
+          JOIN channel_records c ON c.channel_id = v.channel_id
+         WHERE json_extract(c.record_json, '$.type') = 'dm'
+           AND json_extract(e.payload_json, '$.author.kind') = 'bot'
+           AND ${DM_CARD_FIELDS.map((field) => `json_extract(e.payload_json, '$.${field}') IS NULL`).join(' AND ')}
+           AND NOT EXISTS (SELECT 1 FROM human_inbox_dismissals d WHERE d.human_id = '${LOCAL_HUMAN_ID}' AND d.item_id = 'unread:' || v.channel_id AND v.revision <= d.through_revision)
+         ORDER BY v.created_at DESC, v.source_event_id DESC
+         LIMIT ?
+      `)
+            .all(
+              LOCAL_HUMAN_ID,
+              LOCAL_HUMAN_ID,
+              JSON.stringify(mutedChannelIds()),
+              limit,
+            ) as Array<{
+            channel_id: string;
+            message_id: string;
+            source_event_id: string;
+            created_at: string;
+            body: string;
+            bot_slug: string;
+          }>,
+      );
+      return rows.map((row) => ({
+        id: `dm-reply:${row.source_event_id}`,
+        category: 'replies',
+        kind: 'channel-reply',
+        createdAt: row.created_at,
+        channelId: row.channel_id,
+        botSlug: row.bot_slug,
+        summary: row.body,
+        messageId: row.message_id,
+        sourceEventId: row.source_event_id,
+        isUnread: true,
+      }));
     },
     unreadByChannel() {
       return database.read((db) =>

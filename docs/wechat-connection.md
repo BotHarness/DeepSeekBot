@@ -289,7 +289,7 @@ Send `/commands` (or `/命令`) for help, `/status` for the current model and ac
 `/model` for numbered model choices, and `/effort` for the current model's reasoning choices.
 `/model <number|name>` changes only the Orchestrator model; `/effort <level>` changes its effort.
 Assignment model choices retain their existing settings or inheritance.
-Use `/stop` to stop the active turn, then `/new` to retire an idle Orchestrator Session.
+Use `/stop` to stop the active turn, then `/new` to retire an idle Orchestrator Session. Use `/compact` to compact an idle Orchestrator Session in place.
 The next ordinary message starts a fresh Session; the Bot's identity and Memory remain.
 
 Commands must occupy one text-only DM message. Chinese aliases and full-width `／` work;

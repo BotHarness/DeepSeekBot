@@ -238,3 +238,66 @@ it('returns complete category counts independent of the first Activity page', as
     core.operationalDatabase.close();
   }
 });
+
+it('lists unread plain Bot messages in a DM as replies for push, leaving cards, read and muted DMs out', async () => {
+  const core = createCore({
+    dshHome: createTempRoot('botharness-dm-replies-'),
+    agents: adapter(),
+  });
+  try {
+    await core.roster.attach(createFakeRosterDomain().facility);
+    core.registry.create({ slug: 'ada', displayName: 'Ada' });
+    const group = core.channels.createGroup({ name: 'Team', members: ['ada'] });
+    const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
+    const at = (minute: number) => new Date(Date.UTC(2026, 9, 19, 3, minute)).toISOString();
+    await core.channels.appendMessage(dm.id, {
+      id: 'ask',
+      at: at(0),
+      author: { kind: 'human' },
+      body: 'Ping',
+    });
+    await core.channels.appendMessage(dm.id, {
+      id: 'answer',
+      at: at(1),
+      author: { kind: 'bot', slug: 'ada' },
+      body: 'Pong',
+    });
+    await core.channels.appendMessage(dm.id, {
+      id: 'question',
+      at: at(2),
+      author: { kind: 'bot', slug: 'ada' },
+      body: 'Which branch?',
+      userQuestionRequest: {
+        sessionId: 'session-one',
+        questions: [{ id: 'branch', question: 'Which branch?' }],
+      },
+    });
+    await core.channels.appendMessage(group.id, {
+      id: 'group-update',
+      at: at(3),
+      author: { kind: 'bot', slug: 'ada' },
+      body: 'Group update',
+    });
+    expect(core.humanAttention.dmReplies(10)).toMatchObject([
+      {
+        category: 'replies',
+        kind: 'channel-reply',
+        channelId: dm.id,
+        botSlug: 'ada',
+        messageId: 'answer',
+        summary: 'Pong',
+      },
+    ]);
+    expect(core.humanAttention.dmReplies(10)[0]?.id).toMatch(/^dm-reply:/u);
+
+    const methods = createBridgeMethods({ ...core });
+    await methods.channelMuteSet({ channelId: dm.id, muted: true });
+    expect(core.humanAttention.dmReplies(10)).toEqual([]);
+    await methods.channelMuteSet({ channelId: dm.id, muted: false });
+    await core.channels.markRead(dm.id, 'question');
+    expect(core.humanAttention.dmReplies(10)).toEqual([]);
+  } finally {
+    await core.runtime.close();
+    core.operationalDatabase.close();
+  }
+});

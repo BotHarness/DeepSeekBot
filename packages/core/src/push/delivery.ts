@@ -19,6 +19,7 @@ const RECEIPT_DELAY_MS = 15 * 60 * 1000;
 const MAX_PENDING_RECEIPTS = 1_000;
 const BATCH = 100;
 const TOKEN = /^Expo(?:nent)?PushToken\[[A-Za-z0-9_-]{8,128}\]$/u;
+const MAX_QUIET_CHANNELS = 500;
 
 export interface PushCandidate {
   id: string;
@@ -101,8 +102,12 @@ export type TestResult = 'sent' | 'not-registered' | 'failed';
 
 export interface PushSettings {
   registered: boolean;
+  enabled: boolean;
   preferences: PushPreferences;
+  quietChannelIds: string[];
 }
+
+export type QuietResult = PushSettings | { registered: false } | { invalid: true };
 
 export interface PushDelivery {
   register(
@@ -111,7 +116,8 @@ export interface PushDelivery {
   ): RegisterResult;
   unregister(deviceId: string): boolean;
   settings(deviceId: string): PushSettings;
-  setPreferences(deviceId: string, input: unknown): PushSettings;
+  setPreferences(deviceId: string, input: unknown, enabled?: unknown): PushSettings;
+  setQuiet(deviceId: string, input: { channelId: unknown; quiet: unknown }): QuietResult;
   test(deviceId: string): Promise<TestResult>;
   reconcile(): Promise<void>;
   checkReceipts(): Promise<void>;
@@ -138,11 +144,37 @@ interface DeviceRow {
   badge: number | null;
 }
 
-function preferencesOf(json: string | undefined): PushPreferences {
-  let value: Record<string, unknown> = {};
+function stored(json: string | undefined): Record<string, unknown> {
   try {
-    value = JSON.parse(json ?? '{}') as Record<string, unknown>;
-  } catch {}
+    const value: unknown = JSON.parse(json ?? '{}');
+    return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function enabledOf(json: string | undefined): boolean {
+  return stored(json)['enabled'] !== false;
+}
+
+function quietOf(json: string | undefined): string[] {
+  const value = stored(json)['quiet'];
+  return Array.isArray(value)
+    ? value.filter((id): id is string => typeof id === 'string' && id !== '')
+    : [];
+}
+
+function settingsOf(current: DeviceRow | undefined): PushSettings {
+  return {
+    registered: current !== undefined,
+    enabled: enabledOf(current?.preferences_json),
+    preferences: preferencesOf(current?.preferences_json),
+    quietChannelIds: quietOf(current?.preferences_json),
+  };
+}
+
+function preferencesOf(json: string | undefined): PushPreferences {
+  const value = stored(json);
   return Object.fromEntries(
     PUSH_KINDS.map((kind) => [
       kind,
@@ -251,6 +283,19 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
       ['push'],
     ) > 0;
 
+  const save = (current: DeviceRow, patch: Record<string, unknown>): PushSettings => {
+    const next = { ...stored(current.preferences_json), ...patch };
+    database.transaction(
+      (db) =>
+        db
+          .prepare('UPDATE push_devices SET preferences_json = ? WHERE device_id = ?')
+          .run(JSON.stringify(next), current.device_id),
+      ['push'],
+    );
+    record({ phase: 'preferences', deviceId: current.device_id });
+    return settingsOf({ ...current, preferences_json: JSON.stringify(next) });
+  };
+
   const dropToken = (deviceId: string, code: 'device-revoked' | 'device-not-registered'): void => {
     if (drop(deviceId)) record({ phase: 'token-dropped', deviceId, code });
   };
@@ -312,6 +357,8 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
         continue;
       }
       const preferences = preferencesOf(device.preferences_json);
+      const enabled = enabledOf(device.preferences_json);
+      const quiet = new Set(quietOf(device.preferences_json));
       const registeredAt = Date.parse(device.registered_at);
       const seen = new Set(
         database.read((db) =>
@@ -337,7 +384,12 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
         },
         ['push'],
       );
-      const notify = fresh.filter((item) => preferences[item.kind]);
+      if (!enabled) continue;
+      const notify = fresh.filter(
+        (item) =>
+          preferences[item.kind] &&
+          !(item.kind === 'reply' && item.channelId !== undefined && quiet.has(item.channelId)),
+      );
       const messages: ExpoMessage[] = notify.map((item) => ({
         to: device.token,
         ...text(item, source.botName(item.botSlug) ?? item.botSlug, localeOf(device.locale)),
@@ -410,32 +462,37 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
     },
 
     settings(deviceId) {
-      const current = row(deviceId);
-      return {
-        registered: current !== undefined,
-        preferences: preferencesOf(current?.preferences_json),
-      };
+      return settingsOf(row(deviceId));
     },
 
-    setPreferences(deviceId, input) {
+    setPreferences(deviceId, input, enabled) {
       const current = row(deviceId);
-      if (current === undefined)
-        return { registered: false, preferences: preferencesOf(undefined) };
+      if (current === undefined) return settingsOf(undefined);
       const next = preferencesOf(current.preferences_json);
       const patch = typeof input === 'object' && input !== null ? input : {};
       for (const kind of PUSH_KINDS) {
         const value = (patch as Record<string, unknown>)[kind];
         if (typeof value === 'boolean') next[kind] = value;
       }
-      database.transaction(
-        (db) =>
-          db
-            .prepare('UPDATE push_devices SET preferences_json = ? WHERE device_id = ?')
-            .run(JSON.stringify(next), deviceId),
-        ['push'],
-      );
-      record({ phase: 'preferences', deviceId });
-      return { registered: true, preferences: next };
+      return save(current, {
+        ...next,
+        enabled: typeof enabled === 'boolean' ? enabled : enabledOf(current.preferences_json),
+      });
+    },
+
+    setQuiet(deviceId, input) {
+      if (
+        typeof input.channelId !== 'string' ||
+        input.channelId.trim() === '' ||
+        typeof input.quiet !== 'boolean'
+      )
+        return { invalid: true };
+      const current = row(deviceId);
+      if (current === undefined) return { registered: false };
+      const channelId = input.channelId.trim();
+      const quiet = quietOf(current.preferences_json).filter((id) => id !== channelId);
+      if (input.quiet) quiet.push(channelId);
+      return save(current, { quiet: quiet.slice(-MAX_QUIET_CHANNELS) });
     },
 
     async test(deviceId) {

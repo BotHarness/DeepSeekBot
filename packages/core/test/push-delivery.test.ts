@@ -302,6 +302,76 @@ describe('Push delivery', () => {
     expect(f.expo.flat().filter((message) => message.title !== undefined)).toHaveLength(1);
   });
 
+  it('sends nothing while this device has notifications off, without flooding when they come back', async () => {
+    const f = fixture();
+    const phone = f.device('Phone');
+    f.push.register(phone.device.id, { token: TOKEN_A, platform: 'ios' });
+    expect(f.push.setPreferences(phone.device.id, { reply: false }, false)).toMatchObject({
+      enabled: false,
+      preferences: { reply: false, approval: true },
+    });
+    f.advance(1000);
+    f.setInbox([approval('approval:1', f.at(0))]);
+    await f.push.reconcile();
+    expect(f.expo.sent).toEqual([]);
+
+    expect(f.push.setPreferences(phone.device.id, undefined, true)).toMatchObject({
+      enabled: true,
+      preferences: { reply: false },
+    });
+    await f.push.reconcile();
+    expect(f.expo.flat().filter((message) => message.title !== undefined)).toEqual([]);
+    f.setInbox([approval('approval:1', f.at(0)), approval('approval:2', f.at(0))]);
+    await f.push.reconcile();
+    expect(
+      f.expo
+        .flat()
+        .filter((message) => message.title !== undefined)
+        .map((message) => message.data.itemId),
+    ).toEqual(['approval:2']);
+  });
+
+  it('keeps a quiet Channel to its requests on this device only', async () => {
+    const f = fixture();
+    const phone = f.device('Phone');
+    const tablet = f.device('Tablet');
+    f.push.register(phone.device.id, { token: TOKEN_A, platform: 'ios' });
+    f.push.register(tablet.device.id, { token: TOKEN_B, platform: 'ios' });
+    expect(f.push.setQuiet(phone.device.id, { channelId: 'g1', quiet: true })).toMatchObject({
+      quietChannelIds: ['g1'],
+    });
+    expect(f.push.setQuiet(phone.device.id, { channelId: '', quiet: true })).toEqual({
+      invalid: true,
+    });
+    expect(f.push.setQuiet('nobody', { channelId: 'g1', quiet: true })).toEqual({
+      registered: false,
+    });
+    f.advance(1000);
+    const reply: PushCandidate = {
+      id: 'reply:1',
+      kind: 'reply',
+      attentionKind: 'channel-mention',
+      botSlug: 'ada',
+      createdAt: f.at(0),
+      channelId: 'g1',
+      channelName: 'ops',
+    };
+    f.setInbox([reply, { ...approval('approval:1', f.at(0)), channelId: 'g1' }]);
+    await f.push.reconcile();
+    const items = (token: string) =>
+      f.expo
+        .flat()
+        .filter((message) => message.to === token)
+        .map((message) => message.data.itemId);
+    expect(items(TOKEN_A)).toEqual(['approval:1']);
+    expect(items(TOKEN_B)).toEqual(['reply:1', 'approval:1']);
+
+    expect(f.push.setQuiet(phone.device.id, { channelId: 'g1', quiet: false })).toMatchObject({
+      quietChannelIds: [],
+    });
+    expect(f.push.settings(phone.device.id)).toMatchObject({ enabled: true, quietChannelIds: [] });
+  });
+
   it('stops and removes the token when the device is revoked', async () => {
     const f = fixture();
     const phone = f.device('Phone');
@@ -443,6 +513,16 @@ describe('Human Inbox push source', () => {
                 ],
         }),
         actionCount: () => 3,
+        dmReplies: () => [
+          item({
+            id: 'dm-reply:1',
+            category: 'replies',
+            kind: 'channel-reply',
+            channelId: 'dm-ada',
+            summary: 'Done',
+            isUnread: true,
+          }),
+        ],
       },
       () => 'Ada',
       (_, messageId) =>
@@ -466,6 +546,7 @@ describe('Human Inbox push source', () => {
       ['secret:1', 'private-input', undefined, undefined, undefined],
       ['question:1', 'question', undefined, 'Which branch?', undefined],
       ['reply:1', 'reply', undefined, `${'x'.repeat(139)}…`, undefined],
+      ['dm-reply:1', 'reply', undefined, 'Done', undefined],
     ]);
     expect(JSON.stringify(pending)).not.toContain(SECRET_TEXT);
   });
@@ -537,6 +618,18 @@ describe('Device gateway push endpoints', () => {
     expect(await call('/preferences', { preferences: { reply: false } })).toMatchObject({
       status: 200,
       body: { preferences: { reply: false } },
+    });
+    expect(await call('/preferences', { enabled: false })).toMatchObject({
+      status: 200,
+      body: { enabled: false, preferences: { reply: false } },
+    });
+    expect(await call('/quiet', { channelId: 'g1', quiet: true })).toMatchObject({
+      status: 200,
+      body: { quietChannelIds: ['g1'] },
+    });
+    expect(await call('/quiet', { channelId: 'g1' })).toEqual({
+      status: 400,
+      body: { code: 'invalid-input' },
     });
     expect(await call('/test', {})).toEqual({ status: 200, body: { sent: true } });
     expect(
