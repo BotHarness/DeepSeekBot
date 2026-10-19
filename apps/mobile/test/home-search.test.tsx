@@ -167,13 +167,13 @@ const rows = (view: HTMLElement) =>
     .filter((node) => !node.closest('[hidden]') && !node.dataset.testid)
     .filter(
       (node) =>
-        ![t.cloudJoin.newOrJoin, t.allEnvironments, 'studio'].includes(
+        ![t.cloudJoin.newOrJoin, t.allEnvironments, 'studio', t.closeSearch].includes(
           node.getAttribute('aria-label') ?? '',
         ),
     )
     .map((node) => node.getAttribute('aria-label'));
 
-describe('Search at the top of Chats', () => {
+describe('Search above the bottom navigation', () => {
   it('keeps the Computer usable when Cloud local state cannot load', async () => {
     cloudState.ready = false;
     cloudState.error = 'STORAGE_UNAVAILABLE';
@@ -323,5 +323,19 @@ describe('Search at the top of Chats', () => {
     await type(view, ' zed ');
     expect(rows(view)).toEqual([]);
     expect(view.textContent).toContain(t.searchNoMatch('zed'));
+  });
+  it('closes search, clearing the query, from the button beside the field', async () => {
+    const view = await home();
+    expect(view.querySelector(`button[aria-label="${t.closeSearch}"]`)).toBeNull();
+    await type(view, 'ada');
+    expect(view.textContent).not.toContain('Launch team');
+    await act(async () =>
+      view.querySelector<HTMLButtonElement>(`button[aria-label="${t.closeSearch}"]`)!.click(),
+    );
+    const field = view.querySelector<HTMLTextAreaElement>(
+      `textarea[aria-label="${t.searchPlaceholder}"]`,
+    )!;
+    expect(field.value).toBe('');
+    expect(view.textContent).toContain('Launch team');
   });
 });

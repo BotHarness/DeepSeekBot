@@ -617,6 +617,7 @@ const en = {
   mutedUnread: (count: number) =>
     count === 1 ? 'muted, 1 unread message' : `muted, ${count} unread messages`,
   searchPlaceholder: 'Search PersonaBots and Channels',
+  closeSearch: 'Close search',
   searchNoMatch: (query: string) => `No PersonaBot or Channel matches “${query}”.`,
   pinnedSection: 'Pinned',
   sectionLabel: (name: string, count: number, needsYou: number, unread = 0) =>
@@ -1584,6 +1585,7 @@ const zh: typeof en = {
   unreadCount: (count: number) => `${count} 条未读消息`,
   mutedUnread: (count: number) => `已静音，${count} 条未读消息`,
   searchPlaceholder: '搜索 PersonaBot 和频道',
+  closeSearch: '关闭搜索',
   searchNoMatch: (query: string) => `没有名称包含“${query}”的 PersonaBot 或频道。`,
   pinnedSection: '已置顶',
   sectionLabel: (name: string, count: number, needsYou: number, unread = 0) =>

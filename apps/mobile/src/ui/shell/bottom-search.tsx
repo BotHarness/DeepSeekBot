@@ -1,4 +1,5 @@
-import { View } from 'react-native';
+import { useState } from 'react';
+import { Keyboard, View } from 'react-native';
 import { KeyboardStickyView } from 'react-native-keyboard-controller';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -7,7 +8,9 @@ import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
 import { SearchField } from '../primitives/search-field';
 import { useFloatingTabInset } from './floating-tab-inset';
+import { NavigationAction } from './navigation-action';
 import { useChromeHidden, useChromeProgress } from './scroll-chrome';
+import { t } from '../strings';
 
 const GAP = space.x3;
 
@@ -27,6 +30,11 @@ export function BottomSearch({
   onFocusChange(focused: boolean): void;
 }) {
   const theme = useDesignTheme();
+  const [focused, setFocused] = useState(false);
+  const focus = (next: boolean) => {
+    setFocused(next);
+    onFocusChange(next);
+  };
   const insets = useSafeAreaInsets();
   const reserved = useFloatingTabInset();
   const lift = reserved - space.x5 + GAP;
@@ -60,8 +68,21 @@ export function BottomSearch({
             value={value}
             placeholder={placeholder}
             onChangeText={onChangeText}
-            onFocus={() => onFocusChange(true)}
-            onBlur={() => onFocusChange(false)}
+            onFocus={() => focus(true)}
+            onBlur={() => focus(false)}
+            trailing={
+              focused || value !== '' ? (
+                <NavigationAction
+                  close
+                  size={theme.touch}
+                  label={t.closeSearch}
+                  onPress={() => {
+                    onChangeText('');
+                    Keyboard.dismiss();
+                  }}
+                />
+              ) : null
+            }
           />
         </View>
       </Animated.View>
