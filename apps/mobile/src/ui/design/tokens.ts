@@ -41,6 +41,7 @@ export const navigationBar = {
 } as const;
 export const environmentTab = { maxWidth: 220 } as const;
 export const modalRail = { maxWidth: 360 } as const;
+export const pairingScan = { maxSize: 200, widthRatio: 0.5 } as const;
 
 export const androidSettings = {
   radius: radius.xl,

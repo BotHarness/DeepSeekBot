@@ -374,9 +374,11 @@ const en = {
     'Could not save this choice. Statistics are paused on this launch. Please try again.',
   pairTitle: 'Pair with your computer',
   pairHint:
-    'On your computer, open DeepSeekBot settings → Devices → Pair a phone, then scan the code.',
+    'On your computer, open DeepSeekBot Settings → Devices → Pair a phone, then scan the code it shows.',
   allowCamera: 'Allow the camera to scan',
   pasteLink: 'Or paste the pairing link',
+  pasteLinkHint:
+    'When the camera can’t see the screen, choose Copy pairing link in the same window and paste it here. The code and the link work once and expire after 10 minutes.',
   pair: 'Pair',
   pairRefused: {
     'link-invalid': 'This is not a DeepSeekBot pairing code.',
@@ -1356,6 +1358,8 @@ const zh: typeof en = {
   pairHint: '在电脑上打开 DeepSeekBot 设置 → 设备 → 配对手机，然后扫描二维码。',
   allowCamera: '允许使用相机扫码',
   pasteLink: '或粘贴配对链接',
+  pasteLinkHint:
+    '摄像头扫不到时，在同一窗口点「复制配对链接」，再粘贴到这里。二维码和链接都只能用一次，10 分钟后失效。',
   pair: '配对',
   pairRefused: {
     'link-invalid': '这不是 DeepSeekBot 的配对二维码。',

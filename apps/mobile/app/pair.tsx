@@ -1,10 +1,9 @@
-import { Text } from '../src/ui/primitives/system-text';
 import { TextField } from '../src/ui/primitives/text-field';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import Constants from 'expo-constants';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { Platform, Pressable, View } from 'react-native';
+import { Platform, Pressable, View, useWindowDimensions } from 'react-native';
 
 import { hostSession } from '../src/host/host-session';
 import { hostLooks } from '../src/host/native-host-look';
@@ -19,14 +18,18 @@ import { Button } from '../src/ui/primitives/button';
 import { KeyboardFormScroll } from '../src/ui/primitives/keyboard-form';
 import { cloudAvailable } from '../src/cloud/available';
 import { t } from '../src/ui/strings';
-import { useTheme } from '../src/ui/theme';
+import { useDesignTheme } from '../src/ui/design/theme';
+import { pairingScan, radius, space } from '../src/ui/design/tokens';
+import { Text } from '../src/ui/primitives/text';
 
 function deviceName(): string {
   return Constants.deviceName ?? (Platform.OS === 'ios' ? 'iPhone' : 'Android phone');
 }
 
 export default function PairScreen() {
-  const theme = useTheme();
+  const theme = useDesignTheme();
+  const { width } = useWindowDimensions();
+  const scan = Math.min(width * pairingScan.widthRatio, pairingScan.maxSize);
   const router = useRouter();
   const params = useLocalSearchParams<{ p?: string }>();
   const [permission, requestPermission] = useCameraPermissions();
@@ -90,56 +93,56 @@ export default function PairScreen() {
     <KeyboardFormScroll
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="interactive"
-      style={{ flex: 1, backgroundColor: theme.background }}
-      contentContainerStyle={{ padding: 16, gap: 12 }}
+      style={{ flex: 1, backgroundColor: theme.overlay.fill }}
+      contentContainerStyle={{ padding: space.x5, gap: space.x4 }}
     >
-      {cloudAvailable && (
-        <Button label={t.cloud.title} onPress={() => router.dismissTo('/cloud-services')} />
-      )}
-      <Text style={{ color: theme.inkSoft, fontSize: 14 }}>{t.pairHint}</Text>
-      <ConnectionNameField
-        value={connectionName}
-        onChange={setConnectionName}
-        maxLength={HOST_NAME_MAX}
-        disabled={busy}
-      />
       <View
         style={{
-          aspectRatio: 1,
-          borderRadius: 16,
-          overflow: 'hidden',
-          backgroundColor: theme.surface,
           alignItems: 'center',
-          justifyContent: 'center',
+          gap: space.x4,
+          padding: space.x5,
+          borderRadius: radius.lg,
+          backgroundColor: theme.layer.raised.fill,
         }}
       >
-        {permission?.granted ? (
-          focused && (
-            <CameraView
-              style={{ width: '100%', height: '100%' }}
-              facing="back"
-              barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-              onBarcodeScanned={busy ? undefined : ({ data }) => void pair(data, 'qr')}
-            />
-          )
-        ) : (
-          <Pressable
-            onPress={() => void requestPermission()}
-            accessibilityRole="button"
-            style={{ padding: 16 }}
-          >
-            <Text style={{ color: theme.accent, fontSize: 16, fontWeight: '600' }}>
-              {t.allowCamera}
-            </Text>
-          </Pressable>
-        )}
+        <View
+          style={{
+            width: scan,
+            height: scan,
+            borderRadius: radius.lg,
+            overflow: 'hidden',
+            backgroundColor: theme.layer.well.fill,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          {permission?.granted ? (
+            focused && (
+              <CameraView
+                style={{ width: '100%', height: '100%' }}
+                facing="back"
+                barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+                onBarcodeScanned={busy ? undefined : ({ data }) => void pair(data, 'qr')}
+              />
+            )
+          ) : (
+            <Pressable
+              onPress={() => void requestPermission()}
+              accessibilityRole="button"
+              style={{ padding: space.x5, minHeight: theme.touch, justifyContent: 'center' }}
+            >
+              <Text tone="accent" strong style={{ textAlign: 'center' }}>
+                {t.allowCamera}
+              </Text>
+            </Pressable>
+          )}
+        </View>
+        <Text variant="meta" tone="muted" style={{ textAlign: 'center' }}>
+          {t.pairHint}
+        </Text>
       </View>
       {error !== undefined ? (
-        <Text
-          accessibilityRole="alert"
-          accessibilityLiveRegion="polite"
-          style={{ color: theme.danger }}
-        >
+        <Text accessibilityRole="alert" accessibilityLiveRegion="polite" tone="danger">
           {pairingFailureText(error, lastMethod.current)}
         </Text>
       ) : null}
@@ -149,20 +152,33 @@ export default function PairScreen() {
           onPress={() => void pair(handled.current!, lastMethod.current, true)}
         />
       ) : null}
-      <Text style={{ color: theme.ink, fontWeight: '600' }}>{t.pasteLink}</Text>
-      <TextField
-        accessibilityLabel={t.pasteLink}
-        value={link}
-        onChangeText={(value) => {
-          setLink(value);
-          handled.current = undefined;
-        }}
-        placeholder="deepseekbot://pair?p=…"
-        autoCapitalize="none"
-        autoCorrect={false}
-        keyboardType="url"
-        returnKeyType="go"
-        onSubmitEditing={() => void pair(link, 'paste')}
+      <View style={{ gap: space.x2 }}>
+        <Text variant="meta" tone="muted" accessibilityRole="header">
+          {t.pasteLink}
+        </Text>
+        <TextField
+          accessibilityLabel={t.pasteLink}
+          value={link}
+          onChangeText={(value) => {
+            setLink(value);
+            handled.current = undefined;
+          }}
+          placeholder="deepseekbot://pair?p=…"
+          autoCapitalize="none"
+          autoCorrect={false}
+          keyboardType="url"
+          returnKeyType="go"
+          onSubmitEditing={() => void pair(link, 'paste')}
+        />
+        <Text variant="meta" tone="muted">
+          {t.pasteLinkHint}
+        </Text>
+      </View>
+      <ConnectionNameField
+        value={connectionName}
+        onChange={setConnectionName}
+        maxLength={HOST_NAME_MAX}
+        disabled={busy}
       />
       <Button
         label={t.pair}
@@ -172,6 +188,13 @@ export default function PairScreen() {
         disabled={busy || link.trim() === ''}
         onPress={() => void pair(link, 'paste')}
       />
+      {cloudAvailable && (
+        <Button
+          label={t.cloud.title}
+          variant="text"
+          onPress={() => router.dismissTo('/cloud-services')}
+        />
+      )}
     </KeyboardFormScroll>
   );
 }
