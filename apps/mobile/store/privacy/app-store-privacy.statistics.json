@@ -1,0 +1,17 @@
+[
+  {
+    "category": "DEVICE_ID",
+    "purposes": ["ANALYTICS"],
+    "data_protections": ["DATA_NOT_LINKED_TO_YOU"]
+  },
+  {
+    "category": "OTHER_DIAGNOSTIC_DATA",
+    "purposes": ["ANALYTICS"],
+    "data_protections": ["DATA_NOT_LINKED_TO_YOU"]
+  },
+  {
+    "category": "PRODUCT_INTERACTION",
+    "purposes": ["ANALYTICS"],
+    "data_protections": ["DATA_NOT_LINKED_TO_YOU"]
+  }
+]
