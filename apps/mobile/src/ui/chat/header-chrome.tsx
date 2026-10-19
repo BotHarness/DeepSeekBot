@@ -3,8 +3,9 @@ import { Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
-import { frosted, useDesignTheme } from '../design/theme';
+import { frosted, pressTint, useDesignTheme, type DesignTheme } from '../design/theme';
 import { edge, edgeFade, radius, space } from '../design/tokens';
+import { DrawerMaterial, EdgeMaterial, useLiquidGlass } from '../primitives/drawer-material';
 import { ChevronLeftIcon } from '../shell/icons';
 import { t } from '../strings';
 
@@ -67,6 +68,7 @@ export function HeaderCircleButton({
   selected?: boolean;
 }) {
   const theme = useDesignTheme();
+  const glass = useLiquidGlass();
   return (
     <Pressable
       accessibilityRole="button"
@@ -79,14 +81,26 @@ export function HeaderCircleButton({
         borderRadius: radius.round,
         alignItems: 'center',
         justifyContent: 'center',
-        borderWidth: edge.hairline,
-        borderColor: theme.layer.raised.edge,
-        backgroundColor: pressed ? theme.layer.raised.pressed : frosted(theme.layer.raised.fill),
+        ...headerGlassFill(theme, glass, pressed),
       })}
     >
+      {glass ? <DrawerMaterial /> : null}
       {children}
     </Pressable>
   );
+}
+
+export function headerGlassFill(theme: DesignTheme, glass: boolean, pressed: boolean) {
+  if (glass)
+    return {
+      borderWidth: 0,
+      backgroundColor: pressed ? pressTint(theme.color.fg) : 'transparent',
+    };
+  return {
+    borderWidth: edge.hairline,
+    borderColor: theme.layer.raised.edge,
+    backgroundColor: pressed ? theme.layer.raised.pressed : frosted(theme.layer.raised.fill),
+  };
 }
 
 export function HeaderBackButton({ onPress }: { onPress(): void }) {
@@ -100,6 +114,7 @@ export function HeaderBackButton({ onPress }: { onPress(): void }) {
 
 export function EdgeFade({ edge: side, height }: { edge: 'top' | 'bottom'; height: number }) {
   const theme = useDesignTheme();
+  const glass = useLiquidGlass();
   const id = `fade-${useId().replace(/[^a-z0-9]/giu, '')}`;
   const top = side === 'top';
   return (
@@ -113,6 +128,7 @@ export function EdgeFade({ edge: side, height }: { edge: 'top' | 'bottom'; heigh
         ...(top ? { top: 0 } : { bottom: 0 }),
       }}
     >
+      {glass ? <EdgeMaterial edge={side} /> : null}
       <Svg width="100%" height="100%" preserveAspectRatio="none">
         <Defs>
           <LinearGradient id={id} x1="0%" y1={top ? '0%' : '100%'} x2="0%" y2={top ? '100%' : '0%'}>

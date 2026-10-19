@@ -1,9 +1,9 @@
-import { Capsule, Host, RoundedRectangle } from '@expo/ui/swift-ui';
+import { Capsule, Host, Mask, Rectangle, RoundedRectangle } from '@expo/ui/swift-ui';
 import { accessibilityHidden, foregroundStyle, glassEffect } from '@expo/ui/swift-ui/modifiers';
 import { useSyncExternalStore } from 'react';
 import { AccessibilityInfo, Platform, StyleSheet, View } from 'react-native';
 
-import { edge, radius } from '../design/tokens';
+import { edge, pointer, radius } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 
 let reduced = true;
@@ -56,6 +56,35 @@ export function SidebarMaterial({ cornerRadius }: { cornerRadius: number }) {
           accessibilityHidden(),
         ]}
       />
+    </Host>
+  );
+}
+
+export function EdgeMaterial({ edge: side }: { edge: 'top' | 'bottom' }) {
+  const theme = useDesignTheme();
+  const top = side === 'top';
+  return (
+    <Host
+      key={theme.scheme}
+      style={StyleSheet.absoluteFill}
+      colorScheme={theme.scheme}
+      pointerEvents="none"
+    >
+      <Mask modifiers={[accessibilityHidden()]}>
+        <Rectangle modifiers={[foregroundStyle({ type: 'material', material: 'ultraThin' })]} />
+        <Mask.Content>
+          <Rectangle
+            modifiers={[
+              foregroundStyle({
+                type: 'linearGradient',
+                colors: [pointer.rim, `${pointer.rim}00`],
+                startPoint: { x: 0.5, y: top ? 0 : 1 },
+                endPoint: { x: 0.5, y: top ? 1 : 0 },
+              }),
+            ]}
+          />
+        </Mask.Content>
+      </Mask>
     </Host>
   );
 }
