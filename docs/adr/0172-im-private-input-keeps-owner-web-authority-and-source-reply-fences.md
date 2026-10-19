@@ -6,7 +6,9 @@ Issues: [#1378](https://github.com/BotHarness/DeepSeekBot/issues/1378), [#1385](
 
 # IM private input keeps Owner Web authority and Source reply fences
 
-An authorized external conversation may cause a PersonaBot Orchestrator to call `ask_secret`. The application-defined Runtime binds that request to a current accepted bridge-message Source Event and the actual live native Agent. One external source is selected automatically; an ambiguous turn requires an explicit `source_event_id` from its accepted sources. Historical Session text, a model-supplied destination or a Web locator cannot supply this authority.
+An authorized external conversation may cause a PersonaBot Orchestrator to call `ask_secret`. The application-defined Runtime binds that request to a current accepted bridge-message Source Event and the actual live native Agent. When no live accepted local Human interaction exists, one external source is selected automatically; an ambiguous turn requires an explicit `source_event_id` from its accepted sources. Historical Session text, a model-supplied destination or a Web locator cannot supply this authority.
+
+Without an explicit IM selector, a live accepted local Human DM or Group Source Event supplies local Owner interaction even when IM events are batched or steered into that turn. The Runtime reuses its canonical admission, Channel and source-effect checks; local history alone supplies no authority. Explicit IM selectors still acquire an IM lease. Current-turn IM associations already remembered for an account remain authoritative during consumption, including ambiguity and revocation refusals; a later local message cannot clear them.
 
 The same account's current-turn source associations are retained independently. If two distinct sources select that account in one turn, protected consumption refuses the ambiguity instead of using the most recent association. Later turns discard previous turn associations and acquire their own current authority.
 

@@ -322,28 +322,28 @@ minimumReleaseAgeExclude:
   - '@botharness/pixel-avatar@0.1.0 || 0.2.0 || 0.3.0 || 0.4.0 || 0.5.0 || 0.6.0 || 0.7.0 || 0.8.0 || 0.9.0 || 0.10.0 || 0.10.1'
   - '@botharness/pixel-banner@0.1.0'
   - '@botharness/pixel-morph@0.1.0 || 0.2.0'
-  - '@expo/cli@57.0.30 || 57.0.31 || 58.1.10 || 58.1.11'
+  - '@expo/cli@57.0.30 || 57.0.31 || 58.1.10 || 58.1.11 || 58.1.12'
   - '@expo/metro-runtime@57.0.17'
   - '@expo/prebuild-config@57.0.19 || 58.0.14'
-  - '@expo/ui@57.0.24 || 57.0.25 || 58.0.20'
-  - expo-asset@57.0.20 || 58.0.16
+  - '@expo/ui@57.0.24 || 57.0.25 || 58.0.20 || 58.0.21'
+  - expo-asset@57.0.20 || 58.0.16 || 58.0.17
   - expo-constants@57.0.22
   - expo-linking@57.0.13
   - expo-modules-autolinking@57.0.16
-  - expo-modules-core@57.0.23 || 58.0.21 || 58.0.22
+  - expo-modules-core@57.0.23 || 58.0.21 || 58.0.22 || 58.0.23
   - expo-notifications@57.0.23 || 58.1.5
-  - expo-router@57.0.27 || 57.0.28 || 58.0.22 || 58.0.23
-  - expo@57.0.29 || 57.0.30 || 58.0.13 || 58.0.14
+  - expo-router@57.0.27 || 57.0.28 || 58.0.22 || 58.0.23 || 58.0.24
+  - expo@57.0.29 || 57.0.30 || 58.0.13 || 58.0.14 || 58.0.15
   - '@expo/router-server@57.0.13 || 58.0.14'
-  - babel-preset-expo@57.0.16 || 58.0.17
+  - babel-preset-expo@57.0.16 || 58.0.17 || 58.0.18
   - posthog-react-native@4.81.2
-  - '@expo/metro-config@58.0.14'
+  - '@expo/metro-config@58.0.14 || 58.0.15'
   - '@expo/package-manager@1.14.2'
-  - expo-modules-jsi@58.0.14 || 58.0.15
+  - expo-modules-jsi@58.0.14 || 58.0.15 || 58.0.16
   - expo-application@58.1.2
   - expo-glass-effect@58.0.4
   - expo-haptics@58.0.7
-  - expo-image@58.0.15
+  - expo-image@58.0.15 || 58.0.16
   - expo-sharing@58.0.19
   - expo-system-ui@58.0.6
   - expo-speech-recognition@58.0.0
@@ -378,6 +378,7 @@ minimumReleaseAgeExclude:
   - '@deepseek-ai/dsh-tool-working-directory@0.2.1-rc.2'
   - '@deepseek-ai/dsh-web-deepseek-api@0.2.1-rc.2'
   - '@deepseek-ai/dsh-working-directory@0.2.1-rc.2'
+  - expo-modules-cli@0.3.1
 
 patchedDependencies:
   '@deepseek-ai/dsh-tool-fs@0.2.1-rc.2': patches/@deepseek-ai__dsh-tool-fs@0.2.1-rc.2.patch

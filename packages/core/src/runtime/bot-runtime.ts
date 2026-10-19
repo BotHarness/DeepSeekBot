@@ -3421,6 +3421,10 @@ class BotRuntimeImplementation implements BotRuntime {
     } catch {
       return false;
     }
+    return this.#hasLocalPrivateInputSource(owner.botSlug, turn.acceptedEventIds);
+  }
+
+  #hasLocalPrivateInputSource(botSlug: string, sourceEventIds: Iterable<string>): boolean {
     return this.#database.read((db) => {
       const human = db.prepare(
         `SELECT e.channel_id FROM source_events e
@@ -3428,15 +3432,15 @@ class BotRuntimeImplementation implements BotRuntime {
          WHERE e.source_event_id = ? AND a.bot_slug = ? AND e.source_kind = 'human-message'
            AND a.reason IN ('human-dm', 'group-mention', 'group-ordinary')`,
       );
-      return [...turn.acceptedEventIds].some((id) => {
-        const source = human.get(id, owner.botSlug);
+      return [...sourceEventIds].some((id) => {
+        const source = human.get(id, botSlug);
         if (
           typeof source?.channel_id !== 'string' ||
           this.#channels.get(source.channel_id) === undefined
         )
           return false;
         try {
-          requireSourceEffects(db, id, owner.botSlug);
+          requireSourceEffects(db, id, botSlug);
           return true;
         } catch {
           return false;
@@ -3452,6 +3456,11 @@ class BotRuntimeImplementation implements BotRuntime {
       if (selected !== undefined) throw new Error('Private input IM source is unavailable');
       return undefined;
     }
+    if (
+      selected === undefined &&
+      this.#hasLocalPrivateInputSource(owner.botSlug, turn.acceptedEventIds)
+    )
+      return undefined;
     const ids = this.#database.read((db) => {
       const query = db.prepare('SELECT source_kind FROM source_events WHERE source_event_id = ?');
       return [...turn.acceptedEventIds].filter(

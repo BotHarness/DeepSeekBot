@@ -624,6 +624,14 @@
       "guide": ".agents/skills/verify-deepseekbot/features/appearance-recovery.md",
       "task": 2264,
       "gap": "Native restart follows the task-owned Desktop procedure; Windows and Human QA remain separate."
+    },
+    {
+      "id": "credentials.private-input-origin",
+      "label": "Consume local credentials in mixed local and accepted IM turns with native approval",
+      "source": "packages/core/src/runtime/bot-runtime.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/private-input-origin.md",
+      "task": 2290,
+      "gap": "Controlled Provider; real external delivery and GitHub authentication are not qualified."
     }
   ],
   "scripts": [
@@ -2036,6 +2044,14 @@
       "reason": "Human QA alpha-mask regression: committed Channel history, edge/center pixels, custom Panel colors and wallpaper, composer input, reload and task-owned Desktop.",
       "task": 2264,
       "sha256": "65040dd245fc5eb18148f8f4660ef55d093eebf8457e36c5694c246002876625"
+    },
+    {
+      "path": "scripts/e2e-private-input-origin.mjs",
+      "category": "mapped",
+      "behaviors": ["credentials.private-input-origin"],
+      "reason": "Isolated Host, visible DM composer, synthetic private input, native approval and actual Tool result with two live accepted IM sources; no production receiver or credential.",
+      "task": 2290,
+      "sha256": "a523ea1964d31850aa65b4e96ee2c37318d2c3c90b2b7feb86e8dfacfd4adce8"
     }
   ],
   "native": [
