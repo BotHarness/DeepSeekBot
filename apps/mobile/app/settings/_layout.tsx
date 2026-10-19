@@ -10,6 +10,7 @@ export default function SettingsLayout() {
         name="index"
         options={{
           title: t.settings,
+          headerShown: false,
         }}
       />
       <Stack.Screen name="usage" options={{ title: t.usage }} />

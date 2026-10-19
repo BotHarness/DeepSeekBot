@@ -93,6 +93,8 @@ vi.mock('../src/host/host-session', () => ({
     roster: hostState.connecting ? undefined : roster,
   }),
   useInbox: () => ({ status: 'loading' }),
+  useQuietChannels: () => [],
+  refreshQuietChannels: () => {},
 }));
 vi.mock('../src/host/native-section-collapse', () => ({
   sectionCollapse: { toggle: () => {} },

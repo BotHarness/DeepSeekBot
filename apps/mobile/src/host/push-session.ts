@@ -33,6 +33,7 @@ export interface PushSession {
   stop(): void;
 }
 
+const TOKEN_TIMEOUT_MS = 20_000;
 const RESOLVABLE = new Set(['tool-approval', 'user-question', 'private-input']);
 
 export function createPushSession(options: {
@@ -40,6 +41,7 @@ export function createPushSession(options: {
   hostPush: HostPush;
   platform: 'ios' | 'android';
   locale: 'en' | 'zh';
+  tokenTimeoutMs?: number;
 }): PushSession {
   const { notifications, hostPush } = options;
   const listeners = new Set<() => void>();
@@ -56,7 +58,16 @@ export function createPushSession(options: {
   const registerAll = async (hosts: readonly SavedHost[]): Promise<void> => {
     let token: string;
     try {
-      token = await notifications.token();
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      token = await Promise.race([
+        notifications.token(),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(
+            () => reject(new Error('push-token-timeout')),
+            options.tokenTimeoutMs ?? TOKEN_TIMEOUT_MS,
+          );
+        }),
+      ]).finally(() => clearTimeout(timer));
     } catch (error) {
       publish({
         status: 'unavailable',

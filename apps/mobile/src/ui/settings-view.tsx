@@ -1,13 +1,13 @@
 import { useState, type ReactNode } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 
 import type { ConnectionState } from '../host/client';
 import type { OverviewUsage } from '../host/usage';
 import { SHEET_GROUP } from './chat/sheet';
 import { useDesignTheme } from './design/theme';
 import { space } from './design/tokens';
+import { DrawerHeader } from './primitives/drawer-header';
 import { SettingsRow, SettingsSection } from './primitives/settings-row';
-import { Text } from './primitives/text';
 import { errorText, Notice } from './request-parts';
 import { UsageCard } from './shell/usage-card';
 import { t } from './strings';
@@ -59,6 +59,9 @@ export function SettingsView({
   const status = [STATUS[connection.status], connection.route].filter((part) => part !== '');
   return (
     <View style={{ flex: 1, backgroundColor: theme.overlay.fill }}>
+      <View style={{ paddingHorizontal: space.x5, paddingTop: space.x5 }}>
+        <DrawerHeader title={t.settings} />
+      </View>
       <ScrollView
         nestedScrollEnabled
         style={{ flex: 1 }}

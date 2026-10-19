@@ -61,7 +61,10 @@ export default function RootLayout() {
                   ...(Platform.OS === 'ios' ? { presentation: 'modal' as const } : {}),
                 }}
               />
-              <Stack.Screen name="pair" options={{ title: t.pairTitle, presentation: 'modal' }} />
+              <Stack.Screen
+                name="pair"
+                options={{ title: t.pairTitle, ...sheetScreenOptions(design, true) }}
+              />
               <Stack.Screen name="inbox/[id]" options={{ title: t.inbox }} />
               <Stack.Screen
                 name="cloud-join"

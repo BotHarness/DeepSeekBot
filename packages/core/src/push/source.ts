@@ -94,7 +94,7 @@ function candidate(
 }
 
 export function humanInboxPushSource(
-  attention: Pick<HumanAttentionQuery, 'list' | 'actionCount'>,
+  attention: Pick<HumanAttentionQuery, 'list' | 'actionCount' | 'dmReplies'>,
   botName: (slug: string) => string | undefined,
   approval?: PushApprovalLookup,
 ): PushSource {
@@ -104,8 +104,9 @@ export function humanInboxPushSource(
       const replies = attention
         .list({ category: 'replies', limit: REPLY_LIMIT })
         .items.filter((item) => item.isUnread !== false);
+      const dms = attention.dmReplies(REPLY_LIMIT);
       return {
-        items: [...action, ...replies].flatMap((item) => candidate(item, approval)),
+        items: [...action, ...replies, ...dms].flatMap((item) => candidate(item, approval)),
         badge: attention.actionCount(),
       };
     },

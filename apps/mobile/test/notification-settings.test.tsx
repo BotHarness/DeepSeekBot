@@ -38,7 +38,9 @@ async function settle(): Promise<void> {
 
 const registered: PushSettings = {
   registered: true,
+  enabled: true,
   preferences: { approval: true, question: true, 'private-input': true, reply: true },
+  quietChannelIds: [],
 };
 
 function port(overrides: Partial<NotificationSettingsPort> = {}) {
@@ -48,6 +50,7 @@ function port(overrides: Partial<NotificationSettingsPort> = {}) {
       ...registered,
       preferences: { ...registered.preferences, ...preferences },
     })),
+    setEnabled: vi.fn(async (enabled: boolean) => ({ ...registered, enabled })),
     test: vi.fn(async () => undefined),
     ...overrides,
   };
@@ -105,6 +108,33 @@ describe('Notification settings', () => {
     await settle();
     expect(settings.test).toHaveBeenCalled();
     expect(notice(view, 'success')).toContain(t.testSent);
+  });
+
+  it('hides the kinds while this phone does not allow notifications, and brings them back', async () => {
+    const settings = port();
+    const view = await render(
+      <NotificationSettings
+        status={{ status: 'on', failed: [] }}
+        hostName="studio"
+        port={settings}
+        onEnable={() => {}}
+        onOpenSettings={() => {}}
+      />,
+    );
+    const allow = () =>
+      view.querySelector<HTMLInputElement>(`[aria-label="${t.allowNotifications}"]`)!;
+    expect(allow().checked).toBe(true);
+    await act(async () => allow().click());
+    await settle();
+    expect(settings.setEnabled).toHaveBeenCalledWith(false);
+    expect(allow().checked).toBe(false);
+    expect(view.querySelector(`[aria-label="${t.pushKind.reply}"]`)).toBeNull();
+    expect(view.textContent).toContain(t.allowNotificationsOff);
+
+    await act(async () => allow().click());
+    await settle();
+    expect(settings.setEnabled).toHaveBeenLastCalledWith(true);
+    expect(view.querySelector(`[aria-label="${t.pushKind.reply}"]`)).not.toBeNull();
   });
 
   it('explains why a test was not sent, and when the phone blocks notifications', async () => {

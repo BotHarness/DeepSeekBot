@@ -115,6 +115,14 @@ describe('Home conversations', () => {
     expect(countBadge({ ...team, needsYou: 1 })).toEqual({ tone: 'needs-you', count: 1 });
   });
 
+  it('treats a Channel on Do Not Disturb on this phone like a muted one', () => {
+    const team = conversations(roster, [], { team: 4 }, ['team']).find(
+      (row) => row.key === 'channel:team',
+    )!;
+    expect(team.muted).toBe(true);
+    expect(countBadge(team)).toEqual({ tone: 'muted', count: 4 });
+  });
+
   it('shows a clock time today and a date otherwise', () => {
     const now = new Date('2026-10-14T12:00:00');
     expect(shortTime(new Date('2026-10-14T09:05:00').toISOString(), now, 'en-GB')).toMatch(

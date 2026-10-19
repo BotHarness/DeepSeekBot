@@ -8,12 +8,15 @@ export type PushPreferences = Record<PushKind, boolean>;
 
 export interface PushSettings {
   registered: boolean;
+  enabled: boolean;
   preferences: PushPreferences;
+  quietChannelIds: string[];
 }
 
 export type PushRefusal =
   | 'push-not-registered'
   | 'push-token-invalid'
+  | 'invalid-input'
   | 'push-send-failed'
   | 'device-revoked'
   | 'device-unknown'
@@ -132,11 +135,16 @@ export function pushHref(
 function settingsOf(value: unknown): PushSettings {
   const body = record(value);
   const preferences = record(body['preferences']);
+  const quiet = body['quietChannelIds'];
   return {
     registered: body['registered'] === true,
+    enabled: body['enabled'] !== false,
     preferences: Object.fromEntries(
       PUSH_KINDS.map((kind) => [kind, preferences[kind] !== false]),
     ) as PushPreferences,
+    quietChannelIds: Array.isArray(quiet)
+      ? quiet.filter((id): id is string => typeof id === 'string')
+      : [],
   };
 }
 
@@ -150,6 +158,8 @@ export interface HostPush {
   settings(host: SavedHost): Promise<PushSettings>;
   register(host: SavedHost, registration: PushRegistration): Promise<PushSettings>;
   setPreferences(host: SavedHost, preferences: Partial<PushPreferences>): Promise<PushSettings>;
+  setEnabled(host: SavedHost, enabled: boolean): Promise<PushSettings>;
+  setQuiet(host: SavedHost, channelId: string, quiet: boolean): Promise<PushSettings>;
   test(host: SavedHost): Promise<void>;
   unregister(host: SavedHost): Promise<void>;
 }
@@ -200,6 +210,10 @@ export function createHostPush(carrier: HostCarrier, timeoutMs = 10_000): HostPu
       settingsOf(await request(host, '/register', { ...registration })),
     setPreferences: async (host, preferences) =>
       settingsOf(await request(host, '/preferences', { preferences })),
+    setEnabled: async (host, enabled) =>
+      settingsOf(await request(host, '/preferences', { enabled })),
+    setQuiet: async (host, channelId, quiet) =>
+      settingsOf(await request(host, '/quiet', { channelId, quiet })),
     async test(host) {
       await request(host, '/test', {});
     },

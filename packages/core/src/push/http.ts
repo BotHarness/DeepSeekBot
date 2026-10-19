@@ -33,9 +33,19 @@ export function createDevicePushHttp(
           : { status: 400, body: { code: result.code } };
       }
       case `${DEVICE_PUSH_PATH}/preferences`: {
-        const settings = delivery.setPreferences(deviceId, body['preferences']);
+        const settings = delivery.setPreferences(deviceId, body['preferences'], body['enabled']);
         return settings.registered
           ? { status: 200, body: settings }
+          : { status: 409, body: { code: 'push-not-registered' } };
+      }
+      case `${DEVICE_PUSH_PATH}/quiet`: {
+        const result = delivery.setQuiet(deviceId, {
+          channelId: body['channelId'],
+          quiet: body['quiet'],
+        });
+        if ('invalid' in result) return { status: 400, body: { code: 'invalid-input' } };
+        return result.registered
+          ? { status: 200, body: result }
           : { status: 409, body: { code: 'push-not-registered' } };
       }
       case `${DEVICE_PUSH_PATH}/test`: {

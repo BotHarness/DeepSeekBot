@@ -14,6 +14,7 @@ import { nativeCarrier } from './native-carrier';
 import { nativeNotifications } from './native-notifications';
 import { createHostPush } from './push';
 import { createPushSession, type PushStatus } from './push-session';
+import { createQuietChannels } from './quiet-channels';
 import { loadSavedHosts, saveHosts, type SavedHost } from './saved-host';
 import { mobileTelemetry } from '../telemetry/native';
 import { createConnectionTelemetry } from '../telemetry/connection';
@@ -165,6 +166,20 @@ export function useHostSession(): HostSessionState {
 
 export function usePushStatus(): PushStatus {
   return useSyncExternalStore(pushSession.subscribe, pushSession.getSnapshot);
+}
+
+export const quietChannels = createQuietChannels();
+
+export function refreshQuietChannels(saved: SavedHost): void {
+  if (pushSession.getSnapshot().status !== 'on') return;
+  hostPush.settings(saved).then(
+    (settings) => quietChannels.set(saved.hostId, settings.quietChannelIds),
+    () => undefined,
+  );
+}
+
+export function useQuietChannels(hostId: string | undefined): readonly string[] {
+  return useSyncExternalStore(quietChannels.subscribe, () => quietChannels.get(hostId));
 }
 
 const detached: HostSnapshot = { connection: { status: 'stopped', route: '' } };

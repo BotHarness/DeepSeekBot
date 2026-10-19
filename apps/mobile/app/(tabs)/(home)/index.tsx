@@ -3,7 +3,13 @@ import { Redirect, Stack, useFocusEffect, useIsFocused, useRouter } from 'expo-r
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, RefreshControl, View } from 'react-native';
 import Animated from 'react-native-reanimated';
-import { useHostSession, useHostSnapshot, useInbox } from '../../../src/host/host-session';
+import {
+  refreshQuietChannels,
+  useHostSession,
+  useHostSnapshot,
+  useInbox,
+  useQuietChannels,
+} from '../../../src/host/host-session';
 import { prefetchInbox } from '../../../src/host/inbox';
 import { useHostLook } from '../../../src/host/native-host-look';
 import { cloudClient, useCloudSnapshot } from '../../../src/cloud/native';
@@ -120,6 +126,12 @@ const HomeContent = memo(function HomeContent({
     [saved, look, cloud.rows, directory.workspaces],
   );
   const effectiveFilter = filters.some((f) => f.key === filter) ? filter : 'all';
+  const quiet = useQuietChannels(saved?.hostId);
+  useFocusEffect(
+    useCallback(() => {
+      if (saved) refreshQuietChannels(saved);
+    }, [saved]),
+  );
   useFocusEffect(
     useCallback(() => {
       if (
@@ -149,6 +161,7 @@ const HomeContent = memo(function HomeContent({
           snapshot.roster,
           list.status === 'ready' ? list.sections.action : [],
           list.status === 'ready' ? list.unread : {},
+          quiet,
         ).map((conversation) => ({
           key: JSON.stringify(['computer', saved.hostId, conversation.key]),
           environment: computerEnvironmentKey(saved.hostId),
@@ -193,7 +206,7 @@ const HomeContent = memo(function HomeContent({
           (Date.parse(b.at ?? '') || 0) - (Date.parse(a.at ?? '') || 0) ||
           a.key.localeCompare(b.key),
       );
-  }, [snapshot.roster, list, directory.rows, saved, query]);
+  }, [snapshot.roster, list, directory.rows, saved, query, quiet]);
   if (saved === undefined || (!cloud.ready && !cloud.error))
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>

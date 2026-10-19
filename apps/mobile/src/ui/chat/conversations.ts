@@ -40,10 +40,11 @@ export function conversations(
   roster: RosterView | undefined,
   action: HumanAttentionItem[],
   unread: UnreadCounts = {},
+  quiet: readonly string[] = [],
 ): Conversation[] {
   if (roster === undefined) return [];
   const hidden = new Set(roster.arrangement?.hidden);
-  const muted = new Set(roster.arrangement?.muted);
+  const muted = new Set([...(roster.arrangement?.muted ?? []), ...quiet]);
   const attention = (channelId: string | undefined, needsYou: number): Attention => ({
     needsYou,
     unread: channelId === undefined ? 0 : (unread[channelId] ?? 0),
