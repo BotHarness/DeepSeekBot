@@ -555,6 +555,19 @@ deepseekbot approval-reviewer-model-set bot
 
 两个命令都返回 `{follows, model}`：`follows` 为 `bot`（跟随每个 Bot 自己的模型，`model` 为 `null`）、`model`（所有审批都用指定模型）或 `invalid`（设置文件读不出来）。指定模型时还会返回 `available`，为 `false` 时附带 `unavailableReason`。不在模型目录里、或服务商没有可用密钥的模型仍会保存，但之后每次审批都会改发普通的人类审批卡片，并在 `logs.db` 里写入 `fallback=model-unavailable` 和原因；审批员绝不会自己换用别的模型。`logs.db` 里每条 `approval-review` 记录都写明这次用的 `model` 和 `reviewSession`。Bot 在自己的 Shell 里运行 `approval-reviewer-model-set` 时，这次调用一定会变成发给人类的审批卡片，已保存的规则和审批员都不能替你回答。拒绝时带错误码：`usage`（没有 `<provider>/<model>`，或对 `bot` 加了 `--effort`）和 `invalid-input`。
 
+### 空闲压缩（Idle Compaction）
+
+Bot 的 Orchestrator Session 没有进行中的轮次、也没有待处理的 Bot Inbox Admission 时，Host 会在所用模型线路提示缓存寿命的一半（最少 15 分钟）通过 DSH（与 `/compact` 同一路径）压缩它，让长历史在服务商仍按缓存命中价读取时就被压缩。只压缩超过该线路 DSH 默认自动压缩阈值一半的会话；Assignment 和审批复核会话从不压缩。聊天中不显示任何内容。该设置对整个 Profile 生效，默认开启。
+
+```bash
+deepseekbot idle-compaction
+deepseekbot idle-compaction-set on|off
+deepseekbot idle-compaction-cache-set deepseek/<model> <seconds>
+deepseekbot idle-compaction-cache-set deepseek/<model> auto
+```
+
+三个命令都返回 `{enabled, settingReadable, minimumIdleSeconds, scheduled, routes}`。每条线路列出 `cacheLifetimeSeconds`、来源 `source` 和 `compactAfterSeconds`（跳过时为 `null`）。缓存寿命依次取自这里为该线路设置的值（`setting`）、模型目录（`catalog`，Anthropic 的短档）、观测到的请求前空闲间隔中仍大部分命中缓存的最长值（`observed`；命中的间隔不会缩短默认值，更长的未命中间隔会把它封顶），或 DeepSeek 线路的 2 小时（`default`）；其它没有任何信息的线路为 `unknown` 并跳过，寿命不足 15 分钟的也跳过。`idle-compaction-cache-set ... auto` 删除该线路的设置值。每次执行都记录在 `deepseekbot bot-activity-history <bot-id>` 的 `idleCompactions` 中，包含线路、空闲时长、压缩前后 token 数，以及压缩请求的输入、缓存读取和输出 token。拒绝时带错误码：`usage`（缺少 `on`/`off`、`<provider>/<model>` 或整数秒）和 `invalid-input`。
+
 ### 模型、用量与活动
 
 ```bash

@@ -2403,6 +2403,34 @@ const TOB_ONBOARDING_MIGRATION: SchemaMigration = {
   },
 };
 
+const USAGE_IDLE_COMPACTION_MIGRATION: SchemaMigration = {
+  generation: 103,
+  module: 'usage',
+  description: 'Record idle Orchestrator Session compactions for Bot activity',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE usage_idle_compactions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        bot_slug TEXT NOT NULL,
+        at TEXT NOT NULL,
+        provider TEXT NOT NULL,
+        model TEXT NOT NULL,
+        idle_gap_ms INTEGER NOT NULL,
+        cache_lifetime_ms INTEGER NOT NULL,
+        cache_lifetime_source TEXT NOT NULL,
+        tokens_before INTEGER NOT NULL,
+        tokens_after INTEGER,
+        outcome TEXT NOT NULL CHECK (outcome IN ('compacted', 'nothing', 'failed')),
+        error TEXT,
+        input_tokens INTEGER,
+        cache_read_tokens INTEGER,
+        output_tokens INTEGER
+      );
+      CREATE INDEX usage_idle_compactions_bot_at ON usage_idle_compactions (bot_slug, at);
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -2505,4 +2533,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   CLOUD_CONNECTION_MIGRATION,
   CLOUD_WORK_MIGRATION,
   TOB_ONBOARDING_MIGRATION,
+  USAGE_IDLE_COMPACTION_MIGRATION,
 ]);

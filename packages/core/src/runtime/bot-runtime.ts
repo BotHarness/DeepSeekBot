@@ -739,6 +739,7 @@ export interface BotRuntime {
   replaceOrchestrator?<T>(botSlug: string, body: () => T): Promise<OrchestratorReplacement<T>>;
   startFreshOrchestrator?(botSlug: string, assertCurrent?: () => void): Promise<'started' | 'busy'>;
   turnRunning?(botSlug: string): boolean;
+  hasPendingInbox?(botSlug: string): boolean;
   directBotTools?(): DirectBotToolSpec[];
   directBotToolCalls?(botSlug: string): readonly DirectBotToolCall[];
   runDirectBotTool?(
@@ -3890,6 +3891,20 @@ class BotRuntimeImplementation implements BotRuntime {
 
   turnRunning(botSlug: string): boolean {
     return this.#turnSources.has(botSlug) && this.#activeTurns.has(botSlug);
+  }
+
+  hasPendingInbox(botSlug: string): boolean {
+    if (this.#closed || this.#tails.has(botSlug)) return true;
+    return this.#database.read(
+      (database) =>
+        database
+          .prepare(
+            `SELECT 1 FROM inbox_admissions
+              WHERE bot_slug = ? AND attempt_state IN ('pending', 'running', 'retryable')
+              LIMIT 1`,
+          )
+          .get(botSlug) !== undefined,
+    );
   }
 
   async #replaceOrchestrator<T>(

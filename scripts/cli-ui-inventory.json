@@ -164,6 +164,15 @@
       ]
     },
     {
+      "id": "idle-compaction",
+      "description": "Host idle Orchestrator Session compaction setting.",
+      "scope": "Host",
+      "surfaces": [
+        "setting:packages/client/src/client/idle-compaction-setting.tsx:{t('idleCompaction.row.title')}"
+      ],
+      "commands": ["idle-compaction", "idle-compaction-set", "idle-compaction-cache-set"]
+    },
+    {
       "id": "messaging-defaults",
       "description": "External messaging default routing and identities.",
       "scope": "Host",

@@ -1,4 +1,16 @@
 import { MemoryImageError } from '../memory/image.js';
+import {
+  MIN_IDLE_MS,
+  type IdleCompaction,
+  type IdleCompactionRecord,
+  type IdleCompactionRouteView,
+} from '../runtime/idle-compaction.js';
+import {
+  isCacheLifetimeSeconds,
+  MAX_CACHE_LIFETIME_SECONDS,
+  type IdleCompactionRoute,
+  type IdleCompactionSettings,
+} from '../runtime/idle-compaction-settings.js';
 import { isDeepStrictEqual } from 'node:util';
 import { DEEPSEEKBOT_RECIPE } from '../onboarding/service.js';
 import { type CloudWork } from '../cloud/work.js';
@@ -748,6 +760,9 @@ export interface BridgeMethods {
   botApprovalTemplateSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
   approvalReviewerModel(payload?: unknown): Promise<BridgeResult<ApprovalReviewerModelView>>;
   approvalReviewerModelSet(payload: unknown): Promise<BridgeResult<ApprovalReviewerModelView>>;
+  idleCompaction(payload?: unknown): BridgeResult<IdleCompactionView>;
+  idleCompactionSet(payload: unknown): BridgeResult<IdleCompactionView>;
+  idleCompactionCacheLifetimeSet(payload: unknown): BridgeResult<IdleCompactionView>;
   standingLimitsSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
   botAvatarSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
   botBannerSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
@@ -792,7 +807,23 @@ export interface ApprovalReviewerModelView {
   unavailableReason?: string;
 }
 
+export interface IdleCompactionView {
+  enabled: boolean;
+  settingReadable: boolean;
+  minimumIdleSeconds: number;
+  scheduled: number;
+  routes: IdleCompactionRouteView[];
+}
+
+export interface IdleCompactionDeps {
+  settings: IdleCompactionSettings;
+  scheduler: Pick<IdleCompaction, 'describe' | 'scheduled'>;
+  routes(): IdleCompactionRoute[];
+  rescan(): void;
+}
+
 export interface BridgeMethodsDeps {
+  idleCompaction?: IdleCompactionDeps;
   cloudConnections?: CloudConnections;
   cloudWork?: CloudWork;
   approvalReviewer?: ApprovalReviewerSettings;
@@ -1040,6 +1071,17 @@ function directToolsUnavailable(): BridgeResult<never> {
   return {
     ok: false,
     error: { code: 'unavailable', message: 'Direct Bot tools are unavailable on this Host' },
+  };
+}
+
+function idleCompactionView(deps: IdleCompactionDeps): IdleCompactionView {
+  const setting = deps.settings.read();
+  return {
+    enabled: setting !== 'invalid' && setting.enabled,
+    settingReadable: setting !== 'invalid',
+    minimumIdleSeconds: MIN_IDLE_MS / 1000,
+    scheduled: deps.scheduler.scheduled(),
+    routes: deps.scheduler.describe(deps.routes()),
   };
 }
 
@@ -3072,6 +3114,42 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         return invalidInput(error instanceof Error ? error.message : String(error));
       }
       return { ok: true, value: await reviewerModelView(route) };
+    },
+    idleCompaction() {
+      if (deps.idleCompaction === undefined) return unavailable();
+      return { ok: true, value: idleCompactionView(deps.idleCompaction) };
+    },
+    idleCompactionSet(payload) {
+      if (deps.idleCompaction === undefined) return unavailable();
+      const enabled = asObject(payload)['enabled'];
+      if (typeof enabled !== 'boolean') return invalidInput('enabled must be true or false');
+      try {
+        deps.idleCompaction.settings.setEnabled(enabled);
+      } catch (error) {
+        return invalidInput(error instanceof Error ? error.message : String(error));
+      }
+      if (enabled) deps.idleCompaction.rescan();
+      return { ok: true, value: idleCompactionView(deps.idleCompaction) };
+    },
+    idleCompactionCacheLifetimeSet(payload) {
+      if (deps.idleCompaction === undefined) return unavailable();
+      const object = asObject(payload);
+      const provider = asNonBlank(object, 'provider');
+      const model = asNonBlank(object, 'model');
+      const lifetime = object['seconds'];
+      if (provider === undefined || model === undefined)
+        return invalidInput('provider and model are required');
+      if (lifetime !== null && !isCacheLifetimeSeconds(lifetime))
+        return invalidInput(
+          `seconds must be a whole number from 0 to ${MAX_CACHE_LIFETIME_SECONDS}, or null to resolve it automatically`,
+        );
+      try {
+        deps.idleCompaction.settings.setCacheLifetime({ provider, model }, lifetime);
+      } catch (error) {
+        return invalidInput(error instanceof Error ? error.message : String(error));
+      }
+      deps.idleCompaction.rescan();
+      return { ok: true, value: idleCompactionView(deps.idleCompaction) };
     },
     standingLimitsSet(payload) {
       const slug = asSlug(payload);
@@ -6136,6 +6214,9 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       const usageRows = (deps.usage?.activity(slug, since) ?? []).filter(
         (row) => before === undefined || row.day < before,
       );
+      const idleCompactions: IdleCompactionRecord[] = beforeEnd(
+        deps.usage?.idleCompactions?.(slug, since) ?? [],
+      );
       const createdDay = localDay(deps.registry.getHistorical(slug)?.createdAt ?? '');
       const tokensByDay = new Map<string, ProfileActivityTokensDay>();
       const tokenTotals: ProfileTokenBuckets = {
@@ -6199,6 +6280,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
                   : row.totalTokens,
           })),
           modelUsageStatus: deps.usage === undefined ? 'unavailable' : 'ready',
+          idleCompactions,
         },
       };
     },

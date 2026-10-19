@@ -12,6 +12,7 @@ import {
   type OperationalDatabaseModulePort,
   type OperationalDatabaseOwner,
 } from '../database/owner.js';
+import type { IdleCompactionRecord } from '../runtime/idle-compaction.js';
 import type { SessionOwnership } from '../sessions/ownership.js';
 import type { DshSessionEvent } from '../sessions/source.js';
 
@@ -80,6 +81,10 @@ export interface UsageProjection {
   overview(period: UsageOverviewPeriod, after?: string): UsageOverviewResult;
 
   purgeBot(botSlug: string, removeFiles?: () => void): void;
+
+  recordIdleCompaction(record: IdleCompactionRecord): void;
+
+  idleCompactions(botSlug: string, sinceIso: string): IdleCompactionRecord[];
 }
 
 interface UsageDailyDbRow {
@@ -560,11 +565,73 @@ export function createUsageProjection(options: {
           connection.prepare('DELETE FROM usage_daily WHERE bot_slug = ?').run(botSlug);
           connection.prepare('DELETE FROM usage_receipts WHERE bot_slug = ?').run(botSlug);
           connection.prepare('DELETE FROM usage_legacy_baselines WHERE bot_slug = ?').run(botSlug);
+          connection.prepare('DELETE FROM usage_idle_compactions WHERE bot_slug = ?').run(botSlug);
           removeFiles?.();
         },
         ['usage'],
       );
       baselineByBot.delete(botSlug);
+    },
+    recordIdleCompaction(record) {
+      database.transaction(
+        (connection) => {
+          connection
+            .prepare(
+              `INSERT INTO usage_idle_compactions
+                 (bot_slug, at, provider, model, idle_gap_ms, cache_lifetime_ms, cache_lifetime_source,
+                  tokens_before, tokens_after, outcome, error, input_tokens, cache_read_tokens, output_tokens)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            )
+            .run(
+              record.botSlug,
+              record.at,
+              record.provider,
+              record.model,
+              Math.round(record.idleGapMs),
+              Math.round(record.cacheLifetimeMs),
+              record.cacheLifetimeSource,
+              record.tokensBefore,
+              record.tokensAfter,
+              record.outcome,
+              record.error ?? null,
+              record.inputTokens,
+              record.cacheReadTokens,
+              record.outputTokens,
+            );
+        },
+        ['usage'],
+      );
+    },
+    idleCompactions(botSlug, sinceIso) {
+      const rows = database.read((connection) =>
+        connection
+          .prepare(
+            `SELECT bot_slug, at, provider, model, idle_gap_ms, cache_lifetime_ms, cache_lifetime_source,
+                    tokens_before, tokens_after, outcome, error, input_tokens, cache_read_tokens, output_tokens
+               FROM usage_idle_compactions
+              WHERE bot_slug = ? AND at >= ?
+              ORDER BY at`,
+          )
+          .all(botSlug, sinceIso),
+      ) as Array<Record<string, unknown>>;
+      return rows.map((row) => ({
+        botSlug: row['bot_slug'] as string,
+        at: row['at'] as string,
+        provider: row['provider'] as string,
+        model: row['model'] as string,
+        idleGapMs: row['idle_gap_ms'] as number,
+        cacheLifetimeMs: row['cache_lifetime_ms'] as number,
+        cacheLifetimeSource: row[
+          'cache_lifetime_source'
+        ] as IdleCompactionRecord['cacheLifetimeSource'],
+        tokensBefore: row['tokens_before'] as number,
+        tokensAfter: (row['tokens_after'] as number | null) ?? null,
+        outcome: row['outcome'] as IdleCompactionRecord['outcome'],
+        ...(typeof row['error'] === 'string' ? { error: row['error'] } : {}),
+        inputTokens: (row['input_tokens'] as number | null) ?? null,
+        cacheReadTokens: (row['cache_read_tokens'] as number | null) ?? null,
+        outputTokens: (row['output_tokens'] as number | null) ?? null,
+      }));
     },
     activity(botSlug, sinceIso) {
       const sinceDay = usageLocalDay(Date.parse(sinceIso));

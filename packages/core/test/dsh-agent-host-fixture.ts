@@ -70,6 +70,10 @@ export class FakeAgentHost implements DshAgentHost {
     return this.#live.get(String(id));
   }
 
+  list(): Agent[] {
+    return [...this.#live.values()];
+  }
+
   async selectedModel(sessionId: string): Promise<unknown> {
     const scope = this.scopes.get(sessionId);
     const assemble = scope?.listeners.get('system-prompt/assemble');

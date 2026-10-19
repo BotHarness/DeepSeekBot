@@ -900,6 +900,11 @@ export const zh = {
   'groupAutoAccept.row.title': '自动接受入群邀请',
   'groupAutoAccept.row.description':
     '直接加入受邀群聊，不唤醒 Bot。关闭后由受邀 Bot 决定是否加入。',
+  'idleCompaction.row.title': '空闲时提前压缩上下文',
+  'idleCompaction.row.description':
+    'Bot 空闲一段时间后，趁模型的提示缓存还在，先压缩它的主会话。之后再聊时要重读的上下文更短、更便宜。聊天里不会显示，记录在 Bot 活动里。',
+  'idleCompaction.row.unreadable': '设置文件无法读取，空闲压缩已暂停。',
+  'idleCompaction.row.error': '保存失败，请重试。',
   'botSessions.row.title': '在会话列表显示 Bot 会话',
   'botSessions.row.description':
     'Bot 的 Orchestrator 和 Assignment 会话默认不出现在 DeepSeek Harness 的会话列表中。打开后会显示出来。',
@@ -4760,6 +4765,11 @@ export const en = {
   'groupAutoAccept.row.title': 'Auto-accept Group invitations',
   'groupAutoAccept.row.description':
     'Join invited Groups without waking the Bot. When off, the invited Bot decides whether to join.',
+  'idleCompaction.row.title': 'Compact idle conversations early',
+  'idleCompaction.row.description':
+    "When a Bot goes quiet, compact its main session while the model's prompt cache is still warm, so the next message re-reads a shorter, cheaper context. Nothing shows in the chat; each compaction is recorded in the Bot's activity.",
+  'idleCompaction.row.unreadable': 'The setting file cannot be read, so idle compaction is paused.',
+  'idleCompaction.row.error': 'Could not save. Try again.',
   'botSessions.row.title': 'Show Bot sessions in the session list',
   'botSessions.row.description':
     "Bot Orchestrator and Assignment sessions stay out of DeepSeek Harness's session list by default. Turn this on to show them.",

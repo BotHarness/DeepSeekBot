@@ -21,6 +21,7 @@ import type { BridgeCall } from './bridge.js';
 import { SettingsRow, SettingsRows, SettingsSection } from './ds/settings-row.js';
 import { GitSettings } from './git-settings.js';
 import { HumanNameSettings } from './human-name-settings.js';
+import { IdleCompactionSetting } from './idle-compaction-setting.js';
 import { MessagingDefaultsSettings } from './messaging-defaults-settings.js';
 import { DefaultModelSettings, OnboardingSetting } from './onboarding-view.js';
 import { PairedDevicesSettings } from './paired-devices.js';
@@ -63,11 +64,12 @@ export function GeneralSection(props: SectionProps<GeneralSectionFace>): ReactEl
 }
 
 export function ModelsSection(
-  props: SectionProps<BotModePrefsFace & { actions: BridgeActions }>,
+  props: SectionProps<BotModePrefsFace & { actions: BridgeActions; call: BridgeCall }>,
 ): ReactElement {
   return (
     <Rows>
       <DefaultModelSettings actions={props.actions} t={props.t} />
+      <IdleCompactionSetting call={props.call} t={props.t} />
       <AssignmentConcurrencyRow {...props} />
       <BotSessionsVisibilitySetting {...props} />
       <ApprovalReviewSessionsVisibilitySetting {...props} />

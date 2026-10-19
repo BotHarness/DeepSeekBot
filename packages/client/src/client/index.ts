@@ -887,7 +887,7 @@ export function apply(ctx: ClientContext): void {
           order: 10,
           label: () => t('botSettings.section.models'),
           locale: LOCALE_NS,
-          inject: () => ({ ...botModePrefsFace(prefs), actions }),
+          inject: () => ({ ...botModePrefsFace(prefs), actions, call }),
         },
         ModelsSection,
       ),

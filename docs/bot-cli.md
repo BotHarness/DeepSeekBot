@@ -571,6 +571,19 @@ deepseekbot approval-reviewer-model-set bot
 
 Both commands return `{follows, model}`: `follows` is `bot` (each Bot's own model, `model` is `null`), `model` (the named model is used for every review) or `invalid` (the setting file cannot be read). For a named model they also return `available` and, when it is `false`, `unavailableReason`. A model that is not in the catalog, or whose provider has no working key, is still saved, but every review then posts the ordinary Human card and writes `fallback=model-unavailable` with the reason to `logs.db`; the reviewer never switches to another model on its own. Each review's `approval-review` line in `logs.db` names the `model` and the `reviewSession` it used. When a Bot runs `approval-reviewer-model-set` from its own Shell, the call always becomes a Human approval card; neither a saved rule nor the Approval Reviewer can answer it. Refusals carry a code: `usage` (no `<provider>/<model>`, or `--effort` with `bot`) and `invalid-input`.
 
+### Idle Compaction
+
+When a Bot's Orchestrator Session has no running turn and no pending Bot Inbox Admission, the Host compacts it through DSH (the `/compact` path) at half its model route's prompt-cache lifetime, never before 15 minutes, so the long history is condensed while the provider can still read it at the cache-hit price. Only Sessions above half of DSH's default automatic compaction threshold for that route are compacted; Assignment and Approval Review Sessions never are. Nothing appears in the chat. The setting is Profile-wide and on by default.
+
+```bash
+deepseekbot idle-compaction
+deepseekbot idle-compaction-set on|off
+deepseekbot idle-compaction-cache-set deepseek/<model> <seconds>
+deepseekbot idle-compaction-cache-set deepseek/<model> auto
+```
+
+All three return `{enabled, settingReadable, minimumIdleSeconds, scheduled, routes}`. Each route lists `cacheLifetimeSeconds`, its `source` and `compactAfterSeconds` (`null` when the route is skipped). The lifetime comes from the per-route value set here (`setting`), the model catalog (`catalog`, Anthropic's short tier), the observed gaps before requests that still read most of their input from the cache (`observed`; a warm gap never shortens the default, and a longer cold gap caps it), or 2 hours for DeepSeek routes (`default`); other routes with nothing known are `unknown` and skipped, as are lifetimes under 15 minutes. `idle-compaction-cache-set ... auto` removes the per-route value. Each run is recorded under `idleCompactions` in `deepseekbot bot-activity-history <bot-id>` with the route, idle gap, tokens before and after, and the compaction request's input, cache-read and output tokens. Refusals carry a code: `usage` (a missing `on`/`off`, `<provider>/<model>` or whole seconds) and `invalid-input`.
+
 ### Models, usage and activity
 
 ```bash
