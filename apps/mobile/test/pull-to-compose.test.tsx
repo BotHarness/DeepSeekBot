@@ -17,20 +17,21 @@ const LAYOUT = 800;
 const END = CONTENT - LAYOUT;
 const THRESHOLD = 64;
 
-const at = (offset: number) =>
+const at = (offset: number, velocity = 0) =>
   ({
     nativeEvent: {
+      velocity: { x: 0, y: velocity },
       contentOffset: { y: offset },
       contentSize: { height: CONTENT },
       layoutMeasurement: { height: LAYOUT },
     },
   }) as NativeSyntheticEvent<NativeScrollEvent>;
 
-function mount(enabled = true) {
+function mount(enabled = true, flick?: number) {
   const onCompose = vi.fn();
   const probe: { current?: ReturnType<typeof usePullToCompose> } = {};
   function Probe() {
-    probe.current = usePullToCompose({ enabled, threshold: THRESHOLD, onCompose });
+    probe.current = usePullToCompose({ enabled, threshold: THRESHOLD, flick, onCompose });
     return null;
   }
   act(() => createRoot(document.createElement('div')).render(<Probe />));
@@ -93,5 +94,28 @@ describe('pull to compose', () => {
     const { onCompose, drag } = mount(false);
     drag(END, END + THRESHOLD * 2);
     expect(onCompose).not.toHaveBeenCalled();
+  });
+
+  describe('on Android, where the end stretches instead of moving', () => {
+    const flickUp = (pull: ReturnType<typeof mount>['pull'], from: number, velocity: number) =>
+      act(() => {
+        pull().onScrollBeginDrag(at(from));
+        pull().onScrollEndDrag(at(END, velocity));
+      });
+
+    it('opens the composer for an upward flick at the newest message', () => {
+      const { onCompose, pull } = mount(true, 1);
+      flickUp(pull, END, -1.2);
+      expect(onCompose).toHaveBeenCalledTimes(1);
+      expect(played).toEqual(['impact:light']);
+    });
+
+    it('ignores a slow drag, a downward flick and a flick that started in history', () => {
+      const { onCompose, pull } = mount(true, 1);
+      flickUp(pull, END, -0.5);
+      flickUp(pull, END, 2);
+      flickUp(pull, END - 400, -3);
+      expect(onCompose).not.toHaveBeenCalled();
+    });
   });
 });

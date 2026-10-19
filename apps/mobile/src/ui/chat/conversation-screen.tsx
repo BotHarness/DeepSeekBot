@@ -382,15 +382,12 @@ function ChatConversation({
   const composerInput = useRef<ComposerInput>(null);
   const [typing, setTyping] = useState(false);
   const clipboard = useClipboardImage(typing && files.length < MAX_PICKED);
-  const composable =
-    Platform.OS === 'ios' &&
-    !botDm &&
-    conversation !== undefined &&
-    host.connection.status === 'connected';
+  const composable = !botDm && conversation !== undefined && host.connection.status === 'connected';
   const compose = useCallback(() => composerInput.current?.focus(), []);
   const pull = usePullToCompose({
     enabled: composable,
     threshold: pullToCompose.threshold,
+    flick: Platform.OS === 'android' ? pullToCompose.flick : undefined,
     onCompose: compose,
   });
   const markdownViewport = useMemo(
@@ -1007,7 +1004,7 @@ function ChatConversation({
           {nativeScrollEdge ? null : (
             <EdgeFade edge="bottom" height={composerHeight + edgeFade.bottom} />
           )}
-          {composable ? (
+          {composable && Platform.OS === 'ios' ? (
             <PullToComposeHint
               progress={pull.progress}
               ready={pull.ready}

@@ -29,6 +29,10 @@ function measure(event: ScrollEvent) {
   };
 }
 
+export function flickedPast(velocity: number, minimum: number): boolean {
+  return velocity >= minimum;
+}
+
 export type PullToCompose = {
   progress: SharedValue<number>;
   ready: boolean;
@@ -40,10 +44,12 @@ export type PullToCompose = {
 export function usePullToCompose({
   enabled,
   threshold,
+  flick,
   onCompose,
 }: {
   enabled: boolean;
   threshold: number;
+  flick?: number | undefined;
   onCompose(): void;
 }): PullToCompose {
   const from = useRef<number | undefined>(undefined);
@@ -68,27 +74,33 @@ export function usePullToCompose({
 
   const onScroll = useCallback(
     (event: ScrollEvent) => {
-      if (from.current === undefined) return;
+      if (from.current === undefined || flick !== undefined) return;
       const pulled = pulledPast(event.nativeEvent.contentOffset.y, from.current);
       progress.value = Math.min(1, pulled / threshold);
       reach(pulled >= threshold);
     },
-    [progress, threshold, reach],
+    [flick, progress, threshold, reach],
   );
 
   const onScrollEndDrag = useCallback(
     (event: ScrollEvent) => {
       if (from.current === undefined) return;
-      const pulled = pulledPast(event.nativeEvent.contentOffset.y, from.current);
+      const { distance } = measure(event);
+      const composes =
+        flick === undefined
+          ? pulledPast(event.nativeEvent.contentOffset.y, from.current) >= threshold
+          : atLatest(distance) && flickedPast(-(event.nativeEvent.velocity?.y ?? 0), flick);
       from.current = undefined;
       progress.value = withTiming(0, {
         duration: motion.composer,
         reduceMotion: ReduceMotion.System,
       });
       reach(false);
-      if (enabled && pulled >= threshold) onCompose();
+      if (!enabled || !composes) return;
+      if (flick !== undefined) haptic('pull');
+      onCompose();
     },
-    [enabled, threshold, onCompose, progress, reach],
+    [enabled, flick, threshold, onCompose, progress, reach],
   );
 
   return { progress, ready, onScrollBeginDrag, onScroll, onScrollEndDrag };

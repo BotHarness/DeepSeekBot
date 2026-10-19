@@ -291,7 +291,7 @@ export const MessageBubble = memo(function MessageBubble({
             }
           : {})}
         {...(failed ? { onPress: () => onRetry?.(message.id) } : {})}
-        {...(!streaming && onReact !== undefined && reactable(message) && Platform.OS === 'ios'
+        {...(!streaming && onReact !== undefined && reactable(message)
           ? {
               onDoubleTap: () =>
                 onReact(

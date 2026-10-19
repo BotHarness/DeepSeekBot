@@ -122,7 +122,7 @@ export const motion = {
   menu: 160,
 } as const;
 
-export const pullToCompose = { threshold: 64 } as const;
+export const pullToCompose = { threshold: 64, flick: 1 } as const;
 
 export const doubleTap = { window: 300, emoji: '👍' } as const;
 

@@ -408,7 +408,7 @@ describe('double-tap to react', () => {
     expect(secondTap(1000, 1301)).toBe(false);
   });
 
-  it('adds a thumbs up on iOS', () => {
+  it('adds a thumbs up', () => {
     expect(doubleTap(bot)).toHaveBeenCalledWith('bot-1', '👍', true);
   });
 
@@ -417,10 +417,13 @@ describe('double-tap to react', () => {
     expect(doubleTap({ ...bot, reactions: [mine] })).toHaveBeenCalledWith('bot-1', '👍', false);
   });
 
-  it('leaves Android and messages that cannot take reactions alone', () => {
-    expect(doubleTap({ ...bot, delivery: 'pending' })).not.toHaveBeenCalled();
+  it('works the same on Android', () => {
     native.os = 'android';
-    expect(doubleTap(bot)).not.toHaveBeenCalled();
+    expect(doubleTap(bot)).toHaveBeenCalledWith('bot-1', '👍', true);
+  });
+
+  it('leaves messages that cannot take reactions alone', () => {
+    expect(doubleTap({ ...bot, delivery: 'pending' })).not.toHaveBeenCalled();
   });
 });
 
