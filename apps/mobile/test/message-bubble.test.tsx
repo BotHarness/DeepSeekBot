@@ -418,7 +418,7 @@ describe('double-tap to react', () => {
   });
 
   it('leaves Android and messages that cannot take reactions alone', () => {
-    expect(doubleTap({ ...bot, revision: undefined })).not.toHaveBeenCalled();
+    expect(doubleTap({ ...bot, delivery: 'pending' })).not.toHaveBeenCalled();
     native.os = 'android';
     expect(doubleTap(bot)).not.toHaveBeenCalled();
   });
