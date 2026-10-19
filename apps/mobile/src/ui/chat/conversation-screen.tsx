@@ -388,7 +388,11 @@ function ChatConversation({
   const [typing, setTyping] = useState(false);
   const clipboard = useClipboardImage(typing && files.length < MAX_PICKED);
   const composable = !botDm && conversation !== undefined && host.connection.status === 'connected';
-  const compose = useCallback(() => composerInput.current?.focus(), []);
+  const { jumpToLatest } = latest;
+  const compose = useCallback(() => {
+    jumpToLatest();
+    composerInput.current?.focus();
+  }, [jumpToLatest]);
   const pull = usePullToCompose({
     enabled: composable,
     threshold: pullToCompose.threshold,
