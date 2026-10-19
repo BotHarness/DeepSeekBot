@@ -25,6 +25,7 @@ export const edge = {
 
 export const sidebar = { inset: 8, radius: 44 } as const;
 export const stateRing = { width: 2, inset: 3, segment: 0.26, period: 1300 } as const;
+export const rowGlyph = { size: 16, period: 900 } as const;
 
 export const sheetHandle = { width: 32, height: 4 } as const;
 export const navigationBar = {

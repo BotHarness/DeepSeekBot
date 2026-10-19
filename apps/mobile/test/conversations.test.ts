@@ -6,6 +6,8 @@ import {
   chatList,
   conversations,
   countBadge,
+  DONE_WINDOW_MS,
+  rowStatus,
   searchConversations,
   shortTime,
   type ChatListItem,
@@ -174,6 +176,47 @@ const shape = (items: ChatListItem[]) =>
       ? `[${item.id} ${item.count}${item.collapsed ? ' collapsed' : ''}${item.needsYou > 0 ? ` !${item.needsYou}` : ''}${item.unread > 0 ? ` +${item.unread}` : ''}]`
       : item.key,
   );
+
+describe('Row status', () => {
+  const now = new Date('2026-10-14T12:00:00.000Z');
+  const bot = roster.bots[0]!;
+  const row = (
+    patch: Partial<typeof bot>,
+    attention: { needsYou?: number; unread?: number } = {},
+  ): Parameters<typeof rowStatus>[0] => ({
+    kind: 'bot',
+    key: 'bot:ada',
+    bot: { ...bot, ...patch },
+    needsYou: attention.needsYou ?? 0,
+    unread: attention.unread ?? 0,
+    muted: false,
+  });
+  const fromAda = { previewAuthor: { kind: 'bot' as const, slug: 'ada' } };
+
+  it('puts the Human first, then blocked work, then running work', () => {
+    expect(rowStatus(row({ state: 'working' }, { needsYou: 1 }), now)).toBe('needs-you');
+    expect(rowStatus(row({ state: 'waiting' }), now)).toBe('needs-you');
+    expect(rowStatus(row({ state: 'blocked' }), now)).toBe('blocked');
+    expect(rowStatus(row({ state: 'thinking', paused: true }), now)).toBe('working');
+    expect(rowStatus(row({ paused: true }), now)).toBe('paused');
+  });
+
+  it('marks a finished turn by the Bot as unread, then done for a day, then nothing', () => {
+    expect(rowStatus(row(fromAda, { unread: 2 }), now)).toBe('done-unread');
+    expect(rowStatus(row(fromAda), now)).toBe('done');
+    expect(
+      rowStatus(
+        row({
+          ...fromAda,
+          previewAt: new Date(now.getTime() - DONE_WINDOW_MS - 1).toISOString(),
+        }),
+        now,
+      ),
+    ).toBe('none');
+    expect(rowStatus(row({ previewAuthor: { kind: 'human' } }, { unread: 1 }), now)).toBe('none');
+    expect(rowStatus(row({}), now)).toBe('none');
+  });
+});
 
 describe('Chats grouped by Channel section', () => {
   it('keeps the flat list for a Host with no sections', () => {

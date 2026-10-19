@@ -6,6 +6,7 @@ export interface WireMessage {
   id: string;
   at: string;
   body: string;
+  author?: WireAuthor;
 }
 
 export type WireAuthor =

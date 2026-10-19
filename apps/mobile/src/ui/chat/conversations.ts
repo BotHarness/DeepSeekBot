@@ -22,6 +22,31 @@ export type UnreadCounts = Readonly<Record<string, number>>;
 
 export type CountBadgeState = { tone: 'needs-you' | 'unread' | 'muted'; count: number } | undefined;
 
+export type RowStatus =
+  | 'needs-you'
+  | 'blocked'
+  | 'working'
+  | 'paused'
+  | 'done-unread'
+  | 'done'
+  | 'none';
+
+export const DONE_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+export function rowStatus(row: Conversation, now: Date): RowStatus {
+  if (row.kind !== 'bot') return 'none';
+  const { bot } = row;
+  if (row.needsYou > 0 || bot.state === 'waiting') return 'needs-you';
+  if (bot.state === 'blocked') return 'blocked';
+  if (bot.state === 'thinking' || bot.state === 'working') return 'working';
+  if (bot.paused) return 'paused';
+  const author = bot.previewAuthor;
+  if (author?.kind !== 'bot' || author.slug !== bot.slug) return 'none';
+  if (row.unread > 0) return 'done-unread';
+  const at = Date.parse(bot.previewAt ?? '');
+  return Number.isFinite(at) && now.getTime() - at < DONE_WINDOW_MS ? 'done' : 'none';
+}
+
 export function countBadge(attention: Attention): CountBadgeState {
   if (attention.needsYou > 0) return { tone: 'needs-you', count: attention.needsYou };
   if (attention.unread > 0)

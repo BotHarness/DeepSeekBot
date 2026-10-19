@@ -605,7 +605,14 @@ const en = {
   appVersionUnknown: 'Unknown',
   back: 'Back',
   backToChats: 'Back to Chats',
-  workingPreview: 'Working…',
+  rowStatus: {
+    'needs-you': 'Needs you',
+    blocked: 'Blocked',
+    working: 'Working',
+    paused: 'Paused',
+    'done-unread': 'Finished, unread',
+    done: 'Finished',
+  },
   effect: {
     searching: 'Searching',
     coding: 'Editing',
@@ -1588,7 +1595,14 @@ const zh: typeof en = {
   appVersionUnknown: '未知',
   back: '返回',
   backToChats: '返回聊天列表',
-  workingPreview: '工作中…',
+  rowStatus: {
+    'needs-you': '正在等待你',
+    blocked: '已受阻',
+    working: '工作中',
+    paused: '已暂停',
+    'done-unread': '已完成，未读',
+    done: '已完成',
+  },
   effect: {
     searching: '正在搜索',
     coding: '正在编辑',

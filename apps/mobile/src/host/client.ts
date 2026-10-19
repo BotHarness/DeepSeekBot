@@ -16,6 +16,7 @@ import {
   type RosterLiveFrame,
   type WireBotActivity,
   type WireSessionActivity,
+  type WireAuthor,
   type WireToolActivity,
 } from './wire';
 
@@ -46,6 +47,7 @@ export interface RosterBot {
   dmChannelId?: string;
   preview?: string;
   previewAt?: string;
+  previewAuthor?: WireAuthor;
 }
 
 export interface RosterChannel {
@@ -59,6 +61,7 @@ export interface RosterChannel {
   pendingJoins?: Array<{ id: string; botSlug: string }>;
   preview?: string;
   previewAt?: string;
+  previewAuthor?: WireAuthor;
 }
 
 export interface RosterSection {
@@ -201,12 +204,17 @@ function record(value: unknown): Record<string, unknown> {
   return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
 }
 
-function previewOf(channel: ChannelListItem | undefined): { preview?: string; previewAt?: string } {
+function previewOf(channel: ChannelListItem | undefined): {
+  preview?: string;
+  previewAt?: string;
+  previewAuthor?: WireAuthor;
+} {
   const message = channel?.latestMessage;
   if (message === undefined) return {};
   return {
     preview: message.body.replace(/\s+/gu, ' ').trim().slice(0, 140),
     previewAt: message.at,
+    ...(message.author === undefined ? {} : { previewAuthor: message.author }),
   };
 }
 
