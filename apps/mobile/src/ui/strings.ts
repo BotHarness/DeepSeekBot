@@ -521,6 +521,7 @@ const en = {
   olderLoading: 'Loading earlier messages…',
   jumpToLatest: 'Return to latest messages',
   pullToCompose: 'Pull up to type',
+  clipboardImage: 'Image on the clipboard',
   releaseToCompose: 'Release to type',
   unseenLatest: (count: number) =>
     `${count} new ${count === 1 ? 'message' : 'messages'} · Jump to latest`,
@@ -1517,6 +1518,7 @@ const zh: typeof en = {
   olderLoading: '正在加载更早的消息…',
   jumpToLatest: '返回最新消息',
   pullToCompose: '上拉输入消息',
+  clipboardImage: '剪贴板里有一张图片',
   releaseToCompose: '松手输入消息',
   unseenLatest: (count: number) => `${count} 条新消息 · 跳到最新`,
   beginning: '这是你们私信的开始。',

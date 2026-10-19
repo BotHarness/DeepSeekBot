@@ -369,6 +369,7 @@ export function Composer({
   selection,
   onSelection,
   inputRef,
+  onFocusChange,
 }: {
   value: string;
   placeholder: string;
@@ -389,6 +390,7 @@ export function Composer({
   selection?: { start: number; end: number } | undefined;
   onSelection?(caret: number): void;
   inputRef?: Ref<ComposerInput>;
+  onFocusChange?(focused: boolean): void;
 }) {
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
@@ -477,7 +479,11 @@ export function Composer({
             onSelectionChange: (event: { nativeEvent: { selection: { end: number } } }) =>
               onSelection(event.nativeEvent.selection.end),
           })}
-      onFocus={() => setMenu(false)}
+      onFocus={() => {
+        setMenu(false);
+        onFocusChange?.(true);
+      }}
+      onBlur={() => onFocusChange?.(false)}
       placeholder={
         held
           ? t.dictationHoldHint

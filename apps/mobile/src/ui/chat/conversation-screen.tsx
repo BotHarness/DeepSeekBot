@@ -36,7 +36,13 @@ import {
 import type { Inbox } from '../../host/inbox';
 import type { WireAllBotPreview } from '../../host/wire';
 import { shareAttachment } from '../../host/share-attachment';
-import { MAX_PICKED, pickFiles, type PickSource, type PickedFile } from '../../host/pick-files';
+import {
+  MAX_PICKED,
+  fromClipboardImage,
+  pickFiles,
+  type PickSource,
+  type PickedFile,
+} from '../../host/pick-files';
 import {
   useChannelConversation,
   useConversation,
@@ -62,6 +68,7 @@ import { botBusy } from './bot-tone';
 import { ChannelTitle } from './channel-title';
 import { ChatTitle } from './chat-title';
 import { Composer, type ComposerInput } from './composer';
+import { ClipboardImageOffer, useClipboardImage } from './clipboard-image';
 import { EdgeFade, HeaderBackButton } from './header-chrome';
 import { ScrollEdgeElement, nativeScrollEdge } from '../primitives/scroll-edge-element';
 import { barLabelStyle, glassHeader, useHeaderOverlap } from './native-header';
@@ -373,6 +380,8 @@ function ChatConversation({
   );
   const latest = useFollowLatest(list, visible, playback?.setFollowing, headerOverlap);
   const composerInput = useRef<ComposerInput>(null);
+  const [typing, setTyping] = useState(false);
+  const clipboard = useClipboardImage(typing && files.length < MAX_PICKED);
   const composable =
     Platform.OS === 'ios' &&
     !botDm &&
@@ -816,9 +825,23 @@ function ChatConversation({
                   setSelection(undefined);
                   setCaret(next);
                 }}
-                {...(candidates.length === 0
-                  ? {}
-                  : { above: <MentionSuggestions candidates={candidates} onChoose={mention} /> })}
+                {...(candidates.length > 0
+                  ? { above: <MentionSuggestions candidates={candidates} onChoose={mention} /> }
+                  : clipboard.offered
+                    ? {
+                        above: (
+                          <ClipboardImageOffer
+                            onPaste={(data) => {
+                              clipboard.used();
+                              setAttachError(false);
+                              setFiles((current) =>
+                                [...current, fromClipboardImage(data)].slice(0, MAX_PICKED),
+                              );
+                            }}
+                          />
+                        ),
+                      }
+                    : {})}
                 onSend={send}
                 onPick={pick}
                 onRemove={(id) => setFiles((current) => current.filter((file) => file.id !== id))}
@@ -829,6 +852,7 @@ function ChatConversation({
                 onStopDictation={dictation.stop}
                 onCancelDictation={dictation.cancel}
                 inputRef={composerInput}
+                onFocusChange={setTyping}
               />
             )}
           </ScrollEdgeElement>
