@@ -3,11 +3,13 @@ import { useState, useSyncExternalStore } from 'react';
 import { Platform, View } from 'react-native';
 
 import { useDesignTheme } from '../design/theme';
-import { space } from '../design/tokens';
+import { edge, radius, space } from '../design/tokens';
+import { useLiquidGlass } from '../primitives/drawer-material';
 import { Button } from '../primitives/button';
 import { Text } from '../primitives/text';
 import { PhotoIcon } from '../shell/icons';
 import { t } from '../strings';
+import { ComposerFieldMaterial } from './composer-chrome';
 
 type ClipboardState = { image: boolean; generation: number };
 
@@ -66,6 +68,8 @@ export function useClipboardImage(watching: boolean) {
 
 export function ClipboardImageOffer({ onPaste }: { onPaste(data: string): void }) {
   const theme = useDesignTheme();
+  const glass = useLiquidGlass();
+  const corner = glass ? radius.xl : radius.lg;
   return (
     <View
       style={{
@@ -73,10 +77,21 @@ export function ClipboardImageOffer({ onPaste }: { onPaste(data: string): void }
         alignItems: 'center',
         justifyContent: 'space-between',
         gap: space.x3,
-        paddingHorizontal: space.x4,
+        marginBottom: space.x2,
+        paddingHorizontal: glass ? space.x5 : space.x4,
         paddingVertical: space.x2,
+        borderRadius: corner,
+        overflow: 'hidden',
+        ...(glass
+          ? {}
+          : {
+              borderWidth: edge.hairline,
+              borderColor: theme.layer.sheet.edge,
+              backgroundColor: theme.layer.sheet.fill,
+            }),
       }}
     >
+      {glass ? <ComposerFieldMaterial cornerRadius={corner} /> : null}
       <Text variant="meta" tone="muted" style={{ flexShrink: 1 }}>
         {t.clipboardImage}
       </Text>
@@ -100,7 +115,7 @@ export function ClipboardImageOffer({ onPaste }: { onPaste(data: string): void }
             testID="composer-paste-image"
             label={t.pasteImage}
             variant="text"
-            on="canvas"
+            on="sheet"
             icon={<PhotoIcon color={theme.color.fg} size={theme.type.body.line} />}
             onPress={() => void readClipboardImage(onPaste)}
           />
