@@ -11,7 +11,7 @@ import { KeyboardFormScroll } from '../primitives/keyboard-form';
 import { useMounted } from '../mounted';
 import { Button } from '../primitives/button';
 import { Text } from '../primitives/text';
-import { TextInput } from '../primitives/system-text';
+import { TextField } from '../primitives/text-field';
 import { t } from '../strings';
 
 export function CloudCreateChannelScreen() {
@@ -121,19 +121,13 @@ function CreateChannelForm({
         ) : (
           <>
             <Text>{t.cloudChannels.name}</Text>
-            <TextInput
+            <TextField
               accessibilityLabel={t.cloudChannels.name}
               value={name}
               onChangeText={setName}
               maxLength={80}
               editable={!working && !pendingHere}
               autoCapitalize="none"
-              style={{
-                minHeight: theme.touch,
-                color: theme.color.fg,
-                backgroundColor: theme.layer.field.fill,
-                padding: space.x4,
-              }}
             />
             {!!pendingHere && <Text>{t.cloudChannels.pending}</Text>}
             <View>

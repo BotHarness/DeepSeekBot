@@ -18,7 +18,7 @@ import { radius, space } from '../design/tokens';
 import { Button } from '../primitives/button';
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
 import { Text } from '../primitives/text';
-import { TextInput } from '../primitives/system-text';
+import { TextField } from '../primitives/text-field';
 import { t } from '../strings';
 import { CloudChannelName } from './channel-name';
 
@@ -342,11 +342,9 @@ function ChannelWorkspace({
                 onPress={() => void run(() => history(selected))}
               />
               <View style={box}>
-                <TextInput
+                <TextField
                   accessibilityLabel={t.cloudChannels.message}
                   placeholder={t.cloudChannels.message}
-                  placeholderTextColor={theme.color.subtle}
-                  style={{ color: theme.color.fg }}
                   multiline
                   maxLength={4000}
                   value={pendingSend?.value ?? draft}
@@ -378,11 +376,9 @@ function ChannelWorkspace({
             <>
               {!guest && row.organization?.role === 'owner' && (
                 <View style={box}>
-                  <TextInput
+                  <TextField
                     accessibilityLabel={t.cloudChannels.name}
                     placeholder={t.cloudChannels.name}
-                    placeholderTextColor={theme.color.subtle}
-                    style={{ color: theme.color.fg }}
                     value={pendingCreate?.value ?? name}
                     maxLength={80}
                     editable={!busy && !pendingCreate}

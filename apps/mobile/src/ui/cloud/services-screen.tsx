@@ -11,8 +11,9 @@ import { radius, space } from '../design/tokens';
 import { Button } from '../primitives/button';
 import { ConnectionNameField } from '../primitives/connection-name-field';
 import { Text } from '../primitives/text';
-import { TextInput } from '../primitives/system-text';
+import { TextField } from '../primitives/text-field';
 import { t } from '../strings';
+import { confirmDestructive } from '../primitives/app-dialog';
 
 function errorMessage(code: string) {
   if (code === 'INSTANCE_CONFIG_CHANGED') return t.cloud.changed;
@@ -41,11 +42,17 @@ export function CloudServicesScreen() {
   const scanned = useRef(false);
   const [pasting, setPasting] = useState(false);
   const [configurationText, setConfigurationText] = useState('');
-  const [candidate, setCandidate] = useState<{ raw: string; config: InstanceConfig }>();
+  const [candidate, setCandidate] = useState<{
+    raw: string;
+    config: InstanceConfig;
+  }>();
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
   const [connectionName, setConnectionName] = useState('');
-  const [editingName, setEditingName] = useState<{ id: string; value: string }>();
+  const [editingName, setEditingName] = useState<{
+    id: string;
+    value: string;
+  }>();
   const old =
     candidate && snapshot.rows.find((row) => row.config.instanceId === candidate.config.instanceId);
   const replacement =
@@ -137,25 +144,16 @@ export function CloudServicesScreen() {
           {pasting && (
             <View style={box}>
               <Text>{t.cloud.pasteHint}</Text>
-              <TextInput
+              <TextField
                 value={configurationText}
                 onChangeText={setConfigurationText}
                 accessibilityLabel={t.cloud.configurationText}
                 placeholder={t.cloud.configurationText}
-                placeholderTextColor={theme.color.subtle}
                 autoCapitalize="none"
                 autoCorrect={false}
                 multiline
                 maxLength={4097}
                 editable={!snapshot.busy}
-                style={{
-                  minHeight: theme.touch,
-                  padding: space.x4,
-                  borderRadius: radius.md,
-                  backgroundColor: theme.color.base,
-                  color: theme.color.fg,
-                  fontSize: theme.type.body.size,
-                }}
               />
               <Button
                 label={t.cloud.reviewConfig}
@@ -333,12 +331,19 @@ export function CloudServicesScreen() {
               />
               <Button
                 label={t.cloud.logout}
+                tone="danger"
                 disabled={snapshot.busy}
                 onPress={() =>
-                  void run(async () => {
-                    const result = await cloudClient.logout(item.config.instanceId);
-                    setNotice(result.remoteRevoked ? t.cloud.loggedOut : t.cloud.localOnly);
-                  })
+                  confirmDestructive(
+                    t.confirmAction(t.cloud.logout),
+                    undefined,
+                    t.cloud.logout,
+                    () =>
+                      run(async () => {
+                        const result = await cloudClient.logout(item.config.instanceId);
+                        setNotice(result.remoteRevoked ? t.cloud.loggedOut : t.cloud.localOnly);
+                      }),
+                  )
                 }
               />
             </>

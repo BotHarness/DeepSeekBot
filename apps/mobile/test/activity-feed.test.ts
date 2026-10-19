@@ -139,6 +139,17 @@ async function feed(
   return container;
 }
 
+async function clearSearch(view: HTMLElement): Promise<void> {
+  expect(view.querySelector(`button[aria-label="${t.activityClearSearch}"]`)).toBeNull();
+  const field = view.querySelector<HTMLTextAreaElement>(
+    `textarea[aria-label="${t.activitySearch}"]`,
+  )!;
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(field, '');
+    field.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+}
+
 function button(view: HTMLElement, label: string): HTMLButtonElement {
   const found = view.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`);
   if (found === null) throw new Error(`no button ${label}`);
@@ -358,7 +369,7 @@ describe('Activity feed', () => {
     await press(button(view, t.cancel));
     await press(button(view, t.activitySearch));
     expect(view.querySelector('textarea')?.value).toBe('budget');
-    await press(button(view, t.activityClearSearch));
+    await clearSearch(view);
     expect(view.querySelector('textarea')?.value).toBe('');
     expect(queries.at(-1)?.search).toBeUndefined();
     expect(view.textContent).toContain(t.inboxSections.action);
@@ -383,7 +394,7 @@ describe('Activity feed', () => {
     await settle();
     expect(view.textContent).toContain(t.activityNoResults);
     expect(view.querySelectorAll('[role=tab]')).toHaveLength(3);
-    await press(button(view, t.activityClearSearch));
+    await clearSearch(view);
     expect(view.textContent).not.toContain(t.activityNoResults);
     expect(view.textContent).toContain(t.inboxSections.action);
   });

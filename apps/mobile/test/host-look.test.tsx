@@ -4,7 +4,11 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('react-native-keyboard-controller', async () => import('./keyboard-controller-shim'));
-vi.mock('react-native', () => import('./react-native-shim'));
+const alert = vi.fn();
+vi.mock('react-native', async () => ({
+  ...(await import('./react-native-shim')),
+  Alert: { alert: (...args: unknown[]) => alert(...args) },
+}));
 vi.mock('react-native-svg', () => ({
   default: () => null,
   Path: () => null,
@@ -287,6 +291,13 @@ describe('Customize computer sheet', () => {
     });
 
     await act(async () => button(view, t.hostLookReset)!.click());
+    expect(alert.mock.calls.at(-1)![0]).toBe(t.confirmAction(t.hostLookReset));
+    const buttons = alert.mock.calls.at(-1)![2] as {
+      text: string;
+      onPress?: () => void;
+    }[];
+    expect(buttons.map((entry) => entry.text)).toEqual([t.cancel, t.hostLookReset]);
+    await act(async () => buttons[1]!.onPress!());
     expect(handlers.onChange).toHaveBeenLastCalledWith(DEFAULT_HOST_LOOK);
     await act(async () => button(view, t.done)!.click());
     expect(handlers.onClose).toHaveBeenCalled();

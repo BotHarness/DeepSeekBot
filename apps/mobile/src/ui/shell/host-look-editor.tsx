@@ -1,4 +1,5 @@
 import { TextInput } from '../primitives/system-text';
+import { TextField } from '../primitives/text-field';
 import { useState, type ReactNode } from 'react';
 import { Pressable, View } from 'react-native';
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
@@ -29,6 +30,7 @@ import { Chip } from '../primitives/chip';
 import { GradientFill } from './gradient-fill';
 import { HostBandLayer, HostChipFace, useHostBand } from './host-band';
 import { hostInitial, HostTile, presetAvatarSvg } from './host-tile';
+import { confirmDestructive } from '../primitives/app-dialog';
 
 export interface HostLookActions {
   onChange(look: HostLook): void;
@@ -298,27 +300,16 @@ export function HostLookEditor({
       <Preview hostName={shown} look={look} />
 
       <Section title={t.hostLookName}>
-        <TextInput
+        <TextField
           accessibilityLabel={t.hostLookName}
           value={nameDraft}
           placeholder={hostName}
-          placeholderTextColor={theme.color.subtle}
           maxLength={HOST_NAME_MAX}
           autoCorrect={false}
           returnKeyType="done"
           onChangeText={(text) => {
             setNameDraft(text);
             actions.onChange(withHostName(look, text));
-          }}
-          style={{
-            minHeight: theme.touch,
-            paddingHorizontal: space.x4,
-            borderRadius: radius.md,
-            borderWidth: edge.hairline,
-            borderColor: theme.layer.field.edge,
-            backgroundColor: theme.layer.field.fill,
-            color: theme.color.fg,
-            fontSize: theme.type.body.size,
           }}
         />
       </Section>
@@ -449,11 +440,13 @@ export function HostLookEditor({
         on="canvas"
         tone="danger"
         label={t.hostLookReset}
-        onPress={() => {
-          setKind('accent');
-          setNameDraft('');
-          actions.onChange(DEFAULT_HOST_LOOK);
-        }}
+        onPress={() =>
+          confirmDestructive(t.confirmAction(t.hostLookReset), undefined, t.hostLookReset, () => {
+            setKind('accent');
+            setNameDraft('');
+            actions.onChange(DEFAULT_HOST_LOOK);
+          })
+        }
       />
     </KeyboardFormScroll>
   );

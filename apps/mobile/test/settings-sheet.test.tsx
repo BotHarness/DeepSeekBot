@@ -4,7 +4,11 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('react-native-keyboard-controller', async () => import('./keyboard-controller-shim'));
-vi.mock('react-native', () => import('./react-native-shim'));
+const alert = vi.fn();
+vi.mock('react-native', async () => ({
+  ...(await import('./react-native-shim')),
+  Alert: { alert: (...args: unknown[]) => alert(...args) },
+}));
 vi.mock('expo-router', () => ({ useRouter: () => ({ back() {} }) }));
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
@@ -113,10 +117,24 @@ describe('Settings sheet', () => {
         actions={actions({ onUnpair })}
       />,
     );
+    const confirm = async (text: string) => {
+      const buttons = alert.mock.calls.at(-1)![2] as {
+        text: string;
+        onPress?: () => void;
+      }[];
+      await act(async () => buttons.find((entry) => entry.text === text)!.onPress?.());
+    };
     await act(async () => button(view, t.unpair)!.click());
+    expect(alert.mock.calls.at(-1)![0]).toBe(t.unpairHost('studio'));
+    await confirm(t.cancel);
+    expect(onUnpair).not.toHaveBeenCalled();
+
+    await act(async () => button(view, t.unpair)!.click());
+    await confirm(t.unpair);
     expect(dangerNotices(view)).toEqual([`${t.unpairFailed} cannot reach your computer.`]);
 
     await act(async () => button(view, t.unpair)!.click());
+    await confirm(t.unpair);
     expect(onUnpair).toHaveBeenCalledTimes(2);
     expect(dangerNotices(view)).toEqual([]);
   });

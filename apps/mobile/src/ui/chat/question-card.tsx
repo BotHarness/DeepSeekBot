@@ -1,4 +1,4 @@
-import { TextInput } from '../primitives/system-text';
+import { TextField } from '../primitives/text-field';
 import { useCallback, useRef, useState } from 'react';
 import { Pressable, View, type ViewInstance } from 'react-native';
 
@@ -249,25 +249,13 @@ function QuestionFields({
           ) : null}
         </>
       ) : (
-        <TextInput
+        <TextField
           accessibilityLabel={`${t.otherAnswer}: ${question.question}`}
           placeholder={question.options?.length ? t.otherAnswer : t.typeAnswer}
-          placeholderTextColor={theme.color.subtle}
           editable={!disabled}
           multiline
           value={draft.custom}
           onChangeText={(text) => onChange(typeCustom(question, draft, text))}
-          style={{
-            minHeight: theme.touch,
-            color: theme.color.fg,
-            fontSize: theme.type.body.size,
-            borderColor: theme.layer.field.edge,
-            borderWidth: edge.hairline,
-            borderRadius: radius.md,
-            paddingHorizontal: space.x4,
-            paddingVertical: space.x3,
-            backgroundColor: theme.layer.field.fill,
-          }}
         />
       )}
     </View>

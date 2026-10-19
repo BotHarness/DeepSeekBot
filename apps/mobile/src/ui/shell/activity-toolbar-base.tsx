@@ -1,6 +1,6 @@
 import { useImperativeHandle, useState, type ReactNode, type Ref } from 'react';
 import { Stack } from 'expo-router';
-import { Keyboard, Pressable, View } from 'react-native';
+import { Keyboard, Platform, Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useDesignTheme } from '../design/theme';
@@ -105,7 +105,7 @@ export function ActivityToolbar({
         {!unavailable && searching ? (
           <SearchField
             trailing={
-              search ? (
+              search && Platform.OS === 'android' ? (
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={t.activityClearSearch}

@@ -9,7 +9,7 @@ import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
 import { Button } from '../primitives/button';
 import { Text } from '../primitives/text';
-import { TextInput } from '../primitives/system-text';
+import { TextField } from '../primitives/text-field';
 import { t } from '../strings';
 
 export function CloudOrganizationsScreen() {
@@ -107,7 +107,7 @@ function OrganizationWorkspace({
           ) : (
             <>
               <View style={box}>
-                <TextInput
+                <TextField
                   accessibilityLabel={t.cloudOrganizations.name}
                   placeholder={t.cloudOrganizations.name}
                   value={row.pendingCreate?.name ?? name}
@@ -200,7 +200,7 @@ function OrganizationWorkspace({
                       }
                     />
                   )}
-                  <TextInput
+                  <TextField
                     accessibilityLabel={t.cloudOrganizations.description}
                     placeholder={t.cloudOrganizations.description}
                     value={description}

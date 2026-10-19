@@ -1,25 +1,59 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-const { platform, nativeAlert } = vi.hoisted(() => ({
+const { platform, nativeAlert, actionSheet } = vi.hoisted(() => ({
   platform: { OS: 'android' },
   nativeAlert: vi.fn(),
+  actionSheet: vi.fn(),
 }));
 vi.mock('react-native', () => ({
   Platform: platform,
   Alert: { alert: nativeAlert },
+  ActionSheetIOS: { showActionSheetWithOptions: actionSheet },
   Keyboard: { dismiss() {} },
 }));
 
-import { showAppDialog } from '../src/ui/primitives/app-dialog';
+import { confirmDestructive, showActionMenu, showAppDialog } from '../src/ui/primitives/app-dialog';
 import { appDialogs, createDialogState } from '../src/ui/primitives/dialog-state';
 
 afterEach(() => {
   appDialogs.dismiss();
   nativeAlert.mockReset();
+  actionSheet.mockReset();
   platform.OS = 'android';
 });
 
 describe('app dialogs', () => {
+  it('shows an iOS action sheet with the destructive action last and Cancel apart', () => {
+    platform.OS = 'ios';
+    const remove = vi.fn();
+    const open = vi.fn();
+    showActionMenu('Bo', [
+      { text: 'Remove', style: 'destructive', onPress: remove },
+      { text: 'Open profile', onPress: open },
+    ]);
+    const [options, pick] = actionSheet.mock.calls[0]!;
+    expect(options).toEqual({
+      title: 'Bo',
+      options: ['Open profile', 'Remove', 'Cancel'],
+      destructiveButtonIndex: 1,
+      cancelButtonIndex: 2,
+    });
+    pick(2);
+    expect(remove).not.toHaveBeenCalled();
+    pick(0);
+    expect(open).toHaveBeenCalled();
+    expect(nativeAlert).not.toHaveBeenCalled();
+  });
+
+  it('asks before a destructive action with Cancel first', () => {
+    platform.OS = 'ios';
+    confirmDestructive('Sign out?', undefined, 'Sign out', vi.fn());
+    expect(nativeAlert.mock.calls[0]![2]).toEqual([
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Sign out', style: 'destructive', onPress: expect.any(Function) },
+    ]);
+  });
+
   it('routes Android through the app surface and leaves iOS native', () => {
     showAppDialog('Unpair?', 'Phone only', [{ text: 'Cancel', style: 'cancel' }]);
     expect(nativeAlert).not.toHaveBeenCalled();

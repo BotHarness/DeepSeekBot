@@ -1,6 +1,7 @@
-import { Alert, Keyboard, Platform } from 'react-native';
+import { ActionSheetIOS, Alert, Keyboard, Platform } from 'react-native';
 
 import { appDialogs, type DialogAction } from './dialog-state';
+import { t } from '../strings';
 
 export function showAppDialog(
   title: string,
@@ -27,4 +28,40 @@ export function showAppDialog(
           }),
     })),
   );
+}
+
+export function confirmDestructive(
+  title: string,
+  message: string | undefined,
+  action: string,
+  onConfirm: () => unknown,
+): void {
+  showAppDialog(title, message, [
+    { text: t.cancel, style: 'cancel' },
+    { text: action, style: 'destructive', onPress: onConfirm },
+  ]);
+}
+
+export function showActionMenu(title: string, actions: readonly DialogAction[]): void {
+  const ordered = [
+    ...actions.filter((action) => action.style !== 'destructive'),
+    ...actions.filter((action) => action.style === 'destructive'),
+  ];
+  if (Platform.OS === 'ios') {
+    const destructive = ordered.findIndex((action) => action.style === 'destructive');
+    ActionSheetIOS.showActionSheetWithOptions(
+      {
+        title,
+        options: [...ordered.map((action) => action.text), t.cancel],
+        ...(destructive === -1 ? {} : { destructiveButtonIndex: destructive }),
+        cancelButtonIndex: ordered.length,
+      },
+      (index) => {
+        const onPress = ordered[index]?.onPress;
+        if (onPress) void Promise.resolve(onPress()).catch(() => undefined);
+      },
+    );
+    return;
+  }
+  showAppDialog(title, undefined, [{ text: t.cancel, style: 'cancel' }, ...ordered]);
 }

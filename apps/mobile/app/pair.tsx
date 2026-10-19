@@ -1,4 +1,5 @@
-import { Text, TextInput } from '../src/ui/primitives/system-text';
+import { Text } from '../src/ui/primitives/system-text';
+import { TextField } from '../src/ui/primitives/text-field';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import Constants from 'expo-constants';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
@@ -149,7 +150,7 @@ export default function PairScreen() {
         />
       ) : null}
       <Text style={{ color: theme.ink, fontWeight: '600' }}>{t.pasteLink}</Text>
-      <TextInput
+      <TextField
         accessibilityLabel={t.pasteLink}
         value={link}
         onChangeText={(value) => {
@@ -157,21 +158,11 @@ export default function PairScreen() {
           handled.current = undefined;
         }}
         placeholder="deepseekbot://pair?p=…"
-        placeholderTextColor={theme.inkSoft}
         autoCapitalize="none"
         autoCorrect={false}
         keyboardType="url"
         returnKeyType="go"
         onSubmitEditing={() => void pair(link, 'paste')}
-        style={{
-          borderWidth: 1,
-          borderColor: theme.border,
-          borderRadius: 12,
-          padding: 12,
-          fontSize: 16,
-          color: theme.ink,
-          backgroundColor: theme.surface,
-        }}
       />
       <Button
         label={t.pair}

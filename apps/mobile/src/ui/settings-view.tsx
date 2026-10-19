@@ -6,6 +6,7 @@ import type { OverviewUsage } from '../host/usage';
 import { SHEET_GROUP } from './chat/sheet';
 import { useDesignTheme } from './design/theme';
 import { space } from './design/tokens';
+import { confirmDestructive } from './primitives/app-dialog';
 import { SettingsRow, SettingsSection } from './primitives/settings-row';
 import { Text } from './primitives/text';
 import { errorText, Notice } from './request-parts';
@@ -134,10 +135,17 @@ export function SettingsView({
             on={SHEET_GROUP}
             title={t.unpair}
             tone="danger"
-            onPress={() => {
-              setUnpairError(undefined);
-              actions.onUnpair().catch((error: unknown) => setUnpairError(errorText(error)));
-            }}
+            onPress={() =>
+              confirmDestructive(
+                t.unpairHost(hostName ?? '—'),
+                t.unpairHostDetail,
+                t.unpair,
+                () => {
+                  setUnpairError(undefined);
+                  actions.onUnpair().catch((error: unknown) => setUnpairError(errorText(error)));
+                },
+              )
+            }
           />
         </SettingsSection>
         {unpairError === undefined ? null : (

@@ -1,7 +1,7 @@
-import { TextInput } from '../primitives/system-text';
+import { TextField } from '../primitives/text-field';
 import { useState, type ReactNode } from 'react';
 import { FlatList, Pressable, SectionList, View } from 'react-native';
-import { showAppDialog } from '../primitives/app-dialog';
+import { confirmDestructive, showActionMenu, showAppDialog } from '../primitives/app-dialog';
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
 
 import { errorText } from '../../host/bot-settings';
@@ -143,7 +143,6 @@ function RenameSheet({
   onSave(name: string): Promise<boolean>;
   onClose(): void;
 }) {
-  const theme = useDesignTheme();
   const [draft, setDraft] = useState(name);
   const [busy, setBusy] = useState(false);
   const next = draft.trim();
@@ -162,25 +161,18 @@ function RenameSheet({
       avoidKeyboard
     >
       <KeyboardFormScroll enabled={false}>
-        <TextInput
+        <TextField
           value={draft}
           onChangeText={setDraft}
           accessibilityLabel={t.groupName}
+          placeholder={name}
           maxLength={GROUP_NAME_MAX}
           autoFocus
           returnKeyType="done"
           onSubmitEditing={() => {
             if (next !== '' && next !== name) void save();
           }}
-          style={{
-            minHeight: theme.touch,
-            marginHorizontal: space.x5,
-            paddingHorizontal: space.x4,
-            borderRadius: radius.md,
-            backgroundColor: theme.layer[SHEET_GROUP].fill,
-            color: theme.color.fg,
-            fontSize: theme.type.body.size,
-          }}
+          style={{ marginHorizontal: space.x5 }}
         />
         <SheetActions>
           <View>
@@ -293,22 +285,16 @@ export function GroupInfoSheet({
 
   const memberMenu = (member: GroupMember) => {
     const name = memberName(member);
-    showAppDialog(name, undefined, [
+    showActionMenu(name, [
       { text: t.groupOpenProfile, onPress: () => onOpenBot(member.slug) },
       {
         text: t.groupRemove,
         style: 'destructive',
         onPress: () =>
-          showAppDialog(t.groupRemoveConfirm(name), undefined, [
-            { text: t.cancel, style: 'cancel' },
-            {
-              text: t.groupRemove,
-              style: 'destructive',
-              onPress: () => run(`member:${member.slug}`, () => actions.removeMember(member.slug)),
-            },
-          ]),
+          confirmDestructive(t.groupRemoveConfirm(name), undefined, t.groupRemove, () =>
+            run(`member:${member.slug}`, () => actions.removeMember(member.slug)),
+          ),
       },
-      { text: t.cancel, style: 'cancel' },
     ]);
   };
 

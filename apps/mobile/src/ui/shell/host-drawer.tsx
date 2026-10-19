@@ -3,10 +3,8 @@ import { StatusBar } from 'expo-status-bar';
 import { useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
 import {
   AccessibilityInfo,
-  ActionSheetIOS,
   BackHandler,
   FlatList,
-  Platform,
   Pressable,
   StyleSheet,
   useWindowDimensions,
@@ -44,7 +42,7 @@ import { useMounted } from '../mounted';
 import { drawerSpring, edge, motion, radius, scrim, space } from '../design/tokens';
 import { CountBadge } from '../primitives/count-badge';
 import { Text } from '../primitives/text';
-import { showAppDialog } from '../primitives/app-dialog';
+import { showActionMenu, showAppDialog } from '../primitives/app-dialog';
 import { t } from '../strings';
 import { HostTile } from './host-tile';
 import { WorkspaceTabs, type WorkspaceTab } from './workspace-tabs';
@@ -195,27 +193,15 @@ function openHostMenu(row: HostDrawerRow, name: string): void {
       destructive: true,
     },
   ];
-  if (Platform.OS === 'ios') {
-    ActionSheetIOS.showActionSheetWithOptions(
-      {
-        title: name,
-        options: [...actions.map((action) => action.label), t.cancel],
-        destructiveButtonIndex: actions.findIndex((action) => action.destructive === true),
-        cancelButtonIndex: actions.length,
-      },
-      (index) => actions[index]?.run(),
-    );
-    return;
-  }
-  showAppDialog(name, undefined, [
-    { text: t.cancel, style: 'cancel' },
-    ...actions.map((action) => ({
+  showActionMenu(
+    name,
+    actions.map((action) => ({
       text: action.label,
       icon: action.icon,
       style: action.destructive === true ? ('destructive' as const) : ('default' as const),
       onPress: action.run,
     })),
-  ]);
+  );
 }
 
 function DrawerTile({ look, name, current }: { look: HostLook; name: string; current: boolean }) {

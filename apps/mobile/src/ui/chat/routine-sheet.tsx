@@ -1,4 +1,4 @@
-import { TextInput } from '../primitives/system-text';
+import { TextField } from '../primitives/text-field';
 import { useRef, useState, type ComponentType, type ReactNode } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 
@@ -17,7 +17,7 @@ import {
 } from '../../host/routines';
 import type { BotScheduleFiring, BotScheduleSummary } from '../../host/wire';
 import { useDesignTheme } from '../design/theme';
-import { edge, radius, space } from '../design/tokens';
+import { space } from '../design/tokens';
 import { useMounted } from '../mounted';
 import { Button } from '../primitives/button';
 import { SettingsGroupItem, SettingsRow } from '../primitives/settings-row';
@@ -60,30 +60,16 @@ function Field({
   keyboard?: 'default' | 'number-pad' | 'numbers-and-punctuation';
   onChange(text: string): void;
 }) {
-  const theme = useDesignTheme();
   return (
-    <TextInput
+    <TextField
       accessibilityLabel={label}
       value={value}
       placeholder={placeholder}
-      placeholderTextColor={theme.color.subtle}
       multiline={multiline}
       keyboardType={keyboard}
       autoCorrect={!multiline ? false : undefined}
       onChangeText={onChange}
-      style={{
-        marginHorizontal: space.x5,
-        minHeight: multiline ? theme.touch * 2 : theme.touch,
-        color: theme.color.fg,
-        fontSize: theme.type.body.size,
-        textAlignVertical: multiline ? 'top' : 'center',
-        borderColor: theme.layer.field.edge,
-        borderWidth: edge.hairline,
-        borderRadius: radius.md,
-        paddingHorizontal: space.x4,
-        paddingVertical: space.x3,
-        backgroundColor: theme.layer.field.fill,
-      }}
+      style={{ marginHorizontal: space.x5 }}
     />
   );
 }
