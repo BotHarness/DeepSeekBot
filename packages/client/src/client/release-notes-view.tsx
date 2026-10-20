@@ -8,7 +8,6 @@ import {
   IconDownloadOutlineRegular,
   MarkdownText,
   Tag,
-  Tooltip,
   type MarkdownLabels,
   type TagTone,
 } from '@deepseek-ai/dsh-client-ui-primitives';
@@ -18,6 +17,7 @@ import type { ReleaseNote } from '../../../core/src/release/notes.js';
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
 import { IconButton } from './ds/icon-button.js';
 import { SettingsRow } from './ds/settings-row.js';
+import { Tooltip } from './ds/tooltip.js';
 import { color, space, text } from './ds/tokens.stylex.js';
 import { Modal } from './modal.js';
 import { useMountedResource } from './mounted-resource.js';
