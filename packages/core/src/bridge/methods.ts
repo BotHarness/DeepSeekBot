@@ -49,6 +49,14 @@ import {
   type PurgeSource,
   type PurgePreview,
 } from '../purge/contracts.js';
+import {
+  STORAGE_MEDIA_KINDS,
+  StorageCleanupError,
+  type MediaCleanupPreview,
+  type MediaCleanupResult,
+  type StorageCleanup,
+  type StorageUsage,
+} from '../storage/media-cleanup.js';
 import { pairingReviewInput, type PairingRequest } from '../messaging/pairing.js';
 import { senderAccessInput } from '../messaging/sender-access.js';
 import type { GroupMemberWakePolicy } from '../channels/channel.js';
@@ -633,6 +641,9 @@ export interface BridgeMethods {
     payload: unknown,
   ): BridgeResult<{ sources: PurgeSource[]; before?: string }>;
   channelPurgePreview(payload: unknown): BridgeResult<PurgePreview>;
+  storageUsage(payload?: unknown): BridgeResult<StorageUsage>;
+  storageCleanupPreview(payload: unknown): BridgeResult<MediaCleanupPreview>;
+  storageCleanupConfirm(payload: unknown): BridgeResult<MediaCleanupResult>;
   channelPurgeConfirm(
     payload: unknown,
   ): BridgeResult<{ accepted: number; cleanupPending?: number }>;
@@ -847,6 +858,24 @@ export interface IdleCompactionDeps {
   compactBot?(slug: string): Promise<ManualCompactionResult>;
 }
 
+const storageCleanupScope = z
+  .object({
+    before: z.iso.datetime(),
+    channelIds: z.array(z.string().min(1).max(200)).max(500).optional(),
+    kinds: z.array(z.enum(STORAGE_MEDIA_KINDS)).min(1).max(4).optional(),
+  })
+  .strict();
+
+function storageFailure(error: unknown, message: string): BridgeResult<never> {
+  return {
+    ok: false,
+    error:
+      error instanceof StorageCleanupError
+        ? { code: error.code, message: error.message }
+        : { code: 'storage-unavailable', message },
+  };
+}
+
 export interface BridgeMethodsDeps {
   idleCompaction?: IdleCompactionDeps;
   cloudConnections?: CloudConnections;
@@ -860,6 +889,7 @@ export interface BridgeMethodsDeps {
   approvalTemplates?: ApprovalTemplateLibrary;
   deletions?: PersonaBotDeletions;
   contentPurge?: ContentPurge;
+  storage?: StorageCleanup;
   dataReset?: DataReset;
   attachments?: AttachmentStore;
   modelPresets?: ModelPresetStore;
@@ -4180,6 +4210,38 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
               error instanceof ContentPurgeError ? error.message : 'Purge preview is unavailable',
           },
         };
+      }
+    },
+    storageUsage() {
+      if (!deps.storage) return unavailable();
+      try {
+        return { ok: true, value: deps.storage.usage() };
+      } catch (error) {
+        return storageFailure(error, 'Storage usage is unavailable');
+      }
+    },
+    storageCleanupPreview(payload) {
+      const input = storageCleanupScope.safeParse(payload);
+      if (!input.success) return invalidInput('Invalid storage cleanup scope');
+      if (!deps.storage) return unavailable();
+      try {
+        return { ok: true, value: deps.storage.preview(input.data) };
+      } catch (error) {
+        return storageFailure(error, 'Storage cleanup preview is unavailable');
+      }
+    },
+    storageCleanupConfirm(payload) {
+      const input = storageCleanupScope
+        .extend({ token: z.string().min(1).max(512) })
+        .strict()
+        .safeParse(payload);
+      if (!input.success) return invalidInput('Invalid storage cleanup confirmation');
+      if (!deps.storage) return unavailable();
+      const { token, ...scope } = input.data;
+      try {
+        return { ok: true, value: deps.storage.confirm(scope, token) };
+      } catch (error) {
+        return storageFailure(error, 'Storage cleanup could not complete');
       }
     },
     channelPurgeConfirm(payload) {

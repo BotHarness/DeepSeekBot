@@ -156,6 +156,14 @@
       "gap": null
     },
     {
+      "id": "desktop.storage.cleanup",
+      "label": "See storage used, preview and clear old chat media by chat, age and type",
+      "source": "packages/client/src/client/storage-settings.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/storage-cleanup.md",
+      "task": 2430,
+      "gap": null
+    },
+    {
       "id": "desktop.release.identity",
       "label": "About and CLI show the actual source-build identity",
       "source": "packages/client/src/client/bot-settings.tsx",

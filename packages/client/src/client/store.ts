@@ -252,6 +252,7 @@ export interface ChannelMessage {
   privateInputRequest?: import('../../../core/src/credentials/contracts.js').PrivateInputCard;
   privateInputResolution?: import('../../../core/src/credentials/contracts.js').PrivateInputResolution;
   attachments?: ChannelAttachmentRef[];
+  clearedAttachments?: import('../../../core/src/attachments/ref.js').ChannelClearedAttachment[];
   format?: 'markdown' | 'text';
   replyTo?: string;
   replyToPreview?: ChannelReplyPreview | null;

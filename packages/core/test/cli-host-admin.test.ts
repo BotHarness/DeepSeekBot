@@ -299,6 +299,65 @@ describe('data reset commands', () => {
   });
 });
 
+describe('storage commands', () => {
+  it('shows usage, previews by age and confirms with the piped preview', async () => {
+    const scope = { before: '2026-07-22T00:00:00.000Z', channelIds: ['dm-ada'], kinds: ['image'] };
+    const preview = { token: 'storage-token', scope, files: 2, freedBytes: 2048 };
+    const live = await host((method) =>
+      ok(
+        method === 'storageUsage'
+          ? { totalBytes: 4096, parts: [], chats: [] }
+          : method === 'storageCleanupPreview'
+            ? preview
+            : { messages: 1, files: 2, freedBytes: 2048 },
+      ),
+    );
+    expect((await invoke(['storage-usage'], live.url)).json.totalBytes).toBe(4096);
+    expect(
+      (
+        await invoke(
+          [
+            'storage-cleanup-preview',
+            '--before',
+            scope.before,
+            '--chat',
+            'dm-ada',
+            '--media',
+            'image',
+          ],
+          live.url,
+        )
+      ).json,
+    ).toEqual(preview);
+    for (const [argv, stdin] of [
+      [['storage-cleanup-preview'], ''],
+      [['storage-cleanup-preview', '--older-than-days', '-1'], ''],
+      [['storage-cleanup-preview', '--older-than-days', '9', '--media', 'sticker'], ''],
+      [['storage-cleanup-confirm', '--confirmation-stdin'], JSON.stringify(preview)],
+      [['storage-cleanup-confirm', '--confirm'], JSON.stringify(preview)],
+      [['storage-cleanup-confirm', '--confirmation-stdin', '--confirm'], 'not json'],
+    ] as const) {
+      const refused = await invoke([...argv], live.url, stdin);
+      expect(refused.code).not.toBe(0);
+      expect(refused.json.error.code).toBe('usage');
+    }
+    expect(
+      (
+        await invoke(
+          ['storage-cleanup-confirm', '--confirmation-stdin', '--confirm'],
+          live.url,
+          JSON.stringify(preview),
+        )
+      ).json,
+    ).toEqual({ messages: 1, files: 2, freedBytes: 2048 });
+    expect(live.calls).toEqual([
+      { method: 'storageUsage', args: {} },
+      { method: 'storageCleanupPreview', args: scope },
+      { method: 'storageCleanupConfirm', args: { ...scope, token: 'storage-token' } },
+    ]);
+  });
+});
+
 describe('telemetry and Git commands', () => {
   it('reads and sets usage statistics and Git through the Host', async () => {
     const live = await host((method, args) =>

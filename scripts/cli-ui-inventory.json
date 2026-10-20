@@ -286,6 +286,15 @@
       "commands": ["data-reset-preview", "data-reset-confirm"]
     },
     {
+      "id": "storage-cleanup",
+      "description": "Show storage used by chat media, messages and Memory, and clear reviewed chat media by chat, age and type.",
+      "scope": "Host",
+      "surfaces": [
+        "setting:packages/client/src/client/storage-settings.tsx:{t('storage.row.title')}"
+      ],
+      "commands": ["storage-usage", "storage-cleanup-preview", "storage-cleanup-confirm"]
+    },
+    {
       "id": "workspace-grants",
       "description": "Workspace access and grant controls.",
       "scope": "Host",

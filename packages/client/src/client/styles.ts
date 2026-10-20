@@ -3481,6 +3481,8 @@ html[data-botharness-motion='reduce'] .bh-timeline-working-ellipsis i { animatio
 .bh-message-file, .bh-message-audio { display: flex; align-items: center; gap: ${space.x3}; min-width: 0; width: fit-content; max-width: min(100%, 320px); min-height: 52px; padding: ${space.x3} ${space.x3} ${space.x3} ${space.x4}; border: 0; border-radius: ${radius.md}; background: color-mix(in srgb, currentColor 6%, transparent); color: inherit; }
 /* Wrap by the attachment's available width, including narrow desktop dock panels. */
 .bh-message-file { box-sizing: border-box; flex-wrap: wrap; }
+.bh-message-file-cleared { border: ${border.hairline} dashed ${color.border}; background: transparent; color: var(--dsw-alias-label-secondary); }
+.bh-message-file-cleared .bh-message-file-icon { opacity: 0.56; }
 .bh-message-file-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: ${space.x2}; max-width: 100%; margin-inline-start: auto; }
 .bh-message-file-actions > .bh-message-file-divider { display: none; }
 .bh-message-file-main { display: flex; align-items: center; gap: ${space.x3}; flex: 1 1 16ch; min-width: 0; max-width: 100%; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; text-decoration: none; }

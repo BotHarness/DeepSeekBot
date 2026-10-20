@@ -101,6 +101,13 @@ import {
   type ApprovalReviewerValues,
 } from './cli-approval-reviewer.js';
 import {
+  isStorageCommand,
+  runStorageCommand,
+  STORAGE_COMMANDS,
+  STORAGE_OPTIONS,
+  type StorageValues,
+} from './cli-storage.js';
+import {
   IDLE_COMPACTION_COMMANDS,
   isIdleCompactionCommand,
   runIdleCompactionCommand,
@@ -129,6 +136,7 @@ export const LIVE_OPTIONS = {
   ...TODO_OPTIONS,
   ...APPROVAL_TEMPLATE_OPTIONS,
   ...APPROVAL_REVIEWER_OPTIONS,
+  ...STORAGE_OPTIONS,
   host: { type: 'string' },
   'token-file': { type: 'string' },
   'image-source': { type: 'string' },
@@ -233,6 +241,7 @@ export const LIVE_COMMANDS = [
   ...APPROVAL_TEMPLATE_COMMANDS,
   ...APPROVAL_REVIEWER_COMMANDS,
   ...IDLE_COMPACTION_COMMANDS,
+  ...STORAGE_COMMANDS,
   {
     command: 'send',
     description: 'send a Human DM and collect its committed Bot reply from a live Host',
@@ -797,6 +806,11 @@ export async function runLiveCli(
     });
   if (isApprovalReviewerCommand(command))
     return runApprovalReviewerCommand(command, rest, values, async () => {
+      const signal = AbortSignal.timeout(timeoutMs(values.timeout));
+      return (await connectLiveHost(values, io, signal)).rpc;
+    });
+  if (isStorageCommand(command))
+    return runStorageCommand(command, rest, values as StorageValues, io, async () => {
       const signal = AbortSignal.timeout(timeoutMs(values.timeout));
       return (await connectLiveHost(values, io, signal)).rpc;
     });

@@ -6,7 +6,7 @@ import { ToolApprovalCard } from './tool-approval-card.js';
 import { OnboardingWelcome } from './onboarding-view.js';
 import { BridgeImage } from './bridge-image.js';
 import { ExternalMessageText } from './external-message-text.js';
-import { MessageAttachment } from './message-attachment.js';
+import { ClearedMessageAttachment, MessageAttachment } from './message-attachment.js';
 import { useMemo, useRef, useState, type ReactElement } from 'react';
 
 import {
@@ -686,6 +686,13 @@ export function ChannelMessageBody({
               actions={actions}
               t={t}
             />
+          ))}
+        </div>
+      ) : null}
+      {message.clearedAttachments?.length ? (
+        <div className="bh-message-attachments">
+          {message.clearedAttachments.map((item, index) => (
+            <ClearedMessageAttachment key={`${item.name}-${index}`} attachment={item} t={t} />
           ))}
         </div>
       ) : null}

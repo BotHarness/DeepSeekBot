@@ -82,6 +82,7 @@ import { ProtectedExecution } from './credentials/protected-execution.js';
 import { nativeExecutionRoot } from './workspaces/grant-native-tools.js';
 import { createAttachmentStore, type AttachmentStore } from './attachments/store.js';
 import { startAttachmentSweep } from './attachments/sweep.js';
+import { createStorageCleanup } from './storage/media-cleanup.js';
 import { memoryAttachmentReferences } from './memory/backup.js';
 import { createMemoryImageHttp, MEMORY_IMAGE_PATH } from './memory/image-http.js';
 import { createMemoryFileHttp, MEMORY_FILE_DOWNLOAD_PATH } from './memory/file-http.js';
@@ -1334,6 +1335,16 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   publishDraft = (event) => core.live.publishDraft(event);
   ctx.effect(() => () => core.operationalDatabase.close(), 'botharness: operational database');
   ctx.effect(() => () => core.contentPurge.close(), 'botharness: purge ledger');
+  const storage = createStorageCleanup({
+    dshHome,
+    database: core.operationalDatabase,
+    attachments: core.attachments,
+    channels: core.channels,
+    memoryDirs: () =>
+      core.registry.listHistorical().flatMap((bot) => core.registry.memoryDirFor(bot.slug) ?? []),
+    memoryReferences: () => memoryAttachmentReferences(core.registry, core.deletions),
+    botName: (slug) => core.registry.get(slug)?.displayName,
+  });
   ctx.effect(
     () =>
       startAttachmentSweep({
@@ -2199,6 +2210,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     approvalTemplates,
     deletions: core.deletions,
     contentPurge: core.contentPurge,
+    storage,
     dataReset,
     defaultModelSettings: () => ctx.get('settings') as unknown as TobNativeSettings | undefined,
     modelPresets: core.modelPresets,

@@ -635,6 +635,40 @@ describe('DM conversation', () => {
     ]);
   });
 
+  it('shows cleared media as a cleared file card without a download source', async () => {
+    const host = new FakeHost();
+    host.channel(DM).append(
+      {
+        id: 'old-1',
+        author: { kind: 'human' },
+        body: 'from January',
+        clearedAttachments: [
+          {
+            name: 'beach.png',
+            mime: 'image/png',
+            size: 4096,
+            clearedAt: '2026-10-20T00:00:00.000Z',
+          },
+        ],
+      },
+      false,
+    );
+    const target = open(host);
+    const live = await until(target, (s) => s.messages.length === 1);
+    expect(live.messages[0]?.body).toBe('from January');
+    expect(live.messages[0]?.attachments).toEqual([
+      {
+        key: 'old-1:cleared:0',
+        kind: 'file',
+        name: 'beach.png',
+        mime: 'image/png',
+        size: 4096,
+        local: false,
+        cleared: true,
+      },
+    ]);
+  });
+
   it('streams a Bot draft live and replaces it with the committed reply', async () => {
     const host = new FakeHost();
     const channel = host.channel(DM);

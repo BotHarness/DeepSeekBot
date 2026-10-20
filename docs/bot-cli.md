@@ -672,6 +672,20 @@ This is the CLI form of **Settings → Data & privacy → Clear all BotHarness d
 
 `data-reset-confirm` needs `--confirmation-stdin --confirm`. It stops BotHarness writing, records the reset in `$DSH_HOME/botharness-reset.json` and returns `{reset:{status:"restarting"}}`: the folders are removed when the old Host exits, before it starts again. When the Host cannot restart itself it returns `restart-required`; Bots stay stopped and the removal finishes at the next Host start, including after the plugin is reinstalled. DSH sessions, DSH settings and other plugins stay. Only the Host owner can run it; it is not a Bot tool.
 
+### Storage space
+
+```bash
+deepseekbot storage-usage
+deepseekbot storage-cleanup-preview --older-than-days 90 [--chat <channel-id> …] [--media image|video|audio|file …] \
+  | deepseekbot storage-cleanup-confirm --confirmation-stdin --confirm
+```
+
+This is the CLI form of **Settings → Data & privacy → Storage space**. `storage-usage` returns `totalBytes`, `parts` (`media` is the attachment folder, `messages` the operational database, `memory` every Bot's Memory folder, `other` the rest of `$DSH_HOME/botharness`) and `chats`, largest media first, with each chat's `messages`, `oldestAt`, `mediaBytes` and per-kind `media` totals.
+
+`storage-cleanup-preview` takes exactly one of `--before <ISO time>` or `--older-than-days <n>`, optional repeated `--chat` (default: every chat) and `--media` (default: all four kinds). It returns the files and bytes it would clear, `freedBytes` (files nothing else still uses), per-chat and per-kind totals, `kept` counts (`bot-working`, `delivery-pending`, `memory`, `migration`) and a ten-minute `token` with its normalized `scope`. Pipe that JSON into `storage-cleanup-confirm --confirmation-stdin --confirm`; a changed selection or an expired token refuses with `storage-preview-stale`, so preview again.
+
+Clearing keeps every message and its text: each cleared attachment becomes a `clearedAttachments` entry (name, type, size, time) and its file is deleted when nothing else references it. Media mirrored from IM apps and Bot Memory are not touched. A Profile Backup taken earlier still holds the files.
+
 ## IM application authorization
 
 Use the same live Host authentication described above. `im-apps` discovers compatible Feishu and WeChat flows; it does not expose account credentials. The isolated development launcher can install the qualified Provider with `--im-provider`.

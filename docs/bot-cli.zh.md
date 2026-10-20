@@ -658,6 +658,20 @@ printf '%s' '{"token":"<preview.token>"}' | deepseekbot data-reset-confirm --con
 
 `data-reset-confirm` 需要 `--confirmation-stdin --confirm`。它会让 BotHarness 停止写入，在 `$DSH_HOME/botharness-reset.json` 记录本次清除，并返回 `{reset:{status:"restarting"}}`：旧 Host 退出时、重新启动之前删除这些文件夹。Host 不能自动重启时返回 `restart-required`；Bot 保持停止，删除会在下一次 Host 启动时完成，插件重新安装后也一样。DSH 会话、DSH 设置和其他插件保持不变。只有 Host owner 能执行，它不是 Bot 工具。
 
+### 存储空间
+
+```bash
+deepseekbot storage-usage
+deepseekbot storage-cleanup-preview --older-than-days 90 [--chat <channel-id> …] [--media image|video|audio|file …] \
+  | deepseekbot storage-cleanup-confirm --confirmation-stdin --confirm
+```
+
+这是**设置 → 数据与隐私 → 存储空间**的 CLI 形式。`storage-usage` 返回 `totalBytes`、`parts`（`media` 是附件文件夹，`messages` 是运行数据库，`memory` 是全部 Bot 的 Memory 文件夹，`other` 是 `$DSH_HOME/botharness` 中其余内容），以及按媒体大小从大到小排列的 `chats`，其中包含每个聊天的 `messages`、`oldestAt`、`mediaBytes` 和按类型的 `media` 统计。
+
+`storage-cleanup-preview` 需要且只能传 `--before <ISO 时间>` 或 `--older-than-days <天数>` 之一，可重复传 `--chat`（默认全部聊天）和 `--media`（默认四种类型）。它返回将清理的文件数与字节数、`freedBytes`（没有其他地方再引用的文件）、按聊天和类型的统计、`kept` 计数（`bot-working`、`delivery-pending`、`memory`、`migration`），以及十分钟有效的 `token` 和规范化后的 `scope`。把这段 JSON 通过管道交给 `storage-cleanup-confirm --confirmation-stdin --confirm`；范围有变化或 token 过期时返回 `storage-preview-stale`，请重新预览。
+
+清理会保留每条消息及其文字：每个被清理的附件会变成一条 `clearedAttachments` 记录（名称、类型、大小、时间），没有其他引用时删除其文件。来自 IM 应用的媒体和 Bot 的 Memory 不受影响。之前做的 Profile Backup 仍包含这些文件。
+
 ## IM 应用授权
 
 复用上文的在线 Host 认证。`im-apps` 查询兼容的飞书／微信授权流程，不暴露账号凭据。隔离开发启动器可用 `--im-provider` 安装已资格验证的 Provider。

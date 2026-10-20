@@ -20,6 +20,32 @@ export function inlineImageAttachment(mime: string): boolean {
   return INLINE_IMAGE_TYPES.includes(mime);
 }
 
+export function ClearedMessageAttachment({
+  attachment: item,
+  t,
+}: {
+  attachment: { name: string; size: number };
+  t: BotHarnessTranslate;
+}): ReactElement {
+  return (
+    <div className="bh-message-file bh-message-file-cleared" data-cleared-attachment="">
+      <span className="bh-message-file-main">
+        <span className="bh-message-file-icon" aria-hidden="true">
+          <FileTypeIcon path={item.name} size={28} />
+        </span>
+        <span className="bh-message-file-copy">
+          <span className="bh-message-file-name" title={item.name}>
+            {item.name}
+          </span>
+          <span className="bh-message-file-size">
+            {t('message.attachment.cleared', { size: fileSizeText(item.size) })}
+          </span>
+        </span>
+      </span>
+    </div>
+  );
+}
+
 export function MessageAttachment({
   attachment: ref,
   channelId,

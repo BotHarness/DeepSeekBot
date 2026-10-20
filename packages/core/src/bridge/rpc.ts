@@ -9,6 +9,12 @@ import type { HttpsFallback } from '../memory/clone.js';
 import type { PairingRequest, PairingReviewInput } from '../messaging/pairing.js';
 import type { SenderAccessInput } from '../messaging/sender-access.js';
 import type { ChannelHistoryItem, PurgeSource, PurgePreview } from '../purge/contracts.js';
+import type {
+  MediaCleanupPreview,
+  MediaCleanupResult,
+  StorageMediaKind,
+  StorageUsage,
+} from '../storage/media-cleanup.js';
 import type { GroupMemberWakePolicy } from '../channels/channel.js';
 import { LiveRefused } from '../channels/live-frames.js';
 import type { ChannelJournalPage, ChannelJournalRequest } from '../channels/timeline.js';
@@ -1141,6 +1147,37 @@ export class BotharnessBridgeService extends TypertRemoteService {
       }),
     );
   }
+  storageUsage(): StorageUsage {
+    return unwrap(this.methods.storageUsage({}));
+  }
+  storageCleanupPreview(
+    before: string,
+    channelIds?: string[],
+    kinds?: StorageMediaKind[],
+  ): MediaCleanupPreview {
+    return unwrap(
+      this.methods.storageCleanupPreview({
+        before,
+        ...(channelIds === undefined ? {} : { channelIds }),
+        ...(kinds === undefined ? {} : { kinds }),
+      }),
+    );
+  }
+  storageCleanupConfirm(
+    before: string,
+    channelIds: string[] | undefined,
+    kinds: StorageMediaKind[] | undefined,
+    token: string,
+  ): MediaCleanupResult {
+    return unwrap(
+      this.methods.storageCleanupConfirm({
+        before,
+        ...(channelIds === undefined ? {} : { channelIds }),
+        ...(kinds === undefined ? {} : { kinds }),
+        token,
+      }),
+    );
+  }
   channelPurgePreview(channelId: string, sourceEventIds: string[]): PurgePreview {
     return unwrap(this.methods.channelPurgePreview({ channelId, sourceEventIds }));
   }
@@ -1944,6 +1981,9 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'channelHistorySources',
   'channelPurgePreview',
   'channelPurgeConfirm',
+  'storageUsage',
+  'storageCleanupPreview',
+  'storageCleanupConfirm',
   'channelMessages',
   'channelTimeline',
   'channelReadPosition',

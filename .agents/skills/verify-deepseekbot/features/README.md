@@ -35,6 +35,7 @@ One file per user-facing feature. Each file has four sections: `Sub-features`, `
 | Approval Templates, the Approval Reviewer and its self-escalation guard                            | for the reviewer and guard | none                                                                                                 | [approval-templates.md](approval-templates.md)       |
 | Native activity rows, explicit menu navigation and swipe triage | no for rows; yes for the swipe web journey | `scripts/e2e-mobile-activity-swipe-web.mjs` (web preview; native rows stay a shared-device manual path) | [phone-activity.md](phone-activity.md) |
 | Clear all BotHarness data (preview, second confirmation, restart removal) | no | none (disposable Host only) | [data-reset.md](data-reset.md) |
+| Storage used and chat media cleanup (by chat, age, type; preview then confirm) | no | none (disposable Host only) | [storage-cleanup.md](storage-cleanup.md) |
 | About and running product identity | no (source-only observation; packaged/restart pending) | none (manual path) | [release-identity.md](release-identity.md) |
 | Historical Overview: idle PersonaBot (retired by #2026) | no | `scripts/e2e-activity-idle.mjs` | [activity-center-idle.md](activity-center-idle.md) |
 | Temporary Workspace Grant authorization, read and revocation | no | `scripts/e2e-workspace-grant.mjs` | [workspace-grant.md](workspace-grant.md) |

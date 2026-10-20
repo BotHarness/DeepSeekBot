@@ -77,7 +77,10 @@ import type {
 import type { MessagingTarget } from '../../../core/src/messaging/provider.js';
 import type { HostFileTarget } from './host-file-actions.js';
 import type { ComposerRecoveryIdentity } from '../../../core/src/bridge/composer-recovery.js';
-import { isChannelAttachmentRef } from '../../../core/src/attachments/ref.js';
+import {
+  isChannelAttachmentRef,
+  isChannelClearedAttachment,
+} from '../../../core/src/attachments/ref.js';
 import type { UsageFilter, UsageQueryResult } from '../../../core/src/usage/query.js';
 export type { UsageFilter, UsageQueryResult } from '../../../core/src/usage/query.js';
 import type { Context as ClientContext } from '@deepseek-ai/cordis';
@@ -1600,6 +1603,11 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
     ...(userQuestionRequest === undefined ? {} : { userQuestionRequest }),
     ...(userQuestionResolution === undefined ? {} : { userQuestionResolution }),
     ...(attachments === undefined ? {} : { attachments: attachments as ChannelAttachmentRef[] }),
+    ...(Array.isArray(record['clearedAttachments']) &&
+    record['clearedAttachments'].length <= 10 &&
+    record['clearedAttachments'].every(isChannelClearedAttachment)
+      ? { clearedAttachments: record['clearedAttachments'] }
+      : {}),
     ...(format === undefined ? {} : { format }),
     ...(bridgeOrigin === undefined ? {} : { bridgeOrigin }),
     ...(bridgeMedia === undefined ? {} : { bridgeMedia }),
@@ -2419,6 +2427,203 @@ export async function confirmDataReset(call: BridgeCall, token: string): Promise
   return reset?.['status'] === 'restarting'
     ? { status: 'restarting' }
     : { status: 'restart-required' };
+}
+
+export type StorageMediaKind = 'image' | 'video' | 'audio' | 'file';
+export const STORAGE_MEDIA_KINDS: readonly StorageMediaKind[] = ['image', 'video', 'audio', 'file'];
+
+export interface StorageMediaTotal {
+  kind: StorageMediaKind;
+  count: number;
+  bytes: number;
+}
+
+export interface StorageChatUsage {
+  channelId: string;
+  name: string;
+  type: 'dm' | 'group';
+  deleted?: true;
+  messages: number;
+  oldestAt?: string;
+  mediaBytes: number;
+  media: StorageMediaTotal[];
+}
+
+export interface StorageUsage {
+  totalBytes: number;
+  parts: { kind: 'media' | 'messages' | 'memory' | 'other'; bytes: number }[];
+  chats: StorageChatUsage[];
+}
+
+export interface StorageCleanupScope {
+  before: string;
+  channelIds?: string[];
+  kinds?: StorageMediaKind[];
+}
+
+export interface StorageCleanupPreview {
+  token: string;
+  scope: { before: string; channelIds: string[]; kinds: StorageMediaKind[] };
+  messages: number;
+  files: number;
+  bytes: number;
+  freedBytes: number;
+  kinds: StorageMediaTotal[];
+  chats: { channelId: string; name: string; files: number; bytes: number }[];
+  kept: { reason: 'bot-working' | 'delivery-pending' | 'memory' | 'migration'; files: number }[];
+}
+
+export interface StorageCleanupResult {
+  messages: number;
+  files: number;
+  freedBytes: number;
+}
+
+const STORAGE_PARTS = new Set(['media', 'messages', 'memory', 'other']);
+const STORAGE_KEPT = new Set(['bot-working', 'delivery-pending', 'memory', 'migration']);
+
+function count(value: unknown): number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : 0;
+}
+
+function mediaTotals(value: unknown): StorageMediaTotal[] {
+  return (Array.isArray(value) ? value : []).flatMap((entry) => {
+    const item = asRecord(entry);
+    const kind = item?.['kind'];
+    return typeof kind === 'string' && (STORAGE_MEDIA_KINDS as readonly string[]).includes(kind)
+      ? [
+          {
+            kind: kind as StorageMediaKind,
+            count: count(item?.['count']),
+            bytes: count(item?.['bytes']),
+          },
+        ]
+      : [];
+  });
+}
+
+function parseStorageUsage(value: unknown): StorageUsage {
+  const usage = asRecord(value);
+  const parts = usage?.['parts'];
+  const chats = usage?.['chats'];
+  if (usage === undefined || !Array.isArray(parts) || !Array.isArray(chats))
+    throw new BridgeCallError('invalid-response', 'Invalid storage usage');
+  return {
+    totalBytes: count(usage['totalBytes']),
+    parts: parts.flatMap((entry) => {
+      const part = asRecord(entry);
+      const kind = part?.['kind'];
+      return typeof kind === 'string' && STORAGE_PARTS.has(kind)
+        ? [{ kind: kind as StorageUsage['parts'][number]['kind'], bytes: count(part?.['bytes']) }]
+        : [];
+    }),
+    chats: chats.flatMap((entry) => {
+      const chat = asRecord(entry);
+      const channelId = chat?.['channelId'];
+      const name = chat?.['name'];
+      if (typeof channelId !== 'string' || typeof name !== 'string') return [];
+      return [
+        {
+          channelId,
+          name,
+          type: chat?.['type'] === 'dm' ? ('dm' as const) : ('group' as const),
+          ...(chat?.['deleted'] === true ? { deleted: true as const } : {}),
+          messages: count(chat?.['messages']),
+          ...(typeof chat?.['oldestAt'] === 'string' ? { oldestAt: chat['oldestAt'] } : {}),
+          mediaBytes: count(chat?.['mediaBytes']),
+          media: mediaTotals(chat?.['media']),
+        },
+      ];
+    }),
+  };
+}
+
+function parseStorageCleanupPreview(value: unknown): StorageCleanupPreview {
+  const preview = asRecord(value);
+  const scope = asRecord(preview?.['scope']);
+  const token = preview?.['token'];
+  if (typeof token !== 'string' || typeof scope?.['before'] !== 'string')
+    throw new BridgeCallError('invalid-response', 'Invalid storage cleanup preview');
+  return {
+    token,
+    scope: {
+      before: scope['before'],
+      channelIds: Array.isArray(scope['channelIds'])
+        ? scope['channelIds'].filter((id): id is string => typeof id === 'string')
+        : [],
+      kinds: Array.isArray(scope['kinds'])
+        ? (scope['kinds'].filter((kind) =>
+            (STORAGE_MEDIA_KINDS as readonly unknown[]).includes(kind),
+          ) as StorageMediaKind[])
+        : [...STORAGE_MEDIA_KINDS],
+    },
+    messages: count(preview?.['messages']),
+    files: count(preview?.['files']),
+    bytes: count(preview?.['bytes']),
+    freedBytes: count(preview?.['freedBytes']),
+    kinds: mediaTotals(preview?.['kinds']),
+    chats: (Array.isArray(preview?.['chats']) ? preview['chats'] : []).flatMap((entry) => {
+      const chat = asRecord(entry);
+      return typeof chat?.['channelId'] === 'string' && typeof chat['name'] === 'string'
+        ? [
+            {
+              channelId: chat['channelId'],
+              name: chat['name'],
+              files: count(chat['files']),
+              bytes: count(chat['bytes']),
+            },
+          ]
+        : [];
+    }),
+    kept: (Array.isArray(preview?.['kept']) ? preview['kept'] : []).flatMap((entry) => {
+      const item = asRecord(entry);
+      const reason = item?.['reason'];
+      return typeof reason === 'string' && STORAGE_KEPT.has(reason)
+        ? [
+            {
+              reason: reason as StorageCleanupPreview['kept'][number]['reason'],
+              files: count(item?.['files']),
+            },
+          ]
+        : [];
+    }),
+  };
+}
+
+export async function loadStorageUsage(
+  call: BridgeCall,
+  signal?: AbortSignal,
+): Promise<StorageUsage> {
+  return parseStorageUsage(await unwrap(call, 'storageUsage', {}, signal));
+}
+
+export async function previewStorageCleanup(
+  call: BridgeCall,
+  scope: StorageCleanupScope,
+  signal?: AbortSignal,
+): Promise<StorageCleanupPreview> {
+  return parseStorageCleanupPreview(
+    await unwrap(call, 'storageCleanupPreview', { ...scope }, signal),
+  );
+}
+
+export async function confirmStorageCleanup(
+  call: BridgeCall,
+  preview: StorageCleanupPreview,
+): Promise<StorageCleanupResult> {
+  const result = asRecord(
+    await unwrap(call, 'storageCleanupConfirm', {
+      before: preview.scope.before,
+      ...(preview.scope.channelIds.length === 0 ? {} : { channelIds: preview.scope.channelIds }),
+      kinds: preview.scope.kinds,
+      token: preview.token,
+    }),
+  );
+  return {
+    messages: count(result?.['messages']),
+    files: count(result?.['files']),
+    freedBytes: count(result?.['freedBytes']),
+  };
 }
 
 export async function loadTelemetryStatus(
