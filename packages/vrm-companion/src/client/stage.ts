@@ -79,7 +79,7 @@ const noise = (seed: number) => {
 const TURNED = new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), Math.PI);
 export function mountStage(
   host: HTMLElement,
-  model: string,
+  model: () => Promise<string>,
   { loading, error, changed }: StageCallbacks,
   initial: SceneChoices = {
     camera: 'desk',
@@ -892,8 +892,8 @@ export function mountStage(
   const loader = new GLTFLoader();
   loader.register((parser) => new VRMLoaderPlugin(parser));
   loading('Loading character…');
-  void loader
-    .loadAsync(model)
+  void model()
+    .then((url) => loader.loadAsync(url))
     .then((gltf) => {
       const loaded = gltf.userData.vrm as VRM | undefined;
       if (!loaded) {

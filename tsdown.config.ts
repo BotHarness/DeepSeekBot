@@ -155,20 +155,34 @@ function roomAsset(name: string) {
   return 'data:model/gltf+json;base64,' + Buffer.from(JSON.stringify(model)).toString('base64');
 }
 
+const vrmCompanionClient = clientBundle(
+  '@botharness/vrm-companion',
+  ['packages/vrm-companion/src/client/index.tsx'],
+  'packages/vrm-companion/lib',
+);
+
 export const vrmCompanionClientBundleOptions: UserConfig = {
-  ...clientBundle(
-    '@botharness/vrm-companion',
-    ['packages/vrm-companion/src/client/index.tsx'],
-    'packages/vrm-companion/lib',
-  ),
+  ...vrmCompanionClient,
+  plugins: [
+    ...(vrmCompanionClient.plugins as unknown[]),
+    {
+      name: 'botharness:vrm-default-model-chunk',
+      generateBundle() {
+        const url =
+          'data:model/gltf-binary;base64,' +
+          readFileSync(
+            join(ROOT_DIR, 'packages/vrm-companion/assets/avatar-sample-a.vrm'),
+          ).toString('base64');
+        this.emitFile({
+          type: 'asset',
+          fileName: 'client.model.js',
+          source: `window.__ModuleLoader__.load({ id: '@botharness/vrm-companion/client.model.js', factory: () => ({ url: ${JSON.stringify(url)} }) });\n`,
+        });
+      },
+    },
+  ] as UserConfig['plugins'],
   define: {
     'process.env.NODE_ENV': JSON.stringify('production'),
-    __VRM_MODEL__: JSON.stringify(
-      'data:model/gltf-binary;base64,' +
-        readFileSync(join(ROOT_DIR, 'packages/vrm-companion/assets/avatar-sample-a.vrm')).toString(
-          'base64',
-        ),
-    ),
     __ROOM_ASSETS__: JSON.stringify(
       Object.fromEntries(
         [

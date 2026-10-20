@@ -31,6 +31,20 @@ it('registers an independent native Client bundle using only declared shell runt
     });
     expect(entry?.id).toBe('@botharness/vrm-companion');
     expect(entry?.factory).toBeTypeOf('function');
+    expect(code).not.toContain('data:model/gltf-binary');
+    expect(code).toContain('require.async("./client.model.js")');
+    let chunk: { id: string; factory: () => { url: string } } | undefined;
+    vm.runInNewContext(readFileSync(join(outDir, 'client.model.js'), 'utf8'), {
+      window: {
+        __ModuleLoader__: {
+          load(value: typeof chunk) {
+            chunk = value;
+          },
+        },
+      },
+    });
+    expect(chunk?.id).toBe('@botharness/vrm-companion/client.model.js');
+    expect(chunk?.factory().url).toMatch(/^data:model\/gltf-binary;base64,/);
   } finally {
     rmSync(outDir, { recursive: true, force: true });
   }

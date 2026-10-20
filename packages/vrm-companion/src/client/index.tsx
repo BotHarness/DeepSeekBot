@@ -22,6 +22,7 @@ import { mountStage, type CameraView } from './stage.js';
 import type { Mood, Weather } from './room.js';
 import type { CharacterShading } from './shading.js';
 import { loadModel } from './library.js';
+import { defaultModel } from './default-model.js';
 import { clockLabel, solarDay } from './sun.js';
 import { panelControls, type PanelControls } from './controls.js';
 
@@ -109,7 +110,7 @@ function Character({ view, controls }: { view: BotPresentationView; controls: Pa
         });
         const stage = mountStage(
           node,
-          model?.url ?? __VRM_MODEL__,
+          model ? async () => model.url : defaultModel,
           {
             loading: (loading) => controls.set({ loading }),
             error: (error) => controls.set({ error }),
