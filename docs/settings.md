@@ -1,6 +1,6 @@
 # Settings guide
 
-This guide covers non-IM settings in the public **deepseekbot** package on DSH **0.2.0-rc.1**: where to open them, what each field does, and when changes apply. Complete [installation](/docs/installation) and [API / Bot model setup](/docs/model-setup) first. Slack and Lark account/connection fields remain in their connection guides. Screenshots show the verified Chinese UI.
+This guide covers non-IM settings in the public **deepseekbot** package on DSH **0.2.1-rc.2**: where to open them, what each field does, and when changes apply. Complete [installation](/docs/installation) and [API / Bot model setup](/docs/model-setup) first. Slack and Lark account/connection fields remain in their connection guides. Screenshots show the verified Chinese UI.
 
 ## Find the right settings page
 
@@ -122,6 +122,34 @@ These are native DSH settings. Initial values below were observed in a clean RC1
 | Anonymous usage statistics    | On                                                      | Switch saves immediately and applies without a restart; locked off when config or environment disables it. See [Anonymous usage statistics](#anonymous-usage-statistics). |
 
 The lower “External platform defaults” area belongs to IM intake/identity settings; see [Lark / Feishu](/docs/lark-connection), [Slack](/docs/slack-connection), and Discord. Each platform has independent defaults and revisions. Profile identities and group intake policies can inherit these values or retain custom choices; restoring inheritance uses the current platform defaults. Discord ordinary intake still requires Message Content Intent and verified delivery; changing defaults does not grant either.
+
+## Appearance and wallpaper
+
+Open **Bot settings → Appearance** (⌘, on macOS or Ctrl+, elsewhere opens Bot settings in Bot mode). Everything on this page is saved on this device only; the Web client and the Desktop app keep separate copies, and the DSH theme is not changed.
+
+| Field                | Options                                                          | Effect                                                                                                                                                                               |
+| -------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Theme                | Light, dark or system                                            | Bot mode's own theme.                                                                                                                                                                |
+| Palette and Primary  | Classic Blue, Mist Purple, Forest Green, Warm Amber; any Primary | Chosen separately for light and dark mode.                                                                                                                                           |
+| Panel header / body  | Background color, opacity, background blur                       | Applies to every panel in the current mode. Text and message bubbles keep their own colors.                                                                                          |
+| Wallpaper library    | Up to 24 images (20 MB each) or silent videos (100 MB each)      | Click **Add wallpaper** or drop several files. Pick one, or **None**. **Adjust crop** sets position and zoom. The first wallpaper makes untuned panels see-through.                  |
+| Switch automatically | Off, every 1, 5, 15 or 30 minutes, every hour; **Shuffle**       | Rotates through the library. Videos loop without sound and pause in the background; if playback fails, the saved poster shows with the reason.                                       |
+| Appearance recovery  | **Clear panel settings**, **Restore defaults…**                  | Clear removes per-panel settings in the current mode. Restore defaults asks first, then resets both modes and empties the wallpaper library. Bots, data and layout are not affected. |
+
+To style one panel, open its header menu → **Appearance settings**. Each field can follow the global value or be set for that panel, and **Reset this panel** removes its own settings. The `deepseekbot` appearance and wallpaper commands target one open Client; see the [CLI guide](bot-cli.md#device-local-deepseekbot-appearance).
+
+## Context compaction
+
+A Bot's main session (its Orchestrator Session) grows with every turn. Compaction replaces the long history with a summary so the next message re-reads less.
+
+- **Compact now:** type `/compact` in the Bot's DM composer, send `/compact` (or `/压缩`) in an IM DM, or run `deepseekbot bot-compact <bot-id>`. The result shows tokens before and after. It is refused while the Bot is working; stop the turn or wait.
+- **Compact idle conversations early:** **Bot settings → Models & execution**, on by default. When a Bot has been quiet for half of its model's prompt-cache lifetime (never before 15 minutes; DeepSeek models assume 2 hours until observed), the Host compacts the session while the cache is still warm, which costs less than compacting a cold session later. Nothing shows in the chat; each run appears in the Bot's activity. Details and per-model overrides are in the [CLI guide](bot-cli.md#idle-compaction).
+
+If a turn still fails because the context is full, the failed-turn notice says so; retry with a smaller request.
+
+## Quick search and shortcuts
+
+Press **Alt+K** (Option+K on macOS) in Bot mode to search Bots, groups, Channels and individual Bot settings rows; Ctrl+K or ⌘K also works where the browser passes it through. Chinese names match by full pinyin or initials. Choosing a settings result opens its page with the row highlighted. Press `?` or Ctrl/⌘+/ for the full shortcut list, and change shortcuts in **Bot settings → Keyboard shortcuts**.
 
 ## Create a Bot and edit its Profile
 
