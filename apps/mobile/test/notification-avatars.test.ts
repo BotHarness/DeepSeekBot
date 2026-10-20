@@ -38,6 +38,7 @@ function memoryStore() {
   const rendered: string[] = [];
   const removed: string[] = [];
   const reports: Record<string, string>[] = [];
+  const aborted: AbortSignal[] = [];
   let fail = new Set<string>();
   let hang = new Set<string>();
   return {
@@ -45,6 +46,7 @@ function memoryStore() {
     removed,
     reports,
     files,
+    aborted,
     hangOn(file: string) {
       hang = new Set([file]);
     },
@@ -55,9 +57,12 @@ function memoryStore() {
       async read(host: string) {
         return { ...files.get(host) };
       },
-      async render(host: string, file: string, _image: AvatarImage) {
+      async render(host: string, file: string, _image: AvatarImage, signal: AbortSignal) {
         if (fail.has(file)) throw Error('render-failed');
-        if (hang.has(file)) return new Promise<void>(() => {});
+        if (hang.has(file)) {
+          aborted.push(signal);
+          return new Promise<void>(() => {});
+        }
         rendered.push(`${host}/${file}`);
       },
       remove(host: string, file: string) {
@@ -89,6 +94,7 @@ describe('notification avatars', () => {
       expect(memory.rendered).toEqual(['h/channel-g1.png']);
       expect(Object.keys(memory.files.get('h') ?? {})).toEqual(['channel-g1.png']);
       expect(memory.reports).toEqual([{ 'bot-ada.png': 'render-timeout' }]);
+      expect(memory.aborted.map((signal) => signal.aborted)).toEqual([true]);
     } finally {
       vi.useRealTimers();
     }

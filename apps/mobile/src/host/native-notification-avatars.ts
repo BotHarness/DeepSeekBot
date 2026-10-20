@@ -35,7 +35,7 @@ export const notificationAvatars = createNotificationAvatars({
       return {};
     }
   },
-  async render(host, file, image) {
+  async render(host, file, image, signal) {
     const dir = hostDir(host);
     if (dir === undefined) throw Error('notification-avatars-unavailable');
     const source = await Image.loadAsync(image, {
@@ -52,6 +52,7 @@ export const notificationAvatars = createNotificationAvatars({
       const target = new File(dir, file);
       const temporary = new File(saved.uri);
       try {
+        if (signal.aborted) throw Error('render-timeout');
         if (target.exists) target.delete();
         await temporary.copy(target);
       } finally {
@@ -82,12 +83,10 @@ export const notificationAvatars = createNotificationAvatars({
     try {
       const status = { at: new Date().toISOString(), errors };
       const dir = hostDir(host);
-      if (dir !== undefined) writeJson(dir, STATUS, status);
-      else
-        writeJson(Paths.document, `notification-avatars-${STATUS}`, {
-          host,
-          ...status,
-        });
+      try {
+        if (dir !== undefined) return writeJson(dir, STATUS, status);
+      } catch {}
+      writeJson(Paths.document, `notification-avatars-${STATUS}`, { host, ...status });
     } catch {}
   },
 });

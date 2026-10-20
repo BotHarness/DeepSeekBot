@@ -15,7 +15,7 @@ export interface AvatarEntry {
 
 export interface AvatarStore {
   read(host: string): Promise<Record<string, string>>;
-  render(host: string, file: string, image: AvatarImage): Promise<void>;
+  render(host: string, file: string, image: AvatarImage, signal: AbortSignal): Promise<void>;
   remove(host: string, file: string): void;
   write(host: string, index: Record<string, string>): void;
   report(host: string, errors: Record<string, string>): void;
@@ -27,12 +27,16 @@ function reason(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function bounded(work: Promise<void>, ms: number): Promise<void> {
+function bounded(work: (signal: AbortSignal) => Promise<void>, ms: number): Promise<void> {
+  const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(Error('render-timeout')), ms);
+    timer = setTimeout(() => {
+      controller.abort();
+      reject(Error('render-timeout'));
+    }, ms);
   });
-  return Promise.race([work, timeout]).finally(() => clearTimeout(timer));
+  return Promise.race([work(controller.signal), timeout]).finally(() => clearTimeout(timer));
 }
 
 export const safeName = (value: string): string => value.replace(/[^A-Za-z0-9._-]/gu, '_');
@@ -136,7 +140,10 @@ export function createNotificationAvatars(store: AvatarStore) {
     for (const entry of wanted) {
       if (index[entry.file] !== undefined) continue;
       try {
-        await bounded(store.render(host, entry.file, entry.image), RENDER_TIMEOUT);
+        await bounded(
+          (signal) => store.render(host, entry.file, entry.image, signal),
+          RENDER_TIMEOUT,
+        );
         index[entry.file] = entry.signature;
         store.write(host, index);
       } catch (error) {
