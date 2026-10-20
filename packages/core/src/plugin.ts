@@ -1,4 +1,5 @@
 import { createWindowZoomControl, WINDOW_ZOOM_CONTROL_PATH } from './window-zoom/control.js';
+import { createFolderBrowser } from './workspaces/folder-browse.js';
 import { APPEARANCE_CONTROL_PATH, createAppearanceControl } from './appearance/control.js';
 import { CloudConnections } from './cloud/connections.js';
 import { createCloudProvider } from './cloud/provider.js';
@@ -80,6 +81,8 @@ import { installOrchestratorFileTools } from './workspaces/orchestrator-file-too
 import { ProtectedExecution } from './credentials/protected-execution.js';
 import { nativeExecutionRoot } from './workspaces/grant-native-tools.js';
 import { createAttachmentStore, type AttachmentStore } from './attachments/store.js';
+import { startAttachmentSweep } from './attachments/sweep.js';
+import { memoryAttachmentReferences } from './memory/backup.js';
 import { createMemoryImageHttp, MEMORY_IMAGE_PATH } from './memory/image-http.js';
 import { createMemoryFileHttp, MEMORY_FILE_DOWNLOAD_PATH } from './memory/file-http.js';
 import {
@@ -147,9 +150,11 @@ import {
 import { createSqliteChannelStore } from './channels/sqlite-store.js';
 import {
   attachOperationalModule,
+  failOperationalDatabase,
   mountOperationalDatabase,
   type OperationalDatabaseOwner,
 } from './database/owner.js';
+import { applyPendingDataReset, createDataReset } from './data-reset/reset.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from './database/schema-plan.js';
 import { resolveDshHome } from './im/config-store.js';
 import { ensureMemoryRepository } from './memory/repository.js';
@@ -1033,6 +1038,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     profile === undefined ? [] : [profile.installAnchor, join(profile.dir, 'package.json')];
   installedPackage.identity(releaseAnchors);
   const dshHome = resolveDshHome();
+  applyPendingDataReset({ dshHome, home: homedir(), log: (message) => ctx.logger.info(message) });
   mountClientDiagnostics(ctx, dshHome);
   const release = installedRelease(import.meta.url);
   const telemetryChoice = telemetryDecision(config.telemetry);
@@ -1328,6 +1334,17 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   publishDraft = (event) => core.live.publishDraft(event);
   ctx.effect(() => () => core.operationalDatabase.close(), 'botharness: operational database');
   ctx.effect(() => () => core.contentPurge.close(), 'botharness: purge ledger');
+  ctx.effect(
+    () =>
+      startAttachmentSweep({
+        attachments: core.attachments,
+        database: core.operationalDatabase,
+        channelReferences: () => core.channels.referencedAttachmentHashes(),
+        memoryReferences: () => memoryAttachmentReferences(core.registry, core.deletions),
+        log: (message) => ctx.logger.info(message),
+      }),
+    'botharness: attachment sweep',
+  );
   const deviceWebUpgrade = mountDevicePairing(ctx, {
     database: core.operationalDatabase,
     dshHome,
@@ -2096,6 +2113,30 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       };
     }, 'botharness: release restarter');
   });
+  const dataReset = createDataReset({
+    dshHome,
+    home: homedir(),
+    bots: () => {
+      const bots = core.registry.listHistorical();
+      return {
+        count: bots.length,
+        chosenMemoryDirs: bots.flatMap((bot) => {
+          const memoryDir = core.registry.memoryDirFor(bot.slug);
+          return memoryDir === undefined ||
+            memoryDir === core.registry.defaultMemoryDirFor(bot.slug)
+            ? []
+            : [memoryDir];
+        }),
+      };
+    },
+    restarter: () => releaseRestarter.current,
+    stopWriting: () =>
+      failOperationalDatabase(
+        core.operationalDatabase,
+        'BotHarness data is being cleared; restart the Host to finish',
+      ),
+    log: (message) => ctx.logger.info(message),
+  });
   const releaseService = createLoadingReleaseService({
     version: () => runningRelease.version,
     ...(profile === undefined
@@ -2158,6 +2199,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     approvalTemplates,
     deletions: core.deletions,
     contentPurge: core.contentPurge,
+    dataReset,
     defaultModelSettings: () => ctx.get('settings') as unknown as TobNativeSettings | undefined,
     modelPresets: core.modelPresets,
     modelCatalog,
@@ -2210,6 +2252,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     humanAttention: core.humanAttention,
     humanAttentionDecisions: core.humanAttentionDecisions,
     grants: core.grants,
+    folders: createFolderBrowser(),
     externalMessaging: core.externalMessaging,
     toolApproval,
     userQuestions,

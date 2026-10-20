@@ -983,14 +983,17 @@ function BotInboxBadge(): ReactElement | null {
 }
 
 function ModelEntry({ botSlug, actions, t }: ChannelSidebarEntryProps): ReactElement {
-  if (botSlug === undefined) return <></>;
+  const deleted = useClientState().bots.some((bot) => bot.slug === botSlug && bot.deleted === true);
+  if (botSlug === undefined || deleted) return <></>;
   return <ModelPresetProfile key={botSlug} slug={botSlug} actions={actions} t={t} />;
 }
 
 function useModelPlan(
-  botSlug: string | undefined,
+  slug: string | undefined,
   actions: ChannelSidebarEntryProps['actions'],
 ): [ModelPlanView | null | undefined, (element: HTMLSpanElement | null) => void] {
+  const deleted = useClientState().bots.some((bot) => bot.slug === slug && bot.deleted === true);
+  const botSlug = deleted ? undefined : slug;
   const plan = useSyncExternalStore(
     subscribeModelPlans,
     () => modelPlanOf(botSlug),
@@ -1071,7 +1074,11 @@ function SessionsHeaderWithSettings({
   targetItems: readonly MenuEntry[];
   targetId: string | undefined;
 }): ReactElement {
-  const { botSlug, actions, t } = props;
+  const { actions, t } = props;
+  const botDeleted = useClientState().bots.some(
+    (bot) => bot.slug === props.botSlug && bot.deleted === true,
+  );
+  const botSlug = botDeleted ? undefined : props.botSlug;
   const [plan, mount] = useModelPlan(botSlug, actions);
   const readLimit = () => prefs?.source.getSnapshot().assignmentConcurrencyLimit;
   const limit = useSyncExternalStore(

@@ -2,6 +2,7 @@
 
 | Feature | Needs a model | Scripted journey | File |
 | --- | --- | --- | --- |
+| VRM companion Panel | yes for speaking | `scripts/e2e-vrm-companion.mjs` | [vrm-companion.md](vrm-companion.md) |
 | Desktop whole-window zoom (controlled S1 / Windows candidate) | no | `scripts/e2e-desktop-zoom-launch.mjs`, `scripts/e2e-desktop-zoom-windows.mjs`, `scripts/e2e-dock-zoom.mjs`, `scripts/e2e-workspace-chrome.mjs` | [desktop-window-zoom.md](desktop-window-zoom.md) |
 | Global search: Alt/Option+K, settings results and pinyin matching | no | `verify-app` Bot mode path | [global-search.md](global-search.md) |
 | DeepSeekBot device-local appearance | no | `scripts/e2e-local-appearance.mjs` | [local-appearance.md](local-appearance.md) |
@@ -33,6 +34,7 @@ One file per user-facing feature. Each file has four sections: `Sub-features`, `
 | Routines on the phone                                                                              | no                         | `scripts/e2e-mobile-routines-web.mjs`                                                                | [phone-routines.md](phone-routines.md)               |
 | Approval Templates, the Approval Reviewer and its self-escalation guard                            | for the reviewer and guard | none                                                                                                 | [approval-templates.md](approval-templates.md)       |
 | Native activity rows, explicit menu navigation and swipe triage | no for rows; yes for the swipe web journey | `scripts/e2e-mobile-activity-swipe-web.mjs` (web preview; native rows stay a shared-device manual path) | [phone-activity.md](phone-activity.md) |
+| Clear all BotHarness data (preview, second confirmation, restart removal) | no | none (disposable Host only) | [data-reset.md](data-reset.md) |
 | About and running product identity | no (source-only observation; packaged/restart pending) | none (manual path) | [release-identity.md](release-identity.md) |
 | Historical Overview: idle PersonaBot (retired by #2026) | no | `scripts/e2e-activity-idle.mjs` | [activity-center-idle.md](activity-center-idle.md) |
 | Temporary Workspace Grant authorization, read and revocation | no | `scripts/e2e-workspace-grant.mjs` | [workspace-grant.md](workspace-grant.md) |
@@ -89,4 +91,4 @@ Historical failures from 2026-10-14 (not requalified by this audit):
 | Appearance recovery | no | `scripts/e2e-appearance-recovery.mjs`, `scripts/e2e-message-history-mask.mjs` | [appearance-recovery.md](appearance-recovery.md) |
 
 | Three-action tool approval and coherent Full Access | yes | `scripts/e2e-tool-approval-simple.mjs` | [tool-approval-simple.md](tool-approval-simple.md) |
-| Workspace request read/write approval and original-task continuation | yes | `scripts/e2e-workspace-request-write.mjs` | [workspace-request-write.md](workspace-request-write.md) |
+| Workspace request read/write approval and original-task continuation | yes | `scripts/e2e-workspace-request-write.mjs`, `scripts/e2e-mobile-folder-browse-web.mjs` | [workspace-request-write.md](workspace-request-write.md) |

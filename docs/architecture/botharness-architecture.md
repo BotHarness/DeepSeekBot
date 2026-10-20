@@ -1152,7 +1152,9 @@ External HTTPS images require a per-image click and load directly in the browser
 
 ## 原生 Panel Plugin 开发目标（ADR-0234）
 
-[ADR-0234](../adr/0234-panels-are-native-plugins-with-independent-binding.md) 记录已确认目标，运行实现尚待交付。第一方与独立作者的面板复用原生 Plugin/Fiber 和 Bundle/Profile 组合。领域 owner 的 Host Service 与具名实时 Cordis Event 独立于面板显隐；浏览器 Consumer 沿用认证后的 Typert/API Gateway 与支持的 stream。状态型展示需恢复当前状态，首版不建设通用离线事件补发。后续 Memory 观测要覆盖无对话时的外部工作树变化，保留既有 Observation/Admission owner，并与 Git commit 区分。
+首片实现入口见 [Panel Plugin 开发指南](../panel-plugin.md)：独立 VRM Bundle 消费 UI 提供的公开 `dockPanels` / `botPresentation` Service；Activity 仍由现有 ClientStore 投影维护，已提交 DM 输出由按 Bot 共享的文字时钟呈现，固定实例元数据扩展现有布局文档。
+
+[ADR-0234](../adr/0234-panels-are-native-plugins-with-independent-binding.md) 记录已确认目标；以下为整体目标，已实现的 T1 范围以首片指南与验收记录为准。第一方与独立作者的面板复用原生 Plugin/Fiber 和 Bundle/Profile 组合。领域 owner 的 Host Service 与具名实时 Cordis Event 独立于面板显隐；浏览器 Consumer 沿用认证后的 Typert/API Gateway 与支持的 stream。状态型展示需恢复当前状态，首版不建设通用离线事件补发。后续 Memory 观测要覆盖无对话时的外部工作树变化，保留既有 Observation/Admission owner，并与 Git commit 区分。
 
 实现、实例、绑定与工作区位置分开。普通实现允许多个实例，重复安装不重复创建。消息面板内的 Bot-bound Panel 跟随 PersonaBot 私聊；群聊不显示内容和打开入口，也不增加成员选择器。显式绑定的全局工作区实例保留并清楚标明所选 Bot/Channel；Group-channel-bound 复用 Channel 绑定并限制为群聊。现有频道子面板不因此获得跨工作区拖放，绑定不授予数据访问或代码隔离。
 
@@ -1162,7 +1164,7 @@ External HTTPS images require a per-image click and load directly in the browser
 
 [T2 #2223](https://github.com/BotHarness/DeepSeekBot/issues/2223) 将办公室切片改为无 Bot／Channel 绑定的 **全局 Task Kanban**，管理当前 Profile 内共享的 Task。Human 卡片操作与 Bot 查询／创建／更新工具使用同一授权 Service、持久记录和提交后通知；关闭面板不影响工具工作。演进 #1792 已有 to-do owner 并兼容旧记录，不增加第二份存储。Task 状态与进度独立于 Session 内计划和 Assignment 执行，创建、移动、完成或重开卡片不自动启动执行。验收重启／重开一致性、显式并发冲突及直接 CLI／工具 parity。
 
-[Spec #2219](https://github.com/BotHarness/DeepSeekBot/issues/2219)、T1–T7、[T8–T15 迁移父工单 #2234](https://github.com/BotHarness/DeepSeekBot/issues/2234) 及其子工单统一规划在 [Panel Plugins Project #21](https://github.com/orgs/BotHarness/projects/21) 的 v2.0。尚未开始实现；T1 运行验证及 Human 反馈是扩展门槛。交付状态与依赖以工单为准：T2–T6 依赖 T1，T7 依赖 T6，迁移父票与 T8–T15 各自依赖 T1。迁移与 T2–T7 同属 T1 后的扩展分支，子票不等待协调父票完成，也不隐式等待 T7；并与 #1791／#1792 作者能力、#2096 布局 CLI 协调。
+[Spec #2219](https://github.com/BotHarness/DeepSeekBot/issues/2219)、T1–T7、[T8–T15 迁移父工单 #2234](https://github.com/BotHarness/DeepSeekBot/issues/2234) 及其子工单统一规划在 [Panel Plugins Project #21](https://github.com/orgs/BotHarness/projects/21) 的 v2.0。T1 已进入首片实现与隔离 Host 验证；Human 验收尚待反馈，仍是扩展门槛。交付状态与依赖以工单为准：T2–T6 依赖 T1，T7 依赖 T6，迁移父票与 T8–T15 各自依赖 T1。迁移与 T2–T7 同属 T1 后的扩展分支，子票不等待协调父票完成，也不隐式等待 T7；并与 #1791／#1792 作者能力、#2096 布局 CLI 协调。
 
 T4 保留 ADR-0220 的 Sessions 范围：DM 中为 Bot 所有的 Sessions，Group 默认按原始 Source Event 查看 Assignments，并保留已有显式成员 Bot 筛选。群聊不显示 Bot-bound 面板不等于移除该筛选，也不改变 Session ownership。T5 的 Members 在 DM 消息内隐藏，但全局固定 Group 实例不受当前聊天切换影响。Panel Consumer 释放与卸载领域 Provider／整个 Bundle 分开；后者遵循原生生命周期，能力缺失须明确显示不可用。
 

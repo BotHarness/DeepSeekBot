@@ -18,8 +18,7 @@
     {
       "binding": "CONNECT_DB",
       "database_name": "botharness-connect-relay",
-      // replace with the id printed by `wrangler d1 create botharness-connect-relay`
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "f4fa5c3d-81d5-4edf-b4b4-c3b045043d43",
       "migrations_dir": "migrations",
     },
   ],

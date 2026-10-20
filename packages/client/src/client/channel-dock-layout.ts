@@ -11,7 +11,7 @@ import type {
   SerializedGridObject,
 } from 'dockview-react';
 
-import type { DockPanelPosition } from './dock-panels.js';
+import type { DockPanelPosition, DockPanelInstance } from './dock-panels.js';
 
 export const CHANNEL_DOCK_STORAGE_KEY = 'botharness.bot-mode-layout';
 export const CHANNEL_DOCK_LAYOUT_VERSION = 8;
@@ -48,6 +48,7 @@ export const DEFAULT_CHANNEL_WORKSPACE: ChannelWorkspaceState = {
 
 export interface StoredChannelDock {
   readonly version: typeof CHANNEL_DOCK_LAYOUT_VERSION;
+  readonly instances?: readonly DockPanelInstance[] | undefined;
   readonly gap?: number | undefined;
   readonly order?: readonly string[] | undefined;
   readonly hiddenControls?: readonly string[] | undefined;
@@ -125,6 +126,18 @@ export function readChannelDock(
       : {};
     const restored: StoredChannelDock = {
       version: CHANNEL_DOCK_LAYOUT_VERSION,
+      instances: Array.isArray(value['instances'])
+        ? value['instances']
+            .slice(0, 16)
+            .filter(
+              (item): item is DockPanelInstance =>
+                isRecord(item) &&
+                ['id', 'definitionId', 'botId', 'label'].every(
+                  (key) => typeof item[key] === 'string' && item[key].length > 0,
+                ) &&
+                String(item['id']).startsWith('instance:'),
+            )
+        : [],
       gap:
         typeof value['gap'] === 'number' && Number.isFinite(value['gap'])
           ? Math.min(16, Math.max(0, Math.round(value['gap'])))
@@ -696,10 +709,12 @@ function movePanelIntoWorkspace(
 function parseBotWorkspaces(value: unknown): BotWorkspaceStates {
   if (!isRecord(value)) return {};
   return Object.fromEntries(
-    BOT_WORKSPACE_PANELS.flatMap((id) => {
-      const state = parseChannelWorkspace(value[id]);
-      return state ? [[id, state]] : [];
-    }),
+    Object.keys(value)
+      .slice(0, 32)
+      .flatMap((id) => {
+        const state = parseChannelWorkspace(value[id]);
+        return state ? [[id, state]] : [];
+      }),
   );
 }
 

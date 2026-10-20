@@ -12,6 +12,8 @@ import { currentHost, selectHost, withHost, withoutHost, type SavedHosts } from 
 import { clearConversationCache, nativeConversationCache } from './native-cache';
 import { nativeCarrier } from './native-carrier';
 import { nativeNotifications } from './native-notifications';
+import { notificationAvatars } from './native-notification-avatars';
+import { avatarInputs } from './notification-avatars';
 import { revokePairing } from './pairing';
 import { createHostPush } from './push';
 import { createPushSession, type PushStatus } from './push-session';
@@ -89,10 +91,25 @@ function adopt(next: SavedHosts, trigger: ConnectionTrigger = 'open'): void {
       ? undefined
       : inbox.subscribe(() => reflectInbox(saved.hostId, inbox));
   let connected = false;
+  let avatars: string | undefined;
+  let avatarRetryAt = Infinity;
   offConnection = client?.subscribe(() => {
-    const now = client.getSnapshot().connection.status === 'connected';
+    const snapshot = client.getSnapshot();
+    const now = snapshot.connection.status === 'connected';
     if (now && !connected) void pushSession.retryFailed();
     connected = now;
+    const inputs = snapshot.roster === undefined ? undefined : avatarInputs(snapshot.roster);
+    if (
+      saved !== null &&
+      snapshot.roster !== undefined &&
+      (inputs !== avatars || Date.now() >= avatarRetryAt)
+    ) {
+      avatars = inputs;
+      avatarRetryAt = Infinity;
+      void notificationAvatars.sync(saved.hostId, snapshot.roster).then((complete) => {
+        if (!complete && avatars === inputs) avatarRetryAt = Date.now() + 60_000;
+      });
+    }
   });
   state = { saved, hosts: next.hosts, client, inbox };
   client?.start();

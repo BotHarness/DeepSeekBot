@@ -148,6 +148,7 @@ describe('Push delivery', () => {
       priority: 'high',
       channelId: 'requests',
       categoryId: 'tool-approval',
+      mutableContent: true,
       data: {
         v: 1,
         hostId: f.pairing.host().id,
@@ -156,6 +157,8 @@ describe('Push delivery', () => {
         botSlug: 'ada',
         channelId: 'dm-ada',
         messageId: 'msg-approval:1',
+        sender: 'Ada',
+        text: 'Needs your approval',
       },
     });
     expect(JSON.stringify(f.events)).not.toMatch(/ExponentPushToken/u);
@@ -220,6 +223,17 @@ describe('Push delivery', () => {
       ['Ada', '有问题问你：Which branch?'],
       ['#ops', 'Ada：Done, see the log'],
       ['Ada', 'Ada 回复了你'],
+    ]);
+    expect(
+      f.expo
+        .flat()
+        .filter((message) => message.to === TOKEN_A)
+        .map(({ data }) => [data.sender, data.group, data.text]),
+    ).toEqual([
+      ['Ada', 'ops', 'Needs your approval: bash · date'],
+      ['Ada', undefined, 'Has a question for you: Which branch?'],
+      ['Ada', 'ops', 'Done, see the log'],
+      ['Ada', undefined, 'Ada replied to you'],
     ]);
   });
 

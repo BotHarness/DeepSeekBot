@@ -222,14 +222,16 @@ export function createRelay(options: RelayOptions) {
     if (results.length === 0) return { reclaimed };
     const listed = await tunnels.listTunnels();
     const at = now().getTime();
+    let attempted = 0;
     for (const row of results) {
-      if (reclaimed.length >= RECLAIM_BATCH) break;
+      if (attempted >= RECLAIM_BATCH) break;
       const tunnelId = row.tunnel_id as string;
       const state = listed.states.get(tunnelId);
       if (state !== undefined && ONLINE.has(state.status)) continue;
       const since = Date.parse(state?.inactiveSince ?? row.tunnel_created_at ?? '');
       if (Number.isFinite(since) && at - since < options.reclaimAfterMs) continue;
       if (state === undefined && !listed.complete) continue;
+      attempted += 1;
       try {
         if (state !== undefined) await tunnels.deleteTunnel(tunnelId);
         await db

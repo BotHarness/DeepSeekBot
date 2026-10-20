@@ -879,7 +879,14 @@ function ChatConversation({
               }
             : {
                 headerTitleAlign: 'left' as const,
-                headerTitle: () => title,
+                headerTitle: () => (
+                  <View
+                    key={`${theme.scheme}:${theme.fontScale}:${bot?.displayName ?? channel?.name ?? ''}`}
+                    style={{ maxWidth: windowWidth - (theme.touch + space.x5) * 3 }}
+                  >
+                    {title}
+                  </View>
+                ),
                 headerRight: () => trailing,
                 ...(canGoBack && !floatingHeader ? {} : { headerLeft: () => back }),
               }),

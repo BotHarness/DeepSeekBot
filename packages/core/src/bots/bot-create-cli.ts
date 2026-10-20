@@ -194,6 +194,8 @@ Usage:
   deepseekbot marketplace-detail <owner/repo>
   deepseekbot marketplace-submit <github-repo-url>
   deepseekbot marketplace-report <owner/repo> [--reason <text>]
+  deepseekbot data-reset-preview
+  deepseekbot data-reset-confirm --confirmation-stdin --confirm
   deepseekbot telemetry-status
   deepseekbot telemetry-set (--enabled | --disabled)
   deepseekbot git-status

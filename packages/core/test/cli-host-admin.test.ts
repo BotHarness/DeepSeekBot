@@ -55,14 +55,14 @@ async function host(
   return { url: `http://127.0.0.1:${address.port}`, calls };
 }
 
-async function invoke(argv: string[], url: string) {
+async function invoke(argv: string[], url: string, stdin = '') {
   const stdout: string[] = [];
   const stderr: string[] = [];
   const code = await runBotCreateCli(argv, {
     env: { DEEPSEEKBOT_HOST: url, DEEPSEEKBOT_HOST_TOKEN: 'private-test-token' },
     stdout: (text) => stdout.push(text),
     stderr: (text) => stderr.push(text),
-    readStdin: async () => '',
+    readStdin: async () => stdin,
   });
   expect(stdout).toHaveLength(1);
   expect(stdout.join('') + stderr.join('')).not.toContain('private-test-token');
@@ -259,6 +259,43 @@ describe('release commands', () => {
     expect(install.json.error.message).toContain('registry timed out');
     const restart = await invoke(['release-restart', '--confirm'], live.url);
     expect(restart.json.error.code).toBe('release-not-pending');
+  });
+});
+
+describe('data reset commands', () => {
+  it('previews, then clears only with --confirmation-stdin --confirm and a token', async () => {
+    const preview = {
+      token: 'reset-token',
+      expiresAt: '2026-10-20T18:00:00.000Z',
+      bots: 2,
+      targets: [{ kind: 'data', path: '/home/a/.dsh/botharness', bytes: 10, files: 1 }],
+      kept: [{ kind: 'credentials', path: '/home/a/.dsh/.credentials.yaml' }],
+      restartable: true,
+    };
+    const live = await host((method) =>
+      ok(method === 'dataResetPreview' ? { preview } : { reset: { status: 'restarting' } }),
+    );
+    expect((await invoke(['data-reset-preview'], live.url)).json).toEqual({ preview });
+    const token = JSON.stringify({ token: 'reset-token' });
+    for (const [argv, stdin] of [
+      [['data-reset-confirm', '--confirmation-stdin'], token],
+      [['data-reset-confirm', '--confirm'], token],
+      [['data-reset-confirm', '--confirmation-stdin', '--confirm'], ''],
+      [['data-reset-confirm', '--confirmation-stdin', '--confirm'], '{"token":"t","extra":1}'],
+      [['data-reset-preview', 'extra'], ''],
+    ] as const) {
+      const refused = await invoke([...argv], live.url, stdin);
+      expect(refused.code).not.toBe(0);
+      expect(refused.json.error.code).toBe('usage');
+    }
+    expect(
+      (await invoke(['data-reset-confirm', '--confirmation-stdin', '--confirm'], live.url, token))
+        .json,
+    ).toEqual({ reset: { status: 'restarting' } });
+    expect(live.calls).toEqual([
+      { method: 'dataResetPreview', args: {} },
+      { method: 'dataResetConfirm', args: { token: 'reset-token' } },
+    ]);
   });
 });
 

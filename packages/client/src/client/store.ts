@@ -12,6 +12,7 @@ import type { RosterSection, TopOrderEntry } from './roster.js';
 import type { PurgedPlacement } from '../../../core/src/purge/contracts.js';
 import type { PixelBannerRecipe } from '@botharness/pixel-banner';
 import { createContentRedactions } from './content-redactions.js';
+import { ActivitySmoother } from './activity-smoothing.js';
 
 export type ClientMode = 'dsh' | 'bot';
 
@@ -619,7 +620,9 @@ function sameSelection(
   return false;
 }
 
-export function createStore(): ClientStore {
+export function createStore({
+  smoothActivity = true,
+}: { smoothActivity?: boolean } = {}): ClientStore {
   const conversations = new Map<string, ConversationState>();
   const redactions = createContentRedactions();
   const botChannels = new Map<string, string>();
@@ -691,6 +694,26 @@ export function createStore(): ClientStore {
     bot.tob?.defaultName ? { ...bot, displayName: defaultTobName } : bot;
   let activity: PersonaBotActivitySnapshot | undefined;
   let activityStates = new Map<string, PersonaBotActivitySnapshot['bots'][number]>();
+  let rawActivity = new Map<string, PersonaBotActivitySnapshot['bots'][number]>();
+  const smoother = new ActivitySmoother<PersonaBotActivitySnapshot['bots'][number]>();
+  let settle: ReturnType<typeof setTimeout> | undefined;
+  const smooth = () => {
+    if (settle !== undefined) clearTimeout(settle);
+    settle = undefined;
+    if (!smoothActivity) {
+      activityStates = rawActivity;
+      return;
+    }
+    const now = Date.now();
+    const { shown, wake } = smoother.step(rawActivity, now);
+    activityStates = shown;
+    if (wake !== undefined)
+      settle = setTimeout(() => {
+        settle = undefined;
+        smooth();
+        update({ bots: state.bots.map(withActivity) });
+      }, wake - now);
+  };
   const withActivity = (bot: BotSummary): BotSummary => {
     const current = activityStates.get(bot.slug);
     const {
@@ -804,7 +827,8 @@ export function createStore(): ClientStore {
       if (activity?.generation === snapshot.generation && snapshot.revision <= activity.revision)
         return;
       activity = snapshot;
-      activityStates = new Map(snapshot.bots.map((bot) => [bot.slug, bot]));
+      rawActivity = new Map(snapshot.bots.map((bot) => [bot.slug, bot]));
+      smooth();
       update({ bots: state.bots.map(withActivity) });
     },
     setActivitySync(activitySync) {

@@ -36,6 +36,13 @@ export function ChannelWorkspace({
         }),
       ),
   );
+  for (const id of Object.keys(panels)) {
+    if (!containers.has(id)) {
+      const node = document.createElement('div');
+      node.className = 'bh-channel-leaf-content';
+      containers.set(id, node);
+    }
+  }
   useLayoutEffect(() => {
     for (const [id, container] of containers) {
       const slot = host.current?.querySelector(`[data-channel-leaf="${id}"]`);

@@ -87,6 +87,7 @@ import {
 } from './channel-selection.js';
 import {
   HiddenChannelsModal,
+  deletedBotDmIds,
   hiddenChannelSequence,
   type HiddenChannelItem,
 } from './hidden-channels.js';
@@ -1027,23 +1028,26 @@ export function BotSidebar({
   const menuBotSlug = state.channels.find(
     (candidate) => candidate.id === channelMenu?.channelId && candidate.type === 'dm',
   )?.botSlug;
+  const menuModelSlug = state.bots.some((bot) => bot.slug === menuBotSlug && bot.deleted !== true)
+    ? menuBotSlug
+    : undefined;
   const [menuModelOptions, setMenuModelOptions] = useState<{
     slug: string;
     catalog: ModelCatalogView;
     state: ModelPlanStateView;
   }>();
-  const menuModelData = menuModelOptions?.slug === menuBotSlug ? menuModelOptions : undefined;
+  const menuModelData = menuModelOptions?.slug === menuModelSlug ? menuModelOptions : undefined;
   const [menuModelBusy, setMenuModelBusy] = useState(false);
   const [menuModelError, setMenuModelError] = useState<string | undefined>(undefined);
   const menuModelMount = useMountedResource<HTMLSpanElement>(() => {
     setMenuModelOptions(undefined);
-    if (menuBotSlug === undefined) return;
+    if (menuModelSlug === undefined) return;
     let active = true;
-    void Promise.all([actions.modelCatalog(), actions.modelPlanState(menuBotSlug)]).then(
+    void Promise.all([actions.modelCatalog(), actions.modelPlanState(menuModelSlug)]).then(
       ([catalog, planState]) => {
         if (!active) return;
-        rememberModelPlan(menuBotSlug, planState.plan);
-        setMenuModelOptions({ slug: menuBotSlug, catalog, state: planState });
+        rememberModelPlan(menuModelSlug, planState.plan);
+        setMenuModelOptions({ slug: menuModelSlug, catalog, state: planState });
       },
       (failure: unknown) => {
         if (active) setMenuModelError(`${t('modelPreset.loadFailed')}: ${errorMessage(failure)}`);
@@ -1052,14 +1056,14 @@ export function BotSidebar({
     return () => {
       active = false;
     };
-  }, [actions, menuBotSlug]);
+  }, [actions, menuModelSlug]);
   const applyMenuModel = (route: ModelRouteView): void => {
-    if (menuBotSlug === undefined || menuModelData === undefined || menuModelBusy) return;
+    if (menuModelSlug === undefined || menuModelData === undefined || menuModelBusy) return;
     setMenuModelBusy(true);
-    void applyBotModelRoute(actions, menuBotSlug, menuModelData.state, route)
+    void applyBotModelRoute(actions, menuModelSlug, menuModelData.state, route)
       .then((plan) => {
         setMenuModelOptions((current) =>
-          current?.slug === menuBotSlug
+          current?.slug === menuModelSlug
             ? { ...current, state: { revision: plan.revision, plan } }
             : current,
         );
@@ -1136,7 +1140,8 @@ export function BotSidebar({
 
   const query = state.query.trim().toLowerCase();
   const botBySlug = new Map(state.bots.map((bot) => [bot.slug, bot]));
-  const hiddenChannelSet = new Set(state.roster.hidden);
+  const rosterHiddenIds = [...state.roster.hidden, ...deletedBotDmIds(state.channels, state.bots)];
+  const hiddenChannelSet = new Set(rosterHiddenIds);
   const allPinnedChannelIds = resolvePinnedChannelIds(state.channels, state.roster.pins);
   const allPinnedChannelSet = new Set(allPinnedChannelIds);
   const pinnedById = new Map(state.channels.map((channel) => [channel.id, channel]));
@@ -1426,6 +1431,7 @@ export function BotSidebar({
   const hiddenItems: HiddenChannelItem[] = hiddenChannelSequence(
     state.channels,
     state.roster.hidden,
+    state.bots,
   ).map((channel) => {
     const bot = channel.botSlug === undefined ? undefined : botBySlug.get(channel.botSlug);
     return {
@@ -2902,7 +2908,7 @@ export function BotSidebar({
       ) : null}
       {quickSwitcherOpen ? (
         <QuickSwitcher
-          entries={quickSwitcherEntries(state.channels, state.bots, state.roster.hidden)}
+          entries={quickSwitcherEntries(state.channels, state.bots, rosterHiddenIds)}
           settings={
             quickSwitcherSettings === undefined
               ? undefined
@@ -2934,6 +2940,7 @@ export function BotSidebar({
           }}
           onOpen={(channelId) => {
             setHiddenManagerOpen(false);
+            onOpenConversation?.();
             void actions.openChannel(channelId);
           }}
           onClose={() => {
@@ -3049,7 +3056,7 @@ export function BotSidebar({
             };
           })()}
           modelAction={
-            menuBotSlug === undefined
+            menuModelSlug === undefined
               ? undefined
               : {
                   groups: botModelMenuGroups(

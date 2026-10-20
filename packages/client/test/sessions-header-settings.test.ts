@@ -59,6 +59,7 @@ import { createChannelSidebarBuiltins } from '../src/client/channel-sidebar-buil
 import type { ChannelSidebarEntryProps } from '../src/client/channel-sidebar.js';
 import { channelSettings } from '../src/client/channel-settings-state.js';
 import { zhTranslate } from '../src/client/locale.js';
+import { store } from '../src/client/store.js';
 
 let root: Root;
 let host: HTMLDivElement;
@@ -132,5 +133,45 @@ describe('Sessions header settings', () => {
     const dialog = host.querySelector('[role=dialog]')!;
     expect(dialog.getAttribute('aria-label')).toBe('Assignment 并发上限');
     expect(dialog.querySelector('input')?.value).toBe('4');
+  });
+  it('reads no model settings for a deleted Bot', async () => {
+    const previous = store.getSnapshot();
+    const modelPlanState = vi.fn(async () => ({ plan }));
+    const entries = createChannelSidebarBuiltins(zhTranslate, prefs);
+    const Model = entries.find((entry) => entry.id === 'model')!.component;
+    const Header = entries.find((entry) => entry.id === 'sessions')!.headerAction!;
+    store.setRoster(
+      [
+        {
+          slug: 'gone-qa',
+          displayName: 'Gone',
+          roles: [],
+          aggregateState: 'idle',
+          workspaces: [],
+          createdAt: '2026-10-01T00:00:00.000Z',
+          deleted: true,
+          paused: true,
+        },
+      ],
+      [],
+    );
+    try {
+      const props = {
+        scope: 'personabot',
+        channelId: 'dm-gone-qa',
+        botSlug: 'gone-qa',
+        actions: { modelPlanState } as unknown as BridgeActions,
+        t: zhTranslate,
+      } as unknown as ChannelSidebarEntryProps;
+      await act(async () => {
+        root.render(
+          createElement('div', null, createElement(Model, props), createElement(Header, props)),
+        );
+      });
+      expect(modelPlanState).not.toHaveBeenCalled();
+      expect(item('主模型 · 继承全局')).toBeUndefined();
+    } finally {
+      store.setRoster(previous.bots, previous.channels);
+    }
   });
 });

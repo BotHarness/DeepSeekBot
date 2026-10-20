@@ -16,6 +16,7 @@ import {
 } from './bot-mode-setting-rows.js';
 import { ApprovalTemplateLibrarySettings } from './approval-template-library.js';
 import { buildLabel, clientBuild } from './build-id.js';
+import { DataResetSettings } from './data-reset-settings.js';
 import type { BotModePrefsFace } from './bot-mode-prefs.js';
 import type { BridgeCall } from './bridge.js';
 import { SettingsRow, SettingsRows, SettingsSection } from './ds/settings-row.js';
@@ -132,6 +133,7 @@ export function DataPrivacySection({ call, t }: SectionProps<{ call: BridgeCall 
     <Rows>
       <ProfileBackupSettings t={t} />
       <TelemetrySettings call={call} t={t} />
+      <DataResetSettings call={call} t={t} />
     </Rows>
   );
 }

@@ -197,6 +197,12 @@ import type {
   PersonaBotDeletionPreview,
   PersonaBotDeletion,
 } from '../bots/deletion.js';
+import {
+  DataResetError,
+  type DataReset,
+  type DataResetPreview,
+  type DataResetResult,
+} from '../data-reset/reset.js';
 import { isValidSlug } from '../bots/slug.js';
 import {
   memoryMoveTarget,
@@ -260,6 +266,11 @@ import {
   type WorkspaceGrant,
   type WorkspaceGrantStore,
 } from '../workspaces/grants.js';
+import {
+  FolderBrowseError,
+  type FolderBrowser,
+  type FolderListing,
+} from '../workspaces/folder-browse.js';
 import type { ChannelToolApproval } from '../workspaces/tool-approval.js';
 import type { ChannelUserQuestions } from '../channels/user-questions.js';
 import type { AskUserQuestionAnswer } from '@deepseek-ai/dsh-user-questions/types';
@@ -582,6 +593,8 @@ export interface BridgeMethods {
     payload: unknown,
   ): Promise<BridgeResult<{ bot: PersonaBotDetail; httpsFallback?: HttpsFallback }>>;
   update(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
+  dataResetPreview(): BridgeResult<{ preview: DataResetPreview }>;
+  dataResetConfirm(payload: unknown): BridgeResult<{ reset: DataResetResult }>;
   deletionPreview(payload: unknown): BridgeResult<{ preview: PersonaBotDeletionPreview }>;
   deletionConfirm(payload: unknown): Promise<BridgeResult<{ deletion: PersonaBotDeletion }>>;
   deletionRetry(payload: unknown): Promise<BridgeResult<{ deletion: PersonaBotDeletion }>>;
@@ -660,6 +673,7 @@ export interface BridgeMethods {
   workspaceFileTarget(
     payload: unknown,
   ): BridgeResult<{ target: { path: string; relativePath: ''; kind: 'directory' } }>;
+  folderBrowse(payload: unknown): BridgeResult<FolderListing>;
   grants(payload: unknown): BridgeResult<{ grants: WorkspaceGrant[] }>;
   grantCreate(
     payload: unknown,
@@ -846,6 +860,7 @@ export interface BridgeMethodsDeps {
   approvalTemplates?: ApprovalTemplateLibrary;
   deletions?: PersonaBotDeletions;
   contentPurge?: ContentPurge;
+  dataReset?: DataReset;
   attachments?: AttachmentStore;
   modelPresets?: ModelPresetStore;
   modelCatalog?: ModelCatalog;
@@ -881,6 +896,7 @@ export interface BridgeMethodsDeps {
   humanAttention?: HumanAttentionQuery;
   humanAttentionDecisions?: HumanAttentionDecisions;
   grants?: WorkspaceGrantStore;
+  folders?: FolderBrowser;
   externalMessaging?: OutboundMessaging;
   toolApproval?: ChannelToolApproval;
   userQuestions?: ChannelUserQuestions;
@@ -1109,6 +1125,18 @@ function idleCompactionView(deps: IdleCompactionDeps): IdleCompactionView {
     minimumIdleSeconds: MIN_IDLE_MS / 1000,
     scheduled: deps.scheduler.scheduled(),
     routes: deps.scheduler.describe(deps.routes()),
+  };
+}
+
+function dataResetFailure(error: unknown): BridgeResult<never> {
+  if (error instanceof DataResetError)
+    return { ok: false, error: { code: error.code, message: error.message } };
+  return {
+    ok: false,
+    error: {
+      code: 'data-reset-failed',
+      message: error instanceof Error ? error.message : 'BotHarness data could not be cleared',
+    },
   };
 }
 
@@ -2541,6 +2569,25 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         return { ok: true, value: { plan: result.record.modelPlan } };
       } catch (error) {
         return invalidInput(error instanceof Error ? error.message : String(error));
+      }
+    },
+    dataResetPreview() {
+      if (deps.dataReset === undefined) return unavailable();
+      try {
+        return { ok: true, value: { preview: deps.dataReset.preview() } };
+      } catch (error) {
+        return dataResetFailure(error);
+      }
+    },
+    dataResetConfirm(payload) {
+      const token = asObject(payload)['token'];
+      if (typeof token !== 'string' || token.length === 0 || token.length > 256)
+        return invalidInput('token is required');
+      if (deps.dataReset === undefined) return unavailable();
+      try {
+        return { ok: true, value: { reset: deps.dataReset.confirm(token) } };
+      } catch (error) {
+        return dataResetFailure(error);
       }
     },
     deletionPreview(payload) {
@@ -5321,6 +5368,25 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         throw error;
       }
     },
+    folderBrowse(payload) {
+      const input = z
+        .object({ path: z.string().max(1024).optional() })
+        .strict()
+        .safeParse(payload ?? {});
+      if (!input.success) return invalidInput('path must be a folder path');
+      if (deps.folders === undefined)
+        return {
+          ok: false,
+          error: { code: 'unavailable', message: 'Folder browsing is unavailable' },
+        };
+      try {
+        return { ok: true, value: deps.folders.list(input.data.path) };
+      } catch (error) {
+        if (error instanceof FolderBrowseError)
+          return { ok: false, error: { code: error.code, message: error.message } };
+        throw error;
+      }
+    },
     workspaceFileTarget(payload) {
       const source = asObject(payload);
       const slug = asNonBlank(source, 'slug');
@@ -6319,7 +6385,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       }
     },
     profileActivity(payload) {
-      const scope = dmMemory(payload);
+      const scope = dmMemory(payload, true);
       if (!('botSlug' in scope)) return scope;
       const slug = scope.botSlug;
       const source = asObject(payload);
@@ -6346,7 +6412,13 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       const beforeEnd = <T extends { at: string }>(entries: readonly T[]): T[] =>
         end === undefined ? [...entries] : entries.filter((entry) => new Date(entry.at) < end);
       const events = beforeEnd(deps.channels.admissionActivity?.(slug, since) ?? []);
-      const commits = beforeEnd(deps.memory?.activity?.(slug, since) ?? []);
+      let memoryActivity: Array<{ at: string }> = [];
+      try {
+        memoryActivity = deps.memory?.activity?.(slug, since) ?? [];
+      } catch (error) {
+        if (deps.registry.get(slug) !== undefined) throw error;
+      }
+      const commits = beforeEnd(memoryActivity);
       const usageRows = (deps.usage?.activity(slug, since) ?? []).filter(
         (row) => before === undefined || row.day < before,
       );

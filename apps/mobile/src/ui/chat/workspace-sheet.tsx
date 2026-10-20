@@ -73,6 +73,23 @@ type BrowseRow =
 
 const OFF = 'off';
 
+export function OpenFolderTarget({ listing }: { listing: Loadable<HostFolderListing> }) {
+  return listing.status === 'ready' ? (
+    <SheetNote>{t.authorizeTarget(listing.value.path)}</SheetNote>
+  ) : null;
+}
+
+export function locationSection(listing: HostFolderListing) {
+  const data = listing.roots
+    .map((root, index) => ({
+      kind: 'folder' as const,
+      key: `root:${root.path}`,
+      folder: index === 0 ? { ...root, name: t.browseHome } : root,
+    }))
+    .filter((row) => row.folder.path !== listing.path);
+  return data.length === 0 ? [] : [{ key: 'locations', title: t.browseLocations, data }];
+}
+
 export function templateTitle(template: Pick<ApprovalTemplate, 'name' | 'title'>): string {
   if (template.name === 'cautious') return t.autoApprovalCautious;
   if (template.name === 'get-work-done') return t.autoApprovalGetWorkDone;
@@ -448,6 +465,7 @@ export function WorkspaceSheet({
           listing.status === 'ready' && listing.value.truncated ? t.browseTruncated : undefined,
         data: folderRows,
       },
+      ...(listing.status === 'ready' ? locationSection(listing.value) : []),
     ];
     return (
       <Sheet
@@ -517,6 +535,7 @@ export function WorkspaceSheet({
             </Grouped>
           )}
         />
+        <OpenFolderTarget listing={listing} />
         <SheetActions>
           <Button
             label={t.back}

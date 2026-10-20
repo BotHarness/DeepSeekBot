@@ -1085,6 +1085,22 @@ describe('bot sidebar rows', () => {
     expect(rail).not.toContain('散装渠道');
   });
 
+  it('moves a deleted Bot DM out of the roster, pin grid, and collapsed rail', () => {
+    store.setRoster([{ ...BOT, deleted: true, paused: true }], [DM_CHANNEL, FLAT_CHANNEL]);
+    setRoster({
+      pins: [DM_CHANNEL.id],
+      topOrder: [{ kind: 'channel', id: FLAT_CHANNEL.id }],
+    });
+
+    const wide = renderSidebar();
+    expect(wide).not.toContain('Atlas');
+    expect(wide).toContain('散装渠道');
+
+    const rail = renderSidebar(false);
+    expect(rail).not.toContain('Atlas');
+    expect(rail).toContain('散装渠道');
+  });
+
   it('renders a PersonaBot DM inside a section with the same channel drag lifecycle', () => {
     setRoster({ sections: [section('s1', '工作流', ['dm-atlas'])] });
     store.setRoster([BOT], [DM_CHANNEL]);

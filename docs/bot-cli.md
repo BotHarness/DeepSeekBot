@@ -56,7 +56,7 @@ For a blank bot, `--core-memory <text>` or `--core-memory-stdin` writes the root
 
 ## Live Host commands
 
-Set `DEEPSEEKBOT_HOST` to the running Host's loopback origin, or a tailnet HTTPS origin. Supply its current launch token through `DEEPSEEKBOT_HOST_TOKEN` or `--token-file <private-file>`, never a token argument. `--host <origin>` overrides the environment. Login happens per invocation, cookies remain in memory, and restarting the Host requires its new token. Live commands never open the profile database. See [ADR-0159](adr/0159-live-cli-verbs-ride-the-dsh-http-carrier.md).
+Set `DEEPSEEKBOT_HOST` to the running Host's loopback origin, or a tailnet HTTPS origin. A tailnet origin (for example `tailscale serve` in front of a loopback Host) works only when the Host was started with `--trusted-host <machine>.<tailnet>.ts.net`; otherwise login succeeds but DSH's `/api` Host fence refuses every request and the CLI returns `host-untrusted`. Supply its current launch token through `DEEPSEEKBOT_HOST_TOKEN` or `--token-file <private-file>`, never a token argument. `--host <origin>` overrides the environment. Login happens per invocation, cookies remain in memory, and restarting the Host requires its new token. Live commands never open the profile database. See [ADR-0159](adr/0159-live-cli-verbs-ride-the-dsh-http-carrier.md).
 
 ### Online creation and headless debugging
 
@@ -108,6 +108,7 @@ deepseekbot ask-secret-revoke <channel-id> --message-id <configured-card-id>
 deepseekbot ask-secret-accounts <bot-id>
 deepseekbot release-info [--since <version>]
 deepseekbot workspace-options
+deepseekbot folder-browse [<folder-path>]
 deepseekbot grant-create <bot-id> --workspace <workspace-id>
 ```
 
@@ -512,7 +513,7 @@ Question answer stdin is `{"answers":[{"id":"question-id","selected":["Blue"],"c
 
 Private input uses the authenticated Owner and the same inline cards as Web Chat. Read `privateInputRequest.fields` and the card ID from `channel-messages`, then feed a JSON object of those field IDs and confidential strings to `ask-secret-submit --values-stdin` from a trusted source. Keep values out of arguments, shell history and ordinary messages. Submission and cancellation return only `{accepted:true}`; no command reads original values back. `ask-secret-status` returns request settlement, while `ask-secret-account-status` reports current access, including revoked or superseded. Replacement returns a new blank card's `{messageId}` for a separate stdin submission; revocation returns `{accepted:true,stopped,completed,uncertain}` and withdraws local access, without undoing remote effects; the account's stored values are erased at once. `ask-secret-accounts` lists a Bot's current private accounts as `{status,accounts}`: each row has the account name, purpose, field labels, `configured`/`replacing`/`unavailable`, when it was last set, and the configured card's `channelId` and `messageId` for `ask-secret-replace` and `ask-secret-revoke`. It never returns values or references. Private-operation refusals use the static `private-input-not-accepted` error instead of forwarding Host payloads. Mutations never retry automatically; inspect status and history after an uncertain transport outcome. These commands work in every Profile: since ADR-0189 secret input needs no opt-in and no Docker, see the [ordinary Profile guide](dev/guides/private-input-ordinary.md). The [account lifecycle guide](dev/guides/private-input-cli.md) has runnable checks for replacement, revocation and scheduled reuse.
 
-Host-down commands fail `host-unreachable` without submitting a message. Expired tokens fail `host-unauthorized`; malformed responses fail `host-protocol-error`. Bridge and gateway codes pass through unchanged. Stdout remains one JSON document (`--compact` is available); authentication values are never printed or saved.
+Host-down commands fail `host-unreachable` without submitting a message. Expired tokens fail `host-unauthorized`; a tailnet name missing from the Host's `--trusted-host` list fails `host-untrusted`; malformed responses fail `host-protocol-error`. Bridge and gateway codes pass through unchanged. Stdout remains one JSON document (`--compact` is available); authentication values are never printed or saved.
 
 Credential writes validate actual YAML before and after disk writes and restore exact previous bytes on failure (or remove a failed new file). Empty `refs: {}` becomes a block map while comments and records remain. Multiline values, including blank and trailing lines, round-trip. Null refs, empty stores and nonempty inline refs maps fail `bad-credentials` unchanged; use a block refs mapping for edits.
 
@@ -599,7 +600,7 @@ deepseekbot phone-route
 deepseekbot phone-route-publish --confirm
 ```
 
-`phone-route` returns `{routes}`: `tailscale` (`running`, `stopped` or `missing`), the `serveCommand` for this Host's port, and each route with `ready` and, when not ready, `issue` (`serve-missing` or `serve-other-target`). `phone-route-publish` runs `tailscale serve --bg <port>` on the Host computer and returns `{published, changed, routes}`; `changed:false` means the route was already published. Refusals carry a code: `confirm-required` (no `--confirm`), `tailscale-missing`, `tailscale-stopped`, `serve-other-target` (another service is already published at this address; the Host never replaces it, change it by hand), `serve-needs-enable` (Serve is off for the tailnet; the refusal carries `enableUrl` for the Tailscale admin console), `serve-denied` (Tailscale refused the change for this OS user) and `serve-failed`. Undo with `tailscale serve reset`.
+`phone-route` returns `{routes}`: `tailscale` (`running`, `stopped` or `missing`), the `serveCommand` for this Host's port, and each route with `ready` and, when not ready, `issue` (`serve-missing` or `serve-other-target`). `phone-route-publish` runs `tailscale serve --bg <port>` on the Host computer and returns `{published, changed, routes}`; `changed:false` means the route was already published. Refusals carry a code: `confirm-required` (no `--confirm`), `tailscale-missing`, `tailscale-stopped`, `serve-other-target` (another service is already published at this address; the Host never replaces it, change it by hand), `serve-needs-enable` (Serve is off for the tailnet; the refusal carries `enableUrl` for the Tailscale admin console), `serve-denied` (Tailscale refused the change for this OS user) and `serve-failed`. Undo with `tailscale serve --https=443 off`; `tailscale serve reset` would also remove every other Serve entry on the computer.
 
 ### Models, usage and activity
 
@@ -659,6 +660,17 @@ deepseekbot pairing-review <bot-id> <pairing-id> --decision revoke --confirm
 `release-info` includes an optional Host-owned `identity`: `development` with source revision/dirty state, `release` with version, or `unknown` with a metadata/composition reason. Old Hosts omit this field; absence is not verified release identity. The internal source version placeholder remains `0.0.0`; About displays source identity instead. `release-check` can return `unknown`; install/restart then refuse with `release-identity-invalid`. Installed/staged and running versions remain separate until the new Host answers with the exact target version.
 
 `--lang zh|en` asks for listings in that language, as the Marketplace page does in the interface language: the name and bio come from the author's `bot.json` `i18n` translation, then a bio already in that language, then the Marketplace's generated summary (`descriptionGenerated: true`); `marketplace-detail` returns the repository's README in that language and names it in `readmeLanguage`, else `README.md`: for `zh` it takes `README.zh-CN.md`, then `README.zh.md`, then another spelling such as `README_CN.md` or `README-zh.md`; for `en` it takes `README.en.md`. `marketplace-submit` and `marketplace-report` first solve the Host's proof-of-work challenge, as the Web page does, so they can take a few seconds; the Marketplace's own refusals (`repository-missing-topic`, `rate-limited`, …) come back as the error code. A report reason is at most 500 characters. `release-check` returns the update status (`current`, `available`, `restart-required`, `blocked`, `development`, `unknown` or `unavailable`). `release-install` and `release-restart` need `--confirm`; a failed install or restart exits non-zero with `release-<reason>`, such as `release-network` or `release-not-pending`. Restarting stops every running Bot turn, so do it only on a Host you own. `pairing-list` shows a Bot's pairing requests and its roles; `pairing-review` reads the current revisions itself, so a request that changed in between is refused instead of overwritten. Approve with one `--role` for a conversation request or with `--capability` for a management request.
+
+### Clear all BotHarness data
+
+```bash
+deepseekbot data-reset-preview
+printf '%s' '{"token":"<preview.token>"}' | deepseekbot data-reset-confirm --confirmation-stdin --confirm
+```
+
+This is the CLI form of **Settings → Data & privacy → Clear all BotHarness data**. `data-reset-preview` lists exactly what a reset removes: `targets` names each existing folder (`data` is `$DSH_HOME/botharness`, with the database, Bots, Memory in its default place, attachments, channel files and workspaces; `im-settings` is each bundled IM Provider folder under `$DSH_HOME/integrations`; `local-tools` is `~/.botharness`, such as the computer driver), with its size and file count. `kept` lists what stays: DSH's own `$DSH_HOME/.credentials.yaml`, every Memory folder a Human chose for a Bot (kept even when it sits inside a removed folder) and the `BotHarness Exports` folder. The token lasts ten minutes and only for that exact scope; a new Bot, a moved Memory folder or an expired token refuses with `data-reset-preview-stale`, so preview again.
+
+`data-reset-confirm` needs `--confirmation-stdin --confirm`. It stops BotHarness writing, records the reset in `$DSH_HOME/botharness-reset.json` and returns `{reset:{status:"restarting"}}`: the folders are removed when the old Host exits, before it starts again. When the Host cannot restart itself it returns `restart-required`; Bots stay stopped and the removal finishes at the next Host start, including after the plugin is reinstalled. DSH sessions, DSH settings and other plugins stay. Only the Host owner can run it; it is not a Bot tool.
 
 ## IM application authorization
 
@@ -733,6 +745,15 @@ deepseekbot grants <bot-id>
 ```
 
 `grant-request-approve` uses the same Owner-only Host command as the Web request card. The Host commits persistent read/write authority and the Grant-linked resolution together before continuing the original task through its existing Inbox. It also upgrades an existing read-only Grant after this explicit confirmation. Repeating the same approved request reads back the existing decision; it does not create another Grant or wake. A revoked or changed target is refused. An old tool approval is not a Workspace request: use this command rather than `tool-approval-decide`. Missing `--confirm` is `usage`; unavailable or stale authority returns a coded refusal. This is an online command, not an offline database repair.
+
+### Browse Host folders
+
+```bash
+deepseekbot folder-browse
+deepseekbot folder-browse 'D:\code'
+```
+
+`folder-browse` lists the subfolders of one Host folder, the same way the phone folder picker does when the computer uses the system folder dialog. With no path it starts at the Host home. It returns `{path, home, crumbs, entries, truncated, roots}`: folder names and paths only, never files. `roots` holds the home folder and the drives (Windows) or `/`. A relative path fails `folder-browse/invalid-path`; a missing, non-folder or unreadable path fails `folder-browse/not-found`, `folder-browse/not-directory` or `folder-browse/denied`. Browsing grants nothing: register the chosen path and grant it as above.
 
 ## Memory
 

@@ -1153,6 +1153,7 @@ export const zh = {
   'deletion.pending': '记忆清理尚未完成；已停用此身份，原位置仍保留在删除记录中。',
   'deletion.retry': '重试已确认的删除范围',
   'deletion.deleted': '已删除的 Bot',
+  'deletion.readOnly': '已删除的 Bot · 仅供查看',
   'common.create': '创建',
   'common.delete': '删除',
   'common.rename': '重命名',
@@ -3909,7 +3910,7 @@ export const zh = {
     '这个地址已经用 tailscale serve 发布了别的服务。自动运行会覆盖它，所以这一步需要你自己决定。',
   'devices.route.confirm.title': '运行 tailscale serve？',
   'devices.route.confirm.description':
-    'DeepSeekBot 会在这台电脑上运行下面的命令，用 HTTPS 把本机 {port} 端口发布到你的 tailnet。只有你 tailnet 里的设备能访问，随时可以运行 tailscale serve reset 撤销。',
+    'DeepSeekBot 会在这台电脑上运行下面的命令，用 HTTPS 把本机 {port} 端口发布到你的 tailnet。只有你 tailnet 里的设备能访问，随时可以运行 tailscale serve --https=443 off 撤销，不影响其他 Serve 配置。',
   'devices.route.confirm.action': '运行',
   'devices.route.enableAction': '打开 Tailscale 后台',
   'devices.route.failure.needsEnable':
@@ -3951,6 +3952,36 @@ export const zh = {
   'telemetry.row.lockedDoNotTrack': '已由环境变量 DO_NOT_TRACK=1 关闭。',
   'telemetry.row.lockedEnv': '已由环境变量 BOTHARNESS_TELEMETRY=0 关闭。',
   'telemetry.row.error': '保存失败，请重试。',
+  'dataReset.row.title': '清除全部 BotHarness 数据',
+  'dataReset.row.description':
+    '删除所有 Bot、聊天记录、记忆和设置，让插件回到刚安装时的样子。卸载插件前可以先清除。',
+  'dataReset.row.action': '清除…',
+  'dataReset.title': '清除全部 BotHarness 数据',
+  'dataReset.loading': '正在检查要删除的内容…',
+  'dataReset.lead': '会删除这台 Host 上的 {bots} 个 Bot 和下面列出的全部内容，无法撤销。',
+  'dataReset.removed': '会删除',
+  'dataReset.kept': '会保留',
+  'dataReset.nothing': '没有找到 BotHarness 数据。',
+  'dataReset.target.data': 'BotHarness 数据',
+  'dataReset.target.dataBody':
+    '数据库、Bot、默认位置的记忆、附件、频道文件、工作区和浏览器登录状态',
+  'dataReset.target.im': 'IM 连接设置',
+  'dataReset.target.imBody': '飞书等 IM 应用的连接设置',
+  'dataReset.target.tools': '下载的工具',
+  'dataReset.target.toolsBody': '电脑操控驱动等之后可重新下载的工具',
+  'dataReset.size': '{size} · {files} 个文件',
+  'dataReset.sizeMore': '至少 {size} · {files} 个文件',
+  'dataReset.kept.credentials': 'DSH 凭据',
+  'dataReset.kept.memory': '你为 Bot 选择的记忆位置',
+  'dataReset.kept.exports': '导出的文件',
+  'dataReset.manualNote':
+    '这台 Host 不能自动重启。清除后 Bot 会停止工作，手动重启 Host 后完成删除。',
+  'dataReset.acknowledge': '我了解这会永久删除以上内容',
+  'dataReset.confirm': '清除并重启',
+  'dataReset.confirmManual': '清除',
+  'dataReset.restarting': '正在清除数据并重启 Host，页面稍后会重新连接。',
+  'dataReset.restartManual': '已开始清除。请手动重启 Host 来完成删除。',
+  'dataReset.error': '清除失败，请重试。',
 } as const satisfies Record<string, string>;
 
 export type BotHarnessKey = keyof typeof zh;
@@ -5176,6 +5207,7 @@ export const en = {
     'Memory cleanup is incomplete. The identity remains disabled and its original location remains recorded.',
   'deletion.retry': 'Retry the accepted deletion scope',
   'deletion.deleted': 'Deleted Bot',
+  'deletion.readOnly': 'Deleted Bot · read-only',
   'common.create': 'Create',
   'common.delete': 'Delete',
   'common.rename': 'Rename',
@@ -8087,7 +8119,7 @@ My relationship with you, established lore and topics to avoid: [fill in].
     'tailscale serve already publishes another service at this address. Running it automatically would replace that, so this step is your call.',
   'devices.route.confirm.title': 'Run tailscale serve?',
   'devices.route.confirm.description':
-    'DeepSeekBot will run the command below on this computer to publish local port {port} over HTTPS on your tailnet. Only devices on your tailnet can reach it; run tailscale serve reset to undo.',
+    'DeepSeekBot will run the command below on this computer to publish local port {port} over HTTPS on your tailnet. Only devices on your tailnet can reach it; run tailscale serve --https=443 off to undo; other Serve entries stay.',
   'devices.route.confirm.action': 'Run',
   'devices.route.enableAction': 'Open Tailscale admin',
   'devices.route.failure.needsEnable':
@@ -8136,6 +8168,37 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'telemetry.row.lockedDoNotTrack': 'Turned off by the environment variable DO_NOT_TRACK=1.',
   'telemetry.row.lockedEnv': 'Turned off by the environment variable BOTHARNESS_TELEMETRY=0.',
   'telemetry.row.error': 'Could not save. Try again.',
+  'dataReset.row.title': 'Clear all BotHarness data',
+  'dataReset.row.description':
+    'Delete every Bot, chat, Memory and setting so the plugin is like a fresh install. Do this before you uninstall the plugin.',
+  'dataReset.row.action': 'Clear…',
+  'dataReset.title': 'Clear all BotHarness data',
+  'dataReset.loading': 'Checking what will be deleted…',
+  'dataReset.lead':
+    'This deletes the {bots} Bots on this Host and everything listed below. It cannot be undone.',
+  'dataReset.removed': 'Will be deleted',
+  'dataReset.kept': 'Will be kept',
+  'dataReset.nothing': 'No BotHarness data was found.',
+  'dataReset.target.data': 'BotHarness data',
+  'dataReset.target.dataBody':
+    'Database, Bots, Memory in its default place, attachments, channel files, workspaces and browser sign-ins',
+  'dataReset.target.im': 'IM connection settings',
+  'dataReset.target.imBody': 'Connection settings for Feishu and other IM apps',
+  'dataReset.target.tools': 'Downloaded tools',
+  'dataReset.target.toolsBody': 'Tools such as the computer driver, downloaded again when needed',
+  'dataReset.size': '{size} · {files} files',
+  'dataReset.sizeMore': 'At least {size} · {files} files',
+  'dataReset.kept.credentials': 'DSH credentials',
+  'dataReset.kept.memory': 'Memory folder you chose for a Bot',
+  'dataReset.kept.exports': 'Exported files',
+  'dataReset.manualNote':
+    'This Host cannot restart itself. Bots stop after you clear; restart the Host yourself to finish.',
+  'dataReset.acknowledge': 'I understand this permanently deletes everything above',
+  'dataReset.confirm': 'Clear and restart',
+  'dataReset.confirmManual': 'Clear',
+  'dataReset.restarting': 'Clearing data and restarting the Host. This page reconnects shortly.',
+  'dataReset.restartManual': 'Clearing has started. Restart the Host yourself to finish.',
+  'dataReset.error': 'Could not clear. Try again.',
 } satisfies Record<BotHarnessKey, string>;
 
 export type BotHarnessTranslate = TranslateNS<typeof LOCALE_NS>;

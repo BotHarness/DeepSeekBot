@@ -58,6 +58,7 @@ export function ChannelSettingsDialog({
     () => controller.attentionOf(channel?.id),
   );
   if (!snapshot.open || context === undefined || channel === undefined) return null;
+  if (state.bots.some((bot) => bot.slug === context.botSlug && bot.deleted === true)) return null;
   const sections = channelSettingsSections(entries, state);
   if (sections.length === 0) return null;
   const remembered = prefSnapshot.selectedTabs[channelSettingsSectionKey(scope)];

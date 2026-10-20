@@ -3589,16 +3589,18 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
 }
 /* Hover actions float over the bubble's top-right edge so showing them never
    shifts the layout. The lane spans the bubble and right-aligns the pill; a
-   Bot bubble narrower than the pill keeps it from spilling over the avatar. */
+   Bot bubble narrower than the pill keeps it from spilling over the avatar.
+   Every bubble keeps a hidden toolbar, so it is placed with bottom instead of
+   a transform: a transform per message makes Chromium rebuild every bubble's
+   compositing on each repaint. */
 .bh-bubble-toolbar {
   position: absolute;
   z-index: 2;
-  top: 0;
+  bottom: calc(100% - ${space.x3});
   left: 0;
   right: ${space.x3};
   display: flex;
   justify-content: safe flex-end;
-  transform: translateY(calc(-100% + ${space.x3}));
   opacity: 0;
   pointer-events: none;
 }

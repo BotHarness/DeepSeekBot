@@ -368,6 +368,27 @@ describe('Connect relay tunnels', () => {
     expect((await call('GET', '/v1/hosts', { as: 'user_alice' })).body['hosts']).toEqual([]);
   });
 
+  it('caps reclaim attempts when the upstream deletes fail', async () => {
+    const accounts = ['user_a', 'user_b', 'user_c', 'user_d'];
+    const { call, relay, tunnels, advance } = await setup(accounts);
+    for (const account of accounts)
+      for (let index = 0; index < 5; index += 1) {
+        const { body } = await call('POST', '/v1/hosts', { as: account, body: { name: 'Host' } });
+        await call('POST', `/v1/hosts/${body['host'].id}/tunnel`, {
+          as: account,
+          body: { originPort: 41001 },
+        });
+      }
+    let attempts = 0;
+    tunnels.deleteTunnel = async () => {
+      attempts += 1;
+      throw new Error('upstream unavailable');
+    };
+    advance(6 * 60 * 1000);
+    await relay.reclaim();
+    expect(attempts).toBeLessThanOrEqual(15);
+  });
+
   it('lists tunnels once per run and reclaims at most fifteen', async () => {
     const accounts = ['user_a', 'user_b', 'user_c', 'user_d'];
     const { call, relay, tunnels, advance } = await setup(accounts);

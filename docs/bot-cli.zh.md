@@ -56,7 +56,7 @@ deepseekbot search <words>
 
 ## 在线 Host 命令
 
-将 `DEEPSEEKBOT_HOST` 设为运行中 Host 的 loopback origin 或 tailnet HTTPS origin；`--host <origin>` 可覆盖它。当前启动令牌通过 `DEEPSEEKBOT_HOST_TOKEN` 或 `--token-file <私有文件>` 提供，不得把令牌值放入参数。每次调用重新登录，cookie 只留在内存；Host 重启后须使用新令牌。在线命令不打开 Profile 数据库。参见 [ADR-0159](adr/0159-live-cli-verbs-ride-the-dsh-http-carrier.md)。
+将 `DEEPSEEKBOT_HOST` 设为运行中 Host 的 loopback origin 或 tailnet HTTPS origin。使用 tailnet origin（例如 loopback Host 前面的 `tailscale serve`）时，Host 必须以 `--trusted-host <machine>.<tailnet>.ts.net` 启动；否则登录能成功，但 DSH 的 `/api` Host 校验会拒绝每个请求，CLI 返回 `host-untrusted`。`--host <origin>` 可覆盖它。当前启动令牌通过 `DEEPSEEKBOT_HOST_TOKEN` 或 `--token-file <私有文件>` 提供，不得把令牌值放入参数。每次调用重新登录，cookie 只留在内存；Host 重启后须使用新令牌。在线命令不打开 Profile 数据库。参见 [ADR-0159](adr/0159-live-cli-verbs-ride-the-dsh-http-carrier.md)。
 
 ### 在线创建与无浏览器调试
 
@@ -103,6 +103,7 @@ deepseekbot user-question-status <channel-id> --message-id <卡片-id>
 deepseekbot user-question-answer <channel-id> --message-id <卡片-id> --answer-stdin
 deepseekbot release-info [--since <版本>]
 deepseekbot workspace-options
+deepseekbot folder-browse [<文件夹路径>]
 deepseekbot grant-create <bot-id> --workspace <workspace-id>
 ```
 
@@ -496,7 +497,7 @@ printf '{"display_name":"Tim","tags":["translator"],"soul":"# Tim\\nCalm and pre
 
 问题答案由 stdin 提供：`{"answers":[{"id":"question-id","selected":["Blue"],"custom":"可选文字"}]}`；从在线历史获取问题 ID 与选项。Host owner 只应用一次决定，重复或竞争操作返回原有错误码。工具审批提供仅允许一次和拒绝；问题状态保留 pending/submitted/answered/expired。`release-info` 只读生命周期，工作区授权使用 `workspace-options` 返回的 ID。
 
-Host 离线时返回 `host-unreachable`，不提交消息；过期令牌返回 `host-unauthorized`，无效响应返回 `host-protocol-error`。Bridge 和 gateway 错误码原样透传。stdout 仍只有一份 JSON，支持 `--compact`；认证值不打印、不保存。
+Host 离线时返回 `host-unreachable`，不提交消息；过期令牌返回 `host-unauthorized`，tailnet 名称不在 Host 的 `--trusted-host` 列表中时返回 `host-untrusted`，无效响应返回 `host-protocol-error`。Bridge 和 gateway 错误码原样透传。stdout 仍只有一份 JSON，支持 `--compact`；认证值不打印、不保存。
 
 凭据写入在落盘前后验证真实 YAML；失败恢复原文件字节，新文件失败则删除。空的 `refs: {}` 转成块映射，保留注释与 records；含空行及尾换行的多行值可完整读回。null ref 值、空文件、非空内联 refs 映射返回 `bad-credentials` 且不改文件；编辑前请将 refs 改成块映射。
 
@@ -583,7 +584,7 @@ deepseekbot phone-route
 deepseekbot phone-route-publish --confirm
 ```
 
-`phone-route` 返回 `{routes}`：`tailscale`（`running`、`stopped` 或 `missing`）、本 Host 端口对应的 `serveCommand`，以及每条路由的 `ready`；未就绪时带 `issue`（`serve-missing` 或 `serve-other-target`）。`phone-route-publish` 在 Host 所在电脑上运行 `tailscale serve --bg <port>`，返回 `{published, changed, routes}`；`changed:false` 表示原本就已发布。拒绝时带错误码：`confirm-required`（缺少 `--confirm`）、`tailscale-missing`、`tailscale-stopped`、`serve-other-target`（这个地址已发布了别的服务，Host 不会覆盖，请手动处理）、`serve-needs-enable`（tailnet 未开启 Serve，返回 `enableUrl` 指向 Tailscale 后台）、`serve-denied`（Tailscale 不允许当前系统用户修改）和 `serve-failed`。用 `tailscale serve reset` 撤销。
+`phone-route` 返回 `{routes}`：`tailscale`（`running`、`stopped` 或 `missing`）、本 Host 端口对应的 `serveCommand`，以及每条路由的 `ready`；未就绪时带 `issue`（`serve-missing` 或 `serve-other-target`）。`phone-route-publish` 在 Host 所在电脑上运行 `tailscale serve --bg <port>`，返回 `{published, changed, routes}`；`changed:false` 表示原本就已发布。拒绝时带错误码：`confirm-required`（缺少 `--confirm`）、`tailscale-missing`、`tailscale-stopped`、`serve-other-target`（这个地址已发布了别的服务，Host 不会覆盖，请手动处理）、`serve-needs-enable`（tailnet 未开启 Serve，返回 `enableUrl` 指向 Tailscale 后台）、`serve-denied`（Tailscale 不允许当前系统用户修改）和 `serve-failed`。用 `tailscale serve --https=443 off` 撤销；`tailscale serve reset` 会连同这台电脑上其他 Serve 配置一起清掉。
 
 ### 模型、用量与活动
 
@@ -645,6 +646,17 @@ deepseekbot pairing-review <bot-id> <pairing-id> --decision revoke --confirm
 `release-info` 包含可选的 Host 所有 `identity`：带源码 revision／dirty 的 `development`、带版本的 `release`，或带元数据／组合原因的 `unknown`。旧 Host 缺少该字段，不代表发布身份已经核实。源码内部版本占位仍为 `0.0.0`，关于页面显示源码身份。`release-check` 可返回 `unknown`，此时安装／重启以 `release-identity-invalid` 拒绝。已安装／待生效版本与运行版本分开，直到新 Host 返回精确目标版本。
 
 `--lang zh|en` 按该语言读取列表，与市场页面按界面语言读取一致：名称和简介依次取作者 `bot.json` 里 `i18n` 的翻译、本来就是该语言的简介、市场生成的摘要（`descriptionGenerated: true`）；`marketplace-detail` 返回仓库里该语言的 README，并在 `readmeLanguage` 里注明，没有就返回 `README.md`：`zh` 依次取 `README.zh-CN.md`、`README.zh.md`，再取 `README_CN.md`、`README-zh.md` 等其他写法；`en` 取 `README.en.md`。`marketplace-submit` 和 `marketplace-report` 会像网页一样先完成 Host 下发的工作量证明，因此可能需要几秒；市场本身的拒绝（`repository-missing-topic`、`rate-limited` 等）作为错误码返回。举报说明最多 500 个字符。`release-check` 返回更新状态（`current`、`available`、`restart-required`、`development`、`unknown` 或 `unavailable`）。`release-install` 和 `release-restart` 必须带 `--confirm`；安装或重启失败时以非零退出，错误码为 `release-<原因>`，例如 `release-network` 或 `release-not-pending`。重启会中断所有正在运行的 Bot 回合，只在自己负责的 Host 上执行。`pairing-list` 列出 Bot 的配对请求和角色；`pairing-review` 自行读取当前版本号，期间被改动过的请求会被拒绝而不是被覆盖。对话类请求用一个 `--role` 批准，管理类请求用 `--capability` 批准。
+
+### 清除全部 BotHarness 数据
+
+```bash
+deepseekbot data-reset-preview
+printf '%s' '{"token":"<preview.token>"}' | deepseekbot data-reset-confirm --confirmation-stdin --confirm
+```
+
+这是**设置 → 数据与隐私 → 清除全部 BotHarness 数据**的 CLI 形式。`data-reset-preview` 列出清除会删除的全部内容：`targets` 给出每个存在的文件夹及其大小和文件数（`data` 是 `$DSH_HOME/botharness`，含数据库、Bot、默认位置的记忆、附件、频道文件和工作区；`im-settings` 是 `$DSH_HOME/integrations` 下内置 IM Provider 的各个文件夹；`local-tools` 是 `~/.botharness`，例如电脑操控驱动）。`kept` 列出会保留的内容：DSH 自己的 `$DSH_HOME/.credentials.yaml`、Human 为 Bot 选择的每个记忆文件夹（即使位于要删除的文件夹内也保留），以及 `BotHarness Exports` 文件夹。token 十分钟内有效，且只对应这一次的范围；新建了 Bot、移动了记忆文件夹或 token 过期时会以 `data-reset-preview-stale` 拒绝，请重新预览。
+
+`data-reset-confirm` 需要 `--confirmation-stdin --confirm`。它会让 BotHarness 停止写入，在 `$DSH_HOME/botharness-reset.json` 记录本次清除，并返回 `{reset:{status:"restarting"}}`：旧 Host 退出时、重新启动之前删除这些文件夹。Host 不能自动重启时返回 `restart-required`；Bot 保持停止，删除会在下一次 Host 启动时完成，插件重新安装后也一样。DSH 会话、DSH 设置和其他插件保持不变。只有 Host owner 能执行，它不是 Bot 工具。
 
 ## IM 应用授权
 
@@ -719,6 +731,15 @@ deepseekbot grants <bot-id>
 ```
 
 `grant-request-approve` 与 Web 请求卡使用同一个仅 Owner 可调用的 Host 命令。Host 在同一事务中保存持续读写权限和关联 Grant 的决议，再沿既有 Inbox 继续原任务；已有只读 Grant 也可经这次明确确认升级。重复批准同一请求只读回既有决定，不重复创建 Grant 或唤醒；已撤销或改变的目标会被拒绝。目录卡不是工具批准，应使用此命令，而非 `tool-approval-decide`。缺少 `--confirm` 返回 `usage`，失效或不可用权限返回稳定拒绝代码。这是在线操作，不是直接修改数据库的离线修复。
+
+### 浏览电脑上的文件夹
+
+```bash
+deepseekbot folder-browse
+deepseekbot folder-browse 'D:\code'
+```
+
+`folder-browse` 列出 Host 上某个文件夹的子文件夹，与电脑使用系统文件夹选择器时手机上的文件夹选择相同。不传路径时从 Host 主目录开始。返回 `{path, home, crumbs, entries, truncated, roots}`：只有文件夹名称和路径，不含文件。`roots` 是主目录和各个磁盘（Windows）或 `/`。相对路径返回 `folder-browse/invalid-path`；不存在、不是文件夹或无权读取分别返回 `folder-browse/not-found`、`folder-browse/not-directory`、`folder-browse/denied`。浏览不授予任何权限：选好路径后按上文登记并授权。
 
 ## Memory
 

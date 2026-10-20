@@ -68,7 +68,7 @@ export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> 
   companions: ['companion.speechSound', 'companion.retention'],
   devices: ['devices.pair.title', 'devices.list.title'],
   about: ['release.row.title', 'build.row.title'],
-  'data-privacy': ['backup.title', 'telemetry.row.title'],
+  'data-privacy': ['backup.title', 'telemetry.row.title', 'dataReset.row.title'],
 };
 
 const SECTION_LABELS: Readonly<Record<string, BotHarnessKey>> = {
@@ -116,6 +116,7 @@ const SEARCH_ALIASES: Partial<Record<BotHarnessKey, string>> = {
   'icon.row.title': 'avatar 图标 头像',
   'idleCompaction.row.title': 'compaction context 上下文',
   'telemetry.row.title': 'telemetry analytics 遥测',
+  'dataReset.row.title': 'reset uninstall reinstall wipe 重置 卸载 重装 清空',
   'companion.speechSound': 'sound audio 声音',
 };
 

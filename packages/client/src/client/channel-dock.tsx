@@ -6,6 +6,7 @@ import { panelTargetId } from './appearance-panels.js';
 import { Menu } from './appearance-primitives.js';
 import {
   legacyChannelSplit,
+  splitPanels,
   MESSAGE_LEAF,
   moveChannelSplit,
   type ChannelSplit,
@@ -67,7 +68,6 @@ import {
   writeChannelDock,
   DEFAULT_CHANNEL_WORKSPACE,
   BOT_WORKSPACE_PANELS,
-  CHANNEL_WORKSPACE_PANELS,
   type BotWorkspaceStates,
   type ChannelWorkspaceState,
   type ChannelDockStorage,
@@ -184,6 +184,7 @@ interface SubpanelState {
 }
 
 interface DockContextValue {
+  channelPanelIds: readonly string[];
   childLayout: { tree: ChannelSplit; setTree(next: ChannelSplit): void };
   botWorkspaces?: Readonly<Record<string, SubpanelState>> | undefined;
   sessionWorkspace?:
@@ -247,7 +248,7 @@ function ChannelBodyPanel(): ReactElement {
   const panels: Record<string, { label: string; header?: ReactNode; content: ReactNode }> = {
     [MESSAGE_LEAF]: { label: dock.t('workspace.messages'), content: <ChannelMessageContent /> },
   };
-  for (const id of CHANNEL_WORKSPACE_PANELS) {
+  for (const id of dock.channelPanelIds) {
     const state = workspaceState(dock, id);
     const panel = dock.panels.get(id);
     const available = id === 'sessions' || (dock.channel?.type === 'dm' && !!dock.channel.botSlug);
@@ -375,7 +376,8 @@ function DockPanelBody({ panel }: { panel: DockPanelRegistration }): ReactElemen
   const channel = panel.scope === 'channel' ? dock.channel : undefined;
   return (
     <section data-dock-panel={panel.id} {...stylex.props(styles.panel)}>
-      {panel.scope === 'global' || channel !== undefined ? (
+      {(panel.scope === 'global' || channel !== undefined) &&
+      (panel.binding !== 'current-bot' || channel?.type === 'dm') ? (
         <div
           data-dock-panel-body=""
           {...stylex.props(styles.body, !!dock.rail && styles.workspaceBody)}
@@ -455,7 +457,7 @@ function DockPanelHeader({ entryId, panelId }: { entryId: string | undefined; pa
                   id: 'channel-controls',
                   text: dock.t('workspace.channelPanels'),
                 },
-                ...CHANNEL_WORKSPACE_PANELS.flatMap((id) => {
+                ...dock.channelPanelIds.flatMap((id) => {
                   const state = workspaceState(dock, id);
                   const child = dock.panels.get(id);
                   if (
@@ -590,7 +592,7 @@ function DockPanelHeader({ entryId, panelId }: { entryId: string | undefined; pa
               onMouseDown={(event) => event.stopPropagation()}
             >
               {entryId === CHANNEL_BODY_PANEL &&
-                CHANNEL_WORKSPACE_PANELS.map((id) =>
+                dock.channelPanelIds.map((id) =>
                   workspaceState(dock, id) &&
                   dock.panels.has(id) &&
                   (id === 'sessions' || (dock.channel?.type === 'dm' && !!dock.channel.botSlug)) ? (
@@ -828,6 +830,13 @@ export function ChannelDock({
   storage,
 }: ChannelDockProps): ReactElement {
   const workspace = useContext(WorkspaceContext);
+  const botPanelIds = [
+    ...new Set([
+      ...BOT_WORKSPACE_PANELS,
+      ...panels.filter((p) => p.binding === 'current-bot').map((p) => p.id),
+    ]),
+  ];
+  const channelPanelIds = ['sessions', ...botPanelIds];
   const [initial] = useState(() => readChannelDock(storage, workspace !== undefined));
   const [storageFailed, setStorageFailed] = useState(false);
   const seed = useRef(initial?.sessionSeed ?? DEFAULT_CHANNEL_WORKSPACE);
@@ -841,7 +850,7 @@ export function ChannelDock({
   const [botWorkspaces, updateBotWorkspaces] = useState(initial?.botWorkspaces ?? {});
   const botWorkspacesRef = useRef(botWorkspaces);
   const botStates: BotWorkspaceStates = Object.fromEntries(
-    BOT_WORKSPACE_PANELS.map((id) => [
+    botPanelIds.map((id) => [
       id,
       (channel && botWorkspaces[channel.id]?.[id]) ??
         botSeeds.current[id] ?? { ...DEFAULT_CHANNEL_WORKSPACE, open: false },
@@ -849,9 +858,13 @@ export function ChannelDock({
   );
   const [channelSplits, updateChannelSplits] = useState(initial?.channelSplits ?? {});
   const channelSplitsRef = useRef(channelSplits);
-  const childTree =
+  let childTree =
     (channel && channelSplits[channel.id]) ||
     legacyChannelSplit({ ...botStates, sessions: sessionState });
+  for (const id of channelPanelIds) {
+    if (!splitPanels(childTree).includes(id))
+      childTree = { axis: 'horizontal', ratio: 0.7, first: childTree, second: { panel: id } };
+  }
   const botStatesRef = useRef(botStates);
   botStatesRef.current = botStates;
   const channelRef = useRef(channel);
@@ -903,9 +916,7 @@ export function ChannelDock({
       channelRef.current?.type === 'dm' &&
       channelRef.current.botSlug &&
       ids.includes(CHANNEL_BODY_PANEL)
-        ? BOT_WORKSPACE_PANELS.filter(
-            (id) => known.current.has(id) && botStatesRef.current[id]?.open,
-          )
+        ? botPanelIds.filter((id) => known.current.has(id) && botStatesRef.current[id]?.open)
         : []),
       ...(workspace &&
       channel?.type === 'group' &&
@@ -935,6 +946,7 @@ export function ChannelDock({
             ...target.toJSON(),
             panels: { ...unregistered.current, ...target.toJSON().panels },
           },
+          instances: registry?.instances(),
           parked: parked.current,
           visibilityLayout: visibilityLayout.current,
           gap: gapRef.current,
@@ -1029,7 +1041,7 @@ export function ChannelDock({
           ![
             CHANNEL_BODY_PANEL,
             WORKSPACE_RAIL,
-            ...CHANNEL_WORKSPACE_PANELS,
+            ...channelPanelIds,
             'group-work',
             'bot-inbox',
             'members',
@@ -1046,7 +1058,7 @@ export function ChannelDock({
             (workspace !== undefined && validRail && id === WORKSPACE_RAIL) ||
             known.current.has(id)) &&
           id !== 'bot-inbox' &&
-          !(workspace && CHANNEL_WORKSPACE_PANELS.includes(id)) &&
+          !(workspace && channelPanelIds.includes(id)) &&
           !(workspace && id === 'members'),
         !workspace,
       );
@@ -1068,9 +1080,7 @@ export function ChannelDock({
     if (!restored)
       buildDefaultLayout(
         ready,
-        new Map(
-          [...known.current].filter(([id]) => !workspace || !CHANNEL_WORKSPACE_PANELS.includes(id)),
-        ),
+        new Map([...known.current].filter(([id]) => !workspace || !channelPanelIds.includes(id))),
       );
     const newWorkspace = workspace && !stored?.layout.panels[WORKSPACE_RAIL];
     if (workspace) {
@@ -1188,7 +1198,7 @@ export function ChannelDock({
         (workspace && panel.id === WORKSPACE_RAIL) ||
         (byId.has(panel.id) &&
           panel.id !== 'bot-inbox' &&
-          !(workspace && CHANNEL_WORKSPACE_PANELS.includes(panel.id)))
+          !(workspace && channelPanelIds.includes(panel.id)))
       )
         continue;
       const position = positionOf(api, panel.id);
@@ -1201,7 +1211,7 @@ export function ChannelDock({
         position.missing !== true ||
         panel === undefined ||
         id === 'bot-inbox' ||
-        (workspace && CHANNEL_WORKSPACE_PANELS.includes(id)) ||
+        (workspace && channelPanelIds.includes(id)) ||
         (workspace && id === 'members')
       )
         continue;
@@ -1243,7 +1253,7 @@ export function ChannelDock({
   const subpanelState = (id: string) =>
     id === 'sessions' ? sessionStateRef.current : botStatesRef.current[id]!;
   const close = (panelId: string): void => {
-    if (workspace && CHANNEL_WORKSPACE_PANELS.includes(panelId)) {
+    if (workspace && channelPanelIds.includes(panelId)) {
       setSubpanelState(panelId, { ...subpanelState(panelId), open: false });
       return;
     }
@@ -1275,6 +1285,11 @@ export function ChannelDock({
   };
 
   const canOpen = (panelId: string): boolean => {
+    if (
+      (byId.get(panelId) ?? registry?.panels().find((item) => item.id === panelId))?.binding ===
+      'current-bot'
+    )
+      return channel?.type === 'dm' && !!channel.botSlug;
     if (!workspace) return true;
     if (panelId === 'sessions') return channel !== undefined;
     if (BOT_ONLY_CHANNEL_PANELS.includes(panelId))
@@ -1283,9 +1298,13 @@ export function ChannelDock({
   };
   const open = (panelId: string): void => {
     if (!canOpen(panelId)) return;
-    if (workspace && CHANNEL_WORKSPACE_PANELS.includes(panelId)) {
+    const definition = byId.get(panelId) ?? registry?.panels().find((item) => item.id === panelId);
+    if (workspace && (channelPanelIds.includes(panelId) || definition?.binding === 'current-bot')) {
       if (!channel || !api) return;
-      setSubpanelState(panelId, { ...subpanelState(panelId), open: true });
+      setSubpanelState(panelId, {
+        ...(subpanelState(panelId) ?? DEFAULT_CHANNEL_WORKSPACE),
+        open: true,
+      });
       const message = byId.get(CHANNEL_BODY_PANEL);
       if (message && !api.getPanel(CHANNEL_BODY_PANEL))
         addEntryPanel(api, message, parked.current[CHANNEL_BODY_PANEL]);
@@ -1315,7 +1334,7 @@ export function ChannelDock({
       save(api);
       return;
     }
-    const panel = byId.get(panelId);
+    const panel = byId.get(panelId) ?? registry?.panels().find((item) => item.id === panelId);
     if (api === undefined || panel === undefined) return;
     if (api.getPanel(panelId) !== undefined) {
       api.getPanel(panelId)?.api.setActive();
@@ -1350,7 +1369,7 @@ export function ChannelDock({
         visibilityLayout.current = undefined;
         buildDefaultLayout(
           api,
-          new Map([...byId].filter(([id]) => !workspace || !CHANNEL_WORKSPACE_PANELS.includes(id))),
+          new Map([...byId].filter(([id]) => !workspace || !channelPanelIds.includes(id))),
         );
         save(api);
       }}
@@ -1366,7 +1385,7 @@ export function ChannelDock({
     botWorkspacesRef.current = {};
     updateBotWorkspaces({});
     botStatesRef.current = Object.fromEntries(
-      BOT_WORKSPACE_PANELS.map((id) => [id, { ...DEFAULT_CHANNEL_WORKSPACE, open: false }]),
+      botPanelIds.map((id) => [id, { ...DEFAULT_CHANNEL_WORKSPACE, open: false }]),
     );
     channelSplitsRef.current = {};
     updateChannelSplits({});
@@ -1386,7 +1405,7 @@ export function ChannelDock({
     updateMembers(membersRef.current);
     buildDefaultLayout(
       api,
-      new Map([...byId].filter(([id]) => !workspace || !CHANNEL_WORKSPACE_PANELS.includes(id))),
+      new Map([...byId].filter(([id]) => !workspace || !channelPanelIds.includes(id))),
     );
     const channels = byId.get(WORKSPACE_CHANNELS);
     if (workspace && channels) addEntryPanel(api, channels, undefined);
@@ -1399,6 +1418,7 @@ export function ChannelDock({
     save(api);
   };
   const value: DockContextValue = {
+    channelPanelIds,
     childLayout: {
       tree: childTree,
       setTree: (next) => {
@@ -1410,7 +1430,7 @@ export function ChannelDock({
     },
     botWorkspaces: workspace
       ? Object.fromEntries(
-          BOT_WORKSPACE_PANELS.map((id) => [
+          botPanelIds.map((id) => [
             id,
             {
               state: botStates[id]!,

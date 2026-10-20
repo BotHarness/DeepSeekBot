@@ -20,7 +20,7 @@ Without an allowlisted account (`ALLOWED_USERS`, comma-separated WorkOS user IDs
 
 Cloudflare counts inactive tunnels toward the 1,000 free tunnels per account. A cron trigger runs every minute and deletes tunnels that are not `healthy` or `degraded` and have been inactive for `RECLAIM_AFTER_MINUTES` (default 5), or that never connected within that time. The link and hostname stay; the Host's next `POST /v1/hosts/{id}/tunnel` creates a new tunnel and repoints the same CNAME.
 
-Each run lists the account's tunnels once (100 per page, at most 10 pages) and deletes at most 15, so a run stays under the Workers Free limits of 50 subrequests and 50 D1 queries and makes at most 40 Cloudflare API calls, about 200 of the 1,200 allowed per 5 minutes. A Host linked to a tunnel the listing no longer shows is unlinked only once the listing was complete and the tunnel is older than `RECLAIM_AFTER_MINUTES`, so a tunnel created moments ago is never orphaned.
+Each run lists the account's tunnels once (100 per page, at most 10 pages) and attempts at most 15 reclaims, including failed deletions or database updates, so a run stays under the Workers Free limits of 50 subrequests and 50 D1 queries and makes at most 40 Cloudflare API calls, about 200 of the 1,200 allowed per 5 minutes. A Host linked to a tunnel the listing no longer shows is unlinked only once the listing was complete and the tunnel is older than `RECLAIM_AFTER_MINUTES`, so a tunnel created moments ago is never orphaned.
 
 ## Configuration
 
@@ -48,17 +48,44 @@ pnpm --filter @botharness/connect-relay dev
 
 ## Deploy
 
-Run from `packages/connect-relay` after `pnpm install` at the repository root, signed in with `pnpm exec wrangler login` to the account in `wrangler.jsonc`. The Cloudflare values come from a local env file loaded with `set -a; . <file>; set +a`; never pass them as arguments or print them.
+Run `pnpm install --frozen-lockfile` at the repository root. The deployment script uses the
+workspace's Wrangler and its existing OAuth login; `wrangler whoami` must include the account
+configured in `wrangler.jsonc`.
 
-1. Create the database once with `pnpm exec wrangler d1 create botharness-connect-relay` (or find it in `pnpm exec wrangler d1 list --json`), put its id in `database_id` and commit that change. The id is not a secret.
-2. `pnpm exec wrangler d1 migrations apply CONNECT_DB --remote`
-3. `pnpm exec wrangler deploy`
-4. Pipe the five secrets as JSON on stdin:
+Before deploying, confirm CLI Auth is enabled in the WorkOS environment used by TOB. Obtain
+that environment's client ID and the intended **application user's** ID from its Users page.
+The WorkOS dashboard administrator is a separate identity and may not have an application
+user. Keep the allowlist restricted to explicitly approved users; do not use `*`.
 
-   ```sh
-   node -e 'const e=process.env;process.stdout.write(JSON.stringify({WORKOS_CLIENT_ID:e.WORKOS_CLIENT_ID,ALLOWED_USERS:e.ALLOWED_USERS,CLOUDFLARE_API_TOKEN:e.CLOUDFLARE_API_TOKEN,CLOUDFLARE_ACCOUNT_ID:e.CLOUDFLARE_ACCOUNT_ID,CLOUDFLARE_ZONE_ID:e.CLOUDFLARE_ZONE_ID}))' | pnpm exec wrangler secret bulk
-   ```
+Prepare the machine-local file `~/.config/deepseekbot-connect/cloudflare.env` with
+`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_ZONE_ID`. The token needs
+Cloudflare Tunnel Edit on the target account and DNS Edit on `deepseekbot.dev`.
+Keep this file private and outside the repository. Supply `WORKOS_CLIENT_ID` and
+`ALLOWED_USERS` through the environment, then run:
 
-5. `curl -sS https://connect.botharness.ai/v1/config` answers the client ID, and `curl -sS -o /dev/null -w '%{http_code}\n' https://connect.botharness.ai/v1/hosts` answers `401`.
+```sh
+bash packages/connect-relay/scripts/deploy.sh
+```
 
-CLI Auth must be enabled in the WorkOS environment, otherwise Host sign-in fails at the device authorization request.
+The script creates or reuses `botharness-connect-relay`, replaces the placeholder D1 UUID,
+applies remote migrations, deploys `connect.botharness.ai`, and uploads the five secrets through
+a private temporary file that it removes. It uses Wrangler OAuth for deployment and stores the
+restricted Cloudflare API token only as a Worker secret. Commit the real D1 UUID; never commit
+credentials, application user IDs, or local environment files.
+
+The final checks require `/v1/config` to return the selected WorkOS client ID and unauthenticated
+`/v1/hosts` to return `401`. Verify no migrations remain:
+
+```sh
+pnpm --filter @botharness/connect-relay exec wrangler d1 migrations list CONNECT_DB --remote
+```
+
+If the final checks fail after deployment, inspect DNS, TLS and the endpoint responses before
+rerunning the script: a nonzero exit does not mean the remote deployment was rolled back.
+A request using a publicly resolved address with `curl --resolve` retains TLS hostname
+verification, but does not prove the machine's default DNS resolver works.
+
+Finally, run `deepseekbot connect-sign-in --wait` against an isolated Host, approve the code in
+the browser with an allowlisted application user, and check `deepseekbot connect-status`.
+It must report a connected tunnel. The tunnel hostname must reach `/botharness-device/*`,
+while `/` and `/api` return `404`. Sign out the disposable Host after verification.

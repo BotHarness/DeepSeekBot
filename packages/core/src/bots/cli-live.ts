@@ -269,6 +269,10 @@ export const LIVE_COMMANDS = [
   },
   { command: 'release-info', description: 'read the running Host release lifecycle' },
   { command: 'workspace-options', description: 'list live Host workspaces for grants' },
+  {
+    command: 'folder-browse',
+    description: 'list folder names on the Host computer, as the phone folder picker does',
+  },
   { command: 'grant-create', description: 'authorize a Bot workspace through the live Host' },
   {
     command: 'browser-access-set',
@@ -451,6 +455,10 @@ function usage(message: string): never {
   throw new CliLiveError('usage', message);
 }
 
+function isLoopbackName(name: string): boolean {
+  return name === 'localhost' || name === '[::1]' || /^127\.\d+\.\d+\.\d+$/u.test(name);
+}
+
 function hostUrl(value: string | undefined): URL {
   if (!value) usage('Live commands require --host or DEEPSEEKBOT_HOST.');
   let url: URL;
@@ -460,7 +468,7 @@ function hostUrl(value: string | undefined): URL {
     usage('--host must be an HTTP(S) origin.');
   }
   const name = url.hostname;
-  const loopback = name === 'localhost' || name === '[::1]' || /^127\.\d+\.\d+\.\d+$/u.test(name);
+  const loopback = isLoopbackName(name);
   const tailnet =
     name.endsWith('.ts.net') || /^100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d+\.\d+$/u.test(name);
   if (
@@ -511,6 +519,16 @@ export async function connectLiveHost(values: LiveValues, io: BotCreateCliIo, si
   const login = new URL(base);
   login.searchParams.set('token', secret);
   let cookie = '';
+  const refused = (status: number): CliLiveError =>
+    status === 403 && !isLoopbackName(base.hostname)
+      ? new CliLiveError(
+          'host-untrusted',
+          `The Host does not accept requests addressed to ${base.hostname}; restart it with --trusted-host ${base.hostname}.`,
+        )
+      : new CliLiveError(
+          'host-unauthorized',
+          'The Host refused this authority cookie; refresh its launch token.',
+        );
   const request = async (url: URL, init: RequestInit = {}): Promise<Response> => {
     try {
       return await fetch(url, { ...init, signal, redirect: 'manual' });
@@ -538,10 +556,7 @@ export async function connectLiveHost(values: LiveValues, io: BotCreateCliIo, si
   const readResponse = async (response: Response): Promise<Record<string, unknown>> => {
     if (response.status === 401 || response.status === 403) {
       await response.body?.cancel();
-      throw new CliLiveError(
-        'host-unauthorized',
-        'The Host refused this authority cookie; refresh its launch token.',
-      );
+      throw refused(response.status);
     }
     try {
       const body = await response.text();
@@ -637,11 +652,7 @@ export async function connectLiveHost(values: LiveValues, io: BotCreateCliIo, si
         : typeof nested['code'] === 'string'
           ? nested['code']
           : undefined;
-    if ((status === 401 || status === 403) && code === undefined)
-      throw new CliLiveError(
-        'host-unauthorized',
-        'Host login was refused; refresh its launch token.',
-      );
+    if ((status === 401 || status === 403) && code === undefined) throw refused(status);
     const packages = Array.isArray(detail['packages'])
       ? detail['packages'].filter((name): name is string => typeof name === 'string')
       : [];
@@ -834,6 +845,12 @@ export async function runLiveCli(
   }
   if (DEVICE_COMMANDS.some((entry) => entry === command))
     return runDeviceCommand(command as (typeof DEVICE_COMMANDS)[number], rest, values, io);
+  if (command === 'folder-browse') {
+    if (rest.length > 1) usage('folder-browse takes at most one folder path.');
+    const signal = AbortSignal.timeout(timeoutMs(values.timeout));
+    const path = rest[0]?.trim();
+    return (await connectLiveHost(values, io, signal)).rpc('folderBrowse', path ? { path } : {});
+  }
   if (command === 'grants') {
     if (rest.length !== 1 || !rest[0]?.trim()) usage('grants needs exactly one bot id.');
     const signal = AbortSignal.timeout(timeoutMs(values.timeout));

@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import type { PersonaBotRegistry } from '../bots/registry.js';
 import type { PersonaBotDeletions } from '../bots/deletion.js';
-import { ProfileBackupError, treeFiles } from '../portability/files.js';
+import { ProfileBackupError, fixedFile, treeFiles } from '../portability/files.js';
 
 export interface BackupMemory {
   slug: string;
@@ -46,4 +46,19 @@ export function profileMemoryFiles(
       );
     }
   });
+}
+
+export function memoryAttachmentReferences(
+  registry: PersonaBotRegistry,
+  deletions: PersonaBotDeletions,
+): Set<string> {
+  const references = new Set<string>();
+  for (const repo of profileMemoryFiles(registry, deletions))
+    for (const file of repo.files)
+      if (/\.(md|json|txt)$/iu.test(file.local))
+        for (const match of fixedFile(file.path)
+          .data.toString('utf8')
+          .matchAll(/sha256:[0-9a-f]{64}/gu))
+          references.add(match[0]);
+  return references;
 }

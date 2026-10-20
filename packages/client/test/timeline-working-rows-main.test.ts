@@ -195,6 +195,7 @@ beforeEach(() => {
     IS_REACT_ACT_ENVIRONMENT: true,
     ResizeObserver: class {
       observe(): void {}
+      unobserve(): void {}
       disconnect(): void {}
     },
   });

@@ -48,6 +48,7 @@ const withSharing = (resolved) => {
 module.exports = ({ config }) => {
   const store = process.env.DEEPSEEKBOT_APP_VARIANT === 'store';
   const firebase = googleServicesFile();
+  const bundleIdentifier = store ? 'app.deepseekbot.mobile' : config.ios.bundleIdentifier;
   return withSharing({
     ...config,
     owner: 'deepseekbots-team',
@@ -55,8 +56,17 @@ module.exports = ({ config }) => {
     extra: { ...config.extra, eas: { projectId: '40cf3888-5864-4238-9cfb-82e285d568f6' } },
     ios: {
       ...config.ios,
-      infoPlist: { ...config.ios.infoPlist, ITSAppUsesNonExemptEncryption: false },
-      ...(store ? { bundleIdentifier: 'app.deepseekbot.mobile' } : {}),
+      bundleIdentifier,
+      infoPlist: {
+        ...config.ios.infoPlist,
+        ITSAppUsesNonExemptEncryption: false,
+        NSUserActivityTypes: ['INSendMessageIntent'],
+      },
+      entitlements: {
+        ...config.ios.entitlements,
+        'com.apple.security.application-groups': [`group.${bundleIdentifier}`],
+        'com.apple.developer.usernotifications.communication': true,
+      },
     },
     android: {
       ...config.android,

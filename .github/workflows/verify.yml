@@ -117,7 +117,7 @@ jobs:
         env:
           CI: '1'
           EXPO_OFFLINE: '1'
-      - run: bash apps/mobile/android/gradlew -p apps/mobile/android :stream-reveal:testDebugUnitTest :hardware-send:testDebugUnitTest -PreactNativeArchitectures=x86_64 --max-workers=2 --console=plain
+      - run: bash apps/mobile/android/gradlew -p apps/mobile/android :stream-reveal:testDebugUnitTest :hardware-send:testDebugUnitTest :conversation-notifications:compileDebugKotlin -PreactNativeArchitectures=x86_64 --max-workers=2 --console=plain
 
   test-full:
     name: test (shard ${{ matrix.shard }})

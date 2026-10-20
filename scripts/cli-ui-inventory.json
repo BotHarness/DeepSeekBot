@@ -277,6 +277,15 @@
       "commands": ["telemetry-status", "telemetry-set"]
     },
     {
+      "id": "data-reset",
+      "description": "Clear all BotHarness data on this Host after a reviewed preview and a second confirmation.",
+      "scope": "Host",
+      "surfaces": [
+        "setting:packages/client/src/client/data-reset-settings.tsx:{t('dataReset.row.title')}"
+      ],
+      "commands": ["data-reset-preview", "data-reset-confirm"]
+    },
+    {
       "id": "workspace-grants",
       "description": "Workspace access and grant controls.",
       "scope": "Host",

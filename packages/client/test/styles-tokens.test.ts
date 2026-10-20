@@ -170,8 +170,9 @@ describe('client styles', () => {
 
   it('floats bubble hover actions over the top-right edge without shifting layout', () => {
     expect(source).toMatch(
-      /\.bh-bubble-toolbar \{\s*position: absolute;[^}]*top: 0;[^}]*justify-content: safe flex-end;[^}]*opacity: 0;/,
+      /\.bh-bubble-toolbar \{\s*position: absolute;[^}]*bottom: calc\(100% - [^)]+\);[^}]*justify-content: safe flex-end;[^}]*opacity: 0;/,
     );
+    expect(source).not.toMatch(/\.bh-bubble-toolbar \{[^}]*transform:/);
     expect(source).toMatch(
       /\.bh-message-group-me \.bh-bubble-toolbar \{\s*justify-content: flex-end;/,
     );
