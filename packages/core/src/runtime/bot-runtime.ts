@@ -650,6 +650,7 @@ export interface BotAgentAdapter {
     tool: string,
     args: Record<string, unknown>,
     signal: AbortSignal,
+    parentSessionId?: string,
   ): Promise<unknown>;
   close(): Promise<void>;
 }
@@ -3766,7 +3767,13 @@ class BotRuntimeImplementation implements BotRuntime {
       this.#directToolCalls.set(bot.slug, calls.slice(-DIRECT_TOOL_CALL_LIMIT));
     };
     try {
-      const result = await runDirect(run, tool, args, signal);
+      const result = await runDirect(
+        run,
+        tool,
+        args,
+        signal,
+        this.currentOrchestratorSessionId(botSlug),
+      );
       record('ok', typeof result === 'string' ? result : JSON.stringify(result));
       return { tool, sessionId: 'direct', result };
     } catch (error) {

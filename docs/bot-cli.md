@@ -496,7 +496,7 @@ printf '{"channel_id":"dm-<bot-id>","body":"direct hello"}' | deepseekbot bot-to
 deepseekbot bot-trace <bot-id> --session direct --turns 5
 ```
 
-`bot-tools` lists the tools the runner can call with their input schemas. `bot-tool` reads the arguments as a JSON object on stdin and runs the same tool code a Bot turn runs, with the tool's own argument validation, membership and permission checks; it returns `{slug, tool, sessionId: "direct", result}`. There is no inbound Channel, so pass `channel_id` where a turn would default to it. A direct read does not mark Inbox items as seen, and a Bot-to-Bot send is refused because it has no Source Event to carry Bot causation. Failures exit non-zero with a code: `tool-not-direct` for a tool that only works inside a Bot turn (starting or waiting on an Assignment, Subagents, question and secret cards, Memory branch switches, workspace grant requests, images for the model), `invalid-args`, `unknown-bot`, `bot-paused`, or `tool-failed` with the tool's own message. Each call is kept in the Host's recent direct-call log, which `bot-trace --session direct` returns; it lasts until the Host restarts.
+`bot-tools` lists the tools the runner can call with their input schemas. `bot-tool` reads the arguments as a JSON object on stdin and runs the same tool code a Bot turn runs, with the tool's own argument validation, membership and permission checks; it returns `{slug, tool, sessionId: "direct", result}`. There is no inbound Channel, so pass `channel_id` where a turn would default to it. A direct read does not mark Inbox items as seen, and a Bot-to-Bot send is refused because it has no Source Event to carry Bot causation. Failures exit non-zero with a code: `tool-not-direct` for a tool that only works inside a Bot turn (starting or waiting on an Assignment, native Subagent tools, question and secret cards, Memory branch switches, workspace grant requests, images for the model), `invalid-args`, `unknown-bot`, `bot-paused`, or `tool-failed` with the tool's own message. Each call is kept in the Host's recent direct-call log, which `bot-trace --session direct` returns; it lasts until the Host restarts.
 
 `bot_create` creates a blank PersonaBot as that Bot would from chat: `display_name` is required; `description`, `tags`, `avatar_path` (an absolute PNG, JPEG or WebP path in the Bot's Memory Repository or a Workspace Grant), `soul`, `core_memory` and `memory_location` are optional. It returns `bot_id`, `display_name`, `dm_channel_id`, `memory_dir` and `model` (`host-default` when the new Bot answers on the Host default model, `set` once it has its own), opens the new Bot's DM and adds a notice in the creating Bot's Human DM. Refusals are coded: `invalid-input`, `invalid-avatar`, `invalid-memory-dir`, `git-not-found` and `memory-unavailable`. Run directly, it skips the tool approval a Bot turn goes through, because you are the Human running it.
 
@@ -515,6 +515,41 @@ Private input uses the authenticated Owner and the same inline cards as Web Chat
 Host-down commands fail `host-unreachable` without submitting a message. Expired tokens fail `host-unauthorized`; malformed responses fail `host-protocol-error`. Bridge and gateway codes pass through unchanged. Stdout remains one JSON document (`--compact` is available); authentication values are never printed or saved.
 
 Credential writes validate actual YAML before and after disk writes and restore exact previous bytes on failure (or remove a failed new file). Empty `refs: {}` becomes a block map while comments and records remain. Multiline values, including blank and trailing lines, round-trip. Null refs, empty stores and nonempty inline refs maps fail `bad-credentials` unchanged; use a block refs mapping for edits.
+
+### Native Agent presets for Bot Subagents
+
+A native DSH **Agent preset** supplies the child's tools and persona composition. It is not a Bot **Model Preset**, which selects provider/model/reasoning routes. `create --preset` and `model-preset-apply --preset` still mean Model Presets. Find native preset IDs in **Settings → Agent presets → View configuration**; the ID, not its display name, is used below.
+
+Configure the existing `botharness-core` Plugin in the active DSH Profile Patch (`$DSH_HOME/profiles/<profile>/cordis.patch.yml`; the usual Web Profile is `web`). Merge these fields into its existing row, retaining other configuration. A later Patch row replaces the Plugin's whole config rather than deep-merging it, so keep the existing top-level `agentPreset` (normally `deepseekbot` for the DeepSeekBot Bundle) and any other overrides:
+
+```yaml
+- id: botharness-core
+  config:
+    agentPreset: deepseekbot
+    subagent:
+      allowedAgentPresets: [standard, deepseekbot]
+      # agentPreset: standard  # optional default for independent children
+```
+
+This is native preset configuration, not a second preset library. All referenced IDs must exist in DSH's Agent Preset Registry. Invalid config or a missing preset fails explicitly when a Bot Agent is set up; a later native mount failure also stops delegation, without falling back to another preset. Restart the same Host after changing the Profile Patch, then message the Bot to create its live Orchestrator Agent with the new policy.
+
+- With no `subagent` config, `bot_subagent` still inherits the parent's current composed preset, and does not advertise `agent_preset`.
+- `subagent.agentPreset` sets an independent child's default. Without `allowedAgentPresets`, the caller cannot override it. If both are configured, the default must be in the allowlist.
+- Only an explicit nonempty `allowedAgentPresets` enables `bot_subagent.agent_preset`; `bot-tools` and the model see exactly that enum. Omission still inherits the parent unless a default was configured, even if the parent's preset is not in the allowlist. Raw JSON cannot select a hidden or unallowed preset.
+- `bot_subagent_fork` inherits the parent's context and preset. It neither advertises nor accepts `agent_preset`, and the independent-child default does not apply to it. Model route checks are unchanged for both tools.
+
+Use the existing authenticated live Host selection above, not offline `--home`. `bot-tools` now includes `bot_subagent`, `bot_subagent_fork` and `list_bot_subagent_models` with the same definitions installed on Bot Agents:
+
+```bash
+deepseekbot bot-tools
+deepseekbot bot-tool <bot-id> list_bot_subagent_models
+printf '%s' '{"description":"Native preset example","prompt":"Reply only PRESET_OK.","agent_preset":"standard","run_in_background":false}' | deepseekbot bot-tool <bot-id> bot_subagent --args-stdin
+deepseekbot bot-trace <bot-id> --session direct --turns 5
+```
+
+For PowerShell, pipe the same single-quoted JSON string directly to `deepseekbot bot-tool <bot-id> bot_subagent --args-stdin` instead of `printf`. In the Bot's DM, the equivalent request is: “Use `bot_subagent` with `agent_preset: standard` for an independent task; have it reply only PRESET_OK, and wait for the result.” Inspect `bot-trace` for what the model actually called.
+
+Direct calls reuse the Bot's current **live** Orchestrator Agent and its native tool execution pipeline, including visibility, guards, approval and depth limits. They do not create or resume a parent Session. With no live parent (for example after Host restart before the next DM), all three tools return `parent-unavailable`: message the Bot first, then retry deliberately. Hidden, disallowed and fork preset arguments return `invalid-args`; native pipeline refusals retain their codes. This direct path skips the parent model deciding to call a tool, not the delegated child's LLM execution. `run_in_background: false` returns the child's result; omission keeps the existing background behavior. The invocation remains visible in `bot-trace --session direct`.
 
 ### To-do example plugin
 
