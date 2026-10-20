@@ -469,6 +469,7 @@ describe('release service', () => {
       current: '1.0.1',
       installed: '1.1.0',
       restartable: false,
+      applied: false,
     });
     expect(manager.installBundle).toHaveBeenCalledWith('deepseekbot@1.1.0');
     expect(await service.update()).toEqual({
@@ -476,6 +477,43 @@ describe('release service', () => {
       current: '1.0.1',
       installed: '1.1.0',
       restartable: false,
+    });
+  });
+
+  it('upgrades through the registry tarball when an HMR Plugin Manager refuses the installed name', async () => {
+    const refused = { application: 'failed', error: { code: 'already-installed' } };
+    const unreachable = { application: 'failed', packageResult: { kind: 'network' } };
+    const manager = {
+      listBundles: vi.fn(async () => [{ name: 'deepseekbot', installed: true }]),
+      installBundle: vi
+        .fn<(spec: string) => Promise<ReleaseInstallerResult>>()
+        .mockResolvedValueOnce(refused)
+        .mockResolvedValueOnce(unreachable)
+        .mockResolvedValueOnce({ application: 'applied' }),
+    };
+    const service = createReleaseService({
+      version: () => '1.0.1',
+      runtime: testReleaseRuntime,
+      ledgers,
+      fetchImpl: newerRelease as typeof fetch,
+      registries: ['https://registry.test/', 'https://mirror.test'],
+      noteSources: [],
+      installer: () => manager,
+    });
+    expect(await service.install('1.1.0')).toMatchObject({
+      status: 'installed',
+      installed: '1.1.0',
+      applied: true,
+    });
+    expect(manager.installBundle.mock.calls.map(([spec]) => spec)).toEqual([
+      'deepseekbot@1.1.0',
+      'https://registry.test/deepseekbot/-/deepseekbot-1.1.0.tgz',
+      'https://mirror.test/deepseekbot/-/deepseekbot-1.1.0.tgz',
+    ]);
+    expect(await installable(installer(refused)).install('1.1.0')).toMatchObject({
+      status: 'failed',
+      reason: 'failed',
+      diagnostic: 'already-installed',
     });
   });
 
