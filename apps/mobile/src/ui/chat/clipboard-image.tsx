@@ -81,7 +81,6 @@ export function ClipboardImageOffer({ onPaste }: { onPaste(data: string): void }
         paddingHorizontal: glass ? space.x5 : space.x4,
         paddingVertical: space.x2,
         borderRadius: corner,
-        overflow: 'hidden',
         ...(glass
           ? {}
           : {
