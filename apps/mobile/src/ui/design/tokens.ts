@@ -108,6 +108,7 @@ export const edgeFade = {
     { offset: 1, opacity: 0 },
   ],
   blur: ['cc', '59', '14', '00'],
+  cover: 0.92,
 } as const;
 
 export const pointer = {
