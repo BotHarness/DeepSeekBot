@@ -1609,7 +1609,7 @@
       "behaviors": ["desktop.grants.request-write-continue"],
       "reason": "Own task Host and Expo Web export; real model folder request, system-chooser refusal simulated at the phone proxy, phone browses Host folders and grants one; not native-device evidence.",
       "task": 2080,
-      "sha256": "74fac4cc7686abd76dceb9fc50e950691eb5d3321261f57132a562be3e2b648d"
+      "sha256": "3493bdbcf12a110cd430f61d598a632d930989d020d48a12f0a2e4a8e93c1c62"
     },
     {
       "path": "scripts/e2e-mobile-working-web.mjs",

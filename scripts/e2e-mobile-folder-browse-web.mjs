@@ -330,6 +330,10 @@ async function main() {
     await shot('2-browse-folder');
     steps.push('opened a folder: subfolders only, no files and no hidden folders');
 
+    checks.namesTarget = await page.evaluate(
+      (path) => document.body.innerText.includes(`Will authorize: ${path}`),
+      fixture,
+    );
     await page.locator('::-p-aria(Authorize this folder)').click();
     await text('Allow read/write');
     await shot('3-confirm');

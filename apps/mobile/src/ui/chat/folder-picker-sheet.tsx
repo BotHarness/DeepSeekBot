@@ -26,7 +26,7 @@ import {
   SheetNote,
   SHEET_GROUP,
 } from './sheet';
-import { Crumbs, Grouped, locationSection, RowIcon } from './workspace-sheet';
+import { Crumbs, Grouped, locationSection, OpenFolderTarget, RowIcon } from './workspace-sheet';
 
 export interface FolderPickerPort {
   listFolders(path?: string): Promise<HostFolderListing>;
@@ -255,6 +255,7 @@ export function FolderPickerSheet({
           </Grouped>
         )}
       />
+      {manual ? null : <OpenFolderTarget listing={listing} />}
       <SheetActions>
         <Button label={t.cancel} on="canvas" disabled={busy !== undefined} onPress={close} />
         <Button

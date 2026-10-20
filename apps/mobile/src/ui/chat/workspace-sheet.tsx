@@ -73,6 +73,12 @@ type BrowseRow =
 
 const OFF = 'off';
 
+export function OpenFolderTarget({ listing }: { listing: Loadable<HostFolderListing> }) {
+  return listing.status === 'ready' ? (
+    <SheetNote>{t.authorizeTarget(listing.value.path)}</SheetNote>
+  ) : null;
+}
+
 export function locationSection(listing: HostFolderListing) {
   const data = listing.roots
     .map((root, index) => ({
@@ -529,6 +535,7 @@ export function WorkspaceSheet({
             </Grouped>
           )}
         />
+        <OpenFolderTarget listing={listing} />
         <SheetActions>
           <Button
             label={t.back}

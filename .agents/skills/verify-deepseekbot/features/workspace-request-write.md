@@ -30,7 +30,7 @@ The runner saves screenshots, ARIA, console, Client diagnostics, canonical reque
 
 ### Phone: choose the folder from the Host
 
-`node scripts/e2e-mobile-folder-browse-web.mjs` drives the same request card in the Expo Web export of the phone app (behavior `desktop.grants.request-write-continue`). A real model asks for a folder, the phone proxy answers DSH `directoryPicker/list` with `directory-picker/unavailable` as a Windows/macOS system-chooser Host does, and the sheet must still list Host folders through `botharness/folderBrowse`: subfolders only, no files, no hidden folders, plus Home and `/` (drives on Windows) under **Other places**. Choosing **Authorize this folder** then **Allow read/write** must leave a writable Grant on exactly that path. The CLI twin is `deepseekbot folder-browse [<path>]`. This is layout and flow evidence, not native-device evidence.
+`node scripts/e2e-mobile-folder-browse-web.mjs` drives the same request card in the Expo Web export of the phone app (behavior `desktop.grants.request-write-continue`). A real model asks for a folder, the phone proxy answers DSH `directoryPicker/list` with `directory-picker/unavailable` as a Windows/macOS system-chooser Host does, and the sheet must still list Host folders through `botharness/folderBrowse`: subfolders only, no files, no hidden folders, plus Home and `/` (drives on Windows) under **Other places**. The sheet names the folder it will grant (**Will authorize: <path>**); choosing **Authorize this folder** then **Allow read/write** must leave a writable Grant on exactly that path. The CLI twin is `deepseekbot folder-browse [<path>]`. This is layout and flow evidence, not native-device evidence.
 
 ## Gotchas
 
