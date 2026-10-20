@@ -9,6 +9,7 @@ import {
 import type { BridgeActions } from './actions.js';
 import { useClientState } from './bot-sidebar.js';
 import { IconButton } from './ds/icon-button.js';
+import { Tooltip } from './ds/tooltip.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useActivityFeed, type ActivityQuery } from './activity-feed.js';
 import { useMountedResource } from './mounted-resource.js';
@@ -133,28 +134,30 @@ export function ActivityInboxMenu({
       onSelect={select}
       onClose={() => setOpen(false)}
       anchor={
-        <IconButton
-          aria-label={t('activityInbox.settings')}
-          aria-haspopup="menu"
-          aria-expanded={open}
-          data-active={
-            inbox.category !== 'all' ||
-            inbox.botSlug !== undefined ||
-            inbox.channelId !== undefined ||
-            inbox.snoozed ||
-            inbox.sort !== 'default' ||
-            undefined
-          }
-          onClick={() => setOpen((value) => !value)}
-          onKeyDown={(event) => {
-            if (event.key === 'ArrowDown') {
-              event.preventDefault();
-              setOpen(true);
+        <Tooltip label={t('activityInbox.settings')} side="bottom">
+          <IconButton
+            aria-label={t('activityInbox.settings')}
+            aria-haspopup="menu"
+            aria-expanded={open}
+            data-active={
+              inbox.category !== 'all' ||
+              inbox.botSlug !== undefined ||
+              inbox.channelId !== undefined ||
+              inbox.snoozed ||
+              inbox.sort !== 'default' ||
+              undefined
             }
-          }}
-        >
-          <IconEllipsisOutlineRegular size={16} />
-        </IconButton>
+            onClick={() => setOpen((value) => !value)}
+            onKeyDown={(event) => {
+              if (event.key === 'ArrowDown') {
+                event.preventDefault();
+                setOpen(true);
+              }
+            }}
+          >
+            <IconEllipsisOutlineRegular size={16} />
+          </IconButton>
+        </Tooltip>
       }
     />
   );
@@ -185,19 +188,21 @@ export function ActivityInboxHeader({
     <div ref={mount} className="bh-header bh-activity-header-actions">
       <div className={`bh-search-slot${searchOpen ? ' bh-search-slot-open' : ''}`}>
         <div className={`bh-search${searchOpen ? ' bh-search-open' : ''}`}>
-          <button
-            ref={trigger}
-            type="button"
-            className="bh-search-btn"
-            aria-label={t('activityInbox.search')}
-            aria-expanded={searchOpen}
-            onClick={() => {
-              setSearchOpen(true);
-              requestAnimationFrame(() => input.current?.focus());
-            }}
-          >
-            <IconSearchOutlineRegular size={searchOpen ? 11 : 14} />
-          </button>
+          <Tooltip label={t('activityInbox.search')} side="bottom" disabled={searchOpen}>
+            <button
+              ref={trigger}
+              type="button"
+              className="bh-search-btn"
+              aria-label={t('activityInbox.search')}
+              aria-expanded={searchOpen}
+              onClick={() => {
+                setSearchOpen(true);
+                requestAnimationFrame(() => input.current?.focus());
+              }}
+            >
+              <IconSearchOutlineRegular size={searchOpen ? 11 : 14} />
+            </button>
+          </Tooltip>
           <input
             ref={input}
             type="text"

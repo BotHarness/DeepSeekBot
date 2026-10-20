@@ -3,9 +3,9 @@ import {
   FileTypeIcon,
   IconDownloadOutlineRegular,
   IconEllipsisOutlineRegular,
-  Tooltip,
   fileSizeText,
 } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tooltip } from './ds/tooltip.js';
 import type { BridgeActions } from './actions.js';
 import { channelAttachmentUrl } from './bridge.js';
 import { HostFileOpenButton, useHostFileMenu, type HostFileCommands } from './host-file-menu.js';

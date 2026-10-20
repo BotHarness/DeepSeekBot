@@ -76,7 +76,13 @@ export type ReleaseInstallFailure =
   | 'failed';
 
 export type ReleaseInstall =
-  | { status: 'installed'; current: string; installed: string; restartable: boolean }
+  | {
+      status: 'installed';
+      current: string;
+      installed: string;
+      restartable: boolean;
+      applied: boolean;
+    }
   | {
       status: 'failed';
       reason: ReleaseInstallFailure;
@@ -184,6 +190,10 @@ function newestTag(tags: unknown, current: string): string | undefined {
   return candidates.sort(compareVersions).at(-1);
 }
 
+export function releaseTarball(registry: string, version: string): string {
+  return `${registry.replace(/\/+$/u, '')}/${RELEASE_PACKAGE}/-/${RELEASE_PACKAGE}-${version}.tgz`;
+}
+
 function failureOf(result: ReleaseInstallerResult): ReleaseInstall {
   const kind = result.packageResult?.kind;
   const reason: ReleaseInstallFailure =
@@ -194,7 +204,12 @@ function failureOf(result: ReleaseInstallerResult): ReleaseInstall {
         : kind !== undefined && NETWORK_FAILURES.has(kind)
           ? 'network'
           : 'failed';
-  const diagnostic = (result.error?.diagnostic ?? result.packageResult?.output ?? '').trim();
+  const diagnostic = (
+    result.error?.diagnostic ??
+    result.packageResult?.output ??
+    (reason === 'failed' ? result.error?.code : undefined) ??
+    ''
+  ).trim();
   const logPath = result.packageResult?.logPath;
   return {
     status: 'failed',
@@ -292,6 +307,12 @@ export function createReleaseService(options: ReleaseServiceOptions): ReleaseSer
     let result: ReleaseInstallerResult;
     try {
       result = await installer.installBundle(`${RELEASE_PACKAGE}@${version}`);
+      if (result.error?.code === 'already-installed') {
+        for (const registry of registries) {
+          result = await installer.installBundle(releaseTarball(registry, version));
+          if (!NETWORK_FAILURES.has(result.packageResult?.kind ?? '')) break;
+        }
+      }
     } catch (error) {
       return {
         status: 'failed',
@@ -311,6 +332,7 @@ export function createReleaseService(options: ReleaseServiceOptions): ReleaseSer
       current,
       installed: version,
       restartable: options.restarter?.() !== undefined,
+      applied: result.application === 'applied',
     };
   };
 

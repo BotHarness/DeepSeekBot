@@ -25,7 +25,8 @@ import {
   type ComputerKey,
   type ComputerTranslate,
 } from './locale.js';
-import { Button, Tag, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Button, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tooltip } from '../../../client/src/client/ds/tooltip.js';
 import { SidebarCardList, SidebarCardRow } from '../../../client/src/client/sidebar-card.js';
 import type { Context as ClientContext } from '@deepseek-ai/cordis';
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client';

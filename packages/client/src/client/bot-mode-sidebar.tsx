@@ -4,9 +4,9 @@ import type { SnapshotSelectorHook } from '@deepseek-ai/dsh-client-store';
 import {
   IconPanelLeftOutlineRegular,
   IconSettingsOutlineRegular,
-  Tooltip,
   isDarwinDesktop,
 } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tooltip } from './ds/tooltip.js';
 
 import type { BotModeSortMode } from '../bot-mode-settings.js';
 import type { BridgeActions } from './actions.js';

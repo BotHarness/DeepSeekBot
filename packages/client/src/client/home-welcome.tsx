@@ -1,6 +1,7 @@
 import { useState, useSyncExternalStore, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tooltip } from './ds/tooltip.js';
 import type { BridgeActions } from './actions.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { store } from './store.js';

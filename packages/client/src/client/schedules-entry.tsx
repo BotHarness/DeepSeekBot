@@ -7,8 +7,8 @@ import {
   SegmentedControl,
   Switch,
   Tag,
-  Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tooltip } from './ds/tooltip.js';
 
 import type { ChannelSidebarEntryProps } from './channel-sidebar.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';

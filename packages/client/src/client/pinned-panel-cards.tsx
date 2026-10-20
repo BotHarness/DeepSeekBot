@@ -6,7 +6,7 @@ import {
   type HTMLAttributes,
 } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Tooltip } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tooltip } from './ds/tooltip.js';
 
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import type { DockPanelRegistry } from './dock-panels.js';

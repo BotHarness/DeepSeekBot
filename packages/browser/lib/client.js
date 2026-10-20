@@ -1481,6 +1481,18 @@ window.__ModuleLoader__.load({
 			});
 		}
 		//#endregion
+		//#region packages/client/src/client/ds/tooltip.tsx
+		const shared = globalThis;
+		const InstantTooltips = shared[Symbol.for("botharness.instant-tooltips")] ??= (0, react.createContext)(false);
+		function Tooltip(props) {
+			return (0, react.useContext)(InstantTooltips) ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tooltip, {
+				...props,
+				portal: true,
+				delayMs: 0,
+				focusDelayMs: 0
+			}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tooltip, { ...props });
+		}
+		//#endregion
 		//#region packages/client/src/client/sidebar-card.tsx
 		function SidebarCardList({ label, className, listRef, flush = false, children }) {
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("ul", {
@@ -3417,7 +3429,7 @@ window.__ModuleLoader__.load({
 			const label = t(accessOn ? "entry.access.disable" : "entry.access.enable");
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
 				className: "bh-browser-access-control",
-				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tooltip, {
+				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Tooltip, {
 					label: error ? t("entry.access.failed") + ": " + label : label,
 					side: "bottom",
 					delayMs: 500,

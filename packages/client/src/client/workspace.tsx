@@ -14,7 +14,8 @@ import { SettingsRow, SettingsSection } from './ds/settings-row.js';
 
 import { workspaceColumns, moveWorkspaceRail } from './workspace-layout.js';
 import { useState, useSyncExternalStore, type ReactNode, type ReactElement } from 'react';
-import { Button, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tooltip } from './ds/tooltip.js';
 import type { DockviewApi } from 'dockview-react';
 import type { BotModeSidebarProps } from './bot-mode-sidebar.js';
 import type { BotModePrefs } from './bot-mode-prefs.js';

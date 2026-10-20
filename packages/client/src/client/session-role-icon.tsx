@@ -3,8 +3,8 @@ import {
   IconAgentPresetOutlineRegular,
   IconBranchOutlineRegular,
   IconCodeOutlineRegular,
-  Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tooltip } from './ds/tooltip.js';
 import type { ActivitySourceRole } from '../../../core/src/state/tool-activity.js';
 
 const ROLE_ICONS = {

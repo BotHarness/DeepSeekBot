@@ -2,7 +2,8 @@ import * as stylex from '@stylexjs/stylex';
 import { useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
 import { createPortal } from 'react-dom';
 
-import { MenuSurface, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives';
+import { MenuSurface } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tooltip } from './ds/tooltip.js';
 
 import { IconButton } from './ds/icon-button.js';
 import { border, color, radius, size, space, text } from './ds/tokens.stylex.js';

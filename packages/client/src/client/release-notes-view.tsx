@@ -1,10 +1,14 @@
 import type { ReleaseCompatibility } from '../../../core/src/release/compatibility.js';
 import { useMemo, useState, useSyncExternalStore, type ReactElement } from 'react';
+import * as stylex from '@stylexjs/stylex';
 
 import {
   Button,
+  IconCloseOutlineRegular,
+  IconDownloadOutlineRegular,
   MarkdownText,
   Tag,
+  Tooltip,
   type MarkdownLabels,
   type TagTone,
 } from '@deepseek-ai/dsh-client-ui-primitives';
@@ -12,7 +16,9 @@ import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 
 import type { ReleaseNote } from '../../../core/src/release/notes.js';
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
+import { IconButton } from './ds/icon-button.js';
 import { SettingsRow } from './ds/settings-row.js';
+import { color, space, text } from './ds/tokens.stylex.js';
 import { Modal } from './modal.js';
 import { useMountedResource } from './mounted-resource.js';
 import type {
@@ -34,9 +40,59 @@ const SECTIONS: Record<string, { key: BotHarnessKey; tone: TagTone }> = {
 };
 
 export const RELEASE_UPDATE_PROFILE = 'web';
+const DESKTOP_UPDATE_PROFILE = 'desktop';
+const FAILURE_LINE_CHARS = 160;
 
-export function releaseUpdateCommand(version: string): string {
-  return `dsh plugin --profile ${RELEASE_UPDATE_PROFILE} add deepseekbot@${version}`;
+const styles = stylex.create({
+  head: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: space.x2,
+    paddingTop: space.x6,
+    paddingBottom: 0,
+    paddingInline: `${space.x6} ${space.x4}`,
+  },
+  title: {
+    flexGrow: 1,
+    minWidth: 0,
+    margin: 0,
+    color: color.fg,
+    fontSize: text.titleSize,
+    lineHeight: text.titleLine,
+    fontWeight: text.strong,
+  },
+  install: { color: { default: color.accent, ':hover': color.accent } },
+  close: { color: color.muted },
+  body: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x4,
+    minWidth: 0,
+    paddingInline: space.x6,
+    color: color.fg,
+    fontSize: text.bodySize,
+    lineHeight: text.bodyLine,
+  },
+  identity: { margin: 0, color: color.muted },
+  failure: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x3,
+    minWidth: 0,
+  },
+  failureText: { margin: 0, color: color.danger, overflowWrap: 'anywhere' },
+  footer: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: space.x3,
+    paddingInline: space.x6,
+  },
+  spacer: { flexGrow: 1 },
+});
+
+export function releaseUpdateCommand(version: string, profile = RELEASE_UPDATE_PROFILE): string {
+  return `dsh plugin --profile ${profile} add deepseekbot@${version}`;
 }
 
 function useReleaseNotes(controller: ReleaseNotesController): ReleaseNotesSnapshot {
@@ -244,69 +300,113 @@ function UpgradeNotice({
       </Modal>
     );
   if (update.status !== 'available' && update.status !== 'blocked') return null;
-  const installing = snapshot.install.status === 'installing';
+  const install = snapshot.install;
+  const installing = install.status === 'installing';
+  const installable = update.status === 'available' && update.installable;
   const close = () => {
     if (!installing) controller.dismissUpdate();
   };
+  const start = () => {
+    void controller.install(update.latest);
+  };
+  const title = t('release.notice.title', { latest: update.latest });
+  const actionLabel = t(installing ? 'release.install.running' : 'release.install.action');
   return (
     <Modal
       open={snapshot.updateNotice && snapshot.announcement === undefined && !deferred}
-      title={t('release.notice.title', { latest: update.latest })}
-      description={t('release.notice.identity', {
-        current: update.current,
-        dsh: update.compatibility?.dshVersion ?? t('release.compatibilityUnknown'),
-      })}
-      closeLabel={t('releaseNotes.close')}
+      headless
+      title={title}
       onClose={close}
       className="bh-release-dialog"
-      footer={
-        <>
-          <Button variant="outline" disabled={installing} onClick={close}>
-            {t('release.notice.later')}
-          </Button>
-          <Button variant="outline" onClick={() => openSite(t)}>
-            {t('releaseNotes.site')}
-          </Button>
-          {update.status === 'available' && update.installable ? (
-            <Button
-              variant="primary"
-              disabled={installing}
-              onClick={() => {
-                void controller.install(update.latest);
-              }}
-            >
-              {t(installing ? 'release.install.running' : 'release.install.action')}
-            </Button>
-          ) : null}
-        </>
-      }
     >
-      {update.compatibility ? <p>{compatibilityText(update.compatibility, t)}</p> : null}
-      {update.status === 'available' && update.blockedLatest ? (
-        <p>
-          {t('release.notice.blockedLatest', { version: update.blockedLatest.version })}{' '}
-          {compatibilityText(update.blockedLatest.compatibility, t)}
+      <div {...stylex.props(styles.head)}>
+        <h2 {...stylex.props(styles.title)}>{title}</h2>
+        {installable ? (
+          <Tooltip label={actionLabel} side="bottom" portal>
+            <IconButton
+              aria-label={actionLabel}
+              disabled={installing}
+              data-release-notice-install=""
+              xstyle={styles.install}
+              onClick={start}
+            >
+              <IconDownloadOutlineRegular size={16} />
+            </IconButton>
+          </Tooltip>
+        ) : null}
+        <IconButton
+          aria-label={t('releaseNotes.close')}
+          disabled={installing}
+          data-modal-autofocus=""
+          xstyle={styles.close}
+          onClick={close}
+        >
+          <IconCloseOutlineRegular size={14} />
+        </IconButton>
+      </div>
+      <div {...stylex.props(styles.body)}>
+        <p {...stylex.props(styles.identity)}>
+          {t('release.notice.identity', {
+            current: update.current,
+            dsh: update.compatibility?.dshVersion ?? t('release.compatibilityUnknown'),
+          })}
         </p>
-      ) : null}
-      {snapshot.install.status === 'failed' ? (
-        <p role="alert">{t(INSTALL_FAILURE_KEYS[snapshot.install.reason])}</p>
-      ) : null}
-      {update.status === 'available' ? (
-        <>
-          {!update.installable ? (
-            <ManualUpdate latest={update.latest} t={t} />
-          ) : (
-            <p>{t('release.install.hint')}</p>
-          )}
-          {update.releases.length > 0 ? (
+        {update.status === 'blocked' ? <p>{compatibilityText(update.compatibility, t)}</p> : null}
+        {update.status === 'available' && update.blockedLatest ? (
+          <p>
+            {t('release.notice.blockedLatest', { version: update.blockedLatest.version })}{' '}
+            {compatibilityText(update.blockedLatest.compatibility, t)}
+          </p>
+        ) : null}
+        {install.status === 'failed' || (update.status === 'available' && !update.installable) ? (
+          <div {...stylex.props(styles.failure)} data-release-notice-failure>
+            {install.status === 'failed' ? (
+              <p role="alert" {...stylex.props(styles.failureText)}>
+                {t('release.install.failedWith', { reason: failureReason(install, t) })}
+              </p>
+            ) : null}
+            <ManualUpdate latest={update.latest} compact t={t} />
+          </div>
+        ) : null}
+        {update.status === 'available' ? (
+          update.releases.length > 0 ? (
             <ReleaseNotesList releases={update.releases} badge={t('releaseNotes.latest')} t={t} />
           ) : (
             <p>{t('release.notice.noNotes')}</p>
-          )}
-        </>
-      ) : null}
+          )
+        ) : null}
+      </div>
+      <div {...stylex.props(styles.footer)}>
+        <Button variant="outline" onClick={() => openSite(t)}>
+          {t('releaseNotes.site')}
+        </Button>
+        <span {...stylex.props(styles.spacer)} />
+        <Button variant="outline" disabled={installing} onClick={close}>
+          {t('release.notice.later')}
+        </Button>
+        {installable ? (
+          <Button variant="primary" disabled={installing} onClick={start}>
+            {actionLabel}
+          </Button>
+        ) : null}
+      </div>
     </Modal>
   );
+}
+
+function failureReason(
+  install: Extract<ReleaseInstallState, { status: 'failed' }>,
+  t: BotHarnessTranslate,
+): string {
+  const known = INSTALL_FAILURE_REASONS[install.reason];
+  if (known !== undefined) return t(known);
+  const line = install.diagnostic
+    ?.split('\n')
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0)
+    .at(-1);
+  if (line === undefined) return t('release.install.reason.unknown');
+  return line.length > FAILURE_LINE_CHARS ? `${line.slice(0, FAILURE_LINE_CHARS)}…` : line;
 }
 
 function statusText(snapshot: ReleaseNotesSnapshot, t: BotHarnessTranslate): string {
@@ -341,6 +441,15 @@ function statusText(snapshot: ReleaseNotesSnapshot, t: BotHarnessTranslate): str
   }
 }
 
+const INSTALL_FAILURE_REASONS: Partial<
+  Record<Extract<ReleaseInstallState, { status: 'failed' }>['reason'], BotHarnessKey>
+> = {
+  unavailable: 'release.install.reason.unavailable',
+  network: 'release.install.reason.network',
+  incompatible: 'release.install.reason.incompatible',
+  'build-blocked': 'release.install.reason.buildBlocked',
+};
+
 const INSTALL_FAILURE_KEYS: Record<
   Extract<ReleaseInstallState, { status: 'failed' }>['reason'],
   BotHarnessKey
@@ -354,12 +463,32 @@ const INSTALL_FAILURE_KEYS: Record<
   failed: 'release.install.failed.generic',
 };
 
-function ManualUpdate({ latest, t }: { latest: string; t: BotHarnessTranslate }): ReactElement {
+function ManualUpdate({
+  latest,
+  compact = false,
+  t,
+}: {
+  latest: string;
+  compact?: boolean;
+  t: BotHarnessTranslate;
+}): ReactElement {
   const [copied, setCopied] = useState(false);
-  const command = releaseUpdateCommand(latest);
+  const desktop = runsInDesktop();
+  const command = releaseUpdateCommand(
+    latest,
+    compact && desktop ? DESKTOP_UPDATE_PROFILE : RELEASE_UPDATE_PROFILE,
+  );
   return (
     <>
-      <div className="bh-settings-row-desc">{t('release.update.cli')}</div>
+      <div className="bh-settings-row-desc">
+        {t(
+          compact
+            ? desktop
+              ? 'release.update.cliDesktop'
+              : 'release.update.cliShort'
+            : 'release.update.cli',
+        )}
+      </div>
       <div className="bh-release-command">
         <code>{command}</code>
         <Button
@@ -374,7 +503,7 @@ function ManualUpdate({ latest, t }: { latest: string; t: BotHarnessTranslate })
           {t(copied ? 'release.update.copied' : 'release.update.copy')}
         </Button>
       </div>
-      <div className="bh-settings-row-desc">{t('release.update.desktop')}</div>
+      {compact ? null : <div className="bh-settings-row-desc">{t('release.update.desktop')}</div>}
     </>
   );
 }

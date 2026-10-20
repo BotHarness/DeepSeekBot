@@ -1,6 +1,7 @@
 import { Menu } from './appearance-primitives.js';
 import { useState, type ReactElement } from 'react';
-import { Tooltip, type MenuEntry } from '@deepseek-ai/dsh-client-ui-primitives';
+import { type MenuEntry } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tooltip } from './ds/tooltip.js';
 
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { IconButton } from './ds/icon-button.js';

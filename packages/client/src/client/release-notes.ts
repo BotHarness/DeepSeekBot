@@ -21,6 +21,7 @@ export const RELEASE_NOTES_SEEN_KEY = 'botharness.releaseNotes.seenVersion';
 
 const RESTART_POLL_MS = 2_000;
 const RESTART_POLL_LIMIT = 90;
+const APPLIED_POLL_LIMIT = 10;
 
 export interface ReleaseRestartWatch {
   wait(ms: number): Promise<void>;
@@ -223,7 +224,13 @@ export function parseReleaseInstall(value: unknown): ReleaseInstall | undefined 
   if (source?.['status'] === 'installed') {
     const { current, installed } = source;
     return typeof current === 'string' && typeof installed === 'string'
-      ? { status: 'installed', current, installed, restartable: source['restartable'] === true }
+      ? {
+          status: 'installed',
+          current,
+          installed,
+          restartable: source['restartable'] === true,
+          applied: source['applied'] === true,
+        }
       : undefined;
   }
   const reason = INSTALL_FAILURES.find((candidate) => candidate === source?.['reason']);
@@ -408,6 +415,12 @@ export class ReleaseNotesController {
     } catch {
       outcome = undefined;
     }
+    if (
+      outcome?.status === 'installed' &&
+      outcome.applied &&
+      (await this.awaitVersion(outcome.installed, APPLIED_POLL_LIMIT))
+    )
+      return;
     this.source.update((draft) => {
       if (outcome?.status === 'installed') {
         draft.install = { status: 'idle' };
@@ -448,7 +461,14 @@ export class ReleaseNotesController {
   }
 
   private async awaitRestart(expected: string | undefined): Promise<void> {
-    for (let attempt = 0; attempt < RESTART_POLL_LIMIT; attempt += 1) {
+    if (await this.awaitVersion(expected, RESTART_POLL_LIMIT)) return;
+    this.source.update((draft) => {
+      draft.restart = { status: 'failed' };
+    });
+  }
+
+  private async awaitVersion(expected: string | undefined, attempts: number): Promise<boolean> {
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
       await this.watch.wait(RESTART_POLL_MS);
       let version: string | undefined;
       try {
@@ -463,12 +483,10 @@ export class ReleaseNotesController {
       }
       if (expected !== undefined && version === expected) {
         this.watch.reload();
-        return;
+        return true;
       }
     }
-    this.source.update((draft) => {
-      draft.restart = { status: 'failed' };
-    });
+    return false;
   }
 
   private async announce(): Promise<void> {

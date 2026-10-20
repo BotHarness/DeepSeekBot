@@ -1,6 +1,7 @@
 import { Menu } from './appearance-primitives.js';
 import { useState, type ReactElement } from 'react';
-import { Button, IconRightUpOutlineRegular, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Button, IconRightUpOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tooltip } from './ds/tooltip.js';
 import { PersonaBotAvatar } from './avatar.js';
 import type { BotHarnessTranslate } from './locale.js';
 import type { BotSummary, ChannelSummary, HumanAttentionItem } from './store.js';

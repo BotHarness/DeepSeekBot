@@ -4,8 +4,8 @@ import {
   IconChevronLeftOutlineRegular,
   IconRefreshOutlineRegular,
   IconWrapLinesOutlineRegular,
-  Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tooltip } from './ds/tooltip.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { parseMemoryDiff } from './memory-diff-model.js';
 

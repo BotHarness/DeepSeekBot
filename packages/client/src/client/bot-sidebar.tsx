@@ -38,9 +38,9 @@ import {
   MenuItemButton,
   Tag,
   Toast,
-  Tooltip,
   type MenuEntry,
 } from '@deepseek-ai/dsh-client-ui-primitives';
+import { InstantTooltipScope, Tooltip } from './ds/tooltip.js';
 
 import type { SnapshotSelectorHook } from '@deepseek-ai/dsh-client-store';
 
@@ -2180,7 +2180,9 @@ export function BotSidebar({
         }}
         t={t}
       />
-      {headerTarget ? createPortal(header, headerTarget) : header}
+      {headerTarget
+        ? createPortal(<InstantTooltipScope>{header}</InstantTooltipScope>, headerTarget)
+        : header}
       {state.status === 'loading' && state.bots.length === 0 ? (
         <LoadingSkeleton kind="roster" label={t('roster.loading')} />
       ) : null}

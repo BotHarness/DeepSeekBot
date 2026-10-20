@@ -17,6 +17,14 @@
         "buildType": "app-bundle"
       }
     },
+    "store-test-apk": {
+      "extends": "store-test",
+      "distribution": "internal",
+      "environment": "production",
+      "android": {
+        "buildType": "apk"
+      }
+    },
     "development": {
       "developmentClient": true,
       "distribution": "internal",

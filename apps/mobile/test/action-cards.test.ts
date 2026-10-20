@@ -188,7 +188,9 @@ describe('Tool approval card in the DM', () => {
     await press(button(view, t.alwaysAllow));
     expect(sent[0]?.['outcome']).toBe('allowed-always-tool');
     expect(played).toEqual(['notification:success']);
-    expect(line(view)).toBe(t.cardLine('bash', t.cardOutcome['allowed-always-tool']));
+    expect(line(view)).toBe(
+      t.cardLine('ls /tmp/mobile-fixture', t.cardOutcome['allowed-always-tool']),
+    );
     expect(view.querySelector('button')).toBeNull();
   });
 
@@ -197,7 +199,9 @@ describe('Tool approval card in the DM', () => {
     const view = await render(card(target));
     expect(button(view, t.allowOnce)).toBeDefined();
     await rerender(card(target, { resolution: { kind: 'tool-approval', outcome: 'rejected' } }));
-    expect(line(view)).toBe(t.cardLine('bash', t.elsewhere(t.cardOutcome.rejected)));
+    expect(line(view)).toBe(
+      t.cardLine('ls /tmp/mobile-fixture', t.elsewhere(t.cardOutcome.rejected)),
+    );
   });
 
   it('does not call a decision from this phone’s Activity list another device', async () => {
@@ -213,7 +217,7 @@ describe('Tool approval card in the DM', () => {
         decidedHere: handledHere(approval),
       }),
     );
-    expect(line(view)).toBe(t.cardLine('bash', t.cardOutcome['allowed-once']));
+    expect(line(view)).toBe(t.cardLine('ls /tmp/mobile-fixture', t.cardOutcome['allowed-once']));
   });
 
   it('says so when a tap lost to another device', async () => {
@@ -224,14 +228,16 @@ describe('Tool approval card in the DM', () => {
     fake.answers.set('channelTimeline', () => recorded('channelTimeline.approvalDecided'));
     await press(button(view, t.reject));
     expect(played).toEqual(['notification:warning']);
-    expect(line(view)).toBe(t.cardLine('bash', t.elsewhere(t.cardOutcome['allowed-once'])));
+    expect(line(view)).toBe(
+      t.cardLine('ls /tmp/mobile-fixture', t.elsewhere(t.cardOutcome['allowed-once'])),
+    );
   });
 
   it('collapses an expired approval without buttons', async () => {
     const fake = host();
     fake.answers.set('toolApprovalStatus', () => expired);
     const view = await render(card(connect(fake)));
-    expect(line(view)).toBe(t.cardLine('bash', t.cardExpired));
+    expect(line(view)).toBe(t.cardLine('ls /tmp/mobile-fixture', t.cardExpired));
     expect(view.querySelector('button')).toBeNull();
   });
 
@@ -242,6 +248,17 @@ describe('Tool approval card in the DM', () => {
     );
     expect(line(view)).toBe(t.cardLine('bash', t.cardOutcome['allowed-once']));
     expect(fake.requests.filter((request) => request.includes('toolApproval'))).toEqual([]);
+  });
+
+  it('names a decision already in the DM by its command', async () => {
+    const view = await render(
+      card(connect(host()), {
+        subject: 'secret_cli',
+        command: 'gh --version',
+        resolution: { kind: 'tool-approval', outcome: 'allowed-once' },
+      }),
+    );
+    expect(line(view)).toBe(t.cardLine('gh --version', t.cardOutcome['allowed-once']));
   });
 
   it('keeps the buttons and names the refusal when a decision fails while pending', async () => {
@@ -320,6 +337,37 @@ describe('Tool approval detail in the DM', () => {
     await press(button(view, t.diffMore(5)));
     expect(diff()).toContain('line 44');
     expect(view.querySelector('[data-testid="approval-diff-more"]')).toBeNull();
+  });
+
+  it('shows the secret command it will run, not the account name', async () => {
+    const fake = host();
+    fake.answers.set('channelTimeline', () =>
+      edited('secret_cli', {
+        account: 'GitHub personal access token',
+        references: ['ref-1'],
+        program: 'gh',
+        args: ['--version'],
+        env: [{ name: 'GH_TOKEN', value: 'ref-1' }],
+      }),
+    );
+    const view = await render(card(connect(fake)));
+    const preview = [...view.querySelectorAll('*')].find(
+      (node) => node.children.length === 0 && node.textContent === 'gh --version',
+    );
+    expect(preview).toBeDefined();
+    expect(view.textContent).not.toContain('GitHub personal access token');
+    await press(button(view, t.allowOnce));
+    expect(view.textContent).toContain(t.cardLine('gh --version', t.cardOutcome['allowed-once']));
+  });
+
+  it('names a long command by its first line once it is decided', async () => {
+    const fake = host();
+    fake.answers.set('channelTimeline', () =>
+      edited('bash', { command: `cat <<'EOF'\n${'x'.repeat(200)}\nEOF` }),
+    );
+    const view = await render(card(connect(fake)));
+    await press(button(view, t.reject));
+    expect(view.textContent).toContain(t.cardLine("cat <<'EOF'…", t.cardOutcome.rejected));
   });
 
   it('puts the original attachment warning next to the buttons', async () => {

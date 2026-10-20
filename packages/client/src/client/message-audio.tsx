@@ -3,9 +3,9 @@ import {
   IconDownloadOutlineRegular,
   IconPauseOutlineRegular,
   IconPlayOutlineRegular,
-  Tooltip,
   fileSizeText,
 } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tooltip } from './ds/tooltip.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
 

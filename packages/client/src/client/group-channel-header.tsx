@@ -1,6 +1,7 @@
 import type { ReactElement, ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { IconChevronDownOutlineRegular, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives';
+import { IconChevronDownOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tooltip } from './ds/tooltip.js';
 import {
   PersonaBotFacepile,
   personaBotPresentationSummary,

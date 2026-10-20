@@ -4,11 +4,11 @@ import {
   FileTypeIcon,
   IconEllipsisOutlineRegular,
   Tag,
-  Tooltip,
   IconChevronDownOutlineRegular,
   IconFolderCloseRegular,
   IconFolderOpenRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tooltip } from './ds/tooltip.js';
 import { useMemoryFileMenu, type MemoryFileCommands } from './memory-file-actions.js';
 import type { MemoryStandingUsage } from './bridge.js';
 import type { BotHarnessTranslate } from './locale.js';

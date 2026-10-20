@@ -4,7 +4,8 @@ import type { SessionsState } from './store.js';
 import { useState, useSyncExternalStore, type ReactElement } from 'react';
 
 import * as stylex from '@stylexjs/stylex';
-import { Tag, Tooltip, type MenuEntry } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tag, type MenuEntry } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tooltip } from './ds/tooltip.js';
 
 import type { ChannelSidebarEntryProps } from './channel-sidebar.js';
 import { useClientState } from './bot-sidebar.js';

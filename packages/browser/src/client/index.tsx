@@ -15,8 +15,8 @@ import {
   IconFullscreenOutlineRegular,
   Switch,
   Tag,
-  Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tooltip } from '../../../client/src/client/ds/tooltip.js';
 import { ChannelSidebarIcon } from '../../../client/src/client/channel-sidebar-icon.js';
 import { useMountedResource } from '../../../client/src/client/mounted-resource.js';
 import { SidebarCardList, SidebarCardRow } from '../../../client/src/client/sidebar-card.js';

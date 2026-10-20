@@ -8,9 +8,9 @@ import {
   Button,
   IconEllipsisOutlineRegular,
   Tag,
-  Tooltip,
   type MenuEntry,
 } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tooltip } from './ds/tooltip.js';
 
 import type { BotModePrefs } from './bot-mode-prefs.js';
 import { WorkspaceGrantsEntry } from './workspace-grants-entry.js';

@@ -1,7 +1,8 @@
-import { useRef, type ReactElement, type ReactNode } from 'react';
+import { useRef, useState, type ReactElement, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { IconChevronDownOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
 
+import { InstantTooltipScope, Tooltip } from './tooltip.js';
 import { border, color, radius, size, space, text } from './tokens.stylex.js';
 
 const styles = stylex.create({
@@ -116,6 +117,7 @@ export function PanelHeader({
   disclosure,
   onHide,
   hideLabel,
+  hideHint,
   dimmed = false,
   locked = false,
   struck = false,
@@ -129,11 +131,19 @@ export function PanelHeader({
   readonly disclosure?: PanelHeaderDisclosure | undefined;
   readonly onHide?: () => void;
   readonly hideLabel?: string;
+  readonly hideHint?: string;
   readonly dimmed?: boolean;
   readonly locked?: boolean;
   readonly struck?: boolean;
 }): ReactElement {
   const pointer = useRef<{ x: number; y: number; moved: boolean } | undefined>(undefined);
+  const [dragging, setDragging] = useState(false);
+  const labelRef = useRef<HTMLSpanElement>(null);
+  const hint = () => {
+    const node = labelRef.current;
+    const clipped = node !== null && node.scrollWidth > node.clientWidth;
+    return clipped && typeof label === 'string' ? `${label} · ${hideHint ?? ''}` : (hideHint ?? '');
+  };
   const fixed = tabs !== undefined;
   const content = (
     <>
@@ -143,8 +153,9 @@ export function PanelHeader({
         </span>
       )}
       <span
+        ref={labelRef}
         data-panel-label=""
-        title={typeof label === 'string' ? label : undefined}
+        title={typeof label === 'string' && hideHint === undefined ? label : undefined}
         {...stylex.props(
           styles.label,
           (fixed || !!onHide) && styles.labelFixed,
@@ -159,41 +170,46 @@ export function PanelHeader({
   return (
     <div {...stylex.props(styles.header)}>
       {onHide ? (
-        <button
-          type="button"
-          data-panel-head=""
-          data-panel-hide=""
-          data-window-drag-recall
-          draggable
-          aria-label={hideLabel}
-          onPointerDown={(event) => {
-            if (event.button === 0)
-              pointer.current = { x: event.clientX, y: event.clientY, moved: false };
-          }}
-          onPointerMove={(event) => {
-            const origin = pointer.current;
-            if (origin && Math.hypot(event.clientX - origin.x, event.clientY - origin.y) > 5)
-              origin.moved = true;
-          }}
-          onPointerCancel={() => {
-            if (pointer.current) pointer.current.moved = true;
-          }}
-          onDragStart={() => {
-            if (pointer.current) pointer.current.moved = true;
-          }}
-          onClick={(event) => {
-            event.stopPropagation();
-            const origin = pointer.current;
-            const moved =
-              origin &&
-              (origin.moved || Math.hypot(event.clientX - origin.x, event.clientY - origin.y) > 5);
-            if (event.detail === 0 || !moved) onHide();
-            pointer.current = undefined;
-          }}
-          {...stylex.props(styles.head, fixed && styles.fixed, styles.compact)}
-        >
-          {content}
-        </button>
+        <Tooltip label={hint} side="bottom" portal disabled={hideHint === undefined || dragging}>
+          <button
+            type="button"
+            data-panel-head=""
+            data-panel-hide=""
+            data-window-drag-recall
+            draggable
+            aria-label={hideLabel}
+            onPointerDown={(event) => {
+              if (event.button === 0)
+                pointer.current = { x: event.clientX, y: event.clientY, moved: false };
+            }}
+            onPointerMove={(event) => {
+              const origin = pointer.current;
+              if (origin && Math.hypot(event.clientX - origin.x, event.clientY - origin.y) > 5)
+                origin.moved = true;
+            }}
+            onPointerCancel={() => {
+              if (pointer.current) pointer.current.moved = true;
+            }}
+            onDragStart={() => {
+              if (pointer.current) pointer.current.moved = true;
+              setDragging(true);
+            }}
+            onDragEnd={() => setDragging(false)}
+            onClick={(event) => {
+              event.stopPropagation();
+              const origin = pointer.current;
+              const moved =
+                origin &&
+                (origin.moved ||
+                  Math.hypot(event.clientX - origin.x, event.clientY - origin.y) > 5);
+              if (event.detail === 0 || !moved) onHide();
+              pointer.current = undefined;
+            }}
+            {...stylex.props(styles.head, fixed && styles.fixed, styles.compact)}
+          >
+            {content}
+          </button>
+        </Tooltip>
       ) : disclosure === undefined ? (
         <div
           data-panel-head=""
@@ -255,8 +271,8 @@ export function PanelHeader({
       )}
       {onHide ? <span aria-hidden="true" {...stylex.props(styles.spacer)} /> : null}
       {action === undefined ? null : (
-        <span data-window-drag-recall {...stylex.props(styles.action)}>
-          {action}
+        <span data-panel-actions="" data-window-drag-recall {...stylex.props(styles.action)}>
+          <InstantTooltipScope>{action}</InstantTooltipScope>
         </span>
       )}
     </div>

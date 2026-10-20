@@ -8,7 +8,7 @@ import {
 } from 'react';
 
 import * as stylex from '@stylexjs/stylex';
-import { Tooltip } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tooltip } from './ds/tooltip.js';
 
 import type { BridgeActions } from './actions.js';
 import type {

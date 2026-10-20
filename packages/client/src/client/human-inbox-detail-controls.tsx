@@ -3,8 +3,8 @@ import {
   IconCloseOutlineRegular,
   IconChevronDownOutlineRegular,
   IconRightUpOutlineRegular,
-  Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tooltip } from './ds/tooltip.js';
 import { useRef, useState, type ReactElement } from 'react';
 import type { BridgeActions } from './actions.js';
 import type { HumanAttentionItem } from './store.js';

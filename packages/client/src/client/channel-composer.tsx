@@ -28,9 +28,9 @@ import {
   IconSendOutlineRegular,
   IconStopFillRegular,
   ImageLightbox,
-  Tooltip,
   fileSizeText,
 } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tooltip } from './ds/tooltip.js';
 import { createPortal } from 'react-dom';
 import type { PersonaBotSessionActivity } from '../../../core/src/state/tool-activity.js';
 
@@ -726,22 +726,14 @@ export function ChannelComposer({
   };
   const handleFilePaste = (event: ClipboardEvent<HTMLElement>): boolean => {
     const clipboard = event.clipboardData;
-    const files = Array.from(clipboard.files);
-    const unmatchedFiles = [...files];
-    for (const item of Array.from(clipboard.items)) {
-      if (item.kind !== 'file') continue;
-      const file = item.getAsFile();
-      if (file === null) continue;
-      const existingIndex = unmatchedFiles.findIndex(
-        (existing) =>
-          existing.name === file.name &&
-          existing.size === file.size &&
-          existing.type === file.type &&
-          existing.lastModified === file.lastModified,
-      );
-      if (existingIndex < 0) files.push(file);
-      else unmatchedFiles.splice(existingIndex, 1);
-    }
+    const listed = Array.from(clipboard.files);
+    const files =
+      listed.length > 0
+        ? listed
+        : Array.from(clipboard.items).flatMap((item) => {
+            const file = item.kind === 'file' ? item.getAsFile() : null;
+            return file === null ? [] : [file];
+          });
     if (files.length === 0 || onAddFiles === undefined || sending) return false;
     event.preventDefault();
     event.stopPropagation();

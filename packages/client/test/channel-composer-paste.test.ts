@@ -182,7 +182,45 @@ describe('Channel composer clipboard attachments', () => {
     expect(onAddFiles).toHaveBeenNthCalledWith(2, [file], { start: 0, end: 0 });
   });
 
-  it('collects files from both clipboard lists once and stops shell paste handlers', async () => {
+  it('adds one pasted image when the clipboard lists it as files and items', async () => {
+    const onAddFiles = vi.fn();
+    await act(async () =>
+      root.render(
+        createElement(ChannelComposer, {
+          value: '',
+          placeholder: 'Message',
+          sending: false,
+          mentionCandidates: empty,
+          mentions: empty,
+          channelRefs: empty,
+          channelCandidates: [{ id: 'g1', name: 'Group' } as never],
+          onAddFiles,
+          onChange: vi.fn(),
+          onSubmit: vi.fn(),
+        }),
+      ),
+    );
+    const listed = new File(['image'], 'image.png', { type: 'image/png', lastModified: 1000 });
+    const item = new File(['image'], 'image.png', { type: 'image/png', lastModified: 1002 });
+    const shellPaste = vi.fn();
+    container.addEventListener('paste', shellPaste);
+    const event = new Event('paste', { bubbles: true, cancelable: true });
+    Object.defineProperty(event, 'clipboardData', {
+      value: {
+        files: [listed],
+        items: [{ kind: 'file', getAsFile: () => item }],
+        getData: () => '',
+      },
+    });
+    container.querySelector('[contenteditable="true"]')!.dispatchEvent(event);
+    expect(onAddFiles).toHaveBeenCalledTimes(1);
+    expect(onAddFiles).toHaveBeenCalledWith([listed], undefined);
+    expect(event.defaultPrevented).toBe(true);
+    expect(shellPaste).not.toHaveBeenCalled();
+    container.removeEventListener('paste', shellPaste);
+  });
+
+  it('keeps same-name clipboard files that only items expose', async () => {
     const onAddFiles = vi.fn();
     await act(async () =>
       root.render(
@@ -197,28 +235,12 @@ describe('Channel composer clipboard attachments', () => {
       ),
     );
     const file = new File(['document'], 'notes.txt', { type: 'text/plain' });
-    const image = new File(['image'], 'capture.png', { type: 'image/png' });
-    const shellPaste = vi.fn();
-    container.addEventListener('paste', shellPaste);
-    const event = new Event('paste', { bubbles: true, cancelable: true });
-    Object.defineProperty(event, 'clipboardData', {
-      value: {
-        files: [file],
-        items: [file, image].map((item) => ({ kind: 'file', getAsFile: () => item })),
-        getData: () => '',
-      },
-    });
-    container.querySelector('textarea')!.dispatchEvent(event);
-    expect(onAddFiles).toHaveBeenCalledWith([file, image], { start: 0, end: 0 });
-    expect(event.defaultPrevented).toBe(true);
-    expect(shellPaste).not.toHaveBeenCalled();
     const sameNameFile = new File(['different'], file.name, {
       type: file.type,
       lastModified: file.lastModified,
     });
     paste(container.querySelector('textarea')!, [file, sameNameFile], '', true);
-    expect(onAddFiles).toHaveBeenNthCalledWith(2, [file, sameNameFile], { start: 0, end: 0 });
-    container.removeEventListener('paste', shellPaste);
+    expect(onAddFiles).toHaveBeenCalledWith([file, sameNameFile], { start: 0, end: 0 });
   });
 
   it('opens and closes a full image preview while mixed files stay independent', async () => {

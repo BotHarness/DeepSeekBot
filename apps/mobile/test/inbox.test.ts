@@ -8,9 +8,11 @@ import {
   decideApproval,
   loadApproval,
   loadQuestion,
+  approvalSummaryTool,
   previewInput,
   readableInput,
   requestRef,
+  secretCommand,
   toggleOption,
   typeCustom,
   type RequestRef,
@@ -312,6 +314,26 @@ describe('Tool approval', () => {
       label: 'query',
       value: 'weather',
     });
+  });
+
+  it('previews a secret command as the program and its arguments, not the account', () => {
+    const input = JSON.stringify({
+      account: 'GitHub personal access token',
+      references: ['ref-1'],
+      program: 'gh',
+      args: ['api', 'repos/a b', "it's"],
+      env: [{ name: 'GH_TOKEN', value: 'ref-1' }],
+    });
+    expect(secretCommand('secret_cli', input)).toBe(`gh api 'repos/a b' 'it'\\''s'`);
+    expect(secretCommand('secret_cli', JSON.stringify({ program: 'gh' }))).toBe('gh');
+    expect(secretCommand('bash', input)).toBeUndefined();
+    expect(secretCommand('secret_cli', JSON.stringify({ account: 'x' }))).toBeUndefined();
+  });
+
+  it('reads the tool out of the Host’s stored approval line', () => {
+    expect(approvalSummaryTool('请求批准执行 bash')).toBe('bash');
+    expect(approvalSummaryTool('Something else')).toBeUndefined();
+    expect(approvalSummaryTool('请求批准执行 ')).toBeUndefined();
   });
 
   it('allows once, and a second decision reports the first one won', async () => {

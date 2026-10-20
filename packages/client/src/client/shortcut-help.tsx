@@ -8,7 +8,8 @@ import {
   type ReactElement,
 } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button, IconEditOutlineRegular, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Button, IconEditOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tooltip } from './ds/tooltip.js';
 
 import type { BotModeSendKey } from '../bot-mode-settings.js';
 import type { BotModePrefsSnapshot } from './bot-mode-prefs.js';

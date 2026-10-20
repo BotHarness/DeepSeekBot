@@ -7,11 +7,11 @@ import {
   Button,
   Switch,
   Tag,
-  Tooltip,
   IconPlusOutlineRegular,
   IconRefreshOutlineRegular,
   IconRightUpOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tooltip } from './ds/tooltip.js';
 import type { MessagingSnapshot } from '../../../core/src/messaging/outbound.js';
 import type {
   MessagingIdentityInput,

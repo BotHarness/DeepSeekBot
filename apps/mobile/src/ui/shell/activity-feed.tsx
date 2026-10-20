@@ -36,6 +36,7 @@ import {
 } from '../../host/inbox';
 import {
   answerQuestion,
+  approvalSummaryTool,
   decideApproval,
   loadApproval,
   loadQuestion,
@@ -74,6 +75,11 @@ const LOADING: InboxSnapshot = { status: 'loading' };
 const EMPTY_SOURCE = { getSnapshot: () => LOADING, subscribe: () => () => {} };
 const ACTIVITY_ROUTES = [...ACTIVITY_TABS];
 const SUMMARY_PREVIEW_LIMIT = 512;
+
+function itemSummary(item: HumanAttentionItem): string {
+  const tool = item.kind === 'tool-approval' ? approvalSummaryTool(item.summary) : undefined;
+  return tool ?? item.summary;
+}
 
 function summaryPreview(summary: string): string {
   return summary.length <= SUMMARY_PREVIEW_LIMIT
@@ -170,7 +176,7 @@ const Row = memo(function Row({
     item.kind === 'channel-unread'
       ? (item.channelName ?? t.otherKind)
       : (bot?.displayName ?? item.botSlug);
-  const summary = summaryPreview(item.summary);
+  const summary = summaryPreview(itemSummary(item));
   const size = settled ? theme.type.body.line : AVATAR;
   const metadata = (
     <View
@@ -298,7 +304,7 @@ function Post({
     >
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={t.openPost(t.kind[item.kind] ?? t.otherKind, name, item.summary)}
+        accessibilityLabel={t.openPost(t.kind[item.kind] ?? t.otherKind, name, itemSummary(item))}
         onPress={() => onOpen(item)}
         style={({ pressed }) => ({
           minHeight: theme.touch,

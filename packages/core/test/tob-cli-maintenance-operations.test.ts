@@ -45,6 +45,7 @@ function fixture() {
       current: '1.0.0',
       installed: version,
       restartable: true,
+      applied: false,
     };
   });
   const restart = vi.fn(async (guard?: (version: string) => void) => {
@@ -158,6 +159,7 @@ describe('Tob maintenance uses reviewed owner operations', () => {
       current: '1.0.0',
       installed: '1.2.0',
       restartable: true,
+      applied: false,
     }));
     await expect(operation.run(() => {})).rejects.toMatchObject({ code: 'readback-mismatch' });
   });

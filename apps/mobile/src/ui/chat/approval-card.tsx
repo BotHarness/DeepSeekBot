@@ -3,6 +3,7 @@ import { View, type ViewInstance } from 'react-native';
 
 import type { CardResolution } from '../../host/conversation';
 import {
+  approvalCommand,
   previewInput,
   readableInput,
   type ApprovalChoice,
@@ -10,10 +11,7 @@ import {
   type DecisionResult,
 } from '../../host/requests';
 import type { ToolApprovalOutcome } from '../../host/wire';
-import {
-  approvalFileChange,
-  approvalShellCommand,
-} from '../../../../../packages/client/src/client/approval-diff';
+import { approvalFileChange } from '../../../../../packages/client/src/client/approval-diff';
 import { alwaysNote, executionNote, expiryLabel, highRisk, riskNote } from '../approval-note';
 import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
@@ -54,9 +52,25 @@ type Phase =
       status: 'decided' | 'expired';
       outcome?: ToolApprovalOutcome;
       mine: boolean;
+      label?: string;
     };
 
 type Line = { text: string; tone: CardLineTone };
+
+const LABEL_LIMIT = 80;
+
+function requestLabel(request: ApprovalRequest): string {
+  const command = approvalCommand(request.toolName, request.input);
+  if (command === undefined) return request.toolName;
+  return briefCommand(command);
+}
+
+function briefCommand(command: string): string {
+  const first = command.split('\n', 1)[0]!.trim();
+  return first.length <= LABEL_LIMIT && first.length === command.trim().length
+    ? first
+    : `${first.slice(0, LABEL_LIMIT).trimEnd()}…`;
+}
 
 function outcomeTone(outcome: ToolApprovalOutcome | undefined): CardLineTone {
   if (outcome === undefined) return 'subtle';
@@ -91,6 +105,7 @@ function settledLine(
 export function ApprovalCard({
   port,
   subject,
+  command,
   resolution,
   decidedHere = false,
   focused = false,
@@ -100,6 +115,7 @@ export function ApprovalCard({
 }: {
   port: ApprovalCardPort;
   subject?: string;
+  command?: string;
   resolution?: Extract<CardResolution, { kind: 'tool-approval' }>;
   decidedHere?: boolean;
   focused?: boolean;
@@ -124,6 +140,7 @@ export function ApprovalCard({
               kind: 'settled',
               status: request.status,
               mine: false,
+              label: requestLabel(request),
               ...(request.outcome === undefined ? {} : { outcome: request.outcome }),
             },
       );
@@ -137,7 +154,15 @@ export function ApprovalCard({
   }, [load]);
 
   const tool = phase.kind === 'pending' ? phase.request.toolName : (subject ?? '');
-  const line = settledLine(tool, phase, resolution, decidedHere);
+  const label =
+    phase.kind === 'pending'
+      ? requestLabel(phase.request)
+      : phase.kind === 'settled' && phase.label !== undefined
+        ? phase.label
+        : command === undefined
+          ? tool
+          : briefCommand(command);
+  const line = settledLine(label, phase, resolution, decidedHere);
   if (line !== undefined)
     return (
       <View ref={mount}>
@@ -177,7 +202,13 @@ export function ApprovalCard({
     try {
       const result = await port.decide(outcome);
       if (result === 'accepted') {
-        setPhase({ kind: 'settled', status: 'decided', outcome, mine: true });
+        setPhase({
+          kind: 'settled',
+          status: 'decided',
+          outcome,
+          mine: true,
+          label: requestLabel(request),
+        });
         onSettled?.(result);
         return;
       }
@@ -186,6 +217,7 @@ export function ApprovalCard({
         kind: 'settled',
         status: result,
         mine: false,
+        label: requestLabel(request),
         ...(now?.outcome === undefined ? {} : { outcome: now.outcome }),
       });
       onSettled?.(result);
@@ -199,13 +231,12 @@ export function ApprovalCard({
   };
   const rows = readableInput(request.input);
   const change = approvalFileChange(request.toolName, request.input);
-  const shell =
-    change === undefined ? approvalShellCommand(request.toolName, request.input) : undefined;
+  const shown = change === undefined ? approvalCommand(request.toolName, request.input) : undefined;
   const first =
     change !== undefined
       ? { label: '', value: `${change.path}  +${change.added} −${change.removed}` }
-      : shell !== undefined
-        ? { label: '', value: shell.command }
+      : shown !== undefined
+        ? { label: '', value: shown }
         : previewInput(request.input);
   const running = executionNote(request);
   return (

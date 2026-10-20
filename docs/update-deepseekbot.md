@@ -61,6 +61,8 @@ Replace `<version>` with the version to install, for example `deepseekbot@1.0.3`
 
 The DSH Plugins page cannot upgrade an installed plugin yet. To update the desktop app by hand, use the same command with `web` replaced by the desktop profile name: the folder name under `profiles/` in the DSH data directory (`~/.dsh` by default).
 
+On DSH 0.2.1, **Update now** in DeepSeekBot 1.4.1 and earlier reports that the update failed: the DSH Plugin Manager refuses to overwrite an installed package. Later versions upgrade in place from the npm package tarball, and the page reloads without a restart. While you are on 1.4.1 or earlier, update once by hand with the command in this section; for the desktop app, fully quit DSH first and use the `desktop` profile.
+
 ## Troubleshooting
 
 | Message                                             | What to do                                                                                                                                                                   |
