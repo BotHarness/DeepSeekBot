@@ -9,7 +9,15 @@ android {
   defaultConfig { versionCode 1; versionName '0.1.0' }
 }
 
+def notificationsVersion = new groovy.json.JsonSlurper().parse(new File(
+  ['node', '--print', "require.resolve('expo-notifications/package.json')"].execute(null, projectDir).text.trim()
+)).version
+
 dependencies {
-  implementation project(':expo-notifications')
+  if (findProject(':expo-notifications')) {
+    implementation project(':expo-notifications')
+  } else {
+    compileOnly "host.exp.exponent:expo.modules.notifications:${notificationsVersion}"
+  }
   implementation 'androidx.core:core:1.17.0'
 }
