@@ -28,9 +28,17 @@ export interface SummaryInput {
   readme: string | null;
 }
 
+export interface SummaryBudget {
+  remaining: number;
+}
+
 export interface Summarizer {
   model: string;
-  summarize(input: SummaryInput, session: string): Promise<LanguageMap<string> | undefined>;
+  summarize(
+    input: SummaryInput,
+    session: string,
+    budget?: SummaryBudget,
+  ): Promise<LanguageMap<string> | undefined>;
 }
 
 const SYSTEM_PROMPT = `You write the one-line catalog summary of a Bot listed in the BotHarness Bot Marketplace. A Bot is an AI assistant with its own persona and memory, shared as a GitHub repository.
@@ -174,13 +182,17 @@ export function createSummarizer(options: {
   let preferred: string | undefined;
   return {
     model: configured.join(','),
-    async summarize(input, session) {
+    async summarize(input, session, budget) {
       const available = await models();
       const ordered =
         preferred === undefined
           ? available
           : [preferred, ...available.filter((model) => model !== preferred)];
       for (const model of ordered) {
+        if (budget !== undefined) {
+          if (budget.remaining <= 0) return undefined;
+          budget.remaining -= 1;
+        }
         const summary = await ask(model, input, session);
         if (summary !== undefined) {
           preferred = model;
@@ -220,6 +232,7 @@ export async function refreshSummaries(deps: {
   const { db, summarizer } = deps;
   const limit = deps.limit ?? SUMMARIES_PER_RUN;
   const report: SummaryReport = { checked: 0, generated: 0, failed: 0 };
+  const budget: SummaryBudget = { remaining: limit };
   const { results } = await db
     .prepare(
       `SELECT * FROM indexed_repositories
@@ -232,7 +245,7 @@ export async function refreshSummaries(deps: {
     .all<RepositoryRow>();
   let consecutiveFailures = 0;
   for (const row of results) {
-    if (report.generated + report.failed >= limit) break;
+    if (budget.remaining <= 0) break;
     if (consecutiveFailures >= FAILURES_BEFORE_STOP) break;
     report.checked += 1;
     const missing = languagesWithoutAuthorBio(row);
@@ -247,7 +260,8 @@ export async function refreshSummaries(deps: {
       missing.length === 0 ? null : await sha256(`${summarizer.model}\n${summaryPrompt(input)}`);
     let summary = row.summary;
     if (key !== null && key !== row.summary_key) {
-      const generated = await summarizer.summarize(input, `market-summary-${row.node_id}`);
+      const generated = await summarizer.summarize(input, `market-summary-${row.node_id}`, budget);
+      if (generated === undefined && budget.remaining <= 0) break;
       if (generated === undefined) {
         report.failed += 1;
         consecutiveFailures += 1;

@@ -26,7 +26,8 @@ function fakeSummarizer(answer: (input: SummaryInput) => Record<string, string> 
   const calls: SummaryInput[] = [];
   const summarizer: Summarizer = {
     model: 'test-model',
-    summarize: (input) => {
+    summarize: (input, _session, budget) => {
+      if (budget !== undefined) budget.remaining -= 1;
       calls.push(input);
       return Promise.resolve(answer(input));
     },
@@ -435,6 +436,14 @@ describe('summary model output', () => {
     broken.add('deepseek-test');
     expect(await summarizer.summarize(input, 's')).toBeUndefined();
     expect(calls.filter((call) => call === 'models')).toHaveLength(1);
+
+    const budget = { remaining: 2 };
+    const before = calls.length;
+    expect(await summarizer.summarize(input, 's', budget)).toBeUndefined();
+    expect(calls.slice(before)).toEqual(['deepseek-test', 'alpha-free']);
+    expect(budget.remaining).toBe(0);
+    expect(await summarizer.summarize(input, 's', budget)).toBeUndefined();
+    expect(calls).toHaveLength(before + 2);
   });
 
   it('calls an OpenAI-compatible chat completions endpoint', async () => {
