@@ -988,9 +988,11 @@ function ModelEntry({ botSlug, actions, t }: ChannelSidebarEntryProps): ReactEle
 }
 
 function useModelPlan(
-  botSlug: string | undefined,
+  slug: string | undefined,
   actions: ChannelSidebarEntryProps['actions'],
 ): [ModelPlanView | null | undefined, (element: HTMLSpanElement | null) => void] {
+  const deleted = useClientState().bots.some((bot) => bot.slug === slug && bot.deleted === true);
+  const botSlug = deleted ? undefined : slug;
   const plan = useSyncExternalStore(
     subscribeModelPlans,
     () => modelPlanOf(botSlug),
@@ -1071,7 +1073,12 @@ function SessionsHeaderWithSettings({
   targetItems: readonly MenuEntry[];
   targetId: string | undefined;
 }): ReactElement {
-  const { botSlug, actions, t } = props;
+  const { actions, t } = props;
+  // A deleted Bot keeps its Sessions history but has no model settings to read or change.
+  const botDeleted = useClientState().bots.some(
+    (bot) => bot.slug === props.botSlug && bot.deleted === true,
+  );
+  const botSlug = botDeleted ? undefined : props.botSlug;
   const [plan, mount] = useModelPlan(botSlug, actions);
   const readLimit = () => prefs?.source.getSnapshot().assignmentConcurrencyLimit;
   const limit = useSyncExternalStore(

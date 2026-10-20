@@ -1068,6 +1068,11 @@ function ConversationView({
   const dockPanelList = registeredDockPanels ?? dockEntryPanels;
   const dockChannelContext = resolveChannelSidebarContext(state);
   const dockChannelSummary = dockChannelContext?.channel;
+  // A deleted Bot's DM is read-only history: it keeps Sessions but no Bot-bound panels.
+  const dockBotDeleted = state.bots.some(
+    (candidate) => candidate.slug === dockChannelContext?.botSlug && candidate.deleted === true,
+  );
+  const dockChannelBotSlug = dockBotDeleted ? undefined : dockChannelSummary?.botSlug;
   const dockChannel = useMemo<DockPanelChannel | undefined>(
     () =>
       dockChannelSummary === undefined
@@ -1075,11 +1080,11 @@ function ConversationView({
         : {
             id: dockChannelSummary.id,
             type: dockChannelSummary.type,
-            botSlug: dockChannelSummary.botSlug,
+            botSlug: dockChannelBotSlug,
           },
-    [dockChannelSummary?.id, dockChannelSummary?.type, dockChannelSummary?.botSlug],
+    [dockChannelSummary?.id, dockChannelSummary?.type, dockChannelBotSlug],
   );
-  const dockBotSlug = dockChannelContext?.botSlug;
+  const dockBotSlug = dockBotDeleted ? undefined : dockChannelContext?.botSlug;
   const dockInboxMount = useMountedResource<HTMLSpanElement>(() => {
     if (!inboxOpen || dockBotSlug === undefined) return;
     void actions.refreshBotInbox(dockBotSlug);
@@ -1094,7 +1099,7 @@ function ConversationView({
     () => channelSidebar.entries(settingsScope),
   );
   const settingsSections = channelSettingsSections(settingsEntries, state);
-  const hasChannelSettings = settingsSections.length > 0;
+  const hasChannelSettings = !dockBotDeleted && settingsSections.length > 0;
   const settingsAttentionIds = useSyncExternalStore(
     channelSettings.subscribe,
     () => channelSettings.attentionOf(resolveChannelSidebarContext(state)?.channel?.id),
@@ -1317,10 +1322,10 @@ function ConversationView({
       ? state.bots.find((candidate) => candidate.slug === selection.slug)
       : undefined;
   const botDm = isBotDmChannel(channel);
-  const readOnlyDm =
-    isHumanReadOnlyDmChannel(channel) ||
-    (channel?.type === 'dm' &&
-      state.bots.find((candidate) => candidate.slug === channel.botSlug)?.deleted === true);
+  const deletedBotDm =
+    channel?.type === 'dm' &&
+    state.bots.find((candidate) => candidate.slug === channel.botSlug)?.deleted === true;
+  const readOnlyDm = isHumanReadOnlyDmChannel(channel) || deletedBotDm;
   const profileBot =
     channel?.type === 'dm' && channel.botSlug !== undefined
       ? state.bots.find((candidate) => candidate.slug === channel.botSlug)
@@ -1708,7 +1713,7 @@ function ConversationView({
     let cancelled = false;
     let fetching = false;
     const refreshUsage = (): void => {
-      if (fetching || channelId === undefined || channel?.type !== 'dm') return;
+      if (fetching || channelId === undefined || channel?.type !== 'dm' || deletedBotDm) return;
       fetching = true;
       setProfileUsageLoading(true);
       void actions
@@ -1759,6 +1764,7 @@ function ConversationView({
     actions,
     channel?.type,
     channelId,
+    deletedBotDm,
     profileViewOpen,
     messages.findLast((message) => !message.pending && !message.failed && !message.streaming)?.id,
   ]);
@@ -3024,7 +3030,9 @@ function ConversationView({
             />
           ) : null}
           {readOnlyDm && selectedIds === undefined ? (
-            <div className="bh-bot-dm-readonly">{t('botDm.readOnly')}</div>
+            <div className="bh-bot-dm-readonly">
+              {t(deletedBotDm ? 'deletion.readOnly' : 'botDm.readOnly')}
+            </div>
           ) : null}
           {readOnlyDm ? null : (
             <div

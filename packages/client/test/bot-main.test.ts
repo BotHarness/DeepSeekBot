@@ -653,6 +653,52 @@ describe('Bot main Sessions pane', () => {
     store.select(previous.selection);
     store.setConversation(previous.conversation);
   });
+  it('labels a deleted Bot DM as read-only history', () => {
+    const previous = store.getSnapshot();
+    const channel = {
+      id: 'dm-ada',
+      type: 'dm' as const,
+      name: 'Ada',
+      members: ['ada'],
+      botSlug: 'ada',
+      createdAt: '2026-09-21T00:00:00.000Z',
+      updatedAt: '2026-09-21T00:01:00.000Z',
+    };
+    const render = (deleted: boolean): string => {
+      store.setRoster(
+        [
+          {
+            slug: 'ada',
+            displayName: 'Ada',
+            roles: [],
+            aggregateState: 'idle',
+            workspaces: [],
+            createdAt: '2026-09-21T00:00:00.000Z',
+            ...(deleted ? { deleted: true, paused: true } : {}),
+          },
+        ],
+        [channel],
+      );
+      store.select({ kind: 'channel', channelId: channel.id });
+      store.setConversation({ status: 'ready', channel, messages: [], sending: false });
+      return renderToStaticMarkup(
+        createElement(BotMain, {
+          actions: { ...inertSubmissionActions } as BridgeActions,
+          channelSidebar: sidebarRegistry(),
+        }),
+      );
+    };
+    try {
+      expect(render(false)).not.toContain('bh-bot-dm-readonly');
+      const markup = render(true);
+      expect(markup).toContain('已删除的 Bot · 仅供查看');
+      expect(markup).not.toContain('Bot 之间的私聊 · 仅供查看');
+    } finally {
+      store.setRoster(previous.bots, previous.channels);
+      store.select(previous.selection);
+      store.setConversation(previous.conversation);
+    }
+  });
   it('keeps the own identity row inside the mirrored group while name still precedes time in DOM order', () => {
     const previous = store.getSnapshot();
     const channel = {

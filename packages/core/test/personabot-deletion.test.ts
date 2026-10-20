@@ -347,6 +347,10 @@ describe('confirmed terminal PersonaBot deletion', () => {
     expect(methods.sessions({ slug: 'a' })).toMatchObject({ ok: true });
     expect(methods.assignments({ slug: 'a' })).toMatchObject({ ok: true });
     expect(methods.botAttention({ slug: 'a' })).toMatchObject({ ok: true });
+    expect(methods.profileActivity({ channelId: channel.id })).toMatchObject({
+      ok: true,
+      value: { slug: 'a' },
+    });
     expect(methods.resume({ slug: 'a' })).toMatchObject({ ok: false });
     expect(
       await methods.channelSend({ channelId: channel.id, body: 'late delivery' }),

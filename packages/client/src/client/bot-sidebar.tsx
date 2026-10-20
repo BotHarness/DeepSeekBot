@@ -2941,6 +2941,7 @@ export function BotSidebar({
           }}
           onOpen={(channelId) => {
             setHiddenManagerOpen(false);
+            onOpenConversation?.();
             void actions.openChannel(channelId);
           }}
           onClose={() => {
