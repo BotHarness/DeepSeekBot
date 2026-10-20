@@ -813,6 +813,9 @@ function ChatConversation({
           headerShadowVisible: false,
           headerBackButtonDisplayMode: 'minimal',
           ...(ios && !glassHeader ? { headerBlurEffect: 'systemChromeMaterial' as const } : {}),
+          ...(nativeScrollEdge
+            ? { scrollEdgeEffects: { top: 'automatic' as const, bottom: 'soft' as const } }
+            : {}),
           ...(ios
             ? {
                 title: '',
