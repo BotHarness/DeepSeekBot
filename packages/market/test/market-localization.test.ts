@@ -394,6 +394,49 @@ describe('summary model output', () => {
     expect(parseSummary('{"zh": 1}')).toBeUndefined();
   });
 
+  it('tries the free models it finds, then the fallback, and keeps the one that worked', async () => {
+    const calls: string[] = [];
+    const broken = new Set(['alpha-free']);
+    const summarizer = createSummarizer({
+      apiKey: 'secret',
+      apiBase: 'https://llm.test/v1',
+      model: 'free, deepseek-test',
+      fetchImpl: async (input, init) => {
+        if (String(input).endsWith('/models')) {
+          calls.push('models');
+          return new Response(
+            JSON.stringify({
+              data: [{ id: 'alpha-free' }, { id: 'paid-pro' }, { id: 'beta-free' }],
+            }),
+          );
+        }
+        const model = (JSON.parse(String(init?.body)) as { model: string }).model;
+        calls.push(model);
+        return broken.has(model)
+          ? new Response('{}', { status: 400 })
+          : new Response(
+              JSON.stringify({ choices: [{ message: { content: '{"zh":"读论文。"}' } }] }),
+            );
+      },
+    });
+    const input = { name: 'Lumen', description: null, bio: null, tags: [], readme: null };
+    expect(summarizer.model).toBe('free,deepseek-test');
+
+    expect(await summarizer.summarize(input, 's')).toEqual({ zh: '读论文。' });
+    expect(calls).toEqual(['models', 'alpha-free', 'beta-free']);
+
+    await summarizer.summarize(input, 's');
+    expect(calls.slice(3)).toEqual(['beta-free']);
+
+    broken.add('beta-free');
+    expect(await summarizer.summarize(input, 's')).toEqual({ zh: '读论文。' });
+    expect(calls.slice(4)).toEqual(['beta-free', 'alpha-free', 'deepseek-test']);
+
+    broken.add('deepseek-test');
+    expect(await summarizer.summarize(input, 's')).toBeUndefined();
+    expect(calls.filter((call) => call === 'models')).toHaveLength(1);
+  });
+
   it('calls an OpenAI-compatible chat completions endpoint', async () => {
     const requests: {
       url: string;

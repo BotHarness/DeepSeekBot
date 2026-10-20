@@ -84,6 +84,16 @@ export function parseSummary(content: string): LanguageMap<string> | undefined {
   return Object.keys(summary).length === 0 ? undefined : summary;
 }
 
+export const FREE_MODELS = 'free';
+
+export function freeModelIds(body: unknown): string[] {
+  const data = (body as { data?: unknown } | null)?.data;
+  if (!Array.isArray(data)) return [];
+  return data
+    .map((item) => (item as { id?: unknown } | null)?.id)
+    .filter((id): id is string => typeof id === 'string' && id.endsWith('-free'));
+}
+
 export function createSummarizer(options: {
   apiKey: string;
   apiBase: string;
@@ -91,48 +101,93 @@ export function createSummarizer(options: {
   fetchImpl?: typeof fetch;
 }): Summarizer {
   const fetchImpl = options.fetchImpl ?? fetch;
-  const endpoint = `${options.apiBase.replace(/\/+$/u, '')}/chat/completions`;
+  const base = options.apiBase.replace(/\/+$/u, '');
+  const headers = (session: string) => ({
+    authorization: `Bearer ${options.apiKey}`,
+    'content-type': 'application/json',
+    'user-agent': SUMMARY_USER_AGENT,
+    'x-opencode-session': session,
+  });
+  const configured = options.model
+    .split(',')
+    .map((model) => model.trim())
+    .filter((model) => model.length > 0);
+  let candidates: Promise<string[]> | undefined;
+  const models = (): Promise<string[]> => {
+    candidates ??= (async () => {
+      const free = configured.includes(FREE_MODELS) ? await listFreeModels() : [];
+      const expanded = configured.flatMap((model) => (model === FREE_MODELS ? free : [model]));
+      return [...new Set(expanded)];
+    })();
+    return candidates;
+  };
+  const listFreeModels = async (): Promise<string[]> => {
+    try {
+      const response = await fetchImpl(`${base}/models`, {
+        headers: headers('market-summary-models'),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+      return response.ok ? freeModelIds(await response.json()) : [];
+    } catch {
+      return [];
+    }
+  };
+  const ask = async (
+    model: string,
+    input: SummaryInput,
+    session: string,
+  ): Promise<LanguageMap<string> | undefined> => {
+    let response: Response;
+    try {
+      response = await fetchImpl(`${base}/chat/completions`, {
+        method: 'POST',
+        headers: headers(session),
+        body: JSON.stringify({
+          model,
+          temperature: 0.2,
+          max_tokens: 2_000,
+          ...(model.startsWith('deepseek') ? { thinking: { type: 'disabled' } } : {}),
+          response_format: { type: 'json_object' },
+          messages: [
+            { role: 'system', content: SYSTEM_PROMPT },
+            { role: 'user', content: summaryPrompt(input) },
+          ],
+        }),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+    } catch {
+      return undefined;
+    }
+    if (!response.ok) return undefined;
+    let body: unknown;
+    try {
+      body = await response.json();
+    } catch {
+      return undefined;
+    }
+    const choices = (body as { choices?: unknown } | null)?.choices;
+    const content = Array.isArray(choices)
+      ? (choices[0] as { message?: { content?: unknown } } | undefined)?.message?.content
+      : undefined;
+    return typeof content === 'string' ? parseSummary(content) : undefined;
+  };
+  let preferred: string | undefined;
   return {
-    model: options.model,
+    model: configured.join(','),
     async summarize(input, session) {
-      let response: Response;
-      try {
-        response = await fetchImpl(endpoint, {
-          method: 'POST',
-          headers: {
-            authorization: `Bearer ${options.apiKey}`,
-            'content-type': 'application/json',
-            'user-agent': SUMMARY_USER_AGENT,
-            'x-opencode-session': session,
-          },
-          body: JSON.stringify({
-            model: options.model,
-            temperature: 0.2,
-            max_tokens: 2_000,
-            ...(options.model.startsWith('deepseek') ? { thinking: { type: 'disabled' } } : {}),
-            response_format: { type: 'json_object' },
-            messages: [
-              { role: 'system', content: SYSTEM_PROMPT },
-              { role: 'user', content: summaryPrompt(input) },
-            ],
-          }),
-          signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-        });
-      } catch {
-        return undefined;
+      const available = await models();
+      const ordered =
+        preferred === undefined
+          ? available
+          : [preferred, ...available.filter((model) => model !== preferred)];
+      for (const model of ordered) {
+        const summary = await ask(model, input, session);
+        if (summary !== undefined) {
+          preferred = model;
+          return summary;
+        }
       }
-      if (!response.ok) return undefined;
-      let body: unknown;
-      try {
-        body = await response.json();
-      } catch {
-        return undefined;
-      }
-      const choices = (body as { choices?: unknown } | null)?.choices;
-      const content = Array.isArray(choices)
-        ? (choices[0] as { message?: { content?: unknown } } | undefined)?.message?.content
-        : undefined;
-      return typeof content === 'string' ? parseSummary(content) : undefined;
+      return undefined;
     },
   };
 }

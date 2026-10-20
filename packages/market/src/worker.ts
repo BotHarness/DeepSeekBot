@@ -290,8 +290,8 @@ export function handlerForEnv(
 export const DISCOVERY_CRON = '0 3 * * *';
 export const REFRESH_CRON = '17 * * * *';
 
-export const DEFAULT_SUMMARY_API_BASE = 'https://opencode.ai/inference/go/openai/v1';
-export const DEFAULT_SUMMARY_MODEL = 'minimax-m3.1-flash-free';
+export const DEFAULT_SUMMARY_API_BASE = 'https://opencode.ai/inference/go/v1';
+export const DEFAULT_SUMMARY_MODEL = 'free,deepseek-v4.1-flash';
 
 export function summarizerForEnv(env: MarketEnv, fetchImpl?: typeof fetch): Summarizer | undefined {
   const apiKey = env.SUMMARY_API_KEY;
