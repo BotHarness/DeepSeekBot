@@ -7,7 +7,15 @@ const listeners: Array<(event: { contentTypes: string[] }) => void> = [];
 let hasImage = false;
 let pasteButton: { onPress(data: { type: string; data?: string }): void } | undefined;
 
+const appState: Array<(state: string) => void> = [];
+
 vi.mock('react-native', () => ({
+  AppState: {
+    addEventListener: (_: string, listener: (state: string) => void) => {
+      appState.push(listener);
+      return { remove: () => appState.splice(appState.indexOf(listener), 1) };
+    },
+  },
   Platform: { OS: 'ios' },
   View: ({ children }: { children?: ReactNode }) => children,
 }));
@@ -94,6 +102,21 @@ describe('clipboard image offer', () => {
     copy(['plain-text']);
     expect(view.current.offered).toBe(false);
     view.unmount();
+  });
+
+  it('offers an image copied in another app when the app comes back', async () => {
+    const view = mount(true);
+    await act(async () => {});
+    copy(['image']);
+    act(() => view.current.used());
+    expect(view.current.offered).toBe(false);
+    hasImage = true;
+    await act(async () => {
+      for (const listener of [...appState]) listener('active');
+    });
+    expect(view.current.offered).toBe(true);
+    view.unmount();
+    expect(appState).toEqual([]);
   });
 
   it('gives up the offer when the copied image can no longer be read', () => {

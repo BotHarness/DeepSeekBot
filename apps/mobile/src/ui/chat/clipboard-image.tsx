@@ -1,6 +1,6 @@
 import * as Clipboard from 'expo-clipboard';
 import { useState, useSyncExternalStore } from 'react';
-import { Platform, View } from 'react-native';
+import { AppState, Platform, View } from 'react-native';
 
 import { useDesignTheme } from '../design/theme';
 import { edge, radius, space } from '../design/tokens';
@@ -27,17 +27,26 @@ function subscribeClipboard(notify: () => void) {
     };
     notify();
   });
-  void Clipboard.hasImageAsync().then(
-    (image) => {
-      if (!active || changed || image === state.image) return;
-      state = { ...state, image };
-      notify();
-    },
-    () => {},
-  );
+  const refresh = (returning: boolean) => {
+    changed = false;
+    void Clipboard.hasImageAsync().then(
+      (image) => {
+        if (!active || changed) return;
+        if (image === state.image && !(returning && image)) return;
+        state = { image, generation: returning ? state.generation + 1 : state.generation };
+        notify();
+      },
+      () => {},
+    );
+  };
+  const foreground = AppState.addEventListener('change', (next) => {
+    if (next === 'active') refresh(true);
+  });
+  refresh(false);
   return () => {
     active = false;
     subscription.remove();
+    foreground.remove();
   };
 }
 
