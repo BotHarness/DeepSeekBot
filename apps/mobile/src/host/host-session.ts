@@ -91,15 +91,23 @@ function adopt(next: SavedHosts, trigger: ConnectionTrigger = 'open'): void {
       : inbox.subscribe(() => reflectInbox(saved.hostId, inbox));
   let connected = false;
   let avatars: string | undefined;
+  let avatarRetryAt = Infinity;
   offConnection = client?.subscribe(() => {
     const snapshot = client.getSnapshot();
     const now = snapshot.connection.status === 'connected';
     if (now && !connected) void pushSession.retryFailed();
     connected = now;
     const inputs = snapshot.roster === undefined ? undefined : avatarInputs(snapshot.roster);
-    if (saved !== null && snapshot.roster !== undefined && inputs !== avatars) {
+    if (
+      saved !== null &&
+      snapshot.roster !== undefined &&
+      (inputs !== avatars || Date.now() >= avatarRetryAt)
+    ) {
       avatars = inputs;
-      void notificationAvatars.sync(saved.hostId, snapshot.roster);
+      avatarRetryAt = Infinity;
+      void notificationAvatars.sync(saved.hostId, snapshot.roster).then((complete) => {
+        if (!complete && avatars === inputs) avatarRetryAt = Date.now() + 60_000;
+      });
     }
   });
   state = { saved, hosts: next.hosts, client, inbox };

@@ -69,7 +69,7 @@ object ConversationStyle {
     groupIcon?.let { builder.setLargeIcon(it) }
     if (channel != null) {
       val id = "conversation:${safe(host)}:${safe(channel)}"
-      if (publishShortcut(context, id, group?.let { "#$it" } ?: sender, groupIcon ?: botIcon, bot, group == null))
+      if (publishShortcut(context, id, group?.let { "#$it" } ?: sender, groupIcon ?: botIcon))
         builder.setShortcutId(id)
     }
     return builder.build()
@@ -79,9 +79,7 @@ object ConversationStyle {
     context: Context,
     id: String,
     label: String,
-    icon: Icon?,
-    bot: Person,
-    direct: Boolean
+    icon: Icon?
   ): Boolean {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return false
     val launch = context.packageManager.getLaunchIntentForPackage(context.packageName) ?: return false
@@ -91,10 +89,7 @@ object ConversationStyle {
       .setLongLived(true)
       .setIntent(launch)
       .setCategories(setOf(ShortcutInfo.SHORTCUT_CATEGORY_CONVERSATION))
-      .apply {
-        icon?.let { setIcon(it) }
-        if (direct) setPerson(bot)
-      }
+      .apply { icon?.let { setIcon(it) } }
       .build()
     val manager = context.getSystemService(ShortcutManager::class.java) ?: return false
     return runCatching { manager.pushDynamicShortcut(shortcut) }.isSuccess

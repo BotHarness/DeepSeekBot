@@ -111,10 +111,10 @@ describe('notification avatars', () => {
     const memory = memoryStore();
     const avatars = createNotificationAvatars(memory.store);
     memory.failOn('bot-ada.png');
-    await avatars.sync('h', roster([bot('ada')]));
+    expect(await avatars.sync('h', roster([bot('ada')]))).toBe(false);
     expect(memory.removed).toEqual(['h/bot-ada.png']);
     memory.failOn('');
-    await avatars.sync('h', roster([bot('ada')]));
+    expect(await avatars.sync('h', roster([bot('ada')]))).toBe(true);
     expect(memory.rendered).toEqual(['h/bot-ada.png']);
   });
 

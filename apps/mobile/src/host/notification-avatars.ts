@@ -98,10 +98,11 @@ export function notificationAvatars(roster: RosterView): AvatarEntry[] {
 }
 
 export function createNotificationAvatars(store: AvatarStore) {
-  let running: Promise<void> | undefined;
+  let running: Promise<boolean> | undefined;
   let next: { host: string; roster: RosterView } | undefined;
 
-  const syncOnce = async (host: string, roster: RosterView): Promise<void> => {
+  const syncOnce = async (host: string, roster: RosterView): Promise<boolean> => {
+    let complete = true;
     const stored = await store.read(host);
     const index: Record<string, string> = {};
     const wanted = notificationAvatars(roster);
@@ -114,24 +115,28 @@ export function createNotificationAvatars(store: AvatarStore) {
         await store.render(host, entry.file, entry.image);
         index[entry.file] = entry.signature;
       } catch {
+        complete = false;
         store.remove(host, entry.file);
       }
     }
     const kept = new Set(wanted.map((entry) => entry.file));
     for (const file of Object.keys(stored)) if (!kept.has(file)) store.remove(host, file);
     store.write(host, index);
+    return complete;
   };
 
   return {
-    sync(host: string, roster: RosterView): Promise<void> {
+    sync(host: string, roster: RosterView): Promise<boolean> {
       next = { host, roster };
       running ??= (async () => {
+        let complete = true;
         try {
           while (next !== undefined) {
             const current = next;
             next = undefined;
-            await syncOnce(current.host, current.roster).catch(() => undefined);
+            complete = await syncOnce(current.host, current.roster).catch(() => false);
           }
+          return complete;
         } finally {
           running = undefined;
         }

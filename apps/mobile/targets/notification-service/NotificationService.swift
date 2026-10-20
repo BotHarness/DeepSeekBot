@@ -48,17 +48,8 @@ enum ConversationContent {
       contactIdentifier: nil,
       customIdentifier: botKey
     )
-    let me = INPerson(
-      personHandle: INPersonHandle(value: "me:\(host)", type: .unknown),
-      nameComponents: nil,
-      displayName: nil,
-      image: nil,
-      contactIdentifier: nil,
-      customIdentifier: nil,
-      isMe: true
-    )
     let intent = INSendMessageIntent(
-      recipients: group == nil ? [me] : [me, bot],
+      recipients: nil,
       outgoingMessageType: .outgoingMessageText,
       content: nil,
       speakableGroupName: group.map { INSpeakableString(spokenPhrase: "#\($0)") },
@@ -67,8 +58,13 @@ enum ConversationContent {
       sender: bot,
       attachments: nil
     )
-    if group != nil, let channel, let groupImage = image(host: host, key: "channel-\(channel)") {
-      intent.setImage(groupImage, forParameterNamed: \.speakableGroupName)
+    if group != nil {
+      let metadata = INSendMessageIntentDonationMetadata()
+      metadata.recipientCount = 2
+      intent.donationMetadata = metadata
+      if let channel, let groupImage = image(host: host, key: "channel-\(channel)") {
+        intent.setImage(groupImage, forParameterNamed: \.speakableGroupName)
+      }
     }
 
     let interaction = INInteraction(intent: intent, response: nil)
