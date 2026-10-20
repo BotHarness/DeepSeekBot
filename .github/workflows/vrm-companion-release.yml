@@ -1,0 +1,62 @@
+name: VRM companion release
+
+on:
+  push:
+    tags:
+      - 'vrm-companion-v[0-9]+.[0-9]+.[0-9]+'
+      - 'vrm-companion-v[0-9]+.[0-9]+.[0-9]+-*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vrm-companion-release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: npm-release
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Require the tag on main and matching the package version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          git fetch --no-tags origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main || { echo "::error::$TAG is not on main"; exit 1; }
+          VERSION=$(node -p 'require("./packages/vrm-companion/package.json").version')
+          [ "${TAG#vrm-companion-v}" = "$VERSION" ] || { echo "::error::$TAG does not match @botharness/vrm-companion $VERSION"; exit 1; }
+      - uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm vitest run packages/vrm-companion
+      - name: Publish @botharness/vrm-companion
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          EMPTY_USERCONFIG="$RUNNER_TEMP/vrm-companion-npmrc"
+          : > "$EMPTY_USERCONFIG"
+          AUTH=()
+          if [ -n "$NPM_TOKEN" ]; then
+            AUTH=("NODE_AUTH_TOKEN=$NPM_TOKEN" "npm_config_//registry.npmjs.org/:_authToken=$NPM_TOKEN")
+          fi
+          TAG=$(node -p 'require("./packages/vrm-companion/package.json").version.includes("-") ? "next" : "latest"')
+          env -u NPM_TOKEN -u NODE_AUTH_TOKEN \
+            npm_config_userconfig="$EMPTY_USERCONFIG" \
+            npm_config_registry=https://registry.npmjs.org/ \
+            "${AUTH[@]}" \
+            pnpm --filter @botharness/vrm-companion publish --provenance --access public --no-git-checks --tag "$TAG"

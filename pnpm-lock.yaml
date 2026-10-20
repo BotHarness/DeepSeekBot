@@ -985,16 +985,6 @@ importers:
         version: 4.4.3
 
   packages/vrm-companion:
-    dependencies:
-      '@mochiya/three-liltoon':
-        specifier: 0.1.9
-        version: 0.1.9(@pixiv/three-vrm@3.5.5(three@0.180.0))(three@0.180.0)
-      '@pixiv/three-vrm':
-        specifier: 3.5.5
-        version: 3.5.5(three@0.180.0)
-      three:
-        specifier: 0.180.0
-        version: 0.180.0
     devDependencies:
       '@botharness/ui':
         specifier: link:../client
@@ -1005,6 +995,12 @@ importers:
       '@deepseek-ai/dsh-client-ui-primitives':
         specifier: 0.2.1-rc.2
         version: 0.2.1-rc.2(@deepseek-ai/cordis@4.0.5)(@types/react@18.3.31)
+      '@mochiya/three-liltoon':
+        specifier: 0.1.9
+        version: 0.1.9(@pixiv/three-vrm@3.5.5(three@0.180.0))(three@0.180.0)
+      '@pixiv/three-vrm':
+        specifier: 3.5.5
+        version: 3.5.5(three@0.180.0)
       '@types/react':
         specifier: ~18.3.1
         version: 18.3.31
@@ -1014,6 +1010,9 @@ importers:
       react:
         specifier: ^18.2.0
         version: 18.3.1
+      three:
+        specifier: 0.180.0
+        version: 0.180.0
 
 packages:
 

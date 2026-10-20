@@ -16,6 +16,8 @@ dsh plugin --profile web-dev add "link:<absolute-checkout>/packages/vrm-companio
 
 Use the worktree's pinned DSH CLI and the same DSH_HOME as the running Host. The package has its own manifest, Patch, Host entry and Client entry. The Host entry creates no domain state or worker. It is not included automatically in the DeepSeekBot umbrella. Native bundle activation/deactivation remains DSH-owned. The isolated CLI install/remove path was verified with a Host restart after each Profile mutation; changing the package manifest alone is not proof that a running Host has unloaded it.
 
+Once published, the same Bundle installs from npm with `dsh plugin --profile <your-profile> add @botharness/vrm-companion@<version>` next to a DeepSeekBot newer than 1.4.1. It is versioned and released on its own; see [its README](../packages/vrm-companion/README.md#release).
+
 In Bot mode, select a Bot DM, open Messages if it is closed, then choose **VRM Companion** in the Messages header. Group Channels have no contextual character entry. The pin icon (**Pin character globally**) in the Panel header creates a separately identified, fixed-Bot instance whose title names that Bot. Close/reopen preserves the binding and layout; **Delete instance** in that instance's **Scene** menu removes its metadata. Refresh restores fixed instances even before a Channel is selected. Uninstalling the plugin retains dormant instance metadata for reinstall. A missing/deleted Bot produces an unavailable state.
 
 ## Public Client contract
