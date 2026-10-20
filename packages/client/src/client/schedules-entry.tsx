@@ -812,9 +812,12 @@ export function BotSchedulesEntry({ botSlug, actions, t }: ChannelSidebarEntryPr
     () => (botSlug === undefined ? 0 : (createRequests.get(botSlug) ?? 0)),
     () => 0,
   );
-  const seenCreate = useRef(createRevision);
-  if (seenCreate.current !== createRevision) {
-    seenCreate.current = createRevision;
+  const seenCreate = useRef({ botSlug, revision: createRevision });
+  if (seenCreate.current.botSlug !== botSlug) {
+    seenCreate.current = { botSlug, revision: createRevision };
+    if (editor !== undefined) setEditor(undefined);
+  } else if (seenCreate.current.revision !== createRevision) {
+    seenCreate.current.revision = createRevision;
     editorKey.current += 1;
     setEditor({ key: editorKey.current, scheduleId: undefined });
   }
