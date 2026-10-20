@@ -152,6 +152,7 @@ describe('Bot Marketplace bridge', () => {
       value: {
         bot: expect.objectContaining({ fullName: 'alice/helper-bot' }),
         readme: `![shot](<https://raw.githubusercontent.com/alice/helper-bot/${repository.head?.sha}/shot.png>)`,
+        readmeLanguage: null,
         commitSha: repository.head?.sha,
       },
     });
@@ -163,6 +164,53 @@ describe('Bot Marketplace bridge', () => {
       ok: false,
       error: { code: 'invalid-input' },
     });
+  });
+
+  it('asks the Worker for listings and READMEs in the reader’s language', async () => {
+    const market = createMarket();
+    const repository = fakeRepository({
+      readme: '# Orion',
+      files: { 'README.zh-CN.md': '# 猎户' },
+      descriptor: JSON.stringify({
+        name: 'Orion',
+        bio: 'Tells you what is in tonight’s sky.',
+        i18n: { zh: { name: '猎户', bio: '告诉你今晚能看到什么。' } },
+      }),
+    });
+    market.publish(repository);
+    const methods = methodsWith(marketClient(market));
+    await submitThrough(methods, repository.htmlUrl);
+
+    expect(await methods.marketplaceList({ lang: 'zh' })).toMatchObject({
+      ok: true,
+      value: {
+        bots: [
+          {
+            displayName: '猎户',
+            description: '告诉你今晚能看到什么。',
+            descriptionGenerated: false,
+          },
+        ],
+      },
+    });
+    expect(await methods.marketplaceList({})).toMatchObject({
+      value: {
+        bots: [{ displayName: 'Orion', description: 'Tells you what is in tonight’s sky.' }],
+      },
+    });
+    expect(await methods.marketplaceDetail({ id: repository.nodeId, lang: 'zh' })).toMatchObject({
+      ok: true,
+      value: { readme: '# 猎户', readmeLanguage: 'zh' },
+    });
+    expect(await methods.marketplaceDetail({ id: repository.nodeId, lang: 'en' })).toMatchObject({
+      value: { readme: '# Orion', readmeLanguage: null },
+    });
+    for (const call of [
+      methods.marketplaceList({ lang: 'fr' }),
+      methods.marketplaceDetail({ id: repository.nodeId, lang: 'zh-CN' }),
+    ]) {
+      expect(await call).toMatchObject({ ok: false, error: { code: 'invalid-input' } });
+    }
   });
 
   it('forwards a solved challenge with a report and the Worker challenge refusals', async () => {

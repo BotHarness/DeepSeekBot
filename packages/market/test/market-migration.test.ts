@@ -40,3 +40,36 @@ it('backfills descriptor tags for existing entries and maintains the index throu
     sqlite.close();
   }
 });
+
+it('re-crawls existing entries for localized presentation and searches their localized text', () => {
+  const sqlite = new DatabaseSync(':memory:');
+  try {
+    const migrations = new URL('../migrations/', import.meta.url);
+    for (const file of readdirSync(migrations).sort()) {
+      if (file < '0009') sqlite.exec(readFileSync(new URL(file, migrations), 'utf8'));
+    }
+    sqlite.exec(`INSERT INTO indexed_repositories (
+      node_id, owner, name, html_url, clone_url, pushed_at, default_branch,
+      visibility, first_seen_at, last_refreshed_at, readme_pushed_at
+    ) VALUES (
+      'R_existing', 'alice', 'helper', 'https://github.com/alice/helper',
+      'https://github.com/alice/helper.git', '2026-10-01', 'main', 'listed',
+      '2026-10-01', '2026-10-01', '2026-10-01'
+    )`);
+
+    sqlite.exec(readFileSync(new URL('0009_localization.sql', migrations), 'utf8'));
+    expect(sqlite.prepare('SELECT readme_pushed_at FROM indexed_repositories').get()).toEqual({
+      readme_pushed_at: null,
+    });
+    sqlite.exec(`UPDATE indexed_repositories SET search_text = '翻译团队聊天'`);
+    expect(
+      sqlite
+        .prepare(
+          'SELECT rowid FROM indexed_repositories_fts WHERE indexed_repositories_fts MATCH ?',
+        )
+        .all('团队聊'),
+    ).toHaveLength(1);
+  } finally {
+    sqlite.close();
+  }
+});

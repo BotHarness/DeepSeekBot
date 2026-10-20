@@ -92,6 +92,8 @@ describe('Bot Marketplace commands', () => {
         'stars',
         '--cursor',
         'c2',
+        '--lang',
+        'zh',
       ],
       live.url,
     );
@@ -99,14 +101,16 @@ describe('Bot Marketplace commands', () => {
       topics: [{ topic: 'writing', count: 2 }],
     });
     await invoke(['marketplace-detail', 'owner/repo'], live.url);
+    await invoke(['marketplace-detail', 'owner/repo', '--lang', 'en'], live.url);
     expect(live.calls).toEqual([
       { method: 'marketplaceList', args: { query: {} } },
       {
         method: 'marketplaceList',
-        args: { query: { q: '翻译', topic: 'writing', sort: 'stars', cursor: 'c2' } },
+        args: { query: { q: '翻译', topic: 'writing', sort: 'stars', cursor: 'c2', lang: 'zh' } },
       },
       { method: 'marketplaceTopics', args: {} },
       { method: 'marketplaceDetail', args: { id: 'owner/repo' } },
+      { method: 'marketplaceDetail', args: { id: 'owner/repo', lang: 'en' } },
     ]);
   });
 
@@ -117,6 +121,8 @@ describe('Bot Marketplace commands', () => {
       ['marketplace-list', 'extra'],
       ['marketplace-detail'],
       ['marketplace-topics', '--sort', 'stars'],
+      ['marketplace-list', '--lang', 'fr'],
+      ['marketplace-topics', '--lang', 'zh'],
       ['marketplace-report', 'owner/repo', '--reason', 'x'.repeat(501)],
     ])
       expect((await invoke(argv, live.url)).json.error.code).toBe('usage');

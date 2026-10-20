@@ -6,6 +6,7 @@ import { parseChallenge, solveChallenge } from '../../core/src/marketplace/altch
 import { handlerForEnv, runScheduled, type MarketEnv } from '../src/worker.js';
 import { createGitHubClient } from '../src/github.js';
 import type { ProtectionLimits } from '../src/protection.js';
+import type { Summarizer } from '../src/summary.js';
 
 export const TEST_ADMIN_TOKEN = 'test-admin-token';
 
@@ -35,6 +36,7 @@ export interface FakeRepository extends GitHubRepository {
   createdAt: string;
   readme: string | null;
   descriptor: string | null;
+  files?: Record<string, string>;
 }
 
 export function fakeRepository(overrides: Partial<FakeRepository> = {}): FakeRepository {
@@ -152,7 +154,7 @@ export function createFakeGitHub(): {
       const byId = new Map([...repositories.values()].map((item) => [item.nodeId, item]));
       return respond(200, { data: { nodes: variables.ids.map((id) => graph(byId.get(id))) } });
     }
-    const match = /^\/repos\/([^/]+)\/([^/]+)(?:\/(commits|readme|contents)(?:\/(.+))?)?$/u.exec(
+    const match = /^\/repos\/([^/]+)\/([^/]+)(?:\/(commits|readme|contents)(?:\/(.*))?)?$/u.exec(
       url.pathname,
     );
     const repository =
@@ -167,6 +169,18 @@ export function createFakeGitHub(): {
     }
     if (match[3] === 'contents') {
       if (contentsDown.value) return respond(503, { message: 'unavailable' });
+      if (match[4] === undefined || match[4] === '') {
+        const names = [
+          ...(repository.readme === null ? [] : ['README.md']),
+          ...Object.keys(repository.files ?? {}),
+        ];
+        return respond(200, [
+          ...names.map((name) => ({ name, type: 'file' })),
+          { name: '.botharness', type: 'dir' },
+        ]);
+      }
+      const file = repository.files?.[decodeURIComponent(match[4])];
+      if (file !== undefined) return new Response(file, { status: 200 });
       return match[4] !== '.botharness/bot.json' || repository.descriptor === null
         ? respond(404, { message: 'Not Found' })
         : new Response(repository.descriptor, { status: 200 });
@@ -206,6 +220,7 @@ export function createMarket(
     limits?: Partial<ProtectionLimits>;
     env?: Partial<Omit<MarketEnv, 'MARKET_DB'>>;
     realChallenges?: boolean;
+    summarizer?: Summarizer;
   } = {},
 ): {
   request: (path: string, init?: RequestInit) => Promise<Response>;
@@ -214,10 +229,12 @@ export function createMarket(
   clock: { value: Date };
   publish: (repository: FakeRepository) => void;
   scheduled: (cron: string) => Promise<Record<string, unknown>>;
+  logs: Record<string, unknown>[];
 } {
   const { db, sqlite } = createLocalD1();
   const clock = { value: new Date('2026-10-05T12:00:00Z') };
   const github = createFakeGitHub();
+  const logs: Record<string, unknown>[] = [];
   const client = createGitHubClient({
     token: 'test-token',
     fetchImpl: github.fetchImpl,
@@ -244,9 +261,17 @@ export function createMarket(
     clock,
     scheduled: async (cron) => {
       const lines: string[] = [];
-      await runScheduled(cron, { MARKET_DB: db }, client, (line) => lines.push(line));
+      await runScheduled(
+        cron,
+        { MARKET_DB: db },
+        client,
+        (line) => lines.push(line),
+        options.summarizer,
+      );
+      logs.push(...lines.map((line) => JSON.parse(line) as Record<string, unknown>));
       return JSON.parse(lines[0] ?? '{}') as Record<string, unknown>;
     },
+    logs,
     publish: (repository) =>
       github.repositories.set(`${repository.owner}/${repository.name}`.toLowerCase(), repository),
   };

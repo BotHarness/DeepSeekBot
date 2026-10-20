@@ -10,6 +10,7 @@ export const HOST_ADMIN_OPTIONS = {
   query: { type: 'string' },
   topic: { type: 'string' },
   sort: { type: 'string' },
+  lang: { type: 'string' },
   reason: { type: 'string' },
   decision: { type: 'string' },
   capability: { type: 'string', multiple: true },
@@ -22,6 +23,7 @@ export interface HostAdminValues {
   query?: string;
   topic?: string;
   sort?: string;
+  lang?: string;
   cursor?: string;
   reason?: string;
   decision?: string;
@@ -128,6 +130,12 @@ function validate(command: HostAdminCommand, rest: string[], values: HostAdminVa
     (command !== 'marketplace-list' || (values.sort !== 'updated' && values.sort !== 'stars'))
   )
     usage('--sort must be updated or stars, on marketplace-list.');
+  if (
+    values.lang !== undefined &&
+    ((command !== 'marketplace-list' && command !== 'marketplace-detail') ||
+      (values.lang !== 'zh' && values.lang !== 'en'))
+  )
+    usage('--lang must be zh or en, on marketplace-list or marketplace-detail.');
   if (command === 'marketplace-report' && values.reason !== undefined) {
     if (values.reason.trim().length > MAX_REPORT_REASON_LENGTH)
       usage(`--reason must be at most ${String(MAX_REPORT_REASON_LENGTH)} characters.`);
@@ -242,12 +250,16 @@ export async function runHostAdminCommand(
           ...(values.topic === undefined ? {} : { topic: values.topic }),
           ...(values.sort === undefined ? {} : { sort: values.sort }),
           ...(values.cursor === undefined ? {} : { cursor: values.cursor }),
+          ...(values.lang === undefined ? {} : { lang: values.lang }),
         },
       });
     case 'marketplace-topics':
       return { topics: await rpc('marketplaceTopics', {}) };
     case 'marketplace-detail':
-      return rpc('marketplaceDetail', { id: target });
+      return rpc(
+        'marketplaceDetail',
+        values.lang === undefined ? { id: target } : { id: target, lang: values.lang },
+      );
     case 'marketplace-submit':
       return rpc('marketplaceSubmit', {
         url: target,

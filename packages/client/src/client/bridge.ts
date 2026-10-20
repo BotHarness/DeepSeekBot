@@ -47,6 +47,7 @@ import {
   type MarketplaceTopic,
 } from '../../../core/src/marketplace/client.js';
 import { parseChallenge, type AltchaChallenge } from '../../../core/src/marketplace/altcha.js';
+import type { MarketplaceLanguage } from '../../../core/src/marketplace/language.js';
 import type { OverviewUsage } from '../../../core/src/bridge/methods.js';
 import type { ProfileSessionUsage } from '../../../core/src/bridge/methods.js';
 export type { ProfileSessionUsage } from '../../../core/src/bridge/methods.js';
@@ -2009,8 +2010,11 @@ export async function loadMarketplacePage(
 export async function loadMarketplaceDetail(
   call: BridgeCall,
   id: string,
+  lang?: MarketplaceLanguage,
 ): Promise<MarketplaceDetail> {
-  const detail = parseMarketplaceDetail(await unwrap(call, 'marketplaceDetail', { id }));
+  const detail = parseMarketplaceDetail(
+    await unwrap(call, 'marketplaceDetail', lang === undefined ? { id } : { id, lang }),
+  );
   if (detail === undefined) throw new Error('invalid marketplaceDetail response');
   return detail;
 }

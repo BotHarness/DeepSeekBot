@@ -10,6 +10,7 @@ import {
 } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import { solveChallenge } from '../../../core/src/marketplace/altcha.js';
+import type { MarketplaceLanguage } from '../../../core/src/marketplace/language.js';
 import type {
   MarketplaceDetail,
   MarketplaceEntry,
@@ -110,9 +111,10 @@ interface Filters {
   topic?: string;
 }
 
-function queryFor(filters: Filters, cursor?: string): MarketplaceQuery {
+function queryFor(filters: Filters, lang: MarketplaceLanguage, cursor?: string): MarketplaceQuery {
   return {
     sort: filters.sort,
+    lang,
     ...(filters.query.length === 0 ? {} : { q: filters.query }),
     ...(filters.topic === undefined ? {} : { topic: filters.topic }),
     ...(cursor === undefined ? {} : { cursor }),
@@ -209,7 +211,12 @@ function MarketplaceRow({
         </Button>
       </div>
       {bot.description === null ? null : (
-        <span className="bh-market-description">{bot.description}</span>
+        <span
+          className="bh-market-description"
+          title={bot.descriptionGenerated ? t('market.descriptionGenerated') : undefined}
+        >
+          {bot.description}
+        </span>
       )}
       <div className="bh-market-row-foot">
         {bot.roles.length === 0 ? null : (
@@ -328,7 +335,12 @@ function MarketplaceDetailView({
           </a>
         </div>
         {shown.description === null ? null : (
-          <span className="bh-market-description">{shown.description}</span>
+          <span
+            className="bh-market-description"
+            title={shown.descriptionGenerated ? t('market.descriptionGenerated') : undefined}
+          >
+            {shown.description}
+          </span>
         )}
         <MarketplaceMeta bot={shown} t={t} />
       </div>
@@ -380,7 +392,12 @@ function InstallConfirmation({
         <span className="bh-market-copy">
           <MarketplaceName bot={bot} />
           {bot.description === null ? null : (
-            <span className="bh-market-description">{bot.description}</span>
+            <span
+              className="bh-market-description"
+              title={bot.descriptionGenerated ? t('market.descriptionGenerated') : undefined}
+            >
+              {bot.description}
+            </span>
           )}
         </span>
       </div>
@@ -430,6 +447,7 @@ export function MarketplaceModal({
   onClose: () => void;
   onInstalled: () => void;
 }): ReactElement {
+  const lang: MarketplaceLanguage = t('market.language') === 'en' ? 'en' : 'zh';
   const [list, setList] = useState<ListState>({ status: 'loading' });
   const [filters, setFilters] = useState<Filters>({ sort: 'updated', query: '' });
   const [searchText, setSearchText] = useState('');
@@ -456,7 +474,7 @@ export function MarketplaceModal({
     latestFilters.current = next;
     setFilters(next);
     setList({ status: 'loading' });
-    void actions.marketplaceList(queryFor(next)).then(
+    void actions.marketplaceList(queryFor(next, lang)).then(
       (page) => {
         if (ticket !== generation.current) return;
         setList({
@@ -504,7 +522,7 @@ export function MarketplaceModal({
     const ticket = generation.current;
     const current = list;
     setList({ ...current, loadingMore: true });
-    void actions.marketplaceList(queryFor(filters, current.nextCursor)).then(
+    void actions.marketplaceList(queryFor(filters, lang, current.nextCursor)).then(
       (page) => {
         if (ticket !== generation.current) return;
         setList({
@@ -525,7 +543,7 @@ export function MarketplaceModal({
     setViewing(bot);
     setReport({ status: 'closed' });
     setDetail({ status: 'loading' });
-    void actions.marketplaceDetail(bot.id).then(
+    void actions.marketplaceDetail(bot.id, lang).then(
       (loaded) => {
         if (ticket === detailGeneration.current) setDetail({ status: 'ready', detail: loaded });
       },

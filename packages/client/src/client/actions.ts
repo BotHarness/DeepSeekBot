@@ -45,6 +45,7 @@ import type {
   MarketplaceTopic,
 } from '../../../core/src/marketplace/client.js';
 import type { AltchaChallenge } from '../../../core/src/marketplace/altcha.js';
+import type { MarketplaceLanguage } from '../../../core/src/marketplace/language.js';
 import { loadAllBotPreview } from './bridge.js';
 import { loadComposerIdentity, validateComposerDraft } from './bridge.js';
 import type { AllBotPreview, AllBotMention } from '../../../core/src/channels/all-bot-mention.js';
@@ -806,7 +807,7 @@ export interface BridgeActions {
   marketplaceSubmit(url: string, altcha: string): Promise<MarketplaceEntry>;
   marketplaceReport(id: string, altcha: string, reason?: string): Promise<void>;
   marketplaceTopics(): Promise<MarketplaceTopic[]>;
-  marketplaceDetail(id: string): Promise<MarketplaceDetail>;
+  marketplaceDetail(id: string, lang?: MarketplaceLanguage): Promise<MarketplaceDetail>;
   createGroup(name: string, sectionId?: string): Promise<ChannelSummary | undefined>;
   renameChannel(channelId: string, name: string): Promise<boolean>;
   setHumanNickname(channelId: string, nickname: string | null): Promise<boolean>;
@@ -2631,7 +2632,7 @@ export function createActions(
     marketplaceSubmit: (url, altcha) => submitMarketplaceRepository(call, url, altcha),
     marketplaceReport: (id, altcha, reason) => reportMarketplaceBot(call, id, altcha, reason),
     marketplaceTopics: () => loadMarketplaceTopics(call),
-    marketplaceDetail: (id) => loadMarketplaceDetail(call, id),
+    marketplaceDetail: (id, lang) => loadMarketplaceDetail(call, id, lang),
     profileUsage: (channelId, filter) => loadProfileUsage(call, channelId, filter),
     channelActivityToday: () => loadChannelActivityToday(call),
     groupProfileActivity: (channelId) => loadGroupProfileActivity(call, channelId),

@@ -1,5 +1,11 @@
 import type { D1Database } from './d1.js';
 import { BOT_TOPIC, parseRepositoryUrl, type GitHubClient } from './github.js';
+import {
+  localizedPresentation,
+  localizedReadme,
+  readmeLanguages,
+  type MarketplaceLanguage,
+} from './localization.js';
 import { prepareReadme } from './readme.js';
 import { createRepositoryStore, isEligible, type RepositoryRow } from './repositories.js';
 
@@ -12,6 +18,7 @@ export interface MarketplaceEntry {
   tags: string[];
   roles: string[];
   bio: string | null;
+  bioGenerated: boolean;
   banner: MarketplaceBanner | null;
   description: string | null;
   topics: string[];
@@ -75,18 +82,20 @@ function stringList(value: string): string[] {
   }
 }
 
-function entryFromRow(row: RepositoryRow): MarketplaceEntry {
+function entryFromRow(row: RepositoryRow, language?: MarketplaceLanguage): MarketplaceEntry {
   const topics = stringList(row.topics).filter((topic) => topic !== BOT_TOPIC);
   const tags = stringList(row.roles);
+  const presentation = localizedPresentation(row, language);
   return {
     id: row.node_id,
     owner: row.owner,
     name: row.name,
     fullName: `${row.owner}/${row.name}`,
-    displayName: row.display_name,
+    displayName: presentation.displayName,
     tags,
     roles: tags,
-    bio: row.bio ?? row.description,
+    bio: presentation.bio,
+    bioGenerated: presentation.bioGenerated,
     banner: parseBanner(row.banner),
     description: row.description,
     topics,
@@ -151,6 +160,7 @@ export interface ListOptions {
   sort?: BrowseSort;
   query?: string;
   topic?: string;
+  language?: MarketplaceLanguage;
 }
 
 export interface TopicCount {
@@ -165,12 +175,14 @@ function ftsQuery(terms: readonly string[]): string {
 export interface MarketplaceDetail {
   bot: MarketplaceEntry;
   readme: string | null;
+  readmeLanguage: MarketplaceLanguage | null;
+  readmeLanguages: MarketplaceLanguage[];
   commitSha: string | null;
 }
 
 export interface Catalog {
   submit(url: string): Promise<SubmissionResult>;
-  detail(id: string): Promise<MarketplaceDetail | undefined>;
+  detail(id: string, language?: MarketplaceLanguage): Promise<MarketplaceDetail | undefined>;
   list(options: ListOptions): Promise<MarketplacePage | undefined>;
   topics(): Promise<TopicCount[]>;
 }
@@ -221,6 +233,7 @@ export function createCatalog(deps: {
 
     async list(options) {
       const limit = Math.min(Math.max(options.limit ?? DEFAULT_PAGE_SIZE, 1), MAX_PAGE_SIZE);
+      const toEntry = (row: RepositoryRow) => entryFromRow(row, options.language);
       const sort = options.sort ?? 'updated';
       const query = options.query?.trim() ?? '';
       const cursor = options.cursor === undefined ? undefined : decodeCursor(options.cursor);
@@ -244,7 +257,7 @@ export function createCatalog(deps: {
                 `SELECT r.* FROM indexed_repositories_fts f
                  JOIN indexed_repositories r ON r.rowid = f.rowid
                  WHERE indexed_repositories_fts MATCH ? AND r.visibility = 'listed'${topicClause}
-                 ORDER BY bm25(indexed_repositories_fts, 10.0, 4.0, 4.0, 1.0, 4.0), r.node_id
+                 ORDER BY bm25(indexed_repositories_fts, 10.0, 4.0, 4.0, 1.0, 4.0, 2.0), r.node_id
                  LIMIT ? OFFSET ?`,
               )
               .bind(ftsQuery(terms), ...topicValues, take + 1, offset)
@@ -254,7 +267,7 @@ export function createCatalog(deps: {
                  WHERE r.visibility = 'listed'${terms
                    .map(
                      () =>
-                       " AND instr(lower(r.name || ' ' || coalesce(r.description, '') || ' ' || r.topics || ' ' || r.roles || ' ' || coalesce(r.readme, '')), lower(?)) > 0",
+                       " AND instr(lower(r.name || ' ' || coalesce(r.description, '') || ' ' || r.topics || ' ' || r.roles || ' ' || coalesce(r.readme, '') || ' ' || coalesce(r.search_text, '')), lower(?)) > 0",
                    )
                    .join('')}${topicClause}
                  ORDER BY r.stars DESC, r.node_id DESC
@@ -262,7 +275,7 @@ export function createCatalog(deps: {
               )
               .bind(...terms, ...topicValues, take + 1, offset);
         const { results } = await statement.all<RepositoryRow>();
-        const bots = results.slice(0, take).map(entryFromRow);
+        const bots = results.slice(0, take).map(toEntry);
         const next = offset + take;
         return results.length > take && next < SEARCH_RESULT_LIMIT
           ? { bots, nextCursor: encodeCursor({ mode: 'search', offset: next }) }
@@ -285,9 +298,9 @@ export function createCatalog(deps: {
         .all<RepositoryRow>();
       const page = results.slice(0, limit);
       const last = page.at(-1);
-      if (results.length <= limit || last === undefined) return { bots: page.map(entryFromRow) };
+      if (results.length <= limit || last === undefined) return { bots: page.map(toEntry) };
       return {
-        bots: page.map(entryFromRow),
+        bots: page.map(toEntry),
         nextCursor: encodeCursor(
           sort === 'stars'
             ? { mode: 'stars', key: last.stars, nodeId: last.node_id }
@@ -296,16 +309,19 @@ export function createCatalog(deps: {
       };
     },
 
-    async detail(id) {
+    async detail(id, language) {
       const row = await store.find(id);
       if (row === null || row.visibility !== 'listed') return undefined;
       const ref = row.head_sha ?? row.default_branch;
+      const readme = localizedReadme(row, language);
       return {
-        bot: entryFromRow(row),
+        bot: entryFromRow(row, language),
         readme:
-          row.readme === null
+          readme.markdown === null
             ? null
-            : prepareReadme(row.readme, { owner: row.owner, name: row.name, ref }),
+            : prepareReadme(readme.markdown, { owner: row.owner, name: row.name, ref }),
+        readmeLanguage: readme.language,
+        readmeLanguages: readmeLanguages(row),
         commitSha: row.head_sha,
       };
     },

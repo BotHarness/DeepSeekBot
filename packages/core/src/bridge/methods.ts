@@ -103,6 +103,7 @@ import type {
   MarketplaceTopic,
 } from '../marketplace/client.js';
 import type { AltchaChallenge } from '../marketplace/altcha.js';
+import { MARKETPLACE_LANGUAGES, type MarketplaceLanguage } from '../marketplace/language.js';
 import {
   MAX_DESCRIPTOR_BIO_LENGTH,
   MAX_DESCRIPTOR_TAG_LENGTH,
@@ -939,6 +940,11 @@ function asQuery(payload: unknown): string | undefined {
 function asSlug(payload: unknown): string | undefined {
   const value = asObject(payload)['slug'];
   return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+function marketplaceLang(value: unknown): MarketplaceLanguage | undefined | false {
+  if (value === undefined) return undefined;
+  return MARKETPLACE_LANGUAGES.find((language) => language === value) ?? false;
 }
 
 function parseOptional(source: Record<string, unknown>, key: string): ParsedField<string> {
@@ -2873,6 +2879,9 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         return Promise.resolve(invalidInput('invalid sort'));
       }
       if (sort !== undefined) query.sort = sort;
+      const lang = marketplaceLang(source['lang']);
+      if (lang === false) return Promise.resolve(invalidInput('invalid lang'));
+      if (lang !== undefined) query.lang = lang;
       return marketplaceCall((client) => client.list(query));
     },
     marketplaceTopics() {
@@ -2929,11 +2938,13 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       }
     },
     marketplaceDetail(payload) {
-      const id = asObject(payload)['id'];
+      const { id, lang: langValue } = asObject(payload);
       if (typeof id !== 'string' || id.trim().length === 0) {
         return Promise.resolve(invalidInput('id is required'));
       }
-      return marketplaceCall((client) => client.detail(id.trim()));
+      const lang = marketplaceLang(langValue);
+      if (lang === false) return Promise.resolve(invalidInput('invalid lang'));
+      return marketplaceCall((client) => client.detail(id.trim(), lang));
     },
     marketplaceSubmit(payload) {
       const { url, altcha } = asObject(payload);
