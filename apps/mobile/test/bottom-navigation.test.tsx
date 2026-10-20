@@ -3,6 +3,7 @@ import { act, createElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 const fixture = vi.hoisted(() => ({ scope: 'all' }));
+vi.mock('../src/ui/shell/quick-action-routing', () => ({ useQuickActionRouting: () => () => {} }));
 vi.mock('react-native', async () => ({
   ...(await import('./react-native-shim')),
   Keyboard: { dismiss: vi.fn() },

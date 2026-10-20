@@ -14,9 +14,10 @@ export function checkRoute(input: string): RouteCheck {
   const loopback = name === 'localhost' || name === '[::1]' || /^127\.\d+\.\d+\.\d+$/u.test(name);
   const tailnet =
     name.endsWith('.ts.net') || /^100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d+\.\d+$/u.test(name);
+  const connect = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.deepseekbot\.dev$/u.test(name);
   const allowed =
     (loopback && (url.protocol === 'http:' || url.protocol === 'https:')) ||
-    (tailnet && url.protocol === 'https:');
+    ((tailnet || (connect && url.port === '')) && url.protocol === 'https:');
   if (
     !allowed ||
     url.username ||
@@ -27,7 +28,8 @@ export function checkRoute(input: string): RouteCheck {
   )
     return {
       ok: false,
-      reason: 'Use a Tailscale HTTPS address (*.ts.net) or a loopback address, without a path.',
+      reason:
+        'Use a Tailscale HTTPS address (*.ts.net), a Connect address (*.deepseekbot.dev) or a loopback address, without a path.',
     };
   return { ok: true, origin: url.origin };
 }

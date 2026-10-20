@@ -84,6 +84,7 @@ import {
 } from './native-header';
 import { useFollowLatest } from './follow-latest';
 import { usePullToCompose } from './pull-to-compose';
+import { chatHref, useRecentChat } from '../shell/recent-chats';
 import { PullToComposeHint } from './pull-to-compose-hint';
 import { useMarkRead } from './mark-read';
 import { useBotNames } from './use-bot-names';
@@ -456,13 +457,31 @@ function ChatConversation({
     [scroll, viewport, content, viewportLayout, focused],
   );
   const readMount = useMarkRead(client, inbox, conversation, activeChannel, !latest.away);
+  const recentMount = useRecentChat(
+    botDm
+      ? undefined
+      : bot !== undefined
+        ? {
+            id: `dm:${saved?.hostId ?? ''}:${bot.slug}`,
+            title: bot.displayName,
+            href: chatHref(`/dm/${encodeURIComponent(bot.slug)}`, saved?.hostId),
+          }
+        : channel !== undefined
+          ? {
+              id: `channel:${saved?.hostId ?? ''}:${channel.id}`,
+              title: channel.name,
+              href: chatHref(`/channel/${encodeURIComponent(channel.id)}`, saved?.hostId),
+            }
+          : undefined,
+  );
   const mountRef = dictation.mountRef;
   const screenRef = useCallback(
     (node: unknown) => {
       mountRef(node);
       readMount(node);
+      recentMount(node);
     },
-    [mountRef, readMount],
+    [mountRef, readMount, recentMount],
   );
 
   const asking = snapshot.messages.findLast(

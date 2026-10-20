@@ -104,10 +104,17 @@ import {
   isIdleCompactionCommand,
   runIdleCompactionCommand,
 } from './cli-idle-compaction.js';
+import {
+  CONNECT_COMMANDS,
+  CONNECT_OPTIONS,
+  isConnectCommand,
+  runConnectCommand,
+} from './cli-connect.js';
 export { CliLiveError } from './cli-live-error.js';
 
 export const LIVE_OPTIONS = {
   ...WINDOW_ZOOM_OPTIONS,
+  ...CONNECT_OPTIONS,
   ...APPEARANCE_OPTIONS,
   ...IM_OPTIONS,
   ...MESSAGING_OPTIONS,
@@ -201,6 +208,7 @@ const CONTROL_COMMANDS = [
 
 export const LIVE_COMMANDS = [
   ...WINDOW_ZOOM_COMMANDS,
+  ...CONNECT_COMMANDS,
   ...IM_COMMANDS,
   ...MESSAGING_COMMANDS,
   {
@@ -725,6 +733,10 @@ export async function runLiveCli(
       const signal = AbortSignal.timeout(timeoutMs(values.timeout));
       return (await connectLiveHost(values, io, signal)).rpc;
     });
+  if (isConnectCommand(command))
+    return runConnectCommand(command, rest, values, io, () =>
+      connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+    );
   if (WINDOW_ZOOM_COMMANDS.some((entry) => entry.command === command))
     return runWindowZoomCommand(command, rest, values, () =>
       connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),

@@ -1037,6 +1037,51 @@ Ctrl+0 restores the saved default, including 120%; numberpad codes are unsupport
 pinned protocol. See [Windows qualification #2270](https://github.com/BotHarness/DeepSeekBot/issues/2270)
 for the separate native input, guest foreground, DPI and Human-QA gates.
 
+## Hosted Connect tunnel (ADR-0241, first slice)
+
+Hosted Connect lets a paired phone reach this Host through a Cloudflare Tunnel under
+`deepseekbot.dev` instead of Tailscale ([#2387](https://github.com/BotHarness/DeepSeekBot/issues/2387)).
+In this first slice the tunnel and its connector token are made by hand; account sign-in and the
+relay come later.
+
+```sh
+deepseekbot connect-status --host <host> --token-file <private-file>
+deepseekbot connect-enable --hostname <name>.deepseekbot.dev --token-stdin --host <host> --token-file <private-file> < <connector-token-file>
+deepseekbot connect-disable --host <host> --token-file <private-file>
+```
+
+`connect-enable` stores the hostname and connector token in the DSH credential store, opens a
+loopback origin that forwards only `/botharness-device/*` to the DSH listener (every other path is
+404), and runs `cloudflared tunnel --no-autoupdate run` with the token in `TUNNEL_TOKEN`, never in
+its arguments. The JSON reply's `origin` is the address the tunnel's ingress must target. The
+`cloudflared` binary comes from `DEEPSEEKBOT_CLOUDFLARED` or `PATH`. `connect-status` returns
+`connect.state` (`off`, `starting`, `connected`, `error`) with `issue` (`cloudflared-missing`,
+`cloudflared-exited`, `origin-port-busy`, `credential-unavailable`) and the phone route list; once
+connected, new pairing QR codes include `https://<name>.deepseekbot.dev` after any Tailscale route.
+Refusals: `connect-hostname-invalid` (only one label under `deepseekbot.dev`),
+`connect-token-invalid`, `credential-unavailable`. `connect-disable` stops the tunnel and deletes
+the stored token; paired devices keep their credentials.
+
+### Account sign-in (second slice)
+
+```sh
+deepseekbot connect-sign-in --wait --host <host> --token-file <private-file>
+deepseekbot connect-sign-out --host <host> --token-file <private-file>
+```
+
+`connect-sign-in` starts WorkOS CLI Auth (the device authorization grant) with the client that the
+relay at `https://connect.botharness.ai` publishes (`DEEPSEEKBOT_CONNECT_RELAY` overrides it). The
+reply carries `userCode` and `verificationUri`; with `--wait` the CLI prints them to stderr and waits
+until the Host finishes. The Host then stores only the refresh token in the DSH credential store,
+links itself to the account (at most five Hosts per account), asks the relay for its tunnel and runs
+it as `connect-enable` would, with no hand-made token. While signed in it asks the relay again when
+the tunnel stops, so a tunnel the relay reclaimed after the Host was offline comes back on the same
+`<host-id>.deepseekbot.dev`. `connect-status` adds `connect.account` with `state` (`signed-out`,
+`signing-in`, `signed-in`, `error`), `email`, `hostId` and `issue` (`relay-unavailable`,
+`sign-in-denied`, `sign-in-expired`, `session-expired`, `account-not-allowed`, `host-limit`,
+`credential-unavailable`). `connect-sign-out` unlinks the Host at the relay, stops the tunnel and
+deletes the session. While testing, only allowlisted accounts can link Hosts.
+
 ## Device-local DeepSeekBot appearance
 
 `appearance-clients` lists the online Client ids and platform on the authenticated Host. Select one explicitly; a new mount/reload gets a new id. This controls DeepSeekBot, not the DSH-native Host theme.

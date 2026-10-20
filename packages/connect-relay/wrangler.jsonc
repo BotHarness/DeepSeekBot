@@ -1,0 +1,26 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // hosted Connect relay (ADR-0241); never on a subdomain of the deepseekbot.dev tunnel zone
+  "name": "botharness-connect-relay",
+  "account_id": "332e72d480d7cb3e60ee671d3ca0cad0",
+  "main": "src/entry.ts",
+  "compatibility_date": "2026-09-17",
+  "routes": [{ "pattern": "connect.botharness.ai", "custom_domain": true }],
+  // reclaim tunnels whose Host stayed offline longer than RECLAIM_AFTER_MINUTES
+  "triggers": { "crons": ["* * * * *"] },
+  "vars": {
+    "CONNECT_ZONE": "deepseekbot.dev",
+    "MAX_HOSTS": "5",
+    "RECLAIM_AFTER_MINUTES": "5",
+  },
+  // secrets: WORKOS_CLIENT_ID, CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_ZONE_ID, ALLOWED_USERS
+  "d1_databases": [
+    {
+      "binding": "CONNECT_DB",
+      "database_name": "botharness-connect-relay",
+      // replace with the id printed by `wrangler d1 create botharness-connect-relay`
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations",
+    },
+  ],
+}

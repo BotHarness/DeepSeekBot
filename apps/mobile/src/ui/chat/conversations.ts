@@ -5,6 +5,7 @@ import type {
   RosterView,
   TopOrderEntry,
 } from '../../host/client';
+import { approvalSummaryTool } from '../../host/requests';
 import type { HumanAttentionItem } from '../../host/wire';
 import { t } from '../strings';
 
@@ -45,6 +46,11 @@ export function rowStatus(row: Conversation, now: Date): RowStatus {
   if (row.unread > 0) return 'done-unread';
   const at = Date.parse(bot.previewAt ?? '');
   return Number.isFinite(at) && now.getTime() - at < DONE_WINDOW_MS ? 'done' : 'none';
+}
+
+export function previewText(preview: string): string {
+  const tool = approvalSummaryTool(preview);
+  return tool === undefined ? preview : t.approvalPreview(tool);
 }
 
 export function rowLabel(

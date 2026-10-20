@@ -64,6 +64,10 @@ const stream = vi.hoisted(() => {
   };
 });
 
+vi.mock('../src/ui/shell/recent-chats', () => ({
+  chatHref: () => '',
+  useRecentChat: () => () => {},
+}));
 vi.mock('../src/host/native-source-drafts', () => ({ useSourceDraft: () => ['', () => {}] }));
 vi.mock('expo-router', () => ({
   useIsFocused: () => true,
