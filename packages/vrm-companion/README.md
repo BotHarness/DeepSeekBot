@@ -35,4 +35,4 @@ The source code is MIT; see [LICENSE](LICENSE). The bundled assets keep their ow
    ```
 
 3. The workflow checks that the tag is on `main` and matches the package version, runs `pnpm install --frozen-lockfile`, `pnpm build` and the VRM tests, then waits for approval in the `npm-release` environment.
-4. After approval it runs `pnpm --filter @botharness/vrm-companion publish --provenance --access public`. It authenticates with npm trusted publishing when a Trusted Publisher for this workflow is configured on npmjs.com for `@botharness/vrm-companion`, and otherwise with the `NPM_TOKEN` secret.
+4. After approval it runs `npm publish --provenance --access public` in `packages/vrm-companion`. It authenticates with npm trusted publishing when a Trusted Publisher for this workflow is configured on npmjs.com for `@botharness/vrm-companion`, and otherwise with the `NPM_TOKEN` secret.

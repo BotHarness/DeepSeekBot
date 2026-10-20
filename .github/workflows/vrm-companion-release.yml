@@ -52,11 +52,12 @@ jobs:
           : > "$EMPTY_USERCONFIG"
           AUTH=()
           if [ -n "$NPM_TOKEN" ]; then
-            AUTH=("NODE_AUTH_TOKEN=$NPM_TOKEN" "npm_config_//registry.npmjs.org/:_authToken=$NPM_TOKEN")
+            AUTH=("npm_config_//registry.npmjs.org/:_authToken=$NPM_TOKEN")
           fi
           TAG=$(node -p 'require("./packages/vrm-companion/package.json").version.includes("-") ? "next" : "latest"')
+          cd packages/vrm-companion
           env -u NPM_TOKEN -u NODE_AUTH_TOKEN \
             npm_config_userconfig="$EMPTY_USERCONFIG" \
             npm_config_registry=https://registry.npmjs.org/ \
             "${AUTH[@]}" \
-            pnpm --filter @botharness/vrm-companion publish --provenance --access public --no-git-checks --tag "$TAG"
+            npm publish --provenance --access public --ignore-scripts --tag "$TAG"
