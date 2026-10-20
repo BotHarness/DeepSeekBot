@@ -26,6 +26,7 @@ The Human chose this direction on 2026-10-20: **an account only discovers Hosts 
 2. **WorkOS environment.** Reuse TOB's environment. Connect still does not depend on TOB cloud Channels being enabled.
 3. **Relay location.** A new Worker in this repository, so Connect works without a TOB deployment and its protocol is visible to self-hosters.
 4. **Mainland China later.** Connection convenience is the priority, so implementation does not wait on mainland China. Connect is built and qualified outside mainland China first. A tester in mainland China later checks pairing and DM reachability on China Mobile, China Unicom and China Telecom networks and outbound port 7844 from common computer setups. If that fails, this ADR still governs the account and pairing design, and a domestic relay is a separate decision; moving to a Durable Object relay on Cloudflare would not fix it.
+5. **Free with reclamation; five Hosts per account.** Connect is free. The relay deletes a tunnel after its Host has been offline for a few minutes and recreates it when the Host returns, so the free 1,000 tunnels per Cloudflare account bound computers online at the same time, not registered users. Pricing is decided when computers online at the same time approach 800; beyond 1,000 each tunnel costs $4.50 per month. An account can link at most five Hosts, as an abuse limit.
 
 ## Considered options
 
@@ -46,7 +47,7 @@ One isolated Host and the iOS Simulator, against a test Cloudflare account and a
 
 ## Consequences
 
-- New hosted service to operate: Worker, database for links and allocations, Cloudflare API token with tunnel and DNS rights, tunnel reclamation, and an abuse limit on Hosts per account.
+- New hosted service to operate: Worker, database for links and allocations, Cloudflare API token with tunnel and DNS rights, tunnel reclamation, and the five-Host limit per account.
 - We publish and update one pinned `cloudflared` npm package per platform.
 - `deepseekbot connect …` CLI commands ship with the Devices UI (CLI parity).
 - Store builds keep `EXPO_PUBLIC_DEEPSEEKBOT_CLOUD` separate from Connect, so Connect can ship in test builds without exposing TOB cloud Channels.
