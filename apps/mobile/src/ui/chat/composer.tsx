@@ -1,5 +1,5 @@
 import { TextInput } from '../primitives/system-text';
-import { useRef, useState, type ComponentRef, type ReactNode, type Ref } from 'react';
+import { useEffect, useRef, useState, type ComponentRef, type ReactNode, type Ref } from 'react';
 import {
   Image,
   Keyboard,
@@ -370,6 +370,7 @@ export function Composer({
   onSelection,
   inputRef,
   onFocusChange,
+  onExpandedChange,
 }: {
   value: string;
   placeholder: string;
@@ -391,6 +392,7 @@ export function Composer({
   onSelection?(caret: number): void;
   inputRef?: Ref<ComposerInput>;
   onFocusChange?(focused: boolean): void;
+  onExpandedChange?(expanded: boolean): void;
 }) {
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
@@ -437,6 +439,7 @@ export function Composer({
     setMenu(!menu);
   };
   const expanded = theme.largeText || wraps;
+  useEffect(() => onExpandedChange?.(expanded), [expanded, onExpandedChange]);
   const stacked = composerStacked(actions, files.length, expanded);
   const icon = theme.type.title.line;
   const leading = held ? (

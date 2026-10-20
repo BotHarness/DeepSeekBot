@@ -356,6 +356,7 @@ function ChatConversation({
   const [actionsFor, setActionsFor] = useState<MessageMenuTarget>();
   const [reactError, setReactError] = useState(false);
   const [composerHeight, setComposerHeight] = useState(0);
+  const [composerExpanded, setComposerExpanded] = useState(false);
   const [viewportHeight, setViewportHeight] = useState(0);
   const list = useAnimatedRef<FlatList<Row>>();
   const jumped = useRef<string | undefined>(undefined);
@@ -905,6 +906,7 @@ function ChatConversation({
                 onCancelDictation={dictation.cancel}
                 inputRef={composerInput}
                 onFocusChange={setTyping}
+                onExpandedChange={setComposerExpanded}
               />
             )}
           </ScrollEdgeElement>
@@ -1056,9 +1058,11 @@ function ChatConversation({
               />
             </SpeakerStageContext.Provider>
           </MarkdownViewportContext.Provider>
-          {nativeScrollEdge ? null : (
+          {!nativeScrollEdge ? (
             <EdgeFade edge="bottom" height={composerHeight + edgeFade.bottom} />
-          )}
+          ) : composerExpanded && listSafeArea > 0 ? (
+            <EdgeFade edge="bottom" height={listSafeArea + edgeFade.bottom} />
+          ) : null}
           {composable && Platform.OS === 'ios' ? (
             <PullToComposeHint
               progress={pull.progress}
