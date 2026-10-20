@@ -1,19 +1,28 @@
-import * as Application from 'expo-application';
-import { Directory, File, Paths } from 'expo-file-system';
-import { Image } from 'expo-image';
-import { ImageManipulator, SaveFormat, type ImageRef } from 'expo-image-manipulator';
-import { Platform } from 'react-native';
+import * as Application from "expo-application";
+import { Directory, File, Paths } from "expo-file-system";
+import { Image } from "expo-image";
+import {
+  ImageManipulator,
+  SaveFormat,
+  type ImageRef,
+} from "expo-image-manipulator";
+import { Platform } from "react-native";
 
-import { createNotificationAvatars, safeName } from './notification-avatars';
+import { createNotificationAvatars, safeName } from "./notification-avatars";
 
 const SIZE = 192;
-const INDEX = 'index.json';
+const INDEX = "index.json";
+const STATUS = "status.json";
 
 function root(): Directory | undefined {
-  if (Platform.OS === 'android') return new Directory(Paths.document, 'notification-avatars');
-  if (Platform.OS !== 'ios') return undefined;
-  const group = Paths.appleSharedContainers[`group.${Application.applicationId ?? ''}`];
-  return group === undefined ? undefined : new Directory(group, 'notification-avatars');
+  if (Platform.OS === "android")
+    return new Directory(Paths.document, "notification-avatars");
+  if (Platform.OS !== "ios") return undefined;
+  const group =
+    Paths.appleSharedContainers[`group.${Application.applicationId ?? ""}`];
+  return group === undefined
+    ? undefined
+    : new Directory(group, "notification-avatars");
 }
 
 function hostDir(host: string): Directory | undefined {
@@ -24,20 +33,25 @@ function hostDir(host: string): Directory | undefined {
 export const notificationAvatars = createNotificationAvatars({
   async read(host) {
     const index = hostDir(host);
-    if (index === undefined) throw Error('notification-avatars-unavailable');
+    if (index === undefined) throw Error("notification-avatars-unavailable");
     const file = new File(index, INDEX);
     if (!file.exists) return {};
     try {
       const value = JSON.parse(await file.text()) as unknown;
-      return typeof value === 'object' && value !== null ? (value as Record<string, string>) : {};
+      return typeof value === "object" && value !== null
+        ? (value as Record<string, string>)
+        : {};
     } catch {
       return {};
     }
   },
   async render(host, file, image) {
     const dir = hostDir(host);
-    if (dir === undefined) throw Error('notification-avatars-unavailable');
-    const source = await Image.loadAsync(image, { maxWidth: SIZE, maxHeight: SIZE });
+    if (dir === undefined) throw Error("notification-avatars-unavailable");
+    const source = await Image.loadAsync(image, {
+      maxWidth: SIZE,
+      maxHeight: SIZE,
+    });
     const context = ImageManipulator.manipulate(source);
     let rendered: ImageRef | undefined;
     try {
@@ -71,10 +85,26 @@ export const notificationAvatars = createNotificationAvatars({
     try {
       const dir = hostDir(host);
       if (dir === undefined) return;
-      if (!dir.exists) dir.create({ intermediates: true });
-      const file = new File(dir, INDEX);
-      if (!file.exists) file.create();
-      file.writeSync(JSON.stringify(index));
+      writeJson(dir, INDEX, index);
+    } catch {}
+  },
+  report(host, errors) {
+    try {
+      const status = { at: new Date().toISOString(), errors };
+      const dir = hostDir(host);
+      if (dir !== undefined) writeJson(dir, STATUS, status);
+      else
+        writeJson(Paths.document, `notification-avatars-${STATUS}`, {
+          host,
+          ...status,
+        });
     } catch {}
   },
 });
+
+function writeJson(dir: Directory, name: string, value: unknown): void {
+  if (!dir.exists) dir.create({ intermediates: true });
+  const file = new File(dir, name);
+  if (!file.exists) file.create();
+  file.writeSync(JSON.stringify(value));
+}
