@@ -138,13 +138,15 @@ export const hostSession = {
     await commit(next);
     return true;
   },
-  async unpair(hostId?: string): Promise<'revoked' | 'host-kept' | undefined> {
+  async unpair(hostId?: string): Promise<{ revoked: Promise<boolean> } | undefined> {
     const host =
       hostId === undefined ? state.saved : stored.hosts.find((entry) => entry.hostId === hostId);
     if (host === null || host === undefined) return undefined;
     const current = host.hostId === state.saved?.hostId;
-    await pushSession.forget(host);
-    const revoked = await revokePairing({ host, carrier: nativeCarrier() });
+    const revoked = pushSession
+      .forget(host)
+      .then(() => revokePairing({ host, carrier: nativeCarrier() }))
+      .then((result) => result === 'revoked');
     await sourceDrafts.ready;
     sourceDrafts.removeWhere((key) => {
       try {
@@ -159,7 +161,7 @@ export const hostSession = {
       try {
         clearConversationCache();
       } catch {}
-    return revoked === 'revoked' ? 'revoked' : 'host-kept';
+    return { revoked };
   },
 };
 

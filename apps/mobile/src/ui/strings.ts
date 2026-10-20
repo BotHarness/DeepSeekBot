@@ -811,8 +811,7 @@ const en = {
   unpairHost: (host: string) => `Unpair ${host}?`,
   unpairHostDetail: 'Its chats and notifications leave this phone. You can pair again anytime.',
   unpairHostKept: (host: string) => `${host} may still list this phone`,
-  unpairHostKeptDetail:
-    'The computer could not be reached, so this phone was only removed here. On that computer, remove it in DeepSeekBot Settings › Devices.',
+  unpairHostKeptDetail: 'Couldn’t reach it. Remove this phone in its Settings › Devices.',
   openProfile: 'Opens the profile',
   profile: 'Profile',
   profileMessage: 'Message',
@@ -1897,8 +1896,7 @@ const zh: typeof en = {
   unpairHost: (host: string) => `取消配对 ${host}？`,
   unpairHostDetail: '这台手机将不再显示它的聊天和通知，之后可重新配对。',
   unpairHostKept: (host: string) => `${host} 可能仍保留这台手机`,
-  unpairHostKeptDetail:
-    '没能连上这台电脑，只在手机上取消了配对。请在那台电脑的 DeepSeekBot 设置 › 设备里移除这台手机。',
+  unpairHostKeptDetail: '没连上这台电脑。请在它的 设置 › 设备 里移除这台手机。',
   openProfile: '打开资料页',
   profile: '资料',
   profileMessage: '发消息',
