@@ -323,6 +323,35 @@ export function buildAnswer(
   return { answers };
 }
 
+const HOST_APPROVAL_SUMMARY = '请求批准执行 ';
+
+export function approvalSummaryTool(summary: string): string | undefined {
+  if (!summary.startsWith(HOST_APPROVAL_SUMMARY)) return undefined;
+  const tool = summary.slice(HOST_APPROVAL_SUMMARY.length).trim();
+  return tool === '' ? undefined : tool;
+}
+
+function shellWord(word: string): string {
+  return /^[\w@%+=:,./-]+$/u.test(word) ? word : `'${word.replaceAll("'", `'\\''`)}'`;
+}
+
+export function secretCommand(toolName: string, input: string): string | undefined {
+  if (toolName !== 'secret_cli') return undefined;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(input);
+  } catch {
+    return undefined;
+  }
+  if (typeof parsed !== 'object' || parsed === null) return undefined;
+  const { program, args } = parsed as { program?: unknown; args?: unknown };
+  if (typeof program !== 'string' || program.trim() === '') return undefined;
+  const words = Array.isArray(args)
+    ? args.filter((arg): arg is string => typeof arg === 'string')
+    : [];
+  return [program, ...words].map(shellWord).join(' ');
+}
+
 const PREVIEW_FIELDS = ['command', 'cmd', 'script', 'code', 'url', 'path', 'file_path'];
 
 export function previewInput(input: string): { label: string; value: string } | undefined {

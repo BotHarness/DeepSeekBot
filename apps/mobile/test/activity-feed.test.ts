@@ -332,6 +332,30 @@ describe('Activity feed', () => {
       expect.objectContaining({ id: unread.id, summary: unread.summary }),
     );
   });
+  it('names a tool approval in the app language, not the Host’s stored Chinese line', async () => {
+    const approval: HumanAttentionItem = {
+      ...question,
+      id: 'approval:e7',
+      kind: 'tool-approval',
+      summary: '请求批准执行 secret_cli',
+    };
+    const handled: HumanAttentionItem = { ...approval, id: 'handled:e7', category: 'handled' };
+    const view = await feed(host(), {
+      status: 'ready',
+      sections: { action: [approval], replies: [], unread: [], handled: [handled] },
+    });
+    expect(post(view, approval)!.textContent).not.toContain('请求批准执行');
+    expect(
+      post(view, approval)!.querySelector('[role=button]')!.getAttribute('aria-label'),
+    ).toContain('Requests approval to run secret_cli');
+    await press(button(view, t.activityOptions));
+    await press(button(view, t.inboxSections.handled));
+    await press(button(view, t.cancel));
+    const row = view.querySelector<HTMLElement>('[data-testid="inbox-row-handled:e7"]')!;
+    expect(row.textContent).toContain('Requests approval to run secret_cli');
+    expect(row.textContent).not.toContain('请求批准执行');
+    expect(row.getAttribute('aria-label')).toContain('Requests approval to run secret_cli');
+  });
   it('preserves the search when editing ends and options reset', async () => {
     const fake = host();
     const queries: Record<string, unknown>[] = [];

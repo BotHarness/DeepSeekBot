@@ -638,6 +638,7 @@ const en = {
   toolCategory: (tool: string) =>
     ({ shell: 'Terminal', browser: 'Browser', files: 'Files', other: 'Tool' })[toolGroup(tool)],
   runTool: (tool: string) => (toolGroup(tool) === 'shell' ? 'Run this command' : `Use ${tool}`),
+  requestsApproval: (tool: string) => `Requests approval to run ${tool}`,
   replyInChat: 'Or reply in the chat below.',
   option: (letter: string, label: string) => `${letter}. ${label}`,
   cardOutcome: {
@@ -1696,6 +1697,7 @@ const zh: typeof en = {
   toolCategory: (tool: string) =>
     ({ shell: '终端', browser: '浏览器', files: '文件', other: '工具' })[toolGroup(tool)],
   runTool: (tool: string) => (toolGroup(tool) === 'shell' ? '运行这条命令' : `使用 ${tool}`),
+  requestsApproval: (tool: string) => `请求批准执行 ${tool}`,
   replyInChat: '或者在下方聊天中回复。',
   option: (letter: string, label: string) => `${letter}. ${label}`,
   cardOutcome: {

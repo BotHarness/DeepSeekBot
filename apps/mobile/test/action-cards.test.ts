@@ -322,6 +322,25 @@ describe('Tool approval detail in the DM', () => {
     expect(view.querySelector('[data-testid="approval-diff-more"]')).toBeNull();
   });
 
+  it('shows the secret command it will run, not the account name', async () => {
+    const fake = host();
+    fake.answers.set('channelTimeline', () =>
+      edited('secret_cli', {
+        account: 'GitHub personal access token',
+        references: ['ref-1'],
+        program: 'gh',
+        args: ['--version'],
+        env: [{ name: 'GH_TOKEN', value: 'ref-1' }],
+      }),
+    );
+    const view = await render(card(connect(fake)));
+    const preview = [...view.querySelectorAll('*')].find(
+      (node) => node.children.length === 0 && node.textContent === 'gh --version',
+    );
+    expect(preview).toBeDefined();
+    expect(view.textContent).not.toContain('GitHub personal access token');
+  });
+
   it('puts the original attachment warning next to the buttons', async () => {
     const fake = host();
     fake.answers.set('channelTimeline', () =>

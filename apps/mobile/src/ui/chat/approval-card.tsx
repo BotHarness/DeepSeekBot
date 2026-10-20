@@ -5,6 +5,7 @@ import type { CardResolution } from '../../host/conversation';
 import {
   previewInput,
   readableInput,
+  secretCommand,
   type ApprovalChoice,
   type ApprovalRequest,
   type DecisionResult,
@@ -199,13 +200,16 @@ export function ApprovalCard({
   };
   const rows = readableInput(request.input);
   const change = approvalFileChange(request.toolName, request.input);
-  const shell =
-    change === undefined ? approvalShellCommand(request.toolName, request.input) : undefined;
+  const command =
+    change === undefined
+      ? (approvalShellCommand(request.toolName, request.input)?.command ??
+        secretCommand(request.toolName, request.input))
+      : undefined;
   const first =
     change !== undefined
       ? { label: '', value: `${change.path}  +${change.added} −${change.removed}` }
-      : shell !== undefined
-        ? { label: '', value: shell.command }
+      : command !== undefined
+        ? { label: '', value: command }
         : previewInput(request.input);
   const running = executionNote(request);
   return (
