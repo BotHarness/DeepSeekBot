@@ -1,6 +1,7 @@
 import * as QuickActions from 'expo-quick-actions';
 import * as SecureStore from 'expo-secure-store';
 import { useCallback, type RefCallback } from 'react';
+import { Platform } from 'react-native';
 
 import { recentChats } from '../design/tokens';
 
@@ -39,11 +40,17 @@ export function parseRecentChats(raw: string | null): RecentChat[] {
   }
 }
 
+export function shortcutIcon(os: string): string {
+  return os === 'android' ? 'ic_launcher' : 'symbol:bubble.left';
+}
+
+const icon = shortcutIcon(Platform.OS);
+
 export function quickAction(chat: RecentChat): QuickActions.Action {
   return {
     id: chat.id,
     title: chat.title,
-    icon: 'symbol:bubble.left',
+    icon,
     params: { href: chat.href },
   };
 }

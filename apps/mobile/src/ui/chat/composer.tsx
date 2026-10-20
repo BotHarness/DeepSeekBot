@@ -580,6 +580,7 @@ export function Composer({
       <Text
         accessibilityElementsHidden
         importantForAccessibility="no-hide-descendants"
+        pointerEvents="none"
         onTextLayout={(event) => {
           const height = event.nativeEvent.lines[0]?.height;
           if (height !== undefined && height > 0)
@@ -652,15 +653,19 @@ export function Composer({
             </View>
           </View>
           {compactWidth > 0 ? (
-            <Text
-              variant="body"
+            <View
+              pointerEvents="none"
               accessibilityElementsHidden
               importantForAccessibility="no-hide-descendants"
-              onLayout={(event) => setWraps(event.nativeEvent.layout.height > textLine * 1.5)}
               style={{ position: 'absolute', opacity: 0, width: compactWidth, left: 0, top: 0 }}
             >
-              {value === '' ? ' ' : value}
-            </Text>
+              <Text
+                variant="body"
+                onLayout={(event) => setWraps(event.nativeEvent.layout.height > textLine * 1.5)}
+              >
+                {value === '' ? ' ' : value}
+              </Text>
+            </View>
           ) : null}
         </Animated.View>
       </View>
