@@ -36,13 +36,15 @@ export function ComposerCircleButton({
       accessibilityLabel={label}
       testID={testID}
       onPress={onPress}
-      android_ripple={{ color: pressTint(theme.color.fg), borderless: true, radius: size / 2 }}
+      android_ripple={{ color: pressTint(theme.color.fg), foreground: true }}
       style={{
         width: size,
         height: size,
         borderRadius: radius.round,
+        overflow: 'hidden',
         alignItems: 'center',
         justifyContent: 'center',
+        backgroundColor: theme.layer.raised.fill,
       }}
     >
       {children}
