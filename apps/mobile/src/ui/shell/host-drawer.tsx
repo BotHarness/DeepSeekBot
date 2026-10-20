@@ -167,7 +167,10 @@ function confirmUnpair(row: HostDrawerRow, name: string): void {
     {
       text: t.unpair,
       style: 'destructive',
-      onPress: () => hostSession.unpair(row.hostId).then((result) => noticeHostKept(result, name)),
+      onPress: () => {
+        if (hostSession.getState().hosts.length <= 1) settle(false);
+        return hostSession.unpair(row.hostId).then((result) => noticeHostKept(result, name));
+      },
     },
   ]);
 }
