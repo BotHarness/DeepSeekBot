@@ -1,4 +1,5 @@
 import { createWindowZoomControl, WINDOW_ZOOM_CONTROL_PATH } from './window-zoom/control.js';
+import { createFolderBrowser } from './workspaces/folder-browse.js';
 import { APPEARANCE_CONTROL_PATH, createAppearanceControl } from './appearance/control.js';
 import { CloudConnections } from './cloud/connections.js';
 import { createCloudProvider } from './cloud/provider.js';
@@ -2210,6 +2211,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     humanAttention: core.humanAttention,
     humanAttentionDecisions: core.humanAttentionDecisions,
     grants: core.grants,
+    folders: createFolderBrowser(),
     externalMessaging: core.externalMessaging,
     toolApproval,
     userQuestions,

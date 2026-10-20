@@ -108,6 +108,7 @@ deepseekbot ask-secret-revoke <channel-id> --message-id <configured-card-id>
 deepseekbot ask-secret-accounts <bot-id>
 deepseekbot release-info [--since <version>]
 deepseekbot workspace-options
+deepseekbot folder-browse [<folder-path>]
 deepseekbot grant-create <bot-id> --workspace <workspace-id>
 ```
 
@@ -590,6 +591,17 @@ deepseekbot idle-compaction-cache-set deepseek/<model> auto
 
 All three return `{enabled, settingReadable, minimumIdleSeconds, scheduled, routes}`. Each route lists `cacheLifetimeSeconds`, its `source` and `compactAfterSeconds` (`null` when the route is skipped). The lifetime comes from the per-route value set here (`setting`), the model catalog (`catalog`, Anthropic's short tier), the observed gaps before requests that still read most of their input from the cache (`observed`; a warm gap never shortens the default, and a longer cold gap caps it), or 2 hours for DeepSeek routes (`default`); other routes with nothing known are `unknown` and skipped, as are lifetimes under 15 minutes. `idle-compaction-cache-set ... auto` removes the per-route value. Each run is recorded under `idleCompactions` in `deepseekbot bot-activity-history <bot-id>` with the route, idle gap, tokens before and after, and the compaction request's input, cache-read and output tokens. Refusals carry a code: `usage` (a missing `on`/`off`, `<provider>/<model>` or whole seconds) and `invalid-input`.
 
+### Phone route (Tailscale)
+
+Bot settings → Devices → Pair a phone shows a three-step guide while a phone cannot reach this Host: install Tailscale, start and sign in, then publish the Host on the tailnet. The last step can run `tailscale serve --bg <port>` for you after a confirmation, or you copy the command and run it yourself. The same two operations from the CLI:
+
+```bash
+deepseekbot phone-route
+deepseekbot phone-route-publish --confirm
+```
+
+`phone-route` returns `{routes}`: `tailscale` (`running`, `stopped` or `missing`), the `serveCommand` for this Host's port, and each route with `ready` and, when not ready, `issue` (`serve-missing` or `serve-other-target`). `phone-route-publish` runs `tailscale serve --bg <port>` on the Host computer and returns `{published, changed, routes}`; `changed:false` means the route was already published. Refusals carry a code: `confirm-required` (no `--confirm`), `tailscale-missing`, `tailscale-stopped`, `serve-other-target` (another service is already published at this address; the Host never replaces it, change it by hand), `serve-needs-enable` (Serve is off for the tailnet; the refusal carries `enableUrl` for the Tailscale admin console), `serve-denied` (Tailscale refused the change for this OS user) and `serve-failed`. Undo with `tailscale serve --https=443 off`; `tailscale serve reset` would also remove every other Serve entry on the computer.
+
 ### Models, usage and activity
 
 ```bash
@@ -722,6 +734,15 @@ deepseekbot grants <bot-id>
 ```
 
 `grant-request-approve` uses the same Owner-only Host command as the Web request card. The Host commits persistent read/write authority and the Grant-linked resolution together before continuing the original task through its existing Inbox. It also upgrades an existing read-only Grant after this explicit confirmation. Repeating the same approved request reads back the existing decision; it does not create another Grant or wake. A revoked or changed target is refused. An old tool approval is not a Workspace request: use this command rather than `tool-approval-decide`. Missing `--confirm` is `usage`; unavailable or stale authority returns a coded refusal. This is an online command, not an offline database repair.
+
+### Browse Host folders
+
+```bash
+deepseekbot folder-browse
+deepseekbot folder-browse 'D:\code'
+```
+
+`folder-browse` lists the subfolders of one Host folder, the same way the phone folder picker does when the computer uses the system folder dialog. With no path it starts at the Host home. It returns `{path, home, crumbs, entries, truncated, roots}`: folder names and paths only, never files. `roots` holds the home folder and the drives (Windows) or `/`. A relative path fails `folder-browse/invalid-path`; a missing, non-folder or unreadable path fails `folder-browse/not-found`, `folder-browse/not-directory` or `folder-browse/denied`. Browsing grants nothing: register the chosen path and grant it as above.
 
 ## Memory
 

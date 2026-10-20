@@ -1,0 +1,74 @@
+{
+  "name": "@botharness/vrm-companion",
+  "version": "0.1.0",
+  "description": "VRM companion Panel for DeepSeekBot: a Bot character in a lo-fi study room that types, thinks and speaks with the Bot",
+  "keywords": [
+    "botharness",
+    "companion",
+    "deepseekbot",
+    "dsh-plugin",
+    "vrm"
+  ],
+  "homepage": "https://github.com/BotHarness/DeepSeekBot/tree/main/packages/vrm-companion#readme",
+  "bugs": {
+    "url": "https://github.com/BotHarness/DeepSeekBot/issues"
+  },
+  "license": "SEE LICENSE IN README.md",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BotHarness/DeepSeekBot.git",
+    "directory": "packages/vrm-companion"
+  },
+  "files": [
+    "dist",
+    "lib",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE",
+    "assets/README.md",
+    "assets/THREE-LILTOON-LICENSE.txt",
+    "assets/THREE-LILTOON-THIRD-PARTY-NOTICES.md",
+    "assets/kaykit/README.md",
+    "assets/kaykit/LICENSE.txt"
+  ],
+  "type": "module",
+  "main": "./dist/index.mjs",
+  "exports": {
+    ".": "./dist/index.mjs",
+    "./client": {
+      "default": "./lib/client.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "@botharness/ui": "link:../client",
+    "@deepseek-ai/cordis": "4.0.5",
+    "@deepseek-ai/dsh-client-ui-primitives": "0.2.1-rc.2",
+    "@mochiya/three-liltoon": "0.1.9",
+    "@pixiv/three-vrm": "3.5.5",
+    "@types/react": "~18.3.1",
+    "@types/three": "0.180.0",
+    "react": "^18.2.0",
+    "three": "0.180.0"
+  },
+  "peerDependencies": {
+    "react": "^18.2.0"
+  },
+  "engines": {
+    "dsh": ">=0.2.0-rc.2 <0.3.0-0",
+    "node": ">=22"
+  },
+  "dsh": {
+    "manifestVersion": 1,
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": []
+    }
+  }
+}

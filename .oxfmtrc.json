@@ -18,6 +18,8 @@
     ".scratch",
     "packages/computer/lib",
     "packages/browser/lib",
+    "packages/vrm-companion/assets",
+    "packages/vrm-companion/lib",
     "scripts/source-policy-baseline.json"
   ]
 }

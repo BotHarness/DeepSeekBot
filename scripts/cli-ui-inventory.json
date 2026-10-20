@@ -68,6 +68,23 @@
       "issue": "#2098"
     },
     {
+      "id": "device-connect",
+      "description": "Devices page hosted Connect account and tunnel state (ADR-0241).",
+      "scope": "Profile",
+      "surfaces": [
+        "setting:packages/client/src/client/paired-devices.tsx:{t('devices.connect.account')}",
+        "setting:packages/client/src/client/paired-devices.tsx:{t('devices.connect.tunnel')}"
+      ],
+      "commands": ["connect-status", "connect-sign-in", "connect-sign-out"]
+    },
+    {
+      "id": "phone-route",
+      "description": "Phone route status and the confirmed tailscale serve publish behind the Pair a phone stepper.",
+      "scope": "Profile",
+      "surfaces": ["route:packages/core/src/devices/mount.ts:DEVICES_SERVE_PATH"],
+      "commands": ["phone-route", "phone-route-publish"]
+    },
+    {
       "id": "profile-recovery",
       "description": "Online backup export/inspection/recovery authorization/activation; existing offline portability does not cover the online UI.",
       "scope": "Profile",

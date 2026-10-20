@@ -260,6 +260,11 @@ import {
   type WorkspaceGrant,
   type WorkspaceGrantStore,
 } from '../workspaces/grants.js';
+import {
+  FolderBrowseError,
+  type FolderBrowser,
+  type FolderListing,
+} from '../workspaces/folder-browse.js';
 import type { ChannelToolApproval } from '../workspaces/tool-approval.js';
 import type { ChannelUserQuestions } from '../channels/user-questions.js';
 import type { AskUserQuestionAnswer } from '@deepseek-ai/dsh-user-questions/types';
@@ -660,6 +665,7 @@ export interface BridgeMethods {
   workspaceFileTarget(
     payload: unknown,
   ): BridgeResult<{ target: { path: string; relativePath: ''; kind: 'directory' } }>;
+  folderBrowse(payload: unknown): BridgeResult<FolderListing>;
   grants(payload: unknown): BridgeResult<{ grants: WorkspaceGrant[] }>;
   grantCreate(
     payload: unknown,
@@ -881,6 +887,7 @@ export interface BridgeMethodsDeps {
   humanAttention?: HumanAttentionQuery;
   humanAttentionDecisions?: HumanAttentionDecisions;
   grants?: WorkspaceGrantStore;
+  folders?: FolderBrowser;
   externalMessaging?: OutboundMessaging;
   toolApproval?: ChannelToolApproval;
   userQuestions?: ChannelUserQuestions;
@@ -5318,6 +5325,25 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
               message: error.message,
             },
           };
+        throw error;
+      }
+    },
+    folderBrowse(payload) {
+      const input = z
+        .object({ path: z.string().max(1024).optional() })
+        .strict()
+        .safeParse(payload ?? {});
+      if (!input.success) return invalidInput('path must be a folder path');
+      if (deps.folders === undefined)
+        return {
+          ok: false,
+          error: { code: 'unavailable', message: 'Folder browsing is unavailable' },
+        };
+      try {
+        return { ok: true, value: deps.folders.list(input.data.path) };
+      } catch (error) {
+        if (error instanceof FolderBrowseError)
+          return { ok: false, error: { code: error.code, message: error.message } };
         throw error;
       }
     },

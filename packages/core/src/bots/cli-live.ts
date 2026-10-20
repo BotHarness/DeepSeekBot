@@ -3,6 +3,7 @@ import {
   WINDOW_ZOOM_OPTIONS,
   runWindowZoomCommand,
 } from './cli-window-zoom.js';
+import { PHONE_ROUTE_COMMANDS, runPhoneRouteCommand } from './cli-phone-route.js';
 import { APPEARANCE_COMMANDS, APPEARANCE_OPTIONS, runAppearanceCommand } from './cli-appearance.js';
 import { prepareCloud, prepareCloudWork } from './cli-cloud.js';
 import { randomUUID } from 'node:crypto';
@@ -208,6 +209,7 @@ const CONTROL_COMMANDS = [
 
 export const LIVE_COMMANDS = [
   ...WINDOW_ZOOM_COMMANDS,
+  ...PHONE_ROUTE_COMMANDS,
   ...CONNECT_COMMANDS,
   ...IM_COMMANDS,
   ...MESSAGING_COMMANDS,
@@ -267,6 +269,10 @@ export const LIVE_COMMANDS = [
   },
   { command: 'release-info', description: 'read the running Host release lifecycle' },
   { command: 'workspace-options', description: 'list live Host workspaces for grants' },
+  {
+    command: 'folder-browse',
+    description: 'list folder names on the Host computer, as the phone folder picker does',
+  },
   { command: 'grant-create', description: 'authorize a Bot workspace through the live Host' },
   {
     command: 'browser-access-set',
@@ -741,6 +747,10 @@ export async function runLiveCli(
     return runWindowZoomCommand(command, rest, values, () =>
       connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
     );
+  if (PHONE_ROUTE_COMMANDS.some((entry) => entry.command === command))
+    return runPhoneRouteCommand(command, rest, values, () =>
+      connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+    );
   if (command === 'cloud-work') {
     const input = await prepareCloudWork(rest, values, io);
     const host = await connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout)));
@@ -828,6 +838,12 @@ export async function runLiveCli(
   }
   if (DEVICE_COMMANDS.some((entry) => entry === command))
     return runDeviceCommand(command as (typeof DEVICE_COMMANDS)[number], rest, values, io);
+  if (command === 'folder-browse') {
+    if (rest.length > 1) usage('folder-browse takes at most one folder path.');
+    const signal = AbortSignal.timeout(timeoutMs(values.timeout));
+    const path = rest[0]?.trim();
+    return (await connectLiveHost(values, io, signal)).rpc('folderBrowse', path ? { path } : {});
+  }
   if (command === 'grants') {
     if (rest.length !== 1 || !rest[0]?.trim()) usage('grants needs exactly one bot id.');
     const signal = AbortSignal.timeout(timeoutMs(values.timeout));

@@ -7,6 +7,7 @@ export interface TunnelApi {
   createTunnel(name: string): Promise<string>;
   tunnelToken(tunnelId: string): Promise<string>;
   tunnelState(tunnelId: string): Promise<TunnelState | undefined>;
+  listTunnels(): Promise<{ states: Map<string, TunnelState>; complete: boolean }>;
   configureIngress(tunnelId: string, hostname: string, originPort: number): Promise<void>;
   deleteTunnel(tunnelId: string): Promise<void>;
   pointHostname(hostname: string, tunnelId: string, recordId?: string): Promise<string>;
@@ -19,6 +20,9 @@ export interface CloudflareOptions {
   zoneId: string;
   fetcher?: typeof fetch;
 }
+
+const LIST_PAGE_SIZE = 100;
+const LIST_MAX_PAGES = 10;
 
 export const GATEWAY_PATH = '^/botharness-device(/.*)?$';
 
@@ -36,7 +40,11 @@ export function createCloudflareApi(options: CloudflareOptions): TunnelApi {
   const tunnels = `/accounts/${options.accountId}/cfd_tunnel`;
   const records = `/zones/${options.zoneId}/dns_records`;
 
-  const call = async <T>(method: string, path: string, body?: unknown): Promise<T> => {
+  const envelope = async <T>(
+    method: string,
+    path: string,
+    body?: unknown,
+  ): Promise<{ result: T; pages: number }> => {
     const response = await fetcher(`https://api.cloudflare.com/client/v4${path}`, {
       method,
       headers: {
@@ -48,14 +56,18 @@ export function createCloudflareApi(options: CloudflareOptions): TunnelApi {
     const parsed = (await response.json().catch(() => ({}))) as {
       success?: boolean;
       result?: T;
+      result_info?: { total_pages?: number };
     };
     if (!response.ok || parsed.success !== true)
       throw new CloudflareError(
         response.status,
         `${method} ${path.split('/').slice(0, 4).join('/')}`,
       );
-    return parsed.result as T;
+    return { result: parsed.result as T, pages: parsed.result_info?.total_pages ?? 1 };
   };
+
+  const call = async <T>(method: string, path: string, body?: unknown): Promise<T> =>
+    (await envelope<T>(method, path, body)).result;
 
   const missing = (error: unknown) => error instanceof CloudflareError && error.status === 404;
 
@@ -84,6 +96,21 @@ export function createCloudflareApi(options: CloudflareOptions): TunnelApi {
         if (missing(error)) return undefined;
         throw error;
       }
+    },
+    async listTunnels() {
+      const states = new Map<string, TunnelState>();
+      for (let page = 1; page <= LIST_MAX_PAGES; page += 1) {
+        const { result, pages } = await envelope<
+          { id: string; status?: string; conns_inactive_at?: string | null }[]
+        >('GET', `${tunnels}?is_deleted=false&per_page=${LIST_PAGE_SIZE}&page=${page}`);
+        for (const tunnel of result)
+          states.set(tunnel.id, {
+            status: tunnel.status ?? 'inactive',
+            ...(tunnel.conns_inactive_at ? { inactiveSince: tunnel.conns_inactive_at } : {}),
+          });
+        if (page >= pages) return { states, complete: true };
+      }
+      return { states, complete: false };
     },
     async configureIngress(tunnelId, hostname, originPort) {
       await call('PUT', `${tunnels}/${tunnelId}/configurations`, {

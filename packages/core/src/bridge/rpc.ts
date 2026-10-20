@@ -137,6 +137,7 @@ import type {
 import type { GitStatus } from '../memory/managed-git.js';
 import type { MemoryRecoveryCheckpoint } from '../memory/recovery.js';
 import type { WorkspaceGrant } from '../workspaces/grants.js';
+import type { FolderListing } from '../workspaces/folder-browse.js';
 import type { ToolApprovalRule } from '../workspaces/tool-approval-rules.js';
 import type {
   AssignmentAccessPreset,
@@ -1384,6 +1385,10 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.messageAttachmentTarget({ channelId, messageId, fileId }));
   }
 
+  folderBrowse(path?: string): FolderListing {
+    return unwrap(this.methods.folderBrowse(path === undefined ? {} : { path }));
+  }
+
   workspaceFileTarget(
     slug: string,
     grantId: string,
@@ -1961,6 +1966,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'messageAttachmentTarget',
   'channelMediaTarget',
   'workspaceFileTarget',
+  'folderBrowse',
   'grants',
   'grantCreate',
   'grantRevoke',

@@ -28,7 +28,7 @@ interface HostRow {
 
 const HOST_ID = /^h[a-z2-7]{12}$/u;
 const ONLINE = new Set(['healthy', 'degraded']);
-const RECLAIM_BATCH = 200;
+const RECLAIM_BATCH = 15;
 
 function json(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -216,21 +216,22 @@ export function createRelay(options: RelayOptions) {
 
   const reclaim = async (): Promise<{ reclaimed: string[] }> => {
     const { results } = await db
-      .prepare('SELECT * FROM hosts WHERE tunnel_id IS NOT NULL ORDER BY tunnel_created_at LIMIT ?')
-      .bind(RECLAIM_BATCH)
+      .prepare('SELECT * FROM hosts WHERE tunnel_id IS NOT NULL ORDER BY tunnel_created_at')
       .all<HostRow>();
     const reclaimed: string[] = [];
+    if (results.length === 0) return { reclaimed };
+    const listed = await tunnels.listTunnels();
     const at = now().getTime();
     for (const row of results) {
+      if (reclaimed.length >= RECLAIM_BATCH) break;
       const tunnelId = row.tunnel_id as string;
+      const state = listed.states.get(tunnelId);
+      if (state !== undefined && ONLINE.has(state.status)) continue;
+      const since = Date.parse(state?.inactiveSince ?? row.tunnel_created_at ?? '');
+      if (Number.isFinite(since) && at - since < options.reclaimAfterMs) continue;
+      if (state === undefined && !listed.complete) continue;
       try {
-        const state = await tunnels.tunnelState(tunnelId);
-        if (state !== undefined) {
-          if (ONLINE.has(state.status)) continue;
-          const since = Date.parse(state.inactiveSince ?? row.tunnel_created_at ?? '');
-          if (Number.isFinite(since) && at - since < options.reclaimAfterMs) continue;
-          await tunnels.deleteTunnel(tunnelId);
-        }
+        if (state !== undefined) await tunnels.deleteTunnel(tunnelId);
         await db
           .prepare(
             'UPDATE hosts SET tunnel_id = NULL, tunnel_created_at = NULL WHERE id = ? AND tunnel_id = ?',

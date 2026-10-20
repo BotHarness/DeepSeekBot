@@ -103,6 +103,7 @@ deepseekbot user-question-status <channel-id> --message-id <卡片-id>
 deepseekbot user-question-answer <channel-id> --message-id <卡片-id> --answer-stdin
 deepseekbot release-info [--since <版本>]
 deepseekbot workspace-options
+deepseekbot folder-browse [<文件夹路径>]
 deepseekbot grant-create <bot-id> --workspace <workspace-id>
 ```
 
@@ -574,6 +575,17 @@ deepseekbot idle-compaction-cache-set deepseek/<model> auto
 
 三个命令都返回 `{enabled, settingReadable, minimumIdleSeconds, scheduled, routes}`。每条线路列出 `cacheLifetimeSeconds`、来源 `source` 和 `compactAfterSeconds`（跳过时为 `null`）。缓存寿命依次取自这里为该线路设置的值（`setting`）、模型目录（`catalog`，Anthropic 的短档）、观测到的请求前空闲间隔中仍大部分命中缓存的最长值（`observed`；命中的间隔不会缩短默认值，更长的未命中间隔会把它封顶），或 DeepSeek 线路的 2 小时（`default`）；其它没有任何信息的线路为 `unknown` 并跳过，寿命不足 15 分钟的也跳过。`idle-compaction-cache-set ... auto` 删除该线路的设置值。每次执行都记录在 `deepseekbot bot-activity-history <bot-id>` 的 `idleCompactions` 中，包含线路、空闲时长、压缩前后 token 数，以及压缩请求的输入、缓存读取和输出 token。拒绝时带错误码：`usage`（缺少 `on`/`off`、`<provider>/<model>` 或整数秒）和 `invalid-input`。
 
+### 手机连接（Tailscale）
+
+手机连不上这台 Host 时，Bot 设置 → 设备 → 配对手机会显示三步指引：安装 Tailscale、启动并登录、把 Host 发布到 tailnet。最后一步可以确认后由 DeepSeekBot 代为运行 `tailscale serve --bg <port>`，也可以复制命令自己运行。CLI 中的对应操作：
+
+```bash
+deepseekbot phone-route
+deepseekbot phone-route-publish --confirm
+```
+
+`phone-route` 返回 `{routes}`：`tailscale`（`running`、`stopped` 或 `missing`）、本 Host 端口对应的 `serveCommand`，以及每条路由的 `ready`；未就绪时带 `issue`（`serve-missing` 或 `serve-other-target`）。`phone-route-publish` 在 Host 所在电脑上运行 `tailscale serve --bg <port>`，返回 `{published, changed, routes}`；`changed:false` 表示原本就已发布。拒绝时带错误码：`confirm-required`（缺少 `--confirm`）、`tailscale-missing`、`tailscale-stopped`、`serve-other-target`（这个地址已发布了别的服务，Host 不会覆盖，请手动处理）、`serve-needs-enable`（tailnet 未开启 Serve，返回 `enableUrl` 指向 Tailscale 后台）、`serve-denied`（Tailscale 不允许当前系统用户修改）和 `serve-failed`。用 `tailscale serve --https=443 off` 撤销；`tailscale serve reset` 会连同这台电脑上其他 Serve 配置一起清掉。
+
 ### 模型、用量与活动
 
 ```bash
@@ -708,6 +720,15 @@ deepseekbot grants <bot-id>
 ```
 
 `grant-request-approve` 与 Web 请求卡使用同一个仅 Owner 可调用的 Host 命令。Host 在同一事务中保存持续读写权限和关联 Grant 的决议，再沿既有 Inbox 继续原任务；已有只读 Grant 也可经这次明确确认升级。重复批准同一请求只读回既有决定，不重复创建 Grant 或唤醒；已撤销或改变的目标会被拒绝。目录卡不是工具批准，应使用此命令，而非 `tool-approval-decide`。缺少 `--confirm` 返回 `usage`，失效或不可用权限返回稳定拒绝代码。这是在线操作，不是直接修改数据库的离线修复。
+
+### 浏览电脑上的文件夹
+
+```bash
+deepseekbot folder-browse
+deepseekbot folder-browse 'D:\code'
+```
+
+`folder-browse` 列出 Host 上某个文件夹的子文件夹，与电脑使用系统文件夹选择器时手机上的文件夹选择相同。不传路径时从 Host 主目录开始。返回 `{path, home, crumbs, entries, truncated, roots}`：只有文件夹名称和路径，不含文件。`roots` 是主目录和各个磁盘（Windows）或 `/`。相对路径返回 `folder-browse/invalid-path`；不存在、不是文件夹或无权读取分别返回 `folder-browse/not-found`、`folder-browse/not-directory`、`folder-browse/denied`。浏览不授予任何权限：选好路径后按上文登记并授权。
 
 ## Memory
 

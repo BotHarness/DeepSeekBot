@@ -59,6 +59,7 @@ describe('Bot mode layout persistence', () => {
     expect(JSON.parse(storage.values.get(CHANNEL_DOCK_STORAGE_KEY)!).version).toBe(8);
     expect(readChannelDock(storage)).toEqual({
       version: 8,
+      instances: [],
       channelSplits: {},
       gap: 4,
       order: [],
@@ -235,6 +236,7 @@ describe('flat Sessions → Channel workspace migration', () => {
       CHANNEL_DOCK_STORAGE_KEY,
       JSON.stringify({
         version: 8,
+        instances: [],
         layout: {
           ...layout,
           grid: {
@@ -270,6 +272,7 @@ describe('flat Sessions → Channel workspace migration', () => {
     const storage = memoryStorage();
     const raw = JSON.stringify({
       version: 8,
+      instances: [],
       layout: {
         ...layout,
         grid: {

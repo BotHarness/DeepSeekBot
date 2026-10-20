@@ -6,6 +6,7 @@ node_modules/
 dist/
 coverage/
 packages/client/lib/
+packages/vrm-companion/lib/
 packages/core/cli/
 apps/docs/public/slides/
 apps/docs/src/content/docs/docs/file-open.mdx
