@@ -47,6 +47,9 @@ export interface PushData {
   botSlug?: string;
   channelId?: string;
   messageId?: string;
+  sender?: string;
+  group?: string;
+  text?: string;
   test?: true;
 }
 
@@ -60,6 +63,7 @@ export interface ExpoMessage {
   priority?: 'high';
   channelId?: string;
   categoryId?: string;
+  mutableContent?: true;
 }
 
 export type ExpoTicket =
@@ -238,18 +242,20 @@ function text(
   candidate: PushCandidate,
   bot: string,
   locale: PushLocale,
-): { title: string; body: string } {
+): { title: string; body: string; message: string } {
   const key = candidate.attentionKind === 'channel-mention' ? 'channel-mention' : candidate.kind;
-  const lead = LEADS[locale][key](candidate.channelName === undefined ? undefined : bot);
-  const body =
+  const compose = (lead: string): string =>
     candidate.preview === undefined
       ? lead
       : lead === ''
         ? candidate.preview
         : `${lead}${SEPARATOR[locale]}${candidate.preview}`;
+  const body = compose(LEADS[locale][key](candidate.channelName === undefined ? undefined : bot));
+  const message = compose(LEADS[locale][key](undefined));
   return {
     title: candidate.channelName === undefined ? bot : `#${candidate.channelName}`,
     body: body === '' ? TITLES[locale][key](bot) : body,
+    message: message === '' ? TITLES[locale][key](bot) : message,
   };
 }
 
@@ -390,24 +396,32 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
           preferences[item.kind] &&
           !(item.kind === 'reply' && item.channelId !== undefined && quiet.has(item.channelId)),
       );
-      const messages: ExpoMessage[] = notify.map((item) => ({
-        to: device.token,
-        ...text(item, source.botName(item.botSlug) ?? item.botSlug, localeOf(device.locale)),
-        sound: 'default',
-        badge,
-        priority: 'high',
-        channelId: 'requests',
-        ...(item.categoryId === undefined ? {} : { categoryId: item.categoryId }),
-        data: {
-          v: 1,
-          hostId,
-          itemId: item.id,
-          kind: item.attentionKind,
-          botSlug: item.botSlug,
-          ...(item.channelId === undefined ? {} : { channelId: item.channelId }),
-          ...(item.messageId === undefined ? {} : { messageId: item.messageId }),
-        },
-      }));
+      const messages: ExpoMessage[] = notify.map((item) => {
+        const sender = source.botName(item.botSlug) ?? item.botSlug;
+        const { message, ...shown } = text(item, sender, localeOf(device.locale));
+        return {
+          to: device.token,
+          ...shown,
+          sound: 'default',
+          badge,
+          priority: 'high',
+          channelId: 'requests',
+          ...(item.categoryId === undefined ? {} : { categoryId: item.categoryId }),
+          mutableContent: true,
+          data: {
+            v: 1,
+            hostId,
+            itemId: item.id,
+            kind: item.attentionKind,
+            botSlug: item.botSlug,
+            ...(item.channelId === undefined ? {} : { channelId: item.channelId }),
+            ...(item.messageId === undefined ? {} : { messageId: item.messageId }),
+            sender,
+            ...(item.channelName === undefined ? {} : { group: item.channelName }),
+            text: message,
+          },
+        };
+      });
       const kinds: Array<PushKind | 'badge'> = notify.map((item) => item.kind);
       if (messages.length === 0 && device.badge !== badge) {
         messages.push({ to: device.token, badge, data: { v: 1, hostId } });
