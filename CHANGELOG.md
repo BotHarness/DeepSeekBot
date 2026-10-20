@@ -52,6 +52,7 @@ Mobile app entries below describe the independently versioned mobile Beta; this 
 ### Documentation
 
 - Documented native Panel Plugin boundaries, independent placement and binding, Group absence for Bot-bound Panels, and VRM/Activity/speaking-first delivery followed by a shared Task Kanban; clarified slice dependencies, existing Sessions filtering and Consumer/Provider lifecycle boundaries; runtime behavior is unchanged ([#2215](https://github.com/BotHarness/DeepSeekBot/issues/2215)).
+- The GitHub and npm READMEs show the current Bot mode: the panel workspace with Home and Tob, Memory evolution, Groups, Schedules, the Bot Marketplace and Appearance with wallpapers ([#2369](https://github.com/BotHarness/DeepSeekBot/pull/2369)).
 
 ## [1.4.0] - 2026-10-19
 
