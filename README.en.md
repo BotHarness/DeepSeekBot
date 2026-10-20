@@ -71,12 +71,16 @@ Every Bot gets a pixel avatar made from its name, and while it works the avatar 
 
 <table>
   <tr>
-    <td width="50%"><a href="docs/assets/readme/v2/en/hero.jpg"><img src="docs/assets/readme/v2/en/hero.jpg" alt="Bot mode: a roster of five pixel-avatar Bots on the left, a DM with Mira in the middle, and Mira's memory evolution Git graph on the right" /></a><br /><b>Bot roster and DMs</b>: each Bot has its own pixel avatar; its memory history is on the right.</td>
-    <td width="50%"><a href="docs/assets/readme/v2/en/group.jpg"><img src="docs/assets/readme/v2/en/group.jpg" alt="Observatory studio Group: Mira, Theo and Nova reply under their own identities, with the member list on the right" /></a><br /><b>Group chats</b>: @ three Bots and each replies; Nova reads the first two before answering.</td>
+    <td width="50%"><a href="docs/assets/readme/v3/en/hero.jpg"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/v3/en/hero-dark.jpg" /><img src="docs/assets/readme/v3/en/hero.jpg" alt="Bot mode: the control rail and channel list on the left, a DM with Mira in the middle, and Mira's memory evolution with a merged branch on the right" /></picture></a><br /><b>Bot DMs and memory evolution</b>: Mira finds the visitor numbers in her memory; every commit and branch of that memory is on the right.</td>
+    <td width="50%"><a href="docs/assets/readme/v3/en/group.jpg"><img src="docs/assets/readme/v3/en/group.jpg" alt="Observatory Studio Group: Mira, Theo and Nova reply under their own identities, with the member list on the right" /></a><br /><b>Group chats</b>: @ three Bots and each replies; Nova reads the first two before answering.</td>
   </tr>
   <tr>
-    <td width="50%"><a href="docs/assets/readme/v2/en/schedules.jpg"><img src="docs/assets/readme/v2/en/schedules.jpg" alt="Nova creates a schedule after a request to read the logs every day at 9; the sidebar lists sessions and schedules as cards" /></a><br /><b>Schedules</b>: one sentence and the Bot sets up the task.</td>
-    <td width="50%"><a href="docs/assets/readme/v2/en/marketplace.jpg"><img src="docs/assets/readme/v2/en/marketplace.jpg" alt="Bot Marketplace: filter by topic and search; each Bot shows its pixel avatar, role, stars and an Install button" /></a><br /><b>Bot Marketplace</b>: find Bots by topic or keyword and install one as a new colleague (sample data).</td>
+    <td width="50%"><a href="docs/assets/readme/v3/en/schedules.jpg"><img src="docs/assets/readme/v3/en/schedules.jpg" alt="Kai creates a weekly schedule after a request to draft a post every Monday at 9; the Schedules panel is on the right" /></a><br /><b>Schedules</b>: one sentence and the Bot sets up the task.</td>
+    <td width="50%"><a href="docs/assets/readme/v3/en/marketplace.jpg"><img src="docs/assets/readme/v3/en/marketplace.jpg" alt="Bot Marketplace: filter by topic and search; each Bot card shows a pixel banner, avatar, role, stars and an Install button" /></a><br /><b>Bot Marketplace</b>: find Bots by topic or keyword and install one as a new colleague (sample data).</td>
+  </tr>
+  <tr>
+    <td width="50%"><a href="docs/assets/readme/v3/en/home.jpg"><img src="docs/assets/readme/v3/en/home.jpg" alt="Home and a DM with Tob side by side: token usage and Bot activity on the left, Tob reporting on every Bot on the right" /></a><br /><b>Home and Tob</b>: put panels side by side; ask Tob and it reports on all your Bots.</td>
+    <td width="50%"><a href="docs/assets/readme/v3/en/appearance.jpg"><img src="docs/assets/readme/v3/en/appearance.jpg" alt="Appearance in Bot settings: theme, colors, wallpaper library and panel materials, over a workspace with a wallpaper" /></a><br /><b>Appearance</b>: themes, colors, a wallpaper library and see-through panels, saved on this device only.</td>
   </tr>
 </table>
 

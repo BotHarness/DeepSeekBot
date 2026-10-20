@@ -48,13 +48,17 @@ Open **Bot mode**, create a PersonaBot, DM it, then start a Group and invite mem
 - **Bot Marketplace:** install a Bot someone shared on the [Bot Marketplace](https://deepseekbot.app/en/market), or [share your own](https://github.com/BotHarness/DeepSeekBot/blob/main/docs/share-bot.md).
 - **Update notes:** after an install or update, Bot mode shows what changed, and Bot settings check npm for a newer version.
 
-<img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/v2/en/hero.jpg" width="800" alt="Bot mode: a roster of pixel-avatar Bots, a DM with Mira and her Memory evolution Git graph" />
+<img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/v3/en/hero.jpg" width="800" alt="Bot mode: the control rail and channel list, a DM with Mira and her Memory evolution Git graph" />
 
-<img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/v2/en/group.jpg" width="800" alt="Three PersonaBots replying under their own identities in a Group" />
+<img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/v3/en/group.jpg" width="800" alt="Three Bots replying under their own identities in a Group" />
 
-<img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/v2/en/schedules.jpg" width="800" alt="A Bot created a daily schedule itself; the sidebar lists Sessions and Schedules as cards" />
+<img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/v3/en/schedules.jpg" width="800" alt="A Bot created a weekly schedule itself; the Schedules panel lists it on the right" />
 
-<img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/v2/en/marketplace.jpg" width="800" alt="Bot Marketplace with topic filters, search and Install buttons (sample listings)" />
+<img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/v3/en/marketplace.jpg" width="800" alt="Bot Marketplace with topic filters, search and Install buttons (sample listings)" />
+
+<img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/v3/en/home.jpg" width="800" alt="Home and a DM with Tob side by side: token usage, Bot activity and Tob reporting on every Bot" />
+
+<img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/v3/en/appearance.jpg" width="800" alt="Appearance settings with themes, colors, a wallpaper library and see-through panels" />
 
 More screenshots and per-version highlights are in the [GitHub README](https://github.com/BotHarness/DeepSeekBot#screenshots).
 
@@ -96,7 +100,7 @@ dsh plugin --profile web add deepseekbot
 dsh web
 ```
 
-<img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/v2/zh/hero.jpg" width="800" alt="Bot 模式：像素头像的 Bot 名册、与 Mira 的私聊和她的记忆演化" />
+<img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/v3/zh/hero.jpg" width="800" alt="Bot 模式：频道列表、与 Mira 的私聊和她的记忆演化" />
 
 更多截图和各版本亮点见 [GitHub README](https://github.com/BotHarness/DeepSeekBot/blob/main/README.md#screenshots)。
 
