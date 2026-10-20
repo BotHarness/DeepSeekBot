@@ -3889,6 +3889,23 @@ export const zh = {
   'devices.route.stopped': 'Tailscale 没有运行，手机连不上这台电脑。启动 Tailscale 后在终端运行：',
   'devices.route.missing':
     '没找到 Tailscale，手机连不上这台电脑。安装并登录 Tailscale 后在终端运行：',
+  'devices.connect.title': '不用 Tailscale 连接',
+  'devices.connect.account': 'DeepSeekBot 账号',
+  'devices.connect.description':
+    '登录后，这台电脑会通过 deepseekbot.dev 的加密隧道接受已配对手机的连接，只开放手机用的接口。',
+  'devices.connect.signedIn': '已登录 {email}。已配对的手机不装 Tailscale 也能连上。',
+  'devices.connect.signIn': '登录',
+  'devices.connect.signOut': '退出登录',
+  'devices.connect.confirm': '在浏览器里登录账号，并确认页面上显示的代码是',
+  'devices.connect.openPage': '打开登录页',
+  'devices.connect.notAllowed': '这个账号还不在测试名单里，暂时不能用托管连接。',
+  'devices.connect.hostLimit': '这个账号已关联 5 台电脑，先在其他电脑上退出登录。',
+  'devices.connect.signInAgain': '登录已失效或被取消，请重新登录。',
+  'devices.connect.relayDown': '暂时连不上 DeepSeekBot 服务，稍后会自动重试。',
+  'devices.connect.tunnel': '连接地址',
+  'devices.connect.connected': '已连接',
+  'devices.connect.starting': '正在连接…',
+  'devices.connect.reconnecting': '正在重连…',
   'devices.list.title': '已配对设备',
   'devices.list.loading': '正在读取…',
   'devices.list.empty': '还没有配对的设备。',
@@ -8022,6 +8039,27 @@ My relationship with you, established lore and topics to avoid: [fill in].
     'Tailscale is not running, so a phone cannot reach this computer. Start Tailscale, then run:',
   'devices.route.missing':
     'Tailscale was not found, so a phone cannot reach this computer. Install and sign in to Tailscale, then run:',
+  'devices.connect.title': 'Connect without Tailscale',
+  'devices.connect.account': 'DeepSeekBot account',
+  'devices.connect.description':
+    'Sign in and this computer accepts paired phones through an encrypted tunnel on deepseekbot.dev that exposes only the phone interface.',
+  'devices.connect.signedIn':
+    'Signed in as {email}. Paired phones reach this computer without Tailscale.',
+  'devices.connect.signIn': 'Sign in',
+  'devices.connect.signOut': 'Sign out',
+  'devices.connect.confirm': 'Sign in in your browser and check that the page shows the code',
+  'devices.connect.openPage': 'Open sign-in page',
+  'devices.connect.notAllowed':
+    'This account is not on the test list yet, so hosted Connect is not available.',
+  'devices.connect.hostLimit':
+    'This account already links 5 computers. Sign out on one of them first.',
+  'devices.connect.signInAgain': 'The sign-in expired or was cancelled. Sign in again.',
+  'devices.connect.relayDown':
+    'The DeepSeekBot service is unreachable right now. This computer retries on its own.',
+  'devices.connect.tunnel': 'Address',
+  'devices.connect.connected': 'Connected',
+  'devices.connect.starting': 'Connecting…',
+  'devices.connect.reconnecting': 'Reconnecting…',
   'devices.list.title': 'Paired devices',
   'devices.list.loading': 'Loading…',
   'devices.list.empty': 'No paired devices yet.',
