@@ -143,10 +143,6 @@ export const hostSession = {
       hostId === undefined ? state.saved : stored.hosts.find((entry) => entry.hostId === hostId);
     if (host === null || host === undefined) return undefined;
     const current = host.hostId === state.saved?.hostId;
-    const revoked = pushSession
-      .forget(host)
-      .then(() => revokePairing({ host, carrier: nativeCarrier() }))
-      .then((result) => result === 'revoked');
     await sourceDrafts.ready;
     sourceDrafts.removeWhere((key) => {
       try {
@@ -161,6 +157,10 @@ export const hostSession = {
       try {
         clearConversationCache();
       } catch {}
+    const revoked = pushSession
+      .forget(host)
+      .then(() => revokePairing({ host, carrier: nativeCarrier() }))
+      .then((result) => result === 'revoked');
     return { revoked };
   },
 };
