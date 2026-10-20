@@ -143,6 +143,13 @@ export function createRepositoryStore(deps: {
             name = excluded.name,
             html_url = excluded.html_url,
             clone_url = excluded.clone_url,
+            summary_checked_at = CASE
+              WHEN indexed_repositories.description IS excluded.description THEN indexed_repositories.summary_checked_at
+            END,
+            summary_failures = CASE
+              WHEN indexed_repositories.description IS excluded.description THEN indexed_repositories.summary_failures
+              ELSE 0
+            END,
             description = excluded.description,
             topics = excluded.topics,
             stars = excluded.stars,

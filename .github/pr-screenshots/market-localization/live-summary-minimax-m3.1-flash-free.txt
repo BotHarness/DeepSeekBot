@@ -1,0 +1,2 @@
+LIVE minimax-m3.1-flash-free via https://opencode.ai/inference/go/openai/v1 4393ms Hiring Partner {"zh":"根据岗位要求生成统一的面试问题与评分标准，并评估所提供证据及其差距。","en":"Generates consistent interview questions and scoring criteria from role requirements, then assesses supplied evidence and identifies gaps."}
+LIVE minimax-m3.1-flash-free via https://opencode.ai/inference/go/openai/v1 5075ms Meeting Assistant {"zh":"将会议记录整理为决策与承诺，不虚构负责人或截止日期，并标记未决和冲突事项。","en":"Turns meeting notes into decisions and commitments without inventing owners or deadlines, while flagging unresolved or conflicting points."}

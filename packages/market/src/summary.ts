@@ -16,6 +16,7 @@ import type { RepositoryRow } from './repositories.js';
 export const SUMMARY_README_CHARACTERS = 6_000;
 export const SUMMARIES_PER_RUN = 25;
 const REQUEST_TIMEOUT_MS = 45_000;
+export const SUMMARY_USER_AGENT = 'botharness-market/1.0';
 const FAILURES_BEFORE_STOP = 3;
 export const SUMMARY_ATTEMPTS = 3;
 
@@ -29,7 +30,7 @@ export interface SummaryInput {
 
 export interface Summarizer {
   model: string;
-  summarize(input: SummaryInput): Promise<LanguageMap<string> | undefined>;
+  summarize(input: SummaryInput, session: string): Promise<LanguageMap<string> | undefined>;
 }
 
 const SYSTEM_PROMPT = `You write the one-line catalog summary of a Bot listed in the BotHarness Bot Marketplace. A Bot is an AI assistant with its own persona and memory, shared as a GitHub repository.
@@ -93,7 +94,7 @@ export function createSummarizer(options: {
   const endpoint = `${options.apiBase.replace(/\/+$/u, '')}/chat/completions`;
   return {
     model: options.model,
-    async summarize(input) {
+    async summarize(input, session) {
       let response: Response;
       try {
         response = await fetchImpl(endpoint, {
@@ -101,12 +102,14 @@ export function createSummarizer(options: {
           headers: {
             authorization: `Bearer ${options.apiKey}`,
             'content-type': 'application/json',
+            'user-agent': SUMMARY_USER_AGENT,
+            'x-opencode-session': session,
           },
           body: JSON.stringify({
             model: options.model,
             temperature: 0.2,
-            max_tokens: 1_000,
-            thinking: { type: 'disabled' },
+            max_tokens: 2_000,
+            ...(options.model.startsWith('deepseek') ? { thinking: { type: 'disabled' } } : {}),
             response_format: { type: 'json_object' },
             messages: [
               { role: 'system', content: SYSTEM_PROMPT },
@@ -189,7 +192,7 @@ export async function refreshSummaries(deps: {
       missing.length === 0 ? null : await sha256(`${summarizer.model}\n${summaryPrompt(input)}`);
     let summary = row.summary;
     if (key !== null && key !== row.summary_key) {
-      const generated = await summarizer.summarize(input);
+      const generated = await summarizer.summarize(input, `market-summary-${row.node_id}`);
       if (generated === undefined) {
         report.failed += 1;
         consecutiveFailures += 1;

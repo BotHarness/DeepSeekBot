@@ -104,14 +104,14 @@ An optional descriptor in the Bot repository. Every field is optional; an invali
 
 - **README**: after each push the crawler lists the repository root and stores one localized README per language next to `README.md`: `README.zh-CN.md`, then `README.zh.md`, then other spellings such as `README_CN.md` or `README-zh.md` for Chinese, and `README.en.md` for English. With `lang`, detail serves that variant, else `README.md`.
 - **Name and bio**: in order, the descriptor's `i18n[lang]` (`{ "i18n": { "zh": { "name", "bio" } } }`, same limits as the top level, unknown language keys skipped), the author's `bio` (or GitHub description) when it is already in that language by a Han/Latin character count, the generated summary for that language (`bioGenerated: true`), and finally the author's `bio` in whatever language it is.
-- **Generated summaries**: after each refresh run, listings whose README or descriptor changed since they were last checked and that lack an author bio in a language get a one-sentence `zh`/`en` summary from an OpenAI-compatible chat model, most-starred first, at most 25 model calls per run and stopping after 3 failures in a row. A listing that fails 3 times is skipped until its next push, and listings with fewer failures go first. The prompt treats the listing as untrusted data; output that is not one sentence in the right language is dropped. A summary is regenerated only when the model or its input (name, description, bio, tags, the first 6,000 README characters) changes. Summaries are off without `SUMMARY_API_KEY`.
+- **Generated summaries**: after each refresh run, listings pushed to or whose GitHub description changed since they were last checked and that lack an author bio in a language get a one-sentence `zh`/`en` summary from an OpenAI-compatible chat model, most-starred first, at most 25 model calls per run and stopping after 3 failures in a row. A listing that fails 3 times is skipped until its next push, and listings with fewer failures go first. The prompt treats the listing as untrusted data; output that is not one sentence in the right language is dropped. A summary is regenerated only when the model or its input (name, description, bio, tags, the first 6,000 README characters) changes. Summaries are off without `SUMMARY_API_KEY`.
 - **Search** also matches the localized READMEs, `i18n` names and bios, and generated summaries.
 
-| Secret / variable  | Use                                                                              |
-| ------------------ | -------------------------------------------------------------------------------- |
-| `SUMMARY_API_KEY`  | Model API key; generated summaries are off without it                            |
-| `SUMMARY_API_BASE` | OpenAI-compatible base URL (default `https://api.deepseek.com`)                  |
-| `SUMMARY_MODEL`    | Model id (default `deepseek-flash`, DeepSeek's alias for its newest Flash model) |
+| Secret / variable  | Use                                                                                                                                                                 |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SUMMARY_API_KEY`  | OpenCode Go API key; generated summaries are off without it. Requests send `user-agent: botharness-market/1.0` and one `x-opencode-session` per listing, as Go asks |
+| `SUMMARY_API_BASE` | OpenAI-compatible base URL (default OpenCode Go, `https://opencode.ai/inference/go/openai/v1`)                                                                      |
+| `SUMMARY_MODEL`    | Model id (default `minimax-m3.1-flash-free`, free on Go for a limited time; `deepseek-v4.1-flash` is the paid fallback on the same key)                             |
 
 ## Scheduled crawl
 

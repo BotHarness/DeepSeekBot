@@ -118,7 +118,7 @@ The Bot Marketplace in DeepSeekBot and on the website shows each listing in the 
 
 `i18n` entries take the same `name` (up to 60 characters) and `bio` (up to 160) as the top level, and both are optional. Keep `README.md` and `bio` in the language you write best; the Marketplace checks which language your `bio` is in, so an English `bio` is already the English one and needs only a `zh` entry. Images and links in `README.zh-CN.md` resolve like those in `README.md`. The spellings `README.zh.md`, `README_CN.md` and `README-zh.md` are read too, but `README.zh-CN.md` wins when there are several.
 
-When a listing has no bio in the reader's language, the Marketplace writes a one-sentence summary in that language from your name, bio and README with DeepSeek's newest Flash model, and shows it in place of your bio, labelled "AI summary". Your own words always win: add an `i18n` bio, or write the `bio` in that language, and the summary is no longer shown. Summaries are refreshed within an hour of a push that changes what they were written from. The README itself is never translated.
+When a listing has no bio in the reader's language, the Marketplace writes a one-sentence summary in that language from your name, description, bio and README with an AI model, and shows it in place of your bio, labelled "AI summary". Your own words always win: add an `i18n` bio, or write the `bio` in that language, and the summary is no longer shown. Summaries are refreshed within an hour of a push, or of a change to the repository's GitHub description, that changes what they were written from. The README itself is never translated.
 
 ## Profile banner
 
