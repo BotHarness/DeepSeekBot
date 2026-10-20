@@ -43,3 +43,20 @@ pnpm vitest run packages/connect-relay
 pnpm --filter @botharness/connect-relay db:migrate:local
 pnpm --filter @botharness/connect-relay dev
 ```
+
+## Deploy
+
+Run from `packages/connect-relay` after `pnpm install` at the repository root, signed in with `pnpm exec wrangler login` to the account in `wrangler.jsonc`. The Cloudflare values come from a local env file loaded with `set -a; . <file>; set +a`; never pass them as arguments or print them.
+
+1. Create the database once with `pnpm exec wrangler d1 create botharness-connect-relay` (or find it in `pnpm exec wrangler d1 list --json`), put its id in `database_id` and commit that change. The id is not a secret.
+2. `pnpm exec wrangler d1 migrations apply CONNECT_DB --remote`
+3. `pnpm exec wrangler deploy`
+4. Pipe the five secrets as JSON on stdin:
+
+   ```sh
+   node -e 'const e=process.env;process.stdout.write(JSON.stringify({WORKOS_CLIENT_ID:e.WORKOS_CLIENT_ID,ALLOWED_USERS:e.ALLOWED_USERS,CLOUDFLARE_API_TOKEN:e.CLOUDFLARE_API_TOKEN,CLOUDFLARE_ACCOUNT_ID:e.CLOUDFLARE_ACCOUNT_ID,CLOUDFLARE_ZONE_ID:e.CLOUDFLARE_ZONE_ID}))' | pnpm exec wrangler secret bulk
+   ```
+
+5. `curl -sS https://connect.botharness.ai/v1/config` answers the client ID, and `curl -sS -o /dev/null -w '%{http_code}\n' https://connect.botharness.ai/v1/hosts` answers `401`.
+
+CLI Auth must be enabled in the WorkOS environment, otherwise Host sign-in fails at the device authorization request.
