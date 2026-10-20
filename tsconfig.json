@@ -1,6 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES2023",
+    "paths": { "@botharness/ui/panels": ["./packages/client/src/panel-api.ts"] },
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "jsx": "react-jsx",
     "module": "ESNext",
@@ -26,6 +27,7 @@
   "include": [
     "packages/client/src",
     "packages/computer/src",
+    "packages/vrm-companion/src",
     "packages/core/src",
     "packages/deepseekbot/src",
     "packages/browser/src",

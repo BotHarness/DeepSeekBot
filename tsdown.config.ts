@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -141,6 +142,49 @@ function sourceBuildStamp(): { revision: string; dirty: boolean } | null {
   }
 }
 
+function roomAsset(name: string) {
+  const directory = join(ROOT_DIR, 'packages/vrm-companion/assets/kaykit');
+  const model = JSON.parse(readFileSync(join(directory, name + '.gltf'), 'utf8'));
+  for (const buffer of model.buffers)
+    buffer.uri =
+      'data:application/octet-stream;base64,' +
+      readFileSync(join(directory, buffer.uri)).toString('base64');
+  for (const image of model.images)
+    image.uri =
+      'data:image/png;base64,' + readFileSync(join(directory, image.uri)).toString('base64');
+  return 'data:model/gltf+json;base64,' + Buffer.from(JSON.stringify(model)).toString('base64');
+}
+
+export const vrmCompanionClientBundleOptions: UserConfig = {
+  ...clientBundle(
+    '@botharness/vrm-companion',
+    ['packages/vrm-companion/src/client/index.tsx'],
+    'packages/vrm-companion/lib',
+  ),
+  define: {
+    'process.env.NODE_ENV': JSON.stringify('production'),
+    __VRM_MODEL__: JSON.stringify(
+      'data:model/gltf-binary;base64,' +
+        readFileSync(join(ROOT_DIR, 'packages/vrm-companion/assets/avatar-sample-a.vrm')).toString(
+          'base64',
+        ),
+    ),
+    __ROOM_ASSETS__: JSON.stringify(
+      Object.fromEntries(
+        [
+          'book_set',
+          'shelf_B_small_decorated',
+          'cactus_small_A',
+          'cactus_medium_A',
+          'pictureframe_small_A',
+          'pillow_A',
+          'book_single',
+        ].map((name) => [name, roomAsset(name)]),
+      ),
+    ),
+  },
+};
+
 export default defineConfig([
   {
     entry: ['packages/core/src/index.ts'],
@@ -166,7 +210,7 @@ export default defineConfig([
   },
   coreCliBundleOptions,
   {
-    entry: ['packages/client/src/index.ts'],
+    entry: ['packages/client/src/index.ts', 'packages/client/src/panel-api.ts'],
     outDir: 'packages/client/dist',
     format: ['esm'],
     platform: 'node',
@@ -237,4 +281,13 @@ export default defineConfig([
   },
   computerClientBundleOptions,
   browserClientBundleOptions,
+  {
+    entry: ['packages/vrm-companion/src/index.ts'],
+    outDir: 'packages/vrm-companion/dist',
+    format: ['esm'],
+    platform: 'node',
+    dts: true,
+    clean: true,
+  },
+  vrmCompanionClientBundleOptions,
 ]);

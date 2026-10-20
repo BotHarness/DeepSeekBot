@@ -68,6 +68,16 @@
       "issue": "#2098"
     },
     {
+      "id": "device-connect",
+      "description": "Devices page hosted Connect account and tunnel state (ADR-0241).",
+      "scope": "Profile",
+      "surfaces": [
+        "setting:packages/client/src/client/paired-devices.tsx:{t('devices.connect.account')}",
+        "setting:packages/client/src/client/paired-devices.tsx:{t('devices.connect.tunnel')}"
+      ],
+      "commands": ["connect-status", "connect-sign-in", "connect-sign-out"]
+    },
+    {
       "id": "phone-route",
       "description": "Phone route status and the confirmed tailscale serve publish behind the Pair a phone stepper.",
       "scope": "Profile",

@@ -586,6 +586,14 @@
       "gap": "Native decoding/sharing remains queued; SVG is the bounded static subset, editor/file-card/mobile diff paths remain #2214."
     },
     {
+      "id": "desktop.vrm-companion",
+      "label": "Native VRM Panel follows live Activity and committed DM output with independent fixed-Bot instances",
+      "source": "packages/vrm-companion/src/client/index.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/vrm-companion.md",
+      "task": 2222,
+      "gap": "Human acceptance and native Desktop qualification remain separate from isolated Web evidence."
+    },
+    {
       "id": "desktop.window-zoom",
       "label": "Set and restore device-local primary-window zoom through Settings and exact-target CLI",
       "source": "packages/client/src/client/window-zoom.ts",
@@ -2004,6 +2012,14 @@
       "reason": "Matched main/candidate current/Markdown/working/history/narrow images, genuine pixels and animation advancement, version/MIME original-byte exports and rejected SVG external-resource loads.",
       "task": 2214,
       "sha256": "f781c109dba94abe6bae2b3a41b2db0d68a86e3dd3f6a0904ebe5dbf536c0391"
+    },
+    {
+      "path": "scripts/e2e-vrm-companion.mjs",
+      "sha256": "d71c22d6daeaa3e6814b50dae345a1f3ee721c1a32030536a4e81ac10c9181c5",
+      "category": "mapped",
+      "reason": "Isolated real Host journey for VRM loading, live speech, fixed bindings, refresh, Group gating and renderer disposal; native CLI uninstall/reinstall requires a task-owned Host restart.",
+      "task": 2222,
+      "behaviors": ["desktop.vrm-companion"]
     },
     {
       "path": "scripts/e2e-desktop-zoom-launch.mjs",

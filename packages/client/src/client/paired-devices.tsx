@@ -7,7 +7,7 @@ import { Callout } from './ds/callout.js';
 import { Note } from './ds/note.js';
 import { PanelDialog } from './ds/panel-dialog.js';
 import { SettingsRow, SettingsSection } from './ds/settings-row.js';
-import { radius, space } from './ds/tokens.stylex.js';
+import { radius, space, text } from './ds/tokens.stylex.js';
 import { formatRelativeTime } from './labels.js';
 import { useMountedResource } from './mounted-resource.js';
 import {
@@ -30,10 +30,26 @@ interface PairedDevice {
 
 type RouteStatus = PhoneRouteStatus;
 
+interface ConnectAccountStatus {
+  state: 'signed-out' | 'signing-in' | 'signed-in' | 'error';
+  email?: string;
+  userCode?: string;
+  verificationUri?: string;
+  issue?: string;
+}
+
+interface ConnectStatus {
+  state: 'off' | 'starting' | 'connected' | 'error';
+  hostname?: string;
+  issue?: string;
+  account?: ConnectAccountStatus;
+}
+
 interface DevicesSnapshot {
   host: { id: string; name: string };
   devices: PairedDevice[];
   routes: RouteStatus;
+  connect?: ConnectStatus;
 }
 
 interface PairingOffer {
@@ -58,6 +74,12 @@ const styles = stylex.create({
     padding: space.x3,
     borderRadius: radius.md,
     backgroundColor: 'white',
+  },
+  code: {
+    fontFamily: 'var(--dsw-font-mono, ui-monospace, monospace)',
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+    overflowWrap: 'anywhere',
   },
   actions: { display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: space.x3 },
 });
@@ -129,6 +151,11 @@ export function PairedDevicesSettings({ t }: PropsLocale<'botharness'>): ReactEl
     return () => clearInterval(timer);
   }, []);
 
+  const connectWatch = useMountedResource<HTMLDivElement>(() => {
+    const timer = setInterval(() => void load().catch(() => undefined), LIST_POLL_MS);
+    return () => clearInterval(timer);
+  }, []);
+
   const publish = async (): Promise<PublishFailure | undefined> => {
     try {
       const response = await fetch(`${PATH}/serve`, {
@@ -185,6 +212,25 @@ export function PairedDevicesSettings({ t }: PropsLocale<'botharness'>): ReactEl
     setPaired(undefined);
   };
 
+  const account = async (action: 'sign-in' | 'sign-out'): Promise<void> => {
+    setBusy(action);
+    setError(false);
+    try {
+      await json(
+        await fetch(`${PATH}/connect`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ action }),
+        }),
+      );
+      await load();
+    } catch {
+      if (mounted.current) setError(true);
+    } finally {
+      if (mounted.current) setBusy(undefined);
+    }
+  };
+
   const revoke = async (device: PairedDevice): Promise<void> => {
     setBusy(device.id);
     setError(false);
@@ -227,6 +273,11 @@ export function PairedDevicesSettings({ t }: PropsLocale<'botharness'>): ReactEl
   const secondsLeft =
     offer === undefined ? 0 : Math.max(0, Math.ceil((Date.parse(offer.expiresAt) - now) / 1000));
   const devices = snapshot?.devices ?? [];
+  const connect = snapshot?.connect;
+  const signIn = connect?.account;
+  const waiting =
+    signIn?.state === 'signing-in' ||
+    (signIn?.state === 'signed-in' && connect?.state !== 'connected');
 
   return (
     <div ref={mount} data-paired-devices="">
@@ -254,6 +305,98 @@ export function PairedDevicesSettings({ t }: PropsLocale<'botharness'>): ReactEl
           ) : null}
         </SettingsRow>
       </SettingsSection>
+      {signIn === undefined ? null : (
+        <div ref={waiting ? connectWatch : undefined} data-connect="">
+          <SettingsSection title={t('devices.connect.title')}>
+            <SettingsRow
+              title={t('devices.connect.account')}
+              description={
+                signIn.state === 'signed-in'
+                  ? t('devices.connect.signedIn', { email: signIn.email ?? '' })
+                  : t('devices.connect.description')
+              }
+              data={{ 'data-connect-account': signIn.state }}
+              control={
+                signIn.state === 'signed-in' ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={busy === 'sign-out'}
+                    onClick={() => void account('sign-out')}
+                  >
+                    {t('devices.connect.signOut')}
+                  </Button>
+                ) : signIn.state === 'signing-in' ? undefined : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={busy === 'sign-in'}
+                    onClick={() => void account('sign-in')}
+                  >
+                    {t('devices.connect.signIn')}
+                  </Button>
+                )
+              }
+            >
+              {signIn.state === 'signing-in' && signIn.verificationUri !== undefined ? (
+                <Callout data={{ 'data-connect-code': '' }}>
+                  {t('devices.connect.confirm')}{' '}
+                  <code {...stylex.props(styles.code)}>{signIn.userCode}</code>
+                  <div>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => window.open(signIn.verificationUri, '_blank', 'noopener')}
+                    >
+                      {t('devices.connect.openPage')}
+                    </Button>
+                  </div>
+                </Callout>
+              ) : signIn.state === 'error' ? (
+                <Callout tone="warning" data={{ 'data-connect-issue': signIn.issue ?? '' }}>
+                  {t(
+                    signIn.issue === 'account-not-allowed'
+                      ? 'devices.connect.notAllowed'
+                      : signIn.issue === 'host-limit'
+                        ? 'devices.connect.hostLimit'
+                        : signIn.issue === 'session-expired' ||
+                            signIn.issue === 'sign-in-expired' ||
+                            signIn.issue === 'sign-in-denied'
+                          ? 'devices.connect.signInAgain'
+                          : 'devices.connect.relayDown',
+                  )}
+                </Callout>
+              ) : null}
+            </SettingsRow>
+            {signIn.state === 'signed-in' && connect?.hostname !== undefined ? (
+              <SettingsRow
+                title={t('devices.connect.tunnel')}
+                description={connect.hostname}
+                data={{ 'data-connect-tunnel': connect.state }}
+                control={
+                  <Note
+                    tone={
+                      connect.state === 'connected'
+                        ? 'success'
+                        : connect.state === 'error'
+                          ? 'warning'
+                          : 'muted'
+                    }
+                  >
+                    {t(
+                      connect.state === 'connected'
+                        ? 'devices.connect.connected'
+                        : connect.state === 'error'
+                          ? 'devices.connect.reconnecting'
+                          : 'devices.connect.starting',
+                    )}
+                  </Note>
+                }
+              />
+            ) : null}
+          </SettingsSection>
+        </div>
+      )}
       <SettingsSection title={t('devices.list.title')}>
         {devices.length === 0 ? (
           <Note>

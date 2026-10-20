@@ -1333,3 +1333,30 @@ it('keeps a newly resized column when a hidden lower panel is reopened', async (
   await settle();
   expect(Math.abs(dock!.getPanel(WORKSPACE_CHANNELS)!.group.width - width)).toBeLessThanOrEqual(4);
 });
+
+it('refuses a newly registered Bot-bound Panel in a Group before the registry rerenders', async () => {
+  const registry = createDockPanelRegistry();
+  await render(registry.panels(), 'group', {
+    channel: { id: 'group-qa', type: 'group', botSlug: undefined },
+    registry,
+  });
+  registry.register({
+    id: 'new-character',
+    title: 'Character',
+    scope: 'channel',
+    binding: 'current-bot',
+    component: () => createElement('div', { 'data-new-character': '' }),
+  });
+  expect(registry.canOpen?.('new-character')).toBe(false);
+  act(() => registry.open('new-character'));
+  await settle();
+  expect(host.querySelector('[data-new-character]')).toBeNull();
+  await render(registry.panels(), 'personabot', {
+    channel: { id: 'dm-ada', type: 'dm', botSlug: 'ada' },
+    registry,
+  });
+  expect(registry.canOpen?.('new-character')).toBe(true);
+  act(() => registry.open('new-character'));
+  await settle();
+  expect(host.querySelector('[data-new-character]')).not.toBeNull();
+});

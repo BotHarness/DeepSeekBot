@@ -47,11 +47,11 @@ export function splitPanels(tree: ChannelSplit): string[] {
 export function parseChannelSplit(value: unknown): ChannelSplit | undefined {
   const seen = new Set<string>();
   function visit(node: unknown, depth: number): ChannelSplit | undefined {
-    if (!node || typeof node !== 'object' || depth > CHANNEL_LEAVES.length) return;
+    if (!node || typeof node !== 'object' || depth > 32) return;
     if ('panel' in node) {
       if (
         typeof node.panel !== 'string' ||
-        !CHANNEL_LEAVES.includes(node.panel) ||
+        !/^[a-zA-Z0-9:@._-]{1,160}$/.test(node.panel) ||
         seen.has(node.panel)
       )
         return;
