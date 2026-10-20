@@ -278,6 +278,61 @@ describe('Bot workspace from the composer', () => {
     expect(folderBrowsingUnavailable(new Error('other'))).toBe(false);
   });
 
+  it('lists folders through BotHarness once DSH uses the system chooser', async () => {
+    const fake = new FakeHost();
+    fake.answers.set('directoryPicker/list', () => ({
+      ok: false,
+      error: { code: 'directory-picker/unavailable', message: 'No folder browser' },
+    }));
+    fake.methods.set('folderBrowse', (args) => {
+      if (args['path'] === 'D:\\missing') throw new Error('gone');
+      return {
+        path: args['path'] ?? 'C:\\Users\\ada',
+        crumbs: [{ name: 'C:\\', path: 'C:\\' }],
+        entries: [{ name: 'code', path: 'C:\\Users\\ada\\code' }],
+        truncated: false,
+        roots: [
+          { name: 'ada', path: 'C:\\Users\\ada' },
+          { name: 'D:\\', path: 'D:\\' },
+        ],
+      };
+    });
+    const host = client(fake);
+
+    const home = await listHostFolders(host);
+    const drive = await listHostFolders(host, 'D:\\');
+
+    expect(home.entries.map((entry) => entry.name)).toEqual(['code']);
+    expect(home.roots.map((entry) => entry.path)).toEqual(['C:\\Users\\ada', 'D:\\']);
+    expect(drive.path).toBe('D:\\');
+    expect(calls(fake)).toEqual([
+      ['folderBrowse', {}],
+      ['folderBrowse', { path: 'D:\\' }],
+    ]);
+    expect(fake.requests).toContain(`POST ${ROUTE}/botharness-device/api/botharness/folderBrowse`);
+    expect(
+      await listHostFolders(host, 'D:\\missing').catch((error: unknown) => error),
+    ).toMatchObject({
+      code: 'invalid-input',
+    });
+  });
+
+  it('keeps the system chooser refusal when the computer is too old to list folders', async () => {
+    const fake = new FakeHost();
+    fake.answers.set('directoryPicker/list', () => ({
+      ok: false,
+      error: { code: 'directory-picker/unavailable', message: 'No folder browser' },
+    }));
+    fake.answers.set('folderBrowse', () => ({
+      ok: false,
+      error: { code: 'unknown-method', message: 'folderBrowse is not a method' },
+    }));
+
+    const failure = await listHostFolders(client(fake)).catch((error: unknown) => error);
+
+    expect(folderBrowsingUnavailable(failure)).toBe(true);
+  });
+
   it('resolves a folder before the confirmation, then grants it', async () => {
     const fake = new FakeHost();
     fake.methods.set('workspace/create', (args) => {

@@ -103,6 +103,7 @@ deepseekbot user-question-status <channel-id> --message-id <卡片-id>
 deepseekbot user-question-answer <channel-id> --message-id <卡片-id> --answer-stdin
 deepseekbot release-info [--since <版本>]
 deepseekbot workspace-options
+deepseekbot folder-browse [<文件夹路径>]
 deepseekbot grant-create <bot-id> --workspace <workspace-id>
 ```
 
@@ -706,6 +707,15 @@ deepseekbot grants <bot-id>
 ```
 
 `grant-request-approve` 与 Web 请求卡使用同一个仅 Owner 可调用的 Host 命令。Host 在同一事务中保存持续读写权限和关联 Grant 的决议，再沿既有 Inbox 继续原任务；已有只读 Grant 也可经这次明确确认升级。重复批准同一请求只读回既有决定，不重复创建 Grant 或唤醒；已撤销或改变的目标会被拒绝。目录卡不是工具批准，应使用此命令，而非 `tool-approval-decide`。缺少 `--confirm` 返回 `usage`，失效或不可用权限返回稳定拒绝代码。这是在线操作，不是直接修改数据库的离线修复。
+
+### 浏览电脑上的文件夹
+
+```bash
+deepseekbot folder-browse
+deepseekbot folder-browse 'D:\code'
+```
+
+`folder-browse` 列出 Host 上某个文件夹的子文件夹，与电脑使用系统文件夹选择器时手机上的文件夹选择相同。不传路径时从 Host 主目录开始。返回 `{path, home, crumbs, entries, truncated, roots}`：只有文件夹名称和路径，不含文件。`roots` 是主目录和各个磁盘（Windows）或 `/`。相对路径返回 `folder-browse/invalid-path`；不存在、不是文件夹或无权读取分别返回 `folder-browse/not-found`、`folder-browse/not-directory`、`folder-browse/denied`。浏览不授予任何权限：选好路径后按上文登记并授权。
 
 ## Memory
 

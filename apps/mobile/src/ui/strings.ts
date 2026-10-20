@@ -1005,7 +1005,9 @@ const en = {
   browseTruncated: 'Too many folders; only some are shown.',
   browseUnavailable: 'Your computer cannot list its folders here.',
   browseUnavailableTypePath:
-    'Your computer opens its own folder chooser, so it cannot list folders on this phone. Pick a registered folder or type the folder path.',
+    'Your computer cannot list its folders here. Update DeepSeekBot on it, pick a registered folder or type the folder path.',
+  browseLocations: 'Other places',
+  browseHome: 'Home',
   folderPath: 'Folder path on your computer',
   folderPathHint: '/Users/you/Project',
   registeredFolders: 'Folders registered on your computer',
@@ -2058,7 +2060,9 @@ const zh: typeof en = {
   browseTruncated: '文件夹过多，仅显示一部分。',
   browseUnavailable: '电脑无法在这里列出文件夹。',
   browseUnavailableTypePath:
-    '这台电脑使用系统自带的文件夹选择器，无法在手机上列出文件夹。请选择已登记的文件夹，或输入文件夹路径。',
+    '这台电脑无法在这里列出文件夹。请更新电脑上的 DeepSeekBot，或选择已登记的文件夹、输入文件夹路径。',
+  browseLocations: '其他位置',
+  browseHome: '主目录',
   folderPath: '电脑上的文件夹路径',
   folderPathHint: '/Users/you/Project',
   registeredFolders: '已在电脑上登记的文件夹',

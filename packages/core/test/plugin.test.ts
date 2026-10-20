@@ -559,6 +559,7 @@ describe('plugin entry', () => {
       'messageAttachmentTarget',
       'channelMediaTarget',
       'workspaceFileTarget',
+      'folderBrowse',
       'grants',
       'grantCreate',
       'grantRevoke',

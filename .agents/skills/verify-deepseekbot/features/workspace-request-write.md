@@ -28,6 +28,10 @@ node scripts/e2e-workspace-request-write.mjs --name ax2080-write --legacy
 
 The runner saves screenshots, ARIA, console, Client diagnostics, canonical request/Grant state, file bytes and traces under its named verification directory. It prints only the result and evidence location. A failed attempt stays intact. `--resume-report <private-report.json>` resumes a pending synthetic request after a browser-control fix. When the report already contains a committed Grant, it skips approval and only verifies existing files, trace and duplicate-decision readback; it never replays native execution. `--expect-read-only --instance <baseline-instance.json>` records the original failure on a separately launched base checkout.
 
+### Phone: choose the folder from the Host
+
+`node scripts/e2e-mobile-folder-browse-web.mjs` drives the same request card in the Expo Web export of the phone app (behavior `desktop.grants.request-write-continue`). A real model asks for a folder, the phone proxy answers DSH `directoryPicker/list` with `directory-picker/unavailable` as a Windows/macOS system-chooser Host does, and the sheet must still list Host folders through `botharness/folderBrowse`: subfolders only, no files, no hidden folders, plus Home and `/` (drives on Windows) under **Other places**. Choosing **Authorize this folder** then **Allow read/write** must leave a writable Grant on exactly that path. The CLI twin is `deepseekbot folder-browse [<path>]`. This is layout and flow evidence, not native-device evidence.
+
 ## Gotchas
 
 - The current desktop uses `.bh-workspace-rail`; older `.bh-mode-sidebar` journeys time out despite a rendered Bot mode. Read the real ARIA/console before attributing that to permissions.
@@ -36,5 +40,5 @@ The runner saves screenshots, ARIA, console, Client diagnostics, canonical reque
 - A stale machine-local AX model selection can be absent from the pinned catalog. Keep that failed launch; select a supported model for only this launch with `BOTHARNESS_AX_MODEL`, then prove a real reply.
 - Do not grant the Host Profile directory or its ancestors. This journey uses an isolated synthetic temporary folder and does not resolve broad-Grant exposure of operational data.
 - A Grant-linked message alone is insufficient. The native files and current durable write permission must agree.
-- This journey does not qualify mobile, every native Provider, arbitrary Shell isolation, same-Orchestrator non-blocking waits or the full restart recovery matrix. Those remain separate slices.
+- Apart from the phone folder-browse slice above, this journey does not qualify mobile, every native Provider, arbitrary Shell isolation, same-Orchestrator non-blocking waits or the full restart recovery matrix. Those remain separate slices.
 - After a failed drive run `verify-app observe`, retain its first screenshot/ARIA/console and inspect the [observation guide](../references/observation.md).

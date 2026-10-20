@@ -82,6 +82,7 @@ export interface HostFolderListing {
   crumbs: HostFolder[];
   entries: HostFolder[];
   truncated: boolean;
+  roots: HostFolder[];
 }
 
 export type AccessMode = 'workspace-write' | 'danger-full-access';
@@ -370,20 +371,42 @@ function folder(value: unknown): HostFolder | undefined {
   return { name: row['name'], path: row['path'], hidden: row['hidden'] === true };
 }
 
+function listing(value: unknown): HostFolderListing {
+  const row = record(value);
+  if (!text(row?.['path'])) throw new HostAnswerInvalid('The folder list has no location.');
+  return {
+    path: row['path'],
+    crumbs: some(row['crumbs'], folder),
+    entries: some(row['entries'], folder),
+    truncated: row['truncated'] === true,
+    roots: some(row['roots'], folder),
+  };
+}
+
+const systemPickerHosts = new WeakSet<HostClient>();
+
 export async function listHostFolders(
   client: HostClient,
   path?: string,
 ): Promise<HostFolderListing> {
-  const value = record(
-    await client.call<unknown>('directoryPicker/list', path === undefined ? {} : { path }),
-  );
-  if (!text(value?.['path'])) throw new HostAnswerInvalid('The folder list has no location.');
-  return {
-    path: value['path'],
-    crumbs: some(value['crumbs'], folder),
-    entries: some(value['entries'], folder),
-    truncated: value['truncated'] === true,
-  };
+  const args = path === undefined ? {} : { path };
+  if (!systemPickerHosts.has(client)) {
+    try {
+      return listing(await client.call<unknown>('directoryPicker/list', args));
+    } catch (error) {
+      if (!folderBrowsingUnavailable(error)) throw error;
+      try {
+        const value = listing(await client.call<unknown>('folderBrowse', args));
+        systemPickerHosts.add(client);
+        return value;
+      } catch (fallback) {
+        if (fallback instanceof MethodRefused && fallback.code.startsWith('folder-browse/'))
+          throw fallback;
+        throw error;
+      }
+    }
+  }
+  return listing(await client.call<unknown>('folderBrowse', args));
 }
 
 function option(value: unknown): WorkspaceOption | undefined {

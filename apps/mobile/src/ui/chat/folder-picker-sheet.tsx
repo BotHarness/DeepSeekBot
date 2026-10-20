@@ -26,7 +26,7 @@ import {
   SheetNote,
   SHEET_GROUP,
 } from './sheet';
-import { Crumbs, Grouped, RowIcon } from './workspace-sheet';
+import { Crumbs, Grouped, locationSection, RowIcon } from './workspace-sheet';
 
 export interface FolderPickerPort {
   listFolders(path?: string): Promise<HostFolderListing>;
@@ -180,6 +180,7 @@ export function FolderPickerSheet({
       footer: listing.status === 'ready' && listing.value.truncated ? t.browseTruncated : undefined,
       data: folderRows,
     },
+    ...(listing.status === 'ready' ? locationSection(listing.value) : []),
   ];
   return (
     <Sheet

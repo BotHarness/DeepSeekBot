@@ -243,6 +243,22 @@ describe('live CLI over the authenticated DSH carrier', () => {
     expect(live.calls.at(-1)?.args).toEqual({ channelId: 'dm-ada', messageId: 'question', answer });
   });
 
+  it('browses Host folders through the same method as the phone picker', async () => {
+    const live = await host((_method, args) => ({
+      ok: true,
+      value: { path: args['path'] ?? '/Users/ada', entries: [{ name: 'site' }] },
+    }));
+    const home = await invoke(['folder-browse'], live.url);
+    const code = await invoke(['folder-browse', 'D:\\code'], live.url);
+    expect(home.json.path).toBe('/Users/ada');
+    expect(code.json.path).toBe('D:\\code');
+    expect(live.calls).toEqual([
+      { method: 'folderBrowse', args: {} },
+      { method: 'folderBrowse', args: { path: 'D:\\code' } },
+    ]);
+    expect((await invoke(['folder-browse', '/a', '/b'], live.url)).json.error.code).toBe('usage');
+  });
+
   it('rejects missing/unsafe origins, malformed answers and expired auth before mutation', async () => {
     expect((await invoke(['send', 'ada', '--body', 'hi'])).json.error.code).toBe('usage');
     expect((await invoke(['release-info'], 'http://example.com')).json.error.code).toBe('usage');

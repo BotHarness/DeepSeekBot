@@ -259,6 +259,10 @@ export const LIVE_COMMANDS = [
   },
   { command: 'release-info', description: 'read the running Host release lifecycle' },
   { command: 'workspace-options', description: 'list live Host workspaces for grants' },
+  {
+    command: 'folder-browse',
+    description: 'list folder names on the Host computer, as the phone folder picker does',
+  },
   { command: 'grant-create', description: 'authorize a Bot workspace through the live Host' },
   {
     command: 'browser-access-set',
@@ -816,6 +820,12 @@ export async function runLiveCli(
   }
   if (DEVICE_COMMANDS.some((entry) => entry === command))
     return runDeviceCommand(command as (typeof DEVICE_COMMANDS)[number], rest, values, io);
+  if (command === 'folder-browse') {
+    if (rest.length > 1) usage('folder-browse takes at most one folder path.');
+    const signal = AbortSignal.timeout(timeoutMs(values.timeout));
+    const path = rest[0]?.trim();
+    return (await connectLiveHost(values, io, signal)).rpc('folderBrowse', path ? { path } : {});
+  }
   if (command === 'grants') {
     if (rest.length !== 1 || !rest[0]?.trim()) usage('grants needs exactly one bot id.');
     const signal = AbortSignal.timeout(timeoutMs(values.timeout));

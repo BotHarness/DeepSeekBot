@@ -1588,6 +1588,14 @@
       "sha256": "8f4c330494a2645f477b22141b77266c00ce8ef31144409c0160e22668eda251"
     },
     {
+      "path": "scripts/e2e-mobile-folder-browse-web.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.grants.request-write-continue"],
+      "reason": "Own task Host and Expo Web export; real model folder request, system-chooser refusal simulated at the phone proxy, phone browses Host folders and grants one; not native-device evidence.",
+      "task": 2080,
+      "sha256": "74fac4cc7686abd76dceb9fc50e950691eb5d3321261f57132a562be3e2b648d"
+    },
+    {
       "path": "scripts/e2e-mobile-working-web.mjs",
       "category": "historical-regression",
       "behaviors": ["phone.timeline"],

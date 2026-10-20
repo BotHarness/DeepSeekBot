@@ -108,6 +108,7 @@ deepseekbot ask-secret-revoke <channel-id> --message-id <configured-card-id>
 deepseekbot ask-secret-accounts <bot-id>
 deepseekbot release-info [--since <version>]
 deepseekbot workspace-options
+deepseekbot folder-browse [<folder-path>]
 deepseekbot grant-create <bot-id> --workspace <workspace-id>
 ```
 
@@ -720,6 +721,15 @@ deepseekbot grants <bot-id>
 ```
 
 `grant-request-approve` uses the same Owner-only Host command as the Web request card. The Host commits persistent read/write authority and the Grant-linked resolution together before continuing the original task through its existing Inbox. It also upgrades an existing read-only Grant after this explicit confirmation. Repeating the same approved request reads back the existing decision; it does not create another Grant or wake. A revoked or changed target is refused. An old tool approval is not a Workspace request: use this command rather than `tool-approval-decide`. Missing `--confirm` is `usage`; unavailable or stale authority returns a coded refusal. This is an online command, not an offline database repair.
+
+### Browse Host folders
+
+```bash
+deepseekbot folder-browse
+deepseekbot folder-browse 'D:\code'
+```
+
+`folder-browse` lists the subfolders of one Host folder, the same way the phone folder picker does when the computer uses the system folder dialog. With no path it starts at the Host home. It returns `{path, home, crumbs, entries, truncated, roots}`: folder names and paths only, never files. `roots` holds the home folder and the drives (Windows) or `/`. A relative path fails `folder-browse/invalid-path`; a missing, non-folder or unreadable path fails `folder-browse/not-found`, `folder-browse/not-directory` or `folder-browse/denied`. Browsing grants nothing: register the chosen path and grant it as above.
 
 ## Memory
 

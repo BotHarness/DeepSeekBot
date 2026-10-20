@@ -173,12 +173,47 @@ describe('Folder request card', () => {
     expect(approvals(fake)).toEqual([]);
   });
 
-  it('takes a typed folder path when the computer opens its own folder chooser', async () => {
+  it('browses through BotHarness when the computer opens its own folder chooser', async () => {
+    const fake = host();
+    const listed = fake.methods.get('directoryPicker/list')!;
+    fake.methods.delete('directoryPicker/list');
+    fake.answers.set('directoryPicker/list', () => ({
+      ok: false,
+      error: { code: 'directory-picker/unavailable', message: 'native chooser' },
+    }));
+    fake.methods.set('folderBrowse', (args) => ({
+      ...(listed(args) as object),
+      roots: [
+        { name: 'qa', path: '/Users/qa' },
+        { name: 'D:\\', path: 'D:\\' },
+      ],
+    }));
+    const view = await render(card(connect(fake)));
+    await press(button(view, t.grantChoose));
+    expect(view.textContent).not.toContain(t.browseUnavailableTypePath);
+    expect(view.textContent).toContain(t.browseLocations);
+    expect(view.querySelector(`[aria-label="${t.folderPath}"]`)).toBeNull();
+    await press(button(view, 'Project'));
+    await press(button(view, t.authorizeHere));
+    expect(fake.calls.filter((call) => call.method === 'workspace/create')).toEqual([
+      { method: 'workspace/create', args: { request: { path: PROJECT.path } } },
+    ]);
+    expect(fake.calls.filter((call) => call.method === 'folderBrowse')).toEqual([
+      { method: 'folderBrowse', args: {} },
+      { method: 'folderBrowse', args: { path: PROJECT.path } },
+    ]);
+  });
+
+  it('takes a typed folder path when an older computer cannot list folders', async () => {
     const fake = host();
     fake.methods.delete('directoryPicker/list');
     fake.answers.set('directoryPicker/list', () => ({
       ok: false,
       error: { code: 'directory-picker/unavailable', message: 'native chooser' },
+    }));
+    fake.answers.set('folderBrowse', () => ({
+      ok: false,
+      error: { code: 'unknown-method', message: 'folderBrowse is not a method' },
     }));
     const view = await render(card(connect(fake)));
     await press(button(view, t.grantChoose));
