@@ -1,7 +1,15 @@
 import { useIncomingShare } from 'expo-sharing';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, Image, Keyboard, ScrollView, View } from 'react-native';
+import {
+  ActivityIndicator,
+  AppState,
+  FlatList,
+  Image,
+  Keyboard,
+  ScrollView,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useHostSession, useHostSnapshot, useQuietChannels } from '../../host/host-session';
@@ -42,7 +50,17 @@ export default function ShareScreen() {
     [snapshot.roster, quiet],
   );
   const [sending, setSending] = useState(false);
-  const mount = useMounted<FlatList<Conversation>>(() => Keyboard.dismiss(), []);
+  const mount = useMounted<FlatList<Conversation>>(() => {
+    Keyboard.dismiss();
+    const shown = Keyboard.addListener('keyboardDidShow', () => Keyboard.dismiss());
+    const active = AppState.addEventListener('change', (next) => {
+      if (next === 'active') Keyboard.dismiss();
+    });
+    return () => {
+      shown.remove();
+      active.remove();
+    };
+  }, []);
   const thumb = theme.touch + space.x5;
   const empty = !incoming.isResolving && share.text === '' && share.files.length === 0;
   const send = async (row: Conversation) => {
