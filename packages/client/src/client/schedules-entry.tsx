@@ -806,20 +806,18 @@ export function BotSchedulesEntry({ botSlug, actions, t }: ChannelSidebarEntryPr
   const [toggling, setToggling] = useState<string | undefined>();
   const [started, setStarted] = useState<string | undefined>();
   const active = useRef<string | undefined>(undefined);
-  const editorKey = useRef(0);
   const createRevision = useSyncExternalStore(
     subscribeCreate,
     () => (botSlug === undefined ? 0 : (createRequests.get(botSlug) ?? 0)),
     () => 0,
   );
-  const seenCreate = useRef({ botSlug, revision: createRevision });
-  if (seenCreate.current.botSlug !== botSlug) {
-    seenCreate.current = { botSlug, revision: createRevision };
+  const [seenCreate, setSeenCreate] = useState({ botSlug, revision: createRevision });
+  if (seenCreate.botSlug !== botSlug) {
+    setSeenCreate({ botSlug, revision: createRevision });
     if (editor !== undefined) setEditor(undefined);
-  } else if (seenCreate.current.revision !== createRevision) {
-    seenCreate.current.revision = createRevision;
-    editorKey.current += 1;
-    setEditor({ key: editorKey.current, scheduleId: undefined });
+  } else if (seenCreate.revision !== createRevision) {
+    setSeenCreate({ botSlug, revision: createRevision });
+    setEditor((open) => ({ key: (open?.key ?? 0) + 1, scheduleId: undefined }));
   }
 
   const refresh = async (slug: string): Promise<void> => {
@@ -851,8 +849,7 @@ export function BotSchedulesEntry({ botSlug, actions, t }: ChannelSidebarEntryPr
   if (botSlug === undefined) return <div ref={mount} />;
 
   const openEditor = (scheduleId: string): void => {
-    editorKey.current += 1;
-    setEditor({ key: editorKey.current, scheduleId });
+    setEditor((open) => ({ key: (open?.key ?? 0) + 1, scheduleId }));
   };
 
   const change = (
