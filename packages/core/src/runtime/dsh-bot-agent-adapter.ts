@@ -2,6 +2,7 @@ import { GroupReplySourceRevoked, SendReviewRequired } from '../channels/send-re
 import { TOB_CLI_PROMPT } from '../tob/service.js';
 import { AssignmentInboxAcceptanceUncertainError } from './assignment-delivery.js';
 import { parseFinalReply } from './final-reply.js';
+import { isBotSubagentModelTool } from './subagent-model-tools.js';
 import { isChannelAttachmentRef } from '../attachments/ref.js';
 import type { Context } from '@deepseek-ai/cordis';
 import { mkdirSync } from 'node:fs';
@@ -17,7 +18,7 @@ import {
 } from '@deepseek-ai/dsh-agent';
 import { AttachmentId, type ImageMediaType } from '@deepseek-ai/dsh-attachment';
 import { createUserMessage } from '@deepseek-ai/dsh-llm';
-import { ReasoningEffortId } from '@deepseek-ai/dsh-llm';
+import { ReasoningEffortId, ToolCallId } from '@deepseek-ai/dsh-llm';
 import { SessionId, type SessionLogOffset } from '@deepseek-ai/dsh-session';
 import {
   defineTool,
@@ -235,6 +236,7 @@ export interface DshBotAgentAdapterOptions {
   agents: DshAgentHost;
   defaultModel: DshDefaultModelHost;
   resolveModelPlan?: (botSlug: string) => PersonaBotModelPlan | undefined;
+  subagentTools?: (botSlug: string) => ToolDefinition[];
   hasSession?: (sessionId: string) => Promise<boolean>;
   prepareModelRoute?: (
     botSlug: string,
@@ -368,6 +370,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   readonly #agents: DshAgentHost;
   readonly #defaultModel: DshDefaultModelHost;
   readonly #resolveModelPlan: ((botSlug: string) => PersonaBotModelPlan | undefined) | undefined;
+  readonly #subagentTools: DshBotAgentAdapterOptions['subagentTools'];
   readonly #prepareModelRoute: DshBotAgentAdapterOptions['prepareModelRoute'];
   readonly #observeTurnFailure: DshBotAgentAdapterOptions['observeTurnFailure'];
   readonly #hasSession: DshBotAgentAdapterOptions['hasSession'];
@@ -403,6 +406,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     this.#agents = options.agents;
     this.#defaultModel = options.defaultModel;
     this.#resolveModelPlan = options.resolveModelPlan;
+    this.#subagentTools = options.subagentTools;
     this.#prepareModelRoute = options.prepareModelRoute;
     this.#observeTurnFailure = options.observeTurnFailure;
     this.#hasSession = options.hasSession;
@@ -3807,7 +3811,10 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   }
 
   directTools(): DirectBotToolSpec[] {
-    return this.#directToolDefinitions(CATALOG_RUN).map((tool) => ({
+    return [
+      ...this.#directToolDefinitions(CATALOG_RUN),
+      ...(this.#subagentTools?.(CATALOG_RUN.bot.slug) ?? []),
+    ].map((tool) => ({
       name: tool.name,
       description: tool.description,
       inputSchema: tool.parameters,
@@ -3819,24 +3826,59 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     name: string,
     args: Record<string, unknown>,
     signal: AbortSignal,
+    parentSessionId?: string,
   ): Promise<unknown> {
     this.#assertOpen();
     if (this.#stoppedBots.has(run.bot.slug)) throw new Error('PersonaBot is deleted');
-    const tool = this.#directToolDefinitions(run).find((entry) => entry.name === name);
+    const tool =
+      this.#subagentTools !== undefined && isBotSubagentModelTool(name)
+        ? name
+        : this.#directToolDefinitions(run).find((entry) => entry.name === name);
     if (tool === undefined)
       throw new DirectBotToolError('tool-not-direct', `${name} cannot run outside a Bot turn`);
     if (this.#runs.has(run.sessionId)) throw new Error('Direct run session is already active');
     this.#runs.set(run.sessionId, { role: 'orchestrator', run });
     try {
-      const value = await tool.execute(args, {
-        callId: run.sessionId,
-        rootCallId: run.sessionId,
-        name,
-        arguments: args,
-        signal,
-        deferContext: () => undefined,
-        concludeTurn: () => undefined,
-      } as unknown as ToolRunContext);
+      let value: unknown;
+      if (typeof tool === 'string') {
+        // Reuse the canonical live parent and its native tool pipeline. Do not create or resume
+        // an Agent for a CLI call, or bypass its visibility, guards, approval and depth policy.
+        const parent =
+          parentSessionId === undefined
+            ? undefined
+            : (this.#handles.get(parentSessionId)?.agent ??
+              this.#agents.get?.(SessionId(parentSessionId)));
+        if (parent === undefined)
+          throw new DirectBotToolError(
+            'parent-unavailable',
+            'No live Orchestrator Agent is available; send this Bot a DM before calling its Subagent tools',
+          );
+        const result = await parent.ctx.tools.execute({
+          callId: ToolCallId(run.sessionId),
+          name,
+          arguments: args,
+          agent: parent,
+          signal,
+        });
+        if (result.isError)
+          throw new DirectBotToolError(
+            result.error.info?.code === 'INVALID_ARGS'
+              ? 'invalid-args'
+              : (result.error.info?.code ?? 'tool-failed'),
+            result.error.message,
+          );
+        value = result.value;
+      } else {
+        value = await tool.execute(args, {
+          callId: run.sessionId,
+          rootCallId: run.sessionId,
+          name,
+          arguments: args,
+          signal,
+          deferContext: () => undefined,
+          concludeTurn: () => undefined,
+        } as unknown as ToolRunContext);
+      }
       if (typeof value !== 'string') return value;
       try {
         return JSON.parse(value) as unknown;
