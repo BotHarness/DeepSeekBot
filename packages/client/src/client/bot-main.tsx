@@ -1712,7 +1712,7 @@ function ConversationView({
     let cancelled = false;
     let fetching = false;
     const refreshUsage = (): void => {
-      if (fetching || channelId === undefined || channel?.type !== 'dm' || deletedBotDm) return;
+      if (fetching || channelId === undefined || channel?.type !== 'dm') return;
       fetching = true;
       setProfileUsageLoading(true);
       void actions
@@ -1763,7 +1763,6 @@ function ConversationView({
     actions,
     channel?.type,
     channelId,
-    deletedBotDm,
     profileViewOpen,
     messages.findLast((message) => !message.pending && !message.failed && !message.streaming)?.id,
   ]);

@@ -336,6 +336,18 @@ describe('confirmed terminal PersonaBot deletion', () => {
     const methods = createBridgeMethods({ ...f.core, deletions: f.core.deletions });
     const channel = f.core.channels.getOrCreateDm('a', 'Same name');
     if (channel === undefined) throw new Error('fixture DM unavailable');
+    const erased = createBridgeMethods({
+      ...f.core,
+      memory: {
+        ...f.core.memory,
+        activity: () => {
+          throw new Error('Memory repository is missing');
+        },
+      },
+    });
+    expect(() => erased.profileActivity({ channelId: channel.id })).toThrow(
+      'Memory repository is missing',
+    );
     const reviewed = f.core.deletions.preview('a');
     expect(
       await methods.deletionConfirm({ slug: 'a', token: reviewed.token, eraseMemory: false }),
@@ -350,6 +362,10 @@ describe('confirmed terminal PersonaBot deletion', () => {
     expect(methods.profileActivity({ channelId: channel.id })).toMatchObject({
       ok: true,
       value: { slug: 'a' },
+    });
+    expect(erased.profileActivity({ channelId: channel.id })).toMatchObject({
+      ok: true,
+      value: { slug: 'a', memoryCommits: [] },
     });
     expect(methods.resume({ slug: 'a' })).toMatchObject({ ok: false });
     expect(

@@ -6349,7 +6349,9 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       let memoryActivity: Array<{ at: string }> = [];
       try {
         memoryActivity = deps.memory?.activity?.(slug, since) ?? [];
-      } catch {}
+      } catch (error) {
+        if (deps.registry.get(slug) !== undefined) throw error;
+      }
       const commits = beforeEnd(memoryActivity);
       const usageRows = (deps.usage?.activity(slug, since) ?? []).filter(
         (row) => before === undefined || row.day < before,
