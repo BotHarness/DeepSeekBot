@@ -64,6 +64,7 @@ import type {
 import { createChallenge } from '../../core/src/marketplace/altcha.js';
 import type { BridgeActions } from '../src/client/actions.js';
 import { BridgeCallError } from '../src/client/bridge.js';
+import { en, zhTranslate, type BotHarnessTranslate } from '../src/client/locale.js';
 import { MarketplaceModal, SEARCH_DEBOUNCE_MS } from '../src/client/marketplace.js';
 
 function entry(name: string, overrides: Partial<MarketplaceEntry> = {}): MarketplaceEntry {
@@ -99,6 +100,11 @@ interface Harness {
   report: ReturnType<typeof vi.fn<(id: string, altcha: string, reason?: string) => Promise<void>>>;
   createBot: ReturnType<typeof vi.fn<() => Promise<unknown>>>;
   onInstalled: ReturnType<typeof vi.fn<() => void>>;
+  translate: (t: BotHarnessTranslate) => Promise<void>;
+}
+
+function enTranslate(key: string): string {
+  return (en as Record<string, string>)[key] ?? key;
 }
 
 async function withMarketplace(
@@ -126,26 +132,29 @@ async function withMarketplace(
     report: vi.fn(report),
     createBot: vi.fn(createBot),
     onInstalled: vi.fn(),
+    translate: async (t) => {
+      await act(async () => render(t));
+    },
   };
-  try {
-    await act(async () =>
-      root.render(
-        createElement(MarketplaceModal, {
-          actions: {
-            marketplaceList: harness.list,
-            marketplaceSubmit: harness.submit,
-            marketplaceChallenge: harness.challenge,
-            marketplaceReport: harness.report,
-            marketplaceTopics: topics,
-            marketplaceDetail: detail,
-            createBot: harness.createBot,
-          } as unknown as BridgeActions,
-          t: (await import('../src/client/locale.js')).zhTranslate,
-          onClose: vi.fn(),
-          onInstalled: harness.onInstalled,
-        }),
-      ),
+  const render = (t: BotHarnessTranslate) =>
+    root.render(
+      createElement(MarketplaceModal, {
+        actions: {
+          marketplaceList: harness.list,
+          marketplaceSubmit: harness.submit,
+          marketplaceChallenge: harness.challenge,
+          marketplaceReport: harness.report,
+          marketplaceTopics: topics,
+          marketplaceDetail: detail,
+          createBot: harness.createBot,
+        } as unknown as BridgeActions,
+        t,
+        onClose: vi.fn(),
+        onInstalled: harness.onInstalled,
+      }),
     );
+  try {
+    await harness.translate(zhTranslate);
     await test(harness);
   } finally {
     await act(async () => root.unmount());
@@ -200,7 +209,7 @@ describe('Bot Marketplace modal', () => {
       async ({ host, list }) => {
         expect(host.textContent).toContain('Bot 市场');
         expect(host.textContent).toContain('first description');
-        expect(host.querySelector('.bh-market-description')?.getAttribute('title')).toBeNull();
+        expect(host.querySelector('.bh-market-generated')).toBeNull();
         expect(host.textContent).toContain('★ 7');
         expect(host.textContent).toContain('更新于 2026-10-01');
         expect(host.textContent).not.toContain('writing');
@@ -215,10 +224,11 @@ describe('Bot Marketplace modal', () => {
           ),
         ).toEqual(['alice/first', 'alice/second']);
         expect(
-          [...host.querySelectorAll('.bh-market-description')].map((node) =>
-            node.getAttribute('title'),
-          ),
-        ).toEqual([null, '作者没写中文简介，这句由 AI 根据 README 生成']);
+          [...host.querySelectorAll('.bh-market-description')].map((node) => node.textContent),
+        ).toEqual(['first description', 'second descriptionAI 摘要']);
+        expect(host.querySelector('.bh-market-generated')?.getAttribute('title')).toBe(
+          '作者没写中文简介，这句由 AI 根据 README 生成',
+        );
         expect(host.textContent).not.toContain('加载更多');
       },
     );
@@ -586,6 +596,36 @@ describe('Bot Marketplace modal', () => {
         expect(createBot).toHaveBeenCalledWith(
           expect.objectContaining({ gitUrl: 'https://github.com/alice/helper.git' }),
         );
+      },
+      undefined,
+      undefined,
+      undefined,
+      detail,
+    );
+  });
+
+  it('reloads the list and an open detail in the new interface language', async () => {
+    const detail = vi.fn(async () => ({
+      bot: entry('helper'),
+      readme: '# Helper',
+      readmeLanguage: null,
+      commitSha: null,
+    }));
+    await withMarketplace(
+      async () => ({ bots: [entry('helper')] }),
+      async ({ host, list, translate }) => {
+        await act(async () =>
+          host.querySelector<HTMLButtonElement>('[aria-label="查看 alice/helper 详情"]')!.click(),
+        );
+        expect(detail).toHaveBeenLastCalledWith('R_helper', 'zh');
+
+        await translate(enTranslate as BotHarnessTranslate);
+        expect(detail).toHaveBeenCalledTimes(2);
+        expect(detail).toHaveBeenLastCalledWith('R_helper', 'en');
+
+        await click(host, 'Back');
+        expect(list).toHaveBeenLastCalledWith({ sort: 'updated', lang: 'en' });
+        expect(detail).toHaveBeenCalledTimes(2);
       },
       undefined,
       undefined,

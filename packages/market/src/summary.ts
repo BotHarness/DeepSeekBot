@@ -17,6 +17,7 @@ export const SUMMARY_README_CHARACTERS = 6_000;
 export const SUMMARIES_PER_RUN = 25;
 const REQUEST_TIMEOUT_MS = 45_000;
 const FAILURES_BEFORE_STOP = 3;
+export const SUMMARY_ATTEMPTS = 3;
 
 export interface SummaryInput {
   name: string;
@@ -166,7 +167,7 @@ export async function refreshSummaries(deps: {
       `SELECT * FROM indexed_repositories
        WHERE visibility = 'listed' AND readme_pushed_at IS NOT NULL
          AND (summary_checked_at IS NULL OR summary_checked_at <> readme_pushed_at)
-       ORDER BY stars DESC, node_id
+       ORDER BY summary_failures, stars DESC, node_id
        LIMIT ?`,
     )
     .bind(limit * 4)
@@ -192,6 +193,19 @@ export async function refreshSummaries(deps: {
       if (generated === undefined) {
         report.failed += 1;
         consecutiveFailures += 1;
+        const failures = row.summary_failures + 1;
+        await db
+          .prepare(
+            `UPDATE indexed_repositories SET summary_failures = ?, summary_checked_at = ?
+               WHERE node_id = ? AND readme_pushed_at = ?`,
+          )
+          .bind(
+            failures,
+            failures >= SUMMARY_ATTEMPTS ? row.readme_pushed_at : row.summary_checked_at,
+            row.node_id,
+            row.readme_pushed_at,
+          )
+          .run();
         continue;
       }
       consecutiveFailures = 0;
@@ -204,13 +218,17 @@ export async function refreshSummaries(deps: {
     await db
       .prepare(
         `UPDATE indexed_repositories SET summary = ?, summary_key = ?, summary_checked_at = ?,
-           search_text = ? WHERE node_id = ? AND readme_pushed_at = ?`,
+           summary_failures = 0, search_text = ? WHERE node_id = ? AND readme_pushed_at = ?`,
       )
       .bind(
         storedMap(kept),
         key,
         row.readme_pushed_at,
-        searchText({ readmes: row.readmes, localized: row.localized, summary: storedMap(kept) }),
+        searchText({
+          readmes: row.readmes,
+          localized: row.localized,
+          summary: storedMap(kept),
+        }),
         row.node_id,
         row.readme_pushed_at,
       )

@@ -1325,6 +1325,7 @@ export const zh = {
   'market.title': 'Bot 市场',
   'market.language': 'zh',
   'market.descriptionGenerated': '作者没写中文简介，这句由 AI 根据 README 生成',
+  'market.descriptionGeneratedTag': 'AI 摘要',
   'market.description': '浏览公开 GitHub 仓库分享的 Bot，安装后会成为一个新的 Bot。',
   'market.submit.label': 'GitHub 仓库地址',
   'market.submit.placeholder': '贴入 https://github.com/owner/repo 立即收录',
@@ -5296,6 +5297,7 @@ export const en = {
   'market.title': 'Bot Marketplace',
   'market.language': 'en',
   'market.descriptionGenerated': 'The author wrote no English bio; AI wrote this from the README',
+  'market.descriptionGeneratedTag': 'AI summary',
   'market.description':
     'Browse Bots shared as public GitHub repositories. Installing one creates a new Bot.',
   'market.submit.label': 'GitHub repository URL',

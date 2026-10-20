@@ -40,7 +40,9 @@ async function listed(market: ReturnType<typeof createMarket>, repository: FakeR
 }
 
 async function entry(market: ReturnType<typeof createMarket>, query = ''): Promise<Entry> {
-  const page = (await (await market.request(`/v1/bots${query}`)).json()) as { bots: Entry[] };
+  const page = (await (await market.request(`/v1/bots${query}`)).json()) as {
+    bots: Entry[];
+  };
   return page.bots[0]!;
 }
 
@@ -68,7 +70,9 @@ describe('language tags', () => {
     expect(
       localizedReadmeFiles(['README_CN.md', 'README.zh.md', 'README.zh-CN.md', 'README.en.md']),
     ).toEqual({ zh: 'README.zh-CN.md', en: 'README.en.md' });
-    expect(localizedReadmeFiles(['README-zh.md', 'docs.md'])).toEqual({ zh: 'README-zh.md' });
+    expect(localizedReadmeFiles(['README-zh.md', 'docs.md'])).toEqual({
+      zh: 'README-zh.md',
+    });
   });
 
   it('reads the bot.json i18n map and rejects a malformed one', () => {
@@ -142,12 +146,28 @@ describe('localized READMEs', () => {
     expect(detail).toMatchObject({ readme: '# 默认', readmeLanguage: null });
   });
 
+  it('stores an empty repository instead of retrying its root listing', async () => {
+    const { summarizer, calls } = fakeSummarizer(() => ({ zh: '空仓库。' }));
+    const market = createMarket({ summarizer });
+    await listed(market, fakeRepository({ readme: null, descriptor: null, empty: true }));
+    await market.scheduled(REFRESH_CRON);
+    expect(calls).toHaveLength(1);
+    const detail = (await (await market.request('/v1/bots/R_alice_helper-bot?lang=zh')).json()) as {
+      readme: string | null;
+      readmeLanguages: string[];
+    };
+    expect(detail).toMatchObject({ readme: null, readmeLanguages: [] });
+  });
+
   it('keeps the previous presentation while the root listing is unavailable', async () => {
     const market = createMarket();
     await listed(market, fakeRepository({ files: { 'README.zh.md': '# 中文' } }));
     market.github.contentsDown.value = true;
     market.publish(
-      fakeRepository({ pushedAt: '2026-10-09T00:00:00Z', files: { 'README.zh.md': '# 新' } }),
+      fakeRepository({
+        pushedAt: '2026-10-09T00:00:00Z',
+        files: { 'README.zh.md': '# 新' },
+      }),
     );
     await submit(market, 'https://github.com/alice/helper-bot');
     const detail = (await (await market.request('/v1/bots/R_alice_helper-bot?lang=zh')).json()) as {
@@ -195,7 +215,10 @@ describe('generated summaries', () => {
     const market = createMarket({ summarizer });
     await listed(
       market,
-      fakeRepository({ description: 'Helps you write documents', readme: '# Writer\n\nDocs.' }),
+      fakeRepository({
+        description: 'Helps you write documents',
+        readme: '# Writer\n\nDocs.',
+      }),
     );
     expect(await entry(market, '?lang=zh')).toMatchObject({
       bio: 'Helps you write documents',
@@ -224,7 +247,9 @@ describe('generated summaries', () => {
       bio: 'Helps you write documents',
       bioGenerated: false,
     });
-    expect(await entry(market)).toMatchObject({ bio: 'Helps you write documents' });
+    expect(await entry(market)).toMatchObject({
+      bio: 'Helps you write documents',
+    });
 
     const search = async (q: string) =>
       (
@@ -240,7 +265,9 @@ describe('generated summaries', () => {
   });
 
   it('regenerates only when what the summary was made from changes', async () => {
-    const { summarizer, calls } = fakeSummarizer(() => ({ zh: '第一版摘要。' }));
+    const { summarizer, calls } = fakeSummarizer(() => ({
+      zh: '第一版摘要。',
+    }));
     const market = createMarket({ summarizer });
     const repository = fakeRepository({ readme: '# One' });
     await listed(market, repository);
@@ -251,7 +278,11 @@ describe('generated summaries', () => {
     await market.scheduled(REFRESH_CRON);
     expect(calls).toHaveLength(1);
 
-    market.publish({ ...repository, pushedAt: '2026-10-07T00:00:00Z', readme: '# Two' });
+    market.publish({
+      ...repository,
+      pushedAt: '2026-10-07T00:00:00Z',
+      readme: '# Two',
+    });
     await market.scheduled(REFRESH_CRON);
     expect(calls.map((call) => call.readme)).toEqual(['# One', '# Two']);
   });
@@ -276,12 +307,49 @@ describe('generated summaries', () => {
 
     await market.scheduled(REFRESH_CRON);
     expect(calls.map((call) => call.name)).toEqual(['english-only']);
-    expect(market.logs.at(-1)).toMatchObject({ checked: 2, generated: 0, failed: 1 });
+    expect(market.logs.at(-1)).toMatchObject({
+      checked: 2,
+      generated: 0,
+      failed: 1,
+    });
 
     fail = false;
     await market.scheduled(REFRESH_CRON);
     expect(calls.map((call) => call.name)).toEqual(['english-only', 'english-only']);
-    expect(market.logs.at(-1)).toMatchObject({ checked: 1, generated: 1, failed: 0 });
+    expect(market.logs.at(-1)).toMatchObject({
+      checked: 1,
+      generated: 1,
+      failed: 0,
+    });
+  });
+
+  it('stops retrying a listing that keeps failing so lower-ranked listings still get summaries', async () => {
+    const { summarizer, calls } = fakeSummarizer((input) =>
+      input.name === 'refused' ? undefined : { zh: '帮你安排会议。' },
+    );
+    const market = createMarket({ summarizer });
+    await listed(market, fakeRepository({ name: 'refused', stars: 50 }));
+    await listed(market, fakeRepository({ name: 'meetings', stars: 1 }));
+
+    for (let run = 0; run < 4; run += 1) await market.scheduled(REFRESH_CRON);
+
+    expect(calls.filter((call) => call.name === 'refused')).toHaveLength(3);
+    expect(calls.filter((call) => call.name === 'meetings')).toHaveLength(1);
+    expect(await entry(market, '?lang=zh&q=meetings')).toMatchObject({
+      bio: '帮你安排会议。',
+      bioGenerated: true,
+    });
+
+    market.publish(
+      fakeRepository({
+        name: 'refused',
+        stars: 50,
+        pushedAt: '2026-10-09T00:00:00Z',
+      }),
+    );
+    await submit(market, 'https://github.com/alice/refused');
+    await market.scheduled(REFRESH_CRON);
+    expect(calls.filter((call) => call.name === 'refused')).toHaveLength(4);
   });
 
   it('does nothing without a summarizer', async () => {
@@ -308,7 +376,11 @@ describe('summary model output', () => {
   });
 
   it('calls an OpenAI-compatible chat completions endpoint', async () => {
-    const requests: { url: string; body: Record<string, unknown>; auth: string | null }[] = [];
+    const requests: {
+      url: string;
+      body: Record<string, unknown>;
+      auth: string | null;
+    }[] = [];
     const summarizer = createSummarizer({
       apiKey: 'secret',
       apiBase: 'https://llm.test/v1/',
@@ -321,7 +393,11 @@ describe('summary model output', () => {
         });
         return new Response(
           JSON.stringify({
-            choices: [{ message: { content: '{"zh":"读论文。","en":"Reads papers."}' } }],
+            choices: [
+              {
+                message: { content: '{"zh":"读论文。","en":"Reads papers."}' },
+              },
+            ],
           }),
         );
       },

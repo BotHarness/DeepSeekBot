@@ -35,6 +35,7 @@ export interface RepositoryRow {
   summary: string | null;
   summary_key: string | null;
   summary_checked_at: string | null;
+  summary_failures: number;
   search_text: string | null;
 }
 
@@ -105,7 +106,8 @@ export function createRepositoryStore(deps: {
     await db
       .prepare(
         `UPDATE indexed_repositories SET readme = ?, readme_pushed_at = ?, display_name = ?, roles = ?,
-           bio = ?, banner = ?, readmes = ?, localized = ?, search_text = ? WHERE node_id = ?`,
+           bio = ?, banner = ?, readmes = ?, localized = ?, search_text = ?, summary_failures = 0
+         WHERE node_id = ?`,
       )
       .bind(
         readme.value?.slice(0, MAX_README_LENGTH) ?? null,

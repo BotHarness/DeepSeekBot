@@ -37,6 +37,7 @@ export interface FakeRepository extends GitHubRepository {
   readme: string | null;
   descriptor: string | null;
   files?: Record<string, string>;
+  empty?: boolean;
 }
 
 export function fakeRepository(overrides: Partial<FakeRepository> = {}): FakeRepository {
@@ -55,7 +56,10 @@ export function fakeRepository(overrides: Partial<FakeRepository> = {}): FakeRep
     defaultBranch: 'main',
     private: false,
     archived: false,
-    head: { sha: 'abcdef1234567890abcdef1234567890abcdef12', committedAt: '2026-09-30T12:00:00Z' },
+    head: {
+      sha: 'abcdef1234567890abcdef1234567890abcdef12',
+      committedAt: '2026-09-30T12:00:00Z',
+    },
     createdAt: '2026-01-01T00:00:00Z',
     readme: `# ${name}`,
     descriptor: null,
@@ -80,7 +84,10 @@ export function createFakeGitHub(): {
   const nodeBatches: number[] = [];
   const searches: string[] = [];
   const respond = (status: number, body: unknown): Response =>
-    new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { 'content-type': 'application/json' },
+    });
   const rest = (repository: FakeRepository) => ({
     node_id: repository.nodeId,
     owner: { login: repository.owner },
@@ -108,13 +115,18 @@ export function createFakeGitHub(): {
           pushedAt: repository.pushedAt,
           isPrivate: repository.private,
           isArchived: repository.archived,
-          repositoryTopics: { nodes: repository.topics.map((name) => ({ topic: { name } })) },
+          repositoryTopics: {
+            nodes: repository.topics.map((name) => ({ topic: { name } })),
+          },
           defaultBranchRef: {
             name: repository.defaultBranch,
             target:
               repository.head === undefined
                 ? {}
-                : { oid: repository.head.sha, committedDate: repository.head.committedAt },
+                : {
+                    oid: repository.head.sha,
+                    committedDate: repository.head.committedAt,
+                  },
           },
         };
   const search = (url: URL): Response => {
@@ -149,10 +161,14 @@ export function createFakeGitHub(): {
     if (url.pathname === '/search/repositories') return search(url);
     if (url.pathname === '/graphql') {
       if (nodesDown.value) return respond(502, { message: 'bad gateway' });
-      const { variables } = JSON.parse(String(init?.body)) as { variables: { ids: string[] } };
+      const { variables } = JSON.parse(String(init?.body)) as {
+        variables: { ids: string[] };
+      };
       nodeBatches.push(variables.ids.length);
       const byId = new Map([...repositories.values()].map((item) => [item.nodeId, item]));
-      return respond(200, { data: { nodes: variables.ids.map((id) => graph(byId.get(id))) } });
+      return respond(200, {
+        data: { nodes: variables.ids.map((id) => graph(byId.get(id))) },
+      });
     }
     const match = /^\/repos\/([^/]+)\/([^/]+)(?:\/(commits|readme|contents)(?:\/(.*))?)?$/u.exec(
       url.pathname,
@@ -170,6 +186,8 @@ export function createFakeGitHub(): {
     if (match[3] === 'contents') {
       if (contentsDown.value) return respond(503, { message: 'unavailable' });
       if (match[4] === undefined || match[4] === '') {
+        if (repository.empty === true)
+          return respond(404, { message: 'This repository is empty.' });
         const names = [
           ...(repository.readme === null ? [] : ['README.md']),
           ...Object.keys(repository.files ?? {}),
@@ -311,7 +329,10 @@ export async function report(
   return post(
     market,
     `/v1/bots/${encodeURIComponent(id)}/reports`,
-    { altcha: await solve(market, ip), ...(reason === undefined ? {} : { reason }) },
+    {
+      altcha: await solve(market, ip),
+      ...(reason === undefined ? {} : { reason }),
+    },
     ip,
   );
 }
@@ -319,7 +340,10 @@ export async function report(
 export function admin(market: Market, body: unknown, token = TEST_ADMIN_TOKEN) {
   return market.request('/v1/admin/blocklist', {
     method: 'POST',
-    headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+    headers: {
+      'content-type': 'application/json',
+      authorization: `Bearer ${token}`,
+    },
     body: JSON.stringify(body),
   });
 }

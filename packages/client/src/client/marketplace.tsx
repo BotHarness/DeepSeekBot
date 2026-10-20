@@ -97,6 +97,25 @@ function MarketplaceName({ bot }: { bot: MarketplaceEntry }): ReactElement {
   );
 }
 
+function MarketplaceDescription({
+  bot,
+  t,
+}: {
+  bot: MarketplaceEntry;
+  t: BotHarnessTranslate;
+}): ReactElement {
+  return (
+    <span className="bh-market-description">
+      {bot.description}
+      {bot.descriptionGenerated === true ? (
+        <span className="bh-market-generated" title={t('market.descriptionGenerated')}>
+          {t('market.descriptionGeneratedTag')}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
 function day(value: string): string {
   return value.slice(0, 10);
 }
@@ -124,7 +143,12 @@ function queryFor(filters: Filters, lang: MarketplaceLanguage, cursor?: string):
 type ListState =
   | { status: 'loading' }
   | { status: 'error'; cause: unknown }
-  | { status: 'ready'; bots: MarketplaceEntry[]; nextCursor?: string; loadingMore: boolean };
+  | {
+      status: 'ready';
+      bots: MarketplaceEntry[];
+      nextCursor?: string;
+      loadingMore: boolean;
+    };
 
 function mergeBots(current: MarketplaceEntry[], next: MarketplaceEntry[]): MarketplaceEntry[] {
   const seen = new Set(next.map((bot) => bot.id));
@@ -210,14 +234,7 @@ function MarketplaceRow({
           {t('market.install')}
         </Button>
       </div>
-      {bot.description === null ? null : (
-        <span
-          className="bh-market-description"
-          title={bot.descriptionGenerated ? t('market.descriptionGenerated') : undefined}
-        >
-          {bot.description}
-        </span>
-      )}
+      {bot.description === null ? null : <MarketplaceDescription bot={bot} t={t} />}
       <div className="bh-market-row-foot">
         {bot.roles.length === 0 ? null : (
           <span className="bh-market-card-tags">
@@ -315,7 +332,10 @@ function MarketplaceDetailView({
 }): ReactElement {
   const labels = useMemo<MarkdownLabels>(
     () => ({
-      code: { copyLabel: t('message.code.copy'), copiedLabel: t('message.code.copied') },
+      code: {
+        copyLabel: t('message.code.copy'),
+        copiedLabel: t('message.code.copied'),
+      },
       footnotes: t('message.footnotes'),
     }),
     [t],
@@ -334,14 +354,7 @@ function MarketplaceDetailView({
             {t('market.detail.github')}
           </a>
         </div>
-        {shown.description === null ? null : (
-          <span
-            className="bh-market-description"
-            title={shown.descriptionGenerated ? t('market.descriptionGenerated') : undefined}
-          >
-            {shown.description}
-          </span>
-        )}
+        {shown.description === null ? null : <MarketplaceDescription bot={shown} t={t} />}
         <MarketplaceMeta bot={shown} t={t} />
       </div>
       {report}
@@ -352,7 +365,11 @@ function MarketplaceDetailView({
       ) : null}
       {state.status === 'error' ? (
         <div className="bh-market-state" role="alert">
-          <span>{t('market.detail.error', { error: marketplaceError(state.cause, t) })}</span>
+          <span>
+            {t('market.detail.error', {
+              error: marketplaceError(state.cause, t),
+            })}
+          </span>
           <Button variant="outline" onClick={onRetry}>
             {t('market.retry')}
           </Button>
@@ -391,14 +408,7 @@ function InstallConfirmation({
         />
         <span className="bh-market-copy">
           <MarketplaceName bot={bot} />
-          {bot.description === null ? null : (
-            <span
-              className="bh-market-description"
-              title={bot.descriptionGenerated ? t('market.descriptionGenerated') : undefined}
-            >
-              {bot.description}
-            </span>
-          )}
+          {bot.description === null ? null : <MarketplaceDescription bot={bot} t={t} />}
         </span>
       </div>
       <dl className="bh-market-facts">
@@ -429,7 +439,9 @@ function InstallConfirmation({
       </div>
       {cause === undefined ? null : (
         <div className="bh-modal-error" role="alert">
-          {t('market.install.failed', { error: personaBotCreateError(cause, t) })}
+          {t('market.install.failed', {
+            error: personaBotCreateError(cause, t),
+          })}
         </div>
       )}
     </div>
@@ -449,7 +461,10 @@ export function MarketplaceModal({
 }): ReactElement {
   const lang: MarketplaceLanguage = t('market.language') === 'en' ? 'en' : 'zh';
   const [list, setList] = useState<ListState>({ status: 'loading' });
-  const [filters, setFilters] = useState<Filters>({ sort: 'updated', query: '' });
+  const [filters, setFilters] = useState<Filters>({
+    sort: 'updated',
+    query: '',
+  });
   const [searchText, setSearchText] = useState('');
   const [topics, setTopics] = useState<MarketplaceTopic[]>([]);
   const [url, setUrl] = useState('');
@@ -500,7 +515,7 @@ export function MarketplaceModal({
       generation.current += 1;
       clearTimeout(searchTimer.current);
     };
-  }, []);
+  }, [lang]);
 
   const search = (text: string): void => {
     setSearchText(text);
@@ -538,8 +553,10 @@ export function MarketplaceModal({
     );
   };
 
+  const detailLang = useRef(lang);
   const openDetail = (bot: MarketplaceEntry): void => {
     const ticket = ++detailGeneration.current;
+    detailLang.current = lang;
     setViewing(bot);
     setReport({ status: 'closed' });
     setDetail({ status: 'loading' });
@@ -552,6 +569,10 @@ export function MarketplaceModal({
       },
     );
   };
+
+  const reloadDetail = useMountedResource<HTMLDivElement>(() => {
+    if (viewing !== undefined && detailLang.current !== lang) openDetail(viewing);
+  }, [lang]);
 
   const submit = (): void => {
     const trimmed = url.trim();
@@ -571,7 +592,10 @@ export function MarketplaceModal({
           setSubmitted(bot.fullName);
           setList((current) =>
             current.status === 'ready'
-              ? { ...current, bots: [bot, ...current.bots.filter((item) => item.id !== bot.id)] }
+              ? {
+                  ...current,
+                  bots: [bot, ...current.bots.filter((item) => item.id !== bot.id)],
+                }
               : { status: 'ready', bots: [bot], loadingMore: false },
           );
         },
@@ -590,7 +614,11 @@ export function MarketplaceModal({
     void proveHuman(actions)
       .then((altcha) => {
         if (ticket === detailGeneration.current) {
-          setReport({ status: 'open', reason: report.reason, phase: 'sending' });
+          setReport({
+            status: 'open',
+            reason: report.reason,
+            phase: 'sending',
+          });
         }
         return actions.marketplaceReport(bot.id, altcha, reason.length === 0 ? undefined : reason);
       })
@@ -600,7 +628,12 @@ export function MarketplaceModal({
         },
         (cause: unknown) => {
           if (ticket === detailGeneration.current) {
-            setReport({ status: 'open', reason: report.reason, phase: 'idle', cause });
+            setReport({
+              status: 'open',
+              reason: report.reason,
+              phase: 'idle',
+              cause,
+            });
           }
         },
       );
@@ -672,6 +705,7 @@ export function MarketplaceModal({
         onClose={onClose}
         closeLabel={t('common.close')}
         title={marketplaceName(shown)}
+        bodyRef={reloadDetail}
         {...(report.status === 'closed'
           ? {
               secondary: (

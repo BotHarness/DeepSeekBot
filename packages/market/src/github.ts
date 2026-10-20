@@ -298,7 +298,10 @@ export function createGitHubClient(options: {
       });
     },
     readme: (locator) => raw(`${repoPath(locator)}/readme`),
-    rootFiles: (locator) => get(`${repoPath(locator)}/contents/`, parseRootFiles),
+    rootFiles: async (locator) => {
+      const listing = await get(`${repoPath(locator)}/contents/`, parseRootFiles);
+      return !listing.ok && listing.reason === 'not-found' ? { ok: true, value: [] } : listing;
+    },
     file: (locator, path) =>
       raw(`${repoPath(locator)}/contents/${path.split('/').map(encodeURIComponent).join('/')}`),
   };

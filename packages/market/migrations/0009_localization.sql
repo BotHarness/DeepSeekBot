@@ -5,6 +5,7 @@ ALTER TABLE indexed_repositories ADD COLUMN localized TEXT;
 ALTER TABLE indexed_repositories ADD COLUMN summary TEXT;
 ALTER TABLE indexed_repositories ADD COLUMN summary_key TEXT;
 ALTER TABLE indexed_repositories ADD COLUMN summary_checked_at TEXT;
+ALTER TABLE indexed_repositories ADD COLUMN summary_failures INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE indexed_repositories ADD COLUMN search_text TEXT;
 UPDATE indexed_repositories SET readme_pushed_at = NULL;
 
