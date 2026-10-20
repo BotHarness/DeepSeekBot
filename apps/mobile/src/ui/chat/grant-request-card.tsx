@@ -30,6 +30,7 @@ export function GrantRequestCard({
   port,
   botName,
   resolved = false,
+  decidedHere = false,
   focused = false,
   group,
   wide = false,
@@ -38,6 +39,7 @@ export function GrantRequestCard({
   port: GrantRequestPort;
   botName: string;
   resolved?: boolean;
+  decidedHere?: boolean;
   focused?: boolean;
   group?: BubbleGroup;
   wide?: boolean;
@@ -74,7 +76,7 @@ export function GrantRequestCard({
       ? phase.folder === undefined
         ? t.grantAllowed
         : `${t.grantAllowed} · ${phase.folder}`
-      : phase.kind === 'known' || phase.kind === 'failed'
+      : phase.kind === 'known' || phase.kind === 'failed' || decidedHere
         ? t.cardDecided
         : t.elsewhere(t.cardDecided);
     return (

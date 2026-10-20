@@ -16,6 +16,7 @@ import {
   answerInChat,
   answerQuestion,
   decideApproval,
+  handledHere,
   loadApproval,
   loadQuestion,
   requestRef,
@@ -197,6 +198,22 @@ describe('Tool approval card in the DM', () => {
     expect(button(view, t.allowOnce)).toBeDefined();
     await rerender(card(target, { resolution: { kind: 'tool-approval', outcome: 'rejected' } }));
     expect(line(view)).toBe(t.cardLine('bash', t.elsewhere(t.cardOutcome.rejected)));
+  });
+
+  it('does not call a decision from this phone’s Activity list another device', async () => {
+    const fake = host();
+    fake.answers.set('toolApprovalDecide', () => recorded('toolApprovalDecide.accepted'));
+    const target = connect(fake);
+    const view = await render(card(target));
+    expect(await decideApproval(target, approval, 'allowed-once')).toBe('accepted');
+    expect(handledHere(approval)).toBe(true);
+    await rerender(
+      card(target, {
+        resolution: { kind: 'tool-approval', outcome: 'allowed-once' },
+        decidedHere: handledHere(approval),
+      }),
+    );
+    expect(line(view)).toBe(t.cardLine('bash', t.cardOutcome['allowed-once']));
   });
 
   it('says so when a tap lost to another device', async () => {

@@ -47,6 +47,7 @@ import {
   answerInChat,
   answerQuestion,
   decideApproval,
+  handledHere,
   grantRequestPort,
   loadApproval,
   loadQuestion,
@@ -232,6 +233,7 @@ const RequestCard = memo(function RequestCard({
         port={grant}
         botName={botName}
         resolved={card.resolved === true || resolution?.kind === 'grant'}
+        decidedHere={handledHere(ref)}
         focused={focused}
         group={group}
       />
@@ -242,6 +244,7 @@ const RequestCard = memo(function RequestCard({
         port={approval}
         {...subject}
         {...(resolution?.kind === 'tool-approval' ? { resolution } : {})}
+        decidedHere={handledHere(ref)}
         focused={focused}
         group={group}
       />
@@ -256,7 +259,7 @@ const RequestCard = memo(function RequestCard({
       group={group}
       replyInChat={replyInChat}
       expandInput
-      answeredHere={answeredHere}
+      answeredHere={answeredHere || handledHere(ref)}
     />
   );
 });

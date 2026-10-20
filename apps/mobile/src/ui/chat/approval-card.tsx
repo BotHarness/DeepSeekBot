@@ -67,11 +67,12 @@ function settledLine(
   subject: string,
   phase: Phase,
   resolution: Extract<CardResolution, { kind: 'tool-approval' }> | undefined,
+  decidedHere: boolean,
 ): Line | undefined {
   const state = (outcome: ToolApprovalOutcome | undefined, elsewhere: boolean): Line => {
     const label = outcome === undefined ? t.cardDecided : t.cardOutcome[outcome];
     return {
-      text: t.cardLine(subject, elsewhere ? t.elsewhere(label) : label),
+      text: t.cardLine(subject, elsewhere && !decidedHere ? t.elsewhere(label) : label),
       tone: outcomeTone(outcome),
     };
   };
@@ -91,6 +92,7 @@ export function ApprovalCard({
   port,
   subject,
   resolution,
+  decidedHere = false,
   focused = false,
   group,
   wide = false,
@@ -99,6 +101,7 @@ export function ApprovalCard({
   port: ApprovalCardPort;
   subject?: string;
   resolution?: Extract<CardResolution, { kind: 'tool-approval' }>;
+  decidedHere?: boolean;
   focused?: boolean;
   group?: BubbleGroup;
   wide?: boolean;
@@ -134,7 +137,7 @@ export function ApprovalCard({
   }, [load]);
 
   const tool = phase.kind === 'pending' ? phase.request.toolName : (subject ?? '');
-  const line = settledLine(tool, phase, resolution);
+  const line = settledLine(tool, phase, resolution, decidedHere);
   if (line !== undefined)
     return (
       <View ref={mount}>

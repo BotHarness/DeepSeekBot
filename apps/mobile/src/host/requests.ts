@@ -114,6 +114,20 @@ export async function loadApproval(client: HostClient, ref: RequestRef): Promise
   };
 }
 
+const handled = new Set<string>();
+
+function handledKey(ref: Pick<RequestRef, 'channelId' | 'messageId'>): string {
+  return `${ref.channelId}\n${ref.messageId}`;
+}
+
+export function handledHere(ref: Pick<RequestRef, 'channelId' | 'messageId'>): boolean {
+  return handled.has(handledKey(ref));
+}
+
+function markHandled(ref: RequestRef): void {
+  handled.add(handledKey(ref));
+}
+
 export async function decideApproval(
   client: HostClient,
   ref: RequestRef,
@@ -125,6 +139,7 @@ export async function decideApproval(
       messageId: ref.messageId,
       outcome,
     });
+    markHandled(ref);
     return 'accepted';
   } catch (error) {
     if (!(error instanceof MethodRefused)) throw error;
@@ -166,6 +181,7 @@ export async function decideGrantRequest(
       ref.messageId,
       workspaceId,
     );
+    markHandled(ref);
     return { result: 'accepted', grant };
   } catch (error) {
     if (!(error instanceof MethodRefused)) throw error;
@@ -228,6 +244,7 @@ export async function answerQuestion(
       messageId: ref.messageId,
       answer,
     });
+    markHandled(ref);
     return 'accepted';
   } catch (error) {
     if (!(error instanceof MethodRefused)) throw error;
