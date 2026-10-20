@@ -47,6 +47,7 @@
     "apps/mobile/test/action-cards.test.ts",
     "apps/mobile/test/activity-feed.test.ts",
     "apps/mobile/test/open-conversation.test.ts",
+    "apps/mobile/test/quick-action-routing.test.ts",
     "apps/mobile/test/grant-request-card.test.ts",
     "apps/mobile/test/attention-actions.test.ts",
     "apps/mobile/test/reanimated-shim.ts",

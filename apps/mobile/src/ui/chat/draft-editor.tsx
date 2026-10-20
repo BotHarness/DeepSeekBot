@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
+import { HardwareSend } from '../primitives/hardware-send';
 import { TextInput } from '../primitives/system-text';
 import { Text } from '../primitives/text';
 import { ArrowUpIcon, CheckIcon } from '../shell/icons';
@@ -70,32 +71,34 @@ export function DraftEditor({
           ) : null}
         </View>
         {above}
-        <TextInput
-          autoFocus
-          multiline
-          value={value}
-          onChangeText={onChange}
-          {...(selection === undefined ? {} : { selection })}
-          {...(onSelection === undefined
-            ? {}
-            : {
-                onSelectionChange: (event: { nativeEvent: { selection: { end: number } } }) =>
-                  onSelection(event.nativeEvent.selection.end),
-              })}
-          placeholder={placeholder}
-          accessibilityLabel={t.editDraft}
-          placeholderTextColor={theme.color.subtle}
-          style={{
-            flex: 1,
-            textAlignVertical: 'top',
-            paddingHorizontal: space.x5,
-            paddingTop: space.x3,
-            paddingBottom: Math.max(insets.bottom, space.x3),
-            color: theme.color.fg,
-            fontSize: theme.type.body.size,
-            lineHeight: theme.type.body.line,
-          }}
-        />
+        <HardwareSend enabled={canSend} enter={false} onSend={onSend} style={{ flex: 1 }}>
+          <TextInput
+            autoFocus
+            multiline
+            value={value}
+            onChangeText={onChange}
+            {...(selection === undefined ? {} : { selection })}
+            {...(onSelection === undefined
+              ? {}
+              : {
+                  onSelectionChange: (event: { nativeEvent: { selection: { end: number } } }) =>
+                    onSelection(event.nativeEvent.selection.end),
+                })}
+            placeholder={placeholder}
+            accessibilityLabel={t.editDraft}
+            placeholderTextColor={theme.color.subtle}
+            style={{
+              flex: 1,
+              textAlignVertical: 'top',
+              paddingHorizontal: space.x5,
+              paddingTop: space.x3,
+              paddingBottom: Math.max(insets.bottom, space.x3),
+              color: theme.color.fg,
+              fontSize: theme.type.body.size,
+              lineHeight: theme.type.body.line,
+            }}
+          />
+        </HardwareSend>
       </KeyboardAvoidingView>
     </Modal>
   );
