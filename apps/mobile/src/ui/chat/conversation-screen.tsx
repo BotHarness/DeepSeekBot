@@ -837,6 +837,7 @@ function ChatConversation({
                     ? {
                         above: (
                           <ClipboardImageOffer
+                            onUnreadable={clipboard.used}
                             onPaste={(data) => {
                               clipboard.used();
                               setAttachError(false);

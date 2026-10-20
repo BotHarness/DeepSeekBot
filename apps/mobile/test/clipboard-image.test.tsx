@@ -1,12 +1,16 @@
 // @vitest-environment jsdom
-import { act } from 'react';
+import { act, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const listeners: Array<(event: { contentTypes: string[] }) => void> = [];
 let hasImage = false;
+let pasteButton: { onPress(data: { type: string; data?: string }): void } | undefined;
 
-vi.mock('react-native', () => ({ Platform: { OS: 'ios' }, View: () => null }));
+vi.mock('react-native', () => ({
+  Platform: { OS: 'ios' },
+  View: ({ children }: { children?: ReactNode }) => children,
+}));
 vi.mock('expo-image-picker', () => ({}));
 vi.mock('expo-document-picker', () => ({}));
 vi.mock('expo-clipboard', () => ({
@@ -17,16 +21,21 @@ vi.mock('expo-clipboard', () => ({
     listeners.push(listener);
     return { remove: () => listeners.splice(listeners.indexOf(listener), 1) };
   },
-  ClipboardPasteButton: () => null,
+  ClipboardPasteButton: (props: NonNullable<typeof pasteButton>) => {
+    pasteButton = props;
+    return null;
+  },
 }));
-vi.mock('../src/ui/design/theme', () => ({ useDesignTheme: () => ({}) }));
+vi.mock('../src/ui/design/theme', () => ({
+  useDesignTheme: () => ({ color: {}, type: { body: {} }, layer: { sheet: {} }, touch: 44 }),
+}));
 vi.mock('../src/ui/primitives/text', () => ({ Text: () => null }));
 vi.mock('../src/ui/primitives/button', () => ({ Button: () => null }));
 vi.mock('../src/ui/primitives/drawer-material', () => ({ useLiquidGlass: () => false }));
 vi.mock('../src/ui/chat/composer-chrome', () => ({ ComposerFieldMaterial: () => null }));
 vi.mock('../src/ui/shell/icons', () => ({ PhotoIcon: () => null }));
 
-const { useClipboardImage } = await import('../src/ui/chat/clipboard-image');
+const { ClipboardImageOffer, useClipboardImage } = await import('../src/ui/chat/clipboard-image');
 const { fromClipboardImage } = await import('../src/host/pick-files');
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -85,6 +94,20 @@ describe('clipboard image offer', () => {
     copy(['plain-text']);
     expect(view.current.offered).toBe(false);
     view.unmount();
+  });
+
+  it('gives up the offer when the copied image can no longer be read', () => {
+    const onPaste = vi.fn();
+    const onUnreadable = vi.fn();
+    act(() =>
+      createRoot(document.createElement('div')).render(
+        <ClipboardImageOffer onPaste={onPaste} onUnreadable={onUnreadable} />,
+      ),
+    );
+    act(() => pasteButton!.onPress({ type: 'text', data: '' }));
+    expect(onUnreadable).toHaveBeenCalledTimes(1);
+    act(() => pasteButton!.onPress({ type: 'image', data: 'data:image/jpeg;base64,AAAA' }));
+    expect(onPaste).toHaveBeenCalledWith('data:image/jpeg;base64,AAAA');
   });
 
   it('attaches the pasted image as a picked image with a matching name', () => {

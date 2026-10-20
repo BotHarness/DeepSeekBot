@@ -49,9 +49,10 @@ export const clipboardPasteAvailable = nativePasteButton || Platform.OS === 'and
 
 const IMAGE = { format: 'jpeg', jpegQuality: 0.8 } as const;
 
-async function readClipboardImage(onPaste: (data: string) => void) {
+async function readClipboardImage(onPaste: (data: string) => void, onUnreadable: () => void) {
   const image = await Clipboard.getImageAsync(IMAGE).catch(() => null);
-  if (image !== null) onPaste(image.data);
+  if (image === null) onUnreadable();
+  else onPaste(image.data);
 }
 
 export function useClipboardImage(watching: boolean) {
@@ -66,7 +67,13 @@ export function useClipboardImage(watching: boolean) {
   };
 }
 
-export function ClipboardImageOffer({ onPaste }: { onPaste(data: string): void }) {
+export function ClipboardImageOffer({
+  onPaste,
+  onUnreadable,
+}: {
+  onPaste(data: string): void;
+  onUnreadable(): void;
+}) {
   const theme = useDesignTheme();
   const glass = useLiquidGlass();
   const corner = glass ? radius.xl : radius.lg;
@@ -106,6 +113,7 @@ export function ClipboardImageOffer({ onPaste }: { onPaste(data: string): void }
           style={{ height: theme.touch, width: theme.largeText ? theme.touch : theme.touch * 2.5 }}
           onPress={(data) => {
             if (data.type === 'image') onPaste(data.data);
+            else onUnreadable();
           }}
         />
       ) : (
@@ -116,7 +124,7 @@ export function ClipboardImageOffer({ onPaste }: { onPaste(data: string): void }
             variant="text"
             on="sheet"
             icon={<PhotoIcon color={theme.color.fg} size={theme.type.body.line} />}
-            onPress={() => void readClipboardImage(onPaste)}
+            onPress={() => void readClipboardImage(onPaste, onUnreadable)}
           />
         </View>
       )}
