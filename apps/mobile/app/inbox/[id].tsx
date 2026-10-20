@@ -5,6 +5,7 @@ import { ScrollView, View } from 'react-native';
 
 import { fullClientParams, type FullClientTarget } from '../../src/host/full-client';
 import { useHostSession, useHostSnapshot, useInbox } from '../../src/host/host-session';
+import { messageHref } from '../../src/host/push';
 import {
   answerQuestion,
   decideApproval,
@@ -148,6 +149,15 @@ export default function InboxItemScreen() {
         known={inbox?.find(params.id)}
         botName={botName}
         after={() => void inbox?.refresh()}
+        onOpenChat={(item) => {
+          const href = messageHref(
+            item,
+            (slug) => snapshot.roster?.bots.find((bot) => bot.slug === slug)?.dmChannelId,
+            (channelId) =>
+              snapshot.roster?.channels.some((channel) => channel.id === channelId) ?? false,
+          );
+          if (href !== undefined) router.push(href);
+        }}
         fallback={fallback}
       />
     );

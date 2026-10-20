@@ -3,6 +3,7 @@ import {
   WINDOW_ZOOM_OPTIONS,
   runWindowZoomCommand,
 } from './cli-window-zoom.js';
+import { PHONE_ROUTE_COMMANDS, runPhoneRouteCommand } from './cli-phone-route.js';
 import { APPEARANCE_COMMANDS, APPEARANCE_OPTIONS, runAppearanceCommand } from './cli-appearance.js';
 import { prepareCloud, prepareCloudWork } from './cli-cloud.js';
 import { randomUUID } from 'node:crypto';
@@ -208,6 +209,7 @@ const CONTROL_COMMANDS = [
 
 export const LIVE_COMMANDS = [
   ...WINDOW_ZOOM_COMMANDS,
+  ...PHONE_ROUTE_COMMANDS,
   ...CONNECT_COMMANDS,
   ...IM_COMMANDS,
   ...MESSAGING_COMMANDS,
@@ -739,6 +741,10 @@ export async function runLiveCli(
     );
   if (WINDOW_ZOOM_COMMANDS.some((entry) => entry.command === command))
     return runWindowZoomCommand(command, rest, values, () =>
+      connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+    );
+  if (PHONE_ROUTE_COMMANDS.some((entry) => entry.command === command))
+    return runPhoneRouteCommand(command, rest, values, () =>
       connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
     );
   if (command === 'cloud-work') {

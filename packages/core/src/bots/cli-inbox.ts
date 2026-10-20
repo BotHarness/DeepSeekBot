@@ -21,6 +21,7 @@ export const INBOX_OPTIONS = {
   confirm: { type: 'boolean' },
   until: { type: 'string' },
   snoozed: { type: 'boolean' },
+  dismissed: { type: 'boolean' },
 } as const;
 
 export const INBOX_COMMANDS = [
@@ -35,6 +36,7 @@ export const INBOX_COMMANDS = [
   { command: 'inbox', description: 'list Human Inbox items by category, Bot or Channel' },
   { command: 'inbox-status', description: 'read the Human Inbox unread count and action flag' },
   { command: 'inbox-dismiss', description: 'dismiss one Human Inbox item' },
+  { command: 'inbox-restore', description: 'bring back one dismissed Human Inbox item' },
   {
     command: 'inbox-allow-once',
     description: 'allow one auto-rejected call once anyway, from its Human Inbox item',
@@ -103,6 +105,7 @@ export interface InboxValues {
   until?: string;
   clear?: boolean;
   snoozed?: boolean;
+  dismissed?: boolean;
 }
 
 type Rpc = <T>(method: string, args: Record<string, unknown>) => Promise<T>;
@@ -181,6 +184,8 @@ export async function runInboxCommand(
   }
   const { rpc } = await connect();
   const result = await rpc<Record<string, unknown>>(call.method, call.args);
+  if (call.args['dismissed'] === true && result['dismissed'] !== true)
+    throw new CliLiveError('host-query-unsupported', 'Update the Host to list dismissed items.');
   if (call.args['queryVersion'] === 1 && result['queryVersion'] !== 1)
     throw new CliLiveError(
       'host-query-unsupported',
@@ -222,6 +227,8 @@ function prepare(
         usage('--search must be at most 200 characters.');
       if (values.kind !== undefined && values.kind !== 'auto-rejection')
         usage('--kind must be auto-rejection.');
+      if (values.snoozed === true && values.dismissed === true)
+        usage('inbox takes --snoozed or --dismissed, not both.');
       const limit = values.limit === undefined ? undefined : Number(values.limit);
       if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 1 || limit > 100))
         usage('--limit must be 1–100.');
@@ -242,6 +249,7 @@ function prepare(
             : {}),
           ...(values.unread ? { unreadOnly: true } : {}),
           ...(values.snoozed === true ? { snoozed: true } : {}),
+          ...(values.dismissed === true ? { dismissed: true } : {}),
           ...(values.kind === undefined ? {} : { kind: values.kind }),
         },
       };
@@ -259,6 +267,13 @@ function prepare(
       const [itemId] = positionals(command, rest, 1, 'exactly one inbox item id');
       return {
         method: 'humanAttentionDismiss',
+        args: { itemId, sourceKey: values['source-key']?.trim() ?? '' },
+      };
+    }
+    case 'inbox-restore': {
+      const [itemId] = positionals(command, rest, 1, 'exactly one inbox item id');
+      return {
+        method: 'humanAttentionRestore',
         args: { itemId, sourceKey: values['source-key']?.trim() ?? '' },
       };
     }

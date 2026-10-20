@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { FlatList, Modal, Platform, Pressable, Switch, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { INBOX_SECTIONS, type InboxSection } from '../../host/inbox';
+import { INBOX_SECTIONS, type InboxSection, type InboxSetAside } from '../../host/inbox';
 import { Sheet } from '../chat/sheet';
 import { useDesignTheme } from '../design/theme';
 import { edge, radius, space } from '../design/tokens';
@@ -11,7 +11,7 @@ import { Text } from '../primitives/text';
 import { CheckIcon } from './icons';
 import { t } from '../strings';
 
-export type ActivitySection = 'all' | InboxSection;
+export type ActivitySection = 'all' | InboxSection | InboxSetAside;
 export type ActivityFilter = {
   section: ActivitySection;
   bot: string | undefined;
@@ -21,7 +21,13 @@ export type ActivityFilter = {
 export type ActivitySort = 'default' | 'newest' | 'oldest';
 export const ALL_ACTIVITY: ActivityFilter = { section: 'all', bot: undefined };
 export const DEFAULT_ACTIVITY: ActivityFilter = { section: 'action', bot: undefined };
-const SECTIONS: readonly ActivitySection[] = ['all', ...INBOX_SECTIONS];
+const SECTIONS: readonly ActivitySection[] = ['all', ...INBOX_SECTIONS, 'snoozed', 'cleared'];
+
+export function sectionLabel(section: ActivitySection): string {
+  if (section === 'all') return t.filterAll;
+  if (section === 'cleared' || section === 'snoozed') return t.activitySetAside[section];
+  return t.inboxSections[section];
+}
 
 type Props = {
   visible: boolean;
@@ -131,7 +137,7 @@ function OptionsEditor({ bots, channels, filter, sort, onFilter, onSort, onClose
       t.activityCategory,
       SECTIONS.map((section) => ({
         key: `section:${section}`,
-        label: section === 'all' ? t.filterAll : t.inboxSections[section],
+        label: sectionLabel(section),
         selected: filter.section === section,
         choose: () => onFilter({ ...filter, section }),
       })),

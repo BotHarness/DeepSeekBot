@@ -113,10 +113,10 @@ export function EdgeFade({
         ...(top ? { top: 0 } : { bottom: 0 }),
       }}
     >
-      {glass ? (
+      {glass && cover === 0 ? (
         <EdgeMaterial edge={side} />
       ) : (
-        <Svg width="100%" height="100%" preserveAspectRatio="none">
+        <Svg width="100%" height={height} preserveAspectRatio="none">
           <Defs>
             <LinearGradient id={id} x1="0" y1="0" x2="0" y2="1">
               {(top
@@ -132,7 +132,7 @@ export function EdgeFade({
               ))}
             </LinearGradient>
           </Defs>
-          <Rect x="0" y="0" width="100%" height="100%" fill={`url(#${id})`} />
+          <Rect x="0" y="0" width="100%" height={height} fill={`url(#${id})`} />
         </Svg>
       )}
     </View>

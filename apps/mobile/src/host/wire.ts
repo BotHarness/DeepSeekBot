@@ -376,6 +376,7 @@ export interface HumanAttentionItem {
   responseMessageId?: string;
   unreadCount?: number;
   isUnread?: boolean;
+  snoozedUntil?: string;
   autoRejection?: {
     sessionId: string;
     toolName: string;

@@ -17,9 +17,9 @@ import {
 } from './gateway.js';
 import { createConnectAccount } from './connect-account.js';
 import { createDeviceConnect } from './connect.js';
-import { createDevicesHttp, DEVICES_PATH } from './http.js';
+import { createDevicesHttp, DEVICES_PATH, DEVICES_SERVE_PATH } from './http.js';
 import { createDevicePairing, type DevicePairingEvent } from './pairing.js';
-import { detectPhoneRoutes } from './routes.js';
+import { detectPhoneRoutes, publishPhoneRoute } from './routes.js';
 import {
   createPushDelivery,
   type ExpoSender,
@@ -178,7 +178,13 @@ export function mountDevicePairing(
       const others = status.routes.filter((route) => route.kind !== 'loopback');
       return { ...status, routes: [...others, tunnel, ...loopback] };
     };
-    const http = createDevicesHttp({ pairing, routes, connect, account });
+    const http = createDevicesHttp({
+      pairing,
+      routes,
+      connect,
+      account,
+      publish: () => publishPhoneRoute({ port: webServer.port }),
+    });
     for (const [path, methods] of [
       [DEVICES_PATH, ['GET']],
       [`${DEVICES_PATH}/offer`, ['POST']],
@@ -195,6 +201,16 @@ export function mountDevicePairing(
           }),
         `botharness: paired devices ${path}`,
       );
+    webCtx.effect(
+      () =>
+        connection.fetch.register({
+          path: DEVICES_SERVE_PATH,
+          methods: ['POST'],
+          requestBody: 'buffered',
+          fetch: http,
+        }),
+      'botharness: publish phone route',
+    );
 
     const gateway = createDeviceGateway({
       pairing,

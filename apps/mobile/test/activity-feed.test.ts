@@ -18,6 +18,7 @@ vi.mock('react-native-safe-area-context', () => ({
 }));
 vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
 vi.mock('react-native-tab-view', () => import('./tab-view-shim'));
+vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
 vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
 vi.mock('expo-router', () => ({
   useRouter: () => ({ push: () => undefined }),
@@ -390,7 +391,7 @@ describe('Activity feed', () => {
     expect(queries.at(-1)?.search).toBe('budget');
     await press(button(view, t.activityOptions));
     await press(button(view, t.activityReset));
-    expect(queries.findLast((query) => query.category === 'action')?.sort).toBeUndefined();
+    expect(queries.findLast((query) => query.category === 'action')?.sort).toBe('newest');
     expect(queries.at(-1)?.search).toBe('budget');
     await press(button(view, t.cancel));
     await press(button(view, t.activitySearch));
@@ -446,7 +447,7 @@ describe('Activity feed', () => {
     await press(button(view, t.activityOptions));
     expect(button(view, t.activitySortNewest).getAttribute('aria-checked')).toBe('true');
     await press(button(view, t.activityReset));
-    expect(queries.findLast((query) => query.category === 'action')?.sort).toBeUndefined();
+    expect(queries.findLast((query) => query.category === 'action')?.sort).toBe('newest');
     expect(view.querySelector('[role="dialog"]')).not.toBeNull();
   });
 
@@ -649,6 +650,138 @@ describe('Activity feed', () => {
       if (change === 'search') expect(view.textContent).toContain(t.activityNoResults);
     },
   );
+
+  it('hides a swiped item only while its source is the one that was cleared', () => {
+    const snapshot: InboxSnapshot = {
+      status: 'ready',
+      sections: { action: [], replies: [reply], unread: [], handled: [] },
+    };
+    const filter = { section: 'replies' as const, bot: undefined };
+    const keys = (hidden: Map<string, string>) =>
+      feedRows(snapshot, new Set(), [], filter, '', hidden).map((row) => row.key);
+    expect(keys(new Map([[reply.id, reply.sourceEventId ?? '']]))).toEqual(['empty-replies']);
+    expect(keys(new Map([[reply.id, 'an older source']]))).toEqual([reply.id]);
+  });
+
+  it('clears a personal message with a swipe and brings it back with Undo', async () => {
+    const fake = host();
+    let cleared = false;
+    fake.answers.set('humanAttention', (args) => ({
+      ok: true,
+      value: { items: args.category === 'replies' && !cleared ? [reply] : [] },
+    }));
+    fake.methods.set('humanAttentionDismiss', () => {
+      cleared = true;
+      return { accepted: true };
+    });
+    fake.methods.set('humanAttentionRestore', () => {
+      cleared = false;
+      return { accepted: true };
+    });
+    const view = await feed(fake, ready([]));
+    await press(button(view, t.inboxSections.replies));
+    await press(view.querySelector<HTMLElement>('[data-testid="swipe-action-clear"]')!);
+    expect(fake.calls.find((call) => call.method === 'humanAttentionDismiss')?.args).toEqual({
+      itemId: reply.id,
+      sourceKey: reply.sourceEventId ?? '',
+    });
+    expect(view.querySelector('[data-testid="inbox-row-reply-1"]')).toBeNull();
+    expect(view.querySelector('[data-testid="undo-bar"]')?.textContent).toContain(
+      t.activityClearedNotice,
+    );
+    await press(view.querySelector<HTMLElement>('[data-testid="undo-bar-undo"]')!);
+    expect(fake.calls.find((call) => call.method === 'humanAttentionRestore')?.args).toEqual({
+      itemId: reply.id,
+      sourceKey: reply.sourceEventId ?? '',
+    });
+    expect(view.querySelector('[data-testid="inbox-row-reply-1"]')).not.toBeNull();
+    expect(view.querySelector('[data-testid="undo-bar"]')).toBeNull();
+  });
+
+  it('snoozes a pending request until tomorrow instead of clearing it', async () => {
+    const fake = host();
+    let snoozed = false;
+    fake.answers.set('humanAttention', (args) => ({
+      ok: true,
+      value: { items: args.category === 'action' && !snoozed ? [question] : [] },
+    }));
+    fake.methods.set('humanAttentionSnooze', () => {
+      snoozed = true;
+      return { accepted: true };
+    });
+    const view = await feed(fake, ready([question]));
+    expect(view.querySelector('[data-testid="swipe-action-clear"]')).toBeNull();
+    await press(view.querySelector<HTMLElement>('[data-testid="swipe-action-snooze-tomorrow"]')!);
+    const args = fake.calls.find((call) => call.method === 'humanAttentionSnooze')?.args;
+    expect(args).toMatchObject({ itemId: question.id, sourceKey: question.sourceEventId ?? '' });
+    const until = new Date(String(args?.['until']));
+    expect(until.getHours()).toBe(9);
+    expect(until.getTime()).toBeGreaterThan(Date.now());
+    expect(fake.calls.some((call) => call.method === 'humanAttentionDismiss')).toBe(false);
+    expect(post(view, question)).toBeNull();
+  });
+
+  it('lets an interrupted message be cleared from Needs you, since it never resolves itself', async () => {
+    const repair: HumanAttentionItem = {
+      ...question,
+      id: 'repair:e9:ada',
+      kind: 'bot-message-needs-repair',
+      sourceEventId: 'e9',
+    };
+    const fake = host();
+    let cleared = false;
+    fake.answers.set('humanAttention', (args) => ({
+      ok: true,
+      value: { items: args.category === 'action' && !cleared ? [repair] : [] },
+    }));
+    fake.methods.set('humanAttentionDismiss', () => {
+      cleared = true;
+      return { accepted: true };
+    });
+    const view = await feed(fake, ready([repair]));
+    expect(view.querySelector('[data-testid="swipe-action-snooze-tomorrow"]')).toBeNull();
+    expect(view.querySelector('[data-testid="swipe-action-snooze"]')).not.toBeNull();
+    await press(view.querySelector<HTMLElement>('[data-testid="swipe-action-clear"]')!);
+    expect(fake.calls.find((call) => call.method === 'humanAttentionDismiss')?.args).toEqual({
+      itemId: repair.id,
+      sourceKey: 'e9',
+    });
+    expect(view.querySelector('[data-testid="undo-bar"]')?.textContent).toContain(
+      t.activityClearedNotice,
+    );
+  });
+
+  it('lists cleared items through the filters and restores one', async () => {
+    const fake = host();
+    const queries: Record<string, unknown>[] = [];
+    fake.answers.set('humanAttention', (args) => {
+      queries.push(args);
+      return {
+        ok: true,
+        value: {
+          items: args.dismissed === true && args.category === 'replies' ? [reply] : [],
+          ...(args.dismissed === true ? { dismissed: true } : {}),
+        },
+      };
+    });
+    fake.methods.set('humanAttentionRestore', () => ({ accepted: true }));
+    const view = await feed(fake, ready([]));
+    await press(button(view, t.activityOptions));
+    await press(button(view, t.activitySetAside.cleared));
+    await press(button(view, t.cancel));
+    expect(
+      queries
+        .filter((query) => query.dismissed === true)
+        .map((query) => query.category)
+        .sort(),
+    ).toEqual(['action', 'replies', 'unread']);
+    expect(view.querySelector('[data-testid="inbox-row-reply-1"]')).not.toBeNull();
+    await press(view.querySelector<HTMLElement>('[data-testid="swipe-action-restore"]')!);
+    expect(fake.calls.find((call) => call.method === 'humanAttentionRestore')?.args).toEqual({
+      itemId: reply.id,
+      sourceKey: reply.sourceEventId ?? '',
+    });
+  });
 
   it('applies a pager selection to the Host query while retaining other filters in both directions', async () => {
     const fake = host();

@@ -66,7 +66,7 @@ it('hides the Connect section when the Host has no account support', async () =>
   snapshot = devices();
   await render();
   expect(host.querySelector('[data-connect]')).toBeNull();
-  expect(host.querySelector('[data-pair-route-warning]')).not.toBeNull();
+  expect(host.querySelector('[data-pair-route-steps]')).not.toBeNull();
 });
 
 it('signs in, shows the code to confirm, then the connected address', async () => {
@@ -110,7 +110,7 @@ it('signs in, shows the code to confirm, then the connected address', async () =
   expect(host.querySelector('[data-connect-tunnel]')?.getAttribute('data-connect-tunnel')).toBe(
     'connected',
   );
-  expect(host.querySelector('[data-pair-route-warning]')).toBeNull();
+  expect(host.querySelector('[data-pair-route-steps]')).toBeNull();
   await act(async () => button('退出登录')?.click());
   expect(posts.at(-1)).toEqual({ action: 'sign-out' });
 });

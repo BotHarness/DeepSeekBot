@@ -374,6 +374,8 @@ deepseekbot inbox --category replies --search budget --unread --sort mentions-fi
 deepseekbot inbox-watch --category unread --watch-seconds 10
 deepseekbot inbox-status
 deepseekbot inbox-dismiss <item-id> --source-key <source-event-id>
+deepseekbot inbox --category replies --dismissed
+deepseekbot inbox-restore <item-id> --source-key <source-event-id>
 deepseekbot inbox-snooze <item-id> --source-key <source-event-id> --until 2026-10-15T09:00:00Z
 deepseekbot inbox-snooze <item-id> --source-key <source-event-id> --clear
 deepseekbot inbox --category action --snoozed
@@ -398,7 +400,7 @@ deepseekbot private-mcp-remove <bot-id> --server <name> --confirm
 
 `inbox --search <text>` searches safe Activity summaries, Channel names and Bot slugs before pagination (maximum 200 characters). `--unread` restricts personal messages to unread entries and leaves pending actions intact. `--sort newest|oldest` orders each category; `--category replies --sort mentions-first` puts mentions before replies. Keep filters unchanged when using `--cursor`. Search, unread filtering and mention ordering require query version 1; an older Host fails with `host-query-unsupported` instead of returning partial results.
 
-`inbox` returns one page of the Human Inbox (`items` and `nextCursor`), filtered like the Inbox tabs by `--category` (`action`, `info`, `unread`, `replies`, `handled`), `--bot` or `--channel`. `inbox-dismiss` takes an item's `id` and, when the item has one, its `sourceEventId` as `--source-key`; `inbox-ignore` marks an informational assignment report as read. `inbox-snooze` hides an Action, Info or Replies item until `--until` (at most 30 days away), the Web Inbox's "Remind me later"; `--clear` brings it back now, and `inbox --snoozed` lists the items still snoozed with their `snoozedUntil`. `assignment-context` reads the report behind an `assignment-report` item. `channel-assignments` lists a group Channel's assignment work; `channel-assign` moves a Channel into a sidebar section (`--unsectioned` takes it out). `session-ids` lists the root Sessions Bots own and `session-owner` names a Session's Bot and role. `tool-approval-rules` lists a Bot's "always allow" rules. Revoking a rule, a Workspace Grant or a private MCP server needs `--confirm`, as the Web UI asks for confirmation. With a Host targeted, `grant-revoke` and `grant-write-set` go through it; with `--home` they stay offline maintenance commands. Private MCP servers are listed by `ask-secret-accounts`; a name the Host does not know fails with `private-mcp-server-unavailable`.
+`inbox` returns one page of the Human Inbox (`items` and `nextCursor`), filtered like the Inbox tabs by `--category` (`action`, `info`, `unread`, `replies`, `handled`), `--bot` or `--channel`. `inbox-dismiss` takes an item's `id` and, when the item has one, its `sourceEventId` as `--source-key`; `inbox --dismissed` lists the dismissed items (the phone's "Cleared" filter) and `inbox-restore` brings one back with the same `id` and `--source-key`, failing on a Host that predates it with `host-query-unsupported`; `inbox-ignore` marks an informational assignment report as read. `inbox-snooze` hides an Action, Info or Replies item until `--until` (at most 30 days away), the Web Inbox's "Remind me later"; `--clear` brings it back now, and `inbox --snoozed` lists the items still snoozed with their `snoozedUntil`. `assignment-context` reads the report behind an `assignment-report` item. `channel-assignments` lists a group Channel's assignment work; `channel-assign` moves a Channel into a sidebar section (`--unsectioned` takes it out). `session-ids` lists the root Sessions Bots own and `session-owner` names a Session's Bot and role. `tool-approval-rules` lists a Bot's "always allow" rules. Revoking a rule, a Workspace Grant or a private MCP server needs `--confirm`, as the Web UI asks for confirmation. With a Host targeted, `grant-revoke` and `grant-write-set` go through it; with `--home` they stay offline maintenance commands. Private MCP servers are listed by `ask-secret-accounts`; a name the Host does not know fails with `private-mcp-server-unavailable`.
 
 ### Schedules on a live Host
 
@@ -587,6 +589,17 @@ deepseekbot idle-compaction-cache-set deepseek/<model> auto
 ```
 
 All three return `{enabled, settingReadable, minimumIdleSeconds, scheduled, routes}`. Each route lists `cacheLifetimeSeconds`, its `source` and `compactAfterSeconds` (`null` when the route is skipped). The lifetime comes from the per-route value set here (`setting`), the model catalog (`catalog`, Anthropic's short tier), the observed gaps before requests that still read most of their input from the cache (`observed`; a warm gap never shortens the default, and a longer cold gap caps it), or 2 hours for DeepSeek routes (`default`); other routes with nothing known are `unknown` and skipped, as are lifetimes under 15 minutes. `idle-compaction-cache-set ... auto` removes the per-route value. Each run is recorded under `idleCompactions` in `deepseekbot bot-activity-history <bot-id>` with the route, idle gap, tokens before and after, and the compaction request's input, cache-read and output tokens. Refusals carry a code: `usage` (a missing `on`/`off`, `<provider>/<model>` or whole seconds) and `invalid-input`.
+
+### Phone route (Tailscale)
+
+Bot settings → Devices → Pair a phone shows a three-step guide while a phone cannot reach this Host: install Tailscale, start and sign in, then publish the Host on the tailnet. The last step can run `tailscale serve --bg <port>` for you after a confirmation, or you copy the command and run it yourself. The same two operations from the CLI:
+
+```bash
+deepseekbot phone-route
+deepseekbot phone-route-publish --confirm
+```
+
+`phone-route` returns `{routes}`: `tailscale` (`running`, `stopped` or `missing`), the `serveCommand` for this Host's port, and each route with `ready` and, when not ready, `issue` (`serve-missing` or `serve-other-target`). `phone-route-publish` runs `tailscale serve --bg <port>` on the Host computer and returns `{published, changed, routes}`; `changed:false` means the route was already published. Refusals carry a code: `confirm-required` (no `--confirm`), `tailscale-missing`, `tailscale-stopped`, `serve-other-target` (another service is already published at this address; the Host never replaces it, change it by hand), `serve-needs-enable` (Serve is off for the tailnet; the refusal carries `enableUrl` for the Tailscale admin console), `serve-denied` (Tailscale refused the change for this OS user) and `serve-failed`. Undo with `tailscale serve reset`.
 
 ### Models, usage and activity
 

@@ -11,6 +11,7 @@ import {
   type ReactElement,
 } from 'react';
 import {
+  AccessibilityInfo,
   Animated as NativeAnimated,
   Platform,
   Pressable,
@@ -45,12 +46,20 @@ import {
   type RequestRef,
 } from '../../host/requests';
 import type { HumanAttentionItem } from '../../host/wire';
+import {
+  clearAttentionItem,
+  restoreAttentionItem,
+  SNOOZE_CHOICES,
+  snoozeAttentionItem,
+  snoozeUntil,
+  type SnoozeChoice,
+} from '../../host/attention-actions';
 import { useFocusedSnapshot } from '../../host/use-focused-snapshot';
 import { BotAvatar } from '../bot-avatar';
 import { ApprovalCard } from '../chat/approval-card';
 import { QuestionCard } from '../chat/question-card';
 import { useDesignTheme } from '../design/theme';
-import { space } from '../design/tokens';
+import { space, undoBar } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { CountBadge } from '../primitives/count-badge';
 import { Notice } from '../request-parts';
@@ -58,6 +67,10 @@ import { useChatHeaderHeight } from '../chat/header-chrome';
 import { Button } from '../primitives/button';
 import { DeferredContent } from '../primitives/deferred-content';
 import { ListSkeleton } from '../primitives/list-skeleton';
+import { showActionMenu } from '../primitives/app-dialog';
+import { SwipeRow, swipeActionProps, type SwipeAction } from '../primitives/swipe-row';
+import { UndoBar, type UndoNotice } from '../primitives/undo-bar';
+import { ArchiveIcon, ClockIcon, UndoIcon } from './icons';
 import { ActivityToolbar, type ActivityToolbarHandle } from './activity-toolbar';
 import { ActivityTabs, ACTIVITY_TABS, type ActivityTab } from './activity-tabs';
 import { useFloatingTabInset } from './floating-tab-inset';
@@ -90,8 +103,20 @@ function summaryPreview(summary: string): string {
 type FeedRow =
   | { kind: 'empty'; key: string }
   | { kind: 'more'; key: string; section: InboxSection }
-  | { kind: 'post'; key: string; item: HumanAttentionItem; ref: RequestRef }
-  | { kind: 'row'; key: string; item: HumanAttentionItem; settled: boolean };
+  | { kind: 'post'; key: string; item: HumanAttentionItem; ref: RequestRef; section: InboxSection }
+  | {
+      kind: 'row';
+      key: string;
+      item: HumanAttentionItem;
+      settled: boolean;
+      section: InboxSection;
+    };
+
+export type HiddenItems = ReadonlyMap<string, string>;
+
+function setAside(section: ActivityFilter['section']): boolean {
+  return section === 'cleared' || section === 'snoozed';
+}
 
 function decidable(item: HumanAttentionItem): RequestRef | undefined {
   if (item.kind !== 'user-question' && item.kind !== 'tool-approval') return undefined;
@@ -104,9 +129,12 @@ function sectionItems(
   gone: ReadonlySet<string>,
   held: readonly HumanAttentionItem[],
   bot: string | undefined,
+  hidden: HiddenItems,
 ): HumanAttentionItem[] {
   const listed = snapshot.sections[section].filter(
-    (item) => section !== 'action' || !gone.has(item.id),
+    (item) =>
+      (section !== 'action' || !gone.has(item.id)) &&
+      hidden.get(item.id) !== (item.sourceEventId ?? ''),
   );
   const items =
     section === 'action'
@@ -130,20 +158,22 @@ export function feedRows(
   held: readonly HumanAttentionItem[],
   filter: ActivityFilter = DEFAULT_ACTIVITY,
   search = '',
+  hidden: HiddenItems = new Map(),
 ): FeedRow[] {
   if (snapshot.status !== 'ready') return [];
   const rows: FeedRow[] = [];
+  const aside = setAside(filter.section);
   for (const section of INBOX_SECTIONS) {
-    if (filter.section === 'all' && section === 'handled') continue;
-    if (filter.section !== 'all' && filter.section !== section) continue;
-    const items = sectionItems(snapshot, section, gone, held, filter.bot);
+    if ((filter.section === 'all' || aside) && section === 'handled') continue;
+    if (filter.section !== 'all' && !aside && filter.section !== section) continue;
+    const items = sectionItems(snapshot, section, gone, aside ? [] : held, filter.bot, hidden);
     if (search.trim() && items.length === 0 && !snapshot.cursors?.[section]) continue;
     for (const item of items) {
-      const ref = section === 'action' ? decidable(item) : undefined;
+      const ref = section === 'action' && !aside ? decidable(item) : undefined;
       rows.push(
         ref === undefined
-          ? { kind: 'row', key: item.id, item, settled: section === 'handled' }
-          : { kind: 'post', key: item.id, item, ref },
+          ? { kind: 'row', key: item.id, item, settled: section === 'handled', section }
+          : { kind: 'post', key: item.id, item, ref, section },
       );
     }
     if (snapshot.cursors?.[section]) rows.push({ kind: 'more', key: `more-${section}`, section });
@@ -163,12 +193,14 @@ const Row = memo(function Row({
   bot,
   now,
   onOpen,
+  actions,
 }: {
   item: HumanAttentionItem;
   settled: boolean;
   bot: RosterBot | undefined;
   now: number;
   onOpen(item: HumanAttentionItem): void;
+  actions: readonly SwipeAction[];
 }) {
   const theme = useDesignTheme();
   const kind = t.kind[item.kind] ?? t.otherKind;
@@ -195,60 +227,63 @@ const Row = memo(function Row({
     </View>
   );
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={t.openPost(kind, name, summary)}
-      testID={`inbox-row-${item.id}`}
-      onPress={() => onOpen(item)}
-      style={({ pressed }) => ({
-        minHeight: theme.touch,
-        flexDirection: 'row',
-        alignItems: settled ? 'center' : 'flex-start',
-        gap: space.x3,
-        paddingHorizontal: space.x5,
-        paddingVertical: space.x3,
-        backgroundColor: pressed ? theme.layer.canvas.pressed : theme.layer.canvas.fill,
-      })}
-    >
-      {bot === undefined ? (
-        <View
-          style={{
-            width: size,
-            height: size,
-            borderRadius: size / 2,
-            backgroundColor: theme.layer.canvas.inset,
-          }}
-        />
-      ) : (
-        <BotAvatar bot={bot} size={size} />
-      )}
-      <View style={{ flex: 1, gap: space.x1 }}>
-        <View
-          style={{
-            flexDirection: theme.largeText ? 'column' : 'row',
-            alignItems: theme.largeText ? 'flex-start' : 'center',
-            gap: space.x3,
-          }}
-        >
-          <Text
-            variant={theme.largeText ? 'meta' : 'body'}
-            numberOfLines={theme.largeText ? 2 : 1}
-            strong={!settled}
-            style={{ flexShrink: 1 }}
+    <SwipeRow actions={actions} testID={`inbox-swipe-${item.id}`}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={t.openPost(kind, name, summary)}
+        testID={`inbox-row-${item.id}`}
+        onPress={() => onOpen(item)}
+        {...swipeActionProps(t.rowTitle(kind, name), actions)}
+        style={({ pressed }) => ({
+          minHeight: theme.touch,
+          flexDirection: 'row',
+          alignItems: settled ? 'center' : 'flex-start',
+          gap: space.x3,
+          paddingHorizontal: space.x5,
+          paddingVertical: space.x3,
+          backgroundColor: pressed ? theme.layer.canvas.pressed : theme.layer.canvas.fill,
+        })}
+      >
+        {bot === undefined ? (
+          <View
+            style={{
+              width: size,
+              height: size,
+              borderRadius: size / 2,
+              backgroundColor: theme.layer.canvas.inset,
+            }}
+          />
+        ) : (
+          <BotAvatar bot={bot} size={size} />
+        )}
+        <View style={{ flex: 1, gap: space.x1 }}>
+          <View
+            style={{
+              flexDirection: theme.largeText ? 'column' : 'row',
+              alignItems: theme.largeText ? 'flex-start' : 'center',
+              gap: space.x3,
+            }}
           >
-            {theme.largeText ? name : t.rowTitle(kind, name)}
-            {settled && summary.length > 0 ? <Text tone="muted">{` · ${summary}`}</Text> : null}
-          </Text>
-          {theme.largeText ? null : metadata}
+            <Text
+              variant={theme.largeText ? 'meta' : 'body'}
+              numberOfLines={theme.largeText ? 2 : 1}
+              strong={!settled}
+              style={{ flexShrink: 1 }}
+            >
+              {theme.largeText ? name : t.rowTitle(kind, name)}
+              {settled && summary.length > 0 ? <Text tone="muted">{` · ${summary}`}</Text> : null}
+            </Text>
+            {theme.largeText ? null : metadata}
+          </View>
+          {!settled && summary.length > 0 ? (
+            <Text tone={theme.largeText ? 'fg' : 'muted'} numberOfLines={2}>
+              {summary}
+            </Text>
+          ) : null}
+          {theme.largeText ? metadata : null}
         </View>
-        {!settled && summary.length > 0 ? (
-          <Text tone={theme.largeText ? 'fg' : 'muted'} numberOfLines={2}>
-            {summary}
-          </Text>
-        ) : null}
-        {theme.largeText ? metadata : null}
-      </View>
-    </Pressable>
+      </Pressable>
+    </SwipeRow>
   );
 });
 
@@ -260,6 +295,7 @@ function Post({
   now,
   onOpen,
   onSettled,
+  actions,
 }: {
   client: HostClient;
   item: HumanAttentionItem;
@@ -268,6 +304,7 @@ function Post({
   now: number;
   onOpen(item: HumanAttentionItem): void;
   onSettled(item: HumanAttentionItem, result: DecisionResult): void;
+  actions: readonly SwipeAction[];
 }) {
   const theme = useDesignTheme();
   const name = bot?.displayName ?? item.botSlug;
@@ -295,70 +332,74 @@ function Post({
     onSettled(item, result);
   };
   return (
-    <View
-      testID={`inbox-post-${item.id}`}
-      style={{
-        paddingVertical: space.x3,
-        gap: space.x1,
-      }}
-    >
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={t.openPost(t.kind[item.kind] ?? t.otherKind, name, itemSummary(item))}
-        onPress={() => onOpen(item)}
-        style={({ pressed }) => ({
-          minHeight: theme.touch,
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: space.x3,
-          paddingHorizontal: space.x5,
-          opacity: pressed ? 0.6 : 1,
-        })}
+    <SwipeRow actions={actions} testID={`inbox-swipe-${item.id}`}>
+      <View
+        testID={`inbox-post-${item.id}`}
+        style={{
+          paddingVertical: space.x3,
+          gap: space.x1,
+        }}
       >
-        {bot === undefined ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t.openPost(t.kind[item.kind] ?? t.otherKind, name, itemSummary(item))}
+          onPress={() => onOpen(item)}
+          {...swipeActionProps(t.rowTitle(t.kind[item.kind] ?? t.otherKind, name), actions)}
+          style={({ pressed }) => ({
+            minHeight: theme.touch,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: space.x3,
+            paddingHorizontal: space.x5,
+            opacity: pressed ? 0.6 : 1,
+          })}
+        >
+          {bot === undefined ? (
+            <View
+              style={{
+                width: AVATAR,
+                height: AVATAR,
+                borderRadius: AVATAR / 2,
+                backgroundColor: theme.layer.canvas.inset,
+              }}
+            />
+          ) : (
+            <BotAvatar bot={bot} size={AVATAR} />
+          )}
           <View
             style={{
-              width: AVATAR,
-              height: AVATAR,
-              borderRadius: AVATAR / 2,
-              backgroundColor: theme.layer.canvas.inset,
+              flex: 1,
+              flexDirection: theme.largeText ? 'column' : 'row',
+              alignItems: theme.largeText ? 'flex-start' : 'center',
+              gap: space.x2,
             }}
-          />
-        ) : (
-          <BotAvatar bot={bot} size={AVATAR} />
-        )}
-        <View
-          style={{
-            flex: 1,
-            flexDirection: theme.largeText ? 'column' : 'row',
-            alignItems: theme.largeText ? 'flex-start' : 'center',
-            gap: space.x2,
-          }}
-        >
-          <Text strong numberOfLines={theme.largeText ? undefined : 1} style={{ flexShrink: 1 }}>
-            {name}
-            {theme.largeText ? null : <Text tone="muted">{where}</Text>}
-          </Text>
-          {theme.largeText && where !== '' ? (
-            <Text variant="meta" tone="muted">
-              {t.inChannel(item.channelName ?? '')}
+          >
+            <Text strong numberOfLines={theme.largeText ? undefined : 1} style={{ flexShrink: 1 }}>
+              {name}
+              {theme.largeText ? null : <Text tone="muted">{where}</Text>}
             </Text>
-          ) : null}
-          <Text variant="meta" tone="muted" style={{ marginLeft: theme.largeText ? 0 : 'auto' }}>
-            {t.ago(minutesSince(item.createdAt, now))}
-          </Text>
-        </View>
-      </Pressable>
-      {item.kind === 'tool-approval' ? (
-        <ApprovalCard port={ports.approval} wide onSettled={settled} />
-      ) : (
-        <QuestionCard port={ports.question} botName={name} wide onSettled={settled} />
-      )}
-    </View>
+            {theme.largeText && where !== '' ? (
+              <Text variant="meta" tone="muted">
+                {t.inChannel(item.channelName ?? '')}
+              </Text>
+            ) : null}
+            <Text variant="meta" tone="muted" style={{ marginLeft: theme.largeText ? 0 : 'auto' }}>
+              {t.ago(minutesSince(item.createdAt, now))}
+            </Text>
+          </View>
+        </Pressable>
+        {item.kind === 'tool-approval' ? (
+          <ApprovalCard port={ports.approval} wide onSettled={settled} />
+        ) : (
+          <QuestionCard port={ports.question} botName={name} wide onSettled={settled} />
+        )}
+      </View>
+    </SwipeRow>
   );
 }
 
 type ActivityFeedProps = {
+  onNotice?(notice: Omit<UndoNotice, 'id'>): void;
   unavailable?: string | undefined;
   hostId: string;
   client: HostClient | undefined;
@@ -383,6 +424,25 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
   const [sort, setSort] = useState<ActivitySort>('default');
   const [filtering, setFiltering] = useState(false);
   const [lastTab, setLastTab] = useState(0);
+  const [notice, setNotice] = useState<UndoNotice>();
+  const noticeCount = useRef(0);
+  const noticeTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const noticeDone = useCallback(
+    (id: number) => setNotice((current) => (current?.id === id ? undefined : current)),
+    [],
+  );
+  const showNotice = useCallback(
+    (next: Omit<UndoNotice, 'id'>) => {
+      noticeCount.current += 1;
+      const id = noticeCount.current;
+      setNotice({ ...next, id });
+      AccessibilityInfo.announceForAccessibility(next.message);
+      clearTimeout(noticeTimer.current);
+      noticeTimer.current = setTimeout(() => noticeDone(id), undoBar.duration);
+    },
+    [noticeDone],
+  );
+  const tabInset = useFloatingTabInset();
   const initialHeight = useChatHeaderHeight();
   const insets = useSafeAreaInsets();
   const [headerHeight, setHeaderHeight] = useState(Platform.OS === 'ios' ? 0 : initialHeight);
@@ -432,6 +492,7 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
             initialLayout={{ width }}
             onIndexChange={selectIndex}
             animationEnabled={!reducedMotion}
+            swipeEnabled={false}
             lazy
             renderLazyPlaceholder={() => <ListSkeleton />}
             renderTabBar={({ position, jumpTo }) => (
@@ -445,6 +506,7 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
               ) : (
                 <ActivityPage
                   {...props}
+                  onNotice={showNotice}
                   section={route.key === ACTIVITY_TABS[index]?.key ? filter.section : route.key}
                   filterBot={filter.bot}
                   filterChannel={filter.channel}
@@ -473,6 +535,7 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
             sort !== 'default' ||
             filter.section === 'all' ||
             filter.section === 'handled' ||
+            setAside(filter.section) ||
             filter.bot !== undefined ||
             filter.channel !== undefined ||
             filter.unreadOnly === true
@@ -493,6 +556,7 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
           backgroundColor: theme.color.base,
         }}
       />
+      <UndoBar notice={notice} bottom={tabInset} onDone={noticeDone} />
       <ActivityFilters
         visible={filtering}
         sort={sort}
@@ -528,6 +592,7 @@ const ActivityPage = memo(function ActivityPage({
   scrollActive,
   pinChrome,
   headerTravel,
+  onNotice,
 }: ActivityFeedProps & {
   section: ActivityFilter['section'];
   filterBot: ActivityFilter['bot'];
@@ -557,6 +622,7 @@ const ActivityPage = memo(function ActivityPage({
   const [refreshing, setRefreshing] = useState(false);
   const [gone, setGone] = useState<ReadonlySet<string>>(() => new Set());
   const [held, setHeld] = useState<readonly HumanAttentionItem[]>([]);
+  const [hidden, setHidden] = useState<HiddenItems>(() => new Map());
   useLayoutEffect(
     () => setHeld((current) => (current.length === 0 ? current : [])),
     [filter, search, sort],
@@ -587,7 +653,148 @@ const ActivityPage = memo(function ActivityPage({
   const scopedSnapshot = useFocusedSnapshot(scoped ?? EMPTY_SOURCE, scrollActive);
   const visible = scoped === undefined ? snapshot : scopedSnapshot;
   const currentInbox = () => (scoped === undefined ? inbox : scoped.getInbox());
-  const rows = feedRows(visible, gone, held, filter, search);
+  const rows = feedRows(visible, gone, held, filter, search, hidden);
+  const hide = (item: HumanAttentionItem, on: boolean) =>
+    setHidden((current) => {
+      const next = new Map(current);
+      if (on) next.set(item.id, item.sourceEventId ?? '');
+      else if (next.get(item.id) === (item.sourceEventId ?? '')) next.delete(item.id);
+      return next;
+    });
+  const change = async (
+    item: HumanAttentionItem,
+    apply: () => Promise<void>,
+    message: string,
+    undo?: () => Promise<void>,
+  ) => {
+    hide(item, true);
+    try {
+      await apply();
+      onNotice?.({
+        message,
+        ...(undo === undefined
+          ? {}
+          : {
+              undoLabel: t.activityUndo,
+              undo: () =>
+                void undo()
+                  .catch(() => onNotice?.({ message: t.activityChangeFailed }))
+                  .finally(() => void currentInbox()?.refresh()),
+            }),
+      });
+      await currentInbox()?.refresh();
+    } catch {
+      onNotice?.({ message: t.activityChangeFailed });
+    } finally {
+      hide(item, false);
+    }
+  };
+  const snoozeTo = (item: HumanAttentionItem, choice: SnoozeChoice) => {
+    if (client === undefined) return;
+    const until = snoozeUntil(choice, new Date());
+    if (until === undefined) return;
+    const time = until.toLocaleString(undefined, {
+      weekday: choice === 'week' ? 'short' : undefined,
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    void change(
+      item,
+      () => snoozeAttentionItem(client, item, until),
+      t.activitySnoozedNotice(t.activitySnoozeChoice[choice](time)),
+      () => snoozeAttentionItem(client, item, null),
+    );
+  };
+  const actionsFor = (item: HumanAttentionItem, section: InboxSection): SwipeAction[] => {
+    if (client === undefined || section === 'handled') return [];
+    if (filter.section === 'cleared')
+      return [
+        {
+          key: 'restore',
+          label: t.activityRestore,
+          tone: 'accent',
+          icon: UndoIcon,
+          run: () =>
+            void change(
+              item,
+              () => restoreAttentionItem(client, item),
+              t.activityRestoredNotice,
+              () => clearAttentionItem(client, item),
+            ),
+        },
+      ];
+    if (filter.section === 'snoozed') {
+      const until = item.snoozedUntil === undefined ? undefined : new Date(item.snoozedUntil);
+      return [
+        {
+          key: 'unsnooze',
+          label: t.activityUnsnooze,
+          tone: 'accent',
+          icon: UndoIcon,
+          run: () =>
+            void change(
+              item,
+              () => snoozeAttentionItem(client, item, null),
+              t.activityRestoredNotice,
+              until === undefined || until.getTime() <= Date.now()
+                ? undefined
+                : () => snoozeAttentionItem(client, item, until),
+            ),
+        },
+      ];
+    }
+    const clear: SwipeAction = {
+      key: 'clear',
+      label: t.activityClear,
+      tone: 'accent',
+      icon: ArchiveIcon,
+      run: () =>
+        void change(
+          item,
+          () => clearAttentionItem(client, item),
+          t.activityClearedNotice,
+          () => restoreAttentionItem(client, item),
+        ),
+    };
+    const later: SwipeAction = {
+      key: 'snooze',
+      label: t.activitySnooze,
+      tone: 'neutral',
+      icon: ClockIcon,
+      run: () =>
+        showActionMenu(
+          t.activitySnoozeTitle,
+          SNOOZE_CHOICES.flatMap((choice) => {
+            const until = snoozeUntil(choice, new Date());
+            if (until === undefined) return [];
+            const time = until.toLocaleString(undefined, {
+              weekday: choice === 'week' ? 'short' : undefined,
+              hour: '2-digit',
+              minute: '2-digit',
+            });
+            return [
+              {
+                text: t.activitySnoozeChoice[choice](time),
+                onPress: () => snoozeTo(item, choice),
+              },
+            ];
+          }),
+        ),
+    };
+    if (section === 'action' && item.kind === 'bot-message-needs-repair') return [clear, later];
+    if (section === 'action')
+      return [
+        {
+          key: 'snooze-tomorrow',
+          label: t.activitySnoozeTomorrow,
+          tone: 'warning',
+          icon: ClockIcon,
+          run: () => snoozeTo(item, 'tomorrow'),
+        },
+        later,
+      ];
+    return [clear];
+  };
   const settled = (item: HumanAttentionItem, result: DecisionResult) => {
     if (activeSettlementScope.current !== settlementScope) return;
     if (result === 'accepted') setGone((current) => new Set(current).add(item.id));
@@ -690,6 +897,7 @@ const ActivityPage = memo(function ActivityPage({
                 settled={row.settled}
                 bot={bot(row.item.botSlug)}
                 onOpen={onOpen}
+                actions={actionsFor(row.item, row.section)}
                 now={Math.floor(now / 60_000) * 60_000}
               />
             );
@@ -704,6 +912,7 @@ const ActivityPage = memo(function ActivityPage({
                   now={now}
                   onOpen={onOpen}
                   onSettled={settled}
+                  actions={actionsFor(row.item, row.section)}
                 />
               )}
             </Animated.View>
