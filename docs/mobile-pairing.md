@@ -27,7 +27,7 @@ Then open the [DNS page of the Tailscale admin console](https://login.tailscale.
 
 ## 2. Start DSH and DeepSeekBot on the computer
 
-Start the DeepSeek Harness desktop app (or `dsh web`) and check that the DeepSeekBot plugin is installed and enabled: **Bot mode** shows in the left bar. If it is not installed yet, follow [Install DeepSeekBot](installation.md) first.
+Start the DeepSeek Harness desktop app (or `dsh web`) and check that the DeepSeekBot plugin is installed and enabled: **Bot mode** shows in the left bar. If it is not installed yet, follow [Install DeepSeekBot](/docs/installation) first.
 
 Open **Bot mode**, click the gear at the bottom left to open **Bot settings**, and choose **Devices**.
 
