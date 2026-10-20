@@ -76,7 +76,7 @@ Once paired, the phone shows the Bots and groups on your computer, and the compu
 Tailscale is not publishing DSH yet. Go back to step 3, run the `tailscale serve` command, then click **New code**.
 
 **The phone cannot reach the computer**
-Check in order: Tailscale is connected on the phone; both devices use the same account; the computer is on and not asleep; DSH is running on the computer. Opening `https://<computer>.<tailnet>.ts.net` in the phone's browser tells you whether the network path works: any page, even an error page, means the phone can reach the computer.
+Check in order: Tailscale is connected on the phone; both devices use the same account; the computer is on and not asleep; DSH is running on the computer. Opening `https://<computer>.<tailnet>.ts.net` in the phone's browser tells you whether the network path works: any page the computer serves, even a DSH error page, means the phone can reach it. A browser message that the site cannot be found, the connection failed or the certificate is invalid means it cannot.
 
 **The yellow notice is back after restarting DSH**
 If the port in the notice changed, run the new `tailscale serve` command it shows.
