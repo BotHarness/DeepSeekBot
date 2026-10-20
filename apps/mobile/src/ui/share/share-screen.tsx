@@ -1,7 +1,7 @@
 import { useIncomingShare } from 'expo-sharing';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, View } from 'react-native';
+import { ActivityIndicator, FlatList, Image, Keyboard, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useHostSession, useHostSnapshot, useQuietChannels } from '../../host/host-session';
@@ -13,6 +13,8 @@ import { radius, space } from '../design/tokens';
 import { Button } from '../primitives/button';
 import { DrawerHeader } from '../primitives/drawer-header';
 import { Text } from '../primitives/text';
+import { useMounted } from '../mounted';
+import { FileIcon } from '../shell/icons';
 import { conversationHref } from '../shell/open-conversation';
 import { t } from '../strings';
 import { deliverShare, incomingShare } from './incoming-share';
@@ -40,6 +42,8 @@ export default function ShareScreen() {
     [snapshot.roster, quiet],
   );
   const [sending, setSending] = useState(false);
+  const mount = useMounted<FlatList<Conversation>>(() => Keyboard.dismiss(), []);
+  const thumb = theme.touch + space.x5;
   const empty = !incoming.isResolving && share.text === '' && share.files.length === 0;
   const send = async (row: Conversation) => {
     if (saved === undefined || saved === null || sending || empty) return;
@@ -55,6 +59,7 @@ export default function ShareScreen() {
   };
   return (
     <FlatList
+      ref={mount}
       style={{ flex: 1, backgroundColor: theme.overlay.fill }}
       contentInsetAdjustmentBehavior="automatic"
       contentContainerStyle={{ paddingBottom: insets.bottom + space.x6 }}
@@ -80,6 +85,48 @@ export default function ShareScreen() {
             ) : (
               <>
                 {share.text !== '' && <Text numberOfLines={4}>{share.text}</Text>}
+                {share.files.length > 0 && (
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={{ gap: space.x2 }}
+                  >
+                    {share.files.map((file) =>
+                      file.kind === 'image' ? (
+                        <Image
+                          key={file.id}
+                          source={{ uri: file.uri }}
+                          accessibilityLabel={file.name}
+                          style={{
+                            width: thumb,
+                            height: thumb,
+                            borderRadius: radius.md,
+                            backgroundColor: theme.layer.raised.inset,
+                          }}
+                        />
+                      ) : (
+                        <View
+                          key={file.id}
+                          style={{
+                            minHeight: thumb,
+                            maxWidth: thumb * 3,
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            gap: space.x2,
+                            paddingHorizontal: space.x3,
+                            borderRadius: radius.md,
+                            backgroundColor: theme.layer.raised.inset,
+                          }}
+                        >
+                          <FileIcon color={theme.color.muted} size={theme.type.title.line} />
+                          <Text variant="meta" numberOfLines={2} style={{ flexShrink: 1 }}>
+                            {file.name}
+                          </Text>
+                        </View>
+                      ),
+                    )}
+                  </ScrollView>
+                )}
                 {share.files.length > 0 && (
                   <Text variant="meta" tone="muted">
                     {t.share.files(share.files.length)}
