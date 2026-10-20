@@ -983,7 +983,8 @@ function BotInboxBadge(): ReactElement | null {
 }
 
 function ModelEntry({ botSlug, actions, t }: ChannelSidebarEntryProps): ReactElement {
-  if (botSlug === undefined) return <></>;
+  const deleted = useClientState().bots.some((bot) => bot.slug === botSlug && bot.deleted === true);
+  if (botSlug === undefined || deleted) return <></>;
   return <ModelPresetProfile key={botSlug} slug={botSlug} actions={actions} t={t} />;
 }
 
