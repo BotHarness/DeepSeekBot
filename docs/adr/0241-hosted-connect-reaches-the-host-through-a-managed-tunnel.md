@@ -27,6 +27,9 @@ The Human chose this direction on 2026-10-20: **an account only discovers Hosts 
 3. **Relay location.** A new Worker in this repository, so Connect works without a TOB deployment and its protocol is visible to self-hosters.
 4. **Mainland China later.** Connection convenience is the priority, so implementation does not wait on mainland China. Connect is built and qualified outside mainland China first. A tester in mainland China later checks pairing and DM reachability on China Mobile, China Unicom and China Telecom networks and outbound port 7844 from common computer setups. If that fails, this ADR still governs the account and pairing design, and a domestic relay is a separate decision; moving to a Durable Object relay on Cloudflare would not fix it.
 5. **Free with reclamation; five Hosts per account.** Connect is free. The relay deletes a tunnel after its Host has been offline for a few minutes and recreates it when the Host returns, so the free 1,000 tunnels per Cloudflare account bound computers online at the same time, not registered users. Pricing is decided when computers online at the same time approach 800; beyond 1,000 each tunnel costs $4.50 per month. An account can link at most five Hosts, as an abuse limit.
+6. **Hostnames.** Each Host gets `<host-id>.connect.deepseekbot.app` in a Cloudflare account BotHarness owns. Universal SSL covers only one subdomain level, so the zone adds an Advanced Certificate for `*.connect.deepseekbot.app`. The relay's Cloudflare API token is limited to tunnels and that zone's DNS.
+7. **Allowlist while testing.** While few people run the test phone app, only allowlisted WorkOS accounts can link Hosts, using TOB's authenticated-user policy. Opening Connect to every account is a later change.
+8. **All three desktop platforms.** macOS, Linux and Windows ship together. The Windows package needs signing and an antivirus false-positive check before release.
 
 ## Considered options
 
