@@ -172,6 +172,7 @@ patchedDependencies:
   '@deepseek-ai/dsh-llm-pi-ai@0.2.1-rc.2': c02d991e1c83a16bccce25bd47847fe9e5c97117ff3d0b6b04ef9f8edb273c9d
   '@deepseek-ai/dsh-tool-fs@0.2.1-rc.2': 4b2e510cb0df4904b95b99936edd4cdaec5b19438561254906b3abf0d2c3b204
   dockview-core@8.4.1: 6d5f9165424be95472edbb4e667b16cf9abd150f139d3524cc1ca9a6b7863b86
+  expo-quick-actions@6.0.2: 2d9cefa269045271145e1989e004232aac3c206249494311d39f49c13293dddb
 
 importers:
 
@@ -399,7 +400,7 @@ importers:
         version: 58.1.5(expo@58.0.16)(react-native@0.88.0(@babel/core@7.29.7(supports-color@10.2.2))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(@types/react@19.3.0)(react@19.3.0)(supports-color@10.2.2))(react@19.3.0)(supports-color@10.2.2)(typescript@5.9.3)
       expo-quick-actions:
         specifier: 6.0.2
-        version: 6.0.2(expo@58.0.16)(supports-color@10.2.2)(typescript@5.9.3)
+        version: 6.0.2(patch_hash=2d9cefa269045271145e1989e004232aac3c206249494311d39f49c13293dddb)(expo@58.0.16)(supports-color@10.2.2)(typescript@5.9.3)
       expo-router:
         specifier: ~58.0.24
         version: 58.0.24(809975b795ae32b2306b92910a7dbc02)
@@ -22313,7 +22314,7 @@ snapshots:
       - supports-color
       - typescript
 
-  expo-quick-actions@6.0.2(expo@58.0.16)(supports-color@10.2.2)(typescript@5.9.3):
+  expo-quick-actions@6.0.2(patch_hash=2d9cefa269045271145e1989e004232aac3c206249494311d39f49c13293dddb)(expo@58.0.16)(supports-color@10.2.2)(typescript@5.9.3):
     dependencies:
       '@expo/image-utils': 0.8.17(supports-color@10.2.2)(typescript@5.9.3)
       expo: 58.0.16(18978b6cf407e7e2b52d0562def5d3cd)
