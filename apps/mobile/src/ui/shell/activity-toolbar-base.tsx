@@ -1,14 +1,14 @@
 import { useImperativeHandle, useState, type ReactNode, type Ref } from 'react';
 import { Stack } from 'expo-router';
-import { Keyboard, Platform, Pressable, View } from 'react-native';
+import { Keyboard, Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
-import { SearchField } from '../primitives/search-field';
 import { Text } from '../primitives/text';
 import { t } from '../strings';
-import { ActivityFilterIcon, ActivitySearchIcon, CloseIcon } from './icons';
+import { HeaderSearch } from './header-search';
+import { ActivityFilterIcon, ActivitySearchIcon } from './icons';
 
 export type ActivityToolbarHandle = { dismissSearch(): void };
 
@@ -70,68 +70,60 @@ export function ActivityToolbar({
             paddingHorizontal: space.x4,
           }}
         >
-          <Text
-            variant="title"
-            strong
-            accessibilityRole="header"
-            numberOfLines={1}
-            style={{ flex: 1 }}
-          >
-            {t.activity}
-          </Text>
-          {!unavailable ? (
-            <ActivityIconButton label={t.activityOptions} onPress={onFilter} selected={filtered}>
-              <ActivityFilterIcon
-                color={filtered ? theme.color.accent : theme.color.fg}
-                size={theme.type.title.size}
-              />
-            </ActivityIconButton>
-          ) : null}
-          {!unavailable && !searching ? (
-            <ActivityIconButton
-              label={t.activitySearch}
-              onPress={() => {
-                onSearchFocus(true);
-                setSearching(true);
+          {!unavailable && searching ? (
+            <HeaderSearch
+              value={search}
+              placeholder={t.activitySearch}
+              onChangeText={(value) => onSearch(value.slice(0, 200))}
+              onFocusChange={(focused) => {
+                onSearchFocus(focused);
+                if (!focused) setSearching(false);
               }}
-            >
-              <ActivitySearchIcon
-                color={search ? theme.color.accent : theme.color.fg}
-                size={theme.type.title.size}
-              />
-            </ActivityIconButton>
-          ) : null}
-        </View>
-        {!unavailable && searching ? (
-          <SearchField
-            trailing={
-              search && Platform.OS === 'android' ? (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={t.activityClearSearch}
-                  onPress={() => onSearch('')}
-                  style={{
-                    width: theme.touch,
-                    minHeight: theme.touch,
-                    alignItems: 'center',
-                    justifyContent: 'center',
+              onClose={() => {
+                onSearchFocus(false);
+                setSearching(false);
+              }}
+            />
+          ) : (
+            <>
+              <Text
+                variant="title"
+                strong
+                accessibilityRole="header"
+                numberOfLines={1}
+                style={{ flex: 1 }}
+              >
+                {t.activity}
+              </Text>
+              {!unavailable ? (
+                <ActivityIconButton
+                  label={t.activityOptions}
+                  onPress={onFilter}
+                  selected={filtered}
+                >
+                  <ActivityFilterIcon
+                    color={filtered ? theme.color.accent : theme.color.fg}
+                    size={theme.type.title.size}
+                  />
+                </ActivityIconButton>
+              ) : null}
+              {!unavailable ? (
+                <ActivityIconButton
+                  label={t.activitySearch}
+                  onPress={() => {
+                    onSearchFocus(true);
+                    setSearching(true);
                   }}
                 >
-                  <CloseIcon color={theme.color.muted} size={theme.type.title.size} />
-                </Pressable>
-              ) : null
-            }
-            autoFocus
-            onBlur={() => {
-              setSearching(false);
-              onSearchFocus(false);
-            }}
-            value={search}
-            inset={space.x4}
-            placeholder={t.activitySearch}
-            onChangeText={(value) => onSearch(value.slice(0, 200))}
-          />
-        ) : null}
+                  <ActivitySearchIcon
+                    color={search ? theme.color.accent : theme.color.fg}
+                    size={theme.type.title.size}
+                  />
+                </ActivityIconButton>
+              ) : null}
+            </>
+          )}
+        </View>
       </View>
     </>
   );

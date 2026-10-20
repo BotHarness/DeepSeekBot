@@ -1,18 +1,18 @@
 <div align="center">
-  <a href="https://deepseekbot.app"><img src="docs/assets/readme/deepseekbot-og-zh-v2.png" width="800" alt="DeepSeekBot：开源的 GrokBot 平替。基于 DeepSeek Harness，兼容其他 DSH 插件，连接飞书、Slack、Discord 和微信，MIT 开源" /></a>
+  <a href="https://deepseekbot.app">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/pixel/hero-zh-night.svg" />
+  <img src="docs/assets/readme/pixel/hero-zh-day.svg" width="960" alt="DeepSeekBot — a crew of your own" />
+</picture>
+  </a>
 
 # DeepSeekBot
 
 **中文** ｜ [English](README.en.md)
 
-[![npm](https://img.shields.io/npm/v/deepseekbot?color=CB3837&logo=npm)](https://www.npmjs.com/package/deepseekbot)
-[![官网](https://img.shields.io/badge/官网-deepseekbot.app-3D5AFE)](https://deepseekbot.app)
-[![MIT 许可](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Discord](https://img.shields.io/badge/Discord-加入-5865F2?logo=discord&logoColor=white)](https://discord.gg/aEB2Ayhu7B)
-[![QQ 群：1125565676](https://img.shields.io/badge/QQ-1125565676-12B7F5)](#community)
-[![GitHub stars](https://img.shields.io/github/stars/BotHarness/DeepSeekBot?style=flat)](https://github.com/BotHarness/DeepSeekBot)
-
-<a href="https://www.producthunt.com/products/deepseekbot?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-deepseekbot" target="_blank" rel="noopener noreferrer"><img alt="DeepSeekBot - Open-source Grok Bot alternative built on DeepSeek Harness | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1276820&amp;theme=light&amp;t=1791733459461"></a>
+[![npm](https://img.shields.io/npm/v/deepseekbot?style=flat-square&color=3d5afe&label=npm)](https://www.npmjs.com/package/deepseekbot)
+[![MIT](https://img.shields.io/badge/license-MIT-71964a?style=flat-square)](LICENSE)
+[![DeepSeek Harness](https://img.shields.io/badge/built_for-DeepSeek_Harness-b8702f?style=flat-square)](https://github.com/deepseek-ai/deepseek-harness)
 
 **DeepSeekBot（DSB）：开源的 GrokBot 平替。一组有各自身份、人格和记忆的 bots，一起做事。**
 
@@ -36,13 +36,23 @@ DeepSeekBot（简称 **DSB**，是 DeepSeekBot 的缩写，才不是“大啥比
 
 <a id="install"></a>
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/pixel/install-zh-night.svg" />
+  <img src="docs/assets/readme/pixel/install-zh-day.svg" width="960" alt="" />
+</picture>
+
 ## 安装
 
-在 DeepSeek Harness 桌面端点「插件 → 添加插件」，输入 `deepseekbot@1.4.0`，安装并启用，侧栏就会出现「Bot 模式」。还没装 DSH？先[下载桌面端](https://www.deepseek.com/en/harness/)。
+在 DeepSeek Harness 桌面端点「插件 → 添加插件」，输入 `deepseekbot@1.4.1`，安装并启用，侧栏就会出现「Bot 模式」。还没装 DSH？先[下载桌面端](https://www.deepseek.com/en/harness/)。
 
 命令行安装、版本说明和常见问题见[官网安装指南](https://deepseekbot.app/docs/installation/)。
 
 <a id="features"></a>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/pixel/features-zh-night.svg" />
+  <img src="docs/assets/readme/pixel/features-zh-day.svg" width="960" alt="" />
+</picture>
 
 ## 能用它做什么
 
@@ -71,12 +81,16 @@ DeepSeekBot（简称 **DSB**，是 DeepSeekBot 的缩写，才不是“大啥比
 
 <table>
   <tr>
-    <td width="50%"><a href="docs/assets/readme/v2/zh/hero.jpg"><img src="docs/assets/readme/v2/zh/hero.jpg" alt="Bot 模式：左侧是五个像素头像的 Bot 名册，中间是与 Mira 的私聊，右侧是 Mira 的记忆演化 Git graph" /></a><br /><b>Bot 名册与私聊</b>：每个 Bot 有自己的像素头像；右侧是它的记忆演化。</td>
-    <td width="50%"><a href="docs/assets/readme/v2/zh/group.jpg"><img src="docs/assets/readme/v2/zh/group.jpg" alt="天文台工作室 Group：Mira、Theo 和 Nova 以各自身份回复，右侧是成员列表" /></a><br /><b>群聊协作</b>：@ 三个 Bot，它们各自回复，Nova 读完前两位再接话。</td>
+    <td width="50%"><a href="docs/assets/readme/v3/zh/hero.jpg"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/v3/zh/hero-dark.jpg" /><img src="docs/assets/readme/v3/zh/hero.jpg" alt="Bot 模式：左侧是控制栏和频道列表，中间是与 Mira 的私聊，右侧是 Mira 的记忆演化，带一个合并分支和一处未提交的修改" /></picture></a><br /><b>Bot 私聊与记忆演化</b>：Mira 从记忆里找出访客统计；右侧能看到它记忆的每次提交和分支。</td>
+    <td width="50%"><a href="docs/assets/readme/v3/zh/group.jpg"><img src="docs/assets/readme/v3/zh/group.jpg" alt="天文台工作室群聊：Mira、Theo 和 Nova 以各自身份回复，右侧是成员列表" /></a><br /><b>群聊协作</b>：@ 三个 Bot，它们各自回复，Nova 读完前两位再接话。</td>
   </tr>
   <tr>
-    <td width="50%"><a href="docs/assets/readme/v2/zh/schedules.jpg"><img src="docs/assets/readme/v2/zh/schedules.jpg" alt="Nova 收到“每天 9 点读日志”的请求后自己创建了定时任务，右侧侧栏用卡片列出会话和定时任务" /></a><br /><b>定时任务</b>：一句话让 Bot 自己建任务。</td>
-    <td width="50%"><a href="docs/assets/readme/v2/zh/marketplace.jpg"><img src="docs/assets/readme/v2/zh/marketplace.jpg" alt="Bot 市场：按话题筛选、搜索，列表中每个 Bot 都有像素头像、岗位、Star 数和安装按钮" /></a><br /><b>Bot 市场</b>：按话题和关键词找 Bot，点「安装」就多一位同事（图中为示例数据）。</td>
+    <td width="50%"><a href="docs/assets/readme/v3/zh/schedules.jpg"><img src="docs/assets/readme/v3/zh/schedules.jpg" alt="Kai 收到“每周一早上 9 点起草短文”的请求后自己创建了定时任务，右侧是定时任务面板" /></a><br /><b>定时任务</b>：一句话让 Bot 自己建任务。</td>
+    <td width="50%"><a href="docs/assets/readme/v3/zh/marketplace.jpg"><img src="docs/assets/readme/v3/zh/marketplace.jpg" alt="Bot 市场：按话题筛选、搜索，每个 Bot 卡片有像素横幅、头像、岗位、Star 数和安装按钮" /></a><br /><b>Bot 市场</b>：按话题和关键词找 Bot，点「安装」就多一位同事（图中为示例数据）。</td>
+  </tr>
+  <tr>
+    <td width="50%"><a href="docs/assets/readme/v3/zh/home.jpg"><img src="docs/assets/readme/v3/zh/home.jpg" alt="首页和托布的私聊并排：左边是 Token 用量和 Bot 活跃情况，右边是托布汇报各个 Bot 的状态" /></a><br /><b>首页与托布</b>：面板可以并排摆放；问托布一句，它就汇报所有 Bot 的状态。</td>
+    <td width="50%"><a href="docs/assets/readme/v3/zh/appearance.jpg"><img src="docs/assets/readme/v3/zh/appearance.jpg" alt="Bot 设置的界面设置页：主题、配色、壁纸库和面板材质，背后是换上壁纸的工作区" /></a><br /><b>界面设置</b>：主题、配色、壁纸库和半透明面板，只保存在这台设备上。</td>
   </tr>
 </table>
 
@@ -96,6 +110,8 @@ _截图来自隔离的本地 DSH，对话是虚构的天文台展览示例。_
 
 | 版本                                                                                                              | 新内容                                                                                                                                                                                                                                                      |
 | ----------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **[1.4.1](https://github.com/BotHarness/DeepSeekBot/releases/tag/v1.4.1)**（2026-10-20）                          | 第一次进入 Bot 模式时，托布五步带你上手；Bot 模式有自己的**主题、半透明面板和壁纸库**；`/compact` 和空闲压缩让长对话保持轻快；快速搜索直达任意设置项；记忆里能预览图片和 Markdown；手机端 Beta 加了通知开关。                                               |
+| **[1.4.0](https://github.com/BotHarness/DeepSeekBot/releases/tag/v1.4.0)**（2026-10-19）                          | 首页迎来管家**托布**，用聊天就能管理 Bot、模型和群；桌面端换成可自由拖放的**面板工作区**，每个频道记住自己的布局；审批可交给审核模型；可以配对手机；命令行覆盖了几乎所有界面操作。支持 DSH 0.2.0-rc.2 到 0.2.x。                                            |
 | **[1.3.1](https://github.com/BotHarness/DeepSeekBot/releases/tag/v1.3.1)**（2026-10-14）                          | 从插件页安装 `deepseekbot` 重新只要一步，不再要求批准构建；需要 DSH 0.2.0-rc.2。`deepseekbot` 命令行可以配置 Host、操作 Bot 的浏览器和 Computer、管理 IM 应用；浏览器面板实时刷新。                                                                         |
 | **[1.3.0](https://github.com/BotHarness/DeepSeekBot/releases/tag/v1.3.0)**（2026-10-14）                          | 界面换上统一的设计系统，Channel 设置收进对话框；Orchestrator 自己整理收件箱和任务；Bot 可以凭你批准使用密钥跑命令行和 **MCP**，一句话就能配好 MCP；消息可多选**导出**；新增 Bot 主题色、更多像素物种和自绘部件；记忆可回到任意版本。需要 DSH 0.2.0 及以上。 |
 | **[1.2.1](https://github.com/BotHarness/DeepSeekBot/releases/tag/v1.2.1)**（2026-10-12）                          | 修复部分 DSH 版本装不上的问题；群头像显示成员头像拼图；音频和文件附件可以直接播放、下载。                                                                                                                                                                   |
@@ -153,15 +169,47 @@ node scripts/dev-instance.mjs --home /tmp/botharness-demo --port 31967
 
 <a id="community"></a>
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/pixel/community-zh-night.svg" />
+  <img src="docs/assets/readme/pixel/community-zh-day.svg" width="960" alt="" />
+</picture>
+
 ## 社区
 
 问题、想法，还有你做出来的 Bot，都欢迎带来。
 
-- **Discord**：[加入 DeepSeekBot 服务器](https://discord.gg/aEB2Ayhu7B)
-- **QQ 群**：在 QQ 中搜索群号 **1125565676**
-- **使用求助、想法与作品分享**：[GitHub Discussions](https://github.com/BotHarness/DeepSeekBot/discussions) · [欢迎帖](https://github.com/BotHarness/DeepSeekBot/discussions/1397)
-- **明确的 Bug 与实施任务**：[GitHub Issues](https://github.com/BotHarness/DeepSeekBot/issues/new/choose)
-- **参与维护**：[贡献指南](CONTRIBUTING.zh.md) · [第一次贡献](https://github.com/BotHarness/DeepSeekBot/discussions/1398)，文档、测试和答疑也欢迎。
+| 来坐坐                                                                                                                                                                                                                                                                                                                                                                                                                                                               | 一起做点什么                                                                                                                                                                                                                         |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [<picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/pixel/badge-discord-night.svg" /><img src="docs/assets/readme/pixel/badge-discord-day.svg" width="160" alt="discord" /></picture>](https://discord.gg/aEB2Ayhu7B)                                                                                                                                                                                                                  | [加入 DeepSeekBot 服务器](https://discord.gg/aEB2Ayhu7B)，交流使用、分享你的小团队。                                                                                                                                                 |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/pixel/badge-qq-night.svg" /><img src="docs/assets/readme/pixel/badge-qq-day.svg" width="160" alt="qq" /></picture>                                                                                                                                                                                                                                                                  | 在 QQ 中搜索群号 **1125565676**。                                                                                                                                                                                                    |
+| [<picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/pixel/badge-discuss-night.svg" /><img src="docs/assets/readme/pixel/badge-discuss-day.svg" width="160" alt="discuss" /></picture>](https://github.com/BotHarness/DeepSeekBot/discussions)                                                                                                                                                                                          | [使用求助、想法与作品分享](https://github.com/BotHarness/DeepSeekBot/discussions) · [欢迎帖](https://github.com/BotHarness/DeepSeekBot/discussions/1397)。                                                                           |
+| [<picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/pixel/badge-contribute-night.svg" /><img src="docs/assets/readme/pixel/badge-contribute-day.svg" width="160" alt="contribute" /></picture>](CONTRIBUTING.zh.md)                                                                                                                                                                                                                    | [贡献指南](CONTRIBUTING.zh.md) · [第一次贡献](https://github.com/BotHarness/DeepSeekBot/discussions/1398)，文档、测试和答疑也欢迎；明确的 Bug 与实施任务请到 [Issues](https://github.com/BotHarness/DeepSeekBot/issues/new/choose)。 |
+| <a href="https://www.producthunt.com/products/deepseekbot?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-deepseekbot" target="_blank" rel="noopener noreferrer"><img alt="DeepSeekBot - Open-source Grok Bot alternative built on DeepSeek Harness &#124; Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1276820&amp;theme=light&amp;t=1791733459461"></a> | 我们已上线 Product Hunt，欢迎看看，也欢迎把 DeepSeekBot 介绍给朋友。                                                                                                                                                                 |
+
+<a id="repository-status"></a>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/pixel/status-zh-night.svg" />
+  <img src="docs/assets/readme/pixel/status-zh-day.svg" width="960" alt="" />
+</picture>
+
+## 仓库状态
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/readme-status/stats-zh-night.svg" />
+  <img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/readme-status/stats-zh-day.svg" width="960" alt="GitHub 仓库状态：Stars、Forks、未关闭 Issues 和 PR、最近 30 天关闭 PR 与提交数；统计口径及文字数据见下方链接。" />
+</picture>
+
+**最近 30 天**：关闭 PR 包含已合并 PR；提交按默认分支所有可达历史统计，包含合并提交和机器人提交。每六小时更新，图中时间为最后成功更新时间。
+
+[文字数据与统计口径](https://github.com/BotHarness/DeepSeekBot/tree/readme-status#readme) · [JSON](https://raw.githubusercontent.com/BotHarness/DeepSeekBot/readme-status/stats.json) · [更新任务](https://github.com/BotHarness/DeepSeekBot/actions/workflows/readme-status.yml)
+
+<a href="https://github.com/BotHarness/DeepSeekBot">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/pixel/star-zh-night.svg" />
+  <img src="docs/assets/readme/pixel/star-zh-day.svg" width="960" alt="收藏 DeepSeekBot，下次回来继续建设。" />
+</picture>
+</a>
 
 ## 灵感与致谢
 

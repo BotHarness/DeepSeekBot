@@ -195,11 +195,19 @@ export function CardLine({
             backgroundColor: theme.color[dot],
           }}
         />
-        <Text tone="muted" numberOfLines={1} style={{ flexShrink: 1 }}>
+        <Text tone="muted" style={{ flexShrink: 1 }}>
           {text}
         </Text>
       </View>
     </View>
+  );
+}
+
+export function CardNote({ children }: { children: string }) {
+  return (
+    <Text variant="meta" tone="muted">
+      {children}
+    </Text>
   );
 }
 

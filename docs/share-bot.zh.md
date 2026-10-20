@@ -27,8 +27,8 @@
 请把你的 Memory 仓库分享到 BotHarness 的 Bot 市场，按下面的步骤做，每一步做完告诉我结果：
 
 1. 列出 Memory 里的所有文件，并检查文件内容和 Git 历史里有没有密码、token、私人信息或我不想公开的内容。把发现的问题列给我，等我确认后再继续，确认前不要推送任何东西。
-2. 如果还没有 README.md，写一份简短的介绍：你是谁、擅长什么、适合怎么用。
-3. 确认 .botharness/bot.json 存在（DeepSeekBot 通常已经自动生成）。没有就创建，写上你的名称、1 到 3 个标签和一句话简介，格式是 {"name": "名称", "tags": ["标签"], "bio": "一句话简介"}；已经有了就保持不变。
+2. 如果还没有 README.md，写一份简短的介绍：你是谁、擅长什么、适合怎么用。然后用另一种语言再写一份：README.md 是中文就写英文的 README.en.md，是英文就写中文的 README.zh-CN.md。
+3. 确认 .botharness/bot.json 存在（DeepSeekBot 通常已经自动生成）。没有就创建，写上你的名称、1 到 3 个标签和一句话简介，格式是 {"name": "名称", "tags": ["标签"], "bio": "一句话简介"}；已经有了就保留原有内容。然后在 "i18n" 里加上另一种语言的简介，格式是 {"i18n": {"en": {"bio": "One sentence"}}} 或 {"i18n": {"zh": {"bio": "一句话简介"}}}。
 4. 用 gh 在我的 GitHub 账号下创建一个公开仓库并推送当前分支。仓库名用你的名称的英文或拼音，先告诉我你打算用的名字。如果第 1 步发现历史里有不该公开的内容，就只推送一个不带历史的新提交。
 5. 给仓库加上 botharness-bot 话题：gh repo edit --add-topic botharness-bot
 6. 把仓库地址发给我。
@@ -94,6 +94,31 @@ DeepSeekBot 会自动在每个 Bot 的 Memory 里生成 `.botharness/bot.json`�
 | `banner` | 横幅：生成的像素场景 `{ "recipe": { "scene", "seed" } }`，或 `{ "image": ".botharness/banner.png" }`（3:1 的 PNG，最大 2 MB）。场景：`spring`、`summer`、`autumn`、`winter`、`sea`、`mountain`、`desert`、`forest`、`night-sky`、`space`。 |
 
 所有字段都可以省略。文件格式不对时整个文件会被忽略，市场改用仓库名和自动生成的像素头像。
+
+## 中英文：`README.zh-CN.md` 和 `i18n`
+
+DeepSeekBot 里和官网上的 Bot 市场会按读者的语言（中文或英文）显示每个 Bot，前提是仓库里有这种语言的内容。先用一种语言写好，再在旁边补上另一种：
+
+| 内容              | 放在哪里                                                | 谁会看到                         |
+| ----------------- | ------------------------------------------------------- | -------------------------------- |
+| 中文 README       | 仓库根目录的 `README.zh-CN.md`（`README.zh.md` 也可以） | 用中文的读者                     |
+| 英文 README       | 仓库根目录的 `README.en.md`                             | 用英文的读者                     |
+| 任意语言的 README | `README.md`                                             | 其他读者，以及没有对应语言版本时 |
+| 名称和简介的翻译  | `.botharness/bot.json` 里的 `"i18n"`，键为 `zh` 和 `en` | 用该语言的读者                   |
+
+```json
+{
+  "name": "Orion",
+  "bio": "Tells you what you can see in tonight's sky, for any city and date.",
+  "i18n": {
+    "zh": { "name": "猎户", "bio": "告诉你今晚能看到什么，任意城市和日期。" }
+  }
+}
+```
+
+`i18n` 里的 `name`（最多 60 个字）和 `bio`（最多 160 个字）规则和顶层一样，都可以省略。`README.md` 和 `bio` 用你最顺手的语言写；市场会判断 `bio` 是哪种语言，英文的 `bio` 本身就是英文版，只需要再加 `zh`。`README.zh-CN.md` 里的图片和链接与 `README.md` 一样处理。`README.zh.md`、`README_CN.md`、`README-zh.md` 这几种写法也能识别，同时存在时优先用 `README.zh-CN.md`。
+
+如果某种语言下没有作者写的简介，市场会用 AI 模型，根据名称、GitHub 描述、简介和 README 写一句该语言的简介，代替原简介显示，并标注“AI 摘要”。作者自己写的内容总是优先：加上 `i18n` 简介，或者直接用该语言写 `bio`，就不再显示生成的简介。推送或修改仓库的 GitHub 描述后，如果生成所依据的内容有变化，一小时内会重新生成。README 正文不会被翻译。
 
 ## 资料横幅
 

@@ -6,6 +6,7 @@ import {
   type GitHubCommit,
   type GitHubRepository,
 } from './github.js';
+import { localizedReadmeFiles, searchText, storedMap, type LanguageMap } from './localization.js';
 
 export type Visibility = 'listed' | 'hidden_missing' | 'hidden_reported' | 'blocked';
 
@@ -29,6 +30,13 @@ export interface RepositoryRow {
   roles: string;
   bio: string | null;
   banner: string | null;
+  readmes: string | null;
+  localized: string | null;
+  summary: string | null;
+  summary_key: string | null;
+  summary_checked_at: string | null;
+  summary_failures: number;
+  search_text: string | null;
 }
 
 export const MAX_README_LENGTH = 200_000;
@@ -64,11 +72,20 @@ export function createRepositoryStore(deps: {
   const refreshPresentation = async (row: RepositoryRow): Promise<void> => {
     if (row.visibility !== 'listed' || row.readme_pushed_at === row.pushed_at) return;
     const locator = { owner: row.owner, name: row.name };
-    const [readme, descriptorFile] = await Promise.all([
+    const [readme, descriptorFile, rootFiles] = await Promise.all([
       github.readme(locator),
       github.file(locator, BOT_DESCRIPTOR_PATH),
+      github.rootFiles(locator),
     ]);
-    if (!readme.ok || !descriptorFile.ok) return;
+    if (!readme.ok || !descriptorFile.ok || !rootFiles.ok) return;
+    const readmes: LanguageMap<string> = {};
+    for (const [language, file] of Object.entries(localizedReadmeFiles(rootFiles.value))) {
+      const variant = await github.file(locator, file);
+      if (!variant.ok) return;
+      if (variant.value !== null && variant.value.trim().length > 0) {
+        readmes[language as keyof LanguageMap<string>] = variant.value.slice(0, MAX_README_LENGTH);
+      }
+    }
     const descriptor =
       descriptorFile.value === null ? undefined : parseBotDescriptor(descriptorFile.value);
     const banner = descriptor?.banner;
@@ -84,9 +101,13 @@ export function createRepositoryStore(deps: {
                 .map(encodeURIComponent)
                 .join('/')}`,
             };
+    const localized = storedMap(descriptor?.i18n ?? {});
+    const storedReadmes = storedMap(readmes);
     await db
       .prepare(
-        'UPDATE indexed_repositories SET readme = ?, readme_pushed_at = ?, display_name = ?, roles = ?, bio = ?, banner = ? WHERE node_id = ?',
+        `UPDATE indexed_repositories SET readme = ?, readme_pushed_at = ?, display_name = ?, roles = ?,
+           bio = ?, banner = ?, readmes = ?, localized = ?, search_text = ?, summary_failures = 0
+         WHERE node_id = ?`,
       )
       .bind(
         readme.value?.slice(0, MAX_README_LENGTH) ?? null,
@@ -95,6 +116,9 @@ export function createRepositoryStore(deps: {
         JSON.stringify(descriptor?.tags ?? []),
         descriptor?.bio ?? null,
         stored === null ? null : JSON.stringify(stored),
+        storedReadmes,
+        localized,
+        searchText({ readmes: storedReadmes, localized, summary: row.summary }),
         row.node_id,
       )
       .run();
@@ -119,6 +143,13 @@ export function createRepositoryStore(deps: {
             name = excluded.name,
             html_url = excluded.html_url,
             clone_url = excluded.clone_url,
+            summary_checked_at = CASE
+              WHEN indexed_repositories.description IS excluded.description THEN indexed_repositories.summary_checked_at
+            END,
+            summary_failures = CASE
+              WHEN indexed_repositories.description IS excluded.description THEN indexed_repositories.summary_failures
+              ELSE 0
+            END,
             description = excluded.description,
             topics = excluded.topics,
             stars = excluded.stars,

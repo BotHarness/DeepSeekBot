@@ -68,7 +68,7 @@ interface Section {
 export const SectionList = (props: {
   sections: Section[];
   keyExtractor(item: unknown): string;
-  renderItem(info: { item: unknown }): ReactNode;
+  renderItem(info: { item: unknown; index: number; section: Section }): ReactNode;
   renderSectionHeader?(info: { section: Section }): ReactNode;
   renderSectionFooter?(info: { section: Section }): ReactNode;
   ListHeaderComponent?: ReactNode;
@@ -84,8 +84,12 @@ export const SectionList = (props: {
         'section',
         { key: index },
         props.renderSectionHeader?.({ section }) ?? null,
-        ...section.data.map((item) =>
-          createElement(Fragment, { key: props.keyExtractor(item) }, props.renderItem({ item })),
+        ...section.data.map((item, position) =>
+          createElement(
+            Fragment,
+            { key: props.keyExtractor(item) },
+            props.renderItem({ item, index: position, section }),
+          ),
         ),
         props.renderSectionFooter?.({ section }) ?? null,
       ),

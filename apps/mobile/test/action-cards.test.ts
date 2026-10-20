@@ -18,7 +18,6 @@ import {
   decideApproval,
   loadApproval,
   loadQuestion,
-  offersAlwaysAllow,
   requestRef,
 } from '../src/host/requests';
 import type { HumanAttentionItem } from '../src/host/wire';
@@ -61,6 +60,16 @@ afterEach(() => {
   client?.stop();
 });
 
+function approvalTimeline(allowAlways: boolean | undefined): unknown {
+  const timeline = recorded('channelTimeline.approvalPending') as {
+    value: { page: { entries: Array<{ toolApprovalRequest: Record<string, unknown> }> } };
+  };
+  const request = timeline.value.page.entries[0]!.toolApprovalRequest;
+  if (allowAlways === undefined) delete request['allowAlways'];
+  else request['allowAlways'] = allowAlways;
+  return timeline;
+}
+
 function host(): FakeHost {
   const fake = new FakeHost();
   fake.answers.set('toolApprovalStatus', () => recorded('toolApprovalStatus.pending'));
@@ -68,11 +77,9 @@ function host(): FakeHost {
   fake.answers.set('userQuestionStatus', () => recorded('userQuestionStatus.pending'));
   fake.answers.set('userQuestionAnswer', () => recorded('userQuestionAnswer.accepted'));
   fake.answers.set('channelTimeline', (args) =>
-    recorded(
-      args['around'] === approval.messageId
-        ? 'channelTimeline.approvalPending'
-        : 'channelTimeline.questionPending',
-    ),
+    args['around'] === approval.messageId
+      ? approvalTimeline(true)
+      : recorded('channelTimeline.questionPending'),
   );
   return fake;
 }
@@ -162,8 +169,9 @@ describe('Tool approval card in the DM', () => {
     expect(view.textContent).toContain(t.runTool('bash'));
     expect(view.textContent).toContain('ls /tmp/mobile-fixture');
     expect(view.textContent).not.toContain('/home/qa/.dsh/botharness/bots/');
-    for (const label of [t.allowOnce, t.alwaysAllow, t.deny, t.details])
+    for (const label of [t.allowOnce, t.alwaysAllow, t.reject, t.details])
       expect(button(view, label).disabled).toBe(false);
+    expect(view.textContent).toContain(t.alwaysToolScope('bash'));
     await press(button(view, t.details));
     expect(view.textContent).toContain('/home/qa/.dsh/botharness/bots/');
   });
@@ -177,9 +185,9 @@ describe('Tool approval card in the DM', () => {
     });
     const view = await render(card(connect(fake)));
     await press(button(view, t.alwaysAllow));
-    expect(sent[0]?.['outcome']).toBe('allowed-always-exact');
+    expect(sent[0]?.['outcome']).toBe('allowed-always-tool');
     expect(played).toEqual(['notification:success']);
-    expect(line(view)).toBe(t.cardLine('bash', t.cardOutcome['allowed-always-exact']));
+    expect(line(view)).toBe(t.cardLine('bash', t.cardOutcome['allowed-always-tool']));
     expect(view.querySelector('button')).toBeNull();
   });
 
@@ -197,7 +205,7 @@ describe('Tool approval card in the DM', () => {
     fake.answers.set('toolApprovalDecide', () => recorded('toolApprovalDecide.refused'));
     fake.answers.set('toolApprovalStatus', () => recorded('toolApprovalStatus.decided'));
     fake.answers.set('channelTimeline', () => recorded('channelTimeline.approvalDecided'));
-    await press(button(view, t.deny));
+    await press(button(view, t.reject));
     expect(played).toEqual(['notification:warning']);
     expect(line(view)).toBe(t.cardLine('bash', t.elsewhere(t.cardOutcome['allowed-once'])));
   });
@@ -228,9 +236,92 @@ describe('Tool approval card in the DM', () => {
     expect(button(view, t.allowOnce).disabled).toBe(false);
   });
 
-  it('offers no Always allow for a secret command', () => {
-    expect(offersAlwaysAllow('secret_cli')).toBe(false);
-    expect(offersAlwaysAllow('bash')).toBe(true);
+  it('keeps three actions but disables Always allow when the Host does not offer it', async () => {
+    for (const allowAlways of [false, undefined]) {
+      const fake = host();
+      fake.answers.set('channelTimeline', () => approvalTimeline(allowAlways));
+      const view = await render(card(connect(fake)));
+      expect(button(view, t.alwaysAllow).disabled).toBe(true);
+      expect(button(view, t.allowOnce).disabled).toBe(false);
+      expect(button(view, t.reject).disabled).toBe(false);
+      expect(view.textContent).toContain(t.alwaysUnavailable);
+      act(() => root?.unmount());
+      container?.remove();
+      root = undefined;
+      client?.stop();
+    }
+  });
+});
+
+describe('Tool approval detail in the DM', () => {
+  const card = (target: HostClient) =>
+    createElement(ApprovalCard, { port: approvalPort(target), subject: 'edit' });
+
+  function edited(toolName: string, input: Record<string, unknown>): unknown {
+    const timeline = approvalTimeline(true) as {
+      value: { page: { entries: Array<{ toolApprovalRequest: Record<string, unknown> }> } };
+    };
+    const request = timeline.value.page.entries[0]!.toolApprovalRequest;
+    request['toolName'] = toolName;
+    request['input'] = JSON.stringify(input);
+    return timeline;
+  }
+
+  it('shows a file edit as a diff with its counts, the expiry and a waiting Assignment', async () => {
+    const fake = host();
+    fake.answers.set('channelTimeline', () =>
+      edited('edit', { file_path: 'notes.md', old_string: 'draft', new_string: 'final\nshipped' }),
+    );
+    fake.answers.set('toolApprovalStatus', () => ({
+      ok: true,
+      value: {
+        status: 'pending',
+        expiresAt: new Date(Date.now() + 5 * 60 * 1000 + 30 * 1000).toISOString(),
+        execution: 'waiting-human',
+      },
+    }));
+    const view = await render(card(connect(fake)));
+    expect(view.textContent).toContain('notes.md  +2 −1');
+    expect(view.textContent).toContain(t.expiresInMinutes(5));
+    expect(view.textContent).toContain(t.waitingHumanCapacity);
+    await press(button(view, t.details));
+    const diff = view.querySelector('[data-testid="approval-diff"]')!;
+    expect(diff.textContent).toBe('- draft+ final+ shipped');
+    expect(view.textContent).toContain(t.riskTool);
+  });
+
+  it('reveals every line of a long diff before the Human decides', async () => {
+    const fake = host();
+    const lines = Array.from({ length: 45 }, (_, index) => `line ${index}`).join('\n');
+    fake.answers.set('channelTimeline', () =>
+      edited('write', { file_path: 'long.md', content: lines }),
+    );
+    const view = await render(card(connect(fake)));
+    await press(button(view, t.details));
+    const diff = () => view.querySelector('[data-testid="approval-diff"]')!.textContent;
+    expect(diff()).not.toContain('line 44');
+    await press(button(view, t.diffMore(5)));
+    expect(diff()).toContain('line 44');
+    expect(view.querySelector('[data-testid="approval-diff-more"]')).toBeNull();
+  });
+
+  it('puts the original attachment warning next to the buttons', async () => {
+    const fake = host();
+    fake.answers.set('channelTimeline', () =>
+      edited('channel_attachment_open', { attachment_id: 'a1' }),
+    );
+    const view = await render(card(connect(fake)));
+    expect(view.textContent).toContain(t.riskOriginal);
+  });
+
+  it('puts the secret warning next to the buttons for secret_cli', async () => {
+    const fake = host();
+    fake.answers.set('channelTimeline', () =>
+      edited('secret_cli', { account: 'github', program: 'gh', args: ['repo', 'list'] }),
+    );
+    const view = await render(card(connect(fake)));
+    expect(view.textContent).toContain(t.riskSecretCli);
+    expect(view.textContent).toContain(t.alwaysKindScope);
   });
 });
 

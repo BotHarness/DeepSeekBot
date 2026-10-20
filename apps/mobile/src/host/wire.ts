@@ -51,6 +51,9 @@ export interface ChannelWireMessage extends WireMessage {
   privateInputRequest?: unknown;
   sessionFailure?: unknown;
   grantRequest?: true;
+  grantRequestResolved?: boolean;
+  grantRequestResolution?: unknown;
+  privateInputResolution?: unknown;
   toolApprovalDecision?: unknown;
   userQuestionResolution?: unknown;
   onboardingWelcome?: unknown;
@@ -367,9 +370,36 @@ export interface HumanAttentionItem {
   botSlug: string;
   summary: string;
   messageId?: string;
+  requestId?: string;
+  assignmentSessionId?: string;
+  sourceEventId?: string;
   responseMessageId?: string;
   unreadCount?: number;
   isUnread?: boolean;
+  autoRejection?: {
+    sessionId: string;
+    toolName: string;
+    input: string;
+    template: string;
+    reason: string;
+  };
+}
+
+export interface HumanAssignmentReport {
+  sourceEventId: string;
+  at: string;
+  state: 'progress' | 'completed' | 'blocked' | 'waiting-human' | 'failed';
+  summary: string;
+}
+
+export interface HumanAssignmentContext {
+  botSlug: string;
+  sessionId: string;
+  purpose: string;
+  sourceEventId: string;
+  reports: HumanAssignmentReport[];
+  canReply: boolean;
+  reply?: { id: string; at: string; body: string };
 }
 
 export interface HumanAttentionPage {
@@ -383,6 +413,7 @@ export interface ToolApprovalRequestCard {
   role: 'orchestrator' | 'assignment';
   cwd: string;
   input: string;
+  allowAlways?: boolean;
 }
 
 export type ToolApprovalOutcome =
@@ -423,6 +454,10 @@ export interface TimelineMessage {
   toolApprovalDecision?: { requestMessageId: string; outcome: ToolApprovalOutcome };
   userQuestionRequest?: { questions: QuestionItem[] };
   userQuestionResolution?: { requestMessageId: string; state: 'answered' | 'cancelled' };
+  author?: WireAuthor;
+  grantRequest?: true;
+  grantRequestResolved?: boolean;
+  grantRequestResolution?: { requestMessageId: string; grantId: string };
 }
 
 export interface TimelinePage {

@@ -6,6 +6,7 @@ import { parseChallenge, solveChallenge } from '../../core/src/marketplace/altch
 import { handlerForEnv, runScheduled, type MarketEnv } from '../src/worker.js';
 import { createGitHubClient } from '../src/github.js';
 import type { ProtectionLimits } from '../src/protection.js';
+import type { Summarizer } from '../src/summary.js';
 
 export const TEST_ADMIN_TOKEN = 'test-admin-token';
 
@@ -35,6 +36,8 @@ export interface FakeRepository extends GitHubRepository {
   createdAt: string;
   readme: string | null;
   descriptor: string | null;
+  files?: Record<string, string>;
+  empty?: boolean;
 }
 
 export function fakeRepository(overrides: Partial<FakeRepository> = {}): FakeRepository {
@@ -53,7 +56,10 @@ export function fakeRepository(overrides: Partial<FakeRepository> = {}): FakeRep
     defaultBranch: 'main',
     private: false,
     archived: false,
-    head: { sha: 'abcdef1234567890abcdef1234567890abcdef12', committedAt: '2026-09-30T12:00:00Z' },
+    head: {
+      sha: 'abcdef1234567890abcdef1234567890abcdef12',
+      committedAt: '2026-09-30T12:00:00Z',
+    },
     createdAt: '2026-01-01T00:00:00Z',
     readme: `# ${name}`,
     descriptor: null,
@@ -78,7 +84,10 @@ export function createFakeGitHub(): {
   const nodeBatches: number[] = [];
   const searches: string[] = [];
   const respond = (status: number, body: unknown): Response =>
-    new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { 'content-type': 'application/json' },
+    });
   const rest = (repository: FakeRepository) => ({
     node_id: repository.nodeId,
     owner: { login: repository.owner },
@@ -106,13 +115,18 @@ export function createFakeGitHub(): {
           pushedAt: repository.pushedAt,
           isPrivate: repository.private,
           isArchived: repository.archived,
-          repositoryTopics: { nodes: repository.topics.map((name) => ({ topic: { name } })) },
+          repositoryTopics: {
+            nodes: repository.topics.map((name) => ({ topic: { name } })),
+          },
           defaultBranchRef: {
             name: repository.defaultBranch,
             target:
               repository.head === undefined
                 ? {}
-                : { oid: repository.head.sha, committedDate: repository.head.committedAt },
+                : {
+                    oid: repository.head.sha,
+                    committedDate: repository.head.committedAt,
+                  },
           },
         };
   const search = (url: URL): Response => {
@@ -147,12 +161,16 @@ export function createFakeGitHub(): {
     if (url.pathname === '/search/repositories') return search(url);
     if (url.pathname === '/graphql') {
       if (nodesDown.value) return respond(502, { message: 'bad gateway' });
-      const { variables } = JSON.parse(String(init?.body)) as { variables: { ids: string[] } };
+      const { variables } = JSON.parse(String(init?.body)) as {
+        variables: { ids: string[] };
+      };
       nodeBatches.push(variables.ids.length);
       const byId = new Map([...repositories.values()].map((item) => [item.nodeId, item]));
-      return respond(200, { data: { nodes: variables.ids.map((id) => graph(byId.get(id))) } });
+      return respond(200, {
+        data: { nodes: variables.ids.map((id) => graph(byId.get(id))) },
+      });
     }
-    const match = /^\/repos\/([^/]+)\/([^/]+)(?:\/(commits|readme|contents)(?:\/(.+))?)?$/u.exec(
+    const match = /^\/repos\/([^/]+)\/([^/]+)(?:\/(commits|readme|contents)(?:\/(.*))?)?$/u.exec(
       url.pathname,
     );
     const repository =
@@ -167,6 +185,20 @@ export function createFakeGitHub(): {
     }
     if (match[3] === 'contents') {
       if (contentsDown.value) return respond(503, { message: 'unavailable' });
+      if (match[4] === undefined || match[4] === '') {
+        if (repository.empty === true)
+          return respond(404, { message: 'This repository is empty.' });
+        const names = [
+          ...(repository.readme === null ? [] : ['README.md']),
+          ...Object.keys(repository.files ?? {}),
+        ];
+        return respond(200, [
+          ...names.map((name) => ({ name, type: 'file' })),
+          { name: '.botharness', type: 'dir' },
+        ]);
+      }
+      const file = repository.files?.[decodeURIComponent(match[4])];
+      if (file !== undefined) return new Response(file, { status: 200 });
       return match[4] !== '.botharness/bot.json' || repository.descriptor === null
         ? respond(404, { message: 'Not Found' })
         : new Response(repository.descriptor, { status: 200 });
@@ -206,6 +238,7 @@ export function createMarket(
     limits?: Partial<ProtectionLimits>;
     env?: Partial<Omit<MarketEnv, 'MARKET_DB'>>;
     realChallenges?: boolean;
+    summarizer?: Summarizer;
   } = {},
 ): {
   request: (path: string, init?: RequestInit) => Promise<Response>;
@@ -214,10 +247,12 @@ export function createMarket(
   clock: { value: Date };
   publish: (repository: FakeRepository) => void;
   scheduled: (cron: string) => Promise<Record<string, unknown>>;
+  logs: Record<string, unknown>[];
 } {
   const { db, sqlite } = createLocalD1();
   const clock = { value: new Date('2026-10-05T12:00:00Z') };
   const github = createFakeGitHub();
+  const logs: Record<string, unknown>[] = [];
   const client = createGitHubClient({
     token: 'test-token',
     fetchImpl: github.fetchImpl,
@@ -244,9 +279,17 @@ export function createMarket(
     clock,
     scheduled: async (cron) => {
       const lines: string[] = [];
-      await runScheduled(cron, { MARKET_DB: db }, client, (line) => lines.push(line));
+      await runScheduled(
+        cron,
+        { MARKET_DB: db },
+        client,
+        (line) => lines.push(line),
+        options.summarizer,
+      );
+      logs.push(...lines.map((line) => JSON.parse(line) as Record<string, unknown>));
       return JSON.parse(lines[0] ?? '{}') as Record<string, unknown>;
     },
+    logs,
     publish: (repository) =>
       github.repositories.set(`${repository.owner}/${repository.name}`.toLowerCase(), repository),
   };
@@ -286,7 +329,10 @@ export async function report(
   return post(
     market,
     `/v1/bots/${encodeURIComponent(id)}/reports`,
-    { altcha: await solve(market, ip), ...(reason === undefined ? {} : { reason }) },
+    {
+      altcha: await solve(market, ip),
+      ...(reason === undefined ? {} : { reason }),
+    },
     ip,
   );
 }
@@ -294,7 +340,10 @@ export async function report(
 export function admin(market: Market, body: unknown, token = TEST_ADMIN_TOKEN) {
   return market.request('/v1/admin/blocklist', {
     method: 'POST',
-    headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+    headers: {
+      'content-type': 'application/json',
+      authorization: `Bearer ${token}`,
+    },
     body: JSON.stringify(body),
   });
 }

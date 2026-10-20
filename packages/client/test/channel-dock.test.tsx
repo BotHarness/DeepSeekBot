@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, createElement, type ContextType, type ReactNode } from 'react';
+import { act, createElement, useState, type ContextType, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -251,6 +251,48 @@ describe('desktop Bot mode dock', () => {
     expect(Object.keys(panels())).toEqual([CHANNEL_BODY_PANEL, 'sessions']);
     await click('[data-dock-menu] button');
     expect(host.querySelector('[data-menu-item="sessions"]')).not.toBeNull();
+  });
+});
+
+describe('dock entry state per Bot or Channel', () => {
+  const remember =
+    (part: string) =>
+    ({ botSlug, channelId }: ChannelSidebarEntryProps) => {
+      const [first] = useState(botSlug ?? channelId);
+      return createElement('span', { [`data-remembered-${part}`]: first });
+    };
+  const sessions = {
+    id: 'sessions',
+    label: 'sessions',
+    scope: 'personabot',
+    component: remember('body'),
+    headerAction: remember('action'),
+  } satisfies ChannelSidebarEntry;
+  const show = (props: Partial<ChannelSidebarEntryProps>) =>
+    act(() =>
+      root.render(
+        createElement(ChannelDock, {
+          body: createElement('section', { className: 'bh-chat-pane' }, 'channel body'),
+          panels: dockPanelsFromEntries([sessions]),
+          entryProps: { ...entryProps, ...props },
+          shows: (candidate: ChannelSidebarEntry) => candidate.scope === 'personabot',
+          t: zhTranslate,
+          storage,
+        }),
+      ),
+    );
+  const remembered = () =>
+    ['body', 'action'].map((part) =>
+      host.querySelector(`[data-remembered-${part}]`)?.getAttribute(`data-remembered-${part}`),
+    );
+
+  it('starts a docked entry and its header action fresh when another Bot is selected', async () => {
+    show({});
+    await settle();
+    expect(remembered()).toEqual(['ada', 'ada']);
+    show({ channelId: 'dm-bob', botSlug: 'bob' });
+    await settle();
+    expect(remembered()).toEqual(['bob', 'bob']);
   });
 });
 

@@ -1,6 +1,7 @@
 import { isPixelBannerRecipe, type PixelBannerRecipe } from '@botharness/pixel-banner';
 
 import { parseChallenge, type AltchaChallenge } from './altcha.js';
+import { parseMarketplaceLanguage, type MarketplaceLanguage } from './language.js';
 
 export type MarketplaceBanner = { recipe: PixelBannerRecipe } | { image: string };
 
@@ -14,6 +15,7 @@ export interface MarketplaceEntry {
   displayName: string | null;
   roles: string[];
   description: string | null;
+  descriptionGenerated: boolean;
   banner: MarketplaceBanner | null;
   topics: string[];
   stars: number;
@@ -36,6 +38,7 @@ export interface MarketplaceQuery {
   sort?: MarketplaceSort;
   q?: string;
   topic?: string;
+  lang?: MarketplaceLanguage;
 }
 
 export interface MarketplaceTopic {
@@ -46,6 +49,7 @@ export interface MarketplaceTopic {
 export interface MarketplaceDetail {
   bot: MarketplaceEntry;
   readme: string | null;
+  readmeLanguage: MarketplaceLanguage | null;
   commitSha: string | null;
 }
 
@@ -54,7 +58,7 @@ export type MarketplaceResult<T> = { ok: true; value: T } | { ok: false; code: s
 export interface MarketplaceClient {
   list(query: MarketplaceQuery): Promise<MarketplaceResult<MarketplacePage>>;
   topics(): Promise<MarketplaceResult<MarketplaceTopic[]>>;
-  detail(id: string): Promise<MarketplaceResult<MarketplaceDetail>>;
+  detail(id: string, lang?: MarketplaceLanguage): Promise<MarketplaceResult<MarketplaceDetail>>;
   challenge(): Promise<MarketplaceResult<AltchaChallenge>>;
   submit(url: string, altcha: string): Promise<MarketplaceResult<{ bot: MarketplaceEntry }>>;
   report(
@@ -114,6 +118,8 @@ function parseEntry(value: unknown): MarketplaceEntry | undefined {
       ? roles.filter((role): role is string => typeof role === 'string')
       : [],
     description: typeof bio === 'string' && bio.length > 0 ? bio : description,
+    descriptionGenerated:
+      typeof bio === 'string' && bio.length > 0 && source['bioGenerated'] === true,
     banner: parseBanner(source['banner']),
     topics: topics.filter((topic): topic is string => typeof topic === 'string'),
     stars,
@@ -146,7 +152,16 @@ export function parseMarketplaceDetail(value: unknown): MarketplaceDetail | unde
   const commitSha = source?.['commitSha'];
   if (bot === undefined || (readme !== null && typeof readme !== 'string')) return undefined;
   if (commitSha !== null && typeof commitSha !== 'string') return undefined;
-  return { bot, readme, commitSha };
+  const readmeLanguage = source?.['readmeLanguage'];
+  return {
+    bot,
+    readme,
+    readmeLanguage:
+      typeof readmeLanguage === 'string'
+        ? (parseMarketplaceLanguage(readmeLanguage) ?? null)
+        : null,
+    commitSha,
+  };
 }
 
 export function parseMarketplaceTopics(value: unknown): MarketplaceTopic[] | undefined {
@@ -167,6 +182,7 @@ function listPath(query: MarketplaceQuery): string {
   if (query.q !== undefined) params.set('q', query.q);
   if (query.topic !== undefined) params.set('topic', query.topic);
   if (query.cursor !== undefined) params.set('cursor', query.cursor);
+  if (query.lang !== undefined) params.set('lang', query.lang);
   const search = params.toString();
   return search.length === 0 ? '/v1/bots' : `/v1/bots?${search}`;
 }
@@ -226,9 +242,9 @@ export function createMarketplaceClient(options: {
         { method: 'GET', headers: { accept: 'application/json' } },
         parseMarketplacePage,
       ),
-    detail: (id) =>
+    detail: (id, lang) =>
       request(
-        `/v1/bots/${encodeURIComponent(id)}`,
+        `/v1/bots/${encodeURIComponent(id)}${lang === undefined ? '' : `?lang=${lang}`}`,
         { method: 'GET', headers: { accept: 'application/json' } },
         parseMarketplaceDetail,
       ),

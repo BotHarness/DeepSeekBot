@@ -114,3 +114,4 @@ jobs:
           name: llm-e2e-report
           path: ${{ runner.temp }}/llm-e2e/
           if-no-files-found: ignore
+          retention-days: 3

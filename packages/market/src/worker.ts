@@ -15,6 +15,7 @@ import {
   type BlocklistTarget,
   type Moderation,
 } from './moderation.js';
+import { parseMarketplaceLanguage } from './localization.js';
 import { isPublicRead, preflight, publicResponse } from './public-api.js';
 import {
   createProtection,
@@ -23,6 +24,7 @@ import {
   type Protection,
   type ProtectionLimits,
 } from './protection.js';
+import { createSummarizer, refreshSummaries, type Summarizer } from './summary.js';
 
 export interface MarketEnv {
   MARKET_DB: D1Database;
@@ -30,6 +32,9 @@ export interface MarketEnv {
   ALTCHA_HMAC_KEY?: string;
   ADMIN_TOKEN?: string;
   REPORT_THRESHOLD?: string;
+  SUMMARY_API_KEY?: string;
+  SUMMARY_API_BASE?: string;
+  SUMMARY_MODEL?: string;
 }
 
 export interface MarketHandlerDeps {
@@ -186,7 +191,9 @@ export function createMarketHandler(
       const query = url.searchParams.get('q')?.trim() ?? '';
       if ([...query].length > MAX_QUERY_LENGTH) return failure(400, 'invalid-query');
       const topic = url.searchParams.get('topic')?.trim().toLowerCase() ?? '';
+      const language = parseMarketplaceLanguage(url.searchParams.get('lang'));
       const page = await catalog.list({
+        ...(language === undefined ? {} : { language }),
         sort: sortParam,
         ...(limit === undefined ? {} : { limit }),
         ...(cursor === undefined ? {} : { cursor }),
@@ -204,7 +211,10 @@ export function createMarketHandler(
       } catch {
         return failure(404, 'bot-not-found');
       }
-      const detail = await catalog.detail(id);
+      const detail = await catalog.detail(
+        id,
+        parseMarketplaceLanguage(url.searchParams.get('lang')),
+      );
       return detail === undefined ? failure(404, 'bot-not-found') : json(200, detail);
     }
     if (url.pathname === '/v1/topics') {
@@ -280,11 +290,26 @@ export function handlerForEnv(
 export const DISCOVERY_CRON = '0 3 * * *';
 export const REFRESH_CRON = '17 * * * *';
 
+export const DEFAULT_SUMMARY_API_BASE = 'https://opencode.ai/inference/go/v1';
+export const DEFAULT_SUMMARY_MODEL = 'free,deepseek-v4.1-flash';
+
+export function summarizerForEnv(env: MarketEnv, fetchImpl?: typeof fetch): Summarizer | undefined {
+  const apiKey = env.SUMMARY_API_KEY;
+  if (apiKey === undefined || apiKey.length === 0) return undefined;
+  return createSummarizer({
+    apiKey,
+    apiBase: env.SUMMARY_API_BASE || DEFAULT_SUMMARY_API_BASE,
+    model: env.SUMMARY_MODEL || DEFAULT_SUMMARY_MODEL,
+    ...(fetchImpl === undefined ? {} : { fetchImpl }),
+  });
+}
+
 export async function runScheduled(
   cron: string,
   env: MarketEnv,
   github: GitHubClient = createGitHubClient({ token: env.GITHUB_TOKEN }),
   log: (line: string) => void = (line) => console.log(line),
+  summarizer: Summarizer | undefined = summarizerForEnv(env),
 ): Promise<void> {
   const crawler = createCrawler({ db: env.MARKET_DB, github, now: () => new Date() });
   const started = Date.now();
@@ -297,6 +322,19 @@ export async function runScheduled(
       phase,
       durationMs: Date.now() - started,
       ...report,
+    }),
+  );
+  if (phase !== 'refresh' || summarizer === undefined) return;
+  const summaryStarted = Date.now();
+  const summaries = await refreshSummaries({ db: env.MARKET_DB, summarizer });
+  log(
+    JSON.stringify({
+      module: 'marketplace-worker',
+      initiator: 'scheduled',
+      phase: 'summaries',
+      model: summarizer.model,
+      durationMs: Date.now() - summaryStarted,
+      ...summaries,
     }),
   );
 }

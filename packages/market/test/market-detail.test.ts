@@ -111,6 +111,8 @@ describe('Marketplace Worker detail', () => {
     expect(await response.json()).toEqual({
       bot: expect.objectContaining({ fullName: 'alice/helper-bot' }),
       readme: `# Helper\n\n![shot](<https://raw.githubusercontent.com/alice/helper-bot/${repository.head?.sha}/docs/shot.png>)`,
+      readmeLanguage: null,
+      readmeLanguages: [],
       commitSha: repository.head?.sha,
     });
   });

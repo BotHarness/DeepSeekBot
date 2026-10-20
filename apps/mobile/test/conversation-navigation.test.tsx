@@ -137,6 +137,8 @@ vi.mock('../src/ui/chat/speaker-row', async () => {
   };
 });
 vi.mock('../src/ui/chat/approval-card', () => ({ ApprovalCard: () => null }));
+vi.mock('../src/ui/chat/grant-request-card', () => ({ GrantRequestCard: () => null }));
+vi.mock('../src/ui/chat/private-input-card', () => ({ PrivateInputCard: () => null }));
 vi.mock('../src/ui/chat/activity-row', () => ({ ActivityRow: () => null }));
 vi.mock('../src/ui/chat/question-card', () => ({ QuestionCard: () => null }));
 vi.mock('../src/ui/chat/channel-title', () => ({ ChannelTitle: () => null }));

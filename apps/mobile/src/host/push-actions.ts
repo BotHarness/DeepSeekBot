@@ -6,7 +6,7 @@ export const APPROVAL_CATEGORY = 'tool-approval';
 export const APPROVAL_ONCE_CATEGORY = 'tool-approval-once';
 
 export const APPROVAL_ACTIONS: Readonly<Record<string, ApprovalChoice>> = {
-  always: 'allowed-always-exact',
+  always: 'allowed-always-tool',
   approve: 'allowed-once',
   reject: 'rejected',
 };

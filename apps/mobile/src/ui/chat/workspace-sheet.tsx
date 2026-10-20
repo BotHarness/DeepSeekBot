@@ -85,7 +85,7 @@ export function templateDescription(template: ApprovalTemplate): string {
   return template.description;
 }
 
-function Grouped({
+export function Grouped({
   index,
   count,
   children,
@@ -101,7 +101,7 @@ function Grouped({
   );
 }
 
-function RowIcon({ kind }: { kind: 'folder' | 'add' }) {
+export function RowIcon({ kind }: { kind: 'folder' | 'add' }) {
   const theme = useDesignTheme();
   const size = theme.type.title.line;
   return kind === 'folder' ? (
@@ -144,7 +144,7 @@ function RemoveButton({
   );
 }
 
-function Crumbs({
+export function Crumbs({
   crumbs,
   disabled,
   onOpen,

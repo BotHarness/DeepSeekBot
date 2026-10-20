@@ -65,6 +65,7 @@ import type { BotScheduleView } from '../src/client/bridge.js';
 import { zhTranslate } from '../src/client/locale.js';
 import {
   BotSchedulesEntry,
+  BotSchedulesHeaderAction,
   ScheduleDialog,
   emptyScheduleForm,
   formatScheduleTime,
@@ -253,6 +254,46 @@ describe('Bot Schedules sidebar entry', () => {
     await act(async () => runNow?.click());
     expect(actions.runBotScheduleNow).toHaveBeenCalledWith('ada', 'sch-1');
     expect(host.textContent).toContain('已触发，Bot 马上处理');
+    await act(async () => root.unmount());
+    host.remove();
+  });
+
+  it('opens the new-schedule dialog only for the Bot whose add button was pressed', async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    const actions = {
+      botSchedules: vi.fn(async () => []),
+      botSchedulePreview: vi.fn(async () => []),
+    } as unknown as BridgeActions;
+    const host = document.createElement('div');
+    document.body.append(host);
+    const root = createRoot(host);
+    const render = async (botSlug: string): Promise<void> => {
+      const props = { scope: 'personabot', channelId: `dm-${botSlug}`, botSlug, actions };
+      await act(async () => {
+        root.render(
+          createElement(
+            'div',
+            null,
+            createElement(BotSchedulesHeaderAction, { ...props, t: zhTranslate } as never),
+            createElement(BotSchedulesEntry, { ...props, t: zhTranslate } as never),
+          ),
+        );
+      });
+    };
+    const openDialogs = (): number => document.querySelectorAll('[role="dialog"]').length;
+
+    await render('ada');
+    expect(openDialogs()).toBe(0);
+    await act(async () => buttonNamed('新建定时任务', host).click());
+    expect(openDialogs()).toBe(1);
+
+    await render('bob');
+    expect(openDialogs()).toBe(0);
+    await render('ada');
+    expect(openDialogs()).toBe(0);
+
+    await act(async () => buttonNamed('新建定时任务', host).click());
+    expect(openDialogs()).toBe(1);
     await act(async () => root.unmount());
     host.remove();
   });

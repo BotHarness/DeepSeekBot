@@ -215,10 +215,11 @@ export function SheetFailed({
 }
 
 export function SheetActions({ children }: { children: ReactNode }) {
+  const theme = useDesignTheme();
   return (
     <View
       style={{
-        flexDirection: 'row',
+        flexDirection: theme.largeText ? 'column' : 'row',
         justifyContent: 'flex-end',
         gap: space.x3,
         paddingHorizontal: space.x5,

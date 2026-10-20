@@ -1,7 +1,7 @@
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
@@ -527,8 +527,12 @@ describe('Human Inbox push source', () => {
       () => 'Ada',
       (_, messageId) =>
         messageId === 'm'
-          ? { toolName: 'bash', input: JSON.stringify({ description: 'x', command: 'date > now' }) }
-          : { toolName: 'secret_cli', input: '{}' },
+          ? {
+              toolName: 'bash',
+              input: JSON.stringify({ description: 'x', command: 'date > now' }),
+              allowAlways: true,
+            }
+          : { toolName: 'secret_cli', input: '{}', allowAlways: true },
     );
     const pending = source.pending();
     expect(pending.badge).toBe(3);
@@ -543,12 +547,125 @@ describe('Human Inbox push source', () => {
     ).toEqual([
       ['approval:1', 'approval', undefined, 'bash · date > now', 'tool-approval'],
       ['approval:2', 'approval', 'ops', 'secret_cli', 'tool-approval-once'],
+      ['join:1', 'approval', undefined, '请求批准执行 bash', undefined],
       ['secret:1', 'private-input', undefined, undefined, undefined],
       ['question:1', 'question', undefined, 'Which branch?', undefined],
       ['reply:1', 'reply', undefined, `${'x'.repeat(139)}…`, undefined],
       ['dm-reply:1', 'reply', undefined, 'Done', undefined],
     ]);
     expect(JSON.stringify(pending)).not.toContain(SECRET_TEXT);
+  });
+
+  it('offers Always allow from the notification only when the Host offers it', () => {
+    const source = humanInboxPushSource(
+      {
+        list: ({ category }) => ({
+          items:
+            category === 'action'
+              ? [
+                  {
+                    id: 'approval:human-only',
+                    category: 'action',
+                    kind: 'tool-approval',
+                    createdAt: '2026-10-14T08:00:00.000Z',
+                    botSlug: 'ada',
+                    summary: '请求批准执行 bash',
+                    channelId: 'dm-ada',
+                    messageId: 'm',
+                  },
+                ]
+              : [],
+        }),
+        actionCount: () => 1,
+        dmReplies: () => [],
+      },
+      () => 'Ada',
+      () => ({ toolName: 'bash', input: '{"command":"deepseekbot grant-write-set"}' }),
+    );
+    expect(source.pending().items.map((entry) => entry.categoryId)).toEqual(['tool-approval-once']);
+  });
+
+  it('notifies a folder request as an approval that opens the app, with its reason', () => {
+    const lookup = vi.fn(() => ({ toolName: 'bash', input: '{}', allowAlways: true }));
+    const source = humanInboxPushSource(
+      {
+        list: ({ category }) => ({
+          items:
+            category === 'action'
+              ? [
+                  {
+                    id: 'grant:e1',
+                    category: 'action',
+                    kind: 'workspace-grant-request',
+                    createdAt: '2026-10-14T08:00:00.000Z',
+                    botSlug: 'ada',
+                    summary: 'I need to write the report into your project folder.',
+                    channelId: 'dm-ada',
+                    messageId: 'g1',
+                  },
+                ]
+              : [],
+        }),
+        actionCount: () => 1,
+        dmReplies: () => [],
+      },
+      () => 'Ada',
+      lookup,
+    );
+    expect(source.pending().items).toEqual([
+      {
+        id: 'grant:e1',
+        kind: 'approval',
+        attentionKind: 'workspace-grant-request',
+        botSlug: 'ada',
+        createdAt: '2026-10-14T08:00:00.000Z',
+        channelId: 'dm-ada',
+        messageId: 'g1',
+        preview: 'I need to write the report into your project folder.',
+      },
+    ]);
+    expect(lookup).not.toHaveBeenCalled();
+  });
+
+  it('notifies auto-rejections and join requests as approvals and Assignment asks as questions', () => {
+    const item = (id: string, kind: string, summary: string) => ({
+      id,
+      category: 'action' as const,
+      kind: kind as 'tool-approval',
+      createdAt: '2026-10-14T08:00:00.000Z',
+      botSlug: 'ada',
+      summary,
+      channelId: 'dm-ada',
+    });
+    const source = humanInboxPushSource(
+      {
+        list: ({ category }) => ({
+          items:
+            category === 'action'
+              ? [
+                  item('autoreject:e1', 'auto-rejection', 'Rejected by the template'),
+                  item('join:r1', 'group-join-request', ''),
+                  item('assignment:s1', 'assignment-waiting-human', 'Which region?'),
+                  item('assignment:s2', 'assignment-blocked', 'Build is failing'),
+                  item('repair:e2:ada', 'bot-message-needs-repair', 'Check this'),
+                ]
+              : [],
+        }),
+        actionCount: () => 5,
+        dmReplies: () => [],
+      },
+      () => 'Ada',
+    );
+    expect(
+      source
+        .pending()
+        .items.map((entry) => [entry.id, entry.kind, entry.preview, entry.categoryId]),
+    ).toEqual([
+      ['autoreject:e1', 'approval', 'Rejected by the template', undefined],
+      ['join:r1', 'approval', undefined, undefined],
+      ['assignment:s1', 'question', 'Which region?', undefined],
+      ['assignment:s2', 'question', 'Build is failing', undefined],
+    ]);
   });
 });
 

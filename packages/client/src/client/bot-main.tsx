@@ -3401,9 +3401,13 @@ function ConversationView({
               closeLabel={t('dock.close', { label: t('entry.botInbox') })}
               onClose={() => setInboxOpen(false)}
               scroll
-              secondary={inboxEntry.headerAction && <inboxEntry.headerAction {...dockEntryProps} />}
+              secondary={
+                inboxEntry.headerAction && (
+                  <inboxEntry.headerAction key={dockBotSlug} {...dockEntryProps} />
+                )
+              }
             >
-              <inboxEntry.component {...dockEntryProps} flush />
+              <inboxEntry.component key={dockBotSlug} {...dockEntryProps} flush />
             </PanelDialog>
           )}
         </GeneratedFilesContext.Provider>

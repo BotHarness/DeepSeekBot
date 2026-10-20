@@ -13,6 +13,7 @@ const ENTRY_SHAPE = {
   tags: expect.any(Array),
   roles: expect.any(Array),
   bio: expect.any(String),
+  bioGenerated: false,
   banner: null,
   description: expect.any(String),
   topics: expect.any(Array),
@@ -67,10 +68,18 @@ describe('public read API contract', () => {
       string,
       unknown
     >;
-    expect(Object.keys(detail).sort()).toEqual(['bot', 'commitSha', 'readme']);
+    expect(Object.keys(detail).sort()).toEqual([
+      'bot',
+      'commitSha',
+      'readme',
+      'readmeLanguage',
+      'readmeLanguages',
+    ]);
     expect(detail).toEqual({
       bot: { ...ENTRY_SHAPE, name: 'reader' },
       readme: '# reader',
+      readmeLanguage: null,
+      readmeLanguages: [],
       commitSha: expect.stringMatching(/^[0-9a-f]{40}$/u),
     });
   });

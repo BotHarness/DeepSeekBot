@@ -27,8 +27,8 @@ Copy this and send it in the DM of the Bot you want to share:
 Please share your Memory repository to the BotHarness Bot Marketplace. Follow these steps and tell me the result after each one:
 
 1. List every file in your Memory and check the file contents and Git history for passwords, tokens, personal information or anything I may not want public. List what you find and wait for my confirmation before going on. Do not push anything before I confirm.
-2. If there is no README.md, write a short one: who you are, what you are good at, and how to use you.
-3. Check that .botharness/bot.json exists (DeepSeekBot normally creates it). If it is missing, create it with your name, 1 to 3 tags and a one-sentence bio, as {"name": "Name", "tags": ["Tag"], "bio": "One sentence"}; if it exists, leave it as is.
+2. If there is no README.md, write a short one: who you are, what you are good at, and how to use you. Then write the same introduction in the other language: README.zh-CN.md in Chinese if README.md is in English, or README.en.md in English if it is in Chinese.
+3. Check that .botharness/bot.json exists (DeepSeekBot normally creates it). If it is missing, create it with your name, 1 to 3 tags and a one-sentence bio, as {"name": "Name", "tags": ["Tag"], "bio": "One sentence"}; if it exists, keep what is there. Then add the bio in the other language under "i18n", as {"i18n": {"zh": {"bio": "一句话简介"}}} or {"i18n": {"en": {"bio": "One sentence"}}}.
 4. Use gh to create a public repository under my GitHub account and push the current branch. Name it after you in English, and tell me the name before creating it. If step 1 found anything in the history that should not be public, push a single new commit without history instead.
 5. Add the botharness-bot topic: gh repo edit --add-topic botharness-bot
 6. Send me the repository URL.
@@ -94,6 +94,31 @@ You can also edit the file by hand. DeepSeekBot keeps any other keys you add, an
 | `banner` | A generated pixel scene `{ "recipe": { "scene", "seed" } }`, or `{ "image": ".botharness/banner.png" }` (a 3:1 PNG, at most 2 MB). Scenes: `spring`, `summer`, `autumn`, `winter`, `sea`, `mountain`, `desert`, `forest`, `night-sky`, `space`. |
 
 Every field is optional. An invalid file is ignored as a whole, and the Marketplace falls back to the repository name and a generated pixel avatar.
+
+## Chinese and English: `README.zh-CN.md` and `i18n`
+
+The Bot Marketplace in DeepSeekBot and on the website shows each listing in the reader's language, Chinese or English, when the repository has it. Write your listing in one language and add the other next to it:
+
+| What                     | Where                                                                | Shown to                                |
+| ------------------------ | -------------------------------------------------------------------- | --------------------------------------- |
+| README in Chinese        | `README.zh-CN.md` at the repository root (`README.zh.md` also works) | Readers using Chinese                   |
+| README in English        | `README.en.md` at the repository root                                | Readers using English                   |
+| README in any language   | `README.md`                                                          | Everyone else, and when no variant fits |
+| Name and bio, translated | `"i18n"` in `.botharness/bot.json`, keyed `zh` and `en`              | Readers using that language             |
+
+```json
+{
+  "name": "Orion",
+  "bio": "Tells you what you can see in tonight's sky, for any city and date.",
+  "i18n": {
+    "zh": { "name": "猎户", "bio": "告诉你今晚能看到什么，任意城市和日期。" }
+  }
+}
+```
+
+`i18n` entries take the same `name` (up to 60 characters) and `bio` (up to 160) as the top level, and both are optional. Keep `README.md` and `bio` in the language you write best; the Marketplace checks which language your `bio` is in, so an English `bio` is already the English one and needs only a `zh` entry. Images and links in `README.zh-CN.md` resolve like those in `README.md`. The spellings `README.zh.md`, `README_CN.md` and `README-zh.md` are read too, but `README.zh-CN.md` wins when there are several.
+
+When a listing has no bio in the reader's language, the Marketplace writes a one-sentence summary in that language from your name, description, bio and README with an AI model, and shows it in place of your bio, labelled "AI summary". Your own words always win: add an `i18n` bio, or write the `bio` in that language, and the summary is no longer shown. Summaries are refreshed within an hour of a push, or of a change to the repository's GitHub description, that changes what they were written from. The README itself is never translated.
 
 ## Profile banner
 

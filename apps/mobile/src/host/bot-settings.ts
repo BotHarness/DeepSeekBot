@@ -436,6 +436,28 @@ export async function authorizeWorkspacePath(
   return createWorkspaceGrant(client, slug, await createWorkspace(client, path));
 }
 
+export async function approveWorkspaceRequest(
+  client: HostClient,
+  slug: string,
+  channelId: string,
+  requestMessageId: string,
+  workspaceId: string,
+): Promise<WorkspaceGrant> {
+  const granted = grantResult(
+    await client.call<unknown>('grantRequestApprove', {
+      slug,
+      channelId,
+      requestMessageId,
+      workspaceId,
+      acknowledgeReadWrite: true,
+    }),
+    'grantRequestApprove',
+  );
+  if (!granted.orchestratorWrite)
+    throw new HostAnswerInvalid('The computer did not confirm read/write access.');
+  return granted;
+}
+
 function access(value: unknown, slug: string, method: string): AssignmentAccess {
   const preset = record(record(value)?.['preset']);
   const mode = preset?.['mode'];

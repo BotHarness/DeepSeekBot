@@ -108,7 +108,20 @@ vi.mock('../src/host/native-host-look', () => ({
 }));
 vi.mock('../src/ui/chat/section-header', () => ({ SectionHeader: () => null }));
 vi.mock('../src/ui/shell/home-header', () => ({
-  HomeHeader: ({ children }: { children: ReactNode }) => children,
+  HomeHeader: ({
+    actions,
+    search,
+    children,
+  }: {
+    actions?: ReactNode;
+    search?: ReactNode;
+    children: ReactNode;
+  }) => (
+    <>
+      {search ?? actions}
+      {children}
+    </>
+  ),
 }));
 vi.mock('../src/ui/shell/host-drawer', () => ({
   HostDrawerEdge: ({ children }: { children: ReactNode }) => children,
@@ -154,6 +167,8 @@ async function home(): Promise<HTMLElement> {
 }
 
 async function type(view: HTMLElement, text: string): Promise<void> {
+  const open = view.querySelector<HTMLButtonElement>('[data-testid="search-button"]');
+  if (open) await act(async () => open.click());
   const field = view.querySelector<HTMLTextAreaElement>(
     `textarea[aria-label="${t.searchPlaceholder}"]`,
   )!;
@@ -169,13 +184,18 @@ const rows = (view: HTMLElement) =>
     .filter((node) => !node.closest('[hidden]') && !node.dataset.testid?.startsWith('pager-'))
     .filter(
       (node) =>
-        ![t.cloudJoin.newOrJoin, t.allEnvironments, 'studio', t.closeSearch].includes(
-          node.getAttribute('aria-label') ?? '',
-        ),
+        ![
+          t.cloudJoin.newOrJoin,
+          t.allEnvironments,
+          'studio',
+          t.closeSearch,
+          t.openSearch,
+          t.settings,
+        ].includes(node.getAttribute('aria-label') ?? ''),
     )
     .map((node) => node.getAttribute('aria-label'));
 
-describe('Search above the bottom navigation', () => {
+describe('Search in the Chats header', () => {
   it('keeps the Computer usable when Cloud local state cannot load', async () => {
     cloudState.ready = false;
     cloudState.error = 'STORAGE_UNAVAILABLE';
@@ -334,10 +354,32 @@ describe('Search above the bottom navigation', () => {
     await act(async () =>
       view.querySelector<HTMLButtonElement>(`button[aria-label="${t.closeSearch}"]`)!.click(),
     );
+    expect(view.querySelector(`textarea[aria-label="${t.searchPlaceholder}"]`)).toBeNull();
+    expect(view.querySelector(`button[aria-label="${t.settings}"]`)).not.toBeNull();
+    expect(view.textContent).toContain('Launch team');
+    await act(async () =>
+      view.querySelector<HTMLButtonElement>('[data-testid="search-button"]')!.click(),
+    );
+    expect(
+      view.querySelector<HTMLTextAreaElement>(`textarea[aria-label="${t.searchPlaceholder}"]`)!
+        .value,
+    ).toBe('');
+  });
+  it('replaces the title and Settings with the field, and keeps a query after editing ends', async () => {
+    const view = await home();
+    expect(view.querySelector(`textarea[aria-label="${t.searchPlaceholder}"]`)).toBeNull();
+    await type(view, 'ada');
+    expect(view.querySelector(`button[aria-label="${t.settings}"]`)).toBeNull();
+    expect(view.querySelector('[data-testid="search-button"]')).toBeNull();
     const field = view.querySelector<HTMLTextAreaElement>(
       `textarea[aria-label="${t.searchPlaceholder}"]`,
     )!;
-    expect(field.value).toBe('');
-    expect(view.textContent).toContain('Launch team');
+    await act(async () => field.dispatchEvent(new FocusEvent('focusout', { bubbles: true })));
+    expect(field.isConnected).toBe(true);
+    expect(rows(view)).toEqual(['Ada, Done']);
+    await type(view, '');
+    await act(async () => field.dispatchEvent(new FocusEvent('focusout', { bubbles: true })));
+    expect(view.querySelector(`textarea[aria-label="${t.searchPlaceholder}"]`)).toBeNull();
+    expect(view.querySelector(`button[aria-label="${t.settings}"]`)).not.toBeNull();
   });
 });

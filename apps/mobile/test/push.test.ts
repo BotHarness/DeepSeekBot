@@ -276,7 +276,7 @@ describe('notification buttons', () => {
       outcomes.push(outcome);
       return 'accepted';
     });
-    expect(outcomes).toEqual(['allowed-always-exact']);
+    expect(outcomes).toEqual(['allowed-always-tool']);
   });
 
   it('registers both button sets one after another so neither overwrites the other', async () => {

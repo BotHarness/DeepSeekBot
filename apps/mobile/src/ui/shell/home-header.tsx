@@ -11,7 +11,15 @@ import { t } from '../strings';
 import { ChevronDownIcon } from './icons';
 import { focusOn, hostDrawer, openHostDrawer, useHostDrawerOpen } from './host-drawer';
 
-export function HomeHeader({ actions, children }: { actions?: ReactNode; children: ReactNode }) {
+export function HomeHeader({
+  actions,
+  search,
+  children,
+}: {
+  actions?: ReactNode;
+  search?: ReactNode;
+  children: ReactNode;
+}) {
   const theme = useDesignTheme();
   const focused = useIsFocused();
   const drawerOpen = useHostDrawerOpen();
@@ -33,28 +41,32 @@ export function HomeHeader({ actions, children }: { actions?: ReactNode; childre
           paddingBottom: space.x2,
         }}
       >
-        <Pressable
-          ref={chip}
-          onPress={openHostDrawer}
-          accessibilityRole="button"
-          accessibilityLabel={t.workspaces}
-          accessibilityState={{ expanded: drawerOpen }}
-          style={({ pressed }) => ({
-            flex: 1,
-            minWidth: 0,
-            minHeight: theme.touch,
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: space.x2,
-            opacity: pressed ? 0.7 : 1,
-          })}
-        >
-          <Text variant="title" strong accessibilityRole="header" style={{ flexShrink: 1 }}>
-            {t.chats}
-          </Text>
-          <ChevronDownIcon color={theme.color.muted} size={theme.type.body.line} />
-        </Pressable>
-        {actions}
+        {search ?? (
+          <>
+            <Pressable
+              ref={chip}
+              onPress={openHostDrawer}
+              accessibilityRole="button"
+              accessibilityLabel={t.workspaces}
+              accessibilityState={{ expanded: drawerOpen }}
+              style={({ pressed }) => ({
+                flex: 1,
+                minWidth: 0,
+                minHeight: theme.touch,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: space.x2,
+                opacity: pressed ? 0.7 : 1,
+              })}
+            >
+              <Text variant="title" strong accessibilityRole="header" style={{ flexShrink: 1 }}>
+                {t.chats}
+              </Text>
+              <ChevronDownIcon color={theme.color.muted} size={theme.type.body.line} />
+            </Pressable>
+            {actions}
+          </>
+        )}
       </View>
       {children}
     </View>

@@ -52,6 +52,7 @@ export interface GitHubClient {
   nodes(ids: readonly string[]): Promise<GitHubLookup<(RepositoryNode | null)[]>>;
   readme(locator: RepositoryLocator): Promise<GitHubLookup<string | null>>;
   file(locator: RepositoryLocator, path: string): Promise<GitHubLookup<string | null>>;
+  rootFiles(locator: RepositoryLocator): Promise<GitHubLookup<string[]>>;
 }
 
 const repositoryUrl =
@@ -114,6 +115,15 @@ function parseRepository(value: unknown): GitHubRepository | undefined {
     private: source['private'] === true,
     archived: source['archived'] === true,
   };
+}
+
+function parseRootFiles(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  return value
+    .map(record)
+    .filter((item) => item?.['type'] === 'file')
+    .map((item) => text(item?.['name']))
+    .filter((name): name is string => name !== undefined);
 }
 
 function parseCommit(value: unknown): GitHubCommit | undefined {
@@ -288,6 +298,10 @@ export function createGitHubClient(options: {
       });
     },
     readme: (locator) => raw(`${repoPath(locator)}/readme`),
+    rootFiles: async (locator) => {
+      const listing = await get(`${repoPath(locator)}/contents/`, parseRootFiles);
+      return !listing.ok && listing.reason === 'not-found' ? { ok: true, value: [] } : listing;
+    },
     file: (locator, path) =>
       raw(`${repoPath(locator)}/contents/${path.split('/').map(encodeURIComponent).join('/')}`),
   };

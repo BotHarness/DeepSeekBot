@@ -66,7 +66,7 @@ export type PushHref =
   | { pathname: '/activity' };
 
 const REPLIES = new Set(['channel-reply', 'channel-mention']);
-const CARDS = new Set(['tool-approval', 'user-question']);
+const CARDS = new Set(['tool-approval', 'user-question', 'workspace-grant-request']);
 
 function chatHref(
   botSlug: string,

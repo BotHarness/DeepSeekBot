@@ -1950,6 +1950,12 @@ html[data-botharness-motion='reduce'] .bh-section-chevron {
   line-height: ${text.bodyLine};
   overflow-wrap: anywhere;
 }
+.bh-market-generated {
+  margin-left: ${space.x2};
+  color: var(--dsw-alias-label-tertiary);
+  font-size: ${text.metaSize};
+  white-space: nowrap;
+}
 .bh-market-meta {
   display: flex;
   flex-wrap: wrap;

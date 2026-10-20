@@ -44,6 +44,7 @@ import type {
   MarketplaceTopic,
 } from '../marketplace/client.js';
 import type { AltchaChallenge } from '../marketplace/altcha.js';
+import type { MarketplaceLanguage } from '../marketplace/language.js';
 import type {
   ReleaseInfo,
   ReleaseInstall,
@@ -1763,8 +1764,8 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrapAsync(this.methods.marketplaceTopics());
   }
 
-  async marketplaceDetail(id: string): Promise<MarketplaceDetail> {
-    return unwrapAsync(this.methods.marketplaceDetail({ id }));
+  async marketplaceDetail(id: string, lang?: MarketplaceLanguage): Promise<MarketplaceDetail> {
+    return unwrapAsync(this.methods.marketplaceDetail(lang === undefined ? { id } : { id, lang }));
   }
 
   async releaseInfo(since?: string): Promise<ReleaseInfo> {

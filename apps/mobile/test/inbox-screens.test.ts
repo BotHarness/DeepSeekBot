@@ -11,7 +11,12 @@ vi.mock('../src/ui/bot-avatar', () => ({
     createElement('span', { 'data-testid': `avatar-${bot.slug}` }),
 }));
 
-import type { ApprovalRequest, DecisionResult, QuestionRequest } from '../src/host/requests';
+import type {
+  ApprovalChoice,
+  ApprovalRequest,
+  DecisionResult,
+  QuestionRequest,
+} from '../src/host/requests';
 import type { HumanAttentionItem, QuestionAnswer } from '../src/host/wire';
 import { ApprovalView, type ApprovalPort } from '../src/ui/approval-view';
 import { QuestionView, type QuestionPort } from '../src/ui/question-view';
@@ -39,13 +44,14 @@ const ref = (item: HumanAttentionItem) => ({
 });
 const card = entry('channelTimeline.approvalPending', approvalItem.messageId!)[
   'toolApprovalRequest'
-] as Omit<ApprovalRequest, keyof ReturnType<typeof ref> | 'status'>;
+] as Omit<ApprovalRequest, keyof ReturnType<typeof ref> | 'status' | 'allowAlways'>;
 const pendingApproval: ApprovalRequest = {
   ...ref(approvalItem),
   toolName: card.toolName,
   role: card.role,
   cwd: card.cwd,
   input: card.input,
+  allowAlways: true,
   status: 'pending',
 };
 const pendingQuestion: QuestionRequest = {
@@ -100,8 +106,7 @@ const notice = (container: HTMLElement, tone: string) =>
 
 function approvalPort(
   load: () => Promise<ApprovalRequest>,
-  decide: (outcome: 'allowed-once' | 'rejected') => Promise<DecisionResult> = async () =>
-    'accepted',
+  decide: (outcome: ApprovalChoice) => Promise<DecisionResult> = async () => 'accepted',
 ): ApprovalPort & { decide: ReturnType<typeof vi.fn> } {
   return { load: vi.fn(load), decide: vi.fn(decide) };
 }
@@ -119,6 +124,25 @@ describe('Tool approval screen', () => {
     expect(port.decide).toHaveBeenCalledWith('allowed-once');
     expect(notice(view, 'success')).toBe(t.approved);
     expect(view.querySelector(`button[aria-label="${t.allowOnce}"]`)).toBeNull();
+  });
+
+  it('offers the same three actions as the Web card and remembers the tool', async () => {
+    const port = approvalPort(async () => pendingApproval);
+    const view = await render(createElement(ApprovalView, { port, botName: 'Inbox QA' }));
+    const labels = [...view.querySelectorAll('button')].map((b) => b.getAttribute('aria-label'));
+    expect(labels).toEqual([t.allowOnce, t.alwaysAllow, t.reject]);
+    expect(view.textContent).toContain(t.alwaysToolScope('bash'));
+    await press(button(view, t.alwaysAllow));
+    expect(port.decide).toHaveBeenCalledWith('allowed-always-tool');
+    expect(notice(view, 'success')).toBe(t.approved);
+  });
+
+  it('keeps Always allow unavailable when only a Human may decide this once', async () => {
+    const port = approvalPort(async () => ({ ...pendingApproval, allowAlways: false }));
+    const view = await render(createElement(ApprovalView, { port, botName: 'Inbox QA' }));
+    expect(button(view, t.alwaysAllow).disabled).toBe(true);
+    expect(button(view, t.allowOnce).disabled).toBe(false);
+    expect(view.textContent).toContain(t.alwaysUnavailable);
   });
 
   it('says a tap had no effect when another device decided first', async () => {

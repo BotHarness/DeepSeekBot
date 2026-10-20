@@ -2,7 +2,13 @@ import { Text } from './primitives/system-text';
 import { useCallback, useRef, useState } from 'react';
 import { Platform, ScrollView, View, type ViewInstance } from 'react-native';
 
-import { readableInput, type ApprovalRequest, type DecisionResult } from '../host/requests';
+import {
+  readableInput,
+  type ApprovalChoice,
+  type ApprovalRequest,
+  type DecisionResult,
+} from '../host/requests';
+import { alwaysNote, executionNote, expiryLabel, riskNote } from './approval-note';
 import {
   ActionButton,
   errorText,
@@ -20,7 +26,7 @@ const MONO = Platform.select({ ios: 'Menlo', default: 'monospace' });
 
 export interface ApprovalPort {
   load(): Promise<ApprovalRequest>;
-  decide(outcome: 'allowed-once' | 'rejected'): Promise<DecisionResult>;
+  decide(outcome: ApprovalChoice): Promise<DecisionResult>;
 }
 
 type Phase =
@@ -29,7 +35,7 @@ type Phase =
   | {
       kind: 'ready';
       request: ApprovalRequest;
-      busy?: 'allowed-once' | 'rejected';
+      busy?: ApprovalChoice;
       notice?: { tone: NoticeTone; text: string };
     };
 
@@ -90,7 +96,7 @@ export function ApprovalView({
     );
 
   const { request } = phase;
-  const decide = async (outcome: 'allowed-once' | 'rejected') => {
+  const decide = async (outcome: ApprovalChoice) => {
     own.current = true;
     haptic(outcome === 'rejected' ? 'deny' : 'approve');
     setPhase({ kind: 'ready', request, busy: outcome });
@@ -165,19 +171,38 @@ export function ApprovalView({
           <Notice tone={phase.notice.tone}>{phase.notice.text}</Notice>
         )}
         {request.status === 'pending' ? (
-          <View style={{ flexDirection: 'row', gap: 12 }}>
+          <View style={{ gap: 12 }}>
+            {[
+              expiryLabel(request.expiresAt, Date.now()),
+              executionNote(request),
+              riskNote(request.toolName),
+              alwaysNote(request),
+            ].map((note) =>
+              note === undefined ? null : (
+                <Text key={note} style={{ color: theme.inkSoft, fontSize: 13 }}>
+                  {note}
+                </Text>
+              ),
+            )}
+            <ActionButton
+              label={t.allowOnce}
+              disabled={phase.busy !== undefined}
+              busy={phase.busy === 'allowed-once'}
+              onPress={() => void decide('allowed-once')}
+            />
+            <ActionButton
+              label={t.alwaysAllow}
+              tone="secondary"
+              disabled={phase.busy !== undefined || !request.allowAlways}
+              busy={phase.busy === 'allowed-always-tool'}
+              onPress={() => void decide('allowed-always-tool')}
+            />
             <ActionButton
               label={t.reject}
               tone="danger"
               disabled={phase.busy !== undefined}
               busy={phase.busy === 'rejected'}
               onPress={() => void decide('rejected')}
-            />
-            <ActionButton
-              label={t.allowOnce}
-              disabled={phase.busy !== undefined}
-              busy={phase.busy === 'allowed-once'}
-              onPress={() => void decide('allowed-once')}
             />
           </View>
         ) : null}
