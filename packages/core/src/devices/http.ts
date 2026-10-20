@@ -1,12 +1,16 @@
 import { encode } from 'uqr';
 
+import type { ConnectStatus, DeviceConnect } from './connect.js';
 import type { DevicePairing, HostIdentity, PairedDevice } from './pairing.js';
 import { phoneRoute, type PhoneRoute, type RouteStatus } from './routes.js';
 
 export const DEVICES_PATH = '/api/botharness/devices';
 export const PAIRING_LINK_SCHEME = 'deepseekbot';
 
-const headers = { 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' };
+const headers = {
+  'cache-control': 'no-store',
+  'x-content-type-options': 'nosniff',
+};
 
 export interface PairingPayload {
   v: 1;
@@ -20,6 +24,7 @@ export interface DevicesSnapshot {
   host: HostIdentity;
   devices: PairedDevice[];
   routes: RouteStatus;
+  connect: ConnectStatus;
 }
 
 export interface PairingOfferView {
@@ -58,6 +63,7 @@ export function offeredRoutes(status: RouteStatus, clientOrigin: string | undefi
   const routes = status.routes.filter((route) => route.ready && route.kind === 'tailscale');
   const own = clientOrigin === undefined ? undefined : phoneRoute(clientOrigin);
   if (own?.kind === 'tailscale' && !routes.some((route) => route.url === own.url)) routes.push(own);
+  routes.push(...status.routes.filter((route) => route.ready && route.kind === 'connect'));
   routes.push(...status.routes.filter((route) => route.kind === 'loopback'));
   return routes;
 }
@@ -80,8 +86,9 @@ async function body(request: Request): Promise<Record<string, unknown>> {
 export function createDevicesHttp(options: {
   pairing: DevicePairing;
   routes: () => Promise<RouteStatus>;
+  connect?: DeviceConnect;
 }): (request: Request) => Promise<Response> {
-  const { pairing } = options;
+  const { pairing, connect } = options;
   return async (request) => {
     const path = new URL(request.url).pathname;
     if (request.method === 'GET' && path === DEVICES_PATH) {
@@ -89,6 +96,7 @@ export function createDevicesHttp(options: {
         host: pairing.host(),
         devices: pairing.list(),
         routes: await options.routes(),
+        connect: connect?.status() ?? { state: 'off' },
       };
       return json(snapshot);
     }
@@ -109,7 +117,10 @@ export function createDevicesHttp(options: {
         qr: qrPath(link),
         expiresAt: offer.expiresAt,
         routes,
-        reachable: routes.some((route) => phoneRoute(route)?.kind === 'tailscale'),
+        reachable: routes.some((route) => {
+          const kind = phoneRoute(route)?.kind;
+          return kind === 'tailscale' || kind === 'connect';
+        }),
       };
       return json(view);
     }
@@ -118,6 +129,20 @@ export function createDevicesHttp(options: {
       if (typeof input['deviceId'] !== 'string') return json({ code: 'device-unknown' }, 400);
       const result = pairing.revoke(input['deviceId']);
       return result.revoked ? json(result) : json({ code: 'device-unknown' }, 404);
+    }
+    if (request.method === 'POST' && path === `${DEVICES_PATH}/connect` && connect !== undefined) {
+      const input = await body(request);
+      const result =
+        input['action'] === 'enable'
+          ? await connect.enable({
+              hostname: typeof input['hostname'] === 'string' ? input['hostname'] : '',
+              token: typeof input['token'] === 'string' ? input['token'] : '',
+            })
+          : input['action'] === 'disable'
+            ? await connect.disable()
+            : ({ ok: false, code: 'connect-action-invalid' } as const);
+      if (result.ok) return json(result.status);
+      return json({ code: result.code }, result.code === 'credential-unavailable' ? 503 : 400);
     }
     return json({ code: 'not-found' }, 404);
   };

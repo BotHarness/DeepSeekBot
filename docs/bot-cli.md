@@ -1037,6 +1037,31 @@ Ctrl+0 restores the saved default, including 120%; numberpad codes are unsupport
 pinned protocol. See [Windows qualification #2270](https://github.com/BotHarness/DeepSeekBot/issues/2270)
 for the separate native input, guest foreground, DPI and Human-QA gates.
 
+## Hosted Connect tunnel (ADR-0241, first slice)
+
+Hosted Connect lets a paired phone reach this Host through a Cloudflare Tunnel under
+`deepseekbot.dev` instead of Tailscale ([#2387](https://github.com/BotHarness/DeepSeekBot/issues/2387)).
+In this first slice the tunnel and its connector token are made by hand; account sign-in and the
+relay come later.
+
+```sh
+deepseekbot connect-status --host <host> --token-file <private-file>
+deepseekbot connect-enable --hostname <name>.deepseekbot.dev --token-stdin --host <host> --token-file <private-file> < <connector-token-file>
+deepseekbot connect-disable --host <host> --token-file <private-file>
+```
+
+`connect-enable` stores the hostname and connector token in the DSH credential store, opens a
+loopback origin that forwards only `/botharness-device/*` to the DSH listener (every other path is
+404), and runs `cloudflared tunnel --no-autoupdate run` with the token in `TUNNEL_TOKEN`, never in
+its arguments. The JSON reply's `origin` is the address the tunnel's ingress must target. The
+`cloudflared` binary comes from `DEEPSEEKBOT_CLOUDFLARED` or `PATH`. `connect-status` returns
+`connect.state` (`off`, `starting`, `connected`, `error`) with `issue` (`cloudflared-missing`,
+`cloudflared-exited`, `origin-port-busy`, `credential-unavailable`) and the phone route list; once
+connected, new pairing QR codes include `https://<name>.deepseekbot.dev` after any Tailscale route.
+Refusals: `connect-hostname-invalid` (only one label under `deepseekbot.dev`),
+`connect-token-invalid`, `credential-unavailable`. `connect-disable` stops the tunnel and deletes
+the stored token; paired devices keep their credentials.
+
 ## Device-local DeepSeekBot appearance
 
 `appearance-clients` lists the online Client ids and platform on the authenticated Host. Select one explicitly; a new mount/reload gets a new id. This controls DeepSeekBot, not the DSH-native Host theme.

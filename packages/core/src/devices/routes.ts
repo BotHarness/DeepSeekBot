@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 
 export interface PhoneRoute {
   url: string;
-  kind: 'tailscale' | 'loopback';
+  kind: 'tailscale' | 'connect' | 'loopback';
   ready: boolean;
   issue?: 'serve-missing' | 'serve-other-target';
 }
@@ -42,6 +42,8 @@ export function phoneRoute(input: string): PhoneRoute | undefined {
   const tailnet = name.endsWith('.ts.net') || TAILNET_IPV4.test(name);
   if (tailnet && url.protocol === 'https:')
     return { url: url.origin, kind: 'tailscale', ready: true };
+  if (CONNECT_HOSTNAME.test(name) && url.protocol === 'https:' && url.port === '')
+    return { url: url.origin, kind: 'connect', ready: true };
   return undefined;
 }
 
@@ -60,6 +62,8 @@ function servesPort(serve: unknown, dnsName: string, port: number): boolean | un
     return /^\d+$/u.test(proxy) && Number(proxy) === port;
   }
 }
+
+export const CONNECT_HOSTNAME = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.deepseekbot\.dev$/u;
 
 export const TAILNET_IPV4 = /^100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d+\.\d+$/u;
 
@@ -117,7 +121,9 @@ export async function detectPhoneRoutes(options: {
       ready: served === true,
       ...(served === true
         ? {}
-        : { issue: served === undefined ? 'serve-missing' : 'serve-other-target' }),
+        : {
+            issue: served === undefined ? 'serve-missing' : 'serve-other-target',
+          }),
     };
     return { routes: [route, loopback], tailscale: 'running', serveCommand };
   }

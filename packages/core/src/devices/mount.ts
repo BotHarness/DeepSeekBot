@@ -1,4 +1,5 @@
 import type { Context } from '@deepseek-ai/cordis';
+import type { CredentialProvider } from '@deepseek-ai/dsh-credentials';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
@@ -14,6 +15,7 @@ import {
   DEVICE_SIGNALING_PATHS,
   DEVICE_WEB_MUX_PATH,
 } from './gateway.js';
+import { createDeviceConnect } from './connect.js';
 import { createDevicesHttp, DEVICES_PATH } from './http.js';
 import { createDevicePairing, type DevicePairingEvent } from './pairing.js';
 import { detectPhoneRoutes } from './routes.js';
@@ -79,7 +81,12 @@ export type DeviceWebUpgrade = (request: IncomingMessage, socket: Duplex, head: 
 
 export function mountDevicePairing(
   ctx: Context,
-  options: { database: OperationalDatabaseOwner; dshHome: string; push?: DevicePushOptions },
+  options: {
+    database: OperationalDatabaseOwner;
+    dshHome: string;
+    push?: DevicePushOptions;
+    credentials?: () => CredentialProvider | undefined;
+  },
 ): DeviceWebUpgrade | undefined {
   if (options.database.mode !== 'ready') return undefined;
   let live: DeviceGateway | undefined;
@@ -144,15 +151,39 @@ export function mountDevicePairing(
   ctx.inject(['connection', 'webServer'], (webCtx) => {
     const connection = (webCtx as unknown as { connection: ConnectionLike }).connection;
     const webServer = (webCtx as unknown as { webServer: WebServerLike }).webServer;
-    const routes = () => detectPhoneRoutes({ port: webServer.port });
-    const http = createDevicesHttp({ pairing, routes });
+    const connect = createDeviceConnect({
+      credentials: options.credentials ?? (() => undefined),
+      port: () => webServer.port,
+      record: (phase, info) =>
+        write('device-connect', phase, `device-connect phase=${phase}${info ? ` ${info}` : ''}`),
+    });
+    webCtx.effect(() => {
+      void connect.start();
+      return () => void connect.close();
+    }, 'botharness: device connect tunnel');
+    const routes = async () => {
+      const status = await detectPhoneRoutes({ port: webServer.port });
+      const tunnel = connect.route();
+      if (tunnel === undefined) return status;
+      const loopback = status.routes.filter((route) => route.kind === 'loopback');
+      const others = status.routes.filter((route) => route.kind !== 'loopback');
+      return { ...status, routes: [...others, tunnel, ...loopback] };
+    };
+    const http = createDevicesHttp({ pairing, routes, connect });
     for (const [path, methods] of [
       [DEVICES_PATH, ['GET']],
       [`${DEVICES_PATH}/offer`, ['POST']],
       [`${DEVICES_PATH}/revoke`, ['POST']],
+      [`${DEVICES_PATH}/connect`, ['POST']],
     ] as const)
       webCtx.effect(
-        () => connection.fetch.register({ path, methods, requestBody: 'buffered', fetch: http }),
+        () =>
+          connection.fetch.register({
+            path,
+            methods,
+            requestBody: 'buffered',
+            fetch: http,
+          }),
         `botharness: paired devices ${path}`,
       );
 
