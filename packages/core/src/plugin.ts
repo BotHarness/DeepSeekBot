@@ -2709,7 +2709,6 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       if (owner !== undefined) {
         await installBotSubagentModelTools(
           agent.ctx,
-          agent,
           () => core.registry.get(owner.botSlug)?.modelPlan,
           config.subagent,
         );

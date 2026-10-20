@@ -1,5 +1,5 @@
 import type { Context } from '@deepseek-ai/cordis';
-import type { Agent, AgentOptions } from '@deepseek-ai/dsh-agent';
+import type { AgentOptions } from '@deepseek-ai/dsh-agent';
 import type { JobOutcome } from '@deepseek-ai/dsh-jobs';
 import { ReasoningEffortId } from '@deepseek-ai/dsh-llm';
 import { parentAgentOptionsForDelegation } from '@deepseek-ai/dsh-subagent';
@@ -21,6 +21,20 @@ declare module '@deepseek-ai/dsh-jobs' {
 }
 
 type DelegationProvider = 'spawn' | 'fork';
+
+const BOT_SUBAGENT_TOOL_NAMES = {
+  spawn: 'bot_subagent',
+  fork: 'bot_subagent_fork',
+  list: 'list_bot_subagent_models',
+} as const;
+
+export function isBotSubagentModelTool(name: string): boolean {
+  return (
+    name === BOT_SUBAGENT_TOOL_NAMES.spawn ||
+    name === BOT_SUBAGENT_TOOL_NAMES.fork ||
+    name === BOT_SUBAGENT_TOOL_NAMES.list
+  );
+}
 
 /** Native DSH Agent preset policy for the Bot's independent Subagents, not its LLM routes. */
 export interface BotSubagentPresetConfig {
@@ -146,7 +160,7 @@ function createDelegationTool(
   resolvePlan: () => PersonaBotModelPlan | undefined,
   config: BotSubagentPresetConfig,
 ): ToolDefinition {
-  const name = provider === 'spawn' ? 'bot_subagent' : 'bot_subagent_fork';
+  const name = BOT_SUBAGENT_TOOL_NAMES[provider];
   const presetDescription =
     config.agentPreset === undefined
       ? 'Omit agent_preset to inherit the parent Agent current preset.'
@@ -287,7 +301,7 @@ export function createBotSubagentModelTools(
     createDelegationTool(ctx, 'spawn', resolvePlan, config),
     createDelegationTool(ctx, 'fork', resolvePlan, config),
     defineTool({
-      name: 'list_bot_subagent_models',
+      name: BOT_SUBAGENT_TOOL_NAMES.list,
       description: 'List this PersonaBot current Assignment model choices for DSH Subagents.',
       parameters: {},
       output: {
@@ -310,7 +324,6 @@ export function createBotSubagentModelTools(
 
 export async function installBotSubagentModelTools(
   ctx: Context,
-  _agent: Agent,
   resolvePlan: () => PersonaBotModelPlan | undefined,
   config: BotSubagentPresetConfig = {},
 ): Promise<void> {

@@ -2,6 +2,7 @@ import { GroupReplySourceRevoked, SendReviewRequired } from '../channels/send-re
 import { TOB_CLI_PROMPT } from '../tob/service.js';
 import { AssignmentInboxAcceptanceUncertainError } from './assignment-delivery.js';
 import { parseFinalReply } from './final-reply.js';
+import { isBotSubagentModelTool } from './subagent-model-tools.js';
 import { isChannelAttachmentRef } from '../attachments/ref.js';
 import type { Context } from '@deepseek-ai/cordis';
 import { mkdirSync } from 'node:fs';
@@ -3829,15 +3830,17 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   ): Promise<unknown> {
     this.#assertOpen();
     if (this.#stoppedBots.has(run.bot.slug)) throw new Error('PersonaBot is deleted');
-    const agentTool = this.#subagentTools?.(run.bot.slug).find((entry) => entry.name === name);
-    const tool = agentTool ?? this.#directToolDefinitions(run).find((entry) => entry.name === name);
+    const tool =
+      this.#subagentTools !== undefined && isBotSubagentModelTool(name)
+        ? name
+        : this.#directToolDefinitions(run).find((entry) => entry.name === name);
     if (tool === undefined)
       throw new DirectBotToolError('tool-not-direct', `${name} cannot run outside a Bot turn`);
     if (this.#runs.has(run.sessionId)) throw new Error('Direct run session is already active');
     this.#runs.set(run.sessionId, { role: 'orchestrator', run });
     try {
       let value: unknown;
-      if (agentTool !== undefined) {
+      if (typeof tool === 'string') {
         // Reuse the canonical live parent and its native tool pipeline. Do not create or resume
         // an Agent for a CLI call, or bypass its visibility, guards, approval and depth policy.
         const parent =
