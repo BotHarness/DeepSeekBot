@@ -80,6 +80,8 @@ import { installOrchestratorFileTools } from './workspaces/orchestrator-file-too
 import { ProtectedExecution } from './credentials/protected-execution.js';
 import { nativeExecutionRoot } from './workspaces/grant-native-tools.js';
 import { createAttachmentStore, type AttachmentStore } from './attachments/store.js';
+import { startAttachmentSweep } from './attachments/sweep.js';
+import { memoryAttachmentReferences } from './memory/backup.js';
 import { createMemoryImageHttp, MEMORY_IMAGE_PATH } from './memory/image-http.js';
 import { createMemoryFileHttp, MEMORY_FILE_DOWNLOAD_PATH } from './memory/file-http.js';
 import {
@@ -1328,6 +1330,17 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   publishDraft = (event) => core.live.publishDraft(event);
   ctx.effect(() => () => core.operationalDatabase.close(), 'botharness: operational database');
   ctx.effect(() => () => core.contentPurge.close(), 'botharness: purge ledger');
+  ctx.effect(
+    () =>
+      startAttachmentSweep({
+        attachments: core.attachments,
+        database: core.operationalDatabase,
+        channelReferences: () => core.channels.referencedAttachmentHashes(),
+        memoryReferences: () => memoryAttachmentReferences(core.registry, core.deletions),
+        log: (message) => ctx.logger.info(message),
+      }),
+    'botharness: attachment sweep',
+  );
   const deviceWebUpgrade = mountDevicePairing(ctx, {
     database: core.operationalDatabase,
     dshHome,
