@@ -19,6 +19,7 @@ const readClipboard = () => state;
 function subscribeClipboard(notify: () => void) {
   let active = true;
   let changed = false;
+  let latest = 0;
   const subscription = Clipboard.addClipboardListener((event) => {
     changed = true;
     state = {
@@ -28,10 +29,11 @@ function subscribeClipboard(notify: () => void) {
     notify();
   });
   const refresh = (returning: boolean) => {
+    const request = ++latest;
     changed = false;
     void Clipboard.hasImageAsync().then(
       (image) => {
-        if (!active || changed) return;
+        if (!active || request !== latest || changed) return;
         if (image === state.image && !(returning && image)) return;
         state = { image, generation: returning ? state.generation + 1 : state.generation };
         notify();
