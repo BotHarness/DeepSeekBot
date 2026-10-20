@@ -177,6 +177,7 @@ export function Crumbs({
       horizontal
       showsHorizontalScrollIndicator={false}
       accessibilityRole="toolbar"
+      style={{ flexGrow: 0, flexShrink: 0 }}
       contentContainerStyle={{
         gap: space.x2,
         paddingHorizontal: space.x5,
