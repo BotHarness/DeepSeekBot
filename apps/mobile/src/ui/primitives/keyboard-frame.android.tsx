@@ -8,6 +8,10 @@ import {
 
 import type { KeyboardChatFrameProps } from './keyboard-frame';
 
+export function useListBottomSafeArea(): number {
+  return 0;
+}
+
 export function KeyboardRoot({ children }: { children: ReactNode }) {
   return (
     <KeyboardProvider statusBarTranslucent navigationBarTranslucent>

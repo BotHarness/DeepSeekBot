@@ -227,6 +227,7 @@ export interface WindowCompanionViewProps {
   openSettings?(): void;
   sound?: CompanionSound | undefined;
   actions?: BridgeActions | undefined;
+  dropIn?: boolean | undefined;
 }
 export function WindowCompanionView({
   companion,
@@ -240,6 +241,7 @@ export function WindowCompanionView({
   openSettings,
   sound,
   actions,
+  dropIn = false,
 }: WindowCompanionViewProps): ReactElement | null {
   const view = useSyncExternalStore(companion.subscribe, companion.getSnapshot);
   const latest = useRef(view);
@@ -467,13 +469,14 @@ export function WindowCompanionView({
           bottom: box.bottom,
           height: box.height || window.innerHeight,
         };
-        const next = measured
+        let next = measured
           ? motion.resize(width, viewport.current.height)
           : motion.measure(
               width,
               viewport.current.height,
               latest.current.selection?.position ?? 0.75,
             );
+        if (!measured && dropIn && !reducedMotion()) next = motion.drop();
         measured = true;
         const drag = pointer.current;
         if (drag) {

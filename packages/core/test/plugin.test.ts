@@ -479,6 +479,7 @@ describe('plugin entry', () => {
       'tobHome',
       'onboarding',
       'onboardingModel',
+      'introEvent',
       'modelPlanInherit',
       'channelRetry',
       'botNewSession',

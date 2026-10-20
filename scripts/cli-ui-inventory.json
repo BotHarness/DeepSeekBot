@@ -367,9 +367,18 @@
         "storage:packages/client/src/client/onboarding.ts:removeItem(`botharness/onboarding/layout-v2/${receipt.profileId}`)",
         "storage:packages/client/src/client/onboarding.ts:setItem(key)",
         "storage:packages/client/src/client/onboarding.ts:removeItem('botharness/onboarding/sessions-return')",
-        "storage:packages/client/src/client/onboarding.ts:setItem(`botharness/onboarding/layout-v2/${this.state.receipt.profileId}`)"
+        "storage:packages/client/src/client/onboarding.ts:setItem(`botharness/onboarding/layout-v2/${this.state.receipt.profileId}`)",
+        "storage:packages/client/src/client/onboarding.ts:setItem(introKey(receipt.profileId))"
       ],
       "exemption": "Device-local tour anchors and seen markers are presentation state, not Host settings. Profile tutorial lifecycle is available through onboarding.",
+      "configurable": false
+    },
+    {
+      "id": "ui-community-stars",
+      "description": "The intro's GitHub star count is cached on the device for offline display.",
+      "scope": "Client transport / transient state",
+      "surfaces": ["storage:packages/client/src/client/community-links.ts:setItem(STARS_KEY)"],
+      "exemption": "A display cache of a public GitHub number, not a user setting; nothing to configure.",
       "configurable": false
     },
     {

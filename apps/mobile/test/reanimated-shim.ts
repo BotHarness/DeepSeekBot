@@ -9,16 +9,24 @@ const FlatList = (props: {
   keyExtractor(row: unknown): string;
   renderItem(info: { item: unknown }): ReactNode;
   ListHeaderComponent?: ReactNode;
+  ListFooterComponent?: ReactNode;
   ListEmptyComponent?: ReactNode;
+  contentInset?: { bottom?: number };
+  keyboardDismissMode?: string;
 }) =>
   createElement(
     'div',
-    null,
+    {
+      'data-testid': 'chat-list',
+      'data-inset-bottom': props.contentInset?.bottom,
+      'data-dismiss': props.keyboardDismissMode,
+    },
     props.ListHeaderComponent ?? null,
     props.data.length === 0 ? (props.ListEmptyComponent ?? null) : null,
     ...props.data.map((row) =>
       createElement(Fragment, { key: props.keyExtractor(row) }, props.renderItem({ item: row })),
     ),
+    props.ListFooterComponent ?? null,
   );
 
 const View = (props: Props) => createElement('div', null, props.children);

@@ -1,5 +1,6 @@
 {
   "bridge": {
+    "introEvent": "UI-only: anonymous usage event from the first-entry intro modal; nothing for a CLI user to drive",
     "channelAllBotPreview": "UI-only: Web composer preview of who an @all mention would wake",
     "channelReadPosition": "UI-only: Web unread divider position for one viewer",
     "composerIdentity": "UI-only: names the identity the Web composer shows; send already posts as the Host owner",

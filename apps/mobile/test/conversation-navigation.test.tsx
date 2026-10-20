@@ -24,7 +24,38 @@ const state = vi.hoisted(() => ({
 vi.mock('../src/host/native-source-drafts', () => ({ useSourceDraft: () => ['', () => {}] }));
 vi.mock('expo-router', () => ({
   useIsFocused: () => true,
-  Stack: { Screen: () => null },
+  Stack: {
+    Screen: ({
+      options,
+    }: {
+      options: {
+        headerLeft?: () => ReactNode;
+        headerBackVisible?: boolean;
+        unstable_headerLeftItems?: () => Array<{
+          type: string;
+          element?: ReactNode;
+          label?: string;
+          onPress?: () => void;
+        }>;
+      };
+    }) => (
+      <header data-back-visible={String(options.headerBackVisible)}>
+        {options.unstable_headerLeftItems?.().map((item, index) => (
+          <span key={index} data-item={item.type}>
+            {item.type === 'button' ? (
+              <button type="button" onClick={item.onPress}>
+                {item.label}
+              </button>
+            ) : (
+              item.element
+            )}
+          </span>
+        )) ??
+          options.headerLeft?.() ??
+          null}
+      </header>
+    ),
+  },
   useRouter: () => ({
     canGoBack: () => state.history.length > 1,
     back: () => state.history.pop(),
@@ -65,8 +96,12 @@ vi.mock('../src/host/pick-files', () => ({ MAX_PICKED: 10, pickFiles: vi.fn() })
 vi.mock('../src/host/speech', () => ({
   useDictation: () => ({ state: { status: 'idle' }, mountRef: () => undefined }),
 }));
+vi.mock('../src/ui/chat/native-header', () => ({
+  glassHeader: true,
+  barLabelStyle: {},
+  useHeaderOverlap: () => 80,
+}));
 vi.mock('../src/ui/chat/header-chrome', () => ({
-  ChatHeader: ({ left }: { left: ReactNode }) => <header>{left}</header>,
   HeaderBackButton: ({ onPress }: { onPress(): void }) => (
     <button type="button" onClick={onPress}>
       Header back
@@ -75,11 +110,20 @@ vi.mock('../src/ui/chat/header-chrome', () => ({
   EdgeFade: ({ edge, height }: { edge: string; height: number }) => (
     <span data-edge={edge} data-height={height} />
   ),
-  useChatHeaderHeight: () => 80,
 }));
 vi.mock('../src/ui/primitives/keyboard-frame', () => ({
-  KeyboardChatFrame: ({ children, composer }: { children: ReactNode; composer: ReactNode }) => (
+  useListBottomSafeArea: () => 34,
+  KeyboardChatFrame: ({
+    children,
+    composer,
+    background,
+  }: {
+    children: ReactNode;
+    composer: ReactNode;
+    background?: ReactNode;
+  }) => (
     <div>
+      <div data-testid="chat-background">{background === undefined ? 'none' : 'view'}</div>
       <div data-testid="chat-content">{children}</div>
       <div data-testid="chat-controls">{composer}</div>
     </div>
@@ -118,6 +162,7 @@ vi.mock('../src/ui/chat/working-status', () => ({
 vi.mock('../src/ui/chat/time-separator', () => ({ TimeSeparator: () => null }));
 vi.mock('../src/ui/open-full-client', () => ({ OpenFullClientButton: () => null }));
 
+import { Platform } from 'react-native';
 import { ConversationScreen, type ChatPlace } from '../src/ui/chat/conversation-screen';
 import { t } from '../src/ui/strings';
 import { edgeFade } from '../src/ui/design/tokens';
@@ -257,16 +302,46 @@ describe('missing conversation navigation', () => {
       });
     }
 
-    it(`${name}: header back still returns to Activity`, async () => {
+    it(`${name}: leaves back to Activity to the native header back button`, async () => {
       state.history = ['/activity', route];
-      await press(await render(place), 'Header back');
-      expect(state.history).toEqual(['/activity']);
+      const view = await render(place);
+      expect(view.querySelector('header button')).toBeNull();
+      expect(state.history).toEqual(['/activity', route]);
     });
 
     it(`${name}: header back falls back to Chats without history`, async () => {
       state.history = [route];
       await press(await render(place), 'Header back');
       expect(state.history).toEqual(['/']);
+    });
+
+    it(`${name}: iOS puts back and the title capsule in separate leading bar items`, async () => {
+      const os = Platform.OS;
+      Object.assign(Platform, { OS: 'ios' });
+      try {
+        state.history = [route];
+        const alone = await render(place);
+        const header = alone.querySelector('header')!;
+        expect(header.dataset['backVisible']).toBe('false');
+        expect([...header.children].map((item) => (item as HTMLElement).dataset['item'])).toEqual([
+          'button',
+          'spacing',
+          'custom',
+        ]);
+        await press(alone, t.back);
+        expect(state.history).toEqual(['/']);
+        act(() => root?.unmount());
+        state.history = ['/activity', route];
+        const stacked = (await render(place)).querySelector('header')!;
+        expect(stacked.dataset['backVisible']).toBe('true');
+        expect(stacked.querySelector('button')).toBeNull();
+        expect([...stacked.children].map((item) => (item as HTMLElement).dataset['item'])).toEqual([
+          'spacing',
+          'custom',
+        ]);
+      } finally {
+        Object.assign(Platform, { OS: os });
+      }
     });
   }
 
@@ -275,5 +350,29 @@ describe('missing conversation navigation', () => {
     const view = await render({ kind: 'dm', slug: 'gone' });
     expect(view.textContent).toContain(t.pairAgain);
     expect(view.textContent).not.toContain(t.backToChats);
+  });
+});
+
+describe('chat list chrome', () => {
+  it('keeps the list first under the header and cancels the automatic bottom safe area', async () => {
+    state.history = ['/dm/gone'];
+    const view = await render({ kind: 'dm', slug: 'gone' });
+    expect(view.querySelector('[data-testid="chat-background"]')!.textContent).toBe('none');
+    const list = view.querySelector<HTMLElement>('[data-testid="chat-list"]')!;
+    expect(list.dataset['insetBottom']).toBe('-34');
+    expect(list.dataset['dismiss']).toBe('on-drag');
+  });
+
+  it('dismisses the keyboard interactively on iOS', async () => {
+    const os = Platform.OS;
+    Object.assign(Platform, { OS: 'ios' });
+    try {
+      state.history = ['/dm/gone'];
+      const view = await render({ kind: 'dm', slug: 'gone' });
+      const list = view.querySelector<HTMLElement>('[data-testid="chat-list"]')!;
+      expect(list.dataset['dismiss']).toBe('interactive');
+    } finally {
+      Object.assign(Platform, { OS: os });
+    }
   });
 });

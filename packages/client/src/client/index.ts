@@ -370,6 +370,7 @@ export function apply(ctx: ClientContext): void {
           companion,
           prefs,
           actions,
+          dropIn: true,
           openDm: (botId: string) => {
             ctx.layout.selectPanel(PANEL_ID);
             void actions.openBot(botId);
@@ -1084,6 +1085,7 @@ export function apply(ctx: ClientContext): void {
           dockPanels,
           profileCards,
           appearance,
+          wallpaper,
           nativeChatT,
           nativeSessions,
           prefs,

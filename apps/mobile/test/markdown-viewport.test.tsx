@@ -7,7 +7,7 @@ const native = vi.hoisted(() => ({
   frames: [
     { pageY: 0, height: 834 },
     { pageY: -2051, height: 19418 },
-    { pageY: 17036, height: 222 },
+    { pageY: 10449, height: 222 },
   ],
   nextRef: 0,
   react: () => {},
@@ -84,7 +84,7 @@ function Conversation() {
   const scroll = useSharedValue(16533);
   const layout = useSharedValue(1);
   native.scroll = scroll;
-  const stage = { viewport, invertedContent: content, scroll, layout, active: true };
+  const stage = { viewport, content, scroll, layout, active: true };
   return (
     <MarkdownViewportContext.Provider value={stage}>
       <Document />
@@ -96,7 +96,7 @@ it('restores blocks on the last return scroll event even while Fabric still meas
   native.frames = [
     { pageY: 0, height: 834 },
     { pageY: -2051, height: 19418 },
-    { pageY: 17036, height: 222 },
+    { pageY: 10449, height: 222 },
   ];
   const container = document.createElement('div');
   document.body.append(container);
@@ -119,10 +119,10 @@ it('restores blocks on the last return scroll event even while Fabric still meas
     window.measure(block, index < blocks.length - 1, 100);
   await flush();
   expect(window.project(blocks, read()).some((part) => part.kind === 'space')).toBe(true);
-  native.scroll.value = 0;
-  native.frames[1] = { pageY: -6486, height: 19418 };
-  native.frames[2] = { pageY: 12601, height: 222 };
+  native.scroll.value = 12000;
+  native.frames[1] = { pageY: -12000, height: 19418 };
+  native.frames[2] = { pageY: 500, height: 222 };
   await flush();
   expect(window.project(blocks, read()).every((part) => part.kind === 'block')).toBe(true);
-  expect(read().top).toBe(-503);
+  expect(read().top).toBe(-500);
 });

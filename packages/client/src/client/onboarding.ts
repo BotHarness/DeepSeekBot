@@ -33,6 +33,7 @@ export interface OnboardingViewState {
   layoutComplete?: boolean;
   evidence?: ChecklistEvidence | undefined;
   experience?: 'memory' | 'im' | undefined;
+  intro?: { step: number; hidden: boolean } | undefined;
   busy: boolean;
   error?: string | undefined;
 }
@@ -100,6 +101,7 @@ export class OnboardingController {
             localStorage.removeItem(`botharness/onboarding/layout-v2/${receipt.profileId}`);
           } catch {}
           this.update({ layoutComplete: false });
+          this.openIntro();
         }
         if (opening) this.revealHome?.();
       }
@@ -134,6 +136,53 @@ export class OnboardingController {
     } catch (error) {
       this.update({ error: errorMessage(error) });
     }
+  }
+  introPending(): boolean {
+    const receipt = this.state.receipt;
+    if (!receipt?.journey || receipt.journey.done || receipt.tutorial !== 'not-started')
+      return false;
+    try {
+      return localStorage.getItem(introKey(receipt.profileId)) !== '1';
+    } catch {
+      return true;
+    }
+  }
+  openIntro(): void {
+    this.update({ intro: { step: 0, hidden: false } });
+    this.introEvent('intro_shown');
+    this.introEvent('intro_step_viewed', { step: INTRO_STEPS[0] });
+  }
+  setIntroStep(step: number): void {
+    if (!this.state.intro || this.state.intro.step === step) return;
+    this.update({ intro: { ...this.state.intro, step } });
+    this.introEvent('intro_step_viewed', { step: INTRO_STEPS[step] ?? INTRO_STEPS[0] });
+  }
+  introEvent(event: string, properties?: Record<string, string | boolean>): void {
+    try {
+      this.actions.introEvent?.(event, properties);
+    } catch {}
+  }
+  hideIntro(hidden: boolean): void {
+    if (this.state.intro) this.update({ intro: { ...this.state.intro, hidden } });
+  }
+  async closeIntro(outcome?: IntroOutcome): Promise<void> {
+    const receipt = this.state.receipt;
+    const intro = this.state.intro;
+    if (!intro) return;
+    this.update({ intro: undefined });
+    const step = INTRO_STEPS[intro.step] ?? INTRO_STEPS[0];
+    if (outcome && 'starter' in outcome) this.introEvent('intro_completed', outcome);
+    else this.introEvent('intro_dismissed', { step, via: outcome?.via ?? 'close' });
+    if (!receipt) return;
+    try {
+      localStorage.setItem(introKey(receipt.profileId), '1');
+    } catch {}
+    if (
+      receipt.tutorial === 'not-started' &&
+      document.querySelector('[data-workspace-enabled]') !== null
+    )
+      await this.refresh(undefined, 'start', undefined, true);
+    else this.revealHome?.();
   }
   private revealHome: (() => void) | undefined;
   attachHome(reveal: () => void): () => void {
@@ -449,7 +498,14 @@ export class OnboardingController {
     }
   }
 }
+function introKey(profileId: string): string {
+  return `botharness/onboarding/intro-v1/${profileId}`;
+}
 const controllers = new WeakMap<BridgeActions, OnboardingController>();
+export const INTRO_STEPS = ['welcome', 'theme', 'model', 'community', 'start'] as const;
+export type IntroStarter = 'botPrompt' | 'firstRequest' | 'exampleRequest' | 'own';
+export type IntroOutcome = { via: 'skip' | 'close' } | { starter: IntroStarter };
+
 export function onboardingFor(actions: BridgeActions): OnboardingController {
   let controller = controllers.get(actions);
   if (!controller) {

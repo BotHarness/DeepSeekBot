@@ -359,6 +359,7 @@ export interface BridgeActions {
     globalDefault: boolean,
   ): Promise<{ revision: number }>;
   inheritModel(slug: string, expectedRevision: number): Promise<{ revision: number }>;
+  introEvent(event: string, properties?: Record<string, string | boolean>): void;
   retryMessage(channelId: string, messageId: string): Promise<void>;
   stopBot(channelId: string, botSlug: string): Promise<'stopped' | 'not-working'>;
   compactBot(botSlug: string): Promise<BotCompactResult>;
@@ -1573,6 +1574,9 @@ export function createActions(
     },
     inheritModel: (slug, expectedRevision) =>
       invoke('modelPlanInherit', { slug, expectedRevision }),
+    introEvent: (event, properties = {}) => {
+      void invoke('introEvent', { ...properties, event }).catch(() => {});
+    },
     async retryMessage(channelId, messageId) {
       await invoke('channelRetry', { channelId, messageId });
       await actions.refreshChannelMessages(channelId);

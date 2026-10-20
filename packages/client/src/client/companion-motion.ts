@@ -56,6 +56,14 @@ export class CompanionMotion {
     });
   }
 
+  drop(): CompanionPoint {
+    this.vx = 0;
+    this.vy = 0;
+    this.landing = 0;
+    this.landingFeedback = true;
+    return (this.point = { ...this.point, y: this.height, squash: 0, phase: 'fall' });
+  }
+
   resize(width: number, height: number): CompanionPoint {
     this.height = Math.max(0, height - 120);
     const x = this.clampX(this.point.x, width);

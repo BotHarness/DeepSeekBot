@@ -189,6 +189,7 @@ DeepSeekBot 默认由 DSH 后台发送匿名使用统计；首次打开 Bot 模�
 - `plugin_started`：插件版本、DSH 版本、操作系统和架构。
 - `bot_created`、`bot_archived`、`bot_deleted`、`marketplace_bot_installed`、`avatar_edited`：只记录发生了这个操作。
 - `connector_enabled`：只记录连接器类型（`feishu`、`lark`、`slack`、`discord`、`weixin` 或 `other`）。
+- 首次进入引导和新手教程：`intro_shown`；`intro_step_viewed`（步骤名）；`intro_dismissed`（停在哪一步，点的是跳过还是关闭）；`intro_completed`（选了哪个开场问题，不含文字）；`intro_theme_changed`（只记 `scheme`、`preset` 或 `wallpaper`）；`intro_model_saved`（只记是否用了进阶的执行模型）；`intro_community_clicked`（`github`、`discord` 或 `qq`）；以及 `tutorial_action`（`start`、`pause`、`skip`、`continue`、`restart` 或 `finish`）。不包含模型名称、壁纸文件或输入的文字。
 - `daily_usage`：每天最多一次，记录 PersonaBot 数量、自上次汇总以来新增的会话数和消息数，以及这段统计时长（整小时数）；不会按单条消息发送事件。
 - `$exception`：BotHarness 代码在后台出现未处理的错误时，记录错误类型和调用栈中的函数名与行号，文件只保留包内相对路径（如 `@botharness/core/dist/index.mjs`）或文件名；调用栈中没有 BotHarness 代码的错误会被丢弃。报告先保存在本机，下次启动时发送；从不包含错误信息正文。
 

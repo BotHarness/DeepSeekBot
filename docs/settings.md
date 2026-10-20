@@ -222,6 +222,7 @@ DeepSeekBot sends anonymous usage statistics from the DSH Host by default; Bot m
 - `plugin_started`: plugin version, DSH version, operating system and architecture.
 - `bot_created`, `bot_archived`, `bot_deleted`, `marketplace_bot_installed` and `avatar_edited`: only that the action happened.
 - `connector_enabled`: only the connector type (`feishu`, `lark`, `slack`, `discord`, `weixin` or `other`).
+- First-entry intro and tutorial: `intro_shown`; `intro_step_viewed` (step name); `intro_dismissed` (step and whether Skip or Close was used); `intro_completed` (which starter prompt was picked, not its text); `intro_theme_changed` (only `scheme`, `preset` or `wallpaper`); `intro_model_saved` (only whether the Advanced task model was used); `intro_community_clicked` (`github`, `discord` or `qq`); and `tutorial_action` (`start`, `pause`, `skip`, `continue`, `restart` or `finish`). No model names, wallpaper files or typed text are included.
 - `daily_usage`: at most once a day, the number of PersonaBots, the number of new Sessions and messages since the previous summary, and that window's length in whole hours. No event is sent per message.
 - `$exception`: when the Host hits an unhandled error in BotHarness code, the error type and its stack's functions and line numbers, with each file reduced to its package-relative name (such as `@botharness/core/dist/index.mjs`) or just its file name. Errors without a BotHarness frame are dropped. The report is saved on the device and sent on the next start; the error message is never included.
 

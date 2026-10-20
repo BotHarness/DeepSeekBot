@@ -1,11 +1,11 @@
-import { SourceName } from './source-name';
 import { Pressable } from 'react-native';
 
 import type { RosterChannel } from '../../host/client';
-import { frosted, useDesignTheme } from '../design/theme';
-import { edge, radius, space } from '../design/tokens';
+import { useDesignTheme } from '../design/theme';
+import { radius, space } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { t } from '../strings';
+import { barLabelStyle } from './native-header';
 import { GroupMark } from './group-mark';
 
 const MARK = 28;
@@ -30,7 +30,7 @@ export function ChannelTitle({
       disabled={channel === undefined}
       onPress={onPress}
       style={({ pressed }) => ({
-        maxWidth: '100%',
+        flexShrink: 1,
         flexDirection: 'row',
         alignItems: 'center',
         gap: space.x3,
@@ -38,18 +38,13 @@ export function ChannelTitle({
         paddingLeft: (theme.touch - MARK) / 2,
         paddingRight: theme.touch / 2,
         borderRadius: radius.round,
-        borderWidth: edge.hairline,
-        borderColor: theme.layer.raised.edge,
-        backgroundColor: pressed ? theme.layer.raised.pressed : frosted(theme.layer.raised.fill),
+        backgroundColor: pressed ? theme.layer.raised.pressed : undefined,
       })}
     >
       <GroupMark avatar={channel?.avatar} size={MARK} corner={radius.round} />
-      <SourceName name={name} source="computer" />
-      {members === undefined ? null : (
-        <Text variant="meta" tone="muted" numberOfLines={1}>
-          {members}
-        </Text>
-      )}
+      <Text strong numberOfLines={1} style={[{ flexShrink: 1 }, barLabelStyle]}>
+        {name}
+      </Text>
     </Pressable>
   );
 }

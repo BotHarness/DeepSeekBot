@@ -11,6 +11,7 @@ interface ModalBaseProps {
   footer?: ReactNode;
   className?: string;
   contentClassName?: string;
+  backdropBlur?: boolean;
 }
 
 export type ModalProps = ModalBaseProps &

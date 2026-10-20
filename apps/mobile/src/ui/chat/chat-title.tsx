@@ -1,17 +1,14 @@
-import { SourceName } from './source-name';
-import { Pressable, View } from 'react-native';
+import { Pressable } from 'react-native';
 
 import type { RosterBot } from '../../host/client';
 import { BotAvatar } from '../bot-avatar';
 import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
-import { DrawerMaterial, useLiquidGlass } from '../primitives/drawer-material';
+import { Text } from '../primitives/text';
 import { t } from '../strings';
-import { botDotTone } from './bot-tone';
-import { headerGlassFill } from './header-chrome';
+import { barLabelStyle } from './native-header';
 
 const AVATAR = 28;
-const DOT = space.x3;
 
 export function ChatTitle({
   bot,
@@ -23,7 +20,6 @@ export function ChatTitle({
   onPress(): void;
 }) {
   const theme = useDesignTheme();
-  const glass = useLiquidGlass();
   const status = bot === undefined ? undefined : bot.paused ? t.paused : t.state[bot.state];
   const name = bot?.displayName ?? fallback;
   return (
@@ -34,31 +30,21 @@ export function ChatTitle({
       disabled={bot === undefined}
       onPress={onPress}
       style={({ pressed }) => ({
-        maxWidth: '100%',
+        flexShrink: 1,
         flexDirection: 'row',
         alignItems: 'center',
         gap: space.x3,
         minHeight: Math.max(theme.touch, theme.type.body.line * theme.fontScale + space.x3),
         paddingLeft: bot === undefined ? theme.touch / 2 : (theme.touch - AVATAR) / 2,
-        paddingRight: bot === undefined ? theme.touch / 2 : (theme.touch - DOT) / 2,
+        paddingRight: theme.touch / 2,
         borderRadius: radius.round,
-        ...headerGlassFill(theme, glass, pressed),
+        backgroundColor: pressed ? theme.layer.raised.pressed : undefined,
       })}
     >
-      {glass ? <DrawerMaterial /> : null}
       {bot === undefined ? null : <BotAvatar bot={bot} size={AVATAR} ring={false} />}
-      <SourceName name={name} source="computer" />
-      {bot === undefined ? null : (
-        <View
-          testID="chat-title-state"
-          style={{
-            width: DOT,
-            height: DOT,
-            borderRadius: radius.round,
-            backgroundColor: theme.color[botDotTone(bot)],
-          }}
-        />
-      )}
+      <Text strong numberOfLines={1} style={[{ flexShrink: 1 }, barLabelStyle]}>
+        {name}
+      </Text>
     </Pressable>
   );
 }

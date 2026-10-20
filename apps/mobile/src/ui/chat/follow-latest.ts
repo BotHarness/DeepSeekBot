@@ -1,12 +1,28 @@
-import { useCallback, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
-import type { FlatList, NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
+import { useCallback, useLayoutEffect, useRef, useState, type RefObject } from 'react';
+import type {
+  FlatList,
+  LayoutChangeEvent,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+} from 'react-native';
 
 import type { ConversationMessage } from '../../host/conversation';
 
 export const LATEST_SLOP = 40;
+export const SETTLE_FRAMES = 12;
 
-export function atLatest(offset: number): boolean {
-  return offset <= LATEST_SLOP;
+export type ListMetrics = { content: number; layout: number; offset: number };
+
+export function atLatest(distance: number): boolean {
+  return distance <= LATEST_SLOP;
+}
+
+export function distanceFromLatest(metrics: ListMetrics): number {
+  return metrics.content - metrics.layout - metrics.offset;
+}
+
+export function latestOffset(metrics: Omit<ListMetrics, 'offset'>, start: number): number {
+  return Math.max(0 - start, metrics.content - metrics.layout);
 }
 
 export function unseenSince(
@@ -24,22 +40,59 @@ export function unseenSince(
 
 type ScrollEvent = NativeSyntheticEvent<NativeScrollEvent>;
 
+const KEEP_VISIBLE = { minIndexForVisible: 0 };
+
 export function useFollowLatest<Row>(
   list: RefObject<FlatList<Row> | null>,
   messages: readonly ConversationMessage[],
   onFollowingChange?: (following: boolean) => void,
+  start = 0,
 ) {
   const [following, setFollowing] = useState(true);
   const [away, setAway] = useState(false);
   const [anchor, setAnchor] = useState<string | undefined>();
+  const [ready, setReady] = useState(false);
   const followingNow = useRef(true);
   const dragging = useRef(false);
-  const jumping = useRef(false);
   const latestId = useRef<string | undefined>(undefined);
   latestId.current = messages.at(-1)?.id;
+  const hasRows = useRef(false);
+  hasRows.current = messages.length > 0;
+  const startInset = useRef(start);
+  startInset.current = start;
+  const metrics = useRef<ListMetrics>({ content: 0, layout: 0, offset: 0 });
+  const frame = useRef<number | undefined>(undefined);
+  const sizes = useRef(0);
+  const settled = useRef(false);
+  const attempts = useRef(0);
   useLayoutEffect(() => {
     if (!followingNow.current) onFollowingChange?.(false);
   }, [onFollowingChange]);
+  useLayoutEffect(
+    () => () => {
+      if (frame.current !== undefined) cancelAnimationFrame(frame.current);
+      frame.current = undefined;
+    },
+    [],
+  );
+
+  const measureEvent = useCallback((event: ScrollEvent): number => {
+    const native = event.nativeEvent;
+    metrics.current = {
+      content: native.contentSize?.height ?? metrics.current.content,
+      layout: native.layoutMeasurement?.height ?? metrics.current.layout,
+      offset: native.contentOffset.y,
+    };
+    return distanceFromLatest(metrics.current);
+  }, []);
+
+  const scrollToLatest = useCallback(
+    (animated: boolean) => {
+      const offset = latestOffset(metrics.current, startInset.current);
+      list.current?.scrollToOffset({ offset, animated });
+    },
+    [list],
+  );
 
   const hold = useCallback(() => {
     if (!followingNow.current) return;
@@ -51,77 +104,109 @@ export function useFollowLatest<Row>(
   }, [onFollowingChange]);
 
   const follow = useCallback(() => {
-    jumping.current = false;
     if (!followingNow.current) onFollowingChange?.(true);
     followingNow.current = true;
     setFollowing(true);
     setAway(false);
   }, [onFollowingChange]);
 
+  const confirm = useCallback((version: number) => {
+    requestAnimationFrame(() => {
+      if (settled.current) return;
+      attempts.current += 1;
+      if ((version === sizes.current && hasRows.current) || attempts.current >= SETTLE_FRAMES) {
+        settled.current = true;
+        setReady(true);
+      }
+    });
+  }, []);
+
+  const pin = useCallback(() => {
+    if (frame.current !== undefined) return;
+    if (!followingNow.current && settled.current) return;
+    frame.current = requestAnimationFrame(() => {
+      frame.current = undefined;
+      if (followingNow.current && metrics.current.layout > 0) scrollToLatest(false);
+      if (!settled.current) confirm(sizes.current);
+    });
+  }, [scrollToLatest, confirm]);
+
   const settle = useCallback(
-    (offset: number) => {
-      if (!atLatest(offset)) return;
-      if (offset > 0) list.current?.scrollToOffset({ offset: 0, animated: true });
+    (distance: number) => {
+      if (!atLatest(distance)) return;
+      if (distance > 0) scrollToLatest(true);
       follow();
     },
-    [list, follow],
+    [scrollToLatest, follow],
   );
 
   const onScroll = useCallback(
     (event: ScrollEvent) => {
-      const offset = event.nativeEvent.contentOffset.y;
-      if (!atLatest(offset) && !jumping.current) {
-        setAway(true);
-        hold();
-      }
+      measureEvent(event);
     },
-    [hold],
+    [measureEvent],
   );
 
   const onScrollBeginDrag = useCallback(() => {
     dragging.current = true;
-    jumping.current = false;
     hold();
   }, [hold]);
 
   const onScrollEndDrag = useCallback(
     (event: ScrollEvent) => {
       dragging.current = false;
-      if ((event.nativeEvent.velocity?.y ?? 0) === 0) settle(event.nativeEvent.contentOffset.y);
+      const distance = measureEvent(event);
+      if ((event.nativeEvent.velocity?.y ?? 0) === 0) settle(distance);
     },
-    [settle],
+    [measureEvent, settle],
   );
 
   const onMomentumScrollEnd = useCallback(
     (event: ScrollEvent) => {
+      const distance = measureEvent(event);
       if (dragging.current) return;
-      jumping.current = false;
-      settle(event.nativeEvent.contentOffset.y);
+      settle(distance);
     },
-    [settle],
+    [measureEvent, settle],
+  );
+
+  const onContentSizeChange = useCallback(
+    (_width: number, height: number) => {
+      metrics.current = { ...metrics.current, content: height };
+      sizes.current += 1;
+      pin();
+    },
+    [pin],
+  );
+
+  const onLayout = useCallback(
+    (event: LayoutChangeEvent) => {
+      metrics.current = { ...metrics.current, layout: event.nativeEvent.layout.height };
+      pin();
+    },
+    [pin],
   );
 
   const jumpToLatest = useCallback(() => {
     follow();
-    jumping.current = true;
-    list.current?.scrollToOffset({ offset: 0, animated: true });
-  }, [list, follow]);
-
-  const maintainVisibleContentPosition = useMemo(
-    () => (following ? undefined : { minIndexForVisible: 0 }),
-    [following],
-  );
+    scrollToLatest(true);
+  }, [scrollToLatest, follow]);
 
   return {
     away,
+    ready,
     unseen: following ? 0 : unseenSince(messages, anchor),
+    hold,
     jumpToLatest,
     listProps: {
       onScroll,
+      onScrollToTop: hold,
       onScrollBeginDrag,
       onScrollEndDrag,
       onMomentumScrollEnd,
-      maintainVisibleContentPosition,
+      onContentSizeChange,
+      onLayout,
+      maintainVisibleContentPosition: KEEP_VISIBLE,
     },
   };
 }

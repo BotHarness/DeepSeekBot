@@ -137,6 +137,7 @@ function stubActions(): BridgeActions {
     onboarding: vi.fn(),
     onboardingModel: vi.fn(),
     inheritModel: vi.fn(),
+    introEvent: vi.fn(),
     retryMessage: vi.fn(),
     stopBot: vi.fn(),
     compactBot: vi.fn(),

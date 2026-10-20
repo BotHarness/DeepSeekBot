@@ -544,6 +544,7 @@ describe('bridge typert service', () => {
       'tobHome',
       'onboarding',
       'onboardingModel',
+      'introEvent',
       'modelPlanInherit',
       'channelRetry',
       'botNewSession',

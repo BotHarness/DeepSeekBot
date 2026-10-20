@@ -32,7 +32,8 @@ vi.mock('react-native', async () => {
 });
 vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
 
-const { atLatest, unseenSince } = await import('../src/ui/chat/follow-latest');
+const { atLatest, distanceFromLatest, latestOffset, unseenSince } =
+  await import('../src/ui/chat/follow-latest');
 const { JumpToLatest } = await import('../src/ui/chat/jump-to-latest');
 const { t } = await import('../src/ui/strings');
 
@@ -48,11 +49,25 @@ function message(id: string, author: ConversationMessage['author']): Conversatio
 }
 
 describe('following the latest message', () => {
-  it('treats the first few points of the inverted list as the latest', () => {
+  it('treats the last few points above the end of the list as the latest', () => {
     expect(atLatest(0)).toBe(true);
     expect(atLatest(-12)).toBe(true);
     expect(atLatest(40)).toBe(true);
     expect(atLatest(41)).toBe(false);
+  });
+
+  it('measures the distance from the end of a top-to-bottom list', () => {
+    expect(distanceFromLatest({ content: 2000, layout: 800, offset: 1200 })).toBe(0);
+    expect(distanceFromLatest({ content: 2000, layout: 800, offset: 1000 })).toBe(200);
+    expect(distanceFromLatest({ content: 2000, layout: 800, offset: 1234 })).toBe(-34);
+    expect(distanceFromLatest({ content: 700, layout: 800, offset: -100 })).toBe(0);
+  });
+
+  it('targets the end offset without scrolling above the header inset', () => {
+    expect(latestOffset({ content: 2000, layout: 800 }, 100)).toBe(1200);
+    expect(latestOffset({ content: 700, layout: 800 }, 100)).toBe(-100);
+    expect(latestOffset({ content: 500, layout: 800 }, 100)).toBe(-100);
+    expect(latestOffset({ content: 500, layout: 800 }, 0)).toBe(0);
   });
 
   it('counts the Bot messages that arrived after the Human left the latest', () => {

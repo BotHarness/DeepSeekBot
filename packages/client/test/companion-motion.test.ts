@@ -117,3 +117,13 @@ it('stands on the ground it is given instead of covering it, and lands on it aft
   motion.advance(0, true, false, 1);
   expect(motion.point.y).toBe(0);
 });
+
+it('drops in from the top on entry and lands with one impact', () => {
+  const feedback: string[] = [];
+  const motion = new CompanionMotion((event) => feedback.push(event.kind));
+  motion.measure(1200, 800, 0.4);
+  expect(motion.drop()).toMatchObject({ phase: 'fall', y: 680 });
+  for (let frame = 0; frame < 300; frame++) motion.advance(16, false, false, 1);
+  expect(feedback).toEqual(['land']);
+  expect(motion.point).toMatchObject({ phase: 'rest', y: 0 });
+});

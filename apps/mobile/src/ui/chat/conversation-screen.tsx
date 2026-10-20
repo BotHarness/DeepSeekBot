@@ -7,6 +7,7 @@ import {
   FlatList,
   Platform,
   Pressable,
+  useWindowDimensions,
   View,
   type ViewInstance,
 } from 'react-native';
@@ -59,7 +60,8 @@ import { botBusy } from './bot-tone';
 import { ChannelTitle } from './channel-title';
 import { ChatTitle } from './chat-title';
 import { Composer } from './composer';
-import { ChatHeader, EdgeFade, HeaderBackButton, useChatHeaderHeight } from './header-chrome';
+import { EdgeFade, HeaderBackButton } from './header-chrome';
+import { barLabelStyle, glassHeader, useHeaderOverlap } from './native-header';
 import { useFollowLatest } from './follow-latest';
 import { useMarkRead } from './mark-read';
 import { useBotNames } from './use-bot-names';
@@ -88,10 +90,11 @@ import { TimeSeparator } from './time-separator';
 import { AccentProvider, useDesignTheme } from '../design/theme';
 import { edgeFade, space } from '../design/tokens';
 import { OpenFullClientButton } from '../open-full-client';
+import { fullClientParams, type FullClientTarget } from '../../host/full-client';
 import { leaveScreen } from '../shell/leave-screen';
 import { Text } from '../primitives/text';
 import { MarkdownViewportContext } from '../markdown-viewport';
-import { KeyboardChatFrame } from '../primitives/keyboard-frame';
+import { KeyboardChatFrame, useListBottomSafeArea } from '../primitives/keyboard-frame';
 import { t } from '../strings';
 
 type Row = ChatRow | { kind: 'draft'; key: string; draft: ConversationDraftReference };
@@ -232,7 +235,9 @@ function ChatConversation({
 }) {
   const theme = useDesignTheme();
   const router = useRouter();
-  const headerHeight = useChatHeaderHeight();
+  const headerOverlap = useHeaderOverlap();
+  const { width: windowWidth } = useWindowDimensions();
+  const listSafeArea = useListBottomSafeArea();
   const { client, inbox, saved } = useHostSession();
   const host = useHostSnapshot(client, focused);
   const dm = place.kind === 'dm';
@@ -295,6 +300,7 @@ function ChatConversation({
   const [actionsFor, setActionsFor] = useState<MessageMenuTarget>();
   const [reactError, setReactError] = useState(false);
   const [composerHeight, setComposerHeight] = useState(0);
+  const [viewportHeight, setViewportHeight] = useState(0);
   const list = useAnimatedRef<FlatList<Row>>();
   const jumped = useRef<string | undefined>(undefined);
   const [answered, setAnswered] = useState<ReadonlySet<string>>(new Set());
@@ -325,7 +331,6 @@ function ChatConversation({
       ),
     [visible, resolutions, dm, playback],
   );
-  const history = useMemo(() => [...chronological].reverse(), [chronological]);
   const [speakers] = useState(createSpeakerRegistry);
   const groups = useMemo(() => messageGroups(chronological), [chronological]);
   const groupOf = useMemo(() => new Map(groups.map((entry) => [entry.key, entry.group])), [groups]);
@@ -340,13 +345,13 @@ function ChatConversation({
   }, [speakers, groups, shownDrafts]);
   const scroll = useScrollOffset(list);
   const viewport = useAnimatedRef<ViewInstance>();
-  const invertedContent = useAnimatedRef<ViewInstance>();
+  const content = useAnimatedRef<ViewInstance>();
   const attachList = useCallback(
     (node: FlatList<Row> | null) => {
       list(node);
-      invertedContent(node?.getNativeScrollRef()?.getInnerViewRef() ?? null);
+      content(node?.getNativeScrollRef()?.getInnerViewRef() ?? null);
     },
-    [list, invertedContent],
+    [list, content],
   );
   const viewportLayout = useSharedValue(0);
   const stage = useMemo(
@@ -359,10 +364,10 @@ function ChatConversation({
     }),
     [speakers, scroll, viewport, viewportLayout, composerHeight],
   );
-  const latest = useFollowLatest(list, visible, playback?.setFollowing);
+  const latest = useFollowLatest(list, visible, playback?.setFollowing, headerOverlap);
   const markdownViewport = useMemo(
-    () => ({ scroll, viewport, invertedContent, layout: viewportLayout, active: focused }),
-    [scroll, viewport, invertedContent, viewportLayout, focused],
+    () => ({ scroll, viewport, content, layout: viewportLayout, active: focused }),
+    [scroll, viewport, content, viewportLayout, focused],
   );
   const readMount = useMarkRead(client, inbox, conversation, activeChannel, !latest.away);
   const mountRef = dictation.mountRef;
@@ -380,14 +385,14 @@ function ChatConversation({
 
   const rows = useMemo<Row[]>(
     () => [
+      ...chronological,
       ...shownDrafts.map((entry): Row => ({
         kind: 'draft',
         key: `draft:${entry.draftId}`,
         draft: entry,
       })),
-      ...history,
     ],
-    [shownDrafts, history],
+    [shownDrafts, chronological],
   );
 
   const jump = () => {
@@ -395,6 +400,7 @@ function ChatConversation({
     const index = rows.findIndex((row) => row.kind === 'message' && row.message.id === focus);
     if (index >= 0) {
       jumped.current = focus;
+      latest.hold();
       list.current?.scrollToIndex({ index, viewPosition: 0.5, animated: true });
     } else if (latestWindowOnly && snapshot.status === 'live') jumped.current = focus;
     else if (snapshot.status === 'live' && snapshot.hasOlder && !snapshot.loadingOlder)
@@ -625,6 +631,53 @@ function ChatConversation({
   const missing =
     host.roster !== undefined && (dm ? bot === undefined : channel === undefined && !botDm);
   const leave = () => leaveScreen(router);
+  const canGoBack = router.canGoBack();
+  const title = dm ? (
+    <ChatTitle
+      bot={bot}
+      fallback={slug ?? ''}
+      onPress={() => router.push(`/bot/${bot?.slug ?? slug}`)}
+    />
+  ) : botDm ? (
+    <View
+      style={{
+        minHeight: theme.touch,
+        justifyContent: 'center',
+        paddingHorizontal: theme.touch / 2,
+      }}
+    >
+      <Text strong numberOfLines={1} style={barLabelStyle}>
+        {channelDetails.members
+          .map(
+            (member) =>
+              roster?.bots.find((entry) => entry.slug === member)?.displayName ??
+              t.activityRow.unavailableBot,
+          )
+          .join('、')}
+      </Text>
+    </View>
+  ) : (
+    <ChannelTitle
+      channel={channel}
+      fallback={channelId ?? ''}
+      onPress={() =>
+        router.push({ pathname: '/group/[id]', params: { id: channel?.id ?? channelId } })
+      }
+    />
+  );
+  const fullClient: FullClientTarget | undefined =
+    slug !== undefined
+      ? { kind: 'dm', slug }
+      : channelId !== undefined
+        ? { kind: 'channel', channelId }
+        : undefined;
+  const trailing =
+    fullClient === undefined ? null : <OpenFullClientButton target={fullClient} bar />;
+  const ios = Platform.OS === 'ios';
+  const back = <HeaderBackButton plain onPress={leave} />;
+  const titleItem = (
+    <View style={{ maxWidth: windowWidth - (theme.touch + space.x5) * 3 }}>{title}</View>
+  );
   const notice = hostRefused
     ? t.refused
     : snapshot.status === 'refused'
@@ -657,14 +710,63 @@ function ChatConversation({
     <>
       <Stack.Screen
         options={{
-          headerShown: false,
-          scrollEdgeEffects: { top: 'hidden', bottom: 'hidden', left: 'hidden', right: 'hidden' },
+          headerShown: true,
+          headerTransparent: ios,
+          headerStyle: ios ? {} : { backgroundColor: theme.color.base },
+          headerShadowVisible: false,
+          headerBackButtonDisplayMode: 'minimal',
+          ...(ios && !glassHeader ? { headerBlurEffect: 'systemChromeMaterial' as const } : {}),
+          ...(ios
+            ? {
+                title: '',
+                headerTitle: '',
+                headerBackVisible: canGoBack,
+                unstable_headerLeftItems: () => [
+                  ...(canGoBack
+                    ? []
+                    : [
+                        {
+                          type: 'button' as const,
+                          label: t.back,
+                          icon: { type: 'sfSymbol' as const, name: 'chevron.left' as const },
+                          onPress: leave,
+                        },
+                      ]),
+                  { type: 'spacing' as const, spacing: 0 },
+                  { type: 'custom' as const, element: titleItem },
+                ],
+                unstable_headerRightItems: () =>
+                  fullClient === undefined
+                    ? []
+                    : [
+                        {
+                          type: 'button' as const,
+                          label: t.openFullClient,
+                          icon: { type: 'sfSymbol' as const, name: 'macwindow' as const },
+                          onPress: () =>
+                            router.push({
+                              pathname: '/full-client',
+                              params: fullClientParams(fullClient),
+                            }),
+                        },
+                      ],
+              }
+            : {
+                headerTitleAlign: 'left' as const,
+                headerTitle: () => title,
+                headerRight: () => trailing,
+                ...(canGoBack ? {} : { headerLeft: () => back }),
+              }),
         }}
       />
       <KeyboardChatFrame
         onMount={screenRef}
-        backgroundColor={theme.color.base}
-        background={<ChatBackground choice={background} imageUri={backgroundImageUri} />}
+        backgroundColor={background.kind === 'color' ? background.color : theme.color.base}
+        background={
+          background.kind === 'image' ? (
+            <ChatBackground choice={background} imageUri={backgroundImageUri} />
+          ) : undefined
+        }
         onComposerLayout={(event) => setComposerHeight(event.nativeEvent.layout.height)}
         composer={
           <View>
@@ -715,7 +817,7 @@ function ChatConversation({
         {notice === undefined ? null : (
           <View
             style={{
-              marginTop: headerHeight,
+              marginTop: headerOverlap,
               backgroundColor: theme.color.warningSoft,
               paddingHorizontal: space.x5,
               paddingVertical: space.x3,
@@ -759,25 +861,33 @@ function ChatConversation({
           ref={viewport}
           collapsable={false}
           style={{ flex: 1 }}
-          onLayout={() => {
+          onLayout={(event) => {
             viewportLayout.value += 1;
+            setViewportHeight(event.nativeEvent.layout.height);
           }}
         >
           <MarkdownViewportContext.Provider value={markdownViewport}>
             <SpeakerStageContext.Provider value={dm ? undefined : stage}>
               <Animated.FlatList
                 ref={attachList}
-                inverted
                 removeClippedSubviews={false}
-                style={{ flex: 1 }}
+                style={{ flex: 1, opacity: latest.ready || rows.length === 0 ? 1 : 0 }}
+                contentInsetAdjustmentBehavior="automatic"
+                contentInset={{ bottom: -listSafeArea }}
+                automaticallyAdjustsScrollIndicatorInsets
+                scrollToOverflowEnabled
                 contentContainerStyle={{
-                  paddingTop: composerHeight + edgeFade.bottom,
-                  paddingBottom: (notice === undefined ? headerHeight : 0) + space.x3,
+                  minHeight: Math.max(
+                    0,
+                    viewportHeight - (notice === undefined ? headerOverlap : 0),
+                  ),
+                  justifyContent: 'flex-end',
+                  paddingTop: space.x3,
+                  paddingBottom: composerHeight + edgeFade.bottom,
                 }}
                 data={rows}
                 keyExtractor={(row) => row.key}
                 renderItem={renderItem}
-                onContentSizeChange={jump}
                 onScrollToIndexFailed={(info) => {
                   list.current?.scrollToOffset({
                     offset: info.averageItemLength * info.index,
@@ -793,14 +903,17 @@ function ChatConversation({
                     100,
                   );
                 }}
-                onEndReached={() => void conversation?.loadOlder()}
-                onEndReachedThreshold={0.5}
+                {...(latest.ready ? { onStartReached: () => void conversation?.loadOlder() } : {})}
+                onStartReachedThreshold={0.5}
                 {...latest.listProps}
+                onContentSizeChange={(width: number, height: number) => {
+                  latest.listProps.onContentSizeChange(width, height);
+                  jump();
+                }}
                 scrollEventThrottle={32}
-                keyboardDismissMode="interactive"
+                keyboardDismissMode={ios ? 'interactive' : 'on-drag'}
                 keyboardShouldPersistTaps="handled"
-                ListHeaderComponent={<WorkingStatus bots={working} />}
-                ListFooterComponent={
+                ListHeaderComponent={
                   snapshot.loadingOlder ? (
                     <View
                       style={{
@@ -824,6 +937,7 @@ function ChatConversation({
                     </Text>
                   ) : undefined
                 }
+                ListFooterComponent={<WorkingStatus bots={working} />}
                 ListEmptyComponent={
                   snapshot.status === 'opening' ? (
                     <View style={{ padding: space.x6, alignItems: 'center' }}>
@@ -851,44 +965,6 @@ function ChatConversation({
           ) : null}
         </Animated.View>
       </KeyboardChatFrame>
-      <EdgeFade edge="top" height={headerHeight + edgeFade.top} />
-      <ChatHeader
-        left={<HeaderBackButton onPress={leave} />}
-        center={
-          dm ? (
-            <ChatTitle
-              bot={bot}
-              fallback={slug ?? ''}
-              onPress={() => router.push(`/bot/${bot?.slug ?? slug}`)}
-            />
-          ) : botDm ? (
-            <Text strong numberOfLines={1} style={{ textAlign: 'center' }}>
-              {channelDetails.members
-                .map(
-                  (member) =>
-                    roster?.bots.find((entry) => entry.slug === member)?.displayName ??
-                    t.activityRow.unavailableBot,
-                )
-                .join('、')}
-            </Text>
-          ) : (
-            <ChannelTitle
-              channel={channel}
-              fallback={channelId ?? ''}
-              onPress={() =>
-                router.push({ pathname: '/group/[id]', params: { id: channel?.id ?? channelId } })
-              }
-            />
-          )
-        }
-        right={
-          slug !== undefined ? (
-            <OpenFullClientButton target={{ kind: 'dm', slug }} round />
-          ) : channelId !== undefined ? (
-            <OpenFullClientButton target={{ kind: 'channel', channelId }} round />
-          ) : null
-        }
-      />
       <ImageViewer attachment={viewing} onClose={() => setViewing(undefined)} onShare={share} />
       <MessageActions
         target={actionsFor}

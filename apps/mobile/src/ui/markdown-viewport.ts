@@ -15,7 +15,7 @@ import type { MarkdownViewport } from './markdown-window';
 
 export type MarkdownViewportStage = {
   viewport: AnimatedRef<ViewInstance>;
-  invertedContent: AnimatedRef<ViewInstance>;
+  content: AnimatedRef<ViewInstance>;
   scroll: SharedValue<number>;
   layout: SharedValue<number>;
   active: boolean;
@@ -56,7 +56,7 @@ export function useMarkdownViewport() {
   );
   const scroll = stage?.scroll;
   const viewport = stage?.viewport;
-  const content = stage?.invertedContent;
+  const content = stage?.content;
   const layout = stage?.layout;
   const active = stage?.active === true;
   useAnimatedReaction(
@@ -76,8 +76,7 @@ export function useMarkdownViewport() {
       if (document === null || frame === null || contentFrame === null || frame.height <= 0)
         return null;
       return {
-        top:
-          contentFrame.pageY - document.pageY + contentFrame.height - frame.height - scroll.value,
+        top: contentFrame.pageY - document.pageY + scroll.value,
         height: frame.height,
       };
     },

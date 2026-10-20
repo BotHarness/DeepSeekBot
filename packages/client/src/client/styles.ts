@@ -6231,6 +6231,9 @@ button:has(.bh-panel-glyph):is(:hover, :focus-within) .bh-panel-activity[data-wi
 .bh-overview-usage .bh-profile-pin:hover {background:var(--bh-hover);color:var(--bh-text);}
 .bh-overview-usage .bh-profile-pin:disabled {cursor:default;opacity:0.5;}
 .bh-statistics-content > header h3 {font-size:var(--dsh-content-font-size);margin:0;}
+[role='presentation']:has(> .bh-intro-see-through) > [aria-hidden='true']::after {
+  opacity: 0.2;
+}
 .bh-release-dialog {
   width: min(680px, calc(100vw - 32px));
 }

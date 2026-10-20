@@ -82,7 +82,7 @@ Build: `SheetScreen` + `sheetScreenOptions` (`src/ui/primitives/sheet-screen.tsx
 
 Build: native stack headers and `NativeTabs` apply it automatically; React Native Screens exposes per-edge `scrollEdgeEffects` for a screen. Do not paint a solid or translucent background under a bar instead of using it.
 
-Today: chat turns all edges `hidden` and fades with `edgeFade` because a transparent native header dims the inverted list (`DESIGN.md` → Chat header). Other screens keep the system default.
+Today: chat keeps the automatic top edge effect under a transparent native header; its list runs top to bottom because an inverted list under that header dims on iOS 26 (`DESIGN.md` → Chat header). Other screens keep the system default.
 
 ## Tab bars
 

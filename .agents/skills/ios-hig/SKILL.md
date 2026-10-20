@@ -43,7 +43,7 @@ Glass is the functional layer's material on iOS 26+. Its rules:
 - **Few custom surfaces.** System bars, sheets and menus get glass for free. Add `glassEffect` / `buttonStyle('glass')` by hand only to the few app-owned floating controls that need it (today: the tab island, the **+** button, drawer tabs and the drawer title capsule). Glass on glass muddies the hierarchy.
 - **Regular, not clear,** unless the surface floats over photos or video; clear glass over bright media may need a ~35% dark dimming layer.
 - **Colour sparingly.** Labels and symbols on glass stay monochrome; one prominent (tinted) action per view, coloured by its background, not its label. Keep the accent off most controls; selected tab, unread badge and the primary action are where it belongs. Check legibility at the resting scroll position.
-- **Separate controls from content with the scroll edge effect,** not a painted bar background. Leave it on its automatic style; use it only where content scrolls under floating controls; one per view. Our deliberate exception: the chat screen hides the native header and turns scroll edge effects off, using `edgeFade` instead (see `DESIGN.md`, Chat). Do not "fix" that without a Human decision.
+- **Separate controls from content with the scroll edge effect,** not a painted bar background. Leave it on its automatic style; use it only where content scrolls under floating controls; one per view. The chat screen uses the native transparent header with the automatic top edge effect over a top-to-bottom (not inverted) list; an inverted list under a transparent header dims on iOS 26 (see `DESIGN.md`, Chat).
 - **Fallbacks ship with the glass:** iOS < 26 → bordered/opaque `raised` surface; **Reduce Transparency** → opaque (follow `DrawerMaterial` in `src/ui/primitives/drawer-material.ios.tsx`); **Increase Contrast** → stronger edge; **Reduce Motion** → no morph; accessibility text sizes → an opaque rounded rectangle when text wraps inside a capsule.
 - **Hit targets** stay ≥ 44 × 44 pt however small the glass shape looks.
 
@@ -67,7 +67,7 @@ Lessons from a production Expo 58 app with iOS 26 glass (t3code; notes in `/mnt/
 - Tab bar: navigation only, always visible on top-level screens, labelled, never disabled.
 - Glass only on the functional layer; every glass surface has the iOS < 26, Reduce Transparency, Increase Contrast and large-text fallbacks.
 - At most one tinted primary action per view; labels on glass monochrome.
-- Scroll edge effect automatic, only under floating controls, one per view (chat's documented exception aside).
+- Scroll edge effect automatic, only under floating controls, one per view.
 - Drift from `DESIGN.md` named in the PR, not silently resolved.
 
 ## Keeping current
