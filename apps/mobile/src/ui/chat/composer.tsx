@@ -1,5 +1,5 @@
 import { TextInput } from '../primitives/system-text';
-import { useEffect, useRef, useState, type ComponentRef, type ReactNode, type Ref } from 'react';
+import { useRef, useState, type ComponentRef, type ReactNode, type Ref } from 'react';
 import {
   Image,
   Keyboard,
@@ -370,7 +370,7 @@ export function Composer({
   onSelection,
   inputRef,
   onFocusChange,
-  onExpandedChange,
+  onWrapsChange,
 }: {
   value: string;
   placeholder: string;
@@ -392,7 +392,7 @@ export function Composer({
   onSelection?(caret: number): void;
   inputRef?: Ref<ComposerInput>;
   onFocusChange?(focused: boolean): void;
-  onExpandedChange?(expanded: boolean): void;
+  onWrapsChange?(wraps: boolean): void;
 }) {
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
@@ -439,7 +439,6 @@ export function Composer({
     setMenu(!menu);
   };
   const expanded = theme.largeText || wraps;
-  useEffect(() => onExpandedChange?.(expanded), [expanded, onExpandedChange]);
   const stacked = composerStacked(actions, files.length, expanded);
   const icon = theme.type.title.line;
   const leading = held ? (
@@ -652,7 +651,11 @@ export function Composer({
               variant="body"
               accessibilityElementsHidden
               importantForAccessibility="no-hide-descendants"
-              onLayout={(event) => setWraps(event.nativeEvent.layout.height > textLine * 1.5)}
+              onLayout={(event) => {
+                const next = event.nativeEvent.layout.height > textLine * 1.5;
+                setWraps(next);
+                onWrapsChange?.(next);
+              }}
               style={{ position: 'absolute', opacity: 0, width: compactWidth, left: 0, top: 0 }}
             >
               {value === '' ? ' ' : value}
