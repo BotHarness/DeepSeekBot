@@ -1,13 +1,14 @@
 import { useId, type ReactNode } from 'react';
-import { Pressable, View } from 'react-native';
+import { Platform, Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 import { frosted, pressTint, useDesignTheme, type DesignTheme } from '../design/theme';
-import { edge, edgeFade, radius, space } from '../design/tokens';
+import { edge, radius, space } from '../design/tokens';
 import { DrawerMaterial, EdgeMaterial, useLiquidGlass } from '../primitives/drawer-material';
 import { ChevronLeftIcon } from '../shell/icons';
 import { t } from '../strings';
+import { edgeFadeStops } from './edge-fade';
 
 const ICON = 22;
 
@@ -71,6 +72,11 @@ export function headerGlassFill(theme: DesignTheme, glass: boolean, pressed: boo
   };
 }
 
+export function titleChipFill(theme: DesignTheme, pressed: boolean) {
+  if (Platform.OS === 'android') return headerGlassFill(theme, false, pressed);
+  return { backgroundColor: pressed ? theme.layer.raised.pressed : undefined };
+}
+
 export function HeaderBackButton({ onPress, plain }: { onPress(): void; plain?: boolean }) {
   const theme = useDesignTheme();
   return (
@@ -80,11 +86,22 @@ export function HeaderBackButton({ onPress, plain }: { onPress(): void; plain?: 
   );
 }
 
-export function EdgeFade({ edge: side, height }: { edge: 'top' | 'bottom'; height: number }) {
+export function EdgeFade({
+  edge: side,
+  height,
+  cover = 0,
+  color,
+}: {
+  edge: 'top' | 'bottom';
+  height: number;
+  cover?: number;
+  color?: string;
+}) {
   const theme = useDesignTheme();
   const glass = useLiquidGlass();
   const id = `fade-${useId().replace(/[^a-z0-9]/giu, '')}`;
   const top = side === 'top';
+  const stops = edgeFadeStops(height, cover);
   return (
     <View
       pointerEvents="none"
@@ -101,18 +118,15 @@ export function EdgeFade({ edge: side, height }: { edge: 'top' | 'bottom'; heigh
       ) : (
         <Svg width="100%" height="100%" preserveAspectRatio="none">
           <Defs>
-            <LinearGradient
-              id={id}
-              x1="0%"
-              y1={top ? '0%' : '100%'}
-              x2="0%"
-              y2={top ? '100%' : '0%'}
-            >
-              {edgeFade.stops.map((stop) => (
+            <LinearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+              {(top
+                ? stops
+                : stops.map((stop) => ({ ...stop, offset: 1 - stop.offset })).reverse()
+              ).map((stop) => (
                 <Stop
                   key={stop.offset}
                   offset={stop.offset}
-                  stopColor={theme.color.base}
+                  stopColor={color ?? theme.color.base}
                   stopOpacity={stop.opacity}
                 />
               ))}

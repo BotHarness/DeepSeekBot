@@ -9,5 +9,12 @@ export function useHeaderOverlap(): number {
   return Platform.OS === 'ios' ? height : 0;
 }
 
+export const floatingHeader = Platform.OS === 'android';
+
+export function useHeaderPadding(): number {
+  const height = useHeaderHeight();
+  return floatingHeader ? height : 0;
+}
+
 export const barLabelStyle: TextStyle =
   Platform.OS === 'ios' ? { color: PlatformColor('label') } : {};

@@ -5,6 +5,7 @@ import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { t } from '../strings';
+import { titleChipFill } from './header-chrome';
 import { barLabelStyle } from './native-header';
 import { GroupMark } from './group-mark';
 
@@ -38,7 +39,7 @@ export function ChannelTitle({
         paddingLeft: (theme.touch - MARK) / 2,
         paddingRight: theme.touch / 2,
         borderRadius: radius.round,
-        backgroundColor: pressed ? theme.layer.raised.pressed : undefined,
+        ...titleChipFill(theme, pressed),
       })}
     >
       <GroupMark avatar={channel?.avatar} size={MARK} corner={radius.round} />

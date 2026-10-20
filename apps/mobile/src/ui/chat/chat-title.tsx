@@ -6,6 +6,7 @@ import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { t } from '../strings';
+import { titleChipFill } from './header-chrome';
 import { barLabelStyle } from './native-header';
 
 const AVATAR = 28;
@@ -38,7 +39,7 @@ export function ChatTitle({
         paddingLeft: bot === undefined ? theme.touch / 2 : (theme.touch - AVATAR) / 2,
         paddingRight: theme.touch / 2,
         borderRadius: radius.round,
-        backgroundColor: pressed ? theme.layer.raised.pressed : undefined,
+        ...titleChipFill(theme, pressed),
       })}
     >
       {bot === undefined ? null : <BotAvatar bot={bot} size={AVATAR} ring={false} />}

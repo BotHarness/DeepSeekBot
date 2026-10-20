@@ -73,9 +73,15 @@ import { ChannelTitle } from './channel-title';
 import { ChatTitle } from './chat-title';
 import { Composer, type ComposerInput } from './composer';
 import { ClipboardImageOffer, useClipboardImage } from './clipboard-image';
-import { EdgeFade, HeaderBackButton } from './header-chrome';
+import { EdgeFade, HeaderBackButton, titleChipFill } from './header-chrome';
 import { ScrollEdgeElement, nativeScrollEdge } from '../primitives/scroll-edge-element';
-import { barLabelStyle, glassHeader, useHeaderOverlap } from './native-header';
+import {
+  barLabelStyle,
+  floatingHeader,
+  glassHeader,
+  useHeaderOverlap,
+  useHeaderPadding,
+} from './native-header';
 import { useFollowLatest } from './follow-latest';
 import { usePullToCompose } from './pull-to-compose';
 import { PullToComposeHint } from './pull-to-compose-hint';
@@ -104,7 +110,7 @@ import { QuestionCard } from './question-card';
 import { WorkingStatus } from './working-status';
 import { TimeSeparator } from './time-separator';
 import { AccentProvider, useDesignTheme } from '../design/theme';
-import { edgeFade, pullToCompose, space } from '../design/tokens';
+import { edgeFade, pullToCompose, radius, space } from '../design/tokens';
 import { OpenFullClientButton } from '../open-full-client';
 import { fullClientParams, type FullClientTarget } from '../../host/full-client';
 import { leaveScreen } from '../shell/leave-screen';
@@ -292,6 +298,7 @@ function ChatConversation({
   const theme = useDesignTheme();
   const router = useRouter();
   const headerOverlap = useHeaderOverlap();
+  const headerPadding = useHeaderPadding();
   const { width: windowWidth } = useWindowDimensions();
   const listSafeArea = useListBottomSafeArea();
   const { client, inbox, saved } = useHostSession();
@@ -347,7 +354,10 @@ function ChatConversation({
   const [mentions, setMentions] = useState<SelectedMention[]>([]);
   const [caret, setCaret] = useState(0);
   const [selection, setSelection] = useState<{ start: number; end: number }>();
-  const [allPreview, setAllPreview] = useState<{ key: string; preview: WireAllBotPreview }>();
+  const [allPreview, setAllPreview] = useState<{
+    key: string;
+    preview: WireAllBotPreview;
+  }>();
   const [files, setFiles] = useState<PickedFile[]>([]);
   const [attachError, setAttachError] = useState(false);
   const dictation = useDictation(setDraft);
@@ -723,6 +733,8 @@ function ChatConversation({
         minHeight: theme.touch,
         justifyContent: 'center',
         paddingHorizontal: theme.touch / 2,
+        borderRadius: radius.round,
+        ...titleChipFill(theme, false),
       }}
     >
       <Text strong numberOfLines={1} style={barLabelStyle}>
@@ -751,9 +763,11 @@ function ChatConversation({
         ? { kind: 'channel', channelId }
         : undefined;
   const trailing =
-    fullClient === undefined ? null : <OpenFullClientButton target={fullClient} bar />;
+    fullClient === undefined ? null : (
+      <OpenFullClientButton target={fullClient} bar plain={!floatingHeader} />
+    );
   const ios = Platform.OS === 'ios';
-  const back = <HeaderBackButton plain onPress={leave} />;
+  const back = <HeaderBackButton plain={!floatingHeader} onPress={leave} />;
   const titleItem = (
     <View style={{ maxWidth: windowWidth - (theme.touch + space.x5) * 3 }}>{title}</View>
   );
@@ -785,13 +799,16 @@ function ChatConversation({
                         ? t.dictationFailed
                         : undefined;
 
+  const listTop = notice === undefined ? headerPadding : 0;
+  const fadeColor = background.kind === 'color' ? background.color : theme.color.base;
+
   return (
     <>
       <Stack.Screen
         options={{
           headerShown: true,
-          headerTransparent: ios,
-          headerStyle: ios ? {} : { backgroundColor: theme.color.base },
+          headerTransparent: ios || floatingHeader,
+          headerStyle: ios || floatingHeader ? {} : { backgroundColor: theme.color.base },
           headerShadowVisible: false,
           headerBackButtonDisplayMode: 'minimal',
           ...(ios && !glassHeader ? { headerBlurEffect: 'systemChromeMaterial' as const } : {}),
@@ -834,7 +851,7 @@ function ChatConversation({
                 headerTitleAlign: 'left' as const,
                 headerTitle: () => title,
                 headerRight: () => trailing,
-                ...(canGoBack ? {} : { headerLeft: () => back }),
+                ...(canGoBack && !floatingHeader ? {} : { headerLeft: () => back }),
               }),
         }}
       />
@@ -913,7 +930,7 @@ function ChatConversation({
         {notice === undefined ? null : (
           <View
             style={{
-              marginTop: headerOverlap,
+              marginTop: headerOverlap + headerPadding,
               backgroundColor: theme.color.warningSoft,
               paddingHorizontal: space.x5,
               paddingVertical: space.x3,
@@ -978,7 +995,7 @@ function ChatConversation({
                     viewportHeight - (notice === undefined ? headerOverlap : 0),
                   ),
                   justifyContent: 'flex-end',
-                  paddingTop: space.x3,
+                  paddingTop: space.x3 + listTop,
                   paddingBottom: composerHeight + edgeFade.bottom,
                 }}
                 data={rows}
@@ -1056,8 +1073,20 @@ function ChatConversation({
               />
             </SpeakerStageContext.Provider>
           </MarkdownViewportContext.Provider>
+          {listTop > 0 ? (
+            <EdgeFade
+              edge="top"
+              height={listTop + edgeFade.top}
+              cover={listTop}
+              color={fadeColor}
+            />
+          ) : null}
           {nativeScrollEdge ? null : (
-            <EdgeFade edge="bottom" height={composerHeight + edgeFade.bottom} />
+            <EdgeFade
+              edge="bottom"
+              height={composerHeight + edgeFade.bottom}
+              {...(floatingHeader ? { cover: composerHeight, color: fadeColor } : {})}
+            />
           )}
           {composable && Platform.OS === 'ios' ? (
             <PullToComposeHint
