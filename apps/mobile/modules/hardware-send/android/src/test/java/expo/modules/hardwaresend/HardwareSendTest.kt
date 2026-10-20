@@ -59,4 +59,11 @@ class HardwareSendTest {
     echo.clear()
     assertNull(echo.echoed(enterKey, now = 2_010))
   }
+
+  @Test fun onlyASingleTypedNewlineCountsAsAnInputMethodEnter() {
+    assertTrue(insertedNewline("hi\n", start = 2, before = 0, count = 1))
+    assertFalse(insertedNewline("hi\nthere", start = 2, before = 0, count = 7))
+    assertFalse(insertedNewline("hb", start = 1, before = 0, count = 1))
+    assertFalse(insertedNewline("h\n", start = 1, before = 1, count = 1))
+  }
 }

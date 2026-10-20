@@ -2,7 +2,12 @@ package expo.modules.hardwaresend
 
 import android.content.Context
 import android.os.SystemClock
+import android.text.Editable
+import android.text.TextWatcher
 import android.view.KeyEvent
+import android.view.View
+import android.view.ViewTreeObserver
+import android.widget.EditText
 import expo.modules.kotlin.AppContext
 import expo.modules.kotlin.viewevent.EventDispatcher
 import expo.modules.kotlin.views.ExpoView
@@ -17,6 +22,9 @@ internal fun sendsOnKey(keyCode: Int, meta: Int, enter: Boolean, soft: Boolean):
 
 internal fun fromSoftKeyboard(event: KeyEvent): Boolean =
   event.flags and KeyEvent.FLAG_SOFT_KEYBOARD != 0 || event.device?.isVirtual == true
+
+internal fun insertedNewline(text: CharSequence, start: Int, before: Int, count: Int): Boolean =
+  before == 0 && count == 1 && start < text.length && text[start] == '\n'
 
 internal class ImeEcho(private val window: Long) {
   private var meta = 0
@@ -62,6 +70,59 @@ class HardwareSendView(context: Context, appContext: AppContext) : ExpoView(cont
     if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) onSend(mapOf<String, Any>())
     if (event.action == KeyEvent.ACTION_UP) echo.clear()
     return true
+  }
+
+  private var watched: EditText? = null
+  private var newline = -1
+
+  private val watcher = object : TextWatcher {
+    override fun beforeTextChanged(text: CharSequence, start: Int, count: Int, after: Int) = Unit
+
+    override fun onTextChanged(text: CharSequence, start: Int, before: Int, count: Int) {
+      if (!sending || !insertedNewline(text, start, before, count)) return
+      val meta = echo.echoed(KeyEvent.KEYCODE_ENTER, SystemClock.uptimeMillis()) ?: return
+      if (sendsOnKey(KeyEvent.KEYCODE_ENTER, meta, enter, false)) newline = start
+    }
+
+    override fun afterTextChanged(text: Editable) {
+      val at = newline
+      if (at < 0) return
+      newline = -1
+      echo.clear()
+      if (at < text.length && text[at] == '\n') text.delete(at, at + 1)
+      onSend(mapOf<String, Any>())
+    }
+  }
+
+  private val focus = ViewTreeObserver.OnGlobalFocusChangeListener { _, next -> watch(next) }
+
+  private fun watch(next: View?) {
+    val field = (next as? EditText)?.takeIf { isAncestorOf(it) }
+    if (field === watched) return
+    watched?.removeTextChangedListener(watcher)
+    watched = field
+    field?.addTextChangedListener(watcher)
+  }
+
+  private fun isAncestorOf(view: View): Boolean {
+    var parent = view.parent
+    while (parent != null) {
+      if (parent === this) return true
+      parent = parent.parent
+    }
+    return false
+  }
+
+  override fun onAttachedToWindow() {
+    super.onAttachedToWindow()
+    viewTreeObserver.addOnGlobalFocusChangeListener(focus)
+    watch(findFocus())
+  }
+
+  override fun onDetachedFromWindow() {
+    viewTreeObserver.removeOnGlobalFocusChangeListener(focus)
+    watch(null)
+    super.onDetachedFromWindow()
   }
 
   override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {

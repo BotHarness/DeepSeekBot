@@ -72,6 +72,20 @@ describe('share to Bot', () => {
     ]);
   });
 
+  it('names a shared file after its type when the gallery gives only a media id', () => {
+    const share = incomingShare([
+      payload({
+        value: 'content://media/1000044168',
+        shareType: 'image',
+        contentUri: 'content://media/1000044168',
+        contentType: 'image',
+        contentMimeType: 'image/jpeg',
+        originalName: '1000044168',
+      }),
+    ]);
+    expect(share.files[0]?.name).toMatch(/^shared-\d+\.jpe?g$/u);
+  });
+
   it('caps attachments at the composer limit', () => {
     const many = Array.from({ length: 12 }, (_, index) =>
       payload({

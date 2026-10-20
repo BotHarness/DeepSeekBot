@@ -5,6 +5,10 @@ import { sourceDrafts } from '../../host/native-source-drafts';
 
 export type IncomingShare = { text: string; files: PickedFile[] };
 
+export function fileName(name: string | null): string | null {
+  return name !== null && /\.[^./\s]+$/u.test(name) ? name : null;
+}
+
 export function incomingShare(payloads: readonly ResolvedSharePayload[]): IncomingShare {
   const text: string[] = [];
   const files: PickedFile[] = [];
@@ -18,7 +22,9 @@ export function incomingShare(payloads: readonly ResolvedSharePayload[]): Incomi
       payload.contentType !== 'text';
     if (attachment) {
       if (files.length < MAX_PICKED)
-        files.push(fromSharedFile(uri, payload.originalName, payload.contentMimeType ?? null));
+        files.push(
+          fromSharedFile(uri, fileName(payload.originalName), payload.contentMimeType ?? null),
+        );
     } else if (payload.value.trim() !== '') text.push(payload.value.trim());
   }
   return { text: text.join('\n'), files };
