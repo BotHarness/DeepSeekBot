@@ -9,7 +9,7 @@ class HardwareSendModule : Module() {
     Name("HardwareSend")
     View(HardwareSendView::class) {
       Events("onSend")
-      Prop("enabled") { view: HardwareSendView, value: Boolean -> view.enabled = value }
+      Prop("enabled") { view: HardwareSendView, value: Boolean -> view.sending = value }
       Prop("enter") { view: HardwareSendView, value: Boolean -> view.enter = value }
       GroupView<HardwareSendView> {
         AddChildView { parent: HardwareSendView, child: View, index: Int -> parent.addView(child, index) }

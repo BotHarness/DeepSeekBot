@@ -18,12 +18,12 @@ internal fun fromSoftKeyboard(event: KeyEvent): Boolean =
   event.flags and KeyEvent.FLAG_SOFT_KEYBOARD != 0 || event.device?.isVirtual == true
 
 class HardwareSendView(context: Context, appContext: AppContext) : ExpoView(context, appContext) {
-  var enabled = false
+  var sending = false
   var enter = false
   private val onSend by EventDispatcher()
 
   override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-    if (!enabled || !sendsOnKey(event.keyCode, event.metaState, enter, fromSoftKeyboard(event))) {
+    if (!sending || !sendsOnKey(event.keyCode, event.metaState, enter, fromSoftKeyboard(event))) {
       return super.dispatchKeyEvent(event)
     }
     if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) onSend(mapOf<String, Any>())
