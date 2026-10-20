@@ -25,7 +25,7 @@ The Human chose this direction on 2026-10-20: **an account only discovers Hosts 
 1. **Auto-connect.** A signed-in phone connects without a step on the computer. Every new device triggers a notice on the computer and on the other paired phones with one-tap revoke. MFA or a passkey is recommended to the Human but not required. The accepted risk: a paired device has full Host authority, so a stolen account is enough to reach a Host that has Connect enabled.
 2. **WorkOS environment.** Reuse TOB's environment. Connect still does not depend on TOB cloud Channels being enabled.
 3. **Relay location.** A new Worker in this repository, so Connect works without a TOB deployment and its protocol is visible to self-hosters.
-4. **Mainland China gate.** Before any Connect code ships, a manual spike with one hand-made tunnel measures pairing and DM reachability from China Mobile, China Unicom and China Telecom networks and outbound port 7844 from common computer setups. If the spike fails, this ADR still governs the account and pairing design, and a domestic relay is a separate decision; moving to a Durable Object relay on Cloudflare would not fix it.
+4. **Mainland China later.** Connection convenience is the priority, so implementation does not wait on mainland China. Connect is built and qualified outside mainland China first. A tester in mainland China later checks pairing and DM reachability on China Mobile, China Unicom and China Telecom networks and outbound port 7844 from common computer setups. If that fails, this ADR still governs the account and pairing design, and a domestic relay is a separate decision; moving to a Durable Object relay on Cloudflare would not fix it.
 
 ## Considered options
 
@@ -42,7 +42,7 @@ The Human chose this direction on 2026-10-20: **an account only discovers Hosts 
 
 ## First tracer bullet
 
-After the mainland China spike passes: one isolated Host and the iOS Simulator, against a test Cloudflare account and a WorkOS staging environment: sign in on the Host with CLI Auth, enable Connect, the relay provisions a tunnel limited to the gateway path, the phone signs in, lists the Host, pairs through the account, and opens a DM over the Connect route; then revoke the phone, disable Connect and check the tunnel is gone.
+One isolated Host and the iOS Simulator, against a test Cloudflare account and a WorkOS staging environment: sign in on the Host with CLI Auth, enable Connect, the relay provisions a tunnel limited to the gateway path, the phone signs in, lists the Host, pairs through the account, and opens a DM over the Connect route; then revoke the phone, disable Connect and check the tunnel is gone.
 
 ## Consequences
 
