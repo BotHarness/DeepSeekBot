@@ -58,7 +58,7 @@
     },
     {
       "id": "device-pairing",
-      "description": "Device list, offers, revoke and paired-device gateway authorization; the hosted Connect tunnel route has connect-status/enable/disable.",
+      "description": "Device list, offers, revoke and paired-device gateway authorization; the hosted Connect tunnel route has connect-status/enable/disable/sign-in/sign-out.",
       "scope": "Profile",
       "surfaces": [
         "route:packages/core/src/devices/mount.ts:path in [ [DEVICES_PATH, ['GET']], [`${DEVICES_PATH}/offer`, ['POST']], [`${DEVICES_PATH}/revoke`, ['POST']], [`${DEVICES_PATH}/connect`, ['POST']], ] as const",

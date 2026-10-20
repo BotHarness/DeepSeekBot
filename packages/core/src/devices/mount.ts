@@ -15,6 +15,7 @@ import {
   DEVICE_SIGNALING_PATHS,
   DEVICE_WEB_MUX_PATH,
 } from './gateway.js';
+import { createConnectAccount } from './connect-account.js';
 import { createDeviceConnect } from './connect.js';
 import { createDevicesHttp, DEVICES_PATH } from './http.js';
 import { createDevicePairing, type DevicePairingEvent } from './pairing.js';
@@ -157,9 +158,17 @@ export function mountDevicePairing(
       record: (phase, info) =>
         write('device-connect', phase, `device-connect phase=${phase}${info ? ` ${info}` : ''}`),
     });
+    const account = createConnectAccount({
+      credentials: options.credentials ?? (() => undefined),
+      connect,
+      record: (phase, info) =>
+        write('device-connect', phase, `device-connect phase=${phase}${info ? ` ${info}` : ''}`),
+    });
     webCtx.effect(() => {
-      void connect.start();
-      return () => void connect.close();
+      void connect.start().then(() => account.start());
+      return () => {
+        void account.close().then(() => connect.close());
+      };
     }, 'botharness: device connect tunnel');
     const routes = async () => {
       const status = await detectPhoneRoutes({ port: webServer.port });
@@ -169,7 +178,7 @@ export function mountDevicePairing(
       const others = status.routes.filter((route) => route.kind !== 'loopback');
       return { ...status, routes: [...others, tunnel, ...loopback] };
     };
-    const http = createDevicesHttp({ pairing, routes, connect });
+    const http = createDevicesHttp({ pairing, routes, connect, account });
     for (const [path, methods] of [
       [DEVICES_PATH, ['GET']],
       [`${DEVICES_PATH}/offer`, ['POST']],

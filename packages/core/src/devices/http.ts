@@ -1,5 +1,6 @@
 import { encode } from 'uqr';
 
+import type { AccountStatus, ConnectAccount } from './connect-account.js';
 import type { ConnectStatus, DeviceConnect } from './connect.js';
 import type { DevicePairing, HostIdentity, PairedDevice } from './pairing.js';
 import { phoneRoute, type PhoneRoute, type RouteStatus } from './routes.js';
@@ -24,7 +25,7 @@ export interface DevicesSnapshot {
   host: HostIdentity;
   devices: PairedDevice[];
   routes: RouteStatus;
-  connect: ConnectStatus;
+  connect: ConnectStatus & { account?: AccountStatus };
 }
 
 export interface PairingOfferView {
@@ -87,8 +88,9 @@ export function createDevicesHttp(options: {
   pairing: DevicePairing;
   routes: () => Promise<RouteStatus>;
   connect?: DeviceConnect;
+  account?: ConnectAccount;
 }): (request: Request) => Promise<Response> {
-  const { pairing, connect } = options;
+  const { pairing, connect, account } = options;
   return async (request) => {
     const path = new URL(request.url).pathname;
     if (request.method === 'GET' && path === DEVICES_PATH) {
@@ -96,7 +98,10 @@ export function createDevicesHttp(options: {
         host: pairing.host(),
         devices: pairing.list(),
         routes: await options.routes(),
-        connect: connect?.status() ?? { state: 'off' },
+        connect: {
+          ...(connect?.status() ?? { state: 'off' }),
+          ...(account === undefined ? {} : { account: account.status() }),
+        },
       };
       return json(snapshot);
     }
@@ -132,6 +137,15 @@ export function createDevicesHttp(options: {
     }
     if (request.method === 'POST' && path === `${DEVICES_PATH}/connect` && connect !== undefined) {
       const input = await body(request);
+      if (
+        account !== undefined &&
+        (input['action'] === 'sign-in' || input['action'] === 'sign-out')
+      ) {
+        const signed =
+          input['action'] === 'sign-in' ? await account.signIn() : await account.signOut();
+        if (signed.ok) return json(signed.status);
+        return json({ code: signed.code }, 503);
+      }
       const result =
         input['action'] === 'enable'
           ? await connect.enable({

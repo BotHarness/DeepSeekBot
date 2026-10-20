@@ -12,10 +12,20 @@ export const CONNECT_COMMANDS = [
     command: 'connect-disable',
     description: 'stop the Connect tunnel and forget its token',
   },
+  {
+    command: 'connect-sign-in',
+    description:
+      'sign this Host in to a WorkOS account so the relay provisions its tunnel (--wait)',
+  },
+  {
+    command: 'connect-sign-out',
+    description: 'unlink this Host from its account, stop the tunnel and forget the session',
+  },
 ] as const;
 export const CONNECT_OPTIONS = {
   hostname: { type: 'string' },
   'token-stdin': { type: 'boolean' },
+  wait: { type: 'boolean' },
 } as const;
 const DEVICES = '/api/botharness/devices';
 export function isConnectCommand(command: string): boolean {
@@ -24,14 +34,17 @@ export function isConnectCommand(command: string): boolean {
 export async function runConnectCommand(
   command: string,
   rest: string[],
-  values: { hostname?: string; 'token-stdin'?: boolean },
-  io: { readStdin?: () => Promise<string> },
+  values: { hostname?: string; 'token-stdin'?: boolean; wait?: boolean },
+  io: { readStdin?: () => Promise<string>; stderr?: (text: string) => void },
   connect: () => Promise<{
     http(path: string, body?: Record<string, unknown>): Promise<{ bytes: Uint8Array }>;
   }>,
+  sleep: (ms: number) => Promise<void> = (ms) => new Promise((done) => setTimeout(done, ms)),
 ): Promise<unknown> {
   const enable = command === 'connect-enable';
   if (rest.length) throw new CliLiveError('usage', `${command} takes no positional arguments.`);
+  if (values.wait && command !== 'connect-sign-in')
+    throw new CliLiveError('usage', '--wait requires connect-sign-in.');
   if (!enable && (values.hostname !== undefined || values['token-stdin']))
     throw new CliLiveError('usage', '--hostname and --token-stdin require connect-enable.');
   let token = '';
@@ -46,6 +59,29 @@ export async function runConnectCommand(
   if (command === 'connect-status') {
     const snapshot = decode((await host.http(DEVICES)).bytes) as Record<string, unknown>;
     return { connect: snapshot['connect'], routes: snapshot['routes'] };
+  }
+  if (command === 'connect-sign-in' || command === 'connect-sign-out') {
+    const started = decode(
+      (
+        await host.http(`${DEVICES}/connect`, {
+          action: command === 'connect-sign-in' ? 'sign-in' : 'sign-out',
+        })
+      ).bytes,
+    ) as Record<string, unknown>;
+    if (!values.wait || started['state'] !== 'signing-in') return started;
+    io.stderr?.(
+      `Open ${String(started['verificationUri'])} and confirm code ${String(started['userCode'])}\n`,
+    );
+    const deadline = Date.parse(String(started['expiresAt'])) || Date.now() + 300_000;
+    for (;;) {
+      await sleep(3_000);
+      const snapshot = decode((await host.http(DEVICES)).bytes) as {
+        connect?: { account?: Record<string, unknown> };
+      };
+      const account = snapshot.connect?.account;
+      if (account?.['state'] !== 'signing-in' || Date.now() > deadline)
+        return { connect: snapshot.connect };
+    }
   }
   return decode(
     (
