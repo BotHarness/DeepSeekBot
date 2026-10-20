@@ -80,13 +80,18 @@ export const notificationAvatars = createNotificationAvatars({
     } catch {}
   },
   report(host, errors) {
+    const status: Record<string, unknown> = { host, at: new Date().toISOString(), errors };
     try {
-      const status = { at: new Date().toISOString(), errors };
+      status.root = root()?.uri ?? 'unavailable';
       const dir = hostDir(host);
-      try {
-        if (dir !== undefined) return writeJson(dir, STATUS, status);
-      } catch {}
-      writeJson(Paths.document, `notification-avatars-${STATUS}`, { host, ...status });
+      if (dir !== undefined) writeJson(dir, STATUS, status);
+    } catch (error) {
+      status.write = error instanceof Error ? error.message : String(error);
+    }
+    if (Object.keys(errors).length > 0 || status.write !== undefined)
+      console.warn('notification avatars', status);
+    try {
+      writeJson(Paths.document, `notification-avatars-${STATUS}`, status);
     } catch {}
   },
 });
