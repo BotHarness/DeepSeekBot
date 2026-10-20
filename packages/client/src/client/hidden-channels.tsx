@@ -26,7 +26,6 @@ export interface HiddenChannelsModalProps {
 
 export const HIDDEN_CHANNEL_SEARCH_DEBOUNCE_MS = 180;
 
-/** DMs of deleted PersonaBots leave the roster; their history stays readable from here. */
 export function deletedBotDmIds(
   channels: readonly ChannelSummary[],
   bots: readonly BotSummary[],

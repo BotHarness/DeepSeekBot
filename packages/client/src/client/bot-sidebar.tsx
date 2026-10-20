@@ -1028,7 +1028,6 @@ export function BotSidebar({
   const menuBotSlug = state.channels.find(
     (candidate) => candidate.id === channelMenu?.channelId && candidate.type === 'dm',
   )?.botSlug;
-  // A deleted Bot keeps its DM history but has no model settings to load or change.
   const menuModelSlug = state.bots.some((bot) => bot.slug === menuBotSlug && bot.deleted !== true)
     ? menuBotSlug
     : undefined;

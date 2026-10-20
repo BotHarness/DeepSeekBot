@@ -1068,7 +1068,6 @@ function ConversationView({
   const dockPanelList = registeredDockPanels ?? dockEntryPanels;
   const dockChannelContext = resolveChannelSidebarContext(state);
   const dockChannelSummary = dockChannelContext?.channel;
-  // A deleted Bot's DM is read-only history: it keeps Sessions but no Bot-bound panels.
   const dockBotDeleted = state.bots.some(
     (candidate) => candidate.slug === dockChannelContext?.botSlug && candidate.deleted === true,
   );

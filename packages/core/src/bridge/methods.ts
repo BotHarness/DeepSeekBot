@@ -6349,9 +6349,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       let memoryActivity: Array<{ at: string }> = [];
       try {
         memoryActivity = deps.memory?.activity?.(slug, since) ?? [];
-      } catch {
-        // A deleted Bot may have had its Memory erased; its other history still shows.
-      }
+      } catch {}
       const commits = beforeEnd(memoryActivity);
       const usageRows = (deps.usage?.activity(slug, since) ?? []).filter(
         (row) => before === undefined || row.day < before,

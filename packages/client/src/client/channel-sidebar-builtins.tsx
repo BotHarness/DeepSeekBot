@@ -1074,7 +1074,6 @@ function SessionsHeaderWithSettings({
   targetId: string | undefined;
 }): ReactElement {
   const { actions, t } = props;
-  // A deleted Bot keeps its Sessions history but has no model settings to read or change.
   const botDeleted = useClientState().bots.some(
     (bot) => bot.slug === props.botSlug && bot.deleted === true,
   );
