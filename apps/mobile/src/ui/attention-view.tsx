@@ -16,8 +16,10 @@ import { t } from './strings';
 
 function Page({ children }: { children: ReactNode }) {
   const theme = useDesignTheme();
+  const button = Math.max(theme.touch, theme.type.body.line * theme.fontScale + space.x6);
   return (
     <KeyboardFormScroll
+      bottomOffset={button + space.x4 + space.x5 * 2 + space.x3}
       contentInsetAdjustmentBehavior="automatic"
       contentContainerStyle={{ paddingVertical: space.x5, gap: space.x5 }}
       style={{ backgroundColor: theme.layer.canvas.fill }}

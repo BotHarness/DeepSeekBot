@@ -165,7 +165,12 @@ describe('DM conversation', () => {
         id: 'ask-tool',
         author: bot,
         body: '请求批准执行 bash',
-        toolApprovalRequest: { toolName: 'bash', role: 'orchestrator', cwd: '/w', input: '{}' },
+        toolApprovalRequest: {
+          toolName: 'bash',
+          role: 'orchestrator',
+          cwd: '/w',
+          input: '{"command":"ls /w"}',
+        },
       } as never);
       channel.append({
         id: 'tool-decided',
@@ -186,7 +191,12 @@ describe('DM conversation', () => {
       } as never);
       const live = await until(open(host), (snapshot) => snapshot.status === 'live');
       const [tool, decided, ask, cancelled] = live.messages;
-      expect(tool?.card).toEqual({ kind: 'tool-approval', channelId: DM, subject: 'bash' });
+      expect(tool?.card).toEqual({
+        kind: 'tool-approval',
+        channelId: DM,
+        subject: 'bash',
+        command: 'ls /w',
+      });
       expect(decided?.resolves).toEqual({
         requestId: 'ask-tool',
         resolution: { kind: 'tool-approval', outcome },

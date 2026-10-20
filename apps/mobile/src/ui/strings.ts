@@ -431,7 +431,7 @@ const en = {
   filterEmpty: 'Nothing here.',
   sectionCount: (label: string, count: number) => `${label} · ${count}`,
   openPost: (kind: string, name: string, summary: string) =>
-    `${kind}, ${name}, ${summary}. Open in chat`,
+    `${[kind, name, summary].filter((part) => part !== '').join(', ')}. Open in chat`,
   inboxLoading: 'Reading your Inbox…',
   inboxStale: 'Showing the last Inbox read. It could not be refreshed:',
   inboxFailed: 'Could not read your Inbox.',
@@ -638,7 +638,6 @@ const en = {
   toolCategory: (tool: string) =>
     ({ shell: 'Terminal', browser: 'Browser', files: 'Files', other: 'Tool' })[toolGroup(tool)],
   runTool: (tool: string) => (toolGroup(tool) === 'shell' ? 'Run this command' : `Use ${tool}`),
-  requestsApproval: (tool: string) => `Requests approval to run ${tool}`,
   replyInChat: 'Or reply in the chat below.',
   option: (letter: string, label: string) => `${letter}. ${label}`,
   cardOutcome: {
@@ -1502,7 +1501,7 @@ const zh: typeof en = {
   filterEmpty: '这里没有内容。',
   sectionCount: (label: string, count: number) => `${label} · ${count}`,
   openPost: (kind: string, name: string, summary: string) =>
-    `${kind}，${name}，${summary}。在聊天中打开`,
+    `${[kind, name, summary].filter((part) => part !== '').join('，')}。在聊天中打开`,
   inboxLoading: '正在读取收件箱…',
   inboxStale: '显示的是上次读取的收件箱，刷新失败：',
   inboxFailed: '无法读取收件箱。',
@@ -1697,7 +1696,6 @@ const zh: typeof en = {
   toolCategory: (tool: string) =>
     ({ shell: '终端', browser: '浏览器', files: '文件', other: '工具' })[toolGroup(tool)],
   runTool: (tool: string) => (toolGroup(tool) === 'shell' ? '运行这条命令' : `使用 ${tool}`),
-  requestsApproval: (tool: string) => `请求批准执行 ${tool}`,
   replyInChat: '或者在下方聊天中回复。',
   option: (letter: string, label: string) => `${letter}. ${label}`,
   cardOutcome: {

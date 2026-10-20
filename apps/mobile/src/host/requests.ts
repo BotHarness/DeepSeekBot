@@ -1,3 +1,4 @@
+import { approvalShellCommand } from '../../../../packages/client/src/client/approval-diff';
 import {
   approveWorkspaceRequest,
   listHostFolders,
@@ -350,6 +351,10 @@ export function secretCommand(toolName: string, input: string): string | undefin
     ? args.filter((arg): arg is string => typeof arg === 'string')
     : [];
   return [program, ...words].map(shellWord).join(' ');
+}
+
+export function approvalCommand(toolName: string, input: string): string | undefined {
+  return approvalShellCommand(toolName, input)?.command ?? secretCommand(toolName, input);
 }
 
 const PREVIEW_FIELDS = ['command', 'cmd', 'script', 'code', 'url', 'path', 'file_path'];

@@ -256,6 +256,7 @@ const RequestCard = memo(function RequestCard({
       <ApprovalCard
         port={approval}
         {...subject}
+        {...(card.command === undefined ? {} : { command: card.command })}
         {...(resolution?.kind === 'tool-approval' ? { resolution } : {})}
         decidedHere={handledHere(ref)}
         focused={focused}

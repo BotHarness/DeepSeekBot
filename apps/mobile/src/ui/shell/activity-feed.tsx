@@ -78,7 +78,7 @@ const SUMMARY_PREVIEW_LIMIT = 512;
 
 function itemSummary(item: HumanAttentionItem): string {
   const tool = item.kind === 'tool-approval' ? approvalSummaryTool(item.summary) : undefined;
-  return tool === undefined ? item.summary : t.requestsApproval(tool);
+  return tool === undefined ? item.summary : t.runTool(tool);
 }
 
 function summaryPreview(summary: string): string {

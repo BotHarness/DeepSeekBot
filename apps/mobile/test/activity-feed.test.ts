@@ -347,14 +347,14 @@ describe('Activity feed', () => {
     expect(post(view, approval)!.textContent).not.toContain('请求批准执行');
     expect(
       post(view, approval)!.querySelector('[role=button]')!.getAttribute('aria-label'),
-    ).toContain('Requests approval to run secret_cli');
+    ).toContain(t.runTool('secret_cli'));
     await press(button(view, t.activityOptions));
     await press(button(view, t.inboxSections.handled));
     await press(button(view, t.cancel));
     const row = view.querySelector<HTMLElement>('[data-testid="inbox-row-handled:e7"]')!;
-    expect(row.textContent).toContain('Requests approval to run secret_cli');
+    expect(row.textContent).toContain(t.runTool('secret_cli'));
     expect(row.textContent).not.toContain('请求批准执行');
-    expect(row.getAttribute('aria-label')).toContain('Requests approval to run secret_cli');
+    expect(row.getAttribute('aria-label')).toContain(t.runTool('secret_cli'));
   });
   it('preserves the search when editing ends and options reset', async () => {
     const fake = host();
