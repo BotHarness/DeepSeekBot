@@ -48,17 +48,17 @@ const styles = stylex.create({
     display: 'flex',
     alignItems: 'center',
     gap: space.x2,
-    paddingTop: '22px',
+    paddingTop: space.x6,
     paddingBottom: 0,
-    paddingInline: `${space.x6} 14px`,
+    paddingInline: `${space.x6} ${space.x4}`,
   },
   title: {
     flexGrow: 1,
     minWidth: 0,
     margin: 0,
     color: color.fg,
-    fontSize: '16px',
-    lineHeight: '24px',
+    fontSize: text.titleSize,
+    lineHeight: text.titleLine,
     fontWeight: text.strong,
   },
   install: { color: { default: color.accent, ':hover': color.accent } },
@@ -88,7 +88,7 @@ const styles = stylex.create({
     gap: space.x3,
     paddingInline: space.x6,
   },
-  site: { marginRight: 'auto' },
+  spacer: { flexGrow: 1 },
 });
 
 export function releaseUpdateCommand(version: string, profile = RELEASE_UPDATE_PROFILE): string {
@@ -377,13 +377,10 @@ function UpgradeNotice({
         ) : null}
       </div>
       <div {...stylex.props(styles.footer)}>
-        <Button
-          variant="outline"
-          className={stylex.props(styles.site).className ?? ''}
-          onClick={() => openSite(t)}
-        >
+        <Button variant="outline" onClick={() => openSite(t)}>
           {t('releaseNotes.site')}
         </Button>
+        <span {...stylex.props(styles.spacer)} />
         <Button variant="outline" disabled={installing} onClick={close}>
           {t('release.notice.later')}
         </Button>
