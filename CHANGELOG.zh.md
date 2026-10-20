@@ -10,12 +10,13 @@
 
 ## [1.4.1] - 2026-10-20
 
-Bot 模式可以按自己的喜好设置主题、半透明面板和壁纸库；`/compact` 与空闲压缩让长对话保持轻快；快速搜索能直达任意设置项；Memory 支持预览图片和 Markdown；审批更简单，并修复了 Windows Desktop、活动中心和缩放相关问题。
+首次进入 Bot 模式时由托布五步引导上手；Bot 模式可以按自己的喜好设置主题、半透明面板和壁纸库；`/compact` 与空闲压缩让长对话保持轻快；快速搜索能直达任意设置项；Memory 支持预览图片和 Markdown；审批更简单，并修复了 Windows Desktop、活动中心和缩放相关问题。
 
 下方的手机应用条目属于独立版本的移动端 Beta；本次 npm 发布不包含手机应用。
 
 ### Added
 
+- 第一次进入 Bot 模式时，托布会用五步引导帮你选好颜色模式、主题色、壁纸和默认模型（进阶里可以单独设置执行模型），展示社区入口、用户评价和创始人寄语，最后直接开始和托布的第一次对话。桌宠会在打开 Bot 模式时从上方掉下来，引导期间先隐藏。匿名使用统计新增引导各步骤的浏览、跳过和完成情况以及教程操作，不含输入的文字或模型名称（[#2361](https://github.com/BotHarness/DeepSeekBot/pull/2361)）。
 - 界面设置为 Bot 模式提供独立的浅色、深色或跟随系统主题，可选经典蓝、雾紫、森林绿或暖琥珀配色，并为每种模式设置主色；面板标题栏和内容区可调底色、不透明度与模糊，也可从面板标题栏菜单单独覆盖；壁纸库支持图片（最大 20 MB）和静音循环视频（最大 100 MB），可调整取景、自动切换和随机顺序。首次设置壁纸时，未调整过的面板会变为半透明；恢复入口可清除当前模式的面板覆盖，或确认后恢复全部默认并移除壁纸。外观只保存在这台设备上，不改变 DSH 主题，定向 CLI 也能完成同样操作（[#2258](https://github.com/BotHarness/DeepSeekBot/issues/2258)、[#2259](https://github.com/BotHarness/DeepSeekBot/issues/2259)、[#2260](https://github.com/BotHarness/DeepSeekBot/issues/2260)、[#2261](https://github.com/BotHarness/DeepSeekBot/issues/2261)、[#2262](https://github.com/BotHarness/DeepSeekBot/issues/2262)、[#2263](https://github.com/BotHarness/DeepSeekBot/issues/2263)、[#2264](https://github.com/BotHarness/DeepSeekBot/issues/2264)、[#2362](https://github.com/BotHarness/DeepSeekBot/pull/2362)、[设置指南](docs/settings.md#appearance-and-wallpaper)）。
 - 可随时压缩 Bot 的主会话：在私聊输入框输入 `/compact`、在 IM 私聊发送 `/compact`（`/压缩`），或运行 `deepseekbot bot-compact <bot-id>`；完成后显示压缩前后的 token 数，Bot 正在工作时拒绝执行（[#2332](https://github.com/BotHarness/DeepSeekBot/issues/2332)、[设置指南](docs/settings.md#context-compaction)）。
 - 新增空闲压缩：Bot 安静下来后，趁模型提示缓存还在（缓存寿命的一半，最少 15 分钟；DeepSeek 在观测到实际数据前按 2 小时估计）压缩它的主会话，下一条消息要重读的上下文更短。默认开启，可在 Bot 设置 → 模型与运行 中关闭；聊天里不显示，每次都记录在 Bot 活动中，也可用 `deepseekbot idle-compaction`、`idle-compaction-set` 和 `idle-compaction-cache-set` 操作（[#2310](https://github.com/BotHarness/DeepSeekBot/issues/2310)、[CLI 指南](docs/bot-cli.md#idle-compaction)）。
@@ -31,7 +32,7 @@ Bot 模式可以按自己的喜好设置主题、半透明面板和壁纸库；`
 - 工具审批统一为「允许这次」「始终允许」「拒绝」。「始终允许」立即生效，并记住此 Bot 在当前范围内使用这个工具；完全访问会自动处理普通请求，权限变更仍会交给 Human；审批卡显示提交进度，状态暂时读不到时可以重新确认，不再误报过期。已有规则和访问范围保持原义（[#2080](https://github.com/BotHarness/DeepSeekBot/issues/2080)）。
 - 快速搜索改用 Alt+K（macOS 为 Option+K）打开，桌面端不再吞掉这个快捷键；浏览器能收到 Ctrl+K 和 ⌘K 时也照常可用。搜索现在能找到 Bot 设置里的具体一行并高亮打开，中文名称可用全拼或首字母命中，中文界面下也能用英文词搜索（[#2360](https://github.com/BotHarness/DeepSeekBot/pull/2360)）。
 - 会话列表里每个 Bot 只显示一个状态：工作中转圈，需要你时显示琥珀色圆环，受阻时显示红色标记，完成后显示勾。头像改为圆角方形，未读数放在角上；分组标题显示有几个 Bot 需要你；时间按聊天软件的习惯显示，移动端 Beta 也显示同样的图标（[#2363](https://github.com/BotHarness/DeepSeekBot/pull/2363)）。
-- 移动端 Beta 改用 iOS 26 和 Android Material 3 原生控件：聊天页可左右切换分页并有独立的创建按钮；sheet 使用简洁的居中标题和系统分段控件；长按消息打开原生底部菜单，包含表情回应、复制和分享；iOS 的侧边栏和聊天标题栏使用液态玻璃，搜索框移到底部导航上方；Android 使用 Material 3 对话框和菜单；取消配对等不可撤销操作会先确认（[#2194](https://github.com/BotHarness/DeepSeekBot/issues/2194)、[#2195](https://github.com/BotHarness/DeepSeekBot/issues/2195)、[#2324](https://github.com/BotHarness/DeepSeekBot/pull/2324)、[#2333](https://github.com/BotHarness/DeepSeekBot/pull/2333)、[#2349](https://github.com/BotHarness/DeepSeekBot/pull/2349)、[#2352](https://github.com/BotHarness/DeepSeekBot/pull/2352)）。
+- 移动端 Beta 改用 iOS 26 和 Android Material 3 原生控件：聊天页可左右切换分页并有独立的创建按钮；sheet 使用简洁的居中标题和系统分段控件；长按消息打开原生底部菜单，包含表情回应、复制和分享；iOS 的侧边栏和聊天标题栏使用液态玻璃，搜索框移到底部导航上方；Android 使用 Material 3 对话框和菜单；取消配对等不可撤销操作会先确认。聊天页改用系统导航栏，消息自上而下排列，打开时停在最新消息，加载历史时位置不动，输入框紧贴键盘上方（[#2194](https://github.com/BotHarness/DeepSeekBot/issues/2194)、[#2195](https://github.com/BotHarness/DeepSeekBot/issues/2195)、[#2324](https://github.com/BotHarness/DeepSeekBot/pull/2324)、[#2333](https://github.com/BotHarness/DeepSeekBot/pull/2333)、[#2349](https://github.com/BotHarness/DeepSeekBot/pull/2349)、[#2352](https://github.com/BotHarness/DeepSeekBot/pull/2352)、[#2344](https://github.com/BotHarness/DeepSeekBot/pull/2344)）。
 - Android Beta 上长回复的流式显示更流畅，减少了重复解析、排版和绘制；超长段落的换行位置可能略有不同（[#2220](https://github.com/BotHarness/DeepSeekBot/issues/2220)、[#2251](https://github.com/BotHarness/DeepSeekBot/issues/2251)、[#2274](https://github.com/BotHarness/DeepSeekBot/issues/2274)）。
 
 ### Fixed
