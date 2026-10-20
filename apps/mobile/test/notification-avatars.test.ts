@@ -1,13 +1,13 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from 'vitest';
 
-import type { RosterBot, RosterChannel, RosterView } from "../src/host/client";
+import type { RosterBot, RosterChannel, RosterView } from '../src/host/client';
 import {
   avatarFile,
   avatarInputs,
   createNotificationAvatars,
   notificationAvatars,
   type AvatarImage,
-} from "../src/host/notification-avatars";
+} from '../src/host/notification-avatars';
 
 const bot = (slug: string, extra: Partial<RosterBot> = {}): RosterBot => ({
   slug,
@@ -15,7 +15,7 @@ const bot = (slug: string, extra: Partial<RosterBot> = {}): RosterBot => ({
   roles: [],
   computerAccess: false,
   browserAccess: false,
-  state: "idle",
+  state: 'idle',
   paused: false,
   ...extra,
 });
@@ -28,10 +28,7 @@ const channel = (id: string, avatar?: string): RosterChannel => ({
   ...(avatar === undefined ? {} : { avatar }),
 });
 
-const roster = (
-  bots: RosterBot[],
-  channels: RosterChannel[] = [],
-): RosterView => ({
+const roster = (bots: RosterBot[], channels: RosterChannel[] = []): RosterView => ({
   bots,
   channels,
 });
@@ -59,7 +56,7 @@ function memoryStore() {
         return { ...files.get(host) };
       },
       async render(host: string, file: string, _image: AvatarImage) {
-        if (fail.has(file)) throw Error("render-failed");
+        if (fail.has(file)) throw Error('render-failed');
         if (hang.has(file)) return new Promise<void>(() => {});
         rendered.push(`${host}/${file}`);
       },
@@ -76,112 +73,98 @@ function memoryStore() {
   };
 }
 
-describe("notification avatars", () => {
-  it("gives up on a render that never settles and keeps the others", async () => {
+describe('notification avatars', () => {
+  it('gives up on a render that never settles and keeps the others', async () => {
     vi.useFakeTimers();
     try {
       const memory = memoryStore();
       const avatars = createNotificationAvatars(memory.store);
-      memory.hangOn("bot-ada.png");
+      memory.hangOn('bot-ada.png');
       const done = avatars.sync(
-        "h",
-        roster([bot("ada")], [channel("g1", "data:image/png;base64,AAAA")]),
+        'h',
+        roster([bot('ada')], [channel('g1', 'data:image/png;base64,AAAA')]),
       );
       await vi.advanceTimersByTimeAsync(10_000);
       expect(await done).toBe(false);
-      expect(memory.rendered).toEqual(["h/channel-g1.png"]);
-      expect(Object.keys(memory.files.get("h") ?? {})).toEqual([
-        "channel-g1.png",
-      ]);
-      expect(memory.reports).toEqual([{ "bot-ada.png": "render-timeout" }]);
+      expect(memory.rendered).toEqual(['h/channel-g1.png']);
+      expect(Object.keys(memory.files.get('h') ?? {})).toEqual(['channel-g1.png']);
+      expect(memory.reports).toEqual([{ 'bot-ada.png': 'render-timeout' }]);
     } finally {
       vi.useRealTimers();
     }
   });
 
-  it("reports a store that cannot be opened", async () => {
+  it('reports a store that cannot be opened', async () => {
     const memory = memoryStore();
     const avatars = createNotificationAvatars({
       ...memory.store,
-      read: () => Promise.reject(Error("notification-avatars-unavailable")),
+      read: () => Promise.reject(Error('notification-avatars-unavailable')),
     });
-    expect(await avatars.sync("h", roster([bot("ada")]))).toBe(false);
-    expect(memory.reports).toEqual([
-      { "*": "notification-avatars-unavailable" },
-    ]);
+    expect(await avatars.sync('h', roster([bot('ada')]))).toBe(false);
+    expect(memory.reports).toEqual([{ '*': 'notification-avatars-unavailable' }]);
   });
 
-  it("names files the way the native notification code reads them", () => {
-    expect(avatarFile("bot", "ada")).toBe("bot-ada.png");
-    expect(avatarFile("channel", "g/1 x")).toBe("channel-g_1_x.png");
+  it('names files the way the native notification code reads them', () => {
+    expect(avatarFile('bot', 'ada')).toBe('bot-ada.png');
+    expect(avatarFile('channel', 'g/1 x')).toBe('channel-g_1_x.png');
   });
 
-  it("caches uploaded and generated Bot avatars and group Channel pictures", () => {
+  it('caches uploaded and generated Bot avatars and group Channel pictures', () => {
     const entries = notificationAvatars(
       roster(
         [
-          bot("ada", {
-            avatarUrl: "https://host/api/botharness/bot-avatar?slug=ada&v=1",
-            avatarHeaders: { authorization: "Bearer t" },
+          bot('ada', {
+            avatarUrl: 'https://host/api/botharness/bot-avatar?slug=ada&v=1',
+            avatarHeaders: { authorization: 'Bearer t' },
           }),
-          bot("bo"),
+          bot('bo'),
         ],
-        [channel("g1", "data:image/png;base64,AAAA"), channel("g2")],
+        [channel('g1', 'data:image/png;base64,AAAA'), channel('g2')],
       ),
     );
     expect(entries.map((entry) => entry.file)).toEqual([
-      "bot-ada.png",
-      "bot-bo.png",
-      "channel-g1.png",
+      'bot-ada.png',
+      'bot-bo.png',
+      'channel-g1.png',
     ]);
     expect(entries[0]?.image).toEqual({
-      uri: "https://host/api/botharness/bot-avatar?slug=ada&v=1",
-      headers: { authorization: "Bearer t" },
+      uri: 'https://host/api/botharness/bot-avatar?slug=ada&v=1',
+      headers: { authorization: 'Bearer t' },
     });
     expect(entries[1]?.image.uri).toMatch(/^data:image\/svg\+xml;base64,/u);
-    expect(entries[2]?.image.uri).toBe("data:image/png;base64,AAAA");
+    expect(entries[2]?.image.uri).toBe('data:image/png;base64,AAAA');
   });
 
-  it("renders only what changed and removes avatars that are gone", async () => {
+  it('renders only what changed and removes avatars that are gone', async () => {
     const memory = memoryStore();
     const avatars = createNotificationAvatars(memory.store);
-    await avatars.sync(
-      "h",
-      roster([bot("ada")], [channel("g1", "data:image/png;base64,AAAA")]),
-    );
-    expect(memory.rendered).toEqual(["h/bot-ada.png", "h/channel-g1.png"]);
+    await avatars.sync('h', roster([bot('ada')], [channel('g1', 'data:image/png;base64,AAAA')]));
+    expect(memory.rendered).toEqual(['h/bot-ada.png', 'h/channel-g1.png']);
 
-    await avatars.sync(
-      "h",
-      roster([bot("ada")], [channel("g1", "data:image/png;base64,BBBB")]),
-    );
-    expect(memory.rendered).toEqual([
-      "h/bot-ada.png",
-      "h/channel-g1.png",
-      "h/channel-g1.png",
-    ]);
+    await avatars.sync('h', roster([bot('ada')], [channel('g1', 'data:image/png;base64,BBBB')]));
+    expect(memory.rendered).toEqual(['h/bot-ada.png', 'h/channel-g1.png', 'h/channel-g1.png']);
 
-    await avatars.sync("h", roster([bot("ada")]));
-    expect(memory.removed).toEqual(["h/channel-g1.png"]);
+    await avatars.sync('h', roster([bot('ada')]));
+    expect(memory.removed).toEqual(['h/channel-g1.png']);
   });
 
-  it("retries an avatar that failed to render on the next sync", async () => {
+  it('retries an avatar that failed to render on the next sync', async () => {
     const memory = memoryStore();
     const avatars = createNotificationAvatars(memory.store);
-    memory.failOn("bot-ada.png");
-    expect(await avatars.sync("h", roster([bot("ada")]))).toBe(false);
-    expect(memory.removed).toEqual(["h/bot-ada.png"]);
-    memory.failOn("");
-    expect(await avatars.sync("h", roster([bot("ada")]))).toBe(true);
-    expect(memory.rendered).toEqual(["h/bot-ada.png"]);
+    memory.failOn('bot-ada.png');
+    expect(await avatars.sync('h', roster([bot('ada')]))).toBe(false);
+    expect(memory.removed).toEqual(['h/bot-ada.png']);
+    memory.failOn('');
+    expect(await avatars.sync('h', roster([bot('ada')]))).toBe(true);
+    expect(memory.rendered).toEqual(['h/bot-ada.png']);
   });
 
-  it("ignores live roster changes that cannot change an avatar", () => {
-    const before = roster([bot("ada")]);
-    const after = roster([bot("ada", { state: "working", preview: "hi" })]);
+  it('ignores live roster changes that cannot change an avatar', () => {
+    const before = roster([bot('ada')]);
+    const after = roster([bot('ada', { state: 'working', preview: 'hi' })]);
     expect(avatarInputs(after)).toBe(avatarInputs(before));
-    expect(
-      avatarInputs(roster([bot("ada", { displayName: "Ada L" })])),
-    ).not.toBe(avatarInputs(before));
+    expect(avatarInputs(roster([bot('ada', { displayName: 'Ada L' })]))).not.toBe(
+      avatarInputs(before),
+    );
   });
 });

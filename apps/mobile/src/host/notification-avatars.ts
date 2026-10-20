@@ -1,6 +1,6 @@
-import { avatarSvg } from "../../../../packages/core/src/bots/avatar-appearance";
-import { resolvedAvatarRecipe } from "../../../../packages/core/src/bots/primary-color";
-import type { RosterView } from "./client";
+import { avatarSvg } from '../../../../packages/core/src/bots/avatar-appearance';
+import { resolvedAvatarRecipe } from '../../../../packages/core/src/bots/primary-color';
+import type { RosterView } from './client';
 
 export interface AvatarImage {
   uri: string;
@@ -30,15 +30,14 @@ function reason(error: unknown): string {
 function bounded(work: Promise<void>, ms: number): Promise<void> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(Error("render-timeout")), ms);
+    timer = setTimeout(() => reject(Error('render-timeout')), ms);
   });
   return Promise.race([work, timeout]).finally(() => clearTimeout(timer));
 }
 
-export const safeName = (value: string): string =>
-  value.replace(/[^A-Za-z0-9._-]/gu, "_");
+export const safeName = (value: string): string => value.replace(/[^A-Za-z0-9._-]/gu, '_');
 
-export const avatarFile = (kind: "bot" | "channel", id: string): string =>
+export const avatarFile = (kind: 'bot' | 'channel', id: string): string =>
   `${safeName(`${kind}-${id}`)}.png`;
 
 function fingerprint(text: string): string {
@@ -52,7 +51,7 @@ function fingerprint(text: string): string {
 
 function encode(svg: string): string {
   const bytes = new TextEncoder().encode(svg);
-  let binary = "";
+  let binary = '';
   for (const byte of bytes) binary += String.fromCharCode(byte);
   return btoa(binary);
 }
@@ -76,16 +75,14 @@ export function avatarInputs(roster: RosterView): string {
 export function notificationAvatars(roster: RosterView): AvatarEntry[] {
   const entries: AvatarEntry[] = [];
   for (const bot of roster.bots) {
-    const file = avatarFile("bot", bot.slug);
+    const file = avatarFile('bot', bot.slug);
     if (bot.avatarUrl !== undefined) {
       entries.push({
         file,
         signature: bot.avatarUrl,
         image: {
           uri: bot.avatarUrl,
-          ...(bot.avatarHeaders === undefined
-            ? {}
-            : { headers: bot.avatarHeaders }),
+          ...(bot.avatarHeaders === undefined ? {} : { headers: bot.avatarHeaders }),
         },
       });
       continue;
@@ -107,7 +104,7 @@ export function notificationAvatars(roster: RosterView): AvatarEntry[] {
   for (const channel of roster.channels) {
     if (channel.avatar === undefined) continue;
     entries.push({
-      file: avatarFile("channel", channel.id),
+      file: avatarFile('channel', channel.id),
       signature: fingerprint(channel.avatar),
       image: { uri: channel.avatar },
     });
@@ -119,10 +116,7 @@ export function createNotificationAvatars(store: AvatarStore) {
   let running: Promise<boolean> | undefined;
   let next: { host: string; roster: RosterView } | undefined;
 
-  const syncOnce = async (
-    host: string,
-    roster: RosterView,
-  ): Promise<boolean> => {
+  const syncOnce = async (host: string, roster: RosterView): Promise<boolean> => {
     const errors: Record<string, string> = {};
     let stored: Record<string, string>;
     let wanted: AvatarEntry[];
@@ -130,24 +124,19 @@ export function createNotificationAvatars(store: AvatarStore) {
       stored = await store.read(host);
       wanted = notificationAvatars(roster);
     } catch (error) {
-      store.report(host, { "*": reason(error) });
+      store.report(host, { '*': reason(error) });
       return false;
     }
     const kept = new Set(wanted.map((entry) => entry.file));
     const index: Record<string, string> = {};
     for (const entry of wanted)
-      if (stored[entry.file] === entry.signature)
-        index[entry.file] = entry.signature;
-    for (const file of Object.keys(stored))
-      if (!kept.has(file)) store.remove(host, file);
+      if (stored[entry.file] === entry.signature) index[entry.file] = entry.signature;
+    for (const file of Object.keys(stored)) if (!kept.has(file)) store.remove(host, file);
     store.write(host, index);
     for (const entry of wanted) {
       if (index[entry.file] !== undefined) continue;
       try {
-        await bounded(
-          store.render(host, entry.file, entry.image),
-          RENDER_TIMEOUT,
-        );
+        await bounded(store.render(host, entry.file, entry.image), RENDER_TIMEOUT);
         index[entry.file] = entry.signature;
         store.write(host, index);
       } catch (error) {
@@ -168,9 +157,7 @@ export function createNotificationAvatars(store: AvatarStore) {
           while (next !== undefined) {
             const current = next;
             next = undefined;
-            complete = await syncOnce(current.host, current.roster).catch(
-              () => false,
-            );
+            complete = await syncOnce(current.host, current.roster).catch(() => false);
           }
           return complete;
         } finally {
