@@ -125,4 +125,63 @@ describe('Inbox-only dismissal', () => {
       false,
     );
   });
+
+  it('lists dismissed items on their own and restores one to its category', async () => {
+    const f = fixture();
+    await f.channels.appendMessage(f.dm.id, {
+      id: 'grant',
+      at: FIXED_NOW().toISOString(),
+      author: { kind: 'bot', slug: 'ada' },
+      body: 'grant',
+      grantRequest: true,
+    });
+    const item = f.query.list({ category: 'action' }).items[0]!;
+    expect(f.query.list({ category: 'action', dismissed: true }).items).toEqual([]);
+    expect(
+      f.methods.humanAttentionRestore({ itemId: item.id, sourceKey: item.sourceEventId }).ok,
+    ).toBe(false);
+    expect(f.decisions.dismiss(item)).toBe(true);
+    expect(f.methods.humanAttention({ category: 'action', dismissed: true })).toEqual({
+      ok: true,
+      value: { items: [item], dismissed: true },
+    });
+    expect(f.methods.humanAttentionRestore({ itemId: item.id, sourceKey: 'foreign' }).ok).toBe(
+      false,
+    );
+    expect(
+      f.methods.humanAttentionRestore({ itemId: item.id, sourceKey: item.sourceEventId }),
+    ).toEqual({ ok: true, value: { accepted: true } });
+    expect(f.query.list({ category: 'action' }).items).toEqual([item]);
+    expect(f.query.list({ category: 'action', dismissed: true }).items).toEqual([]);
+    expect(f.methods.humanAttention({ dismissed: true, snoozed: true }).ok).toBe(false);
+    expect(f.methods.humanAttention({ dismissed: 'yes' }).ok).toBe(false);
+  });
+
+  it('restores a dismissed unread conversation, including batches cleared earlier', async () => {
+    const f = fixture();
+    const send = (id: string) =>
+      f.channels.appendMessage(f.dm.id, {
+        id,
+        at: FIXED_NOW().toISOString(),
+        author: { kind: 'bot', slug: 'ada' },
+        body: id,
+      });
+    await send('first');
+    expect(f.decisions.dismiss(f.query.list({ category: 'unread' }).items[0]!)).toBe(true);
+    await send('second');
+    expect(f.decisions.dismiss(f.query.list({ category: 'unread' }).items[0]!)).toBe(true);
+    expect(f.query.list({ category: 'unread' }).items).toEqual([]);
+    const cleared = f.query.list({ category: 'unread', dismissed: true }).items;
+    expect(cleared).toMatchObject([{ messageId: 'second', unreadCount: 2 }]);
+    expect(
+      f.methods.humanAttentionRestore({
+        itemId: cleared[0]!.id,
+        sourceKey: cleared[0]!.sourceEventId,
+      }).ok,
+    ).toBe(true);
+    expect(f.query.list({ category: 'unread' }).items).toMatchObject([
+      { messageId: 'second', unreadCount: 2 },
+    ]);
+    expect(f.query.list({ category: 'unread', dismissed: true }).items).toEqual([]);
+  });
 });

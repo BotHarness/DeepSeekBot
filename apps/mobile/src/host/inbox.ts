@@ -4,6 +4,11 @@ import type { HumanAttentionItem, HumanAttentionPage } from './wire';
 
 export const INBOX_SECTIONS = ['action', 'replies', 'unread', 'handled'] as const;
 export type InboxSection = (typeof INBOX_SECTIONS)[number];
+export type InboxSetAside = 'cleared' | 'snoozed';
+const SET_ASIDE_SECTIONS: Record<InboxSetAside, readonly InboxSection[]> = {
+  cleared: ['action', 'replies', 'unread'],
+  snoozed: ['action', 'replies'],
+};
 
 interface UnreadCounts {
   channels: Array<{ channelId: string; unreadCount: number }>;
@@ -17,7 +22,7 @@ export interface InboxQuery {
   search?: string;
   unreadOnly?: boolean | undefined;
   sort?: 'default' | 'newest' | 'oldest';
-  section?: InboxSection | 'all';
+  section?: InboxSection | InboxSetAside | 'all';
   activity?: boolean;
 }
 
@@ -56,8 +61,10 @@ export function createInbox(
   let stopped = false;
   let revision = 0;
   const loading = new Set<InboxSection>();
+  const setAside =
+    options.section === 'cleared' || options.section === 'snoozed' ? options.section : undefined;
   const readPage = async (category: InboxSection, cursor?: string): Promise<HumanAttentionPage> => {
-    const page = await client.call<HumanAttentionPage>('humanAttention', {
+    const page = await client.call<HumanAttentionPage & { dismissed?: boolean }>('humanAttention', {
       category,
       limit: LIMITS[category],
       ...(options.botSlug ? { botSlug: options.botSlug } : {}),
@@ -68,11 +75,18 @@ export function createInbox(
         ? { sort: options.sort }
         : options.activity && category === 'replies'
           ? { sort: 'mentions-first' }
-          : {}),
+          : options.activity && category === 'action'
+            ? { sort: 'newest' }
+            : {}),
+      ...(setAside === 'cleared' ? { dismissed: true } : {}),
+      ...(setAside === 'snoozed' ? { snoozed: true } : {}),
       ...(options.activity ? { queryVersion: 1 } : {}),
       ...(cursor ? { cursor } : {}),
     });
     if (options.activity && page.queryVersion !== 1) throw new Error(t.activityUpdateHost);
+    if (setAside === 'cleared' && page.dismissed !== true) throw new Error(t.activityUpdateHost);
+    if (setAside === 'snoozed' && page.items.some((item) => item.snoozedUntil === undefined))
+      throw new Error(t.activityUpdateHost);
     return page;
   };
 
@@ -105,9 +119,11 @@ export function createInbox(
       Promise.all(
         INBOX_SECTIONS.map((category) =>
           options.activity &&
-          (options.section && options.section !== 'all'
-            ? category !== options.section
-            : category === 'handled')
+          (setAside !== undefined
+            ? !SET_ASIDE_SECTIONS[setAside].includes(category)
+            : options.section && options.section !== 'all'
+              ? category !== options.section
+              : category === 'handled')
             ? Promise.resolve({ items: [] } as HumanAttentionPage)
             : readWindow(category),
         ),

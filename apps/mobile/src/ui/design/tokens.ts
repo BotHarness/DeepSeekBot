@@ -148,6 +148,16 @@ export const tabMotion = {
 
 export const scrollChrome = { threshold: 12, top: 2, duration: 180 } as const;
 
+export const swipeRow = {
+  actionWidth: 80,
+  start: 12,
+  verticalFail: 12,
+  fullRatio: 0.55,
+  flick: 1200,
+} as const;
+
+export const undoBar = { duration: 5000 } as const;
+
 export const PRESS_TINT = 0.12;
 
 export const scrim = {

@@ -3,6 +3,7 @@ import { View, type ViewInstance } from 'react-native';
 
 import {
   allowAutoRejectionOnce,
+  clearAttentionItem,
   decideJoinRequest,
   findAttentionItem,
   loadAssignmentContext,
@@ -11,7 +12,7 @@ import {
 } from '../host/attention-actions';
 import type { HostClient } from '../host/client';
 import type { HumanAttentionItem } from '../host/wire';
-import { AssignmentView, AutoRejectionView, JoinRequestView } from './attention-view';
+import { AssignmentView, AutoRejectionView, JoinRequestView, RepairView } from './attention-view';
 import { useMounted } from './mounted';
 import { errorText, LoadFailed, Loading } from './request-parts';
 
@@ -20,6 +21,7 @@ export const ATTENTION_KINDS = new Set([
   'group-join-request',
   'assignment-waiting-human',
   'assignment-blocked',
+  'bot-message-needs-repair',
 ]);
 
 type Phase =
@@ -33,6 +35,7 @@ export function AttentionItemView({
   known,
   botName,
   after,
+  onOpenChat,
   fallback,
 }: {
   client: HostClient;
@@ -40,6 +43,7 @@ export function AttentionItemView({
   known?: HumanAttentionItem | undefined;
   botName: string;
   after?(): void;
+  onOpenChat?(item: HumanAttentionItem): void;
   fallback: ReactNode;
 }) {
   const [phase, setPhase] = useState<Phase>(
@@ -62,6 +66,7 @@ export function AttentionItemView({
     if (item === undefined) return undefined;
     return {
       allowOnce: () => allowAutoRejectionOnce(client, item.id),
+      clear: () => clearAttentionItem(client, item),
       decide: (accept: boolean) =>
         decideJoinRequest(client, item.channelId ?? '', item.requestId ?? '', accept),
       load: () =>
@@ -107,6 +112,16 @@ export function AttentionItemView({
         botName={botName}
         port={ports}
         {...(after === undefined ? {} : { after })}
+      />
+    );
+  else if (item.kind === 'bot-message-needs-repair')
+    body = (
+      <RepairView
+        item={item}
+        botName={botName}
+        port={ports}
+        {...(after === undefined ? {} : { after })}
+        {...(onOpenChat === undefined ? {} : { onOpenChat: () => onOpenChat(item) })}
       />
     );
   else if (

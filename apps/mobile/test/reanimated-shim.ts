@@ -42,6 +42,12 @@ export const useAnimatedScrollHandler = (handlers: unknown) => handlers;
 export const useScrollOffset = () => ({ value: 0 });
 export const useSharedValue = <T>(value: T) => ({ value });
 export const FadeOut = transition;
+export const FadeIn = transition;
+export const withSpring = <T>(value: T) => value;
+export const runOnJS =
+  <A extends unknown[]>(callback: (...args: A) => void) =>
+  (...args: A) =>
+    callback(...args);
 export const LinearTransition = transition;
 export const useReducedMotion = () => false;
 export const withTiming = <T>(value: T) => value;
