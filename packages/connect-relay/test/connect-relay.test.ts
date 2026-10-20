@@ -65,6 +65,9 @@ class FakeTunnels implements TunnelApi {
   >();
   records = new Map<string, { name: string; target: string }>();
   failCreate = false;
+  listComplete = true;
+  listCalls = 0;
+  deleteCalls = 0;
   #next = 0;
   async createTunnel(name: string) {
     if (this.failCreate) throw new Error('cloudflare down');
@@ -84,11 +87,22 @@ class FakeTunnels implements TunnelApi {
       }
     );
   }
+  async listTunnels() {
+    this.listCalls += 1;
+    const states = new Map<string, { status: string; inactiveSince?: string }>();
+    for (const [id, tunnel] of this.tunnels)
+      states.set(id, {
+        status: tunnel.status,
+        ...(tunnel.inactiveSince ? { inactiveSince: tunnel.inactiveSince } : {}),
+      });
+    return { states, complete: this.listComplete };
+  }
   async configureIngress(tunnelId: string, hostname: string, originPort: number) {
     const tunnel = this.tunnels.get(tunnelId);
     if (tunnel) tunnel.ingress = { hostname, originPort };
   }
   async deleteTunnel(tunnelId: string) {
+    this.deleteCalls += 1;
     this.tunnels.delete(tunnelId);
   }
   async pointHostname(hostname: string, tunnelId: string, recordId?: string) {
@@ -100,6 +114,8 @@ class FakeTunnels implements TunnelApi {
     this.records.delete(recordId);
   }
 }
+
+const BASE32 = 'abcdefghijklmnopqrstuvwxyz234567';
 
 async function setup(allowedUsers: string[] = ['user_alice', 'user_bob']) {
   const { keys, sign } = await signer();
@@ -120,7 +136,10 @@ async function setup(allowedUsers: string[] = ['user_alice', 'user_bob']) {
     maxHosts: 5,
     reclaimAfterMs: 5 * 60 * 1000,
     now: () => new Date(clock),
-    hostId: () => `haaaaaaaaaaa${'bcdefgh'[(ids += 1) - 1]}`,
+    hostId: () => {
+      ids += 1;
+      return `haaaaaaaaaa${BASE32[Math.floor(ids / 32)]}${BASE32[ids % 32]}`;
+    },
   });
   const tokenFor = (sub: string, claims: Record<string, unknown> = {}) =>
     sign({ sub, iss: ISSUER, exp: clock / 1000 + 300, ...claims });
@@ -323,13 +342,18 @@ describe('Connect relay tunnels', () => {
   });
 
   it('forgets a tunnel deleted outside the relay and unlinks Hosts with their DNS', async () => {
-    const { call, relay, tunnels } = await setup();
+    const { call, relay, tunnels, advance } = await setup();
     await call('POST', '/v1/hosts', { as: 'user_alice', body: { name: 'Studio' } });
     await call('POST', '/v1/hosts/haaaaaaaaaaab/tunnel', {
       as: 'user_alice',
       body: { originPort: 41001 },
     });
     tunnels.tunnels.delete('tunnel-1');
+    expect(await relay.reclaim()).toEqual({ reclaimed: [] });
+    advance(6 * 60 * 1000);
+    tunnels.listComplete = false;
+    expect(await relay.reclaim()).toEqual({ reclaimed: [] });
+    tunnels.listComplete = true;
     expect(await relay.reclaim()).toEqual({ reclaimed: ['haaaaaaaaaaab'] });
     await call('POST', '/v1/hosts/haaaaaaaaaaab/tunnel', {
       as: 'user_alice',
@@ -342,6 +366,29 @@ describe('Connect relay tunnels', () => {
     expect(tunnels.tunnels.size).toBe(0);
     expect(tunnels.records.size).toBe(0);
     expect((await call('GET', '/v1/hosts', { as: 'user_alice' })).body['hosts']).toEqual([]);
+  });
+
+  it('lists tunnels once per run and reclaims at most fifteen', async () => {
+    const accounts = ['user_a', 'user_b', 'user_c', 'user_d'];
+    const { call, relay, tunnels, advance } = await setup(accounts);
+    for (const account of accounts)
+      for (let index = 0; index < 5; index += 1) {
+        const { body } = await call('POST', '/v1/hosts', { as: account, body: { name: 'Host' } });
+        await call('POST', `/v1/hosts/${body['host'].id}/tunnel`, {
+          as: account,
+          body: { originPort: 41001 },
+        });
+      }
+    expect(tunnels.tunnels.size).toBe(20);
+    tunnels.listCalls = 0;
+    advance(6 * 60 * 1000);
+    expect((await relay.reclaim()).reclaimed).toHaveLength(15);
+    expect([tunnels.listCalls, tunnels.deleteCalls, tunnels.tunnels.size]).toEqual([1, 15, 5]);
+    expect((await relay.reclaim()).reclaimed).toHaveLength(5);
+    expect(tunnels.tunnels.size).toBe(0);
+    tunnels.listCalls = 0;
+    expect(await relay.reclaim()).toEqual({ reclaimed: [] });
+    expect(tunnels.listCalls).toBe(0);
   });
 
   it('reports Cloudflare failures without leaving a half-linked tunnel', async () => {
@@ -361,6 +408,46 @@ describe('Connect relay tunnels', () => {
 });
 
 describe('Cloudflare API client', () => {
+  it('lists the tunnels in pages and reports when it stopped early', async () => {
+    const urls: string[] = [];
+    const pages = { total: 2 };
+    const api = createCloudflareApi({
+      token: 'cf-token',
+      accountId: 'acct',
+      zoneId: 'zone',
+      fetcher: async (input) => {
+        const url = new URL(String(input));
+        urls.push(`${url.pathname}${url.search}`);
+        const page = Number(url.searchParams.get('page'));
+        return Response.json({
+          success: true,
+          result: [
+            {
+              id: `t${page}`,
+              status: page === 1 ? 'healthy' : 'down',
+              conns_inactive_at: page === 1 ? null : '2026-10-20T12:00:00Z',
+            },
+          ],
+          result_info: { total_pages: pages.total },
+        });
+      },
+    });
+    expect(await api.listTunnels()).toEqual({
+      states: new Map([
+        ['t1', { status: 'healthy' }],
+        ['t2', { status: 'down', inactiveSince: '2026-10-20T12:00:00Z' }],
+      ]),
+      complete: true,
+    });
+    expect(urls[0]).toBe(
+      '/client/v4/accounts/acct/cfd_tunnel?is_deleted=false&per_page=100&page=1',
+    );
+    urls.length = 0;
+    pages.total = 30;
+    expect((await api.listTunnels()).complete).toBe(false);
+    expect(urls).toHaveLength(10);
+  });
+
   it('limits the remote ingress to the device gateway and authenticates with the token', async () => {
     const requests: { method: string; url: string; auth: string | null; body: unknown }[] = [];
     const api = createCloudflareApi({

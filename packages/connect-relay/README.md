@@ -20,6 +20,8 @@ Without an allowlisted account (`ALLOWED_USERS`, comma-separated WorkOS user IDs
 
 Cloudflare counts inactive tunnels toward the 1,000 free tunnels per account. A cron trigger runs every minute and deletes tunnels that are not `healthy` or `degraded` and have been inactive for `RECLAIM_AFTER_MINUTES` (default 5), or that never connected within that time. The link and hostname stay; the Host's next `POST /v1/hosts/{id}/tunnel` creates a new tunnel and repoints the same CNAME.
 
+Each run lists the account's tunnels once (100 per page, at most 10 pages) and deletes at most 15, so a run stays under the Workers Free limits of 50 subrequests and 50 D1 queries and makes at most 40 Cloudflare API calls, about 200 of the 1,200 allowed per 5 minutes. A Host linked to a tunnel the listing no longer shows is unlinked only once the listing was complete and the tunnel is older than `RECLAIM_AFTER_MINUTES`, so a tunnel created moments ago is never orphaned.
+
 ## Configuration
 
 | Name                    | Kind   | Meaning                                                                                            |
