@@ -52,7 +52,7 @@
 ### Documentation
 
 - 记录原生 Panel Plugin 边界、独立的位置与绑定、群聊不显示 Bot-bound 面板，以及 VRM／Activity／说话表现优先、随后交付共享 Task Kanban 的方向；明确切片依赖、既有 Sessions 筛选及 Consumer／Provider 生命周期边界；运行行为不变（[#2215](https://github.com/BotHarness/DeepSeekBot/issues/2215)）。
-- GitHub 和 npm README 换上了当前 Bot 模式的截图：带首页和托布的面板工作区、记忆演化、群聊、定时任务、Bot 市场，以及带壁纸的界面设置（[#2369](https://github.com/BotHarness/DeepSeekBot/pull/2369)）。
+- GitHub 和 npm README 换上了当前 Bot 模式的截图：带首页和托布的面板工作区、记忆演化、群聊、定时任务、Bot 市场，以及带壁纸的界面设置；GitHub README 补上了 1.4.0 和 1.4.1 的版本亮点（[#2369](https://github.com/BotHarness/DeepSeekBot/pull/2369)）。
 
 ## [1.4.0] - 2026-10-19
 
