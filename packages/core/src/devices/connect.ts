@@ -130,7 +130,10 @@ function notFound(response: ServerResponse): void {
   response.end(JSON.stringify({ code: 'not-found' }));
 }
 
-export function createGatewayOrigin(port: () => number): Server {
+type GatewayOrigin = Server & { upgraded: Set<Duplex> };
+
+export function createGatewayOrigin(port: () => number): GatewayOrigin {
+  const upgraded = new Set<Duplex>();
   const server = createServer((request, response) => {
     if (!admitsGatewayPath(request.url)) {
       request.resume();
@@ -157,6 +160,9 @@ export function createGatewayOrigin(port: () => number): Server {
         response.end(JSON.stringify({ code: 'host-unavailable' }));
       }
     });
+    response.on('close', () => {
+      if (!response.writableFinished) upstream.destroy();
+    });
     request.pipe(upstream);
   });
   server.on('upgrade', (request: IncomingMessage, socket: Duplex, head: Buffer) => {
@@ -172,9 +178,13 @@ export function createGatewayOrigin(port: () => number): Server {
     });
     upstream.on('error', () => socket.destroy());
     socket.on('error', () => upstream.destroy());
-    socket.on('close', () => upstream.destroy());
+    upgraded.add(socket);
+    socket.on('close', () => {
+      upgraded.delete(socket);
+      upstream.destroy();
+    });
   });
-  return server;
+  return Object.assign(server, { upgraded });
 }
 
 function listen(server: Server, port: number): Promise<number> {
@@ -188,9 +198,10 @@ function listen(server: Server, port: number): Promise<number> {
   });
 }
 
-function closeServer(server: Server | undefined): Promise<void> {
+function closeServer(server: GatewayOrigin | undefined): Promise<void> {
   if (server === undefined || !server.listening) return Promise.resolve();
   server.closeAllConnections();
+  for (const socket of server.upgraded) socket.destroy();
   return new Promise((resolve) => server.close(() => resolve()));
 }
 
@@ -206,7 +217,7 @@ export function createDeviceConnect(options: {
   const binary = options.binary ?? process.env['DEEPSEEKBOT_CLOUDFLARED'] ?? 'cloudflared';
   const record = options.record ?? (() => {});
   let status: ConnectStatus = { state: 'off' };
-  let server: Server | undefined;
+  let server: GatewayOrigin | undefined;
   let tunnel: TunnelProcess | undefined;
   let restart: ReturnType<typeof setTimeout> | undefined;
   let backoff = RESTART_MIN_MS;

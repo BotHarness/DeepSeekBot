@@ -230,6 +230,34 @@ describe('device Connect tunnel', () => {
     await expect(get(origin, '/botharness-device/pair')).rejects.toThrow();
   });
 
+  it('cuts open gateway streams when Connect is disabled', async () => {
+    const held = createServer();
+    held.on('upgrade', (_req, socket) => {
+      socket.write('HTTP/1.1 101 Switching Protocols\r\n\r\n');
+      socket.on('end', () => socket.destroy());
+    });
+    servers.push(held);
+    await new Promise<void>((done) => held.listen(0, '127.0.0.1', done));
+    const port = (held.address() as AddressInfo).port;
+    const { credentials, spawn } = setup();
+    const connect = createDeviceConnect({
+      credentials: () => credentials.provider,
+      port: () => port,
+      spawn,
+    });
+    await connect.enable({ hostname: 'studio.deepseekbot.dev', token: TOKEN });
+    const origin = new URL(connect.status().origin ?? '');
+    const socket = tcpConnect(Number(origin.port), origin.hostname);
+    const opened = new Promise<void>((done) => socket.once('data', () => done()));
+    const closed = new Promise<void>((done) => socket.once('close', () => done()));
+    socket.write(
+      'GET /botharness-device/api/remote.mux HTTP/1.1\r\nhost: studio.deepseekbot.dev\r\nconnection: upgrade\r\nupgrade: websocket\r\n\r\n',
+    );
+    await opened;
+    expect(await connect.disable()).toEqual({ ok: true, status: { state: 'off' } });
+    await closed;
+  });
+
   it('resumes from the stored record on the same origin port', async () => {
     const port = await dshListener();
     const { credentials, tunnels, spawn } = setup();
