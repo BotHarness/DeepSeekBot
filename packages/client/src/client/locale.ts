@@ -3883,12 +3883,40 @@ export const zh = {
   'devices.pair.close': '关闭',
   'devices.pair.done': '已配对「{name}」。',
   'devices.pair.loopbackOnly':
-    '只有本机地址，真机连不上这台电脑。先在终端运行下面设置区的 tailscale serve 命令，再换一个二维码。',
-  'devices.route.notServed':
-    'Tailscale 已运行，但还没把这台电脑发布到 tailnet，手机连不上。在终端运行：',
-  'devices.route.stopped': 'Tailscale 没有运行，手机连不上这台电脑。启动 Tailscale 后在终端运行：',
-  'devices.route.missing':
-    '没找到 Tailscale，手机连不上这台电脑。安装并登录 Tailscale 后在终端运行：',
+    '只有本机地址，真机连不上这台电脑。先完成设置里「配对手机」下方的步骤，再换一个二维码。',
+  'devices.route.stepsLabel': '让手机连上这台电脑',
+  'devices.route.watching': '正在实时检测，完成一步会自动打勾',
+  'devices.route.ready': '手机现在能连上这台电脑了，点「配对手机」扫码',
+  'devices.route.state.done': '已完成',
+  'devices.route.state.current': '待完成',
+  'devices.route.state.pending': '等待上一步',
+  'devices.route.step.install.title': '安装 Tailscale',
+  'devices.route.step.install.body':
+    '手机通过 Tailscale 连接这台电脑。在电脑和手机上都安装 Tailscale，并登录同一个账号。',
+  'devices.route.step.install.action': '下载 Tailscale',
+  'devices.route.step.signIn.title': '启动并登录 Tailscale',
+  'devices.route.step.signIn.body': '打开 Tailscale 并登录。也可以在终端运行：',
+  'devices.route.step.publish.title': '把这台电脑发布到 tailnet（端口 {port}）',
+  'devices.route.step.publish.body':
+    '用 HTTPS 把 DeepSeekBot 发布到你的 tailnet，只有登录了你 Tailscale 账号的设备能访问。',
+  'devices.route.run': '帮我运行',
+  'devices.route.running': '正在运行…',
+  'devices.route.manual': '也可以自己在终端运行：',
+  'devices.route.manualOnly': '确认后在终端运行：',
+  'devices.route.copy': '复制',
+  'devices.route.copyCommand': '复制命令',
+  'devices.route.otherTarget':
+    '这个地址已经用 tailscale serve 发布了别的服务。自动运行会覆盖它，所以这一步需要你自己决定。',
+  'devices.route.confirm.title': '运行 tailscale serve？',
+  'devices.route.confirm.description':
+    'DeepSeekBot 会在这台电脑上运行下面的命令，用 HTTPS 把本机 {port} 端口发布到你的 tailnet。只有你 tailnet 里的设备能访问，随时可以运行 tailscale serve reset 撤销。',
+  'devices.route.confirm.action': '运行',
+  'devices.route.enableAction': '打开 Tailscale 后台',
+  'devices.route.failure.needsEnable':
+    '这个 tailnet 还没开启 Serve。在 Tailscale 后台开启后，再点一次「帮我运行」。',
+  'devices.route.failure.denied':
+    'Tailscale 不允许 DeepSeekBot 修改 serve 设置。请在终端运行上面的命令。',
+  'devices.route.failure.other': '没有运行成功：{detail}。请在终端运行上面的命令。',
   'devices.list.title': '已配对设备',
   'devices.list.loading': '正在读取…',
   'devices.list.empty': '还没有配对的设备。',
@@ -8015,13 +8043,41 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'devices.pair.close': 'Close',
   'devices.pair.done': 'Paired “{name}”.',
   'devices.pair.loopbackOnly':
-    'This code only carries the local address, so a physical phone cannot reach this computer. Run the tailscale serve command shown in settings, then get a new code.',
-  'devices.route.notServed':
-    'Tailscale is running but does not publish this computer on your tailnet yet, so a phone cannot reach it. Run:',
-  'devices.route.stopped':
-    'Tailscale is not running, so a phone cannot reach this computer. Start Tailscale, then run:',
-  'devices.route.missing':
-    'Tailscale was not found, so a phone cannot reach this computer. Install and sign in to Tailscale, then run:',
+    'This code only carries the local address, so a physical phone cannot reach this computer. Finish the steps under Pair a phone in settings, then get a new code.',
+  'devices.route.stepsLabel': 'Let your phone reach this computer',
+  'devices.route.watching': 'Checking live; each step ticks off on its own',
+  'devices.route.ready': 'Your phone can reach this computer now. Choose Pair a phone to scan.',
+  'devices.route.state.done': 'Done',
+  'devices.route.state.current': 'To do',
+  'devices.route.state.pending': 'After the previous step',
+  'devices.route.step.install.title': 'Install Tailscale',
+  'devices.route.step.install.body':
+    'Your phone reaches this computer through Tailscale. Install it on both and sign in with the same account.',
+  'devices.route.step.install.action': 'Download Tailscale',
+  'devices.route.step.signIn.title': 'Start Tailscale and sign in',
+  'devices.route.step.signIn.body': 'Open Tailscale and sign in, or run this in a terminal:',
+  'devices.route.step.publish.title': 'Publish this computer on your tailnet (port {port})',
+  'devices.route.step.publish.body':
+    'Publishes DeepSeekBot over HTTPS on your tailnet. Only devices signed in to your Tailscale account can reach it.',
+  'devices.route.run': 'Run it for me',
+  'devices.route.running': 'Running…',
+  'devices.route.manual': 'Or run it yourself in a terminal:',
+  'devices.route.manualOnly': 'When you are sure, run this in a terminal:',
+  'devices.route.copy': 'Copy',
+  'devices.route.copyCommand': 'Copy command',
+  'devices.route.otherTarget':
+    'tailscale serve already publishes another service at this address. Running it automatically would replace that, so this step is your call.',
+  'devices.route.confirm.title': 'Run tailscale serve?',
+  'devices.route.confirm.description':
+    'DeepSeekBot will run the command below on this computer to publish local port {port} over HTTPS on your tailnet. Only devices on your tailnet can reach it; run tailscale serve reset to undo.',
+  'devices.route.confirm.action': 'Run',
+  'devices.route.enableAction': 'Open Tailscale admin',
+  'devices.route.failure.needsEnable':
+    'Serve is not enabled on this tailnet yet. Enable it in the Tailscale admin console, then choose Run it for me again.',
+  'devices.route.failure.denied':
+    'Tailscale did not let DeepSeekBot change serve settings. Run the command above in a terminal.',
+  'devices.route.failure.other':
+    'That did not work: {detail}. Run the command above in a terminal.',
   'devices.list.title': 'Paired devices',
   'devices.list.loading': 'Loading…',
   'devices.list.empty': 'No paired devices yet.',

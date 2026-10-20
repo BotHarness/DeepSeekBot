@@ -1,9 +1,15 @@
 import { encode } from 'uqr';
 
 import type { DevicePairing, HostIdentity, PairedDevice } from './pairing.js';
-import { phoneRoute, type PhoneRoute, type RouteStatus } from './routes.js';
+import {
+  phoneRoute,
+  type PhoneRoute,
+  type PublishRouteResult,
+  type RouteStatus,
+} from './routes.js';
 
 export const DEVICES_PATH = '/api/botharness/devices';
+export const DEVICES_SERVE_PATH = '/api/botharness/devices/serve';
 export const PAIRING_LINK_SCHEME = 'deepseekbot';
 
 const headers = { 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' };
@@ -80,6 +86,7 @@ async function body(request: Request): Promise<Record<string, unknown>> {
 export function createDevicesHttp(options: {
   pairing: DevicePairing;
   routes: () => Promise<RouteStatus>;
+  publish?: () => Promise<PublishRouteResult>;
 }): (request: Request) => Promise<Response> {
   const { pairing } = options;
   return async (request) => {
@@ -118,6 +125,26 @@ export function createDevicesHttp(options: {
       if (typeof input['deviceId'] !== 'string') return json({ code: 'device-unknown' }, 400);
       const result = pairing.revoke(input['deviceId']);
       return result.revoked ? json(result) : json({ code: 'device-unknown' }, 404);
+    }
+    if (request.method === 'POST' && path === DEVICES_SERVE_PATH && options.publish) {
+      const input = await body(request);
+      if (input['confirm'] !== true)
+        return json(
+          { code: 'confirm-required', error: 'Pass confirm:true to run tailscale serve.' },
+          400,
+        );
+      const result = await options.publish();
+      if (result.ok)
+        return json({ published: true, changed: result.changed, routes: result.status });
+      return json(
+        {
+          code: result.code,
+          error: result.message,
+          ...(result.enableUrl === undefined ? {} : { enableUrl: result.enableUrl }),
+          routes: result.status,
+        },
+        409,
+      );
     }
     return json({ code: 'not-found' }, 404);
   };

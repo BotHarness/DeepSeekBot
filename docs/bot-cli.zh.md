@@ -572,6 +572,17 @@ deepseekbot idle-compaction-cache-set deepseek/<model> auto
 
 三个命令都返回 `{enabled, settingReadable, minimumIdleSeconds, scheduled, routes}`。每条线路列出 `cacheLifetimeSeconds`、来源 `source` 和 `compactAfterSeconds`（跳过时为 `null`）。缓存寿命依次取自这里为该线路设置的值（`setting`）、模型目录（`catalog`，Anthropic 的短档）、观测到的请求前空闲间隔中仍大部分命中缓存的最长值（`observed`；命中的间隔不会缩短默认值，更长的未命中间隔会把它封顶），或 DeepSeek 线路的 2 小时（`default`）；其它没有任何信息的线路为 `unknown` 并跳过，寿命不足 15 分钟的也跳过。`idle-compaction-cache-set ... auto` 删除该线路的设置值。每次执行都记录在 `deepseekbot bot-activity-history <bot-id>` 的 `idleCompactions` 中，包含线路、空闲时长、压缩前后 token 数，以及压缩请求的输入、缓存读取和输出 token。拒绝时带错误码：`usage`（缺少 `on`/`off`、`<provider>/<model>` 或整数秒）和 `invalid-input`。
 
+### 手机连接（Tailscale）
+
+手机连不上这台 Host 时，Bot 设置 → 设备 → 配对手机会显示三步指引：安装 Tailscale、启动并登录、把 Host 发布到 tailnet。最后一步可以确认后由 DeepSeekBot 代为运行 `tailscale serve --bg <port>`，也可以复制命令自己运行。CLI 中的对应操作：
+
+```bash
+deepseekbot phone-route
+deepseekbot phone-route-publish --confirm
+```
+
+`phone-route` 返回 `{routes}`：`tailscale`（`running`、`stopped` 或 `missing`）、本 Host 端口对应的 `serveCommand`，以及每条路由的 `ready`；未就绪时带 `issue`（`serve-missing` 或 `serve-other-target`）。`phone-route-publish` 在 Host 所在电脑上运行 `tailscale serve --bg <port>`，返回 `{published, changed, routes}`；`changed:false` 表示原本就已发布。拒绝时带错误码：`confirm-required`（缺少 `--confirm`）、`tailscale-missing`、`tailscale-stopped`、`serve-other-target`（这个地址已发布了别的服务，Host 不会覆盖，请手动处理）、`serve-needs-enable`（tailnet 未开启 Serve，返回 `enableUrl` 指向 Tailscale 后台）、`serve-denied`（Tailscale 不允许当前系统用户修改）和 `serve-failed`。用 `tailscale serve reset` 撤销。
+
 ### 模型、用量与活动
 
 ```bash

@@ -14,9 +14,9 @@ import {
   DEVICE_SIGNALING_PATHS,
   DEVICE_WEB_MUX_PATH,
 } from './gateway.js';
-import { createDevicesHttp, DEVICES_PATH } from './http.js';
+import { createDevicesHttp, DEVICES_PATH, DEVICES_SERVE_PATH } from './http.js';
 import { createDevicePairing, type DevicePairingEvent } from './pairing.js';
-import { detectPhoneRoutes } from './routes.js';
+import { detectPhoneRoutes, publishPhoneRoute } from './routes.js';
 import {
   createPushDelivery,
   type ExpoSender,
@@ -145,7 +145,11 @@ export function mountDevicePairing(
     const connection = (webCtx as unknown as { connection: ConnectionLike }).connection;
     const webServer = (webCtx as unknown as { webServer: WebServerLike }).webServer;
     const routes = () => detectPhoneRoutes({ port: webServer.port });
-    const http = createDevicesHttp({ pairing, routes });
+    const http = createDevicesHttp({
+      pairing,
+      routes,
+      publish: () => publishPhoneRoute({ port: webServer.port }),
+    });
     for (const [path, methods] of [
       [DEVICES_PATH, ['GET']],
       [`${DEVICES_PATH}/offer`, ['POST']],
@@ -155,6 +159,16 @@ export function mountDevicePairing(
         () => connection.fetch.register({ path, methods, requestBody: 'buffered', fetch: http }),
         `botharness: paired devices ${path}`,
       );
+    webCtx.effect(
+      () =>
+        connection.fetch.register({
+          path: DEVICES_SERVE_PATH,
+          methods: ['POST'],
+          requestBody: 'buffered',
+          fetch: http,
+        }),
+      'botharness: publish phone route',
+    );
 
     const gateway = createDeviceGateway({
       pairing,

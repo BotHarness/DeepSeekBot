@@ -7,12 +7,18 @@ import { Callout } from './ds/callout.js';
 import { Note } from './ds/note.js';
 import { PanelDialog } from './ds/panel-dialog.js';
 import { SettingsRow, SettingsSection } from './ds/settings-row.js';
-import { radius, space, text } from './ds/tokens.stylex.js';
+import { radius, space } from './ds/tokens.stylex.js';
 import { formatRelativeTime } from './labels.js';
 import { useMountedResource } from './mounted-resource.js';
+import {
+  PhoneRouteSteps,
+  type PhoneRouteStatus,
+  type PublishFailure,
+} from './phone-route-steps.js';
 
 const PATH = './api/botharness/devices';
 const LIST_POLL_MS = 2000;
+const ROUTE_POLL_MS = 3000;
 
 interface PairedDevice {
   id: string;
@@ -22,11 +28,7 @@ interface PairedDevice {
   revokedAt?: string;
 }
 
-interface RouteStatus {
-  routes: { url: string; kind: 'tailscale' | 'loopback'; ready: boolean; issue?: string }[];
-  tailscale: 'running' | 'stopped' | 'missing';
-  serveCommand: string;
-}
+type RouteStatus = PhoneRouteStatus;
 
 interface DevicesSnapshot {
   host: { id: string; name: string };
@@ -57,12 +59,6 @@ const styles = stylex.create({
     borderRadius: radius.md,
     backgroundColor: 'white',
   },
-  code: {
-    fontFamily: 'var(--dsw-font-mono, ui-monospace, monospace)',
-    fontSize: text.metaSize,
-    lineHeight: text.metaLine,
-    overflowWrap: 'anywhere',
-  },
   actions: { display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: space.x3 },
 });
 
@@ -73,6 +69,10 @@ async function json<T>(response: Response): Promise<T> {
 
 function hasPhoneRoute(routes: RouteStatus): boolean {
   return routes.routes.some((route) => route.kind === 'tailscale' && route.ready);
+}
+
+function portOf(routes: RouteStatus): string {
+  return /(\d+)\s*$/u.exec(routes.serveCommand)?.[1] ?? '';
 }
 
 function onTailnet(): boolean {
@@ -88,6 +88,7 @@ export function PairedDevicesSettings({ t }: PropsLocale<'botharness'>): ReactEl
   const [busy, setBusy] = useState<string>();
   const [error, setError] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [guided, setGuided] = useState(false);
   const mounted = useRef(false);
   const known = useRef<Set<string>>(new Set());
 
@@ -127,6 +128,26 @@ export function PairedDevicesSettings({ t }: PropsLocale<'botharness'>): ReactEl
     }, LIST_POLL_MS);
     return () => clearInterval(timer);
   }, []);
+
+  const publish = async (): Promise<PublishFailure | undefined> => {
+    try {
+      const response = await fetch(`${PATH}/serve`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ confirm: true }),
+      });
+      const value = (await response.json()) as PublishFailure & {
+        routes?: RouteStatus;
+      };
+      if (mounted.current && value.routes !== undefined)
+        setSnapshot((current) =>
+          current === undefined ? current : { ...current, routes: value.routes! },
+        );
+      return response.ok ? undefined : value;
+    } catch {
+      return { code: 'serve-failed' };
+    }
+  };
 
   const createOffer = async (): Promise<void> => {
     setBusy('offer');
@@ -192,11 +213,19 @@ export function PairedDevicesSettings({ t }: PropsLocale<'botharness'>): ReactEl
     }
   };
 
+  const routes = snapshot?.routes;
+  const reachable = routes === undefined || hasPhoneRoute(routes) || onTailnet();
+  const showSteps = routes !== undefined && (!reachable || guided);
+  if (showSteps && !reachable && !guided) setGuided(true);
+
+  const follow = useMountedResource<HTMLDivElement>(() => {
+    const timer = setInterval(() => void load().catch(() => undefined), ROUTE_POLL_MS);
+    return () => clearInterval(timer);
+  }, []);
+
   const expired = offer !== undefined && Date.parse(offer.expiresAt) <= now;
   const secondsLeft =
     offer === undefined ? 0 : Math.max(0, Math.ceil((Date.parse(offer.expiresAt) - now) / 1000));
-  const routes = snapshot?.routes;
-  const unreachable = routes !== undefined && !hasPhoneRoute(routes) && !onTailnet();
   const devices = snapshot?.devices ?? [];
 
   return (
@@ -212,17 +241,16 @@ export function PairedDevicesSettings({ t }: PropsLocale<'botharness'>): ReactEl
             </Button>
           }
         >
-          {unreachable ? (
-            <Callout tone="warning" data={{ 'data-pair-route-warning': routes.tailscale }}>
-              {t(
-                routes.tailscale === 'running'
-                  ? 'devices.route.notServed'
-                  : routes.tailscale === 'stopped'
-                    ? 'devices.route.stopped'
-                    : 'devices.route.missing',
-              )}{' '}
-              <code {...stylex.props(styles.code)}>{routes.serveCommand}</code>
-            </Callout>
+          {showSteps ? (
+            <div ref={reachable ? undefined : follow}>
+              <PhoneRouteSteps
+                t={t}
+                status={routes}
+                reachable={reachable}
+                port={portOf(routes)}
+                onPublish={publish}
+              />
+            </div>
           ) : null}
         </SettingsRow>
       </SettingsSection>

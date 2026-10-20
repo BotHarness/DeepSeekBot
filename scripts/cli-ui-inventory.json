@@ -68,6 +68,13 @@
       "issue": "#2098"
     },
     {
+      "id": "phone-route",
+      "description": "Phone route status and the confirmed tailscale serve publish behind the Pair a phone stepper.",
+      "scope": "Profile",
+      "surfaces": ["route:packages/core/src/devices/mount.ts:DEVICES_SERVE_PATH"],
+      "commands": ["phone-route", "phone-route-publish"]
+    },
+    {
       "id": "profile-recovery",
       "description": "Online backup export/inspection/recovery authorization/activation; existing offline portability does not cover the online UI.",
       "scope": "Profile",

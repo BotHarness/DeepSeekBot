@@ -588,6 +588,17 @@ deepseekbot idle-compaction-cache-set deepseek/<model> auto
 
 All three return `{enabled, settingReadable, minimumIdleSeconds, scheduled, routes}`. Each route lists `cacheLifetimeSeconds`, its `source` and `compactAfterSeconds` (`null` when the route is skipped). The lifetime comes from the per-route value set here (`setting`), the model catalog (`catalog`, Anthropic's short tier), the observed gaps before requests that still read most of their input from the cache (`observed`; a warm gap never shortens the default, and a longer cold gap caps it), or 2 hours for DeepSeek routes (`default`); other routes with nothing known are `unknown` and skipped, as are lifetimes under 15 minutes. `idle-compaction-cache-set ... auto` removes the per-route value. Each run is recorded under `idleCompactions` in `deepseekbot bot-activity-history <bot-id>` with the route, idle gap, tokens before and after, and the compaction request's input, cache-read and output tokens. Refusals carry a code: `usage` (a missing `on`/`off`, `<provider>/<model>` or whole seconds) and `invalid-input`.
 
+### Phone route (Tailscale)
+
+Bot settings → Devices → Pair a phone shows a three-step guide while a phone cannot reach this Host: install Tailscale, start and sign in, then publish the Host on the tailnet. The last step can run `tailscale serve --bg <port>` for you after a confirmation, or you copy the command and run it yourself. The same two operations from the CLI:
+
+```bash
+deepseekbot phone-route
+deepseekbot phone-route-publish --confirm
+```
+
+`phone-route` returns `{routes}`: `tailscale` (`running`, `stopped` or `missing`), the `serveCommand` for this Host's port, and each route with `ready` and, when not ready, `issue` (`serve-missing` or `serve-other-target`). `phone-route-publish` runs `tailscale serve --bg <port>` on the Host computer and returns `{published, changed, routes}`; `changed:false` means the route was already published. Refusals carry a code: `confirm-required` (no `--confirm`), `tailscale-missing`, `tailscale-stopped`, `serve-other-target` (another service is already published at this address; the Host never replaces it, change it by hand), `serve-needs-enable` (Serve is off for the tailnet; the refusal carries `enableUrl` for the Tailscale admin console), `serve-denied` (Tailscale refused the change for this OS user) and `serve-failed`. Undo with `tailscale serve reset`.
+
 ### Models, usage and activity
 
 ```bash
