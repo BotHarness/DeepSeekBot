@@ -102,6 +102,12 @@ const styles = stylex.create({
     outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
     outlineOffset: '-2px',
   },
+  navIcon: {
+    flexShrink: 0,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   navLabel: {
     flexGrow: 1,
     minWidth: 0,
@@ -213,6 +219,7 @@ const styles = stylex.create({
 export interface SettingsDialogSection {
   readonly id: string;
   readonly label: string;
+  readonly icon?: ReactNode;
   readonly attention?: boolean;
 }
 
@@ -295,6 +302,7 @@ function SectionPicker({
           anchor={<span aria-hidden="true" />}
           items={sections.map((section) => ({
             id: section.id,
+            icon: section.icon,
             label:
               section.attention === true ? (
                 <span {...stylex.props(styles.dotLabel)}>
@@ -364,6 +372,11 @@ export function SettingsDialog({
                   }}
                   {...stylex.props(styles.navCell)}
                 >
+                  {section.icon === undefined ? null : (
+                    <span aria-hidden="true" {...stylex.props(styles.navIcon)}>
+                      {section.icon}
+                    </span>
+                  )}
                   <span {...stylex.props(styles.navLabel)}>{section.label}</span>
                   {section.attention === true ? <AttentionDot label={labels.attention} /> : null}
                 </button>

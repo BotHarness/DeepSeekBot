@@ -68,7 +68,7 @@ async function json<T>(response: Response): Promise<T> {
 }
 
 function hasPhoneRoute(routes: RouteStatus): boolean {
-  return routes.routes.some((route) => route.kind === 'tailscale' && route.ready);
+  return routes.routes.some((route) => route.kind !== 'loopback' && route.ready);
 }
 
 function portOf(routes: RouteStatus): string {

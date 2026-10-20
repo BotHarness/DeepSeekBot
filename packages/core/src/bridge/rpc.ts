@@ -1303,6 +1303,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     search?: string,
     unreadOnly?: boolean,
     queryVersion?: number,
+    dismissed?: boolean,
   ): HumanAttentionPage {
     return unwrap(
       this.methods.humanAttention({
@@ -1317,6 +1318,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
         search,
         unreadOnly,
         queryVersion,
+        dismissed,
       }),
     );
   }
@@ -1335,6 +1337,9 @@ export class BotharnessBridgeService extends TypertRemoteService {
   }
   humanAttentionDismiss(itemId: string, sourceKey: string): { accepted: boolean } {
     return unwrap(this.methods.humanAttentionDismiss({ itemId, sourceKey }));
+  }
+  humanAttentionRestore(itemId: string, sourceKey: string): { accepted: boolean } {
+    return unwrap(this.methods.humanAttentionRestore({ itemId, sourceKey }));
   }
   humanAttentionIgnore(sourceEventId: string): { accepted: boolean } {
     return unwrap(this.methods.humanAttentionIgnore({ sourceEventId }));
@@ -1947,6 +1952,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'humanAttentionStatus',
   'humanAttentionIgnore',
   'humanAttentionDismiss',
+  'humanAttentionRestore',
   'humanAttentionSnooze',
   'assignments',
   'channelAssignments',

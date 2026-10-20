@@ -207,6 +207,27 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
     ]);
   });
 
+  it('lists dismissed Human Inbox items and brings one back', async () => {
+    const live = await host((method, args) =>
+      method === 'humanAttention'
+        ? { ok: true, value: { items: [], dismissed: args['dismissed'] } }
+        : echo(method, args),
+    );
+    await invoke(['inbox', '--category', 'replies', '--dismissed'], live.url);
+    await invoke(['inbox-restore', 'reply:src-1', '--source-key', 'src-1'], live.url);
+    expect((await invoke(['inbox', '--snoozed', '--dismissed'], live.url)).json.error.code).toBe(
+      'usage',
+    );
+    expect(live.calls).toEqual([
+      { method: 'humanAttention', args: { category: 'replies', dismissed: true } },
+      { method: 'humanAttentionRestore', args: { itemId: 'reply:src-1', sourceKey: 'src-1' } },
+    ]);
+    const legacy = await host(() => ({ ok: true, value: { items: [] } }));
+    expect(
+      (await invoke(['inbox', '--category', 'replies', '--dismissed'], legacy.url)).json.error.code,
+    ).toBe('host-query-unsupported');
+  });
+
   it('lists auto-rejected calls and allows one once anyway', async () => {
     const live = await host(echo);
     await invoke(['inbox', '--category', 'action', '--kind', 'auto-rejection'], live.url);

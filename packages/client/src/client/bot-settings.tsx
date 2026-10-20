@@ -5,6 +5,7 @@ import { useState, useSyncExternalStore, type ReactElement, type ReactNode } fro
 import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots';
 
 import type {} from './bot-settings-slot.js';
+import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { SettingsDialog } from './ds/settings-dialog.js';
 import type { BotHarnessTranslate } from './locale.js';
 
@@ -25,6 +26,28 @@ export const BOT_SETTINGS_SECTIONS = {
 } as const;
 
 export const BOT_SETTINGS_DEFAULT_SECTION = BOT_SETTINGS_SECTIONS.general;
+
+const SECTION_ICONS: Readonly<Record<string, string>> = {
+  [BOT_SETTINGS_SECTIONS.general]: 'settings',
+  [BOT_SETTINGS_SECTIONS.appearance]: 'palette',
+  [BOT_SETTINGS_SECTIONS.models]: 'cpu',
+  [BOT_SETTINGS_SECTIONS.autoApproval]: 'shield-check',
+  [BOT_SETTINGS_SECTIONS.messaging]: 'message-square',
+  [BOT_SETTINGS_SECTIONS.notifications]: 'bell',
+  [BOT_SETTINGS_SECTIONS.shortcuts]: 'keyboard',
+  [BOT_SETTINGS_SECTIONS.imApps]: 'plug',
+  computer: 'monitor',
+  browser: 'globe',
+  [BOT_SETTINGS_SECTIONS.companions]: 'bot',
+  [BOT_SETTINGS_SECTIONS.devices]: 'smartphone',
+  [BOT_SETTINGS_SECTIONS.dataPrivacy]: 'lock',
+  [BOT_SETTINGS_SECTIONS.advanced]: 'sliders-horizontal',
+  [BOT_SETTINGS_SECTIONS.about]: 'info',
+};
+
+export function botSettingsSectionIcon(id: string): string {
+  return Object.hasOwn(SECTION_ICONS, id) ? SECTION_ICONS[id]! : 'settings-2';
+}
 
 const SECTION_SLOT = 'botharness.settings.section';
 
@@ -162,7 +185,10 @@ export function BotSettingsView({
     <SettingsDialog
       title={t('settings.nav')}
       navTitle={t('settings.nav')}
-      sections={rows}
+      sections={rows.map((row) => ({
+        ...row,
+        icon: <ChannelSidebarIcon name={botSettingsSectionIcon(row.id)} />,
+      }))}
       activeId={active?.id}
       navigationSearch={<SettingsSearch query={query} onChange={setQuery} t={t} />}
       navigationResults={

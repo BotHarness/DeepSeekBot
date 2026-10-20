@@ -374,6 +374,8 @@ deepseekbot inbox --category replies --search budget --unread --sort mentions-fi
 deepseekbot inbox-watch --category unread --watch-seconds 10
 deepseekbot inbox-status
 deepseekbot inbox-dismiss <item-id> --source-key <source-event-id>
+deepseekbot inbox --category replies --dismissed
+deepseekbot inbox-restore <item-id> --source-key <source-event-id>
 deepseekbot inbox-snooze <item-id> --source-key <source-event-id> --until 2026-10-15T09:00:00Z
 deepseekbot inbox-snooze <item-id> --source-key <source-event-id> --clear
 deepseekbot inbox --category action --snoozed
@@ -398,7 +400,7 @@ deepseekbot private-mcp-remove <bot-id> --server <name> --confirm
 
 `inbox --search <text>` searches safe Activity summaries, Channel names and Bot slugs before pagination (maximum 200 characters). `--unread` restricts personal messages to unread entries and leaves pending actions intact. `--sort newest|oldest` orders each category; `--category replies --sort mentions-first` puts mentions before replies. Keep filters unchanged when using `--cursor`. Search, unread filtering and mention ordering require query version 1; an older Host fails with `host-query-unsupported` instead of returning partial results.
 
-`inbox` returns one page of the Human Inbox (`items` and `nextCursor`), filtered like the Inbox tabs by `--category` (`action`, `info`, `unread`, `replies`, `handled`), `--bot` or `--channel`. `inbox-dismiss` takes an item's `id` and, when the item has one, its `sourceEventId` as `--source-key`; `inbox-ignore` marks an informational assignment report as read. `inbox-snooze` hides an Action, Info or Replies item until `--until` (at most 30 days away), the Web Inbox's "Remind me later"; `--clear` brings it back now, and `inbox --snoozed` lists the items still snoozed with their `snoozedUntil`. `assignment-context` reads the report behind an `assignment-report` item. `channel-assignments` lists a group Channel's assignment work; `channel-assign` moves a Channel into a sidebar section (`--unsectioned` takes it out). `session-ids` lists the root Sessions Bots own and `session-owner` names a Session's Bot and role. `tool-approval-rules` lists a Bot's "always allow" rules. Revoking a rule, a Workspace Grant or a private MCP server needs `--confirm`, as the Web UI asks for confirmation. With a Host targeted, `grant-revoke` and `grant-write-set` go through it; with `--home` they stay offline maintenance commands. Private MCP servers are listed by `ask-secret-accounts`; a name the Host does not know fails with `private-mcp-server-unavailable`.
+`inbox` returns one page of the Human Inbox (`items` and `nextCursor`), filtered like the Inbox tabs by `--category` (`action`, `info`, `unread`, `replies`, `handled`), `--bot` or `--channel`. `inbox-dismiss` takes an item's `id` and, when the item has one, its `sourceEventId` as `--source-key`; `inbox --dismissed` lists the dismissed items (the phone's "Cleared" filter) and `inbox-restore` brings one back with the same `id` and `--source-key`, failing on a Host that predates it with `host-query-unsupported`; `inbox-ignore` marks an informational assignment report as read. `inbox-snooze` hides an Action, Info or Replies item until `--until` (at most 30 days away), the Web Inbox's "Remind me later"; `--clear` brings it back now, and `inbox --snoozed` lists the items still snoozed with their `snoozedUntil`. `assignment-context` reads the report behind an `assignment-report` item. `channel-assignments` lists a group Channel's assignment work; `channel-assign` moves a Channel into a sidebar section (`--unsectioned` takes it out). `session-ids` lists the root Sessions Bots own and `session-owner` names a Session's Bot and role. `tool-approval-rules` lists a Bot's "always allow" rules. Revoking a rule, a Workspace Grant or a private MCP server needs `--confirm`, as the Web UI asks for confirmation. With a Host targeted, `grant-revoke` and `grant-write-set` go through it; with `--home` they stay offline maintenance commands. Private MCP servers are listed by `ask-secret-accounts`; a name the Host does not know fails with `private-mcp-server-unavailable`.
 
 ### Schedules on a live Host
 
@@ -1047,6 +1049,51 @@ Run `disable` before removing the product. After every cold boot, enumerate Clie
 Ctrl+0 restores the saved default, including 120%; numberpad codes are unsupported by the
 pinned protocol. See [Windows qualification #2270](https://github.com/BotHarness/DeepSeekBot/issues/2270)
 for the separate native input, guest foreground, DPI and Human-QA gates.
+
+## Hosted Connect tunnel (ADR-0241, first slice)
+
+Hosted Connect lets a paired phone reach this Host through a Cloudflare Tunnel under
+`deepseekbot.dev` instead of Tailscale ([#2387](https://github.com/BotHarness/DeepSeekBot/issues/2387)).
+In this first slice the tunnel and its connector token are made by hand; account sign-in and the
+relay come later.
+
+```sh
+deepseekbot connect-status --host <host> --token-file <private-file>
+deepseekbot connect-enable --hostname <name>.deepseekbot.dev --token-stdin --host <host> --token-file <private-file> < <connector-token-file>
+deepseekbot connect-disable --host <host> --token-file <private-file>
+```
+
+`connect-enable` stores the hostname and connector token in the DSH credential store, opens a
+loopback origin that forwards only `/botharness-device/*` to the DSH listener (every other path is
+404), and runs `cloudflared tunnel --no-autoupdate run` with the token in `TUNNEL_TOKEN`, never in
+its arguments. The JSON reply's `origin` is the address the tunnel's ingress must target. The
+`cloudflared` binary comes from `DEEPSEEKBOT_CLOUDFLARED` or `PATH`. `connect-status` returns
+`connect.state` (`off`, `starting`, `connected`, `error`) with `issue` (`cloudflared-missing`,
+`cloudflared-exited`, `origin-port-busy`, `credential-unavailable`) and the phone route list; once
+connected, new pairing QR codes include `https://<name>.deepseekbot.dev` after any Tailscale route.
+Refusals: `connect-hostname-invalid` (only one label under `deepseekbot.dev`),
+`connect-token-invalid`, `credential-unavailable`. `connect-disable` stops the tunnel and deletes
+the stored token; paired devices keep their credentials.
+
+### Account sign-in (second slice)
+
+```sh
+deepseekbot connect-sign-in --wait --host <host> --token-file <private-file>
+deepseekbot connect-sign-out --host <host> --token-file <private-file>
+```
+
+`connect-sign-in` starts WorkOS CLI Auth (the device authorization grant) with the client that the
+relay at `https://connect.botharness.ai` publishes (`DEEPSEEKBOT_CONNECT_RELAY` overrides it). The
+reply carries `userCode` and `verificationUri`; with `--wait` the CLI prints them to stderr and waits
+until the Host finishes. The Host then stores only the refresh token in the DSH credential store,
+links itself to the account (at most five Hosts per account), asks the relay for its tunnel and runs
+it as `connect-enable` would, with no hand-made token. While signed in it asks the relay again when
+the tunnel stops, so a tunnel the relay reclaimed after the Host was offline comes back on the same
+`<host-id>.deepseekbot.dev`. `connect-status` adds `connect.account` with `state` (`signed-out`,
+`signing-in`, `signed-in`, `error`), `email`, `hostId` and `issue` (`relay-unavailable`,
+`sign-in-denied`, `sign-in-expired`, `session-expired`, `account-not-allowed`, `host-limit`,
+`credential-unavailable`). `connect-sign-out` unlinks the Host at the relay, stops the tunnel and
+deletes the session. While testing, only allowlisted accounts can link Hosts.
 
 ## Device-local DeepSeekBot appearance
 

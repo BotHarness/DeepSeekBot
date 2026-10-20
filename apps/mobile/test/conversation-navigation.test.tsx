@@ -21,6 +21,10 @@ const state = vi.hoisted(() => ({
   display: { mode: 'streaming', loaded: true },
 }));
 
+vi.mock('../src/ui/shell/recent-chats', () => ({
+  chatHref: () => '',
+  useRecentChat: () => () => {},
+}));
 vi.mock('../src/host/native-source-drafts', () => ({ useSourceDraft: () => ['', () => {}] }));
 vi.mock('expo-router', () => ({
   useIsFocused: () => true,
@@ -100,8 +104,11 @@ vi.mock('../src/ui/chat/native-header', () => ({
   glassHeader: true,
   barLabelStyle: {},
   useHeaderOverlap: () => 80,
+  floatingHeader: false,
+  useHeaderPadding: () => 0,
 }));
 vi.mock('../src/ui/chat/header-chrome', () => ({
+  titleChipFill: () => ({}),
   HeaderBackButton: ({ onPress }: { onPress(): void }) => (
     <button type="button" onClick={onPress}>
       Header back

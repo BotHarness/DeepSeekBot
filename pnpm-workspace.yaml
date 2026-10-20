@@ -388,3 +388,4 @@ patchedDependencies:
   '@deepseek-ai/dsh-tool-fs@0.2.1-rc.2': patches/@deepseek-ai__dsh-tool-fs@0.2.1-rc.2.patch
   '@deepseek-ai/dsh-llm-pi-ai@0.2.1-rc.2': patches/@deepseek-ai__dsh-llm-pi-ai@0.2.1-rc.2.patch
   dockview-core@8.4.1: patches/dockview-core@8.4.1.patch
+  expo-quick-actions@6.0.2: patches/expo-quick-actions@6.0.2.patch

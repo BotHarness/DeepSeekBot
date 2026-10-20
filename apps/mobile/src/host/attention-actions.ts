@@ -92,3 +92,51 @@ export async function replyToAssignment(
   const at = message['createdAt'] ?? message['at'];
   return { id: messageId, at: typeof at === 'string' ? at : new Date().toISOString(), body: text };
 }
+
+async function accepted(client: HostClient, method: string, args: Record<string, unknown>) {
+  const value = record(await client.call(method, args));
+  if (value?.['accepted'] !== true)
+    throw new HostAnswerInvalid('The computer did not confirm the change.');
+}
+
+export function clearAttentionItem(client: HostClient, item: HumanAttentionItem): Promise<void> {
+  return accepted(client, 'humanAttentionDismiss', {
+    itemId: item.id,
+    sourceKey: item.sourceEventId ?? '',
+  });
+}
+
+export function restoreAttentionItem(client: HostClient, item: HumanAttentionItem): Promise<void> {
+  return accepted(client, 'humanAttentionRestore', {
+    itemId: item.id,
+    sourceKey: item.sourceEventId ?? '',
+  });
+}
+
+export function snoozeAttentionItem(
+  client: HostClient,
+  item: HumanAttentionItem,
+  until: Date | null,
+): Promise<void> {
+  return accepted(client, 'humanAttentionSnooze', {
+    itemId: item.id,
+    sourceKey: item.sourceEventId ?? '',
+    until: until?.toISOString() ?? null,
+  });
+}
+
+export type SnoozeChoice = 'hour' | 'evening' | 'tomorrow' | 'week';
+export const SNOOZE_CHOICES: readonly SnoozeChoice[] = ['hour', 'evening', 'tomorrow', 'week'];
+
+export function snoozeUntil(choice: SnoozeChoice, now: Date): Date | undefined {
+  if (choice === 'hour') return new Date(now.getTime() + 60 * 60 * 1000);
+  const at = new Date(now);
+  if (choice === 'evening') {
+    at.setHours(18, 0, 0, 0);
+    return at.getTime() > now.getTime() + 30 * 60 * 1000 ? at : undefined;
+  }
+  at.setHours(9, 0, 0, 0);
+  if (choice === 'tomorrow') at.setDate(at.getDate() + 1);
+  else at.setDate(at.getDate() + ((8 - at.getDay()) % 7 || 7));
+  return at;
+}

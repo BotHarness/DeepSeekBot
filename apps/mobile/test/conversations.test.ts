@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest';
 
 import type { RosterView } from '../src/host/client';
 import type { HumanAttentionItem } from '../src/host/wire';
+import { t } from '../src/ui/strings';
 import {
   chatList,
   conversations,
   countBadge,
   DONE_WINDOW_MS,
+  previewText,
   rowLabel,
   rowStatus,
   searchConversations,
@@ -216,6 +218,12 @@ describe('Row status', () => {
     ).toBe('none');
     expect(rowStatus(row({ previewAuthor: { kind: 'human' } }, { unread: 1 }), now)).toBe('none');
     expect(rowStatus(row({}), now)).toBe('none');
+  });
+
+  it('shows a pending tool approval preview in the app language', () => {
+    expect(previewText('请求批准执行 secret_cli')).toBe(t.approvalPreview('secret_cli'));
+    expect(t.approvalPreview('secret_cli')).toBe('Requests approval to run secret_cli');
+    expect(previewText('Sure, done')).toBe('Sure, done');
   });
 
   it('reads the status once in the row label', () => {

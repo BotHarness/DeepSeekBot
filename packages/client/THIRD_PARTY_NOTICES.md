@@ -69,7 +69,7 @@ SOFTWARE.
 - Package: `lucide` icons (vendored glyph paths; see ADR-0032)
 - License: ISC
 - Source: <https://github.com/lucide-icons/lucide>
-- Used for: Channel sidebar function/settings/check glyphs (`house`, `files`, `git-branch`, `messages-square`, `inbox`, `folder-key`, `users`, `settings-2`, `settings`, `monitor`, `globe`, `panels-top-left`, `grip-vertical`, `check`, `eye`, `eye-off`, `chevron-right`, from `lucide-react@1.46.0`) in `channel-sidebar-icon.tsx`; the `inbox` Activity Center glyph (`InboxIcon` in `src/client/inbox-icon.tsx`) and the `hash` channel glyph (`HashIcon` in `src/client/hash-icon.tsx`, from `lucide-react@1.46.0`); the `git-commit-vertical` Memory commit glyph (`GitCommitIcon` in `src/client/git-commit-icon.tsx`, from `lucide-react@1.46.0`)
+- Used for: Channel sidebar function/settings/check glyphs (`house`, `files`, `git-branch`, `messages-square`, `inbox`, `folder-key`, `users`, `settings-2`, `settings`, `monitor`, `globe`, `panels-top-left`, `grip-vertical`, `check`, `message-square`, `keyboard`, `smartphone`, `sliders-horizontal`, `info`, `eye`, `eye-off`, `chevron-right`, from `lucide-react@1.46.0`) in `channel-sidebar-icon.tsx`; the `inbox` Activity Center glyph (`InboxIcon` in `src/client/inbox-icon.tsx`) and the `hash` channel glyph (`HashIcon` in `src/client/hash-icon.tsx`, from `lucide-react@1.46.0`); the `git-commit-vertical` Memory commit glyph (`GitCommitIcon` in `src/client/git-commit-icon.tsx`, from `lucide-react@1.46.0`)
 
 ```
 ISC License

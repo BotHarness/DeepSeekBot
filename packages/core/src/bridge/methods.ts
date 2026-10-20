@@ -648,6 +648,7 @@ export interface BridgeMethods {
     payload: unknown,
   ): BridgeResult<{ channels: Array<{ channelId: string; unreadCount: number }> }>;
   humanAttentionDismiss(payload: unknown): BridgeResult<{ accepted: boolean }>;
+  humanAttentionRestore(payload: unknown): BridgeResult<{ accepted: boolean }>;
   humanAttentionIgnore(payload: unknown): BridgeResult<{ accepted: boolean }>;
   humanAttentionSnooze(payload: unknown): BridgeResult<{ accepted: boolean }>;
   assignments(payload: unknown): BridgeResult<{ assignments: AssignmentSummary[] }>;
@@ -4993,9 +4994,14 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       const limit = source['limit'];
       const cursor = source['cursor'];
       const snoozed = source['snoozed'];
+      const dismissed = source['dismissed'];
       const kind = source['kind'];
       if (snoozed !== undefined && typeof snoozed !== 'boolean')
         return invalidInput('snoozed must be a boolean');
+      if (dismissed !== undefined && typeof dismissed !== 'boolean')
+        return invalidInput('dismissed must be a boolean');
+      if (snoozed === true && dismissed === true)
+        return invalidInput('snoozed and dismissed cannot be combined');
       if (kind !== undefined && kind !== 'auto-rejection')
         return invalidInput('kind must be auto-rejection');
       if (
@@ -5047,9 +5053,11 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
               ...(limit === undefined ? {} : { limit: limit as number }),
               ...(cursor === undefined ? {} : { cursor: cursor as string }),
               ...(snoozed === true ? { snoozed: true } : {}),
+              ...(dismissed === true ? { dismissed: true } : {}),
               ...(kind === undefined ? {} : { kind }),
             }) ?? { items: [] }),
             ...(source['queryVersion'] === 1 ? { queryVersion: 1 } : {}),
+            ...(dismissed === true ? { dismissed: true } : {}),
           },
         };
       } catch (error) {
@@ -5129,6 +5137,30 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
           deps.humanAttentionDecisions?.dismiss(item) !== true
         )
           return invalidInput('Inbox item is no longer available');
+        return { ok: true, value: { accepted: true } };
+      } catch (error) {
+        return invalidInput(String(error));
+      }
+    },
+    humanAttentionRestore(payload) {
+      const source = asObject(payload);
+      const itemId = asNonBlank(source, 'itemId');
+      const sourceKey = source?.['sourceKey'];
+      if (
+        itemId === undefined ||
+        itemId.length > 350 ||
+        typeof sourceKey !== 'string' ||
+        sourceKey.length > 150
+      )
+        return invalidInput('itemId and sourceKey are required');
+      try {
+        const item = deps.humanAttention?.item(itemId, sourceKey);
+        if (
+          item === undefined ||
+          (item.sourceEventId ?? '') !== sourceKey ||
+          deps.humanAttentionDecisions?.restore(item) !== true
+        )
+          return invalidInput('Inbox item is not dismissed');
         return { ok: true, value: { accepted: true } };
       } catch (error) {
         return invalidInput(String(error));

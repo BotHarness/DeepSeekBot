@@ -235,6 +235,41 @@ describe('Phone actions for Inbox items', () => {
     expect(line(page)).toBe(t.cardLine(t.kind['group-join-request']!, t.joinAccepted));
   });
 
+  it('explains an interrupted message, opens its conversation and clears it', async () => {
+    const repair: HumanAttentionItem = {
+      id: 'repair:e9:ada',
+      category: 'action',
+      kind: 'bot-message-needs-repair',
+      createdAt: '2026-10-20T00:00:00.000Z',
+      channelId: 'dm-ada',
+      botSlug: 'ada',
+      summary: 'Rename the release branch',
+      messageId: 'm9',
+      sourceEventId: 'e9',
+    };
+    const fake = host();
+    fake.methods.set('humanAttentionDismiss', () => ({ accepted: true }));
+    const opened: HumanAttentionItem[] = [];
+    const page = await render(
+      createElement(AttentionItemView, {
+        client: connect(fake),
+        target: { id: repair.id, botSlug: 'ada' },
+        known: repair,
+        botName: 'Ada',
+        onOpenChat: (item: HumanAttentionItem) => opened.push(item),
+        fallback: createElement('p', null, 'fallback'),
+      }),
+    );
+    expect(page.textContent).toContain(t.repairTitle('Ada'));
+    expect(page.textContent).toContain('Rename the release branch');
+    expect(page.textContent).toContain(t.repairHint);
+    await press(button(page, t.activityRow.openChat));
+    expect(opened).toEqual([repair]);
+    await press(button(page, t.activityClear));
+    expect(sent(fake, 'humanAttentionDismiss')).toEqual([{ itemId: repair.id, sourceKey: 'e9' }]);
+    expect(line(page)).toBe(t.cardLine(t.kind['bot-message-needs-repair']!, t.repairCleared));
+  });
+
   it('keeps a join request open when the computer does not confirm it', async () => {
     const fake = host();
     fake.methods.set('channelGroupJoinDecide', () => ({

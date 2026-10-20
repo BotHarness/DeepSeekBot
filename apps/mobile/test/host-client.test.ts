@@ -250,6 +250,13 @@ describe('route check', () => {
     });
     expect(checkRoute('http://studio.tailnet-example.ts.net').ok).toBe(false);
     expect(checkRoute('https://example.com').ok).toBe(false);
+    expect(checkRoute('https://studio.deepseekbot.dev')).toEqual({
+      ok: true,
+      origin: 'https://studio.deepseekbot.dev',
+    });
+    expect(checkRoute('http://studio.deepseekbot.dev').ok).toBe(false);
+    expect(checkRoute('https://a.studio.deepseekbot.dev').ok).toBe(false);
+    expect(checkRoute('https://studio.deepseekbot.dev:8443').ok).toBe(false);
     expect(checkRoute('https://studio.tailnet-example.ts.net/?token=x').ok).toBe(false);
   });
 });

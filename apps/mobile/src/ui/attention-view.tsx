@@ -138,6 +138,65 @@ export function AutoRejectionView({
   );
 }
 
+export interface RepairPort {
+  clear(): Promise<void>;
+}
+
+export function RepairView({
+  item,
+  botName,
+  port,
+  after,
+  onOpenChat,
+}: {
+  item: HumanAttentionItem;
+  botName: string;
+  port: RepairPort;
+  after?(): void;
+  onOpenChat?(): void;
+}) {
+  const { busy, error, done, run } = useAction(after);
+  const category = t.kind['bot-message-needs-repair']!;
+  if (done !== undefined) return <Done category={category} text={done} />;
+  return (
+    <Page>
+      <ActionCard
+        category={category}
+        status={t.needsYou}
+        title={t.repairTitle(botName)}
+        wide
+        {...(item.summary ? { preview: <Well>{item.summary}</Well> } : {})}
+        {...(error === undefined ? {} : { error })}
+      >
+        <CardNote>{t.repairHint}</CardNote>
+        <CardButtons stack>
+          {onOpenChat === undefined ? null : (
+            <Button
+              label={t.activityRow.openChat}
+              testID="repair-open"
+              tone="primary"
+              disabled={busy !== undefined}
+              onPress={onOpenChat}
+            />
+          )}
+          <Button
+            label={t.activityClear}
+            testID="repair-clear"
+            busy={busy === 'clear'}
+            onPress={() =>
+              void run('clear', async () => {
+                await port.clear();
+                haptic('submit');
+                return t.repairCleared;
+              })
+            }
+          />
+        </CardButtons>
+      </ActionCard>
+    </Page>
+  );
+}
+
 export interface JoinRequestPort {
   decide(accept: boolean): Promise<void>;
 }

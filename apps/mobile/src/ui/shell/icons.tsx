@@ -292,3 +292,15 @@ export function CpuIcon(props: IconProps) {
 export function CheckIcon(props: IconProps) {
   return <Glyph {...props} d="m5 12.5 4.5 4.5L19 7.5" />;
 }
+
+export function ClockIcon(props: IconProps) {
+  return <Glyph {...props} d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM12 7v5l3 2" />;
+}
+
+export function ArchiveIcon(props: IconProps) {
+  return <Glyph {...props} d="M3 4h18v4H3zM5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8M10 12h4" />;
+}
+
+export function UndoIcon(props: IconProps) {
+  return <Glyph {...props} d="M9 14 4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />;
+}

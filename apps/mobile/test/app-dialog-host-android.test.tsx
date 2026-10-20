@@ -79,7 +79,7 @@ vi.mock('@expo/ui/jetpack-compose/modifiers', () => ({
   clickable: (onClick: () => void) => ({ onClick }),
 }));
 
-import { AppDialogHost } from '../src/ui/primitives/app-dialog-host';
+import { AppDialogHost } from '../src/ui/primitives/app-dialog-host.android';
 import { appDialogs } from '../src/ui/primitives/dialog-state';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });

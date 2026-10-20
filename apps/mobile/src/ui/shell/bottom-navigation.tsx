@@ -8,6 +8,7 @@ import { hostSession, useHostSession } from '../../host/host-session';
 import { useConversationFilter } from '../../host/native-conversation-filter';
 import { useHostLook } from '../../host/native-host-look';
 import { useActivityCount } from '../../host/native-activity-count';
+import { useQuickActionRouting } from './quick-action-routing';
 import {
   creationTargets,
   type CreationAction,
@@ -50,18 +51,21 @@ function NavigationLayout() {
   );
   const bottom = Math.max(insets.bottom, space.x4);
   const reserved = size + bottom + space.x5;
+  const quickActions = useQuickActionRouting();
   return (
     <FloatingTabInset.Provider value={reserved}>
-      <Tabs
-        safeAreaInsets={{ bottom: 0 }}
-        tabBar={(props) => (
-          <NavigationBar {...props} size={size} bottom={bottom} reserved={reserved} />
-        )}
-        screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: theme.color.base } }}
-      >
-        <Tabs.Screen name="(home)" options={{ title: t.chats }} />
-        <Tabs.Screen name="(activity)" options={{ title: t.activity }} />
-      </Tabs>
+      <View ref={quickActions} collapsable={false} style={{ flex: 1 }}>
+        <Tabs
+          safeAreaInsets={{ bottom: 0 }}
+          tabBar={(props) => (
+            <NavigationBar {...props} size={size} bottom={bottom} reserved={reserved} />
+          )}
+          screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: theme.color.base } }}
+        >
+          <Tabs.Screen name="(home)" options={{ title: t.chats }} />
+          <Tabs.Screen name="(activity)" options={{ title: t.activity }} />
+        </Tabs>
+      </View>
     </FloatingTabInset.Provider>
   );
 }

@@ -11,6 +11,7 @@ import { t } from '../strings';
 import { GroupMark } from './group-mark';
 import {
   countBadge,
+  previewText,
   rowLabel,
   rowStatus,
   shortTime,
@@ -36,10 +37,15 @@ export function ConversationRow({
 }) {
   const title = titleOf(row);
   const status = rowStatus(row, now);
+  const latest = row.kind === 'bot' ? row.bot.preview : row.channel.preview;
   const preview =
-    row.kind === 'bot'
-      ? (row.bot.preview ?? (row.bot.paused ? t.paused : ''))
-      : (row.channel.preview ?? t.members(row.channel.memberCount));
+    latest !== undefined
+      ? previewText(latest)
+      : row.kind === 'bot'
+        ? row.bot.paused
+          ? t.paused
+          : ''
+        : t.members(row.channel.memberCount);
   const badge = countBadge(row);
   const time = shortTime(row.at, now);
   const label = rowLabel(row, title, status, preview);

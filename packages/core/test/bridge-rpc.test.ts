@@ -391,7 +391,9 @@ describe('bridge typert service', () => {
       'search',
       'unreadOnly',
       'queryVersion',
+      'dismissed',
     ]);
+    expect(parameterNames(service.humanAttentionRestore)).toEqual(['itemId', 'sourceKey']);
     expect(() =>
       service.humanAttention(
         'replies',
@@ -616,6 +618,7 @@ describe('bridge typert service', () => {
       'humanAttentionStatus',
       'humanAttentionIgnore',
       'humanAttentionDismiss',
+      'humanAttentionRestore',
       'humanAttentionSnooze',
       'assignments',
       'channelAssignments',

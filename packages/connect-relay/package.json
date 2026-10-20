@@ -1,0 +1,15 @@
+{
+  "name": "@botharness/connect-relay",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Hosted Connect relay Worker: links signed-in accounts to Hosts and provisions one gateway-only Cloudflare Tunnel per Host (ADR-0241)",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "db:migrate:local": "wrangler d1 migrations apply CONNECT_DB --local",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.95.0"
+  }
+}
