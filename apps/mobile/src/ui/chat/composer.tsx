@@ -370,7 +370,6 @@ export function Composer({
   onSelection,
   inputRef,
   onFocusChange,
-  onWrapsChange,
 }: {
   value: string;
   placeholder: string;
@@ -392,7 +391,6 @@ export function Composer({
   onSelection?(caret: number): void;
   inputRef?: Ref<ComposerInput>;
   onFocusChange?(focused: boolean): void;
-  onWrapsChange?(wraps: boolean): void;
 }) {
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
@@ -651,11 +649,7 @@ export function Composer({
               variant="body"
               accessibilityElementsHidden
               importantForAccessibility="no-hide-descendants"
-              onLayout={(event) => {
-                const next = event.nativeEvent.layout.height > textLine * 1.5;
-                setWraps(next);
-                onWrapsChange?.(next);
-              }}
+              onLayout={(event) => setWraps(event.nativeEvent.layout.height > textLine * 1.5)}
               style={{ position: 'absolute', opacity: 0, width: compactWidth, left: 0, top: 0 }}
             >
               {value === '' ? ' ' : value}

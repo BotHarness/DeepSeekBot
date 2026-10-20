@@ -113,7 +113,7 @@ export function EdgeFade({
         ...(top ? { top: 0 } : { bottom: 0 }),
       }}
     >
-      {glass ? (
+      {glass && cover === 0 ? (
         <EdgeMaterial edge={side} />
       ) : (
         <Svg width="100%" height="100%" preserveAspectRatio="none">
