@@ -680,7 +680,20 @@ describe('Bot main Sessions pane', () => {
         [channel],
       );
       store.select({ kind: 'channel', channelId: channel.id });
-      store.setConversation({ status: 'ready', channel, messages: [], sending: false });
+      store.setConversation({
+        status: 'ready',
+        channel,
+        messages: [
+          {
+            id: 'local-failed-1',
+            at: '2026-09-21T00:02:00.000Z',
+            author: { kind: 'human' },
+            body: 'hello',
+            failed: 'network disconnected',
+          },
+        ],
+        sending: false,
+      });
       return renderToStaticMarkup(
         createElement(BotMain, {
           actions: { ...inertSubmissionActions } as BridgeActions,
@@ -689,9 +702,13 @@ describe('Bot main Sessions pane', () => {
       );
     };
     try {
-      expect(render(false)).not.toContain('bh-bot-dm-readonly');
+      const live = render(false);
+      expect(live).not.toContain('bh-bot-dm-readonly');
+      expect(live).toContain('<button type="button" class="bh-bubble-failed-action"');
       const markup = render(true);
       expect(markup).toContain('已删除的 Bot · 仅供查看');
+      expect(markup).toContain('发送失败');
+      expect(markup).not.toContain('<button type="button" class="bh-bubble-failed-action"');
       expect(markup).not.toContain('Bot 之间的私聊 · 仅供查看');
     } finally {
       store.setRoster(previous.bots, previous.channels);

@@ -539,7 +539,7 @@ function MessageGroupView({
   onAvatarMenu?: ((botSlug: string, x: number, y: number) => void) | undefined;
   onReply?: ((message: ChannelMessage) => void) | undefined;
   onReact?: ((message: ChannelMessage, emoji: string, active: boolean) => void) | undefined;
-  onRestoreFailed(message: ChannelMessage): void;
+  onRestoreFailed?: ((message: ChannelMessage) => void) | undefined;
   onJumpReply(messageId: string): void;
   actions: BridgeActions;
   resolvedGrantRequests: ReadonlySet<string>;
@@ -744,7 +744,11 @@ function MessageGroupView({
               <div
                 className={`bh-bubble-surface${message.failed === undefined ? '' : ' bh-bubble-surface-failed'}`}
               >
-                {message.failed === undefined ? null : (
+                {message.failed === undefined ? null : onRestoreFailed === undefined ? (
+                  <span className="bh-bubble-failed-action" title={message.failed}>
+                    {t(message.unconfirmed === true ? 'message.unconfirmed' : 'message.failed')}
+                  </span>
+                ) : (
                   <button
                     type="button"
                     className="bh-bubble-failed-action"
@@ -2891,59 +2895,65 @@ function ConversationView({
                             if (channelId !== undefined)
                               void actions.openAround(channelId, messageId);
                           }}
-                          onRestoreFailed={(message) => {
-                            if (channelId === undefined) return;
-                            if (
-                              draft.length > 0 ||
-                              uploadItems.length > 0 ||
-                              conversation.sending
-                            ) {
-                              setRestoreBlocked(true);
-                              return;
-                            }
-                            if (message.unconfirmed === true) {
-                              setSubmissionNotice(t('composer.submissionChecking'));
-                              void actions.submissions
-                                .check(channelId, message.id)
-                                .then(async (status) => {
-                                  if (status === 'unknown') {
-                                    setSubmissionNotice(t('composer.submissionUncheckable'));
+                          onRestoreFailed={
+                            readOnlyDm
+                              ? undefined
+                              : (message) => {
+                                  if (channelId === undefined) return;
+                                  if (
+                                    draft.length > 0 ||
+                                    uploadItems.length > 0 ||
+                                    conversation.sending
+                                  ) {
+                                    setRestoreBlocked(true);
                                     return;
                                   }
-                                  await actions.submissions.reconcile(channelId);
-                                  setSubmissionNotice(
-                                    t(
-                                      status === 'committed'
-                                        ? 'composer.submissionDelivered'
-                                        : 'composer.submissionNotDelivered',
-                                    ),
+                                  if (message.unconfirmed === true) {
+                                    setSubmissionNotice(t('composer.submissionChecking'));
+                                    void actions.submissions
+                                      .check(channelId, message.id)
+                                      .then(async (status) => {
+                                        if (status === 'unknown') {
+                                          setSubmissionNotice(t('composer.submissionUncheckable'));
+                                          return;
+                                        }
+                                        await actions.submissions.reconcile(channelId);
+                                        setSubmissionNotice(
+                                          t(
+                                            status === 'committed'
+                                              ? 'composer.submissionDelivered'
+                                              : 'composer.submissionNotDelivered',
+                                          ),
+                                        );
+                                      })
+                                      .catch(() =>
+                                        setSubmissionNotice(t('composer.submissionUncheckable')),
+                                      );
+                                    return;
+                                  }
+                                  if (!actions.dismissFailedMessage(channelId, message.id)) return;
+                                  setDraft(message.body);
+                                  setMentionTokens(message.mentions ?? []);
+                                  setChannelRefTokens(message.channelRefs ?? []);
+                                  setUploadItems(
+                                    (message.attachments ?? []).map((ref) => ({
+                                      id: crypto.randomUUID(),
+                                      file: new File([], ref.name, { type: ref.mime }),
+                                      ref,
+                                      status: 'ready' as const,
+                                    })),
                                   );
-                                })
-                                .catch(() =>
-                                  setSubmissionNotice(t('composer.submissionUncheckable')),
-                                );
-                              return;
-                            }
-                            if (!actions.dismissFailedMessage(channelId, message.id)) return;
-                            setDraft(message.body);
-                            setMentionTokens(message.mentions ?? []);
-                            setChannelRefTokens(message.channelRefs ?? []);
-                            setUploadItems(
-                              (message.attachments ?? []).map((ref) => ({
-                                id: crypto.randomUUID(),
-                                file: new File([], ref.name, { type: ref.mime }),
-                                ref,
-                                status: 'ready' as const,
-                              })),
-                            );
-                            setReplyTarget(
-                              message.replyTo === undefined
-                                ? undefined
-                                : messages.find((candidate) => candidate.id === message.replyTo),
-                            );
-                            setRestoreBlocked(false);
-                            setRestoreFocusSignal((value) => value + 1);
-                          }}
+                                  setReplyTarget(
+                                    message.replyTo === undefined
+                                      ? undefined
+                                      : messages.find(
+                                          (candidate) => candidate.id === message.replyTo,
+                                        ),
+                                  );
+                                  setRestoreBlocked(false);
+                                  setRestoreFocusSignal((value) => value + 1);
+                                }
+                          }
                           t={t}
                         />
                       </OnboardingMemoryNavigation.Provider>
