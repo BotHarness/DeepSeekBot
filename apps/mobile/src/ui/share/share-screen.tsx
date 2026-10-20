@@ -10,6 +10,7 @@ import { ConversationRow } from '../chat/conversation-row';
 import { conversations, type Conversation } from '../chat/conversations';
 import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
+import { Button } from '../primitives/button';
 import { DrawerHeader } from '../primitives/drawer-header';
 import { Text } from '../primitives/text';
 import { conversationHref } from '../shell/open-conversation';
@@ -91,9 +92,15 @@ export default function ShareScreen() {
       }
       ListEmptyComponent={
         saved === null ? (
-          <Text tone="muted" style={{ paddingHorizontal: space.x5 }}>
-            {t.share.pairFirst}
-          </Text>
+          <View style={{ paddingHorizontal: space.x5, gap: space.x4 }}>
+            <Text tone="muted">{t.share.pairFirst}</Text>
+            <Button
+              label={t.pairTitle}
+              tone="primary"
+              testID="share-pair"
+              onPress={() => router.replace('/pair')}
+            />
+          </View>
         ) : !empty && snapshot.roster === undefined ? (
           <ActivityIndicator />
         ) : undefined
