@@ -18,8 +18,8 @@ All images use synthetic, task-owned DSH data: Bot "Tob" in a DM with two merged
 ## Commands for the final evidence
 
 ```bash
-node scripts/verify-app.mjs launch --name hover-time-final
-BH_E2E_INSTANCE=.humanlayer/verify/hover-time-final/instance.json \
+node scripts/verify-app.mjs launch --name hover-time-final2
+BH_E2E_INSTANCE=.humanlayer/verify/hover-time-final2/instance.json \
 PUPPETEER_EXECUTABLE_PATH="C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" \
 BH_E2E_REQUIRE_CLEAN=1 node scripts/e2e-message-hover-time.mjs
 ```
