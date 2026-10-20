@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState, type ReactNode } from 'react';
-import { ScrollView, View, type ViewInstance } from 'react-native';
+import { View, type ViewInstance } from 'react-native';
 
 import type { HumanAssignmentContext, HumanAttentionItem } from '../host/wire';
 import { ActionCard, CardButtons, CardLine, CardNote, DetailRow } from './chat/action-card';
@@ -8,6 +8,7 @@ import { radius, space } from './design/tokens';
 import { haptic } from './haptics';
 import { useMounted } from './mounted';
 import { Button } from './primitives/button';
+import { KeyboardFormScroll } from './primitives/keyboard-form';
 import { Text } from './primitives/text';
 import { TextField } from './primitives/text-field';
 import { errorText } from './request-parts';
@@ -16,13 +17,13 @@ import { t } from './strings';
 function Page({ children }: { children: ReactNode }) {
   const theme = useDesignTheme();
   return (
-    <ScrollView
+    <KeyboardFormScroll
       contentInsetAdjustmentBehavior="automatic"
       contentContainerStyle={{ paddingVertical: space.x5, gap: space.x5 }}
       style={{ backgroundColor: theme.layer.canvas.fill }}
     >
       {children}
-    </ScrollView>
+    </KeyboardFormScroll>
   );
 }
 

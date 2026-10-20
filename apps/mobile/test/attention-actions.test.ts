@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactElement } from 'react';
+import { act, createElement, type ReactElement, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -7,6 +7,10 @@ vi.mock('react-native-keyboard-controller', async () => import('./keyboard-contr
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
 vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
+vi.mock('../src/ui/primitives/keyboard-form', () => ({
+  KeyboardFormScroll: ({ children }: { children: ReactNode }) =>
+    createElement('section', { 'data-keyboard-form': '' }, children),
+}));
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
@@ -233,6 +237,8 @@ describe('Phone actions for Inbox items', () => {
     await press(button(page, t.details));
     expect(page.textContent).toContain('Deploy the launch site');
     const input = page.querySelector<HTMLTextAreaElement>('[aria-label="Reply to the Bot"]')!;
+    expect(input.closest('[data-keyboard-form]')).not.toBeNull();
+    expect(button(page, t.assignmentSend).closest('[data-keyboard-form]')).not.toBeNull();
     await act(async () => {
       const setter = Object.getOwnPropertyDescriptor(
         Object.getPrototypeOf(input) as object,
