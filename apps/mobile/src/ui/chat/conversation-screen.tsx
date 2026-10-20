@@ -1,5 +1,6 @@
 import { useSourceDraft } from '../../host/native-source-drafts';
 import { hostDraftKey } from '../../host/source-drafts';
+import { takeSharedFiles } from '../share/incoming-share';
 import { Stack, useIsFocused, useRouter } from 'expo-router';
 import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -345,13 +346,12 @@ function ChatConversation({
   const playback = useStreamPlayback(conversation, display.loaded && display.mode === 'streaming');
   const snapshot = useConversationTimelineSnapshot(conversation, playback);
   const shownDrafts = display.loaded && display.mode === 'streaming' ? snapshot.drafts : NO_DRAFTS;
-  const [draft, setDraft] = useSourceDraft(
-    hostDraftKey(
-      saved?.hostId ?? '',
-      place.kind,
-      (place.kind === 'dm' ? place.slug : place.channelId) ?? '',
-    ),
+  const draftKey = hostDraftKey(
+    saved?.hostId ?? '',
+    place.kind,
+    (place.kind === 'dm' ? place.slug : place.channelId) ?? '',
   );
+  const [draft, setDraft] = useSourceDraft(draftKey);
   const [mentions, setMentions] = useState<SelectedMention[]>([]);
   const [caret, setCaret] = useState(0);
   const [selection, setSelection] = useState<{ start: number; end: number }>();
@@ -474,14 +474,23 @@ function ChatConversation({
             }
           : undefined,
   );
+  const sharedMount = useCallback(
+    (node: unknown) => {
+      if (node === null) return;
+      const shared = takeSharedFiles(draftKey);
+      if (shared.length > 0) setFiles((current) => [...current, ...shared].slice(0, MAX_PICKED));
+    },
+    [draftKey],
+  );
   const mountRef = dictation.mountRef;
   const screenRef = useCallback(
     (node: unknown) => {
       mountRef(node);
       readMount(node);
       recentMount(node);
+      sharedMount(node);
     },
-    [mountRef, readMount, recentMount],
+    [mountRef, readMount, recentMount, sharedMount],
   );
 
   const asking = snapshot.messages.findLast(

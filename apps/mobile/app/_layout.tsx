@@ -65,6 +65,10 @@ export default function RootLayout() {
                 name="pair"
                 options={{ title: t.pairTitle, ...sheetScreenOptions(design, true) }}
               />
+              <Stack.Screen
+                name="share"
+                options={{ title: t.share.title, ...sheetScreenOptions(design, true) }}
+              />
               <Stack.Screen name="inbox/[id]" options={{ title: t.inbox }} />
               <Stack.Screen
                 name="cloud-join"

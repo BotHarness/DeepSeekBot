@@ -526,6 +526,12 @@ const en = {
   pullToCompose: 'Pull up to type',
   clipboardImage: 'Image on the clipboard',
   pasteImage: 'Paste image',
+  share: {
+    title: 'Send to',
+    nothing: 'Nothing was shared.',
+    pairFirst: 'Pair a computer first to send this to a Bot.',
+    files: (count: number) => (count === 1 ? '1 attachment' : `${count} attachments`),
+  },
   releaseToCompose: 'Release to type',
   unseenLatest: (count: number) =>
     `${count} new ${count === 1 ? 'message' : 'messages'} · Jump to latest`,
@@ -1593,6 +1599,12 @@ const zh: typeof en = {
   pullToCompose: '上拉输入消息',
   clipboardImage: '剪贴板里有一张图片',
   pasteImage: '粘贴图片',
+  share: {
+    title: '发送到',
+    nothing: '没有收到分享的内容。',
+    pairFirst: '先配对一台电脑，才能发送给 Bot。',
+    files: (count: number) => `${count} 个附件`,
+  },
   releaseToCompose: '松手输入消息',
   unseenLatest: (count: number) => `${count} 条新消息 · 跳到最新`,
   beginning: '这是你们私信的开始。',

@@ -1,6 +1,7 @@
 const { execFileSync } = require('node:child_process');
 const { existsSync } = require('node:fs');
 const path = require('node:path');
+const withSharingPlugin = require('expo-sharing/app.plugin').default;
 
 const mainCheckout = () => {
   try {
@@ -21,10 +22,33 @@ const googleServicesFile = () => {
   return existsSync(local) ? local : undefined;
 };
 
+const sharing = {
+  ios: {
+    enabled: true,
+    activationRule: {
+      supportsText: true,
+      supportsWebUrlWithMaxCount: 1,
+      supportsImageWithMaxCount: 10,
+      supportsMovieWithMaxCount: 10,
+      supportsFileWithMaxCount: 10,
+    },
+  },
+  android: {
+    enabled: true,
+    singleShareMimeTypes: ['text/*', 'image/*', 'video/*', 'audio/*', 'application/*'],
+    multipleShareMimeTypes: ['image/*', 'video/*', 'audio/*', 'application/*'],
+  },
+};
+
+const withSharing = (resolved) => {
+  const scheme = Array.isArray(resolved.scheme) ? resolved.scheme[0] : resolved.scheme;
+  return { ...withSharingPlugin({ ...resolved, scheme }, sharing), scheme: resolved.scheme };
+};
+
 module.exports = ({ config }) => {
   const store = process.env.DEEPSEEKBOT_APP_VARIANT === 'store';
   const firebase = googleServicesFile();
-  return {
+  return withSharing({
     ...config,
     owner: 'deepseekbots-team',
     updates: { ...config.updates, enabled: false },
@@ -40,5 +64,5 @@ module.exports = ({ config }) => {
       ...(firebase ? { googleServicesFile: firebase } : {}),
     },
     ...(store ? { name: 'DeepSeekBot', scheme: 'deepseekbot' } : {}),
-  };
+  });
 };
