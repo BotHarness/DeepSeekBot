@@ -1,5 +1,5 @@
 ---
-Status: Proposed
+Status: Accepted
 Date: 2026-10-20
 Issues: [#2387](https://github.com/BotHarness/DeepSeekBot/issues/2387), [#1643](https://github.com/BotHarness/DeepSeekBot/issues/1643)
 ---
@@ -8,24 +8,24 @@ Issues: [#2387](https://github.com/BotHarness/DeepSeekBot/issues/2387), [#1643](
 
 Testers must install Tailscale, sign in on both devices and run `tailscale serve` before the phone app can reach their computer ([#2385](https://github.com/BotHarness/DeepSeekBot/pull/2385)). The Human wants a T3 Connect–style option instead: sign in with the same account on the computer and on each phone, and the devices connect without Tailscale. Research and sources: [`docs/research/2026-10-20-hosted-connect.md`](../research/2026-10-20-hosted-connect.md).
 
-We propose that **an account only discovers Hosts and brokers a one-time pairing credential. Application traffic reaches the Host through one Cloudflare Tunnel per Host that a BotHarness relay Worker provisions; it never passes through the Worker. The tunnel is one more route in the ADR-0199 route list and admits only the device gateway.**
+The Human chose this direction on 2026-10-20: **an account only discovers Hosts and brokers a one-time pairing credential. Application traffic reaches the Host through one Cloudflare Tunnel per Host that a BotHarness relay Worker provisions; it never passes through the Worker. The tunnel is one more route in the ADR-0199 route list and admits only the device gateway.**
 
-## Decision (proposed)
+## Decision
 
-- **Identity.** WorkOS AuthKit. The phone uses the native PKCE flow it already has for TOB (ADR-0229); the Host signs in through the Web Client or `deepseekbot connect`, which uses WorkOS CLI Auth (the device authorization grant) so headless and SSH Hosts work.
+- **Identity.** WorkOS AuthKit, in TOB's existing WorkOS environment, so one account serves cloud groups and Connect. The phone uses the native PKCE flow it already has for TOB (ADR-0229); the Host signs in through the Web Client or `deepseekbot connect`, which uses WorkOS CLI Auth (the device authorization grant) so headless and SSH Hosts work.
 - **Opt-in per Host.** Signing in does not make a Host reachable. The Human turns Connect on for that Host in Bot settings → Devices or with `deepseekbot connect enable`, and off again at any time.
-- **Relay Worker.** A BotHarness Worker owns accounts' Host links and tunnel allocations, provisions the tunnel and its DNS record through the Cloudflare API, and hands the Host a connector token. It reclaims tunnels that stay offline (Cloudflare counts inactive tunnels toward the account limit) and keeps the hostname so the phone's route stays valid.
+- **Relay Worker.** A new Worker owned and deployed from this repository (not TOB's) owns accounts' Host links and tunnel allocations, provisions the tunnel and its DNS record through the Cloudflare API, and hands the Host a connector token. It reclaims tunnels that stay offline (Cloudflare counts inactive tunnels toward the account limit) and keeps the hostname so the phone's route stays valid.
 - **Host side.** The Host runs a pinned `cloudflared` with that token. The ingress admits only `/botharness-device/*` to the loopback DSH port and answers 404 for every other path, so DSH's own `/api`, the Web Client and plugin routes are not published.
 - **Pairing through the account.** A signed-in phone lists the account's Hosts. Choosing one asks the relay to have the Host mint a one-time offer bound to the phone's public key; the phone redeems it at the Host through the tunnel and receives the ordinary per-device credential (ADR-0199). The relay never sees that credential. This uses the device-key field ADR-0199 reserved.
 - **Routes.** The Host offers LAN, then Tailscale HTTPS, then the Connect hostname. The phone uses the first route that answers and returns to a faster one when it recovers. The phone and the Host route checks accept the Connect domain in addition to `*.ts.net` and loopback.
 - **Unchanged.** Device revocation, the gateway, the Remote stream mux, the full Web Client directory and content-free push (ADR-0202) stay as they are.
 
-## Open decisions for the Human
+## Decisions by the Human
 
-1. **Auto-connect or confirm once.** Proposed: a signed-in phone connects without a step on the computer, as asked, and every new device triggers a notice on the computer and on other paired phones with one-tap revoke. Alternative: the first connection of each new device waits for a click on the computer. A paired device has full Host authority, so with auto-connect a stolen account is enough to reach the Host.
-2. **WorkOS environment.** Reuse TOB's environment (one account for cloud groups and Connect) or a separate one.
-3. **Where the relay lives.** In the TOB repository and deployment, or a new Worker owned by this repository.
-4. **Mainland China.** Cloudflare's network and outbound port 7844 may not be reliable for users in mainland China. If the spike fails there, neither this option nor a Durable Object relay on Cloudflare fixes it, and a domestic relay is a separate decision.
+1. **Auto-connect.** A signed-in phone connects without a step on the computer. Every new device triggers a notice on the computer and on the other paired phones with one-tap revoke. MFA or a passkey is recommended to the Human but not required. The accepted risk: a paired device has full Host authority, so a stolen account is enough to reach a Host that has Connect enabled.
+2. **WorkOS environment.** Reuse TOB's environment. Connect still does not depend on TOB cloud Channels being enabled.
+3. **Relay location.** A new Worker in this repository, so Connect works without a TOB deployment and its protocol is visible to self-hosters.
+4. **Mainland China gate.** Before any Connect code ships, a manual spike with one hand-made tunnel measures pairing and DM reachability from China Mobile, China Unicom and China Telecom networks and outbound port 7844 from common computer setups. If the spike fails, this ADR still governs the account and pairing design, and a domestic relay is a separate decision; moving to a Durable Object relay on Cloudflare would not fix it.
 
 ## Considered options
 
@@ -42,7 +42,7 @@ We propose that **an account only discovers Hosts and brokers a one-time pairing
 
 ## First tracer bullet
 
-One isolated Host and the iOS Simulator, against a test Cloudflare account and a WorkOS staging environment: sign in on the Host with CLI Auth, enable Connect, the relay provisions a tunnel limited to the gateway path, the phone signs in, lists the Host, pairs through the account, and opens a DM over the Connect route; then revoke the phone, disable Connect and check the tunnel is gone. Before that, a manual spike with one hand-made tunnel measures reachability from mainland China mobile networks.
+After the mainland China spike passes: one isolated Host and the iOS Simulator, against a test Cloudflare account and a WorkOS staging environment: sign in on the Host with CLI Auth, enable Connect, the relay provisions a tunnel limited to the gateway path, the phone signs in, lists the Host, pairs through the account, and opens a DM over the Connect route; then revoke the phone, disable Connect and check the tunnel is gone.
 
 ## Consequences
 
