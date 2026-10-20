@@ -34,6 +34,7 @@
     "packages/ingest/src",
     "packages/links/src",
     "packages/links-cli/src",
+    "packages/connect-relay/src",
     "packages/*/test",
     "apps/mobile/test",
     "*.config.ts"
