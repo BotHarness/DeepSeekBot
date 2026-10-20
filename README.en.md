@@ -38,7 +38,7 @@ Bots use the model providers and quota you set up in DSH, and the machine runnin
 
 ## Install
 
-In the DeepSeek Harness desktop app, go to **Plugins → Add plugin**, enter `deepseekbot@1.4.0`, install and enable it, and **Bot mode** appears in the sidebar. No DSH yet? [Get the desktop app](https://www.deepseek.com/en/harness/).
+In the DeepSeek Harness desktop app, go to **Plugins → Add plugin**, enter `deepseekbot@1.4.1`, install and enable it, and **Bot mode** appears in the sidebar. No DSH yet? [Get the desktop app](https://www.deepseek.com/en/harness/).
 
 For command-line install, version notes and troubleshooting, see the [installation guide](https://deepseekbot.app/en/docs/installation/).
 

@@ -38,7 +38,7 @@ DeepSeekBot（简称 **DSB**，是 DeepSeekBot 的缩写，才不是“大啥比
 
 ## 安装
 
-在 DeepSeek Harness 桌面端点「插件 → 添加插件」，输入 `deepseekbot@1.4.0`，安装并启用，侧栏就会出现「Bot 模式」。还没装 DSH？先[下载桌面端](https://www.deepseek.com/en/harness/)。
+在 DeepSeek Harness 桌面端点「插件 → 添加插件」，输入 `deepseekbot@1.4.1`，安装并启用，侧栏就会出现「Bot 模式」。还没装 DSH？先[下载桌面端](https://www.deepseek.com/en/harness/)。
 
 命令行安装、版本说明和常见问题见[官网安装指南](https://deepseekbot.app/docs/installation/)。
 
