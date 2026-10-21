@@ -1,7 +1,7 @@
-import { SymbolView } from 'expo-symbols';
 import type { ColorValue } from 'react-native';
 
 import { useDesignTheme } from '../design/theme';
+import { SystemSymbol } from './system-symbol';
 
 const ROW_ICONS = {
   model: { ios: 'cpu', android: 'memory' },
@@ -36,12 +36,10 @@ export function RowIcon({
 }) {
   const theme = useDesignTheme();
   return (
-    <SymbolView
+    <SystemSymbol
       name={ROW_ICONS[name]}
       size={size ?? theme.type.title.line}
-      tintColor={color ?? theme.color.fg}
-      accessible={false}
-      importantForAccessibility="no"
+      color={color ?? theme.color.fg}
     />
   );
 }
