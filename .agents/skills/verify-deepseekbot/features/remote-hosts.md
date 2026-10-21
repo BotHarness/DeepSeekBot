@@ -12,7 +12,7 @@ The browser pairs a Remote Host as a Paired Device and reads its Host Feed throu
 - `read`: a visible remote conversation at its latest message marks that message read on its owning Host and refreshes the shared Inbox.
 - `upgrade`: existing browser pairings and the selected tab survive the storage-key rename.
 - `remove`: removing a Host forgets its rows, stops its Inbox and releases cached avatar object URLs.
-- `secret-route`: Connect private input shows a bilingual trusted-route notice without secret fields. Cancellation remains available; the shared Host client refuses before serialization. Loopback/Tailscale retain submission.
+- `secret-route`: pinned Connect pairings carry private input, resources and logical streams through Noise; legacy pairings fail closed. The browser must be served by its own trusted Host. Loopback/Tailscale retain their contract.
 
 ## How to get to it (user POV)
 
@@ -36,3 +36,5 @@ For avatars, give Host B one uploaded Bot image, one seeded or composed Bot, a g
 - Dismiss Continue and Skip onboarding overlays before selecting Messages. Retain any failed drive evidence before retrying.
 
 For #2541, pair a Connect Host and open a pending private input card. Confirm the notice in both themes, absence of password fields and working Cancel. Verify marked unary and mux calls return `secret-route-refused`, and ordinary Host Feed traffic still works. The removed `/botharness-device/web/` route must return 404. Use synthetic secrets only; a model quota failure blocks live card creation and must remain an explicit QA gap.
+
+For #2542, independently compare the displayed Host fingerprint, then approve the exact pending device key in Host Settings → Devices. Keep the browser's key/pin/credential in one atomic origin-local record. Open remote chat, send text and an image, approve a tool request and fill a synthetic private request. Correlate visible state with the owning Host's timeline and private-input status. Capture the outer Connect origin before decryption: no device credential, offer, secret, inner path or attachment name may appear. Test revocation, changed pins and stripped capability; none may retry a plaintext Connect path. WebView and Connect viewer URLs remain refused. See [the Connect journey](connect-channel.md) for transport-specific gates.

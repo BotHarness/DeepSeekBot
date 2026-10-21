@@ -17,6 +17,9 @@
   "dependencies": {
     "@botharness/pixel-avatar": "0.10.1",
     "@botharness/pixel-banner": "0.1.0",
+    "@noble/ciphers": "2.4.0",
+    "@noble/curves": "2.4.0",
+    "@noble/hashes": "2.4.0",
     "@resvg/resvg-js": "2.6.2",
     "css-tree": "3.2.1",
     "saxes": "6.0.0",

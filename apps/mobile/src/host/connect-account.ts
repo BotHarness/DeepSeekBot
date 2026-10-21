@@ -244,8 +244,14 @@ export function createConnectAccount(options: {
           { verifierHash, name: deviceName.slice(0, 64) },
         );
         const host = record(body['host']);
+        const encryption = record(body['encryption']);
+        const enrollment = record(body['enrollment']);
         if (
-          typeof body['offer'] !== 'string' ||
+          encryption['protocol'] !== 'connect-noise-xk-v1' ||
+          typeof encryption['publicKey'] !== 'string' ||
+          !/^[0-9a-f]{64}$/u.test(encryption['publicKey']) ||
+          typeof enrollment['body'] !== 'string' ||
+          typeof enrollment['signature'] !== 'string' ||
           typeof body['expiresAt'] !== 'string' ||
           typeof body['hostname'] !== 'string' ||
           typeof host['id'] !== 'string' ||
@@ -254,7 +260,9 @@ export function createConnectAccount(options: {
           throw new Refused('relay-unavailable');
         return {
           host: { id: host['id'], name: host['name'] },
-          offer: body['offer'],
+          offer: '',
+          encryption: { protocol: 'connect-noise-xk-v1', publicKey: encryption['publicKey'] },
+          enrollment: { body: enrollment['body'], signature: enrollment['signature'] },
           routes: [`https://${body['hostname']}`],
           expiresAt: body['expiresAt'],
           verifier,

@@ -1,7 +1,8 @@
+import { t } from '../strings';
 import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
-import { Platform } from 'react-native';
+import { Alert, Platform } from 'react-native';
 
 import { hostSession } from '../../host/host-session';
 import { nativeCarrier } from '../../host/native-carrier';
@@ -21,6 +22,7 @@ export function usePairing() {
   const router = useRouter();
   const [connectionName, setConnectionName] = useState('');
   const [busy, setBusy] = useState(false);
+  const [fingerprint, setFingerprint] = useState<string>();
   const [error, setError] = useState<PairingFailure | undefined>();
   const lastMethod = useRef<PairingMethod>('paste');
   const pending = useRef<AbortController | undefined>(undefined);
@@ -53,6 +55,19 @@ export function usePairing() {
       method,
       deviceName: deviceName(),
       carrier: nativeCarrier(),
+      confirmFingerprint: (fingerprint, hostName) =>
+        new Promise((resolve) =>
+          Alert.alert(
+            t.hostFingerprintTitle,
+            `${hostName}\n\n${t.hostFingerprintHint}\n\n${fingerprint}`,
+            [
+              { text: t.cancel, style: 'cancel', onPress: () => resolve(false) },
+              { text: t.hostFingerprintConfirm, onPress: () => resolve(true) },
+            ],
+            { cancelable: false },
+          ),
+        ),
+      onPending: setFingerprint,
       save: async (host) => {
         await hostSession.pair(host);
         const name = hostLookName(connectionName);
@@ -63,6 +78,7 @@ export function usePairing() {
     });
     pending.current = undefined;
     setBusy(false);
+    setFingerprint(undefined);
     if (operation.signal.aborted) return undefined;
     if (!result.ok) {
       if (clearsPastedLink(result.code, method)) handled.current = undefined;
@@ -75,6 +91,7 @@ export function usePairing() {
 
   return {
     busy,
+    fingerprint,
     error,
     method: lastMethod.current,
     connectionName,

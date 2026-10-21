@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { Image } from 'expo-image';
+import { ResourceImage as Image } from '../primitives/resource-image';
 import { Modal, Pressable, useWindowDimensions, View } from 'react-native';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, {

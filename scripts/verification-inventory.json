@@ -12,6 +12,14 @@
       "gap": "Two isolated local Hosts qualify the browser path; DSH Desktop, physical tailnet machines and remote image/card rendering remain unqualified."
     },
     {
+      "id": "connect.encrypted-channel",
+      "label": "Pair exact device keys and carry Connect messages, resources and private input through Noise XK",
+      "source": "packages/core/src/devices/encrypted-gateway.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/connect-channel.md",
+      "task": 2542,
+      "gap": "Real Cloudflare network, iOS/Android and Human acceptance remain separate gates; browser/Node local-origin capture is not native proof."
+    },
+    {
       "id": "desktop.approval.three-actions",
       "label": "Remember only the current tool through three actions and keep Full Access permission management Human-only",
       "source": "packages/core/src/workspaces/tool-approval.ts",

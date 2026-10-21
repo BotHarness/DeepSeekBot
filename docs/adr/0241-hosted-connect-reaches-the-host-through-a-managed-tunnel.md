@@ -56,3 +56,7 @@ One isolated Host and the iOS Simulator, against a test Cloudflare account and a
 - We publish and update one pinned `cloudflared` npm package per platform.
 - `deepseekbot connect …` CLI commands ship with the Devices UI (CLI parity).
 - Store builds keep `EXPO_PUBLIC_DEEPSEEKBOT_CLOUD` separate from Connect, so Connect can ship in test builds without exposing TOB cloud Channels.
+
+## Amendment — ADR-0244 (2026-10-22)
+
+[ADR-0244](0244-connect-encrypts-device-traffic-against-pinned-host-keys.md) supersedes account-only automatic enrollment and plaintext Connect application transport. The relay returns signed account enrollment metadata and a public Host-key hint; the client independently checks the fingerprint. The Host creates/redeems the offer inside Noise only after exact device-key approval. The browser uses its trusted serving Host's origin-local key store. The full phone WebView remains removed on every route; private input now uses the native form. Viewer signaling/media on Connect are unavailable until separately qualified. See the [wire contract](../architecture/connect-channel-v1.md); source implementation does not establish native or deployed-network qualification.

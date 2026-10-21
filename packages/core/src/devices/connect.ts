@@ -1,3 +1,4 @@
+import { CONNECT_CHANNEL_PATH } from './noise/channel.js';
 import { spawn as spawnProcess } from 'node:child_process';
 import {
   createServer,
@@ -146,7 +147,11 @@ export function createGatewayOrigin(port: () => number): GatewayOrigin {
   const upgraded = new Set<Duplex>();
   const server = createServer((request, response) => {
     stampConnectRoute(request);
-    if (!admitsGatewayPath(request.url)) {
+    if (
+      request.url !== CONNECT_CHANNEL_PATH ||
+      request.headers.authorization ||
+      request.headers.cookie
+    ) {
       request.resume();
       notFound(response);
       return;
@@ -178,7 +183,11 @@ export function createGatewayOrigin(port: () => number): GatewayOrigin {
   });
   server.on('upgrade', (request: IncomingMessage, socket: Duplex, head: Buffer) => {
     stampConnectRoute(request);
-    if (!admitsGatewayPath(request.url)) {
+    if (
+      request.url !== CONNECT_CHANNEL_PATH ||
+      request.headers.authorization ||
+      request.headers.cookie
+    ) {
       socket.end('HTTP/1.1 404 Not Found\r\nconnection: close\r\ncontent-length: 0\r\n\r\n');
       return;
     }

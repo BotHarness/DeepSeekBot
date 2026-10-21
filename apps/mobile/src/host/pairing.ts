@@ -1,3 +1,13 @@
+import { noiseFingerprint, noisePublicKey } from '../../../../packages/core/src/devices/noise/xk';
+import {
+  encryptedCarrier,
+  keyBytes,
+  keyHex,
+  openNoiseSocket,
+  secureRandom,
+} from './encrypted-carrier';
+import { isConnectRoute } from './route';
+import type { HostEncryption } from './hosts';
 import type { HostCarrier } from './carrier';
 import { checkRoute } from './route';
 import type { ConnectRefusal } from './connect-account';
@@ -6,6 +16,8 @@ import type { SavedHost } from './hosts';
 export const DEVICE_PREFIX = '/botharness-device';
 
 export interface PairingPayload {
+  enrollment?: { body: string; signature: string };
+  encryption?: { protocol: 'connect-noise-xk-v1'; publicKey: string };
   host: { id: string; name: string };
   offer: string;
   routes: string[];
@@ -14,6 +26,9 @@ export interface PairingPayload {
 }
 
 export type PairingRefusal =
+  | 'host-key-required'
+  | 'host-key-confirmation-required'
+  | 'channel-authentication-failed'
   | 'link-invalid'
   | 'link-expired'
   | 'no-route'
@@ -78,6 +93,16 @@ export function parsePairingLink(text: string, now = Date.now()): ParsedLink {
       offer: value['offer'],
       routes,
       expiresAt: value['expiresAt'],
+      ...(record(value['encryption'])['protocol'] === 'connect-noise-xk-v1' &&
+      typeof record(value['encryption'])['publicKey'] === 'string' &&
+      /^[0-9a-f]{64}$/u.test(String(record(value['encryption'])['publicKey']))
+        ? {
+            encryption: {
+              protocol: 'connect-noise-xk-v1' as const,
+              publicKey: String(record(value['encryption'])['publicKey']),
+            },
+          }
+        : {}),
     },
   };
 }
@@ -89,9 +114,14 @@ export async function redeemPairing(options: {
   deviceName: string;
   carrier: HostCarrier;
   timeoutMs?: number;
+  onPending?: (deviceFingerprint: string) => void;
+  confirmFingerprint?: (fingerprint: string, hostName: string) => Promise<boolean>;
+  signal?: AbortSignal;
 }): Promise<Redemption> {
   const { payload } = options;
+  if (payload.encryption !== undefined) return redeemEncrypted(options);
   for (const route of payload.routes) {
+    if (isConnectRoute(route)) return { ok: false, code: 'host-key-required' };
     let status: number;
     let body: Record<string, unknown>;
     const controller = new AbortController();
@@ -145,30 +175,35 @@ export async function revokePairing(options: {
   carrier: HostCarrier;
   timeoutMs?: number;
 }): Promise<'revoked' | 'unreachable'> {
-  for (const route of options.host.routes) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? 8000);
-    try {
-      const response = await options.carrier.request(`${route}${DEVICE_PREFIX}/unpair`, {
-        method: 'POST',
-        headers: { authorization: `Device ${options.host.credential}` },
-        body: '{}',
-        signal: controller.signal,
-      });
-      const body = record(JSON.parse(await response.text()));
-      if (response.status === 200 && body['revoked'] === true) return 'revoked';
-      if (
-        response.status === 401 &&
-        (body['code'] === 'device-revoked' || body['code'] === 'device-unknown')
-      )
-        return 'revoked';
-    } catch {
-      continue;
-    } finally {
-      clearTimeout(timer);
+  const carrier = encryptedCarrier({ raw: options.carrier, ...options.host });
+  try {
+    for (const route of options.host.routes) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? 8000);
+      try {
+        const response = await carrier.request(`${route}${DEVICE_PREFIX}/unpair`, {
+          method: 'POST',
+          headers: { authorization: `Device ${options.host.credential}` },
+          body: '{}',
+          signal: controller.signal,
+        });
+        const body = record(JSON.parse(await response.text()));
+        if (response.status === 200 && body['revoked'] === true) return 'revoked';
+        if (
+          response.status === 401 &&
+          (body['code'] === 'device-revoked' || body['code'] === 'device-unknown')
+        )
+          return 'revoked';
+      } catch {
+        continue;
+      } finally {
+        clearTimeout(timer);
+      }
     }
+    return 'unreachable';
+  } finally {
+    carrier.close?.();
   }
-  return 'unreachable';
 }
 
 export async function removeDevice(options: {
@@ -177,24 +212,29 @@ export async function removeDevice(options: {
   carrier: HostCarrier;
   timeoutMs?: number;
 }): Promise<'removed' | 'unreachable'> {
-  for (const route of options.host.routes) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? 8000);
-    try {
-      const response = await options.carrier.request(`${route}${DEVICE_PREFIX}/devices/remove`, {
-        method: 'POST',
-        headers: { authorization: `Device ${options.host.credential}` },
-        body: JSON.stringify({ deviceId: options.deviceId }),
-        signal: controller.signal,
-      });
-      if (response.status === 200 || response.status === 404) return 'removed';
-    } catch {
-      continue;
-    } finally {
-      clearTimeout(timer);
+  const carrier = encryptedCarrier({ raw: options.carrier, ...options.host });
+  try {
+    for (const route of options.host.routes) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? 8000);
+      try {
+        const response = await carrier.request(`${route}${DEVICE_PREFIX}/devices/remove`, {
+          method: 'POST',
+          headers: { authorization: `Device ${options.host.credential}` },
+          body: JSON.stringify({ deviceId: options.deviceId }),
+          signal: controller.signal,
+        });
+        if (response.status === 200 || response.status === 404) return 'removed';
+      } catch {
+        continue;
+      } finally {
+        clearTimeout(timer);
+      }
     }
+    return 'unreachable';
+  } finally {
+    carrier.close?.();
   }
-  return 'unreachable';
 }
 
 export type PairingFailure = PairingRefusal | 'storage-failure' | 'cancelled' | 'unknown';
@@ -205,6 +245,8 @@ export async function pairHost(options: {
   deviceName: string;
   carrier: HostCarrier;
   save(host: SavedHost): Promise<void>;
+  onPending?: (deviceFingerprint: string) => void;
+  confirmFingerprint?: (fingerprint: string, hostName: string) => Promise<boolean>;
   telemetry: Pick<import('../telemetry/mobile-telemetry').MobileTelemetry, 'pairing'>;
   signal?: AbortSignal;
 }): Promise<{ ok: true } | { ok: false; code: PairingFailure }> {
@@ -227,6 +269,11 @@ export async function pairHost(options: {
       payload: parsed.payload,
       deviceName: options.deviceName,
       carrier: options.carrier,
+      ...(options.onPending === undefined ? {} : { onPending: options.onPending }),
+      ...(options.confirmFingerprint === undefined
+        ? {}
+        : { confirmFingerprint: options.confirmFingerprint }),
+      ...(options.signal === undefined ? {} : { signal: options.signal }),
     });
     if (options.signal?.aborted) return { ok: false, code: 'cancelled' };
     if (!redeemed.ok) {
@@ -247,4 +294,102 @@ export async function pairHost(options: {
   } finally {
     options.signal?.removeEventListener('abort', cancelled);
   }
+}
+
+async function redeemEncrypted(options: {
+  payload: PairingPayload;
+  deviceName: string;
+  carrier: HostCarrier;
+  signal?: AbortSignal;
+  onPending?: (deviceFingerprint: string) => void;
+  confirmFingerprint?: (fingerprint: string, hostName: string) => Promise<boolean>;
+}): Promise<Redemption> {
+  const { payload } = options;
+  const advertised = payload.encryption!;
+  if (
+    !(await options.confirmFingerprint?.(
+      noiseFingerprint(keyBytes(advertised.publicKey)),
+      payload.host.name,
+    ))
+  )
+    return { ok: false, code: 'host-key-confirmation-required' };
+  if (options.signal?.aborted) return { ok: false, code: 'unreachable' };
+  const encryption: HostEncryption = {
+    protocol: advertised.protocol,
+    hostKey: advertised.publicKey,
+    deviceKey: keyHex(secureRandom(options.carrier)),
+  };
+  const route = payload.routes.find(isConnectRoute) ?? payload.routes[0]!;
+  return new Promise<Redemption>((resolve) => {
+    let done = false,
+      poll: ReturnType<typeof setTimeout> | undefined;
+    const finish = (result: Redemption) => {
+      if (done) return;
+      done = true;
+      clearTimeout(deadline);
+      clearTimeout(poll);
+      options.signal?.removeEventListener('abort', abort);
+      socket.close();
+      resolve(result);
+    };
+    const abort = () => finish({ ok: false, code: 'unreachable' });
+    const socket = openNoiseSocket({
+      origin: route,
+      hostId: payload.host.id,
+      encryption,
+      raw: options.carrier,
+      closed: () => finish({ ok: false, code: 'channel-authentication-failed' }),
+      message: (value) => {
+        if (value['type'] === 'pair-pending') {
+          options.onPending?.(noiseFingerprint(noisePublicKey(keyBytes(encryption.deviceKey))));
+          poll = setTimeout(submit, 2000);
+          return;
+        }
+        if (
+          value['type'] === 'paired' &&
+          typeof value['credential'] === 'string' &&
+          typeof value['deviceId'] === 'string' &&
+          record(value['host'])['id'] === payload.host.id
+        )
+          finish({
+            ok: true,
+            host: {
+              hostId: payload.host.id,
+              hostName: payload.host.name,
+              routes: [route, ...payload.routes.filter((other) => other !== route)],
+              deviceId: value['deviceId'],
+              credential: value['credential'],
+              encryption,
+            },
+          });
+        else
+          finish({
+            ok: false,
+            code: value['code'] === 'offer-expired' ? 'offer-expired' : 'offer-invalid',
+          });
+      },
+    });
+    const submit = () => {
+      if (done) return;
+      try {
+        socket.send({
+          type: 'pair',
+          offer: payload.offer,
+          name: options.deviceName,
+          verifier: payload.verifier,
+          enrollment: payload.enrollment,
+        });
+      } catch {
+        finish({ ok: false, code: 'channel-authentication-failed' });
+      }
+    };
+    const deadline = setTimeout(
+      abort,
+      Math.max(1, Math.min(600_000, Date.parse(payload.expiresAt) - Date.now())),
+    );
+    options.signal?.addEventListener('abort', abort, { once: true });
+    void socket.ready.then(submit, () =>
+      finish({ ok: false, code: 'channel-authentication-failed' }),
+    );
+  });
 }

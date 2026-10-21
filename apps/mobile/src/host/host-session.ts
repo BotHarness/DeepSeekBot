@@ -83,6 +83,7 @@ function adopt(next: SavedHosts, trigger: ConnectionTrigger = 'open'): void {
     saved === null
       ? undefined
       : createHostClient({
+          ...saved,
           routes: saved.routes,
           credential: saved.credential,
           carrier: nativeCarrier(),

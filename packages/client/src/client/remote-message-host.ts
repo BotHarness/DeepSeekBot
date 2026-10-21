@@ -61,15 +61,22 @@ export function hostBridgeCall(client: Pick<HostClient, 'call'>): BridgeCall {
 }
 
 export function createRemoteMessageHost(
-  client: Pick<HostClient, 'call' | 'resource'>,
+  client: Pick<HostClient, 'call' | 'resource' | 'secretInputAllowed'>,
   isOpen: (channelId: string) => boolean,
 ): RemoteMessageHost {
   const call = hostBridgeCall(client);
   return {
     isOpen,
-    secretInputAllowed: () => !isConnectRoute(client.resource('/').uri),
-    fetch: (path, init) => {
+    secretInputAllowed: () =>
+      client.secretInputAllowed?.() ?? !isConnectRoute(client.resource('/').uri),
+    fetch: async (path, init) => {
       const source = client.resource(path);
+      if (source.read) {
+        const result = await source.read(init.signal ?? new AbortController().signal);
+        return new Response(Uint8Array.from(result.bytes), {
+          headers: { 'content-type': result.mime },
+        });
+      }
       return fetch(source.uri, {
         signal: init.signal,
         headers: source.headers,

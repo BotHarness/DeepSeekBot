@@ -49,6 +49,13 @@ export default function PairAccountScreen() {
         </Text>
       ) : null}
       {pairing.canRetry ? <Button label={t.retry} onPress={() => void pairing.retry()} /> : null}
+      {pairing.fingerprint ? (
+        <Text selectable>
+          {t.deviceFingerprintHint}
+          {'\n'}
+          {pairing.fingerprint}
+        </Text>
+      ) : null}
       <ConnectionNameField
         value={pairing.connectionName}
         onChange={pairing.setConnectionName}

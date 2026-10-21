@@ -1,3 +1,4 @@
+import { PrivateInputForm } from '../../src/ui/private-input-form';
 import { Text } from '../../src/ui/primitives/system-text';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo } from 'react';
@@ -109,7 +110,16 @@ export default function InboxItemScreen() {
     </ScrollView>
   );
   let body;
-  if (params.kind === 'tool-approval' && approvalPort !== undefined)
+  if (params.kind === 'private-input' && client && ref)
+    body = (
+      <PrivateInputForm
+        key={`${saved?.hostId}:${ref.messageId}`}
+        client={client}
+        target={ref}
+        after={() => void inbox?.refresh()}
+      />
+    );
+  else if (params.kind === 'tool-approval' && approvalPort !== undefined)
     body = <ApprovalView port={approvalPort} botName={botName} listed={listed} />;
   else if (params.kind === 'user-question' && questionPort !== undefined)
     body = <QuestionView port={questionPort} botName={botName} listed={listed} />;

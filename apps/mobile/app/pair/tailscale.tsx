@@ -127,6 +127,13 @@ export default function PairTailscaleScreen() {
           {t.pasteLinkHint}
         </Text>
       </View>
+      {pairing.fingerprint ? (
+        <Text selectable>
+          {t.deviceFingerprintHint}
+          {'\n'}
+          {pairing.fingerprint}
+        </Text>
+      ) : null}
       <ConnectionNameField
         value={pairing.connectionName}
         onChange={pairing.setConnectionName}

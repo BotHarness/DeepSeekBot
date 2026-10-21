@@ -26,3 +26,7 @@ We decided that **the browser pairs a Remote Host exactly like a phone does, and
 - The Host look (icon and colour) is still stored per phone, so the Web Client uses a generic icon.
 - Terminology follows ADR-0243: This Host and Remote Host, 本机 and 远程 in Chinese; "Computer" stays reserved for the PersonaBots' shared desktop.
 - DSH Desktop is not qualified by this slice; its storage and origin rules are verified separately (#2180).
+
+## Amendment — ADR-0244 (2026-10-22)
+
+[ADR-0244](0244-connect-encrypts-device-traffic-against-pinned-host-keys.md) supersedes account-only automatic enrollment and plaintext Connect application transport. The relay returns signed account enrollment metadata and a public Host-key hint; the client independently checks the fingerprint. The Host creates/redeems the offer inside Noise only after exact device-key approval. The browser uses its trusted serving Host's origin-local key store. The full phone WebView remains removed on every route; private input now uses the native form. Viewer signaling/media on Connect are unavailable until separately qualified. See the [wire contract](../architecture/connect-channel-v1.md); source implementation does not establish native or deployed-network qualification.

@@ -506,6 +506,11 @@ const en = {
     emptyAction: 'Pair a computer',
   },
   pairRefused: {
+    'host-key-required': 'Pair again using a new code from your computer.',
+    'host-key-confirmation-required': 'Compare the fingerprint on your computer before pairing.',
+    'channel-authentication-failed':
+      'Could not verify this computer. Check its fingerprint and pair again.',
+
     'link-invalid': 'This is not a DeepSeekBot pairing code.',
     'link-expired': 'This code has expired. Show a new code on your computer.',
     'no-route':
@@ -638,8 +643,7 @@ const en = {
   decideFailed: 'The decision was not accepted:',
   loadFailed: 'Could not read this request:',
   tryAgain: 'Try again',
-  privateInputHint:
-    'Enter secrets in the Host client or a browser over Tailscale. Connect is not end-to-end encrypted.',
+  privateInputHint: 'Open this request in the conversation and fill in the private form.',
   readOnlyHint: 'Open the conversation on the Host to reply.',
   done: 'Done',
   ago: (minutes: number) =>
@@ -765,9 +769,19 @@ const en = {
   diffLabel: (path: string) => `Changes to ${path}`,
   diffMore: (count: number) => `Show ${count} more lines`,
   privateInputTitle: (bot: string) => `${bot} needs private information`,
-  privateInputNote:
-    'Enter secrets in the Host client or a browser over Tailscale. Connect is not end-to-end encrypted.',
+  privateInputNote: 'Open this request in the conversation and fill in the private form.',
   privateInputDone: 'Handled',
+  privateInputOpen: 'Fill privately',
+  privateInputSubmit: 'Save privately',
+  privateInputError: 'Could not save. Your values are still here; try again.',
+  privateInputEmpty: 'This request is no longer available.',
+  privateInputSecureNote: 'Sent only to your computer. Kept out of chat history.',
+  hostFingerprintTitle: 'Verify your computer',
+  hostFingerprintHint:
+    'Compare this fingerprint with Devices on your computer. Continue only if every group matches.',
+  hostFingerprintConfirm: 'Fingerprints match',
+  deviceFingerprintHint: 'On your computer, approve the device with this fingerprint:',
+
   autoRejectionTitle: (bot: string) => `${bot}'s call was auto-rejected`,
   autoRejectionTool: (tool: string) => `Tool ${tool}`,
   autoRejectionInput: 'Call input',
@@ -1750,6 +1764,10 @@ const zh: typeof en = {
     emptyAction: '配对电脑',
   },
   pairRefused: {
+    'host-key-required': '请使用电脑上的新二维码重新配对。',
+    'host-key-confirmation-required': '请先核对电脑上的指纹，再继续配对。',
+    'channel-authentication-failed': '无法验证这台电脑，请核对指纹后重新配对。',
+
     'link-invalid': '这不是 DeepSeekBot 的配对二维码。',
     'link-expired': '二维码已失效，请在电脑上换一个。',
     'no-route': '电脑没有提供手机能用的地址，请先在电脑上设置 Tailscale。',
@@ -1878,7 +1896,7 @@ const zh: typeof en = {
   decideFailed: '决定没有被接受：',
   loadFailed: '无法读取这个请求：',
   tryAgain: '重试',
-  privateInputHint: '请在本机客户端或通过 Tailscale 的浏览器填写密钥。Connect 尚未端到端加密。',
+  privateInputHint: '请在聊天中打开这项请求，使用私密表单填写。',
   readOnlyHint: '在本机客户端里打开这段对话来回复。',
   done: '完成',
   ago: (minutes: number) =>
@@ -1996,8 +2014,18 @@ const zh: typeof en = {
   diffLabel: (path: string) => `${path} 的改动`,
   diffMore: (count: number) => `显示其余 ${count} 行`,
   privateInputTitle: (bot: string) => `${bot} 需要私密信息`,
-  privateInputNote: '请在本机客户端或通过 Tailscale 的浏览器填写密钥。Connect 尚未端到端加密。',
+  privateInputNote: '请在聊天中打开这项请求，使用私密表单填写。',
   privateInputDone: '已处理',
+  privateInputOpen: '私密填写',
+  privateInputSubmit: '私密保存',
+  privateInputError: '保存失败，内容已保留，请重试。',
+  privateInputEmpty: '这项请求已不可用。',
+  privateInputSecureNote: '仅发送到你的电脑，不进入聊天记录。',
+  hostFingerprintTitle: '验证你的电脑',
+  hostFingerprintHint: '请与电脑「设备」中显示的指纹逐组核对，完全一致后再继续。',
+  hostFingerprintConfirm: '指纹一致',
+  deviceFingerprintHint: '请在电脑上批准指纹一致的设备：',
+
   autoRejectionTitle: (bot: string) => `${bot} 的一次调用被自动拒绝`,
   autoRejectionTool: (tool: string) => `工具 ${tool}`,
   autoRejectionInput: '调用参数',
