@@ -60,6 +60,32 @@ const notice = (container: HTMLElement, tone: string) =>
   [...container.querySelectorAll(`[data-testid="notice-${tone}"]`)].map((node) => node.textContent);
 
 describe('Notification settings', () => {
+  it('keeps device choices editable without system permission or a push token', async () => {
+    const settings = port({
+      load: async () => {
+        throw new Error('offline');
+      },
+      set: vi.fn(async () => undefined),
+    });
+    const view = await render(
+      <NotificationSettings
+        status={{ status: 'denied' }}
+        hostName="studio"
+        port={settings}
+        preference={{ preferences: registered.preferences, syncing: false, failed: ['studio'] }}
+        onEnable={() => {}}
+        onOpenSettings={() => {}}
+      />,
+    );
+    const reply = view.querySelector<HTMLInputElement>(`[aria-label="${t.pushKind.reply}"]`)!;
+    expect(reply.checked).toBe(true);
+    expect(reply.disabled).toBe(false);
+    await act(async () => reply.click());
+    expect(settings.set).toHaveBeenCalledWith({ reply: false });
+    expect(view.textContent).toContain(t.notificationPreferencePending);
+    expect(settings.test).not.toHaveBeenCalled();
+  });
+
   it('offers to turn notifications on before the phone allows them', async () => {
     const onEnable = vi.fn();
     const view = await render(

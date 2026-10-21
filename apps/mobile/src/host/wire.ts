@@ -407,6 +407,7 @@ export interface HumanAssignmentContext {
 
 export interface HumanAttentionPage {
   queryVersion?: number;
+  notificationVersion?: number;
   items: HumanAttentionItem[];
   nextCursor?: string;
 }

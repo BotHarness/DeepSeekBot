@@ -11,6 +11,7 @@ import {
 import { parseSavedHost, type SavedHost } from '../../../../apps/mobile/src/host/hosts.js';
 import {
   createInbox,
+  prepareNotificationBaseline,
   type Inbox,
   type InboxSnapshot,
   observeInbox,
@@ -26,6 +27,9 @@ import {
 import { store } from './store.js';
 import { createRemoteActivityProjection, type RemoteBotActivity } from './remote-host-activity.js';
 import { releaseRemoteHostViewers } from './remote-host-viewer.js';
+import { browserNotificationApi } from './desktop-notifications.js';
+import { createRemoteNotifications, type RemoteNotifications } from './remote-notifications.js';
+import { en } from './locale.js';
 
 export const REMOTE_HOSTS_STORAGE_KEY = 'botharness.remoteHosts.v1';
 export const HOST_TAB_STORAGE_KEY = 'botharness.hostTab.v1';
@@ -58,6 +62,7 @@ export type HostPairResult =
   | { ok: false; code: PairingRefusal | 'already-paired' | 'this-host' };
 
 export interface RemoteHosts {
+  notifications: RemoteNotifications;
   getSnapshot(): RemoteHostsSnapshot;
   subscribe(listener: () => void): () => void;
   pair(link: string, deviceName: string, localHostId?: string): Promise<HostPairResult>;
@@ -126,12 +131,14 @@ interface HostEntry {
 }
 
 const idleInbox: InboxSnapshot = { status: 'idle' };
+type NotificationTranslate = (key: 'remoteHosts.notifications.privateBody') => string;
 
 export function createRemoteHosts(options: {
   storage?: HostStorage | undefined;
   carrier: HostCarrier;
   loadImage?: (url: string, headers: Record<string, string>) => Promise<string | undefined>;
   releaseImage?: (image: string) => void;
+  translate?: NotificationTranslate;
 }): RemoteHosts {
   const { storage, carrier, loadImage, releaseImage } = options;
   const listeners = new Set<() => void>();
@@ -144,6 +151,31 @@ export function createRemoteHosts(options: {
   let tab = readTab(storage);
   let open: RemoteConversationTarget | undefined;
   let snapshot: RemoteHostsSnapshot = { hosts: [], avatars, tab };
+  const notifications = createRemoteNotifications({
+    storage,
+    api: browserNotificationApi(),
+    async prepareEnable(hostId, signal) {
+      const entry = clients.get(hostId);
+      const inbox = entry?.inbox?.feed;
+      if (entry === undefined || inbox === undefined)
+        throw new Error('notification-baseline-unavailable');
+      await prepareNotificationBaseline(inbox, signal);
+      if (
+        clients.get(hostId) !== entry ||
+        entry.inbox?.feed !== inbox ||
+        entry.client.getSnapshot().connection.status !== 'connected'
+      )
+        throw new Error('notification-activation-cancelled');
+    },
+    privateBody: () =>
+      options.translate?.('remoteHosts.notifications.privateBody') ??
+      en['remoteHosts.notifications.privateBody'],
+    open(target) {
+      globalThis.window?.focus();
+      open = target;
+      publish();
+    },
+  });
 
   const fetchAvatars = (hosts: readonly RemoteHost[]): void => {
     const wanted = new Map(
@@ -193,6 +225,7 @@ export function createRemoteHosts(options: {
       activity,
     }));
     fetchAvatars(hosts);
+    if (listeners.size > 0) notifications.update(hosts);
     const known = tab === ALL_HOSTS || tab === THIS_HOST || clients.has(tab);
     snapshot = {
       hosts,
@@ -206,7 +239,7 @@ export function createRemoteHosts(options: {
   const start = (entry: HostEntry): void => {
     entry.client.start();
     if (entry.inbox !== undefined) return;
-    const feed = createInbox(entry.client, { activity: true }, entry.retained);
+    const feed = createInbox(entry.client, { activity: true, notifications: true }, entry.retained);
     entry.inbox = { feed, release: feed.subscribe(publish) };
   };
 
@@ -265,6 +298,7 @@ export function createRemoteHosts(options: {
   };
 
   return {
+    notifications,
     getSnapshot: () => snapshot,
     client: (hostId) => clients.get(hostId)?.client,
     activity(hostId, query) {
@@ -293,6 +327,7 @@ export function createRemoteHosts(options: {
         listeners.delete(listener);
         if (listeners.size > 0) return;
         for (const entry of clients.values()) stop(entry);
+        notifications.stop();
       };
     },
     async pair(link, deviceName, localHostId) {
@@ -320,6 +355,7 @@ export function createRemoteHosts(options: {
       await revokePairing({ host: entry.host, carrier });
     },
     select(next) {
+      if (tab !== next) notifications.cancel();
       tab = next;
       try {
         storage?.setItem(HOST_TAB_STORAGE_KEY, next);
@@ -439,8 +475,10 @@ async function browserImage(
 }
 
 let shared: RemoteHosts | undefined;
+let translate: NotificationTranslate = (key) => en[key];
 
-export function remoteHosts(): RemoteHosts {
+export function remoteHosts(translator?: NotificationTranslate): RemoteHosts {
+  if (translator !== undefined) translate = translator;
   if (shared !== undefined) return shared;
   shared = createRemoteHosts({
     storage: (() => {
@@ -453,6 +491,7 @@ export function remoteHosts(): RemoteHosts {
     carrier: browserCarrier(),
     loadImage: browserImage,
     releaseImage: (image) => URL.revokeObjectURL(image),
+    translate: (key) => translate(key),
   });
   const sources = shared;
   let selection = store.getSnapshot().selection;

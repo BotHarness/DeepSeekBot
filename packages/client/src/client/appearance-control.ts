@@ -3,6 +3,7 @@ import { WallpaperError } from './wallpaper-store.js';
 import type { Wallpaper } from './wallpaper.js';
 import { createWallpaperControl } from './wallpaper-control.js';
 import { Appearance, AppearanceError, object } from './appearance.js';
+import { remoteHosts } from './remote-hosts.js';
 
 export function mountAppearanceControl(owner: Appearance, wallpaper?: Wallpaper): () => void {
   const abort = new AbortController();
@@ -38,7 +39,25 @@ export function mountAppearanceControl(owner: Appearance, wallpaper?: Wallpaper)
           try {
             if (typeof command.expiresAt !== 'number' || Date.now() > command.expiresAt)
               throw new AppearanceError('appearance-request-stale');
-            if (command.recovery !== undefined) {
+            if (command.notifications !== undefined) {
+              const sources = remoteHosts();
+              const input = object(command.notifications);
+              if (
+                typeof input.hostId !== 'string' ||
+                !sources.getSnapshot().hosts.some((entry) => entry.host.hostId === input.hostId)
+              )
+                throw new AppearanceError('notification-host-unknown');
+              try {
+                result = await sources.notifications.control(input, command.expectedRevision, {
+                  expiresAt: command.expiresAt,
+                  signal: abort.signal,
+                });
+              } catch (error) {
+                throw new AppearanceError(
+                  error instanceof Error ? error.message : 'notification-client-failed',
+                );
+              }
+            } else if (command.recovery !== undefined) {
               if (!wallpaper) throw new WallpaperError('wallpaper-unavailable');
               result = await resetAppearance(
                 owner,
@@ -77,6 +96,13 @@ export function mountAppearanceControl(owner: Appearance, wallpaper?: Wallpaper)
               },
             };
           }
+          if (abort.signal.aborted) return;
+          if (
+            command.notifications !== undefined &&
+            typeof command.expiresAt === 'number' &&
+            Date.now() >= command.expiresAt
+          )
+            continue;
           await post({ action: 'reply', ...registration, requestId: command.id, result });
         }
       } catch {

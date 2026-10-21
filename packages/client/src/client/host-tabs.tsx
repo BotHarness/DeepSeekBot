@@ -13,6 +13,7 @@ import { TextField } from './ds/field.js';
 import { Tooltip } from './ds/tooltip.js';
 import { border, color, radius, size, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
+import { RemoteNotificationSettings } from './remote-notification-settings.js';
 import {
   HOST_COLOR_IDS,
   HOST_COLORS,
@@ -262,6 +263,7 @@ export function HostTabs({ t }: { t: BotHarnessTranslate }): ReactElement | null
   );
   const [menu, setMenu] = useState<{ hostId: string; point: MenuPoint } | undefined>(undefined);
   const [removing, setRemoving] = useState<RemoteHost | undefined>(undefined);
+  const [notificationHost, setNotificationHost] = useState<RemoteHost | undefined>();
   const [styling, setStyling] = useState<{ hostId: string; name: string } | undefined>(undefined);
   const [settings, setSettings] = useState<{ hostId: string; name: string }>();
   const proxy = useRef<HTMLSpanElement | null>(null);
@@ -339,6 +341,7 @@ export function HostTabs({ t }: { t: BotHarnessTranslate }): ReactElement | null
                 ? []
                 : [
                     { id: 'settings', label: t('remoteHosts.settings') },
+                    { id: 'notifications', label: t('remoteHosts.notifications') },
                     { id: 'remove', label: t('remoteHosts.remove.confirm'), danger: true },
                   ]),
             ]}
@@ -348,6 +351,8 @@ export function HostTabs({ t }: { t: BotHarnessTranslate }): ReactElement | null
               if (id === 'settings' && menuRemote !== undefined)
                 setSettings({ hostId: menuRemote.host.hostId, name: menuRemote.host.hostName });
               if (id === 'remove' && menuRemote !== undefined) setRemoving(menuRemote);
+              if (id === 'notifications' && menuRemote !== undefined)
+                setNotificationHost(menuRemote);
             }}
             onClose={() => setMenu(undefined)}
           />
@@ -368,6 +373,15 @@ export function HostTabs({ t }: { t: BotHarnessTranslate }): ReactElement | null
           name={settings.name}
           onClose={() => setSettings(undefined)}
           t={t}
+        />
+      )}
+      {notificationHost === undefined ? null : (
+        <RemoteNotificationSettings
+          hostId={notificationHost.host.hostId}
+          name={notificationHost.host.hostName}
+          notifications={sources.notifications}
+          t={t}
+          onClose={() => setNotificationHost(undefined)}
         />
       )}
       {removing === undefined ? null : (

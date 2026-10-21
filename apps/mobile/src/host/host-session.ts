@@ -19,6 +19,7 @@ import { avatarInputs } from './notification-avatars';
 import { revokePairing } from './pairing';
 import { createHostPush } from './push';
 import { createPushSession, type PushStatus } from './push-session';
+import { notificationPreferences } from './native-notification-preferences';
 import { createQuietChannels } from './quiet-channels';
 import { loadSavedHosts, saveHosts, type SavedHost } from './saved-host';
 import { mobileTelemetry } from '../telemetry/native';
@@ -50,6 +51,8 @@ export const pushSession = createPushSession({
     'remove-device': t.removeDevice,
   }),
   hostPush,
+  beforeRegister: () => notificationPreferences.retry(),
+  prepareRegistration: (host) => notificationPreferences.prepare(host),
   platform: Platform.OS === 'android' ? 'android' : 'ios',
   locale: locale === 'zh' ? 'zh' : 'en',
 });
@@ -63,8 +66,10 @@ function reflectInbox(hostId: string, inbox: Inbox): void {
 
 function adopt(next: SavedHosts, trigger: ConnectionTrigger = 'open'): void {
   mobileTelemetry.foreground(AppState.currentState === 'active', next.hosts.length);
+  notificationPreferences.setForeground(AppState.currentState === 'active');
   const previous = state.saved;
   stored = next;
+  void notificationPreferences.sync(next.hosts).catch(() => undefined);
   const saved = currentHost(next) ?? null;
   if (
     previous !== undefined &&
@@ -100,7 +105,10 @@ function adopt(next: SavedHosts, trigger: ConnectionTrigger = 'open'): void {
   offConnection = client?.subscribe(() => {
     const snapshot = client.getSnapshot();
     const now = snapshot.connection.status === 'connected';
-    if (now && !connected) void pushSession.retryFailed();
+    if (now && !connected) {
+      void pushSession.retryFailed();
+      void notificationPreferences.retry().catch(() => undefined);
+    }
     connected = now;
     const inputs = snapshot.roster === undefined ? undefined : avatarInputs(snapshot.roster);
     if (
@@ -135,7 +143,9 @@ void loadSavedHosts().then(
 
 AppState.addEventListener('change', (next) => {
   mobileTelemetry.foreground(next === 'active', state.hosts.length);
+  notificationPreferences.setForeground(next === 'active');
   if (next !== 'active') return;
+  void notificationPreferences.retry().catch(() => undefined);
   pushSession.reflectAgain();
   void pushSession.retryFailed();
   state.client?.retryNow('resume');

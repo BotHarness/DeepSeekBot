@@ -53,6 +53,7 @@ export interface HumanAttentionItem {
 
 export interface HumanAttentionPage {
   queryVersion?: 1;
+  notificationVersion?: 1;
   items: HumanAttentionItem[];
   nextCursor?: string;
 }
@@ -87,7 +88,10 @@ export interface HumanAttentionQuery {
   }): HumanAttentionPage;
   status(messageCounts?: boolean): HumanAttentionStatus;
   unreadByChannel(): Array<{ channelId: string; unreadCount: number }>;
-  dmReplies(limit: number): HumanAttentionItem[];
+  dmReplies(
+    limit: number,
+    before?: { createdAt: string; sourceEventId: string },
+  ): HumanAttentionItem[];
   durableAttention(): Array<{
     botSlug: string;
     waitingHumanCount: number;
@@ -1045,7 +1049,7 @@ SELECT 'handled:' || request.source_event_id AS id,
           : {}),
       };
     },
-    dmReplies(limit) {
+    dmReplies(limit, before) {
       const rows = database.read(
         (db) =>
           db
@@ -1058,6 +1062,7 @@ SELECT 'handled:' || request.source_event_id AS id,
            AND json_extract(e.payload_json, '$.author.kind') = 'bot'
            AND ${DM_CARD_FIELDS.map((field) => `json_extract(e.payload_json, '$.${field}') IS NULL`).join(' AND ')}
            AND NOT EXISTS (SELECT 1 FROM human_inbox_dismissals d WHERE d.human_id = '${LOCAL_HUMAN_ID}' AND d.item_id = 'unread:' || v.channel_id AND v.revision <= d.through_revision)
+           AND (? IS NULL OR v.created_at < ? OR (v.created_at = ? AND v.source_event_id < ?))
          ORDER BY v.created_at DESC, v.source_event_id DESC
          LIMIT ?
       `)
@@ -1065,6 +1070,10 @@ SELECT 'handled:' || request.source_event_id AS id,
               LOCAL_HUMAN_ID,
               LOCAL_HUMAN_ID,
               JSON.stringify(mutedChannelIds()),
+              before?.createdAt ?? null,
+              before?.createdAt ?? null,
+              before?.createdAt ?? null,
+              before?.sourceEventId ?? null,
               limit,
             ) as Array<{
             channel_id: string;
