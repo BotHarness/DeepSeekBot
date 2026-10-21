@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, assert, describe, expect, it, vi } from 'vitest';
 
 import type { HostCarrier } from '../../../apps/mobile/src/host/carrier.js';
 import { FakeHost } from '../../../apps/mobile/test/fake-host.js';
@@ -205,12 +205,19 @@ describe('Host Feed lifecycle', () => {
     });
     const sources = createRemoteHosts({ carrier: host.carrier, storage });
     releases.push(sources.subscribe(() => {}));
-    await vi.waitFor(() => expect(sources.getSnapshot().hosts[0]?.inbox.status).toBe('ready'));
+    await vi.waitFor(() =>
+      expect(sources.getSnapshot().hosts[0]?.inbox).toMatchObject({
+        status: 'ready',
+        unread: { 'dm-ada': 2 },
+      }),
+    );
     await sources.markRead({ hostId: host.hostId, title: 'Ada', botSlug: 'ada' }, 'message-2');
     expect(host.calls.filter(({ method }) => method === 'channelMarkRead')).toEqual([
       { method: 'channelMarkRead', args: { channelId: 'dm-ada', messageId: 'message-2' } },
     ]);
-    expect(sources.getSnapshot().hosts[0]?.inbox).toMatchObject({ unread: {} });
+    const inbox = sources.getSnapshot().hosts[0]?.inbox;
+    assert(inbox?.status === 'ready');
+    expect(inbox.unread).toEqual({});
     await sources.markRead({ hostId: 'another-host', title: 'Ada', botSlug: 'ada' }, 'message-2');
     expect(host.calls.filter(({ method }) => method === 'channelMarkRead')).toHaveLength(1);
   });
