@@ -169,7 +169,18 @@ function confirmUnpair(row: HostDrawerRow, name: string): void {
       style: 'destructive',
       onPress: () => {
         if (hostSession.getState().hosts.length <= 1) settle(false);
-        return hostSession.unpair(row.hostId).then((result) => noticeHostKept(result, name));
+        return hostSession.unpair(row.hostId).then(
+          (result) => {
+            if (result?.current === true && row.current && router.canDismiss()) router.dismissAll();
+            noticeHostKept(result, name);
+          },
+          (error: unknown) =>
+            showAppDialog(
+              `${t.unpairFailed} ${error instanceof Error ? error.message : String(error)}`,
+              undefined,
+              [{ text: t.done }],
+            ),
+        );
       },
     },
   ]);

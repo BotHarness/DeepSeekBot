@@ -12,7 +12,17 @@ A release publishes these precompiled packages in this order:
 1. `@botharness/im-provider` — independent Provider version (for example `4.32.0-botharness.5`);
 2. `@botharness/core@<version>`;
 3. `@botharness/ui@<version>`;
-4. `deepseekbot@<version>` — one product Bundle with exact dependencies.
+4. `@botharness/cloudflared-<platform>-<arch>@<version>` — one optional package per platform
+   (`darwin-arm64`, `darwin-x64`, `linux-arm64`, `linux-x64`, `win32-x64`) carrying the pinned
+   `cloudflared` for Connect (ADR-0241), in the esbuild pattern;
+5. `deepseekbot@<version>` — one product Bundle with exact dependencies, listing the
+   `cloudflared` packages as exact `optionalDependencies` so npm installs only the matching one.
+
+`prepare` downloads the `cloudflared` release pinned in `packages/core/src/devices/cloudflared.json`
+into `<output>/cloudflared-assets/` (or reuses `--cloudflared-assets <dir>`), refuses any asset
+whose SHA-256 differs, and places the binary at `bin/cloudflared` in each package; binaries are
+never committed. `node scripts/cloudflared-packages.mjs list` prints the packages, assets and
+hashes without downloading. These packages are Apache-2.0 and ship cloudflared's `LICENSE`.
 
 Computer and Browser are optional separate Bundles and are not published by this
 product workflow. Keep the qualified Provider source pinned; merged upstream
@@ -50,7 +60,8 @@ the release record; delete and recreate it only if the publish job never started
 - **Environment:** in repository **Settings → Environments**, create `npm-release`, add the
   release owners as required reviewers, and limit deployments to tags matching `v*`.
 - **Trusted Publishing:** on npmjs.com, open each of `@botharness/im-provider`,
-  `@botharness/core`, `@botharness/ui` and `deepseekbot`, go to **Settings → Trusted
+  `@botharness/core`, `@botharness/ui`, each `@botharness/cloudflared-*` package and
+  `deepseekbot`, go to **Settings → Trusted
   Publisher**, choose GitHub Actions, and enter organization `BotHarness`, repository
   `BotHarness`, workflow `npm-release.yml` and environment `npm-release`. npm then accepts the
   workflow's OIDC identity and attaches provenance; no publish token is stored.

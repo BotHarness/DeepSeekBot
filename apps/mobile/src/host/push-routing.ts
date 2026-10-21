@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import type { RefCallback } from 'react';
-import type { ViewInstance } from 'react-native';
+import { Alert, type ViewInstance } from 'react-native';
 
 import { useMounted } from '../ui/mounted';
 import { createHostClient } from './client';
@@ -8,7 +8,9 @@ import { hostSession } from './host-session';
 import { nativeCarrier } from './native-carrier';
 import { onNotificationTap } from './native-notifications';
 import { parsePushData, pushHref, type PushTarget } from './push';
-import { decideFromPush } from './push-actions';
+import { decideFromPush, removeFromPush } from './push-actions';
+import { removeDevice } from './pairing';
+import { t } from '../ui/strings';
 import { decideApproval } from './requests';
 
 export function usePushRouting(): RefCallback<ViewInstance> {
@@ -20,6 +22,16 @@ export function usePushRouting(): RefCallback<ViewInstance> {
       if (next === undefined || hostSession.getState().saved === undefined) return;
       pending = undefined;
       const { target, action } = next;
+      const removed = await removeFromPush(
+        hostSession.getState().hosts,
+        target,
+        action,
+        (host, deviceId) => removeDevice({ host, deviceId, carrier: nativeCarrier() }),
+      );
+      if (removed !== undefined) {
+        Alert.alert(removed === 'removed' ? t.deviceRemoved : t.deviceRemoveFailed);
+        return;
+      }
       if (action !== undefined)
         await decideFromPush(
           hostSession.getState().hosts,

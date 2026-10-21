@@ -40,7 +40,7 @@ const SECTIONS: Record<string, { key: BotHarnessKey; tone: TagTone }> = {
 };
 
 export const RELEASE_UPDATE_PROFILE = 'web';
-const DESKTOP_UPDATE_PROFILE = 'desktop';
+export const DESKTOP_UPDATE_PROFILE = 'desktop';
 const FAILURE_LINE_CHARS = 160;
 
 const styles = stylex.create({
@@ -259,7 +259,10 @@ export function ReleaseNotesAnnouncement({
   );
 }
 
-function compatibilityText(compatibility: ReleaseCompatibility, t: BotHarnessTranslate): string {
+export function compatibilityText(
+  compatibility: ReleaseCompatibility,
+  t: BotHarnessTranslate,
+): string {
   if (compatibility.status === 'compatible')
     return t('release.compatible', { dsh: compatibility.dshVersion });
   if (compatibility.status === 'unknown') return t('release.compatibilityUnknown');
@@ -450,7 +453,7 @@ const INSTALL_FAILURE_REASONS: Partial<
   'build-blocked': 'release.install.reason.buildBlocked',
 };
 
-const INSTALL_FAILURE_KEYS: Record<
+export const INSTALL_FAILURE_KEYS: Record<
   Extract<ReleaseInstallState, { status: 'failed' }>['reason'],
   BotHarnessKey
 > = {
@@ -508,7 +511,7 @@ function ManualUpdate({
   );
 }
 
-function runsInDesktop(): boolean {
+export function runsInDesktop(): boolean {
   return 'dshDesktop' in globalThis;
 }
 

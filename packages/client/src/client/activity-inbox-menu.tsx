@@ -7,7 +7,8 @@ import {
   type MenuEntry,
 } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { BridgeActions } from './actions.js';
-import { useClientState } from './bot-sidebar.js';
+import { keepClientState, sameBotNames, useClientStore } from './use-client-store.js';
+import type { ClientState } from './store.js';
 import { IconButton } from './ds/icon-button.js';
 import { Tooltip } from './ds/tooltip.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -22,6 +23,9 @@ const categories = [
   ['handled', 'humanInbox.handled'],
 ] as const;
 
+const menuInputs = (left: ClientState, right: ClientState): boolean =>
+  left.channels === right.channels && sameBotNames(left.bots, right.bots);
+
 export function ActivityInboxMenu({
   actions,
   t,
@@ -29,7 +33,7 @@ export function ActivityInboxMenu({
   actions: BridgeActions;
   t: BotHarnessTranslate;
 }): ReactElement {
-  const { bots, channels } = useClientState();
+  const { bots, channels } = useClientStore(keepClientState, menuInputs);
   const { feed, query: inbox } = useActivityFeed(actions);
   const [open, setOpen] = useState(false);
   const [error, setError] = useState(false);

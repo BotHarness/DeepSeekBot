@@ -11,6 +11,13 @@ import type { Duplex, Readable } from 'node:stream';
 
 import { credentialKey, type CredentialProvider } from '@deepseek-ai/dsh-credentials';
 
+import {
+  createCloudflaredResolver,
+  type CloudflaredFailure,
+  type CloudflaredResolver,
+  type CloudflaredSource,
+  type ResolvedCloudflared,
+} from './cloudflared.js';
 import { DEVICE_GATEWAY_PREFIX } from './gateway.js';
 import { CONNECT_HOSTNAME, type PhoneRoute } from './routes.js';
 
@@ -18,6 +25,7 @@ type Credentials = Pick<CredentialProvider, 'readRecord' | 'modifyRecord' | 'del
 
 export type ConnectIssue =
   | 'cloudflared-missing'
+  | CloudflaredFailure
   | 'cloudflared-exited'
   | 'origin-port-busy'
   | 'credential-unavailable';
@@ -27,6 +35,7 @@ export interface ConnectStatus {
   hostname?: string;
   origin?: string;
   issue?: ConnectIssue;
+  cloudflared?: CloudflaredSource;
 }
 
 export type ConnectRefusal =
@@ -209,13 +218,25 @@ export function createDeviceConnect(options: {
   credentials: () => Credentials | undefined;
   port: () => number;
   binary?: string;
+  resolveBinary?: CloudflaredResolver;
+  cloudflaredCache?: string;
+  packageAnchors?: readonly string[];
   spawn?: SpawnTunnel;
   record?: (phase: string, detail?: string) => void;
 }): DeviceConnect {
   const key = credentialKey('botharness-core', 'device-connect');
   const spawn = options.spawn ?? spawnTunnel;
-  const binary = options.binary ?? process.env['DEEPSEEKBOT_CLOUDFLARED'] ?? 'cloudflared';
   const record = options.record ?? (() => {});
+  const fixed = options.binary;
+  const resolveBinary: CloudflaredResolver =
+    fixed !== undefined
+      ? () => Promise.resolve({ binary: fixed, source: 'env' })
+      : (options.resolveBinary ??
+        createCloudflaredResolver({
+          ...(options.cloudflaredCache === undefined ? {} : { cacheDir: options.cloudflaredCache }),
+          ...(options.packageAnchors === undefined ? {} : { anchors: options.packageAnchors }),
+          log: record,
+        }));
   let status: ConnectStatus = { state: 'off' };
   let server: GatewayOrigin | undefined;
   let tunnel: TunnelProcess | undefined;
@@ -230,23 +251,49 @@ export function createDeviceConnect(options: {
     return next;
   };
 
-  const runTunnel = (current: ConnectRecord, run: number): void => {
+  const retry = (current: ConnectRecord, run: number): void => {
+    restart = setTimeout(() => void runTunnel(current, run), backoff);
+    backoff = Math.min(backoff * 2, RESTART_MAX_MS);
+  };
+
+  const resolve = async (): Promise<ResolvedCloudflared> => {
+    try {
+      return await resolveBinary();
+    } catch {
+      return { binary: 'cloudflared', source: 'path' };
+    }
+  };
+
+  const runTunnel = async (current: ConnectRecord, run: number): Promise<void> => {
     if (run !== generation) return;
     status = { ...status, state: 'starting' };
     delete status.issue;
+    const resolved = await resolve();
+    if (run !== generation) return;
+    status = { ...status, cloudflared: resolved.source };
+    const missing = (): void => {
+      const issue = resolved.failure ?? 'cloudflared-missing';
+      status = { ...status, state: 'error', issue };
+      if (resolved.failure === undefined) {
+        record('cloudflared-missing');
+        return;
+      }
+      record(issue, `retryMs=${String(backoff)}`);
+      retry(current, run);
+    };
     let child: TunnelProcess;
     try {
-      child = spawn(binary, ['tunnel', '--no-autoupdate', 'run'], {
+      child = spawn(resolved.binary, ['tunnel', '--no-autoupdate', 'run'], {
         ...process.env,
         TUNNEL_TOKEN: current.token,
       });
     } catch {
-      status = { ...status, state: 'error', issue: 'cloudflared-missing' };
-      record('cloudflared-missing');
+      missing();
       return;
     }
+    record('cloudflared-started', `source=${resolved.source}`);
     tunnel = child;
-    let missing = false;
+    let absent = false;
     child.stderr?.setEncoding('utf8');
     child.stderr?.on('data', (chunk: string) => {
       if (run !== generation || !CONNECTED_LINE.test(chunk) || status.state === 'connected') return;
@@ -256,17 +303,15 @@ export function createDeviceConnect(options: {
     });
     child.on('error', (error) => {
       if (error.code !== 'ENOENT' || run !== generation) return;
-      missing = true;
-      status = { ...status, state: 'error', issue: 'cloudflared-missing' };
-      record('cloudflared-missing');
+      absent = true;
+      missing();
     });
     child.on('exit', (code) => {
       if (tunnel === child) tunnel = undefined;
-      if (run !== generation || missing) return;
+      if (run !== generation || absent) return;
       status = { ...status, state: 'error', issue: 'cloudflared-exited' };
       record('cloudflared-exited', `code=${String(code)} retryMs=${String(backoff)}`);
-      restart = setTimeout(() => runTunnel(current, run), backoff);
-      backoff = Math.min(backoff * 2, RESTART_MAX_MS);
+      retry(current, run);
     });
   };
 
@@ -300,7 +345,7 @@ export function createDeviceConnect(options: {
       hostname: current.hostname,
       origin: `http://127.0.0.1:${String(bound)}`,
     };
-    runTunnel({ ...current, originPort: bound }, generation);
+    void runTunnel({ ...current, originPort: bound }, generation);
     return bound;
   };
 

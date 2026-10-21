@@ -5,6 +5,11 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import semver from 'semver';
 import { readComposedReleaseLedgers } from './change-fragments.mjs';
+import {
+  cloudflaredOptionalDependencies,
+  fetchCloudflaredAssets,
+  stageCloudflaredPackages,
+} from './cloudflared-packages.mjs';
 import { providerRuntimeDigest } from './dev-im-provider.mjs';
 import { pnpmCommand } from './dev-package-manager.mjs';
 
@@ -73,6 +78,10 @@ export function productManifest(manifest, version) {
       '@botharness/core': version,
       '@botharness/ui': version,
       [productImProvider.name]: productImProvider.version,
+    },
+    optionalDependencies: {
+      ...manifest.optionalDependencies,
+      ...cloudflaredOptionalDependencies(version),
     },
     dsh: { ...manifest.dsh, bundle: { patch: './cordis.im.patch.yml' } },
     files: ['dist', 'desktop-theme', 'cordis.im.patch.yml', 'README.md', 'LICENSE'],
@@ -247,7 +256,13 @@ export function stageProvider(source, target, repoRoot) {
   return output;
 }
 
-export function packProduct({ repoRoot, outputDirectory, providerSource, version }) {
+export function packProduct({
+  repoRoot,
+  outputDirectory,
+  providerSource,
+  version,
+  cloudflaredAssets,
+}) {
   const productRelease = productManifest(
     JSON.parse(readFileSync(join(repoRoot, 'packages/deepseekbot/package.json'), 'utf8')),
     version,
@@ -290,6 +305,12 @@ export function packProduct({ repoRoot, outputDirectory, providerSource, version
   const provider = join(staging, 'im-provider');
   const providerRuntime = stageProvider(providerSource, provider, repoRoot);
   packageDirectories.push(provider);
+  const platformDirectories = stageCloudflaredPackages({
+    repoRoot,
+    assetsDirectory: cloudflaredAssets,
+    staging,
+    version,
+  });
   const product = join(staging, 'deepseekbot');
   mkdirSync(product);
   const source = join(repoRoot, 'packages/deepseekbot');
@@ -297,26 +318,38 @@ export function packProduct({ repoRoot, outputDirectory, providerSource, version
   copyAvailable(source, product, ['dist', 'desktop-theme', 'cordis.im.patch.yml', 'README.md']);
   cpSync(join(repoRoot, 'LICENSE'), join(product, 'LICENSE'));
   packageDirectories.push(product);
-  for (const directory of packageDirectories) {
+  const pack = (directory, { preserveModes = false } = {}) => {
     const manifest = JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8'));
-    const [command, args] = pnpmCommand(['pack', '--pack-destination', output]);
-    run(command, args, { cwd: directory });
+    if (preserveModes)
+      run('npm', ['pack', '--pack-destination', output, '--ignore-scripts'], {
+        cwd: directory,
+        shell: process.platform === 'win32',
+      });
+    else {
+      const [command, args] = pnpmCommand(['pack', '--pack-destination', output]);
+      run(command, args, { cwd: directory });
+    }
     const filename = `${manifest.name.replace(/^@/, '').replace('/', '-')}-${manifest.version}.tgz`;
     const bytes = readFileSync(join(output, filename));
-    artifacts.push({
+    return {
       name: manifest.name,
       version: manifest.version,
       filename,
       integrity: `sha512-${createHash('sha512').update(bytes).digest('base64')}`,
-    });
-  }
+    };
+  };
+  for (const directory of packageDirectories) artifacts.push(pack(directory));
+  const platformArtifacts = platformDirectories.map((directory) =>
+    pack(directory, { preserveModes: true }),
+  );
   writeJson(join(output, 'artifacts.json'), {
     productVersion: version,
     dsh: productDsh,
     providerRuntime,
     artifacts,
+    platformArtifacts,
   });
-  return artifacts;
+  return [...artifacts, ...platformArtifacts];
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
@@ -324,6 +357,11 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   for (let i = 2; i < process.argv.length; i += 2) values.set(process.argv[i], process.argv[i + 1]);
   for (const key of ['--output', '--provider-source', '--version'])
     if (!values.get(key)) throw new Error(`Required argument: ${key}`);
+  const cloudflaredAssets = await fetchCloudflaredAssets({
+    directory: resolve(
+      values.get('--cloudflared-assets') ?? join(values.get('--output'), 'cloudflared-assets'),
+    ),
+  });
   console.log(
     JSON.stringify(
       packProduct({
@@ -331,6 +369,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
         outputDirectory: values.get('--output'),
         providerSource: resolve(values.get('--provider-source')),
         version: values.get('--version'),
+        cloudflaredAssets,
       }),
       null,
       2,

@@ -178,12 +178,15 @@ export function ConversationRowFrame({
           </View>
         )}
       </View>
-      <View style={{ flex: 1, minWidth: 0, gap: space.x1 }}>
+      <View
+        key={`${theme.scheme}:${theme.fontScale}:${title}`}
+        style={{ flex: 1, minWidth: 0, gap: space.x1 }}
+      >
         <View
           style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: space.x3,
+            flexDirection: theme.largeText ? 'column' : 'row',
+            alignItems: theme.largeText ? 'flex-start' : 'center',
+            gap: theme.largeText ? space.x1 : space.x3,
           }}
         >
           <SourceName name={title} source={source} />
@@ -194,7 +197,12 @@ export function ConversationRowFrame({
           )}
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x3 }}>
-          <Text variant="meta" tone={unread ? 'fg' : 'muted'} numberOfLines={1} style={{ flex: 1 }}>
+          <Text
+            variant="meta"
+            tone={unread ? 'fg' : 'muted'}
+            numberOfLines={theme.largeText ? 2 : 1}
+            style={{ flex: 1 }}
+          >
             {preview}
           </Text>
           <RowStatusGlyph status={status} />

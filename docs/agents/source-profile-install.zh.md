@@ -28,7 +28,7 @@ node scripts/product-artifacts.mjs \
   --version <explicit-candidate-semver>
 ```
 
-`product-artifacts.mjs` 检查不可变 Provider 来源，打包 Core、Client、浏览器、计算机、Provider 和 application Bundle，并写入含包 integrity 的 `artifacts.json`。使用新的输出目录。对 workspace 源码目录直接 `npm pack` 不能替代这一步。构建其它 revision 前，重新检查该源码 `productImProvider` 固定的 Provider revision。
+`product-artifacts.mjs` 检查不可变 Provider 来源，打包 Core、Client、浏览器、计算机、Provider、各平台的 `cloudflared` 包（会下载固定版本并核对 SHA-256；传 `--cloudflared-assets <dir>` 可复用已下载的目录）和 application Bundle，并写入含包 integrity 的 `artifacts.json`。使用新的输出目录。对 workspace 源码目录直接 `npm pack` 不能替代这一步。构建其它 revision 前，重新检查该源码 `productImProvider` 固定的 Provider revision。
 
 将归档和 `artifacts.json` 放在一起。小规格 VPS 优先接收预编译结果，不在其上构建全部 workspace。传输前记录归档 SHA-256，在目标机核对相同 digest。
 

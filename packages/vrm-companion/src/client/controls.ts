@@ -3,7 +3,7 @@ import type { CharacterShading } from './shading.js';
 import type { CameraView, SceneChoices, SceneState, Stage } from './stage.js';
 import { forgetModel, saveModel } from './library.js';
 import { softwareRendering } from './gpu.js';
-import type { Loading, Problem } from './copy.js';
+import type { Failure, Loading, Problem } from './copy.js';
 
 export type CustomModel = { name: string; url: string };
 
@@ -13,7 +13,7 @@ export type PanelState = SceneChoices & {
   kept: boolean;
   loading: Loading;
   error: Problem;
-  failure: string;
+  failure: Failure;
   software: boolean;
   revision: number;
 };

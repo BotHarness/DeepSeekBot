@@ -11,9 +11,15 @@ export function SourceName({ name, source }: { name: string; source: 'computer' 
     <View
       accessible
       accessibilityLabel={`${name}, ${source === 'cloud' ? t.cloudChannels.cloudChannel : t.computerChannel}`}
-      style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: space.x2 }}
+      style={{
+        ...(theme.largeText ? { alignSelf: 'stretch' as const } : { flex: 1 }),
+        minWidth: 0,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: space.x2,
+      }}
     >
-      <Text strong numberOfLines={1} style={{ flexShrink: 1 }}>
+      <Text strong numberOfLines={theme.largeText ? 2 : 1} style={{ flexShrink: 1 }}>
         {name}
       </Text>
       <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">

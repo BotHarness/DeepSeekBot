@@ -45,6 +45,8 @@ function memoryCredentials() {
   };
 }
 
+const settle = (): Promise<void> => new Promise((done) => setImmediate(done));
+
 const servers: Server[] = [];
 afterEach(async () => {
   await Promise.all(servers.splice(0).map((server) => new Promise((done) => server.close(done))));
@@ -182,6 +184,7 @@ describe('device Connect tunnel', () => {
     });
     expect(enabled).toMatchObject({ ok: true, status: { state: 'starting' } });
     expect(connect.route()).toMatchObject({ kind: 'connect', ready: false });
+    await settle();
     expect(tunnels).toHaveLength(1);
     expect(tunnels[0]?.args).toEqual(['tunnel', '--no-autoupdate', 'run']);
     expect(tunnels[0]?.args.join(' ')).not.toContain(TOKEN);
@@ -276,9 +279,60 @@ describe('device Connect tunnel', () => {
       spawn,
     });
     await second.start();
+    await settle();
     expect(second.status()).toMatchObject({ state: 'starting', origin });
     expect(tunnels).toHaveLength(2);
     await second.close();
+  });
+
+  it('runs the resolved cloudflared and reports a refused pinned download', async () => {
+    const port = await dshListener();
+    const { credentials, tunnels, spawn } = setup();
+    const binaries: string[] = [];
+    const resolved = createDeviceConnect({
+      credentials: () => credentials.provider,
+      port: () => port,
+      resolveBinary: async () => ({ binary: '/cache/cloudflared', source: 'download' }),
+      spawn: (binary, args, env) => {
+        binaries.push(binary);
+        return spawn(binary, args, env);
+      },
+    });
+    await resolved.enable({ hostname: 'studio.deepseekbot.dev', token: TOKEN });
+    await settle();
+    expect(binaries).toEqual(['/cache/cloudflared']);
+    expect(tunnels).toHaveLength(1);
+    expect(resolved.status()).toMatchObject({ state: 'starting', cloudflared: 'download' });
+    await resolved.close();
+
+    const phases: string[] = [];
+    const refused = createDeviceConnect({
+      credentials: () => credentials.provider,
+      port: () => port,
+      resolveBinary: async () => ({
+        binary: 'cloudflared',
+        source: 'path',
+        failure: 'cloudflared-hash-mismatch',
+      }),
+      record: (phase) => phases.push(phase),
+      spawn: () => {
+        const tunnel = new FakeTunnel();
+        setImmediate(() =>
+          tunnel.emit('error', Object.assign(new Error('spawn ENOENT'), { code: 'ENOENT' })),
+        );
+        return tunnel;
+      },
+    });
+    await refused.enable({ hostname: 'studio.deepseekbot.dev', token: TOKEN });
+    await settle();
+    await settle();
+    expect(refused.status()).toMatchObject({
+      state: 'error',
+      issue: 'cloudflared-hash-mismatch',
+      cloudflared: 'path',
+    });
+    expect(phases).toContain('cloudflared-hash-mismatch');
+    await refused.close();
   });
 
   it('reports a missing or exited cloudflared and refuses bad input', async () => {
@@ -298,6 +352,7 @@ describe('device Connect tunnel', () => {
       code: 'connect-token-invalid',
     });
     await connect.enable({ hostname: 'studio.deepseekbot.dev', token: TOKEN });
+    await settle();
     tunnels[0]?.tunnel.emit('exit', 1);
     expect(connect.status()).toMatchObject({
       state: 'error',
@@ -323,7 +378,8 @@ describe('device Connect tunnel', () => {
       },
     });
     await missing.enable({ hostname: 'studio.deepseekbot.dev', token: TOKEN });
-    await new Promise((done) => setImmediate(done));
+    await settle();
+    await settle();
     expect(missing.status()).toMatchObject({
       state: 'error',
       issue: 'cloudflared-missing',

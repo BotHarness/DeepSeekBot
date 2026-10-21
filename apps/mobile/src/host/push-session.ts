@@ -110,7 +110,19 @@ export function createPushSession(options: {
     },
     async forget(host) {
       latest = latest.filter((entry) => entry.hostId !== host.hostId);
-      await hostPush.unregister(host).catch(() => undefined);
+      reflected = '';
+      const cleared = notifications
+        .presented()
+        .then((shown) =>
+          Promise.all(
+            shown.flatMap(({ id, data }) =>
+              parsePushData(data)?.hostId === host.hostId ? [notifications.dismiss(id)] : [],
+            ),
+          ),
+        )
+        .catch(() => undefined);
+      const badge = latest.length === 0 ? notifications.setBadge(0).catch(() => undefined) : null;
+      await Promise.all([cleared, badge, hostPush.unregister(host).catch(() => undefined)]);
     },
     retryFailed() {
       if (retrying !== undefined) return retrying;

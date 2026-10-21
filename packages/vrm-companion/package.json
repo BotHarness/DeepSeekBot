@@ -1,6 +1,6 @@
 {
   "name": "@botharness/vrm-companion",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "VRM companion Panel for DeepSeekBot: a Bot character in a lo-fi study room that types, thinks and speaks with the Bot",
   "keywords": [
     "botharness",

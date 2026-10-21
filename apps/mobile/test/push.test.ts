@@ -23,7 +23,11 @@ import {
   type SavedHost,
 } from '../src/host/hosts';
 import { createHostPush, parsePushData, pushHref, PushRequestFailed } from '../src/host/push';
-import { decideFromPush, registerApprovalCategories } from '../src/host/push-actions';
+import {
+  decideFromPush,
+  registerApprovalCategories,
+  removeFromPush,
+} from '../src/host/push-actions';
 import {
   createPushSession,
   type NotificationsPort,
@@ -293,7 +297,24 @@ describe('notification buttons', () => {
     expect(Object.fromEntries(stored)).toEqual({
       'tool-approval': ['always', 'approve', 'reject'],
       'tool-approval-once': ['approve', 'reject'],
+      'device-paired': ['remove-device'],
     });
+  });
+
+  it('removes the device a new-pairing notice names from its own Host only', async () => {
+    const notice = parsePushData({ v: 1, hostId: 'h2', kind: 'device-paired', deviceId: 'dev-9' })!;
+    expect(notice.deviceId).toBe('dev-9');
+    const asked: string[] = [];
+    const remove = async (saved: SavedHost, deviceId: string) => {
+      asked.push(`${saved.hostId}:${deviceId}`);
+      return 'removed' as const;
+    };
+    expect(await removeFromPush([two], notice, 'remove-device', remove)).toBe('removed');
+    expect(asked).toEqual(['h2:dev-9']);
+    expect(await removeFromPush([two], notice, undefined, remove)).toBeUndefined();
+    expect(await removeFromPush([two], approval, 'remove-device', remove)).toBeUndefined();
+    expect(await removeFromPush([], notice, 'remove-device', remove)).toBe('failed');
+    expect(asked).toHaveLength(1);
   });
 
   it('ignores other buttons and kinds, and fails for an unpaired or unreachable Host', async () => {
@@ -474,5 +495,37 @@ describe('push registration with a real Host gateway', () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(phone.state.badge).toBe(0);
     expect(phone.state.dismissed).toEqual(['n1']);
+  });
+
+  it('clears an unpaired Host’s notifications, and the badge once no Host is left', async () => {
+    const phone = fakeNotifications('granted');
+    phone.state.badge = 3;
+    phone.state.presented = [
+      { id: 'n1', data: { v: 1, hostId: 'a', itemId: 'approval:1', kind: 'tool-approval' } },
+      { id: 'n2', data: { v: 1, hostId: 'b', itemId: 'reply:1', kind: 'channel-reply' } },
+      { id: 'n3', data: { v: 1, hostId: 'a', channelId: 'g1', kind: 'channel-reply' } },
+      { id: 'n4', data: { title: 'not ours' } },
+    ];
+    const unregistered: string[] = [];
+    const session = createPushSession({
+      notifications: phone.port,
+      hostPush: {
+        ...createHostPush(nodeCarrier()),
+        unregister: async (saved) => void unregistered.push(saved.hostId),
+      },
+      platform: 'ios',
+      locale: 'en',
+    });
+    await session.sync([host('a'), host('b')]);
+
+    await session.forget(host('a'));
+    expect(phone.state.dismissed).toEqual(['n1', 'n3']);
+    expect(phone.state.badge).toBe(3);
+    expect(unregistered).toEqual(['a']);
+
+    phone.state.presented = phone.state.presented.filter((n) => n.id === 'n2' || n.id === 'n4');
+    await session.forget(host('b'));
+    expect(phone.state.dismissed).toEqual(['n1', 'n3', 'n2']);
+    expect(phone.state.badge).toBe(0);
   });
 });

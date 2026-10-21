@@ -114,6 +114,7 @@ import {
 import { loadedReleaseComponents, stampReleaseComponent } from './release/component.js';
 import { createGitService } from './memory/managed-git.js';
 import { createProcessRestarter, type ReleaseRestarter } from './release/restart.js';
+import { createPluginUpdateService } from './release/plugins.js';
 import {
   createTelemetryService,
   installedDshVersion,
@@ -1359,6 +1360,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   const deviceWebUpgrade = mountDevicePairing(ctx, {
     database: core.operationalDatabase,
     dshHome,
+    packageAnchors: releaseAnchors,
     credentials: () => ctx.get('credentials'),
     push: {
       source: humanInboxPushSource(
@@ -2160,6 +2162,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     restarter: () => releaseRestarter.current,
     warn: (message) => ctx.logger.warn(message),
   });
+  const pluginUpdates = createPluginUpdateService({
+    installer: () => releaseInstaller.current,
+    restarter: () => releaseRestarter.current,
+  });
   const tobModelOperations = createTobModelOperations({
     registry: core.registry,
     presets: core.modelPresets,
@@ -2274,6 +2280,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       baseUrl: config.marketplaceUrl ?? DEFAULT_MARKETPLACE_URL,
     }),
     release: releaseService,
+    plugins: pluginUpdates,
     telemetry,
     git,
     developerMode: {

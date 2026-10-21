@@ -28,7 +28,7 @@ node scripts/product-artifacts.mjs \
   --version <explicit-candidate-semver>
 ```
 
-`product-artifacts.mjs` checks the immutable Provider source, packages Core, Client, browser, computer, Provider and the application Bundle, and writes `artifacts.json` with package integrities. Use a fresh output directory. A plain `npm pack` of a workspace source directory does not replace this step. Recheck the pinned Provider revision in the selected source's `productImProvider` before building a different revision.
+`product-artifacts.mjs` checks the immutable Provider source, packages Core, Client, browser, computer, Provider, the per-platform `cloudflared` packages (it downloads the pinned release and checks its SHA-256; pass `--cloudflared-assets <dir>` to reuse a folder) and the application Bundle, and writes `artifacts.json` with package integrities. Use a fresh output directory. A plain `npm pack` of a workspace source directory does not replace this step. Recheck the pinned Provider revision in the selected source's `productImProvider` before building a different revision.
 
 Keep the resulting archives and `artifacts.json` together. For a small VPS, transfer the precompiled result rather than building all workspace packages there. Record the archive SHA-256 before transfer and verify the same digest on the destination.
 

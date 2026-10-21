@@ -10,7 +10,7 @@ const LINK_FAULTS = new Set<PairingFailure>([
 ]);
 
 export function pairingFailureText(code: PairingFailure, method: PairingMethod): string {
-  if (method === 'qr') return t.pairRefused[code];
+  if (method === 'qr' || method === 'account') return t.pairRefused[code];
   const link: Partial<Record<PairingFailure, string>> = t.pairRefusedLink;
   return link[code] ?? t.pairRefused[code];
 }

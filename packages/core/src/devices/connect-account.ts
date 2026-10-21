@@ -1,3 +1,4 @@
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import { hostname as osHostname } from 'node:os';
 import { createServer, type AddressInfo } from 'node:net';
 
@@ -12,6 +13,8 @@ const DEVICE_ENDPOINT = 'https://api.workos.com/user_management/authorize/device
 const TOKEN_ENDPOINT = 'https://api.workos.com/user_management/authenticate';
 const DEVICE_GRANT = 'urn:ietf:params:oauth:grant-type:device_code';
 const WATCH_MS = 60_000;
+const OFFER_FRESH_MS = 60_000;
+const VERIFIER_HASH = /^[A-Za-z0-9_-]{43}$/u;
 
 export type AccountIssue =
   | 'relay-unavailable'
@@ -36,8 +39,11 @@ export type AccountResult =
   | { ok: true; status: AccountStatus }
   | { ok: false; code: 'credential-unavailable' | 'relay-unavailable' };
 
+export type OfferVerification = { ok: true; verifierHash: string; name?: string } | { ok: false };
+
 export interface ConnectAccount {
   status(): AccountStatus;
+  verifyOffer(body: string, signature: string | undefined): Promise<OfferVerification>;
   start(): Promise<void>;
   signIn(): Promise<AccountResult>;
   signOut(): Promise<AccountResult>;
@@ -50,6 +56,8 @@ interface AccountRecord {
   refreshToken: string;
   email?: string;
   hostId?: string;
+  account?: string;
+  relayKey?: string;
 }
 
 class AccountError extends Error {
@@ -73,6 +81,8 @@ function parseRecord(payload: unknown): AccountRecord | undefined {
     refreshToken: value['refreshToken'],
     ...(typeof value['email'] === 'string' ? { email: value['email'] } : {}),
     ...(typeof value['hostId'] === 'string' ? { hostId: value['hostId'] } : {}),
+    ...(typeof value['account'] === 'string' ? { account: value['account'] } : {}),
+    ...(typeof value['relayKey'] === 'string' ? { relayKey: value['relayKey'] } : {}),
   };
 }
 
@@ -232,9 +242,21 @@ export function createConnectAccount(options: {
       originPort: port,
     });
     if (reply.status === 404) return undefined;
-    const { hostname, token } = reply.body;
+    const { hostname, token, account, relayKey } = reply.body;
     if (reply.status !== 200 || typeof hostname !== 'string' || typeof token !== 'string')
       throw new AccountError('relay-unavailable');
+    const signer = typeof account === 'string' && typeof relayKey === 'string';
+    if (
+      (signer && (current.account !== account || current.relayKey !== relayKey)) ||
+      (!signer && current.relayKey !== undefined)
+    ) {
+      if (signer) Object.assign(current, { account, relayKey });
+      else {
+        delete current.account;
+        delete current.relayKey;
+      }
+      await save(current);
+    }
     return { hostname, token };
   };
 
@@ -370,8 +392,56 @@ export function createConnectAccount(options: {
     watch.unref?.();
   };
 
+  const verifyOffer = async (
+    body: string,
+    signature: string | undefined,
+  ): Promise<OfferVerification> => {
+    let current: AccountRecord | undefined;
+    try {
+      current = await read();
+    } catch {
+      return { ok: false };
+    }
+    if (
+      current?.relayKey === undefined ||
+      current.hostId === undefined ||
+      current.account === undefined ||
+      signature === undefined
+    )
+      return { ok: false };
+    const expected = createHmac('sha256', current.relayKey).update(body).digest();
+    const presented = Buffer.from(signature, 'base64url');
+    if (presented.length !== expected.length || !timingSafeEqual(presented, expected)) {
+      record('offer-refused', 'reason=signature');
+      return { ok: false };
+    }
+    let payload: Record<string, unknown>;
+    try {
+      payload = JSON.parse(body) as Record<string, unknown>;
+    } catch {
+      return { ok: false };
+    }
+    const issuedAt =
+      typeof payload['issuedAt'] === 'string' ? Date.parse(payload['issuedAt']) : NaN;
+    const { verifierHash, name } = payload;
+    if (
+      payload['hostId'] !== current.hostId ||
+      payload['account'] !== current.account ||
+      !(Math.abs(Date.now() - issuedAt) <= OFFER_FRESH_MS) ||
+      typeof verifierHash !== 'string' ||
+      !VERIFIER_HASH.test(verifierHash) ||
+      (name !== undefined && typeof name !== 'string')
+    ) {
+      record('offer-refused', 'reason=payload');
+      return { ok: false };
+    }
+    record('offer-signed');
+    return { ok: true, verifierHash, ...(typeof name === 'string' ? { name } : {}) };
+  };
+
   return {
     status: () => ({ ...status }),
+    verifyOffer,
     async start() {
       startWatch();
       await sync();

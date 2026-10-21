@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { createAccessTokenVerifier, type Jwk } from '../src/auth.js';
 import { createCloudflareApi, GATEWAY_PATH, type TunnelApi } from '../src/cloudflare.js';
 import type { D1Database, D1PreparedStatement, D1Value } from '../src/d1.js';
-import { createRelay } from '../src/relay.js';
+import { createRelay, hmac, type RelayOptions } from '../src/relay.js';
 
 const CLIENT_ID = 'client_01TEST';
 const ISSUER = `https://api.workos.com/user_management/${CLIENT_ID}`;
@@ -117,7 +117,10 @@ class FakeTunnels implements TunnelApi {
 
 const BASE32 = 'abcdefghijklmnopqrstuvwxyz234567';
 
-async function setup(allowedUsers: string[] = ['user_alice', 'user_bob']) {
+async function setup(
+  allowedUsers: string[] = ['user_alice', 'user_bob'],
+  extra: Partial<RelayOptions> = {},
+) {
   const { keys, sign } = await signer();
   let clock = Date.parse('2026-10-20T12:00:00Z');
   let ids = 0;
@@ -140,6 +143,7 @@ async function setup(allowedUsers: string[] = ['user_alice', 'user_bob']) {
       ids += 1;
       return `haaaaaaaaaa${BASE32[Math.floor(ids / 32)]}${BASE32[ids % 32]}`;
     },
+    ...extra,
   });
   const tokenFor = (sub: string, claims: Record<string, unknown> = {}) =>
     sign({ sub, iss: ISSUER, exp: clock / 1000 + 300, ...claims });
@@ -212,6 +216,11 @@ describe('Connect relay accounts', () => {
       body: { error: { code: 'account-not-allowed' } },
     });
     expect(await call('GET', '/v1/hosts', { as: 'user_alice' })).toEqual({
+      status: 200,
+      body: { hosts: [] },
+    });
+    const open = await setup([]);
+    expect(await open.call('GET', '/v1/hosts', { as: 'user_mallory' })).toEqual({
       status: 200,
       body: { hosts: [] },
     });
@@ -425,6 +434,104 @@ describe('Connect relay tunnels', () => {
     expect((await call('GET', '/v1/hosts', { as: 'user_anyone' })).body['hosts'][0]).toMatchObject({
       tunnel: false,
     });
+  });
+});
+
+describe('Connect relay phone offers', () => {
+  const VERIFIER_HASH = Buffer.alloc(32, 7).toString('base64url');
+  const hostKey = (hostId: string) => hmac('relay-secret', `host:${hostId}`);
+
+  async function linked(fetchHost: typeof fetch) {
+    const relay = await setup(['user_alice', 'user_bob'], { hostKey, fetchHost });
+    await relay.call('POST', '/v1/hosts', { as: 'user_alice', body: { name: 'Studio' } });
+    return relay;
+  }
+
+  it('asks the Host over its tunnel for an offer signed with the Host key', async () => {
+    const seen: { url: string; signature: string | null; body: string }[] = [];
+    const { call, at } = await linked(async (input, init) => {
+      seen.push({
+        url: String(input),
+        signature: new Headers(init?.headers).get('x-botharness-relay-signature'),
+        body: String(init?.body),
+      });
+      return Response.json({
+        offer: 'offer-1',
+        expiresAt: '2026-10-20T12:10:00.000Z',
+        host: { id: 'pairing-host-1', name: 'Studio Mac' },
+      });
+    });
+    const tunnel = await call('POST', '/v1/hosts/haaaaaaaaaaab/tunnel', {
+      as: 'user_alice',
+      body: { originPort: 41001 },
+    });
+    expect(tunnel.body).toMatchObject({
+      account: 'user_alice',
+      relayKey: await hostKey('haaaaaaaaaaab'),
+    });
+    expect(
+      await call('POST', '/v1/hosts/haaaaaaaaaaab/offer', {
+        as: 'user_alice',
+        body: { verifierHash: VERIFIER_HASH, name: ' iPhone ' },
+      }),
+    ).toEqual({
+      status: 200,
+      body: {
+        offer: 'offer-1',
+        expiresAt: '2026-10-20T12:10:00.000Z',
+        hostname: 'haaaaaaaaaaab.deepseekbot.dev',
+        host: { id: 'pairing-host-1', name: 'Studio Mac' },
+      },
+    });
+    expect(seen).toHaveLength(1);
+    expect(seen[0]!.url).toBe(
+      'https://haaaaaaaaaaab.deepseekbot.dev/botharness-device/connect/offer',
+    );
+    expect(JSON.parse(seen[0]!.body)).toEqual({
+      hostId: 'haaaaaaaaaaab',
+      account: 'user_alice',
+      verifierHash: VERIFIER_HASH,
+      name: 'iPhone',
+      issuedAt: at(),
+    });
+    expect(seen[0]!.signature).toBe(await hmac(tunnel.body['relayKey'], seen[0]!.body));
+  });
+
+  it('refuses offers for other accounts, bad verifiers and unreachable Hosts', async () => {
+    let answer: () => Promise<Response> = async () => {
+      throw new Error('offline');
+    };
+    const { call } = await linked(() => answer());
+    const offer = (as: string, body: unknown) =>
+      call('POST', '/v1/hosts/haaaaaaaaaaab/offer', { as, body });
+    expect((await offer('user_alice', { verifierHash: VERIFIER_HASH })).body).toEqual({
+      error: { code: 'host-offline' },
+    });
+    await call('POST', '/v1/hosts/haaaaaaaaaaab/tunnel', {
+      as: 'user_alice',
+      body: { originPort: 41001 },
+    });
+    expect((await offer('user_bob', { verifierHash: VERIFIER_HASH })).status).toBe(404);
+    expect((await offer('user_alice', { verifierHash: 'short' })).body).toEqual({
+      error: { code: 'invalid-verifier' },
+    });
+    expect((await offer('user_alice', { verifierHash: VERIFIER_HASH })).status).toBe(409);
+    answer = async () => Response.json({ code: 'relay-signature-invalid' }, { status: 401 });
+    expect((await offer('user_alice', { verifierHash: VERIFIER_HASH })).body).toEqual({
+      error: { code: 'host-refused' },
+    });
+    answer = async () => Response.json({ offer: 'x', expiresAt: 'y', host: { name: 'Other' } });
+    expect((await offer('user_alice', { verifierHash: VERIFIER_HASH })).status).toBe(502);
+    const unsigned = await setup();
+    await unsigned.call('POST', '/v1/hosts', { as: 'user_alice', body: { name: 'Studio' } });
+    expect(
+      (
+        await unsigned.call('POST', '/v1/hosts/haaaaaaaaaaab/offer', {
+          as: 'user_alice',
+          body: { verifierHash: VERIFIER_HASH },
+        })
+      ).body,
+    ).toEqual({ error: { code: 'offer-unavailable' } });
   });
 });
 

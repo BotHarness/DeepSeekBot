@@ -22,7 +22,7 @@ export function EnvironmentPager({
   const theme = useDesignTheme();
   const { width } = useWindowDimensions();
   const reducedMotion = useReducedMotion();
-  const maxTabWidth = Math.min(environmentTab.maxWidth, width - space.x6 * 2);
+  const maxTabWidth = width * environmentTab.widthRatio;
   const index = Math.max(
     0,
     routes.findIndex((route) => route.key === selected),
@@ -43,6 +43,7 @@ export function EnvironmentPager({
                     : undefined;
               return (
                 <View
+                  key={`${theme.scheme}:${theme.fontScale}:${route.title}`}
                   style={{
                     flexDirection: 'row',
                     alignItems: 'center',

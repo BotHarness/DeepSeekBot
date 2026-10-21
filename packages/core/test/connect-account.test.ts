@@ -1,3 +1,5 @@
+import { createHmac } from 'node:crypto';
+
 import { describe, expect, it, vi } from 'vitest';
 
 import { createConnectAccount } from '../src/devices/connect-account.js';
@@ -6,6 +8,7 @@ import { runConnectCommand } from '../src/bots/cli-connect.js';
 
 const RELAY = 'https://relay.test';
 const CLIENT = 'client_01TEST';
+const RELAY_KEY = 'relay-key-for-hstudioaaaaa';
 const TOKEN = Buffer.from(JSON.stringify({ a: 'a', t: 't', s: 's' })).toString('base64');
 
 function memoryCredentials() {
@@ -119,7 +122,12 @@ function fakeServices(options: { pending?: number; allowed?: boolean } = {}) {
     if (tunnel !== undefined) {
       if (!hosts.has(tunnel))
         return Response.json({ error: { code: 'host-not-found' } }, { status: 404 });
-      return Response.json({ hostname: `${tunnel}.deepseekbot.dev`, token: TOKEN });
+      return Response.json({
+        hostname: `${tunnel}.deepseekbot.dev`,
+        token: TOKEN,
+        account: 'user_alice',
+        relayKey: RELAY_KEY,
+      });
     }
     if (method === 'DELETE') {
       hosts.delete(url.pathname.split('/').at(-1) ?? '');
@@ -177,6 +185,8 @@ describe('Connect account sign-in', () => {
       refreshToken: 'refresh-1',
       email: 'alice@example.com',
       hostId: 'hstudioaaaaa',
+      account: 'user_alice',
+      relayKey: RELAY_KEY,
     });
     expect(services.calls.find((call) => call.path.endsWith('/authorize/device'))?.body).toEqual({
       client_id: CLIENT,
@@ -188,6 +198,43 @@ describe('Connect account sign-in', () => {
     expect(services.calls.find((call) => call.path.endsWith('/tunnel'))?.body).toEqual({
       originPort: 41001,
     });
+    await account.close();
+  });
+
+  it('accepts only fresh offers the relay signed for this Host and account', async () => {
+    const { account } = setup(fakeServices({ pending: 0 }));
+    const verifierHash = Buffer.alloc(32, 3).toString('base64url');
+    const sign = (payload: Record<string, unknown>, key = RELAY_KEY) => {
+      const body = JSON.stringify(payload);
+      return { body, signature: createHmac('sha256', key).update(body).digest('base64url') };
+    };
+    const fresh = {
+      hostId: 'hstudioaaaaa',
+      account: 'user_alice',
+      verifierHash,
+      name: 'iPhone',
+      issuedAt: new Date().toISOString(),
+    };
+    const unlinked = sign(fresh);
+    expect(await account.verifyOffer(unlinked.body, unlinked.signature)).toEqual({ ok: false });
+    await account.signIn();
+    await settle(account);
+    const good = sign(fresh);
+    expect(await account.verifyOffer(good.body, good.signature)).toEqual({
+      ok: true,
+      verifierHash,
+      name: 'iPhone',
+    });
+    for (const forged of [
+      sign(fresh, 'other-key'),
+      sign({ ...fresh, hostId: 'hotheraaaaaa' }),
+      sign({ ...fresh, account: 'user_bob' }),
+      sign({ ...fresh, issuedAt: new Date(Date.now() - 120_000).toISOString() }),
+      sign({ ...fresh, verifierHash: 'short' }),
+    ])
+      expect(await account.verifyOffer(forged.body, forged.signature)).toEqual({ ok: false });
+    expect(await account.verifyOffer(good.body, undefined)).toEqual({ ok: false });
+    expect(await account.verifyOffer(`${good.body} `, good.signature)).toEqual({ ok: false });
     await account.close();
   });
 

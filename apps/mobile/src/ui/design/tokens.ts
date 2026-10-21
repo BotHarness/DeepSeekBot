@@ -44,7 +44,8 @@ export const navigationBar = {
 } as const;
 export const loadingIndicator = { size: 48 } as const;
 export const swipeAction = { size: 56 } as const;
-export const environmentTab = { maxWidth: 220 } as const;
+export const environmentTab = { widthRatio: 0.6 } as const;
+export const tabLabel = { minimumFontScale: 0.6 } as const;
 export const modalRail = { maxWidth: 360 } as const;
 export const messageSheet = { textHeightRatio: 0.4 } as const;
 export const pairingScan = { maxSize: 200, widthRatio: 0.5 } as const;
