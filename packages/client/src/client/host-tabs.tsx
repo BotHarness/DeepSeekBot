@@ -3,6 +3,7 @@ import * as stylex from '@stylexjs/stylex';
 
 import type { RemoteHost, RemoteConversationTarget } from './remote-hosts.js';
 import { ALL_HOSTS, remoteHosts, THIS_HOST } from './remote-hosts.js';
+import { UnreadCount } from './unread-count.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { RemoteAvatar } from './remote-avatar.js';
 import { ConfirmDialog, FormDialog } from './ds/form-dialog.js';
@@ -559,18 +560,21 @@ export function AddRemoteHostDialog({
 
 function rows(remote: RemoteHost): (RemoteConversationTarget & {
   key: string;
+  unread: number;
   preview?: string;
   previewAt?: string;
 })[] {
   const roster = remote.snapshot.roster;
   if (roster === undefined) return [];
   const hostId = remote.host.hostId;
+  const unread = remote.inbox.status === 'ready' ? (remote.inbox.unread ?? {}) : {};
   return [
     ...roster.bots.map((bot) => ({
       key: `bot:${bot.slug}`,
       hostId,
       title: bot.displayName,
       botSlug: bot.slug,
+      unread: bot.dmChannelId === undefined ? 0 : (unread[bot.dmChannelId] ?? 0),
       ...(bot.preview === undefined ? {} : { preview: bot.preview }),
       ...(bot.previewAt === undefined ? {} : { previewAt: bot.previewAt }),
     })),
@@ -579,6 +583,7 @@ function rows(remote: RemoteHost): (RemoteConversationTarget & {
       hostId,
       title: channel.name,
       channelId: channel.id,
+      unread: unread[channel.id] ?? 0,
       ...(channel.preview === undefined ? {} : { preview: channel.preview }),
       ...(channel.previewAt === undefined ? {} : { previewAt: channel.previewAt }),
     })),
@@ -623,7 +628,7 @@ export function RemoteHostRows({
         <button
           key={row.key}
           type="button"
-          className={`bh-channel-row${sameTarget(open, row) ? ' bh-selected' : ''}`}
+          className={`bh-channel-row${row.unread > 0 ? ' bh-has-unread' : ''}${sameTarget(open, row) ? ' bh-selected' : ''}`}
           data-remote-row={row.key}
           aria-label={
             showSource
@@ -646,8 +651,10 @@ export function RemoteHostRows({
               avatars={avatars}
               target={row}
               size={34}
+              activity={row.botSlug === undefined ? undefined : remote.activity?.get(row.botSlug)}
               t={t}
             />
+            <UnreadCount count={row.unread} corner t={t} />
           </span>
           <span className="bh-body">
             <span className="bh-top">

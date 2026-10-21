@@ -15,6 +15,8 @@ import { RemoteAvatar } from './remote-avatar.js';
 import { IconButton } from './ds/icon-button.js';
 import { border, color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
+import { observeRemoteRead } from './remote-conversation-read.js';
+import { useMountedResource } from './mounted-resource.js';
 
 const styles = stylex.create({
   root: {
@@ -178,6 +180,15 @@ export function RemoteConversationView({
     [sources, target.hostId, target.botSlug, target.channelId],
   );
   const snapshot = useConversation(conversation);
+  const markReadMount = useMountedResource<HTMLDivElement>(
+    (node) => {
+      if (conversation === undefined) return;
+      return observeRemoteRead(node, conversation, (messageId) =>
+        sources.markRead(target, messageId),
+      );
+    },
+    [sources, conversation, target.hostId, target.botSlug, target.channelId],
+  );
   const [draft, setDraft] = useState('');
   const labels = useMemo<MarkdownLabels>(
     () => ({
@@ -230,7 +241,7 @@ export function RemoteConversationView({
           {snapshot.reason ?? t('remoteHosts.interrupted')}
         </p>
       ) : null}
-      <div {...stylex.props(styles.timeline)} data-remote-timeline="">
+      <div ref={markReadMount} {...stylex.props(styles.timeline)} data-remote-timeline="">
         {snapshot.drafts.map((entry) => (
           <div key={entry.draftId} {...stylex.props(styles.message)}>
             <span {...stylex.props(styles.author)}>

@@ -22,6 +22,7 @@ import {
   type PairingRefusal,
 } from '../../../../apps/mobile/src/host/pairing.js';
 import { store } from './store.js';
+import { createRemoteActivityProjection, type RemoteBotActivity } from './remote-host-activity.js';
 
 export const REMOTE_HOSTS_STORAGE_KEY = 'botharness.remoteHosts.v1';
 export const HOST_TAB_STORAGE_KEY = 'botharness.hostTab.v1';
@@ -39,6 +40,7 @@ export interface RemoteHost {
   host: SavedHost;
   snapshot: HostSnapshot;
   inbox: InboxSnapshot;
+  activity?: ReadonlyMap<string, RemoteBotActivity>;
 }
 
 export interface RemoteHostsSnapshot {
@@ -61,6 +63,7 @@ export interface RemoteHosts {
   open(target: RemoteConversationTarget): void;
   close(): void;
   conversation(target: RemoteConversationTarget): Conversation | undefined;
+  markRead(target: RemoteConversationTarget, messageId: string): Promise<void>;
 }
 
 export interface HostStorage {
@@ -113,6 +116,7 @@ interface HostEntry {
   release: () => void;
   inbox: { feed: Inbox; release: () => void } | undefined;
   retained: InboxSnapshot;
+  activity: ReadonlyMap<string, RemoteBotActivity>;
 }
 
 const idleInbox: InboxSnapshot = { status: 'idle' };
@@ -175,10 +179,11 @@ export function createRemoteHosts(options: {
   };
 
   const publish = (): void => {
-    const hosts = [...clients.values()].map(({ host, client, inbox, retained }) => ({
+    const hosts = [...clients.values()].map(({ host, client, inbox, retained, activity }) => ({
       host,
       snapshot: client.getSnapshot(),
       inbox: inbox?.feed.getSnapshot() ?? retained,
+      activity,
     }));
     fetchAvatars(hosts);
     const known = tab === ALL_HOSTS || tab === THIS_HOST || clients.has(tab);
@@ -216,12 +221,17 @@ export function createRemoteHosts(options: {
 
   const attach = (host: SavedHost): void => {
     const client = createHostClient({ routes: host.routes, credential: host.credential, carrier });
+    const projectActivity = createRemoteActivityProjection();
     const entry: HostEntry = {
       host,
       client,
-      release: client.subscribe(publish),
+      release: client.subscribe(() => {
+        entry.activity = projectActivity(client.getSnapshot().roster?.bots ?? [], Date.now());
+        publish();
+      }),
       inbox: undefined,
       retained: idleInbox,
+      activity: new Map(),
     };
     clients.set(host.hostId, entry);
     if (listeners.size > 0) start(entry);
@@ -295,6 +305,17 @@ export function createRemoteHosts(options: {
       if (open === undefined) return;
       open = undefined;
       publish();
+    },
+    async markRead(target, messageId) {
+      const entry = clients.get(target.hostId);
+      if (entry === undefined) return;
+      const channelId =
+        target.channelId ??
+        entry.client.getSnapshot().roster?.bots.find((bot) => bot.slug === target.botSlug)
+          ?.dmChannelId;
+      if (channelId === undefined) throw new Error('The remote Channel is not ready.');
+      await entry.client.call('channelMarkRead', { channelId, messageId });
+      await entry.inbox?.feed.refresh();
     },
     conversation(target) {
       const entry = clients.get(target.hostId);

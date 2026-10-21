@@ -8,6 +8,8 @@ The browser pairs a Remote Host as a Paired Device and reads its Host Feed throu
 - `tabs`: the icon strip filters All, This host and each Remote Host; tooltips name the Host, and Chinese uses 全部、本机、远程.
 - `open`: a remote row opens a Host-scoped conversation.
 - `avatars`: remote Bot portraits and group images/member stacks appear in rows and conversation headers; Bot message authors and live drafts use the same remote portrait.
+- `activity-unread`: remote Bot rows display received activity; DM/group unread counts come from their Host Inbox.
+- `read`: a visible remote conversation at its latest message marks that message read on its owning Host and refreshes the shared Inbox.
 - `upgrade`: existing browser pairings and the selected tab survive the storage-key rename.
 - `remove`: removing a Host forgets its rows, stops its Inbox and releases cached avatar object URLs.
 
@@ -25,7 +27,9 @@ For avatars, give Host B one uploaded Bot image, one seeded or composed Bot, a g
 
 ## Gotchas
 
-- Row activity/unread remains a separate slice. Remote avatars consume Track 0's authenticated image cache; This Host retains its current read adapter.
+- Remote avatars consume the authenticated image cache; This Host retains its current read adapter.
+- With unread messages on both Hosts, compare each row and tab with `channelUnreadCounts`. Open the remote DM/group, verify its count clears on that Host while the other Host stays unread. Keep an active Bot running to inspect its activity indicator. Stop only the task-owned remote Host and verify cached rows/counts remain with an offline tab.
+- Activity timestamps are receipt times; they are not authoritative tool start times.
 - Remote chat displays text and attachment names; images and cards are not qualified.
 - Host looks remain device-local, including each phone's own icon and colour. DSH Desktop and two physical machines over a real tailnet are not qualified by a two-Host local run.
 - Dismiss Continue and Skip onboarding overlays before selecting Messages. Retain any failed drive evidence before retrying.
