@@ -1,8 +1,8 @@
 # 安装 DeepSeekBot
 
-在 DeepSeek Harness（DSH）中安装 **DeepSeekBot** 插件，启用后创建第一个 PersonaBot。只需安装一个产品包，Core、Client 和已验证的 IM Provider 会随包一起安装。
+在 DeepSeek Harness（DSH）中安装 **DeepSeekBot** 插件，启用后创建第一个 PersonaBot。只需安装一个产品包，Core、Client、Browser、Computer 和已验证的 IM Provider 会随包一起安装。
 
-本页安装公共 npm 包 **`deepseekbot`**，需要 **DSH `0.2.0-rc.2`**。截图拍摄于 DSH 0.2.0-rc.1，来自干净 Profile 的真实中文界面；安装不需要克隆仓库或本地编译。
+本页安装公共 npm 正式包 **`deepseekbot@1.4.1`**。推荐 **DSH `0.2.1-rc.2`**；同一组发布包已在 **0.2.0-rc.2 与 0.2.1-rc.2** 验证安装、Host 启动、Bot／DM 创建和重启持久化。声明安装范围为 `>=0.2.0-rc.2 <0.3.0-0`，不代表所有版本均已运行验证。下方 DSH 0.2.0-rc.1 截图属于历史界面记录；请按当前文字步骤操作。升级前备份 Profile，回退旧版可能需要恢复升级前备份。
 
 ## 1. 打开插件管理器
 
@@ -44,21 +44,11 @@ pnpm 默认行为可能为精确版本记录 `minimumReleaseAgeExclude` 条目�
 
 ![deepseekbot 已启用，左侧出现 Bot 模式入口](/guides/install/04-enabled-zh.webp)
 
-## 4. 进入 Bot 模式
+## 4. 跟随 Home 引导开始
 
-点击 **Bot 模式**，再点击 **创建第一个 PersonaBot**。填写名称并点击 **创建**；岗位和简介可以留空。
+进入 **Bot 模式**，在 Home 配置模型，向托布发送可编辑的创建请求。跟随引导实际创建 Bot 与群聊，管理操作仍需原有审批；再学习拖动面板标题、调整大小，以及通过控制列开关面板。最后点击 **Home 标题**关闭 Home，进入原来的托布私聊。
 
-![首次进入 Bot 模式的创建入口](/guides/install/05-bot-mode-zh.webp)
-
-![填写教程助手名称的创建窗口](/guides/install/06-create-bot-zh.webp)
-
-打开新 Bot 的 DM，在右侧 Channel sidebar 展开 **模型**，点击 **主模型**，选择主模型与执行模型后点击 **保存**。完整表单说明见 [API 与 Bot 模型](/zh/docs/model-setup)。返回 DM 后发送一句问候。收到回复才能确认模型也能正常使用。模型凭据在 DSH 中配置，npm 安装不会提供模型凭据。
-
-![公开安装包冷启动后，在网页 DM 中收到真实模型回复](/guides/install/07-local-reply-zh.webp)
-
-_本次验证从网页 DM 发送消息，在安装并冷启动后的产品中收到真实模型回复。聊天平台账号仍未连接。_
-
-图标、并发上限、人格、唤醒策略、侧栏与工作区授权等参数见 [设置指南](/zh/docs/settings)。
+新 Bot 不再自动生成欢迎消息；你可以直接向它发送问候，收到真实回复后再确认模型可用。模型凭据仍由 DSH 管理，npm 安装不会提供凭据。模型配置见 [API 与 Bot 模型](/zh/docs/model-setup)，图标、并发上限、人格、唤醒策略、侧栏与工作区授权等参数见 [设置指南](/zh/docs/settings)。
 
 ## 5. 连接聊天平台
 
@@ -96,12 +86,12 @@ dsh plugin --profile <your-profile> add deepseekbot@1.4.1
 
 ## 安装遇到问题
 
-| 现象                               | 下一步检查                                                                |
-| ---------------------------------- | ------------------------------------------------------------------------- |
-| 提示 deepseekbot 与当前 DSH 不兼容 | 安装 DSH 0.2.0-rc.2 后再装；随包的 Computer 运行时只匹配这个版本。        |
-| 找不到包或版本                     | 核对完整包名和版本，选择 npm 官方源，等待 registry 元数据可用后重试。     |
-| 已安装，但没有 Bot 模式            | 在当前 Profile 启用 deepseekbot；按 DSH 的重启提示操作，再刷新 Web 页面。 |
-| 有 Bot 模式，但 Bot 无法回复       | 核对选中的模型和 DSH 凭据；插件安装与模型权限分别验证。                   |
-| IM 设置没有账号                    | 按连接教程添加应用账号；首次安装的空账号列表是正常状态。                  |
+| 现象                               | 下一步检查                                                                      |
+| ---------------------------------- | ------------------------------------------------------------------------------- |
+| 提示 deepseekbot 与当前 DSH 不兼容 | 请使用已验证的 DSH 0.2.0-rc.2 或 0.2.1-rc.2，并确认安装的是 deepseekbot@1.4.1。 |
+| 找不到包或版本                     | 核对完整包名和版本，选择 npm 官方源，等待 registry 元数据可用后重试。           |
+| 已安装，但没有 Bot 模式            | 在当前 Profile 启用 deepseekbot；按 DSH 的重启提示操作，再刷新 Web 页面。       |
+| 有 Bot 模式，但 Bot 无法回复       | 核对选中的模型和 DSH 凭据；插件安装与模型权限分别验证。                         |
+| IM 设置没有账号                    | 按连接教程添加应用账号；首次安装的空账号列表是正常状态。                        |
 
 需要从源码开发时，参考 [仓库 README](https://github.com/BotHarness/BotHarness#readme) 和 [本地开发指南](/zh/dev/guides/client-bridge)。
