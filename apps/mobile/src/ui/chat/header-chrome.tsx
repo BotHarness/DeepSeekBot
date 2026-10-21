@@ -1,5 +1,5 @@
 import { useId, type ReactNode } from 'react';
-import { Pressable, View } from 'react-native';
+import { Platform, Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
@@ -69,7 +69,11 @@ export function headerGlassFill(theme: DesignTheme, glass: boolean, pressed: boo
   return {
     borderWidth: edge.hairline,
     borderColor: theme.layer.raised.edge,
-    backgroundColor: pressed ? theme.layer.raised.pressed : frosted(theme.layer.raised.fill),
+    backgroundColor: pressed
+      ? theme.layer.raised.pressed
+      : Platform.OS === 'ios'
+        ? theme.layer.raised.fill
+        : frosted(theme.layer.raised.fill),
   };
 }
 
