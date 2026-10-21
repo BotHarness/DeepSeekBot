@@ -321,7 +321,7 @@ Source Event 是内容唯一权威；Channel 和 Inbox 都只保存关系。Repl
 
 Wake Policy 决定何时让 Orchestrator 看见新 attention：当前 step 完成后的安全边界、当前 turn 结束后，或 idle 时启动新 turn。普通外部消息不打断正在执行的 model/tool step；只有 DSH 明确支持且策略授权的控制路径才能 steer。就绪的 attention 按回合收割：忙碌期间新到的事件只把就绪集合置脏，当前回合结束（即空闲）时由一次 harvest turn 消费全部就绪项；主动 steer 只用于直接 @ 与 DM（ADR-0077）。
 
-外部 IM Inbox 的模型投影只保留一份正文、people 与 senderKind、会话名称/类型、引用摘要与附件类型/partial、附件、语音及关联报告；路由和授权详情保留在 canonical Source Event，按需用 bridge_read 读取。回复决策集中在共享 delivery prompt，普通文件读写不增加 Source Event；外部 mention 使用可信 people 中的 ID 与 <@ID> 语法。
+外部 IM Inbox 的模型投影只保留一份正文、people 与 senderKind、会话名称/类型、引用摘要与附件类型/partial、附件、语音及关联报告；路由和授权详情保留在 canonical Source Event，按需用 bridge_read 读取。回复决策集中在共享 delivery prompt，普通文件读写不增加 Source Event；外部 mention 使用可信 people 中的 ID 与 `<@ID>` 语法。
 
 Orchestrator 的用户任务首回应 section 位于 order 10460，高于共享 delivery 的 10450。加载必要人设、指令及可信来源上下文后，第一轮任务工具必须先实际回应用户：本地用 channel_send，外部用 bridge_reply 的 purpose acknowledgement。后者使用独立持久意图，不结清来源且保留最终结果意图。确认首回应送达后才查询、执行或委派；首回应属于显式发送，因此结果仍须显式发送，最后 action silent，不能依赖自动 final。未知结果不盲重试。无需任务工具的直接答复、后台事件、其他 Bot 及 Assignment 不额外首回应。
 
