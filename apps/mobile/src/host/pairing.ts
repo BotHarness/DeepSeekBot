@@ -1,5 +1,6 @@
 import type { HostCarrier } from './carrier';
 import { checkRoute } from './route';
+import type { ConnectRefusal } from './connect-account';
 import type { SavedHost } from './hosts';
 
 export const DEVICE_PREFIX = '/botharness-device';
@@ -9,6 +10,7 @@ export interface PairingPayload {
   offer: string;
   routes: string[];
   expiresAt: string;
+  verifier?: string;
 }
 
 export type PairingRefusal =
@@ -17,7 +19,8 @@ export type PairingRefusal =
   | 'no-route'
   | 'offer-invalid'
   | 'offer-expired'
-  | 'unreachable';
+  | 'unreachable'
+  | ConnectRefusal;
 
 export type ParsedLink =
   | { ok: true; payload: PairingPayload }
@@ -96,7 +99,11 @@ export async function redeemPairing(options: {
     try {
       const response = await options.carrier.request(`${route}${DEVICE_PREFIX}/pair`, {
         method: 'POST',
-        body: JSON.stringify({ offer: payload.offer, name: options.deviceName }),
+        body: JSON.stringify({
+          offer: payload.offer,
+          name: options.deviceName,
+          ...(payload.verifier === undefined ? {} : { verifier: payload.verifier }),
+        }),
         signal: controller.signal,
       });
       status = response.status;
@@ -167,7 +174,7 @@ export async function revokePairing(options: {
 export type PairingFailure = PairingRefusal | 'storage-failure' | 'cancelled' | 'unknown';
 
 export async function pairHost(options: {
-  text: string;
+  text: string | (() => Promise<ParsedLink>);
   method: import('../telemetry/schema').PairingMethod;
   deviceName: string;
   carrier: HostCarrier;
@@ -183,7 +190,9 @@ export async function pairHost(options: {
       cancelled();
       return { ok: false, code: 'cancelled' };
     }
-    const parsed = parsePairingLink(options.text);
+    const parsed =
+      typeof options.text === 'string' ? parsePairingLink(options.text) : await options.text();
+    if (options.signal?.aborted) return { ok: false, code: 'cancelled' };
     if (!parsed.ok) {
       observation.finish('refused', parsed.code);
       return parsed;
