@@ -54,6 +54,53 @@ function fixture(saved?: PushPreferences) {
 }
 
 describe('phone-owned notification preferences', () => {
+  it('drops removed Hosts from retry and resets backoff after success', async () => {
+    vi.useFakeTimers();
+    const f = fixture(DEFAULT_NOTIFICATION_PREFERENCES);
+    try {
+      f.prefs.setForeground(true);
+      f.offline.add('b');
+      await f.prefs.sync([host('a'), host('b')]);
+      await vi.advanceTimersByTimeAsync(1000);
+      await f.prefs.sync([host('a')]);
+      const calls = f.options.push.setPreferences.mock.calls.length;
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(f.options.push.setPreferences).toHaveBeenCalledTimes(calls);
+      expect(vi.getTimerCount()).toBe(0);
+      await f.prefs.sync([host('a'), host('b')]);
+      f.offline.clear();
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(f.prefs.getSnapshot().failed).toEqual([]);
+    } finally {
+      f.prefs.setForeground(false);
+      vi.useRealTimers();
+    }
+  });
+  it('retries a noncurrent Host while A stays connected and pauses in the background', async () => {
+    vi.useFakeTimers();
+    const f = fixture(DEFAULT_NOTIFICATION_PREFERENCES);
+    try {
+      f.prefs.setForeground(true);
+      f.offline.add('b');
+      await f.prefs.sync([host('a'), host('b')]);
+      await f.prefs.set({ reply: false });
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(f.prefs.getSnapshot().failed).toEqual(['b']);
+      f.prefs.setForeground(false);
+      const calls = f.options.push.setPreferences.mock.calls.length;
+      f.offline.clear();
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(f.options.push.setPreferences).toHaveBeenCalledTimes(calls);
+      f.prefs.setForeground(true);
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(f.copies.get('b')?.reply).toBe(false);
+      expect(f.prefs.getSnapshot().failed).toEqual([]);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      f.prefs.setForeground(false);
+      vi.useRealTimers();
+    }
+  });
   it('seeds once from existing switches and copies every change to every pairing', async () => {
     const f = fixture();
     await f.prefs.sync([host('a'), host('b')]);

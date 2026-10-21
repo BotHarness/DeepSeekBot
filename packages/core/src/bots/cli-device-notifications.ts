@@ -6,12 +6,19 @@ import { CliLiveError } from './cli-live-error.js';
 
 export const DEVICE_NOTIFICATION_COMMANDS = [
   {
+    command: 'phone-notifications',
+    description: 'read or change the phone owner in an assigned Metro development client',
+  },
+  {
     command: 'device-notifications',
     description:
       'read or copy a paired device notification preference (--device-file, --preferences-stdin)',
   },
 ] as const;
 export const DEVICE_NOTIFICATION_OPTIONS = {
+  'metro-port': { type: 'string' },
+  'target-id': { type: 'string' },
+  'device-name': { type: 'string' },
   'device-file': { type: 'string' },
   'preferences-stdin': { type: 'boolean' },
 } as const;

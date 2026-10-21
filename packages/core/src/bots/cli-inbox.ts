@@ -2,6 +2,7 @@ import { watchInbox } from './cli-inbox-watch.js';
 import { CliLiveError } from './cli-live-error.js';
 
 export const INBOX_OPTIONS = {
+  notifications: { type: 'boolean' },
   category: { type: 'string' },
   'watch-seconds': { type: 'string' },
   channel: { type: 'string' },
@@ -76,6 +77,7 @@ export const INBOX_COMMANDS = [
 export const INBOX_HOST_COMMANDS = ['grant-revoke', 'grant-write-set'] as const;
 
 export interface InboxValues {
+  notifications?: boolean;
   category?: string;
   'watch-seconds'?: string;
   kind?: string;
@@ -157,6 +159,8 @@ export async function runInboxCommand(
   values: InboxValues,
   connect: () => Promise<{ rpc: Rpc; stream?: (path: string) => Promise<Response> }>,
 ): Promise<unknown> {
+  if (command === 'inbox-watch' && values.notifications)
+    usage('Use inbox --notifications with its returned cursor.');
   const call = prepare(command === 'inbox-watch' ? 'inbox' : command, rest, values);
   if (command === 'inbox-watch') {
     const seconds = Number(values['watch-seconds'] ?? 10);
@@ -184,6 +188,11 @@ export async function runInboxCommand(
   }
   const { rpc } = await connect();
   const result = await rpc<Record<string, unknown>>(call.method, call.args);
+  if (call.args['notifications'] === true && result['notificationVersion'] !== 1)
+    throw new CliLiveError(
+      'host-query-unsupported',
+      'Update the Host to discover notification attention.',
+    );
   if (call.args['dismissed'] === true && result['dismissed'] !== true)
     throw new CliLiveError('host-query-unsupported', 'Update the Host to list dismissed items.');
   if (call.args['queryVersion'] === 1 && result['queryVersion'] !== 1)
@@ -232,6 +241,30 @@ function prepare(
       const limit = values.limit === undefined ? undefined : Number(values.limit);
       if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 1 || limit > 100))
         usage('--limit must be 1–100.');
+      if (values.notifications) {
+        if (
+          [
+            values.category,
+            values.bot,
+            values.channel,
+            values.sort,
+            values.search,
+            values.kind,
+          ].some((value) => value !== undefined) ||
+          values.unread ||
+          values.snoozed ||
+          values.dismissed
+        )
+          usage('--notifications only accepts --limit and --cursor.');
+        return {
+          method: 'humanAttention',
+          args: {
+            notifications: true,
+            ...(limit === undefined ? {} : { limit }),
+            ...(values.cursor === undefined ? {} : { cursor: values.cursor }),
+          },
+        };
+      }
       return {
         method: 'humanAttention',
         args: {

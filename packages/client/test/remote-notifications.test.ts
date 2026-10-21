@@ -16,7 +16,11 @@ function remote(id: string, items: HumanAttentionItem[]): RemoteHost {
   return {
     host: { hostId: id, hostName: id, deviceId: id, credential: id, routes: [] },
     snapshot: { connection: { status: 'connected', route: '' } },
-    inbox: { status: 'ready', sections: { action: items, replies: [], unread: [], handled: [] } },
+    inbox: {
+      status: 'ready',
+      notificationItems: items,
+      sections: { action: items, replies: [], unread: [], handled: [] },
+    },
   };
 }
 function fixture() {
@@ -58,6 +62,65 @@ function fixture() {
 }
 
 describe('Remote Host browser alerts', () => {
+  it('retains dedupe and the complete baseline when a later notification page fails', async () => {
+    const f = fixture();
+    await f.notices.set('a', { enabled: true });
+    f.notices.update([remote('a', [item('old', 'channel-reply', 'same-time')])]);
+    const incomplete = remote('a', []);
+    if (incomplete.inbox.status === 'ready') incomplete.inbox.notificationItems = undefined;
+    f.notices.update([incomplete]);
+    f.notices.update([
+      remote('a', [
+        item('old', 'channel-reply', 'same-time'),
+        item('new', 'channel-reply', 'same-time'),
+      ]),
+    ]);
+    expect(f.show).toHaveBeenCalledTimes(1);
+    f.notices.update([
+      remote('a', [
+        item('old', 'channel-reply', 'same-time'),
+        item('new', 'channel-reply', 'same-time'),
+      ]),
+    ]);
+    expect(f.show).toHaveBeenCalledTimes(1);
+  });
+  it('reports bounded redacted show failures without replaying the failed item', async () => {
+    const f = fixture();
+    const diagnostic = vi.fn();
+    const notices = createRemoteNotifications({ ...f.options, diagnostic });
+    await notices.set('a', { enabled: true });
+    notices.update([remote('a', [])]);
+    f.show.mockImplementation(() => {
+      throw new Error('private payload and credentials');
+    });
+    notices.update([remote('a', [item('1')])]);
+    notices.update([remote('a', [item('1'), item('2')])]);
+    notices.update([remote('a', [item('1'), item('2')])]);
+    expect(diagnostic).toHaveBeenCalledExactlyOnceWith('remote-notification-show-failed');
+    expect(f.show).toHaveBeenCalledTimes(2);
+  });
+  it('covers all Host-decided kinds including DM beyond the Activity window without replay', async () => {
+    const f = fixture();
+    await f.notices.set('a', { enabled: true });
+    const old = Array.from({ length: 35 }, (_, index) =>
+      item(`old-${index}`, 'channel-mention', '2026-01-01'),
+    );
+    f.notices.update([remote('a', old)]);
+    const fresh = [
+      'tool-approval',
+      'user-question',
+      'private-input',
+      'channel-mention',
+      'channel-reply',
+      'channel-reply',
+    ].map((kind, index) => item(`new-${index}`, kind, '2026-01-02'));
+    const next = remote('a', [...old, ...fresh]);
+    if (next.inbox.status === 'ready')
+      next.inbox.sections = { action: [], replies: old.slice(0, 30), unread: [], handled: [] };
+    f.notices.update([next]);
+    f.notices.update([remote('a', [...old, ...fresh])]);
+    expect(f.show).toHaveBeenCalledTimes(6);
+  });
   it('CLI uses the same choice with revision checks and never prompts for permission', async () => {
     const f = fixture();
     const before = await f.notices.control({ hostId: 'a' }, undefined);

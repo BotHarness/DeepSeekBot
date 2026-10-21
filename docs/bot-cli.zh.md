@@ -8,6 +8,10 @@
 
 `deepseekbot browser-notification-clients` 列出在线 Client。`deepseekbot browser-notifications --client-id <id> --remote-host-id <id>` 读取该浏览器的本地选择和 revision。写入时加 `--expected-revision <revision> --patch-stdin`，从标准输入传入 `{"enabled":true,"preferences":{"approval":true,"question":true,"private-input":true,"reply":false}}`。命令使用提供页面的 Host 的现有认证及 Client 定向控制通道；Host 不保存浏览器选择或远程凭据。版本过期或远程不存在时明确拒绝。开启前须已在浏览器授予通知权限，否则返回 `notification-permission-required`；CLI 不弹出系统授权。页面关闭后，控制目标和提醒都会结束。
 
+`deepseekbot phone-notifications --metro-port <端口> --target-id <精确ID> --device-name <精确名称>` 在已分配的 Expo development client 中读取现有手机偏好 owner。加 `--preferences-stdin`，仅传入四类布尔值，由同一 owner 持久化并复制到全部已配对 Host。前提是共享设备 batch/lease、运行中的 loopback Metro inspector、精确且唯一的目标、开发版 app ID、`__DEV__` 和唯一已初始化的 owner。命令不直接写存储、不新建 owner、不弹系统授权、不把 Host 副本当手机选择。单个 JSON 分别返回 `saved`、`syncStatus`（`complete`/`pending`）、`syncing` 和 `failedHostIds`。断开/超时后的写入结果未知，应先重新读取再决定是否重试。目标缺失/歧义、release、owner 未就绪及传输失败均明确拒绝。**该 AX 路径仅限 development client，release 不可用，也不代表 release CLI parity 或原生 QA 已通过。** 原生真实运行仍交外部统一批次验收。
+
+`deepseekbot inbox --notifications [--limit 1..100] [--cursor <游标>]` 使用 Host 现有 `humanAttention` 的通知发现模式。遍历全部返回游标，取得 Host 判定的待办、未读群提及/回复和普通未读 DM 回复。它独立于 Activity 的 mentions-first 分页窗口，不可混用筛选条件。响应须有 `notificationVersion: 1`，旧 Host 明确拒绝；不增加 Feed 连接，不修改 attention 或已读状态。
+
 `deepseekbot device-notifications --device-file <私有配对.json>` 从运行中的 Host 读取当前配对设备的通知发送副本。加上 `--preferences-stdin`，从标准输入传入 `{"approval":true,"question":true,"private-input":true,"reply":false}`，即可替换四种通知选择，无需先注册推送 token。私有文件使用已保存配对的结构（`hostId`、`hostName`、`routes`、`deviceId`、`credential`）；凭据不能放入参数或公开文件。标准输出仅有一个不含凭据的 JSON，配对撤销后返回 `device-revoked`。命令只修改该 Host 的发送副本；手机持久化选择仍是权威，下次同步会覆盖副本。浏览器通知选择只保存在该浏览器，不影响 Host attention。
 
 ```bash

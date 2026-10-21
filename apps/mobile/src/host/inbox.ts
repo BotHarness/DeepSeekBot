@@ -24,6 +24,7 @@ export interface InboxQuery {
   sort?: 'default' | 'newest' | 'oldest';
   section?: InboxSection | InboxSetAside | 'all';
   activity?: boolean;
+  notifications?: boolean;
 }
 
 export type InboxSnapshot =
@@ -35,6 +36,7 @@ export type InboxSnapshot =
       cursors?: Partial<Record<InboxSection, string | undefined>>;
       loadingMore?: InboxSection[];
       sections: Record<InboxSection, HumanAttentionItem[]>;
+      notificationItems?: HumanAttentionItem[] | undefined;
       unread?: Readonly<Record<string, number>>;
       stale?: string | undefined;
     }
@@ -60,6 +62,7 @@ export function createInbox(
   let readAgain = false;
   let stopped = false;
   let revision = 0;
+  let connectionRevision = 0;
   const loading = new Set<InboxSection>();
   const setAside =
     options.section === 'cleared' || options.section === 'snoozed' ? options.section : undefined;
@@ -96,6 +99,7 @@ export function createInbox(
   };
 
   const readOnce = async (): Promise<void> => {
+    const connectionAtStart = connectionRevision;
     revision += 1;
     loading.clear();
     const retained =
@@ -115,7 +119,29 @@ export function createInbox(
       }
       return { ...page, items: [...items.values()] };
     };
-    const [pages, counts] = await Promise.all([
+    const readNotifications = async (): Promise<HumanAttentionItem[] | undefined> => {
+      if (!options.notifications) return undefined;
+      const items = new Map<string, HumanAttentionItem>();
+      const cursors = new Set<string>();
+      let cursor: string | undefined;
+      do {
+        if (stopped || client.getSnapshot().connection.status !== 'connected') return undefined;
+        const page = await client.call<HumanAttentionPage>('humanAttention', {
+          notifications: true,
+          limit: 100,
+          ...(cursor === undefined ? {} : { cursor }),
+        });
+        if (page.notificationVersion !== 1) return undefined;
+        for (const item of page.items) items.set(item.id, item);
+        cursor = page.nextCursor;
+        if (cursor !== undefined) {
+          if (cursors.has(cursor)) throw new Error('notification-cursor-repeated');
+          cursors.add(cursor);
+        }
+      } while (cursor !== undefined);
+      return [...items.values()];
+    };
+    const [pages, counts, notificationItems] = await Promise.all([
       Promise.all(
         INBOX_SECTIONS.map((category) =>
           options.activity &&
@@ -129,11 +155,12 @@ export function createInbox(
         ),
       ),
       client.call<UnreadCounts>('channelUnreadCounts').catch(() => ({ channels: [] })),
+      readNotifications().catch(() => undefined),
     ]);
     const unread = Object.fromEntries(
       counts.channels.map((entry) => [entry.channelId, entry.unreadCount]),
     );
-    if (stopped) return;
+    if (stopped || readAgain || connectionAtStart !== connectionRevision) return;
     const [action, replies, otherUnread, handled] = pages.map((page) => page.items) as [
       HumanAttentionItem[],
       HumanAttentionItem[],
@@ -150,6 +177,7 @@ export function createInbox(
       ),
       loadingMore: [],
       sections: { action, replies, unread: otherUnread, handled },
+      notificationItems,
       unread,
     });
   };
@@ -188,6 +216,7 @@ export function createInbox(
   let wasConnected = false;
   const offClient = client.subscribe(() => {
     const connected = client.getSnapshot().connection.status === 'connected';
+    if (connected !== wasConnected) connectionRevision += 1;
     if (connected && !wasConnected) background();
     wasConnected = connected;
   });

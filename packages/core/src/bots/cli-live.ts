@@ -1,3 +1,4 @@
+import { runPhoneNotifications } from './cli-phone-notifications.js';
 import {
   WINDOW_ZOOM_COMMANDS,
   WINDOW_ZOOM_OPTIONS,
@@ -746,6 +747,7 @@ export async function runLiveCli(
   io: BotCreateCliIo,
 ): Promise<unknown> {
   if (command === 'device-notifications') return runDeviceNotifications(rest, values, io);
+  if (command === 'phone-notifications') return runPhoneNotifications(rest, values, io);
   if (BROWSER_NOTIFICATION_COMMANDS.some((entry) => entry.command === command))
     return runBrowserNotifications(command, rest, values, io, () =>
       connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),

@@ -66,6 +66,7 @@ function reflectInbox(hostId: string, inbox: Inbox): void {
 
 function adopt(next: SavedHosts, trigger: ConnectionTrigger = 'open'): void {
   mobileTelemetry.foreground(AppState.currentState === 'active', next.hosts.length);
+  notificationPreferences.setForeground(AppState.currentState === 'active');
   const previous = state.saved;
   stored = next;
   void notificationPreferences.sync(next.hosts).catch(() => undefined);
@@ -142,6 +143,7 @@ void loadSavedHosts().then(
 
 AppState.addEventListener('change', (next) => {
   mobileTelemetry.foreground(next === 'active', state.hosts.length);
+  notificationPreferences.setForeground(next === 'active');
   if (next !== 'active') return;
   void notificationPreferences.retry().catch(() => undefined);
   pushSession.reflectAgain();

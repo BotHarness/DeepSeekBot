@@ -3,7 +3,8 @@ import { Switch } from '@deepseek-ai/dsh-client-ui-primitives';
 import { PUSH_KINDS, type PushKind } from '../../../../apps/mobile/src/host/push.js';
 import type { RemoteNotifications } from './remote-notifications.js';
 import type { BotHarnessTranslate, BotHarnessKey } from './locale.js';
-import { FormDialog } from './ds/form-dialog.js';
+import { SettingsDialog } from './ds/settings-dialog.js';
+import { Note } from './ds/note.js';
 import { SettingsRow, SettingsSection } from './ds/settings-row.js';
 
 const labels: Record<PushKind, BotHarnessKey> = {
@@ -39,24 +40,26 @@ export function RemoteNotificationSettings({
       .finally(() => setBusy(false));
   };
   return (
-    <FormDialog
+    <SettingsDialog
       title={t('remoteHosts.notifications.title', { name })}
-      description={t('remoteHosts.notifications.hint')}
-      labels={{ close: t('common.close'), cancel: t('common.close') }}
-      submitLabel={t('common.close')}
-      onCancel={onClose}
-      onSubmit={onClose}
-      showCancel={false}
-      error={
-        error
-          ? t('remoteHosts.notifications.failed')
-          : snapshot.permission === 'denied'
-            ? t('remoteHosts.notifications.denied')
-            : snapshot.permission === 'unsupported'
-              ? t('remoteHosts.notifications.unsupported')
-              : undefined
-      }
+      caption={t('remoteHosts.notifications.hint')}
+      labels={{ close: t('common.close'), nav: name, picker: (section) => section }}
+      sections={[{ id: 'notifications', label: t('remoteHosts.notifications.title', { name }) }]}
+      activeId="notifications"
+      onSelect={() => {}}
+      onClose={onClose}
     >
+      {(error || snapshot.permission === 'denied' || snapshot.permission === 'unsupported') && (
+        <Note tone="danger">
+          {error
+            ? t('remoteHosts.notifications.failed')
+            : snapshot.permission === 'denied'
+              ? t('remoteHosts.notifications.denied')
+              : snapshot.permission === 'unsupported'
+                ? t('remoteHosts.notifications.unsupported')
+                : undefined}
+        </Note>
+      )}
       <SettingsSection>
         <SettingsRow
           title={t('remoteHosts.notifications.enable')}
@@ -88,6 +91,6 @@ export function RemoteNotificationSettings({
           />
         ))}
       </SettingsSection>
-    </FormDialog>
+    </SettingsDialog>
   );
 }

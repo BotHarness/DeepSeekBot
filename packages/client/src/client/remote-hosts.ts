@@ -223,7 +223,7 @@ export function createRemoteHosts(options: {
   const start = (entry: HostEntry): void => {
     entry.client.start();
     if (entry.inbox !== undefined) return;
-    const feed = createInbox(entry.client, { activity: true }, entry.retained);
+    const feed = createInbox(entry.client, { activity: true, notifications: true }, entry.retained);
     entry.inbox = { feed, release: feed.subscribe(publish) };
   };
 

@@ -19,6 +19,13 @@ type Snapshot = {
   permission: DesktopNotificationPermission;
 };
 const off: Choice = { enabled: false, preferences: DEFAULT_NOTIFICATION_PREFERENCES };
+type NotificationDiagnostic =
+  | 'remote-notification-show-refused'
+  | 'remote-notification-show-failed';
+function reportDiagnostic(code: NotificationDiagnostic): void {
+  if (typeof window !== 'undefined')
+    window.dispatchEvent(new CustomEvent('botharness:notification-diagnostic', { detail: code }));
+}
 const kinds: Record<string, PushKind> = {
   'tool-approval': 'approval',
   'workspace-grant-request': 'approval',
@@ -37,6 +44,7 @@ export function createRemoteNotifications(options: {
   api?: DesktopNotificationApi | undefined;
   open(target: RemoteConversationTarget): void;
   privateBody(): string;
+  diagnostic?(code: NotificationDiagnostic): void;
 }) {
   const { api, storage } = options;
   let hosts: Record<string, Choice> = {};
@@ -52,6 +60,7 @@ export function createRemoteNotifications(options: {
   } catch {}
   let snapshot: Snapshot = { hosts, permission: api?.permission() ?? 'unsupported' };
   const listeners = new Set<() => void>();
+  const reported = new Set<NotificationDiagnostic>();
   const state = new Map<
     string,
     {
@@ -169,9 +178,15 @@ export function createRemoteNotifications(options: {
           close(id);
           continue;
         }
+        if (remote.inbox.notificationItems === undefined) continue;
         if (entry.inbox === remote.inbox) continue;
+        const previousIds = new Set(
+          entry.inbox.status === 'ready'
+            ? entry.inbox.notificationItems?.map((item) => item.id)
+            : [],
+        );
         entry.inbox = remote.inbox;
-        const items = [...remote.inbox.sections.action, ...remote.inbox.sections.replies];
+        const items = remote.inbox.notificationItems;
         const active = new Set(
           items.filter((item) => item.isUnread !== false).map((item) => `${id}:${item.id}`),
         );
@@ -184,7 +199,7 @@ export function createRemoteNotifications(options: {
         const pref = choice(id);
         for (const item of items) {
           const key = `${id}:${item.id}`;
-          const known = entry.seen.has(item.id);
+          const known = entry.seen.has(item.id) || previousIds.has(item.id);
           entry.seen.add(item.id);
           const kind = kinds[item.kind];
           if (
@@ -213,7 +228,17 @@ export function createRemoteNotifications(options: {
               shown.delete(key);
               options.open(target(remote, item));
             };
-          } catch {}
+          } catch (error) {
+            const code =
+              error instanceof Error &&
+              (error.name === 'NotAllowedError' || error.name === 'SecurityError')
+                ? 'remote-notification-show-refused'
+                : 'remote-notification-show-failed';
+            if (!reported.has(code)) {
+              reported.add(code);
+              (options.diagnostic ?? reportDiagnostic)(code);
+            }
+          }
         }
         entry.high = items.reduce(
           (high, item) => (item.createdAt > high ? item.createdAt : high),

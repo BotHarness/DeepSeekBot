@@ -66,6 +66,7 @@ vi.mock('../src/host/native-notification-avatars', () => ({
 }));
 vi.mock('../src/host/native-notification-preferences', () => ({
   notificationPreferences: {
+    setForeground: () => undefined,
     sync: async () => undefined,
     retry: async () => undefined,
     prepare: async () => undefined,

@@ -27,6 +27,25 @@ export function createDeviceNotificationPreferences(options: {
 }) {
   let snapshot: DevicePreferenceSnapshot = { preferences: undefined, syncing: false, failed: [] };
   let hosts: readonly SavedHost[] = [];
+  let foreground = false;
+  let retryTimer: ReturnType<typeof setTimeout> | undefined;
+  let retryDelay = 1000;
+  const clearRetry = () => {
+    clearTimeout(retryTimer);
+    retryTimer = undefined;
+  };
+  const scheduleRetry = () => {
+    clearRetry();
+    if (!foreground || snapshot.failed.length === 0) {
+      retryDelay = 1000;
+      return;
+    }
+    retryTimer = setTimeout(() => {
+      retryTimer = undefined;
+      retryDelay = Math.min(retryDelay * 2, 30_000);
+      void enqueue(() => (foreground ? sync() : Promise.resolve())).catch(() => undefined);
+    }, retryDelay);
+  };
   const listeners = new Set<() => void>();
   const publish = (patch: Partial<DevicePreferenceSnapshot>) => {
     snapshot = { ...snapshot, ...patch };
@@ -53,6 +72,7 @@ export function createDeviceNotificationPreferences(options: {
     publish({ preferences });
   };
   const sync = async () => {
+    clearRetry();
     publish({ syncing: true });
     try {
       if (snapshot.preferences === undefined) {
@@ -78,6 +98,7 @@ export function createDeviceNotificationPreferences(options: {
       publish({ failed: results.filter((id): id is string => id !== undefined) });
     } finally {
       publish({ syncing: false });
+      scheduleRetry();
     }
   };
   return {
@@ -95,6 +116,10 @@ export function createDeviceNotificationPreferences(options: {
     },
     retry() {
       return enqueue(sync);
+    },
+    setForeground(active: boolean) {
+      foreground = active;
+      scheduleRetry();
     },
     prepare(host: SavedHost) {
       return enqueue(async () => {
