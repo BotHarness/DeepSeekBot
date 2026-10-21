@@ -68,6 +68,7 @@ export interface RemoteHosts {
   markRead(target: RemoteConversationTarget, messageId: string): Promise<void>;
   activity(hostId: string, query?: InboxQuery): ReturnType<typeof observeInbox> | undefined;
   client(hostId: string): HostClient | undefined;
+  viewerClient(hostId: string): HostClient | undefined;
 }
 
 export interface HostStorage {
@@ -357,6 +358,9 @@ export function createRemoteHosts(options: {
         conversations.set(key, conversation);
       }
       return conversation;
+    },
+    viewerClient(hostId) {
+      return clients.get(hostId)?.client;
     },
   };
 }
