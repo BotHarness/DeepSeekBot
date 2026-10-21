@@ -1,8 +1,8 @@
 import { useState, useSyncExternalStore, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
-import type { RemoteComputer, RemoteConversationTarget } from './computer-sources.js';
-import { ALL_COMPUTERS, computerSources, THIS_COMPUTER } from './computer-sources.js';
+import type { RemoteHost, RemoteConversationTarget } from './remote-hosts.js';
+import { ALL_HOSTS, remoteHosts, THIS_HOST } from './remote-hosts.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { ConfirmDialog, FormDialog } from './ds/form-dialog.js';
 import { IconButton } from './ds/icon-button.js';
@@ -72,12 +72,12 @@ const styles = stylex.create({
   },
 });
 
-interface LocalComputer {
+interface ThisHostInfo {
   id?: string;
   name?: string;
 }
 
-let local: LocalComputer = {};
+let local: ThisHostInfo = {};
 let localRequested = false;
 const localListeners = new Set<() => void>();
 
@@ -104,7 +104,7 @@ function subscribeLocal(listener: () => void): () => void {
   };
 }
 
-export function useLocalComputer(): LocalComputer {
+export function useThisHost(): ThisHostInfo {
   return useSyncExternalStore(
     subscribeLocal,
     () => local,
@@ -112,46 +112,44 @@ export function useLocalComputer(): LocalComputer {
   );
 }
 
-export function useComputerSources() {
-  const sources = computerSources();
+export function useRemoteHosts() {
+  const sources = remoteHosts();
   return useSyncExternalStore(sources.subscribe, sources.getSnapshot, sources.getSnapshot);
 }
 
-export function ComputerSourceMark(): ReactElement {
+export function RemoteHostMark(): ReactElement {
   return (
-    <span className="bh-muted-mark" aria-hidden="true" data-computer-source="">
+    <span className="bh-muted-mark" aria-hidden="true" data-remote-host-mark="">
       <ChannelSidebarIcon name="monitor" size={12} />
     </span>
   );
 }
 
-function online(computer: RemoteComputer): boolean {
-  return computer.snapshot.connection.status === 'connected';
+function online(remote: RemoteHost): boolean {
+  return remote.snapshot.connection.status === 'connected';
 }
 
-export function ComputerTabs({ t }: { t: BotHarnessTranslate }): ReactElement {
-  const sources = computerSources();
-  const snapshot = useComputerSources();
-  const localComputer = useLocalComputer();
+export function HostTabs({ t }: { t: BotHarnessTranslate }): ReactElement {
+  const sources = remoteHosts();
+  const snapshot = useRemoteHosts();
+  const thisHost = useThisHost();
   const [adding, setAdding] = useState(false);
-  const [removing, setRemoving] = useState<RemoteComputer | undefined>(undefined);
+  const [removing, setRemoving] = useState<RemoteHost | undefined>(undefined);
   const tabs: { id: string; label: string; icon: string; offline?: boolean }[] = [
-    { id: ALL_COMPUTERS, label: t('computers.all'), icon: 'messages-square' },
-    { id: THIS_COMPUTER, label: localComputer.name ?? t('computers.this'), icon: 'monitor' },
-    ...snapshot.computers.map((computer) => ({
-      id: computer.host.hostId,
-      label: computer.host.hostName,
+    { id: ALL_HOSTS, label: t('remoteHosts.all'), icon: 'messages-square' },
+    { id: THIS_HOST, label: t('remoteHosts.this'), icon: 'monitor' },
+    ...snapshot.hosts.map((remote) => ({
+      id: remote.host.hostId,
+      label: remote.host.hostName,
       icon: 'monitor',
-      offline: !online(computer),
+      offline: !online(remote),
     })),
   ];
-  const selectedRemote = snapshot.computers.find(
-    (computer) => computer.host.hostId === snapshot.tab,
-  );
+  const selectedRemote = snapshot.hosts.find((remote) => remote.host.hostId === snapshot.tab);
   return (
     <>
-      <div {...stylex.props(styles.strip)} data-computer-tabs="">
-        <div role="tablist" aria-label={t('computers.tabs')} {...stylex.props(styles.tabs)}>
+      <div {...stylex.props(styles.strip)} data-host-tabs="">
+        <div role="tablist" aria-label={t('remoteHosts.tabs')} {...stylex.props(styles.tabs)}>
           {tabs.map((tab) => {
             const selected = tab.id === snapshot.tab;
             return (
@@ -160,24 +158,24 @@ export function ComputerTabs({ t }: { t: BotHarnessTranslate }): ReactElement {
                 type="button"
                 role="tab"
                 aria-selected={selected}
-                data-computer-tab={tab.id}
-                title={tab.offline ? t('computers.offline', { name: tab.label }) : tab.label}
+                data-host-tab={tab.id}
+                title={tab.offline ? t('remoteHosts.offline', { name: tab.label }) : tab.label}
                 {...stylex.props(
                   styles.tab,
                   selected && styles.selected,
-                  (selected || tab.id === ALL_COMPUTERS) && styles.fixed,
+                  (selected || tab.id === ALL_HOSTS) && styles.fixed,
                   tab.offline === true && styles.offline,
                 )}
                 onClick={() => {
                   sources.select(tab.id);
                 }}
                 onContextMenu={(event) => {
-                  const computer = snapshot.computers.find(
+                  const remote = snapshot.hosts.find(
                     (candidate) => candidate.host.hostId === tab.id,
                   );
-                  if (computer === undefined) return;
+                  if (remote === undefined) return;
                   event.preventDefault();
-                  setRemoving(computer);
+                  setRemoving(remote);
                 }}
               >
                 <span {...stylex.props(styles.icon)}>
@@ -188,10 +186,10 @@ export function ComputerTabs({ t }: { t: BotHarnessTranslate }): ReactElement {
             );
           })}
         </div>
-        <Tooltip label={t('computers.add')} side="bottom" delayMs={500}>
+        <Tooltip label={t('remoteHosts.add')} side="bottom" delayMs={500}>
           <IconButton
-            aria-label={t('computers.add')}
-            data-computer-add=""
+            aria-label={t('remoteHosts.add')}
+            data-remote-host-add=""
             onClick={() => setAdding(true)}
           >
             <ChannelSidebarIcon name="plus" />
@@ -201,24 +199,24 @@ export function ComputerTabs({ t }: { t: BotHarnessTranslate }): ReactElement {
       {selectedRemote !== undefined && !online(selectedRemote) ? (
         <p role="status" {...stylex.props(styles.status)}>
           {selectedRemote.snapshot.connection.status === 'refused'
-            ? t('computers.refused', { name: selectedRemote.host.hostName })
-            : t('computers.offline', { name: selectedRemote.host.hostName })}
+            ? t('remoteHosts.refused', { name: selectedRemote.host.hostName })
+            : t('remoteHosts.offline', { name: selectedRemote.host.hostName })}
         </p>
       ) : null}
       {adding ? (
-        <AddComputerDialog
-          localId={localComputer.id}
-          localName={localComputer.name}
+        <AddRemoteHostDialog
+          localId={thisHost.id}
+          localName={thisHost.name}
           onClose={() => setAdding(false)}
           t={t}
         />
       ) : null}
       {removing === undefined ? null : (
         <ConfirmDialog
-          title={t('computers.remove.title', { name: removing.host.hostName })}
-          description={t('computers.remove.description')}
+          title={t('remoteHosts.remove.title', { name: removing.host.hostName })}
+          description={t('remoteHosts.remove.description')}
           labels={{ close: t('common.close'), cancel: t('common.cancel') }}
-          confirmLabel={t('computers.remove.confirm')}
+          confirmLabel={t('remoteHosts.remove.confirm')}
           onCancel={() => setRemoving(undefined)}
           onConfirm={() => {
             void sources.remove(removing.host.hostId);
@@ -231,16 +229,16 @@ export function ComputerTabs({ t }: { t: BotHarnessTranslate }): ReactElement {
 }
 
 const PAIR_ERRORS: Partial<Record<string, BotHarnessKey>> = {
-  'link-invalid': 'computers.error.link-invalid',
-  'link-expired': 'computers.error.link-expired',
-  'offer-invalid': 'computers.error.offer-invalid',
-  'offer-expired': 'computers.error.offer-expired',
-  'no-route': 'computers.error.no-route',
-  'already-paired': 'computers.error.already-paired',
-  'this-computer': 'computers.error.this-computer',
+  'link-invalid': 'remoteHosts.error.link-invalid',
+  'link-expired': 'remoteHosts.error.link-expired',
+  'offer-invalid': 'remoteHosts.error.offer-invalid',
+  'offer-expired': 'remoteHosts.error.offer-expired',
+  'no-route': 'remoteHosts.error.no-route',
+  'already-paired': 'remoteHosts.error.already-paired',
+  'this-host': 'remoteHosts.error.this-host',
 };
 
-function AddComputerDialog({
+function AddRemoteHostDialog({
   localId,
   localName,
   onClose,
@@ -257,30 +255,34 @@ function AddComputerDialog({
   const submit = (): void => {
     setBusy(true);
     setError(undefined);
-    void computerSources()
-      .pair(link, t('computers.deviceName', { name: localName ?? t('computers.this') }), localId)
+    void remoteHosts()
+      .pair(
+        link,
+        t('remoteHosts.deviceName', { name: localName ?? t('remoteHosts.this') }),
+        localId,
+      )
       .then((result) => {
         setBusy(false);
         if (result.ok) onClose();
-        else setError(t(PAIR_ERRORS[result.code] ?? 'computers.error.unreachable'));
+        else setError(t(PAIR_ERRORS[result.code] ?? 'remoteHosts.error.unreachable'));
       });
   };
   return (
     <FormDialog
-      title={t('computers.add')}
-      description={t('computers.add.description')}
+      title={t('remoteHosts.add')}
+      description={t('remoteHosts.add.description')}
       labels={{ close: t('common.close'), cancel: t('common.cancel') }}
-      submitLabel={t('computers.add.submit')}
+      submitLabel={t('remoteHosts.add.submit')}
       submitDisabled={link.trim().length === 0}
       busy={busy}
       error={error}
       onCancel={onClose}
       onSubmit={submit}
-      submitData={{ 'data-computer-add-submit': '' }}
+      submitData={{ 'data-remote-host-add-submit': '' }}
     >
       <TextField
-        label={t('computers.add.link')}
-        hint={t('computers.add.hint')}
+        label={t('remoteHosts.add.link')}
+        hint={t('remoteHosts.add.hint')}
         value={link}
         onChange={setLink}
         initialFocus
@@ -293,15 +295,15 @@ function AddComputerDialog({
   );
 }
 
-function rows(computer: RemoteComputer): (RemoteConversationTarget & {
+function rows(remote: RemoteHost): (RemoteConversationTarget & {
   key: string;
   icon: string;
   preview?: string;
   previewAt?: string;
 })[] {
-  const roster = computer.snapshot.roster;
+  const roster = remote.snapshot.roster;
   if (roster === undefined) return [];
-  const hostId = computer.host.hostId;
+  const hostId = remote.host.hostId;
   return [
     ...roster.bots.map((bot) => ({
       key: `bot:${bot.slug}`,
@@ -336,28 +338,28 @@ function sameTarget(
   );
 }
 
-export function RemoteComputerRows({
-  computer,
+export function RemoteHostRows({
+  remote,
   query,
   showSource,
   onOpen,
   t,
 }: {
-  computer: RemoteComputer;
+  remote: RemoteHost;
   query: string;
   showSource: boolean;
   onOpen?: (() => void) | undefined;
   t: BotHarnessTranslate;
 }): ReactElement | null {
-  const sources = computerSources();
-  const open = useComputerSources().open;
+  const sources = remoteHosts();
+  const open = useRemoteHosts().open;
   const needle = query.trim().toLocaleLowerCase();
-  const visible = rows(computer).filter(
+  const visible = rows(remote).filter(
     (row) => needle.length === 0 || row.title.toLocaleLowerCase().includes(needle),
   );
   if (visible.length === 0 && showSource) return null;
   const list = (
-    <div className="bh-list-area" data-remote-computer={computer.host.hostId}>
+    <div className="bh-list-area" data-remote-host={remote.host.hostId}>
       {visible.map((row) => (
         <button
           key={row.key}
@@ -366,7 +368,7 @@ export function RemoteComputerRows({
           data-remote-row={row.key}
           aria-label={
             showSource
-              ? t('computers.rowLabel', { name: row.title, computer: computer.host.hostName })
+              ? t('remoteHosts.rowLabel', { name: row.title, host: remote.host.hostName })
               : row.title
           }
           onClick={() => {
@@ -387,7 +389,7 @@ export function RemoteComputerRows({
           <span className="bh-body">
             <span className="bh-top">
               <span className="bh-name">{row.title}</span>
-              {showSource ? <ComputerSourceMark /> : null}
+              {showSource ? <RemoteHostMark /> : null}
             </span>
             <span className="bh-bottom">
               <span className="bh-msg">{row.preview ?? t('rail.noMessages')}</span>
@@ -399,9 +401,9 @@ export function RemoteComputerRows({
   );
   if (!showSource) return list;
   return (
-    <div className="bh-section" data-remote-section={computer.host.hostId}>
+    <div className="bh-section" data-remote-section={remote.host.hostId}>
       <div className="bh-section-head">
-        <span className="bh-section-name">{computer.host.hostName}</span>
+        <span className="bh-section-name">{remote.host.hostName}</span>
         <span className="bh-section-count">{visible.length}</span>
       </div>
       {list}

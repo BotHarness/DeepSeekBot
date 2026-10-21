@@ -10,6 +10,11 @@ import {
 } from '../../../../apps/mobile/src/host/conversation.js';
 import { parseSavedHost, type SavedHost } from '../../../../apps/mobile/src/host/hosts.js';
 import {
+  createInbox,
+  type Inbox,
+  type InboxSnapshot,
+} from '../../../../apps/mobile/src/host/inbox.js';
+import {
   DEVICE_PREFIX,
   parsePairingLink,
   redeemPairing,
@@ -18,10 +23,10 @@ import {
 } from '../../../../apps/mobile/src/host/pairing.js';
 import { store } from './store.js';
 
-export const COMPUTERS_STORAGE_KEY = 'botharness.computers.v1';
-export const COMPUTER_TAB_STORAGE_KEY = 'botharness.computers.tab.v1';
-export const ALL_COMPUTERS = 'all';
-export const THIS_COMPUTER = 'local';
+export const REMOTE_HOSTS_STORAGE_KEY = 'botharness.remoteHosts.v1';
+export const HOST_TAB_STORAGE_KEY = 'botharness.hostTab.v1';
+export const ALL_HOSTS = 'all';
+export const THIS_HOST = 'local';
 
 export interface RemoteConversationTarget {
   hostId: string;
@@ -30,25 +35,27 @@ export interface RemoteConversationTarget {
   channelId?: string;
 }
 
-export interface RemoteComputer {
+export interface RemoteHost {
   host: SavedHost;
   snapshot: HostSnapshot;
+  inbox: InboxSnapshot;
 }
 
-export interface ComputerSourcesSnapshot {
-  computers: readonly RemoteComputer[];
+export interface RemoteHostsSnapshot {
+  hosts: readonly RemoteHost[];
+  avatars: ReadonlyMap<string, string>;
   tab: string;
   open?: RemoteConversationTarget;
 }
 
-export type ComputerPairResult =
+export type HostPairResult =
   | { ok: true; host: SavedHost }
-  | { ok: false; code: PairingRefusal | 'already-paired' | 'this-computer' };
+  | { ok: false; code: PairingRefusal | 'already-paired' | 'this-host' };
 
-export interface ComputerSources {
-  getSnapshot(): ComputerSourcesSnapshot;
+export interface RemoteHosts {
+  getSnapshot(): RemoteHostsSnapshot;
   subscribe(listener: () => void): () => void;
-  pair(link: string, deviceName: string, localHostId?: string): Promise<ComputerPairResult>;
+  pair(link: string, deviceName: string, localHostId?: string): Promise<HostPairResult>;
   remove(hostId: string): Promise<void>;
   select(tab: string): void;
   open(target: RemoteConversationTarget): void;
@@ -56,7 +63,7 @@ export interface ComputerSources {
   conversation(target: RemoteConversationTarget): Conversation | undefined;
 }
 
-export interface ComputerStorage {
+export interface HostStorage {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
   removeItem(key: string): void;
@@ -70,62 +77,154 @@ export function conversationKey(target: RemoteConversationTarget): string {
   ]);
 }
 
-function readHosts(storage: ComputerStorage | undefined): SavedHost[] {
+function readHosts(storage: HostStorage | undefined): SavedHost[] {
   try {
-    const value = JSON.parse(storage?.getItem(COMPUTERS_STORAGE_KEY) ?? '[]') as unknown;
+    const value = JSON.parse(
+      readStorage(storage, REMOTE_HOSTS_STORAGE_KEY, 'botharness.computers.v1') ?? '[]',
+    ) as unknown;
     return Array.isArray(value) ? value.flatMap((entry) => parseSavedHost(entry) ?? []) : [];
   } catch {
     return [];
   }
 }
 
-function readTab(storage: ComputerStorage | undefined): string {
+function readStorage(storage: HostStorage | undefined, key: string, oldKey: string): string | null {
+  const current = storage?.getItem(key);
+  const previous = storage?.getItem(oldKey);
+  if (previous == null) return current ?? null;
   try {
-    return storage?.getItem(COMPUTER_TAB_STORAGE_KEY) ?? ALL_COMPUTERS;
+    if (current == null) storage?.setItem(key, previous);
+    storage?.removeItem(oldKey);
+  } catch {}
+  return current ?? previous;
+}
+
+function readTab(storage: HostStorage | undefined): string {
+  try {
+    return readStorage(storage, HOST_TAB_STORAGE_KEY, 'botharness.computers.tab.v1') ?? ALL_HOSTS;
   } catch {
-    return ALL_COMPUTERS;
+    return ALL_HOSTS;
   }
 }
 
-export function createComputerSources(options: {
-  storage?: ComputerStorage | undefined;
+interface HostEntry {
+  host: SavedHost;
+  client: HostClient;
+  release: () => void;
+  inbox: { feed: Inbox; release: () => void } | undefined;
+  retained: InboxSnapshot;
+}
+
+const idleInbox: InboxSnapshot = { status: 'idle' };
+
+export function createRemoteHosts(options: {
+  storage?: HostStorage | undefined;
   carrier: HostCarrier;
-}): ComputerSources {
-  const { storage, carrier } = options;
+  loadImage?: (url: string, headers: Record<string, string>) => Promise<string | undefined>;
+  releaseImage?: (image: string) => void;
+}): RemoteHosts {
+  const { storage, carrier, loadImage, releaseImage } = options;
   const listeners = new Set<() => void>();
-  const clients = new Map<string, { host: SavedHost; client: HostClient; release: () => void }>();
+  const clients = new Map<string, HostEntry>();
   const conversations = new Map<string, Conversation>();
+  const images = new Map<string, string>();
+  const loading = new Map<string, symbol>();
+  let avatars: ReadonlyMap<string, string> = new Map();
   let tab = readTab(storage);
   let open: RemoteConversationTarget | undefined;
-  let snapshot: ComputerSourcesSnapshot = { computers: [], tab };
+  let snapshot: RemoteHostsSnapshot = { hosts: [], avatars, tab };
+
+  const fetchAvatars = (hosts: readonly RemoteHost[]): void => {
+    const wanted = new Map(
+      hosts.flatMap(({ snapshot: host }) =>
+        listeners.size === 0 || host.connection.status === 'refused'
+          ? []
+          : (host.roster?.bots ?? []).flatMap((bot) =>
+              bot.avatarUrl === undefined
+                ? []
+                : [[bot.avatarUrl, bot.avatarHeaders ?? {}] as const],
+            ),
+      ),
+    );
+    for (const [url, image] of images) {
+      if (wanted.has(url)) continue;
+      images.delete(url);
+      releaseImage?.(image);
+      avatars = new Map(images);
+    }
+    for (const url of loading.keys()) if (!wanted.has(url)) loading.delete(url);
+    if (loadImage === undefined) return;
+    for (const [url, headers] of wanted) {
+      if (images.has(url) || loading.has(url)) continue;
+      const request = Symbol();
+      loading.set(url, request);
+      void loadImage(url, headers)
+        .catch(() => undefined)
+        .then((image) => {
+          if (loading.get(url) !== request) {
+            if (image !== undefined) releaseImage?.(image);
+            return;
+          }
+          loading.delete(url);
+          if (image === undefined) return;
+          images.set(url, image);
+          avatars = new Map(images);
+          publish();
+        });
+    }
+  };
 
   const publish = (): void => {
-    const computers = [...clients.values()].map(({ host, client }) => ({
+    const hosts = [...clients.values()].map(({ host, client, inbox, retained }) => ({
       host,
       snapshot: client.getSnapshot(),
+      inbox: inbox?.feed.getSnapshot() ?? retained,
     }));
-    const known = tab === ALL_COMPUTERS || tab === THIS_COMPUTER || clients.has(tab);
+    fetchAvatars(hosts);
+    const known = tab === ALL_HOSTS || tab === THIS_HOST || clients.has(tab);
     snapshot = {
-      computers,
-      tab: known ? tab : ALL_COMPUTERS,
+      hosts,
+      avatars,
+      tab: known ? tab : ALL_HOSTS,
       ...(open === undefined ? {} : { open }),
     };
     for (const listener of listeners) listener();
   };
 
+  const start = (entry: HostEntry): void => {
+    entry.client.start();
+    if (entry.inbox !== undefined) return;
+    const feed = createInbox(entry.client, { activity: true }, entry.retained);
+    entry.inbox = { feed, release: feed.subscribe(publish) };
+  };
+
+  const stop = (entry: HostEntry): void => {
+    entry.retained = entry.inbox?.feed.getSnapshot() ?? entry.retained;
+    entry.inbox?.release();
+    entry.inbox?.feed.stop();
+    entry.inbox = undefined;
+    entry.client.stop();
+  };
+
   const save = (): void => {
     try {
       const hosts = [...clients.values()].map(({ host }) => host);
-      if (hosts.length === 0) storage?.removeItem(COMPUTERS_STORAGE_KEY);
-      else storage?.setItem(COMPUTERS_STORAGE_KEY, JSON.stringify(hosts));
+      if (hosts.length === 0) storage?.removeItem(REMOTE_HOSTS_STORAGE_KEY);
+      else storage?.setItem(REMOTE_HOSTS_STORAGE_KEY, JSON.stringify(hosts));
     } catch {}
   };
 
   const attach = (host: SavedHost): void => {
     const client = createHostClient({ routes: host.routes, credential: host.credential, carrier });
-    const release = client.subscribe(publish);
-    clients.set(host.hostId, { host, client, release });
-    if (listeners.size > 0) client.start();
+    const entry: HostEntry = {
+      host,
+      client,
+      release: client.subscribe(publish),
+      inbox: undefined,
+      retained: idleInbox,
+    };
+    clients.set(host.hostId, entry);
+    if (listeners.size > 0) start(entry);
   };
 
   for (const host of readHosts(storage)) attach(host);
@@ -135,7 +234,7 @@ export function createComputerSources(options: {
     const entry = clients.get(hostId);
     if (entry === undefined) return;
     entry.release();
-    entry.client.stop();
+    stop(entry);
     clients.delete(hostId);
     for (const [key, conversation] of conversations)
       if ((JSON.parse(key) as string[])[0] === hostId) {
@@ -150,18 +249,19 @@ export function createComputerSources(options: {
   return {
     getSnapshot: () => snapshot,
     subscribe(listener) {
-      if (listeners.size === 0) for (const { client } of clients.values()) client.start();
+      const first = listeners.size === 0;
       listeners.add(listener);
+      if (first) for (const entry of clients.values()) start(entry);
       return () => {
         listeners.delete(listener);
         if (listeners.size > 0) return;
-        for (const { client } of clients.values()) client.stop();
+        for (const entry of clients.values()) stop(entry);
       };
     },
     async pair(link, deviceName, localHostId) {
       const parsed = parsePairingLink(link);
       if (!parsed.ok) return parsed;
-      if (parsed.payload.host.id === localHostId) return { ok: false, code: 'this-computer' };
+      if (parsed.payload.host.id === localHostId) return { ok: false, code: 'this-host' };
       if (clients.has(parsed.payload.host.id)) return { ok: false, code: 'already-paired' };
       const redeemed = await redeemPairing({ payload: parsed.payload, deviceName, carrier });
       if (!redeemed.ok) return redeemed;
@@ -169,7 +269,7 @@ export function createComputerSources(options: {
       save();
       tab = redeemed.host.hostId;
       try {
-        storage?.setItem(COMPUTER_TAB_STORAGE_KEY, tab);
+        storage?.setItem(HOST_TAB_STORAGE_KEY, tab);
       } catch {}
       publish();
       return redeemed;
@@ -183,7 +283,7 @@ export function createComputerSources(options: {
     select(next) {
       tab = next;
       try {
-        storage?.setItem(COMPUTER_TAB_STORAGE_KEY, next);
+        storage?.setItem(HOST_TAB_STORAGE_KEY, next);
       } catch {}
       publish();
     },
@@ -256,7 +356,8 @@ export function browserCarrier(): HostCarrier {
           return closed('The live connection could not start.');
         }
         if (controller.signal.aborted) return closed('closed');
-        if (typeof ticket !== 'string') return closed('The computer refused the live connection.');
+        if (typeof ticket !== 'string')
+          return closed('The Remote Host refused the live connection.');
         socket = new WebSocket(`${url}?ticket=${encodeURIComponent(ticket)}`);
         socket.onopen = () => events.open();
         socket.onmessage = (event) => events.message(String(event.data));
@@ -275,11 +376,20 @@ export function browserCarrier(): HostCarrier {
   };
 }
 
-let shared: ComputerSources | undefined;
+async function browserImage(
+  url: string,
+  headers: Record<string, string>,
+): Promise<string | undefined> {
+  const response = await fetch(url, { credentials: 'omit', mode: 'cors', headers });
+  if (!response.ok) return undefined;
+  return URL.createObjectURL(await response.blob());
+}
 
-export function computerSources(): ComputerSources {
+let shared: RemoteHosts | undefined;
+
+export function remoteHosts(): RemoteHosts {
   if (shared !== undefined) return shared;
-  shared = createComputerSources({
+  shared = createRemoteHosts({
     storage: (() => {
       try {
         return globalThis.localStorage;
@@ -288,6 +398,8 @@ export function computerSources(): ComputerSources {
       }
     })(),
     carrier: browserCarrier(),
+    loadImage: browserImage,
+    releaseImage: (image) => URL.revokeObjectURL(image),
   });
   const sources = shared;
   let selection = store.getSnapshot().selection;
