@@ -7,6 +7,7 @@
 - The preview shows how many files from how many messages are deleted and how much space is freed. Media a Bot is still working on, media still being sent, media Memory uses and media still being moved are kept and named.
 - **Clear** stays disabled until the confirmation checkbox is ticked. Text messages stay; each cleared file shows in the message as a dashed `<size> · Cleared` card.
 - Media mirrored from an IM app is not touched. A restore from a backup made before the cleanup brings the media back.
+- Mobile: Settings → Connections → **Storage** shows the same usage, age, type and chat choices, and **Clear…** asks for a destructive confirmation built from the preview. **This phone → Clear image cache** empties the app's image cache.
 - CLI parity: `deepseekbot storage-usage`, `storage-cleanup-preview --older-than-days <n> [--chat <id>] [--media <kind>]` and `storage-cleanup-confirm --confirmation-stdin --confirm`.
 
 ## How to get to it (user POV)
@@ -26,3 +27,4 @@ Enter Bot mode, open Bot settings, choose **Data & privacy**, then **Manage…**
 
 - A token is valid for ten minutes and only for the previewed scope; any new matching message refuses with `storage-preview-stale`.
 - Media in a message the Bot has not handled yet is kept as `bot-working`, so a fresh send shows nothing to clear until the Bot replies.
+- On the mobile web build, `Alert.alert` is a no-op, so the confirmation cannot be pressed there; confirm through the CLI or the Host and reopen Storage. Native builds show the real dialog.

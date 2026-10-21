@@ -20,6 +20,7 @@ export interface SettingsActions {
   onComputers(): void;
   onAppIcon(): void;
   onNotifications(): void;
+  onStorage(): void;
   onModels(): void;
   onUnpair(): Promise<void>;
   onCopyVersion(text: string): void;
@@ -96,6 +97,14 @@ export function SettingsView({
             leading={<RowIcon name="notifications" />}
             disclosure
             onPress={actions.onNotifications}
+          />
+          <SettingsRow
+            on={SHEET_GROUP}
+            title={t.storage.title}
+            leading={<RowIcon name="storage" />}
+            detail={t.storage.hint}
+            disclosure
+            onPress={actions.onStorage}
           />
           <SettingsRow
             on={SHEET_GROUP}

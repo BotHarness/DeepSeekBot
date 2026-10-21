@@ -7,6 +7,7 @@ const ROW_ICONS = {
   model: { ios: 'cpu', android: 'memory' },
   computer: { ios: 'desktopcomputer', android: 'computer' },
   notifications: { ios: 'bell', android: 'notifications' },
+  storage: { ios: 'internaldrive', android: 'storage' },
   browser: { ios: 'safari', android: 'open_in_browser' },
   unpair: { ios: 'xmark.circle', android: 'link_off' },
   appIcon: { ios: 'app.badge', android: 'apps' },
