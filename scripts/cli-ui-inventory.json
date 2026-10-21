@@ -260,7 +260,8 @@
       "description": "#2088 reuses default-model, Bot plan and preset create/read/update/apply owners with scoped Tob revisions/catalog validation. No preset delete owner; credentials remain native private input.",
       "scope": "Host",
       "surfaces": [
-        "setting:packages/client/src/client/onboarding-view.tsx:{t('onboarding.defaultTitle')}"
+        "setting:packages/client/src/client/onboarding-view.tsx:{t('onboarding.defaultTitle')}",
+        "setting:packages/client/src/client/remote-host-models.tsx:{t('remoteHosts.settings.models')}"
       ],
       "commands": [
         "home-model-set",

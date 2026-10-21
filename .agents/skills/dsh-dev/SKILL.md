@@ -59,6 +59,8 @@ A saved AX model id may disappear from the pinned native catalog. Preserve the l
 
 ## Pitfall log
 
+An AX launch pins `agent-default-model` through a command-line Patch. On DSH `0.2.1-rc.2`, changing that default through `onboardingModel` can therefore refuse with `Configuration for "agent-default-model" is overridden by a home patch or command-line overlay`. This is native configuration ownership, not a Remote Host transport failure. Preserve the refusal and unchanged default; verify preset writes separately. A no-op `home-model-set` does not prove the default can change. Qualify successful default changes on an unlocked isolated Profile, without editing another session's Patch or the shared AX selection (#2500).
+
 Native approval `never` means reject before the answerer waterfall, even under `danger-full-access`; it does not mean automatic approval. In #2080, combining that policy with a BotHarness Human-only permission-management exception swallowed the intended card. Top-level Bot Full Access now uses `ask` and answers ordinary requests automatically at its existing application responder; delegated Subagents keep their native policy. Verify both an ordinary action and a permission-management Human card on the real Host.
 
 On DSH `0.2.1-rc.2`, the first-run Preview Notice can hide a shell whose Settings entry now lives under the account menu. An older verification prelude that waits for a visible `Settings` button before dismissing overlays times out although Client diagnostics report `shell-ready`. Preserve the failure capture, dismiss the actual `Continue` dialog, then address the observed `Bot mode` or `Account menu` entry by accessible name. This qualifies shell navigation only; it does not establish a model reply or native IM delivery.

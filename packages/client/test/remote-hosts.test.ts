@@ -128,6 +128,10 @@ describe('remote hosts', () => {
     );
     expect(sources.conversation(here)).toBe(sources.conversation({ ...here }));
     expect(sources.conversation({ ...here, hostId: 'host-c' })).toBeUndefined();
+    expect(sources.client('host-b')).toBe(sources.client('host-b'));
+    expect(sources.client('host-b')).toBeDefined();
+    expect(sources.client('local')).toBeUndefined();
+    expect(sources.client('host-c')).toBeUndefined();
   });
 
   it('removes a remote, revokes this browser there and forgets its open chat', async () => {
@@ -140,6 +144,7 @@ describe('remote hosts', () => {
 
     await sources.remove('host-b');
 
+    expect(sources.client('host-b')).toBeUndefined();
     expect(sources.getSnapshot()).toEqual({ hosts: [], avatars: new Map(), tab: ALL_HOSTS });
     expect(storage.values.has(REMOTE_HOSTS_STORAGE_KEY)).toBe(false);
     expect(calls.at(-1)).toEqual({

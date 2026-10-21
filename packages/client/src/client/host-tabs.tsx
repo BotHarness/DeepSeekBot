@@ -4,6 +4,7 @@ import * as stylex from '@stylexjs/stylex';
 import type { RemoteHost, RemoteConversationTarget } from './remote-hosts.js';
 import { ALL_HOSTS, remoteHosts, THIS_HOST } from './remote-hosts.js';
 import { UnreadCount } from './unread-count.js';
+import { RemoteHostSettings } from './remote-host-settings.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { RemoteAvatar } from './remote-avatar.js';
 import { ConfirmDialog, FormDialog } from './ds/form-dialog.js';
@@ -262,6 +263,7 @@ export function HostTabs({ t }: { t: BotHarnessTranslate }): ReactElement | null
   const [menu, setMenu] = useState<{ hostId: string; point: MenuPoint } | undefined>(undefined);
   const [removing, setRemoving] = useState<RemoteHost | undefined>(undefined);
   const [styling, setStyling] = useState<{ hostId: string; name: string } | undefined>(undefined);
+  const [settings, setSettings] = useState<{ hostId: string; name: string }>();
   const proxy = useRef<HTMLSpanElement | null>(null);
   if (snapshot.hosts.length === 0) return null;
   const thisId = thisHost.id ?? THIS_HOST;
@@ -335,11 +337,16 @@ export function HostTabs({ t }: { t: BotHarnessTranslate }): ReactElement | null
               { id: 'look', label: t('remoteHosts.look') },
               ...(menuRemote === undefined
                 ? []
-                : [{ id: 'remove', label: t('remoteHosts.remove.confirm'), danger: true }]),
+                : [
+                    { id: 'settings', label: t('remoteHosts.settings') },
+                    { id: 'remove', label: t('remoteHosts.remove.confirm'), danger: true },
+                  ]),
             ]}
             onSelect={(id) => {
               setMenu(undefined);
               if (id === 'look') setStyling({ hostId: menu.hostId, name: menuName });
+              if (id === 'settings' && menuRemote !== undefined)
+                setSettings({ hostId: menuRemote.host.hostId, name: menuRemote.host.hostName });
               if (id === 'remove' && menuRemote !== undefined) setRemoving(menuRemote);
             }}
             onClose={() => setMenu(undefined)}
@@ -351,6 +358,15 @@ export function HostTabs({ t }: { t: BotHarnessTranslate }): ReactElement | null
           hostId={styling.hostId}
           name={styling.name}
           onClose={() => setStyling(undefined)}
+          t={t}
+        />
+      )}
+      {settings === undefined ? null : (
+        <RemoteHostSettings
+          key={settings.hostId}
+          hostId={settings.hostId}
+          name={settings.name}
+          onClose={() => setSettings(undefined)}
           t={t}
         />
       )}
