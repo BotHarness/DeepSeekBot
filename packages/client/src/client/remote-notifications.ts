@@ -79,7 +79,6 @@ export function createRemoteNotifications(options: {
       credential: string;
       inbox: RemoteHost['inbox'];
       baseline: boolean;
-      high: string;
       seen: Set<string>;
     }
   >();
@@ -246,7 +245,6 @@ export function createRemoteNotifications(options: {
             credential: remote.host.credential,
             inbox: { status: 'idle' },
             baseline: false,
-            high: '',
             seen: new Set(),
           };
           state.set(id, entry);
@@ -264,11 +262,6 @@ export function createRemoteNotifications(options: {
         }
         if (remote.inbox.notificationItems === undefined) continue;
         if (entry.inbox === remote.inbox) continue;
-        const previousIds = new Set(
-          entry.inbox.status === 'ready'
-            ? entry.inbox.notificationItems?.map((item) => item.id)
-            : [],
-        );
         entry.inbox = remote.inbox;
         const items = remote.inbox.notificationItems;
         const active = new Set(
@@ -283,13 +276,12 @@ export function createRemoteNotifications(options: {
         const pref = choice(id);
         for (const item of items) {
           const key = `${id}:${item.id}`;
-          const known = entry.seen.has(item.id) || previousIds.has(item.id);
+          const known = entry.seen.has(item.id);
           entry.seen.add(item.id);
           const kind = kinds[item.kind];
           if (
             !entry.baseline ||
             known ||
-            item.createdAt < entry.high ||
             kind === undefined ||
             item.isUnread === false ||
             !pref.enabled ||
@@ -324,12 +316,7 @@ export function createRemoteNotifications(options: {
             }
           }
         }
-        entry.high = items.reduce(
-          (high, item) => (item.createdAt > high ? item.createdAt : high),
-          entry.high,
-        );
         entry.baseline = true;
-        while (entry.seen.size > 2000) entry.seen.delete(entry.seen.values().next().value!);
       }
     },
     stop() {

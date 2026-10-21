@@ -282,9 +282,32 @@ describe('Remote Host browser alerts', () => {
     f.notices.update([remote('a', [item('1'), item('2', 'private-input')])]);
     expect(f.show).toHaveBeenCalledTimes(1);
   });
-  it('suppresses reconnect backlogs and old pagination, closes on refusal and disposal', async () => {
+  it('retains identities beyond 2000 after they leave attention, without suppressing new older IDs', async () => {
     const f = fixture();
     await f.notices.set('a', { enabled: true });
+    const old = Array.from({ length: 2001 }, (_, index) =>
+      item(`old-${index}`, 'channel-mention', '2026-10-22'),
+    );
+    f.notices.update([remote('a', old)]);
+    f.notices.update([remote('a', [...old])]);
+    expect(f.show).not.toHaveBeenCalled();
+    f.notices.update([remote('a', [])]);
+    f.notices.update([remote('a', old)]);
+    expect(f.show).not.toHaveBeenCalled();
+    const fresh = item('new-earlier', 'user-question', '2026-01-01');
+    f.notices.update([remote('a', [...old, fresh])]);
+    expect(f.show).toHaveBeenCalledExactlyOnceWith('a · ada', {
+      body: 'Request preview',
+      tag: 'botharness-remote:a:new-earlier',
+    });
+    f.notices.update([remote('a', [])]);
+    f.notices.update([remote('a', [...old, fresh])]);
+    expect(f.show).toHaveBeenCalledTimes(1);
+  });
+  it('suppresses reconnect backlogs and seen identities that reenter, closes on disposal', async () => {
+    const f = fixture();
+    await f.notices.set('a', { enabled: true });
+    f.notices.update([remote('a', [item('1'), item('2')])]);
     const first = remote('a', [item('2')]);
     f.notices.update([first]);
     f.notices.update([{ ...first, snapshot: { connection: { status: 'stopped', route: '' } } }]);
@@ -297,6 +320,29 @@ describe('Remote Host browser alerts', () => {
     expect(f.handles[0]!.close).toHaveBeenCalled();
     expect(f.handles[0]!.onclick).toBeNull();
   });
+  it.each(['remove', 'credential', 'stop'] as const)(
+    'releases old identities on %s and establishes a silent complete baseline for the new owner',
+    async (operation) => {
+      const f = fixture();
+      await f.notices.set('a', { enabled: true });
+      f.notices.update([remote('a', [])]);
+      f.notices.update([remote('a', [item('previous')])]);
+      expect(f.show).toHaveBeenCalledTimes(1);
+      if (operation === 'remove') f.notices.update([]);
+      if (operation === 'stop') f.notices.stop();
+      const next = (items: HumanAttentionItem[]) => {
+        const host = remote('a', items);
+        if (operation === 'credential') host.host.credential = 'replacement';
+        return host;
+      };
+      f.notices.update([next([item('baseline')])]);
+      expect(f.show).toHaveBeenCalledTimes(1);
+      expect(f.handles[0]!.close).toHaveBeenCalled();
+      f.notices.update([next([item('baseline'), item('previous')])]);
+      f.notices.update([next([item('baseline'), item('previous')])]);
+      expect(f.show).toHaveBeenCalledTimes(2);
+    },
+  );
   it('keeps denied permission off and handles a late permission result after disabling', async () => {
     const f = fixture();
     f.permission('denied');

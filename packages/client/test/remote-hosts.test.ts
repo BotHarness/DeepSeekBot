@@ -1,6 +1,7 @@
 import { afterEach, assert, describe, expect, it, vi } from 'vitest';
 
 import type { HostCarrier } from '../../../apps/mobile/src/host/carrier.js';
+import type { HumanAttentionItem } from '../../../apps/mobile/src/host/wire.js';
 import { FakeHost } from '../../../apps/mobile/test/fake-host.js';
 import { createHostActivityActions } from '../src/client/host-activity-actions.js';
 import type { HumanAttentionItem } from '../src/client/store.js';
@@ -205,6 +206,85 @@ function liveHost() {
 }
 
 describe('Host Feed lifecycle', () => {
+  it('keeps notification identities across reconnect and active resubscription, but releases them on final disposal', async () => {
+    const show = vi.fn();
+    vi.stubGlobal('window', {
+      Notification: class {
+        static permission = 'granted';
+        onclick = null;
+        close() {}
+        constructor(title: string, options: unknown) {
+          show(title, options);
+        }
+      },
+    });
+    const { host, storage } = liveHost();
+    let items: HumanAttentionItem[] = [];
+    host.methods.set('humanAttention', (args) =>
+      args.notifications ? { notificationVersion: 1, items } : { queryVersion: 1, items: [] },
+    );
+    const sources = createRemoteHosts({ carrier: host.carrier, storage });
+    const primary = sources.subscribe(() => {});
+    releases.push(primary);
+    await vi.waitFor(() => expect(sources.getSnapshot().hosts[0]?.inbox.status).toBe('ready'));
+    await sources.notifications.set(host.hostId, { enabled: true });
+    const received: HumanAttentionItem = {
+      id: 'received',
+      kind: 'user-question',
+      category: 'action',
+      botSlug: 'ada',
+      createdAt: '2026-01-01',
+      summary: 'Question',
+    };
+    const refresh = async (next: typeof items) => {
+      const before = sources.getSnapshot().hosts[0]?.inbox;
+      items = next;
+      host.push('botharness/followActivity', { type: 'changed', snapshot: { bots: [] } });
+      await vi.waitFor(() => {
+        const after = sources.getSnapshot().hosts[0]?.inbox;
+        expect(after).not.toBe(before);
+        expect(after).toMatchObject({ status: 'ready', notificationItems: next });
+      });
+    };
+    await refresh([received]);
+    expect(show).toHaveBeenCalledTimes(1);
+    await refresh([]);
+    const secondary = sources.subscribe(() => {});
+    primary();
+    const resubscribed = sources.subscribe(() => {});
+    releases.push(resubscribed);
+    secondary();
+    await refresh([]);
+    await refresh([received]);
+    expect(show).toHaveBeenCalledTimes(1);
+    await refresh([]);
+    host.kill();
+    host.restart();
+    await vi.waitFor(
+      () => {
+        expect(sources.getSnapshot().hosts[0]?.snapshot.connection.status).toBe('connected');
+        expect(sources.getSnapshot().hosts[0]?.inbox).toMatchObject({
+          status: 'ready',
+          notificationItems: [],
+        });
+      },
+      { timeout: 3000 },
+    );
+    await refresh([received]);
+    expect(show).toHaveBeenCalledTimes(1);
+    await refresh([]);
+    resubscribed();
+    releases.push(sources.subscribe(() => {}));
+    await vi.waitFor(() => {
+      expect(sources.getSnapshot().hosts[0]?.snapshot.connection.status).toBe('connected');
+      expect(sources.getSnapshot().hosts[0]?.inbox).toMatchObject({
+        status: 'ready',
+        notificationItems: [],
+      });
+    });
+    await refresh([received]);
+    expect(show).toHaveBeenCalledTimes(2);
+  });
   it('marks the remote DM channel read through its own credential and refreshes its Inbox', async () => {
     const { host, storage } = liveHost();
     host.methods.set('channels', () => ({
@@ -310,7 +390,7 @@ describe('Host Feed lifecycle', () => {
       kind: 'channel-mention',
       category: 'replies',
       botSlug: 'ada',
-      createdAt: 'same-time',
+      createdAt: '2026-10-22T12:00:00.000Z',
       summary: `old-${index}`,
     }));
     let finish!: () => void;
@@ -346,7 +426,7 @@ describe('Host Feed lifecycle', () => {
         kind: 'channel-reply',
         category: 'replies',
         botSlug: 'ada',
-        createdAt: 'same-time',
+        createdAt: '2026-10-22T12:00:00.000Z',
         summary: id,
       })),
     );
@@ -366,11 +446,40 @@ describe('Host Feed lifecycle', () => {
       kind: 'channel-reply',
       category: 'replies',
       botSlug: 'ada',
-      createdAt: 'same-time',
+      createdAt: '2026-10-22T12:00:00.000Z',
       summary: 'later',
     });
     live();
     await vi.waitFor(() => expect(show).toHaveBeenCalledTimes(3));
+    items.push(
+      ...[
+        'tool-approval',
+        'user-question',
+        'private-input',
+        'channel-mention',
+        'channel-reply',
+        'channel-reply',
+      ].map((kind, index) => ({
+        id: `late-attention-${index}`,
+        kind,
+        category: index < 3 ? 'action' : 'replies',
+        botSlug: 'ada',
+        createdAt: `2026-01-0${6 - index}T00:00:00.000Z`,
+        summary: `late-attention-${index}`,
+      })),
+    );
+    live();
+    await vi.waitFor(() => expect(show).toHaveBeenCalledTimes(9));
+    for (let index = 0; index < 6; index++)
+      expect(
+        show.mock.calls.filter(
+          ([, options]) =>
+            options.tag === `botharness-remote:${host.hostId}:late-attention-${index}`,
+        ),
+      ).toHaveLength(1);
+    await sources.notifications.set(host.hostId, { enabled: false });
+    await sources.notifications.set(host.hostId, { enabled: true });
+    expect(show).toHaveBeenCalledTimes(9);
   });
 
   it.each(['switch', 'remove', 'dispose'] as const)(
