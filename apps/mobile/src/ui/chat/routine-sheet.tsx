@@ -537,6 +537,7 @@ export function RoutineSheet({
           <SettingsGroupItem first last={false} on={SHEET_GROUP}>
             <SettingsRow
               title={t.routineEdit}
+              accessibilityLabel={t.routineEdit}
               trailing={chevron}
               on={SHEET_GROUP}
               onPress={

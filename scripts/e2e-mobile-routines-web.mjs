@@ -394,6 +394,7 @@ async function main() {
     if (!checks.advancedRouteMatchesHost)
       throw new Error('Routine route does not match the selected Host routine');
     await text('Edit this schedule in the Host client.');
+    await text('Not run yet.');
     await shot('7-routine-advanced');
     await page.goBack({ waitUntil: 'networkidle0' });
     await text('New routine');
