@@ -26,7 +26,3 @@ export function UnreadCount({
     </span>
   );
 }
-
-export function totalUnread(unread: Readonly<Record<string, number>>): number {
-  return Object.values(unread).reduce((total, count) => total + count, 0);
-}

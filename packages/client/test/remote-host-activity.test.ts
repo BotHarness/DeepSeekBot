@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { RosterBot } from '../../../apps/mobile/src/host/client.js';
 import { createRemoteActivityProjection } from '../src/client/remote-host-activity.js';
-import { totalUnread } from '../src/client/unread-count.js';
 
 describe('remote activity presentation', () => {
   it('keeps received tool and session times stable across unrelated Host updates', () => {
@@ -48,11 +47,5 @@ describe('remote activity presentation', () => {
     const { activity: _activity, sessions: _sessions, ...idle } = bot;
     expect(project([{ ...idle, state: 'idle' }], 400).get('ada')).toEqual({ state: 'idle' });
     expect(project([], 500).size).toBe(0);
-  });
-
-  it('counts each Host channel once, independently of roster aliases and attention pages', () => {
-    expect(totalUnread({ 'dm-ada': 2, group: 3 })).toBe(5);
-    expect(totalUnread({})).toBe(0);
-    expect(totalUnread({ 'dm-ada': 2 }) + totalUnread({ 'dm-ada': 3 })).toBe(5);
   });
 });

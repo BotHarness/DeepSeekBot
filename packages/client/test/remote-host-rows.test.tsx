@@ -77,5 +77,4 @@ describe('remote Host rows', () => {
     expect(html).toContain('3 条未读');
     expect(html.match(/bh-unread-corner/g)).toHaveLength(2);
   });
-
 });

@@ -2189,7 +2189,7 @@ export function BotSidebar({
         {headerTarget
           ? createPortal(<InstantTooltipScope>{header}</InstantTooltipScope>, headerTarget)
           : header}
-        <HostTabs t={t} localUnread={channelUnread} />
+        <HostTabs t={t} />
         <div className="bh-roster-list">
           <RemoteHostRows
             remote={remoteTab}
@@ -2248,7 +2248,7 @@ export function BotSidebar({
       {headerTarget
         ? createPortal(<InstantTooltipScope>{header}</InstantTooltipScope>, headerTarget)
         : header}
-      {hostTabs ? <HostTabs t={t} localUnread={channelUnread} /> : null}
+      {hostTabs ? <HostTabs t={t} /> : null}
       {state.status === 'loading' && state.bots.length === 0 ? (
         <LoadingSkeleton kind="roster" label={t('roster.loading')} />
       ) : null}

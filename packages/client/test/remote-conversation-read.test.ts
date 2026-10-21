@@ -3,8 +3,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ConversationSnapshot } from '../../../apps/mobile/src/host/conversation.js';
 import { observeRemoteRead } from '../src/client/remote-conversation-read.js';
 
-const { JSDOM }: {
-  JSDOM: new (html: string, options: { pretendToBeVisual: boolean }) => {
+const {
+  JSDOM,
+}: {
+  JSDOM: new (
+    html: string,
+    options: { pretendToBeVisual: boolean },
+  ) => {
     window: Window & typeof globalThis;
   };
 } = createRequire(import.meta.url)('jsdom');
