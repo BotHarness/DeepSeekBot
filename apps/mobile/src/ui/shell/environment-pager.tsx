@@ -42,7 +42,7 @@ export function EnvironmentPager({
                 : route.hostColor === undefined
                   ? theme.color.fg
                   : hostColorInk(theme.scheme, theme.color, route.hostColor);
-              const size = theme.type.meta.line;
+              const size = theme.type.meta.line * theme.fontScale;
               const leading =
                 route.hostIcon !== undefined ? (
                   <HostGlyph icon={route.hostIcon} size={size} color={tint} />

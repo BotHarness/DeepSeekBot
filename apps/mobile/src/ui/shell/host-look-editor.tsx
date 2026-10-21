@@ -97,7 +97,7 @@ function Preview({ hostName, look }: { hostName: string; look: HostLook }) {
         true,
         <HostGlyph
           icon={look.icon}
-          size={theme.type.meta.line}
+          size={theme.type.meta.line * theme.fontScale}
           color={look.color === undefined ? theme.color.fg : ink}
         />,
       )}

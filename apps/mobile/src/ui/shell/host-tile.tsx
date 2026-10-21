@@ -1,8 +1,8 @@
-import { SymbolView } from 'expo-symbols';
 import { View } from 'react-native';
 
 import { HOST_SYMBOLS, type HostIcon } from '../design/host-look';
 import { radius } from '../design/tokens';
+import { SystemSymbol } from '../primitives/system-symbol';
 import { Text } from '../primitives/text';
 
 export function hostInitial(hostName: string): string {
@@ -11,15 +11,7 @@ export function hostInitial(hostName: string): string {
 
 export function HostGlyph({ icon, size, color }: { icon: HostIcon; size: number; color: string }) {
   if (icon.kind === 'symbol')
-    return (
-      <SymbolView
-        name={HOST_SYMBOLS[icon.id]}
-        size={size}
-        tintColor={color}
-        accessible={false}
-        importantForAccessibility="no"
-      />
-    );
+    return <SystemSymbol name={HOST_SYMBOLS[icon.id]} size={size} color={color} />;
   return (
     <Text
       allowFontScaling={false}
