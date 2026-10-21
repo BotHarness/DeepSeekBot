@@ -109,6 +109,22 @@ describe('devices CLI', () => {
     ]);
   });
 
+  it('refuses an offer without a link and receipt and never writes the file', async () => {
+    const write = vi.fn();
+    for (const value of [{ link: LINK, expiresAt: '2026-10-21T00:10:00.000Z' }, []])
+      await expect(
+        runDevicesCommand(
+          'device-offer',
+          [],
+          { out: '/private/offer.txt' },
+          async () => ({ http: async () => reply(value) }),
+          write,
+          () => false,
+        ),
+      ).rejects.toMatchObject({ code: 'host-protocol-error' });
+    expect(write).not.toHaveBeenCalled();
+  });
+
   it('refuses an existing --out file before opening an offer', async () => {
     const connect = vi.fn();
     await expect(

@@ -72,8 +72,14 @@ export async function runDevicesCommand(
       'device-revoke signs the device out at once and it must pair again. Pass --confirm.',
     );
   const host = await connect();
-  const decode = (bytes: Uint8Array) =>
-    JSON.parse(new TextDecoder().decode(bytes)) as Record<string, unknown>;
+  const decode = (bytes: Uint8Array): Record<string, unknown> => {
+    try {
+      const value: unknown = JSON.parse(new TextDecoder().decode(bytes));
+      if (typeof value === 'object' && value !== null && !Array.isArray(value))
+        return value as Record<string, unknown>;
+    } catch {}
+    throw new CliLiveError('host-protocol-error', 'The Host did not return a JSON object.');
+  };
   if (command === 'devices') {
     const snapshot = decode((await host.http(DEVICES)).bytes);
     return {
@@ -87,9 +93,14 @@ export async function runDevicesCommand(
   if (command === 'device-revoke')
     return decode((await host.http(`${DEVICES}/revoke`, { deviceId: rest[0] })).bytes);
   const view = decode((await host.http(`${DEVICES}/offer`, {})).bytes);
+  if (typeof view['link'] !== 'string' || typeof view['receipt'] !== 'string')
+    throw new CliLiveError(
+      'host-protocol-error',
+      'The Host returned a pairing offer without a link and receipt; update the Host.',
+    );
   const receipt = { receipt: view['receipt'], expiresAt: view['expiresAt'] };
   try {
-    write(values.out!, String(view['link']));
+    write(values.out!, view['link']);
   } catch (error) {
     const exists = error instanceof Error && 'code' in error && error.code === 'EEXIST';
     throw new CliLiveError(
