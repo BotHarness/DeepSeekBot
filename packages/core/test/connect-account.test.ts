@@ -351,7 +351,13 @@ describe('connect sign-in CLI', () => {
       ),
     ).toEqual({ connect: { state: 'connected', account: { state: 'signed-in', email: 'a@b.c' } } });
     expect(http.mock.calls[0]).toEqual(['/api/botharness/devices/connect', { action: 'sign-in' }]);
-    expect(stderr).toHaveBeenCalledWith('Open https://auth.test/d and confirm code ABCD\n');
+    expect(stderr).toHaveBeenCalledWith(
+      'Open https://auth.test/d and confirm code ABCD\n' +
+        'To use a different account, open the link in a private window.\n',
+    );
+    expect(stderr).toHaveBeenLastCalledWith(
+      'Signed in as a@b.c. Not you? Run deepseekbot connect-sign-out.\n',
+    );
     await expect(
       runConnectCommand('connect-status', [], { wait: true }, {}, async () => ({ http })),
     ).rejects.toMatchObject({ code: 'usage' });

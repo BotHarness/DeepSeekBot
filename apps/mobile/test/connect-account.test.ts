@@ -92,6 +92,7 @@ describe('phone Connect account', () => {
       code_challenge: await challenge('random-1'),
       code_challenge_method: 'S256',
       state: 'random-2',
+      max_age: '0',
     });
     expect(JSON.parse(relay.stored()!)).toEqual({
       clientId: 'client_01TEST',
