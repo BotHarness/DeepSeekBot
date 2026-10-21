@@ -1,12 +1,7 @@
 import { Menu } from './appearance-primitives.js';
-import { ALL_COMPUTERS, computerSources } from './computer-sources.js';
+import { ALL_HOSTS, remoteHosts } from './remote-hosts.js';
 import { useChannelDockActive } from './channel-dock.js';
-import {
-  ComputerSourceMark,
-  ComputerTabs,
-  RemoteComputerRows,
-  useComputerSources,
-} from './computer-tabs.js';
+import { RemoteHostMark, HostTabs, RemoteHostRows, useRemoteHosts } from './host-tabs.js';
 import { plainMarkdown } from '../../../core/src/channels/message-preview.js';
 import { PointerMenu } from './ds/pointer-menu.js';
 import { PanelEmptyState } from './ds/empty-state.js';
@@ -704,7 +699,7 @@ function BotRow({
         <span className="bh-body">
           <span className="bh-top">
             <span className="bh-name">{bot.displayName}</span>
-            {source ? <ComputerSourceMark /> : null}
+            {source ? <RemoteHostMark /> : null}
             {muted ? <MutedMark t={t} /> : null}
             <ChannelMessageTime channel={channel} now={now} t={t} />
           </span>
@@ -837,7 +832,7 @@ function ChannelRow({
       <span className="bh-body">
         <span className="bh-top">
           <span className="bh-name">{channel.name}</span>
-          {source ? <ComputerSourceMark /> : null}
+          {source ? <RemoteHostMark /> : null}
           {muted ? <MutedMark t={t} /> : null}
           <ChannelMessageTime channel={channel} now={now} t={t} />
         </span>
@@ -1022,9 +1017,9 @@ export function BotSidebar({
   t,
 }: SidebarProps): ReactElement {
   const state = useClientStore(keepClientState, rosterInputs);
-  const computerTabs = useChannelDockActive();
-  const computers = useComputerSources();
-  const remoteOpen = computerTabs && computers.open !== undefined;
+  const hostTabs = useChannelDockActive();
+  const remoteHostsState = useRemoteHosts();
+  const remoteOpen = hostTabs && remoteHostsState.open !== undefined;
   const channelUnread = state.humanInbox.channelUnread;
   const mutedChannelSet = new Set(state.roster.muted);
   const prefs = useBotModePrefs((value) => value);
@@ -1334,7 +1329,7 @@ export function BotSidebar({
     : [...railPinnedChannels, ...railChannels].map((channel) => channel.id);
   const shortcutIdsRef = useRef<readonly string[]>(shortcutIds);
   const openLocalConversation = (): void => {
-    computerSources().close();
+    remoteHosts().close();
     onOpenConversation?.();
   };
   const openConversationRef = useRef(openLocalConversation);
@@ -1940,7 +1935,7 @@ export function BotSidebar({
   dragActiveRef.current = channelDragActive || sectionDragActive;
 
   const showSource =
-    computerTabs && computers.tab === ALL_COMPUTERS && computers.computers.length > 0;
+    hostTabs && remoteHostsState.tab === ALL_HOSTS && remoteHostsState.hosts.length > 0;
   const renderChannelRow = (channel: ChannelSummary, scopeId: ScopeId): ReactElement => {
     const drag = channelDragProps(scopeId, channel.id);
     const bot = channel.botSlug === undefined ? undefined : botBySlug.get(channel.botSlug);
@@ -2193,8 +2188,8 @@ export function BotSidebar({
       {headerEnd}
     </div>
   );
-  const remoteTab = computerTabs
-    ? computers.computers.find((computer) => computer.host.hostId === computers.tab)
+  const remoteTab = hostTabs
+    ? remoteHostsState.hosts.find((remote) => remote.host.hostId === remoteHostsState.tab)
     : undefined;
   if (remoteTab !== undefined)
     return (
@@ -2202,10 +2197,10 @@ export function BotSidebar({
         {headerTarget
           ? createPortal(<InstantTooltipScope>{header}</InstantTooltipScope>, headerTarget)
           : header}
-        <ComputerTabs t={t} />
+        <HostTabs t={t} />
         <div className="bh-roster-list">
-          <RemoteComputerRows
-            computer={remoteTab}
+          <RemoteHostRows
+            remote={remoteTab}
             query={query}
             showSource={false}
             onOpen={onOpenConversation}
@@ -2261,7 +2256,7 @@ export function BotSidebar({
       {headerTarget
         ? createPortal(<InstantTooltipScope>{header}</InstantTooltipScope>, headerTarget)
         : header}
-      {computerTabs ? <ComputerTabs t={t} /> : null}
+      {hostTabs ? <HostTabs t={t} /> : null}
       {state.status === 'loading' && state.bots.length === 0 ? (
         <LoadingSkeleton kind="roster" label={t('roster.loading')} />
       ) : null}
@@ -2859,11 +2854,11 @@ export function BotSidebar({
             </div>
           );
         })}
-        {computerTabs && computers.tab === ALL_COMPUTERS
-          ? computers.computers.map((computer) => (
-              <RemoteComputerRows
-                key={computer.host.hostId}
-                computer={computer}
+        {hostTabs && remoteHostsState.tab === ALL_HOSTS
+          ? remoteHostsState.hosts.map((remote) => (
+              <RemoteHostRows
+                key={remote.host.hostId}
+                remote={remote}
                 query={query}
                 showSource
                 onOpen={onOpenConversation}
