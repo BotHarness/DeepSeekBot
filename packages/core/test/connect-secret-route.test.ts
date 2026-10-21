@@ -7,7 +7,7 @@ import { SECRET_ROUTE_METHODS } from '../src/bridge/secret-route.js';
 import { createGatewayOrigin } from '../src/devices/connect.js';
 import { createDeviceGateway } from '../src/devices/gateway.js';
 import { createDevicePairing } from '../src/devices/pairing.js';
-import { DEVICE_ROUTE_HEADER } from '../src/devices/route-context.js';
+import { DEVICE_ROUTE_HEADER, stampConnectRoute } from '../src/devices/route-context.js';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
@@ -93,12 +93,21 @@ async function rig() {
     authenticatedUrl: (base) => `${base}?token=test`,
     log: (line) => logs.push(line),
   });
-  const origin = createGatewayOrigin(() => port);
+  const origin = createServer((request, response) => {
+    stampConnectRoute(request);
+    void gateway.handle(request, response);
+  });
+  origin.on('upgrade', (request, socket, head) => {
+    stampConnectRoute(request);
+    void gateway.upgrade(request, socket, head);
+  });
   const originPort = await listen(origin);
+  const exposed = createGatewayOrigin(() => port);
+  const exposedPort = await listen(exposed);
   cleanup.push(() => {
     for (const client of nativeMux.clients) client.terminate();
     nativeMux.close();
-    for (const socket of origin.upgraded) socket.destroy();
+    for (const socket of exposed.upgraded) socket.destroy();
   });
   const offer = pairing.createOffer();
   const paired = await fetch(`http://127.0.0.1:${port}/botharness-device/pair`, {
@@ -141,7 +150,7 @@ async function rig() {
     });
     return client;
   };
-  return { seen, logs, call, socket, pairing, device, originPort, headers };
+  return { seen, logs, call, socket, pairing, device, originPort, exposedPort, headers };
 }
 
 function frame(client: WebSocket, endpoint: string, streamId: string) {
@@ -161,7 +170,7 @@ function frame(client: WebSocket, endpoint: string, streamId: string) {
   });
 }
 
-describe('Connect secret dispatch', () => {
+describe('Unencrypted Connect route guard behind the origin', () => {
   it('covers private input, provider credential values, generic secret settings and IM setup', () => {
     expect(SECRET_ROUTE_METHODS).toEqual([
       'botharness/privateInputSubmit',
@@ -266,4 +275,32 @@ describe('Connect secret dispatch', () => {
     await frame(socket, 'botharness/followRoster', 'allowed');
     expect(host.seen).toEqual(['botharness/followRoster']);
   });
+});
+
+it('refuses legacy plaintext HTTP and mux at the actual Connect origin before dispatch', async () => {
+  const host = await rig();
+  for (const path of ['/pair', '/stream-ticket', '/api/botharness/list', '/api/credentials/set']) {
+    for (const headers of [{}, host.headers]) {
+      const response = await fetch(
+        `http://127.0.0.1:${host.exposedPort}/botharness-device${path}`,
+        { method: 'POST', headers, body: '{}' },
+      );
+      expect(response.status).toBe(404);
+    }
+  }
+  const client = new WebSocket(
+    `ws://127.0.0.1:${host.exposedPort}/botharness-device/api/remote.mux`,
+    { headers: host.headers },
+  );
+  client.on('error', () => undefined);
+  cleanup.push(() => client.terminate());
+  const status = await new Promise<number | undefined>((resolve) =>
+    client.once('unexpected-response', (_request, response) => {
+      response.resume();
+      resolve(response.statusCode);
+      client.terminate();
+    }),
+  );
+  expect(status).toBe(404);
+  expect(host.seen).toEqual([]);
 });

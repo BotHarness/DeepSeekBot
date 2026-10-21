@@ -2,7 +2,7 @@ import { t } from '../strings';
 import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
-import { Alert, Platform } from 'react-native';
+import { Platform } from 'react-native';
 
 import { hostSession } from '../../host/host-session';
 import { nativeCarrier } from '../../host/native-carrier';
@@ -12,6 +12,7 @@ import { pairHost, type PairingFailure } from '../../host/pairing';
 import { mobileTelemetry } from '../../telemetry/native';
 import type { PairingMethod } from '../../telemetry/schema';
 import { hostLookName, withHostName } from '../design/host-look';
+import { confirmAppDialog } from '../primitives/app-dialog';
 import { clearsPastedLink } from '../pairing-failure';
 
 function deviceName(): string {
@@ -56,16 +57,10 @@ export function usePairing() {
       deviceName: deviceName(),
       carrier: nativeCarrier(),
       confirmFingerprint: (fingerprint, hostName) =>
-        new Promise((resolve) =>
-          Alert.alert(
-            t.hostFingerprintTitle,
-            `${hostName}\n\n${t.hostFingerprintHint}\n\n${fingerprint}`,
-            [
-              { text: t.cancel, style: 'cancel', onPress: () => resolve(false) },
-              { text: t.hostFingerprintConfirm, onPress: () => resolve(true) },
-            ],
-            { cancelable: false },
-          ),
+        confirmAppDialog(
+          t.hostFingerprintTitle,
+          `${hostName}\n\n${t.hostFingerprintHint}\n\n${fingerprint}`,
+          t.hostFingerprintConfirm,
         ),
       onPending: setFingerprint,
       save: async (host) => {
