@@ -1,7 +1,7 @@
 import { renderKeyboardFormScroll } from '../../../src/ui/primitives/keyboard-form';
 import { Redirect, Stack, useFocusEffect, useIsFocused, useRouter } from 'expo-router';
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
-import { RefreshControl, View } from 'react-native';
+import { View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import {
   refreshQuietChannels,
@@ -48,6 +48,7 @@ import { conversationHref, openConversation } from '../../../src/ui/shell/open-c
 import { useChromeScroll, useScrollChrome } from '../../../src/ui/shell/scroll-chrome';
 import { t } from '../../../src/ui/strings';
 import { LoadingIndicator } from '../../../src/ui/primitives/loading-indicator';
+import { PullToRefresh } from '../../../src/ui/primitives/pull-to-refresh';
 
 type Row =
   | {
@@ -323,92 +324,101 @@ const HomeContent = memo(function HomeContent({
               setFilter(key);
             }}
             renderPage={(environment, active) => (
-              <Animated.FlatList<Row>
-                renderScrollComponent={renderKeyboardFormScroll}
-                onScroll={active ? onScroll : undefined}
-                scrollEventThrottle={1}
-                contentContainerStyle={{ paddingBottom: bottom + space.x6 }}
-                keyboardShouldPersistTaps="handled"
-                keyboardDismissMode="on-drag"
-                data={rows.filter(
-                  (row) => environment.key === 'all' || row.environment === environment.key,
-                )}
-                keyExtractor={(r) => r.key}
-                refreshControl={
-                  <RefreshControl
-                    refreshing={refreshing || directory.busy}
-                    onRefresh={() => void refresh()}
-                  />
-                }
-                ListHeaderComponent={
-                  <>
-                    {saved &&
-                      (environment.key === 'all' ||
-                        environment.key === computerEnvironmentKey(saved.hostId)) && (
-                        <ConnectionBanner
-                          connection={snapshot.connection}
-                          onRetry={() => client?.retryNow()}
-                          onPairAgain={() => router.push('/pair')}
-                        />
-                      )}
-                    {(directory.errors.length > 0 || cloud.error || error) && (
-                      <Text tone="muted" style={{ paddingHorizontal: space.x5 }}>
-                        {t.cloudListUnavailable}
-                        {error ? ` (${error})` : ''}
-                      </Text>
+              <PullToRefresh
+                refreshing={refreshing || directory.busy}
+                onRefresh={() => void refresh()}
+              >
+                {(pull) => (
+                  <Animated.FlatList<Row>
+                    {...pull}
+                    renderScrollComponent={renderKeyboardFormScroll}
+                    onScroll={active ? onScroll : undefined}
+                    scrollEventThrottle={1}
+                    contentContainerStyle={{ paddingBottom: bottom + space.x6 }}
+                    keyboardShouldPersistTaps="handled"
+                    keyboardDismissMode="on-drag"
+                    data={rows.filter(
+                      (row) => environment.key === 'all' || row.environment === environment.key,
                     )}
-                  </>
-                }
-                ListEmptyComponent={
-                  directory.busy ||
-                  (saved &&
-                    (environment.key === 'all' ||
-                      environment.key === computerEnvironmentKey(saved.hostId)) &&
-                    !snapshot.roster &&
-                    snapshot.connection.status === 'connecting') ? (
-                    <LoadingIndicator />
-                  ) : (
-                    <Text tone="muted" style={{ padding: space.x6 }}>
-                      {query ? t.searchNoMatch(query.trim()) : t.cloudChannels.empty}
-                    </Text>
-                  )
-                }
-                renderItem={({ item }) =>
-                  item.type === 'computer' ? (
-                    conversationPeek ? (
-                      <ConversationPeek href={conversationHref(item.conversation, saved?.hostId)}>
-                        <ConversationRow row={item.conversation} now={new Date()} look={look} />
-                      </ConversationPeek>
-                    ) : (
-                      <ConversationRow
-                        row={item.conversation}
-                        now={new Date()}
-                        look={look}
-                        onPress={() => openConversation(router, item.conversation, saved?.hostId)}
-                        actions={conversationActions(item.conversation, {
-                          pinned: item.pinned,
-                          hostMuted:
-                            snapshot.roster?.arrangement?.muted?.includes(
-                              conversationChannelId(item.conversation) ?? '',
-                            ) === true,
-                        })}
-                        onAction={(key) => {
-                          if (client === undefined) return;
-                          runConversationAction(client, inbox, item.conversation, key).catch(() =>
-                            showAppDialog(t.rowActions.failed, undefined, [{ text: t.done }]),
-                          );
-                        }}
-                      />
-                    )
-                  ) : (
-                    <CloudConversationRow
-                      row={item.conversation}
-                      disabled={opening || cloud.busy || directory.busy}
-                      onPress={() => void openCloud(item.conversation)}
-                    />
-                  )
-                }
-              />
+                    keyExtractor={(r) => r.key}
+                    ListHeaderComponent={
+                      <>
+                        {saved &&
+                          (environment.key === 'all' ||
+                            environment.key === computerEnvironmentKey(saved.hostId)) && (
+                            <ConnectionBanner
+                              connection={snapshot.connection}
+                              onRetry={() => client?.retryNow()}
+                              onPairAgain={() => router.push('/pair')}
+                            />
+                          )}
+                        {(directory.errors.length > 0 || cloud.error || error) && (
+                          <Text tone="muted" style={{ paddingHorizontal: space.x5 }}>
+                            {t.cloudListUnavailable}
+                            {error ? ` (${error})` : ''}
+                          </Text>
+                        )}
+                      </>
+                    }
+                    ListEmptyComponent={
+                      directory.busy ||
+                      (saved &&
+                        (environment.key === 'all' ||
+                          environment.key === computerEnvironmentKey(saved.hostId)) &&
+                        !snapshot.roster &&
+                        snapshot.connection.status === 'connecting') ? (
+                        <View style={{ padding: space.x6, alignItems: 'center' }}>
+                          <LoadingIndicator />
+                        </View>
+                      ) : (
+                        <Text tone="muted" style={{ padding: space.x6 }}>
+                          {query ? t.searchNoMatch(query.trim()) : t.cloudChannels.empty}
+                        </Text>
+                      )
+                    }
+                    renderItem={({ item }) =>
+                      item.type === 'computer' ? (
+                        conversationPeek ? (
+                          <ConversationPeek
+                            href={conversationHref(item.conversation, saved?.hostId)}
+                          >
+                            <ConversationRow row={item.conversation} now={new Date()} look={look} />
+                          </ConversationPeek>
+                        ) : (
+                          <ConversationRow
+                            row={item.conversation}
+                            now={new Date()}
+                            look={look}
+                            onPress={() =>
+                              openConversation(router, item.conversation, saved?.hostId)
+                            }
+                            actions={conversationActions(item.conversation, {
+                              pinned: item.pinned,
+                              hostMuted:
+                                snapshot.roster?.arrangement?.muted?.includes(
+                                  conversationChannelId(item.conversation) ?? '',
+                                ) === true,
+                            })}
+                            onAction={(key) => {
+                              if (client === undefined) return;
+                              runConversationAction(client, inbox, item.conversation, key).catch(
+                                () =>
+                                  showAppDialog(t.rowActions.failed, undefined, [{ text: t.done }]),
+                              );
+                            }}
+                          />
+                        )
+                      ) : (
+                        <CloudConversationRow
+                          row={item.conversation}
+                          disabled={opening || cloud.busy || directory.busy}
+                          onPress={() => void openCloud(item.conversation)}
+                        />
+                      )
+                    }
+                  />
+                )}
+              </PullToRefresh>
             )}
           />
         </HomeHeader>

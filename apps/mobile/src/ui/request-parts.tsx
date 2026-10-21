@@ -1,6 +1,6 @@
 import { Text } from './primitives/system-text';
 import type { ReactNode } from 'react';
-import { ActivityIndicator, Pressable, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 import { t } from './strings';
 import { useTheme } from './theme';
@@ -69,7 +69,7 @@ export function ActionButton({
       })}
     >
       {busy ? (
-        <ActivityIndicator color={ink} />
+        <LoadingIndicator size="control" color={ink} />
       ) : (
         <Text style={{ color: ink, fontSize: 16, fontWeight: '600' }}>{label}</Text>
       )}

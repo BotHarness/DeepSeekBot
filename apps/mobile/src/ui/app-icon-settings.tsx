@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ActivityIndicator, Image, ScrollView, type ImageSourcePropType } from 'react-native';
+import { Image, ScrollView, type ImageSourcePropType } from 'react-native';
 
 import { useDesignTheme } from './design/theme';
 import { radius, space } from './design/tokens';
@@ -7,6 +7,7 @@ import { SettingsRow, SettingsSection } from './primitives/settings-row';
 import { Notice, errorText } from './request-parts';
 import { CheckIcon } from './shell/icons';
 import { t } from './strings';
+import { LoadingIndicator } from './primitives/loading-indicator';
 
 export const APP_ICONS = ['default', 'DeepSeekBotSimple'] as const;
 export type AppIconName = (typeof APP_ICONS)[number];
@@ -89,7 +90,7 @@ export function AppIconSettings({
             leading={<IconPreview name={name} previews={previews} />}
             trailing={
               busy === name ? (
-                <ActivityIndicator />
+                <LoadingIndicator size="control" />
               ) : current === name ? (
                 <CheckIcon color={theme.color.fg} size={theme.type.title.line} />
               ) : undefined

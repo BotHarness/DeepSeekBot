@@ -1,15 +1,7 @@
 import { useIncomingShare } from 'expo-sharing';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import {
-  ActivityIndicator,
-  AppState,
-  FlatList,
-  Image,
-  Keyboard,
-  ScrollView,
-  View,
-} from 'react-native';
+import { AppState, FlatList, Image, Keyboard, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useHostSession, useHostSnapshot, useQuietChannels } from '../../host/host-session';
@@ -27,6 +19,7 @@ import { FileIcon } from '../shell/icons';
 import { conversationHref } from '../shell/open-conversation';
 import { t } from '../strings';
 import { deliverShare, incomingShare } from './incoming-share';
+import { LoadingIndicator } from '../primitives/loading-indicator';
 
 function draftKey(hostId: string, row: Conversation): string {
   return row.kind === 'bot'
@@ -99,7 +92,7 @@ export default function ShareScreen() {
             }}
           >
             {incoming.isResolving ? (
-              <ActivityIndicator />
+              <LoadingIndicator />
             ) : empty ? (
               <Text tone="muted">{t.share.nothing}</Text>
             ) : (
@@ -169,7 +162,7 @@ export default function ShareScreen() {
             />
           </View>
         ) : !empty && snapshot.roster === undefined ? (
-          <ActivityIndicator />
+          <LoadingIndicator />
         ) : undefined
       }
       renderItem={({ item }) => (
