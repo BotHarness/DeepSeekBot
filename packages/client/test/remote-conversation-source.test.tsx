@@ -192,9 +192,12 @@ describe.each(['activity', 'dock'] as const)('%s remote conversation source', (s
     'keeps an old send completion in its source after switching to $hostId / $channelId',
     async (target) => {
       const view = await mount(surface);
-      const gate = Promise.withResolvers<void>();
+      let complete!: () => void;
+      const pending = new Promise<void>((resolve) => {
+        complete = resolve;
+      });
       view.hosts.b.methods.set('channelSend', async (args) => {
-        await gate.promise;
+        await pending;
         view.hosts.b.channel(String(args.channelId)).append({
           id: String(args.messageId),
           body: String(args.body),
@@ -208,7 +211,7 @@ describe.each(['activity', 'dock'] as const)('%s remote conversation source', (s
         await view.open(target);
         await view.type('New target draft');
         await act(async () => {
-          gate.resolve();
+          complete();
           await vi.waitFor(() =>
             expect(view.sources.conversation(first)?.getSnapshot().messages[0]?.delivery).toBe(
               'committed',
@@ -226,7 +229,7 @@ describe.each(['activity', 'dock'] as const)('%s remote conversation source', (s
         expect(view.hosts.c.calls.filter(({ method }) => method === 'channelSend')).toEqual([]);
         expect(view.sources.getSnapshot().open).toEqual(target);
       } finally {
-        gate.resolve();
+        complete();
         await view.close();
       }
     },

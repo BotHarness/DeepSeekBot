@@ -794,7 +794,9 @@ it.each(
       open: async () => {},
       requestUnavailable: '操作失败，请刷新后重试',
     });
-    await expect(actions[method]('dm-ada', 'request-message')).rejects.toMatchObject({
+    const readRequest = actions[method];
+    assert(readRequest !== undefined);
+    await expect(readRequest('dm-ada', 'request-message')).rejects.toMatchObject({
       message: '操作失败，请刷新后重试',
       cause: {
         message:
