@@ -13,6 +13,8 @@ import {
   createInbox,
   type Inbox,
   type InboxSnapshot,
+  observeInbox,
+  type InboxQuery,
 } from '../../../../apps/mobile/src/host/inbox.js';
 import {
   DEVICE_PREFIX,
@@ -64,6 +66,8 @@ export interface RemoteHosts {
   close(): void;
   conversation(target: RemoteConversationTarget): Conversation | undefined;
   markRead(target: RemoteConversationTarget, messageId: string): Promise<void>;
+  activity(hostId: string, query?: InboxQuery): ReturnType<typeof observeInbox> | undefined;
+  client(hostId: string): HostClient | undefined;
 }
 
 export interface HostStorage {
@@ -130,6 +134,7 @@ export function createRemoteHosts(options: {
   const { storage, carrier, loadImage, releaseImage } = options;
   const listeners = new Set<() => void>();
   const clients = new Map<string, HostEntry>();
+  const activity = new Map<string, ReturnType<typeof observeInbox>>();
   const conversations = new Map<string, Conversation>();
   const images = new Map<string, string>();
   const loading = new Map<string, symbol>();
@@ -246,6 +251,7 @@ export function createRemoteHosts(options: {
     entry.release();
     stop(entry);
     clients.delete(hostId);
+    activity.delete(hostId);
     for (const [key, conversation] of conversations)
       if ((JSON.parse(key) as string[])[0] === hostId) {
         conversation.stop();
@@ -258,6 +264,25 @@ export function createRemoteHosts(options: {
 
   return {
     getSnapshot: () => snapshot,
+    client: (hostId) => clients.get(hostId)?.client,
+    activity(hostId, query) {
+      const entry = clients.get(hostId);
+      if (entry === undefined) return undefined;
+      if (query !== undefined) return observeInbox(entry.client, query);
+      let observed = activity.get(hostId);
+      if (observed === undefined) {
+        observed = {
+          getSnapshot: () => entry.inbox?.feed.getSnapshot() ?? entry.retained,
+          getInbox: () => entry.inbox?.feed,
+          subscribe(listener) {
+            return entry.inbox?.feed.subscribe(listener) ?? (() => {});
+          },
+          watching: () => entry.inbox !== undefined,
+        };
+        activity.set(hostId, observed);
+      }
+      return observed;
+    },
     subscribe(listener) {
       const first = listeners.size === 0;
       listeners.add(listener);

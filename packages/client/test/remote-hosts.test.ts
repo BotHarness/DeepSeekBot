@@ -2,6 +2,8 @@ import { afterEach, assert, describe, expect, it, vi } from 'vitest';
 
 import type { HostCarrier } from '../../../apps/mobile/src/host/carrier.js';
 import { FakeHost } from '../../../apps/mobile/test/fake-host.js';
+import { createHostActivityActions } from '../src/client/host-activity-actions.js';
+import type { HumanAttentionItem } from '../src/client/store.js';
 import { pairingLink } from '../../core/src/devices/http.js';
 import {
   ALL_HOSTS,
@@ -370,3 +372,446 @@ describe('Host Feed lifecycle', () => {
     expect(sources.getSnapshot().avatars.size).toBe(0);
   });
 });
+
+it('reuses the shared activity Inbox for reads, pagination and refresh', async () => {
+  const { host, storage } = liveHost();
+  host.methods.set('humanAttention', (args) => ({
+    queryVersion: 1,
+    items: [
+      {
+        id: String(args.category) + (args.cursor ? '-next' : ''),
+        category: args.category,
+        kind: 'channel-unread',
+        botSlug: 'ada',
+        summary: 'remote',
+        createdAt: '',
+      },
+    ],
+    ...(args.cursor ? {} : { nextCursor: 'remote-cursor' }),
+  }));
+  const sources = createRemoteHosts({ carrier: host.carrier, storage });
+  releases.push(sources.subscribe(() => {}));
+  await vi.waitFor(() => expect(sources.getSnapshot().hosts[0]?.inbox.status).toBe('ready'));
+  const observation = sources.activity(host.hostId)!;
+  expect(sources.activity(host.hostId)).toBe(observation);
+  expect(observation.getSnapshot()).toBe(sources.getSnapshot().hosts[0]?.inbox);
+  const reads = host.calls.length;
+  const off = observation.subscribe(() => {});
+  expect(host.calls).toHaveLength(reads);
+  await observation.getInbox()!.loadMore!('unread');
+  expect(observation.getSnapshot()).toMatchObject({
+    sections: { unread: [{ id: 'unread' }, { id: 'unread-next' }] },
+  });
+  off();
+  await sources.remove(host.hostId);
+  expect(sources.activity(host.hostId)).toBeUndefined();
+});
+
+it('queries remote search and history on its own Host client and disposes the filtered Inbox', async () => {
+  const { host, storage } = liveHost();
+  const sources = createRemoteHosts({ carrier: host.carrier, storage });
+  releases.push(sources.subscribe(() => {}));
+  await vi.waitFor(() => expect(sources.getSnapshot().hosts[0]?.inbox.status).toBe('ready'));
+  const query = {
+    activity: true,
+    section: 'handled' as const,
+    search: 'Remote-only',
+    sort: 'oldest' as const,
+  };
+  const observation = sources.activity(host.hostId, query)!;
+  expect(sources.activity(host.hostId, query)).toBe(observation);
+  const off = observation.subscribe(() => {});
+  await vi.waitFor(() => expect(observation.getSnapshot().status).toBe('ready'));
+  expect(host.calls).toContainEqual({
+    method: 'humanAttention',
+    args: {
+      category: 'handled',
+      limit: 30,
+      queryVersion: 1,
+      search: 'Remote-only',
+      sort: 'oldest',
+    },
+  });
+  off();
+  expect(observation.getInbox()).toBeUndefined();
+});
+
+it('routes decisions, questions, joins, snooze and clear to the owning Host and refuses removed Hosts', async () => {
+  const { host, storage } = liveHost();
+  const sources = createRemoteHosts({ carrier: host.carrier, storage });
+  releases.push(sources.subscribe(() => {}));
+  await vi.waitFor(() => expect(sources.getSnapshot().hosts[0]?.inbox.status).toBe('ready'));
+  const item: HumanAttentionItem = {
+    id: 'approval:shared',
+    category: 'action',
+    kind: 'tool-approval',
+    botSlug: 'tob',
+    channelId: 'dm-tob',
+    messageId: 'same-message',
+    summary: 'Remote request',
+    createdAt: '',
+    sourceEventId: 'same-event',
+  };
+  const refresh = vi.fn(async () => {});
+  const actions = createHostActivityActions({
+    requestUnavailable: 'Request was not accepted',
+    client: () => {
+      const client = sources.client(host.hostId);
+      if (client === undefined) throw new Error('Host removed');
+      return client;
+    },
+    items: () => [item],
+    refresh,
+    open: async () => {},
+  });
+  host.methods.set('toolApprovalDecide', () => ({}));
+  host.methods.set('userQuestionAnswer', () => ({}));
+  host.methods.set('channelGroupJoinDecide', (args) => ({
+    channel: {
+      joinRequests: [{ id: args.requestId, status: args.accept ? 'accepted' : 'declined' }],
+    },
+  }));
+  host.methods.set('humanAttentionSnooze', () => ({ accepted: true }));
+  host.methods.set('humanAttentionDismiss', () => ({ accepted: true }));
+  host.calls.length = 0;
+  await actions.decideToolApproval('dm-tob', 'same-message', 'allowed-once');
+  await actions.answerUserQuestion('dm-tob', 'same-message', [
+    { id: 'q', selected: ['Yes'], custom: '' },
+  ]);
+  await actions.decideGroupJoin('same-group', 'same-request', true);
+  await actions.snoozeHumanInbox(item, '2099-01-01T00:00:00.000Z');
+  await actions.dismissHumanInbox(item);
+  expect(host.calls).toEqual([
+    {
+      method: 'toolApprovalDecide',
+      args: { channelId: 'dm-tob', messageId: 'same-message', outcome: 'allowed-once' },
+    },
+    {
+      method: 'userQuestionAnswer',
+      args: {
+        channelId: 'dm-tob',
+        messageId: 'same-message',
+        answer: { answers: [{ id: 'q', selected: ['Yes'], custom: '' }] },
+      },
+    },
+    {
+      method: 'channelGroupJoinDecide',
+      args: { channelId: 'same-group', requestId: 'same-request', accept: true },
+    },
+    {
+      method: 'humanAttentionSnooze',
+      args: { itemId: item.id, sourceKey: 'same-event', until: '2099-01-01T00:00:00.000Z' },
+    },
+    { method: 'humanAttentionDismiss', args: { itemId: item.id, sourceKey: 'same-event' } },
+  ]);
+  expect(refresh).toHaveBeenCalledTimes(5);
+  host.methods.set('humanAttentionDismiss', () => ({ accepted: false }));
+  await expect(actions.dismissHumanInbox(item)).rejects.toThrow();
+  expect(refresh).toHaveBeenCalledTimes(5);
+  await expect(actions.decideToolApproval('dm-tob', 'unowned-message', 'rejected')).rejects.toThrow(
+    'Request was not accepted',
+  );
+  await sources.remove(host.hostId);
+  await expect(actions.dismissHumanInbox(item)).rejects.toThrow('Host removed');
+});
+
+it.each(
+  (['tool-approval', 'user-question'] as const).flatMap((kind) =>
+    (['decided', 'expired'] as const).map((result) => ({ kind, result })),
+  ),
+)(
+  'does not accept a remote $kind returning $result after the precheck',
+  async ({ kind, result }) => {
+    const { host, storage } = liveHost();
+    const sources = createRemoteHosts({ carrier: host.carrier, storage });
+    releases.push(sources.subscribe(() => {}));
+    await vi.waitFor(() => expect(sources.getSnapshot().hosts[0]?.inbox.status).toBe('ready'));
+    let pending = true;
+    const item: HumanAttentionItem = {
+      id: 'request',
+      category: 'action',
+      kind,
+      botSlug: 'ada',
+      channelId: 'dm-ada',
+      messageId: 'request-message',
+      summary: '',
+      createdAt: '',
+    };
+    const refresh = vi.fn(async () => {});
+    const actions = createHostActivityActions({
+      client: () => sources.client(host.hostId)!,
+      items: () => [item],
+      refresh,
+      open: async () => {},
+      requestUnavailable: 'This request was not accepted',
+    });
+    const request = {
+      id: item.messageId,
+      toolApprovalRequest: { toolName: 'bash', role: 'orchestrator', cwd: '', input: '{}' },
+      userQuestionRequest: {
+        questions: [{ id: 'q', question: 'Choose', options: [{ label: 'Blue' }] }],
+      },
+    };
+    host.methods.set('channelTimeline', () => ({
+      page: {
+        entries: [
+          request,
+          ...(!pending && result === 'decided'
+            ? [
+                {
+                  id: 'other-device-decision',
+                  toolApprovalDecision: { requestMessageId: item.messageId, outcome: 'rejected' },
+                  userQuestionResolution: {
+                    requestMessageId: item.messageId,
+                    state: 'answered',
+                    answers: [{ id: 'q', selected: ['Blue'] }],
+                  },
+                },
+              ]
+            : []),
+        ],
+      },
+    }));
+    host.methods.set('toolApprovalStatus', () => ({ status: pending ? 'pending' : 'expired' }));
+    host.methods.set('userQuestionStatus', () => ({
+      status: pending ? 'pending' : result === 'decided' ? 'answered' : 'expired',
+    }));
+    host.methods.set(kind === 'tool-approval' ? 'toolApprovalDecide' : 'userQuestionAnswer', () => {
+      pending = false;
+      throw new Error('Host refused after another device settled the request');
+    });
+    const status = () =>
+      kind === 'tool-approval'
+        ? actions.toolApprovalStatus(item.channelId!, item.messageId!)
+        : actions.userQuestionStatus(item.channelId!, item.messageId!);
+    expect(await status()).toBe('pending');
+    const submit = () =>
+      kind === 'tool-approval'
+        ? actions.decideToolApproval(item.channelId!, item.messageId!, 'allowed-once')
+        : actions.answerUserQuestion(item.channelId!, item.messageId!, [
+            { id: 'q', selected: ['Blue'] },
+          ]);
+    await expect(submit()).rejects.toThrow('This request was not accepted');
+    expect(refresh).toHaveBeenCalledOnce();
+    expect(await status()).toBe(
+      kind === 'user-question' && result === 'decided' ? 'answered' : 'expired',
+    );
+  },
+);
+
+it.each(
+  (['tool-approval', 'user-question'] as const).flatMap((kind) =>
+    (['submit', 'refresh'] as const).map((phase) => ({ kind, phase })),
+  ),
+)('preserves the $phase failure cause for remote $kind', async ({ kind, phase }) => {
+  const { host, storage } = liveHost();
+  const method = kind === 'tool-approval' ? 'toolApprovalDecide' : 'userQuestionAnswer';
+  const cause = new TypeError('Network request failed');
+  host.methods.set(method, () => ({ accepted: true }));
+  const sources = createRemoteHosts({
+    storage,
+    carrier: {
+      ...host.carrier,
+      async request(url, init) {
+        if (phase === 'submit' && url.endsWith('/' + method)) throw cause;
+        return host.carrier.request(url, init);
+      },
+    },
+  });
+  releases.push(sources.subscribe(() => {}));
+  await vi.waitFor(() => expect(sources.getSnapshot().hosts[0]?.inbox.status).toBe('ready'));
+  const refresh = vi.fn(async () => {
+    throw cause;
+  });
+  const actions = createHostActivityActions({
+    client: () => sources.client(host.hostId)!,
+    items: () => [
+      {
+        id: 'request',
+        category: 'action',
+        kind,
+        botSlug: 'ada',
+        channelId: 'dm-ada',
+        messageId: 'request-message',
+        summary: '',
+        createdAt: '',
+      },
+    ],
+    refresh,
+    open: async () => {},
+    requestUnavailable: '操作失败，请刷新后重试',
+  });
+  const submit = () =>
+    kind === 'tool-approval'
+      ? actions.decideToolApproval('dm-ada', 'request-message', 'allowed-once')
+      : actions.answerUserQuestion('dm-ada', 'request-message', [{ id: 'q', selected: ['Blue'] }]);
+  if (phase === 'submit') {
+    await expect(submit()).rejects.toMatchObject({
+      message: '操作失败，请刷新后重试',
+      cause: { message: 'The Host could not be reached.' },
+    });
+    expect(refresh).not.toHaveBeenCalled();
+  } else {
+    await expect(submit()).rejects.toBe(cause);
+    expect(refresh).toHaveBeenCalledOnce();
+    expect(host.calls.filter((call) => call.method === method)).toHaveLength(1);
+  }
+});
+
+it.each(['tool-approval', 'user-question'] as const)(
+  'rejects a removed %s without reusing its cached mutation reference',
+  async (kind) => {
+    const { host, storage } = liveHost();
+    host.methods.set('toolApprovalStatus', () => ({ status: 'pending' }));
+    host.methods.set('userQuestionStatus', () => ({ status: 'pending' }));
+    host.methods.set('channelTimeline', () => ({
+      page: {
+        entries: [
+          {
+            id: 'request-message',
+            toolApprovalRequest: { toolName: 'bash', role: 'orchestrator', cwd: '', input: '{}' },
+            userQuestionRequest: { questions: [{ id: 'q', question: 'Choose' }] },
+          },
+        ],
+      },
+    }));
+    host.methods.set('toolApprovalDecide', () => ({ accepted: true }));
+    host.methods.set('userQuestionAnswer', () => ({ accepted: true }));
+    const sources = createRemoteHosts({ storage, carrier: host.carrier });
+    releases.push(sources.subscribe(() => {}));
+    await vi.waitFor(() => expect(sources.getSnapshot().hosts[0]?.inbox.status).toBe('ready'));
+    let items: HumanAttentionItem[] = [
+      {
+        id: 'request',
+        category: 'action',
+        kind,
+        botSlug: 'ada',
+        channelId: 'dm-ada',
+        messageId: 'request-message',
+        summary: '',
+        createdAt: '',
+      },
+    ];
+    const refresh = vi.fn(async () => {});
+    const actions = createHostActivityActions({
+      client: () => sources.client(host.hostId)!,
+      items: () => items,
+      refresh,
+      open: async () => {},
+      requestUnavailable: '操作失败，请刷新后重试',
+    });
+    const status = () =>
+      kind === 'tool-approval'
+        ? actions.toolApprovalStatus('dm-ada', 'request-message')
+        : actions.userQuestionStatus('dm-ada', 'request-message');
+    expect(await status()).toBe('pending');
+    items = [];
+    const submit = () =>
+      kind === 'tool-approval'
+        ? actions.decideToolApproval('dm-ada', 'request-message', 'allowed-once')
+        : actions.answerUserQuestion('dm-ada', 'request-message', [
+            { id: 'q', selected: ['Blue'] },
+          ]);
+    await expect(submit()).rejects.toMatchObject({
+      message: '操作失败，请刷新后重试',
+      cause: { message: 'Activity request is unavailable' },
+    });
+    expect(refresh).not.toHaveBeenCalled();
+    expect(
+      host.calls.filter(
+        ({ method }) => method === 'toolApprovalDecide' || method === 'userQuestionAnswer',
+      ),
+    ).toEqual([]);
+    expect(await status()).toBe('pending');
+  },
+);
+
+it.each(
+  (
+    [
+      'toolApprovalStatus',
+      'toolApprovalState',
+      'toolApprovalExecutionState',
+      'userQuestionStatus',
+    ] as const
+  ).flatMap((method) =>
+    (['status', 'timeline'] as const).flatMap((read) =>
+      (['http', 'non-json', 'network'] as const).map((failure) => ({ method, read, failure })),
+    ),
+  ),
+)(
+  'localizes $method $read $failure while retaining its cause',
+  async ({ method, read, failure }) => {
+    const { host, storage } = liveHost();
+    const status = method === 'userQuestionStatus' ? 'userQuestionStatus' : 'toolApprovalStatus';
+    const endpoint = read === 'timeline' ? 'channelTimeline' : status;
+    host.methods.set(status, () => ({ status: 'pending' }));
+    host.methods.set('channelTimeline', () => ({
+      page: {
+        entries: [
+          {
+            id: 'request-message',
+            toolApprovalRequest: { toolName: 'bash', role: 'orchestrator', cwd: '', input: '{}' },
+            userQuestionRequest: { questions: [{ id: 'q', question: 'Choose' }] },
+          },
+        ],
+      },
+    }));
+    const sources = createRemoteHosts({
+      storage,
+      carrier: {
+        ...host.carrier,
+        async request(url, init) {
+          if (url.endsWith('/' + endpoint)) {
+            if (failure === 'network') throw new TypeError('Network request failed');
+            return {
+              status: failure === 'http' ? 502 : 200,
+              text: async () => '<html>Bad gateway</html>',
+            };
+          }
+          return host.carrier.request(url, init);
+        },
+      },
+    });
+    releases.push(sources.subscribe(() => {}));
+    await vi.waitFor(() => expect(sources.getSnapshot().hosts[0]?.inbox.status).toBe('ready'));
+    const refresh = vi.fn(async () => {});
+    const actions = createHostActivityActions({
+      client: () => sources.client(host.hostId)!,
+      items: () => [
+        {
+          id: 'request',
+          category: 'action',
+          kind: method === 'userQuestionStatus' ? 'user-question' : 'tool-approval',
+          botSlug: 'ada',
+          channelId: 'dm-ada',
+          messageId: 'request-message',
+          summary: '',
+          createdAt: '',
+        },
+      ],
+      refresh,
+      open: async () => {},
+      requestUnavailable: '操作失败，请刷新后重试',
+    });
+    const readRequest = actions[method];
+    assert(readRequest !== undefined);
+    await expect(readRequest('dm-ada', 'request-message')).rejects.toMatchObject({
+      message: '操作失败，请刷新后重试',
+      cause: {
+        message:
+          failure === 'http'
+            ? 'The Host answered 502.'
+            : failure === 'non-json'
+              ? 'The Host did not return a JSON response.'
+              : 'The Host could not be reached.',
+      },
+    });
+    expect(refresh).not.toHaveBeenCalled();
+    expect(
+      host.calls.filter(
+        ({ method }) => method === 'toolApprovalDecide' || method === 'userQuestionAnswer',
+      ),
+    ).toEqual([]);
+  },
+);

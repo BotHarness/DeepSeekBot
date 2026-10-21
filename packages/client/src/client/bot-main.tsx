@@ -3280,7 +3280,7 @@ function ConversationView({
     state.selection === undefined ? (
       <Welcome state={state} t={t} />
     ) : state.selection.kind === 'inbox' ? (
-      <ActivityCenterView actions={actions} t={t} />
+      <ActivityCenterView actions={actions} t={t} registry={dockPanels} />
     ) : (
       conversationPane
     );
@@ -3517,7 +3517,7 @@ function BotMainContent({
   const workspace = useContext(WorkspaceContext);
   if (!workspace && state.selection === undefined) return <Welcome state={state} t={t} />;
   if (!workspace && state.selection?.kind === 'inbox')
-    return <ActivityCenterView actions={actions} t={t} />;
+    return <ActivityCenterView actions={actions} t={t} registry={dockPanels} />;
   const scopeKey =
     state.selection === undefined
       ? 'welcome'

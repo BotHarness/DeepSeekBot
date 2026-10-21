@@ -46,7 +46,7 @@ One file per user-facing feature. Each file has four sections: `Sub-features`, `
 | Disposable Memory history, restore and stale-head refusal | no | `scripts/e2e-memory-restore.mjs` | [memory-restore.md](memory-restore.md) |
 | Version-bound Memory images, Markdown previews and CLI export | no | `scripts/e2e-memory-images.mjs`, `scripts/e2e-memory-markdown.mjs`, `scripts/e2e-memory-formats.mjs` | [memory-images.md](memory-images.md) |
 
-| Activity Center: approvals, Channel mute and independent control-rail indicator; page and Dock | yes (real pending requests) | `scripts/e2e-inbox-tool-approval.mjs`, `scripts/e2e-activity-live.mjs`, `scripts/e2e-activity-approve-sync.mjs`, `scripts/e2e-activity-load.mjs` | [activity-inline-approval.md](activity-inline-approval.md) |
+| Activity Center: approvals, Remote Host actions, Channel mute and independent control-rail indicator; page and Dock | yes (real pending requests) | `scripts/e2e-inbox-tool-approval.mjs`, `scripts/e2e-activity-live.mjs`, `scripts/e2e-activity-approve-sync.mjs`, `scripts/e2e-activity-load.mjs` | [activity-inline-approval.md](activity-inline-approval.md) |
 
 ## Coverage and maintenance
 
@@ -95,3 +95,4 @@ Historical failures from 2026-10-14 (not requalified by this audit):
 
 | Three-action tool approval and coherent Full Access | yes | `scripts/e2e-tool-approval-simple.mjs` | [tool-approval-simple.md](tool-approval-simple.md) |
 | Workspace request read/write approval and original-task continuation | yes | `scripts/e2e-workspace-request-write.mjs`, `scripts/e2e-mobile-folder-browse-web.mjs` | [workspace-request-write.md](workspace-request-write.md) |
+
