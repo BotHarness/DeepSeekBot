@@ -249,9 +249,8 @@ describe('Push delivery', () => {
     await f.push.reconcile();
     const [drawn] = f.expo.flat().filter((message) => message.to === TOKEN_A);
     const [system] = f.expo.flat().filter((message) => message.to === TOKEN_B);
-    expect(drawn).not.toHaveProperty('title');
-    expect(drawn).not.toHaveProperty('body');
-    expect(drawn).toMatchObject({ priority: 'high', categoryId: 'tool-approval' });
+    expect(Object.keys(drawn ?? {}).sort()).toEqual(['data', 'priority', 'to']);
+    expect(drawn?.priority).toBe('high');
     expect(drawn?.data).toMatchObject({
       title: '#ops',
       message: 'Ada needs your approval',
@@ -259,6 +258,7 @@ describe('Push delivery', () => {
       sender: 'Ada',
       group: 'ops',
       categoryId: 'tool-approval',
+      badge: 1,
     });
     expect(system).toMatchObject({ title: '#ops', body: 'Ada needs your approval' });
     expect(system?.data).not.toHaveProperty('title');

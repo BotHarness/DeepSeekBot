@@ -53,6 +53,7 @@ export interface PushData {
   title?: string;
   message?: string;
   categoryId?: string;
+  badge?: number;
   test?: true;
   deviceId?: string;
 }
@@ -62,7 +63,7 @@ export interface ExpoMessage {
   title?: string;
   body?: string;
   sound?: 'default';
-  badge: number;
+  badge?: number;
   data: PushData;
   priority?: 'high';
   channelId?: string;
@@ -422,34 +423,40 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
         const sender = source.botName(item.botSlug) ?? item.botSlug;
         const { message, ...shown } = text(item, sender, localeOf(device.locale));
         const drawn = device.platform === 'android' && device.render === 'app';
+        const data: PushData = {
+          v: 1,
+          hostId,
+          itemId: item.id,
+          kind: item.attentionKind,
+          botSlug: item.botSlug,
+          ...(item.channelId === undefined ? {} : { channelId: item.channelId }),
+          ...(item.messageId === undefined ? {} : { messageId: item.messageId }),
+          sender,
+          ...(item.channelName === undefined ? {} : { group: item.channelName }),
+          text: message,
+        };
+        if (drawn)
+          return {
+            to: device.token,
+            priority: 'high',
+            data: {
+              ...data,
+              title: shown.title,
+              message: shown.body,
+              badge,
+              ...(item.categoryId === undefined ? {} : { categoryId: item.categoryId }),
+            },
+          };
         return {
           to: device.token,
-          ...(drawn ? {} : shown),
+          ...shown,
           sound: 'default',
           badge,
           priority: 'high',
           channelId: 'requests',
           ...(item.categoryId === undefined ? {} : { categoryId: item.categoryId }),
           mutableContent: true,
-          data: {
-            v: 1,
-            hostId,
-            itemId: item.id,
-            kind: item.attentionKind,
-            botSlug: item.botSlug,
-            ...(item.channelId === undefined ? {} : { channelId: item.channelId }),
-            ...(item.messageId === undefined ? {} : { messageId: item.messageId }),
-            sender,
-            ...(item.channelName === undefined ? {} : { group: item.channelName }),
-            text: message,
-            ...(drawn
-              ? {
-                  title: shown.title,
-                  message: shown.body,
-                  ...(item.categoryId === undefined ? {} : { categoryId: item.categoryId }),
-                }
-              : {}),
-          },
+          data,
         };
       });
       const kinds: Array<PushKind | 'badge'> = notify.map((item) => item.kind);

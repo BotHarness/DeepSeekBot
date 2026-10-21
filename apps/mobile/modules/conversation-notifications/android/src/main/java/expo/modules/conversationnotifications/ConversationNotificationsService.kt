@@ -1,6 +1,10 @@
 package expo.modules.conversationnotifications
 
 import android.content.Context
+import android.os.Bundle
+import android.os.Parcel
+import android.os.Parcelable
+import expo.modules.notifications.notifications.interfaces.NotificationTrigger
 import expo.modules.notifications.notifications.model.Notification
 import expo.modules.notifications.notifications.model.NotificationBehaviorRecord
 import expo.modules.notifications.notifications.model.NotificationContent
@@ -50,7 +54,7 @@ class ConversationHandlingDelegate(private val base: HandlingDelegate) : Handlin
       .setTitle(title)
       .setText(text)
       .setBody(data)
-      .setBadgeCount(content.badgeCount)
+      .setBadgeCount(content.badgeCount ?: data.optInt("badge", -1).takeIf { it >= 0 })
       .setPriority(content.priority)
       .setColor(content.color)
       .setAutoDismiss(content.isAutoDismiss)
@@ -63,8 +67,39 @@ class ConversationHandlingDelegate(private val base: HandlingDelegate) : Handlin
       }
       .build()
     return Notification(
-      NotificationRequest(request.identifier, filled, request.trigger),
+      NotificationRequest(request.identifier, filled, RequestsTrigger(request.trigger)),
       notification.originDate
     )
+  }
+}
+
+/**
+ * A data-only push names no Android channel the app can read (Expo wraps the data into one JSON
+ * field), so Bot notifications are pinned to the "requests" channel the app creates.
+ */
+class RequestsTrigger(private val base: NotificationTrigger) : NotificationTrigger {
+  override fun getNotificationChannel(): String = REQUESTS
+
+  override fun toBundle(): Bundle = base.toBundle()
+
+  override fun describeContents(): Int = 0
+
+  override fun writeToParcel(dest: Parcel, flags: Int) {
+    dest.writeParcelable(base, flags)
+  }
+
+  companion object {
+    const val REQUESTS = "requests"
+
+    @JvmField
+    val CREATOR = object : Parcelable.Creator<RequestsTrigger> {
+      override fun createFromParcel(parcel: Parcel): RequestsTrigger =
+        RequestsTrigger(
+          parcel.readParcelable(RequestsTrigger::class.java.classLoader)
+            ?: throw IllegalArgumentException("RequestsTrigger needs its base trigger")
+        )
+
+      override fun newArray(size: Int) = arrayOfNulls<RequestsTrigger>(size)
+    }
   }
 }
