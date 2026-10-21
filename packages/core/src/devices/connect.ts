@@ -20,6 +20,7 @@ import {
 } from './cloudflared.js';
 import { DEVICE_GATEWAY_PREFIX } from './gateway.js';
 import { CONNECT_HOSTNAME, type PhoneRoute } from './routes.js';
+import { stampConnectRoute } from './route-context.js';
 
 type Credentials = Pick<CredentialProvider, 'readRecord' | 'modifyRecord' | 'deleteRecord'>;
 
@@ -144,6 +145,7 @@ type GatewayOrigin = Server & { upgraded: Set<Duplex> };
 export function createGatewayOrigin(port: () => number): GatewayOrigin {
   const upgraded = new Set<Duplex>();
   const server = createServer((request, response) => {
+    stampConnectRoute(request);
     if (!admitsGatewayPath(request.url)) {
       request.resume();
       notFound(response);
@@ -175,6 +177,7 @@ export function createGatewayOrigin(port: () => number): GatewayOrigin {
     request.pipe(upstream);
   });
   server.on('upgrade', (request: IncomingMessage, socket: Duplex, head: Buffer) => {
+    stampConnectRoute(request);
     if (!admitsGatewayPath(request.url)) {
       socket.end('HTTP/1.1 404 Not Found\r\nconnection: close\r\ncontent-length: 0\r\n\r\n');
       return;

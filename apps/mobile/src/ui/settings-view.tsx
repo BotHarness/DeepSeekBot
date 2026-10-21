@@ -16,7 +16,6 @@ import { t } from './strings';
 
 export interface SettingsActions {
   onUsage(): void;
-  onOpenFullClient(): void;
   onComputers(): void;
   onAppIcon(): void;
   onNotifications(): void;
@@ -105,13 +104,6 @@ export function SettingsView({
             detail={t.storage.hint}
             disclosure
             onPress={actions.onStorage}
-          />
-          <SettingsRow
-            on={SHEET_GROUP}
-            title={t.openFullClient}
-            leading={<RowIcon name="browser" color={theme.color.accent} />}
-            tone="accent"
-            onPress={actions.onOpenFullClient}
           />
           <SettingsRow
             on={SHEET_GROUP}

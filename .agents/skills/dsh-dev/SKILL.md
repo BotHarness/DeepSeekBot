@@ -415,3 +415,14 @@ it look newly qualified.
 The launcher and `verify-app` share a temporary cookie jar named from `basename(DSH_HOME)`. Two isolated homes named `home` in different parent folders overwrite that jar, so the second launch can make the first Host's doctor return 401 while its own browser still works. Give concurrent homes distinct basenames (`host-a`, `host-b`), preserve the first refusal and verify each Host separately. Do not treat this verification-cookie collision as a product authentication failure.
 
 The qualified workspace retains a hidden sidebar copy beside the visible Channels panel. The two Add remote buttons can have the same accessible name. A first-match selector can click or fill the hidden copy; choose visible elements as the two-Host journey requires, and wait for the submit button to become enabled after input. The real Windows Web baseline paired successfully after the driver selected visible controls and used keyboard input; no product change was required.
+
+### Connect route provenance in pinned DSH 0.2.1-rc.2 (#2541)
+
+Arbitrary HTTP route headers do not enter Typert invocation context, and cookie-authenticated
+browser calls share a Peer. The `connection/request` waterfall does not admit `remote.mux`
+opens. A header-only or unary-only guard therefore cannot restrict all Connect calls.
+BotHarness stamps its cloudflared-only origin with a process-local capability and owns both
+unary admission and a bounded mux adapter at the Device Gateway, before native dispatch.
+The shared client refuses before serializing secret arguments: a Host refusal cannot remove
+plaintext already sent through Cloudflare. Verify HTTP, mux and ordinary streams against the
+pinned Host; this adapter is not encryption or an upstream DSH API extension.

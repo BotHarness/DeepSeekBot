@@ -265,7 +265,6 @@ export function RoutineSheet({
   routines,
   onChanged,
   onClose,
-  onOpenFullClient,
 }: {
   page?: ComponentType<SheetPageProps> | undefined;
   initialMode?: 'detail' | 'edit';
@@ -275,7 +274,6 @@ export function RoutineSheet({
   routines: Routines;
   onChanged(): void;
   onClose(): void;
-  onOpenFullClient(): void;
 }) {
   const theme = useDesignTheme();
   const [routine, setRoutine] = useState<BotScheduleSummary | undefined>(
@@ -535,33 +533,35 @@ export function RoutineSheet({
           })}
         />
         <View style={{ height: space.x5 }} />
-        <SettingsGroupItem first last={false} on={SHEET_GROUP}>
-          <SettingsRow
-            title={t.routineEdit}
-            trailing={chevron}
-            on={SHEET_GROUP}
-            onPress={
-              busy !== undefined
-                ? undefined
-                : editable
-                  ? () => {
-                      if (onEdit !== undefined) {
-                        onEdit();
-                        return;
+        {editable ? (
+          <SettingsGroupItem first last={false} on={SHEET_GROUP}>
+            <SettingsRow
+              title={t.routineEdit}
+              trailing={chevron}
+              on={SHEET_GROUP}
+              onPress={
+                busy !== undefined
+                  ? undefined
+                  : editable
+                    ? () => {
+                        if (onEdit !== undefined) {
+                          onEdit();
+                          return;
+                        }
+                        const next = routineFormOf(routine)!;
+                        latest.current = next;
+                        setForm(next);
+                        setError(undefined);
+                        setNotice(undefined);
+                        setMode('edit');
+                        refreshPreview(next, 0);
                       }
-                      const next = routineFormOf(routine)!;
-                      latest.current = next;
-                      setForm(next);
-                      setError(undefined);
-                      setNotice(undefined);
-                      setMode('edit');
-                      refreshPreview(next, 0);
-                    }
-                  : onOpenFullClient
-            }
-          />
-        </SettingsGroupItem>
-        <SettingsGroupItem first={false} last on={SHEET_GROUP}>
+                    : undefined
+              }
+            />
+          </SettingsGroupItem>
+        ) : null}
+        <SettingsGroupItem first={!editable} last on={SHEET_GROUP}>
           <SettingsRow
             title={t.routineDelete}
             tone="danger"

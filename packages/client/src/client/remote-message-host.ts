@@ -1,4 +1,5 @@
 import { createContext } from 'react';
+import { isConnectRoute } from '../../../../apps/mobile/src/host/route.js';
 
 import { MethodRefused, type HostClient } from '../../../../apps/mobile/src/host/client.js';
 import type { BridgeActions } from './actions.js';
@@ -39,6 +40,7 @@ export interface RemoteMessageHost {
   actions: MessageCardActions;
   fetch: AttachmentFetch;
   isOpen(channelId: string): boolean;
+  secretInputAllowed?(): boolean;
 }
 
 export const RemoteMessageHostContext = createContext<RemoteMessageHost | undefined>(undefined);
@@ -65,6 +67,7 @@ export function createRemoteMessageHost(
   const call = hostBridgeCall(client);
   return {
     isOpen,
+    secretInputAllowed: () => !isConnectRoute(client.resource('/').uri),
     fetch: (path, init) => {
       const source = client.resource(path);
       return fetch(source.uri, {

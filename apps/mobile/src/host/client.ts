@@ -3,7 +3,8 @@ import { ActivitySmoother } from '../../../../packages/client/src/client/activit
 import type { BotPrimaryColor } from '../../../../packages/core/src/bots/primary-color';
 import type { HostCarrier, HostSocket } from './carrier';
 import { DEVICE_PREFIX } from './pairing';
-import { socketOrigin } from './route';
+import { isConnectRoute, socketOrigin } from './route';
+import { secretRouteRefusal } from '../../../../packages/core/src/bridge/secret-route';
 import {
   REMOTE_STREAM_MUX_PATH,
   type ActivityLiveFrame,
@@ -397,6 +398,8 @@ export function createHostClient(options: HostClientOptions): HostClient {
   ): Promise<T> =>
     withDeadline(async (signal) => {
       const name = method.includes('/') ? method : `botharness/${method}`;
+      const refusal = isConnectRoute(via) ? secretRouteRefusal(name) : undefined;
+      if (refusal !== undefined) throw new MethodRefused(refusal.code, refusal.message);
       const request: ClientRequest = {
         type: 'client-request',
         rpcId: id(),

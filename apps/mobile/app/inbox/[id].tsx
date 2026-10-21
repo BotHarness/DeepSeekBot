@@ -1,9 +1,8 @@
 import { Text } from '../../src/ui/primitives/system-text';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo } from 'react';
-import { ScrollView, View } from 'react-native';
+import { ScrollView } from 'react-native';
 
-import { fullClientParams, type FullClientTarget } from '../../src/host/full-client';
 import { useHostSession, useHostSnapshot, useInbox } from '../../src/host/host-session';
 import { messageHref } from '../../src/host/push';
 import {
@@ -19,7 +18,7 @@ import { ApprovalView } from '../../src/ui/approval-view';
 import { ATTENTION_KINDS, AttentionItemView } from '../../src/ui/attention-item';
 import { GrantRequestCard } from '../../src/ui/chat/grant-request-card';
 import { QuestionView } from '../../src/ui/question-view';
-import { ActionButton, Notice } from '../../src/ui/request-parts';
+import { Notice } from '../../src/ui/request-parts';
 import { t } from '../../src/ui/strings';
 import { useTheme } from '../../src/ui/theme';
 
@@ -95,14 +94,6 @@ export default function InboxItemScreen() {
     () => ({ id: params.id, botSlug: params.botSlug }),
     [params.id, params.botSlug],
   );
-  const target: FullClientTarget =
-    params.kind === 'private-input' && ref !== undefined
-      ? {
-          kind: 'private-input',
-          channelId: ref.channelId,
-          messageId: ref.messageId,
-        }
-      : { kind: 'home' };
   const title = t.kind[params.kind] ?? t.otherKind;
   const fallback = (
     <ScrollView contentContainerStyle={{ padding: 16, gap: 16 }}>
@@ -115,19 +106,6 @@ export default function InboxItemScreen() {
       <Notice tone="warning">
         {params.kind === 'private-input' ? t.privateInputHint : t.readOnlyHint}
       </Notice>
-      {saved ? (
-        <View style={{ flexDirection: 'row' }}>
-          <ActionButton
-            label={t.openFullClient}
-            onPress={() =>
-              router.push({
-                pathname: '/full-client',
-                params: fullClientParams(target),
-              })
-            }
-          />
-        </View>
-      ) : null}
     </ScrollView>
   );
   let body;

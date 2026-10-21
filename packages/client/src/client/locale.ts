@@ -3598,6 +3598,7 @@ export const zh = {
   'privateInput.expiresAt': '有效期至 {time}',
   'privateInput.expired': '此私密输入请求已过期，请向 Bot 发起新请求',
   'privateInput.account': '账号',
+  'privateInput.connectRefused': 'Connect 尚未端到端加密。请在本机或通过 Tailscale 填写密钥。',
   'privateInput.note': '仅 Host 保存原值。Bot 只获得引用；执行仍需按现有权限批准。',
   'privateInput.configured': '已配置私密信息，输入内容已清除。',
   'privateInput.submit': '私密提交',
@@ -7920,6 +7921,8 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'privateInput.expiresAt': 'Expires at {time}',
   'privateInput.expired': 'This private input request has expired. Ask the Bot for a new request.',
   'privateInput.account': 'Account',
+  'privateInput.connectRefused':
+    'Connect is not end-to-end encrypted. Enter secrets on this Host or over Tailscale.',
   'privateInput.note':
     'Only the Host stores the values. The Bot receives references; execution still follows existing approval.',
   'privateInput.configured': 'Private information configured. Input values cleared.',

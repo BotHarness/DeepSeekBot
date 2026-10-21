@@ -3636,7 +3636,9 @@ export async function submitPrivateInput(
   values: Record<string, string>,
 ): Promise<void> {
   const result = await call('privateInputSubmit', { channelId, messageId, values });
-  if (!result.ok || (result.value as { accepted?: unknown }).accepted !== true)
+  if (!result.ok)
+    throw new BridgeCallError(result.error.code, result.error.message, result.error.details);
+  if ((result.value as { accepted?: unknown }).accepted !== true)
     throw new Error('Private input was not accepted');
 }
 

@@ -13,6 +13,7 @@ import type { BotHarnessTranslate } from './locale.js';
 import { store, type ChannelMessage } from './store.js';
 import type { PrivateInputStatus } from '../../../core/src/credentials/contracts.js';
 import { PrivateAccountControls } from './private-account-controls.js';
+import { BridgeCallError } from './bridge.js';
 import { MessagingHelp } from './messaging-help.js';
 
 type PrivateCardMount = {
@@ -53,6 +54,8 @@ export function PrivateInputCard({
   const [status, setStatus] = useState<PrivateInputStatus | 'loading'>('loading');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
+  const [routeRefused, setRouteRefused] = useState(false);
+  const connectBlocked = remote?.secretInputAllowed?.() === false || routeRefused;
   const [retry, setRetry] = useState(0);
   const mount = useMountedResource<HTMLFormElement>(
     (node) => {
@@ -108,6 +111,7 @@ export function PrivateInputCard({
   const settle = async (cancel: boolean): Promise<void> => {
     if (
       disabled ||
+      (!cancel && connectBlocked) ||
       submitting.current ||
       mounted.current?.active !== true ||
       (remote === undefined
@@ -133,7 +137,9 @@ export function PrivateInputCard({
         if (current !== 'pending') lease.terminal = current;
         setStatus(current);
       }
-    } catch {
+    } catch (failure) {
+      if (failure instanceof BridgeCallError && failure.code === 'secret-route-refused')
+        setRouteRefused(true);
       if (lease.active && lease.terminal === undefined) {
         setError(true);
         setRetry((value) => value + 1);
@@ -172,7 +178,12 @@ export function PrivateInputCard({
         {t('privateInput.account')}: {request.account}
       </div>
       <div className="bh-question-prompt">{request.purpose}</div>
-      {status === 'pending' ? (
+      {connectBlocked ? (
+        <div role="status" className="bh-note">
+          {t('privateInput.connectRefused')}
+        </div>
+      ) : null}
+      {status === 'pending' && !connectBlocked ? (
         request.fields.map((field) => (
           <div className="bh-question-item" key={field.id}>
             <label htmlFor={id + field.id}>
@@ -190,7 +201,7 @@ export function PrivateInputCard({
             />
           </div>
         ))
-      ) : status === 'configured' ? null : (
+      ) : status === 'configured' || (status === 'pending' && connectBlocked) ? null : (
         <div role="status" className="bh-note">
           {status === 'loading'
             ? t('approval.loading')
@@ -206,7 +217,7 @@ export function PrivateInputCard({
             variant="primary"
             size="sm"
             icon={<IconCheckOutlineRegular size={14} />}
-            disabled={disabled}
+            disabled={disabled || connectBlocked}
           >
             {busy ? t('approval.loading') : t('privateInput.submit')}
           </Button>
@@ -222,7 +233,7 @@ export function PrivateInputCard({
           </Button>
         </div>
       ) : null}
-      {error ? (
+      {error && !routeRefused ? (
         <div className="bh-error" role="alert">
           {t('privateInput.error')}{' '}
           <Button

@@ -337,25 +337,18 @@ describe('Phone actions for Inbox items', () => {
     expect(page.textContent).toContain('fallback');
   });
 
-  it('opens the private input form on this phone and collapses once it is handled', async () => {
-    const fill = vi.fn();
+  it('directs private input to the Host without opening a WebView and collapses once handled', async () => {
     const page = await render(
       createElement(PrivateInputCard, {
         botName: 'Ada',
         purpose: 'Read the private repository',
-        onFill: fill,
       }),
     );
     expect(page.textContent).toContain(t.privateInputTitle('Ada'));
     expect(page.textContent).toContain('Read the private repository');
     expect(page.textContent).toContain(t.privateInputNote);
-    await press(button(page, t.privateInputFill));
-    expect(fill).toHaveBeenCalledOnce();
-    act(() =>
-      root!.render(
-        createElement(PrivateInputCard, { botName: 'Ada', resolved: true, onFill: fill }),
-      ),
-    );
+    expect(page.querySelector('button')).toBeNull();
+    act(() => root!.render(createElement(PrivateInputCard, { botName: 'Ada', resolved: true })));
     expect(line(page)).toBe(t.cardLine(t.kind['private-input']!, t.privateInputDone));
   });
 });

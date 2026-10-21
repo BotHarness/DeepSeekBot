@@ -9,6 +9,7 @@ The browser pairs a Remote Host as a Paired Device and reads its Host Feed throu
 - `open`: a remote row opens a Host-scoped conversation.
 - `upgrade`: existing browser pairings and the selected tab survive the storage-key rename.
 - `remove`: removing a Host forgets its rows, stops its Inbox and releases cached avatar object URLs.
+- `secret-route`: Connect private input shows a bilingual trusted-route notice without secret fields. Cancellation remains available; the shared Host client refuses before serialization. Loopback/Tailscale retain submission.
 
 ## How to get to it (user POV)
 
@@ -26,3 +27,5 @@ Read the browser console and run `node scripts/verify-app.mjs observe --name <na
 - Remote chat displays text and attachment names; images and cards are not qualified.
 - The Host look is still per phone. DSH Desktop and two physical machines over a real tailnet are not qualified by a two-Host local run.
 - Dismiss Continue and Skip onboarding overlays before selecting Messages. Retain any failed drive evidence before retrying.
+
+For #2541, pair a Connect Host and open a pending private input card. Confirm the notice in both themes, absence of password fields and working Cancel. Verify marked unary and mux calls return `secret-route-refused`, and ordinary Host Feed traffic still works. The removed `/botharness-device/web/` route must return 404. Use synthetic secrets only; a model quota failure blocks live card creation and must remain an explicit QA gap.

@@ -222,7 +222,6 @@ vi.mock('../src/ui/chat/working-status', () => ({
     bots.length ? <span data-testid="pending">pending</span> : null,
 }));
 vi.mock('../src/ui/chat/time-separator', () => ({ TimeSeparator: () => null }));
-vi.mock('../src/ui/open-full-client', () => ({ OpenFullClientButton: () => null }));
 
 import { ConversationScreen } from '../src/ui/chat/conversation-screen';
 

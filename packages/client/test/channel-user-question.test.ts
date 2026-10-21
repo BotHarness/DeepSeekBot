@@ -1,5 +1,9 @@
 // @vitest-environment jsdom
 import {
+  RemoteMessageHostContext,
+  type RemoteMessageHost,
+} from '../src/client/remote-message-host.js';
+import {
   act,
   createElement,
   type ButtonHTMLAttributes,
@@ -130,6 +134,35 @@ describe('private input card', () => {
       ],
     },
   };
+  it('shows the Connect notice without inputs while keeping cancellation available', async () => {
+    const actions = {
+      privateInputStatus: vi.fn().mockResolvedValue('pending'),
+      privateInputSubmit: vi.fn(),
+      privateInputCancel: vi.fn().mockResolvedValue(undefined),
+    } as unknown as BridgeActions;
+    const remote = {
+      secretInputAllowed: () => false,
+      isOpen: () => true,
+      actions,
+      fetch: vi.fn(),
+    } satisfies RemoteMessageHost;
+    await act(async () =>
+      root.render(
+        createElement(
+          RemoteMessageHostContext.Provider,
+          { value: remote },
+          createElement(ChannelMessageBody, { message: card, actions, t: zhTranslate }),
+        ),
+      ),
+    );
+    expect(container.textContent).toContain('Connect 尚未端到端加密');
+    expect(container.querySelector('input')).toBeNull();
+    expect(button('提交')?.disabled).toBe(true);
+    await act(async () => button('取消')?.click());
+    expect(actions.privateInputCancel).toHaveBeenCalledOnce();
+    expect(actions.privateInputSubmit).not.toHaveBeenCalled();
+  });
+
   it('offers replacement and revocation without restoring inputs and ignores a stale configured poll after revocation', async () => {
     vi.useFakeTimers();
     try {

@@ -9,6 +9,8 @@ import { attachOperationalModule, mountOperationalDatabase } from '../src/databa
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createDeviceGateway, DEVICE_GATEWAY_PREFIX } from '../src/devices/gateway.js';
 import { createDevicePairing } from '../src/devices/pairing.js';
+import { createGatewayOrigin } from '../src/devices/connect.js';
+import { DEVICE_ROUTE_HEADER, isConnectRequest } from '../src/devices/route-context.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
 
 const servers: Server[] = [];
@@ -47,7 +49,13 @@ async function fakeDsh(connectOffer?: Parameters<typeof createDeviceGateway>[0][
     const chunks: Buffer[] = [];
     req.on('data', (chunk: Buffer) => chunks.push(chunk));
     req.on('end', () => {
-      state.seen.push({ ...req.headers, path: url.pathname });
+      const { [DEVICE_ROUTE_HEADER]: routeTag, ...headers } = req.headers;
+      state.seen.push({
+        ...headers,
+        path: url.pathname,
+        connect: isConnectRequest(req),
+        routeHeaderPresent: routeTag !== undefined,
+      });
       res.writeHead(200, { 'content-type': 'application/json', 'set-cookie': 'leak=1' });
       res.end(JSON.stringify({ path: url.pathname, body: Buffer.concat(chunks).toString() }));
     });
@@ -59,7 +67,14 @@ async function fakeDsh(connectOffer?: Parameters<typeof createDeviceGateway>[0][
       return;
     }
     state.upgrades.push(req.url ?? '');
-    state.seen.push({ upgrade: req.url });
+    state.seen.push({
+      upgrade: req.url,
+      connect: isConnectRequest(req),
+      routeHeaderPresent: req.headers[DEVICE_ROUTE_HEADER] !== undefined,
+      routeHeaderCount: req.rawHeaders.filter(
+        (value, index) => index % 2 === 0 && value.toLowerCase() === DEVICE_ROUTE_HEADER,
+      ).length,
+    });
     socket.write(
       'HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n',
     );
@@ -394,7 +409,9 @@ describe('device gateway', () => {
       '/botharness-device/api/browser/webrtc/signaling?viewer=abc',
     );
     expect(open.status).toBe(101);
-    expect(host.state.seen).toContainEqual({ upgrade: '/api/browser/webrtc/signaling?viewer=abc' });
+    expect(host.state.seen).toContainEqual(
+      expect.objectContaining({ upgrade: '/api/browser/webrtc/signaling?viewer=abc' }),
+    );
     expect(await echo(open.socket!, 'HELLO')).toBe('HELLO');
 
     const closed = new Promise((resolve) => open.socket!.on('close', resolve));
@@ -425,111 +442,86 @@ describe('device gateway', () => {
     open.socket!.destroy();
     expect((await call()).status).toBe(200);
   });
+});
 
-  describe('full Web Client for the in-app WebView', () => {
-    const web = (host: { base: string }, path: string, headers: Record<string, string> = {}) =>
-      fetch(`${host.base}/botharness-device/web${path}`, { headers, redirect: 'manual' });
-    const sessionCookie = (response: Response) =>
-      response.headers.get('set-cookie')?.split(';')[0] ?? '';
+describe('Connect route provenance', () => {
+  async function originFor(port: number) {
+    const origin = createGatewayOrigin(() => port);
+    servers.push(origin);
+    await new Promise<void>((resolve) => origin.listen(0, '127.0.0.1', resolve));
+    const originPort = (origin.address() as AddressInfo).port;
+    return { base: `http://127.0.0.1:${originPort}`, port: originPort };
+  }
 
-    it('trades the credential on the first load for a scoped session cookie', async () => {
+  it.each([undefined, 'connect', 'tailscale', 'loopback', ''])(
+    'overwrites an absent or forged HTTP tag (%s) before forwarding to DSH',
+    async (tag) => {
       const host = await fakeDsh();
+      const origin = await originFor(host.port);
       const paired = await pair(host.base, host.pairing.createOffer().offer);
-      expect((await web(host, '/')).status).toBe(401);
-
-      const first = await web(host, '/', { authorization: `Device ${paired.body.credential}` });
-      expect(first.status).toBe(200);
-      expect(await first.json()).toMatchObject({ path: '/' });
-      const issued = first.headers.get('set-cookie')!;
-      expect(issued).toMatch(/^botharness-device-web=[\w-]+; Path=\/botharness-device\/web\/;/u);
-      expect(issued).toContain('HttpOnly');
-      expect(issued).toContain('SameSite=Strict');
-      expect(issued).not.toContain('Secure');
-      expect(issued).not.toContain(paired.body.credential!.split('.')[1]);
-
-      const cookie = sessionCookie(first);
-      const api = await fetch(`${host.base}/botharness-device/web/api/botharness/list`, {
-        method: 'POST',
-        headers: { cookie, origin: host.base, 'content-type': 'application/json' },
-        body: '{"type":"client-request"}',
-      });
-      expect(api.status).toBe(200);
-      expect(await api.json()).toEqual({
-        path: '/api/botharness/list',
-        body: '{"type":"client-request"}',
-      });
-      expect(api.headers.get('set-cookie')).toBeNull();
-      const seen = host.state.seen.at(-1)!;
-      expect(seen.cookie).toBe('dsh=1');
-      expect(seen.origin).toBeUndefined();
-
-      const asset = await web(host, '/assets/index.js?v=1', { cookie });
-      expect(await asset.json()).toMatchObject({ path: '/assets/index.js' });
-      expect((await web(host, '/', { cookie: 'botharness-device-web=forged' })).status).toBe(401);
-    });
-
-    it('marks the cookie Secure behind an HTTPS route and redirects the bare directory', async () => {
-      const host = await fakeDsh();
-      const paired = await pair(host.base, host.pairing.createOffer().offer);
-      const bare = await web(host, '?x=1', {
+      const headers = {
         authorization: `Device ${paired.body.credential}`,
-        'x-forwarded-proto': 'https',
+        ...(tag === undefined ? {} : { [DEVICE_ROUTE_HEADER]: tag }),
+      };
+      const direct = await fetch(`${host.base}/botharness-device/api/botharness/list`, { headers });
+      await direct.text();
+      expect(host.state.seen.at(-1)).toMatchObject({ connect: false, routeHeaderPresent: false });
+      const tunneled = await fetch(`${origin.base}/botharness-device/api/botharness/list`, {
+        headers,
       });
-      expect(bare.status).toBe(308);
-      expect(bare.headers.get('location')).toBe('/botharness-device/web/?x=1');
-      expect(bare.headers.get('set-cookie')).toContain('Secure');
-    });
+      await tunneled.text();
+      expect(host.state.seen.at(-1)).toMatchObject({ connect: true, routeHeaderPresent: true });
+      expect(tunneled.headers.get(DEVICE_ROUTE_HEADER)).toBeNull();
+    },
+  );
 
-    it('ends the WebView session, its stream and its next request on revoke', async () => {
-      const host = await fakeDsh();
-      const paired = await pair(host.base, host.pairing.createOffer().offer);
-      const cookie = sessionCookie(
-        await web(host, '/', { authorization: `Device ${paired.body.credential}` }),
+  it('refuses the removed full Web Client on every route, including cookies and upgrades', async () => {
+    const host = await fakeDsh();
+    const origin = await originFor(host.port);
+    const paired = await pair(host.base, host.pairing.createOffer().offer);
+    const headers = {
+      authorization: `Device ${paired.body.credential}`,
+      cookie: 'botharness-device-web=old',
+    };
+    for (const base of [host.base, origin.base]) {
+      for (const path of [
+        '/web',
+        '/web/',
+        '/web/api/botharness/privateInputSubmit',
+        '/web/assets/main.js',
+      ]) {
+        const answer = await fetch(`${base}/botharness-device${path}`, { headers });
+        expect(answer.status).toBe(404);
+        await answer.text();
+      }
+    }
+    for (const port of [host.port, origin.port]) {
+      expect((await stream(port, headers, '/botharness-device/web/api/remote.mux')).status).toBe(
+        404,
       );
-      const mux = '/botharness-device/web/api/remote.mux';
-      expect((await stream(host.port, {}, mux)).status).toBe(401);
-      const open = await stream(host.port, { cookie, origin: host.base }, mux);
-      expect(open.status).toBe(101);
-      expect(await echo(open.socket!, 'frame-1')).toBe('frame-1');
-      expect(
-        (await stream(host.port, { cookie, origin: 'https://evil.example' }, mux)).status,
-      ).toBe(403);
+    }
+    expect(host.state.seen).toEqual([]);
+  });
 
-      const closed = new Promise((resolve) => open.socket!.on('close', resolve));
-      expect(host.pairing.revoke(paired.body.deviceId!)).toEqual({
-        revoked: true,
-        closedStreams: 1,
-      });
-      await closed;
-
-      const after = await web(host, '/', { cookie });
-      expect([after.status, await after.json()]).toEqual([401, { code: 'device-revoked' }]);
-      expect(await stream(host.port, { cookie }, mux)).toEqual({
-        status: 401,
-        body: '{"code":"device-revoked"}',
-      });
-    });
-
-    it('forwards a viewer socket under the directory and closes it on revoke', async () => {
-      const host = await fakeDsh();
-      const paired = await pair(host.base, host.pairing.createOffer().offer);
-      const cookie = sessionCookie(
-        await web(host, '/', { authorization: `Device ${paired.body.credential}` }),
-      );
-      const viewer = '/botharness-device/web/botharness-computer/viewer/websockets?token=x';
-      expect((await stream(host.port, {}, viewer)).status).toBe(401);
-      const open = await stream(host.port, { cookie, origin: host.base }, viewer);
-      expect(open.status).toBe(101);
-      expect(host.state.upgrades).toEqual(['/botharness-computer/viewer/websockets?token=x']);
-      expect(await echo(open.socket!, 'pointer')).toBe('pointer');
-
-      const closed = new Promise((resolve) => open.socket!.on('close', resolve));
-      expect(host.pairing.revoke(paired.body.deviceId!).closedStreams).toBe(1);
-      await closed;
-      expect(await stream(host.port, { cookie }, viewer)).toEqual({
-        status: 401,
-        body: '{"code":"device-revoked"}',
-      });
-    });
+  it('overwrites a forged upgrade tag and strips forged direct tags', async () => {
+    const host = await fakeDsh();
+    const origin = await originFor(host.port);
+    const paired = await pair(host.base, host.pairing.createOffer().offer);
+    const headers = {
+      authorization: `Device ${paired.body.credential}`,
+      [DEVICE_ROUTE_HEADER]: 'loopback',
+    };
+    const direct = await stream(host.port, headers);
+    expect(direct.status).toBe(101);
+    expect(host.state.seen.at(-1)).toMatchObject({ connect: false, routeHeaderPresent: false });
+    direct.socket!.destroy();
+    const tunneled = await stream(
+      origin.port,
+      headers,
+      '/botharness-device/api/browser/webrtc/signaling',
+    );
+    expect(tunneled.status).toBe(101);
+    expect(host.state.seen.at(-1)).toMatchObject({ connect: true, routeHeaderCount: 1 });
+    tunneled.socket!.destroy();
   });
 });

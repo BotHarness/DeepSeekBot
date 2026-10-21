@@ -126,15 +126,6 @@ export default function RootLayout() {
                   ...sheetScreenOptions(design, true),
                 }}
               />
-              <Stack.Screen
-                name="full-client"
-                options={{
-                  title: t.fullClient,
-                  presentation: 'fullScreenModal',
-                  headerShown: false,
-                  gestureEnabled: false,
-                }}
-              />
             </Stack>
             <StatisticsNotice />
             <HostDrawer />

@@ -179,6 +179,8 @@ declare module '@deepseek-ai/dsh-typert-protocol/types' {
   }
 }
 
+export { SECRET_ROUTE_METHODS, secretRouteRefusal } from './secret-route.js';
+
 const REMOTE_METHOD_DESCRIPTOR = '@deepseek-ai/dsh-typert-protocol/remote-methods';
 
 interface RemoteMethodDescriptor {
