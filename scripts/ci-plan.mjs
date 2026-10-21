@@ -1,7 +1,9 @@
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, existsSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { dirname, join, posix, resolve } from 'node:path';
+import { isBuiltin } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { parse as parseJavaScript } from '@babel/parser';
 
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const REQUIRED_CHECK = 'lint, format, typecheck, test, build, docs';
@@ -40,6 +42,7 @@ export const RULES = [
   full('.github/workflows/npm-release.yml', 'Release verification and package gates'),
   full('scripts/published-product-provider.json', 'Published Provider reuse qualification'),
   full('scripts/ci-plan.mjs', 'This test plan'),
+  full('scripts/ci-affected.mjs', 'Affected test selection and execution'),
   related(
     'packages/core/src/**',
     'Core source; the docs site also reads it for reference pages',
@@ -481,6 +484,132 @@ export function androidNativeTests(tests, changes) {
   );
 }
 
+const MOBILE_PROSE = /^apps\/mobile\/(?:test\/|\.maestro\/|store\/)|^apps\/mobile\/[^/]+\.md$/;
+function mobileSpecifiers(source, file) {
+  const ast = parseJavaScript(source, {
+    sourceType: 'unambiguous',
+    createImportExpressions: true,
+    plugins: file.endsWith('.ts') ? ['typescript'] : ['typescript', 'jsx'],
+  });
+  const specifiers = [];
+  const queue = [ast];
+  while (queue.length) {
+    const node = queue.pop();
+    let input;
+    if (node.type === 'TSExternalModuleReference') input = node.expression;
+    if (
+      [
+        'ImportDeclaration',
+        'ExportNamedDeclaration',
+        'ExportAllDeclaration',
+        'ImportExpression',
+      ].includes(node.type)
+    )
+      input = node.source;
+    if (
+      node.type === 'CallExpression' &&
+      ((node.callee.type === 'Identifier' && node.callee.name === 'require') ||
+        (node.callee.type === 'MemberExpression' && node.callee.object.name === 'require'))
+    )
+      input = node.arguments[0] ?? { type: 'missing' };
+    if (input) {
+      if (input.type !== 'StringLiteral') throw new Error('dynamic module path');
+      specifiers.push(input.value);
+    }
+    for (const value of Object.values(node)) {
+      if (Array.isArray(value)) queue.push(...value.filter((child) => child?.type));
+      else if (value?.type) queue.push(value);
+    }
+  }
+  return specifiers;
+}
+
+function mobileInputs(index) {
+  const workspaces = new Map();
+  const dependencies = new Set();
+  for (const manifest of index.files.filter((file) =>
+    /^(?:package\.json|(?:apps|packages)\/[^/]+\/package\.json)$/.test(file),
+  )) {
+    const data = JSON.parse(index.source(manifest));
+    if (data.name) workspaces.set(data.name, `${posix.dirname(manifest)}/`);
+    for (const name of Object.keys({ ...data.dependencies, ...data.devDependencies }))
+      dependencies.add(name);
+  }
+  const queue = index.files.filter(
+    (file) => /^apps\/mobile\/(?:(?:app|src|modules)\/|[^/]+$)/.test(file) && CODE.test(file),
+  );
+  const inputs = new Set();
+  while (queue.length) {
+    const file = queue.pop();
+    if (inputs.has(file)) continue;
+    inputs.add(file);
+    if (!CODE.test(file)) continue;
+    let specifiers;
+    try {
+      specifiers = mobileSpecifiers(index.source(file), file);
+    } catch {
+      return { inputs, uncertain: `${file} has an import that cannot be traced safely` };
+    }
+    for (const specifier of specifiers) {
+      const packageName = specifier.startsWith('@')
+        ? specifier.split('/').slice(0, 2).join('/')
+        : specifier.split('/')[0];
+      const workspace = workspaces.get(packageName);
+      if (workspace) {
+        queue.push(
+          ...index.files.filter((path) => path.startsWith(workspace) && !inputs.has(path)),
+        );
+        continue;
+      }
+      if (!specifier.startsWith('.')) {
+        if (!dependencies.has(packageName) && !isBuiltin(specifier))
+          return { inputs, uncertain: `${file} imports an unknown alias ${specifier}` };
+        continue;
+      }
+      const target = normalize(posix.join(posix.dirname(file), specifier));
+      if (!target) return { inputs, uncertain: `${file} imports outside the repository` };
+      const stem = target.replace(/\.(?:[cm]?[jt]sx?)$/, '');
+      const candidates = new Set([target]);
+      for (const base of [stem, `${target}/index`])
+        for (const platform of ['', '.native', '.ios', '.android'])
+          for (const extension of ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.json'])
+            candidates.add(`${base}${platform}${extension}`);
+      const resolved = [...candidates].filter((path) => index.tracked.has(path));
+      if (!resolved.length)
+        return { inputs, uncertain: `${file} has an unresolved import ${specifier}` };
+      queue.push(...resolved);
+    }
+  }
+  return { inputs };
+}
+
+export function mobileVerification({ event, labels = [], changes = [], truncated = false, index }) {
+  const yes = (reason) => ({ run: true, reason });
+  if (event !== 'pull_request') return yes(`${event} verifies mobile`);
+  if (labels.includes(FULL_LABEL)) return yes(`${FULL_LABEL} verifies mobile`);
+  if (truncated || changes.length >= MAX_CHANGED_FILES) return yes('incomplete changed file list');
+  const changed = [];
+  for (const change of changes) {
+    for (const path of [change.path, change.previous].filter(Boolean)) {
+      const rule = classify(path);
+      if (!rule) return yes(`${path} is unclassified`);
+      if (rule.tests === 'full') return yes(`${path} is a full-run input`);
+      if (MOBILE_PROSE.test(path) || path === 'apps/mobile/.gitignore') continue;
+      if (path.startsWith('apps/mobile/')) return yes(`${path} is a mobile input`);
+      if (rule.tests === 'related' && CODE.test(path) && REMOVED.has(statusOf(change.status)))
+        return yes(`${path} was removed or renamed; its old importers cannot be traced`);
+      changed.push(path);
+    }
+  }
+  if (changed.some((path) => /^(?:packages|scripts)\//.test(path))) {
+    const { inputs, uncertain } = mobileInputs(index);
+    if (uncertain) return yes(uncertain);
+    const dependency = changed.find((path) => inputs.has(path));
+    if (dependency) return yes(`${dependency} is imported by mobile`);
+  }
+  return { run: false, reason: 'no changed mobile or shared bundle input' };
+}
+
 function githubPlan(changesFile) {
   const event = process.env.GITHUB_EVENT_NAME;
   const payload = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
@@ -490,15 +619,16 @@ function githubPlan(changesFile) {
   const changedCount = payload.pull_request?.changed_files ?? changes.length;
   const files = trackedFiles();
   const index = createIndex(files, (file) => readFileSync(join(ROOT, file), 'utf8'));
-  const result = plan({ event, labels, changes, truncated: changedCount > changes.length, index });
+  const input = { event, labels, changes, truncated: changedCount > changes.length, index };
+  const result = { ...plan(input), mobile: mobileVerification(input) };
   appendFileSync(
     process.env.GITHUB_OUTPUT,
-    `tests=${result.tests}\ndocs-site=${result.docsSite}\nandroid-native=${androidNativeTests(result.tests, changes)}\nrelated=${JSON.stringify(result.related)}\n`,
+    `tests=${result.tests}\ndocs-site=${result.docsSite}\nmobile=${result.mobile.run}\nandroid-native=${androidNativeTests(result.tests, changes)}\nrelated=${JSON.stringify(result.related)}\n`,
   );
   const listed = result.related.map((file) => `- \`${file}\``).join('\n');
   appendFileSync(
     process.env.GITHUB_STEP_SUMMARY,
-    `### CI test plan: ${result.tests}\n\n${result.reason}.\n\nDocs site build: ${result.docsSite ? 'yes' : 'no'}\n\n${listed ? `Related test inputs:\n\n${listed}\n` : ''}`,
+    `### CI test plan: ${result.tests}\n\n${result.reason}.\n\nDocs site build: ${result.docsSite ? 'yes' : 'no'}\n\nMobile verification: ${result.mobile.run ? 'yes' : 'no'} (${result.mobile.reason})\n\n${listed ? `Related test inputs:\n\n${listed}\n` : ''}`,
   );
   console.log(JSON.stringify(result, null, 2));
 }
@@ -510,7 +640,9 @@ function localPlan(base) {
   );
   const index = createIndex(files, (file) => readFileSync(join(ROOT, file), 'utf8'));
   const result = plan({ event: 'pull_request', changes, index });
+  const mobile = mobileVerification({ event: 'pull_request', changes, index });
   console.log(`${result.tests}: ${result.reason}`);
+  console.log(`mobile: ${mobile.run ? 'yes' : 'no'} (${mobile.reason})`);
   if (result.tests === 'full') console.log(`pnpm vitest run --exclude ${DOCS_SITE_TEST}`);
   if (result.tests === 'affected')
     console.log(

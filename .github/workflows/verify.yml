@@ -24,9 +24,9 @@ env:
 
 jobs:
   plan:
-    name: plan tests
+    name: plan tests and run small selections
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 20
     permissions:
       contents: read
       pull-requests: read
@@ -35,11 +35,20 @@ jobs:
       docs-site: ${{ steps.plan.outputs.docs-site }}
       related: ${{ steps.plan.outputs.related }}
       android-native: ${{ steps.plan.outputs.android-native }}
+      mobile: ${{ steps.plan.outputs.mobile }}
+      matrix: ${{ steps.select.outputs.matrix }}
+      count: ${{ steps.select.outputs.count }}
+      shards: ${{ steps.select.outputs.shards }}
     steps:
       - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          run_install: false
       - uses: actions/setup-node@v7
         with:
           node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
       - name: List changed files
         if: github.event_name == 'pull_request'
         env:
@@ -51,6 +60,16 @@ jobs:
           > "$RUNNER_TEMP/changes.tsv"
       - id: plan
         run: node scripts/ci-plan.mjs --github --changes "$RUNNER_TEMP/changes.tsv"
+      - id: select
+        if: steps.plan.outputs.tests == 'affected'
+        env:
+          RELATED: ${{ steps.plan.outputs.related }}
+        run: node scripts/ci-affected.mjs --select
+      - name: Run small affected selection
+        if: steps.select.outputs.shards == '1'
+        run: node scripts/ci-affected.mjs --run
+        env:
+          TEST_FILES: ${{ toJSON(fromJSON(steps.select.outputs.matrix || '{"include":[{"files":[]}]}').include[0].files) }}
 
   static:
     name: lint, format, typecheck, build
@@ -69,12 +88,13 @@ jobs:
       - run: pnpm lint
       - run: pnpm format:check
       - run: pnpm typecheck
-      - run: pnpm --filter @botharness/mobile expo:doctor
       - run: pnpm build
       - run: git diff --exit-code -- packages/computer/lib/client.js packages/computer/lib/client.js.map packages/browser/lib/client.js packages/browser/lib/client.js.map
 
   mobile-export:
-    name: mobile bundles (iOS and Android)
+    name: mobile verification (iOS and Android)
+    needs: plan
+    if: needs.plan.outputs.mobile == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -87,6 +107,7 @@ jobs:
           node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @botharness/mobile expo:doctor
       - run: pnpm --filter @botharness/mobile export
         env:
           CI: '1'
@@ -142,11 +163,14 @@ jobs:
       - run: pnpm vitest run --exclude "$DOCS_SITE_TEST" --shard=${{ matrix.shard }}/${{ strategy.job-total }}
 
   test-affected:
-    name: test (affected)
+    name: test (affected shard ${{ matrix.shard }})
     needs: plan
-    if: needs.plan.outputs.tests == 'affected'
+    if: needs.plan.outputs.shards == '3'
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -157,11 +181,9 @@ jobs:
           node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - env:
-          RELATED: ${{ needs.plan.outputs.related }}
-        run: |
-          mapfile -t files < <(jq -r '.[]' <<<"$RELATED")
-          pnpm vitest related --run --passWithNoTests --exclude "$DOCS_SITE_TEST" "${files[@]}"
+      - run: node scripts/ci-affected.mjs --run
+        env:
+          TEST_FILES: ${{ toJSON(matrix.files) }}
 
   docs-site:
     name: docs site build
@@ -213,5 +235,29 @@ jobs:
       - env:
           NEEDS: ${{ toJSON(needs) }}
         run: |
-          jq -e '.plan.result == "success" and .static.result == "success" and .["mobile-export"].result == "success"' <<<"$NEEDS"
-          jq -e 'to_entries | all(.value.result == "success" or .value.result == "skipped")' <<<"$NEEDS"
+          node <<'NODE'
+          const needs = JSON.parse(process.env.NEEDS);
+          const plan = needs.plan.outputs;
+          const required = ['plan', 'static'];
+          if (plan.mobile === 'true') required.push('mobile-export');
+          if (plan['android-native'] === 'true') required.push('mobile-native');
+          if (plan['docs-site'] === 'true') required.push('docs-site');
+          if (plan.tests !== 'none') required.push('e2e-smoke');
+          if (plan.tests === 'full') required.push('test-full');
+          if (plan.tests === 'affected') {
+            const count = plan.count;
+            const shards = plan.shards;
+            if (!/^\d+$/.test(count ?? '')) throw new Error('Missing affected test count');
+            if (!['0', '1', '3'].includes(shards) ||
+                (Number(count) === 0) !== (shards === '0')) throw new Error('Invalid affected test shards');
+            if (shards === '3') required.push('test-affected');
+          }
+          if (!['none', 'affected', 'full'].includes(plan.tests) ||
+              !['true', 'false'].includes(plan.mobile)) throw new Error('Invalid CI plan');
+          const failed = Object.entries(needs).filter(([, job]) => !['success', 'skipped'].includes(job.result));
+          const missing = required.filter((name) => needs[name]?.result !== 'success');
+          if (failed.length || missing.length) {
+            console.error('Verification failed', { failed: failed.map(([name]) => name), missing });
+            process.exit(1);
+          }
+          NODE
