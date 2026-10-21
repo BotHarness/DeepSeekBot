@@ -1,18 +1,32 @@
+import type { ReactNode } from 'react';
 import { Pressable } from 'react-native';
 
 import { useDesignTheme } from '../design/theme';
 import { radius } from '../design/tokens';
-import { t } from '../strings';
-import { SettingsIcon } from './icons';
 
-export function SettingsButton({ onPress }: { onPress(): void }) {
+export type HeaderIconButtonProps = {
+  label: string;
+  testID?: string | undefined;
+  selected?: boolean | undefined;
+  onPress(): void;
+  children: ReactNode;
+};
+
+export function HeaderIconButton({
+  label,
+  testID,
+  selected,
+  onPress,
+  children,
+}: HeaderIconButtonProps) {
   const theme = useDesignTheme();
   return (
     <Pressable
-      testID="settings-button"
-      onPress={onPress}
+      testID={testID}
       accessibilityRole="button"
-      accessibilityLabel={t.settings}
+      accessibilityLabel={label}
+      accessibilityState={selected === undefined ? undefined : { selected }}
+      onPress={onPress}
       style={({ pressed }) => ({
         width: theme.touch,
         height: theme.touch,
@@ -22,7 +36,7 @@ export function SettingsButton({ onPress }: { onPress(): void }) {
         backgroundColor: pressed ? theme.layer.raised.pressed : theme.layer.raised.fill,
       })}
     >
-      <SettingsIcon color={theme.color.fg} size={theme.type.title.line} />
+      {children}
     </Pressable>
   );
 }

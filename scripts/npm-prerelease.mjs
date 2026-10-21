@@ -20,6 +20,7 @@ import {
   verifyProductComposition,
 } from './packaged-profile.mjs';
 import { verifyProviderArchive } from './npm-provider-release.mjs';
+import { cloudflaredPackages, fetchCloudflaredAssets } from './cloudflared-packages.mjs';
 
 export const publishedProductProvider = Object.freeze(
   JSON.parse(readFileSync(new URL('./published-product-provider.json', import.meta.url), 'utf8')),
@@ -32,8 +33,10 @@ export const publicationOrder = [
   '@botharness/ui',
   '@botharness/browser',
   '@botharness/computer',
+  ...cloudflaredPackages.map((entry) => entry.name),
   'deepseekbot',
 ];
+const platformPackages = new Map(cloudflaredPackages.map((entry) => [entry.name, entry]));
 const registry = 'https://registry.npmjs.org';
 const digest = (bytes) => createHash('sha256').update(bytes).digest('hex');
 
@@ -98,13 +101,21 @@ function tarText(directory, artifact, path) {
 }
 
 export function checkPackage(manifest, artifact, files, inventory) {
+  const platform = platformPackages.get(manifest.name);
   if (
     manifest.name !== artifact.name ||
     manifest.version !== artifact.version ||
     manifest.private ||
-    manifest.license !== 'MIT'
+    manifest.license !== (platform ? 'Apache-2.0' : 'MIT')
   )
     throw new Error(`Invalid public manifest: ${artifact.name}`);
+  if (
+    platform &&
+    (JSON.stringify(manifest.os) !== JSON.stringify([platform.os]) ||
+      JSON.stringify(manifest.cpu) !== JSON.stringify([platform.cpu]) ||
+      !files.includes(`package/bin/${platform.executable}`))
+  )
+    throw new Error(`Invalid platform package: ${artifact.name}`);
   for (const [name, spec] of Object.entries({
     ...manifest.dependencies,
     ...manifest.optionalDependencies,
@@ -158,8 +169,10 @@ export function verifyRelease(directory, expected = {}) {
   )
     throw new Error('Reviewed release plan does not match these artifacts');
   if (expected.clean) assertCleanReleaseSource(plan);
+  const inventoryArtifacts = [...inventory.artifacts, ...inventory.platformArtifacts];
   const packages = publicationOrder.map((name) => {
-    const artifact = inventory.artifacts.find((a) => a.name === name);
+    const artifact = inventoryArtifacts.find((a) => a.name === name);
+    if (!artifact) throw new Error(`Missing release artifact: ${name}`);
     const files = execFileSync('tar', ['-tzf', join(directory, artifact.filename)], {
       encoding: 'utf8',
     })
@@ -168,15 +181,15 @@ export function verifyRelease(directory, expected = {}) {
     if (files.some((path) => !path.startsWith('package/') || path.split('/').includes('..')))
       throw new Error('Unsafe tarball path');
     const manifest = JSON.parse(tarText(directory, artifact, 'package.json'));
-    checkPackage(manifest, artifact, files, inventory.artifacts);
+    checkPackage(manifest, artifact, files, inventoryArtifacts);
     return { artifact, manifest };
   });
   const product = packages.find((p) => p.artifact.name === 'deepseekbot');
   for (const name of publicationOrder.slice(0, -1)) {
-    if (
-      product.manifest.dependencies?.[name] !==
-      inventory.artifacts.find((a) => a.name === name).version
-    )
+    const declared = platformPackages.has(name)
+      ? product.manifest.optionalDependencies?.[name]
+      : product.manifest.dependencies?.[name];
+    if (declared !== inventoryArtifacts.find((a) => a.name === name).version)
       throw new Error(`Missing exact product dependency: ${name}`);
   }
   const patch = parseProductComposition(
@@ -417,11 +430,15 @@ async function main() {
   if (mode === 'prepare') {
     const version = releaseVersion(args.get('--version'));
     if (!args.get('--provider-source')) throw new Error('Qualified --provider-source is required');
+    const cloudflaredAssets = await fetchCloudflaredAssets({
+      directory: resolve(args.get('--cloudflared-assets') ?? join(directory, 'cloudflared-assets')),
+    });
     packProduct({
       repoRoot: root,
       outputDirectory: directory,
       providerSource: resolve(args.get('--provider-source')),
       version,
+      cloudflaredAssets,
     });
     await reusePublishedProvider(directory);
     const sourceState = readReleaseSourceState(root);

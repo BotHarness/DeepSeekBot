@@ -183,6 +183,12 @@ export const vrmCompanionClientBundleOptions: UserConfig = {
   ] as UserConfig['plugins'],
   define: {
     'process.env.NODE_ENV': JSON.stringify('production'),
+    __VRM_POSTER__: JSON.stringify(
+      'data:image/webp;base64,' +
+        readFileSync(join(ROOT_DIR, 'packages/vrm-companion/assets/poster-default.webp')).toString(
+          'base64',
+        ),
+    ),
     __ROOM_ASSETS__: JSON.stringify(
       Object.fromEntries(
         [

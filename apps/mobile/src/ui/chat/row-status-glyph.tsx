@@ -106,7 +106,10 @@ export function RowStatusGlyph({ status }: { status: RowStatus }) {
       }),
       -1,
     );
-    return () => cancelAnimation(turn);
+    return () => {
+      cancelAnimation(turn);
+      turn.value = 0;
+    };
   }, [spin, turn]);
   const rotation = useAnimatedStyle(() => ({ transform: [{ rotate: `${turn.value}deg` }] }));
   if (status === 'none') return null;

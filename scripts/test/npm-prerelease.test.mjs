@@ -22,6 +22,9 @@ import {
 } from '../npm-prerelease.mjs';
 import { providerReleasePlan } from '../npm-provider-release.mjs';
 import { productDsh, productImProvider } from '../product-artifacts.mjs';
+import { cloudflaredPackages } from '../cloudflared-packages.mjs';
+
+const platformPackages = new Map(cloudflaredPackages.map((entry) => [entry.name, entry]));
 
 const roots = [];
 afterEach(() => roots.splice(0).forEach((r) => rmSync(r, { recursive: true, force: true })));
@@ -35,6 +38,12 @@ function fixture(productVersion = '0.1.0-alpha.1') {
     mkdirSync(join(dir, 'package'), { recursive: true });
     const version = name === productImProvider.name ? productImProvider.version : productVersion;
     const manifest = { name, version, license: 'MIT', main: './index.js' };
+    const platform = platformPackages.get(name);
+    if (platform) {
+      Object.assign(manifest, { license: 'Apache-2.0', os: [platform.os], cpu: [platform.cpu] });
+      mkdirSync(join(dir, 'package/bin'));
+      writeFileSync(join(dir, `package/bin/${platform.executable}`), 'binary');
+    }
     if (name === '@botharness/core') {
       manifest.exports = { './cli': './cli/index.mjs' };
       mkdirSync(join(dir, 'package/cli'));
@@ -53,7 +62,11 @@ function fixture(productVersion = '0.1.0-alpha.1') {
       manifest.dependencies = Object.fromEntries(
         publicationOrder
           .slice(0, -1)
+          .filter((n) => !platformPackages.has(n))
           .map((n) => [n, n === productImProvider.name ? productImProvider.version : version]),
+      );
+      manifest.optionalDependencies = Object.fromEntries(
+        [...platformPackages.keys()].map((n) => [n, version]),
       );
       manifest.dsh = { bundle: { patch: './cordis.im.patch.yml' } };
       writeFileSync(
@@ -88,7 +101,8 @@ function fixture(productVersion = '0.1.0-alpha.1') {
       productVersion,
       dsh: productDsh,
       providerRuntime: runtime,
-      artifacts,
+      artifacts: artifacts.filter((artifact) => !platformPackages.has(artifact.name)),
+      platformArtifacts: artifacts.filter((artifact) => platformPackages.has(artifact.name)),
     }),
   );
   const plan = {

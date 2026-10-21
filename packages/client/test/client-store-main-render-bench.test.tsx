@@ -85,6 +85,14 @@ const message = (id: number): ChannelMessage => ({
   author: { kind: 'bot', slug: 'ada' },
   body: 'reply '.repeat((id % 7) + 1),
 });
+const GROUP: ChannelSummary = {
+  id: 'group-ab',
+  type: 'group',
+  name: 'Crew',
+  members: ['ada', 'bob'],
+  createdAt: AT,
+  updatedAt: AT,
+};
 const DM: ChannelSummary = {
   id: 'dm-ada',
   type: 'dm',
@@ -103,7 +111,9 @@ const actions = new Proxy({ ...inertSubmissionActions } as unknown as BridgeActi
 });
 
 let revision = 0;
+let clock = Date.parse(AT);
 function activity(slug: string | undefined, n: number): void {
+  clock += 2000;
   store.applyActivity({
     generation: 'main-bench',
     revision: ++revision,
@@ -125,7 +135,14 @@ function activity(slug: string | undefined, n: number): void {
   } as never);
 }
 
-type Phase = 'stream' | 'unrelated-activity' | 'human-inbox' | 'search';
+type Phase =
+  | 'stream'
+  | 'unrelated-activity'
+  | 'dm-activity'
+  | 'group-member-activity'
+  | 'group-unrelated-activity'
+  | 'human-inbox'
+  | 'search';
 const workload: Record<Phase, (n: number) => void> = {
   stream: (n) =>
     store.setConversation({
@@ -133,6 +150,9 @@ const workload: Record<Phase, (n: number) => void> = {
       draftRevision: n + 1,
     } as never),
   'unrelated-activity': (n) => activity('cy', n),
+  'dm-activity': (n) => activity('ada', n),
+  'group-member-activity': (n) => activity('bob', n),
+  'group-unrelated-activity': (n) => activity('cy', n),
   'human-inbox': (n) => store.setHumanInbox({ unreadCount: n + 1 }),
   search: (n) => store.setQuery('a'.repeat((n % 5) + 1)),
 };
@@ -162,6 +182,7 @@ const report: Record<
 describe('Bot main render benchmark', () => {
   beforeAll(() => {
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+    vi.spyOn(Date, 'now').mockImplementation(() => clock);
     vi.stubGlobal(
       'ResizeObserver',
       class {
@@ -185,10 +206,11 @@ describe('Bot main render benchmark', () => {
     const out = process.env.BH_MAIN_BENCH_OUT;
     if (out) writeFileSync(out, JSON.stringify({ frames: FRAMES, report, load }, null, 2));
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
   it('keeps the Bot main tree and its panels still on writes they do not show', async () => {
-    store.setRoster([bot('ada'), bot('bob'), bot('cy')], [DM]);
+    store.setRoster([bot('ada'), bot('bob'), bot('cy')], [DM, GROUP]);
     activity(undefined, 0);
     store.select({ kind: 'channel', channelId: DM.id });
     store.setConversation({ status: 'ready', channel: DM, messages: [message(0)], revision: 0 });
@@ -231,7 +253,23 @@ describe('Bot main render benchmark', () => {
       ),
     );
     const mounted = host.querySelectorAll('[data-sidebar-entry]').length;
+    const dmText: string[] = [];
     for (const name of Object.keys(workload) as Phase[]) {
+      if (name === 'group-member-activity')
+        await act(async () => {
+          store.select({ kind: 'channel', channelId: GROUP.id });
+          store.setConversation({
+            status: 'ready',
+            channel: GROUP,
+            messages: [message(0)],
+            drafts: [],
+            revision: 0,
+          } as never);
+        });
+      await act(async () => {
+        activity(undefined, 0);
+        activity(undefined, 0);
+      });
       counts.clear();
       mainCommits = 0;
       mainMs = 0;
@@ -242,6 +280,7 @@ describe('Bot main render benchmark', () => {
       for (let n = 0; n < FRAMES; n += 1) await act(async () => workload[name](n));
       chrome.counting = false;
       phase = undefined;
+      if (name === 'dm-activity') dmText.push(host.textContent ?? '');
       if (LOAD_FRAMES > 0) {
         const heapBefore = heapKb();
         let heapPeak = heapBefore;
@@ -277,6 +316,10 @@ describe('Bot main render benchmark', () => {
     }
     expect(report['human-inbox']!.mainCommits).toBe(0);
     expect(report['search']!.mainCommits).toBe(0);
-    expect(report['unrelated-activity']!.mainCommits).toBeLessThanOrEqual(1);
+    expect(report['unrelated-activity']!.mainCommits).toBe(0);
+    expect(report['group-unrelated-activity']!.mainCommits).toBe(0);
+    expect(report['dm-activity']!.mainCommits).toBeGreaterThanOrEqual(FRAMES);
+    expect(report['group-member-activity']!.mainCommits).toBeGreaterThanOrEqual(FRAMES);
+    expect(dmText[0]).toContain('step ' + (FRAMES - 1));
   });
 });

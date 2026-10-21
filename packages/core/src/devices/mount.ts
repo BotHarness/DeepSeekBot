@@ -16,6 +16,7 @@ import {
   DEVICE_WEB_MUX_PATH,
 } from './gateway.js';
 import { createConnectAccount } from './connect-account.js';
+import { cloudflaredCacheRoot } from './cloudflared.js';
 import { createDeviceConnect } from './connect.js';
 import { createDevicesHttp, DEVICES_PATH, DEVICES_SERVE_PATH } from './http.js';
 import { createDevicePairing, type DevicePairingEvent } from './pairing.js';
@@ -87,6 +88,7 @@ export function mountDevicePairing(
     dshHome: string;
     push?: DevicePushOptions;
     credentials?: () => CredentialProvider | undefined;
+    packageAnchors?: readonly string[];
   },
 ): DeviceWebUpgrade | undefined {
   if (options.database.mode !== 'ready') return undefined;
@@ -110,6 +112,12 @@ export function mountDevicePairing(
     hostName: hostname().replace(/\.local$/u, ''),
     record: (event) => write('device-pairing', event.phase, `device-pairing ${detail(event)}`),
     onRevoked: (deviceId) => push?.unregister(deviceId),
+    onPaired: (device) =>
+      void push
+        ?.announcePaired(device)
+        .catch((error: unknown) =>
+          ctx.logger.warn(`push phase=announce-failed error=${String(error)}`),
+        ),
   });
   if (options.push !== undefined) {
     const watched = options.push;
@@ -155,6 +163,8 @@ export function mountDevicePairing(
     const connect = createDeviceConnect({
       credentials: options.credentials ?? (() => undefined),
       port: () => webServer.port,
+      cloudflaredCache: cloudflaredCacheRoot(options.dshHome),
+      ...(options.packageAnchors === undefined ? {} : { packageAnchors: options.packageAnchors }),
       record: (phase, info) =>
         write('device-connect', phase, `device-connect phase=${phase}${info ? ` ${info}` : ''}`),
     });
@@ -218,6 +228,7 @@ export function mountDevicePairing(
       authenticatedUrl: (base) => connection.authenticatedUrl(base),
       log: (message) => ctx.logger.info(message),
       ...(push === undefined ? {} : { push: createDevicePushHttp(push) }),
+      connectOffer: (body, signature) => account.verifyOffer(body, signature),
     });
     webCtx.effect(
       () =>

@@ -93,7 +93,7 @@ function blocklistTarget(body: Record<string, unknown>): BlocklistTarget | undef
 }
 
 function isBrowseSort(value: string): value is BrowseSort {
-  return value === 'updated' || value === 'stars';
+  return value === 'updated' || value === 'created' || value === 'stars';
 }
 
 export function createMarketHandler(

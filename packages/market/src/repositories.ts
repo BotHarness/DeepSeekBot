@@ -20,6 +20,7 @@ export interface RepositoryRow {
   topics: string;
   stars: number;
   pushed_at: string;
+  created_at: string;
   default_branch: string;
   head_sha: string | null;
   head_committed_at: string | null;
@@ -136,8 +137,9 @@ export function createRepositoryStore(deps: {
         .prepare(
           `INSERT INTO indexed_repositories (
             node_id, owner, name, html_url, clone_url, description, topics, stars, pushed_at,
-            default_branch, head_sha, head_committed_at, visibility, first_seen_at, last_refreshed_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            default_branch, head_sha, head_committed_at, visibility, first_seen_at, last_refreshed_at,
+            created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT (node_id) DO UPDATE SET
             owner = excluded.owner,
             name = excluded.name,
@@ -154,6 +156,7 @@ export function createRepositoryStore(deps: {
             topics = excluded.topics,
             stars = excluded.stars,
             pushed_at = excluded.pushed_at,
+            created_at = CASE WHEN ? THEN excluded.created_at ELSE indexed_repositories.created_at END,
             default_branch = excluded.default_branch,
             head_sha = CASE WHEN ? THEN excluded.head_sha ELSE indexed_repositories.head_sha END,
             head_committed_at = CASE WHEN ? THEN excluded.head_committed_at ELSE indexed_repositories.head_committed_at END,
@@ -179,6 +182,8 @@ export function createRepositoryStore(deps: {
           eligible ? 'listed' : 'hidden_missing',
           now,
           now,
+          repository.createdAt ?? now,
+          repository.createdAt === null ? 0 : 1,
           head === undefined ? 0 : 1,
           head === undefined ? 0 : 1,
         )

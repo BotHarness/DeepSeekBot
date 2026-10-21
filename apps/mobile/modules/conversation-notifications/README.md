@@ -9,8 +9,22 @@ shortcut so the notification lands in the system Conversations section.
 It does not replace expo-notifications. `ConversationNotificationsService`
 subclasses expo-notifications' `NotificationsService` and registers with a
 higher intent-filter priority, which `NotificationsService.doWork` resolves
-first; only the presentation delegate changes. Titles, actions (approval
+first; only the presentation and handling delegates change. Actions (approval
 buttons), channels, badges and tap routing stay with expo-notifications.
+The app never sets the badge count on Android: expo-notifications'
+`setBadgeCountAsync(0)` cancels every notification in the shade there, and
+Android launchers count the notifications themselves.
+
+A push with an FCM `notification` block is drawn by the Firebase SDK while the
+app is in the background, so none of this code runs. The app therefore
+registers with `render: "app"`, and the Host sends that Android device
+data-only pushes: only `to`, `priority` and `data`, with the shown `title`,
+`message`, `categoryId` and `badge` inside the data. Any `sound`, `badge`,
+`channelId` or `categoryId` on the Expo message would make Expo add a
+`notification` block again. Expo only presents a background data-only push that
+has a title, so `ConversationHandlingDelegate` copies them from the data first
+and pins the notification to the `requests` channel. Older builds, which don't
+send `render`, keep getting pushes the system draws.
 
 The Host sends `sender`, `group` and `text` in the push data
 (`packages/core/src/push/delivery.ts`). Avatars are never downloaded here: the

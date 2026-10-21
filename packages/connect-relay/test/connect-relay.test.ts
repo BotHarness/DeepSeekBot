@@ -6,7 +6,8 @@ import { describe, expect, it } from 'vitest';
 import { createAccessTokenVerifier, type Jwk } from '../src/auth.js';
 import { createCloudflareApi, GATEWAY_PATH, type TunnelApi } from '../src/cloudflare.js';
 import type { D1Database, D1PreparedStatement, D1Value } from '../src/d1.js';
-import { createRelay } from '../src/relay.js';
+import { createRelay, hmac, type RelayOptions } from '../src/relay.js';
+import { workosUserDeleter } from '../src/worker.js';
 
 const CLIENT_ID = 'client_01TEST';
 const ISSUER = `https://api.workos.com/user_management/${CLIENT_ID}`;
@@ -117,7 +118,10 @@ class FakeTunnels implements TunnelApi {
 
 const BASE32 = 'abcdefghijklmnopqrstuvwxyz234567';
 
-async function setup(allowedUsers: string[] = ['user_alice', 'user_bob']) {
+async function setup(
+  allowedUsers: string[] = ['user_alice', 'user_bob'],
+  extra: Partial<RelayOptions> = {},
+) {
   const { keys, sign } = await signer();
   let clock = Date.parse('2026-10-20T12:00:00Z');
   let ids = 0;
@@ -134,12 +138,14 @@ async function setup(allowedUsers: string[] = ['user_alice', 'user_bob']) {
     zone: 'deepseekbot.dev',
     allowedUsers,
     maxHosts: 5,
+    maxTunnels: 900,
     reclaimAfterMs: 5 * 60 * 1000,
     now: () => new Date(clock),
     hostId: () => {
       ids += 1;
       return `haaaaaaaaaa${BASE32[Math.floor(ids / 32)]}${BASE32[ids % 32]}`;
     },
+    ...extra,
   });
   const tokenFor = (sub: string, claims: Record<string, unknown> = {}) =>
     sign({ sub, iss: ISSUER, exp: clock / 1000 + 300, ...claims });
@@ -215,6 +221,11 @@ describe('Connect relay accounts', () => {
       status: 200,
       body: { hosts: [] },
     });
+    const open = await setup([]);
+    expect(await open.call('GET', '/v1/hosts', { as: 'user_mallory' })).toEqual({
+      status: 200,
+      body: { hosts: [] },
+    });
   });
 
   it('links at most five Hosts per account and keeps accounts apart', async () => {
@@ -254,6 +265,74 @@ describe('Connect relay accounts', () => {
       ).status,
     ).toBe(404);
     expect((await call('DELETE', '/v1/hosts/haaaaaaaaaaab', { as: 'user_bob' })).status).toBe(404);
+  });
+
+  it('deletes an account with its Hosts, tunnels and WorkOS user', async () => {
+    const deleted: string[] = [];
+    let failUser = true;
+    const { call, tunnels } = await setup(['user_alice', 'user_bob'], {
+      deleteUser: async (account) => {
+        if (failUser) throw new Error('workos down');
+        deleted.push(account);
+      },
+    });
+    for (const name of ['Studio', 'Laptop'])
+      await call('POST', '/v1/hosts', { as: 'user_alice', body: { name } });
+    await call('POST', '/v1/hosts', { as: 'user_bob', body: { name: 'Bob' } });
+    for (const [id, as] of [
+      ['haaaaaaaaaaab', 'user_alice'],
+      ['haaaaaaaaaaad', 'user_bob'],
+    ] as const)
+      await call('POST', `/v1/hosts/${id}/tunnel`, { as, body: { originPort: 41001 } });
+    expect(await call('DELETE', '/v1/account')).toMatchObject({ status: 401 });
+    expect(await call('GET', '/v1/account', { as: 'user_alice' })).toMatchObject({ status: 405 });
+    expect(await call('DELETE', '/v1/account', { as: 'user_alice' })).toEqual({
+      status: 502,
+      body: { error: { code: 'upstream-unavailable' } },
+    });
+    failUser = false;
+    expect(await call('DELETE', '/v1/account', { as: 'user_alice' })).toEqual({
+      status: 200,
+      body: { deleted: true },
+    });
+    expect(deleted).toEqual(['user_alice']);
+    expect(await call('GET', '/v1/hosts', { as: 'user_alice' })).toMatchObject({ status: 401 });
+    expect(
+      await call('POST', '/v1/hosts', { as: 'user_alice', body: { name: 'Again' } }),
+    ).toMatchObject({ status: 401 });
+    expect([...tunnels.tunnels.values()].map((tunnel) => tunnel.name)).toEqual([
+      'dsb-haaaaaaaaaaad',
+    ]);
+    expect([...tunnels.records.values()].map((record) => record.name)).toEqual([
+      'haaaaaaaaaaad.deepseekbot.dev',
+    ]);
+    expect((await call('GET', '/v1/hosts', { as: 'user_bob' })).body['hosts']).toHaveLength(1);
+  });
+
+  it('refuses account deletion without a WorkOS API key', async () => {
+    const { call } = await setup();
+    await call('POST', '/v1/hosts', { as: 'user_alice', body: { name: 'Studio' } });
+    expect(await call('DELETE', '/v1/account', { as: 'user_alice' })).toEqual({
+      status: 503,
+      body: { error: { code: 'account-deletion-unavailable' } },
+    });
+    expect((await call('GET', '/v1/hosts', { as: 'user_alice' })).body['hosts']).toHaveLength(1);
+  });
+
+  it('deletes the WorkOS user with the API key and treats a missing user as deleted', async () => {
+    const calls: [string, RequestInit | undefined][] = [];
+    const statuses = [200, 404, 500];
+    const remove = workosUserDeleter('sk_test', (async (url: string, init?: RequestInit) => {
+      calls.push([url, init]);
+      return new Response(null, { status: statuses.shift()! });
+    }) as typeof fetch);
+    await remove('user_alice');
+    await remove('user_alice');
+    await expect(remove('user_alice')).rejects.toThrow('workos 500');
+    expect(calls[0]).toEqual([
+      'https://api.workos.com/user_management/users/user_alice',
+      { method: 'DELETE', headers: { authorization: 'Bearer sk_test' } },
+    ]);
   });
 });
 
@@ -425,6 +504,133 @@ describe('Connect relay tunnels', () => {
     expect((await call('GET', '/v1/hosts', { as: 'user_anyone' })).body['hosts'][0]).toMatchObject({
       tunnel: false,
     });
+  });
+
+  it('stops creating tunnels at the relay cap and rate-limits writes per account', async () => {
+    let allowed = true;
+    const { call, tunnels } = await setup(['*'], {
+      maxTunnels: 1,
+      limit: async () => allowed,
+    });
+    await call('POST', '/v1/hosts', { as: 'user_alice', body: { name: 'Studio' } });
+    await call('POST', '/v1/hosts', { as: 'user_bob', body: { name: 'Laptop' } });
+    const tunnel = (path: string, as: string) =>
+      call('POST', `/v1/hosts/${path}/tunnel`, { as, body: { originPort: 41001 } });
+    expect((await tunnel('haaaaaaaaaaab', 'user_alice')).status).toBe(200);
+    expect(await tunnel('haaaaaaaaaaac', 'user_bob')).toEqual({
+      status: 503,
+      body: { error: { code: 'relay-full' } },
+    });
+    expect((await tunnel('haaaaaaaaaaab', 'user_alice')).status).toBe(200);
+    expect(tunnels.tunnels.size).toBe(1);
+
+    allowed = false;
+    expect(await call('POST', '/v1/hosts', { as: 'user_alice', body: { name: 'Spare' } })).toEqual({
+      status: 429,
+      body: { error: { code: 'rate-limited' } },
+    });
+    expect((await call('GET', '/v1/hosts', { as: 'user_alice' })).status).toBe(200);
+    expect((await call('DELETE', '/v1/hosts/haaaaaaaaaaab', { as: 'user_alice' })).status).toBe(
+      200,
+    );
+  });
+});
+
+describe('Connect relay phone offers', () => {
+  const VERIFIER_HASH = Buffer.alloc(32, 7).toString('base64url');
+  const hostKey = (hostId: string) => hmac('relay-secret', `host:${hostId}`);
+
+  async function linked(fetchHost: typeof fetch) {
+    const relay = await setup(['user_alice', 'user_bob'], { hostKey, fetchHost });
+    await relay.call('POST', '/v1/hosts', { as: 'user_alice', body: { name: 'Studio' } });
+    return relay;
+  }
+
+  it('asks the Host over its tunnel for an offer signed with the Host key', async () => {
+    const seen: { url: string; signature: string | null; body: string }[] = [];
+    const { call, at } = await linked(async (input, init) => {
+      seen.push({
+        url: String(input),
+        signature: new Headers(init?.headers).get('x-botharness-relay-signature'),
+        body: String(init?.body),
+      });
+      return Response.json({
+        offer: 'offer-1',
+        expiresAt: '2026-10-20T12:10:00.000Z',
+        host: { id: 'pairing-host-1', name: 'Studio Mac' },
+      });
+    });
+    const tunnel = await call('POST', '/v1/hosts/haaaaaaaaaaab/tunnel', {
+      as: 'user_alice',
+      body: { originPort: 41001 },
+    });
+    expect(tunnel.body).toMatchObject({
+      account: 'user_alice',
+      relayKey: await hostKey('haaaaaaaaaaab'),
+    });
+    expect(
+      await call('POST', '/v1/hosts/haaaaaaaaaaab/offer', {
+        as: 'user_alice',
+        body: { verifierHash: VERIFIER_HASH, name: ' iPhone ' },
+      }),
+    ).toEqual({
+      status: 200,
+      body: {
+        offer: 'offer-1',
+        expiresAt: '2026-10-20T12:10:00.000Z',
+        hostname: 'haaaaaaaaaaab.deepseekbot.dev',
+        host: { id: 'pairing-host-1', name: 'Studio Mac' },
+      },
+    });
+    expect(seen).toHaveLength(1);
+    expect(seen[0]!.url).toBe(
+      'https://haaaaaaaaaaab.deepseekbot.dev/botharness-device/connect/offer',
+    );
+    expect(JSON.parse(seen[0]!.body)).toEqual({
+      hostId: 'haaaaaaaaaaab',
+      account: 'user_alice',
+      verifierHash: VERIFIER_HASH,
+      name: 'iPhone',
+      issuedAt: at(),
+    });
+    expect(seen[0]!.signature).toBe(await hmac(tunnel.body['relayKey'], seen[0]!.body));
+  });
+
+  it('refuses offers for other accounts, bad verifiers and unreachable Hosts', async () => {
+    let answer: () => Promise<Response> = async () => {
+      throw new Error('offline');
+    };
+    const { call } = await linked(() => answer());
+    const offer = (as: string, body: unknown) =>
+      call('POST', '/v1/hosts/haaaaaaaaaaab/offer', { as, body });
+    expect((await offer('user_alice', { verifierHash: VERIFIER_HASH })).body).toEqual({
+      error: { code: 'host-offline' },
+    });
+    await call('POST', '/v1/hosts/haaaaaaaaaaab/tunnel', {
+      as: 'user_alice',
+      body: { originPort: 41001 },
+    });
+    expect((await offer('user_bob', { verifierHash: VERIFIER_HASH })).status).toBe(404);
+    expect((await offer('user_alice', { verifierHash: 'short' })).body).toEqual({
+      error: { code: 'invalid-verifier' },
+    });
+    expect((await offer('user_alice', { verifierHash: VERIFIER_HASH })).status).toBe(409);
+    answer = async () => Response.json({ code: 'relay-signature-invalid' }, { status: 401 });
+    expect((await offer('user_alice', { verifierHash: VERIFIER_HASH })).body).toEqual({
+      error: { code: 'host-refused' },
+    });
+    answer = async () => Response.json({ offer: 'x', expiresAt: 'y', host: { name: 'Other' } });
+    expect((await offer('user_alice', { verifierHash: VERIFIER_HASH })).status).toBe(502);
+    const unsigned = await setup();
+    await unsigned.call('POST', '/v1/hosts', { as: 'user_alice', body: { name: 'Studio' } });
+    expect(
+      (
+        await unsigned.call('POST', '/v1/hosts/haaaaaaaaaaab/offer', {
+          as: 'user_alice',
+          body: { verifierHash: VERIFIER_HASH },
+        })
+      ).body,
+    ).toEqual({ error: { code: 'offer-unavailable' } });
   });
 });
 

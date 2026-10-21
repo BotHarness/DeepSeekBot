@@ -138,6 +138,7 @@ describe('notification avatars', () => {
       headers: { authorization: 'Bearer t' },
     });
     expect(entries[1]?.image.uri).toMatch(/^data:image\/svg\+xml;base64,/u);
+    expect(entries[1]?.image.svg).toMatch(/^<svg /u);
     expect(entries[2]?.image.uri).toBe('data:image/png;base64,AAAA');
   });
 

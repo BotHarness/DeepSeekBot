@@ -2,7 +2,7 @@
 
 DeepSeekBot 手机 App 连接的是你自己电脑上的 DeepSeek Harness（DSH）。Bot、聊天记录和审批都留在电脑上，手机只是远程客户端。
 
-测试版（TestFlight 与 Google Play 内部测试）**只能通过 Tailscale 连接电脑**：手机和电脑登录同一个 Tailscale 网络（tailnet），电脑用 `tailscale serve` 把 DSH 发布成 `https://<电脑名>.<tailnet>.ts.net`，手机扫码后就通过这个地址连回电脑。不需要公网 IP，不用改路由器，在外面用蜂窝数据也能连。测试版没有云端账号和云服务入口。
+不登录账号时，手机**通过 Tailscale 连接电脑**：手机和电脑登录同一个 Tailscale 网络（tailnet），电脑用 `tailscale serve` 把 DSH 发布成 `https://<电脑名>.<tailnet>.ts.net`，手机扫码后就通过这个地址连回电脑。不需要公网 IP，不用改路由器，在外面用蜂窝数据也能连。不想装 Tailscale 的话，可以改用 [DeepSeekBot Connect](#不用-tailscaledeepseekbot-connect)。
 
 整个流程大约 10 分钟：
 
@@ -76,6 +76,16 @@ tailscale serve --bg 3080
 
 ![配对后的手机，在全部和 My Mac 下显示电脑上的 Bot](/guides/mobile-pairing/06-phone-paired-zh.webp)
 
+## 不用 Tailscale：DeepSeekBot Connect
+
+DeepSeekBot Connect 让手机通过 `https://<id>.deepseekbot.dev` 的加密隧道连到电脑，不需要 Tailscale。两台设备登录同一个 DeepSeekBot 账号即可，可以用 Google、Apple 或发到邮箱的验证码登录。隧道只开放 DSH 给手机用的接口，你的 Bot 和对话仍然留在电脑上。
+
+1. 在电脑上打开 **设备** → **DeepSeekBot Connect**，点 **登录**，在浏览器里确认页面显示的代码一致。之后这一栏会显示 Connect 地址和 **已连接**。一个账号最多关联 5 台电脑。
+2. 在手机上打开配对页（**与电脑配对**），在 **或者用 DeepSeekBot 账号** 下点 **登录**，登录同一个账号。
+3. 手机会列出这个账号关联的电脑，点 **与 &lt;电脑名&gt; 配对**，不用扫码。
+
+通过 Tailscale 配对的手机照常可用；Connect 开着时生成的配对二维码会同时带上两个地址。不想在某台电脑上用 Connect 了，就在那台电脑上点 **退出登录**，它的隧道和地址会被删除。要删除账号本身，在手机配对页点 **删除账号**，所有关联的电脑都会退出登录。CLI 里也能做同样的操作：`deepseekbot connect-sign-in --wait`、`connect-status` 和 `connect-sign-out`（[CLI 文档](bot-cli.zh.md#deepseekbot-connectadr-0241)）。
+
 ## 常见问题
 
 **电脑设置里说「这个二维码只有本机地址」**
@@ -91,7 +101,7 @@ Tailscale 还没把 DSH 发布出去。回到第 3 步运行 `tailscale serve` �
 在电脑 **设备** 页的 **已配对设备** 里点 **撤销**，手机会立刻断开。手机上的 **取消配对** 只会删除手机自己保存的凭据。
 
 **公司或学校网络能用吗**
-Tailscale 在大多数网络下都能直连或通过它自己的中继连通。如果所在网络屏蔽了 Tailscale，暂时无法使用；之后可能会提供不需要 Tailscale 的连接方式。
+Tailscale 在大多数网络下都能直连或通过它自己的中继连通。如果所在网络屏蔽了 Tailscale，可以改用 [DeepSeekBot Connect](#不用-tailscaledeepseekbot-connect)，它只需要普通的 HTTPS。
 
 ## 安全说明
 

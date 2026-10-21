@@ -256,7 +256,10 @@ const Row = memo(function Row({
         ) : (
           <BotAvatar bot={bot} size={size} />
         )}
-        <View style={{ flex: 1, gap: space.x1 }}>
+        <View
+          key={`${theme.scheme}:${theme.fontScale}:${name}`}
+          style={{ flex: 1, minWidth: 0, gap: space.x1 }}
+        >
           <View
             style={{
               flexDirection: theme.largeText ? 'column' : 'row',
@@ -367,8 +370,10 @@ function Post({
             <BotAvatar bot={bot} size={AVATAR} />
           )}
           <View
+            key={`${theme.scheme}:${theme.fontScale}:${name}`}
             style={{
               flex: 1,
+              minWidth: 0,
               flexDirection: theme.largeText ? 'column' : 'row',
               alignItems: theme.largeText ? 'flex-start' : 'center',
               gap: space.x2,

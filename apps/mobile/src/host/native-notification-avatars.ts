@@ -1,3 +1,4 @@
+import { requireOptionalNativeModule } from 'expo';
 import * as Application from 'expo-application';
 import { Directory, File, Paths } from 'expo-file-system';
 import { Image } from 'expo-image';
@@ -9,6 +10,10 @@ import { createNotificationAvatars, safeName } from './notification-avatars';
 const SIZE = 192;
 const INDEX = 'index.json';
 const STATUS = 'status.json';
+
+const conversationNotifications = requireOptionalNativeModule<{
+  rasterizeSvgAsync(svg: string, target: string, size: number): Promise<void>;
+}>('ConversationNotifications');
 
 function root(): Directory | undefined {
   if (Platform.OS === 'android') return new Directory(Paths.document, 'notification-avatars');
@@ -38,10 +43,20 @@ export const notificationAvatars = createNotificationAvatars({
   async render(host, file, image, signal) {
     const dir = hostDir(host);
     if (dir === undefined) throw Error('notification-avatars-unavailable');
-    const source = await Image.loadAsync(image, {
-      maxWidth: SIZE,
-      maxHeight: SIZE,
-    });
+    if (Platform.OS === 'android' && image.svg !== undefined) {
+      if (conversationNotifications === null) throw Error('svg-rasterizer-unavailable');
+      if (!dir.exists) dir.create({ intermediates: true });
+      await conversationNotifications.rasterizeSvgAsync(image.svg, new File(dir, file).uri, SIZE);
+      if (signal.aborted) throw Error('render-timeout');
+      return;
+    }
+    const source = await Image.loadAsync(
+      { uri: image.uri, ...(image.headers === undefined ? {} : { headers: image.headers }) },
+      {
+        maxWidth: SIZE,
+        maxHeight: SIZE,
+      },
+    );
     const context = ImageManipulator.manipulate(source);
     let rendered: ImageRef | undefined;
     try {

@@ -229,6 +229,17 @@
       "commands": ["git-status", "git-install"]
     },
     {
+      "id": "plugin-updates",
+      "description": "Installed BotHarness plugins: version check, in-place update and the restart that finishes it.",
+      "scope": "Host",
+      "surfaces": [
+        "setting:packages/client/src/client/plugin-updates-view.tsx:{pluginTitle(plugin.name, t)}",
+        "setting:packages/client/src/client/plugin-updates-view.tsx:{t('plugins.restart.title')}",
+        "setting:packages/client/src/client/plugin-updates-view.tsx:{t('plugins.row.title')}"
+      ],
+      "commands": ["plugin-check", "plugin-install", "plugin-restart"]
+    },
+    {
       "id": "channel-name",
       "description": "Channel name editing.",
       "scope": "Host",
@@ -412,6 +423,18 @@
         "storage:packages/client/src/client/onboarding.ts:setItem(introKey(receipt.profileId))"
       ],
       "exemption": "Device-local tour anchors and seen markers are presentation state, not Host settings. Profile tutorial lifecycle is available through onboarding.",
+      "configurable": false
+    },
+    {
+      "id": "browser-computer-sources",
+      "description": "A browser's own pairings with other Computers and its selected channel-list Computer tab (#2500).",
+      "scope": "Client transport / transient state",
+      "surfaces": [
+        "storage:packages/client/src/client/computer-sources.ts:removeItem(COMPUTERS_STORAGE_KEY)",
+        "storage:packages/client/src/client/computer-sources.ts:setItem(COMPUTERS_STORAGE_KEY)",
+        "storage:packages/client/src/client/computer-sources.ts:setItem(COMPUTER_TAB_STORAGE_KEY)"
+      ],
+      "exemption": "Per-browser connections and the tab filter belong to that browser profile, not to any Host (spec #2178), so no Host CLI can read or set them. The other Computer's side is its existing device gateway: pair, unary calls, stream ticket and revoke.",
       "configurable": false
     },
     {

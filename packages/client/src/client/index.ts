@@ -80,6 +80,7 @@ import {
   ModelsSection,
   AutoApprovalSection,
 } from './bot-settings-sections.js';
+import { PluginsSection } from './plugin-updates-view.js';
 import { ReleaseNotesController } from './release-notes.js';
 import { TelemetryNoticeController } from './telemetry-notice.js';
 import './bot-settings-slot.js';
@@ -111,6 +112,7 @@ import { mountTabTitle } from './tab-title.js';
 import { createChannelSidebarRegistry } from './channel-sidebar.js';
 import { createDockPanelRegistry } from './dock-panels.js';
 import { createActivityCenterPanel } from './activity-center-panel.js';
+import { createMarketPanel } from './market-panel.js';
 import { createProfileCardBuiltins } from './profile-cards-builtins.js';
 import { createGroupProfileCards } from './group-profile.js';
 import { createProfileCardRegistry } from './profile-cards.js';
@@ -529,6 +531,7 @@ export function apply(ctx: ClientContext): void {
           channelSidebar.register(entry),
         ),
         dockPanels.register(createActivityCenterPanel(actions, t)),
+        dockPanels.register(createMarketPanel(actions, dockPanels, t)),
       ];
     };
     reconcile();
@@ -996,6 +999,19 @@ export function apply(ctx: ClientContext): void {
           inject: () => ({ ...botModePrefsFace(prefs), call }),
         },
         AdvancedSection,
+      ),
+    );
+    settingsCtx.slots.inject('botharness.settings.section', () =>
+      settingsCtx.slots.register(
+        {
+          name: 'botharness.settings.section',
+          id: BOT_SETTINGS_SECTIONS.plugins,
+          order: 65,
+          label: () => t('botSettings.section.plugins'),
+          locale: LOCALE_NS,
+          inject: () => ({ call }),
+        },
+        PluginsSection,
       ),
     );
     settingsCtx.slots.inject('botharness.settings.section', () =>

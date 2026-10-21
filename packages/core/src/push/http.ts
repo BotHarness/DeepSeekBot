@@ -27,6 +27,7 @@ export function createDevicePushHttp(
           token: body['token'],
           platform: body['platform'],
           locale: body['locale'],
+          render: body['render'],
         });
         return result.ok
           ? { status: 200, body: delivery.settings(deviceId) }

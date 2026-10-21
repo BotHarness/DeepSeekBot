@@ -2,7 +2,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { View } from 'react-native';
 
 import { useHostSession } from '../src/host/host-session';
-import { forgetImage, hostLooks, pickLookImage, useHostLook } from '../src/host/native-host-look';
+import { hostLooks, useHostLook } from '../src/host/native-host-look';
 import { useDesignTheme } from '../src/ui/design/theme';
 import { space } from '../src/ui/design/tokens';
 import { Notice } from '../src/ui/request-parts';
@@ -33,15 +33,7 @@ export default function HostLookScreen() {
         hostName={host.hostName}
         look={look}
         actions={{
-          onChange(next) {
-            const before = hostLooks.look(hostId);
-            hostLooks.set(hostId, next);
-            if (before.avatar.kind === 'image' && before.avatar !== next.avatar)
-              forgetImage(before.avatar.uri);
-            if (before.banner.kind === 'image' && before.banner !== next.banner)
-              forgetImage(before.banner.uri);
-          },
-          onPickImage: (slot) => pickLookImage(hostId, slot),
+          onChange: (next) => hostLooks.set(hostId, next),
           onClose: () => router.back(),
         }}
       />

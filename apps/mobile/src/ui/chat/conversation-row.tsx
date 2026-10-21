@@ -3,6 +3,7 @@ import { SourceName } from './source-name';
 import { Pressable, View } from 'react-native';
 
 import { BotAvatar } from '../bot-avatar';
+import type { HostLook } from '../design/host-look';
 import { edge, radius, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { CountBadge } from '../primitives/count-badge';
@@ -34,9 +35,11 @@ export function ConversationRow({
   onPress,
   actions = [],
   onAction,
+  look,
 }: {
   row: Conversation;
   now: Date;
+  look?: HostLook | undefined;
   onPress?: () => void;
   actions?: readonly ConversationAction[];
   onAction?: (key: ConversationActionKey) => void;
@@ -64,6 +67,7 @@ export function ConversationRow({
         onAction={act}
         title={title}
         source="computer"
+        look={look}
         label={label}
         preview={preview}
         time={time}
@@ -123,7 +127,9 @@ export function ConversationRowFrame({
   actions = [],
   onAction,
   testID,
+  look,
 }: {
+  look?: HostLook | undefined;
   actions?: readonly ConversationAction[];
   onAction?: (key: ConversationActionKey) => void;
   title: string;
@@ -178,15 +184,18 @@ export function ConversationRowFrame({
           </View>
         )}
       </View>
-      <View style={{ flex: 1, minWidth: 0, gap: space.x1 }}>
+      <View
+        key={`${theme.scheme}:${theme.fontScale}:${title}`}
+        style={{ flex: 1, minWidth: 0, gap: space.x1 }}
+      >
         <View
           style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: space.x3,
+            flexDirection: theme.largeText ? 'column' : 'row',
+            alignItems: theme.largeText ? 'flex-start' : 'center',
+            gap: theme.largeText ? space.x1 : space.x3,
           }}
         >
-          <SourceName name={title} source={source} />
+          <SourceName name={title} source={source} look={look} />
           {time === '' ? null : (
             <Text variant="meta" tone="subtle" numberOfLines={1} style={{ flexShrink: 0 }}>
               {time}
@@ -194,7 +203,12 @@ export function ConversationRowFrame({
           )}
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x3 }}>
-          <Text variant="meta" tone={unread ? 'fg' : 'muted'} numberOfLines={1} style={{ flex: 1 }}>
+          <Text
+            variant="meta"
+            tone={unread ? 'fg' : 'muted'}
+            numberOfLines={theme.largeText ? 2 : 1}
+            style={{ flex: 1 }}
+          >
             {preview}
           </Text>
           <RowStatusGlyph status={status} />

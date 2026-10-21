@@ -1,4 +1,12 @@
 import { Menu } from './appearance-primitives.js';
+import { ALL_COMPUTERS, computerSources } from './computer-sources.js';
+import { useChannelDockActive } from './channel-dock.js';
+import {
+  ComputerSourceMark,
+  ComputerTabs,
+  RemoteComputerRows,
+  useComputerSources,
+} from './computer-tabs.js';
 import { plainMarkdown } from '../../../core/src/channels/message-preview.js';
 import { PointerMenu } from './ds/pointer-menu.js';
 import { PanelEmptyState } from './ds/empty-state.js';
@@ -592,6 +600,7 @@ function BotRow({
   onMenu,
   onPinDragStart,
   onPinDragEnd,
+  source = false,
   t,
 }: {
   bot: BotSummary;
@@ -609,6 +618,7 @@ function BotRow({
   onMenu: (request: ChannelMenuRequest) => void;
   onPinDragStart: (channelId: string) => void;
   onPinDragEnd: () => void;
+  source?: boolean;
   t: BotHarnessTranslate;
 }): ReactElement {
   const now = useMinuteNow();
@@ -694,6 +704,7 @@ function BotRow({
         <span className="bh-body">
           <span className="bh-top">
             <span className="bh-name">{bot.displayName}</span>
+            {source ? <ComputerSourceMark /> : null}
             {muted ? <MutedMark t={t} /> : null}
             <ChannelMessageTime channel={channel} now={now} t={t} />
           </span>
@@ -726,6 +737,7 @@ function ChannelRow({
   onMenu,
   onPinDragStart,
   onPinDragEnd,
+  source = false,
   t,
 }: {
   channel: ChannelSummary;
@@ -742,6 +754,7 @@ function ChannelRow({
   onMenu: (request: ChannelMenuRequest) => void;
   onPinDragStart?: ((channelId: string) => void) | undefined;
   onPinDragEnd?: (() => void) | undefined;
+  source?: boolean;
   t: BotHarnessTranslate;
 }): ReactElement {
   const now = useMinuteNow();
@@ -824,6 +837,7 @@ function ChannelRow({
       <span className="bh-body">
         <span className="bh-top">
           <span className="bh-name">{channel.name}</span>
+          {source ? <ComputerSourceMark /> : null}
           {muted ? <MutedMark t={t} /> : null}
           <ChannelMessageTime channel={channel} now={now} t={t} />
         </span>
@@ -1008,6 +1022,9 @@ export function BotSidebar({
   t,
 }: SidebarProps): ReactElement {
   const state = useClientStore(keepClientState, rosterInputs);
+  const computerTabs = useChannelDockActive();
+  const computers = useComputerSources();
+  const remoteOpen = computerTabs && computers.open !== undefined;
   const channelUnread = state.humanInbox.channelUnread;
   const mutedChannelSet = new Set(state.roster.muted);
   const prefs = useBotModePrefs((value) => value);
@@ -1316,9 +1333,13 @@ export function BotSidebar({
     ? visibleChannelIds
     : [...railPinnedChannels, ...railChannels].map((channel) => channel.id);
   const shortcutIdsRef = useRef<readonly string[]>(shortcutIds);
-  const openConversationRef = useRef(onOpenConversation);
+  const openLocalConversation = (): void => {
+    computerSources().close();
+    onOpenConversation?.();
+  };
+  const openConversationRef = useRef(openLocalConversation);
   shortcutIdsRef.current = shortcutIds;
-  openConversationRef.current = onOpenConversation;
+  openConversationRef.current = openLocalConversation;
   const navigationIdsRef = useRef<readonly string[]>([]);
   navigationIdsRef.current = [...railPinnedChannels, ...railChannels].map((channel) => channel.id);
   const dragActiveRef = useRef(false);
@@ -1466,9 +1487,10 @@ export function BotSidebar({
   });
   const visibleCount =
     pinnedChannels.length + flatBlocks.reduce((total, block) => total + block.channels.length, 0);
-  const selectedBot = state.selection?.kind === 'bot' ? state.selection.slug : undefined;
+  const selectedBot =
+    !remoteOpen && state.selection?.kind === 'bot' ? state.selection.slug : undefined;
   const selectedChannel =
-    state.selection?.kind === 'channel' ? state.selection.channelId : undefined;
+    !remoteOpen && state.selection?.kind === 'channel' ? state.selection.channelId : undefined;
   const contextSection = state.roster.sections.find(
     (section) => section.id === sectionContextMenu?.sectionId,
   );
@@ -1823,7 +1845,7 @@ export function BotSidebar({
       ),
     );
     if (gesture !== 'plain') return;
-    onOpenConversation?.();
+    openLocalConversation();
     void (channel.botSlug === undefined
       ? actions.openChannel(channel.id)
       : actions.openBot(channel.botSlug));
@@ -1831,7 +1853,7 @@ export function BotSidebar({
 
   const openQuickSwitcherEntry = ({ channel }: QuickSwitcherEntry): void => {
     setQuickSwitcherOpen(false);
-    onOpenConversation?.();
+    openLocalConversation();
     setChannelSelection((current) =>
       selectChannels(
         reconcileChannelSelection(current, visibleChannelIds),
@@ -1917,6 +1939,8 @@ export function BotSidebar({
     useSectionDrag(commitSectionDrag);
   dragActiveRef.current = channelDragActive || sectionDragActive;
 
+  const showSource =
+    computerTabs && computers.tab === ALL_COMPUTERS && computers.computers.length > 0;
   const renderChannelRow = (channel: ChannelSummary, scopeId: ScopeId): ReactElement => {
     const drag = channelDragProps(scopeId, channel.id);
     const bot = channel.botSlug === undefined ? undefined : botBySlug.get(channel.botSlug);
@@ -1941,12 +1965,14 @@ export function BotSidebar({
           onMenu={openChannelMenu}
           onPinDragStart={(channelId) => startPinDrag(channelId, 'roster')}
           onPinDragEnd={endPinDrag}
+          source={showSource}
         />
       );
     }
     return (
       <ChannelRow
         t={t}
+        source={showSource}
         key={channel.id}
         channel={channel}
         bots={botBySlug}
@@ -2167,6 +2193,27 @@ export function BotSidebar({
       {headerEnd}
     </div>
   );
+  const remoteTab = computerTabs
+    ? computers.computers.find((computer) => computer.host.hostId === computers.tab)
+    : undefined;
+  if (remoteTab !== undefined)
+    return (
+      <div className="bh-root bh-region" data-bh-tour="roster">
+        {headerTarget
+          ? createPortal(<InstantTooltipScope>{header}</InstantTooltipScope>, headerTarget)
+          : header}
+        <ComputerTabs t={t} />
+        <div className="bh-roster-list">
+          <RemoteComputerRows
+            computer={remoteTab}
+            query={query}
+            showSource={false}
+            onOpen={onOpenConversation}
+            t={t}
+          />
+        </div>
+      </div>
+    );
   return (
     <div
       ref={rosterMount}
@@ -2214,6 +2261,7 @@ export function BotSidebar({
       {headerTarget
         ? createPortal(<InstantTooltipScope>{header}</InstantTooltipScope>, headerTarget)
         : header}
+      {computerTabs ? <ComputerTabs t={t} /> : null}
       {state.status === 'loading' && state.bots.length === 0 ? (
         <LoadingSkeleton kind="roster" label={t('roster.loading')} />
       ) : null}
@@ -2811,6 +2859,18 @@ export function BotSidebar({
             </div>
           );
         })}
+        {computerTabs && computers.tab === ALL_COMPUTERS
+          ? computers.computers.map((computer) => (
+              <RemoteComputerRows
+                key={computer.host.hostId}
+                computer={computer}
+                query={query}
+                showSource
+                onOpen={onOpenConversation}
+                t={t}
+              />
+            ))
+          : null}
       </div>
       {createRequest?.kind === 'bot' && createRequest.source === 'zip' ? (
         <ImportBotZipModal
@@ -2965,7 +3025,7 @@ export function BotSidebar({
           }}
           onOpen={(channelId) => {
             setHiddenManagerOpen(false);
-            onOpenConversation?.();
+            openLocalConversation();
             void actions.openChannel(channelId);
           }}
           onClose={() => {

@@ -1,25 +1,75 @@
-import {
-  contrast,
-  headerBand,
-  withAccent,
-  type ColorRole,
-  type ColorScheme,
-} from './resolve-theme';
+import { contrast, mix, type ColorRole, type ColorScheme } from './resolve-theme';
 
-export type HostAvatar =
-  | { kind: 'initial' }
-  | { kind: 'preset'; id: string }
-  | { kind: 'image'; uri: string };
+export const HOST_SYMBOLS = {
+  desktop: { ios: 'desktopcomputer', android: 'computer' },
+  laptop: { ios: 'laptopcomputer', android: 'laptop' },
+  display: { ios: 'display', android: 'monitor' },
+  server: { ios: 'server.rack', android: 'dns' },
+  terminal: { ios: 'terminal', android: 'terminal' },
+  cpu: { ios: 'cpu', android: 'memory' },
+  home: { ios: 'house', android: 'home' },
+  office: { ios: 'building.2', android: 'apartment' },
+  work: { ios: 'briefcase', android: 'work' },
+  lab: { ios: 'flask', android: 'science' },
+  game: { ios: 'gamecontroller', android: 'sports_esports' },
+  art: { ios: 'paintbrush', android: 'brush' },
+  book: { ios: 'book', android: 'menu_book' },
+  globe: { ios: 'globe', android: 'public' },
+  bolt: { ios: 'bolt', android: 'bolt' },
+  star: { ios: 'star', android: 'star' },
+  heart: { ios: 'heart', android: 'favorite' },
+  leaf: { ios: 'leaf', android: 'eco' },
+} as const;
 
-export type HostBanner =
-  | { kind: 'accent' }
-  | { kind: 'color'; color: string }
-  | { kind: 'gradient'; from: string; to: string }
-  | { kind: 'image'; uri: string };
+export type HostSymbolId = keyof typeof HOST_SYMBOLS;
 
-export type HostLook = { name?: string; avatar: HostAvatar; banner: HostBanner };
+export const HOST_SYMBOL_IDS = Object.keys(HOST_SYMBOLS) as HostSymbolId[];
+
+export const HOST_EMOJI = [
+  '💻',
+  '🖥️',
+  '🏠',
+  '🏢',
+  '🧪',
+  '🎮',
+  '🎨',
+  '📚',
+  '🚀',
+  '⚡',
+  '🔥',
+  '⭐',
+  '🌙',
+  '☀️',
+  '🍀',
+  '🐱',
+  '🐶',
+  '🦊',
+] as const;
+
+export type HostIcon = { kind: 'symbol'; id: HostSymbolId } | { kind: 'emoji'; emoji: string };
+
+export const HOST_COLORS = {
+  blue: { light: '#007aff', dark: '#0a84ff' },
+  indigo: { light: '#5856d6', dark: '#5e5ce6' },
+  purple: { light: '#af52de', dark: '#bf5af2' },
+  pink: { light: '#ff2d55', dark: '#ff375f' },
+  red: { light: '#ff3b30', dark: '#ff453a' },
+  orange: { light: '#ff9500', dark: '#ff9f0a' },
+  yellow: { light: '#ffcc00', dark: '#ffd60a' },
+  green: { light: '#34c759', dark: '#30d158' },
+  teal: { light: '#30b0c7', dark: '#40c8e0' },
+  graphite: { light: '#8e8e93', dark: '#98989d' },
+} as const;
+
+export type HostColorId = keyof typeof HOST_COLORS;
+
+export const HOST_COLOR_IDS = Object.keys(HOST_COLORS) as HostColorId[];
+
+export type HostLook = { name?: string; icon: HostIcon; color?: HostColorId };
 
 export const HOST_NAME_MAX = 40;
+
+export const DEFAULT_HOST_LOOK: HostLook = { icon: { kind: 'symbol', id: 'desktop' } };
 
 export function hostLookName(name: unknown): string | undefined {
   if (typeof name !== 'string') return undefined;
@@ -27,163 +77,72 @@ export function hostLookName(name: unknown): string | undefined {
   return trimmed === '' ? undefined : trimmed;
 }
 
+export function hostLook(
+  name: string | undefined,
+  icon: HostIcon,
+  color: HostColorId | undefined,
+): HostLook {
+  return {
+    ...(name === undefined ? {} : { name }),
+    icon,
+    ...(color === undefined ? {} : { color }),
+  };
+}
+
 export function withHostName(look: HostLook, text: string): HostLook {
-  const name = hostLookName(text);
-  return name === undefined
-    ? { avatar: look.avatar, banner: look.banner }
-    : { name, avatar: look.avatar, banner: look.banner };
+  return hostLook(hostLookName(text), look.icon, look.color);
+}
+
+export function withHostIcon(look: HostLook, icon: HostIcon): HostLook {
+  return hostLook(look.name, icon, look.color);
+}
+
+export function withHostColor(look: HostLook, color: HostColorId | undefined): HostLook {
+  return hostLook(look.name, look.icon, color);
 }
 
 export function shownHostName(look: HostLook, hostName: string): string {
   return look.name ?? hostName;
 }
 
-export const DEFAULT_HOST_LOOK: HostLook = {
-  avatar: { kind: 'initial' },
-  banner: { kind: 'accent' },
-};
+const GRAPHIC_CONTRAST = 3;
 
-export const HOST_AVATAR_PRESETS = [
-  'sora',
-  'studio',
-  'ren',
-  'nova',
-  'kai2',
-  'nova2',
-  'ember',
-  'sora2',
-] as const;
-
-export const BANNER_COLORS = [
-  '#3461c1',
-  '#2f80ed',
-  '#0f9d8a',
-  '#2e9e4f',
-  '#e8a317',
-  '#e8613c',
-  '#d6336c',
-  '#8e44ec',
-  '#5b5f97',
-  '#1f2329',
-] as const;
-
-export const BANNER_GRADIENTS = [
-  { from: '#4f7cff', to: '#8e44ec' },
-  { from: '#ff7a59', to: '#ff3d77' },
-  { from: '#12c2e9', to: '#1e6fd9' },
-  { from: '#38d39f', to: '#0f8a7e' },
-  { from: '#f7b733', to: '#fc4a1a' },
-  { from: '#232526', to: '#5b5f97' },
-] as const;
-
-export const HEX_PLACEHOLDER = '#3461C1';
-
-const HEX = /^#[0-9a-f]{6}$/i;
-
-export function bannerHex(value: string): string | undefined {
-  const trimmed = value.trim().replace(/^#?/, '#').toLowerCase();
-  if (/^#[0-9a-f]{3}$/.test(trimmed))
-    return `#${Array.from(trimmed.slice(1))
-      .map((digit) => digit + digit)
-      .join('')}`;
-  return HEX.test(trimmed) ? trimmed : undefined;
-}
-
-export type HostBand = {
-  top: string;
-  bottom: string;
-  ink: string;
-  tileInk: string;
-  lightInk: boolean;
-  image?: string;
-  fill?: BandGradient;
-  shadow?: string;
-};
-
-export type BandGradient = {
-  from: string;
-  to: string;
-  fromOpacity: number;
-  toOpacity: number;
-  direction: 'diagonal' | 'vertical';
-};
-
-const INK_LIGHT = '#ffffff';
-const INK_DARK = '#0f1115';
-
-function inkFor(stops: readonly string[]): { ink: string; lightInk: boolean } {
-  const worst = (ink: string) => Math.min(...stops.map((stop) => contrast(stop, ink)));
-  return worst(INK_LIGHT) >= worst(INK_DARK)
-    ? { ink: INK_LIGHT, lightInk: true }
-    : { ink: INK_DARK, lightInk: false };
-}
-
-function band(
+export function hostColorInk(
   scheme: ColorScheme,
   color: Record<ColorRole, string>,
-  source: string,
-): { top: string; bottom: string } {
-  const own = headerBand(scheme, withAccent(color, source));
-  return { top: own.top, bottom: own.bottom };
+  id: HostColorId | undefined,
+): string {
+  if (id === undefined) return color.accent;
+  const source = HOST_COLORS[id][scheme];
+  const steps = Array.from({ length: 41 }, (_, step) => step / 40);
+  const step =
+    steps.find(
+      (amount) => contrast(mix(source, color.fg, amount), color.base) >= GRAPHIC_CONTRAST,
+    ) ?? 1;
+  return mix(source, color.fg, step);
 }
 
-export function hostBand(
+export function hostTileFill(
   scheme: ColorScheme,
   color: Record<ColorRole, string>,
-  banner: HostBanner,
-): HostBand {
-  if (banner.kind === 'image') {
-    const fallback = headerBand(scheme, color);
-    return {
-      top: fallback.top,
-      bottom: fallback.bottom,
-      ink: INK_LIGHT,
-      tileInk: INK_DARK,
-      lightInk: true,
-      image: banner.uri,
-      fill: {
-        from: '#000000',
-        to: '#000000',
-        fromOpacity: scheme === 'dark' ? 0.5 : 0.35,
-        toOpacity: scheme === 'dark' ? 0.65 : 0.5,
-        direction: 'vertical',
-      },
-      shadow: 'rgba(0, 0, 0, 0.6)',
-    };
-  }
-  if (banner.kind === 'accent') {
-    const own = headerBand(scheme, color);
-    return {
-      top: own.top,
-      bottom: own.bottom,
-      ink: color[own.ink],
-      tileInk: own.top,
-      lightInk: own.lightInk,
-    };
-  }
-  const stops =
-    banner.kind === 'color'
-      ? band(scheme, color, banner.color)
-      : {
-          top: band(scheme, color, banner.from).top,
-          bottom: band(scheme, color, banner.to).top,
-        };
-  const { ink, lightInk } = inkFor([stops.top, stops.bottom]);
-  return { ...stops, ink, tileInk: stops.top, lightInk };
+  id: HostColorId | undefined,
+  behind: string,
+): string {
+  if (id === undefined) return behind;
+  return mix(HOST_COLORS[id][scheme], behind, scheme === 'dark' ? 0.72 : 0.84);
 }
 
-export function screenBackground(value: HostBand): string {
-  return `linear-gradient(180deg, ${value.top} 0%, ${value.bottom} 40%)`;
+function rgb(hex: string): [number, number, number] {
+  const value = Number.parseInt(hex.slice(1), 16);
+  return [(value >> 16) & 0xff, (value >> 8) & 0xff, value & 0xff];
 }
 
-export function headerFill(value: HostBand, banner: HostBanner): BandGradient | undefined {
-  if (banner.kind === 'gradient')
-    return {
-      from: value.top,
-      to: value.bottom,
-      fromOpacity: 1,
-      toOpacity: 1,
-      direction: 'diagonal',
-    };
-  return value.fill;
+export function nearestHostColor(hex: string): HostColorId | undefined {
+  if (!/^#[0-9a-f]{6}$/i.test(hex)) return undefined;
+  const [r, g, b] = rgb(hex.toLowerCase());
+  const distance = (id: HostColorId) => {
+    const [pr, pg, pb] = rgb(HOST_COLORS[id].light);
+    return (r - pr) ** 2 + (g - pg) ** 2 + (b - pb) ** 2;
+  };
+  return HOST_COLOR_IDS.reduce((best, id) => (distance(id) < distance(best) ? id : best));
 }

@@ -65,7 +65,7 @@ import { createChallenge } from '../../core/src/marketplace/altcha.js';
 import type { BridgeActions } from '../src/client/actions.js';
 import { BridgeCallError } from '../src/client/bridge.js';
 import { en, zhTranslate, type BotHarnessTranslate } from '../src/client/locale.js';
-import { MarketplaceModal, SEARCH_DEBOUNCE_MS } from '../src/client/marketplace.js';
+import { MarketplaceModal } from '../src/client/marketplace.js';
 
 function entry(name: string, overrides: Partial<MarketplaceEntry> = {}): MarketplaceEntry {
   return {
@@ -178,6 +178,26 @@ async function until(check: () => boolean) {
     await act(async () => new Promise((resolve) => setTimeout(resolve, 10)));
   }
   expect(check()).toBe(true);
+}
+
+async function typeInto(input: HTMLInputElement, value: string) {
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+}
+
+async function pressEnter(input: HTMLInputElement, options: { composing?: boolean } = {}) {
+  await act(async () => {
+    input.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: 'Enter',
+        bubbles: true,
+        cancelable: true,
+        isComposing: options.composing === true,
+      }),
+    );
+  });
 }
 
 async function typeReason(host: HTMLElement, value: string) {
@@ -461,60 +481,55 @@ describe('Bot Marketplace modal', () => {
         expect(list).toHaveBeenLastCalledWith({ sort: 'stars', lang: 'zh' });
         expect(host.textContent).toContain('popular description');
         expect(host.textContent).not.toContain('fresh description');
+
+        await click(host, '最新创建');
+
+        expect(list).toHaveBeenLastCalledWith({ sort: 'created', lang: 'zh' });
       },
     );
   });
 
-  it('debounces search, orders by relevance and pages with the search cursor', async () => {
-    vi.useFakeTimers();
-    try {
-      await withMarketplace(
-        async (query) =>
-          query?.q === undefined
-            ? { bots: [entry('fresh')] }
-            : query.cursor === undefined
-              ? { bots: [entry('translator')], nextCursor: 'search-2' }
-              : { bots: [entry('notes')] },
-        async ({ host, list }) => {
-          const search = host.querySelector<HTMLInputElement>('input[type="search"]')!;
-          await act(async () => {
-            Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
-              search,
-              ' transl',
-            );
-            search.dispatchEvent(new Event('input', { bubbles: true }));
-          });
-          await act(async () => {
-            Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
-              search,
-              ' translator ',
-            );
-            search.dispatchEvent(new Event('input', { bubbles: true }));
-          });
-          expect(list).toHaveBeenCalledTimes(1);
+  it('searches only on Enter, orders by relevance and pages with the search cursor', async () => {
+    await withMarketplace(
+      async (query) =>
+        query?.q === undefined
+          ? { bots: [entry('fresh')] }
+          : query.cursor === undefined
+            ? { bots: [entry('translator')], nextCursor: 'search-2' }
+            : { bots: [entry('notes')] },
+      async ({ host, list }) => {
+        const search = host.querySelector<HTMLInputElement>('input[type="search"]')!;
+        await typeInto(search, ' transl');
+        await typeInto(search, ' translator ');
+        await act(async () => new Promise((resolve) => setTimeout(resolve, 400)));
+        expect(list).toHaveBeenCalledTimes(1);
 
-          await act(async () => vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS));
+        await pressEnter(search, { composing: true });
+        expect(list).toHaveBeenCalledTimes(1);
 
-          expect(list).toHaveBeenCalledTimes(2);
-          expect(list).toHaveBeenLastCalledWith({ sort: 'updated', lang: 'zh', q: 'translator' });
-          expect(host.textContent).toContain('搜索结果按相关度排序');
-          expect(button(host, '最近更新').disabled).toBe(true);
+        await pressEnter(search);
 
-          await click(host, '加载更多');
+        expect(list).toHaveBeenCalledTimes(2);
+        expect(list).toHaveBeenLastCalledWith({ sort: 'updated', lang: 'zh', q: 'translator' });
+        expect(host.textContent).toContain('搜索结果按相关度排序');
+        expect(button(host, '最近更新').disabled).toBe(true);
 
-          expect(list).toHaveBeenLastCalledWith({
-            sort: 'updated',
-            lang: 'zh',
-            q: 'translator',
-            cursor: 'search-2',
-          });
-          expect(host.textContent).toContain('translator description');
-          expect(host.textContent).toContain('notes description');
-        },
-      );
-    } finally {
-      vi.useRealTimers();
-    }
+        await click(host, '加载更多');
+
+        expect(list).toHaveBeenLastCalledWith({
+          sort: 'updated',
+          lang: 'zh',
+          q: 'translator',
+          cursor: 'search-2',
+        });
+        expect(host.textContent).toContain('translator description');
+        expect(host.textContent).toContain('notes description');
+
+        await typeInto(search, '');
+        await pressEnter(search);
+        expect(list).toHaveBeenLastCalledWith({ sort: 'updated', lang: 'zh' });
+      },
+    );
   });
 
   it('filters by a topic chip and clears it with 全部', async () => {

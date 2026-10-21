@@ -24,7 +24,23 @@ export const nativeConversationCache: ConversationCache = {
   },
 };
 
-export function clearConversationCache(): void {
+export function cachedForHost(fileName: string, hostId: string): boolean {
+  const prefix = JSON.stringify(['computer', hostId]).slice(0, -1) + ',';
+  let name = fileName;
+  for (let pass = 0; pass < 2; pass += 1) {
+    try {
+      name = decodeURIComponent(name);
+    } catch {
+      return false;
+    }
+    if (name.startsWith(prefix)) return true;
+  }
+  return false;
+}
+
+export function clearHostConversationCache(hostId: string): void {
   const directory = root();
-  if (directory.exists) directory.delete();
+  if (!directory.exists) return;
+  for (const entry of directory.list())
+    if (entry instanceof File && cachedForHost(entry.name, hostId)) entry.delete();
 }

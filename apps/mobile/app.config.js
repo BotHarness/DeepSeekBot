@@ -73,6 +73,6 @@ module.exports = ({ config }) => {
       ...(store ? { package: 'app.deepseekbot.mobile' } : {}),
       ...(firebase ? { googleServicesFile: firebase } : {}),
     },
-    ...(store ? { name: 'DeepSeekBot', scheme: 'deepseekbot' } : {}),
+    ...(store ? { name: 'DeepSeekBot', scheme: ['deepseekbot', 'app.deepseekbot.mobile'] } : {}),
   });
 };

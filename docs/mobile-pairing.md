@@ -2,7 +2,7 @@
 
 The DeepSeekBot phone app connects to DeepSeek Harness (DSH) on your own computer. Bots, chat history and approvals stay on the computer; the phone is a remote client.
 
-The test builds (TestFlight and Google Play internal testing) **reach the computer only through Tailscale**: the phone and the computer sign in to the same Tailscale network (tailnet), the computer publishes DSH as `https://<computer>.<tailnet>.ts.net` with `tailscale serve`, and after you scan the code the phone connects back through that address. You need no public IP and no router changes, and it works over mobile data. The test builds have no cloud account or cloud services.
+Without an account, the phone **reaches the computer through Tailscale**: the phone and the computer sign in to the same Tailscale network (tailnet), the computer publishes DSH as `https://<computer>.<tailnet>.ts.net` with `tailscale serve`, and after you scan the code the phone connects back through that address. You need no public IP and no router changes, and it works over mobile data. If you would rather not set up Tailscale, use [DeepSeekBot Connect](#without-tailscale-deepseekbot-connect) instead.
 
 The whole setup takes about 10 minutes:
 
@@ -76,6 +76,16 @@ Once paired, the phone shows the Bots and groups on your computer, and the compu
 
 ![The phone after pairing, showing the computer's Bot under All and My Mac](/guides/mobile-pairing/06-phone-paired-en.webp)
 
+## Without Tailscale: DeepSeekBot Connect
+
+DeepSeekBot Connect lets the phone reach the computer through an encrypted tunnel at `https://<id>.deepseekbot.dev` instead of Tailscale. You sign in to the same DeepSeekBot account on both devices, with Google, Apple or a code sent to your email. The tunnel exposes only the phone interface of DSH; your Bots and conversations stay on the computer.
+
+1. On the computer, open **Devices** → **DeepSeekBot Connect**, click **Sign in**, and confirm in the browser that the page shows the same code. The section then shows the Connect address as **Connected**. One account can link up to five computers.
+2. On the phone, open the pairing screen (**Pair with your computer**). Under **Or use your DeepSeekBot account**, tap **Sign in** and sign in to the same account.
+3. The phone lists the computers linked to the account. Tap **Pair with &lt;name&gt;**. No QR code is needed.
+
+Phones paired over Tailscale keep working; a pairing QR code shown while Connect is on carries both addresses. To stop using Connect on a computer, click **Sign out** there: its tunnel and address are deleted. To delete the account itself, tap **Delete account** on the phone's pairing screen; every linked computer is signed out. The same steps are available from the CLI: `deepseekbot connect-sign-in --wait`, `connect-status` and `connect-sign-out` ([CLI guide](bot-cli.md#deepseekbot-connect-adr-0241)).
+
 ## Troubleshooting
 
 **Settings say the code only carries the local address**
@@ -91,7 +101,7 @@ If the port in the notice changed, run the new `tailscale serve` command it show
 Click **Revoke** next to it under **Paired devices** on the computer; the phone is cut off at once. **Unpair** on the phone only deletes the credential the phone keeps.
 
 **Will it work on a company or school network?**
-Tailscale connects directly or through its own relays on most networks. If the network blocks Tailscale, the app cannot connect yet; a connection option without Tailscale may come later.
+Tailscale connects directly or through its own relays on most networks. If the network blocks Tailscale, use [DeepSeekBot Connect](#without-tailscale-deepseekbot-connect), which needs only ordinary HTTPS.
 
 ## Security
 

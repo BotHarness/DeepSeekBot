@@ -38,10 +38,10 @@ import {
 } from '../../../src/host/conversation-environments';
 import { shownHostName } from '../../../src/ui/design/host-look';
 import { Text } from '../../../src/ui/primitives/text';
-import { HeaderSearch, HeaderSearchButton } from '../../../src/ui/shell/header-search';
+import { HeaderAction } from '../../../src/ui/shell/header-action';
+import { HeaderSearch } from '../../../src/ui/shell/header-search';
 import { HomeHeader } from '../../../src/ui/shell/home-header';
 import { HostDrawerEdge } from '../../../src/ui/shell/host-drawer';
-import { SettingsButton } from '../../../src/ui/shell/settings-button';
 import { ConversationPeek, conversationPeek } from '../../../src/ui/shell/conversation-peek';
 import { useFloatingTabInset } from '../../../src/ui/shell/floating-tab-inset';
 import { conversationHref, openConversation } from '../../../src/ui/shell/open-conversation';
@@ -128,7 +128,14 @@ const HomeContent = memo(function HomeContent({
   const filters = useMemo(
     () =>
       conversationEnvironments(
-        saved ? { hostId: saved.hostId, name: shownHostName(look, saved.hostName) } : undefined,
+        saved
+          ? {
+              hostId: saved.hostId,
+              name: shownHostName(look, saved.hostName),
+              icon: look.icon,
+              ...(look.color === undefined ? {} : { color: look.color }),
+            }
+          : undefined,
         cloud.rows.filter((r) => r.hasSession).map(cloudViewScope),
         directory.workspaces,
         t.allEnvironments,
@@ -293,12 +300,18 @@ const HomeContent = memo(function HomeContent({
           }
           actions={
             <>
-              <HeaderSearchButton
+              <HeaderAction
+                icon="search"
                 label={t.openSearch}
                 testID="search-button"
                 onPress={() => setSearching(true)}
               />
-              <SettingsButton onPress={() => router.push('/settings')} />
+              <HeaderAction
+                icon="settings"
+                label={t.settings}
+                testID="settings-button"
+                onPress={() => router.push('/settings')}
+              />
             </>
           }
         >
@@ -364,12 +377,13 @@ const HomeContent = memo(function HomeContent({
                   item.type === 'computer' ? (
                     conversationPeek ? (
                       <ConversationPeek href={conversationHref(item.conversation, saved?.hostId)}>
-                        <ConversationRow row={item.conversation} now={new Date()} />
+                        <ConversationRow row={item.conversation} now={new Date()} look={look} />
                       </ConversationPeek>
                     ) : (
                       <ConversationRow
                         row={item.conversation}
                         now={new Date()}
+                        look={look}
                         onPress={() => openConversation(router, item.conversation, saved?.hostId)}
                         actions={conversationActions(item.conversation, {
                           pinned: item.pinned,

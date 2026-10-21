@@ -1,0 +1,19 @@
+{
+  "name": "@botharness/cloudflared-darwin-x64",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The pinned cloudflared binary for DeepSeekBot Connect on macOS x64",
+  "license": "Apache-2.0",
+  "files": [
+    "bin/cloudflared",
+    "README.md",
+    "LICENSE"
+  ],
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "preferUnplugged": true
+}

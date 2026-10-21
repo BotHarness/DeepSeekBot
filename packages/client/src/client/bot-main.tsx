@@ -65,6 +65,7 @@ import {
   type PersonaBotFacepileItem,
 } from './avatar.js';
 import { keepClientState, useClientStore } from './use-client-store.js';
+import { sameConversationBots } from './conversation-bots.js';
 import type { BotModePrefs } from './bot-mode-prefs.js';
 import {
   ChannelComposer,
@@ -3481,7 +3482,13 @@ function sameConversationInputs(left: ClientState, right: ClientState): boolean 
   const keys = Object.keys(right) as (keyof ClientState)[];
   return (
     keys.length === Object.keys(left).length &&
-    keys.every((key) => key === 'humanInbox' || key === 'query' || left[key] === right[key])
+    keys.every(
+      (key) =>
+        key === 'humanInbox' ||
+        key === 'query' ||
+        left[key] === right[key] ||
+        (key === 'bots' && sameConversationBots(left.bots, right.bots, right)),
+    )
   );
 }
 

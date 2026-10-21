@@ -1,7 +1,7 @@
 import { createAccessTokenVerifier, workosKeys } from './auth.js';
 import { createCloudflareApi } from './cloudflare.js';
 import type { D1Database } from './d1.js';
-import { createRelay } from './relay.js';
+import { createRelay, hmac } from './relay.js';
 
 export interface ConnectRelayEnv {
   CONNECT_DB: D1Database;
@@ -12,7 +12,21 @@ export interface ConnectRelayEnv {
   CONNECT_ZONE?: string;
   ALLOWED_USERS?: string;
   MAX_HOSTS?: string;
+  MAX_TUNNELS?: string;
+  CONNECT_LIMIT?: { limit(options: { key: string }): Promise<{ success: boolean }> };
   RECLAIM_AFTER_MINUTES?: string;
+  CONNECT_HOST_KEY?: string;
+  WORKOS_API_KEY?: string;
+}
+
+export function workosUserDeleter(apiKey: string, fetcher: typeof fetch = fetch) {
+  return async (account: string): Promise<void> => {
+    const response = await fetcher(
+      `https://api.workos.com/user_management/users/${encodeURIComponent(account)}`,
+      { method: 'DELETE', headers: { authorization: `Bearer ${apiKey}` } },
+    );
+    if (!response.ok && response.status !== 404) throw new Error(`workos ${response.status}`);
+  };
 }
 
 function positive(value: string | undefined, fallback: number): number {
@@ -29,6 +43,9 @@ export function relayForEnv(env: ConnectRelayEnv): ReturnType<typeof createRelay
   const accountId = env.CLOUDFLARE_ACCOUNT_ID;
   const zoneId = env.CLOUDFLARE_ZONE_ID;
   if (!clientId || !token || !accountId || !zoneId) return undefined;
+  const hostSecret = env.CONNECT_HOST_KEY;
+  const limiter = env.CONNECT_LIMIT;
+  const apiKey = env.WORKOS_API_KEY;
   const relay = createRelay({
     db: env.CONNECT_DB,
     verifier: createAccessTokenVerifier({ clientId, keys: workosKeys(clientId) }),
@@ -40,7 +57,13 @@ export function relayForEnv(env: ConnectRelayEnv): ReturnType<typeof createRelay
       .map((user) => user.trim())
       .filter(Boolean),
     maxHosts: positive(env.MAX_HOSTS, 5),
+    maxTunnels: positive(env.MAX_TUNNELS, 900),
     reclaimAfterMs: positive(env.RECLAIM_AFTER_MINUTES, 5) * 60 * 1000,
+    ...(limiter === undefined
+      ? {}
+      : { limit: async (account: string) => (await limiter.limit({ key: account })).success }),
+    ...(apiKey ? { deleteUser: workosUserDeleter(apiKey) } : {}),
+    ...(hostSecret ? { hostKey: (hostId: string) => hmac(hostSecret, `host:${hostId}`) } : {}),
   });
   cached = { env, relay };
   return relay;

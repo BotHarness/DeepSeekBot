@@ -77,6 +77,26 @@ export function recordRecentChat(chat: RecentChat): Promise<RecentChat[]> {
   return recent;
 }
 
+export function chatHostId(href: string): string | undefined {
+  const query = href.indexOf('?');
+  return query === -1
+    ? undefined
+    : (new URLSearchParams(href.slice(query + 1)).get('hostId') ?? undefined);
+}
+
+export function forgetRecentChats(hostId: string): Promise<RecentChat[]> {
+  recent = load().then(async (list) => {
+    const next = list.filter((chat) => chatHostId(chat.href) !== hostId);
+    if (next.length === list.length) return list;
+    await Promise.all([
+      SecureStore.setItemAsync(KEY, JSON.stringify(next)).catch(() => undefined),
+      QuickActions.setItems(next.map(quickAction)).catch(() => undefined),
+    ]);
+    return next;
+  });
+  return recent;
+}
+
 export function useRecentChat(chat: RecentChat | undefined): RefCallback<unknown> {
   const id = chat?.id;
   const title = chat?.title;

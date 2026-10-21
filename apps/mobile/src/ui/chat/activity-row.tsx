@@ -118,7 +118,7 @@ export function ActivityRow({
           <Text
             variant="meta"
             tone="muted"
-            numberOfLines={1}
+            numberOfLines={theme.largeText ? 2 : 1}
             ellipsizeMode="tail"
             style={{ flex: 1 }}
           >

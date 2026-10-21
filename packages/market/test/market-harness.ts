@@ -98,6 +98,7 @@ export function createFakeGitHub(): {
     topics: repository.topics,
     stargazers_count: repository.stars,
     pushed_at: repository.pushedAt,
+    created_at: repository.createdAt,
     default_branch: repository.defaultBranch,
     private: repository.private,
     archived: repository.archived,
@@ -113,6 +114,7 @@ export function createFakeGitHub(): {
           description: repository.description,
           stargazerCount: repository.stars,
           pushedAt: repository.pushedAt,
+          createdAt: repository.createdAt,
           isPrivate: repository.private,
           isArchived: repository.archived,
           repositoryTopics: {

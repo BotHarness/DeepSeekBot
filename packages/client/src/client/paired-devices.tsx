@@ -19,6 +19,7 @@ import {
 const PATH = './api/botharness/devices';
 const LIST_POLL_MS = 2000;
 const ROUTE_POLL_MS = 3000;
+const NEW_DEVICE_MS = 24 * 60 * 60 * 1000;
 
 interface PairedDevice {
   id: string;
@@ -107,6 +108,8 @@ export function PairedDevicesSettings({ t }: PropsLocale<'botharness'>): ReactEl
   const [pairing, setPairing] = useState(false);
   const [paired, setPaired] = useState<PairedDevice>();
   const [now, setNow] = useState(Date.now());
+  const fresh = (device: PairedDevice): boolean =>
+    device.revokedAt === undefined && now - Date.parse(device.pairedAt) < NEW_DEVICE_MS;
   const [busy, setBusy] = useState<string>();
   const [error, setError] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -410,6 +413,7 @@ export function PairedDevicesSettings({ t }: PropsLocale<'botharness'>): ReactEl
               data={{
                 'data-paired-device': device.id,
                 'data-revoked': device.revokedAt === undefined ? undefined : '',
+                'data-new-device': fresh(device) ? '' : undefined,
               }}
               description={[
                 t('devices.list.paired', {
@@ -424,6 +428,7 @@ export function PairedDevicesSettings({ t }: PropsLocale<'botharness'>): ReactEl
                         when: formatRelativeTime(Date.parse(device.lastSeenAt), now, t),
                       })
                     : t('devices.list.neverSeen'),
+                ...(fresh(device) ? [t('devices.list.new')] : []),
               ].join(' · ')}
               control={
                 device.revokedAt === undefined ? (

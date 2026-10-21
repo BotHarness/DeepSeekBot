@@ -1,6 +1,6 @@
 import { Platform, Pressable, View } from 'react-native';
-import { useDesignTheme } from '../design/theme';
-import { navigationBar, radius } from '../design/tokens';
+import { pressTint, useDesignTheme } from '../design/theme';
+import { materialNavigationBar, navigationBar, radius } from '../design/tokens';
 import { NavigationIcon } from './navigation-icon';
 import { Text } from '../primitives/text';
 import { badgeCount } from '../primitives/badge-count';
@@ -9,6 +9,7 @@ import { t } from '../strings';
 import type { NavigationDestination } from './navigation-destination';
 export function NavigationDestinations({ items }: { items: NavigationDestination[] }) {
   const theme = useDesignTheme();
+  const android = Platform.OS === 'android';
   return (
     <>
       {items.map((item) => {
@@ -28,22 +29,28 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
             accessibilityState={{ selected: focused }}
             onPress={item.onPress}
             onLongPress={item.onLongPress}
+            android_ripple={{
+              color: pressTint(theme.color.fg),
+              borderless: true,
+              radius: materialNavigationBar.indicatorWidth / 2,
+            }}
             style={({ pressed }) => ({
               flex: 1,
               alignItems: 'center',
               justifyContent: 'center',
               minHeight: theme.touch,
+              gap: android ? materialNavigationBar.iconLabelGap : 0,
               borderRadius: radius.round,
               backgroundColor:
-                pressed || (focused && Platform.OS !== 'android')
-                  ? theme.layer.raised.chosen
-                  : 'transparent',
+                !android && (pressed || focused) ? theme.layer.raised.chosen : 'transparent',
             })}
           >
             <View
               style={{
                 width: '100%',
-                height: Math.max(navigationBar.indicatorHeight, theme.type.title.line),
+                height: android
+                  ? materialNavigationBar.indicatorHeight
+                  : Math.max(navigationBar.indicatorHeight, theme.type.title.line),
               }}
             >
               <NavigationIcon
@@ -58,7 +65,7 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
                 />
               </NavigationIcon>
             </View>
-            <Text variant="meta" tone={focused ? 'fg' : 'muted'}>
+            <Text variant="meta" strong={android && focused} tone={focused ? 'fg' : 'muted'}>
               {activity ? t.activity : t.chats}
             </Text>
           </Pressable>

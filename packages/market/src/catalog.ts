@@ -24,6 +24,7 @@ export interface MarketplaceEntry {
   topics: string[];
   stars: number;
   pushedAt: string;
+  createdAt: string;
   htmlUrl: string;
   cloneUrl: string;
   defaultBranch: string;
@@ -101,6 +102,7 @@ function entryFromRow(row: RepositoryRow, language?: MarketplaceLanguage): Marke
     topics,
     stars: row.stars,
     pushedAt: row.pushed_at,
+    createdAt: row.created_at,
     htmlUrl: row.html_url,
     cloneUrl: row.clone_url,
     defaultBranch: row.default_branch,
@@ -111,13 +113,14 @@ function entryFromRow(row: RepositoryRow, language?: MarketplaceLanguage): Marke
   };
 }
 
-export type BrowseSort = 'updated' | 'stars';
+export type BrowseSort = 'updated' | 'created' | 'stars';
 
 export const SEARCH_RESULT_LIMIT = 200;
 export const MAX_QUERY_LENGTH = 100;
 
 export type Cursor =
   | { mode: 'updated'; key: string; nodeId: string }
+  | { mode: 'created'; key: string; nodeId: string }
   | { mode: 'stars'; key: number; nodeId: string }
   | { mode: 'search'; offset: number };
 
@@ -149,7 +152,9 @@ export function decodeCursor(cursor: string): Cursor | undefined {
     return { mode, offset: key as number };
   }
   if (parsed.length !== 3 || typeof nodeId !== 'string') return undefined;
-  if (mode === 'updated' && typeof key === 'string') return { mode, key, nodeId };
+  if ((mode === 'updated' || mode === 'created') && typeof key === 'string') {
+    return { mode, key, nodeId };
+  }
   if (mode === 'stars' && Number.isSafeInteger(key)) return { mode, key: key as number, nodeId };
   return undefined;
 }
@@ -283,7 +288,8 @@ export function createCatalog(deps: {
       }
 
       if (cursor !== undefined && cursor.mode !== sort) return undefined;
-      const column = sort === 'stars' ? 'r.stars' : 'r.pushed_at';
+      const column =
+        sort === 'stars' ? 'r.stars' : sort === 'created' ? 'r.created_at' : 'r.pushed_at';
       const after =
         cursor === undefined ? '' : ` AND (${column} < ? OR (${column} = ? AND r.node_id < ?))`;
       const afterValues = cursor === undefined ? [] : [cursor.key, cursor.key, cursor.nodeId];
@@ -304,7 +310,9 @@ export function createCatalog(deps: {
         nextCursor: encodeCursor(
           sort === 'stars'
             ? { mode: 'stars', key: last.stars, nodeId: last.node_id }
-            : { mode: 'updated', key: last.pushed_at, nodeId: last.node_id },
+            : sort === 'created'
+              ? { mode: 'created', key: last.created_at, nodeId: last.node_id }
+              : { mode: 'updated', key: last.pushed_at, nodeId: last.node_id },
         ),
       };
     },
