@@ -391,16 +391,16 @@ describe('Search in the Chats header', () => {
   });
 });
 
-describe('Current Host accent', () => {
+describe('Selected current Host accent', () => {
   it.each(['light', 'dark'] as const)(
-    'updates Android tint on %s and leaves iOS unchanged',
+    'limits Android tint to the current Host filter and follows %s theme changes',
     async (scheme) => {
       const Probe = () => <span>{useDesignTheme().color.accent}</span>;
       host = document.createElement('div');
       root = createRoot(host);
-      const render = () =>
+      const render = (appearance = scheme) =>
         root!.render(
-          <DesignThemeProvider appearance={{ scheme }}>
+          <DesignThemeProvider appearance={{ scheme: appearance }}>
             <HostAccentProvider>
               <Probe />
             </HostAccentProvider>
@@ -411,9 +411,25 @@ describe('Current Host accent', () => {
         Platform.OS = 'android';
         hostState.color = 'orange';
         await act(async () => render());
+        expect(host.textContent).toBe(resolveTheme(scheme, {}, 'android').color.accent);
+        await act(async () => conversationFilter.set(computerEnvironmentKey('h1')));
         expect(host.textContent).toBe(
           resolveTheme(scheme, { accent: HOST_COLORS.orange[scheme] }, 'android').color.accent,
         );
+        const otherScheme = scheme === 'light' ? 'dark' : 'light';
+        await act(async () => render(otherScheme));
+        expect(host.textContent).toBe(
+          resolveTheme(otherScheme, { accent: HOST_COLORS.orange[otherScheme] }, 'android').color
+            .accent,
+        );
+        await act(async () => render());
+        await act(async () => conversationFilter.set('all'));
+        expect(host.textContent).toBe(resolveTheme(scheme, {}, 'android').color.accent);
+        await act(async () => conversationFilter.set(computerEnvironmentKey('other-host')));
+        expect(host.textContent).toBe(resolveTheme(scheme, {}, 'android').color.accent);
+        await act(async () => conversationFilter.set(cloudEnvironmentKey('cloud', 'team')));
+        expect(host.textContent).toBe(resolveTheme(scheme, {}, 'android').color.accent);
+        await act(async () => conversationFilter.set(computerEnvironmentKey('h1')));
         hostState.color = 'teal';
         await act(async () => render());
         expect(host.textContent).toBe(
@@ -422,8 +438,15 @@ describe('Current Host accent', () => {
         Platform.OS = 'ios';
         await act(async () => render());
         expect(host.textContent).toBe(resolveTheme(scheme, {}, 'ios').color.accent);
+        await act(async () => conversationFilter.set('all'));
+        expect(host.textContent).toBe(resolveTheme(scheme, {}, 'ios').color.accent);
         Platform.OS = 'android';
+        await act(async () => conversationFilter.set(computerEnvironmentKey('h1')));
         hostState.color = undefined;
+        await act(async () => render());
+        expect(host.textContent).toBe(resolveTheme(scheme, {}, 'android').color.accent);
+        hostState.color = 'orange';
+        hostState.removed = true;
         await act(async () => render());
         expect(host.textContent).toBe(resolveTheme(scheme, {}, 'android').color.accent);
       } finally {

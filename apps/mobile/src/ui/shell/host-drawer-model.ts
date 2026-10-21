@@ -105,6 +105,7 @@ export function createHostDrawer(port: HostDrawerPort): HostDrawer {
   const listeners = new Set<() => void>();
   let state: HostDrawerState = { open: false, shown: false };
   let returnFocus: (() => void) | undefined;
+  let selection = 0;
 
   const publish = (next: HostDrawerState): void => {
     if (next.open === state.open && next.shown === state.shown) return;
@@ -129,12 +130,14 @@ export function createHostDrawer(port: HostDrawerPort): HostDrawer {
       if (!state.open) publish({ open: false, shown: false });
     },
     async select(hostId) {
+      const selected = ++selection;
       close();
       const switched = await port.switchTo(hostId);
-      if (switched) port.showView(hostId);
+      if (switched && selected === selection) port.showView(hostId);
       return switched;
     },
     selectAll() {
+      selection++;
       close();
       port.showView(undefined);
     },

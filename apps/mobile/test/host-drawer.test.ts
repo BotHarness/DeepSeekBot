@@ -47,6 +47,14 @@ function answering(
   } as unknown as HostClient;
 }
 
+function deferredSwitch() {
+  let resolve: (value: boolean) => void = () => {};
+  const promise = new Promise<boolean>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
 describe('Host drawer', () => {
   it('opens from the chip and closes from the backdrop, returning focus to the chip', () => {
     const drawer = createHostDrawer({
@@ -150,6 +158,51 @@ describe('Host drawer', () => {
     await expect(removed).resolves.toBe(false);
     expect(showView).not.toHaveBeenCalled();
   });
+
+  it('keeps a newer All choice when an earlier Host switch finishes', async () => {
+    const pending = deferredSwitch();
+    const showView = vi.fn();
+    const drawer = createHostDrawer({
+      showView,
+      switchTo: () => pending.promise,
+      pair: vi.fn(),
+      notifications: vi.fn(),
+    });
+    const selecting = drawer.select('laptop');
+    drawer.selectAll();
+    pending.resolve(true);
+    await expect(selecting).resolves.toBe(true);
+    expect(showView.mock.calls).toEqual([[undefined]]);
+  });
+
+  it.each([true, false])(
+    'commits only the latest Host choice when the older switch completes first: %s',
+    async (olderFirst) => {
+      const older = deferredSwitch();
+      const newer = deferredSwitch();
+      const showView = vi.fn();
+      const drawer = createHostDrawer({
+        showView,
+        switchTo: (hostId) => (hostId === 'laptop' ? older.promise : newer.promise),
+        pair: vi.fn(),
+        notifications: vi.fn(),
+      });
+      const laptop = drawer.select('laptop');
+      const tower = drawer.select('tower');
+      if (olderFirst) {
+        older.resolve(true);
+        await laptop;
+        expect(showView).not.toHaveBeenCalled();
+        newer.resolve(true);
+      } else {
+        newer.resolve(true);
+        await tower;
+        older.resolve(true);
+      }
+      await Promise.all([laptop, tower]);
+      expect(showView.mock.calls).toEqual([['tower']]);
+    },
+  );
 
   it('opens the pairing flow from "Pair a new computer" and closes', () => {
     const pair = vi.fn();
