@@ -8,7 +8,7 @@ export const ACTIVITY_INBOX_CSS = `
 .bh-activity-triage .bh-activity-center-header { display: flex; align-items: center; justify-content: space-between; padding: ${space.x1} ${space.x3}; }
 .bh-activity-triage .bh-activity-center-header h1 { margin: 0; }
 .bh-activity-triage .bh-human-inbox-workspace { display: block; }
-.bh-activity-triage .bh-human-inbox-detail { grid-column: 1 / -1; min-width: 0; }
+.bh-activity-triage .bh-human-inbox-detail { position: relative; grid-column: 1 / -1; min-width: 0; }
 .bh-activity-header-actions { margin: 0; padding: 0; height: auto; min-width: 0; }
 .bh-activity-header-actions:has(.bh-search-open) { flex: 1; }
 .bh-activity-header-actions .bh-search-open { width: 100%; margin-inline: 0; }
