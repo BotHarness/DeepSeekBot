@@ -657,3 +657,159 @@ it.each(
     expect(host.calls.filter((call) => call.method === method)).toHaveLength(1);
   }
 });
+
+it.each(['tool-approval', 'user-question'] as const)(
+  'rejects a removed %s without reusing its cached mutation reference',
+  async (kind) => {
+    const { host, storage } = liveHost();
+    host.methods.set('toolApprovalStatus', () => ({ status: 'pending' }));
+    host.methods.set('userQuestionStatus', () => ({ status: 'pending' }));
+    host.methods.set('channelTimeline', () => ({
+      page: {
+        entries: [
+          {
+            id: 'request-message',
+            toolApprovalRequest: { toolName: 'bash', role: 'orchestrator', cwd: '', input: '{}' },
+            userQuestionRequest: { questions: [{ id: 'q', question: 'Choose' }] },
+          },
+        ],
+      },
+    }));
+    host.methods.set('toolApprovalDecide', () => ({ accepted: true }));
+    host.methods.set('userQuestionAnswer', () => ({ accepted: true }));
+    const sources = createRemoteHosts({ storage, carrier: host.carrier });
+    releases.push(sources.subscribe(() => {}));
+    await vi.waitFor(() => expect(sources.getSnapshot().hosts[0]?.inbox.status).toBe('ready'));
+    let items: HumanAttentionItem[] = [
+      {
+        id: 'request',
+        category: 'action',
+        kind,
+        botSlug: 'ada',
+        channelId: 'dm-ada',
+        messageId: 'request-message',
+        summary: '',
+        createdAt: '',
+      },
+    ];
+    const refresh = vi.fn(async () => {});
+    const actions = createHostActivityActions({
+      client: () => sources.client(host.hostId)!,
+      items: () => items,
+      refresh,
+      open: async () => {},
+      requestUnavailable: '操作失败，请刷新后重试',
+    });
+    const status = () =>
+      kind === 'tool-approval'
+        ? actions.toolApprovalStatus('dm-ada', 'request-message')
+        : actions.userQuestionStatus('dm-ada', 'request-message');
+    expect(await status()).toBe('pending');
+    items = [];
+    const submit = () =>
+      kind === 'tool-approval'
+        ? actions.decideToolApproval('dm-ada', 'request-message', 'allowed-once')
+        : actions.answerUserQuestion('dm-ada', 'request-message', [
+            { id: 'q', selected: ['Blue'] },
+          ]);
+    await expect(submit()).rejects.toMatchObject({
+      message: '操作失败，请刷新后重试',
+      cause: { message: 'Activity request is unavailable' },
+    });
+    expect(refresh).not.toHaveBeenCalled();
+    expect(
+      host.calls.filter(
+        ({ method }) => method === 'toolApprovalDecide' || method === 'userQuestionAnswer',
+      ),
+    ).toEqual([]);
+    expect(await status()).toBe('pending');
+  },
+);
+
+it.each(
+  (
+    [
+      'toolApprovalStatus',
+      'toolApprovalState',
+      'toolApprovalExecutionState',
+      'userQuestionStatus',
+    ] as const
+  ).flatMap((method) =>
+    (['status', 'timeline'] as const).flatMap((read) =>
+      (['http', 'non-json', 'network'] as const).map((failure) => ({ method, read, failure })),
+    ),
+  ),
+)(
+  'localizes $method $read $failure while retaining its cause',
+  async ({ method, read, failure }) => {
+    const { host, storage } = liveHost();
+    const status = method === 'userQuestionStatus' ? 'userQuestionStatus' : 'toolApprovalStatus';
+    const endpoint = read === 'timeline' ? 'channelTimeline' : status;
+    host.methods.set(status, () => ({ status: 'pending' }));
+    host.methods.set('channelTimeline', () => ({
+      page: {
+        entries: [
+          {
+            id: 'request-message',
+            toolApprovalRequest: { toolName: 'bash', role: 'orchestrator', cwd: '', input: '{}' },
+            userQuestionRequest: { questions: [{ id: 'q', question: 'Choose' }] },
+          },
+        ],
+      },
+    }));
+    const sources = createRemoteHosts({
+      storage,
+      carrier: {
+        ...host.carrier,
+        async request(url, init) {
+          if (url.endsWith('/' + endpoint)) {
+            if (failure === 'network') throw new TypeError('Network request failed');
+            return {
+              status: failure === 'http' ? 502 : 200,
+              text: async () => '<html>Bad gateway</html>',
+            };
+          }
+          return host.carrier.request(url, init);
+        },
+      },
+    });
+    releases.push(sources.subscribe(() => {}));
+    await vi.waitFor(() => expect(sources.getSnapshot().hosts[0]?.inbox.status).toBe('ready'));
+    const refresh = vi.fn(async () => {});
+    const actions = createHostActivityActions({
+      client: () => sources.client(host.hostId)!,
+      items: () => [
+        {
+          id: 'request',
+          category: 'action',
+          kind: method === 'userQuestionStatus' ? 'user-question' : 'tool-approval',
+          botSlug: 'ada',
+          channelId: 'dm-ada',
+          messageId: 'request-message',
+          summary: '',
+          createdAt: '',
+        },
+      ],
+      refresh,
+      open: async () => {},
+      requestUnavailable: '操作失败，请刷新后重试',
+    });
+    await expect(actions[method]('dm-ada', 'request-message')).rejects.toMatchObject({
+      message: '操作失败，请刷新后重试',
+      cause: {
+        message:
+          failure === 'http'
+            ? 'The Host answered 502.'
+            : failure === 'non-json'
+              ? 'The Host did not return a JSON response.'
+              : 'The Host could not be reached.',
+      },
+    });
+    expect(refresh).not.toHaveBeenCalled();
+    expect(
+      host.calls.filter(
+        ({ method }) => method === 'toolApprovalDecide' || method === 'userQuestionAnswer',
+      ),
+    ).toEqual([]);
+  },
+);

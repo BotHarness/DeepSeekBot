@@ -64,24 +64,44 @@ export function remoteActivityTarget(
   };
 }
 
+function parseRemoteActivityItems(value: unknown): {
+  items: HumanAttentionItem[];
+  failed: boolean;
+} {
+  if (!Array.isArray(value)) return { items: [], failed: true };
+  let failed = false;
+  const items = value.flatMap((item) => {
+    try {
+      return parseHumanAttentionPage({ items: [item] }).items;
+    } catch {
+      failed = true;
+      return [];
+    }
+  });
+  return { items, failed };
+}
+
 export function remoteActivityPage(
   inbox: InboxSnapshot,
   section: ActivitySection,
   t: BotHarnessTranslate,
 ): HumanInboxState {
+  const parsed =
+    inbox.status === 'ready'
+      ? parseRemoteActivityItems(inbox.sections[section])
+      : { items: [], failed: false };
   return {
     category: section,
     sort: 'newest',
     botSlug: undefined,
     channelId: undefined,
     snoozed: false,
-    items:
-      inbox.status === 'ready'
-        ? parseHumanAttentionPage({ items: inbox.sections[section] }).items
-        : [],
+    items: parsed.items,
     status: inbox.status,
     error:
-      inbox.status === 'error' || (inbox.status === 'ready' && inbox.stale !== undefined)
+      parsed.failed ||
+      inbox.status === 'error' ||
+      (inbox.status === 'ready' && inbox.stale !== undefined)
         ? t('humanInbox.failed')
         : undefined,
     nextCursor: inbox.status === 'ready' ? inbox.cursors?.[section] : undefined,
@@ -122,23 +142,36 @@ function RemoteActivityDetail({
   onOpen(): Promise<void>;
 }): ReactElement {
   const [message, setMessage] = useState<ChannelMessage>();
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState<'request' | 'open'>();
+  const opening = useRef(false);
   const [attempt, setAttempt] = useState(0);
   const request = item.kind === 'tool-approval' || item.kind === 'user-question';
   const mount = useMountedResource<HTMLElement>(() => {
     if (!request) return;
     const controller = new AbortController();
-    setFailed(false);
+    setFailed(undefined);
     void actions.message(item, controller.signal).then(
       (value) => {
         if (!controller.signal.aborted) setMessage(value);
       },
       () => {
-        if (!controller.signal.aborted) setFailed(true);
+        if (!controller.signal.aborted) setFailed('request');
       },
     );
     return () => controller.abort();
   }, [actions, item.id, attempt]);
+  const open = async (): Promise<void> => {
+    if (opening.current) return;
+    opening.current = true;
+    setFailed(undefined);
+    try {
+      await onOpen();
+    } catch {
+      setFailed('open');
+    } finally {
+      opening.current = false;
+    }
+  };
   return (
     <section ref={mount} className="bh-human-inbox-reply">
       <div className="bh-human-inbox-reply-header">
@@ -149,7 +182,9 @@ function RemoteActivityDetail({
       {failed ? (
         <p role="alert">
           {t('humanInbox.failed')}{' '}
-          <Button onClick={() => setAttempt((value) => value + 1)}>
+          <Button
+            onClick={() => (failed === 'open' ? void open() : setAttempt((value) => value + 1))}
+          >
             {t('activityInbox.retry')}
           </Button>
         </p>
@@ -176,11 +211,7 @@ function RemoteActivityDetail({
       ) : (
         <p>{item.summary}</p>
       )}
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => void onOpen().catch(() => setFailed(true))}
-      >
+      <Button variant="outline" size="sm" onClick={() => void open()}>
         {t('humanInbox.open')}
       </Button>
     </section>
@@ -239,7 +270,7 @@ export function RemoteActivityGroup({
           const value = currentInbox.current;
           return value.status === 'ready'
             ? Object.values(value.sections).flatMap(
-                (items) => parseHumanAttentionPage({ items }).items,
+                (items) => parseRemoteActivityItems(items).items,
               )
             : [];
         },

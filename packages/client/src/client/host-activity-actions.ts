@@ -45,13 +45,13 @@ export function createHostActivityActions(options: {
   requestUnavailable: string;
 }): HostActivityActions {
   const refs = new Map<string, RequestRef>();
-  const ref = (channelId: string, messageId: string): RequestRef => {
+  const ref = (channelId: string, messageId: string, retained = true): RequestRef => {
     const key = JSON.stringify([channelId, messageId]);
     const item = options
       .items()
       .find((item) => item.channelId === channelId && item.messageId === messageId);
     if (item !== undefined) refs.set(key, { channelId, messageId, botSlug: item.botSlug });
-    const value = refs.get(key);
+    const value = item !== undefined || retained ? refs.get(key) : undefined;
     if (value === undefined) throw new Error('Activity request is unavailable');
     return value;
   };
@@ -65,18 +65,20 @@ export function createHostActivityActions(options: {
     await run();
     await options.refresh();
   };
-  const decided = async (run: () => Promise<DecisionResult>): Promise<void> => {
-    let result: DecisionResult;
+  const request = async <T>(run: () => Promise<T>): Promise<T> => {
     try {
-      result = await run();
+      return await run();
     } catch (cause) {
       throw new Error(options.requestUnavailable, { cause });
     }
+  };
+  const decided = async (run: () => Promise<DecisionResult>): Promise<void> => {
+    const result = await request(run);
     await options.refresh();
     if (result !== 'accepted') throw new Error(options.requestUnavailable);
   };
   const approval = (channelId: string, messageId: string) =>
-    loadApproval(options.client(), ref(channelId, messageId));
+    request(() => loadApproval(options.client(), ref(channelId, messageId)));
   return {
     refreshHumanInbox: options.refresh,
     openChannelAtMessage: (channelId) => options.open(channelId),
@@ -125,13 +127,17 @@ export function createHostActivityActions(options: {
     async decideToolApproval(channelId, messageId, outcome) {
       if (outcome === 'allowed-always-exact' || outcome === 'allowed-always-all')
         throw new Error('This approval choice is unavailable');
-      await decided(() => decideApproval(options.client(), ref(channelId, messageId), outcome));
+      await decided(() =>
+        decideApproval(options.client(), ref(channelId, messageId, false), outcome),
+      );
     },
     async userQuestionStatus(channelId, messageId) {
-      const value = await loadQuestion(options.client(), ref(channelId, messageId));
+      const value = await request(() => loadQuestion(options.client(), ref(channelId, messageId)));
       return value.status === 'decided' ? 'answered' : value.status;
     },
     answerUserQuestion: (channelId, messageId, answers) =>
-      decided(() => answerQuestion(options.client(), ref(channelId, messageId), { answers })),
+      decided(() =>
+        answerQuestion(options.client(), ref(channelId, messageId, false), { answers }),
+      ),
   };
 }

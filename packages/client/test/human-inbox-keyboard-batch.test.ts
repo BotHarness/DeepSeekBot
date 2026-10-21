@@ -233,6 +233,196 @@ import { en, zhTranslate } from '../src/client/locale.js';
 import type { InboxSnapshot } from '../../../apps/mobile/src/host/inbox.js';
 import { bindTobPresentation } from '../src/client/tob-presentation.js';
 
+async function remoteFixture(host: FakeHost) {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  host.methods.set('channelUnreadCounts', () => ({ channels: [] }));
+  const sources = createRemoteHosts({
+    carrier: host.carrier,
+    storage: {
+      getItem: (key) =>
+        key === REMOTE_HOSTS_STORAGE_KEY
+          ? JSON.stringify([
+              {
+                hostId: host.hostId,
+                hostName: 'Remote QA',
+                routes: ['http://127.0.0.1:47001'],
+                deviceId: 'device-1',
+                credential: host.credential,
+              },
+            ])
+          : null,
+      setItem: () => {},
+      removeItem: () => {},
+    },
+  });
+  const release = sources.subscribe(() => {});
+  await vi.waitFor(() => expect(sources.getSnapshot().hosts[0]?.inbox.status).toBe('ready'));
+  const element = document.createElement('div');
+  document.body.append(element);
+  const root = createRoot(element);
+  const registry = createDockPanelRegistry();
+  return {
+    sources,
+    element,
+    registry,
+    async render() {
+      await act(async () =>
+        root.render(
+          createElement(RemoteActivityGroup, {
+            host: sources.getSnapshot().hosts[0]!,
+            sources,
+            avatars: new Map(),
+            registry,
+            t: zhTranslate,
+            query: {
+              category: 'all',
+              sort: 'default',
+              search: '',
+              snoozed: false,
+              botSlug: undefined,
+              channelId: undefined,
+            },
+          }),
+        ),
+      );
+    },
+    async close() {
+      await act(async () => root.unmount());
+      release();
+      element.remove();
+    },
+  };
+}
+
+it('isolates invalid remote items from the shared Inbox and retries the affected section', async () => {
+  const host = new FakeHost();
+  const valid = approval('tob');
+  let invalid = true;
+  host.methods.set('humanAttention', (args) => ({
+    queryVersion: 1,
+    items:
+      args.category === 'action'
+        ? [
+            valid,
+            ...(invalid
+              ? [{ ...valid, id: 'unsupported', kind: 'future-request' }, { id: 'broken' }]
+              : []),
+          ]
+        : [],
+  }));
+  host.methods.set('channelTimeline', () => ({
+    revision: 1,
+    page: {
+      entries: [
+        {
+          id: valid.messageId,
+          at: valid.createdAt,
+          author: { kind: 'bot', slug: 'tob' },
+          body: valid.summary,
+          toolApprovalRequest: {
+            sessionId: 'remote-session',
+            callId: 'remote-call',
+            toolName: 'bash',
+            role: 'orchestrator',
+            cwd: '',
+            input: '{}',
+            allowAlways: false,
+          },
+        },
+      ],
+      olderCursor: null,
+      newerCursor: null,
+      hasOlder: false,
+      hasNewer: false,
+    },
+  }));
+  host.methods.set('toolApprovalStatus', () => ({ status: 'pending' }));
+  host.methods.set('toolApprovalDecide', () => ({ accepted: true }));
+  const fixture = await remoteFixture(host);
+  try {
+    expect(fixture.sources.getSnapshot().hosts[0]?.inbox).toMatchObject({
+      status: 'ready',
+      sections: { action: expect.arrayContaining([{ id: 'broken' }]) },
+    });
+    await fixture.render();
+    expect(fixture.element.querySelectorAll('.bh-human-inbox-row')).toHaveLength(1);
+    expect(fixture.element.querySelectorAll('[role="alert"]')).toHaveLength(1);
+    expect(fixture.element.querySelector('[role="alert"]')?.textContent).toContain(
+      zhTranslate('humanInbox.failed'),
+    );
+    await act(async () =>
+      fixture.element.querySelector<HTMLButtonElement>('.bh-human-inbox-row-open')!.click(),
+    );
+    const allow = () =>
+      [...fixture.element.querySelectorAll('button')].find(
+        (n) => n.textContent?.trim() === zhTranslate('approval.allowOnce'),
+      );
+    await act(async () => {
+      await vi.waitFor(() => expect(allow()?.disabled).toBe(false));
+    });
+    await act(async () => allow()!.click());
+    expect(host.calls.filter((c) => c.method === 'toolApprovalDecide')).toEqual([
+      {
+        method: 'toolApprovalDecide',
+        args: { channelId: valid.channelId, messageId: valid.messageId, outcome: 'allowed-once' },
+      },
+    ]);
+    invalid = false;
+    await act(async () =>
+      [...fixture.element.querySelectorAll('button')]
+        .find((n) => n.textContent?.trim() === zhTranslate('activityInbox.retry'))!
+        .click(),
+    );
+    expect(fixture.element.querySelector('[role="alert"]')).toBeNull();
+  } finally {
+    await fixture.close();
+  }
+});
+
+it('retries a non-request detail open once against the same Host', async () => {
+  const host = new FakeHost();
+  const item = { ...approval('tob'), kind: 'workspace-grant-request' };
+  host.methods.set('humanAttention', (args) => ({
+    queryVersion: 1,
+    items: args.category === 'action' ? [item] : [],
+  }));
+  const fixture = await remoteFixture(host);
+  const open = vi.spyOn(fixture.sources, 'open').mockImplementationOnce(() => {
+    throw new Error('Host open failed');
+  });
+  const openPanel = vi.fn();
+  const detach = fixture.registry.attach({ open: openPanel, close: () => {} });
+  try {
+    await fixture.render();
+    await act(async () =>
+      fixture.element.querySelector<HTMLButtonElement>('.bh-human-inbox-row-open')!.click(),
+    );
+    await act(async () =>
+      [...fixture.element.querySelectorAll('.bh-human-inbox-reply button')]
+        .find((n) => n.textContent?.trim() === zhTranslate('humanInbox.open'))!
+        .dispatchEvent(new MouseEvent('click', { bubbles: true })),
+    );
+    expect(fixture.element.querySelector('[role="alert"]')?.textContent).toContain(
+      zhTranslate('humanInbox.failed'),
+    );
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(openPanel).not.toHaveBeenCalled();
+    await act(async () =>
+      [...fixture.element.querySelectorAll('.bh-human-inbox-reply button')]
+        .find((n) => n.textContent?.trim() === zhTranslate('activityInbox.retry'))!
+        .dispatchEvent(new MouseEvent('click', { bubbles: true })),
+    );
+    expect(fixture.element.querySelector('[role="alert"]')).toBeNull();
+    expect(open).toHaveBeenCalledTimes(2);
+    expect(open.mock.calls[1]?.[0]).toEqual(open.mock.calls[0]?.[0]);
+    expect(openPanel).toHaveBeenCalledExactlyOnceWith('bh:channel-body');
+  } finally {
+    detach();
+    open.mockRestore();
+    await fixture.close();
+  }
+});
+
 it.each(['en', 'zh'] as const)(
   'localizes remote failures in %s without losing stale data',
   (locale) => {
@@ -388,8 +578,8 @@ it('renders the remote identity and opens its Host even when a local Tob has the
   }
 });
 
-it.each(
-  (['tool-approval', 'user-question'] as const).flatMap((kind) =>
+it.each([
+  ...(['tool-approval', 'user-question'] as const).flatMap((kind) =>
     (['accepted', 'decided', 'expired', 'http', 'non-json', 'network'] as const).flatMap((result) =>
       (kind === 'tool-approval' && (result === 'decided' || result === 'expired')
         ? [false, true]
@@ -398,13 +588,27 @@ it.each(
         kind,
         result,
         batch,
+        precheck: false,
+        recovery: false,
       })),
     ),
   ),
-)('handles remote $kind returning $result (batch $batch)', async ({ kind, result, batch }) => {
+  ...(['http', 'non-json', 'network'] as const).flatMap((result) =>
+    [false, true].map((recovery) => ({
+      kind: 'tool-approval' as const,
+      result,
+      batch: false,
+      precheck: true,
+      recovery,
+    })),
+  ),
+])('remote $kind $result batch=$batch pre=$precheck recover=$recovery', async (scenario) => {
+  const { kind, result, batch, precheck, recovery } = scenario;
   const host = new FakeHost();
   const transportFailure = result === 'http' || result === 'non-json' || result === 'network';
   const submissions: typeof host.calls = [];
+  let checking = false;
+  let precheckFailures = 0;
   let pending = true;
   const item = { ...approval('tob'), kind };
   const message = {
@@ -492,6 +696,18 @@ it.each(
     carrier: {
       ...host.carrier,
       async request(url, init) {
+        if (
+          checking &&
+          url.endsWith('/toolApprovalStatus') &&
+          (!recovery || precheckFailures === 0)
+        ) {
+          precheckFailures++;
+          if (result === 'network') throw new TypeError('Network request failed');
+          return {
+            status: result === 'http' ? 502 : 200,
+            text: async () => '<html>Bad gateway</html>',
+          };
+        }
         if (url.endsWith('/' + method)) {
           submissions.push({ method, args: JSON.parse(String(init.body)).payload.args });
           if (result === 'network') throw new TypeError('Network request failed');
@@ -573,20 +789,25 @@ it.each(
     await act(async () => {
       await vi.waitFor(() => expect(button()?.disabled).toBe(false));
     });
+    checking = precheck;
     await act(async () => button()!.click());
-    expect(submissions).toEqual([
-      {
-        method,
-        args:
-          kind === 'tool-approval'
-            ? { channelId: 'dm-tob', messageId: item.messageId, outcome: 'allowed-once' }
-            : {
-                channelId: 'dm-tob',
-                messageId: item.messageId,
-                answer: { answers: [{ id: 'q', selected: ['Blue'] }] },
-              },
-      },
-    ]);
+    expect(submissions).toEqual(
+      precheck
+        ? []
+        : [
+            {
+              method,
+              args:
+                kind === 'tool-approval'
+                  ? { channelId: 'dm-tob', messageId: item.messageId, outcome: 'allowed-once' }
+                  : {
+                      channelId: 'dm-tob',
+                      messageId: item.messageId,
+                      answer: { answers: [{ id: 'q', selected: ['Blue'] }] },
+                    },
+            },
+          ],
+    );
     expect(store.getSnapshot().selection).toEqual({ kind: 'bot', slug: 'unrelated-local-bot' });
     if (transportFailure) {
       await act(async () => {
@@ -596,7 +817,8 @@ it.each(
           ),
         );
       });
-      expect(button()?.disabled).toBe(false);
+      if (!precheck || recovery) expect(button()?.disabled).toBe(false);
+      if (precheck) expect(precheckFailures).toBeGreaterThan(0);
       expect(element.querySelector('.bh-request-done')).toBeNull();
       expect(element.textContent).not.toMatch(/502|JSON|gateway|Network request failed/);
     } else if (result !== 'accepted') {
