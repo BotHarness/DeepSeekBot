@@ -1,5 +1,6 @@
 import { useMemo, type ReactElement, type ReactNode } from 'react';
 import {
+  Button,
   FileTypeIcon,
   IconDownloadOutlineRegular,
   IconEllipsisOutlineRegular,
@@ -103,9 +104,9 @@ export function MessageAttachment({
     return (
       <div role="status">
         {t('bridgeMedia.unavailable')}{' '}
-        <button type="button" onClick={resource.retry}>
+        <Button type="button" variant="toolbar" size="sm" onClick={resource.retry}>
           {t('bridgeMedia.retry')}
-        </button>
+        </Button>
       </div>
     );
   if (audio && !compact) {
