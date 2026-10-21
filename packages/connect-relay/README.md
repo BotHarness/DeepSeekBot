@@ -60,8 +60,9 @@ configured in `wrangler.jsonc`.
 
 Before deploying, confirm in the WorkOS environment used by TOB that CLI Auth is enabled, that
 the sign-in methods phones and Hosts should offer (for example Google and Magic Auth) are on,
-and that `ai.botharness.deepseekbot.dev:/oauth2redirect` is an allowed redirect URI for the
-phone's sign-in. Obtain that environment's client ID.
+and that `ai.botharness.deepseekbot.dev:/oauth2redirect` (development builds) and
+`app.deepseekbot.mobile:/oauth2redirect` (store builds) are allowed redirect URIs for the phone's
+sign-in. Obtain that environment's client ID.
 
 Prepare the machine-local file `~/.config/deepseekbot-connect/cloudflare.env` with
 `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_ZONE_ID`. The token needs
