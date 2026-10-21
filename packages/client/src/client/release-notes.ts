@@ -28,7 +28,7 @@ export interface ReleaseRestartWatch {
   reload(): void;
 }
 
-const DEFAULT_RESTART_WATCH: ReleaseRestartWatch = {
+export const DEFAULT_RESTART_WATCH: ReleaseRestartWatch = {
   wait: (ms) =>
     new Promise((resolve) => {
       setTimeout(resolve, ms);
@@ -62,7 +62,7 @@ export interface ReleaseNotesSnapshot {
   restart: ReleaseRestartState;
 }
 
-const INSTALL_FAILURES: readonly ReleaseInstallFailure[] = [
+export const INSTALL_FAILURES: readonly ReleaseInstallFailure[] = [
   'identity-invalid',
   'unavailable',
   'invalid-version',
@@ -128,7 +128,7 @@ export function parseReleaseInfo(value: unknown): ReleaseInfo | undefined {
     : undefined;
 }
 
-function parseCompatibility(value: unknown): ReleaseCompatibility | undefined {
+export function parseCompatibility(value: unknown): ReleaseCompatibility | undefined {
   const source = record(value);
   if (
     source?.['status'] === 'unknown' &&

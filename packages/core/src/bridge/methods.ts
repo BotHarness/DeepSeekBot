@@ -126,6 +126,12 @@ import type {
   ReleaseService,
   ReleaseUpdate,
 } from '../release/service.js';
+import type {
+  PluginInstall,
+  PluginRestart,
+  PluginUpdateService,
+  PluginUpdates,
+} from '../release/plugins.js';
 import type { TelemetryCapture, TelemetryStatus } from '../telemetry/service.js';
 import {
   AssignmentReplyTargetError,
@@ -826,6 +832,9 @@ export interface BridgeMethods {
   releaseUpdate(payload?: unknown): Promise<BridgeResult<ReleaseUpdate>>;
   releaseInstall(payload: unknown): Promise<BridgeResult<ReleaseInstall>>;
   releaseRestart(payload: unknown): Promise<BridgeResult<ReleaseRestart>>;
+  pluginUpdates(payload?: unknown): Promise<BridgeResult<PluginUpdates>>;
+  pluginInstall(payload: unknown): Promise<BridgeResult<PluginInstall>>;
+  pluginRestart(payload: unknown): Promise<BridgeResult<PluginRestart>>;
   telemetryStatus(): BridgeResult<TelemetryStatus>;
   gitStatus(): BridgeResult<GitStatus>;
   gitInstall(): BridgeResult<GitStatus>;
@@ -963,6 +972,7 @@ export interface BridgeMethodsDeps {
   createBotId?: () => string;
   marketplace?: MarketplaceClient;
   release?: ReleaseService;
+  plugins?: PluginUpdateService;
   telemetry?: {
     status(): TelemetryStatus;
     setPreference(enabled: boolean): TelemetryStatus;
@@ -3010,6 +3020,25 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
     async releaseRestart() {
       if (deps.release === undefined) return releaseUnavailable();
       return { ok: true, value: await deps.release.restart() };
+    },
+    async pluginUpdates(payload) {
+      if (deps.plugins === undefined) return releaseUnavailable();
+      const force = asObject(payload)['force'];
+      if (force !== undefined && typeof force !== 'boolean') return invalidInput('invalid force');
+      return { ok: true, value: await deps.plugins.list(force) };
+    },
+    async pluginInstall(payload) {
+      if (deps.plugins === undefined) return releaseUnavailable();
+      const source = asObject(payload);
+      const name = source['name'];
+      const version = source['version'];
+      if (typeof name !== 'string') return invalidInput('name is required');
+      if (typeof version !== 'string') return invalidInput('version is required');
+      return { ok: true, value: await deps.plugins.install(name, version) };
+    },
+    async pluginRestart() {
+      if (deps.plugins === undefined) return releaseUnavailable();
+      return { ok: true, value: await deps.plugins.restart() };
     },
     telemetryStatus() {
       return {

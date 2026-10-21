@@ -63,6 +63,7 @@ import type {
   ReleaseRestart,
   ReleaseUpdate,
 } from '../release/service.js';
+import type { PluginInstall, PluginRestart, PluginUpdates } from '../release/plugins.js';
 import type { TelemetryStatus } from '../telemetry/service.js';
 import type { OverviewMemory } from '../memory/overview.js';
 import type { ApprovalReviewerModelView, IdleCompactionView, OverviewUsage } from './methods.js';
@@ -1865,6 +1866,18 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrapAsync(this.methods.releaseRestart({}));
   }
 
+  async pluginUpdates(force?: boolean): Promise<PluginUpdates> {
+    return unwrapAsync(this.methods.pluginUpdates({ force }));
+  }
+
+  async pluginInstall(name: string, version: string): Promise<PluginInstall> {
+    return unwrapAsync(this.methods.pluginInstall({ name, version }));
+  }
+
+  async pluginRestart(): Promise<PluginRestart> {
+    return unwrapAsync(this.methods.pluginRestart({}));
+  }
+
   telemetryStatus(): TelemetryStatus {
     return unwrap(this.methods.telemetryStatus());
   }
@@ -2135,6 +2148,9 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'releaseUpdate',
   'releaseInstall',
   'releaseRestart',
+  'pluginUpdates',
+  'pluginInstall',
+  'pluginRestart',
   'telemetryStatus',
   'telemetrySet',
   'gitStatus',

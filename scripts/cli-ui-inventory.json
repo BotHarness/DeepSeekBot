@@ -229,6 +229,17 @@
       "commands": ["git-status", "git-install"]
     },
     {
+      "id": "plugin-updates",
+      "description": "Installed BotHarness plugins: version check, in-place update and the restart that finishes it.",
+      "scope": "Host",
+      "surfaces": [
+        "setting:packages/client/src/client/plugin-updates-view.tsx:{pluginTitle(plugin.name, t)}",
+        "setting:packages/client/src/client/plugin-updates-view.tsx:{t('plugins.restart.title')}",
+        "setting:packages/client/src/client/plugin-updates-view.tsx:{t('plugins.row.title')}"
+      ],
+      "commands": ["plugin-check", "plugin-install", "plugin-restart"]
+    },
+    {
       "id": "channel-name",
       "description": "Channel name editing.",
       "scope": "Host",
