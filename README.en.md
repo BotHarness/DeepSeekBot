@@ -14,6 +14,8 @@
 [![MIT](https://img.shields.io/badge/license-MIT-71964a?style=flat-square)](LICENSE)
 [![DeepSeek Harness](https://img.shields.io/badge/built_for-DeepSeek_Harness-b8702f?style=flat-square)](https://github.com/deepseek-ai/deepseek-harness)
 
+<a href="https://www.opensourcealternatives.to/"><img src="https://www.opensourcealternatives.to/badge-osa.svg" width="270" height="20" alt="As seen on Open Source Alternatives" /></a>
+
 **DeepSeekBot (DSB): the open-source Grok Bot alternative. A crew of bots, each with its own identity, persona and memory, working together.**
 
 [Website](https://deepseekbot.app/en/) · [Video](#video) · [Install](#install) · [Features](#features) · [Releases](#releases) · [vs. DS Bot](#deepseek-bot-projects) · [Community](#community) · [Docs](https://deepseekbot.app/en/docs/overview/)
