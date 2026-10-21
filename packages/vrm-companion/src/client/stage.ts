@@ -949,6 +949,7 @@ export function mountStage(
       scene.add(room.root);
       scene.add(key);
       actor.position.set(motion.x, floorOffset - hipDrop, motion.z);
+      const reveal: Object3D[] = [actor, room.root];
       const rawHead = loaded.humanoid.getRawBoneNode('head');
       if (rawHead && wearing) {
         const headphones = new Group();
@@ -973,15 +974,24 @@ export function mountStage(
         headphones.scale.setScalar(modelScale);
         scene.add(headphones);
         rawHead.attach(headphones);
+        reveal.push(headphones);
       }
       if (loaded.lookAt) loaded.lookAt.target = gaze;
       gaze.position.copy(camera.position);
       fitCamera(initial.camera);
-      notify();
-      loading('');
-      host.dataset.vrmLoaded = 'true';
-      host.dataset.vrmLoadMs = String(Math.round(performance.now() - started));
-      reconcile();
+      // compile every new shader in parallel before the first frame draws them; drawing an
+      // uncompiled material blocks the main thread on the link (seconds on slow GPUs)
+      const compiled = effects ? post.compile(scene, camera) : renderer.compileAsync(scene, camera);
+      for (const object of reveal) object.visible = false;
+      return compiled.then(() => {
+        if (disposed) return;
+        for (const object of reveal) object.visible = true;
+        notify();
+        loading('');
+        host.dataset.vrmLoaded = 'true';
+        host.dataset.vrmLoadMs = String(Math.round(performance.now() - started));
+        reconcile();
+      });
     })
     .catch(() => {
       if (disposed) return;
