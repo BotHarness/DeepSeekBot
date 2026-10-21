@@ -10,7 +10,7 @@ import type {
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ConversationMessage } from '../src/host/conversation';
-import { SETTLE_FRAMES, useFollowLatest } from '../src/ui/chat/follow-latest';
+import { SETTLE_FRAMES, STABLE_FRAMES, useFollowLatest } from '../src/ui/chat/follow-latest';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -33,7 +33,7 @@ const layout = (height: number) => ({ nativeEvent: { layout: { height } } }) as 
 let frames: Array<() => void> = [];
 const flushFrames = () =>
   act(() => {
-    for (let round = 0; round < 4 && frames.length > 0; round += 1)
+    for (let round = 0; round < 64 && frames.length > 0; round += 1)
       for (const callback of frames.splice(0)) callback();
   });
 
@@ -237,6 +237,32 @@ describe('following a growing conversation', () => {
     flushFrames();
     expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: END + 300, animated: false });
     expect(view.current.ready).toBe(true);
+    view.unmount();
+  });
+
+  it('stays hidden while rows keep rendering in batches a few frames apart', () => {
+    const view = mount([message('a', 'bot')]);
+    act(() => view.current.listProps.onLayout(layout(LAYOUT)));
+    act(() => view.current.listProps.onContentSizeChange(0, CONTENT));
+    for (let frame = 0; frame < STABLE_FRAMES - 1; frame += 1) act(() => frames.shift()!());
+    expect(view.current.ready).toBe(false);
+    act(() => view.current.listProps.onContentSizeChange(0, CONTENT + 400));
+    for (let frame = 0; frame < STABLE_FRAMES - 1; frame += 1) act(() => frames.shift()!());
+    expect(view.current.ready).toBe(false);
+    flushFrames();
+    expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: END + 400, animated: false });
+    expect(view.current.ready).toBe(true);
+    view.unmount();
+  });
+
+  it('loads older history only after the Human has dragged the list', () => {
+    const view = mount([message('a', 'bot')]);
+    act(() => view.current.listProps.onLayout(layout(LAYOUT)));
+    act(() => view.current.listProps.onContentSizeChange(0, CONTENT));
+    flushFrames();
+    expect(view.current.browsed).toBe(false);
+    act(() => view.current.listProps.onScrollBeginDrag());
+    expect(view.current.browsed).toBe(true);
     view.unmount();
   });
 
