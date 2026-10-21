@@ -83,95 +83,130 @@ function render(
 
 beforeEach(() => vi.mocked(MarkdownText).mockClear());
 
-it('renders remote cards through the shared body and sends decisions only to the source Host', async () => {
-  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-  const calls: { url: string; method: string; args: unknown }[] = [];
-  const client = createHostClient({
-    routes: ['https://source.example.ts.net'],
-    credential: 'test-device.test-secret',
-    carrier: {
-      async request(url, init) {
-        const request = JSON.parse(String(init.body));
-        calls.push({ url, method: request.method, args: request.payload.args });
-        return {
-          status: 200,
-          text: async () =>
-            JSON.stringify({
-              type: 'server-response',
-              rpcId: request.rpcId,
-              result: { ok: true, value: { status: 'pending', accepted: true } },
-            }),
-        };
-      },
-      openSocket() {
-        throw new Error('No socket expected');
-      },
-    },
-  });
-  const message: ConversationMessage = {
-    id: 'remote-approval',
-    at: '2026-10-21T00:00:00Z',
-    author: 'bot',
-    bot: 'same-bot',
-    body: '',
-    attachments: [],
-    delivery: 'committed',
-    source: {
-      channelId: 'remote-channel',
-      revision: 1,
-      message: {
-        id: 'remote-approval',
-        at: '2026-10-21T00:00:00Z',
-        author: { kind: 'bot', slug: 'same-bot' },
-        body: '',
-        toolApprovalRequest: {
-          role: 'orchestrator',
-          sessionId: 'remote-session',
-          callId: 'remote-call',
-          toolName: 'bash',
-          cwd: '/remote',
-          input: '{"command":"pwd"}',
+it.each(['accepted', 'expired', 'decided'] as const)(
+  'renders a remote approval with Host result %s without reporting a refused choice as accepted',
+  async (result) => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    const calls: { url: string; method: string; args: unknown }[] = [];
+    let submitted = false;
+    const client = createHostClient({
+      routes: ['https://source.example.ts.net'],
+      credential: 'test-device.test-secret',
+      carrier: {
+        async request(url, init) {
+          const request = JSON.parse(String(init.body));
+          calls.push({ url, method: request.method, args: request.payload.args });
+          const deciding = request.method.endsWith('/toolApprovalDecide');
+          if (deciding) submitted = true;
+          const value = request.method.endsWith('/channelTimeline')
+            ? {
+                page: {
+                  entries: [
+                    message.source?.message,
+                    ...(result === 'decided' && submitted
+                      ? [
+                          {
+                            toolApprovalDecision: {
+                              requestMessageId: message.id,
+                              outcome: 'rejected',
+                            },
+                          },
+                        ]
+                      : []),
+                  ],
+                },
+              }
+            : {
+                status: submitted && result !== 'accepted' ? 'expired' : 'pending',
+                accepted: true,
+              };
+          return {
+            status: 200,
+            text: async () =>
+              JSON.stringify({
+                type: 'server-response',
+                rpcId: request.rpcId,
+                result:
+                  deciding && result !== 'accepted'
+                    ? { ok: false, error: { code: 'not-pending', message: 'No longer pending' } }
+                    : { ok: true, value },
+              }),
+          };
+        },
+        openSocket() {
+          throw new Error('No socket expected');
         },
       },
-    },
-  };
-  const container = document.createElement('div');
-  document.body.append(container);
-  const root = createRoot(container);
-  try {
-    await act(async () =>
-      root.render(
-        createElement(
-          MessageHostContext.Provider,
-          {
-            value: { client, current: (channelId) => channelId === 'remote-channel' },
+    });
+    const message: ConversationMessage = {
+      id: 'remote-approval',
+      at: '2026-10-21T00:00:00Z',
+      author: 'bot',
+      bot: 'same-bot',
+      body: '',
+      attachments: [],
+      delivery: 'committed',
+      source: {
+        channelId: 'remote-channel',
+        revision: 1,
+        message: {
+          id: 'remote-approval',
+          at: '2026-10-21T00:00:00Z',
+          author: { kind: 'bot', slug: 'same-bot' },
+          body: '',
+          toolApprovalRequest: {
+            role: 'orchestrator',
+            sessionId: 'remote-session',
+            callId: 'remote-call',
+            toolName: 'bash',
+            cwd: '/remote',
+            input: '{"command":"pwd"}',
           },
-          createElement(RemoteMessageBody, { message, messages: [message], t: zhTranslate }),
-        ),
-      ),
-    );
-    expect(container.textContent).toContain('允许这次');
-    const allow = [...container.querySelectorAll('button')].find((button) =>
-      button.textContent?.includes('允许这次'),
-    );
-    await act(async () => allow?.click());
-    expect(container.textContent).toContain('已允许');
-    expect(calls.filter((call) => call.method.endsWith('/toolApprovalDecide'))).toEqual([
-      {
-        url: 'https://source.example.ts.net/botharness-device/api/botharness/toolApprovalDecide',
-        method: 'botharness/toolApprovalDecide',
-        args: {
-          channelId: 'remote-channel',
-          messageId: 'remote-approval',
-          outcome: 'allowed-once',
         },
       },
-    ]);
-  } finally {
-    await act(async () => root.unmount());
-    container.remove();
-  }
-});
+    };
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    try {
+      await act(async () =>
+        root.render(
+          createElement(
+            MessageHostContext.Provider,
+            {
+              value: { client, current: (channelId) => channelId === 'remote-channel' },
+            },
+            createElement(RemoteMessageBody, { message, messages: [message], t: zhTranslate }),
+          ),
+        ),
+      );
+      expect(container.textContent).toContain('允许这次');
+      const allow = [...container.querySelectorAll('button')].find((button) =>
+        button.textContent?.includes('允许这次'),
+      );
+      await act(async () => allow?.click());
+      if (result === 'accepted') expect(container.textContent).toContain('已允许');
+      else {
+        expect(container.textContent).not.toContain('已允许');
+        expect(container.textContent).toContain(zhTranslate('approval.outcome.expired'));
+      }
+      expect(calls.filter((call) => call.method.endsWith('/toolApprovalDecide'))).toEqual([
+        {
+          url: 'https://source.example.ts.net/botharness-device/api/botharness/toolApprovalDecide',
+          method: 'botharness/toolApprovalDecide',
+          args: {
+            channelId: 'remote-channel',
+            messageId: 'remote-approval',
+            outcome: 'allowed-once',
+          },
+        },
+      ]);
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+    }
+  },
+);
 
 it('renders a canonical remote question through the shared message projection', () => {
   const client = createHostClient({
