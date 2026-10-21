@@ -31,8 +31,13 @@ export function createMessageResource(path: string | undefined, host?: MessageHo
     state = {};
   };
   const prepare = (): Promise<string | undefined> => {
-    if (path === undefined || host === undefined || listeners.size === 0 || !current())
+    if (path === undefined || host === undefined || listeners.size === 0)
       return Promise.resolve(undefined);
+    if (!current()) {
+      clear();
+      publish({ failed: true });
+      return Promise.resolve(undefined);
+    }
     if (pending !== undefined) return pending;
     if (state.url !== undefined) return Promise.resolve(state.url);
     clear();

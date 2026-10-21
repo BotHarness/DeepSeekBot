@@ -579,3 +579,84 @@ it.each(['ready', 'pending'] as const)(
     }
   },
 );
+
+it.each(['activity', 'dock'] as const)(
+  '%s can retry a retained image after reopening offline and reconnecting',
+  async (surface) => {
+    const resource = resourceSpies();
+    resource.fetcher.mockImplementation(
+      async () => new Response('image', { headers: { 'content-type': 'image/png' } }),
+    );
+    const play = vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
+    const download = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    const view = await mount(surface, (host) => {
+      host.channel('shared').append({
+        id: 'retained-media',
+        body: 'Retained source media',
+        attachments: [
+          {
+            fileId: 'file:11111111-1111-4111-8111-111111111111',
+            name: 'photo.png',
+            mime: 'image/png',
+            size: 5,
+          },
+          {
+            fileId: 'file:22222222-2222-4222-8222-222222222222',
+            name: 'file.pdf',
+            mime: 'application/pdf',
+            size: 5,
+          },
+          {
+            fileId: 'file:33333333-3333-4333-8333-333333333333',
+            name: 'voice.mp3',
+            mime: 'audio/mpeg',
+            size: 5,
+          },
+        ],
+      });
+    });
+    try {
+      expect(resource.fetcher).toHaveBeenCalledTimes(1);
+      const conversation = view.sources.conversation(first)!;
+      await act(async () => {
+        view.hosts.b.kill();
+        await vi.waitFor(() => expect(conversation.getSnapshot().status).not.toBe('live'));
+      });
+      await act(async () => view.sources.close());
+      expect(resource.release).toHaveBeenCalledWith('blob:source-download');
+      await view.open(first);
+      expect(view.element.textContent).toContain('Retained source media');
+      expect(view.sources.conversation(first)).toBe(conversation);
+      expect(resource.fetcher).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        view.hosts.b.restart();
+        view.sources.client('b')!.retryNow();
+        await vi.waitFor(
+          () => {
+            expect(view.sources.client('b')!.getSnapshot().connection.status).toBe('connected');
+            expect(conversation.getSnapshot().status).toBe('live');
+          },
+          { timeout: 3000 },
+        );
+      });
+      expect(resource.fetcher).toHaveBeenCalledTimes(1);
+      const retry = [...view.element.querySelectorAll<HTMLButtonElement>('button')].find(
+        (button) => button.textContent === zhTranslate('bridgeMedia.retry'),
+      );
+      expect(retry).toBeDefined();
+      await act(async () => retry!.click());
+      expect(resource.fetcher).toHaveBeenCalledTimes(2);
+      expect(view.element.querySelector('img[src="blob:source-download"]')).not.toBeNull();
+      expect(play).not.toHaveBeenCalled();
+      expect(download).not.toHaveBeenCalled();
+      expect(
+        resource.fetcher.mock.calls.every(([url]) =>
+          url.startsWith('https://b.test/botharness-device/api/botharness/attachment'),
+        ),
+      ).toBe(true);
+    } finally {
+      await view.close();
+    }
+    expect(resource.release).toHaveBeenCalledTimes(2);
+  },
+);
