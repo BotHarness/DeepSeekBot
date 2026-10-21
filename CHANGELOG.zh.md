@@ -10,15 +10,16 @@
 
 ## [1.5.0] - 2026-10-21
 
-DeepSeekBot Connect 让手机不装 Tailscale、用账号就能配对；存储空间可以清理旧媒体和旧消息；Bot 市场变成面板；插件可在 Bot 设置里一键更新；Bot 模式在长对话里的重渲染大幅减少，保持流畅。
+DeepSeekBot Connect 让手机不装 Tailscale、用账号就能配对；频道列表可以切换到其他电脑的聊天；存储空间可以清理旧媒体和旧消息；Bot 市场变成面板；插件可在 Bot 设置里一键更新；Bot 模式在长对话里的重渲染大幅减少，保持流畅。
 
 下面的手机 App 条目对应独立版本号的手机 Beta；本次 npm 发布不包含手机 App。
 
 ### Added
 
-- **DeepSeekBot Connect** 让手机不装 Tailscale 也能连到电脑：在设置 → 设备或用 `deepseekbot connect-sign-in` 让 Host 登录 DeepSeekBot 账号后，Host 通过随 DeepSeekBot 一起安装的固定版本 `cloudflared`（或下载一次并核对 SHA-256）只在 `*.deepseekbot.dev` 上公开设备网关。所有登录账号都能关联最多 5 台电脑，手机登录同一账号后点一下即可配对，不用扫码（[#2387](https://github.com/BotHarness/DeepSeekBot/issues/2387)、[#2470](https://github.com/BotHarness/DeepSeekBot/issues/2470)、[#2410](https://github.com/BotHarness/DeepSeekBot/issues/2410)）。
+- **DeepSeekBot Connect** 让手机不装 Tailscale 也能连到电脑：在设置 → 设备或用 `deepseekbot connect-sign-in` 让 Host 登录 DeepSeekBot 账号后，Host 通过随 DeepSeekBot 一起安装的固定版本 `cloudflared`（或下载一次并核对 SHA-256）只在 `*.deepseekbot.dev` 上公开设备网关。所有登录账号都能关联最多 5 台电脑，手机登录同一账号后点一下即可配对，不用扫码；在手机上**删除账号**会解除所有电脑的关联并删除账号（[#2387](https://github.com/BotHarness/DeepSeekBot/issues/2387)、[#2470](https://github.com/BotHarness/DeepSeekBot/issues/2470)、[#2410](https://github.com/BotHarness/DeepSeekBot/issues/2410)）。
 - 有设备和电脑配对后，其他已配对的手机会收到通知，点**移除**即可撤销这台新设备；设置 → 设备会标出最近一天内配对的设备（[#2387](https://github.com/BotHarness/DeepSeekBot/issues/2387)）。
 - Bot 设置 → 设备中的**配对手机**改为三步 Tailscale 指引并实时显示状态，确认后可代为运行 `tailscale serve`（[#2399](https://github.com/BotHarness/DeepSeekBot/pull/2399)）。
+- 频道列表新增电脑 tabs：**全部**、**这台电脑**，以及每台其他电脑各一个。**添加电脑**粘贴另一台电脑的配对链接后，浏览器就能通过 Tailscale 列出、打开并回复那台电脑的聊天；右键 tab 可移除（[#2500](https://github.com/BotHarness/DeepSeekBot/issues/2500)）。
 - **设置 → 数据与隐私 → 存储空间**显示聊天媒体、消息和记忆各占多少空间，可按时间、类型和聊天预览后清理旧媒体或整条旧消息；Bot 正在处理的、尚未发出的和被记忆引用的内容会保留。手机 App 有同样的存储空间页，CLI 可用 `deepseekbot storage-usage`、`storage-cleanup-*` 和 `storage-messages-cleanup-*` 完成同样的操作（[#2430](https://github.com/BotHarness/DeepSeekBot/issues/2430)）。
 - **设置 → 数据与隐私 → 清除全部 BotHarness 数据**会先列出要删除和保留的内容并再次确认，然后删除所有 Bot、聊天记录、默认位置的记忆、附件、工作区、IM 连接设置和下载的工具，再重启 Host；`deepseekbot data-reset-preview` 和 `data-reset-confirm` 走同样的流程（[#2426](https://github.com/BotHarness/DeepSeekBot/issues/2426)）。
 - 工作区控制栏新增 **Bot 市场面板**：卡片网格随面板宽度排布，按回车搜索，可按最新创建、最近更新或最多 Star 排序，每张卡片都能导入，也能帮你上传 Bot。仓库提供对应语言时按界面语言显示，并可显示一句 AI 摘要；`deepseekbot marketplace-list` 支持 `--sort created` 和 `--lang zh|en`（[#2460](https://github.com/BotHarness/DeepSeekBot/issues/2460)、[#2375](https://github.com/BotHarness/DeepSeekBot/pull/2375)）。
@@ -34,7 +35,7 @@ DeepSeekBot Connect 让手机不装 Tailscale、用账号就能配对；存储�
 - VRM 伴侣打开时不再因编译着色器而卡住，静止时以 30fps 绘制，卡顿后会恢复分辨率；在没有显卡加速的电脑上显示静态画面和 **Show 3D anyway**，不再以约 1fps 运行（[#2446](https://github.com/BotHarness/DeepSeekBot/pull/2446)、[#2458](https://github.com/BotHarness/DeepSeekBot/pull/2458)）。
 - 桌面端面板标题栏的按钮立即显示提示，面板标题会说明可以拖动或点击隐藏，Bot 设置侧栏的每个分类前都有图标（[#2386](https://github.com/BotHarness/DeepSeekBot/pull/2386)、[#2396](https://github.com/BotHarness/DeepSeekBot/pull/2396)）。
 - 手机 Beta 可以处理以前必须回到电脑的请求：文件夹请求、带 diff 和风险提示的“允许这次／始终允许／拒绝”工具审批、对被自动拒绝的调用允许一次、入群申请，以及回复等待中或受阻的 Assignment，并都会推送通知（[#2080](https://github.com/BotHarness/DeepSeekBot/issues/2080)）。
-- 手机 Beta 更贴合各平台：输入栏对齐 iOS 26 信息或 Material 3，Android 聊天顶栏悬浮，上下边缘渐隐更柔和，对话和 Activity 顶栏的搜索与按钮改为原生；Android 改用 Material 3 导航栏和创建 FAB、导航抽屉、分段列表、选择控件、加载指示器和返回行为。**自定义电脑**改为选择图标和颜色（[#2355](https://github.com/BotHarness/DeepSeekBot/pull/2355)、[#2398](https://github.com/BotHarness/DeepSeekBot/pull/2398)、[#2394](https://github.com/BotHarness/DeepSeekBot/pull/2394)、[#2425](https://github.com/BotHarness/DeepSeekBot/pull/2425)、[#2377](https://github.com/BotHarness/DeepSeekBot/pull/2377)、[#2487](https://github.com/BotHarness/DeepSeekBot/pull/2487)、[#2350](https://github.com/BotHarness/DeepSeekBot/pull/2350)、[#2351](https://github.com/BotHarness/DeepSeekBot/pull/2351)、[#2348](https://github.com/BotHarness/DeepSeekBot/pull/2348)、[#2342](https://github.com/BotHarness/DeepSeekBot/pull/2342)、[#2354](https://github.com/BotHarness/DeepSeekBot/pull/2354)、[#2343](https://github.com/BotHarness/DeepSeekBot/pull/2343)、[#2358](https://github.com/BotHarness/DeepSeekBot/pull/2358)、[#2461](https://github.com/BotHarness/DeepSeekBot/pull/2461)）。
+- 手机 Beta 更贴合各平台：输入栏对齐 iOS 26 信息或 Material 3，Android 聊天顶栏悬浮，上下边缘渐隐更柔和，对话和 Activity 顶栏的搜索与按钮改为原生；Android 改用 Material 3 导航栏和创建 FAB、导航抽屉、分段列表、选择控件、加载指示器和返回行为。**自定义电脑**改为选择图标和颜色，并显示在每个会话名后面（[#2355](https://github.com/BotHarness/DeepSeekBot/pull/2355)、[#2398](https://github.com/BotHarness/DeepSeekBot/pull/2398)、[#2394](https://github.com/BotHarness/DeepSeekBot/pull/2394)、[#2425](https://github.com/BotHarness/DeepSeekBot/pull/2425)、[#2377](https://github.com/BotHarness/DeepSeekBot/pull/2377)、[#2487](https://github.com/BotHarness/DeepSeekBot/pull/2487)、[#2350](https://github.com/BotHarness/DeepSeekBot/pull/2350)、[#2351](https://github.com/BotHarness/DeepSeekBot/pull/2351)、[#2348](https://github.com/BotHarness/DeepSeekBot/pull/2348)、[#2342](https://github.com/BotHarness/DeepSeekBot/pull/2342)、[#2354](https://github.com/BotHarness/DeepSeekBot/pull/2354)、[#2343](https://github.com/BotHarness/DeepSeekBot/pull/2343)、[#2358](https://github.com/BotHarness/DeepSeekBot/pull/2358)、[#2461](https://github.com/BotHarness/DeepSeekBot/pull/2461)、[#2499](https://github.com/BotHarness/DeepSeekBot/pull/2499)）。
 
 ### Fixed
 
