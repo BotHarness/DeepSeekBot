@@ -30,7 +30,11 @@ it('keeps an Android system symbol inside its box under large text', async () =>
   root = createRoot(host);
   await act(async () =>
     root!.render(
-      <SystemSymbol name={{ ios: 'desktopcomputer', android: 'computer' }} size={32} color="#000" />,
+      <SystemSymbol
+        name={{ ios: 'desktopcomputer', android: 'computer' }}
+        size={32}
+        color="#000"
+      />,
     ),
   );
   const symbol = host.querySelector('i')!;
