@@ -1128,7 +1128,9 @@ token 存进 DSH 凭据存储，把自己关联到账号（每个账号最多 5 
 Host 离线后被回收的隧道会在同一个 `<host-id>.deepseekbot.dev` 上恢复。`connect-status` 增加
 `connect.account`：`state`（`signed-out`、`signing-in`、`signed-in`、`error`）、`email`、`hostId`
 和 `issue`（`relay-unavailable`、`sign-in-denied`、`sign-in-expired`、`session-expired`、
-`account-not-allowed`、`host-limit`、`credential-unavailable`）。`connect-sign-out` 在 relay 上解除
+`account-not-allowed`、`host-limit`、`credential-unavailable`）。登录期间 Host 每分钟向 relay
+复查一次账号；relay 或 WorkOS 拒绝会话后（例如 `DELETE /v1/account` 之后），Host 停掉隧道、删除
+保存的会话，并报告 `error` 和 `session-expired`。`connect-sign-out` 在 relay 上解除
 关联、停掉隧道并删除会话。任何已登录的账号都能关联 Host。
 
 ## 设备本地 DeepSeekBot 外观
