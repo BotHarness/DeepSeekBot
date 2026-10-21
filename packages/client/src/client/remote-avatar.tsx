@@ -5,6 +5,7 @@ import { PersonaBotAvatar } from './avatar.js';
 import { GroupChannelIcon, type GroupAvatarBot } from './group-avatar-stack.js';
 import type { BotHarnessTranslate } from './locale.js';
 import type { RemoteConversationTarget } from './remote-hosts.js';
+import type { RemoteBotActivity } from './remote-host-activity.js';
 
 function avatarBot(bot: RosterBot, avatars: ReadonlyMap<string, string>): GroupAvatarBot {
   const avatar = bot.avatarUrl === undefined ? undefined : avatars.get(bot.avatarUrl);
@@ -22,12 +23,14 @@ export function RemoteAvatar({
   avatars,
   target,
   size,
+  activity,
   t,
 }: {
   roster: RosterView | undefined;
   avatars: ReadonlyMap<string, string>;
   target: Pick<RemoteConversationTarget, 'botSlug' | 'channelId' | 'title'>;
   size: number;
+  activity?: RemoteBotActivity | undefined;
   t: BotHarnessTranslate;
 }): ReactElement | null {
   if (target.channelId !== undefined) {
@@ -58,7 +61,9 @@ export function RemoteAvatar({
       appearance={portrait?.appearance}
       avatarSeed={portrait?.avatarSeed}
       size={size}
-      indicator={false}
+      state={activity?.state}
+      activity={activity?.activity}
+      indicator={activity !== undefined}
       t={t}
     />
   );

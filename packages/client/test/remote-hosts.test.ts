@@ -194,6 +194,39 @@ function liveHost() {
 }
 
 describe('Host Feed lifecycle', () => {
+  it('marks the remote DM channel read through its own credential and refreshes its Inbox', async () => {
+    const { host, storage } = liveHost();
+    host.methods.set('channels', () => ({
+      channels: [{ id: 'dm-ada', type: 'dm', botSlug: 'ada', name: 'Ada', members: ['ada'] }],
+    }));
+    host.methods.set('channelMarkRead', () => {
+      host.methods.set('channelUnreadCounts', () => ({ channels: [] }));
+      return { accepted: true };
+    });
+    const sources = createRemoteHosts({ carrier: host.carrier, storage });
+    releases.push(sources.subscribe(() => {}));
+    await vi.waitFor(() => expect(sources.getSnapshot().hosts[0]?.inbox.status).toBe('ready'));
+    await sources.markRead({ hostId: host.hostId, title: 'Ada', botSlug: 'ada' }, 'message-2');
+    expect(host.calls.filter(({ method }) => method === 'channelMarkRead')).toEqual([
+      { method: 'channelMarkRead', args: { channelId: 'dm-ada', messageId: 'message-2' } },
+    ]);
+    expect(sources.getSnapshot().hosts[0]?.inbox).toMatchObject({ unread: {} });
+    await sources.markRead({ hostId: 'another-host', title: 'Ada', botSlug: 'ada' }, 'message-2');
+    expect(host.calls.filter(({ method }) => method === 'channelMarkRead')).toHaveLength(1);
+  });
+
+  it('keeps canonical unread counts when the owning Host refuses a read update', async () => {
+    const { host, storage } = liveHost();
+    const sources = createRemoteHosts({ carrier: host.carrier, storage });
+    releases.push(sources.subscribe(() => {}));
+    await vi.waitFor(() => expect(sources.getSnapshot().hosts[0]?.inbox.status).toBe('ready'));
+    host.failing.add('channelMarkRead');
+    await expect(
+      sources.markRead({ hostId: host.hostId, title: 'Group', channelId: 'group' }, 'message-2'),
+    ).rejects.toThrow();
+    expect(sources.getSnapshot().hosts[0]?.inbox).toMatchObject({ unread: { 'dm-ada': 2 } });
+  });
+
   it('retains legacy pairings when browser storage refuses the migration write', () => {
     const { host, saved } = liveHost();
     const storage = memoryStorage({
