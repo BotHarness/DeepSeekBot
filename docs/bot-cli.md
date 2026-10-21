@@ -519,6 +519,15 @@ Host-down commands fail `host-unreachable` without submitting a message. Expired
 
 Credential writes validate actual YAML before and after disk writes and restore exact previous bytes on failure (or remove a failed new file). Empty `refs: {}` becomes a block map while comments and records remain. Multiline values, including blank and trailing lines, round-trip. Null refs, empty stores and nonempty inline refs maps fail `bad-credentials` unchanged; use a block refs mapping for edits.
 
+`bot-tool <bot-id> bridge_reply --args-stdin` also accepts
+`{"source_event_id":"<trusted-source-id>","text":"I will check that now.","purpose":"acknowledgement"}`.
+Use the actual authorized source ID. The acknowledgement keeps Inbox work open and has a
+separate durable intent from the result. Wait for accepted delivery before task tools; send the
+result with the same source and omitted `purpose` (or `"final"`). Repeating the same acknowledgement
+returns its existing intent; changing its text conflicts. An unknown outcome is not permission to
+resend. This direct CLI path exercises sending, while the Orchestrator prompt enforces the intended
+acknowledgement-before-work order for model-driven turns.
+
 ### Native Agent presets for Bot Subagents
 
 A native DSH **Agent preset** supplies the child's tools and persona composition. It is not a Bot **Model Preset**, which selects provider/model/reasoning routes. `create --preset` and `model-preset-apply --preset` still mean Model Presets. Find native preset IDs in **Settings → Agent presets → View configuration**; the ID, not its display name, is used below.

@@ -503,6 +503,12 @@ Host 离线时返回 `host-unreachable`，不提交消息；过期令牌返回 `
 
 凭据写入在落盘前后验证真实 YAML；失败恢复原文件字节，新文件失败则删除。空的 `refs: {}` 转成块映射，保留注释与 records；含空行及尾换行的多行值可完整读回。null ref 值、空文件、非空内联 refs 映射返回 `bad-credentials` 且不改文件；编辑前请将 refs 改成块映射。
 
+`bot-tool <bot-id> bridge_reply --args-stdin` 也接受
+`{"source_event_id":"<trusted-source-id>","text":"我先检查这个问题。","purpose":"acknowledgement"}`。
+替换为实际获授权的来源 ID。首回应保留 Inbox 责任，使用独立于结果的持久发送意图；确认送达后才执行任务工具，
+结果使用同一来源并省略 `purpose`（或传 `"final"`）。相同首回应返回既有意图，修改正文则冲突；
+结果未知不代表可以重发。直接 CLI 验证发送路径，模型回合的“先回应再工作”顺序由 Orchestrator 提示词约束。
+
 ### Bot 子代理的原生 Agent preset
 
 DSH 原生 **Agent preset** 提供子代理的工具与 persona 组合，不等于选择 provider／model／reasoning 路由的 Bot **Model Preset**。`create --preset` 与 `model-preset-apply --preset` 仍表示 Model Preset。原生 preset ID 可在 **设置 → Agent 预设 → 查看配置** 中找到；下面填写 ID，而非显示名称。
