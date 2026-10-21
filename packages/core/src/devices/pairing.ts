@@ -42,8 +42,8 @@ export type DevicePairingEvent =
 
 export interface DevicePairing {
   host(): HostIdentity;
-  createOffer(): PairingOffer;
-  redeem(input: { offer: string; name?: string }): Redemption;
+  createOffer(binding?: { verifierHash: string; name?: string }): PairingOffer;
+  redeem(input: { offer: string; name?: string; verifier?: string }): Redemption;
   admit(authorization: string | undefined): Admission;
   check(deviceId: string): Admission;
   list(): PairedDevice[];
@@ -97,11 +97,11 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
   const record = options.record ?? (() => {});
   const iso = (ms: number): string => new Date(ms).toISOString();
 
-  const offers = new Map<string, number>();
+  const offers = new Map<string, { expiresAt: number; verifierHash?: string; name?: string }>();
   const streams = new Map<string, Set<() => void>>();
 
   const sweep = (): void => {
-    for (const [key, expiresAt] of offers)
+    for (const [key, { expiresAt }] of offers)
       if (expiresAt <= now()) {
         offers.delete(key);
         record({ phase: 'offer-expired' });
@@ -169,32 +169,37 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
   return {
     host,
 
-    createOffer() {
+    createOffer(binding) {
       sweep();
       while (offers.size >= MAX_OPEN_OFFERS) offers.delete(offers.keys().next().value!);
       const offer = token(24);
       const expiresAt = now() + PAIRING_OFFER_TTL_MS;
-      offers.set(digest(offer).toString('hex'), expiresAt);
+      offers.set(digest(offer).toString('hex'), { expiresAt, ...binding });
       record({ phase: 'offer-created' });
       return { offer, expiresAt: iso(expiresAt) };
     },
 
     redeem(input) {
       const key = digest(input.offer).toString('hex');
-      const expiresAt = offers.get(key);
+      const open = offers.get(key);
       offers.delete(key);
-      if (expiresAt === undefined) {
+      if (
+        open === undefined ||
+        (open.verifierHash !== undefined &&
+          (input.verifier === undefined ||
+            !timingSafeEqual(digest(input.verifier), Buffer.from(open.verifierHash, 'base64url'))))
+      ) {
         record({ phase: 'offer-refused' });
         return { ok: false, code: 'offer-invalid' };
       }
-      if (expiresAt <= now()) {
+      if (open.expiresAt <= now()) {
         record({ phase: 'offer-expired' });
         return { ok: false, code: 'offer-expired' };
       }
       const id = token(16);
       const secret = token(32);
       const pairedAt = iso(now());
-      const name = deviceName(input.name);
+      const name = deviceName(input.name ?? open.name);
       database.transaction(
         (connection) =>
           connection

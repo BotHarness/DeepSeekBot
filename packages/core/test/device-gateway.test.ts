@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { createServer, request, type IncomingMessage, type Server } from 'node:http';
 import type { AddressInfo, Socket } from 'node:net';
 import type { Duplex } from 'node:stream';
@@ -23,7 +24,7 @@ afterEach(async () => {
   );
 });
 
-async function fakeDsh() {
+async function fakeDsh(connectOffer?: Parameters<typeof createDeviceGateway>[0]['connectOffer']) {
   const state = {
     secret: 1,
     token: 'launch-token',
@@ -79,6 +80,7 @@ async function fakeDsh() {
     pairing,
     port: () => port,
     authenticatedUrl: (base) => `${base}?token=${state.token}`,
+    ...(connectOffer === undefined ? {} : { connectOffer }),
   });
   return { state, port, pairing, base: `http://127.0.0.1:${String(port)}` };
 }
@@ -221,6 +223,50 @@ describe('device gateway', () => {
     const devices = host.pairing.list();
     expect(devices.find((device) => device.id === phone.body.deviceId)?.revokedAt).toBeDefined();
     expect(devices.find((device) => device.id === other.body.deviceId)?.revokedAt).toBeUndefined();
+  });
+
+  it('mints relay-signed offers that only the phone holding the verifier redeems', async () => {
+    const verifier = 'phone-verifier-0123456789abcdefghijklmnop';
+    const verifierHash = createHash('sha256').update(verifier).digest('base64url');
+    const signed: { body: string; signature: string | undefined }[] = [];
+    const host = await fakeDsh(async (body, signature) => {
+      signed.push({ body, signature });
+      return signature === 'good'
+        ? { ok: true, verifierHash, name: 'Relay iPhone' }
+        : { ok: false };
+    });
+    const request = (signature: string) =>
+      fetch(`${host.base}/botharness-device/connect/offer`, {
+        method: 'POST',
+        headers: { 'x-botharness-relay-signature': signature },
+        body: '{"hostId":"h"}',
+      });
+    const refused = await request('bad');
+    expect([refused.status, await refused.json()]).toEqual([
+      401,
+      { code: 'relay-signature-invalid' },
+    ]);
+    const minted = await request('good');
+    const offer = (await minted.json()) as { offer: string; host: { id: string; name: string } };
+    expect(minted.status).toBe(200);
+    expect(offer.host).toEqual(host.pairing.host());
+    expect(signed).toEqual([
+      { body: '{"hostId":"h"}', signature: 'bad' },
+      { body: '{"hostId":"h"}', signature: 'good' },
+    ]);
+    const redeem = (body: Record<string, string>) =>
+      fetch(`${host.base}/botharness-device/pair`, { method: 'POST', body: JSON.stringify(body) });
+    const stolen = await redeem({ offer: offer.offer, verifier: 'someone-else' });
+    expect([stolen.status, await stolen.json()]).toEqual([401, { code: 'offer-invalid' }]);
+    const again = (await (await request('good')).json()) as { offer: string };
+    expect((await redeem({ offer: again.offer })).status).toBe(401);
+    const third = (await (await request('good')).json()) as { offer: string };
+    const paired = await redeem({ offer: third.offer, verifier });
+    expect(paired.status).toBe(200);
+    expect(host.pairing.list()[0]?.name).toBe('Relay iPhone');
+    const plain = await fakeDsh();
+    const absent = await fetch(`${plain.base}/botharness-device/connect/offer`, { method: 'POST' });
+    expect(absent.status).toBe(404);
   });
 
   it('carries WebRTC signalling to the Host route and ends it on revoke', async () => {

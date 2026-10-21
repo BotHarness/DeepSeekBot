@@ -218,6 +218,7 @@ export function mountDevicePairing(
       authenticatedUrl: (base) => connection.authenticatedUrl(base),
       log: (message) => ctx.logger.info(message),
       ...(push === undefined ? {} : { push: createDevicePushHttp(push) }),
+      connectOffer: (body, signature) => account.verifyOffer(body, signature),
     });
     webCtx.effect(
       () =>

@@ -54,6 +54,13 @@ trap 'rm -f "$SECRETS"' EXIT
 )
 w secret bulk "$SECRETS" >/dev/null
 rm -f "$SECRETS"
+if w secret list 2>/dev/null | grep -q '"CONNECT_HOST_KEY"'; then
+  echo "  CONNECT_HOST_KEY kept"
+else
+  node -e 'process.stdout.write(require("crypto").randomBytes(32).toString("base64url"))' \
+    | w secret put CONNECT_HOST_KEY >/dev/null
+  echo "  CONNECT_HOST_KEY created"
+fi
 
 echo "▸ Verify (the custom-domain certificate can take a minute or two)"
 CONFIG=FAILED
