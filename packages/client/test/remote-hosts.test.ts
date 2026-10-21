@@ -6,7 +6,7 @@ import { FakeHost } from '../../../apps/mobile/test/fake-host.js';
 import { createHostActivityActions } from '../src/client/host-activity-actions.js';
 import type { HumanAttentionItem } from '../src/client/store.js';
 import { pairingLink } from '../../core/src/devices/http.js';
-import { en, zh, type BotHarnessTranslate } from '../src/client/locale.js';
+import { en, zh } from '../src/client/locale.js';
 import {
   ALL_HOSTS,
   HOST_TAB_STORAGE_KEY,
@@ -431,7 +431,7 @@ describe('Host Feed lifecycle', () => {
     });
     vi.stubGlobal('document', { documentElement: { lang: 'en' } });
     let dictionary = en;
-    const translate: BotHarnessTranslate = (key) => dictionary[key];
+    const translate = (key: 'remoteHosts.notifications.privateBody') => dictionary[key];
     const { host, storage } = liveHost();
     const sources = createRemoteHosts({ carrier: host.carrier, storage, translate });
     releases.push(sources.subscribe(() => {}));

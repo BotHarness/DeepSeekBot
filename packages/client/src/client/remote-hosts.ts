@@ -29,7 +29,7 @@ import { createRemoteActivityProjection, type RemoteBotActivity } from './remote
 import { releaseRemoteHostViewers } from './remote-host-viewer.js';
 import { browserNotificationApi } from './desktop-notifications.js';
 import { createRemoteNotifications, type RemoteNotifications } from './remote-notifications.js';
-import { en, type BotHarnessTranslate } from './locale.js';
+import { en } from './locale.js';
 
 export const REMOTE_HOSTS_STORAGE_KEY = 'botharness.remoteHosts.v1';
 export const HOST_TAB_STORAGE_KEY = 'botharness.hostTab.v1';
@@ -131,13 +131,14 @@ interface HostEntry {
 }
 
 const idleInbox: InboxSnapshot = { status: 'idle' };
+type NotificationTranslate = (key: 'remoteHosts.notifications.privateBody') => string;
 
 export function createRemoteHosts(options: {
   storage?: HostStorage | undefined;
   carrier: HostCarrier;
   loadImage?: (url: string, headers: Record<string, string>) => Promise<string | undefined>;
   releaseImage?: (image: string) => void;
-  translate?: BotHarnessTranslate;
+  translate?: NotificationTranslate;
 }): RemoteHosts {
   const { storage, carrier, loadImage, releaseImage } = options;
   const listeners = new Set<() => void>();
@@ -474,9 +475,9 @@ async function browserImage(
 }
 
 let shared: RemoteHosts | undefined;
-let translate: BotHarnessTranslate = (key) => en[key];
+let translate: NotificationTranslate = (key) => en[key];
 
-export function remoteHosts(translator?: BotHarnessTranslate): RemoteHosts {
+export function remoteHosts(translator?: NotificationTranslate): RemoteHosts {
   if (translator !== undefined) translate = translator;
   if (shared !== undefined) return shared;
   shared = createRemoteHosts({
@@ -490,7 +491,7 @@ export function remoteHosts(translator?: BotHarnessTranslate): RemoteHosts {
     carrier: browserCarrier(),
     loadImage: browserImage,
     releaseImage: (image) => URL.revokeObjectURL(image),
-    translate: (key, params) => translate(key, params),
+    translate: (key) => translate(key),
   });
   const sources = shared;
   let selection = store.getSnapshot().selection;
