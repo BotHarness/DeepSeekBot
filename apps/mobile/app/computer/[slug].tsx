@@ -2,14 +2,7 @@ import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { TextInput } from '../../src/ui/primitives/system-text';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import {
-  ActivityIndicator,
-  Keyboard,
-  Pressable,
-  View,
-  type ViewInstance,
-  type TextInputInstance,
-} from 'react-native';
+import { Keyboard, Pressable, View, type ViewInstance, type TextInputInstance } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -40,6 +33,7 @@ import { Text } from '../../src/ui/primitives/text';
 import { CloseIcon, HandBackIcon } from '../../src/ui/shell/icons';
 import { useMounted } from '../../src/ui/mounted';
 import { t } from '../../src/ui/strings';
+import { LoadingIndicator } from '../../src/ui/primitives/loading-indicator';
 
 const idle: ComputerViewerState = { status: 'loading', control: false };
 
@@ -213,7 +207,7 @@ export default function ComputerScreen() {
             >
               {message === undefined ? (
                 <>
-                  <ActivityIndicator color={theme.color.muted} />
+                  <LoadingIndicator color={theme.color.muted} />
                   <Text tone="muted" style={{ marginTop: space.x4 }}>
                     {t.computerLoading}
                   </Text>

@@ -155,7 +155,7 @@ function createScoped(specs: Spec[], disposed: Spec[], withSettings = false, wit
 }
 
 describe('client apply', () => {
-  it('mirrors companion health only on transitions and clears stale health when unpinned', async () => {
+  it('keeps canonical Activity health independent of floating companion failures and removal', async () => {
     const streams: EventTarget[] = [];
     vi.stubGlobal('fetch', async () => Response.json({ profileId: 'qa' }));
     vi.stubGlobal(
@@ -192,13 +192,16 @@ describe('client apply', () => {
       streams[0]!.dispatchEvent(new Event('error'));
       companion.get('ada')!.reading(true);
       companion.get('ada')!.configure({ walking: false });
-      expect(calls.mock.calls).toEqual([['stale']]);
+      expect(calls.mock.calls).toEqual([]);
+      store.setActivitySync('stale');
+      calls.mockClear();
       companion.remove('ada');
-      expect(store.getSnapshot().activitySync).toBe('live');
-      expect(calls.mock.calls).toEqual([['stale'], ['live']]);
+      expect(store.getSnapshot().activitySync).toBe('stale');
+      expect(calls.mock.calls).toEqual([]);
     } finally {
       companion?.dispose();
       calls.mockRestore();
+      store.setActivitySync('live');
       vi.unstubAllGlobals();
     }
   });
@@ -337,6 +340,7 @@ describe('client apply', () => {
       { id: 'devices', order: 45 },
       { id: 'data-privacy', order: 50 },
       { id: 'advanced', order: 60 },
+      { id: 'plugins', order: 65 },
       { id: 'about', order: 70 },
     ]);
     for (const section of sections) {

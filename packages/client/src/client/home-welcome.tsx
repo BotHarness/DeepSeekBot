@@ -1,4 +1,4 @@
-import { useState, useSyncExternalStore, type ReactElement } from 'react';
+import { useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import { Tooltip } from './ds/tooltip.js';
@@ -8,6 +8,7 @@ import { store } from './store.js';
 import { PersonaBotAvatar } from './avatar.js';
 import { useMountedResource } from './mounted-resource.js';
 import { color, space, text } from './ds/tokens.stylex.js';
+import { sameBotFace, useClientStore, type BotFace } from './use-client-store.js';
 
 const styles = stylex.create({
   welcome: { display: 'flex', alignItems: 'center', gap: space.x4, minWidth: 0 },
@@ -36,8 +37,10 @@ export function HomeWelcome({
   t: BotHarnessTranslate;
   onEditHumanName(): void;
 }): ReactElement {
-  const bots = useSyncExternalStore(store.subscribe, () => store.getSnapshot().bots);
-  const bot = bots.find((item) => item.slug === botSlug);
+  const bot = useClientStore(
+    (state): BotFace | undefined => state.bots.find((item) => item.slug === botSlug),
+    sameBotFace,
+  );
   const [name, setName] = useState<string | null>(null);
   const mount = useMountedResource<HTMLDivElement>(() => {
     const controller = new AbortController();

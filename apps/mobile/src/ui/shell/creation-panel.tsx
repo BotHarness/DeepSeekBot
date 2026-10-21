@@ -9,28 +9,14 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useState, type ReactNode } from 'react';
-import {
-  creationActions,
-  targetsFor,
-  type CreationAction,
-  type CreationTarget,
-} from '../../host/creation-targets';
+import type { ReactNode } from 'react';
 import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
 import { NavigationMaterial } from './navigation-material';
 import { Text } from '../primitives/text';
 import { ComputerIcon, CloudIcon, PersonIcon, ChatsIcon, ShareIcon } from './icons';
 import { t } from '../strings';
-import { cloudAvailable } from '../../cloud/available';
-
-export const creationLabel = (action: CreationAction) =>
-  ({
-    channel: t.newChannel,
-    bot: t.newPersonaBot,
-    invite: t.invitePeople,
-    join: t.cloudJoin.title,
-  })[action];
+import { creationLabel, useCreationMenu, type CreationPanelProps } from './creation-menu';
 
 export function CreationPanel({
   scope,
@@ -41,28 +27,15 @@ export function CreationPanel({
   onPick,
   busy,
   error,
-}: {
-  scope: string;
-  targets: CreationTarget[];
-  bottom: number;
-  size: number;
-  onClose(): void;
-  onPick(action: CreationAction, target?: CreationTarget): void;
-  busy: boolean;
-  error?: string | undefined;
-}) {
+}: CreationPanelProps) {
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
-  const [choosing, setChoosing] = useState<CreationAction>();
-  const actions = creationActions(scope, targets).filter((a) => cloudAvailable || a !== 'join');
-  const choices = choosing ? targetsFor(choosing, scope, targets) : [];
-  const pick = (action: CreationAction) => {
-    if (action === 'join') return onPick(action);
-    if (scope === 'all') return setChoosing(action);
-    const target = targetsFor(action, scope, targets)[0];
-    if (target) onPick(action, target);
-  };
+  const { choosing, setChoosing, actions, choices, pick } = useCreationMenu({
+    scope,
+    targets,
+    onPick,
+  });
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
       <View style={{ flex: 1 }} accessibilityViewIsModal onAccessibilityEscape={onClose}>

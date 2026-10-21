@@ -74,6 +74,7 @@ export interface HumanAttentionQuery {
     itemId?: string;
     includeDismissed?: boolean;
     snoozed?: boolean;
+    dismissed?: boolean;
     category?: HumanAttentionCategory;
     kind?: HumanAttentionItem['kind'];
     sort?: HumanAttentionSort;
@@ -562,6 +563,9 @@ export function createHumanAttentionQuery(
       const direction = sort === 'oldest' ? 'ASC' : 'DESC';
       const cursorComparison = sort === 'oldest' ? '>' : '<';
       const snoozedOnly = input.snoozed === true;
+      const dismissedOnly = input.dismissed === true;
+      if (snoozedOnly && dismissedOnly)
+        throw new Error('Snoozed and dismissed filters cannot be combined');
       if (snoozedOnly && (category === 'unread' || category === 'handled')) return { items: [] };
       const filters = JSON.stringify([
         category,
@@ -569,15 +573,18 @@ export function createHumanAttentionQuery(
         input.channelId ?? null,
         sort,
         ...(snoozedOnly ? ['snoozed'] : []),
+        ...(dismissedOnly ? ['dismissed'] : []),
         ...(input.kind === undefined ? [] : [input.kind]),
         ...(search === '' ? [] : ['search', createHash('sha256').update(search).digest('hex')]),
         ...(input.unreadOnly ? ['unreadOnly'] : []),
       ]);
       const at = now().toISOString();
       const dismissFilter = (id: string, source: string): string =>
-        input.includeDismissed
-          ? ''
-          : `AND NOT EXISTS (SELECT 1 FROM human_inbox_dismissals d WHERE d.human_id = '${LOCAL_HUMAN_ID}' AND d.item_id = ${id} AND d.source_key = coalesce(${source}, '')) AND ${snoozedOnly ? '' : 'NOT '}${activeSnooze(id, source, at)}`;
+        dismissedOnly
+          ? `AND EXISTS (SELECT 1 FROM human_inbox_dismissals d WHERE d.human_id = '${LOCAL_HUMAN_ID}' AND d.item_id = ${id} AND d.source_key = coalesce(${source}, ''))`
+          : input.includeDismissed
+            ? ''
+            : `AND NOT EXISTS (SELECT 1 FROM human_inbox_dismissals d WHERE d.human_id = '${LOCAL_HUMAN_ID}' AND d.item_id = ${id} AND d.source_key = coalesce(${source}, '')) AND ${snoozedOnly ? '' : 'NOT '}${activeSnooze(id, source, at)}`;
       const cursor = input.cursor === undefined ? undefined : decodeCursor(input.cursor, filters);
       if (
         sort === 'mentions-first' &&
@@ -803,7 +810,7 @@ SELECT 'handled:' || request.source_event_id AS id,
             db
               .prepare(`${channelCte},
           filtered_unread AS (
-            SELECT * FROM visible_unread v WHERE ${input.includeDismissed ? '' : `NOT EXISTS (SELECT 1 FROM human_inbox_dismissals d WHERE d.human_id = '${LOCAL_HUMAN_ID}' AND d.item_id = 'unread:' || v.channel_id AND v.revision <= d.through_revision) AND`} is_reply = 0 AND is_mention = 0 AND (? IS NULL OR bot_slug = ?)
+            SELECT * FROM visible_unread v WHERE ${dismissedOnly ? `EXISTS (SELECT 1 FROM human_inbox_dismissals d WHERE d.human_id = '${LOCAL_HUMAN_ID}' AND d.item_id = 'unread:' || v.channel_id AND v.revision <= d.through_revision) AND` : input.includeDismissed ? '' : `NOT EXISTS (SELECT 1 FROM human_inbox_dismissals d WHERE d.human_id = '${LOCAL_HUMAN_ID}' AND d.item_id = 'unread:' || v.channel_id AND v.revision <= d.through_revision) AND`} is_reply = 0 AND is_mention = 0 AND (? IS NULL OR bot_slug = ?)
             ${match('body', 'channel_name', 'bot_slug')}
           ),
           unread_channels AS (
@@ -1100,6 +1107,7 @@ export const HUMAN_INBOX_SNOOZE_MAX_MS = 30 * 24 * 60 * 60 * 1000;
 
 export interface HumanAttentionDecisions {
   dismiss(item: HumanAttentionItem): boolean;
+  restore(item: HumanAttentionItem): boolean;
   snooze(item: HumanAttentionItem, until: string | null): boolean;
   ignoreAssignmentReport(sourceEventId: string): boolean;
 }
@@ -1136,6 +1144,22 @@ export function createHumanAttentionDecisions(
           );
           return true;
         },
+        ['human-attention'],
+      );
+    },
+    restore(item) {
+      return database.transaction(
+        (db) =>
+          (item.kind === 'channel-unread'
+            ? db
+                .prepare('DELETE FROM human_inbox_dismissals WHERE human_id = ? AND item_id = ?')
+                .run(LOCAL_HUMAN_ID, item.id)
+            : db
+                .prepare(
+                  'DELETE FROM human_inbox_dismissals WHERE human_id = ? AND item_id = ? AND source_key = ?',
+                )
+                .run(LOCAL_HUMAN_ID, item.id, item.sourceEventId ?? '')
+          ).changes > 0,
         ['human-attention'],
       );
     },

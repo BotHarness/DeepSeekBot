@@ -73,3 +73,28 @@ it('re-crawls existing entries for localized presentation and searches their loc
     sqlite.close();
   }
 });
+
+it('starts existing entries from their first-seen time until a refresh brings GitHub creation time', () => {
+  const sqlite = new DatabaseSync(':memory:');
+  try {
+    const migrations = new URL('../migrations/', import.meta.url);
+    for (const file of readdirSync(migrations).sort()) {
+      if (file < '0010') sqlite.exec(readFileSync(new URL(file, migrations), 'utf8'));
+    }
+    sqlite.exec(`INSERT INTO indexed_repositories (
+      node_id, owner, name, html_url, clone_url, pushed_at, default_branch,
+      visibility, first_seen_at, last_refreshed_at
+    ) VALUES (
+      'R_existing', 'alice', 'helper', 'https://github.com/alice/helper',
+      'https://github.com/alice/helper.git', '2026-10-01', 'main', 'listed',
+      '2026-09-12T08:00:00.000Z', '2026-10-01'
+    )`);
+
+    sqlite.exec(readFileSync(new URL('0010_created.sql', migrations), 'utf8'));
+    expect(sqlite.prepare('SELECT created_at FROM indexed_repositories').get()).toEqual({
+      created_at: '2026-09-12T08:00:00.000Z',
+    });
+  } finally {
+    sqlite.close();
+  }
+});

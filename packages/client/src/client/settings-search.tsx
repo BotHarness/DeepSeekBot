@@ -68,7 +68,12 @@ export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> 
   companions: ['companion.speechSound', 'companion.retention'],
   devices: ['devices.pair.title', 'devices.list.title'],
   about: ['release.row.title', 'build.row.title'],
-  'data-privacy': ['backup.title', 'telemetry.row.title'],
+  'data-privacy': [
+    'backup.title',
+    'telemetry.row.title',
+    'storage.row.title',
+    'dataReset.row.title',
+  ],
 };
 
 const SECTION_LABELS: Readonly<Record<string, BotHarnessKey>> = {
@@ -94,7 +99,7 @@ const SECTION_ALIASES: Readonly<Record<string, string>> = {
   notifications: '提醒 alert',
   'im-apps': '飞书 Lark Feishu Slack Discord',
   devices: '手机 phone mobile',
-  'data-privacy': '备份 隐私 backup privacy',
+  'data-privacy': '备份 隐私 存储 空间 清理 backup privacy storage cleanup',
 };
 
 export const PLUGIN_INDEX: Readonly<Record<string, readonly { zh: string; en: string }[]>> = {
@@ -116,6 +121,7 @@ const SEARCH_ALIASES: Partial<Record<BotHarnessKey, string>> = {
   'icon.row.title': 'avatar 图标 头像',
   'idleCompaction.row.title': 'compaction context 上下文',
   'telemetry.row.title': 'telemetry analytics 遥测',
+  'dataReset.row.title': 'reset uninstall reinstall wipe 重置 卸载 重装 清空',
   'companion.speechSound': 'sound audio 声音',
 };
 

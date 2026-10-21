@@ -9,13 +9,14 @@ vi.mock('expo-secure-store', () => ({
     stored.set(key, value);
   },
 }));
+vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('expo-quick-actions', () => ({
   setItems: async (items: unknown[]) => {
     shortcuts.push(items);
   },
 }));
 
-const { chatHref, parseRecentChats, quickAction, recordRecentChat, rememberChat } =
+const { chatHref, parseRecentChats, quickAction, recordRecentChat, rememberChat, shortcutIcon } =
   await import('../src/ui/shell/recent-chats');
 
 const chat = (id: string, title = id) => ({ id, title, href: `/dm/${id}` });
@@ -38,6 +39,11 @@ describe('recent chats on the home-screen icon', () => {
       title: 'Writer',
       params: { href: '/dm/writer' },
     });
+  });
+
+  it('uses a resource Android can draw, since it has no SF Symbols', () => {
+    expect(shortcutIcon('android')).toBe('ic_launcher');
+    expect(shortcutIcon('ios')).toBe('symbol:bubble.left');
   });
 
   it('ignores stored entries that are damaged or point outside the app', () => {

@@ -53,6 +53,7 @@ vi.mock('react-native-reanimated', async () => {
 });
 vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
 vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
+vi.mock('expo-router', () => ({ usePreventRemove: () => {} }));
 vi.mock('expo-speech-recognition', () => ({
   ExpoSpeechRecognitionModule: {
     isRecognitionAvailable: () => speech.available,

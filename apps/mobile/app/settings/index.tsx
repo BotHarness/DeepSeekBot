@@ -16,6 +16,7 @@ import { SettingsRow } from '../../src/ui/primitives/settings-row';
 import { t } from '../../src/ui/strings';
 import { SettingsView } from '../../src/ui/settings-view';
 import { openHostDrawer } from '../../src/ui/shell/host-drawer';
+import { noticeHostKept } from '../../src/ui/unpair-notice';
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -57,9 +58,14 @@ export default function SettingsScreen() {
         },
         onAppIcon: () => router.push('/settings/app-icon'),
         onNotifications: () => router.push('/settings/notifications'),
+        onStorage: () => router.push('/settings/storage'),
         onModels: () => router.push('/settings/models'),
         onCopyVersion: copyMessage,
-        onUnpair: () => hostSession.unpair().then(() => router.dismissTo('/')),
+        onUnpair: () =>
+          hostSession.unpair().then((result) => {
+            router.dismissTo('/');
+            noticeHostKept(result, saved?.hostName ?? '');
+          }),
       }}
     />
   );

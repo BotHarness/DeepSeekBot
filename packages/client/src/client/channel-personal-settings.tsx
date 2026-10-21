@@ -1,6 +1,6 @@
 import { useRef, useState, type ReactElement } from 'react';
 import { Button, Input, Switch } from '@deepseek-ai/dsh-client-ui-primitives';
-import { useClientState } from './bot-sidebar.js';
+import { useClientStore } from './use-client-store.js';
 import type { ChannelSidebarEntryProps } from './channel-sidebar.js';
 import type { ChannelSummary } from './store.js';
 import { SettingsRow, SettingsSection } from './ds/settings-row.js';
@@ -9,13 +9,12 @@ import { DM_ACTION_KINDS, toggleHiddenDmAction } from './dm-actions.js';
 import { useHiddenDmActions } from './channel-options.js';
 
 export function ChannelNicknameEntry(props: ChannelSidebarEntryProps): ReactElement | null {
-  const state = useClientState();
-  const channel = state.conversation.channel;
+  const channel = useClientStore((state) => state.conversation.channel);
+  const botName = useClientStore(
+    (state) => state.bots.find((bot) => bot.slug === channel?.botSlug)?.displayName,
+  );
   if (channel?.id !== props.channelId || channel.humanNickname === undefined) return null;
-  const name =
-    channel.type === 'dm'
-      ? (state.bots.find((bot) => bot.slug === channel.botSlug)?.displayName ?? channel.name)
-      : channel.name;
+  const name = channel.type === 'dm' ? (botName ?? channel.name) : channel.name;
   return <ChannelNicknameSetting key={channel.id} {...props} channel={{ ...channel, name }} />;
 }
 

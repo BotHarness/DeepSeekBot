@@ -282,6 +282,7 @@ export async function runImAuthorization(
         'usage',
         'host-unreachable',
         'host-unauthorized',
+        'host-untrusted',
         'host-protocol-error',
         'bad-request',
         'capability-unavailable',

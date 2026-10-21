@@ -372,11 +372,17 @@ describe('generated summaries', () => {
     expect(calls).toHaveLength(2);
   });
 
-  it('does nothing without a summarizer', async () => {
+  it('logs that summaries were skipped without a summarizer', async () => {
     const market = createMarket();
     await listed(market, fakeRepository());
     await market.scheduled(REFRESH_CRON);
-    expect(market.logs.map((line) => line['phase'])).toEqual(['refresh']);
+    expect(market.logs.map((line) => line['phase'])).toEqual(['refresh', 'summaries']);
+    expect(market.logs.at(-1)).toMatchObject({ skipped: 'missing-summary-api-key' });
+    expect(
+      market.sqlite.prepare('SELECT summary_checked_at FROM indexed_repositories').get(),
+    ).toEqual({
+      summary_checked_at: null,
+    });
   });
 });
 

@@ -525,6 +525,22 @@ describe('DM conversation', () => {
     ]);
   });
 
+  it('uploads a typed photo as octet-stream so the Host accepts it', async () => {
+    const host = new FakeHost();
+    host.channel(DM);
+    const target = open(host);
+    await until(target, (s) => s.status === 'live');
+    const photo = async () => new Blob(['png'], { type: 'image/png' });
+    const id = target.send('', [{ name: 'IMG_0001.PNG', kind: 'image', read: photo }]);
+    const sent = (s: ConversationSnapshot) => s.messages.find((message) => message.id === id);
+    await until(target, (s) => sent(s)?.delivery !== 'pending');
+    expect(sent(target.getSnapshot())?.delivery).toBe('committed');
+    expect(host.uploads).toEqual([
+      { name: 'IMG_0001.PNG', type: 'application/octet-stream', text: 'png' },
+    ]);
+    expect(host.calls.filter((call) => call.method === 'channelSend')).toHaveLength(1);
+  });
+
   it('shows picked files at once and keeps their local copies after the Host commits them', async () => {
     const host = new FakeHost();
     host.channel(DM);
@@ -631,6 +647,40 @@ describe('DM conversation', () => {
           headers,
         },
         local: false,
+      },
+    ]);
+  });
+
+  it('shows cleared media as a cleared file card without a download source', async () => {
+    const host = new FakeHost();
+    host.channel(DM).append(
+      {
+        id: 'old-1',
+        author: { kind: 'human' },
+        body: 'from January',
+        clearedAttachments: [
+          {
+            name: 'beach.png',
+            mime: 'image/png',
+            size: 4096,
+            clearedAt: '2026-10-20T00:00:00.000Z',
+          },
+        ],
+      },
+      false,
+    );
+    const target = open(host);
+    const live = await until(target, (s) => s.messages.length === 1);
+    expect(live.messages[0]?.body).toBe('from January');
+    expect(live.messages[0]?.attachments).toEqual([
+      {
+        key: 'old-1:cleared:0',
+        kind: 'file',
+        name: 'beach.png',
+        mime: 'image/png',
+        size: 4096,
+        local: false,
+        cleared: true,
       },
     ]);
   });

@@ -1,0 +1,13 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <application>
+    <!-- Outranks expo-notifications' own receiver (priority -1), which NotificationsService.doWork resolves by priority. -->
+    <receiver
+      android:name=".ConversationNotificationsService"
+      android:enabled="true"
+      android:exported="false">
+      <intent-filter android:priority="0">
+        <action android:name="expo.modules.notifications.NOTIFICATION_EVENT" />
+      </intent-filter>
+    </receiver>
+  </application>
+</manifest>

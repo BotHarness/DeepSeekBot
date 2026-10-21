@@ -26,7 +26,8 @@ vi.mock('@expo/ui/jetpack-compose', () => {
     DropdownMenu,
     DropdownMenuItem,
     HorizontalDivider: () => createElement('hr'),
-    Host: pass,
+    Host: ({ children }: { children?: ReactNode }) =>
+      createElement('section', { 'data-compose-host': '' }, children),
     Text: pass,
   };
 });
@@ -74,5 +75,24 @@ describe('Android action menu', () => {
     expect(unpair).toHaveBeenCalledOnce();
     expect(customize).not.toHaveBeenCalled();
     expect(menu()?.getAttribute('data-expanded')).toBe('false');
+  });
+
+  it('stacks ⋯ above the Compose host so the host never takes its taps', () => {
+    host = document.createElement('div');
+    document.body.append(host);
+    root = createRoot(host);
+    act(() =>
+      root?.render(
+        createElement(ActionMenuButton, {
+          label: 'More for Studio',
+          onOpen: () => undefined,
+          actions: [{ label: 'Customize', icon: 'settings', run: () => undefined }],
+        }),
+      ),
+    );
+    const compose = host.querySelector('[data-compose-host]');
+    const trigger = host.querySelector('[aria-label="More for Studio"]');
+    expect(compose?.parentElement).toBe(trigger?.parentElement);
+    expect(compose?.nextElementSibling).toBe(trigger);
   });
 });

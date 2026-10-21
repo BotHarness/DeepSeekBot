@@ -56,7 +56,7 @@ For a blank bot, `--core-memory <text>` or `--core-memory-stdin` writes the root
 
 ## Live Host commands
 
-Set `DEEPSEEKBOT_HOST` to the running Host's loopback origin, or a tailnet HTTPS origin. Supply its current launch token through `DEEPSEEKBOT_HOST_TOKEN` or `--token-file <private-file>`, never a token argument. `--host <origin>` overrides the environment. Login happens per invocation, cookies remain in memory, and restarting the Host requires its new token. Live commands never open the profile database. See [ADR-0159](adr/0159-live-cli-verbs-ride-the-dsh-http-carrier.md).
+Set `DEEPSEEKBOT_HOST` to the running Host's loopback origin, or a tailnet HTTPS origin. A tailnet origin (for example `tailscale serve` in front of a loopback Host) works only when the Host was started with `--trusted-host <machine>.<tailnet>.ts.net`; otherwise login succeeds but DSH's `/api` Host fence refuses every request and the CLI returns `host-untrusted`. Supply its current launch token through `DEEPSEEKBOT_HOST_TOKEN` or `--token-file <private-file>`, never a token argument. `--host <origin>` overrides the environment. Login happens per invocation, cookies remain in memory, and restarting the Host requires its new token. Live commands never open the profile database. See [ADR-0159](adr/0159-live-cli-verbs-ride-the-dsh-http-carrier.md).
 
 ### Online creation and headless debugging
 
@@ -108,6 +108,7 @@ deepseekbot ask-secret-revoke <channel-id> --message-id <configured-card-id>
 deepseekbot ask-secret-accounts <bot-id>
 deepseekbot release-info [--since <version>]
 deepseekbot workspace-options
+deepseekbot folder-browse [<folder-path>]
 deepseekbot grant-create <bot-id> --workspace <workspace-id>
 ```
 
@@ -374,6 +375,8 @@ deepseekbot inbox --category replies --search budget --unread --sort mentions-fi
 deepseekbot inbox-watch --category unread --watch-seconds 10
 deepseekbot inbox-status
 deepseekbot inbox-dismiss <item-id> --source-key <source-event-id>
+deepseekbot inbox --category replies --dismissed
+deepseekbot inbox-restore <item-id> --source-key <source-event-id>
 deepseekbot inbox-snooze <item-id> --source-key <source-event-id> --until 2026-10-15T09:00:00Z
 deepseekbot inbox-snooze <item-id> --source-key <source-event-id> --clear
 deepseekbot inbox --category action --snoozed
@@ -398,7 +401,7 @@ deepseekbot private-mcp-remove <bot-id> --server <name> --confirm
 
 `inbox --search <text>` searches safe Activity summaries, Channel names and Bot slugs before pagination (maximum 200 characters). `--unread` restricts personal messages to unread entries and leaves pending actions intact. `--sort newest|oldest` orders each category; `--category replies --sort mentions-first` puts mentions before replies. Keep filters unchanged when using `--cursor`. Search, unread filtering and mention ordering require query version 1; an older Host fails with `host-query-unsupported` instead of returning partial results.
 
-`inbox` returns one page of the Human Inbox (`items` and `nextCursor`), filtered like the Inbox tabs by `--category` (`action`, `info`, `unread`, `replies`, `handled`), `--bot` or `--channel`. `inbox-dismiss` takes an item's `id` and, when the item has one, its `sourceEventId` as `--source-key`; `inbox-ignore` marks an informational assignment report as read. `inbox-snooze` hides an Action, Info or Replies item until `--until` (at most 30 days away), the Web Inbox's "Remind me later"; `--clear` brings it back now, and `inbox --snoozed` lists the items still snoozed with their `snoozedUntil`. `assignment-context` reads the report behind an `assignment-report` item. `channel-assignments` lists a group Channel's assignment work; `channel-assign` moves a Channel into a sidebar section (`--unsectioned` takes it out). `session-ids` lists the root Sessions Bots own and `session-owner` names a Session's Bot and role. `tool-approval-rules` lists a Bot's "always allow" rules. Revoking a rule, a Workspace Grant or a private MCP server needs `--confirm`, as the Web UI asks for confirmation. With a Host targeted, `grant-revoke` and `grant-write-set` go through it; with `--home` they stay offline maintenance commands. Private MCP servers are listed by `ask-secret-accounts`; a name the Host does not know fails with `private-mcp-server-unavailable`.
+`inbox` returns one page of the Human Inbox (`items` and `nextCursor`), filtered like the Inbox tabs by `--category` (`action`, `info`, `unread`, `replies`, `handled`), `--bot` or `--channel`. `inbox-dismiss` takes an item's `id` and, when the item has one, its `sourceEventId` as `--source-key`; `inbox --dismissed` lists the dismissed items (the phone's "Cleared" filter) and `inbox-restore` brings one back with the same `id` and `--source-key`, failing on a Host that predates it with `host-query-unsupported`; `inbox-ignore` marks an informational assignment report as read. `inbox-snooze` hides an Action, Info or Replies item until `--until` (at most 30 days away), the Web Inbox's "Remind me later"; `--clear` brings it back now, and `inbox --snoozed` lists the items still snoozed with their `snoozedUntil`. `assignment-context` reads the report behind an `assignment-report` item. `channel-assignments` lists a group Channel's assignment work; `channel-assign` moves a Channel into a sidebar section (`--unsectioned` takes it out). `session-ids` lists the root Sessions Bots own and `session-owner` names a Session's Bot and role. `tool-approval-rules` lists a Bot's "always allow" rules. Revoking a rule, a Workspace Grant or a private MCP server needs `--confirm`, as the Web UI asks for confirmation. With a Host targeted, `grant-revoke` and `grant-write-set` go through it; with `--home` they stay offline maintenance commands. Private MCP servers are listed by `ask-secret-accounts`; a name the Host does not know fails with `private-mcp-server-unavailable`.
 
 ### Schedules on a live Host
 
@@ -510,7 +513,7 @@ Question answer stdin is `{"answers":[{"id":"question-id","selected":["Blue"],"c
 
 Private input uses the authenticated Owner and the same inline cards as Web Chat. Read `privateInputRequest.fields` and the card ID from `channel-messages`, then feed a JSON object of those field IDs and confidential strings to `ask-secret-submit --values-stdin` from a trusted source. Keep values out of arguments, shell history and ordinary messages. Submission and cancellation return only `{accepted:true}`; no command reads original values back. `ask-secret-status` returns request settlement, while `ask-secret-account-status` reports current access, including revoked or superseded. Replacement returns a new blank card's `{messageId}` for a separate stdin submission; revocation returns `{accepted:true,stopped,completed,uncertain}` and withdraws local access, without undoing remote effects; the account's stored values are erased at once. `ask-secret-accounts` lists a Bot's current private accounts as `{status,accounts}`: each row has the account name, purpose, field labels, `configured`/`replacing`/`unavailable`, when it was last set, and the configured card's `channelId` and `messageId` for `ask-secret-replace` and `ask-secret-revoke`. It never returns values or references. Private-operation refusals use the static `private-input-not-accepted` error instead of forwarding Host payloads. Mutations never retry automatically; inspect status and history after an uncertain transport outcome. These commands work in every Profile: since ADR-0189 secret input needs no opt-in and no Docker, see the [ordinary Profile guide](dev/guides/private-input-ordinary.md). The [account lifecycle guide](dev/guides/private-input-cli.md) has runnable checks for replacement, revocation and scheduled reuse.
 
-Host-down commands fail `host-unreachable` without submitting a message. Expired tokens fail `host-unauthorized`; malformed responses fail `host-protocol-error`. Bridge and gateway codes pass through unchanged. Stdout remains one JSON document (`--compact` is available); authentication values are never printed or saved.
+Host-down commands fail `host-unreachable` without submitting a message. Expired tokens fail `host-unauthorized`; a tailnet name missing from the Host's `--trusted-host` list fails `host-untrusted`; malformed responses fail `host-protocol-error`. Bridge and gateway codes pass through unchanged. Stdout remains one JSON document (`--compact` is available); authentication values are never printed or saved.
 
 Credential writes validate actual YAML before and after disk writes and restore exact previous bytes on failure (or remove a failed new file). Empty `refs: {}` becomes a block map while comments and records remain. Multiline values, including blank and trailing lines, round-trip. Null refs, empty stores and nonempty inline refs maps fail `bad-credentials` unchanged; use a block refs mapping for edits.
 
@@ -588,6 +591,17 @@ deepseekbot idle-compaction-cache-set deepseek/<model> auto
 
 All three return `{enabled, settingReadable, minimumIdleSeconds, scheduled, routes}`. Each route lists `cacheLifetimeSeconds`, its `source` and `compactAfterSeconds` (`null` when the route is skipped). The lifetime comes from the per-route value set here (`setting`), the model catalog (`catalog`, Anthropic's short tier), the observed gaps before requests that still read most of their input from the cache (`observed`; a warm gap never shortens the default, and a longer cold gap caps it), or 2 hours for DeepSeek routes (`default`); other routes with nothing known are `unknown` and skipped, as are lifetimes under 15 minutes. `idle-compaction-cache-set ... auto` removes the per-route value. Each run is recorded under `idleCompactions` in `deepseekbot bot-activity-history <bot-id>` with the route, idle gap, tokens before and after, and the compaction request's input, cache-read and output tokens. Refusals carry a code: `usage` (a missing `on`/`off`, `<provider>/<model>` or whole seconds) and `invalid-input`.
 
+### Phone route (Tailscale)
+
+Bot settings → Devices → Pair a phone shows a three-step guide while a phone cannot reach this Host: install Tailscale, start and sign in, then publish the Host on the tailnet. The last step can run `tailscale serve --bg <port>` for you after a confirmation, or you copy the command and run it yourself. The same two operations from the CLI:
+
+```bash
+deepseekbot phone-route
+deepseekbot phone-route-publish --confirm
+```
+
+`phone-route` returns `{routes}`: `tailscale` (`running`, `stopped` or `missing`), the `serveCommand` for this Host's port, and each route with `ready` and, when not ready, `issue` (`serve-missing` or `serve-other-target`). `phone-route-publish` runs `tailscale serve --bg <port>` on the Host computer and returns `{published, changed, routes}`; `changed:false` means the route was already published. Refusals carry a code: `confirm-required` (no `--confirm`), `tailscale-missing`, `tailscale-stopped`, `serve-other-target` (another service is already published at this address; the Host never replaces it, change it by hand), `serve-needs-enable` (Serve is off for the tailnet; the refusal carries `enableUrl` for the Tailscale admin console), `serve-denied` (Tailscale refused the change for this OS user) and `serve-failed`. Undo with `tailscale serve --https=443 off`; `tailscale serve reset` would also remove every other Serve entry on the computer.
+
 ### Models, usage and activity
 
 ```bash
@@ -622,7 +636,7 @@ The online Human CLI accepts `home-model-set --orchestrator-effort` and `--expec
 These commands call the same Host methods as the Marketplace page, the update card, the usage statistics notice, the Git prompt and the IM pairing panel:
 
 ```bash
-deepseekbot marketplace-list [--query <words>] [--topic <topic>] [--sort updated|stars] [--lang zh|en] [--cursor <next-cursor>]
+deepseekbot marketplace-list [--query <words>] [--topic <topic>] [--sort updated|created|stars] [--lang zh|en] [--cursor <next-cursor>]
 deepseekbot marketplace-topics
 deepseekbot marketplace-detail <owner/repo> [--lang zh|en]
 deepseekbot marketplace-submit https://github.com/<owner>/<repo>
@@ -630,6 +644,9 @@ deepseekbot marketplace-report <owner/repo> [--reason <text>]
 deepseekbot release-check [--force]
 deepseekbot release-install <version> --confirm
 deepseekbot release-restart --confirm
+deepseekbot plugin-check [--force]
+deepseekbot plugin-install <package> <version> --confirm
+deepseekbot plugin-restart --confirm
 deepseekbot telemetry-status
 deepseekbot telemetry-set --enabled | --disabled
 deepseekbot git-status
@@ -645,7 +662,41 @@ deepseekbot pairing-review <bot-id> <pairing-id> --decision revoke --confirm
 
 `release-info` includes an optional Host-owned `identity`: `development` with source revision/dirty state, `release` with version, or `unknown` with a metadata/composition reason. Old Hosts omit this field; absence is not verified release identity. The internal source version placeholder remains `0.0.0`; About displays source identity instead. `release-check` can return `unknown`; install/restart then refuse with `release-identity-invalid`. Installed/staged and running versions remain separate until the new Host answers with the exact target version.
 
+`plugin-check`, `plugin-install` and `plugin-restart` are the **Bot settings → Plugins** page. They cover installed `@botharness/*` plugin Bundles other than `deepseekbot`, such as `@botharness/vrm-companion`. `plugin-check` returns `installable`, `restartable` and one entry per plugin with `status` `current`, `available`, `blocked`, `restart-required`, `development` or `unavailable`; `--force` bypasses the six-hour check cache. Compatibility uses the running DSH evaluator on that plugin's registry manifest. `plugin-install <package> <version> --confirm` rechecks compatibility, installs through the native Plugin Manager and falls back to the registry tarball when the Manager refuses an installed name; `applied: true` means the Host loaded it already and only the page needs a reload. Otherwise `plugin-restart --confirm` restarts the Host to finish every staged plugin update. Failures exit non-zero with `plugin-<reason>`, such as `plugin-incompatible`, `plugin-unknown-plugin` or `plugin-not-pending`.
+
 `--lang zh|en` asks for listings in that language, as the Marketplace page does in the interface language: the name and bio come from the author's `bot.json` `i18n` translation, then a bio already in that language, then the Marketplace's generated summary (`descriptionGenerated: true`); `marketplace-detail` returns the repository's README in that language and names it in `readmeLanguage`, else `README.md`: for `zh` it takes `README.zh-CN.md`, then `README.zh.md`, then another spelling such as `README_CN.md` or `README-zh.md`; for `en` it takes `README.en.md`. `marketplace-submit` and `marketplace-report` first solve the Host's proof-of-work challenge, as the Web page does, so they can take a few seconds; the Marketplace's own refusals (`repository-missing-topic`, `rate-limited`, …) come back as the error code. A report reason is at most 500 characters. `release-check` returns the update status (`current`, `available`, `restart-required`, `blocked`, `development`, `unknown` or `unavailable`). `release-install` and `release-restart` need `--confirm`; a failed install or restart exits non-zero with `release-<reason>`, such as `release-network` or `release-not-pending`. Restarting stops every running Bot turn, so do it only on a Host you own. `pairing-list` shows a Bot's pairing requests and its roles; `pairing-review` reads the current revisions itself, so a request that changed in between is refused instead of overwritten. Approve with one `--role` for a conversation request or with `--capability` for a management request.
+
+### Clear all BotHarness data
+
+```bash
+deepseekbot data-reset-preview
+printf '%s' '{"token":"<preview.token>"}' | deepseekbot data-reset-confirm --confirmation-stdin --confirm
+```
+
+This is the CLI form of **Settings → Data & privacy → Clear all BotHarness data**. `data-reset-preview` lists exactly what a reset removes: `targets` names each existing folder (`data` is `$DSH_HOME/botharness`, with the database, Bots, Memory in its default place, attachments, channel files and workspaces; `im-settings` is each bundled IM Provider folder under `$DSH_HOME/integrations`; `local-tools` is `~/.botharness`, such as the computer driver), with its size and file count. `kept` lists what stays: DSH's own `$DSH_HOME/.credentials.yaml`, every Memory folder a Human chose for a Bot (kept even when it sits inside a removed folder) and the `BotHarness Exports` folder. The token lasts ten minutes and only for that exact scope; a new Bot, a moved Memory folder or an expired token refuses with `data-reset-preview-stale`, so preview again.
+
+`data-reset-confirm` needs `--confirmation-stdin --confirm`. It stops BotHarness writing, records the reset in `$DSH_HOME/botharness-reset.json` and returns `{reset:{status:"restarting"}}`: the folders are removed when the old Host exits, before it starts again. When the Host cannot restart itself it returns `restart-required`; Bots stay stopped and the removal finishes at the next Host start, including after the plugin is reinstalled. DSH sessions, DSH settings and other plugins stay. Only the Host owner can run it; it is not a Bot tool.
+
+### Storage space
+
+```bash
+deepseekbot storage-usage
+deepseekbot storage-cleanup-preview --older-than-days 90 [--chat <channel-id> …] [--media image|video|audio|file …] \
+  | deepseekbot storage-cleanup-confirm --confirmation-stdin --confirm
+```
+
+This is the CLI form of **Settings → Data & privacy → Storage space**. `storage-usage` returns `totalBytes`, `parts` (`media` is the attachment folder, `messages` the operational database, `memory` every Bot's Memory folder, `other` the rest of `$DSH_HOME/botharness`) and `chats`, largest media first, with each chat's `messages`, `oldestAt`, `mediaBytes` and per-kind `media` totals.
+
+`storage-cleanup-preview` takes exactly one of `--before <ISO time>` or `--older-than-days <n>`, optional repeated `--chat` (default: every chat) and `--media` (default: all four kinds). It returns the files and bytes it would clear, `freedBytes` (files nothing else still uses), per-chat and per-kind totals, `kept` counts (`bot-working`, `delivery-pending`, `memory`, `migration`) and a ten-minute `token` with its normalized `scope`. Pipe that JSON into `storage-cleanup-confirm --confirmation-stdin --confirm`; a changed selection or an expired token refuses with `storage-preview-stale`, so preview again.
+
+Clearing keeps every message and its text: each cleared attachment becomes a `clearedAttachments` entry (name, type, size, time) and its file is deleted when nothing else references it. Media mirrored from IM apps and Bot Memory are not touched. A Profile Backup taken earlier still holds the files.
+
+```bash
+deepseekbot storage-messages-cleanup-preview --older-than-days 365 [--chat <channel-id> …] \
+  | deepseekbot storage-messages-cleanup-confirm --confirmation-stdin --confirm
+```
+
+`storage-messages-cleanup-preview` deletes whole messages instead: it takes the same `--before` / `--older-than-days` and `--chat`, but not `--media`. It returns `messages`, `bytes` (their text), `files` that go with them, `chats` with a count each, `kept` counts (`bot-working`, `delivery-pending`, and `shared` for a message that also sits in a chat you did not pick), `memoryReferences` (Bot Memory that mentions them; Memory is not changed), `more` when over 2,000 messages match (clear again afterwards) and a ten-minute `token`. `storage-messages-cleanup-confirm` runs it through Content Purge: each message keeps its place as a tombstone with no text or files, Bot work started from it stops, and its files are deleted when nothing else uses them. It returns `messages` and `freedBytes` measured in the database after it is compacted. A changed selection or an expired token refuses with `storage-preview-stale`.
 
 ## IM application authorization
 
@@ -720,6 +771,15 @@ deepseekbot grants <bot-id>
 ```
 
 `grant-request-approve` uses the same Owner-only Host command as the Web request card. The Host commits persistent read/write authority and the Grant-linked resolution together before continuing the original task through its existing Inbox. It also upgrades an existing read-only Grant after this explicit confirmation. Repeating the same approved request reads back the existing decision; it does not create another Grant or wake. A revoked or changed target is refused. An old tool approval is not a Workspace request: use this command rather than `tool-approval-decide`. Missing `--confirm` is `usage`; unavailable or stale authority returns a coded refusal. This is an online command, not an offline database repair.
+
+### Browse Host folders
+
+```bash
+deepseekbot folder-browse
+deepseekbot folder-browse 'D:\code'
+```
+
+`folder-browse` lists the subfolders of one Host folder, the same way the phone folder picker does when the computer uses the system folder dialog. With no path it starts at the Host home. It returns `{path, home, crumbs, entries, truncated, roots}`: folder names and paths only, never files. `roots` holds the home folder and the drives (Windows) or `/`. A relative path fails `folder-browse/invalid-path`; a missing, non-folder or unreadable path fails `folder-browse/not-found`, `folder-browse/not-directory` or `folder-browse/denied`. Browsing grants nothing: register the chosen path and grant it as above.
 
 ## Memory
 
@@ -1037,12 +1097,12 @@ Ctrl+0 restores the saved default, including 120%; numberpad codes are unsupport
 pinned protocol. See [Windows qualification #2270](https://github.com/BotHarness/DeepSeekBot/issues/2270)
 for the separate native input, guest foreground, DPI and Human-QA gates.
 
-## Hosted Connect tunnel (ADR-0241, first slice)
+## DeepSeekBot Connect (ADR-0241)
 
-Hosted Connect lets a paired phone reach this Host through a Cloudflare Tunnel under
+DeepSeekBot Connect lets a paired phone reach this Host through a Cloudflare Tunnel under
 `deepseekbot.dev` instead of Tailscale ([#2387](https://github.com/BotHarness/DeepSeekBot/issues/2387)).
-In this first slice the tunnel and its connector token are made by hand; account sign-in and the
-relay come later.
+Usually the Host signs in to a DeepSeekBot account and the relay provisions the tunnel (see Account
+sign-in below). `connect-enable` runs a tunnel whose connector token was made by hand.
 
 ```sh
 deepseekbot connect-status --host <host> --token-file <private-file>
@@ -1054,13 +1114,40 @@ deepseekbot connect-disable --host <host> --token-file <private-file>
 loopback origin that forwards only `/botharness-device/*` to the DSH listener (every other path is
 404), and runs `cloudflared tunnel --no-autoupdate run` with the token in `TUNNEL_TOKEN`, never in
 its arguments. The JSON reply's `origin` is the address the tunnel's ingress must target. The
-`cloudflared` binary comes from `DEEPSEEKBOT_CLOUDFLARED` or `PATH`. `connect-status` returns
-`connect.state` (`off`, `starting`, `connected`, `error`) with `issue` (`cloudflared-missing`,
-`cloudflared-exited`, `origin-port-busy`, `credential-unavailable`) and the phone route list; once
+Host runs a pinned `cloudflared` (`packages/core/src/devices/cloudflared.json`) and takes the
+first of: `DEEPSEEKBOT_CLOUDFLARED`; the optional `@botharness/cloudflared-<platform>-<arch>`
+package installed with `deepseekbot`; a copy under `$DSH_HOME/botharness/cloudflared/<version>/`,
+downloaded from the cloudflared GitHub release and kept only when its SHA-256 matches the pin; then
+`cloudflared` on `PATH`. A cached or packaged binary whose hash differs is refused, and a bad cached
+copy is deleted and downloaded again. `connect-status` returns `connect.state` (`off`,
+`starting`, `connected`, `error`) with `issue` (`cloudflared-missing`, `cloudflared-exited`,
+`cloudflared-download-failed`, `cloudflared-hash-mismatch`, `origin-port-busy`,
+`credential-unavailable`), `connect.cloudflared` (`env`, `package`, `cache`, `download` or `path`:
+which binary runs) and the phone route list. A refused download is retried with backoff; once
 connected, new pairing QR codes include `https://<name>.deepseekbot.dev` after any Tailscale route.
 Refusals: `connect-hostname-invalid` (only one label under `deepseekbot.dev`),
 `connect-token-invalid`, `credential-unavailable`. `connect-disable` stops the tunnel and deletes
 the stored token; paired devices keep their credentials.
+
+### Account sign-in
+
+```sh
+deepseekbot connect-sign-in --wait --host <host> --token-file <private-file>
+deepseekbot connect-sign-out --host <host> --token-file <private-file>
+```
+
+`connect-sign-in` starts WorkOS CLI Auth (the device authorization grant) with the client that the
+relay at `https://connect.botharness.ai` publishes (`DEEPSEEKBOT_CONNECT_RELAY` overrides it). The
+reply carries `userCode` and `verificationUri`; with `--wait` the CLI prints them to stderr and waits
+until the Host finishes. The Host then stores only the refresh token in the DSH credential store,
+links itself to the account (at most five Hosts per account), asks the relay for its tunnel and runs
+it as `connect-enable` would, with no hand-made token. While signed in it asks the relay again when
+the tunnel stops, so a tunnel the relay reclaimed after the Host was offline comes back on the same
+`<host-id>.deepseekbot.dev`. `connect-status` adds `connect.account` with `state` (`signed-out`,
+`signing-in`, `signed-in`, `error`), `email`, `hostId` and `issue` (`relay-unavailable`,
+`sign-in-denied`, `sign-in-expired`, `session-expired`, `account-not-allowed`, `host-limit`,
+`credential-unavailable`). `connect-sign-out` unlinks the Host at the relay, stops the tunnel and
+deletes the session. Any signed-in account can link Hosts.
 
 ## Device-local DeepSeekBot appearance
 

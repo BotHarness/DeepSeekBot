@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { beatHold, beatStart, speechBeats } from '../src/client/companion-beats.js';
+import { beatHold, beatStart, speechBeats, speechText } from '../src/client/companion-beats.js';
 import { messageGraphemeBoundaries } from '../../core/src/channels/message-preview.js';
 
 const beats = (body: string): string[] => {
@@ -39,4 +39,57 @@ it('holds a finished beat for reading time, shorter when another message waits',
   expect(beatHold('Hi.', true, false)).toBe(2500);
   expect(beatHold('x'.repeat(200), true, false)).toBe(8000);
   expect(beatHold('Hi.', true, true)).toBe(1590);
+});
+
+it('caps beats at a shorter page limit for bubbles that fit fewer lines', () => {
+  const body =
+    '窗外的天刚泛白，远处几栋写字楼还没亮灯，楼下早点铺的蒸笼冒着白气，一个穿蓝色外套的人推着自行车慢慢走过斑马线';
+  const ends = speechBeats(body, messageGraphemeBoundaries(body), 40);
+  const pages = ends.map((end, index) => body.slice(ends[index - 1] ?? 0, end));
+  expect(pages.join('')).toBe(body);
+  expect(pages.length).toBeGreaterThan(1);
+  expect(pages.every((page) => [...page].length <= 40)).toBe(true);
+});
+
+it('turns Markdown into plain spoken text', () => {
+  expect(
+    speechText(
+      [
+        '## 家底',
+        '| Bot | 定位 | 状态 |',
+        '|---|:---:|---|',
+        '| Tob | 本地管家 | 在线 |',
+        '| Ada | **测试** | `idle` |',
+        '',
+        '- 第一条',
+        '2. 第二条',
+        '```ts',
+        'const x = 1;',
+        '```',
+        '---',
+        '一句话：**都好**。',
+      ].join('\n'),
+    ),
+  ).toBe(
+    [
+      '家底',
+      'Tob · 本地管家 · 在线',
+      'Ada · 测试 · idle',
+      '',
+      '第一条',
+      '第二条',
+      '一句话：都好。',
+    ].join('\n'),
+  );
+});
+
+it('joins short sentences into one page and keeps clock times together', () => {
+  const body =
+    '冬季横幅齐全；无头像；状态从 13:35 跳到 14:13，是因为整点同步时有一次时区换算，现在已经恢复正常了。';
+  const ends = speechBeats(body, messageGraphemeBoundaries(body), 40, 10);
+  const pages = ends.map((end, index) => body.slice(ends[index - 1] ?? 0, end));
+  expect(pages.join('')).toBe(body);
+  expect(pages[0]).toBe('冬季横幅齐全；无头像；');
+  expect(pages.every((page) => [...page].length <= 40)).toBe(true);
+  expect(pages.some((page) => page.includes('13:35') && page.includes('14:13'))).toBe(true);
 });

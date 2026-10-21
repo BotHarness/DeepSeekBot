@@ -4,6 +4,7 @@ import { ActivityIndicator, Pressable, View } from 'react-native';
 
 import { t } from './strings';
 import { useTheme } from './theme';
+import { LoadingIndicator } from './primitives/loading-indicator';
 
 export type NoticeTone = 'success' | 'warning' | 'danger';
 
@@ -79,7 +80,7 @@ export function ActionButton({
 export function Loading() {
   return (
     <View style={{ padding: 32, alignItems: 'center' }}>
-      <ActivityIndicator />
+      <LoadingIndicator />
     </View>
   );
 }

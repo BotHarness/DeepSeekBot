@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, View, type ViewInstance } from 'react-native';
+import { View, type ViewInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   chatBackgrounds,
@@ -13,6 +13,7 @@ import type { BackgroundScope, BackgroundEdit } from '../../host/chat-background
 import { ChatBackgroundEditor } from './chat-background-editor';
 import { Text } from '../primitives/text';
 import { t } from '../strings';
+import { LoadingIndicator } from '../primitives/loading-indicator';
 
 function Editor({ scope }: { scope: BackgroundScope | undefined }) {
   const router = useRouter();
@@ -32,7 +33,7 @@ function Editor({ scope }: { scope: BackgroundScope | undefined }) {
   return (
     <View ref={mount} style={{ flex: 1 }}>
       {edit === undefined ? (
-        <ActivityIndicator />
+        <LoadingIndicator />
       ) : (
         <ChatBackgroundEditor
           scoped={scope !== undefined}
@@ -78,7 +79,7 @@ export default function ChatBackgroundScreen({
       {!valid ? (
         <Text accessibilityRole="alert">{t.chatBackground.failed}</Text>
       ) : !state.loaded ? (
-        <ActivityIndicator />
+        <LoadingIndicator />
       ) : (
         <Editor key={JSON.stringify(scope)} scope={scope} />
       )}

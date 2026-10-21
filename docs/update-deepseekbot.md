@@ -63,6 +63,10 @@ The DSH Plugins page cannot upgrade an installed plugin yet. To update the deskt
 
 On DSH 0.2.1, **Update now** in DeepSeekBot 1.4.1 and earlier reports that the update failed: the DSH Plugin Manager refuses to overwrite an installed package. Later versions upgrade in place from the npm package tarball, and the page reloads without a restart. While you are on 1.4.1 or earlier, update once by hand with the command in this section; for the desktop app, fully quit DSH first and use the `desktop` profile.
 
+## Update other BotHarness plugins
+
+Other BotHarness plugins, such as VRM Companion, are listed under **Bot settings → Plugins** with their installed version. When a newer version works with your DSH, the row shows **Update now**. Some updates load right away and the page reloads by itself. Others need a restart: the page says so, with a **Restart now** button when DSH can restart itself (the web app); otherwise restart it as described above. If this DSH cannot install the update from the page, or the install fails, the row shows the terminal command for updating by hand instead, for example `dsh plugin --profile web add @botharness/vrm-companion@<version>`.
+
 ## Troubleshooting
 
 | Message                                             | What to do                                                                                                                                                                   |

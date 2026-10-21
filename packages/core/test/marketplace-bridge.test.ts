@@ -112,8 +112,18 @@ describe('Bot Marketplace bridge', () => {
     const market = createMarket();
     const methods = methodsWith(marketClient(market));
     for (const repository of [
-      fakeRepository({ name: 'reader', stars: 40, topics: ['botharness-bot', 'research'] }),
-      fakeRepository({ name: 'writer', stars: 5, description: 'Drafts essays' }),
+      fakeRepository({
+        name: 'reader',
+        stars: 40,
+        topics: ['botharness-bot', 'research'],
+        createdAt: '2025-01-01T00:00:00Z',
+      }),
+      fakeRepository({
+        name: 'writer',
+        stars: 5,
+        description: 'Drafts essays',
+        createdAt: '2026-06-01T00:00:00Z',
+      }),
     ]) {
       market.publish(repository);
       await submitThrough(methods, repository.htmlUrl);
@@ -123,6 +133,16 @@ describe('Bot Marketplace bridge', () => {
       ok: true,
       value: { bots: [{ fullName: 'alice/reader' }, { fullName: 'alice/writer' }] },
     });
+    expect(await methods.marketplaceList({ sort: 'created' })).toMatchObject({
+      ok: true,
+      value: {
+        bots: [
+          { fullName: 'alice/writer', createdAt: '2026-06-01T00:00:00Z' },
+          { fullName: 'alice/reader', createdAt: '2025-01-01T00:00:00Z' },
+        ],
+      },
+    });
+    expect(await methods.marketplaceList({ sort: 'newest' })).toMatchObject({ ok: false });
     expect(await methods.marketplaceList({ q: ' essays ' })).toMatchObject({
       ok: true,
       value: { bots: [{ fullName: 'alice/writer' }] },

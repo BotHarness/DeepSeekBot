@@ -3,7 +3,8 @@ import { Pressable, View, type ViewInstance } from 'react-native';
 
 import { radius, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
-import { CheckIcon, ChevronLeftIcon, CloseIcon } from '../shell/icons';
+import { BackIcon } from '../shell/back-icon';
+import { CheckIcon, CloseIcon } from '../shell/icons';
 import { t } from '../strings';
 import { Text } from './text';
 
@@ -65,7 +66,7 @@ export function DrawerHeader({
         <View style={slot}>
           {onBack !== undefined ? (
             <HeaderButton label={t.back} onPress={onBack}>
-              <ChevronLeftIcon color={theme.color.fg} size={theme.type.title.line} />
+              <BackIcon color={theme.color.fg} size={theme.type.title.line} />
             </HeaderButton>
           ) : onClose !== undefined ? (
             <HeaderButton label={closeLabel} onPress={onClose}>

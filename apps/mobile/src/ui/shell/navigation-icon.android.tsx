@@ -4,7 +4,7 @@ import { View } from 'react-native';
 import Animated, { useAnimatedStyle, useDerivedValue, withTiming } from 'react-native-reanimated';
 
 import { useDesignTheme } from '../design/theme';
-import { motion, navigationBar, tabMotion } from '../design/tokens';
+import { materialNavigationBar, motion, radius, tabMotion } from '../design/tokens';
 import { badgeCount } from '../primitives/badge-count';
 import { Text } from '../primitives/text';
 
@@ -49,9 +49,9 @@ export function NavigationIcon({
       <Animated.View
         style={[
           {
-            width: navigationBar.indicatorWidth,
-            height: navigationBar.indicatorHeight,
-            borderRadius: navigationBar.indicatorRadius,
+            width: materialNavigationBar.indicatorWidth,
+            height: materialNavigationBar.indicatorHeight,
+            borderRadius: radius.round,
             alignItems: 'center',
             justifyContent: 'center',
             backgroundColor: focused ? theme.layer.raised.chosen : undefined,

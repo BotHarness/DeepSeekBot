@@ -48,17 +48,17 @@ function message(id: string, author: ConversationMessage['author']): Conversatio
   return { id, at: '', author, body: id, attachments: [], delivery: 'committed' };
 }
 
-function mount(messages: readonly ConversationMessage[] = [], start = 0) {
+function mount(messages: readonly ConversationMessage[] = [], start = 0, empty = false) {
   const following = vi.fn();
   const scrollToOffset = vi.fn();
   const list = { current: { scrollToOffset } as unknown as FlatList<unknown> };
   const probe: { current?: ReturnType<typeof useFollowLatest<unknown>> } = {};
-  function Probe({ rows }: { rows: readonly ConversationMessage[] }) {
-    probe.current = useFollowLatest(list, rows, following, start);
+  function Probe({ rows, known }: { rows: readonly ConversationMessage[]; known: boolean }) {
+    probe.current = useFollowLatest(list, rows, following, start, known && rows.length === 0);
     return null;
   }
   const root = createRoot(document.createElement('div'));
-  act(() => root.render(<Probe rows={messages} />));
+  act(() => root.render(<Probe rows={messages} known={empty} />));
   return {
     following,
     scrollToOffset,
@@ -66,7 +66,7 @@ function mount(messages: readonly ConversationMessage[] = [], start = 0) {
       return probe.current!;
     },
     rerender: (rows: readonly ConversationMessage[]) =>
-      act(() => root.render(<Probe rows={rows} />)),
+      act(() => root.render(<Probe rows={rows} known={empty} />)),
     unmount: () => act(() => root.unmount()),
   };
 }
@@ -260,6 +260,41 @@ describe('following a growing conversation', () => {
     act(() => view.current.listProps.onContentSizeChange(0, LAYOUT - 300));
     flushFrames();
     expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: -100, animated: false });
+    view.unmount();
+  });
+
+  it('keeps an empty conversation shown when its first message arrives', () => {
+    const view = mount([], 0, true);
+    act(() => view.current.listProps.onLayout(layout(LAYOUT)));
+    act(() => view.current.listProps.onContentSizeChange(0, LAYOUT));
+    flushFrames();
+    expect(view.current.ready).toBe(true);
+    view.rerender([message('a', 'human')]);
+    expect(view.current.ready).toBe(true);
+    view.unmount();
+  });
+
+  it('shows the list when the Human sends before the conversation has settled', () => {
+    const view = mount([]);
+    act(() => view.current.listProps.onLayout(layout(LAYOUT)));
+    act(() => view.current.listProps.onContentSizeChange(0, LAYOUT));
+    flushFrames();
+    expect(view.current.ready).toBe(false);
+    act(() => view.current.jumpToLatest());
+    view.rerender([message('a', 'human')]);
+    expect(view.current.ready).toBe(true);
+    view.unmount();
+  });
+
+  it('holds the visible rows in place only while the Human reads history', () => {
+    const view = mount([message('a', 'bot')]);
+    expect(view.current.listProps.maintainVisibleContentPosition).toBeUndefined();
+    act(() => view.current.listProps.onScrollBeginDrag());
+    expect(view.current.listProps.maintainVisibleContentPosition).toEqual({
+      minIndexForVisible: 0,
+    });
+    act(() => view.current.jumpToLatest());
+    expect(view.current.listProps.maintainVisibleContentPosition).toBeUndefined();
     view.unmount();
   });
 });

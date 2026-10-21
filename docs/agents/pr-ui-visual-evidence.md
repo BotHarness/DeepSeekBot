@@ -33,11 +33,13 @@ Commit the images under `.github/pr-screenshots/<slug>/` on the PR branch and re
 ```html
 <img
   alt="…"
-  src="https://github.com/BotHarness/DeepSeekBot/raw/<commit-sha>/.github/pr-screenshots/<slug>/<file>.png"
+  src="https://github.com/BotHarness/DeepSeekBot/raw/<12-char-sha>/.github/pr-screenshots/<slug>/<file>.png"
   width="900"
 />
 ```
 
-- Pin a full commit SHA that contains the file, not a branch name, so the image does not change or break when the branch moves.
-- Use the `/raw/<sha>/` path. Do not use `/blob/<sha>/…?raw=true`, Markdown `![alt](url)` syntax, or any query string: when a body with several such URLs is written through the GitHub MCP `update_pull_request` / `create_pull_request` tools, the URLs come back wrapped in backticks (`` `https://…` ``) and GitHub shows the raw tag text instead of the image.
-- After writing the body, read it back (`pull_request_read` `get`, or `gh pr view --json body`) and confirm every `src="…"` is a bare URL with no backticks. Spot-check one URL returns `200 image/png`, for example `curl -sIL -o /dev/null -w '%{http_code} %{content_type}' <url>`.
+- **Keep every image URL at 150 characters or fewer.** When a body or comment is written through the GitHub MCP tools (`create_pull_request`, `update_pull_request`, `add_issue_comment`, `update_issue_comment`), longer URLs come back wrapped in backticks (``src="`https://…`"``), and GitHub then shows the tag as text instead of the image. In #2402, URLs of 150–151 characters survived and URLs of 162 characters or more were wrapped every time, whatever the host or position in the body.
+- To stay under the limit, pin a 12-character commit SHA (`git rev-parse --short=12 HEAD`) rather than the full 40, and keep `<slug>` and file names short (`2402-pair/en-light.png`, not `2402-pairing-guide/2402-pairing-guide-en-light.png`). Check lengths before posting, for example `echo -n "<url>" | wc -c`.
+- Pin a commit SHA that contains the file, never a branch name, so the image does not change or break when the branch moves.
+- Use the `https://github.com/<owner>/<repo>/raw/<sha>/…` path. Do not use `raw.githubusercontent.com` (its URLs are longer), `/blob/<sha>/…?raw=true`, Markdown `![alt](url)` syntax, or a query string. Put each `<img>` on its own line with a blank line before and after it.
+- After every write, read the body or comment back (`pull_request_read` `get`, `issue_read` `get_comments`, or `gh pr view --json body`) and confirm every `src="…"` is a bare URL with no backticks. Spot-check that one URL returns `200 image/png`, for example `curl -sIL -o /dev/null -w '%{http_code} %{content_type}' <url>`. A PR with broken images is not ready for review.

@@ -6,7 +6,7 @@ import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { frosted, pressTint, useDesignTheme, type DesignTheme } from '../design/theme';
 import { edge, radius, space } from '../design/tokens';
 import { DrawerMaterial, EdgeMaterial, useLiquidGlass } from '../primitives/drawer-material';
-import { ChevronLeftIcon } from '../shell/icons';
+import { BackIcon } from '../shell/back-icon';
 import { t } from '../strings';
 import { edgeFadeStops } from './edge-fade';
 
@@ -81,7 +81,7 @@ export function HeaderBackButton({ onPress, plain }: { onPress(): void; plain?: 
   const theme = useDesignTheme();
   return (
     <HeaderCircleButton label={t.back} onPress={onPress} plain={plain === true}>
-      <ChevronLeftIcon color={theme.color.fg} size={ICON} />
+      <BackIcon color={theme.color.fg} size={ICON} />
     </HeaderCircleButton>
   );
 }
@@ -90,18 +90,22 @@ export function EdgeFade({
   edge: side,
   height,
   cover = 0,
+  solid,
   color,
 }: {
   edge: 'top' | 'bottom';
   height: number;
   cover?: number;
+  solid?: number;
   color?: string;
 }) {
   const theme = useDesignTheme();
   const glass = useLiquidGlass();
   const id = `fade-${useId().replace(/[^a-z0-9]/giu, '')}`;
   const top = side === 'top';
-  const stops = edgeFadeStops(height, cover);
+  const insets = useSafeAreaInsets();
+  const stops = edgeFadeStops(height, cover, solid ?? (top ? insets.top : insets.bottom));
+  const span = Math.ceil(height) + 1;
   return (
     <View
       pointerEvents="none"
@@ -109,14 +113,14 @@ export function EdgeFade({
         position: 'absolute',
         left: 0,
         right: 0,
-        height,
-        ...(top ? { top: 0 } : { bottom: 0 }),
+        height: span,
+        ...(top ? { top: -1 } : { bottom: -1 }),
       }}
     >
-      {glass ? (
+      {glass && cover === 0 ? (
         <EdgeMaterial edge={side} />
       ) : (
-        <Svg width="100%" height="100%" preserveAspectRatio="none">
+        <Svg width="100%" height={span} preserveAspectRatio="none">
           <Defs>
             <LinearGradient id={id} x1="0" y1="0" x2="0" y2="1">
               {(top
@@ -132,7 +136,7 @@ export function EdgeFade({
               ))}
             </LinearGradient>
           </Defs>
-          <Rect x="0" y="0" width="100%" height="100%" fill={`url(#${id})`} />
+          <Rect x="0" y="0" width="100%" height={span} fill={`url(#${id})`} />
         </Svg>
       )}
     </View>

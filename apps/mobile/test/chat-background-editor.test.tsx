@@ -94,7 +94,7 @@ it('keeps an inherited image read-only and follows a later device default after 
         />,
       ),
     );
-    expect(host.textContent).toContain(t.chatBackground.inherited);
+    expect(host.textContent).toContain(t.chatBackground.inherited(t.chatBackground.image));
     expect(host.querySelector(`[aria-label="${t.chatBackground.fit}"]`)).toBeNull();
     expect(host.querySelector(`[aria-label="${t.chatBackground.fade}"]`)).toBeNull();
     expect(host.querySelector(`[aria-label="${t.chatBackground.center}"]`)).toBeNull();
@@ -105,6 +105,55 @@ it('keeps an inherited image read-only and follows a later device default after 
     nextGlobal.choose({ kind: 'color', color: '#abcdef' });
     await nextGlobal.save();
     expect(backgrounds.resolve(scope)).toEqual({ kind: 'color', color: '#abcdef' });
+  } finally {
+    await act(async () => root.unmount());
+    await edit.cancel();
+  }
+});
+
+it('lets one chat return to the theme canvas while the device default is a color', async () => {
+  const backgrounds = createChatBackgrounds({
+    read: async () => ({
+      version: 1,
+      default: { kind: 'color', color: '#ede2ef' },
+      overrides: {},
+    }),
+    write: async () => {},
+    importImage: async () => ({ id: 'x.jpg', width: 1, height: 1 }),
+    listImages: async () => [],
+    removeImage: async () => {},
+  });
+  await backgrounds.ready;
+  const scope = { hostId: 'host', channelId: 'chat' };
+  const edit = backgrounds.edit(scope);
+  const host = document.createElement('div');
+  const root = createRoot(host);
+  const tab = (label: string) =>
+    host.querySelector<HTMLButtonElement>(`[role="tab"][aria-label="${label}"]`)!;
+  try {
+    await act(async () =>
+      root.render(
+        <ChatBackgroundEditor
+          scoped
+          edit={edit}
+          inherited={backgrounds.resolve()}
+          imageUri={(id) => id}
+          onPickImage={async () => undefined}
+          onDone={() => {}}
+          onCancel={() => {}}
+        />,
+      ),
+    );
+    expect(host.textContent).toContain(t.chatBackground.inherited(t.chatBackground.solid));
+    expect(tab(t.chatBackground.useDefault).getAttribute('aria-selected')).toBe('true');
+    await act(async () => tab(t.chatBackground.theme).click());
+    expect(tab(t.chatBackground.theme).getAttribute('aria-selected')).toBe('true');
+    expect(host.textContent).toContain(t.chatBackground.override);
+    await act(async () =>
+      host.querySelector<HTMLButtonElement>(`button[aria-label="${t.done}"]`)!.click(),
+    );
+    expect(backgrounds.resolve(scope)).toEqual({ kind: 'default' });
+    expect(backgrounds.resolve()).toEqual({ kind: 'color', color: '#ede2ef' });
   } finally {
     await act(async () => root.unmount());
     await edit.cancel();

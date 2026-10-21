@@ -1,11 +1,5 @@
 import { useCallback, useRef, useState, type ReactNode } from 'react';
-import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  View,
-  type ScrollViewInstance,
-} from 'react-native';
+import { Pressable, ScrollView, View, type ScrollViewInstance } from 'react-native';
 
 import {
   ACTIVITY_WINDOWS,
@@ -31,6 +25,7 @@ import { Text } from '../primitives/text';
 import { ChevronLeftIcon, ChevronRightIcon } from '../shell/icons';
 import { t } from '../strings';
 import { tokenTotalText } from './activity-glance';
+import { LoadingIndicator } from '../primitives/loading-indicator';
 
 const ICON = 20;
 
@@ -416,7 +411,7 @@ export function ActivityDetailView({
           <Detail activity={state.value} onQuery={read} />
         ) : state.status === 'loading' ? (
           <View style={{ padding: space.x6, alignItems: 'center' }}>
-            <ActivityIndicator />
+            <LoadingIndicator />
           </View>
         ) : (
           <View style={{ gap: space.x3, paddingTop: space.x3 }}>

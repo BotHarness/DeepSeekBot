@@ -17,3 +17,7 @@ Creation resolves stable source keys, never display names. All requires an expli
 ## Consequences
 
 The iOS tab bar is now app-owned presentation. Native glass support does not prove layout, gestures or accessibility: exact-head shared-queue Simulator checks must qualify adjacent geometry, dismissal, safe area, large text and actual creation. Android, physical-device and screen-reader gates remain independent. The expanded menu uses a native rounded-rectangle glass backdrop on iOS 26, including with large text; Reduce Transparency, older iOS and Android retain opaque surfaces. This is the existing modal fade, not an asserted native glass morph animation. N3 adds Search only with functioning search behavior.
+
+## Amendment: Android Material 3 (2026-10-19)
+
+Android now follows Material 3 instead of sharing the island: the same JS tab navigator renders a docked flexible navigation bar (64dp, pill indicator) and creation moves to a FAB on Chats that opens a FAB menu. Routes, creation targets, preflight and dismissal rules above are unchanged. Expo UI 58 wraps only the baseline 80dp Compose `NavigationBar` and has no FAB menu, so both are React Native views drawn to the m3.material.io token values; revisit when Expo UI exposes `ShortNavigationBar` and `FloatingActionButtonMenu`.

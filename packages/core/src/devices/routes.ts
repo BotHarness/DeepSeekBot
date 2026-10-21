@@ -13,14 +13,42 @@ export interface RouteStatus {
   serveCommand: string;
 }
 
-export type RunCommand = (file: string, args: readonly string[]) => Promise<string>;
+export type RunCommand = (
+  file: string,
+  args: readonly string[],
+  options?: { timeoutMs?: number },
+) => Promise<string>;
+
+export type PublishRouteRefusal =
+  | 'tailscale-missing'
+  | 'tailscale-stopped'
+  | 'serve-other-target'
+  | 'serve-needs-enable'
+  | 'serve-denied'
+  | 'serve-failed';
+
+export type PublishRouteResult =
+  | { ok: true; changed: boolean; status: RouteStatus }
+  | {
+      ok: false;
+      code: PublishRouteRefusal;
+      message: string;
+      enableUrl?: string;
+      status: RouteStatus;
+    };
 
 const TAILSCALE_BINARIES = ['tailscale', '/Applications/Tailscale.app/Contents/MacOS/Tailscale'];
 
-const runFile: RunCommand = (file, args) =>
+const SERVE_TIMEOUT_MS = 15_000;
+
+const runFile: RunCommand = (file, args, options) =>
   new Promise((resolve, reject) => {
-    execFile(file, [...args], { timeout: 3000, maxBuffer: 1024 * 1024 }, (error, stdout) =>
-      error ? reject(error) : resolve(stdout),
+    execFile(
+      file,
+      [...args],
+      { timeout: options?.timeoutMs ?? 3000, maxBuffer: 1024 * 1024 },
+      (error, stdout, stderr) =>
+        error ? reject(Object.assign(error, { stdout, stderr })) : resolve(stdout),
     );
   });
 
@@ -128,4 +156,89 @@ export async function detectPhoneRoutes(options: {
     return { routes: [route, loopback], tailscale: 'running', serveCommand };
   }
   return { routes: [loopback], tailscale: 'missing', serveCommand };
+}
+
+function outputOf(error: unknown): string {
+  const failure = record(error);
+  return ['stdout', 'stderr', 'message']
+    .map((key) => failure[key])
+    .filter((part): part is string => typeof part === 'string')
+    .join('\n');
+}
+
+function refusal(
+  code: PublishRouteRefusal,
+  message: string,
+  status: RouteStatus,
+  enableUrl?: string,
+): PublishRouteResult {
+  return {
+    ok: false,
+    code,
+    message,
+    status,
+    ...(enableUrl === undefined ? {} : { enableUrl }),
+  };
+}
+
+export async function publishPhoneRoute(options: {
+  port: number;
+  run?: RunCommand;
+}): Promise<PublishRouteResult> {
+  const run = options.run ?? runFile;
+  const before = await detectPhoneRoutes(options);
+  const route = before.routes.find((entry) => entry.kind === 'tailscale');
+  if (before.tailscale === 'missing')
+    return refusal('tailscale-missing', 'Tailscale is not installed on this computer.', before);
+  if (before.tailscale === 'stopped' || route === undefined)
+    return refusal('tailscale-stopped', 'Tailscale is not running or not signed in.', before);
+  if (route.ready) return { ok: true, changed: false, status: before };
+  if (route.issue === 'serve-other-target')
+    return refusal(
+      'serve-other-target',
+      'Tailscale serve already publishes another service at this address; change it by hand.',
+      before,
+    );
+  for (const binary of TAILSCALE_BINARIES) {
+    try {
+      await run(binary, ['serve', '--bg', String(options.port)], {
+        timeoutMs: SERVE_TIMEOUT_MS,
+      });
+      break;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue;
+      const output = outputOf(error);
+      const after = await detectPhoneRoutes(options);
+      if (after.routes.some((entry) => entry.kind === 'tailscale' && entry.ready))
+        return { ok: true, changed: true, status: after };
+      const enableUrl = /https:\/\/login\.tailscale\.com\/\S+/u.exec(output)?.[0];
+      if (enableUrl !== undefined)
+        return refusal(
+          'serve-needs-enable',
+          'Serve is not enabled on this tailnet yet; enable it in the Tailscale admin console.',
+          after,
+          enableUrl,
+        );
+      if (/access denied|permission denied|operator|not permitted/iu.test(output))
+        return refusal(
+          'serve-denied',
+          'Tailscale refused to change serve for this user; run the command in a terminal.',
+          after,
+        );
+      const detail = output.trim().split('\n')[0]?.slice(0, 200) ?? '';
+      return refusal(
+        'serve-failed',
+        `tailscale serve failed${detail === '' ? '.' : `: ${detail}`}`,
+        after,
+      );
+    }
+  }
+  const after = await detectPhoneRoutes(options);
+  return after.routes.some((entry) => entry.kind === 'tailscale' && entry.ready)
+    ? { ok: true, changed: true, status: after }
+    : refusal(
+        'serve-failed',
+        'tailscale serve finished but this Host is still not published.',
+        after,
+      );
 }

@@ -1,4 +1,5 @@
 import type { ConnectionTelemetry } from '../telemetry/connection';
+import { ActivitySmoother } from '../../../../packages/client/src/client/activity-smoothing';
 import type { BotPrimaryColor } from '../../../../packages/core/src/bots/primary-color';
 import type { HostCarrier, HostSocket } from './carrier';
 import { DEVICE_PREFIX } from './pairing';
@@ -47,6 +48,7 @@ export interface RosterBot {
   dmChannelId?: string;
   preview?: string;
   previewAt?: string;
+  latestMessageId?: string;
   previewAuthor?: WireAuthor;
 }
 
@@ -61,6 +63,7 @@ export interface RosterChannel {
   pendingJoins?: Array<{ id: string; botSlug: string }>;
   preview?: string;
   previewAt?: string;
+  latestMessageId?: string;
   previewAuthor?: WireAuthor;
 }
 
@@ -173,6 +176,7 @@ class Unreachable extends Error {}
 
 const UPLOAD_TOO_LARGE = 'The file is larger than the Host accepts.';
 const uploadTimeoutMs = 120_000;
+const OCTET_STREAM = 'application/octet-stream';
 
 export class MethodRefused extends Error {
   constructor(
@@ -207,6 +211,7 @@ function record(value: unknown): Record<string, unknown> {
 function previewOf(channel: ChannelListItem | undefined): {
   preview?: string;
   previewAt?: string;
+  latestMessageId?: string;
   previewAuthor?: WireAuthor;
 } {
   const message = channel?.latestMessage;
@@ -214,6 +219,7 @@ function previewOf(channel: ChannelListItem | undefined): {
   return {
     preview: message.body.replace(/\s+/gu, ' ').trim().slice(0, 140),
     previewAt: message.at,
+    latestMessageId: message.id,
     ...(message.author === undefined ? {} : { previewAuthor: message.author }),
   };
 }
@@ -264,6 +270,9 @@ export function createHostClient(options: HostClientOptions): HostClient {
   let bots: PersonaBotSummary[] | undefined;
   let channels = new Map<string, ChannelListItem>();
   let states = new Map<string, WireBotActivity>();
+  let rawStates = new Map<string, WireBotActivity>();
+  const smoother = new ActivitySmoother<WireBotActivity>();
+  let settle: ReturnType<typeof setTimeout> | undefined;
   let arrangement: RosterArrangement | undefined;
   let running = false;
   let everConnected = false;
@@ -428,8 +437,8 @@ export function createHostClient(options: HostClientOptions): HostClient {
         `${route}${DEVICE_PREFIX}/api/botharness/attachment/upload?${new URLSearchParams({ name })}`,
         {
           method: 'POST',
-          body: data,
-          headers: { ...authorization, 'content-type': 'application/octet-stream' },
+          body: data.type === OCTET_STREAM ? data : new Blob([data], { type: OCTET_STREAM }),
+          headers: { ...authorization, 'content-type': OCTET_STREAM },
           signal,
         },
       );
@@ -529,8 +538,23 @@ export function createHostClient(options: HostClientOptions): HostClient {
     for (const listener of liveListeners) listener(source);
   };
 
+  const smooth = (): void => {
+    clearTimeout(settle);
+    settle = undefined;
+    const now = Date.now();
+    const { shown, wake } = smoother.step(rawStates, now);
+    states = shown;
+    if (wake !== undefined)
+      settle = setTimeout(() => {
+        settle = undefined;
+        smooth();
+        publish();
+      }, wake - now);
+  };
+
   const applyActivity = (frame: ActivityLiveFrame): void => {
-    states = new Map(frame.snapshot.bots.map((bot) => [bot.slug, bot]));
+    rawStates = new Map(frame.snapshot.bots.map((bot) => [bot.slug, bot]));
+    smooth();
     const known = new Set(bots?.map((bot) => bot.slug));
     if (bots !== undefined && frame.snapshot.bots.some((bot) => !known.has(bot.slug)))
       reloadInBackground();
@@ -765,6 +789,8 @@ export function createHostClient(options: HostClientOptions): HostClient {
       interruptFollowers('stopped');
       generation += 1;
       clearTimeout(retryTimer);
+      clearTimeout(settle);
+      settle = undefined;
       wake?.();
       socket?.close();
       socket = undefined;

@@ -57,6 +57,7 @@ function actions(overrides: Partial<SettingsActions> = {}): SettingsActions {
     onComputers: vi.fn(),
     onAppIcon: vi.fn(),
     onNotifications: vi.fn(),
+    onStorage: vi.fn(),
     onModels: vi.fn(),
     onUnpair: vi.fn(async () => undefined),
     onCopyVersion: vi.fn(),
@@ -93,6 +94,7 @@ describe('Settings sheet', () => {
       [`${t.computers}, ${t.computersHint}`, 'onComputers'],
       [`${t.appIcon}, ${t.appIconHint}`, 'onAppIcon'],
       [t.notifications, 'onNotifications'],
+      [`${t.storage.title}, ${t.storage.hint}`, 'onStorage'],
       [`${t.modelSettings.title}, ${t.modelSettings.global}`, 'onModels'],
       [t.openFullClient, 'onOpenFullClient'],
     ];

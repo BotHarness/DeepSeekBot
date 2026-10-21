@@ -36,6 +36,7 @@ export interface PushTarget {
   botSlug?: string;
   channelId?: string;
   messageId?: string;
+  deviceId?: string;
   test?: true;
 }
 
@@ -48,7 +49,7 @@ export function parsePushData(input: unknown): PushTarget | undefined {
   if (data['v'] !== 1 || typeof data['hostId'] !== 'string' || data['hostId'] === '')
     return undefined;
   const target: PushTarget = { hostId: data['hostId'] };
-  for (const key of ['itemId', 'kind', 'botSlug', 'channelId', 'messageId'] as const) {
+  for (const key of ['itemId', 'kind', 'botSlug', 'channelId', 'messageId', 'deviceId'] as const) {
     const value = data[key];
     if (typeof value === 'string' && value !== '') target[key] = value;
   }
@@ -95,6 +96,15 @@ export function cardHref(
     item.channelId === undefined
   )
     return undefined;
+  return chatHref(item.botSlug, item.channelId, dmChannelOf, isGroup, item.messageId);
+}
+
+export function messageHref(
+  item: { botSlug: string; channelId?: string; messageId?: string },
+  dmChannelOf: (slug: string) => string | undefined,
+  isGroup: (channelId: string) => boolean = () => false,
+): ChatHref | undefined {
+  if (item.channelId === undefined) return undefined;
   return chatHref(item.botSlug, item.channelId, dmChannelOf, isGroup, item.messageId);
 }
 
@@ -152,6 +162,7 @@ export interface PushRegistration {
   token: string;
   platform: 'ios' | 'android';
   locale: 'en' | 'zh';
+  render?: 'app';
 }
 
 export interface HostPush {

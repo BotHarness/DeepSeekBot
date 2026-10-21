@@ -148,6 +148,22 @@
       "gap": null
     },
     {
+      "id": "desktop.data.reset",
+      "label": "Preview, confirm twice and clear all BotHarness data, then restart fresh",
+      "source": "packages/client/src/client/data-reset-settings.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/data-reset.md",
+      "task": 2426,
+      "gap": null
+    },
+    {
+      "id": "desktop.storage.cleanup",
+      "label": "See storage used, preview and clear old chat media by chat, age and type, and delete old messages by chat and age",
+      "source": "packages/client/src/client/storage-settings.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/storage-cleanup.md",
+      "task": 2430,
+      "gap": null
+    },
+    {
       "id": "desktop.release.identity",
       "label": "About and CLI show the actual source-build identity",
       "source": "packages/client/src/client/bot-settings.tsx",
@@ -584,6 +600,14 @@
       "guide": ".agents/skills/verify-deepseekbot/features/memory-images.md",
       "task": 2214,
       "gap": "Native decoding/sharing remains queued; SVG is the bounded static subset, editor/file-card/mobile diff paths remain #2214."
+    },
+    {
+      "id": "desktop.vrm-companion",
+      "label": "Native VRM Panel follows live Activity and committed DM output with independent fixed-Bot instances",
+      "source": "packages/vrm-companion/src/client/index.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/vrm-companion.md",
+      "task": 2222,
+      "gap": "Human acceptance and native Desktop qualification remain separate from isolated Web evidence."
     },
     {
       "id": "desktop.window-zoom",
@@ -1516,6 +1540,14 @@
       "sha256": "014810503926fe7e38217f6cc522aa6fcbee8dd2eb36142e096d72787d66b5ef"
     },
     {
+      "path": "scripts/e2e-mobile-activity-swipe-web.mjs",
+      "category": "mapped",
+      "behaviors": ["phone.activity.rows"],
+      "reason": "Own task Host and Expo Web export; Activity swipe clear/snooze/undo, Cleared restore and an interrupted message (seeded in the Host database) in browser with a real model turn, no native gesture acceptance.",
+      "task": 1954,
+      "sha256": "d7b2a9d6aaf6848681085220c8d1116a56f20f94e9d14df3c86f32d7dbdd0793"
+    },
+    {
       "path": "scripts/e2e-mobile-follow-latest-web.mjs",
       "category": "historical-regression",
       "behaviors": ["phone.timeline"],
@@ -1586,6 +1618,14 @@
       "reason": "Own task Host and Expo Web export; real model usage fixture and visible totals; not native-device evidence.",
       "task": 1967,
       "sha256": "8f4c330494a2645f477b22141b77266c00ce8ef31144409c0160e22668eda251"
+    },
+    {
+      "path": "scripts/e2e-mobile-folder-browse-web.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.grants.request-write-continue"],
+      "reason": "Own task Host and Expo Web export; real model folder request, system-chooser refusal simulated at the phone proxy, phone browses Host folders and grants one; not native-device evidence.",
+      "task": 2080,
+      "sha256": "3493bdbcf12a110cd430f61d598a632d930989d020d48a12f0a2e4a8e93c1c62"
     },
     {
       "path": "scripts/e2e-mobile-working-web.mjs",
@@ -1996,6 +2036,14 @@
       "reason": "Matched main/candidate current/Markdown/working/history/narrow images, genuine pixels and animation advancement, version/MIME original-byte exports and rejected SVG external-resource loads.",
       "task": 2214,
       "sha256": "f781c109dba94abe6bae2b3a41b2db0d68a86e3dd3f6a0904ebe5dbf536c0391"
+    },
+    {
+      "path": "scripts/e2e-vrm-companion.mjs",
+      "sha256": "f510708c64fe6b701c2855aedf1cd4c04fe2c6bc4601eb8981f42cf8b034bc39",
+      "category": "mapped",
+      "reason": "Isolated real Host journey for VRM loading (opting past the headless software-renderer notice), live speech, fixed bindings, refresh, Group gating and renderer disposal; native CLI uninstall/reinstall requires a task-owned Host restart.",
+      "task": 2222,
+      "behaviors": ["desktop.vrm-companion"]
     },
     {
       "path": "scripts/e2e-desktop-zoom-launch.mjs",

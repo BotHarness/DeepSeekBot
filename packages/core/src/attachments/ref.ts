@@ -40,3 +40,25 @@ export function isChannelAttachmentRef(value: unknown): value is ChannelAttachme
     (ref['size'] as number) >= 0
   );
 }
+
+export interface ChannelClearedAttachment {
+  name: string;
+  mime: string;
+  size: number;
+  clearedAt: string;
+}
+
+export function isChannelClearedAttachment(value: unknown): value is ChannelClearedAttachment {
+  if (typeof value !== 'object' || value === null) return false;
+  const item = value as Record<string, unknown>;
+  return (
+    typeof item['name'] === 'string' &&
+    item['name'].length > 0 &&
+    item['name'].length <= 180 &&
+    typeof item['mime'] === 'string' &&
+    item['mime'].length <= 200 &&
+    Number.isSafeInteger(item['size']) &&
+    (item['size'] as number) >= 0 &&
+    typeof item['clearedAt'] === 'string'
+  );
+}

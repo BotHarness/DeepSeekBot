@@ -4,7 +4,7 @@ import { ActivityIndicator, Pressable, View } from 'react-native';
 
 import type { MessageAttachment } from '../../host/conversation';
 import { over } from '../design/layers';
-import { radius, space } from '../design/tokens';
+import { edge, radius, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { Text } from '../primitives/text';
 import { FileIcon, PhotoIcon } from '../shell/icons';
@@ -88,17 +88,21 @@ function AttachmentFile({
   const ink = human ? 'onAccent' : 'fg';
   const fill = human ? over(theme.color.selected, theme.color.accent) : theme.layer.raised.inset;
   const unavailable = attachment.source === undefined;
-  const detail = unavailable
-    ? t.attachmentElsewhere
-    : busy
-      ? t.downloading
-      : attachment.size === undefined
-        ? t.fileKind
-        : fileSize(attachment.size);
+  const detail = attachment.cleared
+    ? t.attachmentCleared(fileSize(attachment.size ?? 0))
+    : unavailable
+      ? t.attachmentElsewhere
+      : busy
+        ? t.downloading
+        : attachment.size === undefined
+          ? t.fileKind
+          : fileSize(attachment.size);
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={t.shareFile(attachment.name)}
+      accessibilityLabel={
+        attachment.cleared ? `${attachment.name}, ${detail}` : t.shareFile(attachment.name)
+      }
       accessibilityState={{ busy, disabled: unavailable }}
       disabled={busy || unavailable}
       onPress={() => {
@@ -113,7 +117,10 @@ function AttachmentFile({
         paddingHorizontal: space.x3,
         paddingVertical: space.x2,
         borderRadius: radius.md,
-        backgroundColor: fill,
+        backgroundColor: attachment.cleared ? 'transparent' : fill,
+        borderWidth: attachment.cleared ? edge.hairline : 0,
+        borderStyle: 'dashed',
+        borderColor: theme.color.border,
       }}
     >
       {busy ? (

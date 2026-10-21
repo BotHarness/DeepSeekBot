@@ -42,13 +42,41 @@ export const navigationBar = {
     dark: '0 2px 8px rgba(0, 0, 0, 0.12)',
   },
 } as const;
-export const environmentTab = { maxWidth: 220 } as const;
+export const materialNavigationBar = {
+  height: 64,
+  indicatorWidth: 56,
+  indicatorHeight: 32,
+  iconLabelGap: 4,
+  elevation: 3,
+} as const;
+export const materialIconButton = {
+  container: 40,
+} as const;
+export const fab = {
+  size: 56,
+  radius: 16,
+  margin: 16,
+  elevation: 6,
+  menuItemHeight: 56,
+  menuItemGap: 4,
+  menuItemPadding: 24,
+  menuIconGap: 8,
+  menuCloseGap: 8,
+} as const;
+export const materialDrawer = { width: 360, scrimGutter: 56, addressMinScale: 0.6 } as const;
+export const loadingIndicator = { size: 48 } as const;
+export const swipeAction = { size: 56 } as const;
+export const environmentTab = { widthRatio: 0.6 } as const;
+export const tabLabel = { minimumFontScale: 0.6 } as const;
 export const modalRail = { maxWidth: 360 } as const;
 export const messageSheet = { textHeightRatio: 0.4 } as const;
 export const pairingScan = { maxSize: 200, widthRatio: 0.5 } as const;
 
 export const androidSettings = {
   radius: radius.xl,
+  listRadius: radius.lg,
+  innerRadius: radius.xs,
+  segmentGap: 2,
   rowHeight: 56,
   supportingRowHeight: 72,
   inset: space.x5,
@@ -100,7 +128,6 @@ export const glass = {
 } as const;
 
 export const edgeFade = {
-  top: 24,
   bottom: 24,
   stops: [
     { offset: 0, opacity: 0.8 },
@@ -108,7 +135,9 @@ export const edgeFade = {
     { offset: 1, opacity: 0 },
   ],
   blur: ['cc', '59', '14', '00'],
-  cover: 0.92,
+  reach: 48,
+  curve: 1.6,
+  samples: 8,
 } as const;
 
 export const pointer = {
@@ -123,7 +152,7 @@ export const motion = {
   menu: 160,
 } as const;
 
-export const pullToCompose = { threshold: 40, flick: 1 } as const;
+export const pullToCompose = { threshold: 40, flick: 0.3 } as const;
 
 export const doubleTap = { window: 300, emoji: '👍' } as const;
 
@@ -147,6 +176,16 @@ export const tabMotion = {
 } as const;
 
 export const scrollChrome = { threshold: 12, top: 2, duration: 180 } as const;
+
+export const swipeRow = {
+  actionWidth: 80,
+  start: 12,
+  verticalFail: 12,
+  fullRatio: 0.55,
+  flick: 1200,
+} as const;
+
+export const undoBar = { duration: 5000 } as const;
 
 export const PRESS_TINT = 0.12;
 

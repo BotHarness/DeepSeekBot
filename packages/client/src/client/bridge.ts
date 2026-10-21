@@ -77,7 +77,10 @@ import type {
 import type { MessagingTarget } from '../../../core/src/messaging/provider.js';
 import type { HostFileTarget } from './host-file-actions.js';
 import type { ComposerRecoveryIdentity } from '../../../core/src/bridge/composer-recovery.js';
-import { isChannelAttachmentRef } from '../../../core/src/attachments/ref.js';
+import {
+  isChannelAttachmentRef,
+  isChannelClearedAttachment,
+} from '../../../core/src/attachments/ref.js';
 import type { UsageFilter, UsageQueryResult } from '../../../core/src/usage/query.js';
 export type { UsageFilter, UsageQueryResult } from '../../../core/src/usage/query.js';
 import type { Context as ClientContext } from '@deepseek-ai/cordis';
@@ -1600,6 +1603,11 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
     ...(userQuestionRequest === undefined ? {} : { userQuestionRequest }),
     ...(userQuestionResolution === undefined ? {} : { userQuestionResolution }),
     ...(attachments === undefined ? {} : { attachments: attachments as ChannelAttachmentRef[] }),
+    ...(Array.isArray(record['clearedAttachments']) &&
+    record['clearedAttachments'].length <= 10 &&
+    record['clearedAttachments'].every(isChannelClearedAttachment)
+      ? { clearedAttachments: record['clearedAttachments'] }
+      : {}),
     ...(format === undefined ? {} : { format }),
     ...(bridgeOrigin === undefined ? {} : { bridgeOrigin }),
     ...(bridgeMedia === undefined ? {} : { bridgeMedia }),
@@ -2334,6 +2342,370 @@ export async function setIdleCompaction(
   enabled: boolean,
 ): Promise<IdleCompactionStatus> {
   return parseIdleCompactionStatus(await unwrap(call, 'idleCompactionSet', { enabled }));
+}
+
+export interface DataResetPreview {
+  token: string;
+  bots: number;
+  targets: {
+    kind: 'data' | 'im-settings' | 'local-tools';
+    path: string;
+    bytes: number;
+    files: number;
+    partial?: boolean;
+  }[];
+  kept: { kind: 'credentials' | 'memory' | 'exports'; path: string }[];
+  restartable: boolean;
+}
+
+export type DataResetResult = { status: 'restarting' } | { status: 'restart-required' };
+
+const DATA_RESET_TARGETS = new Set(['data', 'im-settings', 'local-tools']);
+const DATA_RESET_KEPT = new Set(['credentials', 'memory', 'exports']);
+
+function parseDataResetPreview(value: unknown): DataResetPreview {
+  const preview = asRecord(asRecord(value)?.['preview']);
+  const token = preview?.['token'];
+  const bots = preview?.['bots'];
+  const targets = preview?.['targets'];
+  const kept = preview?.['kept'];
+  if (
+    typeof token !== 'string' ||
+    typeof bots !== 'number' ||
+    !Array.isArray(targets) ||
+    !Array.isArray(kept)
+  )
+    throw new BridgeCallError('invalid-response', 'Invalid data reset preview');
+  return {
+    token,
+    bots,
+    targets: targets.flatMap((entry) => {
+      const target = asRecord(entry);
+      const kind = target?.['kind'];
+      const path = target?.['path'];
+      const bytes = target?.['bytes'];
+      const files = target?.['files'];
+      if (
+        typeof kind !== 'string' ||
+        !DATA_RESET_TARGETS.has(kind) ||
+        typeof path !== 'string' ||
+        typeof bytes !== 'number' ||
+        typeof files !== 'number'
+      )
+        return [];
+      return [
+        {
+          kind: kind as DataResetPreview['targets'][number]['kind'],
+          path,
+          bytes,
+          files,
+          ...(target?.['partial'] === true ? { partial: true } : {}),
+        },
+      ];
+    }),
+    kept: kept.flatMap((entry) => {
+      const item = asRecord(entry);
+      const kind = item?.['kind'];
+      const path = item?.['path'];
+      return typeof kind === 'string' && DATA_RESET_KEPT.has(kind) && typeof path === 'string'
+        ? [{ kind: kind as DataResetPreview['kept'][number]['kind'], path }]
+        : [];
+    }),
+    restartable: preview?.['restartable'] === true,
+  };
+}
+
+export async function loadDataResetPreview(
+  call: BridgeCall,
+  signal?: AbortSignal,
+): Promise<DataResetPreview> {
+  return parseDataResetPreview(await unwrap(call, 'dataResetPreview', {}, signal));
+}
+
+export async function confirmDataReset(call: BridgeCall, token: string): Promise<DataResetResult> {
+  const reset = asRecord(asRecord(await unwrap(call, 'dataResetConfirm', { token }))?.['reset']);
+  return reset?.['status'] === 'restarting'
+    ? { status: 'restarting' }
+    : { status: 'restart-required' };
+}
+
+export type StorageMediaKind = 'image' | 'video' | 'audio' | 'file';
+export const STORAGE_MEDIA_KINDS: readonly StorageMediaKind[] = ['image', 'video', 'audio', 'file'];
+
+export interface StorageMediaTotal {
+  kind: StorageMediaKind;
+  count: number;
+  bytes: number;
+}
+
+export interface StorageChatUsage {
+  channelId: string;
+  name: string;
+  type: 'dm' | 'group';
+  deleted?: true;
+  messages: number;
+  oldestAt?: string;
+  mediaBytes: number;
+  media: StorageMediaTotal[];
+}
+
+export interface StorageUsage {
+  totalBytes: number;
+  parts: { kind: 'media' | 'messages' | 'memory' | 'other'; bytes: number }[];
+  chats: StorageChatUsage[];
+}
+
+export interface StorageCleanupScope {
+  before: string;
+  channelIds?: string[];
+  kinds?: StorageMediaKind[];
+}
+
+export interface StorageCleanupPreview {
+  token: string;
+  scope: { before: string; channelIds: string[]; kinds: StorageMediaKind[] };
+  messages: number;
+  files: number;
+  bytes: number;
+  freedBytes: number;
+  kinds: StorageMediaTotal[];
+  chats: { channelId: string; name: string; files: number; bytes: number }[];
+  kept: { reason: 'bot-working' | 'delivery-pending' | 'memory' | 'migration'; files: number }[];
+}
+
+export interface StorageCleanupResult {
+  messages: number;
+  files: number;
+  freedBytes: number;
+}
+
+export interface StorageMessagesPreview {
+  token: string;
+  scope: { before: string; channelIds: string[] };
+  messages: number;
+  bytes: number;
+  files: number;
+  chats: { channelId: string; name: string; messages: number }[];
+  kept: { reason: 'bot-working' | 'delivery-pending' | 'shared'; messages: number }[];
+  memoryReferences: number;
+  more: boolean;
+}
+
+export interface StorageMessagesResult {
+  messages: number;
+  freedBytes: number;
+}
+
+const STORAGE_MESSAGES_KEPT = new Set(['bot-working', 'delivery-pending', 'shared']);
+const STORAGE_PARTS = new Set(['media', 'messages', 'memory', 'other']);
+const STORAGE_KEPT = new Set(['bot-working', 'delivery-pending', 'memory', 'migration']);
+
+function count(value: unknown): number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : 0;
+}
+
+function mediaTotals(value: unknown): StorageMediaTotal[] {
+  return (Array.isArray(value) ? value : []).flatMap((entry) => {
+    const item = asRecord(entry);
+    const kind = item?.['kind'];
+    return typeof kind === 'string' && (STORAGE_MEDIA_KINDS as readonly string[]).includes(kind)
+      ? [
+          {
+            kind: kind as StorageMediaKind,
+            count: count(item?.['count']),
+            bytes: count(item?.['bytes']),
+          },
+        ]
+      : [];
+  });
+}
+
+function parseStorageUsage(value: unknown): StorageUsage {
+  const usage = asRecord(value);
+  const parts = usage?.['parts'];
+  const chats = usage?.['chats'];
+  if (usage === undefined || !Array.isArray(parts) || !Array.isArray(chats))
+    throw new BridgeCallError('invalid-response', 'Invalid storage usage');
+  return {
+    totalBytes: count(usage['totalBytes']),
+    parts: parts.flatMap((entry) => {
+      const part = asRecord(entry);
+      const kind = part?.['kind'];
+      return typeof kind === 'string' && STORAGE_PARTS.has(kind)
+        ? [{ kind: kind as StorageUsage['parts'][number]['kind'], bytes: count(part?.['bytes']) }]
+        : [];
+    }),
+    chats: chats.flatMap((entry) => {
+      const chat = asRecord(entry);
+      const channelId = chat?.['channelId'];
+      const name = chat?.['name'];
+      if (typeof channelId !== 'string' || typeof name !== 'string') return [];
+      return [
+        {
+          channelId,
+          name,
+          type: chat?.['type'] === 'dm' ? ('dm' as const) : ('group' as const),
+          ...(chat?.['deleted'] === true ? { deleted: true as const } : {}),
+          messages: count(chat?.['messages']),
+          ...(typeof chat?.['oldestAt'] === 'string' ? { oldestAt: chat['oldestAt'] } : {}),
+          mediaBytes: count(chat?.['mediaBytes']),
+          media: mediaTotals(chat?.['media']),
+        },
+      ];
+    }),
+  };
+}
+
+function parseStorageCleanupPreview(value: unknown): StorageCleanupPreview {
+  const preview = asRecord(value);
+  const scope = asRecord(preview?.['scope']);
+  const token = preview?.['token'];
+  if (typeof token !== 'string' || typeof scope?.['before'] !== 'string')
+    throw new BridgeCallError('invalid-response', 'Invalid storage cleanup preview');
+  return {
+    token,
+    scope: {
+      before: scope['before'],
+      channelIds: Array.isArray(scope['channelIds'])
+        ? scope['channelIds'].filter((id): id is string => typeof id === 'string')
+        : [],
+      kinds: Array.isArray(scope['kinds'])
+        ? (scope['kinds'].filter((kind) =>
+            (STORAGE_MEDIA_KINDS as readonly unknown[]).includes(kind),
+          ) as StorageMediaKind[])
+        : [...STORAGE_MEDIA_KINDS],
+    },
+    messages: count(preview?.['messages']),
+    files: count(preview?.['files']),
+    bytes: count(preview?.['bytes']),
+    freedBytes: count(preview?.['freedBytes']),
+    kinds: mediaTotals(preview?.['kinds']),
+    chats: (Array.isArray(preview?.['chats']) ? preview['chats'] : []).flatMap((entry) => {
+      const chat = asRecord(entry);
+      return typeof chat?.['channelId'] === 'string' && typeof chat['name'] === 'string'
+        ? [
+            {
+              channelId: chat['channelId'],
+              name: chat['name'],
+              files: count(chat['files']),
+              bytes: count(chat['bytes']),
+            },
+          ]
+        : [];
+    }),
+    kept: (Array.isArray(preview?.['kept']) ? preview['kept'] : []).flatMap((entry) => {
+      const item = asRecord(entry);
+      const reason = item?.['reason'];
+      return typeof reason === 'string' && STORAGE_KEPT.has(reason)
+        ? [
+            {
+              reason: reason as StorageCleanupPreview['kept'][number]['reason'],
+              files: count(item?.['files']),
+            },
+          ]
+        : [];
+    }),
+  };
+}
+
+export async function loadStorageUsage(
+  call: BridgeCall,
+  signal?: AbortSignal,
+): Promise<StorageUsage> {
+  return parseStorageUsage(await unwrap(call, 'storageUsage', {}, signal));
+}
+
+export async function previewStorageCleanup(
+  call: BridgeCall,
+  scope: StorageCleanupScope,
+  signal?: AbortSignal,
+): Promise<StorageCleanupPreview> {
+  return parseStorageCleanupPreview(
+    await unwrap(call, 'storageCleanupPreview', { ...scope }, signal),
+  );
+}
+
+export async function confirmStorageCleanup(
+  call: BridgeCall,
+  preview: StorageCleanupPreview,
+): Promise<StorageCleanupResult> {
+  const result = asRecord(
+    await unwrap(call, 'storageCleanupConfirm', {
+      before: preview.scope.before,
+      ...(preview.scope.channelIds.length === 0 ? {} : { channelIds: preview.scope.channelIds }),
+      kinds: preview.scope.kinds,
+      token: preview.token,
+    }),
+  );
+  return {
+    messages: count(result?.['messages']),
+    files: count(result?.['files']),
+    freedBytes: count(result?.['freedBytes']),
+  };
+}
+
+function parseStorageMessagesPreview(value: unknown): StorageMessagesPreview {
+  const preview = asRecord(value);
+  const scope = asRecord(preview?.['scope']);
+  const token = preview?.['token'];
+  if (typeof token !== 'string' || typeof scope?.['before'] !== 'string')
+    throw new BridgeCallError('invalid-response', 'Invalid message cleanup preview');
+  return {
+    token,
+    scope: {
+      before: scope['before'],
+      channelIds: (Array.isArray(scope['channelIds']) ? scope['channelIds'] : []).filter(
+        (id): id is string => typeof id === 'string',
+      ),
+    },
+    messages: count(preview?.['messages']),
+    bytes: count(preview?.['bytes']),
+    files: count(preview?.['files']),
+    chats: (Array.isArray(preview?.['chats']) ? preview['chats'] : []).flatMap((entry) => {
+      const chat = asRecord(entry);
+      return typeof chat?.['channelId'] === 'string' && typeof chat['name'] === 'string'
+        ? [{ channelId: chat['channelId'], name: chat['name'], messages: count(chat['messages']) }]
+        : [];
+    }),
+    kept: (Array.isArray(preview?.['kept']) ? preview['kept'] : []).flatMap((entry) => {
+      const item = asRecord(entry);
+      const reason = item?.['reason'];
+      return typeof reason === 'string' && STORAGE_MESSAGES_KEPT.has(reason)
+        ? [
+            {
+              reason: reason as StorageMessagesPreview['kept'][number]['reason'],
+              messages: count(item?.['messages']),
+            },
+          ]
+        : [];
+    }),
+    memoryReferences: count(preview?.['memoryReferences']),
+    more: preview?.['more'] === true,
+  };
+}
+
+export async function previewStorageMessages(
+  call: BridgeCall,
+  scope: { before: string; channelIds?: string[] },
+  signal?: AbortSignal,
+): Promise<StorageMessagesPreview> {
+  return parseStorageMessagesPreview(
+    await unwrap(call, 'storageMessagesCleanupPreview', { ...scope }, signal),
+  );
+}
+
+export async function confirmStorageMessages(
+  call: BridgeCall,
+  preview: StorageMessagesPreview,
+): Promise<StorageMessagesResult> {
+  const result = asRecord(
+    await unwrap(call, 'storageMessagesCleanupConfirm', {
+      before: preview.scope.before,
+      ...(preview.scope.channelIds.length === 0 ? {} : { channelIds: preview.scope.channelIds }),
+      token: preview.token,
+    }),
+  );
+  return { messages: count(result?.['messages']), freedBytes: count(result?.['freedBytes']) };
 }
 
 export async function loadTelemetryStatus(

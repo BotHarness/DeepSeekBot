@@ -2457,6 +2457,15 @@ const THREE_ACTION_APPROVAL_MIGRATION: SchemaMigration = {
   },
 };
 
+const PUSH_APP_RENDER_MIGRATION: SchemaMigration = {
+  generation: 105,
+  module: 'push',
+  description: 'Record which paired devices draw push notifications in the app',
+  migrate(database) {
+    database.exec(`ALTER TABLE push_devices ADD COLUMN render TEXT;`);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -2561,4 +2570,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   TOB_ONBOARDING_MIGRATION,
   USAGE_IDLE_COMPACTION_MIGRATION,
   THREE_ACTION_APPROVAL_MIGRATION,
+  PUSH_APP_RENDER_MIGRATION,
 ]);

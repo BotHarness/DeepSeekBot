@@ -58,7 +58,7 @@
     },
     {
       "id": "device-pairing",
-      "description": "Device list, offers, revoke and paired-device gateway authorization; the hosted Connect tunnel route has connect-status/enable/disable.",
+      "description": "Device list, offers, revoke and paired-device gateway authorization; the hosted Connect tunnel route has connect-status/enable/disable/sign-in/sign-out.",
       "scope": "Profile",
       "surfaces": [
         "route:packages/core/src/devices/mount.ts:path in [ [DEVICES_PATH, ['GET']], [`${DEVICES_PATH}/offer`, ['POST']], [`${DEVICES_PATH}/revoke`, ['POST']], [`${DEVICES_PATH}/connect`, ['POST']], ] as const",
@@ -66,6 +66,23 @@
         "setting:packages/client/src/client/paired-devices.tsx:{t('devices.pair.title')}"
       ],
       "issue": "#2098"
+    },
+    {
+      "id": "device-connect",
+      "description": "Devices page hosted Connect account and tunnel state (ADR-0241).",
+      "scope": "Profile",
+      "surfaces": [
+        "setting:packages/client/src/client/paired-devices.tsx:{t('devices.connect.account')}",
+        "setting:packages/client/src/client/paired-devices.tsx:{t('devices.connect.tunnel')}"
+      ],
+      "commands": ["connect-status", "connect-sign-in", "connect-sign-out"]
+    },
+    {
+      "id": "phone-route",
+      "description": "Phone route status and the confirmed tailscale serve publish behind the Pair a phone stepper.",
+      "scope": "Profile",
+      "surfaces": ["route:packages/core/src/devices/mount.ts:DEVICES_SERVE_PATH"],
+      "commands": ["phone-route", "phone-route-publish"]
     },
     {
       "id": "profile-recovery",
@@ -212,6 +229,17 @@
       "commands": ["git-status", "git-install"]
     },
     {
+      "id": "plugin-updates",
+      "description": "Installed BotHarness plugins: version check, in-place update and the restart that finishes it.",
+      "scope": "Host",
+      "surfaces": [
+        "setting:packages/client/src/client/plugin-updates-view.tsx:{pluginTitle(plugin.name, t)}",
+        "setting:packages/client/src/client/plugin-updates-view.tsx:{t('plugins.restart.title')}",
+        "setting:packages/client/src/client/plugin-updates-view.tsx:{t('plugins.row.title')}"
+      ],
+      "commands": ["plugin-check", "plugin-install", "plugin-restart"]
+    },
+    {
       "id": "channel-name",
       "description": "Channel name editing.",
       "scope": "Host",
@@ -258,6 +286,30 @@
         "setting:packages/client/src/client/telemetry-settings.tsx:{t('telemetry.row.title')}"
       ],
       "commands": ["telemetry-status", "telemetry-set"]
+    },
+    {
+      "id": "data-reset",
+      "description": "Clear all BotHarness data on this Host after a reviewed preview and a second confirmation.",
+      "scope": "Host",
+      "surfaces": [
+        "setting:packages/client/src/client/data-reset-settings.tsx:{t('dataReset.row.title')}"
+      ],
+      "commands": ["data-reset-preview", "data-reset-confirm"]
+    },
+    {
+      "id": "storage-cleanup",
+      "description": "Show storage used by chat media, messages and Memory, clear reviewed chat media by chat, age and type, and delete reviewed old messages by chat and age.",
+      "scope": "Host",
+      "surfaces": [
+        "setting:packages/client/src/client/storage-settings.tsx:{t('storage.row.title')}"
+      ],
+      "commands": [
+        "storage-usage",
+        "storage-cleanup-preview",
+        "storage-cleanup-confirm",
+        "storage-messages-cleanup-preview",
+        "storage-messages-cleanup-confirm"
+      ]
     },
     {
       "id": "workspace-grants",
@@ -371,6 +423,18 @@
         "storage:packages/client/src/client/onboarding.ts:setItem(introKey(receipt.profileId))"
       ],
       "exemption": "Device-local tour anchors and seen markers are presentation state, not Host settings. Profile tutorial lifecycle is available through onboarding.",
+      "configurable": false
+    },
+    {
+      "id": "browser-computer-sources",
+      "description": "A browser's own pairings with other Computers and its selected channel-list Computer tab (#2500).",
+      "scope": "Client transport / transient state",
+      "surfaces": [
+        "storage:packages/client/src/client/computer-sources.ts:removeItem(COMPUTERS_STORAGE_KEY)",
+        "storage:packages/client/src/client/computer-sources.ts:setItem(COMPUTERS_STORAGE_KEY)",
+        "storage:packages/client/src/client/computer-sources.ts:setItem(COMPUTER_TAB_STORAGE_KEY)"
+      ],
+      "exemption": "Per-browser connections and the tab filter belong to that browser profile, not to any Host (spec #2178), so no Host CLI can read or set them. The other Computer's side is its existing device gateway: pair, unary calls, stream ticket and revoke.",
       "configurable": false
     },
     {

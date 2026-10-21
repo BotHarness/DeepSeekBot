@@ -154,3 +154,4 @@ export const StyleSheet = {
     return style && typeof style === 'object' ? style : undefined;
   },
 };
+export const AccessibilityInfo = { announceForAccessibility: (_message: string) => {} };

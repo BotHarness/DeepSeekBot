@@ -1,6 +1,6 @@
 import { TextField } from '../primitives/text-field';
 import { useRef, useState, type ComponentType, type ReactNode } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { View } from 'react-native';
 
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
 import type { KeyboardAwareScrollViewRef } from 'react-native-keyboard-controller';
@@ -37,6 +37,7 @@ import {
   SheetNote,
   SHEET_GROUP,
 } from './sheet';
+import { LoadingIndicator } from '../primitives/loading-indicator';
 
 const HISTORY = 5;
 const PREVIEW = 5;
@@ -102,7 +103,7 @@ function ListRows<T>({
     return (
       <SettingsGroupItem first last on={SHEET_GROUP}>
         <View style={{ padding: space.x4, alignItems: 'flex-start' }}>
-          <ActivityIndicator />
+          <LoadingIndicator />
         </View>
       </SettingsGroupItem>
     );

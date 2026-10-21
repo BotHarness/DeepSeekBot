@@ -15,10 +15,12 @@ import {
   DEVICE_SIGNALING_PATHS,
   DEVICE_WEB_MUX_PATH,
 } from './gateway.js';
+import { createConnectAccount } from './connect-account.js';
+import { cloudflaredCacheRoot } from './cloudflared.js';
 import { createDeviceConnect } from './connect.js';
-import { createDevicesHttp, DEVICES_PATH } from './http.js';
+import { createDevicesHttp, DEVICES_PATH, DEVICES_SERVE_PATH } from './http.js';
 import { createDevicePairing, type DevicePairingEvent } from './pairing.js';
-import { detectPhoneRoutes } from './routes.js';
+import { detectPhoneRoutes, publishPhoneRoute } from './routes.js';
 import {
   createPushDelivery,
   type ExpoSender,
@@ -86,6 +88,7 @@ export function mountDevicePairing(
     dshHome: string;
     push?: DevicePushOptions;
     credentials?: () => CredentialProvider | undefined;
+    packageAnchors?: readonly string[];
   },
 ): DeviceWebUpgrade | undefined {
   if (options.database.mode !== 'ready') return undefined;
@@ -109,6 +112,12 @@ export function mountDevicePairing(
     hostName: hostname().replace(/\.local$/u, ''),
     record: (event) => write('device-pairing', event.phase, `device-pairing ${detail(event)}`),
     onRevoked: (deviceId) => push?.unregister(deviceId),
+    onPaired: (device) =>
+      void push
+        ?.announcePaired(device)
+        .catch((error: unknown) =>
+          ctx.logger.warn(`push phase=announce-failed error=${String(error)}`),
+        ),
   });
   if (options.push !== undefined) {
     const watched = options.push;
@@ -154,12 +163,22 @@ export function mountDevicePairing(
     const connect = createDeviceConnect({
       credentials: options.credentials ?? (() => undefined),
       port: () => webServer.port,
+      cloudflaredCache: cloudflaredCacheRoot(options.dshHome),
+      ...(options.packageAnchors === undefined ? {} : { packageAnchors: options.packageAnchors }),
+      record: (phase, info) =>
+        write('device-connect', phase, `device-connect phase=${phase}${info ? ` ${info}` : ''}`),
+    });
+    const account = createConnectAccount({
+      credentials: options.credentials ?? (() => undefined),
+      connect,
       record: (phase, info) =>
         write('device-connect', phase, `device-connect phase=${phase}${info ? ` ${info}` : ''}`),
     });
     webCtx.effect(() => {
-      void connect.start();
-      return () => void connect.close();
+      void connect.start().then(() => account.start());
+      return () => {
+        void account.close().then(() => connect.close());
+      };
     }, 'botharness: device connect tunnel');
     const routes = async () => {
       const status = await detectPhoneRoutes({ port: webServer.port });
@@ -169,7 +188,13 @@ export function mountDevicePairing(
       const others = status.routes.filter((route) => route.kind !== 'loopback');
       return { ...status, routes: [...others, tunnel, ...loopback] };
     };
-    const http = createDevicesHttp({ pairing, routes, connect });
+    const http = createDevicesHttp({
+      pairing,
+      routes,
+      connect,
+      account,
+      publish: () => publishPhoneRoute({ port: webServer.port }),
+    });
     for (const [path, methods] of [
       [DEVICES_PATH, ['GET']],
       [`${DEVICES_PATH}/offer`, ['POST']],
@@ -186,6 +211,16 @@ export function mountDevicePairing(
           }),
         `botharness: paired devices ${path}`,
       );
+    webCtx.effect(
+      () =>
+        connection.fetch.register({
+          path: DEVICES_SERVE_PATH,
+          methods: ['POST'],
+          requestBody: 'buffered',
+          fetch: http,
+        }),
+      'botharness: publish phone route',
+    );
 
     const gateway = createDeviceGateway({
       pairing,
@@ -193,6 +228,7 @@ export function mountDevicePairing(
       authenticatedUrl: (base) => connection.authenticatedUrl(base),
       log: (message) => ctx.logger.info(message),
       ...(push === undefined ? {} : { push: createDevicePushHttp(push) }),
+      connectOffer: (body, signature) => account.verifyOffer(body, signature),
     });
     webCtx.effect(
       () =>

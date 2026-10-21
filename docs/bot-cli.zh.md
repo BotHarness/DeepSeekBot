@@ -56,7 +56,7 @@ deepseekbot search <words>
 
 ## 在线 Host 命令
 
-将 `DEEPSEEKBOT_HOST` 设为运行中 Host 的 loopback origin 或 tailnet HTTPS origin；`--host <origin>` 可覆盖它。当前启动令牌通过 `DEEPSEEKBOT_HOST_TOKEN` 或 `--token-file <私有文件>` 提供，不得把令牌值放入参数。每次调用重新登录，cookie 只留在内存；Host 重启后须使用新令牌。在线命令不打开 Profile 数据库。参见 [ADR-0159](adr/0159-live-cli-verbs-ride-the-dsh-http-carrier.md)。
+将 `DEEPSEEKBOT_HOST` 设为运行中 Host 的 loopback origin 或 tailnet HTTPS origin。使用 tailnet origin（例如 loopback Host 前面的 `tailscale serve`）时，Host 必须以 `--trusted-host <machine>.<tailnet>.ts.net` 启动；否则登录能成功，但 DSH 的 `/api` Host 校验会拒绝每个请求，CLI 返回 `host-untrusted`。`--host <origin>` 可覆盖它。当前启动令牌通过 `DEEPSEEKBOT_HOST_TOKEN` 或 `--token-file <私有文件>` 提供，不得把令牌值放入参数。每次调用重新登录，cookie 只留在内存；Host 重启后须使用新令牌。在线命令不打开 Profile 数据库。参见 [ADR-0159](adr/0159-live-cli-verbs-ride-the-dsh-http-carrier.md)。
 
 ### 在线创建与无浏览器调试
 
@@ -103,6 +103,7 @@ deepseekbot user-question-status <channel-id> --message-id <卡片-id>
 deepseekbot user-question-answer <channel-id> --message-id <卡片-id> --answer-stdin
 deepseekbot release-info [--since <版本>]
 deepseekbot workspace-options
+deepseekbot folder-browse [<文件夹路径>]
 deepseekbot grant-create <bot-id> --workspace <workspace-id>
 ```
 
@@ -360,6 +361,8 @@ deepseekbot inbox --category replies --search budget --unread --sort mentions-fi
 deepseekbot inbox-watch --category unread --watch-seconds 10
 deepseekbot inbox-status
 deepseekbot inbox-dismiss <item-id> --source-key <source-event-id>
+deepseekbot inbox --category replies --dismissed
+deepseekbot inbox-restore <item-id> --source-key <source-event-id>
 deepseekbot inbox-snooze <item-id> --source-key <source-event-id> --until 2026-10-15T09:00:00Z
 deepseekbot inbox-snooze <item-id> --source-key <source-event-id> --clear
 deepseekbot inbox --category action --snoozed
@@ -384,7 +387,7 @@ deepseekbot private-mcp-remove <bot-id> --server <name> --confirm
 
 `inbox --search <文字>` 在分页前搜索安全的 Activity 摘要、Channel 名称和 Bot slug（最多 200 字符）。`--unread` 仅保留未读的个人消息，不隐藏待处理事项。`--sort newest|oldest` 按时间排序；`--category replies --sort mentions-first` 将提及排在回复前。使用 `--cursor` 时须保持筛选条件不变。搜索、未读筛选和提及排序要求查询版本 1；旧 Host 返回 `host-query-unsupported`，不会静默返回部分结果。
 
-`inbox` 返回 Human Inbox 的一页（`items` 和 `nextCursor`），可以像 Inbox 的标签页一样按 `--category`（`action`、`info`、`unread`、`replies`、`handled`）、`--bot` 或 `--channel` 筛选。`inbox-dismiss` 接收条目的 `id`，条目带有 `sourceEventId` 时把它作为 `--source-key` 传入；`inbox-ignore` 把一条仅供知悉的委派汇报标为已读。`inbox-snooze` 把需要处理、通知或回复里的条目隐藏到 `--until`（最多 30 天后），对应网页 Inbox 的「稍后提醒」；`--clear` 立即让它回来，`inbox --snoozed` 列出仍在延后的条目及其 `snoozedUntil`。`assignment-context` 读取 `assignment-report` 条目背后的汇报。`channel-assignments` 列出群组 Channel 的委派工作；`channel-assign` 把 Channel 移到侧栏的某个分组（`--unsectioned` 移出分组）。`session-ids` 列出 Bot 拥有的根会话，`session-owner` 说明某个会话属于哪个 Bot、以什么角色运行。`tool-approval-rules` 列出 Bot 的"始终允许"规则。撤销规则、工作区授权或私有 MCP 服务器都需要 `--confirm`，与 Web UI 的确认一致。指定了 Host 时，`grant-revoke` 和 `grant-write-set` 经由 Host 执行；使用 `--home` 时仍是离线维护命令。私有 MCP 服务器由 `ask-secret-accounts` 列出；Host 不认识的名称会以 `private-mcp-server-unavailable` 失败。
+`inbox` 返回 Human Inbox 的一页（`items` 和 `nextCursor`），可以像 Inbox 的标签页一样按 `--category`（`action`、`info`、`unread`、`replies`、`handled`）、`--bot` 或 `--channel` 筛选。`inbox-dismiss` 接收条目的 `id`，条目带有 `sourceEventId` 时把它作为 `--source-key` 传入；`inbox --dismissed` 列出已移除的条目（对应手机上的「已清理」筛选），`inbox-restore` 用同样的 `id` 和 `--source-key` 把一条恢复回来，旧版 Host 会以 `host-query-unsupported` 失败；`inbox-ignore` 把一条仅供知悉的委派汇报标为已读。`inbox-snooze` 把需要处理、通知或回复里的条目隐藏到 `--until`（最多 30 天后），对应网页 Inbox 的「稍后提醒」；`--clear` 立即让它回来，`inbox --snoozed` 列出仍在延后的条目及其 `snoozedUntil`。`assignment-context` 读取 `assignment-report` 条目背后的汇报。`channel-assignments` 列出群组 Channel 的委派工作；`channel-assign` 把 Channel 移到侧栏的某个分组（`--unsectioned` 移出分组）。`session-ids` 列出 Bot 拥有的根会话，`session-owner` 说明某个会话属于哪个 Bot、以什么角色运行。`tool-approval-rules` 列出 Bot 的"始终允许"规则。撤销规则、工作区授权或私有 MCP 服务器都需要 `--confirm`，与 Web UI 的确认一致。指定了 Host 时，`grant-revoke` 和 `grant-write-set` 经由 Host 执行；使用 `--home` 时仍是离线维护命令。私有 MCP 服务器由 `ask-secret-accounts` 列出；Host 不认识的名称会以 `private-mcp-server-unavailable` 失败。
 
 ### 在线 Host 上的定时任务
 
@@ -494,7 +497,7 @@ printf '{"display_name":"Tim","tags":["translator"],"soul":"# Tim\\nCalm and pre
 
 问题答案由 stdin 提供：`{"answers":[{"id":"question-id","selected":["Blue"],"custom":"可选文字"}]}`；从在线历史获取问题 ID 与选项。Host owner 只应用一次决定，重复或竞争操作返回原有错误码。工具审批提供仅允许一次和拒绝；问题状态保留 pending/submitted/answered/expired。`release-info` 只读生命周期，工作区授权使用 `workspace-options` 返回的 ID。
 
-Host 离线时返回 `host-unreachable`，不提交消息；过期令牌返回 `host-unauthorized`，无效响应返回 `host-protocol-error`。Bridge 和 gateway 错误码原样透传。stdout 仍只有一份 JSON，支持 `--compact`；认证值不打印、不保存。
+Host 离线时返回 `host-unreachable`，不提交消息；过期令牌返回 `host-unauthorized`，tailnet 名称不在 Host 的 `--trusted-host` 列表中时返回 `host-untrusted`，无效响应返回 `host-protocol-error`。Bridge 和 gateway 错误码原样透传。stdout 仍只有一份 JSON，支持 `--compact`；认证值不打印、不保存。
 
 凭据写入在落盘前后验证真实 YAML；失败恢复原文件字节，新文件失败则删除。空的 `refs: {}` 转成块映射，保留注释与 records；含空行及尾换行的多行值可完整读回。null ref 值、空文件、非空内联 refs 映射返回 `bad-credentials` 且不改文件；编辑前请将 refs 改成块映射。
 
@@ -572,6 +575,17 @@ deepseekbot idle-compaction-cache-set deepseek/<model> auto
 
 三个命令都返回 `{enabled, settingReadable, minimumIdleSeconds, scheduled, routes}`。每条线路列出 `cacheLifetimeSeconds`、来源 `source` 和 `compactAfterSeconds`（跳过时为 `null`）。缓存寿命依次取自这里为该线路设置的值（`setting`）、模型目录（`catalog`，Anthropic 的短档）、观测到的请求前空闲间隔中仍大部分命中缓存的最长值（`observed`；命中的间隔不会缩短默认值，更长的未命中间隔会把它封顶），或 DeepSeek 线路的 2 小时（`default`）；其它没有任何信息的线路为 `unknown` 并跳过，寿命不足 15 分钟的也跳过。`idle-compaction-cache-set ... auto` 删除该线路的设置值。每次执行都记录在 `deepseekbot bot-activity-history <bot-id>` 的 `idleCompactions` 中，包含线路、空闲时长、压缩前后 token 数，以及压缩请求的输入、缓存读取和输出 token。拒绝时带错误码：`usage`（缺少 `on`/`off`、`<provider>/<model>` 或整数秒）和 `invalid-input`。
 
+### 手机连接（Tailscale）
+
+手机连不上这台 Host 时，Bot 设置 → 设备 → 配对手机会显示三步指引：安装 Tailscale、启动并登录、把 Host 发布到 tailnet。最后一步可以确认后由 DeepSeekBot 代为运行 `tailscale serve --bg <port>`，也可以复制命令自己运行。CLI 中的对应操作：
+
+```bash
+deepseekbot phone-route
+deepseekbot phone-route-publish --confirm
+```
+
+`phone-route` 返回 `{routes}`：`tailscale`（`running`、`stopped` 或 `missing`）、本 Host 端口对应的 `serveCommand`，以及每条路由的 `ready`；未就绪时带 `issue`（`serve-missing` 或 `serve-other-target`）。`phone-route-publish` 在 Host 所在电脑上运行 `tailscale serve --bg <port>`，返回 `{published, changed, routes}`；`changed:false` 表示原本就已发布。拒绝时带错误码：`confirm-required`（缺少 `--confirm`）、`tailscale-missing`、`tailscale-stopped`、`serve-other-target`（这个地址已发布了别的服务，Host 不会覆盖，请手动处理）、`serve-needs-enable`（tailnet 未开启 Serve，返回 `enableUrl` 指向 Tailscale 后台）、`serve-denied`（Tailscale 不允许当前系统用户修改）和 `serve-failed`。用 `tailscale serve --https=443 off` 撤销；`tailscale serve reset` 会连同这台电脑上其他 Serve 配置一起清掉。
+
 ### 模型、用量与活动
 
 ```bash
@@ -608,7 +622,7 @@ deepseekbot group-activity <group-channel>
 这些命令调用的 Host 方法与市场页面、更新卡片、使用统计提示、Git 提示和 IM 配对面板相同：
 
 ```bash
-deepseekbot marketplace-list [--query <关键词>] [--topic <主题>] [--sort updated|stars] [--lang zh|en] [--cursor <next-cursor>]
+deepseekbot marketplace-list [--query <关键词>] [--topic <主题>] [--sort updated|created|stars] [--lang zh|en] [--cursor <next-cursor>]
 deepseekbot marketplace-topics
 deepseekbot marketplace-detail <owner/repo> [--lang zh|en]
 deepseekbot marketplace-submit https://github.com/<owner>/<repo>
@@ -616,6 +630,9 @@ deepseekbot marketplace-report <owner/repo> [--reason <说明>]
 deepseekbot release-check [--force]
 deepseekbot release-install <version> --confirm
 deepseekbot release-restart --confirm
+deepseekbot plugin-check [--force]
+deepseekbot plugin-install <package> <version> --confirm
+deepseekbot plugin-restart --confirm
 deepseekbot telemetry-status
 deepseekbot telemetry-set --enabled | --disabled
 deepseekbot git-status
@@ -631,7 +648,41 @@ deepseekbot pairing-review <bot-id> <pairing-id> --decision revoke --confirm
 
 `release-info` 包含可选的 Host 所有 `identity`：带源码 revision／dirty 的 `development`、带版本的 `release`，或带元数据／组合原因的 `unknown`。旧 Host 缺少该字段，不代表发布身份已经核实。源码内部版本占位仍为 `0.0.0`，关于页面显示源码身份。`release-check` 可返回 `unknown`，此时安装／重启以 `release-identity-invalid` 拒绝。已安装／待生效版本与运行版本分开，直到新 Host 返回精确目标版本。
 
+`plugin-check`、`plugin-install` 和 `plugin-restart` 对应 **Bot 设置 → 插件** 页面，覆盖除 `deepseekbot` 以外已安装的 `@botharness/*` 插件 Bundle，例如 `@botharness/vrm-companion`。`plugin-check` 返回 `installable`、`restartable`，以及每个插件一条记录，`status` 为 `current`、`available`、`blocked`、`restart-required`、`development` 或 `unavailable`；`--force` 绕过六小时的检查缓存。兼容判断复用运行中 DSH 的评估器，读取该插件在 registry 上的清单。`plugin-install <package> <version> --confirm` 会再次检查兼容性，通过原生 Plugin Manager 安装；Manager 拒绝覆盖已安装的包名时，改用 registry 的安装包地址。返回 `applied: true` 表示 Host 已经加载新版本，只需刷新页面；否则用 `plugin-restart --confirm` 重启 Host，让所有待生效的插件更新生效。失败时以非零退出，错误码为 `plugin-<原因>`，例如 `plugin-incompatible`、`plugin-unknown-plugin` 或 `plugin-not-pending`。
+
 `--lang zh|en` 按该语言读取列表，与市场页面按界面语言读取一致：名称和简介依次取作者 `bot.json` 里 `i18n` 的翻译、本来就是该语言的简介、市场生成的摘要（`descriptionGenerated: true`）；`marketplace-detail` 返回仓库里该语言的 README，并在 `readmeLanguage` 里注明，没有就返回 `README.md`：`zh` 依次取 `README.zh-CN.md`、`README.zh.md`，再取 `README_CN.md`、`README-zh.md` 等其他写法；`en` 取 `README.en.md`。`marketplace-submit` 和 `marketplace-report` 会像网页一样先完成 Host 下发的工作量证明，因此可能需要几秒；市场本身的拒绝（`repository-missing-topic`、`rate-limited` 等）作为错误码返回。举报说明最多 500 个字符。`release-check` 返回更新状态（`current`、`available`、`restart-required`、`development`、`unknown` 或 `unavailable`）。`release-install` 和 `release-restart` 必须带 `--confirm`；安装或重启失败时以非零退出，错误码为 `release-<原因>`，例如 `release-network` 或 `release-not-pending`。重启会中断所有正在运行的 Bot 回合，只在自己负责的 Host 上执行。`pairing-list` 列出 Bot 的配对请求和角色；`pairing-review` 自行读取当前版本号，期间被改动过的请求会被拒绝而不是被覆盖。对话类请求用一个 `--role` 批准，管理类请求用 `--capability` 批准。
+
+### 清除全部 BotHarness 数据
+
+```bash
+deepseekbot data-reset-preview
+printf '%s' '{"token":"<preview.token>"}' | deepseekbot data-reset-confirm --confirmation-stdin --confirm
+```
+
+这是**设置 → 数据与隐私 → 清除全部 BotHarness 数据**的 CLI 形式。`data-reset-preview` 列出清除会删除的全部内容：`targets` 给出每个存在的文件夹及其大小和文件数（`data` 是 `$DSH_HOME/botharness`，含数据库、Bot、默认位置的记忆、附件、频道文件和工作区；`im-settings` 是 `$DSH_HOME/integrations` 下内置 IM Provider 的各个文件夹；`local-tools` 是 `~/.botharness`，例如电脑操控驱动）。`kept` 列出会保留的内容：DSH 自己的 `$DSH_HOME/.credentials.yaml`、Human 为 Bot 选择的每个记忆文件夹（即使位于要删除的文件夹内也保留），以及 `BotHarness Exports` 文件夹。token 十分钟内有效，且只对应这一次的范围；新建了 Bot、移动了记忆文件夹或 token 过期时会以 `data-reset-preview-stale` 拒绝，请重新预览。
+
+`data-reset-confirm` 需要 `--confirmation-stdin --confirm`。它会让 BotHarness 停止写入，在 `$DSH_HOME/botharness-reset.json` 记录本次清除，并返回 `{reset:{status:"restarting"}}`：旧 Host 退出时、重新启动之前删除这些文件夹。Host 不能自动重启时返回 `restart-required`；Bot 保持停止，删除会在下一次 Host 启动时完成，插件重新安装后也一样。DSH 会话、DSH 设置和其他插件保持不变。只有 Host owner 能执行，它不是 Bot 工具。
+
+### 存储空间
+
+```bash
+deepseekbot storage-usage
+deepseekbot storage-cleanup-preview --older-than-days 90 [--chat <channel-id> …] [--media image|video|audio|file …] \
+  | deepseekbot storage-cleanup-confirm --confirmation-stdin --confirm
+```
+
+这是**设置 → 数据与隐私 → 存储空间**的 CLI 形式。`storage-usage` 返回 `totalBytes`、`parts`（`media` 是附件文件夹，`messages` 是运行数据库，`memory` 是全部 Bot 的 Memory 文件夹，`other` 是 `$DSH_HOME/botharness` 中其余内容），以及按媒体大小从大到小排列的 `chats`，其中包含每个聊天的 `messages`、`oldestAt`、`mediaBytes` 和按类型的 `media` 统计。
+
+`storage-cleanup-preview` 需要且只能传 `--before <ISO 时间>` 或 `--older-than-days <天数>` 之一，可重复传 `--chat`（默认全部聊天）和 `--media`（默认四种类型）。它返回将清理的文件数与字节数、`freedBytes`（没有其他地方再引用的文件）、按聊天和类型的统计、`kept` 计数（`bot-working`、`delivery-pending`、`memory`、`migration`），以及十分钟有效的 `token` 和规范化后的 `scope`。把这段 JSON 通过管道交给 `storage-cleanup-confirm --confirmation-stdin --confirm`；范围有变化或 token 过期时返回 `storage-preview-stale`，请重新预览。
+
+清理会保留每条消息及其文字：每个被清理的附件会变成一条 `clearedAttachments` 记录（名称、类型、大小、时间），没有其他引用时删除其文件。来自 IM 应用的媒体和 Bot 的 Memory 不受影响。之前做的 Profile Backup 仍包含这些文件。
+
+```bash
+deepseekbot storage-messages-cleanup-preview --older-than-days 365 [--chat <channel-id> …] \
+  | deepseekbot storage-messages-cleanup-confirm --confirmation-stdin --confirm
+```
+
+`storage-messages-cleanup-preview` 删除的是整条消息：参数同样是 `--before` / `--older-than-days` 和 `--chat`，但不接受 `--media`。它返回 `messages`、`bytes`（这些消息的文字）、随消息一起删除的 `files`、每个聊天的条数 `chats`、`kept` 计数（`bot-working`、`delivery-pending`，以及消息同时出现在没选的聊天里时的 `shared`）、`memoryReferences`（提到这些消息的 Bot 记忆，记忆不会改动）、超过 2,000 条时的 `more`（完成后再清理一次），以及十分钟有效的 `token`。`storage-messages-cleanup-confirm` 通过 Content Purge 执行：每条消息保留位置，变成没有文字和文件的占位；从它开始的 Bot 工作会停止；没有其他引用的文件会被删除。它返回 `messages` 和数据库压缩后测得的 `freedBytes`。范围有变化或 token 过期时返回 `storage-preview-stale`。
 
 ## IM 应用授权
 
@@ -706,6 +757,15 @@ deepseekbot grants <bot-id>
 ```
 
 `grant-request-approve` 与 Web 请求卡使用同一个仅 Owner 可调用的 Host 命令。Host 在同一事务中保存持续读写权限和关联 Grant 的决议，再沿既有 Inbox 继续原任务；已有只读 Grant 也可经这次明确确认升级。重复批准同一请求只读回既有决定，不重复创建 Grant 或唤醒；已撤销或改变的目标会被拒绝。目录卡不是工具批准，应使用此命令，而非 `tool-approval-decide`。缺少 `--confirm` 返回 `usage`，失效或不可用权限返回稳定拒绝代码。这是在线操作，不是直接修改数据库的离线修复。
+
+### 浏览电脑上的文件夹
+
+```bash
+deepseekbot folder-browse
+deepseekbot folder-browse 'D:\code'
+```
+
+`folder-browse` 列出 Host 上某个文件夹的子文件夹，与电脑使用系统文件夹选择器时手机上的文件夹选择相同。不传路径时从 Host 主目录开始。返回 `{path, home, crumbs, entries, truncated, roots}`：只有文件夹名称和路径，不含文件。`roots` 是主目录和各个磁盘（Windows）或 `/`。相对路径返回 `folder-browse/invalid-path`；不存在、不是文件夹或无权读取分别返回 `folder-browse/not-found`、`folder-browse/not-directory`、`folder-browse/denied`。浏览不授予任何权限：选好路径后按上文登记并授权。
 
 ## Memory
 
@@ -1011,11 +1071,11 @@ Ctrl+0 恢复已保存的默认值，包括 120%；固定原生协议不支持�
 原生输入、guest 前台恢复、DPI 和 Human QA 的独立门槛见
 [Windows 资格 #2270](https://github.com/BotHarness/DeepSeekBot/issues/2270)。
 
-## 托管 Connect 隧道（ADR-0241，第一刀）
+## DeepSeekBot Connect（ADR-0241）
 
-托管 Connect 让已配对的手机经 `deepseekbot.dev` 下的 Cloudflare Tunnel 连到本 Host，不再需要
-Tailscale（[#2387](https://github.com/BotHarness/DeepSeekBot/issues/2387)）。第一刀里隧道和
-connector token 由人手工创建，账号登录和中继在后续切片。
+DeepSeekBot Connect 让已配对的手机经 `deepseekbot.dev` 下的 Cloudflare Tunnel 连到本 Host，不再需要
+Tailscale（[#2387](https://github.com/BotHarness/DeepSeekBot/issues/2387)）。通常由 Host 登录
+DeepSeekBot 账号、中继分配隧道（见下面的账号登录）；`connect-enable` 运行手工创建 connector token 的隧道。
 
 ```sh
 deepseekbot connect-status --host <host> --token-file <private-file>
@@ -1026,13 +1086,37 @@ deepseekbot connect-disable --host <host> --token-file <private-file>
 `connect-enable` 把主机名和 connector token 存进 DSH 凭据存储，开一个只把
 `/botharness-device/*` 转给 DSH 监听口的回环入口（其他路径一律 404），并以
 `cloudflared tunnel --no-autoupdate run` 运行隧道；token 只放在 `TUNNEL_TOKEN` 环境变量里，
-不出现在参数中。返回 JSON 的 `origin` 是隧道 ingress 要指向的地址。`cloudflared` 取自
-`DEEPSEEKBOT_CLOUDFLARED` 或 `PATH`。`connect-status` 返回 `connect.state`（`off`、`starting`、
-`connected`、`error`）及 `issue`（`cloudflared-missing`、`cloudflared-exited`、`origin-port-busy`、
-`credential-unavailable`）和手机路由列表；连上后，新的配对二维码会在 Tailscale 路由之后带上
+不出现在参数中。返回 JSON 的 `origin` 是隧道 ingress 要指向的地址。Host 运行固定版本的
+`cloudflared`（`packages/core/src/devices/cloudflared.json`），按顺序取第一个可用的：
+`DEEPSEEKBOT_CLOUDFLARED`；随 `deepseekbot` 安装的可选包 `@botharness/cloudflared-<平台>-<架构>`；
+`$DSH_HOME/botharness/cloudflared/<版本>/` 下的副本（从 cloudflared 的 GitHub 发布下载，SHA-256
+与固定值一致才保留）；最后是 `PATH` 上的 `cloudflared`。哈希不符的缓存或包内二进制会被拒绝，
+损坏的缓存会被删除并重新下载。`connect-status` 返回 `connect.state`（`off`、`starting`、
+`connected`、`error`）及 `issue`（`cloudflared-missing`、`cloudflared-exited`、
+`cloudflared-download-failed`、`cloudflared-hash-mismatch`、`origin-port-busy`、
+`credential-unavailable`）、`connect.cloudflared`（`env`、`package`、`cache`、`download` 或
+`path`，即实际运行的是哪个二进制）和手机路由列表。下载被拒绝后会退避重试；连上后，新的配对二维码会在 Tailscale 路由之后带上
 `https://<name>.deepseekbot.dev`。拒绝码：`connect-hostname-invalid`（只接受
 `deepseekbot.dev` 下一级）、`connect-token-invalid`、`credential-unavailable`。
 `connect-disable` 停掉隧道并删除已存的 token，已配对设备的凭据不受影响。
+
+### 账号登录
+
+```sh
+deepseekbot connect-sign-in --wait --host <host> --token-file <private-file>
+deepseekbot connect-sign-out --host <host> --token-file <private-file>
+```
+
+`connect-sign-in` 用 `https://connect.botharness.ai` 上 relay 公布的 WorkOS client 发起 CLI Auth
+（设备授权流程；可用 `DEEPSEEKBOT_CONNECT_RELAY` 覆盖 relay 地址）。返回里有 `userCode` 和
+`verificationUri`；加 `--wait` 时 CLI 把它们打印到 stderr，并等 Host 完成登录。之后 Host 只把 refresh
+token 存进 DSH 凭据存储，把自己关联到账号（每个账号最多 5 台 Host），向 relay 申请隧道并像
+`connect-enable` 一样运行，不再需要手工 token。登录期间隧道停掉时 Host 会重新向 relay 申请，所以
+Host 离线后被回收的隧道会在同一个 `<host-id>.deepseekbot.dev` 上恢复。`connect-status` 增加
+`connect.account`：`state`（`signed-out`、`signing-in`、`signed-in`、`error`）、`email`、`hostId`
+和 `issue`（`relay-unavailable`、`sign-in-denied`、`sign-in-expired`、`session-expired`、
+`account-not-allowed`、`host-limit`、`credential-unavailable`）。`connect-sign-out` 在 relay 上解除
+关联、停掉隧道并删除会话。任何已登录的账号都能关联 Host。
 
 ## 设备本地 DeepSeekBot 外观
 

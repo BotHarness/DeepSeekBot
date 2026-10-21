@@ -18,6 +18,8 @@
     "test/inbox-screens.test.ts",
     "test/action-cards.test.ts",
     "test/activity-feed.test.ts",
+    "test/host-session-unpair.test.ts",
+    "test/conversation-cache-host.test.ts",
     "test/reanimated-shim.ts",
     "test/**/*.tsx"
   ]

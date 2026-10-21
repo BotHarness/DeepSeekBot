@@ -1,14 +1,14 @@
-import { useImperativeHandle, useState, type ReactNode, type Ref } from 'react';
+import { useImperativeHandle, useState, type Ref } from 'react';
 import { Stack } from 'expo-router';
-import { Keyboard, Pressable, View } from 'react-native';
+import { Keyboard, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useDesignTheme } from '../design/theme';
-import { radius, space } from '../design/tokens';
+import { space } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { t } from '../strings';
+import { HeaderAction } from './header-action';
 import { HeaderSearch } from './header-search';
-import { ActivityFilterIcon, ActivitySearchIcon } from './icons';
 
 export type ActivityToolbarHandle = { dismissSearch(): void };
 
@@ -96,68 +96,30 @@ export function ActivityToolbar({
                 {t.activity}
               </Text>
               {!unavailable ? (
-                <ActivityIconButton
+                <HeaderAction
+                  icon="filter"
                   label={t.activityOptions}
+                  testID="activity-filter-button"
+                  active={filtered}
                   onPress={onFilter}
-                  selected={filtered}
-                >
-                  <ActivityFilterIcon
-                    color={filtered ? theme.color.accent : theme.color.fg}
-                    size={theme.type.title.size}
-                  />
-                </ActivityIconButton>
+                />
               ) : null}
               {!unavailable ? (
-                <ActivityIconButton
+                <HeaderAction
+                  icon="search"
                   label={t.activitySearch}
+                  testID="activity-search-button"
+                  active={search !== ''}
                   onPress={() => {
                     onSearchFocus(true);
                     setSearching(true);
                   }}
-                >
-                  <ActivitySearchIcon
-                    color={search ? theme.color.accent : theme.color.fg}
-                    size={theme.type.title.size}
-                  />
-                </ActivityIconButton>
+                />
               ) : null}
             </>
           )}
         </View>
       </View>
     </>
-  );
-}
-
-function ActivityIconButton({
-  label,
-  selected = false,
-  onPress,
-  children,
-}: {
-  label: string;
-  selected?: boolean;
-  onPress(): void;
-  children: ReactNode;
-}) {
-  const theme = useDesignTheme();
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      accessibilityState={{ selected }}
-      onPress={onPress}
-      android_ripple={{ color: theme.layer.canvas.pressed, borderless: true }}
-      style={({ pressed }) => ({
-        width: theme.touch,
-        height: theme.touch,
-        borderRadius: radius.round,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: pressed ? theme.layer.canvas.pressed : theme.layer.canvas.fill,
-      })}
-    >
-      {children}
-    </Pressable>
   );
 }

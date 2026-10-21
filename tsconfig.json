@@ -1,6 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES2023",
+    "paths": { "@botharness/ui/panels": ["./packages/client/src/panel-api.ts"] },
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "jsx": "react-jsx",
     "module": "ESNext",
@@ -26,6 +27,7 @@
   "include": [
     "packages/client/src",
     "packages/computer/src",
+    "packages/vrm-companion/src",
     "packages/core/src",
     "packages/deepseekbot/src",
     "packages/browser/src",
@@ -34,6 +36,7 @@
     "packages/ingest/src",
     "packages/links/src",
     "packages/links-cli/src",
+    "packages/connect-relay/src",
     "packages/*/test",
     "apps/mobile/test",
     "*.config.ts"
@@ -48,8 +51,12 @@
     "apps/mobile/test/activity-feed.test.ts",
     "apps/mobile/test/open-conversation.test.ts",
     "apps/mobile/test/quick-action-routing.test.ts",
+    "apps/mobile/test/incoming-share.test.ts",
+    "apps/mobile/test/recent-chats.test.ts",
     "apps/mobile/test/grant-request-card.test.ts",
     "apps/mobile/test/attention-actions.test.ts",
+    "apps/mobile/test/host-session-unpair.test.ts",
+    "apps/mobile/test/conversation-cache-host.test.ts",
     "apps/mobile/test/reanimated-shim.ts",
     "apps/mobile/test/**/*.tsx"
   ]

@@ -1,5 +1,5 @@
 import { useCallback, useState, type ReactNode } from 'react';
-import { ActivityIndicator, Pressable, SectionList, View } from 'react-native';
+import { Pressable, SectionList, View } from 'react-native';
 
 import {
   memoryEntries,
@@ -28,6 +28,7 @@ import { ActivityGlance } from './activity-glance';
 import { botStateTone } from './bot-tone';
 import { MemoryEntryRow } from './memory-browser';
 import { routineDetail } from './routine-text';
+import { LoadingIndicator } from '../primitives/loading-indicator';
 
 const AVATAR = 72;
 const ICON = 22;
@@ -346,7 +347,7 @@ function ProfileRow({
   if (row.kind === 'loading')
     return (
       <View style={[shape, { flexDirection: 'row', alignItems: 'center', gap: space.x3 }]}>
-        <ActivityIndicator />
+        <LoadingIndicator />
         <Text variant="meta" tone="muted">
           {t.profileLoading}
         </Text>

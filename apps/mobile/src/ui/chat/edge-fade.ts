@@ -3,15 +3,15 @@ import { edgeFade } from '../design/tokens';
 export function edgeFadeStops(
   height: number,
   cover: number,
+  solid = 0,
 ): readonly { offset: number; opacity: number }[] {
   if (cover <= 0 || height <= cover) return edgeFade.stops;
-  const start = cover / height;
-  const peak = edgeFade.stops[0].opacity;
+  const start = Math.min(solid, cover) / height;
   return [
-    { offset: 0, opacity: 1 },
-    ...edgeFade.stops.map((stop) => ({
-      offset: start + stop.offset * (1 - start),
-      opacity: (stop.opacity / peak) * edgeFade.cover,
-    })),
+    ...(start > 0 ? [{ offset: 0, opacity: 1 }] : []),
+    ...Array.from({ length: edgeFade.samples + 1 }, (_, index) => {
+      const step = index / edgeFade.samples;
+      return { offset: start + step * (1 - start), opacity: (1 - step) ** edgeFade.curve };
+    }),
   ];
 }

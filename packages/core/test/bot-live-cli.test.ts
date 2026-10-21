@@ -243,6 +243,22 @@ describe('live CLI over the authenticated DSH carrier', () => {
     expect(live.calls.at(-1)?.args).toEqual({ channelId: 'dm-ada', messageId: 'question', answer });
   });
 
+  it('browses Host folders through the same method as the phone picker', async () => {
+    const live = await host((_method, args) => ({
+      ok: true,
+      value: { path: args['path'] ?? '/Users/ada', entries: [{ name: 'site' }] },
+    }));
+    const home = await invoke(['folder-browse'], live.url);
+    const code = await invoke(['folder-browse', 'D:\\code'], live.url);
+    expect(home.json.path).toBe('/Users/ada');
+    expect(code.json.path).toBe('D:\\code');
+    expect(live.calls).toEqual([
+      { method: 'folderBrowse', args: {} },
+      { method: 'folderBrowse', args: { path: 'D:\\code' } },
+    ]);
+    expect((await invoke(['folder-browse', '/a', '/b'], live.url)).json.error.code).toBe('usage');
+  });
+
   it('rejects missing/unsafe origins, malformed answers and expired auth before mutation', async () => {
     expect((await invoke(['send', 'ada', '--body', 'hi'])).json.error.code).toBe('usage');
     expect((await invoke(['release-info'], 'http://example.com')).json.error.code).toBe('usage');
@@ -260,6 +276,37 @@ describe('live CLI over the authenticated DSH carrier', () => {
       ).json.error.code,
     ).toBe('usage');
     expect(live.calls).toEqual([]);
+  });
+
+  it('names the trusted-host fix when the Host fences a tailnet name after login', async () => {
+    const seen: string[] = [];
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = new URL(String(input));
+      seen.push(`${init?.method ?? 'GET'} ${url.pathname}`);
+      if (url.pathname === '/')
+        return new Response(null, {
+          status: 303,
+          headers: { location: '/', 'set-cookie': 'dsh-auth-x=signed; HttpOnly; Secure' },
+        });
+      expect(new Headers(init?.headers).get('cookie')).toBe('dsh-auth-x=signed');
+      return new Response('forbidden', { status: 403 });
+    });
+    const tailnet = 'https://box.tail0123.ts.net';
+    for (const argv of [['release-info'], ['phone-route']]) {
+      const result = await invoke(argv, tailnet);
+      expect(result.code).toBe(1);
+      expect(result.json.error).toEqual({
+        code: 'host-untrusted',
+        message:
+          'The Host does not accept requests addressed to box.tail0123.ts.net; restart it with --trusted-host box.tail0123.ts.net.',
+      });
+    }
+    expect(seen).toEqual([
+      'GET /',
+      'POST /api/botharness/releaseInfo',
+      'GET /',
+      'GET /api/botharness/devices',
+    ]);
   });
 
   it('fails closed on a stopped Host with a coded error', async () => {

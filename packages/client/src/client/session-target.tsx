@@ -1,6 +1,6 @@
 import { useCallback, useSyncExternalStore } from 'react';
 import type { ChannelSidebarEntryProps } from './channel-sidebar.js';
-import { useClientState } from './bot-sidebar.js';
+import { useClientStore } from './use-client-store.js';
 import { store } from './store.js';
 import { defaultStorage } from './roster-config.js';
 
@@ -67,18 +67,20 @@ function subscribe(channelId: string, listener: () => void) {
 export function useSessionTarget(
   props: Pick<ChannelSidebarEntryProps, 'channelId' | 'botSlug'>,
 ): SessionTarget {
-  const state = useClientState();
   const slug = useSyncExternalStore(
     useCallback((listener) => subscribe(props.channelId, listener), [props.channelId]),
     () => read(props.channelId),
     () => read(props.channelId),
   );
-  const channel =
-    state.conversation.channel?.id === props.channelId
-      ? state.conversation.channel
-      : state.channels.find((c) => c.id === props.channelId);
-  const valid =
-    !!slug && !!channel?.members.includes(slug) && state.bots.some((bot) => bot.slug === slug);
+  const valid = useClientStore((state) => {
+    const channel =
+      state.conversation.channel?.id === props.channelId
+        ? state.conversation.channel
+        : state.channels.find((c) => c.id === props.channelId);
+    return (
+      !!slug && !!channel?.members.includes(slug) && state.bots.some((bot) => bot.slug === slug)
+    );
+  });
   return props.botSlug
     ? { kind: 'bot', slug: props.botSlug }
     : valid

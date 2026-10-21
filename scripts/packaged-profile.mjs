@@ -5,6 +5,7 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { parse, parseDocument } from 'yaml';
 import semver from 'semver';
 import { productDsh, productImProvider } from './product-artifacts.mjs';
+import { cloudflaredPackageNames } from './cloudflared-packages.mjs';
 import { providerRuntimeDigest } from './dev-im-provider.mjs';
 
 export function verifyProductComposition(entries) {
@@ -111,7 +112,29 @@ export function verifiedProductArtifacts(directory) {
       throw new Error(`Product artifact changed: ${artifact.name}`);
     seen.add(artifact.name);
   }
-  return { ...manifest, directory: root };
+  const platformArtifacts = manifest.platformArtifacts ?? [];
+  const platformNames = new Set(cloudflaredPackageNames);
+  if (
+    !Array.isArray(platformArtifacts) ||
+    (platformArtifacts.length !== 0 && platformArtifacts.length !== platformNames.size)
+  )
+    throw new Error('Product artifacts do not describe the platform package set');
+  for (const artifact of platformArtifacts) {
+    if (
+      !platformNames.has(artifact.name) ||
+      seen.has(artifact.name) ||
+      typeof artifact.filename !== 'string' ||
+      basename(artifact.filename) !== artifact.filename ||
+      !artifact.filename.endsWith('.tgz') ||
+      artifact.version !== manifest.productVersion
+    )
+      throw new Error('Invalid platform artifact identity');
+    const bytes = readFileSync(join(root, artifact.filename));
+    if (artifact.integrity !== `sha512-${createHash('sha512').update(bytes).digest('base64')}`)
+      throw new Error(`Product artifact changed: ${artifact.name}`);
+    seen.add(artifact.name);
+  }
+  return { ...manifest, platformArtifacts, directory: root };
 }
 
 const ownedStandaloneBundles = new Set([
@@ -198,7 +221,7 @@ export function packagedWorkspaceSettings(source, directory) {
   const previous = document.toJS();
   const overrides = { ...previous?.overrides };
   const artifacts = verifiedProductArtifacts(directory);
-  for (const artifact of artifacts.artifacts)
+  for (const artifact of [...artifacts.artifacts, ...artifacts.platformArtifacts])
     overrides[`${artifact.name}@${artifact.version}`] =
       `file:${join(artifacts.directory, artifact.filename)}`;
   document.set('overrides', overrides);

@@ -1,5 +1,5 @@
 import type { ComponentType, ReactNode } from 'react';
-import { ActivityIndicator, Modal, Pressable, View, useWindowDimensions } from 'react-native';
+import { Modal, Pressable, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 
@@ -11,6 +11,7 @@ import { Text } from '../primitives/text';
 import { SheetGrabber } from '../primitives/sheet-grabber';
 import { DrawerHeader } from '../primitives/drawer-header';
 import { t } from '../strings';
+import { LoadingIndicator } from '../primitives/loading-indicator';
 
 export const SHEET_GROUP: LayerName = 'raised';
 
@@ -192,7 +193,7 @@ export function SheetFooter({ children }: { children: string }) {
 export function SheetLoading() {
   return (
     <View style={{ padding: space.x6, alignItems: 'center' }}>
-      <ActivityIndicator />
+      <LoadingIndicator />
     </View>
   );
 }

@@ -144,8 +144,11 @@ export class FakeHost {
       if (parsed.pathname === '/botharness-device/api/botharness/attachment/upload') {
         if (this.failing.has('upload')) throw new TypeError('Network request failed');
         const name = parsed.searchParams.get('name') ?? '';
-        const text = await (init.body as Blob).text();
-        this.uploads.push({ name, type: init.headers?.['content-type'] ?? '', text });
+        const body = init.body as Blob;
+        const text = await body.text();
+        this.uploads.push({ name, type: body.type, text });
+        if (body.type !== 'application/octet-stream')
+          return response(502, '{"code":"host-session-unavailable"}');
         return response(
           200,
           JSON.stringify({

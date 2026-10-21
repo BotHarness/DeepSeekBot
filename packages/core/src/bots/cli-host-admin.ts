@@ -30,6 +30,7 @@ export interface HostAdminValues {
   capability?: string[];
   role?: string[];
   confirm?: boolean;
+  'confirmation-stdin'?: boolean;
   enabled?: boolean;
   disabled?: boolean;
 }
@@ -55,6 +56,25 @@ export const HOST_ADMIN_COMMANDS = [
   {
     command: 'release-restart',
     description: 'restart the Host into an installed release; needs --confirm',
+  },
+  { command: 'plugin-check', description: 'list BotHarness plugins and check each for an update' },
+  {
+    command: 'plugin-install',
+    description: 'update one BotHarness plugin to a newer version; needs --confirm',
+  },
+  {
+    command: 'plugin-restart',
+    description: 'restart the Host to finish plugin updates; needs --confirm',
+  },
+  {
+    command: 'data-reset-preview',
+    description:
+      'list every BotHarness folder a full data reset removes, with its confirmation token',
+  },
+  {
+    command: 'data-reset-confirm',
+    description:
+      'clear all BotHarness data and restart the Host; needs --confirmation-stdin --confirm',
   },
   { command: 'telemetry-status', description: 'read the usage statistics choice' },
   { command: 'telemetry-set', description: 'turn usage statistics on or off' },
@@ -98,6 +118,11 @@ const POSITIONALS: Record<HostAdminCommand, number> = {
   'release-check': 0,
   'release-install': 1,
   'release-restart': 0,
+  'plugin-check': 0,
+  'plugin-install': 2,
+  'plugin-restart': 0,
+  'data-reset-preview': 0,
+  'data-reset-confirm': 0,
   'telemetry-status': 0,
   'telemetry-set': 0,
   'git-status': 0,
@@ -123,13 +148,14 @@ function validate(command: HostAdminCommand, rest: string[], values: HostAdminVa
     usage(
       expected === 0
         ? `${command} takes no positional arguments.`
-        : `${command} needs ${POSITIONAL_NAMES[expected]!}.`,
+        : `${command} needs ${command === 'plugin-install' ? 'a package name and a version' : POSITIONAL_NAMES[expected]!}.`,
     );
   if (
     values.sort !== undefined &&
-    (command !== 'marketplace-list' || (values.sort !== 'updated' && values.sort !== 'stars'))
+    (command !== 'marketplace-list' ||
+      (values.sort !== 'updated' && values.sort !== 'created' && values.sort !== 'stars'))
   )
-    usage('--sort must be updated or stars, on marketplace-list.');
+    usage('--sort must be updated, created or stars, on marketplace-list.');
   if (
     values.lang !== undefined &&
     ((command !== 'marketplace-list' && command !== 'marketplace-detail') ||
@@ -146,6 +172,18 @@ function validate(command: HostAdminCommand, rest: string[], values: HostAdminVa
         ? 'release-install replaces the installed DeepSeekBot. Pass --confirm to install.'
         : 'release-restart stops every running Bot turn on this Host. Pass --confirm to restart.',
     );
+  if ((command === 'plugin-install' || command === 'plugin-restart') && values.confirm !== true)
+    usage(
+      command === 'plugin-install'
+        ? 'plugin-install replaces the installed plugin. Pass --confirm to install.'
+        : 'plugin-restart stops every running Bot turn on this Host. Pass --confirm to restart.',
+    );
+  if (command === 'data-reset-confirm' && values.confirm !== true)
+    usage(
+      'data-reset-confirm removes every Bot and its data on this Host. Pass --confirm to clear.',
+    );
+  if (command === 'data-reset-confirm' && values['confirmation-stdin'] !== true)
+    usage('data-reset-confirm requires --confirmation-stdin.');
   if (command === 'telemetry-set' && values.enabled === values.disabled)
     usage('telemetry-set needs exactly one of --enabled or --disabled.');
   if (command !== 'pairing-review') return undefined;
@@ -220,15 +258,34 @@ async function messagingSnapshot(rpc: Rpc, slug: string) {
   return { pairings: list('pairings'), roles: list('roles') };
 }
 
+async function readResetToken(io: BotCreateCliIo): Promise<string> {
+  let input: unknown;
+  try {
+    input = JSON.parse(await (io.readStdin?.() ?? Promise.resolve('')));
+  } catch {
+    usage('Confirmation stdin must be JSON with a token string.');
+  }
+  const token = record(input)['token'];
+  if (
+    typeof token !== 'string' ||
+    !token.trim() ||
+    token.length > 256 ||
+    Object.keys(record(input)).some((key) => key !== 'token')
+  )
+    usage('Confirmation stdin must be JSON with only a token string from data-reset-preview.');
+  return token;
+}
+
 export async function runHostAdminCommand(
   command: HostAdminCommand,
   rest: string[],
   values: HostAdminValues,
-  _io: BotCreateCliIo,
+  io: BotCreateCliIo,
   host: { connect: () => Promise<Rpc>; signal: AbortSignal },
 ): Promise<unknown> {
   const review = validate(command, rest, values);
   const target = rest[0]?.trim() ?? '';
+  const resetToken = command === 'data-reset-confirm' ? await readResetToken(io) : undefined;
   const rpc = await host.connect();
   switch (command) {
     case 'pause':
@@ -301,6 +358,39 @@ export async function runHostAdminCommand(
         );
       return result;
     }
+    case 'plugin-check':
+      return rpc('pluginUpdates', values.force === true ? { force: true } : {});
+    case 'plugin-install': {
+      const version = rest[1]!.trim();
+      const result = record(await rpc('pluginInstall', { name: target, version }));
+      if (result['status'] === 'failed')
+        throw new CliLiveError(
+          `plugin-${String(result['reason'])}`,
+          [
+            `Plugin ${target}@${version} was not installed (${String(result['reason'])}).`,
+            typeof result['diagnostic'] === 'string' ? result['diagnostic'] : '',
+            typeof result['logPath'] === 'string' ? `Log: ${result['logPath']}` : '',
+          ]
+            .filter(Boolean)
+            .join(' '),
+        );
+      return result;
+    }
+    case 'plugin-restart': {
+      const result = record(await rpc('pluginRestart', {}));
+      if (result['status'] === 'failed')
+        throw new CliLiveError(
+          `plugin-${String(result['reason'])}`,
+          result['reason'] === 'not-pending'
+            ? 'No plugin update is waiting for a restart.'
+            : 'This Host cannot restart itself; restart it from its launcher.',
+        );
+      return result;
+    }
+    case 'data-reset-preview':
+      return rpc('dataResetPreview', {});
+    case 'data-reset-confirm':
+      return rpc('dataResetConfirm', { token: resetToken });
     case 'telemetry-status':
       return rpc('telemetryStatus', {});
     case 'telemetry-set':

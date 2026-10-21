@@ -13,6 +13,8 @@ import { ComposerFieldMaterial } from './composer-chrome';
 
 type ClipboardState = { image: boolean; generation: number };
 
+const FOCUS_SETTLE = 500;
+
 let state: ClipboardState = { image: false, generation: 0 };
 const readClipboard = () => state;
 
@@ -41,12 +43,18 @@ function subscribeClipboard(notify: () => void) {
       () => {},
     );
   };
+  let settle: ReturnType<typeof setTimeout> | undefined;
   const foreground = AppState.addEventListener('change', (next) => {
-    if (next === 'active') refresh(true);
+    if (next !== 'active') return;
+    refresh(true);
+    if (Platform.OS !== 'android') return;
+    clearTimeout(settle);
+    settle = setTimeout(() => refresh(!state.image), FOCUS_SETTLE);
   });
   refresh(false);
   return () => {
     active = false;
+    clearTimeout(settle);
     subscription.remove();
     foreground.remove();
   };

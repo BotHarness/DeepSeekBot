@@ -15,7 +15,11 @@
     "./client": {
       "default": "./lib/client.js"
     },
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./panels": {
+      "types": "./dist/panel-api.d.mts",
+      "default": "./dist/panel-api.mjs"
+    }
   },
   "dependencies": {
     "@botharness/botui-core": "0.3.0",

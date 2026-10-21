@@ -44,6 +44,7 @@ export interface ChannelWireMessage extends WireMessage {
   mentions?: WireMention[];
   reactions?: WireReaction[];
   attachments?: readonly AttachmentRef[];
+  clearedAttachments?: readonly { name: string; mime: string; size: number; clearedAt: string }[];
   bridgeMedia?: { items: readonly BridgeMediaItem[] };
   bridgeOrigin?: { sourceEventId: string };
   toolApprovalRequest?: unknown;
@@ -376,6 +377,7 @@ export interface HumanAttentionItem {
   responseMessageId?: string;
   unreadCount?: number;
   isUnread?: boolean;
+  snoozedUntil?: string;
   autoRejection?: {
     sessionId: string;
     toolName: string;

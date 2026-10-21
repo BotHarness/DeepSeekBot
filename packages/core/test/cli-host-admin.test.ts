@@ -55,14 +55,14 @@ async function host(
   return { url: `http://127.0.0.1:${address.port}`, calls };
 }
 
-async function invoke(argv: string[], url: string) {
+async function invoke(argv: string[], url: string, stdin = '') {
   const stdout: string[] = [];
   const stderr: string[] = [];
   const code = await runBotCreateCli(argv, {
     env: { DEEPSEEKBOT_HOST: url, DEEPSEEKBOT_HOST_TOKEN: 'private-test-token' },
     stdout: (text) => stdout.push(text),
     stderr: (text) => stderr.push(text),
-    readStdin: async () => '',
+    readStdin: async () => stdin,
   });
   expect(stdout).toHaveLength(1);
   expect(stdout.join('') + stderr.join('')).not.toContain('private-test-token');
@@ -100,6 +100,7 @@ describe('Bot Marketplace commands', () => {
     expect((await invoke(['marketplace-topics'], live.url)).json).toEqual({
       topics: [{ topic: 'writing', count: 2 }],
     });
+    await invoke(['marketplace-list', '--sort', 'created'], live.url);
     await invoke(['marketplace-detail', 'owner/repo'], live.url);
     await invoke(['marketplace-detail', 'owner/repo', '--lang', 'en'], live.url);
     expect(live.calls).toEqual([
@@ -109,6 +110,7 @@ describe('Bot Marketplace commands', () => {
         args: { query: { q: '翻译', topic: 'writing', sort: 'stars', cursor: 'c2', lang: 'zh' } },
       },
       { method: 'marketplaceTopics', args: {} },
+      { method: 'marketplaceList', args: { query: { sort: 'created' } } },
       { method: 'marketplaceDetail', args: { id: 'owner/repo' } },
       { method: 'marketplaceDetail', args: { id: 'owner/repo', lang: 'en' } },
     ]);
@@ -259,6 +261,225 @@ describe('release commands', () => {
     expect(install.json.error.message).toContain('registry timed out');
     const restart = await invoke(['release-restart', '--confirm'], live.url);
     expect(restart.json.error.code).toBe('release-not-pending');
+  });
+});
+
+describe('plugin update commands', () => {
+  it('checks, installs and restarts plugins only with --confirm', async () => {
+    const live = await host((method, args) =>
+      ok(
+        method === 'pluginUpdates'
+          ? {
+              installable: true,
+              restartable: true,
+              plugins: [
+                {
+                  name: '@botharness/vrm-companion',
+                  status: 'available',
+                  current: '0.1.0',
+                  latest: '0.2.0',
+                },
+              ],
+            }
+          : method === 'pluginInstall'
+            ? {
+                status: 'installed',
+                name: args['name'],
+                current: '0.1.0',
+                installed: args['version'],
+                restartable: true,
+                applied: false,
+              }
+            : { status: 'restarting', plugins: ['@botharness/vrm-companion'] },
+      ),
+    );
+    expect((await invoke(['plugin-check', '--force'], live.url)).json.plugins[0].latest).toBe(
+      '0.2.0',
+    );
+    for (const argv of [
+      ['plugin-install', '@botharness/vrm-companion', '0.2.0'],
+      ['plugin-install', '@botharness/vrm-companion', '--confirm'],
+      ['plugin-restart'],
+    ]) {
+      const refused = await invoke(argv, live.url);
+      expect(refused.code).not.toBe(0);
+      expect(refused.json.error.code).toBe('usage');
+    }
+    expect(
+      (
+        await invoke(
+          ['plugin-install', '@botharness/vrm-companion', '0.2.0', '--confirm'],
+          live.url,
+        )
+      ).json.installed,
+    ).toBe('0.2.0');
+    expect((await invoke(['plugin-restart', '--confirm'], live.url)).json.status).toBe(
+      'restarting',
+    );
+    expect(live.calls).toEqual([
+      { method: 'pluginUpdates', args: { force: true } },
+      { method: 'pluginInstall', args: { name: '@botharness/vrm-companion', version: '0.2.0' } },
+      { method: 'pluginRestart', args: {} },
+    ]);
+  });
+
+  it('turns a failed plugin install or restart into a coded failure', async () => {
+    const live = await host((method) =>
+      ok(
+        method === 'pluginInstall'
+          ? {
+              status: 'failed',
+              name: '@botharness/vrm-companion',
+              reason: 'incompatible',
+              logPath: '/tmp/install.log',
+            }
+          : { status: 'failed', reason: 'not-pending' },
+      ),
+    );
+    const install = await invoke(
+      ['plugin-install', '@botharness/vrm-companion', '0.3.0', '--confirm'],
+      live.url,
+    );
+    expect(install.code).not.toBe(0);
+    expect(install.json.error.code).toBe('plugin-incompatible');
+    expect(install.json.error.message).toContain('/tmp/install.log');
+    const restart = await invoke(['plugin-restart', '--confirm'], live.url);
+    expect(restart.json.error.code).toBe('plugin-not-pending');
+  });
+});
+
+describe('data reset commands', () => {
+  it('previews, then clears only with --confirmation-stdin --confirm and a token', async () => {
+    const preview = {
+      token: 'reset-token',
+      expiresAt: '2026-10-20T18:00:00.000Z',
+      bots: 2,
+      targets: [{ kind: 'data', path: '/home/a/.dsh/botharness', bytes: 10, files: 1 }],
+      kept: [{ kind: 'credentials', path: '/home/a/.dsh/.credentials.yaml' }],
+      restartable: true,
+    };
+    const live = await host((method) =>
+      ok(method === 'dataResetPreview' ? { preview } : { reset: { status: 'restarting' } }),
+    );
+    expect((await invoke(['data-reset-preview'], live.url)).json).toEqual({ preview });
+    const token = JSON.stringify({ token: 'reset-token' });
+    for (const [argv, stdin] of [
+      [['data-reset-confirm', '--confirmation-stdin'], token],
+      [['data-reset-confirm', '--confirm'], token],
+      [['data-reset-confirm', '--confirmation-stdin', '--confirm'], ''],
+      [['data-reset-confirm', '--confirmation-stdin', '--confirm'], '{"token":"t","extra":1}'],
+      [['data-reset-preview', 'extra'], ''],
+    ] as const) {
+      const refused = await invoke([...argv], live.url, stdin);
+      expect(refused.code).not.toBe(0);
+      expect(refused.json.error.code).toBe('usage');
+    }
+    expect(
+      (await invoke(['data-reset-confirm', '--confirmation-stdin', '--confirm'], live.url, token))
+        .json,
+    ).toEqual({ reset: { status: 'restarting' } });
+    expect(live.calls).toEqual([
+      { method: 'dataResetPreview', args: {} },
+      { method: 'dataResetConfirm', args: { token: 'reset-token' } },
+    ]);
+  });
+});
+
+describe('storage commands', () => {
+  it('shows usage, previews by age and confirms with the piped preview', async () => {
+    const scope = { before: '2026-07-22T00:00:00.000Z', channelIds: ['dm-ada'], kinds: ['image'] };
+    const preview = { token: 'storage-token', scope, files: 2, freedBytes: 2048 };
+    const live = await host((method) =>
+      ok(
+        method === 'storageUsage'
+          ? { totalBytes: 4096, parts: [], chats: [] }
+          : method === 'storageCleanupPreview'
+            ? preview
+            : { messages: 1, files: 2, freedBytes: 2048 },
+      ),
+    );
+    expect((await invoke(['storage-usage'], live.url)).json.totalBytes).toBe(4096);
+    expect(
+      (
+        await invoke(
+          [
+            'storage-cleanup-preview',
+            '--before',
+            scope.before,
+            '--chat',
+            'dm-ada',
+            '--media',
+            'image',
+          ],
+          live.url,
+        )
+      ).json,
+    ).toEqual(preview);
+    for (const [argv, stdin] of [
+      [['storage-cleanup-preview'], ''],
+      [['storage-cleanup-preview', '--older-than-days', '-1'], ''],
+      [['storage-cleanup-preview', '--older-than-days', '9', '--media', 'sticker'], ''],
+      [['storage-cleanup-confirm', '--confirmation-stdin'], JSON.stringify(preview)],
+      [['storage-cleanup-confirm', '--confirm'], JSON.stringify(preview)],
+      [['storage-cleanup-confirm', '--confirmation-stdin', '--confirm'], 'not json'],
+    ] as const) {
+      const refused = await invoke([...argv], live.url, stdin);
+      expect(refused.code).not.toBe(0);
+      expect(refused.json.error.code).toBe('usage');
+    }
+    expect(
+      (
+        await invoke(
+          ['storage-cleanup-confirm', '--confirmation-stdin', '--confirm'],
+          live.url,
+          JSON.stringify(preview),
+        )
+      ).json,
+    ).toEqual({ messages: 1, files: 2, freedBytes: 2048 });
+    expect(live.calls).toEqual([
+      { method: 'storageUsage', args: {} },
+      { method: 'storageCleanupPreview', args: scope },
+      { method: 'storageCleanupConfirm', args: { ...scope, token: 'storage-token' } },
+    ]);
+  });
+});
+
+describe('storage message commands', () => {
+  it('previews old messages by age and deletes them with the piped preview', async () => {
+    const scope = { before: '2026-07-22T00:00:00.000Z', channelIds: ['dm-ada'] };
+    const preview = { token: 'messages-token', scope, messages: 3, more: false };
+    const live = await host((method) =>
+      ok(method === 'storageMessagesCleanupPreview' ? preview : { messages: 3, freedBytes: 4096 }),
+    );
+    expect(
+      (
+        await invoke(
+          ['storage-messages-cleanup-preview', '--before', scope.before, '--chat', 'dm-ada'],
+          live.url,
+        )
+      ).json,
+    ).toEqual(preview);
+    for (const [argv, stdin] of [
+      [['storage-messages-cleanup-preview', '--older-than-days', '9', '--media', 'image'], ''],
+      [['storage-messages-cleanup-confirm', '--confirmation-stdin'], JSON.stringify(preview)],
+    ] as const) {
+      const refused = await invoke([...argv], live.url, stdin);
+      expect(refused.code).not.toBe(0);
+      expect(refused.json.error.code).toBe('usage');
+    }
+    expect(
+      (
+        await invoke(
+          ['storage-messages-cleanup-confirm', '--confirmation-stdin', '--confirm'],
+          live.url,
+          JSON.stringify(preview),
+        )
+      ).json,
+    ).toEqual({ messages: 3, freedBytes: 4096 });
+    expect(live.calls).toEqual([
+      { method: 'storageMessagesCleanupPreview', args: scope },
+      { method: 'storageMessagesCleanupConfirm', args: { ...scope, token: 'messages-token' } },
+    ]);
   });
 });
 

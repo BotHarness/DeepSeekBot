@@ -1,4 +1,12 @@
 import { Menu } from './appearance-primitives.js';
+import { ALL_COMPUTERS, computerSources } from './computer-sources.js';
+import { useChannelDockActive } from './channel-dock.js';
+import {
+  ComputerSourceMark,
+  ComputerTabs,
+  RemoteComputerRows,
+  useComputerSources,
+} from './computer-tabs.js';
 import { plainMarkdown } from '../../../core/src/channels/message-preview.js';
 import { PointerMenu } from './ds/pointer-menu.js';
 import { PanelEmptyState } from './ds/empty-state.js';
@@ -87,6 +95,7 @@ import {
 } from './channel-selection.js';
 import {
   HiddenChannelsModal,
+  deletedBotDmIds,
   hiddenChannelSequence,
   type HiddenChannelItem,
 } from './hidden-channels.js';
@@ -169,6 +178,22 @@ import { rememberModelPlan } from './model-plan-store.js';
 import { applyBotModelRoute, botModelMenuGroups, type BotModelGroup } from './bot-model-route.js';
 import { useMountedResource } from './mounted-resource.js';
 import { onCreationRequest } from './create-request.js';
+import { keepClientState, sameFields, useClientStore } from './use-client-store.js';
+import { shallowEqual } from '@deepseek-ai/dsh-client-store';
+
+const rosterInputs = sameFields([
+  'activitySync',
+  'bots',
+  'channels',
+  'config',
+  'error',
+  'git',
+  'humanInbox',
+  'query',
+  'roster',
+  'selection',
+  'status',
+]);
 
 export function useClientState(): ClientState {
   return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
@@ -201,7 +226,16 @@ export function BotPanelIcon({
   const icon = useBotModePrefs((prefs) => prefs.botIcon);
   const [row, setRow] = useState<HTMLElement | null>(null);
   const wide = size === 16;
-  const state = useClientState();
+  const state = {
+    humanInbox: useClientStore(
+      (value) => ({
+        unreadCount: value.humanInbox.unreadCount,
+        hasAction: value.humanInbox.hasAction,
+      }),
+      shallowEqual,
+    ),
+    selection: useClientStore((value) => value.selection),
+  };
   const entryHidden = !active && (!wide || state.humanInbox.unreadCount === 0);
   const panelList = row?.parentElement;
   const entryLabel = [
@@ -566,6 +600,7 @@ function BotRow({
   onMenu,
   onPinDragStart,
   onPinDragEnd,
+  source = false,
   t,
 }: {
   bot: BotSummary;
@@ -583,6 +618,7 @@ function BotRow({
   onMenu: (request: ChannelMenuRequest) => void;
   onPinDragStart: (channelId: string) => void;
   onPinDragEnd: () => void;
+  source?: boolean;
   t: BotHarnessTranslate;
 }): ReactElement {
   const now = useMinuteNow();
@@ -668,6 +704,7 @@ function BotRow({
         <span className="bh-body">
           <span className="bh-top">
             <span className="bh-name">{bot.displayName}</span>
+            {source ? <ComputerSourceMark /> : null}
             {muted ? <MutedMark t={t} /> : null}
             <ChannelMessageTime channel={channel} now={now} t={t} />
           </span>
@@ -700,6 +737,7 @@ function ChannelRow({
   onMenu,
   onPinDragStart,
   onPinDragEnd,
+  source = false,
   t,
 }: {
   channel: ChannelSummary;
@@ -716,6 +754,7 @@ function ChannelRow({
   onMenu: (request: ChannelMenuRequest) => void;
   onPinDragStart?: ((channelId: string) => void) | undefined;
   onPinDragEnd?: (() => void) | undefined;
+  source?: boolean;
   t: BotHarnessTranslate;
 }): ReactElement {
   const now = useMinuteNow();
@@ -798,6 +837,7 @@ function ChannelRow({
       <span className="bh-body">
         <span className="bh-top">
           <span className="bh-name">{channel.name}</span>
+          {source ? <ComputerSourceMark /> : null}
           {muted ? <MutedMark t={t} /> : null}
           <ChannelMessageTime channel={channel} now={now} t={t} />
         </span>
@@ -981,7 +1021,10 @@ export function BotSidebar({
   quickSwitcherSettings,
   t,
 }: SidebarProps): ReactElement {
-  const state = useClientState();
+  const state = useClientStore(keepClientState, rosterInputs);
+  const computerTabs = useChannelDockActive();
+  const computers = useComputerSources();
+  const remoteOpen = computerTabs && computers.open !== undefined;
   const channelUnread = state.humanInbox.channelUnread;
   const mutedChannelSet = new Set(state.roster.muted);
   const prefs = useBotModePrefs((value) => value);
@@ -1027,23 +1070,26 @@ export function BotSidebar({
   const menuBotSlug = state.channels.find(
     (candidate) => candidate.id === channelMenu?.channelId && candidate.type === 'dm',
   )?.botSlug;
+  const menuModelSlug = state.bots.some((bot) => bot.slug === menuBotSlug && bot.deleted !== true)
+    ? menuBotSlug
+    : undefined;
   const [menuModelOptions, setMenuModelOptions] = useState<{
     slug: string;
     catalog: ModelCatalogView;
     state: ModelPlanStateView;
   }>();
-  const menuModelData = menuModelOptions?.slug === menuBotSlug ? menuModelOptions : undefined;
+  const menuModelData = menuModelOptions?.slug === menuModelSlug ? menuModelOptions : undefined;
   const [menuModelBusy, setMenuModelBusy] = useState(false);
   const [menuModelError, setMenuModelError] = useState<string | undefined>(undefined);
   const menuModelMount = useMountedResource<HTMLSpanElement>(() => {
     setMenuModelOptions(undefined);
-    if (menuBotSlug === undefined) return;
+    if (menuModelSlug === undefined) return;
     let active = true;
-    void Promise.all([actions.modelCatalog(), actions.modelPlanState(menuBotSlug)]).then(
+    void Promise.all([actions.modelCatalog(), actions.modelPlanState(menuModelSlug)]).then(
       ([catalog, planState]) => {
         if (!active) return;
-        rememberModelPlan(menuBotSlug, planState.plan);
-        setMenuModelOptions({ slug: menuBotSlug, catalog, state: planState });
+        rememberModelPlan(menuModelSlug, planState.plan);
+        setMenuModelOptions({ slug: menuModelSlug, catalog, state: planState });
       },
       (failure: unknown) => {
         if (active) setMenuModelError(`${t('modelPreset.loadFailed')}: ${errorMessage(failure)}`);
@@ -1052,14 +1098,14 @@ export function BotSidebar({
     return () => {
       active = false;
     };
-  }, [actions, menuBotSlug]);
+  }, [actions, menuModelSlug]);
   const applyMenuModel = (route: ModelRouteView): void => {
-    if (menuBotSlug === undefined || menuModelData === undefined || menuModelBusy) return;
+    if (menuModelSlug === undefined || menuModelData === undefined || menuModelBusy) return;
     setMenuModelBusy(true);
-    void applyBotModelRoute(actions, menuBotSlug, menuModelData.state, route)
+    void applyBotModelRoute(actions, menuModelSlug, menuModelData.state, route)
       .then((plan) => {
         setMenuModelOptions((current) =>
-          current?.slug === menuBotSlug
+          current?.slug === menuModelSlug
             ? { ...current, state: { revision: plan.revision, plan } }
             : current,
         );
@@ -1136,7 +1182,8 @@ export function BotSidebar({
 
   const query = state.query.trim().toLowerCase();
   const botBySlug = new Map(state.bots.map((bot) => [bot.slug, bot]));
-  const hiddenChannelSet = new Set(state.roster.hidden);
+  const rosterHiddenIds = [...state.roster.hidden, ...deletedBotDmIds(state.channels, state.bots)];
+  const hiddenChannelSet = new Set(rosterHiddenIds);
   const allPinnedChannelIds = resolvePinnedChannelIds(state.channels, state.roster.pins);
   const allPinnedChannelSet = new Set(allPinnedChannelIds);
   const pinnedById = new Map(state.channels.map((channel) => [channel.id, channel]));
@@ -1286,9 +1333,13 @@ export function BotSidebar({
     ? visibleChannelIds
     : [...railPinnedChannels, ...railChannels].map((channel) => channel.id);
   const shortcutIdsRef = useRef<readonly string[]>(shortcutIds);
-  const openConversationRef = useRef(onOpenConversation);
+  const openLocalConversation = (): void => {
+    computerSources().close();
+    onOpenConversation?.();
+  };
+  const openConversationRef = useRef(openLocalConversation);
   shortcutIdsRef.current = shortcutIds;
-  openConversationRef.current = onOpenConversation;
+  openConversationRef.current = openLocalConversation;
   const navigationIdsRef = useRef<readonly string[]>([]);
   navigationIdsRef.current = [...railPinnedChannels, ...railChannels].map((channel) => channel.id);
   const dragActiveRef = useRef(false);
@@ -1426,6 +1477,7 @@ export function BotSidebar({
   const hiddenItems: HiddenChannelItem[] = hiddenChannelSequence(
     state.channels,
     state.roster.hidden,
+    state.bots,
   ).map((channel) => {
     const bot = channel.botSlug === undefined ? undefined : botBySlug.get(channel.botSlug);
     return {
@@ -1435,9 +1487,10 @@ export function BotSidebar({
   });
   const visibleCount =
     pinnedChannels.length + flatBlocks.reduce((total, block) => total + block.channels.length, 0);
-  const selectedBot = state.selection?.kind === 'bot' ? state.selection.slug : undefined;
+  const selectedBot =
+    !remoteOpen && state.selection?.kind === 'bot' ? state.selection.slug : undefined;
   const selectedChannel =
-    state.selection?.kind === 'channel' ? state.selection.channelId : undefined;
+    !remoteOpen && state.selection?.kind === 'channel' ? state.selection.channelId : undefined;
   const contextSection = state.roster.sections.find(
     (section) => section.id === sectionContextMenu?.sectionId,
   );
@@ -1792,7 +1845,7 @@ export function BotSidebar({
       ),
     );
     if (gesture !== 'plain') return;
-    onOpenConversation?.();
+    openLocalConversation();
     void (channel.botSlug === undefined
       ? actions.openChannel(channel.id)
       : actions.openBot(channel.botSlug));
@@ -1800,7 +1853,7 @@ export function BotSidebar({
 
   const openQuickSwitcherEntry = ({ channel }: QuickSwitcherEntry): void => {
     setQuickSwitcherOpen(false);
-    onOpenConversation?.();
+    openLocalConversation();
     setChannelSelection((current) =>
       selectChannels(
         reconcileChannelSelection(current, visibleChannelIds),
@@ -1886,6 +1939,8 @@ export function BotSidebar({
     useSectionDrag(commitSectionDrag);
   dragActiveRef.current = channelDragActive || sectionDragActive;
 
+  const showSource =
+    computerTabs && computers.tab === ALL_COMPUTERS && computers.computers.length > 0;
   const renderChannelRow = (channel: ChannelSummary, scopeId: ScopeId): ReactElement => {
     const drag = channelDragProps(scopeId, channel.id);
     const bot = channel.botSlug === undefined ? undefined : botBySlug.get(channel.botSlug);
@@ -1910,12 +1965,14 @@ export function BotSidebar({
           onMenu={openChannelMenu}
           onPinDragStart={(channelId) => startPinDrag(channelId, 'roster')}
           onPinDragEnd={endPinDrag}
+          source={showSource}
         />
       );
     }
     return (
       <ChannelRow
         t={t}
+        source={showSource}
         key={channel.id}
         channel={channel}
         bots={botBySlug}
@@ -2136,6 +2193,27 @@ export function BotSidebar({
       {headerEnd}
     </div>
   );
+  const remoteTab = computerTabs
+    ? computers.computers.find((computer) => computer.host.hostId === computers.tab)
+    : undefined;
+  if (remoteTab !== undefined)
+    return (
+      <div className="bh-root bh-region" data-bh-tour="roster">
+        {headerTarget
+          ? createPortal(<InstantTooltipScope>{header}</InstantTooltipScope>, headerTarget)
+          : header}
+        <ComputerTabs t={t} />
+        <div className="bh-roster-list">
+          <RemoteComputerRows
+            computer={remoteTab}
+            query={query}
+            showSource={false}
+            onOpen={onOpenConversation}
+            t={t}
+          />
+        </div>
+      </div>
+    );
   return (
     <div
       ref={rosterMount}
@@ -2183,6 +2261,7 @@ export function BotSidebar({
       {headerTarget
         ? createPortal(<InstantTooltipScope>{header}</InstantTooltipScope>, headerTarget)
         : header}
+      {computerTabs ? <ComputerTabs t={t} /> : null}
       {state.status === 'loading' && state.bots.length === 0 ? (
         <LoadingSkeleton kind="roster" label={t('roster.loading')} />
       ) : null}
@@ -2780,6 +2859,18 @@ export function BotSidebar({
             </div>
           );
         })}
+        {computerTabs && computers.tab === ALL_COMPUTERS
+          ? computers.computers.map((computer) => (
+              <RemoteComputerRows
+                key={computer.host.hostId}
+                computer={computer}
+                query={query}
+                showSource
+                onOpen={onOpenConversation}
+                t={t}
+              />
+            ))
+          : null}
       </div>
       {createRequest?.kind === 'bot' && createRequest.source === 'zip' ? (
         <ImportBotZipModal
@@ -2902,7 +2993,7 @@ export function BotSidebar({
       ) : null}
       {quickSwitcherOpen ? (
         <QuickSwitcher
-          entries={quickSwitcherEntries(state.channels, state.bots, state.roster.hidden)}
+          entries={quickSwitcherEntries(state.channels, state.bots, rosterHiddenIds)}
           settings={
             quickSwitcherSettings === undefined
               ? undefined
@@ -2934,6 +3025,7 @@ export function BotSidebar({
           }}
           onOpen={(channelId) => {
             setHiddenManagerOpen(false);
+            openLocalConversation();
             void actions.openChannel(channelId);
           }}
           onClose={() => {
@@ -3049,7 +3141,7 @@ export function BotSidebar({
             };
           })()}
           modelAction={
-            menuBotSlug === undefined
+            menuModelSlug === undefined
               ? undefined
               : {
                   groups: botModelMenuGroups(

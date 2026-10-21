@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { ActivityIndicator, Pressable, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 import type { ColorRole } from '../design/theme';
 import { useDesignTheme } from '../design/theme';
@@ -8,6 +8,7 @@ import { Text } from '../primitives/text';
 import { ChevronDownIcon } from '../shell/icons';
 import { t } from '../strings';
 import { bubbleRow, bubbleShape, type BubbleGroup } from './bubble-shape';
+import { LoadingIndicator } from '../primitives/loading-indicator';
 
 export type CardLineTone = 'success' | 'danger' | 'subtle';
 
@@ -148,7 +149,7 @@ export function ActionCard({
         </View>
         {preview}
         {details === undefined ? null : <Details>{details}</Details>}
-        {busy ? <ActivityIndicator /> : children}
+        {busy ? <LoadingIndicator /> : children}
         {error === undefined ? null : (
           <Text accessibilityRole="alert" variant="meta" tone="danger">
             {error}

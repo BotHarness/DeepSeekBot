@@ -1,7 +1,14 @@
 import { BottomTabBar, Tabs } from 'expo-router/js-tabs';
 import { router } from 'expo-router';
 import { useRef, useState, type ComponentProps } from 'react';
-import { Keyboard, View, useWindowDimensions, type ViewInstance } from 'react-native';
+import {
+  Keyboard,
+  Platform,
+  Pressable,
+  View,
+  useWindowDimensions,
+  type ViewInstance,
+} from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { hostSession, useHostSession } from '../../host/host-session';
@@ -20,12 +27,13 @@ import { cloudError } from '../../cloud/client';
 import { ClientError } from '../../cloud/instance-contract';
 import { prepareCloudCreation } from '../../cloud/prepare-creation';
 import { shownHostName } from '../design/host-look';
-import { useDesignTheme } from '../design/theme';
-import { navigationBar, radius, space } from '../design/tokens';
+import { pressTint, useDesignTheme } from '../design/theme';
+import { fab, materialNavigationBar, navigationBar, radius, space } from '../design/tokens';
 import { useMounted } from '../mounted';
 import { NavigationMaterial } from './navigation-material';
 import { NavigationDestinations } from './navigation-destinations';
 import { NavigationAction } from './navigation-action';
+import { PlusIcon } from './icons';
 import { CreationPanel } from './creation-panel';
 import { FloatingTabInset } from './floating-tab-inset';
 import { ScrollChromeProvider, useChromeHidden, useChromeProgress } from './scroll-chrome';
@@ -45,11 +53,22 @@ function NavigationLayout() {
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
   const { fontScale } = useWindowDimensions();
-  const size = Math.max(
-    navigationBar.height,
-    theme.type.title.line + theme.type.meta.line * fontScale * (fontScale > 1.3 ? 2 : 1) + space.x5,
-  );
-  const bottom = Math.max(insets.bottom, space.x4);
+  const android = Platform.OS === 'android';
+  const size = android
+    ? Math.max(
+        materialNavigationBar.height,
+        materialNavigationBar.indicatorHeight +
+          materialNavigationBar.iconLabelGap +
+          theme.type.meta.line * fontScale +
+          space.x4,
+      )
+    : Math.max(
+        navigationBar.height,
+        theme.type.title.line +
+          theme.type.meta.line * fontScale * (fontScale > 1.3 ? 2 : 1) +
+          space.x5,
+      );
+  const bottom = android ? insets.bottom : Math.max(insets.bottom, space.x4);
   const reserved = size + bottom + space.x5;
   const quickActions = useQuickActionRouting();
   return (
@@ -93,6 +112,7 @@ function ScopedNavigationBar({
     saved ? { hostId: saved.hostId, name: shownHostName(look, saved.hostName) } : undefined,
     directory.workspaces,
   );
+  const theme = useDesignTheme();
   const pending = useActivityCount().count ?? 0;
   const insets = useSafeAreaInsets();
   const [menu, setMenu] = useState<string>();
@@ -156,6 +176,100 @@ function ScopedNavigationBar({
       setBusy(false);
     }
   };
+  const items = state.routes.map((route, index) => ({
+    key: route.key,
+    focused: state.index === index,
+    activity: route.name === '(activity)',
+    count: route.name === '(activity)' ? pending : 0,
+    onPress: () => {
+      const event = emitter.emit({
+        type: 'tabPress',
+        target: route.key,
+        canPreventDefault: true,
+      });
+      if (state.index !== index && !event.defaultPrevented) navigateToTab(route.key);
+    },
+    onLongPress: () => emitter.emit({ type: 'tabLongPress', target: route.key }),
+  }));
+  const create = () => {
+    Keyboard.dismiss();
+    setError(undefined);
+    setMenu(scope);
+  };
+  const fabBottom = size + bottom + fab.margin;
+  const panel = menu === scope && (
+    <CreationPanel
+      key={scope}
+      scope={scope}
+      targets={targets}
+      size={navigationBar.height}
+      bottom={Platform.OS === 'android' ? fabBottom : bottom}
+      onClose={close}
+      onPick={(action, target) => void choose(action, target)}
+      busy={busy}
+      error={error}
+    />
+  );
+  if (Platform.OS === 'android')
+    return (
+      <>
+        <Animated.View
+          ref={mount}
+          pointerEvents={hidden ? 'none' : 'box-none'}
+          accessibilityElementsHidden={hidden}
+          importantForAccessibility={hidden ? 'no-hide-descendants' : 'auto'}
+          style={[
+            {
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              bottom: 0,
+              minHeight: size + bottom,
+              paddingBottom: bottom,
+              paddingLeft: insets.left,
+              paddingRight: insets.right,
+              flexDirection: 'row',
+              backgroundColor: theme.layer.raised.fill,
+              elevation: materialNavigationBar.elevation,
+            },
+            style,
+          ]}
+        >
+          <NavigationDestinations items={items} />
+        </Animated.View>
+        {state.routes[state.index]?.name === '(home)' ? (
+          <Animated.View
+            pointerEvents={hidden ? 'none' : 'box-none'}
+            accessibilityElementsHidden={hidden}
+            importantForAccessibility={hidden ? 'no-hide-descendants' : 'auto'}
+            style={[
+              { position: 'absolute', right: insets.right + fab.margin, bottom: fabBottom },
+              style,
+            ]}
+          >
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t.createHere}
+              onPress={create}
+              android_ripple={{ color: pressTint(theme.color.fg) }}
+              style={{
+                width: fab.size,
+                height: fab.size,
+                borderRadius: fab.radius,
+                overflow: 'hidden',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: theme.layer.canvas.chosen,
+                elevation: fab.elevation,
+              }}
+            >
+              <PlusIcon color={theme.color.fg} size={theme.type.title.line} />
+            </Pressable>
+          </Animated.View>
+        ) : null}
+        {panel}
+      </>
+    );
   return (
     <>
       <Animated.View
@@ -186,47 +300,11 @@ function ScopedNavigationBar({
           }}
         >
           <NavigationMaterial />
-          <NavigationDestinations
-            items={state.routes.map((route, index) => ({
-              key: route.key,
-              focused: state.index === index,
-              activity: route.name === '(activity)',
-              count: route.name === '(activity)' ? pending : 0,
-              onPress: () => {
-                const event = emitter.emit({
-                  type: 'tabPress',
-                  target: route.key,
-                  canPreventDefault: true,
-                });
-                if (state.index !== index && !event.defaultPrevented) navigateToTab(route.key);
-              },
-              onLongPress: () => emitter.emit({ type: 'tabLongPress', target: route.key }),
-            }))}
-          />
+          <NavigationDestinations items={items} />
         </View>
-        <NavigationAction
-          size={navigationBar.height}
-          label={t.createHere}
-          onPress={() => {
-            Keyboard.dismiss();
-            setError(undefined);
-            setMenu(scope);
-          }}
-        />
+        <NavigationAction size={navigationBar.height} label={t.createHere} onPress={create} />
       </Animated.View>
-      {menu === scope && (
-        <CreationPanel
-          key={scope}
-          scope={scope}
-          targets={targets}
-          size={navigationBar.height}
-          bottom={bottom}
-          onClose={close}
-          onPick={(action, target) => void choose(action, target)}
-          busy={busy}
-          error={error}
-        />
-      )}
+      {panel}
     </>
   );
 }

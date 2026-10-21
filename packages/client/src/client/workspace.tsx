@@ -19,7 +19,8 @@ import { Tooltip } from './ds/tooltip.js';
 import type { DockviewApi } from 'dockview-react';
 import type { BotModeSidebarProps } from './bot-mode-sidebar.js';
 import type { BotModePrefs } from './bot-mode-prefs.js';
-import { BotSidebar, useClientState } from './bot-sidebar.js';
+import { BotSidebar } from './bot-sidebar.js';
+import { keepClientState, sameFields, useClientStore } from './use-client-store.js';
 import { BotIcon } from './bot-icon.js';
 import { ExitIcon } from './exit-icon.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
@@ -47,6 +48,7 @@ export type WorkspaceOptions = Omit<
   registerLayoutSettings(setTarget: (node: HTMLDivElement | null) => void): () => void;
 };
 
+const railInputs = sameFields(['humanInbox', 'selection']);
 export function Workspace({
   options,
   t,
@@ -223,7 +225,7 @@ function WorkspaceRail({
     options.prefs.source.subscribe,
     () => options.prefs.source.getSnapshot().botIcon,
   );
-  const state = useClientState();
+  const state = useClientStore(keepClientState, railInputs);
   const indicatorMenu = useActivityIndicatorMenu(t);
   const indicator = activityIndicator(indicatorMenu.scope, state.humanInbox);
   const attentionLabel = [
@@ -233,12 +235,17 @@ function WorkspaceRail({
     ...(state.humanInbox.hasAction ? [t('humanInbox.action')] : []),
     ...(indicator === 'unknown' ? [t('activityIndicator.unavailable')] : []),
   ].join(' · ');
-  const botOnlyHidden = resolveChannelSidebarContext(state)?.botSlug ? [] : BOT_ONLY_CHANNEL_PANELS;
   const shortcuts = useSyncExternalStore(
     options.shortcuts.catalog.subscribe,
     options.shortcuts.catalog.getSnapshot,
   );
   const panels = useSyncExternalStore(options.dockPanels!.subscribe, options.dockPanels!.panels);
+  const botOnlyHidden = resolveChannelSidebarContext(state)?.botSlug
+    ? []
+    : [
+        ...BOT_ONLY_CHANNEL_PANELS,
+        ...panels.filter((p) => p.binding === 'current-bot').map((p) => p.id),
+      ];
   const controlMenu = usePanelMenu({
     items: [
       { type: 'label', id: 'controls', text: t('workspace.visibleControls') },
@@ -248,6 +255,7 @@ function WorkspaceRail({
             panel.id !== 'members' &&
             panel.id !== 'bot-inbox' &&
             !CHANNEL_WORKSPACE_PANELS.includes(panel.id) &&
+            panel.binding !== 'current-bot' &&
             !botOnlyHidden.includes(panel.id),
         )
         .map((panel) => ({
@@ -306,6 +314,7 @@ function WorkspaceRail({
                 'members',
                 'bot-inbox',
                 ...CHANNEL_WORKSPACE_PANELS,
+                ...panels.filter((p) => p.binding === 'current-bot').map((p) => p.id),
                 ...botOnlyHidden,
                 ...hiddenControls,
               ]}

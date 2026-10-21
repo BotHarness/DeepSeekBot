@@ -93,7 +93,7 @@ function blocklistTarget(body: Record<string, unknown>): BlocklistTarget | undef
 }
 
 function isBrowseSort(value: string): value is BrowseSort {
-  return value === 'updated' || value === 'stars';
+  return value === 'updated' || value === 'created' || value === 'stars';
 }
 
 export function createMarketHandler(
@@ -324,7 +324,18 @@ export async function runScheduled(
       ...report,
     }),
   );
-  if (phase !== 'refresh' || summarizer === undefined) return;
+  if (phase !== 'refresh') return;
+  if (summarizer === undefined) {
+    log(
+      JSON.stringify({
+        module: 'marketplace-worker',
+        initiator: 'scheduled',
+        phase: 'summaries',
+        skipped: 'missing-summary-api-key',
+      }),
+    );
+    return;
+  }
   const summaryStarted = Date.now();
   const summaries = await refreshSummaries({ db: env.MARKET_DB, summarizer });
   log(

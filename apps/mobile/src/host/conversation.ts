@@ -42,6 +42,7 @@ export interface MessageAttachment {
   size?: number;
   source?: RemoteSource;
   local: boolean;
+  cleared?: true;
 }
 
 export const LOCAL_HUMAN = 'local-human';
@@ -393,7 +394,16 @@ function attachmentsOf(
         }),
     local: false,
   }));
-  return [...stored, ...bridged];
+  const cleared = (message.clearedAttachments ?? []).map((item, index): MessageAttachment => ({
+    key: `${message.id}:cleared:${index}`,
+    kind: 'file',
+    name: item.name,
+    mime: item.mime,
+    size: item.size,
+    local: false,
+    cleared: true,
+  }));
+  return [...stored, ...cleared, ...bridged];
 }
 
 function present(

@@ -22,28 +22,6 @@ export function ActionMenuButton({ label, actions }: ActionMenuButtonProps) {
   const [open, setOpen] = useState(false);
   return (
     <View style={{ width: theme.touch, height: theme.touch }}>
-      <Pressable
-        testID="action-menu-trigger"
-        onPress={() => setOpen(true)}
-        accessibilityRole="button"
-        accessibilityLabel={label}
-        accessibilityState={{ expanded: open }}
-        hitSlop={space.x2}
-        android_ripple={{
-          borderless: true,
-          radius: theme.touch / 2,
-          color: theme.layer.sheet.pressed,
-        }}
-        style={{
-          width: theme.touch,
-          height: theme.touch,
-          borderRadius: radius.round,
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <MoreIcon color={theme.color.muted} size={theme.type.title.size + space.x2} />
-      </Pressable>
       <Host
         colorScheme={theme.scheme}
         seedColor={theme.color.accent}
@@ -76,6 +54,28 @@ export function ActionMenuButton({ label, actions }: ActionMenuButtonProps) {
           </DropdownMenu.Items>
         </DropdownMenu>
       </Host>
+      <Pressable
+        testID="action-menu-trigger"
+        onPress={() => setOpen(true)}
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        accessibilityState={{ expanded: open }}
+        hitSlop={space.x2}
+        android_ripple={{
+          borderless: true,
+          radius: theme.touch / 2,
+          color: theme.layer.sheet.pressed,
+        }}
+        style={{
+          width: theme.touch,
+          height: theme.touch,
+          borderRadius: radius.round,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <MoreIcon color={theme.color.muted} size={theme.type.title.size + space.x2} />
+      </Pressable>
     </View>
   );
 }

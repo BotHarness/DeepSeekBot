@@ -34,6 +34,7 @@
       "expo-router",
       "expo-secure-store",
       "expo-notifications",
+      "@bacons/apple-targets",
       [
         "expo-camera",
         {
@@ -76,7 +77,6 @@
       ],
       "expo-font",
       "expo-image",
-      "expo-sharing",
       "expo-status-bar",
       "expo-web-browser"
     ],

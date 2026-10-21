@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, SectionList, View, type ViewInstance } from 'react-native';
+import { Pressable, SectionList, View, type ViewInstance } from 'react-native';
 
 import type { RosterBot } from '../host/client';
 import { MethodRefused } from '../host/client';
@@ -28,6 +28,7 @@ import { dayLabel } from '../host/usage-days';
 import { ChevronRightIcon } from './shell/icons';
 import { tokenAmount, UsageBars, useLoaded, type Loaded } from './shell/usage-card';
 import { t } from './strings';
+import { LoadingIndicator } from './primitives/loading-indicator';
 
 const AVATAR = 28;
 const SPARK_WIDTH = space.x6 * 3;
@@ -213,7 +214,7 @@ function UsageRow({
           paddingHorizontal: space.x5,
         }}
       >
-        <ActivityIndicator />
+        <LoadingIndicator />
         <Text variant="meta" tone="muted">
           {t.profileLoading}
         </Text>

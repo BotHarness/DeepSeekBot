@@ -1,7 +1,7 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, Keyboard, Linking, View } from 'react-native';
+import { FlatList, Keyboard, Linking, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { cloudError, configurationChanges, parseCloudQr } from '../../cloud/client';
 import { connectionKey, type InstanceConfig } from '../../cloud/instance-contract';
@@ -14,6 +14,7 @@ import { Text } from '../primitives/text';
 import { TextField } from '../primitives/text-field';
 import { t } from '../strings';
 import { confirmDestructive } from '../primitives/app-dialog';
+import { LoadingIndicator } from '../primitives/loading-indicator';
 
 function errorMessage(code: string) {
   if (code === 'INSTANCE_CONFIG_CHANGED') return t.cloud.changed;
@@ -112,7 +113,7 @@ export function CloudServicesScreen() {
           {!snapshot.ready && <Text>{snapshot.error ? t.cloud.blocked : t.cloud.loading}</Text>}
           {snapshot.busy && (
             <View accessibilityRole="progressbar" accessibilityLabel={t.cloud.working}>
-              <ActivityIndicator />
+              <LoadingIndicator />
               <Text>{t.cloud.working}</Text>
             </View>
           )}

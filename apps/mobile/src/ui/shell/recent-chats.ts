@@ -1,6 +1,7 @@
 import * as QuickActions from 'expo-quick-actions';
 import * as SecureStore from 'expo-secure-store';
 import { useCallback, type RefCallback } from 'react';
+import { Platform } from 'react-native';
 
 import { recentChats } from '../design/tokens';
 
@@ -39,11 +40,17 @@ export function parseRecentChats(raw: string | null): RecentChat[] {
   }
 }
 
+export function shortcutIcon(os: string): string {
+  return os === 'android' ? 'ic_launcher' : 'symbol:bubble.left';
+}
+
+const icon = shortcutIcon(Platform.OS);
+
 export function quickAction(chat: RecentChat): QuickActions.Action {
   return {
     id: chat.id,
     title: chat.title,
-    icon: 'symbol:bubble.left',
+    icon,
     params: { href: chat.href },
   };
 }
@@ -61,6 +68,26 @@ export function recordRecentChat(chat: RecentChat): Promise<RecentChat[]> {
     if (first?.id === chat.id && first.title === chat.title && first.href === chat.href)
       return list;
     const next = rememberChat(list, chat, recentChats.limit);
+    await Promise.all([
+      SecureStore.setItemAsync(KEY, JSON.stringify(next)).catch(() => undefined),
+      QuickActions.setItems(next.map(quickAction)).catch(() => undefined),
+    ]);
+    return next;
+  });
+  return recent;
+}
+
+export function chatHostId(href: string): string | undefined {
+  const query = href.indexOf('?');
+  return query === -1
+    ? undefined
+    : (new URLSearchParams(href.slice(query + 1)).get('hostId') ?? undefined);
+}
+
+export function forgetRecentChats(hostId: string): Promise<RecentChat[]> {
+  recent = load().then(async (list) => {
+    const next = list.filter((chat) => chatHostId(chat.href) !== hostId);
+    if (next.length === list.length) return list;
     await Promise.all([
       SecureStore.setItemAsync(KEY, JSON.stringify(next)).catch(() => undefined),
       QuickActions.setItems(next.map(quickAction)).catch(() => undefined),

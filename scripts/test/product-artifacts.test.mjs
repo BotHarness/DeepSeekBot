@@ -18,6 +18,7 @@ import {
   parseProductComposition,
 } from '../packaged-profile.mjs';
 import { parse } from 'yaml';
+import { cloudflaredPackageNames } from '../cloudflared-packages.mjs';
 import { productManagedUpdate } from '../product-provider/update-policy.mjs';
 
 vi.mock('../dev-im-provider.mjs', async (importOriginal) => {
@@ -174,6 +175,44 @@ describe('packaged product selection', () => {
     expect(productAllowBuilds).toEqual(workspace.allowBuilds);
   });
 
+  it('overrides the verified platform packages for a packaged install and refuses a partial set', () => {
+    const { root, artifacts } = artifactSet();
+    const platformArtifacts = cloudflaredPackageNames.map((name) => {
+      const filename = `${name.replace(/^@/, '').replace('/', '-')}-0.0.0-test.823.tgz`;
+      const bytes = Buffer.from(`platform-fixture:${name}`);
+      writeFileSync(join(root, filename), bytes);
+      return {
+        name,
+        version: '0.0.0-test.823',
+        filename,
+        integrity: `sha512-${createHash('sha512').update(bytes).digest('base64')}`,
+      };
+    });
+    const inventory = {
+      productVersion: '0.0.0-test.823',
+      dsh: productDsh,
+      providerRuntime: { runtimeFiles: 1, runtimeSha256: 'a'.repeat(64) },
+      artifacts,
+      platformArtifacts,
+    };
+    writeFileSync(join(root, 'artifacts.json'), JSON.stringify(inventory));
+    expect(verifiedProductArtifacts(root).platformArtifacts).toHaveLength(platformArtifacts.length);
+    const overrides = parse(packagedWorkspaceSettings('packages: [.]\n', root)).overrides;
+    for (const name of cloudflaredPackageNames)
+      expect(overrides[`${name}@0.0.0-test.823`]).toMatch(/^file:.*\.tgz$/);
+    for (const invalid of [
+      platformArtifacts.slice(1),
+      [{ ...platformArtifacts[0], version: '9.0.0' }, ...platformArtifacts.slice(1)],
+      [{ ...platformArtifacts[0], name: 'deepseekbot' }, ...platformArtifacts.slice(1)],
+    ]) {
+      writeFileSync(
+        join(root, 'artifacts.json'),
+        JSON.stringify({ ...inventory, platformArtifacts: invalid }),
+      );
+      expect(() => verifiedProductArtifacts(root)).toThrow();
+    }
+  });
+
   it('refuses duplicate, missing, mismatched-version or escaping artifact entries', () => {
     const { root, artifacts } = artifactSet();
     for (const invalid of [
@@ -288,6 +327,9 @@ describe('release composition', () => {
       '@botharness/ui': '0.0.0-test.823',
       '@botharness/im-provider': '4.32.0-botharness.21',
     });
+    expect(release.optionalDependencies).toEqual(
+      Object.fromEntries(cloudflaredPackageNames.map((name) => [name, '0.0.0-test.823'])),
+    );
     expect(release.dsh.bundle.patch).toBe('./cordis.im.patch.yml');
     expect(release.bin).toEqual({
       'botharness-profile': './dist/profile-cli.mjs',

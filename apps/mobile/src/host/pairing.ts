@@ -1,5 +1,6 @@
 import type { HostCarrier } from './carrier';
 import { checkRoute } from './route';
+import type { ConnectRefusal } from './connect-account';
 import type { SavedHost } from './hosts';
 
 export const DEVICE_PREFIX = '/botharness-device';
@@ -9,6 +10,7 @@ export interface PairingPayload {
   offer: string;
   routes: string[];
   expiresAt: string;
+  verifier?: string;
 }
 
 export type PairingRefusal =
@@ -17,7 +19,8 @@ export type PairingRefusal =
   | 'no-route'
   | 'offer-invalid'
   | 'offer-expired'
-  | 'unreachable';
+  | 'unreachable'
+  | ConnectRefusal;
 
 export type ParsedLink =
   | { ok: true; payload: PairingPayload }
@@ -96,7 +99,11 @@ export async function redeemPairing(options: {
     try {
       const response = await options.carrier.request(`${route}${DEVICE_PREFIX}/pair`, {
         method: 'POST',
-        body: JSON.stringify({ offer: payload.offer, name: options.deviceName }),
+        body: JSON.stringify({
+          offer: payload.offer,
+          name: options.deviceName,
+          ...(payload.verifier === undefined ? {} : { verifier: payload.verifier }),
+        }),
         signal: controller.signal,
       });
       status = response.status;
@@ -133,10 +140,67 @@ export async function redeemPairing(options: {
   return { ok: false, code: 'unreachable' };
 }
 
+export async function revokePairing(options: {
+  host: SavedHost;
+  carrier: HostCarrier;
+  timeoutMs?: number;
+}): Promise<'revoked' | 'unreachable'> {
+  for (const route of options.host.routes) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? 8000);
+    try {
+      const response = await options.carrier.request(`${route}${DEVICE_PREFIX}/unpair`, {
+        method: 'POST',
+        headers: { authorization: `Device ${options.host.credential}` },
+        body: '{}',
+        signal: controller.signal,
+      });
+      const body = record(JSON.parse(await response.text()));
+      if (response.status === 200 && body['revoked'] === true) return 'revoked';
+      if (
+        response.status === 401 &&
+        (body['code'] === 'device-revoked' || body['code'] === 'device-unknown')
+      )
+        return 'revoked';
+    } catch {
+      continue;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  return 'unreachable';
+}
+
+export async function removeDevice(options: {
+  host: SavedHost;
+  deviceId: string;
+  carrier: HostCarrier;
+  timeoutMs?: number;
+}): Promise<'removed' | 'unreachable'> {
+  for (const route of options.host.routes) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? 8000);
+    try {
+      const response = await options.carrier.request(`${route}${DEVICE_PREFIX}/devices/remove`, {
+        method: 'POST',
+        headers: { authorization: `Device ${options.host.credential}` },
+        body: JSON.stringify({ deviceId: options.deviceId }),
+        signal: controller.signal,
+      });
+      if (response.status === 200 || response.status === 404) return 'removed';
+    } catch {
+      continue;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  return 'unreachable';
+}
+
 export type PairingFailure = PairingRefusal | 'storage-failure' | 'cancelled' | 'unknown';
 
 export async function pairHost(options: {
-  text: string;
+  text: string | (() => Promise<ParsedLink>);
   method: import('../telemetry/schema').PairingMethod;
   deviceName: string;
   carrier: HostCarrier;
@@ -152,7 +216,9 @@ export async function pairHost(options: {
       cancelled();
       return { ok: false, code: 'cancelled' };
     }
-    const parsed = parsePairingLink(options.text);
+    const parsed =
+      typeof options.text === 'string' ? parsePairingLink(options.text) : await options.text();
+    if (options.signal?.aborted) return { ok: false, code: 'cancelled' };
     if (!parsed.ok) {
       observation.finish('refused', parsed.code);
       return parsed;

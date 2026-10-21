@@ -1,10 +1,17 @@
 import { encode } from 'uqr';
 
+import type { AccountStatus, ConnectAccount } from './connect-account.js';
 import type { ConnectStatus, DeviceConnect } from './connect.js';
 import type { DevicePairing, HostIdentity, PairedDevice } from './pairing.js';
-import { phoneRoute, type PhoneRoute, type RouteStatus } from './routes.js';
+import {
+  phoneRoute,
+  type PhoneRoute,
+  type PublishRouteResult,
+  type RouteStatus,
+} from './routes.js';
 
 export const DEVICES_PATH = '/api/botharness/devices';
+export const DEVICES_SERVE_PATH = '/api/botharness/devices/serve';
 export const PAIRING_LINK_SCHEME = 'deepseekbot';
 
 const headers = {
@@ -24,7 +31,7 @@ export interface DevicesSnapshot {
   host: HostIdentity;
   devices: PairedDevice[];
   routes: RouteStatus;
-  connect: ConnectStatus;
+  connect: ConnectStatus & { account?: AccountStatus };
 }
 
 export interface PairingOfferView {
@@ -86,9 +93,11 @@ async function body(request: Request): Promise<Record<string, unknown>> {
 export function createDevicesHttp(options: {
   pairing: DevicePairing;
   routes: () => Promise<RouteStatus>;
+  publish?: () => Promise<PublishRouteResult>;
   connect?: DeviceConnect;
+  account?: ConnectAccount;
 }): (request: Request) => Promise<Response> {
-  const { pairing, connect } = options;
+  const { pairing, connect, account } = options;
   return async (request) => {
     const path = new URL(request.url).pathname;
     if (request.method === 'GET' && path === DEVICES_PATH) {
@@ -96,7 +105,10 @@ export function createDevicesHttp(options: {
         host: pairing.host(),
         devices: pairing.list(),
         routes: await options.routes(),
-        connect: connect?.status() ?? { state: 'off' },
+        connect: {
+          ...(connect?.status() ?? { state: 'off' }),
+          ...(account === undefined ? {} : { account: account.status() }),
+        },
       };
       return json(snapshot);
     }
@@ -130,8 +142,37 @@ export function createDevicesHttp(options: {
       const result = pairing.revoke(input['deviceId']);
       return result.revoked ? json(result) : json({ code: 'device-unknown' }, 404);
     }
+    if (request.method === 'POST' && path === DEVICES_SERVE_PATH && options.publish) {
+      const input = await body(request);
+      if (input['confirm'] !== true)
+        return json(
+          { code: 'confirm-required', error: 'Pass confirm:true to run tailscale serve.' },
+          400,
+        );
+      const result = await options.publish();
+      if (result.ok)
+        return json({ published: true, changed: result.changed, routes: result.status });
+      return json(
+        {
+          code: result.code,
+          error: result.message,
+          ...(result.enableUrl === undefined ? {} : { enableUrl: result.enableUrl }),
+          routes: result.status,
+        },
+        409,
+      );
+    }
     if (request.method === 'POST' && path === `${DEVICES_PATH}/connect` && connect !== undefined) {
       const input = await body(request);
+      if (
+        account !== undefined &&
+        (input['action'] === 'sign-in' || input['action'] === 'sign-out')
+      ) {
+        const signed =
+          input['action'] === 'sign-in' ? await account.signIn() : await account.signOut();
+        if (signed.ok) return json(signed.status);
+        return json({ code: signed.code }, 503);
+      }
       const result =
         input['action'] === 'enable'
           ? await connect.enable({

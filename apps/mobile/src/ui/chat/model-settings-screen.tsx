@@ -1,6 +1,6 @@
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
-import { ActivityIndicator, FlatList, Keyboard, View } from 'react-native';
+import { FlatList, Keyboard, View } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 
 import { applyModelPreset, errorText, sameModel, type ModelRoute } from '../../host/bot-settings';
@@ -30,6 +30,7 @@ import { TextField } from '../primitives/text-field';
 import { CheckIcon } from '../shell/icons';
 import { t } from '../strings';
 import { SHEET_GROUP, SheetCallout, SheetFailed, SheetLoading, SheetNote } from './sheet';
+import { LoadingIndicator } from '../primitives/loading-indicator';
 
 function useModels(client: HostClient, scope: ModelScope) {
   const key = modelScopeKey(scope);
@@ -241,7 +242,7 @@ function ModelsView({
           onChangeText={setQuery}
         />
         {banner}
-        {models.busy ? <ActivityIndicator /> : null}
+        {models.busy ? <LoadingIndicator /> : null}
         <FlatList
           style={{ flex: 1 }}
           data={entries}
@@ -323,7 +324,7 @@ function ModelsView({
             : t.modelSettings.botHint}
       </SheetNote>
       {banner}
-      {models.busy ? <ActivityIndicator /> : null}
+      {models.busy ? <LoadingIndicator /> : null}
       <View style={{ paddingHorizontal: space.x5 }}>
         <SettingsSection
           title={scope.kind === 'global' ? t.modelSettings.global : t.modelSettings.title}

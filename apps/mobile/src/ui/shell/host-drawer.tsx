@@ -5,6 +5,7 @@ import {
   AccessibilityInfo,
   BackHandler,
   FlatList,
+  Platform,
   Pressable,
   StyleSheet,
   useWindowDimensions,
@@ -36,7 +37,7 @@ import { createHostGlances, liveGlance, type HostStatus } from '../../host/host-
 import { hostSession, useHostSession, useHostSnapshot, useInbox } from '../../host/host-session';
 import { nativeCarrier } from '../../host/native-carrier';
 import { useHostLook } from '../../host/native-host-look';
-import { shownHostName, type HostLook } from '../design/host-look';
+import { hostColorInk, hostTileFill, shownHostName, type HostLook } from '../design/host-look';
 import { glassShadow, pressTint, useDesignTheme, type DesignTheme } from '../design/theme';
 import { useMounted } from '../mounted';
 import { drawerSpring, edge, motion, radius, scrim, sidebar, space } from '../design/tokens';
@@ -50,6 +51,7 @@ import { ActionMenuButton, type MenuAction } from '../primitives/action-menu-but
 import { WorkspaceTabs, type WorkspaceTab } from './workspace-tabs';
 import { WorkspaceAddButton } from './workspace-add';
 import {
+  addressLines,
   createHostDrawer,
   drawerWidth,
   EDGE_WIDTH,
@@ -59,6 +61,7 @@ import {
   type HostDrawerRow,
 } from './host-drawer-model';
 import { ActivityIcon, CloudIcon, ComputerIcon, PlusIcon } from './icons';
+import { noticeHostKept } from '../unpair-notice';
 
 export const hostDrawer = createHostDrawer({
   switchTo: async (hostId) => {
@@ -122,7 +125,7 @@ function clamp(value: number): number {
 }
 
 export function HostDrawerEdge({ children }: { children: ReactNode }) {
-  const width = drawerWidth(useWindowDimensions().width);
+  const width = drawerWidth(useWindowDimensions().width, Platform.OS);
   const reduced = useReducedMotion();
   const { hosts } = useHostSession();
   const pan = Gesture.Pan()
@@ -166,7 +169,21 @@ function confirmUnpair(row: HostDrawerRow, name: string): void {
     {
       text: t.unpair,
       style: 'destructive',
-      onPress: () => hostSession.unpair(row.hostId),
+      onPress: () => {
+        if (hostSession.getState().hosts.length <= 1) settle(false);
+        return hostSession.unpair(row.hostId).then(
+          (result) => {
+            if (result?.current === true && row.current && router.canDismiss()) router.dismissAll();
+            noticeHostKept(result, name);
+          },
+          (error: unknown) =>
+            showAppDialog(
+              `${t.unpairFailed} ${error instanceof Error ? error.message : String(error)}`,
+              undefined,
+              [{ text: t.done }],
+            ),
+        );
+      },
     },
   ]);
 }
@@ -208,13 +225,26 @@ function openHostMenu(row: HostDrawerRow, name: string): void {
   );
 }
 
-function rowStyle(theme: DesignTheme, glass: boolean, active: boolean) {
+function rowStyle(theme: DesignTheme, glass: boolean, active: boolean, selected = false) {
+  if (!glass && Platform.OS === 'android')
+    return {
+      marginHorizontal: space.x4,
+      borderRadius: radius.round,
+      overflow: 'hidden' as const,
+      backgroundColor: selected
+        ? theme.layer.sheet.chosen
+        : active
+          ? theme.layer.sheet.pressed
+          : 'transparent',
+    };
   if (!glass)
-    return { backgroundColor: active ? theme.layer.sheet.pressed : theme.layer.sheet.fill };
+    return {
+      backgroundColor: active || selected ? theme.layer.sheet.pressed : theme.layer.sheet.fill,
+    };
   return {
     marginHorizontal: space.x3,
     borderRadius: radius.lg,
-    backgroundColor: active ? pressTint(theme.color.fg) : 'transparent',
+    backgroundColor: active || selected ? pressTint(theme.color.fg) : 'transparent',
   };
 }
 
@@ -232,10 +262,14 @@ function DrawerTile({ look, name, current }: { look: HostLook; name: string; cur
     >
       <HostTile
         hostName={name}
-        avatar={look.avatar}
+        icon={look.icon}
         size={theme.type.title.line + space.x3}
-        fill={theme.layer.sheet.inset}
-        letter={theme.color.fg}
+        fill={hostTileFill(theme.scheme, theme.color, look.color, theme.layer.sheet.inset)}
+        ink={
+          look.color === undefined
+            ? theme.color.fg
+            : hostColorInk(theme.scheme, theme.color, look.color)
+        }
       />
     </View>
   );
@@ -244,6 +278,7 @@ function DrawerTile({ look, name, current }: { look: HostLook; name: string; cur
 function HostRow({ row, address }: { row: HostDrawerRow; address: string }) {
   const theme = useDesignTheme();
   const glass = useLiquidGlass();
+  const android = !glass && Platform.OS === 'android';
   const look = useHostLook(row.hostId);
   const name = shownHostName(look, row.hostName);
   const pending = row.glance.pending ?? 0;
@@ -260,7 +295,7 @@ function HostRow({ row, address }: { row: HostDrawerRow; address: string }) {
     <View
       style={[
         { flexDirection: 'row', alignItems: 'center', paddingRight: space.x2 },
-        glass ? rowStyle(theme, glass, row.current) : null,
+        glass || android ? rowStyle(theme, glass, false, row.current) : null,
       ]}
     >
       <Pressable
@@ -283,16 +318,20 @@ function HostRow({ row, address }: { row: HostDrawerRow; address: string }) {
           flexDirection: 'row',
           alignItems: 'center',
           gap: space.x4,
-          paddingLeft: glass ? space.x3 : space.x4,
+          paddingLeft: glass || android ? space.x3 : space.x4,
           paddingVertical: space.x3,
-          borderRadius: glass ? radius.lg : 0,
+          borderRadius: glass ? radius.lg : android ? radius.round : 0,
           backgroundColor: glass
             ? pressed
               ? pressTint(theme.color.fg)
               : 'transparent'
-            : pressed
-              ? theme.layer.sheet.pressed
-              : theme.layer.sheet.fill,
+            : android
+              ? pressed
+                ? pressTint(theme.color.fg)
+                : 'transparent'
+              : pressed
+                ? theme.layer.sheet.pressed
+                : theme.layer.sheet.fill,
         })}
       >
         <DrawerTile look={look} name={name} current={row.current} />
@@ -312,7 +351,9 @@ function HostRow({ row, address }: { row: HostDrawerRow; address: string }) {
             <Text
               variant="meta"
               tone="muted"
-              numberOfLines={theme.largeText ? undefined : 1}
+              {...(address
+                ? addressLines(theme.largeText, Platform.OS)
+                : { numberOfLines: theme.largeText ? undefined : 1 })}
               style={{ flexShrink: 1 }}
             >
               {address || status}
@@ -400,7 +441,7 @@ function CloudServiceRow({
         <Text strong numberOfLines={theme.largeText ? undefined : 1}>
           {name}
         </Text>
-        <Text variant="meta" tone="muted" numberOfLines={theme.largeText ? undefined : 1}>
+        <Text variant="meta" tone="muted" {...addressLines(theme.largeText, Platform.OS)}>
           {connectionAddress(server)}
         </Text>
       </View>
@@ -466,15 +507,14 @@ function WorkspaceRow({
         gap: space.x4,
         padding: space.x4,
         minHeight: theme.touch + space.x3,
-        ...rowStyle(theme, glass, pressed || selected),
+        ...rowStyle(theme, glass, pressed, selected),
       })}
     >
       <HostTile
         hostName={workspace.name}
-        avatar={{ kind: 'initial' }}
         size={theme.type.title.line + space.x3}
         fill={theme.layer.sheet.inset}
-        letter={theme.color.fg}
+        ink={theme.color.fg}
       />
       <View style={{ flex: 1, gap: space.x1 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x2 }}>
@@ -496,7 +536,7 @@ export function HostDrawer() {
   const theme = useDesignTheme();
   const glass = useLiquidGlass();
   const insets = useSafeAreaInsets();
-  const width = drawerWidth(useWindowDimensions().width);
+  const width = drawerWidth(useWindowDimensions().width, Platform.OS);
   const reduced = useReducedMotion();
   const state = useSyncExternalStore(hostDrawer.subscribe, hostDrawer.getSnapshot);
   const { saved, hosts, client, inbox } = useHostSession();

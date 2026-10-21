@@ -45,8 +45,8 @@ Switch all three tabs; only their own rows appear, without collapsible section
 headings. The selected tab shows its leading icon and underline together; inactive
 tabs show only their labels. All three blocks have equal width; the selected icon and
 label are centered together and its underline fills the entire block without gutters.
-Swipe left/right from the page content (including empty/loading states), not just the
-tab strip, to switch pages. The underline tracks the gesture; short/cancelled drags
+Swipe left/right on the tab strip to switch pages; a horizontal swipe on a row is that
+row's swipe action (below), not a page change. The underline tracks the gesture; short/cancelled drags
 return to the same page. Confirm the incoming icon is already partially visible before the page settles.
 On a populated page, scroll down: the Activity title/filter/search row and global bottom
 navigation leave, while all three tabs remain pinned beneath the safe area. Rows have no
@@ -74,6 +74,28 @@ Scroll under the header with search open and closed; verify light/dark and large
 text. A failed query retains stale content with an error; an unsupported Host
 asks for an update. Capture matched screenshots only after driving these controls.
 Web preview evidence does not qualify native keyboard, safe-area or scrolling.
+
+## Swipe to clear (inbox triage)
+
+`node scripts/e2e-mobile-activity-swipe-web.mjs` drives it end to end in the web preview against a
+fresh isolated Host and a real model turn, and keeps light/dark screenshots in its evidence folder.
+On a native build, check each step on iOS and Android separately:
+
+1. For you: swipe a reply left past half the row. It leaves, an undo bar says "Cleared · Undo",
+   and `deepseekbot inbox --category replies --dismissed` lists it. Undo brings it back on the
+   phone, and the CLI no longer lists it as dismissed. Desktop Activity hides and shows it too.
+2. Swipe a short way and let go: Clear stays revealed; tap the row to close it. Open a second row:
+   the first closes. Long-press a row: the same action is in the native menu; VoiceOver/TalkBack
+   offer it as an action.
+3. Needs you: a pending approval offers Tomorrow and Later… but never Clear. Swipe through: it is
+   snoozed to 9:00 tomorrow (`inbox --category action --snoozed`) and the Bot is still waiting.
+   Later… lists 1 hour, this evening (until 17:30), tomorrow and next week.
+   An interrupted message (`bot-message-needs-repair`) is the exception: it offers Clear and Later…, and
+   its detail page explains it with Open conversation (focused on that message) and Clear.
+4. Filters → Cleared and Snoozed list those rows with Restore/Unsnooze. A Host without
+   `dismissed` support shows the update error under Cleared.
+5. Vertical scrolling, pull-to-refresh and rightward drags never open a row. Newest action is first
+   by default.
 
 ## Gotchas
 

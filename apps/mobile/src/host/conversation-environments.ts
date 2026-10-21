@@ -1,4 +1,5 @@
 import type { ConversationWorkspace } from '../cloud/conversations';
+import type { HostColorId, HostIcon } from '../ui/design/host-look';
 
 export type ConversationEnvironment = {
   key: string;
@@ -6,13 +7,15 @@ export type ConversationEnvironment = {
   detail?: string;
   accessibilityLabel?: string;
   kind: 'all' | 'computer' | 'cloud';
+  hostIcon?: HostIcon;
+  hostColor?: HostColorId;
 };
 export const computerEnvironmentKey = (hostId: string) => JSON.stringify(['computer', hostId]);
 export const cloudEnvironmentKey = (scope: string, organizationId: string) =>
   JSON.stringify([scope, organizationId]);
 
 export function conversationEnvironments(
-  computer: { hostId: string; name: string } | undefined,
+  computer: { hostId: string; name: string; icon?: HostIcon; color?: HostColorId } | undefined,
   sourceScopes: readonly string[],
   workspaces: readonly ConversationWorkspace[],
   allTitle: string,
@@ -23,6 +26,8 @@ export function conversationEnvironments(
       key: computerEnvironmentKey(computer.hostId),
       title: computer.name,
       kind: 'computer',
+      ...(computer.icon === undefined ? {} : { hostIcon: computer.icon }),
+      ...(computer.color === undefined ? {} : { hostColor: computer.color }),
     });
   const seen = new Set<string>();
   for (const scope of sourceScopes) {

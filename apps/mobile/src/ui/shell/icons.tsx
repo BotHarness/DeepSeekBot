@@ -48,6 +48,19 @@ export function ActivityIcon(props: IconProps) {
   return <Glyph {...props} d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15L6 16Zm4 4a2 2 0 0 0 4 0" />;
 }
 
+export function PinIcon(props: IconProps) {
+  return <Glyph {...props} d="M9 3h6l-1 6 3 3v2H7v-2l3-3-1-6Zm3 11v7" />;
+}
+
+export function MuteIcon(props: IconProps) {
+  return (
+    <Glyph
+      {...props}
+      d="M6 16V11a6 6 0 0 1 9.5-4.9M18 11v5l1.5 2h-12M10 20a2 2 0 0 0 4 0M3 3l18 18"
+    />
+  );
+}
+
 export function PersonIcon(props: IconProps) {
   return <Glyph {...props} d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7.5 8a7.5 7.5 0 0 1 15 0" />;
 }
@@ -67,6 +80,10 @@ export function ChevronDownIcon(props: IconProps) {
 
 export function ChevronLeftIcon(props: IconProps) {
   return <Glyph {...props} d="m15 6-6 6 6 6" />;
+}
+
+export function ArrowBackIcon(props: IconProps) {
+  return <Glyph {...props} d="M19 12H5m7 7-7-7 7-7" />;
 }
 
 export function ChevronRightIcon(props: IconProps) {
@@ -291,4 +308,16 @@ export function CpuIcon(props: IconProps) {
 
 export function CheckIcon(props: IconProps) {
   return <Glyph {...props} d="m5 12.5 4.5 4.5L19 7.5" />;
+}
+
+export function ClockIcon(props: IconProps) {
+  return <Glyph {...props} d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM12 7v5l3 2" />;
+}
+
+export function ArchiveIcon(props: IconProps) {
+  return <Glyph {...props} d="M3 4h18v4H3zM5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8M10 12h4" />;
+}
+
+export function UndoIcon(props: IconProps) {
+  return <Glyph {...props} d="M9 14 4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />;
 }

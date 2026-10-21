@@ -1842,6 +1842,106 @@ html[data-botharness-motion='reduce'] .bh-section-chevron {
   overflow-y: auto;
   padding: ${space.x1};
 }
+/* The Market dock panel: browse controls on top, then a flat grid that follows the panel width. */
+.bh-market-panel {
+  display: flex;
+  flex-direction: column;
+  gap: ${space.x3};
+  height: 100%;
+  min-width: 0;
+  padding: ${space.x4};
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  box-sizing: border-box;
+}
+.bh-market-panel > .bh-market-browse { flex-wrap: wrap; }
+.bh-market-panel > .bh-market-browse > :first-child { flex-basis: 160px; }
+.bh-market-panel > .bh-market-browse > button { flex-shrink: 0; }
+.bh-market-panel > .bh-market-browse > :last-child { max-width: 100%; overflow-x: auto; }
+.bh-market-panel > .bh-market-topics {
+  flex-wrap: nowrap;
+  flex-shrink: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.bh-market-panel > .bh-market-topics > .bh-market-topic { flex-shrink: 0; white-space: nowrap; }
+.bh-market-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
+  align-content: start;
+  gap: ${space.x3};
+}
+.bh-market-panel > button:last-of-type { align-self: center; }
+.bh-market-tile {
+  display: flex;
+  flex-direction: column;
+  gap: ${space.x2};
+  min-width: 0;
+  padding: ${space.x3};
+  border: ${border.hairline} solid ${color.border};
+  border-radius: ${radius.lg};
+  background: var(--dsw-alias-bg-module-platform);
+}
+.bh-market-tile:hover { border-color: var(--dsw-alias-label-tertiary); }
+.bh-market-tile-head {
+  display: flex;
+  align-items: center;
+  gap: ${space.x3};
+  min-width: 0;
+}
+.bh-market-tile-head .bh-market-avatar { padding: 0; background: transparent; }
+.bh-market-tile-head .bh-market-copy { gap: 0; overflow: hidden; }
+.bh-market-tile-head .bh-market-owner {
+  overflow: hidden;
+  line-height: ${text.metaLine};
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bh-market-tile-head:hover .bh-market-card-name { text-decoration: underline; }
+.bh-market-tile > .bh-market-description {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.bh-market-tile-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: ${space.x3};
+  min-width: 0;
+  margin-top: auto;
+}
+.bh-market-tile-foot .bh-market-meta { flex-wrap: nowrap; overflow: hidden; white-space: nowrap; }
+.bh-market-tile-foot > button { flex-shrink: 0; }
+.bh-market-upload-section {
+  display: flex;
+  flex-direction: column;
+  gap: ${space.x2};
+  min-width: 0;
+}
+.bh-market-upload-bots {
+  display: flex;
+  flex-direction: column;
+  gap: ${space.x1};
+}
+.bh-market-upload-bot {
+  display: flex;
+  align-items: center;
+  gap: ${space.x3};
+  min-width: 0;
+  padding: ${space.x2} ${space.x2};
+  border-radius: ${radius.md};
+}
+.bh-market-upload-bot:hover { background: var(--bh-hover); }
+.bh-market-upload-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--dsw-alias-label-primary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 /* A profile card: banner on top, the Bot's avatar half over its lower edge, identity below. */
 .bh-market-row {
   position: relative;
@@ -3481,6 +3581,8 @@ html[data-botharness-motion='reduce'] .bh-timeline-working-ellipsis i { animatio
 .bh-message-file, .bh-message-audio { display: flex; align-items: center; gap: ${space.x3}; min-width: 0; width: fit-content; max-width: min(100%, 320px); min-height: 52px; padding: ${space.x3} ${space.x3} ${space.x3} ${space.x4}; border: 0; border-radius: ${radius.md}; background: color-mix(in srgb, currentColor 6%, transparent); color: inherit; }
 /* Wrap by the attachment's available width, including narrow desktop dock panels. */
 .bh-message-file { box-sizing: border-box; flex-wrap: wrap; }
+.bh-message-file-cleared { border: ${border.hairline} dashed ${color.border}; background: transparent; color: var(--dsw-alias-label-secondary); }
+.bh-message-file-cleared .bh-message-file-icon { opacity: 0.56; }
 .bh-message-file-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: ${space.x2}; max-width: 100%; margin-inline-start: auto; }
 .bh-message-file-actions > .bh-message-file-divider { display: none; }
 .bh-message-file-main { display: flex; align-items: center; gap: ${space.x3}; flex: 1 1 16ch; min-width: 0; max-width: 100%; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; text-decoration: none; }
@@ -3589,16 +3691,18 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
 }
 /* Hover actions float over the bubble's top-right edge so showing them never
    shifts the layout. The lane spans the bubble and right-aligns the pill; a
-   Bot bubble narrower than the pill keeps it from spilling over the avatar. */
+   Bot bubble narrower than the pill keeps it from spilling over the avatar.
+   Every bubble keeps a hidden toolbar, so it is placed with bottom instead of
+   a transform: a transform per message makes Chromium rebuild every bubble's
+   compositing on each repaint. */
 .bh-bubble-toolbar {
   position: absolute;
   z-index: 2;
-  top: 0;
+  bottom: calc(100% - ${space.x3});
   left: 0;
   right: ${space.x3};
   display: flex;
   justify-content: safe flex-end;
-  transform: translateY(calc(-100% + ${space.x3}));
   opacity: 0;
   pointer-events: none;
 }

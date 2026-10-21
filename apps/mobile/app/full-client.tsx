@@ -1,15 +1,16 @@
 import { Text } from '../src/ui/primitives/system-text';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useNavigation, usePreventRemove, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useState } from 'react';
-import { ActivityIndicator, Pressable, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { Platform, Pressable, View } from 'react-native';
 
 import { fullClientSource, fullClientTarget, type FullClientParams } from '../src/host/full-client';
 import { useHostSession, useHostSnapshot } from '../src/host/host-session';
 import { FloatingExit } from '../src/ui/floating-exit';
-import { FullClientView } from '../src/ui/full-client-view';
+import { FullClientView, type FullClientWeb } from '../src/ui/full-client-view';
 import { t } from '../src/ui/strings';
 import { useTheme } from '../src/ui/theme';
+import { LoadingIndicator } from '../src/ui/primitives/loading-indicator';
 
 export default function FullClientScreen() {
   const theme = useTheme();
@@ -26,7 +27,20 @@ export default function FullClientScreen() {
     snapshot.connection.route !== '' ? snapshot.connection.route : (saved?.routes[0] ?? '');
   const revoked = saved === null || state === 'refused' || snapshot.connection.status === 'refused';
 
-  const close = () => (router.canGoBack() ? router.back() : router.replace('/'));
+  const navigation = useNavigation();
+  const web = useRef<FullClientWeb>(null);
+  const exiting = useRef(false);
+  const [webBack, setWebBack] = useState(false);
+  usePreventRemove(Platform.OS === 'android' && webBack, ({ data }) => {
+    if (exiting.current) navigation.dispatch(data.action);
+    else web.current?.goBack();
+  });
+
+  const close = () => {
+    exiting.current = true;
+    if (router.canGoBack()) router.back();
+    else router.replace('/');
+  };
   const retry = () => {
     setState('loading');
     setAttempt((value) => value + 1);
@@ -69,16 +83,18 @@ export default function FullClientScreen() {
         </View>
       ) : saved === undefined || route === '' ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <ActivityIndicator />
+          <LoadingIndicator />
         </View>
       ) : (
         <View style={{ flex: 1 }}>
           <FullClientView
             key={attempt}
+            ref={web}
             route={route}
             source={fullClientSource(route, saved.credential, fullClientTarget(params))}
             onLoaded={() => setState((current) => (current === 'loading' ? 'loaded' : current))}
             onFailed={setState}
+            onCanGoBack={setWebBack}
           />
           {state === 'loading' ? (
             <View
@@ -91,7 +107,7 @@ export default function FullClientScreen() {
                 backgroundColor: theme.background,
               }}
             >
-              <ActivityIndicator />
+              <LoadingIndicator />
             </View>
           ) : null}
         </View>

@@ -8,6 +8,7 @@ import { androidSettings, edge, radius, space } from '../design/tokens';
 import { pressTint, useDesignTheme } from '../design/theme';
 import { ChevronRightIcon } from '../shell/icons';
 import { Text } from './text';
+import { segmentCorners } from '../design/segment-corners';
 
 function SettingsFrame({
   onPress,
@@ -147,22 +148,32 @@ export function SettingsSection({
   return (
     <View style={{ gap: android ? androidSettings.sectionGap : space.x2 }}>
       {title === undefined ? null : <SettingsHeading>{title}</SettingsHeading>}
-      <View
-        style={{
-          backgroundColor: theme.layer[on].fill,
-          borderRadius: android ? androidSettings.radius : radius.md,
-          overflow: 'hidden',
-        }}
-      >
-        {android
-          ? rows.map((child, index) => (
-              <View key={isValidElement(child) ? child.key : index}>
-                {index === 0 ? null : <SettingsDivider on={on} />}
-                {child}
-              </View>
-            ))
-          : children}
-      </View>
+      {android ? (
+        <View style={{ gap: androidSettings.segmentGap }}>
+          {rows.map((child, index) => (
+            <View
+              key={isValidElement(child) ? child.key : index}
+              style={{
+                backgroundColor: theme.layer[on].fill,
+                overflow: 'hidden',
+                ...segmentCorners(index === 0, index === rows.length - 1),
+              }}
+            >
+              {child}
+            </View>
+          ))}
+        </View>
+      ) : (
+        <View
+          style={{
+            backgroundColor: theme.layer[on].fill,
+            borderRadius: radius.md,
+            overflow: 'hidden',
+          }}
+        >
+          {children}
+        </View>
+      )}
       {footer === undefined ? null : <SettingsFooter>{footer}</SettingsFooter>}
     </View>
   );
@@ -184,19 +195,6 @@ export function SettingsHeading({ children }: { children: string }) {
     >
       {children}
     </Text>
-  );
-}
-
-function SettingsDivider({ on }: { on: LayerName }) {
-  const theme = useDesignTheme();
-  return (
-    <View
-      style={{
-        marginHorizontal: androidSettings.inset,
-        borderTopWidth: edge.hairline,
-        borderColor: theme.layer[on].divider,
-      }}
-    />
   );
 }
 
@@ -222,22 +220,34 @@ export function SettingsGroupItem({
   const theme = useDesignTheme();
   const layer = theme.layer[on];
   const android = Platform.OS === 'android';
-  const corners = android ? androidSettings.radius : radius.md;
+  if (android)
+    return (
+      <View
+        style={{
+          marginHorizontal: space.x5,
+          marginTop: first ? 0 : androidSettings.segmentGap,
+          backgroundColor: layer.fill,
+          overflow: 'hidden',
+          ...segmentCorners(first, last),
+        }}
+      >
+        {children}
+      </View>
+    );
   return (
     <View
       style={{
         marginHorizontal: space.x5,
         backgroundColor: layer.fill,
-        borderTopLeftRadius: first ? corners : 0,
-        borderTopRightRadius: first ? corners : 0,
-        borderBottomLeftRadius: last ? corners : 0,
-        borderBottomRightRadius: last ? corners : 0,
-        borderTopWidth: android || first ? 0 : edge.hairline,
+        borderTopLeftRadius: first ? radius.md : 0,
+        borderTopRightRadius: first ? radius.md : 0,
+        borderBottomLeftRadius: last ? radius.md : 0,
+        borderBottomRightRadius: last ? radius.md : 0,
+        borderTopWidth: first ? 0 : edge.hairline,
         borderTopColor: layer.divider,
         overflow: 'hidden',
       }}
     >
-      {android && !first ? <SettingsDivider on={on} /> : null}
       {children}
     </View>
   );

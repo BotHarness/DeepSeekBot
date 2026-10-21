@@ -18,10 +18,10 @@ import {
   openHumanAttentionSource,
   openRepairBotInbox as openRepairBotInboxFor,
 } from './human-attention-source.js';
-import { useClientState } from './bot-sidebar.js';
 import { zhTranslate, type BotHarnessTranslate } from './locale.js';
-import type { HumanAttentionItem } from './store.js';
+import type { ClientState, HumanAttentionItem } from './store.js';
 import { useMountedResource } from './mounted-resource.js';
+import { keepClientState, sameBotFaces, useClientStore } from './use-client-store.js';
 import { webModalOpen } from './channel-shortcuts.js';
 import { HumanInboxReply } from './human-inbox-reply.js';
 import { HumanInboxDismiss } from './human-inbox-detail-controls.js';
@@ -40,6 +40,11 @@ const categoryCopy = {
   info: { title: 'humanInbox.info', empty: 'humanInbox.empty.info' },
   handled: { title: 'humanInbox.handled', empty: 'humanInbox.empty.handled' },
 } as const;
+
+const overrideInputs = (left: ClientState, right: ClientState): boolean =>
+  left.channels === right.channels && sameBotFaces(left.bots, right.bots);
+const inboxInputs = (left: ClientState, right: ClientState): boolean =>
+  left.humanInbox === right.humanInbox && overrideInputs(left, right);
 
 const itemKey = (item: HumanAttentionItem): string =>
   item.id + '\u0000' + (item.sourceEventId ?? '');
@@ -71,7 +76,10 @@ export function HumanInboxView({
   collapsed?: boolean;
   t?: BotHarnessTranslate | undefined;
 }): ReactElement {
-  const state = useClientState();
+  const state = useClientStore(
+    keepClientState,
+    inboxOverride === undefined ? inboxInputs : overrideInputs,
+  );
   const inbox = inboxOverride ?? state.humanInbox;
   const [selectionMode, setSelectionMode] = useState(false);
   const detailId = useId();

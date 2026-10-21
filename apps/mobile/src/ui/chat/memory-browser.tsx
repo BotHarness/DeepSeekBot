@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, View } from 'react-native';
+import { FlatList, Pressable, View } from 'react-native';
 
 import { memoryEntries, type MemoryEntry } from '../../host/bot-profile';
 import { useDesignTheme } from '../design/theme';
@@ -8,6 +8,7 @@ import { useMounted } from '../mounted';
 import { Text } from '../primitives/text';
 import { ChevronRightIcon, FileIcon, FolderIcon } from '../shell/icons';
 import { t } from '../strings';
+import { LoadingIndicator } from '../primitives/loading-indicator';
 
 const ICON = 20;
 
@@ -107,7 +108,7 @@ export function Status({
   if (state.status === 'loading')
     return (
       <View style={{ padding: space.x6, alignItems: 'center' }}>
-        <ActivityIndicator />
+        <LoadingIndicator />
       </View>
     );
   return (
