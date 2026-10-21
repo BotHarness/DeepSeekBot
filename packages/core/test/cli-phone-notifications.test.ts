@@ -10,7 +10,31 @@ import {
 } from '../../../apps/mobile/src/host/device-notification-preferences.js';
 import type { PushPreferences } from '../../../apps/mobile/src/host/push.js';
 
-const { WebSocketServer } = createRequire(import.meta.url)('ws');
+const { WebSocketServer, WebSocket } = createRequire(import.meta.url)('ws');
+const schedule = globalThis.setTimeout;
+const cancel = globalThis.clearTimeout;
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((ready) => {
+    resolve = ready;
+  });
+  return { promise, resolve };
+}
+
+async function bounded<T>(pending: Promise<T>, phase: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      pending,
+      new Promise<never>((_, reject) => {
+        timer = schedule(() => reject(Error(`inspector fixture stalled: ${phase}`)), 2000);
+      }),
+    ]);
+  } finally {
+    cancel(timer);
+  }
+}
 
 function context(owner: unknown, dev = true, copies = 1) {
   return {
@@ -91,31 +115,42 @@ it('the development CLI and UI use one persistent owner and distinguish pending 
   ).rejects.toThrow('NOTIFICATION_OWNER_NOT_READY');
 });
 
-it('requires an exact unique development target and reports release, disconnect and timeout refusals', async () => {
-  let duplicates = false;
-  let deviceName = 'Assigned phone';
-  let release = false;
-  let disconnect = false;
-  let stall = false;
+async function inspectorFixture(
+  options: {
+    duplicates?: boolean;
+    deviceName?: string;
+    release?: boolean;
+    disconnect?: boolean;
+    stall?: boolean;
+    discovery?: Promise<void>;
+  } = {},
+) {
+  const received = deferred<unknown>();
+  const discovered = deferred<void>();
   const server = createServer((_request, response) => {
     const target = {
       id: 'target',
-      deviceName,
-      appId: release ? 'ai.botharness.deepseekbot' : 'ai.botharness.deepseekbot.dev',
+      deviceName: options.deviceName ?? 'Assigned phone',
+      appId: options.release ? 'ai.botharness.deepseekbot' : 'ai.botharness.deepseekbot.dev',
       webSocketDebuggerUrl: `ws://127.0.0.1:${port}/inspector`,
     };
+    discovered.resolve();
     response.setHeader('content-type', 'application/json');
-    response.end(JSON.stringify(duplicates ? [target, target] : [target]));
+    const reply = () =>
+      response.end(JSON.stringify(options.duplicates ? [target, target] : [target]));
+    if (options.discovery) void options.discovery.then(reply);
+    else reply();
   });
   const sockets = new WebSocketServer({ server });
   sockets.on('connection', (socket: any) => {
     socket.on('message', (raw: Buffer) => {
-      if (disconnect) {
+      const request = JSON.parse(String(raw));
+      received.resolve(request);
+      if (options.disconnect) {
         socket.close();
         return;
       }
-      if (stall) return;
-      const request = JSON.parse(String(raw));
+      if (options.stall) return;
       socket.send(
         JSON.stringify({
           id: request.id,
@@ -124,7 +159,7 @@ it('requires an exact unique development target and reports release, disconnect 
       );
     });
   });
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  await bounded(new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve)), 'listen');
   const address = server.address();
   if (!address || typeof address === 'string') throw Error('address required');
   const port = address.port;
@@ -144,38 +179,111 @@ it('requires an exact unique development target and reports release, disconnect 
     );
     return JSON.parse(output[0]!);
   };
+  return {
+    run,
+    received: received.promise,
+    discovered: discovered.promise,
+    async idleConnection() {
+      const socket = new WebSocket(`ws://127.0.0.1:${port}/inspector`);
+      await bounded(
+        new Promise<void>((resolve) => socket.once('open', resolve)),
+        'idle connection',
+      );
+      return socket;
+    },
+    async close() {
+      for (const socket of sockets.clients) socket.terminate();
+      const closed = new Promise<void>((resolve) => sockets.close(() => resolve()));
+      server.closeAllConnections();
+      await bounded(
+        Promise.all([closed, new Promise<void>((resolve) => server.close(() => resolve()))]),
+        'server cleanup',
+      );
+      expect(sockets.clients.size).toBe(0);
+      expect(server.listening).toBe(false);
+    },
+  };
+}
+
+it.each([
+  {
+    name: 'assigned development target',
+    options: {},
+    target: 'target',
+    expected: { owner: 'phone' },
+  },
+  {
+    name: 'missing target',
+    options: {},
+    target: 'missing',
+    expected: { error: { code: 'explicit-unique-target-required' } },
+  },
+  {
+    name: 'duplicate targets',
+    options: { duplicates: true },
+    target: 'target',
+    expected: { error: { code: 'explicit-unique-target-required' } },
+  },
+  {
+    name: 'wrong device',
+    options: { deviceName: 'Wrong phone' },
+    target: 'target',
+    expected: { error: { code: 'explicit-simulator-app-target-required' } },
+  },
+  {
+    name: 'release app',
+    options: { release: true },
+    target: 'target',
+    expected: { error: { code: 'explicit-simulator-app-target-required' } },
+  },
+  {
+    name: 'disconnected inspector',
+    options: { disconnect: true },
+    target: 'target',
+    expected: { error: { code: 'inspector-closed' } },
+  },
+])('$name returns its exact CLI result', async ({ name, options, target, expected }) => {
+  const fixture = await inspectorFixture(options);
   try {
-    expect(await run()).toMatchObject({ owner: 'phone' });
-    expect(await run('missing')).toMatchObject({
-      error: { code: 'explicit-unique-target-required' },
-    });
-    duplicates = true;
-    expect(await run()).toMatchObject({ error: { code: 'explicit-unique-target-required' } });
-    duplicates = false;
-    deviceName = 'Wrong phone';
-    expect(await run()).toMatchObject({
-      error: { code: 'explicit-simulator-app-target-required' },
-    });
-    deviceName = 'Assigned phone';
-    release = true;
-    expect(await run()).toMatchObject({
-      error: { code: 'explicit-simulator-app-target-required' },
-    });
-    release = false;
-    disconnect = true;
-    expect(await run()).toMatchObject({ error: { code: 'inspector-closed' } });
-    disconnect = false;
-    stall = true;
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-    const pending = run();
-    await vi.waitUntil(() => sockets.clients.size === 1);
-    await vi.advanceTimersByTimeAsync(20_100);
-    expect(await pending).toMatchObject({ error: { code: 'inspector-timeout' } });
+    expect(await bounded(fixture.run(target), name)).toMatchObject(expected);
   } finally {
-    vi.useRealTimers();
-    for (const socket of sockets.clients) socket.terminate();
-    sockets.close();
-    server.closeAllConnections();
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await fixture.close();
+  }
+});
+
+it('times out the received evaluation at 20 seconds despite an idle socket and delayed discovery', async () => {
+  const discovery = deferred<void>();
+  const fixture = await inspectorFixture({ stall: true, discovery: discovery.promise });
+  let pending: Promise<unknown> | undefined;
+  try {
+    await fixture.idleConnection();
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    pending = fixture.run();
+    const settled = vi.fn();
+    void pending.then(settled);
+    await bounded(fixture.discovered, 'target discovery');
+    await vi.advanceTimersByTimeAsync(20_100);
+    expect(settled).not.toHaveBeenCalled();
+    discovery.resolve();
+    expect(await bounded(fixture.received, 'Runtime.evaluate delivery')).toMatchObject({
+      id: 1,
+      method: 'Runtime.evaluate',
+      params: { awaitPromise: true, returnByValue: true },
+    });
+    await vi.advanceTimersByTimeAsync(19_999);
+    expect(settled).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(await bounded(pending, 'evaluation deadline result')).toMatchObject({
+      error: { code: 'inspector-timeout' },
+    });
+  } finally {
+    discovery.resolve();
+    try {
+      await fixture.close();
+      if (pending) await bounded(pending, 'pending CLI cleanup');
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
   }
 });
