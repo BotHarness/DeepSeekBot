@@ -206,6 +206,98 @@ function liveHost() {
 }
 
 describe('Host Feed lifecycle', () => {
+  it.each(['Activity', 'notification page'] as const)(
+    'preserves a completed notification baseline when %s alone fails on a connected Host',
+    async (failure) => {
+      const show = vi.fn();
+      vi.stubGlobal('window', {
+        Notification: class {
+          static permission = 'granted';
+          onclick = null;
+          close() {}
+          constructor(title: string, options: unknown) {
+            show(title, options);
+          }
+        },
+      });
+      const { host, storage } = liveHost();
+      const old: HumanAttentionItem = {
+        id: 'old',
+        kind: 'user-question',
+        category: 'action',
+        botSlug: 'ada',
+        createdAt: '2026-10-22T12:00:00.000Z',
+        summary: 'Old question',
+      };
+      const items = [old];
+      let fail = false;
+      host.methods.set('humanAttention', (args) => {
+        if (args.notifications) {
+          if (args.cursor) {
+            if (fail && failure === 'notification page')
+              throw new Error('notification-page-unavailable');
+            return { notificationVersion: 1, items: items.slice(1) };
+          }
+          return { notificationVersion: 1, items: items.slice(0, 1), nextCursor: 'tail' };
+        }
+        if (fail && failure === 'Activity' && args.category === 'action')
+          throw new Error('activity-unavailable');
+        return { queryVersion: 1, items: [] };
+      });
+      const sources = createRemoteHosts({ carrier: host.carrier, storage });
+      releases.push(sources.subscribe(() => {}));
+      await vi.waitFor(() => expect(sources.getSnapshot().hosts[0]?.inbox.status).toBe('ready'));
+      await sources.notifications.set(host.hostId, { enabled: true });
+      const refresh = async () => {
+        const before = sources.getSnapshot().hosts[0]?.inbox;
+        host.push('botharness/followActivity', { type: 'changed', snapshot: { bots: [] } });
+        await vi.waitFor(() => {
+          const remote = sources.getSnapshot().hosts[0];
+          expect(remote?.inbox).not.toBe(before);
+          expect(remote?.snapshot.connection.status).toBe('connected');
+          expect(remote?.host.credential).toBe(host.credential);
+        });
+      };
+      fail = true;
+      await refresh();
+      expect(sources.getSnapshot().hosts[0]?.inbox).toMatchObject({
+        status: 'ready',
+        ...(failure === 'Activity'
+          ? { stale: expect.any(String) }
+          : { notificationItems: undefined }),
+      });
+      items.push({ ...old, id: 'new', createdAt: '2026-01-01T00:00:00.000Z' });
+      await refresh();
+      expect(show).not.toHaveBeenCalled();
+      fail = false;
+      await refresh();
+      expect(show).toHaveBeenCalledExactlyOnceWith('Studio · Ada', {
+        body: 'Old question',
+        tag: `botharness-remote:${host.hostId}:new`,
+      });
+      await refresh();
+      expect(show).toHaveBeenCalledTimes(1);
+      await sources.notifications.set(host.hostId, { enabled: false });
+      const saved = storage.getItem('botharness.remoteNotifications.v1');
+      fail = true;
+      await expect(sources.notifications.set(host.hostId, { enabled: true })).rejects.toThrow(
+        'notification-baseline-unavailable',
+      );
+      expect(sources.notifications.choice(host.hostId).enabled).toBe(false);
+      expect(storage.getItem('botharness.remoteNotifications.v1')).toBe(saved);
+      items.push({ ...old, id: 'while-disabled' });
+      fail = false;
+      await sources.notifications.set(host.hostId, { enabled: true });
+      await refresh();
+      expect(show).toHaveBeenCalledTimes(1);
+      items.push({ ...old, id: 'after-enable', createdAt: '2025-01-01T00:00:00.000Z' });
+      await refresh();
+      expect(show).toHaveBeenCalledTimes(2);
+      expect(show.mock.calls[1]?.[1]).toMatchObject({
+        tag: `botharness-remote:${host.hostId}:after-enable`,
+      });
+    },
+  );
   it('keeps notification identities across reconnect and active resubscription, but releases them on final disposal', async () => {
     const show = vi.fn();
     vi.stubGlobal('window', {

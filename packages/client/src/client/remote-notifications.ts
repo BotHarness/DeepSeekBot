@@ -249,14 +249,14 @@ export function createRemoteNotifications(options: {
           };
           state.set(id, entry);
         }
-        if (
-          remote.snapshot.connection.status !== 'connected' ||
-          remote.inbox.status !== 'ready' ||
-          remote.inbox.stale
-        ) {
-          if (remote.snapshot.connection.status !== 'connected') cancel(id);
+        if (remote.snapshot.connection.status !== 'connected') {
+          cancel(id);
           entry.inbox = remote.inbox;
           entry.baseline = false;
+          close(id);
+          continue;
+        }
+        if (remote.inbox.status !== 'ready' || remote.inbox.stale) {
           close(id);
           continue;
         }

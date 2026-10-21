@@ -63,6 +63,35 @@ function fixture() {
 }
 
 describe('Remote Host browser alerts', () => {
+  it.each(['idle', 'loading', 'error', 'stale', 'partial'] as const)(
+    'does not establish or erase a notification baseline from a connected %s read',
+    async (status) => {
+      const f = fixture();
+      await f.notices.set('a', { enabled: true });
+      const old = item('old', 'channel-mention', '2026-10-22');
+      const fresh = item('new', 'user-question', '2026-01-01');
+      const failed = () => {
+        const host = remote('a', [fresh]);
+        if (status === 'idle' || status === 'loading') host.inbox = { status };
+        else if (status === 'error') host.inbox = { status, error: 'read-unavailable' };
+        else if (host.inbox.status === 'ready') {
+          if (status === 'stale') host.inbox.stale = 'read-unavailable';
+          else host.inbox.notificationItems = undefined;
+        }
+        return host;
+      };
+      f.notices.update([failed()]);
+      f.notices.update([remote('a', [old])]);
+      expect(f.show).not.toHaveBeenCalled();
+      f.notices.update([failed()]);
+      f.notices.update([remote('a', [old, fresh])]);
+      f.notices.update([remote('a', [old, fresh])]);
+      expect(f.show).toHaveBeenCalledExactlyOnceWith('a · ada', {
+        body: 'Request preview',
+        tag: 'botharness-remote:a:new',
+      });
+    },
+  );
   it('rechecks the relay deadline at commit even when its timer has not run', async () => {
     vi.useFakeTimers();
     const f = fixture();
@@ -92,6 +121,28 @@ describe('Remote Host browser alerts', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+  it('waits for a complete reconnect baseline across read failures without losing seen identities', async () => {
+    const f = fixture();
+    await f.notices.set('a', { enabled: true });
+    const old = item('old', 'user-question', '2026-10-22');
+    f.notices.update([remote('a', [old])]);
+    const disconnected = remote('a', [old]);
+    disconnected.snapshot = { connection: { status: 'stopped', route: '' } };
+    f.notices.update([disconnected]);
+    const failed = remote('a', [item('offline')]);
+    if (failed.inbox.status === 'ready') failed.inbox.stale = 'read-unavailable';
+    f.notices.update([failed]);
+    const partial = remote('a', []);
+    if (partial.inbox.status === 'ready') partial.inbox.notificationItems = undefined;
+    f.notices.update([partial]);
+    f.notices.update([remote('a', [item('offline')])]);
+    expect(f.show).not.toHaveBeenCalled();
+    f.notices.update([remote('a', [old, item('offline'), item('new', 'user-question', '2025')])]);
+    expect(f.show).toHaveBeenCalledExactlyOnceWith('a · ada', {
+      body: 'Request preview',
+      tag: 'botharness-remote:a:new',
+    });
   });
 
   it('refuses a timed-out enable without changing the persisted choice and allows a fresh retry', async () => {
