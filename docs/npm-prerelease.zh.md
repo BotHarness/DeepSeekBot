@@ -10,7 +10,17 @@
 1. `@botharness/im-provider`，保留独立 Provider 版本（例如 `4.32.0-botharness.5`）；
 2. `@botharness/core@<version>`；
 3. `@botharness/ui@<version>`；
-4. `deepseekbot@<version>`，通过精确依赖组合一个产品 Bundle。
+4. `@botharness/cloudflared-<平台>-<架构>@<version>`：每个平台一个可选包（`darwin-arm64`、
+   `darwin-x64`、`linux-arm64`、`linux-x64`、`win32-x64`），装着 Connect 用的固定版本
+   `cloudflared`（ADR-0241），沿用 esbuild 的做法；
+5. `deepseekbot@<version>`，通过精确依赖组合一个产品 Bundle，并把 `cloudflared` 包列为精确的
+   `optionalDependencies`，npm 只会装与本机匹配的那一个。
+
+`prepare` 会把 `packages/core/src/devices/cloudflared.json` 固定的 `cloudflared` 发布下载到
+`<output>/cloudflared-assets/`（或复用 `--cloudflared-assets <dir>`），SHA-256 不符就拒绝，
+再把二进制放到每个包的 `bin/cloudflared`；二进制从不提交到仓库。
+`node scripts/cloudflared-packages.mjs list` 不下载，只列出包、资产和哈希。这些包使用
+Apache-2.0，并附带 cloudflared 的 `LICENSE`。
 
 不发布可选 Computer／Browser Bundle。维持已验收 Provider 的固定源码；上游 PR
 合并不代表替换版本已经资格验证。DSH 支持范围仍以 `0.2.0-rc.1` 为准。
@@ -44,7 +54,7 @@ tag 固定了源码，发布期间 main 上的合并不会影响发布。tag 就
 - **Environment**：在仓库 **Settings → Environments** 新建 `npm-release`，把发布负责人设为
   required reviewers，并把部署限制为匹配 `v*` 的 tag。
 - **Trusted Publishing**：在 npmjs.com 分别打开 `@botharness/im-provider`、`@botharness/core`、
-  `@botharness/ui` 和 `deepseekbot`，进入 **Settings → Trusted Publisher**，选择 GitHub Actions，
+  `@botharness/ui`、每个 `@botharness/cloudflared-*` 包和 `deepseekbot`，进入 **Settings → Trusted Publisher**，选择 GitHub Actions，
   填写组织 `BotHarness`、仓库 `BotHarness`、workflow `npm-release.yml`、environment
   `npm-release`。之后 npm 接受该 workflow 的 OIDC 身份并附加来源证明（provenance），不再存储
   发布 token。

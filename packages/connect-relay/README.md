@@ -6,15 +6,16 @@ The hosted Connect relay Worker ([ADR-0241](../../docs/adr/0241-hosted-connect-r
 
 Every route except `/v1/config` takes `Authorization: Bearer <WorkOS access token>` from TOB's WorkOS environment. Refusals are `{ error: { code } }`.
 
-| Route                                              | Result                                                                                                                                                                                                                                                                                     |
-| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `GET /v1/config`                                   | `{ clientId, deviceAuthorizationEndpoint, tokenEndpoint, zone }`, the WorkOS client a Host signs in with (CLI Auth) and the tunnel zone                                                                                                                                                    |
-| `GET /v1/hosts`                                    | `{ hosts: [{ id, name, hostname, createdAt, tunnel }] }` for the signed-in account; `tunnel` is false after reclamation                                                                                                                                                                    |
-| `POST /v1/hosts` `{ "name": "Studio" }`            | `201 { host }` with a new `<id>.deepseekbot.dev` hostname. `400 invalid-host-name` (1–64 characters, no control characters), `409 host-limit` (`MAX_HOSTS`, default 5)                                                                                                                     |
-| `POST /v1/hosts/{id}/tunnel` `{ "originPort": n }` | `{ hostname, token }`: creates the Host's tunnel and proxied CNAME if missing, points the gateway ingress at `http://127.0.0.1:<originPort>` and returns the connector token for `deepseekbot connect-enable`. `400 invalid-origin-port`, `404 host-not-found`, `502 upstream-unavailable` |
-| `DELETE /v1/hosts/{id}`                            | `{ deleted: true }`; deletes the tunnel, its DNS record and the link                                                                                                                                                                                                                       |
+| Route                                                     | Result                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /v1/config`                                          | `{ clientId, deviceAuthorizationEndpoint, tokenEndpoint, zone }`, the WorkOS client a Host signs in with (CLI Auth) and the tunnel zone                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `GET /v1/hosts`                                           | `{ hosts: [{ id, name, hostname, createdAt, tunnel }] }` for the signed-in account; `tunnel` is false after reclamation                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `POST /v1/hosts` `{ "name": "Studio" }`                   | `201 { host }` with a new `<id>.deepseekbot.dev` hostname. `400 invalid-host-name` (1–64 characters, no control characters), `409 host-limit` (`MAX_HOSTS`, default 5)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `POST /v1/hosts/{id}/tunnel` `{ "originPort": n }`        | `{ hostname, token }`: creates the Host's tunnel and proxied CNAME if missing, points the gateway ingress at `http://127.0.0.1:<originPort>` and returns the connector token for `deepseekbot connect-enable`, plus `{ account, relayKey }` (the Host's offer-signing key) when `CONNECT_HOST_KEY` is set. `400 invalid-origin-port`, `404 host-not-found`, `502 upstream-unavailable`                                                                                                                                                                                                                                                                                                                                                                    |
+| `POST /v1/hosts/{id}/offer` `{ "verifierHash", "name"? }` | `{ offer, expiresAt, hostname, host: { id, name } }`: a one-time pairing offer from the Host for a phone signed in to the same account; `host` is the Host's own pairing identity, which the phone saves. `verifierHash` is the base64url SHA-256 of a secret the phone keeps and sends with the offer to `/botharness-device/pair`, so only that phone can redeem it. The relay POSTs `{ hostId, account, verifierHash, name?, issuedAt }` to `https://<id>.deepseekbot.dev/botharness-device/connect/offer` with `x-botharness-relay-signature: base64url(HMAC-SHA256(relayKey, body))`; the Host accepts it only for its own id and account within 60 seconds. `400 invalid-verifier`, `409 host-offline`, `502 host-refused`, `503 offer-unavailable` |
+| `DELETE /v1/hosts/{id}`                                   | `{ deleted: true }`; deletes the tunnel, its DNS record and the link                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 
-Without an allowlisted account (`ALLOWED_USERS`, comma-separated WorkOS user IDs, `*` for everyone) authenticated routes answer `403 account-not-allowed`; a bad, expired or foreign token answers `401 unauthorized`.
+Every account signed in to TOB's WorkOS environment may use the relay, up to `MAX_HOSTS` Hosts each. Setting the optional `ALLOWED_USERS` secret (comma-separated WorkOS user IDs) restricts it to those accounts, and others answer `403 account-not-allowed`; a bad, expired or foreign token answers `401 unauthorized`.
 
 ## Reclamation
 
@@ -24,17 +25,18 @@ Each run lists the account's tunnels once (100 per page, at most 10 pages) and a
 
 ## Configuration
 
-| Name                    | Kind   | Meaning                                                                                            |
-| ----------------------- | ------ | -------------------------------------------------------------------------------------------------- |
-| `CONNECT_DB`            | D1     | Links and tunnel allocations (`migrations/`)                                                       |
-| `WORKOS_CLIENT_ID`      | secret | TOB's WorkOS client; access tokens must be issued by `https://api.workos.com/user_management/<id>` |
-| `CLOUDFLARE_API_TOKEN`  | secret | Account › Cloudflare Tunnel › Edit and Zone › DNS › Edit, limited to the `deepseekbot.dev` zone    |
-| `CLOUDFLARE_ACCOUNT_ID` | secret | Account that owns the tunnels                                                                      |
-| `CLOUDFLARE_ZONE_ID`    | secret | The `deepseekbot.dev` zone                                                                         |
-| `ALLOWED_USERS`         | secret | Allowlisted WorkOS user IDs while testing                                                          |
-| `CONNECT_ZONE`          | var    | Tunnel zone, `deepseekbot.dev`                                                                     |
-| `MAX_HOSTS`             | var    | Hosts per account, `5`                                                                             |
-| `RECLAIM_AFTER_MINUTES` | var    | Offline minutes before a tunnel is deleted, `5`                                                    |
+| Name                    | Kind   | Meaning                                                                                                                                   |
+| ----------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `CONNECT_DB`            | D1     | Links and tunnel allocations (`migrations/`)                                                                                              |
+| `WORKOS_CLIENT_ID`      | secret | TOB's WorkOS client; access tokens must be issued by `https://api.workos.com/user_management/<id>`                                        |
+| `CLOUDFLARE_API_TOKEN`  | secret | Account › Cloudflare Tunnel › Edit and Zone › DNS › Edit, limited to the `deepseekbot.dev` zone                                           |
+| `CLOUDFLARE_ACCOUNT_ID` | secret | Account that owns the tunnels                                                                                                             |
+| `CLOUDFLARE_ZONE_ID`    | secret | The `deepseekbot.dev` zone                                                                                                                |
+| `ALLOWED_USERS`         | secret | Optional; restricts the relay to these WorkOS user IDs. Unset: every signed-in account                                                    |
+| `CONNECT_HOST_KEY`      | secret | Derives each Host's `relayKey` as `HMAC(key, "host:<id>")`; `deploy.sh` creates it once. Without it offers answer `503 offer-unavailable` |
+| `CONNECT_ZONE`          | var    | Tunnel zone, `deepseekbot.dev`                                                                                                            |
+| `MAX_HOSTS`             | var    | Hosts per account, `5`                                                                                                                    |
+| `RECLAIM_AFTER_MINUTES` | var    | Offline minutes before a tunnel is deleted, `5`                                                                                           |
 
 Without the four secrets every route answers `503 relay-unconfigured`. The Worker is served at `connect.botharness.ai`, never on a subdomain of the tunnel zone.
 
@@ -52,26 +54,27 @@ Run `pnpm install --frozen-lockfile` at the repository root. The deployment scri
 workspace's Wrangler and its existing OAuth login; `wrangler whoami` must include the account
 configured in `wrangler.jsonc`.
 
-Before deploying, confirm CLI Auth is enabled in the WorkOS environment used by TOB. Obtain
-that environment's client ID and the intended **application user's** ID from its Users page.
-The WorkOS dashboard administrator is a separate identity and may not have an application
-user. Keep the allowlist restricted to explicitly approved users; do not use `*`.
+Before deploying, confirm in the WorkOS environment used by TOB that CLI Auth is enabled, that
+the sign-in methods phones and Hosts should offer (for example Google and Magic Auth) are on,
+and that `ai.botharness.deepseekbot.dev:/oauth2redirect` is an allowed redirect URI for the
+phone's sign-in. Obtain that environment's client ID.
 
 Prepare the machine-local file `~/.config/deepseekbot-connect/cloudflare.env` with
 `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_ZONE_ID`. The token needs
 Cloudflare Tunnel Edit on the target account and DNS Edit on `deepseekbot.dev`.
-Keep this file private and outside the repository. Supply `WORKOS_CLIENT_ID` and
-`ALLOWED_USERS` through the environment, then run:
+Keep this file private and outside the repository. Supply `WORKOS_CLIENT_ID` through the
+environment, then run:
 
 ```sh
 bash packages/connect-relay/scripts/deploy.sh
 ```
 
 The script creates or reuses `botharness-connect-relay`, replaces the placeholder D1 UUID,
-applies remote migrations, deploys `connect.botharness.ai`, and uploads the five secrets through
-a private temporary file that it removes. It uses Wrangler OAuth for deployment and stores the
+applies remote migrations, deploys `connect.botharness.ai`, uploads the four secrets through
+a private temporary file that it removes, creates `CONNECT_HOST_KEY` once and deletes any earlier
+`ALLOWED_USERS` so every signed-in account is admitted. It uses Wrangler OAuth for deployment and stores the
 restricted Cloudflare API token only as a Worker secret. Commit the real D1 UUID; never commit
-credentials, application user IDs, or local environment files.
+credentials or local environment files.
 
 The final checks require `/v1/config` to return the selected WorkOS client ID and unauthenticated
 `/v1/hosts` to return `401`. Verify no migrations remain:

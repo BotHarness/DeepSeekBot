@@ -15,6 +15,7 @@ export interface GitHubRepository {
   topics: string[];
   stars: number;
   pushedAt: string;
+  createdAt: string | null;
   defaultBranch: string;
   private: boolean;
   archived: boolean;
@@ -111,6 +112,7 @@ function parseRepository(value: unknown): GitHubRepository | undefined {
     topics,
     stars: typeof stars === 'number' && Number.isFinite(stars) ? stars : 0,
     pushedAt,
+    createdAt: text(source['created_at']) ?? null,
     defaultBranch,
     private: source['private'] === true,
     archived: source['archived'] === true,
@@ -156,6 +158,7 @@ const NODES_QUERY = `query($ids: [ID!]!) {
       description
       stargazerCount
       pushedAt
+      createdAt
       isPrivate
       isArchived
       repositoryTopics(first: 20) { nodes { topic { name } } }
@@ -203,6 +206,7 @@ function parseNode(value: unknown): RepositoryNode | null | undefined {
     topics,
     stars: typeof stars === 'number' && Number.isFinite(stars) ? stars : 0,
     pushedAt,
+    createdAt: text(source['createdAt']) ?? null,
     defaultBranch: text(branch?.['name']) ?? 'main',
     private: source['isPrivate'] === true,
     archived: source['isArchived'] === true,

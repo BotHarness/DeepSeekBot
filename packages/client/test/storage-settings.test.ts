@@ -29,6 +29,29 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   };
 });
 
+vi.mock('../src/client/ds/select.js', async () => {
+  const { createElement: element } = await import('react');
+  return {
+    Select: (props: {
+      label: string;
+      value: string;
+      options: { value: string; label: string }[];
+      onChange(next: string): void;
+    }) =>
+      element(
+        'select',
+        {
+          'aria-label': props.label,
+          value: props.value,
+          onChange: (event: { target: HTMLSelectElement }) => props.onChange(event.target.value),
+        },
+        ...props.options.map((option) =>
+          element('option', { key: option.value, value: option.value }, option.label),
+        ),
+      ),
+  };
+});
+
 import type { BridgeCall } from '../src/client/bridge.js';
 import { StorageSettings } from '../src/client/storage-settings.js';
 import { zhTranslate } from '../src/client/locale.js';
@@ -188,6 +211,75 @@ describe('StorageSettings', () => {
       await view.press(view.host.querySelector<HTMLButtonElement>('[data-storage-confirm]')!);
       expect(view.host.textContent).toContain('内容有变化，请重新预览。');
       expect(view.host.querySelector('[data-storage-usage]')).not.toBeNull();
+    } finally {
+      view.dispose();
+    }
+  });
+
+  it('previews and deletes whole old messages in the chosen chats', async () => {
+    const call = vi.fn<BridgeCall>(async (endpoint, payload) =>
+      endpoint === 'storageUsage'
+        ? { ok: true, value: usage }
+        : endpoint === 'storageMessagesCleanupPreview'
+          ? {
+              ok: true,
+              value: {
+                token: 'messages',
+                scope: { channelIds: [], ...(payload as Record<string, unknown>) },
+                messages: 12,
+                bytes: 4096,
+                files: 2,
+                chats: [{ channelId: 'dm-ada', name: 'Ada', messages: 12 }],
+                kept: [{ reason: 'bot-working', messages: 1 }],
+                memoryReferences: 3,
+                more: true,
+              },
+            }
+          : { ok: true, value: { messages: 12, freedBytes: 8192 } },
+    );
+    const view = await render(call);
+    try {
+      await view.open();
+      const target = view.host.querySelector<HTMLSelectElement>('select[aria-label="清理内容"]')!;
+      await act(async () => {
+        target.value = 'messages';
+        target.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      expect(view.host.querySelector('[data-storage-target-note]')?.textContent).toContain(
+        '删除整条消息',
+      );
+      expect(view.host.textContent).not.toContain('视频');
+      expect(
+        Array.from(view.host.querySelectorAll('[data-storage-chat]')).map((node) =>
+          node.getAttribute('data-storage-chat'),
+        ),
+      ).toEqual(['dm-ada', 'group-team', 'dm-text']);
+      await act(async () => view.checkbox('Team').click());
+      await view.press(view.host.querySelector<HTMLButtonElement>('[data-storage-review]')!);
+      const [endpoint, scope] = call.mock.calls[1]!;
+      expect(endpoint).toBe('storageMessagesCleanupPreview');
+      expect(scope).toMatchObject({ channelIds: ['dm-ada', 'dm-text'] });
+      expect(scope).not.toHaveProperty('kinds');
+
+      expect(view.host.textContent).toContain('会删除 1 个聊天里的 12 条消息，约 4.0 KB。');
+      expect(view.host.textContent).toContain('其中的 2 个文件也会一起删除。');
+      expect(view.host.textContent).toContain('有 3 处 Bot 记忆提到了这些消息');
+      expect(view.host.textContent).toContain('1 条消息 Bot 还在处理，这次先保留。');
+      expect(view.host.textContent).toContain('还有更多旧消息');
+      await act(async () => view.checkbox('我了解这些消息会被永久删除').click());
+      await view.press(view.host.querySelector<HTMLButtonElement>('[data-storage-confirm]')!);
+      expect(call.mock.calls[2]).toEqual([
+        'storageMessagesCleanupConfirm',
+        {
+          before: (scope as { before: string }).before,
+          channelIds: ['dm-ada', 'dm-text'],
+          token: 'messages',
+        },
+        undefined,
+      ]);
+      expect(view.host.querySelector('[data-storage-result]')?.textContent).toBe(
+        '已删除 12 条消息，释放 8.0 KB。',
+      );
     } finally {
       view.dispose();
     }

@@ -19,6 +19,7 @@ const ENTRY_SHAPE = {
   topics: expect.any(Array),
   stars: expect.any(Number),
   pushedAt: expect.any(String),
+  createdAt: expect.any(String),
   htmlUrl: expect.any(String),
   cloneUrl: expect.any(String),
   defaultBranch: expect.any(String),

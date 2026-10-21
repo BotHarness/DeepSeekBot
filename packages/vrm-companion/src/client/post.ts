@@ -184,6 +184,12 @@ export function createPost(renderer: WebGLRenderer) {
       uniforms.hazeAmount!.value = 0.06 + twilight * 0.14 + wet * 0.06;
       uniforms.bloom!.value = 0.28 + night * 0.14;
     },
+    compile(scene: Scene, camera: PerspectiveCamera) {
+      renderer.setRenderTarget(target);
+      const ready = renderer.compileAsync(scene, camera);
+      renderer.setRenderTarget(null);
+      return ready;
+    },
     render(scene: Scene, camera: PerspectiveCamera) {
       uniforms.near!.value = camera.near;
       uniforms.far!.value = camera.far;

@@ -309,6 +309,41 @@ const en = {
     imageCacheHint: 'Images saved on this phone download again when you open them.',
     imageCacheDone: 'Image cache cleared.',
     imageCacheFailed: 'Could not clear the image cache. Try again.',
+    target: 'Clear',
+    targetMedia: 'Chat media',
+    targetMessages: 'Whole messages',
+    messages: {
+      heading: 'Clear old messages',
+      note: 'Deletes whole messages, including their text and files. Bot Memory is not changed.',
+      none: 'No chat messages yet.',
+      count: (count: number) => messageCount(count),
+      confirmTitle: 'Delete old messages?',
+      lead: (messages: number, chats: number, size: string) =>
+        `Deletes ${messageCount(messages)} from ${chats === 1 ? '1 chat' : `${chats} chats`}, about ${size}. This cannot be undone.`,
+      files: (files: number) =>
+        `${fileCount(files)} in them ${files === 1 ? 'is' : 'are'} deleted too.`,
+      memory: (count: number) =>
+        `Bot Memory mentions these messages ${count === 1 ? 'once' : `${count} times`}. Memory is not changed.`,
+      more: 'More old messages remain. Clear again after this one.',
+      kept: {
+        'bot-working': (messages: number) =>
+          messages === 1
+            ? '1 message is kept for now because a Bot is still working on it.'
+            : `${messages} messages are kept for now because a Bot is still working on them.`,
+        'delivery-pending': (messages: number) =>
+          messages === 1
+            ? '1 message is kept for now because it is still being sent.'
+            : `${messages} messages are kept for now because they are still being sent.`,
+        shared: (messages: number) =>
+          messages === 1
+            ? '1 message is kept because it also appears in a chat you did not choose.'
+            : `${messages} messages are kept because they also appear in chats you did not choose.`,
+      },
+      confirm: 'Delete',
+      nothing: 'Nothing matches. Choose an older range or more chats.',
+      done: (messages: number, size: string) =>
+        `Deleted ${messageCount(messages)} and freed ${size}.`,
+    },
   },
   activityCountSettings: {
     title: 'Activity count',
@@ -425,6 +460,18 @@ const en = {
   pasteLinkHint:
     'When the camera can’t see the screen, choose Copy pairing link in the same window and paste it here. The code and the link work once and expire after 10 minutes.',
   pair: 'Pair',
+  pairAccount: {
+    title: 'Or use your DeepSeekBot account',
+    hint: 'Pair with a computer signed in to the same account. No code or Tailscale needed.',
+    signIn: 'Sign in',
+    signedIn: (email: string) => `Signed in as ${email}`,
+    signOut: 'Sign out',
+    empty:
+      'No computer is linked to this account yet. On your computer, open Settings → Devices → Connect without Tailscale and sign in.',
+    offline: 'Offline',
+    pairWith: (name: string) => `Pair with ${name}`,
+    refresh: 'Refresh',
+  },
   pairRefused: {
     'link-invalid': 'This is not a DeepSeekBot pairing code.',
     'link-expired': 'This code has expired. Show a new code on your computer.',
@@ -436,6 +483,13 @@ const en = {
     cancelled: 'Pairing was cancelled.',
     unknown: 'Could not pair. Show a new code and try again.',
     unreachable: 'Cannot reach your computer. Check that this phone is on your tailnet.',
+    'sign-in-cancelled': 'Sign-in was cancelled.',
+    'sign-in-failed': 'Could not sign in. Try again.',
+    'sign-in-required': 'Your sign-in has expired. Sign in again.',
+    'account-not-allowed': 'This account is not on the test list yet.',
+    'host-offline':
+      'This computer is not online. Open DeepSeekBot on it, check that it is still signed in, then try again.',
+    'relay-unavailable': 'Cannot reach the DeepSeekBot service. Try again in a moment.',
   } satisfies Record<PairingFailure, string>,
   pairRefusedLink: {
     'link-invalid': 'This is not a DeepSeekBot pairing link. Check it and paste it again.',
@@ -527,6 +581,10 @@ const en = {
   arguments: 'Arguments',
   allowOnce: 'Allow once',
   reject: 'Reject',
+  removeDevice: 'Remove it',
+  deviceRemoved: 'The new device was removed. It can no longer use this computer.',
+  deviceRemoveFailed:
+    'Could not reach your computer to remove the device. Remove it in Settings → Devices on the computer.',
   submit: 'Send answer',
   otherAnswer: 'Other answer',
   typeAnswer: 'Type your answer',
@@ -1484,6 +1542,29 @@ const zh: typeof en = {
     imageCacheHint: '保存在这台手机上的图片，下次打开时会重新下载。',
     imageCacheDone: '图片缓存已清除。',
     imageCacheFailed: '没能清除图片缓存，请重试。',
+    target: '清理内容',
+    targetMedia: '聊天媒体',
+    targetMessages: '整条消息',
+    messages: {
+      heading: '清理旧聊天记录',
+      note: '删除整条消息，包括文字和文件。Bot 的记忆不受影响。',
+      none: '还没有聊天消息。',
+      count: (count: number) => `${count} 条消息`,
+      confirmTitle: '删除旧消息？',
+      lead: (messages: number, chats: number, size: string) =>
+        `会删除 ${chats} 个聊天里的 ${messages} 条消息，约 ${size}。删除后无法恢复。`,
+      files: (files: number) => `其中的 ${files} 个文件也会一起删除。`,
+      memory: (count: number) => `有 ${count} 处 Bot 记忆提到了这些消息，记忆不会改动。`,
+      more: '还有更多旧消息，这次完成后再清理一次。',
+      kept: {
+        'bot-working': (messages: number) => `${messages} 条消息 Bot 还在处理，这次先保留。`,
+        'delivery-pending': (messages: number) => `${messages} 条消息还在发送中，这次先保留。`,
+        shared: (messages: number) => `${messages} 条消息也出现在你没选的聊天里，会保留。`,
+      },
+      confirm: '删除',
+      nothing: '没有符合条件的消息。可以选更早的时间或更多聊天。',
+      done: (messages: number, size: string) => `已删除 ${messages} 条消息，释放 ${size}。`,
+    },
   },
   activityCountSettings: {
     title: '活动数字',
@@ -1598,6 +1679,17 @@ const zh: typeof en = {
   pasteLinkHint:
     '摄像头扫不到时，在同一窗口点「复制配对链接」，再粘贴到这里。二维码和链接都只能用一次，10 分钟后失效。',
   pair: '配对',
+  pairAccount: {
+    title: '或者用 DeepSeekBot 账号',
+    hint: '直接和登录同一账号的电脑配对，不用扫码，也不用 Tailscale。',
+    signIn: '登录',
+    signedIn: (email: string) => `已登录 ${email}`,
+    signOut: '退出登录',
+    empty: '这个账号还没有关联电脑。请在电脑上打开设置 → 设备 → 不用 Tailscale 连接，登录账号。',
+    offline: '离线',
+    pairWith: (name: string) => `与 ${name} 配对`,
+    refresh: '刷新',
+  },
   pairRefused: {
     'link-invalid': '这不是 DeepSeekBot 的配对二维码。',
     'link-expired': '二维码已失效，请在电脑上换一个。',
@@ -1608,6 +1700,12 @@ const zh: typeof en = {
     cancelled: '已取消配对。',
     unknown: '无法配对，请换一个二维码后重试。',
     unreachable: '连不上你的电脑，请确认手机已加入你的 tailnet。',
+    'sign-in-cancelled': '已取消登录。',
+    'sign-in-failed': '登录失败，请重试。',
+    'sign-in-required': '登录已过期，请重新登录。',
+    'account-not-allowed': '这个账号还不在测试名单里。',
+    'host-offline': '这台电脑不在线。请在电脑上打开 DeepSeekBot，确认仍然登录后重试。',
+    'relay-unavailable': '暂时连不上 DeepSeekBot 服务，请稍后再试。',
   },
   pairRefusedLink: {
     'link-invalid': '这不是 DeepSeekBot 的配对链接，请检查后重新粘贴。',
@@ -1699,6 +1797,9 @@ const zh: typeof en = {
   arguments: '参数',
   allowOnce: '允许这次',
   reject: '拒绝',
+  removeDevice: '移除',
+  deviceRemoved: '已移除新设备，它不能再使用这台电脑。',
+  deviceRemoveFailed: '连不上你的电脑，没能移除。请在电脑上打开设置 → 设备移除它。',
   submit: '发送回答',
   otherAnswer: '其他回答',
   typeAnswer: '输入你的回答',

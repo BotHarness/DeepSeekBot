@@ -229,6 +229,17 @@
       "commands": ["git-status", "git-install"]
     },
     {
+      "id": "plugin-updates",
+      "description": "Installed BotHarness plugins: version check, in-place update and the restart that finishes it.",
+      "scope": "Host",
+      "surfaces": [
+        "setting:packages/client/src/client/plugin-updates-view.tsx:{pluginTitle(plugin.name, t)}",
+        "setting:packages/client/src/client/plugin-updates-view.tsx:{t('plugins.restart.title')}",
+        "setting:packages/client/src/client/plugin-updates-view.tsx:{t('plugins.row.title')}"
+      ],
+      "commands": ["plugin-check", "plugin-install", "plugin-restart"]
+    },
+    {
       "id": "channel-name",
       "description": "Channel name editing.",
       "scope": "Host",
@@ -287,12 +298,18 @@
     },
     {
       "id": "storage-cleanup",
-      "description": "Show storage used by chat media, messages and Memory, and clear reviewed chat media by chat, age and type.",
+      "description": "Show storage used by chat media, messages and Memory, clear reviewed chat media by chat, age and type, and delete reviewed old messages by chat and age.",
       "scope": "Host",
       "surfaces": [
         "setting:packages/client/src/client/storage-settings.tsx:{t('storage.row.title')}"
       ],
-      "commands": ["storage-usage", "storage-cleanup-preview", "storage-cleanup-confirm"]
+      "commands": [
+        "storage-usage",
+        "storage-cleanup-preview",
+        "storage-cleanup-confirm",
+        "storage-messages-cleanup-preview",
+        "storage-messages-cleanup-confirm"
+      ]
     },
     {
       "id": "workspace-grants",

@@ -25,9 +25,35 @@ import { loadModel } from './library.js';
 import { defaultModel } from './default-model.js';
 import { clockLabel, solarDay } from './sun.js';
 import { panelControls, type PanelControls } from './controls.js';
+import {
+  LOCALE_NS,
+  en,
+  english,
+  loadingText,
+  presence,
+  problemText,
+  zh,
+  type Translate,
+} from './copy.js';
 
 export const name = 'botharness-vrm-companion-client';
-export const inject = ['dockPanels', 'botPresentation'];
+export const inject = ['dockPanels', 'botPresentation', 'locale'];
+
+interface LocaleRuntime {
+  bind(namespace: string): Translate;
+  register(namespace: string, dictionaries: { zh: typeof zh; en: typeof en }): () => void;
+  subscribe(listener: () => void): () => void;
+  getSnapshot(): unknown;
+}
+const i18n = {
+  t: english,
+  subscribe: (_: () => void) => () => {},
+  snapshot: (): unknown => undefined,
+};
+function useT() {
+  useSyncExternalStore(i18n.subscribe, i18n.snapshot, i18n.snapshot);
+  return i18n.t;
+}
 const CSS = `
 [data-vrm-panel]{position:relative;height:100%;min-height:0;display:flex;flex-direction:column;color:var(--dsw-alias-label-primary);font:inherit}
 [data-vrm-panel] > [data-vrm-panel]{flex:1;height:auto}
@@ -48,21 +74,32 @@ const CSS = `
 @keyframes vrm-speech-in{from{opacity:0;transform:scale(.92) translateY(6px)}}
 @media (prefers-reduced-motion:reduce){[data-vrm-speech]{animation:none}}
 [data-vrm-error]{position:absolute;inset:35% 12px auto;z-index:2;background:var(--dsw-alias-bg-base);padding:12px}
-[data-vrm-loading]{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:1;padding:4px 8px;border-radius:var(--dsw-radius-md);color:var(--dsw-alias-label-secondary);background:color-mix(in srgb,var(--dsw-alias-bg-base) 85%,transparent)}
+[data-vrm-software]{position:absolute;left:12px;right:12px;bottom:16px;z-index:2;display:flex;flex-direction:column;align-items:flex-start;gap:10px;padding:14px 16px;border-radius:var(--dsw-radius-panel);background:color-mix(in srgb,var(--dsw-alias-bg-base) 88%,transparent);box-shadow:0 8px 22px color-mix(in srgb,var(--dsw-alias-label-primary) 14%,transparent)}
+[data-vrm-software] > p{margin:0;line-height:1.5}
+[data-vrm-poster]{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:62% center;pointer-events:none}
+[data-vrm-poster=blur]{filter:blur(6px) brightness(.75);transform:scale(1.04)}
+[data-vrm-loading]{position:absolute;left:50%;bottom:18%;transform:translateX(-50%);z-index:1;display:flex;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;white-space:nowrap;color:var(--dsw-alias-label-primary);background:color-mix(in srgb,var(--dsw-alias-bg-base) 80%,transparent);animation:vrm-fade-in .3s ease-out}
+[data-vrm-dots]{display:inline-flex;gap:3px}
+[data-vrm-dots] > i{width:5px;height:5px;border-radius:50%;background:currentColor;opacity:.35;animation:vrm-dot 1.2s ease-in-out infinite}
+[data-vrm-dots] > i:nth-child(2){animation-delay:.15s}
+[data-vrm-dots] > i:nth-child(3){animation-delay:.3s}
+@keyframes vrm-dot{0%,60%,100%{opacity:.35;transform:none}30%{opacity:1;transform:translateY(-3px)}}
+@keyframes vrm-fade-in{from{opacity:0}}
+@media (prefers-reduced-motion:reduce){[data-vrm-dots] > i,[data-vrm-loading]{animation:none}[data-vrm-stage] canvas{transition:none!important}}
 `;
 const CAMERAS: Array<[CameraView, string]> = [
-  ['desk', 'Desk view'],
-  ['room', 'Room view'],
-  ['portrait', 'Portrait view'],
+  ['desk', 'menu.view.desk'],
+  ['room', 'menu.view.room'],
+  ['portrait', 'menu.view.portrait'],
 ];
 const MOODS: Array<[Mood, string]> = [
-  ['auto', 'Follow system clock'],
-  ['sunset', 'Sunset'],
-  ['night', 'Night'],
+  ['auto', 'menu.time.auto'],
+  ['sunset', 'menu.time.sunset'],
+  ['night', 'menu.time.night'],
 ];
 const WEATHERS: Array<[Weather, string]> = [
-  ['clear', 'Clear'],
-  ['rain', 'Rain'],
+  ['clear', 'menu.weather.clear'],
+  ['rain', 'menu.weather.rain'],
 ];
 const SHADINGS: Array<[CharacterShading, string]> = [
   ['mtoon', 'MToon'],
@@ -70,17 +107,12 @@ const SHADINGS: Array<[CharacterShading, string]> = [
 ];
 const panelKey = (botId: string, instanceId: string | undefined) =>
   instanceId ?? 'context:' + botId;
-const statusText = (snapshot: ReturnType<BotPresentationView['getSnapshot']>) =>
-  snapshot.available
-    ? snapshot.paused
-      ? 'Paused'
-      : snapshot.sync === 'live'
-        ? snapshot.activity
-        : snapshot.sync
-    : 'Bot unavailable';
 function Character({ view, controls }: { view: BotPresentationView; controls: PanelControls }) {
   const snapshot = useSyncExternalStore(view.subscribe, view.getSnapshot, view.getSnapshot);
   const ui = useSyncExternalStore(controls.subscribe, controls.read, controls.read);
+  const t = useT();
+  const problem = problemText(t, ui.error, snapshot.name);
+  const poster = controls.poster() ?? (ui.model ? undefined : __VRM_POSTER__);
   const cleanup = useRef<(() => void) | undefined>();
   const mount = useCallback(
     (node: HTMLDivElement | null) => {
@@ -93,11 +125,15 @@ function Character({ view, controls }: { view: BotPresentationView; controls: Pa
         cleanup.current = () => {
           current = false;
         };
-        controls.set({ loading: 'Loading character…' });
+        controls.set({ loading: 'signing-in' });
         void loadModel(controls.botId).then((stored) => {
           controls.restore(stored);
           if (current) controls.retry();
         });
+        return;
+      }
+      if (controls.software()) {
+        controls.set({ software: true, loading: '' });
         return;
       }
       try {
@@ -115,6 +151,7 @@ function Character({ view, controls }: { view: BotPresentationView; controls: Pa
             loading: (loading) => controls.set({ loading }),
             error: (error) => controls.set({ error }),
             changed: (scene) => controls.set({ scene }),
+            poster: (url) => controls.keepPoster(url),
           },
           choices,
           { headphones: !model },
@@ -129,7 +166,7 @@ function Character({ view, controls }: { view: BotPresentationView; controls: Pa
           if (controls.stage === stage) controls.stage = undefined;
         };
       } catch {
-        controls.set({ error: '3D is unavailable. Bot activity and messages remain available.' });
+        controls.set({ error: 'unavailable' });
       }
     },
     [view, controls, ui.revision],
@@ -137,35 +174,51 @@ function Character({ view, controls }: { view: BotPresentationView; controls: Pa
   return (
     <section
       data-vrm-panel=""
-      aria-label={snapshot.name + ' character'}
+      aria-label={t('panel.character', { name: snapshot.name })}
       data-vrm-bot={snapshot.botId}
       data-vrm-activity={snapshot.activity}
       data-vrm-speaking={snapshot.speaking}
       data-vrm-conversing={snapshot.conversing}
       data-vrm-model={ui.model ? 'file' : 'sample'}
     >
+      {(ui.software || ui.loading || problem) && poster && (
+        <img data-vrm-poster={ui.software ? 'still' : 'blur'} src={poster} alt="" />
+      )}
       <div data-vrm-stage="" ref={mount} />
       {snapshot.attention && (
         <div role="status" data-vrm-attention="">
           {snapshot.attention}
         </div>
       )}
-      {ui.loading && !ui.error && (
-        <div role="status" data-vrm-loading="">
-          {ui.loading}
+      {ui.software && (
+        <div role="status" data-vrm-software="">
+          <p>{t('software.text', { name: snapshot.name })}</p>
+          <Button variant="primary" size="sm" onClick={() => controls.force()}>
+            {t('software.action')}
+          </Button>
         </div>
       )}
-      {ui.error && (
+      {ui.loading && !problem && (
+        <div role="status" data-vrm-loading="">
+          <span data-vrm-dots="" aria-hidden="true">
+            <i />
+            <i />
+            <i />
+          </span>
+          {loadingText(t, ui.loading, snapshot.name)}
+        </div>
+      )}
+      {problem && (
         <div role="status" data-vrm-error="">
-          {ui.error}
-          <Button onClick={() => controls.retry()}>Retry character</Button>
+          {problem.text}
+          <Button onClick={() => controls.retry()}>{problem.action}</Button>
         </div>
       )}
       {snapshot.conversing && snapshot.page && (
         <div
           key={snapshot.text.length - snapshot.page.length}
           data-vrm-speech=""
-          aria-label="Bot speech"
+          aria-label={t('panel.speech')}
         >
           <small>{snapshot.name}</small>
           <p>{snapshot.page}</p>
@@ -200,6 +253,7 @@ function BoundCharacter({
   presentation: BotPresentation;
 }) {
   const [view, mount] = useView(presentation, botId);
+  const t = useT();
   return (
     <div data-vrm-panel="" ref={mount}>
       {view ? (
@@ -209,7 +263,7 @@ function BoundCharacter({
           controls={panelControls(panelKey(botId, instanceId), botId)}
         />
       ) : (
-        <div role="status">Connecting…</div>
+        <div role="status">{t('loading.connecting')}</div>
       )}
     </div>
   );
@@ -307,6 +361,7 @@ function SceneMenu({
 }) {
   const snapshot = useSyncExternalStore(view.subscribe, view.getSnapshot, view.getSnapshot);
   const ui = useSyncExternalStore(controls.subscribe, controls.read, controls.read);
+  const t = useT();
   const picker = useRef<HTMLInputElement>(null);
   const ready = ui.scene.ready;
   const sun = solarDay(new Date());
@@ -317,60 +372,62 @@ function SceneMenu({
     ...rows,
   ];
   const character: MenuEntry[] = [
-    { id: 'model:pick', label: 'Change character…' },
+    { id: 'model:pick', label: t('menu.pick') },
     ...(ui.model
       ? [
           {
             id: 'model:reset',
-            label: 'Use default (now ' + ui.model.name + (ui.kept ? ')' : ', this session only)'),
+            label: t(ui.kept ? 'menu.useDefault' : 'menu.useDefaultSession', {
+              name: ui.model.name,
+            }),
           },
         ]
       : []),
     ...group(
       'shading',
-      'Shading',
+      t('menu.shading'),
       SHADINGS.map(([value, label]) => ({ id: 'shading:' + value, label, disabled: !ready })),
     ),
   ];
   const scene: MenuEntry[] = [
-    { type: 'label', id: 'view-label', text: 'View' },
-    ...CAMERAS.map(([value, label]) => ({ id: 'camera:' + value, label, disabled: !ready })),
-    { id: 'camera:reset', label: 'Reset view', disabled: !ready },
+    { type: 'label', id: 'view-label', text: t('menu.view') },
+    ...CAMERAS.map(([value, key]) => ({ id: 'camera:' + value, label: t(key), disabled: !ready })),
+    { id: 'camera:reset', label: t('menu.view.reset'), disabled: !ready },
     ...group(
       'time',
-      'Time',
-      MOODS.map(([value, label]) => ({ id: 'mood:' + value, label, disabled: !ready })),
+      t('menu.time'),
+      MOODS.map(([value, key]) => ({ id: 'mood:' + value, label: t(key), disabled: !ready })),
     ),
     {
       type: 'label',
       id: 'time-sun',
-      text: `Sunrise ${clockLabel(sun.sunrise)} · Sunset ${clockLabel(sun.sunset)}`,
+      text: t('menu.sun', { sunrise: clockLabel(sun.sunrise), sunset: clockLabel(sun.sunset) }),
     },
     ...group(
       'weather',
-      'Weather',
-      WEATHERS.map(([value, label]) => ({ id: 'weather:' + value, label, disabled: !ready })),
+      t('menu.weather'),
+      WEATHERS.map(([value, key]) => ({ id: 'weather:' + value, label: t(key), disabled: !ready })),
     ),
-    ...group('look', 'Look', [
-      { id: 'effects:on', label: 'Lo-fi look', disabled: !ready },
-      { id: 'effects:off', label: 'Plain', disabled: !ready },
+    ...group('look', t('menu.look'), [
+      { id: 'effects:on', label: t('menu.look.lofi'), disabled: !ready },
+      { id: 'effects:off', label: t('menu.look.plain'), disabled: !ready },
     ]),
-    ...group('movement', 'Movement', [
-      { id: 'move:sit', label: 'Sit down', disabled: !moving },
-      { id: 'move:stand', label: 'Stand up', disabled: !moving },
+    ...group('movement', t('menu.movement'), [
+      { id: 'move:sit', label: t('menu.move.sit'), disabled: !moving },
+      { id: 'move:stand', label: t('menu.move.stand'), disabled: !moving },
       {
         id: 'move:wander',
-        label: ui.scene.wandering ? 'Stop walking' : 'Walk around',
+        label: t(ui.scene.wandering ? 'menu.move.stop' : 'menu.move.wander'),
         disabled: !moving,
       },
     ]),
     ...(instanceId
       ? [
           { type: 'separator' as const, id: 'instance-separator' },
-          { id: 'instance:delete', label: 'Delete instance', danger: true },
+          { id: 'instance:delete', label: t('menu.delete'), danger: true },
         ]
       : []),
-    { type: 'label', id: 'hint', text: 'Drag to orbit · scroll to zoom' },
+    { type: 'label', id: 'hint', text: t('menu.hint') },
   ];
   const select = (id: string) => {
     const [kind, value] = id.split(':') as [string, string];
@@ -389,15 +446,15 @@ function SceneMenu({
   return (
     <span data-vrm-header-actions="" data-vrm-phase={ui.scene.phase}>
       <span data-vrm-activity-tag="" role="status" title={snapshot.attention}>
-        <Tag tone={snapshot.attention ? 'warning' : 'quiet'}>{statusText(snapshot)}</Tag>
+        <Tag tone={snapshot.attention ? 'warning' : 'quiet'}>{presence(t, snapshot)}</Tag>
       </span>
       {ui.failure && (
         <span role="alert">
-          <Tag tone="danger">{ui.failure}</Tag>
+          <Tag tone="danger">{t('failure.' + ui.failure)}</Tag>
         </span>
       )}
       <HeaderIcon
-        label={ui.tour ? 'Stop camera tour' : 'Auto camera tour'}
+        label={t(ui.tour ? 'menu.tourStop' : 'menu.tour')}
         icon={ui.tour ? IconPauseOutlineRegular : IconPlayOutlineRegular}
         pressed={!!ui.tour}
         data="data-vrm-tour-toggle"
@@ -406,7 +463,7 @@ function SceneMenu({
         }}
       />
       <HeaderMenu
-        label="Character"
+        label={t('menu.character')}
         icon={IconUserOutlineRegular}
         data="data-vrm-character-menu"
         items={character}
@@ -414,7 +471,7 @@ function SceneMenu({
         onSelect={select}
       />
       <HeaderMenu
-        label="Scene"
+        label={t('menu.scene')}
         icon={IconSlidersTwoOutlineRegular}
         data="data-vrm-scene-menu"
         items={scene}
@@ -428,7 +485,7 @@ function SceneMenu({
       />
       {!instanceId && (
         <HeaderIcon
-          label="Pin character globally"
+          label={t('menu.pin')}
           icon={IconPinOutlineRegular}
           data="data-vrm-pin"
           onClick={pin}
@@ -439,7 +496,7 @@ function SceneMenu({
         type="file"
         accept=".vrm,model/gltf-binary"
         hidden
-        aria-label="VRM file"
+        aria-label={t('panel.file')}
         onChange={(event) => {
           const file = event.currentTarget.files?.[0];
           event.currentTarget.value = '';
@@ -449,7 +506,19 @@ function SceneMenu({
     </span>
   );
 }
-export function apply(ctx: Context & PanelServices): void {
+export function apply(ctx: Context & PanelServices & { locale: LocaleRuntime }): void {
+  ctx.effect(() => {
+    const release = ctx.locale.register(LOCALE_NS, { zh, en });
+    i18n.t = ctx.locale.bind(LOCALE_NS);
+    i18n.subscribe = (listener) => ctx.locale.subscribe(listener);
+    i18n.snapshot = () => ctx.locale.getSnapshot();
+    return () => {
+      release();
+      i18n.t = english;
+      i18n.subscribe = () => () => {};
+      i18n.snapshot = () => undefined;
+    };
+  });
   ctx.effect(() => {
     const style = document.createElement('style');
     style.dataset.plugin = '@botharness/vrm-companion';
@@ -491,14 +560,14 @@ export function apply(ctx: Context & PanelServices): void {
                 );
                 controls.set({ failure: '' });
               } catch {
-                controls.set({ failure: 'Could not save the fixed character panel.' });
+                controls.set({ failure: 'pin' });
               }
             }}
             remove={() => {
               try {
                 ctx.dockPanels.removeInstance(props.instanceId!);
               } catch {
-                controls.set({ failure: 'Could not delete the saved character panel.' });
+                controls.set({ failure: 'remove' });
               }
             }}
           />
@@ -506,16 +575,30 @@ export function apply(ctx: Context & PanelServices): void {
       </span>
     );
   };
-  ctx.effect(() =>
-    ctx.dockPanels.register({
-      id: 'botharness-vrm',
-      title: 'VRM Companion',
-      icon: 'bot',
-      scope: 'channel',
-      binding: 'current-bot',
-      defaultPosition: { zone: 'right' },
-      component: Panel,
-      headerAction: Header,
-    }),
-  );
+  ctx.effect(() => {
+    let title = '';
+    let release = () => {};
+    const reconcile = () => {
+      const next = i18n.t('panel.title');
+      if (next === title) return;
+      title = next;
+      release();
+      release = ctx.dockPanels.register({
+        id: 'botharness-vrm',
+        title,
+        icon: 'bot',
+        scope: 'channel',
+        binding: 'current-bot',
+        defaultPosition: { zone: 'right' },
+        component: Panel,
+        headerAction: Header,
+      });
+    };
+    reconcile();
+    const unsubscribe = ctx.locale.subscribe(reconcile);
+    return () => {
+      unsubscribe();
+      release();
+    };
+  });
 }

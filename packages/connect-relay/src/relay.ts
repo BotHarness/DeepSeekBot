@@ -11,6 +11,8 @@ export interface RelayOptions {
   allowedUsers: readonly string[];
   maxHosts: number;
   reclaimAfterMs: number;
+  hostKey?: (hostId: string) => Promise<string>;
+  fetchHost?: typeof fetch;
   now?: () => Date;
   hostId?: () => string;
 }
@@ -29,6 +31,28 @@ interface HostRow {
 const HOST_ID = /^h[a-z2-7]{12}$/u;
 const ONLINE = new Set(['healthy', 'degraded']);
 const RECLAIM_BATCH = 15;
+const VERIFIER_HASH = /^[A-Za-z0-9_-]{43}$/u;
+const OFFER_TIMEOUT_MS = 10_000;
+export const OFFER_PATH = '/botharness-device/connect/offer';
+export const SIGNATURE_HEADER = 'x-botharness-relay-signature';
+
+function base64Url(bytes: ArrayBuffer): string {
+  return btoa(String.fromCharCode(...new Uint8Array(bytes)))
+    .replaceAll('+', '-')
+    .replaceAll('/', '_')
+    .replace(/=+$/u, '');
+}
+
+export async function hmac(key: string, message: string): Promise<string> {
+  const imported = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(key),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  );
+  return base64Url(await crypto.subtle.sign('HMAC', imported, new TextEncoder().encode(message)));
+}
 
 function json(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -76,7 +100,7 @@ export function createRelay(options: RelayOptions) {
   const { db, tunnels } = options;
   const now = options.now ?? (() => new Date());
   const nextHostId = options.hostId ?? randomHostId;
-  const allowAll = options.allowedUsers.includes('*');
+  const allowAll = options.allowedUsers.length === 0 || options.allowedUsers.includes('*');
   const hostname = (id: string) => `${id}.${options.zone}`;
   const view = (row: HostRow) => ({
     id: row.id,
@@ -133,7 +157,61 @@ export function createRelay(options: RelayOptions) {
       .prepare('UPDATE hosts SET origin_port = ? WHERE id = ?')
       .bind(originPort, current.id)
       .run();
-    return { hostname: hostname(current.id), token: await tunnels.tunnelToken(tunnelId) };
+    return {
+      hostname: hostname(current.id),
+      token: await tunnels.tunnelToken(tunnelId),
+      ...(options.hostKey === undefined
+        ? {}
+        : { account: current.account, relayKey: await options.hostKey(current.id) }),
+    };
+  };
+
+  const requestOffer = async (row: HostRow, account: string, request: Request) => {
+    if (options.hostKey === undefined) return failure(503, 'offer-unavailable');
+    const body = await readBody(request);
+    const verifierHash = body?.['verifierHash'];
+    if (typeof verifierHash !== 'string' || !VERIFIER_HASH.test(verifierHash))
+      return failure(400, 'invalid-verifier');
+    const name = body?.['name'];
+    if (name !== undefined && !validName(name)) return failure(400, 'invalid-device-name');
+    if (row.tunnel_id === null) return failure(409, 'host-offline');
+    const payload = JSON.stringify({
+      hostId: row.id,
+      account,
+      verifierHash,
+      ...(name === undefined ? {} : { name: name.trim() }),
+      issuedAt: now().toISOString(),
+    });
+    const signature = await hmac(await options.hostKey(row.id), payload);
+    let reply: Response;
+    try {
+      reply = await (options.fetchHost ?? fetch)(`https://${hostname(row.id)}${OFFER_PATH}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', [SIGNATURE_HEADER]: signature },
+        body: payload,
+        signal: AbortSignal.timeout(OFFER_TIMEOUT_MS),
+      });
+    } catch {
+      return failure(409, 'host-offline');
+    }
+    if (reply.status >= 500) return failure(409, 'host-offline');
+    const answer = (await reply.json().catch(() => undefined)) as
+      | { offer?: unknown; expiresAt?: unknown; host?: { id?: unknown; name?: unknown } }
+      | undefined;
+    if (
+      reply.status !== 200 ||
+      typeof answer?.offer !== 'string' ||
+      typeof answer.expiresAt !== 'string' ||
+      typeof answer.host?.id !== 'string' ||
+      typeof answer.host.name !== 'string'
+    )
+      return failure(502, 'host-refused');
+    return json(200, {
+      offer: answer.offer,
+      expiresAt: answer.expiresAt,
+      hostname: hostname(row.id),
+      host: { id: answer.host.id, name: answer.host.name },
+    });
   };
 
   const authorized = async (request: Request): Promise<string | Response> => {
@@ -156,7 +234,7 @@ export function createRelay(options: RelayOptions) {
         zone: options.zone,
       });
     }
-    const hostMatch = /^\/v1\/hosts\/([^/]+)(\/tunnel)?$/u.exec(url.pathname);
+    const hostMatch = /^\/v1\/hosts\/([^/]+)(\/tunnel|\/offer)?$/u.exec(url.pathname);
     if (url.pathname !== '/v1/hosts' && hostMatch === null) return failure(404, 'not-found');
     const account = await authorized(request);
     if (account instanceof Response) return account;
@@ -201,6 +279,11 @@ export function createRelay(options: RelayOptions) {
       } catch {
         return failure(502, 'upstream-unavailable');
       }
+    }
+
+    if (hostMatch?.[2] === '/offer') {
+      if (request.method !== 'POST') return failure(405, 'method-not-allowed');
+      return requestOffer(row, account, request);
     }
 
     if (request.method !== 'DELETE') return failure(405, 'method-not-allowed');

@@ -45,6 +45,25 @@ export interface StorageCleanupResult {
   freedBytes: number;
 }
 
+export type StorageMessagesKeptReason = 'bot-working' | 'delivery-pending' | 'shared';
+
+export interface StorageMessagesPreview {
+  token: string;
+  scope: { before: string; channelIds: string[] };
+  messages: number;
+  bytes: number;
+  files: number;
+  chats: { channelId: string; name: string; messages: number }[];
+  kept: { reason: StorageMessagesKeptReason; messages: number }[];
+  memoryReferences: number;
+  more: boolean;
+}
+
+export interface StorageMessagesResult {
+  messages: number;
+  freedBytes: number;
+}
+
 export const STORAGE_AGES = ['30', '90', '180', '365', 'all'] as const;
 export type StorageAge = (typeof STORAGE_AGES)[number];
 
@@ -80,6 +99,24 @@ export function confirmStorageCleanup(
     before: preview.scope.before,
     ...(preview.scope.channelIds.length === 0 ? {} : { channelIds: preview.scope.channelIds }),
     kinds: preview.scope.kinds,
+    token: preview.token,
+  });
+}
+
+export function previewStorageMessages(
+  client: HostClient,
+  scope: { before: string; channelIds?: string[] },
+): Promise<StorageMessagesPreview> {
+  return client.call<StorageMessagesPreview>('storageMessagesCleanupPreview', { ...scope });
+}
+
+export function confirmStorageMessages(
+  client: HostClient,
+  preview: StorageMessagesPreview,
+): Promise<StorageMessagesResult> {
+  return client.call<StorageMessagesResult>('storageMessagesCleanupConfirm', {
+    before: preview.scope.before,
+    ...(preview.scope.channelIds.length === 0 ? {} : { channelIds: preview.scope.channelIds }),
     token: preview.token,
   });
 }

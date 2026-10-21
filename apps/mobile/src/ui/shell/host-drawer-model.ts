@@ -1,6 +1,6 @@
 import type { HostGlance } from '../../host/host-glance';
 import type { SavedHost } from '../../host/hosts';
-import { modalRail } from '../design/tokens';
+import { materialDrawer, modalRail } from '../design/tokens';
 
 export const DRAWER_SHARE = 0.85;
 export const EDGE_WIDTH = 24;
@@ -45,7 +45,9 @@ export function hostRowBadge(glance: HostGlance): HostRowBadge {
   return undefined;
 }
 
-export function drawerWidth(windowWidth: number): number {
+export function drawerWidth(windowWidth: number, os: string = 'ios'): number {
+  if (os === 'android')
+    return Math.min(materialDrawer.width, windowWidth - materialDrawer.scrimGutter);
   return Math.min(modalRail.maxWidth, Math.round(windowWidth * DRAWER_SHARE));
 }
 
@@ -123,4 +125,14 @@ export function createHostDrawer(port: HostDrawerPort): HostDrawer {
       returnFocus = focus;
     },
   };
+}
+
+export function addressLines(largeText: boolean, os: string) {
+  if (os === 'android')
+    return {
+      numberOfLines: 1,
+      adjustsFontSizeToFit: true,
+      minimumFontScale: materialDrawer.addressMinScale,
+    };
+  return largeText ? {} : { numberOfLines: 1 };
 }

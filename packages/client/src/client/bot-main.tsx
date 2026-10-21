@@ -64,7 +64,8 @@ import {
   personaBotPresentationSummary,
   type PersonaBotFacepileItem,
 } from './avatar.js';
-import { useClientState } from './bot-sidebar.js';
+import { keepClientState, useClientStore } from './use-client-store.js';
+import { sameConversationBots } from './conversation-bots.js';
 import type { BotModePrefs } from './bot-mode-prefs.js';
 import {
   ChannelComposer,
@@ -3477,6 +3478,20 @@ function ConversationView({
   );
 }
 
+function sameConversationInputs(left: ClientState, right: ClientState): boolean {
+  const keys = Object.keys(right) as (keyof ClientState)[];
+  return (
+    keys.length === Object.keys(left).length &&
+    keys.every(
+      (key) =>
+        key === 'humanInbox' ||
+        key === 'query' ||
+        left[key] === right[key] ||
+        (key === 'bots' && sameConversationBots(left.bots, right.bots, right)),
+    )
+  );
+}
+
 function BotMainContent({
   onMobileBack,
   actions,
@@ -3498,7 +3513,7 @@ function BotMainContent({
   nativeChatT?: NativeChatFailureText | undefined;
   t?: BotHarnessTranslate | undefined;
 }): ReactElement {
-  const state = useClientState();
+  const state = useClientStore(keepClientState, sameConversationInputs);
   const workspace = useContext(WorkspaceContext);
   if (!workspace && state.selection === undefined) return <Welcome state={state} t={t} />;
   if (!workspace && state.selection?.kind === 'inbox')

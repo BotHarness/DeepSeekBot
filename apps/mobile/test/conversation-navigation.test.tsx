@@ -218,7 +218,7 @@ it('keeps the bottom fade at the message viewport edge beneath the composer cont
   const controls = view.querySelector('[data-testid="chat-controls"]')!;
   const fade = content.querySelector('[data-edge="bottom"]');
   expect(fade).not.toBeNull();
-  expect(fade?.getAttribute('data-height')).toBe(String(edgeFade.reach));
+  expect(fade?.getAttribute('data-height')).toBe(String(edgeFade.bottom));
   expect(controls.querySelector('[data-edge]')).toBeNull();
   expect(fade!.compareDocumentPosition(controls) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
 });
@@ -256,6 +256,7 @@ it('switches a live reply between buffered streaming and complete bubbles withou
   await act(async () => root!.render(<ConversationScreen place={place} focus={undefined} />));
   expect(view.querySelector('[data-testid="draft"]')).toBeNull();
   expect(view.querySelector('[data-testid="pending"]')).not.toBeNull();
+  expect(view.querySelector('[data-testid="chat-list"] [data-testid="pending"]')).toBeNull();
   expect(view.textContent).toContain('history');
   state.conversation.drafts = [];
   state.conversation.messages = [

@@ -48,6 +48,8 @@ import {
   type ChannelHistoryItem,
   type PurgeSource,
   type PurgePreview,
+  type TextCleanupPreview,
+  type TextCleanupResult,
 } from '../purge/contracts.js';
 import {
   STORAGE_MEDIA_KINDS,
@@ -124,6 +126,12 @@ import type {
   ReleaseService,
   ReleaseUpdate,
 } from '../release/service.js';
+import type {
+  PluginInstall,
+  PluginRestart,
+  PluginUpdateService,
+  PluginUpdates,
+} from '../release/plugins.js';
 import type { TelemetryCapture, TelemetryStatus } from '../telemetry/service.js';
 import {
   AssignmentReplyTargetError,
@@ -644,6 +652,8 @@ export interface BridgeMethods {
   storageUsage(payload?: unknown): BridgeResult<StorageUsage>;
   storageCleanupPreview(payload: unknown): BridgeResult<MediaCleanupPreview>;
   storageCleanupConfirm(payload: unknown): BridgeResult<MediaCleanupResult>;
+  storageMessagesCleanupPreview(payload: unknown): BridgeResult<TextCleanupPreview>;
+  storageMessagesCleanupConfirm(payload: unknown): BridgeResult<TextCleanupResult>;
   channelPurgeConfirm(
     payload: unknown,
   ): BridgeResult<{ accepted: number; cleanupPending?: number }>;
@@ -822,6 +832,9 @@ export interface BridgeMethods {
   releaseUpdate(payload?: unknown): Promise<BridgeResult<ReleaseUpdate>>;
   releaseInstall(payload: unknown): Promise<BridgeResult<ReleaseInstall>>;
   releaseRestart(payload: unknown): Promise<BridgeResult<ReleaseRestart>>;
+  pluginUpdates(payload?: unknown): Promise<BridgeResult<PluginUpdates>>;
+  pluginInstall(payload: unknown): Promise<BridgeResult<PluginInstall>>;
+  pluginRestart(payload: unknown): Promise<BridgeResult<PluginRestart>>;
   telemetryStatus(): BridgeResult<TelemetryStatus>;
   gitStatus(): BridgeResult<GitStatus>;
   gitInstall(): BridgeResult<GitStatus>;
@@ -865,6 +878,26 @@ const storageCleanupScope = z
     kinds: z.array(z.enum(STORAGE_MEDIA_KINDS)).min(1).max(4).optional(),
   })
   .strict();
+
+const storageMessagesScope = z
+  .object({
+    before: z.iso.datetime(),
+    channelIds: z.array(z.string().min(1).max(200)).max(500).optional(),
+  })
+  .strict();
+
+function purgeFailure(error: unknown, message: string): BridgeResult<never> {
+  return {
+    ok: false,
+    error:
+      error instanceof ContentPurgeError
+        ? {
+            code: error.code === 'purge-preview-stale' ? 'storage-preview-stale' : error.code,
+            message: error.message,
+          }
+        : { code: 'purge-unavailable', message },
+  };
+}
 
 function storageFailure(error: unknown, message: string): BridgeResult<never> {
   return {
@@ -939,6 +972,7 @@ export interface BridgeMethodsDeps {
   createBotId?: () => string;
   marketplace?: MarketplaceClient;
   release?: ReleaseService;
+  plugins?: PluginUpdateService;
   telemetry?: {
     status(): TelemetryStatus;
     setPreference(enabled: boolean): TelemetryStatus;
@@ -2953,7 +2987,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         if (trimmed !== undefined && trimmed.length > 0) query[key] = trimmed;
       }
       const sort = source['sort'];
-      if (sort !== undefined && sort !== 'updated' && sort !== 'stars') {
+      if (sort !== undefined && sort !== 'updated' && sort !== 'created' && sort !== 'stars') {
         return Promise.resolve(invalidInput('invalid sort'));
       }
       if (sort !== undefined) query.sort = sort;
@@ -2986,6 +3020,25 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
     async releaseRestart() {
       if (deps.release === undefined) return releaseUnavailable();
       return { ok: true, value: await deps.release.restart() };
+    },
+    async pluginUpdates(payload) {
+      if (deps.plugins === undefined) return releaseUnavailable();
+      const force = asObject(payload)['force'];
+      if (force !== undefined && typeof force !== 'boolean') return invalidInput('invalid force');
+      return { ok: true, value: await deps.plugins.list(force) };
+    },
+    async pluginInstall(payload) {
+      if (deps.plugins === undefined) return releaseUnavailable();
+      const source = asObject(payload);
+      const name = source['name'];
+      const version = source['version'];
+      if (typeof name !== 'string') return invalidInput('name is required');
+      if (typeof version !== 'string') return invalidInput('version is required');
+      return { ok: true, value: await deps.plugins.install(name, version) };
+    },
+    async pluginRestart() {
+      if (deps.plugins === undefined) return releaseUnavailable();
+      return { ok: true, value: await deps.plugins.restart() };
     },
     telemetryStatus() {
       return {
@@ -4242,6 +4295,30 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         return { ok: true, value: deps.storage.confirm(scope, token) };
       } catch (error) {
         return storageFailure(error, 'Storage cleanup could not complete');
+      }
+    },
+    storageMessagesCleanupPreview(payload) {
+      const input = storageMessagesScope.safeParse(payload);
+      if (!input.success) return invalidInput('Invalid message cleanup scope');
+      if (!deps.contentPurge) return unavailable();
+      try {
+        return { ok: true, value: deps.contentPurge.textPreview(input.data) };
+      } catch (error) {
+        return purgeFailure(error, 'Message cleanup preview is unavailable');
+      }
+    },
+    storageMessagesCleanupConfirm(payload) {
+      const input = storageMessagesScope
+        .extend({ token: z.string().min(1).max(512) })
+        .strict()
+        .safeParse(payload);
+      if (!input.success) return invalidInput('Invalid message cleanup confirmation');
+      if (!deps.contentPurge) return unavailable();
+      const { token, ...scope } = input.data;
+      try {
+        return { ok: true, value: deps.contentPurge.textConfirm(scope, token) };
+      } catch (error) {
+        return purgeFailure(error, 'Message cleanup could not complete');
       }
     },
     channelPurgeConfirm(payload) {

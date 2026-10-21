@@ -70,6 +70,20 @@ function port(overrides: Partial<StorageSettingsPort> = {}) {
       preview({ channelIds: [], ...scope }),
     ),
     confirm: vi.fn(async () => ({ messages: 2, files: 3, freedBytes: 4 * 1024 * 1024 })),
+    previewMessages: vi.fn(
+      async (scope: Parameters<StorageSettingsPort['previewMessages']>[0]) => ({
+        token: 'messages',
+        scope: { channelIds: [], ...scope },
+        messages: 12,
+        bytes: 4096,
+        files: 2,
+        chats: [{ channelId: 'dm-ada', name: 'Ada', messages: 12 }],
+        kept: [{ reason: 'bot-working' as const, messages: 1 }],
+        memoryReferences: 3,
+        more: true,
+      }),
+    ),
+    confirmMessages: vi.fn(async () => ({ messages: 12, freedBytes: 8192 })),
     clearImageCache: vi.fn(async () => undefined),
     ...overrides,
   };
@@ -160,5 +174,34 @@ describe('Storage settings', () => {
     expect((alert.mock.calls.at(-1)![2] as { text: string }[]).map((a) => a.text)).toEqual([
       t.done,
     ]);
+  });
+
+  it('deletes whole old messages in the chosen chats after confirmation', async () => {
+    const storage = port();
+    const view = await render(<StorageSettings port={storage} />);
+    await press(view, t.storage.targetMessages);
+    expect(view.textContent).toContain(t.storage.messages.note);
+    expect(view.textContent).not.toContain(t.storage.kind.video);
+    expect(view.textContent).toContain('Text only');
+    expect(view.textContent).toContain(t.storage.messages.count(40));
+    await press(view, 'Team');
+    await press(view, t.storage.clear);
+    const scope = vi.mocked(storage.previewMessages).mock.calls[0]![0];
+    expect(scope).toMatchObject({ channelIds: ['dm-ada', 'dm-text'] });
+    expect(storage.preview).not.toHaveBeenCalled();
+
+    expect(alert.mock.calls.at(-1)![0]).toBe(t.storage.messages.confirmTitle);
+    const message = alert.mock.calls.at(-1)![1] as string;
+    expect(message).toContain(t.storage.messages.lead(12, 1, '4.0 KB'));
+    expect(message).toContain(t.storage.messages.files(2));
+    expect(message).toContain(t.storage.messages.memory(3));
+    expect(message).toContain(t.storage.messages.kept['bot-working'](1));
+    expect(message).toContain(t.storage.messages.more);
+
+    await choose(t.storage.messages.confirm);
+    expect(storage.confirmMessages).toHaveBeenCalledWith(
+      expect.objectContaining({ token: 'messages' }),
+    );
+    expect(notices(view, 'success')).toEqual([t.storage.messages.done(12, '8.0 KB')]);
   });
 });

@@ -5,15 +5,15 @@ A VRM companion Panel for [DeepSeekBot](https://github.com/BotHarness/DeepSeekBo
 ## Requirements
 
 - DeepSeek Harness (DSH) `>=0.2.0-rc.2 <0.3.0`.
-- DeepSeekBot newer than 1.4.1, installed in the same Profile. The Panel uses DeepSeekBot's `botPresentation` and `dockPanels` services, which 1.4.1 and earlier do not provide; the Panel does not load without them.
+- DeepSeekBot newer than 1.4.1, installed in the same Profile. The Panel uses DeepSeekBot's `botPresentation` and `dockPanels` services, which 1.4.1 and earlier do not provide, and the DSH Client `locale` service for its Chinese and English text; the Panel does not load without them.
 
 ## Install
 
 ```sh
-dsh plugin --profile <your-profile> add @botharness/vrm-companion@0.1.0
+dsh plugin --profile <your-profile> add @botharness/vrm-companion@0.2.0
 ```
 
-Restart the Host. In Bot mode, select a Bot DM, open Messages and choose **VRM Companion** in the Messages header. The pin icon creates a fixed instance for that Bot. See the [Panel guide](https://github.com/BotHarness/DeepSeekBot/blob/main/docs/panel-plugin.md) for controls and behavior.
+Restart the Host. In Bot mode, select a Bot DM, open Messages and choose **VRM Companion** (**VRM 伴侣** in Chinese) in the Messages header. The pin icon creates a fixed instance for that Bot. See the [Panel guide](https://github.com/BotHarness/DeepSeekBot/blob/main/docs/panel-plugin.md) for controls and behavior.
 
 ## License
 
@@ -31,7 +31,7 @@ The source code is MIT; see [LICENSE](LICENSE). The bundled assets keep their ow
 2. Tag that commit on `main` and push the tag:
 
    ```sh
-   git tag vrm-companion-v0.1.0 && git push origin vrm-companion-v0.1.0
+   git tag vrm-companion-v0.2.0 && git push origin vrm-companion-v0.2.0
    ```
 
 3. The workflow checks that the tag is on `main` and matches the package version, runs `pnpm install --frozen-lockfile`, `pnpm build` and the VRM tests, then waits for approval in the `npm-release` environment.

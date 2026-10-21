@@ -1,4 +1,4 @@
-import { useState, useSyncExternalStore, type ReactElement } from 'react';
+import { useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import type { BridgeActions } from './actions.js';
 import type { DockPanelRegistry } from './dock-panels.js';
@@ -12,7 +12,10 @@ import {
   personaBotActivityLabel,
 } from './avatar.js';
 import { errorMessage } from './bridge.js';
+import { keepClientState, sameFields, useClientStore } from './use-client-store.js';
 import { color, space, radius, text } from './ds/tokens.stylex.js';
+
+const overviewInputs = sameFields(['bots', 'channels', 'status', 'activitySync']);
 
 const styles = stylex.create({
   grid: {
@@ -108,7 +111,7 @@ export function HomeOverview({
   registry: DockPanelRegistry;
   t: BotHarnessTranslate;
 }): ReactElement {
-  const state = useSyncExternalStore(store.subscribe, store.getSnapshot);
+  const state = useClientStore(keepClientState, overviewInputs);
   const [error, setError] = useState<string>();
   const rows = homeActiveBots(state.bots, state.channels);
   const open = async (slug: string) => {

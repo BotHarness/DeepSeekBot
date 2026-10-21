@@ -42,6 +42,7 @@ import { sidebarStyles } from './channel-sidebar-styles.js';
 import { hooked } from './ds/hooked.js';
 import { PanelHeader } from './ds/panel-header.js';
 import { space } from './ds/tokens.stylex.js';
+import { EntryPart, useStableProps } from './entry-part.js';
 
 const styles = stylex.create({
   entry: { flexGrow: 1, flexShrink: 1, flexBasis: '0%', minWidth: 0 },
@@ -177,7 +178,7 @@ export function ChannelSidebarEntrySection({
   const [expandable, setExpandable] = useState(true);
   const expandableRef = useRef(expandable);
   const shown = (preview ?? expanded) && !editing && !hidden && expandable;
-  const props = {
+  const props = useStableProps({
     ...entryProps,
     refreshRevision,
     requestRefresh: () => setRefreshRevision((value) => value + 1),
@@ -192,15 +193,19 @@ export function ChannelSidebarEntrySection({
       setExpandable(next);
       if (!next && expanded) onToggle();
     },
-  };
+  });
   return (
     <section data-sidebar-entry={entry.id} {...stylex.props(styles.entry, fill && styles.fill)}>
       <PanelHeader
         icon={<ChannelSidebarIcon name={entry.icon} />}
         label={HeaderTabs === undefined ? entry.label : (entry.headerLabel ?? entry.label)}
-        badge={Badge === undefined ? undefined : <Badge {...props} />}
+        badge={Badge === undefined ? undefined : <EntryPart part={Badge} props={props} />}
         tabs={HeaderTabs === undefined ? undefined : <HeaderTabs {...props} />}
-        action={HeaderAction === undefined || editing ? undefined : <HeaderAction {...props} />}
+        action={
+          HeaderAction === undefined || editing ? undefined : (
+            <EntryPart part={HeaderAction} props={props} />
+          )
+        }
         disclosure={
           collapsible
             ? {
@@ -222,7 +227,7 @@ export function ChannelSidebarEntrySection({
           data-sidebar-entry-body=""
           {...stylex.props(styles.body, fill && styles.fillBody)}
         >
-          <entry.component {...props} />
+          <EntryPart part={entry.component} props={props} />
         </div>
       ) : null}
     </section>

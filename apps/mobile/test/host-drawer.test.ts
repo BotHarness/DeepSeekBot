@@ -6,6 +6,7 @@ import type { SavedHost } from '../src/host/hosts';
 import type { InboxSnapshot } from '../src/host/inbox';
 import type { HumanAttentionItem } from '../src/host/wire';
 import {
+  addressLines,
   createHostDrawer,
   drawerWidth,
   hostDrawerRows,
@@ -147,6 +148,12 @@ describe('Host drawer', () => {
     expect(drawerWidth(390)).toBe(332);
     expect(drawerWidth(900)).toBe(360);
   });
+
+  it('follows the Material 3 modal drawer on Android: up to 360dp, leaving 56dp of scrim', () => {
+    expect(drawerWidth(390, 'android')).toBe(334);
+    expect(drawerWidth(411, 'android')).toBe(355);
+    expect(drawerWidth(900, 'android')).toBe(360);
+  });
 });
 
 describe('Host rows', () => {
@@ -255,5 +262,21 @@ describe('Host glances', () => {
     await Promise.resolve();
     expect(glances.getSnapshot()['tower']).toEqual({ status: 'checking' });
     expect(listener).toHaveBeenCalled();
+  });
+});
+
+describe('addressLines', () => {
+  it('keeps an Android address on one line and shrinks it instead of splitting the port', () => {
+    expect(addressLines(true, 'android')).toEqual({
+      numberOfLines: 1,
+      adjustsFontSizeToFit: true,
+      minimumFontScale: 0.6,
+    });
+    expect(addressLines(false, 'android').numberOfLines).toBe(1);
+  });
+
+  it('lets iOS wrap the address only at large text', () => {
+    expect(addressLines(false, 'ios')).toEqual({ numberOfLines: 1 });
+    expect(addressLines(true, 'ios')).toEqual({});
   });
 });

@@ -9,8 +9,16 @@ shortcut so the notification lands in the system Conversations section.
 It does not replace expo-notifications. `ConversationNotificationsService`
 subclasses expo-notifications' `NotificationsService` and registers with a
 higher intent-filter priority, which `NotificationsService.doWork` resolves
-first; only the presentation delegate changes. Titles, actions (approval
+first; only the presentation and handling delegates change. Actions (approval
 buttons), channels, badges and tap routing stay with expo-notifications.
+
+A push with an FCM `notification` block is drawn by the Firebase SDK while the
+app is in the background, so none of this code runs. The app therefore
+registers with `render: "app"`, and the Host sends that Android device
+data-only pushes with the shown `title` and `message` inside the data. Expo only
+presents a background data-only push that has a title, so
+`ConversationHandlingDelegate` copies them from the data first. Older builds,
+which don't send `render`, keep getting pushes the system draws.
 
 The Host sends `sender`, `group` and `text` in the push data
 (`packages/core/src/push/delivery.ts`). Avatars are never downloaded here: the

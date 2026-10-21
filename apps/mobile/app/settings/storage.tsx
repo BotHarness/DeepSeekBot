@@ -4,8 +4,10 @@ import { useMemo } from 'react';
 import { useHostSession } from '../../src/host/host-session';
 import {
   confirmStorageCleanup,
+  confirmStorageMessages,
   loadStorageUsage,
   previewStorageCleanup,
+  previewStorageMessages,
 } from '../../src/host/storage';
 import { StorageSettings, type StorageSettingsPort } from '../../src/ui/storage-settings';
 import { t } from '../../src/ui/strings';
@@ -20,6 +22,8 @@ export default function StorageScreen() {
             usage: () => loadStorageUsage(client),
             preview: (scope) => previewStorageCleanup(client, scope),
             confirm: (preview) => confirmStorageCleanup(client, preview),
+            previewMessages: (scope) => previewStorageMessages(client, scope),
+            confirmMessages: (preview) => confirmStorageMessages(client, preview),
             clearImageCache: async () => {
               const cleared = await Promise.all([Image.clearDiskCache(), Image.clearMemoryCache()]);
               if (cleared.includes(false)) throw new Error(t.storage.imageCacheFailed);

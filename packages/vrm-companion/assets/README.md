@@ -9,3 +9,7 @@ License (embedded VRM metadata, VRoid Hub conditions version 1): use by everyone
 Modification: `avatar-sample-a.vrm` is the same model with its texture images downscaled from 4096 px to at most 2048 px (the thumbnail to 256 px) and re-encoded as PNG, so the bundle stays small. Geometry, materials, bones, expressions, spring bones and metadata are unchanged. Result: 13,337,776 bytes, SHA-256 `34c177569bc446c255942fc6f47620dec6b7b9fe8272b0a05d2430bf0b70a999`.
 
 Room furniture models are listed separately in `kaykit/README.md`.
+
+# Default poster
+
+`poster-default.webp` is a still the Panel rendered of the default character at its desk, with the room furniture listed in `kaykit/README.md`. While the default character loads, or when the computer has no graphics acceleration, the Panel shows this still if it has no frame captured earlier in the page session.

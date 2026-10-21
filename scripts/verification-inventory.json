@@ -157,7 +157,7 @@
     },
     {
       "id": "desktop.storage.cleanup",
-      "label": "See storage used, preview and clear old chat media by chat, age and type",
+      "label": "See storage used, preview and clear old chat media by chat, age and type, and delete old messages by chat and age",
       "source": "packages/client/src/client/storage-settings.tsx",
       "guide": ".agents/skills/verify-deepseekbot/features/storage-cleanup.md",
       "task": 2430,
@@ -2039,9 +2039,9 @@
     },
     {
       "path": "scripts/e2e-vrm-companion.mjs",
-      "sha256": "d71c22d6daeaa3e6814b50dae345a1f3ee721c1a32030536a4e81ac10c9181c5",
+      "sha256": "f510708c64fe6b701c2855aedf1cd4c04fe2c6bc4601eb8981f42cf8b034bc39",
       "category": "mapped",
-      "reason": "Isolated real Host journey for VRM loading, live speech, fixed bindings, refresh, Group gating and renderer disposal; native CLI uninstall/reinstall requires a task-owned Host restart.",
+      "reason": "Isolated real Host journey for VRM loading (opting past the headless software-renderer notice), live speech, fixed bindings, refresh, Group gating and renderer disposal; native CLI uninstall/reinstall requires a task-owned Host restart.",
       "task": 2222,
       "behaviors": ["desktop.vrm-companion"]
     },

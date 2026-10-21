@@ -100,6 +100,7 @@ describe('Bot Marketplace commands', () => {
     expect((await invoke(['marketplace-topics'], live.url)).json).toEqual({
       topics: [{ topic: 'writing', count: 2 }],
     });
+    await invoke(['marketplace-list', '--sort', 'created'], live.url);
     await invoke(['marketplace-detail', 'owner/repo'], live.url);
     await invoke(['marketplace-detail', 'owner/repo', '--lang', 'en'], live.url);
     expect(live.calls).toEqual([
@@ -109,6 +110,7 @@ describe('Bot Marketplace commands', () => {
         args: { query: { q: '翻译', topic: 'writing', sort: 'stars', cursor: 'c2', lang: 'zh' } },
       },
       { method: 'marketplaceTopics', args: {} },
+      { method: 'marketplaceList', args: { query: { sort: 'created' } } },
       { method: 'marketplaceDetail', args: { id: 'owner/repo' } },
       { method: 'marketplaceDetail', args: { id: 'owner/repo', lang: 'en' } },
     ]);
@@ -262,6 +264,90 @@ describe('release commands', () => {
   });
 });
 
+describe('plugin update commands', () => {
+  it('checks, installs and restarts plugins only with --confirm', async () => {
+    const live = await host((method, args) =>
+      ok(
+        method === 'pluginUpdates'
+          ? {
+              installable: true,
+              restartable: true,
+              plugins: [
+                {
+                  name: '@botharness/vrm-companion',
+                  status: 'available',
+                  current: '0.1.0',
+                  latest: '0.2.0',
+                },
+              ],
+            }
+          : method === 'pluginInstall'
+            ? {
+                status: 'installed',
+                name: args['name'],
+                current: '0.1.0',
+                installed: args['version'],
+                restartable: true,
+                applied: false,
+              }
+            : { status: 'restarting', plugins: ['@botharness/vrm-companion'] },
+      ),
+    );
+    expect((await invoke(['plugin-check', '--force'], live.url)).json.plugins[0].latest).toBe(
+      '0.2.0',
+    );
+    for (const argv of [
+      ['plugin-install', '@botharness/vrm-companion', '0.2.0'],
+      ['plugin-install', '@botharness/vrm-companion', '--confirm'],
+      ['plugin-restart'],
+    ]) {
+      const refused = await invoke(argv, live.url);
+      expect(refused.code).not.toBe(0);
+      expect(refused.json.error.code).toBe('usage');
+    }
+    expect(
+      (
+        await invoke(
+          ['plugin-install', '@botharness/vrm-companion', '0.2.0', '--confirm'],
+          live.url,
+        )
+      ).json.installed,
+    ).toBe('0.2.0');
+    expect((await invoke(['plugin-restart', '--confirm'], live.url)).json.status).toBe(
+      'restarting',
+    );
+    expect(live.calls).toEqual([
+      { method: 'pluginUpdates', args: { force: true } },
+      { method: 'pluginInstall', args: { name: '@botharness/vrm-companion', version: '0.2.0' } },
+      { method: 'pluginRestart', args: {} },
+    ]);
+  });
+
+  it('turns a failed plugin install or restart into a coded failure', async () => {
+    const live = await host((method) =>
+      ok(
+        method === 'pluginInstall'
+          ? {
+              status: 'failed',
+              name: '@botharness/vrm-companion',
+              reason: 'incompatible',
+              logPath: '/tmp/install.log',
+            }
+          : { status: 'failed', reason: 'not-pending' },
+      ),
+    );
+    const install = await invoke(
+      ['plugin-install', '@botharness/vrm-companion', '0.3.0', '--confirm'],
+      live.url,
+    );
+    expect(install.code).not.toBe(0);
+    expect(install.json.error.code).toBe('plugin-incompatible');
+    expect(install.json.error.message).toContain('/tmp/install.log');
+    const restart = await invoke(['plugin-restart', '--confirm'], live.url);
+    expect(restart.json.error.code).toBe('plugin-not-pending');
+  });
+});
+
 describe('data reset commands', () => {
   it('previews, then clears only with --confirmation-stdin --confirm and a token', async () => {
     const preview = {
@@ -354,6 +440,45 @@ describe('storage commands', () => {
       { method: 'storageUsage', args: {} },
       { method: 'storageCleanupPreview', args: scope },
       { method: 'storageCleanupConfirm', args: { ...scope, token: 'storage-token' } },
+    ]);
+  });
+});
+
+describe('storage message commands', () => {
+  it('previews old messages by age and deletes them with the piped preview', async () => {
+    const scope = { before: '2026-07-22T00:00:00.000Z', channelIds: ['dm-ada'] };
+    const preview = { token: 'messages-token', scope, messages: 3, more: false };
+    const live = await host((method) =>
+      ok(method === 'storageMessagesCleanupPreview' ? preview : { messages: 3, freedBytes: 4096 }),
+    );
+    expect(
+      (
+        await invoke(
+          ['storage-messages-cleanup-preview', '--before', scope.before, '--chat', 'dm-ada'],
+          live.url,
+        )
+      ).json,
+    ).toEqual(preview);
+    for (const [argv, stdin] of [
+      [['storage-messages-cleanup-preview', '--older-than-days', '9', '--media', 'image'], ''],
+      [['storage-messages-cleanup-confirm', '--confirmation-stdin'], JSON.stringify(preview)],
+    ] as const) {
+      const refused = await invoke([...argv], live.url, stdin);
+      expect(refused.code).not.toBe(0);
+      expect(refused.json.error.code).toBe('usage');
+    }
+    expect(
+      (
+        await invoke(
+          ['storage-messages-cleanup-confirm', '--confirmation-stdin', '--confirm'],
+          live.url,
+          JSON.stringify(preview),
+        )
+      ).json,
+    ).toEqual({ messages: 3, freedBytes: 4096 });
+    expect(live.calls).toEqual([
+      { method: 'storageMessagesCleanupPreview', args: scope },
+      { method: 'storageMessagesCleanupConfirm', args: { ...scope, token: 'messages-token' } },
     ]);
   });
 });

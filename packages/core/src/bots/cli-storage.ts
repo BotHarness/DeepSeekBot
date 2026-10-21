@@ -25,6 +25,16 @@ export const STORAGE_COMMANDS = [
     description:
       'clear the previewed chat media; pipe the preview JSON on stdin and pass --confirm',
   },
+  {
+    command: 'storage-messages-cleanup-preview',
+    description:
+      'preview deleting chat messages older than --before <time> or --older-than-days <n>; returns a token',
+  },
+  {
+    command: 'storage-messages-cleanup-confirm',
+    description:
+      'delete the previewed chat messages; pipe the preview JSON on stdin and pass --confirm',
+  },
 ] as const;
 
 type Command = (typeof STORAGE_COMMANDS)[number]['command'];
@@ -46,7 +56,7 @@ function usage(message: string): never {
   throw new CliLiveError('usage', message);
 }
 
-function scope(values: StorageValues, now: Date): Record<string, unknown> {
+function scope(values: StorageValues, now: Date, messages = false): Record<string, unknown> {
   if ((values.before === undefined) === (values['older-than-days'] === undefined))
     usage('Pass exactly one of --before <ISO time> or --older-than-days <days>.');
   let before: Date;
@@ -59,6 +69,8 @@ function scope(values: StorageValues, now: Date): Record<string, unknown> {
       usage('--older-than-days must be whole days from 0 to 36500.');
     before = new Date(now.getTime() - Number(days) * 24 * 60 * 60 * 1000);
   }
+  if (messages && values.media !== undefined)
+    usage('--media applies to storage-cleanup only; message cleanup covers whole messages.');
   const kinds = [...new Set((values.media ?? []).map((kind) => kind.trim()))];
   if (kinds.some((kind) => !(STORAGE_MEDIA_KINDS as readonly string[]).includes(kind)))
     usage(`--media must be one of ${STORAGE_MEDIA_KINDS.join(', ')}.`);
@@ -72,12 +84,13 @@ function scope(values: StorageValues, now: Date): Record<string, unknown> {
 
 async function confirmation(
   io: BotCreateCliIo,
+  preview: string,
 ): Promise<{ token: string; scope?: Record<string, unknown> }> {
   let input: unknown;
   try {
     input = JSON.parse(await (io.readStdin?.() ?? Promise.resolve('')));
   } catch {
-    usage('Confirmation stdin must be JSON with the token from storage-cleanup-preview.');
+    usage(`Confirmation stdin must be JSON with the token from ${preview}.`);
   }
   if (
     typeof input !== 'object' ||
@@ -87,7 +100,7 @@ async function confirmation(
     !input.token.trim() ||
     input.token.length > 512
   )
-    usage('Confirmation stdin must contain the token string from storage-cleanup-preview.');
+    usage(`Confirmation stdin must contain the token string from ${preview}.`);
   const previewed = 'scope' in input ? input.scope : undefined;
   if (previewed === undefined) return { token: input.token };
   if (
@@ -96,7 +109,7 @@ async function confirmation(
     !('before' in previewed) ||
     typeof previewed.before !== 'string'
   )
-    usage('The scope on stdin must be the one storage-cleanup-preview returned.');
+    usage(`The scope on stdin must be the one ${preview} returned.`);
   const { before, channelIds, kinds } = previewed as Record<string, unknown>;
   return {
     token: input.token,
@@ -118,17 +131,32 @@ export async function runStorageCommand(
 ): Promise<unknown> {
   if (rest.length !== 0) usage(`${command} takes no positional arguments.`);
   if (command === 'storage-usage') return (await connect())('storageUsage', {});
+  const messages = command.startsWith('storage-messages-');
   if (command === 'storage-cleanup-preview')
     return (await connect())('storageCleanupPreview', scope(values, now()));
+  if (command === 'storage-messages-cleanup-preview')
+    return (await connect())('storageMessagesCleanupPreview', scope(values, now(), true));
   if (values.confirm !== true)
-    usage('Clearing permanently deletes these images, videos, audio and files. Pass --confirm.');
+    usage(
+      messages
+        ? 'Deleting permanently removes these messages and their files. Pass --confirm.'
+        : 'Clearing permanently deletes these images, videos, audio and files. Pass --confirm.',
+    );
   if (values['confirmation-stdin'] !== true)
-    usage('storage-cleanup-confirm reads the preview JSON or its token with --confirmation-stdin.');
-  const { token, scope: previewed } = await confirmation(io);
+    usage(`${command} reads the preview JSON or its token with --confirmation-stdin.`);
+  const { token, scope: previewed } = await confirmation(
+    io,
+    messages ? 'storage-messages-cleanup-preview' : 'storage-cleanup-preview',
+  );
   const args =
     previewed ??
     (values.before === undefined
       ? usage('Pipe the preview JSON on stdin, or pass the same --before the preview returned.')
-      : scope(values, now()));
-  return (await connect())('storageCleanupConfirm', { ...args, token });
+      : scope(values, now(), messages));
+  return (await connect())(messages ? 'storageMessagesCleanupConfirm' : 'storageCleanupConfirm', {
+    ...(messages
+      ? { before: args.before, ...(args.channelIds ? { channelIds: args.channelIds } : {}) }
+      : args),
+    token,
+  });
 }

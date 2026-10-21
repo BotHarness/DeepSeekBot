@@ -5,7 +5,10 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { PairedDevicesSettings } from '../src/client/paired-devices.js';
 import { zhTranslate } from '../src/client/locale.js';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({ Button: 'button' }));
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+  Button: 'button',
+  relativeTime: () => ({ unit: 'minute', n: 1 }),
+}));
 
 let host: HTMLDivElement;
 let root: ReturnType<typeof createRoot>;
@@ -122,4 +125,21 @@ it('explains a refused account', async () => {
     zhTranslate('devices.connect.notAllowed'),
   );
   expect(button('登录')).toBeDefined();
+});
+
+it('marks a device paired in the last day so a stranger stands out', async () => {
+  const recent = new Date(Date.now() - 60_000).toISOString();
+  const old = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
+  snapshot = {
+    ...devices(),
+    devices: [
+      { id: 'new', name: 'Stranger', pairedAt: recent },
+      { id: 'old', name: 'Phone', pairedAt: old, lastSeenAt: old },
+    ],
+  };
+  await render();
+  const row = (id: string) => host.querySelector(`[data-paired-device="${id}"]`);
+  expect(row('new')?.hasAttribute('data-new-device')).toBe(true);
+  expect(row('new')?.textContent).toContain('新配对，不是你的设备请移除');
+  expect(row('old')?.hasAttribute('data-new-device')).toBe(false);
 });

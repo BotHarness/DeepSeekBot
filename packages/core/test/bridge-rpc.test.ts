@@ -309,6 +309,29 @@ describe('bridge typert service', () => {
     expect(result.channelId).toBe('dm-ada');
   });
 
+  it('forwards the Marketplace origin of a Git install through the named RPC facade', async () => {
+    const { service, methods } = setup();
+    const createFromGit = vi
+      .spyOn(methods, 'createFromGit')
+      .mockResolvedValue({ ok: false, error: { code: 'git-clone-failed', message: 'offline' } });
+    await expect(
+      service.createFromGit(
+        'Mascot',
+        'https://github.com/alice/mascot.git',
+        ['helper'],
+        'Bio',
+        'marketplace',
+      ),
+    ).rejects.toThrow();
+    expect(createFromGit).toHaveBeenCalledWith({
+      displayName: 'Mascot',
+      gitUrl: 'https://github.com/alice/mascot.git',
+      roles: ['helper'],
+      description: 'Bio',
+      origin: 'marketplace',
+    });
+  });
+
   it('round-trips profile fingerprint and preserves stale profile refusal through the RPC facade', () => {
     const { service } = setup();
     service.create('Ada');
@@ -601,6 +624,8 @@ describe('bridge typert service', () => {
       'storageUsage',
       'storageCleanupPreview',
       'storageCleanupConfirm',
+      'storageMessagesCleanupPreview',
+      'storageMessagesCleanupConfirm',
       'channelMessages',
       'channelTimeline',
       'channelReadPosition',
@@ -723,6 +748,9 @@ describe('bridge typert service', () => {
       'releaseUpdate',
       'releaseInstall',
       'releaseRestart',
+      'pluginUpdates',
+      'pluginInstall',
+      'pluginRestart',
       'telemetryStatus',
       'telemetrySet',
       'gitStatus',
@@ -802,6 +830,7 @@ describe('bridge typert service', () => {
       'gitUrl',
       'roles',
       'description',
+      'origin',
     ]);
     expect(parameterNames(service.marketplaceList)).toEqual(['query']);
     expect(parameterNames(service.marketplaceTopics)).toEqual([]);

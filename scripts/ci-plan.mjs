@@ -61,6 +61,10 @@ export const RULES = [
     'License notice for the scoped upstream palette',
   ),
   related('packages/*/scripts/**', 'Package scripts'),
+  related(
+    'packages/cloudflared/*/package.json',
+    'Pinned cloudflared platform package scaffolds read by the release packer',
+  ),
   related('packages/*/*.yml', 'Product patches'),
   related('packages/*/wrangler.jsonc', 'Worker configs'),
   none(

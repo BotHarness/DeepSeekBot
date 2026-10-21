@@ -9,7 +9,9 @@ import { createConversation, type Conversation, type ConversationSnapshot } from
 import { createConversationPlayback, type ConversationPlayback } from './conversation-playback';
 import { useVisibleSnapshot } from './use-visible-snapshot';
 import { currentHost, selectHost, withHost, withoutHost, type SavedHosts } from './hosts';
-import { clearConversationCache, nativeConversationCache } from './native-cache';
+import { clearHostConversationCache, nativeConversationCache } from './native-cache';
+import { conversationFilter } from './native-conversation-filter';
+import { computerEnvironmentKey } from './conversation-environments';
 import { nativeCarrier } from './native-carrier';
 import { nativeNotifications } from './native-notifications';
 import { notificationAvatars } from './native-notification-avatars';
@@ -22,6 +24,7 @@ import { loadSavedHosts, saveHosts, type SavedHost } from './saved-host';
 import { mobileTelemetry } from '../telemetry/native';
 import { createConnectionTelemetry } from '../telemetry/connection';
 import type { ConnectionTrigger } from '../telemetry/schema';
+import { forgetRecentChats } from '../ui/shell/recent-chats';
 import { locale, t } from '../ui/strings';
 
 export interface HostSessionState {
@@ -44,6 +47,7 @@ export const pushSession = createPushSession({
     always: t.alwaysAllow,
     approve: t.allowOnce,
     reject: t.reject,
+    'remove-device': t.removeDevice,
   }),
   hostPush,
   platform: Platform.OS === 'android' ? 'android' : 'ios',
@@ -155,7 +159,9 @@ export const hostSession = {
     await commit(next);
     return true;
   },
-  async unpair(hostId?: string): Promise<{ revoked: Promise<boolean> } | undefined> {
+  async unpair(
+    hostId?: string,
+  ): Promise<{ current: boolean; revoked: Promise<boolean> } | undefined> {
     const host =
       hostId === undefined ? state.saved : stored.hosts.find((entry) => entry.hostId === hostId);
     if (host === null || host === undefined) return undefined;
@@ -170,15 +176,19 @@ export const hostSession = {
       }
     });
     await commit(withoutHost(stored, host.hostId));
-    if (current)
-      try {
-        clearConversationCache();
-      } catch {}
+    try {
+      clearHostConversationCache(host.hostId);
+    } catch {}
+    void forgetRecentChats(host.hostId);
+    void conversationFilter.ready.then(() => {
+      if (conversationFilter.getSnapshot() === computerEnvironmentKey(host.hostId))
+        conversationFilter.set('all');
+    });
     const revoked = pushSession
       .forget(host)
       .then(() => revokePairing({ host, carrier: nativeCarrier() }))
       .then((result) => result === 'revoked');
-    return { revoked };
+    return { current, revoked };
   },
 };
 

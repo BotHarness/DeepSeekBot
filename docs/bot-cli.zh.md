@@ -622,7 +622,7 @@ deepseekbot group-activity <group-channel>
 这些命令调用的 Host 方法与市场页面、更新卡片、使用统计提示、Git 提示和 IM 配对面板相同：
 
 ```bash
-deepseekbot marketplace-list [--query <关键词>] [--topic <主题>] [--sort updated|stars] [--lang zh|en] [--cursor <next-cursor>]
+deepseekbot marketplace-list [--query <关键词>] [--topic <主题>] [--sort updated|created|stars] [--lang zh|en] [--cursor <next-cursor>]
 deepseekbot marketplace-topics
 deepseekbot marketplace-detail <owner/repo> [--lang zh|en]
 deepseekbot marketplace-submit https://github.com/<owner>/<repo>
@@ -630,6 +630,9 @@ deepseekbot marketplace-report <owner/repo> [--reason <说明>]
 deepseekbot release-check [--force]
 deepseekbot release-install <version> --confirm
 deepseekbot release-restart --confirm
+deepseekbot plugin-check [--force]
+deepseekbot plugin-install <package> <version> --confirm
+deepseekbot plugin-restart --confirm
 deepseekbot telemetry-status
 deepseekbot telemetry-set --enabled | --disabled
 deepseekbot git-status
@@ -644,6 +647,8 @@ deepseekbot pairing-review <bot-id> <pairing-id> --decision revoke --confirm
 `release-check --force` 会绕过 Host 的检查缓存。`available` 包含运行中 DSH 的兼容判断；若最新版不兼容，还会返回 `blockedLatest`。`blocked` 会说明不满足的版本要求或运行时／元数据未知原因。检查覆盖准确的 Bundle、产品组件及固定版本 IM Provider，复用运行中 DSH 的兼容评估器。安装前会再次校验，最终仍由原生 Plugin Manager 决定是否允许安装；离线或检查失败不会显示为“已是最新版”。
 
 `release-info` 包含可选的 Host 所有 `identity`：带源码 revision／dirty 的 `development`、带版本的 `release`，或带元数据／组合原因的 `unknown`。旧 Host 缺少该字段，不代表发布身份已经核实。源码内部版本占位仍为 `0.0.0`，关于页面显示源码身份。`release-check` 可返回 `unknown`，此时安装／重启以 `release-identity-invalid` 拒绝。已安装／待生效版本与运行版本分开，直到新 Host 返回精确目标版本。
+
+`plugin-check`、`plugin-install` 和 `plugin-restart` 对应 **Bot 设置 → 插件** 页面，覆盖除 `deepseekbot` 以外已安装的 `@botharness/*` 插件 Bundle，例如 `@botharness/vrm-companion`。`plugin-check` 返回 `installable`、`restartable`，以及每个插件一条记录，`status` 为 `current`、`available`、`blocked`、`restart-required`、`development` 或 `unavailable`；`--force` 绕过六小时的检查缓存。兼容判断复用运行中 DSH 的评估器，读取该插件在 registry 上的清单。`plugin-install <package> <version> --confirm` 会再次检查兼容性，通过原生 Plugin Manager 安装；Manager 拒绝覆盖已安装的包名时，改用 registry 的安装包地址。返回 `applied: true` 表示 Host 已经加载新版本，只需刷新页面；否则用 `plugin-restart --confirm` 重启 Host，让所有待生效的插件更新生效。失败时以非零退出，错误码为 `plugin-<原因>`，例如 `plugin-incompatible`、`plugin-unknown-plugin` 或 `plugin-not-pending`。
 
 `--lang zh|en` 按该语言读取列表，与市场页面按界面语言读取一致：名称和简介依次取作者 `bot.json` 里 `i18n` 的翻译、本来就是该语言的简介、市场生成的摘要（`descriptionGenerated: true`）；`marketplace-detail` 返回仓库里该语言的 README，并在 `readmeLanguage` 里注明，没有就返回 `README.md`：`zh` 依次取 `README.zh-CN.md`、`README.zh.md`，再取 `README_CN.md`、`README-zh.md` 等其他写法；`en` 取 `README.en.md`。`marketplace-submit` 和 `marketplace-report` 会像网页一样先完成 Host 下发的工作量证明，因此可能需要几秒；市场本身的拒绝（`repository-missing-topic`、`rate-limited` 等）作为错误码返回。举报说明最多 500 个字符。`release-check` 返回更新状态（`current`、`available`、`restart-required`、`development`、`unknown` 或 `unavailable`）。`release-install` 和 `release-restart` 必须带 `--confirm`；安装或重启失败时以非零退出，错误码为 `release-<原因>`，例如 `release-network` 或 `release-not-pending`。重启会中断所有正在运行的 Bot 回合，只在自己负责的 Host 上执行。`pairing-list` 列出 Bot 的配对请求和角色；`pairing-review` 自行读取当前版本号，期间被改动过的请求会被拒绝而不是被覆盖。对话类请求用一个 `--role` 批准，管理类请求用 `--capability` 批准。
 
@@ -671,6 +676,13 @@ deepseekbot storage-cleanup-preview --older-than-days 90 [--chat <channel-id> �
 `storage-cleanup-preview` 需要且只能传 `--before <ISO 时间>` 或 `--older-than-days <天数>` 之一，可重复传 `--chat`（默认全部聊天）和 `--media`（默认四种类型）。它返回将清理的文件数与字节数、`freedBytes`（没有其他地方再引用的文件）、按聊天和类型的统计、`kept` 计数（`bot-working`、`delivery-pending`、`memory`、`migration`），以及十分钟有效的 `token` 和规范化后的 `scope`。把这段 JSON 通过管道交给 `storage-cleanup-confirm --confirmation-stdin --confirm`；范围有变化或 token 过期时返回 `storage-preview-stale`，请重新预览。
 
 清理会保留每条消息及其文字：每个被清理的附件会变成一条 `clearedAttachments` 记录（名称、类型、大小、时间），没有其他引用时删除其文件。来自 IM 应用的媒体和 Bot 的 Memory 不受影响。之前做的 Profile Backup 仍包含这些文件。
+
+```bash
+deepseekbot storage-messages-cleanup-preview --older-than-days 365 [--chat <channel-id> …] \
+  | deepseekbot storage-messages-cleanup-confirm --confirmation-stdin --confirm
+```
+
+`storage-messages-cleanup-preview` 删除的是整条消息：参数同样是 `--before` / `--older-than-days` 和 `--chat`，但不接受 `--media`。它返回 `messages`、`bytes`（这些消息的文字）、随消息一起删除的 `files`、每个聊天的条数 `chats`、`kept` 计数（`bot-working`、`delivery-pending`，以及消息同时出现在没选的聊天里时的 `shared`）、`memoryReferences`（提到这些消息的 Bot 记忆，记忆不会改动）、超过 2,000 条时的 `more`（完成后再清理一次），以及十分钟有效的 `token`。`storage-messages-cleanup-confirm` 通过 Content Purge 执行：每条消息保留位置，变成没有文字和文件的占位；从它开始的 Bot 工作会停止；没有其他引用的文件会被删除。它返回 `messages` 和数据库压缩后测得的 `freedBytes`。范围有变化或 token 过期时返回 `storage-preview-stale`。
 
 ## IM 应用授权
 
@@ -1074,10 +1086,16 @@ deepseekbot connect-disable --host <host> --token-file <private-file>
 `connect-enable` 把主机名和 connector token 存进 DSH 凭据存储，开一个只把
 `/botharness-device/*` 转给 DSH 监听口的回环入口（其他路径一律 404），并以
 `cloudflared tunnel --no-autoupdate run` 运行隧道；token 只放在 `TUNNEL_TOKEN` 环境变量里，
-不出现在参数中。返回 JSON 的 `origin` 是隧道 ingress 要指向的地址。`cloudflared` 取自
-`DEEPSEEKBOT_CLOUDFLARED` 或 `PATH`。`connect-status` 返回 `connect.state`（`off`、`starting`、
-`connected`、`error`）及 `issue`（`cloudflared-missing`、`cloudflared-exited`、`origin-port-busy`、
-`credential-unavailable`）和手机路由列表；连上后，新的配对二维码会在 Tailscale 路由之后带上
+不出现在参数中。返回 JSON 的 `origin` 是隧道 ingress 要指向的地址。Host 运行固定版本的
+`cloudflared`（`packages/core/src/devices/cloudflared.json`），按顺序取第一个可用的：
+`DEEPSEEKBOT_CLOUDFLARED`；随 `deepseekbot` 安装的可选包 `@botharness/cloudflared-<平台>-<架构>`；
+`$DSH_HOME/botharness/cloudflared/<版本>/` 下的副本（从 cloudflared 的 GitHub 发布下载，SHA-256
+与固定值一致才保留）；最后是 `PATH` 上的 `cloudflared`。哈希不符的缓存或包内二进制会被拒绝，
+损坏的缓存会被删除并重新下载。`connect-status` 返回 `connect.state`（`off`、`starting`、
+`connected`、`error`）及 `issue`（`cloudflared-missing`、`cloudflared-exited`、
+`cloudflared-download-failed`、`cloudflared-hash-mismatch`、`origin-port-busy`、
+`credential-unavailable`）、`connect.cloudflared`（`env`、`package`、`cache`、`download` 或
+`path`，即实际运行的是哪个二进制）和手机路由列表。下载被拒绝后会退避重试；连上后，新的配对二维码会在 Tailscale 路由之后带上
 `https://<name>.deepseekbot.dev`。拒绝码：`connect-hostname-invalid`（只接受
 `deepseekbot.dev` 下一级）、`connect-token-invalid`、`credential-unavailable`。
 `connect-disable` 停掉隧道并删除已存的 token，已配对设备的凭据不受影响。

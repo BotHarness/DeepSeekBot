@@ -912,6 +912,64 @@ it('updates the Messages Channel title and trailing actions without replacing it
   expect(draft.value).toBe('Keep');
 });
 
+it('keeps panel chrome still when only the Messages body and header slots change', async () => {
+  const { WorkspaceContext } = await import('../src/client/workspace-context.js');
+  const registry = createDockPanelRegistry();
+  const renders = { header: 0, body: 0 };
+  registry.register({
+    id: CHANNEL_BODY_PANEL,
+    title: 'Messages',
+    scope: 'global',
+    component: () => null,
+  });
+  registry.register({
+    id: 'notes',
+    title: 'Notes',
+    scope: 'global',
+    defaultPosition: { zone: 'right' },
+    component: () => {
+      renders.body += 1;
+      return createElement('div', { 'data-notes': '' });
+    },
+    headerAction: () => {
+      renders.header += 1;
+      return null;
+    },
+  });
+  const workspace = { rail: () => createElement('nav') };
+  const channel: DockPanelChannel = { id: 'dm', type: 'dm', botSlug: 'ada' };
+  const view = (frame: number) =>
+    createElement(
+      WorkspaceContext.Provider,
+      { value: workspace },
+      createElement(ChannelDock, {
+        body: createElement('p', { 'data-stream': '' }, 'x'.repeat(frame)),
+        header: { title: 'Ada', actions: createElement('span', null, `frame ${frame}`) },
+        panels: registry.panels(),
+        registry,
+        channel,
+        entryProps,
+        shows: () => true,
+        t: zhTranslate,
+        storage,
+      }),
+    );
+  act(() => root.render(view(1)));
+  await settle();
+  act(() => registry.open('notes'));
+  await settle();
+  expect(host.querySelector('[data-notes]')).not.toBeNull();
+  const before = { ...renders };
+  expect(before.header).toBeGreaterThan(0);
+  for (let frame = 2; frame <= 6; frame += 1) act(() => root.render(view(frame)));
+  await settle();
+  expect(host.querySelector('[data-stream]')!.textContent).toBe('xxxxxx');
+  expect(host.querySelector('[data-dock-header="bh:channel-body"]')!.textContent).toContain(
+    'frame 6',
+  );
+  expect(renders).toEqual(before);
+});
+
 it('routes Sessions through its parent, remembers each Channel and preserves content on rearrangement', async () => {
   const { WorkspaceContext } = await import('../src/client/workspace-context.js');
   const registry = createDockPanelRegistry();

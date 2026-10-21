@@ -55,6 +55,8 @@
     "apps/mobile/test/recent-chats.test.ts",
     "apps/mobile/test/grant-request-card.test.ts",
     "apps/mobile/test/attention-actions.test.ts",
+    "apps/mobile/test/host-session-unpair.test.ts",
+    "apps/mobile/test/conversation-cache-host.test.ts",
     "apps/mobile/test/reanimated-shim.ts",
     "apps/mobile/test/**/*.tsx"
   ]

@@ -35,6 +35,8 @@ import { createRoom, type Mood, type Weather } from './room.js';
 import { enableLilToon } from '@mochiya/three-liltoon';
 import { createCharacterShading, type CharacterShading } from './shading.js';
 import { createPost } from './post.js';
+import type { Loading, Problem } from './copy.js';
+import { RATIOS, createPacing, frameRate, nextPacing } from './pacing.js';
 
 export type CameraView = 'desk' | 'room' | 'portrait';
 export interface SceneState {
@@ -51,9 +53,10 @@ export interface SceneChoices {
   tour?: boolean;
 }
 export interface StageCallbacks {
-  loading(value: string): void;
-  error(value: string): void;
+  loading(value: Loading): void;
+  error(value: Problem): void;
   changed(state: SceneState): void;
+  poster(url: string): void;
 }
 export interface Stage {
   update(snapshot: BotPresentationSnapshot): void;
@@ -80,7 +83,7 @@ const TURNED = new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), Math.PI);
 export function mountStage(
   host: HTMLElement,
   model: () => Promise<string>,
-  { loading, error, changed }: StageCallbacks,
+  { loading, error, changed, poster }: StageCallbacks,
   initial: SceneChoices = {
     camera: 'desk',
     mood: 'auto',
@@ -148,23 +151,20 @@ export function mountStage(
   environment.dispose();
   generator.dispose();
   renderer.shadowMap.type = PCFSoftShadowMap;
-  const RATIOS = [1.5, 1.25, 1, 0.75];
-  let ratioStep = RATIOS.findIndex((value) => value <= Math.min(devicePixelRatio, 1.5));
-  if (ratioStep < 0) ratioStep = RATIOS.length - 1;
-  renderer.setPixelRatio(RATIOS[ratioStep]!);
-  let pace = 60;
+  let pacing = createPacing(devicePixelRatio);
+  renderer.setPixelRatio(RATIOS[pacing.ratioStep]!);
+  let calm = false;
   let windowStart = 0,
     windowFrames = 0,
     windowWork = 0,
-    slowWindows = 0,
-    fastWindows = 0,
-    promoteAfter = 5;
+    windowRate = 0;
   const post = createPost(renderer);
   const rim = new Color();
   const warm = new Color();
   let effects = initial.effects !== false;
   host.dataset.vrmEffects = effects ? 'on' : 'off';
-  renderer.domElement.style.cssText = 'display:block;width:100%;height:100%';
+  renderer.domElement.style.cssText =
+    'display:block;width:100%;height:100%;opacity:0;transition:opacity .35s ease-out';
   renderer.domElement.setAttribute('aria-label', 'VRM character');
   host.append(renderer.domElement);
   const controls = new OrbitControls(camera, renderer.domElement);
@@ -314,7 +314,7 @@ export function mountStage(
     frame = 0;
     if (!canDraw()) return;
     frame = requestAnimationFrame(draw);
-    if (last && time - last < 1000 / (reduced.matches ? 10 : pace) - 4) return;
+    if (last && time - last < 1000 / frameRate(pacing, calm, reduced.matches) - 4) return;
     const passed = clock.getDelta();
     const delta = Math.min(passed, 0.05);
     last = time;
@@ -386,6 +386,7 @@ export function mountStage(
         sit >= 1 &&
         !reduced.matches;
       const idleFrame = idle.step(delta, resting);
+      calm = (resting ? !idleFrame.action : !moving) && !glide && paused <= 0;
       const settled = conversing && idleFrame.weight < 0.05;
       attend = reduced.matches
         ? settled
@@ -814,36 +815,28 @@ export function mountStage(
     if (!windowStart) windowStart = time;
     windowFrames++;
     windowWork += work;
+    windowRate += frameRate(pacing, calm, reduced.matches);
     const span = time - windowStart;
     if (span < 2000) return;
     const fps = (windowFrames * 1000) / span;
     host.dataset.vrmFps = fps.toFixed(1);
     const average = windowWork / windowFrames;
     host.dataset.vrmWork = average.toFixed(1);
-    host.dataset.vrmPixelRatio = String(RATIOS[ratioStep]);
+    const target = windowRate / windowFrames;
     windowStart = time;
     windowFrames = 0;
     windowWork = 0;
-    host.dataset.vrmPace = String(pace);
-    const target = reduced.matches ? 10 : pace;
-    slowWindows = fps < target * 0.8 ? slowWindows + 1 : 0;
-    fastWindows = pace < 60 && fps >= 27 && average < 6 ? fastWindows + 1 : 0;
-    if (fastWindows >= promoteAfter && !reduced.matches) {
-      fastWindows = 0;
-      slowWindows = 0;
-      pace = 60;
-    } else if (slowWindows >= 2 && pace > 30) {
-      slowWindows = 0;
-      promoteAfter = Math.min(promoteAfter * 2, 60);
-      pace = 30;
-    } else if (slowWindows >= 2 && ratioStep < RATIOS.length - 1) {
-      slowWindows = 0;
-      ratioStep++;
-      renderer.setPixelRatio(RATIOS[ratioStep]!);
+    windowRate = 0;
+    const ratioStep = pacing.ratioStep;
+    pacing = nextPacing(pacing, { fps, work: average, target, reduced: reduced.matches });
+    if (pacing.ratioStep !== ratioStep) {
+      renderer.setPixelRatio(RATIOS[pacing.ratioStep]!);
       renderer.setSize(width, height, false);
       post.setSize(width, height);
-      host.dataset.vrmPixelRatio = String(RATIOS[ratioStep]);
     }
+    host.dataset.vrmPace = String(pacing.pace);
+    host.dataset.vrmRate = String(frameRate(pacing, calm, reduced.matches));
+    host.dataset.vrmPixelRatio = String(RATIOS[pacing.ratioStep]);
   };
   function paint() {
     if (effects) return post.render(scene, camera);
@@ -854,6 +847,7 @@ export function mountStage(
     windowStart = 0;
     windowFrames = 0;
     windowWork = 0;
+    windowRate = 0;
     cancelAnimationFrame(frame);
     frame = 0;
     clock.getDelta();
@@ -885,13 +879,13 @@ export function mountStage(
   const lost = (event: Event) => {
     event.preventDefault();
     loading('');
-    error('3D rendering interrupted. Retry to reload the character.');
+    error('interrupted');
     reconcile();
   };
   renderer.domElement.addEventListener('webglcontextlost', lost);
   const loader = new GLTFLoader();
   loader.register((parser) => new VRMLoaderPlugin(parser));
-  loading('Loading character…');
+  loading('signing-in');
   void model()
     .then((url) => loader.loadAsync(url))
     .then((gltf) => {
@@ -949,6 +943,7 @@ export function mountStage(
       scene.add(room.root);
       scene.add(key);
       actor.position.set(motion.x, floorOffset - hipDrop, motion.z);
+      const reveal: Object3D[] = [actor, room.root];
       const rawHead = loaded.humanoid.getRawBoneNode('head');
       if (rawHead && wearing) {
         const headphones = new Group();
@@ -973,20 +968,30 @@ export function mountStage(
         headphones.scale.setScalar(modelScale);
         scene.add(headphones);
         rawHead.attach(headphones);
+        reveal.push(headphones);
       }
       if (loaded.lookAt) loaded.lookAt.target = gaze;
       gaze.position.copy(camera.position);
       fitCamera(initial.camera);
-      notify();
-      loading('');
-      host.dataset.vrmLoaded = 'true';
-      host.dataset.vrmLoadMs = String(Math.round(performance.now() - started));
-      reconcile();
+      const compiled = effects ? post.compile(scene, camera) : renderer.compileAsync(scene, camera);
+      for (const object of reveal) object.visible = false;
+      return compiled.then(() => {
+        if (disposed) return;
+        for (const object of reveal) object.visible = true;
+        notify();
+        host.dataset.vrmLoaded = 'true';
+        renderer.domElement.style.opacity = '1';
+        setTimeout(() => {
+          if (!disposed) loading('');
+        }, 350);
+        host.dataset.vrmLoadMs = String(Math.round(performance.now() - started));
+        reconcile();
+      });
     })
     .catch(() => {
       if (disposed) return;
       loading('');
-      error('Character could not load. Bot activity and messages remain available.');
+      error('missing');
     });
   return {
     update(snapshot) {
@@ -1025,6 +1030,10 @@ export function mountStage(
     },
     dispose() {
       if (disposed) return;
+      if (host.dataset.vrmLoaded === 'true' && canDraw()) {
+        paint();
+        poster(renderer.domElement.toDataURL('image/webp', 0.75));
+      }
       disposed = true;
       for (const name of ['--vrm-head-x', '--vrm-head-y', '--vrm-panel-width'])
         host.parentElement?.style.removeProperty(name);

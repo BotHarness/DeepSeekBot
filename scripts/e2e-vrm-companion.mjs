@@ -41,6 +41,16 @@ page.on('console', (message) => {
 });
 const aria = (name) => '::-p-aria(' + name + ')';
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
+const loaded = (selector, count = 1, timeout = 45000) =>
+  page.waitForFunction(
+    (selector, count) => {
+      document.querySelector('[data-vrm-software] button')?.click();
+      return document.querySelectorAll(selector).length === count;
+    },
+    { timeout, polling: 250 },
+    selector,
+    count,
+  );
 async function visible(selector) {
   for (const node of await page.$$(selector)) if (await node.isVisible()) return node;
   return null;
@@ -125,7 +135,7 @@ try {
     if (homeClose) await homeClose.click();
     if (!(await visible('[data-vrm-bot="' + ada.slug + '"]')))
       await click('button[aria-label="VRM Companion"]');
-    await page.waitForSelector('[data-vrm-loaded="true"]', { timeout: 45000 });
+    await loaded('[data-vrm-loaded="true"]');
     await delay(1000);
     if (phase === 'lifecycle') {
       await click('button[aria-label="VRM Companion"]');
@@ -150,11 +160,11 @@ try {
         window.qaContexts[0].getExtension('WEBGL_lose_context').loseContext(),
       );
       await delay(500);
-      assert.match(await page.$eval('body', (n) => n.innerText), /3D rendering interrupted/);
+      assert.match(await page.$eval('body', (n) => n.innerText), /The view was interrupted/);
       await capture('context-loss');
-      await click(aria('Retry character'));
+      await click('[data-vrm-error] button');
       await delay(1500);
-      assert.doesNotMatch(await page.$eval('body', (n) => n.innerText), /3D rendering interrupted/);
+      assert.doesNotMatch(await page.$eval('body', (n) => n.innerText), /The view was interrupted/);
       await page.evaluate(() => {
         window.qaContexts = [...document.querySelectorAll('[data-vrm-stage] canvas')].map((n) =>
           n.getContext('webgl2'),
@@ -180,7 +190,7 @@ try {
       await click('button[data-channel-id="dm-' + bob.slug + '"]');
       await delay(700);
       await click('button[aria-label="VRM Companion"]');
-      await page.waitForSelector('[data-vrm-bot="' + bob.slug + '"] [data-vrm-loaded="true"]');
+      await loaded('[data-vrm-bot="' + bob.slug + '"] [data-vrm-loaded="true"]');
       await click('[data-vrm-pin]');
       await delay(800);
       await click('button[aria-label="VRM Companion"]');
@@ -189,9 +199,7 @@ try {
       assert.deepEqual(await bindings(), [ada.slug, bob.slug].sort());
       await capture('two-fixed');
       await page.reload({ waitUntil: 'domcontentloaded' });
-      await page.waitForFunction(
-        () => document.querySelectorAll('[data-vrm-loaded="true"]').length === 2,
-      );
+      await loaded('[data-vrm-loaded="true"]', 2, 30000);
       assert.deepEqual(await bindings(), [ada.slug, bob.slug].sort());
       assert.equal(await page.$$eval('[data-vrm-speaking="true"]', (ns) => ns.length), 0);
       await capture('two-restored');

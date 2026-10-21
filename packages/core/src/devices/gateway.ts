@@ -8,6 +8,9 @@ import type { Admission, DevicePairing, DeviceRefusal, OfferRefusal } from './pa
 export const DEVICE_GATEWAY_PREFIX = '/botharness-device';
 export const DEVICE_PAIR_PATH = `${DEVICE_GATEWAY_PREFIX}/pair`;
 export const DEVICE_UNPAIR_PATH = `${DEVICE_GATEWAY_PREFIX}/unpair`;
+export const DEVICE_REMOVE_PATH = `${DEVICE_GATEWAY_PREFIX}/devices/remove`;
+export const DEVICE_CONNECT_OFFER_PATH = `${DEVICE_GATEWAY_PREFIX}/connect/offer`;
+export const RELAY_SIGNATURE_HEADER = 'x-botharness-relay-signature';
 export const DEVICE_MUX_PATH = `${DEVICE_GATEWAY_PREFIX}/api/remote.mux`;
 export const DEVICE_WEB_PREFIX = `${DEVICE_GATEWAY_PREFIX}/web`;
 export const DEVICE_WEB_MUX_PATH = `${DEVICE_WEB_PREFIX}/api/remote.mux`;
@@ -46,6 +49,7 @@ export type GatewayRefusal =
   | DeviceRefusal
   | OfferRefusal
   | 'origin-refused'
+  | 'relay-signature-invalid'
   | 'host-session-unavailable'
   | 'not-found';
 
@@ -61,6 +65,10 @@ export interface DeviceGatewayOptions {
     deviceId: string;
     body: Record<string, unknown>;
   }) => Promise<{ status: number; body: unknown }>;
+  connectOffer?: (
+    body: string,
+    signature: string | undefined,
+  ) => Promise<{ ok: true; verifierHash: string; name?: string } | { ok: false }>;
 }
 
 export interface DeviceGateway {
@@ -213,7 +221,7 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
   const pair = async (request: IncomingMessage, response: ServerResponse): Promise<void> => {
     if (request.method !== 'POST') return refuse(response, 404, 'not-found');
     const text = await readSmall(request, PAIR_BODY_LIMIT);
-    let input: { offer?: unknown; name?: unknown } = {};
+    let input: { offer?: unknown; name?: unknown; verifier?: unknown } = {};
     try {
       input = JSON.parse(text ?? '') as typeof input;
     } catch {}
@@ -221,6 +229,7 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
     const result = pairing.redeem({
       offer: input.offer,
       ...(typeof input.name === 'string' ? { name: input.name } : {}),
+      ...(typeof input.verifier === 'string' ? { verifier: input.verifier } : {}),
     });
     if (!result.ok) return refuse(response, 401, result.code);
     response.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
@@ -240,6 +249,43 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
     pairing.revoke(admission.device.id);
     response.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
     response.end(JSON.stringify({ revoked: true }));
+  };
+
+  const remove = async (request: IncomingMessage, response: ServerResponse): Promise<void> => {
+    if (request.method !== 'POST') return refuse(response, 404, 'not-found');
+    const admission = pairing.admit(header(request, 'authorization'));
+    if (!admission.ok) return refuse(response, 401, admission.code);
+    let input: { deviceId?: unknown } = {};
+    try {
+      input = JSON.parse((await readSmall(request, PAIR_BODY_LIMIT)) ?? '') as typeof input;
+    } catch {}
+    const target =
+      typeof input.deviceId === 'string'
+        ? pairing.list().find((device) => device.id === input.deviceId)
+        : undefined;
+    if (target === undefined) return refuse(response, 404, 'not-found');
+    pairing.revoke(target.id);
+    response.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+    response.end(JSON.stringify({ revoked: true, device: { id: target.id, name: target.name } }));
+  };
+
+  const connectOffer = async (
+    request: IncomingMessage,
+    response: ServerResponse,
+  ): Promise<void> => {
+    if (request.method !== 'POST') return refuse(response, 404, 'not-found');
+    const text = await readSmall(request, PAIR_BODY_LIMIT);
+    const verified =
+      text === undefined
+        ? { ok: false as const }
+        : await options.connectOffer!(text, header(request, RELAY_SIGNATURE_HEADER));
+    if (!verified.ok) return refuse(response, 401, 'relay-signature-invalid');
+    const offer = pairing.createOffer({
+      verifierHash: verified.verifierHash,
+      ...(verified.name === undefined ? {} : { name: verified.name }),
+    });
+    response.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+    response.end(JSON.stringify({ ...offer, host: pairing.host() }));
   };
 
   const devicePush = async (
@@ -370,6 +416,9 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
       if (crossOrigin(request)) return refuse(response, 403, 'origin-refused');
       if (path === DEVICE_PAIR_PATH) return pair(request, response);
       if (path === DEVICE_UNPAIR_PATH) return unpair(request, response);
+      if (path === DEVICE_REMOVE_PATH) return remove(request, response);
+      if (options.connectOffer !== undefined && path === DEVICE_CONNECT_OFFER_PATH)
+        return connectOffer(request, response);
       if (
         options.push !== undefined &&
         (path === DEVICE_PUSH_PREFIX || path.startsWith(`${DEVICE_PUSH_PREFIX}/`))

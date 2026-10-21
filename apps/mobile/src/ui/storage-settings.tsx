@@ -12,6 +12,8 @@ import {
   type StorageCleanupResult,
   type StorageCleanupScope,
   type StorageMediaKind,
+  type StorageMessagesPreview,
+  type StorageMessagesResult,
   type StoragePartKind,
   type StorageUsage,
 } from '../host/storage';
@@ -32,8 +34,16 @@ export interface StorageSettingsPort {
   usage(): Promise<StorageUsage>;
   preview(scope: StorageCleanupScope): Promise<StorageCleanupPreview>;
   confirm(preview: StorageCleanupPreview): Promise<StorageCleanupResult>;
+  previewMessages(scope: {
+    before: string;
+    channelIds?: string[];
+  }): Promise<StorageMessagesPreview>;
+  confirmMessages(preview: StorageMessagesPreview): Promise<StorageMessagesResult>;
   clearImageCache(): Promise<void>;
 }
+
+type Target = 'media' | 'messages';
+const TARGETS: readonly Target[] = ['media', 'messages'];
 
 const SHADE: Record<StoragePartKind, number> = { media: 1, messages: 0.62, memory: 0.36, other: 0 };
 
@@ -47,6 +57,7 @@ export function StorageSettings({ port }: { port: StorageSettingsPort }) {
   const theme = useDesignTheme();
   const [usage, setUsage] = useState<StorageUsage>();
   const [loadError, setLoadError] = useState<string>();
+  const [target, setTarget] = useState<Target>('media');
   const [age, setAge] = useState<StorageAge>('90');
   const [kinds, setKinds] = useState<StorageMediaKind[]>([...STORAGE_MEDIA_KINDS]);
   const [excluded, setExcluded] = useState<string[]>([]);
@@ -59,72 +70,111 @@ export function StorageSettings({ port }: { port: StorageSettingsPort }) {
   }, [port]);
   const mount = useMounted<ScrollViewInstance>(() => load(), [load]);
 
-  const chats = usage?.chats.filter((chat) => chat.mediaBytes > 0) ?? [];
+  const messagesTarget = target === 'messages';
+  const chats =
+    usage?.chats.filter((chat) => (messagesTarget ? chat.messages > 0 : chat.mediaBytes > 0)) ?? [];
   const selected = chats.filter((chat) => !excluded.includes(chat.channelId));
+  const ready = selected.length > 0 && (messagesTarget || kinds.length > 0);
 
-  const clear = (preview: StorageCleanupPreview) => {
+  const failed = (reason: unknown) => {
+    setBusy(false);
+    setNotice({ tone: 'danger', text: failure(reason) });
+  };
+
+  const settle = (work: Promise<string>) => {
     setBusy(true);
-    port.confirm(preview).then(
-      (result) => {
-        setBusy(false);
-        setNotice({
-          tone: 'success',
-          text: t.storage.done(result.files, storageSize(result.freedBytes)),
-        });
-        load();
-      },
-      (reason: unknown) => {
-        setBusy(false);
-        setNotice({ tone: 'danger', text: failure(reason) });
-      },
-    );
+    work.then((text) => {
+      setBusy(false);
+      setNotice({ tone: 'success', text });
+      load();
+    }, failed);
+  };
+
+  const reviewMessages = (scope: { before: string; channelIds?: string[] }) => {
+    port.previewMessages(scope).then((preview) => {
+      setBusy(false);
+      const notes = [
+        ...(preview.files === 0 ? [] : [t.storage.messages.files(preview.files)]),
+        ...(preview.memoryReferences === 0
+          ? []
+          : [t.storage.messages.memory(preview.memoryReferences)]),
+        ...preview.kept.map((kept) => t.storage.messages.kept[kept.reason](kept.messages)),
+        ...(preview.more ? [t.storage.messages.more] : []),
+      ];
+      if (preview.messages === 0) {
+        showAppDialog(
+          t.storage.messages.heading,
+          [t.storage.messages.nothing, ...notes].join('\n\n'),
+          [{ text: t.done }],
+        );
+        return;
+      }
+      confirmDestructive(
+        t.storage.messages.confirmTitle,
+        [
+          t.storage.messages.lead(
+            preview.messages,
+            preview.chats.length,
+            storageSize(preview.bytes),
+          ),
+          t.storage.messages.note,
+          ...notes,
+        ].join('\n\n'),
+        t.storage.messages.confirm,
+        () =>
+          settle(
+            port
+              .confirmMessages(preview)
+              .then((result) =>
+                t.storage.messages.done(result.messages, storageSize(result.freedBytes)),
+              ),
+          ),
+      );
+    }, failed);
   };
 
   const review = () => {
-    if (busy || selected.length === 0 || kinds.length === 0) return;
+    if (busy || !ready) return;
     setBusy(true);
     setNotice(undefined);
-    port
-      .preview({
-        before: storageCutoff(age),
-        ...(selected.length === chats.length
-          ? {}
-          : { channelIds: selected.map((chat) => chat.channelId) }),
-        kinds,
-      })
-      .then(
-        (preview) => {
-          setBusy(false);
-          const notes = [
-            ...(preview.freedBytes < preview.bytes ? [t.storage.shared] : []),
-            ...preview.kept.map((kept) => t.storage.kept[kept.reason](kept.files)),
-          ];
-          if (preview.files === 0) {
-            showAppDialog(t.storage.clearHeading, [t.storage.nothing, ...notes].join('\n\n'), [
-              { text: t.done },
-            ]);
-            return;
-          }
-          confirmDestructive(
-            t.storage.confirmTitle,
-            [
-              t.storage.confirmLead(
-                preview.files,
-                preview.messages,
-                storageSize(preview.freedBytes),
-              ),
-              t.storage.textKept,
-              ...notes,
-            ].join('\n\n'),
-            t.storage.confirm,
-            () => clear(preview),
-          );
-        },
-        (reason: unknown) => {
-          setBusy(false);
-          setNotice({ tone: 'danger', text: failure(reason) });
-        },
+    const scope = {
+      before: storageCutoff(age),
+      ...(selected.length === chats.length
+        ? {}
+        : { channelIds: selected.map((chat) => chat.channelId) }),
+    };
+    if (messagesTarget) {
+      reviewMessages(scope);
+      return;
+    }
+    port.preview({ ...scope, kinds }).then((preview) => {
+      setBusy(false);
+      const notes = [
+        ...(preview.freedBytes < preview.bytes ? [t.storage.shared] : []),
+        ...preview.kept.map((kept) => t.storage.kept[kept.reason](kept.files)),
+      ];
+      if (preview.files === 0) {
+        showAppDialog(t.storage.clearHeading, [t.storage.nothing, ...notes].join('\n\n'), [
+          { text: t.done },
+        ]);
+        return;
+      }
+      confirmDestructive(
+        t.storage.confirmTitle,
+        [
+          t.storage.confirmLead(preview.files, preview.messages, storageSize(preview.freedBytes)),
+          t.storage.textKept,
+          ...notes,
+        ].join('\n\n'),
+        t.storage.confirm,
+        () =>
+          settle(
+            port
+              .confirm(preview)
+              .then((result) => t.storage.done(result.files, storageSize(result.freedBytes))),
+          ),
       );
+    }, failed);
   };
 
   const clearImageCache = () => {
@@ -209,14 +259,30 @@ export function StorageSettings({ port }: { port: StorageSettingsPort }) {
         <View style={{ gap: space.x5 }}>
           <View style={{ gap: space.x2 }}>
             <Text variant="title" accessibilityRole="header">
-              {t.storage.clearHeading}
+              {messagesTarget ? t.storage.messages.heading : t.storage.clearHeading}
             </Text>
             <Text variant="meta" tone="muted">
-              {t.storage.textKept}
+              {messagesTarget ? t.storage.messages.note : t.storage.textKept}
             </Text>
           </View>
+          <SettingsSection on="raised" title={t.storage.target}>
+            {TARGETS.map((choice) => (
+              <SettingsRow
+                on="raised"
+                key={choice}
+                title={choice === 'media' ? t.storage.targetMedia : t.storage.targetMessages}
+                selected={target === choice}
+                trailing={
+                  target === choice ? (
+                    <CheckIcon size={space.x5} color={theme.color.accent} />
+                  ) : undefined
+                }
+                onPress={() => setTarget(choice)}
+              />
+            ))}
+          </SettingsSection>
           {chats.length === 0 ? (
-            <Text tone="muted">{t.storage.noMedia}</Text>
+            <Text tone="muted">{messagesTarget ? t.storage.messages.none : t.storage.noMedia}</Text>
           ) : (
             <>
               <SettingsSection on="raised" title={t.storage.olderThan}>
@@ -235,29 +301,31 @@ export function StorageSettings({ port }: { port: StorageSettingsPort }) {
                   />
                 ))}
               </SettingsSection>
-              <SettingsSection on="raised" title={t.storage.kinds}>
-                {STORAGE_MEDIA_KINDS.map((kind) => (
-                  <SettingsRow
-                    on="raised"
-                    key={kind}
-                    title={t.storage.kind[kind]}
-                    trailing={
-                      <Toggle
-                        on="raised"
-                        label={t.storage.kind[kind]}
-                        value={kinds.includes(kind)}
-                        onChange={(enabled) =>
-                          setKinds((current) =>
-                            STORAGE_MEDIA_KINDS.filter((item) =>
-                              item === kind ? enabled : current.includes(item),
-                            ),
-                          )
-                        }
-                      />
-                    }
-                  />
-                ))}
-              </SettingsSection>
+              {messagesTarget ? null : (
+                <SettingsSection on="raised" title={t.storage.kinds}>
+                  {STORAGE_MEDIA_KINDS.map((kind) => (
+                    <SettingsRow
+                      on="raised"
+                      key={kind}
+                      title={t.storage.kind[kind]}
+                      trailing={
+                        <Toggle
+                          on="raised"
+                          label={t.storage.kind[kind]}
+                          value={kinds.includes(kind)}
+                          onChange={(enabled) =>
+                            setKinds((current) =>
+                              STORAGE_MEDIA_KINDS.filter((item) =>
+                                item === kind ? enabled : current.includes(item),
+                              ),
+                            )
+                          }
+                        />
+                      }
+                    />
+                  ))}
+                </SettingsSection>
+              )}
               <SettingsSection on="raised" title={t.storage.chats}>
                 {chats.map((chat) => {
                   const name = chat.deleted === true ? t.storage.deleted(chat.name) : chat.name;
@@ -266,7 +334,11 @@ export function StorageSettings({ port }: { port: StorageSettingsPort }) {
                       on="raised"
                       key={chat.channelId}
                       title={name}
-                      detail={storageSize(chat.mediaBytes)}
+                      detail={
+                        messagesTarget
+                          ? t.storage.messages.count(chat.messages)
+                          : storageSize(chat.mediaBytes)
+                      }
                       trailing={
                         <Toggle
                           on="raised"
@@ -290,7 +362,7 @@ export function StorageSettings({ port }: { port: StorageSettingsPort }) {
                   label={t.storage.clear}
                   tone="danger"
                   busy={busy}
-                  disabled={selected.length === 0 || kinds.length === 0}
+                  disabled={!ready}
                   onPress={review}
                 />
               </View>

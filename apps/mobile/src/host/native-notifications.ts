@@ -2,7 +2,12 @@ import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
-import { APPROVAL_ACTIONS, registerApprovalCategories, type ApprovalButton } from './push-actions';
+import {
+  APPROVAL_ACTIONS,
+  registerApprovalCategories,
+  REMOVE_DEVICE_ACTION,
+  type ApprovalButton,
+} from './push-actions';
 import type { NotificationsPort, PermissionState } from './push-session';
 
 export const REQUESTS_CHANNEL = 'requests';
@@ -31,7 +36,7 @@ let channelReady: Promise<unknown> | undefined;
 
 export function nativeNotifications(
   channelName: string,
-  buttons: { always: string; approve: string; reject: string },
+  buttons: Record<ApprovalButton, string>,
 ): NotificationsPort {
   const button = (identifier: ApprovalButton) => ({
     identifier,
@@ -39,7 +44,7 @@ export function nativeNotifications(
     options: {
       opensAppToForeground: true,
       isAuthenticationRequired: true,
-      isDestructive: identifier === 'reject',
+      isDestructive: identifier === 'reject' || identifier === REMOVE_DEVICE_ACTION,
     },
   });
   void registerApprovalCategories((identifier, ids) =>
@@ -93,7 +98,8 @@ export function onNotificationTap(
     if (response === null) return;
     const action = response.actionIdentifier;
     const tapped = action === Notifications.DEFAULT_ACTION_IDENTIFIER;
-    if (!tapped && APPROVAL_ACTIONS[action] === undefined) return;
+    if (!tapped && APPROVAL_ACTIONS[action] === undefined && action !== REMOVE_DEVICE_ACTION)
+      return;
     const id = response.notification.request.identifier;
     if (seen.has(id)) return;
     seen.add(id);

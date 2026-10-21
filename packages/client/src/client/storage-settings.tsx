@@ -7,13 +7,17 @@ import { formatBotZipSize } from './bot-zip.js';
 import {
   BridgeCallError,
   confirmStorageCleanup,
+  confirmStorageMessages,
   loadStorageUsage,
   previewStorageCleanup,
+  previewStorageMessages,
   STORAGE_MEDIA_KINDS,
   type BridgeCall,
   type StorageCleanupPreview,
   type StorageCleanupResult,
   type StorageMediaKind,
+  type StorageMessagesPreview,
+  type StorageMessagesResult,
   type StorageUsage,
 } from './bridge.js';
 import { PillButton } from './ds/pill-button.js';
@@ -146,6 +150,15 @@ const KEPT: Record<StorageCleanupPreview['kept'][number]['reason'], BotHarnessKe
   migration: 'storage.kept.migration',
 };
 
+const MESSAGES_KEPT: Record<StorageMessagesPreview['kept'][number]['reason'], BotHarnessKey> = {
+  'bot-working': 'storage.messages.kept.botWorking',
+  'delivery-pending': 'storage.messages.kept.deliveryPending',
+  shared: 'storage.messages.kept.shared',
+};
+
+const TARGETS = ['media', 'messages'] as const;
+type Target = (typeof TARGETS)[number];
+
 const AGES = ['30', '90', '180', '365', 'all'] as const;
 type Age = (typeof AGES)[number];
 const DAY = 24 * 60 * 60 * 1000;
@@ -159,12 +172,13 @@ export type StorageSettingsProps = PropsLocale<'botharness'> & InjectFace<{ call
 export function StorageSettings({ call, t }: StorageSettingsProps): ReactElement {
   const [open, setOpen] = useState(false);
   const [usage, setUsage] = useState<StorageUsage>();
+  const [target, setTarget] = useState<Target>('media');
   const [age, setAge] = useState<Age>('90');
   const [kinds, setKinds] = useState<StorageMediaKind[]>([...STORAGE_MEDIA_KINDS]);
   const [excluded, setExcluded] = useState<string[]>([]);
-  const [preview, setPreview] = useState<StorageCleanupPreview>();
+  const [preview, setPreview] = useState<StorageCleanupPreview | StorageMessagesPreview>();
   const [acknowledged, setAcknowledged] = useState(false);
-  const [result, setResult] = useState<StorageCleanupResult>();
+  const [result, setResult] = useState<StorageCleanupResult | StorageMessagesResult>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const request = useRef<AbortController | undefined>(undefined);
@@ -195,21 +209,34 @@ export function StorageSettings({ call, t }: StorageSettingsProps): ReactElement
     request.current?.abort();
     setOpen(false);
   };
-  const chats = usage?.chats.filter((chat) => chat.mediaBytes > 0) ?? [];
+  const messagesTarget = target === 'messages';
+  const chats =
+    usage?.chats.filter((chat) => (messagesTarget ? chat.messages > 0 : chat.mediaBytes > 0)) ?? [];
   const selected = chats.filter((chat) => !excluded.includes(chat.channelId));
+  const ready = selected.length > 0 && (messagesTarget || kinds.length > 0);
+  const mediaPreview =
+    preview !== undefined && 'kinds' in preview.scope
+      ? (preview as StorageCleanupPreview)
+      : undefined;
+  const messagesPreview =
+    preview !== undefined && !('kinds' in preview.scope)
+      ? (preview as StorageMessagesPreview)
+      : undefined;
   const review = async (): Promise<void> => {
-    if (busy || selected.length === 0 || kinds.length === 0) return;
+    if (busy || !ready) return;
     setBusy(true);
     setError(undefined);
+    const scope = {
+      before: cutoff(age),
+      ...(selected.length === chats.length
+        ? {}
+        : { channelIds: selected.map((chat) => chat.channelId) }),
+    };
     try {
       setPreview(
-        await previewStorageCleanup(call, {
-          before: cutoff(age),
-          ...(selected.length === chats.length
-            ? {}
-            : { channelIds: selected.map((chat) => chat.channelId) }),
-          kinds,
-        }),
+        messagesTarget
+          ? await previewStorageMessages(call, scope)
+          : await previewStorageCleanup(call, { ...scope, kinds }),
       );
       setAcknowledged(false);
     } catch {
@@ -223,7 +250,11 @@ export function StorageSettings({ call, t }: StorageSettingsProps): ReactElement
     setBusy(true);
     setError(undefined);
     try {
-      setResult(await confirmStorageCleanup(call, preview));
+      setResult(
+        mediaPreview !== undefined
+          ? await confirmStorageCleanup(call, mediaPreview)
+          : await confirmStorageMessages(call, preview as StorageMessagesPreview),
+      );
     } catch (failure) {
       setAcknowledged(false);
       if (failure instanceof BridgeCallError && failure.code === 'storage-preview-stale') {
@@ -261,17 +292,38 @@ export function StorageSettings({ call, t }: StorageSettingsProps): ReactElement
           onSubmit={close}
         >
           <p data-storage-result="" {...stylex.props(styles.total)}>
-            {t('storage.done', { files: result.files, size: formatBotZipSize(result.freedBytes) })}
+            {'files' in result
+              ? t('storage.done', {
+                  files: result.files,
+                  size: formatBotZipSize(result.freedBytes),
+                })
+              : t('storage.messages.done', {
+                  messages: result.messages,
+                  size: formatBotZipSize(result.freedBytes),
+                })}
           </p>
         </FormDialog>
-      ) : preview !== undefined ? (
+      ) : messagesPreview !== undefined ? (
+        <MessagesPreview
+          preview={messagesPreview}
+          acknowledged={acknowledged}
+          busy={busy}
+          error={error}
+          labels={labels}
+          t={t}
+          onAcknowledge={setAcknowledged}
+          onBack={back}
+          onCancel={close}
+          onConfirm={() => void confirm()}
+        />
+      ) : mediaPreview !== undefined ? (
         <FormDialog
           title={t('storage.title')}
           size="small"
           scroll
           labels={labels}
           submitLabel={t('storage.confirm')}
-          submitDisabled={preview.files === 0 || !acknowledged}
+          submitDisabled={mediaPreview.files === 0 || !acknowledged}
           submitData={{ 'data-storage-confirm': '' }}
           busy={busy}
           danger
@@ -285,23 +337,25 @@ export function StorageSettings({ call, t }: StorageSettingsProps): ReactElement
           onSubmit={() => void confirm()}
         >
           <div data-storage-preview="" {...stylex.props(styles.content)}>
-            {preview.files === 0 ? (
+            {mediaPreview.files === 0 ? (
               <p {...stylex.props(styles.plain)}>{t('storage.nothing')}</p>
             ) : (
               <p {...stylex.props(styles.total)}>
                 {t('storage.previewLead', {
-                  files: preview.files,
-                  messages: preview.messages,
-                  size: formatBotZipSize(preview.freedBytes),
+                  files: mediaPreview.files,
+                  messages: mediaPreview.messages,
+                  size: formatBotZipSize(mediaPreview.freedBytes),
                 })}
               </p>
             )}
             <p {...stylex.props(styles.muted)}>{t('storage.textKept')}</p>
-            {preview.freedBytes < preview.bytes ? <Note>{t('storage.previewShared')}</Note> : null}
-            {preview.kept.map((kept) => (
+            {mediaPreview.freedBytes < mediaPreview.bytes ? (
+              <Note>{t('storage.previewShared')}</Note>
+            ) : null}
+            {mediaPreview.kept.map((kept) => (
               <Note key={kept.reason}>{t(KEPT[kept.reason], { files: kept.files })}</Note>
             ))}
-            {preview.files === 0 ? null : (
+            {mediaPreview.files === 0 ? null : (
               <Checkbox
                 checked={acknowledged}
                 disabled={busy}
@@ -319,7 +373,7 @@ export function StorageSettings({ call, t }: StorageSettingsProps): ReactElement
           scroll
           labels={labels}
           submitLabel={t('storage.preview')}
-          submitDisabled={usage === undefined || selected.length === 0 || kinds.length === 0}
+          submitDisabled={usage === undefined || !ready}
           submitData={{ 'data-storage-review': '' }}
           busy={busy}
           error={error}
@@ -365,11 +419,36 @@ export function StorageSettings({ call, t }: StorageSettingsProps): ReactElement
                   ))}
                 </ul>
               </section>
-              <section aria-label={t('storage.clean.heading')} {...stylex.props(styles.group)}>
-                <h3 {...stylex.props(styles.heading)}>{t('storage.clean.heading')}</h3>
-                <p {...stylex.props(styles.muted)}>{t('storage.textKept')}</p>
+              <section
+                aria-label={t(
+                  messagesTarget ? 'storage.messages.heading' : 'storage.clean.heading',
+                )}
+                {...stylex.props(styles.group)}
+              >
+                <h3 {...stylex.props(styles.heading)}>
+                  {t(messagesTarget ? 'storage.messages.heading' : 'storage.clean.heading')}
+                </h3>
+                <div {...stylex.props(styles.field)}>
+                  <span>{t('storage.target')}</span>
+                  <Select
+                    label={t('storage.target')}
+                    value={target}
+                    options={TARGETS.map((value) => ({
+                      value,
+                      label: t(
+                        value === 'media' ? 'storage.target.media' : 'storage.target.messages',
+                      ),
+                    }))}
+                    onChange={setTarget}
+                  />
+                </div>
+                <p data-storage-target-note="" {...stylex.props(styles.muted)}>
+                  {t(messagesTarget ? 'storage.messages.note' : 'storage.textKept')}
+                </p>
                 {chats.length === 0 ? (
-                  <p {...stylex.props(styles.plain)}>{t('storage.noMedia')}</p>
+                  <p {...stylex.props(styles.plain)}>
+                    {t(messagesTarget ? 'storage.messages.none' : 'storage.noMedia')}
+                  </p>
                 ) : (
                   <>
                     <div {...stylex.props(styles.field)}>
@@ -386,27 +465,29 @@ export function StorageSettings({ call, t }: StorageSettingsProps): ReactElement
                         onChange={setAge}
                       />
                     </div>
-                    <div
-                      role="group"
-                      aria-label={t('storage.kinds')}
-                      {...stylex.props(styles.kinds)}
-                    >
-                      {STORAGE_MEDIA_KINDS.map((kind) => (
-                        <Checkbox
-                          key={kind}
-                          checked={kinds.includes(kind)}
-                          label={t(KINDS[kind])}
-                          className={stylex.props(styles.choice).className}
-                          onChange={(checked) =>
-                            setKinds((current) =>
-                              STORAGE_MEDIA_KINDS.filter((item) =>
-                                item === kind ? checked : current.includes(item),
-                              ),
-                            )
-                          }
-                        />
-                      ))}
-                    </div>
+                    {messagesTarget ? null : (
+                      <div
+                        role="group"
+                        aria-label={t('storage.kinds')}
+                        {...stylex.props(styles.kinds)}
+                      >
+                        {STORAGE_MEDIA_KINDS.map((kind) => (
+                          <Checkbox
+                            key={kind}
+                            checked={kinds.includes(kind)}
+                            label={t(KINDS[kind])}
+                            className={stylex.props(styles.choice).className}
+                            onChange={(checked) =>
+                              setKinds((current) =>
+                                STORAGE_MEDIA_KINDS.filter((item) =>
+                                  item === kind ? checked : current.includes(item),
+                                ),
+                              )
+                            }
+                          />
+                        ))}
+                      </div>
+                    )}
                     <ul aria-label={t('storage.chats')} {...stylex.props(styles.chats)}>
                       {chats.map((chat) => (
                         <li
@@ -431,7 +512,9 @@ export function StorageSettings({ call, t }: StorageSettingsProps): ReactElement
                             }
                           />
                           <span {...stylex.props(styles.chatMeta)}>
-                            {formatBotZipSize(chat.mediaBytes)}
+                            {messagesTarget
+                              ? t('storage.messages.count', { count: chat.messages })
+                              : formatBotZipSize(chat.mediaBytes)}
                           </span>
                         </li>
                       ))}
@@ -444,5 +527,77 @@ export function StorageSettings({ call, t }: StorageSettingsProps): ReactElement
         </FormDialog>
       )}
     </SettingsRow>
+  );
+}
+
+function MessagesPreview(props: {
+  preview: StorageMessagesPreview;
+  acknowledged: boolean;
+  busy: boolean;
+  error: string | undefined;
+  labels: { close: string; cancel: string };
+  t: StorageSettingsProps['t'];
+  onAcknowledge(next: boolean): void;
+  onBack(): void;
+  onCancel(): void;
+  onConfirm(): void;
+}): ReactElement {
+  const { preview, t } = props;
+  return (
+    <FormDialog
+      title={t('storage.title')}
+      size="small"
+      scroll
+      labels={props.labels}
+      submitLabel={t('storage.messages.confirm')}
+      submitDisabled={preview.messages === 0 || !props.acknowledged}
+      submitData={{ 'data-storage-confirm': '' }}
+      busy={props.busy}
+      danger
+      error={props.error}
+      secondary={
+        <Button type="button" variant="ghost" disabled={props.busy} onClick={props.onBack}>
+          {t('storage.back')}
+        </Button>
+      }
+      onCancel={props.onCancel}
+      onSubmit={props.onConfirm}
+    >
+      <div data-storage-preview="messages" {...stylex.props(styles.content)}>
+        {preview.messages === 0 ? (
+          <p {...stylex.props(styles.plain)}>{t('storage.messages.nothing')}</p>
+        ) : (
+          <p {...stylex.props(styles.total)}>
+            {t('storage.messages.lead', {
+              messages: preview.messages,
+              chats: preview.chats.length,
+              size: formatBotZipSize(preview.bytes),
+            })}
+          </p>
+        )}
+        <p {...stylex.props(styles.muted)}>{t('storage.messages.note')}</p>
+        {preview.files === 0 ? null : (
+          <Note>{t('storage.messages.files', { files: preview.files })}</Note>
+        )}
+        {preview.memoryReferences === 0 ? null : (
+          <Note>{t('storage.messages.memory', { count: preview.memoryReferences })}</Note>
+        )}
+        {preview.kept.map((kept) => (
+          <Note key={kept.reason}>
+            {t(MESSAGES_KEPT[kept.reason], { messages: kept.messages })}
+          </Note>
+        ))}
+        {preview.more ? <Note>{t('storage.messages.more')}</Note> : null}
+        {preview.messages === 0 ? null : (
+          <Checkbox
+            checked={props.acknowledged}
+            disabled={props.busy}
+            label={t('storage.messages.acknowledge')}
+            className={stylex.props(styles.choice).className}
+            onChange={props.onAcknowledge}
+          />
+        )}
+      </div>
+    </FormDialog>
   );
 }

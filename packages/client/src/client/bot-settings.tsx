@@ -22,6 +22,7 @@ export const BOT_SETTINGS_SECTIONS = {
   devices: 'devices',
   dataPrivacy: 'data-privacy',
   advanced: 'advanced',
+  plugins: 'plugins',
   about: 'about',
 } as const;
 
@@ -42,6 +43,7 @@ const SECTION_ICONS: Readonly<Record<string, string>> = {
   [BOT_SETTINGS_SECTIONS.devices]: 'smartphone',
   [BOT_SETTINGS_SECTIONS.dataPrivacy]: 'lock',
   [BOT_SETTINGS_SECTIONS.advanced]: 'sliders-horizontal',
+  [BOT_SETTINGS_SECTIONS.plugins]: 'puzzle',
   [BOT_SETTINGS_SECTIONS.about]: 'info',
 };
 

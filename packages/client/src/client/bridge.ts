@@ -2479,6 +2479,24 @@ export interface StorageCleanupResult {
   freedBytes: number;
 }
 
+export interface StorageMessagesPreview {
+  token: string;
+  scope: { before: string; channelIds: string[] };
+  messages: number;
+  bytes: number;
+  files: number;
+  chats: { channelId: string; name: string; messages: number }[];
+  kept: { reason: 'bot-working' | 'delivery-pending' | 'shared'; messages: number }[];
+  memoryReferences: number;
+  more: boolean;
+}
+
+export interface StorageMessagesResult {
+  messages: number;
+  freedBytes: number;
+}
+
+const STORAGE_MESSAGES_KEPT = new Set(['bot-working', 'delivery-pending', 'shared']);
 const STORAGE_PARTS = new Set(['media', 'messages', 'memory', 'other']);
 const STORAGE_KEPT = new Set(['bot-working', 'delivery-pending', 'memory', 'migration']);
 
@@ -2624,6 +2642,70 @@ export async function confirmStorageCleanup(
     files: count(result?.['files']),
     freedBytes: count(result?.['freedBytes']),
   };
+}
+
+function parseStorageMessagesPreview(value: unknown): StorageMessagesPreview {
+  const preview = asRecord(value);
+  const scope = asRecord(preview?.['scope']);
+  const token = preview?.['token'];
+  if (typeof token !== 'string' || typeof scope?.['before'] !== 'string')
+    throw new BridgeCallError('invalid-response', 'Invalid message cleanup preview');
+  return {
+    token,
+    scope: {
+      before: scope['before'],
+      channelIds: (Array.isArray(scope['channelIds']) ? scope['channelIds'] : []).filter(
+        (id): id is string => typeof id === 'string',
+      ),
+    },
+    messages: count(preview?.['messages']),
+    bytes: count(preview?.['bytes']),
+    files: count(preview?.['files']),
+    chats: (Array.isArray(preview?.['chats']) ? preview['chats'] : []).flatMap((entry) => {
+      const chat = asRecord(entry);
+      return typeof chat?.['channelId'] === 'string' && typeof chat['name'] === 'string'
+        ? [{ channelId: chat['channelId'], name: chat['name'], messages: count(chat['messages']) }]
+        : [];
+    }),
+    kept: (Array.isArray(preview?.['kept']) ? preview['kept'] : []).flatMap((entry) => {
+      const item = asRecord(entry);
+      const reason = item?.['reason'];
+      return typeof reason === 'string' && STORAGE_MESSAGES_KEPT.has(reason)
+        ? [
+            {
+              reason: reason as StorageMessagesPreview['kept'][number]['reason'],
+              messages: count(item?.['messages']),
+            },
+          ]
+        : [];
+    }),
+    memoryReferences: count(preview?.['memoryReferences']),
+    more: preview?.['more'] === true,
+  };
+}
+
+export async function previewStorageMessages(
+  call: BridgeCall,
+  scope: { before: string; channelIds?: string[] },
+  signal?: AbortSignal,
+): Promise<StorageMessagesPreview> {
+  return parseStorageMessagesPreview(
+    await unwrap(call, 'storageMessagesCleanupPreview', { ...scope }, signal),
+  );
+}
+
+export async function confirmStorageMessages(
+  call: BridgeCall,
+  preview: StorageMessagesPreview,
+): Promise<StorageMessagesResult> {
+  const result = asRecord(
+    await unwrap(call, 'storageMessagesCleanupConfirm', {
+      before: preview.scope.before,
+      ...(preview.scope.channelIds.length === 0 ? {} : { channelIds: preview.scope.channelIds }),
+      token: preview.token,
+    }),
+  );
+  return { messages: count(result?.['messages']), freedBytes: count(result?.['freedBytes']) };
 }
 
 export async function loadTelemetryStatus(

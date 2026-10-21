@@ -8,7 +8,13 @@ import type { OnboardingSnapshot, TutorialAction } from '../onboarding/service.j
 import type { HttpsFallback } from '../memory/clone.js';
 import type { PairingRequest, PairingReviewInput } from '../messaging/pairing.js';
 import type { SenderAccessInput } from '../messaging/sender-access.js';
-import type { ChannelHistoryItem, PurgeSource, PurgePreview } from '../purge/contracts.js';
+import type {
+  ChannelHistoryItem,
+  PurgeSource,
+  PurgePreview,
+  TextCleanupPreview,
+  TextCleanupResult,
+} from '../purge/contracts.js';
 import type {
   MediaCleanupPreview,
   MediaCleanupResult,
@@ -57,6 +63,7 @@ import type {
   ReleaseRestart,
   ReleaseUpdate,
 } from '../release/service.js';
+import type { PluginInstall, PluginRestart, PluginUpdates } from '../release/plugins.js';
 import type { TelemetryStatus } from '../telemetry/service.js';
 import type { OverviewMemory } from '../memory/overview.js';
 import type { ApprovalReviewerModelView, IdleCompactionView, OverviewUsage } from './methods.js';
@@ -806,8 +813,11 @@ export class BotharnessBridgeService extends TypertRemoteService {
     gitUrl: string,
     roles?: string[],
     description?: string,
+    origin?: 'marketplace',
   ): Promise<{ bot: PersonaBotDetail; httpsFallback?: HttpsFallback }> {
-    return unwrapAsync(this.methods.createFromGit({ displayName, gitUrl, roles, description }));
+    return unwrapAsync(
+      this.methods.createFromGit({ displayName, gitUrl, roles, description, origin }),
+    );
   }
 
   update(
@@ -1174,6 +1184,27 @@ export class BotharnessBridgeService extends TypertRemoteService {
         before,
         ...(channelIds === undefined ? {} : { channelIds }),
         ...(kinds === undefined ? {} : { kinds }),
+        token,
+      }),
+    );
+  }
+  storageMessagesCleanupPreview(before: string, channelIds?: string[]): TextCleanupPreview {
+    return unwrap(
+      this.methods.storageMessagesCleanupPreview({
+        before,
+        ...(channelIds === undefined ? {} : { channelIds }),
+      }),
+    );
+  }
+  storageMessagesCleanupConfirm(
+    before: string,
+    channelIds: string[] | undefined,
+    token: string,
+  ): TextCleanupResult {
+    return unwrap(
+      this.methods.storageMessagesCleanupConfirm({
+        before,
+        ...(channelIds === undefined ? {} : { channelIds }),
         token,
       }),
     );
@@ -1838,6 +1869,18 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrapAsync(this.methods.releaseRestart({}));
   }
 
+  async pluginUpdates(force?: boolean): Promise<PluginUpdates> {
+    return unwrapAsync(this.methods.pluginUpdates({ force }));
+  }
+
+  async pluginInstall(name: string, version: string): Promise<PluginInstall> {
+    return unwrapAsync(this.methods.pluginInstall({ name, version }));
+  }
+
+  async pluginRestart(): Promise<PluginRestart> {
+    return unwrapAsync(this.methods.pluginRestart({}));
+  }
+
   telemetryStatus(): TelemetryStatus {
     return unwrap(this.methods.telemetryStatus());
   }
@@ -1984,6 +2027,8 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'storageUsage',
   'storageCleanupPreview',
   'storageCleanupConfirm',
+  'storageMessagesCleanupPreview',
+  'storageMessagesCleanupConfirm',
   'channelMessages',
   'channelTimeline',
   'channelReadPosition',
@@ -2106,6 +2151,9 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'releaseUpdate',
   'releaseInstall',
   'releaseRestart',
+  'pluginUpdates',
+  'pluginInstall',
+  'pluginRestart',
   'telemetryStatus',
   'telemetrySet',
   'gitStatus',

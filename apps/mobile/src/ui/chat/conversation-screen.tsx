@@ -110,7 +110,7 @@ import { QuestionCard } from './question-card';
 import { WorkingStatus } from './working-status';
 import { TimeSeparator } from './time-separator';
 import { AccentProvider, useDesignTheme } from '../design/theme';
-import { edgeFade, pullToCompose, radius, space } from '../design/tokens';
+import { edge, edgeFade, pullToCompose, radius, space } from '../design/tokens';
 import { OpenFullClientButton } from '../open-full-client';
 import { fullClientParams, type FullClientTarget } from '../../host/full-client';
 import { leaveScreen } from '../shell/leave-screen';
@@ -141,6 +141,8 @@ export function ConversationScreen({
   latestWindowOnly?: boolean;
 }) {
   const { client, saved } = useHostSession();
+  const [openedOn, setOpenedOn] = useState(saved?.hostId);
+  if (openedOn === undefined && saved?.hostId !== undefined) setOpenedOn(saved.hostId);
   const focused = useIsFocused();
   const roster = useHostSnapshot(client, focused).roster;
   const router = useRouter();
@@ -154,7 +156,8 @@ export function ConversationScreen({
   );
   const bot =
     place.kind === 'dm' ? roster?.bots.find((entry) => entry.slug === place.slug) : undefined;
-  if (expectedHostId && saved?.hostId !== expectedHostId) return <Text>{t.sourceChanged}</Text>;
+  const shownHostId = expectedHostId ?? openedOn;
+  if (shownHostId && saved?.hostId !== shownHostId) return <Text>{t.sourceChanged}</Text>;
   return (
     <AccentProvider accent={bot === undefined ? undefined : botColor(bot)}>
       <MessageIdentities.Provider value={identities}>
@@ -367,6 +370,7 @@ function ChatConversation({
   const [reactError, setReactError] = useState(false);
   const [composerHeight, setComposerHeight] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
+  const [workingHeight, setWorkingHeight] = useState(0);
   const list = useAnimatedRef<FlatList<Row>>();
   const jumped = useRef<string | undefined>(undefined);
   const [answered, setAnswered] = useState<ReadonlySet<string>>(new Set());
@@ -827,6 +831,8 @@ function ChatConversation({
                         : undefined;
 
   const listTop = notice === undefined ? headerPadding : 0;
+  const composerCover = Math.max(0, composerHeight - space.x3 - space.x2);
+  const workingReserve = working.length > 0 ? workingHeight : 0;
   const fadeColor = background.kind === 'color' ? background.color : theme.color.base;
 
   return (
@@ -1030,11 +1036,13 @@ function ChatConversation({
                 contentContainerStyle={{
                   minHeight: Math.max(
                     0,
-                    viewportHeight - (notice === undefined ? headerOverlap : 0),
+                    viewportHeight -
+                      (notice === undefined ? headerOverlap : 0) +
+                      (Platform.OS === 'android' ? edge.hairline : 0),
                   ),
                   justifyContent: 'flex-end',
                   paddingTop: space.x3 + listTop,
-                  paddingBottom: composerHeight + edgeFade.bottom,
+                  paddingBottom: composerHeight + edgeFade.bottom + workingReserve,
                 }}
                 data={rows}
                 keyExtractor={(row) => row.key}
@@ -1100,7 +1108,6 @@ function ChatConversation({
                     </Text>
                   ) : undefined
                 }
-                ListFooterComponent={<WorkingStatus bots={working} />}
                 ListEmptyComponent={
                   snapshot.status === 'opening' ? (
                     <View style={{ padding: space.x6, alignItems: 'center' }}>
@@ -1121,10 +1128,25 @@ function ChatConversation({
           ) : null}
           <EdgeFade
             edge="bottom"
-            height={composerHeight + edgeFade.reach}
-            cover={composerHeight}
+            height={composerCover + edgeFade.bottom + workingReserve}
+            cover={composerCover}
+            solid={composerCover}
             color={fadeColor}
           />
+          {working.length > 0 ? (
+            <View
+              pointerEvents="none"
+              onLayout={(event) => setWorkingHeight(event.nativeEvent.layout.height)}
+              style={{
+                position: 'absolute',
+                bottom: composerHeight + edgeFade.bottom,
+                left: 0,
+                right: 0,
+              }}
+            >
+              <WorkingStatus bots={working} />
+            </View>
+          ) : null}
           {composable && Platform.OS === 'ios' ? (
             <PullToComposeHint
               progress={pull.progress}
