@@ -11,6 +11,9 @@ import { HOST_NAME_MAX, hostLookName, withHostName } from '../src/ui/design/host
 import { ConnectionNameField } from '../src/ui/primitives/connection-name-field';
 import { nativeCarrier } from '../src/host/native-carrier';
 import { pairHost, type PairingFailure } from '../src/host/pairing';
+import { connectAccount } from '../src/host/native-connect-account';
+import type { ConnectHost } from '../src/host/connect-account';
+import { AccountHosts } from '../src/ui/account-hosts';
 import { clearsPastedLink, pairingFailureText } from '../src/ui/pairing-failure';
 import { mobileTelemetry } from '../src/telemetry/native';
 import type { PairingMethod } from '../src/telemetry/schema';
@@ -42,18 +45,31 @@ export default function PairScreen() {
   const lastMethod = useRef<PairingMethod>('paste');
   const pending = useRef<AbortController | undefined>(undefined);
   const handled = useRef<string | undefined>(undefined);
+  const accountHost = useRef<ConnectHost | undefined>(undefined);
 
-  const pair = async (text: string, method: PairingMethod, retry = false): Promise<void> => {
+  const pair = async (
+    text: string,
+    method: PairingMethod,
+    retry = false,
+    host?: ConnectHost,
+  ): Promise<void> => {
     if (pending.current !== undefined || (!retry && method === 'qr' && handled.current === text))
       return;
     handled.current = text;
+    accountHost.current = host;
     lastMethod.current = method;
     const operation = new AbortController();
     pending.current = operation;
     setBusy(true);
     setError(undefined);
     const result = await pairHost({
-      text,
+      text:
+        host === undefined
+          ? text
+          : async () => {
+              const offer = await connectAccount.offer(host.id, deviceName());
+              return offer.ok ? { ok: true, payload: offer.value } : offer;
+            },
       method,
       deviceName: deviceName(),
       carrier: nativeCarrier(),
@@ -154,9 +170,14 @@ export default function PairScreen() {
       {error !== undefined && handled.current !== undefined ? (
         <Button
           label={t.retry}
-          onPress={() => void pair(handled.current!, lastMethod.current, true)}
+          onPress={() => void pair(handled.current!, lastMethod.current, true, accountHost.current)}
         />
       ) : null}
+      <AccountHosts
+        account={connectAccount}
+        busy={busy}
+        onPair={(host) => void pair(`account:${host.id}`, 'account', true, host)}
+      />
       <View style={{ gap: space.x2 }}>
         <Text variant="meta" tone="muted" accessibilityRole="header">
           {t.pasteLink}

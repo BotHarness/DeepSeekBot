@@ -152,9 +152,10 @@ function validate(command: HostAdminCommand, rest: string[], values: HostAdminVa
     );
   if (
     values.sort !== undefined &&
-    (command !== 'marketplace-list' || (values.sort !== 'updated' && values.sort !== 'stars'))
+    (command !== 'marketplace-list' ||
+      (values.sort !== 'updated' && values.sort !== 'created' && values.sort !== 'stars'))
   )
-    usage('--sort must be updated or stars, on marketplace-list.');
+    usage('--sort must be updated, created or stars, on marketplace-list.');
   if (
     values.lang !== undefined &&
     ((command !== 'marketplace-list' && command !== 'marketplace-detail') ||

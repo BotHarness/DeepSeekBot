@@ -2987,7 +2987,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         if (trimmed !== undefined && trimmed.length > 0) query[key] = trimmed;
       }
       const sort = source['sort'];
-      if (sort !== undefined && sort !== 'updated' && sort !== 'stars') {
+      if (sort !== undefined && sort !== 'updated' && sort !== 'created' && sort !== 'stars') {
         return Promise.resolve(invalidInput('invalid sort'));
       }
       if (sort !== undefined) query.sort = sort;

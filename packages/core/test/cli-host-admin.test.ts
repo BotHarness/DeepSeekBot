@@ -100,6 +100,7 @@ describe('Bot Marketplace commands', () => {
     expect((await invoke(['marketplace-topics'], live.url)).json).toEqual({
       topics: [{ topic: 'writing', count: 2 }],
     });
+    await invoke(['marketplace-list', '--sort', 'created'], live.url);
     await invoke(['marketplace-detail', 'owner/repo'], live.url);
     await invoke(['marketplace-detail', 'owner/repo', '--lang', 'en'], live.url);
     expect(live.calls).toEqual([
@@ -109,6 +110,7 @@ describe('Bot Marketplace commands', () => {
         args: { query: { q: '翻译', topic: 'writing', sort: 'stars', cursor: 'c2', lang: 'zh' } },
       },
       { method: 'marketplaceTopics', args: {} },
+      { method: 'marketplaceList', args: { query: { sort: 'created' } } },
       { method: 'marketplaceDetail', args: { id: 'owner/repo' } },
       { method: 'marketplaceDetail', args: { id: 'owner/repo', lang: 'en' } },
     ]);

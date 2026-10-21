@@ -636,7 +636,7 @@ The online Human CLI accepts `home-model-set --orchestrator-effort` and `--expec
 These commands call the same Host methods as the Marketplace page, the update card, the usage statistics notice, the Git prompt and the IM pairing panel:
 
 ```bash
-deepseekbot marketplace-list [--query <words>] [--topic <topic>] [--sort updated|stars] [--lang zh|en] [--cursor <next-cursor>]
+deepseekbot marketplace-list [--query <words>] [--topic <topic>] [--sort updated|created|stars] [--lang zh|en] [--cursor <next-cursor>]
 deepseekbot marketplace-topics
 deepseekbot marketplace-detail <owner/repo> [--lang zh|en]
 deepseekbot marketplace-submit https://github.com/<owner>/<repo>

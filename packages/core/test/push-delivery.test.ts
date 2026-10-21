@@ -26,6 +26,7 @@ import { createTempRoot, trackTestOwner } from './helpers.js';
 
 const TOKEN_A = 'ExponentPushToken[aaaaaaaaaaaaaaaaaaaaaa]';
 const TOKEN_B = 'ExponentPushToken[bbbbbbbbbbbbbbbbbbbbbb]';
+const TOKEN_C = 'ExponentPushToken[cccccccccccccccccccccc]';
 const SECRET_TEXT = 'rm -rf ~/private --token=hunter2';
 
 function fakeExpo() {
@@ -480,6 +481,43 @@ describe('Push delivery', () => {
       body: '来自 studio。',
       data: { v: 1, hostId: f.pairing.host().id, test: true },
     });
+  });
+
+  it('tells the other phones about a new pairing so they can remove it', async () => {
+    const f = fixture();
+    const phone = f.device('Phone');
+    const tablet = f.device('Tablet');
+    const muted = f.device('Muted');
+    f.push.register(phone.device.id, { token: TOKEN_A, platform: 'ios', locale: 'zh' });
+    f.push.register(tablet.device.id, { token: TOKEN_B, platform: 'android' });
+    f.push.register(muted.device.id, { token: TOKEN_C, platform: 'ios' });
+    f.push.setPreferences(muted.device.id, {}, false);
+    const added = f.device('Stranger');
+    await f.push.announcePaired(added.device);
+    expect(f.expo.flat()).toEqual([
+      expect.objectContaining({
+        to: TOKEN_A,
+        title: '有新设备配对',
+        body: 'Stranger 现在可以使用 studio。不是你？请移除它。',
+        categoryId: 'device-paired',
+        data: {
+          v: 1,
+          hostId: f.pairing.host().id,
+          kind: 'device-paired',
+          deviceId: added.device.id,
+        },
+      }),
+      expect.objectContaining({ to: TOKEN_B, title: 'New device paired' }),
+    ]);
+    f.push.register(added.device.id, { token: 'ExponentPushToken[stranger-1]', platform: 'ios' });
+    f.pairing.revoke(tablet.device.id);
+    await f.push.announcePaired(added.device);
+    expect(
+      f.expo
+        .flat()
+        .slice(2)
+        .map((message) => message.to),
+    ).toEqual([TOKEN_A]);
   });
 });
 

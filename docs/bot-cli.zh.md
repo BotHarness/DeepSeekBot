@@ -622,7 +622,7 @@ deepseekbot group-activity <group-channel>
 这些命令调用的 Host 方法与市场页面、更新卡片、使用统计提示、Git 提示和 IM 配对面板相同：
 
 ```bash
-deepseekbot marketplace-list [--query <关键词>] [--topic <主题>] [--sort updated|stars] [--lang zh|en] [--cursor <next-cursor>]
+deepseekbot marketplace-list [--query <关键词>] [--topic <主题>] [--sort updated|created|stars] [--lang zh|en] [--cursor <next-cursor>]
 deepseekbot marketplace-topics
 deepseekbot marketplace-detail <owner/repo> [--lang zh|en]
 deepseekbot marketplace-submit https://github.com/<owner>/<repo>

@@ -1,4 +1,4 @@
-export type PairingMethod = 'qr' | 'paste' | 'deep_link';
+export type PairingMethod = 'qr' | 'paste' | 'deep_link' | 'account';
 export type PairingOutcome = 'success' | 'refused' | 'failed' | 'cancelled';
 export type PairingReason =
   | 'none'
@@ -9,6 +9,12 @@ export type PairingReason =
   | 'offer-expired'
   | 'unreachable'
   | 'storage-failure'
+  | 'sign-in-cancelled'
+  | 'sign-in-failed'
+  | 'sign-in-required'
+  | 'account-not-allowed'
+  | 'host-offline'
+  | 'relay-unavailable'
   | 'unknown';
 export type DurationBucket = 'under1s' | '1-5s' | '5-15s' | '15-60s' | '60plus';
 export type ActivationStep = 'host_ready' | 'message_accepted' | 'bot_message_observed';
@@ -70,7 +76,7 @@ const member =
   (...values: string[]) =>
   (value: unknown): value is string =>
     typeof value === 'string' && values.includes(value);
-const method = member('qr', 'paste', 'deep_link');
+const method = member('qr', 'paste', 'deep_link', 'account');
 const duration = member('under1s', '1-5s', '5-15s', '15-60s', '60plus');
 const fields: Record<keyof EventProperties, Record<string, (value: unknown) => boolean>> = {
   mobile_connection_result: {
@@ -103,6 +109,12 @@ const fields: Record<keyof EventProperties, Record<string, (value: unknown) => b
       'offer-expired',
       'unreachable',
       'storage-failure',
+      'sign-in-cancelled',
+      'sign-in-failed',
+      'sign-in-required',
+      'account-not-allowed',
+      'host-offline',
+      'relay-unavailable',
       'unknown',
     ),
     duration_bucket: duration,

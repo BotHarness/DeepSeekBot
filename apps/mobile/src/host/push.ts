@@ -36,6 +36,7 @@ export interface PushTarget {
   botSlug?: string;
   channelId?: string;
   messageId?: string;
+  deviceId?: string;
   test?: true;
 }
 
@@ -48,7 +49,7 @@ export function parsePushData(input: unknown): PushTarget | undefined {
   if (data['v'] !== 1 || typeof data['hostId'] !== 'string' || data['hostId'] === '')
     return undefined;
   const target: PushTarget = { hostId: data['hostId'] };
-  for (const key of ['itemId', 'kind', 'botSlug', 'channelId', 'messageId'] as const) {
+  for (const key of ['itemId', 'kind', 'botSlug', 'channelId', 'messageId', 'deviceId'] as const) {
     const value = data[key];
     if (typeof value === 'string' && value !== '') target[key] = value;
   }

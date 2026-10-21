@@ -192,7 +192,7 @@ Usage:
   deepseekbot plugin-check [--force]
   deepseekbot plugin-install <package> <version> --confirm
   deepseekbot plugin-restart --confirm
-  deepseekbot marketplace-list [--query <words>] [--topic <topic>] [--sort updated|stars] [--cursor <c>]
+  deepseekbot marketplace-list [--query <words>] [--topic <topic>] [--sort updated|created|stars] [--cursor <c>]
   deepseekbot marketplace-topics
   deepseekbot marketplace-detail <owner/repo>
   deepseekbot marketplace-submit <github-repo-url>

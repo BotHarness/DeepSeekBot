@@ -20,6 +20,7 @@ export interface MarketplaceEntry {
   topics: string[];
   stars: number;
   pushedAt: string;
+  createdAt?: string;
   htmlUrl: string;
   cloneUrl: string;
   defaultBranch: string;
@@ -31,7 +32,7 @@ export interface MarketplacePage {
   nextCursor?: string;
 }
 
-export type MarketplaceSort = 'updated' | 'stars';
+export type MarketplaceSort = 'updated' | 'created' | 'stars';
 
 export interface MarketplaceQuery {
   cursor?: string;
@@ -124,6 +125,7 @@ function parseEntry(value: unknown): MarketplaceEntry | undefined {
     topics: topics.filter((topic): topic is string => typeof topic === 'string'),
     stars,
     pushedAt: source['pushedAt'] as string,
+    ...(typeof source['createdAt'] === 'string' ? { createdAt: source['createdAt'] } : {}),
     htmlUrl: source['htmlUrl'] as string,
     cloneUrl: source['cloneUrl'] as string,
     defaultBranch: source['defaultBranch'] as string,

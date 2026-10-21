@@ -57,6 +57,7 @@ export interface DevicePairingOptions {
   now?: () => number;
   record?: (event: DevicePairingEvent) => void;
   onRevoked?: (deviceId: string) => void;
+  onPaired?: (device: PairedDevice) => void;
 }
 
 interface Row {
@@ -210,6 +211,7 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
         ['paired-devices'],
       );
       record({ phase: 'offer-redeemed', deviceId: id });
+      options.onPaired?.({ id, name, pairedAt });
       return {
         ok: true,
         device: { id, name, pairedAt },

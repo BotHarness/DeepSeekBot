@@ -110,6 +110,12 @@ export function mountDevicePairing(
     hostName: hostname().replace(/\.local$/u, ''),
     record: (event) => write('device-pairing', event.phase, `device-pairing ${detail(event)}`),
     onRevoked: (deviceId) => push?.unregister(deviceId),
+    onPaired: (device) =>
+      void push
+        ?.announcePaired(device)
+        .catch((error: unknown) =>
+          ctx.logger.warn(`push phase=announce-failed error=${String(error)}`),
+        ),
   });
   if (options.push !== undefined) {
     const watched = options.push;
