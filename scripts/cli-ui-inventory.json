@@ -426,15 +426,16 @@
       "configurable": false
     },
     {
-      "id": "browser-computer-sources",
-      "description": "A browser's own pairings with other Computers and its selected channel-list Computer tab (#2500).",
+      "id": "browser-remote-hosts",
+      "description": "A browser's own pairings with Remote Hosts, its selected Host tab and the icon and colour it shows for each Host (#2500).",
       "scope": "Client transport / transient state",
       "surfaces": [
-        "storage:packages/client/src/client/computer-sources.ts:removeItem(COMPUTERS_STORAGE_KEY)",
-        "storage:packages/client/src/client/computer-sources.ts:setItem(COMPUTERS_STORAGE_KEY)",
-        "storage:packages/client/src/client/computer-sources.ts:setItem(COMPUTER_TAB_STORAGE_KEY)"
+        "storage:packages/client/src/client/remote-hosts.ts:removeItem(REMOTE_HOSTS_STORAGE_KEY)",
+        "storage:packages/client/src/client/remote-hosts.ts:setItem(REMOTE_HOSTS_STORAGE_KEY)",
+        "storage:packages/client/src/client/remote-hosts.ts:setItem(HOST_TAB_STORAGE_KEY)",
+        "storage:packages/client/src/client/host-looks.ts:setItem(HOST_LOOKS_STORAGE_KEY)"
       ],
-      "exemption": "Per-browser connections and the tab filter belong to that browser profile, not to any Host (spec #2178), so no Host CLI can read or set them. The other Computer's side is its existing device gateway: pair, unary calls, stream ticket and revoke.",
+      "exemption": "Per-browser connections, the tab filter and Host looks belong to that browser profile, not to any Host (spec #2178, ADR-0243: Host looks are device-local), so no Host CLI can read or set them. The Remote Host's side is its existing device gateway: pair, unary calls, stream ticket and revoke.",
       "configurable": false
     },
     {

@@ -8,8 +8,8 @@ import {
   type ConversationMessage,
   type ConversationSnapshot,
 } from '../../../../apps/mobile/src/host/conversation.js';
-import { computerSources, type RemoteConversationTarget } from './computer-sources.js';
-import { useComputerSources } from './computer-tabs.js';
+import { remoteHosts, type RemoteConversationTarget } from './remote-hosts.js';
+import { useRemoteHosts } from './host-tabs.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { IconButton } from './ds/icon-button.js';
 import { border, color, radius, space, text } from './ds/tokens.stylex.js';
@@ -152,7 +152,7 @@ function authorName(
 ): string {
   if (message.author === 'human') return t('rail.you');
   if (message.author === 'bot') return bots.get(message.bot ?? '') ?? message.bot ?? '';
-  return t('computers.system');
+  return t('remoteHosts.system');
 }
 
 export function RemoteConversationView({
@@ -162,8 +162,8 @@ export function RemoteConversationView({
   target: RemoteConversationTarget;
   t: BotHarnessTranslate;
 }): ReactElement {
-  const sources = computerSources();
-  const computer = useComputerSources().computers.find(
+  const sources = remoteHosts();
+  const remote = useRemoteHosts().hosts.find(
     (candidate) => candidate.host.hostId === target.hostId,
   );
   const conversation = useMemo(
@@ -180,9 +180,9 @@ export function RemoteConversationView({
     [t],
   );
   const bots = new Map(
-    (computer?.snapshot.roster?.bots ?? []).map((bot) => [bot.slug, bot.displayName]),
+    (remote?.snapshot.roster?.bots ?? []).map((bot) => [bot.slug, bot.displayName]),
   );
-  const reachable = computer?.snapshot.connection.status === 'connected';
+  const reachable = remote?.snapshot.connection.status === 'connected';
   const send = (): void => {
     const body = draft.trim();
     if (body.length === 0 || conversation === undefined || !reachable) return;
@@ -200,7 +200,7 @@ export function RemoteConversationView({
         <span {...stylex.props(styles.title)}>{target.title}</span>
         <span {...stylex.props(styles.source)}>
           <ChannelSidebarIcon name="monitor" />
-          {computer?.host.hostName ?? ''}
+          {remote?.host.hostName ?? ''}
         </span>
         <span {...stylex.props(styles.spacer)} />
         <IconButton aria-label={t('common.close')} onClick={() => sources.close()}>
@@ -209,11 +209,11 @@ export function RemoteConversationView({
       </header>
       {!reachable ? (
         <p role="status" {...stylex.props(styles.status)}>
-          {t('computers.offline', { name: computer?.host.hostName ?? '' })}
+          {t('remoteHosts.offline', { name: remote?.host.hostName ?? '' })}
         </p>
       ) : snapshot.status === 'interrupted' || snapshot.status === 'refused' ? (
         <p role="status" {...stylex.props(styles.status)}>
-          {snapshot.reason ?? t('computers.interrupted')}
+          {snapshot.reason ?? t('remoteHosts.interrupted')}
         </p>
       ) : null}
       <div {...stylex.props(styles.timeline)} data-remote-timeline="">
@@ -245,7 +245,7 @@ export function RemoteConversationView({
             </div>
             {message.delivery === 'failed' ? (
               <span {...stylex.props(styles.failed)}>
-                {message.error ?? t('computers.sendFailed')}
+                {message.error ?? t('remoteHosts.sendFailed')}
               </span>
             ) : null}
           </div>
@@ -260,12 +260,12 @@ export function RemoteConversationView({
       >
         <textarea
           {...stylex.props(styles.input)}
-          aria-label={t('computers.composer', { name: target.title })}
+          aria-label={t('remoteHosts.composer', { name: target.title })}
           data-remote-composer=""
           rows={1}
           value={draft}
           disabled={!reachable}
-          placeholder={reachable ? t('computers.composer', { name: target.title }) : undefined}
+          placeholder={reachable ? t('remoteHosts.composer', { name: target.title }) : undefined}
           onChange={(event) => setDraft(event.currentTarget.value)}
           onKeyDown={(event) => {
             if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) return;
@@ -279,7 +279,7 @@ export function RemoteConversationView({
           disabled={!reachable || draft.trim().length === 0}
           data-remote-send=""
         >
-          {t('computers.send')}
+          {t('remoteHosts.send')}
         </Button>
       </form>
     </section>

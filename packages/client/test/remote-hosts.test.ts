@@ -3,15 +3,15 @@ import { describe, expect, it } from 'vitest';
 import type { HostCarrier } from '../../../apps/mobile/src/host/carrier.js';
 import { pairingLink } from '../../core/src/devices/http.js';
 import {
-  ALL_COMPUTERS,
-  COMPUTER_TAB_STORAGE_KEY,
-  COMPUTERS_STORAGE_KEY,
+  ALL_HOSTS,
+  HOST_TAB_STORAGE_KEY,
+  REMOTE_HOSTS_STORAGE_KEY,
   conversationKey,
-  createComputerSources,
-  type ComputerStorage,
-} from '../src/client/computer-sources.js';
+  createRemoteHosts,
+  type HostStorage,
+} from '../src/client/remote-hosts.js';
 
-function memoryStorage(initial: Record<string, string> = {}): ComputerStorage & {
+function memoryStorage(initial: Record<string, string> = {}): HostStorage & {
   values: Map<string, string>;
 } {
   const values = new Map(Object.entries(initial));
@@ -63,12 +63,12 @@ const link = (hostId = 'host-b') =>
     expiresAt: new Date(Date.now() + 60_000).toISOString(),
   });
 
-describe('computer sources', () => {
-  it('pairs another computer with this browser and remembers it in browser storage', async () => {
+describe('remote hosts', () => {
+  it('pairs another remote with this browser and remembers it in browser storage', async () => {
     const storage = memoryStorage();
     const { carrier, calls } = fakeCarrier();
-    const sources = createComputerSources({ storage, carrier });
-    expect(sources.getSnapshot()).toEqual({ computers: [], tab: ALL_COMPUTERS });
+    const sources = createRemoteHosts({ storage, carrier });
+    expect(sources.getSnapshot()).toEqual({ hosts: [], avatars: new Map(), tab: ALL_HOSTS });
 
     const result = await sources.pair(link(), 'Browser on Laptop', 'host-a');
 
@@ -78,10 +78,8 @@ describe('computer sources', () => {
       body: { offer: 'offer-1', name: 'Browser on Laptop' },
     });
     expect(sources.getSnapshot().tab).toBe('host-b');
-    expect(sources.getSnapshot().computers.map((computer) => computer.host.hostId)).toEqual([
-      'host-b',
-    ]);
-    expect(JSON.parse(storage.values.get(COMPUTERS_STORAGE_KEY)!)).toEqual([
+    expect(sources.getSnapshot().hosts.map((remote) => remote.host.hostId)).toEqual(['host-b']);
+    expect(JSON.parse(storage.values.get(REMOTE_HOSTS_STORAGE_KEY)!)).toEqual([
       {
         hostId: 'host-b',
         hostName: 'Studio',
@@ -90,19 +88,19 @@ describe('computer sources', () => {
         credential: 'device-1.secret',
       },
     ]);
-    expect(storage.values.get(COMPUTER_TAB_STORAGE_KEY)).toBe('host-b');
+    expect(storage.values.get(HOST_TAB_STORAGE_KEY)).toBe('host-b');
 
-    const reloaded = createComputerSources({ storage, carrier });
+    const reloaded = createRemoteHosts({ storage, carrier });
     expect(reloaded.getSnapshot().tab).toBe('host-b');
-    expect(reloaded.getSnapshot().computers[0]?.host.credential).toBe('device-1.secret');
+    expect(reloaded.getSnapshot().hosts[0]?.host.credential).toBe('device-1.secret');
   });
 
-  it('refuses this computer’s own link, a second pairing and a broken link', async () => {
+  it('refuses this remote’s own link, a second pairing and a broken link', async () => {
     const { carrier, calls } = fakeCarrier();
-    const sources = createComputerSources({ storage: memoryStorage(), carrier });
+    const sources = createRemoteHosts({ storage: memoryStorage(), carrier });
     expect(await sources.pair(link('host-a'), 'Browser', 'host-a')).toEqual({
       ok: false,
-      code: 'this-computer',
+      code: 'this-host',
     });
     expect(await sources.pair('https://example.com', 'Browser', 'host-a')).toEqual({
       ok: false,
@@ -116,9 +114,9 @@ describe('computer sources', () => {
     expect(calls.filter((call) => call.url.endsWith('/pair'))).toHaveLength(1);
   });
 
-  it('keys conversations by computer so the same slug on two computers never shares state', async () => {
+  it('keys conversations by remote so the same slug on two hosts never shares state', async () => {
     const { carrier } = fakeCarrier();
-    const sources = createComputerSources({ storage: memoryStorage(), carrier });
+    const sources = createRemoteHosts({ storage: memoryStorage(), carrier });
     await sources.pair(link(), 'Browser', 'host-a');
     const here = { hostId: 'host-b', title: 'Ada', botSlug: 'ada' };
     expect(conversationKey(here)).not.toBe(conversationKey({ ...here, hostId: 'host-c' }));
@@ -129,18 +127,18 @@ describe('computer sources', () => {
     expect(sources.conversation({ ...here, hostId: 'host-c' })).toBeUndefined();
   });
 
-  it('removes a computer, revokes this browser there and forgets its open chat', async () => {
+  it('removes a remote, revokes this browser there and forgets its open chat', async () => {
     const storage = memoryStorage();
     const { carrier, calls } = fakeCarrier();
-    const sources = createComputerSources({ storage, carrier });
+    const sources = createRemoteHosts({ storage, carrier });
     await sources.pair(link(), 'Browser', 'host-a');
     sources.open({ hostId: 'host-b', title: 'Ada', botSlug: 'ada' });
     expect(sources.getSnapshot().open?.hostId).toBe('host-b');
 
     await sources.remove('host-b');
 
-    expect(sources.getSnapshot()).toEqual({ computers: [], tab: ALL_COMPUTERS });
-    expect(storage.values.has(COMPUTERS_STORAGE_KEY)).toBe(false);
+    expect(sources.getSnapshot()).toEqual({ hosts: [], avatars: new Map(), tab: ALL_HOSTS });
+    expect(storage.values.has(REMOTE_HOSTS_STORAGE_KEY)).toBe(false);
     expect(calls.at(-1)).toEqual({
       url: 'http://127.0.0.1:47001/botharness-device/unpair',
       body: {},
@@ -148,14 +146,27 @@ describe('computer sources', () => {
     });
   });
 
-  it('falls back to All when the remembered tab names a computer that is gone', () => {
+  it('falls back to All when the remembered tab names a remote that is gone', () => {
     const { carrier } = fakeCarrier();
-    const sources = createComputerSources({
-      storage: memoryStorage({ [COMPUTER_TAB_STORAGE_KEY]: 'host-z' }),
+    const sources = createRemoteHosts({
+      storage: memoryStorage({ [HOST_TAB_STORAGE_KEY]: 'host-z' }),
       carrier,
     });
-    expect(sources.getSnapshot().tab).toBe(ALL_COMPUTERS);
+    expect(sources.getSnapshot().tab).toBe(ALL_HOSTS);
     sources.select('local');
     expect(sources.getSnapshot().tab).toBe('local');
+  });
+
+  it('reads each remote Host’s inbox only while someone watches the list', async () => {
+    const storage = memoryStorage();
+    const { carrier } = fakeCarrier();
+    const sources = createRemoteHosts({ storage, carrier });
+    await sources.pair(link(), 'Browser', 'host-a');
+    expect(sources.getSnapshot().hosts[0]?.inbox).toEqual({ status: 'idle' });
+
+    const release = sources.subscribe(() => {});
+    release();
+
+    expect(sources.getSnapshot().hosts[0]?.inbox).toEqual({ status: 'idle' });
   });
 });
