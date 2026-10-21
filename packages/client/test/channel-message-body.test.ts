@@ -114,7 +114,7 @@ it.each([
       at: '2026-10-21T00:00:00Z',
       author: { kind: 'bot' as const, slug: 'same-bot' },
       body: '请选择来源 Host 的文件夹',
-      grantRequest: true,
+      grantRequest: true as const,
     };
     const client = createHostClient({
       routes: ['https://source.example.ts.net'],

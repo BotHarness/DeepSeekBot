@@ -1,4 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest';
+import assert from 'node:assert/strict';
 import { createHostClient, MethodRefused } from '../../../apps/mobile/src/host/client.js';
 import type { ClientRequest } from '../../../apps/mobile/src/host/wire.js';
 import { createMessageResource } from '../src/client/message-resource.js';
@@ -120,7 +121,9 @@ it.each([
     { channelId: 'same-channel', messageId: 'same-message', botSlug: 'same-bot' },
     '操作失败，请刷新后重试',
   );
-  await expect(actions[method]('same-channel', 'same-message')).rejects.toMatchObject({
+  const readRequest = actions[method];
+  assert(readRequest !== undefined);
+  await expect(readRequest('same-channel', 'same-message')).rejects.toMatchObject({
     message: '操作失败，请刷新后重试',
     cause,
   });
