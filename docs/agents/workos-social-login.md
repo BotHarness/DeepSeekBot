@@ -76,14 +76,32 @@ Client IDs and Redirect URIs are not secret, but they sit next to the secrets so
 
 ## Custom domains: not used
 
-WorkOS custom domains, which put the sign-in page and OAuth callbacks on our own domain, exist only in Production and are a paid add-on ($99 per month on [WorkOS pricing](https://workos.com/pricing), checked 2026-10-21). The Human decided not to pay for them. Both environments keep WorkOS's domains: the generated AuthKit domain and `api.workos.com` callbacks. The provider consent screens still show our app name and logo, from our own clients. Revisit before a public launch. If it is ever enabled, use `deepseekbot.app` (never `deepseekbot.dev`, which ADR-0241 reserves for Host tunnels). Check whether the token `iss` changes, because the relay, Host, phone and TOB hard-code `https://api.workos.com/user_management/...`.
+WorkOS custom domains, which put the sign-in page and OAuth callbacks on our own domain, exist only in Production and are a paid add-on ($99 per month on [WorkOS pricing](https://workos.com/pricing), checked 2026-10-21). The Human decided not to pay for them. Both environments keep WorkOS's domains: the generated AuthKit domain and the `auth.workos.com` provider callbacks. Revisit before a public launch. If it is ever enabled, use `deepseekbot.app` (never `deepseekbot.dev`, which ADR-0241 reserves for Host tunnels). Check whether the token `iss` changes, because the relay, Host, phone and TOB hard-code `https://api.workos.com/user_management/...`.
+
+### What each consent screen shows without a custom domain (#2522)
+
+Checked 2026-10-21 against TOB's Production environment (read-only WorkOS query; no setting changed).
+
+- **Google shows "continue to workos.com", and our own client cannot fix it.** Google shows the app name and logo only after brand verification. Otherwise it shows the domain of the redirect URI. Brand verification needs every redirect URI's domain in Authorized domains, with its ownership proven in Google Search Console ([brand verification](https://developers.google.com/identity/protocols/oauth2/production-readiness/brand-verification)). Prod's redirect URI is on `auth.workos.com`, which we cannot verify. Users can still sign in while the screen is published and asks only for `openid`, `email` and `profile`.
+- **Apple** shows the Services ID's app name; the callback domain is not shown.
+- **Microsoft and GitHub** are not registered in Prod. Their screens show our registered app name; Microsoft adds "unverified" until publisher verification.
+
+The only fix that keeps WorkOS is its Google OAuth custom domain ([docs](https://workos.com/docs/integrations/google-oauth/customize-google-oauth-domain); custom domain type `OAuthRedirect`, a paid Production add-on). Steps, only after the Human approves the cost:
+
+1. In WorkOS Production, go to Authentication → Providers → Google → Set Up Custom Domain, and enter `auth.deepseekbot.app`.
+2. Add a CNAME from `auth.deepseekbot.app` to `cname.workos-dns.com`, then click Verify DNS.
+3. Add the new Redirect URI to the Google client next to the old one. Run WorkOS's Test Google Redirect URI, then save.
+4. Verify `deepseekbot.app` in Search Console. Replace `workos.com` with `deepseekbot.app` in Authorized domains, then submit brand verification.
+5. After Google approves, a private-window Google sign-in must show DeepSeekBot. Confirm that the token `iss` is unchanged, then remove the old `auth.workos.com` Redirect URI.
+
+Free steps to do in any case: keep the Google consent screen published with the DeepSeekBot name, logo, home page and privacy policy, and verify `deepseekbot.app` in Search Console ahead of time.
 
 ## Verify
 
 - **Each provider in each environment:**
   - Run `deepseekbot connect-sign-in --wait` on an isolated Host and choose the provider on the AuthKit page. The Human completes the login.
   - Confirm `connect-status` shows `signed-in` with that account's email, then `connect-sign-out`.
-  - Check that the consent screen shows DeepSeekBot, not WorkOS.
+  - Check that the consent screen shows DeepSeekBot, not WorkOS. Google is the exception until a custom domain exists; see above.
 - **The phone (UAT):** sign in from the Pair screen's account section on the dev app through the shared device QA queue ([device-qa.md](device-qa.md)).
 - Report pass or fail per provider and environment, with no identifiers beyond the provider name.
 
