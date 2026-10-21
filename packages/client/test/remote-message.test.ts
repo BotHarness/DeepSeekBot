@@ -40,6 +40,34 @@ function fixture() {
 
 afterEach(() => vi.restoreAllMocks());
 
+it.each([
+  'toolApprovalStatus',
+  'toolApprovalState',
+  'toolApprovalExecutionState',
+  'userQuestionStatus',
+] as const)('localizes conversation-card %s errors without losing their cause', async (method) => {
+  const { host } = fixture();
+  const cause = new Error('The Host answered 502.');
+  const call = vi.spyOn(host.client, 'call').mockRejectedValue(cause);
+  const actions = remoteMessageActions(
+    host,
+    { channelId: 'same-channel', messageId: 'same-message', botSlug: 'same-bot' },
+    '操作失败，请刷新后重试',
+  );
+  await expect(actions[method]('same-channel', 'same-message')).rejects.toMatchObject({
+    message: '操作失败，请刷新后重试',
+    cause,
+  });
+  expect(
+    call.mock.calls.every(
+      ([name]) =>
+        name === 'toolApprovalStatus' ||
+        name === 'userQuestionStatus' ||
+        name === 'channelTimeline',
+    ),
+  ).toBe(true);
+});
+
 it('loads attachments only from their source Host with device authorization and releases the URL', async () => {
   const { host } = fixture();
   const fetcher = vi
