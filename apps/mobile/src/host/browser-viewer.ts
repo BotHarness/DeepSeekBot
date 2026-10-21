@@ -124,13 +124,17 @@ export function createBrowserViewer(options: BrowserViewerOptions): BrowserViewe
         );
       } catch (error) {
         if (signal.aborted) return;
+        seq = undefined;
         fail(error);
         if (state.status === 'refused') return;
         await wait(RETRY_MS, signal);
         continue;
       }
       if (signal.aborted) return;
-      if (answer.status === 204) continue;
+      if (answer.status === 204) {
+        if (state.status !== 'live') seq = undefined;
+        continue;
+      }
       if (answer.status === 403) {
         update({ status: 'no-access', notice: errorOf(answer) });
         return;
@@ -143,6 +147,7 @@ export function createBrowserViewer(options: BrowserViewerOptions): BrowserViewe
       }
       const body = record(answer.body);
       if (answer.status !== 200 || typeof body['data'] !== 'string') {
+        seq = undefined;
         update({ status: 'unreachable', notice: errorOf(answer) });
         await wait(RETRY_MS, signal);
         continue;

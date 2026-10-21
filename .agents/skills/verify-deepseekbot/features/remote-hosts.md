@@ -31,6 +31,8 @@ For viewers, start a disposable Browser and Computer on Host B through the exist
 
 For control races, delay an input response, queue text, Resume, then take control again before completing the first response: the old queued text must not arrive. Interrupt only frame requests while the Feed remains online; recovered frames must be read-only and require another takeover. Delay a takeover response after the Host accepts it, then Remove the Host: input stops immediately and release must precede unpair. If cleanup cannot finish within five seconds, removal continues; Browser may require the Host operator to resume it.
 
+Keep the remote screen stationary during frame recovery. The Host must keep its sequence unchanged and answer matching `after` polls with 204 after ten seconds; the viewer recovers by fetching the current frame without that stale cursor, not by requiring a screen change. In both UI languages, inject a frame/input failure: the Web panel must show localized recovery guidance and a reconnect action, while the viewer snapshot retains the original diagnostic notice rather than rendering it as product copy.
+
 ## Gotchas
 
 - Remote avatars consume the authenticated image cache; This Host retains its current read adapter.

@@ -37,6 +37,10 @@ const styles = stylex.create({
   },
   input: { flexGrow: 1, minWidth: 0 },
   notice: {
+    display: 'flex',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: space.x3,
     margin: 0,
     padding: space.x3,
     color: color.muted,
@@ -193,10 +197,13 @@ export function RemoteHostViewerPanel({
           {unavailable}
         </PanelEmptyState>
       )}
-      {state.notice === undefined ? null : (
-        <p role="status" {...stylex.props(styles.notice)}>
-          {state.notice}
-        </p>
+      {state.notice === undefined || !live ? null : (
+        <div role="status" {...stylex.props(styles.notice)}>
+          <span>{t('remoteViewer.actionUnconfirmed')}</span>
+          <Button size="sm" variant="ghost" onClick={() => setAttempt((value) => value + 1)}>
+            {t('remoteViewer.retry')}
+          </Button>
+        </div>
       )}
       <form
         {...stylex.props(styles.controls)}
