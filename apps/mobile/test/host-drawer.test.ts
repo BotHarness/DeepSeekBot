@@ -50,6 +50,7 @@ function answering(
 describe('Host drawer', () => {
   it('opens from the chip and closes from the backdrop, returning focus to the chip', () => {
     const drawer = createHostDrawer({
+      showView: vi.fn(),
       switchTo: vi.fn(async () => true),
       pair: vi.fn(),
       notifications: vi.fn(),
@@ -71,6 +72,7 @@ describe('Host drawer', () => {
 
   it('shows the drawer while an edge swipe drags it in, and hides it again when the swipe is let go early', () => {
     const drawer = createHostDrawer({
+      showView: vi.fn(),
       switchTo: vi.fn(async () => true),
       pair: vi.fn(),
       notifications: vi.fn(),
@@ -89,6 +91,7 @@ describe('Host drawer', () => {
 
   it('keeps the drawer shown when it reopens before the closing slide ends', () => {
     const drawer = createHostDrawer({
+      showView: vi.fn(),
       switchTo: vi.fn(async () => true),
       pair: vi.fn(),
       notifications: vi.fn(),
@@ -102,7 +105,12 @@ describe('Host drawer', () => {
 
   it('switches to the chosen Host and closes', async () => {
     const switchTo = vi.fn(async () => true);
-    const drawer = createHostDrawer({ switchTo, pair: vi.fn(), notifications: vi.fn() });
+    const drawer = createHostDrawer({
+      showView: vi.fn(),
+      switchTo,
+      pair: vi.fn(),
+      notifications: vi.fn(),
+    });
     drawer.open();
 
     await expect(drawer.select('laptop')).resolves.toBe(true);
@@ -110,9 +118,43 @@ describe('Host drawer', () => {
     expect(drawer.getSnapshot().open).toBe(false);
   });
 
+  it('selects All without changing the current Host', () => {
+    const showView = vi.fn();
+    const switchTo = vi.fn(async () => true);
+    const drawer = createHostDrawer({ showView, switchTo, pair: vi.fn(), notifications: vi.fn() });
+    drawer.open();
+    drawer.selectAll();
+    expect(showView).toHaveBeenCalledWith(undefined);
+    expect(switchTo).not.toHaveBeenCalled();
+    expect(drawer.getSnapshot().open).toBe(false);
+  });
+
+  it('changes the conversation view only after a successful Host switch', async () => {
+    const showView = vi.fn();
+    let resolveSwitch: (value: boolean) => void = () => {};
+    const switchTo = vi.fn(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveSwitch = resolve;
+        }),
+    );
+    const drawer = createHostDrawer({ showView, switchTo, pair: vi.fn(), notifications: vi.fn() });
+    const selecting = drawer.select('laptop');
+    expect(showView).not.toHaveBeenCalled();
+    resolveSwitch(true);
+    await selecting;
+    expect(showView).toHaveBeenLastCalledWith('laptop');
+    showView.mockClear();
+    const removed = drawer.select('removed');
+    resolveSwitch(false);
+    await expect(removed).resolves.toBe(false);
+    expect(showView).not.toHaveBeenCalled();
+  });
+
   it('opens the pairing flow from "Pair a new computer" and closes', () => {
     const pair = vi.fn();
     const drawer = createHostDrawer({
+      showView: vi.fn(),
       switchTo: vi.fn(async () => true),
       pair,
       notifications: vi.fn(),
@@ -127,6 +169,7 @@ describe('Host drawer', () => {
   it('opens notification settings from the footer and closes', () => {
     const notifications = vi.fn();
     const drawer = createHostDrawer({
+      showView: vi.fn(),
       switchTo: vi.fn(async () => true),
       pair: vi.fn(),
       notifications,

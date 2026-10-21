@@ -82,6 +82,7 @@ export interface HostDrawerState {
 
 export interface HostDrawerPort {
   switchTo(hostId: string): Promise<boolean>;
+  showView(hostId: string | undefined): void;
   pair(): void;
   notifications(): void;
 }
@@ -94,6 +95,7 @@ export interface HostDrawer {
   close(): void;
   hidden(): void;
   select(hostId: string): Promise<boolean>;
+  selectAll(): void;
   pairNew(): void;
   openNotifications(): void;
   setReturnFocus(focus: (() => void) | undefined): void;
@@ -128,7 +130,13 @@ export function createHostDrawer(port: HostDrawerPort): HostDrawer {
     },
     async select(hostId) {
       close();
-      return port.switchTo(hostId);
+      const switched = await port.switchTo(hostId);
+      if (switched) port.showView(hostId);
+      return switched;
+    },
+    selectAll() {
+      close();
+      port.showView(undefined);
     },
     pairNew() {
       close();
