@@ -4,8 +4,9 @@ import Constants from 'expo-constants';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import { Platform, Pressable, View, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { hostSession } from '../src/host/host-session';
+import { hostSession, useHostSession } from '../src/host/host-session';
 import { hostLooks } from '../src/host/native-host-look';
 import { HOST_NAME_MAX, hostLookName, withHostName } from '../src/ui/design/host-look';
 import { ConnectionNameField } from '../src/ui/primitives/connection-name-field';
@@ -20,6 +21,7 @@ import type { PairingMethod } from '../src/telemetry/schema';
 import { Button } from '../src/ui/primitives/button';
 import { DrawerHeader } from '../src/ui/primitives/drawer-header';
 import { KeyboardFormScroll } from '../src/ui/primitives/keyboard-form';
+import { PairingGuide } from '../src/ui/shell/pairing-guide';
 import { cloudAvailable } from '../src/cloud/available';
 import { t } from '../src/ui/strings';
 import { useDesignTheme } from '../src/ui/design/theme';
@@ -35,6 +37,9 @@ export default function PairScreen() {
   const { width } = useWindowDimensions();
   const scan = Math.min(width * pairingScan.widthRatio, pairingScan.maxSize);
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const presentedAsSheet = router.canGoBack();
+  const firstPairing = useHostSession().hosts.length === 0;
   const params = useLocalSearchParams<{ p?: string }>();
   const [permission, requestPermission] = useCameraPermissions();
   const [link, setLink] = useState('');
@@ -111,11 +116,15 @@ export default function PairScreen() {
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="interactive"
       style={{ flex: 1, backgroundColor: theme.overlay.fill }}
-      contentContainerStyle={{ padding: space.x5, gap: space.x4 }}
+      contentContainerStyle={{
+        padding: space.x5,
+        paddingTop: presentedAsSheet ? space.x5 : insets.top + space.x5,
+        gap: space.x4,
+      }}
     >
       <DrawerHeader
         title={t.pairTitle}
-        {...(router.canGoBack() ? { onClose: () => router.back() } : {})}
+        {...(presentedAsSheet ? { onClose: () => router.back() } : {})}
       />
       <View
         style={{
@@ -178,6 +187,7 @@ export default function PairScreen() {
         busy={busy}
         onPair={(host) => void pair(`account:${host.id}`, 'account', true, host)}
       />
+      <PairingGuide initiallyOpen={firstPairing} />
       <View style={{ gap: space.x2 }}>
         <Text variant="meta" tone="muted" accessibilityRole="header">
           {t.pasteLink}

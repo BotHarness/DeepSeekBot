@@ -456,6 +456,17 @@ const en = {
   pairHint:
     'On your computer, open DeepSeekBot Settings → Devices → Pair a phone, then scan the code it shows.',
   allowCamera: 'Allow the camera to scan',
+  pairGuide: {
+    title: 'Before you pair',
+    steps: [
+      'On your computer, install DeepSeek Harness (DSH) and the DeepSeekBot plugin.',
+      'Install Tailscale on this phone and on the computer, and sign in to the same account. Hosted Connect, which needs no Tailscale, is coming soon.',
+      'On the computer, show the pairing code and scan it here.',
+    ],
+    open: 'Open the setup guide',
+    url: 'https://deepseekbot.app/en/docs/mobile-pairing/',
+    linkError: 'Could not open the guide. Please try again.',
+  },
   pasteLink: 'Or paste the pairing link',
   pasteLinkHint:
     'When the camera can’t see the screen, choose Copy pairing link in the same window and paste it here. The code and the link work once and expire after 10 minutes.',
@@ -1680,6 +1691,17 @@ const zh: typeof en = {
   pairTitle: '与电脑配对',
   pairHint: '在电脑上打开 DeepSeekBot 设置 → 设备 → 配对手机，然后扫描二维码。',
   allowCamera: '允许使用相机扫码',
+  pairGuide: {
+    title: '配对前的准备',
+    steps: [
+      '在电脑上安装 DSH（DeepSeek Harness）和 DeepSeekBot 插件。',
+      '在手机和电脑上都安装 Tailscale，并登录同一个账号。无需 Tailscale 的托管 Connect 即将推出。',
+      '在电脑上显示配对二维码，然后在这里扫码。',
+    ],
+    open: '查看安装与配对教程',
+    url: 'https://deepseekbot.app/docs/mobile-pairing/',
+    linkError: '无法打开教程，请重试。',
+  },
   pasteLink: '或粘贴配对链接',
   pasteLinkHint:
     '摄像头扫不到时，在同一窗口点「复制配对链接」，再粘贴到这里。二维码和链接都只能用一次，10 分钟后失效。',
