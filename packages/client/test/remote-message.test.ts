@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { createHostClient } from '../../../apps/mobile/src/host/client.js';
+import { createHostClient, MethodRefused } from '../../../apps/mobile/src/host/client.js';
 import type { ClientRequest } from '../../../apps/mobile/src/host/wire.js';
 import { createMessageResource } from '../src/client/message-resource.js';
 import { remoteMessageActions } from '../src/client/remote-message-actions.js';
@@ -39,6 +39,72 @@ function fixture() {
 }
 
 afterEach(() => vi.restoreAllMocks());
+
+it.each(
+  (['listing', 'create', 'options', 'grant'] as const).flatMap((phase) =>
+    (['transport', 'refusal'] as const).map((failure) => ({ phase, failure })),
+  ),
+)(
+  'preserves the original folder $phase/$failure diagnostic as cause',
+  async ({ phase, failure }) => {
+    const { host } = fixture();
+    const cause =
+      failure === 'refusal'
+        ? new MethodRefused('grant/request-unavailable', 'Canonical refusal details')
+        : new TypeError('Transport failure');
+    const call = vi.spyOn(host.client, 'call').mockRejectedValue(cause);
+    if (phase === 'options' || phase === 'grant')
+      call.mockResolvedValueOnce({ workspace: { workspaceId: 'source-workspace' } });
+    if (phase === 'grant')
+      call.mockResolvedValueOnce({
+        workspaces: [{ id: 'source-workspace', path: '/source', title: 'Source' }],
+      });
+    const actions = remoteMessageActions(
+      host,
+      { channelId: 'same-channel', messageId: 'same-message', botSlug: 'same-bot' },
+      '操作失败，请刷新后重试',
+    );
+    const error = await (
+      phase === 'listing'
+        ? actions.listHostFolders()
+        : actions.resolveWorkspaceGrantRequest(
+            'same-bot',
+            'same-message',
+            '/source',
+            () => '',
+            'same-channel',
+          )
+    ).catch((error: unknown) => error);
+    expect(error).toMatchObject({ message: '操作失败，请刷新后重试', cause });
+    expect(error).toHaveProperty('cause', cause);
+  },
+);
+
+it.each([
+  { slug: 'other-bot', channelId: 'same-channel', messageId: 'same-message' },
+  { slug: 'same-bot', channelId: 'other-channel', messageId: 'same-message' },
+  { slug: 'same-bot', channelId: 'same-channel', messageId: 'other-message' },
+])('refuses a folder action with changed ownership $slug/$channelId/$messageId', async (target) => {
+  const { host, calls } = fixture();
+  const actions = remoteMessageActions(
+    host,
+    { channelId: 'same-channel', messageId: 'same-message', botSlug: 'same-bot' },
+    '操作失败，请刷新后重试',
+  );
+  await expect(
+    actions.resolveWorkspaceGrantRequest(
+      target.slug,
+      target.messageId,
+      '/source',
+      () => '',
+      target.channelId,
+    ),
+  ).rejects.toMatchObject({
+    message: '操作失败，请刷新后重试',
+    cause: { message: 'The conversation changed.' },
+  });
+  expect(calls).toEqual([]);
+});
 
 it.each([
   'toolApprovalStatus',

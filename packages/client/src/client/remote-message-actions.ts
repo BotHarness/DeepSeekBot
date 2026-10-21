@@ -36,6 +36,13 @@ export function remoteMessageActions(
       throw new Error('The conversation changed.');
     return target;
   };
+  const folderRequest = async <T>(run: () => Promise<T>): Promise<T> => {
+    try {
+      return await run();
+    } catch (cause) {
+      throw new Error(requestUnavailable, { cause });
+    }
+  };
   return {
     ...createHostRequestActions({ client: () => client, ref, requestUnavailable }),
     async privateInputStatus(channelId, messageId) {
@@ -63,15 +70,27 @@ export function remoteMessageActions(
       });
       if (value.accepted !== true) throw new Error('Private input cancellation was not accepted');
     },
-    listHostFolders: (path) => listHostFolders(client, path),
+    listHostFolders: (path) =>
+      folderRequest(async () => {
+        ref(target.channelId, target.messageId);
+        const listing = await listHostFolders(client, path);
+        ref(target.channelId, target.messageId);
+        return listing;
+      }),
     pickWorkspaceFolder: async () => null,
-    async resolveWorkspaceGrantRequest(slug, messageId, path, _body, channelId) {
-      if (slug !== botSlug || channelId === undefined) throw new Error('The conversation changed.');
-      ref(channelId, messageId);
-      const workspace = await resolveWorkspaceFolder(client, path);
-      check(channelId);
-      const { result } = await decideGrantRequest(client, ref(channelId, messageId), workspace.id);
-      if (result !== 'accepted') throw new Error('The folder request is no longer pending.');
-    },
+    resolveWorkspaceGrantRequest: (slug, messageId, path, _body, channelId) =>
+      folderRequest(async () => {
+        if (slug !== botSlug || channelId === undefined)
+          throw new Error('The conversation changed.');
+        ref(channelId, messageId);
+        const workspace = await resolveWorkspaceFolder(client, path);
+        check(channelId);
+        const { result } = await decideGrantRequest(
+          client,
+          ref(channelId, messageId),
+          workspace.id,
+        );
+        if (result !== 'accepted') throw new Error('The folder request is no longer pending.');
+      }),
   };
 }

@@ -39,9 +39,11 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   IconPlayOutlineRegular: () => null,
   IconPauseOutlineRegular: () => null,
   IconEllipsisOutlineRegular: () => null,
+  IconFolderOpenOutlineRegular: () => null,
   Tooltip: ({ children }: { children: ReactNode }) => children,
   MarkdownText: vi.fn(() => null),
-  Modal: () => null,
+  Modal: ({ children, footer }: { children: ReactNode; footer?: ReactNode }) =>
+    createElement('div', { role: 'dialog' }, children, footer),
   Input: (props: InputHTMLAttributes<HTMLInputElement>) => createElement('input', props),
   StateDot: () => createElement('span', { 'data-state-dot': 'error' }),
   Button: ({ children, ...props }: { children: ReactNode }) =>
@@ -82,6 +84,179 @@ function render(
 }
 
 beforeEach(() => vi.mocked(MarkdownText).mockClear());
+
+it.each([
+  { phase: 'initial', failure: 'http' },
+  { phase: 'initial', failure: 'json' },
+  { phase: 'initial', failure: 'network' },
+  { phase: 'initial', failure: 'changed' },
+  { phase: 'navigation', failure: 'http' },
+  { phase: 'navigation', failure: 'network' },
+  { phase: 'navigation', failure: 'changed' },
+  { phase: 'create', failure: 'http' },
+  { phase: 'options', failure: 'http' },
+  { phase: 'grant', failure: 'http' },
+  { phase: 'grant', failure: 'json' },
+  { phase: 'grant', failure: 'network' },
+  { phase: 'grant', failure: 'refused' },
+  { phase: 'grant', failure: 'decided' },
+  { phase: 'before-authorize', failure: 'changed' },
+  { phase: 'after-create', failure: 'changed' },
+  { phase: 'grant', failure: 'none' },
+] as const)(
+  'keeps remote folder $phase/$failure results truthful and localized',
+  async ({ phase, failure }) => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    const calls: { url: string; method: string; args: Record<string, unknown> }[] = [];
+    let current = true;
+    const sourceMessage = {
+      id: 'remote-folder',
+      at: '2026-10-21T00:00:00Z',
+      author: { kind: 'bot' as const, slug: 'same-bot' },
+      body: '请选择来源 Host 的文件夹',
+      grantRequest: true,
+    };
+    const client = createHostClient({
+      routes: ['https://source.example.ts.net'],
+      credential: 'test-device.test-secret',
+      carrier: {
+        async request(url, init) {
+          const request = JSON.parse(String(init.body));
+          const method: string = request.method;
+          const args: Record<string, unknown> = request.payload.args;
+          calls.push({ url, method, args });
+          const browsing = method === 'directoryPicker/list';
+          const failing =
+            (phase === 'initial' && browsing && args.path === undefined) ||
+            (phase === 'navigation' && browsing && args.path !== undefined) ||
+            (phase === 'create' && method === 'workspace/create') ||
+            (phase === 'options' && method === 'botharness/workspaceOptions') ||
+            (phase === 'grant' && method === 'botharness/grantRequestApprove');
+          if (failing && failure === 'network') throw new TypeError('RAW_NETWORK_FAILURE');
+          if (failing && (failure === 'http' || failure === 'json'))
+            return { status: failure === 'http' ? 502 : 200, text: async () => 'RAW_BAD_GATEWAY' };
+          if (phase === 'after-create' && method === 'workspace/create') current = false;
+          const path = typeof args.path === 'string' ? args.path : '/source';
+          const value = browsing
+            ? { path, crumbs: [], entries: [{ name: '子目录', path: '/source/child' }], roots: [] }
+            : method === 'workspace/create'
+              ? { workspace: { workspaceId: 'source-workspace' } }
+              : method === 'botharness/workspaceOptions'
+                ? { workspaces: [{ id: 'source-workspace', path: '/source', title: '来源文件夹' }] }
+                : method === 'botharness/channelTimeline'
+                  ? {
+                      page: {
+                        entries: [
+                          { ...sourceMessage, grantRequestResolved: failure === 'decided' },
+                        ],
+                      },
+                    }
+                  : {
+                      grant: {
+                        id: 'source-grant',
+                        workspaceId: 'source-workspace',
+                        workspacePath: '/source',
+                        workspaceTitle: '来源文件夹',
+                        orchestratorWrite: true,
+                      },
+                    };
+          return {
+            status: 200,
+            text: async () =>
+              JSON.stringify({
+                type: 'server-response',
+                rpcId: request.rpcId,
+                result:
+                  failing && (failure === 'refused' || failure === 'decided')
+                    ? {
+                        ok: false,
+                        error: { code: 'grant/request-unavailable', message: 'RAW_GRANT_REFUSAL' },
+                      }
+                    : { ok: true, value },
+              }),
+          };
+        },
+        openSocket() {
+          throw new Error('No socket expected');
+        },
+      },
+    });
+    const message: ConversationMessage = {
+      id: sourceMessage.id,
+      at: sourceMessage.at,
+      author: 'bot',
+      bot: 'same-bot',
+      body: sourceMessage.body,
+      attachments: [],
+      delivery: 'committed',
+      source: { channelId: 'remote-channel', revision: 1, message: sourceMessage },
+    };
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    const click = async (label: string) => {
+      const button = [...container.querySelectorAll('button')].find((b) => b.textContent === label);
+      expect(button).toBeDefined();
+      expect(button?.disabled).toBe(false);
+      await act(async () => button?.click());
+    };
+    try {
+      await act(async () =>
+        root.render(
+          createElement(
+            MessageHostContext.Provider,
+            {
+              value: { client, current: (channelId) => current && channelId === 'remote-channel' },
+            },
+            createElement(RemoteMessageBody, { message, messages: [message], t: zhTranslate }),
+          ),
+        ),
+      );
+      if (phase === 'initial' && failure === 'changed') current = false;
+      await click(zhTranslate('grant.requestChoose'));
+      if (phase === 'navigation') {
+        if (failure === 'changed') current = false;
+        await click('子目录');
+      } else if (phase !== 'initial') {
+        if (phase === 'before-authorize') current = false;
+        await click(zhTranslate('grant.authorize'));
+      }
+      if (failure === 'none') {
+        expect(container.textContent).toContain(zhTranslate('grant.requestResolved'));
+        expect(container.querySelector('[role=alert]')).toBeNull();
+      } else {
+        expect(container.querySelector('[role=alert]')?.textContent).toBe(
+          zhTranslate('humanInbox.failed'),
+        );
+        expect(container.textContent).not.toContain(zhTranslate('grant.requestResolved'));
+        expect(container.textContent).not.toMatch(
+          /RAW_|502|JSON|conversation changed|no longer pending|Host could not/,
+        );
+      }
+      const grants = calls.filter((call) => call.method === 'botharness/grantRequestApprove');
+      if (phase === 'grant') {
+        expect(grants).toHaveLength(1);
+        expect(grants[0]?.args).toEqual({
+          slug: 'same-bot',
+          channelId: 'remote-channel',
+          requestMessageId: 'remote-folder',
+          workspaceId: 'source-workspace',
+          acknowledgeReadWrite: true,
+        });
+      } else expect(grants).toEqual([]);
+      if (phase === 'initial' || phase === 'navigation' || phase === 'before-authorize')
+        expect(calls.some((call) => call.method === 'workspace/create')).toBe(false);
+      expect(
+        calls.every((call) =>
+          call.url.startsWith('https://source.example.ts.net/botharness-device/'),
+        ),
+      ).toBe(true);
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+    }
+  },
+);
 
 it.each(['accepted', 'expired', 'decided'] as const)(
   'renders a remote approval with Host result %s without reporting a refused choice as accepted',
