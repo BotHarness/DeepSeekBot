@@ -35,6 +35,11 @@ export function anchorStep(
   return following ? Math.min(latest, Math.max(anchor, offset)) : latest;
 }
 
+export function anchorShift(anchor: number, offset: number): number {
+  'worklet';
+  return Math.max(0, anchor - offset);
+}
+
 export function unseenSince(
   messages: readonly ConversationMessage[],
   anchor: string | undefined,

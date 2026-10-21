@@ -79,16 +79,29 @@ export function conversationKey(target: RemoteConversationTarget): string {
 
 function readHosts(storage: HostStorage | undefined): SavedHost[] {
   try {
-    const value = JSON.parse(storage?.getItem(REMOTE_HOSTS_STORAGE_KEY) ?? '[]') as unknown;
+    const value = JSON.parse(
+      readStorage(storage, REMOTE_HOSTS_STORAGE_KEY, 'botharness.computers.v1') ?? '[]',
+    ) as unknown;
     return Array.isArray(value) ? value.flatMap((entry) => parseSavedHost(entry) ?? []) : [];
   } catch {
     return [];
   }
 }
 
+function readStorage(storage: HostStorage | undefined, key: string, oldKey: string): string | null {
+  const current = storage?.getItem(key);
+  const previous = storage?.getItem(oldKey);
+  if (previous == null) return current ?? null;
+  try {
+    if (current == null) storage?.setItem(key, previous);
+    storage?.removeItem(oldKey);
+  } catch {}
+  return current ?? previous;
+}
+
 function readTab(storage: HostStorage | undefined): string {
   try {
-    return storage?.getItem(HOST_TAB_STORAGE_KEY) ?? ALL_HOSTS;
+    return readStorage(storage, HOST_TAB_STORAGE_KEY, 'botharness.computers.tab.v1') ?? ALL_HOSTS;
   } catch {
     return ALL_HOSTS;
   }
@@ -98,7 +111,8 @@ interface HostEntry {
   host: SavedHost;
   client: HostClient;
   release: () => void;
-  inbox?: { feed: Inbox; release: () => void } | undefined;
+  inbox: { feed: Inbox; release: () => void } | undefined;
+  retained: InboxSnapshot;
 }
 
 const idleInbox: InboxSnapshot = { status: 'idle' };
@@ -107,42 +121,66 @@ export function createRemoteHosts(options: {
   storage?: HostStorage | undefined;
   carrier: HostCarrier;
   loadImage?: (url: string, headers: Record<string, string>) => Promise<string | undefined>;
+  releaseImage?: (image: string) => void;
 }): RemoteHosts {
-  const { storage, carrier, loadImage } = options;
+  const { storage, carrier, loadImage, releaseImage } = options;
   const listeners = new Set<() => void>();
   const clients = new Map<string, HostEntry>();
   const conversations = new Map<string, Conversation>();
   const images = new Map<string, string>();
-  const loading = new Set<string>();
+  const loading = new Map<string, symbol>();
   let avatars: ReadonlyMap<string, string> = new Map();
   let tab = readTab(storage);
   let open: RemoteConversationTarget | undefined;
   let snapshot: RemoteHostsSnapshot = { hosts: [], avatars, tab };
 
   const fetchAvatars = (hosts: readonly RemoteHost[]): void => {
+    const wanted = new Map(
+      hosts.flatMap(({ snapshot: host }) =>
+        listeners.size === 0 || host.connection.status === 'refused'
+          ? []
+          : (host.roster?.bots ?? []).flatMap((bot) =>
+              bot.avatarUrl === undefined
+                ? []
+                : [[bot.avatarUrl, bot.avatarHeaders ?? {}] as const],
+            ),
+      ),
+    );
+    for (const [url, image] of images) {
+      if (wanted.has(url)) continue;
+      images.delete(url);
+      releaseImage?.(image);
+      avatars = new Map(images);
+    }
+    for (const url of loading.keys()) if (!wanted.has(url)) loading.delete(url);
     if (loadImage === undefined) return;
-    for (const { snapshot: host } of hosts)
-      for (const bot of host.roster?.bots ?? []) {
-        const url = bot.avatarUrl;
-        if (url === undefined || images.has(url) || loading.has(url)) continue;
-        loading.add(url);
-        void loadImage(url, bot.avatarHeaders ?? {})
-          .catch(() => undefined)
-          .then((image) => {
-            if (image === undefined) return;
-            images.set(url, image);
-            avatars = new Map(images);
-            publish();
-          });
-      }
+    for (const [url, headers] of wanted) {
+      if (images.has(url) || loading.has(url)) continue;
+      const request = Symbol();
+      loading.set(url, request);
+      void loadImage(url, headers)
+        .catch(() => undefined)
+        .then((image) => {
+          if (loading.get(url) !== request) {
+            if (image !== undefined) releaseImage?.(image);
+            return;
+          }
+          loading.delete(url);
+          if (image === undefined) return;
+          images.set(url, image);
+          avatars = new Map(images);
+          publish();
+        });
+    }
   };
 
   const publish = (): void => {
-    const hosts = [...clients.values()].map(({ host, client, inbox }) => ({
+    const hosts = [...clients.values()].map(({ host, client, inbox, retained }) => ({
       host,
       snapshot: client.getSnapshot(),
-      inbox: inbox?.feed.getSnapshot() ?? idleInbox,
+      inbox: inbox?.feed.getSnapshot() ?? retained,
     }));
+    fetchAvatars(hosts);
     const known = tab === ALL_HOSTS || tab === THIS_HOST || clients.has(tab);
     snapshot = {
       hosts,
@@ -150,18 +188,18 @@ export function createRemoteHosts(options: {
       tab: known ? tab : ALL_HOSTS,
       ...(open === undefined ? {} : { open }),
     };
-    fetchAvatars(hosts);
     for (const listener of listeners) listener();
   };
 
   const start = (entry: HostEntry): void => {
     entry.client.start();
     if (entry.inbox !== undefined) return;
-    const feed = createInbox(entry.client, { activity: true });
+    const feed = createInbox(entry.client, { activity: true }, entry.retained);
     entry.inbox = { feed, release: feed.subscribe(publish) };
   };
 
   const stop = (entry: HostEntry): void => {
+    entry.retained = entry.inbox?.feed.getSnapshot() ?? entry.retained;
     entry.inbox?.release();
     entry.inbox?.feed.stop();
     entry.inbox = undefined;
@@ -178,7 +216,13 @@ export function createRemoteHosts(options: {
 
   const attach = (host: SavedHost): void => {
     const client = createHostClient({ routes: host.routes, credential: host.credential, carrier });
-    const entry: HostEntry = { host, client, release: client.subscribe(publish) };
+    const entry: HostEntry = {
+      host,
+      client,
+      release: client.subscribe(publish),
+      inbox: undefined,
+      retained: idleInbox,
+    };
     clients.set(host.hostId, entry);
     if (listeners.size > 0) start(entry);
   };
@@ -355,6 +399,7 @@ export function remoteHosts(): RemoteHosts {
     })(),
     carrier: browserCarrier(),
     loadImage: browserImage,
+    releaseImage: (image) => URL.revokeObjectURL(image),
   });
   const sources = shared;
   let selection = store.getSnapshot().selection;

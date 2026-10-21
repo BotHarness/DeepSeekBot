@@ -40,7 +40,7 @@ export default function PairScreen() {
   const insets = useSafeAreaInsets();
   const presentedAsSheet = router.canGoBack();
   const firstPairing = useHostSession().hosts.length === 0;
-  const params = useLocalSearchParams<{ p?: string }>();
+  const params = useLocalSearchParams<{ p?: string; account?: string }>();
   const [permission, requestPermission] = useCameraPermissions();
   const [link, setLink] = useState('');
   const [connectionName, setConnectionName] = useState('');
@@ -50,13 +50,13 @@ export default function PairScreen() {
   const lastMethod = useRef<PairingMethod>('paste');
   const pending = useRef<AbortController | undefined>(undefined);
   const handled = useRef<string | undefined>(undefined);
-  const accountHost = useRef<ConnectHost | undefined>(undefined);
+  const accountHost = useRef<Pick<ConnectHost, 'id'> | undefined>(undefined);
 
   const pair = async (
     text: string,
     method: PairingMethod,
     retry = false,
-    host?: ConnectHost,
+    host?: Pick<ConnectHost, 'id'>,
   ): Promise<void> => {
     if (pending.current !== undefined || (!retry && method === 'qr' && handled.current === text))
       return;
@@ -104,11 +104,13 @@ export default function PairScreen() {
       setFocused(true);
       if (typeof params.p === 'string' && handled.current === undefined)
         void pair(`deepseekbot://pair?p=${params.p}`, 'deep_link');
+      else if (typeof params.account === 'string' && handled.current === undefined)
+        void pair(`account:${params.account}`, 'account', true, { id: params.account });
       return () => {
         setFocused(false);
         pending.current?.abort();
       };
-    }, [params.p]),
+    }, [params.p, params.account]),
   );
 
   return (

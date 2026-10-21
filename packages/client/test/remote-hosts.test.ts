@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { HostCarrier } from '../../../apps/mobile/src/host/carrier.js';
+import { FakeHost } from '../../../apps/mobile/test/fake-host.js';
 import { pairingLink } from '../../core/src/devices/http.js';
 import {
   ALL_HOSTS,
@@ -156,17 +157,176 @@ describe('remote hosts', () => {
     sources.select('local');
     expect(sources.getSnapshot().tab).toBe('local');
   });
+});
 
-  it('reads each remote Host’s inbox only while someone watches the list', async () => {
-    const storage = memoryStorage();
-    const { carrier } = fakeCarrier();
-    const sources = createRemoteHosts({ storage, carrier });
-    await sources.pair(link(), 'Browser', 'host-a');
+const releases: Array<() => void> = [];
+afterEach(() => {
+  for (const release of releases.splice(0)) release();
+});
+
+function liveHost() {
+  const host = new FakeHost();
+  host.methods.set('humanAttention', () => ({ items: [], queryVersion: 1 }));
+  host.methods.set('channelUnreadCounts', () => ({
+    channels: [{ channelId: 'dm-ada', unreadCount: 2 }],
+  }));
+  host.methods.set('list', () => ({
+    bots: [
+      {
+        slug: 'ada',
+        displayName: 'Ada',
+        aggregateState: 'idle',
+        avatar: '/api/botharness/avatar/ada',
+      },
+    ],
+  }));
+  const saved = [
+    {
+      hostId: host.hostId,
+      hostName: 'Studio',
+      routes: ['http://127.0.0.1:47001'],
+      deviceId: 'device-1',
+      credential: host.credential,
+    },
+  ];
+  const storage = memoryStorage({ [REMOTE_HOSTS_STORAGE_KEY]: JSON.stringify(saved) });
+  return { host, storage, saved };
+}
+
+describe('Host Feed lifecycle', () => {
+  it('retains legacy pairings when browser storage refuses the migration write', () => {
+    const { host, saved } = liveHost();
+    const storage = memoryStorage({
+      'botharness.computers.v1': JSON.stringify(saved),
+      'botharness.computers.tab.v1': host.hostId,
+    });
+    storage.setItem = () => {
+      throw new Error('quota');
+    };
+    const sources = createRemoteHosts({ carrier: host.carrier, storage });
+    expect(sources.getSnapshot().hosts[0]?.host).toEqual(saved[0]);
+    expect(sources.getSnapshot().tab).toBe(host.hostId);
+    expect(storage.values.has('botharness.computers.v1')).toBe(true);
+  });
+
+  it('migrates the existing pairing and selected tab once without resurrecting a removed Host', async () => {
+    const { host, saved } = liveHost();
+    const storage = memoryStorage({
+      'botharness.computers.v1': JSON.stringify(saved),
+      'botharness.computers.tab.v1': host.hostId,
+    });
+    const sources = createRemoteHosts({ carrier: host.carrier, storage });
+    expect(sources.getSnapshot().tab).toBe(host.hostId);
+    expect(sources.getSnapshot().hosts[0]?.host).toEqual(saved[0]);
+    expect(storage.values.has('botharness.computers.v1')).toBe(false);
+    expect(storage.values.has('botharness.computers.tab.v1')).toBe(false);
+    await sources.remove(host.hostId);
+    expect(createRemoteHosts({ carrier: host.carrier, storage }).getSnapshot().hosts).toEqual([]);
+  });
+
+  it('shares one activity Inbox, refreshes on live frames, stops with the last reader and restarts', async () => {
+    const { host, storage } = liveHost();
+    const sources = createRemoteHosts({ carrier: host.carrier, storage });
     expect(sources.getSnapshot().hosts[0]?.inbox).toEqual({ status: 'idle' });
+    expect(host.requests).toEqual([]);
+    const first = sources.subscribe(() => {});
+    const second = sources.subscribe(() => {});
+    releases.push(first, second);
+    await vi.waitFor(() =>
+      expect(sources.getSnapshot().hosts[0]?.inbox).toMatchObject({
+        status: 'ready',
+        unread: { 'dm-ada': 2 },
+      }),
+    );
+    expect(
+      host.calls.filter(({ method }) => method === 'humanAttention').map(({ args }) => args),
+    ).toEqual([
+      { category: 'action', limit: 100, sort: 'newest', queryVersion: 1 },
+      { category: 'replies', limit: 30, sort: 'mentions-first', queryVersion: 1 },
+      { category: 'unread', limit: 30, queryVersion: 1 },
+    ]);
+    first();
+    host.methods.set('channelUnreadCounts', () => ({
+      channels: [{ channelId: 'dm-ada', unreadCount: 4 }],
+    }));
+    host.push('botharness/followActivity', { type: 'changed', snapshot: { bots: [] } });
+    await vi.waitFor(() =>
+      expect(sources.getSnapshot().hosts[0]?.inbox).toMatchObject({ unread: { 'dm-ada': 4 } }),
+    );
+    second();
+    expect(sources.getSnapshot().hosts[0]?.snapshot.connection.status).toBe('stopped');
+    const reads = host.calls.length;
+    host.push('botharness/followActivity', { type: 'changed', snapshot: { bots: [] } });
+    await Promise.resolve();
+    expect(host.calls).toHaveLength(reads);
+    expect(sources.getSnapshot().hosts[0]?.inbox).toMatchObject({ unread: { 'dm-ada': 4 } });
+    host.methods.set('channelUnreadCounts', () => ({ channels: [] }));
+    releases.push(sources.subscribe(() => {}));
+    await vi.waitFor(() =>
+      expect(sources.getSnapshot().hosts[0]?.inbox).toMatchObject({ status: 'ready', unread: {} }),
+    );
+    await sources.remove(host.hostId);
+    const removedReads = host.calls.length;
+    host.push('botharness/followActivity', { type: 'changed', snapshot: { bots: [] } });
+    await Promise.resolve();
+    expect(sources.getSnapshot().hosts).toEqual([]);
+    expect(host.calls).toHaveLength(removedReads);
+  });
 
+  it('loads avatars once with device headers, publishes immutable snapshots and releases on removal', async () => {
+    const { host, storage } = liveHost();
+    const loadImage = vi.fn(async () => 'blob:ada');
+    const releaseImage = vi.fn();
+    const sources = createRemoteHosts({ carrier: host.carrier, storage, loadImage, releaseImage });
+    const before = sources.getSnapshot().avatars;
+    releases.push(sources.subscribe(() => {}));
+    const url = 'http://127.0.0.1:47001/botharness-device/api/botharness/avatar/ada';
+    await vi.waitFor(() => expect(sources.getSnapshot().avatars.get(url)).toBe('blob:ada'));
+    expect(before.size).toBe(0);
+    expect(loadImage).toHaveBeenCalledExactlyOnceWith(url, {
+      authorization: `Device ${host.credential}`,
+    });
+    sources.select(ALL_HOSTS);
+    expect(loadImage).toHaveBeenCalledTimes(1);
+    await sources.remove(host.hostId);
+    expect(sources.getSnapshot().avatars.size).toBe(0);
+    expect(releaseImage).toHaveBeenCalledExactlyOnceWith('blob:ada');
+  });
+
+  it('retries a failed avatar on the next update and releases it when the final reader leaves', async () => {
+    const { host, storage } = liveHost();
+    const loadImage = vi
+      .fn<() => Promise<string | undefined>>()
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValue('blob:retry');
+    const releaseImage = vi.fn();
+    const sources = createRemoteHosts({ carrier: host.carrier, storage, loadImage, releaseImage });
     const release = sources.subscribe(() => {});
+    releases.push(release);
+    await vi.waitFor(() => expect(sources.getSnapshot().hosts[0]?.inbox.status).toBe('ready'));
+    sources.select(ALL_HOSTS);
+    await vi.waitFor(() =>
+      expect([...sources.getSnapshot().avatars.values()]).toEqual(['blob:retry']),
+    );
     release();
+    expect(sources.getSnapshot().avatars.size).toBe(0);
+    expect(releaseImage).toHaveBeenCalledExactlyOnceWith('blob:retry');
+  });
 
-    expect(sources.getSnapshot().hosts[0]?.inbox).toEqual({ status: 'idle' });
+  it('discards and releases an avatar that finishes after its Host was removed', async () => {
+    const { host, storage } = liveHost();
+    let finish: (image: string) => void = () => {};
+    const pending = new Promise<string>((resolve) => {
+      finish = resolve;
+    });
+    const loadImage = vi.fn(() => pending);
+    const releaseImage = vi.fn();
+    const sources = createRemoteHosts({ carrier: host.carrier, storage, loadImage, releaseImage });
+    releases.push(sources.subscribe(() => {}));
+    await vi.waitFor(() => expect(loadImage).toHaveBeenCalledTimes(1));
+    await sources.remove(host.hostId);
+    finish('blob:late');
+    await vi.waitFor(() => expect(releaseImage).toHaveBeenCalledWith('blob:late'));
+    expect(sources.getSnapshot().avatars.size).toBe(0);
   });
 });

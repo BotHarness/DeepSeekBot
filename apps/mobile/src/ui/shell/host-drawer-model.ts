@@ -1,3 +1,4 @@
+import type { ConnectHost } from '../../host/connect-account';
 import type { HostGlance } from '../../host/host-glance';
 import type { SavedHost } from '../../host/hosts';
 import { materialDrawer, modalRail } from '../design/tokens';
@@ -12,6 +13,22 @@ export interface HostDrawerRow {
   hostName: string;
   current: boolean;
   glance: HostGlance;
+}
+
+function routeHost(route: string): string {
+  try {
+    return new URL(route).host;
+  } catch {
+    return '';
+  }
+}
+
+export function unpairedAccountHosts(
+  linked: readonly ConnectHost[],
+  hosts: readonly SavedHost[],
+): ConnectHost[] {
+  const paired = new Set(hosts.flatMap((host) => host.routes.map(routeHost)));
+  return linked.filter((host) => !paired.has(host.hostname));
 }
 
 export function hostDrawerRows(

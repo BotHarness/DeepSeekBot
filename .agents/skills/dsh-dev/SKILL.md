@@ -409,3 +409,9 @@ different facts rejected an otherwise hash-matching installed package. Compare p
 to `productImProvider.upstream.dsh`, preserve source and runtime digest checks, and qualify
 the current composition separately. Do not rewrite the original Provider provenance to make
 it look newly qualified.
+
+### Remote Host QA profiles and hidden sidebar copies (#2500)
+
+The launcher and `verify-app` share a temporary cookie jar named from `basename(DSH_HOME)`. Two isolated homes named `home` in different parent folders overwrite that jar, so the second launch can make the first Host's doctor return 401 while its own browser still works. Give concurrent homes distinct basenames (`host-a`, `host-b`), preserve the first refusal and verify each Host separately. Do not treat this verification-cookie collision as a product authentication failure.
+
+The qualified workspace retains a hidden sidebar copy beside the visible Channels panel. The two Add remote buttons can have the same accessible name. A first-match selector can click or fill the hidden copy; choose visible elements as the two-Host journey requires, and wait for the submit button to become enabled after input. The real Windows Web baseline paired successfully after the driver selected visible controls and used keyboard input; no product change was required.
