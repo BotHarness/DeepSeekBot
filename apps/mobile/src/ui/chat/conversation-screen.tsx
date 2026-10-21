@@ -88,7 +88,7 @@ import {
   useHeaderOverlap,
   useHeaderPadding,
 } from './native-header';
-import { anchorStep, useFollowLatest } from './follow-latest';
+import { anchorShift, anchorStep, useFollowLatest } from './follow-latest';
 import { usePullToCompose } from './pull-to-compose';
 import { chatHref, useRecentChat } from '../shell/recent-chats';
 import { PullToComposeHint } from './pull-to-compose-hint';
@@ -470,7 +470,7 @@ function ChatConversation({
     },
   );
   const workingStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: workingAnchor.value - scroll.value }],
+    transform: [{ translateY: anchorShift(workingAnchor.value, scroll.value) }],
   }));
   const latest = useFollowLatest(
     list,
