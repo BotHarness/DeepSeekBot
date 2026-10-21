@@ -39,22 +39,24 @@ export interface HostActivityActions extends HumanInboxCommands, HostRequestActi
 
 export function createHostRequestActions(options: {
   client(): HostClient;
-  ref(channelId: string, messageId: string): RequestRef;
+  ref(channelId: string, messageId: string, retained?: boolean): RequestRef;
   refresh?(): Promise<void>;
   requestUnavailable: string;
 }): HostRequestActions {
-  const decided = async (run: () => Promise<DecisionResult>): Promise<void> => {
-    let result: DecisionResult;
+  const request = async <T>(run: () => Promise<T>): Promise<T> => {
     try {
-      result = await run();
+      return await run();
     } catch (cause) {
       throw new Error(options.requestUnavailable, { cause });
     }
+  };
+  const decided = async (run: () => Promise<DecisionResult>): Promise<void> => {
+    const result = await request(run);
     await options.refresh?.();
     if (result !== 'accepted') throw new Error(options.requestUnavailable);
   };
   const approval = (channelId: string, messageId: string) =>
-    loadApproval(options.client(), options.ref(channelId, messageId));
+    request(() => loadApproval(options.client(), options.ref(channelId, messageId)));
   return {
     async toolApprovalStatus(channelId, messageId) {
       return (await approval(channelId, messageId)).status === 'pending' ? 'pending' : 'expired';
@@ -71,16 +73,18 @@ export function createHostRequestActions(options: {
     },
     async decideToolApproval(channelId, messageId, outcome) {
       await decided(() =>
-        decideApproval(options.client(), options.ref(channelId, messageId), outcome),
+        decideApproval(options.client(), options.ref(channelId, messageId, false), outcome),
       );
     },
     async userQuestionStatus(channelId, messageId) {
-      const value = await loadQuestion(options.client(), options.ref(channelId, messageId));
+      const value = await request(() =>
+        loadQuestion(options.client(), options.ref(channelId, messageId)),
+      );
       return value.status === 'decided' ? 'answered' : value.status;
     },
     answerUserQuestion: (channelId, messageId, answers) =>
       decided(() =>
-        answerQuestion(options.client(), options.ref(channelId, messageId), { answers }),
+        answerQuestion(options.client(), options.ref(channelId, messageId, false), { answers }),
       ),
   };
 }
