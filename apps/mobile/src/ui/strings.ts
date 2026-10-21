@@ -889,7 +889,8 @@ const en = {
   connected: 'Connected',
   notifications: 'Notifications',
   notificationsChannel: 'Requests from Bots',
-  notificationsHint: 'Get notified when a Bot needs you or replies. Private input is never shown.',
+  notificationsHint:
+    'These alert types apply to every Host paired with this phone. Private input stays hidden.',
   notificationsOn: (host: string) => `Notifications from ${host} are on.`,
   notificationsOff: 'Notifications are off for this phone.',
   notificationsDenied: 'Notifications are turned off for DeepSeekBot in the phone settings.',
@@ -2122,7 +2123,7 @@ const zh: typeof en = {
   connected: '已连接',
   notifications: '通知',
   notificationsChannel: 'Bot 的请求',
-  notificationsHint: 'Bot 需要你或回复你时通知你。私密输入不会显示。',
+  notificationsHint: '通知类型适用于此手机配对的所有远程。私密输入不会显示。',
   notificationsOn: (host: string) => `已开启来自 ${host} 的通知。`,
   notificationsOff: '这台手机的通知已关闭。',
   notificationsDenied: '手机设置里关闭了 DeepSeekBot 的通知。',

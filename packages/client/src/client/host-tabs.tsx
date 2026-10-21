@@ -351,7 +351,8 @@ export function HostTabs({ t }: { t: BotHarnessTranslate }): ReactElement | null
               if (id === 'settings' && menuRemote !== undefined)
                 setSettings({ hostId: menuRemote.host.hostId, name: menuRemote.host.hostName });
               if (id === 'remove' && menuRemote !== undefined) setRemoving(menuRemote);
-              if (id === 'notifications' && menuRemote !== undefined) setNotificationHost(menuRemote);
+              if (id === 'notifications' && menuRemote !== undefined)
+                setNotificationHost(menuRemote);
             }}
             onClose={() => setMenu(undefined)}
           />

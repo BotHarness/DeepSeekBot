@@ -64,6 +64,13 @@ vi.mock('../src/host/native-notifications', () => ({
 vi.mock('../src/host/native-notification-avatars', () => ({
   notificationAvatars: { sync: async () => true },
 }));
+vi.mock('../src/host/native-notification-preferences', () => ({
+  notificationPreferences: {
+    sync: async () => undefined,
+    retry: async () => undefined,
+    prepare: async () => undefined,
+  },
+}));
 vi.mock('../src/telemetry/native', () => ({
   mobileTelemetry: { foreground: () => undefined, send: () => undefined },
 }));

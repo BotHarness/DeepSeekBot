@@ -101,4 +101,17 @@ describe('phone-owned notification preferences', () => {
     await f.prefs.retry();
     expect(f.disk()?.approval).toBe(false);
   });
+  it('copies the latest choice before token registration and refuses replaced credentials', async () => {
+    const f = fixture(DEFAULT_NOTIFICATION_PREFERENCES);
+    await f.prefs.sync([host('a')]);
+    await Promise.all([f.prefs.set({ reply: false }), f.prefs.prepare(host('a'))]);
+    expect(f.options.push.setPreferences).toHaveBeenLastCalledWith(
+      host('a'),
+      expect.objectContaining({ reply: false }),
+    );
+    await f.prefs.sync([host('a', 'new')]);
+    await expect(f.prefs.prepare(host('a'))).rejects.toThrow(
+      'notification-preferences-unavailable',
+    );
+  });
 });
