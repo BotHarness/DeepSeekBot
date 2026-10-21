@@ -47,7 +47,10 @@ export function RemoteNotificationSettings({
       sections={[{ id: 'notifications', label: t('remoteHosts.notifications.title', { name }) }]}
       activeId="notifications"
       onSelect={() => {}}
-      onClose={onClose}
+      onClose={() => {
+        notifications.cancel(hostId);
+        onClose();
+      }}
     >
       {(error || snapshot.permission === 'denied' || snapshot.permission === 'unsupported') && (
         <Note tone="danger">

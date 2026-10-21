@@ -11,6 +11,7 @@ import {
 import { parseSavedHost, type SavedHost } from '../../../../apps/mobile/src/host/hosts.js';
 import {
   createInbox,
+  prepareNotificationBaseline,
   type Inbox,
   type InboxSnapshot,
   observeInbox,
@@ -150,6 +151,19 @@ export function createRemoteHosts(options: {
   const notifications = createRemoteNotifications({
     storage,
     api: browserNotificationApi(),
+    async prepareEnable(hostId, signal) {
+      const entry = clients.get(hostId);
+      const inbox = entry?.inbox?.feed;
+      if (entry === undefined || inbox === undefined)
+        throw new Error('notification-baseline-unavailable');
+      await prepareNotificationBaseline(inbox, signal);
+      if (
+        clients.get(hostId) !== entry ||
+        entry.inbox?.feed !== inbox ||
+        entry.client.getSnapshot().connection.status !== 'connected'
+      )
+        throw new Error('notification-activation-cancelled');
+    },
     privateBody: () =>
       document.documentElement.lang.startsWith('zh')
         ? '需要你提供私密输入'
@@ -339,6 +353,7 @@ export function createRemoteHosts(options: {
       await revokePairing({ host: entry.host, carrier });
     },
     select(next) {
+      if (tab !== next) notifications.cancel();
       tab = next;
       try {
         storage?.setItem(HOST_TAB_STORAGE_KEY, next);

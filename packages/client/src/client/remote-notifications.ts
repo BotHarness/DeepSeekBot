@@ -2,7 +2,11 @@ import {
   DEFAULT_NOTIFICATION_PREFERENCES,
   parseNotificationPreferences,
 } from '../../../../apps/mobile/src/host/device-notification-preferences.js';
-import type { PushKind, PushPreferences } from '../../../../apps/mobile/src/host/push.js';
+import {
+  PUSH_KINDS,
+  type PushKind,
+  type PushPreferences,
+} from '../../../../apps/mobile/src/host/push.js';
 import type { HumanAttentionItem } from '../../../../apps/mobile/src/host/wire.js';
 import type { RemoteHost, HostStorage, RemoteConversationTarget } from './remote-hosts.js';
 import {
@@ -44,6 +48,7 @@ export function createRemoteNotifications(options: {
   api?: DesktopNotificationApi | undefined;
   open(target: RemoteConversationTarget): void;
   privateBody(): string;
+  prepareEnable(hostId: string, signal: AbortSignal): Promise<void>;
   diagnostic?(code: NotificationDiagnostic): void;
 }) {
   const { api, storage } = options;
@@ -73,6 +78,24 @@ export function createRemoteNotifications(options: {
   >();
   const shown = new Map<string, { hostId: string; handle: DesktopNotificationHandle }>();
   const revisions = new Map<string, number>();
+  const pending = new Map<string, AbortController>();
+  const cancel = (hostId?: string) => {
+    for (const [id, controller] of pending) {
+      if (hostId !== undefined && id !== hostId) continue;
+      controller.abort(new Error('notification-activation-cancelled'));
+      pending.delete(id);
+    }
+  };
+  const wait = <T>(work: Promise<T>, signal: AbortSignal): Promise<T> =>
+    new Promise((resolve, reject) => {
+      const abort = () => {
+        signal.removeEventListener('abort', abort);
+        reject(signal.reason);
+      };
+      signal.addEventListener('abort', abort, { once: true });
+      if (signal.aborted) abort();
+      void work.then(resolve, reject).finally(() => signal.removeEventListener('abort', abort));
+    });
   const publish = () => {
     snapshot = { hosts, permission: api?.permission() ?? 'unsupported' };
     for (const listener of listeners) listener();
@@ -89,6 +112,7 @@ export function createRemoteNotifications(options: {
   const owner = {
     getSnapshot: () => snapshot,
     choice,
+    cancel,
     subscribe(listener: () => void) {
       listeners.add(listener);
       return () => {
@@ -99,27 +123,53 @@ export function createRemoteNotifications(options: {
       hostId: string,
       patch: { enabled?: boolean; preferences?: Partial<PushPreferences> },
     ) {
+      cancel(hostId);
+      const controller = new AbortController();
+      pending.set(hostId, controller);
       const revision = (revisions.get(hostId) ?? 0) + 1;
       revisions.set(hostId, revision);
-      if (patch.enabled === true && api?.permission() === 'default') {
-        try {
-          await api.requestPermission();
-        } catch {}
+      try {
+        if (patch.enabled === true && api?.permission() === 'default') {
+          try {
+            await wait(api.requestPermission(), controller.signal);
+          } catch {}
+        }
+        controller.signal.throwIfAborted();
+        if (revisions.get(hostId) !== revision) return;
+        const current = choice(hostId);
+        const next = {
+          enabled:
+            patch.enabled === undefined
+              ? current.enabled
+              : patch.enabled && api?.permission() === 'granted',
+          preferences: { ...current.preferences, ...patch.preferences },
+        };
+        if (
+          next.enabled &&
+          PUSH_KINDS.some(
+            (kind) => next.preferences[kind] && (!current.enabled || !current.preferences[kind]),
+          )
+        ) {
+          const timeout = setTimeout(
+            () => controller.abort(new Error('notification-baseline-timeout')),
+            10_000,
+          );
+          try {
+            await wait(options.prepareEnable(hostId, controller.signal), controller.signal);
+          } finally {
+            clearTimeout(timeout);
+          }
+          controller.signal.throwIfAborted();
+          if (api?.permission() !== 'granted') throw new Error('notification-permission-required');
+        }
+        const updated = { ...hosts, [hostId]: next };
+        storage?.setItem(REMOTE_NOTIFICATION_KEY, JSON.stringify(updated));
+        hosts = updated;
+        close(hostId);
+        publish();
+      } finally {
+        if (pending.get(hostId) === controller) pending.delete(hostId);
       }
-      if (revisions.get(hostId) !== revision) return;
-      const current = choice(hostId);
-      const next = {
-        enabled:
-          patch.enabled === undefined
-            ? current.enabled
-            : patch.enabled && api?.permission() === 'granted',
-        preferences: { ...current.preferences, ...patch.preferences },
-      };
-      const updated = { ...hosts, [hostId]: next };
-      storage?.setItem(REMOTE_NOTIFICATION_KEY, JSON.stringify(updated));
-      hosts = updated;
-      close(hostId);
-      publish();
     },
     async control(input: Record<string, unknown>, expectedRevision: unknown) {
       const hostId = input.hostId as string;
@@ -144,6 +194,7 @@ export function createRemoteNotifications(options: {
     },
     update(remotes: readonly RemoteHost[]) {
       const present = new Set(remotes.map((remote) => remote.host.hostId));
+      for (const id of pending.keys()) if (!present.has(id)) cancel(id);
       for (const id of state.keys())
         if (!present.has(id)) {
           state.delete(id);
@@ -152,12 +203,16 @@ export function createRemoteNotifications(options: {
       const permission = api?.permission() ?? 'unsupported';
       if (permission !== snapshot.permission) {
         publish();
-        if (permission !== 'granted') close();
+        if (permission !== 'granted') {
+          cancel();
+          close();
+        }
       }
       for (const remote of remotes) {
         const id = remote.host.hostId;
         let entry = state.get(id);
         if (entry === undefined || entry.credential !== remote.host.credential) {
+          if (entry !== undefined) cancel(id);
           close(id);
           entry = {
             credential: remote.host.credential,
@@ -173,6 +228,7 @@ export function createRemoteNotifications(options: {
           remote.inbox.status !== 'ready' ||
           remote.inbox.stale
         ) {
+          if (remote.snapshot.connection.status !== 'connected') cancel(id);
           entry.inbox = remote.inbox;
           entry.baseline = false;
           close(id);
@@ -249,6 +305,7 @@ export function createRemoteNotifications(options: {
       }
     },
     stop() {
+      cancel();
       state.clear();
       close();
     },

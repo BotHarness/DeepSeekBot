@@ -47,6 +47,7 @@ function fixture() {
     api: { permission: () => permission, requestPermission: request, show },
     open,
     privateBody: () => 'Private input needed',
+    prepareEnable: async () => {},
   };
   return {
     notices: createRemoteNotifications(options),
@@ -62,6 +63,92 @@ function fixture() {
 }
 
 describe('Remote Host browser alerts', () => {
+  it('refuses a timed-out enable without changing the persisted choice and allows a fresh retry', async () => {
+    vi.useFakeTimers();
+    const f = fixture();
+    f.permission('granted');
+    let finish!: () => void;
+    const prepareEnable = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const notices = createRemoteNotifications({ ...f.options, prepareEnable });
+    try {
+      const enabling = notices.set('a', { enabled: true });
+      const refused = expect(enabling).rejects.toThrow('notification-baseline-timeout');
+      await vi.advanceTimersByTimeAsync(10_000);
+      await refused;
+      finish();
+      expect(notices.choice('a').enabled).toBe(false);
+      prepareEnable.mockResolvedValue(undefined);
+      await notices.set('a', { enabled: true });
+      notices.update([remote('a', [])]);
+      notices.update([remote('a', [item('new')])]);
+      expect(f.show).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('cancels activation when permission is revoked, and never applies a late completion after disable', async () => {
+    const f = fixture();
+    f.permission('granted');
+    let finish!: () => void;
+    const prepareEnable = () =>
+      new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+    const notices = createRemoteNotifications({ ...f.options, prepareEnable });
+    notices.update([remote('a', [])]);
+    const enabling = notices.set('a', { enabled: true });
+    const refused = expect(enabling).rejects.toThrow('notification-activation-cancelled');
+    f.permission('denied');
+    notices.update([remote('a', [])]);
+    await refused;
+    finish();
+    expect(notices.choice('a').enabled).toBe(false);
+    f.permission('granted');
+    const again = notices.set('a', { enabled: true });
+    const disabled = expect(again).rejects.toThrow('notification-activation-cancelled');
+    await notices.set('a', { enabled: false });
+    finish();
+    await disabled;
+    expect(notices.choice('a').enabled).toBe(false);
+  });
+
+  it('does not replay a pending 35-mention scan when enabling replies, then alerts new group and DM replies', async () => {
+    const f = fixture();
+    let finish!: () => void;
+    const prepareEnable = vi.fn(async () => {});
+    const notices = createRemoteNotifications({ ...f.options, prepareEnable });
+    f.permission('granted');
+    await notices.set('a', { enabled: true, preferences: { reply: false } });
+    notices.update([remote('a', [])]);
+    prepareEnable.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const enabling = notices.set('a', { preferences: { reply: true } });
+    const old = Array.from({ length: 35 }, (_, index) =>
+      item(`old-${index}`, 'channel-mention', 'same-time'),
+    );
+    notices.update([remote('a', old)]);
+    expect(f.show).not.toHaveBeenCalled();
+    finish();
+    await enabling;
+    const fresh = [
+      item('group', 'channel-reply', 'same-time'),
+      item('dm', 'channel-reply', 'same-time'),
+    ];
+    notices.update([remote('a', [...old, ...fresh])]);
+    expect(f.show).toHaveBeenCalledTimes(2);
+    notices.update([remote('a', [...old, ...fresh])]);
+    expect(f.show).toHaveBeenCalledTimes(2);
+  });
   it('retains dedupe and the complete baseline when a later notification page fails', async () => {
     const f = fixture();
     await f.notices.set('a', { enabled: true });
@@ -192,9 +279,10 @@ describe('Remote Host browser alerts', () => {
         }),
     );
     const enable = f.notices.set('a', { enabled: true });
+    const refused = expect(enable).rejects.toThrow('notification-activation-cancelled');
     await f.notices.set('a', { enabled: false });
     resolve();
-    await enable;
+    await refused;
     expect(f.notices.choice('a').enabled).toBe(false);
   });
 });

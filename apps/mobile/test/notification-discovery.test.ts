@@ -1,5 +1,5 @@
 import { expect, it, vi } from 'vitest';
-import { createInbox } from '../src/host/inbox';
+import { createInbox, prepareNotificationBaseline } from '../src/host/inbox';
 import type { HostClient } from '../src/host/client';
 import type { HumanAttentionItem } from '../src/host/wire';
 
@@ -68,11 +68,13 @@ it('publishes only complete notification discovery and restarts a scan invalidat
     await inbox.refresh();
     expect(published).toEqual([['inserted', 'dm']]);
     fail = true;
-    await inbox.refresh();
+    await expect(prepareNotificationBaseline(inbox, new AbortController().signal)).rejects.toThrow(
+      'notification-baseline-unavailable',
+    );
     expect(inbox.getSnapshot()).toMatchObject({ status: 'ready', notificationItems: undefined });
     expect(published).toHaveLength(1);
     fail = false;
-    await inbox.refresh();
+    await prepareNotificationBaseline(inbox, new AbortController().signal);
     expect(published.at(-1)).toEqual(['inserted', 'dm']);
     expect(
       call.mock.calls

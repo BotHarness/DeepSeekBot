@@ -280,6 +280,24 @@ export function actionCount(snapshot: InboxSnapshot): number {
   return snapshot.status === 'ready' ? snapshot.sections.action.length : 0;
 }
 
+export async function prepareNotificationBaseline(
+  inbox: Inbox,
+  signal: AbortSignal,
+): Promise<void> {
+  signal.throwIfAborted();
+  const before = inbox.getSnapshot();
+  await inbox.refresh();
+  signal.throwIfAborted();
+  const snapshot = inbox.getSnapshot();
+  if (
+    snapshot === before ||
+    snapshot.status !== 'ready' ||
+    snapshot.stale ||
+    snapshot.notificationItems === undefined
+  )
+    throw new Error('notification-baseline-unavailable');
+}
+
 type InboxObservation = {
   getSnapshot(): InboxSnapshot;
   getInbox(): Inbox | undefined;

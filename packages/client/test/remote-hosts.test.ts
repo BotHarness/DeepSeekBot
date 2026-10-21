@@ -169,11 +169,14 @@ describe('remote hosts', () => {
 const releases: Array<() => void> = [];
 afterEach(() => {
   for (const release of releases.splice(0)) release();
+  vi.unstubAllGlobals();
 });
 
 function liveHost() {
   const host = new FakeHost();
-  host.methods.set('humanAttention', () => ({ items: [], queryVersion: 1 }));
+  host.methods.set('humanAttention', (args) =>
+    args.notifications ? { items: [], notificationVersion: 1 } : { items: [], queryVersion: 1 },
+  );
   host.methods.set('channelUnreadCounts', () => ({
     channels: [{ channelId: 'dm-ada', unreadCount: 2 }],
   }));
@@ -241,6 +244,129 @@ describe('Host Feed lifecycle', () => {
     expect(sources.getSnapshot().hosts[0]?.inbox).toMatchObject({ unread: { 'dm-ada': 2 } });
   });
 
+  it('establishes an enable boundary through the shared paginated Inbox despite concurrent live frames and page failure', async () => {
+    const show = vi.fn();
+    vi.stubGlobal('window', {
+      Notification: class {
+        static permission = 'granted';
+        onclick = null;
+        close() {}
+        constructor(title: string, options: unknown) {
+          show(title, options);
+        }
+      },
+    });
+    const { host, storage } = liveHost();
+    const sources = createRemoteHosts({ carrier: host.carrier, storage });
+    releases.push(sources.subscribe(() => {}));
+    await vi.waitFor(() => expect(sources.getSnapshot().hosts[0]?.inbox.status).toBe('ready'));
+    await sources.notifications.set(host.hostId, { enabled: true, preferences: { reply: false } });
+    const items = Array.from({ length: 35 }, (_, index) => ({
+      id: `old-${index}`,
+      kind: 'channel-mention',
+      category: 'replies',
+      botSlug: 'ada',
+      createdAt: 'same-time',
+      summary: `old-${index}`,
+    }));
+    let finish!: () => void;
+    let gate: Promise<void> | undefined = new Promise((resolve) => {
+      finish = resolve;
+    });
+    let tails = 0;
+    let fail = false;
+    host.methods.set('humanAttention', async (args) => {
+      if (!args.notifications) return { queryVersion: 1, items: [] };
+      if (!args.cursor)
+        return { notificationVersion: 1, items: items.slice(0, 30), nextCursor: 'tail' };
+      tails++;
+      await gate;
+      if (fail) throw new Error('page unavailable');
+      return { notificationVersion: 1, items: items.slice(30) };
+    });
+    const live = () =>
+      host.push('botharness/followActivity', { type: 'changed', snapshot: { bots: [] } });
+    live();
+    await vi.waitFor(() => expect(tails).toBe(1));
+    const enabled = sources.notifications.set(host.hostId, { preferences: { reply: true } });
+    live();
+    expect(sources.notifications.choice(host.hostId).preferences.reply).toBe(false);
+    finish();
+    gate = undefined;
+    await enabled;
+    expect(tails).toBeGreaterThan(1);
+    expect(show).not.toHaveBeenCalled();
+    items.push(
+      ...['group', 'dm'].map((id) => ({
+        id,
+        kind: 'channel-reply',
+        category: 'replies',
+        botSlug: 'ada',
+        createdAt: 'same-time',
+        summary: id,
+      })),
+    );
+    live();
+    await vi.waitFor(() => expect(show).toHaveBeenCalledTimes(2));
+    await sources.notifications.set(host.hostId, { preferences: { reply: false } });
+    fail = true;
+    await expect(
+      sources.notifications.set(host.hostId, { preferences: { reply: true } }),
+    ).rejects.toThrow('notification-baseline-unavailable');
+    expect(sources.notifications.choice(host.hostId).preferences.reply).toBe(false);
+    fail = false;
+    await sources.notifications.set(host.hostId, { preferences: { reply: true } });
+    expect(show).toHaveBeenCalledTimes(2);
+    items.push({
+      id: 'later',
+      kind: 'channel-reply',
+      category: 'replies',
+      botSlug: 'ada',
+      createdAt: 'same-time',
+      summary: 'later',
+    });
+    live();
+    await vi.waitFor(() => expect(show).toHaveBeenCalledTimes(3));
+  });
+
+  it.each(['switch', 'remove', 'dispose'] as const)(
+    'cancels pending activation on Host %s without applying a late scan',
+    async (operation) => {
+      vi.stubGlobal('window', {
+        Notification: class {
+          static permission = 'granted';
+        },
+      });
+      const { host, storage } = liveHost();
+      const sources = createRemoteHosts({ carrier: host.carrier, storage });
+      const release = sources.subscribe(() => {});
+      releases.push(release);
+      await vi.waitFor(() => expect(sources.getSnapshot().hosts[0]?.inbox.status).toBe('ready'));
+      let finish!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+      let entered = false;
+      host.methods.set('humanAttention', async (args) => {
+        if (!args.notifications) return { queryVersion: 1, items: [] };
+        entered = true;
+        await gate;
+        return { notificationVersion: 1, items: [] };
+      });
+      const enabled = sources.notifications.set(host.hostId, { enabled: true });
+      const refused = expect(enabled).rejects.toThrow('notification-activation-cancelled');
+      await vi.waitFor(() => expect(entered).toBe(true));
+      if (operation === 'switch') sources.select('local');
+      else if (operation === 'remove') await sources.remove(host.hostId);
+      else release();
+      await refused;
+      finish();
+      await Promise.resolve();
+      expect(sources.notifications.choice(host.hostId).enabled).toBe(false);
+      expect(storage.values.has('botharness.remoteNotifications.v1')).toBe(false);
+    },
+  );
+
   it('retains legacy pairings when browser storage refuses the migration write', () => {
     const { host, saved } = liveHost();
     const storage = memoryStorage({
@@ -291,6 +417,7 @@ describe('Host Feed lifecycle', () => {
       { category: 'action', limit: 100, sort: 'newest', queryVersion: 1 },
       { category: 'replies', limit: 30, sort: 'mentions-first', queryVersion: 1 },
       { category: 'unread', limit: 30, queryVersion: 1 },
+      { notifications: true, limit: 100 },
     ]);
     first();
     host.methods.set('channelUnreadCounts', () => ({
