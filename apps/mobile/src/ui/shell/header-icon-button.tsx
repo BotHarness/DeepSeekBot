@@ -7,17 +7,25 @@ import { radius } from '../design/tokens';
 export type HeaderIconButtonProps = {
   label: string;
   testID?: string | undefined;
+  selected?: boolean | undefined;
   onPress(): void;
   children: ReactNode;
 };
 
-export function HeaderIconButton({ label, testID, onPress, children }: HeaderIconButtonProps) {
+export function HeaderIconButton({
+  label,
+  testID,
+  selected,
+  onPress,
+  children,
+}: HeaderIconButtonProps) {
   const theme = useDesignTheme();
   return (
     <Pressable
       testID={testID}
       accessibilityRole="button"
       accessibilityLabel={label}
+      accessibilityState={selected === undefined ? undefined : { selected }}
       onPress={onPress}
       style={({ pressed }) => ({
         width: theme.touch,

@@ -9,6 +9,7 @@ vi.mock('react-native', async () => ({
 }));
 vi.mock('@expo/ui/swift-ui/modifiers', () => ({
   accessibilityLabel: (label: string) => ({ $type: 'accessibilityLabel', label }),
+  accessibilityAddTraits: (traits: string[]) => ({ $type: 'accessibilityAddTraits', traits }),
   buttonStyle: (style: string) => ({ $type: 'buttonStyle', style }),
   buttonBorderShape: () => ({}),
   font: () => ({}),
@@ -26,7 +27,7 @@ vi.mock('@expo/ui/swift-ui', () => ({
   }: {
     onPress(): void;
     children: ReactNode;
-    modifiers: { $type: string; label?: string; style?: string }[];
+    modifiers: { $type: string; label?: string; style?: string; traits?: string[] }[];
   }) =>
     createElement(
       'button',
@@ -34,11 +35,15 @@ vi.mock('@expo/ui/swift-ui', () => ({
         onClick: onPress,
         'aria-label': modifiers.find((m) => m.$type === 'accessibilityLabel')?.label,
         'data-style': modifiers.find((m) => m.$type === 'buttonStyle')?.style,
+        'aria-pressed': modifiers.some(
+          (m) => m.$type === 'accessibilityAddTraits' && m.traits?.includes('isSelected'),
+        ),
       },
       children,
     ),
 }));
 vi.mock('../src/ui/shell/icons', () => ({
+  ActivityFilterIcon: () => createElement('svg', { 'data-icon': 'filter' }),
   ActivitySearchIcon: () => createElement('svg', { 'data-icon': 'search' }),
   SettingsIcon: () => createElement('svg', { 'data-icon': 'settings' }),
 }));
@@ -78,6 +83,7 @@ it('chat list header actions are Liquid Glass SF Symbol buttons on iOS 26', asyn
       'magnifyingglass',
       'gearshape',
     ]);
+    expect(buttons.map((b) => b.getAttribute('aria-pressed'))).toEqual(['false', 'false']);
     expect(view.host.querySelector('[data-testid="settings-button"] button')).not.toBeNull();
     await act(async () => buttons[1]!.click());
     expect(onPress).toHaveBeenCalledOnce();
@@ -99,5 +105,34 @@ it('keeps the drawn raised buttons before iOS 26', async () => {
     expect(onPress).toHaveBeenCalledOnce();
   } finally {
     view.dispose();
+  }
+});
+
+it('marks an active Activity filter as selected on both paths', async () => {
+  for (const version of [26, 18]) {
+    platform.Version = version;
+    const host = document.createElement('div');
+    document.body.append(host);
+    const root = createRoot(host);
+    await act(async () =>
+      root.render(
+        <HeaderAction
+          icon="filter"
+          label="Filter"
+          testID="activity-filter-button"
+          active
+          onPress={() => {}}
+        />,
+      ),
+    );
+    const button = host.querySelector('button')!;
+    if (version === 26) {
+      expect(button.querySelector('i')?.title).toBe('line.3.horizontal.decrease');
+      expect(button.getAttribute('aria-pressed')).toBe('true');
+    } else {
+      expect(button.getAttribute('aria-selected')).toBe('true');
+    }
+    act(() => root.unmount());
+    host.remove();
   }
 });
