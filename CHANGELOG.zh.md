@@ -6,7 +6,54 @@
 
 ## [Unreleased]
 
-1.4.1 之后暂无变更。
+1.5.0 之后暂无变更。
+
+## [1.5.0] - 2026-10-21
+
+DeepSeekBot Connect 让手机不装 Tailscale、用账号就能配对；存储空间可以清理旧媒体和旧消息；Bot 市场变成面板；插件可在 Bot 设置里一键更新；Bot 模式在长对话里的重渲染大幅减少，保持流畅。
+
+下面的手机 App 条目对应独立版本号的手机 Beta；本次 npm 发布不包含手机 App。
+
+### Added
+
+- **DeepSeekBot Connect** 让手机不装 Tailscale 也能连到电脑：在设置 → 设备或用 `deepseekbot connect-sign-in` 让 Host 登录 DeepSeekBot 账号后，Host 通过随 DeepSeekBot 一起安装的固定版本 `cloudflared`（或下载一次并核对 SHA-256）只在 `*.deepseekbot.dev` 上公开设备网关。所有登录账号都能关联最多 5 台电脑，手机登录同一账号后点一下即可配对，不用扫码（[#2387](https://github.com/BotHarness/DeepSeekBot/issues/2387)、[#2470](https://github.com/BotHarness/DeepSeekBot/issues/2470)、[#2410](https://github.com/BotHarness/DeepSeekBot/issues/2410)）。
+- 有设备和电脑配对后，其他已配对的手机会收到通知，点**移除**即可撤销这台新设备；设置 → 设备会标出最近一天内配对的设备（[#2387](https://github.com/BotHarness/DeepSeekBot/issues/2387)）。
+- Bot 设置 → 设备中的**配对手机**改为三步 Tailscale 指引并实时显示状态，确认后可代为运行 `tailscale serve`（[#2399](https://github.com/BotHarness/DeepSeekBot/pull/2399)）。
+- **设置 → 数据与隐私 → 存储空间**显示聊天媒体、消息和记忆各占多少空间，可按时间、类型和聊天预览后清理旧媒体或整条旧消息；Bot 正在处理的、尚未发出的和被记忆引用的内容会保留。手机 App 有同样的存储空间页，CLI 可用 `deepseekbot storage-usage`、`storage-cleanup-*` 和 `storage-messages-cleanup-*` 完成同样的操作（[#2430](https://github.com/BotHarness/DeepSeekBot/issues/2430)）。
+- **设置 → 数据与隐私 → 清除全部 BotHarness 数据**会先列出要删除和保留的内容并再次确认，然后删除所有 Bot、聊天记录、默认位置的记忆、附件、工作区、IM 连接设置和下载的工具，再重启 Host；`deepseekbot data-reset-preview` 和 `data-reset-confirm` 走同样的流程（[#2426](https://github.com/BotHarness/DeepSeekBot/issues/2426)）。
+- 工作区控制栏新增 **Bot 市场面板**：卡片网格随面板宽度排布，按回车搜索，可按最新创建、最近更新或最多 Star 排序，每张卡片都能导入，也能帮你上传 Bot。仓库提供对应语言时按界面语言显示，并可显示一句 AI 摘要；`deepseekbot marketplace-list` 支持 `--sort created` 和 `--lang zh|en`（[#2460](https://github.com/BotHarness/DeepSeekBot/issues/2460)、[#2375](https://github.com/BotHarness/DeepSeekBot/pull/2375)）。
+- **Bot 设置 → 插件**列出已安装的 BotHarness 插件（例如 VRM 伴侣），从 npm 检查兼容的新版本并一键更新，装好后自动刷新或提供「立即重启」；`deepseekbot plugin-check`、`plugin-install` 和 `plugin-restart` 可完成同样的操作（[#2472](https://github.com/BotHarness/DeepSeekBot/pull/2472)）。
+- VRM 伴侣 Panel 可以在这一版 DeepSeekBot 旁用 `dsh plugin add @botharness/vrm-companion` 单独安装。角色住在有天气、按本地时间变化昼夜和可选镜头巡游的 lo-fi 书房里，表情、打字和空闲小动作跟随 Bot 状态，回复在气泡里逐句说出，可载入你自己的 `.vrm` 文件，界面跟随应用语言（[#2222](https://github.com/BotHarness/DeepSeekBot/issues/2222)、[#2304](https://github.com/BotHarness/DeepSeekBot/issues/2304)、[#2305](https://github.com/BotHarness/DeepSeekBot/issues/2305)、[#2458](https://github.com/BotHarness/DeepSeekBot/pull/2458)）。
+- 在手机上向左滑动 Activity 中的回复或未读会话即可清理，需要你处理的请求可以稍后提醒；桌面端 Activity 同步隐藏，筛选 → 已清理 / 已延后 可以恢复，CLI 可用 `deepseekbot inbox --dismissed` 和 `inbox-restore`（[#2404](https://github.com/BotHarness/DeepSeekBot/pull/2404)）。
+- 电脑使用系统文件夹选择器时，手机也能浏览电脑上的文件夹并授权给 Bot；`deepseekbot folder-browse` 可列出同样的文件夹（[#2392](https://github.com/BotHarness/DeepSeekBot/pull/2392)）。
+- 手机 Beta 可以从任意 App 分享文字、链接、照片和文件给 Bot；Bot 通知显示为带头像和审批按钮的聊天消息（Android 由 App 自己绘制）；实体键盘用 ⌘↩ 或回车发送；长按 App 图标列出最近的聊天；可粘贴剪贴板图片、双击点赞 👍、在最新消息处继续上拉拉起键盘；Android 上左滑会话行可静音、置顶和标为已读（[#2401](https://github.com/BotHarness/DeepSeekBot/pull/2401)、[#2397](https://github.com/BotHarness/DeepSeekBot/pull/2397)、[#2465](https://github.com/BotHarness/DeepSeekBot/pull/2465)、[#2380](https://github.com/BotHarness/DeepSeekBot/pull/2380)、[#2364](https://github.com/BotHarness/DeepSeekBot/pull/2364)、[#2353](https://github.com/BotHarness/DeepSeekBot/pull/2353)）。
+
+### Changed
+
+- 会话视图、Bot 列表、频道侧栏面板、停靠面板外框、Activity 收件箱、首页概览和 IM 应用设置只在自己显示的数据变化时才重新渲染，流式回复、搜索输入和其他 Bot 的 Activity 不再让它们重绘；在脚本负载下，侧栏的 React commit 从 2,640 次降到 80 次（[#2439](https://github.com/BotHarness/DeepSeekBot/issues/2439)、[#2449](https://github.com/BotHarness/DeepSeekBot/issues/2449)、[#2450](https://github.com/BotHarness/DeepSeekBot/issues/2450)、[#2453](https://github.com/BotHarness/DeepSeekBot/issues/2453)、[#2454](https://github.com/BotHarness/DeepSeekBot/issues/2454)、[#2455](https://github.com/BotHarness/DeepSeekBot/issues/2455)）。
+- VRM 伴侣打开时不再因编译着色器而卡住，静止时以 30fps 绘制，卡顿后会恢复分辨率；在没有显卡加速的电脑上显示静态画面和 **Show 3D anyway**，不再以约 1fps 运行（[#2446](https://github.com/BotHarness/DeepSeekBot/pull/2446)、[#2458](https://github.com/BotHarness/DeepSeekBot/pull/2458)）。
+- 桌面端面板标题栏的按钮立即显示提示，面板标题会说明可以拖动或点击隐藏，Bot 设置侧栏的每个分类前都有图标（[#2386](https://github.com/BotHarness/DeepSeekBot/pull/2386)、[#2396](https://github.com/BotHarness/DeepSeekBot/pull/2396)）。
+- 手机 Beta 可以处理以前必须回到电脑的请求：文件夹请求、带 diff 和风险提示的“允许这次／始终允许／拒绝”工具审批、对被自动拒绝的调用允许一次、入群申请，以及回复等待中或受阻的 Assignment，并都会推送通知（[#2080](https://github.com/BotHarness/DeepSeekBot/issues/2080)）。
+- 手机 Beta 更贴合各平台：输入栏对齐 iOS 26 信息或 Material 3，Android 聊天顶栏悬浮，上下边缘渐隐更柔和，对话和 Activity 顶栏的搜索与按钮改为原生；Android 改用 Material 3 导航栏和创建 FAB、导航抽屉、分段列表、选择控件、加载指示器和返回行为。**自定义电脑**改为选择图标和颜色（[#2355](https://github.com/BotHarness/DeepSeekBot/pull/2355)、[#2398](https://github.com/BotHarness/DeepSeekBot/pull/2398)、[#2394](https://github.com/BotHarness/DeepSeekBot/pull/2394)、[#2425](https://github.com/BotHarness/DeepSeekBot/pull/2425)、[#2377](https://github.com/BotHarness/DeepSeekBot/pull/2377)、[#2487](https://github.com/BotHarness/DeepSeekBot/pull/2487)、[#2350](https://github.com/BotHarness/DeepSeekBot/pull/2350)、[#2351](https://github.com/BotHarness/DeepSeekBot/pull/2351)、[#2348](https://github.com/BotHarness/DeepSeekBot/pull/2348)、[#2342](https://github.com/BotHarness/DeepSeekBot/pull/2342)、[#2354](https://github.com/BotHarness/DeepSeekBot/pull/2354)、[#2343](https://github.com/BotHarness/DeepSeekBot/pull/2343)、[#2358](https://github.com/BotHarness/DeepSeekBot/pull/2358)、[#2461](https://github.com/BotHarness/DeepSeekBot/pull/2461)）。
+
+### Fixed
+
+- 修复自 1.4.0 起 Bot 模式在长对话中空闲时卡顿的问题：隐藏的悬浮工具栏不再让每次重绘重建所有气泡，引导轮询不再重渲染整个对话，消息时间与折叠尺寸的计算也更省（[#2413](https://github.com/BotHarness/DeepSeekBot/issues/2413)）。
+- DSH 0.2.1 上的 **立即更新** 恢复可用：现在用 npm 安装包原地升级，装好后页面自动刷新、无需重启，提示会用一行说明失败原因。DeepSeekBot 1.4.1 及更早版本仍需手动更新一次（[#2382](https://github.com/BotHarness/DeepSeekBot/pull/2382)、[更新指南](docs/update-deepseekbot.md)）。
+- Host 会清除超过一天的中断上传，并每天清除超过 30 天且没有任何引用的附件，磁盘不再被无法显示的文件持续占用（[#2430](https://github.com/BotHarness/DeepSeekBot/issues/2430)）。
+- 在手机上取消配对电脑时，会同时在那台电脑上撤销这台手机，并清掉手机上它留下的通知、缓存聊天和快捷方式；连不上电脑时，手机会提示你去电脑的 设置 › 设备 里移除（[#2409](https://github.com/BotHarness/DeepSeekBot/issues/2409)、[#2464](https://github.com/BotHarness/DeepSeekBot/pull/2464)）。
+- 删除 Bot 后，它的私聊会离开频道列表，不再残留并报模型设置错误；历史仍可在“隐藏的频道”中只读查看（[#2417](https://github.com/BotHarness/DeepSeekBot/pull/2417)）。
+- 从 Bot 市场安装 Bot 恢复正常，不再报 `unexpected "origin"`；市场刷新在缺少密钥而跳过 AI 摘要时会记录日志（[#2460](https://github.com/BotHarness/DeepSeekBot/issues/2460)、[#2441](https://github.com/BotHarness/DeepSeekBot/pull/2441)）。
+- 在网页端和桌面端输入框里用 Ctrl+V 粘贴图片只会添加一张，不再重复（[#2390](https://github.com/BotHarness/DeepSeekBot/pull/2390)）。
+- `deepseekbot` CLI 通过 tailnet 名称访问 Host 时返回 `host-untrusted` 并指出 `--trusted-host` 参数，不再误报“刷新启动令牌”（[#2418](https://github.com/BotHarness/DeepSeekBot/pull/2418)）。
+- **配对手机**确认框改为提示用 `tailscale serve --https=443 off` 撤销，只移除 DeepSeekBot 发布的那一条；Connect relay 限制在线 tunnel 总数、按账号限流，并限制回收重试次数（[#2415](https://github.com/BotHarness/DeepSeekBot/pull/2415)、[#2387](https://github.com/BotHarness/DeepSeekBot/issues/2387)、[#2410](https://github.com/BotHarness/DeepSeekBot/issues/2410)）。
+- VRM 伴侣不会再在状态连接短暂中断时把回复截在第一个字，长回复留在面板内；网页、手机和角色上的 Bot 状态也不再在“思考”和短工具调用之间来回闪（[#2222](https://github.com/BotHarness/DeepSeekBot/issues/2222)）。
+- 手机 Beta 修复：照片、文件和粘贴的图片恢复发送；新私聊发出第一条消息后不再变空白；iPhone 流式回复不再闪烁跳动；Android 通知保留头像，角标清零时不再被清掉；在手机上处理的请求显示为本机处理；审批按 App 语言显示；大字体下名称和预览保持可读；修复 Android 实体键盘、文件夹选择器和 ⋯ 菜单问题（[#2444](https://github.com/BotHarness/DeepSeekBot/pull/2444)、[#2490](https://github.com/BotHarness/DeepSeekBot/pull/2490)、[#1845](https://github.com/BotHarness/DeepSeekBot/issues/1845)、[#2483](https://github.com/BotHarness/DeepSeekBot/pull/2483)、[#2485](https://github.com/BotHarness/DeepSeekBot/pull/2485)、[#2491](https://github.com/BotHarness/DeepSeekBot/pull/2491)、[#2080](https://github.com/BotHarness/DeepSeekBot/issues/2080)、[#2443](https://github.com/BotHarness/DeepSeekBot/pull/2443)、[#2422](https://github.com/BotHarness/DeepSeekBot/pull/2422)、[#2421](https://github.com/BotHarness/DeepSeekBot/pull/2421)、[#2427](https://github.com/BotHarness/DeepSeekBot/pull/2427)、[#2366](https://github.com/BotHarness/DeepSeekBot/pull/2366)、[#2416](https://github.com/BotHarness/DeepSeekBot/pull/2416)、[#2488](https://github.com/BotHarness/DeepSeekBot/pull/2488)）。
+
+### Documentation
+
+- GitHub README 采用 DeepSeekBot 的像素小镇设计，附版本亮点和最近 30 天的仓库状态；README 和安装指南安装 `deepseekbot@1.4.1`（[#2373](https://github.com/BotHarness/DeepSeekBot/issues/2373)、[#2371](https://github.com/BotHarness/DeepSeekBot/pull/2371)）。
+- 新增面向测试者的**配对手机**教程（Tailscale 与扫码配对），并补充 DeepSeekBot Connect relay 的部署流程（[#1643](https://github.com/BotHarness/DeepSeekBot/issues/1643)、[#2410](https://github.com/BotHarness/DeepSeekBot/issues/2410)）。
 
 ## [1.4.1] - 2026-10-20
 
