@@ -1,3 +1,4 @@
+import { useMessageHost } from './message-host.js';
 import { useId, useRef, useState, type ReactElement } from 'react';
 import { useMountedResource } from './mounted-resource.js';
 import {
@@ -28,10 +29,19 @@ export function PrivateInputCard({
   t,
 }: {
   message: ChannelMessage;
-  actions: BridgeActions;
+  actions: Pick<
+    BridgeActions,
+    | 'privateInputStatus'
+    | 'privateInputSubmit'
+    | 'privateInputCancel'
+    | 'privateAccountStatus'
+    | 'privateInputReplace'
+    | 'privateAccountRevoke'
+  >;
   channelId?: string | undefined;
   t: BotHarnessTranslate;
 }): ReactElement {
+  const host = useMessageHost();
   const request = message.privateInputRequest!;
   const channelId =
     sourceChannelId ?? 'dm-' + (message.author.kind === 'bot' ? message.author.slug : '');
@@ -98,7 +108,9 @@ export function PrivateInputCard({
       disabled ||
       submitting.current ||
       mounted.current?.active !== true ||
-      store.getSnapshot().conversation.channel?.id !== channelId
+      (host === undefined
+        ? store.getSnapshot().conversation.channel?.id !== channelId
+        : !host.current(channelId))
     )
       return;
     const lease = mounted.current;

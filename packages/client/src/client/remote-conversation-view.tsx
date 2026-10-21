@@ -1,6 +1,9 @@
+import { ChannelMessageBody } from './channel-message-body.js';
+import { RemoteMessageBody } from './remote-message-body.js';
+import { MessageHostContext, type MessageHost } from './message-host.js';
 import { useMemo, useState, useSyncExternalStore, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button, MarkdownText, type MarkdownLabels } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import {
   shownInChat,
@@ -83,7 +86,7 @@ const styles = stylex.create({
     paddingBlock: space.x3,
     paddingInline: space.x4,
     borderRadius: radius.md,
-    backgroundColor: color.elevated,
+    backgroundColor: color.surface,
     fontSize: text.bodySize,
     lineHeight: text.bodyLine,
     overflowWrap: 'anywhere',
@@ -198,12 +201,29 @@ export function RemoteConversationView({
     target.channelId === undefined
       ? remote?.snapshot.roster?.bots.find((entry) => entry.slug === target.botSlug)
       : undefined;
-  const labels = useMemo<MarkdownLabels>(
-    () => ({
-      code: { copyLabel: t('message.code.copy'), copiedLabel: t('message.code.copied') },
-      footnotes: t('message.footnotes'),
-    }),
-    [t],
+  const client = sources.client(target.hostId);
+  const host = useMemo<MessageHost | undefined>(
+    () =>
+      client === undefined
+        ? undefined
+        : {
+            client,
+            current(channelId) {
+              const selected = sources.getSnapshot().open;
+              return (
+                sources.client(target.hostId) === client &&
+                selected?.hostId === target.hostId &&
+                selected.botSlug === target.botSlug &&
+                selected.channelId === target.channelId &&
+                client.getSnapshot().connection.status === 'connected' &&
+                conversation?.getSnapshot().status === 'live' &&
+                conversation
+                  .getSnapshot()
+                  .messages.some((message) => message.source?.channelId === channelId)
+              );
+            },
+          },
+    [sources, client, conversation, target.hostId, target.botSlug, target.channelId],
   );
   const bots = new Map(
     (remote?.snapshot.roster?.bots ?? []).map((bot) => [bot.slug, bot.displayName]),
@@ -216,170 +236,190 @@ export function RemoteConversationView({
     setDraft('');
   };
   const shown = snapshot.messages.filter(shownInChat);
+  if (
+    host === undefined ||
+    remote?.snapshot.connection.status === 'refused' ||
+    snapshot.status === 'refused'
+  )
+    return <p role="status">{t('remoteHosts.interrupted')}</p>;
   return (
-    <section
-      {...stylex.props(styles.root)}
-      aria-label={target.title}
-      data-remote-conversation={target.hostId}
-    >
-      <header {...stylex.props(styles.header)}>
-        <RemoteAvatar
-          roster={remote?.snapshot.roster}
-          avatars={avatars}
-          target={target}
-          size={34}
-          t={t}
-        />
-        <span {...stylex.props(styles.title)}>{target.title}</span>
-        <span {...stylex.props(styles.source)}>
-          <ChannelSidebarIcon name="monitor" />
-          {remote?.host.hostName ?? ''}
-        </span>
-        <span {...stylex.props(styles.spacer)} />
-        {bot?.browserAccess ? (
-          <IconButton
-            aria-label={t('remoteViewer.browser')}
-            title={t('remoteViewer.browser')}
-            aria-pressed={viewer === 'browser'}
-            onClick={() => setViewer(viewer === 'browser' ? undefined : 'browser')}
-          >
-            <ChannelSidebarIcon name="globe" />
-          </IconButton>
-        ) : null}
-        {bot?.computerAccess ? (
-          <IconButton
-            aria-label={t('remoteViewer.computer')}
-            title={t('remoteViewer.computer')}
-            aria-pressed={viewer === 'computer'}
-            onClick={() => setViewer(viewer === 'computer' ? undefined : 'computer')}
-          >
+    <MessageHostContext.Provider value={host}>
+      <section
+        {...stylex.props(styles.root)}
+        aria-label={target.title}
+        data-remote-conversation={target.hostId}
+      >
+        <header {...stylex.props(styles.header)}>
+          <RemoteAvatar
+            roster={remote?.snapshot.roster}
+            avatars={avatars}
+            target={target}
+            size={34}
+            t={t}
+          />
+          <span {...stylex.props(styles.title)}>{target.title}</span>
+          <span {...stylex.props(styles.source)}>
             <ChannelSidebarIcon name="monitor" />
-          </IconButton>
-        ) : null}
-        <IconButton aria-label={t('common.close')} onClick={() => sources.close()}>
-          <ChannelSidebarIcon name="x" />
-        </IconButton>
-      </header>
-      {viewer !== undefined &&
-      viewerClient !== undefined &&
-      bot !== undefined &&
-      (viewer === 'browser' ? bot.browserAccess : bot.computerAccess) ? (
-        <RemoteHostViewerPanel
-          key={`${target.hostId}:${bot.slug}:${viewer}`}
-          client={viewerClient}
-          kind={viewer}
-          slug={bot.slug}
-          hostName={remote?.host.hostName ?? ''}
-          t={t}
-          onClose={() => setViewer(undefined)}
-        />
-      ) : (
-        <>
-          {!reachable ? (
-            <p role="status" {...stylex.props(styles.status)}>
-              {t('remoteHosts.offline', { name: remote?.host.hostName ?? '' })}
-            </p>
-          ) : snapshot.status === 'interrupted' || snapshot.status === 'refused' ? (
-            <p role="status" {...stylex.props(styles.status)}>
-              {snapshot.reason ?? t('remoteHosts.interrupted')}
-            </p>
+            {remote?.host.hostName ?? ''}
+          </span>
+          <span {...stylex.props(styles.spacer)} />
+          {bot?.browserAccess ? (
+            <IconButton
+              aria-label={t('remoteViewer.browser')}
+              title={t('remoteViewer.browser')}
+              aria-pressed={viewer === 'browser'}
+              onClick={() => setViewer(viewer === 'browser' ? undefined : 'browser')}
+            >
+              <ChannelSidebarIcon name="globe" />
+            </IconButton>
           ) : null}
-          <div ref={markReadMount} {...stylex.props(styles.timeline)} data-remote-timeline="">
-            {snapshot.drafts.map((entry) => (
-              <div key={entry.draftId} {...stylex.props(styles.message)}>
-                <span {...stylex.props(styles.author)}>
-                  <RemoteAvatar
-                    roster={remote?.snapshot.roster}
-                    avatars={avatars}
-                    target={{
-                      botSlug: entry.botSlug,
-                      title: bots.get(entry.botSlug) ?? entry.botSlug,
-                    }}
-                    size={24}
-                    t={t}
-                  />
-                  {bots.get(entry.botSlug) ?? entry.botSlug}
-                </span>
-                <div {...stylex.props(styles.bubble)}>
-                  <MarkdownText text={entry.body} streaming labels={labels} />
-                </div>
-              </div>
-            ))}
-            {[...shown].reverse().map((message) => (
-              <div
-                key={message.id}
-                data-remote-message={message.id}
-                {...stylex.props(styles.message, message.author === 'human' && styles.human)}
-              >
-                <span {...stylex.props(styles.author)}>
-                  {message.author === 'bot' && message.bot !== undefined ? (
+          {bot?.computerAccess ? (
+            <IconButton
+              aria-label={t('remoteViewer.computer')}
+              title={t('remoteViewer.computer')}
+              aria-pressed={viewer === 'computer'}
+              onClick={() => setViewer(viewer === 'computer' ? undefined : 'computer')}
+            >
+              <ChannelSidebarIcon name="monitor" />
+            </IconButton>
+          ) : null}
+          <IconButton aria-label={t('common.close')} onClick={() => sources.close()}>
+            <ChannelSidebarIcon name="x" />
+          </IconButton>
+        </header>
+        {viewer !== undefined &&
+        viewerClient !== undefined &&
+        bot !== undefined &&
+        (viewer === 'browser' ? bot.browserAccess : bot.computerAccess) ? (
+          <RemoteHostViewerPanel
+            key={`${target.hostId}:${bot.slug}:${viewer}`}
+            client={viewerClient}
+            kind={viewer}
+            slug={bot.slug}
+            hostName={remote?.host.hostName ?? ''}
+            t={t}
+            onClose={() => setViewer(undefined)}
+          />
+        ) : (
+          <>
+            {!reachable ? (
+              <p role="status" {...stylex.props(styles.status)}>
+                {t('remoteHosts.offline', { name: remote?.host.hostName ?? '' })}
+              </p>
+            ) : snapshot.status === 'interrupted' ? (
+              <p role="status" {...stylex.props(styles.status)}>
+                {snapshot.reason ?? t('remoteHosts.interrupted')}
+              </p>
+            ) : null}
+            <div ref={markReadMount} {...stylex.props(styles.timeline)} data-remote-timeline="">
+              {snapshot.drafts.map((entry) => (
+                <div key={entry.draftId} {...stylex.props(styles.message)}>
+                  <span {...stylex.props(styles.author)}>
                     <RemoteAvatar
                       roster={remote?.snapshot.roster}
                       avatars={avatars}
-                      target={{ botSlug: message.bot, title: authorName(message, bots, t) }}
+                      target={{
+                        botSlug: entry.botSlug,
+                        title: bots.get(entry.botSlug) ?? entry.botSlug,
+                      }}
                       size={24}
                       t={t}
                     />
-                  ) : null}
-                  {authorName(message, bots, t)}
-                </span>
-                <div
-                  {...stylex.props(styles.bubble, message.author === 'human' && styles.humanBubble)}
-                >
-                  <MarkdownText
-                    text={
-                      message.body.trim() !== ''
-                        ? message.body
-                        : message.attachments.map((attachment) => attachment.name).join(', ')
-                    }
-                    streaming={false}
-                    labels={labels}
-                  />
-                </div>
-                {message.delivery === 'failed' ? (
-                  <span {...stylex.props(styles.failed)}>
-                    {message.error ?? t('remoteHosts.sendFailed')}
+                    {bots.get(entry.botSlug) ?? entry.botSlug}
                   </span>
-                ) : null}
-              </div>
-            ))}
-          </div>
-          <form
-            {...stylex.props(styles.composer)}
-            onSubmit={(event) => {
-              event.preventDefault();
-              send();
-            }}
-          >
-            <textarea
-              {...stylex.props(styles.input)}
-              aria-label={t('remoteHosts.composer', { name: target.title })}
-              data-remote-composer=""
-              rows={1}
-              value={draft}
-              disabled={!reachable}
-              placeholder={
-                reachable ? t('remoteHosts.composer', { name: target.title }) : undefined
-              }
-              onChange={(event) => setDraft(event.currentTarget.value)}
-              onKeyDown={(event) => {
-                if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing)
-                  return;
+                  <div {...stylex.props(styles.bubble)}>
+                    <ChannelMessageBody
+                      message={{
+                        id: entry.draftId,
+                        at: '',
+                        author: { kind: 'bot', slug: entry.botSlug },
+                        body: entry.body,
+                        streaming: true,
+                      }}
+                      t={t}
+                    />
+                  </div>
+                </div>
+              ))}
+              {[...shown].reverse().map((message) => (
+                <div
+                  key={message.id}
+                  data-remote-message={message.id}
+                  {...stylex.props(styles.message, message.author === 'human' && styles.human)}
+                >
+                  <span {...stylex.props(styles.author)}>
+                    {message.author === 'bot' && message.bot !== undefined ? (
+                      <RemoteAvatar
+                        roster={remote?.snapshot.roster}
+                        avatars={avatars}
+                        target={{ botSlug: message.bot, title: authorName(message, bots, t) }}
+                        size={24}
+                        t={t}
+                      />
+                    ) : null}
+                    {authorName(message, bots, t)}
+                  </span>
+                  <div
+                    {...stylex.props(
+                      styles.bubble,
+                      message.author === 'human' && styles.humanBubble,
+                    )}
+                  >
+                    <RemoteMessageBody message={message} messages={snapshot.messages} t={t} />
+                  </div>
+                  {message.delivery === 'failed' ? (
+                    <span {...stylex.props(styles.failed)}>
+                      {message.error ?? t('remoteHosts.sendFailed')}
+                    </span>
+                  ) : null}
+                </div>
+              ))}
+              {snapshot.hasOlder ? (
+                <Button
+                  disabled={snapshot.loadingOlder || !reachable}
+                  onClick={() => void conversation?.loadOlder()}
+                >
+                  {t('humanInbox.context.older')}
+                </Button>
+              ) : null}
+            </div>
+            <form
+              {...stylex.props(styles.composer)}
+              onSubmit={(event) => {
                 event.preventDefault();
                 send();
               }}
-            />
-            <Button
-              type="submit"
-              variant="primary"
-              disabled={!reachable || draft.trim().length === 0}
-              data-remote-send=""
             >
-              {t('remoteHosts.send')}
-            </Button>
-          </form>
-        </>
-      )}
-    </section>
+              <textarea
+                {...stylex.props(styles.input)}
+                aria-label={t('remoteHosts.composer', { name: target.title })}
+                data-remote-composer=""
+                rows={1}
+                value={draft}
+                disabled={!reachable}
+                placeholder={
+                  reachable ? t('remoteHosts.composer', { name: target.title }) : undefined
+                }
+                onChange={(event) => setDraft(event.currentTarget.value)}
+                onKeyDown={(event) => {
+                  if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing)
+                    return;
+                  event.preventDefault();
+                  send();
+                }}
+              />
+              <Button
+                type="submit"
+                variant="primary"
+                disabled={!reachable || draft.trim().length === 0}
+                data-remote-send=""
+              >
+                {t('remoteHosts.send')}
+              </Button>
+            </form>
+          </>
+        )}
+      </section>
+    </MessageHostContext.Provider>
   );
 }

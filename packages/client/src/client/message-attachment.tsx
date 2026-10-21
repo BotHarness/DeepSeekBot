@@ -13,6 +13,8 @@ import type { BotHarnessTranslate } from './locale.js';
 import type { ChannelAttachmentRef } from './store.js';
 import { MessageAudio } from './message-audio.js';
 import { galleryImageKey, SingleImageGallery, useImageGallery } from './message-image-gallery.js';
+import { useMessageResource } from './message-resource.js';
+import { useMessageHost } from './message-host.js';
 
 const INLINE_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
 
@@ -72,6 +74,7 @@ export function MessageAttachment({
     | undefined;
   t: BotHarnessTranslate;
 }): ReactElement {
+  const host = useMessageHost();
   const commands = useMemo<HostFileCommands | undefined>(
     () =>
       actions === undefined
@@ -90,10 +93,21 @@ export function MessageAttachment({
   const menu = useHostFileMenu(commands, channelId, t);
   const gallery = useImageGallery();
   const id = ref.fileId;
-  const url =
-    channelId !== undefined ? channelAttachmentUrl(ref, { channelId, messageId }) : undefined;
+  const resource = useMessageResource(
+    channelId !== undefined ? channelAttachmentUrl(ref, { channelId, messageId }) : undefined,
+  );
+  const { url } = resource;
   const image = inlineImageAttachment(ref.mime);
   const audio = ref.mime.startsWith('audio/');
+  if (resource.failed)
+    return (
+      <div role="status">
+        {t('bridgeMedia.unavailable')}{' '}
+        <button type="button" onClick={resource.retry}>
+          {t('bridgeMedia.retry')}
+        </button>
+      </div>
+    );
   if (audio && !compact) {
     return (
       <div
@@ -138,7 +152,7 @@ export function MessageAttachment({
       </>
     );
   const hostMenuButton =
-    id === undefined ? null : (
+    id === undefined || (host !== undefined && commands === undefined) ? null : (
       <Tooltip label={t('fileAction.menu')} side="bottom" delayMs={500}>
         <button
           type="button"
@@ -204,7 +218,7 @@ export function MessageAttachment({
         </div>
       ) : (
         <div className="bh-message-file">
-          {id === undefined ? (
+          {id === undefined || (host !== undefined && commands === undefined) ? (
             <a className="bh-message-file-main" href={url} download={ref.name}>
               {contents}
             </a>

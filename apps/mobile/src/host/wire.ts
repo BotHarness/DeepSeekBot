@@ -40,6 +40,7 @@ export interface WireAllBotMention {
 }
 
 export interface ChannelWireMessage extends WireMessage {
+  contentPurge?: unknown;
   author: WireAuthor;
   mentions?: WireMention[];
   reactions?: WireReaction[];

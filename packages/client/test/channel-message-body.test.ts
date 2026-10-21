@@ -21,6 +21,10 @@ import { en, zhTranslate, type BotHarnessTranslate } from '../src/client/locale.
 import { toolApprovalText } from '../src/client/approval-text.js';
 import { WORKSPACE_GRANTS_CHANGED } from '../src/client/workspace-grants-entry.js';
 import { store, type ChannelMessage } from '../src/client/store.js';
+import { createHostClient } from '../../../apps/mobile/src/host/client.js';
+import { MessageHostContext } from '../src/client/message-host.js';
+import { RemoteMessageBody } from '../src/client/remote-message-body.js';
+import type { ConversationMessage } from '../../../apps/mobile/src/host/conversation.js';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   FileTypeIcon: ({ path }: { path: string }) =>
@@ -77,6 +81,148 @@ function render(
 }
 
 beforeEach(() => vi.mocked(MarkdownText).mockClear());
+
+it('renders remote cards through the shared body and sends decisions only to the source Host', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  const calls: { url: string; method: string; args: unknown }[] = [];
+  const client = createHostClient({
+    routes: ['https://source.example.ts.net'],
+    credential: 'test-device.test-secret',
+    carrier: {
+      async request(url, init) {
+        const request = JSON.parse(String(init.body));
+        calls.push({ url, method: request.method, args: request.payload.args });
+        return {
+          status: 200,
+          text: async () =>
+            JSON.stringify({
+              type: 'server-response',
+              rpcId: request.rpcId,
+              result: { ok: true, value: { status: 'pending', accepted: true } },
+            }),
+        };
+      },
+      openSocket() {
+        throw new Error('No socket expected');
+      },
+    },
+  });
+  const message: ConversationMessage = {
+    id: 'remote-approval',
+    at: '2026-10-21T00:00:00Z',
+    author: 'bot',
+    bot: 'same-bot',
+    body: '',
+    attachments: [],
+    delivery: 'committed',
+    source: {
+      channelId: 'remote-channel',
+      revision: 1,
+      message: {
+        id: 'remote-approval',
+        at: '2026-10-21T00:00:00Z',
+        author: { kind: 'bot', slug: 'same-bot' },
+        body: '',
+        toolApprovalRequest: {
+          role: 'orchestrator',
+          sessionId: 'remote-session',
+          callId: 'remote-call',
+          toolName: 'bash',
+          cwd: '/remote',
+          input: '{"command":"pwd"}',
+        },
+      },
+    },
+  };
+  const container = document.createElement('div');
+  document.body.append(container);
+  const root = createRoot(container);
+  try {
+    await act(async () =>
+      root.render(
+        createElement(
+          MessageHostContext.Provider,
+          {
+            value: { client, current: (channelId) => channelId === 'remote-channel' },
+          },
+          createElement(RemoteMessageBody, { message, messages: [message], t: zhTranslate }),
+        ),
+      ),
+    );
+    expect(container.textContent).toContain('允许这次');
+    const allow = [...container.querySelectorAll('button')].find((button) =>
+      button.textContent?.includes('允许这次'),
+    );
+    await act(async () => allow?.click());
+    expect(container.textContent).toContain('已允许');
+    expect(calls.filter((call) => call.method.endsWith('/toolApprovalDecide'))).toEqual([
+      {
+        url: 'https://source.example.ts.net/botharness-device/api/botharness/toolApprovalDecide',
+        method: 'botharness/toolApprovalDecide',
+        args: {
+          channelId: 'remote-channel',
+          messageId: 'remote-approval',
+          outcome: 'allowed-once',
+        },
+      },
+    ]);
+  } finally {
+    await act(async () => root.unmount());
+    container.remove();
+  }
+});
+
+it('preserves remote plain text and attachment metadata without falling back to local URLs', () => {
+  const client = createHostClient({
+    routes: ['https://source.example.ts.net'],
+    credential: 'test-device.test-secret',
+    carrier: {
+      request: async () => {
+        throw new Error('No request on static render');
+      },
+      openSocket: () => {
+        throw new Error('No socket');
+      },
+    },
+  });
+  const message: ConversationMessage = {
+    id: 'remote-photo',
+    at: '2026-10-21T00:00:00Z',
+    author: 'human',
+    body: 'Literal text from the remote Host',
+    attachments: [],
+    delivery: 'committed',
+    source: {
+      channelId: 'same-channel',
+      revision: 1,
+      message: {
+        id: 'remote-photo',
+        at: '2026-10-21T00:00:00Z',
+        author: { kind: 'human' },
+        body: 'Literal text from the remote Host',
+        attachments: [
+          {
+            fileId: 'file:11111111-1111-4111-8111-111111111111',
+            name: 'remote.png',
+            mime: 'image/png',
+            size: 123,
+          },
+        ],
+      },
+    },
+  };
+  const html = renderToStaticMarkup(
+    createElement(
+      MessageHostContext.Provider,
+      { value: { client, current: () => true } },
+      createElement(RemoteMessageBody, { message, messages: [message], t: zhTranslate }),
+    ),
+  );
+  expect(html).toContain('Literal text from the remote Host');
+  expect(html).toContain('alt="remote.png"');
+  expect(html).not.toContain('./api/');
+  expect(html).not.toContain('test-secret');
+});
 
 describe('Channel message body', () => {
   it('shows a sent inline reference only for an attachment owned by that message', () => {

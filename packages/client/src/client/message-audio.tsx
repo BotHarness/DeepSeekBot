@@ -39,6 +39,7 @@ export function MessageAudio({
   size,
   url,
   downloadUrl = url,
+  onDownload,
   onError,
   t,
 }: {
@@ -46,6 +47,7 @@ export function MessageAudio({
   size?: number | undefined;
   url?: string | undefined;
   downloadUrl?: string | undefined;
+  onDownload?: (() => void) | undefined;
   onError?: (() => void) | undefined;
   t: BotHarnessTranslate;
 }): ReactElement {
@@ -176,19 +178,30 @@ export function MessageAudio({
           ))}
         </div>
       </span>
-      {downloadUrl === undefined ? null : (
+      {downloadUrl === undefined && onDownload === undefined ? null : (
         <>
           <span className="bh-message-file-divider" aria-hidden="true" />
           <Tooltip label={t('fileAction.download')} side="bottom" delayMs={500}>
-            <a
-              className="bh-message-file-download"
-              href={downloadUrl}
-              download={name}
-              aria-label={`${t('fileAction.download')}: ${name}`}
-              onClick={(event) => event.stopPropagation()}
-            >
-              <IconDownloadOutlineRegular size={16} />
-            </a>
+            {onDownload === undefined ? (
+              <a
+                className="bh-message-file-download"
+                href={downloadUrl}
+                download={name}
+                aria-label={`${t('fileAction.download')}: ${name}`}
+                onClick={(event) => event.stopPropagation()}
+              >
+                <IconDownloadOutlineRegular size={16} />
+              </a>
+            ) : (
+              <button
+                type="button"
+                className="bh-message-file-download"
+                aria-label={`${t('fileAction.download')}: ${name}`}
+                onClick={onDownload}
+              >
+                <IconDownloadOutlineRegular size={16} />
+              </button>
+            )}
           </Tooltip>
         </>
       )}
