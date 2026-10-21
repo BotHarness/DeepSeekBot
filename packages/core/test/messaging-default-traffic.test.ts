@@ -640,9 +640,9 @@ it('unknown Lark requests are bounded controls; Web ordinary-role review asks ag
   expect(fx.runs[0]!.inbox).not.toContain(role.behavior);
   expect(fx.runs[0]!.inbox).toContain('"id":"ou_owner"');
   expect(fx.runs[0]!.inbox).not.toContain('lark-app-open-id');
-  expect(
-    fx.core.externalMessaging.inbound.read('ada', fx.sourceId('om-new')).sender,
-  ).toMatchObject({ actorId: 'ou_owner', namespace: 'lark-app-open-id' });
+  expect(fx.core.externalMessaging.inbound.read('ada', fx.sourceId('om-new')).sender).toMatchObject(
+    { actorId: 'ou_owner', namespace: 'lark-app-open-id' },
+  );
   const permissions = fx.runs[0]!.externalMessaging!.senderPermissions!(fx.sourceId('om-new'));
   expect(permissions).toMatchObject({
     status: 'paired',
