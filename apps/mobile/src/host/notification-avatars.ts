@@ -5,6 +5,7 @@ import type { RosterView } from './client';
 export interface AvatarImage {
   uri: string;
   headers?: Record<string, string>;
+  svg?: string;
 }
 
 export interface AvatarEntry {
@@ -102,7 +103,7 @@ export function notificationAvatars(roster: RosterView): AvatarEntry[] {
     entries.push({
       file,
       signature: `svg:${fingerprint(svg)}`,
-      image: { uri: `data:image/svg+xml;base64,${encode(svg)}` },
+      image: { uri: `data:image/svg+xml;base64,${encode(svg)}`, svg },
     });
   }
   for (const channel of roster.channels) {
