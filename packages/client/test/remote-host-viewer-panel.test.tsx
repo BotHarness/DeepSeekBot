@@ -62,7 +62,7 @@ describe.each(['zh', 'en'] as const)('%s remote viewer error presentation', (lan
           kind: 'browser',
           slug: 'ada',
           hostName: 'Studio',
-          t: language === 'zh' ? zhTranslate : (key) => en[key],
+          t: language === 'zh' ? zhTranslate : (key) => en[key as keyof typeof en] ?? key,
           onClose() {},
         }),
       );
@@ -88,12 +88,13 @@ describe.each(['zh', 'en'] as const)('%s remote viewer error presentation', (lan
         kind: 'computer',
         slug: 'ada',
         hostName: 'Studio',
-        t: language === 'zh' ? zhTranslate : (key) => en[key],
+        t: language === 'zh' ? zhTranslate : (key) => en[key as keyof typeof en] ?? key,
         onClose() {},
       }),
     );
     expect(markup).not.toContain(snapshot.notice);
     expect(markup).toContain(language === 'zh' ? '重新连接' : 'Reconnect');
+    expect(markup).not.toContain('data-panel-empty-action');
     expect(snapshot.notice).toBe('Raw upstream transport failure');
   });
 });

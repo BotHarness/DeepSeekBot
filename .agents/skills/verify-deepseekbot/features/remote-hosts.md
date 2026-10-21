@@ -35,6 +35,7 @@ Keep the remote screen stationary during frame recovery. The Host must keep its 
 
 ## Gotchas
 
+- The workspace hides `data-panel-empty-action` descendants. Viewer reconnect must stay in its own controls; verify the button is visible and clickable inside the real workspace, not only in a standalone panel render.
 - Remote avatars consume the authenticated image cache; This Host retains its current read adapter.
 - With unread messages on both Hosts, compare each row and tab with `channelUnreadCounts`. Open the remote DM/group, verify its count clears on that Host while the other Host stays unread. Keep an active Bot running to inspect its activity indicator. Stop only the task-owned remote Host and verify cached rows/counts remain with an offline tab.
 - Activity timestamps are receipt times; they are not authoritative tool start times.

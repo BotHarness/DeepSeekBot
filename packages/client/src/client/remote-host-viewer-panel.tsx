@@ -184,16 +184,7 @@ export function RemoteHostViewerPanel({
           />
         </div>
       ) : (
-        <PanelEmptyState
-          icon={kind === 'computer' ? 'monitor' : 'globe'}
-          action={
-            state.status === 'refused' || state.status === 'loading' ? undefined : (
-              <Button size="sm" variant="ghost" onClick={() => setAttempt((value) => value + 1)}>
-                {t('remoteViewer.retry')}
-              </Button>
-            )
-          }
-        >
+        <PanelEmptyState icon={kind === 'computer' ? 'monitor' : 'globe'}>
           {unavailable}
         </PanelEmptyState>
       )}
@@ -215,6 +206,16 @@ export function RemoteHostViewerPanel({
           setTyped('');
         }}
       >
+        {!live && state.status !== 'refused' && state.status !== 'loading' ? (
+          <Button
+            size="sm"
+            type="button"
+            variant="ghost"
+            onClick={() => setAttempt((value) => value + 1)}
+          >
+            {t('remoteViewer.retry')}
+          </Button>
+        ) : null}
         <div {...stylex.props(styles.input)}>
           <Input
             aria-label={t('remoteViewer.type')}

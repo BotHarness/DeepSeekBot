@@ -10,11 +10,21 @@ import { createRemoteHostViewer } from '../src/client/remote-host-viewer.js';
 
 afterEach(() => vi.useRealTimers());
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason: unknown) => void;
+  const promise = new Promise<T>((accept, refuse) => {
+    resolve = accept;
+    reject = refuse;
+  });
+  return { promise, resolve, reject };
+}
+
 function staticFrameHost() {
   const framePaths: string[] = [];
   const inputs: unknown[] = [];
-  const failure = Promise.withResolvers<HostApiAnswer>();
-  const input = Promise.withResolvers<HostApiAnswer>();
+  const failure = deferred<HostApiAnswer>();
+  const input = deferred<HostApiAnswer>();
   let reads = 0;
   const client: Pick<HostClient, 'api' | 'subscribe' | 'getSnapshot'> = {
     subscribe: () => () => {},

@@ -6,11 +6,19 @@ import { createRemoteHosts, REMOTE_HOSTS_STORAGE_KEY } from '../src/client/remot
 
 afterEach(() => vi.useRealTimers());
 
+function deferred() {
+  let resolve!: () => void;
+  const promise = new Promise<void>((accept) => {
+    resolve = accept;
+  });
+  return { promise, resolve };
+}
+
 function pairedViewerHost(kind: 'browser' | 'computer') {
   const host = new FakeHost();
   const events: string[] = [];
-  const taking = Promise.withResolvers<void>();
-  const releasing = Promise.withResolvers<void>();
+  const taking = deferred();
+  const releasing = deferred();
   let delayRelease = false;
   let paused = false;
   let firstFrame = true;
