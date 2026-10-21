@@ -17,7 +17,7 @@ Every route except `/v1/config` takes `Authorization: Bearer <WorkOS access toke
 
 Every account signed in to TOB's WorkOS environment may use the relay, up to `MAX_HOSTS` Hosts each. Setting the optional `ALLOWED_USERS` secret (comma-separated WorkOS user IDs) restricts it to those accounts, and others answer `403 account-not-allowed`; a bad, expired or foreign token answers `401 unauthorized`.
 
-Two limits keep open sign-up inside Cloudflare's quota. A Host whose tunnel would push the relay past `MAX_TUNNELS` live tunnels answers `503 relay-full`, and every `POST` or `DELETE` beyond the `CONNECT_LIMIT` rate (20 per account per minute) answers `429 rate-limited`.
+Two limits keep open sign-up inside Cloudflare's quota. A Host whose tunnel would push the relay past `MAX_TUNNELS` live tunnels answers `503 relay-full`, and a `POST` beyond the `CONNECT_LIMIT` rate answers `429 rate-limited`. That rate (20 per account per minute) is approximate: Cloudflare counts it per location and its counters are eventually consistent, so it slows churn rather than enforcing an exact quota. `DELETE` is never limited, so a Host can always unlink.
 
 ## Reclamation
 
@@ -39,7 +39,7 @@ Each run lists the account's tunnels once (100 per page, at most 10 pages) and a
 | `CONNECT_ZONE`          | var    | Tunnel zone, `deepseekbot.dev`                                                                                                            |
 | `MAX_HOSTS`             | var    | Hosts per account, `5`                                                                                                                    |
 | `MAX_TUNNELS`           | var    | Live tunnels across all accounts, `900` (Cloudflare allows 1,000)                                                                         |
-| `CONNECT_LIMIT`         | limit  | Workers rate limit on writes, keyed by account; unbound: no limit                                                                         |
+| `CONNECT_LIMIT`         | limit  | Approximate per-location rate limit on `POST`, keyed by account; unbound: no limit                                                        |
 | `RECLAIM_AFTER_MINUTES` | var    | Offline minutes before a tunnel is deleted, `5`                                                                                           |
 
 Without the four secrets every route answers `503 relay-unconfigured`. The Worker is served at `connect.botharness.ai`, never on a subdomain of the tunnel zone.

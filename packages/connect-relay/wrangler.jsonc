@@ -16,7 +16,7 @@
     "RECLAIM_AFTER_MINUTES": "5",
   },
   // secrets: WORKOS_CLIENT_ID, CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_ZONE_ID, CONNECT_HOST_KEY; optional ALLOWED_USERS
-  // per-account cap on relay writes (POST/DELETE): 20 per minute
+  // approximate per-account cap on POST requests, counted per Cloudflare location: 20 per minute
   "ratelimits": [
     { "name": "CONNECT_LIMIT", "namespace_id": "2387", "simple": { "limit": 20, "period": 60 } },
   ],

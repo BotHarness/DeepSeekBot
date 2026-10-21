@@ -461,6 +461,9 @@ describe('Connect relay tunnels', () => {
       body: { error: { code: 'rate-limited' } },
     });
     expect((await call('GET', '/v1/hosts', { as: 'user_alice' })).status).toBe(200);
+    expect((await call('DELETE', '/v1/hosts/haaaaaaaaaaab', { as: 'user_alice' })).status).toBe(
+      200,
+    );
   });
 });
 

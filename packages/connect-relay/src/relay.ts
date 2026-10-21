@@ -229,7 +229,7 @@ export function createRelay(options: RelayOptions) {
     if (account === undefined) return failure(401, 'unauthorized');
     if (!allowAll && !options.allowedUsers.includes(account))
       return failure(403, 'account-not-allowed');
-    if (request.method !== 'GET' && options.limit !== undefined && !(await options.limit(account)))
+    if (request.method === 'POST' && options.limit !== undefined && !(await options.limit(account)))
       return failure(429, 'rate-limited');
     return account;
   };
