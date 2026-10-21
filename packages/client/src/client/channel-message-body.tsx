@@ -1,3 +1,4 @@
+import { useMessageHost } from './message-host.js';
 import { BridgeAudio } from './bridge-audio.js';
 import { BridgeFile } from './bridge-file.js';
 import { UserQuestionCard } from './user-question-card.js';
@@ -7,7 +8,7 @@ import { OnboardingWelcome } from './onboarding-view.js';
 import { BridgeImage } from './bridge-image.js';
 import { ExternalMessageText } from './external-message-text.js';
 import { ClearedMessageAttachment, MessageAttachment } from './message-attachment.js';
-import { useMemo, useRef, useState, type ReactElement } from 'react';
+import { useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
 
 import {
   Button,
@@ -28,8 +29,8 @@ import type { ChannelHumanMember } from './store.js';
 import { referenceRuns } from './channel-refs.js';
 import { preserveHumanLineBreaks, rendersHumanMarkdown } from './human-markdown.js';
 import { attachmentReferenceRuns, messageAttachmentReferences } from './attachment-refs.js';
-import type { BridgeActions, HostDirectoryListing } from './actions.js';
-import { FolderBrowser } from './workspace-grants-entry.js';
+import type { BridgeActions } from './actions.js';
+import { FolderBrowser, type FolderBrowserActions } from './workspace-grants-entry.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { toolApprovalText } from './approval-text.js';
 import { useFooterPreferences } from './composer-footer-preferences.js';
@@ -85,13 +86,14 @@ function SessionFailureNotice({
   t: BotHarnessTranslate;
   nativeChatT?: NativeChatFailureText | undefined;
 }): ReactElement {
+  const host = useMessageHost();
   const failure = message.sessionFailure!;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const title = nativeChatT?.('message.turnError') ?? t('failure.title');
-  const needsModels = ['AUTH', 'MISSING_CREDENTIAL', 'INVALID_CREDENTIAL', 'QUOTA'].includes(
-    failure.code ?? '',
-  );
+  const needsModels =
+    host === undefined &&
+    ['AUTH', 'MISSING_CREDENTIAL', 'INVALID_CREDENTIAL', 'QUOTA'].includes(failure.code ?? '');
   return (
     <div className="bh-session-failure-row" role="alert">
       <div className="bh-session-failure-heading">
@@ -167,7 +169,8 @@ export function GrantRequestCard({
   t,
 }: {
   message: ChannelMessage;
-  actions: BridgeActions;
+  actions: Pick<BridgeActions, 'pickWorkspaceFolder' | 'resolveWorkspaceGrantRequest'> &
+    FolderBrowserActions;
   channelId?: string | undefined;
   workspacePickerRequest?: number | undefined;
   resolved: boolean;
@@ -175,7 +178,8 @@ export function GrantRequestCard({
   beforeOpen?: () => Promise<boolean>;
   t: BotHarnessTranslate;
 }): ReactElement {
-  const [listing, setListing] = useState<HostDirectoryListing | undefined>();
+  const [listing, setListing] =
+    useState<Awaited<ReturnType<FolderBrowserActions['listHostFolders']>>>();
   const [busy, setBusy] = useState(false);
   const [opening, setOpening] = useState(false);
   const [completed, setCompleted] = useState(false);
@@ -321,6 +325,7 @@ function leadingBotMentions(message: ChannelMessage):
 
 export function ChannelMessageBody({
   message: storedMessage,
+  requestCard,
   channelId,
   t,
   actions,
@@ -333,6 +338,7 @@ export function ChannelMessageBody({
   nativeChatT,
 }: {
   message: ChannelMessage;
+  requestCard?: ReactNode;
   channelId?: string | undefined;
   t: BotHarnessTranslate;
   actions?: BridgeActions;
@@ -360,6 +366,7 @@ export function ChannelMessageBody({
     }),
     [t],
   );
+  const host = useMessageHost();
   const approvalBody = toolApprovalText(storedMessage, t);
   const message =
     approvalBody === undefined ? storedMessage : { ...storedMessage, body: approvalBody };
@@ -369,6 +376,7 @@ export function ChannelMessageBody({
   const format =
     message.format ?? (message.author.kind === 'human' && !humanMarkdown ? 'text' : 'markdown');
   if (message.contentPurged) return <div className="bh-bubble-body">{t('purge.purged')}</div>;
+  if (requestCard !== undefined) return <>{requestCard}</>;
   if (message.onboardingWelcome?.kind === 'tob')
     return (
       <div className="bh-bubble-body">
@@ -520,6 +528,12 @@ export function ChannelMessageBody({
           data-human-id={mention.humanId}
           title={t('message.mention.humanType')}
         >
+          @{label}
+        </span>
+      );
+    if (host !== undefined)
+      return (
+        <span key={key} className="bh-inline-mention bh-inline-mention-sent">
           @{label}
         </span>
       );

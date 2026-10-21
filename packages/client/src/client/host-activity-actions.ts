@@ -1,13 +1,13 @@
 import {
   allowAutoRejectionOnce,
+  answerQuestion,
+  decideApproval,
   clearAttentionItem,
   decideJoinRequest,
   snoozeAttentionItem,
 } from '../../../../apps/mobile/src/host/attention-actions.js';
 import type { HostClient } from '../../../../apps/mobile/src/host/client.js';
 import {
-  answerQuestion,
-  decideApproval,
   loadApproval,
   loadQuestion,
   type DecisionResult,
@@ -35,6 +35,58 @@ export type HostRequestActions = Pick<
 
 export interface HostActivityActions extends HumanInboxCommands, HostRequestActions {
   message(item: HumanAttentionItem, signal?: AbortSignal): Promise<ChannelMessage>;
+}
+
+export function createHostRequestActions(options: {
+  client(): HostClient;
+  ref(channelId: string, messageId: string, retained?: boolean): RequestRef;
+  refresh?(): Promise<void>;
+  requestUnavailable: string;
+}): HostRequestActions {
+  const request = async <T>(run: () => Promise<T>): Promise<T> => {
+    try {
+      return await run();
+    } catch (cause) {
+      throw new Error(options.requestUnavailable, { cause });
+    }
+  };
+  const decided = async (run: () => Promise<DecisionResult>): Promise<void> => {
+    const result = await request(run);
+    await options.refresh?.();
+    if (result !== 'accepted') throw new Error(options.requestUnavailable);
+  };
+  const approval = (channelId: string, messageId: string) =>
+    request(() => loadApproval(options.client(), options.ref(channelId, messageId)));
+  return {
+    async toolApprovalStatus(channelId, messageId) {
+      return (await approval(channelId, messageId)).status === 'pending' ? 'pending' : 'expired';
+    },
+    async toolApprovalState(channelId, messageId) {
+      const value = await approval(channelId, messageId);
+      return {
+        status: value.status === 'pending' ? 'pending' : 'expired',
+        ...(value.expiresAt === undefined ? {} : { expiresAt: value.expiresAt }),
+      };
+    },
+    async toolApprovalExecutionState(channelId, messageId) {
+      return (await approval(channelId, messageId)).execution;
+    },
+    async decideToolApproval(channelId, messageId, outcome) {
+      await decided(() =>
+        decideApproval(options.client(), options.ref(channelId, messageId, false), outcome),
+      );
+    },
+    async userQuestionStatus(channelId, messageId) {
+      const value = await request(() =>
+        loadQuestion(options.client(), options.ref(channelId, messageId)),
+      );
+      return value.status === 'decided' ? 'answered' : value.status;
+    },
+    answerUserQuestion: (channelId, messageId, answers) =>
+      decided(() =>
+        answerQuestion(options.client(), options.ref(channelId, messageId, false), { answers }),
+      ),
+  };
 }
 
 export function createHostActivityActions(options: {
@@ -65,21 +117,9 @@ export function createHostActivityActions(options: {
     await run();
     await options.refresh();
   };
-  const request = async <T>(run: () => Promise<T>): Promise<T> => {
-    try {
-      return await run();
-    } catch (cause) {
-      throw new Error(options.requestUnavailable, { cause });
-    }
-  };
-  const decided = async (run: () => Promise<DecisionResult>): Promise<void> => {
-    const result = await request(run);
-    await options.refresh();
-    if (result !== 'accepted') throw new Error(options.requestUnavailable);
-  };
-  const approval = (channelId: string, messageId: string) =>
-    request(() => loadApproval(options.client(), ref(channelId, messageId)));
+  const requests = createHostRequestActions({ ...options, ref });
   return {
+    ...requests,
     refreshHumanInbox: options.refresh,
     openChannelAtMessage: (channelId) => options.open(channelId),
     async decideGroupJoin(channelId, requestId, accept) {
@@ -111,33 +151,10 @@ export function createHostActivityActions(options: {
         throw new Error('Activity request author changed');
       return message;
     },
-    async toolApprovalStatus(channelId, messageId) {
-      return (await approval(channelId, messageId)).status === 'pending' ? 'pending' : 'expired';
-    },
-    async toolApprovalState(channelId, messageId) {
-      const value = await approval(channelId, messageId);
-      return {
-        status: value.status === 'pending' ? 'pending' : 'expired',
-        ...(value.expiresAt === undefined ? {} : { expiresAt: value.expiresAt }),
-      };
-    },
-    async toolApprovalExecutionState(channelId, messageId) {
-      return (await approval(channelId, messageId)).execution;
-    },
     async decideToolApproval(channelId, messageId, outcome) {
       if (outcome === 'allowed-always-exact' || outcome === 'allowed-always-all')
         throw new Error('This approval choice is unavailable');
-      await decided(() =>
-        decideApproval(options.client(), ref(channelId, messageId, false), outcome),
-      );
+      await requests.decideToolApproval(channelId, messageId, outcome);
     },
-    async userQuestionStatus(channelId, messageId) {
-      const value = await request(() => loadQuestion(options.client(), ref(channelId, messageId)));
-      return value.status === 'decided' ? 'answered' : value.status;
-    },
-    answerUserQuestion: (channelId, messageId, answers) =>
-      decided(() =>
-        answerQuestion(options.client(), ref(channelId, messageId, false), { answers }),
-      ),
   };
 }

@@ -10,6 +10,7 @@ The browser pairs a Remote Host as a Paired Device and reads its Host Feed throu
 - `avatars`: remote Bot portraits and group images/member stacks appear in rows and conversation headers; Bot message authors and live drafts use the same remote portrait.
 - `activity-unread`: remote Bot rows display received activity; DM/group unread counts come from their Host Inbox.
 - `read`: a visible remote conversation at its latest message marks that message read on its owning Host and refreshes the shared Inbox.
+- `message-body`: remote images, files, rich text and request cards use the existing message body, with authenticated resources and decisions on the source Host.
 - `upgrade`: existing browser pairings and the selected tab survive the storage-key rename.
 - `remove`: removing a Host forgets its rows, stops its Inbox and releases cached avatar object URLs.
 - `viewers`: a remote Bot DM opens Browser or Computer when that Bot has access. The shared Host viewer modules read frames and send input to that Host only; closing, switching source or losing the connection tears down the viewer and releases requested control.
@@ -38,13 +39,15 @@ For Remote settings, use two disposable Hosts with different home basenames and 
 
 The default-model proof must change the model value on a Profile whose native settings owner can save it; a same-value no-op is insufficient. Keep a page's observed revision, change the default from another client, and verify the old page refuses without overwriting it. Explicit refresh must permit a subsequent save. Omit the catalog revision at the test transport boundary to verify the shared client refuses before any write; label that case as fault injection. For existing presets, verify Enter plus blur increments the revision once, a later blur saves independently, composition Enter does not submit, and a delayed write remains on its original Host/preset after closing and switching Hosts. Preserve the draft/error on a rejected save. New presets retain an explicit create action. Reject a remote storage preview token on the other Host, and verify neither cleanup command proceeds without its confirmation flag.
 
+For message bodies, upload an image and a text file to Host B through its attachment API and send them in a disposable Channel. Open that Channel from Host A: the image may load immediately, but files and audio must not fetch until Download or Play is selected. Repeated pending clicks must share one request; downloading audio must not start playback. Verify that GET requests use Host B's device gateway. Switch source or close during a delayed response and verify that it cannot trigger a download or playback afterward. Refuse or remove source access and confirm the conversation retains its title and usable Close control without a timeline, composer or viewer. Request a real tool approval with `deepseek-v4-pro`, decide its card from Host A, and compare Host B's decision record with the unchanged Host A history. Capture the same conversation in light and dark before and after the renderer change. Switch between Hosts and Channels to verify draft/card isolation and media cleanup. A revoked device must never load an attachment through Host A instead.
+
 ## Gotchas
 
 - The workspace hides `data-panel-empty-action` descendants. Viewer reconnect must stay in its own controls; verify the button is visible and clickable inside the real workspace, not only in a standalone panel render.
 - Remote avatars consume the authenticated image cache; This Host retains its current read adapter.
 - With unread messages on both Hosts, compare each row and tab with `channelUnreadCounts`. Open the remote DM/group, verify its count clears on that Host while the other Host stays unread. Keep an active Bot running to inspect its activity indicator. Stop only the task-owned remote Host and verify cached rows/counts remain with an offline tab.
 - Activity timestamps are receipt times; they are not authoritative tool start times.
-- Remote chat displays text and attachment names; images and cards are not qualified.
-- Host looks remain device-local, including each phone's own icon and colour. DSH Desktop and two physical machines over a real tailnet are not qualified by a two-Host local run.
+- The remote message renderer replaces the earlier text-and-attachment-names-only view. Qualify images and cards through the two-Host path above; test results remain separate from Human acceptance.
+- Host looks are device-local by design. DSH Desktop and two physical machines over a real tailnet are not qualified by a two-Host local run; native phone qualification is separate.
 - Control release uses the same device credential. An unreachable Host is retried when this viewer reconnects or reopens; a revoked credential cannot resume a Browser. In that case the Host operator resumes it. The Computer also has its existing Host-side pause lease.
 - Dismiss Continue and Skip onboarding overlays before selecting Messages. Retain any failed drive evidence before retrying.
