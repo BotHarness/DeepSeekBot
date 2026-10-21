@@ -63,6 +63,37 @@ function fixture() {
 }
 
 describe('Remote Host browser alerts', () => {
+  it('rechecks the relay deadline at commit even when its timer has not run', async () => {
+    vi.useFakeTimers();
+    const f = fixture();
+    f.permission('granted');
+    const expiresAt = Date.now() + 8000;
+    const notices = createRemoteNotifications({
+      ...f.options,
+      prepareEnable: async () => {
+        vi.setSystemTime(expiresAt);
+      },
+    });
+    const before = notices.choice('a');
+    const saved = f.options.storage.getItem('botharness.remoteNotifications.v1');
+    try {
+      await expect(
+        notices.control(
+          {
+            hostId: 'a',
+            patch: { enabled: true, preferences: before.preferences },
+          },
+          JSON.stringify(before),
+          { expiresAt, signal: new AbortController().signal },
+        ),
+      ).rejects.toThrow('appearance-request-stale');
+      expect(notices.choice('a')).toEqual(before);
+      expect(f.options.storage.getItem('botharness.remoteNotifications.v1')).toBe(saved);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('refuses a timed-out enable without changing the persisted choice and allows a fresh retry', async () => {
     vi.useFakeTimers();
     const f = fixture();
@@ -210,18 +241,19 @@ describe('Remote Host browser alerts', () => {
   });
   it('CLI uses the same choice with revision checks and never prompts for permission', async () => {
     const f = fixture();
-    const before = await f.notices.control({ hostId: 'a' }, undefined);
+    const request = { expiresAt: Date.now() + 8000, signal: new AbortController().signal };
+    const before = await f.notices.control({ hostId: 'a' }, undefined, request);
     const patch = { enabled: true, preferences: before.preferences };
-    await expect(f.notices.control({ hostId: 'a', patch }, before.revision)).rejects.toThrow(
-      'notification-permission-required',
-    );
+    await expect(
+      f.notices.control({ hostId: 'a', patch }, before.revision, request),
+    ).rejects.toThrow('notification-permission-required');
     expect(f.request).not.toHaveBeenCalled();
     f.permission('granted');
-    const after = await f.notices.control({ hostId: 'a', patch }, before.revision);
+    const after = await f.notices.control({ hostId: 'a', patch }, before.revision, request);
     expect(after.enabled).toBe(true);
-    await expect(f.notices.control({ hostId: 'a', patch }, before.revision)).rejects.toThrow(
-      'notification-revision-stale',
-    );
+    await expect(
+      f.notices.control({ hostId: 'a', patch }, before.revision, request),
+    ).rejects.toThrow('notification-revision-stale');
   });
   it('requests permission only on enable, skips initial snapshots, dedupes and scopes identical IDs', async () => {
     const f = fixture();

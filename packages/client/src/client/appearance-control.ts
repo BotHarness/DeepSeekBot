@@ -48,7 +48,10 @@ export function mountAppearanceControl(owner: Appearance, wallpaper?: Wallpaper)
               )
                 throw new AppearanceError('notification-host-unknown');
               try {
-                result = await sources.notifications.control(input, command.expectedRevision);
+                result = await sources.notifications.control(input, command.expectedRevision, {
+                  expiresAt: command.expiresAt,
+                  signal: abort.signal,
+                });
               } catch (error) {
                 throw new AppearanceError(
                   error instanceof Error ? error.message : 'notification-client-failed',
@@ -93,6 +96,13 @@ export function mountAppearanceControl(owner: Appearance, wallpaper?: Wallpaper)
               },
             };
           }
+          if (abort.signal.aborted) return;
+          if (
+            command.notifications !== undefined &&
+            typeof command.expiresAt === 'number' &&
+            Date.now() >= command.expiresAt
+          )
+            continue;
           await post({ action: 'reply', ...registration, requestId: command.id, result });
         }
       } catch {

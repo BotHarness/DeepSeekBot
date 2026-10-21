@@ -29,6 +29,7 @@ import { createRemoteActivityProjection, type RemoteBotActivity } from './remote
 import { releaseRemoteHostViewers } from './remote-host-viewer.js';
 import { browserNotificationApi } from './desktop-notifications.js';
 import { createRemoteNotifications, type RemoteNotifications } from './remote-notifications.js';
+import { en, type BotHarnessTranslate } from './locale.js';
 
 export const REMOTE_HOSTS_STORAGE_KEY = 'botharness.remoteHosts.v1';
 export const HOST_TAB_STORAGE_KEY = 'botharness.hostTab.v1';
@@ -136,6 +137,7 @@ export function createRemoteHosts(options: {
   carrier: HostCarrier;
   loadImage?: (url: string, headers: Record<string, string>) => Promise<string | undefined>;
   releaseImage?: (image: string) => void;
+  translate?: BotHarnessTranslate;
 }): RemoteHosts {
   const { storage, carrier, loadImage, releaseImage } = options;
   const listeners = new Set<() => void>();
@@ -165,9 +167,8 @@ export function createRemoteHosts(options: {
         throw new Error('notification-activation-cancelled');
     },
     privateBody: () =>
-      document.documentElement.lang.startsWith('zh')
-        ? '需要你提供私密输入'
-        : 'Needs private input from you',
+      options.translate?.('remoteHosts.notifications.privateBody') ??
+      en['remoteHosts.notifications.privateBody'],
     open(target) {
       globalThis.window?.focus();
       open = target;
@@ -473,8 +474,10 @@ async function browserImage(
 }
 
 let shared: RemoteHosts | undefined;
+let translate: BotHarnessTranslate = (key) => en[key];
 
-export function remoteHosts(): RemoteHosts {
+export function remoteHosts(translator?: BotHarnessTranslate): RemoteHosts {
+  if (translator !== undefined) translate = translator;
   if (shared !== undefined) return shared;
   shared = createRemoteHosts({
     storage: (() => {
@@ -487,6 +490,7 @@ export function remoteHosts(): RemoteHosts {
     carrier: browserCarrier(),
     loadImage: browserImage,
     releaseImage: (image) => URL.revokeObjectURL(image),
+    translate: (key, params) => translate(key, params),
   });
   const sources = shared;
   let selection = store.getSnapshot().selection;

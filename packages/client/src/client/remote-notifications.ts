@@ -18,6 +18,13 @@ import {
 
 export const REMOTE_NOTIFICATION_KEY = 'botharness.remoteNotifications.v1';
 type Choice = { enabled: boolean; preferences: PushPreferences };
+type ControlRequest = { expiresAt: number; signal: AbortSignal };
+function checkRequest(request?: ControlRequest): void {
+  if (request === undefined) return;
+  if (request.signal.aborted) throw new Error('notification-activation-cancelled');
+  if (!Number.isFinite(request.expiresAt) || Date.now() >= request.expiresAt)
+    throw new Error('appearance-request-stale');
+}
 type Snapshot = {
   hosts: Readonly<Record<string, Choice>>;
   permission: DesktopNotificationPermission;
@@ -122,9 +129,20 @@ export function createRemoteNotifications(options: {
     async set(
       hostId: string,
       patch: { enabled?: boolean; preferences?: Partial<PushPreferences> },
+      request?: ControlRequest,
     ) {
+      checkRequest(request);
       cancel(hostId);
       const controller = new AbortController();
+      const abortRequest = () => controller.abort(new Error('notification-activation-cancelled'));
+      request?.signal.addEventListener('abort', abortRequest, { once: true });
+      const deadline =
+        request === undefined
+          ? undefined
+          : setTimeout(
+              () => controller.abort(new Error('appearance-request-stale')),
+              Math.max(0, request.expiresAt - Date.now()),
+            );
       pending.set(hostId, controller);
       const revision = (revisions.get(hostId) ?? 0) + 1;
       revisions.set(hostId, revision);
@@ -162,16 +180,25 @@ export function createRemoteNotifications(options: {
           controller.signal.throwIfAborted();
           if (api?.permission() !== 'granted') throw new Error('notification-permission-required');
         }
+        checkRequest(request);
+        controller.signal.throwIfAborted();
         const updated = { ...hosts, [hostId]: next };
         storage?.setItem(REMOTE_NOTIFICATION_KEY, JSON.stringify(updated));
         hosts = updated;
         close(hostId);
         publish();
       } finally {
+        clearTimeout(deadline);
+        request?.signal.removeEventListener('abort', abortRequest);
         if (pending.get(hostId) === controller) pending.delete(hostId);
       }
     },
-    async control(input: Record<string, unknown>, expectedRevision: unknown) {
+    async control(
+      input: Record<string, unknown>,
+      expectedRevision: unknown,
+      request: ControlRequest,
+    ) {
+      checkRequest(request);
       const hostId = input.hostId as string;
       const current = choice(hostId);
       if (input.patch !== undefined) {
@@ -183,8 +210,9 @@ export function createRemoteNotifications(options: {
           throw new Error('notification-invalid-input');
         if (patch.enabled && api?.permission() !== 'granted')
           throw new Error('notification-permission-required');
-        await owner.set(hostId, { enabled: patch.enabled, preferences });
+        await owner.set(hostId, { enabled: patch.enabled, preferences }, request);
       }
+      checkRequest(request);
       return {
         hostId,
         ...choice(hostId),

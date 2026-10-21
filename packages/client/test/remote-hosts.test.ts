@@ -5,6 +5,7 @@ import { FakeHost } from '../../../apps/mobile/test/fake-host.js';
 import { createHostActivityActions } from '../src/client/host-activity-actions.js';
 import type { HumanAttentionItem } from '../src/client/store.js';
 import { pairingLink } from '../../core/src/devices/http.js';
+import { en, zh, type BotHarnessTranslate } from '../src/client/locale.js';
 import {
   ALL_HOSTS,
   HOST_TAB_STORAGE_KEY,
@@ -244,6 +245,49 @@ describe('Host Feed lifecycle', () => {
     expect(sources.getSnapshot().hosts[0]?.inbox).toMatchObject({ unread: { 'dm-ada': 2 } });
   });
 
+  it('uses the bound translator for private notification bodies after the locale changes', async () => {
+    const show = vi.fn();
+    vi.stubGlobal('window', {
+      Notification: class {
+        static permission = 'granted';
+        onclick = null;
+        close() {}
+        constructor(title: string, options: unknown) {
+          show(title, options);
+        }
+      },
+    });
+    vi.stubGlobal('document', { documentElement: { lang: 'en' } });
+    let dictionary = en;
+    const translate: BotHarnessTranslate = (key) => dictionary[key];
+    const { host, storage } = liveHost();
+    const sources = createRemoteHosts({ carrier: host.carrier, storage, translate });
+    releases.push(sources.subscribe(() => {}));
+    await vi.waitFor(() => expect(sources.getSnapshot().hosts[0]?.inbox.status).toBe('ready'));
+    await sources.notifications.set(host.hostId, { enabled: true });
+    dictionary = zh;
+    host.methods.set('humanAttention', (args) =>
+      args.notifications
+        ? {
+            notificationVersion: 1,
+            items: [
+              {
+                id: 'private',
+                kind: 'private-input',
+                botSlug: 'ada',
+                createdAt: 'now',
+                summary: 'must not appear',
+              },
+            ],
+          }
+        : { queryVersion: 1, items: [] },
+    );
+    host.push('botharness/followActivity', { type: 'changed', snapshot: { bots: [] } });
+    await vi.waitFor(() => expect(show).toHaveBeenCalledTimes(1));
+    expect(show.mock.calls[0]?.[1]).toMatchObject({
+      body: zh['remoteHosts.notifications.privateBody'],
+    });
+  });
   it('establishes an enable boundary through the shared paginated Inbox despite concurrent live frames and page failure', async () => {
     const show = vi.fn();
     vi.stubGlobal('window', {
