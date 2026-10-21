@@ -333,6 +333,51 @@ describe('device Connect tunnel', () => {
     });
     expect(phases).toContain('cloudflared-hash-mismatch');
     await refused.close();
+
+    const denied: string[] = [];
+    const blocked = createDeviceConnect({
+      credentials: () => credentials.provider,
+      port: () => port,
+      resolveBinary: async () => ({ binary: '/cache/cloudflared', source: 'cache' }),
+      record: (phase) => denied.push(phase),
+      spawn: () => {
+        const tunnel = new FakeTunnel();
+        setImmediate(() =>
+          tunnel.emit('error', Object.assign(new Error('spawn EACCES'), { code: 'EACCES' })),
+        );
+        return tunnel;
+      },
+    });
+    await blocked.enable({ hostname: 'studio.deepseekbot.dev', token: TOKEN });
+    await settle();
+    await settle();
+    expect(blocked.status()).toMatchObject({ state: 'error', issue: 'cloudflared-exited' });
+    expect(denied).toContain('cloudflared-exited');
+    await blocked.close();
+
+    const broken = createDeviceConnect({
+      credentials: () => credentials.provider,
+      port: () => port,
+      resolveBinary: async () => {
+        throw new Error('EPERM');
+      },
+      spawn: () => {
+        const tunnel = new FakeTunnel();
+        setImmediate(() =>
+          tunnel.emit('error', Object.assign(new Error('spawn ENOENT'), { code: 'ENOENT' })),
+        );
+        return tunnel;
+      },
+    });
+    await broken.enable({ hostname: 'studio.deepseekbot.dev', token: TOKEN });
+    await settle();
+    await settle();
+    expect(broken.status()).toMatchObject({
+      state: 'error',
+      issue: 'cloudflared-download-failed',
+      cloudflared: 'path',
+    });
+    await broken.close();
   });
 
   it('reports a missing or exited cloudflared and refuses bad input', async () => {

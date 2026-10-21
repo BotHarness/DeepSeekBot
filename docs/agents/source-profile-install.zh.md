@@ -42,6 +42,7 @@ node scripts/product-artifacts.mjs \
 install-source-profile.mjs
 packaged-profile.mjs
 product-artifacts.mjs
+cloudflared-packages.mjs
 dev-im-provider.mjs
 dev-package-manager.mjs
 ```

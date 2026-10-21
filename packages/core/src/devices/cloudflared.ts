@@ -160,6 +160,15 @@ export function createCloudflaredResolver(
   const verified = async (path: string): Promise<boolean> =>
     existsSync(path) && (await sha256File(path)) === binarySha256;
 
+  const runnable = (path: string): void => {
+    if (platform === 'win32') return;
+    try {
+      accessSync(path, constants.X_OK);
+    } catch {
+      chmodSync(path, 0o755);
+    }
+  };
+
   const fromPackage = async (): Promise<string | undefined> => {
     const name = cloudflaredPackageName(platform, arch);
     const directory = locatePackage(name);
@@ -167,13 +176,7 @@ export function createCloudflaredResolver(
     const binary = join(directory, 'bin', executable);
     try {
       if (await verified(binary)) {
-        if (platform !== 'win32') {
-          try {
-            accessSync(binary, constants.X_OK);
-          } catch {
-            chmodSync(binary, 0o755);
-          }
-        }
+        runnable(binary);
         return binary;
       }
     } catch {}
@@ -257,7 +260,7 @@ export function createCloudflaredResolver(
       mkdirSync(dirname(target), { recursive: true });
       renameSync(binary, target);
       for (const entry of readdirSync(root))
-        if (entry !== CLOUDFLARED_VERSION)
+        if (entry !== CLOUDFLARED_VERSION && !entry.startsWith('.'))
           rmSync(join(root, entry), { recursive: true, force: true });
       log('cloudflared-installed', `version=${CLOUDFLARED_VERSION}`);
     } catch (error) {
@@ -273,7 +276,10 @@ export function createCloudflaredResolver(
     if (asset === undefined || options.cacheDir === undefined || cached === undefined)
       return undefined;
     try {
-      if (await verified(cached)) return { binary: cached, source: 'cache' };
+      if (await verified(cached)) {
+        runnable(cached);
+        return { binary: cached, source: 'cache' };
+      }
     } catch {}
     if (existsSync(cached)) {
       log('cloudflared-cache-refused', `version=${CLOUDFLARED_VERSION}`);

@@ -42,6 +42,7 @@ The destination needs these repository helpers together in one private installat
 install-source-profile.mjs
 packaged-profile.mjs
 product-artifacts.mjs
+cloudflared-packages.mjs
 dev-im-provider.mjs
 dev-package-manager.mjs
 ```

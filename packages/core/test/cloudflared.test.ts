@@ -1,6 +1,14 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
@@ -132,6 +140,19 @@ describe('pinned cloudflared', () => {
     expect(readFileSync(cached)).toEqual(BINARY);
     if (process.platform !== 'win32') expect(statSync(cached).mode & 0o111).not.toBe(0);
     expect(readdirSync(cacheDir)).toEqual([CLOUDFLARED_VERSION]);
+  });
+
+  it('keeps concurrent downloads and repairs a cached binary that lost its exec bit', async () => {
+    const { resolve, cached, cacheDir } = setup();
+    mkdirSync(cacheDir, { recursive: true });
+    writeFileSync(join(cacheDir, '.cloudflared.other'), 'partial');
+    writeFileSync(join(cacheDir, '2020.1.1'), 'old');
+    await resolve();
+    expect(readdirSync(cacheDir).sort()).toEqual(['.cloudflared.other', CLOUDFLARED_VERSION]);
+    if (process.platform === 'win32') return;
+    chmodSync(cached, 0o644);
+    expect(await resolve()).toEqual({ binary: cached, source: 'cache' });
+    expect(statSync(cached).mode & 0o111).not.toBe(0);
   });
 
   it('refuses and deletes a download whose hash differs, then falls back to PATH', async () => {

@@ -259,8 +259,12 @@ export function createDeviceConnect(options: {
   const resolve = async (): Promise<ResolvedCloudflared> => {
     try {
       return await resolveBinary();
-    } catch {
-      return { binary: 'cloudflared', source: 'path' };
+    } catch (error) {
+      record(
+        'cloudflared-download-failed',
+        `error=${error instanceof Error ? error.message : String(error)}`,
+      );
+      return { binary: 'cloudflared', source: 'path', failure: 'cloudflared-download-failed' };
     }
   };
 
@@ -302,9 +306,13 @@ export function createDeviceConnect(options: {
       record('connected', `hostname=${current.hostname}`);
     });
     child.on('error', (error) => {
-      if (error.code !== 'ENOENT' || run !== generation) return;
+      if (run !== generation || absent) return;
       absent = true;
-      missing();
+      if (tunnel === child) tunnel = undefined;
+      if (error.code === 'ENOENT') return missing();
+      status = { ...status, state: 'error', issue: 'cloudflared-exited' };
+      record('cloudflared-exited', `error=${String(error.code)} retryMs=${String(backoff)}`);
+      retry(current, run);
     });
     child.on('exit', (code) => {
       if (tunnel === child) tunnel = undefined;
