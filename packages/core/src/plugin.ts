@@ -506,6 +506,7 @@ export function createCore(
           options.warn?.('bot-name-publication-failed');
         }
       },
+      onAvatarChanged: () => live?.publishRosterCommitted(),
       cloneMemory: (destination, url) => cloneMemoryRepository({ destination, url }),
       ...(options.capture === undefined ? {} : { capture: options.capture }),
       syncDescriptor: (memoryDir, record, sync) => {
