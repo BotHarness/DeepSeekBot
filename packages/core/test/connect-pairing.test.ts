@@ -3,7 +3,7 @@ import { randomBytes } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
 import { WebSocket } from 'ws';
 import { expect, it, vi } from 'vitest';
-import { redeemPairing } from '../../../apps/mobile/src/host/pairing.js';
+import { redeemPairing, revokePairing } from '../../../apps/mobile/src/host/pairing.js';
 import { encryptedCarrier } from '../../../apps/mobile/src/host/encrypted-carrier.js';
 import type { HostCarrier } from '../../../apps/mobile/src/host/carrier.js';
 import { createEncryptedGateway } from '../src/devices/encrypted-gateway.js';
@@ -31,6 +31,12 @@ it('pairs over Noise only after both fingerprint confirmations, rejects a stolen
   const server = createServer(async (request, response) => {
     forwarded(request.url);
     expect(pairing.admit(request.headers.authorization).ok).toBe(true);
+    if (request.url === '/botharness-device/unpair') {
+      const admitted = pairing.admit(request.headers.authorization);
+      if (admitted.ok) pairing.revoke(admitted.device.id);
+      response.end(JSON.stringify({ revoked: true }));
+      return;
+    }
     const chunks: Buffer[] = [];
     for await (const chunk of request) chunks.push(Buffer.from(chunk));
     response.setHeader('content-type', 'image/png');
@@ -136,6 +142,9 @@ it('pairs over Noise only after both fingerprint confirmations, rejects a stolen
     ).rejects.toThrow();
     expect(forwarded).toHaveBeenCalledTimes(1);
     expect(raw.request).not.toHaveBeenCalled();
+    expect(await revokePairing({ host: result.host, carrier: raw, timeoutMs: 2000 })).toBe(
+      'revoked',
+    );
   } finally {
     carrier?.close?.();
     stolen?.close?.();

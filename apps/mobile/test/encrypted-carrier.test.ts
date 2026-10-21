@@ -45,3 +45,69 @@ it('persists the complete trust record and refuses a silent pin change or remova
   const { encryption: _removed, ...withoutPin } = host;
   expect(() => withHost({ hosts: [host] }, withoutPin)).toThrow('host-key-mismatch');
 });
+
+import { openNoiseSocket } from '../src/host/encrypted-carrier';
+import { ConnectChannel } from '../../../packages/core/src/devices/noise/channel';
+import { noisePublicKey } from '../../../packages/core/src/devices/noise/xk';
+import { randomBytes } from 'node:crypto';
+import { createHostPush } from '../src/host/push';
+import { revokePairing, removeDevice } from '../src/host/pairing';
+
+it('bounds unacknowledged native output even when bufferedAmount is absent', async () => {
+  const hostKey = randomBytes(32);
+  const peer = new ConnectChannel({
+    role: 'responder',
+    hostId: 'host',
+    staticKey: hostKey,
+    ephemeralKey: randomBytes(32),
+    hostKey: noisePublicKey(hostKey),
+  });
+  const closed = vi.fn();
+  const socket = openNoiseSocket({
+    origin: 'https://host.deepseekbot.dev',
+    hostId: 'host',
+    encryption: {
+      protocol: 'connect-noise-xk-v1',
+      hostKey: Buffer.from(noisePublicKey(hostKey)).toString('hex'),
+      deviceKey: randomBytes(32).toString('hex'),
+    },
+    message: vi.fn(),
+    closed,
+    raw: {
+      request: vi.fn(),
+      openSocket(_url, events) {
+        queueMicrotask(events.open);
+        return {
+          send(wire) {
+            const result = peer.receive(wire);
+            if (result.reply) queueMicrotask(() => events.message(result.reply!));
+          },
+          close: vi.fn(),
+        };
+      },
+    },
+  });
+  await socket.ready;
+  expect(() => {
+    for (let n = 0; n < 12; n++) socket.send({ type: 'send', text: 'x'.repeat(1024 * 1024) });
+  }).toThrow('channel-busy');
+  expect(closed).toHaveBeenCalledOnce();
+  peer.close();
+  socket.close();
+});
+
+it('never retries push or removal over another route after a missing Connect pin', async () => {
+  const raw = { request: vi.fn(), openSocket: vi.fn() };
+  const host = {
+    hostId: 'host',
+    hostName: 'Host',
+    deviceId: 'device',
+    credential: 'test-secret',
+    routes: ['https://host.deepseekbot.dev', 'http://localhost:3333'],
+  };
+  await expect(createHostPush(raw).settings(host)).rejects.toThrow('host-key-required');
+  expect(await revokePairing({ host, carrier: raw })).toBe('unreachable');
+  expect(await removeDevice({ host, deviceId: 'other', carrier: raw })).toBe('unreachable');
+  expect(raw.request).not.toHaveBeenCalled();
+  expect(raw.openSocket).not.toHaveBeenCalled();
+});

@@ -56,6 +56,15 @@ export type DevicePairingEvent =
   | { phase: 'device-refused'; code: DeviceRefusal; deviceId?: string }
   | { phase: 'device-revoked'; deviceId: string; closedStreams: number };
 
+export interface PendingDeviceKey {
+  receipt: string;
+  state: 'pending';
+  expiresAt: string;
+  publicKey: string;
+  name: string;
+  approved: boolean;
+}
+
 export interface DevicePairing {
   host(): HostIdentity;
   createOffer(binding?: { verifierHash: string; name?: string }): PairingOffer;
@@ -72,7 +81,7 @@ export interface DevicePairing {
     name?: string;
     verifier?: string;
   }): { ok: true; receipt: string } | { ok: false; code: OfferRefusal };
-  pendingKeys(): OfferStatus[];
+  pendingKeys(): PendingDeviceKey[];
   approveKey(receipt: string, publicKey: string): boolean;
   admitKey(authorization: string | undefined, publicKey: string): Admission;
   admit(authorization: string | undefined): Admission;

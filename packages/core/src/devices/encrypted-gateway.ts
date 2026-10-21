@@ -100,7 +100,7 @@ export function createEncryptedGateway(options: {
     negotiating++;
     changed();
     const send = (value: unknown) => {
-      if (closed) return;
+      if (closed || socket.readyState !== WebSocket.OPEN) return;
       try {
         for (const frame of channel.send(JSON.stringify(value))) {
           if (socket.bufferedAmount + frame.length > QUEUE_LIMIT) return close();
@@ -312,7 +312,16 @@ export function createEncryptedGateway(options: {
           const input = record(JSON.parse(result.message));
           operations = operations
             .then(async () => {
-              if (!closed) await message(input);
+              if (!closed) {
+                const credit = input['credit'];
+                if (
+                  credit !== undefined &&
+                  (!Number.isSafeInteger(credit) || Number(credit) < 1 || Number(credit) >= 2 ** 32)
+                )
+                  throw new Error('channel-credit-invalid');
+                await message(input);
+                if (!closed && credit !== undefined) send({ type: 'ack', credit });
+              }
             })
             .catch(() => close())
             .finally(() => {

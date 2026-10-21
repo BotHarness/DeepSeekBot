@@ -1,5 +1,6 @@
 import { noiseFingerprint, noisePublicKey } from '../../../../packages/core/src/devices/noise/xk';
 import {
+  ConnectRefused,
   encryptedCarrier,
   keyBytes,
   keyHex,
@@ -194,7 +195,21 @@ export async function revokePairing(options: {
           (body['code'] === 'device-revoked' || body['code'] === 'device-unknown')
         )
           return 'revoked';
-      } catch {
+      } catch (error) {
+        if (isConnectRoute(route)) {
+          if (error instanceof ConnectRefused && error.code === 'device-revoked') return 'revoked';
+          try {
+            await carrier.request(`${route}${DEVICE_PREFIX}/api/botharness/list`, {
+              method: 'POST',
+              body: '{}',
+              signal: AbortSignal.timeout(options.timeoutMs ?? 8000),
+            });
+          } catch (probe) {
+            if (probe instanceof ConnectRefused && probe.code === 'device-revoked')
+              return 'revoked';
+          }
+          return 'unreachable';
+        }
         continue;
       } finally {
         clearTimeout(timer);
@@ -212,6 +227,8 @@ export async function removeDevice(options: {
   carrier: HostCarrier;
   timeoutMs?: number;
 }): Promise<'removed' | 'unreachable'> {
+  if (options.deviceId === options.host.deviceId)
+    return (await revokePairing(options)) === 'revoked' ? 'removed' : 'unreachable';
   const carrier = encryptedCarrier({ raw: options.carrier, ...options.host });
   try {
     for (const route of options.host.routes) {
@@ -226,6 +243,7 @@ export async function removeDevice(options: {
         });
         if (response.status === 200 || response.status === 404) return 'removed';
       } catch {
+        if (isConnectRoute(route)) return 'unreachable';
         continue;
       } finally {
         clearTimeout(timer);

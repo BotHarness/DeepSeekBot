@@ -50,6 +50,9 @@ export function openNoiseSocket(options: {
     ephemeralKey: secureRandom(options.raw),
   });
   let done = false;
+  let nextCredit = 0,
+    outstandingBytes = 0;
+  const credits = new Map<number, number>();
   let resolve!: () => void, reject!: (error: Error) => void;
   const ready = new Promise<void>((yes, no) => {
     resolve = yes;
@@ -60,6 +63,8 @@ export function openNoiseSocket(options: {
     done = true;
     clearTimeout(timer);
     channel.close();
+    credits.clear();
+    outstandingBytes = 0;
     socket.close();
     reject(new Error(reason));
     options.closed(reason);
@@ -85,7 +90,14 @@ export function openNoiseSocket(options: {
           const value: unknown = JSON.parse(result.message);
           if (!value || typeof value !== 'object' || Array.isArray(value))
             throw new Error('channel-message-invalid');
-          options.message(value as Record<string, unknown>);
+          const message = value as Record<string, unknown>;
+          if (message['type'] === 'ack') {
+            const credit = message['credit'];
+            const bytes = typeof credit === 'number' ? credits.get(credit) : undefined;
+            if (bytes === undefined) throw new Error('channel-credit-invalid');
+            credits.delete(credit as number);
+            outstandingBytes -= bytes;
+          } else options.message(message);
         }
       } catch {
         fail('channel-authentication-failed');
@@ -98,7 +110,16 @@ export function openNoiseSocket(options: {
     send(value: unknown): void {
       if (done) throw new Error('channel-disconnected');
       try {
-        for (const wire of channel.send(JSON.stringify(value))) {
+        if (credits.size >= 256 || ++nextCredit >= 2 ** 32)
+          throw new Error('channel-credit-exhausted');
+        const frames = channel.send(
+          JSON.stringify({ ...(value as Record<string, unknown>), credit: nextCredit }),
+        );
+        const size = frames.reduce((total, wire) => total + wire.length, 0);
+        if (outstandingBytes + size > 20 * 1024 * 1024) throw new Error('channel-busy');
+        outstandingBytes += size;
+        credits.set(nextCredit, size);
+        for (const wire of frames) {
           if ((socket.bufferedAmount ?? 0) + wire.length > 20 * 1024 * 1024)
             throw new Error('channel-busy');
           socket.send(wire);

@@ -24,23 +24,26 @@ export function PrivateInputForm({
   const [request, setRequest] = useState<Request>();
   const [values, setValues] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<'refresh' | 'save'>();
+  const terminal = useRef(false);
   const [retry, setRetry] = useState(0);
   const active = useRef(false),
     submitting = useRef(false);
   const mount = useMounted<ViewInstance>(() => {
     active.current = true;
+    terminal.current = false;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const poll = async () => {
       try {
         const next = await loadPrivateInput(client, target);
-        if (cancelled) return;
+        if (cancelled || terminal.current) return;
+        setError(undefined);
         setRequest(next);
         if (next.status !== 'pending') setValues({});
         else timer = setTimeout(() => void poll(), 2500);
       } catch {
-        if (!cancelled) setError(true);
+        if (!cancelled && !terminal.current) setError('refresh');
       }
     };
     void poll();
@@ -54,7 +57,7 @@ export function PrivateInputForm({
     if (submitting.current || request?.status !== 'pending') return;
     submitting.current = true;
     setBusy(true);
-    setError(false);
+    setError(undefined);
     try {
       const result = await client.call<{ accepted: boolean }>(
         cancel ? 'privateInputCancel' : 'privateInputSubmit',
@@ -64,15 +67,23 @@ export function PrivateInputForm({
           ...(cancel ? {} : { values }),
         },
       );
+      if (!active.current) return;
+      if (result.accepted) {
+        terminal.current = true;
+        setValues({});
+        setRequest({ ...request, status: cancel ? 'cancelled' : 'configured' });
+        after?.();
+        return;
+      }
       const next = await loadPrivateInput(client, target);
       if (!active.current) return;
       setRequest(next);
       if (result.accepted || next.status !== 'pending') {
         setValues({});
         after?.();
-      } else setError(true);
+      } else setError('save');
     } catch {
-      if (active.current) setError(true);
+      if (active.current) setError('save');
     } finally {
       submitting.current = false;
       if (active.current) setBusy(false);
@@ -141,12 +152,14 @@ export function PrivateInputForm({
         )}
         {error ? (
           <>
-            <Text tone="danger">{t.privateInputError}</Text>
-            {request === undefined ? (
+            <Text tone="danger">
+              {error === 'refresh' ? t.privateInputRefreshError : t.privateInputError}
+            </Text>
+            {error === 'refresh' ? (
               <Button
                 label={t.retry}
                 onPress={() => {
-                  setError(false);
+                  setError(undefined);
                   setRetry((value) => value + 1);
                 }}
               />

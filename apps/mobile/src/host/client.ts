@@ -665,7 +665,12 @@ export function createHostClient(options: HostClientOptions): HostClient {
         route = candidate;
         return;
       } catch (error) {
-        if (error instanceof CredentialRefused || error instanceof MethodRefused) throw error;
+        if (
+          isConnectRoute(candidate) ||
+          error instanceof CredentialRefused ||
+          error instanceof MethodRefused
+        )
+          throw error;
         failure = error;
       }
     }

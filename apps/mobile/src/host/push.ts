@@ -1,3 +1,4 @@
+import { isConnectRoute } from './route';
 import { encryptedCarrier } from './encrypted-carrier';
 import type { HostCarrier } from './carrier';
 import type { SavedHost } from './hosts';
@@ -198,7 +199,8 @@ export function createHostPush(carrier: HostCarrier, timeoutMs = 10_000): HostPu
           });
           status = response.status;
           text = await response.text();
-        } catch {
+        } catch (error) {
+          if (isConnectRoute(route)) throw error;
           continue;
         } finally {
           clearTimeout(timer);
@@ -206,7 +208,8 @@ export function createHostPush(carrier: HostCarrier, timeoutMs = 10_000): HostPu
         let value: unknown;
         try {
           value = JSON.parse(text);
-        } catch {
+        } catch (error) {
+          if (isConnectRoute(route)) throw error;
           continue;
         }
         if (status === 200) return value;
