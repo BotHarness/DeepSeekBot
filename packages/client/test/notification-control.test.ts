@@ -14,7 +14,13 @@ it.each(['normal', 'delayed-delivery'] as const)(
     const finishes: (() => void)[] = [];
     const prepareEnable = vi.fn(() => new Promise<void>((resolve) => finishes.push(resolve)));
     const notices = createRemoteNotifications({
-      storage: { getItem: (key) => data.get(key) ?? null, setItem: writes },
+      storage: {
+        getItem: (key) => data.get(key) ?? null,
+        setItem: writes,
+        removeItem(key) {
+          data.delete(key);
+        },
+      },
       api: { permission: () => 'granted', requestPermission: async () => 'granted', show: vi.fn() },
       open() {},
       privateBody: () => 'private',
