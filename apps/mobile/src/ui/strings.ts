@@ -11,6 +11,9 @@ function toolGroup(tool: string): ToolGroup {
   return 'other';
 }
 
+const fileCount = (count: number) => (count === 1 ? '1 file' : `${count} files`);
+const messageCount = (count: number) => (count === 1 ? '1 message' : `${count} messages`);
+
 const en = {
   createHere: 'Create or join',
   chooseCreationTarget: 'Choose where to create',
@@ -276,25 +279,36 @@ const en = {
     clear: 'Clear…',
     confirmTitle: 'Clear chat media?',
     confirmLead: (files: number, messages: number, size: string) =>
-      `Deletes ${files} files from ${messages} messages and frees about ${size}. This cannot be undone.`,
+      `Deletes ${fileCount(files)} from ${messageCount(messages)} and frees about ${size}. This cannot be undone.`,
     shared: 'Some files are still used elsewhere. They are only removed from these messages.',
     kept: {
       'bot-working': (files: number) =>
-        `${files} files are kept for now because a Bot is still working on them.`,
+        files === 1
+          ? '1 file is kept for now because a Bot is still working on it.'
+          : `${files} files are kept for now because a Bot is still working on them.`,
       'delivery-pending': (files: number) =>
-        `${files} files are kept for now because they are still being sent.`,
-      memory: (files: number) => `${files} files are kept because Memory uses them.`,
-      migration: (files: number) => `${files} files are still being moved. Try again later.`,
+        files === 1
+          ? '1 file is kept for now because it is still being sent.'
+          : `${files} files are kept for now because they are still being sent.`,
+      memory: (files: number) =>
+        files === 1
+          ? '1 file is kept because Memory uses it.'
+          : `${files} files are kept because Memory uses them.`,
+      migration: (files: number) =>
+        files === 1
+          ? '1 file is still being moved. Try again later.'
+          : `${files} files are still being moved. Try again later.`,
     },
     confirm: 'Clear',
     nothing: 'Nothing matches. Choose an older range, more types or more chats.',
-    done: (files: number, size: string) => `Cleared ${files} files and freed ${size}.`,
+    done: (files: number, size: string) => `Cleared ${fileCount(files)} and freed ${size}.`,
     stale: 'Something changed since the preview. Try again.',
     failed: 'Could not clear.',
     phone: 'This phone',
     imageCache: 'Clear image cache',
     imageCacheHint: 'Images saved on this phone download again when you open them.',
     imageCacheDone: 'Image cache cleared.',
+    imageCacheFailed: 'Could not clear the image cache. Try again.',
   },
   activityCountSettings: {
     title: 'Activity count',
@@ -1439,6 +1453,7 @@ const zh: typeof en = {
     imageCache: '清除图片缓存',
     imageCacheHint: '保存在这台手机上的图片，下次打开时会重新下载。',
     imageCacheDone: '图片缓存已清除。',
+    imageCacheFailed: '没能清除图片缓存，请重试。',
   },
   activityCountSettings: {
     title: '活动数字',

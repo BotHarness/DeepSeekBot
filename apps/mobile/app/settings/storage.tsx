@@ -8,6 +8,7 @@ import {
   previewStorageCleanup,
 } from '../../src/host/storage';
 import { StorageSettings, type StorageSettingsPort } from '../../src/ui/storage-settings';
+import { t } from '../../src/ui/strings';
 
 export default function StorageScreen() {
   const { saved, client } = useHostSession();
@@ -20,7 +21,8 @@ export default function StorageScreen() {
             preview: (scope) => previewStorageCleanup(client, scope),
             confirm: (preview) => confirmStorageCleanup(client, preview),
             clearImageCache: async () => {
-              await Promise.all([Image.clearDiskCache(), Image.clearMemoryCache()]);
+              const cleared = await Promise.all([Image.clearDiskCache(), Image.clearMemoryCache()]);
+              if (cleared.includes(false)) throw new Error(t.storage.imageCacheFailed);
             },
           },
     [client],
