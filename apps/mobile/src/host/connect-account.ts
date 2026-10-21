@@ -182,6 +182,7 @@ export function createConnectAccount(options: {
           state,
           code_challenge: await runtime.challenge(verifier),
           code_challenge_method: 'S256',
+          max_age: '0',
         }).toString();
         const callback = await runtime.authorize(url.href, options.redirectUri);
         if (callback === null) throw new Refused('sign-in-cancelled');

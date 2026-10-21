@@ -7,7 +7,7 @@ import { Callout } from './ds/callout.js';
 import { Note } from './ds/note.js';
 import { PanelDialog } from './ds/panel-dialog.js';
 import { SettingsRow, SettingsSection } from './ds/settings-row.js';
-import { radius, space, text } from './ds/tokens.stylex.js';
+import { color, radius, space, text } from './ds/tokens.stylex.js';
 import { formatRelativeTime } from './labels.js';
 import { useMountedResource } from './mounted-resource.js';
 import {
@@ -83,6 +83,14 @@ const styles = stylex.create({
     overflowWrap: 'anywhere',
   },
   actions: { display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: space.x3 },
+  email: {
+    color: color.fg,
+    fontSize: text.titleSize,
+    lineHeight: text.titleLine,
+    fontWeight: text.strong,
+  },
+  notYou: { color: color.muted, fontSize: text.metaSize, lineHeight: text.metaLine },
+  switchAccount: { marginBlock: space.x3 },
 });
 
 async function json<T>(response: Response): Promise<T> {
@@ -314,21 +322,32 @@ export function PairedDevicesSettings({ t }: PropsLocale<'botharness'>): ReactEl
             <SettingsRow
               title={t('devices.connect.account')}
               description={
-                signIn.state === 'signed-in'
-                  ? t('devices.connect.signedIn', { email: signIn.email ?? '' })
-                  : t('devices.connect.description')
+                signIn.state === 'signed-in' ? (
+                  <>
+                    <span {...stylex.props(styles.email)} data-connect-email="">
+                      {signIn.email}
+                    </span>
+                    <br />
+                    {t('devices.connect.signedIn')}
+                  </>
+                ) : (
+                  t('devices.connect.description')
+                )
               }
               data={{ 'data-connect-account': signIn.state }}
               control={
                 signIn.state === 'signed-in' ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={busy === 'sign-out'}
-                    onClick={() => void account('sign-out')}
-                  >
-                    {t('devices.connect.signOut')}
-                  </Button>
+                  <>
+                    <span {...stylex.props(styles.notYou)}>{t('devices.connect.notYou')}</span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={busy === 'sign-out'}
+                      onClick={() => void account('sign-out')}
+                    >
+                      {t('devices.connect.signOut')}
+                    </Button>
+                  </>
                 ) : signIn.state === 'signing-in' ? undefined : (
                   <Button
                     variant="outline"
@@ -345,6 +364,10 @@ export function PairedDevicesSettings({ t }: PropsLocale<'botharness'>): ReactEl
                 <Callout data={{ 'data-connect-code': '' }}>
                   {t('devices.connect.confirm')}{' '}
                   <code {...stylex.props(styles.code)}>{signIn.userCode}</code>
+                  <div {...stylex.props(styles.switchAccount)} data-connect-switch="">
+                    {t('devices.connect.switchAccount')}{' '}
+                    <code {...stylex.props(styles.code)}>{signIn.verificationUri}</code>
+                  </div>
                   <div>
                     <Button
                       variant="primary"

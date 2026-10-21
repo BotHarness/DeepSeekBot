@@ -3998,11 +3998,13 @@ export const zh = {
   'devices.connect.account': 'DeepSeekBot 账号',
   'devices.connect.description':
     '已配对的手机不装 Tailscale 也能连上。登录后，这台电脑会通过 deepseekbot.dev 的加密隧道接受手机连接，只开放手机用的接口。',
-  'devices.connect.signedIn': '已登录 {email}。已配对的手机不装 Tailscale 也能连上。',
+  'devices.connect.signedIn': '已登录。已配对的手机不装 Tailscale 也能连上。',
+  'devices.connect.notYou': '不是你？',
   'devices.connect.signIn': '登录',
   'devices.connect.signOut': '退出登录',
   'devices.connect.confirm': '在浏览器里登录账号，并确认页面上显示的代码是',
   'devices.connect.openPage': '打开登录页',
+  'devices.connect.switchAccount': '要换一个账号，请在浏览器的无痕窗口里打开这个链接：',
   'devices.connect.notAllowed': '这个账号暂时不能使用 DeepSeekBot Connect。',
   'devices.connect.hostLimit': '这个账号已关联 5 台电脑，先在其他电脑上退出登录。',
   'devices.connect.signInAgain': '登录已失效或被取消，请重新登录。',
@@ -8347,12 +8349,14 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'devices.connect.account': 'DeepSeekBot account',
   'devices.connect.description':
     'Paired phones reach this computer without Tailscale. Sign in and it accepts them through an encrypted tunnel on deepseekbot.dev that exposes only the phone interface.',
-  'devices.connect.signedIn':
-    'Signed in as {email}. Paired phones reach this computer without Tailscale.',
+  'devices.connect.signedIn': 'Signed in. Paired phones reach this computer without Tailscale.',
+  'devices.connect.notYou': 'Not you?',
   'devices.connect.signIn': 'Sign in',
   'devices.connect.signOut': 'Sign out',
   'devices.connect.confirm': 'Sign in in your browser and check that the page shows the code',
   'devices.connect.openPage': 'Open sign-in page',
+  'devices.connect.switchAccount':
+    'To use a different account, open this link in a private window:',
   'devices.connect.notAllowed': 'This account cannot use DeepSeekBot Connect yet.',
   'devices.connect.hostLimit':
     'This account already links 5 computers. Sign out on one of them first.',
