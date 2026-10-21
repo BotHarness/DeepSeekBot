@@ -21,7 +21,9 @@ export function PrivateAccountControls({
 }: {
   channelId: string;
   messageId: string;
-  actions: BridgeActions;
+  actions: Partial<
+    Pick<BridgeActions, 'privateAccountStatus' | 'privateAccountRevoke' | 'privateInputReplace'>
+  >;
   t: BotHarnessTranslate;
 }): ReactElement {
   const [status, setStatus] = useState<PrivateAccountStatus['status'] | 'loading'>('loading');

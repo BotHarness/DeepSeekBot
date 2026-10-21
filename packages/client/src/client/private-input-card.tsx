@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type ReactElement } from 'react';
+import { useContext, useId, useRef, useState, type ReactElement } from 'react';
 import { useMountedResource } from './mounted-resource.js';
 import {
   Button,
@@ -8,6 +8,7 @@ import {
   IconCloseOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { BridgeActions } from './actions.js';
+import { RemoteMessageHostContext } from './remote-message-host.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { store, type ChannelMessage } from './store.js';
 import type { PrivateInputStatus } from '../../../core/src/credentials/contracts.js';
@@ -28,7 +29,17 @@ export function PrivateInputCard({
   t,
 }: {
   message: ChannelMessage;
-  actions: BridgeActions;
+  actions: Partial<
+    Pick<
+      BridgeActions,
+      | 'privateInputStatus'
+      | 'privateInputSubmit'
+      | 'privateInputCancel'
+      | 'privateAccountStatus'
+      | 'privateAccountRevoke'
+      | 'privateInputReplace'
+    >
+  >;
   channelId?: string | undefined;
   t: BotHarnessTranslate;
 }): ReactElement {
@@ -36,6 +47,7 @@ export function PrivateInputCard({
   const channelId =
     sourceChannelId ?? 'dm-' + (message.author.kind === 'bot' ? message.author.slug : '');
   const id = useId();
+  const remote = useContext(RemoteMessageHostContext);
   const mounted = useRef<PrivateCardMount>();
   const submitting = useRef(false);
   const [status, setStatus] = useState<PrivateInputStatus | 'loading'>('loading');
@@ -98,7 +110,9 @@ export function PrivateInputCard({
       disabled ||
       submitting.current ||
       mounted.current?.active !== true ||
-      store.getSnapshot().conversation.channel?.id !== channelId
+      (remote === undefined
+        ? store.getSnapshot().conversation.channel?.id !== channelId
+        : !remote.isOpen(channelId))
     )
       return;
     const lease = mounted.current;

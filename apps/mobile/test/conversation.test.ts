@@ -243,6 +243,31 @@ describe('DM conversation', () => {
     ]);
   });
 
+  it('keeps the Host wire message for clients that render full cards', async () => {
+    const host = new FakeHost();
+    const request = {
+      sessionId: 'session-1',
+      callId: 'call-1',
+      toolName: 'bash',
+      role: 'orchestrator',
+      cwd: '/work',
+      input: '{"command":"pwd"}',
+    };
+    host.channel(DM).append({
+      id: 'approve-pwd',
+      author: { kind: 'bot' as const, slug: SLUG },
+      body: 'Approve bash',
+      toolApprovalRequest: request,
+    } as never);
+    const target = open(host);
+    await until(target, (snapshot) => snapshot.status === 'live');
+    expect(target.wireMessage?.('approve-pwd')).toMatchObject({
+      id: 'approve-pwd',
+      toolApprovalRequest: request,
+    });
+    expect(target.wireMessage?.('missing')).toBeUndefined();
+  });
+
   it('marks private input requests as cards and hides their resolution', async () => {
     const host = new FakeHost();
     const channel = host.channel(DM);

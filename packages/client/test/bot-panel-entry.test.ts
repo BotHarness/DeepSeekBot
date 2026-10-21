@@ -9,6 +9,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
   const stub = () => null;
   return {
     Button: stub,
+    MarkdownText: stub,
     IconAgentPresetOutlineRegular: stub,
     IconChevronDownOutlineRegular: stub,
     IconChevronRightOutlineRegular: stub,

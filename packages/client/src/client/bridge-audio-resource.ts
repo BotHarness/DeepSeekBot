@@ -1,4 +1,9 @@
 import { subscribeMessagingDefaults } from './messaging-defaults-live.js';
+import {
+  bridgeAttachmentPath,
+  localAttachmentFetch,
+  type AttachmentFetch,
+} from './attachment-fetch.js';
 
 interface AudioState {
   loading?: boolean;
@@ -11,6 +16,7 @@ export function createBridgeAudioResource(
   channelId: string,
   sourceEventId: string,
   attachmentId: string,
+  fetcher: AttachmentFetch = localAttachmentFetch,
 ) {
   let state = EMPTY;
   let controller: AbortController | undefined;
@@ -34,14 +40,13 @@ export function createBridgeAudioResource(
     const signal = AbortSignal.any([request.signal, AbortSignal.timeout(30000)]);
     update({ loading: true });
     try {
-      const response = await fetch(
-        './api/botharness/attachment?' +
-          new URLSearchParams({
-            channelId,
-            sourceEventId,
-            attachmentId,
-            representation: 'playback',
-          }),
+      const response = await fetcher(
+        bridgeAttachmentPath({
+          channelId,
+          sourceEventId,
+          attachmentId,
+          representation: 'playback',
+        }),
         { signal },
       );
       signal.throwIfAborted();
