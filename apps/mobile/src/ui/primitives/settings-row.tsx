@@ -41,6 +41,7 @@ export function SettingsRow({
   expanded,
   disclosure = false,
   accessibilityLabel,
+  testID,
   on = 'sheet',
   onPress,
 }: {
@@ -55,6 +56,7 @@ export function SettingsRow({
   expanded?: boolean;
   disclosure?: boolean;
   accessibilityLabel?: string;
+  testID?: string;
   on?: LayerName;
   onPress?: (() => void) | undefined;
 }) {
@@ -64,6 +66,7 @@ export function SettingsRow({
   const colors = settingsColors(theme, on);
   const row = (
     <SettingsFrame
+      testID={testID}
       onPress={onPress}
       disabled={onPress === undefined}
       accessible={android && onPress === undefined ? false : undefined}

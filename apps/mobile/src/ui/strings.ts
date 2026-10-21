@@ -460,8 +460,8 @@ const en = {
     title: 'Before you pair',
     steps: [
       'On your computer, install DeepSeek Harness (DSH) and the DeepSeekBot plugin.',
-      'Install Tailscale on this phone and on the computer, and sign in to the same account. Hosted Connect, which needs no Tailscale, is coming soon.',
-      'On the computer, show the pairing code and scan it here.',
+      'Choose how they connect: sign in to the same DeepSeekBot account on both (no Tailscale needed; on the computer, Settings → Devices → DeepSeekBot Connect), or install Tailscale on both and sign in to the same Tailscale account.',
+      'Pair: pick the computer under your DeepSeekBot account, or show the pairing code on the computer and scan it here.',
     ],
     open: 'Open the setup guide',
     url: 'https://deepseekbot.app/en/docs/mobile-pairing/',
@@ -472,7 +472,7 @@ const en = {
     'When the camera can’t see the screen, choose Copy pairing link in the same window and paste it here. The code and the link work once and expire after 10 minutes.',
   pair: 'Pair',
   pairAccount: {
-    title: 'Or use your DeepSeekBot account',
+    title: 'DeepSeekBot account',
     hint: 'Pair with a computer signed in to the same account. No code or Tailscale needed.',
     signIn: 'Sign in',
     signedIn: (email: string) => `Signed in as ${email}`,
@@ -489,6 +489,21 @@ const en = {
     drawerTitle: 'On your DeepSeekBot account',
     pairWith: (name: string) => `Pair with ${name}`,
     refresh: 'Refresh',
+  },
+  pairChoice: {
+    intro:
+      'Your computer needs DeepSeek Harness (DSH) with the DeepSeekBot plugin. Choose how this phone connects to it.',
+    account: 'Sign in with a DeepSeekBot account',
+    accountDetail: 'Pair the computers on your account. No Tailscale needed.',
+    accountComputer:
+      'On your computer, open DeepSeekBot Settings → Devices → DeepSeekBot Connect and sign in to the same account.',
+    tailscale: 'Use Tailscale',
+    tailscaleDetail: 'Scan the pairing code or paste a pairing link.',
+    tailscaleHint:
+      'Install Tailscale on this phone and on the computer, and sign in to the same Tailscale account.',
+    emptyTitle: 'No computer paired yet',
+    emptyBody: 'Pair this phone with a computer running DeepSeekBot to chat with your Bots.',
+    emptyAction: 'Pair a computer',
   },
   pairRefused: {
     'link-invalid': 'This is not a DeepSeekBot pairing code.',
@@ -1697,8 +1712,8 @@ const zh: typeof en = {
     title: '配对前的准备',
     steps: [
       '在电脑上安装 DSH（DeepSeek Harness）和 DeepSeekBot 插件。',
-      '在手机和电脑上都安装 Tailscale，并登录同一个账号。无需 Tailscale 的托管 Connect 即将推出。',
-      '在电脑上显示配对二维码，然后在这里扫码。',
+      '选一种连接方式：在手机和电脑上登录同一个 DeepSeekBot 账号（不需要 Tailscale；电脑上在设置 → 设备 → DeepSeekBot Connect 登录），或者都安装 Tailscale 并登录同一个 Tailscale 账号。',
+      '配对：在 DeepSeekBot 账号里选择这台电脑，或者在电脑上显示配对二维码，然后在这里扫码。',
     ],
     open: '查看安装与配对教程',
     url: 'https://deepseekbot.app/docs/mobile-pairing/',
@@ -1709,7 +1724,7 @@ const zh: typeof en = {
     '摄像头扫不到时，在同一窗口点「复制配对链接」，再粘贴到这里。二维码和链接都只能用一次，10 分钟后失效。',
   pair: '配对',
   pairAccount: {
-    title: '或者用 DeepSeekBot 账号',
+    title: 'DeepSeekBot 账号',
     hint: '直接和登录同一账号的电脑配对，不用扫码，也不用 Tailscale。',
     signIn: '登录',
     signedIn: (email: string) => `已登录 ${email}`,
@@ -1725,6 +1740,19 @@ const zh: typeof en = {
     drawerTitle: 'DeepSeekBot 账号里的电脑',
     pairWith: (name: string) => `与 ${name} 配对`,
     refresh: '刷新',
+  },
+  pairChoice: {
+    intro:
+      '电脑上需要装好 DSH（DeepSeek Harness）和 DeepSeekBot 插件。选择这台手机连接电脑的方式：',
+    account: '登录 DeepSeekBot 账号',
+    accountDetail: '直接配对账号下的电脑，不用 Tailscale。',
+    accountComputer: '在电脑上打开 DeepSeekBot 设置 → 设备 → DeepSeekBot Connect，登录同一个账号。',
+    tailscale: '使用 Tailscale',
+    tailscaleDetail: '扫描配对二维码，或粘贴配对链接。',
+    tailscaleHint: '在手机和电脑上都安装 Tailscale，并登录同一个 Tailscale 账号。',
+    emptyTitle: '还没有配对电脑',
+    emptyBody: '把这台手机和运行 DeepSeekBot 的电脑配对，就能和你的 Bot 聊天。',
+    emptyAction: '配对电脑',
   },
   pairRefused: {
     'link-invalid': '这不是 DeepSeekBot 的配对二维码。',

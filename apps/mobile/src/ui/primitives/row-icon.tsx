@@ -17,6 +17,8 @@ const ROW_ICONS = {
   open: { ios: 'arrow.up.forward.app', android: 'open_in_new' },
   copy: { ios: 'doc.on.doc', android: 'content_copy' },
   share: { ios: 'square.and.arrow.up', android: 'share' },
+  account: { ios: 'person.crop.circle', android: 'account_circle' },
+  qr: { ios: 'qrcode.viewfinder', android: 'qr_code_scanner' },
 } as const;
 
 export type RowIconName = keyof typeof ROW_ICONS;

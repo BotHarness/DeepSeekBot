@@ -38,6 +38,7 @@ import {
 } from '../../../src/host/conversation-environments';
 import { shownHostName } from '../../../src/ui/design/host-look';
 import { Text } from '../../../src/ui/primitives/text';
+import { Button } from '../../../src/ui/primitives/button';
 import { HeaderAction } from '../../../src/ui/shell/header-action';
 import { HeaderSearch } from '../../../src/ui/shell/header-search';
 import { HomeHeader } from '../../../src/ui/shell/home-header';
@@ -92,6 +93,7 @@ const HomeContent = memo(function HomeContent({
 }) {
   const router = useRouter();
   const prepared = useRef<typeof client>(undefined);
+  const pairingOffered = useRef(false);
   useFocusEffect(
     useCallback(() => {
       if (client === undefined || prepared.current === client) return;
@@ -121,6 +123,18 @@ const HomeContent = memo(function HomeContent({
   const [opening, setOpening] = useState(false);
   const [error, setError] = useState<string>();
   const enrollment = JSON.stringify(cloud.rows.map(cloudViewScope));
+  const unpaired =
+    !cloudAvailable &&
+    saved === null &&
+    (cloud.ready || Boolean(cloud.error)) &&
+    cloud.rows.length === 0;
+  useFocusEffect(
+    useCallback(() => {
+      if (!unpaired || pairingOffered.current) return;
+      pairingOffered.current = true;
+      router.push('/pair');
+    }, [unpaired]),
+  );
   useFocusEffect(
     useCallback(() => {
       if (cloud.ready) void cloudConversations.refresh();
@@ -232,7 +246,33 @@ const HomeContent = memo(function HomeContent({
       </View>
     );
   if (saved === null && cloud.rows.length === 0)
-    return <Redirect href={cloudAvailable ? '/cloud-join' : '/pair'} />;
+    return cloudAvailable ? (
+      <Redirect href="/cloud-join" />
+    ) : (
+      <View
+        testID="home-unpaired"
+        style={{
+          flex: 1,
+          justifyContent: 'center',
+          alignItems: 'center',
+          padding: space.x6,
+          gap: space.x4,
+        }}
+      >
+        <Text variant="title" strong style={{ textAlign: 'center' }}>
+          {t.pairChoice.emptyTitle}
+        </Text>
+        <Text tone="muted" style={{ textAlign: 'center' }}>
+          {t.pairChoice.emptyBody}
+        </Text>
+        <Button
+          label={t.pairChoice.emptyAction}
+          tone="primary"
+          on="canvas"
+          onPress={() => router.push('/pair')}
+        />
+      </View>
+    );
   const refresh = async () => {
     setRefreshing(true);
     await Promise.all([client?.refresh(), inbox?.refresh(), cloudConversations.refresh()]).catch(
