@@ -979,8 +979,6 @@ export function mountStage(
       if (loaded.lookAt) loaded.lookAt.target = gaze;
       gaze.position.copy(camera.position);
       fitCamera(initial.camera);
-      // compile every new shader in parallel before the first frame draws them; drawing an
-      // uncompiled material blocks the main thread on the link (seconds on slow GPUs)
       const compiled = effects ? post.compile(scene, camera) : renderer.compileAsync(scene, camera);
       for (const object of reveal) object.visible = false;
       return compiled.then(() => {
