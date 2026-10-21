@@ -85,6 +85,8 @@ describe('required CI aggregate', () => {
     const step = workflow.jobs.plan.steps.at(-1);
     expect(step.if).toBe("steps.select.outputs.shards == '1'");
     expect(step.run).toBe('node scripts/ci-affected.mjs --run');
+    const fallback = step.env.TEST_FILES.match(/\|\| '([^']+)'/)[1];
+    expect(JSON.parse(fallback).include[0].files).toEqual([]);
     expect(workflow.jobs['test-affected'].if).toBe("needs.plan.outputs.shards == '3'");
   });
 

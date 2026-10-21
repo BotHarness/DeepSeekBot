@@ -69,7 +69,7 @@ jobs:
         if: steps.select.outputs.shards == '1'
         run: node scripts/ci-affected.mjs --run
         env:
-          TEST_FILES: ${{ toJSON(fromJSON(steps.select.outputs.matrix).include[0].files) }}
+          TEST_FILES: ${{ toJSON(fromJSON(steps.select.outputs.matrix || '{"include":[{"files":[]}]}').include[0].files) }}
 
   static:
     name: lint, format, typecheck, build
