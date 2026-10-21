@@ -65,6 +65,7 @@ export function createRemoteHostViewer(
     let requestedControl = false;
     let releaseNeeded = false;
     let releasing = false;
+    let inputs: Promise<void> = Promise.resolve();
     const abort = new AbortController();
     const pending = new Set<Promise<unknown>>();
     const client: Pick<HostClient, 'api'> = {
@@ -143,9 +144,13 @@ export function createRemoteHostViewer(
           if (active) publish({ ...state, switching: false });
         }
       },
-      async send(input) {
-        if (active && state.status === 'live' && state.control && !state.switching)
-          await viewer.send(input);
+      send(input) {
+        const next = inputs.then(async () => {
+          if (active && state.status === 'live' && state.control && !state.switching)
+            await viewer.send(input);
+        });
+        inputs = next.catch(() => {});
+        return next;
       },
     };
   };

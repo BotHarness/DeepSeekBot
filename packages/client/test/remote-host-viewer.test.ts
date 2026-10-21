@@ -14,8 +14,16 @@ function fakeHost(label: string) {
   let first = true;
   let takeover: ((answer: HostApiAnswer) => void) | undefined;
   let delayTakeover = false;
+  let delayInput = false;
+  let input: (() => void) | undefined;
   const api = vi.fn(async (path: string, init?: HostApiInit): Promise<HostApiAnswer> => {
     calls.push({ path, ...(init === undefined ? {} : { init }) });
+    if (path.endsWith('/input') && delayInput) {
+      delayInput = false;
+      return new Promise((resolve) => {
+        input = () => resolve({ status: 200, body: {} });
+      });
+    }
     if (path.includes('/takeover')) {
       if (delayTakeover && init?.body?.['active'] === true)
         return new Promise((resolve) => {
@@ -61,6 +69,12 @@ function fakeHost(label: string) {
   return {
     client,
     calls,
+    pauseInput() {
+      delayInput = true;
+    },
+    finishInput() {
+      input?.();
+    },
     delay() {
       delayTakeover = true;
     },
@@ -81,6 +95,33 @@ function fakeHost(label: string) {
 }
 
 describe.each(['browser', 'computer'] as const)('remote %s viewer ownership', (kind) => {
+  it('orders input and discards queued actions when its source closes', async () => {
+    const h = fakeHost('host-b');
+    const viewer = createRemoteHostViewer(h.client, kind, 'ada');
+    const stop = viewer.subscribe(() => {});
+    await vi.waitFor(() => expect(viewer.getSnapshot().status).toBe('live'));
+    await viewer.setControl(true);
+    h.pauseInput();
+    const first = viewer.send({ kind: 'click', x: 10, y: 10 });
+    const second = viewer.send({ kind: 'type', text: 'after-focus' });
+    await vi.waitFor(() =>
+      expect(h.calls.filter((call) => call.path.endsWith('/input'))).toHaveLength(1),
+    );
+    h.finishInput();
+    await Promise.all([first, second]);
+    expect(h.calls.filter((call) => call.path.endsWith('/input'))).toHaveLength(2);
+    h.pauseInput();
+    const third = viewer.send({ kind: 'click', x: 20, y: 20 });
+    const fourth = viewer.send({ kind: 'type', text: 'discarded' });
+    await vi.waitFor(() =>
+      expect(h.calls.filter((call) => call.path.endsWith('/input'))).toHaveLength(3),
+    );
+    stop();
+    h.finishInput();
+    await Promise.all([third, fourth]);
+    expect(h.calls.filter((call) => call.path.endsWith('/input'))).toHaveLength(3);
+  });
+
   it('keeps equal Bot slugs on two Hosts separate and sends only after takeover', async () => {
     const a = fakeHost('host-a');
     const b = fakeHost('host-b');

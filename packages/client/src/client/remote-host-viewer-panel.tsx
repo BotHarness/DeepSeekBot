@@ -200,6 +200,7 @@ export function RemoteHostViewerPanel({
       )}
       <form
         {...stylex.props(styles.controls)}
+        data-companion-avoid
         onSubmit={(event) => {
           event.preventDefault();
           if (!driving || typed === '') return;
