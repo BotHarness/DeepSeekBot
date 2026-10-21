@@ -69,6 +69,7 @@ export interface PersonaBotRegistryOptions {
   onImport?: (event: { phase: 'complete' | 'failed'; count?: number; durationMs: number }) => void;
   now?: () => Date;
   onDisplayNameChanged?: () => void;
+  onAvatarChanged?: () => void;
   onAppearanceImported?: (record: PersonaBotRecord) => void;
 
   initializeMemory?: (memoryDir: string) => MemoryRepositoryInitialization;
@@ -637,6 +638,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       if (record === undefined) return { ok: false, reason: 'not-found' };
       const previousName = record.displayName;
       const previousAvatar = record.avatar;
+      const previousAppearance = record.appearance;
       const previousProfile = JSON.stringify([
         record.roles,
         record.tag,
@@ -682,6 +684,8 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       }
       write(record);
       if (record.displayName !== previousName) options.onDisplayNameChanged?.();
+      if (record.avatar !== previousAvatar || record.appearance !== previousAppearance)
+        options.onAvatarChanged?.();
       if (patch.avatar !== undefined && record.avatar !== previousAvatar) capture('avatar_edited');
       if (
         record.displayName !== previousName ||
@@ -699,6 +703,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       const updated = { ...record, ...derived };
       if (isTob(port, slug) && origin === 'custom') updated.avatarCustomized = true;
       write(updated);
+      if (record.appearance?.revision !== updated.appearance.revision) options.onAvatarChanged?.();
       syncDescriptor(updated);
       capture('avatar_edited');
       return { ok: true, record: updated };
