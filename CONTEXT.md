@@ -929,6 +929,26 @@ _Avoid_: widget, tile, gadget, Panel
 The RPC surface through which the Web Client reads PersonaBots and invokes separate mutation commands without sharing Host services.
 _Avoid_: remote, IPC, gateway
 
+**This Host**:
+The Host that serves the client page the Human is using (本机). A phone app has no This Host.
+_Avoid_: local computer, this computer, local machine
+
+**Remote Host**:
+A Host that a client reaches through device pairing rather than one that serves it (远程). Every Host a phone uses is a Remote Host; for a browser on Host A, Host B is a Remote Host.
+_Avoid_: Computer, other computer, machine, server, peer
+
+**Paired Device**:
+A client, a phone app or one browser profile on one origin, holding its own revocable credential from one Host. It reads and acts on that Host but never hosts PersonaBots or relays another Host.
+_Avoid_: phone (for all devices), session, Host
+
+**Host Feed**:
+The whole live state one Host serves to one admitted client: roster, avatars, activity, unread state, Human Inbox and conversations. Every client reads every Host, This Host included, through the same Host Feed; new state to sync is a new part of the Host Feed.
+_Avoid_: sync, mirror, replica, bridge state
+
+**Device Notification Preference**:
+Which kinds of Human Inbox item one Paired Device wants to be alerted about from one Host. The device owns and stores it; the Host keeps a copy only to decide what to send that device.
+_Avoid_: Host notification setting, push settings, mute (for a Channel)
+
 **Bot Settings**:
 The BotHarness-owned modal (Bot 设置) for profile-wide BotHarness configuration, organised into Bot Settings sections in its own sidebar. Configuration of one PersonaBot or one Channel never lives here; that belongs in Channel settings or the relevant operational Panel. DSH's own settings modal is called DSH settings; its Bot 设置 item only points into Bot Settings, while App credentials remain in DSH settings.
 _Avoid_: Settings UI, settings page, preferences, admin panel, dashboard, web console

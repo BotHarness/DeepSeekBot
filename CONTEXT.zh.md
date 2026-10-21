@@ -926,6 +926,26 @@ _避免使用_：widget、tile、gadget、Panel
 Web Client 用于读取 PersonaBot 并调用各自独立 mutation command 的 RPC surface，不与 Client 共享 Host service。
 _避免使用_：remote、IPC、gateway
 
+**This Host**：
+界面中文为“本机”。为 Human 正在使用的客户端页面提供服务的那台 Host。手机 App 没有 This Host。
+_避免使用_：local computer、this computer、本地电脑
+
+**Remote Host**：
+界面中文为“远程”。客户端通过设备配对连上、而不是为它提供页面的 Host。手机连的每台 Host 都是 Remote Host；对 Host A 上的浏览器来说，Host B 是 Remote Host。
+_避免使用_：Computer、其它电脑、machine、server、peer
+
+**Paired Device**：
+持有某台 Host 发放的独立、可撤销凭据的客户端：一个手机 App，或一个 origin 上的一个浏览器 profile。它读取并操作那台 Host，但从不承载 PersonaBot，也不中转其它 Host。
+_避免使用_：phone（指所有设备时）、session、Host
+
+**Host Feed**：
+一台 Host 向一个已认证客户端提供的全部实时状态：名单、头像、activity、未读、Human Inbox 和会话。每个客户端都通过同一个 Host Feed 读取每一台 Host，包括 This Host；新增要同步的状态，就是给 Host Feed 加一项。
+_避免使用_：sync、mirror、replica、bridge state
+
+**Device Notification Preference**：
+某个 Paired Device 希望某台 Host 就哪些 Human Inbox 项提醒它。偏好由设备拥有并保存；Host 只保留一份副本，用来决定给这台设备发什么。
+_避免使用_：Host 通知设置、push settings、mute（指 Channel 时）
+
 **Bot Settings**：
 BotHarness 自有的 modal（Bot 设置），承载 profile 级的 BotHarness 配置，按自己 sidebar 中的 Bot Settings section 组织。单个 PersonaBot 或单个 Channel 的配置不在这里，而属于频道设置或对应的运行操作面板。DSH 自带的设置 modal 称为 DSH settings；其中的 Bot 设置 项只负责指向 Bot Settings，App 凭据仍留在 DSH settings。
 _避免使用_：Settings UI、settings page、preferences、admin panel、dashboard、web console
