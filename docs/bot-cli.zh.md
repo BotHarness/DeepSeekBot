@@ -168,6 +168,8 @@ deepseekbot channel-purge-preview <channel> --source-event <id> | jq '{token}' \
 
 `channel_send` 可选传入 `resolve_inbox_ids`，显式指定 1–200 个已观察的 Source Event 或 Message ID，仅在发送提交或成功 drop 后标记 done。不传时保留 Inbox 责任；held/refused 不结清。省略结清参数时，`inboxResolution.outcome` 为 `not-requested`，提示在本轮结束前显式结清已完成事项。drop 省略 `channel_id` 时使用入站 Channel。单独检查 `inboxResolution`：结清失败时用 `inbox_resolve` 修复，不要重发已提交的消息。CLI `bot-tool <bot> channel_send --args-stdin` 使用相同参数。
 
+`inbox_list` 分组与每轮 `[Open Inbox]` 摘要会为该组 Source Event 暴露有界的 `finalDeliveries`：`id`、`status`（`pending`、`refused`、`not-accepted` 或 `accepted`），以及可选 `reason`、`receipt`、`at`、`complete`。`pending` 表示从未记录 final 决策，不代表投递状态；`refused` 表示 Host 在投递前拒绝该路径；`not-accepted` 表示所属 Channel/Messaging owner 未接受该次尝试（包括本地发送失败）；`accepted` 表示本地 Channel 提交或外部 provider 接受，绝不表示 Human 已读或已送达。本地与外部投递保留各自的 intent。本地自动 final 使用稳定 `final-reply` delivery key；`complete:false` 保持事项开放，该 key 不禁止有授权的本地 `channel_send` 更新，后者仍只需现有 Channel 会员与来源授权，不需要外部 proactive target。外部自动 final 每个 Bot 与来源使用一个 Outbox intent；普通工作工具与读取原来源都不会消耗任一 intent。对于外部事项，`complete:false` 既不结清，也不授予新的显式或自动 reply intent。后续外部进展或完成独立授权，需要完全同一会话内当前 proactive target 与稳定 post ID；没有 target 时保持事项开放并请求授权，不得回退原 DM、改换幂等 key 或复用原正文。Generation 105 将证据按 Bot 与 Source Event 存在同一 canonical Inbox Admission 的 `final_reply_json`，它不是 Outbox Intent，也不是第二发送权威；发送状态仍由 Outbox 拥有。带 receipt 的 `not-accepted`（例如外部 `unknown-outcome` intent）只拒绝后续无 receipt 的 non-accepted 覆盖；`accepted` 永不降级，真实 `accepted` 仍可推进。Host 不自动 reconcile 或重试。这个 owner-only 写入不是模型工具。schedule firing 只是本地 Source Event，不产生外部入站 reply intent；它或空 target 列表都不授予任何主动目的地。
+
 若本轮发起来源是启用复核的 Group，成员资格被撤销后不能把回复改道其他 Channel；`channel_send` 返回 `refused`，reason 为 `group-reply-source-revoked`。后续独立私聊请求不受影响。
 
 `group-send-review <channel> --accept` 在本地 Group 启用发送复核；`--off` 关闭，无标志时读取状态。
@@ -483,7 +485,7 @@ printf '{"channel_id":"dm-<bot-id>","body":"direct hello"}' | deepseekbot bot-to
 deepseekbot bot-trace <bot-id> --session direct --turns 5
 ```
 
-`bot-tools` 列出可直接调用的工具及其输入 schema。`bot-tool` 从标准输入读取参数 JSON 对象，执行与 Bot 回合中完全相同的工具代码，保留工具自身的参数校验、成员资格和权限检查，返回 `{slug, tool, sessionId: "direct", result}`。直接调用没有入站 Channel，回合中默认使用入站 Channel 的地方要显式传 `channel_id`。直接读取不会把 Inbox 条目标为已读；Bot 之间的发送会被拒绝，因为没有 Source Event 承载 Bot 因果链。失败时以非零退出并给出错误码：只能在 Bot 回合内运行的工具（创建或等待 Assignment、Subagent、提问与密钥卡片、切换 Memory 分支、申请工作区授权、交给模型的图片）返回 `tool-not-direct`，此外还有 `invalid-args`、`unknown-bot`、`bot-paused`，以及带工具原始消息的 `tool-failed`。每次调用都记入 Host 的近期直接调用记录，`bot-trace --session direct` 可读取，Host 重启后清空。
+`bot-tools` 列出可直接调用的工具及其输入 schema。`bot-tool` 从标准输入读取参数 JSON 对象，执行与 Bot 回合中完全相同的工具代码，保留工具自身的参数校验、成员资格和权限检查，返回 `{slug, tool, sessionId: "direct", result}`。直接调用没有入站 Channel，回合中默认使用入站 Channel 的地方要显式传 `channel_id`。直接读取不会把 Inbox 条目标为已读；Bot 之间的发送会被拒绝，因为没有 Source Event 承载 Bot 因果链。失败时以非零退出并给出错误码：只能在 Bot 回合内运行的工具（创建或等待 Assignment、提问与密钥卡片、切换 Memory 分支、申请工作区授权、交给模型的图片；下述 Bot Subagent wrappers 是例外）返回 `tool-not-direct`，此外还有 `invalid-args`、`unknown-bot`、`bot-paused`，以及带工具原始消息的 `tool-failed`。`bot_subagent`、`bot_subagent_fork`、`list_bot_subagent_models` 这三个 Bot Subagent wrappers 是该例外：存在 live parent 时，`bot-tool` 走父 Agent 原生管道执行；其他原生 Subagent 工具仍返回 `tool-not-direct`。每次调用都记入 Host 的近期直接调用记录，`bot-trace --session direct` 可读取，Host 重启后清空。
 
 `bot_create` 以该 Bot 的身份创建一个空白 PersonaBot，与 Bot 在聊天中创建时相同：`display_name` 必填；`description`、`tags`、`avatar_path`（Bot 记忆仓库或工作区授权内 PNG、JPEG 或 WebP 文件的绝对路径）、`soul`、`core_memory` 和 `memory_location` 可选。返回 `bot_id`、`display_name`、`dm_channel_id`、`memory_dir` 和 `model`（新 Bot 使用 Host 默认模型时为 `host-default`，有自己的模型后为 `set`），同时打开新 Bot 的私聊，并在创建者 Bot 的 Human 私聊中留下一条提示。拒绝时返回错误码：`invalid-input`、`invalid-avatar`、`invalid-memory-dir`、`git-not-found` 和 `memory-unavailable`。直接运行时不经过 Bot 回合中的工具审批，因为运行命令的就是 Human 本人。
 
@@ -500,6 +502,43 @@ printf '{"display_name":"Tim","tags":["translator"],"soul":"# Tim\\nCalm and pre
 Host 离线时返回 `host-unreachable`，不提交消息；过期令牌返回 `host-unauthorized`，tailnet 名称不在 Host 的 `--trusted-host` 列表中时返回 `host-untrusted`，无效响应返回 `host-protocol-error`。Bridge 和 gateway 错误码原样透传。stdout 仍只有一份 JSON，支持 `--compact`；认证值不打印、不保存。
 
 凭据写入在落盘前后验证真实 YAML；失败恢复原文件字节，新文件失败则删除。空的 `refs: {}` 转成块映射，保留注释与 records；含空行及尾换行的多行值可完整读回。null ref 值、空文件、非空内联 refs 映射返回 `bad-credentials` 且不改文件；编辑前请将 refs 改成块映射。
+
+### Bot 子代理的原生 Agent preset
+
+DSH 原生 **Agent preset** 提供子代理的工具与 persona 组合，不等于选择 provider／model／reasoning 路由的 Bot **Model Preset**。`create --preset` 与 `model-preset-apply --preset` 仍表示 Model Preset。原生 preset ID 可在 **设置 → Agent 预设 → 查看配置** 中找到；下面填写 ID，而非显示名称。
+
+在当前 DSH Profile Patch（`$DSH_HOME/profiles/<profile>/cordis.patch.yml`，常用 Web Profile 为 `web`）的既有 `botharness-core` Plugin 行中合入下面字段，保留其他配置。后续 Patch 行会替换整个 Plugin config，而非逐字段深合并，因此需保留现有顶层 `agentPreset`（DeepSeekBot Bundle 通常为 `deepseekbot`）及其他覆盖值：
+
+```yaml
+- id: botharness-core
+  config:
+    agentPreset: deepseekbot
+    subagent:
+      allowedAgentPresets: [standard, deepseekbot]
+      # agentPreset: standard  # 可选，独立子代理的默认原生 preset
+```
+
+这里复用原生 preset，不创建第二套预设库。引用 ID 必须已存在于 DSH Agent Preset Registry。配置错误或 preset 不存在会在 Bot Agent 初始化时明确失败；之后的原生挂载失败也会停止委派，不回退其他 preset。修改 Profile Patch 后按原方式重启同一 Host，再给 Bot 发消息，让其活跃 Orchestrator Agent 使用新策略。
+
+- 不配置 `subagent` 时，`bot_subagent` 在每次创建子代理时读取 Agent Preset Registry 的 `defaultId`。Registry 优先使用用户选择的系统默认项，再使用配置默认项。工具不公开 `agent_preset`。
+- `subagent.agentPreset` 设置独立子代理的默认项；没有 `allowedAgentPresets` 时调用者不能覆盖。两项同时配置时，默认项必须在允许列表中。
+- 省略选择时先使用配置的 `subagent.agentPreset`，否则使用当前系统默认项。允许列表只控制显式选择。只有显式、非空的 `allowedAgentPresets` 才启用 `bot_subagent.agent_preset`；模型和 `bot-tools` 看到相同枚举。原始 JSON 也不能绕过隐藏字段或允许列表。
+- `bot_subagent_fork` 继承父上下文及 preset，既不公开也不接受 `agent_preset`，独立子代理的默认项不适用于 fork。两种工具的模型路由检查均不变。
+
+先按上文选择已认证的在线 Host，不使用离线 `--home`。`bot-tools` 现在包含 `bot_subagent`、`bot_subagent_fork`、`list_bot_subagent_models`，与 Bot Agent 安装的工具共用定义：
+
+```bash
+deepseekbot bot-tools
+deepseekbot bot-tool <bot-id> list_bot_subagent_models
+printf '%s' '{"description":"Native preset example","prompt":"Reply only PRESET_OK.","agent_preset":"standard","run_in_background":false}' | deepseekbot bot-tool <bot-id> bot_subagent --args-stdin
+deepseekbot bot-trace <bot-id> --session direct --turns 5
+```
+
+在 PowerShell 中，直接将同一个单引号 JSON 字符串通过管道传给 `deepseekbot bot-tool <bot-id> bot_subagent --args-stdin`，不使用 `printf`。Bot 私聊中的等价请求是：“用 `bot_subagent`，选择 `agent_preset: standard` 执行独立任务，让它只回复 PRESET_OK，等待结果。”用 `bot-trace` 查看模型实际调用，而非仅凭文字判断。
+
+直接调用复用该 Bot 当前**活跃**的 Orchestrator Agent 及其原生工具执行管道，包括可见性、guard、审批与深度限制；不会创建或恢复父 Session。没有活跃 parent 时（例如 Host 重启后尚未收到 DM），这三个工具都返回 `parent-unavailable`：先给 Bot 发消息，再主动重试。隐藏、不允许及 fork 的 preset 参数返回 `invalid-args`；原生管道拒绝保留自身错误码。这条路径只跳过“父模型决定调工具”，子代理仍执行真实 LLM 请求。`run_in_background: false` 返回子代理结果，省略则保留原有后台行为；调用仍可由 `bot-trace --session direct` 读取。
+
+`bot-tool` 包装是直接调用的例外：它通过当前活跃父 Agent 的原生执行管道运行同一份工具定义，不创建父 Session、不建第二份 preset 存储。独立子代理与模型调用使用相同的配置默认项或系统默认项。它只跳过父模型决定调用工具这一步；`allowedAgentPresets` 与原始 JSON 检查仍完全适用，隐藏或未允许的 `agent_preset` 会被拒绝。
 
 ### 待办示例插件
 

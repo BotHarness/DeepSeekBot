@@ -1,3 +1,4 @@
+import { setImmediate as tick } from 'node:timers/promises';
 import { createHash } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { resolveRetainedQuote } from '../src/messaging/retained-context.js';
@@ -16,10 +17,13 @@ afterEach(async () => {
 });
 const fingerprint = 'a'.repeat(64);
 async function fixture(qualified = true) {
+  const inboxes: string[] = [];
   const core = createCore({
     dshHome: createTempRoot('wechat-context-'),
     agents: {
-      async runOrchestrator() {},
+      async runOrchestrator(run) {
+        inboxes.push(run.inbox);
+      },
       async runAssignment() {},
       requestAssignment: () => ({ delivery: 'steer' }),
       async stopAssignment() {},
@@ -94,7 +98,7 @@ async function fixture(qualified = true) {
     await consumer.onEvent(event, { signal: consumer.signal });
     return id(messageId);
   };
-  return { core, grant, receive, consumer: () => consumer };
+  return { core, grant, receive, inboxes, consumer: () => consumer };
 }
 it('qualifies native quote opt-in and resolves server IDs only in canonical authorized sources', async () => {
   const fx = await fixture();
@@ -248,4 +252,24 @@ it('never resolves a server reference from a client acknowledgement, pending rec
   } finally {
     db.close();
   }
+});
+
+it('preserves native quote summary and partial semantics alongside resolved Inbox text', async () => {
+  const fx = await fixture();
+  await fx.receive(1);
+  const quote: MessagingQuote = {
+    serverMessageId: '9007199254740993001',
+    summary: 'Image excerpt',
+    attachmentKind: 'image',
+    partial: { start: 'first', end: 'last', startIndex: 1, endIndex: 4, digest: 'f'.repeat(64) },
+  };
+  await fx.receive(2, quote);
+  await tick();
+  await fx.core.runtime.whenIdle();
+  const line = fx.inboxes
+    .join('\n')
+    .split('\n')
+    .find((line) => line.includes('Image excerpt'))!;
+  const data = JSON.parse(line.split('Message data: ')[1]!);
+  expect(data.quote).toMatchObject({ ...quote, kind: 'retained', text: 'retained 1' });
 });

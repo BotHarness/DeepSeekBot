@@ -319,7 +319,7 @@ it('requires Human receive authorization, commits before ACK, runs the real Inbo
     onRun: async (run) => {
       expect(run.inboundChannelId).toBeUndefined();
       expect(run.inbox).toContain('My Lark identity');
-      expect(run.inbox).toContain('omt-topic');
+      expect(run.inbox).not.toContain('omt-topic');
       const item = fx.core.attention
         .list({ botSlug: 'ada' })
         .items.find((item) => item.sourceKind === 'bridge-message');
@@ -1073,7 +1073,7 @@ it('enriches display names without changing canonical identity and preserves har
       const source = fx.core.attention
         .list({ botSlug: 'ada' })
         .items.find((item) => item.sourceKind === 'bridge-message')!;
-      expect(run.inbox).toContain(`Message om-1 [Source Event ${source.id}]`);
+      expect(run.inbox).toContain(`External message [Source Event ${source.id}]`);
       expect(run.inbox).toContain('"@ou-bot Please reply in this topic"');
       expect(run.inbox).toContain('{"role":"mentioned","id":"ou-bot"}');
       expect(run.inbox).not.toContain('@_user_1');
@@ -1374,7 +1374,7 @@ it('harvests an ordinary digest by count once, retaining individual source IDs a
   expect(fx.runs).toHaveLength(1);
   expect(fx.runs[0]?.inbox).toContain('count-one');
   expect(fx.runs[0]?.inbox).toContain('count-two');
-  expect(fx.runs[0]?.inbox).toContain('ordinary message; no reply required');
+  expect(fx.runs[0]?.inbox).toContain('"mentionedAccount":false');
   expect(fx.runs[0]?.inboundChannelId).toBeUndefined();
   expect(fx.replies).toHaveLength(0);
   await fx.receive(first);
@@ -1634,7 +1634,7 @@ it('follows only an Inbox-anchored verified Thread, harvests ordinary replies an
   await fx.idle();
   expect(fx.runs).toHaveLength(2);
   expect(fx.runs[1]?.inbox).toContain('Ordinary followed-one');
-  expect(fx.runs[1]?.inbox).toContain('omt-topic');
+  expect(fx.runs[1]?.inbox).not.toContain('omt-topic');
   await fx.core.externalMessaging.inbound.setThread(
     'ada',
     anchor,
@@ -4153,3 +4153,36 @@ it.each(['ordinary group text', '/model'])(
     expect(fx.runs[0]!.inbox).toContain(JSON.stringify(text));
   },
 );
+
+it('projects external content once while preserving sender identity and Host-owned routing', async () => {
+  const fx = await fixture();
+  await fx.enable();
+  await fx.receive(
+    event({
+      actor: { kind: 'user', id: 'ou-human', name: 'Alex' },
+      text: 'Unique external request',
+    }),
+  );
+  await fx.idle();
+  const inbox = fx.runs[0]!.inbox;
+  const line = inbox.split('\n').find((line) => line.includes('Message data: '))!;
+  const data = JSON.parse(line.split('Message data: ')[1]!);
+  expect(data).toMatchObject({
+    senderKind: 'user',
+    people: expect.arrayContaining([{ role: 'sender', id: 'ou-human', name: 'Alex' }]),
+    text: 'Unique external request',
+  });
+  expect(inbox.match(/Unique external request/g)).toHaveLength(1);
+  for (const removed of [
+    'Trusted receiving identity',
+    'receptionPaths',
+    'omt-topic',
+    'Decide whether to participate',
+    'bridge_reply',
+  ])
+    expect(line).not.toContain(removed);
+  const source = fx.core.attention
+    .list({ botSlug: 'ada' })
+    .items.find((item) => item.sourceKind === 'bridge-message')!;
+  expect(fx.runs[0]!.externalMessaging!.read(source.id).event.reply).toEqual(event().reply);
+});

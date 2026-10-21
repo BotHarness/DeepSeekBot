@@ -2457,6 +2457,18 @@ const THREE_ACTION_APPROVAL_MIGRATION: SchemaMigration = {
   },
 };
 
+const FINAL_REPLY_DELIVERY_MIGRATION: SchemaMigration = {
+  generation: 105,
+  module: 'bot-inbox',
+  description: 'Keep a bounded final-reply delivery state on each Inbox Admission',
+  migrate(database) {
+    database.exec(`
+      ALTER TABLE inbox_admissions ADD COLUMN final_reply_json TEXT
+        CHECK (final_reply_json IS NULL OR json_valid(final_reply_json));
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -2561,4 +2573,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   TOB_ONBOARDING_MIGRATION,
   USAGE_IDLE_COMPACTION_MIGRATION,
   THREE_ACTION_APPROVAL_MIGRATION,
+  FINAL_REPLY_DELIVERY_MIGRATION,
 ]);

@@ -306,7 +306,7 @@ it.each([undefined, '555555555555555555'])(
       agents: {
         async runOrchestrator(run) {
           runs++;
-          expect(run.inbox).toContain('ordinary message; no reply required');
+          expect(run.inbox).toContain('"mentionedAccount":false');
           const source = core.attention
             .list({ botSlug: 'ada' })
             .items.find(
