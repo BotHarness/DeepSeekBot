@@ -65,7 +65,7 @@ On DSH 0.2.1, **Update now** in DeepSeekBot 1.4.1 and earlier reports that the u
 
 ## Update other BotHarness plugins
 
-Other BotHarness plugins, such as VRM Companion, are listed under **Bot settings → Plugins** with their installed version. When a newer version works with your DSH, the row shows **Update now**. Some updates load right away and the page reloads by itself; otherwise a **Restart now** row appears, and the restart works as described above. Each row also shows the terminal command for updating by hand, for example `dsh plugin --profile web add @botharness/vrm-companion@<version>`.
+Other BotHarness plugins, such as VRM Companion, are listed under **Bot settings → Plugins** with their installed version. When a newer version works with your DSH, the row shows **Update now**. Some updates load right away and the page reloads by itself. Others need a restart: the page says so, with a **Restart now** button when DSH can restart itself (the web app); otherwise restart it as described above. If this DSH cannot install the update from the page, or the install fails, the row shows the terminal command for updating by hand instead, for example `dsh plugin --profile web add @botharness/vrm-companion@<version>`.
 
 ## Troubleshooting
 
