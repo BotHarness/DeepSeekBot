@@ -1071,11 +1071,11 @@ Ctrl+0 恢复已保存的默认值，包括 120%；固定原生协议不支持�
 原生输入、guest 前台恢复、DPI 和 Human QA 的独立门槛见
 [Windows 资格 #2270](https://github.com/BotHarness/DeepSeekBot/issues/2270)。
 
-## 托管 Connect 隧道（ADR-0241，第一刀）
+## DeepSeekBot Connect（ADR-0241）
 
-托管 Connect 让已配对的手机经 `deepseekbot.dev` 下的 Cloudflare Tunnel 连到本 Host，不再需要
-Tailscale（[#2387](https://github.com/BotHarness/DeepSeekBot/issues/2387)）。第一刀里隧道和
-connector token 由人手工创建，账号登录和中继在后续切片。
+DeepSeekBot Connect 让已配对的手机经 `deepseekbot.dev` 下的 Cloudflare Tunnel 连到本 Host，不再需要
+Tailscale（[#2387](https://github.com/BotHarness/DeepSeekBot/issues/2387)）。通常由 Host 登录
+DeepSeekBot 账号、中继分配隧道（见下面的账号登录）；`connect-enable` 运行手工创建 connector token 的隧道。
 
 ```sh
 deepseekbot connect-status --host <host> --token-file <private-file>
@@ -1100,7 +1100,7 @@ deepseekbot connect-disable --host <host> --token-file <private-file>
 `deepseekbot.dev` 下一级）、`connect-token-invalid`、`credential-unavailable`。
 `connect-disable` 停掉隧道并删除已存的 token，已配对设备的凭据不受影响。
 
-### 账号登录（第二刀）
+### 账号登录
 
 ```sh
 deepseekbot connect-sign-in --wait --host <host> --token-file <private-file>
@@ -1116,7 +1116,7 @@ Host 离线后被回收的隧道会在同一个 `<host-id>.deepseekbot.dev` 上�
 `connect.account`：`state`（`signed-out`、`signing-in`、`signed-in`、`error`）、`email`、`hostId`
 和 `issue`（`relay-unavailable`、`sign-in-denied`、`sign-in-expired`、`session-expired`、
 `account-not-allowed`、`host-limit`、`credential-unavailable`）。`connect-sign-out` 在 relay 上解除
-关联、停掉隧道并删除会话。测试期间只有白名单账号能关联 Host。
+关联、停掉隧道并删除会话。任何已登录的账号都能关联 Host。
 
 ## 设备本地 DeepSeekBot 外观
 

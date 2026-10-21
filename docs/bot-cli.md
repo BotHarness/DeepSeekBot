@@ -1097,12 +1097,12 @@ Ctrl+0 restores the saved default, including 120%; numberpad codes are unsupport
 pinned protocol. See [Windows qualification #2270](https://github.com/BotHarness/DeepSeekBot/issues/2270)
 for the separate native input, guest foreground, DPI and Human-QA gates.
 
-## Hosted Connect tunnel (ADR-0241, first slice)
+## DeepSeekBot Connect (ADR-0241)
 
-Hosted Connect lets a paired phone reach this Host through a Cloudflare Tunnel under
+DeepSeekBot Connect lets a paired phone reach this Host through a Cloudflare Tunnel under
 `deepseekbot.dev` instead of Tailscale ([#2387](https://github.com/BotHarness/DeepSeekBot/issues/2387)).
-In this first slice the tunnel and its connector token are made by hand; account sign-in and the
-relay come later.
+Usually the Host signs in to a DeepSeekBot account and the relay provisions the tunnel (see Account
+sign-in below). `connect-enable` runs a tunnel whose connector token was made by hand.
 
 ```sh
 deepseekbot connect-status --host <host> --token-file <private-file>
@@ -1129,7 +1129,7 @@ Refusals: `connect-hostname-invalid` (only one label under `deepseekbot.dev`),
 `connect-token-invalid`, `credential-unavailable`. `connect-disable` stops the tunnel and deletes
 the stored token; paired devices keep their credentials.
 
-### Account sign-in (second slice)
+### Account sign-in
 
 ```sh
 deepseekbot connect-sign-in --wait --host <host> --token-file <private-file>
@@ -1147,7 +1147,7 @@ the tunnel stops, so a tunnel the relay reclaimed after the Host was offline com
 `signing-in`, `signed-in`, `error`), `email`, `hostId` and `issue` (`relay-unavailable`,
 `sign-in-denied`, `sign-in-expired`, `session-expired`, `account-not-allowed`, `host-limit`,
 `credential-unavailable`). `connect-sign-out` unlinks the Host at the relay, stops the tunnel and
-deletes the session. While testing, only allowlisted accounts can link Hosts.
+deletes the session. Any signed-in account can link Hosts.
 
 ## Device-local DeepSeekBot appearance
 

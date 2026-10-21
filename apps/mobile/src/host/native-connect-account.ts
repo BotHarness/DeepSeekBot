@@ -1,3 +1,4 @@
+import * as Application from 'expo-application';
 import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
 import * as WebBrowser from 'expo-web-browser';
@@ -11,7 +12,9 @@ const base64url = (value: string) =>
   value.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
 
 export const connectAccount = createConnectAccount({
-  redirectUri: MOBILE_REDIRECT_URI,
+  redirectUri: Application.applicationId
+    ? `${Application.applicationId}:/oauth2redirect`
+    : MOBILE_REDIRECT_URI,
   runtime: {
     read: () => SecureStore.getItemAsync(KEY),
     write: (value) =>

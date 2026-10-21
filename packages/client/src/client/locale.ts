@@ -3955,16 +3955,16 @@ export const zh = {
   'devices.route.failure.denied':
     'Tailscale 不允许 DeepSeekBot 修改 serve 设置。请在终端运行上面的命令。',
   'devices.route.failure.other': '没有运行成功：{detail}。请在终端运行上面的命令。',
-  'devices.connect.title': '不用 Tailscale 连接',
+  'devices.connect.title': 'DeepSeekBot Connect',
   'devices.connect.account': 'DeepSeekBot 账号',
   'devices.connect.description':
-    '登录后，这台电脑会通过 deepseekbot.dev 的加密隧道接受已配对手机的连接，只开放手机用的接口。',
+    '已配对的手机不装 Tailscale 也能连上。登录后，这台电脑会通过 deepseekbot.dev 的加密隧道接受手机连接，只开放手机用的接口。',
   'devices.connect.signedIn': '已登录 {email}。已配对的手机不装 Tailscale 也能连上。',
   'devices.connect.signIn': '登录',
   'devices.connect.signOut': '退出登录',
   'devices.connect.confirm': '在浏览器里登录账号，并确认页面上显示的代码是',
   'devices.connect.openPage': '打开登录页',
-  'devices.connect.notAllowed': '这个账号还不在测试名单里，暂时不能用托管连接。',
+  'devices.connect.notAllowed': '这个账号暂时不能使用 DeepSeekBot Connect。',
   'devices.connect.hostLimit': '这个账号已关联 5 台电脑，先在其他电脑上退出登录。',
   'devices.connect.signInAgain': '登录已失效或被取消，请重新登录。',
   'devices.connect.relayDown': '暂时连不上 DeepSeekBot 服务，稍后会自动重试。',
@@ -8264,18 +8264,17 @@ My relationship with you, established lore and topics to avoid: [fill in].
     'Tailscale did not let DeepSeekBot change serve settings. Run the command above in a terminal.',
   'devices.route.failure.other':
     'That did not work: {detail}. Run the command above in a terminal.',
-  'devices.connect.title': 'Connect without Tailscale',
+  'devices.connect.title': 'DeepSeekBot Connect',
   'devices.connect.account': 'DeepSeekBot account',
   'devices.connect.description':
-    'Sign in and this computer accepts paired phones through an encrypted tunnel on deepseekbot.dev that exposes only the phone interface.',
+    'Paired phones reach this computer without Tailscale. Sign in and it accepts them through an encrypted tunnel on deepseekbot.dev that exposes only the phone interface.',
   'devices.connect.signedIn':
     'Signed in as {email}. Paired phones reach this computer without Tailscale.',
   'devices.connect.signIn': 'Sign in',
   'devices.connect.signOut': 'Sign out',
   'devices.connect.confirm': 'Sign in in your browser and check that the page shows the code',
   'devices.connect.openPage': 'Open sign-in page',
-  'devices.connect.notAllowed':
-    'This account is not on the test list yet, so hosted Connect is not available.',
+  'devices.connect.notAllowed': 'This account cannot use DeepSeekBot Connect yet.',
   'devices.connect.hostLimit':
     'This account already links 5 computers. Sign out on one of them first.',
   'devices.connect.signInAgain': 'The sign-in expired or was cancelled. Sign in again.',

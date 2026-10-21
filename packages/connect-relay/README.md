@@ -1,6 +1,6 @@
 # @botharness/connect-relay
 
-The hosted Connect relay Worker ([ADR-0241](../../docs/adr/0241-hosted-connect-reaches-the-host-through-a-managed-tunnel.md)). It links signed-in WorkOS accounts to Hosts and provisions one Cloudflare Tunnel per Host whose remote ingress admits only the device gateway (`^/botharness-device(/.*)?$`); everything else answers `404` at the Cloudflare edge. Application traffic never passes through this Worker.
+The DeepSeekBot Connect relay Worker ([ADR-0241](../../docs/adr/0241-hosted-connect-reaches-the-host-through-a-managed-tunnel.md)). It links signed-in WorkOS accounts to Hosts and provisions one Cloudflare Tunnel per Host whose remote ingress admits only the device gateway (`^/botharness-device(/.*)?$`); everything else answers `404` at the Cloudflare edge. Application traffic never passes through this Worker.
 
 ## API
 
