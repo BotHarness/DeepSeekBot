@@ -23,7 +23,11 @@ import {
   type SavedHost,
 } from '../src/host/hosts';
 import { createHostPush, parsePushData, pushHref, PushRequestFailed } from '../src/host/push';
-import { decideFromPush, registerApprovalCategories } from '../src/host/push-actions';
+import {
+  decideFromPush,
+  registerApprovalCategories,
+  removeFromPush,
+} from '../src/host/push-actions';
 import {
   createPushSession,
   type NotificationsPort,
@@ -293,7 +297,24 @@ describe('notification buttons', () => {
     expect(Object.fromEntries(stored)).toEqual({
       'tool-approval': ['always', 'approve', 'reject'],
       'tool-approval-once': ['approve', 'reject'],
+      'device-paired': ['remove-device'],
     });
+  });
+
+  it('removes the device a new-pairing notice names from its own Host only', async () => {
+    const notice = parsePushData({ v: 1, hostId: 'h2', kind: 'device-paired', deviceId: 'dev-9' })!;
+    expect(notice.deviceId).toBe('dev-9');
+    const asked: string[] = [];
+    const remove = async (saved: SavedHost, deviceId: string) => {
+      asked.push(`${saved.hostId}:${deviceId}`);
+      return 'removed' as const;
+    };
+    expect(await removeFromPush([two], notice, 'remove-device', remove)).toBe('removed');
+    expect(asked).toEqual(['h2:dev-9']);
+    expect(await removeFromPush([two], notice, undefined, remove)).toBeUndefined();
+    expect(await removeFromPush([two], approval, 'remove-device', remove)).toBeUndefined();
+    expect(await removeFromPush([], notice, 'remove-device', remove)).toBe('failed');
+    expect(asked).toHaveLength(1);
   });
 
   it('ignores other buttons and kinds, and fails for an unpaired or unreachable Host', async () => {

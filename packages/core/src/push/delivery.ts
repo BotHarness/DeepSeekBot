@@ -51,6 +51,7 @@ export interface PushData {
   group?: string;
   text?: string;
   test?: true;
+  deviceId?: string;
 }
 
 export interface ExpoMessage {
@@ -93,7 +94,7 @@ export type PushEvent =
   | {
       phase: 'sent';
       deviceId: string;
-      kind: PushKind | 'badge' | 'test';
+      kind: PushKind | 'badge' | 'test' | 'device-paired';
       outcome: 'ok' | 'error';
       code?: string;
     }
@@ -123,6 +124,7 @@ export interface PushDelivery {
   setPreferences(deviceId: string, input: unknown, enabled?: unknown): PushSettings;
   setQuiet(deviceId: string, input: { channelId: unknown; quiet: unknown }): QuietResult;
   test(deviceId: string): Promise<TestResult>;
+  announcePaired(device: { id: string; name: string }): Promise<void>;
   reconcile(): Promise<void>;
   checkReceipts(): Promise<void>;
 }
@@ -234,6 +236,22 @@ const TEST: Record<PushLocale, { title: string; body: (host: string) => string }
   zh: { title: '通知已开启', body: (host) => `来自 ${host}。` },
 };
 
+export const DEVICE_PAIRED_CATEGORY = 'device-paired';
+
+const PAIRED: Record<
+  PushLocale,
+  { title: string; body: (device: string, host: string) => string }
+> = {
+  en: {
+    title: 'New device paired',
+    body: (device, host) => `${device} can now use ${host}. Not you? Remove it.`,
+  },
+  zh: {
+    title: '有新设备配对',
+    body: (device, host) => `${device} 现在可以使用 ${host}。不是你？请移除它。`,
+  },
+};
+
 function localeOf(value: unknown): PushLocale {
   return value === 'zh' ? 'zh' : 'en';
 }
@@ -309,7 +327,7 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
   const deliver = async (
     device: DeviceRow,
     messages: ExpoMessage[],
-    kinds: Array<PushKind | 'badge' | 'test'>,
+    kinds: Array<PushKind | 'badge' | 'test' | 'device-paired'>,
   ): Promise<boolean> => {
     for (let start = 0; start < messages.length; start += BATCH) {
       const batch = messages.slice(start, start + BATCH);
@@ -531,6 +549,40 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
         ['test'],
       );
       return ok ? 'sent' : 'failed';
+    },
+
+    async announcePaired(device) {
+      const host = options.host();
+      const badge = source.pending().badge;
+      const devices = database.read(
+        (db) => db.prepare('SELECT * FROM push_devices').all() as unknown as DeviceRow[],
+      );
+      for (const current of devices) {
+        if (
+          current.device_id === device.id ||
+          !enabledOf(current.preferences_json) ||
+          !options.deviceActive(current.device_id)
+        )
+          continue;
+        const text = PAIRED[localeOf(current.locale)];
+        await deliver(
+          current,
+          [
+            {
+              to: current.token,
+              title: text.title,
+              body: text.body(device.name, host.name),
+              sound: 'default',
+              badge,
+              priority: 'high',
+              channelId: 'requests',
+              categoryId: DEVICE_PAIRED_CATEGORY,
+              data: { v: 1, hostId: host.id, kind: DEVICE_PAIRED_CATEGORY, deviceId: device.id },
+            },
+          ],
+          ['device-paired'],
+        );
+      }
     },
 
     reconcile() {

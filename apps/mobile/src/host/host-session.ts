@@ -44,6 +44,7 @@ export const pushSession = createPushSession({
     always: t.alwaysAllow,
     approve: t.allowOnce,
     reject: t.reject,
+    'remove-device': t.removeDevice,
   }),
   hostPush,
   platform: Platform.OS === 'android' ? 'android' : 'ios',

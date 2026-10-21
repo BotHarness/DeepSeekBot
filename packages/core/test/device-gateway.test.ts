@@ -269,6 +269,35 @@ describe('device gateway', () => {
     expect(absent.status).toBe(404);
   });
 
+  it('lets a paired phone remove another device it was told about', async () => {
+    const host = await fakeDsh();
+    const phone = await pair(host.base, host.pairing.createOffer().offer);
+    const stranger = await pair(host.base, host.pairing.createOffer().offer);
+    const remove = (body: unknown, credential?: string) =>
+      fetch(`${host.base}/botharness-device/devices/remove`, {
+        method: 'POST',
+        headers: credential === undefined ? {} : { authorization: `Device ${credential}` },
+        body: JSON.stringify(body),
+      });
+    const unpaired = await remove({ deviceId: stranger.body.deviceId });
+    expect([unpaired.status, await unpaired.json()]).toEqual([
+      401,
+      { code: 'device-credential-missing' },
+    ]);
+    const unknown = await remove({ deviceId: 'nobody' }, phone.body.credential);
+    expect(unknown.status).toBe(404);
+    const done = await remove({ deviceId: stranger.body.deviceId }, phone.body.credential);
+    expect([done.status, await done.json()]).toEqual([
+      200,
+      { revoked: true, device: { id: stranger.body.deviceId, name: 'iPhone' } },
+    ]);
+    const after = await remove({ deviceId: phone.body.deviceId }, stranger.body.credential);
+    expect([after.status, await after.json()]).toEqual([401, { code: 'device-revoked' }]);
+    expect(host.pairing.list().find((device) => device.id === phone.body.deviceId)?.revokedAt).toBe(
+      undefined,
+    );
+  });
+
   it('carries WebRTC signalling to the Host route and ends it on revoke', async () => {
     const host = await fakeDsh();
     const paired = await pair(host.base, host.pairing.createOffer().offer);
