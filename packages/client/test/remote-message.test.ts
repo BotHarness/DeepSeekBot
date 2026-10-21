@@ -117,10 +117,16 @@ it('routes approval and question decisions to their source Host and refuses stal
   });
   await expect(
     actions.decideToolApproval('same-channel', 'another-message', 'rejected'),
-  ).rejects.toThrow('conversation changed');
+  ).rejects.toMatchObject({
+    message: 'Request unavailable',
+    cause: expect.objectContaining({ message: 'The conversation changed.' }),
+  });
   leave();
   await expect(
     actions.decideToolApproval('same-channel', 'same-message', 'rejected'),
-  ).rejects.toThrow('conversation changed');
+  ).rejects.toMatchObject({
+    message: 'Request unavailable',
+    cause: expect.objectContaining({ message: 'The conversation changed.' }),
+  });
   expect(calls).toHaveLength(2);
 });

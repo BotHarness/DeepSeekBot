@@ -86,7 +86,7 @@ const styles = stylex.create({
     paddingBlock: space.x3,
     paddingInline: space.x4,
     borderRadius: radius.md,
-    backgroundColor: color.surface,
+    backgroundColor: color.elevated,
     fontSize: text.bodySize,
     lineHeight: text.bodyLine,
     overflowWrap: 'anywhere',
