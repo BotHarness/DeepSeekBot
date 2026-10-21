@@ -35,6 +35,7 @@ import { createRoom, type Mood, type Weather } from './room.js';
 import { enableLilToon } from '@mochiya/three-liltoon';
 import { createCharacterShading, type CharacterShading } from './shading.js';
 import { createPost } from './post.js';
+import { RATIOS, createPacing, frameRate, nextPacing } from './pacing.js';
 
 export type CameraView = 'desk' | 'room' | 'portrait';
 export interface SceneState {
@@ -148,17 +149,13 @@ export function mountStage(
   environment.dispose();
   generator.dispose();
   renderer.shadowMap.type = PCFSoftShadowMap;
-  const RATIOS = [1.5, 1.25, 1, 0.75];
-  let ratioStep = RATIOS.findIndex((value) => value <= Math.min(devicePixelRatio, 1.5));
-  if (ratioStep < 0) ratioStep = RATIOS.length - 1;
-  renderer.setPixelRatio(RATIOS[ratioStep]!);
-  let pace = 60;
+  let pacing = createPacing(devicePixelRatio);
+  renderer.setPixelRatio(RATIOS[pacing.ratioStep]!);
+  let calm = false;
   let windowStart = 0,
     windowFrames = 0,
     windowWork = 0,
-    slowWindows = 0,
-    fastWindows = 0,
-    promoteAfter = 5;
+    windowRate = 0;
   const post = createPost(renderer);
   const rim = new Color();
   const warm = new Color();
@@ -314,7 +311,7 @@ export function mountStage(
     frame = 0;
     if (!canDraw()) return;
     frame = requestAnimationFrame(draw);
-    if (last && time - last < 1000 / (reduced.matches ? 10 : pace) - 4) return;
+    if (last && time - last < 1000 / frameRate(pacing, calm, reduced.matches) - 4) return;
     const passed = clock.getDelta();
     const delta = Math.min(passed, 0.05);
     last = time;
@@ -386,6 +383,7 @@ export function mountStage(
         sit >= 1 &&
         !reduced.matches;
       const idleFrame = idle.step(delta, resting);
+      calm = (resting ? !idleFrame.action : !moving) && !glide && paused <= 0;
       const settled = conversing && idleFrame.weight < 0.05;
       attend = reduced.matches
         ? settled
@@ -814,36 +812,28 @@ export function mountStage(
     if (!windowStart) windowStart = time;
     windowFrames++;
     windowWork += work;
+    windowRate += frameRate(pacing, calm, reduced.matches);
     const span = time - windowStart;
     if (span < 2000) return;
     const fps = (windowFrames * 1000) / span;
     host.dataset.vrmFps = fps.toFixed(1);
     const average = windowWork / windowFrames;
     host.dataset.vrmWork = average.toFixed(1);
-    host.dataset.vrmPixelRatio = String(RATIOS[ratioStep]);
+    const target = windowRate / windowFrames;
     windowStart = time;
     windowFrames = 0;
     windowWork = 0;
-    host.dataset.vrmPace = String(pace);
-    const target = reduced.matches ? 10 : pace;
-    slowWindows = fps < target * 0.8 ? slowWindows + 1 : 0;
-    fastWindows = pace < 60 && fps >= 27 && average < 6 ? fastWindows + 1 : 0;
-    if (fastWindows >= promoteAfter && !reduced.matches) {
-      fastWindows = 0;
-      slowWindows = 0;
-      pace = 60;
-    } else if (slowWindows >= 2 && pace > 30) {
-      slowWindows = 0;
-      promoteAfter = Math.min(promoteAfter * 2, 60);
-      pace = 30;
-    } else if (slowWindows >= 2 && ratioStep < RATIOS.length - 1) {
-      slowWindows = 0;
-      ratioStep++;
-      renderer.setPixelRatio(RATIOS[ratioStep]!);
+    windowRate = 0;
+    const ratioStep = pacing.ratioStep;
+    pacing = nextPacing(pacing, { fps, work: average, target, reduced: reduced.matches });
+    if (pacing.ratioStep !== ratioStep) {
+      renderer.setPixelRatio(RATIOS[pacing.ratioStep]!);
       renderer.setSize(width, height, false);
       post.setSize(width, height);
-      host.dataset.vrmPixelRatio = String(RATIOS[ratioStep]);
     }
+    host.dataset.vrmPace = String(pacing.pace);
+    host.dataset.vrmRate = String(frameRate(pacing, calm, reduced.matches));
+    host.dataset.vrmPixelRatio = String(RATIOS[pacing.ratioStep]);
   };
   function paint() {
     if (effects) return post.render(scene, camera);
@@ -854,6 +844,7 @@ export function mountStage(
     windowStart = 0;
     windowFrames = 0;
     windowWork = 0;
+    windowRate = 0;
     cancelAnimationFrame(frame);
     frame = 0;
     clock.getDelta();
