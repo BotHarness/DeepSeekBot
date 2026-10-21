@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type {
   HostApiAnswer,
   HostApiInit,
@@ -6,6 +6,8 @@ import type {
   HostSnapshot,
 } from '../../../apps/mobile/src/host/client.js';
 import { createRemoteHostViewer } from '../src/client/remote-host-viewer.js';
+
+afterEach(() => vi.useRealTimers());
 
 function fakeHost(label: string) {
   let snapshot: HostSnapshot = { connection: { status: 'connected', route: label } };
@@ -15,13 +17,14 @@ function fakeHost(label: string) {
   let takeover: ((answer: HostApiAnswer) => void) | undefined;
   let delayTakeover = false;
   let delayInput = false;
-  let input: (() => void) | undefined;
+  let input: ((answer?: HostApiAnswer) => void) | undefined;
+  let failFrame: (() => void) | undefined;
   const api = vi.fn(async (path: string, init?: HostApiInit): Promise<HostApiAnswer> => {
     calls.push({ path, ...(init === undefined ? {} : { init }) });
     if (path.endsWith('/input') && delayInput) {
       delayInput = false;
       return new Promise((resolve) => {
-        input = () => resolve({ status: 200, body: {} });
+        input = (answer = { status: 200, body: {} }) => resolve(answer);
       });
     }
     if (path.includes('/takeover')) {
@@ -52,6 +55,7 @@ function fakeHost(label: string) {
       }
       return new Promise((_resolve, reject) => {
         const fail = () => reject(new DOMException('aborted', 'AbortError'));
+        failFrame = () => reject(new TypeError('Frame connection lost'));
         if (init?.signal?.aborted) fail();
         else init?.signal?.addEventListener('abort', fail, { once: true });
       });
@@ -69,11 +73,17 @@ function fakeHost(label: string) {
   return {
     client,
     calls,
+    failFrame() {
+      failFrame?.();
+    },
+    recoverFrame() {
+      first = true;
+    },
     pauseInput() {
       delayInput = true;
     },
-    finishInput() {
-      input?.();
+    finishInput(answer?: HostApiAnswer) {
+      input?.(answer);
     },
     delay() {
       delayTakeover = true;
@@ -95,6 +105,94 @@ function fakeHost(label: string) {
 }
 
 describe.each(['browser', 'computer'] as const)('remote %s viewer ownership', (kind) => {
+  it('does not implicitly retake control or send queued input after the Host rejects control', async () => {
+    const h = fakeHost('host-b');
+    const viewer = createRemoteHostViewer(h.client, kind, 'ada');
+    const stop = viewer.subscribe(() => {});
+    try {
+      await vi.waitFor(() => expect(viewer.getSnapshot().status).toBe('live'));
+      await viewer.setControl(true);
+      h.pauseInput();
+      const click = viewer.send({ kind: 'click', x: 10, y: 10 });
+      const text = viewer.send({ kind: 'type', text: 'after-control-lost' });
+      await vi.waitFor(() =>
+        expect(h.calls.filter((call) => call.path.endsWith('/input'))).toHaveLength(1),
+      );
+      h.finishInput({ status: 409, body: { code: 'not-paused', error: 'Pause the Bot first.' } });
+      await Promise.all([click, text]);
+      expect(viewer.getSnapshot().control).toBe(false);
+      expect(h.calls.filter((call) => call.path.endsWith('/input'))).toHaveLength(1);
+      expect(h.calls.filter((call) => call.init?.body?.['active'] === true)).toHaveLength(1);
+    } finally {
+      stop();
+    }
+  });
+
+  it('does not send queued input from a released control generation after another takeover', async () => {
+    const h = fakeHost('host-b');
+    const viewer = createRemoteHostViewer(h.client, kind, 'ada');
+    const stop = viewer.subscribe(() => {});
+    try {
+      await vi.waitFor(() => expect(viewer.getSnapshot().status).toBe('live'));
+      await viewer.setControl(true);
+      h.pauseInput();
+      const click = viewer.send({ kind: 'click', x: 10, y: 10 });
+      const text = viewer.send({ kind: 'type', text: 'old-control' });
+      await vi.waitFor(() =>
+        expect(h.calls.filter((call) => call.path.endsWith('/input'))).toHaveLength(1),
+      );
+      await viewer.setControl(false);
+      await viewer.setControl(true);
+      h.finishInput();
+      await Promise.all([click, text]);
+      expect(h.calls.filter((call) => call.path.endsWith('/input'))).toHaveLength(1);
+      await viewer.send({ kind: 'type', text: 'new-control' });
+      expect(
+        h.calls.filter((call) => call.path.endsWith('/input')).at(-1)?.init?.body,
+      ).toMatchObject({
+        text: 'new-control',
+      });
+    } finally {
+      stop();
+    }
+  });
+
+  it('recovers frame-only connection loss read-only and invalidates queued input', async () => {
+    const h = fakeHost('host-b');
+    const viewer = createRemoteHostViewer(h.client, kind, 'ada');
+    const stop = viewer.subscribe(() => {});
+    try {
+      await vi.waitFor(() => expect(viewer.getSnapshot().status).toBe('live'));
+      await viewer.setControl(true);
+      h.pauseInput();
+      const click = viewer.send({ kind: 'click', x: 10, y: 10 });
+      const text = viewer.send({ kind: 'type', text: 'before-frame-loss' });
+      await vi.waitFor(() =>
+        expect(h.calls.filter((call) => call.path.endsWith('/input'))).toHaveLength(1),
+      );
+      vi.useFakeTimers();
+      h.failFrame();
+      await vi.waitFor(() => expect(viewer.getSnapshot().status).toBe('unreachable'));
+      expect(viewer.getSnapshot().control).toBe(false);
+      expect(viewer.getSnapshot().frame).toBeUndefined();
+      expect(h.client.getSnapshot().connection.status).toBe('connected');
+      h.recoverFrame();
+      await vi.advanceTimersByTimeAsync(2000);
+      await vi.waitFor(() => expect(viewer.getSnapshot().status).toBe('live'));
+      expect(viewer.getSnapshot().control).toBe(false);
+      await viewer.send({ kind: 'type', text: 'without-new-takeover' });
+      await viewer.setControl(true);
+      h.finishInput();
+      await Promise.all([click, text]);
+      expect(h.calls.filter((call) => call.path.endsWith('/input'))).toHaveLength(1);
+      await viewer.send({ kind: 'type', text: 'after-new-takeover' });
+      expect(h.calls.filter((call) => call.path.endsWith('/input'))).toHaveLength(2);
+    } finally {
+      h.finishInput();
+      stop();
+    }
+  });
+
   it('orders input and discards queued actions when its source closes', async () => {
     const h = fakeHost('host-b');
     const viewer = createRemoteHostViewer(h.client, kind, 'ada');

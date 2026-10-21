@@ -13,6 +13,7 @@ The browser pairs a Remote Host as a Paired Device and reads its Host Feed throu
 - `upgrade`: existing browser pairings and the selected tab survive the storage-key rename.
 - `remove`: removing a Host forgets its rows, stops its Inbox and releases cached avatar object URLs.
 - `viewers`: a remote Bot DM opens Browser or Computer when that Bot has access. The shared Host viewer modules read frames and send input to that Host only; closing, switching source or losing the connection tears down the viewer and releases requested control.
+- `viewer-control`: queued input belongs to one takeover. Resume or frame loss invalidates it; frame recovery remains read-only even when the Host Feed never disconnected. Remove closes viewers and waits up to five seconds for takeover/release cleanup before revoking the pairing.
 
 ## How to get to it (user POV)
 
@@ -27,6 +28,8 @@ Read the browser console and run `node scripts/verify-app.mjs observe --name <na
 For avatars, give Host B one uploaded Bot image, one seeded or composed Bot, a group with those members and a group with an uploaded image. Open each from All and the Host icon. Compare the row, header and Bot message author with Host B's canonical roster and timeline. A direct `bot-tool channel_send` needs an existing trusted Source Event in that Channel; seed a Human group message with the members' wake policies set to silent before the direct call. Inspect the browser's device-authorized avatar GET and CORS response, the loaded object-URL image dimensions and both themes. Equal slugs on Host A and Host B must retain Host B's portrait, including group member stacks. Change Host B's avatar and verify the visible portrait updates; remove the Remote Host and verify its rows and portraits disappear. Streaming draft authors also use the portrait; mark the live-model draft path untested unless driven with the specified model.
 
 For viewers, start a disposable Browser and Computer on Host B through the existing CLI. Open a harmless fixture in each; capture the actual remote frame in light and dark, take control and verify a click/text change against `browser-observation` / `browser-frame` or `computer-frame`. Confirm Host A is untouched, and inspect the gateway requests: frame/input HTTP uses the device header without cookies; the Host Feed mux uses a one-time stream ticket. Close during takeover, switch between same-slug Bots on different Hosts, stop/restart Host B, and revoke the browser's device credential. Frames and input must stop after disposal/revocation; reconnect must not replay input. Preserve actual missing runtime prerequisites as blockers rather than replacing the frame with a fixture response. The Computer may use an isolated container; this does not qualify the Human's local desktop.
+
+For control races, delay an input response, queue text, Resume, then take control again before completing the first response: the old queued text must not arrive. Interrupt only frame requests while the Feed remains online; recovered frames must be read-only and require another takeover. Delay a takeover response after the Host accepts it, then Remove the Host: input stops immediately and release must precede unpair. If cleanup cannot finish within five seconds, removal continues; Browser may require the Host operator to resume it.
 
 ## Gotchas
 

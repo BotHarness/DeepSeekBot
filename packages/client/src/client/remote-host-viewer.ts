@@ -30,6 +30,27 @@ interface ViewerRelease {
 }
 
 const releases = new WeakMap<object, Map<string, ViewerRelease>>();
+const viewers = new WeakMap<object, Set<() => void>>();
+const removedHosts = new WeakSet<object>();
+
+export async function releaseRemoteHostViewers(host: object): Promise<void> {
+  removedHosts.add(host);
+  for (const stop of viewers.get(host) ?? []) stop();
+  const pending = [...(releases.get(host)?.values() ?? [])].map(({ settled, retry }) =>
+    settled.then(retry),
+  );
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      Promise.allSettled(pending),
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, 5000);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 export function createRemoteHostViewer(
   host: Pick<HostClient, 'api' | 'subscribe' | 'getSnapshot'>,
@@ -43,6 +64,12 @@ export function createRemoteHostViewer(
     releases.set(host, hostReleases);
   }
   const barriers = hostReleases;
+  let hostViewers = viewers.get(host);
+  if (hostViewers === undefined) {
+    hostViewers = new Set();
+    viewers.set(host, hostViewers);
+  }
+  const owners = hostViewers;
   const listeners = new Set<() => void>();
   let state: RemoteHostViewerState = { status: 'loading', control: false, switching: false };
   let session:
@@ -56,6 +83,7 @@ export function createRemoteHostViewer(
   let release: Promise<void> = Promise.resolve();
   let retryRelease = async (): Promise<void> => {};
   const takeoverPath = `/api/${kind}/takeover`;
+  const inputPath = `/api/${kind}/input`;
   const publish = (next: RemoteHostViewerState): void => {
     state = next;
     for (const listener of listeners) listener();
@@ -63,6 +91,12 @@ export function createRemoteHostViewer(
   const start = (): NonNullable<typeof session> => {
     let active = true;
     let requestedControl = false;
+    let controlGeneration = 0;
+    let inputGeneration: number | undefined;
+    const invalidateControl = (): void => {
+      requestedControl = false;
+      controlGeneration += 1;
+    };
     let releaseNeeded = false;
     let releasing = false;
     let inputs: Promise<void> = Promise.resolve();
@@ -72,6 +106,13 @@ export function createRemoteHostViewer(
       async api(path, init) {
         if (!active && !(releasing && path === takeoverPath && init?.body?.['active'] === false))
           throw new DOMException('Viewer closed', 'AbortError');
+        if (
+          (path === inputPath && (inputGeneration !== controlGeneration || !state.control)) ||
+          (path === takeoverPath &&
+            init?.body?.['active'] === true &&
+            (!requestedControl || state.status !== 'live'))
+        )
+          throw new DOMException('Viewer control expired', 'AbortError');
         if (init?.body?.['active'] === true && path === takeoverPath) releaseNeeded = true;
         const taking = path === takeoverPath;
         const signal = taking
@@ -108,10 +149,12 @@ export function createRemoteHostViewer(
     const read = (): void => {
       if (!active) return;
       const next = viewer.getState();
+      const controlling = 'takeover' in next ? next.takeover : next.control;
+      if (next.status !== 'live' || (state.control && !controlling)) invalidateControl();
       publish({
         status: next.status,
-        ...(next.frame === undefined ? {} : { frame: next.frame }),
-        control: requestedControl && ('takeover' in next ? next.takeover : next.control),
+        ...(next.status !== 'live' || next.frame === undefined ? {} : { frame: next.frame }),
+        control: requestedControl && controlling,
         switching: state.switching,
         notice: next.notice,
       });
@@ -122,6 +165,7 @@ export function createRemoteHostViewer(
     });
     return {
       stop() {
+        invalidateControl();
         active = false;
         abort.abort();
         stopReading();
@@ -135,8 +179,9 @@ export function createRemoteHostViewer(
       },
       async control(value) {
         if (!active || state.switching || (value && state.status !== 'live')) return;
-        if (value) requestedControl = true;
-        publish({ ...state, switching: true });
+        invalidateControl();
+        requestedControl = value;
+        publish({ ...state, control: false, switching: true });
         try {
           if ('setTakeover' in viewer) await viewer.setTakeover(value);
           else await viewer.setControl(value);
@@ -145,16 +190,40 @@ export function createRemoteHostViewer(
         }
       },
       send(input) {
+        if (!active || state.status !== 'live' || !state.control || state.switching)
+          return Promise.resolve();
+        const generation = controlGeneration;
         const next = inputs.then(async () => {
-          if (active && state.status === 'live' && state.control && !state.switching)
-            await viewer.send(input);
+          if (
+            active &&
+            generation === controlGeneration &&
+            state.status === 'live' &&
+            state.control &&
+            !state.switching
+          ) {
+            inputGeneration = generation;
+            try {
+              await viewer.send(input);
+            } finally {
+              inputGeneration = undefined;
+            }
+          }
         });
         inputs = next.catch(() => {});
         return next;
       },
     };
   };
+  const stopOwner = (): void => {
+    unsubscribe?.();
+    unsubscribe = undefined;
+    session?.stop();
+    session = undefined;
+    owners.delete(stopOwner);
+    publish({ status: 'loading', control: false, switching: false });
+  };
   const reconcile = (): void => {
+    if (removedHosts.has(host)) return stopOwner();
     const connection = host.getSnapshot().connection.status;
     if (connection === 'connected') {
       if (session !== undefined) return;
@@ -179,17 +248,14 @@ export function createRemoteHostViewer(
     subscribe(listener: () => void) {
       listeners.add(listener);
       if (listeners.size === 1) {
+        owners.add(stopOwner);
         unsubscribe = host.subscribe(reconcile);
         reconcile();
       }
       return () => {
         listeners.delete(listener);
         if (listeners.size !== 0) return;
-        unsubscribe?.();
-        unsubscribe = undefined;
-        session?.stop();
-        session = undefined;
-        state = { status: 'loading', control: false, switching: false };
+        stopOwner();
       };
     },
     setControl: (active: boolean) => session?.control(active) ?? Promise.resolve(),
