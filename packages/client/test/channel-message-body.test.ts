@@ -204,9 +204,7 @@ it('renders a canonical remote question through the shared message projection', 
         body: 'Which source?',
         userQuestionRequest: {
           sessionId: 'remote-session',
-          questions: [
-            { id: 'source', question: 'Which source?', options: [{ label: 'Host B' }] },
-          ],
+          questions: [{ id: 'source', question: 'Which source?', options: [{ label: 'Host B' }] }],
         },
       },
     },
