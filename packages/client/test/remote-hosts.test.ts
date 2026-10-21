@@ -2,6 +2,8 @@ import { afterEach, assert, describe, expect, it, vi } from 'vitest';
 
 import type { HostCarrier } from '../../../apps/mobile/src/host/carrier.js';
 import { FakeHost } from '../../../apps/mobile/test/fake-host.js';
+import { createHostActivityActions } from '../src/client/host-activity-actions.js';
+import type { HumanAttentionItem } from '../src/client/store.js';
 import { pairingLink } from '../../core/src/devices/http.js';
 import {
   ALL_HOSTS,
@@ -369,4 +371,145 @@ describe('Host Feed lifecycle', () => {
     await vi.waitFor(() => expect(releaseImage).toHaveBeenCalledWith('blob:late'));
     expect(sources.getSnapshot().avatars.size).toBe(0);
   });
+});
+
+it('reuses the shared activity Inbox for reads, pagination and refresh', async () => {
+  const { host, storage } = liveHost();
+  host.methods.set('humanAttention', (args) => ({
+    queryVersion: 1,
+    items: [
+      {
+        id: String(args.category) + (args.cursor ? '-next' : ''),
+        category: args.category,
+        kind: 'channel-unread',
+        botSlug: 'ada',
+        summary: 'remote',
+        createdAt: '',
+      },
+    ],
+    ...(args.cursor ? {} : { nextCursor: 'remote-cursor' }),
+  }));
+  const sources = createRemoteHosts({ carrier: host.carrier, storage });
+  releases.push(sources.subscribe(() => {}));
+  await vi.waitFor(() => expect(sources.getSnapshot().hosts[0]?.inbox.status).toBe('ready'));
+  const observation = sources.activity(host.hostId)!;
+  expect(sources.activity(host.hostId)).toBe(observation);
+  expect(observation.getSnapshot()).toBe(sources.getSnapshot().hosts[0]?.inbox);
+  const reads = host.calls.length;
+  const off = observation.subscribe(() => {});
+  expect(host.calls).toHaveLength(reads);
+  await observation.getInbox()!.loadMore!('unread');
+  expect(observation.getSnapshot()).toMatchObject({
+    sections: { unread: [{ id: 'unread' }, { id: 'unread-next' }] },
+  });
+  off();
+  await sources.remove(host.hostId);
+  expect(sources.activity(host.hostId)).toBeUndefined();
+});
+
+it('queries remote search and history on its own Host client and disposes the filtered Inbox', async () => {
+  const { host, storage } = liveHost();
+  const sources = createRemoteHosts({ carrier: host.carrier, storage });
+  releases.push(sources.subscribe(() => {}));
+  await vi.waitFor(() => expect(sources.getSnapshot().hosts[0]?.inbox.status).toBe('ready'));
+  const query = {
+    activity: true,
+    section: 'handled' as const,
+    search: 'Remote-only',
+    sort: 'oldest' as const,
+  };
+  const observation = sources.activity(host.hostId, query)!;
+  expect(sources.activity(host.hostId, query)).toBe(observation);
+  const off = observation.subscribe(() => {});
+  await vi.waitFor(() => expect(observation.getSnapshot().status).toBe('ready'));
+  expect(host.calls).toContainEqual({
+    method: 'humanAttention',
+    args: {
+      category: 'handled',
+      limit: 30,
+      queryVersion: 1,
+      search: 'Remote-only',
+      sort: 'oldest',
+    },
+  });
+  off();
+  expect(observation.getInbox()).toBeUndefined();
+});
+
+it('routes decisions, questions, joins, snooze and clear to the owning Host and refuses removed Hosts', async () => {
+  const { host, storage } = liveHost();
+  const sources = createRemoteHosts({ carrier: host.carrier, storage });
+  releases.push(sources.subscribe(() => {}));
+  await vi.waitFor(() => expect(sources.getSnapshot().hosts[0]?.inbox.status).toBe('ready'));
+  const item: HumanAttentionItem = {
+    id: 'approval:shared',
+    category: 'action',
+    kind: 'tool-approval',
+    botSlug: 'tob',
+    channelId: 'dm-tob',
+    messageId: 'same-message',
+    summary: 'Remote request',
+    createdAt: '',
+    sourceEventId: 'same-event',
+  };
+  const refresh = vi.fn(async () => {});
+  const actions = createHostActivityActions({
+    client: () => {
+      const client = sources.client(host.hostId);
+      if (client === undefined) throw new Error('Host removed');
+      return client;
+    },
+    items: () => [item],
+    refresh,
+    open: async () => {},
+  });
+  host.methods.set('toolApprovalDecide', () => ({}));
+  host.methods.set('userQuestionAnswer', () => ({}));
+  host.methods.set('channelGroupJoinDecide', (args) => ({
+    channel: {
+      joinRequests: [{ id: args.requestId, status: args.accept ? 'accepted' : 'declined' }],
+    },
+  }));
+  host.methods.set('humanAttentionSnooze', () => ({ accepted: true }));
+  host.methods.set('humanAttentionDismiss', () => ({ accepted: true }));
+  host.calls.length = 0;
+  await actions.decideToolApproval('dm-tob', 'same-message', 'allowed-once');
+  await actions.answerUserQuestion('dm-tob', 'same-message', [
+    { id: 'q', selected: ['Yes'], custom: '' },
+  ]);
+  await actions.decideGroupJoin('same-group', 'same-request', true);
+  await actions.snoozeHumanInbox(item, '2099-01-01T00:00:00.000Z');
+  await actions.dismissHumanInbox(item);
+  expect(host.calls).toEqual([
+    {
+      method: 'toolApprovalDecide',
+      args: { channelId: 'dm-tob', messageId: 'same-message', outcome: 'allowed-once' },
+    },
+    {
+      method: 'userQuestionAnswer',
+      args: {
+        channelId: 'dm-tob',
+        messageId: 'same-message',
+        answer: { answers: [{ id: 'q', selected: ['Yes'], custom: '' }] },
+      },
+    },
+    {
+      method: 'channelGroupJoinDecide',
+      args: { channelId: 'same-group', requestId: 'same-request', accept: true },
+    },
+    {
+      method: 'humanAttentionSnooze',
+      args: { itemId: item.id, sourceKey: 'same-event', until: '2099-01-01T00:00:00.000Z' },
+    },
+    { method: 'humanAttentionDismiss', args: { itemId: item.id, sourceKey: 'same-event' } },
+  ]);
+  expect(refresh).toHaveBeenCalledTimes(5);
+  host.methods.set('humanAttentionDismiss', () => ({ accepted: false }));
+  await expect(actions.dismissHumanInbox(item)).rejects.toThrow();
+  expect(refresh).toHaveBeenCalledTimes(5);
+  await expect(actions.decideToolApproval('dm-tob', 'unowned-message', 'rejected')).rejects.toThrow(
+    'unavailable',
+  );
+  await sources.remove(host.hostId);
+  await expect(actions.dismissHumanInbox(item)).rejects.toThrow('Host removed');
 });

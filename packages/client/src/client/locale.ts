@@ -3919,6 +3919,7 @@ export const zh = {
   'remoteHosts.look.color': '颜色',
   'remoteHosts.look.noColor': '不设颜色',
   'remoteHosts.look.save': '保存',
+  'remoteHosts.remote': '远程',
   'remoteHosts.add': '添加远程',
   'remoteHosts.add.description':
     '在远程 Host 的「设置 → 设备 → 配对手机」里复制配对链接，粘贴到这里。本机和远程需要在同一个 Tailscale 网络里。',
@@ -8266,6 +8267,7 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'remoteHosts.look.color': 'Color',
   'remoteHosts.look.noColor': 'No color',
   'remoteHosts.look.save': 'Save',
+  'remoteHosts.remote': 'Remote',
   'remoteHosts.add': 'Add remote',
   'remoteHosts.add.description':
     'On the remote host, copy the link from Settings → Devices → Pair a phone and paste it here. Both hosts must be on the same Tailscale network.',

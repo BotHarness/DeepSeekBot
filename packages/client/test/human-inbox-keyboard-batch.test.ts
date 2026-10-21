@@ -224,3 +224,253 @@ describe('Human Inbox snooze', () => {
     expect(humanInboxSnoozeUntil('tomorrow', friday)!.getDate()).toBe(17);
   });
 });
+
+import { RemoteActivityGroup } from '../src/client/remote-activity.js';
+import { createRemoteHosts, REMOTE_HOSTS_STORAGE_KEY } from '../src/client/remote-hosts.js';
+import { FakeHost } from '../../../apps/mobile/test/fake-host.js';
+import { createDockPanelRegistry } from '../src/client/dock-panels.js';
+import { zhTranslate } from '../src/client/locale.js';
+import { bindTobPresentation } from '../src/client/tob-presentation.js';
+
+it('renders the remote identity and opens its Host even when a local Tob has the same slug', async () => {
+  const host = new FakeHost();
+  host.methods.set('humanAttention', (args) => ({
+    queryVersion: 1,
+    items: args.category === 'action' ? [approval('tob')] : [],
+  }));
+  host.methods.set('channelUnreadCounts', () => ({ channels: [] }));
+  host.methods.set('list', () => ({
+    bots: [
+      {
+        slug: 'tob',
+        displayName: 'Remote Tob',
+        aggregateState: 'idle',
+        avatar: '/api/botharness/avatar/tob',
+      },
+    ],
+  }));
+  const sources = createRemoteHosts({
+    carrier: host.carrier,
+    storage: {
+      getItem: (key) =>
+        key === REMOTE_HOSTS_STORAGE_KEY
+          ? JSON.stringify([
+              {
+                hostId: host.hostId,
+                hostName: 'Remote Studio',
+                routes: ['http://127.0.0.1:47001'],
+                deviceId: 'device-1',
+                credential: host.credential,
+              },
+            ])
+          : null,
+      setItem: () => {},
+      removeItem: () => {},
+    },
+    loadImage: async () => 'blob:remote-tob',
+  });
+  const release = sources.subscribe(() => {});
+  await vi.waitFor(() => expect(sources.getSnapshot().hosts[0]?.inbox.status).toBe('ready'));
+  await vi.waitFor(() => expect(sources.getSnapshot().avatars.size).toBe(1));
+  const bot = {
+    slug: 'tob',
+    displayName: 'Local Tob',
+    roles: [],
+    aggregateState: 'idle',
+    workspaces: [],
+    createdAt: '',
+    tob: { defaultName: true, defaultAvatar: true },
+  };
+  store.setRoster([bot], []);
+  const unbind = bindTobPresentation({
+    bot: () => bot,
+    icon: () => 'bot',
+    subscribe: () => () => {},
+  });
+  const element = document.createElement('div');
+  document.body.append(element);
+  const root = createRoot(element);
+  const call = vi.fn(async () => ({ ok: true as const, value: {} }));
+  const registry = createDockPanelRegistry();
+  const openPanel = vi.fn();
+  const detach = registry.attach({ open: openPanel, close: () => {} });
+  try {
+    await act(async () =>
+      root.render(
+        createElement(RemoteActivityGroup, {
+          host: sources.getSnapshot().hosts[0]!,
+          sources,
+          avatars: sources.getSnapshot().avatars,
+          registry,
+          t: zhTranslate,
+          query: {
+            category: 'all',
+            sort: 'default',
+            botSlug: undefined,
+            channelId: undefined,
+            snoozed: false,
+            search: '',
+          },
+        }),
+      ),
+    );
+    expect(element.textContent).toContain('Remote Studio');
+    expect(element.textContent).toContain('远程');
+    expect(element.textContent).toContain('Remote Tob');
+    expect(element.textContent).not.toContain('Local Tob');
+    expect(element.querySelector('img')?.getAttribute('src')).toBe('blob:remote-tob');
+    await act(async () =>
+      element.querySelector<HTMLButtonElement>('.bh-human-inbox-source-link')!.click(),
+    );
+    expect(sources.getSnapshot().open).toEqual({
+      hostId: host.hostId,
+      channelId: 'dm-tob',
+      title: 'Remote Tob',
+    });
+    expect(openPanel).toHaveBeenCalledExactlyOnceWith('bh:channel-body');
+    expect(call).not.toHaveBeenCalled();
+  } finally {
+    await act(async () => root.unmount());
+    detach();
+    unbind();
+    release();
+  }
+});
+
+it.each(['tool-approval', 'user-question'] as const)(
+  'submits a remote %s while the local selection belongs to another conversation',
+  async (kind) => {
+    const host = new FakeHost();
+    let pending = true;
+    const item = { ...approval('tob'), kind };
+    const message = {
+      id: item.messageId!,
+      at: item.createdAt,
+      author: { kind: 'bot', slug: 'tob' },
+      body: item.summary,
+      ...(kind === 'tool-approval'
+        ? {
+            toolApprovalRequest: {
+              sessionId: 'remote-session',
+              callId: 'remote-call',
+              toolName: 'bash',
+              role: 'orchestrator',
+              cwd: '/qa',
+              input: '{"command":"echo QA"}',
+              allowAlways: false,
+            },
+          }
+        : {
+            userQuestionRequest: {
+              sessionId: 'remote-session',
+              questions: [
+                {
+                  id: 'q',
+                  question: 'Which marker?',
+                  options: [{ label: 'Blue' }, { label: 'Green' }],
+                },
+              ],
+            },
+          }),
+    };
+    host.methods.set('channelTimeline', () => ({
+      revision: 1,
+      page: {
+        entries: [message],
+        olderCursor: null,
+        newerCursor: null,
+        hasOlder: false,
+        hasNewer: false,
+      },
+    }));
+    host.methods.set('humanAttention', (args) => ({
+      queryVersion: 1,
+      items: pending && args.category === 'action' ? [item] : [],
+    }));
+    host.methods.set('channelUnreadCounts', () => ({ channels: [] }));
+    host.methods.set('toolApprovalStatus', () => ({ status: pending ? 'pending' : 'expired' }));
+    host.methods.set('userQuestionStatus', () => ({ status: pending ? 'pending' : 'answered' }));
+    const method = kind === 'tool-approval' ? 'toolApprovalDecide' : 'userQuestionAnswer';
+    host.methods.set(method, () => {
+      pending = false;
+      return { accepted: true };
+    });
+    const sources = createRemoteHosts({
+      carrier: host.carrier,
+      storage: {
+        getItem: (key) =>
+          key === REMOTE_HOSTS_STORAGE_KEY
+            ? JSON.stringify([
+                {
+                  hostId: host.hostId,
+                  hostName: 'Remote QA',
+                  routes: ['http://127.0.0.1:47001'],
+                  deviceId: 'device-1',
+                  credential: host.credential,
+                },
+              ])
+            : null,
+        setItem: () => {},
+        removeItem: () => {},
+      },
+    });
+    const release = sources.subscribe(() => {});
+    await vi.waitFor(() => expect(sources.getSnapshot().hosts[0]?.inbox.status).toBe('ready'));
+    const localSelection = store.getSnapshot().selection;
+    store.select({ kind: 'bot', slug: 'unrelated-local-bot' });
+    const element = document.createElement('div');
+    document.body.append(element);
+    const root = createRoot(element);
+    try {
+      await act(async () =>
+        root.render(
+          createElement(RemoteActivityGroup, {
+            host: sources.getSnapshot().hosts[0]!,
+            sources,
+            avatars: new Map(),
+            t: zhTranslate,
+            query: {
+              category: 'all',
+              sort: 'default',
+              search: '',
+              snoozed: false,
+              botSlug: undefined,
+              channelId: undefined,
+            },
+          }),
+        ),
+      );
+      await act(async () =>
+        element.querySelector<HTMLButtonElement>('.bh-human-inbox-row-open')!.click(),
+      );
+      const label = kind === 'tool-approval' ? zhTranslate('approval.allowOnce') : 'Blue';
+      const button = () =>
+        [...element.querySelectorAll('button')].find(
+          (button) => button.textContent?.trim() === label,
+        );
+      await act(async () => {
+        await vi.waitFor(() => expect(button()?.disabled).toBe(false));
+      });
+      await act(async () => button()!.click());
+      expect(host.calls.filter((call) => call.method === method)).toEqual([
+        {
+          method,
+          args:
+            kind === 'tool-approval'
+              ? { channelId: 'dm-tob', messageId: item.messageId, outcome: 'allowed-once' }
+              : {
+                  channelId: 'dm-tob',
+                  messageId: item.messageId,
+                  answer: { answers: [{ id: 'q', selected: ['Blue'] }] },
+                },
+        },
+      ]);
+      expect(store.getSnapshot().selection).toEqual({ kind: 'bot', slug: 'unrelated-local-bot' });
+    } finally {
+      await act(async () => root.unmount());
+      element.remove();
+      release();
+      store.select(localSelection);
+    }
+  },
+);

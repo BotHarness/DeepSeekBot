@@ -1,5 +1,9 @@
 import { ActivityInboxHeader } from './activity-inbox-menu.js';
-import { useMemo, type ReactElement } from 'react';
+import { useMemo, useSyncExternalStore, type ReactElement } from 'react';
+import { remoteHosts } from './remote-hosts.js';
+import { RemoteConversationView } from './remote-conversation-view.js';
+import { ActivityHostHeading, RemoteActivityGroup } from './remote-activity.js';
+import type { DockPanelRegistry } from './dock-panels.js';
 import type { BridgeActions } from './actions.js';
 import { HumanInboxView } from './human-inbox-view.js';
 import { zhTranslate, type BotHarnessTranslate } from './locale.js';
@@ -21,12 +25,16 @@ export function ActivityCenterView({
   actions,
   t = zhTranslate,
   placement = 'page',
+  registry,
 }: {
   actions: BridgeActions;
   t?: BotHarnessTranslate;
   placement?: 'page' | 'panel';
+  registry?: DockPanelRegistry | undefined;
 }): ReactElement {
   const panel = placement === 'panel';
+  const sources = remoteHosts();
+  const remote = useSyncExternalStore(sources.subscribe, sources.getSnapshot);
   const { feed, query, pages, collapsed } = useActivityFeed(actions);
   const scoped = useMemo(
     () =>
@@ -48,6 +56,8 @@ export function ActivityCenterView({
       detach?.();
     };
   }, [actions, panel, feed]);
+  if (!panel && !registry?.available() && remote.open !== undefined)
+    return <RemoteConversationView target={remote.open} t={t} />;
   return (
     <div
       ref={mount}
@@ -64,6 +74,9 @@ export function ActivityCenterView({
         </header>
       )}
       <div className="bh-activity-sections">
+        {remote.hosts.length > 0 ? (
+          <ActivityHostHeading name={t('remoteHosts.this')} t={t} />
+        ) : null}
         {feed.visible().map((section) => {
           const page = pages[section];
           const count =
@@ -101,6 +114,17 @@ export function ActivityCenterView({
             />
           );
         })}
+        {remote.hosts.map((host) => (
+          <RemoteActivityGroup
+            key={host.host.hostId}
+            host={host}
+            sources={sources}
+            avatars={remote.avatars}
+            registry={registry}
+            query={query}
+            t={t}
+          />
+        ))}
       </div>
     </div>
   );

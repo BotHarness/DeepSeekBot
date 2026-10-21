@@ -530,7 +530,7 @@ export function apply(ctx: ClientContext): void {
         ...createChannelSidebarBuiltins(t, prefs, nativeSessions).map((entry) =>
           channelSidebar.register(entry),
         ),
-        dockPanels.register(createActivityCenterPanel(actions, t)),
+        dockPanels.register(createActivityCenterPanel(actions, t, dockPanels)),
         dockPanels.register(createMarketPanel(actions, dockPanels, t)),
       ];
     };

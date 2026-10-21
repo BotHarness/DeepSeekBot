@@ -2,7 +2,7 @@ import { color, radius, space, text } from './ds/tokens.stylex.js';
 
 export const ACTIVITY_INBOX_CSS = `
 .bh-activity-triage { min-width: 0; }
-.bh-activity-triage .bh-activity-sections > .bh-human-inbox { min-width: 0; padding: 0; }
+.bh-activity-triage .bh-activity-sections .bh-human-inbox { min-width: 0; padding: 0; }
 .bh-activity-triage .bh-activity-inbox { width: 100%; max-width: none; min-width: 0; margin: 0; padding: ${space.x1}; box-sizing: border-box; }
 .bh-activity-triage.bh-activity-center-panel .bh-activity-inbox { padding: 0; }
 .bh-activity-triage .bh-activity-center-header { display: flex; align-items: center; justify-content: space-between; padding: ${space.x1} ${space.x3}; }

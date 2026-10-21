@@ -16,9 +16,11 @@ export function UserQuestionCard({
   t,
   companionTarget,
   channelId: sourceChannelId,
+  hostScoped = false,
 }: {
   message: ChannelMessage;
-  actions: BridgeActions;
+  actions: Pick<BridgeActions, 'userQuestionStatus' | 'answerUserQuestion'>;
+  hostScoped?: boolean;
   channelId?: string | undefined;
   resolution?: 'answered' | 'cancelled' | undefined;
   t: BotHarnessTranslate;
@@ -102,6 +104,7 @@ export function UserQuestionCard({
     if (companionTarget && !qualified()) return;
     const channelId = cardChannelId;
     if (
+      !hostScoped &&
       !companionTarget &&
       store.getSnapshot().selection?.kind !== 'inbox' &&
       store.getSnapshot().conversation.channel?.id !== channelId
