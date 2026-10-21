@@ -24,7 +24,9 @@ vi.mock('react-native', async () => ({
 vi.mock('@expo/ui/jetpack-compose', () => ({
   Host: ({ children }: { children: ReactNode }) => children,
   LoadingIndicator: () => createElement('i', { 'data-testid': 'native-loading' }),
+  CircularProgressIndicator: () => createElement('i', { 'data-testid': 'native-progress' }),
 }));
+vi.mock('@expo/ui/jetpack-compose/modifiers', () => ({ fillMaxSize: () => ({}) }));
 import { LoadingIndicator } from '../src/ui/primitives/loading-indicator.android';
 import { t } from '../src/ui/strings';
 
@@ -41,5 +43,8 @@ it('shows the Material 3 loading indicator as one labelled progress node', async
   expect(host.querySelector('[role="progressbar"]')?.getAttribute('aria-label')).toBe(
     'Loading image',
   );
+  await act(async () => root.render(<LoadingIndicator size="control" />));
+  expect(host.querySelector('[data-testid="native-progress"]')).not.toBeNull();
+  expect(host.querySelector('[data-testid="native-loading"]')).toBeNull();
   act(() => root.unmount());
 });

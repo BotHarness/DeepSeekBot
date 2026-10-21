@@ -51,6 +51,20 @@ describe('mobile style guard', () => {
         .filter((file) => /\bAlert\s*\.\s*alert\s*\(/.test(readFileSync(join(root, file), 'utf8'))),
     ).toEqual([]);
   });
+  it('keeps loading and pull-to-refresh behind the native loading primitives', () => {
+    expect(
+      files
+        .filter(
+          (file) =>
+            !/^src\/ui\/primitives\/(?:loading-indicator|pull-to-refresh)(?:\.android)?\.tsx$/.test(
+              file,
+            ),
+        )
+        .filter((file) =>
+          /<(?:ActivityIndicator|RefreshControl)\b/.test(readFileSync(join(root, file), 'utf8')),
+        ),
+    ).toEqual([]);
+  });
   it('keeps colour, type, spacing, radius and edge values on the design tokens', () => {
     expect(files.filter((file) => !LEGACY.has(file)).flatMap(violations)).toEqual([]);
   });

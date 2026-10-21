@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Image } from 'expo-image';
-import { ActivityIndicator, Pressable, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 import type { MessageAttachment } from '../../host/conversation';
 import { over } from '../design/layers';
@@ -9,6 +9,7 @@ import { useDesignTheme } from '../design/theme';
 import { Text } from '../primitives/text';
 import { FileIcon, PhotoIcon } from '../shell/icons';
 import { t } from '../strings';
+import { LoadingIndicator } from '../primitives/loading-indicator';
 
 export function fileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -124,7 +125,7 @@ function AttachmentFile({
       }}
     >
       {busy ? (
-        <ActivityIndicator color={theme.color[ink]} />
+        <LoadingIndicator size="control" color={theme.color[ink]} />
       ) : (
         <FileIcon color={theme.color[ink]} size={theme.type.title.line} />
       )}

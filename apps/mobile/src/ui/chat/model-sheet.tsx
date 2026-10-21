@@ -1,5 +1,5 @@
 import { useState, type ComponentType } from 'react';
-import { ActivityIndicator, SectionList } from 'react-native';
+import { SectionList } from 'react-native';
 
 import {
   currentModel,
@@ -24,6 +24,7 @@ import {
   SheetNote,
   SHEET_GROUP,
 } from './sheet';
+import { LoadingIndicator } from '../primitives/loading-indicator';
 
 type Row =
   | { kind: 'preset'; key: string; preset: ModelPreset }
@@ -79,7 +80,7 @@ export function ModelSheet({
   };
   const trailing = (key: string, selected: boolean) =>
     busy === key ? (
-      <ActivityIndicator />
+      <LoadingIndicator size="control" />
     ) : selected ? (
       <CheckIcon color={theme.color.fg} size={theme.type.title.line} />
     ) : undefined;

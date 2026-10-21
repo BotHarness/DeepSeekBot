@@ -1,5 +1,5 @@
 import { useState, type ComponentType, type ReactNode } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, SectionList, View } from 'react-native';
+import { Pressable, ScrollView, SectionList, View } from 'react-native';
 
 import {
   errorText,
@@ -36,6 +36,7 @@ import {
   SHEET_GROUP,
 } from './sheet';
 import { confirmDestructive } from '../primitives/app-dialog';
+import { LoadingIndicator } from '../primitives/loading-indicator';
 
 type Mode = 'main' | 'browse' | 'confirm';
 type Pending = { path: string; workspaceId?: string };
@@ -362,7 +363,7 @@ export function WorkspaceSheet({
 
   const trailingCheck = (key: string, selected: boolean) =>
     busy === key ? (
-      <ActivityIndicator />
+      <LoadingIndicator size="control" />
     ) : selected ? (
       <CheckIcon color={theme.color.fg} size={theme.type.title.line} />
     ) : undefined;
@@ -687,7 +688,7 @@ export function WorkspaceSheet({
             on={SHEET_GROUP}
             trailing={
               busy === item.key ? (
-                <ActivityIndicator />
+                <LoadingIndicator size="control" />
               ) : (
                 <RemoveButton
                   label={t.removeFolder(item.grant.workspaceTitle)}
@@ -722,7 +723,7 @@ export function WorkspaceSheet({
             on={SHEET_GROUP}
             trailing={
               busy === 'safe-access' ? (
-                <ActivityIndicator />
+                <LoadingIndicator size="control" />
               ) : (
                 <Toggle
                   label={t.fullAccess}

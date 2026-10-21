@@ -1,5 +1,6 @@
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
+import { PullToRefresh } from '../primitives/pull-to-refresh';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   useCallback,
@@ -15,7 +16,6 @@ import {
   Animated as NativeAnimated,
   Platform,
   Pressable,
-  RefreshControl,
   View,
   useWindowDimensions,
 } from 'react-native';
@@ -817,113 +817,117 @@ const ActivityPage = memo(function ActivityPage({
       accessibilityElementsHidden={!active}
       importantForAccessibility={active ? 'auto' : 'no-hide-descendants'}
     >
-      <Animated.FlatList
-        contentInsetAdjustmentBehavior="never"
-        contentContainerStyle={{
-          flexGrow: 1,
-          paddingBottom: bottom + headerTravel + space.x6,
-        }}
-        renderScrollComponent={(props) => (
-          <KeyboardFormScroll {...props} enabled={!searchFocused} />
-        )}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="interactive"
-        onScroll={onScroll}
-        scrollEventThrottle={1}
-        style={{
-          backgroundColor: theme.color.base,
-        }}
-        data={[{ kind: 'status', key: 'status' } as const, ...rows]}
-        keyExtractor={(row) => row.key}
-        itemLayoutAnimation={LinearTransition}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
-        ListFooterComponentStyle={{ flexGrow: 1 }}
-        ListFooterComponent={
-          <Pressable accessible={false} onPress={() => dismissSearch()} style={{ flex: 1 }} />
-        }
-        renderItem={({ item: row }) => {
-          if (row.kind === 'status')
-            return (
-              <>
-                <View style={{ gap: space.x3 }}>
-                  {header}
-                  {visible.status === 'ready' && visible.stale !== undefined ? (
-                    <View style={{ paddingHorizontal: space.x5 }}>
-                      <Notice tone="warning">{`${t.inboxStale} ${visible.stale}`}</Notice>
-                      <Button label={t.tryAgain} onPress={refresh} disabled={refreshing} />
+      <PullToRefresh refreshing={refreshing} onRefresh={refresh}>
+        {(pull) => (
+          <Animated.FlatList
+            {...pull}
+            contentInsetAdjustmentBehavior="never"
+            contentContainerStyle={{
+              flexGrow: 1,
+              paddingBottom: bottom + headerTravel + space.x6,
+            }}
+            renderScrollComponent={(props) => (
+              <KeyboardFormScroll {...props} enabled={!searchFocused} />
+            )}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="interactive"
+            onScroll={onScroll}
+            scrollEventThrottle={1}
+            style={{
+              backgroundColor: theme.color.base,
+            }}
+            data={[{ kind: 'status', key: 'status' } as const, ...rows]}
+            keyExtractor={(row) => row.key}
+            itemLayoutAnimation={LinearTransition}
+            ListFooterComponentStyle={{ flexGrow: 1 }}
+            ListFooterComponent={
+              <Pressable accessible={false} onPress={() => dismissSearch()} style={{ flex: 1 }} />
+            }
+            renderItem={({ item: row }) => {
+              if (row.kind === 'status')
+                return (
+                  <>
+                    <View style={{ gap: space.x3 }}>
+                      {header}
+                      {visible.status === 'ready' && visible.stale !== undefined ? (
+                        <View style={{ paddingHorizontal: space.x5 }}>
+                          <Notice tone="warning">{`${t.inboxStale} ${visible.stale}`}</Notice>
+                          <Button label={t.tryAgain} onPress={refresh} disabled={refreshing} />
+                        </View>
+                      ) : null}
+                      {visible.status === 'error' ? (
+                        <View style={{ paddingHorizontal: space.x5 }}>
+                          <Notice tone="danger">{`${t.inboxFailed} ${visible.error}`}</Notice>
+                          <Button label={t.tryAgain} onPress={refresh} disabled={refreshing} />
+                        </View>
+                      ) : null}
+                      {visible.status === 'loading' ? <ListSkeleton /> : null}
+                      {visible.status === 'ready' &&
+                      Object.values(visible.cursors ?? {}).some(Boolean) ? (
+                        <Text variant="meta" tone="muted" style={{ paddingHorizontal: space.x5 }}>
+                          {t.activityLoaded}
+                        </Text>
+                      ) : null}
                     </View>
-                  ) : null}
-                  {visible.status === 'error' ? (
-                    <View style={{ paddingHorizontal: space.x5 }}>
-                      <Notice tone="danger">{`${t.inboxFailed} ${visible.error}`}</Notice>
-                      <Button label={t.tryAgain} onPress={refresh} disabled={refreshing} />
-                    </View>
-                  ) : null}
-                  {visible.status === 'loading' ? <ListSkeleton /> : null}
-                  {visible.status === 'ready' &&
-                  Object.values(visible.cursors ?? {}).some(Boolean) ? (
-                    <Text variant="meta" tone="muted" style={{ paddingHorizontal: space.x5 }}>
-                      {t.activityLoaded}
-                    </Text>
-                  ) : null}
-                </View>
-                {visible.status === 'ready' && rows.length === 0 && search.trim() ? (
-                  <Text tone="muted" style={{ padding: space.x5 }}>
-                    {t.activityNoResults}
+                    {visible.status === 'ready' && rows.length === 0 && search.trim() ? (
+                      <Text tone="muted" style={{ padding: space.x5 }}>
+                        {t.activityNoResults}
+                      </Text>
+                    ) : null}
+                  </>
+                );
+              if (row.kind === 'more')
+                return (
+                  <View style={{ padding: space.x5 }}>
+                    <Button
+                      label={t.activityLoadMore}
+                      disabled={
+                        visible.status === 'ready' &&
+                        visible.loadingMore?.includes(row.section) === true
+                      }
+                      onPress={() => void currentInbox()?.loadMore?.(row.section)}
+                    />
+                  </View>
+                );
+              if (row.kind === 'empty')
+                return (
+                  <Text tone="muted" style={{ paddingHorizontal: space.x5, paddingTop: space.x6 }}>
+                    {row.key === 'empty-action' && filter.bot === undefined
+                      ? t.inboxEmpty
+                      : t.filterEmpty}
                   </Text>
-                ) : null}
-              </>
-            );
-          if (row.kind === 'more')
-            return (
-              <View style={{ padding: space.x5 }}>
-                <Button
-                  label={t.activityLoadMore}
-                  disabled={
-                    visible.status === 'ready' &&
-                    visible.loadingMore?.includes(row.section) === true
-                  }
-                  onPress={() => void currentInbox()?.loadMore?.(row.section)}
-                />
-              </View>
-            );
-          if (row.kind === 'empty')
-            return (
-              <Text tone="muted" style={{ paddingHorizontal: space.x5, paddingTop: space.x6 }}>
-                {row.key === 'empty-action' && filter.bot === undefined
-                  ? t.inboxEmpty
-                  : t.filterEmpty}
-              </Text>
-            );
-          if (row.kind === 'row')
-            return (
-              <Row
-                item={row.item}
-                settled={row.settled}
-                bot={bot(row.item.botSlug)}
-                onOpen={onOpen}
-                actions={actionsFor(row.item, row.section)}
-                now={Math.floor(now / 60_000) * 60_000}
-              />
-            );
-          return (
-            <Animated.View exiting={FadeOut.duration(220)}>
-              {client === undefined ? null : (
-                <Post
-                  client={client}
-                  item={row.item}
-                  requestRef={row.ref}
-                  bot={bot(row.item.botSlug)}
-                  now={now}
-                  onOpen={onOpen}
-                  onSettled={settled}
-                  actions={actionsFor(row.item, row.section)}
-                />
-              )}
-            </Animated.View>
-          );
-        }}
-      />
+                );
+              if (row.kind === 'row')
+                return (
+                  <Row
+                    item={row.item}
+                    settled={row.settled}
+                    bot={bot(row.item.botSlug)}
+                    onOpen={onOpen}
+                    actions={actionsFor(row.item, row.section)}
+                    now={Math.floor(now / 60_000) * 60_000}
+                  />
+                );
+              return (
+                <Animated.View exiting={FadeOut.duration(220)}>
+                  {client === undefined ? null : (
+                    <Post
+                      client={client}
+                      item={row.item}
+                      requestRef={row.ref}
+                      bot={bot(row.item.botSlug)}
+                      now={now}
+                      onOpen={onOpen}
+                      onSettled={settled}
+                      actions={actionsFor(row.item, row.section)}
+                    />
+                  )}
+                </Animated.View>
+              );
+            }}
+          />
+        )}
+      </PullToRefresh>
     </View>
   );
 });

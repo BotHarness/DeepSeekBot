@@ -1,11 +1,12 @@
 import type { ReactNode } from 'react';
-import { ActivityIndicator, Pressable, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 import { buttonColors, type ButtonTone } from '../design/controls';
 import type { LayerName } from '../design/layers';
 import { pressTint, useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
 import { Text } from './text';
+import { LoadingIndicator } from './loading-indicator';
 
 export type { ButtonTone } from '../design/controls';
 
@@ -63,7 +64,7 @@ export function Button({
       })}
     >
       {busy ? (
-        <ActivityIndicator color={labelColor} />
+        <LoadingIndicator size="control" color={labelColor} />
       ) : (
         <>
           {icon === undefined ? null : (
