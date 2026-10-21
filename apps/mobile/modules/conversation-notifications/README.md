@@ -11,6 +11,9 @@ subclasses expo-notifications' `NotificationsService` and registers with a
 higher intent-filter priority, which `NotificationsService.doWork` resolves
 first; only the presentation and handling delegates change. Actions (approval
 buttons), channels, badges and tap routing stay with expo-notifications.
+The app never sets the badge count on Android: expo-notifications'
+`setBadgeCountAsync(0)` cancels every notification in the shade there, and
+Android launchers count the notifications themselves.
 
 A push with an FCM `notification` block is drawn by the Firebase SDK while the
 app is in the background, so none of this code runs. The app therefore

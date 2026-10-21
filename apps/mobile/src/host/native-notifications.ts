@@ -76,6 +76,7 @@ export function nativeNotifications(
       return () => subscription.remove();
     },
     async setBadge(count) {
+      if (Platform.OS === 'android') return;
       await Notifications.setBadgeCountAsync(count);
     },
     async presented() {
