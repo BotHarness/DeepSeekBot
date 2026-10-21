@@ -176,6 +176,7 @@ describe('mobile cloud session boundary', () => {
     const f = await loggedIn();
     const auth = new URL(f.state.browserUrl);
     expect(auth.searchParams.get('code_challenge_method')).toBe('S256');
+    expect(auth.searchParams.get('max_age')).toBe('0');
     expect(auth.searchParams.get('redirect_uri')).toBe(MOBILE_REDIRECT_URI);
     const exchange = f.calls.find((c) => c.url === config.auth.tokenEndpoint)!;
     expect(new URLSearchParams(String(exchange.init?.body)).get('code_verifier')).toBe(
