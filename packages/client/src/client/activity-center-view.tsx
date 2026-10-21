@@ -1,6 +1,6 @@
 import { ActivityInboxHeader } from './activity-inbox-menu.js';
 import { useMemo, useSyncExternalStore, type ReactElement } from 'react';
-import { remoteHosts } from './remote-hosts.js';
+import { conversationKey, remoteHosts } from './remote-hosts.js';
 import { RemoteConversationView } from './remote-conversation-view.js';
 import { ActivityHostHeading, RemoteActivityGroup } from './remote-activity.js';
 import type { DockPanelRegistry } from './dock-panels.js';
@@ -57,7 +57,7 @@ export function ActivityCenterView({
     };
   }, [actions, panel, feed]);
   if (!panel && !registry?.available() && remote.open !== undefined)
-    return <RemoteConversationView target={remote.open} t={t} />;
+    return <RemoteConversationView key={conversationKey(remote.open)} target={remote.open} t={t} />;
   return (
     <div
       ref={mount}
