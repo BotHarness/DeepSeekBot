@@ -453,7 +453,7 @@ describe('Connect relay phone offers', () => {
       return Response.json({
         offer: 'offer-1',
         expiresAt: '2026-10-20T12:10:00.000Z',
-        host: { id: 'haaaaaaaaaaab', name: 'Studio Mac' },
+        host: { id: 'pairing-host-1', name: 'Studio Mac' },
       });
     });
     const tunnel = await call('POST', '/v1/hosts/haaaaaaaaaaab/tunnel', {
@@ -475,7 +475,7 @@ describe('Connect relay phone offers', () => {
         offer: 'offer-1',
         expiresAt: '2026-10-20T12:10:00.000Z',
         hostname: 'haaaaaaaaaaab.deepseekbot.dev',
-        host: { id: 'haaaaaaaaaaab', name: 'Studio Mac' },
+        host: { id: 'pairing-host-1', name: 'Studio Mac' },
       },
     });
     expect(seen).toHaveLength(1);
@@ -515,8 +515,7 @@ describe('Connect relay phone offers', () => {
     expect((await offer('user_alice', { verifierHash: VERIFIER_HASH })).body).toEqual({
       error: { code: 'host-refused' },
     });
-    answer = async () =>
-      Response.json({ offer: 'x', expiresAt: 'y', host: { id: 'hother', name: 'Other' } });
+    answer = async () => Response.json({ offer: 'x', expiresAt: 'y', host: { name: 'Other' } });
     expect((await offer('user_alice', { verifierHash: VERIFIER_HASH })).status).toBe(502);
     const unsigned = await setup();
     await unsigned.call('POST', '/v1/hosts', { as: 'user_alice', body: { name: 'Studio' } });

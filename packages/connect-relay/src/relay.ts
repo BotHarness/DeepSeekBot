@@ -202,7 +202,7 @@ export function createRelay(options: RelayOptions) {
       reply.status !== 200 ||
       typeof answer?.offer !== 'string' ||
       typeof answer.expiresAt !== 'string' ||
-      answer.host?.id !== row.id ||
+      typeof answer.host?.id !== 'string' ||
       typeof answer.host.name !== 'string'
     )
       return failure(502, 'host-refused');
@@ -210,7 +210,7 @@ export function createRelay(options: RelayOptions) {
       offer: answer.offer,
       expiresAt: answer.expiresAt,
       hostname: hostname(row.id),
-      host: { id: row.id, name: answer.host.name },
+      host: { id: answer.host.id, name: answer.host.name },
     });
   };
 
