@@ -111,3 +111,69 @@ it('never retries push or removal over another route after a missing Connect pin
   expect(raw.request).not.toHaveBeenCalled();
   expect(raw.openSocket).not.toHaveBeenCalled();
 });
+
+it.each([400, 500, 502, 503])(
+  'never retries an authenticated Connect HTTP %i over a plaintext route',
+  async (status) => {
+    const hostKey = randomBytes(32);
+    const requests: string[] = [];
+    const raw = {
+      request: vi.fn(async () => ({
+        status: 200,
+        text: async () => '{}',
+        bytes: async () => new Uint8Array(),
+      })),
+      openSocket(_url: string, events: import('../src/host/carrier').HostSocketEvents) {
+        const peer = new ConnectChannel({
+          role: 'responder',
+          hostId: 'host',
+          staticKey: hostKey,
+          ephemeralKey: randomBytes(32),
+          hostKey: noisePublicKey(hostKey),
+        });
+        const reply = (value: unknown) => {
+          for (const frame of peer.send(JSON.stringify(value)))
+            queueMicrotask(() => events.message(frame));
+        };
+        queueMicrotask(events.open);
+        return {
+          send(wire: string) {
+            const result = peer.receive(wire);
+            if (result.reply) queueMicrotask(() => events.message(result.reply!));
+            if (result.message) {
+              const value = JSON.parse(result.message);
+              if (value.type === 'admit') reply({ type: 'admitted' });
+              else if (value.type === 'request') {
+                requests.push(value.path);
+                reply({ type: 'response', id: value.id, status, body: btoa('{}') });
+              }
+              reply({ type: 'ack', credit: value.credit });
+            }
+          },
+          close: () => peer.close(),
+        };
+      },
+    };
+    const host = {
+      hostId: 'host',
+      hostName: 'Host',
+      deviceId: 'device',
+      credential: 'test-secret',
+      routes: ['https://host.deepseekbot.dev', 'http://localhost:3333'],
+      encryption: {
+        protocol: 'connect-noise-xk-v1' as const,
+        hostKey: Buffer.from(noisePublicKey(hostKey)).toString('hex'),
+        deviceKey: randomBytes(32).toString('hex'),
+      },
+    };
+    await expect(createHostPush(raw).settings(host)).rejects.toThrow();
+    expect(await revokePairing({ host, carrier: raw })).toBe('unreachable');
+    expect(await removeDevice({ host, deviceId: 'other', carrier: raw })).toBe('unreachable');
+    expect(requests).toEqual([
+      '/botharness-device/push',
+      '/botharness-device/unpair',
+      '/botharness-device/devices/remove',
+    ]);
+    expect(raw.request).not.toHaveBeenCalled();
+  },
+);

@@ -195,6 +195,7 @@ export async function revokePairing(options: {
           (body['code'] === 'device-revoked' || body['code'] === 'device-unknown')
         )
           return 'revoked';
+        if (isConnectRoute(route)) return 'unreachable';
       } catch (error) {
         if (isConnectRoute(route)) {
           if (error instanceof ConnectRefused && error.code === 'device-revoked') return 'revoked';
@@ -242,6 +243,7 @@ export async function removeDevice(options: {
           signal: controller.signal,
         });
         if (response.status === 200 || response.status === 404) return 'removed';
+        if (isConnectRoute(route)) return 'unreachable';
       } catch {
         if (isConnectRoute(route)) return 'unreachable';
         continue;

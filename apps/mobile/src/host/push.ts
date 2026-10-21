@@ -217,6 +217,7 @@ export function createHostPush(carrier: HostCarrier, timeoutMs = 10_000): HostPu
         if (typeof code === 'string' && status >= 400 && status < 500)
           throw new PushRequestFailed(code as PushRefusal);
         if (status === 502) throw new PushRequestFailed('push-send-failed');
+        if (isConnectRoute(route)) throw new PushRequestFailed('unreachable');
       }
       throw new PushRequestFailed('unreachable');
     } finally {
