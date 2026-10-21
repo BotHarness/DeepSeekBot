@@ -1,7 +1,7 @@
 import { afterEach, assert, describe, expect, it, vi } from 'vitest';
 
 import type { HostCarrier } from '../../../apps/mobile/src/host/carrier.js';
-import type { HumanAttentionItem } from '../../../apps/mobile/src/host/wire.js';
+import type { HumanAttentionItem as HostAttentionItem } from '../../../apps/mobile/src/host/wire.js';
 import { FakeHost } from '../../../apps/mobile/test/fake-host.js';
 import { createHostActivityActions } from '../src/client/host-activity-actions.js';
 import type { HumanAttentionItem } from '../src/client/store.js';
@@ -221,7 +221,7 @@ describe('Host Feed lifecycle', () => {
         },
       });
       const { host, storage } = liveHost();
-      const old: HumanAttentionItem = {
+      const old: HostAttentionItem = {
         id: 'old',
         kind: 'user-question',
         category: 'action',
@@ -311,7 +311,7 @@ describe('Host Feed lifecycle', () => {
       },
     });
     const { host, storage } = liveHost();
-    let items: HumanAttentionItem[] = [];
+    let items: HostAttentionItem[] = [];
     host.methods.set('humanAttention', (args) =>
       args.notifications ? { notificationVersion: 1, items } : { queryVersion: 1, items: [] },
     );
@@ -320,7 +320,7 @@ describe('Host Feed lifecycle', () => {
     releases.push(primary);
     await vi.waitFor(() => expect(sources.getSnapshot().hosts[0]?.inbox.status).toBe('ready'));
     await sources.notifications.set(host.hostId, { enabled: true });
-    const received: HumanAttentionItem = {
+    const received: HostAttentionItem = {
       id: 'received',
       kind: 'user-question',
       category: 'action',
