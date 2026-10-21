@@ -253,7 +253,7 @@ describe('Push delivery', () => {
     expect(drawn).toMatchObject({ priority: 'high', categoryId: 'tool-approval' });
     expect(drawn?.data).toMatchObject({
       title: '#ops',
-      body: 'Ada needs your approval',
+      message: 'Ada needs your approval',
       text: 'Needs your approval',
       sender: 'Ada',
       group: 'ops',

@@ -30,7 +30,7 @@ class ConversationPresentationDelegate(context: Context) : ExpoPresentationDeleg
 }
 
 /**
- * The Host sends Android pushes data-only, with the shown title and body inside the data, so the
+ * The Host sends Android pushes data-only, with the shown title and message inside the data, so the
  * system leaves them to the app (src/push/delivery.ts in packages/core). Expo only presents a
  * background data-only push that has a title or text, so this fills them in from the data first.
  */
@@ -45,7 +45,7 @@ class ConversationHandlingDelegate(private val base: HandlingDelegate) : Handlin
     if (!content.title.isNullOrEmpty() || !content.text.isNullOrEmpty()) return null
     val data = content.body ?: return null
     val title = data.optString("title").ifEmpty { null } ?: return null
-    val text = data.optString("body").ifEmpty { null } ?: return null
+    val text = data.optString("message").ifEmpty { null } ?: return null
     val filled = NotificationContent.Builder()
       .setTitle(title)
       .setText(text)

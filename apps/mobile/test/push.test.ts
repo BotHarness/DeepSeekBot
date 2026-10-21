@@ -417,7 +417,7 @@ describe('push registration with a real Host gateway', () => {
     h.raise('approval:1');
     await h.push.reconcile();
     expect(h.sent).toEqual([expect.not.objectContaining({ title: expect.anything() })]);
-    expect(h.sent[0]?.data).toMatchObject({ title: 'Ada', body: 'Needs your approval' });
+    expect(h.sent[0]?.data).toMatchObject({ title: 'Ada', message: 'Needs your approval' });
     h.owner.close();
   });
 

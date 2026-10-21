@@ -51,7 +51,7 @@ export interface PushData {
   group?: string;
   text?: string;
   title?: string;
-  body?: string;
+  message?: string;
   categoryId?: string;
   test?: true;
 }
@@ -426,7 +426,8 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
             text: message,
             ...(drawn
               ? {
-                  ...shown,
+                  title: shown.title,
+                  message: shown.body,
                   ...(item.categoryId === undefined ? {} : { categoryId: item.categoryId }),
                 }
               : {}),

@@ -15,7 +15,7 @@ buttons), channels, badges and tap routing stay with expo-notifications.
 A push with an FCM `notification` block is drawn by the Firebase SDK while the
 app is in the background, so none of this code runs. The app therefore
 registers with `render: "app"`, and the Host sends that Android device
-data-only pushes with the shown `title` and `body` inside the data. Expo only
+data-only pushes with the shown `title` and `message` inside the data. Expo only
 presents a background data-only push that has a title, so
 `ConversationHandlingDelegate` copies them from the data first. Older builds,
 which don't send `render`, keep getting pushes the system draws.
