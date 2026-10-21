@@ -256,6 +256,7 @@ it('switches a live reply between buffered streaming and complete bubbles withou
   await act(async () => root!.render(<ConversationScreen place={place} focus={undefined} />));
   expect(view.querySelector('[data-testid="draft"]')).toBeNull();
   expect(view.querySelector('[data-testid="pending"]')).not.toBeNull();
+  expect(view.querySelector('[data-testid="chat-list"] [data-testid="pending"]')).toBeNull();
   expect(view.textContent).toContain('history');
   state.conversation.drafts = [];
   state.conversation.messages = [

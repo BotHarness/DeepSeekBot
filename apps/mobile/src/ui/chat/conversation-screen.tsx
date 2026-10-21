@@ -367,6 +367,7 @@ function ChatConversation({
   const [reactError, setReactError] = useState(false);
   const [composerHeight, setComposerHeight] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
+  const [workingHeight, setWorkingHeight] = useState(0);
   const list = useAnimatedRef<FlatList<Row>>();
   const jumped = useRef<string | undefined>(undefined);
   const [answered, setAnswered] = useState<ReadonlySet<string>>(new Set());
@@ -828,6 +829,7 @@ function ChatConversation({
 
   const listTop = notice === undefined ? headerPadding : 0;
   const composerCover = Math.max(0, composerHeight - space.x3 - space.x2);
+  const workingReserve = working.length > 0 ? workingHeight : 0;
   const fadeColor = background.kind === 'color' ? background.color : theme.color.base;
 
   return (
@@ -1035,7 +1037,7 @@ function ChatConversation({
                   ),
                   justifyContent: 'flex-end',
                   paddingTop: space.x3 + listTop,
-                  paddingBottom: composerHeight + edgeFade.bottom,
+                  paddingBottom: composerHeight + edgeFade.bottom + workingReserve,
                 }}
                 data={rows}
                 keyExtractor={(row) => row.key}
@@ -1101,7 +1103,6 @@ function ChatConversation({
                     </Text>
                   ) : undefined
                 }
-                ListFooterComponent={<WorkingStatus bots={working} />}
                 ListEmptyComponent={
                   snapshot.status === 'opening' ? (
                     <View style={{ padding: space.x6, alignItems: 'center' }}>
@@ -1122,11 +1123,25 @@ function ChatConversation({
           ) : null}
           <EdgeFade
             edge="bottom"
-            height={composerCover + edgeFade.bottom}
+            height={composerCover + edgeFade.bottom + workingReserve}
             cover={composerCover}
             solid={composerCover}
             color={fadeColor}
           />
+          {working.length > 0 ? (
+            <View
+              pointerEvents="none"
+              onLayout={(event) => setWorkingHeight(event.nativeEvent.layout.height)}
+              style={{
+                position: 'absolute',
+                bottom: composerHeight + edgeFade.bottom,
+                left: 0,
+                right: 0,
+              }}
+            >
+              <WorkingStatus bots={working} />
+            </View>
+          ) : null}
           {composable && Platform.OS === 'ios' ? (
             <PullToComposeHint
               progress={pull.progress}
