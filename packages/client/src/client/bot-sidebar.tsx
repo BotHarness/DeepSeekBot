@@ -1,7 +1,13 @@
 import { Menu } from './appearance-primitives.js';
 import { ALL_HOSTS, remoteHosts } from './remote-hosts.js';
 import { useChannelDockActive } from './channel-dock.js';
-import { RemoteHostMark, HostTabs, RemoteHostRows, useRemoteHosts } from './host-tabs.js';
+import {
+  AddRemoteHostDialog,
+  HostMark,
+  HostTabs,
+  RemoteHostRows,
+  useRemoteHosts,
+} from './host-tabs.js';
 import { plainMarkdown } from '../../../core/src/channels/message-preview.js';
 import { PointerMenu } from './ds/pointer-menu.js';
 import { PanelEmptyState } from './ds/empty-state.js';
@@ -699,7 +705,7 @@ function BotRow({
         <span className="bh-body">
           <span className="bh-top">
             <span className="bh-name">{bot.displayName}</span>
-            {source ? <RemoteHostMark /> : null}
+            {source ? <HostMark /> : null}
             {muted ? <MutedMark t={t} /> : null}
             <ChannelMessageTime channel={channel} now={now} t={t} />
           </span>
@@ -832,7 +838,7 @@ function ChannelRow({
       <span className="bh-body">
         <span className="bh-top">
           <span className="bh-name">{channel.name}</span>
-          {source ? <RemoteHostMark /> : null}
+          {source ? <HostMark /> : null}
           {muted ? <MutedMark t={t} /> : null}
           <ChannelMessageTime channel={channel} now={now} t={t} />
         </span>
@@ -1018,6 +1024,7 @@ export function BotSidebar({
 }: SidebarProps): ReactElement {
   const state = useClientStore(keepClientState, rosterInputs);
   const hostTabs = useChannelDockActive();
+  const [addingRemote, setAddingRemote] = useState(false);
   const remoteHostsState = useRemoteHosts();
   const remoteOpen = hostTabs && remoteHostsState.open !== undefined;
   const channelUnread = state.humanInbox.channelUnread;
@@ -1504,6 +1511,7 @@ export function BotSidebar({
     if (id === 'channel') setCreateRequest({ kind: 'channel' });
     if (id === 'section') setCreateRequest({ kind: 'section' });
     if (id === 'marketplace') setCreateRequest({ kind: 'marketplace' });
+    if (id === 'remote') setAddingRemote(true);
   };
 
   const selectSortMenu = (id: string): void => {
@@ -2178,7 +2186,7 @@ export function BotSidebar({
               </button>
             </Tooltip>
           }
-          items={menuItems(t, gitReady(state.git))}
+          items={menuItems(t, gitReady(state.git), hostTabs)}
           onSelect={selectMenu}
           onClose={() => {
             setMenuOpen(false);
@@ -2186,6 +2194,14 @@ export function BotSidebar({
         />
       </div>
       {headerEnd}
+      {addingRemote ? (
+        <AddRemoteHostDialog
+          onClose={() => {
+            setAddingRemote(false);
+          }}
+          t={t}
+        />
+      ) : null}
     </div>
   );
   const remoteTab = hostTabs
@@ -3750,7 +3766,7 @@ function botCreateSource(id: string): 'empty' | 'git' | 'zip' | undefined {
   return undefined;
 }
 
-function menuItems(t: BotHarnessTranslate, gitAvailable: boolean): MenuEntry[] {
+function menuItems(t: BotHarnessTranslate, gitAvailable: boolean, remotes: boolean): MenuEntry[] {
   const disabled = !gitAvailable;
   return [
     {
@@ -3778,9 +3794,20 @@ function menuItems(t: BotHarnessTranslate, gitAvailable: boolean): MenuEntry[] {
       label: t('roster.menu.marketplace'),
       icon: <IconGlobeOutlineRegular size={16} />,
     },
+    ...(remotes
+      ? [
+          {
+            id: 'remote',
+            label: t('remoteHosts.add'),
+            icon: <ChannelSidebarIcon name="monitor" size={16} />,
+          },
+        ]
+      : []),
   ];
 }
 
 function sectionCreateMenuItems(t: BotHarnessTranslate, gitAvailable: boolean): MenuEntry[] {
-  return menuItems(t, gitAvailable).filter((item) => item.id === 'bot' || item.id === 'channel');
+  return menuItems(t, gitAvailable, false).filter(
+    (item) => item.id === 'bot' || item.id === 'channel',
+  );
 }
