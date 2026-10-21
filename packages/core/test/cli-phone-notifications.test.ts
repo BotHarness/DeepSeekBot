@@ -163,6 +163,16 @@ async function inspectorFixture(
   const address = server.address();
   if (!address || typeof address === 'string') throw Error('address required');
   const port = address.port;
+  const peersClosed: Promise<void>[] = [];
+  const originalClose = WebSocket.prototype.close;
+  const closeSpy = vi.spyOn(WebSocket.prototype, 'close').mockImplementation(function (
+    this: any,
+    ...args: any[]
+  ) {
+    if (this.readyState !== WebSocket.CLOSED)
+      peersClosed.push(new Promise<void>((resolve) => this.once('close', resolve)));
+    return originalClose.apply(this, args);
+  });
   const run = async (target = 'target') => {
     const output: string[] = [];
     await runBotCreateCli(
@@ -185,6 +195,7 @@ async function inspectorFixture(
     discovered: discovered.promise,
     async idleConnection() {
       const socket = new WebSocket(`ws://127.0.0.1:${port}/inspector`);
+      peersClosed.push(new Promise<void>((resolve) => socket.once('close', resolve)));
       await bounded(
         new Promise<void>((resolve) => socket.once('open', resolve)),
         'idle connection',
@@ -192,15 +203,20 @@ async function inspectorFixture(
       return socket;
     },
     async close() {
-      for (const socket of sockets.clients) socket.terminate();
-      const closed = new Promise<void>((resolve) => sockets.close(() => resolve()));
-      server.closeAllConnections();
-      await bounded(
-        Promise.all([closed, new Promise<void>((resolve) => server.close(() => resolve()))]),
-        'server cleanup',
-      );
-      expect(sockets.clients.size).toBe(0);
-      expect(server.listening).toBe(false);
+      try {
+        for (const socket of sockets.clients) socket.terminate();
+        const closed = new Promise<void>((resolve) => sockets.close(() => resolve()));
+        server.closeAllConnections();
+        await bounded(
+          Promise.all([closed, new Promise<void>((resolve) => server.close(() => resolve()))]),
+          'server cleanup',
+        );
+        await bounded(Promise.all(peersClosed), 'inspector peers close');
+        expect(sockets.clients.size).toBe(0);
+        expect(server.listening).toBe(false);
+      } finally {
+        closeSpy.mockRestore();
+      }
     },
   };
 }
