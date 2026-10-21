@@ -225,12 +225,45 @@ describe('Human Inbox snooze', () => {
   });
 });
 
-import { RemoteActivityGroup } from '../src/client/remote-activity.js';
+import { RemoteActivityGroup, remoteActivityPage } from '../src/client/remote-activity.js';
 import { createRemoteHosts, REMOTE_HOSTS_STORAGE_KEY } from '../src/client/remote-hosts.js';
 import { FakeHost } from '../../../apps/mobile/test/fake-host.js';
 import { createDockPanelRegistry } from '../src/client/dock-panels.js';
-import { zhTranslate } from '../src/client/locale.js';
+import { en, zhTranslate } from '../src/client/locale.js';
+import type { InboxSnapshot } from '../../../apps/mobile/src/host/inbox.js';
 import { bindTobPresentation } from '../src/client/tob-presentation.js';
+
+it.each(['en', 'zh'] as const)(
+  'localizes remote failures in %s without losing stale data',
+  (locale) => {
+    const english: Readonly<Record<string, string>> = en;
+    const t = locale === 'zh' ? zhTranslate : (key: string) => english[key] ?? key;
+    const raw = 'Host HTTP 502 returned non-JSON upstream response';
+    const failed: InboxSnapshot = { status: 'error', error: raw };
+    expect(remoteActivityPage(failed, 'action', t)).toMatchObject({
+      status: 'error',
+      error: t('humanInbox.failed'),
+      items: [],
+    });
+    const retained: InboxSnapshot = {
+      status: 'ready',
+      stale: raw,
+      sections: { action: [approval('tob')], replies: [], unread: [], handled: [] },
+      cursors: { action: 'next-page' },
+    };
+    expect(remoteActivityPage(retained, 'action', t)).toMatchObject({
+      status: 'ready',
+      error: t('humanInbox.failed'),
+      items: [approval('tob')],
+      nextCursor: 'next-page',
+    });
+    expect(retained.stale).toBe(raw);
+    expect(failed.error).toBe(raw);
+    expect(
+      remoteActivityPage({ ...retained, stale: undefined }, 'action', t).error,
+    ).toBeUndefined();
+  },
+);
 
 it('renders the remote identity and opens its Host even when a local Tob has the same slug', async () => {
   const host = new FakeHost();
@@ -337,140 +370,218 @@ it('renders the remote identity and opens its Host even when a local Tob has the
   }
 });
 
-it.each(['tool-approval', 'user-question'] as const)(
-  'submits a remote %s while the local selection belongs to another conversation',
-  async (kind) => {
-    const host = new FakeHost();
-    let pending = true;
-    const item = { ...approval('tob'), kind };
-    const message = {
-      id: item.messageId!,
-      at: item.createdAt,
-      author: { kind: 'bot', slug: 'tob' },
-      body: item.summary,
-      ...(kind === 'tool-approval'
-        ? {
-            toolApprovalRequest: {
-              sessionId: 'remote-session',
-              callId: 'remote-call',
-              toolName: 'bash',
-              role: 'orchestrator',
-              cwd: '/qa',
-              input: '{"command":"echo QA"}',
-              allowAlways: false,
-            },
-          }
-        : {
-            userQuestionRequest: {
-              sessionId: 'remote-session',
-              questions: [
-                {
-                  id: 'q',
-                  question: 'Which marker?',
-                  options: [{ label: 'Blue' }, { label: 'Green' }],
-                },
-              ],
-            },
-          }),
-    };
-    host.methods.set('channelTimeline', () => ({
-      revision: 1,
-      page: {
-        entries: [message],
-        olderCursor: null,
-        newerCursor: null,
-        hasOlder: false,
-        hasNewer: false,
-      },
-    }));
-    host.methods.set('humanAttention', (args) => ({
-      queryVersion: 1,
-      items: pending && args.category === 'action' ? [item] : [],
-    }));
-    host.methods.set('channelUnreadCounts', () => ({ channels: [] }));
-    host.methods.set('toolApprovalStatus', () => ({ status: pending ? 'pending' : 'expired' }));
-    host.methods.set('userQuestionStatus', () => ({ status: pending ? 'pending' : 'answered' }));
-    const method = kind === 'tool-approval' ? 'toolApprovalDecide' : 'userQuestionAnswer';
-    host.methods.set(method, () => {
-      pending = false;
-      return { accepted: true };
-    });
-    const sources = createRemoteHosts({
-      carrier: host.carrier,
-      storage: {
-        getItem: (key) =>
-          key === REMOTE_HOSTS_STORAGE_KEY
-            ? JSON.stringify([
-                {
-                  hostId: host.hostId,
-                  hostName: 'Remote QA',
-                  routes: ['http://127.0.0.1:47001'],
-                  deviceId: 'device-1',
-                  credential: host.credential,
-                },
-              ])
-            : null,
-        setItem: () => {},
-        removeItem: () => {},
-      },
-    });
-    const release = sources.subscribe(() => {});
-    await vi.waitFor(() => expect(sources.getSnapshot().hosts[0]?.inbox.status).toBe('ready'));
-    const localSelection = store.getSnapshot().selection;
-    store.select({ kind: 'bot', slug: 'unrelated-local-bot' });
-    const element = document.createElement('div');
-    document.body.append(element);
-    const root = createRoot(element);
-    try {
+it.each(
+  (['tool-approval', 'user-question'] as const).flatMap((kind) =>
+    (['accepted', 'decided', 'expired'] as const).flatMap((result) =>
+      (kind === 'tool-approval' && result !== 'accepted' ? [false, true] : [false]).map(
+        (batch) => ({
+          kind,
+          result,
+          batch,
+        }),
+      ),
+    ),
+  ),
+)('handles remote $kind returning $result (batch $batch)', async ({ kind, result, batch }) => {
+  const host = new FakeHost();
+  let pending = true;
+  const item = { ...approval('tob'), kind };
+  const message = {
+    id: item.messageId!,
+    at: item.createdAt,
+    author: { kind: 'bot', slug: 'tob' },
+    body: item.summary,
+    ...(kind === 'tool-approval'
+      ? {
+          toolApprovalRequest: {
+            sessionId: 'remote-session',
+            callId: 'remote-call',
+            toolName: 'bash',
+            role: 'orchestrator',
+            cwd: '/qa',
+            input: '{"command":"echo QA"}',
+            allowAlways: false,
+          },
+        }
+      : {
+          userQuestionRequest: {
+            sessionId: 'remote-session',
+            questions: [
+              {
+                id: 'q',
+                question: 'Which marker?',
+                options: [{ label: 'Blue' }, { label: 'Green' }],
+              },
+            ],
+          },
+        }),
+  };
+  host.methods.set('channelTimeline', () => ({
+    revision: 1,
+    page: {
+      entries: [
+        message,
+        ...(!pending && result === 'decided'
+          ? [
+              {
+                id: 'remote-decision',
+                at: item.createdAt,
+                author: { kind: 'human' },
+                body: '',
+                ...(kind === 'tool-approval'
+                  ? {
+                      toolApprovalDecision: {
+                        requestMessageId: message.id,
+                        outcome: 'rejected',
+                      },
+                    }
+                  : {
+                      userQuestionResolution: {
+                        requestMessageId: message.id,
+                        state: 'answered',
+                        answers: [{ id: 'q', selected: ['Green'] }],
+                      },
+                    }),
+              },
+            ]
+          : []),
+      ],
+      olderCursor: null,
+      newerCursor: null,
+      hasOlder: false,
+      hasNewer: false,
+    },
+  }));
+  host.methods.set('humanAttention', (args) => ({
+    queryVersion: 1,
+    items: (pending || result !== 'accepted') && args.category === 'action' ? [item] : [],
+  }));
+  host.methods.set('channelUnreadCounts', () => ({ channels: [] }));
+  host.methods.set('toolApprovalStatus', () => ({ status: pending ? 'pending' : 'expired' }));
+  host.methods.set('userQuestionStatus', () => ({
+    status: pending ? 'pending' : result === 'expired' ? 'expired' : 'answered',
+  }));
+  const method = kind === 'tool-approval' ? 'toolApprovalDecide' : 'userQuestionAnswer';
+  host.methods.set(method, () => {
+    pending = false;
+    if (result !== 'accepted') throw new Error('Request already settled');
+    return { accepted: true };
+  });
+  const sources = createRemoteHosts({
+    carrier: host.carrier,
+    storage: {
+      getItem: (key) =>
+        key === REMOTE_HOSTS_STORAGE_KEY
+          ? JSON.stringify([
+              {
+                hostId: host.hostId,
+                hostName: 'Remote QA',
+                routes: ['http://127.0.0.1:47001'],
+                deviceId: 'device-1',
+                credential: host.credential,
+              },
+            ])
+          : null,
+      setItem: () => {},
+      removeItem: () => {},
+    },
+  });
+  const release = sources.subscribe(() => {});
+  await vi.waitFor(() => expect(sources.getSnapshot().hosts[0]?.inbox.status).toBe('ready'));
+  const localSelection = store.getSnapshot().selection;
+  store.select({ kind: 'bot', slug: 'unrelated-local-bot' });
+  const element = document.createElement('div');
+  document.body.append(element);
+  const root = createRoot(element);
+  try {
+    await act(async () =>
+      root.render(
+        createElement(RemoteActivityGroup, {
+          host: sources.getSnapshot().hosts[0]!,
+          sources,
+          avatars: new Map(),
+          t: zhTranslate,
+          query: {
+            category: 'all',
+            sort: 'default',
+            search: '',
+            snoozed: false,
+            botSlug: undefined,
+            channelId: undefined,
+          },
+        }),
+      ),
+    );
+    if (batch) {
+      await act(async () => {
+        [...element.querySelectorAll('button')]
+          .find((button) => button.textContent === zhTranslate('activityInbox.select'))!
+          .click();
+      });
       await act(async () =>
-        root.render(
-          createElement(RemoteActivityGroup, {
-            host: sources.getSnapshot().hosts[0]!,
-            sources,
-            avatars: new Map(),
-            t: zhTranslate,
-            query: {
-              category: 'all',
-              sort: 'default',
-              search: '',
-              snoozed: false,
-              botSlug: undefined,
-              channelId: undefined,
-            },
-          }),
-        ),
+        element.querySelector<HTMLInputElement>('.bh-human-inbox-batch input')!.click(),
       );
+    } else {
       await act(async () =>
         element.querySelector<HTMLButtonElement>('.bh-human-inbox-row-open')!.click(),
       );
-      const label = kind === 'tool-approval' ? zhTranslate('approval.allowOnce') : 'Blue';
-      const button = () =>
-        [...element.querySelectorAll('button')].find(
-          (button) => button.textContent?.trim() === label,
-        );
-      await act(async () => {
-        await vi.waitFor(() => expect(button()?.disabled).toBe(false));
-      });
-      await act(async () => button()!.click());
-      expect(host.calls.filter((call) => call.method === method)).toEqual([
-        {
-          method,
-          args:
-            kind === 'tool-approval'
-              ? { channelId: 'dm-tob', messageId: item.messageId, outcome: 'allowed-once' }
-              : {
-                  channelId: 'dm-tob',
-                  messageId: item.messageId,
-                  answer: { answers: [{ id: 'q', selected: ['Blue'] }] },
-                },
-        },
-      ]);
-      expect(store.getSnapshot().selection).toEqual({ kind: 'bot', slug: 'unrelated-local-bot' });
-    } finally {
-      await act(async () => root.unmount());
-      element.remove();
-      release();
-      store.select(localSelection);
     }
-  },
-);
+    const label = batch
+      ? zhTranslate('humanInbox.batch.allow', { count: '1' })
+      : kind === 'tool-approval'
+        ? zhTranslate('approval.allowOnce')
+        : 'Blue';
+    const button = () =>
+      [...element.querySelectorAll('button')].find(
+        (button) => button.textContent?.trim() === label,
+      );
+    await act(async () => {
+      await vi.waitFor(() => expect(button()?.disabled).toBe(false));
+    });
+    await act(async () => button()!.click());
+    expect(host.calls.filter((call) => call.method === method)).toEqual([
+      {
+        method,
+        args:
+          kind === 'tool-approval'
+            ? { channelId: 'dm-tob', messageId: item.messageId, outcome: 'allowed-once' }
+            : {
+                channelId: 'dm-tob',
+                messageId: item.messageId,
+                answer: { answers: [{ id: 'q', selected: ['Blue'] }] },
+              },
+      },
+    ]);
+    expect(store.getSnapshot().selection).toEqual({ kind: 'bot', slug: 'unrelated-local-bot' });
+    if (result !== 'accepted') {
+      await act(async () => {
+        await vi.waitFor(() => expect(button()?.disabled ?? true).toBe(true));
+      });
+      expect(element.textContent).not.toContain('Request already settled');
+      if (batch)
+        expect(element.querySelector('[role="alert"]')?.textContent).toContain(
+          zhTranslate('humanInbox.batch.failed', { count: '1' }),
+        );
+      else if (kind === 'tool-approval')
+        expect(element.querySelector('.bh-request-done')?.getAttribute('data-state')).toBe(
+          'expired',
+        );
+      else {
+        expect(element.querySelector('.bh-request-done')?.getAttribute('data-state')).toBe(
+          result === 'decided' ? 'answered' : 'expired',
+        );
+        expect(element.querySelector('[role="alert"]')?.textContent).toContain(
+          zhTranslate('humanInbox.failed'),
+        );
+      }
+      expect(host.calls.filter((call) => call.method === 'humanAttention').length).toBeGreaterThan(
+        3,
+      );
+    }
+  } finally {
+    await act(async () => root.unmount());
+    element.remove();
+    release();
+    store.select(localSelection);
+  }
+});

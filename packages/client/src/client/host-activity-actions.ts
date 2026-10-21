@@ -10,6 +10,7 @@ import {
   decideApproval,
   loadApproval,
   loadQuestion,
+  type DecisionResult,
   type RequestRef,
 } from '../../../../apps/mobile/src/host/requests.js';
 import type { BridgeActions } from './actions.js';
@@ -41,6 +42,7 @@ export function createHostActivityActions(options: {
   items(): readonly HumanAttentionItem[];
   refresh(): Promise<void>;
   open(channelId: string): Promise<void>;
+  requestUnavailable: string;
 }): HostActivityActions {
   const refs = new Map<string, RequestRef>();
   const ref = (channelId: string, messageId: string): RequestRef => {
@@ -62,6 +64,11 @@ export function createHostActivityActions(options: {
   const changed = async (run: () => Promise<unknown>): Promise<void> => {
     await run();
     await options.refresh();
+  };
+  const decided = async (run: () => Promise<DecisionResult>): Promise<void> => {
+    const result = await run();
+    await options.refresh();
+    if (result !== 'accepted') throw new Error(options.requestUnavailable);
   };
   const approval = (channelId: string, messageId: string) =>
     loadApproval(options.client(), ref(channelId, messageId));
@@ -113,13 +120,13 @@ export function createHostActivityActions(options: {
     async decideToolApproval(channelId, messageId, outcome) {
       if (outcome === 'allowed-always-exact' || outcome === 'allowed-always-all')
         throw new Error('This approval choice is unavailable');
-      await changed(() => decideApproval(options.client(), ref(channelId, messageId), outcome));
+      await decided(() => decideApproval(options.client(), ref(channelId, messageId), outcome));
     },
     async userQuestionStatus(channelId, messageId) {
       const value = await loadQuestion(options.client(), ref(channelId, messageId));
       return value.status === 'decided' ? 'answered' : value.status;
     },
     answerUserQuestion: (channelId, messageId, answers) =>
-      changed(() => answerQuestion(options.client(), ref(channelId, messageId), { answers })),
+      decided(() => answerQuestion(options.client(), ref(channelId, messageId), { answers })),
   };
 }

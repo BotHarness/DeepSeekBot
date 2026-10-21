@@ -67,6 +67,7 @@ export function remoteActivityTarget(
 export function remoteActivityPage(
   inbox: InboxSnapshot,
   section: ActivitySection,
+  t: BotHarnessTranslate,
 ): HumanInboxState {
   return {
     category: section,
@@ -80,7 +81,9 @@ export function remoteActivityPage(
         : [],
     status: inbox.status,
     error:
-      inbox.status === 'error' ? inbox.error : inbox.status === 'ready' ? inbox.stale : undefined,
+      inbox.status === 'error' || (inbox.status === 'ready' && inbox.stale !== undefined)
+        ? t('humanInbox.failed')
+        : undefined,
     nextCursor: inbox.status === 'ready' ? inbox.cursors?.[section] : undefined,
     unreadCount: 0,
     hasAction: false,
@@ -225,6 +228,7 @@ export function RemoteActivityGroup({
   const scopedActions = useMemo(
     () =>
       createHostActivityActions({
+        requestUnavailable: t('humanInbox.failed'),
         client: () => {
           const client = sources.client(host.host.hostId);
           if (client === undefined || client.getSnapshot().connection.status === 'refused')
@@ -297,7 +301,7 @@ export function RemoteActivityGroup({
       {refused
         ? null
         : (query.category === 'all' ? ACTIVITY_SECTIONS : [query.category]).map((section) => {
-            const page = remoteActivityPage(inbox, section);
+            const page = remoteActivityPage(inbox, section, t);
             const count =
               section === 'unread'
                 ? page.items.reduce((sum, item) => sum + (item.unreadCount ?? 0), 0)

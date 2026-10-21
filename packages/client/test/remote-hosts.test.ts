@@ -454,6 +454,7 @@ it('routes decisions, questions, joins, snooze and clear to the owning Host and 
   };
   const refresh = vi.fn(async () => {});
   const actions = createHostActivityActions({
+    requestUnavailable: 'Request was not accepted',
     client: () => {
       const client = sources.client(host.hostId);
       if (client === undefined) throw new Error('Host removed');
@@ -513,3 +514,87 @@ it('routes decisions, questions, joins, snooze and clear to the owning Host and 
   await sources.remove(host.hostId);
   await expect(actions.dismissHumanInbox(item)).rejects.toThrow('Host removed');
 });
+
+it.each(
+  (['tool-approval', 'user-question'] as const).flatMap((kind) =>
+    (['decided', 'expired'] as const).map((result) => ({ kind, result })),
+  ),
+)(
+  'does not accept a remote $kind returning $result after the precheck',
+  async ({ kind, result }) => {
+    const { host, storage } = liveHost();
+    const sources = createRemoteHosts({ carrier: host.carrier, storage });
+    releases.push(sources.subscribe(() => {}));
+    await vi.waitFor(() => expect(sources.getSnapshot().hosts[0]?.inbox.status).toBe('ready'));
+    let pending = true;
+    const item: HumanAttentionItem = {
+      id: 'request',
+      category: 'action',
+      kind,
+      botSlug: 'ada',
+      channelId: 'dm-ada',
+      messageId: 'request-message',
+      summary: '',
+      createdAt: '',
+    };
+    const refresh = vi.fn(async () => {});
+    const actions = createHostActivityActions({
+      client: () => sources.client(host.hostId)!,
+      items: () => [item],
+      refresh,
+      open: async () => {},
+      requestUnavailable: 'This request was not accepted',
+    });
+    const request = {
+      id: item.messageId,
+      toolApprovalRequest: { toolName: 'bash', role: 'orchestrator', cwd: '', input: '{}' },
+      userQuestionRequest: {
+        questions: [{ id: 'q', question: 'Choose', options: [{ label: 'Blue' }] }],
+      },
+    };
+    host.methods.set('channelTimeline', () => ({
+      page: {
+        entries: [
+          request,
+          ...(!pending && result === 'decided'
+            ? [
+                {
+                  id: 'other-device-decision',
+                  toolApprovalDecision: { requestMessageId: item.messageId, outcome: 'rejected' },
+                  userQuestionResolution: {
+                    requestMessageId: item.messageId,
+                    state: 'answered',
+                    answers: [{ id: 'q', selected: ['Blue'] }],
+                  },
+                },
+              ]
+            : []),
+        ],
+      },
+    }));
+    host.methods.set('toolApprovalStatus', () => ({ status: pending ? 'pending' : 'expired' }));
+    host.methods.set('userQuestionStatus', () => ({
+      status: pending ? 'pending' : result === 'decided' ? 'answered' : 'expired',
+    }));
+    host.methods.set(kind === 'tool-approval' ? 'toolApprovalDecide' : 'userQuestionAnswer', () => {
+      pending = false;
+      throw new Error('Host refused after another device settled the request');
+    });
+    const status = () =>
+      kind === 'tool-approval'
+        ? actions.toolApprovalStatus(item.channelId!, item.messageId!)
+        : actions.userQuestionStatus(item.channelId!, item.messageId!);
+    expect(await status()).toBe('pending');
+    const submit = () =>
+      kind === 'tool-approval'
+        ? actions.decideToolApproval(item.channelId!, item.messageId!, 'allowed-once')
+        : actions.answerUserQuestion(item.channelId!, item.messageId!, [
+            { id: 'q', selected: ['Blue'] },
+          ]);
+    await expect(submit()).rejects.toThrow('This request was not accepted');
+    expect(refresh).toHaveBeenCalledOnce();
+    expect(await status()).toBe(
+      kind === 'user-question' && result === 'decided' ? 'answered' : 'expired',
+    );
+  },
+);
