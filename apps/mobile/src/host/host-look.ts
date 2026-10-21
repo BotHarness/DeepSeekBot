@@ -1,16 +1,20 @@
 import {
-  bannerHex,
   DEFAULT_HOST_LOOK,
-  HOST_AVATAR_PRESETS,
+  HOST_COLORS,
+  HOST_EMOJI,
+  HOST_SYMBOLS,
+  hostLook,
   hostLookName,
-  type HostAvatar,
-  type HostBanner,
+  nearestHostColor,
+  type HostColorId,
+  type HostIcon,
   type HostLook,
 } from '../ui/design/host-look';
 
 export interface LookStorage {
   read(): Promise<unknown>;
   write(value: Record<string, HostLook>): void;
+  forgetLegacyImages?(): void;
 }
 
 export interface HostLooks {
@@ -26,69 +30,41 @@ function record(value: unknown): Record<string, unknown> {
 const text = (value: unknown): string | undefined =>
   typeof value === 'string' && value !== '' ? value : undefined;
 
-export function parseHostAvatar(input: unknown): HostAvatar {
+export function parseHostIcon(input: unknown): HostIcon {
   const value = record(input);
   const id = text(value['id']);
-  const uri = text(value['uri']);
+  const emoji = text(value['emoji']);
+  if (value['kind'] === 'symbol' && id !== undefined && Object.hasOwn(HOST_SYMBOLS, id))
+    return { kind: 'symbol', id: id as keyof typeof HOST_SYMBOLS };
   if (
-    value['kind'] === 'preset' &&
-    id !== undefined &&
-    (HOST_AVATAR_PRESETS as readonly string[]).includes(id)
+    value['kind'] === 'emoji' &&
+    emoji !== undefined &&
+    (HOST_EMOJI as readonly string[]).includes(emoji)
   )
-    return { kind: 'preset', id };
-  if (value['kind'] === 'image' && uri !== undefined) return { kind: 'image', uri };
-  return DEFAULT_HOST_LOOK.avatar;
+    return { kind: 'emoji', emoji };
+  return DEFAULT_HOST_LOOK.icon;
 }
 
-export function parseHostBanner(input: unknown): HostBanner {
+export function parseHostColor(input: unknown): HostColorId | undefined {
+  const id = text(input);
+  return id !== undefined && Object.hasOwn(HOST_COLORS, id) ? (id as HostColorId) : undefined;
+}
+
+function legacyColor(input: unknown): HostColorId | undefined {
+  const banner = record(input);
+  const hex = text(banner['kind'] === 'gradient' ? banner['from'] : banner['color']);
+  return hex === undefined ? undefined : nearestHostColor(hex.trim().toLowerCase());
+}
+
+export function isLegacyHostLook(input: unknown): boolean {
   const value = record(input);
-  const hex = (key: string) => {
-    const raw = text(value[key]);
-    return raw === undefined ? undefined : bannerHex(raw);
-  };
-  const color = hex('color');
-  const from = hex('from');
-  const to = hex('to');
-  const uri = text(value['uri']);
-  if (value['kind'] === 'color' && color !== undefined) return { kind: 'color', color };
-  if (value['kind'] === 'gradient' && from !== undefined && to !== undefined)
-    return { kind: 'gradient', from, to };
-  if (value['kind'] === 'image' && uri !== undefined) return { kind: 'image', uri };
-  return DEFAULT_HOST_LOOK.banner;
+  return 'avatar' in value || 'banner' in value;
 }
 
 export function parseHostLook(input: unknown): HostLook {
   const value = record(input);
-  const name = hostLookName(value['name']);
-  return {
-    ...(name === undefined ? {} : { name }),
-    avatar: parseHostAvatar(value['avatar']),
-    banner: parseHostBanner(value['banner']),
-  };
-}
-
-export const LOOK_IMAGES = 'host-looks';
-
-export function rebaseLookImage(uri: string, folderUri: string): string {
-  const marker = `/${LOOK_IMAGES}/`;
-  const at = uri.lastIndexOf(marker);
-  if (at < 0) return uri;
-  return `${folderUri.replace(/\/?$/u, '/')}${uri.slice(at + marker.length)}`;
-}
-
-export function rebaseLookImages(input: unknown, folderUri: string): unknown {
-  const looks = record(input);
-  const slot = (value: unknown) => {
-    const part = record(value);
-    const uri = part['uri'];
-    return typeof uri === 'string' ? { ...part, uri: rebaseLookImage(uri, folderUri) } : value;
-  };
-  return Object.fromEntries(
-    Object.entries(looks).map(([hostId, look]) => {
-      const value = record(look);
-      return [hostId, { ...value, avatar: slot(value['avatar']), banner: slot(value['banner']) }];
-    }),
-  );
+  const color = 'color' in value ? parseHostColor(value['color']) : legacyColor(value['banner']);
+  return hostLook(hostLookName(value['name']), parseHostIcon(value['icon']), color);
 }
 
 export function createHostLooks(storage: LookStorage): HostLooks {
@@ -101,8 +77,12 @@ export function createHostLooks(storage: LookStorage): HostLooks {
   void storage.read().then(
     (value) => {
       if (touched) return;
-      for (const [hostId, look] of Object.entries(record(value)))
-        byHost.set(hostId, parseHostLook(look));
+      const stored = Object.entries(record(value));
+      for (const [hostId, look] of stored) byHost.set(hostId, parseHostLook(look));
+      if (stored.some(([, look]) => isLegacyHostLook(look))) {
+        storage.write(Object.fromEntries(byHost));
+        storage.forgetLegacyImages?.();
+      }
       notify();
     },
     () => undefined,

@@ -128,7 +128,14 @@ const HomeContent = memo(function HomeContent({
   const filters = useMemo(
     () =>
       conversationEnvironments(
-        saved ? { hostId: saved.hostId, name: shownHostName(look, saved.hostName) } : undefined,
+        saved
+          ? {
+              hostId: saved.hostId,
+              name: shownHostName(look, saved.hostName),
+              icon: look.icon,
+              ...(look.color === undefined ? {} : { color: look.color }),
+            }
+          : undefined,
         cloud.rows.filter((r) => r.hasSession).map(cloudViewScope),
         directory.workspaces,
         t.allEnvironments,

@@ -36,7 +36,7 @@ import { createHostGlances, liveGlance, type HostStatus } from '../../host/host-
 import { hostSession, useHostSession, useHostSnapshot, useInbox } from '../../host/host-session';
 import { nativeCarrier } from '../../host/native-carrier';
 import { useHostLook } from '../../host/native-host-look';
-import { shownHostName, type HostLook } from '../design/host-look';
+import { hostColorInk, hostTileFill, shownHostName, type HostLook } from '../design/host-look';
 import { glassShadow, pressTint, useDesignTheme, type DesignTheme } from '../design/theme';
 import { useMounted } from '../mounted';
 import { drawerSpring, edge, motion, radius, scrim, sidebar, space } from '../design/tokens';
@@ -236,10 +236,14 @@ function DrawerTile({ look, name, current }: { look: HostLook; name: string; cur
     >
       <HostTile
         hostName={name}
-        avatar={look.avatar}
+        icon={look.icon}
         size={theme.type.title.line + space.x3}
-        fill={theme.layer.sheet.inset}
-        letter={theme.color.fg}
+        fill={hostTileFill(theme.scheme, theme.color, look.color, theme.layer.sheet.inset)}
+        ink={
+          look.color === undefined
+            ? theme.color.fg
+            : hostColorInk(theme.scheme, theme.color, look.color)
+        }
       />
     </View>
   );
@@ -475,10 +479,9 @@ function WorkspaceRow({
     >
       <HostTile
         hostName={workspace.name}
-        avatar={{ kind: 'initial' }}
         size={theme.type.title.line + space.x3}
         fill={theme.layer.sheet.inset}
-        letter={theme.color.fg}
+        ink={theme.color.fg}
       />
       <View style={{ flex: 1, gap: space.x1 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x2 }}>

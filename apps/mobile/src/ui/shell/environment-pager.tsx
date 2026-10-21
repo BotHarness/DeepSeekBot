@@ -6,6 +6,8 @@ import type { ConversationEnvironment } from '../../host/conversation-environmen
 import { useDesignTheme } from '../design/theme';
 import { edge, environmentTab, space } from '../design/tokens';
 import { Text } from '../primitives/text';
+import { hostColorInk } from '../design/host-look';
+import { HostGlyph } from './host-tile';
 import { CloudIcon, ComputerIcon } from './icons';
 
 export function EnvironmentPager({
@@ -35,12 +37,20 @@ export function EnvironmentPager({
           {
             accessibilityLabel: route.accessibilityLabel ?? route.title,
             label: ({ focused }: { focused: boolean }) => {
-              const Icon =
-                route.kind === 'cloud'
-                  ? CloudIcon
-                  : route.kind === 'computer'
-                    ? ComputerIcon
-                    : undefined;
+              const tint = !focused
+                ? theme.color.muted
+                : route.hostColor === undefined
+                  ? theme.color.fg
+                  : hostColorInk(theme.scheme, theme.color, route.hostColor);
+              const size = theme.type.meta.line;
+              const leading =
+                route.hostIcon !== undefined ? (
+                  <HostGlyph icon={route.hostIcon} size={size} color={tint} />
+                ) : route.kind === 'cloud' ? (
+                  <CloudIcon color={tint} size={size} />
+                ) : route.kind === 'computer' ? (
+                  <ComputerIcon color={tint} size={size} />
+                ) : null;
               return (
                 <View
                   style={{
@@ -50,6 +60,7 @@ export function EnvironmentPager({
                     maxWidth: maxTabWidth - space.x5 * 2,
                   }}
                 >
+                  {leading === null ? null : <View style={{ flexShrink: 0 }}>{leading}</View>}
                   <Text
                     strong
                     tone={focused ? 'fg' : 'muted'}
@@ -59,11 +70,6 @@ export function EnvironmentPager({
                   >
                     {route.title}
                   </Text>
-                  {Icon ? (
-                    <View style={{ flexShrink: 0 }}>
-                      <Icon color={theme.color.muted} size={theme.type.meta.line} />
-                    </View>
-                  ) : null}
                 </View>
               );
             },
@@ -95,7 +101,13 @@ export function EnvironmentPager({
             paddingVertical: space.x4,
           }}
           style={{ backgroundColor: theme.color.base, elevation: 0, shadowOpacity: 0 }}
-          indicatorStyle={{ backgroundColor: theme.color.accent, height: edge.focus }}
+          indicatorStyle={{
+            backgroundColor:
+              routes[index]?.hostColor === undefined
+                ? theme.color.accent
+                : hostColorInk(theme.scheme, theme.color, routes[index].hostColor),
+            height: edge.focus,
+          }}
         />
       )}
       renderScene={({ route }) => renderPage(route, route.key === routes[index]?.key)}
