@@ -1,8 +1,9 @@
-import { useMemo, useSyncExternalStore, type ReactElement } from 'react';
+import { useContext, useMemo, useSyncExternalStore, type ReactElement } from 'react';
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import { MessageAudio } from './message-audio.js';
 import { createBridgeAudioResource } from './bridge-audio-resource.js';
 import type { BotHarnessTranslate } from './locale.js';
+import { RemoteMessageHostContext } from './remote-message-host.js';
 
 export function BridgeAudio({
   channelId,
@@ -19,9 +20,10 @@ export function BridgeAudio({
   sizeBytes?: number | undefined;
   t: BotHarnessTranslate;
 }): ReactElement {
+  const fetcher = useContext(RemoteMessageHostContext)?.fetch;
   const resource = useMemo(
-    () => createBridgeAudioResource(channelId, sourceEventId, attachmentId),
-    [channelId, sourceEventId, attachmentId],
+    () => createBridgeAudioResource(channelId, sourceEventId, attachmentId, fetcher),
+    [channelId, sourceEventId, attachmentId, fetcher],
   );
   const state = useSyncExternalStore(
     resource.subscribe,
@@ -43,8 +45,10 @@ export function BridgeAudio({
         size={sizeBytes}
         url={state.url}
         downloadUrl={
-          './api/botharness/attachment?' +
-          new URLSearchParams({ channelId, sourceEventId, attachmentId })
+          fetcher === undefined
+            ? './api/botharness/attachment?' +
+              new URLSearchParams({ channelId, sourceEventId, attachmentId })
+            : undefined
         }
         onError={resource.fail}
         t={t}

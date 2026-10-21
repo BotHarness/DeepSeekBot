@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   IconChevronDownOutlineRegular: () => null,
+  MarkdownText: () => null,
   Tooltip: ({ children }: { children: ReactNode }) => children,
   Menu: ({
     open,

@@ -8,7 +8,16 @@ import {
   type ConversationMessage,
   type ConversationSnapshot,
 } from '../../../../apps/mobile/src/host/conversation.js';
-import { remoteHosts, type RemoteConversationTarget } from './remote-hosts.js';
+import type { ChannelWireMessage } from '../../../../apps/mobile/src/host/wire.js';
+import { parseStoredChannelMessage } from './bridge.js';
+import { ChannelMessageBody } from './channel-message-body.js';
+import {
+  conversationChannelId,
+  remoteHosts,
+  type RemoteConversationTarget,
+} from './remote-hosts.js';
+import { createRemoteMessageHost, RemoteMessageHostContext } from './remote-message-host.js';
+import type { ChannelMessage } from './store.js';
 import { useRemoteHosts } from './host-tabs.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { IconButton } from './ds/icon-button.js';
@@ -70,8 +79,8 @@ const styles = stylex.create({
     maxWidth: 'min(720px, 100%)',
     paddingBlock: space.x3,
     paddingInline: space.x4,
-    borderRadius: radius.md,
-    backgroundColor: color.elevated,
+    borderRadius: radius.lg,
+    backgroundColor: color.surface,
     fontSize: text.bodySize,
     lineHeight: text.bodyLine,
     overflowWrap: 'anywhere',
@@ -145,6 +154,28 @@ function useConversation(conversation: Conversation | undefined): ConversationSn
   return useSyncExternalStore(subscribe, read, read);
 }
 
+const parsed = new WeakMap<ChannelWireMessage, ChannelMessage | undefined>();
+
+function channelMessage(
+  message: ConversationMessage,
+  wire: ChannelWireMessage | undefined,
+): ChannelMessage {
+  if (wire !== undefined) {
+    if (!parsed.has(wire)) parsed.set(wire, parseStoredChannelMessage(wire));
+    const value = parsed.get(wire);
+    if (value !== undefined) return value;
+  }
+  return {
+    id: message.id,
+    at: message.at,
+    author:
+      message.author === 'bot' && message.bot !== undefined
+        ? { kind: 'bot', slug: message.bot }
+        : { kind: message.author === 'human' ? 'human' : 'system' },
+    body: message.body,
+  };
+}
+
 function authorName(
   message: ConversationMessage,
   bots: ReadonlyMap<string, string>,
@@ -171,6 +202,34 @@ export function RemoteConversationView({
     [sources, target.hostId, target.botSlug, target.channelId],
   );
   const snapshot = useConversation(conversation);
+  const channelId = conversationChannelId(target);
+  const messageHost = useMemo(() => {
+    const client = sources.client(target.hostId);
+    return client === undefined
+      ? undefined
+      : createRemoteMessageHost(client, (candidate) => {
+          const open = sources.getSnapshot().open;
+          return (
+            open !== undefined &&
+            open.hostId === target.hostId &&
+            conversationChannelId(open) === candidate
+          );
+        });
+  }, [sources, target.hostId]);
+  const decisions = new Map(
+    snapshot.messages.flatMap((message) =>
+      message.resolves?.resolution.kind === 'tool-approval'
+        ? [[message.resolves.requestId, message.resolves.resolution.outcome] as const]
+        : [],
+    ),
+  );
+  const answers = new Map(
+    snapshot.messages.flatMap((message) =>
+      message.resolves?.resolution.kind === 'user-question'
+        ? [[message.resolves.requestId, message.resolves.resolution.state] as const]
+        : [],
+    ),
+  );
   const [draft, setDraft] = useState('');
   const labels = useMemo<MarkdownLabels>(
     () => ({
@@ -233,15 +292,15 @@ export function RemoteConversationView({
           >
             <span {...stylex.props(styles.author)}>{authorName(message, bots, t)}</span>
             <div {...stylex.props(styles.bubble, message.author === 'human' && styles.humanBubble)}>
-              <MarkdownText
-                text={
-                  message.body.trim() !== ''
-                    ? message.body
-                    : message.attachments.map((attachment) => attachment.name).join(', ')
-                }
-                streaming={false}
-                labels={labels}
-              />
+              <RemoteMessageHostContext.Provider value={messageHost}>
+                <ChannelMessageBody
+                  message={channelMessage(message, conversation?.wireMessage?.(message.id))}
+                  channelId={channelId}
+                  toolApprovalDecision={decisions.get(message.id)}
+                  userQuestionResolution={answers.get(message.id)}
+                  t={t}
+                />
+              </RemoteMessageHostContext.Provider>
             </div>
             {message.delivery === 'failed' ? (
               <span {...stylex.props(styles.failed)}>

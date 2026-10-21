@@ -1,5 +1,10 @@
 import { subscribeMessagingDefaults } from './messaging-defaults-live.js';
 import { boundedBridgeMediaRequest } from './bridge-media-request.js';
+import {
+  bridgeAttachmentPath,
+  localAttachmentFetch,
+  type AttachmentFetch,
+} from './attachment-fetch.js';
 
 interface FileState {
   loading?: boolean;
@@ -12,6 +17,17 @@ export function createBridgeFileResource(
   channelId: string,
   sourceEventId: string,
   attachmentId: string,
+  fetcher?: AttachmentFetch,
+) {
+  return createAttachmentFileResource(
+    bridgeAttachmentPath({ channelId, sourceEventId, attachmentId }),
+    fetcher,
+  );
+}
+
+export function createAttachmentFileResource(
+  path: string,
+  fetcher: AttachmentFetch = localAttachmentFetch,
 ) {
   let state = EMPTY;
   let controller: AbortController | undefined;
@@ -38,11 +54,7 @@ export function createBridgeFileResource(
     update({ loading: true });
     try {
       await boundedBridgeMediaRequest(signal, async () => {
-        const response = await fetch(
-          './api/botharness/attachment?' +
-            new URLSearchParams({ channelId, sourceEventId, attachmentId }),
-          { signal },
-        );
+        const response = await fetcher(path, { signal });
         signal.throwIfAborted();
         if (!response.ok) {
           await response.body?.cancel();

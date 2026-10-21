@@ -61,12 +61,17 @@ export interface RemoteHosts {
   open(target: RemoteConversationTarget): void;
   close(): void;
   conversation(target: RemoteConversationTarget): Conversation | undefined;
+  client(hostId: string): HostClient | undefined;
 }
 
 export interface HostStorage {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
   removeItem(key: string): void;
+}
+
+export function conversationChannelId(target: RemoteConversationTarget): string {
+  return target.channelId ?? `dm-${target.botSlug ?? ''}`;
 }
 
 export function conversationKey(target: RemoteConversationTarget): string {
@@ -296,6 +301,7 @@ export function createRemoteHosts(options: {
       open = undefined;
       publish();
     },
+    client: (hostId) => clients.get(hostId)?.client,
     conversation(target) {
       const entry = clients.get(target.hostId);
       if (entry === undefined) return undefined;

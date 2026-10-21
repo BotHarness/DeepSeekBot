@@ -7,7 +7,9 @@ import { OnboardingWelcome } from './onboarding-view.js';
 import { BridgeImage } from './bridge-image.js';
 import { ExternalMessageText } from './external-message-text.js';
 import { ClearedMessageAttachment, MessageAttachment } from './message-attachment.js';
-import { useMemo, useRef, useState, type ReactElement } from 'react';
+import { useContext, useMemo, useRef, useState, type ReactElement } from 'react';
+import { RemoteMessageHostContext } from './remote-message-host.js';
+import { RemoteMessageAttachment } from './remote-message-attachment.js';
 
 import {
   Button,
@@ -89,9 +91,10 @@ function SessionFailureNotice({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const title = nativeChatT?.('message.turnError') ?? t('failure.title');
-  const needsModels = ['AUTH', 'MISSING_CREDENTIAL', 'INVALID_CREDENTIAL', 'QUOTA'].includes(
-    failure.code ?? '',
-  );
+  const remote = useContext(RemoteMessageHostContext);
+  const needsModels =
+    remote === undefined &&
+    ['AUTH', 'MISSING_CREDENTIAL', 'INVALID_CREDENTIAL', 'QUOTA'].includes(failure.code ?? '');
   return (
     <div className="bh-session-failure-row" role="alert">
       <div className="bh-session-failure-heading">
@@ -360,6 +363,8 @@ export function ChannelMessageBody({
     }),
     [t],
   );
+  const remote = useContext(RemoteMessageHostContext);
+  const cardActions = remote?.actions ?? actions;
   const approvalBody = toolApprovalText(storedMessage, t);
   const message =
     approvalBody === undefined ? storedMessage : { ...storedMessage, body: approvalBody };
@@ -387,25 +392,25 @@ export function ChannelMessageBody({
         nativeChatT={nativeChatT}
       />
     );
-  if (message.toolApprovalRequest !== undefined && actions !== undefined) {
+  if (message.toolApprovalRequest !== undefined && cardActions !== undefined) {
     return (
       <ToolApprovalCard
         message={message}
-        actions={actions}
+        actions={cardActions}
         decision={toolApprovalDecision}
         channelId={channelId}
         t={t}
       />
     );
   }
-  if (message.privateInputRequest !== undefined && actions !== undefined) {
-    return <PrivateInputCard message={message} actions={actions} channelId={channelId} t={t} />;
+  if (message.privateInputRequest !== undefined && cardActions !== undefined) {
+    return <PrivateInputCard message={message} actions={cardActions} channelId={channelId} t={t} />;
   }
-  if (message.userQuestionRequest !== undefined && actions !== undefined) {
+  if (message.userQuestionRequest !== undefined && cardActions !== undefined) {
     return (
       <UserQuestionCard
         message={message}
-        actions={actions}
+        actions={cardActions}
         resolution={userQuestionResolution}
         channelId={channelId}
         t={t}
@@ -677,16 +682,27 @@ export function ChannelMessageBody({
       )}
       {message.attachments?.length ? (
         <div className="bh-message-attachments">
-          {message.attachments.map((ref, index) => (
-            <MessageAttachment
-              key={`${ref.fileId ?? ref.hash}-${index}`}
-              attachment={ref}
-              channelId={channelId}
-              messageId={message.id}
-              actions={actions}
-              t={t}
-            />
-          ))}
+          {message.attachments.map((ref, index) =>
+            remote !== undefined && channelId !== undefined ? (
+              <RemoteMessageAttachment
+                key={`${ref.fileId ?? ref.hash}-${index}`}
+                attachment={ref}
+                channelId={channelId}
+                messageId={message.id}
+                fetcher={remote.fetch}
+                t={t}
+              />
+            ) : (
+              <MessageAttachment
+                key={`${ref.fileId ?? ref.hash}-${index}`}
+                attachment={ref}
+                channelId={channelId}
+                messageId={message.id}
+                actions={actions}
+                t={t}
+              />
+            ),
+          )}
         </div>
       ) : null}
       {message.clearedAttachments?.length ? (
