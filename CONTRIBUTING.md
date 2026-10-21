@@ -47,7 +47,7 @@ Replace the placeholders with details you can safely share. Remove API keys, tok
 
 ## Local development
 
-Use the current toolchain and commands in [AGENTS.md](AGENTS.md#commands), the [README development entry](README.en.md#docs) and the [isolated local instance guide](docs/client-bridge.md#7-本地开发环路dsh-020-rc1), currently in Chinese. Use an isolated Profile, keep credentials machine-local, and leave other contributors' running instances alone.
+Use the current toolchain and commands in [AGENTS.md](AGENTS.md#commands), the [README development entry](README.en.md#docs) and the [isolated local instance guide](docs/client-bridge.md#7-本地开发环路dsh-020-rc2), currently in Chinese. Use an isolated Profile, keep credentials machine-local, and leave other contributors' running instances alone.
 
 Start with relevant checks, then broaden as appropriate. Record exact commands and results, including blocked or unrun checks. Avoid unrelated refactors and generated-file edits. Consult [product vocabulary](CONTEXT.md) and [architecture](docs/architecture/botharness-architecture.md) when your change needs those boundaries.
 
