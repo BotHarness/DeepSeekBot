@@ -72,7 +72,7 @@ function Models({
       generation.current += 1;
     };
   }, [resource]);
-  const run = async (work: () => Promise<void>) => {
+  const run = async (work: () => Promise<void>, onSaved?: () => void) => {
     if (pending.current) return;
     pending.current = true;
     setBusy(true);
@@ -81,13 +81,31 @@ function Models({
     try {
       await resource.write(work);
       const next = await resource.refresh();
-      if (generation.current === request) setValue(next);
+      if (generation.current === request) {
+        setValue(next);
+        onSaved?.();
+      }
     } catch {
       if (generation.current === request) setError(true);
     } finally {
       pending.current = false;
       if (generation.current === request) setBusy(false);
     }
+  };
+  const saveName = () => {
+    if (
+      scope.kind !== 'preset' ||
+      value?.preset === undefined ||
+      name === undefined ||
+      name.trim() === value.preset.name
+    )
+      return;
+    void run(
+      async () => {
+        await saveModelPreset(client, value, name, true);
+      },
+      () => setName(undefined),
+    );
   };
   const routes = value === undefined ? undefined : modelRoutes(value);
   const picker = (field: 'orchestrator' | 'assignment', route: ModelRoute | undefined) =>
@@ -214,27 +232,33 @@ function Models({
             value={name ?? value.preset?.name ?? ''}
             disabled={busy}
             onChange={setName}
+            onBlur={saveName}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
+                event.preventDefault();
+                saveName();
+              }
+            }}
           />
-          <PillButton
-            disabled={
-              busy ||
-              (name ?? value.preset?.name ?? '').trim() === '' ||
-              routes?.orchestrator === undefined
-            }
-            onClick={() =>
-              void run(async () => {
-                await saveModelPreset(
-                  client,
-                  value,
-                  name ?? value.preset?.name ?? '',
-                  scope.kind === 'preset',
-                );
-                setName(undefined);
-              })
-            }
-          >
-            {t(scope.kind === 'preset' ? 'modelPreset.savePreset' : 'modelPreset.saveAs')}
-          </PillButton>
+          {scope.kind === 'global' ? (
+            <PillButton
+              disabled={
+                busy ||
+                (name ?? value.preset?.name ?? '').trim() === '' ||
+                routes?.orchestrator === undefined
+              }
+              onClick={() =>
+                void run(
+                  async () => {
+                    await saveModelPreset(client, value, name ?? '', false);
+                  },
+                  () => setName(undefined),
+                )
+              }
+            >
+              {t('modelPreset.saveAs')}
+            </PillButton>
+          ) : null}
         </>
       )}
     </div>

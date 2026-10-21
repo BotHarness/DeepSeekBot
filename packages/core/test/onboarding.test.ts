@@ -7,6 +7,11 @@ import { createBridgeMethods } from '../src/bridge/methods.js';
 import type { BotAgentAdapter, OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
 import { createTempRoot } from './helpers.js';
 import { DEEPSEEKBOT_RECIPE } from '../src/onboarding/service.js';
+import { createHostClient } from '../../../apps/mobile/src/host/client.js';
+import {
+  modelSettingsResource,
+  setModelRoute,
+} from '../../../apps/mobile/src/host/model-settings.js';
 
 function adapter(
   run: (input: OrchestratorAgentRun) => Promise<void> = async () => {},
@@ -405,6 +410,107 @@ it('guards the native default owner revision without modifying independent Bot p
     expect(current).toEqual(route);
   });
 });
+
+it.each(['stale', 'missing'] as const)(
+  'refuses a shared-client default write with a %s observed revision at the source Host',
+  async (condition) => {
+    await withCore(async (core) => {
+      const old = { provider: 'official', model: 'old' };
+      const other = { provider: 'official', model: 'other' };
+      let current = old;
+      let revision = 5;
+      const bridge = createBridgeMethods({
+        ...core,
+        modelCatalog: {
+          list: async () =>
+            [old, other].map((route) => ({
+              ...route,
+              providerName: 'Official',
+              modelName: route.model,
+              efforts: [],
+            })),
+          validate: async () => {},
+        },
+        defaultModel: {
+          currentSelection: () => current,
+          saveSelection: async (route) => {
+            current = route;
+            revision++;
+          },
+        },
+        ...(condition === 'missing'
+          ? {}
+          : {
+              defaultModelSettings: () => ({
+                describe: () => [{ ns: 'agent-default-model', value: current, revision }],
+                replace: async (_ns: string, value: unknown, expected?: number) => {
+                  if (expected !== revision) throw new Error('SETTINGS_CONFLICT');
+                  current = value as typeof current;
+                  revision++;
+                },
+              }),
+            }),
+      });
+      const client = createHostClient({
+        routes: ['https://source.example'],
+        credential: 'test-only',
+        carrier: {
+          async request(url, init) {
+            const { payload } = JSON.parse(String(init.body));
+            const result = url.endsWith('/modelCatalog')
+              ? await bridge.modelCatalog(payload.args)
+              : url.endsWith('/modelPresets')
+                ? await bridge.modelPresets(payload.args)
+                : url.endsWith('/onboardingModel')
+                  ? await bridge.onboardingModel(payload.args)
+                  : undefined;
+            if (result === undefined) throw new Error('Unexpected method');
+            return {
+              status: 200,
+              text: async () => JSON.stringify({ type: 'server-response', result }),
+            };
+          },
+          openSocket() {
+            throw new Error('Unexpected socket');
+          },
+        },
+      });
+      const resource = modelSettingsResource(client, { kind: 'global' });
+      const observed = await resource.refresh();
+      if (condition === 'stale') {
+        expect(
+          await bridge.onboardingModel({
+            route: other,
+            globalDefault: true,
+            expectedRevision: 0,
+            expectedDefaultRevision: 5,
+          }),
+        ).toMatchObject({ ok: true });
+      }
+      await expect(
+        setModelRoute(
+          client,
+          { kind: 'global' },
+          observed,
+          'orchestrator',
+          condition === 'stale' ? old : other,
+        ),
+      ).rejects.toMatchObject(
+        condition === 'stale'
+          ? { code: 'stale-setting' }
+          : { message: 'MODEL_DEFAULT_REVISION_REQUIRED' },
+      );
+      expect(current).toEqual(condition === 'stale' ? other : old);
+      expect(revision).toBe(condition === 'stale' ? 6 : 5);
+      if (condition === 'stale') {
+        const refreshed = await resource.refresh();
+        await setModelRoute(client, { kind: 'global' }, refreshed, 'orchestrator', old);
+        expect(current).toEqual(old);
+        expect(revision).toBe(7);
+      }
+    });
+  },
+);
 
 it('rechecks both model preset and Bot revisions after asynchronous catalog validation', async () => {
   await withCore(async (core) => {

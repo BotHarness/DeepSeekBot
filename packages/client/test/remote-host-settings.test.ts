@@ -19,6 +19,7 @@ function setup(name: string) {
   host.methods.set('modelCatalog', () => ({
     models: [{ ...route, providerName: 'DeepSeek', modelName: name }],
     default: route,
+    defaultRevision: 3,
   }));
   host.methods.set('modelPresets', () => ({
     presets: [{ id: 'same-id', name, revision: 3, orchestrator: route, assignmentDefault: route }],
@@ -53,7 +54,7 @@ describe('Remote Host settings ownership', () => {
     );
     expect(b.host.calls.at(-1)).toMatchObject({
       method: 'onboardingModel',
-      args: { globalDefault: true, route: b.route },
+      args: { globalDefault: true, expectedDefaultRevision: 3, route: b.route },
     });
     expect(a.host.calls.map((call) => call.method)).toEqual(['modelCatalog', 'modelPresets']);
   });
