@@ -38,6 +38,7 @@ export interface PairingOfferView {
   link: string;
   qr: { size: number; path: string };
   expiresAt: string;
+  receipt: string;
   routes: string[];
   reachable: boolean;
 }
@@ -128,6 +129,7 @@ export function createDevicesHttp(options: {
         link,
         qr: qrPath(link),
         expiresAt: offer.expiresAt,
+        receipt: offer.receipt,
         routes,
         reachable: routes.some((route) => {
           const kind = phoneRoute(route)?.kind;
@@ -136,11 +138,21 @@ export function createDevicesHttp(options: {
       };
       return json(view);
     }
+    if (request.method === 'POST' && path === `${DEVICES_PATH}/offer-status`) {
+      const input = await body(request);
+      if (typeof input['receipt'] !== 'string' || input['receipt'] === '')
+        return json({ code: 'receipt-required' }, 400);
+      return json(pairing.offerStatus(input['receipt']));
+    }
     if (request.method === 'POST' && path === `${DEVICES_PATH}/revoke`) {
       const input = await body(request);
       if (typeof input['deviceId'] !== 'string') return json({ code: 'device-unknown' }, 400);
-      const result = pairing.revoke(input['deviceId']);
-      return result.revoked ? json(result) : json({ code: 'device-unknown' }, 404);
+      const target = pairing.list().find((device) => device.id === input['deviceId']);
+      if (target === undefined) return json({ code: 'device-unknown' }, 404);
+      if (target.revokedAt !== undefined)
+        return json({ code: 'device-already-revoked', device: target }, 409);
+      const result = pairing.revoke(target.id);
+      return json({ ...result, device: { id: target.id, name: target.name } });
     }
     if (request.method === 'POST' && path === DEVICES_SERVE_PATH && options.publish) {
       const input = await body(request);

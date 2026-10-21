@@ -602,6 +602,19 @@ deepseekbot phone-route-publish --confirm
 
 `phone-route` returns `{routes}`: `tailscale` (`running`, `stopped` or `missing`), the `serveCommand` for this Host's port, and each route with `ready` and, when not ready, `issue` (`serve-missing` or `serve-other-target`). `phone-route-publish` runs `tailscale serve --bg <port>` on the Host computer and returns `{published, changed, routes}`; `changed:false` means the route was already published. Refusals carry a code: `confirm-required` (no `--confirm`), `tailscale-missing`, `tailscale-stopped`, `serve-other-target` (another service is already published at this address; the Host never replaces it, change it by hand), `serve-needs-enable` (Serve is off for the tailnet; the refusal carries `enableUrl` for the Tailscale admin console), `serve-denied` (Tailscale refused the change for this OS user) and `serve-failed`. Undo with `tailscale serve --https=443 off`; `tailscale serve reset` would also remove every other Serve entry on the computer.
 
+### Paired devices
+
+Bot settings → Devices lists paired phones, shows a pairing QR code and revokes a device. The same Devices owner from the CLI:
+
+```bash
+deepseekbot devices
+deepseekbot device-offer --out /absolute/new-private-file
+deepseekbot device-offer-status <receipt>
+deepseekbot device-revoke <device-id> --confirm
+```
+
+`devices` returns `{host, devices, routes}`: this Host's pairing identity, every paired device with `id`, `name`, `pairedAt`, `lastSeenAt` and `revokedAt` once revoked, and the phone routes as `phone-route` reports them. Device credentials are never listed. `device-offer` opens a one-time offer for 10 minutes and writes its `deepseekbot://pair?…` link only to `--out`, a new file created with mode 0600 (an existing file is refused with `output-exists` before any offer opens); stdout carries `{receipt, expiresAt, routes, reachable, link: {path}}`. Open the link on the phone, or pair from the QR code in Devices instead; `device-offer` refuses without `--out` (`out-required`). The receipt names the offer without being able to redeem it. `device-offer-status` returns `state`: `pending` with `expiresAt`, `redeemed` with the new `deviceId`, `expired`, `refused` (a redemption with the wrong verifier used it up), `superseded` (more than 16 offers were open) or `unknown`; offers live in Host memory, so every receipt is `unknown` after a Host restart. `device-revoke` returns `{revoked, closedStreams, device: {id, name}}`; the device's next request is refused with `device-revoked` and its open streams close at once. Refusals: `confirm-required`, `device-unknown`, `device-already-revoked`, `receipt-required` and `usage`.
+
 ### Models, usage and activity
 
 ```bash

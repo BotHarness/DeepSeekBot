@@ -5,6 +5,7 @@ import type { OperationalDatabaseModulePort } from '../database/owner.js';
 export const PAIRING_OFFER_TTL_MS = 10 * 60 * 1000;
 const LAST_SEEN_RESOLUTION_MS = 60 * 1000;
 const MAX_OPEN_OFFERS = 16;
+const MAX_SETTLED_OFFERS = 64;
 const DEVICE_NAME_MAX = 60;
 
 export interface HostIdentity {
@@ -23,7 +24,14 @@ export interface PairedDevice {
 export interface PairingOffer {
   offer: string;
   expiresAt: string;
+  receipt: string;
 }
+
+export type OfferStatus =
+  | { receipt: string; state: 'pending'; expiresAt: string }
+  | { receipt: string; state: 'redeemed'; deviceId: string; settledAt: string }
+  | { receipt: string; state: 'expired' | 'refused' | 'superseded'; settledAt: string }
+  | { receipt: string; state: 'unknown' };
 
 export type OfferRefusal = 'offer-invalid' | 'offer-expired';
 export type DeviceRefusal = 'device-credential-missing' | 'device-unknown' | 'device-revoked';
@@ -43,6 +51,7 @@ export type DevicePairingEvent =
 export interface DevicePairing {
   host(): HostIdentity;
   createOffer(binding?: { verifierHash: string; name?: string }): PairingOffer;
+  offerStatus(receipt: string): OfferStatus;
   redeem(input: { offer: string; name?: string; verifier?: string }): Redemption;
   admit(authorization: string | undefined): Admission;
   check(deviceId: string): Admission;
@@ -98,13 +107,29 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
   const record = options.record ?? (() => {});
   const iso = (ms: number): string => new Date(ms).toISOString();
 
-  const offers = new Map<string, { expiresAt: number; verifierHash?: string; name?: string }>();
+  const offers = new Map<
+    string,
+    { expiresAt: number; receipt: string; verifierHash?: string; name?: string }
+  >();
+  const settled = new Map<string, OfferStatus>();
   const streams = new Map<string, Set<() => void>>();
 
+  const settle = (
+    receipt: string,
+    outcome:
+      | { state: 'expired' | 'refused' | 'superseded' }
+      | { state: 'redeemed'; deviceId: string },
+  ): void => {
+    settled.delete(receipt);
+    while (settled.size >= MAX_SETTLED_OFFERS) settled.delete(settled.keys().next().value!);
+    settled.set(receipt, { receipt, ...outcome, settledAt: iso(now()) });
+  };
+
   const sweep = (): void => {
-    for (const [key, { expiresAt }] of offers)
+    for (const [key, { expiresAt, receipt }] of offers)
       if (expiresAt <= now()) {
         offers.delete(key);
+        settle(receipt, { state: 'expired' });
         record({ phase: 'offer-expired' });
       }
   };
@@ -172,12 +197,25 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
 
     createOffer(binding) {
       sweep();
-      while (offers.size >= MAX_OPEN_OFFERS) offers.delete(offers.keys().next().value!);
+      while (offers.size >= MAX_OPEN_OFFERS) {
+        const oldest = offers.keys().next().value!;
+        settle(offers.get(oldest)!.receipt, { state: 'superseded' });
+        offers.delete(oldest);
+      }
       const offer = token(24);
+      const receipt = token(9);
       const expiresAt = now() + PAIRING_OFFER_TTL_MS;
-      offers.set(digest(offer).toString('hex'), { expiresAt, ...binding });
+      offers.set(digest(offer).toString('hex'), { expiresAt, receipt, ...binding });
       record({ phase: 'offer-created' });
-      return { offer, expiresAt: iso(expiresAt) };
+      return { offer, expiresAt: iso(expiresAt), receipt };
+    },
+
+    offerStatus(receipt) {
+      sweep();
+      for (const open of offers.values())
+        if (open.receipt === receipt)
+          return { receipt, state: 'pending', expiresAt: iso(open.expiresAt) };
+      return settled.get(receipt) ?? { receipt, state: 'unknown' };
     },
 
     redeem(input) {
@@ -190,10 +228,12 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
           (input.verifier === undefined ||
             !timingSafeEqual(digest(input.verifier), Buffer.from(open.verifierHash, 'base64url'))))
       ) {
+        if (open !== undefined) settle(open.receipt, { state: 'refused' });
         record({ phase: 'offer-refused' });
         return { ok: false, code: 'offer-invalid' };
       }
       if (open.expiresAt <= now()) {
+        settle(open.receipt, { state: 'expired' });
         record({ phase: 'offer-expired' });
         return { ok: false, code: 'offer-expired' };
       }
@@ -210,6 +250,7 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
             .run(id, name, digest(secret).toString('hex'), pairedAt),
         ['paired-devices'],
       );
+      settle(open.receipt, { state: 'redeemed', deviceId: id });
       record({ phase: 'offer-redeemed', deviceId: id });
       options.onPaired?.({ id, name, pairedAt });
       return {

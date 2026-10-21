@@ -342,7 +342,9 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
       ...(verified.name === undefined ? {} : { name: verified.name }),
     });
     response.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
-    response.end(JSON.stringify({ ...offer, host: pairing.host() }));
+    response.end(
+      JSON.stringify({ offer: offer.offer, expiresAt: offer.expiresAt, host: pairing.host() }),
+    );
   };
 
   const devicePush = async (
