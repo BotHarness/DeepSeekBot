@@ -22,6 +22,10 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
     size?: string;
   }) => createElement('button', props, children),
   MarkdownText: ({ text }: { text: string }) => createElement('span', null, text),
+  FileTypeIcon: () => null,
+  IconDownloadOutlineRegular: () => null,
+  IconEllipsisOutlineRegular: () => null,
+  fileSizeText: (size: number) => String(size),
   StateDot: () => null,
   Input: () => null,
 }));
@@ -59,7 +63,7 @@ const targets = [
   { hostId: 'b', channelId: 'other', title: 'Other Channel' },
 ];
 
-async function mount(surface: 'activity' | 'dock') {
+async function mount(surface: 'activity' | 'dock', configure?: (host: FakeHost) => void) {
   const hosts = { b: new FakeHost(), c: new FakeHost() };
   for (const host of Object.values(hosts)) {
     host.methods.set('humanAttention', () => ({ items: [], queryVersion: 1 }));
@@ -67,6 +71,7 @@ async function mount(surface: 'activity' | 'dock') {
     host.methods.set('channelMarkRead', () => ({ accepted: true }));
     host.channel('shared');
     host.channel('other');
+    configure?.(host);
   }
   const routed = (url: string) => (new URL(url).hostname === 'b.test' ? hosts.b : hosts.c);
   const sources = createRemoteHosts({
@@ -148,6 +153,103 @@ async function mount(surface: 'activity' | 'dock') {
     },
   };
 }
+
+it.each(['activity', 'dock'] as const)(
+  '%s switches the real viewer and full message body without retaining media across sources',
+  async (surface) => {
+    let serial = 0;
+    const make = vi.fn(() => `blob:source-${++serial}`);
+    const release = vi.fn();
+    vi.stubGlobal(
+      'URL',
+      class extends URL {
+        static override createObjectURL = make;
+        static override revokeObjectURL = release;
+      },
+    );
+    const fetcher = vi.fn(
+      async () => new Response('image', { headers: { 'content-type': 'image/png' } }),
+    );
+    vi.stubGlobal('fetch', fetcher);
+    const viewerRequests: string[] = [];
+    const view = await mount(surface, (host) => {
+      host.methods.set('list', () => ({
+        bots: [{ slug: 'ada', displayName: 'Ada', browserAccess: true, aggregateState: 'idle' }],
+      }));
+      host.methods.set('channelDm', () => ({ channel: { id: 'dm-ada' } }));
+      host.channel('dm-ada').append({
+        id: 'media',
+        body: 'Full source body',
+        attachments: [
+          {
+            fileId: 'file:11111111-1111-4111-8111-111111111111',
+            name: 'photo.png',
+            mime: 'image/png',
+            size: 5,
+          },
+        ],
+      });
+      const request = host.carrier.request;
+      host.carrier.request = (url, init) => {
+        if (url.includes('/browser/')) {
+          viewerRequests.push(url);
+          return Promise.resolve({ status: 403, text: async () => '{"error":"no-access"}' });
+        }
+        return request(url, init);
+      };
+    });
+    const clickViewer = async () => {
+      const button = view.element.querySelector<HTMLButtonElement>(
+        `[aria-label="${zhTranslate('remoteViewer.browser')}"]`,
+      );
+      expect(button).not.toBeNull();
+      await act(async () => button!.click());
+    };
+    try {
+      await view.open({ hostId: 'b', botSlug: 'ada', title: 'Ada B' });
+      await act(async () => {
+        await vi.waitFor(() => expect(make).toHaveBeenCalledTimes(1));
+      });
+      expect(view.element.textContent).toContain('Full source body');
+      expect(view.element.querySelector('img[src="blob:source-1"]')).not.toBeNull();
+      expect(fetcher).toHaveBeenLastCalledWith(
+        expect.stringContaining('https://b.test/botharness-device/api/botharness/attachment'),
+        expect.objectContaining({
+          credentials: 'omit',
+          headers: { authorization: `Device ${view.hosts.b.credential}` },
+        }),
+      );
+      await view.type('Draft stays on B');
+      await clickViewer();
+      expect(view.element.querySelector('[data-remote-viewer="browser"]')).not.toBeNull();
+      expect(view.element.querySelector('[data-remote-timeline]')).toBeNull();
+      expect(release).toHaveBeenCalledWith('blob:source-1');
+      expect(viewerRequests.length).toBeGreaterThan(0);
+      expect(viewerRequests.every((url) => url.startsWith('https://b.test/'))).toBe(true);
+      await clickViewer();
+      await act(async () => {
+        await vi.waitFor(() => expect(make).toHaveBeenCalledTimes(2));
+      });
+      expect(view.input().value).toBe('Draft stays on B');
+      expect(view.element.querySelector('img[src="blob:source-2"]')).not.toBeNull();
+      await clickViewer();
+      expect(release).toHaveBeenCalledWith('blob:source-2');
+      await view.open({ hostId: 'c', botSlug: 'ada', title: 'Ada C' });
+      await act(async () => {
+        await vi.waitFor(() => expect(make).toHaveBeenCalledTimes(3));
+      });
+      expect(view.element.querySelector('[data-remote-viewer]')).toBeNull();
+      expect(view.input().value).toBe('');
+      expect(fetcher).toHaveBeenLastCalledWith(
+        expect.stringContaining('https://c.test/botharness-device/api/botharness/attachment'),
+        expect.anything(),
+      );
+    } finally {
+      await view.close();
+    }
+    expect(release).toHaveBeenCalledWith('blob:source-3');
+  },
+);
 
 describe.each(['activity', 'dock'] as const)('%s remote conversation source', (surface) => {
   it.each(targets)('does not send a previous draft to $hostId / $channelId', async (target) => {
