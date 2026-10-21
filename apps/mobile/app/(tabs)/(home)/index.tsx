@@ -30,7 +30,6 @@ import { CloudConversationRow } from '../../../src/ui/chat/cloud-conversation-ro
 import { useConversationFilter } from '../../../src/host/native-conversation-filter';
 import { ConnectionBanner } from '../../../src/ui/connection-banner';
 import { space } from '../../../src/ui/design/tokens';
-import { EnvironmentPager } from '../../../src/ui/shell/environment-pager';
 import {
   conversationEnvironments,
   computerEnvironmentKey,
@@ -46,7 +45,7 @@ import { HostDrawerEdge } from '../../../src/ui/shell/host-drawer';
 import { ConversationPeek, conversationPeek } from '../../../src/ui/shell/conversation-peek';
 import { useFloatingTabInset } from '../../../src/ui/shell/floating-tab-inset';
 import { conversationHref, openConversation } from '../../../src/ui/shell/open-conversation';
-import { useChromeScroll, useScrollChrome } from '../../../src/ui/shell/scroll-chrome';
+import { useChromeScroll } from '../../../src/ui/shell/scroll-chrome';
 import { t } from '../../../src/ui/strings';
 import { LoadingIndicator } from '../../../src/ui/primitives/loading-indicator';
 import { PullToRefresh } from '../../../src/ui/primitives/pull-to-refresh';
@@ -113,7 +112,6 @@ const HomeContent = memo(function HomeContent({
   const [searching, setSearching] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
   const onScroll = useChromeScroll(true, searchFocused || query !== '');
-  const chrome = useScrollChrome();
   const bottom = useFloatingTabInset();
   const look = useHostLook(saved?.hostId);
   const cloud = useCloudSnapshot();
@@ -157,7 +155,8 @@ const HomeContent = memo(function HomeContent({
       ),
     [saved, look, cloud.rows, directory.workspaces],
   );
-  const effectiveFilter = filters.some((f) => f.key === filter) ? filter : 'all';
+  const environment = filters.find((item) => item.key === filter) ?? filters[0]!;
+  const effectiveFilter = environment.key;
   const quiet = useQuietChannels(saved?.hostId);
   useFocusEffect(
     useCallback(() => {
@@ -319,9 +318,10 @@ const HomeContent = memo(function HomeContent({
   };
   return (
     <>
-      <Stack.Screen options={{ title: t.allConversations, headerShown: false }} />
+      <Stack.Screen options={{ title: environment.title, headerShown: false }} />
       <HostDrawerEdge>
         <HomeHeader
+          environment={environment}
           search={
             searching ? (
               <HeaderSearch
@@ -356,111 +356,93 @@ const HomeContent = memo(function HomeContent({
             </>
           }
         >
-          <EnvironmentPager
-            routes={filters}
-            selected={effectiveFilter}
-            onSelect={(key) => {
-              chrome.hidden.value = false;
-              setFilter(key);
-            }}
-            renderPage={(environment, active) => (
-              <PullToRefresh
-                refreshing={refreshing || directory.busy}
-                onRefresh={() => void refresh()}
-              >
-                {(pull) => (
-                  <Animated.FlatList<Row>
-                    {...pull}
-                    renderScrollComponent={renderKeyboardFormScroll}
-                    onScroll={active ? onScroll : undefined}
-                    scrollEventThrottle={1}
-                    contentContainerStyle={{ paddingBottom: bottom + space.x6 }}
-                    keyboardShouldPersistTaps="handled"
-                    keyboardDismissMode="on-drag"
-                    data={rows.filter(
-                      (row) => environment.key === 'all' || row.environment === environment.key,
-                    )}
-                    keyExtractor={(r) => r.key}
-                    ListHeaderComponent={
-                      <>
-                        {saved &&
-                          (environment.key === 'all' ||
-                            environment.key === computerEnvironmentKey(saved.hostId)) && (
-                            <ConnectionBanner
-                              connection={snapshot.connection}
-                              onRetry={() => client?.retryNow()}
-                              onPairAgain={() => router.push('/pair')}
-                            />
-                          )}
-                        {(directory.errors.length > 0 || cloud.error || error) && (
-                          <Text tone="muted" style={{ paddingHorizontal: space.x5 }}>
-                            {t.cloudListUnavailable}
-                            {error ? ` (${error})` : ''}
-                          </Text>
-                        )}
-                      </>
-                    }
-                    ListEmptyComponent={
-                      directory.busy ||
-                      (saved &&
-                        (environment.key === 'all' ||
-                          environment.key === computerEnvironmentKey(saved.hostId)) &&
-                        !snapshot.roster &&
-                        snapshot.connection.status === 'connecting') ? (
-                        <View style={{ padding: space.x6, alignItems: 'center' }}>
-                          <LoadingIndicator />
-                        </View>
-                      ) : (
-                        <Text tone="muted" style={{ padding: space.x6 }}>
-                          {query ? t.searchNoMatch(query.trim()) : t.cloudChannels.empty}
-                        </Text>
-                      )
-                    }
-                    renderItem={({ item }) =>
-                      item.type === 'computer' ? (
-                        conversationPeek ? (
-                          <ConversationPeek
-                            href={conversationHref(item.conversation, saved?.hostId)}
-                          >
-                            <ConversationRow row={item.conversation} now={new Date()} look={look} />
-                          </ConversationPeek>
-                        ) : (
-                          <ConversationRow
-                            row={item.conversation}
-                            now={new Date()}
-                            look={look}
-                            onPress={() =>
-                              openConversation(router, item.conversation, saved?.hostId)
-                            }
-                            actions={conversationActions(item.conversation, {
-                              pinned: item.pinned,
-                              hostMuted:
-                                snapshot.roster?.arrangement?.muted?.includes(
-                                  conversationChannelId(item.conversation) ?? '',
-                                ) === true,
-                            })}
-                            onAction={(key) => {
-                              if (client === undefined) return;
-                              runConversationAction(client, inbox, item.conversation, key).catch(
-                                () =>
-                                  showAppDialog(t.rowActions.failed, undefined, [{ text: t.done }]),
-                              );
-                            }}
-                          />
-                        )
-                      ) : (
-                        <CloudConversationRow
-                          row={item.conversation}
-                          disabled={opening || cloud.busy || directory.busy}
-                          onPress={() => void openCloud(item.conversation)}
-                        />
-                      )
-                    }
-                  />
+          <PullToRefresh refreshing={refreshing || directory.busy} onRefresh={() => void refresh()}>
+            {(pull) => (
+              <Animated.FlatList<Row>
+                {...pull}
+                renderScrollComponent={renderKeyboardFormScroll}
+                onScroll={onScroll}
+                scrollEventThrottle={1}
+                contentContainerStyle={{ paddingBottom: bottom + space.x6 }}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="on-drag"
+                data={rows.filter(
+                  (row) => environment.key === 'all' || row.environment === environment.key,
                 )}
-              </PullToRefresh>
+                keyExtractor={(r) => r.key}
+                ListHeaderComponent={
+                  <>
+                    {saved &&
+                      (environment.key === 'all' ||
+                        environment.key === computerEnvironmentKey(saved.hostId)) && (
+                        <ConnectionBanner
+                          connection={snapshot.connection}
+                          onRetry={() => client?.retryNow()}
+                          onPairAgain={() => router.push('/pair')}
+                        />
+                      )}
+                    {(directory.errors.length > 0 || cloud.error || error) && (
+                      <Text tone="muted" style={{ paddingHorizontal: space.x5 }}>
+                        {t.cloudListUnavailable}
+                        {error ? ` (${error})` : ''}
+                      </Text>
+                    )}
+                  </>
+                }
+                ListEmptyComponent={
+                  directory.busy ||
+                  (saved &&
+                    (environment.key === 'all' ||
+                      environment.key === computerEnvironmentKey(saved.hostId)) &&
+                    !snapshot.roster &&
+                    snapshot.connection.status === 'connecting') ? (
+                    <View style={{ padding: space.x6, alignItems: 'center' }}>
+                      <LoadingIndicator />
+                    </View>
+                  ) : (
+                    <Text tone="muted" style={{ padding: space.x6 }}>
+                      {query ? t.searchNoMatch(query.trim()) : t.cloudChannels.empty}
+                    </Text>
+                  )
+                }
+                renderItem={({ item }) =>
+                  item.type === 'computer' ? (
+                    conversationPeek ? (
+                      <ConversationPeek href={conversationHref(item.conversation, saved?.hostId)}>
+                        <ConversationRow row={item.conversation} now={new Date()} look={look} />
+                      </ConversationPeek>
+                    ) : (
+                      <ConversationRow
+                        row={item.conversation}
+                        now={new Date()}
+                        look={look}
+                        onPress={() => openConversation(router, item.conversation, saved?.hostId)}
+                        actions={conversationActions(item.conversation, {
+                          pinned: item.pinned,
+                          hostMuted:
+                            snapshot.roster?.arrangement?.muted?.includes(
+                              conversationChannelId(item.conversation) ?? '',
+                            ) === true,
+                        })}
+                        onAction={(key) => {
+                          if (client === undefined) return;
+                          runConversationAction(client, inbox, item.conversation, key).catch(() =>
+                            showAppDialog(t.rowActions.failed, undefined, [{ text: t.done }]),
+                          );
+                        }}
+                      />
+                    )
+                  ) : (
+                    <CloudConversationRow
+                      row={item.conversation}
+                      disabled={opening || cloud.busy || directory.busy}
+                      onPress={() => void openCloud(item.conversation)}
+                    />
+                  )
+                }
+              />
             )}
-          />
+          </PullToRefresh>
         </HomeHeader>
       </HostDrawerEdge>
     </>
