@@ -100,7 +100,7 @@ export function createRelay(options: RelayOptions) {
   const { db, tunnels } = options;
   const now = options.now ?? (() => new Date());
   const nextHostId = options.hostId ?? randomHostId;
-  const allowAll = options.allowedUsers.includes('*');
+  const allowAll = options.allowedUsers.length === 0 || options.allowedUsers.includes('*');
   const hostname = (id: string) => `${id}.${options.zone}`;
   const view = (row: HostRow) => ({
     id: row.id,

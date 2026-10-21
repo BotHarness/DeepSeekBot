@@ -219,6 +219,11 @@ describe('Connect relay accounts', () => {
       status: 200,
       body: { hosts: [] },
     });
+    const open = await setup([]);
+    expect(await open.call('GET', '/v1/hosts', { as: 'user_mallory' })).toEqual({
+      status: 200,
+      body: { hosts: [] },
+    });
   });
 
   it('links at most five Hosts per account and keeps accounts apart', async () => {

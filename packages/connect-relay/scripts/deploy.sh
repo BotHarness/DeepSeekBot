@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # First deploy of the hosted Connect relay: D1, migrations, Worker, secrets, smoke test.
-# Usage: WORKOS_CLIENT_ID=client_… ALLOWED_USERS=user_… packages/connect-relay/scripts/deploy.sh
+# Usage: WORKOS_CLIENT_ID=client_… packages/connect-relay/scripts/deploy.sh
 # Unset values are prompted for. Never prints a secret.
 set -euo pipefail
 
@@ -15,11 +15,8 @@ w whoami | grep -q "$ACCOUNT" || { echo "wrangler is not signed in to $ACCOUNT; 
 [[ -r $CF_ENV ]] || { echo "missing $CF_ENV"; exit 1; }
 
 WORKOS_CLIENT_ID=${WORKOS_CLIENT_ID:-}
-ALLOWED_USERS=${ALLOWED_USERS:-}
 [[ -n $WORKOS_CLIENT_ID ]] || read -rp "WorkOS client id (client_…): " WORKOS_CLIENT_ID
-[[ -n $ALLOWED_USERS ]] || read -rp "Allowed WorkOS user ids (user_…, comma-separated): " ALLOWED_USERS
 [[ $WORKOS_CLIENT_ID =~ ^client_[A-Za-z0-9]+$ ]] || { echo "bad client id"; exit 1; }
-[[ $ALLOWED_USERS =~ ^user_[A-Za-z0-9]+(,user_[A-Za-z0-9]+)*$ ]] || { echo "explicit user ids required"; exit 1; }
 
 d1_uuid() {
   w d1 list --json 2>/dev/null | node -e '
@@ -44,9 +41,9 @@ SECRETS=$(umask 077; mktemp)
 trap 'rm -f "$SECRETS"' EXIT
 (
   set -a; . "$CF_ENV"; set +a
-  export WORKOS_CLIENT_ID ALLOWED_USERS
+  export WORKOS_CLIENT_ID
   node -e '
-    const keys = ["WORKOS_CLIENT_ID", "ALLOWED_USERS", "CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_ZONE_ID"];
+    const keys = ["WORKOS_CLIENT_ID", "CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_ZONE_ID"];
     const missing = keys.filter((k) => !process.env[k]);
     if (missing.length) { console.error("missing: " + missing.join(", ")); process.exit(1); }
     require("fs").writeFileSync(process.argv[1], JSON.stringify(Object.fromEntries(keys.map((k) => [k, process.env[k]]))));
@@ -54,7 +51,12 @@ trap 'rm -f "$SECRETS"' EXIT
 )
 w secret bulk "$SECRETS" >/dev/null
 rm -f "$SECRETS"
-if w secret list 2>/dev/null | grep -q '"CONNECT_HOST_KEY"'; then
+LISTED=$(w secret list 2>/dev/null || true)
+if grep -q '"ALLOWED_USERS"' <<<"$LISTED"; then
+  w secret delete ALLOWED_USERS >/dev/null
+  echo "  ALLOWED_USERS removed: every signed-in account is admitted"
+fi
+if grep -q '"CONNECT_HOST_KEY"' <<<"$LISTED"; then
   echo "  CONNECT_HOST_KEY kept"
 else
   node -e 'process.stdout.write(require("crypto").randomBytes(32).toString("base64url"))' \
