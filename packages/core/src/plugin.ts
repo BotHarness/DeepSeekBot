@@ -353,8 +353,12 @@ export const Config: Schema<BotHarnessConfig> = Schema.object({
   subagent: Schema.object({
     agentPreset: Schema.string()
       .min(1)
-      .description('Independent Subagent native Agent preset; omitted uses the current system default.'),
-    allowedAgentPresets: (Schema.array(Schema.string().min(1)).min(1) as Schema<string[] | undefined>)
+      .description(
+        'Independent Subagent native Agent preset; omitted uses the current system default.',
+      ),
+    allowedAgentPresets: (
+      Schema.array(Schema.string().min(1)).min(1) as Schema<string[] | undefined>
+    )
       .default(undefined)
       .description(
         'Explicit native preset allowlist for bot_subagent; omitted disables agent_preset selection.',
