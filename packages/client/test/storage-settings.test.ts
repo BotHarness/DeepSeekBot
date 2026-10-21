@@ -53,7 +53,8 @@ vi.mock('../src/client/ds/select.js', async () => {
 });
 
 import type { BridgeCall } from '../src/client/bridge.js';
-import { StorageSettings } from '../src/client/storage-settings.js';
+import { StorageSettings, type StorageSettingsSource } from '../src/client/storage-settings.js';
+import { MethodRefused } from '../../../apps/mobile/src/host/client.js';
 import { zhTranslate } from '../src/client/locale.js';
 import { buttonNamed } from './primitive-mocks.js';
 
@@ -103,13 +104,20 @@ function preview(scope: Record<string, unknown>) {
   };
 }
 
-async function render(call: BridgeCall) {
+async function render(call: BridgeCall | StorageSettingsSource) {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   const host = document.createElement('div');
   document.body.append(host);
   const root = createRoot(host);
   await act(async () => {
-    root.render(createElement(StorageSettings, { call, t: zhTranslate } as never));
+    root.render(
+      createElement(StorageSettings, {
+        ...(typeof call === 'function'
+          ? { call }
+          : { source: call, title: 'Studio T8 · 存储空间' }),
+        t: zhTranslate,
+      } as never),
+    );
   });
   const press = async (button: HTMLButtonElement) => {
     await act(async () => {
@@ -133,6 +141,61 @@ async function render(call: BridgeCall) {
 }
 
 describe('StorageSettings', () => {
+  it('names the Remote Host during confirmation and handles its stale preview without deleting again', async () => {
+    const confirmMedia = vi.fn(async () => {
+      throw new MethodRefused('storage-preview-stale', 'changed');
+    });
+    const source: StorageSettingsSource = {
+      usage: async () => ({
+        totalBytes: 12,
+        parts: [],
+        chats: [
+          {
+            channelId: 'remote-only',
+            name: 'Remote only',
+            type: 'dm',
+            messages: 1,
+            mediaBytes: 12,
+          },
+        ],
+      }),
+      previewMedia: async (scope) => ({
+        token: 'remote-preview',
+        scope: { ...scope, channelIds: [] },
+        files: 1,
+        messages: 1,
+        bytes: 12,
+        freedBytes: 12,
+        kept: [],
+      }),
+      confirmMedia,
+      previewMessages: vi.fn(),
+      confirmMessages: vi.fn(),
+    };
+    const view = await render(source);
+    try {
+      await view.open();
+      expect(view.host.textContent).toContain('Studio T8 · 存储空间');
+      expect(view.host.textContent).toContain('Remote only');
+      await view.press(view.host.querySelector<HTMLButtonElement>('[data-storage-review]')!);
+      expect(view.host.textContent).toContain('Studio T8 · 存储空间');
+      expect(view.host.querySelector<HTMLButtonElement>('[data-storage-confirm]')!.disabled).toBe(
+        true,
+      );
+      expect(confirmMedia).not.toHaveBeenCalled();
+      await act(async () => view.checkbox('我了解这些文件会被永久删除').click());
+      await view.press(view.host.querySelector<HTMLButtonElement>('[data-storage-confirm]')!);
+      expect(confirmMedia).toHaveBeenCalledTimes(1);
+      expect(confirmMedia).toHaveBeenCalledWith(
+        expect.objectContaining({ token: 'remote-preview' }),
+      );
+      expect(view.host.textContent).toContain('内容有变化，请重新预览。');
+      expect(view.host.querySelector('[data-storage-usage]')).not.toBeNull();
+    } finally {
+      view.dispose();
+    }
+  });
+
   it('shows space used, previews the chosen chat media and clears after confirmation', async () => {
     const call = vi.fn<BridgeCall>(async (endpoint, payload) =>
       endpoint === 'storageUsage'

@@ -2627,7 +2627,7 @@ export async function previewStorageCleanup(
 
 export async function confirmStorageCleanup(
   call: BridgeCall,
-  preview: StorageCleanupPreview,
+  preview: Pick<StorageCleanupPreview, 'scope' | 'token'>,
 ): Promise<StorageCleanupResult> {
   const result = asRecord(
     await unwrap(call, 'storageCleanupConfirm', {
