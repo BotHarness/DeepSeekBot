@@ -237,6 +237,32 @@ describe('Push delivery', () => {
     ]);
   });
 
+  it('sends a data-only push to an Android app that draws its own notifications', async () => {
+    const f = fixture();
+    const phone = f.device('Phone');
+    const older = f.device('Older');
+    f.push.register(phone.device.id, { token: TOKEN_A, platform: 'android', render: 'app' });
+    f.push.register(older.device.id, { token: TOKEN_B, platform: 'android', render: 'system' });
+    f.advance(1000);
+    f.setInbox([{ ...approval('approval:1', f.at(0)), channelId: 'g1', channelName: 'ops' }]);
+    await f.push.reconcile();
+    const [drawn] = f.expo.flat().filter((message) => message.to === TOKEN_A);
+    const [system] = f.expo.flat().filter((message) => message.to === TOKEN_B);
+    expect(drawn).not.toHaveProperty('title');
+    expect(drawn).not.toHaveProperty('body');
+    expect(drawn).toMatchObject({ priority: 'high', categoryId: 'tool-approval' });
+    expect(drawn?.data).toMatchObject({
+      title: '#ops',
+      body: 'Ada needs your approval',
+      text: 'Needs your approval',
+      sender: 'Ada',
+      group: 'ops',
+      categoryId: 'tool-approval',
+    });
+    expect(system).toMatchObject({ title: '#ops', body: 'Ada needs your approval' });
+    expect(system?.data).not.toHaveProperty('title');
+  });
+
   it('does not notify items from before registration, and keeps restarts from resending', async () => {
     const f = fixture();
     const phone = f.device('Phone');

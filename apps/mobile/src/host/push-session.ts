@@ -77,10 +77,17 @@ export function createPushSession(options: {
     }
     const results = await Promise.all(
       hosts.map((host) =>
-        hostPush.register(host, { token, platform: options.platform, locale: options.locale }).then(
-          () => undefined,
-          () => host.hostId,
-        ),
+        hostPush
+          .register(host, {
+            token,
+            platform: options.platform,
+            locale: options.locale,
+            ...(options.platform === 'android' ? { render: 'app' as const } : {}),
+          })
+          .then(
+            () => undefined,
+            () => host.hostId,
+          ),
       ),
     );
     publish({ status: 'on', failed: results.flatMap((id) => (id === undefined ? [] : [id])) });

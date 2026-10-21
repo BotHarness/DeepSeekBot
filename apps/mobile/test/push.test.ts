@@ -404,6 +404,23 @@ describe('push registration with a real Host gateway', () => {
     h.owner.close();
   });
 
+  it('asks the Host for data-only pushes on Android so the app draws the notification', async () => {
+    const h = await realHost();
+    const hostPush = createHostPush(nodeCarrier(), 2_000);
+    const session = createPushSession({
+      notifications: fakeNotifications('granted').port,
+      hostPush,
+      platform: 'android',
+      locale: 'en',
+    });
+    await session.enable([h.saved]);
+    h.raise('approval:1');
+    await h.push.reconcile();
+    expect(h.sent).toEqual([expect.not.objectContaining({ title: expect.anything() })]);
+    expect(h.sent[0]?.data).toMatchObject({ title: 'Ada', body: 'Needs your approval' });
+    h.owner.close();
+  });
+
   it('registers a Host that was offline at launch once it is reachable again', async () => {
     const h = await realHost();
     const real = createHostPush(nodeCarrier(), 2_000);

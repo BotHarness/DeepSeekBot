@@ -50,6 +50,9 @@ export interface PushData {
   sender?: string;
   group?: string;
   text?: string;
+  title?: string;
+  body?: string;
+  categoryId?: string;
   test?: true;
 }
 
@@ -116,7 +119,7 @@ export type QuietResult = PushSettings | { registered: false } | { invalid: true
 export interface PushDelivery {
   register(
     deviceId: string,
-    input: { token: unknown; platform: unknown; locale?: unknown },
+    input: { token: unknown; platform: unknown; locale?: unknown; render?: unknown },
   ): RegisterResult;
   unregister(deviceId: string): boolean;
   settings(deviceId: string): PushSettings;
@@ -146,6 +149,7 @@ interface DeviceRow {
   registered_at: string;
   locale: string | null;
   badge: number | null;
+  render: string | null;
 }
 
 function stored(json: string | undefined): Record<string, unknown> {
@@ -399,9 +403,10 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
       const messages: ExpoMessage[] = notify.map((item) => {
         const sender = source.botName(item.botSlug) ?? item.botSlug;
         const { message, ...shown } = text(item, sender, localeOf(device.locale));
+        const drawn = device.platform === 'android' && device.render === 'app';
         return {
           to: device.token,
-          ...shown,
+          ...(drawn ? {} : shown),
           sound: 'default',
           badge,
           priority: 'high',
@@ -419,6 +424,12 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
             sender,
             ...(item.channelName === undefined ? {} : { group: item.channelName }),
             text: message,
+            ...(drawn
+              ? {
+                  ...shown,
+                  ...(item.categoryId === undefined ? {} : { categoryId: item.categoryId }),
+                }
+              : {}),
           },
         };
       });
@@ -448,6 +459,7 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
         return { ok: false, code: 'push-token-invalid' };
       const { token, platform } = input;
       const locale = localeOf(input.locale);
+      const render = input.render === 'app' ? 'app' : null;
       database.transaction(
         (db) => {
           for (const other of db
@@ -457,11 +469,20 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
             db.prepare('DELETE FROM push_devices WHERE device_id = ?').run(other.device_id);
           }
           db.prepare(
-            `INSERT INTO push_devices (device_id, token, platform, locale, preferences_json, registered_at)
-           VALUES (?, ?, ?, ?, ?, ?)
+            `INSERT INTO push_devices (device_id, token, platform, locale, preferences_json, registered_at, render)
+           VALUES (?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT (device_id) DO UPDATE SET
-             token = excluded.token, platform = excluded.platform, locale = excluded.locale`,
-          ).run(deviceId, token, platform, locale, JSON.stringify(DEFAULT_PUSH_PREFERENCES), iso());
+             token = excluded.token, platform = excluded.platform, locale = excluded.locale,
+             render = excluded.render`,
+          ).run(
+            deviceId,
+            token,
+            platform,
+            locale,
+            JSON.stringify(DEFAULT_PUSH_PREFERENCES),
+            iso(),
+            render,
+          );
         },
         ['push'],
       );

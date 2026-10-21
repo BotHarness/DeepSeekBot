@@ -161,6 +161,7 @@ export interface PushRegistration {
   token: string;
   platform: 'ios' | 'android';
   locale: 'en' | 'zh';
+  render?: 'app';
 }
 
 export interface HostPush {
