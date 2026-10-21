@@ -124,6 +124,48 @@ const approval = (id: string, createdAt: string): PushCandidate => ({
 });
 
 describe('Push delivery', () => {
+  it('accepts a device preference before token registration and uses the copy only for sends', async () => {
+    const f = fixture();
+    const phone = f.device('Phone');
+    const http = createDevicePushHttp(f.push);
+    const answer = await http({
+      method: 'POST',
+      path: '/botharness-device/push/preferences',
+      deviceId: phone.device.id,
+      body: { preferences: { approval: false } },
+    });
+    expect(answer).toMatchObject({
+      status: 200,
+      body: { registered: false, preferences: { approval: false } },
+    });
+    f.push.register(phone.device.id, { token: TOKEN_A, platform: 'ios' });
+    expect(f.push.settings(phone.device.id).preferences.approval).toBe(false);
+    f.advance(1000);
+    f.setInbox([approval('blocked', f.at(0))]);
+    await f.push.reconcile();
+    expect(f.expo.flat().filter((message) => message.data.itemId)).toEqual([]);
+    expect(f.push.settings(phone.device.id).registered).toBe(true);
+    f.push.setPreferences(phone.device.id, { approval: true });
+    f.advance(1000);
+    f.setInbox([approval('new', f.at(0))]);
+    await f.push.reconcile();
+    expect(
+      f.expo
+        .flat()
+        .filter((message) => message.data.itemId)
+        .map((message) => message.data.itemId),
+    ).toEqual(['new']);
+    expect(
+      (
+        await http({
+          method: 'POST',
+          path: '/botharness-device/push/preferences',
+          deviceId: phone.device.id,
+          body: { preferences: { approval: 'false' } },
+        })
+      ).status,
+    ).toBe(400);
+  });
   it('sends one notification per enabled device for a new approval', async () => {
     const f = fixture();
     const phone = f.device('Phone');

@@ -784,6 +784,17 @@
       "commands": ["window-zoom-clients", "window-zoom-get", "window-zoom-set", "window-zoom-reset"]
     },
     {
+      "id": "remote-host-notifications",
+      "description": "Browser-owned Remote Host notification choices on an explicit online Client; phone send copies use device authentication.",
+      "scope": "Client / Paired Device",
+      "surfaces": [
+        "storage:packages/client/src/client/remote-notifications.ts:setItem(REMOTE_NOTIFICATION_KEY)",
+        "setting:packages/client/src/client/remote-notification-settings.tsx:{t('remoteHosts.notifications.enable')}",
+        "setting:packages/client/src/client/remote-notification-settings.tsx:{t(labels[kind])}"
+      ],
+      "commands": ["browser-notification-clients", "browser-notifications", "device-notifications"]
+    },
+    {
       "id": "deepseekbot-local-appearance",
       "description": "Explicit Client-targeted device-local DeepSeekBot themes; authenticated Host forwards requests without a preference mirror.",
       "scope": "Client",

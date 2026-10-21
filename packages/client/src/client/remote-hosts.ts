@@ -26,6 +26,8 @@ import {
 import { store } from './store.js';
 import { createRemoteActivityProjection, type RemoteBotActivity } from './remote-host-activity.js';
 import { releaseRemoteHostViewers } from './remote-host-viewer.js';
+import { browserNotificationApi } from './desktop-notifications.js';
+import { createRemoteNotifications, type RemoteNotifications } from './remote-notifications.js';
 
 export const REMOTE_HOSTS_STORAGE_KEY = 'botharness.remoteHosts.v1';
 export const HOST_TAB_STORAGE_KEY = 'botharness.hostTab.v1';
@@ -58,6 +60,7 @@ export type HostPairResult =
   | { ok: false; code: PairingRefusal | 'already-paired' | 'this-host' };
 
 export interface RemoteHosts {
+  notifications: RemoteNotifications;
   getSnapshot(): RemoteHostsSnapshot;
   subscribe(listener: () => void): () => void;
   pair(link: string, deviceName: string, localHostId?: string): Promise<HostPairResult>;
@@ -144,6 +147,19 @@ export function createRemoteHosts(options: {
   let tab = readTab(storage);
   let open: RemoteConversationTarget | undefined;
   let snapshot: RemoteHostsSnapshot = { hosts: [], avatars, tab };
+  const notifications = createRemoteNotifications({
+    storage,
+    api: browserNotificationApi(),
+    privateBody: () =>
+      document.documentElement.lang.startsWith('zh')
+        ? '需要你提供私密输入'
+        : 'Needs private input from you',
+    open(target) {
+      globalThis.window?.focus();
+      open = target;
+      publish();
+    },
+  });
 
   const fetchAvatars = (hosts: readonly RemoteHost[]): void => {
     const wanted = new Map(
@@ -193,6 +209,7 @@ export function createRemoteHosts(options: {
       activity,
     }));
     fetchAvatars(hosts);
+    if (listeners.size > 0) notifications.update(hosts);
     const known = tab === ALL_HOSTS || tab === THIS_HOST || clients.has(tab);
     snapshot = {
       hosts,
@@ -265,6 +282,7 @@ export function createRemoteHosts(options: {
   };
 
   return {
+    notifications,
     getSnapshot: () => snapshot,
     client: (hostId) => clients.get(hostId)?.client,
     activity(hostId, query) {
@@ -293,6 +311,7 @@ export function createRemoteHosts(options: {
         listeners.delete(listener);
         if (listeners.size > 0) return;
         for (const entry of clients.values()) stop(entry);
+        notifications.stop();
       };
     },
     async pair(link, deviceName, localHostId) {

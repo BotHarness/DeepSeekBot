@@ -899,6 +899,7 @@ const en = {
   turnOnNotifications: 'Turn on notifications',
   openSettings: 'Open phone settings',
   notifyAbout: 'Notify me about',
+  notificationPreferencePending: 'Saved on this phone. Some Hosts will sync when reachable.',
   allowNotifications: 'Allow notifications',
   allowNotificationsOff:
     'This phone gets no notifications from this computer. Your choices below come back when you turn them on again.',
@@ -2131,6 +2132,7 @@ const zh: typeof en = {
   turnOnNotifications: '开启通知',
   openSettings: '打开手机设置',
   notifyAbout: '通知我',
+  notificationPreferencePending: '已保存在此手机。部分远程恢复连接后会同步。',
   allowNotifications: '允许通知',
   allowNotificationsOff: '这台手机不会收到这台电脑的任何通知。重新打开后，下面的选择会恢复。',
   channelNotifications: {

@@ -6,6 +6,10 @@ Bot summaries from `list` also include `lastActivityAt` (epoch milliseconds) whe
 
 ## Usage
 
+`deepseekbot browser-notification-clients` lists online Client targets. `deepseekbot browser-notifications --client-id <id> --remote-host-id <id>` reads that browser's local choice and revision. To write, add `--expected-revision <revision> --patch-stdin` and pipe `{"enabled":true,"preferences":{"approval":true,"question":true,"private-input":true,"reply":false}}`. These commands use the serving Host's usual online authentication and existing Client control relay; the Host persists no browser choice or Remote Host credential. Writes refuse stale revisions and unknown Hosts. Enabling requires permission already granted in the browser (`notification-permission-required` otherwise); CLI never opens the OS permission prompt. Closing the page ends both its control target and alerts.
+
+`deepseekbot device-notifications --device-file <private-pairing.json>` reads the admitted device's send-preference copy from a live Host. Add `--preferences-stdin` and pipe `{"approval":true,"question":true,"private-input":true,"reply":false}` to replace its four kinds, even before a push token is registered. The private file has the saved pairing shape (`hostId`, `hostName`, `routes`, `deviceId`, `credential`); never put its credential in arguments or publish the file. Output is one JSON document without credentials; revoked pairings return `device-revoked`. This edits that Host's delivery copy only; the phone's persisted preference is authoritative and overwrites it on the next sync. Browser notification choices remain local to that browser and do not change Host attention.
+
 ```bash
 deepseekbot create --name <name> [--persona <text> | --persona-stdin]
                    [--core-memory <text> | --core-memory-stdin]

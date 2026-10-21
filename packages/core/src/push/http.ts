@@ -34,10 +34,25 @@ export function createDevicePushHttp(
           : { status: 400, body: { code: result.code } };
       }
       case `${DEVICE_PUSH_PATH}/preferences`: {
+        const preferences = body['preferences'];
+        if (
+          preferences !== undefined &&
+          (typeof preferences !== 'object' ||
+            preferences === null ||
+            Array.isArray(preferences) ||
+            Object.entries(preferences).some(
+              ([key, value]) =>
+                !['approval', 'question', 'private-input', 'reply'].includes(key) ||
+                typeof value !== 'boolean',
+            ))
+        )
+          return { status: 400, body: { code: 'invalid-input' } };
+        if (body['enabled'] !== undefined && typeof body['enabled'] !== 'boolean')
+          return { status: 400, body: { code: 'invalid-input' } };
+        if (preferences === undefined && !delivery.settings(deviceId).registered)
+          return { status: 409, body: { code: 'push-not-registered' } };
         const settings = delivery.setPreferences(deviceId, body['preferences'], body['enabled']);
-        return settings.registered
-          ? { status: 200, body: settings }
-          : { status: 409, body: { code: 'push-not-registered' } };
+        return { status: 200, body: settings };
       }
       case `${DEVICE_PUSH_PATH}/quiet`: {
         const result = delivery.setQuiet(deviceId, {
