@@ -110,6 +110,41 @@ describe('Device Pairing', () => {
     });
   });
 
+  it('reports what became of an offer by its receipt without the offer itself', () => {
+    const f = fixture();
+    let host = f.open();
+    const redeemed = host.pairing.createOffer();
+    expect(redeemed.receipt).not.toBe(redeemed.offer);
+    expect(host.pairing.offerStatus(redeemed.receipt)).toEqual({
+      receipt: redeemed.receipt,
+      state: 'pending',
+      expiresAt: redeemed.expiresAt,
+    });
+    const paired = host.pairing.redeem({ offer: redeemed.offer });
+    if (!paired.ok) throw new Error('pairing failed');
+    expect(host.pairing.offerStatus(redeemed.receipt)).toMatchObject({
+      state: 'redeemed',
+      deviceId: paired.device.id,
+    });
+
+    const lapsed = host.pairing.createOffer();
+    f.advance(PAIRING_OFFER_TTL_MS);
+    expect(host.pairing.offerStatus(lapsed.receipt)).toMatchObject({ state: 'expired' });
+    expect(JSON.stringify(host.pairing.offerStatus(lapsed.receipt))).not.toContain(lapsed.offer);
+
+    const first = host.pairing.createOffer();
+    for (let index = 0; index < 16; index += 1) host.pairing.createOffer();
+    expect(host.pairing.offerStatus(first.receipt)).toMatchObject({ state: 'superseded' });
+
+    const pending = host.pairing.createOffer();
+    host.owner.close();
+    host = f.open();
+    expect(host.pairing.offerStatus(pending.receipt)).toEqual({
+      receipt: pending.receipt,
+      state: 'unknown',
+    });
+  });
+
   it('records diagnostics without offers or credentials', () => {
     const f = fixture();
     const host = f.open();
@@ -212,7 +247,44 @@ describe('paired devices management', () => {
           body: JSON.stringify({ deviceId }),
         }),
       );
-    expect((await revoke(paired.device.id)).status).toBe(200);
+    const revoked = await revoke(paired.device.id);
+    expect([revoked.status, await revoked.json()]).toEqual([
+      200,
+      { revoked: true, closedStreams: 0, device: { id: paired.device.id, name: 'Pixel' } },
+    ]);
+    const again = await revoke(paired.device.id);
+    expect([again.status, await again.json()]).toMatchObject([
+      409,
+      { code: 'device-already-revoked', device: { id: paired.device.id } },
+    ]);
     expect((await revoke('nope')).status).toBe(404);
+  });
+
+  it('answers offer status by receipt and never returns the pairing link', async () => {
+    const host = fixture().open();
+    const http = createDevicesHttp({
+      pairing: host.pairing,
+      routes: () => detectPhoneRoutes({ port: 4100, run: tailnet }),
+    });
+    const view = (await (
+      await http(new Request('http://h/api/botharness/devices/offer', { method: 'POST' }))
+    ).json()) as PairingOfferView;
+    const status = (receipt: unknown) =>
+      http(
+        new Request('http://h/api/botharness/devices/offer-status', {
+          method: 'POST',
+          body: JSON.stringify({ receipt }),
+        }),
+      );
+    const pending = await status(view.receipt);
+    const text = await pending.text();
+    expect(JSON.parse(text)).toMatchObject({ receipt: view.receipt, state: 'pending' });
+    expect(text).not.toContain(view.link);
+    expect(text).not.toContain(new URL(view.link).searchParams.get('p'));
+    expect(await (await status('missing')).json()).toEqual({
+      receipt: 'missing',
+      state: 'unknown',
+    });
+    expect((await status(undefined)).status).toBe(400);
   });
 });

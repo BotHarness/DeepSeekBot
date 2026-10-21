@@ -198,6 +198,7 @@ export function mountDevicePairing(
     for (const [path, methods] of [
       [DEVICES_PATH, ['GET']],
       [`${DEVICES_PATH}/offer`, ['POST']],
+      [`${DEVICES_PATH}/offer-status`, ['POST']],
       [`${DEVICES_PATH}/revoke`, ['POST']],
       [`${DEVICES_PATH}/connect`, ['POST']],
     ] as const)
