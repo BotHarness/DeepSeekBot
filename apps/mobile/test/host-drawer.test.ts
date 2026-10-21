@@ -12,6 +12,7 @@ import {
   hostDrawerRows,
   hostRowBadge,
   settleOpen,
+  unpairedAccountHosts,
 } from '../src/ui/shell/host-drawer-model';
 import { badgeCount } from '../src/ui/primitives/badge-count';
 
@@ -278,5 +279,22 @@ describe('addressLines', () => {
   it('lets iOS wrap the address only at large text', () => {
     expect(addressLines(false, 'ios')).toEqual({ numberOfLines: 1 });
     expect(addressLines(true, 'ios')).toEqual({});
+  });
+});
+
+describe('unpairedAccountHosts', () => {
+  it('lists account computers whose Connect address no saved computer uses', () => {
+    const linked = [
+      { id: 'hstudio', name: 'Studio Mac', hostname: 'hstudio.deepseekbot.dev', online: true },
+      { id: 'hlaptop', name: 'Laptop', hostname: 'hlaptop.deepseekbot.dev', online: false },
+    ];
+    const paired: SavedHost = {
+      ...studio,
+      routes: [...studio.routes, 'https://hstudio.deepseekbot.dev'],
+    };
+    expect(unpairedAccountHosts(linked, [paired, laptop])).toEqual([linked[1]]);
+    expect(unpairedAccountHosts(linked, [])).toEqual(linked);
+    const slashed: SavedHost = { ...laptop, routes: ['https://hlaptop.deepseekbot.dev/'] };
+    expect(unpairedAccountHosts(linked, [paired, slashed])).toEqual([]);
   });
 });

@@ -485,6 +485,8 @@ const en = {
     empty:
       'No computer is linked to this account yet. On your computer, open Settings → Devices → DeepSeekBot Connect and sign in.',
     offline: 'Offline',
+    pair: 'Pair',
+    drawerTitle: 'On your DeepSeekBot account',
     pairWith: (name: string) => `Pair with ${name}`,
     refresh: 'Refresh',
   },
@@ -1734,6 +1736,8 @@ const zh: typeof en = {
     deleteConfirm: '删除账号',
     empty: '这个账号还没有关联电脑。请在电脑上打开设置 → 设备 → DeepSeekBot Connect，登录账号。',
     offline: '离线',
+    pair: '配对',
+    drawerTitle: 'DeepSeekBot 账号里的电脑',
     pairWith: (name: string) => `与 ${name} 配对`,
     refresh: '刷新',
   },
