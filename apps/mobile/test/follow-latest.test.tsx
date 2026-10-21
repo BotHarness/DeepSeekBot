@@ -32,7 +32,7 @@ vi.mock('react-native', async () => {
 });
 vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
 
-const { anchorStep, atLatest, distanceFromLatest, latestOffset, unseenSince } =
+const { anchorShift, anchorStep, atLatest, distanceFromLatest, latestOffset, unseenSince } =
   await import('../src/ui/chat/follow-latest');
 const { JumpToLatest } = await import('../src/ui/chat/jump-to-latest');
 const { t } = await import('../src/ui/strings');
@@ -81,6 +81,13 @@ describe('following the latest message', () => {
     expect(anchorStep(1200, 900, 1200, false)).toBe(1200);
     expect(anchorStep(1200, 900, 1320, false)).toBe(1320);
     expect(anchorStep(1320, 1100, 1320, true)).toBe(1320);
+  });
+
+  it('never lifts the working row above the end of a short chat before its first scroll event', () => {
+    expect(anchorShift(-100, 0)).toBe(0);
+    expect(anchorShift(-100, -100)).toBe(0);
+    expect(anchorShift(1320, 1100)).toBe(220);
+    expect(anchorShift(1260, 1300)).toBe(0);
   });
 
   it('counts the Bot messages that arrived after the Human left the latest', () => {
