@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
+import { act, createElement, type InputHTMLAttributes, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -42,6 +42,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   Tooltip: ({ children }: { children: ReactNode }) => children,
   MarkdownText: vi.fn(() => null),
   Modal: () => null,
+  Input: (props: InputHTMLAttributes<HTMLInputElement>) => createElement('input', props),
   StateDot: () => createElement('span', { 'data-state-dot': 'error' }),
   Button: ({ children, ...props }: { children: ReactNode }) =>
     createElement('button', props, children),
@@ -170,6 +171,56 @@ it('renders remote cards through the shared body and sends decisions only to the
     await act(async () => root.unmount());
     container.remove();
   }
+});
+
+it('renders a canonical remote question through the shared message projection', () => {
+  const client = createHostClient({
+    routes: ['https://source.example.ts.net'],
+    credential: 'test-device.test-secret',
+    carrier: {
+      request: async () => {
+        throw new Error('No request during static rendering');
+      },
+      openSocket() {
+        throw new Error('No socket expected');
+      },
+    },
+  });
+  const message: ConversationMessage = {
+    id: 'remote-question',
+    at: '2026-10-21T00:00:00Z',
+    author: 'bot',
+    bot: 'same-bot',
+    body: 'Which source?',
+    attachments: [],
+    delivery: 'committed',
+    source: {
+      channelId: 'remote-channel',
+      revision: 1,
+      message: {
+        id: 'remote-question',
+        at: '2026-10-21T00:00:00Z',
+        author: { kind: 'bot', slug: 'same-bot' },
+        body: 'Which source?',
+        userQuestionRequest: {
+          sessionId: 'remote-session',
+          questions: [
+            { id: 'source', question: 'Which source?', options: [{ label: 'Host B' }] },
+          ],
+        },
+      },
+    },
+  };
+  const html = renderToStaticMarkup(
+    createElement(
+      MessageHostContext.Provider,
+      { value: { client, current: () => true } },
+      createElement(RemoteMessageBody, { message, messages: [message], t: zhTranslate }),
+    ),
+  );
+  expect(html).toContain('Which source?');
+  expect(html).toContain('Host B');
+  expect(html).toContain('bh-question-card');
 });
 
 it('preserves remote plain text and attachment metadata without falling back to local URLs', () => {

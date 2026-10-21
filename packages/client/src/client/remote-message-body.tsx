@@ -34,6 +34,7 @@ export function RemoteMessageBody({
     if (stored.toolApprovalRequest !== undefined)
       card = (
         <ToolApprovalCard
+          hostScoped
           message={stored}
           channelId={channelId}
           actions={actions}
@@ -44,6 +45,7 @@ export function RemoteMessageBody({
     else if (stored.userQuestionRequest !== undefined)
       card = (
         <UserQuestionCard
+          hostScoped
           message={stored}
           channelId={channelId}
           actions={actions}
