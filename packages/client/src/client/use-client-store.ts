@@ -32,3 +32,11 @@ export function sameBotNames(
     )
   );
 }
+
+export function sameFields<K extends keyof ClientState>(
+  keys: readonly K[],
+): (left: ClientState, right: ClientState) => boolean {
+  return (left, right) => keys.every((key) => left[key] === right[key]);
+}
+
+export const keepClientState = (state: ClientState): ClientState => state;

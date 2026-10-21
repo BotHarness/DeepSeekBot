@@ -711,12 +711,14 @@ export function createStore({
   let rawActivity = new Map<string, PersonaBotActivitySnapshot['bots'][number]>();
   const smoother = new ActivitySmoother<PersonaBotActivitySnapshot['bots'][number]>();
   let settle: ReturnType<typeof setTimeout> | undefined;
-  const refreshActivity = (shownBefore: typeof activityStates): BotSummary[] =>
-    state.bots.map((bot) =>
+  const refreshActivity = (shownBefore: typeof activityStates): void => {
+    const bots = state.bots.map((bot) =>
       sameActivity(shownBefore.get(bot.slug), activityStates.get(bot.slug))
         ? bot
         : withActivity(bot),
     );
+    if (bots.some((bot, index) => bot !== state.bots[index])) update({ bots });
+  };
   const smooth = () => {
     if (settle !== undefined) clearTimeout(settle);
     settle = undefined;
@@ -732,7 +734,7 @@ export function createStore({
         settle = undefined;
         const shownBefore = activityStates;
         smooth();
-        update({ bots: refreshActivity(shownBefore) });
+        refreshActivity(shownBefore);
       }, wake - now);
   };
   const withActivity = (bot: BotSummary): BotSummary => {
@@ -851,7 +853,7 @@ export function createStore({
       rawActivity = new Map(snapshot.bots.map((bot) => [bot.slug, bot]));
       const shownBefore = activityStates;
       smooth();
-      update({ bots: refreshActivity(shownBefore) });
+      refreshActivity(shownBefore);
     },
     setActivitySync(activitySync) {
       if (state.activitySync !== activitySync) update({ activitySync });

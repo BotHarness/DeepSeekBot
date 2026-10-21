@@ -170,6 +170,22 @@ import { rememberModelPlan } from './model-plan-store.js';
 import { applyBotModelRoute, botModelMenuGroups, type BotModelGroup } from './bot-model-route.js';
 import { useMountedResource } from './mounted-resource.js';
 import { onCreationRequest } from './create-request.js';
+import { keepClientState, sameFields, useClientStore } from './use-client-store.js';
+import { shallowEqual } from '@deepseek-ai/dsh-client-store';
+
+const rosterInputs = sameFields([
+  'activitySync',
+  'bots',
+  'channels',
+  'config',
+  'error',
+  'git',
+  'humanInbox',
+  'query',
+  'roster',
+  'selection',
+  'status',
+]);
 
 export function useClientState(): ClientState {
   return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
@@ -202,7 +218,16 @@ export function BotPanelIcon({
   const icon = useBotModePrefs((prefs) => prefs.botIcon);
   const [row, setRow] = useState<HTMLElement | null>(null);
   const wide = size === 16;
-  const state = useClientState();
+  const state = {
+    humanInbox: useClientStore(
+      (value) => ({
+        unreadCount: value.humanInbox.unreadCount,
+        hasAction: value.humanInbox.hasAction,
+      }),
+      shallowEqual,
+    ),
+    selection: useClientStore((value) => value.selection),
+  };
   const entryHidden = !active && (!wide || state.humanInbox.unreadCount === 0);
   const panelList = row?.parentElement;
   const entryLabel = [
@@ -982,7 +1007,7 @@ export function BotSidebar({
   quickSwitcherSettings,
   t,
 }: SidebarProps): ReactElement {
-  const state = useClientState();
+  const state = useClientStore(keepClientState, rosterInputs);
   const channelUnread = state.humanInbox.channelUnread;
   const mutedChannelSet = new Set(state.roster.muted);
   const prefs = useBotModePrefs((value) => value);

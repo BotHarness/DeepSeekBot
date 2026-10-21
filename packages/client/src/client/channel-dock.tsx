@@ -85,6 +85,7 @@ import { useMountedResource } from './mounted-resource.js';
 import { IconButton } from './ds/icon-button.js';
 import { PanelHeader } from './ds/panel-header.js';
 import { space, color, radius } from './ds/tokens.stylex.js';
+import { EntryPart, useStableProps } from './entry-part.js';
 
 const styles = stylex.create({
   storageWarning: {
@@ -226,6 +227,16 @@ function entryScopeKey(props: ChannelSidebarEntryProps): string {
 function useEntryProps(entryId: string): ChannelSidebarEntryProps | undefined {
   const dock = useDock();
   const runtime = dock.runtime(entryId);
+  return useStableProps(
+    dock.entryProps === undefined ? undefined : entryPropsFor(dock, entryId, runtime),
+  );
+}
+
+function entryPropsFor(
+  dock: DockContextValue,
+  entryId: string,
+  runtime: EntryRuntime,
+): ChannelSidebarEntryProps | undefined {
   if (dock.entryProps === undefined) return undefined;
   return {
     ...dock.entryProps,
@@ -414,7 +425,7 @@ function ChannelEntryContent({ entryId }: { entryId: string }): ReactElement {
               props.flush && styles.flushBody,
             )}
           >
-            <entry.component key={entryScopeKey(props)} {...props} />
+            <EntryPart key={entryScopeKey(props)} part={entry.component} props={props} />
           </div>
         ) : null
       ) : (
@@ -576,7 +587,7 @@ function DockPanelHeader({ entryId, panelId }: { entryId: string | undefined; pa
           }
           badge={
             Badge === undefined || props === undefined ? undefined : (
-              <Badge key={entryScopeKey(props)} {...props} />
+              <EntryPart key={entryScopeKey(props)} part={Badge} props={props} />
             )
           }
           tabs={
@@ -643,7 +654,7 @@ function DockPanelHeader({ entryId, panelId }: { entryId: string | undefined; pa
               )}
               {entryId === CHANNEL_BODY_PANEL && dock.header?.actions}
               {HeaderAction === undefined || props === undefined ? null : (
-                <HeaderAction key={entryScopeKey(props)} {...props} />
+                <EntryPart key={entryScopeKey(props)} part={HeaderAction} props={props} />
               )}
               {PanelAction && (
                 <PanelAction
