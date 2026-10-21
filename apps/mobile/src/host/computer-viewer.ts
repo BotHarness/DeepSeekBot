@@ -161,13 +161,17 @@ export function createComputerViewer(options: ComputerViewerOptions): ComputerVi
         });
       } catch (error) {
         if (signal.aborted) return;
+        seq = undefined;
         fail(error);
         if (state.status === 'refused') return;
         await wait(RETRY_MS, signal);
         continue;
       }
       if (signal.aborted) return;
-      if (answer.status === 204) continue;
+      if (answer.status === 204) {
+        if (state.status !== 'live') seq = undefined;
+        continue;
+      }
       const body = record(answer.body);
       if (answer.status === 409 && body['code'] === 'not-running') {
         seq = undefined;
@@ -176,6 +180,7 @@ export function createComputerViewer(options: ComputerViewerOptions): ComputerVi
         continue;
       }
       if (answer.status !== 200 || typeof body['data'] !== 'string') {
+        seq = undefined;
         update({ status: 'unreachable', notice: errorOf(answer) });
         await wait(RETRY_MS, signal);
         continue;

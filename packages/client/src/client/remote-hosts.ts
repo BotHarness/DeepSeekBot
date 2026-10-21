@@ -25,6 +25,7 @@ import {
 } from '../../../../apps/mobile/src/host/pairing.js';
 import { store } from './store.js';
 import { createRemoteActivityProjection, type RemoteBotActivity } from './remote-host-activity.js';
+import { releaseRemoteHostViewers } from './remote-host-viewer.js';
 
 export const REMOTE_HOSTS_STORAGE_KEY = 'botharness.remoteHosts.v1';
 export const HOST_TAB_STORAGE_KEY = 'botharness.hostTab.v1';
@@ -68,6 +69,7 @@ export interface RemoteHosts {
   markRead(target: RemoteConversationTarget, messageId: string): Promise<void>;
   activity(hostId: string, query?: InboxQuery): ReturnType<typeof observeInbox> | undefined;
   client(hostId: string): HostClient | undefined;
+  viewerClient(hostId: string): HostClient | undefined;
 }
 
 export interface HostStorage {
@@ -312,7 +314,9 @@ export function createRemoteHosts(options: {
     async remove(hostId) {
       const entry = clients.get(hostId);
       if (entry === undefined) return;
+      const releasing = releaseRemoteHostViewers(entry.client);
       forget(hostId);
+      await releasing;
       await revokePairing({ host: entry.host, carrier });
     },
     select(next) {
@@ -357,6 +361,9 @@ export function createRemoteHosts(options: {
         conversations.set(key, conversation);
       }
       return conversation;
+    },
+    viewerClient(hostId) {
+      return clients.get(hostId)?.client;
     },
   };
 }
