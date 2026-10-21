@@ -137,6 +137,7 @@ async function setup(
     zone: 'deepseekbot.dev',
     allowedUsers,
     maxHosts: 5,
+    maxTunnels: 900,
     reclaimAfterMs: 5 * 60 * 1000,
     now: () => new Date(clock),
     hostId: () => {
@@ -434,6 +435,32 @@ describe('Connect relay tunnels', () => {
     expect((await call('GET', '/v1/hosts', { as: 'user_anyone' })).body['hosts'][0]).toMatchObject({
       tunnel: false,
     });
+  });
+
+  it('stops creating tunnels at the relay cap and rate-limits writes per account', async () => {
+    let allowed = true;
+    const { call, tunnels } = await setup(['*'], {
+      maxTunnels: 1,
+      limit: async () => allowed,
+    });
+    await call('POST', '/v1/hosts', { as: 'user_alice', body: { name: 'Studio' } });
+    await call('POST', '/v1/hosts', { as: 'user_bob', body: { name: 'Laptop' } });
+    const tunnel = (path: string, as: string) =>
+      call('POST', `/v1/hosts/${path}/tunnel`, { as, body: { originPort: 41001 } });
+    expect((await tunnel('haaaaaaaaaaab', 'user_alice')).status).toBe(200);
+    expect(await tunnel('haaaaaaaaaaac', 'user_bob')).toEqual({
+      status: 503,
+      body: { error: { code: 'relay-full' } },
+    });
+    expect((await tunnel('haaaaaaaaaaab', 'user_alice')).status).toBe(200);
+    expect(tunnels.tunnels.size).toBe(1);
+
+    allowed = false;
+    expect(await call('POST', '/v1/hosts', { as: 'user_alice', body: { name: 'Spare' } })).toEqual({
+      status: 429,
+      body: { error: { code: 'rate-limited' } },
+    });
+    expect((await call('GET', '/v1/hosts', { as: 'user_alice' })).status).toBe(200);
   });
 });
 

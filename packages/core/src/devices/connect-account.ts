@@ -201,7 +201,8 @@ export function createConnectAccount(options: {
     if (response.status === 401) throw new AccountError('session-expired');
     if (code === 'account-not-allowed') throw new AccountError('account-not-allowed');
     if (code === 'host-limit') throw new AccountError('host-limit');
-    if (response.status >= 500) throw new AccountError('relay-unavailable');
+    if (response.status >= 500 || response.status === 429)
+      throw new AccountError('relay-unavailable');
     return { status: response.status, body: parsed };
   };
 

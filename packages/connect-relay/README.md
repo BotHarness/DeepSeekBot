@@ -17,6 +17,8 @@ Every route except `/v1/config` takes `Authorization: Bearer <WorkOS access toke
 
 Every account signed in to TOB's WorkOS environment may use the relay, up to `MAX_HOSTS` Hosts each. Setting the optional `ALLOWED_USERS` secret (comma-separated WorkOS user IDs) restricts it to those accounts, and others answer `403 account-not-allowed`; a bad, expired or foreign token answers `401 unauthorized`.
 
+Two limits keep open sign-up inside Cloudflare's quota. A Host whose tunnel would push the relay past `MAX_TUNNELS` live tunnels answers `503 relay-full`, and every `POST` or `DELETE` beyond the `CONNECT_LIMIT` rate (20 per account per minute) answers `429 rate-limited`.
+
 ## Reclamation
 
 Cloudflare counts inactive tunnels toward the 1,000 free tunnels per account. A cron trigger runs every minute and deletes tunnels that are not `healthy` or `degraded` and have been inactive for `RECLAIM_AFTER_MINUTES` (default 5), or that never connected within that time. The link and hostname stay; the Host's next `POST /v1/hosts/{id}/tunnel` creates a new tunnel and repoints the same CNAME.
@@ -36,6 +38,8 @@ Each run lists the account's tunnels once (100 per page, at most 10 pages) and a
 | `CONNECT_HOST_KEY`      | secret | Derives each Host's `relayKey` as `HMAC(key, "host:<id>")`; `deploy.sh` creates it once. Without it offers answer `503 offer-unavailable` |
 | `CONNECT_ZONE`          | var    | Tunnel zone, `deepseekbot.dev`                                                                                                            |
 | `MAX_HOSTS`             | var    | Hosts per account, `5`                                                                                                                    |
+| `MAX_TUNNELS`           | var    | Live tunnels across all accounts, `900` (Cloudflare allows 1,000)                                                                         |
+| `CONNECT_LIMIT`         | limit  | Workers rate limit on writes, keyed by account; unbound: no limit                                                                         |
 | `RECLAIM_AFTER_MINUTES` | var    | Offline minutes before a tunnel is deleted, `5`                                                                                           |
 
 Without the four secrets every route answers `503 relay-unconfigured`. The Worker is served at `connect.botharness.ai`, never on a subdomain of the tunnel zone.

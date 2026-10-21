@@ -10,7 +10,9 @@ export interface RelayOptions {
   zone: string;
   allowedUsers: readonly string[];
   maxHosts: number;
+  maxTunnels: number;
   reclaimAfterMs: number;
+  limit?: (account: string) => Promise<boolean>;
   hostKey?: (hostId: string) => Promise<string>;
   fetchHost?: typeof fetch;
   now?: () => Date;
@@ -76,6 +78,8 @@ async function readBody(request: Request): Promise<Record<string, unknown> | und
   }
 }
 
+class RelayFull extends Error {}
+
 function changes(result: unknown): number {
   const value = result as { changes?: number; meta?: { changes?: number } } | null;
   return value?.meta?.changes ?? value?.changes ?? 0;
@@ -122,6 +126,11 @@ export function createRelay(options: RelayOptions) {
       const live =
         current.tunnel_id === null ? undefined : await tunnels.tunnelState(current.tunnel_id);
       if (current.tunnel_id !== null && live !== undefined) break;
+      const active = await db
+        .prepare('SELECT COUNT(*) AS n FROM hosts WHERE tunnel_id IS NOT NULL AND id != ?')
+        .bind(current.id)
+        .first<{ n: number }>();
+      if ((active?.n ?? 0) >= options.maxTunnels) throw new RelayFull();
       const created = await tunnels.createTunnel(`dsb-${current.id}`);
       const claimed = changes(
         await db
@@ -220,6 +229,8 @@ export function createRelay(options: RelayOptions) {
     if (account === undefined) return failure(401, 'unauthorized');
     if (!allowAll && !options.allowedUsers.includes(account))
       return failure(403, 'account-not-allowed');
+    if (request.method !== 'GET' && options.limit !== undefined && !(await options.limit(account)))
+      return failure(429, 'rate-limited');
     return account;
   };
 
@@ -276,7 +287,8 @@ export function createRelay(options: RelayOptions) {
       try {
         const tunnel = await provision(row, port);
         return tunnel === undefined ? failure(404, 'host-not-found') : json(200, tunnel);
-      } catch {
+      } catch (error) {
+        if (error instanceof RelayFull) return failure(503, 'relay-full');
         return failure(502, 'upstream-unavailable');
       }
     }

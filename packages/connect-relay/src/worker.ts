@@ -12,6 +12,8 @@ export interface ConnectRelayEnv {
   CONNECT_ZONE?: string;
   ALLOWED_USERS?: string;
   MAX_HOSTS?: string;
+  MAX_TUNNELS?: string;
+  CONNECT_LIMIT?: { limit(options: { key: string }): Promise<{ success: boolean }> };
   RECLAIM_AFTER_MINUTES?: string;
   CONNECT_HOST_KEY?: string;
 }
@@ -31,6 +33,7 @@ export function relayForEnv(env: ConnectRelayEnv): ReturnType<typeof createRelay
   const zoneId = env.CLOUDFLARE_ZONE_ID;
   if (!clientId || !token || !accountId || !zoneId) return undefined;
   const hostSecret = env.CONNECT_HOST_KEY;
+  const limiter = env.CONNECT_LIMIT;
   const relay = createRelay({
     db: env.CONNECT_DB,
     verifier: createAccessTokenVerifier({ clientId, keys: workosKeys(clientId) }),
@@ -42,7 +45,11 @@ export function relayForEnv(env: ConnectRelayEnv): ReturnType<typeof createRelay
       .map((user) => user.trim())
       .filter(Boolean),
     maxHosts: positive(env.MAX_HOSTS, 5),
+    maxTunnels: positive(env.MAX_TUNNELS, 900),
     reclaimAfterMs: positive(env.RECLAIM_AFTER_MINUTES, 5) * 60 * 1000,
+    ...(limiter === undefined
+      ? {}
+      : { limit: async (account: string) => (await limiter.limit({ key: account })).success }),
     ...(hostSecret ? { hostKey: (hostId: string) => hmac(hostSecret, `host:${hostId}`) } : {}),
   });
   cached = { env, relay };
