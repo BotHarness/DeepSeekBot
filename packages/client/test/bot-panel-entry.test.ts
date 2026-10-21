@@ -8,6 +8,7 @@ import { describe, expect, it, vi } from 'vitest';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
   const stub = () => null;
   return {
+    MarkdownText: ({ text }: { text: string }) => createElement('span', null, text),
     Button: stub,
     IconAgentPresetOutlineRegular: stub,
     IconChevronDownOutlineRegular: stub,
