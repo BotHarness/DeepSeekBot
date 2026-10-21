@@ -1,3 +1,5 @@
+import { UnreadCount } from './unread-count.js';
+export { unreadCountLabel } from './unread-count.js';
 import { Menu } from './appearance-primitives.js';
 import { ALL_HOSTS, remoteHosts } from './remote-hosts.js';
 import { useChannelDockActive } from './channel-dock.js';
@@ -512,32 +514,6 @@ function ChannelMessageTime({
     <time className="bh-channel-message-time" dateTime={at} title={date.toLocaleString()}>
       {formatChannelListTime(date.getTime(), now, t)}
     </time>
-  );
-}
-
-export function unreadCountLabel(count: number): string {
-  return count > 99 ? '99+' : String(count);
-}
-
-function UnreadCount({
-  count,
-  muted = false,
-  corner = false,
-  t,
-}: {
-  count: number;
-  muted?: boolean;
-  corner?: boolean;
-  t: BotHarnessTranslate;
-}): ReactElement | null {
-  if (count <= 0) return null;
-  return (
-    <span
-      className={`bh-unread-count${corner ? ' bh-unread-corner' : ''}${muted ? ' bh-unread-count-muted' : ''}`}
-      aria-label={t('roster.unreadCount', { count })}
-    >
-      {unreadCountLabel(count)}
-    </span>
   );
 }
 
