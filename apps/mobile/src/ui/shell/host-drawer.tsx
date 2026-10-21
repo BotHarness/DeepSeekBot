@@ -601,8 +601,9 @@ export function HostDrawer() {
   const accountMount = useMounted<ViewInstance>(() => {
     if (!state.open || tab !== 'computers') return;
     let live = true;
+    setLinked([]);
     void connectAccount.email().then(async (email) => {
-      if (email === null) return live && setLinked([]);
+      if (email === null) return;
       const listed = await connectAccount.hosts();
       if (live && listed.ok) setLinked(listed.value);
     });

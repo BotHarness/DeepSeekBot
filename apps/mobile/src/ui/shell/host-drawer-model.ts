@@ -15,12 +15,20 @@ export interface HostDrawerRow {
   glance: HostGlance;
 }
 
+function routeHost(route: string): string {
+  try {
+    return new URL(route).host;
+  } catch {
+    return '';
+  }
+}
+
 export function unpairedAccountHosts(
   linked: readonly ConnectHost[],
   hosts: readonly SavedHost[],
 ): ConnectHost[] {
-  const routes = new Set(hosts.flatMap((host) => host.routes));
-  return linked.filter((host) => !routes.has(`https://${host.hostname}`));
+  const paired = new Set(hosts.flatMap((host) => host.routes.map(routeHost)));
+  return linked.filter((host) => !paired.has(host.hostname));
 }
 
 export function hostDrawerRows(

@@ -294,5 +294,7 @@ describe('unpairedAccountHosts', () => {
     };
     expect(unpairedAccountHosts(linked, [paired, laptop])).toEqual([linked[1]]);
     expect(unpairedAccountHosts(linked, [])).toEqual(linked);
+    const slashed: SavedHost = { ...laptop, routes: ['https://hlaptop.deepseekbot.dev/'] };
+    expect(unpairedAccountHosts(linked, [paired, slashed])).toEqual([]);
   });
 });
