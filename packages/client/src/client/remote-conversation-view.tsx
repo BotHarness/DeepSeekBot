@@ -11,6 +11,7 @@ import {
 import { remoteHosts, type RemoteConversationTarget } from './remote-hosts.js';
 import { useRemoteHosts } from './host-tabs.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
+import { RemoteAvatar } from './remote-avatar.js';
 import { IconButton } from './ds/icon-button.js';
 import { border, color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -65,7 +66,14 @@ const styles = stylex.create({
   },
   message: { display: 'flex', flexDirection: 'column', gap: space.x1, minWidth: 0 },
   human: { alignItems: 'flex-end' },
-  author: { color: color.subtle, fontSize: text.metaSize, lineHeight: text.metaLine },
+  author: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: space.x3,
+    color: color.subtle,
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+  },
   bubble: {
     maxWidth: 'min(720px, 100%)',
     paddingBlock: space.x3,
@@ -163,9 +171,8 @@ export function RemoteConversationView({
   t: BotHarnessTranslate;
 }): ReactElement {
   const sources = remoteHosts();
-  const remote = useRemoteHosts().hosts.find(
-    (candidate) => candidate.host.hostId === target.hostId,
-  );
+  const { hosts, avatars } = useRemoteHosts();
+  const remote = hosts.find((candidate) => candidate.host.hostId === target.hostId);
   const conversation = useMemo(
     () => sources.conversation(target),
     [sources, target.hostId, target.botSlug, target.channelId],
@@ -197,6 +204,13 @@ export function RemoteConversationView({
       data-remote-conversation={target.hostId}
     >
       <header {...stylex.props(styles.header)}>
+        <RemoteAvatar
+          roster={remote?.snapshot.roster}
+          avatars={avatars}
+          target={target}
+          size={34}
+          t={t}
+        />
         <span {...stylex.props(styles.title)}>{target.title}</span>
         <span {...stylex.props(styles.source)}>
           <ChannelSidebarIcon name="monitor" />
@@ -219,7 +233,16 @@ export function RemoteConversationView({
       <div {...stylex.props(styles.timeline)} data-remote-timeline="">
         {snapshot.drafts.map((entry) => (
           <div key={entry.draftId} {...stylex.props(styles.message)}>
-            <span {...stylex.props(styles.author)}>{bots.get(entry.botSlug) ?? entry.botSlug}</span>
+            <span {...stylex.props(styles.author)}>
+              <RemoteAvatar
+                roster={remote?.snapshot.roster}
+                avatars={avatars}
+                target={{ botSlug: entry.botSlug, title: bots.get(entry.botSlug) ?? entry.botSlug }}
+                size={24}
+                t={t}
+              />
+              {bots.get(entry.botSlug) ?? entry.botSlug}
+            </span>
             <div {...stylex.props(styles.bubble)}>
               <MarkdownText text={entry.body} streaming labels={labels} />
             </div>
@@ -231,7 +254,18 @@ export function RemoteConversationView({
             data-remote-message={message.id}
             {...stylex.props(styles.message, message.author === 'human' && styles.human)}
           >
-            <span {...stylex.props(styles.author)}>{authorName(message, bots, t)}</span>
+            <span {...stylex.props(styles.author)}>
+              {message.author === 'bot' && message.bot !== undefined ? (
+                <RemoteAvatar
+                  roster={remote?.snapshot.roster}
+                  avatars={avatars}
+                  target={{ botSlug: message.bot, title: authorName(message, bots, t) }}
+                  size={24}
+                  t={t}
+                />
+              ) : null}
+              {authorName(message, bots, t)}
+            </span>
             <div {...stylex.props(styles.bubble, message.author === 'human' && styles.humanBubble)}>
               <MarkdownText
                 text={

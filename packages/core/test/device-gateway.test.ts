@@ -48,6 +48,14 @@ async function fakeDsh(connectOffer?: Parameters<typeof createDeviceGateway>[0][
     req.on('data', (chunk: Buffer) => chunks.push(chunk));
     req.on('end', () => {
       state.seen.push({ ...req.headers, path: url.pathname });
+      if (
+        url.pathname === '/api/botharness/bot-avatar' &&
+        url.searchParams.get('slug') === 'ada' &&
+        url.searchParams.get('v') === 'portrait-1'
+      ) {
+        res.writeHead(200, { 'content-type': 'image/png', 'set-cookie': 'leak=1' });
+        return res.end(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+      }
       res.writeHead(200, { 'content-type': 'application/json', 'set-cookie': 'leak=1' });
       res.end(JSON.stringify({ path: url.pathname, body: Buffer.concat(chunks).toString() }));
     });
@@ -218,6 +226,54 @@ describe('device gateway', () => {
       headers: { origin: browser, authorization: `Device ${credential}` },
     });
     expect(web.status).toBe(403);
+  });
+
+  it('forwards cross-origin avatar GET bytes only for an admitted device without cookies', async () => {
+    const host = await fakeDsh();
+    const browser = 'http://127.0.0.1:41000';
+    const paired = await pair(host.base, host.pairing.createOffer().offer);
+    const authorization = `Device ${paired.body.credential}`;
+    const url = `${host.base}/botharness-device/api/botharness/bot-avatar?slug=ada&v=portrait-1`;
+    const preflight = await fetch(url, {
+      method: 'OPTIONS',
+      headers: {
+        origin: browser,
+        'access-control-request-method': 'GET',
+        'access-control-request-headers': 'authorization',
+      },
+    });
+    expect(preflight.status).toBe(204);
+    expect(preflight.headers.get('access-control-allow-methods')).toContain('GET');
+    expect(preflight.headers.get('access-control-allow-headers')).toContain('authorization');
+    const image = await fetch(url, { headers: { origin: browser, authorization } });
+    expect(image.status).toBe(200);
+    expect(image.headers.get('content-type')).toBe('image/png');
+    expect(image.headers.get('access-control-allow-origin')).toBe(browser);
+    expect(image.headers.get('vary')).toBe('origin');
+    expect(image.headers.get('access-control-allow-credentials')).toBeNull();
+    expect(image.headers.get('set-cookie')).toBeNull();
+    expect(Buffer.from(await image.arrayBuffer())).toEqual(
+      Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+    );
+    expect(host.state.seen.at(-1)).toMatchObject({
+      path: '/api/botharness/bot-avatar',
+      cookie: 'dsh=1',
+    });
+    expect(host.state.seen.at(-1)!.authorization).toBeUndefined();
+    expect(host.state.seen.at(-1)!.origin).toBeUndefined();
+    const admitted = host.state.seen.length;
+    expect((await fetch(url, { headers: { origin: browser } })).status).toBe(401);
+    expect(
+      (await fetch(url, { headers: { origin: 'https://evil.example', authorization } })).status,
+    ).toBe(403);
+    expect(
+      (await fetch(url, { headers: { origin: browser, authorization, cookie: 'dsh=1' } })).status,
+    ).toBe(403);
+    host.pairing.revoke(paired.body.deviceId!);
+    const revoked = await fetch(url, { headers: { origin: browser, authorization } });
+    expect(revoked.status).toBe(401);
+    expect(await revoked.json()).toEqual({ code: 'device-revoked' });
+    expect(host.state.seen).toHaveLength(admitted);
   });
 
   it('opens a browser stream with a one-time ticket instead of a header', async () => {

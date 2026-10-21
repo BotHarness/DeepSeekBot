@@ -4,6 +4,7 @@ import * as stylex from '@stylexjs/stylex';
 import type { RemoteHost, RemoteConversationTarget } from './remote-hosts.js';
 import { ALL_HOSTS, remoteHosts, THIS_HOST } from './remote-hosts.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
+import { RemoteAvatar } from './remote-avatar.js';
 import { ConfirmDialog, FormDialog } from './ds/form-dialog.js';
 import { PointerMenu, type MenuPoint } from './ds/pointer-menu.js';
 import { TextField } from './ds/field.js';
@@ -558,7 +559,6 @@ export function AddRemoteHostDialog({
 
 function rows(remote: RemoteHost): (RemoteConversationTarget & {
   key: string;
-  icon: string;
   preview?: string;
   previewAt?: string;
 })[] {
@@ -571,7 +571,6 @@ function rows(remote: RemoteHost): (RemoteConversationTarget & {
       hostId,
       title: bot.displayName,
       botSlug: bot.slug,
-      icon: 'bot',
       ...(bot.preview === undefined ? {} : { preview: bot.preview }),
       ...(bot.previewAt === undefined ? {} : { previewAt: bot.previewAt }),
     })),
@@ -580,7 +579,6 @@ function rows(remote: RemoteHost): (RemoteConversationTarget & {
       hostId,
       title: channel.name,
       channelId: channel.id,
-      icon: 'users',
       ...(channel.preview === undefined ? {} : { preview: channel.preview }),
       ...(channel.previewAt === undefined ? {} : { previewAt: channel.previewAt }),
     })),
@@ -613,7 +611,7 @@ export function RemoteHostRows({
   t: BotHarnessTranslate;
 }): ReactElement | null {
   const sources = remoteHosts();
-  const open = useRemoteHosts().open;
+  const { open, avatars } = useRemoteHosts();
   const needle = query.trim().toLocaleLowerCase();
   const visible = rows(remote).filter(
     (row) => needle.length === 0 || row.title.toLocaleLowerCase().includes(needle),
@@ -643,9 +641,13 @@ export function RemoteHostRows({
           }}
         >
           <span className="bh-row-avatar">
-            <span className="bh-channel-slot">
-              <ChannelSidebarIcon name={row.icon} />
-            </span>
+            <RemoteAvatar
+              roster={remote.snapshot.roster}
+              avatars={avatars}
+              target={row}
+              size={34}
+              t={t}
+            />
           </span>
           <span className="bh-body">
             <span className="bh-top">
