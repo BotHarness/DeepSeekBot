@@ -33,7 +33,7 @@ import {
   GroupWakePolicyEntry,
   isGroupConversation,
 } from './group-entries.js';
-import { useClientState } from './bot-sidebar.js';
+import { sameBotNames, useClientStore } from './use-client-store.js';
 import type {
   ChannelSidebarEntry,
   ChannelSidebarEntryProps,
@@ -154,7 +154,7 @@ function inboxIcon(item: BotAttentionItem): string {
 }
 
 function GroupManagementEntry(props: ChannelSidebarEntryProps): ReactElement {
-  const group = useClientState().conversation.channel;
+  const group = useClientStore((state) => state.conversation.channel);
   if (group?.type !== 'group') return <></>;
   return (
     <GroupManagementSettings key={group.id} actions={props.actions} t={props.t} group={group} />
@@ -170,7 +170,7 @@ function GroupManagementHeaderForChannel({
   t,
   channelId,
 }: ChannelSidebarEntryProps): ReactElement {
-  const group = useClientState().conversation.channel;
+  const group = useClientStore((state) => state.conversation.channel);
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   if (group?.type !== 'group' || group.id !== channelId) return <></>;
@@ -215,7 +215,8 @@ function GroupManagementHeaderForChannel({
 }
 
 function MembersBadge(): ReactElement {
-  return <Tag tone="neutral">{useClientState().conversation.channel?.members.length ?? 0}</Tag>;
+  const count = useClientStore((state) => state.conversation.channel?.members.length ?? 0);
+  return <Tag tone="neutral">{count}</Tag>;
 }
 
 function BotInboxItemRow({
@@ -229,7 +230,9 @@ function BotInboxItemRow({
   actions: ChannelSidebarEntryProps['actions'];
   t: BotHarnessTranslate;
 }): ReactElement {
-  const bots = useClientState().bots;
+  const authorName = useClientStore(
+    (state) => state.bots.find((bot) => bot.slug === item.authorBotSlug)?.displayName,
+  );
   const externalRequest = useRef(0);
   const [externalOpen, setExternalOpen] = useState(false);
   const [external, setExternal] = useState<ExternalSource>();
@@ -341,9 +344,7 @@ function BotInboxItemRow({
             : item.authorKind === 'human'
               ? t('main.author.human')
               : item.authorKind === 'bot'
-                ? (bots.find((bot) => bot.slug === item.authorBotSlug)?.displayName ??
-                  item.authorBotSlug ??
-                  t('inbox.bot'))
+                ? (authorName ?? item.authorBotSlug ?? t('inbox.bot'))
                 : t('inbox.system');
   const open = async (): Promise<void> => {
     if (!item.sourceAvailable) return;
@@ -763,17 +764,18 @@ function BotInboxSection({
   );
 }
 function BotInboxEntry({ actions, t, botSlug, flush }: ChannelSidebarEntryProps): ReactElement {
-  const state = useClientState();
-  const inbox = state.botInbox;
+  const inbox = useClientStore((state) => state.botInbox);
+  const bots = useClientStore((state) => state.bots, sameBotNames);
+  const channels = useClientStore((state) => state.channels);
   const layout = useSyncExternalStore(
     subscribeInboxLayout,
     inboxLayoutSnapshot,
     inboxLayoutSnapshot,
   );
   const sourceName = (item: BotAttentionItem): string | undefined => {
-    const channel = state.channels.find((channel) => channel.id === item.sourceChannelId);
+    const channel = channels.find((channel) => channel.id === item.sourceChannelId);
     if (channel?.type === 'dm') {
-      return state.bots.find((bot) => bot.slug === channel.botSlug)?.displayName ?? channel.name;
+      return bots.find((bot) => bot.slug === channel.botSlug)?.displayName ?? channel.name;
     }
     return item.sourceChannelName ?? channel?.name;
   };
@@ -978,12 +980,14 @@ function MemoryHeaderAction({
 }
 
 function BotInboxBadge(): ReactElement | null {
-  const count = openInboxCount(useClientState().botInbox.items);
+  const count = useClientStore((state) => openInboxCount(state.botInbox.items));
   return count === 0 ? null : <Tag tone="neutral">{count}</Tag>;
 }
 
 function ModelEntry({ botSlug, actions, t }: ChannelSidebarEntryProps): ReactElement {
-  const deleted = useClientState().bots.some((bot) => bot.slug === botSlug && bot.deleted === true);
+  const deleted = useClientStore((state) =>
+    state.bots.some((bot) => bot.slug === botSlug && bot.deleted === true),
+  );
   if (botSlug === undefined || deleted) return <></>;
   return <ModelPresetProfile key={botSlug} slug={botSlug} actions={actions} t={t} />;
 }
@@ -992,7 +996,9 @@ function useModelPlan(
   slug: string | undefined,
   actions: ChannelSidebarEntryProps['actions'],
 ): [ModelPlanView | null | undefined, (element: HTMLSpanElement | null) => void] {
-  const deleted = useClientState().bots.some((bot) => bot.slug === slug && bot.deleted === true);
+  const deleted = useClientStore((state) =>
+    state.bots.some((bot) => bot.slug === slug && bot.deleted === true),
+  );
   const botSlug = deleted ? undefined : slug;
   const plan = useSyncExternalStore(
     subscribeModelPlans,
@@ -1075,8 +1081,8 @@ function SessionsHeaderWithSettings({
   targetId: string | undefined;
 }): ReactElement {
   const { actions, t } = props;
-  const botDeleted = useClientState().bots.some(
-    (bot) => bot.slug === props.botSlug && bot.deleted === true,
+  const botDeleted = useClientStore((state) =>
+    state.bots.some((bot) => bot.slug === props.botSlug && bot.deleted === true),
   );
   const botSlug = botDeleted ? undefined : props.botSlug;
   const [plan, mount] = useModelPlan(botSlug, actions);
@@ -1179,15 +1185,16 @@ export function createChannelSidebarBuiltins(
   }
   function SessionsHeader(props: ChannelSidebarEntryProps): ReactElement {
     const target = useSessionTarget(props);
-    const state = useClientState();
     const group = props.botSlug === undefined;
-    const channel =
+    const channel = useClientStore((state) =>
       state.conversation.channel?.id === props.channelId
         ? state.conversation.channel
-        : state.channels.find((channel) => channel.id === props.channelId);
-    const bots = state.bots.filter((bot) => channel?.members.includes(bot.slug));
+        : state.channels.find((channel) => channel.id === props.channelId),
+    );
+    const allBots = useClientStore((state) => state.bots, sameBotNames);
+    const bots = allBots.filter((bot) => channel?.members.includes(bot.slug));
     const selected =
-      target.kind === 'bot' ? state.bots.find((bot) => bot.slug === target.slug) : undefined;
+      target.kind === 'bot' ? allBots.find((bot) => bot.slug === target.slug) : undefined;
     const targetId = group
       ? target.kind === 'channel'
         ? 'target:channel'

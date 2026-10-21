@@ -8,7 +8,7 @@ import { Tag, type MenuEntry } from '@deepseek-ai/dsh-client-ui-primitives';
 import { Tooltip } from './ds/tooltip.js';
 
 import type { ChannelSidebarEntryProps } from './channel-sidebar.js';
-import { useClientState } from './bot-sidebar.js';
+import { useClientStore } from './use-client-store.js';
 import { formatRelativeTime } from './labels.js';
 import { LoadingSkeleton } from './loading-skeleton.js';
 import {
@@ -98,15 +98,20 @@ function SessionsPanel({
 }): ReactElement {
   const [archiving, setArchiving] = useState<string>();
   const [archiveError, setArchiveError] = useState<string>();
-  const client = useClientState();
+  const groupBot = useClientStore((state) => state.conversation.channel?.type === 'group');
+  const sessions = useClientStore((state) => state.sessions);
+  const conversationRevision = useClientStore((state) => state.conversation.revision);
+  const nameSource = useClientStore((state) => {
+    const bot = state.bots.find((candidate) => candidate.slug === botSlug);
+    return bot === undefined ? undefined : botNameSource(bot);
+  });
   const [local, setLocal] = useState<SessionsState>({
     status: 'loading',
     items: [],
     error: undefined,
   });
   const [reload, setReload] = useState(0);
-  const groupBot = client.conversation.channel?.type === 'group';
-  const owned = groupBot ? local : client.sessions;
+  const owned = groupBot ? local : sessions;
   const native = useSyncExternalStore(
     nativeSessions.subscribe,
     nativeSessions.getSnapshot,
@@ -136,7 +141,7 @@ function SessionsPanel({
     return () => {
       live = false;
     };
-  }, [actions, botSlug, signature, groupBot, client.conversation.revision, reload]);
+  }, [actions, botSlug, signature, groupBot, conversationRevision, reload]);
 
   const toggleWorkspace = (key: string): void => {
     updateSessionViewPreference(slug, (current) => ({
@@ -150,7 +155,6 @@ function SessionsPanel({
   const statusRows =
     preference.layout === 'status' ? personaBotSessionRows(owned.items, native.byId, 'all') : rows;
   const groups = groupSessionRowsByWorkspace(rows);
-  const bot = client.bots.find((candidate) => candidate.slug === botSlug);
   const flip = useFlipList<HTMLDivElement>();
   const statusLabel = {
     running: t('sessions.status.running'),
@@ -180,9 +184,7 @@ function SessionsPanel({
                   role="img"
                   aria-label={role}
                   title={role}
-                  ref={(element) =>
-                    paintBotScale(element, bot === undefined ? undefined : botNameSource(bot))
-                  }
+                  ref={(element) => paintBotScale(element, nameSource)}
                 >
                   <span {...stylex.props(styles.orchestratorIcon)}>
                     <ChannelSidebarIcon name="bot" size={14} />

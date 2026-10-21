@@ -7,7 +7,8 @@ import * as stylex from '@stylexjs/stylex';
 
 import type { ChannelAssignmentSummary } from '../../../core/src/runtime/bot-runtime.js';
 import { PersonaBotAvatar } from './avatar.js';
-import { useClientState } from './bot-sidebar.js';
+import { useClientStore } from './use-client-store.js';
+import { shallowEqual } from '@deepseek-ai/dsh-client-store';
 import type { ChannelSidebarEntryProps } from './channel-sidebar.js';
 import { formatRelativeTime } from './labels.js';
 import { LoadingSkeleton } from './loading-skeleton.js';
@@ -50,9 +51,10 @@ function GroupWorkPanel({
     nativeSessions?.getSnapshot ?? (() => EMPTY_CATALOG),
     nativeSessions?.getSnapshot ?? (() => EMPTY_CATALOG),
   );
-  const state = useClientState();
-  const revision =
-    state.conversation.channel?.id === channelId ? state.conversation.revision : undefined;
+  const revision = useClientStore((state) =>
+    state.conversation.channel?.id === channelId ? state.conversation.revision : undefined,
+  );
+  const bots = useClientStore((state) => state.bots, shallowEqual);
   const [load, setLoad] = useState<Load>({ status: 'loading', assignments: [] });
   const [doneOpen, setDoneOpen] = useState(false);
   const signature = native.ids.map((id) => `${id}:${native.byId[id]?.running === true}`).join('|');
@@ -107,7 +109,7 @@ function GroupWorkPanel({
     return row?.section ? sectionGroup[row.section] : 'idle';
   };
   const renderRow = (assignment: ChannelAssignmentSummary): ReactElement => {
-    const bot = state.bots.find((candidate) => candidate.slug === assignment.botSlug);
+    const bot = bots.find((candidate) => candidate.slug === assignment.botSlug);
     const name = bot?.displayName ?? assignment.botSlug;
     return (
       <SidebarCardRow

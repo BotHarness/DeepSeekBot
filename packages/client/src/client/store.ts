@@ -621,6 +621,19 @@ function sameSelection(
   return false;
 }
 
+function sameActivity(
+  left: PersonaBotActivitySnapshot['bots'][number] | undefined,
+  right: PersonaBotActivitySnapshot['bots'][number] | undefined,
+): boolean {
+  if (left === right) return true;
+  if (left === undefined || right === undefined) return false;
+  return (
+    left.state === right.state &&
+    JSON.stringify([left.activity, left.attention, left.sessions]) ===
+      JSON.stringify([right.activity, right.attention, right.sessions])
+  );
+}
+
 export function createStore({
   smoothActivity = true,
 }: { smoothActivity?: boolean } = {}): ClientStore {
@@ -698,6 +711,12 @@ export function createStore({
   let rawActivity = new Map<string, PersonaBotActivitySnapshot['bots'][number]>();
   const smoother = new ActivitySmoother<PersonaBotActivitySnapshot['bots'][number]>();
   let settle: ReturnType<typeof setTimeout> | undefined;
+  const refreshActivity = (shownBefore: typeof activityStates): BotSummary[] =>
+    state.bots.map((bot) =>
+      sameActivity(shownBefore.get(bot.slug), activityStates.get(bot.slug))
+        ? bot
+        : withActivity(bot),
+    );
   const smooth = () => {
     if (settle !== undefined) clearTimeout(settle);
     settle = undefined;
@@ -711,8 +730,9 @@ export function createStore({
     if (wake !== undefined)
       settle = setTimeout(() => {
         settle = undefined;
+        const shownBefore = activityStates;
         smooth();
-        update({ bots: state.bots.map(withActivity) });
+        update({ bots: refreshActivity(shownBefore) });
       }, wake - now);
   };
   const withActivity = (bot: BotSummary): BotSummary => {
@@ -829,8 +849,9 @@ export function createStore({
         return;
       activity = snapshot;
       rawActivity = new Map(snapshot.bots.map((bot) => [bot.slug, bot]));
+      const shownBefore = activityStates;
       smooth();
-      update({ bots: state.bots.map(withActivity) });
+      update({ bots: refreshActivity(shownBefore) });
     },
     setActivitySync(activitySync) {
       if (state.activitySync !== activitySync) update({ activitySync });
