@@ -83,7 +83,9 @@ export async function runConnectCommand(
       const account = snapshot.connect?.account;
       if (account?.['state'] !== 'signing-in' || Date.now() > deadline) {
         if (account?.['state'] === 'signed-in' && typeof account['email'] === 'string')
-          io.stderr?.(`Signed in as ${account['email']}. Not you? Run deepseekbot connect-sign-out.\n`);
+          io.stderr?.(
+            `Signed in as ${account['email']}. Not you? Run deepseekbot connect-sign-out.\n`,
+          );
         return { connect: snapshot.connect };
       }
     }

@@ -8337,7 +8337,8 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'devices.connect.signOut': 'Sign out',
   'devices.connect.confirm': 'Sign in in your browser and check that the page shows the code',
   'devices.connect.openPage': 'Open sign-in page',
-  'devices.connect.switchAccount': 'To use a different account, open this link in a private window:',
+  'devices.connect.switchAccount':
+    'To use a different account, open this link in a private window:',
   'devices.connect.notAllowed': 'This account cannot use DeepSeekBot Connect yet.',
   'devices.connect.hostLimit':
     'This account already links 5 computers. Sign out on one of them first.',
