@@ -1112,7 +1112,9 @@ function ChatConversation({
                     100,
                   );
                 }}
-                {...(latest.ready ? { onStartReached: () => void conversation?.loadOlder() } : {})}
+                {...(latest.ready && latest.browsed
+                  ? { onStartReached: () => void conversation?.loadOlder() }
+                  : {})}
                 onStartReachedThreshold={0.5}
                 {...latest.listProps}
                 onScrollBeginDrag={(event: ScrollEvent) => {

@@ -9,7 +9,8 @@ import type {
 import type { ConversationMessage } from '../../host/conversation';
 
 export const LATEST_SLOP = 40;
-export const SETTLE_FRAMES = 12;
+export const SETTLE_FRAMES = 45;
+export const STABLE_FRAMES = 6;
 
 export type ListMetrics = { content: number; layout: number; offset: number };
 
@@ -69,6 +70,7 @@ export function useFollowLatest<Row>(
   const [away, setAway] = useState(false);
   const [anchor, setAnchor] = useState<string | undefined>();
   const [ready, setReady] = useState(false);
+  const [browsed, setBrowsed] = useState(false);
   if (!ready && empty) setReady(true);
   const followingNow = useRef(true);
   const dragging = useRef(false);
@@ -131,14 +133,17 @@ export function useFollowLatest<Row>(
   }, [onFollowingChange]);
 
   const confirm = useCallback((version: number) => {
-    requestAnimationFrame(() => {
-      if (settled.current) return;
-      attempts.current += 1;
-      if ((version === sizes.current && hasRows.current) || attempts.current >= SETTLE_FRAMES) {
-        settled.current = true;
-        setReady(true);
-      }
-    });
+    const check = (stable: number) =>
+      requestAnimationFrame(() => {
+        if (settled.current) return;
+        attempts.current += 1;
+        const still = version === sizes.current && hasRows.current;
+        if ((still && stable + 1 >= STABLE_FRAMES) || attempts.current >= SETTLE_FRAMES) {
+          settled.current = true;
+          setReady(true);
+        } else if (still) check(stable + 1);
+      });
+    check(0);
   }, []);
 
   const pin = useCallback(() => {
@@ -170,6 +175,7 @@ export function useFollowLatest<Row>(
 
   const onScrollBeginDrag = useCallback(() => {
     dragging.current = true;
+    setBrowsed(true);
     hold();
   }, [hold]);
 
@@ -217,6 +223,7 @@ export function useFollowLatest<Row>(
   return {
     away,
     ready,
+    browsed,
     unseen: following ? 0 : unseenSince(messages, anchor),
     hold,
     jumpToLatest,
