@@ -460,8 +460,8 @@ const en = {
     title: 'Before you pair',
     steps: [
       'On your computer, install DeepSeek Harness (DSH) and the DeepSeekBot plugin.',
-      'Install Tailscale on this phone and on the computer, and sign in to the same account. Hosted Connect, which needs no Tailscale, is coming soon.',
-      'On the computer, show the pairing code and scan it here.',
+      'Choose how they connect: sign in to the same DeepSeekBot account on both (no Tailscale needed; on the computer, Settings → Devices → DeepSeekBot Connect), or install Tailscale on both and sign in to the same Tailscale account.',
+      'Pair: pick the computer under your DeepSeekBot account, or show the pairing code on the computer and scan it here.',
     ],
     open: 'Open the setup guide',
     url: 'https://deepseekbot.app/en/docs/mobile-pairing/',
@@ -1695,8 +1695,8 @@ const zh: typeof en = {
     title: '配对前的准备',
     steps: [
       '在电脑上安装 DSH（DeepSeek Harness）和 DeepSeekBot 插件。',
-      '在手机和电脑上都安装 Tailscale，并登录同一个账号。无需 Tailscale 的托管 Connect 即将推出。',
-      '在电脑上显示配对二维码，然后在这里扫码。',
+      '选一种连接方式：在手机和电脑上登录同一个 DeepSeekBot 账号（不需要 Tailscale；电脑上在设置 → 设备 → DeepSeekBot Connect 登录），或者都安装 Tailscale 并登录同一个 Tailscale 账号。',
+      '配对：在 DeepSeekBot 账号里选择这台电脑，或者在电脑上显示配对二维码，然后在这里扫码。',
     ],
     open: '查看安装与配对教程',
     url: 'https://deepseekbot.app/docs/mobile-pairing/',
