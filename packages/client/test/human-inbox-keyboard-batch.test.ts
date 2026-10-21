@@ -267,11 +267,18 @@ it.each(['en', 'zh'] as const)(
 
 it('renders the remote identity and opens its Host even when a local Tob has the same slug', async () => {
   const host = new FakeHost();
+  let unread = 2;
   host.methods.set('humanAttention', (args) => ({
     queryVersion: 1,
     items: args.category === 'action' ? [approval('tob')] : [],
   }));
-  host.methods.set('channelUnreadCounts', () => ({ channels: [] }));
+  host.methods.set('channelUnreadCounts', () => ({
+    channels: unread ? [{ channelId: 'dm-tob', unreadCount: unread }] : [],
+  }));
+  host.methods.set('channelMarkRead', () => {
+    unread = 0;
+    return { accepted: true };
+  });
   host.methods.set('list', () => ({
     bots: [
       {
@@ -362,6 +369,17 @@ it('renders the remote identity and opens its Host even when a local Tob has the
     });
     expect(openPanel).toHaveBeenCalledExactlyOnceWith('bh:channel-body');
     expect(call).not.toHaveBeenCalled();
+    expect(host.calls.filter(({ method }) => method === 'channelMarkRead')).toEqual([]);
+    const activity = sources.activity(host.hostId)!;
+    expect(activity.getSnapshot()).toMatchObject({ status: 'ready', unread: { 'dm-tob': 2 } });
+    await act(async () => sources.markRead(sources.getSnapshot().open!, 'remote-last'));
+    expect(host.calls.filter(({ method }) => method === 'channelMarkRead')).toEqual([
+      { method: 'channelMarkRead', args: { channelId: 'dm-tob', messageId: 'remote-last' } },
+    ]);
+    const refreshed = activity.getSnapshot();
+    expect(refreshed.status).toBe('ready');
+    expect(refreshed.status === 'ready' ? refreshed.unread : undefined).toEqual({});
+    expect(refreshed).toBe(sources.getSnapshot().hosts[0]?.inbox);
   } finally {
     await act(async () => root.unmount());
     detach();
