@@ -11,7 +11,6 @@ The browser pairs a Remote Host as a Paired Device and reads its Host Feed throu
 - `activity-unread`: remote Bot rows display received activity; DM/group unread counts come from their Host Inbox.
 - `read`: a visible remote conversation at its latest message marks that message read on its owning Host and refreshes the shared Inbox.
 - `message-body`: remote images, files, rich text and request cards use the existing message body, with authenticated resources and decisions on the source Host.
-
 - `upgrade`: existing browser pairings and the selected tab survive the storage-key rename.
 - `remove`: removing a Host forgets its rows, stops its Inbox and releases cached avatar object URLs.
 - `viewers`: a remote Bot DM opens Browser or Computer when that Bot has access. The shared Host viewer modules read frames and send input to that Host only; closing, switching source or losing the connection tears down the viewer and releases requested control.
