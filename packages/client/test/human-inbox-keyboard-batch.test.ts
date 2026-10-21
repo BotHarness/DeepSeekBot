@@ -372,18 +372,21 @@ it('renders the remote identity and opens its Host even when a local Tob has the
 
 it.each(
   (['tool-approval', 'user-question'] as const).flatMap((kind) =>
-    (['accepted', 'decided', 'expired'] as const).flatMap((result) =>
-      (kind === 'tool-approval' && result !== 'accepted' ? [false, true] : [false]).map(
-        (batch) => ({
-          kind,
-          result,
-          batch,
-        }),
-      ),
+    (['accepted', 'decided', 'expired', 'http', 'non-json', 'network'] as const).flatMap((result) =>
+      (kind === 'tool-approval' && (result === 'decided' || result === 'expired')
+        ? [false, true]
+        : [false]
+      ).map((batch) => ({
+        kind,
+        result,
+        batch,
+      })),
     ),
   ),
 )('handles remote $kind returning $result (batch $batch)', async ({ kind, result, batch }) => {
   const host = new FakeHost();
+  const transportFailure = result === 'http' || result === 'non-json' || result === 'network';
+  const submissions: typeof host.calls = [];
   let pending = true;
   const item = { ...approval('tob'), kind };
   const message = {
@@ -468,7 +471,21 @@ it.each(
     return { accepted: true };
   });
   const sources = createRemoteHosts({
-    carrier: host.carrier,
+    carrier: {
+      ...host.carrier,
+      async request(url, init) {
+        if (url.endsWith('/' + method)) {
+          submissions.push({ method, args: JSON.parse(String(init.body)).payload.args });
+          if (result === 'network') throw new TypeError('Network request failed');
+          if (transportFailure)
+            return {
+              status: result === 'http' ? 502 : 200,
+              text: async () => '<html>Bad gateway</html>',
+            };
+        }
+        return host.carrier.request(url, init);
+      },
+    },
     storage: {
       getItem: (key) =>
         key === REMOTE_HOSTS_STORAGE_KEY
@@ -539,7 +556,7 @@ it.each(
       await vi.waitFor(() => expect(button()?.disabled).toBe(false));
     });
     await act(async () => button()!.click());
-    expect(host.calls.filter((call) => call.method === method)).toEqual([
+    expect(submissions).toEqual([
       {
         method,
         args:
@@ -553,7 +570,18 @@ it.each(
       },
     ]);
     expect(store.getSnapshot().selection).toEqual({ kind: 'bot', slug: 'unrelated-local-bot' });
-    if (result !== 'accepted') {
+    if (transportFailure) {
+      await act(async () => {
+        await vi.waitFor(() =>
+          expect(element.querySelector('[role="alert"]')?.textContent).toBe(
+            zhTranslate('humanInbox.failed'),
+          ),
+        );
+      });
+      expect(button()?.disabled).toBe(false);
+      expect(element.querySelector('.bh-request-done')).toBeNull();
+      expect(element.textContent).not.toMatch(/502|JSON|gateway|Network request failed/);
+    } else if (result !== 'accepted') {
       await act(async () => {
         await vi.waitFor(() => expect(button()?.disabled ?? true).toBe(true));
       });

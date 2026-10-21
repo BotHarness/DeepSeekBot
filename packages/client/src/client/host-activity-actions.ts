@@ -66,7 +66,12 @@ export function createHostActivityActions(options: {
     await options.refresh();
   };
   const decided = async (run: () => Promise<DecisionResult>): Promise<void> => {
-    const result = await run();
+    let result: DecisionResult;
+    try {
+      result = await run();
+    } catch (cause) {
+      throw new Error(options.requestUnavailable, { cause });
+    }
     await options.refresh();
     if (result !== 'accepted') throw new Error(options.requestUnavailable);
   };

@@ -509,7 +509,7 @@ it('routes decisions, questions, joins, snooze and clear to the owning Host and 
   await expect(actions.dismissHumanInbox(item)).rejects.toThrow();
   expect(refresh).toHaveBeenCalledTimes(5);
   await expect(actions.decideToolApproval('dm-tob', 'unowned-message', 'rejected')).rejects.toThrow(
-    'unavailable',
+    'Request was not accepted',
   );
   await sources.remove(host.hostId);
   await expect(actions.dismissHumanInbox(item)).rejects.toThrow('Host removed');
@@ -598,3 +598,62 @@ it.each(
     );
   },
 );
+
+it.each(
+  (['tool-approval', 'user-question'] as const).flatMap((kind) =>
+    (['submit', 'refresh'] as const).map((phase) => ({ kind, phase })),
+  ),
+)('preserves the $phase failure cause for remote $kind', async ({ kind, phase }) => {
+  const { host, storage } = liveHost();
+  const method = kind === 'tool-approval' ? 'toolApprovalDecide' : 'userQuestionAnswer';
+  const cause = new TypeError('Network request failed');
+  host.methods.set(method, () => ({ accepted: true }));
+  const sources = createRemoteHosts({
+    storage,
+    carrier: {
+      ...host.carrier,
+      async request(url, init) {
+        if (phase === 'submit' && url.endsWith('/' + method)) throw cause;
+        return host.carrier.request(url, init);
+      },
+    },
+  });
+  releases.push(sources.subscribe(() => {}));
+  await vi.waitFor(() => expect(sources.getSnapshot().hosts[0]?.inbox.status).toBe('ready'));
+  const refresh = vi.fn(async () => {
+    throw cause;
+  });
+  const actions = createHostActivityActions({
+    client: () => sources.client(host.hostId)!,
+    items: () => [
+      {
+        id: 'request',
+        category: 'action',
+        kind,
+        botSlug: 'ada',
+        channelId: 'dm-ada',
+        messageId: 'request-message',
+        summary: '',
+        createdAt: '',
+      },
+    ],
+    refresh,
+    open: async () => {},
+    requestUnavailable: '操作失败，请刷新后重试',
+  });
+  const submit = () =>
+    kind === 'tool-approval'
+      ? actions.decideToolApproval('dm-ada', 'request-message', 'allowed-once')
+      : actions.answerUserQuestion('dm-ada', 'request-message', [{ id: 'q', selected: ['Blue'] }]);
+  if (phase === 'submit') {
+    await expect(submit()).rejects.toMatchObject({
+      message: '操作失败，请刷新后重试',
+      cause: { message: 'The Host could not be reached.' },
+    });
+    expect(refresh).not.toHaveBeenCalled();
+  } else {
+    await expect(submit()).rejects.toBe(cause);
+    expect(refresh).toHaveBeenCalledOnce();
+    expect(host.calls.filter((call) => call.method === method)).toHaveLength(1);
+  }
+});
