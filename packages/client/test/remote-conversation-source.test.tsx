@@ -24,6 +24,8 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   MarkdownText: ({ text }: { text: string }) => createElement('span', null, text),
   FileTypeIcon: () => null,
   IconDownloadOutlineRegular: () => null,
+  IconPlayOutlineRegular: () => null,
+  IconPauseOutlineRegular: () => null,
   IconEllipsisOutlineRegular: () => null,
   fileSizeText: (size: number) => String(size),
   StateDot: () => null,
@@ -45,6 +47,7 @@ import { store } from '../src/client/store.js';
 
 beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {});
   vi.stubGlobal('PointerEvent', class extends MouseEvent {});
   vi.stubGlobal(
     'ResizeObserver',
@@ -55,7 +58,10 @@ beforeEach(() => {
     },
   );
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 
 const first: RemoteConversationTarget = { hostId: 'b', channelId: 'shared', title: 'First' };
 const targets = [
@@ -337,3 +343,239 @@ describe.each(['activity', 'dock'] as const)('%s remote conversation source', (s
     },
   );
 });
+
+function deferredResponse() {
+  let resolve!: (response: Response) => void;
+  const promise = new Promise<Response>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
+function addDownloadable(host: FakeHost, mime: string) {
+  host.channel('shared').append({
+    id: 'downloadable',
+    body: 'Source attachment',
+    attachments: [
+      {
+        fileId: 'file:11111111-1111-4111-8111-111111111111',
+        name: 'asset',
+        mime,
+        size: 5,
+      },
+    ],
+  });
+}
+
+function resourceSpies() {
+  const make = vi.fn(() => 'blob:source-download');
+  const release = vi.fn();
+  vi.stubGlobal(
+    'URL',
+    class extends URL {
+      static override createObjectURL = make;
+      static override revokeObjectURL = release;
+    },
+  );
+  const response = deferredResponse();
+  const fetcher = vi.fn((_url: string, _init?: RequestInit) => response.promise);
+  vi.stubGlobal('fetch', fetcher);
+  return { make, release, response, fetcher };
+}
+
+it.each(['activity', 'dock'] as const)(
+  '%s fetches a file only on download and deduplicates pending clicks',
+  async (surface) => {
+    const resource = resourceSpies();
+    const download = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    const view = await mount(surface, (host) => addDownloadable(host, 'application/pdf'));
+    try {
+      expect(resource.fetcher).not.toHaveBeenCalled();
+      const button = view.element.querySelector<HTMLButtonElement>(
+        `[aria-label="${zhTranslate('fileAction.download')}: asset"]`,
+      )!;
+      expect(button).not.toBeNull();
+      await act(async () => {
+        button.click();
+        button.click();
+      });
+      expect(resource.fetcher).toHaveBeenCalledTimes(1);
+      await act(async () => resource.response.resolve(new Response('file')));
+      expect(download).toHaveBeenCalledTimes(1);
+      expect(resource.fetcher).toHaveBeenLastCalledWith(
+        expect.stringContaining('https://b.test/botharness-device/api/botharness/attachment'),
+        expect.objectContaining({
+          credentials: 'omit',
+          headers: { authorization: `Device ${view.hosts.b.credential}` },
+        }),
+      );
+    } finally {
+      await view.close();
+      download.mockRestore();
+    }
+    expect(resource.release).toHaveBeenCalledWith('blob:source-download');
+  },
+);
+
+it.each(['activity', 'dock'] as const)(
+  '%s fetches audio on play once and never replays after rerender',
+  async (surface) => {
+    const resource = resourceSpies();
+    const play = vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
+    const view = await mount(surface, (host) => addDownloadable(host, 'audio/mpeg'));
+    try {
+      expect(resource.fetcher).not.toHaveBeenCalled();
+      const button = view.element.querySelector<HTMLButtonElement>('.bh-message-audio-play')!;
+      expect(button.disabled).toBe(false);
+      await act(async () => {
+        button.click();
+        button.click();
+      });
+      expect(resource.fetcher).toHaveBeenCalledTimes(1);
+      await act(async () => resource.response.resolve(new Response('audio')));
+      expect(play).toHaveBeenCalledTimes(1);
+      await view.type('Keep this draft');
+      expect(play).toHaveBeenCalledTimes(1);
+    } finally {
+      await view.close();
+      play.mockRestore();
+    }
+    expect(resource.release).toHaveBeenCalledWith('blob:source-download');
+    expect(HTMLMediaElement.prototype.pause).toHaveBeenCalled();
+  },
+);
+
+it.each(
+  (['download', 'play'] as const).flatMap((intent) =>
+    (['switch', 'revoke', 'unmount'] as const).map((end) => ({ intent, end })),
+  ),
+)('cancels pending $intent on $end and ignores its late completion', async ({ intent, end }) => {
+  const resource = resourceSpies();
+  const download = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+  const play = vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
+  const view = await mount('activity', (host) =>
+    addDownloadable(host, intent === 'play' ? 'audio/mpeg' : 'application/pdf'),
+  );
+  try {
+    expect(resource.fetcher).not.toHaveBeenCalled();
+    const selector =
+      intent === 'play'
+        ? '.bh-message-audio-play'
+        : `[aria-label="${zhTranslate('fileAction.download')}: asset"]`;
+    await act(async () => view.element.querySelector<HTMLButtonElement>(selector)!.click());
+    expect(resource.fetcher).toHaveBeenCalledTimes(1);
+    const signal = resource.fetcher.mock.calls[0]![1]!.signal!;
+    if (end === 'switch') await view.open(targets[0]!);
+    else if (end === 'revoke')
+      await act(async () => {
+        view.hosts.b.revoke();
+        await view.sources
+          .client('b')!
+          .call('channelUnreadCounts', {})
+          .catch(() => undefined);
+      });
+    else await act(async () => view.sources.close());
+    expect(signal.aborted).toBe(true);
+    await act(async () => resource.response.resolve(new Response('old source')));
+    expect(resource.make).not.toHaveBeenCalled();
+    expect(download).not.toHaveBeenCalled();
+    expect(play).not.toHaveBeenCalled();
+    expect(resource.fetcher).toHaveBeenCalledTimes(1);
+  } finally {
+    await view.close();
+    download.mockRestore();
+    play.mockRestore();
+  }
+});
+
+it.each(['activity', 'dock'] as const)(
+  '%s retains the title and usable Close after the source refuses access',
+  async (surface) => {
+    const view = await mount(surface);
+    try {
+      await act(async () => {
+        view.hosts.b.revoke();
+        await view.sources
+          .client('b')!
+          .call('channelUnreadCounts', {})
+          .catch(() => undefined);
+      });
+      expect(view.sources.client('b')!.getSnapshot().connection.status).toBe('refused');
+      expect(view.element.textContent).toContain('First');
+      expect(view.element.querySelector('[data-remote-timeline]')).toBeNull();
+      expect(view.element.querySelector('[data-remote-composer]')).toBeNull();
+      expect(view.element.querySelector('[data-remote-viewer]')).toBeNull();
+      const close = view.element.querySelector<HTMLButtonElement>(
+        `[aria-label="${zhTranslate('common.close')}"]`,
+      );
+      expect(close).not.toBeNull();
+      await act(async () => close!.click());
+      expect(view.sources.getSnapshot().open).toBeUndefined();
+    } finally {
+      await view.close();
+    }
+  },
+);
+
+it.each(['activity', 'dock'] as const)(
+  '%s keeps Close without mounting local media for a missing Host',
+  async (surface) => {
+    const resource = resourceSpies();
+    const view = await mount(surface);
+    try {
+      await view.open({ hostId: 'missing', channelId: 'shared', title: 'Missing source' });
+      expect(view.element.textContent).toContain('Missing source');
+      expect(view.element.querySelector('[data-remote-timeline]')).toBeNull();
+      expect(view.element.querySelector('[data-remote-composer]')).toBeNull();
+      expect(view.element.querySelector('[data-remote-viewer]')).toBeNull();
+      expect(resource.fetcher).not.toHaveBeenCalled();
+      await act(async () =>
+        view.element
+          .querySelector<HTMLButtonElement>(`[aria-label="${zhTranslate('common.close')}"]`)!
+          .click(),
+      );
+      expect(view.sources.getSnapshot().open).toBeUndefined();
+    } finally {
+      await view.close();
+    }
+  },
+);
+
+it.each(['ready', 'pending'] as const)(
+  'shares audio download with an explicit play intent while %s',
+  async (phase) => {
+    const resource = resourceSpies();
+    const download = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    const play = vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
+    const view = await mount('activity', (host) => addDownloadable(host, 'audio/mpeg'));
+    try {
+      expect(resource.fetcher).not.toHaveBeenCalled();
+      const downloadButton = view.element.querySelector<HTMLButtonElement>(
+        `[aria-label="${zhTranslate('fileAction.download')}: asset"]`,
+      )!;
+      await act(async () => {
+        downloadButton.click();
+        downloadButton.click();
+      });
+      expect(resource.fetcher).toHaveBeenCalledTimes(1);
+      expect(play).not.toHaveBeenCalled();
+      const clickPlay = () =>
+        act(async () =>
+          view.element.querySelector<HTMLButtonElement>('.bh-message-audio-play')!.click(),
+        );
+      if (phase === 'pending') await clickPlay();
+      await act(async () => resource.response.resolve(new Response('audio')));
+      expect(download).toHaveBeenCalledTimes(1);
+      if (phase === 'ready') {
+        expect(play).not.toHaveBeenCalled();
+        await clickPlay();
+      }
+      expect(play).toHaveBeenCalledTimes(1);
+      expect(resource.fetcher).toHaveBeenCalledTimes(1);
+    } finally {
+      await view.close();
+      download.mockRestore();
+      play.mockRestore();
+    }
+  },
+);

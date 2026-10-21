@@ -94,11 +94,12 @@ export function MessageAttachment({
   const menu = useHostFileMenu(commands, channelId, t);
   const gallery = useImageGallery();
   const id = ref.fileId;
+  const image = inlineImageAttachment(ref.mime);
   const resource = useMessageResource(
     channelId !== undefined ? channelAttachmentUrl(ref, { channelId, messageId }) : undefined,
+    image,
   );
   const { url } = resource;
-  const image = inlineImageAttachment(ref.mime);
   const audio = ref.mime.startsWith('audio/');
   if (resource.failed)
     return (
@@ -116,7 +117,14 @@ export function MessageAttachment({
         onContextMenu={id === undefined ? undefined : (event) => menu.open(id, event)}
         onKeyDown={id === undefined ? undefined : (event) => menu.onKey(id, event)}
       >
-        <MessageAudio name={ref.name} size={ref.size} url={url} t={t} />
+        <MessageAudio
+          name={ref.name}
+          size={ref.size}
+          url={url}
+          onPrepare={host === undefined ? undefined : resource.prepare}
+          onDownload={host === undefined ? undefined : () => void resource.download(ref.name)}
+          t={t}
+        />
         {menu.menu}
         {menu.feedback}
       </div>
@@ -136,19 +144,32 @@ export function MessageAttachment({
     </>
   );
   const downloadAction =
-    url === undefined ? null : (
+    url === undefined && host === undefined ? null : (
       <>
         <span className="bh-message-file-divider" aria-hidden="true" />
         <Tooltip label={t('fileAction.download')} side="bottom" delayMs={500}>
-          <a
-            className="bh-message-file-download"
-            href={url}
-            download={ref.name}
-            aria-label={`${t('fileAction.download')}: ${ref.name}`}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <IconDownloadOutlineRegular size={16} />
-          </a>
+          {host === undefined ? (
+            <a
+              className="bh-message-file-download"
+              href={url}
+              download={ref.name}
+              aria-label={`${t('fileAction.download')}: ${ref.name}`}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <IconDownloadOutlineRegular size={16} />
+            </a>
+          ) : (
+            <Button
+              type="button"
+              variant="toolbar"
+              size="sm"
+              aria-label={`${t('fileAction.download')}: ${ref.name}`}
+              disabled={resource.loading}
+              onClick={() => void resource.download(ref.name)}
+            >
+              <IconDownloadOutlineRegular size={16} />
+            </Button>
+          )}
         </Tooltip>
       </>
     );
@@ -220,9 +241,13 @@ export function MessageAttachment({
       ) : (
         <div className="bh-message-file">
           {id === undefined || (host !== undefined && commands === undefined) ? (
-            <a className="bh-message-file-main" href={url} download={ref.name}>
-              {contents}
-            </a>
+            host === undefined ? (
+              <a className="bh-message-file-main" href={url} download={ref.name}>
+                {contents}
+              </a>
+            ) : (
+              <span className="bh-message-file-main">{contents}</span>
+            )
           ) : image && compact && url !== undefined ? (
             <SingleImageGallery t={t}>
               {(openAlone) => (

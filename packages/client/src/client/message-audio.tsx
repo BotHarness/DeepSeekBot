@@ -40,6 +40,7 @@ export function MessageAudio({
   url,
   downloadUrl = url,
   onDownload,
+  onPrepare,
   onError,
   t,
 }: {
@@ -47,11 +48,13 @@ export function MessageAudio({
   size?: number | undefined;
   url?: string | undefined;
   downloadUrl?: string | undefined;
+  onPrepare?: (() => Promise<string | undefined>) | undefined;
   onDownload?: (() => void) | undefined;
   onError?: (() => void) | undefined;
   t: BotHarnessTranslate;
 }): ReactElement {
   const instanceId = useId();
+  const preparing = useRef(false);
   const audioRef = useRef<HTMLAudioElement>(null);
   const spectrumRef = useRef<HTMLDivElement>(null);
   const [playing, setPlaying] = useState(false);
@@ -66,14 +69,28 @@ export function MessageAudio({
           audioRef.current?.pause();
       };
       window.addEventListener(PLAY_EVENT, pauseOthers);
-      return () => window.removeEventListener(PLAY_EVENT, pauseOthers);
+      return () => {
+        window.removeEventListener(PLAY_EVENT, pauseOthers);
+        if (onPrepare !== undefined) node.querySelector('audio')?.pause();
+      };
     },
-    [instanceId],
+    [instanceId, onPrepare],
   );
 
-  const toggle = (): void => {
+  const toggle = async (): Promise<void> => {
     const audio = audioRef.current;
-    if (audio === null || url === undefined) return;
+    if (audio === null || preparing.current) return;
+    if (url === undefined) {
+      if (onPrepare === undefined) return;
+      preparing.current = true;
+      try {
+        const prepared = await onPrepare();
+        if (prepared === undefined || !audio.isConnected || audioRef.current !== audio) return;
+        audio.src = prepared;
+      } finally {
+        preparing.current = false;
+      }
+    }
     if (audio.paused) {
       window.dispatchEvent(new CustomEvent<string>(PLAY_EVENT, { detail: instanceId }));
       void audio.play().catch(() => setPlaying(false));
@@ -112,8 +129,8 @@ export function MessageAudio({
         className="bh-message-audio-play"
         aria-label={`${playing ? t('message.audio.pause') : t('message.audio.play')}: ${name}`}
         aria-pressed={playing}
-        disabled={url === undefined}
-        onClick={toggle}
+        disabled={url === undefined && onPrepare === undefined}
+        onClick={() => void toggle()}
       >
         {playing ? <IconPauseOutlineRegular size={16} /> : <IconPlayOutlineRegular size={16} />}
       </button>
@@ -205,7 +222,7 @@ export function MessageAudio({
           </Tooltip>
         </>
       )}
-      {url === undefined ? null : (
+      {url === undefined && onPrepare === undefined ? null : (
         <audio
           ref={audioRef}
           className="bh-message-audio-element"

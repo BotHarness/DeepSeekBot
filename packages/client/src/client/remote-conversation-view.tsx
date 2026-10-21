@@ -236,12 +236,10 @@ export function RemoteConversationView({
     setDraft('');
   };
   const shown = snapshot.messages.filter(shownInChat);
-  if (
+  const unavailable =
     host === undefined ||
     remote?.snapshot.connection.status === 'refused' ||
-    snapshot.status === 'refused'
-  )
-    return <p role="status">{t('remoteHosts.interrupted')}</p>;
+    snapshot.status === 'refused';
   return (
     <MessageHostContext.Provider value={host}>
       <section
@@ -263,7 +261,7 @@ export function RemoteConversationView({
             {remote?.host.hostName ?? ''}
           </span>
           <span {...stylex.props(styles.spacer)} />
-          {bot?.browserAccess ? (
+          {!unavailable && bot?.browserAccess ? (
             <IconButton
               aria-label={t('remoteViewer.browser')}
               title={t('remoteViewer.browser')}
@@ -273,7 +271,7 @@ export function RemoteConversationView({
               <ChannelSidebarIcon name="globe" />
             </IconButton>
           ) : null}
-          {bot?.computerAccess ? (
+          {!unavailable && bot?.computerAccess ? (
             <IconButton
               aria-label={t('remoteViewer.computer')}
               title={t('remoteViewer.computer')}
@@ -287,10 +285,14 @@ export function RemoteConversationView({
             <ChannelSidebarIcon name="x" />
           </IconButton>
         </header>
-        {viewer !== undefined &&
-        viewerClient !== undefined &&
-        bot !== undefined &&
-        (viewer === 'browser' ? bot.browserAccess : bot.computerAccess) ? (
+        {unavailable ? (
+          <p role="status" {...stylex.props(styles.status)}>
+            {t('remoteHosts.interrupted')}
+          </p>
+        ) : viewer !== undefined &&
+          viewerClient !== undefined &&
+          bot !== undefined &&
+          (viewer === 'browser' ? bot.browserAccess : bot.computerAccess) ? (
           <RemoteHostViewerPanel
             key={`${target.hostId}:${bot.slug}:${viewer}`}
             client={viewerClient}
