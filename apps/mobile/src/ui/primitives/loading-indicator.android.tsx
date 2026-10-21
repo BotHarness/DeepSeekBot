@@ -24,8 +24,6 @@ export function LoadingIndicator({
   const box = size === 'page' ? loadingIndicator.size : loadingIndicator.control;
   const tint = color ?? theme.color.accent;
   return (
-    // alignSelf keeps the fixed-size box centred like iOS's stretching ActivityIndicator; without it
-    // a column parent (a list's empty slot) pins it to the leading edge.
     <View
       accessible
       accessibilityRole="progressbar"
