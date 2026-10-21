@@ -2,6 +2,7 @@ import type { Mood, Weather } from './room.js';
 import type { CharacterShading } from './shading.js';
 import type { CameraView, SceneChoices, SceneState, Stage } from './stage.js';
 import { forgetModel, saveModel } from './library.js';
+import { softwareRendering } from './gpu.js';
 
 export type CustomModel = { name: string; url: string };
 
@@ -12,6 +13,7 @@ export type PanelState = SceneChoices & {
   loading: string;
   error: string;
   failure: string;
+  software: boolean;
   revision: number;
 };
 
@@ -27,6 +29,7 @@ const remembered = new Map<string, SceneChoices>();
 const models = new Map<string, CustomModel>();
 const looked = new Set<string>();
 const panels = new Map<string, PanelControls>();
+let forced = false;
 
 export class PanelControls {
   stage: Stage | undefined;
@@ -42,6 +45,7 @@ export class PanelControls {
       loading: '',
       error: '',
       failure: '',
+      software: false,
       revision: 0,
     };
   }
@@ -103,6 +107,18 @@ export class PanelControls {
 
   retry() {
     this.set({ revision: this.#state.revision + 1 });
+  }
+
+  software() {
+    return !forced && softwareRendering();
+  }
+
+  force() {
+    forced = true;
+    for (const panel of panels.values()) {
+      panel.set({ software: false });
+      panel.retry();
+    }
   }
 
   known() {

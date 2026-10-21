@@ -47,7 +47,7 @@ const CSS = `
 [data-vrm-speech] > p{margin:0;min-height:0;max-height:7.5em;display:flex;flex-direction:column-reverse;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}
 @keyframes vrm-speech-in{from{opacity:0;transform:scale(.92) translateY(6px)}}
 @media (prefers-reduced-motion:reduce){[data-vrm-speech]{animation:none}}
-[data-vrm-error]{position:absolute;inset:35% 12px auto;z-index:2;background:var(--dsw-alias-bg-base);padding:12px}
+[data-vrm-error],[data-vrm-software]{position:absolute;inset:35% 12px auto;z-index:2;background:var(--dsw-alias-bg-base);padding:12px}
 [data-vrm-loading]{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:1;padding:4px 8px;border-radius:var(--dsw-radius-md);color:var(--dsw-alias-label-secondary);background:color-mix(in srgb,var(--dsw-alias-bg-base) 85%,transparent)}
 `;
 const CAMERAS: Array<[CameraView, string]> = [
@@ -100,6 +100,10 @@ function Character({ view, controls }: { view: BotPresentationView; controls: Pa
         });
         return;
       }
+      if (controls.software()) {
+        controls.set({ software: true, loading: '' });
+        return;
+      }
       try {
         const choices = controls.choices();
         const model = controls.read().model;
@@ -148,6 +152,13 @@ function Character({ view, controls }: { view: BotPresentationView; controls: Pa
       {snapshot.attention && (
         <div role="status" data-vrm-attention="">
           {snapshot.attention}
+        </div>
+      )}
+      {ui.software && (
+        <div role="status" data-vrm-software="">
+          This computer is drawing graphics without a GPU, so the 3D character is off to keep the
+          app responsive. Bot activity and messages remain available.
+          <Button onClick={() => controls.force()}>Show 3D anyway</Button>
         </div>
       )}
       {ui.loading && !ui.error && (
