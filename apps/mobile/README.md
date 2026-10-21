@@ -147,7 +147,7 @@ The device credential is stored only in the platform's secure storage and never 
 
 ## TestFlight and Google Play test builds
 
-The `store-test` EAS profile builds the formal app: **DeepSeekBot** / `app.deepseekbot.mobile`, scheme `deepseekbot`, owner `deepseekbots-team` and the linked EAS project (`app.config.js` reads `DEEPSEEKBOT_APP_VARIANT=store`). Development builds keep `DeepSeekBot Dev` / `ai.botharness.deepseekbot.dev`. The store build sets `EXPO_PUBLIC_DEEPSEEKBOT_CLOUD=off`, so it only pairs with the Human's own Computers over Tailscale HTTPS: a fresh install opens pairing, and cloud Channels, workspace tabs and cloud links are hidden. Build numbers are remote and auto-increment; OTA updates stay off. Testers set up Tailscale and pair with [Pair your phone](../../docs/mobile-pairing.md) ([中文](../../docs/mobile-pairing.zh.md)).
+The `store-test` EAS profile builds the formal app: **DeepSeekBot** / `app.deepseekbot.mobile`, scheme `deepseekbot`, owner `deepseekbots-team` and the linked EAS project (`app.config.js` reads `DEEPSEEKBOT_APP_VARIANT=store`). Development builds keep `DeepSeekBot Dev` / `ai.botharness.deepseekbot.dev`. Cloud Channels are behind a feature flag: every build hides them unless `EXPO_PUBLIC_DEEPSEEKBOT_CLOUD=on` (the store build sets `off`). With the flag off, the app only pairs with the Human's own Computers, through a DeepSeekBot account or over Tailscale: a fresh install opens the pairing sheet, and cloud Channels, workspace tabs and cloud links are hidden. Build numbers are remote and auto-increment; OTA updates stay off. Testers set up Tailscale and pair with [Pair your phone](../../docs/mobile-pairing.md) ([中文](../../docs/mobile-pairing.zh.md)).
 
 ```bash
 cd apps/mobile
