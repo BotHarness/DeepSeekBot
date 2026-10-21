@@ -160,11 +160,11 @@ try {
         window.qaContexts[0].getExtension('WEBGL_lose_context').loseContext(),
       );
       await delay(500);
-      assert.match(await page.$eval('body', (n) => n.innerText), /3D rendering interrupted/);
+      assert.match(await page.$eval('body', (n) => n.innerText), /The view was interrupted/);
       await capture('context-loss');
-      await click(aria('Retry character'));
+      await click('[data-vrm-error] button');
       await delay(1500);
-      assert.doesNotMatch(await page.$eval('body', (n) => n.innerText), /3D rendering interrupted/);
+      assert.doesNotMatch(await page.$eval('body', (n) => n.innerText), /The view was interrupted/);
       await page.evaluate(() => {
         window.qaContexts = [...document.querySelectorAll('[data-vrm-stage] canvas')].map((n) =>
           n.getContext('webgl2'),

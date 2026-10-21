@@ -35,6 +35,7 @@ import { createRoom, type Mood, type Weather } from './room.js';
 import { enableLilToon } from '@mochiya/three-liltoon';
 import { createCharacterShading, type CharacterShading } from './shading.js';
 import { createPost } from './post.js';
+import type { Loading, Problem } from './copy.js';
 import { RATIOS, createPacing, frameRate, nextPacing } from './pacing.js';
 
 export type CameraView = 'desk' | 'room' | 'portrait';
@@ -52,9 +53,10 @@ export interface SceneChoices {
   tour?: boolean;
 }
 export interface StageCallbacks {
-  loading(value: string): void;
-  error(value: string): void;
+  loading(value: Loading): void;
+  error(value: Problem): void;
   changed(state: SceneState): void;
+  poster(url: string): void;
 }
 export interface Stage {
   update(snapshot: BotPresentationSnapshot): void;
@@ -81,7 +83,7 @@ const TURNED = new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), Math.PI);
 export function mountStage(
   host: HTMLElement,
   model: () => Promise<string>,
-  { loading, error, changed }: StageCallbacks,
+  { loading, error, changed, poster }: StageCallbacks,
   initial: SceneChoices = {
     camera: 'desk',
     mood: 'auto',
@@ -161,7 +163,8 @@ export function mountStage(
   const warm = new Color();
   let effects = initial.effects !== false;
   host.dataset.vrmEffects = effects ? 'on' : 'off';
-  renderer.domElement.style.cssText = 'display:block;width:100%;height:100%';
+  renderer.domElement.style.cssText =
+    'display:block;width:100%;height:100%;opacity:0;transition:opacity .35s ease-out';
   renderer.domElement.setAttribute('aria-label', 'VRM character');
   host.append(renderer.domElement);
   const controls = new OrbitControls(camera, renderer.domElement);
@@ -876,13 +879,13 @@ export function mountStage(
   const lost = (event: Event) => {
     event.preventDefault();
     loading('');
-    error('3D rendering interrupted. Retry to reload the character.');
+    error('interrupted');
     reconcile();
   };
   renderer.domElement.addEventListener('webglcontextlost', lost);
   const loader = new GLTFLoader();
   loader.register((parser) => new VRMLoaderPlugin(parser));
-  loading('Loading character…');
+  loading('signing-in');
   void model()
     .then((url) => loader.loadAsync(url))
     .then((gltf) => {
@@ -976,8 +979,11 @@ export function mountStage(
         if (disposed) return;
         for (const object of reveal) object.visible = true;
         notify();
-        loading('');
         host.dataset.vrmLoaded = 'true';
+        renderer.domElement.style.opacity = '1';
+        setTimeout(() => {
+          if (!disposed) loading('');
+        }, 350);
         host.dataset.vrmLoadMs = String(Math.round(performance.now() - started));
         reconcile();
       });
@@ -985,7 +991,7 @@ export function mountStage(
     .catch(() => {
       if (disposed) return;
       loading('');
-      error('Character could not load. Bot activity and messages remain available.');
+      error('missing');
     });
   return {
     update(snapshot) {
@@ -1024,6 +1030,10 @@ export function mountStage(
     },
     dispose() {
       if (disposed) return;
+      if (host.dataset.vrmLoaded === 'true' && canDraw()) {
+        paint();
+        poster(renderer.domElement.toDataURL('image/webp', 0.75));
+      }
       disposed = true;
       for (const name of ['--vrm-head-x', '--vrm-head-y', '--vrm-panel-width'])
         host.parentElement?.style.removeProperty(name);

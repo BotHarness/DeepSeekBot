@@ -25,6 +25,7 @@ import { loadModel } from './library.js';
 import { defaultModel } from './default-model.js';
 import { clockLabel, solarDay } from './sun.js';
 import { panelControls, type PanelControls } from './controls.js';
+import { loadingText, presence, problemText, softwareText } from './copy.js';
 
 export const name = 'botharness-vrm-companion-client';
 export const inject = ['dockPanels', 'botPresentation'];
@@ -48,7 +49,15 @@ const CSS = `
 @keyframes vrm-speech-in{from{opacity:0;transform:scale(.92) translateY(6px)}}
 @media (prefers-reduced-motion:reduce){[data-vrm-speech]{animation:none}}
 [data-vrm-error],[data-vrm-software]{position:absolute;inset:35% 12px auto;z-index:2;background:var(--dsw-alias-bg-base);padding:12px}
-[data-vrm-loading]{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:1;padding:4px 8px;border-radius:var(--dsw-radius-md);color:var(--dsw-alias-label-secondary);background:color-mix(in srgb,var(--dsw-alias-bg-base) 85%,transparent)}
+[data-vrm-poster]{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:blur(6px) brightness(.75);transform:scale(1.04);pointer-events:none}
+[data-vrm-loading]{position:absolute;left:50%;bottom:18%;transform:translateX(-50%);z-index:1;display:flex;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;white-space:nowrap;color:var(--dsw-alias-label-primary);background:color-mix(in srgb,var(--dsw-alias-bg-base) 80%,transparent);animation:vrm-fade-in .3s ease-out}
+[data-vrm-dots]{display:inline-flex;gap:3px}
+[data-vrm-dots] > i{width:5px;height:5px;border-radius:50%;background:currentColor;opacity:.35;animation:vrm-dot 1.2s ease-in-out infinite}
+[data-vrm-dots] > i:nth-child(2){animation-delay:.15s}
+[data-vrm-dots] > i:nth-child(3){animation-delay:.3s}
+@keyframes vrm-dot{0%,60%,100%{opacity:.35;transform:none}30%{opacity:1;transform:translateY(-3px)}}
+@keyframes vrm-fade-in{from{opacity:0}}
+@media (prefers-reduced-motion:reduce){[data-vrm-dots] > i,[data-vrm-loading]{animation:none}[data-vrm-stage] canvas{transition:none!important}}
 `;
 const CAMERAS: Array<[CameraView, string]> = [
   ['desk', 'Desk view'],
@@ -70,17 +79,11 @@ const SHADINGS: Array<[CharacterShading, string]> = [
 ];
 const panelKey = (botId: string, instanceId: string | undefined) =>
   instanceId ?? 'context:' + botId;
-const statusText = (snapshot: ReturnType<BotPresentationView['getSnapshot']>) =>
-  snapshot.available
-    ? snapshot.paused
-      ? 'Paused'
-      : snapshot.sync === 'live'
-        ? snapshot.activity
-        : snapshot.sync
-    : 'Bot unavailable';
 function Character({ view, controls }: { view: BotPresentationView; controls: PanelControls }) {
   const snapshot = useSyncExternalStore(view.subscribe, view.getSnapshot, view.getSnapshot);
   const ui = useSyncExternalStore(controls.subscribe, controls.read, controls.read);
+  const problem = problemText(ui.error, snapshot.name);
+  const poster = controls.poster();
   const cleanup = useRef<(() => void) | undefined>();
   const mount = useCallback(
     (node: HTMLDivElement | null) => {
@@ -93,7 +96,7 @@ function Character({ view, controls }: { view: BotPresentationView; controls: Pa
         cleanup.current = () => {
           current = false;
         };
-        controls.set({ loading: 'Loading character…' });
+        controls.set({ loading: 'signing-in' });
         void loadModel(controls.botId).then((stored) => {
           controls.restore(stored);
           if (current) controls.retry();
@@ -119,6 +122,7 @@ function Character({ view, controls }: { view: BotPresentationView; controls: Pa
             loading: (loading) => controls.set({ loading }),
             error: (error) => controls.set({ error }),
             changed: (scene) => controls.set({ scene }),
+            poster: (url) => controls.keepPoster(url),
           },
           choices,
           { headphones: !model },
@@ -133,7 +137,7 @@ function Character({ view, controls }: { view: BotPresentationView; controls: Pa
           if (controls.stage === stage) controls.stage = undefined;
         };
       } catch {
-        controls.set({ error: '3D is unavailable. Bot activity and messages remain available.' });
+        controls.set({ error: 'unavailable' });
       }
     },
     [view, controls, ui.revision],
@@ -148,6 +152,9 @@ function Character({ view, controls }: { view: BotPresentationView; controls: Pa
       data-vrm-conversing={snapshot.conversing}
       data-vrm-model={ui.model ? 'file' : 'sample'}
     >
+      {(ui.software || ui.loading || problem) && poster && (
+        <img data-vrm-poster="" src={poster} alt="" />
+      )}
       <div data-vrm-stage="" ref={mount} />
       {snapshot.attention && (
         <div role="status" data-vrm-attention="">
@@ -156,20 +163,24 @@ function Character({ view, controls }: { view: BotPresentationView; controls: Pa
       )}
       {ui.software && (
         <div role="status" data-vrm-software="">
-          This computer is drawing graphics without a GPU, so the 3D character is off to keep the
-          app responsive. Bot activity and messages remain available.
+          {softwareText(snapshot.name)}
           <Button onClick={() => controls.force()}>Show 3D anyway</Button>
         </div>
       )}
-      {ui.loading && !ui.error && (
+      {ui.loading && !problem && (
         <div role="status" data-vrm-loading="">
-          {ui.loading}
+          <span data-vrm-dots="" aria-hidden="true">
+            <i />
+            <i />
+            <i />
+          </span>
+          {loadingText(ui.loading, snapshot.name)}
         </div>
       )}
-      {ui.error && (
+      {problem && (
         <div role="status" data-vrm-error="">
-          {ui.error}
-          <Button onClick={() => controls.retry()}>Retry character</Button>
+          {problem.text}
+          <Button onClick={() => controls.retry()}>{problem.action}</Button>
         </div>
       )}
       {snapshot.conversing && snapshot.page && (
@@ -400,7 +411,7 @@ function SceneMenu({
   return (
     <span data-vrm-header-actions="" data-vrm-phase={ui.scene.phase}>
       <span data-vrm-activity-tag="" role="status" title={snapshot.attention}>
-        <Tag tone={snapshot.attention ? 'warning' : 'quiet'}>{statusText(snapshot)}</Tag>
+        <Tag tone={snapshot.attention ? 'warning' : 'quiet'}>{presence(snapshot)}</Tag>
       </span>
       {ui.failure && (
         <span role="alert">
@@ -502,14 +513,14 @@ export function apply(ctx: Context & PanelServices): void {
                 );
                 controls.set({ failure: '' });
               } catch {
-                controls.set({ failure: 'Could not save the fixed character panel.' });
+                controls.set({ failure: "Couldn't pin this character. Try again?" });
               }
             }}
             remove={() => {
               try {
                 ctx.dockPanels.removeInstance(props.instanceId!);
               } catch {
-                controls.set({ failure: 'Could not delete the saved character panel.' });
+                controls.set({ failure: "Couldn't remove this panel. Try again?" });
               }
             }}
           />

@@ -3,6 +3,7 @@ import type { CharacterShading } from './shading.js';
 import type { CameraView, SceneChoices, SceneState, Stage } from './stage.js';
 import { forgetModel, saveModel } from './library.js';
 import { softwareRendering } from './gpu.js';
+import type { Loading, Problem } from './copy.js';
 
 export type CustomModel = { name: string; url: string };
 
@@ -10,8 +11,8 @@ export type PanelState = SceneChoices & {
   scene: SceneState;
   model: CustomModel | undefined;
   kept: boolean;
-  loading: string;
-  error: string;
+  loading: Loading;
+  error: Problem;
   failure: string;
   software: boolean;
   revision: number;
@@ -30,6 +31,7 @@ const models = new Map<string, CustomModel>();
 const looked = new Set<string>();
 const panels = new Map<string, PanelControls>();
 let forced = false;
+const posters = new Map<string, string>();
 
 export class PanelControls {
   stage: Stage | undefined;
@@ -107,6 +109,14 @@ export class PanelControls {
 
   retry() {
     this.set({ revision: this.#state.revision + 1 });
+  }
+
+  poster() {
+    return posters.get(this.botId);
+  }
+
+  keepPoster(url: string) {
+    posters.set(this.botId, url);
   }
 
   software() {
