@@ -196,13 +196,27 @@ describe('Host drawer', () => {
         newer.resolve(true);
       } else {
         newer.resolve(true);
-        await tower;
         older.resolve(true);
       }
       await Promise.all([laptop, tower]);
       expect(showView.mock.calls).toEqual([['tower']]);
     },
   );
+
+  it('continues with the next Host choice after a switch rejects', async () => {
+    const error = new Error('storage failed');
+    const switchTo = vi
+      .fn<(hostId: string) => Promise<boolean>>()
+      .mockRejectedValueOnce(error)
+      .mockResolvedValueOnce(true);
+    const showView = vi.fn();
+    const drawer = createHostDrawer({ switchTo, showView, pair: vi.fn(), notifications: vi.fn() });
+    const failed = drawer.select('laptop');
+    const next = drawer.select('tower');
+    await expect(failed).rejects.toBe(error);
+    await expect(next).resolves.toBe(true);
+    expect(showView.mock.calls).toEqual([['tower']]);
+  });
 
   it('opens the pairing flow from "Pair a new computer" and closes', () => {
     const pair = vi.fn();
