@@ -2,7 +2,7 @@
 
 Requested by Vain, issue #2500, PR #2540. Captured 2026-10-22 JST at 1440 × 900, English, light/dark, in disposable local Web Hosts. No Desktop, native phone or physical-machine tailnet qualification.
 
-The final captures run source `e04195b49ad952b4c5da5e391ee5c720609b25f7` on main `30f62e48c7d9b79a085a52df691af277d0fe6fe9`. Subsequent changes only refresh evidence and the verification journey. `bl.png` / `bd.png` retain the original pre-feature menu baseline; new settings pages use that absence state as their predecessor.
+These captures run source `e04195b49ad952b4c5da5e391ee5c720609b25f7` on main `30f62e48c7d9b79a085a52df691af277d0fe6fe9`, published at `68003945df1b81fb61f1574535e00b7447ef75e8`. Later rebases integrate Activity, viewers and the Expo patch baseline; these images remain historical runtime evidence, not fresh captures of the integrated head. `bl.png` / `bd.png` retain the original pre-feature menu baseline; new settings pages use that absence state as their predecessor.
 
 | Files        | Observed result                                                                                      |
 | ------------ | ---------------------------------------------------------------------------------------------------- |
@@ -21,4 +21,4 @@ The source Profile retained a provider-only AX Patch so the native default-model
 
 The fresh live-model attempt selected only `deepseek-v4-pro` and received `429 GoUsageLimitError: Go usage limit exceeded`. No successful new reply is claimed, and no retry was made. Existing task messages visible in the background are older fixtures.
 
-Full build, typecheck, lint, format, docs build, 119 related tests and 7 artifact/docs tests passed. Browser diagnostics showed no page exceptions; expected request cancellations and disconnect failures are retained in private task evidence. Task Hosts were stopped and their ports released after QA. Native iOS/Android light/dark/large-text checks remain an external handoff for the shared phone model-settings change.
+At that source version, full build, typecheck, lint, format, docs build, 119 related tests and 7 artifact/docs tests passed. Browser diagnostics showed no page exceptions; expected request cancellations and disconnect failures are retained in private task evidence. Task Hosts were stopped and their ports released after QA. Native iOS/Android light/dark/large-text checks remain an external handoff for the shared phone model-settings change. The integrated Expo baseline requires fresh native development builds in the coordinated device lane; source tests do not qualify existing device binaries. Native acceptance is a unified follow-up, not a separate merge gate under Vain's updated direction.
