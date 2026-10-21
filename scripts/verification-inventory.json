@@ -1591,9 +1591,9 @@
       "path": "scripts/e2e-mobile-routines-web.mjs",
       "category": "mapped",
       "behaviors": ["phone.routines"],
-      "reason": "Own task Host and Expo Web export; verifies routine mutation/history, explicit selected routine IDs and preview dates against the Host. Drives visible controls after return completes, pins selector locale and formats expected dates in the browser; uses the Windows package-manager adapter. Uses the current Tailscale pairing chooser and captures settings/full-client removal. Native gestures and scheduler/model execution are separate.",
+      "reason": "Own task Host and Expo Web export; verifies routine mutation/history, explicit selected routine IDs and preview dates against the Host. Drives visible controls after return completes, pins selector locale and formats expected dates in the browser; uses the Windows package-manager adapter. Uses the current Tailscale pairing chooser and captures settings/full-client removal; waits for advanced-routine history to settle before matched theme captures. Native gestures and scheduler/model execution are separate.",
       "task": 2028,
-      "sha256": "21e3eab5c92ef5b5b2c8e3252eba393dff88651dcca815ae67cc78086d854d0b"
+      "sha256": "3903a64308e151ccce70afbef53bcc90fa528117b7d081f2093d82b586acbb39"
     },
     {
       "path": "scripts/e2e-mobile-android-interactions.mjs",
