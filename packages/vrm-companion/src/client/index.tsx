@@ -73,8 +73,11 @@ const CSS = `
 [data-vrm-speech] > p{margin:0;min-height:0;max-height:7.5em;display:flex;flex-direction:column-reverse;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}
 @keyframes vrm-speech-in{from{opacity:0;transform:scale(.92) translateY(6px)}}
 @media (prefers-reduced-motion:reduce){[data-vrm-speech]{animation:none}}
-[data-vrm-error],[data-vrm-software]{position:absolute;inset:35% 12px auto;z-index:2;background:var(--dsw-alias-bg-base);padding:12px}
-[data-vrm-poster]{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:blur(6px) brightness(.75);transform:scale(1.04);pointer-events:none}
+[data-vrm-error]{position:absolute;inset:35% 12px auto;z-index:2;background:var(--dsw-alias-bg-base);padding:12px}
+[data-vrm-software]{position:absolute;left:12px;right:12px;bottom:16px;z-index:2;display:flex;flex-direction:column;align-items:flex-start;gap:10px;padding:14px 16px;border-radius:var(--dsw-radius-panel);background:color-mix(in srgb,var(--dsw-alias-bg-base) 88%,transparent);box-shadow:0 8px 22px color-mix(in srgb,var(--dsw-alias-label-primary) 14%,transparent)}
+[data-vrm-software] > p{margin:0;line-height:1.5}
+[data-vrm-poster]{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:62% center;pointer-events:none}
+[data-vrm-poster=blur]{filter:blur(6px) brightness(.75);transform:scale(1.04)}
 [data-vrm-loading]{position:absolute;left:50%;bottom:18%;transform:translateX(-50%);z-index:1;display:flex;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;white-space:nowrap;color:var(--dsw-alias-label-primary);background:color-mix(in srgb,var(--dsw-alias-bg-base) 80%,transparent);animation:vrm-fade-in .3s ease-out}
 [data-vrm-dots]{display:inline-flex;gap:3px}
 [data-vrm-dots] > i{width:5px;height:5px;border-radius:50%;background:currentColor;opacity:.35;animation:vrm-dot 1.2s ease-in-out infinite}
@@ -109,7 +112,7 @@ function Character({ view, controls }: { view: BotPresentationView; controls: Pa
   const ui = useSyncExternalStore(controls.subscribe, controls.read, controls.read);
   const t = useT();
   const problem = problemText(t, ui.error, snapshot.name);
-  const poster = controls.poster();
+  const poster = controls.poster() ?? (ui.model ? undefined : __VRM_POSTER__);
   const cleanup = useRef<(() => void) | undefined>();
   const mount = useCallback(
     (node: HTMLDivElement | null) => {
@@ -179,7 +182,7 @@ function Character({ view, controls }: { view: BotPresentationView; controls: Pa
       data-vrm-model={ui.model ? 'file' : 'sample'}
     >
       {(ui.software || ui.loading || problem) && poster && (
-        <img data-vrm-poster="" src={poster} alt="" />
+        <img data-vrm-poster={ui.software ? 'still' : 'blur'} src={poster} alt="" />
       )}
       <div data-vrm-stage="" ref={mount} />
       {snapshot.attention && (
@@ -189,8 +192,10 @@ function Character({ view, controls }: { view: BotPresentationView; controls: Pa
       )}
       {ui.software && (
         <div role="status" data-vrm-software="">
-          {t('software.text', { name: snapshot.name })}
-          <Button onClick={() => controls.force()}>{t('software.action')}</Button>
+          <p>{t('software.text', { name: snapshot.name })}</p>
+          <Button variant="primary" size="sm" onClick={() => controls.force()}>
+            {t('software.action')}
+          </Button>
         </div>
       )}
       {ui.loading && !problem && (
@@ -570,16 +575,30 @@ export function apply(ctx: Context & PanelServices & { locale: LocaleRuntime }):
       </span>
     );
   };
-  ctx.effect(() =>
-    ctx.dockPanels.register({
-      id: 'botharness-vrm',
-      title: 'VRM Companion',
-      icon: 'bot',
-      scope: 'channel',
-      binding: 'current-bot',
-      defaultPosition: { zone: 'right' },
-      component: Panel,
-      headerAction: Header,
-    }),
-  );
+  ctx.effect(() => {
+    let title = '';
+    let release = () => {};
+    const reconcile = () => {
+      const next = i18n.t('panel.title');
+      if (next === title) return;
+      title = next;
+      release();
+      release = ctx.dockPanels.register({
+        id: 'botharness-vrm',
+        title,
+        icon: 'bot',
+        scope: 'channel',
+        binding: 'current-bot',
+        defaultPosition: { zone: 'right' },
+        component: Panel,
+        headerAction: Header,
+      });
+    };
+    reconcile();
+    const unsubscribe = ctx.locale.subscribe(reconcile);
+    return () => {
+      unsubscribe();
+      release();
+    };
+  });
 }
