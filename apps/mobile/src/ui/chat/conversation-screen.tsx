@@ -84,6 +84,7 @@ import {
   barLabelStyle,
   floatingHeader,
   glassHeader,
+  headerIslands,
   useHeaderOverlap,
   useHeaderPadding,
 } from './native-header';
@@ -834,10 +835,10 @@ function ChatConversation({
         : undefined;
   const trailing =
     fullClient === undefined ? null : (
-      <OpenFullClientButton target={fullClient} bar plain={!floatingHeader} />
+      <OpenFullClientButton target={fullClient} bar plain={!headerIslands} />
     );
   const ios = Platform.OS === 'ios';
-  const back = <HeaderBackButton plain={!floatingHeader} onPress={leave} />;
+  const back = <HeaderBackButton plain={!headerIslands} onPress={leave} />;
   const titleItem = (
     <View style={{ maxWidth: windowWidth - (theme.touch + space.x5) * 3 }}>{title}</View>
   );
@@ -870,6 +871,8 @@ function ChatConversation({
                         : undefined;
 
   const listTop = notice === undefined ? headerPadding : 0;
+  const topFade =
+    notice !== undefined ? 0 : floatingHeader ? headerPadding : glassHeader ? 0 : headerOverlap;
   const composerCover = Math.max(0, composerHeight - space.x3 - space.x2);
   const workingReserve = working.length > 0 ? workingHeight : 0;
   const fadeColor = background.kind === 'color' ? background.color : theme.color.base;
@@ -883,7 +886,6 @@ function ChatConversation({
           headerStyle: ios || floatingHeader ? {} : { backgroundColor: theme.color.base },
           headerShadowVisible: false,
           headerBackButtonDisplayMode: 'minimal',
-          ...(ios && !glassHeader ? { headerBlurEffect: 'systemChromeMaterial' as const } : {}),
           ...(glassHeader
             ? { scrollEdgeEffects: { top: 'automatic' as const, bottom: 'hidden' as const } }
             : {}),
@@ -891,36 +893,45 @@ function ChatConversation({
             ? {
                 title: '',
                 headerTitle: '',
-                headerBackVisible: canGoBack,
+                headerBackVisible: canGoBack && !headerIslands,
                 unstable_headerLeftItems: () => [
-                  ...(canGoBack
-                    ? []
-                    : [
-                        {
-                          type: 'button' as const,
-                          label: t.back,
-                          icon: { type: 'sfSymbol' as const, name: 'chevron.left' as const },
-                          onPress: leave,
-                        },
-                      ]),
+                  ...(headerIslands
+                    ? [{ type: 'custom' as const, element: back }]
+                    : canGoBack
+                      ? []
+                      : [
+                          {
+                            type: 'button' as const,
+                            label: t.back,
+                            icon: { type: 'sfSymbol' as const, name: 'chevron.left' as const },
+                            onPress: leave,
+                          },
+                        ]),
                   { type: 'spacing' as const, spacing: 0 },
                   { type: 'custom' as const, element: titleItem },
                 ],
                 unstable_headerRightItems: () =>
                   fullClient === undefined
                     ? []
-                    : [
-                        {
-                          type: 'button' as const,
-                          label: t.openFullClient,
-                          icon: { type: 'sfSymbol' as const, name: 'macwindow' as const },
-                          onPress: () =>
-                            router.push({
-                              pathname: '/full-client',
-                              params: fullClientParams(fullClient),
-                            }),
-                        },
-                      ],
+                    : headerIslands
+                      ? [
+                          {
+                            type: 'custom' as const,
+                            element: <OpenFullClientButton target={fullClient} bar plain={false} />,
+                          },
+                        ]
+                      : [
+                          {
+                            type: 'button' as const,
+                            label: t.openFullClient,
+                            icon: { type: 'sfSymbol' as const, name: 'macwindow' as const },
+                            onPress: () =>
+                              router.push({
+                                pathname: '/full-client',
+                                params: fullClientParams(fullClient),
+                              }),
+                          },
+                        ],
               }
             : {
                 headerTitleAlign: 'left' as const,
@@ -1174,11 +1185,11 @@ function ChatConversation({
               <WorkingStatus bots={working} />
             </Animated.View>
           ) : null}
-          {listTop > 0 ? (
+          {topFade > 0 ? (
             <EdgeFade
               edge="top"
-              height={listTop + edgeFade.reach}
-              cover={listTop}
+              height={topFade + edgeFade.reach}
+              cover={topFade}
               color={fadeColor}
             />
           ) : null}

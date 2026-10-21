@@ -137,6 +137,7 @@ vi.mock('../src/host/speech', () => ({
 }));
 vi.mock('../src/ui/chat/native-header', () => ({
   glassHeader: true,
+  headerIslands: false,
   useHeaderOverlap: () => 80,
   floatingHeader: false,
   useHeaderPadding: () => 0,

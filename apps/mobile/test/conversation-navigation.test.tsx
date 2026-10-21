@@ -19,6 +19,7 @@ const state = vi.hoisted(() => ({
   } as ConversationSnapshot,
   active: false,
   display: { mode: 'streaming', loaded: true },
+  glassHeader: true,
 }));
 
 vi.mock('../src/ui/shell/recent-chats', () => ({
@@ -36,6 +37,7 @@ vi.mock('expo-router', () => ({
       options: {
         headerLeft?: () => ReactNode;
         headerBackVisible?: boolean;
+        headerBlurEffect?: string;
         unstable_headerLeftItems?: () => Array<{
           type: string;
           element?: ReactNode;
@@ -44,7 +46,10 @@ vi.mock('expo-router', () => ({
         }>;
       };
     }) => (
-      <header data-back-visible={String(options.headerBackVisible)}>
+      <header
+        data-back-visible={String(options.headerBackVisible)}
+        data-blur={options.headerBlurEffect ?? 'none'}
+      >
         {options.unstable_headerLeftItems?.().map((item, index) => (
           <span key={index} data-item={item.type}>
             {item.type === 'button' ? (
@@ -102,7 +107,12 @@ vi.mock('../src/host/speech', () => ({
   useDictation: () => ({ state: { status: 'idle' }, mountRef: () => undefined }),
 }));
 vi.mock('../src/ui/chat/native-header', () => ({
-  glassHeader: true,
+  get glassHeader() {
+    return state.glassHeader;
+  },
+  get headerIslands() {
+    return !state.glassHeader;
+  },
   barLabelStyle: {},
   useHeaderOverlap: () => 80,
   floatingHeader: false,
@@ -197,6 +207,7 @@ beforeEach(() => {
   state.host.roster.bots = [];
   state.active = false;
   state.display = { mode: 'streaming', loaded: true };
+  state.glassHeader = true;
 });
 
 it('refuses a retained route after switching Computers even when its Bot slug collides', async () => {
@@ -221,6 +232,65 @@ it('keeps the bottom fade at the message viewport edge beneath the composer cont
   expect(fade?.getAttribute('data-height')).toBe(String(edgeFade.bottom));
   expect(controls.querySelector('[data-edge]')).toBeNull();
   expect(fade!.compareDocumentPosition(controls) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+});
+
+it('leaves the top edge and Back to the iOS 26 glass header', async () => {
+  const os = Platform.OS;
+  Object.assign(Platform, { OS: 'ios' });
+  try {
+    state.history = ['/', '/dm/ada'];
+    state.host.roster.bots = [
+      {
+        slug: 'ada',
+        displayName: 'Ada',
+        state: 'idle',
+        description: '',
+        roles: [],
+        computerAccess: false,
+        browserAccess: false,
+        paused: false,
+      },
+    ];
+    const view = await render({ kind: 'dm', slug: 'ada' });
+    const header = view.querySelector('header')!;
+    expect(view.querySelector('[data-edge="top"]')).toBeNull();
+    expect(header.getAttribute('data-blur')).toBe('none');
+    expect(header.getAttribute('data-back-visible')).toBe('true');
+    expect(header.textContent).not.toContain('Header back');
+  } finally {
+    Object.assign(Platform, { OS: os });
+  }
+});
+
+it('draws its own top fade and an inset round Back before iOS 26', async () => {
+  const os = Platform.OS;
+  Object.assign(Platform, { OS: 'ios' });
+  try {
+    state.glassHeader = false;
+    state.history = ['/', '/dm/ada'];
+    state.host.roster.bots = [
+      {
+        slug: 'ada',
+        displayName: 'Ada',
+        state: 'idle',
+        description: '',
+        roles: [],
+        computerAccess: false,
+        browserAccess: false,
+        paused: false,
+      },
+    ];
+    const view = await render({ kind: 'dm', slug: 'ada' });
+    const header = view.querySelector('header')!;
+    expect(header.getAttribute('data-blur')).toBe('none');
+    expect(header.getAttribute('data-back-visible')).toBe('false');
+    expect(header.textContent).toContain('Header back');
+    expect(view.querySelector('[data-edge="top"]')?.getAttribute('data-height')).toBe(
+      String(80 + edgeFade.reach),
+    );
+  } finally {
+    Object.assign(Platform, { OS: os });
+  }
 });
 
 it('switches a live reply between buffered streaming and complete bubbles without hiding history', async () => {

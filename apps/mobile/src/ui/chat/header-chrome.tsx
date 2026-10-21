@@ -1,5 +1,5 @@
 import { useId, type ReactNode } from 'react';
-import { Platform, Pressable, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
@@ -7,6 +7,7 @@ import { frosted, pressTint, useDesignTheme, type DesignTheme } from '../design/
 import { edge, radius, space } from '../design/tokens';
 import { DrawerMaterial, EdgeMaterial, useLiquidGlass } from '../primitives/drawer-material';
 import { BackIcon } from '../shell/back-icon';
+import { headerIslands } from './header-kind';
 import { t } from '../strings';
 import { edgeFadeStops } from './edge-fade';
 
@@ -73,7 +74,7 @@ export function headerGlassFill(theme: DesignTheme, glass: boolean, pressed: boo
 }
 
 export function titleChipFill(theme: DesignTheme, pressed: boolean) {
-  if (Platform.OS === 'android') return headerGlassFill(theme, false, pressed);
+  if (headerIslands) return headerGlassFill(theme, false, pressed);
   return { backgroundColor: pressed ? theme.layer.raised.pressed : undefined };
 }
 
