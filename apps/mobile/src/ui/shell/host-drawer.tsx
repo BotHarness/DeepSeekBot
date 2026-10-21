@@ -33,6 +33,8 @@ import {
   type WorkspaceDirectoryEntry,
 } from '../../cloud/workspace-directory';
 import { createHostClient } from '../../host/client';
+import type { ConnectHost } from '../../host/connect-account';
+import { connectAccount } from '../../host/native-connect-account';
 import { createHostGlances, liveGlance, type HostStatus } from '../../host/host-glance';
 import { hostSession, useHostSession, useHostSnapshot, useInbox } from '../../host/host-session';
 import { nativeCarrier } from '../../host/native-carrier';
@@ -58,6 +60,7 @@ import {
   hostDrawerRows,
   hostRowBadge,
   settleOpen,
+  unpairedAccountHosts,
   type HostDrawerRow,
 } from './host-drawer-model';
 import { ActivityIcon, CloudIcon, ComputerIcon, PlusIcon } from './icons';
@@ -449,6 +452,41 @@ function CloudServiceRow({
   );
 }
 
+function AccountHostRow({ host, onPress }: { host: ConnectHost; onPress(): void }) {
+  const theme = useDesignTheme();
+  const glass = useLiquidGlass();
+  const status = host.online ? t.pairAccount.pair : t.pairAccount.offline;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={
+        host.online
+          ? t.pairAccount.pairWith(host.name)
+          : [t.pairAccount.pairWith(host.name), status].join(', ')
+      }
+      onPress={onPress}
+      style={({ pressed }) => ({
+        minHeight: theme.touch + space.x3,
+        padding: space.x4,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: space.x4,
+        ...rowStyle(theme, glass, pressed),
+      })}
+    >
+      <ComputerIcon color={theme.color.muted} size={theme.type.title.line + space.x3} />
+      <View style={{ flex: 1, gap: space.x1 }}>
+        <Text strong numberOfLines={theme.largeText ? undefined : 1}>
+          {host.name}
+        </Text>
+        <Text variant="meta" tone="muted" numberOfLines={theme.largeText ? undefined : 1}>
+          {status}
+        </Text>
+      </View>
+    </Pressable>
+  );
+}
+
 export function WorkspaceButton() {
   const theme = useDesignTheme();
   return (
@@ -472,6 +510,8 @@ export function WorkspaceButton() {
 
 type WorkspaceDrawerItem =
   | { kind: 'host'; key: string; row: HostDrawerRow }
+  | { kind: 'account-title'; key: string }
+  | { kind: 'account'; key: string; host: ConnectHost }
   | { kind: 'workspace'; key: string; workspace: CloudWorkspace; server: string }
   | { kind: 'status'; key: string; entry: WorkspaceDirectoryEntry };
 
@@ -557,6 +597,19 @@ export function HostDrawer() {
   const tabMount = useMounted<ViewInstance>(() => {
     if (state.open) setTab(cloudRoute ? 'cloud' : 'computers');
   }, [state.open, cloudRoute]);
+  const [linked, setLinked] = useState<ConnectHost[]>([]);
+  const accountMount = useMounted<ViewInstance>(() => {
+    if (!state.open || tab !== 'computers') return;
+    let live = true;
+    void connectAccount.email().then(async (email) => {
+      if (email === null) return live && setLinked([]);
+      const listed = await connectAccount.hosts();
+      if (live && listed.ok) setLinked(listed.value);
+    });
+    return () => {
+      live = false;
+    };
+  }, [state.open, tab]);
   const currentId = cloudRoute ? undefined : saved?.hostId;
   const cloudKey = JSON.stringify(cloud.rows.map(cloudViewScope));
   const cloudMount = useMounted<ViewInstance>(() => {
@@ -612,9 +665,26 @@ export function HostDrawer() {
     [state.open, hosts],
   );
 
+  const unpaired = unpairedAccountHosts(linked, hosts);
   const drawerRows: WorkspaceDrawerItem[] =
     tab === 'computers'
-      ? rows.map((row) => ({ kind: 'host', key: 'host:' + row.hostId, row }))
+      ? [
+          ...rows.map((row): WorkspaceDrawerItem => ({
+            kind: 'host',
+            key: 'host:' + row.hostId,
+            row,
+          })),
+          ...(unpaired.length === 0
+            ? []
+            : [
+                { kind: 'account-title', key: 'account-title' } as const,
+                ...unpaired.map((host): WorkspaceDrawerItem => ({
+                  kind: 'account',
+                  key: 'account:' + host.id,
+                  host,
+                })),
+              ]),
+        ]
       : directory.entries.flatMap((entry): WorkspaceDrawerItem[] => [
           ...entry.workspaces.map((workspace): WorkspaceDrawerItem => ({
             kind: 'workspace',
@@ -740,6 +810,32 @@ export function HostDrawer() {
                     )}
                   />
                 );
+              if (item.kind === 'account-title')
+                return (
+                  <Text
+                    variant="meta"
+                    tone="muted"
+                    accessibilityRole="header"
+                    style={{
+                      paddingHorizontal: space.x5,
+                      paddingTop: space.x4,
+                      paddingBottom: space.x2,
+                    }}
+                  >
+                    {t.pairAccount.drawerTitle}
+                  </Text>
+                );
+              if (item.kind === 'account')
+                return (
+                  <AccountHostRow
+                    host={item.host}
+                    onPress={() =>
+                      closeThen(() =>
+                        router.push({ pathname: '/pair', params: { account: item.host.id } }),
+                      )
+                    }
+                  />
+                );
               if (item.kind === 'workspace')
                 return (
                   <WorkspaceRow
@@ -790,7 +886,7 @@ export function HostDrawer() {
               );
             }}
             ListFooterComponent={
-              <View>
+              <View ref={accountMount}>
                 {tab === 'cloud' && directory.busy && (
                   <Text style={{ padding: space.x5 }} accessibilityLiveRegion="polite">
                     {t.workspaceLoading}

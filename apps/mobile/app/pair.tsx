@@ -40,7 +40,8 @@ export default function PairScreen() {
   const insets = useSafeAreaInsets();
   const presentedAsSheet = router.canGoBack();
   const firstPairing = useHostSession().hosts.length === 0;
-  const params = useLocalSearchParams<{ p?: string }>();
+  const params = useLocalSearchParams<{ p?: string; account?: string }>();
+  const [signedIn, setSignedIn] = useState<boolean | undefined>();
   const [permission, requestPermission] = useCameraPermissions();
   const [link, setLink] = useState('');
   const [connectionName, setConnectionName] = useState('');
@@ -50,13 +51,13 @@ export default function PairScreen() {
   const lastMethod = useRef<PairingMethod>('paste');
   const pending = useRef<AbortController | undefined>(undefined);
   const handled = useRef<string | undefined>(undefined);
-  const accountHost = useRef<ConnectHost | undefined>(undefined);
+  const accountHost = useRef<Pick<ConnectHost, 'id'> | undefined>(undefined);
 
   const pair = async (
     text: string,
     method: PairingMethod,
     retry = false,
-    host?: ConnectHost,
+    host?: Pick<ConnectHost, 'id'>,
   ): Promise<void> => {
     if (pending.current !== undefined || (!retry && method === 'qr' && handled.current === text))
       return;
@@ -102,13 +103,26 @@ export default function PairScreen() {
   useFocusEffect(
     useCallback(() => {
       setFocused(true);
+      let live = true;
+      void connectAccount.email().then((email) => live && setSignedIn(email !== null));
       if (typeof params.p === 'string' && handled.current === undefined)
         void pair(`deepseekbot://pair?p=${params.p}`, 'deep_link');
+      else if (typeof params.account === 'string' && handled.current === undefined)
+        void pair(`account:${params.account}`, 'account', true, { id: params.account });
       return () => {
+        live = false;
         setFocused(false);
         pending.current?.abort();
       };
-    }, [params.p]),
+    }, [params.p, params.account]),
+  );
+
+  const accountHosts = (
+    <AccountHosts
+      account={connectAccount}
+      busy={busy}
+      onPair={(host) => void pair(`account:${host.id}`, 'account', true, host)}
+    />
   );
 
   return (
@@ -126,6 +140,7 @@ export default function PairScreen() {
         title={t.pairTitle}
         {...(presentedAsSheet ? { onClose: () => router.back() } : {})}
       />
+      {signedIn === true ? accountHosts : null}
       <View
         style={{
           alignItems: 'center',
@@ -182,11 +197,7 @@ export default function PairScreen() {
           onPress={() => void pair(handled.current!, lastMethod.current, true, accountHost.current)}
         />
       ) : null}
-      <AccountHosts
-        account={connectAccount}
-        busy={busy}
-        onPair={(host) => void pair(`account:${host.id}`, 'account', true, host)}
-      />
+      {signedIn === false ? accountHosts : null}
       <PairingGuide initiallyOpen={firstPairing} />
       <View style={{ gap: space.x2 }}>
         <Text variant="meta" tone="muted" accessibilityRole="header">
