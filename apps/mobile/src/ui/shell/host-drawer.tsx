@@ -825,6 +825,7 @@ export function HostDrawer() {
                     accessibilityLabel={t.allEnvironments}
                     accessibilityState={{ selected: !cloudRoute && filter === 'all' }}
                     onPress={() => closeThen(() => hostDrawer.selectAll())}
+                    android_ripple={{ color: pressTint(theme.color.fg), foreground: true }}
                     style={({ pressed }) => ({
                       flexDirection: 'row',
                       alignItems: 'center',
@@ -832,9 +833,13 @@ export function HostDrawer() {
                       minHeight: theme.touch + space.x3,
                       padding: space.x4,
                       ...rowStyle(theme, glass, pressed, !cloudRoute && filter === 'all'),
+                      overflow: 'hidden',
                     })}
                   >
-                    <ChatsIcon color={theme.color.accent} size={theme.type.title.line} />
+                    <ChatsIcon
+                      color={theme.color.accent}
+                      size={theme.type.body.line * theme.fontScale}
+                    />
                     <Text strong style={{ flexShrink: 1 }}>
                       {t.allEnvironments}
                     </Text>

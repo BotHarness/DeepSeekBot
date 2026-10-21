@@ -11,12 +11,18 @@ import { computerEnvironmentKey, cloudEnvironmentKey } from '../src/host/convers
 import { HOST_COLORS, type HostColorId } from '../src/ui/design/host-look';
 import { Platform } from 'react-native';
 import { HostAccentProvider } from '../src/ui/shell/host-accent-provider';
+import { HomeHeader } from '../src/ui/shell/home-header';
 import { DesignThemeProvider, resolveTheme, useDesignTheme } from '../src/ui/design/theme';
 import type { RosterView } from '../src/host/client';
 
 const { push, cloudState, directoryState, hostState } = vi.hoisted(() => ({
   push: vi.fn(),
-  hostState: { connecting: false, removed: false, color: undefined as HostColorId | undefined },
+  hostState: {
+    connecting: false,
+    removed: false,
+    color: undefined as HostColorId | undefined,
+    fontScale: 1,
+  },
   cloudState: {
     error: undefined as string | undefined,
     ready: true,
@@ -82,10 +88,24 @@ vi.mock('../src/cloud/native-conversations', () => ({
 }));
 vi.mock('react-native-keyboard-controller', async () => import('./keyboard-controller-shim'));
 vi.mock('react-native-tab-view', () => import('./tab-view-shim'));
-vi.mock('react-native', () => import('./react-native-shim'));
+vi.mock('react-native', async () => {
+  const native = await import('./react-native-shim');
+  return {
+    ...native,
+    useWindowDimensions: () => ({
+      ...native.useWindowDimensions(),
+      fontScale: hostState.fontScale,
+    }),
+  };
+});
 vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
 vi.mock('react-native-worklets', () => ({ scheduleOnRN: (callback: () => void) => callback() }));
-vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
+vi.mock('react-native-svg', () => ({
+  default: ({ width, height }: { width: number; height: number }) => (
+    <svg width={width} height={height} />
+  ),
+  Path: () => null,
+}));
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
@@ -119,7 +139,9 @@ vi.mock('../src/host/native-section-collapse', () => ({
   sectionCollapse: { toggle: () => {} },
   useCollapsedSections: () => new Set(),
 }));
-vi.mock('expo-symbols', () => ({ SymbolView: () => null }));
+vi.mock('expo-symbols', () => ({
+  SymbolView: ({ size }: { size: number }) => <span data-symbol-size={size} />,
+}));
 vi.mock('../src/host/native-host-look', () => ({
   useHostLook: () => ({ icon: { kind: 'symbol', id: 'desktop' }, color: hostState.color }),
 }));
@@ -161,6 +183,7 @@ afterEach(() => {
   hostState.connecting = false;
   hostState.removed = false;
   hostState.color = undefined;
+  hostState.fontScale = 1;
   conversationFilter.set('all');
   cloudState.rows = [];
   cloudState.ready = true;
@@ -192,6 +215,7 @@ async function type(view: HTMLElement, text: string): Promise<void> {
 
 const rows = (view: HTMLElement) =>
   [...view.querySelectorAll('button')]
+    .filter((node) => node.dataset.testid !== 'chats-view-button')
     .filter((node) => !node.closest('[hidden]') && !node.dataset.testid?.startsWith('pager-'))
     .filter(
       (node) =>
@@ -389,6 +413,54 @@ describe('Search in the Chats header', () => {
     expect(view.querySelector(`textarea[aria-label="${t.searchPlaceholder}"]`)).toBeNull();
     expect(view.querySelector(`button[aria-label="${t.settings}"]`)).not.toBeNull();
   });
+});
+
+describe('Selected view header accessibility', () => {
+  it.each(['all', 'computer', 'cloud'] as const)(
+    'announces the full %s view and scales its icon with live system text size',
+    async (kind) => {
+      const title = kind === 'all' ? t.allEnvironments : 'Studio team with a long complete name';
+      const accessibilityLabel =
+        kind === 'cloud' ? `${title}, cloud.example.test, team-one` : undefined;
+      host = document.createElement('div');
+      root = createRoot(host);
+      for (const fontScale of [1, 1.4, 2]) {
+        hostState.fontScale = fontScale;
+        await act(async () =>
+          root!.render(
+            <DesignThemeProvider appearance={{ scheme: 'light' }}>
+              <HomeHeader
+                environment={{
+                  key: kind,
+                  kind,
+                  title,
+                  ...(accessibilityLabel === undefined ? {} : { accessibilityLabel }),
+                  ...(kind === 'computer'
+                    ? { hostIcon: { kind: 'symbol', id: 'desktop' } as const }
+                    : {}),
+                }}
+              >
+                {null}
+              </HomeHeader>
+            </DesignThemeProvider>,
+          ),
+        );
+        const button = host.querySelector('[data-testid="chats-view-button"]')!;
+        expect(button.getAttribute('aria-label')).toBe(
+          `${t.workspaces}, ${accessibilityLabel ?? title}`,
+        );
+        const size = resolveTheme('light', {}, 'ios').type.title.line * fontScale;
+        if (kind === 'computer') {
+          expect(button.querySelector('[data-symbol-size]')?.getAttribute('data-symbol-size')).toBe(
+            String(size),
+          );
+        } else {
+          expect(button.querySelector('svg')?.getAttribute('width')).toBe(String(size));
+          expect(button.querySelector('svg')?.getAttribute('height')).toBe(String(size));
+        }
+      }
+    },
+  );
 });
 
 describe('Selected current Host accent', () => {

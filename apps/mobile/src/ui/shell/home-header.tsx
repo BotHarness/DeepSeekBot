@@ -53,7 +53,7 @@ export function HomeHeader({
               testID="chats-view-button"
               onPress={openHostDrawer}
               accessibilityRole="button"
-              accessibilityLabel={t.workspaces}
+              accessibilityLabel={`${t.workspaces}, ${environment.accessibilityLabel ?? environment.title}`}
               accessibilityState={{ expanded: drawerOpen }}
               style={({ pressed }) => ({
                 flex: 1,
@@ -68,13 +68,19 @@ export function HomeHeader({
               {environment.kind === 'computer' && environment.hostIcon ? (
                 <HostGlyph
                   icon={environment.hostIcon}
-                  size={theme.type.title.line}
+                  size={theme.type.title.line * theme.fontScale}
                   color={hostColorInk(theme.scheme, theme.color, environment.hostColor)}
                 />
               ) : environment.kind === 'cloud' ? (
-                <CloudIcon color={theme.color.accent} size={theme.type.title.line} />
+                <CloudIcon
+                  color={theme.color.accent}
+                  size={theme.type.title.line * theme.fontScale}
+                />
               ) : (
-                <ChatsIcon color={theme.color.accent} size={theme.type.title.line} />
+                <ChatsIcon
+                  color={theme.color.accent}
+                  size={theme.type.title.line * theme.fontScale}
+                />
               )}
               <Text variant="title" strong accessibilityRole="header" style={{ flexShrink: 1 }}>
                 {environment.title}
