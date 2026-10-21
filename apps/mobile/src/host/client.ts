@@ -174,6 +174,7 @@ class Unreachable extends Error {}
 
 const UPLOAD_TOO_LARGE = 'The file is larger than the Host accepts.';
 const uploadTimeoutMs = 120_000;
+const OCTET_STREAM = 'application/octet-stream';
 
 export class MethodRefused extends Error {
   constructor(
@@ -432,8 +433,8 @@ export function createHostClient(options: HostClientOptions): HostClient {
         `${route}${DEVICE_PREFIX}/api/botharness/attachment/upload?${new URLSearchParams({ name })}`,
         {
           method: 'POST',
-          body: data,
-          headers: { ...authorization, 'content-type': 'application/octet-stream' },
+          body: data.type === OCTET_STREAM ? data : new Blob([data], { type: OCTET_STREAM }),
+          headers: { ...authorization, 'content-type': OCTET_STREAM },
           signal,
         },
       );

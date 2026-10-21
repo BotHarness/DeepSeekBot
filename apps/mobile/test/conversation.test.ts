@@ -525,6 +525,22 @@ describe('DM conversation', () => {
     ]);
   });
 
+  it('uploads a typed photo as octet-stream so the Host accepts it', async () => {
+    const host = new FakeHost();
+    host.channel(DM);
+    const target = open(host);
+    await until(target, (s) => s.status === 'live');
+    const photo = async () => new Blob(['png'], { type: 'image/png' });
+    const id = target.send('', [{ name: 'IMG_0001.PNG', kind: 'image', read: photo }]);
+    const sent = (s: ConversationSnapshot) => s.messages.find((message) => message.id === id);
+    await until(target, (s) => sent(s)?.delivery !== 'pending');
+    expect(sent(target.getSnapshot())?.delivery).toBe('committed');
+    expect(host.uploads).toEqual([
+      { name: 'IMG_0001.PNG', type: 'application/octet-stream', text: 'png' },
+    ]);
+    expect(host.calls.filter((call) => call.method === 'channelSend')).toHaveLength(1);
+  });
+
   it('shows picked files at once and keeps their local copies after the Host commits them', async () => {
     const host = new FakeHost();
     host.channel(DM);

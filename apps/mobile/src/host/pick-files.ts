@@ -1,4 +1,5 @@
 import * as DocumentPicker from 'expo-document-picker';
+import { File, Paths } from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
 
 import type { OutgoingFile } from './conversation';
@@ -17,6 +18,20 @@ let picked = 0;
 
 function readUri(uri: string): () => Promise<Blob> {
   return async () => (await fetch(uri)).blob();
+}
+
+function readDataUri(uri: string, name: string): () => Promise<Blob> {
+  return async () => {
+    const file = new File(Paths.cache, `${Date.now()}-${name}`);
+    await file.write(uri.slice(uri.indexOf(',') + 1), { encoding: 'base64' });
+    try {
+      return await (await fetch(file.uri)).blob();
+    } finally {
+      try {
+        file.delete();
+      } catch {}
+    }
+  };
 }
 
 function extension(mime: string | undefined): string {
@@ -50,12 +65,13 @@ function fromDocument(asset: DocumentPicker.DocumentPickerAsset): PickedFile {
 export function fromClipboardImage(data: string): PickedFile {
   picked += 1;
   const mime = /^data:([^;,]+)/u.exec(data)?.[1];
+  const name = `pasted-${picked}${extension(mime)}`;
   return {
     id: `pick-${picked}`,
     kind: 'image',
     uri: data,
-    name: `pasted-${picked}${extension(mime)}`,
-    read: readUri(data),
+    name,
+    read: readDataUri(data, name),
   };
 }
 

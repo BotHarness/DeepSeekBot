@@ -14,6 +14,7 @@ const drafts = vi.hoisted(() => {
 });
 
 vi.mock('expo-document-picker', () => ({}));
+vi.mock('expo-file-system', () => ({}));
 vi.mock('expo-image-picker', () => ({}));
 vi.mock('../src/host/native-source-drafts', () => ({ sourceDrafts: drafts.sourceDrafts }));
 

@@ -21,6 +21,27 @@ vi.mock('react-native', () => ({
 }));
 vi.mock('expo-image-picker', () => ({}));
 vi.mock('expo-document-picker', () => ({}));
+const written: Array<{ uri: string; content: string; encoding?: string; deleted: boolean }> = [];
+vi.mock('expo-file-system', () => ({
+  Paths: { cache: 'file:///cache' },
+  File: class {
+    readonly entry: (typeof written)[number];
+    constructor(directory: string, name: string) {
+      this.entry = { uri: `${directory}/${name}`, content: '', deleted: false };
+      written.push(this.entry);
+    }
+    get uri() {
+      return this.entry.uri;
+    }
+    async write(content: string, options?: { encoding?: string }) {
+      this.entry.content = content;
+      if (options?.encoding !== undefined) this.entry.encoding = options.encoding;
+    }
+    delete() {
+      this.entry.deleted = true;
+    }
+  },
+}));
 vi.mock('expo-clipboard', () => ({
   ContentType: { IMAGE: 'image', PLAIN_TEXT: 'plain-text' },
   isPasteButtonAvailable: true,
@@ -137,5 +158,23 @@ describe('clipboard image offer', () => {
     const file = fromClipboardImage('data:image/jpeg;base64,AAAA');
     expect(file).toMatchObject({ kind: 'image', uri: 'data:image/jpeg;base64,AAAA' });
     expect(file.name).toMatch(/^pasted-\d+\.jpg$/u);
+  });
+
+  it('reads a pasted image from a cache file because Android fetch cannot open data: URIs', async () => {
+    const fetched: string[] = [];
+    const image = new Blob(['jpeg'], { type: 'image/jpeg' });
+    vi.stubGlobal('fetch', async (uri: string) => {
+      fetched.push(uri);
+      return { blob: async () => image };
+    });
+    try {
+      const file = fromClipboardImage('data:image/jpeg;base64,AAAA');
+      expect(await file.read()).toBe(image);
+      expect(written.at(-1)).toMatchObject({ content: 'AAAA', encoding: 'base64', deleted: true });
+      expect(fetched).toEqual([written.at(-1)!.uri]);
+      expect(fetched[0]).toMatch(/^file:\/\/\/cache\/\d+-pasted-\d+\.jpg$/u);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
