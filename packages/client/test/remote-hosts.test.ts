@@ -194,6 +194,21 @@ function liveHost() {
 }
 
 describe('Host Feed lifecycle', () => {
+  it('retains legacy pairings when browser storage refuses the migration write', () => {
+    const { host, saved } = liveHost();
+    const storage = memoryStorage({
+      'botharness.computers.v1': JSON.stringify(saved),
+      'botharness.computers.tab.v1': host.hostId,
+    });
+    storage.setItem = () => {
+      throw new Error('quota');
+    };
+    const sources = createRemoteHosts({ carrier: host.carrier, storage });
+    expect(sources.getSnapshot().hosts[0]?.host).toEqual(saved[0]);
+    expect(sources.getSnapshot().tab).toBe(host.hostId);
+    expect(storage.values.has('botharness.computers.v1')).toBe(true);
+  });
+
   it('migrates the existing pairing and selected tab once without resurrecting a removed Host', async () => {
     const { host, saved } = liveHost();
     const storage = memoryStorage({

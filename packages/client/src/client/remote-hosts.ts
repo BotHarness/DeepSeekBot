@@ -79,30 +79,29 @@ export function conversationKey(target: RemoteConversationTarget): string {
 
 function readHosts(storage: HostStorage | undefined): SavedHost[] {
   try {
-    migrateStorage(storage);
-    const value = JSON.parse(storage?.getItem(REMOTE_HOSTS_STORAGE_KEY) ?? '[]') as unknown;
+    const value = JSON.parse(
+      readStorage(storage, REMOTE_HOSTS_STORAGE_KEY, 'botharness.computers.v1') ?? '[]',
+    ) as unknown;
     return Array.isArray(value) ? value.flatMap((entry) => parseSavedHost(entry) ?? []) : [];
   } catch {
     return [];
   }
 }
 
-function migrateStorage(storage: HostStorage | undefined): void {
-  for (const [oldKey, key] of [
-    ['botharness.computers.v1', REMOTE_HOSTS_STORAGE_KEY],
-    ['botharness.computers.tab.v1', HOST_TAB_STORAGE_KEY],
-  ] as const) {
-    const previous = storage?.getItem(oldKey);
-    if (previous == null) continue;
-    if (storage?.getItem(key) === null) storage.setItem(key, previous);
+function readStorage(storage: HostStorage | undefined, key: string, oldKey: string): string | null {
+  const current = storage?.getItem(key);
+  const previous = storage?.getItem(oldKey);
+  if (previous == null) return current ?? null;
+  try {
+    if (current == null) storage?.setItem(key, previous);
     storage?.removeItem(oldKey);
-  }
+  } catch {}
+  return current ?? previous;
 }
 
 function readTab(storage: HostStorage | undefined): string {
   try {
-    migrateStorage(storage);
-    return storage?.getItem(HOST_TAB_STORAGE_KEY) ?? ALL_HOSTS;
+    return readStorage(storage, HOST_TAB_STORAGE_KEY, 'botharness.computers.tab.v1') ?? ALL_HOSTS;
   } catch {
     return ALL_HOSTS;
   }
