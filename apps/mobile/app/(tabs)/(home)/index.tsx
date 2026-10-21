@@ -377,12 +377,13 @@ const HomeContent = memo(function HomeContent({
                   item.type === 'computer' ? (
                     conversationPeek ? (
                       <ConversationPeek href={conversationHref(item.conversation, saved?.hostId)}>
-                        <ConversationRow row={item.conversation} now={new Date()} />
+                        <ConversationRow row={item.conversation} now={new Date()} look={look} />
                       </ConversationPeek>
                     ) : (
                       <ConversationRow
                         row={item.conversation}
                         now={new Date()}
+                        look={look}
                         onPress={() => openConversation(router, item.conversation, saved?.hostId)}
                         actions={conversationActions(item.conversation, {
                           pinned: item.pinned,

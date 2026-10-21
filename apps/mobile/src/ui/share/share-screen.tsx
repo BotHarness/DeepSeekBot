@@ -13,6 +13,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useHostSession, useHostSnapshot, useQuietChannels } from '../../host/host-session';
+import { useHostLook } from '../../host/native-host-look';
 import { hostDraftKey } from '../../host/source-drafts';
 import { ConversationRow } from '../chat/conversation-row';
 import { conversations, type Conversation } from '../chat/conversations';
@@ -40,6 +41,7 @@ export default function ShareScreen() {
   const { saved, client } = useHostSession();
   const snapshot = useHostSnapshot(client);
   const quiet = useQuietChannels(saved?.hostId);
+  const look = useHostLook(saved?.hostId ?? undefined);
   const incoming = useIncomingShare();
   const share = useMemo(
     () => incomingShare(incoming.resolvedSharedPayloads),
@@ -171,7 +173,7 @@ export default function ShareScreen() {
         ) : undefined
       }
       renderItem={({ item }) => (
-        <ConversationRow row={item} now={new Date()} onPress={() => void send(item)} />
+        <ConversationRow row={item} now={new Date()} look={look} onPress={() => void send(item)} />
       )}
     />
   );
