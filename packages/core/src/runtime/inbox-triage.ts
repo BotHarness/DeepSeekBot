@@ -6,6 +6,34 @@ import { channelSql, conversationSql, OPEN_ADMISSION_SQL, SNOOZED_SQL } from './
 
 export type InboxResolution = 'done' | 'ignored';
 
+export type FinalReplyDeliveryStatus = 'refused' | 'not-accepted' | 'accepted';
+
+export type FinalReplyDeliveryState = 'pending' | FinalReplyDeliveryStatus;
+
+export interface FinalReplyDeliveryInput {
+  status: FinalReplyDeliveryStatus;
+  reason?: string;
+  receipt?: string;
+  complete?: boolean;
+}
+
+export interface FinalReplyDeliveryMetadata {
+  status: FinalReplyDeliveryStatus;
+  reason?: string;
+  receipt?: string;
+  at: string;
+  complete?: boolean;
+}
+
+export interface FinalReplyDeliveryView {
+  id: string;
+  status: FinalReplyDeliveryState;
+  reason?: string;
+  receipt?: string;
+  at?: string;
+  complete?: boolean;
+}
+
 export interface InboxOpenFilter {
   sourceKind?: string[];
   channelId?: string;
@@ -32,6 +60,7 @@ export interface InboxOpenGroup {
   oldestAt: string;
   latestAt: string;
   latest: string;
+  finalDeliveries: FinalReplyDeliveryView[];
   snoozedUntil?: string;
 }
 
@@ -81,6 +110,11 @@ export interface OrchestratorInboxTriage {
 export interface InboxTriage {
   openSummary(botSlug: string, limit?: number): string;
   openIds(botSlug: string): string[];
+  recordFinal(
+    botSlug: string,
+    sourceId: string,
+    delivery: FinalReplyDeliveryInput,
+  ): FinalReplyDeliveryMetadata;
   access(input: {
     botSlug: string;
     sessionId: string;
@@ -100,12 +134,16 @@ interface OpenRow {
   created_at: string;
   body: string;
   snoozed_until: string | null;
+  final_reply_json: string | null;
 }
 
 const MAX_GROUP_IDS = 20;
 const MAX_RESOLVE_IDS = 200;
 const MAX_FILTER_RESOLVE = 500;
 const MAX_SNOOZE_MS = 30 * 24 * 60 * 60 * 1000;
+const MAX_FINAL_REASON = 240;
+const MAX_FINAL_RECEIPT = 200;
+const MAX_SUMMARY_FINALS = 2;
 
 const CHANNEL_SQL = channelSql('e');
 const CONVERSATION_SQL = conversationSql('e');
@@ -114,6 +152,81 @@ function oneLine(text: string, max: number): string {
   const flat = text.replace(/\s+/g, ' ').trim();
   const characters = Array.from(flat);
   return characters.length <= max ? flat : `${characters.slice(0, max - 1).join('')}…`;
+}
+
+function finalDeliveryMetadata(
+  delivery: FinalReplyDeliveryInput,
+  at: string,
+): FinalReplyDeliveryMetadata {
+  const { status } = delivery;
+  if (status !== 'refused' && status !== 'not-accepted' && status !== 'accepted')
+    throw new Error('inbox final delivery: status must be refused, not-accepted or accepted');
+  const bounded = (value: string, name: string, max: number): string => {
+    const text = value.trim();
+    if (text.length === 0 || Array.from(text).length > max)
+      throw new Error(`inbox final delivery: ${name} must be 1–${max} characters`);
+    return text;
+  };
+  if (delivery.complete !== undefined && typeof delivery.complete !== 'boolean')
+    throw new Error('inbox final delivery: complete must be a boolean');
+  return {
+    status,
+    ...(delivery.reason === undefined
+      ? {}
+      : { reason: bounded(delivery.reason, 'reason', MAX_FINAL_REASON) }),
+    ...(delivery.receipt === undefined
+      ? {}
+      : { receipt: bounded(delivery.receipt, 'receipt', MAX_FINAL_RECEIPT) }),
+    at,
+    ...(delivery.complete === undefined ? {} : { complete: delivery.complete }),
+  };
+}
+
+function parseFinalDelivery(value: string | null): FinalReplyDeliveryMetadata | undefined {
+  if (value === null) return undefined;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    return undefined;
+  }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return undefined;
+  const status = 'status' in parsed ? parsed.status : undefined;
+  if (status !== 'refused' && status !== 'not-accepted' && status !== 'accepted') return undefined;
+  const at = 'at' in parsed && typeof parsed.at === 'string' ? parsed.at : undefined;
+  if (at === undefined || Number.isNaN(Date.parse(at))) return undefined;
+  const reason =
+    'reason' in parsed && typeof parsed.reason === 'string'
+      ? oneLine(parsed.reason, MAX_FINAL_REASON)
+      : undefined;
+  const receipt =
+    'receipt' in parsed && typeof parsed.receipt === 'string'
+      ? oneLine(parsed.receipt, MAX_FINAL_RECEIPT)
+      : undefined;
+  const complete =
+    'complete' in parsed && typeof parsed.complete === 'boolean' ? parsed.complete : undefined;
+  return {
+    status,
+    ...(reason === undefined ? {} : { reason }),
+    ...(receipt === undefined ? {} : { receipt }),
+    at,
+    ...(complete === undefined ? {} : { complete }),
+  };
+}
+
+function finalDeliveryView(id: string, value: string | null): FinalReplyDeliveryView {
+  const metadata = parseFinalDelivery(value);
+  return metadata === undefined ? { id, status: 'pending' } : { id, ...metadata };
+}
+
+function finalDeliverySummary(deliveries: readonly FinalReplyDeliveryView[]): string {
+  const shown = deliveries.slice(0, MAX_SUMMARY_FINALS);
+  const parts = shown.map(
+    (entry) =>
+      `${entry.status} ${entry.id}${entry.reason === undefined ? '' : ` (${entry.reason})`}`,
+  );
+  const remaining = deliveries.length - shown.length;
+  return `; final delivery: ${parts.join(', ')}${remaining > 0 ? `, +${remaining} more` : ''}`;
 }
 
 function time(value: string | undefined, name: string): string | undefined {
@@ -226,7 +339,7 @@ export function createInboxTriage(
           .prepare(`
         SELECT e.source_event_id, e.source_kind, ${CHANNEL_SQL} AS channel_id, e.message_id,
                e.assignment_session_id, ${CONVERSATION_SQL} AS conversation,
-               e.created_at, e.body,
+               e.created_at, e.body, a.final_reply_json,
                CASE WHEN ${SNOOZED_SQL} THEN a.snoozed_until END AS snoozed_until
           FROM inbox_admissions a
           JOIN source_events e ON e.source_event_id = a.source_event_id
@@ -245,7 +358,12 @@ export function createInboxTriage(
       if (existing !== undefined) {
         existing.count += 1;
         existing.oldestAt = row.created_at;
-        if (existing.ids.length < MAX_GROUP_IDS) existing.ids.push(row.source_event_id);
+        if (existing.ids.length < MAX_GROUP_IDS) {
+          existing.ids.push(row.source_event_id);
+          existing.finalDeliveries.push(
+            finalDeliveryView(row.source_event_id, row.final_reply_json),
+          );
+        }
         continue;
       }
       const channelName = row.channel_id === null ? undefined : channels.get(row.channel_id)?.name;
@@ -262,6 +380,7 @@ export function createInboxTriage(
         oldestAt: row.created_at,
         latestAt: row.created_at,
         latest: oneLine(row.body, 160),
+        finalDeliveries: [finalDeliveryView(row.source_event_id, row.final_reply_json)],
         ...(row.snoozed_until === null ? {} : { snoozedUntil: row.snoozed_until }),
       });
     }
@@ -273,6 +392,39 @@ export function createInboxTriage(
   };
 
   return {
+    recordFinal(botSlug, sourceId, delivery) {
+      if (botSlug.trim().length === 0 || sourceId.trim().length === 0)
+        throw new Error('inbox final delivery: Bot and Source Event are required');
+      return database.transaction(
+        (db) => {
+          const row = db
+            .prepare(
+              'SELECT final_reply_json FROM inbox_admissions WHERE bot_slug = ? AND source_event_id = ?',
+            )
+            .get(botSlug, sourceId) as { final_reply_json: string | null } | undefined;
+          if (row === undefined)
+            throw new Error(
+              `inbox final delivery: no admission for this Bot and Source Event: ${sourceId}`,
+            );
+          const existing = parseFinalDelivery(row.final_reply_json);
+          if (existing?.status === 'accepted' && delivery.status !== 'accepted') return existing;
+          if (
+            existing !== undefined &&
+            existing.status !== 'accepted' &&
+            existing.receipt !== undefined &&
+            delivery.status !== 'accepted' &&
+            delivery.receipt === undefined
+          )
+            return existing;
+          const next = finalDeliveryMetadata(delivery, now().toISOString());
+          db.prepare(
+            'UPDATE inbox_admissions SET final_reply_json = ? WHERE bot_slug = ? AND source_event_id = ?',
+          ).run(JSON.stringify(next), botSlug, sourceId);
+          return next;
+        },
+        ['bot-inbox'],
+      );
+    },
     openIds(botSlug) {
       return openRows(botSlug, {}, 'inbox').map((row) => row.source_event_id);
     },
@@ -289,14 +441,14 @@ export function createInboxTriage(
               ? `Channel ${JSON.stringify(entry.channelName)}`
               : entry.sourceKind;
         const more = entry.count > 1 ? ` (+${entry.count - 1} more in this conversation)` : '';
-        return `- [Source Event ${entry.ids[0]}] ${where}, ${entry.latestAt}: ${oneLine(entry.latest, 120)}${more}`;
+        return `- [Source Event ${entry.ids[0]}] ${where}, ${entry.latestAt}: ${oneLine(entry.latest, 120)}${more}${finalDeliverySummary(entry.finalDeliveries)}`;
       });
       const rest = [
         ...(groups.length > limit ? [`- …and ${groups.length - limit} more conversations.`] : []),
         ...(snoozedCount > 0 ? [`- ${snoozedCount} more snoozed, hidden until they return.`] : []),
       ];
       return [
-        `[Open Inbox] ${rows.length} item${rows.length === 1 ? '' : 's'} you have seen but not resolved, newest conversations first. Review them with inbox_list; resolve finished ones with inbox_resolve.`,
+        `[Open Inbox] ${rows.length} item${rows.length === 1 ? '' : 's'} you have seen but not resolved, newest conversations first. Review them with inbox_list; resolve finished ones with inbox_resolve. Final delivery is the recorded Host final-reply decision; pending means none was recorded.`,
         ...lines,
         ...rest,
       ].join('\n');

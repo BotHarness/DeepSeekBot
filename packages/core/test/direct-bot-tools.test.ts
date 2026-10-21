@@ -2,12 +2,14 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
+import type { Context } from '@deepseek-ai/cordis';
 
 import { createChannelStore } from '../src/channels/store.js';
 import { mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { directToolTrace } from '../src/bots/tool-trace.js';
 import { createBotRuntime } from '../src/runtime/bot-runtime.js';
+import { createBotSubagentModelTools } from '../src/runtime/subagent-model-tools.js';
 import {
   createDshBotAgentAdapter,
   TURN_ONLY_BOT_TOOLS,
@@ -39,6 +41,7 @@ function setup() {
     defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
     orchestratorCwd: () => join(home, 'memory'),
     ensureWorkspace: () => undefined,
+    subagentTools: () => createBotSubagentModelTools({} as Context, () => undefined),
   });
   const runtime = createBotRuntime({
     database: owner,

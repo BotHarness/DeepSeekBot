@@ -625,6 +625,7 @@ describe('Bot runtime tracer bullet', () => {
     const owner = mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN });
     let orchestratorAttempts = 0;
     let assignmentRuns = 0;
+    let messageSequence = 0;
     const runtime = createBotRuntime({
       database: owner,
       grants: createTestWorkspaceGrants(owner, home),
@@ -668,7 +669,7 @@ describe('Bot runtime tracer bullet', () => {
         const ids = ['source-repair', 'report-repair'];
         return () => ids.shift() ?? 'unexpected-event';
       })(),
-      createMessageId: () => 'bot-repair',
+      createMessageId: () => `bot-repair-${++messageSequence}`,
       createSessionId: (() => {
         const ids = ['orchestrator-ada', 'assignment-repair'];
         return () => ids.shift() ?? 'unexpected-session';

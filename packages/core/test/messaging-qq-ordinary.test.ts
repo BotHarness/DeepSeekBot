@@ -238,7 +238,7 @@ it.each([true, false])(
     expect(fx.runs).toHaveLength(1);
     expect(fx.runs[0]?.inbox).toContain('count-one');
     expect(fx.runs[0]?.inbox).toContain('count-two');
-    expect(fx.runs[0]?.inbox).toContain('ordinary message; no reply required');
+    expect(fx.runs[0]?.inbox).toContain('"mentionedAccount":false');
     expect(fx.transport.replyChecked).not.toHaveBeenCalled();
     expect(fx.transport.sendChecked).toHaveBeenCalledTimes(proactive ? 1 : 0);
     expect(fx.core.channels.readMessages(dm.id)).toEqual(before);

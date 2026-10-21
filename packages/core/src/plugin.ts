@@ -254,7 +254,11 @@ import { createDshActivityProjection } from './state/dsh-activity.js';
 import { readPublicToolDetail } from './state/tool-activity.js';
 import { createUsageProjection, type UsageProjection } from './usage/usage.js';
 import { createMessagePerfTracker, type MessagePerfTracker } from './usage/message-perf.js';
-import { installBotSubagentModelTools } from './runtime/subagent-model-tools.js';
+import {
+  createBotSubagentModelTools,
+  installBotSubagentModelTools,
+  type BotSubagentPresetConfig,
+} from './runtime/subagent-model-tools.js';
 
 export const name = 'botharness-core';
 
@@ -316,6 +320,7 @@ export interface BotHarnessConfig {
   privateInputWebUrl?: string;
 
   agentPreset?: string;
+  subagent?: BotSubagentPresetConfig;
   activityDetailConsumers?: string[];
   marketplaceUrl?: string;
   telemetry?: boolean;
@@ -346,6 +351,20 @@ export const Config: Schema<BotHarnessConfig> = Schema.object({
   agentPreset: Schema.string()
     .default(DEFAULT_AGENT_PRESET)
     .description('PersonaBot 会话加入的 DSH agent preset（提供 file/Shell/grep 等普通工具）'),
+  subagent: Schema.object({
+    agentPreset: Schema.string()
+      .min(1)
+      .description(
+        'Independent Subagent native Agent preset; omitted uses the current system default.',
+      ),
+    allowedAgentPresets: (
+      Schema.array(Schema.string().min(1)).min(1) as Schema<string[] | undefined>
+    )
+      .default(undefined)
+      .description(
+        'Explicit native preset allowlist for bot_subagent; omitted disables agent_preset selection.',
+      ),
+  }).default(undefined as unknown as BotSubagentPresetConfig),
   marketplaceUrl: Schema.string()
     .default(DEFAULT_MARKETPLACE_URL)
     .description('Bot Marketplace 服务地址'),
@@ -1138,6 +1157,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     defaultModel,
     observeTurnFailure: (provider, code) => providerCredentials.observe(provider, code),
     resolveModelPlan: (slug) => core.registry.get(slug)?.modelPlan,
+    subagentTools: (slug) =>
+      createBotSubagentModelTools(ctx, () => core.registry.get(slug)?.modelPlan, config.subagent),
     hasSession: async (sessionId) => {
       const persistence = ctx.get('sessionPersistence') as unknown as
         | { stat(id: string): Promise<unknown> }
@@ -2740,15 +2761,15 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   );
   ctx.on(
     'agent/created',
-    ({ agent }) => {
+    async ({ agent }) => {
       activity.handleAgentCreated(agent.session);
       core.usage?.primeSession(agent.session.id, agent.session.snapshotEvents());
       const owner = core.ownership.resolve(agent.session.id);
       if (owner !== undefined) {
-        installBotSubagentModelTools(
+        await installBotSubagentModelTools(
           agent.ctx,
-          agent,
           () => core.registry.get(owner.botSlug)?.modelPlan,
+          config.subagent,
         );
       }
     },

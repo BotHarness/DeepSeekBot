@@ -290,7 +290,7 @@ export default defineConfig([
     platform: 'node',
     dts: false,
     clean: true,
-    external: ['@botharness/core'],
+    external: ['@botharness/core', '@botharness/core/cli'],
     outputOptions: { banner: '#!/usr/bin/env node' },
   },
   computerClientBundleOptions,

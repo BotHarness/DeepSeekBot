@@ -228,6 +228,8 @@ export interface OutboxIntent {
   reason?: string;
 }
 
+export type ReplyPurpose = 'acknowledgement' | 'final';
+
 export type MessagingApp = MessagingAccount & {
   providerId: string;
   boundBotSlug?: string;
@@ -298,7 +300,12 @@ export interface OutboundMessaging {
   defaults<Platform extends string = 'feishu'>(platform?: Platform): MessagingDefaults<Platform>;
   setDefaults(input: MessagingDefaultsInput): Promise<MessagingDefaults>;
   identity(botSlug: string, input: MessagingIdentityInput): Promise<MessagingIdentity>;
-  reply(botSlug: string, sourceEventId: string, text: string): Promise<OutboxIntent>;
+  reply(
+    botSlug: string,
+    sourceEventId: string,
+    text: string,
+    purpose?: ReplyPurpose,
+  ): Promise<OutboxIntent>;
   privateInputNotice(
     botSlug: string,
     sourceEventId: string,
@@ -1301,7 +1308,10 @@ export function createOutboundMessaging(options: {
     sourceEventId: string,
     text: string,
     noticeId?: string,
+    purpose: ReplyPurpose = 'final',
   ): Promise<OutboxIntent> {
+    if (purpose !== 'final' && purpose !== 'acknowledgement')
+      throw new MessagingError('invalid-input');
     if (noticeId === undefined && /private:[0-9a-f-]{36}:[a-z][a-z0-9_]{0,47}/.test(text))
       throw new MessagingError('private-reference-not-deliverable');
     let source: ExternalSource;
@@ -1319,11 +1329,11 @@ export function createOutboundMessaging(options: {
       const result = await service.send(
         botSlug,
         source.grantId,
-        noticeId ?? 'reply-' + sourceEventId,
+        noticeId ?? (purpose === 'acknowledgement' ? 'acknowledgement-' : 'reply-') + sourceEventId,
         text,
         sourceEventId,
       );
-      if (noticeId === undefined && result.state === 'provider-accepted')
+      if (noticeId === undefined && purpose === 'final' && result.state === 'provider-accepted')
         feedback.notify(botSlug, sourceEventId, 'answered', result.id);
       return result;
     }
@@ -1365,7 +1375,7 @@ export function createOutboundMessaging(options: {
       );
     const requestId =
       noticeId ??
-      'reply-' +
+      (purpose === 'acknowledgement' ? 'acknowledgement-' : 'reply-') +
         createHash('sha256')
           .update(JSON.stringify([botSlug, sourceEventId]))
           .digest('hex');
@@ -1976,7 +1986,8 @@ export function createOutboundMessaging(options: {
         feedback.notify(botSlug, sourceEventId, 'answered', result.id);
       return result;
     },
-    reply: (botSlug, sourceEventId, text) => routedReply(botSlug, sourceEventId, text),
+    reply: (botSlug, sourceEventId, text, purpose) =>
+      routedReply(botSlug, sourceEventId, text, undefined, purpose),
     async privateInputNotice(botSlug, sourceEventId, requestId, webUrl, authority) {
       if (!/^[0-9a-f-]{36}$/.test(requestId)) throw new MessagingError('source-unavailable');
       if (authority.signal.aborted || !authority.current())

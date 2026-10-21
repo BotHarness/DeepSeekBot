@@ -319,10 +319,15 @@ it('Slack ordinary DM pairing only executes a fresh reviewed request and queries
   expect(fx.admissions()).toEqual([]);
   await fx.receive(slackDm('slack-new'));
   expect(fx.runs).toHaveLength(1);
-  expect(fx.runs[0]!.inbox).toContain('slack-workspace-user-id');
+  expect(fx.runs[0]!.inbox).toContain('"id":"UQAUSER1"');
+  expect(fx.runs[0]!.inbox).not.toContain('slack-workspace-user-id');
   expect(fx.runs[0]!.inbox).not.toContain(role.behavior);
   expect(fx.runs[0]!.inbox).not.toContain(blocked.text);
   const source = fx.sourceId('om-slack-new');
+  expect(fx.core.externalMessaging.inbound.read('ada', source).sender).toMatchObject({
+    actorId: 'UQAUSER1',
+    namespace: 'slack-workspace-user-id',
+  });
   expect(fx.core.externalMessaging.senderPermissions('ada', source)).toMatchObject({
     status: 'paired',
     role,
@@ -633,13 +638,17 @@ it('unknown Lark requests are bounded controls; Web ordinary-role review asks ag
   expect(fx.runs).toHaveLength(1);
   expect(fx.runs[0]!.inbox).not.toContain('Colleague');
   expect(fx.runs[0]!.inbox).not.toContain(role.behavior);
-  expect(fx.runs[0]!.inbox).toContain('lark-app-open-id');
+  expect(fx.runs[0]!.inbox).toContain('"id":"ou_owner"');
+  expect(fx.runs[0]!.inbox).not.toContain('lark-app-open-id');
+  expect(fx.core.externalMessaging.inbound.read('ada', fx.sourceId('om-new')).sender).toMatchObject(
+    { actorId: 'ou_owner', namespace: 'lark-app-open-id' },
+  );
   const permissions = fx.runs[0]!.externalMessaging!.senderPermissions!(fx.sourceId('om-new'));
   expect(permissions).toMatchObject({
     status: 'paired',
     role,
     policyRevision: 1,
-    sender: { actorId: 'ou_owner', bindingId: fx.identity.id },
+    sender: { actorId: 'ou_owner', bindingId: fx.identity.id, namespace: 'lark-app-open-id' },
   });
   expect(Number.isFinite(Date.parse(permissions.queriedAt))).toBe(true);
   expect(() =>

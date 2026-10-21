@@ -1,6 +1,6 @@
 import { Context } from '@deepseek-ai/cordis';
 import type { Agent, AssistantStreamFrame } from '@deepseek-ai/dsh-agent';
-import { ToolCallId } from '@deepseek-ai/dsh-llm';
+import { createAssistantMessage, ToolCallId } from '@deepseek-ai/dsh-llm';
 import { createScope } from '@deepseek-ai/dsh-scope';
 import { SessionId, type TurnEndCancelCause } from '@deepseek-ai/dsh-session';
 import { ToolRuntime, defineTool, type ToolRunContext } from '@deepseek-ai/dsh-tools';
@@ -12,7 +12,7 @@ import { BotScheduleError } from '../src/schedules/bot-schedules.js';
 import { SendReviewRequired } from '../src/channels/send-review.js';
 import { isDshGovernedTool } from '../src/workspaces/grant-execution.js';
 import type { AssignmentAgentRun, OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
-import { FakeAgentHost, FAKE_BOT as BOT } from './dsh-agent-host-fixture.js';
+import { FakeAgentHost, FAKE_BOT as BOT, type FakeSession } from './dsh-agent-host-fixture.js';
 
 const TOB_GROUP_TOOL_CASES = [
   ['group_create', { name: 'Group' }, 'createGroup'],
@@ -108,6 +108,196 @@ const reportRun: OrchestratorAgentRun = {
     },
   },
 };
+
+describe('completed source-bound final events', () => {
+  const answer = { action: 'reply' as const, text: '已核对。', complete: true };
+  const marked = JSON.stringify({ deepseekbot_reply: answer });
+
+  function appendAssistant(
+    session: FakeSession,
+    turn: number,
+    content: Parameters<typeof createAssistantMessage>[0]['content'],
+    extra: { interrupted?: true } = {},
+  ): void {
+    session.append('assistant/message', {
+      turn,
+      step: 1,
+      ...(extra.interrupted === true ? { interrupted: true } : {}),
+      message: createAssistantMessage({
+        content,
+        source: { provider: 'test', model: 'test' },
+      }),
+    });
+  }
+
+  function toolCall(id: string) {
+    return {
+      type: 'tool-call' as const,
+      id: ToolCallId(id),
+      name: 'channel_read',
+      arguments: '{}',
+    };
+  }
+
+  function markedReply(text: string): string {
+    return JSON.stringify({
+      deepseekbot_reply: { action: 'reply', text, complete: true },
+    });
+  }
+
+  async function runFinalSequence(options: {
+    build(session: FakeSession): void;
+    surfaceOps?: Array<'append' | 'replace'>;
+    onEvent?: (session: FakeSession, event: { type: string }) => void;
+  }): Promise<ReturnType<typeof vi.fn>> {
+    const surfaceOps = [...(options.surfaceOps ?? [])];
+    const host = new FakeAgentHost(
+      { kind: 'completed' },
+      {
+        async onTurn(session) {
+          options.build(session);
+        },
+        onSessionEvent(session, event) {
+          options.onEvent?.(session, event);
+          if (event.type === 'assistant/message')
+            Object.assign(event, { surfaceOp: surfaceOps.shift() ?? 'append' });
+        },
+      },
+    );
+    const adapter = createDshBotAgentAdapter({
+      agents: host,
+      defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+      orchestratorCwd: () => '/memory/ada',
+      ensureWorkspace: () => undefined,
+    });
+    const replyFinal = vi.fn(async () => undefined);
+    try {
+      await adapter.runOrchestrator({ ...reportRun, replyFinal });
+      return replyFinal;
+    } finally {
+      await adapter.close();
+    }
+  }
+
+  it('uses the reply after a silent step and late private input in the same native turn', async () => {
+    const replyFinal = await runFinalSequence({
+      build(session) {
+        appendAssistant(session, 1, [
+          { type: 'text', text: '{"deepseekbot_reply":{"action":"silent"}}' },
+        ]);
+        session.append('user/message', {
+          content: [{ type: 'text', text: 'Late admitted private input' }],
+        });
+        appendAssistant(session, 1, [{ type: 'text', text: marked }]);
+      },
+    });
+    expect(replyFinal).toHaveBeenCalledExactlyOnceWith(answer);
+  });
+
+  it('delivers the true native final after an intermediate tool-call step', async () => {
+    const replyFinal = await runFinalSequence({
+      build(session) {
+        appendAssistant(session, 1, [
+          {
+            type: 'text',
+            text: markedReply('中间进展，稍后继续核对。'),
+          },
+          toolCall('call-1'),
+        ]);
+        session.append('tool/result', { turn: 1, step: 1, callId: 'call-1' });
+        appendAssistant(session, 1, [{ type: 'text', text: marked }]);
+      },
+    });
+    expect(replyFinal).toHaveBeenCalledExactlyOnceWith(answer);
+  });
+
+  it('does not rescan an intermediate marked reply when the final step is still calling a tool', async () => {
+    const replyFinal = await runFinalSequence({
+      build(session) {
+        appendAssistant(session, 1, [{ type: 'text', text: marked }]);
+        session.append('tool/result', { turn: 1, step: 1, callId: 'call-2' });
+        appendAssistant(session, 1, [
+          { type: 'text', text: markedReply('仍在调用工具的中间正文') },
+          toolCall('call-2'),
+        ]);
+      },
+    });
+    expect(replyFinal).not.toHaveBeenCalled();
+  });
+
+  it('ignores a replacement surface copy and delivers the append-origin final', async () => {
+    const replyFinal = await runFinalSequence({
+      surfaceOps: ['append', 'replace'],
+      build(session) {
+        appendAssistant(session, 1, [{ type: 'text', text: marked }]);
+        appendAssistant(session, 1, [{ type: 'text', text: markedReply('替换后的正文') }]);
+      },
+    });
+    expect(replyFinal).toHaveBeenCalledExactlyOnceWith(answer);
+  });
+
+  it('ignores a final that exists only as a replacement copy', async () => {
+    const replyFinal = await runFinalSequence({
+      surfaceOps: ['replace'],
+      build(session) {
+        appendAssistant(session, 1, [{ type: 'text', text: marked }]);
+      },
+    });
+    expect(replyFinal).not.toHaveBeenCalled();
+  });
+
+  it('ignores an interrupted assistant message', async () => {
+    const replyFinal = await runFinalSequence({
+      build(session) {
+        appendAssistant(session, 1, [{ type: 'text', text: marked }], { interrupted: true });
+      },
+    });
+    expect(replyFinal).not.toHaveBeenCalled();
+  });
+
+  it('ignores an assistant message from another turn', async () => {
+    const replyFinal = await runFinalSequence({
+      build(session) {
+        appendAssistant(session, 0, [{ type: 'text', text: marked }]);
+      },
+    });
+    expect(replyFinal).not.toHaveBeenCalled();
+  });
+
+  it('ignores an assistant message appended after the completed turn ended', async () => {
+    const replyFinal = await runFinalSequence({
+      build(session) {
+        appendAssistant(session, 1, [{ type: 'text', text: 'private final' }]);
+      },
+      onEvent(session, event) {
+        if (event.type === 'turn/end') {
+          appendAssistant(session, 1, [{ type: 'text', text: marked }]);
+        }
+      },
+    });
+    expect(replyFinal).not.toHaveBeenCalled();
+  });
+
+  it('leaves ordinary final text private', async () => {
+    const replyFinal = await runFinalSequence({
+      build(session) {
+        appendAssistant(session, 1, [{ type: 'text', text: 'private final' }]);
+      },
+    });
+    expect(replyFinal).not.toHaveBeenCalled();
+  });
+
+  it('forwards a marked silent final without delivering text', async () => {
+    const replyFinal = await runFinalSequence({
+      build(session) {
+        appendAssistant(session, 1, [
+          { type: 'text', text: '{"deepseekbot_reply":{"action":"silent"}}' },
+        ]);
+      },
+    });
+    expect(replyFinal).toHaveBeenCalledExactlyOnceWith({ action: 'silent' });
+  });
+});
 
 describe('explicit Inbox completion with channel_send', () => {
   async function fixture(
@@ -1609,6 +1799,10 @@ describe('DSH Bot Agent adapter', () => {
       expect(listed.at(-1)).toContain('bridge_reply');
       expect(listed.at(-1)).toContain('bridge_reachable_groups');
       expect(imPrompt()).toBe(true);
+      const externalPrompt = host.scopes
+        .get(run.sessionId)
+        ?.sections.find((section) => section.name === 'botharness:external-im')?.text;
+      expect(externalPrompt).toContain('write <@ID> with their trusted id in bridge_reply text');
 
       await adapter.runOrchestrator({ ...run, resume: true });
       expect(listed.at(-1)).toHaveLength(16);
@@ -1937,28 +2131,96 @@ describe('DSH Bot Agent adapter', () => {
     expect(rolePrompt.indexOf('## Reply delivery contract')).toBeLessThan(
       rolePrompt.indexOf('Use three complementary sources'),
     );
-    expect(rolePrompt).toContain('Reading content or images does not send an answer');
-    expect(rolePrompt).toContain('Never imitate an earlier assistant-only answer');
-    expect(rolePrompt).toContain('If the Human explicitly asks for no reply');
-    expect(rolePrompt).toContain('External IM uses bridge_reply or bridge_reply_file');
-    expect(rolePrompt).toContain('retry an uncertain send blindly');
     expect(rolePrompt).toContain('call ask_secret at once');
     expect(rolePrompt).toContain('never ask them to paste a secret into a Channel');
     expect(rolePrompt.replace(/\{\{(?:provider|model|cwd)\}\}/g, '')).not.toContain('{{');
-    expect(channelSend?.description).toContain('Assistant final text is private Session output');
-    expect(channelSend?.description).toContain('A request for "no tools"');
+    expect(rolePrompt).toContain(
+      'Follow the shared "Before ending this Orchestrator turn" section for reply delivery and completion rules',
+    );
+    expect(rolePrompt).not.toContain('Only confirmed delivery proves a send succeeded');
+    expect(rolePrompt).not.toContain(
+      'If the Human asks for "just reply", "only say X", or "no tools"',
+    );
+    expect(rolePrompt).not.toContain(
+      'Additional observed sources, including reads or memory operations',
+    );
+    expect(channelSend?.description).toContain('Ordinary final text stays private');
+    expect(channelSend?.description).toContain(
+      'marked deepseekbot_reply final can deliver one text answer without this Tool',
+    );
+    expect(channelSend?.description).toContain('requests for "no tools"');
     const deliveryPrompt = host.scopes
       .get('orchestrator-ada')
       ?.sections.find((section) => section.name === 'botharness:reply-delivery')?.text;
-    expect(deliveryPrompt).toContain('MUST deliver any intended Human-facing answer');
-    expect(deliveryPrompt).toContain('纯文本 final 不会发送给用户');
-    expect(deliveryPrompt).toContain('If no reply is wanted, remain silent');
+    expect(deliveryPrompt).toContain('exactly one Human private-message source');
+    expect(deliveryPrompt).toContain(
+      'Ordinary native file reads, writes and edits do not add Source Events',
+    );
+    expect(deliveryPrompt).toContain('observing additional Source Events through Host');
+    expect(deliveryPrompt).toContain(
+      '{"deepseekbot_reply":{"action":"reply","text":"your actual answer","complete":true}}',
+    );
+    expect(deliveryPrompt).toContain('never add a destination or any extra keys');
+    expect(deliveryPrompt).toContain('Ordinary assistant text remains private Session output');
+    expect(deliveryPrompt).toContain('{"deepseekbot_reply":{"action":"silent"}}');
+    expect(deliveryPrompt).toContain('This leaves Inbox work open');
+    expect(deliveryPrompt).toContain(
+      'complete:true resolves only the original source, only after confirmed delivery',
+    );
+    expect(deliveryPrompt).toContain('complete:false sends the answer but leaves it open');
+    expect(deliveryPrompt).toContain('After any explicit send attempt, finish with action silent');
+    expect(deliveryPrompt).toContain('refuses automatic replies for ambiguous sources');
+    expect(deliveryPrompt).toContain(
+      'Groups, Bot DMs, multi-source turns, schedules and internal reports still require explicit Tools',
+    );
+    expect(deliveryPrompt).toContain('as do files, reactions, proactive posts');
+    expect(deliveryPrompt).toContain(
+      'Use channel_send for local Channels and bridge_reply/bridge_reply_file for trusted external sources',
+    );
+    expect(deliveryPrompt).toContain('blindly retry an uncertain outcome');
+    expect(deliveryPrompt).toContain(
+      'External IM final text is limited to 4000 UTF-16 code units, the same budget as bridge_reply',
+    );
+    expect(deliveryPrompt).toContain('An oversized external final is refused before sending');
+    expect(deliveryPrompt).toContain('leaves the source open');
+    expect(deliveryPrompt).toContain('reserve it for the result, not for progress');
+    expect(deliveryPrompt).toContain('the one durable reply intent per Bot and source');
+    expect(deliveryPrompt).toContain('complete:false still sends and consumes it');
+    expect(deliveryPrompt).toContain(
+      'a later bridge_reply for the same source with different text conflicts',
+    );
+    expect(deliveryPrompt).not.toContain(
+      'Only one automatic text final is allowed per source: use explicit Tools for progress or later replies',
+    );
+    expect(deliveryPrompt).toContain(
+      'Ordinary work and read or observation Tools are not send attempts and do not consume the final',
+    );
+    expect(deliveryPrompt).toContain('never fall back to the automatic final');
+    expect(deliveryPrompt).toContain(
+      'bridge_targets must show canPost for that exact conversation with a grantId',
+    );
+    expect(deliveryPrompt).toContain('use bridge_post with a stable request_id');
+    expect(deliveryPrompt).toContain(
+      "keep the Inbox item open and request the Human's authorization for one",
+    );
+    expect(deliveryPrompt).toContain('never mirror the content into the Human DM');
+    expect(deliveryPrompt).toContain('never resend an unknown outcome with a different request');
+    expect(deliveryPrompt).toContain(
+      'Keep all existing destination, membership, approval, permission and attachment checks',
+    );
+    expect(deliveryPrompt).toContain('自动 final 是该来源唯一的自动答复');
     const received = host.received.get('orchestrator-ada')?.[0]?.content;
     expect(received).toHaveLength(2);
     expect(received?.[0]).toEqual({ type: 'text', text: '请核对发布状态' });
     expect(received?.[1]).toMatchObject({
       type: 'text',
-      text: expect.stringContaining('[Host reply transport reminder]'),
+      text: expect.stringContaining(
+        'Follow the shared "Before ending this Orchestrator turn" delivery policy',
+      ),
+    });
+    expect(received?.[1]).toMatchObject({
+      type: 'text',
+      text: expect.not.stringContaining('deepseekbot_reply'),
     });
     expect(host.received.get('assignment-1')?.[0]?.content).toHaveLength(1);
     expect(host.steered.get('orchestrator-ada')?.[0]?.content).toEqual([
@@ -2010,6 +2272,26 @@ describe('DSH Bot Agent adapter', () => {
     expect(host.scopes.get('assignment-1')?.tools.map((tool) => tool.name)).toEqual([
       'report_to_orchestrator',
     ]);
+    const acknowledgementPrompt = host.scopes
+      .get('orchestrator-ada')
+      ?.sections.find((section) => section.name === 'botharness:human-task-acknowledgement')?.text;
+    expect(acknowledgementPrompt).toContain('first task Tool must actually send');
+    expect(acknowledgementPrompt).toContain(
+      'Do not call discovery, list, search, query, planning, execution or delegation Tools before that send',
+    );
+    expect(acknowledgementPrompt).toContain('Wait for confirmed acknowledgement delivery');
+    expect(acknowledgementPrompt).toContain(
+      'Do not rely on an automatic final after acknowledging',
+    );
+    expect(acknowledgementPrompt).toContain(
+      'Background Schedule, Assignment report, Host lifecycle, Memory and Bot-origin events',
+    );
+    expect(acknowledgementPrompt).toContain('When the answer needs no task tools');
+    expect(
+      host.scopes
+        .get('assignment-1')
+        ?.sections.some((section) => section.name === 'botharness:human-task-acknowledgement'),
+    ).toBe(false);
     const orchestratorPrompt = host.scopes.get('orchestrator-ada')?.sections[0]?.text ?? '';
     expect(orchestratorPrompt).toContain('Orchestrator');
     expect(orchestratorPrompt).toContain('does not wait');
@@ -2017,6 +2299,19 @@ describe('DSH Bot Agent adapter', () => {
     expect(orchestratorPrompt).toContain('Memory Repository');
     expect(orchestratorPrompt).toContain('frozen for this Session');
     expect(orchestratorPrompt).toContain('SOUL.md');
+    expect(orchestratorPrompt).toContain('A firing has no trusted inbound source');
+    expect(orchestratorPrompt).toContain('for a local destination the exact Channel ID');
+    expect(orchestratorPrompt).toContain(
+      'for an external destination the current qualified bridge target',
+    );
+    expect(orchestratorPrompt).toContain('explicitly bridge_post to it with a stable request_id');
+    expect(orchestratorPrompt).toContain(
+      'bridge_reply needs a trusted Source Event and is not available to a scheduled wake',
+    );
+    expect(orchestratorPrompt).toContain('Scheduled execution does not wait for or prove delivery');
+    expect(orchestratorPrompt).not.toContain(
+      'Include the exact destination Channel ID in the scheduled prompt and explicitly channel_send to that ID when it fires',
+    );
     const assignmentPrompt = host.scopes.get('assignment-1')?.sections[0]?.text ?? '';
     expect(assignmentPrompt).toContain('Assignment');
     expect(assignmentPrompt).toContain('Never access another workspace or the PersonaBot');
@@ -2547,6 +2842,9 @@ it('routes external Tools through the active owning Orchestrator without a local
         const share = tools.find((tool) => tool.name === 'bridge_share');
         if (!read || !reply || !share) throw new Error('external tools unavailable');
         expect(reply.parameters).toMatchObject({ required: ['source_event_id', 'text'] });
+        expect(reply.parameters).toMatchObject({
+          properties: { purpose: { enum: ['acknowledgement', 'final'] } },
+        });
         expect(share.parameters).toMatchObject({ required: ['source_event_id', 'channel_id'] });
         const placed = await share.execute(
           { source_event_id: 'source-1', channel_id: 'group-team' },
@@ -2560,6 +2858,14 @@ it('routes external Tools through the active owning Orchestrator without a local
         await expect(
           read.execute({ source_event_id: 'source-1' }, {} as ToolRunContext),
         ).rejects.toThrow('owned source sentinel');
+        await reply.execute(
+          {
+            source_event_id: 'source-1',
+            text: 'I will check the requested result.',
+            purpose: 'acknowledgement',
+          },
+          {} as ToolRunContext,
+        );
         const result = await reply.execute(
           { source_event_id: 'source-1', text: 'Topic response' },
           {} as ToolRunContext,
@@ -2638,8 +2944,8 @@ it('routes external Tools through the active owning Orchestrator without a local
         reads.push(id);
         throw new Error('owned source sentinel');
       },
-      reply: async (id, text) => {
-        replies.push([id, text]);
+      reply: async (id, text, purpose) => {
+        replies.push(purpose === undefined ? [id, text] : [id, text, purpose]);
         return {
           id: 'intent',
           botSlug: BOT.slug,
@@ -2680,12 +2986,15 @@ it('routes external Tools through the active owning Orchestrator without a local
   });
   await expect(latePost?.()).rejects.toThrow('bridge_post: unavailable');
   expect(reads).toEqual(['source-1']);
-  expect(replies).toEqual([['source-1', 'Topic response']]);
+  expect(replies).toEqual([
+    ['source-1', 'I will check the requested result.', 'acknowledgement'],
+    ['source-1', 'Topic response'],
+  ]);
   const tool = host.scopes.get('external-ada')?.tools.find((item) => item.name === 'bridge_reply');
   await expect(
     tool?.execute({ source_event_id: 'source-1', text: 'Late response' }, {} as ToolRunContext),
   ).rejects.toThrow('bridge_reply: unavailable');
-  expect(replies).toHaveLength(1);
+  expect(replies).toHaveLength(2);
   const contextTool = host.scopes
     .get('external-ada')
     ?.tools.find((item) => item.name === 'bridge_context');

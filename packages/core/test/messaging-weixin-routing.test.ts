@@ -174,8 +174,8 @@ it('fans out a WeChat DM through one canonical source with independent Channel h
   await f.receive('one');
   await f.idle();
   expect(f.runs.map((r) => r.slug)).toEqual(['ada']);
-  expect(f.runs[0]!.inbox).toContain('External private message');
-  expect(f.runs[0]!.inbox).not.toContain('External work-group');
+  expect(f.runs[0]!.inbox).toContain('"conversation":{"kind":"dm"');
+  expect(f.runs[0]!.inbox).not.toContain('"conversation":{"kind":"group"');
   const source = f.core.channels.readMessages(f.group.id)[0]!;
   expect(source.author.kind).toBe('bridged');
   expect(f.core.externalMessaging.inbound.read('bea', source.id).event.conversation.kind).toBe(
