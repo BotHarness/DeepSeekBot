@@ -95,9 +95,15 @@ it('refuses unavailable attachments without a local fallback and ignores complet
 
 it('routes approval and question decisions to their source Host and refuses stale conversation actions', async () => {
   const { host, calls, leave } = fixture();
-  const actions = remoteMessageActions(host, 'same-bot');
+  const forMessage = (messageId: string) =>
+    remoteMessageActions(
+      host,
+      { channelId: 'same-channel', messageId, botSlug: 'same-bot' },
+      'Request unavailable',
+    );
+  const actions = forMessage('same-message');
   await actions.decideToolApproval('same-channel', 'same-message', 'allowed-once');
-  await actions.answerUserQuestion('same-channel', 'question', [
+  await forMessage('question').answerUserQuestion('same-channel', 'question', [
     { id: 'q', selected: ['yes'], custom: '' },
   ]);
   expect(calls.map((call) => call.url)).toEqual([
@@ -109,6 +115,9 @@ it('routes approval and question decisions to their source Host and refuses stal
     messageId: 'same-message',
     outcome: 'allowed-once',
   });
+  await expect(
+    actions.decideToolApproval('same-channel', 'another-message', 'rejected'),
+  ).rejects.toThrow('conversation changed');
   leave();
   await expect(
     actions.decideToolApproval('same-channel', 'same-message', 'rejected'),

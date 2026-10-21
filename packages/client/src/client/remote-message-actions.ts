@@ -1,8 +1,6 @@
-import {
-  answerQuestion,
-  decideApproval,
-  decideGrantRequest,
-} from '../../../../apps/mobile/src/host/attention-actions.js';
+import { decideGrantRequest } from '../../../../apps/mobile/src/host/attention-actions.js';
+import type { RequestRef } from '../../../../apps/mobile/src/host/requests.js';
+import { createHostRequestActions, type HostRequestActions } from './host-activity-actions.js';
 import {
   listHostFolders,
   resolveWorkspaceFolder,
@@ -13,66 +11,33 @@ import type { FolderBrowserActions } from './workspace-grants-entry.js';
 
 type RemoteMessageActions = Pick<
   BridgeActions,
-  | 'toolApprovalStatus'
-  | 'toolApprovalState'
-  | 'toolApprovalExecutionState'
-  | 'decideToolApproval'
-  | 'userQuestionStatus'
-  | 'answerUserQuestion'
   | 'privateInputStatus'
   | 'privateInputSubmit'
   | 'privateInputCancel'
   | 'pickWorkspaceFolder'
   | 'resolveWorkspaceGrantRequest'
 > &
-  FolderBrowserActions;
+  FolderBrowserActions &
+  HostRequestActions;
 
-export function remoteMessageActions(host: MessageHost, botSlug: string): RemoteMessageActions {
+export function remoteMessageActions(
+  host: MessageHost,
+  target: RequestRef,
+  requestUnavailable: string,
+): RemoteMessageActions {
   const { client } = host;
+  const { botSlug } = target;
   const check = (channelId: string) => {
     if (!host.current(channelId)) throw new Error('The conversation changed.');
   };
-  const ref = (channelId: string, messageId: string) => ({ channelId, messageId, botSlug });
-  const approvalState: NonNullable<RemoteMessageActions['toolApprovalState']> = async (
-    channelId,
-    messageId,
-  ) => {
-    const value = await client.call<{ status: 'pending' | 'expired'; expiresAt?: string }>(
-      'toolApprovalStatus',
-      { channelId, messageId },
-    );
-    if (value.status !== 'pending' && value.status !== 'expired')
-      throw new Error('Invalid approval status');
-    return value;
+  const ref = (channelId: string, messageId: string): RequestRef => {
+    check(channelId);
+    if (channelId !== target.channelId || messageId !== target.messageId)
+      throw new Error('The conversation changed.');
+    return target;
   };
   return {
-    toolApprovalState: approvalState,
-    toolApprovalStatus: async (channelId, messageId) =>
-      (await approvalState(channelId, messageId)).status,
-    toolApprovalExecutionState: async (channelId, messageId) => {
-      const value = await client.call<{
-        execution?: Awaited<ReturnType<NonNullable<BridgeActions['toolApprovalExecutionState']>>>;
-      }>('toolApprovalStatus', { channelId, messageId });
-      return value.execution;
-    },
-    async decideToolApproval(channelId, messageId, outcome) {
-      check(channelId);
-      const result = await decideApproval(client, ref(channelId, messageId), outcome);
-      if (result !== 'accepted') throw new Error('The approval is no longer pending.');
-    },
-    async userQuestionStatus(channelId, messageId) {
-      const value = await client.call<{
-        status: Awaited<ReturnType<BridgeActions['userQuestionStatus']>>;
-      }>('userQuestionStatus', { channelId, messageId });
-      if (!['pending', 'submitted', 'answered', 'expired'].includes(value.status))
-        throw new Error('Invalid question status');
-      return value.status;
-    },
-    async answerUserQuestion(channelId, messageId, answers) {
-      check(channelId);
-      const result = await answerQuestion(client, ref(channelId, messageId), { answers });
-      if (result !== 'accepted') throw new Error('The question is no longer pending.');
-    },
+    ...createHostRequestActions({ client: () => client, ref, requestUnavailable }),
     async privateInputStatus(channelId, messageId) {
       const value = await client.call<{
         status: Awaited<ReturnType<NonNullable<BridgeActions['privateInputStatus']>>>;
@@ -82,7 +47,7 @@ export function remoteMessageActions(host: MessageHost, botSlug: string): Remote
       return value.status;
     },
     async privateInputSubmit(channelId, messageId, values) {
-      check(channelId);
+      ref(channelId, messageId);
       const value = await client.call<{ accepted: boolean }>('privateInputSubmit', {
         channelId,
         messageId,
@@ -91,7 +56,7 @@ export function remoteMessageActions(host: MessageHost, botSlug: string): Remote
       if (value.accepted !== true) throw new Error('Private input was not accepted');
     },
     async privateInputCancel(channelId, messageId) {
-      check(channelId);
+      ref(channelId, messageId);
       const value = await client.call<{ accepted: boolean }>('privateInputCancel', {
         channelId,
         messageId,
@@ -102,7 +67,7 @@ export function remoteMessageActions(host: MessageHost, botSlug: string): Remote
     pickWorkspaceFolder: async () => null,
     async resolveWorkspaceGrantRequest(slug, messageId, path, _body, channelId) {
       if (slug !== botSlug || channelId === undefined) throw new Error('The conversation changed.');
-      check(channelId);
+      ref(channelId, messageId);
       const workspace = await resolveWorkspaceFolder(client, path);
       check(channelId);
       const { result } = await decideGrantRequest(client, ref(channelId, messageId), workspace.id);

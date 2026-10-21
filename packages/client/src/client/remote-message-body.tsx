@@ -21,8 +21,19 @@ export function RemoteMessageBody({
 }): ReactElement {
   const host = useMessageHost();
   const actions = useMemo(
-    () => (host === undefined ? undefined : remoteMessageActions(host, message.bot ?? '')),
-    [host, message.bot],
+    () =>
+      host === undefined || message.source === undefined || message.bot === undefined
+        ? undefined
+        : remoteMessageActions(
+            host,
+            {
+              channelId: message.source.channelId,
+              messageId: message.id,
+              botSlug: message.bot,
+            },
+            t('humanInbox.failed'),
+          ),
+    [host, message.source?.channelId, message.id, message.bot, t],
   );
   const stored = useMemo(() => parseStoredChannelMessage(messageForDisplay(message)), [message]);
   if (stored === undefined || host === undefined) return <span>{message.body}</span>;
