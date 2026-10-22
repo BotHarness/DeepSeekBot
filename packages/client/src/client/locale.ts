@@ -8369,8 +8369,10 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'remoteHosts.look.appearance': 'Appearance',
   'remoteHosts.look.name': 'Name',
   'remoteHosts.look.hint': 'Saved in this browser only.',
-  'remoteHosts.look.failed': 'Could not read or save this browser’s appearance. Refresh and try again.',
-  'remoteHosts.look.unsupported': 'This browser cannot safely save appearance. Use a browser with Web Locks support.',
+  'remoteHosts.look.failed':
+    'Could not read or save this browser’s appearance. Refresh and try again.',
+  'remoteHosts.look.unsupported':
+    'This browser cannot safely save appearance. Use a browser with Web Locks support.',
   'remoteHosts.look.refresh': 'Refresh appearance',
   'remoteHosts.settings.title': 'Settings for {name}',
   'remoteHosts.look.symbol.desktop': 'Desktop',

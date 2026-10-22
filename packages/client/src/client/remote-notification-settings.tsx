@@ -23,7 +23,10 @@ export function RemoteNotificationSettings({
   notifications: RemoteNotifications;
   t: BotHarnessTranslate;
 }) {
-  const mount = useMountedResource<HTMLDivElement>(() => () => notifications.cancel(hostId), [notifications, hostId]);
+  const mount = useMountedResource<HTMLDivElement>(
+    () => () => notifications.cancel(hostId),
+    [notifications, hostId],
+  );
   const snapshot = useSyncExternalStore(notifications.subscribe, notifications.getSnapshot);
   const choice = notifications.choice(hostId);
   const [busy, setBusy] = useState(false);

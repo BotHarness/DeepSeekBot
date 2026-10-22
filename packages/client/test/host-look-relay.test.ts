@@ -15,18 +15,26 @@ afterEach(() => {
 });
 
 it.each(['on-time', 'deadline', 'walltime', 'unmount', 'removed'] as const)(
-  'checks %s after hydration at the existing relay boundary', async (reason) => {
+  'checks %s after hydration at the existing relay boundary',
+  async (reason) => {
     vi.useFakeTimers();
     const host = createAppearanceControl();
     let hydrate!: (value: unknown) => void;
     const stored = { name: 'Stored', icon: { kind: 'symbol', id: 'server' }, color: 'teal' };
     const write = vi.fn();
     const read = vi.fn<() => Promise<unknown>>().mockResolvedValue({ b: stored });
-    read.mockImplementationOnce(() => new Promise((resolve) => { hydrate = resolve; }));
+    read.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          hydrate = resolve;
+        }),
+    );
     const looks = createHostLooks({ read, write });
     shared.set('looks', looks);
     let paired = true;
-    shared.set('sources', { getSnapshot: () => ({ hosts: paired ? [{ host: { hostId: 'b' } }] : [] }) });
+    shared.set('sources', {
+      getSnapshot: () => ({ hosts: paired ? [{ host: { hostId: 'b' } }] : [] }),
+    });
     const actions: string[] = [];
     vi.stubGlobal('location', { protocol: 'http:' });
     vi.stubGlobal('fetch', async (_url: string, init?: RequestInit) => {
@@ -37,12 +45,18 @@ it.each(['on-time', 'deadline', 'walltime', 'unmount', 'removed'] as const)(
     try {
       await vi.waitFor(() => expect(actions).toContain('poll'));
       const { clients } = await (await host.fetch(new Request('http://localhost'))).json();
-      const response = host.fetch(new Request('http://localhost/api/botharness/appearance-control', {
-        method: 'POST', body: JSON.stringify({
-          action: 'request', clientId: clients[0].id, expiresAt: Date.now() + 8000, expectedRevision: JSON.stringify(stored),
-          hostLook: { hostId: 'b', patch: { name: 'Studio' } },
+      const response = host.fetch(
+        new Request('http://localhost/api/botharness/appearance-control', {
+          method: 'POST',
+          body: JSON.stringify({
+            action: 'request',
+            clientId: clients[0].id,
+            expiresAt: Date.now() + 8000,
+            expectedRevision: JSON.stringify(stored),
+            hostLook: { hostId: 'b', patch: { name: 'Studio' } },
+          }),
         }),
-      }));
+      );
       await vi.advanceTimersByTimeAsync(0);
       expect(write).not.toHaveBeenCalled();
       if (reason === 'deadline') await vi.advanceTimersByTimeAsync(8000);
@@ -62,7 +76,16 @@ it.each(['on-time', 'deadline', 'walltime', 'unmount', 'removed'] as const)(
         expect(write).toHaveBeenCalledTimes(1);
         expect(looks.look('b').name).toBe('Studio');
       } else {
-        expect(result).toMatchObject({ error: { code: reason === 'removed' ? 'host-look-host-unknown' : reason === 'deadline' || reason === 'walltime' ? 'appearance-client-timeout' : 'appearance-client-stale' } });
+        expect(result).toMatchObject({
+          error: {
+            code:
+              reason === 'removed'
+                ? 'host-look-host-unknown'
+                : reason === 'deadline' || reason === 'walltime'
+                  ? 'appearance-client-timeout'
+                  : 'appearance-client-stale',
+          },
+        });
         expect(write).not.toHaveBeenCalled();
         expect(looks.look('b')).toEqual(stored);
         if (reason !== 'removed') expect(actions).not.toContain('reply');
@@ -74,29 +97,50 @@ it.each(['on-time', 'deadline', 'walltime', 'unmount', 'removed'] as const)(
   },
 );
 
-it.each([100, 20000])('caps the Host relay deadline using the caller absolute expiry (%s ms)', async (duration) => {
-  vi.useFakeTimers();
-  vi.setSystemTime(1000);
-  const host = createAppearanceControl();
-  const post = (body: unknown) => host.fetch(new Request('http://localhost', { method: 'POST', body: JSON.stringify(body) }));
-  try {
-    const registration = await (await post({ action: 'register', platform: 'web' })).json();
-    const poll = post({ action: 'poll', ...registration });
-    await vi.advanceTimersByTimeAsync(0);
-    const pending = post({ action: 'request', clientId: registration.clientId, expiresAt: 1000 + duration, hostLook: { hostId: 'b' } });
-    const { command } = await (await poll).json();
-    expect(command.expiresAt).toBe(1000 + Math.min(duration, 8000));
-    await vi.advanceTimersByTimeAsync(Math.min(duration, 8000));
-    expect(await (await pending).json()).toMatchObject({ error: { code: 'appearance-client-timeout' } });
-  } finally { host.dispose(); }
-});
+it.each([100, 20000])(
+  'caps the Host relay deadline using the caller absolute expiry (%s ms)',
+  async (duration) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1000);
+    const host = createAppearanceControl();
+    const post = (body: unknown) =>
+      host.fetch(new Request('http://localhost', { method: 'POST', body: JSON.stringify(body) }));
+    try {
+      const registration = await (await post({ action: 'register', platform: 'web' })).json();
+      const poll = post({ action: 'poll', ...registration });
+      await vi.advanceTimersByTimeAsync(0);
+      const pending = post({
+        action: 'request',
+        clientId: registration.clientId,
+        expiresAt: 1000 + duration,
+        hostLook: { hostId: 'b' },
+      });
+      const { command } = await (await poll).json();
+      expect(command.expiresAt).toBe(1000 + Math.min(duration, 8000));
+      await vi.advanceTimersByTimeAsync(Math.min(duration, 8000));
+      expect(await (await pending).json()).toMatchObject({
+        error: { code: 'appearance-client-timeout' },
+      });
+    } finally {
+      host.dispose();
+    }
+  },
+);
 
 it('refuses a late Host look command before delivering it to the Client', async () => {
   const host = createAppearanceControl(() => 1000);
-  const post = (body: unknown) => host.fetch(new Request('http://localhost', { method: 'POST', body: JSON.stringify(body) }));
+  const post = (body: unknown) =>
+    host.fetch(new Request('http://localhost', { method: 'POST', body: JSON.stringify(body) }));
   try {
     const registration = await (await post({ action: 'register', platform: 'web' })).json();
-    const response = await post({ action: 'request', clientId: registration.clientId, expiresAt: 999, hostLook: { hostId: 'b', patch: { name: 'Late' } } });
+    const response = await post({
+      action: 'request',
+      clientId: registration.clientId,
+      expiresAt: 999,
+      hostLook: { hostId: 'b', patch: { name: 'Late' } },
+    });
     expect(await response.json()).toMatchObject({ error: { code: 'appearance-request-stale' } });
-  } finally { host.dispose(); }
+  } finally {
+    host.dispose();
+  }
 });

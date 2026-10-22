@@ -1,4 +1,8 @@
-import { isHostColor, isHostIcon, type HostLooks } from '../../../../apps/mobile/src/host/host-look.js';
+import {
+  isHostColor,
+  isHostIcon,
+  type HostLooks,
+} from '../../../../apps/mobile/src/host/host-look.js';
 import {
   withHostColor,
   withHostIcon,
@@ -35,9 +39,11 @@ export async function controlHostLook(
     const keys = Object.keys(patch);
     if (keys.length === 0 || keys.some((key) => !['name', 'icon', 'color'].includes(key)))
       throw new AppearanceError('host-look-invalid-input');
-    if (('name' in patch && typeof patch.name !== 'string') ||
+    if (
+      ('name' in patch && typeof patch.name !== 'string') ||
       ('icon' in patch && !isHostIcon(patch.icon)) ||
-      ('color' in patch && patch.color !== null && !isHostColor(patch.color)))
+      ('color' in patch && patch.color !== null && !isHostColor(patch.color))
+    )
       throw new AppearanceError('host-look-invalid-input');
     transform = (current) => {
       if (expectedRevision !== JSON.stringify(current))
@@ -54,9 +60,10 @@ export async function controlHostLook(
     await looks.ready;
     check();
     if (value.refresh === true) await looks.refresh(check);
-    const look = transform === undefined
-      ? await looks.read(hostId, check)
-      : await looks.update(hostId, transform, check);
+    const look =
+      transform === undefined
+        ? await looks.read(hostId, check)
+        : await looks.update(hostId, transform, check);
     return { hostId, look, revision: JSON.stringify(look) };
   } catch (error) {
     if (error instanceof AppearanceError) throw error;

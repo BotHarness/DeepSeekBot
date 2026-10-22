@@ -7,7 +7,8 @@ it('preserves the native synchronous set and one-time legacy migration contracts
   const forgetLegacyImages = vi.fn();
   const looks = createHostLooks({
     read: async () => ({ a: { name: 'Phone', banner: { kind: 'color', color: '#2f80ed' } } }),
-    write, forgetLegacyImages,
+    write,
+    forgetLegacyImages,
   });
   await looks.ready;
   expect(looks.look('a')).toEqual({ name: 'Phone', icon: DEFAULT_HOST_LOOK.icon, color: 'blue' });
@@ -29,5 +30,8 @@ it('settles native readiness after a failed read without permitting a default-ma
   read.mockResolvedValue({ a: { ...DEFAULT_HOST_LOOK, name: 'Existing' } });
   await looks.refresh();
   looks.set('b', { ...DEFAULT_HOST_LOOK, name: 'Recovered' });
-  expect(write).toHaveBeenLastCalledWith({ a: { ...DEFAULT_HOST_LOOK, name: 'Existing' }, b: { ...DEFAULT_HOST_LOOK, name: 'Recovered' } });
+  expect(write).toHaveBeenLastCalledWith({
+    a: { ...DEFAULT_HOST_LOOK, name: 'Existing' },
+    b: { ...DEFAULT_HOST_LOOK, name: 'Recovered' },
+  });
 });

@@ -108,7 +108,8 @@ export function browserHostLooks(
     read: async () => {
       if (storage === undefined) throw new Error('storage-unavailable');
       const value: unknown = JSON.parse(storage.getItem(HOST_LOOKS_STORAGE_KEY) ?? '{}');
-      if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new Error('storage-invalid');
+      if (typeof value !== 'object' || value === null || Array.isArray(value))
+        throw new Error('storage-invalid');
       return value;
     },
     write: (value, check) => {
@@ -121,7 +122,11 @@ export function browserHostLooks(
     listen: (changed) => {
       if (typeof window === 'undefined') return () => {};
       const listener = (event: StorageEvent) => {
-        if (event.storageArea === storage && (event.key === HOST_LOOKS_STORAGE_KEY || event.key === null)) changed();
+        if (
+          event.storageArea === storage &&
+          (event.key === HOST_LOOKS_STORAGE_KEY || event.key === null)
+        )
+          changed();
       };
       window.addEventListener('storage', listener);
       return () => window.removeEventListener('storage', listener);

@@ -45,10 +45,20 @@ export function mountAppearanceControl(owner: Appearance, wallpaper?: Wallpaper)
             if (command.hostLook !== undefined) {
               const looks = hostLooks();
               await looks.ready;
-              result = await controlHostLook(looks, command.hostLook, command.expectedRevision, {
-                expiresAt: command.expiresAt,
-                signal: abort.signal,
-              }, (hostId) => hostId === getThisHost().id || remoteHosts().getSnapshot().hosts.some((entry) => entry.host.hostId === hostId));
+              result = await controlHostLook(
+                looks,
+                command.hostLook,
+                command.expectedRevision,
+                {
+                  expiresAt: command.expiresAt,
+                  signal: abort.signal,
+                },
+                (hostId) =>
+                  hostId === getThisHost().id ||
+                  remoteHosts()
+                    .getSnapshot()
+                    .hosts.some((entry) => entry.host.hostId === hostId),
+              );
             } else if (command.notifications !== undefined) {
               const sources = remoteHosts();
               const input = object(command.notifications);

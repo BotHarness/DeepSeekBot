@@ -180,7 +180,10 @@ export function RemoteConversationView({
 }): ReactElement {
   const sources = remoteHosts();
   const { hosts, avatars } = useRemoteHosts();
-  const hostName = useHostName(target.hostId, hosts.find((entry) => entry.host.hostId === target.hostId)?.host.hostName ?? '');
+  const hostName = useHostName(
+    target.hostId,
+    hosts.find((entry) => entry.host.hostId === target.hostId)?.host.hostName ?? '',
+  );
   const remote = hosts.find((candidate) => candidate.host.hostId === target.hostId);
   const conversation = useMemo(
     () => sources.conversation(target),

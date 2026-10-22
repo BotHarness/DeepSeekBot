@@ -1,7 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { controlHostLook } from '../src/client/host-look-control.js';
-import { DEFAULT_HOST_LOOK, withHostColor, withHostIcon, withHostName } from '../../../apps/mobile/src/ui/design/host-look.js';
+import {
+  DEFAULT_HOST_LOOK,
+  withHostColor,
+  withHostIcon,
+  withHostName,
+} from '../../../apps/mobile/src/ui/design/host-look.js';
 import {
   HOST_LOOKS_STORAGE_KEY,
   browserHostLooks,
@@ -27,11 +32,15 @@ function memoryStorage() {
   const values = new Map<string, string>();
   return {
     getItem: vi.fn((key: string) => values.get(key) ?? null),
-    setItem: vi.fn((key: string, value: string) => { values.set(key, value); }),
+    setItem: vi.fn((key: string, value: string) => {
+      values.set(key, value);
+    }),
     clear: () => values.clear(),
     removeItem: (key: string) => values.delete(key),
     key: (index: number) => [...values.keys()][index] ?? null,
-    get length() { return values.size; },
+    get length() {
+      return values.size;
+    },
   };
 }
 
@@ -58,7 +67,15 @@ describe('browserHostLooks', () => {
     const request = { signal: new AbortController().signal, expiresAt: Date.now() + 8000 };
     const before = await controlHostLook(b, { hostId: 'b' }, undefined, request, () => true);
     await a.update('b', (current) => withHostName(current, 'Tab A'));
-    await expect(controlHostLook(b, { hostId: 'b', patch: { name: 'Tab B' } }, before.revision, request, () => true)).rejects.toThrow('host-look-revision-stale');
+    await expect(
+      controlHostLook(
+        b,
+        { hostId: 'b', patch: { name: 'Tab B' } },
+        before.revision,
+        request,
+        () => true,
+      ),
+    ).rejects.toThrow('host-look-revision-stale');
     await a.update('a', (current) => withHostName(current, 'Other Host'));
     await b.update('b', (current) => withHostColor(current, 'teal'));
     await Promise.all([
@@ -67,8 +84,17 @@ describe('browserHostLooks', () => {
     ]);
     const stored = JSON.parse(storage.getItem(HOST_LOOKS_STORAGE_KEY) ?? '{}');
     expect(stored.a.name).toBe('Other Host');
-    expect(stored.b).toEqual({ name: 'Latest', icon: { kind: 'emoji', emoji: '🏠' }, color: 'teal' });
-    expect(locks.mock.calls.every(([name, options]) => name === HOST_LOOKS_STORAGE_KEY && JSON.stringify(options) === '{"mode":"exclusive"}')).toBe(true);
+    expect(stored.b).toEqual({
+      name: 'Latest',
+      icon: { kind: 'emoji', emoji: '🏠' },
+      color: 'teal',
+    });
+    expect(
+      locks.mock.calls.every(
+        ([name, options]) =>
+          name === HOST_LOOKS_STORAGE_KEY && JSON.stringify(options) === '{"mode":"exclusive"}',
+      ),
+    ).toBe(true);
   });
 
   it('refuses unavailable Web Locks without reading or writing storage', async () => {
@@ -77,7 +103,9 @@ describe('browserHostLooks', () => {
     const looks = browserHostLooks(storage);
     await looks.ready;
     await expect(looks.read('b')).rejects.toThrow('host-look-lock-unavailable');
-    await expect(looks.update('b', (current) => withHostName(current, 'Unsafe'))).rejects.toThrow('host-look-lock-unavailable');
+    await expect(looks.update('b', (current) => withHostName(current, 'Unsafe'))).rejects.toThrow(
+      'host-look-lock-unavailable',
+    );
     expect(storage.getItem).not.toHaveBeenCalled();
     expect(storage.setItem).not.toHaveBeenCalled();
   });
@@ -92,12 +120,17 @@ describe('browserHostLooks', () => {
     await expect(looks.read('b')).rejects.toThrow('host-look-storage-read-failed');
     expect(looks.look('b')).toBe(known);
     storage.setItem.mockClear();
-    await expect(looks.update('b', (current) => withHostName(current, 'Unsafe'))).rejects.toThrow('host-look-storage-read-failed');
+    await expect(looks.update('b', (current) => withHostName(current, 'Unsafe'))).rejects.toThrow(
+      'host-look-storage-read-failed',
+    );
     expect(storage.setItem).not.toHaveBeenCalled();
     storage.setItem(HOST_LOOKS_STORAGE_KEY, JSON.stringify({ b: known, a: DEFAULT_HOST_LOOK }));
     await looks.refresh();
     await looks.update('b', (current) => withHostColor(current, 'blue'));
-    expect(JSON.parse(storage.getItem(HOST_LOOKS_STORAGE_KEY) ?? '{}')).toEqual({ b: { ...known, color: 'blue' }, a: DEFAULT_HOST_LOOK });
+    expect(JSON.parse(storage.getItem(HOST_LOOKS_STORAGE_KEY) ?? '{}')).toEqual({
+      b: { ...known, color: 'blue' },
+      a: DEFAULT_HOST_LOOK,
+    });
   });
 
   it('checks expiry immediately before localStorage setItem', async () => {
@@ -113,9 +146,15 @@ describe('browserHostLooks', () => {
       return result;
     });
     try {
-      await expect(looks.update('b', (current) => withHostName(current, 'Late'), () => {
-        if (expired) throw new Error('appearance-request-stale');
-      })).rejects.toThrow('appearance-request-stale');
+      await expect(
+        looks.update(
+          'b',
+          (current) => withHostName(current, 'Late'),
+          () => {
+            if (expired) throw new Error('appearance-request-stale');
+          },
+        ),
+      ).rejects.toThrow('appearance-request-stale');
       expect(storage.setItem).not.toHaveBeenCalled();
       expect(looks.error()).toBeUndefined();
     } finally {

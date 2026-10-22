@@ -17,7 +17,11 @@ import { useThisHost } from './this-host.js';
 export { useThisHost } from './this-host.js';
 import { HostGlyph } from './host-glyph.js';
 export { HostGlyph } from './host-glyph.js';
-import { DEFAULT_HOST_LOOK, shownHostName, type HostLook } from '../../../../apps/mobile/src/ui/design/host-look.js';
+import {
+  DEFAULT_HOST_LOOK,
+  shownHostName,
+  type HostLook,
+} from '../../../../apps/mobile/src/ui/design/host-look.js';
 import { hostLooks, unusedHostLook, useHostLook, useHostName } from './host-looks.js';
 
 const focusRing = { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` };
@@ -81,7 +85,6 @@ const styles = stylex.create({
     fontSize: text.metaSize,
     lineHeight: text.metaLine,
   },
-
 });
 
 export function useRemoteHosts() {
@@ -156,15 +159,37 @@ function HostTab({
   );
 }
 
-
-function RemoteHostTab({ remote, selected, onMenu, t }: {
-  remote: RemoteHost; selected: boolean; onMenu: (point: MenuPoint) => void; t: BotHarnessTranslate;
+function RemoteHostTab({
+  remote,
+  selected,
+  onMenu,
+  t,
+}: {
+  remote: RemoteHost;
+  selected: boolean;
+  onMenu: (point: MenuPoint) => void;
+  t: BotHarnessTranslate;
 }) {
   const look = useHostLook(remote.host.hostId);
   const name = shownHostName(look, remote.host.hostName);
   const unread = unreadCount(remote);
-  return <HostTab id={remote.host.hostId} label={!online(remote) ? t('remoteHosts.offline', { name }) : unread > 0 ? t('remoteHosts.unreadNamed', { name, count: unread }) : name}
-    look={look} selected={selected} offline={!online(remote)} unread={unread} onMenu={onMenu} />;
+  return (
+    <HostTab
+      id={remote.host.hostId}
+      label={
+        !online(remote)
+          ? t('remoteHosts.offline', { name })
+          : unread > 0
+            ? t('remoteHosts.unreadNamed', { name, count: unread })
+            : name
+      }
+      look={look}
+      selected={selected}
+      offline={!online(remote)}
+      unread={unread}
+      onMenu={onMenu}
+    />
+  );
 }
 
 export function HostTabs({ t }: { t: BotHarnessTranslate }): ReactElement | null {
@@ -181,7 +206,10 @@ export function HostTabs({ t }: { t: BotHarnessTranslate }): ReactElement | null
   const thisName = shownHostName(localLook, thisHost.name ?? t('remoteHosts.this'));
   const selectedRemote = snapshot.hosts.find((remote) => remote.host.hostId === snapshot.tab);
   const menuRemote = snapshot.hosts.find((remote) => remote.host.hostId === menu?.hostId);
-  const selectedName = useHostName(selectedRemote?.host.hostId, selectedRemote?.host.hostName ?? '');
+  const selectedName = useHostName(
+    selectedRemote?.host.hostId,
+    selectedRemote?.host.hostName ?? '',
+  );
   const removingName = useHostName(removing?.host.hostId, removing?.host.hostName ?? '');
   if (snapshot.hosts.length === 0) return null;
   return (
@@ -210,8 +238,13 @@ export function HostTabs({ t }: { t: BotHarnessTranslate }): ReactElement | null
           onMenu={(point) => setMenu({ hostId: thisId, point })}
         />
         {snapshot.hosts.map((remote) => (
-          <RemoteHostTab key={remote.host.hostId} remote={remote} selected={snapshot.tab === remote.host.hostId}
-            onMenu={(point) => setMenu({ hostId: remote.host.hostId, point })} t={t} />
+          <RemoteHostTab
+            key={remote.host.hostId}
+            remote={remote}
+            selected={snapshot.tab === remote.host.hostId}
+            onMenu={(point) => setMenu({ hostId: remote.host.hostId, point })}
+            t={t}
+          />
         ))}
       </div>
       {selectedRemote !== undefined && !online(selectedRemote) ? (
@@ -232,14 +265,16 @@ export function HostTabs({ t }: { t: BotHarnessTranslate }): ReactElement | null
               { id: 'settings', label: t('remoteHosts.settings') },
               ...(menuRemote === undefined
                 ? []
-                : [
-                    { id: 'remove', label: t('remoteHosts.remove.confirm'), danger: true },
-                  ]),
+                : [{ id: 'remove', label: t('remoteHosts.remove.confirm'), danger: true }]),
             ]}
             onSelect={(id) => {
               setMenu(undefined);
               if (id === 'settings' && (menuRemote !== undefined || menu.hostId === thisId))
-                setSettings({ hostId: menu.hostId, name: menuRemote?.host.hostName ?? thisHost.name ?? thisName, local: menuRemote === undefined });
+                setSettings({
+                  hostId: menu.hostId,
+                  name: menuRemote?.host.hostName ?? thisHost.name ?? thisName,
+                  local: menuRemote === undefined,
+                });
               if (id === 'remove' && menuRemote !== undefined) setRemoving(menuRemote);
             }}
             onClose={() => setMenu(undefined)}
@@ -341,7 +376,9 @@ export function AddRemoteHostDialog({
             .map((remote) => looks.look(remote.host.hostId)),
         ];
         try {
-          await looks.update(result.host.hostId, (current) => current === DEFAULT_HOST_LOOK ? unusedHostLook(used) : current);
+          await looks.update(result.host.hostId, (current) =>
+            current === DEFAULT_HOST_LOOK ? unusedHostLook(used) : current,
+          );
         } catch {}
         onClose();
       });
@@ -460,9 +497,7 @@ export function RemoteHostRows({
           className={`bh-channel-row${row.unread > 0 ? ' bh-has-unread' : ''}${sameTarget(open, row) ? ' bh-selected' : ''}`}
           data-remote-row={row.key}
           aria-label={
-            showSource
-              ? t('remoteHosts.rowLabel', { name: row.title, host: name })
-              : row.title
+            showSource ? t('remoteHosts.rowLabel', { name: row.title, host: name }) : row.title
           }
           onClick={() => {
             onOpen?.();

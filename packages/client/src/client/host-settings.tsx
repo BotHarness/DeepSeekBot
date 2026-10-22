@@ -19,9 +19,23 @@ import { StorageSettings } from './storage-settings.js';
 import type { HostClient } from '../../../../apps/mobile/src/host/client.js';
 
 const styles = stylex.create({
-  identity: { display: 'flex', alignItems: 'center', gap: space.x3, paddingInline: space.x3, minWidth: 0 },
+  identity: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: space.x3,
+    paddingInline: space.x3,
+    minWidth: 0,
+  },
   label: { display: 'flex', flexDirection: 'column', gap: space.x1, minWidth: 0 },
-  name: { color: color.fg, fontSize: text.titleSize, lineHeight: text.titleLine, fontWeight: text.strong, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  name: {
+    color: color.fg,
+    fontSize: text.titleSize,
+    lineHeight: text.titleLine,
+    fontWeight: text.strong,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
   kind: { color: color.muted, fontSize: text.metaSize, lineHeight: text.metaLine },
 });
 
@@ -50,25 +64,47 @@ export function HostSettings({
   const displayName = shownHostName(look, name);
   const [section, setSection] = useState('appearance');
   const sections = [
-    { id: 'appearance', label: t('remoteHosts.look.appearance'), icon: <ChannelSidebarIcon name="paintbrush" /> },
-    ...(local ? [] : [
-      { id: 'notifications', label: t('remoteHosts.notifications'), icon: <ChannelSidebarIcon name="bell" /> },
-      { id: 'models', label: t('remoteHosts.settings.models'), icon: <ChannelSidebarIcon name="cpu" /> },
-      { id: 'usage', label: t('overviewUsage.title'), icon: <ChannelSidebarIcon name="gauge" /> },
-      { id: 'storage', label: t('storage.title'), icon: <ChannelSidebarIcon name="files" /> },
-    ]),
+    {
+      id: 'appearance',
+      label: t('remoteHosts.look.appearance'),
+      icon: <ChannelSidebarIcon name="paintbrush" />,
+    },
+    ...(local
+      ? []
+      : [
+          {
+            id: 'notifications',
+            label: t('remoteHosts.notifications'),
+            icon: <ChannelSidebarIcon name="bell" />,
+          },
+          {
+            id: 'models',
+            label: t('remoteHosts.settings.models'),
+            icon: <ChannelSidebarIcon name="cpu" />,
+          },
+          {
+            id: 'usage',
+            label: t('overviewUsage.title'),
+            icon: <ChannelSidebarIcon name="gauge" />,
+          },
+          { id: 'storage', label: t('storage.title'), icon: <ChannelSidebarIcon name="files" /> },
+        ]),
   ];
   if (!local && remote === undefined) return null;
   return (
     <SettingsDialog
       title={t('remoteHosts.settings.title', { name: displayName })}
-      caption={<div {...stylex.props(styles.identity)}>
-        <HostGlyph look={look} size={28} />
-        <span {...stylex.props(styles.label)}>
-          <span title={displayName} {...stylex.props(styles.name)}>{displayName}</span>
-          <span {...stylex.props(styles.kind)}>{t('remoteHosts.settings')}</span>
-        </span>
-      </div>}
+      caption={
+        <div {...stylex.props(styles.identity)}>
+          <HostGlyph look={look} size={28} />
+          <span {...stylex.props(styles.label)}>
+            <span title={displayName} {...stylex.props(styles.name)}>
+              {displayName}
+            </span>
+            <span {...stylex.props(styles.kind)}>{t('remoteHosts.settings')}</span>
+          </span>
+        </div>
+      }
       sections={sections}
       activeId={section}
       onSelect={setSection}

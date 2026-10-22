@@ -24,7 +24,11 @@ export interface HostLooks {
   error(): string | undefined;
   refresh(check?: () => void): Promise<void>;
   read(hostId: string, check?: () => void): Promise<HostLook>;
-  update(hostId: string, change: (current: HostLook) => HostLook, check?: () => void): Promise<HostLook>;
+  update(
+    hostId: string,
+    change: (current: HostLook) => HostLook,
+    check?: () => void,
+  ): Promise<HostLook>;
   look(hostId: string): HostLook;
   set(hostId: string, look: HostLook): void;
   subscribe(listener: () => void): () => void;
@@ -39,8 +43,14 @@ const text = (value: unknown): string | undefined =>
 
 export function isHostIcon(input: unknown): input is HostIcon {
   const value = record(input);
-  return (value['kind'] === 'symbol' && typeof value['id'] === 'string' && Object.hasOwn(HOST_SYMBOLS, value['id'])) ||
-    (value['kind'] === 'emoji' && typeof value['emoji'] === 'string' && (HOST_EMOJI as readonly string[]).includes(value['emoji']));
+  return (
+    (value['kind'] === 'symbol' &&
+      typeof value['id'] === 'string' &&
+      Object.hasOwn(HOST_SYMBOLS, value['id'])) ||
+    (value['kind'] === 'emoji' &&
+      typeof value['emoji'] === 'string' &&
+      (HOST_EMOJI as readonly string[]).includes(value['emoji']))
+  );
 }
 
 export function isHostColor(input: unknown): input is HostColorId {
@@ -49,7 +59,9 @@ export function isHostColor(input: unknown): input is HostColorId {
 
 export function parseHostIcon(input: unknown): HostIcon {
   if (!isHostIcon(input)) return DEFAULT_HOST_LOOK.icon;
-  return input.kind === 'symbol' ? { kind: 'symbol', id: input.id } : { kind: 'emoji', emoji: input.emoji };
+  return input.kind === 'symbol'
+    ? { kind: 'symbol', id: input.id }
+    : { kind: 'emoji', emoji: input.emoji };
 }
 
 export function parseHostColor(input: unknown): HostColorId | undefined {
@@ -101,7 +113,9 @@ export function createHostLooks(storage: LookStorage): HostLooks {
     } catch {
       return fail('host-look-storage-read-failed');
     }
-    return Object.fromEntries(Object.entries(record(raw)).map(([id, look]) => [id, parseHostLook(look)]));
+    return Object.fromEntries(
+      Object.entries(record(raw)).map(([id, look]) => [id, parseHostLook(look)]),
+    );
   };
   const transaction = async (work: () => Promise<void>) => {
     if (storage.transaction === undefined) return work();
@@ -123,24 +137,30 @@ export function createHostLooks(storage: LookStorage): HostLooks {
       return fail('host-look-storage-failed');
     }
   };
-  const refresh = async (check?: () => void) => transaction(async () => {
-    check?.();
-    const value = await load();
-    check?.();
-    publish(value);
-  });
-  const ready = (storage.transaction === undefined
-    ? storage.read().then((raw) => {
-        if (touched) return;
-        const stored = Object.entries(record(raw));
-        const value = Object.fromEntries(stored.map(([id, look]) => [id, parseHostLook(look)]));
-        if (stored.some(([, look]) => isLegacyHostLook(look))) {
-          persist(value);
-          storage.forgetLegacyImages?.();
-        }
-        publish(value);
-      }, () => fail('host-look-storage-read-failed'))
-    : refresh()).catch(() => undefined);
+  const refresh = async (check?: () => void) =>
+    transaction(async () => {
+      check?.();
+      const value = await load();
+      check?.();
+      publish(value);
+    });
+  const ready = (
+    storage.transaction === undefined
+      ? storage.read().then(
+          (raw) => {
+            if (touched) return;
+            const stored = Object.entries(record(raw));
+            const value = Object.fromEntries(stored.map(([id, look]) => [id, parseHostLook(look)]));
+            if (stored.some(([, look]) => isLegacyHostLook(look))) {
+              persist(value);
+              storage.forgetLegacyImages?.();
+            }
+            publish(value);
+          },
+          () => fail('host-look-storage-read-failed'),
+        )
+      : refresh()
+  ).catch(() => undefined);
   const available = async () => {
     await ready;
     if (failure !== undefined) throw new Error(failure);
