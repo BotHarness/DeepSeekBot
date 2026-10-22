@@ -1,3 +1,5 @@
+import { useHostName, hostLooks } from './host-looks.js';
+import { shownHostName } from '../../../../apps/mobile/src/ui/design/host-look.js';
 import { useMemo, useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import {
@@ -288,7 +290,7 @@ export function RemoteActivityGroup({
             channelId,
             title:
               current.snapshot.roster?.channels.find((channel) => channel.id === channelId)?.name ??
-              current.host.hostName,
+              shownHostName(hostLooks().look(current.host.hostId), current.host.hostName),
           });
           registry?.open(CHANNEL_BODY_PANEL);
         },
@@ -296,6 +298,7 @@ export function RemoteActivityGroup({
     [sources, host.host.hostId, observation, registry, t],
   );
   const [collapsed, setCollapsed] = useState<Partial<Record<ActivitySection, boolean>>>({});
+  const hostName = useHostName(host.host.hostId, host.host.hostName);
   if (query.botSlug !== undefined || query.channelId !== undefined) return null;
   const refused = host.snapshot.connection.status === 'refused';
   const bots = (host.snapshot.roster?.bots ?? []).map((bot) => ({
@@ -322,11 +325,11 @@ export function RemoteActivityGroup({
     registry?.open(CHANNEL_BODY_PANEL);
   };
   return (
-    <section data-activity-host={host.host.hostId} aria-label={host.host.hostName}>
-      <ActivityHostHeading name={host.host.hostName} remote t={t} />
+    <section data-activity-host={host.host.hostId} aria-label={hostName}>
+      <ActivityHostHeading name={hostName} remote t={t} />
       {host.snapshot.connection.status !== 'connected' ? (
         <p role="status" {...stylex.props(styles.note)}>
-          {t(refused ? 'remoteHosts.refused' : 'remoteHosts.offline', { name: host.host.hostName })}
+          {t(refused ? 'remoteHosts.refused' : 'remoteHosts.offline', { name: hostName })}
         </p>
       ) : null}
       {refused

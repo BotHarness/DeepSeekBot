@@ -56,6 +56,7 @@ export function createRemoteNotifications(options: {
   api?: DesktopNotificationApi | undefined;
   open(target: RemoteConversationTarget): void;
   privateBody(): string;
+  hostName?(hostId: string, fallback: string): string;
   prepareEnable(hostId: string, signal: AbortSignal): Promise<void>;
   diagnostic?(code: NotificationDiagnostic): void;
 }) {
@@ -315,7 +316,7 @@ export function createRemoteNotifications(options: {
           )
             continue;
           const bot = remote.snapshot.roster?.bots.find((bot) => bot.slug === item.botSlug);
-          const title = `${remote.host.hostName} · ${item.channelName ?? bot?.displayName ?? item.botSlug}`;
+          const title = `${options.hostName?.(id, remote.host.hostName) ?? remote.host.hostName} · ${item.channelName ?? bot?.displayName ?? item.botSlug}`;
           try {
             const handle = api.show(title, {
               body: kind === 'private-input' ? options.privateBody() : noticeBody(item.summary),

@@ -1,3 +1,5 @@
+import { hostLooks } from './host-looks.js';
+import { shownHostName } from '../../../../apps/mobile/src/ui/design/host-look.js';
 import type { HostCarrier } from '../../../../apps/mobile/src/host/carrier.js';
 import {
   createHostClient,
@@ -150,6 +152,7 @@ export function createRemoteHosts(options: {
   loadImage?: (url: string, headers: Record<string, string>) => Promise<string | undefined>;
   releaseImage?: (image: string) => void;
   translate?: NotificationTranslate;
+  hostName?: (hostId: string, fallback: string) => string;
 }): RemoteHosts {
   const { storage, carrier, loadImage, releaseImage } = options;
   const listeners = new Set<() => void>();
@@ -163,6 +166,7 @@ export function createRemoteHosts(options: {
   let open: RemoteConversationTarget | undefined;
   let snapshot: RemoteHostsSnapshot = { hosts: [], avatars, tab };
   const notifications = createRemoteNotifications({
+    ...(options.hostName === undefined ? {} : { hostName: options.hostName }),
     storage,
     api: browserNotificationApi(),
     async prepareEnable(hostId, signal) {
@@ -537,6 +541,7 @@ export function remoteHosts(translator?: NotificationTranslate): RemoteHosts {
     loadImage: browserImage,
     releaseImage: (image) => URL.revokeObjectURL(image),
     translate: (key) => translate(key),
+    hostName: (hostId, fallback) => shownHostName(hostLooks().look(hostId), fallback),
   });
   const sources = shared;
   let selection = store.getSnapshot().selection;

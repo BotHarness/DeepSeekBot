@@ -68,7 +68,15 @@ deepseekbot search <words>
 
 ### 远程设置
 
-浏览器远程图标菜单中的「远程设置」与以下在线命令使用同一个 Host 所有者。通过 `--host <origin>` 和私有的 `--token-file <file>`（或已有环境变量）指定来源 Host，不要默认指向提供当前网页的本机。模型使用 `model-catalog`、`home-model-set`、`model-presets`、`model-preset-create` 和 `model-preset-update`；用量与 Memory 活动使用 `overview-usage`、`overview-memory`；存储使用 `storage-usage` 及两组清理预览／确认命令。删除仍须传入 `--confirmation-stdin --confirm`，且预览必须来自同一 Host。连接失败或被拒绝时，不会改用本地 Profile。这些命令不读取浏览器的配对密钥，也不修改本设备保存的 Host 外观。
+`appearance-clients` 列出打开的浏览器 Client。`host-look --client-id <id> --host-id <id>` 读取该浏览器内的 Host 名称、图标、颜色和内容修订。写入时加 `--patch-stdin --expected-revision <revision>`，从 stdin 传入 JSON，例如 `{"name":"Studio","icon":{"kind":"symbol","id":"server"},"color":"teal"}`。空名称恢复 Host 原始显示名；`color: null` 清除颜色。名称去除首尾空格并限制为 40 字符，与手机共享 HostLook 规则。Host ID 可为已配对的远程 Host 或本机 Host；命令不接收或返回远程凭据。
+
+命令复用已认证的 `appearance-control` relay，直达 UI 使用的同一 Client 本地 `HostLooks`，不修改操作系统 hostname，也不同步到其他设备。浏览器须保持打开并显式选择 Client。同源标签页共同使用名为 `botharness.hostLooks.v1` 的独占 Web Lock；owner 在锁内重读持久数据、比较目标 Host 的内容 revision，再只合并该 Host。UI 字段变换也在锁内应用于当前值，不携带旧整份外观覆盖其他字段。旧 revision 返回 `host-look-revision-stale`；Web Locks 不可用时返回 `host-look-lock-unavailable`，不降级为不安全的读改写。
+
+`host-look-storage-read-failed` 会保留内存中已知的显示状态，但阻止读取和写入，不把默认值当成成功加载。修复浏览器存储访问后，执行 `host-look --client-id <id> --host-id <id> --refresh`，或在设置中选择「刷新外观」，显式恢复；刷新本身不写入。事务锁内重读失败同样阻止落盘。`host-look-storage-failed` 表示浏览器拒绝写入，不发布未保存的外观；解决存储问题并刷新后才能重新提交。
+
+CLI 在读取 stdin 和连接前记录绝对期限；Host 将期限限制为 relay 接收后最多八秒。Client 在加载后、获得锁后和实际 `localStorage.setItem` 前复核墙上时间，即使定时回调尚未运行，越期命令也不能开始写入。Client 释放与 Host 移除也在写入前复核。这不代表远端取消已确认：期限前杀掉 CLI 或断开 HTTP，已送达命令仍可能在期限内执行。写入回执丢失或 relay 超时，在 CLI 仍能输出时报告 `host-look-outcome-unknown`；重试前须读回相同 Client/Host。期限内已完成的写入可能成功而回执丢失。Host 设置统一包含外观、通知、模型、用量和存储；离线时仍可进入外观和通知。通知继续使用 `browser-notifications`，保留权限、激活基线和取消语义。
+
+浏览器远程图标菜单中的「Host 设置」与以下在线命令使用同一个 Host 所有者。通过 `--host <origin>` 和私有的 `--token-file <file>`（或已有环境变量）指定来源 Host，不要默认指向提供当前网页的本机。模型使用 `model-catalog`、`home-model-set`、`model-presets`、`model-preset-create` 和 `model-preset-update`；用量与 Memory 活动使用 `overview-usage`、`overview-memory`；存储使用 `storage-usage` 及两组清理预览／确认命令。删除仍须传入 `--confirmation-stdin --confirm`，且预览必须来自同一 Host。连接失败或被拒绝时，不会改用本地 Profile。这些命令不读取浏览器的配对密钥，也不修改本设备保存的 Host 外观。
 
 将 `DEEPSEEKBOT_HOST` 设为运行中 Host 的 loopback origin 或 tailnet HTTPS origin。使用 tailnet origin（例如 loopback Host 前面的 `tailscale serve`）时，Host 必须以 `--trusted-host <machine>.<tailnet>.ts.net` 启动；否则登录能成功，但 DSH 的 `/api` Host 校验会拒绝每个请求，CLI 返回 `host-untrusted`。`--host <origin>` 可覆盖它。当前启动令牌通过 `DEEPSEEKBOT_HOST_TOKEN` 或 `--token-file <私有文件>` 提供，不得把令牌值放入参数。每次调用重新登录，cookie 只留在内存；Host 重启后须使用新令牌。在线命令不打开 Profile 数据库。参见 [ADR-0159](adr/0159-live-cli-verbs-ride-the-dsh-http-carrier.md)。
 
