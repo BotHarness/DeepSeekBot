@@ -32,6 +32,7 @@ vi.mock('react-native', async () => {
   };
   return {
     ...shim,
+    Platform: { ...shim.Platform, OS: 'android' },
     useWindowDimensions: () => ({ width: 402, height: 874, scale: 3, fontScale: speech.scale }),
     View,
     Keyboard: { dismiss() {} },
