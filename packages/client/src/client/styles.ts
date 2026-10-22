@@ -6002,8 +6002,8 @@ button:has(.bh-panel-glyph):is(:hover, :focus-within) .bh-panel-activity[data-wi
 }
 .bh-human-inbox-row {
   position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: ${space.x3} ${space.x4};
   min-height: 76px;
@@ -6027,6 +6027,11 @@ button:has(.bh-panel-glyph):is(:hover, :focus-within) .bh-panel-activity[data-wi
 .bh-human-inbox-row-main {
   position: relative;
   pointer-events: none;
+  flex: 1 1 24ch;
+  min-width: 0;
+}
+.bh-human-inbox-row > .bh-human-inbox-detail {
+  flex-basis: 100%;
   min-width: 0;
 }
 .bh-human-inbox-source-link {
@@ -6182,7 +6187,7 @@ button:has(.bh-panel-glyph):is(:hover, :focus-within) .bh-panel-activity[data-wi
 .bh-human-inbox-row-title {
   position: relative;
   pointer-events: none;
-  grid-column: 1 / -1;
+  flex-basis: 100%;
   min-width: 0;
   font-weight: ${text.strong};
   overflow-wrap: anywhere;
@@ -6211,6 +6216,8 @@ button:has(.bh-panel-glyph):is(:hover, :focus-within) .bh-panel-activity[data-wi
   position: relative;
   display: flex;
   flex: none;
+  max-width: 100%;
+  margin-inline-start: auto;
   gap: ${space.x2};
   flex-wrap: wrap;
 }
