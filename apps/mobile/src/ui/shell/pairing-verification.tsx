@@ -10,13 +10,7 @@ import { Text } from '../primitives/text';
 import { t } from '../strings';
 import type { usePairing } from './use-pairing';
 
-export function PairingVerification({
-  pairing,
-  progress,
-}: {
-  pairing: ReturnType<typeof usePairing>;
-  progress?: string | undefined;
-}) {
+export function PairingVerification({ pairing }: { pairing: ReturnType<typeof usePairing> }) {
   const theme = useDesignTheme();
   const [details, setDetails] = useState(false);
   const verification = pairing.verification;
@@ -35,11 +29,6 @@ export function PairingVerification({
       contentContainerStyle={{ padding: space.x6, gap: space.x5 }}
     >
       <View style={{ alignItems: 'center', gap: space.x3, paddingTop: space.x4 }}>
-        {progress ? (
-          <Text variant="meta" tone="muted">
-            {progress}
-          </Text>
-        ) : null}
         <RowIcon name="computer" size={theme.type.display.line} />
         <Text variant="display" accessibilityRole="header" style={{ textAlign: 'center' }}>
           {title}

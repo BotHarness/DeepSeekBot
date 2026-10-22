@@ -1,85 +1,63 @@
-import { Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
-import { View } from 'react-native';
-import { pairAccountSelection } from '../../src/host/account-pairing';
-import type { ConnectHost } from '../../src/host/connect-account';
-import { useHostSession } from '../../src/host/host-session';
+import { useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useCallback, useRef } from 'react';
+
 import { connectAccount } from '../../src/host/native-connect-account';
 import { AccountHosts } from '../../src/ui/account-hosts';
-import type { AccountPairResult } from '../../src/ui/primitives/account-panel';
+import { HOST_NAME_MAX } from '../../src/ui/design/host-look';
+import { useDesignTheme } from '../../src/ui/design/theme';
+import { space } from '../../src/ui/design/tokens';
+import { pairingFailureText } from '../../src/ui/pairing-failure';
+import { Button } from '../../src/ui/primitives/button';
+import { ConnectionNameField } from '../../src/ui/primitives/connection-name-field';
+import { KeyboardFormScroll } from '../../src/ui/primitives/keyboard-form';
+import { Text } from '../../src/ui/primitives/text';
 import { PairingVerification } from '../../src/ui/shell/pairing-verification';
 import { usePairing } from '../../src/ui/shell/use-pairing';
 import { t } from '../../src/ui/strings';
 
 export default function PairAccountScreen() {
-  const pairing = usePairing({ stayOnPage: true, preventDuplicates: true });
-  const session = useHostSession();
+  const theme = useDesignTheme();
+  const pairing = usePairing();
   const params = useLocalSearchParams<{ account?: string }>();
   const requested = useRef(false);
-  const batch = useRef<AbortController | undefined>(undefined);
-  const [busy, setBusy] = useState(false);
-  const [progress, setProgress] = useState<string>();
-  const [results, setResults] = useState<Record<string, AccountPairResult>>({});
-  const add = async (hosts: ConnectHost[]) => {
-    if (batch.current) return;
-    const operation = new AbortController();
-    batch.current = operation;
-    setBusy(true);
-    let index = 0;
-    try {
-      await pairAccountSelection({
-        hosts,
-        signal: operation.signal,
-        pair: (host) => {
-          setProgress(t.pairAccount.progress(++index, hosts.length));
-          return pairing.pair(`account:${host.id}`, 'account', true, host.id);
-        },
-        result: (host, result) => setResults((old) => ({ ...old, [host.id]: result })),
-      });
-    } finally {
-      if (batch.current === operation) {
-        batch.current = undefined;
-        setBusy(false);
-        setProgress(undefined);
-      }
-    }
-  };
+
   useFocusEffect(
     useCallback(() => {
-      let live = true;
-      setResults({});
       if (typeof params.account === 'string' && !requested.current) {
         requested.current = true;
-        void connectAccount
-          .hosts()
-          .then((listed) => {
-            if (live && listed.ok) {
-              const host = listed.value.find((host) => host.id === params.account);
-              if (host) void add([host]);
-            }
-          })
-          .catch(() => undefined);
+        void pairing.pair(`account:${params.account}`, 'account', true, params.account);
       }
-      return () => {
-        live = false;
-        batch.current?.abort();
-        pairing.abort();
-      };
+      return pairing.abort;
     }, [params.account]),
   );
+
+  if (pairing.busy) return <PairingVerification pairing={pairing} />;
+
   return (
-    <View style={{ flex: 1 }}>
-      <Stack.Screen options={{ title: t.pairAccount.computers }} />
-      {pairing.busy ? <PairingVerification pairing={pairing} progress={progress} /> : null}
-      <View style={{ flex: 1, display: pairing.busy ? 'none' : 'flex' }}>
-        <AccountHosts
-          account={connectAccount}
-          busy={busy}
-          saved={session.hosts}
-          results={results}
-          onPair={add}
-        />
-      </View>
-    </View>
+    <KeyboardFormScroll
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="interactive"
+      style={{ flex: 1, backgroundColor: theme.overlay.fill }}
+      contentContainerStyle={{ padding: space.x5, gap: space.x4 }}
+    >
+      <Text tone="muted">{t.pairChoice.accountComputer}</Text>
+      <AccountHosts
+        account={connectAccount}
+        busy={pairing.busy}
+        onPair={(host) => void pairing.pair(`account:${host.id}`, 'account', true, host.id)}
+      />
+      {pairing.error !== undefined ? (
+        <Text accessibilityRole="alert" accessibilityLiveRegion="polite" tone="danger">
+          {pairingFailureText(pairing.error, pairing.method)}
+        </Text>
+      ) : null}
+      {pairing.canRetry ? <Button label={t.retry} onPress={() => void pairing.retry()} /> : null}
+      <ConnectionNameField
+        value={pairing.connectionName}
+        onChange={pairing.setConnectionName}
+        maxLength={HOST_NAME_MAX}
+        disabled={pairing.busy}
+      />
+    </KeyboardFormScroll>
   );
 }

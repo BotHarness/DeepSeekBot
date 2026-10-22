@@ -15,23 +15,13 @@ vi.mock('@expo/ui', () => ({
     </button>
   ),
 }));
-const mocks = vi.hoisted(() => ({
-  pairHost: vi.fn(),
-  dismissTo: vi.fn(),
-  offer: vi.fn(),
-  getState: vi.fn(),
-  save: vi.fn(),
-}));
+const mocks = vi.hoisted(() => ({ pairHost: vi.fn(), dismissTo: vi.fn() }));
 vi.mock('expo-router', () => ({ useRouter: () => ({ dismissTo: mocks.dismissTo }) }));
-vi.mock('../src/host/host-session', () => ({
-  hostSession: { pair: mocks.save, getState: mocks.getState },
-}));
+vi.mock('../src/host/host-session', () => ({ hostSession: { pair: vi.fn() } }));
 vi.mock('../src/host/native-carrier', () => ({ nativeCarrier: () => ({}) }));
-vi.mock('../src/host/native-connect-account', () => ({ connectAccount: { offer: mocks.offer } }));
+vi.mock('../src/host/native-connect-account', () => ({ connectAccount: {} }));
 vi.mock('../src/host/native-host-look', () => ({ hostLooks: {} }));
-vi.mock('../src/telemetry/native', () => ({
-  mobileTelemetry: { pairing: () => ({ finish: () => {} }) },
-}));
+vi.mock('../src/telemetry/native', () => ({ mobileTelemetry: {} }));
 vi.mock('../src/host/pairing', () => ({ pairHost: mocks.pairHost }));
 
 import type { pairHost } from '../src/host/pairing';
@@ -45,9 +35,8 @@ const fingerprint =
 let pairing: ReturnType<typeof usePairing>;
 let root: Root;
 let view: HTMLElement;
-let pairingOptions: Parameters<typeof usePairing>[0] = {};
 function Harness() {
-  pairing = usePairing(pairingOptions);
+  pairing = usePairing();
   return pairing.busy ? <PairingVerification pairing={pairing} /> : null;
 }
 afterEach(() => {
@@ -57,7 +46,6 @@ afterEach(() => {
   });
   view?.remove();
   vi.clearAllMocks();
-  pairingOptions = {};
 });
 async function setup() {
   view = document.createElement('div');
@@ -138,36 +126,5 @@ it('cancels the pending phone approval without saving or navigating', async () =
   expect(pairing.busy).toBe(false);
   expect(pairing.fingerprint).toBeUndefined();
   expect(pairing.error).toBeUndefined();
-  expect(mocks.dismissTo).not.toHaveBeenCalled();
-});
-
-it('keeps the account list open after a successful single ceremony', async () => {
-  pairingOptions = { stayOnPage: true };
-  const { approve } = await setup();
-  await click('pairing-fingerprint-match');
-  await approve();
-  expect(pairing.busy).toBe(false);
-  expect(mocks.dismissTo).not.toHaveBeenCalled();
-});
-it('refuses an alternate registration of an already saved Host before opening a channel', async () => {
-  pairingOptions = { stayOnPage: true, preventDuplicates: true };
-  view = document.createElement('div');
-  document.body.append(view);
-  root = createRoot(view);
-  await act(async () => root.render(<Harness />));
-  mocks.offer.mockResolvedValue({
-    ok: true,
-    value: { host: { id: 'already-saved', name: 'Same name' } },
-  });
-  mocks.getState.mockReturnValue({ hosts: [{ hostId: 'already-saved' }] });
-  const actual = await vi.importActual<typeof import('../src/host/pairing')>('../src/host/pairing');
-  mocks.pairHost.mockImplementation(actual.pairHost);
-  await act(async () => {
-    expect(
-      await pairing.pair('account:new-registration', 'account', true, 'new-registration'),
-    ).toBe('already-paired');
-  });
-  expect(pairing.verification).toBeUndefined();
-  expect(mocks.save).not.toHaveBeenCalled();
   expect(mocks.dismissTo).not.toHaveBeenCalled();
 });
