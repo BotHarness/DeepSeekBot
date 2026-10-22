@@ -8,7 +8,10 @@ import { AccountPanel, type AccountPairResult } from './primitives/account-panel
 import { t } from './strings';
 
 export function AccountHosts(props: {
-  account: Pick<ConnectAccount, 'email' | 'signIn' | 'hosts' | 'signOut' | 'deleteAccount'>;
+  account: Pick<
+    ConnectAccount,
+    'email' | 'signIn' | 'hosts' | 'signOut' | 'deleteAccount' | 'actionKey'
+  >;
   busy: boolean;
   saved: readonly SavedHost[];
   results: Readonly<Record<string, AccountPairResult>>;
@@ -22,6 +25,9 @@ export function AccountHosts(props: {
   const [selected, setSelected] = useState<string[]>([]);
   const generation = useRef(0);
   const working = useRef(false);
+  const actionKey = useRef<string | null>(null);
+  const locked = useRef(false);
+  locked.current = props.busy || loading;
 
   const load = async (ticket: number): Promise<void> => {
     setLoading(true);
@@ -52,8 +58,11 @@ export function AccountHosts(props: {
         .email()
         .then(async (current) => {
           if (ticket !== generation.current) return;
+          actionKey.current = await account.actionKey();
+          if (ticket !== generation.current) return;
           setEmail(current);
           if (current !== null) await load(ticket);
+          if (ticket === generation.current) actionKey.current = await account.actionKey();
         })
         .catch(() => {
           if (ticket === generation.current) {
@@ -69,29 +78,25 @@ export function AccountHosts(props: {
   );
 
   const run = async (action: 'signIn' | 'signOut' | 'deleteAccount' | 'refresh') => {
-    if (working.current || props.busy || loading) return;
+    if (working.current || locked.current) return;
     working.current = true;
     const ticket = ++generation.current;
     setLoading(true);
     setError(undefined);
     try {
       if (action === 'refresh') await load(ticket);
-      else if (action === 'signOut') {
-        await account.signOut();
-        if (ticket === generation.current) {
-          setEmail(null);
-          setHosts(undefined);
-          setSelected([]);
-        }
-      } else {
-        const result = await account[action]();
+      else {
+        const result =
+          action === 'signIn'
+            ? await account.signIn()
+            : await account[action](actionKey.current ?? '');
         if (ticket !== generation.current) return;
         if (!result.ok) {
           setError(t.pairRefused[result.code]);
           return;
         }
         setSelected([]);
-        if (action === 'deleteAccount') {
+        if (action === 'deleteAccount' || action === 'signOut') {
           setEmail(null);
           setHosts(undefined);
         } else {
@@ -102,9 +107,29 @@ export function AccountHosts(props: {
     } catch {
       if (ticket === generation.current) setError(t.pairRefused['relay-unavailable']);
     } finally {
+      try {
+        if (ticket === generation.current) actionKey.current = await account.actionKey();
+      } catch {
+        if (ticket === generation.current) actionKey.current = null;
+      }
       working.current = false;
       if (ticket === generation.current) setLoading(false);
     }
+  };
+  const confirm = (action: 'signOut' | 'deleteAccount') => {
+    if (working.current || locked.current || !actionKey.current) return;
+    const ticket = generation.current;
+    let used = false;
+    confirmDestructive(
+      action === 'signOut' ? t.pairAccount.signOutTitle : t.pairAccount.deleteTitle,
+      action === 'signOut' ? t.pairAccount.signOutMessage : t.pairAccount.deleteMessage,
+      action === 'signOut' ? t.pairAccount.signOut : t.pairAccount.deleteConfirm,
+      () => {
+        if (used || ticket !== generation.current || locked.current || working.current) return;
+        used = true;
+        return run(action);
+      },
+    );
   };
   const added = (host: ConnectHost) =>
     accountHostAdded(host, props.saved) ||
@@ -151,15 +176,8 @@ export function AccountHosts(props: {
       }}
       onRefresh={() => void run('refresh')}
       onSignIn={() => void run('signIn')}
-      onSignOut={() => void run('signOut')}
-      onDelete={() =>
-        confirmDestructive(
-          t.pairAccount.deleteTitle,
-          t.pairAccount.deleteMessage,
-          t.pairAccount.deleteConfirm,
-          () => run('deleteAccount'),
-        )
-      }
+      onSignOut={() => confirm('signOut')}
+      onDelete={() => confirm('deleteAccount')}
     />
   );
 }

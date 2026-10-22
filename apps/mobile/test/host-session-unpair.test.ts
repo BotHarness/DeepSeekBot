@@ -7,6 +7,7 @@ const secure = new Map<string, string>();
 const quickActions = vi.hoisted(() => ({ items: [] as Array<{ id: string }> }));
 const clearedCaches = vi.hoisted(() => [] as string[]);
 const forgotten = vi.hoisted(() => [] as string[]);
+const clientStops = vi.hoisted(() => vi.fn());
 let beforeSave: ((key: string, value: string) => Promise<void>) | undefined;
 let savedFilter = 'all';
 
@@ -81,7 +82,7 @@ vi.mock('../src/telemetry/connection', () => ({
 vi.mock('../src/host/client', () => ({
   createHostClient: () => ({
     start() {},
-    stop() {},
+    stop: clientStops,
     retryNow() {},
     subscribe: () => () => {},
     getSnapshot: () => ({ connection: { status: 'connecting', route: '' } }),
@@ -269,4 +270,31 @@ describe('drawer selection through the real Host Session', () => {
     await b;
     await expectSelection('b', 'all');
   });
+});
+
+it('removes account-owned connections through the real session and stops its client, preserving manual records', async () => {
+  const owner = {
+    issuer: 'https://api.workos.com' as const,
+    relay: 'https://fixture.invalid',
+    clientId: 'client_fixture',
+    subject: 'user_a',
+  };
+  secure.set(
+    'deepseekbot.hosts.v3',
+    JSON.stringify({
+      hosts: [{ ...host('old'), accountOwner: owner }, host('new')],
+      current: 'old',
+    }),
+  );
+  const { hostSession } = await import('../src/host/host-session');
+  await vi.waitFor(() => expect(hostSession.getState().hosts).toHaveLength(2));
+  clientStops.mockClear();
+  await hostSession.removeAccount(owner);
+  expect(savedIds()).toEqual(['new']);
+  expect(hostSession.getState().hosts.map((host) => host.hostId)).toEqual(['new']);
+  expect(clientStops).toHaveBeenCalledTimes(1);
+  expect(forgotten).toContain('old');
+  expect(forgotten).not.toContain('new');
+  expect(clearedCaches).toEqual(['old']);
+  expect(parseSavedHosts(secure.get('deepseekbot.hosts.v3')).pendingAccountRemoval).toBeUndefined();
 });

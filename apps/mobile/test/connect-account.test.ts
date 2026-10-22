@@ -31,7 +31,7 @@ function fakeRelay(
         return Response.json({
           access_token: 'access-0',
           refresh_token: 'refresh-0',
-          user: { email: 'alice@example.com' },
+          user: { id: 'user_alice', email: 'alice@example.com' },
         });
       if (options.expired) return Response.json({ error: 'invalid_grant' }, { status: 400 });
       return Response.json({ access_token: 'access-1', refresh_token: 'refresh-1' });
@@ -101,6 +101,8 @@ describe('phone Connect account', () => {
       clientId: 'client_01TEST',
       refreshToken: 'refresh-0',
       email: 'alice@example.com',
+      subject: 'user_alice',
+      sessionId: 'random-3',
     });
     expect(await relay.account.hosts()).toEqual({
       ok: true,
@@ -123,11 +125,11 @@ describe('phone Connect account', () => {
         offer: '',
         encryption: { protocol: 'connect-noise-xk-v1', publicKey: 'ab'.repeat(32) },
         enrollment: { body: 'signed-request', signature: 'signature' },
-        verifier: 'random-3',
+        verifier: 'random-4',
       },
     });
     expect(JSON.parse(relay.calls.at(-1)!.body!)).toEqual({
-      verifierHash: await challenge('random-3'),
+      verifierHash: await challenge('random-4'),
       name: 'iPhone',
     });
     if (!offer.ok) throw new Error('missing enrollment');
@@ -188,19 +190,25 @@ describe('phone Connect account', () => {
     forged.authorize.mockResolvedValueOnce(`${REDIRECT}?code=x&state=other` as never);
     expect(await forged.account.signIn()).toEqual({ ok: false, code: 'sign-in-failed' });
     await forged.account.signIn();
-    await forged.account.signOut();
+    await forged.account.signOut((await forged.account.actionKey())!);
     expect(await forged.account.email()).toBeNull();
   });
 
   it('deletes the account at the relay and forgets the session only when it succeeds', async () => {
     const failing = fakeRelay({ deletion: 502 });
     await failing.account.signIn();
-    expect(await failing.account.deleteAccount()).toEqual({ ok: false, code: 'relay-unavailable' });
+    expect(await failing.account.deleteAccount((await failing.account.actionKey())!)).toEqual({
+      ok: false,
+      code: 'account-deletion-uncertain',
+    });
     expect(await failing.account.email()).toBe('alice@example.com');
 
     const relay = fakeRelay();
     await relay.account.signIn();
-    expect(await relay.account.deleteAccount()).toEqual({ ok: true, value: undefined });
+    expect(await relay.account.deleteAccount((await relay.account.actionKey())!)).toEqual({
+      ok: true,
+      value: undefined,
+    });
     expect(relay.calls.at(-1)).toEqual({
       url: `${RELAY}/v1/account`,
       method: 'DELETE',

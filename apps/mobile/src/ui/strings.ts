@@ -471,6 +471,11 @@ const en = {
   pasteLinkHint:
     'When the camera can’t see the screen, choose Copy pairing link in the same window and paste it here. The code and the link work once and expire after 10 minutes.',
   pair: 'Pair',
+  accountFixture: {
+    title: 'Account action test',
+    reset: 'Reset test account',
+    notice: 'Test account only. No real account, network or stored connections are used.',
+  },
   pairAccount: {
     title: 'DeepSeekBot account',
     computers: 'Computers',
@@ -485,10 +490,13 @@ const en = {
     signIn: 'Sign in',
     signedIn: (email: string) => `Signed in as ${email}`,
     signOut: 'Sign out',
+    signOutTitle: 'Sign out of this phone?',
+    signOutMessage:
+      'Remove this account’s saved computer connections from this phone. Your account and computer data remain. Manual connections and older connections without account information stay.',
     deleteAccount: 'Delete account',
     deleteTitle: 'Delete your DeepSeekBot account?',
     deleteMessage:
-      'This deletes the account and unlinks every computer signed in to it, so phones can no longer reach them through DeepSeekBot Connect. This cannot be undone.',
+      'Permanently delete your account and all its Connect links. All devices lose access through those links. This phone removes connections saved through this account; manual and older unassigned entries stay. Files, Bots and chats on your computers remain. This cannot be undone.',
     deleteConfirm: 'Delete account',
     empty:
       'No computer is linked to this account yet. On your computer, open Settings → Devices → DeepSeekBot Connect and sign in.',
@@ -536,6 +544,13 @@ const en = {
     'account-not-allowed': 'This account cannot use DeepSeekBot Connect yet.',
     'host-offline':
       'This computer is not online. Open DeepSeekBot on it, check that it is still signed in, then try again.',
+    'account-changed': 'The signed-in account changed. Open the account page again.',
+    'account-identity-required': 'Sign out and sign in again before adding this computer.',
+    'account-action-pending': 'An account action is unfinished. Retry the same action to continue.',
+    'account-cleanup-failed':
+      'Account cleanup is unfinished. Retry the same action. Some changes may already be complete.',
+    'account-deletion-uncertain':
+      'Account deletion could not be confirmed. Some links may already be removed. Retry Delete account; if sign-in has expired, contact support.',
     'relay-unavailable': 'Cannot reach the DeepSeekBot service. Try again in a moment.',
   } satisfies Record<PairingFailure, string>,
   pairRefusedLink: {
@@ -1770,6 +1785,11 @@ const zh: typeof en = {
   pasteLinkHint:
     '摄像头扫不到时，在同一窗口点「复制配对链接」，再粘贴到这里。二维码和链接都只能用一次，10 分钟后失效。',
   pair: '配对',
+  accountFixture: {
+    title: '账号操作测试',
+    reset: '重置测试账号',
+    notice: '仅使用测试账号，不操作真实账号、网络或已保存的连接。',
+  },
   pairAccount: {
     computers: '电脑',
     progress: (current: number, total: number) => `第 ${current} 台，共 ${total} 台`,
@@ -1784,10 +1804,13 @@ const zh: typeof en = {
     signIn: '登录',
     signedIn: (email: string) => `已登录 ${email}`,
     signOut: '退出登录',
+    signOutTitle: '退出此手机上的登录？',
+    signOutMessage:
+      '移除此手机中归属该账号的电脑连接。账号和电脑数据会保留。手动连接和未记录账号信息的旧连接仍保留。',
     deleteAccount: '删除账号',
     deleteTitle: '删除 DeepSeekBot 账号？',
     deleteMessage:
-      '账号会被删除，登录这个账号的电脑都会解除关联，手机将无法再通过 DeepSeekBot Connect 连到它们。删除后无法恢复。',
+      '永久删除账号及其全部 Connect 关联，所有设备将无法再通过这些关联访问电脑。此手机会移除归属该账号的连接；手动和未记录归属的旧记录会保留。电脑上的文件、Bot 和聊天不会删除。此操作无法撤销。',
     deleteConfirm: '删除账号',
     empty: '这个账号还没有关联电脑。请在电脑上打开设置 → 设备 → DeepSeekBot Connect，登录账号。',
     offline: '离线',
@@ -1829,6 +1852,12 @@ const zh: typeof en = {
     'sign-in-required': '登录已过期，请重新登录。',
     'account-not-allowed': '这个账号暂时不能使用 DeepSeekBot Connect。',
     'host-offline': '这台电脑不在线。请在电脑上打开 DeepSeekBot，确认仍然登录后重试。',
+    'account-changed': '登录账号已变化，请重新打开账号页面。',
+    'account-identity-required': '请先退出并重新登录，再添加这台电脑。',
+    'account-action-pending': '账号操作尚未完成，请重试同一操作以继续。',
+    'account-cleanup-failed': '账号清理尚未完成，请重试同一操作。部分更改可能已完成。',
+    'account-deletion-uncertain':
+      '无法确认账号删除是否完成，部分关联可能已移除。请重试删除账号；若登录已失效，请联系支持。',
     'relay-unavailable': '暂时连不上 DeepSeekBot 服务，请稍后再试。',
   },
   pairRefusedLink: {

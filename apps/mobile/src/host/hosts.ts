@@ -1,3 +1,5 @@
+import { parseAccountOwner, type AccountOwner } from './account-owner';
+
 export interface HostEncryption {
   protocol: 'connect-noise-xk-v1';
   hostKey: string;
@@ -5,6 +7,7 @@ export interface HostEncryption {
 }
 
 export interface SavedHost {
+  accountOwner?: AccountOwner;
   encryption?: HostEncryption;
   hostId: string;
   hostName: string;
@@ -16,6 +19,7 @@ export interface SavedHost {
 export interface SavedHosts {
   hosts: SavedHost[];
   current?: string;
+  pendingAccountRemoval?: SavedHost[];
 }
 
 function record(value: unknown): Record<string, unknown> {
@@ -31,6 +35,9 @@ export function parseSavedHost(input: unknown): SavedHost | undefined {
     typeof value['deviceId'] === 'string' &&
     typeof value['credential'] === 'string'
     ? {
+        ...(parseAccountOwner(value['accountOwner']) === undefined
+          ? {}
+          : { accountOwner: parseAccountOwner(value['accountOwner'])! }),
         ...(parseEncryption(value['encryption']) === undefined
           ? {}
           : { encryption: parseEncryption(value['encryption'])! }),
@@ -60,15 +67,26 @@ export function parseSavedHosts(
   const hosts = Array.isArray(value['hosts'])
     ? value['hosts'].flatMap((entry) => parseSavedHost(entry) ?? [])
     : [];
-  if (hosts.length === 0) {
+  if (
+    hosts.length === 0 &&
+    !Array.isArray(value['hosts']) &&
+    !Array.isArray(value['pendingAccountRemoval'])
+  ) {
     const legacy = parseSavedHost(parse(single));
     return legacy === undefined ? { hosts: [] } : { hosts: [legacy], current: legacy.hostId };
   }
   const current =
     typeof value['current'] === 'string' && hosts.some((host) => host.hostId === value['current'])
       ? value['current']
-      : hosts[0]!.hostId;
-  return { hosts, current };
+      : hosts[0]?.hostId;
+  const pendingAccountRemoval = Array.isArray(value['pendingAccountRemoval'])
+    ? value['pendingAccountRemoval'].flatMap((entry) => parseSavedHost(entry) ?? [])
+    : [];
+  return {
+    hosts,
+    ...(current === undefined ? {} : { current }),
+    ...(pendingAccountRemoval.length ? { pendingAccountRemoval } : {}),
+  };
 }
 
 export function currentHost(state: SavedHosts): SavedHost | undefined {
@@ -76,11 +94,14 @@ export function currentHost(state: SavedHosts): SavedHost | undefined {
 }
 
 export function withHost(state: SavedHosts, host: SavedHost): SavedHosts {
+  if (state.pendingAccountRemoval?.some((entry) => entry.hostId === host.hostId))
+    throw new Error('account-cleanup-pending');
   const previous = state.hosts.find((entry) => entry.hostId === host.hostId);
   if (previous?.encryption && previous.encryption.hostKey !== host.encryption?.hostKey)
     throw new Error('host-key-mismatch');
 
   return {
+    ...state,
     hosts: [...state.hosts.filter((entry) => entry.hostId !== host.hostId), host],
     current: host.hostId,
   };
@@ -92,12 +113,13 @@ export function withoutHost(state: SavedHosts, hostId: string): SavedHosts {
     state.current !== hostId && hosts.some((host) => host.hostId === state.current)
       ? state.current
       : hosts[0]?.hostId;
-  return current === undefined ? { hosts } : { hosts, current };
+  const { current: _previous, ...rest } = state;
+  return { ...rest, hosts, ...(current === undefined ? {} : { current }) };
 }
 
 export function selectHost(state: SavedHosts, hostId: string): SavedHosts | undefined {
   return state.hosts.some((host) => host.hostId === hostId)
-    ? { hosts: state.hosts, current: hostId }
+    ? { ...state, current: hostId }
     : undefined;
 }
 
