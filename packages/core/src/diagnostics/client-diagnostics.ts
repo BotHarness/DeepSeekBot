@@ -7,6 +7,7 @@ export const CLIENT_DIAGNOSTICS_PATH = '/api/botharness/client-diagnostics';
 const CODES = new Set([
   'remote-notification-show-refused',
   'remote-notification-show-failed',
+  'remote-notification-forget-persistence-failed',
   'observation-deferred',
   'resource-load-failed',
   'observer-installed',

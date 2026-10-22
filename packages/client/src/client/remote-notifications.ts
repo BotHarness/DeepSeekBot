@@ -32,7 +32,8 @@ type Snapshot = {
 const off: Choice = { enabled: false, preferences: DEFAULT_NOTIFICATION_PREFERENCES };
 type NotificationDiagnostic =
   | 'remote-notification-show-refused'
-  | 'remote-notification-show-failed';
+  | 'remote-notification-show-failed'
+  | 'remote-notification-forget-persistence-failed';
 function reportDiagnostic(code: NotificationDiagnostic): void {
   if (typeof window !== 'undefined')
     window.dispatchEvent(new CustomEvent('botharness:notification-diagnostic', { detail: code }));
@@ -73,6 +74,11 @@ export function createRemoteNotifications(options: {
   let snapshot: Snapshot = { hosts, permission: api?.permission() ?? 'unsupported' };
   const listeners = new Set<() => void>();
   const reported = new Set<NotificationDiagnostic>();
+  const report = (code: NotificationDiagnostic) => {
+    if (reported.has(code)) return;
+    reported.add(code);
+    (options.diagnostic ?? reportDiagnostic)(code);
+  };
   const state = new Map<
     string,
     {
@@ -119,6 +125,24 @@ export function createRemoteNotifications(options: {
     getSnapshot: () => snapshot,
     choice,
     cancel,
+    forget(hostId: string) {
+      cancel(hostId);
+      const updated = { ...hosts };
+      delete updated[hostId];
+      let persistenceFailed = false;
+      try {
+        if (Object.keys(updated).length === 0) storage?.removeItem(REMOTE_NOTIFICATION_KEY);
+        else storage?.setItem(REMOTE_NOTIFICATION_KEY, JSON.stringify(updated));
+      } catch {
+        persistenceFailed = true;
+      }
+      hosts = updated;
+      state.delete(hostId);
+      revisions.delete(hostId);
+      close(hostId);
+      publish();
+      if (persistenceFailed) report('remote-notification-forget-persistence-failed');
+    },
     subscribe(listener: () => void) {
       listeners.add(listener);
       return () => {
@@ -310,10 +334,7 @@ export function createRemoteNotifications(options: {
               (error.name === 'NotAllowedError' || error.name === 'SecurityError')
                 ? 'remote-notification-show-refused'
                 : 'remote-notification-show-failed';
-            if (!reported.has(code)) {
-              reported.add(code);
-              (options.diagnostic ?? reportDiagnostic)(code);
-            }
+            report(code);
           }
         }
         entry.baseline = true;

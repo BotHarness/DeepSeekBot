@@ -7,6 +7,7 @@ import { createHostActivityActions } from '../src/client/host-activity-actions.j
 import type { HumanAttentionItem } from '../src/client/store.js';
 import { pairingLink } from '../../core/src/devices/http.js';
 import { en, zh } from '../src/client/locale.js';
+import { REMOTE_NOTIFICATION_KEY } from '../src/client/remote-notifications.js';
 import {
   ALL_HOSTS,
   HOST_TAB_STORAGE_KEY,
@@ -166,6 +167,32 @@ describe('remote hosts', () => {
     sources.select('local');
     expect(sources.getSnapshot().tab).toBe('local');
   });
+
+  it('permanently forgets only the removed Host notification choice across reload and re-pair', async () => {
+    const preferences = { approval: false, question: true, 'private-input': false, reply: true };
+    const retained = { enabled: true, preferences };
+    const storage = memoryStorage({
+      [REMOTE_NOTIFICATION_KEY]: JSON.stringify({ 'host-b': retained, 'host-c': retained }),
+    });
+    const { carrier } = fakeCarrier();
+    const sources = createRemoteHosts({ storage, carrier });
+    await sources.pair(link(), 'Browser', 'host-a');
+    expect(sources.notifications.choice('host-b')).toEqual(retained);
+
+    await sources.remove('host-b');
+
+    expect(sources.notifications.getSnapshot().hosts).not.toHaveProperty('host-b');
+    expect(JSON.parse(storage.values.get(REMOTE_NOTIFICATION_KEY)!)).toEqual({
+      'host-c': retained,
+    });
+    const reloaded = createRemoteHosts({ storage, carrier });
+    await reloaded.pair(link(), 'Browser', 'host-a');
+    expect(reloaded.notifications.choice('host-b')).toEqual({
+      enabled: false,
+      preferences: { approval: true, question: true, 'private-input': true, reply: true },
+    });
+    expect(reloaded.notifications.choice('host-c')).toEqual(retained);
+  });
 });
 
 const releases: Array<() => void> = [];
@@ -206,6 +233,110 @@ function liveHost() {
 }
 
 describe('Host Feed lifecycle', () => {
+  it.each(['removeItem', 'setItem'] as const)(
+    'finishes permanent removal and reports notification persistence refusal from %s',
+    async (operation) => {
+      const close = vi.fn();
+      const show = vi.fn();
+      const diagnostic = vi.fn();
+      vi.stubGlobal('window', {
+        dispatchEvent: diagnostic,
+        Notification: class {
+          static permission = 'granted';
+          onclick = null;
+          close = close;
+          constructor() {
+            show();
+          }
+        },
+      });
+      const { host, storage } = liveHost();
+      const sources = createRemoteHosts({ carrier: host.carrier, storage });
+      releases.push(sources.subscribe(() => {}));
+      await vi.waitFor(() => expect(sources.getSnapshot().hosts[0]?.inbox.status).toBe('ready'));
+      await sources.notifications.set(host.hostId, {
+        enabled: true,
+        preferences: { approval: false },
+      });
+      if (operation === 'setItem')
+        await sources.notifications.set('other', { preferences: { reply: false } });
+      const other = sources.notifications.choice('other');
+      const client = sources.client(host.hostId)!;
+      const received: HostAttentionItem = {
+        id: 'received',
+        kind: 'user-question',
+        category: 'action',
+        botSlug: 'ada',
+        createdAt: '2026-01-01',
+        summary: 'Question',
+      };
+      host.methods.set('humanAttention', (args) =>
+        args.notifications
+          ? { notificationVersion: 1, items: [received] }
+          : { queryVersion: 1, items: [] },
+      );
+      host.push('botharness/followActivity', { type: 'changed', snapshot: { bots: [] } });
+      await vi.waitFor(() => expect(show).toHaveBeenCalledOnce());
+      let finish!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+      let entered = false;
+      host.methods.set('humanAttention', async (args) => {
+        if (!args.notifications) return { queryVersion: 1, items: [] };
+        entered = true;
+        await gate;
+        return { notificationVersion: 1, items: [received] };
+      });
+      const enabling = sources.notifications.set(host.hostId, { preferences: { approval: true } });
+      const cancelled = expect(enabling).rejects.toThrow('notification-activation-cancelled');
+      await vi.waitFor(() => expect(entered).toBe(true));
+      const stored = storage.getItem(REMOTE_NOTIFICATION_KEY);
+      const original = storage[operation];
+      if (operation === 'removeItem') {
+        const remove = storage.removeItem;
+        storage.removeItem = (key) => {
+          if (key === REMOTE_NOTIFICATION_KEY) throw new Error('private storage detail');
+          remove(key);
+        };
+      } else {
+        const set = storage.setItem;
+        storage.setItem = (key, value) => {
+          if (key === REMOTE_NOTIFICATION_KEY) throw new Error('private storage detail');
+          set(key, value);
+        };
+      }
+      try {
+        await expect(sources.remove(host.hostId)).resolves.toBeUndefined();
+        await cancelled;
+        expect(host.requests).toContain('POST http://127.0.0.1:47001/botharness-device/unpair');
+        expect(client.getSnapshot().connection.status).toBe('stopped');
+        expect(sources.client(host.hostId)).toBeUndefined();
+        expect(sources.getSnapshot().hosts).toEqual([]);
+        expect(storage.getItem(REMOTE_HOSTS_STORAGE_KEY)).toBeNull();
+        expect(sources.notifications.getSnapshot().hosts).not.toHaveProperty(host.hostId);
+        expect(sources.notifications.choice('other')).toEqual(other);
+        expect(close).toHaveBeenCalledOnce();
+        expect(diagnostic).toHaveBeenCalledExactlyOnceWith(
+          expect.objectContaining({
+            type: 'botharness:notification-diagnostic',
+            detail: 'remote-notification-forget-persistence-failed',
+          }),
+        );
+        finish();
+        await Promise.resolve();
+        await Promise.resolve();
+        expect(sources.notifications.getSnapshot().hosts).not.toHaveProperty(host.hostId);
+        expect(show).toHaveBeenCalledOnce();
+        expect(storage.getItem(REMOTE_NOTIFICATION_KEY)).toBe(stored);
+      } finally {
+        finish();
+        Object.assign(storage, { [operation]: original });
+        await cancelled;
+      }
+    },
+  );
+
   it.each(['Activity', 'notification page'] as const)(
     'preserves a completed notification baseline when %s alone fails on a connected Host',
     async (failure) => {
