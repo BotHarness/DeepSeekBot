@@ -18,10 +18,8 @@ export async function loadSavedHosts(): Promise<SavedHosts> {
 }
 
 export async function saveHosts(state: SavedHosts): Promise<void> {
-  if (state.hosts.length === 0) await SecureStore.deleteItemAsync(KEY);
-  else
-    await SecureStore.setItemAsync(KEY, JSON.stringify(state), {
-      keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
-    });
+  await SecureStore.setItemAsync(KEY, JSON.stringify(state), {
+    keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
+  });
   await SecureStore.deleteItemAsync(SINGLE_KEY).catch(() => undefined);
 }

@@ -13,6 +13,7 @@ export interface AccountComputerRow {
 }
 export interface AccountPanelProps {
   email: string | undefined | null | false;
+  pendingDeletion?: boolean;
   loading: boolean;
   busy: boolean;
   rows: AccountComputerRow[] | undefined;
@@ -42,7 +43,7 @@ export function AccountPanel(props: AccountPanelProps) {
           ) : props.email !== false ? (
             <>
               <Button
-                label={t.pairAccount.signOut}
+                label={props.pendingDeletion ? t.pairAccount.cleanupConfirm : t.pairAccount.signOut}
                 variant="text"
                 disabled={locked}
                 onPress={props.onSignOut}

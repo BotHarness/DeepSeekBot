@@ -51,7 +51,7 @@ export function AccountPanel(props: AccountPanelProps) {
             <>
               <AccountAction
                 testID="account-sign-out"
-                label={t.pairAccount.signOut}
+                label={props.pendingDeletion ? t.pairAccount.cleanupConfirm : t.pairAccount.signOut}
                 systemImage="rectangle.portrait.and.arrow.right"
                 onPress={props.onSignOut}
                 locked={locked}

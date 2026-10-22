@@ -85,16 +85,16 @@ export function chatHostId(href: string): string | undefined {
 }
 
 export function forgetRecentChats(hostId: string): Promise<RecentChat[]> {
-  recent = load().then(async (list) => {
+  const previous = load();
+  const removal = previous.then(async () => {
+    const list = parseRecentChats(await SecureStore.getItemAsync(KEY));
     const next = list.filter((chat) => chatHostId(chat.href) !== hostId);
-    if (next.length === list.length) return list;
-    await Promise.all([
-      SecureStore.setItemAsync(KEY, JSON.stringify(next)).catch(() => undefined),
-      QuickActions.setItems(next.map(quickAction)).catch(() => undefined),
-    ]);
+    await SecureStore.setItemAsync(KEY, JSON.stringify(next));
+    await QuickActions.setItems(next.map(quickAction));
     return next;
   });
-  return recent;
+  recent = removal.catch(() => previous);
+  return removal;
 }
 
 export function useRecentChat(chat: RecentChat | undefined): RefCallback<unknown> {
