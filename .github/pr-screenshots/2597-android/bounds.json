@@ -1,0 +1,50 @@
+[
+  {
+    "fixture": "short-list",
+    "side": "base",
+    "textPrefix": "雨水滋润土地。",
+    "bounds": "[159,2220][166,2448]",
+    "visibleNodeWidthPx": 7,
+    "source": "uiautomator Text node bounds, physical pixels; not glyph ink or un-clipped measured height"
+  },
+  {
+    "fixture": "short-list",
+    "side": "candidate",
+    "textPrefix": "雨水滋润土地。",
+    "bounds": "[159,2220][453,2280]",
+    "visibleNodeWidthPx": 294,
+    "source": "uiautomator Text node bounds, physical pixels; not glyph ink or un-clipped measured height"
+  },
+  {
+    "fixture": "nested-list",
+    "side": "base",
+    "textPrefix": "降雨过程。",
+    "bounds": "[159,1920][166,2220]",
+    "visibleNodeWidthPx": 7,
+    "source": "uiautomator Text node bounds, physical pixels; not glyph ink or un-clipped measured height"
+  },
+  {
+    "fixture": "nested-list",
+    "side": "candidate",
+    "textPrefix": "降雨过程。",
+    "bounds": "[159,1920][825,1980]",
+    "visibleNodeWidthPx": 666,
+    "source": "uiautomator Text node bounds, physical pixels; not glyph ink or un-clipped measured height"
+  },
+  {
+    "fixture": "plain-long",
+    "side": "base",
+    "textPrefix": "雨水经过蒸发凝结形成云层并降落到地面。",
+    "bounds": "[72,619][918,2712]",
+    "visibleNodeWidthPx": 846,
+    "source": "uiautomator Text node bounds, physical pixels; not glyph ink or un-clipped measured height"
+  },
+  {
+    "fixture": "plain-long",
+    "side": "candidate",
+    "textPrefix": "雨水经过蒸发凝结形成云层并降落到地面。",
+    "bounds": "[72,0][918,2568]",
+    "visibleNodeWidthPx": 846,
+    "source": "uiautomator Text node bounds, physical pixels; not glyph ink or un-clipped measured height"
+  }
+]
