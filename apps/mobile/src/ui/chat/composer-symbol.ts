@@ -1,1 +1,8 @@
-export type ComposerSymbol = 'plus' | 'xmark' | 'arrow.up' | 'chevron.up' | 'chevron.down';
+export type ComposerSymbol =
+  | 'plus'
+  | 'xmark'
+  | 'arrow.up'
+  | 'chevron.up'
+  | 'chevron.down'
+  | 'mic.fill'
+  | 'stop.fill';
