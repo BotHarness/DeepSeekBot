@@ -38,7 +38,7 @@ finishing a PR does not establish that a detached Host has exited.
 5. **Remove disposable files last.** Only after the processes exit, check inbound symlinks,
    shared dependency/runtime references and open-file users before removing task-owned temporary
    dependencies or environments. Retain source changes and verification evidence. Whole-worktree
-   removal additionally requires completed/merged work, retained commits, a verified recovery
+   removal additionally requires the work to be completed or merged, retained commits, a verified recovery
    copy of material not retained in Git, and `git worktree remove` without force. Cleanup of a
    running service never begins by deleting its Profile, source worktree or dependency provider.
 6. **Record the outcome.** Record stopped resources, released ports, retained evidence and
