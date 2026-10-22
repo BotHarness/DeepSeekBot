@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { ConversationEnvironment } from '../../host/conversation-environments';
 import { hostColorInk } from '../design/host-look';
 import { useDesignTheme } from '../design/theme';
-import { space } from '../design/tokens';
+import { chatList, space } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { useMounted } from '../mounted';
 import { t } from '../strings';
@@ -41,7 +41,7 @@ export function HomeHeader({
           flexDirection: 'row',
           alignItems: 'center',
           gap: space.x2,
-          paddingHorizontal: space.x4,
+          paddingHorizontal: chatList.gutter,
           paddingTop: insets.top + space.x2,
           paddingBottom: space.x2,
         }}
