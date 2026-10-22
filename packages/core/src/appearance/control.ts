@@ -8,6 +8,7 @@ interface Command {
   wallpaper?: unknown;
   recovery?: unknown;
   notifications?: unknown;
+  hostLook?: unknown;
   expectedRevision?: string;
 }
 interface Client {
@@ -70,18 +71,36 @@ export function createAppearanceControl(now = Date.now) {
       if (!client) return refused('appearance-client-stale', 404);
       if (input.action === 'request') {
         if (
-          [input.patch, input.wallpaper, input.recovery, input.notifications].filter(
-            (v) => v !== undefined,
-          ).length > 1
+          [
+            input.patch,
+            input.wallpaper,
+            input.recovery,
+            input.notifications,
+            input.hostLook,
+          ].filter((v) => v !== undefined).length > 1
         )
           return refused('appearance-invalid-input', 400);
         if (input.patch !== undefined && typeof input.expectedRevision !== 'string')
           return refused('appearance-revision-required', 400);
+        if (
+          input.hostLook !== undefined &&
+          (typeof input.expiresAt !== 'number' ||
+            !Number.isFinite(input.expiresAt) ||
+            input.expiresAt <= now())
+        )
+          return refused('appearance-request-stale');
+        const expiresAt =
+          input.hostLook === undefined
+            ? now() + 8000
+            : Math.min(now() + 8000, input.expiresAt as number);
         if (client.pending) return refused('appearance-client-busy');
         if (!client.poll) return refused('appearance-client-unavailable');
         const command: Command = {
           id: randomUUID(),
-          expiresAt: now() + 8000,
+          expiresAt,
+          ...(input.hostLook === undefined
+            ? {}
+            : { hostLook: input.hostLook, expectedRevision: input.expectedRevision as string }),
           ...(input.notifications === undefined
             ? {}
             : {
@@ -99,10 +118,13 @@ export function createAppearanceControl(now = Date.now) {
             : { patch: input.patch, expectedRevision: input.expectedRevision as string }),
         };
         return new Promise<Response>((resolve) => {
-          const timer = setTimeout(() => {
-            if (client.pending?.command === command) delete client.pending;
-            resolve(refused('appearance-client-timeout'));
-          }, 8000);
+          const timer = setTimeout(
+            () => {
+              if (client.pending?.command === command) delete client.pending;
+              resolve(refused('appearance-client-timeout'));
+            },
+            Math.max(0, expiresAt - now()),
+          );
           client.pending = {
             command,
             resolve: (response) => {
@@ -123,7 +145,7 @@ export function createAppearanceControl(now = Date.now) {
         if (
           !client.pending ||
           client.pending.command.id !== input.requestId ||
-          now() > client.pending.command.expiresAt
+          now() >= client.pending.command.expiresAt
         )
           return refused('appearance-request-stale');
         const result = record(input.result);
