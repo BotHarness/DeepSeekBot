@@ -30,7 +30,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
   const icon = (name: string) => (props: { className?: string }) =>
     createElement('span', { 'data-icon': name, className: props.className });
   return {
-    MarkdownText: stub,
+    MarkdownText: ({ text }: { text: string }) => createElement('span', null, text),
     Button: (props: { children?: ReactNode; disabled?: boolean }) =>
       createElement('button', { disabled: props.disabled }, props.children),
     IconAgentPresetOutlineRegular: icon('IconAgentPresetOutlineRegular'),

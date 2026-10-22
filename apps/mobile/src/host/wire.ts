@@ -40,6 +40,7 @@ export interface WireAllBotMention {
 }
 
 export interface ChannelWireMessage extends WireMessage {
+  contentPurge?: unknown;
   author: WireAuthor;
   mentions?: WireMention[];
   reactions?: WireReaction[];
@@ -406,6 +407,7 @@ export interface HumanAssignmentContext {
 
 export interface HumanAttentionPage {
   queryVersion?: number;
+  notificationVersion?: number;
   items: HumanAttentionItem[];
   nextCursor?: string;
 }

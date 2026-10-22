@@ -1,3 +1,4 @@
+import { useMessageHost } from './message-host.js';
 import { BridgeAudio } from './bridge-audio.js';
 import { BridgeFile } from './bridge-file.js';
 import { UserQuestionCard } from './user-question-card.js';
@@ -7,9 +8,7 @@ import { OnboardingWelcome } from './onboarding-view.js';
 import { BridgeImage } from './bridge-image.js';
 import { ExternalMessageText } from './external-message-text.js';
 import { ClearedMessageAttachment, MessageAttachment } from './message-attachment.js';
-import { useContext, useMemo, useRef, useState, type ReactElement } from 'react';
-import { RemoteMessageHostContext } from './remote-message-host.js';
-import { RemoteMessageAttachment } from './remote-message-attachment.js';
+import { useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
 
 import {
   Button,
@@ -30,8 +29,8 @@ import type { ChannelHumanMember } from './store.js';
 import { referenceRuns } from './channel-refs.js';
 import { preserveHumanLineBreaks, rendersHumanMarkdown } from './human-markdown.js';
 import { attachmentReferenceRuns, messageAttachmentReferences } from './attachment-refs.js';
-import type { BridgeActions, HostDirectoryListing } from './actions.js';
-import { FolderBrowser } from './workspace-grants-entry.js';
+import type { BridgeActions } from './actions.js';
+import { FolderBrowser, type FolderBrowserActions } from './workspace-grants-entry.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { toolApprovalText } from './approval-text.js';
 import { useFooterPreferences } from './composer-footer-preferences.js';
@@ -87,13 +86,13 @@ function SessionFailureNotice({
   t: BotHarnessTranslate;
   nativeChatT?: NativeChatFailureText | undefined;
 }): ReactElement {
+  const host = useMessageHost();
   const failure = message.sessionFailure!;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const title = nativeChatT?.('message.turnError') ?? t('failure.title');
-  const remote = useContext(RemoteMessageHostContext);
   const needsModels =
-    remote === undefined &&
+    host === undefined &&
     ['AUTH', 'MISSING_CREDENTIAL', 'INVALID_CREDENTIAL', 'QUOTA'].includes(failure.code ?? '');
   return (
     <div className="bh-session-failure-row" role="alert">
@@ -170,7 +169,8 @@ export function GrantRequestCard({
   t,
 }: {
   message: ChannelMessage;
-  actions: BridgeActions;
+  actions: Pick<BridgeActions, 'pickWorkspaceFolder' | 'resolveWorkspaceGrantRequest'> &
+    FolderBrowserActions;
   channelId?: string | undefined;
   workspacePickerRequest?: number | undefined;
   resolved: boolean;
@@ -178,7 +178,8 @@ export function GrantRequestCard({
   beforeOpen?: () => Promise<boolean>;
   t: BotHarnessTranslate;
 }): ReactElement {
-  const [listing, setListing] = useState<HostDirectoryListing | undefined>();
+  const [listing, setListing] =
+    useState<Awaited<ReturnType<FolderBrowserActions['listHostFolders']>>>();
   const [busy, setBusy] = useState(false);
   const [opening, setOpening] = useState(false);
   const [completed, setCompleted] = useState(false);
@@ -324,6 +325,7 @@ function leadingBotMentions(message: ChannelMessage):
 
 export function ChannelMessageBody({
   message: storedMessage,
+  requestCard,
   channelId,
   t,
   actions,
@@ -336,6 +338,7 @@ export function ChannelMessageBody({
   nativeChatT,
 }: {
   message: ChannelMessage;
+  requestCard?: ReactNode;
   channelId?: string | undefined;
   t: BotHarnessTranslate;
   actions?: BridgeActions;
@@ -363,8 +366,7 @@ export function ChannelMessageBody({
     }),
     [t],
   );
-  const remote = useContext(RemoteMessageHostContext);
-  const cardActions = remote?.actions ?? actions;
+  const host = useMessageHost();
   const approvalBody = toolApprovalText(storedMessage, t);
   const message =
     approvalBody === undefined ? storedMessage : { ...storedMessage, body: approvalBody };
@@ -374,6 +376,7 @@ export function ChannelMessageBody({
   const format =
     message.format ?? (message.author.kind === 'human' && !humanMarkdown ? 'text' : 'markdown');
   if (message.contentPurged) return <div className="bh-bubble-body">{t('purge.purged')}</div>;
+  if (requestCard !== undefined) return <>{requestCard}</>;
   if (message.onboardingWelcome?.kind === 'tob')
     return (
       <div className="bh-bubble-body">
@@ -392,25 +395,25 @@ export function ChannelMessageBody({
         nativeChatT={nativeChatT}
       />
     );
-  if (message.toolApprovalRequest !== undefined && cardActions !== undefined) {
+  if (message.toolApprovalRequest !== undefined && actions !== undefined) {
     return (
       <ToolApprovalCard
         message={message}
-        actions={cardActions}
+        actions={actions}
         decision={toolApprovalDecision}
         channelId={channelId}
         t={t}
       />
     );
   }
-  if (message.privateInputRequest !== undefined && cardActions !== undefined) {
-    return <PrivateInputCard message={message} actions={cardActions} channelId={channelId} t={t} />;
+  if (message.privateInputRequest !== undefined && actions !== undefined) {
+    return <PrivateInputCard message={message} actions={actions} channelId={channelId} t={t} />;
   }
-  if (message.userQuestionRequest !== undefined && cardActions !== undefined) {
+  if (message.userQuestionRequest !== undefined && actions !== undefined) {
     return (
       <UserQuestionCard
         message={message}
-        actions={cardActions}
+        actions={actions}
         resolution={userQuestionResolution}
         channelId={channelId}
         t={t}
@@ -525,6 +528,12 @@ export function ChannelMessageBody({
           data-human-id={mention.humanId}
           title={t('message.mention.humanType')}
         >
+          @{label}
+        </span>
+      );
+    if (host !== undefined)
+      return (
+        <span key={key} className="bh-inline-mention bh-inline-mention-sent">
           @{label}
         </span>
       );
@@ -682,27 +691,16 @@ export function ChannelMessageBody({
       )}
       {message.attachments?.length ? (
         <div className="bh-message-attachments">
-          {message.attachments.map((ref, index) =>
-            remote !== undefined && channelId !== undefined ? (
-              <RemoteMessageAttachment
-                key={`${ref.fileId ?? ref.hash}-${index}`}
-                attachment={ref}
-                channelId={channelId}
-                messageId={message.id}
-                fetcher={remote.fetch}
-                t={t}
-              />
-            ) : (
-              <MessageAttachment
-                key={`${ref.fileId ?? ref.hash}-${index}`}
-                attachment={ref}
-                channelId={channelId}
-                messageId={message.id}
-                actions={actions}
-                t={t}
-              />
-            ),
-          )}
+          {message.attachments.map((ref, index) => (
+            <MessageAttachment
+              key={`${ref.fileId ?? ref.hash}-${index}`}
+              attachment={ref}
+              channelId={channelId}
+              messageId={message.id}
+              actions={actions}
+              t={t}
+            />
+          ))}
         </div>
       ) : null}
       {message.clearedAttachments?.length ? (

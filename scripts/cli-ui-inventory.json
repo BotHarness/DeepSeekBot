@@ -263,7 +263,8 @@
       "description": "#2088 reuses default-model, Bot plan and preset create/read/update/apply owners with scoped Tob revisions/catalog validation. No preset delete owner; credentials remain native private input.",
       "scope": "Host",
       "surfaces": [
-        "setting:packages/client/src/client/onboarding-view.tsx:{t('onboarding.defaultTitle')}"
+        "setting:packages/client/src/client/onboarding-view.tsx:{t('onboarding.defaultTitle')}",
+        "setting:packages/client/src/client/remote-host-models.tsx:{t('remoteHosts.settings.models')}"
       ],
       "commands": [
         "home-model-set",
@@ -441,13 +442,14 @@
       "scope": "Client transport / transient state",
       "surfaces": [
         "storage:packages/client/src/client/remote-hosts.ts:removeItem(REMOTE_HOSTS_STORAGE_KEY)",
+        "storage:packages/client/src/client/remote-notifications.ts:removeItem(REMOTE_NOTIFICATION_KEY)",
         "storage:packages/client/src/client/remote-hosts.ts:setItem(REMOTE_HOSTS_STORAGE_KEY)",
         "storage:packages/client/src/client/remote-hosts.ts:setItem(HOST_TAB_STORAGE_KEY)",
         "storage:packages/client/src/client/remote-hosts.ts:removeItem(oldKey)",
         "storage:packages/client/src/client/remote-hosts.ts:setItem(key)",
         "storage:packages/client/src/client/host-looks.ts:setItem(HOST_LOOKS_STORAGE_KEY)"
       ],
-      "exemption": "Per-browser connections, legacy-key migration, the tab filter and Host looks belong to that browser profile, not to any Host (spec #2178, ADR-0243: Host looks are device-local), so no Host CLI can read or set them. The Remote Host's side is its existing device gateway: pair, unary calls, stream ticket and revoke.",
+      "exemption": "Per-browser connections, legacy-key migration, the tab filter and Host looks belong to that browser profile, not to any Host (spec #2178, ADR-0243: Host looks are device-local), so no Host CLI can read or set them. Permanent pairing removal also deletes its browser notification choice as automatic cleanup, not a separate setting. Browser notification reads and writes use the separately inventoried Client relay commands. The Remote Host's side is its existing device gateway: pair, unary calls, stream ticket and revoke.",
       "configurable": false
     },
     {
@@ -783,6 +785,23 @@
         "storage:packages/client/src/client/window-zoom.ts:setItem(WINDOW_ZOOM_KEY)"
       ],
       "commands": ["window-zoom-clients", "window-zoom-get", "window-zoom-set", "window-zoom-reset"]
+    },
+    {
+      "id": "remote-host-notifications",
+      "description": "Browser-owned Remote Host choices; inbox --notifications pages Host-decided attention. Phone owner AX is development-client-only (phone-notifications); release parity and native real runs remain unverified. device-notifications edits Host copies only.",
+      "scope": "Client / Paired Device",
+      "surfaces": [
+        "storage:packages/client/src/client/remote-notifications.ts:setItem(REMOTE_NOTIFICATION_KEY)",
+        "setting:packages/client/src/client/remote-notification-settings.tsx:{t('remoteHosts.notifications.enable')}",
+        "setting:packages/client/src/client/remote-notification-settings.tsx:{t(labels[kind])}"
+      ],
+      "commands": [
+        "browser-notification-clients",
+        "browser-notifications",
+        "device-notifications",
+        "phone-notifications",
+        "inbox"
+      ]
     },
     {
       "id": "deepseekbot-local-appearance",

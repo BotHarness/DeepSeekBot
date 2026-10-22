@@ -1,14 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { computerEnvironmentKey } from '../src/host/conversation-environments';
+import { parseSavedHosts } from '../src/host/hosts';
+import { createHostDrawer } from '../src/ui/shell/host-drawer-model';
 
 const secure = new Map<string, string>();
 const quickActions = vi.hoisted(() => ({ items: [] as Array<{ id: string }> }));
 const clearedCaches = vi.hoisted(() => [] as string[]);
 const forgotten = vi.hoisted(() => [] as string[]);
+let beforeSave: ((key: string, value: string) => Promise<void>) | undefined;
+let savedFilter = 'all';
 
 vi.mock('expo-secure-store', () => ({
   WHEN_UNLOCKED_THIS_DEVICE_ONLY: 0,
   getItemAsync: async (key: string) => secure.get(key) ?? null,
-  setItemAsync: async (key: string, value: string) => void secure.set(key, value),
+  setItemAsync: async (key: string, value: string) => {
+    await beforeSave?.(key, value);
+    secure.set(key, value);
+  },
   deleteItemAsync: async (key: string) => void secure.delete(key),
 }));
 vi.mock('expo-quick-actions', () => ({
@@ -28,6 +36,8 @@ vi.mock('react-native', () => ({
 vi.mock('../src/host/native-source-drafts', () => ({
   sourceDrafts: { ready: Promise.resolve(), removeWhere: () => undefined },
 }));
+vi.mock('../src/host/conversation', () => ({ createConversation: vi.fn() }));
+vi.mock('../src/host/conversation-playback', () => ({ createConversationPlayback: vi.fn() }));
 vi.mock('../src/host/native-cache', () => ({
   clearHostConversationCache: (hostId: string) => void clearedCaches.push(hostId),
   nativeConversationCache: {},
@@ -37,7 +47,9 @@ vi.mock('../src/host/native-conversation-filter', async () => {
   return {
     conversationFilter: createConversationFilter({
       read: async () => undefined,
-      write: () => undefined,
+      write: (value: string) => {
+        savedFilter = value;
+      },
     }),
   };
 });
@@ -51,6 +63,14 @@ vi.mock('../src/host/native-notifications', () => ({
 }));
 vi.mock('../src/host/native-notification-avatars', () => ({
   notificationAvatars: { sync: async () => true },
+}));
+vi.mock('../src/host/native-notification-preferences', () => ({
+  notificationPreferences: {
+    setForeground: () => undefined,
+    sync: async () => undefined,
+    retry: async () => undefined,
+    prepare: async () => undefined,
+  },
 }));
 vi.mock('../src/telemetry/native', () => ({
   mobileTelemetry: { foreground: () => undefined, send: () => undefined },
@@ -97,18 +117,15 @@ const chat = (id: string, hostId: string) => ({
   href: `/dm/${id}?hostId=${encodeURIComponent(hostId)}`,
 });
 
-async function session(current: string) {
-  secure.set(
-    'deepseekbot.hosts.v3',
-    JSON.stringify({ hosts: [host('old'), host('new')], current }),
-  );
+async function session(current: string, ids = ['old', 'new']) {
+  secure.set('deepseekbot.hosts.v3', JSON.stringify({ hosts: ids.map(host), current }));
   secure.set(
     'deepseekbot.recent-chats.v1',
     JSON.stringify([chat('writer', 'old'), chat('coder', 'new')]),
   );
   const { hostSession } = await import('../src/host/host-session');
   const { conversationFilter } = await import('../src/host/native-conversation-filter');
-  await vi.waitFor(() => expect(hostSession.getState().hosts).toHaveLength(2));
+  await vi.waitFor(() => expect(hostSession.getState().hosts).toHaveLength(ids.length));
   conversationFilter.set(JSON.stringify(['computer', 'old']));
   return { hostSession, conversationFilter };
 }
@@ -120,15 +137,17 @@ const savedIds = () =>
     }
   ).hosts.map((entry) => entry.hostId);
 
-describe('unpairing a Computer', () => {
-  beforeEach(() => {
-    secure.clear();
-    quickActions.items = [];
-    clearedCaches.length = 0;
-    forgotten.length = 0;
-    vi.resetModules();
-  });
+beforeEach(() => {
+  secure.clear();
+  quickActions.items = [];
+  clearedCaches.length = 0;
+  forgotten.length = 0;
+  beforeSave = undefined;
+  savedFilter = 'all';
+  vi.resetModules();
+});
 
+describe('unpairing a Computer', () => {
   it('drops an older Computer from the list, storage and everything it left on the phone', async () => {
     const { hostSession, conversationFilter } = await session('new');
     const result = await hostSession.unpair('old');
@@ -168,5 +187,86 @@ describe('unpairing a Computer', () => {
     expect(clearedCaches).toEqual(['new']);
     await vi.waitFor(() => expect(quickActions.items.map((item) => item.id)).toEqual(['writer']));
     expect(conversationFilter.getSnapshot()).toBe(JSON.stringify(['computer', 'old']));
+  });
+});
+
+function deferredSave() {
+  let resolve = () => {};
+  const promise = new Promise<void>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
+async function switchingSession() {
+  const { hostSession, conversationFilter } = await session('a', ['a', 'b', 'c']);
+  conversationFilter.set(computerEnvironmentKey('a'));
+  const writes: string[] = [];
+  const gates = { b: deferredSave(), c: deferredSave() };
+  beforeSave = async (key, value) => {
+    if (key !== 'deepseekbot.hosts.v3') return;
+    const current = parseSavedHosts(value).current!;
+    writes.push(current);
+    if (current === 'b' || current === 'c') await gates[current].promise;
+  };
+  const drawer = createHostDrawer({
+    switchTo: hostSession.switchTo,
+    showView: (hostId) =>
+      conversationFilter.set(hostId === undefined ? 'all' : computerEnvironmentKey(hostId)),
+    pair: () => {},
+    notifications: () => {},
+  });
+  const expectSelection = async (owner: string, filter = computerEnvironmentKey(owner)) => {
+    const { loadSavedHosts } = await import('../src/host/saved-host');
+    expect(hostSession.getState().saved?.hostId).toBe(owner);
+    expect((await loadSavedHosts()).current).toBe(owner);
+    expect(conversationFilter.getSnapshot()).toBe(filter);
+    expect(savedFilter).toBe(filter);
+  };
+  return { drawer, writes, gates, expectSelection };
+}
+
+describe('drawer selection through the real Host Session', () => {
+  it('returns to A after a pending B save instead of accepting the old current A early', async () => {
+    const { drawer, writes, gates, expectSelection } = await switchingSession();
+    const b = drawer.select('b');
+    await vi.waitFor(() => expect(writes).toEqual(['b']));
+    const a = drawer.select('a');
+    gates.b.resolve();
+    await Promise.all([b, a]);
+    await expectSelection('a');
+    expect(writes).toEqual(['b', 'a']);
+  });
+
+  it.each([true, false])(
+    'keeps C as owner and filter when C storage is released first: %s',
+    async (newerFirst) => {
+      const { drawer, writes, gates, expectSelection } = await switchingSession();
+      const b = drawer.select('b');
+      await vi.waitFor(() => expect(writes).toEqual(['b']));
+      const c = drawer.select('c');
+      if (newerFirst) {
+        gates.c.resolve();
+        await Promise.resolve();
+        gates.b.resolve();
+      } else {
+        gates.b.resolve();
+        await b;
+        gates.c.resolve();
+      }
+      await Promise.all([b, c]);
+      await expectSelection('c');
+      expect(writes).toEqual(['b', 'c']);
+    },
+  );
+
+  it('keeps All after the pending Host is saved and adopted', async () => {
+    const { drawer, writes, gates, expectSelection } = await switchingSession();
+    const b = drawer.select('b');
+    await vi.waitFor(() => expect(writes).toEqual(['b']));
+    drawer.selectAll();
+    gates.b.resolve();
+    await b;
+    await expectSelection('b', 'all');
   });
 });

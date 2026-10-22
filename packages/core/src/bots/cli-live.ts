@@ -1,3 +1,4 @@
+import { runPhoneNotifications } from './cli-phone-notifications.js';
 import {
   WINDOW_ZOOM_COMMANDS,
   WINDOW_ZOOM_OPTIONS,
@@ -5,6 +6,15 @@ import {
 } from './cli-window-zoom.js';
 import { PHONE_ROUTE_COMMANDS, runPhoneRouteCommand } from './cli-phone-route.js';
 import { DEVICES_COMMANDS, isDevicesCommand, runDevicesCommand } from './cli-devices.js';
+import {
+  DEVICE_NOTIFICATION_COMMANDS,
+  DEVICE_NOTIFICATION_OPTIONS,
+  runDeviceNotifications,
+} from './cli-device-notifications.js';
+import {
+  BROWSER_NOTIFICATION_COMMANDS,
+  runBrowserNotifications,
+} from './cli-browser-notifications.js';
 import { APPEARANCE_COMMANDS, APPEARANCE_OPTIONS, runAppearanceCommand } from './cli-appearance.js';
 import { prepareCloud, prepareCloudWork } from './cli-cloud.js';
 import { randomUUID } from 'node:crypto';
@@ -122,6 +132,8 @@ import {
 export { CliLiveError } from './cli-live-error.js';
 
 export const LIVE_OPTIONS = {
+  'remote-host-id': { type: 'string' },
+  ...DEVICE_NOTIFICATION_OPTIONS,
   ...WINDOW_ZOOM_OPTIONS,
   ...CONNECT_OPTIONS,
   ...APPEARANCE_OPTIONS,
@@ -217,6 +229,8 @@ const CONTROL_COMMANDS = [
 ] as const;
 
 export const LIVE_COMMANDS = [
+  ...BROWSER_NOTIFICATION_COMMANDS,
+  ...DEVICE_NOTIFICATION_COMMANDS,
   ...WINDOW_ZOOM_COMMANDS,
   ...PHONE_ROUTE_COMMANDS,
   ...DEVICES_COMMANDS,
@@ -413,6 +427,9 @@ interface LiveValues
     ApprovalTemplateValues,
     ApprovalReviewerValues {
   'client-id'?: string;
+  'device-file'?: string;
+  'remote-host-id'?: string;
+  'preferences-stdin'?: boolean;
   host?: string;
   'token-file'?: string;
   'image-source'?: string;
@@ -729,6 +746,12 @@ export async function runLiveCli(
   values: LiveValues,
   io: BotCreateCliIo,
 ): Promise<unknown> {
+  if (command === 'device-notifications') return runDeviceNotifications(rest, values, io);
+  if (command === 'phone-notifications') return runPhoneNotifications(rest, values, io);
+  if (BROWSER_NOTIFICATION_COMMANDS.some((entry) => entry.command === command))
+    return runBrowserNotifications(command, rest, values, io, () =>
+      connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+    );
   if (IM_COMMANDS.some((entry) => entry.command === command)) {
     const operation = await prepareImAuthorization(command, rest, values, io);
     const signal = AbortSignal.timeout(timeoutMs(values.timeout));

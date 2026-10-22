@@ -160,6 +160,7 @@ export function createEncryptedGateway(options: {
             } else chunks.push(chunk);
           });
           response.on('end', () => {
+            if (requests.get(id) !== cancel) return;
             requests.delete(id);
             if (!closed)
               send({
@@ -173,9 +174,11 @@ export function createEncryptedGateway(options: {
           response.on('error', close);
         },
       );
-      requests.set(id, () => upstream.destroy());
+      const cancel = () => upstream.destroy();
+      requests.set(id, cancel);
       upstream.on('timeout', () => upstream.destroy());
       upstream.on('error', () => {
+        if (requests.get(id) !== cancel) return;
         requests.delete(id);
         if (!closed) send({ type: 'response', id, status: 502, body: '' });
       });
@@ -272,13 +275,20 @@ export function createEncryptedGateway(options: {
           },
         );
         streams.set(id, stream);
-        stream.on('open', () => send({ type: 'opened', id }));
-        stream.on('message', (data) => send({ type: 'message', id, text: data.toString() }));
+        stream.on('open', () => {
+          if (streams.get(id) === stream) send({ type: 'opened', id });
+        });
+        stream.on('message', (data) => {
+          if (streams.get(id) === stream) send({ type: 'message', id, text: data.toString() });
+        });
         stream.on('close', () => {
+          if (streams.get(id) !== stream) return;
           streams.delete(id);
           send({ type: 'closed', id });
         });
-        stream.on('error', close);
+        stream.on('error', () => {
+          if (streams.get(id) === stream) close();
+        });
       } else if (type === 'send') {
         const stream = streams.get(id),
           text = field(input, 'text');

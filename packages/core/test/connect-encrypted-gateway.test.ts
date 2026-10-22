@@ -2,7 +2,7 @@ import { encryptedCarrier } from '../../../apps/mobile/src/host/encrypted-carrie
 import { createServer } from 'node:http';
 import { randomBytes } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
-import { WebSocket } from 'ws';
+import { WebSocket, WebSocketServer } from 'ws';
 import { expect, it } from 'vitest';
 import { createEncryptedGateway } from '../src/devices/encrypted-gateway.js';
 import { ConnectChannel } from '../src/devices/noise/channel.js';
@@ -177,5 +177,232 @@ it('admits only the approved Noise key, forwards private RPC and push settings, 
     channel.close();
     gateway.close();
     await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+});
+
+async function endpointFixture() {
+  const owner = trackTestOwner(
+    mountOperationalDatabase({
+      dshHome: createTempRoot('noise-endpoint-'),
+      schemaPlan: BOT_HARNESS_SCHEMA_PLAN,
+    }),
+  );
+  const pairing = createDevicePairing({
+    database: attachOperationalModule(owner, 'device-pairing'),
+    hostName: 'Host',
+  });
+  const hostKey = randomBytes(32),
+    deviceKey = randomBytes(32);
+  const publicKey = Buffer.from(noisePublicKey(deviceKey)).toString('hex');
+  const offer = pairing.createOffer();
+  pairing.requestKey({ offer: offer.offer, publicKey });
+  pairing.approveKey(offer.receipt, publicKey);
+  const paired = pairing.redeem({ offer: offer.offer, publicKey });
+  if (!paired.ok) throw new Error('pairing failed');
+  const effects: string[] = [];
+  const server = createServer(async (request, response) => {
+    let body = '';
+    for await (const chunk of request) body += String(chunk);
+    effects.push(body);
+    if (!body.startsWith('hold-')) response.end(body);
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const port = (server.address() as AddressInfo).port;
+  const gateway = createEncryptedGateway({
+    pairing,
+    key: async () => Uint8Array.from(hostKey),
+    port: () => port,
+  });
+  const streams = new WebSocketServer({ noServer: true });
+  server.on('upgrade', (req, socket, head) => {
+    if (req.url === '/botharness-device/api/remote.mux') {
+      streams.handleUpgrade(req, socket, head, (peer) => {
+        peer.on('message', (data) => peer.send(data.toString()));
+      });
+    } else void gateway.upgrade(req, socket, head);
+  });
+  const peers: { socket: WebSocket; channel: ConnectChannel }[] = [];
+  const connect = async (key = deviceKey) => {
+    const channel = new ConnectChannel({
+      role: 'initiator',
+      hostId: pairing.host().id,
+      staticKey: key,
+      ephemeralKey: randomBytes(32),
+      hostKey: noisePublicKey(hostKey),
+    });
+    const socket = new WebSocket(`ws://127.0.0.1:${port}/botharness-device/channel`);
+    peers.push({ socket, channel });
+    const answers: Record<string, unknown>[] = [];
+    const waiters: ((value: Record<string, unknown>) => void)[] = [];
+    const closed = new Promise<void>((resolve) => socket.once('close', () => resolve()));
+    const frames = (value: unknown) => channel.send(JSON.stringify(value));
+    const send = (value: unknown) => {
+      for (const wire of frames(value)) socket.send(wire);
+    };
+    socket.on('message', (data) => {
+      const result = channel.receive(data.toString());
+      if (result.reply) socket.send(result.reply);
+      if (result.ready) send({ type: 'admit', credential: paired.credential });
+      if (result.message) {
+        const value = JSON.parse(result.message) as Record<string, unknown>;
+        const waiter = waiters.shift();
+        if (waiter) waiter(value);
+        else answers.push(value);
+      }
+    });
+    await new Promise<void>((resolve, reject) => {
+      socket.once('open', resolve);
+      socket.once('error', reject);
+    });
+    socket.send(channel.start());
+    const next = () =>
+      answers.length
+        ? Promise.resolve(answers.shift()!)
+        : new Promise<Record<string, unknown>>((resolve) => waiters.push(resolve));
+    return { socket, channel, frames, send, next, closed };
+  };
+  return {
+    effects,
+    connect,
+    pairing,
+    deviceId: paired.device.id,
+    async close() {
+      for (const { socket, channel } of peers) {
+        socket.terminate();
+        channel.close();
+      }
+      gateway.close();
+      for (const peer of streams.clients) peer.terminate();
+      streams.close();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    },
+  };
+}
+
+const endpointRequest = (id: string) => ({
+  type: 'request',
+  id,
+  method: 'POST',
+  path: '/botharness-device/api/botharness/privateInputSubmit',
+  body: `effect-${id}`,
+});
+
+it.each(['tamper', 'replay', 'reconnect-replay'] as const)(
+  'rejects %s at the receiving endpoint without an extra application effect',
+  async (fault) => {
+    const f = await endpointFixture();
+    try {
+      let peer = await f.connect();
+      expect(await peer.next()).toMatchObject({ type: 'admitted' });
+      let wire = peer.frames(endpointRequest('one'))[0]!;
+      if (fault !== 'tamper') {
+        peer.socket.send(wire);
+        expect(await peer.next()).toMatchObject({ type: 'response', id: 'one' });
+        expect(f.effects).toEqual(['effect-one']);
+      }
+      if (fault === 'reconnect-replay') {
+        peer.socket.close();
+        await peer.closed;
+        peer = await f.connect();
+        expect(await peer.next()).toMatchObject({ type: 'admitted' });
+      }
+      if (fault === 'tamper') wire = wire.slice(0, -2) + (wire.endsWith('00') ? '01' : '00');
+      peer.socket.send(wire);
+      await peer.closed;
+      expect(f.effects).toEqual(fault === 'tamper' ? [] : ['effect-one']);
+    } finally {
+      await f.close();
+    }
+  },
+);
+
+it('keeps concurrent sends ordered and refuses a revoked device on a fresh channel', async () => {
+  const f = await endpointFixture();
+  try {
+    const peer = await f.connect();
+    expect(await peer.next()).toMatchObject({ type: 'admitted' });
+    await Promise.all(
+      Array.from({ length: 16 }, (_, i) =>
+        Promise.resolve().then(() => peer.send(endpointRequest(String(i)))),
+      ),
+    );
+    const replies = await Promise.all(Array.from({ length: 16 }, () => peer.next()));
+    expect(replies.map((r) => r.id).sort()).toEqual(
+      Array.from({ length: 16 }, (_, i) => String(i)).sort(),
+    );
+    expect([...f.effects].sort()).toEqual(
+      Array.from({ length: 16 }, (_, i) => `effect-${i}`).sort(),
+    );
+    f.pairing.revoke(f.deviceId);
+    await peer.closed;
+    const reconnect = await f.connect();
+    expect(await reconnect.next()).toMatchObject({ type: 'refused' });
+    await reconnect.closed;
+    expect(f.effects).toHaveLength(16);
+  } finally {
+    await f.close();
+  }
+});
+
+it('refuses a substituted device key even with the valid device credential', async () => {
+  const f = await endpointFixture();
+  try {
+    const peer = await f.connect(randomBytes(32));
+    expect(await peer.next()).toMatchObject({ type: 'refused' });
+    await peer.closed;
+    expect(f.effects).toEqual([]);
+  } finally {
+    await f.close();
+  }
+});
+
+it('keeps a replacement logical stream alive when the old instance closes later', async () => {
+  const f = await endpointFixture();
+  try {
+    const peer = await f.connect();
+    expect(await peer.next()).toMatchObject({ type: 'admitted' });
+    const open = { type: 'open', id: 'stream', path: '/botharness-device/api/remote.mux' };
+    peer.send(open);
+    expect(await peer.next()).toMatchObject({ type: 'opened', id: 'stream' });
+    peer.send({ type: 'close', id: 'stream' });
+    peer.send(open);
+    expect(await peer.next()).toMatchObject({ type: 'opened', id: 'stream' });
+    peer.send({ type: 'send', id: 'stream', text: 'replacement' });
+    expect(await peer.next()).toMatchObject({ type: 'message', id: 'stream', text: 'replacement' });
+    expect(f.effects).toEqual([]);
+  } finally {
+    await f.close();
+  }
+});
+
+it('bounds in-flight work for a slow upstream and closes without admitting excess work', async () => {
+  const f = await endpointFixture();
+  try {
+    const peer = await f.connect();
+    expect(await peer.next()).toMatchObject({ type: 'admitted' });
+    for (let i = 0; i < 33; i++) peer.send({ ...endpointRequest(String(i)), body: `hold-${i}` });
+    await peer.closed;
+    expect(f.effects.length).toBeLessThanOrEqual(32);
+    expect(f.effects).not.toContain('hold-32');
+  } finally {
+    await f.close();
+  }
+});
+
+it('does not let a cancelled request callback consume its replacement request', async () => {
+  const f = await endpointFixture();
+  try {
+    const peer = await f.connect();
+    expect(await peer.next()).toMatchObject({ type: 'admitted' });
+    peer.send({ ...endpointRequest('same'), body: 'hold-old' });
+    await expect.poll(() => f.effects).toEqual(['hold-old']);
+    peer.send({ type: 'cancel', id: 'same' });
+    peer.send(endpointRequest('same'));
+    const result = await peer.next();
+    expect(result).toMatchObject({ type: 'response', id: 'same', status: 200 });
+    expect(Buffer.from(String(result.body), 'base64').toString()).toBe('effect-same');
+    expect(f.effects).toEqual(['hold-old', 'effect-same']);
+  } finally {
+    await f.close();
   }
 });

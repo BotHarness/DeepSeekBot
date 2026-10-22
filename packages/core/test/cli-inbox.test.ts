@@ -423,3 +423,23 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
     expect(live.calls).toHaveLength(0);
   });
 });
+
+it('CLI requests Host notification discovery and refuses unsupported Hosts', async () => {
+  const { runInboxCommand } = await import('../src/bots/cli-inbox.js');
+  const rpc = vi.fn(async () => ({ notificationVersion: 1, items: [], nextCursor: 'next' }));
+  const connect = async () => ({
+    rpc: rpc as <T>(method: string, args: Record<string, unknown>) => Promise<T>,
+  });
+  await expect(
+    runInboxCommand('inbox', [], { notifications: true, limit: '20', cursor: 'page' }, connect),
+  ).resolves.toMatchObject({ nextCursor: 'next' });
+  expect(rpc).toHaveBeenCalledExactlyOnceWith('humanAttention', {
+    notifications: true,
+    limit: 20,
+    cursor: 'page',
+  });
+  rpc.mockResolvedValue({ items: [] } as any);
+  await expect(runInboxCommand('inbox', [], { notifications: true }, connect)).rejects.toThrow(
+    'Update the Host',
+  );
+});

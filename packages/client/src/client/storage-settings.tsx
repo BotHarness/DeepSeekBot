@@ -1,7 +1,18 @@
 import { useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { Button, Checkbox } from '@deepseek-ai/dsh-client-ui-primitives';
-import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
+import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
+import { MethodRefused } from '../../../../apps/mobile/src/host/client.js';
+import {
+  STORAGE_MEDIA_KINDS,
+  type StorageCleanupScope,
+  type StorageCleanupPreview,
+  type StorageCleanupResult,
+  type StorageMediaKind,
+  type StorageMessagesPreview,
+  type StorageMessagesResult,
+  type StorageUsage,
+} from '../../../../apps/mobile/src/host/storage.js';
 
 import { formatBotZipSize } from './bot-zip.js';
 import {
@@ -11,14 +22,7 @@ import {
   loadStorageUsage,
   previewStorageCleanup,
   previewStorageMessages,
-  STORAGE_MEDIA_KINDS,
   type BridgeCall,
-  type StorageCleanupPreview,
-  type StorageCleanupResult,
-  type StorageMediaKind,
-  type StorageMessagesPreview,
-  type StorageMessagesResult,
-  type StorageUsage,
 } from './bridge.js';
 import { PillButton } from './ds/pill-button.js';
 import { FormDialog } from './ds/form-dialog.js';
@@ -167,9 +171,36 @@ function cutoff(age: Age): string {
   return new Date(age === 'all' ? Date.now() : Date.now() - Number(age) * DAY).toISOString();
 }
 
-export type StorageSettingsProps = PropsLocale<'botharness'> & InjectFace<{ call: BridgeCall }>;
+export interface StorageSettingsSource {
+  usage(signal?: AbortSignal): Promise<StorageUsage>;
+  previewMedia(scope: StorageCleanupScope): Promise<StorageCleanupPreview>;
+  confirmMedia(preview: StorageCleanupPreview): Promise<StorageCleanupResult>;
+  previewMessages(scope: {
+    before: string;
+    channelIds?: string[];
+  }): Promise<StorageMessagesPreview>;
+  confirmMessages(preview: StorageMessagesPreview): Promise<StorageMessagesResult>;
+}
 
-export function StorageSettings({ call, t }: StorageSettingsProps): ReactElement {
+export type StorageSettingsProps = PropsLocale<'botharness'> & { title?: string } & (
+    | { call: BridgeCall; source?: never }
+    | { source: StorageSettingsSource; call?: never }
+  );
+
+export function StorageSettings({
+  call,
+  source,
+  t,
+  title = t('storage.title'),
+}: StorageSettingsProps): ReactElement {
+  const storage = source ?? {
+    usage: (signal?: AbortSignal) => loadStorageUsage(call!, signal),
+    previewMedia: (scope: StorageCleanupScope) => previewStorageCleanup(call!, scope),
+    confirmMedia: (preview: StorageCleanupPreview) => confirmStorageCleanup(call!, preview),
+    previewMessages: (scope: { before: string; channelIds?: string[] }) =>
+      previewStorageMessages(call!, scope),
+    confirmMessages: (preview: StorageMessagesPreview) => confirmStorageMessages(call!, preview),
+  };
   const [open, setOpen] = useState(false);
   const [usage, setUsage] = useState<StorageUsage>();
   const [target, setTarget] = useState<Target>('media');
@@ -187,7 +218,7 @@ export function StorageSettings({ call, t }: StorageSettingsProps): ReactElement
     const controller = new AbortController();
     request.current = controller;
     setUsage(undefined);
-    loadStorageUsage(call, controller.signal).then(
+    storage.usage(controller.signal).then(
       (value) => {
         if (!controller.signal.aborted) setUsage(value);
       },
@@ -235,8 +266,8 @@ export function StorageSettings({ call, t }: StorageSettingsProps): ReactElement
     try {
       setPreview(
         messagesTarget
-          ? await previewStorageMessages(call, scope)
-          : await previewStorageCleanup(call, { ...scope, kinds }),
+          ? await storage.previewMessages(scope)
+          : await storage.previewMedia({ ...scope, kinds }),
       );
       setAcknowledged(false);
     } catch {
@@ -252,12 +283,15 @@ export function StorageSettings({ call, t }: StorageSettingsProps): ReactElement
     try {
       setResult(
         mediaPreview !== undefined
-          ? await confirmStorageCleanup(call, mediaPreview)
-          : await confirmStorageMessages(call, preview as StorageMessagesPreview),
+          ? await storage.confirmMedia(mediaPreview)
+          : await storage.confirmMessages(preview as StorageMessagesPreview),
       );
     } catch (failure) {
       setAcknowledged(false);
-      if (failure instanceof BridgeCallError && failure.code === 'storage-preview-stale') {
+      if (
+        (failure instanceof BridgeCallError || failure instanceof MethodRefused) &&
+        failure.code === 'storage-preview-stale'
+      ) {
         setPreview(undefined);
         setError(t('storage.stale'));
       } else setError(t('storage.error'));
@@ -283,7 +317,7 @@ export function StorageSettings({ call, t }: StorageSettingsProps): ReactElement
     >
       {!open ? null : result !== undefined ? (
         <FormDialog
-          title={t('storage.title')}
+          title={title}
           size="small"
           labels={labels}
           submitLabel={t('common.close')}
@@ -305,6 +339,7 @@ export function StorageSettings({ call, t }: StorageSettingsProps): ReactElement
         </FormDialog>
       ) : messagesPreview !== undefined ? (
         <MessagesPreview
+          title={title}
           preview={messagesPreview}
           acknowledged={acknowledged}
           busy={busy}
@@ -318,7 +353,7 @@ export function StorageSettings({ call, t }: StorageSettingsProps): ReactElement
         />
       ) : mediaPreview !== undefined ? (
         <FormDialog
-          title={t('storage.title')}
+          title={title}
           size="small"
           scroll
           labels={labels}
@@ -368,7 +403,7 @@ export function StorageSettings({ call, t }: StorageSettingsProps): ReactElement
         </FormDialog>
       ) : (
         <FormDialog
-          title={t('storage.title')}
+          title={title}
           size="small"
           scroll
           labels={labels}
@@ -531,6 +566,7 @@ export function StorageSettings({ call, t }: StorageSettingsProps): ReactElement
 }
 
 function MessagesPreview(props: {
+  title: string;
   preview: StorageMessagesPreview;
   acknowledged: boolean;
   busy: boolean;
@@ -545,7 +581,7 @@ function MessagesPreview(props: {
   const { preview, t } = props;
   return (
     <FormDialog
-      title={t('storage.title')}
+      title={props.title}
       size="small"
       scroll
       labels={props.labels}

@@ -1,10 +1,6 @@
+import { fetchMessageResource, type MessageHost } from './message-host.js';
 import { subscribeMessagingDefaults } from './messaging-defaults-live.js';
 import { boundedBridgeMediaRequest } from './bridge-media-request.js';
-import {
-  bridgeAttachmentPath,
-  localAttachmentFetch,
-  type AttachmentFetch,
-} from './attachment-fetch.js';
 
 const MAX_BYTES = 25 * 1024 * 1024;
 
@@ -17,17 +13,7 @@ export function createBridgeImageResource(
   channelId: string,
   sourceEventId: string,
   attachmentId: string,
-  fetcher?: AttachmentFetch,
-) {
-  return createAttachmentImageResource(
-    bridgeAttachmentPath({ channelId, sourceEventId, attachmentId }),
-    fetcher,
-  );
-}
-
-export function createAttachmentImageResource(
-  path: string,
-  fetcher: AttachmentFetch = localAttachmentFetch,
+  host?: MessageHost,
 ) {
   let state = EMPTY;
   let element: HTMLDivElement | null = null;
@@ -55,7 +41,12 @@ export function createAttachmentImageResource(
       if (!request.signal.aborted) update({ failure: value });
     };
     void boundedBridgeMediaRequest(request.signal, async () => {
-      const response = await fetcher(path, { signal: request.signal });
+      const response = await fetchMessageResource(
+        '/api/botharness/attachment?' +
+          new URLSearchParams({ channelId, sourceEventId, attachmentId }),
+        request.signal,
+        host,
+      );
       request.signal.throwIfAborted();
       if (!response.ok) {
         await response.body?.cancel();
@@ -132,7 +123,7 @@ export function createAttachmentImageResource(
     subscribe(listener: () => void) {
       listeners.add(listener);
       if (listeners.size === 1) {
-        stopLive = subscribeMessagingDefaults(reload);
+        stopLive = host === undefined ? subscribeMessagingDefaults(reload) : undefined;
         observe();
       }
       return () => {

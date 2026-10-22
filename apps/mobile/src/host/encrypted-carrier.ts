@@ -179,7 +179,7 @@ export function encryptedCarrier(options: {
       origin,
       encryption: options.encryption,
       closed: (reason) => {
-        sessions.delete(origin);
+        if (sessions.get(origin) === current) sessions.delete(origin);
         clearTimeout(deadline);
         clearInterval(heartbeat);
         const error =

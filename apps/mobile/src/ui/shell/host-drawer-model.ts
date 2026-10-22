@@ -82,6 +82,7 @@ export interface HostDrawerState {
 
 export interface HostDrawerPort {
   switchTo(hostId: string): Promise<boolean>;
+  showView(hostId: string | undefined): void;
   pair(): void;
   notifications(): void;
 }
@@ -94,6 +95,7 @@ export interface HostDrawer {
   close(): void;
   hidden(): void;
   select(hostId: string): Promise<boolean>;
+  selectAll(): void;
   pairNew(): void;
   openNotifications(): void;
   setReturnFocus(focus: (() => void) | undefined): void;
@@ -103,6 +105,8 @@ export function createHostDrawer(port: HostDrawerPort): HostDrawer {
   const listeners = new Set<() => void>();
   let state: HostDrawerState = { open: false, shown: false };
   let returnFocus: (() => void) | undefined;
+  let selection = 0;
+  let switching: Promise<boolean> | undefined;
 
   const publish = (next: HostDrawerState): void => {
     if (next.open === state.open && next.shown === state.shown) return;
@@ -127,8 +131,24 @@ export function createHostDrawer(port: HostDrawerPort): HostDrawer {
       if (!state.open) publish({ open: false, shown: false });
     },
     async select(hostId) {
+      const selected = ++selection;
       close();
-      return port.switchTo(hostId);
+      const switchHost = () => port.switchTo(hostId);
+      const pending =
+        switching === undefined ? switchHost() : switching.then(switchHost, switchHost);
+      switching = pending;
+      try {
+        const switched = await pending;
+        if (switched && selected === selection) port.showView(hostId);
+        return switched;
+      } finally {
+        if (switching === pending) switching = undefined;
+      }
+    },
+    selectAll() {
+      selection++;
+      close();
+      port.showView(undefined);
     },
     pairNew() {
       close();

@@ -11,8 +11,11 @@ import {
 import { parseSavedHost, type SavedHost } from '../../../../apps/mobile/src/host/hosts.js';
 import {
   createInbox,
+  prepareNotificationBaseline,
   type Inbox,
   type InboxSnapshot,
+  observeInbox,
+  type InboxQuery,
 } from '../../../../apps/mobile/src/host/inbox.js';
 import {
   DEVICE_PREFIX,
@@ -23,6 +26,10 @@ import {
 } from '../../../../apps/mobile/src/host/pairing.js';
 import { store } from './store.js';
 import { createRemoteActivityProjection, type RemoteBotActivity } from './remote-host-activity.js';
+import { releaseRemoteHostViewers } from './remote-host-viewer.js';
+import { browserNotificationApi } from './desktop-notifications.js';
+import { createRemoteNotifications, type RemoteNotifications } from './remote-notifications.js';
+import { en } from './locale.js';
 
 export const REMOTE_HOSTS_STORAGE_KEY = 'botharness.remoteHosts.v1';
 export const HOST_TAB_STORAGE_KEY = 'botharness.hostTab.v1';
@@ -61,6 +68,7 @@ export interface RemotePairTrust {
 }
 
 export interface RemoteHosts {
+  notifications: RemoteNotifications;
   getSnapshot(): RemoteHostsSnapshot;
   subscribe(listener: () => void): () => void;
   pair(
@@ -74,18 +82,16 @@ export interface RemoteHosts {
   open(target: RemoteConversationTarget): void;
   close(): void;
   conversation(target: RemoteConversationTarget): Conversation | undefined;
-  client(hostId: string): HostClient | undefined;
   markRead(target: RemoteConversationTarget, messageId: string): Promise<void>;
+  activity(hostId: string, query?: InboxQuery): ReturnType<typeof observeInbox> | undefined;
+  client(hostId: string): HostClient | undefined;
+  viewerClient(hostId: string): HostClient | undefined;
 }
 
 export interface HostStorage {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
   removeItem(key: string): void;
-}
-
-export function conversationChannelId(target: RemoteConversationTarget): string {
-  return target.channelId ?? `dm-${target.botSlug ?? ''}`;
 }
 
 export function conversationKey(target: RemoteConversationTarget): string {
@@ -136,16 +142,19 @@ interface HostEntry {
 }
 
 const idleInbox: InboxSnapshot = { status: 'idle' };
+type NotificationTranslate = (key: 'remoteHosts.notifications.privateBody') => string;
 
 export function createRemoteHosts(options: {
   storage?: HostStorage | undefined;
   carrier: HostCarrier;
   loadImage?: (url: string, headers: Record<string, string>) => Promise<string | undefined>;
   releaseImage?: (image: string) => void;
+  translate?: NotificationTranslate;
 }): RemoteHosts {
   const { storage, carrier, loadImage, releaseImage } = options;
   const listeners = new Set<() => void>();
   const clients = new Map<string, HostEntry>();
+  const activity = new Map<string, ReturnType<typeof observeInbox>>();
   const conversations = new Map<string, Conversation>();
   const images = new Map<string, string>();
   const loading = new Map<string, symbol>();
@@ -153,6 +162,31 @@ export function createRemoteHosts(options: {
   let tab = readTab(storage);
   let open: RemoteConversationTarget | undefined;
   let snapshot: RemoteHostsSnapshot = { hosts: [], avatars, tab };
+  const notifications = createRemoteNotifications({
+    storage,
+    api: browserNotificationApi(),
+    async prepareEnable(hostId, signal) {
+      const entry = clients.get(hostId);
+      const inbox = entry?.inbox?.feed;
+      if (entry === undefined || inbox === undefined)
+        throw new Error('notification-baseline-unavailable');
+      await prepareNotificationBaseline(inbox, signal);
+      if (
+        clients.get(hostId) !== entry ||
+        entry.inbox?.feed !== inbox ||
+        entry.client.getSnapshot().connection.status !== 'connected'
+      )
+        throw new Error('notification-activation-cancelled');
+    },
+    privateBody: () =>
+      options.translate?.('remoteHosts.notifications.privateBody') ??
+      en['remoteHosts.notifications.privateBody'],
+    open(target) {
+      globalThis.window?.focus();
+      open = target;
+      publish();
+    },
+  });
 
   const fetchAvatars = (hosts: readonly RemoteHost[]): void => {
     const wanted = new Map(
@@ -202,6 +236,7 @@ export function createRemoteHosts(options: {
       activity,
     }));
     fetchAvatars(hosts);
+    if (listeners.size > 0) notifications.update(hosts);
     const known = tab === ALL_HOSTS || tab === THIS_HOST || clients.has(tab);
     snapshot = {
       hosts,
@@ -215,7 +250,7 @@ export function createRemoteHosts(options: {
   const start = (entry: HostEntry): void => {
     entry.client.start();
     if (entry.inbox !== undefined) return;
-    const feed = createInbox(entry.client, { activity: true }, entry.retained);
+    const feed = createInbox(entry.client, { activity: true, notifications: true }, entry.retained);
     entry.inbox = { feed, release: feed.subscribe(publish) };
   };
 
@@ -264,9 +299,11 @@ export function createRemoteHosts(options: {
   const forget = (hostId: string): void => {
     const entry = clients.get(hostId);
     if (entry === undefined) return;
+    notifications.forget(hostId);
     entry.release();
     stop(entry);
     clients.delete(hostId);
+    activity.delete(hostId);
     for (const [key, conversation] of conversations)
       if ((JSON.parse(key) as string[])[0] === hostId) {
         conversation.stop();
@@ -278,7 +315,27 @@ export function createRemoteHosts(options: {
   };
 
   return {
+    notifications,
     getSnapshot: () => snapshot,
+    client: (hostId) => clients.get(hostId)?.client,
+    activity(hostId, query) {
+      const entry = clients.get(hostId);
+      if (entry === undefined) return undefined;
+      if (query !== undefined) return observeInbox(entry.client, query);
+      let observed = activity.get(hostId);
+      if (observed === undefined) {
+        observed = {
+          getSnapshot: () => entry.inbox?.feed.getSnapshot() ?? entry.retained,
+          getInbox: () => entry.inbox?.feed,
+          subscribe(listener) {
+            return entry.inbox?.feed.subscribe(listener) ?? (() => {});
+          },
+          watching: () => entry.inbox !== undefined,
+        };
+        activity.set(hostId, observed);
+      }
+      return observed;
+    },
     subscribe(listener) {
       const first = listeners.size === 0;
       listeners.add(listener);
@@ -287,6 +344,7 @@ export function createRemoteHosts(options: {
         listeners.delete(listener);
         if (listeners.size > 0) return;
         for (const entry of clients.values()) stop(entry);
+        notifications.stop();
       };
     },
     async pair(link, deviceName, localHostId, trust) {
@@ -321,10 +379,13 @@ export function createRemoteHosts(options: {
     async remove(hostId) {
       const entry = clients.get(hostId);
       if (entry === undefined) return;
+      const releasing = releaseRemoteHostViewers(entry.client);
       forget(hostId);
+      await releasing;
       await revokePairing({ host: entry.host, carrier });
     },
     select(next) {
+      if (tab !== next) notifications.cancel();
       tab = next;
       try {
         storage?.setItem(HOST_TAB_STORAGE_KEY, next);
@@ -340,7 +401,6 @@ export function createRemoteHosts(options: {
       open = undefined;
       publish();
     },
-    client: (hostId) => clients.get(hostId)?.client,
     async markRead(target, messageId) {
       const entry = clients.get(target.hostId);
       if (entry === undefined) return;
@@ -367,6 +427,9 @@ export function createRemoteHosts(options: {
         conversations.set(key, conversation);
       }
       return conversation;
+    },
+    viewerClient(hostId) {
+      return clients.get(hostId)?.client;
     },
   };
 }
@@ -457,8 +520,10 @@ async function browserImage(
 }
 
 let shared: RemoteHosts | undefined;
+let translate: NotificationTranslate = (key) => en[key];
 
-export function remoteHosts(): RemoteHosts {
+export function remoteHosts(translator?: NotificationTranslate): RemoteHosts {
+  if (translator !== undefined) translate = translator;
   if (shared !== undefined) return shared;
   shared = createRemoteHosts({
     storage: (() => {
@@ -471,6 +536,7 @@ export function remoteHosts(): RemoteHosts {
     carrier: browserCarrier(),
     loadImage: browserImage,
     releaseImage: (image) => URL.revokeObjectURL(image),
+    translate: (key) => translate(key),
   });
   const sources = shared;
   let selection = store.getSnapshot().selection;

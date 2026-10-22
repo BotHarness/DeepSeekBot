@@ -400,8 +400,9 @@ describe('bridge typert service', () => {
       assignmentModels,
     });
   });
-  it('exposes Activity query arguments through the gateway service and refuses an unavailable owner', () => {
-    const { service } = setup();
+  it('exposes Activity and notification query arguments and refuses an unavailable owner', () => {
+    const { service, methods } = setup();
+    const query = vi.spyOn(methods, 'humanAttention');
     expect(parameterNames(service.humanAttention)).toEqual([
       'category',
       'botSlug',
@@ -415,6 +416,7 @@ describe('bridge typert service', () => {
       'unreadOnly',
       'queryVersion',
       'dismissed',
+      'notifications',
     ]);
     expect(parameterNames(service.humanAttentionRestore)).toEqual(['itemId', 'sourceKey']);
     expect(() =>
@@ -432,6 +434,38 @@ describe('bridge typert service', () => {
         1,
       ),
     ).toThrow('Activity queries are unavailable');
+    expect(() =>
+      service.humanAttention(
+        undefined,
+        undefined,
+        undefined,
+        100,
+        'notification-cursor',
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        true,
+      ),
+    ).toThrow('notification queries are unavailable');
+    expect(query).toHaveBeenLastCalledWith({
+      category: undefined,
+      botSlug: undefined,
+      channelId: undefined,
+      limit: 100,
+      cursor: 'notification-cursor',
+      sort: undefined,
+      snoozed: undefined,
+      kind: undefined,
+      search: undefined,
+      unreadOnly: undefined,
+      queryVersion: undefined,
+      dismissed: undefined,
+      notifications: true,
+    });
   });
 
   it('exposes and forwards model revision and advanced preset arguments through the gateway façade', async () => {

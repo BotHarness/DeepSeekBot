@@ -7,11 +7,22 @@ import type { CloudRow } from '../src/cloud/client';
 import type { CloudConversation, ConversationWorkspace } from '../src/cloud/conversations';
 import { publicInstance, MOBILE_REDIRECT_URI } from '../src/cloud/instance-contract';
 import { cloudViewScope } from '../src/cloud/workspace-directory';
+import { computerEnvironmentKey, cloudEnvironmentKey } from '../src/host/conversation-environments';
+import { HOST_COLORS, type HostColorId } from '../src/ui/design/host-look';
+import { Platform } from 'react-native';
+import { HostAccentProvider } from '../src/ui/shell/host-accent-provider';
+import { HomeHeader } from '../src/ui/shell/home-header';
+import { DesignThemeProvider, resolveTheme, useDesignTheme } from '../src/ui/design/theme';
 import type { RosterView } from '../src/host/client';
 
 const { push, cloudState, directoryState, hostState } = vi.hoisted(() => ({
   push: vi.fn(),
-  hostState: { connecting: false },
+  hostState: {
+    connecting: false,
+    removed: false,
+    color: undefined as HostColorId | undefined,
+    fontScale: 1,
+  },
   cloudState: {
     error: undefined as string | undefined,
     ready: true,
@@ -53,8 +64,19 @@ const roster: RosterView = {
 };
 
 vi.mock('../src/host/native-conversation-filter', async () => {
-  const { useState } = await import('react');
-  return { useConversationFilter: () => useState('all') };
+  const { useSyncExternalStore } = await import('react');
+  const { createConversationFilter } = await import('../src/host/conversation-filter');
+  const conversationFilter = createConversationFilter({
+    read: async () => undefined,
+    write: () => {},
+  });
+  return {
+    conversationFilter,
+    useConversationFilter: () => [
+      useSyncExternalStore(conversationFilter.subscribe, conversationFilter.getSnapshot),
+      conversationFilter.set,
+    ],
+  };
 });
 vi.mock('../src/cloud/native', () => ({
   useCloudSnapshot: () => cloudState,
@@ -66,10 +88,24 @@ vi.mock('../src/cloud/native-conversations', () => ({
 }));
 vi.mock('react-native-keyboard-controller', async () => import('./keyboard-controller-shim'));
 vi.mock('react-native-tab-view', () => import('./tab-view-shim'));
-vi.mock('react-native', () => import('./react-native-shim'));
+vi.mock('react-native', async () => {
+  const native = await import('./react-native-shim');
+  return {
+    ...native,
+    useWindowDimensions: () => ({
+      ...native.useWindowDimensions(),
+      fontScale: hostState.fontScale,
+    }),
+  };
+});
 vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
 vi.mock('react-native-worklets', () => ({ scheduleOnRN: (callback: () => void) => callback() }));
-vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
+vi.mock('react-native-svg', () => ({
+  default: ({ width, height }: { width: number; height: number }) => (
+    <svg width={width} height={height} />
+  ),
+  Path: () => null,
+}));
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
@@ -87,7 +123,7 @@ vi.mock('expo-router', () => {
 });
 vi.mock('../src/host/host-session', () => ({
   useHostSession: () => ({
-    saved: { hostId: 'h1', hostName: 'studio' },
+    saved: hostState.removed ? null : { hostId: 'h1', hostName: 'studio' },
     client: undefined,
     inbox: undefined,
   }),
@@ -103,34 +139,27 @@ vi.mock('../src/host/native-section-collapse', () => ({
   sectionCollapse: { toggle: () => {} },
   useCollapsedSections: () => new Set(),
 }));
-vi.mock('expo-symbols', () => ({ SymbolView: () => null }));
+vi.mock('expo-symbols', () => ({
+  SymbolView: ({ size }: { size: number }) => <span data-symbol-size={size} />,
+}));
 vi.mock('../src/host/native-host-look', () => ({
-  useHostLook: () => ({ icon: { kind: 'symbol', id: 'desktop' } }),
+  useHostLook: () => ({ icon: { kind: 'symbol', id: 'desktop' }, color: hostState.color }),
 }));
 vi.mock('../src/ui/chat/section-header', () => ({ SectionHeader: () => null }));
-vi.mock('../src/ui/shell/home-header', () => ({
-  HomeHeader: ({
-    actions,
-    search,
-    children,
-  }: {
-    actions?: ReactNode;
-    search?: ReactNode;
-    children: ReactNode;
-  }) => (
-    <>
-      {search ?? actions}
-      {children}
-    </>
-  ),
-}));
 vi.mock('../src/ui/shell/host-drawer', () => ({
   HostDrawerEdge: ({ children }: { children: ReactNode }) => children,
+  hostDrawer: { setReturnFocus: () => {} },
+  focusOn: () => {},
+  openHostDrawer: () => {},
+  useHostDrawerOpen: () => false,
 }));
 vi.mock('../src/ui/shell/human-avatar', () => ({ HumanAvatarButton: () => null }));
 vi.mock('../src/ui/connection-banner', () => ({ ConnectionBanner: () => null }));
 vi.mock('../src/ui/bot-avatar', () => ({ BotAvatar: () => null }));
 
+vi.mock('expo-status-bar', () => ({ StatusBar: () => null }));
+
+import { conversationFilter } from '../src/host/native-conversation-filter';
 import HomeScreen from '../app/(tabs)/(home)/index';
 import { t } from '../src/ui/strings';
 
@@ -152,6 +181,10 @@ afterEach(() => {
   push.mockReset();
   vi.unstubAllGlobals();
   hostState.connecting = false;
+  hostState.removed = false;
+  hostState.color = undefined;
+  hostState.fontScale = 1;
+  conversationFilter.set('all');
   cloudState.rows = [];
   cloudState.ready = true;
   cloudState.error = undefined;
@@ -182,6 +215,7 @@ async function type(view: HTMLElement, text: string): Promise<void> {
 
 const rows = (view: HTMLElement) =>
   [...view.querySelectorAll('button')]
+    .filter((node) => node.dataset.testid !== 'chats-view-button')
     .filter((node) => !node.closest('[hidden]') && !node.dataset.testid?.startsWith('pager-'))
     .filter(
       (node) =>
@@ -192,6 +226,7 @@ const rows = (view: HTMLElement) =>
           t.closeSearch,
           t.openSearch,
           t.settings,
+          t.workspaces,
         ].includes(node.getAttribute('aria-label') ?? ''),
     )
     .map((node) => node.getAttribute('aria-label'));
@@ -260,17 +295,12 @@ describe('Search in the Chats header', () => {
       organizationId: 'same-name-empty',
     });
     const view = await home();
-    const duplicate = view.querySelector<HTMLButtonElement>(
-      '[role="tab"][aria-label="Cloud team, https://uat.example.test, same-name-empty"]',
-    )!;
-    expect(duplicate).not.toBeNull();
-    await act(async () => duplicate.click());
+    expect(view.querySelector('[role="tab"]')).toBeNull();
+    expect(view.querySelector('[data-testid="pager-next"]')).toBeNull();
+    await act(async () => conversationFilter.set(cloudEnvironmentKey(scope, 'same-name-empty')));
     expect(rows(view).join(' ')).not.toContain('Cloud general');
-    await act(async () =>
-      view
-        .querySelector<HTMLButtonElement>(`[role="tab"][aria-label="${t.allEnvironments}"]`)!
-        .click(),
-    );
+    expect(view.querySelector('[data-testid="chats-view-button"]')?.textContent).toBe('Cloud team');
+    await act(async () => conversationFilter.set('all'));
     expect(view.textContent).toContain('Cloud general');
     expect(view.textContent).toContain('Ada');
     await act(async () =>
@@ -290,26 +320,26 @@ describe('Search in the Chats header', () => {
         accountScope: scope,
       },
     });
-    await act(async () =>
-      view.querySelector<HTMLButtonElement>('[data-testid="pager-next"]')!.click(),
-    );
+    await act(async () => conversationFilter.set(computerEnvironmentKey('h1')));
+    expect(view.querySelector('[data-testid="chats-view-button"]')?.textContent).toBe('studio');
     expect(rows(view).join(' ')).not.toContain('Cloud general');
     expect(view.textContent).toContain('Ada');
-    await act(async () =>
-      view.querySelector<HTMLButtonElement>('[data-testid="pager-next"]')!.click(),
-    );
-    expect(
-      view
-        .querySelector('[role="tab"][aria-label="Cloud team, https://uat.example.test, org_a"]')
-        ?.getAttribute('aria-selected'),
-    ).toBe('true');
+    await act(async () => conversationFilter.set(cloudEnvironmentKey(scope, 'org_a')));
     expect(rows(view).join(' ')).not.toContain('Ada, Done');
     expect(rows(view).join(' ')).toContain('Cloud general');
     hostState.connecting = true;
-    await act(async () =>
-      view.querySelector<HTMLButtonElement>('button[aria-label="Empty workspace"]')!.click(),
-    );
+    await act(async () => conversationFilter.set(cloudEnvironmentKey(scope, 'empty')));
     expect(view.textContent).toContain(t.cloudChannels.empty);
+  });
+
+  it('falls back to All when its selected Host is no longer available', async () => {
+    const view = await home();
+    await act(async () => conversationFilter.set(computerEnvironmentKey('removed-host')));
+    expect(conversationFilter.getSnapshot()).toBe('all');
+    expect(view.querySelector('[data-testid="chats-view-button"]')?.textContent).toBe(
+      t.allEnvironments,
+    );
+    expect(rows(view)).toHaveLength(3);
   });
 
   it('filters the list in place and opens the chat the Human taps', async () => {
@@ -383,4 +413,117 @@ describe('Search in the Chats header', () => {
     expect(view.querySelector(`textarea[aria-label="${t.searchPlaceholder}"]`)).toBeNull();
     expect(view.querySelector(`button[aria-label="${t.settings}"]`)).not.toBeNull();
   });
+});
+
+describe('Selected view header accessibility', () => {
+  it.each(['all', 'computer', 'cloud'] as const)(
+    'announces the full %s view and scales its icon with live system text size',
+    async (kind) => {
+      const title = kind === 'all' ? t.allEnvironments : 'Studio team with a long complete name';
+      const accessibilityLabel =
+        kind === 'cloud' ? `${title}, cloud.example.test, team-one` : undefined;
+      host = document.createElement('div');
+      root = createRoot(host);
+      for (const fontScale of [1, 1.4, 2]) {
+        hostState.fontScale = fontScale;
+        await act(async () =>
+          root!.render(
+            <DesignThemeProvider appearance={{ scheme: 'light' }}>
+              <HomeHeader
+                environment={{
+                  key: kind,
+                  kind,
+                  title,
+                  ...(accessibilityLabel === undefined ? {} : { accessibilityLabel }),
+                  ...(kind === 'computer'
+                    ? { hostIcon: { kind: 'symbol', id: 'desktop' } as const }
+                    : {}),
+                }}
+              >
+                {null}
+              </HomeHeader>
+            </DesignThemeProvider>,
+          ),
+        );
+        const button = host.querySelector('[data-testid="chats-view-button"]')!;
+        expect(button.getAttribute('aria-label')).toBe(
+          `${t.workspaces}, ${accessibilityLabel ?? title}`,
+        );
+        const size = resolveTheme('light', {}, 'ios').type.title.line * fontScale;
+        if (kind === 'computer') {
+          expect(button.querySelector('[data-symbol-size]')?.getAttribute('data-symbol-size')).toBe(
+            String(size),
+          );
+        } else {
+          expect(button.querySelector('svg')?.getAttribute('width')).toBe(String(size));
+          expect(button.querySelector('svg')?.getAttribute('height')).toBe(String(size));
+        }
+      }
+    },
+  );
+});
+
+describe('Selected current Host accent', () => {
+  it.each(['light', 'dark'] as const)(
+    'limits Android tint to the current Host filter and follows %s theme changes',
+    async (scheme) => {
+      const Probe = () => <span>{useDesignTheme().color.accent}</span>;
+      host = document.createElement('div');
+      root = createRoot(host);
+      const render = (appearance = scheme) =>
+        root!.render(
+          <DesignThemeProvider appearance={{ scheme: appearance }}>
+            <HostAccentProvider>
+              <Probe />
+            </HostAccentProvider>
+          </DesignThemeProvider>,
+        );
+      const before = Platform.OS;
+      try {
+        Platform.OS = 'android';
+        hostState.color = 'orange';
+        await act(async () => render());
+        expect(host.textContent).toBe(resolveTheme(scheme, {}, 'android').color.accent);
+        await act(async () => conversationFilter.set(computerEnvironmentKey('h1')));
+        expect(host.textContent).toBe(
+          resolveTheme(scheme, { accent: HOST_COLORS.orange[scheme] }, 'android').color.accent,
+        );
+        const otherScheme = scheme === 'light' ? 'dark' : 'light';
+        await act(async () => render(otherScheme));
+        expect(host.textContent).toBe(
+          resolveTheme(otherScheme, { accent: HOST_COLORS.orange[otherScheme] }, 'android').color
+            .accent,
+        );
+        await act(async () => render());
+        await act(async () => conversationFilter.set('all'));
+        expect(host.textContent).toBe(resolveTheme(scheme, {}, 'android').color.accent);
+        await act(async () => conversationFilter.set(computerEnvironmentKey('other-host')));
+        expect(host.textContent).toBe(resolveTheme(scheme, {}, 'android').color.accent);
+        await act(async () => conversationFilter.set(cloudEnvironmentKey('cloud', 'team')));
+        expect(host.textContent).toBe(resolveTheme(scheme, {}, 'android').color.accent);
+        await act(async () => conversationFilter.set(computerEnvironmentKey('h1')));
+        hostState.color = 'teal';
+        await act(async () => render());
+        expect(host.textContent).toBe(
+          resolveTheme(scheme, { accent: HOST_COLORS.teal[scheme] }, 'android').color.accent,
+        );
+        Platform.OS = 'ios';
+        await act(async () => render());
+        expect(host.textContent).toBe(resolveTheme(scheme, {}, 'ios').color.accent);
+        await act(async () => conversationFilter.set('all'));
+        expect(host.textContent).toBe(resolveTheme(scheme, {}, 'ios').color.accent);
+        Platform.OS = 'android';
+        await act(async () => conversationFilter.set(computerEnvironmentKey('h1')));
+        hostState.color = undefined;
+        await act(async () => render());
+        expect(host.textContent).toBe(resolveTheme(scheme, {}, 'android').color.accent);
+        hostState.color = 'orange';
+        hostState.removed = true;
+        await act(async () => render());
+        expect(host.textContent).toBe(resolveTheme(scheme, {}, 'android').color.accent);
+      } finally {
+        Platform.OS = before;
+      }
+    },
+  );
 });
