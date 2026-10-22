@@ -7,6 +7,7 @@ import {
   font,
   foregroundStyle,
   frame,
+  tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
@@ -39,14 +40,14 @@ export function AccountPanel(props: AccountPanelProps) {
                 label={t.pairAccount.signOut}
                 systemImage="rectangle.portrait.and.arrow.right"
                 onPress={props.onSignOut}
-                modifiers={[disabled(locked)]}
+                modifiers={[tint(theme.color.danger), disabled(locked)]}
               />
               <Button
                 label={t.pairAccount.deleteAccount}
                 systemImage="trash"
                 role="destructive"
                 onPress={props.onDelete}
-                modifiers={[disabled(locked)]}
+                modifiers={[tint(theme.color.danger), disabled(locked)]}
               />
             </>
           ) : null}
