@@ -5,7 +5,7 @@ import ReanimatedSwipeable, {
 } from 'react-native-gesture-handler/ReanimatedSwipeable';
 
 import { pressTint, useDesignTheme } from '../design/theme';
-import { chatList, radius, space, swipeAction } from '../design/tokens';
+import { radius, space, swipeAction } from '../design/tokens';
 import { ActivityIcon, CheckIcon, FolderIcon, MuteIcon, PinIcon } from '../shell/icons';
 import { EDGE_WIDTH } from '../shell/host-drawer-model';
 import type { ConversationAction, ConversationActionKey } from './conversation-actions';
@@ -51,7 +51,7 @@ export function ConversationSwipe({
             flexDirection: 'row',
             alignItems: 'center',
             gap: space.x3,
-            paddingHorizontal: chatList.gutter,
+            paddingHorizontal: space.x5,
           }}
         >
           {actions

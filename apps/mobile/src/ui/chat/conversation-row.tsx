@@ -1,11 +1,11 @@
 import type { ReactNode, Ref } from 'react';
 import type { Href } from 'expo-router';
 import { SourceName } from './source-name';
-import { Platform, Pressable, View, type ViewInstance } from 'react-native';
+import { Pressable, View, type ViewInstance } from 'react-native';
 
 import { BotAvatar } from '../bot-avatar';
 import type { HostLook } from '../design/host-look';
-import { chatList, edge, radius, space } from '../design/tokens';
+import { edge, radius, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { CountBadge } from '../primitives/count-badge';
 import { Text } from '../primitives/text';
@@ -24,13 +24,14 @@ import {
 import { RowStatusGlyph } from './row-status-glyph';
 import type { ConversationAction, ConversationActionKey } from './conversation-actions';
 import { ConversationSwipe } from './conversation-swipe';
-import { ConversationPeek, type ConversationPeekAction } from '../shell/conversation-peek';
+import { ConversationPeek } from '../shell/conversation-peek';
+import { ActionMenuButton, type MenuAction } from '../primitives/action-menu-button';
 import { showActionMenu } from '../primitives/app-dialog';
 
 const AVATAR = 48;
 const RING = 6;
 
-export const AVATAR_EDGE = chatList.gutter;
+export const AVATAR_EDGE = space.x5 + RING / 2;
 
 export function ConversationRow({
   row,
@@ -64,20 +65,17 @@ export function ConversationRow({
   const time = shortTime(row.at, now);
   const label = rowLabel(row, title, status, preview);
   const act = onAction ?? (() => undefined);
-  const availableActions = onAction ? actions : [];
-  const menuActions: ConversationPeekAction[] = availableActions.map((action) => ({
-    key: action.key,
+  const theme = useDesignTheme();
+  const menuActions: MenuAction[] = actions.map((action) => ({
     label: action.label,
     icon:
       action.key === 'section'
         ? 'folder'
         : action.key === 'read'
-          ? 'checkmark'
+          ? 'check'
           : action.key === 'pin' || action.key === 'unpin'
             ? 'pin'
-            : action.key === 'mute'
-              ? 'bell.slash'
-              : 'bell',
+            : 'mute',
     run: () => act(action.key),
   }));
   const frame = (
@@ -95,18 +93,6 @@ export function ConversationRow({
       unread={row.unread > 0 && !row.muted}
       badge={badge}
       onPress={previewHref ? undefined : onPress}
-      onLongPress={
-        Platform.OS === 'android' && availableActions.length > 0
-          ? () =>
-              showActionMenu(
-                title,
-                availableActions.map((action) => ({
-                  text: action.label,
-                  onPress: () => act(action.key),
-                })),
-              )
-          : undefined
-      }
       avatar={
         row.kind === 'bot' ? (
           <AvatarSlot>
@@ -120,13 +106,29 @@ export function ConversationRow({
   );
   return (
     <ConversationSwipe actions={onAction ? actions : []} onAction={act}>
-      {previewHref ? (
-        <ConversationPeek href={previewHref} actions={menuActions}>
-          {frame}
-        </ConversationPeek>
-      ) : (
-        frame
-      )}
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          backgroundColor: theme.layer.canvas.fill,
+        }}
+      >
+        <View style={{ flex: 1, minWidth: 0 }}>
+          {previewHref ? <ConversationPeek href={previewHref}>{frame}</ConversationPeek> : frame}
+        </View>
+        {onAction && actions.length > 0 ? (
+          <ActionMenuButton
+            label={t.conversationActions(title)}
+            actions={menuActions}
+            onOpen={() =>
+              showActionMenu(
+                title,
+                actions.map((action) => ({ text: action.label, onPress: () => act(action.key) })),
+              )
+            }
+          />
+        ) : null}
+      </View>
     </ConversationSwipe>
   );
 }
@@ -165,7 +167,6 @@ export function ConversationRowFrame({
   badge,
   avatar,
   onPress,
-  onLongPress,
   disabled = false,
   actions = [],
   onAction,
@@ -187,7 +188,6 @@ export function ConversationRowFrame({
   badge?: ReturnType<typeof countBadge>;
   avatar: ReactNode;
   onPress?: (() => void) | undefined;
-  onLongPress?: (() => void) | undefined;
   disabled?: boolean;
   testID?: string;
 }) {
@@ -197,7 +197,6 @@ export function ConversationRowFrame({
       ref={ref}
       testID={testID}
       onPress={onPress}
-      onLongPress={onLongPress}
       disabled={disabled || onPress === undefined}
       accessibilityRole={onPress === undefined ? undefined : 'button'}
       accessibilityLabel={label}
@@ -211,8 +210,7 @@ export function ConversationRowFrame({
         alignItems: 'center',
         gap: space.x4,
         minHeight: theme.touch,
-        paddingLeft: chatList.gutter - RING / 2,
-        paddingRight: chatList.gutter,
+        paddingHorizontal: space.x5,
         paddingVertical: space.x3,
         backgroundColor: pressed ? theme.layer.canvas.pressed : theme.layer.canvas.fill,
       })}

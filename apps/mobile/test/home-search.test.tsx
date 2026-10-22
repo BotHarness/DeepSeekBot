@@ -16,45 +16,35 @@ import { DesignThemeProvider, resolveTheme, useDesignTheme } from '../src/ui/des
 import type { RosterView } from '../src/host/client';
 import { EDGE_WIDTH } from '../src/ui/shell/host-drawer-model';
 
-const {
-  push,
-  cloudState,
-  directoryState,
-  hostState,
-  call,
-  refresh,
-  menus,
-  swipeConfigs,
-  rowProps,
-} = vi.hoisted(() => ({
-  push: vi.fn(),
-  call: vi.fn(async () => ({})),
-  refresh: vi.fn(async () => undefined),
-  menus: [] as Array<{ text: string; onPress?: () => unknown }[]>,
-  swipeConfigs: [] as Array<Record<string, unknown>>,
-  rowProps: new Map<string, Record<string, unknown>>(),
-  hostState: {
-    connecting: false,
-    removed: false,
-    color: undefined as HostColorId | undefined,
-    fontScale: 1,
-    actions: false,
-    unread: false,
-  },
-  cloudState: {
-    error: undefined as string | undefined,
-    ready: true,
-    busy: false,
-    rows: [] as CloudRow[],
-  },
-  directoryState: {
-    busy: false,
-    ready: true,
-    rows: [] as CloudConversation[],
-    workspaces: [] as ConversationWorkspace[],
-    errors: [] as string[],
-  },
-}));
+const { push, cloudState, directoryState, hostState, call, refresh, menus, swipeConfigs } =
+  vi.hoisted(() => ({
+    push: vi.fn(),
+    call: vi.fn(async () => ({})),
+    refresh: vi.fn(async () => undefined),
+    menus: [] as Array<{ text: string; onPress?: () => unknown }[]>,
+    swipeConfigs: [] as Array<Record<string, unknown>>,
+    hostState: {
+      connecting: false,
+      removed: false,
+      color: undefined as HostColorId | undefined,
+      fontScale: 1,
+      actions: false,
+      unread: false,
+    },
+    cloudState: {
+      error: undefined as string | undefined,
+      ready: true,
+      busy: false,
+      rows: [] as CloudRow[],
+    },
+    directoryState: {
+      busy: false,
+      ready: true,
+      rows: [] as CloudConversation[],
+      workspaces: [] as ConversationWorkspace[],
+      errors: [] as string[],
+    },
+  }));
 vi.mock('react-native-gesture-handler/ReanimatedSwipeable', async () => {
   const { useImperativeHandle, useState } = await import('react');
   return {
@@ -96,14 +86,15 @@ vi.mock('../src/ui/primitives/app-dialog', () => ({
     menus.push(actions),
   showAppDialog: vi.fn(),
 }));
-vi.mock('../src/ui/shell/conversation-peek', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../src/ui/shell/conversation-peek')>();
+vi.mock('../src/ui/shell/conversation-peek', async () => {
   const { Platform } = await import('react-native');
   return {
-    ...actual,
     get conversationPeek() {
       return Platform.OS === 'ios';
     },
+    ConversationPeek: ({ children }: { children: ReactNode }) => (
+      <div data-testid="native-preview">{children}</div>
+    ),
   };
 });
 const roster: RosterView = {
@@ -161,11 +152,6 @@ vi.mock('react-native', async () => {
   const native = await import('./react-native-shim');
   return {
     ...native,
-    Pressable: (props: Parameters<typeof native.Pressable>[0]) => {
-      const id = props.testID;
-      if (typeof id === 'string' && id.startsWith('conversation-row-')) rowProps.set(id, props);
-      return native.Pressable(props);
-    },
     useWindowDimensions: () => ({
       ...native.useWindowDimensions(),
       fontScale: hostState.fontScale,
@@ -187,19 +173,7 @@ vi.mock('react-native-safe-area-context', () => ({
 vi.mock('expo-router', () => {
   const Stack = () => null;
   Stack.Screen = () => null;
-  const Link = ({ children }: { children: ReactNode }) => <div>{children}</div>;
-  Link.Trigger = ({ children }: { children: ReactNode }) => children;
-  Link.Preview = () => <div data-testid="native-preview" />;
-  Link.Menu = ({ children }: { children: ReactNode }) => (
-    <div data-testid="native-context-menu">{children}</div>
-  );
-  Link.MenuAction = ({ children, onPress }: { children: ReactNode; onPress(): void }) => (
-    <button data-menu-title={children} onClick={onPress}>
-      {children}
-    </button>
-  );
   return {
-    Link,
     Redirect: () => null,
     Stack,
     router: { push },
@@ -282,7 +256,6 @@ afterEach(() => {
   refresh.mockClear();
   menus.length = 0;
   swipeConfigs.length = 0;
-  rowProps.clear();
   Platform.OS = 'web';
   conversationFilter.set('all');
   cloudState.rows = [];
@@ -298,22 +271,6 @@ async function home(): Promise<HTMLElement> {
   root = createRoot(host);
   await act(async () => root!.render(<HomeScreen />));
   return host;
-}
-
-async function rowMenuAction(view: HTMLElement, key: keyof typeof t.rowActions) {
-  if (Platform.OS === 'ios') {
-    const row = view.querySelector('[data-testid="conversation-row-bot:ada"]')!;
-    const menu = row.parentElement!.querySelector('[data-testid="native-context-menu"]')!;
-    const action = [...menu.querySelectorAll<HTMLButtonElement>('button')].find(
-      (button) => button.textContent === t.rowActions[key],
-    )!;
-    await act(async () => action.click());
-  } else {
-    await act(async () => (rowProps.get('conversation-row-bot:ada')!.onLongPress as () => void)());
-    await act(async () =>
-      menus.at(-1)!.find((action) => action.text === t.rowActions[key])!.onPress!(),
-    );
-  }
 }
 
 async function type(view: HTMLElement, text: string): Promise<void> {
@@ -650,72 +607,29 @@ describe('Selected current Host accent', () => {
 });
 
 describe('Chats row actions share the Host path', () => {
-  it.each(['android', 'ios'] as const)(
-    'removes overflow while keeping complete accessible actions on %s',
-    async (platform) => {
-      Platform.OS = platform;
-      hostState.actions = true;
-      hostState.unread = true;
-      roster.bots[0]!.latestMessageId = 'message-1';
-      const view = await home();
-      expect(view.querySelector('[data-testid="action-menu-trigger"]')).toBeNull();
-      const props = rowProps.get('conversation-row-bot:ada')!;
-      expect(typeof props.onLongPress).toBe(platform === 'android' ? 'function' : 'undefined');
-      expect(props.accessibilityActions).toEqual(
-        ['pin', 'section', 'mute', 'read'].map((key) => ({
-          name: key,
-          label: t.rowActions[key as keyof typeof t.rowActions],
-        })),
-      );
-      const invoke = props.onAccessibilityAction as (event: {
-        nativeEvent: { actionName: string };
-      }) => void;
-      for (const key of ['pin', 'section', 'mute', 'read'] as const) {
-        call.mockClear();
-        push.mockClear();
-        await rowMenuAction(view, key);
-        const fromMenu = [...call.mock.calls];
-        const navigation = [...push.mock.calls];
-        call.mockClear();
-        push.mockClear();
-        await act(async () => invoke({ nativeEvent: { actionName: key } }));
-        expect(call.mock.calls).toEqual(fromMenu);
-        expect(push.mock.calls).toEqual(navigation);
-      }
-      call.mockClear();
-      await act(async () => invoke({ nativeEvent: { actionName: 'unknown' } }));
-      expect(call).not.toHaveBeenCalled();
-      expect(rowProps.get('conversation-row-bot:xiaoming')!.onLongPress).toBeUndefined();
-      expect(rowProps.get('conversation-row-bot:xiaoming')!.accessibilityActions).toEqual([]);
-      if (platform === 'ios') {
-        const preview = view.querySelector(
-          '[data-testid="conversation-row-bot:ada"]',
-        )!.parentElement!;
-        expect(preview.querySelector('[data-testid="native-preview"]')).not.toBeNull();
-        expect(preview.querySelectorAll('[data-menu-title]')).toHaveLength(4);
-      }
-    },
-  );
-  it.each(['android', 'ios'] as const)(
-    'keeps mark-read in the %s menu with three swipe actions',
-    async (platform) => {
-      Platform.OS = platform;
-      hostState.actions = true;
-      hostState.unread = true;
-      roster.bots[0]!.latestMessageId = 'message-1';
-      const view = await home();
-      await act(async () =>
-        view.querySelector<HTMLButtonElement>('[aria-label="Swipe row"]')!.click(),
-      );
-      expect(view.querySelectorAll('[data-testid^="conversation-swipe-"]')).toHaveLength(3);
-      expect(view.querySelector('[data-testid="conversation-swipe-read"]')).toBeNull();
-      await rowMenuAction(view, 'read');
-      expect(call).toHaveBeenLastCalledWith('channelMarkRead', {
-        channelId: 'dm-ada',
-        messageId: 'message-1',
-      });
-    },
-  );
+  it('keeps mark-read in the menu while revealing only the three requested actions', async () => {
+    hostState.actions = true;
+    hostState.unread = true;
+    roster.bots[0]!.latestMessageId = 'message-1';
+    const view = await home();
+    await act(async () =>
+      view.querySelector<HTMLButtonElement>('[aria-label="Swipe row"]')!.click(),
+    );
+    expect(view.querySelectorAll('[data-testid^="conversation-swipe-"]')).toHaveLength(3);
+    expect(view.querySelector('[data-testid="conversation-swipe-read"]')).toBeNull();
+    await act(async () =>
+      view
+        .querySelector<HTMLButtonElement>(`[aria-label="${t.conversationActions('Ada')}"]`)!
+        .click(),
+    );
+    await act(async () =>
+      menus.at(-1)!.find((action) => action.text === t.rowActions.read)!.onPress!(),
+    );
+    expect(call).toHaveBeenLastCalledWith('channelMarkRead', {
+      channelId: 'dm-ada',
+      messageId: 'message-1',
+    });
+  });
   it.each(['ios', 'android'] as const)(
     'runs pin and mute from swipe and menu on %s',
     async (platform) => {
@@ -732,7 +646,14 @@ describe('Chats row actions share the Host path', () => {
             .click(),
         );
         const swipeCall = call.mock.calls.at(-1);
-        await rowMenuAction(view, key);
+        await act(async () =>
+          view
+            .querySelector<HTMLButtonElement>(`[aria-label="${t.conversationActions('Ada')}"]`)!
+            .click(),
+        );
+        await act(async () =>
+          menus.at(-1)!.find((action) => action.text === t.rowActions[key])!.onPress!(),
+        );
         expect(call.mock.calls.at(-1)).toEqual(swipeCall);
         expect(swipeCall).toEqual(
           key === 'pin'
@@ -750,61 +671,63 @@ describe('Chats row actions share the Host path', () => {
     },
   );
 
-  it.each(['android', 'ios'] as const)(
-    'opens the same Host-bound section chooser from the %s menu and swipe',
-    async (platform) => {
-      Platform.OS = platform;
-      hostState.actions = true;
-      const view = await home();
+  it('opens the same Host-bound section chooser from the menu and swipe', async () => {
+    hostState.actions = true;
+    const view = await home();
+    await act(async () =>
+      view.querySelector<HTMLButtonElement>('[aria-label="Swipe row"]')!.click(),
+    );
+    await act(async () =>
+      view.querySelector<HTMLButtonElement>('[data-testid="conversation-swipe-section"]')!.click(),
+    );
+    expect(push).toHaveBeenLastCalledWith({
+      pathname: '/conversation-section',
+      params: { hostId: 'h1', channelId: 'dm-ada' },
+    });
+    await act(async () =>
+      view
+        .querySelector<HTMLButtonElement>(`[aria-label="${t.conversationActions('Ada')}"]`)!
+        .click(),
+    );
+    await act(async () =>
+      menus.at(-1)!.find((action) => action.text === t.rowActions.section)!.onPress!(),
+    );
+    expect(push.mock.calls[1]).toEqual(push.mock.calls[0]);
+    expect(call).not.toHaveBeenCalled();
+  });
+
+  it('uses the same inverse operations for pinned and muted conversations', async () => {
+    hostState.actions = true;
+    roster.arrangement = {
+      pins: ['dm-ada'],
+      muted: ['dm-ada'],
+      hidden: [],
+      sections: [],
+      sectionOrder: [],
+    };
+    const view = await home();
+    for (const key of ['unpin', 'unmute'] as const) {
       await act(async () =>
         view.querySelector<HTMLButtonElement>('[aria-label="Swipe row"]')!.click(),
       );
       await act(async () =>
+        view.querySelector<HTMLButtonElement>(`[data-testid="conversation-swipe-${key}"]`)!.click(),
+      );
+      const fromSwipe = call.mock.calls.at(-1);
+      await act(async () =>
         view
-          .querySelector<HTMLButtonElement>('[data-testid="conversation-swipe-section"]')!
+          .querySelector<HTMLButtonElement>(`[aria-label="${t.conversationActions('Ada')}"]`)!
           .click(),
       );
-      expect(push).toHaveBeenLastCalledWith({
-        pathname: '/conversation-section',
-        params: { hostId: 'h1', channelId: 'dm-ada' },
-      });
-      await rowMenuAction(view, 'section');
-      expect(push.mock.calls[1]).toEqual(push.mock.calls[0]);
-      expect(call).not.toHaveBeenCalled();
-    },
-  );
-
-  it.each(['android', 'ios'] as const)(
-    'uses the same inverse operations on %s',
-    async (platform) => {
-      Platform.OS = platform;
-      hostState.actions = true;
-      roster.arrangement = {
-        pins: ['dm-ada'],
-        muted: ['dm-ada'],
-        hidden: [],
-        sections: [],
-        sectionOrder: [],
-      };
-      const view = await home();
-      for (const key of ['unpin', 'unmute'] as const) {
-        await act(async () =>
-          view.querySelector<HTMLButtonElement>('[aria-label="Swipe row"]')!.click(),
-        );
-        await act(async () =>
-          view
-            .querySelector<HTMLButtonElement>(`[data-testid="conversation-swipe-${key}"]`)!
-            .click(),
-        );
-        const fromSwipe = call.mock.calls.at(-1);
-        await rowMenuAction(view, key);
-        expect(call.mock.calls.at(-1)).toEqual(fromSwipe);
-        expect(fromSwipe).toEqual(
-          key === 'unpin'
-            ? ['rosterBatch', { action: 'unpin', channelIds: ['dm-ada'] }]
-            : ['channelMuteSet', { channelId: 'dm-ada', muted: false }],
-        );
-      }
-    },
-  );
+      await act(async () =>
+        menus.at(-1)!.find((action) => action.text === t.rowActions[key])!.onPress!(),
+      );
+      expect(call.mock.calls.at(-1)).toEqual(fromSwipe);
+      expect(fromSwipe).toEqual(
+        key === 'unpin'
+          ? ['rosterBatch', { action: 'unpin', channelIds: ['dm-ada'] }]
+          : ['channelMuteSet', { channelId: 'dm-ada', muted: false }],
+      );
+    }
+  });
 });
