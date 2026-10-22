@@ -14,32 +14,35 @@ describe('early real Client diagnostic observer', () => {
       }
     ).__BOTHARNESS_CLIENT_DIAGNOSTICS__;
 
-  it('records only fixed redacted notification failure codes through the existing diagnostic stream', async () => {
-    vi.useFakeTimers();
-    const diagnostics = createClientDiagnostics();
-    vi.stubGlobal(
-      'fetch',
-      vi.fn((url, options) => diagnostics.fetch(new Request('http://localhost' + url, options))),
-    );
-    installClientObserver(window);
-    window.dispatchEvent(
-      new CustomEvent('botharness:notification-diagnostic', { detail: 'private payload' }),
-    );
-    window.dispatchEvent(
-      new CustomEvent('botharness:notification-diagnostic', {
-        detail: 'remote-notification-show-refused',
-      }),
-    );
-    await vi.advanceTimersByTimeAsync(300);
-    const report = await (
-      await diagnostics.fetch(new Request('http://localhost/api/botharness/client-diagnostics'))
-    ).json();
-    expect(report.attempts[0].events).toContainEqual(
-      expect.objectContaining({ code: 'remote-notification-show-refused', source: 'lifecycle' }),
-    );
-    expect(JSON.stringify(report)).not.toContain('private payload');
-    expect(report.attempts[0].firstFailure).toBeUndefined();
-  });
+  it.each(['remote-notification-show-refused', 'remote-notification-forget-persistence-failed'])(
+    'records only fixed redacted notification failure code %s through the existing diagnostic stream',
+    async (code) => {
+      vi.useFakeTimers();
+      const diagnostics = createClientDiagnostics();
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url, options) => diagnostics.fetch(new Request('http://localhost' + url, options))),
+      );
+      installClientObserver(window);
+      window.dispatchEvent(
+        new CustomEvent('botharness:notification-diagnostic', { detail: 'private payload' }),
+      );
+      window.dispatchEvent(
+        new CustomEvent('botharness:notification-diagnostic', {
+          detail: code,
+        }),
+      );
+      await vi.advanceTimersByTimeAsync(300);
+      const report = await (
+        await diagnostics.fetch(new Request('http://localhost/api/botharness/client-diagnostics'))
+      ).json();
+      expect(report.attempts[0].events).toContainEqual(
+        expect.objectContaining({ code, source: 'lifecycle' }),
+      );
+      expect(JSON.stringify(report)).not.toContain('private payload');
+      expect(report.attempts[0].firstFailure).toBeUndefined();
+    },
+  );
   it('retains a late shell observation when its first report follows a warning flood', async () => {
     vi.useFakeTimers();
     const diagnostics = createClientDiagnostics();

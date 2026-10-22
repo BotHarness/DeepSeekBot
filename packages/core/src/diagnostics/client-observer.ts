@@ -144,7 +144,11 @@ export function installClientObserver(win: Window & typeof globalThis): void {
   const onNotificationDiagnostic = (event: Event): void => {
     if (!(event instanceof win.CustomEvent)) return;
     const code: unknown = event.detail;
-    if (code === 'remote-notification-show-refused' || code === 'remote-notification-show-failed')
+    if (
+      code === 'remote-notification-show-refused' ||
+      code === 'remote-notification-show-failed' ||
+      code === 'remote-notification-forget-persistence-failed'
+    )
       record(code, 'lifecycle');
   };
   win.addEventListener('botharness:notification-diagnostic', onNotificationDiagnostic);
