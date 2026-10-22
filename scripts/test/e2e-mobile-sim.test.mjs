@@ -110,10 +110,13 @@ describe('iOS Simulator phone journey', () => {
       host: { id: 'host-1', name: 'MacBook' },
       routes: ['http://127.0.0.1:3080'],
       offer: 'secret-offer',
+      expiresAt: '2099-01-01T00:00:00.000Z',
+      encryption: { protocol: 'connect-noise-xk-v1', publicKey: 'a'.repeat(64) },
     };
     const link = `deepseekbot://pair?p=${Buffer.from(JSON.stringify(payload)).toString('base64url')}`;
     const renamed = renamePairingLink(link, 'Mac A');
     expect(renamed.hostId).toBe('host-1');
+    expect(new URL(renamed.link).protocol).toBe('deepseekbot-dev:');
     const decoded = JSON.parse(
       Buffer.from(new URL(renamed.link).searchParams.get('p'), 'base64url').toString('utf8'),
     );

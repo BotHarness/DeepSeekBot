@@ -28,6 +28,7 @@ A Human pairs the phone app with their Host by a one-time QR code, and the phone
 - `full-client-removed`: no settings/chat/Inbox/routine/create action opens the full Host WebView; old `/full-client` deep links cannot load it. Private input directs the Human to the Host or Tailscale browser.
 
 - `offer` creates a one-time pairing offer (5 minutes) with a QR code and a `deepseekbot://pair?p=…` link.
+- `app-variant` routes external public links to store and `deepseekbot-dev://pair?p=…` to Dev with both apps installed. Rebuild both variants in place; preserve each login and pairing. In-app QR/paste accepts either scheme. Check cold/warm external opens, existing/new pairing, wrong/expired payload refusals, each bundle-ID auth callback and share return; `exp+deepseekbot` must open Dev. Record exact source/binaries and actual foreground app. Configuration/unit passes alone do not qualify native OS selection.
 - `pair` redeems the offer once; a second redeem answers `401 offer-invalid`.
 - `link-errors` words a refusal by how the phone got the offer: a pasted or opened link that is broken, expired or already used says the link is wrong, and a pasted one empties the field; a scan keeps the code wording.
 - `manual-input` keeps the empty link field and Pair button above the Android keyboard. A manually scanned or pasted offer registers the phone, loads the Host roster and survives app process restart.

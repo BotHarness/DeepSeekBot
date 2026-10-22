@@ -4,6 +4,14 @@
   "boundary": "All scripts/e2e-*.mjs files and all current feature-map documents, augmented by implemented Client/CLI/mobile source entry points. Behavior rows group related acceptance paths; they are not an exhaustive product behavior denominator. Planned unmerged #1954 work and packaged/restart identity promises are excluded.",
   "behaviors": [
     {
+      "id": "phone.pinned-grid",
+      "label": "Browse Remote Host sections and responsive Pinned cards, collapse and search without changing arrangement",
+      "source": "apps/mobile/src/ui/chat/pinned-conversation-card.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-pinned-grid.md",
+      "task": 2571,
+      "gap": "Centralized test center owns native iOS/Android width/text/appearance, interaction and screenshot qualification; Human visual feedback gates Organize/drag siblings."
+    },
+    {
       "id": "phone.chat-row-actions",
       "label": "Swipe or open the menu to pin, mute, assign or create a Host section",
       "source": "apps/mobile/src/ui/chat/conversation-section-sheet.tsx",
@@ -1654,9 +1662,9 @@
       "path": "scripts/e2e-mobile-sim.mjs",
       "category": "mapped",
       "behaviors": ["phone.pairing", "phone.notifications"],
-      "reason": "Shared-device queue only: creates its own Simulator/Metro/two Hosts, resets evidence directory; simulated push is not APNs/FCM; approval model phase optional. SDK 58 cache uses strict native fingerprints, including app-version fields; unit fingerprint checks are not device evidence.",
+      "reason": "Shared-device queue only: creates its own Simulator/Metro/two Hosts, resets evidence directory; simulated push is not APNs/FCM; approval model phase optional. SDK 58 cache uses strict native fingerprints, including app-version fields; unit fingerprint checks are not device evidence. Dev-only pairing launches use deepseekbot-dev; coexistence and store routing require the separate native variant checklist (#2322).",
       "task": 2020,
-      "sha256": "f78a7b9e9c52d6a813cb1dfccc15c99f85d2f6dda4b6d97e2715828eb53964f6"
+      "sha256": "7d93f96202df240bc8e022b49cad8bf61ead88eafe935c163ff7f4ae4d1bcc9c"
     },
     {
       "path": "scripts/e2e-mobile-usage-web.mjs",

@@ -238,6 +238,125 @@ describe('Row status', () => {
 });
 
 describe('Chats grouped by Channel section', () => {
+  it('shows pins without custom sections, deduplicates legacy slugs and keeps quiet counts', () => {
+    const pinned = {
+      ...roster,
+      arrangement: { pins: ['ada', 'dm-ada', 'team'], hidden: [], sections: [], sectionOrder: [] },
+    };
+    expect(shape(chatList(pinned, [], new Set(), { 'dm-ada': 3, team: 7 }, ['team']))).toEqual([
+      '[pinned 2 +3]',
+      'channel:team',
+      'bot:ada',
+      'bot:cy',
+      'bot:bo',
+    ]);
+  });
+
+  it('unpin returns to retained membership without mutating the Host snapshot', () => {
+    const pinned: RosterView = {
+      ...arranged,
+      arrangement: { ...arranged.arrangement!, pins: ['dm-ada'] },
+    };
+    const before = structuredClone(pinned);
+    const displayed = chatList(pinned, []);
+    expect(
+      displayed.filter((entry) => entry.kind === 'row' && entry.row.key === 'bot:ada'),
+    ).toHaveLength(1);
+    expect(
+      displayed.find((entry) => entry.kind === 'row' && entry.row.key === 'bot:ada'),
+    ).toMatchObject({ sectionId: 'pinned' });
+    expect(pinned).toEqual(before);
+    const unpinned = chatList({ ...pinned, arrangement: { ...pinned.arrangement!, pins: [] } }, []);
+    expect(
+      unpinned.find((entry) => entry.kind === 'row' && entry.row.key === 'bot:ada'),
+    ).toMatchObject({ sectionId: 'work' });
+    expect(unpinned.some((entry) => entry.kind === 'section' && entry.id === 'pinned')).toBe(false);
+  });
+
+  it('inherits Host global manual order while scope overrides restore newest sorting', () => {
+    const manual: RosterView = { ...arranged, sorting: { sortMode: 'manual', sortModes: {} } };
+    expect(shape(chatList(manual, []))).toEqual([
+      'channel:ops',
+      '[work 3]',
+      'channel:design',
+      'bot:ada',
+      'channel:team',
+      'bot:bo',
+      '[later 0]',
+      'bot:cy',
+    ]);
+    const newestWork = {
+      ...manual,
+      sorting: { sortMode: 'manual' as const, sortModes: { work: 'updated' as const } },
+    };
+    expect(shape(chatList(newestWork, []))).toEqual(shape(chatList(arranged, [])));
+    const newestGlobal = {
+      ...arranged,
+      sorting: { sortMode: 'updated' as const, sortModes: { work: 'manual' as const } },
+    };
+    expect(shape(chatList(newestGlobal, []))).toEqual(shape(chatList(manual, [])));
+  });
+
+  it('keeps manual pin order through new messages; a pin override can inherit or restore newest', () => {
+    const pinned: RosterView = {
+      ...arranged,
+      arrangement: { ...arranged.arrangement!, pins: ['ada', 'team', 'cy'] },
+      sorting: { sortMode: 'manual', sortModes: {} },
+    };
+    const keys = (view: RosterView) =>
+      chatList(view, [])
+        .filter((entry) => entry.kind === 'row' && entry.sectionId === 'pinned')
+        .map((entry) => entry.key);
+    expect(keys(pinned)).toEqual(['bot:ada', 'channel:team', 'bot:cy']);
+    expect(
+      keys({ ...pinned, sorting: { sortMode: 'manual', sortModes: { pinned: 'updated' } } }),
+    ).toEqual(['bot:cy', 'channel:team', 'bot:ada']);
+    expect(
+      keys({ ...pinned, sorting: { sortMode: 'updated', sortModes: { pinned: 'manual' } } }),
+    ).toEqual(['bot:ada', 'channel:team', 'bot:cy']);
+  });
+
+  it('sorts loose runs independently, never moving rows across section blocks', () => {
+    const top = {
+      ...arranged,
+      arrangement: {
+        ...arranged.arrangement!,
+        topOrder: [
+          { kind: 'channel' as const, id: 'dm-bo' },
+          { kind: 'channel' as const, id: 'ops' },
+          { kind: 'section' as const, id: 'work' },
+          { kind: 'section' as const, id: 'later' },
+        ],
+      },
+    };
+    expect(
+      shape(chatList({ ...top, sorting: { sortMode: 'manual', sortModes: {} } }, [])).slice(0, 3),
+    ).toEqual(['bot:bo', 'channel:ops', '[work 3]']);
+    expect(shape(chatList(top, [])).slice(0, 3)).toEqual(['channel:ops', 'bot:bo', '[work 3]']);
+    expect(shape(chatList(top, [])).at(-1)).toBe('bot:cy');
+  });
+
+  it('uses Host channel recency when a conversation has no message and breaks ties by ID like Web', () => {
+    const view: RosterView = {
+      bots: [],
+      channels: [channel('z', ''), channel('a', ''), channel('b', '')],
+      activityChannels: ['a', 'b', 'z'].map((id) => ({
+        id,
+        name: id,
+        type: 'group',
+        members: [],
+        updatedAt: id === 'z' ? '2026-10-20T00:00:00Z' : '2026-10-19T00:00:00Z',
+      })),
+      arrangement: { pins: ['a', 'z', 'b'], hidden: [], sections: [], sectionOrder: [] },
+    };
+    expect(shape(chatList(view, []))).toEqual([
+      '[pinned 3]',
+      'channel:z',
+      'channel:a',
+      'channel:b',
+    ]);
+  });
+
   it('keeps the flat list for a Host with no sections', () => {
     const flat = conversations(roster, []).map((row) => row.key);
     expect(shape(chatList(roster, []))).toEqual(flat);
