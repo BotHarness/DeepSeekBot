@@ -38,3 +38,12 @@ qualified signed Debug development binary and matched Host/data.
 
 The batch is still active under its sole QA runner. This evidence-only publication
 does not change the frozen source, active checkout, native binary or queue lease.
+
+
+## Dark comparison added 2026-10-22
+
+Native Batch54 Before `d402bb92d80ad9de0d3edbe2a764622752ba83d8` / After `ea36821ea92904260ba3d78d21db84a3a7d60b13`. Same qualified native fingerprint `2ab2d67bec3a3fd2186c6ea9cf85ceadb07c4b7a` and installed executable SHA256 `cbf75e97a9776956bca0bcdf081a0dc5da2a6ba858d5bf4fbd26a58e3e5c62e7`, native source `683b0cbe9c0f158e80929601f59a312ff5f9c4bf`.
+
+`db.png` and `da.png` are unedited native iOS27 Simulator captures, 402×874pt, English, system text size large, dark app and dark software keyboard. Identical synthetic chat, two-line draft, caret at draft end and keyboard candidates. Both were personally inspected; no credentials, private conversations or real account details appear. Earlier dark captures had mismatched keyboard or caret and are not used here.
+
+The images compare #2576 controls, not recording success. Actual touch probes in Batch54 reached onHeld/finalization but not onStart/native speech. Source repair #2592 defers gesture activation until BEGAN and awaits unified native retest; historical immediate termination is not yet reproduced or resolved by native evidence. This compatible scoped comparison excludes later main native splash inputs and is not release acceptance.
