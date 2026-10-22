@@ -119,7 +119,7 @@ describe('Group Channel info', () => {
     await actions.disband();
 
     const changes = fake.calls.filter(
-      (call) => !['list', 'channels', 'rosterGet'].includes(call.method),
+      (call) => !['list', 'channels', 'rosterGet', 'settings/describe'].includes(call.method),
     );
     expect(changes.map((call) => [call.method, call.args])).toEqual([
       ['channelGroupInvite', { channelId, botSlug: 'fay' }],
@@ -132,6 +132,9 @@ describe('Group Channel info', () => {
       ['channelGroupAvatarSet', { channelId, avatar: null }],
       ['channelGroupDelete', { channelId }],
     ]);
+    expect(fake.calls.filter((call) => call.method === 'settings/describe')).toEqual(
+      Array.from({ length: changes.length }, () => ({ method: 'settings/describe', args: {} })),
+    );
     expect(fake.calls.filter((call) => call.method === 'channels').length).toBeGreaterThanOrEqual(
       changes.length,
     );
