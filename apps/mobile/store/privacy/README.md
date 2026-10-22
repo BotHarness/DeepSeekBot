@@ -74,6 +74,8 @@ It replaces all existing answers and publishes them. Add `skip_publish:true` to 
 
 ## When phone statistics ship
 
+The statistics payload now includes OS major.minor, phone/tablet class, public iOS model ID when available, total RAM band and device year class on each event. These are device diagnostics for analytics, not unique hardware identifiers; Android model ID is `unknown`. No CPU, memory-use, frame-rate or startup sampling is included. Recheck the statistics disclosure variant and publish the matching bilingual site privacy notice before enabling the production qualification flag; the `store-test` profile remains unconfigured for statistics.
+
 A build that actually sends statistics changes both answers. That needs all of `EXPO_PUBLIC_MOBILE_TELEMETRY=production`, a public `phc_` token, a physical release build and `EXPO_PUBLIC_MOBILE_TELEMETRY_QUALIFIED=true` ([what it sends](../../../../docs/mobile-statistics.md)):
 
 - **Play:** add App activity → App interactions; App info and performance → Other app performance data; add Analytics to Device or other IDs. All collected, not shared, not ephemeral, optional (Settings switch), purpose Analytics.

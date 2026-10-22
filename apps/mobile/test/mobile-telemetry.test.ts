@@ -27,6 +27,11 @@ function fixture(overrides: Partial<TelemetryOptions> = {}) {
       app_build: '12',
       environment: 'development',
       language: 'en',
+      os_version: '26.1',
+      device_class: 'phone',
+      device_model: 'iPhone11,6',
+      total_mem_gb_bucket: '8',
+      device_year_class: 2018,
     },
     ...overrides,
   });
@@ -53,6 +58,13 @@ describe('mobile statistics preference', () => {
     expect(first[0]).toMatchObject({
       event: 'mobile_app_opened',
       properties: { source: 'mobile', launch_kind: 'cold' },
+    });
+    expect(first[0]?.properties).toMatchObject({
+      os_version: '26.1',
+      device_class: 'phone',
+      device_model: 'iPhone11,6',
+      total_mem_gb_bucket: '8',
+      device_year_class: 2018,
     });
     await telemetry.setEnabled(false);
     expect(stored()).toEqual({ version: 1, enabled: false });
