@@ -9,8 +9,6 @@ artifact；DSH 版本与上游 revision 记录这些内容是基于什么版本�
 
 ### Documentation
 
-- 在[本地开发指南](../dsh-dev/SKILL.md)记录原生提问回答器的优先顺序，并以 DSH `0.2.1-rc.2` 核验；DSH／Cordis Context 与 Skill 行为保持不变（[#2590](https://github.com/BotHarness/DeepSeekBot/issues/2590)）。
-
 - 更新[下游 Panel 指南](../../../docs/panel-plugin.md)与真实 Web 验收路径，说明视图本地渲染、原生 dialog 切换和资源所有权；DSH／Cordis Context 与 Skill 行为保持不变（[#2222](https://github.com/BotHarness/DeepSeekBot/issues/2222)）。
 - 在[本地开发指南](../dsh-dev/SKILL.md)记录 Windows Desktop 候选激活、可执行文件与平台标识、物理键驱动限制及固定 Provider 来源校验，并补充[原生验证路径](../verify-deepseekbot/features/desktop-window-zoom.md)；DSH/Cordis Context 与 Decision Tree 保持不变（[#2270](https://github.com/BotHarness/DeepSeekBot/issues/2270)）。
 
