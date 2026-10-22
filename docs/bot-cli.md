@@ -379,6 +379,30 @@ deepseekbot grants <bot-id>
 
 `computer-frame` saves the current picture of the Computer desktop (Local or Container) to an absolute path and reports its size, `mimeType` (`image/jpeg`, or `image/png` when the Host cannot encode JPEG), `seq` and target. It is the same frame a paired phone polls from `GET /api/computer/frame?after=<seq>`, which waits for the screen to change and answers 204 when it stays the same. `computer-input --args-stdin` sends one Human action to that desktop: `{"kind":"click","x":10,"y":20}` (optional `"button":"right"`, `"count":2`), `{"kind":"scroll","direction":"down","amount":3}`, `{"kind":"type","text":"hi"}` or `{"kind":"key","key":"return","modifiers":["meta"]}`. Coordinates are pixels of the last frame. Both refuse with `not-running` while the Computer is stopped. Input needs `computer-takeover --enabled` first, or it is refused with `not-paused`. `computer-frame` answers `no-frame` when the Computer has not produced a picture yet. `computer-takeover --enabled` returns once any Bot Computer call already in progress has finished (at most 10 seconds), and a result that finishes after the pause starts is withheld from the Bot. While paused, every Bot Computer tool call is refused, screenshots included, so the Bot cannot move focus or see the screen while you type a password. The pause lasts while the phone keeps polling frames or sending input and lapses 30 seconds after the last one; `computer-takeover --disabled` hands the desktop back at once.
 
+### Local Computer video
+
+Windows Local Computer uses the [video-only Android path](local-computer-video.md). The preceding `computer-frame`, `computer-takeover` and `computer-input` descriptions apply to legacy targets; these commands return `update-required` on the migrated Windows target. Bot/diagnostic screenshots remain separate capabilities and obey the global Bot pause.
+
+```bash
+deepseekbot computer-video status
+deepseekbot computer-video open --out /private/absolute/offer.json
+deepseekbot computer-video signal --args-stdin
+deepseekbot computer-video heartbeat --args-stdin
+deepseekbot computer-video takeover --args-stdin
+deepseekbot computer-video input --args-stdin
+deepseekbot computer-video release --args-stdin
+deepseekbot computer-video resume --args-stdin
+deepseekbot computer-video close --args-stdin
+```
+
+All operations use `POST /api/computer/video` and emit one JSON document. `status` reports global `paused`, `viewerCount`, `controlHeld`, media health and runtime; `controller`, binding and grant belong only to the admitted caller. The phone uses its paired device identity; the authenticated local CLI is the Host owner and cannot impersonate the phone by supplying a device ID. Opening a second viewer returns `viewer-limit`.
+
+`open` does not pause Bots. It returns the server-issued `binding` (`computerId`, `runtimeId`, `viewerId`, `attemptId`) and saves its gathered offer to a new private `--out` file; stdout excludes SDP. Supply later command JSON through stdin. `signal` takes `binding` and `answer: {"type":"answer","sdp":"…"}`. `heartbeat` takes `binding` and `playback: {"presentedFrames":42,"presenting":true}` from actual receiver rendering. A fabricated heartbeat is not a playback test. `takeover` takes `binding`; forced takeover additionally needs `force:true` and the CLI's `--confirm`, though T1 refuses a second viewer before this step.
+
+`input` takes `binding`, the granted `generation`, a strictly increasing `sequence`, and `input: {"kind":"click","x":10,"y":20,"button":"left","count":1}`. Use actual full-display pixel coordinates. Input executes once; `input-result-unknown` means do not retry it. `release` takes `binding` and optionally `generation`, and keeps the durable pause. `close` takes `binding` and closes media while preserving pause. `resume` requires the current `runtimeId`; it works without a viewer/helper after restart, invalidates control and drains Human input before reopening Bot use. Another active controller produces `control-conflict`. Stale runtime/attempt/grant calls are refused.
+
+Inspect `computer-diagnostics` and `computer-logs` for bounded lifecycle evidence. Common refusals include `not-running`, `helper-missing`, `helper-start-failed`, `viewer-limit`, `media-not-live`, `control-required`, `control-disconnected`, `stale-attempt`, `stale-grant`, `pause-write-failed`, `drain-timeout`, `queue-full` and `connect-carrier-required`. Do not print signaling files, credentials or input contents in evidence. A successful CLI signal is not rendered-video or physical-device acceptance.
+
 ### Human Inbox, assignments, Sessions and approval rules
 
 ```bash

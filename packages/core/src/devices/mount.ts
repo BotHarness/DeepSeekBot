@@ -4,6 +4,8 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
 import type { Duplex } from 'node:stream';
+import type { LocalVideoOwner } from '../../../computer/src/local-video-contract.js';
+import { localVideoCommand } from '../../../computer/src/local-video-http.js';
 
 import { attachOperationalModule, type OperationalDatabaseOwner } from '../database/owner.js';
 import { openLogDatabase, type LogDatabase } from '../logs/log-db.js';
@@ -107,11 +109,19 @@ export function mountDevicePairing(
     } catch {}
   };
   let push: PushDelivery | undefined;
+  const videoOwner = (): LocalVideoOwner | undefined =>
+    (ctx.get('botharnessComputer') as { localVideo?: LocalVideoOwner } | undefined)?.localVideo;
   const pairing = createDevicePairing({
     database: attachOperationalModule(options.database, 'device-pairing'),
     hostName: hostname().replace(/\.local$/u, ''),
     record: (event) => write('device-pairing', event.phase, `device-pairing ${detail(event)}`),
-    onRevoked: (deviceId) => push?.unregister(deviceId),
+    onRevoked: (deviceId) => {
+      push?.unregister(deviceId);
+      // Revocation must close established P2P media, which no longer passes through this gateway.
+      void videoOwner()?.revoke(deviceId).catch(() =>
+        write('computer', 'video-revoke-failed', 'computer-video phase=revoke-failed'),
+      );
+    },
     onPaired: (device) =>
       void push
         ?.announcePaired(device)
@@ -228,6 +238,8 @@ export function mountDevicePairing(
       port: () => webServer.port,
       authenticatedUrl: (base) => connection.authenticatedUrl(base),
       log: (message) => ctx.logger.info(message),
+      localVideo: ({ deviceId, command, signal }) =>
+        localVideoCommand(videoOwner(), { deviceId }, command, signal),
       ...(push === undefined ? {} : { push: createDevicePushHttp(push) }),
       connectOffer: (body, signature) => account.verifyOffer(body, signature),
     });

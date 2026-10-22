@@ -72,6 +72,11 @@ export interface ComputerToolProviderOptions {
   readonly driver: CuaDriver;
   readonly isComputerRunning: () => boolean;
   readonly isPaused?: () => boolean;
+  /** The owning Computer fences both driver effects and model-visible results. */
+  readonly runBotOperation?: <T>(
+    operation: (signal?: AbortSignal) => Promise<T>,
+    signal: AbortSignal,
+  ) => Promise<T>;
   readonly isAutoAllowed: () => boolean;
   readonly guidance?: (() => string) | undefined;
   readonly authorizationScope?: (() => string) | undefined;
@@ -156,7 +161,12 @@ export function createComputerToolProvider(
     signal: AbortSignal,
   ): Promise<unknown> => {
     assertNotPaused();
-    const call = driver.call(raw, args, signal);
+    if (signal.aborted) throw new Error('Computer operation was cancelled before admission');
+    const call = options.runBotOperation === undefined
+      ? driver.call(raw, args, signal)
+      // An aborted MCP request is not proof that the native effect has stopped.
+      // The owner must retain the operation until its actual driver result settles.
+      : options.runBotOperation((operationSignal) => driver.call(raw, args, operationSignal), signal);
     inflight.add(call);
     try {
       const result = await call;
@@ -169,13 +179,16 @@ export function createComputerToolProvider(
   const drain = async (timeoutMs: number): Promise<void> => {
     if (inflight.size === 0) return;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    await Promise.race([
-      Promise.allSettled([...inflight]),
-      new Promise((resolve) => {
-        timer = setTimeout(resolve, timeoutMs);
-      }),
-    ]);
-    clearTimeout(timer);
+    try {
+      await Promise.race([
+        Promise.allSettled([...inflight]),
+        new Promise<never>((_resolve, reject) => {
+          timer = setTimeout(() => reject(new Error('Computer Bot operations did not drain')), timeoutMs);
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
   };
   const note = options.note ?? ((): void => undefined);
   const onActivity = options.onActivity ?? ((): void => undefined);

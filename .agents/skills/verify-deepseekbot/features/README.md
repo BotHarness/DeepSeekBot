@@ -2,6 +2,7 @@
 
 | Feature | Needs a model | Scripted journey | File |
 | --- | --- | --- | --- |
+| Local Computer video: Windows to physical Android | no | Windows testing-center native journey | [local-computer-video.md](local-computer-video.md) |
 | Browser Remote Host pairing, icon strip, Host Feed and Host-level settings | only for a reply | `verify-app` two-Host path | [remote-hosts.md](remote-hosts.md) |
 | VRM companion Panel | yes for speaking | `scripts/e2e-vrm-companion.mjs` | [vrm-companion.md](vrm-companion.md) |
 | Desktop whole-window zoom (controlled S1 / Windows candidate) | no | `scripts/e2e-desktop-zoom-launch.mjs`, `scripts/e2e-desktop-zoom-windows.mjs`, `scripts/e2e-dock-zoom.mjs`, `scripts/e2e-workspace-chrome.mjs` | [desktop-window-zoom.md](desktop-window-zoom.md) |

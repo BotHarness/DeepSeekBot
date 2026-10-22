@@ -5,7 +5,8 @@
   "description": "BotHarness Computer: a profile-scoped shared desktop sandbox watched over VNC",
   "files": [
     "dist",
-    "lib"
+    "lib",
+    "native"
   ],
   "type": "module",
   "main": "./dist/index.mjs",

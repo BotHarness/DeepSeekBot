@@ -9,6 +9,8 @@ artifact；DSH 版本与上游 revision 记录这些内容是基于什么版本�
 
 ### Documentation
 
+- 新增下游 [Windows 到 Android 的 Local Computer 视频验证路径](../verify-deepseekbot/features/local-computer-video.md)，分别记录源码、本机呈现与 Human 验收；运行验证尚待完成，DSH/Cordis Context 保持不变（[#2558](https://github.com/BotHarness/DeepSeekBot/issues/2558)）。
+
 - 更新[下游 Panel 指南](../../../docs/panel-plugin.md)与真实 Web 验收路径，说明视图本地渲染、原生 dialog 切换和资源所有权；DSH／Cordis Context 与 Skill 行为保持不变（[#2222](https://github.com/BotHarness/DeepSeekBot/issues/2222)）。
 - 在[本地开发指南](../dsh-dev/SKILL.md)记录 Windows Desktop 候选激活、可执行文件与平台标识、物理键驱动限制及固定 Provider 来源校验，并补充[原生验证路径](../verify-deepseekbot/features/desktop-window-zoom.md)；DSH/Cordis Context 与 Decision Tree 保持不变（[#2270](https://github.com/BotHarness/DeepSeekBot/issues/2270)）。
 

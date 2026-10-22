@@ -415,6 +415,30 @@ deepseekbot schedule-delete <bot-id> --sid <schedule-id> --confirm
 
 选定 Host 后，定时任务命令调用与「定时任务」面板相同的 Host 方法，由 Host 检查 Bot、触发器、时区和锁定状态；被拒时保留 Host 的错误码（`invalid-input`、`not-found`、`locked`、`inactive`）。`schedule-preview` 返回触发器和 Host 算出的接下来几次时刻。`schedule-run-now` 排入一次触发，由运行中的 Host 执行。`schedule-delete` 会连同该任务的历史一起删除，所以和面板上的确认一样，需要 `--confirm`。
 
+### Local Computer 视频
+
+Windows 本机 Computer 使用 [Android 纯视频路径](local-computer-video.zh.md)。前文 `computer-frame`、`computer-takeover`、`computer-input` 的描述只适用于旧目标；迁移后的 Windows 目标返回 `update-required`。Bot／诊断截图仍是独立能力，并遵守全局 Bot 暂停。
+
+```bash
+deepseekbot computer-video status
+deepseekbot computer-video open --out /private/absolute/offer.json
+deepseekbot computer-video signal --args-stdin
+deepseekbot computer-video heartbeat --args-stdin
+deepseekbot computer-video takeover --args-stdin
+deepseekbot computer-video input --args-stdin
+deepseekbot computer-video release --args-stdin
+deepseekbot computer-video resume --args-stdin
+deepseekbot computer-video close --args-stdin
+```
+
+所有操作使用 `POST /api/computer/video`，stdout 输出一个 JSON 文档。`status` 报告全局 `paused`、`viewerCount`、`controlHeld`、媒体健康与 runtime；`controller`、binding 和 grant 仅属于认证调用者。手机使用已配对设备身份，本机认证 CLI 使用 Host owner 身份，不能通过提交设备 ID 冒充手机。第二观看端收到 `viewer-limit`。
+
+`open` 不暂停 Bot。它返回服务端生成的 `binding`（`computerId`、`runtimeId`、`viewerId`、`attemptId`），把 gathered offer 写入全新的私密 `--out` 文件，stdout 不含 SDP。后续命令 JSON 从 stdin 读取：`signal` 接收 `binding` 和 `answer: {"type":"answer","sdp":"…"}`；`heartbeat` 接收 `binding` 和真实接收端呈现产生的 `playback: {"presentedFrames":42,"presenting":true}`。伪造心跳不算播放验证。`takeover` 接收 `binding`；强制接管还需 `force:true` 与 CLI 的 `--confirm`，但 T1 会更早拒绝第二观看端。
+
+`input` 接收 `binding`、grant 的 `generation`、严格递增的 `sequence`，以及 `input: {"kind":"click","x":10,"y":20,"button":"left","count":1}`，坐标为完整显示器的实际像素。输入只执行一次；`input-result-unknown` 表示不可重发。`release` 接收 `binding` 和可选 `generation`，保持持久暂停；`close` 接收 `binding`，关闭媒体但不恢复 Bot。`resume` 必须提交当前 `runtimeId`，重启后无需 viewer/helper 也可执行：先作废控制、排空 Human 输入，再恢复 Bot。有其他控制者时返回 `control-conflict`；旧 runtime/attempt/grant 均被拒绝。
+
+`computer-diagnostics` 和 `computer-logs` 提供有界生命周期证据。常见拒绝包括 `not-running`、`helper-missing`、`helper-start-failed`、`viewer-limit`、`media-not-live`、`control-required`、`control-disconnected`、`stale-attempt`、`stale-grant`、`pause-write-failed`、`drain-timeout`、`queue-full` 和 `connect-carrier-required`。证据中不打印信令文件、凭据或输入内容。CLI 信令成功不等于视频呈现或真机验收。
+
 ### 浏览器和 Computer：观察、系统包、传输与日志
 
 ```bash

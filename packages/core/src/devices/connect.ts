@@ -141,9 +141,26 @@ function notFound(response: ServerResponse): void {
 
 type GatewayOrigin = Server & { upgraded: Set<Duplex> };
 
+/** T1 video/control is LAN/tailnet only until the shared encrypted Connect carrier is integrated. */
+export function isLocalVideoConnectPath(raw: string | undefined): boolean {
+  try {
+    const decoded = decodeURIComponent(new URL(raw ?? '/', 'http://device').pathname);
+    const normalized = new URL(`http://device${decoded}`).pathname.replace(/\/+/gu, '/');
+    return /^\/botharness-device\/(?:web\/)?api\/computer\/video(?:\/|$)/u.test(normalized);
+  } catch {
+    return false;
+  }
+}
+
 export function createGatewayOrigin(port: () => number): GatewayOrigin {
   const upgraded = new Set<Duplex>();
   const server = createServer((request, response) => {
+    if (isLocalVideoConnectPath(request.url)) {
+      request.resume();
+      response.writeHead(403, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+      response.end(JSON.stringify({ ok: false, code: 'connect-carrier-required', error: 'Local Computer video requires a direct paired Host route.' }));
+      return;
+    }
     if (!admitsGatewayPath(request.url)) {
       request.resume();
       notFound(response);
@@ -175,6 +192,11 @@ export function createGatewayOrigin(port: () => number): GatewayOrigin {
     request.pipe(upstream);
   });
   server.on('upgrade', (request: IncomingMessage, socket: Duplex, head: Buffer) => {
+    if (isLocalVideoConnectPath(request.url)) {
+      const body = JSON.stringify({ ok: false, code: 'connect-carrier-required' });
+      socket.end(`HTTP/1.1 403 Forbidden\r\nconnection: close\r\ncontent-type: application/json\r\ncontent-length: ${Buffer.byteLength(body)}\r\n\r\n${body}`);
+      return;
+    }
     if (!admitsGatewayPath(request.url)) {
       socket.end('HTTP/1.1 404 Not Found\r\nconnection: close\r\ncontent-length: 0\r\n\r\n');
       return;

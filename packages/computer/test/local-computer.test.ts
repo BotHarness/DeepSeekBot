@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Config, DEFAULT_CONFIG } from '../src/index.js';
 import { createComputerTargetRuntime, type ComputerTarget } from '../src/target.js';
 import { createLocalComputerProvider } from '../src/providers/local.js';
+import { ensureLocalVideoHelper } from '../src/media/install.js';
 import {
   LOCAL_DRIVER_BUILDS,
   checksum,
@@ -16,6 +17,10 @@ import {
 import { LocalDesktopMissingError } from '../src/tool/local-display.js';
 import type { CuaDriver } from '../src/tool/driver.js';
 import type { ComputerProvider, ComputerRuntimeRunner } from '../src/provider.js';
+
+vi.mock('../src/media/install.js', () => ({
+  ensureLocalVideoHelper: vi.fn(async () => undefined),
+}));
 
 const dirs: string[] = [];
 afterEach(async () => {
@@ -224,6 +229,12 @@ describe('Local Computer on Linux and Windows', () => {
     expect(await provider.status()).toMatchObject({ state: 'running' });
     expect(driver.call).toHaveBeenCalledWith('check_permissions', {}, expect.any(AbortSignal));
     expect(vi.mocked(processRunner.run).mock.calls[0]?.[0][0]).toMatch(/cua-driver\.exe$/);
+    expect(ensureLocalVideoHelper).toHaveBeenCalledWith(expect.objectContaining({
+      runner: processRunner,
+      platform: 'win32',
+      arch: 'x64',
+      signal: expect.any(AbortSignal),
+    }));
   });
 
   it('opens a display on Linux once the driver verifies, reuses it, and stops it on close', async () => {

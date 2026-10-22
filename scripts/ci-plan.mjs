@@ -58,6 +58,7 @@ export const RULES = [
   related('packages/*/extension/**', 'Browser extension sources'),
   related('packages/*/profile-extension/**', 'Browser profile extension sources'),
   related('packages/*/assets/**', 'Package assets'),
+  related('packages/computer/native/**', 'Windows Local Computer media helper source and protocol fixtures'),
   related('packages/*/migrations/**', 'D1 migrations read by worker test harnesses'),
   none(
     'packages/client/appearance-palette.LICENSE',

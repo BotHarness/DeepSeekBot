@@ -10,6 +10,8 @@ Preparing the next DSH Skill release independently from downstream product relea
 
 ### Documentation
 
+- Added the downstream [Windows-to-Android Local Computer video journey](../verify-deepseekbot/features/local-computer-video.md), with separate source, native presentation and Human gates; runtime qualification remains pending and DSH/Cordis Context is unchanged ([#2558](https://github.com/BotHarness/DeepSeekBot/issues/2558)).
+
 - Updated the [downstream Panel guide](../../../docs/panel-plugin.md) and real-Web verification journey for view-local rendering, native dialog transitions and resource ownership; DSH/Cordis Context and Skill behavior are unchanged ([#2222](https://github.com/BotHarness/DeepSeekBot/issues/2222)).
 - Recorded Windows Desktop candidate activation, executable and platform identification, physical-key driver limits and immutable Provider provenance in the [local development guide](../dsh-dev/SKILL.md), with the [native verification journey](../verify-deepseekbot/features/desktop-window-zoom.md); DSH/Cordis Context and Decision Tree remain unchanged ([#2270](https://github.com/BotHarness/DeepSeekBot/issues/2270)).
 

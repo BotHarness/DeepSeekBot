@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   admitsGatewayPath,
   createDeviceConnect,
+  createGatewayOrigin,
   validTunnelToken,
   type SpawnTunnel,
   type TunnelProcess,
@@ -112,6 +113,37 @@ function setup(spawnImpl?: SpawnTunnel) {
 }
 
 describe('hosted Connect route', () => {
+  it('refuses Local video HTTP and upgrades before reaching the Host, including normalized paths', async () => {
+    let effects = 0;
+    const upstream = createServer((_request, response) => {
+      effects += 1;
+      response.end('unexpected');
+    });
+    upstream.on('upgrade', (_request, socket) => {
+      effects += 1;
+      socket.destroy();
+    });
+    servers.push(upstream);
+    await new Promise<void>((done) => upstream.listen(0, '127.0.0.1', done));
+    const origin = createGatewayOrigin(() => (upstream.address() as AddressInfo).port);
+    servers.push(origin);
+    await new Promise<void>((done) => origin.listen(0, '127.0.0.1', done));
+    const base = `http://127.0.0.1:${(origin.address() as AddressInfo).port}`;
+    for (const path of [
+      '/botharness-device/api/computer/video',
+      '/botharness-device/web/api/computer/video',
+      '/botharness-device/api/computer/%76ideo?command=input',
+      '/botharness-device/web/api/computer/%76ideo',
+      '/botharness-device/api/computer/unused/../video',
+      '/botharness-device//api/computer/video/',
+      '/botharness-device%2fweb%2fapi%2fcomputer%2fvideo',
+    ]) {
+      expect(await get(base, path)).toMatchObject({ status: 403, body: expect.stringContaining('connect-carrier-required') });
+      expect(await upgrade(base, path)).toContain('403 Forbidden');
+    }
+    expect(effects).toBe(0);
+  });
+
   it('admits only device gateway paths', () => {
     expect(admitsGatewayPath('/botharness-device/pair')).toBe(true);
     expect(admitsGatewayPath('/botharness-device/api/remote.mux?x=1')).toBe(true);
