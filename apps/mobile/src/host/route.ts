@@ -37,3 +37,13 @@ export function checkRoute(input: string): RouteCheck {
 export function socketOrigin(origin: string): string {
   return origin.replace(/^http/u, 'ws');
 }
+
+export function isConnectRoute(route: string): boolean {
+  try {
+    return /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.deepseekbot\.dev$/u.test(
+      new URL(route).hostname,
+    );
+  } catch {
+    return false;
+  }
+}

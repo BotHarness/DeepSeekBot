@@ -6,6 +6,8 @@ Issues: [#2500](https://github.com/BotHarness/DeepSeekBot/issues/2500), [#2180](
 
 # A browser pairs Remote Hosts through their device gateway
 
+**Proposed Connect amendment:** [ADR-0244](0244-connect-encrypts-device-traffic-against-pinned-host-keys.md) replaces Connect credential redemption and application transport with an independently authenticated encrypted channel, subject to final approval. Browser pairing remains device-scoped. The #2541 candidate removes the phone full-client HTML/cookie surface; the historical same-origin WebView clause below does not describe that candidate.
+
 The Web Client serves exactly one Host. The Human wants its channel list to work like the phone's (#2194): **All** by default, then one tab per Host, with chats from a Remote Host on the tailnet listed, opened and answered in the same browser. Spec #2178 already fixes the authority split: each Host owns its conversations, and a client's connections belong to that client (browser profile plus origin), never to a Host setting.
 
 We decided that **the browser pairs a Remote Host exactly like a phone does, and talks to it directly with that per-device credential.** The Remote Host admits the cross-origin calls on its device gateway (ADR-0199); the serving Host never relays or stores the credential.

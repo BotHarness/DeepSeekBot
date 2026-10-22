@@ -4,6 +4,8 @@ A Human pairs the phone app with their Host by a one-time QR code, and the phone
 
 ## Sub-features
 
+- `full-client-removed`: no settings/chat/Inbox/routine/create action opens the full Host WebView; old `/full-client` deep links cannot load it. Private input directs the Human to the Host or Tailscale browser.
+
 - `offer` creates a one-time pairing offer (5 minutes) with a QR code and a `deepseekbot://pair?p=…` link.
 - `pair` redeems the offer once; a second redeem answers `401 offer-invalid`.
 - `link-errors` words a refusal by how the phone got the offer: a pasted or opened link that is broken, expired or already used says the link is wrong, and a pasted one empties the field; a scan keeps the code wording.

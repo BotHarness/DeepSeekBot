@@ -4,7 +4,6 @@ import { View } from 'react-native';
 
 import { botRoutines } from '../../host/routines';
 import { errorText } from '../../host/bot-settings';
-import { fullClientParams } from '../../host/full-client';
 import { useHostSession, useHostSnapshot } from '../../host/host-session';
 import type { BotScheduleSummary } from '../../host/wire';
 import { SheetPage } from '../primitives/sheet-page';
@@ -78,12 +77,6 @@ export function RoutineScreen({ edit = false }: { edit?: boolean }) {
             onClose={() => router.back()}
             onEdit={() =>
               router.push({ pathname: '/bot/[slug]/routine-edit/[id]', params: { slug, id: id! } })
-            }
-            onOpenFullClient={() =>
-              router.push({
-                pathname: '/full-client',
-                params: fullClientParams({ kind: 'dm', slug }),
-              })
             }
           />
         </>

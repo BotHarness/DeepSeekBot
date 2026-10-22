@@ -244,6 +244,7 @@ async function main() {
     const encoded = new URL(offer.link).searchParams.get('p');
     const payload = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8'));
     payload.routes = [origin];
+    payload.host.name = 'QA Host';
     const link = `deepseekbot://pair?p=${Buffer.from(JSON.stringify(payload)).toString('base64url')}`;
 
     page = await browser.newPage();
@@ -301,6 +302,7 @@ async function main() {
     const list = async () => (await call(hostOrigin, 'scheduleList', { slug: bot.slug })).schedules;
 
     await page.goto(`${origin}/`, { waitUntil: 'networkidle0' });
+    await page.locator('text=Use Tailscale').click();
     await text('Or paste the pairing link');
     await page.type(
       'input[placeholder^="deepseekbot://pair"], textarea[placeholder^="deepseekbot://pair"]',
@@ -309,6 +311,8 @@ async function main() {
     await page.locator('::-p-aria(Pair)').click();
     await text(displayName);
     steps.push('paired the app by pasting the link');
+    await page.goto(`${origin}/settings`, { waitUntil: 'networkidle0' });
+    await shot('0-settings');
 
     await page.goto(`${origin}/dm/${bot.slug}`, { waitUntil: 'networkidle0' });
     await page.waitForFunction(
@@ -389,11 +393,14 @@ async function main() {
     );
     if (!checks.advancedRouteMatchesHost)
       throw new Error('Routine route does not match the selected Host routine');
-    await text('The phone cannot edit this schedule');
+    await text('Edit this schedule in the Host client.');
+    await text('Not run yet.');
     await shot('7-routine-advanced');
     await page.goBack({ waitUntil: 'networkidle0' });
     await text('New routine');
-    steps.push('a cron routine says the phone cannot edit it and offers the full client');
+    steps.push(
+      'a cron routine says the phone cannot edit it without offering an in-app full client',
+    );
 
     await tap('New routine');
     await text('Next runs');

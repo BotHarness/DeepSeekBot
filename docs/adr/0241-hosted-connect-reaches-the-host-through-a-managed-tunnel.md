@@ -6,6 +6,8 @@ Issues: [#2387](https://github.com/BotHarness/DeepSeekBot/issues/2387), [#1643](
 
 # Hosted Connect reaches the Host through a managed tunnel
 
+**2026-10-22 safety amendment:** Vain requires removal of the phone's full Host WebView on every route. Track A (#2541) removes that surface and refuses known secret-entry methods on Connect. [ADR-0244](0244-connect-encrypts-device-traffic-against-pinned-host-keys.md) proposes encrypted channels and independently approved device pairing; its complete protocol remains pending approval. The earlier plaintext/account-only design is not a confidentiality guarantee.
+
 Testers must install Tailscale, sign in on both devices and run `tailscale serve` before the phone app can reach their computer ([#2385](https://github.com/BotHarness/DeepSeekBot/pull/2385)). The Human wants a T3 Connect–style option instead: sign in with the same account on the computer and on each phone, and the devices connect without Tailscale. Research and sources: [`docs/research/2026-10-20-hosted-connect.md`](../research/2026-10-20-hosted-connect.md).
 
 The Human chose this direction on 2026-10-20: **an account only discovers Hosts and brokers a one-time pairing credential. Application traffic reaches the Host through one Cloudflare Tunnel per Host that a BotHarness relay Worker provisions; it never passes through the Worker. The tunnel is one more route in the ADR-0199 route list and admits only the device gateway.**

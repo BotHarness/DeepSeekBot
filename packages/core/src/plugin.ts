@@ -103,7 +103,7 @@ import { homedir } from 'node:os';
 import type { BotAgentSetupInfo } from './runtime/dsh-bot-agent-adapter.js';
 import { registerBridge } from './bridge/rpc.js';
 import { mountClientDiagnostics } from './diagnostics/client-diagnostics.js';
-import { mountDevicePairing, type DeviceWebUpgrade } from './devices/mount.js';
+import { mountDevicePairing } from './devices/mount.js';
 import { humanInboxPushSource } from './push/source.js';
 import { createMarketplaceClient } from './marketplace/client.js';
 import {
@@ -357,7 +357,6 @@ export const Config: Schema<BotHarnessConfig> = Schema.object({
 });
 
 export interface BotHarnessCore {
-  deviceWebUpgrade?: DeviceWebUpgrade;
   profileRecovery: ProfileRecovery;
   rootDir: string;
   onboarding: BotOnboarding;
@@ -1351,7 +1350,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       }),
     'botharness: attachment sweep',
   );
-  const deviceWebUpgrade = mountDevicePairing(ctx, {
+  mountDevicePairing(ctx, {
     database: core.operationalDatabase,
     dshHome,
     packageAnchors: releaseAnchors,
@@ -1403,7 +1402,6 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   ctx.effect(() => () => core.schedules.close(), 'botharness: bot schedules');
   ctx.effect(() => () => core.live.close(), 'botharness: Channel live hub');
   ctx.effect(() => () => core.companions.close(), 'botharness: Window Companion feed');
-  if (deviceWebUpgrade !== undefined) core.deviceWebUpgrade = deviceWebUpgrade;
   ctx.provide('botharness', core);
   if (config.privateInputExecution === true)
     ctx.logger.warn(

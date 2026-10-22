@@ -1,6 +1,5 @@
-import { CardButtons, CardLine, CardNote, ActionCard } from './action-card';
+import { CardLine, CardNote, ActionCard } from './action-card';
 import type { BubbleGroup } from './bubble-shape';
-import { Button } from '../primitives/button';
 import { Text } from '../primitives/text';
 import { t } from '../strings';
 
@@ -11,7 +10,6 @@ export function PrivateInputCard({
   focused = false,
   group,
   wide = false,
-  onFill,
 }: {
   botName: string;
   purpose?: string | undefined;
@@ -19,7 +17,6 @@ export function PrivateInputCard({
   focused?: boolean;
   group?: BubbleGroup;
   wide?: boolean;
-  onFill(): void;
 }) {
   const category = t.kind['private-input']!;
   if (resolved)
@@ -49,14 +46,6 @@ export function PrivateInputCard({
           })}
     >
       <CardNote>{t.privateInputNote}</CardNote>
-      <CardButtons stack>
-        <Button
-          label={t.privateInputFill}
-          testID="private-input-fill"
-          tone="primary"
-          onPress={onFill}
-        />
-      </CardButtons>
     </ActionCard>
   );
 }

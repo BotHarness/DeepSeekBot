@@ -54,6 +54,7 @@
     "@deepseek-ai/schemastery": "3.18.5",
     "@modelcontextprotocol/client": "2.0.0",
     "@types/css-tree": "2.3.11",
+    "@types/ws": "8.18.1",
     "yaml": "^2.9.1",
     "zod": "4.4.3"
   },
