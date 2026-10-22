@@ -51,6 +51,7 @@ Screens follow the shared [UI design standard](../../docs/agents/ui-design.md) a
   - `smoke --ios --no-start --no-reload --port <port> --json`: one exit code for "the app is connected and threw nothing". `--no-start` keeps it from starting Metro, a Simulator or Expo Go.
   - Never run `agents:setup`, `new`, `install`, `deploy` or anything with `--eas`: they rewrite `AGENTS.md`/`CLAUDE.md`, change dependencies or spend EAS credits.
 - Native devices and QA Hosts are shared by every agent. Read [shared device QA](../../docs/agents/device-qa.md) before builds or device interaction; it routes Mac/iOS and Windows/Android to their own batch queues. Windows emulator/USB phone control and scrcpy evidence use `scripts/android-qa.ps1` from the repo root.
+- Screenshots, recordings and release image retention follow [local QA evidence](../../docs/agents/qa-evidence.md): index each platform's actual source/build and results in the main checkout, and retain accepted evidence outside disposable worktrees.
 - Cloud sessions have no simulator. They use the web screenshots ("Screenshots without a phone") and reach a Mac through Remote Control for native checks.
 
 ## Profiling

@@ -79,6 +79,10 @@ The dev VPS lives on the Human's Tailscale tailnet. Per-machine values (SSH host
 
 Native checks for `apps/mobile` share devices and QA Hosts among coding agents. Before booting an emulator/Simulator, building the app, starting a Host or touching a phone, follow [shared device QA](docs/agents/device-qa.md): choose the Mac/iOS or Windows/Android queue, submit to its owner-cut batch, use the dedicated QA Host, and report redacted results. Windows emulator and USB-phone checks use the shared `android-qa.ps1` lease and scrcpy capture workflow.
 
+### QA evidence (AX)
+
+Before capturing development screenshots or recordings, handing off macOS/iOS or Windows/Android QA, or retaining release images, follow [local QA evidence and release archives](docs/agents/qa-evidence.md). Keep an indexed task folder in the machine's main checkout and preserve accepted evidence by release and SHA; platform queues still own devices and capture tooling.
+
 ### Machine-local secrets (AX)
 
 Files that device QA and store builds need but git must never hold (Firebase `google-services.json`, FCM and Play keys) live in the gitignored `.secrets/` folder of each machine's main checkout; every worktree resolves to the same folder. Read [machine-local secrets](docs/agents/device-secrets.md) for the file list, how the app finds them, local push builds and clean-clone EAS builds.
