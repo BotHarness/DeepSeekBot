@@ -11,6 +11,8 @@ Claude 这边不再继续做最后的整合、真机验收和 iOS/Android 发布
 
 顺序：1 → （2、3 并行）→ 4。4 的第 5 轮截图可以和 2 的 Simulator 部分一起跑。
 
+**按机器分：** 两台机器并行时，直接把 [MAC.md](MAC.md) 贴给 Mac 上的 session（整合、npm、iOS、截图），把 [WINDOWS.md](WINDOWS.md) 贴给 Windows 上的 session（Android + Play）。两份都写了共享的部分和依赖顺序。
+
 ## 各线程交接状态（截至 2026-10-22 04:15Z）
 
 所有 Claude 线程都确认 **没有未提交或未推送的代码**。
