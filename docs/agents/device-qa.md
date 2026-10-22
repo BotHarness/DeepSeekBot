@@ -150,7 +150,7 @@ agent's Host.
 - **Pairing:** a pairing offer is one-time and lasts 5 minutes. Make it the way
   `scripts/e2e-device-pairing.mjs` does, or in the Web Client under Bot settings → Devices →
   Pair a phone. A Simulator pairs over the loopback route: open the link with
-  `xcrun simctl openurl <udid> '<deepseekbot://pair?p=…>'`. A physical phone needs a Tailscale
+  `xcrun simctl openurl <udid> '<deepseekbot-dev://pair?p=…>'`. A physical phone needs a Tailscale
   HTTPS route (see below). Never redeem an offer meant for the Human.
 
 ## Physical iPhone
@@ -162,7 +162,9 @@ disk, Host and build folders.
   `tailscale serve --bg 39100`. It replaces whatever the Mac serves on 443, so save
   `tailscale serve status --json` first and note the command that restores the old target. Then
   make an offer whose routes include the `https://<machine>.<tailnet>.ts.net` origin, and turn
-  the link into a QR code for the Human to scan.
+  the link into a QR code for the Human to scan. For the Dev app, scan inside its pairing screen
+  or use a `deepseekbot-dev://pair?p=…` link; external public `deepseekbot://` links belong to
+  the store app. Preserve the encoded payload when changing the prefix.
 - **Build.** The phone runs a Release build of the batch branch, made in the batch worktree:
 
   ```bash

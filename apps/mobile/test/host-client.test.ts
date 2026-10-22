@@ -311,30 +311,45 @@ describe('pairing', () => {
     expiresAt: '2099-01-01T00:00:00.000Z',
   };
 
-  it('reads the QR link and keeps only routes the app accepts', () => {
-    expect(parsePairingLink(link(payload))).toEqual({
-      ok: true,
-      payload: {
-        host: payload.host,
-        offer: 'offer-1',
-        routes: [ROUTE, LOOPBACK],
-        expiresAt: payload.expiresAt,
-      },
-    });
-    expect(parsePairingLink(link(payload, 'deepseekbot-dev')).ok).toBe(true);
-    expect(parsePairingLink('https://example.com/?p=x')).toEqual({
-      ok: false,
-      code: 'link-invalid',
-    });
-    expect(parsePairingLink(link({ ...payload, expiresAt: '2000-01-01T00:00:00Z' }))).toEqual({
-      ok: false,
-      code: 'link-expired',
-    });
-    expect(parsePairingLink(link({ ...payload, routes: ['http://8.8.8.8:3000'] }))).toEqual({
-      ok: false,
-      code: 'no-route',
-    });
-  });
+  it.each(['deepseekbot', 'deepseekbot-dev'])(
+    'reads %s QR/paste links with the same payload and refusal boundaries',
+    (scheme) => {
+      expect(parsePairingLink(link(payload, scheme))).toEqual({
+        ok: true,
+        payload: {
+          host: payload.host,
+          offer: 'offer-1',
+          routes: [ROUTE, LOOPBACK],
+          expiresAt: payload.expiresAt,
+        },
+      });
+      const encryption = { protocol: 'connect-noise-xk-v1', publicKey: 'a'.repeat(64) };
+      expect(parsePairingLink(link({ ...payload, encryption }, scheme))).toMatchObject({
+        ok: true,
+        payload: { encryption },
+      });
+      expect(parsePairingLink(`${scheme}://pair?p=not-json`)).toEqual({
+        ok: false,
+        code: 'link-invalid',
+      });
+      expect(parsePairingLink('https://example.com/?p=x')).toEqual({
+        ok: false,
+        code: 'link-invalid',
+      });
+      expect(
+        parsePairingLink(link({ ...payload, expiresAt: '2000-01-01T00:00:00Z' }, scheme)),
+      ).toEqual({
+        ok: false,
+        code: 'link-expired',
+      });
+      expect(
+        parsePairingLink(link({ ...payload, routes: ['http://8.8.8.8:3000'] }, scheme)),
+      ).toEqual({
+        ok: false,
+        code: 'no-route',
+      });
+    },
+  );
 
   it('redeems the offer once through the first route that answers', async () => {
     const host = new FakeHost();
