@@ -43,9 +43,11 @@ class LanChannelModule : Module() {
           override fun createSocket(host: InetAddress, port: Int, local: InetAddress, localPort: Int): Socket = error("lan-route-invalid")
         })
         .proxy(Proxy.NO_PROXY)
-        .dns(Dns { hostname ->
-          require(hostname == CARRIER_HOST) { "lan-route-invalid" }
-          listOf(InetAddress.getByAddress(bytes))
+        .dns(object : Dns {
+          override fun lookup(hostname: String): List<InetAddress> {
+            require(hostname == CARRIER_HOST) { "lan-route-invalid" }
+            return listOf(InetAddress.getByAddress(bytes))
+          }
         })
         .connectionPool(ConnectionPool(0, 1, TimeUnit.SECONDS))
         .followRedirects(false).followSslRedirects(false)
