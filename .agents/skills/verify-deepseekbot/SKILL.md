@@ -79,8 +79,11 @@ A proof has three parts: the user action, the visible result, and the canonical 
 Cleanup is required after successful and failed verification, before task completion or handoff.
 Follow [verification resource cleanup](../../../docs/agents/ax-resource-cleanup.md) for ownership
 checks, interrupted runs, retained environments and shared E2E/QA protection. Use the command
-below only for this task's verified instance with a disposable Profile; if Profile state must
-survive, stop the verified Host separately and preserve its closed Profile.
+below only for this task's verified instance with a disposable Profile after confirming that
+no child or other process uses that Profile. The helper waits only for the recorded Host before
+removing the directory. If other users exist or ownership is uncertain, use separate shutdown
+and deletion steps from the runbook. If Profile state must survive, stop the verified Host
+separately and preserve its closed Profile.
 
 ```bash
 node scripts/verify-app.mjs stop --name <n>

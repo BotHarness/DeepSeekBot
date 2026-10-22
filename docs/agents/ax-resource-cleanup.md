@@ -55,8 +55,12 @@ reconciles the private resource record with live processes before launching repl
 - `dev-instance.mjs` returns the Host PID, home, worktree, log and a stop command. Its Host can
   outlive the launcher. Revalidate that process identity before using the recorded stop command;
   preserve the Profile until the Host has exited.
-- For a task-owned `verify-app.mjs` instance whose Profile is disposable, revalidate ownership,
-  then run `node scripts/verify-app.mjs stop --name <n>`. The current helper sends SIGTERM,
+- Use `node scripts/verify-app.mjs stop --name <n>` only after confirming that its disposable
+  Profile has no process users other than the recorded Host: stop and verify owned children
+  first, and retain shared or unresolved consumers. If sole use cannot be established, stop
+  services separately, verify all users have exited, then assess directory removal. The helper
+  waits only for the recorded Host, so checking children after it returns is too late to protect
+  their Profile files. With those preconditions met, the current helper sends SIGTERM,
   waits up to 15 seconds, removes its matching temporary home and instance record, and retains
   the evidence directory. Independently verify process/port release and evidence retention.
   When Profile data must survive, stop the verified Host separately and preserve its closed
