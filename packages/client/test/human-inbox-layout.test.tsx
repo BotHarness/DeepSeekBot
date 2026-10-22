@@ -42,10 +42,11 @@ const source: HumanInboxSource = {
   refresh: async () => {},
   loadMore: async () => {},
 };
+const englishMessages: Readonly<Record<string, string>> = en;
 const english: BotHarnessTranslate = (key, params) =>
   Object.entries(params ?? {}).reduce(
     (value, [name, replacement]) => value.replaceAll(`{${name}}`, String(replacement)),
-    en[key],
+    englishMessages[key] ?? key,
   );
 
 describe.each([
