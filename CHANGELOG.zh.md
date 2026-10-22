@@ -8,7 +8,7 @@
 
 1.5.0 之后暂无变更。
 
-## [1.5.0] - 2026-10-21
+## [1.5.0] - 2026-10-22
 
 DeepSeekBot Connect 让手机不装 Tailscale、用账号就能配对；频道列表可以接入其他电脑的聊天；存储空间可以清理旧媒体和旧消息；Bot 市场变成面板；插件可在 Bot 设置里一键更新；Bot 模式在长对话里的重渲染大幅减少，保持流畅。
 
@@ -30,6 +30,16 @@ DeepSeekBot Connect 让手机不装 Tailscale、用账号就能配对；频道�
 - 电脑使用系统文件夹选择器时，手机也能浏览电脑上的文件夹并授权给 Bot；`deepseekbot folder-browse` 可列出同样的文件夹（[#2392](https://github.com/BotHarness/DeepSeekBot/pull/2392)）。
 - 手机 Beta 可以从任意 App 分享文字、链接、照片和文件给 Bot；Bot 通知显示为带头像和审批按钮的聊天消息（Android 由 App 自己绘制）；实体键盘用 ⌘↩ 或回车发送；长按 App 图标列出最近的聊天；可粘贴剪贴板图片、双击点赞 👍、在最新消息处继续上拉拉起键盘；Android 上左滑会话行可静音、置顶和标为已读（[#2401](https://github.com/BotHarness/DeepSeekBot/pull/2401)、[#2397](https://github.com/BotHarness/DeepSeekBot/pull/2397)、[#2465](https://github.com/BotHarness/DeepSeekBot/pull/2465)、[#2380](https://github.com/BotHarness/DeepSeekBot/pull/2380)、[#2364](https://github.com/BotHarness/DeepSeekBot/pull/2364)、[#2353](https://github.com/BotHarness/DeepSeekBot/pull/2353)）。
 
+- 设备 CLI 与设置 → 设备使用同一所有者，可列出手机、创建私有配对邀请、查看邀请状态和撤销设备；撤销会关闭设备的活动连接（[#2098](https://github.com/BotHarness/DeepSeekBot/issues/2098)）。
+
+- 远程聊天显示所属 Host 的头像、Bot 活动和未读数，在该 Host 更新已读位置，并显示图片、文件和请求卡片；下载和音频仅在操作后加载（[#2500](https://github.com/BotHarness/DeepSeekBot/issues/2500)）。
+
+- 活动中心按 Host 汇总远程请求、回复和未读聊天，审批、回答、加入决定、延后与清除都发往所属 Host；失败时保留已加载内容并提供重试，已处理或过期的请求不能重复提交（[#2500](https://github.com/BotHarness/DeepSeekBot/issues/2500)）。
+
+- 远程 Host 设置支持修改模型和预设、查看用量与记忆活动、预览并确认存储清理；过期的模型修改会被拒绝（[#2500](https://github.com/BotHarness/DeepSeekBot/issues/2500)）。
+
+- 远程 Bot 会话可通过支持的配对设备路由打开 Browser 和 Computer 查看器；暂停 Bot 后才能接管，画面断线恢复后须重新接管。关闭时交还控制，移除 Host 时最多等待五秒清理，再撤销配对（[#2500](https://github.com/BotHarness/DeepSeekBot/issues/2500)）。
+
 ### Changed
 
 - 会话视图、Bot 列表、频道侧栏面板、停靠面板外框、Activity 收件箱、首页概览和 IM 应用设置只在自己显示的数据变化时才重新渲染，流式回复、搜索输入和其他 Bot 的 Activity 不再让它们重绘；在脚本负载下，侧栏的 React commit 从 2,640 次降到 80 次（[#2439](https://github.com/BotHarness/DeepSeekBot/issues/2439)、[#2449](https://github.com/BotHarness/DeepSeekBot/issues/2449)、[#2450](https://github.com/BotHarness/DeepSeekBot/issues/2450)、[#2453](https://github.com/BotHarness/DeepSeekBot/issues/2453)、[#2454](https://github.com/BotHarness/DeepSeekBot/issues/2454)、[#2455](https://github.com/BotHarness/DeepSeekBot/issues/2455)）。
@@ -37,6 +47,12 @@ DeepSeekBot Connect 让手机不装 Tailscale、用账号就能配对；频道�
 - 桌面端面板标题栏的按钮立即显示提示，面板标题会说明可以拖动或点击隐藏，Bot 设置侧栏的每个分类前都有图标（[#2386](https://github.com/BotHarness/DeepSeekBot/pull/2386)、[#2396](https://github.com/BotHarness/DeepSeekBot/pull/2396)）。
 - 手机 Beta 可以处理以前必须回到电脑的请求：文件夹请求、带 diff 和风险提示的“允许这次／始终允许／拒绝”工具审批、对被自动拒绝的调用允许一次、入群申请，以及回复等待中或受阻的 Assignment，并都会推送通知（[#2080](https://github.com/BotHarness/DeepSeekBot/issues/2080)）。
 - 手机 Beta 更贴合各平台：输入栏对齐 iOS 26 信息或 Material 3，Android 聊天顶栏悬浮，上下边缘渐隐更柔和，对话和 Activity 顶栏的搜索与按钮改为原生；Android 改用 Material 3 导航栏和创建 FAB、导航抽屉、分段列表、选择控件、加载指示器和返回行为。**自定义电脑**改为选择图标和颜色，并显示在每个会话名后面（[#2355](https://github.com/BotHarness/DeepSeekBot/pull/2355)、[#2398](https://github.com/BotHarness/DeepSeekBot/pull/2398)、[#2394](https://github.com/BotHarness/DeepSeekBot/pull/2394)、[#2425](https://github.com/BotHarness/DeepSeekBot/pull/2425)、[#2377](https://github.com/BotHarness/DeepSeekBot/pull/2377)、[#2487](https://github.com/BotHarness/DeepSeekBot/pull/2487)、[#2350](https://github.com/BotHarness/DeepSeekBot/pull/2350)、[#2351](https://github.com/BotHarness/DeepSeekBot/pull/2351)、[#2348](https://github.com/BotHarness/DeepSeekBot/pull/2348)、[#2342](https://github.com/BotHarness/DeepSeekBot/pull/2342)、[#2354](https://github.com/BotHarness/DeepSeekBot/pull/2354)、[#2343](https://github.com/BotHarness/DeepSeekBot/pull/2343)、[#2358](https://github.com/BotHarness/DeepSeekBot/pull/2358)、[#2461](https://github.com/BotHarness/DeepSeekBot/pull/2461)、[#2499](https://github.com/BotHarness/DeepSeekBot/pull/2499)）。
+
+- 手机通知选择保存在手机并同步到所有配对 Host，重新配对后也会恢复；浏览器为每个远程 Host 分别设置页面打开期间的提醒，重连后不重播旧事项（[#2500](https://github.com/BotHarness/DeepSeekBot/issues/2500)）。
+
+- 手机聊天页改为从左侧抽屉选择全部或一个 Host 的单列表，保留完整读屏名称和可缩放图标；Android 跟随选中 Host 的颜色，全部视图和 iOS 保留默认强调色。连续切换保留最新 Host 选择，也不会覆盖明确选中的全部视图（[#2518](https://github.com/BotHarness/DeepSeekBot/issues/2518)）。
+
+- Connect 登录会说明如何用无痕窗口切换账号，并显示当前邮箱和退出入口；手机登录要求重新验证身份，不再默默沿用浏览器会话（[#2520](https://github.com/BotHarness/DeepSeekBot/issues/2520)）。
 
 ### Fixed
 
@@ -51,6 +67,16 @@ DeepSeekBot Connect 让手机不装 Tailscale、用账号就能配对；频道�
 - **配对手机**确认框改为提示用 `tailscale serve --https=443 off` 撤销，只移除 DeepSeekBot 发布的那一条；Connect relay 限制在线 tunnel 总数、按账号限流，并限制回收重试次数（[#2415](https://github.com/BotHarness/DeepSeekBot/pull/2415)、[#2387](https://github.com/BotHarness/DeepSeekBot/issues/2387)、[#2410](https://github.com/BotHarness/DeepSeekBot/issues/2410)）。
 - VRM 伴侣不会再在状态连接短暂中断时把回复截在第一个字，长回复留在面板内；网页、手机和角色上的 Bot 状态也不再在“思考”和短工具调用之间来回闪（[#2222](https://github.com/BotHarness/DeepSeekBot/issues/2222)）。
 - 手机 Beta 修复：照片、文件和粘贴的图片恢复发送；新私聊发出第一条消息后不再变空白；iPhone 流式回复不再闪烁跳动；Android 通知保留头像，角标清零时不再被清掉，处理后自动消失，点击能打开对应会话；在手机上处理的请求显示为本机处理；审批按 App 语言显示；大字体下名称和预览保持可读；打开聊天直接停在最新消息；加载指示器改为原生；修复 Android 实体键盘、大字体图标、文件夹选择器和 ⋯ 菜单问题（[#2444](https://github.com/BotHarness/DeepSeekBot/pull/2444)、[#2490](https://github.com/BotHarness/DeepSeekBot/pull/2490)、[#1845](https://github.com/BotHarness/DeepSeekBot/issues/1845)、[#2483](https://github.com/BotHarness/DeepSeekBot/pull/2483)、[#2485](https://github.com/BotHarness/DeepSeekBot/pull/2485)、[#2491](https://github.com/BotHarness/DeepSeekBot/pull/2491)、[#2494](https://github.com/BotHarness/DeepSeekBot/pull/2494)、[#2080](https://github.com/BotHarness/DeepSeekBot/issues/2080)、[#2443](https://github.com/BotHarness/DeepSeekBot/pull/2443)、[#2422](https://github.com/BotHarness/DeepSeekBot/pull/2422)、[#2421](https://github.com/BotHarness/DeepSeekBot/pull/2421)、[#2427](https://github.com/BotHarness/DeepSeekBot/pull/2427)、[#2366](https://github.com/BotHarness/DeepSeekBot/pull/2366)、[#2416](https://github.com/BotHarness/DeepSeekBot/pull/2416)、[#2488](https://github.com/BotHarness/DeepSeekBot/pull/2488)、[#2507](https://github.com/BotHarness/DeepSeekBot/pull/2507)、[#2516](https://github.com/BotHarness/DeepSeekBot/pull/2516)）。
+
+- 切换远程 Host 或频道时清空未发送的远程草稿，避免误发；窄活动面板会将操作换行，远程失败时保留标题、关闭入口和本地化重试提示（[#2500](https://github.com/BotHarness/DeepSeekBot/issues/2500)）。
+
+- 移除远程 Host 会清除该浏览器的通知选择，重新配对默认关闭通知，其他 Host 的选择不受影响（[#2500](https://github.com/BotHarness/DeepSeekBot/issues/2500)）。
+
+- 手机原生模块对齐 Expo SDK 58 补丁基线；验收前须重建 iOS 和 Android 开发客户端，Expo 58.0.16 二进制不具备本次验收资格（[#2500](https://github.com/BotHarness/BotHarness/issues/2500)）。
+
+- Browser 和 Computer 产物在 Windows 与 Linux 使用一致的 StyleX 令牌派生类名，使提交的构建可重复生成（[#2500](https://github.com/BotHarness/DeepSeekBot/issues/2500)）。
+
+- Connect 会在大约一分钟内发现账号删除或会话撤销，停止隧道、清除会话，并提示 Host 重新登录（[#2526](https://github.com/BotHarness/DeepSeekBot/issues/2526)）。
 
 ### Documentation
 

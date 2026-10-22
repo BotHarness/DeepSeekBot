@@ -8,7 +8,7 @@ Unreleased entries arrive as [change fragments](changes/README.md) and are folde
 
 No changes since 1.5.0 yet.
 
-## [1.5.0] - 2026-10-21
+## [1.5.0] - 2026-10-22
 
 DeepSeekBot Connect pairs a phone through your account without Tailscale, Remote Hosts bring other computers' chats into the channel list, Storage frees space from old media and messages, the Bot Marketplace becomes a panel, plugins update from Bot settings, and Bot mode stays fast on long conversations with far fewer re-renders.
 
@@ -30,6 +30,16 @@ Mobile app entries below describe the independently versioned mobile Beta; this 
 - When the computer uses its system folder dialog, the phone can browse the computer's folders to grant one to a Bot; `deepseekbot folder-browse` lists the same folders ([#2392](https://github.com/BotHarness/DeepSeekBot/pull/2392)).
 - The mobile Beta can share text, links, photos and files to a Bot from any app, shows Bot notifications as chat messages with avatars and approval buttons (drawn by the app on Android), sends with ⌘↩ or Enter on a hardware keyboard, lists recent chats on the app icon, pastes clipboard images, adds 👍 on double-tap, opens the keyboard when you pull past the newest message, and offers Mute, Pin and Mark as read when you swipe a chat row on Android ([#2401](https://github.com/BotHarness/DeepSeekBot/pull/2401), [#2397](https://github.com/BotHarness/DeepSeekBot/pull/2397), [#2465](https://github.com/BotHarness/DeepSeekBot/pull/2465), [#2380](https://github.com/BotHarness/DeepSeekBot/pull/2380), [#2364](https://github.com/BotHarness/DeepSeekBot/pull/2364), [#2353](https://github.com/BotHarness/DeepSeekBot/pull/2353)).
 
+- The device CLI lists paired phones, creates private pairing offers, reports offer status and revokes devices through the same owner as Settings → Devices; revocation closes their open streams ([#2098](https://github.com/BotHarness/DeepSeekBot/issues/2098)).
+
+- Remote chats show their Host’s avatars, Bot activity and unread counts, update read positions on that Host, and render images, files and request cards; downloads and audio start only when requested ([#2500](https://github.com/BotHarness/DeepSeekBot/issues/2500)).
+
+- Activity Center groups remote requests, replies and unread chats by Host, and sends approvals, answers, join decisions, snooze and clear to that Host; failures retain loaded items with Retry, and handled or expired requests cannot be submitted again ([#2500](https://github.com/BotHarness/DeepSeekBot/issues/2500)).
+
+- Remote Host settings let you change models and presets, inspect usage and Memory activity, and preview and confirm storage cleanup; stale model changes are refused ([#2500](https://github.com/BotHarness/DeepSeekBot/issues/2500)).
+
+- Remote Bot conversations open Browser and Computer viewers over supported paired-device routes; pause the Bot to take control, and explicitly take over again after lost frames recover. Closing releases control, and removing a Host waits up to five seconds for cleanup before revoking its pairing ([#2500](https://github.com/BotHarness/DeepSeekBot/issues/2500)).
+
 ### Changed
 
 - The conversation view, Bot list, Channel sidebar panels, docked panel frames, Activity Inbox, home overview and IM apps settings re-render only when the data they show changes, so streamed replies, search typing and other Bots' Activity no longer repaint them; in scripted workloads the sidebar fell from 2,640 React commits to 80 ([#2439](https://github.com/BotHarness/DeepSeekBot/issues/2439), [#2449](https://github.com/BotHarness/DeepSeekBot/issues/2449), [#2450](https://github.com/BotHarness/DeepSeekBot/issues/2450), [#2453](https://github.com/BotHarness/DeepSeekBot/issues/2453), [#2454](https://github.com/BotHarness/DeepSeekBot/issues/2454), [#2455](https://github.com/BotHarness/DeepSeekBot/issues/2455)).
@@ -37,6 +47,12 @@ Mobile app entries below describe the independently versioned mobile Beta; this 
 - Buttons in desktop panel headers show their tooltip at once, panel titles explain that they can be dragged or clicked to hide, and every Bot settings sidebar section leads with an icon ([#2386](https://github.com/BotHarness/DeepSeekBot/pull/2386), [#2396](https://github.com/BotHarness/DeepSeekBot/pull/2396)).
 - The mobile Beta handles the requests that used to need the desktop: folder requests, Allow once / Always allow / Reject tool approvals with diffs and risk warnings, allowing an auto-rejected call once, group join requests and replies to waiting or blocked Assignments, each with a phone notification ([#2080](https://github.com/BotHarness/DeepSeekBot/issues/2080)).
 - The mobile Beta follows each platform more closely: an iOS 26 Messages or Material 3 composer, a floating Android chat header, softer fades under both edges, search and native buttons in the Chats and Activity headers, and on Android the Material 3 navigation bar with a creation FAB, navigation drawer, segmented lists, selection controls, loading indicator and Back behavior. **Customize computer** now picks an icon and a colour, shown after each chat's name ([#2355](https://github.com/BotHarness/DeepSeekBot/pull/2355), [#2398](https://github.com/BotHarness/DeepSeekBot/pull/2398), [#2394](https://github.com/BotHarness/DeepSeekBot/pull/2394), [#2425](https://github.com/BotHarness/DeepSeekBot/pull/2425), [#2377](https://github.com/BotHarness/DeepSeekBot/pull/2377), [#2487](https://github.com/BotHarness/DeepSeekBot/pull/2487), [#2350](https://github.com/BotHarness/DeepSeekBot/pull/2350), [#2351](https://github.com/BotHarness/DeepSeekBot/pull/2351), [#2348](https://github.com/BotHarness/DeepSeekBot/pull/2348), [#2342](https://github.com/BotHarness/DeepSeekBot/pull/2342), [#2354](https://github.com/BotHarness/DeepSeekBot/pull/2354), [#2343](https://github.com/BotHarness/DeepSeekBot/pull/2343), [#2358](https://github.com/BotHarness/DeepSeekBot/pull/2358), [#2461](https://github.com/BotHarness/DeepSeekBot/pull/2461), [#2499](https://github.com/BotHarness/DeepSeekBot/pull/2499)).
+
+- Phone notification choices stay on the phone and sync to every paired Host, including after re-pairing; each browser Remote Host has separate choices for alerts while the page is open, without replaying old attention after reconnect ([#2500](https://github.com/BotHarness/DeepSeekBot/issues/2500)).
+
+- Phone Chats uses one list selected from All or a Host in the left drawer, with accessible names and scalable icons; Android follows the selected Host colour, while All and iOS retain their default accent. Queued switches preserve the latest Host selection and an explicitly chosen All view ([#2518](https://github.com/BotHarness/DeepSeekBot/issues/2518)).
+
+- Connect sign-in explains private-window account switching and shows the signed-in email with Sign out; phone sign-in requests fresh authentication instead of silently reusing the browser session ([#2520](https://github.com/BotHarness/DeepSeekBot/issues/2520)).
 
 ### Fixed
 
@@ -51,6 +67,16 @@ Mobile app entries below describe the independently versioned mobile Beta; this 
 - The **Pair a phone** confirmation says to undo with `tailscale serve --https=443 off`, which removes only what DeepSeekBot published, and the Connect relay caps live tunnels, rate-limits each account and bounds reclamation retries ([#2415](https://github.com/BotHarness/DeepSeekBot/pull/2415), [#2387](https://github.com/BotHarness/DeepSeekBot/issues/2387), [#2410](https://github.com/BotHarness/DeepSeekBot/issues/2410)).
 - The VRM Companion no longer cuts a reply after its first character when the status connection blips, keeps long replies inside the panel, and the Bot status no longer flickers between thinking and short tool calls on the web, the phone and the character ([#2222](https://github.com/BotHarness/DeepSeekBot/issues/2222)).
 - Mobile Beta fixes: photos, files and pasted images send again, a new DM no longer goes blank after the first message, iPhone streaming no longer flashes or jumps, Android notifications keep avatars, survive the badge clearing, clear once handled and open the right conversation, requests answered on the phone show as answered here, approvals read in the app language, names and previews stay readable at large text, chats open at the latest message, loading indicators are native, and Android hardware-keyboard, large-text icon, folder picker and ⋯ menu issues are fixed ([#2444](https://github.com/BotHarness/DeepSeekBot/pull/2444), [#2490](https://github.com/BotHarness/DeepSeekBot/pull/2490), [#1845](https://github.com/BotHarness/DeepSeekBot/issues/1845), [#2483](https://github.com/BotHarness/DeepSeekBot/pull/2483), [#2485](https://github.com/BotHarness/DeepSeekBot/pull/2485), [#2491](https://github.com/BotHarness/DeepSeekBot/pull/2491), [#2494](https://github.com/BotHarness/DeepSeekBot/pull/2494), [#2080](https://github.com/BotHarness/DeepSeekBot/issues/2080), [#2443](https://github.com/BotHarness/DeepSeekBot/pull/2443), [#2422](https://github.com/BotHarness/DeepSeekBot/pull/2422), [#2421](https://github.com/BotHarness/DeepSeekBot/pull/2421), [#2427](https://github.com/BotHarness/DeepSeekBot/pull/2427), [#2366](https://github.com/BotHarness/DeepSeekBot/pull/2366), [#2416](https://github.com/BotHarness/DeepSeekBot/pull/2416), [#2488](https://github.com/BotHarness/DeepSeekBot/pull/2488), [#2507](https://github.com/BotHarness/DeepSeekBot/pull/2507), [#2516](https://github.com/BotHarness/DeepSeekBot/pull/2516)).
+
+- Switching Remote Hosts or Channels clears unsent remote drafts so they cannot reach the wrong destination; narrow Activity panels wrap actions, and remote failures retain titles, Close controls and translated retry guidance ([#2500](https://github.com/BotHarness/DeepSeekBot/issues/2500)).
+
+- Removing a Remote Host clears that browser’s notification choices, so re-pairing starts with notifications off while other Hosts keep their choices ([#2500](https://github.com/BotHarness/DeepSeekBot/issues/2500)).
+
+- Aligned mobile native modules with the Expo SDK 58 patch baseline; rebuild iOS and Android development clients before acceptance, because Expo 58.0.16 binaries are not qualified ([#2500](https://github.com/BotHarness/BotHarness/issues/2500)).
+
+- Browser and Computer bundles use consistent token-derived StyleX classes on Windows and Linux, making checked-in builds reproducible ([#2500](https://github.com/BotHarness/DeepSeekBot/issues/2500)).
+
+- Connect notices a deleted account or revoked session within about a minute, stops the tunnel, clears the session and asks the Host to sign in again ([#2526](https://github.com/BotHarness/DeepSeekBot/issues/2526)).
 
 ### Documentation
 
