@@ -14,7 +14,7 @@ const SIGN_IN_COMMAND = 'tailscale up';
 export interface PhoneRouteStatus {
   routes: {
     url: string;
-    kind: 'tailscale' | 'connect' | 'loopback';
+    kind: 'lan' | 'tailscale' | 'connect' | 'loopback';
     ready: boolean;
     issue?: string;
   }[];

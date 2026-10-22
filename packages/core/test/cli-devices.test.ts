@@ -9,6 +9,25 @@ const reply = (value: unknown) => ({
 const LINK = 'deepseekbot://pair?p=c2VjcmV0LW9mZmVy';
 
 describe('devices CLI', () => {
+  it('requires confirmation before opening LAN and uses the same Host management route to disable it', async () => {
+    const http = vi.fn(async () => reply({ state: 'listening' }));
+    await expect(
+      runDevicesCommand('device-lan', ['enable'], {}, async () => ({ http })),
+    ).rejects.toThrow('confirm');
+    expect(http).not.toHaveBeenCalled();
+    expect(
+      await runDevicesCommand('device-lan', ['enable'], { confirm: true }, async () => ({ http })),
+    ).toEqual({ state: 'listening' });
+    expect(http.mock.calls[0]).toEqual([
+      '/api/botharness/devices/lan',
+      { action: 'enable', confirm: true },
+    ]);
+    await runDevicesCommand('device-lan', ['disable'], {}, async () => ({ http }));
+    expect(http.mock.calls[1]).toEqual([
+      '/api/botharness/devices/lan',
+      { action: 'disable', confirm: false },
+    ]);
+  });
   it('requires explicit confirmation and sends the exact key with its offer receipt', async () => {
     const http = vi.fn(async () => reply({ approved: true }));
     const key = 'ab'.repeat(32);

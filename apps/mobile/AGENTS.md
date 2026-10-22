@@ -35,7 +35,7 @@ Screens follow the shared [UI design standard](../../docs/agents/ui-design.md) a
 - **File writes are explicit.** SDK 58 `File.write()` is asynchronous. The existing synchronous persistence adapters use `File.writeSync()` so their failure handling and callers retain the same contract.
 - **A native change needs a new development build.** Adding a package with native code, a config plugin, or an `app.json` native field change means the installed dev build is stale; say so in the PR. JavaScript-only changes reload through Metro.
 - **No secrets in the bundle.** Anything in `EXPO_PUBLIC_*` variables or `app.json` ships inside the app. Tokens live only in `expo-secure-store` and are never logged.
-- **HTTPS only.** iOS App Transport Security and Android cleartext rules block plain `http://` on device; the Host is reached over Tailscale HTTPS.
+- **HTTPS for ordinary requests.** LAN uses only the restricted native `LanChannel` carrier for pinned-key Noise frames; it never sends ordinary HTTP or device credentials in plaintext. Keep general cleartext disabled. Tailscale uses HTTPS and Connect retains its encrypted carrier. See `docs/architecture/lan-phone-v1.md` at the repo root.
 - **Long lists virtualize.** Use `FlatList`/`SectionList` (or FlashList if measured), never `ScrollView` over `.map()`.
 - **Web is a preview target, not a product.** The web export exists for screenshots in cloud sessions (see `README.md`); do not add web-only code paths to make it work.
 

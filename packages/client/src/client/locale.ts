@@ -4028,6 +4028,11 @@ export const zh = {
   'remoteHosts.error.unreachable': '连不上这个远程，请确认它开着并在同一个 Tailscale 网络里',
   'remoteHosts.error.already-paired': '这个远程已经添加过了',
   'remoteHosts.error.this-host': '这是本机的链接',
+  'devices.lan.title': '局域网连接',
+  'devices.lan.notice': '允许手机通过当前网络加密连接。新手机需要你批准。',
+  'devices.lan.enabled': '已开启。手机连到同一网络后，扫描下方配对码。',
+  'devices.lan.enable': '开启局域网连接',
+  'devices.lan.disable': '关闭局域网连接',
   'devices.pair.title': '配对手机',
   'devices.pair.description': '用 DeepSeekBot App 扫码。二维码只能用一次，10 分钟后失效。',
   'devices.pair.open': '配对手机',
@@ -8461,6 +8466,13 @@ My relationship with you, established lore and topics to avoid: [fill in].
     "Can't reach that remote. Check that it's on and on the same Tailscale network.",
   'remoteHosts.error.already-paired': 'That remote is already added.',
   'remoteHosts.error.this-host': 'That link is for this host.',
+  'devices.lan.title': 'Local network access',
+  'devices.lan.notice':
+    'Allow encrypted phone connections on this network. You approve each new phone.',
+  'devices.lan.enabled':
+    'On. Join the same network on your phone, then scan the pairing code below.',
+  'devices.lan.enable': 'Enable local access',
+  'devices.lan.disable': 'Disable local access',
   'devices.pair.title': 'Pair a phone',
   'devices.pair.description':
     'Scan a QR code with the DeepSeekBot app. The code works once and expires after 10 minutes.',

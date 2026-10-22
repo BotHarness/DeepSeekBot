@@ -1,6 +1,36 @@
 import { describe, expect, it } from 'vitest';
 import vector from './fixtures/noise/xk-cacophony.json';
 import { NoiseXk } from '../src/devices/noise/xk.js';
+import { noisePublicKey } from '../src/devices/noise/xk.js';
+import { ConnectChannel } from '../src/devices/noise/channel.js';
+import { randomBytes } from 'node:crypto';
+
+it('refuses a Connect handshake replayed at the LAN entry', () => {
+  const key = randomBytes(32);
+  const hostKey = noisePublicKey(key);
+  const phone = new ConnectChannel({
+    role: 'initiator',
+    hostId: 'host',
+    staticKey: randomBytes(32),
+    ephemeralKey: randomBytes(32),
+    hostKey,
+    route: 'connect',
+  });
+  const host = new ConnectChannel({
+    role: 'responder',
+    hostId: 'host',
+    staticKey: key,
+    ephemeralKey: randomBytes(32),
+    hostKey,
+    route: 'lan',
+  });
+  try {
+    expect(() => host.receive(phone.start())).toThrow();
+  } finally {
+    phone.close();
+    host.close();
+  }
+});
 
 const bytes = (hex: string) => Uint8Array.from(Buffer.from(hex, 'hex'));
 const hex = (value: Uint8Array) => Buffer.from(value).toString('hex');

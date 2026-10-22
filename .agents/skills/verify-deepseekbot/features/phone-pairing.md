@@ -1,5 +1,15 @@
 # Phone pairing and paired devices
 
+## Encrypted LAN (#2599)
+
+Reserve the native QA lane before starting a Host, build or device. New native builds are required for `LanChannel`; record iOS and Android separately.
+
+1. Devices starts with local access off. `device-lan enable` without `--confirm` refuses. Capture the matched base/candidate Devices states.
+2. Enable local access visibly. Choose **Use the same Wi-Fi** in the installed app, scan the computer QR and approve the exact phone key on the computer. Capture both themes and default/intermediate/maximum text. Exclude QR payloads and private addresses from public evidence.
+3. Without WAN, read the real Host Feed over LAN. Separately, with a reachable model, send a marked DM and verify the visible reply and canonical timeline. A model failure is not a LAN failure.
+4. Restart both peers; trust and the logical Host remain. Revoke the phone; streams close and reconnect refuses. Disable LAN and verify port release while independent remote access remains.
+5. Wrong Host pins, legacy pairings without keys, reused and expired offers refuse. Denied local-network permission shows recovery guidance. This slice does not add mutation replay or proactive handover.
+
 A Human pairs the phone app with their Host by a one-time QR code, and the phone keeps working across Host restarts until the Human revokes it. The phone holds a per-device credential and talks only to the device gateway (`/botharness-device/*`, [ADR-0199](../../../../docs/adr/0199-paired-devices-reach-the-host-through-a-same-listener-device-gateway.md)).
 
 ## Sub-features

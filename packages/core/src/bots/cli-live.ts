@@ -7,6 +7,7 @@ import {
 } from './cli-window-zoom.js';
 import { PHONE_ROUTE_COMMANDS, runPhoneRouteCommand } from './cli-phone-route.js';
 import { DEVICES_COMMANDS, isDevicesCommand, runDevicesCommand } from './cli-devices.js';
+import { DEVICE_CLIENT_COMMANDS, runDeviceClientCommand } from './cli-device-client.js';
 import {
   DEVICE_NOTIFICATION_COMMANDS,
   DEVICE_NOTIFICATION_OPTIONS,
@@ -133,6 +134,7 @@ import {
 export { CliLiveError } from './cli-live-error.js';
 
 export const LIVE_OPTIONS = {
+  'link-file': { type: 'string' },
   'remote-host-id': { type: 'string' },
   'host-id': { type: 'string' },
   ...DEVICE_NOTIFICATION_OPTIONS,
@@ -238,6 +240,7 @@ export const LIVE_COMMANDS = [
   ...WINDOW_ZOOM_COMMANDS,
   ...PHONE_ROUTE_COMMANDS,
   ...DEVICES_COMMANDS,
+  ...DEVICE_CLIENT_COMMANDS,
   ...CONNECT_COMMANDS,
   ...IM_COMMANDS,
   ...MESSAGING_COMMANDS,
@@ -432,6 +435,7 @@ interface LiveValues
     ApprovalReviewerValues {
   'client-id'?: string;
   'device-file'?: string;
+  'link-file'?: string;
   'remote-host-id'?: string;
   'host-id'?: string;
   'preferences-stdin'?: boolean;
@@ -808,6 +812,8 @@ export async function runLiveCli(
     return runDevicesCommand(command, rest, values, () =>
       connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
     );
+  if (DEVICE_CLIENT_COMMANDS.some((entry) => entry.command === command))
+    return runDeviceClientCommand(command, rest, values);
   if (command === 'cloud-work') {
     const input = await prepareCloudWork(rest, values, io);
     const host = await connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout)));
