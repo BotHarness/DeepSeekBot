@@ -10,13 +10,15 @@ Open a paired computer, then a Human/Bot DM or a group conversation. Use the mes
 
 ## Driving it with verify-app
 
-Use `docs/agents/device-qa.md` and its designated runner, qualified native client and isolated QA Host. Drive the actual native app by accessible labels or `composer-input`, `composer-attach` and `composer-send`. Source tests in `apps/mobile/test/dictation.test.ts` and the style/system-text guards do not prove native geometry.
+Use `docs/agents/device-qa.md` and its designated runner, qualified native client and isolated QA Host. Drive the actual native app by accessible labels or `composer-input`, `composer-attach`, `composer-send`, `composer-expand`, `composer-dictation`, `composer-dictation-cancel` and `jump-to-latest`. Source tests in `apps/mobile/test/dictation.test.ts` and the style/system-text guards do not prove native geometry.
 
 1. Capture matched base/candidate empty and short-draft states: iOS has one continuous rounded surface around +, field and trailing control; default compact height is 56pt and the controls are at least 44pt. Check opaque Reduce Transparency fallback too.
 2. Open the real soft keyboard, type several lines and move the caret. Open/close the attachment tray, pick and remove an owned fixture, expand/return from editing and preserve the draft and selection. Required controls and the current editing line remain reachable.
 3. Repeat light/dark at default, intermediate and maximum system text. Change default → maximum → default live with a draft open; retain the editable field, draft and focus. Record CJK IME, VoiceOver and orientation separately if unavailable.
 4. Send a uniquely marked message and read the QA Host Channel timeline: exact text, attachments and mention metadata agree. A Bot reply requires a usable model. Exercise dictation start, cancel and stop with microphone permission; audio/transcription availability is a separate prerequisite.
-5. Check the unaffected Android separate-button path when its queue/device is available; never infer that result from an iOS capture.
+5. For iOS native controls, tap the entire 44pt target (including its edge), open/close attachments, send exactly once and expand/return without losing input focus or draft. Scroll to history, receive unseen messages, verify the count badge, then tap the native return button and confirm it follows the latest message. Repeat with Reduce Transparency.
+6. With working microphone/recognition, tap the mic then Stop; hold ≥300ms and release; hold and drag left ≥80pt to cancel or up ≥60pt to lock; interrupt an unlocked hold or add a second finger. Confirm recording cleanup, exact draft preservation/discard semantics and no message sent automatically. VoiceOver activation is a separate physical/assistive check, not proven by a mocked callback.
+7. Check the unaffected Android separate-button path when its queue/device is available; never infer that result from an iOS capture.
 
 ## Observable proof
 

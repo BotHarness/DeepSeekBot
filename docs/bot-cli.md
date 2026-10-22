@@ -658,6 +658,8 @@ The online Human CLI accepts `home-model-set --orchestrator-effort` and `--expec
 
 ### Marketplace, releases, usage statistics, Git and pairing review
 
+Marketplace browsing in the Client defaults to most stars and remembers the chosen sort in this browser. `--sort stars` orders by stars, last update, creation time, then repository ID (all descending); pagination preserves this order. The CLI does not read browser preferences.
+
 These commands call the same Host methods as the Marketplace page, the update card, the usage statistics notice, the Git prompt and the IM pairing panel:
 
 ```bash
