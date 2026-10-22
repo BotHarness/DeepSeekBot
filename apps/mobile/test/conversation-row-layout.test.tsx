@@ -4,7 +4,6 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const device = vi.hoisted(() => ({ os: 'android', scale: 1 }));
-// The row module also imports native navigation; this fixture exercises only its frame.
 vi.mock('expo-router', () => ({
   Link: () => {
     throw new Error('Navigation is outside the conversation row layout fixture');
@@ -126,7 +125,6 @@ function style(element: Element): Record<string, unknown> {
   return JSON.parse(element.getAttribute('data-style') ?? '{}');
 }
 
-// The native boundary exposes layout props, not Yoga geometry or native glyph measurements.
 describe.each(['android', 'ios'])('Chats row layout contract on %s', (os) => {
   it.each([1, 1.3, 2, 3.571])('keeps two lines at scale %s, including beside an action target', (scale) => {
     device.os = os;
