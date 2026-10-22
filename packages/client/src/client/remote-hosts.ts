@@ -283,6 +283,7 @@ export function createRemoteHosts(options: {
   const forget = (hostId: string): void => {
     const entry = clients.get(hostId);
     if (entry === undefined) return;
+    notifications.forget(hostId);
     entry.release();
     stop(entry);
     clients.delete(hostId);

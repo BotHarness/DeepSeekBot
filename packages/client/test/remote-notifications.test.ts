@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createRemoteNotifications } from '../src/client/remote-notifications.js';
+import {
+  createRemoteNotifications,
+  REMOTE_NOTIFICATION_KEY,
+} from '../src/client/remote-notifications.js';
 import type { RemoteHost } from '../src/client/remote-hosts.js';
 import type { DesktopNotificationHandle } from '../src/client/desktop-notifications.js';
 import type { HumanAttentionItem } from '../../../apps/mobile/src/host/wire.js';
@@ -63,6 +66,75 @@ function fixture() {
 }
 
 describe('Remote Host browser alerts', () => {
+  it('forgets persisted choices and open handles only on permanent removal', async () => {
+    const f = fixture();
+    await f.notices.set('a', { enabled: true, preferences: { approval: false } });
+    await f.notices.set('b', { enabled: true, preferences: { reply: false } });
+    const retained = f.notices.choice('b');
+    f.notices.update([remote('a', []), remote('b', [])]);
+    f.notices.update([remote('a', [item('a-new')]), remote('b', [item('b-new')])]);
+    expect(f.handles).toHaveLength(2);
+    f.notices.forget('a');
+    expect(f.handles[0]?.close).toHaveBeenCalledOnce();
+    expect(f.handles[0]?.onclick).toBeNull();
+    expect(f.handles[1]?.close).not.toHaveBeenCalled();
+    expect(f.notices.getSnapshot().hosts).toEqual({ b: retained });
+    expect(JSON.parse(f.options.storage.getItem(REMOTE_NOTIFICATION_KEY)!)).toEqual({
+      b: retained,
+    });
+    f.notices.update([remote('b', [item('b-new')])]);
+    const offline = remote('b', []);
+    offline.snapshot = { connection: { status: 'stopped', route: '' } };
+    f.notices.update([offline]);
+    f.notices.update([remote('b', [item('b-new')])]);
+    f.notices.stop();
+    const reloaded = createRemoteNotifications(f.options);
+    expect(reloaded.choice('a').enabled).toBe(false);
+    expect(reloaded.choice('a').preferences.approval).toBe(true);
+    expect(reloaded.choice('b')).toEqual(retained);
+    reloaded.forget('b');
+    expect(f.options.storage.getItem(REMOTE_NOTIFICATION_KEY)).toBeNull();
+  });
+
+  it.each(['permission', 'baseline'] as const)(
+    'does not restore a forgotten choice after a late %s result or cancel a new pairing activation',
+    async (phase) => {
+      const f = fixture();
+      let finish!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+      const prepare = vi.fn(async () => {});
+      const notices = createRemoteNotifications({ ...f.options, prepareEnable: prepare });
+      await notices.set('a', { enabled: false, preferences: { reply: false } });
+      await notices.set('b', { enabled: false, preferences: { approval: false } });
+      const retained = notices.choice('b');
+      if (phase === 'permission')
+        f.request.mockImplementationOnce(async () => {
+          await gate;
+          f.permission('granted');
+          return 'granted';
+        });
+      else {
+        f.permission('granted');
+        prepare.mockImplementationOnce(() => gate);
+      }
+      const pending = notices.set('a', { enabled: true });
+      const refused = expect(pending).rejects.toThrow('notification-activation-cancelled');
+      notices.forget('a');
+      await refused;
+      expect(notices.getSnapshot().hosts).toEqual({ b: retained });
+      finish();
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(createRemoteNotifications(f.options).getSnapshot().hosts).toEqual({ b: retained });
+      await notices.set('a', { enabled: true });
+      expect(notices.choice('a').preferences.reply).toBe(true);
+      expect(notices.choice('a').enabled).toBe(true);
+      expect(notices.choice('b')).toEqual(retained);
+    },
+  );
+
   it.each(['idle', 'loading', 'error', 'stale', 'partial'] as const)(
     'does not establish or erase a notification baseline from a connected %s read',
     async (status) => {

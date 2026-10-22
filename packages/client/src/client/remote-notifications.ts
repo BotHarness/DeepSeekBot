@@ -119,6 +119,18 @@ export function createRemoteNotifications(options: {
     getSnapshot: () => snapshot,
     choice,
     cancel,
+    forget(hostId: string) {
+      cancel(hostId);
+      const updated = { ...hosts };
+      delete updated[hostId];
+      if (Object.keys(updated).length === 0) storage?.removeItem(REMOTE_NOTIFICATION_KEY);
+      else storage?.setItem(REMOTE_NOTIFICATION_KEY, JSON.stringify(updated));
+      hosts = updated;
+      state.delete(hostId);
+      revisions.delete(hostId);
+      close(hostId);
+      publish();
+    },
     subscribe(listener: () => void) {
       listeners.add(listener);
       return () => {

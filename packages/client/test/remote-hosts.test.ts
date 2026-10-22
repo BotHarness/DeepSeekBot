@@ -7,6 +7,7 @@ import { createHostActivityActions } from '../src/client/host-activity-actions.j
 import type { HumanAttentionItem } from '../src/client/store.js';
 import { pairingLink } from '../../core/src/devices/http.js';
 import { en, zh } from '../src/client/locale.js';
+import { REMOTE_NOTIFICATION_KEY } from '../src/client/remote-notifications.js';
 import {
   ALL_HOSTS,
   HOST_TAB_STORAGE_KEY,
@@ -165,6 +166,32 @@ describe('remote hosts', () => {
     expect(sources.getSnapshot().tab).toBe(ALL_HOSTS);
     sources.select('local');
     expect(sources.getSnapshot().tab).toBe('local');
+  });
+
+  it('permanently forgets only the removed Host notification choice across reload and re-pair', async () => {
+    const preferences = { approval: false, question: true, 'private-input': false, reply: true };
+    const retained = { enabled: true, preferences };
+    const storage = memoryStorage({
+      [REMOTE_NOTIFICATION_KEY]: JSON.stringify({ 'host-b': retained, 'host-c': retained }),
+    });
+    const { carrier } = fakeCarrier();
+    const sources = createRemoteHosts({ storage, carrier });
+    await sources.pair(link(), 'Browser', 'host-a');
+    expect(sources.notifications.choice('host-b')).toEqual(retained);
+
+    await sources.remove('host-b');
+
+    expect(sources.notifications.getSnapshot().hosts).not.toHaveProperty('host-b');
+    expect(JSON.parse(storage.values.get(REMOTE_NOTIFICATION_KEY)!)).toEqual({
+      'host-c': retained,
+    });
+    const reloaded = createRemoteHosts({ storage, carrier });
+    await reloaded.pair(link(), 'Browser', 'host-a');
+    expect(reloaded.notifications.choice('host-b')).toEqual({
+      enabled: false,
+      preferences: { approval: true, question: true, 'private-input': true, reply: true },
+    });
+    expect(reloaded.notifications.choice('host-c')).toEqual(retained);
   });
 });
 
