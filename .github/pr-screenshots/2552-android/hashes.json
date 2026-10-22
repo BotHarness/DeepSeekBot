@@ -1,0 +1,56 @@
+[
+  {
+    "file": "before.png",
+    "bytes": 64207,
+    "sha256": "7d2f7622761565198114ef91868798f0d1e4dd0235d36f8cdc8909200b82e42e",
+    "processing": "Original1220x2712 crop x0/y130/w1220/h2530 only."
+  },
+  {
+    "file": "chooser.png",
+    "bytes": 65419,
+    "sha256": "cce7481850f6bfea814de0c4204f2e52cd9cacde8a79f894b9ab5c2885ed22eb",
+    "processing": "Original1220x2712 crop x0/y130/w1220/h2530 only."
+  },
+  {
+    "file": "cjk.mp4",
+    "bytes": 149555,
+    "sha256": "e82574ecbd668d8daeae14ea6f8677aa3ceef66f22786a69743f43a6892bc924",
+    "processing": "Original1220x2712 crop x0/y130/w1220/h2530, scale610x1264, H264, no audio, original playback speed."
+  },
+  {
+    "file": "cjk.png",
+    "bytes": 136976,
+    "sha256": "3484cbfcf08337ea6ce2d7dae1ca7f1daba34da8937c2ab05aa58db95fcf88eb",
+    "processing": "Original1220x2712 crop x0/y130/w1220/h2530 only."
+  },
+  {
+    "file": "created.png",
+    "bytes": 51583,
+    "sha256": "85d20d827d13af32c3a28bd2c67e336ccb10802ae753cfbea690c998dc5c8d77",
+    "processing": "Original1220x2712 crop x0/y130/w1220/h2530 only."
+  },
+  {
+    "file": "group.png",
+    "bytes": 58820,
+    "sha256": "dd42a7899f8affba7e15855cb6759781646fd2e100164ffb488242646ca79af9",
+    "processing": "Original1220x2712 crop x0/y130/w1220/h2530 only."
+  },
+  {
+    "file": "menu.png",
+    "bytes": 118469,
+    "sha256": "87ffbcd1eee4c14ae4779bc744e1a125140523e4ac5ab172a34be0865a1eb515",
+    "processing": "Original1220x2712 crop x0/y130/w1220/h2530 only."
+  },
+  {
+    "file": "other-host.png",
+    "bytes": 59894,
+    "sha256": "9ebaa9ac6f8a81c64e07729b60fe58bb9a4e7ccaa8f7984309c640afbbf73a53",
+    "processing": "Original1220x2712 crop x0/y130/w1220/h2530 only."
+  },
+  {
+    "file": "swipe.png",
+    "bytes": 84456,
+    "sha256": "1e9dcf42456a7c1edc172777332012f9389f02c36658e414e1eaca99492192d1",
+    "processing": "Original1220x2712 crop x0/y130/w1220/h2530 only."
+  }
+]

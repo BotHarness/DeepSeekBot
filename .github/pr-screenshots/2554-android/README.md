@@ -13,7 +13,6 @@ Actual run: 2026-10-22, Android 16 arm64 physical phone, 1220 × 2712 screenshot
 - Preparation: 20 files / 163 tests and mobile typecheck passed. Separate baseline/candidate root builds passed; one sequential Metro and isolated QA Hosts. These source/build results are not native acceptance.
 - Official provider/model: `deepseek-official` / `deepseek-flash`, verified with actual phone composer → Host → visible reply, not API-only. USB loopback QA route does not prove tailnet or QR scanning.
 
-
 ## PR2554 — sampled geometry improved; full acceptance remains PARTIAL
 
 Baseline and candidate share the same HarborBot/42 data for row captures. Default/intermediate1.3 and extra2.0 stress light/dark captured. Baseline2.0 places title, time and preview on separate lines. Candidate places title/time on the same horizontal line with preview/status below and real PR2552 trailing menu. At2.0 dark, title/time are still truncated; this is not a full-content-visibility pass.
@@ -21,9 +20,6 @@ Baseline and candidate share the same HarborBot/42 data for row captures. Defaul
 Actual OEM maximum was selected on the system font slider: label200% maps to Android `font_scale=1.45` on this phone. It is distinct from direct2.0 stress. Matched light/dark OEMmax screenshots with `HarborBot 中文长标题 Native layout` and `NoTime 无时间` show baseline header/time stacking versus candidate single-line title/time and preview second; no-time row has no blank timestamp row. Long title is visually truncated; full accessible name was sampled in XML, not through TalkBack. Baseline light screenshot also shows transient text truncation; no claim of identical animation phase.
 
 Live font changes produced Expo Router linking/navigation warnings in both sources. Warnings remain visible in published full-app crops, with no attribution to these PRs. Some warnings overlap bottom navigation. Long-title row opening, complete accessibility and iOS/Human acceptance remain untested.
-
-
-
 
 Status/system-navigation pixels cropped for privacy. No generated/reconstructed UI. PNGs reviewed individually through labeled contact sheets; recording frames sampled every5s across their full selected interval. No personal notification or credential visible in reviewed frames. Public clips only contain designated QA journeys; raw originals remain private. This sampling is not frame-by-frame privacy certification.
 
@@ -36,4 +32,3 @@ Own Host/Metro processes, descendants, ports and recorders were stopped. Lease a
 Telemetry2570 remained BLOCKED: no independent production-egress isolation or dedicated synthetic container. No analytics configuration, interception, statistics-file mutation or personal opt-out operation occurred. Hermes2565, HostSettings2564, grid2574, Video and native splash2579 were excluded. Splash2579 is accepted for a future main batch containing merge55fe0fa36669e21d343bec7e417b2387d239118f and requires a new native APK; old binary/Metro cannot verify it.
 
 Public images are pixel crops removing status/navigation bars only, with hashes and source binding. Raw logs, identifiers, private profiles, XML and unreviewed frames remain private. Public publication status is tracked in the sole queue; local assets alone do not complete PR evidence delivery.
-

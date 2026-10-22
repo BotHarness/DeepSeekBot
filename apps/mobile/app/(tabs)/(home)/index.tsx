@@ -42,7 +42,7 @@ import { HeaderAction } from '../../../src/ui/shell/header-action';
 import { HeaderSearch } from '../../../src/ui/shell/header-search';
 import { HomeHeader } from '../../../src/ui/shell/home-header';
 import { HostDrawerEdge } from '../../../src/ui/shell/host-drawer';
-import { ConversationPeek, conversationPeek } from '../../../src/ui/shell/conversation-peek';
+import { conversationPeek } from '../../../src/ui/shell/conversation-peek';
 import { useFloatingTabInset } from '../../../src/ui/shell/floating-tab-inset';
 import { conversationHref, openConversation } from '../../../src/ui/shell/open-conversation';
 import { useChromeScroll } from '../../../src/ui/shell/scroll-chrome';
@@ -407,31 +407,40 @@ const HomeContent = memo(function HomeContent({
                 }
                 renderItem={({ item }) =>
                   item.type === 'computer' ? (
-                    conversationPeek ? (
-                      <ConversationPeek href={conversationHref(item.conversation, saved?.hostId)}>
-                        <ConversationRow row={item.conversation} now={new Date()} look={look} />
-                      </ConversationPeek>
-                    ) : (
-                      <ConversationRow
-                        row={item.conversation}
-                        now={new Date()}
-                        look={look}
-                        onPress={() => openConversation(router, item.conversation, saved?.hostId)}
-                        actions={conversationActions(item.conversation, {
-                          pinned: item.pinned,
-                          hostMuted:
-                            snapshot.roster?.arrangement?.muted?.includes(
-                              conversationChannelId(item.conversation) ?? '',
-                            ) === true,
-                        })}
-                        onAction={(key) => {
-                          if (client === undefined) return;
-                          runConversationAction(client, inbox, item.conversation, key).catch(() =>
-                            showAppDialog(t.rowActions.failed, undefined, [{ text: t.done }]),
-                          );
-                        }}
-                      />
-                    )
+                    <ConversationRow
+                      key={`${saved?.hostId}:${item.conversation.key}`}
+                      previewHref={
+                        conversationPeek
+                          ? conversationHref(item.conversation, saved?.hostId)
+                          : undefined
+                      }
+                      row={item.conversation}
+                      now={new Date()}
+                      look={look}
+                      onPress={() => openConversation(router, item.conversation, saved?.hostId)}
+                      actions={conversationActions(item.conversation, {
+                        pinned: item.pinned,
+                        hostMuted:
+                          snapshot.roster?.arrangement?.muted?.includes(
+                            conversationChannelId(item.conversation) ?? '',
+                          ) === true,
+                      })}
+                      onAction={(key) => {
+                        if (client === undefined) return;
+                        if (key === 'section') {
+                          const channelId = conversationChannelId(item.conversation);
+                          if (channelId && saved)
+                            router.push({
+                              pathname: '/conversation-section',
+                              params: { hostId: saved.hostId, channelId },
+                            });
+                          return;
+                        }
+                        runConversationAction(client, inbox, item.conversation, key).catch(() =>
+                          showAppDialog(t.rowActions.failed, undefined, [{ text: t.done }]),
+                        );
+                      }}
+                    />
                   ) : (
                     <CloudConversationRow
                       row={item.conversation}

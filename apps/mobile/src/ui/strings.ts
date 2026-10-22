@@ -898,10 +898,24 @@ const en = {
   rowActions: {
     pin: 'Pin',
     unpin: 'Unpin',
+    section: 'Add to section',
     read: 'Mark as read',
     mute: 'Mute',
     unmute: 'Unmute',
     failed: 'Could not update this conversation.',
+  },
+  conversationActions: (name: string) => `Actions for ${name}`,
+  conversationSection: {
+    refresh: 'Refresh sections',
+    create: 'New section',
+    name: 'Section name',
+    submit: 'Create and add',
+    empty: 'No sections yet. Create one to organize your chats.',
+    createFailed: 'Could not create the section. Check the list before trying again.',
+    assignFailed: 'Could not add this chat. Your section is saved. Try again.',
+    refreshFailed: 'Chat added. Could not refresh the list.',
+    loadFailed: 'Could not load sections.',
+    changed: 'The Host changed. Close this sheet and choose the chat again.',
   },
   sectionLabel: (name: string, count: number, needsYou: number, unread = 0) =>
     [name, count === 1 ? '1 conversation' : `${count} conversations`]
@@ -2153,10 +2167,24 @@ const zh: typeof en = {
   rowActions: {
     pin: '置顶',
     unpin: '取消置顶',
+    section: '添加到分区',
     read: '标为已读',
     mute: '静音',
     unmute: '取消静音',
     failed: '无法更新这个会话。',
+  },
+  conversationActions: (name: string) => `${name}的操作`,
+  conversationSection: {
+    refresh: '刷新分区',
+    create: '新建分区',
+    name: '分区名称',
+    submit: '创建并添加',
+    empty: '还没有分区。新建一个来整理聊天。',
+    createFailed: '无法创建分区。请先查看列表，再重试。',
+    assignFailed: '无法添加聊天。分区已保存，请重试。',
+    refreshFailed: '已添加聊天，但无法刷新列表。',
+    loadFailed: '无法加载分区。',
+    changed: '远程 Host 已切换。请关闭并重新选择聊天。',
   },
   sectionLabel: (name: string, count: number, needsYou: number, unread = 0) =>
     [name, `${count} 个对话`]

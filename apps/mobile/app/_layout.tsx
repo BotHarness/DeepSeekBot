@@ -92,6 +92,10 @@ function RootNavigator() {
               />
               <Stack.Screen name="inbox/[id]" options={{ title: t.inbox }} />
               <Stack.Screen
+                name="conversation-section"
+                options={{ title: t.rowActions.section, ...sheetScreenOptions(design, true) }}
+              />
+              <Stack.Screen
                 name="cloud-join"
                 options={{ title: t.cloudJoin.title, headerRight: () => <WorkspaceButton /> }}
               />
