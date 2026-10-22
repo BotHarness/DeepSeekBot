@@ -73,13 +73,33 @@ export async function runPhoneNotifications(
   let client: Awaited<ReturnType<typeof connect>> | undefined;
   try {
     client = await connect(port, values['target-id'], values['device-name']);
-    const result = await client.send('Runtime.evaluate', {
-      expression: phoneNotificationExpression(preferences),
-      awaitPromise: true,
-      returnByValue: true,
-    });
-    if (result.result?.value === undefined) throw new Error('INSPECTOR_RESULT_REQUIRED');
-    return result.result.value;
+    const result = await client.evaluateAsync(phoneNotificationExpression(preferences));
+    if (typeof result !== 'object' || result === null)
+      throw new Error('INSPECTOR_RESULT_REQUIRED');
+    const value = result as Record<string, unknown>;
+    const choice = parseNotificationPreferences(value.preferences);
+    if (
+      Object.keys(value).length !== 7 ||
+      value.owner !== 'phone' ||
+      value.developmentClient !== true ||
+      value.saved !== (preferences !== undefined) ||
+      !choice ||
+      Object.keys(value.preferences as object).length !== 4 ||
+      typeof value.syncing !== 'boolean' ||
+      !Array.isArray(value.failedHostIds) ||
+      !value.failedHostIds.every((id): id is string => typeof id === 'string') ||
+      value.syncStatus !== (value.syncing || value.failedHostIds.length ? 'pending' : 'complete')
+    )
+      throw new Error('INSPECTOR_RESULT_REQUIRED');
+    return {
+      owner: 'phone',
+      developmentClient: true,
+      saved: value.saved,
+      preferences: choice,
+      syncing: value.syncing,
+      failedHostIds: value.failedHostIds,
+      syncStatus: value.syncStatus,
+    };
   } catch (error) {
     const code =
       error instanceof Error && /^[A-Z_]+$/.test(error.message)

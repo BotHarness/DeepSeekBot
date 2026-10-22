@@ -9,5 +9,6 @@ export function connect(
   deviceName: string,
 ): Promise<{
   send(method: string, params: Record<string, unknown>): Promise<{ result?: { value?: unknown } }>;
+  evaluateAsync(expression: string): Promise<unknown>;
   close(): void;
 }>;
