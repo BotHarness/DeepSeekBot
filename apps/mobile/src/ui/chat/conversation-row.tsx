@@ -190,9 +190,9 @@ export function ConversationRowFrame({
       >
         <View
           style={{
-            flexDirection: theme.largeText ? 'column' : 'row',
-            alignItems: theme.largeText ? 'flex-start' : 'center',
-            gap: theme.largeText ? space.x1 : space.x3,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: space.x3,
           }}
         >
           <SourceName name={title} source={source} look={look} />
@@ -206,7 +206,8 @@ export function ConversationRowFrame({
           <Text
             variant="meta"
             tone={unread ? 'fg' : 'muted'}
-            numberOfLines={theme.largeText ? 2 : 1}
+            numberOfLines={1}
+            ellipsizeMode="tail"
             style={{ flex: 1 }}
           >
             {preview}
