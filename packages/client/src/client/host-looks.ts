@@ -88,16 +88,43 @@ export function unusedHostLook(used: readonly HostLook[]): HostLook {
   return { icon: { kind: 'symbol', id: symbol }, color };
 }
 
-export function browserHostLooks(storage: Storage | undefined): HostLooks {
+export function browserHostLooks(
+  storage: Storage | undefined,
+  lock: (work: () => Promise<void>) => Promise<void> = async (work) => {
+    if (globalThis.navigator?.locks === undefined) throw new Error('host-look-lock-unavailable');
+    let acquired = false;
+    try {
+      await navigator.locks.request(HOST_LOOKS_STORAGE_KEY, { mode: 'exclusive' }, async () => {
+        acquired = true;
+        await work();
+      });
+    } catch (error) {
+      if (!acquired) throw new Error('host-look-lock-unavailable');
+      throw error;
+    }
+  },
+): HostLooks {
   return createHostLooks({
-    read: async () => JSON.parse(storage?.getItem(HOST_LOOKS_STORAGE_KEY) ?? '{}') as unknown,
-    write: (value) => {
-      try {
-        if (storage === undefined) throw new Error('storage-unavailable');
-        storage.setItem(HOST_LOOKS_STORAGE_KEY, JSON.stringify(value));
-      } catch {
-        throw new Error('host-look-storage-failed');
-      }
+    read: async () => {
+      if (storage === undefined) throw new Error('storage-unavailable');
+      const value: unknown = JSON.parse(storage.getItem(HOST_LOOKS_STORAGE_KEY) ?? '{}');
+      if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new Error('storage-invalid');
+      return value;
+    },
+    write: (value, check) => {
+      if (storage === undefined) throw new Error('storage-unavailable');
+      const encoded = JSON.stringify(value);
+      check?.();
+      storage.setItem(HOST_LOOKS_STORAGE_KEY, encoded);
+    },
+    transaction: lock,
+    listen: (changed) => {
+      if (typeof window === 'undefined') return () => {};
+      const listener = (event: StorageEvent) => {
+        if (event.storageArea === storage && (event.key === HOST_LOOKS_STORAGE_KEY || event.key === null)) changed();
+      };
+      window.addEventListener('storage', listener);
+      return () => window.removeEventListener('storage', listener);
     },
   });
 }
@@ -136,4 +163,9 @@ export function useHostInk(color: HostColorId | undefined): string | undefined {
 
 export function useHostName(hostId: string | undefined, name: string): string {
   return shownHostName(useHostLook(hostId), name);
+}
+
+export function useHostLookError(): string | undefined {
+  const looks = hostLooks();
+  return useSyncExternalStore(looks.subscribe, looks.error, looks.error);
 }

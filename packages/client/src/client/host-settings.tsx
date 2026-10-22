@@ -25,7 +25,7 @@ const styles = stylex.create({
   kind: { color: color.muted, fontSize: text.metaSize, lineHeight: text.metaLine },
 });
 
-export function RemoteHostSettings({
+export function HostSettings({
   hostId,
   name,
   local = false,

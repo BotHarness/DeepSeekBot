@@ -4,7 +4,7 @@ import * as stylex from '@stylexjs/stylex';
 import type { RemoteHost, RemoteConversationTarget } from './remote-hosts.js';
 import { ALL_HOSTS, remoteHosts, THIS_HOST } from './remote-hosts.js';
 import { UnreadCount } from './unread-count.js';
-import { RemoteHostSettings } from './remote-host-settings.js';
+import { HostSettings } from './host-settings.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { RemoteAvatar } from './remote-avatar.js';
 import { ConfirmDialog, FormDialog } from './ds/form-dialog.js';
@@ -17,7 +17,7 @@ import { useThisHost } from './this-host.js';
 export { useThisHost } from './this-host.js';
 import { HostGlyph } from './host-glyph.js';
 export { HostGlyph } from './host-glyph.js';
-import { shownHostName, type HostLook } from '../../../../apps/mobile/src/ui/design/host-look.js';
+import { DEFAULT_HOST_LOOK, shownHostName, type HostLook } from '../../../../apps/mobile/src/ui/design/host-look.js';
 import { hostLooks, unusedHostLook, useHostLook, useHostName } from './host-looks.js';
 
 const focusRing = { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` };
@@ -247,7 +247,7 @@ export function HostTabs({ t }: { t: BotHarnessTranslate }): ReactElement | null
         </span>
       )}
       {settings === undefined ? null : (
-        <RemoteHostSettings
+        <HostSettings
           key={settings.hostId}
           hostId={settings.hostId}
           name={settings.name}
@@ -326,7 +326,7 @@ export function AddRemoteHostDialog({
           }),
         onPending: setDeviceFingerprint,
       })
-      .then((result) => {
+      .then(async (result) => {
         setBusy(false);
         if (!result.ok) {
           setError(t(PAIR_ERRORS[result.code] ?? 'remoteHosts.error.unreachable'));
@@ -341,7 +341,7 @@ export function AddRemoteHostDialog({
             .map((remote) => looks.look(remote.host.hostId)),
         ];
         try {
-          looks.set(result.host.hostId, unusedHostLook(used));
+          await looks.update(result.host.hostId, (current) => current === DEFAULT_HOST_LOOK ? unusedHostLook(used) : current);
         } catch {}
         onClose();
       });

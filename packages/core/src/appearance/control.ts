@@ -78,11 +78,15 @@ export function createAppearanceControl(now = Date.now) {
           return refused('appearance-invalid-input', 400);
         if (input.patch !== undefined && typeof input.expectedRevision !== 'string')
           return refused('appearance-revision-required', 400);
+        if (input.hostLook !== undefined &&
+          (typeof input.expiresAt !== 'number' || !Number.isFinite(input.expiresAt) || input.expiresAt <= now()))
+          return refused('appearance-request-stale');
+        const expiresAt = input.hostLook === undefined ? now() + 8000 : Math.min(now() + 8000, input.expiresAt as number);
         if (client.pending) return refused('appearance-client-busy');
         if (!client.poll) return refused('appearance-client-unavailable');
         const command: Command = {
           id: randomUUID(),
-          expiresAt: now() + 8000,
+          expiresAt,
           ...(input.hostLook === undefined ? {} : { hostLook: input.hostLook, expectedRevision: input.expectedRevision as string }),
           ...(input.notifications === undefined
             ? {}
@@ -104,7 +108,7 @@ export function createAppearanceControl(now = Date.now) {
           const timer = setTimeout(() => {
             if (client.pending?.command === command) delete client.pending;
             resolve(refused('appearance-client-timeout'));
-          }, 8000);
+          }, Math.max(0, expiresAt - now()));
           client.pending = {
             command,
             resolve: (response) => {
@@ -125,7 +129,7 @@ export function createAppearanceControl(now = Date.now) {
         if (
           !client.pending ||
           client.pending.command.id !== input.requestId ||
-          now() > client.pending.command.expiresAt
+          now() >= client.pending.command.expiresAt
         )
           return refused('appearance-request-stale');
         const result = record(input.result);

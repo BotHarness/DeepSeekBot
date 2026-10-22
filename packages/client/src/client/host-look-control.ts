@@ -1,71 +1,65 @@
-import type { HostLooks } from '../../../../apps/mobile/src/host/host-look.js';
+import { isHostColor, isHostIcon, type HostLooks } from '../../../../apps/mobile/src/host/host-look.js';
 import {
-  HOST_COLORS,
-  HOST_EMOJI,
-  HOST_SYMBOLS,
   withHostColor,
   withHostIcon,
   withHostName,
-  type HostColorId,
-  type HostSymbolId,
+  type HostLook,
 } from '../../../../apps/mobile/src/ui/design/host-look.js';
 import { AppearanceError, object } from './appearance.js';
 
-export function controlHostLook(
+export async function controlHostLook(
   looks: HostLooks,
   input: unknown,
   expectedRevision: unknown,
   request: { expiresAt: number; signal: AbortSignal },
   available: (hostId: string) => boolean,
 ) {
+  const value = object(input);
+  const hostId = value.hostId;
   const check = () => {
     if (request.signal.aborted) throw new AppearanceError('host-look-cancelled');
     if (!Number.isFinite(request.expiresAt) || Date.now() >= request.expiresAt)
       throw new AppearanceError('appearance-request-stale');
+    if (typeof hostId !== 'string' || !available(hostId))
+      throw new AppearanceError('host-look-host-unknown');
   };
   check();
-  const value = object(input);
-  const hostId = value.hostId;
-  if (typeof hostId !== 'string' || !available(hostId))
-    throw new AppearanceError('host-look-host-unknown');
-  const current = looks.look(hostId);
+  if (typeof hostId !== 'string') throw new AppearanceError('host-look-host-unknown');
+  if (value.refresh !== undefined && (value.refresh !== true || value.patch !== undefined))
+    throw new AppearanceError('host-look-invalid-input');
+  let transform: ((current: HostLook) => HostLook) | undefined;
   if (value.patch !== undefined) {
     if (typeof expectedRevision !== 'string')
       throw new AppearanceError('host-look-revision-required');
-    if (expectedRevision !== JSON.stringify(current))
-      throw new AppearanceError('host-look-revision-stale');
     const patch = object(value.patch);
     const keys = Object.keys(patch);
     if (keys.length === 0 || keys.some((key) => !['name', 'icon', 'color'].includes(key)))
       throw new AppearanceError('host-look-invalid-input');
-    let next = current;
-    if ('name' in patch) {
-      if (typeof patch.name !== 'string') throw new AppearanceError('host-look-invalid-input');
-      next = withHostName(next, patch.name);
-    }
-    if ('icon' in patch) {
-      const icon = object(patch.icon);
-      if (icon.kind === 'symbol' && typeof icon.id === 'string' && Object.hasOwn(HOST_SYMBOLS, icon.id))
-        next = withHostIcon(next, { kind: 'symbol', id: icon.id as HostSymbolId });
-      else if (icon.kind === 'emoji' && typeof icon.emoji === 'string' && (HOST_EMOJI as readonly string[]).includes(icon.emoji))
-        next = withHostIcon(next, { kind: 'emoji', emoji: icon.emoji });
-      else throw new AppearanceError('host-look-invalid-input');
-    }
-    if ('color' in patch) {
-      if (patch.color !== null && (typeof patch.color !== 'string' || !Object.hasOwn(HOST_COLORS, patch.color)))
-        throw new AppearanceError('host-look-invalid-input');
-      next = withHostColor(next, patch.color === null ? undefined : patch.color as HostColorId);
-    }
-    check();
-    if (!available(hostId)) throw new AppearanceError('host-look-host-unknown');
-    if (expectedRevision !== JSON.stringify(looks.look(hostId)))
-      throw new AppearanceError('host-look-revision-stale');
-    try {
-      looks.set(hostId, next);
-    } catch {
-      throw new AppearanceError('host-look-storage-failed');
-    }
+    if (('name' in patch && typeof patch.name !== 'string') ||
+      ('icon' in patch && !isHostIcon(patch.icon)) ||
+      ('color' in patch && patch.color !== null && !isHostColor(patch.color)))
+      throw new AppearanceError('host-look-invalid-input');
+    transform = (current) => {
+      if (expectedRevision !== JSON.stringify(current))
+        throw new AppearanceError('host-look-revision-stale');
+      let next = current;
+      if (typeof patch.name === 'string') next = withHostName(next, patch.name);
+      if (isHostIcon(patch.icon)) next = withHostIcon(next, patch.icon);
+      if (patch.color === null || isHostColor(patch.color))
+        next = withHostColor(next, patch.color === null ? undefined : patch.color);
+      return next;
+    };
   }
-  const look = looks.look(hostId);
-  return { hostId, look, revision: JSON.stringify(look) };
+  try {
+    await looks.ready;
+    check();
+    if (value.refresh === true) await looks.refresh(check);
+    const look = transform === undefined
+      ? await looks.read(hostId, check)
+      : await looks.update(hostId, transform, check);
+    return { hostId, look, revision: JSON.stringify(look) };
+  } catch (error) {
+    if (error instanceof AppearanceError) throw error;
+    throw new AppearanceError(error instanceof Error ? error.message : 'host-look-storage-failed');
+  }
 }

@@ -168,6 +168,7 @@ export const LIVE_OPTIONS = {
   scope: { type: 'string' },
   'acknowledge-risk': { type: 'boolean' },
   'patch-stdin': { type: 'boolean' },
+  refresh: { type: 'boolean' },
   'previous-value': { type: 'string' },
   member: { type: 'string', multiple: true },
   app: { type: 'string' },
@@ -456,6 +457,7 @@ interface LiveValues
   scope?: string;
   'acknowledge-risk'?: boolean;
   'patch-stdin'?: boolean;
+  refresh?: boolean;
   'previous-value'?: string;
   member?: string[];
   'operation-key'?: string;
@@ -750,8 +752,12 @@ export async function runLiveCli(
   values: LiveValues,
   io: BotCreateCliIo,
 ): Promise<unknown> {
-  if (command === 'host-look')
-    return runHostLook(rest, values, io, () => connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))));
+  if (command === 'host-look') {
+    const duration = timeoutMs(values.timeout);
+    const expiresAt = Date.now() + duration;
+    const signal = AbortSignal.timeout(duration);
+    return runHostLook(rest, values, io, () => connectLiveHost(values, io, signal), expiresAt);
+  }
   if (command === 'device-notifications') return runDeviceNotifications(rest, values, io);
   if (command === 'phone-notifications') return runPhoneNotifications(rest, values, io);
   if (BROWSER_NOTIFICATION_COMMANDS.some((entry) => entry.command === command))

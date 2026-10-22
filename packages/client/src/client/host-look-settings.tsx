@@ -1,4 +1,5 @@
 import { useState, type ReactElement } from 'react';
+import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import * as stylex from '@stylexjs/stylex';
 import { Note } from './ds/note.js';
 import { TextField } from './ds/field.js';
@@ -6,12 +7,12 @@ import { SettingsSection } from './ds/settings-row.js';
 import { border, color, radius, size, space, text } from './ds/tokens.stylex.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { HostGlyph } from './host-glyph.js';
-import { hostLooks, useHostLook } from './host-looks.js';
+import { hostLooks, useHostLook, useHostLookError } from './host-looks.js';
 import { useBotColorScheme } from './bot-color-scheme.js';
 import type { BotHarnessTranslate } from './locale.js';
 import {
   HOST_COLOR_IDS, HOST_COLORS, HOST_EMOJI, HOST_SYMBOL_IDS, HOST_NAME_MAX,
-  withHostName, withHostIcon, withHostColor, type HostLook,
+  hostLookName, withHostName, withHostIcon, withHostColor, type HostLook,
 } from '../../../../apps/mobile/src/ui/design/host-look.js';
 
 const focusRing = { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` };
@@ -48,22 +49,22 @@ const styles = stylex.create({
   }),
 });
 
-function HostNameField({ hostId, name, saved, change, t }: {
-  hostId: string; name: string; saved: string | undefined; change: (look: HostLook) => boolean; t: BotHarnessTranslate;
+function HostNameField({ name, saved, change, t }: {
+  name: string; saved: string | undefined; change: (transform: (current: HostLook) => HostLook) => Promise<boolean>; t: BotHarnessTranslate;
 }) {
   const [draft, setDraft] = useState(saved ?? '');
-  const save = () => {
-    const current = hostLooks().look(hostId);
-    const next = withHostName(current, draft);
-    if (next.name !== current.name && !change(next)) return;
-    setDraft(next.name ?? '');
+  const save = async () => {
+    if (draft === (saved ?? '')) return;
+    const name = draft;
+    if (await change((current) => withHostName(current, name)))
+      setDraft((current) => current === name ? hostLookName(name) ?? '' : current);
   };
   return <TextField label={t('remoteHosts.look.name')} value={draft} onChange={setDraft}
-    placeholder={name} maxLength={HOST_NAME_MAX} onBlur={save}
+    placeholder={name} maxLength={HOST_NAME_MAX} onBlur={() => { void save(); }}
     onKeyDown={(event) => {
       if (event.key !== 'Enter' || event.nativeEvent.isComposing) return;
       event.preventDefault();
-      save();
+      void save();
     }} />;
 }
 
@@ -74,9 +75,10 @@ export function HostLookSettings({ hostId, name, t }: {
   const look = useHostLook(hostId);
   const icon = look.icon;
   const [error, setError] = useState(false);
-  const change = (next: HostLook): boolean => {
+  const storageError = useHostLookError();
+  const change = async (transform: (current: HostLook) => HostLook): Promise<boolean> => {
     try {
-      hostLooks().set(hostId, next);
+      await hostLooks().update(hostId, transform);
       setError(false);
       return true;
     } catch {
@@ -84,10 +86,18 @@ export function HostLookSettings({ hostId, name, t }: {
       return false;
     }
   };
+  const refresh = async () => {
+    try {
+      await hostLooks().refresh();
+      setError(false);
+    } catch {
+      setError(true);
+    }
+  };
   return <SettingsSection description={t('remoteHosts.look.hint')}>
     <div {...stylex.props(styles.editor)}>
-      {error ? <Note tone="danger">{t('remoteHosts.look.failed')}</Note> : null}
-      <HostNameField key={look.name ?? ''} hostId={hostId} name={name} saved={look.name} change={change} t={t} />
+      {error || storageError ? <div {...stylex.props(styles.section)}><Note tone="danger">{t(storageError === 'host-look-lock-unavailable' ? 'remoteHosts.look.unsupported' : 'remoteHosts.look.failed')}</Note><Button variant="outline" onClick={() => { void refresh(); }}>{t('remoteHosts.look.refresh')}</Button></div> : null}
+      <HostNameField key={look.name ?? ''} name={name} saved={look.name} change={change} t={t} />
       <div {...stylex.props(styles.section)}>
         <span {...stylex.props(styles.sectionName)}>{t('remoteHosts.look.symbols')}</span>
         <div
@@ -106,7 +116,7 @@ export function HostLookSettings({ hostId, name, t }: {
                 aria-label={t(`remoteHosts.look.symbol.${id}`)}
                 data-host-look-symbol={id}
                 {...stylex.props(styles.choice, chosen && styles.chosen)}
-                onClick={() => change(withHostIcon(look, { kind: 'symbol', id }))}
+                onClick={() => change((current) => withHostIcon(current, { kind: 'symbol', id }))}
               >
                 <HostGlyph look={{ ...look, icon: { kind: 'symbol', id } }} />
               </button>
@@ -131,7 +141,7 @@ export function HostLookSettings({ hostId, name, t }: {
                 aria-checked={chosen}
                 aria-label={emoji}
                 {...stylex.props(styles.choice, chosen && styles.chosen)}
-                onClick={() => change(withHostIcon(look, { kind: 'emoji', emoji }))}
+                onClick={() => change((current) => withHostIcon(current, { kind: 'emoji', emoji }))}
               >
                 <span {...stylex.props(styles.emoji)}>{emoji}</span>
               </button>
@@ -153,7 +163,7 @@ export function HostLookSettings({ hostId, name, t }: {
             aria-label={t('remoteHosts.look.noColor')}
             {...stylex.props(styles.choice, look.color === undefined && styles.chosen)}
             onClick={() =>
-              change(withHostColor(look, undefined))
+              change((current) => withHostColor(current, undefined))
             }
           >
             <ChannelSidebarIcon name="ban" size={14} />
@@ -166,7 +176,7 @@ export function HostLookSettings({ hostId, name, t }: {
               aria-checked={look.color === id}
               aria-label={t(`remoteHosts.look.color.${id}`)}
               {...stylex.props(styles.choice, look.color === id && styles.chosen)}
-              onClick={() => change(withHostColor(look, id))}
+              onClick={() => change((current) => withHostColor(current, id))}
             >
               <span {...stylex.props(styles.swatch(HOST_COLORS[id][scheme]))} />
             </button>

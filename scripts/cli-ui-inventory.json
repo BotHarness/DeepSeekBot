@@ -835,7 +835,7 @@
     },
     {
       "id": "device-local-host-look",
-      "description": "Browser-owned Host name, icon and colour; the existing appearance relay forwards to the shared HostLooks owner without a Host mirror.",
+      "description": "Browser-owned Host name, icon and colour; shared HostLooks locks persisted revision/merge, supports explicit refresh after read failure, and checks CLI absolute expiry before setItem. Early disconnect is unknown outcome with readback; no Host mirror.",
       "scope": "Client / Host",
       "surfaces": [
         "storage:packages/client/src/client/host-looks.ts:setItem(HOST_LOOKS_STORAGE_KEY)"
