@@ -17,7 +17,7 @@ function deviceName(): string {
   return Constants.deviceName ?? (Platform.OS === 'ios' ? 'iPhone' : 'Android phone');
 }
 
-export function usePairing() {
+export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: boolean } = {}) {
   const router = useRouter();
   const [connectionName, setConnectionName] = useState('');
   const [busy, setBusy] = useState(false);
@@ -56,7 +56,13 @@ export function usePairing() {
           ? text
           : async () => {
               const offer = await connectAccount.offer(hostId, deviceName());
-              return offer.ok ? { ok: true, payload: offer.value } : offer;
+              if (!offer.ok) return offer;
+              if (
+                options.preventDuplicates &&
+                hostSession.getState().hosts.some((host) => host.hostId === offer.value.host.id)
+              )
+                return { ok: false, code: 'already-paired' };
+              return { ok: true, payload: offer.value };
             },
       method,
       deviceName: deviceName(),
@@ -82,6 +88,11 @@ export function usePairing() {
         }),
       onPending: setFingerprint,
       save: async (host) => {
+        if (
+          options.preventDuplicates &&
+          hostSession.getState().hosts.some((saved) => saved.hostId === host.hostId)
+        )
+          throw new Error('already-paired');
         await hostSession.pair(host);
         const name = hostLookName(connectionName);
         if (name) hostLooks.set(host.hostId, withHostName(hostLooks.look(host.hostId), name));
@@ -92,13 +103,13 @@ export function usePairing() {
     pending.current = undefined;
     setBusy(false);
     setFingerprint(undefined);
-    if (operation.signal.aborted) return undefined;
+    if (operation.signal.aborted) return 'cancelled';
     if (!result.ok) {
       if (clearsPastedLink(result.code, method)) handled.current = undefined;
       setError(result.code);
       return result.code;
     }
-    router.dismissTo('/');
+    if (!options.stayOnPage) router.dismissTo('/');
     return undefined;
   };
 

@@ -29,3 +29,11 @@ In the assigned native batch, choose a disposable image from the system picker a
 - A browser served through an untrusted intermediary is outside the executable-code trust claim. Origin-local storage is not hardware protection.
 - Never capture real credentials or private chats. Only synthetic test input belongs in published evidence.
 - Protocol vectors and peer reviews do not constitute an external security audit.
+
+## Account computer list and multiple additions (#2581)
+
+In the shared device batch, open Pair a computer → DeepSeekBot account with two task-owned online Hosts A/B, one offline registration and one existing pairing. The account identity and Sign out/Delete account belong to one native section; computers to another. Offline and Added rows cannot be selected. No connection-name input appears. Keep all account emails and private runtime identifiers out of public evidence.
+
+Select A/B and Add2: each must expose its own complete Host fingerprint for independent comparison, then its exact phone fingerprint for owner approval. Do not batch-approve keys. After A succeeds and B fails, A remains Added, B retains a specific retryable result. Retry B without re-adding A. Cancel or mismatch during one ceremony stops the remaining queue; Back/dismiss must not later open a stale verification. An alternate account registration returning an already-saved Host ID is refused before a new encrypted channel is opened; do not replace a saved pairing or its credentials.
+
+After both succeed, both are Added, reopening the page prevents repeated selection, and Settings rename still changes only the phone-local name. Verify sign-out and failed/confirmed account deletion using a disposable QA account only; never delete the Human account for acceptance. Capture default/intermediate/maximum text × light/dark with actual native interactions; Android, physical devices and assistive technology stay separately untested until exercised.

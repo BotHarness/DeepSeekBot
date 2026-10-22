@@ -3,6 +3,7 @@ import { isDeviceYearClass, isPublicModelId, type DeviceTelemetryContext } from 
 export type PairingMethod = 'qr' | 'paste' | 'deep_link' | 'account';
 export type PairingOutcome = 'success' | 'refused' | 'failed' | 'cancelled';
 export type PairingReason =
+  | 'already-paired'
   | 'none'
   | 'host-key-required'
   | 'host-key-confirmation-required'
@@ -116,6 +117,7 @@ const fields: Record<keyof EventProperties, Record<string, (value: unknown) => b
       'none',
       'host-key-required',
       'host-key-confirmation-required',
+      'already-paired',
       'channel-authentication-failed',
       'link-invalid',
       'link-expired',
