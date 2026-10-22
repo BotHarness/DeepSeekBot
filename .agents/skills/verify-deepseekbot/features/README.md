@@ -2,7 +2,7 @@
 
 | Feature | Needs a model | Scripted journey | File |
 | --- | --- | --- | --- |
-| Browser Remote Host pairing, tabs and Host Feed | only for a reply | `verify-app` two-Host path | [remote-hosts.md](remote-hosts.md) |
+| Browser Remote Host pairing, icon strip, Host Feed and Host-level settings | only for a reply | `verify-app` two-Host path | [remote-hosts.md](remote-hosts.md) |
 | VRM companion Panel | yes for speaking | `scripts/e2e-vrm-companion.mjs` | [vrm-companion.md](vrm-companion.md) |
 | Desktop whole-window zoom (controlled S1 / Windows candidate) | no | `scripts/e2e-desktop-zoom-launch.mjs`, `scripts/e2e-desktop-zoom-windows.mjs`, `scripts/e2e-dock-zoom.mjs`, `scripts/e2e-workspace-chrome.mjs` | [desktop-window-zoom.md](desktop-window-zoom.md) |
 | Global search: Alt/Option+K, settings results and pinyin matching | no | `verify-app` Bot mode path | [global-search.md](global-search.md) |
@@ -27,6 +27,7 @@ One file per user-facing feature. Each file has four sections: `Sub-features`, `
 | PersonaBot creation and restart persistence                                                        | for Bot-created Bots       | `scripts/e2e-personabot-create.mjs` (CI)                                                             | [personabot-create.md](personabot-create.md)         |
 | Stop a working Bot (Web Client)                                                                    | yes                        | `scripts/e2e-web-stop.mjs`                                                                           | [bot-stop.md](bot-stop.md)                           |
 | Phone pairing and paired devices                                                                   | no                         | `scripts/e2e-mobile-pairing-web.mjs`, `scripts/e2e-device-pairing.mjs`, `scripts/e2e-mobile-sim.mjs`, `scripts/e2e-mobile-pair-android.mjs` | [phone-pairing.md](phone-pairing.md)                 |
+| Phone Chats drawer views and Android Host accent | no | none (shared-device native path) | [phone-drawer-views.md](phone-drawer-views.md) |
 | Native mobile chat backgrounds | no (except live-reply regression) | none (shared-device native path) | [phone-chat-backgrounds.md](phone-chat-backgrounds.md) |
 | Android sheets, shell and chat presentation | no | `scripts/e2e-mobile-android-interactions.mjs` | [phone-android-interactions.md](phone-android-interactions.md) |
 | Phone notifications and paired computers (iOS Simulator)                                           | for the approval step      | `scripts/e2e-mobile-sim.mjs` (Mac)                                                                   | [phone-notifications.md](phone-notifications.md)     |
@@ -45,7 +46,7 @@ One file per user-facing feature. Each file has four sections: `Sub-features`, `
 | Disposable Memory history, restore and stale-head refusal | no | `scripts/e2e-memory-restore.mjs` | [memory-restore.md](memory-restore.md) |
 | Version-bound Memory images, Markdown previews and CLI export | no | `scripts/e2e-memory-images.mjs`, `scripts/e2e-memory-markdown.mjs`, `scripts/e2e-memory-formats.mjs` | [memory-images.md](memory-images.md) |
 
-| Activity Center: approvals, Channel mute and independent control-rail indicator; page and Dock | yes (real pending requests) | `scripts/e2e-inbox-tool-approval.mjs`, `scripts/e2e-activity-live.mjs`, `scripts/e2e-activity-approve-sync.mjs`, `scripts/e2e-activity-load.mjs` | [activity-inline-approval.md](activity-inline-approval.md) |
+| Activity Center: approvals, Remote Host actions, Channel mute and independent control-rail indicator; page and Dock | yes (real pending requests) | `scripts/e2e-inbox-tool-approval.mjs`, `scripts/e2e-activity-live.mjs`, `scripts/e2e-activity-approve-sync.mjs`, `scripts/e2e-activity-load.mjs` | [activity-inline-approval.md](activity-inline-approval.md) |
 
 ## Coverage and maintenance
 

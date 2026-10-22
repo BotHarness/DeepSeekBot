@@ -1382,6 +1382,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     unreadOnly?: boolean,
     queryVersion?: number,
     dismissed?: boolean,
+    notifications?: boolean,
   ): HumanAttentionPage {
     return unwrap(
       this.methods.humanAttention({
@@ -1397,6 +1398,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
         unreadOnly,
         queryVersion,
         dismissed,
+        notifications,
       }),
     );
   }

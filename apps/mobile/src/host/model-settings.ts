@@ -148,7 +148,18 @@ export async function setModelRoute(
     throw new HostAnswerInvalid('MODEL_UNAVAILABLE');
   if (scope.kind === 'global') {
     if (field !== 'orchestrator') throw new HostAnswerInvalid('GLOBAL_MODEL_REQUIRED');
-    await client.call('onboardingModel', { expectedRevision: 0, route, globalDefault: true });
+    if (
+      state.defaultRevision === undefined ||
+      !Number.isSafeInteger(state.defaultRevision) ||
+      state.defaultRevision < 0
+    )
+      throw new HostAnswerInvalid('MODEL_DEFAULT_REVISION_REQUIRED');
+    await client.call('onboardingModel', {
+      expectedRevision: 0,
+      expectedDefaultRevision: state.defaultRevision,
+      route,
+      globalDefault: true,
+    });
     return;
   }
   const previous = modelRoutes(state);

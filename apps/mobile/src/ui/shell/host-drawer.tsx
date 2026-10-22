@@ -32,6 +32,8 @@ import {
   type CloudWorkspace,
   type WorkspaceDirectoryEntry,
 } from '../../cloud/workspace-directory';
+import { computerEnvironmentKey } from '../../host/conversation-environments';
+import { conversationFilter, useConversationFilter } from '../../host/native-conversation-filter';
 import { createHostClient } from '../../host/client';
 import type { ConnectHost } from '../../host/connect-account';
 import { connectAccount } from '../../host/native-connect-account';
@@ -63,14 +65,14 @@ import {
   unpairedAccountHosts,
   type HostDrawerRow,
 } from './host-drawer-model';
-import { ActivityIcon, CloudIcon, ComputerIcon, PlusIcon } from './icons';
+import { ActivityIcon, ChatsIcon, CloudIcon, ComputerIcon, PlusIcon } from './icons';
 import { noticeHostKept } from '../unpair-notice';
 
 export const hostDrawer = createHostDrawer({
-  switchTo: async (hostId) => {
-    const switched = await hostSession.switchTo(hostId);
-    if (switched) router.replace('/');
-    return switched;
+  switchTo: (hostId) => hostSession.switchTo(hostId),
+  showView: (hostId) => {
+    conversationFilter.set(hostId === undefined ? 'all' : computerEnvironmentKey(hostId));
+    router.replace('/');
   },
   pair: () => router.push('/pair'),
   notifications: () => router.push('/notifications'),
@@ -278,7 +280,15 @@ function DrawerTile({ look, name, current }: { look: HostLook; name: string; cur
   );
 }
 
-function HostRow({ row, address }: { row: HostDrawerRow; address: string }) {
+function HostRow({
+  row,
+  address,
+  selected,
+}: {
+  row: HostDrawerRow;
+  address: string;
+  selected: boolean;
+}) {
   const theme = useDesignTheme();
   const glass = useLiquidGlass();
   const android = !glass && Platform.OS === 'android';
@@ -298,23 +308,24 @@ function HostRow({ row, address }: { row: HostDrawerRow; address: string }) {
     <View
       style={[
         { flexDirection: 'row', alignItems: 'center', paddingRight: space.x2 },
-        glass || android ? rowStyle(theme, glass, false, row.current) : null,
+        glass || android ? rowStyle(theme, glass, false, selected) : null,
       ]}
     >
       <Pressable
+        testID={`drawer-host-${row.hostId}`}
         onPress={() => closeThen(() => void hostDrawer.select(row.hostId))}
         onLongPress={() => openHostMenu(row, name)}
         accessibilityRole="button"
         accessibilityLabel={[
           name,
-          row.current ? t.showing : undefined,
+          selected ? t.showing : undefined,
           status,
           pending > 0 ? t.hostPending(pending) : undefined,
           unread > 0 ? t.hostUnread(unread) : undefined,
         ]
           .filter((part) => part !== undefined)
           .join(', ')}
-        accessibilityState={{ selected: row.current }}
+        accessibilityState={{ selected }}
         style={({ pressed }) => ({
           flex: 1,
           minHeight: theme.touch + space.x3,
@@ -337,7 +348,7 @@ function HostRow({ row, address }: { row: HostDrawerRow; address: string }) {
                 : theme.layer.sheet.fill,
         })}
       >
-        <DrawerTile look={look} name={name} current={row.current} />
+        <DrawerTile look={look} name={name} current={selected} />
         <View style={{ flex: 1, gap: space.x1 }}>
           <Text strong numberOfLines={theme.largeText ? undefined : 1}>
             {name}
@@ -509,6 +520,7 @@ export function WorkspaceButton() {
 }
 
 type WorkspaceDrawerItem =
+  | { kind: 'all'; key: string }
   | { kind: 'host'; key: string; row: HostDrawerRow }
   | { kind: 'account-title'; key: string }
   | { kind: 'account'; key: string; host: ConnectHost }
@@ -580,6 +592,7 @@ export function HostDrawer() {
   const reduced = useReducedMotion();
   const state = useSyncExternalStore(hostDrawer.subscribe, hostDrawer.getSnapshot);
   const { saved, hosts, client, inbox } = useHostSession();
+  const [filter] = useConversationFilter();
   const connection = useHostSnapshot(client).connection;
   const list = useInbox(inbox);
   const glanceMap = useSyncExternalStore(glances.subscribe, glances.getSnapshot);
@@ -670,6 +683,7 @@ export function HostDrawer() {
   const drawerRows: WorkspaceDrawerItem[] =
     tab === 'computers'
       ? [
+          { kind: 'all', key: 'all' },
           ...rows.map((row): WorkspaceDrawerItem => ({
             kind: 'host',
             key: 'host:' + row.hostId,
@@ -802,10 +816,40 @@ export function HostDrawer() {
             keyExtractor={(row) => row.key}
             contentContainerStyle={{ paddingBottom: space.x4 }}
             renderItem={({ item }) => {
+              if (item.kind === 'all')
+                return (
+                  <Pressable
+                    ref={cloudAvailable ? undefined : tabFocus}
+                    testID="drawer-all"
+                    accessibilityRole="button"
+                    accessibilityLabel={t.allEnvironments}
+                    accessibilityState={{ selected: !cloudRoute && filter === 'all' }}
+                    onPress={() => closeThen(() => hostDrawer.selectAll())}
+                    android_ripple={{ color: pressTint(theme.color.fg), foreground: true }}
+                    style={({ pressed }) => ({
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: space.x4,
+                      minHeight: theme.touch + space.x3,
+                      padding: space.x4,
+                      ...rowStyle(theme, glass, pressed, !cloudRoute && filter === 'all'),
+                      overflow: 'hidden',
+                    })}
+                  >
+                    <ChatsIcon
+                      color={theme.color.accent}
+                      size={theme.type.body.line * theme.fontScale}
+                    />
+                    <Text strong style={{ flexShrink: 1 }}>
+                      {t.allEnvironments}
+                    </Text>
+                  </Pressable>
+                );
               if (item.kind === 'host')
                 return (
                   <HostRow
                     row={item.row}
+                    selected={!cloudRoute && filter === computerEnvironmentKey(item.row.hostId)}
                     address={connectionAddress(
                       hosts.find((host) => host.hostId === item.row.hostId)?.routes[0],
                     )}
@@ -832,7 +876,10 @@ export function HostDrawer() {
                     host={item.host}
                     onPress={() =>
                       closeThen(() =>
-                        router.push({ pathname: '/pair', params: { account: item.host.id } }),
+                        router.push({
+                          pathname: '/pair/account',
+                          params: { account: item.host.id },
+                        }),
                       )
                     }
                   />

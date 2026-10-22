@@ -1,8 +1,5 @@
 // @vitest-environment jsdom
-import {
-  RemoteMessageHostContext,
-  type RemoteMessageHost,
-} from '../src/client/remote-message-host.js';
+import { MessageHostContext, type MessageHost } from '../src/client/message-host.js';
 import {
   act,
   createElement,
@@ -141,15 +138,18 @@ describe('private input card', () => {
       privateInputCancel: vi.fn().mockResolvedValue(undefined),
     } as unknown as BridgeActions;
     const remote = {
-      secretInputAllowed: () => false,
-      isOpen: () => true,
-      actions,
-      fetch: vi.fn(),
-    } satisfies RemoteMessageHost;
+      current: () => true,
+      client: {
+        resource: () => ({
+          uri: 'https://qa.deepseekbot.dev/botharness-device',
+          headers: {},
+        }),
+      } as unknown as MessageHost['client'],
+    } satisfies MessageHost;
     await act(async () =>
       root.render(
         createElement(
-          RemoteMessageHostContext.Provider,
+          MessageHostContext.Provider,
           { value: remote },
           createElement(ChannelMessageBody, { message: card, actions, t: zhTranslate }),
         ),

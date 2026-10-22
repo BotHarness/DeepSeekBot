@@ -3,19 +3,24 @@ import { StatusBar } from 'expo-status-bar';
 import type { ReactNode } from 'react';
 import { Pressable, View, type ViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import type { ConversationEnvironment } from '../../host/conversation-environments';
+import { hostColorInk } from '../design/host-look';
 import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { useMounted } from '../mounted';
 import { t } from '../strings';
-import { ChevronDownIcon } from './icons';
+import { ChatsIcon, ChevronDownIcon, CloudIcon } from './icons';
+import { HostGlyph } from './host-tile';
 import { focusOn, hostDrawer, openHostDrawer, useHostDrawerOpen } from './host-drawer';
 
 export function HomeHeader({
+  environment,
   actions,
   search,
   children,
 }: {
+  environment: ConversationEnvironment;
   actions?: ReactNode;
   search?: ReactNode;
   children: ReactNode;
@@ -45,9 +50,10 @@ export function HomeHeader({
           <>
             <Pressable
               ref={chip}
+              testID="chats-view-button"
               onPress={openHostDrawer}
               accessibilityRole="button"
-              accessibilityLabel={t.workspaces}
+              accessibilityLabel={`${t.workspaces}, ${environment.accessibilityLabel ?? environment.title}`}
               accessibilityState={{ expanded: drawerOpen }}
               style={({ pressed }) => ({
                 flex: 1,
@@ -59,8 +65,25 @@ export function HomeHeader({
                 opacity: pressed ? 0.7 : 1,
               })}
             >
+              {environment.kind === 'computer' && environment.hostIcon ? (
+                <HostGlyph
+                  icon={environment.hostIcon}
+                  size={theme.type.title.line * theme.fontScale}
+                  color={hostColorInk(theme.scheme, theme.color, environment.hostColor)}
+                />
+              ) : environment.kind === 'cloud' ? (
+                <CloudIcon
+                  color={theme.color.accent}
+                  size={theme.type.title.line * theme.fontScale}
+                />
+              ) : (
+                <ChatsIcon
+                  color={theme.color.accent}
+                  size={theme.type.title.line * theme.fontScale}
+                />
+              )}
               <Text variant="title" strong accessibilityRole="header" style={{ flexShrink: 1 }}>
-                {t.chats}
+                {environment.title}
               </Text>
               <ChevronDownIcon color={theme.color.muted} size={theme.type.body.line} />
             </Pressable>

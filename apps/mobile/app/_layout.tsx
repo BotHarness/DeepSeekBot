@@ -10,6 +10,7 @@ import { StatisticsNotice } from '../src/ui/shell/statistics-notice';
 import { KeyboardRoot } from '../src/ui/primitives/keyboard-frame';
 import { AppDialogHost } from '../src/ui/primitives/app-dialog-host';
 import { sheetScreenOptions } from '../src/ui/primitives/sheet-screen';
+import { HostAccentProvider } from '../src/ui/shell/host-accent-provider';
 import { useDesignTheme } from '../src/ui/design/theme';
 import { t } from '../src/ui/strings';
 import { useTheme } from '../src/ui/theme';
@@ -17,6 +18,14 @@ import { useTheme } from '../src/ui/theme';
 export const unstable_settings = { initialRouteName: '(tabs)' };
 
 export default function RootLayout() {
+  return (
+    <HostAccentProvider>
+      <RootNavigator />
+    </HostAccentProvider>
+  );
+}
+
+function RootNavigator() {
   const theme = useTheme();
   const design = useDesignTheme();
   const routing = usePushRouting();

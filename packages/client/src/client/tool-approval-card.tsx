@@ -1,5 +1,4 @@
 import {
-  useContext,
   useId,
   useRef,
   useState,
@@ -10,7 +9,6 @@ import {
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import { errorMessage, type ToolApprovalExecutionState } from './bridge.js';
 import type { BridgeActions } from './actions.js';
-import { RemoteMessageHostContext } from './remote-message-host.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { store, type ChannelMessage } from './store.js';
 import { useMountedResource } from './mounted-resource.js';
@@ -29,11 +27,15 @@ export function ToolApprovalCard({
   companionTarget,
   channelId: sourceChannelId,
   surface = 'chat',
+  hostScoped = false,
 }: {
   surface?: 'chat' | 'activity';
   message: ChannelMessage;
-  actions: Pick<BridgeActions, 'toolApprovalStatus' | 'decideToolApproval'> &
-    Partial<Pick<BridgeActions, 'toolApprovalState' | 'toolApprovalExecutionState'>>;
+  actions: Pick<
+    BridgeActions,
+    'toolApprovalStatus' | 'toolApprovalState' | 'toolApprovalExecutionState' | 'decideToolApproval'
+  >;
+  hostScoped?: boolean;
   channelId?: string | undefined;
   decision?:
     | 'allowed-once'
@@ -45,7 +47,6 @@ export function ToolApprovalCard({
   t: BotHarnessTranslate;
   companionTarget?: (CompanionRequestTarget & { callId: string }) | undefined;
 }): ReactElement {
-  const remote = useContext(RemoteMessageHostContext);
   const request = message.toolApprovalRequest!;
   const secretCli = request.toolName === 'secret_cli';
   const canAlwaysAllow = request.allowAlways ?? false;
@@ -199,12 +200,11 @@ export function ToolApprovalCard({
     setError(undefined);
     const channelId = cardChannelId;
     if (
+      !hostScoped &&
       !companionTarget &&
       surface !== 'activity' &&
-      (remote === undefined
-        ? store.getSnapshot().selection?.kind !== 'inbox' &&
-          store.getSnapshot().conversation.channel?.id !== channelId
-        : !remote.isOpen(channelId))
+      store.getSnapshot().selection?.kind !== 'inbox' &&
+      store.getSnapshot().conversation.channel?.id !== channelId
     ) {
       setError(t('approval.channelChanged'));
       setBusy(false);

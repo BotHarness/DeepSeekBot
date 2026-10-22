@@ -49,6 +49,7 @@ export interface ModelPreset {
 
 export interface BotModel {
   revision: number;
+  defaultRevision?: number;
   plan?: ModelPlan;
   repair?: string;
   models: ModelCatalogEntry[];
@@ -251,8 +252,14 @@ export async function loadGlobalModel(client: HostClient): Promise<BotModel> {
   const models = record(catalog)?.['models'];
   if (!Array.isArray(models)) throw new HostAnswerInvalid('modelCatalog returned no models.');
   const fallback = route(record(catalog)?.['default']);
+  const defaultRevision = record(catalog)?.['defaultRevision'];
   return {
     revision: 0,
+    ...(typeof defaultRevision === 'number' &&
+    Number.isSafeInteger(defaultRevision) &&
+    defaultRevision >= 0
+      ? { defaultRevision }
+      : {}),
     models: some(models, catalogEntry),
     presets: some(record(presets)?.['presets'], preset),
     ...(fallback === undefined ? {} : { fallback }),

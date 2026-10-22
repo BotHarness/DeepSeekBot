@@ -1,6 +1,7 @@
 import { mountWorkspaceChrome, updateWorkspaceChrome } from './workspace-chrome.js';
 import { useRemoteHosts } from './host-tabs.js';
 import { RemoteConversationView } from './remote-conversation-view.js';
+import { conversationKey } from './remote-hosts.js';
 import { AppearancePanelHeader } from './appearance-panel-header.js';
 import { AppearanceContext } from './appearance-context.js';
 import { PanelAppearanceSettings } from './appearance-panel-settings.js';
@@ -328,7 +329,8 @@ function workspaceState(dock: DockContextValue, id: string): SubpanelState | und
 function ChannelBodyPanel(): ReactElement {
   const dock = useDock();
   const remote = useRemoteHosts().open;
-  if (remote !== undefined) return <RemoteConversationView target={remote} t={dock.t} />;
+  if (remote !== undefined)
+    return <RemoteConversationView key={conversationKey(remote)} target={remote} t={dock.t} />;
   const panels: Record<string, { label: string; header?: ReactNode; content: ReactNode }> = {
     [MESSAGE_LEAF]: { label: dock.t('workspace.messages'), content: <ChannelMessageContent /> },
   };

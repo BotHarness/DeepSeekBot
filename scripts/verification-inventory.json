@@ -4,6 +4,14 @@
   "boundary": "All scripts/e2e-*.mjs files and all current feature-map documents, augmented by implemented Client/CLI/mobile source entry points. Behavior rows group related acceptance paths; they are not an exhaustive product behavior denominator. Planned unmerged #1954 work and packaged/restart identity promises are excluded.",
   "behaviors": [
     {
+      "id": "phone.drawer-views",
+      "label": "Choose All or one Host from the phone drawer with Android Host accent",
+      "source": "apps/mobile/src/ui/shell/host-drawer.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-drawer-views.md",
+      "task": 2518,
+      "gap": "Native iOS and Android light/dark/large-text qualification requires the shared device queues. All covers the current Host and cloud workspaces only."
+    },
+    {
       "id": "browser.remote-hosts",
       "label": "Pair Remote Hosts, retain browser pairings across the Host Feed rename and open their conversations",
       "source": "packages/client/src/client/remote-hosts.ts",

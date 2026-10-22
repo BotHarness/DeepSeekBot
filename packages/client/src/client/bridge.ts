@@ -2627,7 +2627,7 @@ export async function previewStorageCleanup(
 
 export async function confirmStorageCleanup(
   call: BridgeCall,
-  preview: StorageCleanupPreview,
+  preview: Pick<StorageCleanupPreview, 'scope' | 'token'>,
 ): Promise<StorageCleanupResult> {
   const result = asRecord(
     await unwrap(call, 'storageCleanupConfirm', {
@@ -3925,7 +3925,7 @@ export async function loadBotAttention(
   return parseBotAttentionPage(await unwrap(call, 'botAttention', { slug, limit, cursor, state }));
 }
 
-function parseHumanAttentionPage(value: unknown): HumanAttentionPage {
+export function parseHumanAttentionPage(value: unknown): HumanAttentionPage {
   const row = asRecord(value);
   const raw = row?.['items'];
   if (!Array.isArray(raw)) throw new Error('invalid Human attention page');

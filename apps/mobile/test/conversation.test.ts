@@ -10,6 +10,7 @@ import {
   type ConversationSnapshot,
 } from '../src/host/conversation';
 import { createConversationPlayback } from '../src/host/conversation-playback';
+import { messageForDisplay } from '../src/host/message-display';
 import { FakeHost, type FakeChannel } from './fake-host';
 import wire from './fixtures/host-wire.json';
 import type { ChannelMessage } from '../../../packages/core/src/channels/channel';
@@ -89,6 +90,47 @@ function contiguous(snapshot: ConversationSnapshot): boolean {
 }
 
 describe('DM conversation', () => {
+  it('retains the source Channel and rich payload through the shared display projection', async () => {
+    const host = new FakeHost();
+    const channel = host.channel(DM);
+    channel.append(
+      {
+        id: 'rich-message',
+        author: { kind: 'bot', slug: SLUG },
+        body: 'Image and approval',
+        format: 'text',
+        attachments: [
+          {
+            fileId: 'file:11111111-1111-4111-8111-111111111111',
+            name: 'photo.png',
+            mime: 'image/png',
+            size: 12,
+          },
+        ],
+        toolApprovalRequest: {
+          sessionId: 'session',
+          callId: 'call',
+          toolName: 'bash',
+          role: 'orchestrator',
+          cwd: '/source',
+          input: '{"command":"pwd"}',
+        },
+      },
+      false,
+    );
+    const live = await until(open(host), (snapshot) => snapshot.status === 'live');
+    const message = live.messages.find((entry) => entry.id === 'rich-message')!;
+    expect(message.source?.channelId).toBe(DM);
+    expect(messageForDisplay(message)).toMatchObject({
+      format: 'text',
+      toolApprovalRequest: { callId: 'call' },
+      attachments: [{ fileId: 'file:11111111-1111-4111-8111-111111111111' }],
+    });
+    expect(message.attachments[0]?.source?.uri).toContain(
+      `${ROUTE}/botharness-device/api/botharness/attachment?`,
+    );
+  });
+
   it('shows paged committed history immediately while playback is held away from latest', async () => {
     const host = new FakeHost();
     seed(host.channel(DM), 25);

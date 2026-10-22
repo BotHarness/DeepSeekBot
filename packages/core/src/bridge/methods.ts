@@ -2,6 +2,7 @@ import {
   approveGrantRequest,
   type GrantRequestApprovalResult,
 } from '../workspaces/grant-requests.js';
+import { notificationAttentionPage } from '../runtime/notification-attention.js';
 import { MemoryImageError } from '../memory/image.js';
 import {
   MIN_IDLE_MS,
@@ -5163,6 +5164,8 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
     },
     humanAttention(payload) {
       const source = asObject(payload);
+      if (source['notifications'] !== undefined && typeof source['notifications'] !== 'boolean')
+        return invalidInput('notifications must be a boolean');
       if (source['queryVersion'] !== undefined && source['queryVersion'] !== 1)
         return invalidInput('unsupported Activity query version');
       if (source['queryVersion'] === 1 && deps.humanAttention === undefined)
@@ -5224,6 +5227,24 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       )
         return invalidInput('invalid cursor');
       try {
+        if (source['notifications'] === true) {
+          if (deps.humanAttention === undefined)
+            return invalidInput('notification queries are unavailable');
+          if (
+            Object.keys(source).some(
+              (key) =>
+                !['notifications', 'limit', 'cursor'].includes(key) && source[key] !== undefined,
+            )
+          )
+            return invalidInput('notification discovery does not accept Activity filters');
+          return {
+            ok: true,
+            value: notificationAttentionPage(deps.humanAttention, {
+              ...(limit === undefined ? {} : { limit: limit as number }),
+              ...(cursor === undefined ? {} : { cursor: cursor as string }),
+            }),
+          };
+        }
         return {
           ok: true,
           value: {

@@ -112,6 +112,8 @@ export function shownInChat(message: ConversationMessage): boolean {
     return false;
   if (message.welcome === true) return false;
   return (
+    message.source?.message.contentPurge !== undefined ||
+    message.source?.message.sessionFailure !== undefined ||
     message.activity !== undefined ||
     message.body.trim() !== '' ||
     message.attachments.length > 0 ||
@@ -121,6 +123,7 @@ export function shownInChat(message: ConversationMessage): boolean {
 }
 
 export interface ConversationMessage {
+  source?: JournalEntry;
   id: string;
   revision?: number;
   at: string;
@@ -419,6 +422,7 @@ function present(
   const activity = activityOf(message);
   return {
     id: message.id,
+    source: entry,
     revision: entry.revision,
     at: message.at,
     author: kind === 'human' ? 'human' : kind === 'bot' ? 'bot' : 'system',

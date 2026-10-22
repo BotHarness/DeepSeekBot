@@ -336,6 +336,10 @@ const browserStyles = stylex.create({
   checkbox: { margin: 0, accentColor: color.accent },
 });
 
+export interface FolderBrowserActions {
+  listHostFolders(path?: string, signal?: AbortSignal): Promise<Omit<HostDirectoryListing, 'home'>>;
+}
+
 export function FolderBrowser({
   initial,
   actions,
@@ -344,8 +348,8 @@ export function FolderBrowser({
   busy,
   t,
 }: {
-  initial: HostDirectoryListing;
-  actions: ChannelSidebarEntryProps['actions'];
+  initial: Omit<HostDirectoryListing, 'home'>;
+  actions: FolderBrowserActions;
   onCancel: () => void;
   onChoose: (path: string) => void;
   busy: boolean;

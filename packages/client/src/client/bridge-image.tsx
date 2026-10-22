@@ -1,8 +1,8 @@
-import { useContext, useMemo, useState, useSyncExternalStore, type ReactElement } from 'react';
+import { useMessageHost } from './message-host.js';
+import { useMemo, useState, useSyncExternalStore, type ReactElement } from 'react';
 import { Modal } from './modal.js';
 import { createBridgeImageResource } from './bridge-image-resource.js';
 import type { BotHarnessTranslate } from './locale.js';
-import { RemoteMessageHostContext } from './remote-message-host.js';
 
 export function BridgeImage({
   channelId,
@@ -17,10 +17,10 @@ export function BridgeImage({
   name: string;
   t: BotHarnessTranslate;
 }): ReactElement {
-  const fetcher = useContext(RemoteMessageHostContext)?.fetch;
+  const host = useMessageHost();
   const resource = useMemo(
-    () => createBridgeImageResource(channelId, sourceEventId, attachmentId, fetcher),
-    [channelId, sourceEventId, attachmentId, fetcher],
+    () => createBridgeImageResource(channelId, sourceEventId, attachmentId, host),
+    [channelId, sourceEventId, attachmentId, host],
   );
   const state = useSyncExternalStore(
     resource.subscribe,

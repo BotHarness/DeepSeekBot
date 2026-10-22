@@ -2,7 +2,6 @@ import { useContext, useId, useRef, useState, type ReactElement } from 'react';
 import { Button, Input } from '@deepseek-ai/dsh-client-ui-primitives';
 import { errorMessage } from './bridge.js';
 import type { BridgeActions } from './actions.js';
-import { RemoteMessageHostContext } from './remote-message-host.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { store, type ChannelMessage } from './store.js';
 import { useMountedResource } from './mounted-resource.js';
@@ -17,16 +16,17 @@ export function UserQuestionCard({
   t,
   companionTarget,
   channelId: sourceChannelId,
+  hostScoped = false,
 }: {
   message: ChannelMessage;
   actions: Pick<BridgeActions, 'userQuestionStatus' | 'answerUserQuestion'>;
+  hostScoped?: boolean;
   channelId?: string | undefined;
   resolution?: 'answered' | 'cancelled' | undefined;
   t: BotHarnessTranslate;
   companionTarget?: CompanionRequestTarget | undefined;
 }): ReactElement {
   const developerMode = useContext(MessageDeveloperMode);
-  const remote = useContext(RemoteMessageHostContext);
   const request = message.userQuestionRequest!;
   const botSlug = message.author.kind === 'bot' ? message.author.slug : undefined;
   const cardChannelId = sourceChannelId ?? 'dm-' + botSlug;
@@ -104,11 +104,10 @@ export function UserQuestionCard({
     if (companionTarget && !qualified()) return;
     const channelId = cardChannelId;
     if (
+      !hostScoped &&
       !companionTarget &&
-      (remote === undefined
-        ? store.getSnapshot().selection?.kind !== 'inbox' &&
-          store.getSnapshot().conversation.channel?.id !== channelId
-        : !remote.isOpen(channelId))
+      store.getSnapshot().selection?.kind !== 'inbox' &&
+      store.getSnapshot().conversation.channel?.id !== channelId
     ) {
       setError(t('question.channelChanged'));
       return;
