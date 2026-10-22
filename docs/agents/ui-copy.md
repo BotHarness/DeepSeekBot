@@ -2,6 +2,10 @@
 
 Use this guide when you write or change text a person reads in the product: the web client, the desktop app and the mobile native app. It covers labels, buttons, placeholders, empty states, errors, notifications, permission prompts and the small dimmed hint, footer and caption lines under controls. English and Chinese follow the same rules.
 
+## Design before copy
+
+Apply the shared [UI design standard](ui-design.md) ([中文](ui-design.zh.md)) before adding explanatory text. Layout, icons, controls and interaction carry the task; descriptions supplement necessary facts. Keep meaningful labels, accessibility names and decision-critical consequences visible.
+
 ## Names
 
 - Call a PersonaBot **Bot** in the UI: "New Bot", "Search Bots and Channels", "搜索 Bot 和频道". `PersonaBot` stays the domain term in [CONTEXT.md](../../CONTEXT.md), code, ADRs and developer docs; only the visible text says Bot.

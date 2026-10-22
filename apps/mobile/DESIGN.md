@@ -11,6 +11,10 @@ References:
 | Meta Muse | A Bot profile whose identity and memory are visible and editable.                                                                                                                            |
 | Slack     | Workspace switching, a row of shortcut cards on Chats, an Activity feed with filters, and agent steps with a Stop button.                                                                    |
 
+## Shared design standard
+
+All new or changed screens follow the cross-platform [UI design standard](../../docs/agents/ui-design.md) ([中文](../../docs/agents/ui-design.zh.md)) and its review gate. Layout, icons and interaction communicate the task; descriptive prose supplies only necessary context. The native component and accessibility rules below implement that standard on each platform.
+
 ## Overlay contract
 
 [Mobile overlay standard](./OVERLAYS.md) ([中文](./OVERLAYS.zh.md)) defines presentation choice, handle/header/body anatomy, immediate versus transactional changes, dismissal, platform differences and acceptance gates. It is the target contract for new or changed overlays; its audit records current gaps, including the provisional iOS Settings fix in #2112.
