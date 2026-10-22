@@ -1,10 +1,12 @@
 import { Circle, Host, RoundedRectangle } from '@expo/ui/swift-ui';
 import { accessibilityHidden, foregroundStyle, glassEffect } from '@expo/ui/swift-ui/modifiers';
+import { NativeComposerButton } from './native-composer-button.ios';
+import type { ComposerSymbol } from './composer-symbol';
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
-import { pressTint, useDesignTheme, type DesignTheme } from '../design/theme';
-import { edge, radius, space } from '../design/tokens';
+import { useDesignTheme, type DesignTheme } from '../design/theme';
+import { edge, space } from '../design/tokens';
 import { useLiquidGlass } from '../primitives/drawer-material';
 
 export function composerPrimary(theme: DesignTheme): { fill: string; ink: string } {
@@ -67,42 +69,25 @@ export function ComposerCircleButton({
   size,
   embedded = false,
   onPress,
-  children,
+  symbol,
 }: {
   label: string;
   testID?: string;
   size: number;
   embedded?: boolean;
   onPress(): void;
+  symbol: ComposerSymbol;
   children: ReactNode;
 }) {
-  const theme = useDesignTheme();
-  const glass = useLiquidGlass();
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      testID={testID}
+    <NativeComposerButton
+      label={label}
+      {...(testID === undefined ? {} : { testID })}
+      size={size}
+      embedded={embedded}
       onPress={onPress}
-      hitSlop={Math.max(0, (theme.touch - size) / 2)}
-      style={({ pressed }) => ({
-        width: size,
-        height: size,
-        borderRadius: radius.round,
-        alignItems: 'center',
-        justifyContent: 'center',
-        ...(embedded || glass
-          ? { backgroundColor: pressed ? pressTint(theme.color.fg) : 'transparent' }
-          : {
-              borderWidth: edge.hairline,
-              borderColor: theme.color.borderStrong,
-              backgroundColor: pressed ? theme.layer.raised.pressed : theme.color.surface,
-            }),
-      })}
-    >
-      {glass && !embedded ? <Glass /> : null}
-      {children}
-    </Pressable>
+      symbol={symbol}
+    />
   );
 }
 

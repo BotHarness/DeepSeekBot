@@ -3,7 +3,6 @@ import { useRef, useState, type ComponentRef, type ReactNode, type Ref } from 'r
 import {
   Image,
   Keyboard,
-  PanResponder,
   Platform,
   Pressable,
   ScrollView,
@@ -21,7 +20,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePreventRemove } from 'expo-router';
 
 import type { PickSource, PickedFile } from '../../host/pick-files';
-import { pressTint, useDesignTheme } from '../design/theme';
+import { useDesignTheme } from '../design/theme';
 import { edge, motion, radius, space } from '../design/tokens';
 import { HardwareSend } from '../primitives/hardware-send';
 import { Text } from '../primitives/text';
@@ -32,10 +31,8 @@ import {
   CloseIcon,
   FileIcon,
   LockIcon,
-  MicIcon,
   PhotoIcon,
   PlusIcon,
-  RecordingStopIcon,
 } from '../shell/icons';
 import {
   ComposerCircleButton,
@@ -43,9 +40,9 @@ import {
   composerBar,
   composerControl,
   composerPrimary,
-  micAlwaysFilled,
-  rippleFeedback,
 } from './composer-chrome';
+import { ComposerActionButton } from './composer-action';
+import { VoiceButton } from './voice-button';
 import { DraftEditor } from './draft-editor';
 import { haptic } from '../haptics';
 import { t } from '../strings';
@@ -54,8 +51,6 @@ import {
   composerFieldHeight,
   composerStacked,
   dictating,
-  voiceDrag,
-  voiceRelease,
   type DictationStatus,
 } from './dictation';
 
@@ -64,56 +59,6 @@ const SOURCES: Array<{ source: PickSource; label: string; Icon: typeof PhotoIcon
   { source: 'camera', label: t.attachCamera, Icon: CameraIcon },
   { source: 'file', label: t.attachFile, Icon: FileIcon },
 ];
-
-function RoundButton({
-  label,
-  filled,
-  onPress,
-  testID,
-  children,
-}: {
-  label: string;
-  filled: boolean;
-  onPress(): void;
-  testID?: string;
-  children: ReactNode;
-}) {
-  const theme = useDesignTheme();
-  const size = composerControl(theme);
-  return (
-    <Pressable
-      testID={testID}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      onPress={onPress}
-      hitSlop={space.x2}
-      android_ripple={
-        rippleFeedback
-          ? {
-              color: pressTint(filled ? composerPrimary(theme).ink : theme.color.fg),
-              borderless: true,
-              radius: size / 2,
-            }
-          : undefined
-      }
-      style={({ pressed }) => ({
-        width: size,
-        height: size,
-        borderRadius: radius.round,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: filled
-          ? composerPrimary(theme).fill
-          : pressed && !rippleFeedback
-            ? pressTint(theme.color.fg)
-            : undefined,
-        opacity: filled && pressed && !rippleFeedback ? 0.7 : 1,
-      })}
-    >
-      {children}
-    </Pressable>
-  );
-}
 
 function AttachmentTile({ file, onRemove }: { file: PickedFile; onRemove(): void }) {
   const theme = useDesignTheme();
@@ -173,90 +118,6 @@ function AttachmentTile({ file, onRemove }: { file: PickedFile; onRemove(): void
       >
         <CloseIcon color={theme.color.base} size={theme.type.meta.size} />
       </Pressable>
-    </View>
-  );
-}
-
-function VoiceButton({
-  active,
-  onStart,
-  onStop,
-  onCancel,
-  onHeld,
-}: {
-  active: boolean;
-  onStart(): void;
-  onStop(): void;
-  onCancel(): void;
-  onHeld(held: boolean): void;
-}) {
-  const theme = useDesignTheme();
-  const [held, setHeld] = useState(false);
-  const size = composerControl(theme);
-  const latest = useRef({ active, onStart, onStop, onCancel, onHeld });
-  latest.current = { active, onStart, onStop, onCancel, onHeld };
-  const gesture = useRef({ at: 0, startedHere: false, done: false });
-  const hold = (next: boolean) => {
-    setHeld(next);
-    latest.current.onHeld(next);
-  };
-  const responder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onPanResponderTerminationRequest: () => false,
-      onPanResponderGrant: () => {
-        const startedHere = !latest.current.active;
-        gesture.current = { at: Date.now(), startedHere, done: false };
-        if (!startedHere) return;
-        latest.current.onStart();
-        hold(true);
-      },
-      onPanResponderMove: (_event, { dx, dy }) => {
-        const current = gesture.current;
-        if (!current.startedHere || current.done) return;
-        const drag = voiceDrag(dx, dy);
-        if (drag === undefined) return;
-        current.done = true;
-        hold(false);
-        if (drag === 'cancel') latest.current.onCancel();
-      },
-      onPanResponderRelease: () => {
-        const current = gesture.current;
-        hold(false);
-        if (current.done) return;
-        if (!current.startedHere) latest.current.onStop();
-        else if (voiceRelease(Date.now() - current.at) === 'stop') latest.current.onStop();
-      },
-      onPanResponderTerminate: () => hold(false),
-    }),
-  ).current;
-  const filled = micAlwaysFilled || active || held;
-  return (
-    <View
-      {...responder.panHandlers}
-      accessible
-      accessibilityRole="button"
-      accessibilityLabel={active ? t.stopDictation : t.dictate}
-      accessibilityHint={active ? undefined : t.dictateHint}
-      onAccessibilityTap={() => (latest.current.active ? onStop() : onStart())}
-      hitSlop={space.x2}
-      style={{
-        width: size,
-        height: size,
-        borderRadius: radius.round,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: filled ? composerPrimary(theme).fill : undefined,
-      }}
-    >
-      {active && !held ? (
-        <RecordingStopIcon color={composerPrimary(theme).ink} size={theme.type.title.line} />
-      ) : (
-        <MicIcon
-          color={filled ? composerPrimary(theme).ink : theme.color.muted}
-          size={theme.type.title.line}
-        />
-      )}
     </View>
   );
 }
@@ -452,6 +313,8 @@ export function Composer({
     <ComposerCircleButton
       key="lead"
       label={t.cancelDictation}
+      symbol="xmark"
+      testID="composer-dictation-cancel"
       size={integratedLeading ? button : bar}
       embedded={integratedLeading}
       onPress={onCancelDictation}
@@ -462,6 +325,7 @@ export function Composer({
     <ComposerCircleButton
       key="lead"
       label={menu ? t.closeAttach : t.attach}
+      symbol={menu ? 'xmark' : 'plus'}
       size={integratedLeading ? button : bar}
       embedded={integratedLeading}
       testID="composer-attach"
@@ -525,9 +389,10 @@ export function Composer({
   );
   const trailing = actions.map((action) =>
     action === 'send' ? (
-      <RoundButton
+      <ComposerActionButton
         key={action}
         label={t.send}
+        symbol="arrow.up"
         testID="composer-send"
         filled
         onPress={() => {
@@ -536,7 +401,7 @@ export function Composer({
         }}
       >
         <ArrowUpIcon color={composerPrimary(theme).ink} size={icon} />
-      </RoundButton>
+      </ComposerActionButton>
     ) : (
       <VoiceButton
         key="voice"
@@ -559,9 +424,15 @@ export function Composer({
     (trailing.length === 0 ? 0 : button + space.x2);
   const expand =
     expanded && !listening ? (
-      <RoundButton label={t.expandDraft} filled={false} onPress={() => setEditing(true)}>
+      <ComposerActionButton
+        symbol="chevron.up"
+        testID="composer-expand"
+        label={t.expandDraft}
+        filled={false}
+        onPress={() => setEditing(true)}
+      >
         <ChevronUpIcon color={theme.color.muted} size={icon} />
-      </RoundButton>
+      </ComposerActionButton>
     ) : null;
   return (
     <View
