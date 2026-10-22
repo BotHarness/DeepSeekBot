@@ -8,6 +8,7 @@ interface Command {
   wallpaper?: unknown;
   recovery?: unknown;
   notifications?: unknown;
+  hostLook?: unknown;
   expectedRevision?: string;
 }
 interface Client {
@@ -70,7 +71,7 @@ export function createAppearanceControl(now = Date.now) {
       if (!client) return refused('appearance-client-stale', 404);
       if (input.action === 'request') {
         if (
-          [input.patch, input.wallpaper, input.recovery, input.notifications].filter(
+          [input.patch, input.wallpaper, input.recovery, input.notifications, input.hostLook].filter(
             (v) => v !== undefined,
           ).length > 1
         )
@@ -82,6 +83,7 @@ export function createAppearanceControl(now = Date.now) {
         const command: Command = {
           id: randomUUID(),
           expiresAt: now() + 8000,
+          ...(input.hostLook === undefined ? {} : { hostLook: input.hostLook, expectedRevision: input.expectedRevision as string }),
           ...(input.notifications === undefined
             ? {}
             : {

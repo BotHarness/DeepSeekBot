@@ -4,7 +4,7 @@
 | --- | --- | --- | --- |
 | Bot Marketplace cards, filters, remembered sorting and upload/import | no | `verify-app` Bot mode path | [marketplace.md](marketplace.md) |
 | Connect encrypted pairing, resources and native private input | yes for DM/tool/private request | `verify-app` isolated Host and shared native QA | [connect-channel.md](connect-channel.md) |
-| Browser Remote Host pairing, icon strip, Host Feed and Host-level settings | only for a reply | `verify-app` two-Host path | [remote-hosts.md](remote-hosts.md) |
+| Browser Remote Host pairing, icon strip, local appearance/notifications and Host-level settings | only for a reply | `verify-app` two-Host path | [remote-hosts.md](remote-hosts.md) |
 
 | VRM companion Panel | yes for speaking | `scripts/e2e-vrm-companion.mjs` | [vrm-companion.md](vrm-companion.md) |
 | Desktop whole-window zoom (controlled S1 / Windows candidate) | no | `scripts/e2e-desktop-zoom-launch.mjs`, `scripts/e2e-desktop-zoom-windows.mjs`, `scripts/e2e-dock-zoom.mjs`, `scripts/e2e-workspace-chrome.mjs` | [desktop-window-zoom.md](desktop-window-zoom.md) |
@@ -100,4 +100,3 @@ Historical failures from 2026-10-14 (not requalified by this audit):
 
 | Three-action tool approval and coherent Full Access | yes | `scripts/e2e-tool-approval-simple.mjs` | [tool-approval-simple.md](tool-approval-simple.md) |
 | Workspace request read/write approval and original-task continuation | yes | `scripts/e2e-workspace-request-write.mjs`, `scripts/e2e-mobile-folder-browse-web.mjs` | [workspace-request-write.md](workspace-request-write.md) |
-

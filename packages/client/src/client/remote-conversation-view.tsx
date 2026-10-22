@@ -1,3 +1,4 @@
+import { useHostName } from './host-looks.js';
 import { ChannelMessageBody } from './channel-message-body.js';
 import { RemoteMessageBody } from './remote-message-body.js';
 import { MessageHostContext, type MessageHost } from './message-host.js';
@@ -179,6 +180,7 @@ export function RemoteConversationView({
 }): ReactElement {
   const sources = remoteHosts();
   const { hosts, avatars } = useRemoteHosts();
+  const hostName = useHostName(target.hostId, hosts.find((entry) => entry.host.hostId === target.hostId)?.host.hostName ?? '');
   const remote = hosts.find((candidate) => candidate.host.hostId === target.hostId);
   const conversation = useMemo(
     () => sources.conversation(target),
@@ -258,7 +260,7 @@ export function RemoteConversationView({
           <span {...stylex.props(styles.title)}>{target.title}</span>
           <span {...stylex.props(styles.source)}>
             <ChannelSidebarIcon name="monitor" />
-            {remote?.host.hostName ?? ''}
+            {hostName}
           </span>
           <span {...stylex.props(styles.spacer)} />
           {!unavailable && bot?.browserAccess ? (
@@ -298,7 +300,7 @@ export function RemoteConversationView({
             client={viewerClient}
             kind={viewer}
             slug={bot.slug}
-            hostName={remote?.host.hostName ?? ''}
+            hostName={hostName}
             t={t}
             onClose={() => setViewer(undefined)}
           />
@@ -306,7 +308,7 @@ export function RemoteConversationView({
           <>
             {!reachable ? (
               <p role="status" {...stylex.props(styles.status)}>
-                {t('remoteHosts.offline', { name: remote?.host.hostName ?? '' })}
+                {t('remoteHosts.offline', { name: hostName })}
               </p>
             ) : snapshot.status === 'interrupted' ? (
               <p role="status" {...stylex.props(styles.status)}>

@@ -1,4 +1,12 @@
 import { useMemo, useState, useSyncExternalStore } from 'react';
+import * as stylex from '@stylexjs/stylex';
+import { HostGlyph } from './host-glyph.js';
+import { HostLookSettings } from './host-look-settings.js';
+import { useHostLook } from './host-looks.js';
+import { shownHostName } from '../../../../apps/mobile/src/ui/design/host-look.js';
+import { RemoteNotificationSettings } from './remote-notification-settings.js';
+import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
+import { color, space, text } from './ds/tokens.stylex.js';
 import { SettingsDialog } from './ds/settings-dialog.js';
 import { Note } from './ds/note.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -10,14 +18,23 @@ import { remoteHostSettingsSource } from './remote-host-settings-source.js';
 import { StorageSettings } from './storage-settings.js';
 import type { HostClient } from '../../../../apps/mobile/src/host/client.js';
 
+const styles = stylex.create({
+  identity: { display: 'flex', alignItems: 'center', gap: space.x3, paddingInline: space.x3, minWidth: 0 },
+  label: { display: 'flex', flexDirection: 'column', gap: space.x1, minWidth: 0 },
+  name: { color: color.fg, fontSize: text.titleSize, lineHeight: text.titleLine, fontWeight: text.strong, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  kind: { color: color.muted, fontSize: text.metaSize, lineHeight: text.metaLine },
+});
+
 export function RemoteHostSettings({
   hostId,
   name,
+  local = false,
   onClose,
   t,
 }: {
   hostId: string;
   name: string;
+  local?: boolean;
   onClose: () => void;
   t: BotHarnessTranslate;
 }) {
@@ -29,17 +46,29 @@ export function RemoteHostSettings({
   );
   const remote = snapshot.hosts.find((entry) => entry.host.hostId === hostId);
   const client = sources.client(hostId);
-  const [section, setSection] = useState('models');
+  const look = useHostLook(hostId);
+  const displayName = shownHostName(look, name);
+  const [section, setSection] = useState('appearance');
   const sections = [
-    { id: 'models', label: t('remoteHosts.settings.models') },
-    { id: 'usage', label: t('overviewUsage.title') },
-    { id: 'storage', label: t('storage.title') },
+    { id: 'appearance', label: t('remoteHosts.look.appearance'), icon: <ChannelSidebarIcon name="paintbrush" /> },
+    ...(local ? [] : [
+      { id: 'notifications', label: t('remoteHosts.notifications'), icon: <ChannelSidebarIcon name="bell" /> },
+      { id: 'models', label: t('remoteHosts.settings.models'), icon: <ChannelSidebarIcon name="cpu" /> },
+      { id: 'usage', label: t('overviewUsage.title'), icon: <ChannelSidebarIcon name="gauge" /> },
+      { id: 'storage', label: t('storage.title'), icon: <ChannelSidebarIcon name="files" /> },
+    ]),
   ];
+  if (!local && remote === undefined) return null;
   return (
     <SettingsDialog
-      title={sections.find((entry) => entry.id === section)!.label}
-      navTitle={t('remoteHosts.settings')}
-      caption={name}
+      title={t('remoteHosts.settings.title', { name: displayName })}
+      caption={<div {...stylex.props(styles.identity)}>
+        <HostGlyph look={look} size={28} />
+        <span {...stylex.props(styles.label)}>
+          <span title={displayName} {...stylex.props(styles.name)}>{displayName}</span>
+          <span {...stylex.props(styles.kind)}>{t('remoteHosts.settings')}</span>
+        </span>
+      </div>}
       sections={sections}
       activeId={section}
       onSelect={setSection}
@@ -50,17 +79,21 @@ export function RemoteHostSettings({
         picker: (label) => label,
       }}
     >
-      {client === undefined || remote?.snapshot.connection.status !== 'connected' ? (
+      {section === 'appearance' ? (
+        <HostLookSettings hostId={hostId} name={name} t={t} />
+      ) : section === 'notifications' ? (
+        <RemoteNotificationSettings hostId={hostId} notifications={sources.notifications} t={t} />
+      ) : client === undefined || remote?.snapshot.connection.status !== 'connected' ? (
         <Note tone="danger">
           {t(
             remote?.snapshot.connection.status === 'refused'
               ? 'remoteHosts.refused'
               : 'remoteHosts.offline',
-            { name },
+            { name: displayName },
           )}
         </Note>
       ) : (
-        <SettingsContent key={hostId} client={client} name={name} section={section} t={t} />
+        <SettingsContent key={hostId} client={client} name={displayName} section={section} t={t} />
       )}
     </SettingsDialog>
   );

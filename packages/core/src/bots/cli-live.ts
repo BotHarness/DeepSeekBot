@@ -1,3 +1,4 @@
+import { HOST_LOOK_COMMANDS, runHostLook } from './cli-host-look.js';
 import { runPhoneNotifications } from './cli-phone-notifications.js';
 import {
   WINDOW_ZOOM_COMMANDS,
@@ -133,6 +134,7 @@ export { CliLiveError } from './cli-live-error.js';
 
 export const LIVE_OPTIONS = {
   'remote-host-id': { type: 'string' },
+  'host-id': { type: 'string' },
   ...DEVICE_NOTIFICATION_OPTIONS,
   ...WINDOW_ZOOM_OPTIONS,
   ...CONNECT_OPTIONS,
@@ -230,6 +232,7 @@ const CONTROL_COMMANDS = [
 
 export const LIVE_COMMANDS = [
   ...BROWSER_NOTIFICATION_COMMANDS,
+  ...HOST_LOOK_COMMANDS,
   ...DEVICE_NOTIFICATION_COMMANDS,
   ...WINDOW_ZOOM_COMMANDS,
   ...PHONE_ROUTE_COMMANDS,
@@ -429,6 +432,7 @@ interface LiveValues
   'client-id'?: string;
   'device-file'?: string;
   'remote-host-id'?: string;
+  'host-id'?: string;
   'preferences-stdin'?: boolean;
   host?: string;
   'token-file'?: string;
@@ -746,6 +750,8 @@ export async function runLiveCli(
   values: LiveValues,
   io: BotCreateCliIo,
 ): Promise<unknown> {
+  if (command === 'host-look')
+    return runHostLook(rest, values, io, () => connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))));
   if (command === 'device-notifications') return runDeviceNotifications(rest, values, io);
   if (command === 'phone-notifications') return runPhoneNotifications(rest, values, io);
   if (BROWSER_NOTIFICATION_COMMANDS.some((entry) => entry.command === command))

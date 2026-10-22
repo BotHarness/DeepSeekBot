@@ -18,6 +18,7 @@ export interface LookStorage {
 }
 
 export interface HostLooks {
+  readonly ready: Promise<void>;
   look(hostId: string): HostLook;
   set(hostId: string, look: HostLook): void;
   subscribe(listener: () => void): () => void;
@@ -74,25 +75,29 @@ export function createHostLooks(storage: LookStorage): HostLooks {
     for (const listener of listeners) listener();
   };
   let touched = false;
-  void storage.read().then(
+  const ready = storage.read().then(
     (value) => {
       if (touched) return;
       const stored = Object.entries(record(value));
       for (const [hostId, look] of stored) byHost.set(hostId, parseHostLook(look));
       if (stored.some(([, look]) => isLegacyHostLook(look))) {
-        storage.write(Object.fromEntries(byHost));
-        storage.forgetLegacyImages?.();
+        try {
+          storage.write(Object.fromEntries(byHost));
+          storage.forgetLegacyImages?.();
+        } catch {}
       }
       notify();
     },
     () => undefined,
   );
   return {
+    ready,
     look: (hostId) => byHost.get(hostId) ?? DEFAULT_HOST_LOOK,
     set(hostId, look) {
+      const next = parseHostLook(look);
+      storage.write({ ...Object.fromEntries(byHost), [hostId]: next });
       touched = true;
-      byHost.set(hostId, parseHostLook(look));
-      storage.write(Object.fromEntries(byHost));
+      byHost.set(hostId, next);
       notify();
     },
     subscribe(listener) {

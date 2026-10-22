@@ -1,3 +1,6 @@
+import { getThisHost } from './this-host.js';
+import { hostLooks } from './host-looks.js';
+import { controlHostLook } from './host-look-control.js';
 import { resetAppearance } from './appearance-recovery.js';
 import { WallpaperError } from './wallpaper-store.js';
 import type { Wallpaper } from './wallpaper.js';
@@ -39,7 +42,14 @@ export function mountAppearanceControl(owner: Appearance, wallpaper?: Wallpaper)
           try {
             if (typeof command.expiresAt !== 'number' || Date.now() > command.expiresAt)
               throw new AppearanceError('appearance-request-stale');
-            if (command.notifications !== undefined) {
+            if (command.hostLook !== undefined) {
+              const looks = hostLooks();
+              await looks.ready;
+              result = controlHostLook(looks, command.hostLook, command.expectedRevision, {
+                expiresAt: command.expiresAt,
+                signal: abort.signal,
+              }, (hostId) => hostId === getThisHost().id || remoteHosts().getSnapshot().hosts.some((entry) => entry.host.hostId === hostId));
+            } else if (command.notifications !== undefined) {
               const sources = remoteHosts();
               const input = object(command.notifications);
               if (
@@ -98,7 +108,7 @@ export function mountAppearanceControl(owner: Appearance, wallpaper?: Wallpaper)
           }
           if (abort.signal.aborted) return;
           if (
-            command.notifications !== undefined &&
+            (command.notifications !== undefined || command.hostLook !== undefined) &&
             typeof command.expiresAt === 'number' &&
             Date.now() >= command.expiresAt
           )

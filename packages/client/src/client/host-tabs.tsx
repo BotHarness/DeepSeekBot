@@ -13,22 +13,12 @@ import { TextField } from './ds/field.js';
 import { Tooltip } from './ds/tooltip.js';
 import { border, color, radius, size, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
-import { RemoteNotificationSettings } from './remote-notification-settings.js';
-import {
-  HOST_COLOR_IDS,
-  HOST_COLORS,
-  HOST_EMOJI,
-  HOST_SYMBOL_IDS,
-  type HostLook,
-} from '../../../../apps/mobile/src/ui/design/host-look.js';
-import { useBotColorScheme } from './bot-color-scheme.js';
-import {
-  HOST_SYMBOL_GLYPHS,
-  hostLooks,
-  unusedHostLook,
-  useHostInk,
-  useHostLook,
-} from './host-looks.js';
+import { useThisHost } from './this-host.js';
+export { useThisHost } from './this-host.js';
+import { HostGlyph } from './host-glyph.js';
+export { HostGlyph } from './host-glyph.js';
+import { shownHostName, type HostLook } from '../../../../apps/mobile/src/ui/design/host-look.js';
+import { hostLooks, unusedHostLook, useHostLook, useHostName } from './host-looks.js';
 
 const focusRing = { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` };
 
@@ -67,9 +57,6 @@ const styles = stylex.create({
     color: { default: color.fg, ':hover': color.fg },
   },
   offline: { filter: 'grayscale(1)', opacity: 0.5 },
-  glyph: { display: 'inline-flex', flexShrink: 0, alignItems: 'center', justifyContent: 'center' },
-  emoji: { fontSize: text.titleSize, lineHeight: text.metaLine },
-  ink: (value: string) => ({ color: value }),
   badge: {
     position: 'absolute',
     top: 0,
@@ -94,94 +81,12 @@ const styles = stylex.create({
     fontSize: text.metaSize,
     lineHeight: text.metaLine,
   },
-  section: { display: 'flex', flexDirection: 'column', gap: space.x2 },
-  sectionName: { color: color.subtle, fontSize: text.metaSize, lineHeight: text.metaLine },
-  grid: { display: 'flex', flexWrap: 'wrap', gap: space.x1 },
-  choice: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: size.icon,
-    height: size.icon,
-    padding: 0,
-    borderWidth: border.hairline,
-    borderStyle: 'solid',
-    borderColor: 'transparent',
-    borderRadius: radius.sm,
-    backgroundColor: { default: 'transparent', ':hover': color.hover },
-    color: color.fg,
-    fontFamily: 'inherit',
-    cursor: 'pointer',
-    outline: focusRing,
-    outlineOffset: '-2px',
-  },
-  chosen: { borderColor: color.accent, backgroundColor: color.selected },
-  swatch: (value: string) => ({
-    width: '14px',
-    height: '14px',
-    borderRadius: radius.round,
-    backgroundColor: value,
-  }),
+
 });
-
-interface ThisHostInfo {
-  id?: string;
-  name?: string;
-}
-
-let local: ThisHostInfo = {};
-let localRequested = false;
-const localListeners = new Set<() => void>();
-
-function subscribeLocal(listener: () => void): () => void {
-  localListeners.add(listener);
-  if (!localRequested) {
-    localRequested = true;
-    void fetch('./api/botharness/devices')
-      .then((response) => (response.ok ? response.json() : undefined))
-      .then((value: { host?: { id?: unknown; name?: unknown } } | undefined) => {
-        const host = value?.host;
-        local = {
-          ...(typeof host?.id === 'string' ? { id: host.id } : {}),
-          ...(typeof host?.name === 'string' ? { name: host.name } : {}),
-        };
-        for (const notify of localListeners) notify();
-      })
-      .catch(() => {
-        localRequested = false;
-      });
-  }
-  return () => {
-    localListeners.delete(listener);
-  };
-}
-
-export function useThisHost(): ThisHostInfo {
-  return useSyncExternalStore(
-    subscribeLocal,
-    () => local,
-    () => local,
-  );
-}
 
 export function useRemoteHosts() {
   const sources = remoteHosts();
   return useSyncExternalStore(sources.subscribe, sources.getSnapshot, sources.getSnapshot);
-}
-
-export function HostGlyph({ look, size: glyphSize = 16 }: { look: HostLook; size?: number }) {
-  const ink = useHostInk(look.color);
-  if (look.icon.kind === 'emoji')
-    return (
-      <span aria-hidden="true" {...stylex.props(styles.glyph, styles.emoji)}>
-        {look.icon.emoji}
-      </span>
-    );
-  return (
-    <span aria-hidden="true" {...stylex.props(styles.glyph, ink !== undefined && styles.ink(ink))}>
-      <ChannelSidebarIcon name={HOST_SYMBOL_GLYPHS[look.icon.id]} size={glyphSize} />
-    </span>
-  );
 }
 
 export function HostMark({ hostId }: { hostId?: string | undefined }): ReactElement {
@@ -251,28 +156,34 @@ function HostTab({
   );
 }
 
+
+function RemoteHostTab({ remote, selected, onMenu, t }: {
+  remote: RemoteHost; selected: boolean; onMenu: (point: MenuPoint) => void; t: BotHarnessTranslate;
+}) {
+  const look = useHostLook(remote.host.hostId);
+  const name = shownHostName(look, remote.host.hostName);
+  const unread = unreadCount(remote);
+  return <HostTab id={remote.host.hostId} label={!online(remote) ? t('remoteHosts.offline', { name }) : unread > 0 ? t('remoteHosts.unreadNamed', { name, count: unread }) : name}
+    look={look} selected={selected} offline={!online(remote)} unread={unread} onMenu={onMenu} />;
+}
+
 export function HostTabs({ t }: { t: BotHarnessTranslate }): ReactElement | null {
   const sources = remoteHosts();
   const snapshot = useRemoteHosts();
   const thisHost = useThisHost();
-  const looks = hostLooks();
-  useSyncExternalStore(
-    looks.subscribe,
-    () => looks,
-    () => looks,
-  );
+  const localLook = useHostLook(thisHost.id ?? THIS_HOST);
   const [menu, setMenu] = useState<{ hostId: string; point: MenuPoint } | undefined>(undefined);
   const [removing, setRemoving] = useState<RemoteHost | undefined>(undefined);
-  const [notificationHost, setNotificationHost] = useState<RemoteHost | undefined>();
-  const [styling, setStyling] = useState<{ hostId: string; name: string } | undefined>(undefined);
-  const [settings, setSettings] = useState<{ hostId: string; name: string }>();
+  const [settings, setSettings] = useState<{ hostId: string; name: string; local: boolean }>();
   const proxy = useRef<HTMLSpanElement | null>(null);
-  if (snapshot.hosts.length === 0) return null;
+
   const thisId = thisHost.id ?? THIS_HOST;
-  const thisName = thisHost.name ?? t('remoteHosts.this');
+  const thisName = shownHostName(localLook, thisHost.name ?? t('remoteHosts.this'));
   const selectedRemote = snapshot.hosts.find((remote) => remote.host.hostId === snapshot.tab);
   const menuRemote = snapshot.hosts.find((remote) => remote.host.hostId === menu?.hostId);
-  const menuName = menuRemote?.host.hostName ?? thisName;
+  const selectedName = useHostName(selectedRemote?.host.hostId, selectedRemote?.host.hostName ?? '');
+  const removingName = useHostName(removing?.host.hostId, removing?.host.hostName ?? '');
+  if (snapshot.hosts.length === 0) return null;
   return (
     <>
       <div
@@ -292,40 +203,22 @@ export function HostTabs({ t }: { t: BotHarnessTranslate }): ReactElement | null
         <HostTab
           id={THIS_HOST}
           label={t('remoteHosts.thisNamed', { name: thisName })}
-          look={looks.look(thisId)}
+          look={localLook}
           selected={snapshot.tab === THIS_HOST}
           offline={false}
           unread={0}
           onMenu={(point) => setMenu({ hostId: thisId, point })}
         />
-        {snapshot.hosts.map((remote) => {
-          const unread = unreadCount(remote);
-          const name = remote.host.hostName;
-          return (
-            <HostTab
-              key={remote.host.hostId}
-              id={remote.host.hostId}
-              label={
-                !online(remote)
-                  ? t('remoteHosts.offline', { name })
-                  : unread > 0
-                    ? t('remoteHosts.unreadNamed', { name, count: unread })
-                    : name
-              }
-              look={looks.look(remote.host.hostId)}
-              selected={snapshot.tab === remote.host.hostId}
-              offline={!online(remote)}
-              unread={unread}
-              onMenu={(point) => setMenu({ hostId: remote.host.hostId, point })}
-            />
-          );
-        })}
+        {snapshot.hosts.map((remote) => (
+          <RemoteHostTab key={remote.host.hostId} remote={remote} selected={snapshot.tab === remote.host.hostId}
+            onMenu={(point) => setMenu({ hostId: remote.host.hostId, point })} t={t} />
+        ))}
       </div>
       {selectedRemote !== undefined && !online(selectedRemote) ? (
         <p role="status" {...stylex.props(styles.status)}>
           {selectedRemote.snapshot.connection.status === 'refused'
-            ? t('remoteHosts.refused', { name: selectedRemote.host.hostName })
-            : t('remoteHosts.offline', { name: selectedRemote.host.hostName })}
+            ? t('remoteHosts.refused', { name: selectedName })
+            : t('remoteHosts.offline', { name: selectedName })}
         </p>
       ) : null}
       {menu === undefined ? null : (
@@ -336,57 +229,36 @@ export function HostTabs({ t }: { t: BotHarnessTranslate }): ReactElement | null
             autoFocus
             anchor={<span ref={proxy} aria-hidden="true" />}
             items={[
-              { id: 'look', label: t('remoteHosts.look') },
+              { id: 'settings', label: t('remoteHosts.settings') },
               ...(menuRemote === undefined
                 ? []
                 : [
-                    { id: 'settings', label: t('remoteHosts.settings') },
-                    { id: 'notifications', label: t('remoteHosts.notifications') },
                     { id: 'remove', label: t('remoteHosts.remove.confirm'), danger: true },
                   ]),
             ]}
             onSelect={(id) => {
               setMenu(undefined);
-              if (id === 'look') setStyling({ hostId: menu.hostId, name: menuName });
-              if (id === 'settings' && menuRemote !== undefined)
-                setSettings({ hostId: menuRemote.host.hostId, name: menuRemote.host.hostName });
+              if (id === 'settings' && (menuRemote !== undefined || menu.hostId === thisId))
+                setSettings({ hostId: menu.hostId, name: menuRemote?.host.hostName ?? thisHost.name ?? thisName, local: menuRemote === undefined });
               if (id === 'remove' && menuRemote !== undefined) setRemoving(menuRemote);
-              if (id === 'notifications' && menuRemote !== undefined)
-                setNotificationHost(menuRemote);
             }}
             onClose={() => setMenu(undefined)}
           />
         </span>
-      )}
-      {styling === undefined ? null : (
-        <HostLookDialog
-          hostId={styling.hostId}
-          name={styling.name}
-          onClose={() => setStyling(undefined)}
-          t={t}
-        />
       )}
       {settings === undefined ? null : (
         <RemoteHostSettings
           key={settings.hostId}
           hostId={settings.hostId}
           name={settings.name}
+          local={settings.local}
           onClose={() => setSettings(undefined)}
           t={t}
         />
       )}
-      {notificationHost === undefined ? null : (
-        <RemoteNotificationSettings
-          hostId={notificationHost.host.hostId}
-          name={notificationHost.host.hostName}
-          notifications={sources.notifications}
-          t={t}
-          onClose={() => setNotificationHost(undefined)}
-        />
-      )}
       {removing === undefined ? null : (
         <ConfirmDialog
-          title={t('remoteHosts.remove.title', { name: removing.host.hostName })}
+          title={t('remoteHosts.remove.title', { name: removingName })}
           description={t('remoteHosts.remove.description')}
           labels={{ close: t('common.close'), cancel: t('common.cancel') }}
           confirmLabel={t('remoteHosts.remove.confirm')}
@@ -398,120 +270,6 @@ export function HostTabs({ t }: { t: BotHarnessTranslate }): ReactElement | null
         />
       )}
     </>
-  );
-}
-
-function HostLookDialog({
-  hostId,
-  name,
-  onClose,
-  t,
-}: {
-  hostId: string;
-  name: string;
-  onClose: () => void;
-  t: BotHarnessTranslate;
-}): ReactElement {
-  const scheme = useBotColorScheme();
-  const [look, setLook] = useState<HostLook>(() => hostLooks().look(hostId));
-  const icon = look.icon;
-  return (
-    <FormDialog
-      title={t('remoteHosts.look.title', { name })}
-      labels={{ close: t('common.close'), cancel: t('common.cancel') }}
-      submitLabel={t('remoteHosts.look.save')}
-      onCancel={onClose}
-      onSubmit={() => {
-        hostLooks().set(hostId, look);
-        onClose();
-      }}
-    >
-      <div {...stylex.props(styles.section)}>
-        <span {...stylex.props(styles.sectionName)}>{t('remoteHosts.look.symbols')}</span>
-        <div
-          {...stylex.props(styles.grid)}
-          role="radiogroup"
-          aria-label={t('remoteHosts.look.symbols')}
-        >
-          {HOST_SYMBOL_IDS.map((id) => {
-            const chosen = icon.kind === 'symbol' && icon.id === id;
-            return (
-              <button
-                key={id}
-                type="button"
-                role="radio"
-                aria-checked={chosen}
-                aria-label={id}
-                data-host-look-symbol={id}
-                {...stylex.props(styles.choice, chosen && styles.chosen)}
-                onClick={() => setLook({ ...look, icon: { kind: 'symbol', id } })}
-              >
-                <HostGlyph look={{ ...look, icon: { kind: 'symbol', id } }} />
-              </button>
-            );
-          })}
-        </div>
-      </div>
-      <div {...stylex.props(styles.section)}>
-        <span {...stylex.props(styles.sectionName)}>{t('remoteHosts.look.emoji')}</span>
-        <div
-          {...stylex.props(styles.grid)}
-          role="radiogroup"
-          aria-label={t('remoteHosts.look.emoji')}
-        >
-          {HOST_EMOJI.map((emoji) => {
-            const chosen = icon.kind === 'emoji' && icon.emoji === emoji;
-            return (
-              <button
-                key={emoji}
-                type="button"
-                role="radio"
-                aria-checked={chosen}
-                aria-label={emoji}
-                {...stylex.props(styles.choice, chosen && styles.chosen)}
-                onClick={() => setLook({ ...look, icon: { kind: 'emoji', emoji } })}
-              >
-                <span {...stylex.props(styles.emoji)}>{emoji}</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-      <div {...stylex.props(styles.section)}>
-        <span {...stylex.props(styles.sectionName)}>{t('remoteHosts.look.color')}</span>
-        <div
-          {...stylex.props(styles.grid)}
-          role="radiogroup"
-          aria-label={t('remoteHosts.look.color')}
-        >
-          <button
-            type="button"
-            role="radio"
-            aria-checked={look.color === undefined}
-            aria-label={t('remoteHosts.look.noColor')}
-            {...stylex.props(styles.choice, look.color === undefined && styles.chosen)}
-            onClick={() =>
-              setLook({ ...(look.name === undefined ? {} : { name: look.name }), icon })
-            }
-          >
-            <ChannelSidebarIcon name="ban" size={14} />
-          </button>
-          {HOST_COLOR_IDS.map((id) => (
-            <button
-              key={id}
-              type="button"
-              role="radio"
-              aria-checked={look.color === id}
-              aria-label={id}
-              {...stylex.props(styles.choice, look.color === id && styles.chosen)}
-              onClick={() => setLook({ ...look, color: id })}
-            >
-              <span {...stylex.props(styles.swatch(HOST_COLORS[id][scheme]))} />
-            </button>
-          ))}
-        </div>
-      </div>
-    </FormDialog>
   );
 }
 
@@ -582,7 +340,9 @@ export function AddRemoteHostDialog({
             .hosts.filter((remote) => remote.host.hostId !== result.host.hostId)
             .map((remote) => looks.look(remote.host.hostId)),
         ];
-        looks.set(result.host.hostId, unusedHostLook(used));
+        try {
+          looks.set(result.host.hostId, unusedHostLook(used));
+        } catch {}
         onClose();
       });
   };
@@ -685,6 +445,7 @@ export function RemoteHostRows({
 }): ReactElement | null {
   const sources = remoteHosts();
   const { open, avatars } = useRemoteHosts();
+  const name = useHostName(remote.host.hostId, remote.host.hostName);
   const needle = query.trim().toLocaleLowerCase();
   const visible = rows(remote).filter(
     (row) => needle.length === 0 || row.title.toLocaleLowerCase().includes(needle),
@@ -700,7 +461,7 @@ export function RemoteHostRows({
           data-remote-row={row.key}
           aria-label={
             showSource
-              ? t('remoteHosts.rowLabel', { name: row.title, host: remote.host.hostName })
+              ? t('remoteHosts.rowLabel', { name: row.title, host: name })
               : row.title
           }
           onClick={() => {
@@ -741,7 +502,7 @@ export function RemoteHostRows({
   return (
     <div className="bh-section" data-remote-section={remote.host.hostId}>
       <div className="bh-section-head">
-        <span className="bh-section-name">{remote.host.hostName}</span>
+        <span className="bh-section-name">{name}</span>
         <span className="bh-section-count">{visible.length}</span>
       </div>
       {list}

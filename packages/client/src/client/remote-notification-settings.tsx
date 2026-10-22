@@ -1,9 +1,9 @@
+import { useMountedResource } from './mounted-resource.js';
 import { useState, useSyncExternalStore } from 'react';
 import { Switch } from '@deepseek-ai/dsh-client-ui-primitives';
 import { PUSH_KINDS, type PushKind } from '../../../../apps/mobile/src/host/push.js';
 import type { RemoteNotifications } from './remote-notifications.js';
 import type { BotHarnessTranslate, BotHarnessKey } from './locale.js';
-import { SettingsDialog } from './ds/settings-dialog.js';
 import { Note } from './ds/note.js';
 import { SettingsRow, SettingsSection } from './ds/settings-row.js';
 
@@ -16,17 +16,14 @@ const labels: Record<PushKind, BotHarnessKey> = {
 
 export function RemoteNotificationSettings({
   hostId,
-  name,
   notifications,
   t,
-  onClose,
 }: {
   hostId: string;
-  name: string;
   notifications: RemoteNotifications;
   t: BotHarnessTranslate;
-  onClose(): void;
 }) {
+  const mount = useMountedResource<HTMLDivElement>(() => () => notifications.cancel(hostId), [notifications, hostId]);
   const snapshot = useSyncExternalStore(notifications.subscribe, notifications.getSnapshot);
   const choice = notifications.choice(hostId);
   const [busy, setBusy] = useState(false);
@@ -40,18 +37,7 @@ export function RemoteNotificationSettings({
       .finally(() => setBusy(false));
   };
   return (
-    <SettingsDialog
-      title={t('remoteHosts.notifications.title', { name })}
-      caption={t('remoteHosts.notifications.hint')}
-      labels={{ close: t('common.close'), nav: name, picker: (section) => section }}
-      sections={[{ id: 'notifications', label: t('remoteHosts.notifications.title', { name }) }]}
-      activeId="notifications"
-      onSelect={() => {}}
-      onClose={() => {
-        notifications.cancel(hostId);
-        onClose();
-      }}
-    >
+    <div ref={mount}>
       {(error || snapshot.permission === 'denied' || snapshot.permission === 'unsupported') && (
         <Note tone="danger">
           {error
@@ -63,7 +49,7 @@ export function RemoteNotificationSettings({
                 : undefined}
         </Note>
       )}
-      <SettingsSection>
+      <SettingsSection description={t('remoteHosts.notifications.hint')}>
         <SettingsRow
           title={t('remoteHosts.notifications.enable')}
           control={
@@ -94,6 +80,6 @@ export function RemoteNotificationSettings({
           />
         ))}
       </SettingsSection>
-    </SettingsDialog>
+    </div>
   );
 }

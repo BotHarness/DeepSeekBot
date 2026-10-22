@@ -3,6 +3,7 @@ import { useSyncExternalStore } from 'react';
 import { createHostLooks, type HostLooks } from '../../../../apps/mobile/src/host/host-look.js';
 import {
   DEFAULT_HOST_LOOK,
+  shownHostName,
   HOST_COLOR_IDS,
   HOST_SYMBOL_IDS,
   hostColorInk,
@@ -92,8 +93,11 @@ export function browserHostLooks(storage: Storage | undefined): HostLooks {
     read: async () => JSON.parse(storage?.getItem(HOST_LOOKS_STORAGE_KEY) ?? '{}') as unknown,
     write: (value) => {
       try {
-        storage?.setItem(HOST_LOOKS_STORAGE_KEY, JSON.stringify(value));
-      } catch {}
+        if (storage === undefined) throw new Error('storage-unavailable');
+        storage.setItem(HOST_LOOKS_STORAGE_KEY, JSON.stringify(value));
+      } catch {
+        throw new Error('host-look-storage-failed');
+      }
     },
   });
 }
@@ -128,4 +132,8 @@ export function useHostInk(color: HostColorId | undefined): string | undefined {
   const scheme = useBotColorScheme();
   if (color === undefined) return undefined;
   return hostColorInk(scheme, INK_ROLES[scheme] as unknown as Record<ColorRole, string>, color);
+}
+
+export function useHostName(hostId: string | undefined, name: string): string {
+  return shownHostName(useHostLook(hostId), name);
 }
