@@ -11,7 +11,9 @@ The Human needs to watch a Bot from a phone and occasionally click, scroll or ty
 
 ## Scope and transport
 
-The first runnable slice is a single Windows display viewed on a physical Android phone, with existing click, scroll and text input. It serves our Android and Web viewers rather than targeting VDO.Ninja/OBS interoperability. Multiple admitted viewers may watch, but only one can control the Computer. Audio, clipboard synchronization, file transfer, monitor switching, PiP, background viewing and automatic desktop unlock/lock are outside this slice. Other platforms retain their existing implementation until separately migrated.
+The accepted delivery scope spans the staged slices in #2555: Android and Web viewers, click/scroll/text input and multiple admitted observers with one controller. It does not target VDO.Ninja/OBS interoperability. Those capabilities are not all part of the first tracer bullet.
+
+T1 (#2558) is one Windows primary display viewed on one physical Android phone, with the minimum direct-click interaction, explicit control and durable Bot pause. It explicitly refuses a second viewer. Richer input, Web delivery and multiple observers belong to later slices and must follow real T1 acceptance and Human feedback. Audio, clipboard synchronization, file transfer, monitor switching, PiP, background viewing and automatic desktop unlock/lock are outside the accepted scope. Other platforms retain their existing implementation until separately migrated.
 
 WebRTC first attempts a direct connection. Users may configure their own TURN; this release supplies no project-funded public TURN and promises no universal connectivity. The media adapter must not silently acquire a supplier's public TURN credentials or inherit a relay default. Hosted Connect may carry authenticated signaling and commands; it is not a video relay. Each receiver's media transfer still consumes bandwidth, including when the sender is user-owned.
 
