@@ -46,6 +46,40 @@ export function encodeBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
+async function blobBytes(blob: Blob, signal: AbortSignal): Promise<Uint8Array> {
+  if (typeof blob.arrayBuffer === 'function') return new Uint8Array(await blob.arrayBuffer());
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    const cleanup = () => signal.removeEventListener('abort', abort);
+    const abort = () => {
+      cleanup();
+      reader.abort();
+      reject(new Error('request-cancelled'));
+    };
+    reader.onload = () => {
+      cleanup();
+      if (reader.result instanceof ArrayBuffer) resolve(new Uint8Array(reader.result));
+      else reject(new Error('channel-body-read-failed'));
+    };
+    reader.onerror = () => {
+      cleanup();
+      reject(new Error('channel-body-read-failed'));
+    };
+    reader.onabort = () => {
+      cleanup();
+      reject(new Error('request-cancelled'));
+    };
+    if (signal.aborted) return abort();
+    signal.addEventListener('abort', abort, { once: true });
+    try {
+      reader.readAsArrayBuffer(blob);
+    } catch {
+      cleanup();
+      reject(new Error('channel-body-read-failed'));
+    }
+  });
+}
+
 export function openNoiseSocket(options: {
   origin: string;
   hostId: string;
@@ -295,7 +329,7 @@ export function encryptedCarrier(options: {
           ? init.body
           : init.body === undefined
             ? undefined
-            : encodeBase64(new Uint8Array(await init.body.arrayBuffer()));
+            : encodeBase64(await blobBytes(init.body, init.signal));
       if (init.signal.aborted) throw new Error('request-cancelled');
       if (current.requests.size >= 32) throw new Error('channel-busy');
       const id = String(++next);

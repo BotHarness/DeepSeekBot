@@ -18,6 +18,10 @@ Build and launch a named isolated Host with `verify-app`; run doctor with local 
 
 Capture HTTP headers/URLs and WebSocket frames at the Connect origin before channel decryption. Compare synthetic sentinels with those bytes; preserve only redacted pass/fail summaries for publication. Read the owning Host's canonical timeline, approval outcome and private-input status. Verify `device-approve-key <receipt> <public-key> --confirm` and `connect-status` against this live Host. Restart the same isolated Profile and verify a stable fingerprint; reconnect must use new ephemeral keys. Revoke the device and verify open streams close.
 
+## Native attachment regression
+
+In the assigned native batch, choose a disposable image from the system picker and send it through Connect. Confirm its thumbnail and the owning Host attachment record, then verify its bytes/name are absent from the outer capture. The React Native Blob does not provide `arrayBuffer()`; the encrypted carrier reads its bytes with native FileReader. A browser Blob test alone does not qualify this path. Read errors and cancellation must send no application request and never retry through the raw carrier.
+
 ## Gotchas
 
 - A Node socket mapped from a Connect hostname to a local origin qualifies the application carrier and native DSH dispatch, not Cloudflare reachability or native key storage.
