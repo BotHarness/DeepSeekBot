@@ -72,7 +72,11 @@ function RootNavigator() {
               />
               <Stack.Screen
                 name="pair"
-                options={{ title: t.pairTitle, ...sheetScreenOptions(design, true) }}
+                options={{
+                  title: t.pairTitle,
+                  ...sheetScreenOptions(design, true),
+                  ...(Platform.OS === 'ios' ? { presentation: 'modal' as const } : {}),
+                }}
               />
               <Stack.Screen
                 name="share"
