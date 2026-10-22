@@ -10,7 +10,7 @@ The browser pairs a Remote Host as a Paired Device and reads its Host Feed throu
 - `avatars`: remote Bot portraits and group images/member stacks appear in rows and conversation headers; Bot message authors and live drafts use the same remote portrait.
 - `activity-unread`: remote Bot rows display received activity; DM/group unread counts come from their Host Inbox.
 - `read`: a visible remote conversation at its latest message marks that message read on its owning Host and refreshes the shared Inbox.
-- `message-body`: remote images, files, rich text and request cards use the existing message body, with authenticated resources and decisions on the source Host.
+- `message-body`: remote images, files, rich text and request cards use the existing message body, with authenticated resources and decisions on the source Host. Keep the owning Host’s ordinary Web Client open while requesting a real native question; its generic answerer must not consume the PersonaBot question before the Channel owner. Answer from the remote conversation and Activity, then compare the owning Channel resolution and native tool result.
 - `upgrade`: existing browser pairings and the selected tab survive the storage-key rename.
 - `remove`: removing a Host forgets its rows, stops its Inbox and releases cached avatar object URLs.
 - `secret-route`: pinned Connect pairings carry private input, resources and logical streams through Noise; legacy pairings fail closed. The browser must be served by its own trusted Host. Loopback/Tailscale retain their contract.
