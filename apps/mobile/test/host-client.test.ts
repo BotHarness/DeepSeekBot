@@ -49,6 +49,25 @@ async function until(
 }
 
 describe('Host client', () => {
+  it('reads Host global and scope sorting with the roster and keeps confirmed state after a failed refresh', async () => {
+    const host = new FakeHost();
+    let sorting = { sortMode: 'manual', sortModes: { pinned: 'updated', work: 'manual' } };
+    host.methods.set('settings/describe', () => ({
+      namespaces: [{ ns: 'botharness-client', value: sorting }],
+    }));
+    const target = connect(host);
+    await until(target, (state) => state.connection.status === 'connected');
+    expect(target.getSnapshot().roster?.sorting).toEqual(sorting);
+    expect(host.calls.find((call) => call.method === 'settings/describe')?.args).toEqual({});
+    host.failing.add('settings/describe');
+    await expect(target.refresh()).rejects.toThrow();
+    expect(target.getSnapshot().roster?.sorting).toEqual(sorting);
+    host.failing.delete('settings/describe');
+    sorting = { sortMode: 'updated', sortModes: { pinned: 'manual', work: 'updated' } };
+    await target.refresh();
+    expect(target.getSnapshot().roster?.sorting).toEqual(sorting);
+  });
+
   it('retains Bot DM metadata for activity links without listing it as a group', async () => {
     const host = new FakeHost();
     host.methods.set('channels', () => ({ channels: wire.activityJournal.channels }));
@@ -100,7 +119,7 @@ describe('Host client', () => {
     await until(target, (s) => s.roster?.bots[0]?.preview === 'mobile tracer probe');
     expect(host.requests.length).toBe(reads);
     host.push('botharness/followRoster', { type: 'changed' });
-    await until(target, () => host.requests.length === reads + 3);
+    await until(target, () => host.requests.length === reads + 4);
   });
 
   it('carries the recorded Channel sections and refreshes them when the roster changes', async () => {

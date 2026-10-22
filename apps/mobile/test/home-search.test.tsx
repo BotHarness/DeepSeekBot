@@ -30,6 +30,7 @@ const { push, cloudState, directoryState, hostState, call, refresh, menus, swipe
       fontScale: 1,
       actions: false,
       unread: false,
+      hostId: 'h1',
     },
     cloudState: {
       error: undefined as string | undefined,
@@ -184,7 +185,7 @@ vi.mock('expo-router', () => {
 });
 vi.mock('../src/host/host-session', () => ({
   useHostSession: () => ({
-    saved: hostState.removed ? null : { hostId: 'h1', hostName: 'studio' },
+    saved: hostState.removed ? null : { hostId: hostState.hostId, hostName: 'studio' },
     client: hostState.actions ? { call, refresh } : undefined,
     inbox: undefined,
   }),
@@ -199,17 +200,22 @@ vi.mock('../src/host/host-session', () => ({
   useQuietChannels: () => [],
   refreshQuietChannels: () => {},
 }));
-vi.mock('../src/host/native-section-collapse', () => ({
-  sectionCollapse: { toggle: () => {} },
-  useCollapsedSections: () => new Set(),
-}));
+vi.mock('../src/host/native-section-collapse', async () => {
+  const { useSyncExternalStore } = await import('react');
+  const { createSectionCollapse } = await import('../src/host/section-collapse');
+  const sectionCollapse = createSectionCollapse({ read: async () => undefined, write: () => {} });
+  return {
+    sectionCollapse,
+    useCollapsedSections: (hostId: string) =>
+      useSyncExternalStore(sectionCollapse.subscribe, () => sectionCollapse.collapsed(hostId)),
+  };
+});
 vi.mock('expo-symbols', () => ({
   SymbolView: ({ size }: { size: number }) => <span data-symbol-size={size} />,
 }));
 vi.mock('../src/host/native-host-look', () => ({
   useHostLook: () => ({ icon: { kind: 'symbol', id: 'desktop' }, color: hostState.color }),
 }));
-vi.mock('../src/ui/chat/section-header', () => ({ SectionHeader: () => null }));
 vi.mock('../src/ui/shell/host-drawer', () => ({
   HostDrawerEdge: ({ children }: { children: ReactNode }) => children,
   hostDrawer: { setReturnFocus: () => {} },
@@ -224,6 +230,7 @@ vi.mock('../src/ui/bot-avatar', () => ({ BotAvatar: () => null }));
 vi.mock('expo-status-bar', () => ({ StatusBar: () => null }));
 
 import { conversationFilter } from '../src/host/native-conversation-filter';
+import { sectionCollapse } from '../src/host/native-section-collapse';
 import HomeScreen from '../app/(tabs)/(home)/index';
 import { t } from '../src/ui/strings';
 
@@ -250,8 +257,12 @@ afterEach(() => {
   hostState.fontScale = 1;
   hostState.actions = false;
   hostState.unread = false;
+  hostState.hostId = 'h1';
   delete roster.bots[0]!.latestMessageId;
   delete roster.arrangement;
+  delete roster.sorting;
+  for (const id of ['h1', 'h2'])
+    for (const section of sectionCollapse.collapsed(id)) sectionCollapse.toggle(id, section);
   call.mockClear();
   refresh.mockClear();
   menus.length = 0;
@@ -294,6 +305,7 @@ const rows = (view: HTMLElement) =>
         node.getAttribute('aria-label') !== 'Swipe row',
     )
     .filter((node) => node.dataset.testid !== 'chats-view-button')
+    .filter((node) => !node.dataset.testid?.startsWith('chat-section-'))
     .filter((node) => !node.closest('[hidden]') && !node.dataset.testid?.startsWith('pager-'))
     .filter(
       (node) =>
@@ -372,7 +384,15 @@ describe('Search in the Chats header', () => {
       ...directoryState.workspaces[0]!,
       organizationId: 'same-name-empty',
     });
+    roster.arrangement = {
+      pins: ['dm-ada'],
+      hidden: [],
+      sectionOrder: ['work'],
+      sections: [{ id: 'work', name: 'Work', channelIds: ['launch-team'] }],
+    };
     const view = await home();
+    expect(view.querySelector('[data-testid="pinned-conversation-bot:ada"]')).not.toBeNull();
+    expect(view.querySelector('[data-testid="chat-section-work"]')).not.toBeNull();
     expect(view.querySelector('[role="tab"]')).toBeNull();
     expect(view.querySelector('[data-testid="pager-next"]')).toBeNull();
     await act(async () => conversationFilter.set(cloudEnvironmentKey(scope, 'same-name-empty')));
@@ -403,6 +423,8 @@ describe('Search in the Chats header', () => {
     expect(rows(view).join(' ')).not.toContain('Cloud general');
     expect(view.textContent).toContain('Ada');
     await act(async () => conversationFilter.set(cloudEnvironmentKey(scope, 'org_a')));
+    expect(view.querySelector('[data-testid="chat-section-work"]')).toBeNull();
+    expect(view.querySelector('[data-testid="pinned-grid-band"]')).toBeNull();
     expect(rows(view).join(' ')).not.toContain('Ada, Done');
     expect(rows(view).join(' ')).toContain('Cloud general');
     hostState.connecting = true;
@@ -706,6 +728,8 @@ describe('Chats row actions share the Host path', () => {
       sectionOrder: [],
     };
     const view = await home();
+    // Search deliberately restores the full row, including the existing swipe controls.
+    await type(view, 'Ada');
     for (const key of ['unpin', 'unmute'] as const) {
       await act(async () =>
         view.querySelector<HTMLButtonElement>('[aria-label="Swipe row"]')!.click(),
@@ -730,4 +754,134 @@ describe('Chats row actions share the Host path', () => {
       );
     }
   });
+});
+
+describe('Remote Host section and Pinned presentation', () => {
+  it('ranks a title prefix ahead of a pinned substring when searching', async () => {
+    roster.arrangement = { pins: ['launch-team'], hidden: [], sections: [], sectionOrder: [] };
+    const view = await home();
+    expect(
+      view.querySelector('[data-testid="pinned-conversation-channel:launch-team"]'),
+    ).not.toBeNull();
+    await type(view, 'a');
+    expect(rows(view)[0]).toBe('Ada, Done');
+    expect(rows(view)[1]).toContain('Launch team');
+    expect(view.querySelector('[data-testid="pinned-grid-band"]')).toBeNull();
+  });
+  const seed = () => {
+    roster.arrangement = {
+      pins: ['dm-ada'],
+      hidden: [],
+      sections: [
+        { id: 'work', name: 'Work', channelIds: ['dm-ada', 'launch-team'] },
+        { id: 'empty', name: 'Empty', channelIds: [] },
+      ],
+      sectionOrder: ['work', 'empty'],
+      topOrder: [
+        { kind: 'section', id: 'work' },
+        { kind: 'channel', id: 'bot:xiaoming' },
+        { kind: 'section', id: 'empty' },
+      ],
+    };
+    roster.sorting = { sortMode: 'manual', sortModes: {} };
+  };
+  const ordered = (view: HTMLElement) =>
+    [...view.querySelectorAll('[data-testid]')]
+      .map((node) => node.getAttribute('data-testid'))
+      .filter(
+        (id) =>
+          id?.startsWith('chat-section-') ||
+          id?.startsWith('conversation-row-') ||
+          id?.startsWith('pinned-conversation-'),
+      );
+  const toggle = async (view: HTMLElement, id: string) =>
+    act(async () =>
+      view.querySelector<HTMLButtonElement>(`[data-testid="chat-section-${id}"]`)!.click(),
+    );
+
+  it('renders canonical sections, loose rows and one pinned card; search restores full rows and clearing restores arrangement', async () => {
+    seed();
+    const view = await home();
+    expect(ordered(view)).toEqual([
+      'chat-section-pinned',
+      'pinned-conversation-bot:ada',
+      'chat-section-work',
+      'conversation-row-channel:launch-team',
+      'conversation-row-bot:xiaoming',
+      'chat-section-empty',
+    ]);
+    const card = view.querySelector('[data-testid="pinned-conversation-bot:ada"]')!;
+    expect(card.textContent).toContain('Ada');
+    expect(card.textContent).not.toContain('Done');
+    await type(view, 'Ada');
+    expect(ordered(view)).toEqual(['conversation-row-bot:ada']);
+    expect(view.textContent).toContain('Done');
+    await type(view, '');
+    expect(ordered(view)[0]).toBe('chat-section-pinned');
+    expect(roster.arrangement?.sections[0]?.channelIds).toEqual(['dm-ada', 'launch-team']);
+    expect(call).not.toHaveBeenCalled();
+  });
+
+  it('isolates section and Pinned collapse per Host and does not lose collapsed search matches', async () => {
+    seed();
+    const view = await home();
+    await toggle(view, 'pinned');
+    await toggle(view, 'work');
+    expect(ordered(view)).not.toContain('pinned-conversation-bot:ada');
+    expect(ordered(view)).not.toContain('conversation-row-channel:launch-team');
+    await type(view, 'Ada');
+    expect(ordered(view)).toEqual(['conversation-row-bot:ada']);
+    await type(view, '');
+    expect(ordered(view)).not.toContain('pinned-conversation-bot:ada');
+    hostState.hostId = 'h2';
+    await act(async () => root!.render(<HomeScreen />));
+    expect(ordered(view)).toContain('pinned-conversation-bot:ada');
+    expect(ordered(view)).toContain('conversation-row-channel:launch-team');
+    hostState.hostId = 'h1';
+    await act(async () => root!.render(<HomeScreen />));
+    expect(ordered(view)).not.toContain('pinned-conversation-bot:ada');
+    expect(call).not.toHaveBeenCalled();
+  });
+
+  it.each(['ios', 'android'] as const)(
+    'keeps pinned card menu operations and native preview boundary on %s',
+    async (platform) => {
+      seed();
+      hostState.actions = true;
+      Platform.OS = platform;
+      const view = await home();
+      const menu = () =>
+        view.querySelector<HTMLButtonElement>(`[aria-label="${t.conversationActions('Ada')}"]`)!;
+      await act(async () => menu().click());
+      await act(async () =>
+        menus.at(-1)!.find((action) => action.text === t.rowActions.unpin)!.onPress!(),
+      );
+      expect(call).toHaveBeenLastCalledWith('rosterBatch', {
+        action: 'unpin',
+        channelIds: ['dm-ada'],
+      });
+      await act(async () => menu().click());
+      await act(async () =>
+        menus.at(-1)!.find((action) => action.text === t.rowActions.section)!.onPress!(),
+      );
+      expect(push).toHaveBeenLastCalledWith({
+        pathname: '/conversation-section',
+        params: { hostId: 'h1', channelId: 'dm-ada' },
+      });
+      expect(
+        view
+          .querySelector('[data-testid="pinned-conversation-bot:ada"]')
+          ?.closest('[data-testid="native-preview"]') !== null,
+      ).toBe(platform === 'ios');
+      // A canonical readback after unpin returns the conversation to Work.
+      roster.arrangement = { ...roster.arrangement!, pins: [] };
+      await act(async () => root!.render(<HomeScreen />));
+      expect(ordered(view)).not.toContain('chat-section-pinned');
+      expect(ordered(view).slice(0, 3)).toEqual([
+        'chat-section-work',
+        'conversation-row-bot:ada',
+        'conversation-row-channel:launch-team',
+      ]);
+    },
+  );
 });

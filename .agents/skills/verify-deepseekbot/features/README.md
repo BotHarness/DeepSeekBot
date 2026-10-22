@@ -29,6 +29,7 @@ One file per user-facing feature. Each file has four sections: `Sub-features`, `
 | Phone pairing and paired devices                                                                   | no                         | `scripts/e2e-mobile-pairing-web.mjs`, `scripts/e2e-device-pairing.mjs`, `scripts/e2e-mobile-sim.mjs`, `scripts/e2e-mobile-pair-android.mjs` | [phone-pairing.md](phone-pairing.md)                 |
 | Phone Chats drawer views and Android Host accent | no | none (shared-device native path) | [phone-drawer-views.md](phone-drawer-views.md) |
 | Phone Chats swipe actions and Remote Host section creation | no | none (shared-device native path) | [phone-chat-row-actions.md](phone-chat-row-actions.md) |
+| Phone Remote Host sections and responsive Pinned grid | no | shared-device queue; `scripts/e2e-mobile-sim.mjs` | [phone-pinned-grid.md](phone-pinned-grid.md) |
 | Native mobile message composer | no (except Bot reply) | none (shared-device native path) | [phone-composer.md](phone-composer.md) |
 | Native mobile chat backgrounds | no (except live-reply regression) | none (shared-device native path) | [phone-chat-backgrounds.md](phone-chat-backgrounds.md) |
 | Android sheets, shell and chat presentation | no | `scripts/e2e-mobile-android-interactions.mjs` | [phone-android-interactions.md](phone-android-interactions.md) |
