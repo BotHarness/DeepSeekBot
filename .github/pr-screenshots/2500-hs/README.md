@@ -29,18 +29,18 @@ controls are readable; the failed later recapture is excluded.
 Actual toolchain: Node 24.21.0, pnpm 12.4.2, process GOMAXPROCS=2 and Vitest
 maxWorkers=1. Checks ran serially.
 
-| Check | Source | Actual result |
-| --- | --- | --- |
-| Frozen install | da6fb748b9a2 | exit 0 |
-| Three behavioral regression cases | original 1ab2b33a7afe | exit 1; all three fail for the intended behavior |
-| Same three cases | da6fb748b9a2 | exit 0 |
-| 13 focused files / 107 tests | da6fb748b9a2 | exit 0 |
-| Root/mobile typecheck, lint, format check | da6fb → format-only 01c0 | exit 0 |
-| Baseline complete build | 8f4e650db551 | exit 0 |
-| Candidate complete build | 01c0f4009472 | exit 0 |
-| Final complete build | 08290c7192ad | exit 0 |
-| Final root/mobile typecheck, root lint | 08290c7192ad | exit 0 |
-| Final two changed files format check | 08290c7192ad | exit 0 |
+| Check                                     | Source                   | Actual result                                    |
+| ----------------------------------------- | ------------------------ | ------------------------------------------------ |
+| Frozen install                            | da6fb748b9a2             | exit 0                                           |
+| Three behavioral regression cases         | original 1ab2b33a7afe    | exit 1; all three fail for the intended behavior |
+| Same three cases                          | da6fb748b9a2             | exit 0                                           |
+| 13 focused files / 107 tests              | da6fb748b9a2             | exit 0                                           |
+| Root/mobile typecheck, lint, format check | da6fb → format-only 01c0 | exit 0                                           |
+| Baseline complete build                   | 8f4e650db551             | exit 0                                           |
+| Candidate complete build                  | 01c0f4009472             | exit 0                                           |
+| Final complete build                      | 08290c7192ad             | exit 0                                           |
+| Final root/mobile typecheck, root lint    | 08290c7192ad             | exit 0                                           |
+| Final two changed files format check      | 08290c7192ad             | exit 0                                           |
 
 Builds produced the Client and natural bundles. The four tracked Browser/Computer
 client JS/map artifacts remained unchanged. The 107 focused tests were not rerun
@@ -71,8 +71,7 @@ distinct storage-write failure, and missing-WebLocks refusal. These are controll
 failure-path checks, not naturally occurring browser quota or permission failures.
 
 At 08290, both hints and the Appearance/Notifications/Models/Storage views were
-visually checked in light/dark. Remote Models, Usage and Storage CLI reads exited
-0. Token usage opened using the actual dialog button and showed zero tokens,
+visually checked in light/dark. Remote Models, Usage and Storage CLI reads exited 0. Token usage opened using the actual dialog button and showed zero tokens,
 with Memory still loading: this is partial UI proof. Earlier name-only selectors
 hit another heading, so those mislabelled Usage captures are excluded. There is
 no qualified matching Before Usage image.
@@ -89,7 +88,7 @@ the remote-unavailable state without serving-Host fallback.
 - An earlier heavy run was reported cancelled; cause unknown. Its baseline
   background-tab driver timeout and observe/doctor results were retained.
 - The first candidate browser exited during capture: `Page.captureScreenshot:
-  Target closed`, followed by browser connection/session closure. Host doctor
+Target closed`, followed by browser connection/session closure. Host doctor
   remained healthy. No cause was established. The one authorized browser rebuild
   succeeded; it does not erase the original failure.
 - The supplementary Chinese tab later became blank after the remote Host was
