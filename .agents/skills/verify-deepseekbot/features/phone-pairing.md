@@ -11,6 +11,7 @@ A Human pairs the phone app with their Host by a one-time QR code, and the phone
 - `link-errors` words a refusal by how the phone got the offer: a pasted or opened link that is broken, expired or already used says the link is wrong, and a pasted one empties the field; a scan keeps the code wording.
 - `manual-input` keeps the empty link field and Pair button above the Android keyboard. A manually scanned or pasted offer registers the phone, loads the Host roster and survives app process restart.
 - `cloud-exit` leaves the native pairing modal before opening Cloud services, so Workspaces exposes a visible, operable drawer.
+- `pair-return` uses the existing assigned iOS Simulator: compare the real Connect Host fingerprint, approve the exact displayed device key, then immediately open Chats, Settings (close and reopen) and Activity without restarting/reloading the app. Require no `sheetPresentationController` error or blocked taps. Repeat with the first-use notice unread/read, light/dark and default/intermediate/maximum system text. `apps/mobile/.maestro/sim/pairing-return.yaml` runs the post-approval interaction check without launching or clearing the app; keep native approval and capture evidence alongside it.
 - `roster` shows the Host's PersonaBots in the app through the gateway, with the live stream.
 - `restart` keeps the phone connected after a Host restart without pairing again.
 - `devices` lists each phone with its pairing and last-seen time.

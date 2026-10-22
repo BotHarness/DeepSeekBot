@@ -21,3 +21,7 @@ Focused tests, static checks, full-suite results and CI status are reported sepa
 ## Real Cloudflare follow-up (2026-10-22)
 
 Runtime code: `683b0cbe9c0f158e80929601f59a312ff5f9c4bf`; this follow-up adds evidence only. See [real-tunnel.md](real-tunnel.md) for method, failure matrix, native build correction and the unresolved first-pairing sheet error. `cf-web-*` captures trusted Web Client submission before/error/success over real Cloudflare. `cf-ios-input/fail/ok` captures the rebuilt native app on the existing QA iOS27, including the real keyboard. All values/accounts are synthetic. No device credential, pairing payload, private key, cloud identity or raw traffic capture is published. These are runtime state evidence; earlier Track A/B comparison images remain above. Physical iPhone, Android, deployed account enrollment, Human QA and external audit are not covered.
+
+## Native pairing fix follow-up (2026-10-22)
+
+[Native pairing report](native-pairing.md) and [redacted results](native-pairing-results.json) supersede the earlier first-pairing limitation: the iOS pairing modal and first-notice transition are fixed, with six light/dark × text-size cases and the Maestro interaction regression passing without a post-pairing restart. Existing QA iOS27 and its qualified native binary were reused. `pair-before.png` records the original error; `pair-*` after images show usable Chats, Activity and the existing QA conversation. This is bounded native pairing acceptance, not a claim that all mobile features, physical iPhone, Android or Human QA are complete.

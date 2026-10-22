@@ -2,6 +2,8 @@
 
 Candidate: `683b0cbe9c0f158e80929601f59a312ff5f9c4bf`, stacked on #2546 `b842d3ce0750b5085106defef21c4d4eb0112f81`. No merge or deployment of the product relay.
 
+Later follow-up: [the native pairing fix](native-pairing.md) resolves the first-pairing error and verifies immediate use without cold restart. The observations below remain the historical password-path run at the candidate above.
+
 ## Environment and observation
 
 A dedicated temporary named Cloudflare tunnel and proxied DNS record were created using the repository's Cloudflare API adapter. Normal public DNS and TLS were used, with a Cloudflare edge response confirmed. There was no hosts-file, DNS or client URL mapping. The real cloudflared executable was started by the owning Connect module on the isolated DSH 0.2.1-rc.2 Host. Ingress remained limited to `/botharness-device/*`; other paths returned404.
