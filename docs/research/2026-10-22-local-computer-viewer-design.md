@@ -1,6 +1,6 @@
 # Local Computer 视频观看设计访谈
 
-日期：2026-10-22。状态：Q1–Q15 已确认，产品设计访谈已收敛；持久决定见 [ADR-0244](../adr/0244-local-computer-video-separates-media-control-and-pause.md)。本记录保留研究和决策过程，不代表实现完成。
+日期：2026-10-22。状态：Q1–Q15 已确认，产品设计访谈已收敛；持久决定见 [ADR-0245](../adr/0245-local-computer-video-separates-media-control-and-pause.md)。本记录保留研究和决策过程，不代表实现完成。
 
 实施规格已按 Human 确认发布为 [#2555](https://github.com/BotHarness/DeepSeekBot/issues/2555)，标记 `ready-for-agent`；具体故事、测试契约和验收以该 issue 为入口。发布前核对发现 Connect 还有 [#2541](https://github.com/BotHarness/DeepSeekBot/issues/2541) 的秘密路由拒绝和 [#2542](https://github.com/BotHarness/DeepSeekBot/issues/2542) 的加密 carrier 工作：本 viewer 消费其合同，不增加明文例外；LAN/tailnet 首片可独立推进，Connect 验收须等待对应能力。
 
@@ -55,7 +55,7 @@ Q8 的[成本研究](2026-10-22-cindy-media-cost.md)确认 Cindy 支持从独立
 3. **Q11 已确认：手机切后台／锁屏停止媒体并释放控制权，Bot 保持暂停。** 回到前台恢复观察，接管需要重新获取。后台转换若未能通知 Host，由控制失联的最多 30 秒窗口清理旧控制权；不据此恢复 Bot。PiP 和后台持续观看留待后续独立切片。
 4. **Q12 已确认：确认画面停滞后禁止点击、滚动和输入。** 仍可退出、释放控制权或重连；新鲜画面恢复后才允许操作。静态桌面不等于失联，必须结合采集与媒体存活证据判断，不能只因画面内容或序号未变化而禁用输入。最初提及的图片回退及单帧刷新入口由 Q14 取消；视频管线内的刷新／关键帧请求不构成图片传输回退。
 
-Q6 与 Q10 有意改变 [ADR-0210](../adr/0210-the-phone-watches-the-local-computer-through-a-screenshot-stream.md) 的旧选择：原有暂停随 30 秒 lease 过期而自动结束。[ADR-0244](../adr/0244-local-computer-video-separates-media-control-and-pause.md) 明确替代这部分目标语义；当前运行代码尚未迁移，不能声称仅替换视频传输而未改变接管行为。
+Q6 与 Q10 有意改变 [ADR-0210](../adr/0210-the-phone-watches-the-local-computer-through-a-screenshot-stream.md) 的旧选择：原有暂停随 30 秒 lease 过期而自动结束。[ADR-0245](../adr/0245-local-computer-video-separates-media-control-and-pause.md) 明确替代这部分目标语义；当前运行代码尚未迁移，不能声称仅替换视频传输而未改变接管行为。
 
 ## 第四轮：Human 已确认 Q13–Q15
 

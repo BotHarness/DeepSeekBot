@@ -31,15 +31,16 @@ const bot = (dmChannelId?: string): Conversation =>
 
 it('offers mute and pin, ending with mark as read when there is something to read', () => {
   expect(conversationActions(channel(0), { pinned: false, hostMuted: false })).toEqual([
-    { key: 'mute', label: t.rowActions.mute },
     { key: 'pin', label: t.rowActions.pin },
+    { key: 'section', label: t.rowActions.section },
+    { key: 'mute', label: t.rowActions.mute },
   ]);
   expect(
     conversationActions(channel(3, 'm9'), { pinned: true, hostMuted: true }).map((a) => a.key),
-  ).toEqual(['unmute', 'unpin', 'read']);
-  expect(conversationActions(channel(3), { pinned: false, hostMuted: false })).toHaveLength(2);
+  ).toEqual(['unpin', 'section', 'unmute', 'read']);
+  expect(conversationActions(channel(3), { pinned: false, hostMuted: false })).toHaveLength(3);
   expect(conversationActions(bot(), { pinned: false, hostMuted: false })).toEqual([]);
-  expect(conversationActions(bot('dm1'), { pinned: false, hostMuted: false })).toHaveLength(2);
+  expect(conversationActions(bot('dm1'), { pinned: false, hostMuted: false })).toHaveLength(3);
 });
 
 it('calls the existing Host methods and refreshes', async () => {

@@ -35,6 +35,12 @@ The launch summary includes the Host PID and local login URL. For Client edits, 
 
 The helper injects a shared machine-local DeepSeek key when available; `node scripts/dev-secret.mjs check` reports its source without a value. Existing Profile credentials are another DSH source. Confirm model access with a real DM reply. `node scripts/dev-secret.mjs adopt-profile --home <existing-DSH_HOME>` copies only the DeepSeek reference into a private local file for later isolated Profiles.
 
+Before launch and before finishing or handing off a run, follow
+[verification resource cleanup](../../../docs/agents/ax-resource-cleanup.md). The detached Host
+outlives the launcher: record its ownership, then verify process exit and port release before
+removing its Profile or worktree. Keep a running environment only under the documented handoff
+or shared QA lease.
+
 ## DSH 0.2.1 migration contracts
 
 Source inspection of `dsh-subagent/lib/types/types.d.ts` and `lib/index.js` in `0.2.1-rc.2`:
@@ -417,3 +423,22 @@ it look newly qualified.
 The launcher and `verify-app` share a temporary cookie jar named from `basename(DSH_HOME)`. Two isolated homes named `home` in different parent folders overwrite that jar, so the second launch can make the first Host's doctor return 401 while its own browser still works. Give concurrent homes distinct basenames (`host-a`, `host-b`), preserve the first refusal and verify each Host separately. Do not treat this verification-cookie collision as a product authentication failure.
 
 The qualified workspace retains a hidden sidebar copy beside the visible Channels panel. The two Add remote buttons can have the same accessible name. A first-match selector can click or fill the hidden copy; choose visible elements as the two-Host journey requires, and wait for the submit button to become enabled after input. The real Windows Web baseline paired successfully after the driver selected visible controls and used keyboard input; no product change was required.
+
+### Connect route provenance in pinned DSH 0.2.1-rc.2 (#2541)
+
+Arbitrary HTTP route headers do not enter Typert invocation context, and cookie-authenticated
+browser calls share a Peer. The `connection/request` waterfall does not admit `remote.mux`
+opens. A header-only or unary-only guard therefore cannot restrict all Connect calls.
+BotHarness stamps its cloudflared-only origin with a process-local capability and owns both
+unary admission and a bounded mux adapter at the Device Gateway, before native dispatch.
+The shared client refuses before serializing secret arguments: a Host refusal cannot remove
+plaintext already sent through Cloudflare. Verify HTTP, mux and ordinary streams against the
+pinned Host; this adapter is not encryption or an upstream DSH API extension.
+
+### Device gateway forwarding and Fetch Metadata
+
+The pinned DSH `0.2.1-rc.2` browser admission guard rejects `Sec-Fetch-Site: cross-site` even when a Host-held cookie is valid. After the application-defined device gateway has checked the external Origin, refused ambient cookies and admitted the device credential, its own loopback request must discard the browser’s `Sec-Fetch-*` metadata along with Origin/Referer. These headers describe the external browser hop, not the gateway’s authenticated internal hop. Preserve all external admission checks and native DSH checks; do not relax either to repair remote tabs. A real two-Host desktop browser reproduced HTTP403 with the cross-site header and HTTP200 when only that metadata was omitted (#2584).
+
+### PersonaBot native question answerer precedence (#2590)
+
+The pinned DSH `0.2.1-rc.2` dispatches `user-questions/request` as a Cordis waterfall. A prior native Client answerer can wait without calling `next`, preventing a later application-defined Channel answerer from seeing the request. Register the existing Channel question owner with `prepend: true`, as Channel approvals already do. Retain its exact live-Agent and Session Ownership checks; unowned requests must still call `next`. A real two-Host browser must show the card in both the owning conversation and remote Activity, accept an answer and resume the same native tool call. A pending tool trace alone does not prove a Channel card was created.

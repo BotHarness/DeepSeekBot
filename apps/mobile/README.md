@@ -33,9 +33,11 @@ MOBILE_LIVE_HOST_URL='http://127.0.0.1:<port>/?token=<token>' pnpm vitest run ap
 pnpm --filter @botharness/mobile export          # Metro bundles for iOS and Android
 ```
 
+For first-DM visibility, working-indicator ordering and reply scrolling, use the [first-reply regression checks](../../docs/agents/mobile-first-reply.md) ([中文](../../docs/agents/mobile-first-reply.zh.md)). The guide separates source coverage from queued iOS/Android acceptance.
+
 ## Full client in the app
 
-Every native screen can offer "Open full client" (`src/ui/open-full-client.tsx`), which opens `app/full-client.tsx` as a full-screen modal with no header bar; a draggable floating exit button (`src/ui/floating-exit.tsx`) that snaps to either side edge leaves it, and holding it shows an "Exit web mode" tooltip. It loads `<route>/botharness-device/web/` in a WebView on the route the native screens are using and sends the device credential as a header only on that first load; the Host answers with a session cookie scoped to that directory ([ADR-0199](../../docs/adr/0199-paired-devices-reach-the-host-through-a-same-listener-device-gateway.md#full-web-client-in-the-app-1654)). The target (`home`, a PersonaBot DM, or a private input request) becomes a hash the Web Client reads to land there. Links that leave the Host's web directory open in the system browser. When the Host refuses the device, the modal shows "Pair again" instead of the page. `react-native-webview` is native code, so a development build made before this change must be rebuilt.
+The full Host WebView and all in-app entry points are removed (#2541). Use native screens; operations they do not support require the Host client or a separately opened browser over Tailscale. The old `/botharness-device/web/` HTTP, cookie and socket proxy is unavailable. Native Browser/Computer viewers are separate features.
 
 ## Drive it on the iOS Simulator (Mac)
 

@@ -1,6 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { request as httpRequest, type IncomingMessage, type ServerResponse } from 'node:http';
-import type { TLSSocket } from 'node:tls';
 import type { Duplex } from 'node:stream';
 
 import type { Admission, DevicePairing, DeviceRefusal, OfferRefusal } from './pairing.js';
@@ -10,6 +9,9 @@ import {
   LOCAL_VIDEO_PATH,
   type LocalVideoResult,
 } from '../../../computer/src/local-video-contract.js';
+import { DEVICE_ROUTE_HEADER, forwardDeviceRoute, isConnectRequest } from './route-context.js';
+import { refuseConnectRpc } from './rpc-policy.js';
+import { connectMux } from './connect-mux.js';
 
 export const DEVICE_GATEWAY_PREFIX = '/botharness-device';
 export const DEVICE_PAIR_PATH = `${DEVICE_GATEWAY_PREFIX}/pair`;
@@ -19,16 +21,11 @@ export const DEVICE_CONNECT_OFFER_PATH = `${DEVICE_GATEWAY_PREFIX}/connect/offer
 export const DEVICE_STREAM_TICKET_PATH = `${DEVICE_GATEWAY_PREFIX}/stream-ticket`;
 export const RELAY_SIGNATURE_HEADER = 'x-botharness-relay-signature';
 export const DEVICE_MUX_PATH = `${DEVICE_GATEWAY_PREFIX}/api/remote.mux`;
-export const DEVICE_WEB_PREFIX = `${DEVICE_GATEWAY_PREFIX}/web`;
-export const DEVICE_WEB_MUX_PATH = `${DEVICE_WEB_PREFIX}/api/remote.mux`;
 export const DEVICE_PUSH_PREFIX = `${DEVICE_GATEWAY_PREFIX}/push`;
 export const DEVICE_SIGNALING_PATHS = [
   `${DEVICE_GATEWAY_PREFIX}/api/computer/webrtc/signaling`,
   `${DEVICE_GATEWAY_PREFIX}/api/browser/webrtc/signaling`,
 ] as const;
-export const DEVICE_WEB_COOKIE = 'botharness-device-web';
-const WEB_SESSION_TTL_MS = 12 * 60 * 60 * 1000;
-const MAX_WEB_SESSIONS = 256;
 const STREAM_TICKET_TTL_MS = 30_000;
 const MAX_STREAM_TICKETS = 256;
 const CORS_PATHS = new Set([DEVICE_PAIR_PATH, DEVICE_UNPAIR_PATH, DEVICE_STREAM_TICKET_PATH]);
@@ -45,7 +42,18 @@ const HOP_BY_HOP = new Set([
   'transfer-encoding',
   'upgrade',
 ]);
-const NEVER_FORWARDED = new Set(['host', 'cookie', 'authorization', 'origin', 'referer']);
+const NEVER_FORWARDED = new Set([
+  'host',
+  'cookie',
+  'authorization',
+  'origin',
+  'referer',
+  'sec-fetch-site',
+  'sec-fetch-mode',
+  'sec-fetch-dest',
+  'sec-fetch-user',
+  DEVICE_ROUTE_HEADER,
+]);
 const WEBSOCKET_HEADERS = [
   'upgrade',
   'connection',
@@ -144,21 +152,6 @@ function refuseUpgrade(socket: Duplex, status: number, code: GatewayRefusal): vo
   );
 }
 
-function cookieValue(request: IncomingMessage, name: string): string | undefined {
-  for (const part of (header(request, 'cookie') ?? '').split(';')) {
-    const at = part.indexOf('=');
-    if (at !== -1 && part.slice(0, at).trim() === name) return part.slice(at + 1).trim();
-  }
-  return undefined;
-}
-
-function secureRequest(request: IncomingMessage): boolean {
-  return (
-    (request.socket as TLSSocket).encrypted === true ||
-    header(request, 'x-forwarded-proto')?.split(',')[0]?.trim() === 'https'
-  );
-}
-
 async function readSmall(request: IncomingMessage, limit: number): Promise<string | undefined> {
   let size = 0;
   const chunks: Buffer[] = [];
@@ -202,48 +195,8 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
       ? cookie.value
       : await mint();
 
-  const webSessions = new Map<string, { deviceId: string; expiresAt: number }>();
   const streamTickets = new Map<string, { deviceId: string; expiresAt: number }>();
   const sessionKey = (value: string): string => createHash('sha256').update(value).digest('hex');
-
-  const mintWebSession = (deviceId: string, secure: boolean): string => {
-    for (const [key, session] of webSessions)
-      if (session.expiresAt <= now()) webSessions.delete(key);
-    while (webSessions.size >= MAX_WEB_SESSIONS)
-      webSessions.delete(webSessions.keys().next().value!);
-    const value = randomBytes(32).toString('base64url');
-    webSessions.set(sessionKey(value), { deviceId, expiresAt: now() + WEB_SESSION_TTL_MS });
-    log('device-gateway phase=web-session-minted');
-    return [
-      `${DEVICE_WEB_COOKIE}=${value}`,
-      `Path=${DEVICE_WEB_PREFIX}/`,
-      `Max-Age=${String(WEB_SESSION_TTL_MS / 1000)}`,
-      'HttpOnly',
-      'SameSite=Strict',
-      ...(secure ? ['Secure'] : []),
-    ].join('; ');
-  };
-
-  const webAdmission = (
-    request: IncomingMessage,
-    mint: boolean,
-  ): Admission & { setCookie?: string } => {
-    const authorization = header(request, 'authorization');
-    if (authorization !== undefined) {
-      const admission = pairing.admit(authorization);
-      return admission.ok && mint
-        ? { ...admission, setCookie: mintWebSession(admission.device.id, secureRequest(request)) }
-        : admission;
-    }
-    const value = cookieValue(request, DEVICE_WEB_COOKIE);
-    const key = value === undefined ? undefined : sessionKey(value);
-    const session = key === undefined ? undefined : webSessions.get(key);
-    if (key === undefined || session === undefined || session.expiresAt <= now()) {
-      if (key !== undefined) webSessions.delete(key);
-      return { ok: false, code: 'device-credential-missing' };
-    }
-    return pairing.check(session.deviceId);
-  };
 
   const streamTicket = (request: IncomingMessage, response: ServerResponse): void => {
     if (request.method !== 'POST') return refuse(response, 404, 'not-found');
@@ -282,7 +235,7 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
     }
     headers.host = loopback();
     headers.cookie = session;
-    return headers;
+    return { ...headers, ...forwardDeviceRoute(request) };
   };
 
   const pair = async (request: IncomingMessage, response: ServerResponse): Promise<void> => {
@@ -388,10 +341,18 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
   const forward = async (
     request: IncomingMessage,
     response: ServerResponse,
-    admission: Admission & { setCookie?: string },
+    admission: Admission,
     prefix: string,
   ): Promise<void> => {
     if (!admission.ok) return refuse(response, 401, admission.code);
+    const pathname = new URL(request.url ?? '/', 'http://device').pathname;
+    const endpoint = pathname.slice(`${prefix}/api/`.length);
+    if (
+      await refuseConnectRpc(request, response, endpoint, () =>
+        log('device-gateway phase=secret-route-refused'),
+      )
+    )
+      return;
     let session: string;
     try {
       session = await hostSession();
@@ -419,10 +380,6 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
           for (const [name, value] of Object.entries(answer.headers))
             if (value !== undefined && !HOP_BY_HOP.has(name) && name !== 'set-cookie')
               headers[name] = value;
-          if (admission.setCookie !== undefined) {
-            headers['set-cookie'] = admission.setCookie;
-            headers['cache-control'] = 'no-store';
-          }
           response.writeHead(answer.statusCode ?? 502, headers);
           answer.pipe(response);
           answer.on('end', resolve);
@@ -456,7 +413,11 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
     | { kind: 'refused'; status: number }
   > =>
     new Promise((resolve, reject) => {
-      const headers: Record<string, string> = { host: loopback(), cookie: session };
+      const headers: Record<string, string> = {
+        host: loopback(),
+        cookie: session,
+        ...forwardDeviceRoute(request),
+      };
       for (const name of WEBSOCKET_HEADERS) {
         const value = header(request, name);
         if (value !== undefined) headers[name] = value;
@@ -483,7 +444,7 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
   const video = async (
     request: IncomingMessage,
     response: ServerResponse,
-    admission: Admission & { setCookie?: string },
+    admission: Admission,
   ): Promise<void> => {
     if (!admission.ok) return refuse(response, 401, admission.code);
     const send = (result: LocalVideoResult): void => {
@@ -491,10 +452,13 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
       response.writeHead(result.ok ? 200 : 409, {
         'content-type': 'application/json',
         'cache-control': 'no-store',
-        ...(admission.setCookie === undefined ? {} : { 'set-cookie': admission.setCookie }),
       });
       response.end(JSON.stringify(result));
     };
+    if (isConnectRequest(request)) {
+      request.resume();
+      return send({ ok: false, code: 'connect-carrier-required', error: 'Local Computer video requires the paired LAN route.' });
+    }
     if (request.method !== 'POST') return refuse(response, 404, 'not-found');
     if (pendingVideo >= LOCAL_VIDEO_LIMITS.pendingRequests) {
       request.resume();
@@ -575,8 +539,6 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
       // Always intercept it, including while its owner is absent; never fall through to forwarding.
       if (decodedPath === `${DEVICE_GATEWAY_PREFIX}${LOCAL_VIDEO_PATH}`)
         return video(request, response, pairing.admit(header(request, 'authorization')));
-      if (decodedPath === `${DEVICE_WEB_PREFIX}${LOCAL_VIDEO_PATH}`)
-        return video(request, response, webAdmission(request, true));
       if (path.startsWith(`${DEVICE_GATEWAY_PREFIX}/api/`))
         return forward(
           request,
@@ -584,37 +546,43 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
           pairing.admit(header(request, 'authorization')),
           DEVICE_GATEWAY_PREFIX,
         );
-      if (path === DEVICE_WEB_PREFIX && (request.method === 'GET' || request.method === 'HEAD')) {
-        const admission = webAdmission(request, true);
-        if (!admission.ok) return refuse(response, 401, admission.code);
-        const search = new URL(request.url ?? '/', 'http://device').search;
-        response.writeHead(308, {
-          location: `${DEVICE_WEB_PREFIX}/${search}`,
-          'cache-control': 'no-store',
-          ...(admission.setCookie === undefined ? {} : { 'set-cookie': admission.setCookie }),
-        });
-        return void response.end();
-      }
-      if (path.startsWith(`${DEVICE_WEB_PREFIX}/`))
-        return forward(request, response, webAdmission(request, true), DEVICE_WEB_PREFIX);
       return refuse(response, 404, 'not-found');
     },
 
     async upgrade(request, socket, head) {
       const pathname = new URL(request.url ?? '/', 'http://device').pathname;
+      if (
+        pathname !== DEVICE_MUX_PATH &&
+        !(DEVICE_SIGNALING_PATHS as readonly string[]).includes(pathname)
+      )
+        return refuseUpgrade(socket, 404, 'not-found');
       const ticketed = pathname === DEVICE_MUX_PATH ? ticketAdmission(request) : undefined;
       if (crossOrigin(request) && (ticketed === undefined || hostOrigin(request) === undefined))
         return refuseUpgrade(socket, 403, 'origin-refused');
-      const web = pathname.startsWith(`${DEVICE_WEB_PREFIX}/`);
-      const admission =
-        ticketed ??
-        (web ? webAdmission(request, false) : pairing.admit(header(request, 'authorization')));
+      const admission = ticketed ?? pairing.admit(header(request, 'authorization'));
       if (!admission.ok) return refuseUpgrade(socket, 401, admission.code);
-      const target = web
-        ? (request.url ?? '/').slice(DEVICE_WEB_PREFIX.length)
-        : (DEVICE_SIGNALING_PATHS as readonly string[]).includes(pathname)
-          ? (request.url ?? '/').slice(DEVICE_GATEWAY_PREFIX.length)
-          : '/api/remote.mux';
+      const target =
+        pathname === DEVICE_MUX_PATH
+          ? '/api/remote.mux'
+          : (request.url ?? '/').slice(DEVICE_GATEWAY_PREFIX.length);
+      if (pathname === DEVICE_MUX_PATH && isConnectRequest(request)) {
+        let session: string;
+        try {
+          session = await hostSession();
+        } catch {
+          return refuseUpgrade(socket, 503, 'host-session-unavailable');
+        }
+        connectMux(request, socket, head, {
+          url: `ws://${loopback()}/api/remote.mux`,
+          headers: { cookie: session, ...forwardDeviceRoute(request) },
+          attach: (close) => pairing.attachStream(admission.device.id, close),
+          refused: () => log('device-gateway phase=secret-route-refused'),
+          sessionExpired: () => {
+            cookie = undefined;
+          },
+        });
+        return;
+      }
       let opened: Awaited<ReturnType<typeof openStream>> | undefined;
       try {
         opened = await openStream(request, await hostSession(), target);

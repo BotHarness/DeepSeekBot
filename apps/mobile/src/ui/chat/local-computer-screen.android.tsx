@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createLocalVideoClient, type LocalVideoClientState } from '../../../../../packages/computer/src/local-video-client';
 import { fittedFrame, pagePoint } from '../../host/browser-viewer';
 import { useHostSession, useHostSnapshot } from '../../host/host-session';
+import { localVideoActions } from '../../host/local-video-actions';
 import { space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { LoadingIndicator } from '../primitives/loading-indicator';
@@ -52,6 +53,7 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
   // A missing route, failed helper, failed ICE or missing native module never selects images.
   if (state.status === 'unsupported') return <Legacy />;
   const host = state.host;
+  const actions = localVideoActions(state);
   const binding = host?.binding;
   const mediaMounted = !revoked && !nativeMissing && binding !== undefined && host?.offer !== undefined &&
     connected && (state.status === 'observing' || state.status === 'controlling');
@@ -69,7 +71,7 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
     state.code === 'connect-carrier-required' ? t.computerVideoCarrierRequired :
     state.code === 'input-result-unknown' ? t.computerVideoInputUnknown :
     state.status === 'unavailable' ? t.computerVideoUnavailable :
-    state.code === 'media-not-live' || (mediaMounted && !state.presenting) ? t.computerVideoWaiting :
+    host?.media.status === 'stalled' || state.code === 'media-not-live' || (mediaMounted && !state.presenting) ? t.computerVideoWaiting :
     undefined;
   const action = (label: string, testID: string, onClick: () => void, disabled = false, primary = false) => {
     const Control = primary ? ComposeButton : TextButton;
@@ -132,12 +134,12 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
       </View>
       <ScrollView style={{ flexGrow: 0, maxHeight: '45%' }} contentContainerStyle={{ paddingHorizontal: space.x5, paddingBottom: space.x3 }}>
         {message === undefined ? null : <Text accessibilityLiveRegion="polite" tone="muted">{message}</Text>}
-        {mediaMounted && host?.controller
-          ? action(t.computerVideoRelease, 'computer-video-release', () => void viewer?.release(), state.busy)
-          : action(t.computerVideoTakeover, 'computer-video-takeover', () => void viewer?.takeover(), !mediaMounted || !state.presenting || state.busy, true)}
+        {actions.release
+          ? action(t.computerVideoRelease, 'computer-video-release', () => void viewer?.release(), state.busy || revoked || !connected)
+          : action(t.computerVideoTakeover, 'computer-video-takeover', () => void viewer?.takeover(), !mediaMounted || !state.presenting || host?.media.status !== 'live' || !host.media.captureAlive || state.busy, true)}
         {host?.paused ? action(t.computerVideoResume, 'computer-video-resume', () => void viewer?.resume(), state.busy || revoked) : null}
-        {!nativeMissing && !revoked && (state.status === 'unavailable' || state.status === 'idle')
-          ? action(t.computerVideoReconnect, 'computer-video-reconnect', () => { void viewer?.stop().then(() => viewer.start()); }, state.busy)
+        {!nativeMissing && !revoked && connected && actions.reconnect
+          ? action(t.computerVideoReconnect, 'computer-video-reconnect', () => { void viewer?.reconnect(); }, state.busy)
           : null}
         {action(t.computerClose, 'computer-video-close', close)}
       </ScrollView>

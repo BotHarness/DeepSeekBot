@@ -220,6 +220,7 @@ export interface Conversation {
   send(body: string, files?: OutgoingFile[], tags?: MessageTags): string;
   retry(messageId: string): void;
   react(messageId: string, emoji: string, active: boolean): Promise<void>;
+  wireMessage?(messageId: string): ChannelWireMessage | undefined;
 }
 
 export interface ConversationOptions {
@@ -812,6 +813,7 @@ export function createConversation(options: ConversationOptions): Conversation {
     },
     getSnapshot: () => snapshot,
     getTimelineSnapshot: () => timelineSnapshot,
+    wireMessage: (messageId) => window.find((entry) => entry.message.id === messageId)?.message,
     subscribe(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);

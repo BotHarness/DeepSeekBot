@@ -8,7 +8,7 @@ Issues: [#1832](https://github.com/BotHarness/DeepSeekBot/issues/1832), [#1833](
 
 > Amends the living architecture's "the local target has no viewer": the Host now serves one to the phone.
 
-> Design update (2026-10-22): [ADR-0244](0244-local-computer-video-separates-media-control-and-pause.md) replaces the planned Local Computer video migration with video-only viewing, optional user-configured TURN, exclusive control and a pause that survives control expiry and Host restart. This ADR remains the history of the screenshot implementation; its expiring-pause behavior is not the new viewer's target behavior. The design update does not claim a completed runtime migration.
+> Design update (2026-10-22): [ADR-0245](0245-local-computer-video-separates-media-control-and-pause.md) replaces the planned Local Computer video migration with video-only viewing, optional user-configured TURN, exclusive control and a pause that survives control expiry and Host restart. This ADR remains the history of the screenshot implementation; its expiring-pause behavior is not the new viewer's target behavior. The design update does not claim a completed runtime migration.
 
 A Bot that uses the local Computer Target drives the Human's own Mac, Windows or Linux desktop through `cua-driver`. When it needs the Human (a login, a captcha, a confirmation), the Human may be away from that desk with only the phone. The container target already has a Selkies viewer; the local target had none. A separate remote desktop app (RustDesk, VNC) would need another install, another pairing and an app switch at exactly the moment the Bot asks for help, which the owner ruled out.
 

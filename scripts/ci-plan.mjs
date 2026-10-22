@@ -82,6 +82,7 @@ export const RULES = [
   none('apps/mobile/modules/**', 'Local Expo modules, checked by Android native unit tests'),
   none('apps/mobile/targets/**', 'Apple extension targets, built on a Mac by Expo prebuild'),
   related('apps/mobile/{app.json,app.config.js,eas.json,metro.config.js}', 'Mobile app config'),
+  related('apps/mobile/with-*.js', 'Mobile native config plugins'),
   related('apps/mobile/locales/**', 'Translated iOS permission prompts'),
   related('apps/mobile/assets/**', 'Mobile app icons and bundled images'),
   none('apps/mobile/.maestro/**', 'Maestro flows, run on a Mac simulator'),

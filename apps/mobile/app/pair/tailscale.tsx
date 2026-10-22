@@ -1,5 +1,5 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import { Pressable, View, useWindowDimensions } from 'react-native';
 
@@ -13,6 +13,7 @@ import { ConnectionNameField } from '../../src/ui/primitives/connection-name-fie
 import { KeyboardFormScroll } from '../../src/ui/primitives/keyboard-form';
 import { Text } from '../../src/ui/primitives/text';
 import { TextField } from '../../src/ui/primitives/text-field';
+import { PairingVerification } from '../../src/ui/shell/pairing-verification';
 import { usePairing } from '../../src/ui/shell/use-pairing';
 import { t } from '../../src/ui/strings';
 
@@ -20,7 +21,7 @@ export default function PairTailscaleScreen() {
   const theme = useDesignTheme();
   const { width } = useWindowDimensions();
   const scan = Math.min(width * pairingScan.widthRatio, pairingScan.maxSize);
-  const params = useLocalSearchParams<{ p?: string }>();
+  const params = useLocalSearchParams<{ p?: string; mode?: string }>();
   const [permission, requestPermission] = useCameraPermissions();
   const [link, setLink] = useState('');
   const [focused, setFocused] = useState(false);
@@ -46,6 +47,8 @@ export default function PairTailscaleScreen() {
     }, [params.p]),
   );
 
+  if (pairing.busy) return <PairingVerification pairing={pairing} />;
+
   return (
     <KeyboardFormScroll
       keyboardShouldPersistTaps="handled"
@@ -53,7 +56,12 @@ export default function PairTailscaleScreen() {
       style={{ flex: 1, backgroundColor: theme.overlay.fill }}
       contentContainerStyle={{ padding: space.x5, gap: space.x4 }}
     >
-      <Text tone="muted">{t.pairChoice.tailscaleHint}</Text>
+      <Stack.Screen
+        options={{ title: params.mode === 'lan' ? t.pairChoice.lan : t.pairChoice.tailscale }}
+      />
+      <Text tone="muted">
+        {params.mode === 'lan' ? t.pairChoice.lanHint : t.pairChoice.tailscaleHint}
+      </Text>
       <View
         style={{
           alignItems: 'center',

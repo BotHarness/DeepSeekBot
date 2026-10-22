@@ -2,7 +2,9 @@
 import { readFileSync } from 'node:fs';
 import { act, createElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+beforeEach(() => localStorage.clear());
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   Button: (props: Record<string, unknown> & { children?: ReactNode }) =>
@@ -160,6 +162,89 @@ async function click(host: HTMLElement, label: string) {
 }
 
 describe('Market panel', () => {
+  it('defaults to stars and remembers each explicit sort after reopening', async () => {
+    await withPanel(
+      async () => ({ bots: [] }),
+      async ({ host, list }) => {
+        expect(list).toHaveBeenLastCalledWith({ sort: 'stars', lang: 'zh' });
+        expect(button(host, '最多 Star').getAttribute('aria-selected')).toBe('true');
+        await click(host, '最新创建');
+      },
+    );
+    await withPanel(
+      async () => ({ bots: [] }),
+      async ({ host, list }) => {
+        expect(list).toHaveBeenLastCalledWith({ sort: 'created', lang: 'zh' });
+        await click(host, '最近更新');
+      },
+    );
+    await withPanel(
+      async () => ({ bots: [] }),
+      async ({ host, list }) => {
+        expect(list).toHaveBeenLastCalledWith({ sort: 'updated', lang: 'zh' });
+        await click(host, '最多 Star');
+      },
+    );
+    await withPanel(
+      async () => ({ bots: [] }),
+      async ({ list }) => {
+        expect(list).toHaveBeenLastCalledWith({ sort: 'stars', lang: 'zh' });
+      },
+    );
+  });
+
+  it('ignores invalid saved sorts and works when storage is unavailable', async () => {
+    localStorage.setItem('botharness.marketplace.sort', 'obsolete');
+    await withPanel(
+      async () => ({ bots: [] }),
+      async ({ list }) => {
+        expect(list).toHaveBeenLastCalledWith({ sort: 'stars', lang: 'zh' });
+      },
+    );
+    const read = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('blocked');
+    });
+    const write = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('full');
+    });
+    try {
+      await withPanel(
+        async () => ({ bots: [] }),
+        async ({ host, list }) => {
+          expect(list).toHaveBeenLastCalledWith({ sort: 'stars', lang: 'zh' });
+          await click(host, '最新创建');
+          expect(list).toHaveBeenLastCalledWith({ sort: 'created', lang: 'zh' });
+        },
+      );
+    } finally {
+      read.mockRestore();
+      write.mockRestore();
+    }
+  });
+
+  it('shows recipe, uploaded and absent banners in the card detail target', async () => {
+    await withPanel(
+      async () => ({
+        bots: [
+          entry('scene', { banner: { recipe: { scene: 'mountain', seed: 12 } } }),
+          entry('image', {
+            banner: {
+              image: 'https://raw.githubusercontent.com/alice/image/main/.botharness/banner.png',
+            },
+          }),
+          entry('none'),
+        ],
+      }),
+      async ({ host }) => {
+        const banners = host.querySelectorAll('.bh-market-tile-open .bh-market-tile-banner');
+        expect(banners).toHaveLength(3);
+        expect(banners[0]?.querySelector('canvas')).not.toBeNull();
+        expect(banners[1]?.querySelector('img')?.src).toContain('/.botharness/banner.png');
+        expect(banners[2]?.getAttribute('data-market-banner')).toBe('none');
+      },
+    );
+  });
+
   it('registers as a global dock panel', () => {
     const panel = createMarketPanel({} as BridgeActions, {} as DockPanelRegistry, zhTranslate);
     expect(panel).toMatchObject({

@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { createHostClient, type HostClient, type HostSnapshot } from '../src/host/client';
 import { parsePairingLink, redeemPairing } from '../src/host/pairing';
 import { checkRoute } from '../src/host/route';
+import { SECRET_ROUTE_METHODS } from '../../../packages/core/src/bridge/secret-route';
 import { FakeHost } from './fake-host';
 import wire from './fixtures/host-wire.json';
 
@@ -49,6 +50,41 @@ async function until(
 }
 
 describe('Host client', () => {
+  it.each(['lan-unreachable', 'channel-authentication-failed'])(
+    'falls through an unavailable LAN route but stops on a Host key refusal: %s',
+    async (reason) => {
+      const host = new FakeHost();
+      client = createHostClient({
+        routes: ['http://192.168.1.20:4567', ROUTE],
+        hostId: 'test-host',
+        encryption: {
+          protocol: 'connect-noise-xk-v1',
+          hostKey: '11'.repeat(32),
+          deviceKey: '22'.repeat(32),
+        },
+        credential: host.credential,
+        carrier: {
+          ...host.carrier,
+          openSocket: (url, events, headers) => {
+            if (!url.startsWith('ws://192.168.1.20:4567/'))
+              return host.carrier.openSocket(url, events, headers);
+            queueMicrotask(() => events.closed(reason));
+            return { send: () => {}, close: () => {} };
+          },
+        },
+        backoff: () => 5,
+      });
+      client.start();
+      const state = await until(
+        client,
+        (snapshot) =>
+          snapshot.connection.status ===
+          (reason === 'lan-unreachable' ? 'connected' : 'unreachable'),
+      );
+      if (reason === 'lan-unreachable') expect(state.connection).toMatchObject({ route: ROUTE });
+      else expect(host.requests).toEqual([]);
+    },
+  );
   it('retains Bot DM metadata for activity links without listing it as a group', async () => {
     const host = new FakeHost();
     host.methods.set('channels', () => ({ channels: wire.activityJournal.channels }));
@@ -294,7 +330,7 @@ describe('pairing', () => {
       ok: false,
       code: 'link-expired',
     });
-    expect(parsePairingLink(link({ ...payload, routes: ['http://10.0.0.2:3000'] }))).toEqual({
+    expect(parsePairingLink(link({ ...payload, routes: ['http://8.8.8.8:3000'] }))).toEqual({
       ok: false,
       code: 'no-route',
     });
@@ -370,4 +406,40 @@ it('reports telemetry ready only after the authenticated Roster reload, includin
   holdChannels?.();
   await new Promise((resolve) => setTimeout(resolve, 10));
   expect(updates).toEqual(['connecting', 'connected', 'manual_retry', 'connected']);
+});
+
+describe('Connect secret preflight', () => {
+  it.each(SECRET_ROUTE_METHODS)(
+    'refuses %s before serializing or sending a request',
+    async (endpoint) => {
+      const host = new FakeHost();
+      client = createHostClient({
+        routes: ['https://safety.deepseekbot.dev'],
+        credential: host.credential,
+        carrier: host.carrier,
+      });
+      const args = {
+        toJSON() {
+          throw new Error('must not serialize secret');
+        },
+      };
+      await expect(client.call(endpoint, args)).rejects.toMatchObject({
+        code: 'secret-route-refused',
+      });
+      expect(host.requests).toEqual([]);
+    },
+  );
+  it.each([ROUTE, LOOPBACK])('preserves secret submission on %s', async (route) => {
+    const host = new FakeHost();
+    host.methods.set('privateInputSubmit', () => ({ accepted: true }));
+    client = createHostClient({
+      routes: [route],
+      credential: host.credential,
+      carrier: host.carrier,
+    });
+    await expect(
+      client.call('privateInputSubmit', { values: { key: 'synthetic-only' } }),
+    ).resolves.toEqual({ accepted: true });
+    expect(host.requests).toHaveLength(1);
+  });
 });

@@ -227,3 +227,23 @@ it('routes approval and question decisions to their source Host and refuses stal
   });
   expect(calls).toHaveLength(2);
 });
+
+it.each([false, true])(
+  'uses the encrypted source resource without direct-fetch fallback (failure=%s)',
+  async (failure) => {
+    const { host } = fixture();
+    const read = vi.fn(async () => {
+      if (failure) throw new Error('channel-authentication-failed');
+      return { bytes: new TextEncoder().encode('encrypted attachment'), mime: 'text/plain' };
+    });
+    vi.spyOn(host.client, 'resource').mockReturnValue({ uri: '', headers: {}, read });
+    const direct = vi.spyOn(globalThis, 'fetch');
+    const { fetchMessageResource } = await import('../src/client/message-host.js');
+    const signal = new AbortController().signal;
+    const result = fetchMessageResource('/api/botharness/attachment', signal, host);
+    if (failure) await expect(result).rejects.toThrow('channel-authentication-failed');
+    else expect(await (await result).text()).toBe('encrypted attachment');
+    expect(read).toHaveBeenCalledWith(signal);
+    expect(direct).not.toHaveBeenCalled();
+  },
+);

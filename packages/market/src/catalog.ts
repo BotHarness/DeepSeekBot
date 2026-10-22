@@ -121,7 +121,7 @@ export const MAX_QUERY_LENGTH = 100;
 export type Cursor =
   | { mode: 'updated'; key: string; nodeId: string }
   | { mode: 'created'; key: string; nodeId: string }
-  | { mode: 'stars'; key: number; nodeId: string }
+  | { mode: 'stars'; key: number; pushedAt: string; createdAt: string; nodeId: string }
   | { mode: 'search'; offset: number };
 
 export function encodeCursor(cursor: Cursor): string {
@@ -129,7 +129,9 @@ export function encodeCursor(cursor: Cursor): string {
     JSON.stringify(
       cursor.mode === 'search'
         ? [cursor.mode, cursor.offset]
-        : [cursor.mode, cursor.key, cursor.nodeId],
+        : cursor.mode === 'stars'
+          ? [cursor.mode, cursor.key, cursor.pushedAt, cursor.createdAt, cursor.nodeId]
+          : [cursor.mode, cursor.key, cursor.nodeId],
     ),
   );
 }
@@ -142,6 +144,21 @@ export function decodeCursor(cursor: string): Cursor | undefined {
     return undefined;
   }
   if (!Array.isArray(parsed)) return undefined;
+  if (parsed[0] === 'stars') {
+    const [mode, key, pushedAt, createdAt, nodeId] = parsed as unknown[];
+    if (
+      parsed.length === 5 &&
+      mode === 'stars' &&
+      typeof key === 'number' &&
+      Number.isSafeInteger(key) &&
+      key >= 0 &&
+      typeof pushedAt === 'string' &&
+      typeof createdAt === 'string' &&
+      typeof nodeId === 'string'
+    )
+      return { mode, key, pushedAt, createdAt, nodeId };
+    return undefined;
+  }
   const [mode, key, nodeId] = parsed as unknown[];
   if (
     mode === 'search' &&
@@ -155,7 +172,6 @@ export function decodeCursor(cursor: string): Cursor | undefined {
   if ((mode === 'updated' || mode === 'created') && typeof key === 'string') {
     return { mode, key, nodeId };
   }
-  if (mode === 'stars' && Number.isSafeInteger(key)) return { mode, key: key as number, nodeId };
   return undefined;
 }
 
@@ -291,13 +307,26 @@ export function createCatalog(deps: {
       const column =
         sort === 'stars' ? 'r.stars' : sort === 'created' ? 'r.created_at' : 'r.pushed_at';
       const after =
-        cursor === undefined ? '' : ` AND (${column} < ? OR (${column} = ? AND r.node_id < ?))`;
-      const afterValues = cursor === undefined ? [] : [cursor.key, cursor.key, cursor.nodeId];
+        cursor === undefined
+          ? ''
+          : cursor.mode === 'stars'
+            ? ' AND (r.stars, r.pushed_at, r.created_at, r.node_id) < (?, ?, ?, ?)'
+            : ` AND (${column} < ? OR (${column} = ? AND r.node_id < ?))`;
+      const afterValues =
+        cursor === undefined
+          ? []
+          : cursor.mode === 'stars'
+            ? [cursor.key, cursor.pushedAt, cursor.createdAt, cursor.nodeId]
+            : [cursor.key, cursor.key, cursor.nodeId];
+      const order =
+        sort === 'stars'
+          ? 'r.stars DESC, r.pushed_at DESC, r.created_at DESC, r.node_id DESC'
+          : `${column} DESC, r.node_id DESC`;
       const { results } = await db
         .prepare(
           `SELECT r.* FROM indexed_repositories r
            WHERE r.visibility = 'listed'${topicClause}${after}
-           ORDER BY ${column} DESC, r.node_id DESC
+           ORDER BY ${order}
            LIMIT ?`,
         )
         .bind(...topicValues, ...afterValues, limit + 1)
@@ -309,7 +338,13 @@ export function createCatalog(deps: {
         bots: page.map(toEntry),
         nextCursor: encodeCursor(
           sort === 'stars'
-            ? { mode: 'stars', key: last.stars, nodeId: last.node_id }
+            ? {
+                mode: 'stars',
+                key: last.stars,
+                pushedAt: last.pushed_at,
+                createdAt: last.created_at,
+                nodeId: last.node_id,
+              }
             : sort === 'created'
               ? { mode: 'created', key: last.created_at, nodeId: last.node_id }
               : { mode: 'updated', key: last.pushed_at, nodeId: last.node_id },

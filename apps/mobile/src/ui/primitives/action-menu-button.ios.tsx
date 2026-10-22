@@ -12,6 +12,10 @@ const SYMBOL = {
   close: 'xmark.circle',
   person: 'person.crop.circle',
   remove: 'person.badge.minus',
+  pin: 'pin',
+  mute: 'bell.slash',
+  check: 'checkmark',
+  folder: 'folder',
 } as const satisfies Record<MenuAction['icon'], string>;
 
 export function ActionMenuButton({ label, actions }: ActionMenuButtonProps) {

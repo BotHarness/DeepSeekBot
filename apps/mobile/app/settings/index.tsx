@@ -1,7 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useMemo } from 'react';
 
-import { fullClientParams } from '../../src/host/full-client';
 import { hostSession, useHostSession, useHostSnapshot } from '../../src/host/host-session';
 import { loadUsage } from '../../src/host/usage';
 import { appBuildLabel } from '../../src/ui/app-build';
@@ -47,11 +46,6 @@ export default function SettingsScreen() {
       version={appBuildLabel(currentAppBuild())}
       actions={{
         onUsage: () => router.push('/settings/usage'),
-        onOpenFullClient: () =>
-          router.push({
-            pathname: '/full-client',
-            params: fullClientParams({ kind: 'home' }),
-          }),
         onComputers: () => {
           router.back();
           openHostDrawer();

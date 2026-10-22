@@ -22,17 +22,20 @@ function fixture() {
         case 'open':
           opens++;
           binding = { ...binding, attemptId: `attempt-${opens}` };
-          host = { ...host, binding, viewerCount: 1, offer: { type: 'offer', sdp: 'v=0\r\nm=video 9 UDP/TLS/RTP/SAVPF 96\r\n' } };
+          host = { ...host, binding, viewerCount: 1, media: { ...host.media, status: 'live' }, offer: { type: 'offer', sdp: 'v=0\r\nm=video 9 UDP/TLS/RTP/SAVPF 96\r\n' } };
           break;
         case 'takeover':
-          host = { ...host, paused: true, controller: true, grant: { generation: 1, expiresAt: 30000 } };
+          host = { ...host, paused: true, controller: true, controlHeld: true, grant: { generation: 1, expiresAt: 30000 } };
           break;
         case 'input':
           await onInput?.();
           host = { ...host, lastInputSequence: host.lastInputSequence + 1 };
           break;
-        case 'resume': host = { ...host, paused: false, controller: false }; break;
-        case 'release': case 'close': host = { ...host, controller: false }; break;
+        case 'resume': case 'release': case 'close': {
+          const { grant: _grant, ...rest } = host;
+          host = { ...rest, paused: body['kind'] === 'resume' ? false : host.paused, controller: false, controlHeld: false };
+          break;
+        }
       }
       // The owner discloses SDP only on open, never on status/heartbeat/control snapshots.
       const { offer: _offer, ...snapshot } = host;
@@ -40,12 +43,71 @@ function fixture() {
     },
   };
   const client = createLocalVideoClient(transport);
-  return { client, calls, transport, setInput: (fn: () => Promise<void>) => { onInput = fn; } };
+  return {
+    client, calls, transport,
+    setInput: (fn: () => Promise<void>) => { onInput = fn; },
+    stall: () => { host = { ...host, controller: false, media: { ...host.media, status: 'stalled' } }; },
+  };
 }
 
 afterEach(() => vi.useRealTimers());
 
 describe('Local Computer video consumer', () => {
+  it('retains ownership across a stalled heartbeat and releases it without resuming Bots', async () => {
+    const { client, calls, stall } = fixture();
+    await client.start();
+    client.playback('attempt-1', 1, 0);
+    await client.takeover();
+    stall();
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(client.getState()).toMatchObject({ status: 'observing', host: {
+      controller: false, paused: true, grant: { generation: 1 }, media: { status: 'stalled' },
+    } });
+    await client.input(click);
+    expect(calls.some(({ body }) => body['kind'] === 'input')).toBe(false);
+    await client.release();
+    expect(calls.at(-1)?.body['kind']).toBe('release');
+    expect(client.getState().host?.paused).toBe(true);
+    expect(client.getState().host?.grant).toBeUndefined();
+    await client.stop();
+  });
+
+  it.each([false, true])('closes a stalled attempt before reconnect and respects intervening stop (%s)', async (stopDuringClose) => {
+    const { client, calls, transport, stall } = fixture();
+    const send = transport.api;
+    const closing = Promise.withResolvers<void>();
+    transport.api = async (path, init) => {
+      if (init.body['kind'] === 'close') await closing.promise;
+      return send(path, init);
+    };
+    await client.start();
+    client.playback('attempt-1', 1, 0);
+    await client.takeover();
+    stall();
+    await vi.advanceTimersByTimeAsync(2000);
+    const reconnecting = client.reconnect();
+    expect(client.getState()).toMatchObject({ status: 'idle', busy: true, presenting: false });
+    expect(client.getState().host?.binding).toBeUndefined();
+    expect(calls.filter(({ body }) => body['kind'] === 'open')).toHaveLength(1);
+    const stopping = stopDuringClose ? client.stop() : Promise.resolve();
+    closing.resolve();
+    await Promise.all([reconnecting, stopping]);
+    if (stopDuringClose) {
+      expect(client.getState().status).toBe('idle');
+      expect(calls.filter(({ body }) => body['kind'] === 'open')).toHaveLength(1);
+    } else {
+      expect(calls.slice(-3).map(({ body }) => body['kind'])).toEqual(['close', 'status', 'open']);
+      expect(client.getState()).toMatchObject({ status: 'observing', host: { paused: true, binding: { attemptId: 'attempt-2' } } });
+      expect(client.getState().host?.grant).toBeUndefined();
+      client.playback('attempt-1', 999, 0);
+      client.playback('attempt-2', 1, 0);
+      await client.input(click);
+      expect(calls.filter(({ body }) => body['kind'] === 'takeover')).toHaveLength(1);
+      expect(calls.some(({ body }) => body['kind'] === 'input')).toBe(false);
+    }
+    await client.stop();
+  });
+
   it('keeps the attempt offer mounted after signaling, heartbeat and control snapshots', async () => {
     const { client } = fixture();
     await client.start();

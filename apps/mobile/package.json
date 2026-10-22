@@ -44,6 +44,7 @@
     "expo-secure-store": "~58.0.2",
     "expo-sharing": "~58.0.20",
     "expo-speech-recognition": "~58.0.0",
+    "expo-splash-screen": "~58.0.11",
     "expo-status-bar": "~58.0.4",
     "expo-symbols": "~58.0.4",
     "expo-system-ui": "~58.0.6",
@@ -72,7 +73,7 @@
     "@bacons/apple-targets": "5.0.0",
     "@deepseek-ai/dsh-api-gateway": "0.2.1-rc.2",
     "@types/react": "~19.3.0",
-    "@types/react-dom": "~19.2.7",
+    "@types/react-dom": "~19.3.0",
     "expo-doctor": "1.21.4"
   },
   "enriched-markdown": {

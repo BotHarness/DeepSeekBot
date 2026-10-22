@@ -16,7 +16,13 @@
 
 新观看端没有自动或手动图片回退。本机能力缺失、协商失败或媒体中断会显示拒绝与重试状态，不轮询 `/api/computer/frame`。迁移后的 Windows 本机 Computer 对旧帧、输入和接管入口返回 `update-required`。Bot 截图是独立能力，暂停期间同样拒绝。
 
-T1 使用直连 WebRTC，未配置 STUN/TURN。自配 TURN 和跨网络验收属于后续切片。共享加密 carrier 接入前，Hosted Connect 拒绝此路由；不可绕过。没有音频、剪贴板、后台观看或解锁功能。
+T1 使用直连 WebRTC，未配置 STUN/TURN。手机的信令和控制复用既有加密 LAN 通道、固定 Host 密钥和已批准的设备身份；只有服务端拥有的 LAN listener 才把准确的视频命令路径直接分派给 Computer owner。Hosted Connect 虽已具备加密 carrier，仍返回 `connect-carrier-required`；远程媒体验收属于后续切片。没有 WebView 或明文回退，也没有自配 TURN、音频、剪贴板、后台观看或解锁功能。
+
+画面停滞时禁止输入，但「释放控制」「恢复 Bot」、退出和「重新连接」仍可用。释放按钮依据调用者保留的 grant 显示，与能否输入分开。重新连接先关闭旧 attempt，再恢复观看，不恢复控制权、不重放输入。
+
+## 恢复与降级
+
+接管后不能安全地仅回滚代码：旧版本忽略 `botharness/computer-pause.json`，重启可能重新放行 Bot。保持受影响的 Computer 停止，确认其媒体已停止，并保留暂停记录。只有 Human 明确选择恢复 Bot 时，才在降级前通过新版本支持的恢复操作排空输入并恢复；否则使用继续遵守持久暂停的向前修复。不可为了降级自动恢复或删除暂停记录。
 
 ## Agent 操作
 

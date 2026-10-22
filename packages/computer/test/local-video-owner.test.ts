@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createComputerPauseStore, createLocalVideoOwner, type ComputerPauseStore } from '../src/local-video-owner.js';
 import type { LocalVideoBinding, LocalVideoMedia, LocalVideoMediaStatus, LocalVideoOwner, LocalVideoState } from '../src/local-video-contract.js';
+import { LocalVideoError } from '../src/local-video-contract.js';
 
 const caller = { deviceId: 'phone-a' };
 const other = { deviceId: 'phone-b' };
@@ -27,6 +28,7 @@ function harness(options: { store?: ComputerPauseStore; media?: LocalVideoMedia;
   let savedPause = false;
   let report: ((status: LocalVideoMediaStatus) => void) | undefined;
   const writes: boolean[] = [];
+  const events: string[] = [];
   const driver = { call: vi.fn(async (_tool: string, _args: Record<string, unknown>, _signal?: AbortSignal) => ({ content: [] })) };
   const geometry = { width: 1920, height: 1080, scale_factor: 1.5 };
   const probe = vi.fn(async () => ({ structuredContent: { ...geometry } }));
@@ -46,6 +48,7 @@ function harness(options: { store?: ComputerPauseStore; media?: LocalVideoMedia;
     },
     driver: { call: (tool, args, signal) => tool === 'get_screen_size' ? probe() : driver.call(tool, args, signal) },
     media, isRunning: () => true, now: () => time,
+    onEvent: (detail) => events.push(detail),
     operationTimeoutMs: options.timeout ?? 1_000,
     cleanupTimeoutMs: 100,
   });
@@ -66,10 +69,94 @@ function harness(options: { store?: ComputerPauseStore; media?: LocalVideoMedia;
     kind: 'input', binding, generation, sequence, input: click,
   });
   const failMedia = (): void => report?.({ status: 'failed', captureAlive: false, width: 1920, height: 1080 });
-  return { owner, peer, media, driver, geometry, probe, writes, capture, failMedia, connect, take, input, advance: (ms: number) => { time += ms; } };
+  return { owner, peer, media, driver, geometry, probe, writes, events, capture, failMedia, connect, take, input, advance: (ms: number) => { time += ms; } };
 }
 
 describe('Local Computer owner authority', () => {
+  it('reports correlated takeover/release/resume outcomes without device or input data', async () => {
+    const h = harness();
+    const binding = await h.connect();
+    const geometry = deferred<{ structuredContent: typeof h.geometry }>();
+    h.probe.mockImplementationOnce(() => geometry.promise);
+    const taking = h.take(binding);
+    await vi.waitFor(() => expect(h.probe).toHaveBeenCalledTimes(1));
+    h.advance(125);
+    geometry.resolve({ structuredContent: h.geometry });
+    const control = await taking;
+    await h.owner.handle(caller, {
+      kind: 'input', binding, generation: control.grant!.generation, sequence: 1,
+      input: { kind: 'type', text: 'private-password-测试' },
+    });
+    await h.owner.handle(caller, { kind: 'release', binding });
+    await h.owner.handle({ deviceId: 'host-owner' }, { kind: 'resume', runtimeId: binding.runtimeId });
+    const records = h.events.map((line) => Object.fromEntries(line.split(' ').map((field) => field.split('='))));
+    const takeover = records.find((event) => event.phase === 'local-video-takeover');
+    const release = records.find((event) => event.phase === 'local-video-release');
+    const resume = records.find((event) => event.phase === 'local-video-resume');
+    expect(takeover).toMatchObject({
+      initiator: 'paired-device', durationMs: '125', outcome: 'ok', refusal: 'none',
+      grant: String(control.grant!.generation), paused: 'true', bots: 'remain-paused',
+    });
+    expect(release).toMatchObject({ outcome: 'ok', runtime: takeover?.runtime, attempt: takeover?.attempt, bots: 'remain-paused' });
+    expect(resume).toMatchObject({ initiator: 'host-owner', outcome: 'ok', runtime: takeover?.runtime, paused: 'false', bots: 'enabled' });
+    expect(takeover?.runtime).toMatch(/^[a-f0-9]{12}$/);
+    expect(takeover?.attempt).toMatch(/^[a-f0-9]{12}$/);
+    expect(new Set([takeover?.operation, release?.operation, resume?.operation]).size).toBe(3);
+    for (const secret of [caller.deviceId, binding.viewerId, binding.runtimeId, binding.attemptId, 'private-password-测试'])
+      expect(h.events.join('\n')).not.toContain(secret);
+    expect(h.events.every((line) => line.length < 640)).toBe(true);
+  });
+
+  it('records which drain refused takeover and explains that Bots remain paused', async () => {
+    const h = harness({ timeout: 10 });
+    const binding = await h.connect();
+    const effect = deferred<void>();
+    const bot = h.owner.runBotOperation(() => effect.promise).catch(() => undefined);
+    await expect(h.take(binding)).rejects.toMatchObject({ code: 'drain-timeout' });
+    const refused = h.events.find((line) => line.startsWith('phase=local-video-takeover '));
+    expect(refused).toContain('outcome=refused refusal=drain-timeout source=bot-drain');
+    expect(refused).toContain('retryable=true paused=true bots=remain-paused');
+    expect(refused).toMatch(/operation=[a-f0-9-]+ initiator=paired-device/);
+    effect.resolve();
+    await bot;
+  });
+
+  it('retains signaling failure cause and attempt correlation without logging SDP or native errors', async () => {
+    const h = harness();
+    const opened = await h.owner.handle(caller, { kind: 'open' });
+    const binding = opened.binding!;
+    h.peer.answer.mockRejectedValueOnce(new LocalVideoError('operation-timeout', 'private-token 192.0.2.44 private-sdp'));
+    await expect(h.owner.handle(caller, {
+      kind: 'signal', binding, answer: { type: 'answer', sdp: 'private-sdp' },
+    })).rejects.toMatchObject({ code: 'signal-failed' });
+    const records = h.events.map((line) => Object.fromEntries(line.split(' ').map((field) => field.split('='))));
+    const openedRecord = records.find((event) => event.phase === 'local-video-open');
+    const failed = records.find((event) => event.phase === 'local-video-signal');
+    expect(failed).toMatchObject({
+      outcome: 'refused', refusal: 'signal-failed', source: 'signaling', cause: 'operation-timeout', external: 'media-answer',
+      runtime: openedRecord?.runtime, attempt: openedRecord?.attempt, retryable: 'false',
+    });
+    expect(h.events.join('\n')).not.toMatch(/private-token|192\.0\.2\.44|private-sdp/);
+  });
+
+  it('logs a media stall edge once while heartbeat and state polling stay silent', async () => {
+    const h = harness();
+    const binding = await h.connect();
+    await h.take(binding);
+    const before = h.events.length;
+    h.capture(false);
+    for (let frames = 2; frames < 6; frames += 1) {
+      await h.owner.handle(caller, { kind: 'heartbeat', binding, playback: { presenting: true, presentedFrames: frames } });
+      await h.owner.handle(caller, { kind: 'status' });
+    }
+    const events = h.events.slice(before);
+    expect(events).toHaveLength(1);
+    expect(events[0]).toContain('phase=local-video-input-gated');
+    expect(events[0]).toContain('initiator=timer');
+    expect(events[0]).toContain('refusal=media-not-live source=media');
+    expect(events[0]).toContain('bots=remain-paused');
+  });
+
   it('observes without pausing and refuses a second viewer without replacing the first', async () => {
     const h = harness();
     const binding = await h.connect();

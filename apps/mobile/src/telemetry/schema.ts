@@ -1,7 +1,15 @@
+import { isDeviceYearClass, isPublicModelId, type DeviceTelemetryContext } from './device-context';
+
 export type PairingMethod = 'qr' | 'paste' | 'deep_link' | 'account';
 export type PairingOutcome = 'success' | 'refused' | 'failed' | 'cancelled';
 export type PairingReason =
+  | 'lan-build-required'
+  | 'lan-unreachable'
+  | 'already-paired'
   | 'none'
+  | 'host-key-required'
+  | 'host-key-confirmation-required'
+  | 'channel-authentication-failed'
   | 'link-invalid'
   | 'link-expired'
   | 'no-route'
@@ -49,7 +57,7 @@ export interface EventProperties {
     duration_bucket: DurationBucket;
   };
 }
-export interface TelemetryContext {
+export interface TelemetryContext extends Partial<DeviceTelemetryContext> {
   platform: 'ios' | 'android';
   app_version: string;
   app_build: string;
@@ -78,6 +86,13 @@ const member =
     typeof value === 'string' && values.includes(value);
 const method = member('qr', 'paste', 'deep_link', 'account');
 const duration = member('under1s', '1-5s', '5-15s', '15-60s', '60plus');
+const deviceFields: Record<keyof DeviceTelemetryContext, (value: unknown) => boolean> = {
+  os_version: (value) => typeof value === 'string' && /^(?:\d{1,3}\.\d{1,3}|unknown)$/u.test(value),
+  device_class: member('phone', 'tablet', 'unknown'),
+  device_model: (value) => value === 'unknown' || isPublicModelId(value),
+  total_mem_gb_bucket: member('<=4', '8', '16', '32', '64plus', 'unknown'),
+  device_year_class: (value) => value === 'unknown' || isDeviceYearClass(value),
+};
 const fields: Record<keyof EventProperties, Record<string, (value: unknown) => boolean>> = {
   mobile_connection_result: {
     trigger: member('pair', 'open', 'resume', 'switch', 'recovery', 'manual_retry'),
@@ -101,7 +116,13 @@ const fields: Record<keyof EventProperties, Record<string, (value: unknown) => b
     attempt_id: isUuid,
     outcome: member('success', 'refused', 'failed', 'cancelled'),
     reason: member(
+      'lan-build-required',
+      'lan-unreachable',
       'none',
+      'host-key-required',
+      'host-key-confirmation-required',
+      'already-paired',
+      'channel-authentication-failed',
       'link-invalid',
       'link-expired',
       'no-route',
@@ -162,6 +183,12 @@ export function sanitizeEvent(value: unknown): TelemetryEvent | undefined {
     $geoip_disable: true,
   };
   if (isUuid(props['qa_run_id'])) properties['qa_run_id'] = props['qa_run_id'];
+  for (const [name, valid] of Object.entries(deviceFields)) {
+    const field = props[name];
+    if (field === undefined) continue;
+    if (!valid(field) || (typeof field !== 'string' && typeof field !== 'number')) return undefined;
+    properties[name] = field;
+  }
   for (const [name, valid] of Object.entries(fields[event as keyof EventProperties])) {
     const field = props[name];
     if (!valid(field) || typeof field !== 'string') return undefined;

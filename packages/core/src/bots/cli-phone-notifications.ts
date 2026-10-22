@@ -16,8 +16,10 @@ export function phoneNotificationExpression(preferences?: PushPreferences): stri
     if (preferences !== null) {
       try { await owner.set(preferences); } catch { throw Error('NOTIFICATION_SAVE_FAILED'); }
     }
-    const current = owner.getSnapshot();
-    if (current.preferences === undefined) throw Error('NOTIFICATION_OWNER_NOT_READY');
+    let current;
+    try { current = owner.getSnapshot(); }
+    catch (error) { if (preferences !== null) throw Error('NOTIFICATION_RESULT_UNAVAILABLE'); throw error; }
+    if (current.preferences === undefined) throw Error(preferences === null ? 'NOTIFICATION_OWNER_NOT_READY' : 'NOTIFICATION_RESULT_UNAVAILABLE');
     return {
       owner: 'phone',
       developmentClient: true,
@@ -71,24 +73,53 @@ export async function runPhoneNotifications(
       );
   }
   let client: Awaited<ReturnType<typeof connect>> | undefined;
+  let evaluationRequested = false;
   try {
     client = await connect(port, values['target-id'], values['device-name']);
-    const result = await client.send('Runtime.evaluate', {
-      expression: phoneNotificationExpression(preferences),
-      awaitPromise: true,
-      returnByValue: true,
-    });
-    if (result.result?.value === undefined) throw new Error('INSPECTOR_RESULT_REQUIRED');
-    return result.result.value;
+    evaluationRequested = true;
+    const result = await client.evaluateAsync(phoneNotificationExpression(preferences));
+    if (typeof result !== 'object' || result === null) throw new Error('INSPECTOR_RESULT_REQUIRED');
+    const value = result as Record<string, unknown>;
+    const choice = parseNotificationPreferences(value.preferences);
+    if (
+      Object.keys(value).length !== 7 ||
+      value.owner !== 'phone' ||
+      value.developmentClient !== true ||
+      value.saved !== (preferences !== undefined) ||
+      !choice ||
+      Object.keys(value.preferences as object).length !== 4 ||
+      typeof value.syncing !== 'boolean' ||
+      !Array.isArray(value.failedHostIds) ||
+      !value.failedHostIds.every((id): id is string => typeof id === 'string') ||
+      value.syncStatus !== (value.syncing || value.failedHostIds.length ? 'pending' : 'complete')
+    )
+      throw new Error('INSPECTOR_RESULT_REQUIRED');
+    return {
+      owner: 'phone',
+      developmentClient: true,
+      saved: value.saved,
+      preferences: choice,
+      syncing: value.syncing,
+      failedHostIds: value.failedHostIds,
+      syncStatus: value.syncStatus,
+    };
   } catch (error) {
     const code =
       error instanceof Error && /^[A-Z_]+$/.test(error.message)
         ? error.message.toLowerCase().replaceAll('_', '-')
         : 'inspector-unreachable';
-    throw new CliLiveError(
-      code,
-      'Phone notification operation refused; check the assigned development client.',
-    );
+    const unknownWrite =
+      preferences !== undefined &&
+      evaluationRequested &&
+      !['debug-only', 'notification-owner-unavailable', 'notification-owner-not-ready'].includes(
+        code,
+      );
+    const message = unknownWrite
+      ? 'Phone notification write outcome is unknown; it may already be saved. Read back with phone-notifications without --preferences-stdin before retrying.'
+      : preferences !== undefined
+        ? 'Phone notification write was not started; check the assigned development client.'
+        : 'Phone notification read failed; check the assigned development client.';
+    throw new CliLiveError(code, message);
   } finally {
     client?.close();
   }

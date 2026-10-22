@@ -48,13 +48,7 @@ import {
   formatAudit,
   ownsComputerTool,
 } from './tool/provider.js';
-import {
-  ViewerProxy,
-  deviceViewerUpgradeRoutes,
-  proxyUpgrade,
-  viewerUpgradePaths,
-  type DeviceViewerUpgrade,
-} from './viewer.js';
+import { ViewerProxy, proxyUpgrade, viewerUpgradePaths } from './viewer.js';
 
 export const name = 'botharness-computer';
 stampReleaseComponent(apply, import.meta.url);
@@ -1402,19 +1396,6 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
           `botharness-computer: viewer upgrade ${socketPath}`,
         );
       }
-      for (const route of deviceViewerUpgradeRoutes(
-        VIEWER_PREFIX,
-        () =>
-          (
-            ctx.get('botharness') as unknown as
-              | { deviceWebUpgrade?: DeviceViewerUpgrade }
-              | undefined
-          )?.deviceWebUpgrade,
-      ))
-        ctx.effect(
-          () => webServer.registerUpgrade?.(route) ?? (() => undefined),
-          `botharness-computer: device viewer upgrade ${route.path}`,
-        );
     }
   });
 }

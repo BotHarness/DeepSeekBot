@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, useLayoutEffect, type ReactNode } from 'react';
+import { act, useLayoutEffect, type ReactNode, type Ref } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -14,14 +14,32 @@ import { HostAccentProvider } from '../src/ui/shell/host-accent-provider';
 import { HomeHeader } from '../src/ui/shell/home-header';
 import { DesignThemeProvider, resolveTheme, useDesignTheme } from '../src/ui/design/theme';
 import type { RosterView } from '../src/host/client';
+import { EDGE_WIDTH } from '../src/ui/shell/host-drawer-model';
 
-const { push, cloudState, directoryState, hostState } = vi.hoisted(() => ({
+const {
+  push,
+  cloudState,
+  directoryState,
+  hostState,
+  call,
+  refresh,
+  menus,
+  swipeConfigs,
+  rowProps,
+} = vi.hoisted(() => ({
   push: vi.fn(),
+  call: vi.fn(async () => ({})),
+  refresh: vi.fn(async () => undefined),
+  menus: [] as Array<{ text: string; onPress?: () => unknown }[]>,
+  swipeConfigs: [] as Array<Record<string, unknown>>,
+  rowProps: new Map<string, Record<string, unknown>>(),
   hostState: {
     connecting: false,
     removed: false,
     color: undefined as HostColorId | undefined,
     fontScale: 1,
+    actions: false,
+    unread: false,
   },
   cloudState: {
     error: undefined as string | undefined,
@@ -37,6 +55,57 @@ const { push, cloudState, directoryState, hostState } = vi.hoisted(() => ({
     errors: [] as string[],
   },
 }));
+vi.mock('react-native-gesture-handler/ReanimatedSwipeable', async () => {
+  const { useImperativeHandle, useState } = await import('react');
+  return {
+    default: (props: {
+      ref: Ref<{ close(): void }>;
+      children: ReactNode;
+      onSwipeableWillClose?(): void;
+      onSwipeableWillOpen?(): void;
+      renderRightActions(): ReactNode;
+    }) => {
+      swipeConfigs.push({ ...props });
+      const [open, setOpen] = useState(false);
+      useImperativeHandle(props.ref, () => ({
+        close: () => {
+          props.onSwipeableWillClose?.();
+          setOpen(false);
+        },
+      }));
+      return (
+        <div>
+          {props.children}
+          <button
+            aria-label="Swipe row"
+            onClick={() => {
+              props.onSwipeableWillOpen?.();
+              setOpen(true);
+            }}
+          >
+            Swipe
+          </button>
+          {open ? props.renderRightActions() : null}
+        </div>
+      );
+    },
+  };
+});
+vi.mock('../src/ui/primitives/app-dialog', () => ({
+  showActionMenu: (_title: string, actions: { text: string; onPress?: () => unknown }[]) =>
+    menus.push(actions),
+  showAppDialog: vi.fn(),
+}));
+vi.mock('../src/ui/shell/conversation-peek', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/ui/shell/conversation-peek')>();
+  const { Platform } = await import('react-native');
+  return {
+    ...actual,
+    get conversationPeek() {
+      return Platform.OS === 'ios';
+    },
+  };
+});
 const roster: RosterView = {
   bots: [
     {
@@ -92,6 +161,11 @@ vi.mock('react-native', async () => {
   const native = await import('./react-native-shim');
   return {
     ...native,
+    Pressable: (props: Parameters<typeof native.Pressable>[0]) => {
+      const id = props.testID;
+      if (typeof id === 'string' && id.startsWith('conversation-row-')) rowProps.set(id, props);
+      return native.Pressable(props);
+    },
     useWindowDimensions: () => ({
       ...native.useWindowDimensions(),
       fontScale: hostState.fontScale,
@@ -105,6 +179,7 @@ vi.mock('react-native-svg', () => ({
     <svg width={width} height={height} />
   ),
   Path: () => null,
+  Circle: () => null,
 }));
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
@@ -112,7 +187,19 @@ vi.mock('react-native-safe-area-context', () => ({
 vi.mock('expo-router', () => {
   const Stack = () => null;
   Stack.Screen = () => null;
+  const Link = ({ children }: { children: ReactNode }) => <div>{children}</div>;
+  Link.Trigger = ({ children }: { children: ReactNode }) => children;
+  Link.Preview = () => <div data-testid="native-preview" />;
+  Link.Menu = ({ children }: { children: ReactNode }) => (
+    <div data-testid="native-context-menu">{children}</div>
+  );
+  Link.MenuAction = ({ children, onPress }: { children: ReactNode; onPress(): void }) => (
+    <button data-menu-title={children} onClick={onPress}>
+      {children}
+    </button>
+  );
   return {
+    Link,
     Redirect: () => null,
     Stack,
     router: { push },
@@ -124,14 +211,17 @@ vi.mock('expo-router', () => {
 vi.mock('../src/host/host-session', () => ({
   useHostSession: () => ({
     saved: hostState.removed ? null : { hostId: 'h1', hostName: 'studio' },
-    client: undefined,
+    client: hostState.actions ? { call, refresh } : undefined,
     inbox: undefined,
   }),
   useHostSnapshot: () => ({
     connection: { status: hostState.connecting ? 'connecting' : 'connected', route: '' },
     roster: hostState.connecting ? undefined : roster,
   }),
-  useInbox: () => ({ status: 'loading' }),
+  useInbox: () =>
+    hostState.unread
+      ? { status: 'ready', sections: { action: [] }, unread: { 'dm-ada': 2 } }
+      : { status: 'loading' },
   useQuietChannels: () => [],
   refreshQuietChannels: () => {},
 }));
@@ -184,6 +274,16 @@ afterEach(() => {
   hostState.removed = false;
   hostState.color = undefined;
   hostState.fontScale = 1;
+  hostState.actions = false;
+  hostState.unread = false;
+  delete roster.bots[0]!.latestMessageId;
+  delete roster.arrangement;
+  call.mockClear();
+  refresh.mockClear();
+  menus.length = 0;
+  swipeConfigs.length = 0;
+  rowProps.clear();
+  Platform.OS = 'web';
   conversationFilter.set('all');
   cloudState.rows = [];
   cloudState.ready = true;
@@ -198,6 +298,22 @@ async function home(): Promise<HTMLElement> {
   root = createRoot(host);
   await act(async () => root!.render(<HomeScreen />));
   return host;
+}
+
+async function rowMenuAction(view: HTMLElement, key: keyof typeof t.rowActions) {
+  if (Platform.OS === 'ios') {
+    const row = view.querySelector('[data-testid="conversation-row-bot:ada"]')!;
+    const menu = row.parentElement!.querySelector('[data-testid="native-context-menu"]')!;
+    const action = [...menu.querySelectorAll<HTMLButtonElement>('button')].find(
+      (button) => button.textContent === t.rowActions[key],
+    )!;
+    await act(async () => action.click());
+  } else {
+    await act(async () => (rowProps.get('conversation-row-bot:ada')!.onLongPress as () => void)());
+    await act(async () =>
+      menus.at(-1)!.find((action) => action.text === t.rowActions[key])!.onPress!(),
+    );
+  }
 }
 
 async function type(view: HTMLElement, text: string): Promise<void> {
@@ -215,6 +331,11 @@ async function type(view: HTMLElement, text: string): Promise<void> {
 
 const rows = (view: HTMLElement) =>
   [...view.querySelectorAll('button')]
+    .filter(
+      (node) =>
+        node.dataset.testid !== 'action-menu-trigger' &&
+        node.getAttribute('aria-label') !== 'Swipe row',
+    )
     .filter((node) => node.dataset.testid !== 'chats-view-button')
     .filter((node) => !node.closest('[hidden]') && !node.dataset.testid?.startsWith('pager-'))
     .filter(
@@ -523,6 +644,166 @@ describe('Selected current Host accent', () => {
         expect(host.textContent).toBe(resolveTheme(scheme, {}, 'android').color.accent);
       } finally {
         Platform.OS = before;
+      }
+    },
+  );
+});
+
+describe('Chats row actions share the Host path', () => {
+  it.each(['android', 'ios'] as const)(
+    'removes overflow while keeping complete accessible actions on %s',
+    async (platform) => {
+      Platform.OS = platform;
+      hostState.actions = true;
+      hostState.unread = true;
+      roster.bots[0]!.latestMessageId = 'message-1';
+      const view = await home();
+      expect(view.querySelector('[data-testid="action-menu-trigger"]')).toBeNull();
+      const props = rowProps.get('conversation-row-bot:ada')!;
+      expect(typeof props.onLongPress).toBe(platform === 'android' ? 'function' : 'undefined');
+      expect(props.accessibilityActions).toEqual(
+        ['pin', 'section', 'mute', 'read'].map((key) => ({
+          name: key,
+          label: t.rowActions[key as keyof typeof t.rowActions],
+        })),
+      );
+      const invoke = props.onAccessibilityAction as (event: {
+        nativeEvent: { actionName: string };
+      }) => void;
+      for (const key of ['pin', 'section', 'mute', 'read'] as const) {
+        call.mockClear();
+        push.mockClear();
+        await rowMenuAction(view, key);
+        const fromMenu = [...call.mock.calls];
+        const navigation = [...push.mock.calls];
+        call.mockClear();
+        push.mockClear();
+        await act(async () => invoke({ nativeEvent: { actionName: key } }));
+        expect(call.mock.calls).toEqual(fromMenu);
+        expect(push.mock.calls).toEqual(navigation);
+      }
+      call.mockClear();
+      await act(async () => invoke({ nativeEvent: { actionName: 'unknown' } }));
+      expect(call).not.toHaveBeenCalled();
+      expect(rowProps.get('conversation-row-bot:xiaoming')!.onLongPress).toBeUndefined();
+      expect(rowProps.get('conversation-row-bot:xiaoming')!.accessibilityActions).toEqual([]);
+      if (platform === 'ios') {
+        const preview = view.querySelector(
+          '[data-testid="conversation-row-bot:ada"]',
+        )!.parentElement!;
+        expect(preview.querySelector('[data-testid="native-preview"]')).not.toBeNull();
+        expect(preview.querySelectorAll('[data-menu-title]')).toHaveLength(4);
+      }
+    },
+  );
+  it.each(['android', 'ios'] as const)(
+    'keeps mark-read in the %s menu with three swipe actions',
+    async (platform) => {
+      Platform.OS = platform;
+      hostState.actions = true;
+      hostState.unread = true;
+      roster.bots[0]!.latestMessageId = 'message-1';
+      const view = await home();
+      await act(async () =>
+        view.querySelector<HTMLButtonElement>('[aria-label="Swipe row"]')!.click(),
+      );
+      expect(view.querySelectorAll('[data-testid^="conversation-swipe-"]')).toHaveLength(3);
+      expect(view.querySelector('[data-testid="conversation-swipe-read"]')).toBeNull();
+      await rowMenuAction(view, 'read');
+      expect(call).toHaveBeenLastCalledWith('channelMarkRead', {
+        channelId: 'dm-ada',
+        messageId: 'message-1',
+      });
+    },
+  );
+  it.each(['ios', 'android'] as const)(
+    'runs pin and mute from swipe and menu on %s',
+    async (platform) => {
+      Platform.OS = platform;
+      hostState.actions = true;
+      const view = await home();
+      for (const key of ['pin', 'mute'] as const) {
+        await act(async () =>
+          view.querySelector<HTMLButtonElement>('[aria-label="Swipe row"]')!.click(),
+        );
+        await act(async () =>
+          view
+            .querySelector<HTMLButtonElement>(`[data-testid="conversation-swipe-${key}"]`)!
+            .click(),
+        );
+        const swipeCall = call.mock.calls.at(-1);
+        await rowMenuAction(view, key);
+        expect(call.mock.calls.at(-1)).toEqual(swipeCall);
+        expect(swipeCall).toEqual(
+          key === 'pin'
+            ? ['rosterBatch', { action: 'pin', channelIds: ['dm-ada'] }]
+            : ['channelMuteSet', { channelId: 'dm-ada', muted: true }],
+        );
+      }
+      expect(refresh).toHaveBeenCalledTimes(4);
+      expect(view.querySelector('[data-testid="native-preview"]') !== null).toBe(
+        platform === 'ios',
+      );
+      expect(swipeConfigs[0]?.hitSlop).toEqual(
+        platform === 'ios' ? { left: -EDGE_WIDTH } : undefined,
+      );
+    },
+  );
+
+  it.each(['android', 'ios'] as const)(
+    'opens the same Host-bound section chooser from the %s menu and swipe',
+    async (platform) => {
+      Platform.OS = platform;
+      hostState.actions = true;
+      const view = await home();
+      await act(async () =>
+        view.querySelector<HTMLButtonElement>('[aria-label="Swipe row"]')!.click(),
+      );
+      await act(async () =>
+        view
+          .querySelector<HTMLButtonElement>('[data-testid="conversation-swipe-section"]')!
+          .click(),
+      );
+      expect(push).toHaveBeenLastCalledWith({
+        pathname: '/conversation-section',
+        params: { hostId: 'h1', channelId: 'dm-ada' },
+      });
+      await rowMenuAction(view, 'section');
+      expect(push.mock.calls[1]).toEqual(push.mock.calls[0]);
+      expect(call).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['android', 'ios'] as const)(
+    'uses the same inverse operations on %s',
+    async (platform) => {
+      Platform.OS = platform;
+      hostState.actions = true;
+      roster.arrangement = {
+        pins: ['dm-ada'],
+        muted: ['dm-ada'],
+        hidden: [],
+        sections: [],
+        sectionOrder: [],
+      };
+      const view = await home();
+      for (const key of ['unpin', 'unmute'] as const) {
+        await act(async () =>
+          view.querySelector<HTMLButtonElement>('[aria-label="Swipe row"]')!.click(),
+        );
+        await act(async () =>
+          view
+            .querySelector<HTMLButtonElement>(`[data-testid="conversation-swipe-${key}"]`)!
+            .click(),
+        );
+        const fromSwipe = call.mock.calls.at(-1);
+        await rowMenuAction(view, key);
+        expect(call.mock.calls.at(-1)).toEqual(fromSwipe);
+        expect(fromSwipe).toEqual(
+          key === 'unpin'
+            ? ['rosterBatch', { action: 'unpin', channelIds: ['dm-ada'] }]
+            : ['channelMuteSet', { channelId: 'dm-ada', muted: false }],
+        );
       }
     },
   );

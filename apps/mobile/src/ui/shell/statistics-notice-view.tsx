@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Linking, ScrollView } from 'react-native';
+import { Linking, Platform, ScrollView } from 'react-native';
 
 import { Sheet } from '../chat/sheet';
 import { space } from '../design/tokens';
@@ -25,6 +25,7 @@ export function StatisticsNoticeView({
   return (
     <Sheet
       visible={visible}
+      animationType={Platform.OS === 'ios' ? 'none' : 'fade'}
       label={t.statisticsNoticeTitle}
       title={t.statisticsNoticeTitle}
       onClose={onClose}

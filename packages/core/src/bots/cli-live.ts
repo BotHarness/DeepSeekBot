@@ -1,3 +1,4 @@
+import { HOST_LOOK_COMMANDS, runHostLook } from './cli-host-look.js';
 import { runPhoneNotifications } from './cli-phone-notifications.js';
 import {
   WINDOW_ZOOM_COMMANDS,
@@ -6,6 +7,7 @@ import {
 } from './cli-window-zoom.js';
 import { PHONE_ROUTE_COMMANDS, runPhoneRouteCommand } from './cli-phone-route.js';
 import { DEVICES_COMMANDS, isDevicesCommand, runDevicesCommand } from './cli-devices.js';
+import { DEVICE_CLIENT_COMMANDS, runDeviceClientCommand } from './cli-device-client.js';
 import {
   DEVICE_NOTIFICATION_COMMANDS,
   DEVICE_NOTIFICATION_OPTIONS,
@@ -132,7 +134,9 @@ import {
 export { CliLiveError } from './cli-live-error.js';
 
 export const LIVE_OPTIONS = {
+  'link-file': { type: 'string' },
   'remote-host-id': { type: 'string' },
+  'host-id': { type: 'string' },
   ...DEVICE_NOTIFICATION_OPTIONS,
   ...WINDOW_ZOOM_OPTIONS,
   ...CONNECT_OPTIONS,
@@ -166,6 +170,7 @@ export const LIVE_OPTIONS = {
   scope: { type: 'string' },
   'acknowledge-risk': { type: 'boolean' },
   'patch-stdin': { type: 'boolean' },
+  refresh: { type: 'boolean' },
   'previous-value': { type: 'string' },
   member: { type: 'string', multiple: true },
   app: { type: 'string' },
@@ -231,10 +236,12 @@ const CONTROL_COMMANDS = [
 
 export const LIVE_COMMANDS = [
   ...BROWSER_NOTIFICATION_COMMANDS,
+  ...HOST_LOOK_COMMANDS,
   ...DEVICE_NOTIFICATION_COMMANDS,
   ...WINDOW_ZOOM_COMMANDS,
   ...PHONE_ROUTE_COMMANDS,
   ...DEVICES_COMMANDS,
+  ...DEVICE_CLIENT_COMMANDS,
   ...CONNECT_COMMANDS,
   ...IM_COMMANDS,
   ...MESSAGING_COMMANDS,
@@ -433,7 +440,9 @@ interface LiveValues
     ApprovalReviewerValues {
   'client-id'?: string;
   'device-file'?: string;
+  'link-file'?: string;
   'remote-host-id'?: string;
+  'host-id'?: string;
   'preferences-stdin'?: boolean;
   host?: string;
   'token-file'?: string;
@@ -457,6 +466,7 @@ interface LiveValues
   scope?: string;
   'acknowledge-risk'?: boolean;
   'patch-stdin'?: boolean;
+  refresh?: boolean;
   'previous-value'?: string;
   member?: string[];
   'operation-key'?: string;
@@ -751,6 +761,12 @@ export async function runLiveCli(
   values: LiveValues,
   io: BotCreateCliIo,
 ): Promise<unknown> {
+  if (command === 'host-look') {
+    const duration = timeoutMs(values.timeout);
+    const expiresAt = Date.now() + duration;
+    const signal = AbortSignal.timeout(duration);
+    return runHostLook(rest, values, io, () => connectLiveHost(values, io, signal), expiresAt);
+  }
   if (command === 'device-notifications') return runDeviceNotifications(rest, values, io);
   if (command === 'phone-notifications') return runPhoneNotifications(rest, values, io);
   if (BROWSER_NOTIFICATION_COMMANDS.some((entry) => entry.command === command))
@@ -801,6 +817,8 @@ export async function runLiveCli(
     return runDevicesCommand(command, rest, values, () =>
       connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
     );
+  if (DEVICE_CLIENT_COMMANDS.some((entry) => entry.command === command))
+    return runDeviceClientCommand(command, rest, values);
   if (command === 'cloud-work') {
     const input = await prepareCloudWork(rest, values, io);
     const host = await connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout)));

@@ -16,7 +16,13 @@ Backgrounding or locking the phone stops its media and releases control. Return 
 
 The new viewer has no image fallback, including manual snapshots. Missing native support, negotiation failure and lost media show a refusal/retry state. It never polls `/api/computer/frame`. Legacy frame, input and takeover routes return `update-required` for the migrated Windows Local Computer. Bot screenshots remain separate and are refused while paused.
 
-T1 uses direct WebRTC with no configured STUN/TURN servers. Self-configured TURN and cross-network qualification are later slices. Hosted Connect refuses this route until the shared encrypted carrier is integrated; do not bypass that refusal. Audio, clipboard, background viewing and unlocking are absent.
+T1 uses direct WebRTC with no configured STUN/TURN servers. The phone's signaling and control use the existing encrypted LAN channel, its pinned Host key and approved device identity. Only the server-owned LAN listener dispatches the exact video command path to the Computer owner. Hosted Connect remains refused with `connect-carrier-required`, even though its encrypted carrier is available; remote media qualification belongs to a later slice. There is no WebView or plaintext fallback. Self-configured TURN, audio, clipboard, background viewing and unlocking are absent.
+
+When video stalls, input is disabled but **Release control**, **Resume Bots**, exit and **Reconnect** remain available. Release follows the caller's retained grant, separately from eligibility to send input. Reconnect closes the old attempt before opening observation again; it does not restore control or replay input.
+
+## Recovery and downgrade
+
+After takeover, a code-only rollback is unsafe: older versions ignore `botharness/computer-pause.json` and can reopen Bot access after restart. Keep the affected Computer stopped, confirm its owned media has stopped and preserve the pause record. If the Human explicitly chooses to resume Bots, use the supported new-version resume operation and its drain before downgrading. Otherwise apply a forward fix that honors the durable pause. Never delete the record or resume automatically to make a downgrade succeed.
 
 ## Agent operation
 

@@ -1,3 +1,5 @@
+import { isConnectRoute } from './route';
+import { encryptedCarrier } from './encrypted-carrier';
 import type { HostCarrier } from './carrier';
 import type { SavedHost } from './hosts';
 import { DEVICE_PREFIX } from './pairing';
@@ -181,38 +183,46 @@ export function createHostPush(carrier: HostCarrier, timeoutMs = 10_000): HostPu
     path: string,
     body?: Record<string, unknown>,
   ): Promise<unknown> => {
-    for (const route of host.routes) {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), timeoutMs);
-      let status: number;
-      let text: string;
-      try {
-        const response = await carrier.request(`${route}${DEVICE_PREFIX}/push${path}`, {
-          method: body === undefined ? 'GET' : 'POST',
-          headers: { authorization: `Device ${host.credential}` },
-          signal: controller.signal,
-          ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-        });
-        status = response.status;
-        text = await response.text();
-      } catch {
-        continue;
-      } finally {
-        clearTimeout(timer);
+    const transport = encryptedCarrier({ raw: carrier, ...host });
+    try {
+      for (const route of host.routes) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        let status: number;
+        let text: string;
+        try {
+          const response = await transport.request(`${route}${DEVICE_PREFIX}/push${path}`, {
+            method: body === undefined ? 'GET' : 'POST',
+            headers: { authorization: `Device ${host.credential}` },
+            signal: controller.signal,
+            ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+          });
+          status = response.status;
+          text = await response.text();
+        } catch (error) {
+          if (isConnectRoute(route)) throw error;
+          continue;
+        } finally {
+          clearTimeout(timer);
+        }
+        let value: unknown;
+        try {
+          value = JSON.parse(text);
+        } catch (error) {
+          if (isConnectRoute(route)) throw error;
+          continue;
+        }
+        if (status === 200) return value;
+        const code = record(value)['code'];
+        if (typeof code === 'string' && status >= 400 && status < 500)
+          throw new PushRequestFailed(code as PushRefusal);
+        if (status === 502) throw new PushRequestFailed('push-send-failed');
+        if (isConnectRoute(route)) throw new PushRequestFailed('unreachable');
       }
-      let value: unknown;
-      try {
-        value = JSON.parse(text);
-      } catch {
-        continue;
-      }
-      if (status === 200) return value;
-      const code = record(value)['code'];
-      if (typeof code === 'string' && status >= 400 && status < 500)
-        throw new PushRequestFailed(code as PushRefusal);
-      if (status === 502) throw new PushRequestFailed('push-send-failed');
+      throw new PushRequestFailed('unreachable');
+    } finally {
+      transport.close?.();
     }
-    throw new PushRequestFailed('unreachable');
   };
 
   return {

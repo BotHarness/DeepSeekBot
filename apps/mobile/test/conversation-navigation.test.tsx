@@ -186,7 +186,6 @@ vi.mock('../src/ui/chat/working-status', () => ({
     bots.length ? <span data-testid="pending">pending</span> : null,
 }));
 vi.mock('../src/ui/chat/time-separator', () => ({ TimeSeparator: () => null }));
-vi.mock('../src/ui/open-full-client', () => ({ OpenFullClientButton: () => null }));
 
 import { Platform } from 'react-native';
 import { ConversationScreen, type ChatPlace } from '../src/ui/chat/conversation-screen';

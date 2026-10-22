@@ -129,6 +129,10 @@ existing route state before changing a shared proxy.
 
 ## Phone control, screenshots and video
 
+Index captures for local inspection and release retention using
+[local QA evidence and release archives](qa-evidence.md). The helper's queue evidence directory
+remains the capture source; link or copy selected evidence into the task/release index with hashes.
+
 The Human connects/unlocks the phone, enables USB debugging and accepts the RSA authorization.
 Use `devices` to distinguish `device`, `unauthorized` and `offline`; the helper never chooses
 the first device automatically. Install only the development application ID, preserving the

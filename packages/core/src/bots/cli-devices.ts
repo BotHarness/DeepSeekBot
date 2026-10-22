@@ -1,8 +1,18 @@
 import { existsSync, writeFileSync } from 'node:fs';
 
 import { CliLiveError } from './cli-live-error.js';
+import { noiseFingerprint } from '../devices/noise/xk.js';
 
 export const DEVICES_COMMANDS = [
+  {
+    command: 'device-lan',
+    description: 'enable --confirm or disable encrypted phone access on the local network',
+  },
+  {
+    command: 'device-approve-key',
+    description:
+      'approve <receipt> <device-public-key> after fingerprint comparison (needs --confirm)',
+  },
   {
     command: 'devices',
     description: 'list paired devices with this Host identity and its phone routes',
@@ -42,16 +52,32 @@ export async function runDevicesCommand(
     writeFileSync(path, `${text}\n`, { flag: 'wx', mode: 0o600 }),
   exists: (path: string) => boolean = existsSync,
 ): Promise<unknown> {
-  const takes = command === 'device-offer-status' || command === 'device-revoke' ? 1 : 0;
+  const takes =
+    command === 'device-approve-key'
+      ? 2
+      : command === 'device-offer-status' || command === 'device-revoke' || command === 'device-lan'
+        ? 1
+        : 0;
   if (rest.length !== takes)
     throw new CliLiveError(
       'usage',
       takes === 0
         ? `${command} takes no arguments.`
-        : `${command} takes exactly one ${command === 'device-revoke' ? '<device-id>' : '<receipt>'}.`,
+        : command === 'device-approve-key'
+          ? 'device-approve-key takes <receipt> <public-key> --confirm.'
+          : `${command} takes exactly one ${command === 'device-revoke' ? '<device-id>' : '<receipt>'}.`,
     );
   if (values.out !== undefined && command !== 'device-offer')
     throw new CliLiveError('usage', '--out requires device-offer.');
+  if (command === 'device-lan') {
+    if (rest[0] !== 'enable' && rest[0] !== 'disable')
+      throw new CliLiveError('usage', 'device-lan takes enable --confirm or disable.');
+    if (rest[0] === 'enable' && values.confirm !== true)
+      throw new CliLiveError(
+        'confirm-required',
+        'LAN access opens an encrypted phone entry on this network. Pass --confirm.',
+      );
+  }
   if (command === 'device-offer') {
     if (values.out === undefined)
       throw new CliLiveError(
@@ -71,6 +97,14 @@ export async function runDevicesCommand(
       'confirm-required',
       'device-revoke signs the device out at once and it must pair again. Pass --confirm.',
     );
+  if (
+    command === 'device-approve-key' &&
+    (values.confirm !== true || !/^[0-9a-f]{64}$/u.test(rest[1] ?? ''))
+  )
+    throw new CliLiveError(
+      'key-confirmation-required',
+      'Compare the device fingerprint, then pass <receipt> <public-key> --confirm.',
+    );
   const host = await connect();
   const decode = (bytes: Uint8Array): Record<string, unknown> => {
     try {
@@ -82,12 +116,43 @@ export async function runDevicesCommand(
   };
   if (command === 'devices') {
     const snapshot = decode((await host.http(DEVICES)).bytes);
+    const pending = snapshot['pendingKeys'];
+    const pendingKeys = Array.isArray(pending)
+      ? pending.map((entry: unknown) => {
+          if (
+            !entry ||
+            typeof entry !== 'object' ||
+            !('publicKey' in entry) ||
+            typeof entry.publicKey !== 'string' ||
+            !/^[0-9a-f]{64}$/u.test(entry.publicKey)
+          )
+            return entry;
+          return { ...entry, fingerprint: noiseFingerprint(Buffer.from(entry.publicKey, 'hex')) };
+        })
+      : pending;
     return {
       host: snapshot['host'],
       devices: snapshot['devices'],
+      ...(pendingKeys === undefined ? {} : { pendingKeys }),
       routes: snapshot['routes'],
+      ...(snapshot['lan'] === undefined ? {} : { lan: snapshot['lan'] }),
     };
   }
+  if (command === 'device-lan')
+    return decode(
+      (await host.http(`${DEVICES}/lan`, { action: rest[0], confirm: values.confirm === true }))
+        .bytes,
+    );
+  if (command === 'device-approve-key')
+    return decode(
+      (
+        await host.http(`${DEVICES}/approve-key`, {
+          receipt: rest[0],
+          publicKey: rest[1],
+          confirm: true,
+        })
+      ).bytes,
+    );
   if (command === 'device-offer-status')
     return decode((await host.http(`${DEVICES}/offer-status`, { receipt: rest[0] })).bytes);
   if (command === 'device-revoke')

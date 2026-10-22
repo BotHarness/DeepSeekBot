@@ -5,7 +5,6 @@ import { join } from 'node:path';
 
 import type { Context } from '@deepseek-ai/cordis';
 import Schema from '@deepseek-ai/schemastery';
-import type { DeviceViewerUpgrade } from '../../core/src/http/viewer-proxy.js';
 import { registerBrowserViewer, type BrowserViewerHost } from './viewer.js';
 import {
   LOCAL_VIEWER_PREFIX,
@@ -193,9 +192,6 @@ export function apply(
         prefix,
         upstream,
         rejection: (headers) => services.connection.requestRejection({ headers }),
-        deviceUpgrade: () =>
-          (coreLookup() as { deviceWebUpgrade?: DeviceViewerUpgrade } | undefined)
-            ?.deviceWebUpgrade,
       });
       const viewer = prefix.slice(prefix.lastIndexOf('/') + 1);
       const calls = createSelkiesWebRtc({

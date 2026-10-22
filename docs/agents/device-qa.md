@@ -204,6 +204,10 @@ Some steps only the Human can do. Ask once, with the exact command or action and
 
 ## Reporting results
 
+Save and index captures using [local QA evidence and release archives](qa-evidence.md).
+macOS/iOS and Windows/Android keep separate platform results and share the frozen acceptance SHA
+for final release checks; existing runner output locations remain intact.
+
 - **One comment per PR**, posted by the runner with `gh` from the Mac. It gives the PR head SHA
   and the batch branch commit it ran on. It gives pass, fail or untested for each step, with the
   reason for anything untested (for example "Android untested", "no second Host", or "needs a

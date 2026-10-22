@@ -2,7 +2,7 @@
 
 日期：2026-10-22。第三方源码固定在 [`28a2da05deeffdf0556f1e7de1f5eaec9fb5a196`](https://github.com/liguobao/ds-harness-remote/tree/28a2da05deeffdf0556f1e7de1f5eaec9fb5a196)。本轮是静态源码及第一方测试审阅，没有运行第三方程序、安装依赖、启动 Host 或验证真机。测试存在、上游报告通过和本轮复现通过是不同证据；本文不声称后者。
 
-BotHarness 的已接受基线是 [ADR-0244](../adr/0244-local-computer-video-separates-media-control-and-pause.md)、[#2555](https://github.com/BotHarness/DeepSeekBot/issues/2555) 及其切片。Connect 加密依赖为 [#2542](https://github.com/BotHarness/DeepSeekBot/issues/2542)。初次审阅仅提供借鉴建议；Human 随后确认的文档与 issue 更新记录在末节“后续采纳”。
+BotHarness 的已接受基线是 [ADR-0245](../adr/0245-local-computer-video-separates-media-control-and-pause.md)、[#2555](https://github.com/BotHarness/DeepSeekBot/issues/2555) 及其切片。Connect 加密依赖为 [#2542](https://github.com/BotHarness/DeepSeekBot/issues/2542)。初次审阅仅提供借鉴建议；Human 随后确认的文档与 issue 更新记录在末节“后续采纳”。
 
 ## 核心区别
 
@@ -81,4 +81,4 @@ Host RTC 工厂优先加载原生 `@roamhq/wrtc`，不可用时回到 werift；E
 
 ## 后续采纳
 
-2026-10-22，Human 确认按建议更新。安全通道契约纳入 #2542；连接隔离、实际停流、有界恢复、目标保持及真实 ICE 路径诊断纳入 Spec #2555 与 T1/T3/T4/T5/T6 的验收，并同步 ADR-0244 和 living architecture。T2 的输入 no-replay 验收已覆盖，不重复扩展。保留现有六片及依赖、既有 carrier 协议选择、无图片回退和无项目公共媒体中继的决定。本节记录设计采纳，不表示实现或验收已完成。
+2026-10-22，Human 确认按建议更新。安全通道契约纳入 #2542；连接隔离、实际停流、有界恢复、目标保持及真实 ICE 路径诊断纳入 Spec #2555 与 T1/T3/T4/T5/T6 的验收，并同步 ADR-0245 和 living architecture。T2 的输入 no-replay 验收已覆盖，不重复扩展。保留现有六片及依赖、既有 carrier 协议选择、无图片回退和无项目公共媒体中继的决定。本节记录设计采纳，不表示实现或验收已完成。

@@ -1,3 +1,4 @@
+import { isLanAddress } from '../../../../packages/core/src/devices/lan-address';
 export type RouteCheck = { ok: true; origin: string } | { ok: false; reason: string };
 
 export function checkRoute(input: string): RouteCheck {
@@ -16,6 +17,7 @@ export function checkRoute(input: string): RouteCheck {
     name.endsWith('.ts.net') || /^100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d+\.\d+$/u.test(name);
   const connect = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.deepseekbot\.dev$/u.test(name);
   const allowed =
+    (isLanAddress(name) && url.protocol === 'http:' && url.port !== '') ||
     (loopback && (url.protocol === 'http:' || url.protocol === 'https:')) ||
     ((tailnet || (connect && url.port === '')) && url.protocol === 'https:');
   if (
@@ -36,4 +38,27 @@ export function checkRoute(input: string): RouteCheck {
 
 export function socketOrigin(origin: string): string {
   return origin.replace(/^http/u, 'ws');
+}
+
+export function isConnectRoute(route: string): boolean {
+  try {
+    return /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.deepseekbot\.dev$/u.test(
+      new URL(route).hostname,
+    );
+  } catch {
+    return false;
+  }
+}
+
+export function isLanRoute(route: string): boolean {
+  try {
+    const url = new URL(route);
+    return url.protocol === 'http:' && isLanAddress(url.hostname) && url.port !== '';
+  } catch {
+    return false;
+  }
+}
+
+export function isEncryptedRoute(route: string): boolean {
+  return isConnectRoute(route) || isLanRoute(route);
 }

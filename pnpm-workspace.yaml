@@ -383,8 +383,12 @@ minimumReleaseAgeExclude:
   - expo-font@58.0.9
   - expo-camera@58.0.11 || 58.0.12
   - expo-image-manipulator@58.0.15
-  - '@expo/config-plugins@58.0.10'
+  - 'expo-clipboard@58.0.4'
+  - 'expo-status-bar@58.0.4'
   - '@expo/config@58.0.7'
+  - 'expo-modules-macros@0.22.0'
+  - '@expo/config-plugins@58.0.10'
+
   - '@expo/env@2.5.3'
   - '@expo/fingerprint@0.21.6'
   - '@expo/inline-modules@0.2.7'
@@ -399,8 +403,7 @@ minimumReleaseAgeExclude:
   - '@noxcturnal/noxcturnal-win32-arm64-msvc@0.1.8'
   - '@noxcturnal/noxcturnal-win32-x64-msvc@0.1.8'
   - noxcturnal@0.1.8
-  - expo-clipboard@58.0.4
-  - expo-status-bar@58.0.4
+  - expo-splash-screen@58.0.11
 
 patchedDependencies:
   '@deepseek-ai/dsh-tool-fs@0.2.1-rc.2': patches/@deepseek-ai__dsh-tool-fs@0.2.1-rc.2.patch

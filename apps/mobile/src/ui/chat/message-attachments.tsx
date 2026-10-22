@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Image } from 'expo-image';
+import { ResourceImage as Image } from '../primitives/resource-image';
 import { Pressable, View } from 'react-native';
 
 import type { MessageAttachment } from '../../host/conversation';

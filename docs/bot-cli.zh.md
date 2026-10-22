@@ -8,7 +8,9 @@
 
 `deepseekbot browser-notification-clients` 列出在线 Client。`deepseekbot browser-notifications --client-id <id> --remote-host-id <id>` 读取该浏览器的本地选择和 revision。写入时加 `--expected-revision <revision> --patch-stdin`，从标准输入传入 `{"enabled":true,"preferences":{"approval":true,"question":true,"private-input":true,"reply":false}}`。命令使用提供页面的 Host 的现有认证及 Client 定向控制通道；Host 不保存浏览器选择或远程凭据。版本过期或远程不存在时明确拒绝。开启前须已在浏览器授予通知权限，否则返回 `notification-permission-required`；CLI 不弹出系统授权。页面关闭后，控制目标和提醒都会结束。 开启原先未启用的类型时，先通过共享 Inbox 读完全部通知分页，完整基线就绪前保持旧选择；写入成功才是启用边界，此前条目静默，此后的群回复和 DM 可提醒。部分页失败返回 `notification-baseline-unavailable`，UI 基线的十秒期限返回 `notification-baseline-timeout`。CLI 写入还将既有 appearance relay 的请求期限（当前八秒）和取消信号传到同一 owner，并在落盘前再次检查；relay 超时或卸载后，迟到分页不能写入，已过期的通知命令不发送迟到回执。切换 Host、关闭设置、移除配对、权限丢失或释放页面会取消待完成的启用（`notification-activation-cancelled`），迟到结果不能落盘。拒绝后显式重试；页面仍订阅时，正常共享 Host Feed 观察继续。
 
-`deepseekbot phone-notifications --metro-port <端口> --target-id <精确ID> --device-name <精确名称>` 在已分配的 Expo development client 中读取现有手机偏好 owner。加 `--preferences-stdin`，仅传入四类布尔值，由同一 owner 持久化并复制到全部已配对 Host。前提是共享设备 batch/lease、运行中的 loopback Metro inspector、精确且唯一的目标、开发版 app ID、`__DEV__` 和唯一已初始化的 owner。命令不直接写存储、不新建 owner、不弹系统授权、不把 Host 副本当手机选择。单个 JSON 分别返回 `saved`、`syncStatus`（`complete`/`pending`）、`syncing` 和 `failedHostIds`。断开/超时后的写入结果未知，应先重新读取再决定是否重试。目标缺失/歧义、release、owner 未就绪及传输失败均明确拒绝。**该 AX 路径仅限 development client，release 不可用，也不代表 release CLI parity 或原生 QA 已通过。** 原生真实运行仍交外部统一批次验收。
+`deepseekbot phone-notifications --metro-port <端口> --target-id <精确ID> --device-name <精确名称>` 在已分配的 Expo development client 中读取现有手机偏好 owner。加 `--preferences-stdin`，仅传入四类布尔值，由同一 owner 持久化并复制到全部已配对 Host。前提是共享设备 batch/lease、运行中的 loopback Metro inspector、精确且唯一的目标、开发版 app ID、`__DEV__` 和唯一已初始化的 owner。命令不直接写存储、不新建 owner、不弹系统授权、不把 Host 副本当手机选择。单个 JSON 分别返回 `saved`、`syncStatus`（`complete`/`pending`）、`syncing` 和 `failedHostIds`。断开/超时后的写入结果未知，应先重新读取再决定是否重试。目标缺失/歧义、release、owner 未就绪及传输失败均返回明确错误码；写入是否已开始按下段区分。**该 AX 路径仅限 development client，release 不可用，也不代表 release CLI parity 或原生 QA 已通过。** 原生真实运行仍交外部统一批次验收。
+
+手机命令通过 inspector 显式等待 JavaScript Promise 完成，不依赖 Hermes 执行 CDP 的 `awaitPromise`。连接后，启动操作、轮询和取结果共用一个 20 秒期限。每次请求使用唯一的临时结果槽，取走结果或取消时删除；debugger 断开后由运行时的 20 秒到期清理兜底，迟到完成不能重建槽。运行时到期清理需要应用的 JavaScript 事件循环运行；应用暂停时，定时器恢复后执行清理。只有通过结构校验的手机 owner 结果才算成功，Promise 内部字段或不合规响应返回 `inspector-result-required`。传输层无法撤回 owner 已开始的写入，因此超时仍表示写入结果未知，不能据此认定未改变；重试前先读回。命令自身也会区分这些结果：可能已经发出的写入若无法取得结果，会保留底层错误码，并明确提示写入结果未知、先不带 `--preferences-stdin` 读回；只读失败和确定发生在写入前的拒绝不使用该提示。
 
 `deepseekbot inbox --notifications [--limit 1..100] [--cursor <游标>]` 使用 Host 现有 `humanAttention` 的通知发现模式。遍历全部返回游标，取得 Host 判定的待办、未读群提及/回复和普通未读 DM 回复。它独立于 Activity 的 mentions-first 分页窗口，不可混用筛选条件。响应须有 `notificationVersion: 1`，旧 Host 明确拒绝；不增加 Feed 连接，不修改 attention 或已读状态。
 
@@ -66,7 +68,15 @@ deepseekbot search <words>
 
 ### 远程设置
 
-浏览器远程图标菜单中的「远程设置」与以下在线命令使用同一个 Host 所有者。通过 `--host <origin>` 和私有的 `--token-file <file>`（或已有环境变量）指定来源 Host，不要默认指向提供当前网页的本机。模型使用 `model-catalog`、`home-model-set`、`model-presets`、`model-preset-create` 和 `model-preset-update`；用量与 Memory 活动使用 `overview-usage`、`overview-memory`；存储使用 `storage-usage` 及两组清理预览／确认命令。删除仍须传入 `--confirmation-stdin --confirm`，且预览必须来自同一 Host。连接失败或被拒绝时，不会改用本地 Profile。这些命令不读取浏览器的配对密钥，也不修改本设备保存的 Host 外观。
+`appearance-clients` 列出打开的浏览器 Client。`host-look --client-id <id> --host-id <id>` 读取该浏览器内的 Host 名称、图标、颜色和内容修订。写入时加 `--patch-stdin --expected-revision <revision>`，从 stdin 传入 JSON，例如 `{"name":"Studio","icon":{"kind":"symbol","id":"server"},"color":"teal"}`。空名称恢复 Host 原始显示名；`color: null` 清除颜色。名称去除首尾空格并限制为 40 字符，与手机共享 HostLook 规则。Host ID 可为已配对的远程 Host 或本机 Host；命令不接收或返回远程凭据。
+
+命令复用已认证的 `appearance-control` relay，直达 UI 使用的同一 Client 本地 `HostLooks`，不修改操作系统 hostname，也不同步到其他设备。浏览器须保持打开并显式选择 Client。同源标签页共同使用名为 `botharness.hostLooks.v1` 的独占 Web Lock；owner 在锁内重读持久数据、比较目标 Host 的内容 revision，再只合并该 Host。UI 字段变换也在锁内应用于当前值，不携带旧整份外观覆盖其他字段。旧 revision 返回 `host-look-revision-stale`；Web Locks 不可用时返回 `host-look-lock-unavailable`，不降级为不安全的读改写。
+
+`host-look-storage-read-failed` 会保留内存中已知的显示状态，但阻止读取和写入，不把默认值当成成功加载。修复浏览器存储访问后，执行 `host-look --client-id <id> --host-id <id> --refresh`，或在设置中选择「刷新外观」，显式恢复；刷新本身不写入。事务锁内重读失败同样阻止落盘。`host-look-storage-failed` 表示浏览器拒绝写入，不发布未保存的外观；解决存储问题并刷新后才能重新提交。
+
+CLI 在读取 stdin 和连接前记录绝对期限；Host 将期限限制为 relay 接收后最多八秒。Client 在加载后、获得锁后和实际 `localStorage.setItem` 前复核墙上时间，即使定时回调尚未运行，越期命令也不能开始写入。Client 释放与 Host 移除也在写入前复核。这不代表远端取消已确认：期限前杀掉 CLI 或断开 HTTP，已送达命令仍可能在期限内执行。写入回执丢失或 relay 超时，在 CLI 仍能输出时报告 `host-look-outcome-unknown`；重试前须读回相同 Client/Host。期限内已完成的写入可能成功而回执丢失。Host 设置统一包含外观、通知、模型、用量和存储；离线时仍可进入外观和通知。通知继续使用 `browser-notifications`，保留权限、激活基线和取消语义。
+
+浏览器远程图标菜单中的「Host 设置」与以下在线命令使用同一个 Host 所有者。通过 `--host <origin>` 和私有的 `--token-file <file>`（或已有环境变量）指定来源 Host，不要默认指向提供当前网页的本机。模型使用 `model-catalog`、`home-model-set`、`model-presets`、`model-preset-create` 和 `model-preset-update`；用量与 Memory 活动使用 `overview-usage`、`overview-memory`；存储使用 `storage-usage` 及两组清理预览／确认命令。删除仍须传入 `--confirmation-stdin --confirm`，且预览必须来自同一 Host。连接失败或被拒绝时，不会改用本地 Profile。这些命令不读取浏览器的配对密钥，也不修改本设备保存的 Host 外观。
 
 将 `DEEPSEEKBOT_HOST` 设为运行中 Host 的 loopback origin 或 tailnet HTTPS origin。使用 tailnet origin（例如 loopback Host 前面的 `tailscale serve`）时，Host 必须以 `--trusted-host <machine>.<tailnet>.ts.net` 启动；否则登录能成功，但 DSH 的 `/api` Host 校验会拒绝每个请求，CLI 返回 `host-untrusted`。`--host <origin>` 可覆盖它。当前启动令牌通过 `DEEPSEEKBOT_HOST_TOKEN` 或 `--token-file <私有文件>` 提供，不得把令牌值放入参数。每次调用重新登录，cookie 只留在内存；Host 重启后须使用新令牌。在线命令不打开 Profile 数据库。参见 [ADR-0159](adr/0159-live-cli-verbs-ride-the-dsh-http-carrier.md)。
 
@@ -433,6 +443,8 @@ deepseekbot computer-video close --args-stdin
 
 所有操作使用 `POST /api/computer/video`，stdout 输出一个 JSON 文档。`status` 报告全局 `paused`、`viewerCount`、`controlHeld`、媒体健康与 runtime；`controller`、binding 和 grant 仅属于认证调用者。手机使用已配对设备身份，本机认证 CLI 使用 Host owner 身份，不能通过提交设备 ID 冒充手机。第二观看端收到 `viewer-limit`。
 
+手机只在加密 LAN 通道内发送准确的命令路径，并使用 Noise 准入后的设备身份直接分派。Connect 在 owner 执行之前拒绝视频；请求里的 route 标签不能覆盖服务端 listener。Host owner CLI 成功不能证明手机配对或 LAN／原生播放。确认停滞时仍可释放与重新连接，独立于输入资格；释放保持暂停，重连只恢复观察。回滚曾写入暂停状态的版本前，先阅读[恢复与降级](local-computer-video.zh.md#恢复与降级)。
+
 `open` 不暂停 Bot。它返回服务端生成的 `binding`（`computerId`、`runtimeId`、`viewerId`、`attemptId`），把 gathered offer 写入全新的私密 `--out` 文件，stdout 不含 SDP。后续命令 JSON 从 stdin 读取：`signal` 接收 `binding` 和 `answer: {"type":"answer","sdp":"…"}`；`heartbeat` 接收 `binding` 和真实接收端呈现产生的 `playback: {"presentedFrames":42,"presenting":true}`。伪造心跳不算播放验证。`takeover` 接收 `binding`；强制接管还需 `force:true` 与 CLI 的 `--confirm`，但 T1 会更早拒绝第二观看端。
 
 `input` 接收 `binding`、grant 的 `generation`、严格递增的 `sequence`，以及 `input: {"kind":"click","x":10,"y":20,"button":"left","count":1}`，坐标为完整显示器的实际像素。输入只执行一次；`input-result-unknown` 表示不可重发。`release` 接收 `binding` 和可选 `generation`，保持持久暂停；`close` 接收 `binding`，关闭媒体但不恢复 Bot。`resume` 必须提交当前 `runtimeId`，重启后无需 viewer/helper 也可执行：先作废控制、排空 Human 输入，再恢复 Bot。有其他控制者时返回 `control-conflict`；旧 runtime/attempt/grant 均被拒绝。
@@ -611,6 +623,14 @@ deepseekbot idle-compaction-cache-set deepseek/<model> auto
 
 三个命令都返回 `{enabled, settingReadable, minimumIdleSeconds, scheduled, routes}`。每条线路列出 `cacheLifetimeSeconds`、来源 `source` 和 `compactAfterSeconds`（跳过时为 `null`）。缓存寿命依次取自这里为该线路设置的值（`setting`）、模型目录（`catalog`，Anthropic 的短档）、观测到的请求前空闲间隔中仍大部分命中缓存的最长值（`observed`；命中的间隔不会缩短默认值，更长的未命中间隔会把它封顶），或 DeepSeek 线路的 2 小时（`default`）；其它没有任何信息的线路为 `unknown` 并跳过，寿命不足 15 分钟的也跳过。`idle-compaction-cache-set ... auto` 删除该线路的设置值。每次执行都记录在 `deepseekbot bot-activity-history <bot-id>` 的 `idleCompactions` 中，包含线路、空闲时长、压缩前后 token 数，以及压缩请求的输入、缓存读取和输出 token。拒绝时带错误码：`usage`（缺少 `on`/`off`、`<provider>/<model>` 或整数秒）和 `invalid-input`。
 
+### 加密局域网手机连接
+
+无需模型的设备侧验收使用 `device-pair --link-file <可信私有链接文件> --out <新私有配对.json> --confirm`，执行与手机相同的加密注册。等待批准时，配对进程向标准错误输出一条 `device-key-confirmation-required` JSON 状态，只包含本端公钥指纹。在另一个 CLI 进程将其与 `devices.pendingKeys[].fingerprint` 完整逐位比较，再用 `device-approve-key` 批准该条目的准确公钥；不得只按设备名或列表位置批准。最终标准输出只有 Host/设备 ID 和输出路径，密钥及凭据只写入新私有文件。之后用 `device-probe --device-file <私有配对.json>` 通过手机连接模块读取真实 Host Feed，只报告路由类型与列表数量，不发送 DM，也不需要模型。配对链接和凭据不得放入命令参数。
+
+`deepseekbot device-lan enable --confirm` 开启受限的加密入口。`device-lan disable` 关闭 LAN 连接并移除启用记录，不撤销设备，也不关闭 Connect。两者只返回一个 JSON 状态（`off` 或带端口的 `listening`）。`devices` 增加 `lan` 状态和可用路由。拒绝码包括 `confirm-required`、`lan-action-invalid`、`lan-listen-failed`、`lan-storage-unavailable`。LAN 默认关闭；启用后端口在普通 Host 重启时保留。
+
+继续使用现有配对命令 `device-offer --out <新私有文件>` 和 `device-approve-key <receipt> <公钥> --confirm`。已安装的 App 扫描可信电脑上的二维码，然后等待电脑批准准确的手机公钥。公钥可作为参数；链接和凭据只放在受保护文件中。原生构建与网络要求见 [LAN 协议](architecture/lan-phone-v1.md)。
+
 ### 手机连接（Tailscale）
 
 手机连不上这台 Host 时，Bot 设置 → 设备 → 配对手机会显示三步指引：安装 Tailscale、启动并登录、把 Host 发布到 tailnet。最后一步可以确认后由 DeepSeekBot 代为运行 `tailscale serve --bg <port>`，也可以复制命令自己运行。CLI 中的对应操作：
@@ -629,6 +649,8 @@ Bot 设置 → 设备 会列出已配对的手机、显示配对二维码并撤�
 ```bash
 deepseekbot devices
 deepseekbot device-offer --out /absolute/new-private-file
+deepseekbot device-lan enable --confirm
+deepseekbot device-lan disable
 deepseekbot device-offer-status <receipt>
 deepseekbot device-revoke <device-id> --confirm
 ```
@@ -667,6 +689,8 @@ deepseekbot group-activity <group-channel>
 `bot-activity-history` 的模型行在混有未报告调用时保留已上报的 `totalTokens` 下界，并标记 `partial: true`；完全未报告时保持 `null`。严格的 `bot-usage` 查询继续保留原来的未知总计语义。
 
 ### 市场、版本更新、使用统计、Git 与配对审核
+
+客户端市场默认按最多 Star 排序，并在当前浏览器记住选择。`--sort stars` 依次按 Star、最后更新、创建时间、仓库 ID 降序排列，翻页保持同一顺序。CLI 不读取浏览器偏好。
 
 这些命令调用的 Host 方法与市场页面、更新卡片、使用统计提示、Git 提示和 IM 配对面板相同：
 
@@ -1240,3 +1264,7 @@ deepseekbot appearance-reset --client-id <id> --expected-revision <appearance-re
 `tool-approval-decide ... --outcome allowed-always-tool` 对应网页的“始终允许”：批准本次并记住此 Bot、角色及当前授权范围中的当前工具。参数变化仍可匹配；其他工具和变化后的范围不能匹配。`tool-approval-rules` 返回 `tool` 类型；`tool-approval-rule-revoke --confirm` 撤销后恢复询问。旧 exact／broad／Secret 规则不改义。权限与策略变更不能记住；不可用的“始终允许”由 Host 返回带代码的拒绝。Secret CLI 仍只记住程序、账号及环境变量名；MCP 服务记忆保留独立检查。
 
 Full Access 保留原生 `ask`，使识别出的权限变更可以到达 Human；明确范围内的普通请求自动回答，不再逐次弹卡。不会扩大选定 mode／scope 或已有 Assignment 权限。原生 `never` 仍表示直接拒绝，没有绕过它。目录授权仍使用 `grant-request-approve --confirm`。
+
+Connect 使用 Noise XK 加密通道。`deepseekbot connect-status` 的 `connect.encryption` 字段包含 `protocol`、`required`、`state`、`publicKey` 和 Host 指纹；`state` 为 `negotiating`、`encrypted` 或 `disconnected`，仅开启 tunnel 不代表已有加密会话。`devices` 同时返回待批准的 `pendingKeys`。核对新设备显示的完整指纹与设备页后，使用 `deepseekbot device-approve-key <receipt> <public-key> --confirm` 批准准确的公钥；缺少确认或公钥无效会拒绝。配对链接、设备私钥和 bearer 不出现在这些状态输出中。
+
+手机原生私密表单和浏览器远程聊天通过同一个加密通道调用既有凭据 owner。旧 Connect 配对必须重新核对指纹；失败不会重试明文。手机完整 Host WebView 仍已移除，Connect 的 Browser/Computer 查看器暂不可用。加密 CLI 状态不替代原生验收或实际 Cloudflare 链路验证。

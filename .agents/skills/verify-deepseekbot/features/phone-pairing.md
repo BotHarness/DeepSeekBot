@@ -1,14 +1,28 @@
 # Phone pairing and paired devices
 
+## Encrypted LAN (#2599)
+
+Reserve the native QA lane before starting a Host, build or device. New native builds are required for `LanChannel`; record iOS and Android separately.
+
+1. Devices starts with local access off. `device-lan enable` without `--confirm` refuses. Capture the matched base/candidate Devices states.
+2. Enable local access visibly. Choose **Use the same Wi-Fi** in the installed app, scan the computer QR and approve the exact phone key on the computer. Capture both themes and default/intermediate/maximum text. Exclude QR payloads and private addresses from public evidence.
+3. Without WAN, read the real Host Feed over LAN. Separately, with a reachable model, send a marked DM and verify the visible reply and canonical timeline. A model failure is not a LAN failure.
+4. Restart both peers; trust and the logical Host remain. Revoke the phone; streams close and reconnect refuses. Disable LAN and verify port release while independent remote access remains.
+5. Wrong Host pins, legacy pairings without keys, reused and expired offers refuse. Denied local-network permission shows recovery guidance. This slice does not add mutation replay or proactive handover.
+
 A Human pairs the phone app with their Host by a one-time QR code, and the phone keeps working across Host restarts until the Human revokes it. The phone holds a per-device credential and talks only to the device gateway (`/botharness-device/*`, [ADR-0199](../../../../docs/adr/0199-paired-devices-reach-the-host-through-a-same-listener-device-gateway.md)).
 
 ## Sub-features
+
+- `full-client-removed`: no settings/chat/Inbox/routine/create action opens the full Host WebView; old `/full-client` deep links cannot load it. Private input directs the Human to the Host or Tailscale browser.
 
 - `offer` creates a one-time pairing offer (5 minutes) with a QR code and a `deepseekbot://pair?p=…` link.
 - `pair` redeems the offer once; a second redeem answers `401 offer-invalid`.
 - `link-errors` words a refusal by how the phone got the offer: a pasted or opened link that is broken, expired or already used says the link is wrong, and a pasted one empties the field; a scan keeps the code wording.
 - `manual-input` keeps the empty link field and Pair button above the Android keyboard. A manually scanned or pasted offer registers the phone, loads the Host roster and survives app process restart.
 - `cloud-exit` leaves the native pairing modal before opening Cloud services, so Workspaces exposes a visible, operable drawer.
+- `fingerprint-steps` opens a fresh encrypted invitation. For pasted and opened links, the link form is replaced by a focused computer verification page with all 64 fingerprint digits, selectable grouped text and native actions. Expand/collapse the explanation without granting trust. A mismatch or Back must cancel without opening a channel; a fresh invitation still works. Explicitly compare with the trusted Host, tap Fingerprints match, then compare the full phone fingerprint with Host Devices and approve only that key. The phone waits without a second trust action and remains cancellable. Check light/dark and default/intermediate/maximum text; compare full fingerprints before scrolling to reachable actions. Both account and direct-link routes use the same verification view.
+- `pair-return` uses the existing assigned iOS Simulator: compare the real Connect Host fingerprint, approve the exact displayed device key, then immediately open Chats, Settings (close and reopen) and Activity without restarting/reloading the app. Require no `sheetPresentationController` error or blocked taps. Repeat with the first-use notice unread/read, light/dark and default/intermediate/maximum system text. `apps/mobile/.maestro/sim/pairing-return.yaml` runs the post-approval interaction check without launching or clearing the app; keep native approval and capture evidence alongside it.
 - `roster` shows the Host's PersonaBots in the app through the gateway, with the live stream.
 - `restart` keeps the phone connected after a Host restart without pairing again.
 - `devices` lists each phone with its pairing and last-seen time.

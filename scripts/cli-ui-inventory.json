@@ -34,6 +34,7 @@
         "storage:packages/client/src/client/channel-sidebar-prefs.ts:setItem(STORAGE_KEY)",
         "storage:packages/client/src/client/inbox-view-prefs.ts:setItem(INBOX_VIEW_PREFERENCES_KEY)",
         "storage:packages/client/src/client/last-view.ts:setItem(LAST_VIEW_KEY)",
+        "storage:packages/client/src/client/marketplace.tsx:setItem(SORT_STORAGE_KEY)",
         "storage:packages/client/src/client/memory-view-prefs.ts:setItem(MEMORY_VIEW_PREFERENCES_KEY)",
         "storage:packages/client/src/client/roster-config.ts:setItem(ROSTER_BACKUP_KEY)",
         "storage:packages/client/src/client/roster-config.ts:setItem(ROSTER_CONFIG_KEY)",
@@ -61,14 +62,19 @@
       "description": "Device list, offers, offer status and revoke; the Connect tunnel action on the same route family has connect-status/enable/disable/sign-in/sign-out.",
       "scope": "Profile",
       "surfaces": [
-        "route:packages/core/src/devices/mount.ts:path in [ [DEVICES_PATH, ['GET']], [`${DEVICES_PATH}/offer`, ['POST']], [`${DEVICES_PATH}/offer-status`, ['POST']], [`${DEVICES_PATH}/revoke`, ['POST']], [`${DEVICES_PATH}/connect`, ['POST']], ] as const",
+        "route:packages/core/src/devices/mount.ts:path in [ [DEVICES_PATH, ['GET']], [`${DEVICES_PATH}/offer`, ['POST']], [`${DEVICES_PATH}/offer-status`, ['POST']], [`${DEVICES_PATH}/approve-key`, ['POST']], [`${DEVICES_PATH}/revoke`, ['POST']], [`${DEVICES_PATH}/connect`, ['POST']], [`${DEVICES_PATH}/lan`, ['POST']], ] as const",
+        "setting:packages/client/src/client/paired-devices.tsx:{t('devices.lan.title')}",
         "setting:packages/client/src/client/paired-devices.tsx:{device.name}",
+        "setting:packages/client/src/client/paired-devices.tsx:{item.name}",
+        "route:packages/core/src/devices/mount.ts:CONNECT_CHANNEL_PATH",
         "setting:packages/client/src/client/paired-devices.tsx:{t('devices.pair.title')}"
       ],
       "commands": [
         "devices",
         "device-offer",
         "device-offer-status",
+        "device-approve-key",
+        "device-lan",
         "device-revoke",
         "connect-enable",
         "connect-disable"
@@ -443,10 +449,9 @@
         "storage:packages/client/src/client/remote-hosts.ts:setItem(REMOTE_HOSTS_STORAGE_KEY)",
         "storage:packages/client/src/client/remote-hosts.ts:setItem(HOST_TAB_STORAGE_KEY)",
         "storage:packages/client/src/client/remote-hosts.ts:removeItem(oldKey)",
-        "storage:packages/client/src/client/remote-hosts.ts:setItem(key)",
-        "storage:packages/client/src/client/host-looks.ts:setItem(HOST_LOOKS_STORAGE_KEY)"
+        "storage:packages/client/src/client/remote-hosts.ts:setItem(key)"
       ],
-      "exemption": "Per-browser connections, legacy-key migration, the tab filter and Host looks belong to that browser profile, not to any Host (spec #2178, ADR-0243: Host looks are device-local), so no Host CLI can read or set them. Permanent pairing removal also deletes its browser notification choice as automatic cleanup, not a separate setting. Browser notification reads and writes use the separately inventoried Client relay commands. The Remote Host's side is its existing device gateway: pair, unary calls, stream ticket and revoke.",
+      "exemption": "Per-browser connections, legacy-key migration, and the tab filter belong to that browser profile, not to any Host (spec #2178, ADR-0243: Host looks are device-local), so no Host CLI can read or set them. Permanent pairing removal also deletes its browser notification choice as automatic cleanup, not a separate setting. Browser notifications and Host looks use separately inventoried Client relay commands. The Remote Host's side is its existing device gateway: pair, unary calls, stream ticket and revoke.",
       "configurable": false
     },
     {
@@ -497,8 +502,7 @@
         "route:packages/computer/src/index.ts:VIEWER_PREFIX",
         "route:packages/computer/src/index.ts:socketPath in viewerUpgradePaths(VIEWER_PREFIX)",
         "route:packages/core/src/devices/mount.ts:DEVICE_GATEWAY_PREFIX",
-        "route:packages/core/src/devices/mount.ts:path in [DEVICE_MUX_PATH, DEVICE_WEB_MUX_PATH, ...DEVICE_SIGNALING_PATHS]",
-        "route:packages/core/src/http/viewer-proxy.ts:`${DEVICE_WEB_PREFIX}${path}`"
+        "route:packages/core/src/devices/mount.ts:path in [DEVICE_MUX_PATH, ...DEVICE_SIGNALING_PATHS]"
       ],
       "exemption": "Native viewer media/signaling/proxy transport; no user-configurable setting on these routes. Control and diagnostic APIs are covered separately.",
       "configurable": false
@@ -830,6 +834,15 @@
         "appearance-clear-panels",
         "appearance-reset"
       ]
+    },
+    {
+      "id": "device-local-host-look",
+      "description": "Browser-owned Host name, icon and colour; shared HostLooks locks persisted revision/merge, supports explicit refresh after read failure, and checks CLI absolute expiry before setItem. Early disconnect is unknown outcome with readback; no Host mirror.",
+      "scope": "Client / Host",
+      "surfaces": [
+        "storage:packages/client/src/client/host-looks.ts:setItem(HOST_LOOKS_STORAGE_KEY)"
+      ],
+      "commands": ["appearance-clients", "host-look"]
     }
   ]
 }

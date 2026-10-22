@@ -30,6 +30,7 @@ export interface LocalVideoClient {
   subscribe(listener: () => void): () => void;
   start(): Promise<void>;
   stop(): Promise<void>;
+  reconnect(): Promise<void>;
   answer(attemptId: string, sdp: string): Promise<void>;
   playback(attemptId: string, presentedFrames: number, lastPresentedAgoMs: number): void;
   mediaFailed(attemptId: string, code: string): void;
@@ -211,7 +212,7 @@ export function createLocalVideoClient(transport: LocalVideoTransport, options: 
       update({ busy: false, ...(withoutMedia ? { status: 'unavailable' as const } : {}) });
     }
   }
-  return {
+  const client: LocalVideoClient = {
     getState: () => state,
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
     async start() {
@@ -220,7 +221,7 @@ export function createLocalVideoClient(transport: LocalVideoTransport, options: 
       run = new AbortController();
       presentedFrames = 0;
       inputSequence = 0;
-      update({ status: 'opening', host: undefined, presenting: false, code: undefined });
+      update({ status: 'opening', host: undefined, presenting: false, busy: false, code: undefined });
       await closing;
       if (generation !== lifetime) return;
       const capability = await request({ kind: 'status' }, generation);
@@ -240,6 +241,15 @@ export function createLocalVideoClient(transport: LocalVideoTransport, options: 
       scheduleHeartbeat(generation);
     },
     stop: () => end('idle'),
+    async reconnect() {
+      if (state.busy) return;
+      const closed = end('idle');
+      const generation = lifetime;
+      update({ busy: true });
+      await closed;
+      // Background, exit, or a new foreground start supersedes this explicit reconnect.
+      if (generation === lifetime) await client.start();
+    },
     async answer(attemptId, sdp) {
       const binding = state.host?.binding;
       if (binding?.attemptId !== attemptId || sdp.length > LOCAL_VIDEO_LIMITS.signalBytes) return;
@@ -285,4 +295,5 @@ export function createLocalVideoClient(transport: LocalVideoTransport, options: 
       });
     },
   };
+  return client;
 }

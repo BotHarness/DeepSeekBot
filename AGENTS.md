@@ -47,6 +47,10 @@ Agent-facing debugging is a first-class concern. A plugin that owns long-running
 
 WSL egress fallback: if a task-local DSH Host cannot reach a provider while Windows can, follow [the AX restricted-relay runbook](docs/agents/ax-wsl-network.md) for standing authorization, isolation, live-model proof, and lifecycle.
 
+### Verification resource cleanup (AX)
+
+Before launching a task-owned Host, watcher, preview, browser driver or tunnel, and before finishing or handing off that task, follow [verification resource cleanup](docs/agents/ax-resource-cleanup.md). Record ownership at launch; finish by verifying owned processes have exited and ports are released, or record an explicit retained-environment handoff. Preserve source changes and evidence, stop processes before removing their Profile/worktree, and retain shared E2E/QA resources under their queue owner's control.
+
 ### CLI parity (AX)
 
 Every feature must be operable and testable by an agent through the `deepseekbot` CLI, without the Web UI and without the model. A change that adds or changes a Host bridge method, a Host `/api/...` route, or a Harness Bot tool ships the matching CLI command in the same PR:
@@ -78,6 +82,10 @@ The dev VPS lives on the Human's Tailscale tailnet. Per-machine values (SSH host
 ### Shared device QA (AX)
 
 Native checks for `apps/mobile` share devices and QA Hosts among coding agents. Before booting an emulator/Simulator, building the app, starting a Host or touching a phone, follow [shared device QA](docs/agents/device-qa.md): choose the Mac/iOS or Windows/Android queue, submit to its owner-cut batch, use the dedicated QA Host, and report redacted results. Windows emulator and USB-phone checks use the shared `android-qa.ps1` lease and scrcpy capture workflow.
+
+### QA evidence (AX)
+
+Before capturing development screenshots or recordings, handing off macOS/iOS or Windows/Android QA, or retaining release images, follow [local QA evidence and release archives](docs/agents/qa-evidence.md). Keep an indexed task folder in the machine's main checkout and preserve accepted evidence by release and SHA; platform queues still own devices and capture tooling.
 
 ### Machine-local secrets (AX)
 
@@ -138,6 +146,8 @@ For PRs that change architecture or data flow across modules, read [the optional
 Single-context layout: root `CONTEXT.md` + `docs/adr/` (extended lazily by the domain skills). Root `CONTEXT.md` is the sole authority for BotHarness product terms such as PersonaBot, Channel, Source Event, Bot Inbox, Orchestrator Session, and Assignment Session; product runtime relationships live under `docs/architecture/`. See `docs/agents/domain.md`.
 
 ### UI guidelines
+
+Every new or changed Web, desktop or mobile interface follows [UI design](docs/agents/ui-design.md) ([中文](docs/agents/ui-design.zh.md)): communicate through layout, icons and interaction; keep descriptive prose secondary. Apply its review gate alongside the platform-specific rules.
 
 Building or changing in-harness UI follows the `dsh-ui` skill: DSH tokens (central alias table, no inline hex), `ui-primitives`, the native inset contract, and the measure-the-shell workflow (ADR-0028). For net-new UI, the skill's `references/design-references.md` names the external precedents (coss.com/ui, Beautiful UI, shadcn/ui, Lucide) — patterns to adapt rather than dependencies, except vendored Lucide glyphs (ADR-0032).
 
