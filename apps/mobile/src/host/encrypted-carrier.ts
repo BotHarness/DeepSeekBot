@@ -317,7 +317,8 @@ export function encryptedCarrier(options: {
     },
     async request(url, init) {
       const parsed = requestUrl(url);
-      if (!isEncryptedRoute(parsed.origin)) return options.raw.request(url, init);
+      if (!isEncryptedRoute(parsed.origin, options.encryption))
+        return options.raw.request(url, init);
       if (init.signal.aborted) throw new Error('request-cancelled');
       const current = session(parsed.origin);
       await current.ready;
@@ -381,7 +382,8 @@ export function encryptedCarrier(options: {
     },
     openSocket(url, events, headers): HostSocket {
       const parsed = requestUrl(url.replace(/^ws/u, 'http'));
-      if (!isEncryptedRoute(parsed.origin)) return options.raw.openSocket(url, events, headers);
+      if (!isEncryptedRoute(parsed.origin, options.encryption))
+        return options.raw.openSocket(url, events, headers);
       let current: Session | undefined,
         done = false;
       const id = String(++next);

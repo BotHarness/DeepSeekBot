@@ -1,6 +1,7 @@
 import { parseAccountOwner, type AccountOwner } from './account-owner';
 
 export interface HostEncryption {
+  loopback?: 'encrypted';
   protocol: 'connect-noise-xk-v1';
   hostKey: string;
   deviceKey: string;
@@ -28,6 +29,11 @@ function record(value: unknown): Record<string, unknown> {
 
 export function parseSavedHost(input: unknown): SavedHost | undefined {
   const value = record(input);
+  if (
+    record(value['encryption'])['loopback'] === 'encrypted' &&
+    parseEncryption(value['encryption']) === undefined
+  )
+    return undefined;
   return typeof value['hostId'] === 'string' &&
     typeof value['hostName'] === 'string' &&
     Array.isArray(value['routes']) &&
@@ -130,6 +136,11 @@ export function parseEncryption(input: unknown): HostEncryption | undefined {
     /^[0-9a-f]{64}$/u.test(value['hostKey']) &&
     typeof value['deviceKey'] === 'string' &&
     /^[0-9a-f]{64}$/u.test(value['deviceKey'])
-    ? { protocol: 'connect-noise-xk-v1', hostKey: value['hostKey'], deviceKey: value['deviceKey'] }
+    ? {
+        protocol: 'connect-noise-xk-v1',
+        hostKey: value['hostKey'],
+        deviceKey: value['deviceKey'],
+        ...(value['loopback'] === 'encrypted' ? { loopback: 'encrypted' as const } : {}),
+      }
     : undefined;
 }

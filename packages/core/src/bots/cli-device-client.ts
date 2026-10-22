@@ -90,7 +90,7 @@ export async function runDeviceClientCommand(
     throw new CliLiveError('invalid-input', 'Cannot read the saved pairing.');
   }
   if (!host) throw new CliLiveError('invalid-input', 'Invalid saved pairing.');
-  if (!host.encryption && host.routes.some(isEncryptedRoute))
+  if (!host.encryption && host.routes.some((route) => isEncryptedRoute(route)))
     throw new CliLiveError('host-key-required', 'Upgrade this pairing from the trusted computer.');
   const client = createHostClient({ ...host, carrier: nodeDeviceCarrier() });
   let unsubscribe = () => {};
@@ -108,7 +108,7 @@ export async function runDeviceClientCommand(
             hostId: host.hostId,
             deviceId: host.deviceId,
             route: isLanRoute(snapshot.connection.route) ? 'lan' : 'remote',
-            encrypted: isEncryptedRoute(snapshot.connection.route),
+            encrypted: isEncryptedRoute(snapshot.connection.route, host.encryption),
             bots: snapshot.roster.bots.length,
             channels: snapshot.roster.channels.length,
           });

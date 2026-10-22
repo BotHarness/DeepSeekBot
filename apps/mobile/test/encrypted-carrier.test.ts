@@ -4,6 +4,81 @@ import { decideFromPush } from '../src/host/push-actions';
 import { decideApproval } from '../src/host/requests';
 import { redeemPairing } from '../src/host/pairing';
 import { encryptedCarrier } from '../src/host/encrypted-carrier';
+import { parsePairingLink } from '../src/host/pairing';
+
+it('accepts only a pinned single-loopback SSH v2 pairing without legacy fallback', () => {
+  const payload = {
+    v: 2,
+    host: { id: 'host', name: 'Linux' },
+    offer: 'private',
+    expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    routes: ['http://127.0.0.1:32451'],
+    encryption: {
+      protocol: 'connect-noise-xk-v1',
+      publicKey: 'ab'.repeat(32),
+      loopback: 'encrypted',
+    },
+  };
+  const link = (value: unknown) =>
+    `deepseekbot://pair?p=${Buffer.from(JSON.stringify(value)).toString('base64url')}`;
+  expect(parsePairingLink(link(payload))).toMatchObject({
+    ok: true,
+    payload: { encryption: { loopback: 'encrypted' } },
+  });
+  expect(parsePairingLink(link({ ...payload, encryption: { loopback: 'encrypted' } }))).toEqual({
+    ok: false,
+    code: 'link-invalid',
+  });
+  expect(parsePairingLink(link({ ...payload, routes: ['https://other.tailnet.ts.net'] }))).toEqual({
+    ok: false,
+    code: 'link-invalid',
+  });
+});
+
+it('never sends an SSH pairing credential over raw loopback after a local port is replaced', async () => {
+  const raw = {
+    request: vi.fn(),
+    openSocket: vi.fn((_url: string, events: import('../src/host/carrier').HostSocketEvents) => {
+      queueMicrotask(() => events.closed('channel-disconnected'));
+      return { send: vi.fn(), close: vi.fn() };
+    }),
+  };
+  const saved = parseSavedHost({
+    hostId: 'host',
+    hostName: 'Linux',
+    deviceId: 'device',
+    routes: ['http://127.0.0.1:32451'],
+    credential: 'ssh-device-secret',
+    encryption: {
+      protocol: 'connect-noise-xk-v1',
+      hostKey: 'ab'.repeat(32),
+      deviceKey: 'cd'.repeat(32),
+      loopback: 'encrypted',
+    },
+  });
+  expect(saved?.encryption?.loopback).toBe('encrypted');
+  if (!saved) throw new Error('missing fixture');
+  expect(
+    parseSavedHost({ ...saved, encryption: { ...saved.encryption, hostKey: 'invalid' } }),
+  ).toBeUndefined();
+  const carrier = encryptedCarrier({ ...saved, raw });
+  try {
+    await expect(
+      carrier.request('http://127.0.0.1:32451/botharness-device/push', {
+        method: 'GET',
+        signal: new AbortController().signal,
+        headers: { authorization: 'Device ssh-device-secret' },
+      }),
+    ).rejects.toThrow();
+    expect(raw.request).not.toHaveBeenCalled();
+    expect(raw.openSocket.mock.calls[0]?.[0]).toBe(
+      'ws://127.0.0.1:32451/botharness-device/channel',
+    );
+    expect(JSON.stringify(raw.openSocket.mock.calls)).not.toContain('ssh-device-secret');
+  } finally {
+    carrier.close?.();
+  }
+});
 
 it.each(['https://host.deepseekbot.dev', 'http://192.168.1.20:39101'])(
   'refuses a legacy pairing at %s before any credential reaches the raw carrier',

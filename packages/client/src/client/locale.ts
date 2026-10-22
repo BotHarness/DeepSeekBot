@@ -4003,7 +4003,7 @@ export const zh = {
   'remoteHosts.notifications.unsupported': '此浏览器无法显示通知。',
 
   'remoteHosts.add.description':
-    '在远程 Host 的「设置 → 设备 → 配对手机」里复制配对链接，粘贴到这里。支持 Tailscale 或 Connect；Connect 需要核对指纹。',
+    '粘贴远端 Host「设备」设置或 SSH 命令行生成的配对链接。保持连接运行，并按提示核对指纹。',
   'remoteHosts.add.link': '配对链接',
   'remoteHosts.add.hint': '链接 10 分钟内有效，只能用一次。',
   'remoteHosts.add.submit': '添加',
@@ -4025,7 +4025,7 @@ export const zh = {
   'remoteHosts.error.offer-invalid': '链接已用过或无效，请重新生成',
   'remoteHosts.error.offer-expired': '链接已过期，请在远程上重新生成',
   'remoteHosts.error.no-route': '链接里没有能访问的地址',
-  'remoteHosts.error.unreachable': '连不上这个远程，请确认它开着并在同一个 Tailscale 网络里',
+  'remoteHosts.error.unreachable': '连不上这个远端，请检查 Host 和它的连接是否正在运行。',
   'remoteHosts.error.already-paired': '这个远程已经添加过了',
   'remoteHosts.error.this-host': '这是本机的链接',
   'devices.lan.title': '局域网连接',
@@ -8440,7 +8440,7 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'remoteHosts.notifications.unsupported': 'This browser cannot show notifications.',
 
   'remoteHosts.add.description':
-    'On the remote host, copy the link from Settings → Devices → Pair a phone and paste it here. Use Tailscale or Connect; Connect requires fingerprint comparison.',
+    'Paste the link from the remote Host’s Devices settings or the SSH CLI. Keep the connection running and compare fingerprints when asked.',
   'remoteHosts.add.link': 'Pairing link',
   'remoteHosts.add.hint': 'The link works once, for 10 minutes.',
   'remoteHosts.add.submit': 'Add',
@@ -8463,7 +8463,7 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'remoteHosts.error.offer-expired': 'The link expired. Make a new one on the remote.',
   'remoteHosts.error.no-route': 'The link has no address this browser can reach.',
   'remoteHosts.error.unreachable':
-    "Can't reach that remote. Check that it's on and on the same Tailscale network.",
+    "Can't reach that remote. Check that the Host and its connection are running.",
   'remoteHosts.error.already-paired': 'That remote is already added.',
   'remoteHosts.error.this-host': 'That link is for this host.',
   'devices.lan.title': 'Local network access',
