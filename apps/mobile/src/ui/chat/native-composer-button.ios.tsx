@@ -67,7 +67,7 @@ export function NativeComposerButton({
           size={theme.type.title.line}
           color={ink}
           modifiers={[
-            frame({ width: contentSize, height: contentSize }),
+            frame({ width: contentSize, height: contentSize, alignment: 'center' }),
             contentShape(shapes.rectangle()),
             ...(filled || (!embedded && !glass)
               ? [background(filled ? theme.color.fg : theme.color.surface, shapes.circle())]

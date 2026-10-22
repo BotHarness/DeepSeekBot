@@ -3,260 +3,206 @@ import { act, createElement, useState, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
-const native = vi.hoisted(() => ({
-  callbacks: {} as Record<string, (...args: any[]) => void>,
-  reactions: new Set<() => void>(),
-  state: 'undetermined',
+const speech = vi.hoisted(() => ({
+  listeners: new Map<string, (event: unknown) => void>(),
+  permission: undefined as Promise<{ granted: boolean }> | undefined,
+  start: vi.fn(),
+  stop: vi.fn(),
+  abort: vi.fn(),
+  held: vi.fn(),
 }));
-vi.mock('react-native', async () => {
-  const shim = await import('./react-native-shim');
-  return {
-    ...shim,
-    View: (props: Record<string, unknown>) =>
-      props['onAccessibilityTap']
-        ? createElement(
-            'button',
-            {
-              'aria-label': props['accessibilityLabel'],
-              onClick: props['onAccessibilityTap'] as () => void,
-            },
-            props['children'] as ReactNode,
-          )
-        : shim.View(props),
-  };
-});
-vi.mock('@expo/ui', () => ({ Host: ({ children }: { children: ReactNode }) => children }));
+vi.mock('react-native', async () => import('./react-native-shim'));
+vi.mock('../src/ui/chat/composer-chrome', async () => import('../src/ui/chat/composer-chrome.ios'));
+vi.mock('../src/ui/primitives/drawer-material', () => ({ useLiquidGlass: () => true }));
+vi.mock('@expo/ui/swift-ui/modifiers', () => ({
+  foregroundStyle: () => ({}),
+  accessibilityLabel: (label: string) => ({ label }),
+  buttonStyle: () => ({}),
+  buttonBorderShape: () => ({}),
+  contentShape: () => ({}),
+  background: () => ({}),
+  frame: (params: unknown) => ({ frame: params }),
+  shapes: { circle: () => ({}), rectangle: () => ({}) },
+}));
+vi.mock('@expo/ui', () => ({
+  Host: ({ children }: { children: ReactNode }) => createElement('div', null, children),
+}));
 vi.mock('@expo/ui/swift-ui', () => ({
-  Image: ({ systemName }: { systemName: string }) =>
-    createElement('span', { 'data-symbol': systemName }),
+  Button: ({
+    children,
+    onPress,
+    testID,
+    modifiers,
+  }: {
+    children: ReactNode;
+    onPress(): void;
+    testID?: string;
+    modifiers: Array<{ label?: string }>;
+  }) =>
+    createElement(
+      'button',
+      {
+        'aria-label': modifiers.find((m) => m.label)?.label,
+        'data-testid': testID,
+        onClick: onPress,
+      },
+      children,
+    ),
+  Image: ({
+    systemName,
+    modifiers,
+  }: {
+    systemName: string;
+    modifiers: Array<{ frame?: unknown }>;
+  }) =>
+    createElement('span', {
+      'data-symbol': systemName,
+      'data-frame': JSON.stringify(modifiers.find((m) => m.frame)?.frame),
+    }),
 }));
-vi.mock('../src/ui/chat/composer-chrome', () => ({
-  composerControl: () => 44,
-  composerPrimary: () => ({ fill: 'black', ink: 'white' }),
-}));
-vi.mock('react-native-worklets', () => ({
-  scheduleOnRN: (fn: (...args: any[]) => void, ...args: any[]) => fn(...args),
-}));
-vi.mock('react-native-reanimated', async () => {
-  const { useEffect, useState } = await import('react');
-  return {
-    useSharedValue: (initial: unknown) =>
-      useState(() => {
-        let current = initial;
-        return {
-          get: () => current,
-          set: (next: unknown) => {
-            current = next;
-            native.reactions.forEach((fn) => fn());
-          },
-        };
-      })[0],
-    useAnimatedReaction: (read: () => unknown, react: (next: unknown, previous: unknown) => void) =>
-      useEffect(() => {
-        let previous = read();
-        const reaction = () => {
-          const next = read();
-          const old = previous;
-          previous = next;
-          react(next, old);
-        };
-        native.reactions.add(reaction);
-        return () => {
-          native.reactions.delete(reaction);
-        };
-      }, [read, react]),
-  };
-});
-vi.mock('react-native-gesture-handler', () => ({
-  GestureStateManager: { activate: () => manager.activate() },
-  GestureDetector: ({ children }: { children: ReactNode }) => children,
-  Gesture: {
-    Manual: () => {
-      const chain: Record<string, (fn: (...args: any[]) => void) => unknown> = {};
-      for (const name of [
-        'onTouchesDown',
-        'onBegin',
-        'onStart',
-        'onTouchesMove',
-        'onTouchesUp',
-        'onTouchesCancelled',
-        'onFinalize',
-      ]) {
-        chain[name] = (fn) => {
-          native.callbacks[name] = fn;
-          return chain;
-        };
-      }
-      return chain;
-    },
+vi.mock('expo-speech-recognition', () => ({
+  ExpoSpeechRecognitionModule: {
+    isRecognitionAvailable: () => true,
+    requestPermissionsAsync: () => speech.permission ?? Promise.resolve({ granted: true }),
+    start: speech.start,
+    stop: speech.stop,
+    abort: speech.abort,
+  },
+  useSpeechRecognitionEvent: (name: string, listener: (event: unknown) => void) => {
+    speech.listeners.set(name, listener);
   },
 }));
 const { VoiceButton } = await import('../src/ui/chat/voice-button.ios');
+const { useDictation } = await import('../src/host/speech');
+const { dictating } = await import('../src/ui/chat/dictation');
 const { t } = await import('../src/ui/strings');
-Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
-const start = vi.fn();
-const stop = vi.fn();
-const cancel = vi.fn();
-const held = vi.fn();
-let host: HTMLElement;
+Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+let container: HTMLElement;
 let root: ReturnType<typeof createRoot>;
-let now = 1000;
 function Harness() {
-  const [active, setActive] = useState(false);
+  const [draft, setDraft] = useState('');
+  const dictation = useDictation(setDraft);
   return (
-    <VoiceButton
-      active={active}
-      onStart={() => {
-        start();
-        setActive(true);
-      }}
-      onStop={() => {
-        stop();
-        setActive(false);
-      }}
-      onCancel={() => {
-        cancel();
-        setActive(false);
-      }}
-      onHeld={held}
-    />
+    <>
+      <span ref={dictation.mountRef} data-testid="status">
+        {dictation.state.status}
+      </span>
+      <span data-testid="draft">{draft}</span>
+      <VoiceButton
+        active={dictating(dictation.state.status)}
+        onStart={dictation.start}
+        onStop={dictation.stop}
+        onCancel={dictation.cancel}
+        onHeld={speech.held}
+      />
+      <button onClick={dictation.cancel} aria-label={t.cancelDictation}>
+        Cancel
+      </button>
+    </>
   );
 }
-const manager = {
-  activate: () => {
-    if (native.state !== 'began') return;
-    native.state = 'active';
-    native.callbacks['onStart']!();
-  },
-  end: () => finalize(true),
-  fail: () => finalize(false),
-};
-function finalize(success: boolean) {
-  if (native.state === 'finished') return;
-  native.state = 'finished';
-  native.callbacks['onFinalize']!({}, success);
-}
-const touch = (x: number, y: number, numberOfTouches = 1) => ({
-  numberOfTouches,
-  allTouches: [{ absoluteX: x, absoluteY: y }],
-});
-const down = async (numberOfTouches = 1) =>
-  act(async () => {
-    native.state = 'undetermined';
-    native.callbacks['onTouchesDown']!(touch(200, 400, numberOfTouches), manager);
-    if (native.state === 'undetermined') {
-      native.state = 'began';
-      native.callbacks['onBegin']?.({ handlerTag: 1 });
-    }
-  });
-const move = async (x: number, y: number) =>
-  act(async () => native.callbacks['onTouchesMove']!(touch(x, y), manager));
-const up = async (duration: number) => {
-  now += duration;
-  await act(async () => native.callbacks['onTouchesUp']!({}, manager));
-};
-
 beforeEach(async () => {
   vi.clearAllMocks();
-  native.reactions.clear();
-  native.state = 'undetermined';
-  now = 1000;
-  vi.spyOn(Date, 'now').mockImplementation(() => now);
-  host = document.createElement('div');
-  root = createRoot(host);
+  speech.listeners.clear();
+  speech.permission = undefined;
+  container = document.createElement('div');
+  root = createRoot(container);
   await act(async () => root.render(<Harness />));
 });
-afterEach(() => {
-  act(() => root.unmount());
-  vi.restoreAllMocks();
+afterEach(() => act(() => root.unmount()));
+const button = () =>
+  container.querySelector<HTMLButtonElement>('[data-testid="composer-dictation"]')!;
+const status = () => container.querySelector('[data-testid="status"]')!.textContent;
+const draft = () => container.querySelector('[data-testid="draft"]')!.textContent;
+async function press() {
+  await act(async () => button().click());
+}
+async function emit(name: string, event: unknown = null) {
+  await act(async () => speech.listeners.get(name)!(event));
+}
+
+it('starts once through the native button, stops on the next activation and preserves the draft', async () => {
+  expect(button().getAttribute('aria-label')).toBe(t.dictate);
+  expect(button().querySelector('[data-symbol="mic.fill"]')).not.toBeNull();
+  await press();
+  expect(speech.start).toHaveBeenCalledTimes(1);
+  expect(status()).toBe('starting');
+  expect(button().getAttribute('aria-label')).toBe(t.stopDictation);
+  expect(button().querySelector('[data-symbol="stop.fill"]')).not.toBeNull();
+  await emit('start');
+  await emit('result', { results: [{ transcript: 'Synthetic test draft' }] });
+  expect(speech.stop).not.toHaveBeenCalled();
+  expect(speech.abort).not.toHaveBeenCalled();
+  await press();
+  expect(speech.stop).toHaveBeenCalledTimes(1);
+  await emit('end');
+  expect(draft()).toBe('Synthetic test draft');
+  expect(button().getAttribute('aria-label')).toBe(t.dictate);
+  await press();
+  expect(speech.start).toHaveBeenCalledTimes(2);
+  expect(speech.held).not.toHaveBeenCalled();
 });
 
-it('starts only after iOS reports BEGAN following the initial touch event', async () => {
-  await act(async () => native.callbacks['onTouchesDown']!(touch(200, 400), manager));
-  expect(start).not.toHaveBeenCalled();
+it('does not start or stop on touch-down or a held touch without native activation', async () => {
   await act(async () => {
-    native.state = 'began';
-    native.callbacks['onBegin']?.({ handlerTag: 1 });
+    button().dispatchEvent(new Event('touchstart', { bubbles: true }));
+    button().dispatchEvent(new Event('touchend', { bubbles: true }));
   });
-  expect(start).toHaveBeenCalledOnce();
-  expect(held).toHaveBeenLastCalledWith(true);
+  expect(speech.start).not.toHaveBeenCalled();
+  expect(speech.stop).not.toHaveBeenCalled();
+  expect(speech.held).not.toHaveBeenCalled();
+  await press();
+  expect(speech.start).toHaveBeenCalledTimes(1);
+  expect(speech.stop).not.toHaveBeenCalled();
 });
-it('rejects an initial two-finger touch without starting speech', async () => {
-  await down(2);
-  expect(start).not.toHaveBeenCalled();
-  expect(cancel).not.toHaveBeenCalled();
+
+it('cancels a pending permission request without starting when the grant arrives', async () => {
+  let grant!: (permission: { granted: boolean }) => void;
+  speech.permission = new Promise((resolve) => {
+    grant = resolve;
+  });
+  await press();
+  expect(status()).toBe('starting');
+  await press();
+  await act(async () => grant({ granted: true }));
+  expect(speech.start).not.toHaveBeenCalled();
+  expect(speech.abort).toHaveBeenCalledTimes(1);
+  expect(button().getAttribute('aria-label')).toBe(t.dictate);
 });
-it('quick tap locks listening and the next tap stops once', async () => {
-  await down();
-  await up(100);
-  expect(start).toHaveBeenCalledOnce();
-  expect(stop).not.toHaveBeenCalled();
-  expect(host.querySelector('[data-symbol="stop.fill"]')).not.toBeNull();
-  await down();
-  await up(100);
-  expect(stop).toHaveBeenCalledOnce();
-});
-it('holding and releasing stops once without discarding speech', async () => {
-  await down();
-  await up(300);
-  expect(start).toHaveBeenCalledOnce();
-  expect(stop).toHaveBeenCalledOnce();
-  expect(cancel).not.toHaveBeenCalled();
-  expect(held.mock.calls).toEqual([[true], [false]]);
-});
-it('left drag cancels immediately and release cannot stop or start again', async () => {
-  await down();
-  await move(120, 400);
-  await move(100, 300);
-  await up(900);
-  expect(cancel).toHaveBeenCalledOnce();
-  expect(stop).not.toHaveBeenCalled();
-  expect(start).toHaveBeenCalledOnce();
-});
-it('upward drag locks immediately and release keeps listening', async () => {
-  await down();
-  await move(200, 340);
-  await move(100, 340);
-  await up(900);
-  expect(cancel).not.toHaveBeenCalled();
-  expect(stop).not.toHaveBeenCalled();
-  expect(host.querySelector('[data-symbol="stop.fill"]')).not.toBeNull();
-});
-it('movement below the cancel and lock thresholds keeps the held gesture', async () => {
-  await down();
-  await move(121, 341);
-  expect(held.mock.calls).toEqual([[true]]);
-  await up(600);
-  expect(stop).toHaveBeenCalledOnce();
-});
-it('system cancellation cancels an unlocked hold exactly once', async () => {
-  await down();
-  await act(async () => native.callbacks['onTouchesCancelled']!({}, manager));
-  await up(900);
-  expect(cancel).toHaveBeenCalledOnce();
-  expect(stop).not.toHaveBeenCalled();
-});
-it('a second finger interrupts an unlocked hold rather than restarting it', async () => {
-  await down();
-  await act(async () => native.callbacks['onTouchesDown']!(touch(220, 400, 2), manager));
-  expect(start).toHaveBeenCalledOnce();
-  expect(cancel).toHaveBeenCalledOnce();
-});
-it('system cancellation after explicit lock leaves the recording active', async () => {
-  await down();
-  await move(200, 340);
-  await act(async () => native.callbacks['onTouchesCancelled']!({}, manager));
-  expect(cancel).not.toHaveBeenCalled();
-  expect(stop).not.toHaveBeenCalled();
-});
-it('accessibility activation starts and stops without a drag', async () => {
+
+it('keeps explicit cancel available and discards dictated text', async () => {
+  await press();
+  await emit('start');
+  await emit('result', { results: [{ transcript: 'Synthetic test draft' }] });
   await act(async () =>
-    host.querySelector<HTMLButtonElement>(`[aria-label="${t.dictate}"]`)!.click(),
+    container.querySelector<HTMLButtonElement>(`[aria-label="${t.cancelDictation}"]`)!.click(),
   );
-  expect(start).toHaveBeenCalledOnce();
-  await act(async () =>
-    host.querySelector<HTMLButtonElement>(`[aria-label="${t.stopDictation}"]`)!.click(),
-  );
-  expect(stop).toHaveBeenCalledOnce();
+  expect(speech.abort).toHaveBeenCalledTimes(1);
+  expect(draft()).toBe('');
+  expect(button().getAttribute('aria-label')).toBe(t.dictate);
+});
+
+it('returns to a usable microphone after permission denial or a native error', async () => {
+  speech.permission = Promise.resolve({ granted: false });
+  await press();
+  expect(speech.start).not.toHaveBeenCalled();
+  expect(button().getAttribute('aria-label')).toBe(t.dictate);
+  speech.permission = undefined;
+  await press();
+  await emit('error', { error: 'audio-capture' });
+  await emit('end');
+  expect(button().getAttribute('aria-label')).toBe(t.dictate);
+  await press();
+  expect(speech.start).toHaveBeenCalledTimes(2);
+});
+
+it('gives both symbols an explicitly centered full-size native frame', async () => {
+  const frame = () =>
+    JSON.parse(button().querySelector('[data-frame]')!.getAttribute('data-frame')!);
+  const idle = frame();
+  expect(idle.width).toBeGreaterThanOrEqual(44);
+  expect(idle).toEqual({ width: idle.width, height: idle.width, alignment: 'center' });
+  await press();
+  expect(frame()).toEqual(idle);
 });
