@@ -187,12 +187,25 @@ describe('supervised Local Computer media', () => {
     await peer.close();
   });
 
-  it('closes an oversized protocol buffer without forwarding its content to diagnostics', async () => {
+  it('rejects oversized protocol output and refuses readmission without trusted cleanup', async () => {
     const statuses: LocalVideoMediaStatus[] = [];
-    const peer = await open(media(), new AbortController(), statuses);
-    helper.stdout.write('x'.repeat(128 * 1024 + 1));
+    const events: string[] = [];
+    const provider = createLocalVideoMedia({
+      platform: 'win32',
+      arch: 'x64',
+      onEvent: (detail) => events.push(detail),
+    });
+    const peer = await open(provider, new AbortController(), statuses);
+    const payload = 'PRIVATE_NATIVE_OUTPUT'.repeat(7000);
+    helper.stdout.write(payload);
+    helper.stdout.write(payload);
     expect(statuses.some((status) => status.status === 'failed')).toBe(true);
-    await peer.close();
+    await expect(peer.close()).rejects.toMatchObject({ code: 'helper-failed' });
+    await expect(open(provider)).rejects.toMatchObject({ code: 'viewer-limit' });
+    expect(mocks.spawn).toHaveBeenCalledOnce();
+    expect(events.join('\n')).not.toContain('PRIVATE_NATIVE_OUTPUT');
+    expect(events.filter((event) => event.startsWith('phase=media-failed'))).toHaveLength(1);
+    expect(statuses.some((status) => status.status === 'closed')).toBe(false);
   });
 
   it('kills an unresponsive launcher but keeps readmission poisoned without Job cleanup proof', async () => {

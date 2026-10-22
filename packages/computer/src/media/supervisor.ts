@@ -58,6 +58,7 @@ export function createLocalVideoMedia(
       let child: ChildProcessWithoutNullStreams | undefined;
       let profile: string | undefined;
       let output = '';
+      let outputRejected = false;
       let nextId = 1;
       let closing: Promise<void> | undefined;
       let closed = false;
@@ -238,8 +239,16 @@ export function createLocalVideoMedia(
         });
         child.stdout.setEncoding('utf8');
         child.stdout.on('data', (chunk: string) => {
+          if (outputRejected) return;
+          if (
+            Buffer.byteLength(output) + Buffer.byteLength(chunk) >
+            LOCAL_VIDEO_LIMITS.requestBytes
+          ) {
+            outputRejected = true;
+            output = '';
+            return failed();
+          }
           output += chunk;
-          if (Buffer.byteLength(output) > LOCAL_VIDEO_LIMITS.requestBytes) return failed();
           let newline;
           while ((newline = output.indexOf('\n')) >= 0) {
             const line = output.slice(0, newline);

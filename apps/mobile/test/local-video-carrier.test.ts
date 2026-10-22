@@ -11,9 +11,17 @@ import type { HostSocketEvents } from '../src/host/carrier';
 const origin = 'http://192.168.1.20:39101';
 const path = '/botharness-device' + LOCAL_VIDEO_PATH;
 
+function deferred() {
+  let resolve!: () => void;
+  const promise = new Promise<void>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
 function lane({ delayAdmission = false, loseResponse = false } = {}) {
   const hostKey = randomBytes(32);
-  const admitted = Promise.withResolvers<void>();
+  const admitted = deferred();
   const requests: Array<{ path: string; body: string }> = [];
   const wire: string[] = [];
   let admit = () => {};

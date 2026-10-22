@@ -58,7 +58,8 @@ export interface LocalVideoState {
 }
 
 export type LocalVideoCommand =
-  | { readonly kind: 'status' | 'open' }
+  | { readonly kind: 'status' }
+  | { readonly kind: 'open' }
   | {
       readonly kind: 'signal';
       readonly binding: LocalVideoBinding;

@@ -8,6 +8,14 @@ import {
 import { createLocalVideoOwner } from '../src/local-video-owner.js';
 import { localVideoCommand } from '../src/local-video-http.js';
 
+function deferred() {
+  let resolve!: () => void;
+  const promise = new Promise<void>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
 function ownerFixture() {
   vi.useFakeTimers();
   vi.setSystemTime(10_000);
@@ -266,8 +274,8 @@ describe('Local Computer video consumer', () => {
 
   it('still closes its own late successful open after cancellation before receiving the binding', async () => {
     const h = ownerFixture();
-    const allocated = Promise.withResolvers<void>();
-    const deliver = Promise.withResolvers<void>();
+    const allocated = deferred();
+    const deliver = deferred();
     const client = createLocalVideoClient({
       api: async (path, init) => {
         const response = await h.transport.api(path, init);
@@ -334,7 +342,7 @@ describe('Local Computer video consumer', () => {
     async (stopDuringClose) => {
       const { client, calls, transport, stall } = fixture();
       const send = transport.api;
-      const closing = Promise.withResolvers<void>();
+      const closing = deferred();
       transport.api = async (path, init) => {
         if (init.body['kind'] === 'close') await closing.promise;
         return send(path, init);
@@ -421,8 +429,8 @@ describe('Local Computer video consumer', () => {
   it('ignores an old signaling response after replacing the receiver attempt', async () => {
     const { client, transport } = fixture();
     const send = transport.api;
-    const delayed = Promise.withResolvers<void>();
-    const entered = Promise.withResolvers<void>();
+    const delayed = deferred();
+    const entered = deferred();
     transport.api = async (path, init) => {
       const response = await send(path, init);
       if (init.body['kind'] === 'signal') {
@@ -475,7 +483,7 @@ describe('Local Computer video consumer', () => {
     await client.start();
     client.playback('attempt-1', 1, 0);
     await client.takeover();
-    const pending = Promise.withResolvers<void>();
+    const pending = deferred();
     setInput(() => pending.promise);
     const first = client.input(click);
     await Promise.resolve();
@@ -551,7 +559,7 @@ describe('Local Computer video consumer', () => {
     await client.start();
     client.playback('attempt-1', 1, 0);
     await client.takeover();
-    const blocked = Promise.withResolvers<void>();
+    const blocked = deferred();
     setInput(() => blocked.promise);
     const inputs = Array.from({ length: 20 }, () => client.input(click));
     await Promise.resolve();

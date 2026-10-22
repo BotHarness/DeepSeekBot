@@ -178,7 +178,7 @@ describe('Local Computer video gateway admission', () => {
     for (const [body, code] of [
       ['{"kind":"open"}', 'not-ready'],
       [JSON.stringify({ kind: 'signal', data: 'x'.repeat(128 * 1024) }), 'request-too-large'],
-    ]) {
+    ] as const) {
       const result = await fetch(`${live.base}${DEVICE_GATEWAY_PREFIX}/api/computer/video`, {
         method: 'POST',
         headers: { authorization: `Device ${phone.body.credential}` },
