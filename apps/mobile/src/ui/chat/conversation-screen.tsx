@@ -237,6 +237,7 @@ const RequestCard = memo(function RequestCard({
   if (card.kind === 'private-input')
     return (
       <PrivateInputCard
+        target={ref}
         botName={botName}
         purpose={card.subject}
         resolved={resolution?.kind === 'private-input'}

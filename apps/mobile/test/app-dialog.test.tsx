@@ -12,7 +12,12 @@ vi.mock('react-native', () => ({
   Keyboard: { dismiss() {} },
 }));
 
-import { confirmDestructive, showActionMenu, showAppDialog } from '../src/ui/primitives/app-dialog';
+import {
+  confirmAppDialog,
+  confirmDestructive,
+  showActionMenu,
+  showAppDialog,
+} from '../src/ui/primitives/app-dialog';
 import { appDialogs, createDialogState } from '../src/ui/primitives/dialog-state';
 
 afterEach(() => {
@@ -200,4 +205,53 @@ describe('app dialogs', () => {
     await old;
     expect(state.getSnapshot()).toMatchObject({ title: 'New', busy: undefined, error: undefined });
   });
+});
+
+it('resolves Android trust confirmation only on explicit confirmation and refuses cancellation or replacement', async () => {
+  const accepted = confirmAppDialog(
+    'Compare fingerprint',
+    'public fingerprint',
+    'Fingerprints match',
+  );
+  await appDialogs.choose(1, appDialogs.getSnapshot()!.id);
+  await expect(accepted).resolves.toBe(true);
+  const cancelled = confirmAppDialog(
+    'Compare fingerprint',
+    'public fingerprint',
+    'Fingerprints match',
+  );
+  await appDialogs.choose(0, appDialogs.getSnapshot()!.id);
+  await expect(cancelled).resolves.toBe(false);
+  const dismissed = confirmAppDialog(
+    'Compare fingerprint',
+    'public fingerprint',
+    'Fingerprints match',
+  );
+  appDialogs.dismiss();
+  await expect(dismissed).resolves.toBe(false);
+  const replaced = confirmAppDialog(
+    'Compare fingerprint',
+    'public fingerprint',
+    'Fingerprints match',
+  );
+  showAppDialog('Another dialog', undefined, [{ text: 'OK' }]);
+  await expect(replaced).resolves.toBe(false);
+});
+
+it('resolves iOS trust confirmation through the native alert buttons', async () => {
+  platform.OS = 'ios';
+  const cancelled = confirmAppDialog(
+    'Compare fingerprint',
+    'public fingerprint',
+    'Fingerprints match',
+  );
+  nativeAlert.mock.calls[0]![2][0].onPress();
+  await expect(cancelled).resolves.toBe(false);
+  const accepted = confirmAppDialog(
+    'Compare fingerprint',
+    'public fingerprint',
+    'Fingerprints match',
+  );
+  nativeAlert.mock.calls[1]![2][1].onPress();
+  await expect(accepted).resolves.toBe(true);
 });

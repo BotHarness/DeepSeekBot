@@ -1,0 +1,95 @@
+{
+  "baseline": "606b1b75e7cbef13168a4e94f56f6d4c1af33d01",
+  "runtime": {
+    "ios": "27.0",
+    "expo": "58.0.17",
+    "reactNative": "0.88.0",
+    "build": "existing normally signed Debug development client",
+    "reusedSimulator": true,
+    "newSimulator": false,
+    "erased": false,
+    "nativeRebuild": false
+  },
+  "sourceSha256": {
+    "apps/mobile/app/_layout.tsx": "ba943da4c18cd407fe404f5a6da1be5fb50a85baf9c78840cae28f20bfad8767",
+    "apps/mobile/src/ui/chat/sheet.tsx": "eded90cc21a9a400e7ecd2a0e379e593fe6a1a912ade8a7eacc633fd3730a0af",
+    "apps/mobile/src/ui/shell/statistics-notice-view.tsx": "8a435fd9c3a4f599b64d96fe20e28ead281d317553017dd86a3908632b4377dc"
+  },
+  "cases": [
+    {
+      "theme": "light",
+      "textSize": "large",
+      "firstUseNoticeInitiallyUnread": true,
+      "noSheetError": true,
+      "settingsOpenedAndClosed": true,
+      "activityOpened": true,
+      "returnedToChats": true,
+      "sameAppProcess": true,
+      "coldRestartAfterPairing": false
+    },
+    {
+      "theme": "dark",
+      "textSize": "large",
+      "firstUseNoticeInitiallyUnread": true,
+      "noSheetError": true,
+      "settingsOpenedAndClosed": true,
+      "activityOpened": true,
+      "returnedToChats": true,
+      "sameAppProcess": true,
+      "coldRestartAfterPairing": false
+    },
+    {
+      "theme": "light",
+      "textSize": "accessibility-medium",
+      "firstUseNoticeInitiallyUnread": true,
+      "noSheetError": true,
+      "settingsOpenedAndClosed": true,
+      "activityOpened": true,
+      "returnedToChats": true,
+      "sameAppProcess": true,
+      "coldRestartAfterPairing": false
+    },
+    {
+      "theme": "dark",
+      "textSize": "accessibility-medium",
+      "firstUseNoticeInitiallyUnread": true,
+      "noSheetError": true,
+      "settingsOpenedAndClosed": true,
+      "activityOpened": true,
+      "returnedToChats": true,
+      "sameAppProcess": true,
+      "coldRestartAfterPairing": false
+    },
+    {
+      "theme": "light",
+      "textSize": "accessibility-extra-extra-extra-large",
+      "firstUseNoticeInitiallyUnread": true,
+      "noSheetError": true,
+      "settingsOpenedAndClosed": true,
+      "activityOpened": true,
+      "returnedToChats": true,
+      "sameAppProcess": true,
+      "coldRestartAfterPairing": false
+    },
+    {
+      "theme": "dark",
+      "textSize": "accessibility-extra-extra-extra-large",
+      "firstUseNoticeInitiallyUnread": true,
+      "noSheetError": true,
+      "settingsOpenedAndClosed": true,
+      "activityOpened": true,
+      "returnedToChats": true,
+      "sameAppProcess": true,
+      "coldRestartAfterPairing": false
+    }
+  ],
+  "maestroPostApprovalPassed": true,
+  "wire": {
+    "outerEntries": 2385,
+    "upgrades": 46,
+    "channelPathOnly": true,
+    "noCredentialHeaders": true,
+    "fallbackRequests": 0,
+    "scope": "Pairing and navigation only; no new password submission in this follow-up."
+  }
+}

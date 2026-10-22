@@ -1,9 +1,14 @@
+import { useHostSession } from '../../host/host-session';
+import { useRouter } from 'expo-router';
+import { Button } from '../primitives/button';
+import type { RequestRef } from '../../host/requests';
 import { CardLine, CardNote, ActionCard } from './action-card';
 import type { BubbleGroup } from './bubble-shape';
 import { Text } from '../primitives/text';
 import { t } from '../strings';
 
 export function PrivateInputCard({
+  target,
   botName,
   purpose,
   resolved = false,
@@ -11,6 +16,7 @@ export function PrivateInputCard({
   group,
   wide = false,
 }: {
+  target?: RequestRef;
   botName: string;
   purpose?: string | undefined;
   resolved?: boolean;
@@ -18,6 +24,8 @@ export function PrivateInputCard({
   group?: BubbleGroup;
   wide?: boolean;
 }) {
+  const router = useRouter();
+  const { saved } = useHostSession();
   const category = t.kind['private-input']!;
   if (resolved)
     return (
@@ -45,7 +53,20 @@ export function PrivateInputCard({
             ),
           })}
     >
-      <CardNote>{t.privateInputNote}</CardNote>
+      <CardNote>{t.privateInputSecureNote}</CardNote>
+      {target ? (
+        <Button
+          testID="private-input-open"
+          label={t.privateInputOpen}
+          tone="primary"
+          onPress={() =>
+            router.push({
+              pathname: '/private-input',
+              params: { ...target, hostId: saved?.hostId ?? '' },
+            })
+          }
+        />
+      ) : null}
     </ActionCard>
   );
 }

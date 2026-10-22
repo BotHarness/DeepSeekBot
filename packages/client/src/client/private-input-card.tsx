@@ -56,7 +56,11 @@ export function PrivateInputCard({
   const [error, setError] = useState(false);
   const [routeRefused, setRouteRefused] = useState(false);
   const connectBlocked =
-    (host !== undefined && isConnectRoute(host.client.resource('/').uri)) || routeRefused;
+    (host !== undefined &&
+      (host.client.secretInputAllowed?.() === false ||
+        (host.client.secretInputAllowed === undefined &&
+          isConnectRoute(host.client.resource('/').uri)))) ||
+    routeRefused;
   const [retry, setRetry] = useState(0);
   const mount = useMountedResource<HTMLFormElement>(
     (node) => {

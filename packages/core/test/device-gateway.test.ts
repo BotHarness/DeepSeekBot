@@ -510,7 +510,7 @@ describe('Connect route provenance', () => {
   }
 
   it.each([undefined, 'connect', 'tailscale', 'loopback', ''])(
-    'overwrites an absent or forged HTTP tag (%s) before forwarding to DSH',
+    'refuses plaintext Connect HTTP regardless of forged route tag (%s)',
     async (tag) => {
       const host = await fakeDsh();
       const origin = await originFor(host.port);
@@ -526,7 +526,8 @@ describe('Connect route provenance', () => {
         headers,
       });
       await tunneled.text();
-      expect(host.state.seen.at(-1)).toMatchObject({ connect: true, routeHeaderPresent: true });
+      expect(tunneled.status).toBe(404);
+      expect(host.state.seen).toHaveLength(1);
       expect(tunneled.headers.get(DEVICE_ROUTE_HEADER)).toBeNull();
     },
   );
@@ -559,7 +560,7 @@ describe('Connect route provenance', () => {
     expect(host.state.seen).toEqual([]);
   });
 
-  it('overwrites a forged upgrade tag and strips forged direct tags', async () => {
+  it('refuses plaintext Connect upgrades and strips forged direct tags', async () => {
     const host = await fakeDsh();
     const origin = await originFor(host.port);
     const paired = await pair(host.base, host.pairing.createOffer().offer);
@@ -576,8 +577,7 @@ describe('Connect route provenance', () => {
       headers,
       '/botharness-device/api/browser/webrtc/signaling',
     );
-    expect(tunneled.status).toBe(101);
-    expect(host.state.seen.at(-1)).toMatchObject({ connect: true, routeHeaderCount: 1 });
-    tunneled.socket!.destroy();
+    expect(tunneled.status).toBe(404);
+    expect(host.state.seen).toHaveLength(1);
   });
 });

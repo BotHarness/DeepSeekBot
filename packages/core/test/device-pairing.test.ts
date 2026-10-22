@@ -39,6 +39,32 @@ function fixture() {
 }
 
 describe('Device Pairing', () => {
+  it('requires approval of the exact Noise device key and keeps that binding across restart', () => {
+    const f = fixture();
+    let host = f.open();
+    const offer = host.pairing.createOffer();
+    const publicKey = '11'.repeat(32);
+    const otherKey = '22'.repeat(32);
+    expect(host.pairing.requestKey({ offer: offer.offer, publicKey, name: 'Phone' })).toMatchObject(
+      { ok: true },
+    );
+    expect(host.pairing.redeem({ offer: offer.offer, publicKey })).toEqual({
+      ok: false,
+      code: 'device-approval-required',
+    });
+    expect(host.pairing.approveKey(offer.receipt, otherKey)).toBe(false);
+    expect(host.pairing.approveKey(offer.receipt, publicKey)).toBe(true);
+    const paired = host.pairing.redeem({ offer: offer.offer, publicKey });
+    if (!paired.ok) throw new Error('pairing failed');
+    host.owner.close();
+    host = f.open();
+    expect(host.pairing.admitKey(`Device ${paired.credential}`, publicKey).ok).toBe(true);
+    expect(host.pairing.admitKey(`Device ${paired.credential}`, otherKey)).toMatchObject({
+      ok: false,
+    });
+    expect(host.pairing.list()[0]?.publicKey).toBe(publicKey);
+  });
+
   it('redeems an offer once, admits the device across a Host restart, and refuses it after revocation', () => {
     const f = fixture();
     let host = f.open();

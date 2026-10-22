@@ -546,54 +546,40 @@ describe('Connect relay phone offers', () => {
     return relay;
   }
 
-  it('asks the Host over its tunnel for an offer signed with the Host key', async () => {
-    const seen: { url: string; signature: string | null; body: string }[] = [];
+  it('returns signed enrollment metadata without asking the Host for an outer bearer offer', async () => {
+    const seen: { url: string; method: string; body: unknown }[] = [];
+    const encryption = { protocol: 'connect-noise-xk-v1', publicKey: 'ab'.repeat(32) };
     const { call, at } = await linked(async (input, init) => {
-      seen.push({
-        url: String(input),
-        signature: new Headers(init?.headers).get('x-botharness-relay-signature'),
-        body: String(init?.body),
-      });
-      return Response.json({
-        offer: 'offer-1',
-        expiresAt: '2026-10-20T12:10:00.000Z',
-        host: { id: 'pairing-host-1', name: 'Studio Mac' },
-      });
+      seen.push({ url: String(input), method: init?.method ?? 'GET', body: init?.body });
+      return Response.json({ host: { id: 'pairing-host-1', name: 'Studio Mac' }, encryption });
     });
     const tunnel = await call('POST', '/v1/hosts/haaaaaaaaaaab/tunnel', {
       as: 'user_alice',
       body: { originPort: 41001 },
     });
-    expect(tunnel.body).toMatchObject({
-      account: 'user_alice',
-      relayKey: await hostKey('haaaaaaaaaaab'),
+    const result = await call('POST', '/v1/hosts/haaaaaaaaaaab/offer', {
+      as: 'user_alice',
+      body: { verifierHash: VERIFIER_HASH, name: ' iPhone ' },
     });
-    expect(
-      await call('POST', '/v1/hosts/haaaaaaaaaaab/offer', {
-        as: 'user_alice',
-        body: { verifierHash: VERIFIER_HASH, name: ' iPhone ' },
-      }),
-    ).toEqual({
-      status: 200,
-      body: {
-        offer: 'offer-1',
-        expiresAt: '2026-10-20T12:10:00.000Z',
-        hostname: 'haaaaaaaaaaab.deepseekbot.dev',
-        host: { id: 'pairing-host-1', name: 'Studio Mac' },
+    expect(result.status).toBe(200);
+    expect(result.body).toMatchObject({ host: { id: 'pairing-host-1' }, encryption });
+    expect(result.body['offer']).toBeUndefined();
+    expect(seen).toEqual([
+      {
+        url: 'https://haaaaaaaaaaab.deepseekbot.dev/botharness-device/channel',
+        method: 'GET',
+        body: undefined,
       },
-    });
-    expect(seen).toHaveLength(1);
-    expect(seen[0]!.url).toBe(
-      'https://haaaaaaaaaaab.deepseekbot.dev/botharness-device/connect/offer',
-    );
-    expect(JSON.parse(seen[0]!.body)).toEqual({
+    ]);
+    const enrollment = result.body['enrollment'] as { body: string; signature: string };
+    expect(JSON.parse(enrollment.body)).toEqual({
       hostId: 'haaaaaaaaaaab',
       account: 'user_alice',
       verifierHash: VERIFIER_HASH,
       name: 'iPhone',
       issuedAt: at(),
     });
-    expect(seen[0]!.signature).toBe(await hmac(tunnel.body['relayKey'], seen[0]!.body));
+    expect(enrollment.signature).toBe(await hmac(tunnel.body['relayKey'], enrollment.body));
   });
 
   it('refuses offers for other accounts, bad verifiers and unreachable Hosts', async () => {

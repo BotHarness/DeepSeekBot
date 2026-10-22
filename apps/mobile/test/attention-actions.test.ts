@@ -3,6 +3,12 @@ import { act, createElement, type ReactElement, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+const { navigate } = vi.hoisted(() => ({ navigate: vi.fn() }));
+vi.mock('expo-router', () => ({ useRouter: () => ({ push: navigate }) }));
+vi.mock('../src/host/host-session', () => ({
+  useHostSession: () => ({ saved: { hostId: 'host-qa' } }),
+}));
+
 vi.mock('react-native-keyboard-controller', async () => import('./keyboard-controller-shim'));
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
@@ -337,17 +343,22 @@ describe('Phone actions for Inbox items', () => {
     expect(page.textContent).toContain('fallback');
   });
 
-  it('directs private input to the Host without opening a WebView and collapses once handled', async () => {
+  it('opens the native private-input route for the current Host and collapses once handled', async () => {
     const page = await render(
       createElement(PrivateInputCard, {
         botName: 'Ada',
         purpose: 'Read the private repository',
+        target: { channelId: 'dm-ada', messageId: 'private-1', botSlug: 'ada' },
       }),
     );
     expect(page.textContent).toContain(t.privateInputTitle('Ada'));
     expect(page.textContent).toContain('Read the private repository');
-    expect(page.textContent).toContain(t.privateInputNote);
-    expect(page.querySelector('button')).toBeNull();
+    expect(page.textContent).toContain(t.privateInputSecureNote);
+    act(() => page.querySelector<HTMLButtonElement>('[data-testid=private-input-open]')!.click());
+    expect(navigate).toHaveBeenCalledWith({
+      pathname: '/private-input',
+      params: { hostId: 'host-qa', channelId: 'dm-ada', messageId: 'private-1', botSlug: 'ada' },
+    });
     act(() => root!.render(createElement(PrivateInputCard, { botName: 'Ada', resolved: true })));
     expect(line(page)).toBe(t.cardLine(t.kind['private-input']!, t.privateInputDone));
   });

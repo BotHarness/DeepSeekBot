@@ -1,3 +1,4 @@
+import { getRandomBytes } from 'expo-crypto';
 import type { HostCarrier } from './carrier';
 
 type NativeWebSocket = new (
@@ -8,6 +9,7 @@ type NativeWebSocket = new (
 
 export function nativeCarrier(): HostCarrier {
   return {
+    randomBytes: () => getRandomBytes(32),
     async request(url, init) {
       const response = await fetch(url, {
         method: init.method,
@@ -19,7 +21,12 @@ export function nativeCarrier(): HostCarrier {
         },
         ...(init.body === undefined ? {} : { body: init.body }),
       });
-      return { status: response.status, text: () => response.text() };
+      return {
+        status: response.status,
+        contentType: response.headers.get('content-type') ?? 'application/octet-stream',
+        text: () => response.text(),
+        bytes: async () => new Uint8Array(await response.arrayBuffer()),
+      };
     },
     openSocket(url, events, headers = {}) {
       const socket = new (WebSocket as unknown as NativeWebSocket)(url, undefined, { headers });
@@ -33,7 +40,13 @@ export function nativeCarrier(): HostCarrier {
       socket.onmessage = (event) => events.message(String(event.data));
       socket.onerror = (event) => closed((event as { message?: string }).message ?? 'socket error');
       socket.onclose = (event) => closed(event.reason);
-      return { send: (text) => socket.send(text), close: () => socket.close() };
+      return {
+        get bufferedAmount() {
+          return socket.bufferedAmount;
+        },
+        send: (text) => socket.send(text),
+        close: () => socket.close(),
+      };
     },
   };
 }

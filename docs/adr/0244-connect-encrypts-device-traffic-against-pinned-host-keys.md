@@ -1,13 +1,13 @@
 ---
-Status: Proposed — core choices confirmed; final ADR approval pending
+Status: Accepted — approved by Vain on 2026-10-22; Track B implementation in progress
 Date: 2026-10-22
 Issues: [#2542](https://github.com/BotHarness/DeepSeekBot/issues/2542), [#2541](https://github.com/BotHarness/DeepSeekBot/issues/2541)
-Amends: ADR-0241 and ADR-0242 if accepted
+Amends: ADR-0241 and ADR-0242
 ---
 
 # Connect encrypts device traffic against pinned Host keys
 
-Reported by Vain. On 2026-10-21 Vain rejected Cloudflare's ability to read Connect traffic. Connect has not shipped, so its protocol and pairing experience can change. This document proposes a replacement for ADR-0241's plaintext application channel; it does not approve or implement encryption. ADR-0199 remains the device-authority owner, ADR-0242 remains the browser pairing owner, and ADR-0243 remains the Host Feed contract.
+Reported by Vain. On 2026-10-21 Vain rejected Cloudflare's ability to read Connect traffic. Connect has not shipped, so its protocol and pairing experience can change. Vain approved this ADR and its stacked implementation above Track A PR #2546 on 2026-10-22. It replaces ADR-0241's plaintext application channel; acceptance of this design is not evidence of runtime or native qualification. ADR-0199 remains the device-authority owner, ADR-0242 remains the browser pairing owner, and ADR-0243 remains the Host Feed contract.
 
 ## Decisions confirmed by Vain on 2026-10-22
 
@@ -19,9 +19,9 @@ Reported by Vain. On 2026-10-21 Vain rejected Cloudflare's ability to read Conne
 | Full client in the phone WebView | Remove the full WebView client and its entry points on every route; do not bundle it or tunnel it   | A native bridge works only if it also authenticates every executable page/resource and excludes remote code. A bridge under a page still loaded through Cloudflare is insufficient. Alternatively, disable the Connect WebView and explicitly list unavailable screens. |
 | Capability and downgrade         | Pin the encryption requirement with the Host key; fail closed on missing/unsupported capability     | No plaintext retry, including after timeout, reinstall, route changes or key mismatch. Old test clients must upgrade or use a separately trusted route.                                                                                                                 |
 
-Vain confirmed Noise XK, first-pair fingerprint comparison, explicit approval of new devices, and removal of the full WebView client. The no-downgrade requirement comes from the original handoff. The complete protocol specification and threat-model details below still await final ADR approval; no encryption implementation is authorized by these individual choices. Vain also confirmed that DSH upstream does not accept external PRs: use BotHarness-owned adapters over supported native APIs, not an upstream patch.
+Vain confirmed Noise XK, first-pair fingerprint comparison, explicit approval of new devices, and removal of the full WebView client. The no-downgrade requirement comes from the original handoff. Vain subsequently approved the complete Noise XK implementation through the annotated handoff and invoked the implement workflow. The native, adversarial, independent-review and Human-QA gates below remain separate from that authorization. Vain also confirmed that DSH upstream does not accept external PRs: use BotHarness-owned adapters over supported native APIs, not an upstream patch.
 
-## Proposed trust boundary
+## Trust boundary
 
 Cloudflare Tunnel remains an outbound connectivity carrier. WorkOS and the relay discover Hosts and deliver pairing requests; neither can grant device authority or select a trusted Host key. The application-defined Connect Channel terminates inside the phone/browser and the Host process, before the existing Device Gateway admits a request. The Host's Device Pairing module remains the single durable authority for device membership and revocation.
 
@@ -76,7 +76,7 @@ The removal decision is confirmed. The temporary loss of the following operation
 | Other Host-only management reached through the full client               | Full-client escape hatch removed                                                        | Host client remains the management surface; inventory and approve any additional phone workflow before claiming mobile parity.                                                                  |
 | PersonaBot Browser/Computer HTML viewers under `/botharness-device/web/` | HTML, cookie session, mux and viewer socket registrations removed                       | Native viewers are separate. Carry signaling and all fallback resources over E2EE, or explicitly disable unsupported Connect viewers. Do not claim viewer confidentiality from chat encryption. |
 
-ADR-0242's browser pairing and per-device authority remain. If this proposal is accepted, its plaintext credential redemption and stream-ticket transport on Connect are replaced by the authenticated encrypted channel. Tailscale and loopback retain their current contracts. Browser code must come from a trusted serving Host, as described above.
+ADR-0242's browser pairing and per-device authority remain. Its plaintext credential redemption and stream-ticket transport on Connect are replaced by the authenticated encrypted channel. Tailscale and loopback retain their current contracts. Browser code must come from a trusted serving Host, as described above.
 
 ## Threat model
 

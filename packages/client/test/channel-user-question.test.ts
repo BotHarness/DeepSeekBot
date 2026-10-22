@@ -131,37 +131,47 @@ describe('private input card', () => {
       ],
     },
   };
-  it('shows the Connect notice without inputs while keeping cancellation available', async () => {
-    const actions = {
-      privateInputStatus: vi.fn().mockResolvedValue('pending'),
-      privateInputSubmit: vi.fn(),
-      privateInputCancel: vi.fn().mockResolvedValue(undefined),
-    } as unknown as BridgeActions;
-    const remote = {
-      current: () => true,
-      client: {
-        resource: () => ({
-          uri: 'https://qa.deepseekbot.dev/botharness-device',
-          headers: {},
-        }),
-      } as unknown as MessageHost['client'],
-    } satisfies MessageHost;
-    await act(async () =>
-      root.render(
-        createElement(
-          MessageHostContext.Provider,
-          { value: remote },
-          createElement(ChannelMessageBody, { message: card, actions, t: zhTranslate }),
+  it.each([false, true])(
+    'uses the owning client encryption capability for private input (encrypted=%s)',
+    async (encrypted) => {
+      const actions = {
+        privateInputStatus: vi.fn().mockResolvedValue('pending'),
+        privateInputSubmit: vi.fn(),
+        privateInputCancel: vi.fn().mockResolvedValue(undefined),
+      } as unknown as BridgeActions;
+      const remote = {
+        current: () => true,
+        client: {
+          secretInputAllowed: () => encrypted,
+          resource: () => ({
+            uri: 'https://qa.deepseekbot.dev/botharness-device',
+            headers: {},
+          }),
+        } as unknown as MessageHost['client'],
+      } satisfies MessageHost;
+      await act(async () =>
+        root.render(
+          createElement(
+            MessageHostContext.Provider,
+            { value: remote },
+            createElement(ChannelMessageBody, { message: card, actions, t: zhTranslate }),
+          ),
         ),
-      ),
-    );
-    expect(container.textContent).toContain('Connect 尚未端到端加密');
-    expect(container.querySelector('input')).toBeNull();
-    expect(button('提交')?.disabled).toBe(true);
-    await act(async () => button('取消')?.click());
-    expect(actions.privateInputCancel).toHaveBeenCalledOnce();
-    expect(actions.privateInputSubmit).not.toHaveBeenCalled();
-  });
+      );
+      if (encrypted) {
+        expect(container.textContent).not.toContain('Connect 尚未端到端加密');
+        expect(container.querySelectorAll('input')).toHaveLength(2);
+        expect(button('提交')?.disabled).toBe(false);
+      } else {
+        expect(container.textContent).toContain('Connect 尚未端到端加密');
+        expect(container.querySelector('input')).toBeNull();
+        expect(button('提交')?.disabled).toBe(true);
+      }
+      await act(async () => button('取消')?.click());
+      expect(actions.privateInputCancel).toHaveBeenCalledOnce();
+      expect(actions.privateInputSubmit).not.toHaveBeenCalled();
+    },
+  );
 
   it('offers replacement and revocation without restoring inputs and ignores a stale configured poll after revocation', async () => {
     vi.useFakeTimers();

@@ -1,0 +1,27 @@
+# Run immediately after approving a new pairing on the assigned iOS Simulator.
+# The caller must compare both fingerprints and approve the exact device key.
+# Deliberately no launchApp, reload or clearState: a restart hid this regression.
+appId: ai.botharness.deepseekbot.dev
+---
+- tapOn:
+    text: 'Got it'
+    optional: true
+- extendedWaitUntil:
+    visible: 'Workspaces'
+    timeout: 30000
+- assertNotVisible: '.*sheetPresentationController.*'
+- tapOn: 'Settings'
+- extendedWaitUntil:
+    visible: 'Close'
+    timeout: 10000
+- assertNotVisible: '.*sheetPresentationController.*'
+- tapOn: 'Close'
+- assertVisible: 'Workspaces'
+- tapOn: 'Activity'
+- assertVisible: 'Search Activity'
+- tapOn: 'Chats'
+- tapOn: 'Settings'
+- assertVisible: 'Close'
+- tapOn: 'Close'
+- assertVisible: 'Workspaces'
+- assertNotVisible: '.*sheetPresentationController.*'
