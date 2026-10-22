@@ -1,0 +1,50 @@
+[
+  {
+    "file": "after-short.mp4",
+    "bytes": 192702,
+    "sha256": "38e4b2e6944be2ce538a961e63708e0930a01bff1ee0790b449a3869a86620f9",
+    "processing": "Original1220x2712 crop x0/y130/w1220/h2530, scale610x1264, H264, no audio, original playback speed."
+  },
+  {
+    "file": "after-short.png",
+    "bytes": 160788,
+    "sha256": "90a7d95e5beb4e8fe6cf1d662d36bd3f4e6879cf02c401bc73a2f90eda288595",
+    "processing": "Original1220x2712 crop x0/y130/w1220/h2530 only."
+  },
+  {
+    "file": "before-short.mp4",
+    "bytes": 94111,
+    "sha256": "19357e95b83c1b6bd171a182428961b6560b05167772033a0c7a014e4a37216f",
+    "processing": "Original1220x2712 crop x0/y130/w1220/h2530, scale610x1264, H264, no audio, original playback speed."
+  },
+  {
+    "file": "before-short.png",
+    "bytes": 100002,
+    "sha256": "a45f2d3f36443eda9fc9c0bcd75543caae3ce89b343bd2ca3ee49685d53cc5c0",
+    "processing": "Original1220x2712 crop x0/y130/w1220/h2530 only."
+  },
+  {
+    "file": "hold-after.png",
+    "bytes": 396347,
+    "sha256": "f16ef3021c1642437e23c2baabbcb66e856b8796c66aa27ead21e127cd1b09e6",
+    "processing": "Original1220x2712 crop x0/y130/w1220/h2530 only."
+  },
+  {
+    "file": "hold-before.png",
+    "bytes": 354125,
+    "sha256": "61e48580435565c2d5201c2501b32fb5e79a7f325d1cf1202c576536fea46405",
+    "processing": "Original1220x2712 crop x0/y130/w1220/h2530 only."
+  },
+  {
+    "file": "long-tail.png",
+    "bytes": 286922,
+    "sha256": "792d5a4d883131b6ff2be6487fb7480cd98cc6b80fd5b6e1d09d64ab92dbbdcd",
+    "processing": "Original1220x2712 crop x0/y130/w1220/h2530 only."
+  },
+  {
+    "file": "long.mp4",
+    "bytes": 3548745,
+    "sha256": "fb144a787730872d18bb24f2e964590b2eafaebded1775831e0111db7975a372",
+    "processing": "Original1220x2712 crop x0/y130/w1220/h2530, scale610x1264, H264, no audio, original playback speed."
+  }
+]
