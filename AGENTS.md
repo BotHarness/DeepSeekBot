@@ -47,6 +47,10 @@ Agent-facing debugging is a first-class concern. A plugin that owns long-running
 
 WSL egress fallback: if a task-local DSH Host cannot reach a provider while Windows can, follow [the AX restricted-relay runbook](docs/agents/ax-wsl-network.md) for standing authorization, isolation, live-model proof, and lifecycle.
 
+### Verification resource cleanup (AX)
+
+Before launching a task-owned Host, watcher, preview, browser driver or tunnel, and before finishing or handing off that task, follow [verification resource cleanup](docs/agents/ax-resource-cleanup.md). Record ownership at launch; finish by verifying owned processes have exited and ports are released, or record an explicit retained-environment handoff. Preserve source changes and evidence, stop processes before removing their Profile/worktree, and retain shared E2E/QA resources under their queue owner's control.
+
 ### CLI parity (AX)
 
 Every feature must be operable and testable by an agent through the `deepseekbot` CLI, without the Web UI and without the model. A change that adds or changes a Host bridge method, a Host `/api/...` route, or a Harness Bot tool ships the matching CLI command in the same PR:
