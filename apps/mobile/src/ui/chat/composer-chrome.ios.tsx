@@ -12,11 +12,7 @@ export function composerPrimary(theme: DesignTheme): { fill: string; ink: string
 }
 
 export function composerBar(theme: DesignTheme): number {
-  return theme.touch + space.x3;
-}
-
-export function composerControl(theme: DesignTheme): number {
-  return theme.touch;
+  return theme.touch - space.x2;
 }
 
 export const micAlwaysFilled = true;
@@ -65,14 +61,12 @@ export function ComposerCircleButton({
   label,
   testID,
   size,
-  embedded = false,
   onPress,
   children,
 }: {
   label: string;
   testID?: string;
   size: number;
-  embedded?: boolean;
   onPress(): void;
   children: ReactNode;
 }) {
@@ -91,7 +85,7 @@ export function ComposerCircleButton({
         borderRadius: radius.round,
         alignItems: 'center',
         justifyContent: 'center',
-        ...(embedded || glass
+        ...(glass
           ? { backgroundColor: pressed ? pressTint(theme.color.fg) : 'transparent' }
           : {
               borderWidth: edge.hairline,
@@ -100,7 +94,7 @@ export function ComposerCircleButton({
             }),
       })}
     >
-      {glass && !embedded ? <Glass /> : null}
+      {glass ? <Glass /> : null}
       {children}
     </Pressable>
   );

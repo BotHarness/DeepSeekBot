@@ -40,7 +40,7 @@ afterEach(() => act(() => root.unmount()));
 function Bar() {
   return (
     <>
-      <ComposerCircleButton label="Attach" embedded size={44} onPress={() => undefined}>
+      <ComposerCircleButton label="Attach" size={44} onPress={() => undefined}>
         +
       </ComposerCircleButton>
       <ComposerFieldMaterial cornerRadius={22} />
@@ -50,12 +50,13 @@ function Bar() {
 
 const surfaceTint = expect.stringMatching(/^#[0-9a-f]{6}$/iu);
 
-it('keeps the embedded attachment control on the field’s single Liquid Glass surface', async () => {
+it('floats + and the field on separate Liquid Glass shapes on iOS 26', async () => {
   await act(async () => root.render(<Bar />));
   const button = container.querySelector('button[aria-label="Attach"]')!;
-  expect(button.querySelector('[data-material="circle"]')).toBeNull();
+  expect(button.querySelector('[data-material="circle"]')).not.toBeNull();
   expect(container.querySelector('[data-material="rounded-22"]')).not.toBeNull();
   expect(native.effects).toEqual([
+    { glass: { variant: 'regular', tint: surfaceTint }, shape: 'circle' },
     {
       glass: { variant: 'regular', tint: surfaceTint },
       shape: 'roundedRectangle',

@@ -696,13 +696,6 @@
       "guide": ".agents/skills/verify-deepseekbot/features/private-input-origin.md",
       "task": 2290,
       "gap": "Controlled Provider; real external delivery and GitHub authentication are not qualified."
-    },
-    {
-      "id": "phone.composer",
-      "label": "Native message composer layout, editing and attachment actions",
-      "source": "apps/mobile/src/ui/chat/composer.tsx",
-      "task": 2566,
-      "guide": ".agents/skills/verify-deepseekbot/features/phone-composer.md"
     }
   ],
   "scripts": [

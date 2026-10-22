@@ -41,7 +41,6 @@ import {
   ComposerCircleButton,
   ComposerFieldMaterial,
   composerBar,
-  composerControl,
   composerPrimary,
   micAlwaysFilled,
   rippleFeedback,
@@ -79,7 +78,7 @@ function RoundButton({
   children: ReactNode;
 }) {
   const theme = useDesignTheme();
-  const size = composerControl(theme);
+  const size = theme.touch - space.x4;
   return (
     <Pressable
       testID={testID}
@@ -192,7 +191,7 @@ function VoiceButton({
 }) {
   const theme = useDesignTheme();
   const [held, setHeld] = useState(false);
-  const size = composerControl(theme);
+  const size = theme.touch - space.x4;
   const latest = useRef({ active, onStart, onStop, onCancel, onHeld });
   latest.current = { active, onStart, onStop, onCancel, onHeld };
   const gesture = useRef({ at: 0, startedHere: false, done: false });
@@ -261,8 +260,9 @@ function VoiceButton({
   );
 }
 
-function HoldDot({ size }: { size: number }) {
+function HoldDot() {
   const theme = useDesignTheme();
+  const size = composerBar(theme);
   return (
     <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
       <View
@@ -279,7 +279,7 @@ function HoldDot({ size }: { size: number }) {
 
 function LockHint({ style }: { style: ViewStyle }) {
   const theme = useDesignTheme();
-  const size = composerControl(theme);
+  const size = theme.touch - space.x4;
   return (
     <View
       style={[
@@ -411,11 +411,10 @@ export function Composer({
       ? measuredLine.height
       : theme.type.body.line * theme.fontScale;
   const bar = composerBar(theme);
-  const integratedLeading = Platform.OS === 'ios';
-  const lineHeight = Math.max(composerControl(theme), textLine);
+  const lineHeight = Math.max(theme.touch - space.x4, textLine);
   const fieldPadding = Math.max(space.x2, (lineHeight - textLine) / 2);
   const fieldLimit = Math.max(textLine + 2 * fieldPadding, viewportHeight / 5);
-  const button = composerControl(theme);
+  const button = theme.touch - space.x4;
   const inset = (bar - button) / 2;
   const corner = bar / 2;
   const pillHeight = useSharedValue(lineHeight + 2 * inset);
@@ -447,13 +446,12 @@ export function Composer({
   const stacked = composerStacked(actions, files.length, expanded);
   const icon = theme.type.title.line;
   const leading = held ? (
-    <HoldDot key="lead" size={integratedLeading ? button : bar} />
+    <HoldDot key="lead" />
   ) : listening ? (
     <ComposerCircleButton
       key="lead"
       label={t.cancelDictation}
-      size={integratedLeading ? button : bar}
-      embedded={integratedLeading}
+      size={bar}
       onPress={onCancelDictation}
     >
       <CloseIcon color={theme.color.fg} size={icon} />
@@ -462,8 +460,7 @@ export function Composer({
     <ComposerCircleButton
       key="lead"
       label={menu ? t.closeAttach : t.attach}
-      size={integratedLeading ? button : bar}
-      embedded={integratedLeading}
+      size={bar}
       testID="composer-attach"
       onPress={toggleMenu}
     >
@@ -551,12 +548,8 @@ export function Composer({
       />
     ),
   );
-  const leadingWidth = integratedLeading && leading !== null ? button + space.x2 : 0;
   const compactWidth =
-    pill.width -
-    2 * (inset + space.x3) -
-    leadingWidth -
-    (trailing.length === 0 ? 0 : button + space.x2);
+    pill.width - 2 * (inset + space.x3) - (trailing.length === 0 ? 0 : button + space.x2);
   const expand =
     expanded && !listening ? (
       <RoundButton label={t.expandDraft} filled={false} onPress={() => setEditing(true)}>
@@ -607,7 +600,7 @@ export function Composer({
         M
       </Text>
       <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: space.x3 }}>
-        {integratedLeading ? null : leading}
+        {leading}
         <Animated.View style={[{ flex: 1, borderRadius: corner, overflow: 'hidden' }, pillStyle]}>
           <ComposerFieldMaterial cornerRadius={corner} />
           <View
@@ -640,13 +633,12 @@ export function Composer({
                 }}
                 style={{
                   flexDirection: 'row',
-                  paddingLeft: stacked ? 0 : leadingWidth,
                   paddingRight: stacked || trailing.length === 0 ? 0 : button + space.x2,
                 }}
               >
                 {field}
               </HardwareSend>
-              {stacked && expand === null && trailing.length === 0 && leadingWidth === 0 ? null : (
+              {stacked && expand === null && trailing.length === 0 ? null : (
                 <View
                   pointerEvents="box-none"
                   style={{
@@ -658,7 +650,6 @@ export function Composer({
                       : { position: 'absolute', left: inset, right: inset, bottom: inset }),
                   }}
                 >
-                  {integratedLeading ? leading : null}
                   {expand}
                   <View pointerEvents="none" style={{ flex: 1 }} />
                   {trailing}
