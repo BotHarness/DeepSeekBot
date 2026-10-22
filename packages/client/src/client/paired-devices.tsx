@@ -307,7 +307,7 @@ export function PairedDevicesSettings({ t }: PropsLocale<'botharness'>): ReactEl
     if (isLanRoute(route)) return 'lan';
     if (isConnectRoute(route)) return 'connect';
     const url = new URL(route);
-    if (url.hostname === 'localhost' || /^127\./u.test(url.hostname) || url.hostname === '[::1]') return 'loopback';
+    if (url.hostname === 'localhost' || url.hostname.startsWith('127.') || url.hostname === '[::1]') return 'loopback';
     return 'tailscale';
   }));
 

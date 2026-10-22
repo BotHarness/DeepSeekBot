@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, useEffect } from 'react';
+import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
@@ -9,6 +9,7 @@ vi.mock('../src/ui/primitives/keyboard-form', async () => ({
   KeyboardFormScroll: (await import('./react-native-shim')).ScrollView,
 }));
 const native = vi.hoisted(() => ({ pick: vi.fn(), scan: vi.fn() }));
+const navigation = vi.hoisted((): { focus?: () => () => void; blur?: () => void } => ({}));
 vi.mock('expo-camera', () => ({
   Camera: { scanFromURLAsync: native.scan },
   CameraView: () => null,
@@ -18,7 +19,7 @@ vi.mock('expo-image-picker', () => ({ launchImageLibraryAsync: native.pick }));
 vi.mock('expo-router', () => ({
   Stack: { Screen: () => null },
   useLocalSearchParams: () => ({}),
-  useFocusEffect: (focus: () => (() => void)) => useEffect(focus, [focus]),
+  useFocusEffect: (focus: () => () => void) => { navigation.focus = focus; },
 }));
 const pairing = vi.hoisted(() => ({
   busy: false,
@@ -50,13 +51,24 @@ beforeEach(() => {
   root = createRoot(host);
 });
 afterEach(async () => {
-  await act(async () => root?.unmount());
+  await leave();
   host.remove();
+  navigation.focus = undefined;
   vi.resetAllMocks();
 });
 
+async function leave() {
+  await act(async () => {
+    navigation.blur?.();
+    navigation.blur = undefined;
+    root?.unmount();
+    root = undefined;
+  });
+}
+
 async function choose() {
   await act(async () => root!.render(<PairScreen />));
+  await act(async () => { navigation.blur = navigation.focus!(); });
   await act(async () => host.querySelector<HTMLButtonElement>('[data-testid="pair-choose-image"]')!.click());
 }
 
@@ -109,8 +121,7 @@ it('ignores another tap while reading and ignores the result after leaving', asy
   expect(button.disabled).toBe(true);
   await act(async () => button.click());
   expect(native.pick).toHaveBeenCalledTimes(1);
-  await act(async () => root!.unmount());
-  root = undefined;
+  await leave();
   await act(async () => finish([{ data: 'deepseekbot://pair?p=late' }]));
   expect(pairing.pair).not.toHaveBeenCalled();
   expect(pairing.abort).toHaveBeenCalled();
@@ -120,8 +131,7 @@ it('does not decode a picker result returned after leaving', async () => {
   let finish!: (value: unknown) => void;
   native.pick.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
   await choose();
-  await act(async () => root!.unmount());
-  root = undefined;
+  await leave();
   await act(async () => finish({ canceled: false, assets: [{ uri: 'file:///late.png' }] }));
   expect(native.scan).not.toHaveBeenCalled();
   expect(pairing.pair).not.toHaveBeenCalled();
