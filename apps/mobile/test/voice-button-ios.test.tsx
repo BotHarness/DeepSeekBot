@@ -11,10 +11,15 @@ const speech = vi.hoisted(() => ({
   abort: vi.fn(),
   held: vi.fn(),
 }));
-vi.mock('react-native', async () => import('./react-native-shim'));
+vi.mock('react-native', async () => {
+  const shim = await import('./react-native-shim');
+  return { ...shim, Platform: { ...shim.Platform, OS: 'ios' } };
+});
 vi.mock('../src/ui/chat/composer-chrome', async () => import('../src/ui/chat/composer-chrome.ios'));
 vi.mock('../src/ui/primitives/drawer-material', () => ({ useLiquidGlass: () => true }));
 vi.mock('@expo/ui/swift-ui/modifiers', () => ({
+  disabled: (disabled: boolean) => ({ disabled }),
+  opacity: (opacity: number) => ({ opacity }),
   foregroundStyle: () => ({}),
   accessibilityLabel: (label: string) => ({ label }),
   buttonStyle: () => ({}),
@@ -206,3 +211,45 @@ it('gives both symbols an explicitly centered full-size native frame', async () 
   await press();
   expect(frame()).toEqual(idle);
 });
+
+it.each(['silence timer', 'iOS 18 phrase boundary'])(
+  'keeps listening through a pause (%s) and accepts the next phrase until explicit Stop',
+  async (boundary) => {
+    vi.useFakeTimers();
+    try {
+      await press();
+      await emit('start');
+      await emit('result', { isFinal: false, results: [{ transcript: 'First phrase.' }] });
+      const options = speech.start.mock.calls.at(-1)![0] as { continuous: boolean };
+      await act(async () => {
+        setTimeout(
+          () => {
+            if (!options.continuous) speech.listeners.get('end')!(null);
+          },
+          boundary === 'silence timer' ? 3_000 : 1_000,
+        );
+        await vi.advanceTimersByTimeAsync(5_000);
+      });
+      expect(status()).toBe('listening');
+      expect(button().getAttribute('aria-label')).toBe(t.stopDictation);
+      expect(speech.stop).not.toHaveBeenCalled();
+      expect(speech.abort).not.toHaveBeenCalled();
+      await emit('result', {
+        isFinal: false,
+        results: [{ transcript: 'First phrase. Second phrase.' }],
+      });
+      expect(draft()).toBe('First phrase. Second phrase.');
+      await press();
+      expect(speech.stop).toHaveBeenCalledTimes(1);
+      await emit('result', {
+        isFinal: true,
+        results: [{ transcript: 'First phrase. Second phrase!' }],
+      });
+      await emit('end');
+      expect(status()).toBe('idle');
+      expect(draft()).toBe('First phrase. Second phrase!');
+    } finally {
+      vi.useRealTimers();
+    }
+  },
+);

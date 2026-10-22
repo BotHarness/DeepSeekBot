@@ -7,6 +7,7 @@ import type { ComposerSymbol } from './composer-symbol';
 export function ComposerActionButton(props: {
   label: string;
   filled: boolean;
+  disabled?: boolean;
   symbol: ComposerSymbol;
   onPress(): void;
   testID?: string;

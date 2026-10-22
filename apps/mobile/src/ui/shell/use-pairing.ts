@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import { Keyboard, Platform } from 'react-native';
 
+import type { AccountOwner } from '../../host/account-owner';
 import { hostSession } from '../../host/host-session';
 import { nativeCarrier } from '../../host/native-carrier';
 import { connectAccount } from '../../host/native-connect-account';
@@ -50,6 +51,7 @@ export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: 
     setComputerName('');
     setBusy(true);
     setError(undefined);
+    let accountPair: { accountOwner: AccountOwner; sessionKey: string } | undefined;
     const result = await pairHost({
       text:
         hostId === undefined
@@ -57,6 +59,7 @@ export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: 
           : async () => {
               const offer = await connectAccount.offer(hostId, deviceName());
               if (!offer.ok) return offer;
+              accountPair = offer.value;
               if (
                 options.preventDuplicates &&
                 hostSession.getState().hosts.some((host) => host.hostId === offer.value.host.id)
@@ -93,7 +96,12 @@ export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: 
           hostSession.getState().hosts.some((saved) => saved.hostId === host.hostId)
         )
           throw new Error('already-paired');
-        await hostSession.pair(host);
+        if (accountPair) {
+          const { accountOwner, sessionKey } = accountPair;
+          await connectAccount.savePairing(sessionKey, () =>
+            hostSession.pair({ ...host, accountOwner }),
+          );
+        } else await hostSession.pair(host);
         const name = hostLookName(connectionName);
         if (name) hostLooks.set(host.hostId, withHostName(hostLooks.look(host.hostId), name));
       },

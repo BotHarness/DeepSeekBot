@@ -30,7 +30,10 @@ vi.mock('../src/ui/primitives/account-panel', () => ({
         </button>
       ) : (
         <>
-          <button aria-label={t.pairAccount.signOut} onClick={p.onSignOut}>
+          <button
+            aria-label={p.pendingDeletion ? t.pairAccount.cleanupConfirm : t.pairAccount.signOut}
+            onClick={p.onSignOut}
+          >
             Sign out
           </button>
           <button aria-label={t.pairAccount.deleteAccount} onClick={p.onDelete}>
@@ -44,6 +47,11 @@ vi.mock('../src/ui/primitives/account-panel', () => ({
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
 const confirmed = vi.hoisted(() => [] as string[]);
+const dialogs = vi.hoisted(() => ({
+  auto: true,
+  native: false,
+  callbacks: [] as Array<() => unknown>,
+}));
 vi.mock('../src/ui/primitives/app-dialog', () => ({
   confirmDestructive: (
     title: string,
@@ -52,7 +60,13 @@ vi.mock('../src/ui/primitives/app-dialog', () => ({
     onConfirm: () => unknown,
   ) => {
     confirmed.push(title);
-    return onConfirm();
+    dialogs.callbacks.push(onConfirm);
+    if (dialogs.native)
+      appDialogs.open(title, _message, [
+        { text: t.cancel, style: 'cancel' },
+        { text: _action, style: 'destructive', onPress: onConfirm },
+      ]);
+    else if (dialogs.auto) return Promise.resolve(onConfirm()).catch(() => undefined);
   },
 }));
 vi.mock('expo-router', () => ({
@@ -67,12 +81,18 @@ vi.mock('expo-router', () => ({
 import type { ConnectHost } from '../src/host/connect-account';
 import { AccountHosts } from '../src/ui/account-hosts';
 import { t } from '../src/ui/strings';
+import { appDialogs } from '../src/ui/primitives/dialog-state';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
 let root: Root | undefined;
 let host: HTMLElement | undefined;
 afterEach(() => {
+  confirmed.length = 0;
+  dialogs.auto = true;
+  dialogs.native = false;
+  appDialogs.dismiss();
+  dialogs.callbacks.length = 0;
   act(() => root?.unmount());
   host?.remove();
   root = undefined;
@@ -88,6 +108,9 @@ const studio: ConnectHost = {
 it('signs in, lists the account Hosts and pairs with the chosen one', async () => {
   let email: string | null = null;
   const account = {
+    pendingDeletion: vi.fn(async () => false),
+    finishLocalCleanup: vi.fn(),
+    actionKey: vi.fn(async () => 'session-a'),
     email: vi.fn(async () => email),
     signIn: vi.fn(async () => {
       email = 'alice@example.com';
@@ -99,6 +122,7 @@ it('signs in, lists the account Hosts and pairs with the chosen one', async () =
     })),
     signOut: vi.fn(async () => {
       email = null;
+      return { ok: true as const, value: undefined };
     }),
     deleteAccount: vi.fn(),
   };
@@ -132,6 +156,9 @@ it('signs in, lists the account Hosts and pairs with the chosen one', async () =
 
 it('shows the account refusal and returns to sign-in when the session expired', async () => {
   const account = {
+    pendingDeletion: vi.fn(async () => false),
+    finishLocalCleanup: vi.fn(),
+    actionKey: vi.fn(async () => 'session-a'),
     email: vi.fn(async () => 'alice@example.com' as string | null | undefined),
     signIn: vi.fn(),
     hosts: vi.fn(async () => ({ ok: false as const, code: 'sign-in-required' as const })),
@@ -158,6 +185,9 @@ it('deletes the account after confirmation and shows a refusal when the relay fa
     { ok: true as const, value: undefined },
   ];
   const account = {
+    pendingDeletion: vi.fn(async () => false),
+    finishLocalCleanup: vi.fn(),
+    actionKey: vi.fn(async () => 'session-a'),
     email: vi.fn(async () => email),
     signIn: vi.fn(),
     hosts: vi.fn(async () => ({ ok: true as const, value: [studio] })),
@@ -202,6 +232,9 @@ it('disables saved and offline computers while selecting multiple available comp
   };
   const spare = { ...other, id: 'hspare', name: 'Spare', hostname: 'hspare.deepseekbot.dev' };
   const account = {
+    pendingDeletion: vi.fn(async () => false),
+    finishLocalCleanup: vi.fn(),
+    actionKey: vi.fn(async () => 'session-a'),
     email: async () => 'alice@example.com',
     hosts: async () => ({ ok: true as const, value: [studio, other, offline, spare] }),
     signIn: vi.fn(),
@@ -256,6 +289,9 @@ it('ignores an old account lookup after the account owner changes', async () => 
     resolve = done;
   });
   const account = {
+    pendingDeletion: vi.fn(async () => false),
+    finishLocalCleanup: vi.fn(),
+    actionKey: vi.fn(async () => 'session-a'),
     email: () => oldEmail,
     hosts: vi.fn(async () => ({ ok: true as const, value: [studio] })),
     signIn: vi.fn(),
@@ -284,4 +320,172 @@ it('ignores an old account lookup after the account owner changes', async () => 
   await act(async () => resolve('old@example.com'));
   expect(account.hosts).not.toHaveBeenCalled();
   expect(host.textContent).not.toContain('old@example.com');
+});
+
+it.each(['signOut', 'deleteAccount'] as const)(
+  'keeps %s inert until confirmation and ignores duplicate confirmation',
+  async (action) => {
+    const { createAccountActionFixture } = await import('../src/host/account-action-fixture');
+    const fixture = createAccountActionFixture();
+    dialogs.auto = false;
+    host = document.createElement('div');
+    document.body.append(host);
+    root = createRoot(host);
+    await act(async () =>
+      root!.render(
+        <AccountHosts
+          account={fixture.account}
+          busy={false}
+          saved={fixture.saved()}
+          results={{}}
+          onPair={vi.fn()}
+        />,
+      ),
+    );
+    const before = fixture.getSnapshot();
+    const button = host.querySelector<HTMLButtonElement>(
+      `button[aria-label="${t.pairAccount[action]}"]`,
+    )!;
+    await act(async () => button.click());
+    expect(dialogs.callbacks).toHaveLength(1);
+    expect(fixture.getSnapshot()).toBe(before);
+    dialogs.callbacks.pop();
+    expect(fixture.getSnapshot()).toBe(before);
+    await act(async () => button.click());
+    const confirm = dialogs.callbacks[0]!;
+    await act(async () => {
+      await confirm();
+      await confirm();
+    });
+    expect(JSON.parse(fixture.getSnapshot())).toMatchObject({
+      signedIn: false,
+      saved: ['manual', 'legacy', 'other'],
+      deletes: action === 'deleteAccount' ? 1 : 0,
+    });
+  },
+);
+
+it('ignores a confirmation opened before navigation or a busy state', async () => {
+  const { createAccountActionFixture } = await import('../src/host/account-action-fixture');
+  const fixture = createAccountActionFixture();
+  dialogs.auto = false;
+  host = document.createElement('div');
+  document.body.append(host);
+  root = createRoot(host);
+  const render = (busy: boolean) =>
+    root!.render(
+      <AccountHosts
+        account={fixture.account}
+        busy={busy}
+        saved={fixture.saved()}
+        results={{}}
+        onPair={vi.fn()}
+      />,
+    );
+  await act(async () => render(false));
+  const before = fixture.getSnapshot();
+  await act(async () =>
+    host!
+      .querySelector<HTMLButtonElement>(`button[aria-label="${t.pairAccount.signOut}"]`)!
+      .click(),
+  );
+  await act(async () => render(true));
+  await act(async () => {
+    await dialogs.callbacks[0]!();
+  });
+  expect(fixture.getSnapshot()).toBe(before);
+  await act(async () => root!.unmount());
+  root = undefined;
+  await act(async () => {
+    await dialogs.callbacks[0]!();
+  });
+  expect(fixture.getSnapshot()).toBe(before);
+});
+
+it('keeps the Android confirmation and error after failure, retries once, and offers confirmed local-only recovery', async () => {
+  const { createAccountActionFixture } = await import('../src/host/account-action-fixture');
+  const fixture = createAccountActionFixture('expired-retry');
+  dialogs.native = true;
+  host = document.createElement('div');
+  document.body.append(host);
+  root = createRoot(host);
+  await act(async () =>
+    root!.render(
+      <AccountHosts
+        account={fixture.account}
+        busy={false}
+        saved={fixture.saved()}
+        results={{}}
+        onPair={vi.fn()}
+      />,
+    ),
+  );
+  await act(async () =>
+    host!
+      .querySelector<HTMLButtonElement>(`button[aria-label="${t.pairAccount.deleteAccount}"]`)!
+      .click(),
+  );
+  const id = appDialogs.getSnapshot()!.id;
+  await act(async () => appDialogs.choose(1, id));
+  expect(appDialogs.getSnapshot()).toMatchObject({
+    id,
+    busy: undefined,
+    error: t.pairRefused['account-deletion-uncertain'],
+  });
+  await act(async () => appDialogs.choose(1, id));
+  expect(appDialogs.getSnapshot()?.error).toBe(t.pairRefused['account-deletion-uncertain']);
+  const before = fixture.getSnapshot();
+  await act(async () => appDialogs.choose(0, id));
+  expect(fixture.getSnapshot()).toBe(before);
+  const recover = () =>
+    host!
+      .querySelector<HTMLButtonElement>(`button[aria-label="${t.pairAccount.cleanupConfirm}"]`)!
+      .click();
+  await act(async () => recover());
+  expect(appDialogs.getSnapshot()?.message).toBe(t.pairAccount.cleanupMessage);
+  await act(async () => appDialogs.choose(0, appDialogs.getSnapshot()!.id));
+  expect(fixture.getSnapshot()).toBe(before);
+  await act(async () => recover());
+  await act(async () => appDialogs.choose(1, appDialogs.getSnapshot()!.id));
+  expect(appDialogs.getSnapshot()).toBeUndefined();
+  expect(JSON.parse(fixture.getSnapshot())).toMatchObject({
+    signedIn: false,
+    deletes: 1,
+    saved: ['manual', 'legacy', 'other'],
+  });
+});
+
+it('retries a failed cleanup in the same Android confirmation without repeating remote deletion', async () => {
+  const { createAccountActionFixture } = await import('../src/host/account-action-fixture');
+  const fixture = createAccountActionFixture('completion-write');
+  dialogs.native = true;
+  host = document.createElement('div');
+  document.body.append(host);
+  root = createRoot(host);
+  await act(async () =>
+    root!.render(
+      <AccountHosts
+        account={fixture.account}
+        busy={false}
+        saved={fixture.saved()}
+        results={{}}
+        onPair={vi.fn()}
+      />,
+    ),
+  );
+  await act(async () =>
+    host!
+      .querySelector<HTMLButtonElement>(`button[aria-label="${t.pairAccount.deleteAccount}"]`)!
+      .click(),
+  );
+  const id = appDialogs.getSnapshot()!.id;
+  await act(async () => appDialogs.choose(1, id));
+  expect(appDialogs.getSnapshot()?.error).toBe(t.pairRefused['account-cleanup-failed']);
+  await act(async () => appDialogs.choose(1, id));
+  expect(appDialogs.getSnapshot()).toBeUndefined();
+  expect(JSON.parse(fixture.getSnapshot())).toMatchObject({
+    signedIn: false,
+    deletes: 1,
+    refreshes: 2,
+  });
 });

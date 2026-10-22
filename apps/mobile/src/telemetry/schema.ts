@@ -23,6 +23,11 @@ export type PairingReason =
   | 'account-not-allowed'
   | 'host-offline'
   | 'relay-unavailable'
+  | 'account-changed'
+  | 'account-identity-required'
+  | 'account-action-pending'
+  | 'account-cleanup-failed'
+  | 'account-deletion-uncertain'
   | 'unknown';
 export type DurationBucket = 'under1s' | '1-5s' | '5-15s' | '15-60s' | '60plus';
 export type ActivationStep = 'host_ready' | 'message_accepted' | 'bot_message_observed';
@@ -136,6 +141,11 @@ const fields: Record<keyof EventProperties, Record<string, (value: unknown) => b
       'account-not-allowed',
       'host-offline',
       'relay-unavailable',
+      'account-changed',
+      'account-identity-required',
+      'account-action-pending',
+      'account-cleanup-failed',
+      'account-deletion-uncertain',
       'unknown',
     ),
     duration_bucket: duration,
