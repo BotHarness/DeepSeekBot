@@ -3,6 +3,7 @@ import { Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import { Pressable, View, useWindowDimensions } from 'react-native';
 
+import { readPairingImage, type PairingImageResult } from '../../src/host/pairing-image';
 import type { PairingMethod } from '../../src/telemetry/schema';
 import { HOST_NAME_MAX } from '../../src/ui/design/host-look';
 import { useDesignTheme } from '../../src/ui/design/theme';
@@ -25,22 +26,66 @@ export default function PairTailscaleScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [link, setLink] = useState('');
   const [focused, setFocused] = useState(false);
+  const [readingImage, setReadingImage] = useState(false);
+  const [imageError, setImageError] = useState<Extract<PairingImageResult, { kind: 'error' }>['code']>();
+  const imageOperation = useRef<AbortController | undefined>(undefined);
+  const active = useRef(false);
+  const submitting = useRef(false);
   const deepLinked = useRef(false);
   const pairing = usePairing();
 
   const pair = async (text: string, method: PairingMethod): Promise<void> => {
-    const failure = await pairing.pair(text, method);
-    if (failure !== undefined && clearsPastedLink(failure, method)) setLink('');
+    if (!active.current || imageOperation.current || submitting.current) return;
+    submitting.current = true;
+    setImageError(undefined);
+    try {
+      const failure = await pairing.pair(text, method);
+      if (active.current && failure !== undefined && clearsPastedLink(failure, method)) setLink('');
+    } finally {
+      submitting.current = false;
+    }
+  };
+
+  const chooseImage = async (): Promise<void> => {
+    if (!active.current || imageOperation.current || submitting.current || pairing.busy) return;
+    const operation = new AbortController();
+    imageOperation.current = operation;
+    setReadingImage(true);
+    setImageError(undefined);
+    const result = await readPairingImage(operation.signal);
+    if (operation.signal.aborted || imageOperation.current !== operation) return;
+    imageOperation.current = undefined;
+    setReadingImage(false);
+    if (result.kind === 'error') setImageError(result.code);
+    else if (result.kind === 'link') {
+      pairing.forget();
+      await pair(result.link, 'qr');
+    }
+  };
+
+  const retry = async (): Promise<void> => {
+    if (!active.current || imageOperation.current || submitting.current) return;
+    submitting.current = true;
+    try {
+      await pairing.retry();
+    } finally {
+      submitting.current = false;
+    }
   };
 
   useFocusEffect(
     useCallback(() => {
+      active.current = true;
       setFocused(true);
       if (typeof params.p === 'string' && !deepLinked.current) {
         deepLinked.current = true;
         void pair(`deepseekbot://pair?p=${params.p}`, 'deep_link');
       }
       return () => {
+        active.current = false;
+        imageOperation.current?.abort();
+        imageOperation.current = undefined;
+        setReadingImage(false);
         setFocused(false);
         pairing.abort();
       };
@@ -83,7 +128,7 @@ export default function PairTailscaleScreen() {
           }}
         >
           {permission?.granted ? (
-            focused && (
+            focused && !readingImage && (
               <CameraView
                 style={{ width: '100%', height: '100%' }}
                 facing="back"
@@ -106,13 +151,25 @@ export default function PairTailscaleScreen() {
         <Text variant="meta" tone="muted" style={{ textAlign: 'center' }}>
           {t.pairHint}
         </Text>
+        <Button
+          testID="pair-choose-image"
+          label={readingImage ? t.pairImage.reading : t.pairImage.choose}
+          busy={readingImage}
+          onPress={() => void chooseImage()}
+        />
       </View>
-      {pairing.error !== undefined ? (
+      {imageError !== undefined ? (
+        <Text accessibilityRole="alert" accessibilityLiveRegion="polite" tone="danger">
+          {t.pairImage[imageError]}
+        </Text>
+      ) : pairing.error !== undefined ? (
         <Text accessibilityRole="alert" accessibilityLiveRegion="polite" tone="danger">
           {pairingFailureText(pairing.error, pairing.method)}
         </Text>
       ) : null}
-      {pairing.canRetry ? <Button label={t.retry} onPress={() => void pairing.retry()} /> : null}
+      {pairing.canRetry && imageError === undefined ? (
+        <Button label={t.retry} disabled={readingImage} onPress={() => void retry()} />
+      ) : null}
       <View style={{ gap: space.x2 }}>
         <Text variant="meta" tone="muted" accessibilityRole="header">
           {t.pasteLink}
@@ -122,6 +179,7 @@ export default function PairTailscaleScreen() {
           value={link}
           onChangeText={(value) => {
             setLink(value);
+            setImageError(undefined);
             pairing.forget();
           }}
           placeholder="deepseekbot://pair?p=…"
@@ -129,6 +187,7 @@ export default function PairTailscaleScreen() {
           autoCorrect={false}
           keyboardType="url"
           returnKeyType="go"
+          editable={!readingImage}
           onSubmitEditing={() => void pair(link, 'paste')}
         />
         <Text variant="meta" tone="muted">
@@ -139,14 +198,14 @@ export default function PairTailscaleScreen() {
         value={pairing.connectionName}
         onChange={pairing.setConnectionName}
         maxLength={HOST_NAME_MAX}
-        disabled={pairing.busy}
+        disabled={pairing.busy || readingImage}
       />
       <Button
         label={t.pair}
         tone="primary"
         on="canvas"
         busy={pairing.busy}
-        disabled={pairing.busy || link.trim() === ''}
+        disabled={pairing.busy || readingImage || link.trim() === ''}
         onPress={() => void pair(link, 'paste')}
       />
     </KeyboardFormScroll>

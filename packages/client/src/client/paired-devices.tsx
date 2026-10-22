@@ -1,5 +1,6 @@
 import { noiseFingerprint } from '../../../core/src/devices/noise/xk.js';
 import { keyBytes } from '../../../../apps/mobile/src/host/encrypted-carrier.js';
+import { checkRoute, isConnectRoute, isLanRoute } from '../../../../apps/mobile/src/host/route.js';
 import { useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
@@ -126,7 +127,7 @@ export function PairedDevicesSettings({ t }: PropsLocale<'botharness'>): ReactEl
   const [busy, setBusy] = useState<string>();
   const [error, setError] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [guided, setGuided] = useState(false);
+  const [showTailscale, setShowTailscale] = useState(false);
   const mounted = useRef(false);
   const known = useRef<Set<string>>(new Set());
 
@@ -143,9 +144,11 @@ export function PairedDevicesSettings({ t }: PropsLocale<'botharness'>): ReactEl
     load(controller.signal).catch(() => {
       if (!controller.signal.aborted) setError(true);
     });
+    const timer = setInterval(() => void load(controller.signal).catch(() => undefined), ROUTE_POLL_MS);
     return () => {
       mounted.current = false;
       controller.abort();
+      clearInterval(timer);
     };
   }, []);
 
@@ -234,7 +237,6 @@ export function PairedDevicesSettings({ t }: PropsLocale<'botharness'>): ReactEl
         }),
       );
       await load();
-      if (action === 'enable') setGuided(false);
       setOffer(undefined);
     } catch {
       if (mounted.current) setError(true);
@@ -297,14 +299,17 @@ export function PairedDevicesSettings({ t }: PropsLocale<'botharness'>): ReactEl
   };
 
   const routes = snapshot?.routes;
-  const reachable = routes === undefined || hasPhoneRoute(routes) || onTailnet();
-  const showSteps = routes !== undefined && (!reachable || guided);
-  if (showSteps && !reachable && !guided) setGuided(true);
-
-  const follow = useMountedResource<HTMLDivElement>(() => {
-    const timer = setInterval(() => void load().catch(() => undefined), ROUTE_POLL_MS);
-    return () => clearInterval(timer);
-  }, []);
+  const ready = routes !== undefined && (hasPhoneRoute(routes) || onTailnet());
+  const tailscaleReady = routes !== undefined && (onTailnet() || routes.routes.some((route) => route.kind === 'tailscale' && route.ready));
+  const lanReady = routes?.routes.some((route) => route.kind === 'lan' && route.ready) === true;
+  const offerKinds = new Set(offer?.routes.map((route) => {
+    if (!checkRoute(route).ok) return undefined;
+    if (isLanRoute(route)) return 'lan';
+    if (isConnectRoute(route)) return 'connect';
+    const url = new URL(route);
+    if (url.hostname === 'localhost' || /^127\./u.test(url.hostname) || url.hostname === '[::1]') return 'loopback';
+    return 'tailscale';
+  }));
 
   const expired = offer !== undefined && Date.parse(offer.expiresAt) <= now;
   const secondsLeft =
@@ -365,12 +370,16 @@ export function PairedDevicesSettings({ t }: PropsLocale<'botharness'>): ReactEl
 
   return (
     <div ref={mount} data-paired-devices="">
-      <SettingsSection>
+      <SettingsSection title={t('devices.connection.title')}>
         {snapshot?.lan ? (
           <SettingsRow
             title={t('devices.lan.title')}
             description={t(
-              snapshot.lan.state === 'listening' ? 'devices.lan.enabled' : 'devices.lan.notice',
+              snapshot.lan.state === 'error'
+                ? 'devices.lan.failed'
+                : snapshot.lan.state === 'listening'
+                  ? lanReady ? 'devices.lan.enabled' : 'devices.lan.noAddress'
+                  : 'devices.lan.notice',
             )}
             data={{ 'data-device-lan': snapshot.lan.state }}
             control={
@@ -387,29 +396,37 @@ export function PairedDevicesSettings({ t }: PropsLocale<'botharness'>): ReactEl
                 )}
               </Button>
             }
-          />
+          >
+            <Note>{t('devices.lan.network')}</Note>
+          </SettingsRow>
         ) : null}
+        <SettingsRow
+          title={t('devices.tailscale.title')}
+          description={t(tailscaleReady ? 'devices.tailscale.ready' : 'devices.tailscale.notice')}
+          data={{ 'data-device-tailscale': tailscaleReady ? 'ready' : 'unprepared' }}
+          control={
+            <Button variant="outline" size="sm" aria-expanded={showTailscale} onClick={() => setShowTailscale(!showTailscale)}>
+              {t(showTailscale ? 'devices.tailscale.hide' : 'devices.tailscale.setup')}
+            </Button>
+          }
+        >
+          {showTailscale && routes ? (
+            <div>
+              <PhoneRouteSteps t={t} status={routes} reachable={tailscaleReady} port={portOf(routes)} onPublish={publish} />
+            </div>
+          ) : null}
+        </SettingsRow>
         <SettingsRow
           title={t('devices.pair.title')}
           description={t('devices.pair.description')}
           data={{ 'data-pair-phone': '' }}
           control={
-            <Button variant="outline" size="sm" onClick={open}>
+            <Button variant="outline" size="sm" disabled={!ready || busy !== undefined} onClick={open}>
               {t('devices.pair.open')}
             </Button>
           }
         >
-          {showSteps ? (
-            <div ref={reachable ? undefined : follow}>
-              <PhoneRouteSteps
-                t={t}
-                status={routes}
-                reachable={reachable}
-                port={portOf(routes)}
-                onPublish={publish}
-              />
-            </div>
-          ) : null}
+          {!ready ? <Note>{t(snapshot ? 'devices.connection.prepare' : 'devices.list.loading')}</Note> : null}
         </SettingsRow>
       </SettingsSection>
       {signIn === undefined ? null : (
@@ -603,6 +620,13 @@ export function PairedDevicesSettings({ t }: PropsLocale<'botharness'>): ReactEl
                   <path d={offer.qr.path} fill="black" />
                 </svg>
                 <Note>{t('devices.pair.expires', { seconds: secondsLeft })}</Note>
+                <Note>
+                  {t('devices.connection.available', { routes: [
+                    ...(offerKinds.has('lan') ? [t('devices.lan.title')] : []),
+                    ...(offerKinds.has('tailscale') ? [t('devices.tailscale.title')] : []),
+                    ...(offerKinds.has('connect') ? [t('devices.connect.title')] : []),
+                  ].join(' · ') })}
+                </Note>
                 {offer.reachable ? null : (
                   <Callout tone="warning">{t('devices.pair.loopbackOnly')}</Callout>
                 )}
