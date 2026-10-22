@@ -40,7 +40,7 @@ import {
   type TelemetryDecision,
   type TelemetrySender,
 } from '../src/telemetry/service.js';
-import { createTestRegistry } from './registry-fixture.js';
+import { createTestRegistry, registryDatabase } from './registry-fixture.js';
 
 const dirs: string[] = [];
 const cleanup: (() => void)[] = [];
@@ -61,7 +61,19 @@ const PERSONA = 'Secret persona text about the Human';
 const GIT_URL = 'https://github.com/someone/private-memory.git';
 const PNG =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/ZFsAAAAASUVORK5CYII=';
-const BASE_KEYS = ['$process_person_profile', 'source'];
+const BASE_KEYS = [
+  '$geoip_disable',
+  '$process_person_profile',
+  'source',
+  'plugin_version',
+  'dsh_version',
+  'os',
+  'arch',
+  'node_version',
+  'os_release_major',
+  'cpu_count_bucket',
+  'total_mem_gb_bucket',
+].sort();
 
 function recorder(decision: TelemetryDecision = { enabled: true }) {
   const events: TelemetryBatchEvent[] = [];
@@ -108,8 +120,11 @@ function expectNoContent(events: TelemetryBatchEvent[], ...extra: string[]): voi
 
 function registryWith(capture: (event: string) => void) {
   const root = tempDir('bh-telemetry-registry-');
+  const database = registryDatabase(join(root, 'bots'));
+  cleanup.push(() => database.close());
   return createTestRegistry({
     rootDir: join(root, 'bots'),
+    database,
     capture,
     cloneMemory: async (destination) => {
       mkdirSync(destination, { recursive: true });
