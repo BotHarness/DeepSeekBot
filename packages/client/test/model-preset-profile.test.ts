@@ -209,7 +209,7 @@ function remoteOwner() {
     ['modelPresetCreate', bridge.modelPresetCreate],
   ]);
   const client = createHostClient({
-    routes: ['https://source.example'],
+    routes: ['https://source.example.ts.net'],
     credential: 'test-only',
     carrier: {
       async request(url, init) {
