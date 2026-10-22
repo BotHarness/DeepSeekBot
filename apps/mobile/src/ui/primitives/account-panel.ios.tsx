@@ -1,16 +1,29 @@
 import { Host } from '@expo/ui';
-import { Button, Form, HStack, Image, Section, Spacer, Text, VStack } from '@expo/ui/swift-ui';
 import {
+  Button,
+  Form,
+  HStack,
+  Image,
+  Label,
+  Section,
+  Spacer,
+  Text,
+  VStack,
+} from '@expo/ui/swift-ui';
+import {
+  accessibilityHidden,
   accessibilityLabel,
   buttonStyle,
   disabled,
   font,
   foregroundStyle,
   frame,
+  labelStyle,
+  offset,
   tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { useDesignTheme } from '../design/theme';
-import { space } from '../design/tokens';
+import { accountActionIcon, space } from '../design/tokens';
 import { t } from '../strings';
 import type { AccountPanelProps } from './account-panel';
 
@@ -36,18 +49,20 @@ export function AccountPanel(props: AccountPanelProps) {
             />
           ) : props.email !== false ? (
             <>
-              <Button
-                label={t.pairAccount.signOut}
+              <AccountAction
+                testID="account-sign-out"
+                label={props.pendingDeletion ? t.pairAccount.cleanupConfirm : t.pairAccount.signOut}
                 systemImage="rectangle.portrait.and.arrow.right"
                 onPress={props.onSignOut}
-                modifiers={[tint(theme.color.danger), disabled(locked)]}
+                locked={locked}
               />
-              <Button
+              <AccountAction
+                testID="account-delete"
                 label={t.pairAccount.deleteAccount}
                 systemImage="trash"
                 role="destructive"
                 onPress={props.onDelete}
-                modifiers={[tint(theme.color.danger), disabled(locked)]}
+                locked={locked}
               />
             </>
           ) : null}
@@ -139,5 +154,50 @@ export function AccountPanel(props: AccountPanelProps) {
         ) : null}
       </Form>
     </Host>
+  );
+}
+
+function AccountAction(props: {
+  testID: string;
+  label: string;
+  systemImage: 'rectangle.portrait.and.arrow.right' | 'trash';
+  role?: 'destructive';
+  onPress: () => void;
+  locked: boolean;
+}) {
+  const theme = useDesignTheme();
+  return (
+    <Button
+      testID={props.testID}
+      role={props.role ?? 'default'}
+      onPress={props.onPress}
+      modifiers={[
+        tint(theme.color.danger),
+        disabled(props.locked),
+        accessibilityLabel(props.label),
+      ]}
+    >
+      <Label
+        modifiers={[labelStyle('titleAndIcon')]}
+        icon={
+          <Image
+            systemName={props.systemImage}
+            modifiers={[
+              font({ textStyle: 'body' }),
+              foregroundStyle(theme.color.danger),
+              ...(props.systemImage === 'rectangle.portrait.and.arrow.right'
+                ? [offset({ x: accountActionIcon.signOutOpticalOffset * theme.fontScale })]
+                : []),
+              frame({ width: accountActionIcon.slot * theme.fontScale, alignment: 'center' }),
+              accessibilityHidden(),
+            ]}
+          />
+        }
+      >
+        <Text modifiers={[font({ textStyle: 'body' }), foregroundStyle(theme.color.danger)]}>
+          {props.label}
+        </Text>
+      </Label>
+    </Button>
   );
 }
